@@ -5,8 +5,11 @@
    - population: active, non-stale stocks (last bar = E) without a PRICE_BREAK remark and with a finite value at E
      (P4: hidden tickers are outside it; a ticker the user shows through a chip is ranked AGAINST it, so showing it
      moves no other rank);
-   - pct = 100 x #(population values strictly lower than the ticker's value) / (P - 1); a NaN value is excluded (fixes
-     the prototype's NaN-in-denominator defect, audit/html_model.md section 7 item 9); ties share a rank; P < 2 -> null;
+   - pct = 100 x #(population values strictly lower than the ticker's value) / (P - 1) for a member (report 6.9: the
+     P - 1 others); a NaN value is excluded (fixes the prototype's NaN-in-denominator defect, audit/html_model.md
+     section 7 item 9); ties share a rank; P < 2 -> null. A ticker outside the population (shown through a chip) is
+     compared with all P members, so its denominator is P (with P - 1 its rank could exceed 100: a value above every
+     member would give 100 x P / (P - 1)); every rank stays in [0, 100];
    - IHSG aligned with datafile.asOf where an index value is needed (datafile.ts:259).
    Pure module (no DOM, no Node API). Typed stubs for the core-logic agent. */
 import type { UniverseRow } from './contract.ts';
@@ -16,9 +19,10 @@ export function rankPopulation(rows: readonly UniverseRow[], values: ReadonlyMap
   throw new Error('not implemented: rankPopulation');
 }
 
-/** Percent rank of every ticker in `values` against the population (rule above): a ticker inside or outside the
-    population gets 100 x #(population values strictly lower) / (P - 1); null for a ticker without a finite value or
-    when P < 2. */
+/** Percent rank of every ticker in `values` against the population (rule above): 100 x #(population values strictly
+    lower) / the number of OTHER members it is compared with (P - 1 for a member, P for a ticker outside the
+    population), so a rank is always in [0, 100]; null for a ticker without a finite value, when P < 2, or when it has
+    no other member to be compared with. */
 export function percentRank(values: ReadonlyMap<string, number>, population: ReadonlySet<string>): Map<string, number | null> {
   throw new Error('not implemented: percentRank');
 }

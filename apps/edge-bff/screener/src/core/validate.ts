@@ -10,7 +10,9 @@
      at_least without a whole at_least >= 1; an unknown sector, industry or ticker (refused by name, with the allowed
      list);
    - UNKNOWN_INDICATOR / PARAM_OUT_OF_RANGE: through registry.ts (resolveScreenerParams; the backtest core's
-     resolveParams first, then the narrowing and the caps);
+     resolveParams first, then the narrowing and the caps); an enum option the screener does not offer (P17 a: the I43
+     anchors Session, Decade and Century, including Session taken as the registry default when anchor is left out) is
+     INVALID_CONDITION with the offered options;
    - METRIC_UNAVAILABLE {metric, availability, reason}: a metric whose availability is not AVAILABLE (derived at run
      time from screener-metrics.json `requires` against the files indexed in state.json; report 6.12);
    - LIMIT_EXCEEDED {limit, allowed, needed}: more than max_conditions enabled conditions, more than
@@ -28,9 +30,11 @@ import type { Availability, CatalogParam, Definition, Grouping, MetricKind, Peri
     cross-section, flow, universe attributes, the 32 fundamental metrics) with the Feature_Catalog fields, so a later AI
     onboarding can reuse them. requires: the xsection file and columns the metric reads (null: computed from the price
     snapshot alone); decision: set while the metric waits for a user decision (REQUIRES_DECISION, e.g. P9 bandar);
-    applies_to: a predicate on the reference file, e.g. "Industry = Banks" (NOT_APPLICABLE elsewhere). */
+    applies_to: a predicate on the reference file, e.g. "Industry = Banks" (NOT_APPLICABLE elsewhere). kind: the
+    reference kind a condition on it uses, as contract.ts CatalogMetric (one type for both, so the worker serves an
+    entry as it is); a fundamental metric is a per-ticker value at E, kind 'universe', group naming it fundamental. */
 export interface MetricDefinition {
-  id: string; group: string; kind: MetricKind | 'fundamental';
+  id: string; group: string; kind: MetricKind;
   params: CatalogParam[]; tests: TestKind[]; unit: string | null;
   formula: string; interpretation: string; misuse: string; evidence: string;
   requires: { file: string; columns: string[] } | null;
@@ -67,8 +71,10 @@ export function validateDefinition(input: unknown, ctx: ValidateContext, field =
 export function validateTest(input: unknown, field: string, ctx: ValidateContext): Test {
   throw new Error('not implemented: validateTest');
 }
-/** The universe block, normalized (contract.ts UniverseDef; P4 chips must be booleans; P15 classification values from
-    the groupings). */
+/** The universe block, normalized (contract.ts UniverseDef; P15 classification values from the groupings). The P4 chips
+    traded_on_eval_date and exclude_price_breaks are true when absent (report 8.5 "Default true") and include_unclassified
+    false; a present value that is not a boolean is INVALID_INPUT. The normalized block always holds all three, so the
+    definition hash of a request that leaves a default out equals that of one that states it. */
 export function validateUniverse(input: unknown, field: string, ctx: ValidateContext): UniverseDef {
   throw new Error('not implemented: validateUniverse');
 }

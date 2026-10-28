@@ -79,7 +79,19 @@ export function series(m: Market, t: Tk, ref: MetricRef | Side): S {
   return out;
 }
 
-const lengthOf = (ref: any): number => { const p = ref?.params || ref?.of?.params || {}; const v = Object.entries(p).find(([k]) => /length/.test(k)); return Number(v?.[1] ?? 20) };
+/** the longest look-back of the references of a test (the fixture's stand-in for report 6.12's lookback rule) */
+const lookback = (refs: any[]): number => {
+  let n = 1;
+  const walk = (r: any) => {
+    if (!r || typeof r !== 'object') return;
+    if (r.kind === 'indicator') { const reg = BY_ID[r.indicator]; const p = reg ? resolveParams(reg, r.params || {}) : {}; for (const [k, v] of Object.entries(p)) if (/length/.test(k) && typeof v === 'number') n = Math.max(n, v) }
+    for (const v of Object.values(r.args || {})) if (typeof v === 'number') n = Math.max(n, v);
+    for (const v of Object.values(r.params || {})) if (typeof v === 'number') n = Math.max(n, v);
+    walk(r.of);
+  };
+  refs.forEach(walk);
+  return n;
+};
 const refsOf = (t: any): any[] => [t.metric, t.lhs, t.rhs, t.pattern, t.signal?.lhs, t.signal?.rhs, t.signal?.pattern].filter(Boolean);
 
 /** one condition on one ticker at its last bar */
@@ -87,7 +99,7 @@ export function evaluate(m: Market, t: Tk, cd: ConditionDef): { cell: Cell; sign
   const at = t.c.length - 1, tt = cd.test as any, eval_date = t.d[at];
   const base = { id:cd.id, eval_date, reason:null, remark:null } as Cell;
   const priceDerived = refsOf(tt).some(r => r.kind === 'indicator' || r.kind === 'transform' || r.kind === 'pattern');
-  if (t.breakAt != null && priceDerived && t.breakAt >= at - lengthOf(refsOf(tt)[0]) - 1) base.remark = 'PRICE_BREAK_IN_LOOKBACK';
+  if (t.breakAt != null && priceDerived && t.breakAt > at - lookback(refsOf(tt))) base.remark = 'PRICE_BREAK_IN_LOOKBACK';
   if (tt.kind === 'value') {
     const v = series(m, t, tt.metric)[at];
     if (!isN(v)) return { cell:{ ...base, status:'na', value:null, reason:'NULL_AT_EVALUATION' }, signal:null };

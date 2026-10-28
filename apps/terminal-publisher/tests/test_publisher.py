@@ -509,13 +509,24 @@ def test_the_xsection_files_are_written_before_the_state_json_that_indexes_them(
 
 
 def test_terminal_api_reads_the_index_as_written():
-    """The reader of the index (terminal-api bucket.py xsection_index, /state and /xsection) keeps every entry."""
+    """The reader of the index (terminal-api bucket.py xsection_index, /state and /xsection) keeps every entry, and the
+    publisher keeps (carries forward, protects from pruning) exactly the entries terminal-api serves."""
     spec = importlib.util.spec_from_file_location('terminal_api_bucket', ROOT / 'apps/terminal-api/app/bucket.py')
     reader = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(reader)
     _, _, bucket = run('backfill')
     index = bucket.get_json('state.json')['xsection']
-    assert reader.xsection_index(index) == index
+    assert reader.xsection_index(index) == index == pub.xsection_entries(index)
+    good = index['price']
+    own = lambda name, hexes=good['sha256'][:16]: f'v1/xsection/{name}.{hexes}.json.gz'
+    raw = {**index, 'stamped': {**good, 'key': own('stamped'), 'stamp': 'x', 'as_of': 'y' * 65},
+           'Price': good, 'other': good, 'a': {**good, 'key': own('a', 'g' * 16)}, 'b': {**good, 'key': 'v1/manifest/b.json'},
+           'c': {**good, 'key': own('c', 'a' * 16), 'sha256': 'A' * 64}, 'd': {**good, 'key': own('d'), 'bytes': 0},
+           'e': {**good, 'key': own('e'), 'bytes': True}, 'f': {**good, 'key': own('f'), 'rows': -1},
+           'g': {**good, 'key': own('g'), 'rows': '5'}, 'h': 'v1/xsection/h.json.gz',
+           'i': {**good, 'key': own('i', '0' * 16)}, 'j': {**good, 'key': own('j')[3:]}}
+    assert pub.xsection_entries(raw) == reader.xsection_index(raw)
+    assert sorted(pub.xsection_entries(raw)) == ['actions', 'price', 'stamped']
 
 
 def test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward():
@@ -551,6 +562,34 @@ def test_pruning_keeps_the_objects_of_the_previous_index():
     pub.Publisher(conn, bucket, today=TODAY).run('daily')
     k3 = xsection(bucket, 'price')[0]['key'][3:]
     assert k1 not in bucket.objects and {k2, k3, actions, 'xsection/README.txt'} <= set(bucket.objects)
+
+
+def test_an_indexed_object_missing_from_the_bucket_is_put_again():
+    _, conn, bucket = run('backfill')
+    key = xsection(bucket, 'price')[0]['key'][3:]
+    body = bucket.objects.pop(key)                                    # deleted by hand: the index names a missing object
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert bucket.objects[key] == body and xsection(bucket, 'price')[0]['key'] == f'v1/{key}'
+
+
+def test_a_bucket_that_cannot_list_or_delete_prunes_nothing_and_still_publishes():
+    _, conn, bucket = run('backfill')
+    k1 = xsection(bucket, 'price')[0]['key'][3:]
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    k2 = xsection(bucket, 'price')[0]['key'][3:]
+    conn.prices = conn.prices + [('BBCA', '2026-01-06', 101.0, 104.0, 100.0, 103.0, 700.0)]
+    bucket.keys = lambda prefix: (_ for _ in ()).throw(PermissionError())    # no ListObjectsV2
+    p = pub.Publisher(conn, bucket, today=TODAY)
+    p.run('daily')
+    k3 = xsection(bucket, 'price')[0]['key'][3:]
+    assert p.xsection_failed == [] and {k1, k2, k3} <= set(bucket.objects) and bucket.puts[-1] == 'state.json'
+    del bucket.keys                                                   # listing works again, deleting does not
+    bucket.delete = lambda key: (_ for _ in ()).throw(PermissionError())
+    conn.prices = conn.prices + [('BBCA', '2026-01-07', 103.0, 104.0, 100.0, 102.0, 600.0)]
+    p = pub.Publisher(conn, bucket, today=TODAY)
+    p.run('daily')
+    assert p.xsection_failed == [] and {k1, k2, k3} <= set(bucket.objects) and bucket.puts[-1] == 'state.json'
 
 
 def test_xsection_files_are_deterministic_and_never_rewritten():

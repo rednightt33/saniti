@@ -5,8 +5,9 @@
       for ids, keys, parameters, types, defaults, min, max, options, not_accepted and outputs (labels and the workbook
       unit come from the Terminal's indRegistry.json it is built from);
    2. the hand-kept src/core/screener-overlay.json: product choices only (shape, allowed test forms per output with
-      the prototype's operators and labels, search synonyms, the card a new condition opens with), explicit overrides
-      with their evidence, and the provisional cost model of the caps (P5);
+      the prototype's operators and labels, search synonyms, the card a new condition opens with, the options of an
+      enum parameter a user decision narrows with its start value, today P17 a for the I43 anchor), explicit
+      overrides with their evidence, and the provisional cost model of the caps (P5);
    3. fields derived here by running the Terminal's own formulas F (apps/edge-bff/terminal/src/calc/indicators.ts) on
       a deterministic synthetic series, for all 76 outputs: first_valid_bar, history_class (cut probe), unit and
       level_comparable (scaling and shift probes), price_compare_lag (lag probe), inputs per enum option (poison
@@ -270,6 +271,20 @@ export function overlayProblems(overlay, base) {
     }
     if (e.probe !== undefined && !(e.probe && typeof e.probe.params === 'object' && typeof e.probe.evidence === 'string' && e.probe.evidence))
       out.push(`overlay ${r.id}: probe needs params and evidence`);
+    // offered options of an enum parameter (a user decision, e.g. P17 a): a non-empty subset of the base options with
+    // the decision as evidence; `start` names the value a card opens with exactly when the registry default is not
+    // offered (report 13 P17 consequence), and nowhere else (narrow-only: the base default itself never changes)
+    for (const [k, spec] of Object.entries(e.params || {})) {
+      const p = r.params.find(x => x.key === k), where = `overlay ${r.id}.params.${k}`;
+      if (!p || p.type !== 'enum') { out.push(`${where}: only an enum parameter of ${r.key} can have its options narrowed`); continue }
+      const opts = spec?.options;
+      if (!Array.isArray(opts) || !opts.length || opts.some(o => !p.options.includes(o)) || new Set(opts).size !== opts.length)
+        out.push(`${where}: options must be a non-empty subset of the base options ${p.options}, without repeats`);
+      else if (opts.includes(p.default) ? spec.start !== undefined : !opts.includes(spec.start))
+        out.push(`${where}: start is required, and one of the options, exactly when the registry default ${p.default} is not offered`);
+      if (typeof spec?.decision !== 'string' || !spec.decision) out.push(`${where}: decision (the user's decision and where it is recorded) is required`);
+      for (const x of Object.keys(spec || {})) if (!['options', 'start', 'decision'].includes(x)) out.push(`${where}: ${x} is not a field (options, start, decision)`);
+    }
     const dt = e.default_test;
     if (dt !== null) {
       const t = dt && (e.outputs?.[dt.output]?.tests || []).find(x => x.form === dt.form);
@@ -312,19 +327,27 @@ export async function build() {
   const indicators = base.indicators.map(r => {
     const ov = overlay.indicators[r.id], ti = byTerminal[r.id], fn = F[r.key];
     if (!fn || !ti) throw new Error(`${r.id}: no function or terminal entry`);
-    const defaults = { ...DEFAULTS[r.key] };
+    // the options the screener offers per enum parameter (the base's, or the overlay's decided subset in base order),
+    // and the start configuration: the registry defaults, with the overlay's start where the registry default is not
+    // offered (P17 a: I43 anchor Week instead of Session). It is what a new card opens with and what the snapshot
+    // pre-warms (report 6.7), so the derived fields below are measured on it.
+    const offered = Object.fromEntries(r.params.filter(p => p.type === 'enum')
+      .map(p => [p.key, ov.params?.[p.key] ? p.options.filter(o => ov.params[p.key].options.includes(o)) : p.options]));
+    const starts = Object.fromEntries(Object.entries(ov.params || {}).filter(([, s]) => s.start !== undefined).map(([k, s]) => [k, s.start]));
+    const startParams = resolveParams(BY_ID[r.id], starts, `overlay ${r.id}.params`);
+    const defaults = { ...DEFAULTS[r.key], ...starts };
     const run = (bars, over = {}) => fn(bars, { ...defaults, ...over });
     const bandOutputs = ov.shape === 'band' ? r.outputs : [];
     const hasAnchor = r.params.some(p => p.key === 'anchor');
-    // the scaling and lag probes may run at the overlay's probe configuration (with evidence; today I43, whose default
-    // anchor makes its bands degenerate); every other field is measured at the registry defaults
+    // the scaling and lag probes may run at the overlay's probe configuration (with evidence; today I43, whose registry
+    // default anchor makes its bands degenerate); every other field is measured at the start configuration
     const probeParams = ov.probe ? resolveParams(BY_ID[r.id], { ...ov.probe.params }, `overlay ${r.id}.probe.params`) : {};
     const full = run(B), cutOut = run(cut), units = unitProbe(b => run(b, probeParams), B), atProbe = run(B, probeParams);
     const inputs = inputsProbe(b => run(b), B, r.outputs);
     const inputsBy = {};
     for (const p of r.params.filter(q => q.type === 'enum')) {
       inputsBy[p.key] = {};
-      for (const opt of p.options) {
+      for (const opt of offered[p.key]) {
         const per = inputsProbe(b => run(b, { [p.key]: opt }), B, r.outputs);
         for (const o of r.outputs) (inputsBy[p.key][opt] ||= {})[o] = per[o];
       }
@@ -335,6 +358,12 @@ export async function build() {
       const q = { key: p.key, type: p.type, label: tp?.label ?? null, default: p.default };
       for (const k of ['min', 'max', 'step', 'options']) if (p[k] !== undefined) q[k] = p[k];
       q.exclusive_min = false; q.integer = p.type === 'integer'; q.narrowing = [];
+      const decided = ov.params?.[p.key];
+      if (decided) {
+        q.options = offered[p.key];
+        q.narrowing.push({ rule: 'options', source: 'decision', evidence: decided.decision });
+        if (decided.start !== undefined) q.start = decided.start;
+      }
       if ((p.type === 'integer' || p.type === 'number') && p.min !== undefined) {
         const why = degenerate(run(B, { [p.key]: p.min }), r.outputs, bandOutputs);
         const ovr = overrides.find(x => x.param === p.key);
@@ -349,8 +378,8 @@ export async function build() {
         const c = costClass(run, CB, p.key, p.default);
         q.cost_class = c.cost_class;
         // worst over the enum options: a basis or method can swap a running-sum kernel for a window loop (I32 sample)
-        for (const e of r.params.filter(x => x.type === 'enum')) for (const opt of e.options) {
-          if (q.cost_class === 'O(N·n)' || opt === e.default) continue;
+        for (const e of r.params.filter(x => x.type === 'enum')) for (const opt of offered[e.key]) {
+          if (q.cost_class === 'O(N·n)' || opt === defaults[e.key]) continue;
           if (costClass((bars, over) => run(bars, { [e.key]: opt, ...over }), CB, p.key, p.default).cost_class === 'O(N·n)') q.cost_class = 'O(N·n)';
         }
       }
@@ -390,6 +419,8 @@ export async function build() {
       id: r.id, key: r.key, name: r.name, category: r.category, short: ti.short ?? null,
       formula_version: base.registry_version,
       params,
+      start_params: startParams,
+      default_offered: !Object.keys(starts).length,
       hidden_params: r.not_accepted.filter(n => n.reason === 'not read by the calculation module').map(n => ({ key: n.key, reason: n.reason })),
       fixed_params: r.not_accepted.filter(n => n.reason !== 'not read by the calculation module').map(n => ({ key: n.key, value: n.value, reason: n.reason })),
       outputs, history_class: history,
@@ -399,10 +430,12 @@ export async function build() {
       oracle: oracleRows, oracle_note: orc.oracle_note ?? null,
     };
   });
-  // narrow-only (report 6.8): the overlay and the derived fields never widen a base range or add a parameter
+  // narrow-only (report 6.8): the overlay and the derived fields never widen a base range or add a parameter or option
   for (const s of indicators) for (const p of s.params) {
     const b = BY_ID[s.id].params.find(x => x.key === p.key);
-    if (!b || p.min !== b.min || p.max !== b.max || p.default !== b.default || (b.type === 'integer' && !p.integer)) throw new Error(`narrow-only: ${s.id}.${p.key} differs from the base`);
+    if (!b || p.min !== b.min || p.max !== b.max || p.default !== b.default || (b.type === 'integer' && !p.integer)
+      || (b.options && (!p.options?.length || p.options.some(o => !b.options.includes(o)))) || (p.start !== undefined && !p.options?.includes(p.start)))
+      throw new Error(`narrow-only: ${s.id}.${p.key} differs from the base`);
   }
   const doc = {
     schema_version: 1,

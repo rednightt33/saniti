@@ -84,14 +84,17 @@ export function refresh(level: Level) {
   } finally { inRefresh = false }
 }
 /** the last open screen, for the next visit (scr.last) */
-let rememberT: ReturnType<typeof setTimeout> | undefined;
-function remember() {
-  clearTimeout(rememberT);
-  rememberT = setTimeout(() => {
+let rememberT: ReturnType<typeof setTimeout> | undefined, pending = false;
+function remember(now = false) {
+  clearTimeout(rememberT); pending = true;
+  const write = () => {
+    pending = false;
     if (!ctx.catalog) return;
     saveLast({ name:S.name, definition:definitionOf(), ...(S.source?.kind === 'saved' ? { item_id:S.source.item_id } : S.source?.kind === 'preset' ? { preset:S.source.id } : {}), sort:S.sort, near:S.nearMiss });
-  }, 400);
+  };
+  if (now) write(); else rememberT = setTimeout(write, 400);
 }
+addEventListener('pagehide', () => { if (pending) remember(true) });
 
 /* ---- catalog and universe ---------------------------------------------------------------------------------- */
 function useCatalog(c: CatalogResponse) {
@@ -165,7 +168,7 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   const pp = panelPrefs();
   S.preview = !!pp.preview; S.bOpen = pp.bOpen ?? true; S.perPage = [10, 25, 50, 100].includes(pp.perPage!) ? pp.perPage! : 25;
   S.pvView = pp.pvView === 'perf' ? 'perf' : 'chart'; S.perf = pp.perf || '6M';
-  Object.assign(ui, { refresh, renderHeader, renderUniverse, renderPresets, renderConds, renderResults, renderDetails, togglePreview, pickStock, openSource, toast, markDirty, schedule, versionSeen });
+  Object.assign(ui, { refresh, renderHeader, renderUniverse, renderPresets, renderConds, renderResults, renderDetails, togglePreview, pickStock, openSource, toast, markDirty, schedule, versionSeen, remember });
   runHooks.mark = mark;
   runHooks.answered = (def, bytes, r) => { if (ctx.login) boot.putResult(ctx.login, def, bytes, r) };
   bind();

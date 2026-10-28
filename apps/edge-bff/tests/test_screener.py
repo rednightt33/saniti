@@ -10,6 +10,7 @@ import concurrent.futures
 import dataclasses
 import gzip
 import hashlib
+import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
@@ -103,23 +104,33 @@ class FakeScreenerWorker:
         self.max_length = 1000         # /v1/validate refuses an indicator length above it (PARAM_OUT_OF_RANGE)
         self.validate_versions = True  # /v1/validate answers carry versions (report 8.3: every worker answer)
         self.rows = 3                  # rows of a run answer
+        self.published = '2026-10-27T13:03:23Z'   # data.published_at of every answer (state.json finished_at)
+        self.pending = {}              # path -> how many more calls answer the worker-only 409 DATA_VERSION_PENDING
+        self.sent = {}                 # path -> the last body bytes the route sent (gzip when it packed them)
         self.limits = [{'name': 'max_conditions', 'value': 20, 'unit': 'conditions', 'rule': 'at most 20 enabled conditions',
                         'example_ok': 'a screen with 20 enabled conditions', 'example_refused': 'a screen with 21 enabled conditions'}]
         worker = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'    # keep-alive, as the worker's Node server: edge-bff's pooled connection is reused
+
             def log_message(self, *args):
                 pass
 
             def answer(self, status, body=None, raw=None, headers=None):
                 data = raw if raw is not None else json.dumps(body).encode()
                 packed = 'gzip' in self.headers.get('accept-encoding', '') and raw is None
+                tag = '"' + hashlib.sha256(data).hexdigest() + '"'
                 if packed:
                     data = gzip.compress(data)
+                with worker.lock:
+                    worker.sent[self.path] = data
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
                 if packed:
                     self.send_header('Content-Encoding', 'gzip')
+                if packed and 200 <= status < 300:
+                    self.send_header('ETag', tag)       # report 6d.5: the worker's ETag of the JSON bytes
                 for k, v in (headers or {}).items():
                     self.send_header(k, v)
                 self.send_header('Content-Length', str(len(data)))
@@ -138,14 +149,15 @@ class FakeScreenerWorker:
 
             def data(self):
                 return {'evaluation_date': '2026-10-27', 'price_through': '2026-10-27', 'flow_through': None,
-                        'broker_behind_sessions': 0, 'published_at': '2026-10-27T13:03:23Z'}
+                        'broker_behind_sessions': 0, 'published_at': worker.published}
 
             def handle_one(self, method):
                 length = int(self.headers.get('content-length') or 0)
                 body = json.loads(self.rfile.read(length)) if length else None
                 with worker.lock:
                     worker.calls.append({'method': method, 'path': self.path, 'body': body,
-                                         'key': self.headers.get('x-screener-worker-key')})
+                                         'key': self.headers.get('x-screener-worker-key'),
+                                         'owner': self.headers.get('x-screener-owner'), 'port': self.client_address[1]})
                 v = worker.versions
                 if self.path == '/health':
                     return self.answer(200, {'ok': True, 'versions': v, 'published_at': '2026-10-27T13:03:23Z',
@@ -169,6 +181,13 @@ class FakeScreenerWorker:
                 if self.path in worker.refuse:
                     status, error = worker.refuse[self.path]
                     return self.answer(status, {'error': error})
+                with worker.lock:
+                    pending = worker.pending.get(self.path, 0)
+                    if pending:
+                        worker.pending[self.path] = pending - 1
+                if pending:
+                    return self.answer(409, {'error': {'code': 'DATA_VERSION_PENDING',
+                                                       'message': 'This replica has not loaded that publication yet.'}})
                 route = (method, self.path)
                 if route == ('GET', '/v1/catalog'):
                     return self.answer(200, {'versions': v, 'data': {**self.data(), 'refresh': worker.refresh},
@@ -284,7 +303,10 @@ def test_catalog_and_universe_are_kept_per_worker_state_with_an_etag(app, worker
     body = first.json()
     assert body['versions'] == worker.versions and body['data']['refresh'] == 'ready'
     names = [x['name'] for x in body['limits']]
-    assert names == ['max_conditions', 'saved_items', 'watchlist', 'saved_definition_bytes', 'request_bytes']
+    assert names == ['max_conditions', 'saved_items', 'watchlist', 'saved_definition_bytes', 'request_bytes',
+                     'inflight_per_page']
+    assert all(set(x) == {'name', 'value', 'unit', 'rule', 'example_ok', 'example_refused'} and all(x.values())
+               for x in body['limits'])
     saved = body['limits'][1]
     assert saved == {'name': 'saved_items', 'value': 50, 'unit': 'items of each kind',
                      'rule': 'at most 50 saved screens and 50 My metrics',
@@ -324,7 +346,8 @@ def test_catalog_and_universe_are_kept_per_worker_state_with_an_etag(app, worker
                                           'example_refused': 'z'}]
     sc.health['at'] = None
     limits = c.get('/api/v1/screener/catalog').json()['limits']
-    assert [x['name'] for x in limits] == ['watchlist', 'saved_items', 'saved_definition_bytes', 'request_bytes']
+    assert [x['name'] for x in limits] == ['watchlist', 'saved_items', 'saved_definition_bytes', 'request_bytes',
+                                           'inflight_per_page']
     assert limits[0]['value'] == 7
 
 
@@ -423,6 +446,150 @@ def test_worker_failures_map_to_the_contract(app, worker, caplog):
     assert 'screener_worker_key_refused' in caplog.text and 'k' * 40 not in caplog.text and KEY not in caplog.text
 
 
+def test_every_worker_call_but_health_carries_the_owner_tag(app, worker):
+    """Report 8.11 and 6d.6: edge-bff sends x-screener-owner, the first 16 hex of HMAC-SHA256(SCREENER_WORKER_KEY,
+    owner_key), with the key on every worker call except /health, so the worker can share its threads fairly per owner
+    without learning the owner's key."""
+    c = app
+    c.get('/api/v1/screener/catalog')
+    c.get('/api/v1/screener/universe')
+    c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body())
+    c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body())
+    c.post('/api/v1/screener/counts', headers=c.headers_for, json={'schema_version': 1, 'definitions': []})
+    assert put(c, 1, screen_item()).status_code == 200
+    tag = hmac.new(KEY.encode(), c.app.state.screeners.settings.owner.encode(), hashlib.sha256).hexdigest()[:16]
+    assert {x['path'] for x in worker.calls} == {'/health', '/v1/catalog', '/v1/universe', '/v1/run', '/v1/preview',
+                                                 '/v1/counts', '/v1/validate'}
+    for call in worker.calls:
+        expected = (None, None) if call['path'] == '/health' else (KEY, tag)
+        assert (call['key'], call['owner']) == expected, call['path']
+    assert c.app.state.screeners.settings.owner not in tag
+
+
+def test_relayed_answers_are_the_workers_gzip_bytes_never_parsed(app, worker, monkeypatch):
+    """Report 6d.5 and 8.11: a run, preview, counts or validate answer the worker sent gzip goes to a browser as the
+    worker's bytes with its ETag, without being inflated or parsed here (only its versions are read from its head); a
+    client that takes no gzip gets the JSON bytes inflated. A gzip stream that is broken is an answer outside the
+    worker's API."""
+    c = app
+    parses = []
+    real = screener.parsed
+    async def counted(raw):
+        parses.append(len(raw))
+        return await real(raw)
+    monkeypatch.setattr(screener, 'parsed', counted)
+    worker.rows = 2000
+    with c.stream('POST', '/api/v1/screener/run', headers=c.headers_for, json=run_body()) as r:
+        assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip'
+        assert b''.join(r.iter_raw()) == worker.sent['/v1/run']                 # the worker's own gzip bytes
+        etag = r.headers['etag']
+    assert parses == []
+    inflated = gzip.decompress(worker.sent['/v1/run'])
+    assert etag == '"' + hashlib.sha256(inflated).hexdigest() + '"'
+    plain = c.post('/api/v1/screener/run', headers={**c.headers_for, 'Accept-Encoding': 'identity'}, json=run_body(seq=2))
+    assert plain.status_code == 200 and 'content-encoding' not in plain.headers
+    assert plain.content == gzip.decompress(worker.sent['/v1/run'])          # inflated for a client without gzip
+    assert plain.headers['etag'] == '"' + hashlib.sha256(plain.content).hexdigest() + '"'
+    for path, body in (('preview', preview_body()), ('counts', {'schema_version': 1, 'definitions': []}),
+                       ('validate', {'schema_version': 1, 'definition': definition()})):
+        r = c.post('/api/v1/screener/' + path, headers=c.headers_for, json=body)
+        assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip', path
+    assert parses == []
+    # a newer publication in a relayed answer is still seen (its head): the catalog is fetched again
+    c.get('/api/v1/screener/catalog')
+    worker.versions, worker.published = versions('b'), '2026-10-28T00:03:00Z'
+    assert c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=3)).status_code == 200
+    assert c.get('/api/v1/screener/catalog').json()['versions']['price_data'] == sha('price-b')
+    # a broken gzip stream from the worker
+    monkeypatch.setattr(screener, 'peeked', lambda gz: (_ for _ in ()).throw(ValueError('broken')))
+    assert c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=4)).json() == error('SCREENER_UNAVAILABLE')
+
+
+def test_a_pending_data_version_is_asked_once_more_on_a_new_connection_then_not_ready(app, worker):
+    """Report 8.8 and 6d.4 rule 3: the worker-only 409 DATA_VERSION_PENDING (a replica that has not loaded the requested
+    publication yet) never reaches the page: edge-bff asks once more on a new connection (another replica where the
+    private network spreads connections); a second one is 503 SCREENER_NOT_READY with Retry-After 2."""
+    c = app
+    assert c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body()).status_code == 200
+    worker.calls.clear()
+    worker.pending = {'/v1/run': 1}
+    r = c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=2))
+    assert r.status_code == 200 and r.json()['echo']['client_order']['seq'] == 2
+    ports = [x['port'] for x in worker.called('/v1/run')]
+    assert len(ports) == 2 and ports[0] != ports[1]                          # the retry: a new connection
+    worker.calls.clear()
+    worker.pending = {'/v1/preview': 2}
+    r = c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body())
+    assert r.status_code == 503 and r.headers['retry-after'] == '2'
+    assert r.json()['error']['code'] == 'SCREENER_NOT_READY' and 'retry' in r.json()['error']['message']
+    assert len(worker.called('/v1/preview')) == 2
+    worker.pending = {'/v1/counts': 1}
+    assert c.post('/api/v1/screener/counts', headers=c.headers_for, json={'schema_version': 1, 'definitions': []}).status_code == 200
+
+
+def test_worker_refusals_outside_the_contract_are_unavailable(app, worker, caplog):
+    """Only the worker's refusals of report 8.8, each at its status, are passed on; a route the worker does not have,
+    a code outside the contract or a code at another status is an answer outside its API: 503 SCREENER_UNAVAILABLE,
+    logged with its status and code only (never its message)."""
+    c = app
+    post = lambda: c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body())
+    for status, found in ((404, {'code': 'NOT_FOUND', 'message': 'no route /v1/run on http://x.railway.internal:8080'}),
+                          (422, {'code': 'SOMETHING_ELSE', 'message': 'secret detail'}),
+                          (400, {'code': 'INVALID_INPUT', 'message': 'wrong status'}),
+                          (409, {'code': 'REVISION_CONFLICT'})):
+        worker.refuse = {'/v1/run': (status, found)}
+        with caplog.at_level(logging.WARNING, logger='edge_bff.screener'):
+            r = post()
+        assert r.status_code == 503 and r.json() == error('SCREENER_UNAVAILABLE'), found
+        assert found['code'] in caplog.text and 'secret detail' not in caplog.text and 'railway.internal' not in caplog.text
+    worker.refuse = {'/v1/run': (413, {'code': 'REQUEST_TOO_LARGE', 'message': 'at most 65536 bytes'})}
+    assert post().status_code == 413
+    # a refusal of the contract is passed on, with any internal address in it redacted, and never the key
+    worker.refuse = {'/v1/run': (422, {'code': 'INVALID_CONDITION', 'field': 'definition.logic',
+                                       'message': 'see http://screener-worker.railway.internal:8080/v1/run',
+                                       'details': {'allowed': ['all', 'any', 'at_least'], 'from': 'screener-worker.railway.internal'}})}
+    r = post()
+    assert r.status_code == 422 and r.json()['error']['field'] == 'definition.logic'
+    assert 'railway.internal' not in r.text and KEY not in r.text and '[internal address]' in r.json()['error']['message']
+
+
+def test_an_answer_over_the_read_cap_is_unavailable(app, worker, monkeypatch, caplog):
+    """edge-bff reads at most WORKER_ANSWER_BYTES of one worker answer, as received and inflated (report 6d.5)."""
+    c = app
+    worker.rows = 2000
+    monkeypatch.setattr(screener, 'WORKER_ANSWER_BYTES', 4096)
+    with caplog.at_level(logging.ERROR, logger='edge_bff.screener'):
+        r = c.post('/api/v1/screener/run', headers={**c.headers_for, 'Accept-Encoding': 'identity'}, json=run_body())
+    assert r.status_code == 503 and r.json() == error('SCREENER_UNAVAILABLE')
+    assert 'screener_worker_answer_too_large' in caplog.text
+    with pytest.raises(ValueError):
+        screener.inflate(gzip.compress(b'x' * 5000))                       # small as received, too large inflated
+
+
+def test_the_catalog_never_goes_back_and_ignores_transient_refresh_states(app, worker):
+    """Report 6d.5 and 8.10: the catalog is replaced only by a later publication (a replica that has not swapped yet
+    may answer), the transient refresh states of /health (refreshing, loading) change no catalog byte and fetch nothing,
+    and an answer at an older publication (the previous snapshot in its grace window, 6d.4 rule 2) drops nothing."""
+    c = app
+    sc = c.app.state.screeners
+    worker.versions, worker.published = versions('b'), '2026-10-28T00:03:00Z'
+    newer = c.get('/api/v1/screener/catalog')
+    assert newer.json()['data']['published_at'] == '2026-10-28T00:03:00Z'
+    worker.refresh, sc.health['at'] = 'refreshing', None
+    assert c.get('/api/v1/screener/catalog').headers['etag'] == newer.headers['etag']
+    assert len(worker.called('/v1/catalog')) == 1
+    # a replica at the previous publication answers /health and the catalog: the newer one stays
+    worker.versions, worker.published, worker.refresh, sc.health['at'] = versions('a'), '2026-10-27T13:03:23Z', 'ready', None
+    assert c.get('/api/v1/screener/catalog').headers['etag'] == newer.headers['etag']
+    assert len(worker.called('/v1/catalog')) == 2
+    assert c.get('/api/v1/screener/catalog').headers['etag'] == newer.headers['etag']
+    assert len(worker.called('/v1/catalog')) == 2                            # kept for this state: no fetch storm
+    # a run answered at that previous publication drops nothing
+    assert c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body()).status_code == 200
+    assert c.get('/api/v1/screener/catalog').headers['etag'] == newer.headers['etag']
+    assert len(worker.called('/v1/catalog')) == 2
+
+
 # ---- latest wins per owner ------------------------------------------------------------------------------------------
 
 def serve(settings, store):
@@ -460,11 +627,11 @@ def wait_for(check, seconds=5):
     return False
 
 
-def test_a_newer_run_of_the_owner_ends_the_one_in_flight_and_previews_are_their_own_lane(configured, store, worker):
-    """Report 8.1 and 8.9 (one screen and one preview in flight per owner, latest wins; backtest.py latest_preview): a run
-    that arrives while an older one of the owner still waits at the worker ends that one at once (its worker call is
-    closed, it answers 409 SCREEN_REPLACED) and is sent once that call has ended. A preview in flight is not ended by
-    a run: the lanes are independent."""
+def test_a_newer_run_of_the_page_ends_its_one_in_flight_and_other_pages_and_previews_are_their_own(configured, store, worker):
+    """Report 8.1, 8.9 and 6d.6 (one screen and one preview in flight per (owner, page), latest wins; backtest.py
+    latest_preview): a run that arrives while an older one of the same page still waits at the worker ends that one at
+    once (its worker call is closed, it answers 409 SCREEN_REPLACED) and is sent once that call has ended. A run of
+    another page (a second tab, or another person on today's one login) and a preview in flight are not ended by it."""
     wait = 2.0
     worker.delay = {'/v1/run': wait, '/v1/preview': wait}
     local, stop = serve(configured, store)
@@ -473,19 +640,22 @@ def test_a_newer_run_of_the_owner_ends_the_one_in_flight_and_previews_are_their_
         def post(path, body):
             with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:
                 return h.post(path, headers=headers, json=body)
-        with concurrent.futures.ThreadPoolExecutor(3) as pool:
-            shown = pool.submit(post, '/api/v1/screener/preview', preview_body())
+        with concurrent.futures.ThreadPoolExecutor(4) as pool:
+            shown = pool.submit(post, '/api/v1/screener/preview', preview_body(page='pg_a'))
             first = pool.submit(post, '/api/v1/screener/run', run_body(seq=1, page='pg_a'))
-            assert wait_for(lambda: worker.called('/v1/run') and worker.called('/v1/preview'))
+            other = pool.submit(post, '/api/v1/screener/run', run_body(seq=1, page='pg_b'))
+            assert wait_for(lambda: len(worker.called('/v1/run')) == 2 and worker.called('/v1/preview'))
             arrived = time.monotonic()
-            second = pool.submit(post, '/api/v1/screener/run', run_body(seq=1, page='pg_b'))
+            second = pool.submit(post, '/api/v1/screener/run', run_body(seq=2, page='pg_a'))
             ended = first.result()
             assert time.monotonic() - arrived < wait / 2
             assert ended.status_code == 409 and ended.json() == error('SCREEN_REPLACED')
             answered = second.result()
-            assert answered.status_code == 200 and answered.json()['echo']['client_order']['page'] == 'pg_b'
+            assert answered.status_code == 200 and answered.json()['echo']['client_order'] == {'page': 'pg_a', 'seq': 2}
+            assert other.result().status_code == 200                            # another page: never replaced
             assert shown.result().status_code == 200                            # the preview's own lane
-        assert [x['body']['client_order']['page'] for x in worker.called('/v1/run')] == ['pg_a', 'pg_b']
+        assert sorted((x['body']['client_order']['page'], x['body']['client_order']['seq']) for x in worker.called('/v1/run')) == [
+            ('pg_a', 1), ('pg_a', 2), ('pg_b', 1)]
         assert worker.abandoned == ['/v1/run']                                 # the older run's call, closed by edge-bff
     finally:
         stop()
@@ -722,16 +892,32 @@ def test_saved_items_limits(app, worker, monkeypatch):
     assert r.status_code == 422 and r.json()['error']['code'] == 'LIMIT_EXCEEDED' and r.json()['error']['field'] == 'definition'
     assert r.json()['error']['details']['limit'] == 'saved_definition_bytes' and r.json()['error']['details']['allowed'] == 65536
     assert len(worker.called('/v1/validate')) == calls                      # refused before the worker
-    # just under the cap as edge-bff counts it, over it as jsonb text (a space after each ':' and ','): the database
+    # edge-bff counts the bytes as the table's CHECK does (jsonb text: a space after each ':' and ','; UTF-8): exactly
+    # 65,536 is saved and the database holds that many, one more is refused here with what it needed
     monkeypatch.setattr(screener, 'SCREEN_LIMIT', 50)
     spaced = screen_item('spaced')
-    spaced['definition']['view'] = {'keys': {f'k{k}': k for k in range(4000)}}
-    size = len(json.dumps(spaced['definition'], separators=(',', ':')).encode())
-    spaced['definition']['view']['pad'] = 'x' * (65536 - size - 9)
-    assert len(json.dumps(spaced['definition'], separators=(',', ':')).encode()) <= 65536
+    spaced['definition']['view'] = {'keys': {f'k{k}': k for k in range(4000)}, 'note': 'é'}
+    size = screener.stored_bytes(spaced['definition'])
+    assert size > len(json.dumps(spaced['definition'], separators=(',', ':')).encode()) + 7000
+    spaced['definition']['view']['pad'] = 'x' * (65536 - size - len(', "pad": ""'))
+    assert screener.stored_bytes(spaced['definition']) == 65536
     r = put(c, 6, spaced)
+    assert r.status_code == 200, r.text
+    assert db(c, 'SELECT octet_length(definition::text) AS n FROM edge_bff.screener_items WHERE item_id=%s', item_id(6))[0]['n'] == 65536
+    spaced['definition']['view']['pad'] += 'x'
+    calls = len(worker.called('/v1/validate'))
+    r = put(c, 7, {**spaced, 'name': 'spaced 2'})
+    assert r.status_code == 422 and r.json()['error']['details'] == {'limit': 'saved_definition_bytes', 'allowed': 65536,
+                                                                     'needed': 65537}
+    assert len(worker.called('/v1/validate')) == calls                      # refused before the worker
+    # a number the database writes out longer than JSON does (1e+300: 301 digits) passes here and is refused by the
+    # table's CHECK, with the same code
+    wide = screen_item('wide')
+    wide['definition']['view'] = {'big': 1e300, 'pad': ''}
+    wide['definition']['view']['pad'] = 'x' * (65536 - screener.stored_bytes(wide['definition']))
+    r = put(c, 8, wide)
     assert r.status_code == 422 and r.json()['error']['details'] == {'limit': 'saved_definition_bytes', 'allowed': 65536}
-    assert db(c, 'SELECT count(*) AS n FROM edge_bff.screener_items')[0]['n'] == 3
+    assert db(c, 'SELECT count(*) AS n FROM edge_bff.screener_items')[0]['n'] == 4
 
 
 def test_items_and_watchlist_are_the_owners_own(app, worker):

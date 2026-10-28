@@ -711,18 +711,19 @@ def test_xsection_index_keeps_only_well_formed_entries():
     good = XSECTION['price']
     assert xsection_index(None) is None and xsection_index(['price']) is None and xsection_index({}) == {}
     assert xsection_index({'price': {**good, 'stamp': 'x'}}) == {'price': good}
-    zeros = f'v1/xsection/a.{"0" * 16}.json.gz'
+    own = lambda name, hexes=SHA_PRICE[:16]: f'v1/xsection/{name}.{hexes}.json.gz'   # the key the publisher writes
     refused = {
         'Price': good,                                                     # name: lower case, digits, _ and -
         'actions': good,                                                   # key of another name
-        'a': {**good, 'key': zeros.replace('0', 'g')},                     # not hex
+        'a': {**good, 'key': own('a', 'g' * 16)},                          # not hex
         'b': {**good, 'key': 'v1/manifest/b.json'},
-        'c': {**good, 'key': zeros, 'sha256': 'A' * 64},
-        'd': {**good, 'key': zeros.replace('/a.', '/d.'), 'bytes': 0},
-        'e': {**good, 'key': zeros.replace('/a.', '/e.'), 'bytes': True},
-        'f': {**good, 'key': zeros.replace('/a.', '/f.'), 'rows': -1},
-        'g': {**good, 'key': zeros.replace('/a.', '/g.'), 'rows': '5'},
-        'h': 'v1/xsection/h.json.gz'}
+        'c': {**good, 'key': own('c', 'a' * 16), 'sha256': 'A' * 64},
+        'd': {**good, 'key': own('d'), 'bytes': 0},
+        'e': {**good, 'key': own('e'), 'bytes': True},
+        'f': {**good, 'key': own('f'), 'rows': -1},
+        'g': {**good, 'key': own('g'), 'rows': '5'},
+        'h': 'v1/xsection/h.json.gz',
+        'i': {**good, 'key': own('i', '0' * 16)}}                          # the 16 hex are not the sha256's first 16
     assert xsection_index(refused) == {}
-    assert xsection_index({'a': {**good, 'key': zeros, 'as_of': 7}})['a']['as_of'] is None
+    assert xsection_index({'a': {**good, 'key': own('a'), 'as_of': 7}})['a']['as_of'] is None
 

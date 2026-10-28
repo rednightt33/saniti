@@ -37,6 +37,13 @@ describe('applyUniverse', () => {
     expect([r.counts.stale_hidden, r.counts.price_break_hidden]).toEqual([0, 0]);
     expect(r.eligible.find(x => x.ticker === 'PBSA')!.remarks[0].code).toBe('PRICE_BREAK');
   });
+  it('a request that leaves the P4 chips out hides as the defaults do (report 8.5 "Default true"); only false shows', () => {
+    const { traded_on_eval_date: _t, exclude_price_breaks: _e, ...rest } = def();
+    const r = applyUniverse(ROWS, rest as UniverseDef);
+    expect(r.eligible.map(x => x.ticker)).toEqual(['BBCA', 'XCID', 'EDGE']);
+    expect([r.counts.stale_hidden, r.counts.price_break_hidden]).toEqual([1, 1]);
+    expect(tickers(def({ traded_on_eval_date: false }))).toContain('ADHI');
+  });
   it('a stale ticker that also has a price break is counted once, as stale', () => {
     const both = [row('BOTH', { stale: true, remarks: [{ code: 'PRICE_BREAK', action: 'RIGHT_ISSUE', ex_date: '2026-09-22', ratio_old: null, ratio_new: null, close_ratio: null }] })];
     expect(applyUniverse(both, def()).counts).toEqual({ listed: 1, eligible: 0, stale_hidden: 1, price_break_hidden: 0, filtered_out: 0 });

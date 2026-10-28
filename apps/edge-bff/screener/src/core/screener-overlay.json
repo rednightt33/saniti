@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "about": "Hand-kept product choices of the EDGE Screener (report TARGET ARCHITECTURE 6.8, 6.9.1): per registry indicator the prototype shape, the test forms each output allows (with the prototype operators and labels), search synonyms and the card a new condition opens with; plus explicit overrides with evidence and the provisional cost model of the caps. Never a parameter range, unit, lag or input list: those come from backtest-registry.json or are derived by scripts/build-screener-registry.mjs.",
+  "about": "Hand-kept product choices of the EDGE Screener (report TARGET ARCHITECTURE 6.8, 6.9.1): per registry indicator the prototype shape, the test forms each output allows (with the prototype operators and labels), search synonyms, the card a new condition opens with and, where a user decision narrows them, the offered options of an enum parameter with the value a card opens with (params; today P17 a for the I43 anchor); plus explicit overrides with evidence and the provisional cost model of the caps. Never a parameter range, unit, lag or input list: those come from backtest-registry.json or are derived by scripts/build-screener-registry.mjs.",
   "cost_model": {
     "status": "PROVISIONAL (P5): replaced by the Phase 17 measurement on the service, recorded in verification/screener/BENCHMARK.md with CPU and Node version",
     "rule": "cap = floor(SCREENER_CAP_BUDGET_MS * 1e6 / (ns_per_bar_length * reference_bars)) for a parameter whose cost_class is O(N·n); none for O(N)",
@@ -2158,6 +2158,18 @@
           "anchor": "Month"
         },
         "evidence": "At the default anchor Session each daily bar is its own period, so upper1 and lower1 are one price plus or minus its own deviation (0 up to floating residue) and the scaling and lag probes would measure that residue; they run on a monthly anchor, where the bands are real. The unit and comparison of an output do not depend on the anchor."
+      },
+      "params": {
+        "anchor": {
+          "options": [
+            "Week",
+            "Month",
+            "Quarter",
+            "Year"
+          ],
+          "start": "Week",
+          "decision": "P17 (a), decided with the go of 2026-10-28 (EXEC.md EXEC-SCREENER: \"Keputusan lain (P5-P7, P15-P19, P21-P23) mengikuti rekomendasi laporan\"; report 13 P17, 6.9.1 vwap row): only the Week, Month, Quarter and Year anchors are offered. At Session each daily bar is its own period, so vwap = hlc3 within 2e-16 and a condition reduces to close vs typical price; Decade and Century span all stored history and behave like cumulative rows (report 04 footnote 19). start Week: the P17 consequence built as recommended (report 13 P17, 15 'to confirm'): the registry default Session is not offered, so the card opens as Custom at anchor Week and the snapshot pre-warms that configuration (report 6.7); the registry itself is unchanged (P6)."
+        }
       },
       "outputs": {
         "vwap": {

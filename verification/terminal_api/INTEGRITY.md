@@ -39,3 +39,21 @@ Cross-check of "zero source_balance_gap rows in 2021-2026": Feature 06 has 4 suc
 are warrant symbols, which the publisher does not publish (stock and index tickers only), so the statement holds for
 every published file. The gap path itself remains exercised only by the unit test (`tests/test_publisher.py`) and by
 history requests before 2021.
+
+## Since EXEC-SCREENER (2026-10-28): state.json and the bucket listing
+
+The audit above predates packs, logos and the cross-sectional files. A later audit of the bucket counts, besides the
+data files, manifests, packs, reference files, logos and `state.json`:
+- **`state.json` `xsection`** = `{name: {key, sha256, bytes, rows, as_of}}`, the index of the run's cross-sectional
+  files (Phase 1: `price` and `actions`), written by `apps/terminal-publisher/publisher.py` after the files it names.
+  `key` is `v1/xsection/<name>.<first 16 hex of sha256>.json.gz`; `as_of` is the newest date of the `price` file and the
+  newest `ingestion_time` of `idx_event_annotation` for `actions`. A mode that does not rebuild a file (`logos`,
+  `broker-range`; `events` for `price`) carries its entry forward unchanged.
+- **Keys under `v1/xsection/`**: the objects the current index names, plus those the previous index named until the
+  next run that rebuilds a file; the publisher deletes any other key of that form there (never another key), so at most
+  two objects per name are expected, and an object of that form no index names is an orphan of a crashed run until the
+  next rebuild. Each object's bytes and sha256 equal its index entry.
+- **Content checks**: the publisher's `verify` mode checks each indexed xsection file: bytes and sha256; each ticker's
+  slice of `price` encodes to the ticker's published price pack (manifest `packs.price.sha256`) and has the rows,
+  first and last date and sum of closes of SQL, and every published ticker with final daily rows is in it; the
+  `actions` rows equal what the publisher's statement returns now.

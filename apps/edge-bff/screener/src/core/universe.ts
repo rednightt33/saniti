@@ -9,10 +9,11 @@
      sectors_out / industries_out: drop a row whose value is in the list; never drop an unclassified row (P15);
    - price_min: last >= price_min; adv20_min_idr: adv20_idr >= adv20_min_idr; min_history_bars: bars >= the value;
      a null attribute fails a set bound (it cannot be shown to pass); boundaries inclusive (TEST PLAN 10b.5);
-   - traded_on_eval_date (default true, P4): drop stale rows (row.stale, last_bar < E as the worker built the row);
-     counted in stale_hidden;
-   - exclude_price_breaks (default true, P4): drop rows with a PRICE_BREAK remark; counted in price_break_hidden
-     (a row both stale and broken is counted once, as stale: the chips are applied in that order);
+   - traded_on_eval_date (default true, P4; absent means true, report 8.5 "Default true": only an explicit false
+     shows them): drop stale rows (row.stale, last_bar < E as the worker built the row); counted in stale_hidden;
+   - exclude_price_breaks (default true, P4; absent means true as above): drop rows with a PRICE_BREAK remark; counted
+     in price_break_hidden (a row both stale and broken is counted once, as stale: the chips are applied in that
+     order, so the counts form one funnel: listed = eligible + stale_hidden + price_break_hidden + filtered_out);
    - tickers: keep only the listed tickers (validate.ts has refused unknown ones by name);
    - metric_filters on a universe attribute ({kind: 'universe', attr} naming a numeric field of the row: last,
      chg_1d_pct, adv20_idr, bars) are applied here with the VALUE rule (gt, lt strict; between inclusive; a null value
@@ -53,11 +54,12 @@ export function applyUniverse(rows: readonly UniverseRow[], def: UniverseDef): U
   const filters = (def.metric_filters || []).map(t => ({ t, attr: rowAttr(t, rows[0]) }));
   const pending = filters.flatMap((f, i) => f.attr === null ? [i] : []);
   const tickers = def.tickers ? new Set(def.tickers) : null, unclassified = def.include_unclassified === true;
+  const hideStale = def.traded_on_eval_date !== false, hideBroken = def.exclude_price_breaks !== false;   // P4: on unless switched off
   let stale = 0, broken = 0;
   const eligible: UniverseRow[] = [];
   for (const r of rows) {
-    if (def.traded_on_eval_date && r.stale) { stale++; continue }
-    if (def.exclude_price_breaks && hasPriceBreak(r)) { broken++; continue }
+    if (hideStale && r.stale) { stale++; continue }
+    if (hideBroken && hasPriceBreak(r)) { broken++; continue }
     if (tickers && !tickers.has(r.ticker)) continue;
     if (!included(r.sector, def.sectors_in, unclassified) || inList(r.sector, def.sectors_out)) continue;
     if (!included(r.industry, def.industries_in, unclassified) || inList(r.industry, def.industries_out)) continue;

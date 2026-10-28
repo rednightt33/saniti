@@ -74,7 +74,7 @@ export const ui = {
   refresh: (_level: 'all' | 'universe' | 'universe-light' | 'conds' | 'conds-light' | 'results') => {},
   renderHeader: () => {}, renderUniverse: () => {}, renderPresets: () => {}, renderConds: () => {}, renderResults: () => {},
   renderDetails: () => {}, togglePreview: (_on: boolean) => {}, pickStock: (_tk: string) => {}, openSource: (_id: string) => {},
-  toast: (_m: string) => {}, markDirty: () => {}, schedule: (_now?: boolean) => {}, versionSeen: (_v: Versions) => {},
+  toast: (_m: string) => {}, markDirty: () => {}, schedule: (_now?: boolean) => {}, versionSeen: (_v: Versions) => {}, remember: (_now?: boolean) => {},
 };
 
 export const activeCards = (cards = S.cards) => cards.filter(c => c.on);

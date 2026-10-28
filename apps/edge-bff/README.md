@@ -133,10 +133,10 @@ edge-bff relays them, keeps the catalog and the universe per worker state, and s
 | --- | --- |
 | GET `/api/v1/screener/catalog` | the worker's `CatalogResponse` with edge-bff's own limits added to `limits[]` (`saved_items`, `watchlist`, `saved_definition_bytes`, `request_bytes`, each with its rule and one right and one wrong example; a limit the worker lists is kept as it is); `ETag` = sha256 of the JSON bytes, `If-None-Match` -> 304 |
 | GET `/api/v1/screener/universe` | the worker's `UniverseResponse`; `ETag` / 304 as the catalog |
-| POST `/api/v1/screener/run` | `RunRequest` -> `RunResponse`, relayed as sent (`client_order` included); latest wins per owner: 409 `SCREEN_REPLACED` |
-| POST `/api/v1/screener/preview` | `PreviewRequest` -> `PreviewResponse`; latest wins per owner in its own lane: 409 `PREVIEW_REPLACED` |
+| POST `/api/v1/screener/run` | `RunRequest` -> `RunResponse`, relayed as sent (`client_order` included) and answered with the worker's gzip bytes and `ETag`; latest wins per (owner, page): 409 `SCREEN_REPLACED` |
+| POST `/api/v1/screener/preview` | `PreviewRequest` -> `PreviewResponse`, as the run; latest wins per (owner, page) in its own lane: 409 `PREVIEW_REPLACED` |
 | POST `/api/v1/screener/validate` | `ValidateRequest` -> `{valid, definition_hash, normalized}` or the worker's 422 |
-| POST `/api/v1/screener/counts` | `CountsRequest` -> `CountsResponse` (the worker's limit on definitions) |
+| POST `/api/v1/screener/counts` | `CountsRequest` -> `CountsResponse` (the worker's limit on definitions), as the run |
 | GET `/api/v1/screener/items?kind=screen\|metric` | `{items: SavedItem[]}` of the owner (one kind, or both without `kind`), latest changed first, each with `needs_review` |
 | PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 422 `LIMIT_EXCEEDED` |
 | DELETE `/api/v1/screener/items/{item_id}` | 204; 404 `NOT_FOUND` |
@@ -148,18 +148,32 @@ there is one and the fix (AGENTS.md "Gates and evidence"). A body that is not a 
 422 `INVALID_INPUT` before anything is relayed, as for the backtest (`backtest.loads`), and a body over 131,072 bytes
 413 `REQUEST_TOO_LARGE` with its fix. The relayed calls are awaited on the event loop; the worker's 4xx error is passed
 on with its status, its own 504 `TIMEOUT` as 504 (edge-bff waits `SCREENER_TIMEOUT_SECONDS` + 30 s for an answer), its
-own 503 `SCREENER_NOT_READY` (no snapshot yet) as 503 with `Retry-After`; the worker unreachable or answering outside
-its API is 503 `SCREENER_UNAVAILABLE`, the feature off (no `SCREENER_WORKER_URL`) 503 `SCREENER_DISABLED`, the tables
-missing 503 `SCREENER_NOT_READY` with `Retry-After: 60` (`/ready` does not read them). Runs and previews are latest wins
-per owner, each in its own lane, as the backtest's signals preview: a call that arrives while an older one of the same
-owner is in flight ends that one (its worker call is closed; 409) and is sent once it has ended; a call its page had
-already sent a newer one of (by `client_order {page, seq}`) answers 409 at once and never reaches the worker; a call
-whose page went away is cancelled, which closes its connection to the worker.
+own 503 `SCREENER_NOT_READY` (no snapshot yet) as 503 with `Retry-After`; its worker-only 409 `DATA_VERSION_PENDING` (a
+replica that has not loaded the requested publication yet) is asked once more on a new connection, then answered 503
+`SCREENER_NOT_READY` with `Retry-After: 2`. Only the worker's refusals of the contract (report 8.8: `INVALID_INPUT`,
+`INVALID_CONDITION`, `UNKNOWN_INDICATOR`, `PARAM_OUT_OF_RANGE`, `METRIC_UNAVAILABLE`, `LIMIT_EXCEEDED` 422,
+`DATA_UNAVAILABLE`, `DATA_INTEGRITY` 424, `BUSY`, `DATA_VERSION_CHANGED` 409, `REQUEST_TOO_LARGE` 413), each at its
+status, are passed on (internal addresses redacted); the worker unreachable or answering outside its API (another code
+or status, a route it does not have, an answer over 16 MiB) is 503 `SCREENER_UNAVAILABLE` (logged with its status and
+code only), the feature off (no `SCREENER_WORKER_URL`) 503 `SCREENER_DISABLED`, the tables missing 503
+`SCREENER_NOT_READY` with `Retry-After: 60` (`/ready` does not read them). Every worker call but `/health` carries the
+key and `x-screener-owner`, the first 16 hex of HMAC-SHA256(`SCREENER_WORKER_KEY`, owner), so the worker can be fair
+per owner without learning the owner (report 8.11, 6d.6). A run, preview, counts or validate answer the worker sends
+gzip is passed to the browser as its bytes with its `ETag`, never parsed here (only the versions at its head are read);
+it is inflated only for a client that takes no gzip (report 6d.5). Runs and previews are latest wins per (owner, page),
+each in its own lane, as the backtest's signals preview: a call that arrives while an older one of the same page is in
+flight ends that one (its worker call is closed; 409) and is sent once it has ended, while another page's calls (a
+second tab, or another person on today's one login) go on; a call its page had already sent a newer one of (by
+`client_order {page, seq}`) answers 409 at once and never reaches the worker; a call whose page went away is cancelled,
+which closes its connection to the worker.
 
 The catalog and the universe are kept in memory per worker state: edge-bff reads the worker's `/health` (versions and
-refresh state) at most every 60 s and fetches a document again only when that state changed; a worker answer at
-another `price_data` drops them at once (PAGE LOAD SEQUENCE 6c.5). While the worker cannot answer, the last ones are
-kept. Answers keep the house `Cache-Control: no-store`; the page keeps the bytes itself and sends `If-None-Match`.
+the last refresh outcome; the transient `refreshing` and `loading` change no catalog byte) at most every 60 s and
+fetches a document again only when that state changed; a worker answer at another `price_data` and not at an older
+publication (the previous snapshot in its grace window) has them fetched again at their next request (PAGE LOAD
+SEQUENCE 6c.5). A document is never replaced by one of an older `published_at` (a replica that has not swapped yet,
+report 6d.5). While the worker cannot answer, the last ones are kept. Answers keep the house `Cache-Control: no-store`;
+the page keeps the bytes itself and sends `If-None-Match`.
 
 Saved items (P12 a, user 2026-10-28): a saved screen (`kind` `screen`, `definition` `{definition, view?}`) or a My
 metric (`kind` `metric`, `definition` `{test}`, validated as the one condition of a screen of the required universe
@@ -169,7 +183,10 @@ under other registry versions than the worker's current ones is validated again 
 `needs_review` with its field (kept per definition and versions; not listed while the worker cannot answer). Limits
 (`app/screener.py`, the `PIN_LIMIT` precedent; values set in Phase 1, to be recorded in `EXEC.md`): `SCREEN_LIMIT` 50
 saved screens and 50 My metrics per owner (so the worker's counts call takes every saved screen at once),
-`WATCHLIST_LIMIT` 500 tickers, a definition at most 65,536 bytes of JSON (also the table's CHECK on its jsonb text).
+`WATCHLIST_LIMIT` 500 tickers, a definition at most 65,536 bytes of JSON as the table's CHECK measures its jsonb text
+(a space after each colon and comma, UTF-8; edge-bff counts the same way before the worker, and the CHECK refuses a
+number the database writes out longer with the same code). These and `inflight_per_page` (1 screen and 1 preview per
+page) are published in the catalog's `limits[]` with their rule and examples.
 
 Tables (migration `database/migrations/20261028_001_edge_bff_screener.sql`): `edge_bff.screener_items` (item id
 `scr_` + 32 hex, owner, kind, name unique per owner and kind, definition, schema and registry versions, definition

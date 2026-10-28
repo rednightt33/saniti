@@ -102,7 +102,7 @@ export function openSave() {
     const done = (it: SavedItem) => {
       ctx.saved = [...(ctx.saved || []).filter(s => s.item_id !== it.item_id), it];
       S.name = it.name; S.source = { kind:'saved', item_id:it.item_id, revision:it.revision }; S.dirty = false; S.pcat = 'My screens';
-      closeDialog(); ui.renderPresets(); ui.renderHeader(); toast(`${it.name} saved to My screens`);
+      closeDialog(); ui.renderPresets(); ui.renderHeader(); ui.remember(true); toast(`${it.name} saved to My screens`);
     };
     const go = async (e?: Event) => {
       e?.preventDefault();

@@ -107,6 +107,8 @@ trading calendar (Asia/Jakarta), money in IDR, lots decimal (1 lot = 100 shares)
 | `POST /files` | presigned URLs | `{ticker, dataset: price\|broker, years: [..]}` (max 6 years per call) | `[{year, url, expires_at, sha256, bytes}]` |
 | `GET /logo/{ticker}` | logo image (added 2026-10-26, EXEC-TERMINAL-LOGO) | ticker | PNG or SVG, cached a week; 404 when none |
 | `POST /bundle` | every file of one ticker (added 2026-10-26, EXEC-TERMINAL-UI-1026 U6) | `{ticker, datasets?}` | manifest window and per dataset the presigned URLs; quota and audit as `/files` |
+| `GET /state` | the publication the files belong to (added 2026-10-27, EXEC-BACKTEST-LOAD K1; `xsection` added 2026-10-28, EXEC-SCREENER) | — | `{finished_at, price_through, broker_through, broker_behind_sessions, xsection}`; no file granted, no quota, no audit row (`BACKTEST_END_TO_END.md` §6.2) |
+| `POST /xsection` | cross-sectional files for the screener-worker (added 2026-10-28, EXEC-SCREENER P1 a); the gateway key only, a subscriber session is 403 `gateway_only` | `{names: [..]}` (1-16 names of the `/state` index) | `{finished_at, expires_in_seconds, encoding, files: [{name, url, sha256, bytes, rows, as_of}]}`; one file per name and its bytes against the quota under `REF`, one audit row (dataset `xsection`) |
 | `GET /history/price` | fallback > 5 years | ticker, from, to (≤ 10 years) | columnar OHLCV |
 | `GET /history/broker` | fallback > 5 years | ticker, from, to (≤ 1 year per call), optional brokers[], investor_type, market_board | columnar F05 rows |
 

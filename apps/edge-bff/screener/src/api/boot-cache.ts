@@ -31,6 +31,9 @@ const decode = <T>(b: Uint8Array | null): T | null => { if (!b) return null; try
 
 export class BootCache {
   private ptr: BootPointer | null;
+  /* writes run one after the other: each reads the pointer the previous one wrote (catalog, then universe, then result) */
+  private q: Promise<unknown> = Promise.resolve();
+  private seq<T>(fn: () => Promise<T>): Promise<T> { const p = this.q.then(fn, fn); this.q = p.catch(() => undefined); return p }
   constructor(private cache: FileCache, private storage: { get<T>(k: string, d: T): T; set(k: string, v: unknown): void; del(k: string): void } = store) {
     const p = storage.get<BootPointer | null>(KEYS.boot, null);
     this.ptr = p && typeof p === 'object' && typeof p.login === 'string' && p.versions ? p : null;
@@ -58,7 +61,10 @@ export class BootCache {
   }
 
   /** Store verified bytes (sha256 = etag) and point at them. A new version drops the rest of the pointer (6c.5 item 2). */
-  async putCatalog(login: string, bytes: Uint8Array, etag: string | null, body: CatalogResponse): Promise<boolean> {
+  putCatalog(login: string, bytes: Uint8Array, etag: string | null, body: CatalogResponse): Promise<boolean> { return this.seq(() => this.catalogNow(login, bytes, etag, body)) }
+  putUniverse(login: string, bytes: Uint8Array, etag: string | null, body: UniverseResponse): Promise<boolean> { return this.seq(() => this.universeNow(login, bytes, etag, body)) }
+  putResult(login: string, definition: Definition, bytes: Uint8Array, body: RunResponse): Promise<boolean> { return this.seq(() => this.resultNow(login, definition, bytes, body)) }
+  private async catalogNow(login: string, bytes: Uint8Array, etag: string | null, body: CatalogResponse): Promise<boolean> {
     if (!etag || await sha256Hex(bytes) !== etag) return false;
     await this.cache.put(etag, bytes);
     const v = strip(body.versions), p = this.ptr;
@@ -67,7 +73,7 @@ export class BootCache {
       universe_sha:keep ? p!.universe_sha : null, last:keep ? p!.last : null });
     return true;
   }
-  async putUniverse(login: string, bytes: Uint8Array, etag: string | null, body: UniverseResponse): Promise<boolean> {
+  private async universeNow(login: string, bytes: Uint8Array, etag: string | null, body: UniverseResponse): Promise<boolean> {
     const p = this.ptr;
     if (!etag || !p || p.login !== login || !sameVersions(p.versions, body.versions)) return false;
     if (await sha256Hex(bytes) !== etag) return false;
@@ -76,7 +82,7 @@ export class BootCache {
     return true;
   }
   /** the last open screen's result (no ETag: stored under the sha256 of its own bytes) */
-  async putResult(login: string, definition: Definition, bytes: Uint8Array, body: RunResponse): Promise<boolean> {
+  private async resultNow(login: string, definition: Definition, bytes: Uint8Array, body: RunResponse): Promise<boolean> {
     const p = this.ptr;
     if (!p || p.login !== login || !sameVersions(p.versions, body.versions) || !body.versions.definition_hash) return false;
     const sha = await sha256Hex(bytes);

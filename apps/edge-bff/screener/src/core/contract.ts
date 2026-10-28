@@ -38,7 +38,7 @@ export const SCHEMA_VERSION = 1;
 export interface Versions {
   screener_engine: string;            // 16 hex: content hash of screener core, worker src, imported core and calc files, Node major
   registry: string;                   // 16 hex: registry_version of backtest-registry.json, passed through
-  screener_registry: string;          // 16 hex: screener_registry_version of screener-registry.json
+  screener_registry: string;          // 16 hex: screener_registry_version of screener-registry.json, sha256 over base + overlay + derived fields (report 6.8 Versions; 8.3 abbreviates it as base + overlay)
   price_data: string;                 // 64 hex: datafile.dataVersion over (ticker, 'price', pack sha256) of every ticker
   flow_data: string | null;           // the same over the flow files; null before Phase 2
   definition_hash?: string;           // 64 hex, run and counts only: sha256 of canonicalJson(definition, params resolved, labels removed)
@@ -80,9 +80,10 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, number>> = Object.freeze({
   SCREENER_DISABLED: 503, SCREENER_NOT_READY: 503, SCREENER_UNAVAILABLE: 503, TIMEOUT: 504,
 });
 export const ERROR_CODES = Object.freeze(Object.keys(ERROR_STATUS) as ErrorCode[]);
-/** LIMIT_EXCEEDED details (report 8.8, 8.9): which limit, the allowed value and what the request needed;
-    `costliest` (a condition id) for limit 'compute_budget'. */
-export interface LimitExceededDetails { limit: LimitName | 'compute_budget'; allowed: number; needed: number; costliest?: string }
+/** LIMIT_EXCEEDED details (report 8.8, 8.9): which limit (a LimitName, so the page finds its rule and examples in
+    catalog.limits[] by the same name), the allowed value and what the request needed; `costliest` (a condition id)
+    for limit 'compute_budget'. */
+export interface LimitExceededDetails { limit: LimitName; allowed: number; needed: number; costliest?: string }
 /** PARAM_OUT_OF_RANGE details (report 8.8 `{field, min, max}`): max = the base max or the derived cap, whichever is
     lower; exclusive_min and integer say which narrowing rule refused the value (report 6.8 rules a and b). */
 export interface ParamRangeDetails { field: string; min?: number; max?: number; exclusive_min?: boolean; integer?: boolean }
@@ -106,7 +107,9 @@ export const PRICE_FIELDS: readonly PriceField[] = ['open', 'high', 'low', 'clos
 export type Board = 'regular' | 'all';
 
 /** A registry indicator output (I01..I53 today). params: accepted parameters only, missing ones take the registry
-    default; checked by the backtest core's resolveParams plus the screener narrowing (registry.ts). */
+    default; checked by the backtest core's resolveParams plus the screener narrowing (registry.ts), never adjusted:
+    a registry default the screener does not offer (P17 a: I43 anchor Session) is refused naming params.anchor with
+    the offered options, so the page sends the catalog's `default` values. */
 export interface IndicatorRef { kind: 'indicator'; indicator: string; params?: ParamMap; output: string }
 /** A bar field of the ticker's own bars. */
 export interface PriceRef { kind: 'price'; field: PriceField }
@@ -159,11 +162,13 @@ export const CONDITION_ID = /^[0-9a-z]{1,6}$/;
       the _out filters never drop it (P15); 'Undefined' is not a value; values come from catalog.groupings;
     - price_min (last close), adv20_min_idr (liquidity() at E): number >= 0 or null; min_history_bars: integer >= 1
       or null; boundaries inclusive;
-    - traded_on_eval_date (default true, P4): hides stale tickers (last bar before E); false lists them with the row
-      remark STALE, evaluated at their own last bar;
-    - exclude_price_breaks (default true, P4 user choice; chip "No unadjusted price break"): hides tickers with an
-      unadjusted price-affecting action (ADJUSTED_HISTORY_BOUNDARY <= ex-date <= last bar); false lists them with the
-      row remark PRICE_BREAK and the cell remark PRICE_BREAK_IN_LOOKBACK on affected cells (P4.1 A: values shown);
+    - traded_on_eval_date (default true, P4; report 8.5 "Default true", so a request may leave it out and absent means
+      true, here, in universe.ts and in validate.ts's normalized definition): hides stale tickers (last bar before E);
+      false lists them with the row remark STALE, evaluated at their own last bar;
+    - exclude_price_breaks (default true, P4 user choice; chip "No unadjusted price break"; absent means true as
+      above): hides tickers with an unadjusted price-affecting action (ADJUSTED_HISTORY_BOUNDARY <= ex-date <= last
+      bar); false lists them with the row remark PRICE_BREAK and the cell remark PRICE_BREAK_IN_LOOKBACK on affected
+      cells (P4.1 A: values shown);
     - tickers: an explicit list, each must be in the universe (unknown tickers refused by name);
     - metric_filters: VALUE tests only, at most max_metric_filters. */
 export interface UniverseDef {
@@ -171,8 +176,8 @@ export interface UniverseDef {
   sectors_in?: string[]; sectors_out?: string[]; industries_in?: string[]; industries_out?: string[];
   include_unclassified?: boolean;
   price_min?: number | null; adv20_min_idr?: number | null; min_history_bars?: number | null;
-  traded_on_eval_date: boolean;
-  exclude_price_breaks: boolean;
+  traded_on_eval_date?: boolean;      // absent: true (P4)
+  exclude_price_breaks?: boolean;     // absent: true (P4)
   tickers?: string[] | null;
   metric_filters?: ValueTest[];
 }
@@ -340,12 +345,14 @@ export interface CountsResponse { versions: Versions; data: DataStatus; counts: 
 /* GET catalog, GET universe (report 8.4)                                                                        */
 /* ------------------------------------------------------------------------------------------------------------ */
 
-/** The limits of report 8.9 by name (catalog limits[].name; LIMIT_EXCEEDED details.limit). Worker limits are each an
-    environment variable with no default (SCREENER_MAX_CONDITIONS -> max_conditions, ...); edge-bff's follow its own
-    config (request_bytes, saved_definition_bytes, saved_items, watchlist, inflight_per_page). The refresh caps
-    (max_file_bytes, max_inflated_bytes, max_refresh_bytes) never refuse a request: they fail a refresh
-    (REFRESH_FAILED in the log), so they are listed for transparency only. */
-export type LimitName = 'max_conditions' | 'max_metric_filters' | 'within_max' | 'cap_budget_ms' | 'max_cpu_ms' | 'deadline_ms'
+/** The limits of report 8.9 by name (catalog limits[].name; LIMIT_EXCEEDED details.limit: one name for both, so a
+    refusal points at the published rule). Worker limits are each an environment variable with no default
+    (SCREENER_MAX_CONDITIONS -> max_conditions, SCREENER_MAX_CPU_MS -> compute_budget, the name report 6.10 and 8.8 give
+    its refusal, ...); edge-bff's follow its own config (request_bytes, saved_definition_bytes, saved_items, watchlist,
+    inflight_per_page). The refresh caps (max_file_bytes, max_inflated_bytes, max_refresh_bytes) never refuse a request:
+    they fail a refresh (REFRESH_FAILED in the log), so they are listed for transparency only. The flow `within` +
+    window row of 8.9 joins in Phase 2. */
+export type LimitName = 'max_conditions' | 'max_metric_filters' | 'within_max' | 'cap_budget_ms' | 'compute_budget' | 'deadline_ms'
   | 'inflight_per_page' | 'owner_inflight' | 'previous_grace_s' | 'queue' | 'request_bytes' | 'saved_definition_bytes'
   | 'saved_items' | 'watchlist' | 'max_counts' | 'max_response_bytes' | 'max_file_bytes' | 'max_inflated_bytes'
   | 'max_refresh_bytes';
@@ -392,11 +399,17 @@ export interface DisabledTestForm { form: TestForm; reason: string }
 export interface DefaultTest { form: TestForm; output: string; op: TestOp; value?: number; value2?: number; within?: number }
 
 export interface CatalogParam {
-  key: string; type: 'integer' | 'number' | 'enum' | 'boolean'; label: string | null; default: ParamValue;
+  key: string; type: 'integer' | 'number' | 'enum' | 'boolean';
+  label: string | null;              // additive: the workbook's display label (indRegistry.json params[].label)
+  /** The value a new card opens with: the registry default (P21 a), except where the screener does not offer the
+      registry default (P17 a: I43 anchor Session), where it is the overlay's start value (CatalogIndicator
+      default_offered false). */
+  default: ParamValue;
   min?: number; max?: number;        // max: the base max or the derived cap, whichever is lower (report 6.8 caps)
   exclusive_min: boolean;            // derived degeneracy probe or an overlay override with evidence (report 6.8 rule a)
   integer: boolean;                  // the base type or the derived floor probe (report 6.8 rule b)
-  options?: string[]; step?: number;
+  options?: string[];                // the options the screener offers: the base's, narrowed by a decision (P17 a)
+  step?: number;
 }
 export interface CatalogOutput {
   key: string; shape: Shape; tests: TestFormSpec[];
@@ -415,11 +428,20 @@ export interface CatalogIndicator {
   id: string; key: string; name: string; category: string; synonyms: string[]; formula_version: string;
   params: CatalogParam[]; outputs: CatalogOutput[]; history_class: HistoryClass; cost_class: CostClass;
   overlay: { shape: Shape; default_test: DefaultTest | null };
+  /** additive (report 13 P17 consequence, built as recommended): false when a registry default is not offered (I43:
+      anchor Session, P17 a), so the card has no "Default" chip and opens as Custom at the params' `default` values
+      (anchor Week); every condition on it has is_default false. True for the other 52. */
+  default_offered: boolean;
 }
 /** A non-indicator metric (screener-metrics.json; report 6.12): the Feature_Catalog fields, so a later AI onboarding can
     reuse them. */
 export interface CatalogMetric {
-  id: string; group: string; kind: MetricKind; params: CatalogParam[]; tests: TestKind[]; unit: string | null;
+  id: string; group: string;
+  /** additive: the reference kind a condition on it uses (transform, pattern, flow, xsection, universe). A fundamental
+      (fundamentals[]) is a per-ticker value at E like a universe attribute, so its kind is 'universe' and its group
+      says it is fundamental (validate.ts MetricDefinition has the same type). */
+  kind: MetricKind;
+  params: CatalogParam[]; tests: TestKind[]; unit: string | null;
   formula: string; interpretation: string; misuse: string;
   availability: Availability; reason: string | null; applies_to: string | null;
 }

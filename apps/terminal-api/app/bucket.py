@@ -21,10 +21,11 @@ def _count(v, least):
 def xsection_index(raw):
     """EXEC-SCREENER (P1 a): state.json `xsection` = {name: {key, sha256, bytes, rows, as_of}}, the cross-sectional
     files of the publication (written by the publisher before state.json, content-addressed keys
-    v1/xsection/<name>.<16 hex>.json.gz that are never overwritten). This is the index /state shows and /xsection
-    grants from: only well-formed entries, each with exactly those five fields, so /state never names a file
-    /xsection would refuse and a key outside the xsection family is never presigned. None when state.json holds no
-    index (a publisher before the xsection writer)."""
+    v1/xsection/<name>.<first 16 hex of sha256>.json.gz that are never overwritten). This is the index /state shows
+    and /xsection grants from: only well-formed entries, each with exactly those five fields, so /state never names a
+    file /xsection would refuse and a key outside the xsection family is never presigned. The publisher keeps exactly
+    these entries when it carries the index forward and prunes (publisher.py xsection_entries; its tests hold the two
+    rules equal). None when state.json holds no index (a publisher before the xsection writer)."""
     if not isinstance(raw, dict):
         return None
     out = {}
@@ -32,9 +33,10 @@ def xsection_index(raw):
         if not (isinstance(name, str) and XSECTION_NAME.fullmatch(name) and isinstance(e, dict)):
             continue
         key, sha, size, rows, as_of = (e.get(k) for k in XSECTION_FIELDS)
-        own_key = rf'{PREFIX}/xsection/{re.escape(name)}\.[0-9a-f]{{16}}\.json\.gz'
-        if not (isinstance(key, str) and re.fullmatch(own_key, key) and isinstance(sha, str) and SHA256.fullmatch(sha)
-                and _count(size, 1) and _count(rows, 0)):
+        own_key = rf'{PREFIX}/xsection/{re.escape(name)}\.([0-9a-f]{{16}})\.json\.gz'
+        m = re.fullmatch(own_key, key) if isinstance(key, str) else None
+        if not (m and isinstance(sha, str) and SHA256.fullmatch(sha) and sha[:16] == m.group(1) and _count(size, 1)
+                and _count(rows, 0)):
             continue
         out[name] = {'key': key, 'sha256': sha, 'bytes': size, 'rows': rows,
                      'as_of': as_of if isinstance(as_of, str) and len(as_of) <= 64 else None}

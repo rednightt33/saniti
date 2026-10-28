@@ -4,7 +4,8 @@
      ?slow=session:800,catalog:1500,run:3000   extra milliseconds per call
      ?fail=catalog:SCREENER_NOT_READY:503:1:2   code:status:times[:retry-after]; run:BUSY:409:1
      ?newpub=1                                  a new publication after the first run
-     ?noidb=1                                   IndexedDB refuses to open (the page works without its cache) */
+     ?noidb=1                                   IndexedDB refuses to open (the page works without its cache)
+     ?hostile=1                                 markup in a company name and a sector (rendered as text only) */
 import '../../src/styles/screener.css';
 import '../../../terminal/src/styles/spin.css';
 import { bootPage } from '../../src/app.ts';
@@ -16,6 +17,7 @@ const opts: FixtureOpts = { delay:{}, fail:{} };
 for (const part of (q.get('slow') || '').split(',').filter(Boolean)) { const [k, ms] = part.split(':'); (opts.delay as any)[k] = Number(ms) }
 for (const part of (q.get('fail') || '').split(',').filter(Boolean)) { const [k, code, status, times, ra] = part.split(':'); (opts.fail as any)[k] = { code, status:Number(status), times:Number(times), retryAfter:ra ? Number(ra) : undefined } }
 if (q.get('newpub')) opts.newPublicationAfterRuns = Number(q.get('newpub'));
+if (q.get('hostile')) opts.hostile = true;
 const api = fixtureApi(opts);
 (window as any).__fixture = api;
 const refusing = { open:() => { const r: any = {}; setTimeout(() => { r.error = new DOMException('blocked', 'UnknownError'); r.onerror?.({ preventDefault() {} }) }, 0); return r } } as unknown as IDBFactory;

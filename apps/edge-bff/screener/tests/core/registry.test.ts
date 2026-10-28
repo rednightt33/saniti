@@ -13,7 +13,7 @@ import { BY_ID, REGISTRY_VERSION } from '../../../backtest/src/core/registry.ts'
 import * as G from '../../scripts/build-screener-registry.mjs';      // plain JavaScript: typed any
 import {
   INDICATORS, SBY_ID, SCREENER_REGISTRY, SCREENER_REGISTRY_VERSION, capOf, capProblems, catalogIndicators, defaultParams,
-  isDefaultParams, maxOf, registryProblems, resolveScreenerParams, screenerIndicator, screenerOutput,
+  isDefaultParams, maxOf, registryProblems, resolveScreenerParams, screenerIndicator, screenerOutput, startParams,
 } from '../../src/core/registry.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
 
@@ -42,12 +42,24 @@ describe('generated file', () => {
     for (const s of SCREENER_REGISTRY.sources) expect(s.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('only narrows the base: same keys, types, defaults, min and max; base integers stay integers', () => {
+  it('only narrows the base: same keys, types, defaults, min and max; base integers stay integers; options a subset', () => {
     for (const r of INDICATORS) for (const p of r.params) {
       const b = BY_ID[r.id].params.find(x => x.key === p.key)!;
       expect([p.type, p.default, p.min, p.max]).toEqual([b.type, b.default, b.min, b.max]);
       if (b.type === 'integer') expect(p.integer).toBe(true);
       if (p.exclusive_min || (p.integer && b.type !== 'integer')) expect(p.narrowing.length).toBeGreaterThan(0);
+      if (b.options) for (const o of p.options!) expect(b.options).toContain(o);
+      if (b.options && p.options!.length < b.options.length) expect(p.narrowing.map(n => n.rule)).toContain('options');
+    }
+  });
+  it('offers only the Week to Year VWAP anchors and starts I43 at Week (P17 a, decided 2026-10-28); the other 52 start at their defaults', () => {
+    const anchor = SBY_ID.I43.params.find(p => p.key === 'anchor')!;
+    expect([anchor.options, anchor.default, anchor.start]).toEqual([['Week', 'Month', 'Quarter', 'Year'], 'Session', 'Week']);
+    expect(anchor.narrowing).toEqual([expect.objectContaining({ rule: 'options', source: 'decision', evidence: expect.stringMatching(/^P17 \(a\)/) })]);
+    expect([SBY_ID.I43.default_offered, SBY_ID.I43.start_params.anchor]).toEqual([false, 'Week']);
+    for (const r of INDICATORS) if (r.id !== 'I43') {
+      expect(r.default_offered).toBe(true);
+      expect(r.start_params).toEqual(defaultParams(r));
     }
   });
 });
@@ -69,6 +81,21 @@ describe('overlay', () => {
     expect(problems.some(p => p.includes('I01.sma state_level: ops must be'))).toBe(true);
     expect(problems.some(p => p.includes('I06.macd state_output: label for lt'))).toBe(true);
     expect(problems.some(p => p.includes('I53 has no entry'))).toBe(true);
+  });
+  it('narrows an enum only to a subset of the base with the decision, and names a start exactly when the default is left out', () => {
+    const broken = structuredClone(overlay);
+    broken.indicators.I43.params.anchor.options = ['Week', 'Fortnight'];                                   // not a base option
+    broken.indicators.I27 = { ...broken.indicators.I27, params: { basis_ma_type: { options: ['SMA', 'EMA'], start: 'EMA', decision: 'x' } } };   // default SMA offered
+    broken.indicators.I02 = { ...broken.indicators.I02, params: { length: { options: [10], decision: 'x' } } };   // not an enum
+    broken.indicators.I32 = { ...broken.indicators.I32, params: { stdev_method: { options: ['population'] } } };   // no decision
+    const problems: string[] = G.overlayProblems(broken, base);
+    expect(problems.some(p => p.includes('I43.params.anchor: options must be a non-empty subset'))).toBe(true);
+    expect(problems.some(p => p.includes('I27.params.basis_ma_type: start is required, and one of the options, exactly when'))).toBe(true);
+    expect(problems.some(p => p.includes('I02.params.length: only an enum parameter'))).toBe(true);
+    expect(problems.some(p => p.includes('I32.params.stdev_method: decision'))).toBe(true);
+    const noStart = structuredClone(overlay);
+    delete noStart.indicators.I43.params.anchor.start;
+    expect(G.overlayProblems(noStart, base).some((p: string) => p.includes('I43.params.anchor: start is required'))).toBe(true);
   });
   it('keeps the shapes of report 6.9.1', () => {
     const count: Record<string, number> = {};
@@ -208,7 +235,20 @@ describe('registry.ts parameters (report 6.8 narrowing, I7)', () => {
     expect(resolveScreenerParams(ind('I23'), { weight_fast: 0 }, 'p', OPTS).weight_fast).toBe(0);
     expect(resolveScreenerParams(ind('I01'), { length: 20 }, 'p', OPTS)).toEqual({ length: 20, source: 'close' });
     expect(resolveScreenerParams(ind('I33'), { annualization_periods: 252 }, 'p', OPTS).annualization_periods).toBe(252);
-    for (const r of INDICATORS) expect(() => resolveScreenerParams(r, {}, 'p', OPTS)).not.toThrow();
+    for (const r of INDICATORS) {
+      expect(startParams(r, OPTS)).toEqual(r.start_params);                       // the snapshot's pre-warm configuration
+      if (r.default_offered) expect(() => resolveScreenerParams(r, {}, 'p', OPTS)).not.toThrow();
+    }
+    expect(resolveScreenerParams(ind('I43'), { anchor: 'Month' }, 'p', OPTS).anchor).toBe('Month');
+  });
+  it('refuses a base option the screener does not offer, also a registry default left out of the request (P17 a)', () => {
+    for (const [given, sent] of [[{ anchor: 'Session' }, true], [{ anchor: 'Decade' }, true], [{}, false]] as const) {
+      const e = refusal(() => resolveScreenerParams(ind('I43'), given, 'p', OPTS));
+      expect([e.code, e.field, e.details?.allowed]).toEqual(['INVALID_CONDITION', 'p.anchor', ['Week', 'Month', 'Quarter', 'Year']]);
+      expect(e.message).toMatch(sent ? /is not offered for I43 .*; use one of Week, Month, Quarter, Year\.$/ : /registry default, taken because anchor was left out/);
+    }
+    const o = refusal(() => resolveScreenerParams(ind('I43'), { anchor: 'Hour' }, 'p', OPTS));   // not a base option at all
+    expect([o.code, o.details?.allowed]).toEqual(['INVALID_CONDITION', ['Week', 'Month', 'Quarter', 'Year']]);
   });
   it('maps the backtest core refusals: a hidden parameter, an option, a type, a range', () => {
     const h = refusal(() => resolveScreenerParams(ind('I37'), { include_current_bar: false }, 'p', OPTS));
@@ -246,5 +286,9 @@ describe('registry.ts parameters (report 6.8 narrowing, I7)', () => {
     expect(cci.params.find(p => p.key === 'length')).toMatchObject({ max: capOf(ind('I19').params[0], OPTS.capBudgetMs), integer: true });
     expect(cci.params.find(p => p.key === 'constant')).toMatchObject({ min: 0, exclusive_min: true });
     expect(cat.find(c => c.id === 'I37')!.params.map(p => p.key)).toEqual(['length']);
+    const vwap = cat.find(c => c.id === 'I43')!;
+    expect([vwap.default_offered, vwap.params[0]]).toEqual([false, expect.objectContaining({ key: 'anchor', default: 'Week', options: ['Week', 'Month', 'Quarter', 'Year'] })]);
+    expect(cat.filter(c => !c.default_offered).map(c => c.id)).toEqual(['I43']);
+    expect(isDefaultParams(ind('I43'), startParams(ind('I43'), OPTS))).toBe(false);   // opens as Custom (P17 consequence)
   });
 });

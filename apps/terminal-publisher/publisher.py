@@ -134,7 +134,8 @@ ACTION_COLUMNS = ['t', 'd', 'type', 'ratio_old', 'ratio_new', 'amount_per_share'
 PRICE_XSECTION_COLUMNS = ['t', 'd', 'o', 'h', 'l', 'c', 'v']
 # which modes rebuild which file (report 6.5); every other index entry is carried forward as it is
 XSECTION_REBUILT_BY = {'price': ('daily', 'backfill', 'packs'), 'actions': ('daily', 'backfill', 'packs', 'events')}
-XSECTION_KEY = re.compile(r'xsection/([a-z0-9][a-z0-9_-]{0,31})\.[0-9a-f]{16}\.json\.gz')
+XSECTION_KEY = re.compile(r'xsection/([a-z0-9][a-z0-9_-]{0,31})\.([0-9a-f]{16})\.json\.gz')
+SHA256 = re.compile(r'[0-9a-f]{64}')
 
 
 # EXEC-TERMINAL-LOGO (user 2026-10-26): logo sources in order; a ticker none of them has gets a monogram on the page
@@ -393,16 +394,25 @@ def read_actions(conn, kind, first_year):
     return [r[:7] for r in rows], outside
 
 
+def _count(v, least):
+    return isinstance(v, int) and not isinstance(v, bool) and v >= least
+
+
 def xsection_entries(raw):
-    """The usable entries of a state.json `xsection` index: {name: {key, sha256, bytes, rows, as_of}} whose key is an
-    xsection object of that name (what terminal-api's xsection_index accepts). Anything else is dropped, so it is
-    neither carried forward nor protected from pruning."""
+    """The usable entries of a state.json `xsection` index: {name: {key, sha256, bytes, rows, as_of}} whose key is the
+    xsection object of that name named by the first 16 hex of its sha256 (64 lowercase hex), with whole bytes >= 1 and
+    rows >= 0. This is exactly what terminal-api's xsection_index serves (a test holds the two equal), so the previous
+    index the pruning protects is the one terminal-api may still serve. Anything else is dropped: neither carried
+    forward nor protected."""
     out = {}
     for name, e in (raw.items() if isinstance(raw, dict) else ()):
         key = e.get('key') if isinstance(e, dict) else None
         m = XSECTION_KEY.fullmatch(key[len(PREFIX) + 1:]) if isinstance(key, str) and key.startswith(f'{PREFIX}/') else None
-        if m and m.group(1) == name and isinstance(e.get('sha256'), str) and e['sha256'].startswith(key[-24:-8]):
-            out[name] = {k: e.get(k) for k in ('key', 'sha256', 'bytes', 'rows', 'as_of')}
+        sha, as_of = (e.get('sha256'), e.get('as_of')) if m else (None, None)
+        if (m and m.group(1) == name and isinstance(sha, str) and SHA256.fullmatch(sha) and sha[:16] == m.group(2)
+                and _count(e.get('bytes'), 1) and _count(e.get('rows'), 0)):
+            out[name] = {'key': key, 'sha256': sha, 'bytes': e['bytes'], 'rows': e['rows'],
+                         'as_of': as_of if isinstance(as_of, str) and len(as_of) <= 64 else None}
         else:
             log('xsection_entry_dropped', name=str(name)[:40])
     return out
@@ -761,10 +771,12 @@ class Publisher:
         # here, so its manifest is saved below) and before state.json, which indexes them. A file whose rebuild fails
         # keeps its previous entry; the Terminal's and the Backtest's publication goes on.
         previous = xsection_entries(state.get('xsection'))
-        self.xsection = dict(previous)
+        self.xsection, self.xsection_failed = dict(previous), []
         rebuilt = [name for name, modes in XSECTION_REBUILT_BY.items() if mode in modes]
         listing = self.xsection_listing() if rebuilt else None
-        present = (listing or set()) | {e['key'][len(PREFIX) + 1:] for e in previous.values()}
+        # a key is not put again when the bucket holds it; an indexed object the listing lacks (deleted by hand) is put
+        # again, the same bytes. Without a listing the previous index stands in for it.
+        present = listing if listing is not None else {e['key'][len(PREFIX) + 1:] for e in previous.values()}
         for name in rebuilt:
             try:
                 self.xsection[name] = self.publish_xsection(name, kind, through, touched, present)

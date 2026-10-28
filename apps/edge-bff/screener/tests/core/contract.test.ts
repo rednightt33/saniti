@@ -8,8 +8,8 @@ import {
   TICKER, UNIVERSE_DEFAULTS, WORKER_ERROR_STATUS, WORKER_GZIP_ROUTES, WORKER_KEY_HEADER, WORKER_OWNER_HEADER, WORKER_ROUTES,
 } from '../../src/core/contract.ts';
 import type {
-  Cell, CountsRequest, Definition, PreviewRequest, ResultRow, RowRemark, RunRequest, RunResponse, SavedItem, Test,
-  UniverseRow, ValidateResponse,
+  Cell, CountsRequest, Definition, LimitEntry, LimitExceededDetails, PreviewRequest, ResultRow, RowRemark, RunRequest,
+  RunResponse, SavedItem, Test, UniverseRow, ValidateResponse,
 } from '../../src/core/contract.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
 
@@ -84,6 +84,13 @@ describe('contract', () => {
     expect(Object.keys(ERROR_STATUS)).not.toContain('DATA_VERSION_PENDING');
     const e = new ScreenerError('PARAM_OUT_OF_RANGE', 'p.length must be at most 252.', 'p.length', { field: 'p.length', max: 252 });
     expect([e.status, e.toApi()]).toEqual([422, { error: { code: 'PARAM_OUT_OF_RANGE', message: 'p.length must be at most 252.', field: 'p.length', details: { field: 'p.length', max: 252 } } }]);
+  });
+
+  it('names a refused limit as the catalog publishes it (compute_budget, report 6.10 and 8.8)', () => {
+    const refused: LimitExceededDetails = { limit: 'compute_budget', allowed: 20000, needed: 31000, costliest: 'c' };
+    const published: LimitEntry = { name: refused.limit, value: 20000, unit: 'ms', rule: 'r', example_ok: 'ok', example_refused: 'no' };
+    expect(published.name).toBe('compute_budget');
+    expect(contractSource).not.toMatch(/'max_cpu_ms'/);
   });
 
   it('lists the NA reasons and remarks of report 6.9 and P4', () => {

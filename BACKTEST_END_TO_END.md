@@ -86,9 +86,9 @@ The backtest never reads PostgreSQL for market data. The five tables below are r
 
 | Published as | Table (filter) | Columns the publisher reads | Upstream writer | When it changes |
 |---|---|---|---|---|
-| `price` | `Price_Stock_Indonesia_IDX` (`timeframe = 'Daily' AND is_final`) | `ticker, date, open, high, low, close, volume` (NULL for an index); `ingestion_time` only for change detection | `apps/idx-price-cron` (`price_update.py`, TradingView websocket) | Railway cron `0 10 * * *` UTC (17:00 WIB); `idx-price-recovery-cron` at `0 23 * * *` UTC |
+| `price`, `xsection/price` | `Price_Stock_Indonesia_IDX` (`timeframe = 'Daily' AND is_final`) | `ticker, date, open, high, low, close, volume` (NULL for an index); `ingestion_time` only for change detection | `apps/idx-price-cron` (`price_update.py`, TradingView websocket) | Railway cron `0 10 * * *` UTC (17:00 WIB); `idx-price-recovery-cron` at `0 23 * * *` UTC |
 | `broker` | `Feature_05_Foreign_Domestic_Broker_Detail` | `ticker, trade_date, broker, investor_type, market_board, buy_value, sell_value, buy_lots, sell_lots, source_balance_gap` | `apps/stockbit-updater` (Stockbit) writes `IDX_Broker_Summary`, then `refresh_feature_05(p_from, p_to, p_tickers)` fills Feature 05 | one round per new Stockbit token, with no cron, so broker data can trail prices by several sessions (ERRORS M243) |
-| `events` | `idx_event_annotation` | dates, roles, event family and type, holders, shares and percentages, prices, `value_idr`, `data_origin`; `source_payload` is parsed for corporate-action terms and never published | `apps/stockbit-event-annotation/job.py`, then `refresh_idx_event_annotation()` | step 4 of each stockbit-updater round |
+| `events`, `xsection/actions` | `idx_event_annotation` | dates, roles, event family and type, holders, shares and percentages, prices, `value_idr`, `data_origin`; `source_payload` is parsed for corporate-action terms and never published; the term columns `ratio_old`, `ratio_new`, `amount_per_share`, `currency` (filled from the payload through `idx_event_annotation_terms_map`) for `xsection/actions` | `apps/stockbit-event-annotation/job.py`, then `refresh_idx_event_annotation()` | step 4 of each stockbit-updater round |
 | `ref/tickers` | `IDX_Stock_Universe` (`"Security Type" IN ('stock','index')`) | `"Ticker", "Company Name", "Security Type", "Sector", "Industry"` (`'Undefined'` = no classification) | migrations and scripts, with no scheduled writer | when the listed universe or a classification changes |
 | `ref/brokers` | `IDX_Broker_Profile` | `broker_code, broker_name, broker_type` (broker domicile, a label only) | migrations and scripts | rarely |
 
@@ -158,47 +158,88 @@ Facts that matter downstream:
    - update the entry in memory.
 
    A year that has no rows any more loses its manifest entry. The object is left in the bucket, because the publisher
-   never deletes anything.
+   never deletes a per-ticker file (it deletes only xsection objects no index names, step 8).
 4. **Packs (`publish_packs`, `put_pack`).**
    - `pack/{T}/price` holds every price year. It is rebuilt when a price year changed or the pack is missing.
    - For stocks, `pack/{T}/broker-archive` holds the broker years up to `last_year - 2`. It is rebuilt when an archived
      year changed, the pack is missing, or its `years` span moved (year rollover). INFERENCE: the first run of a new
      year rebuilds every archive, about 300 MB.
    - Packs cut a stock from 21 objects to 5 for a reader (ERRORS M240: about 0.8 s per object over HTTP/1.1).
-5. **Manifests.** `save_manifest` writes the manifest of every touched ticker: `window`, per dataset `data_through` and
+5. **Cross-sectional files (`publish_xsection`; EXEC-SCREENER, P1 a, user 2026-10-28).** Whole-universe files for the
+   screener-worker, one read per publication instead of one grant per ticker (`XSECTION_REBUILT_BY`: `daily`,
+   `backfill` and `packs` rebuild both, `events` rebuilds `actions`, every other mode carries the previous
+   `state.json` entries forward unchanged).
+   - `price` (`xsection_price`): one statement, `XSECTION_PRICE_SQL` (`PRICE_SQL` without the ticker filter and without
+     ORDER BY: one sequential scan, 1,331,548 rows in 5.3 s under EXPLAIN ANALYZE on dev 2026-10-28; with ORDER BY it
+     was 7.4 s and an 86 MB sort on disk, so the rows are grouped and ordered in Python). Every published ticker's
+     final daily rows from `price_first_year`, ordered by ticker then date, and per ticker `{t, pack_sha256, first,
+     last, rows}`. Each ticker's slice is encoded as its price pack (`price_pack_doc`) and compared with the manifest's
+     pack sha256; a pack that differs (the table changed after the pack was built, or an older pack the stamps missed)
+     is republished from the slice before the manifests are saved, so **every slice equals its published pack**
+     (`packs_republished` in the `xsection` log line).
+   - `actions` (`read_actions`): one statement, `XSECTION_ACTIONS_SQL` (index scan, 14 ms on dev): family
+     `CORPORATE_ACTION`, role `EX_DATE`, types `PRICE_ACTION_TYPES` (the backtest core's list; a test keeps the two
+     equal) plus `DIVIDEND`, ex dates from `price_first_year` on, future ones included; tickers outside the universe
+     are left out (counted as `outside_universe`); a term of 0 (the source's "unknown") is published as null. Readers
+     apply their own rules and windows: the screener's price-break rule takes `ADJUSTED_HISTORY_BOUNDARY` from the
+     core.
+   - The key is `xsection/<name>.<first 16 hex of the sha256>.json.gz`. `encode` is deterministic, so unchanged rows
+     give the same key, and a key the bucket listing already holds is not put again: an object is never overwritten
+     (an indexed object missing from the listing is put again with the same bytes; without a listing the previous
+     index stands in for it).
+   - A file whose build fails (`xsection_failed`, the error class only) keeps its previous index entry; the rest of the
+     run goes on, and the process exits 3 after `state.json`, so the Terminal and the Backtest are never held back by it.
+   - Measured locally (PostgreSQL 16, 1.32 M synthetic rows, 845 tickers): `price` about 31 s per run (8 s for the 845
+     pack encodes, 18 s for the gzip of its 72 MB of JSON), peak memory 361 MB for the whole daily run; `actions` under
+     0.1 s. The dev numbers come with the first dev run (benchmark S15).
+6. **Manifests.** `save_manifest` writes the manifest of every touched ticker: `window`, per dataset `data_through` and
    `first_year`, and `generated_at`.
-6. **The rest.** `publish_refs` rewrites `ref/tickers.json.gz` and `ref/brokers.json.gz` on every run. Logos are
+7. **The rest.** `publish_refs` rewrites `ref/tickers.json.gz` and `ref/brokers.json.gz` on every run. Logos are
    refreshed in mode `logos`, or in `daily` when the logo index is more than 7 days old. **`state.json` is written
-   last**, with `finished_at`. terminal-api's manifest cache keys on that field (section 6.3).
-7. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
+   last**, with `finished_at` and the `xsection` index. terminal-api's manifest cache keys on that field (section 6.3).
+8. **Pruning** (`prune_xsection`, only in a run that rebuilt an xsection file, after `state.json`): the keys under
+   `xsection/` that neither the new index nor the previous one (the `state.json` the run started from) names are
+   deleted, so an object goes on the run after the one that stopped naming it, and a reader holding the previous index
+   keeps its files. Only keys of the content-addressed form are deleted; nothing else in the bucket is. A run that
+   cannot list the bucket deletes nothing (`xsection_list_failed`). Two runs minutes apart (a manual run right after a
+   scheduled one) shorten that grace to the time between them; a screener-worker refresh that then misses a file fails,
+   keeps its snapshot and retries on the new index.
+9. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
    telegram-monitor to send an alert (ERRORS M243).
 
 Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 
 | Mode | What it plans |
 |---|---|
-| `daily` | the scheduled run described above |
-| `backfill` | every ticker-year of every dataset, and every pack |
-| `broker-range` | broker years `TERMINAL_FROM` to `TERMINAL_TO`, optionally only `TERMINAL_TICKERS`; for a broker correction of past dates, which `daily` does not detect |
-| `events` | changed events files only |
-| `logos` | every logo |
-| `packs` | every pack, written only when missing or changed |
-| `verify` | every file listed in a manifest, checked against live SQL (rows, first and last date, a column sum); packs are not checked; exits 1 on any mismatch |
+| `daily` | the scheduled run described above, both xsection files included |
+| `backfill` | every ticker-year of every dataset, every pack, both xsection files |
+| `broker-range` | broker years `TERMINAL_FROM` to `TERMINAL_TO`, optionally only `TERMINAL_TICKERS`; for a broker correction of past dates, which `daily` does not detect; xsection entries carried forward |
+| `events` | changed events files and the `actions` xsection file |
+| `logos` | every logo; xsection entries carried forward |
+| `packs` | every pack, written only when missing or changed, and both xsection files |
+| `verify` | every file listed in a manifest, checked against live SQL (rows, first and last date, a column sum); packs are not checked except through the xsection check; the files of the `state.json` xsection index: bytes and sha256, every `price` slice encodes to its published price pack and has SQL's rows, dates and sum of closes, the `actions` rows equal the statement's; exits 1 on any mismatch |
 
 ### 4.3 Guarantees and limits
 
-- **Read-only.** Every statement is a SELECT, and the login is read-only.
+- **Read-only.** Every statement is a SELECT, and the login is read-only. The two xsection statements are bounded
+  (the published years; the corporate-action family, role and types) and were planned with EXPLAIN (ANALYZE, BUFFERS)
+  on dev (step 5).
 - **No coded ticker list.** The universe comes from the database at run time, and so do the first years.
 - **Bytes are deterministic.** A daily run right after a backfill uploads nothing
   (`apps/terminal-publisher/tests/test_publisher.py`).
-- **Write order.** Data files, then packs, then manifests, then reference files, then `state.json`. A manifest
-  therefore never names a new key that is not there yet.
-- **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later.
+- **Write order.** Data files, then packs, then the xsection files, then manifests, then reference files, then
+  `state.json`, then the pruning of xsection objects. A manifest therefore never names a new key that is not there yet,
+  and neither does the `state.json` xsection index.
+- **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later. An
+  xsection object written before a crash is named by no index until a run indexes the same content (same key, not put
+  again) or deletes it (step 8).
 - **OPEN: files overwritten in place (ERRORS M250).** A changed file is written again under its fixed key while
   terminal-api still serves the old cached manifest until `state.json` changes at the very end of the run. During each
   run, about 58 minutes twice a day, sha256-checking readers fail with `DATA_INTEGRITY` for the tickers that changed.
   - The user chose the fix on 2026-10-27, in a separate publisher PR: content-addressed keys, with unreferenced files
     deleted on a later run.
+  - The xsection files (step 5, EXEC-SCREENER) are the first files under that fix: their keys name their content and
+    are never overwritten, and the per-ticker files and packs above still are.
   - TEMPORARY until then: dev end-to-end runs avoid 00:00–01:00 and 12:00–13:05 UTC.
 - **Recorded sizes and times** (`RAILWAY_CHANGELOG.md`):
 
@@ -226,7 +267,9 @@ Bucket `terminal-display` is a Railway S3-compatible bucket in region `sin`. Its
 | `ref/tickers.json.gz` | columns `ticker, name, type, sector, industry`. Readers take columns by name; every column after `type` becomes a portfolio filter (CONTRACT decision PF6). | gzip |
 | `ref/brokers.json.gz` | columns `code, name, type` | gzip |
 | `ref/logos.json.gz`, `logo/{T}.png\|svg` | logo index and images (Terminal page) | |
-| `state.json` | `price_through, broker_through, broker_behind_sessions, window, price_first_year, broker_first_year, last_mode, finished_at` | `private, max-age=0` |
+| `xsection/price.<sha16>.json.gz` | `{schema_version: 1, dataset: 'xsection', name: 'price', units, means, columns: [t,d,o,h,l,c,v], t: [...], ..., tickers: [{t, pack_sha256, first, last, rows}]}`: every published ticker's final daily rows from `price_first_year`, ordered by ticker (code point order) then date; a ticker's slice is the rows of its `pack/{T}/price` (`xsection_slices` cuts it by `tickers`); `v` null for an index | `application/gzip`, `private, max-age=31536000` |
+| `xsection/actions.<sha16>.json.gz` | `{schema_version: 1, dataset: 'xsection', name: 'actions', units, means, columns: [t, d, type, ratio_old, ratio_new, amount_per_share, currency], ...}`: corporate actions on their ex dates from `price_first_year` (future ones included), ordered by ticker, ex date, type: the share-count changes of `PRICE_ACTION_TYPES` and cash dividends; `amount_per_share` is the dividend per share, for a rights issue its exercise price; a null term is not in the source | same |
+| `state.json` | `price_through, broker_through, broker_behind_sessions, window, price_first_year, broker_first_year, last_mode, xsection, finished_at`; `xsection` = `{name: {key, sha256, bytes, rows, as_of}}` with `key` `v1/xsection/<name>.<sha16>.json.gz` (`as_of`: for `price` the newest date in the file, for `actions` the newest `ingestion_time` of `idx_event_annotation`) | `private, max-age=0` |
 
 The manifest:
 
@@ -250,7 +293,12 @@ The manifest:
 - **Readers verify, they do not trust.** Every reader of a data file checks its byte count and sha256 against the
   manifest entry. `inflateVerified` in `apps/edge-bff/backtest/src/core/datafile.ts` is shared by the worker and the
   page. Both cache files by sha256 (sections 7.3 and 10).
-- **Reference files carry no sha256.** They are downloaded again on each use.
+- **Reference files carry no sha256.** They are downloaded again on each use. The xsection files reuse
+  `ref/tickers.json.gz` for names, types, sectors and industries; it is not copied into them.
+- **xsection objects are immutable.** `<sha16>` is the first 16 hex of the file's sha256, so a key names one content and
+  is written once; readers check bytes and sha256 against the `state.json` index (terminal-api `/state`, `/xsection`).
+  The bucket holds the objects of the current index and, until the next run that rebuilds a file, of the previous one
+  (section 4.2, step 8). Their long `max-age` is correct for that reason.
 - **Cache-Control is not used.** The `max-age` of a year has no effect today: every presigned URL is new, and readers
   keep their own sha256-keyed caches. INFERENCE: with content-addressed keys (the M250 fix) a long max-age would also
   be correct.
@@ -285,7 +333,7 @@ bucket, checks quotas, writes an audit row, and answers presigned GET URLs. It n
 | `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` | worker and page | see the steps below |
 | `GET /api/terminal/v1/manifest/{T}` | worker only (freshness and coverage checks) | `{ticker, window, generated_at, datasets: {name: {data_through, years: {id: {bytes, rows, first, last, sha256}}}}}`. No object key, no URL, no quota, no audit row. |
 | `GET /api/terminal/v1/reference/{tickers\|brokers}` | worker only (catalog, validation) | one presigned URL of the fixed key, counted against quota (pseudo-ticker `REF`, never an opened ticker), no sha256 |
-| `GET /api/terminal/v1/state` | the backtest worker (EXEC-BACKTEST-LOAD, 2026-10-27) and the screener-worker (EXEC-SCREENER). The code admits any subscriber (`Depends(subscriber)`: the gateway key or a session cookie), since it grants nothing; edge-bff does not forward it | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old), and `xsection`, the run's cross-sectional file index `{name: {key, sha256, bytes, rows, as_of}}` (`bucket.py xsection_index`: only well-formed entries, a key `v1/xsection/<name>.<16 hex>.json.gz`, each with these five fields; null when the run wrote none). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
+| `GET /api/terminal/v1/state` | the backtest worker (EXEC-BACKTEST-LOAD, 2026-10-27) and the screener-worker (EXEC-SCREENER). The code admits any subscriber (`Depends(subscriber)`: the gateway key or a session cookie), since it grants nothing; edge-bff does not forward it | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old), and `xsection`, the run's cross-sectional file index `{name: {key, sha256, bytes, rows, as_of}}` (`bucket.py xsection_index`: only well-formed entries, a key `v1/xsection/<name>.<16 hex>.json.gz` whose 16 hex are the first 16 of its `sha256`, each with these five fields; null when the run wrote none; the publisher carries forward and protects from pruning exactly these entries, `publisher.py xsection_entries`). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
 | `POST /api/terminal/v1/xsection {names}` | the screener-worker only, not the backtest: the gateway key; a request without it, a subscriber session included, is 403 `gateway_only` (`main.py gateway`); edge-bff does not forward it | presigned URLs for files of the `/state` index, named by their index names: `{finished_at, expires_in_seconds, encoding, files: [{name, url, sha256, bytes, rows, as_of}]}`. 1 to 16 names (a repeated name counts once); a name not in the index is 404 `xsection_not_published` with the indexed names. One file per name and their bytes count against the quota under the pseudo-ticker `REF` (never an opened ticker), with one `terminal.access_log` row (dataset `xsection`) listing every key; 429 `quota_exceeded` refuses every name. |
 
 What `/bundle` does:

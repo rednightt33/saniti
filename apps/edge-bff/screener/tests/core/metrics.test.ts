@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { F } from '../../../terminal/src/calc/indicators.ts';
 import * as G from '../../scripts/build-screener-registry.mjs';      // the generator's deterministic fixture
-import { INDICATORS, defaultParams, capOf, screenerIndicator } from '../../src/core/registry.ts';
+import { INDICATORS, defaultParams, capOf, screenerIndicator, startParams } from '../../src/core/registry.ts';
 import { SeriesCache, resolveIndicator, resolvePrice, resolveSeries, series, seriesKey, tailLength, tailOf, tickerCalc } from '../../src/core/metrics.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
 
@@ -21,11 +21,14 @@ describe('series()', () => {
     const c = ctx();
     let outputs = 0;
     for (const r of INDICATORS) for (const o of r.outputs) {
-      const implicit = resolveIndicator({ kind: 'indicator', indicator: r.id, output: o.key }, 'm', OPTS);
-      const explicit = resolveIndicator({ kind: 'indicator', indicator: r.id, output: o.key, params: defaultParams(r) as Record<string, number | string | boolean> }, 'm', OPTS);
+      // the pre-warm configuration (registry.ts startParams): the registry defaults, or for I43 (P17 a, default not
+      // offered) anchor Week, sent explicitly since an omitted anchor is the refused registry default Session
+      const start = (r.default_offered ? defaultParams(r) : startParams(r, OPTS)) as Record<string, number | string | boolean>;
+      const implicit = resolveIndicator({ kind: 'indicator', indicator: r.id, output: o.key, ...(r.default_offered ? {} : { params: { ...start } }) }, 'm', OPTS);
+      const explicit = resolveIndicator({ kind: 'indicator', indicator: r.id, output: o.key, params: start }, 'm', OPTS);
       expect(explicit.key).toBe(implicit.key);
       expect(seriesKey(V, explicit)).toBe(seriesKey(V, implicit));
-      expect([implicit.isDefault, explicit.isDefault]).toEqual([true, true]);
+      expect([implicit.isDefault, explicit.isDefault]).toEqual([r.default_offered, r.default_offered]);
       const warm = series(c, tickerCalc(T), implicit, true);
       const hit = series(c, tickerCalc(T), explicit);
       expect(hit.source).toBe('precomputed');

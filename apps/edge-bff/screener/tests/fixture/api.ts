@@ -8,6 +8,7 @@ import type {
   CatalogMetric, CatalogPreset, CatalogResponse, Definition, ItemKind, LimitEntry, PutItemRequest, SavedItem, UniverseResponse, Versions,
 } from '../../src/core/contract.ts';
 import { ApiFailure, isAbort, type CallOpts, type Conditional, type ScreenerApi } from '../../src/api/types.ts';
+import { errorText } from '../../src/texts.ts';
 import { sha256Hex } from '../../../terminal/src/data/rack.ts';
 import reg from '../../src/core/screener-registry.json' with { type: 'json' };
 import { DAYS, IHSG, LISTINGS, T as TK } from './data.ts';
@@ -112,10 +113,13 @@ export interface FixtureOpts {
   fail?: Partial<Record<'catalog' | 'run' | 'preview', { code: string; status: number; times: number; retryAfter?: number }>>;
   /** a second publication after N runs (smoke: an answer newer than the catalog) */
   newPublicationAfterRuns?: number;
+  /** markup in the names (smoke: no element is made from them, report 9.1 text rendering) */
+  hostile?: boolean;
 }
 
 export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Market; counters: Record<string, number> } {
   const m = market();
+  if (opts.hostile) { const t = m.byTicker.get('BBCA')!; t.name = '<img src=x onerror="window.__xss=1">Bank "Central" Asia'; t.sector = '<b id="xss">Financials</b>' }
   let pub = 1;
   const versions = (): Versions => ({ screener_engine:'0a1b2c3d4e5f6071', registry:R.registry_version, screener_registry:R.screener_registry_version, price_data:'fixture-' + String(pub).padStart(58, '0'), flow_data:null });
   const data = () => ({ evaluation_date:m.evalDate, price_through:m.evalDate, flow_through:null, broker_behind_sessions:0, published_at:pub === 1 ? `${m.evalDate}T12:03:23Z` : `${m.evalDate}T23:59:00Z` });
@@ -141,12 +145,13 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
   });
   const failing = (k: 'catalog' | 'run' | 'preview') => {
     const f = opts.fail?.[k]; if (!f || f.times <= 0) return;
-    f.times--; throw new ApiFailure(`fixture failure ${f.code}`, f.code, f.status, undefined, f.retryAfter ?? null);
+    f.times--; throw new ApiFailure(errorText(f.code, { retryAfter:f.retryAfter ?? null }) || `fixture failure ${f.code}`, f.code, f.status, undefined, f.retryAfter ?? null);
   };
   const enc = (x: unknown) => new TextEncoder().encode(JSON.stringify(x));
-  async function conditional<T>(body: T, inm?: string | null): Promise<Conditional<T>> {
+  async function conditional<T>(k: string, body: T, inm?: string | null): Promise<Conditional<T>> {
     const bytes = enc(body), etag = await sha256Hex(bytes);
-    return inm && inm === etag ? { status:304, etag } : { status:200, etag, body:JSON.parse(new TextDecoder().decode(bytes)), bytes };
+    if (inm && inm === etag) { count(k + '304'); return { status:304, etag } }
+    return { status:200, etag, body:JSON.parse(new TextDecoder().decode(bytes)), bytes };
   }
   const KEY = (k: string) => 'scr.fixture.' + k;
   const load = <T>(k: string, d: T): T => { try { return JSON.parse(localStorage.getItem(KEY(k)) || 'null') ?? d } catch { return d } };
@@ -156,8 +161,8 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
   return {
     kind:'fixture', market:m, counters,
     async session() { count('session'); await wait('session'); return { login:'fixture', csrf:'fixture-csrf' } },
-    async catalog(inm) { count('catalog'); await wait('catalog'); failing('catalog'); return conditional(catalog(), inm) },
-    async universe(inm) { count('universe'); await wait('universe'); return conditional<UniverseResponse>({ versions:versions(), data:data(), rows:m.tickers.map(t => universeRow(m, t)) }, inm) },
+    async catalog(inm) { count('catalog'); await wait('catalog'); failing('catalog'); return conditional('catalog', catalog(), inm) },
+    async universe(inm) { count('universe'); await wait('universe'); return conditional<UniverseResponse>('universe', { versions:versions(), data:data(), rows:m.tickers.map(t => universeRow(m, t)) }, inm) },
     async run(req, o: CallOpts = {}) {
       count('run'); await wait('run', o.signal); if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');
       failing('run');

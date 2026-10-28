@@ -18,11 +18,15 @@ import doc from './screener-registry.json' with { type: 'json' };
 
 /* ---- the generated document (field meanings: scripts/build-screener-registry.mjs and report 6.8) -------------- */
 
-/** Why a parameter is narrower than the base: the derived probe or the overlay override, with its evidence. */
-export interface Narrowing { rule: 'exclusive_min' | 'integer'; source: 'degeneracy_probe' | 'floor_probe' | 'override'; evidence: string }
+/** Why a parameter is narrower than the base: the derived probe, the overlay override, or a user decision on the
+    offered options (P17 a), with its evidence. */
+export interface Narrowing { rule: 'exclusive_min' | 'integer' | 'options'; source: 'degeneracy_probe' | 'floor_probe' | 'override' | 'decision'; evidence: string }
 export interface ScreenerParam {
-  key: string; type: 'integer' | 'number' | 'enum' | 'boolean'; label: string | null; default: number | string | boolean;
-  min?: number; max?: number; step?: number; options?: string[];
+  key: string; type: 'integer' | 'number' | 'enum' | 'boolean'; label: string | null;
+  default: number | string | boolean;   // the registry default, unchanged (narrow-only; is_default compares with it)
+  min?: number; max?: number; step?: number;
+  options?: string[];                // the offered options: the base's, or a decided subset (narrowing rule 'options')
+  start?: string;                    // only where the registry default is not offered: the value a card opens with (P17)
   exclusive_min: boolean;            // the value must be above min (derived degeneracy probe, or an override)
   integer: boolean;                  // whole numbers only (the base type, or the floor probe)
   narrowing: Narrowing[];
@@ -46,6 +50,11 @@ export interface OracleRow { output: string; params: ParamMap; table: string; co
 export interface ScreenerIndicator {
   id: string; key: string; name: string; category: string; short: string | null; formula_version: string;
   params: ScreenerParam[];
+  /** The start configuration, complete: the registry defaults, with each parameter's `start` where the registry default
+      is not offered (I43: anchor Week). A new card opens with it and the snapshot pre-warms it (report 6.7); the derived
+      fields are measured on it. Equal to the registry defaults wherever default_offered is true. */
+  start_params: ParamMap;
+  default_offered: boolean;          // false when a registry default is not offered (no "Default" chip; P17 consequence)
   hidden_params: { key: string; reason: string }[];                  // not read by F: hidden, value never shown (rule c)
   fixed_params: { key: string; value: unknown; reason: string }[];   // fixed in the workbook (not a parameter)
   outputs: ScreenerOutput[]; history_class: HistoryClass; cost_class: CostClass;
@@ -84,9 +93,14 @@ export function registryProblems(): string[] {
     if (s.params.map(p => p.key).join() !== b.params.map(p => p.key).join()) out.push(`${s.id}: parameters differ from the base`);
     for (const p of s.params) {
       const q = b.params.find(x => x.key === p.key);
-      if (q && (p.type !== q.type || p.min !== q.min || p.max !== q.max || p.default !== q.default || (q.type === 'integer' && !p.integer)))
+      if (q && (p.type !== q.type || p.min !== q.min || p.max !== q.max || p.default !== q.default || (q.type === 'integer' && !p.integer)
+        || (q.options && (!p.options?.length || p.options.some(o => !q.options!.includes(o))))))
         out.push(`${s.id}.${p.key}: wider than or different from the base (narrow-only)`);
+      const offered = !p.options || p.options.includes(p.default as string);
+      if (offered ? p.start !== undefined : !p.options!.includes(p.start as string) || s.start_params?.[p.key] !== p.start)
+        out.push(`${s.id}.${p.key}: start must be an offered option exactly when the registry default is not offered`);
     }
+    if (s.default_offered !== s.params.every(p => p.start === undefined)) out.push(`${s.id}: default_offered disagrees with its parameters`);
   }
   return out;
 }
@@ -191,6 +205,11 @@ export function resolveScreenerParams(ind: ScreenerIndicator, given: unknown, fi
   try { params = resolveParams(BY_ID[ind.id], given, field) }
   catch (e) { throw mapCoreError(e, ind, field, opts) }
   for (const p of ind.params) {
+    if (p.type === 'enum' && p.options && !p.options.includes(params[p.key] as string)) {
+      // a base option the screener does not offer (P17 a), including a registry default left out of the request
+      const f = `${field}.${p.key}`, sent = !!given && typeof given === 'object' && Object.prototype.hasOwnProperty.call(given, p.key);
+      throw new ScreenerError('INVALID_CONDITION', `${f}: ${JSON.stringify(params[p.key])} is not offered for ${ind.id} ${ind.name}${sent ? '' : ` (it is the registry default, taken because ${p.key} was left out)`}; use one of ${p.options.join(', ')}.`, f, { allowed: p.options });
+    }
     if (p.type !== 'integer' && p.type !== 'number') continue;
     const v = params[p.key] as number, f = `${field}.${p.key}`, max = maxOf(p, opts.capBudgetMs);
     const bad = (p.exclusive_min && p.min !== undefined && !(v > p.min)) || (p.integer && !Number.isInteger(v)) || (max !== undefined && v > max);
@@ -202,8 +221,12 @@ export function resolveScreenerParams(ind: ScreenerIndicator, given: unknown, fi
   return params;
 }
 
-/** The registry defaults of an indicator, complete (resolveParams of {}). */
+/** The registry defaults of an indicator, complete (resolveParams of {}): what is_default compares with. For an
+    indicator whose registry default is not offered (default_offered false, I43) the screener refuses them. */
 export function defaultParams(ind: ScreenerIndicator): Params { return resolveParams(BY_ID[ind.id], {}, 'params') }
+/** The start configuration (ScreenerIndicator.start_params), checked: what a new card opens with and what the snapshot
+    pre-warms for the 53 indicators (report 6.7; I43 at anchor Week, P17). Equals defaultParams where default_offered. */
+export function startParams(ind: ScreenerIndicator, opts: ParamOptions): Params { return resolveScreenerParams(ind, ind.start_params, 'start_params', opts) }
 /** canonicalJson of resolved parameters: the parameter part of a series key (report 6.7). */
 export const paramsKey = (params: Params): string => canonicalJson(params);
 /** Whether resolved parameters are the registry defaults (a condition's is_default, report 8.5). */
@@ -215,7 +238,7 @@ export function catalogIndicator(ind: ScreenerIndicator, opts: ParamOptions): Ca
   const params: CatalogParam[] = ind.params.map(p => {
     const max = maxOf(p, opts.capBudgetMs);
     return {
-      key: p.key, type: p.type, label: p.label, default: p.default,
+      key: p.key, type: p.type, label: p.label, default: p.start ?? p.default,   // the value a card opens with (contract.ts)
       ...(p.min !== undefined ? { min: p.min } : {}), ...(max !== undefined ? { max } : {}),
       exclusive_min: p.exclusive_min, integer: p.integer,
       ...(p.options ? { options: p.options } : {}), ...(p.step !== undefined ? { step: p.step } : {}),
@@ -230,6 +253,7 @@ export function catalogIndicator(ind: ScreenerIndicator, opts: ParamOptions): Ca
     id: ind.id, key: ind.key, name: ind.name, category: ind.category, synonyms: ind.overlay.synonyms,
     formula_version: ind.formula_version, params, outputs, history_class: ind.history_class, cost_class: ind.cost_class,
     overlay: { shape: ind.overlay.shape, default_test: ind.overlay.default_test },
+    default_offered: ind.default_offered,
   };
 }
 export const catalogIndicators = (opts: ParamOptions): CatalogIndicator[] => INDICATORS.map(r => catalogIndicator(r, opts));

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "6a631ded26a657ff",
+  "screener_registry_version": "bd32d260675454aa",
   "registry_version": "b6a8dc0ba206ed65",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -22,7 +22,7 @@
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "434a99884dafec76a071a5cf70c6024b9926faa0f591d24241f7500fad52e6b8"
+      "sha256": "140ef134c0c247f1b80ad655379125b561804483cb85e4be702f4f28aa64ad41"
     },
     {
       "role": "oracle",
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "a519e931028c3ab251bda9ed440648c829454fecb3192ef1a870f45fb4de452c"
+      "sha256": "a24e005185f174349db6f914dc4c7b4f8f9769cab9a0bb9ab941ececdf13752e"
     }
   ],
   "probe": {
@@ -100,6 +100,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -296,6 +301,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -510,6 +520,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -664,6 +679,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 9,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -842,6 +862,13 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 10,
+        "fast_length": 2,
+        "slow_length": 30,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -1026,6 +1053,13 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "fast_length": 12,
+        "slow_length": 26,
+        "signal_length": 9,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -1313,6 +1347,11 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "di_length": 14,
+        "adx_smoothing": 14
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -1472,6 +1511,10 @@
           "cost_class": "O(N·n)"
         }
       ],
+      "start_params": {
+        "length": 14
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -1612,6 +1655,11 @@
           ]
         }
       ],
+      "start_params": {
+        "atr_length": 10,
+        "factor": 3
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -1736,6 +1784,10 @@
           "cost_class": "O(N·n)"
         }
       ],
+      "start_params": {
+        "length": 20
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -1969,6 +2021,15 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close",
+        "multiplier": 2,
+        "use_exponential_ma": true,
+        "bands_style": "ATR",
+        "atr_length": 10
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -2326,6 +2387,12 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "start": 0.02,
+        "increment": 0.02,
+        "maximum": 0.2
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -2466,6 +2533,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 14,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -2648,6 +2720,14 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "rsi_length": 14,
+        "stoch_length": 14,
+        "smooth_k": 3,
+        "smooth_d": 3,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -2855,6 +2935,12 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "k_length": 14,
+        "smooth_k": 3,
+        "d_length": 3
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -3000,6 +3086,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 14,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -3137,6 +3228,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 9,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -3294,6 +3390,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 10,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -3427,6 +3528,11 @@
           ]
         }
       ],
+      "start_params": {
+        "length": 20,
+        "constant": 0.015
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -3528,6 +3634,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 14,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -3681,6 +3792,13 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "long_length": 25,
+        "short_length": 13,
+        "signal_length": 7,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -3880,6 +3998,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 15,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -4047,6 +4170,15 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "fast_length": 7,
+        "middle_length": 14,
+        "slow_length": 28,
+        "weight_fast": 4,
+        "weight_middle": 2,
+        "weight_slow": 1
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -4142,6 +4274,11 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "fast_length": 5,
+        "slow_length": 34
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -4271,6 +4408,13 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "fast_length": 12,
+        "slow_length": 26,
+        "signal_length": 9,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -4505,6 +4649,8 @@
       "short": "BOP",
       "formula_version": "b6a8dc0ba206ed65",
       "params": [],
+      "start_params": {},
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [
         {
@@ -4647,6 +4793,13 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close",
+        "basis_ma_type": "SMA",
+        "std_dev": 2
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -5036,6 +5189,13 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close",
+        "std_dev": 2,
+        "basis_ma_type": "SMA"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -5229,6 +5389,13 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close",
+        "std_dev": 2,
+        "basis_ma_type": "SMA"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -5387,6 +5554,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 14,
+        "smoothing_type": "RMA"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -5517,6 +5689,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 14,
+        "smoothing_type": "RMA"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -5674,6 +5851,12 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close",
+        "stdev_method": "population"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -5861,6 +6044,13 @@
           ]
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close",
+        "return_type": "log",
+        "annualization_periods": 252
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -5980,6 +6170,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 14
+      },
+      "default_offered": true,
       "hidden_params": [
         {
           "key": "timeframe",
@@ -6066,6 +6260,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 20
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -6165,6 +6363,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 20
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -6261,6 +6463,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 20
+      },
+      "default_offered": true,
       "hidden_params": [
         {
           "key": "reference_method",
@@ -6390,6 +6596,12 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "fast_length": 12,
+        "slow_length": 26,
+        "signal_length": 9
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -6531,6 +6743,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 10
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -6599,6 +6815,8 @@
       "short": "OBV",
       "formula_version": "b6a8dc0ba206ed65",
       "params": [],
+      "start_params": {},
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [
         {
@@ -6700,6 +6918,8 @@
       "short": "PVT",
       "formula_version": "b6a8dc0ba206ed65",
       "params": [],
+      "start_params": {},
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [
         {
@@ -6832,6 +7052,11 @@
           "narrowing": []
         }
       ],
+      "start_params": {
+        "length": 20,
+        "source": "close"
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -6969,17 +7194,21 @@
           "label": "Anchor",
           "default": "Session",
           "options": [
-            "Session",
             "Week",
             "Month",
             "Quarter",
-            "Year",
-            "Decade",
-            "Century"
+            "Year"
           ],
           "exclusive_min": false,
           "integer": false,
-          "narrowing": []
+          "narrowing": [
+            {
+              "rule": "options",
+              "source": "decision",
+              "evidence": "P17 (a), decided with the go of 2026-10-28 (EXEC.md EXEC-SCREENER: \"Keputusan lain (P5-P7, P15-P19, P21-P23) mengikuti rekomendasi laporan\"; report 13 P17, 6.9.1 vwap row): only the Week, Month, Quarter and Year anchors are offered. At Session each daily bar is its own period, so vwap = hlc3 within 2e-16 and a condition reduces to close vs typical price; Decade and Century span all stored history and behave like cumulative rows (report 04 footnote 19). start Week: the P17 consequence built as recommended (report 13 P17, 15 'to confirm'): the registry default Session is not offered, so the card opens as Custom at anchor Week and the snapshot pre-warms that configuration (report 6.7); the registry itself is unchanged (P6)."
+            }
+          ],
+          "start": "Week"
         },
         {
           "key": "source",
@@ -7031,6 +7260,13 @@
           ]
         }
       ],
+      "start_params": {
+        "anchor": "Week",
+        "source": "hlc3",
+        "bands_mode": "StdDev",
+        "band_1_multiplier": 1
+      },
+      "default_offered": false,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -7055,12 +7291,6 @@
           ],
           "inputs_by_source": {
             "anchor": {
-              "Session": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
               "Week": [
                 "H",
                 "L",
@@ -7080,18 +7310,6 @@
                 "V"
               ],
               "Year": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
-              "Decade": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
-              "Century": [
                 "H",
                 "L",
                 "C",
@@ -7197,12 +7415,6 @@
           ],
           "inputs_by_source": {
             "anchor": {
-              "Session": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
               "Week": [
                 "H",
                 "L",
@@ -7222,18 +7434,6 @@
                 "V"
               ],
               "Year": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
-              "Decade": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
-              "Century": [
                 "H",
                 "L",
                 "C",
@@ -7335,12 +7535,6 @@
           ],
           "inputs_by_source": {
             "anchor": {
-              "Session": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
               "Week": [
                 "H",
                 "L",
@@ -7360,18 +7554,6 @@
                 "V"
               ],
               "Year": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
-              "Decade": [
-                "H",
-                "L",
-                "C",
-                "V"
-              ],
-              "Century": [
                 "H",
                 "L",
                 "C",
@@ -7487,6 +7669,8 @@
       "short": "ADL",
       "formula_version": "b6a8dc0ba206ed65",
       "params": [],
+      "start_params": {},
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [
         {
@@ -7603,6 +7787,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 20
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -7699,6 +7887,11 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "fast_length": 3,
+        "slow_length": 10
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -7782,6 +7975,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 14
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -7866,6 +8063,10 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "length": 13
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -7964,6 +8165,11 @@
           ]
         }
       ],
+      "start_params": {
+        "length": 14,
+        "volume_scale": 1000000
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -8051,6 +8257,10 @@
           ]
         }
       ],
+      "start_params": {
+        "initial_value": 1000
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -8164,6 +8374,10 @@
           ]
         }
       ],
+      "start_params": {
+        "initial_value": 1000
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -8296,6 +8510,12 @@
           "cost_class": "O(N)"
         }
       ],
+      "start_params": {
+        "fast_length": 34,
+        "slow_length": 55,
+        "signal_length": 13
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [
@@ -8428,6 +8648,10 @@
           ]
         }
       ],
+      "start_params": {
+        "volume_scale": 1
+      },
+      "default_offered": true,
       "hidden_params": [],
       "fixed_params": [],
       "outputs": [

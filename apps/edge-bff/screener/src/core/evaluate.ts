@@ -18,7 +18,11 @@
    - remarks: a cell on a PRICE_BREAK row whose lookback contains an ex-date keeps its value and its pass or fail and
      carries PRICE_BREAK_IN_LOOKBACK (P4.1 A; user 2026-10-28; where the TEST PLAN still says NA, P4.1 A wins).
    Evaluating on a tail (metrics.ts Tail, within_max + 1 bars) equals evaluating on the full series at every tail bar:
-   compare reads only bars i and i-1 (report 6.7 verification).
+   compare reads only bars i and i-1 (report 6.7 verification). A side read at the output's price_compare_lag 1
+   (Donchian's prior band, report 6.8) is therefore its own series, transform lag(output, 1) resolved through
+   metrics.ts (computed on the full series, then tailed), never a view shifted over the unlagged tail: a shifted read
+   of a cross at the window's first bar (at - within_max + 1) would need bar at - within_max - 1, one bar before the
+   tail, and would silently miss that event.
    Pure module (no DOM, no Node API). Implemented here: the bar views, compareAt, crossSignal, naReason,
    evaluationBar, round12. The evaluators are typed stubs for the core-logic agent. */
 import { compare } from '../../../backtest/src/core/conditions.ts';
@@ -90,8 +94,8 @@ export interface Evaluation {
 }
 
 /** VALUE (report 6.9): NA with naReason(v, at) when the metric has no value at `at`; else pass iff x > value (gt),
-    x < value (lt) or value <= x <= value2 (between, inclusive; value <= value2 is validate.ts's refusal, never
-    reordered here). value: x. */
+    x < value (lt) or value <= x <= value2 (between, inclusive; value > value2 is refused by validate.ts with field
+    value2, never reordered here; value = value2 is accepted). value: x. */
 export function evaluateValue(v: BarView, test: Pick<ValueTest, 'op' | 'value' | 'value2'>, at: number): Evaluation {
   throw new Error('not implemented: evaluateValue');
 }

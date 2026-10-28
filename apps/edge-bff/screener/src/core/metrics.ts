@@ -4,7 +4,10 @@
    then cut to a tail of tailLength(SCREENER_WITHIN_MAX) bars plus the first and last valid index. The cache key is
    (price_data, screener_engine, the resolved reference): precomputed and dynamic values are the same call made at two
    times (the snapshot's pre-warm at a publication, or a request), so they cannot differ; a cell reports
-   'precomputed' for a pre-warmed hit and 'dynamic' otherwise (report 8.5 `source`; is_default is separate).
+   'precomputed' for a pre-warmed hit and 'dynamic' otherwise (report 8.5 `source`; is_default is separate). The
+   snapshot pre-warms each of the 53 indicators at registry.ts startParams (the registry defaults, except I43 at anchor
+   Week: P17 a does not offer its registry default Session, report 6.7), every preset configuration and the declared
+   derived series, with series(..., true).
    Pure module (no DOM, no Node API); the worker owns the cache's lifetime (dropped on a version swap). */
 import { Calc } from '../../../backtest/src/core/conditions.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
@@ -93,7 +96,9 @@ export function resolveSeries(ref: MetricRef, field: string, ctx: ParamOptions &
 /* ---- tails ------------------------------------------------------------------------------------------------------ */
 
 /** The tail the snapshot keeps per series and ticker (report 6.7, 8.9): the longest `within` plus the previous bar a
-    cross reads, derived from the one limit SCREENER_WITHIN_MAX, never written separately. */
+    cross reads, derived from the one limit SCREENER_WITHIN_MAX, never written separately. It holds no spare bar, so a
+    lagged side (price_compare_lag 1) must be the lagged series itself (transform lag, tailed after the shift), not a
+    shifted read of this tail (evaluate.ts header). */
 export const tailLength = (withinMax: number): number => {
   if (!(Number.isInteger(withinMax) && withinMax >= 1)) throw new RangeError(`tailLength: within_max must be a whole number of at least 1, not ${withinMax}`);
   return withinMax + 1;
