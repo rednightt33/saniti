@@ -369,8 +369,9 @@ export type TestForm = 'value' | 'value_pct_distance' | 'value_band_position' | 
   | 'event_vs_ma';
 export type TestOp = 'gt' | 'lt' | 'between' | 'crosses_above' | 'crosses_below';
 /** One allowed test form of an output: ops restricts the operators to the prototype's (report 6.9.1, kept 1:1);
-    label: the prototype's card label where it has one; defaults: the transform arguments (bars, ma, length). */
-export interface TestFormSpec { form: TestForm; ops: TestOp[]; with_output?: string; label?: string; defaults?: Record<string, ParamValue> }
+    labels: the prototype's card label per operator where it has one; defaults: the value or the transform arguments
+    the card opens with (value; bars; ma and length). */
+export interface TestFormSpec { form: TestForm; ops: TestOp[]; with_output?: string; labels?: Partial<Record<TestOp, string>>; defaults?: Record<string, ParamValue> }
 /** A test form shown disabled with its reason (raw cumulative levels, report 6.7). */
 export interface DisabledTestForm { form: TestForm; reason: string }
 /** The card a new condition on this indicator opens with (the prototype's XK.def, kept as a product choice). */

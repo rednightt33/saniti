@@ -1,0 +1,2681 @@
+{
+  "schema_version": 1,
+  "about": "Hand-kept product choices of the EDGE Screener (report TARGET ARCHITECTURE 6.8, 6.9.1): per registry indicator the prototype shape, the test forms each output allows (with the prototype operators and labels), search synonyms and the card a new condition opens with; plus explicit overrides with evidence and the provisional cost model of the caps. Never a parameter range, unit, lag or input list: those come from backtest-registry.json or are derived by scripts/build-screener-registry.mjs.",
+  "cost_model": {
+    "status": "PROVISIONAL (P5): replaced by the Phase 17 measurement on the service, recorded in verification/screener/BENCHMARK.md with CPU and Node version",
+    "rule": "cap = floor(SCREENER_CAP_BUDGET_MS * 1e6 / (ns_per_bar_length * reference_bars)) for a parameter whose cost_class is O(N·n); none for O(N)",
+    "ns_per_bar_length": 5.96,
+    "reference_bars": 1330000,
+    "evidence": "audit/verify_matrix_a.json a-cost-long-length: CCI(1000) took 7.93 s on the full market (7.93e9 ns / (1.33e6 bars x 1000) = 5.96 ns); 1.33 M price rows, audit/reuse.md section 3.4 E"
+  },
+  "overrides": [
+    {
+      "indicator": "I09",
+      "param": "factor",
+      "rule": "exclusive_min",
+      "overrides_probe": "degeneracy",
+      "evidence": "ERRORS M257; report 6.8: factor 0 passes the degeneracy probe (finite, varying output) yet gives 1,128 direction flips in 2,115 bars on BBRI against 60 at factor 3"
+    }
+  ],
+  "indicators": {
+    "I01": {
+      "shape": "line",
+      "synonyms": [
+        "SMA",
+        "golden",
+        "death",
+        "cross"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "sma",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "sma": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above SMA",
+                "lt": "Close below SMA"
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "SMA rising (vs 5 sessions ago)"
+              },
+              "defaults": {
+                "bars": 5
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above SMA",
+                "crosses_below": "Close crosses below SMA"
+              }
+            },
+            {
+              "form": "state_instance",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Fast above slow"
+              }
+            },
+            {
+              "form": "event_instance",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Golden cross (fast crosses above slow)",
+                "crosses_below": "Death cross (fast crosses below slow)"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I02": {
+      "shape": "line",
+      "synonyms": [
+        "EMA",
+        "golden",
+        "death",
+        "cross"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "ema",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "ema": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above EMA",
+                "lt": "Close below EMA"
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "EMA rising (vs 5 sessions ago)"
+              },
+              "defaults": {
+                "bars": 5
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above EMA",
+                "crosses_below": "Close crosses below EMA"
+              }
+            },
+            {
+              "form": "state_instance",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Fast above slow"
+              }
+            },
+            {
+              "form": "event_instance",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Golden cross (fast crosses above slow)",
+                "crosses_below": "Death cross (fast crosses below slow)"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I03": {
+      "shape": "line",
+      "synonyms": [
+        "WMA"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "wma",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "wma": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above WMA",
+                "lt": "Close below WMA"
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "WMA rising (vs 5 sessions ago)"
+              },
+              "defaults": {
+                "bars": 5
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above WMA",
+                "crosses_below": "Close crosses below WMA"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I04": {
+      "shape": "line",
+      "synonyms": [
+        "HMA"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "hma",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "hma": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above HMA",
+                "lt": "Close below HMA"
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "HMA rising (vs 5 sessions ago)"
+              },
+              "defaults": {
+                "bars": 5
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above HMA",
+                "crosses_below": "Close crosses below HMA"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I05": {
+      "shape": "line",
+      "synonyms": [
+        "KAMA"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "kama",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "kama": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above KAMA",
+                "lt": "Close below KAMA"
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "KAMA rising (vs 5 sessions ago)"
+              },
+              "defaults": {
+                "bars": 5
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above KAMA",
+                "crosses_below": "Close crosses below KAMA"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I06": {
+      "shape": "pair",
+      "synonyms": [
+        "MACD",
+        "divergence"
+      ],
+      "default_test": {
+        "form": "event_output",
+        "output": "macd",
+        "op": "crosses_above",
+        "within": 5
+      },
+      "outputs": {
+        "macd": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "gt": "MACD above signal"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "crosses_above": "MACD crosses above signal",
+                "crosses_below": "MACD crosses below signal"
+              }
+            }
+          ]
+        },
+        "signal": {
+          "tests": []
+        },
+        "histogram": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I07": {
+      "shape": "adx",
+      "synonyms": [
+        "DMI",
+        "trend"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "adx",
+        "op": "gt",
+        "value": 25,
+        "value2": 40,
+        "within": 5
+      },
+      "outputs": {
+        "adx": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        },
+        "plus_di": {
+          "tests": [
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "minus_di",
+              "labels": {
+                "gt": "+DI above −DI (uptrend)"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above"
+              ],
+              "with_output": "minus_di",
+              "labels": {
+                "crosses_above": "+DI crosses above −DI"
+              }
+            }
+          ]
+        },
+        "minus_di": {
+          "tests": []
+        }
+      }
+    },
+    "I08": {
+      "shape": "pair",
+      "synonyms": [
+        "Aroon"
+      ],
+      "default_test": {
+        "form": "event_output",
+        "output": "aroon_up",
+        "op": "crosses_above",
+        "within": 5
+      },
+      "outputs": {
+        "aroon_up": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "aroon_down",
+              "labels": {
+                "gt": "Aroon Up above Aroon Down"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "aroon_down",
+              "labels": {
+                "crosses_above": "Aroon Up crosses above Aroon Down",
+                "crosses_below": "Aroon Up crosses below Aroon Down"
+              }
+            }
+          ]
+        },
+        "aroon_down": {
+          "tests": []
+        }
+      }
+    },
+    "I09": {
+      "shape": "dir",
+      "synonyms": [
+        "Supertrend"
+      ],
+      "default_test": {
+        "form": "state_value",
+        "output": "direction",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "supertrend": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "direction": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "In uptrend"
+              },
+              "defaults": {
+                "value": 0
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Flipped to uptrend",
+                "crosses_below": "Flipped to downtrend"
+              },
+              "defaults": {
+                "value": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I10": {
+      "shape": "band",
+      "synonyms": [
+        "DC",
+        "breakout"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "upper",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "upper": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above upper (prior session)"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above upper band"
+              }
+            }
+          ]
+        },
+        "basis": {
+          "tests": [
+            {
+              "form": "value_band_position",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above middle line"
+              }
+            }
+          ]
+        },
+        "lower": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "lt"
+              ],
+              "labels": {
+                "lt": "Close below lower (prior session)"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_below": "Close crosses below lower band"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I11": {
+      "shape": "band",
+      "synonyms": [
+        "KC"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "upper",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "upper": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above upper band"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above upper band"
+              }
+            }
+          ]
+        },
+        "basis": {
+          "tests": [
+            {
+              "form": "value_band_position",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above middle line"
+              }
+            }
+          ]
+        },
+        "lower": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "lt"
+              ],
+              "labels": {
+                "lt": "Close below lower band"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_below": "Close crosses below lower band"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I12": {
+      "shape": "dir",
+      "synonyms": [
+        "SAR"
+      ],
+      "default_test": {
+        "form": "state_value",
+        "output": "direction",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "sar": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            }
+          ]
+        },
+        "direction": {
+          "tests": [
+            {
+              "form": "state_value",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "In uptrend"
+              },
+              "defaults": {
+                "value": 0
+              }
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Flipped to uptrend",
+                "crosses_below": "Flipped to downtrend"
+              },
+              "defaults": {
+                "value": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I13": {
+      "shape": "osc",
+      "synonyms": [
+        "RSI",
+        "momentum"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "rsi",
+        "op": "lt",
+        "value": 30,
+        "value2": 50,
+        "within": 5
+      },
+      "outputs": {
+        "rsi": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I14": {
+      "shape": "pair",
+      "synonyms": [
+        "Stoch RSI"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "k",
+        "op": "lt",
+        "value": 20,
+        "value2": 80,
+        "within": 5
+      },
+      "outputs": {
+        "k": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "d",
+              "labels": {
+                "gt": "%K above %D"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "d",
+              "labels": {
+                "crosses_above": "%K crosses above %D",
+                "crosses_below": "%K crosses below %D"
+              }
+            }
+          ]
+        },
+        "d": {
+          "tests": []
+        }
+      }
+    },
+    "I15": {
+      "shape": "pair",
+      "synonyms": [
+        "Stoch"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "k",
+        "op": "lt",
+        "value": 20,
+        "value2": 80,
+        "within": 5
+      },
+      "outputs": {
+        "k": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "d",
+              "labels": {
+                "gt": "%K above %D"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "d",
+              "labels": {
+                "crosses_above": "%K crosses above %D",
+                "crosses_below": "%K crosses below %D"
+              }
+            }
+          ]
+        },
+        "d": {
+          "tests": []
+        }
+      }
+    },
+    "I16": {
+      "shape": "osc",
+      "synonyms": [
+        "%R"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "williams_r",
+        "op": "lt",
+        "value": -80,
+        "value2": -20,
+        "within": 5
+      },
+      "outputs": {
+        "williams_r": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I17": {
+      "shape": "osc",
+      "synonyms": [
+        "ROC"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "roc",
+        "op": "gt",
+        "value": 0,
+        "value2": 10,
+        "within": 5
+      },
+      "outputs": {
+        "roc": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I18": {
+      "shape": "osc",
+      "synonyms": [
+        "Mom"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "momentum",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "momentum": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I19": {
+      "shape": "osc",
+      "synonyms": [
+        "CCI"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "cci",
+        "op": "lt",
+        "value": -100,
+        "value2": 100,
+        "within": 5
+      },
+      "outputs": {
+        "cci": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I20": {
+      "shape": "osc",
+      "synonyms": [
+        "CMO"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "cmo",
+        "op": "lt",
+        "value": -50,
+        "value2": 50,
+        "within": 5
+      },
+      "outputs": {
+        "cmo": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I21": {
+      "shape": "pair",
+      "synonyms": [
+        "TSI"
+      ],
+      "default_test": {
+        "form": "event_output",
+        "output": "tsi",
+        "op": "crosses_above",
+        "within": 5
+      },
+      "outputs": {
+        "tsi": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "gt": "TSI above signal"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "crosses_above": "TSI crosses above signal",
+                "crosses_below": "TSI crosses below signal"
+              }
+            }
+          ]
+        },
+        "signal": {
+          "tests": []
+        }
+      }
+    },
+    "I22": {
+      "shape": "osc",
+      "synonyms": [
+        "TRIX"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "trix",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "trix": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I23": {
+      "shape": "osc",
+      "synonyms": [
+        "UO"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "uo",
+        "op": "lt",
+        "value": 30,
+        "value2": 70,
+        "within": 5
+      },
+      "outputs": {
+        "uo": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I24": {
+      "shape": "osc",
+      "synonyms": [
+        "AO"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "ao",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "ao": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I25": {
+      "shape": "pair",
+      "synonyms": [
+        "PPO"
+      ],
+      "default_test": {
+        "form": "event_output",
+        "output": "ppo",
+        "op": "crosses_above",
+        "within": 5
+      },
+      "outputs": {
+        "ppo": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "gt": "PPO above signal"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "crosses_above": "PPO crosses above signal",
+                "crosses_below": "PPO crosses below signal"
+              }
+            }
+          ]
+        },
+        "signal": {
+          "tests": []
+        },
+        "histogram": {
+          "tests": []
+        }
+      }
+    },
+    "I26": {
+      "shape": "osc",
+      "synonyms": [
+        "BOP"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "bop",
+        "op": "gt",
+        "value": 0,
+        "value2": 0.5,
+        "within": 5
+      },
+      "outputs": {
+        "bop": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I27": {
+      "shape": "band",
+      "synonyms": [
+        "BB",
+        "squeeze"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "upper",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "upper": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above upper band"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above upper band"
+              }
+            }
+          ]
+        },
+        "basis": {
+          "tests": [
+            {
+              "form": "value_band_position",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above middle line"
+              }
+            }
+          ]
+        },
+        "lower": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "lt"
+              ],
+              "labels": {
+                "lt": "Close below lower band"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_below": "Close crosses below lower band"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I28": {
+      "shape": "osc",
+      "synonyms": [
+        "%B"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "percent_b",
+        "op": "lt",
+        "value": 0,
+        "value2": 1,
+        "within": 5
+      },
+      "outputs": {
+        "percent_b": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I29": {
+      "shape": "osc",
+      "synonyms": [
+        "BBW",
+        "squeeze"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "bandwidth",
+        "op": "lt",
+        "value": 10,
+        "value2": 20,
+        "within": 5
+      },
+      "outputs": {
+        "bandwidth": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I30": {
+      "shape": "osc",
+      "synonyms": [
+        "ATR"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "atr",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "atr": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I31": {
+      "shape": "osc",
+      "synonyms": [
+        "NATR"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "natr",
+        "op": "gt",
+        "value": 3,
+        "value2": 6,
+        "within": 5
+      },
+      "outputs": {
+        "natr": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I32": {
+      "shape": "osc",
+      "synonyms": [
+        "StdDev"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "stddev",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "stddev": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I33": {
+      "shape": "osc",
+      "synonyms": [
+        "HV"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "historical_volatility",
+        "op": "gt",
+        "value": 30,
+        "value2": 60,
+        "within": 5
+      },
+      "outputs": {
+        "historical_volatility": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I34": {
+      "shape": "osc",
+      "synonyms": [
+        "ADR"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "adr",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "adr": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I35": {
+      "shape": "vol",
+      "synonyms": [
+        "Vol SMA"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "volume_sma",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "volume_sma": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Volume above Vol SMA"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Volume crosses above Vol SMA"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I36": {
+      "shape": "vol",
+      "synonyms": [
+        "Vol EMA"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "volume_ema",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "volume_ema": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Volume above Vol EMA"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Volume crosses above Vol EMA"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I37": {
+      "shape": "osc",
+      "synonyms": [
+        "RVOL"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "rvol",
+        "op": "gt",
+        "value": 1.5,
+        "value2": 3,
+        "within": 5
+      },
+      "outputs": {
+        "rvol": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I38": {
+      "shape": "pair",
+      "synonyms": [
+        "PVO"
+      ],
+      "default_test": {
+        "form": "event_output",
+        "output": "pvo",
+        "op": "crosses_above",
+        "within": 5
+      },
+      "outputs": {
+        "pvo": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "gt": "PVO above signal"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "crosses_above": "PVO crosses above signal",
+                "crosses_below": "PVO crosses below signal"
+              }
+            }
+          ]
+        },
+        "signal": {
+          "tests": []
+        },
+        "histogram": {
+          "tests": []
+        }
+      }
+    },
+    "I39": {
+      "shape": "osc",
+      "synonyms": [
+        "VROC"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "volume_roc",
+        "op": "gt",
+        "value": 50,
+        "value2": 200,
+        "within": 5
+      },
+      "outputs": {
+        "volume_roc": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I40": {
+      "shape": "cum",
+      "synonyms": [
+        "OBV"
+      ],
+      "default_test": {
+        "form": "state_vs_ma",
+        "output": "obv",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "obv": {
+          "tests": [
+            {
+              "form": "state_vs_ma",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Above its 20-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 20
+              }
+            },
+            {
+              "form": "event_vs_ma",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Crosses above its 20-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 20
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Rising over 20 sessions"
+              },
+              "defaults": {
+                "bars": 20
+              }
+            }
+          ],
+          "disabled_tests": [
+            {
+              "form": "value",
+              "reason": "The level of a cumulative line depends on where its history starts, so a threshold on it is not comparable across stocks (report 6.7)."
+            }
+          ]
+        }
+      }
+    },
+    "I41": {
+      "shape": "cum",
+      "synonyms": [
+        "PVT"
+      ],
+      "default_test": {
+        "form": "state_vs_ma",
+        "output": "pvt",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "pvt": {
+          "tests": [
+            {
+              "form": "state_vs_ma",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Above its 20-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 20
+              }
+            },
+            {
+              "form": "event_vs_ma",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Crosses above its 20-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 20
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Rising over 20 sessions"
+              },
+              "defaults": {
+                "bars": 20
+              }
+            }
+          ],
+          "disabled_tests": [
+            {
+              "form": "value",
+              "reason": "The level of a cumulative line depends on where its history starts, so a threshold on it is not comparable across stocks (report 6.7)."
+            }
+          ]
+        }
+      }
+    },
+    "I42": {
+      "shape": "line",
+      "synonyms": [
+        "VWMA"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "vwma",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "vwma": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt",
+                "lt"
+              ],
+              "labels": {
+                "gt": "Close above VWMA",
+                "lt": "Close below VWMA"
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "VWMA rising (vs 5 sessions ago)"
+              },
+              "defaults": {
+                "bars": 5
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above VWMA",
+                "crosses_below": "Close crosses below VWMA"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I43": {
+      "shape": "band",
+      "synonyms": [
+        "VWAP"
+      ],
+      "default_test": {
+        "form": "state_level",
+        "output": "vwap",
+        "op": "gt",
+        "within": 5
+      },
+      "probe": {
+        "params": {
+          "anchor": "Month"
+        },
+        "evidence": "At the default anchor Session each daily bar is its own period, so upper1 and lower1 are one price plus or minus its own deviation (0 up to floating residue) and the scaling and lag probes would measure that residue; they run on a monthly anchor, where the bands are real. The unit and comparison of an output do not depend on the anchor."
+      },
+      "outputs": {
+        "vwap": {
+          "tests": [
+            {
+              "form": "value_pct_distance",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above middle line"
+              }
+            }
+          ]
+        },
+        "upper1": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Close above upper band"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Close crosses above upper band"
+              }
+            }
+          ]
+        },
+        "lower1": {
+          "tests": [
+            {
+              "form": "state_level",
+              "ops": [
+                "lt"
+              ],
+              "labels": {
+                "lt": "Close below lower band"
+              }
+            },
+            {
+              "form": "event_level",
+              "ops": [
+                "crosses_below"
+              ],
+              "labels": {
+                "crosses_below": "Close crosses below lower band"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "I44": {
+      "shape": "cum",
+      "synonyms": [
+        "ADL"
+      ],
+      "default_test": {
+        "form": "state_vs_ma",
+        "output": "adl",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "adl": {
+          "tests": [
+            {
+              "form": "state_vs_ma",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Above its 20-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 20
+              }
+            },
+            {
+              "form": "event_vs_ma",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Crosses above its 20-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 20
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Rising over 20 sessions"
+              },
+              "defaults": {
+                "bars": 20
+              }
+            }
+          ],
+          "disabled_tests": [
+            {
+              "form": "value",
+              "reason": "The level of a cumulative line depends on where its history starts, so a threshold on it is not comparable across stocks (report 6.7)."
+            }
+          ]
+        }
+      }
+    },
+    "I45": {
+      "shape": "osc",
+      "synonyms": [
+        "CMF"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "cmf",
+        "op": "gt",
+        "value": 0,
+        "value2": 0.2,
+        "within": 5
+      },
+      "outputs": {
+        "cmf": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I46": {
+      "shape": "osc",
+      "synonyms": [
+        "Chaikin Osc"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "chaikin_osc",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "chaikin_osc": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I47": {
+      "shape": "osc",
+      "synonyms": [
+        "MFI"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "mfi",
+        "op": "lt",
+        "value": 20,
+        "value2": 80,
+        "within": 5
+      },
+      "outputs": {
+        "mfi": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I48": {
+      "shape": "osc",
+      "synonyms": [
+        "EFI"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "force_index",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "force_index": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I49": {
+      "shape": "osc",
+      "synonyms": [
+        "EOM"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "eom",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "eom": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "I50": {
+      "shape": "cum",
+      "synonyms": [
+        "NVI"
+      ],
+      "default_test": {
+        "form": "state_vs_ma",
+        "output": "nvi",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "nvi": {
+          "tests": [
+            {
+              "form": "state_vs_ma",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Above its 255-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 255
+              }
+            },
+            {
+              "form": "event_vs_ma",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Crosses above its 255-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 255
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Rising over 20 sessions"
+              },
+              "defaults": {
+                "bars": 20
+              }
+            }
+          ],
+          "disabled_tests": [
+            {
+              "form": "value",
+              "reason": "The level of a cumulative line depends on where its history starts, so a threshold on it is not comparable across stocks (report 6.7)."
+            }
+          ]
+        }
+      }
+    },
+    "I51": {
+      "shape": "cum",
+      "synonyms": [
+        "PVI"
+      ],
+      "default_test": {
+        "form": "state_vs_ma",
+        "output": "pvi",
+        "op": "gt",
+        "within": 5
+      },
+      "outputs": {
+        "pvi": {
+          "tests": [
+            {
+              "form": "state_vs_ma",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Above its 255-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 255
+              }
+            },
+            {
+              "form": "event_vs_ma",
+              "ops": [
+                "crosses_above"
+              ],
+              "labels": {
+                "crosses_above": "Crosses above its 255-session EMA"
+              },
+              "defaults": {
+                "ma": "EMA",
+                "length": 255
+              }
+            },
+            {
+              "form": "state_rising",
+              "ops": [
+                "gt"
+              ],
+              "labels": {
+                "gt": "Rising over 20 sessions"
+              },
+              "defaults": {
+                "bars": 20
+              }
+            }
+          ],
+          "disabled_tests": [
+            {
+              "form": "value",
+              "reason": "The level of a cumulative line depends on where its history starts, so a threshold on it is not comparable across stocks (report 6.7)."
+            }
+          ]
+        }
+      }
+    },
+    "I52": {
+      "shape": "pair",
+      "synonyms": [
+        "KVO"
+      ],
+      "default_test": {
+        "form": "event_output",
+        "output": "kvo",
+        "op": "crosses_above",
+        "within": 5
+      },
+      "outputs": {
+        "kvo": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            },
+            {
+              "form": "state_output",
+              "ops": [
+                "gt"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "gt": "KVO above signal"
+              }
+            },
+            {
+              "form": "event_output",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ],
+              "with_output": "signal",
+              "labels": {
+                "crosses_above": "KVO crosses above signal",
+                "crosses_below": "KVO crosses below signal"
+              }
+            }
+          ]
+        },
+        "signal": {
+          "tests": []
+        }
+      }
+    },
+    "I53": {
+      "shape": "osc",
+      "synonyms": [
+        "MFI (BW)"
+      ],
+      "default_test": {
+        "form": "value",
+        "output": "market_fi",
+        "op": "gt",
+        "value": 0,
+        "within": 5
+      },
+      "outputs": {
+        "market_fi": {
+          "tests": [
+            {
+              "form": "value",
+              "ops": [
+                "gt",
+                "lt",
+                "between"
+              ]
+            },
+            {
+              "form": "event_value",
+              "ops": [
+                "crosses_above",
+                "crosses_below"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -10,7 +10,7 @@ import json
 import re
 import time
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from . import quota
+from .bucket import XSECTION_NAME, xsection_index
 from .config import Settings
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
@@ -34,6 +35,7 @@ REF_FILES = {'tickers': 'v1/ref/tickers.json.gz', 'brokers': 'v1/ref/brokers.jso
 LOGO_CACHE_SECONDS = 7 * 24 * 3600
 ACCESS_LOG_DAYS = 90            # EXEC-TERMINAL-SPEED (user 2026-10-26): audit rows are kept 90 days
 PRUNE_EVERY_SECONDS = 6 * 3600
+MAX_XSECTION_NAMES = 16         # EXEC-SCREENER: names per /xsection call (Phase 1 indexes 2, Phase 2 about 5)
 
 
 class Strict(BaseModel):
@@ -73,6 +75,13 @@ class BundleRequest(Strict):
     # EXEC-TERMINAL-SPEED: the packs instead of yearly files where the manifest has them (price: one file for every
     # year; broker: the archive pack plus the last two yearly files)
     packs: bool = False
+
+
+class XsectionRequest(Strict):
+    """EXEC-SCREENER (P1 a, user 2026-10-28): cross-sectional files of the current publication by their index names
+    (state.json `xsection`, shown on /state); a client never names a key."""
+    names: list[Annotated[str, Field(pattern=XSECTION_NAME.pattern)]] = Field(min_length=1,
+                                                                              max_length=MAX_XSECTION_NAMES)
 
 
 class NewSubscriber(Strict):
@@ -177,6 +186,16 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         if not row:
             error(401, 'session_ended', 'Your session ended or your subscription is not active. Sign in again.')
         return row
+
+    def gateway(request: Request):
+        """EXEC-SCREENER: routes only edge-bff's private services reach with the gateway key (the screener-worker); a
+        subscriber's own session is refused, since one cross-sectional file holds every ticker. Signing in would not
+        help, so a request without the key is 403, not 401."""
+        if not proxied(request):
+            error(403, 'gateway_only', f'Cross-sectional files are granted only to the EDGE gateway, with the '
+                                       f'{PROXY_HEADER} header; a subscriber session cannot ask for them. One '
+                                       f"ticker's files: POST {API}/bundle.")
+        return subscriber(request)
 
     def admin(request: Request):
         if not same_secret(request.headers.get('x-terminal-admin-key'), settings.admin_key):
@@ -298,7 +317,10 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     def publication(who=Depends(subscriber)):
         """EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publication the files belong to (state.json, read for the manifest
         cache, at most manifest_cache_seconds old). No file is granted: no quota, no audit row. A reader keeps what it
-        derives from the files (the backtest catalog) until finished_at changes."""
+        derives from the files (the backtest catalog) until finished_at changes. EXEC-SCREENER: `xsection` is the
+        run's cross-sectional file index ({name: {key, sha256, bytes, rows, as_of}}, null before the publisher writes
+        one); it names keys and hashes but grants nothing (the bucket is private), so a reader with the file cached by
+        sha256 asks POST /xsection only for the files it lacks."""
         state = bucket.state()
         if not state:
             error(503, 'state_unavailable', 'The publication state could not be read; try again shortly.')
@@ -315,10 +337,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
 
     pruned = {'at': None}                                    # the first grant of a worker prunes once
 
-    def grant(request, who, ticker, chosen, one_row=False):
-        """Quota and audit for a set of files of one ticker, under one lock: the same counting for /files and /bundle.
-        chosen = [(dataset, year or None, manifest file entry)]. one_row (/bundle, EXEC-TERMINAL-SPEED): one audit row
-        that counts every file; quotas sum file_count either way."""
+    def grant(request, who, ticker, chosen, one_row=False, dataset='bundle'):
+        """Quota and audit for a set of files of one ticker, under one lock: the same counting for /files, /bundle and
+        /xsection. chosen = [(dataset, year or None, manifest file entry)]. one_row (/bundle, EXEC-TERMINAL-SPEED;
+        /xsection under quota.REF, EXEC-SCREENER): one audit row with `dataset` that counts every file; quotas sum
+        file_count either way."""
         size = sum(f['bytes'] for _, _, f in chosen)
         sid, ip = who['subscriber_id'], ip_of(request)
         with store.tx() as c:
@@ -327,7 +350,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
             ttl = limits['url_ttl_seconds']
             if one_row:
-                store.log_access(c, sid, 'file', ticker, ip, dataset='bundle', bytes_=size, keys=[f['key'] for _, _, f in chosen])
+                store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, bytes_=size, keys=[f['key'] for _, _, f in chosen])
             else:
                 for dataset, y, f in chosen:
                     store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, year=y, key=f['key'], bytes_=f['bytes'])
@@ -391,6 +414,30 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                    for n, y, f in chosen if n == name]}
         return {'ticker': body.ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'),
                 'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out}
+
+    @app.post(f'{API}/xsection')
+    def xsection(body: XsectionRequest, request: Request, who=Depends(gateway)):
+        """EXEC-SCREENER (P1 a, user 2026-10-28): presigned URLs for cross-sectional files of the current publication,
+        named by their /state index names; the gateway key only (the screener-worker on the private network). Only
+        index keys are presigned (xsection_index). One file per name and their bytes count against the quota under the
+        REF pseudo-ticker (never an opened ticker), with one audit row (dataset 'xsection') listing every key. The
+        answer names its publication (finished_at) and each file's sha256: during the first manifest_cache_seconds
+        after a run another process may still serve the previous one, whose files stay in the bucket."""
+        state = bucket.state()
+        if not state:
+            error(503, 'state_unavailable', 'The publication state could not be read; try again shortly.')
+        index = xsection_index(state.get('xsection')) or {}
+        names = list(dict.fromkeys(body.names))
+        missing = [n for n in names if n not in index]
+        if missing:
+            error(404, 'xsection_not_published', f'No cross-sectional file {missing} in the publication of '
+                                                 f'{state.get("finished_at")}; indexed: {sorted(index) or "none"}. '
+                                                 f'GET {API}/state lists the index.')
+        chosen = [('xsection', n, index[n]) for n in names]
+        ttl = grant(request, who, quota.REF, chosen, one_row=True, dataset='xsection')
+        return {'finished_at': state.get('finished_at'), 'expires_in_seconds': ttl, 'encoding': 'gzip json',
+                'files': [{'name': n, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
+                           'rows': f['rows'], 'as_of': f['as_of']} for _, n, f in chosen]}
 
     def history_range(m, dataset, lo: dt.date, hi: dt.date, max_days: int):
         first_year = (m.get('datasets', {}).get(dataset, {}).get('first_year')

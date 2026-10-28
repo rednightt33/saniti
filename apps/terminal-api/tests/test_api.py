@@ -49,7 +49,7 @@ class FakeStore:
 
     def log_access(self, c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None):
         self.access.append({'sid': sid, 'kind': kind, 'ticker': ticker, 'key': key or (keys[0] if keys else None),
-                            'keys': keys, 'files': len(keys) if keys else 1, 'bytes': bytes_})
+                            'keys': keys, 'files': len(keys) if keys else 1, 'bytes': bytes_, 'dataset': dataset})
 
     def prune(self, c, days):
         self.pruned = days
@@ -507,11 +507,21 @@ def test_state_unreadable_is_503():
     assert r.status_code == 503 and r.json()['error'] == 'state_unavailable'
 
 
+SHA_PRICE, SHA_ACTIONS = 'e' * 64, 'f' * 64
+XSECTION = {   # EXEC-SCREENER: state.json `xsection`, as the publisher indexes the run's cross-sectional files
+    'price': {'key': f'v1/xsection/price.{SHA_PRICE[:16]}.json.gz', 'sha256': SHA_PRICE, 'bytes': 14_000_000,
+              'rows': 1_330_000, 'as_of': '2026-10-27'},
+    'actions': {'key': f'v1/xsection/actions.{SHA_ACTIONS[:16]}.json.gz', 'sha256': SHA_ACTIONS, 'bytes': 40_000,
+                'rows': 900, 'as_of': '2026-10-27'}}
+
+
 def test_bucket_state_keeps_the_last_read_publication(monkeypatch):
     import io
     from app import bucket as bucket_mod
     state = {'finished_at': 'run-1', 'price_through': '2026-10-26', 'broker_through': '2026-10-23', 'broker_behind_sessions': 1,
-             'window': {'first_year': 2021}}
+             'window': {'first_year': 2021},
+             'xsection': {'price': {**XSECTION['price'], 'stamp': 'publisher-only'},
+                          'bad': {**XSECTION['actions'], 'key': 'v1/price/BBCA/2026.json.gz'}}}
 
     class S3:
         class exceptions:
@@ -525,9 +535,194 @@ def test_bucket_state_keeps_the_last_read_publication(monkeypatch):
     clock = [1000.0]
     monkeypatch.setattr(bucket_mod.time, 'monotonic', lambda: clock[0])
     assert b.state() == {'finished_at': 'run-1', 'price_through': '2026-10-26', 'broker_through': '2026-10-23',
-                         'broker_behind_sessions': 1}                       # only the publication fields
-    state.update(finished_at='run-2', broker_through='2026-10-27')
+                         'broker_behind_sessions': 1,                       # only the publication fields
+                         'xsection': {'price': XSECTION['price']}}          # and the index's well-formed entries
+    state.update(finished_at='run-2', broker_through='2026-10-27', xsection=XSECTION)
     assert b.state()['finished_at'] == 'run-1'                              # within the check interval
     clock[0] += 61
     assert b.state()['finished_at'] == 'run-2' and b.state()['broker_through'] == '2026-10-27'
+    assert b.state()['xsection'] == XSECTION                                # the index of the same read
+    del state['xsection']
+    clock[0] += 61
+    assert b.state()['xsection'] is None                                    # a run without an index: null
+
+
+# ---- EXEC-SCREENER: cross-sectional files (P1 a, user 2026-10-28; report 08 §8.12, test plan 10b.11) ---------------
+GATEWAY = {'x-terminal-proxy-key': PROXY_KEY}
+
+
+def gateway_client(bucket, store=None):
+    """terminal-api with the gateway configured and its subscriber (sub@example.com, id 1) added."""
+    store = store or FakeStore()
+    settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'})
+    client = TestClient(create_app(settings, store, bucket))
+    r = client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
+        'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
+        'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
+    assert r.status_code == 201, r.text
+    return client, store
+
+
+@pytest.fixture()
+def rack():
+    """The gateway, with a publication whose state.json indexes two cross-sectional files."""
+    bucket = FakeBucket()
+    bucket.state_doc = {**FakeBucket.state_doc, 'xsection': json.loads(json.dumps(XSECTION))}
+    client, store = gateway_client(bucket)
+    return client, store, bucket
+
+
+def s3_bucket(state):
+    """The real Bucket over a fake S3 that holds only state.json (and presigns any key)."""
+    import io
+    from app import bucket as bucket_mod
+
+    class S3:
+        class exceptions:
+            NoSuchKey = KeyError
+
+        def get_object(self, Bucket, Key):
+            if not Key.endswith('state.json'):
+                raise KeyError(Key)
+            return {'Body': io.BytesIO(json.dumps(state).encode())}
+
+        def generate_presigned_url(self, op, Params, ExpiresIn):
+            return f'https://bucket.example/{Params["Key"]}?X-Amz-Expires={ExpiresIn}&sig=x'
+    b = object.__new__(bucket_mod.Bucket)
+    b.name, b.s3, b.cache_seconds, b._cache, b._version, b._checked, b._state = 'x', S3(), 60, {}, None, None, None
+    return b
+
+
+def test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref(rack):
+    client, store, _ = rack
+    store.locks = 0
+    store.lock_subscriber = lambda c, sid: setattr(store, 'locks', store.locks + 1)
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price', 'actions', 'price']})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert (b['finished_at'], b['expires_in_seconds'], b['encoding']) == ('2026-10-27T13:03:17Z', 120, 'gzip json')
+    assert [f['name'] for f in b['files']] == ['price', 'actions']             # a repeated name is one file
+    assert b['files'][0] == {'name': 'price', 'url': f'https://bucket.example/{XSECTION["price"]["key"]}'
+                                                     '?X-Amz-Expires=120&sig=x', 'sha256': SHA_PRICE,
+                             'bytes': 14_000_000, 'rows': 1_330_000, 'as_of': '2026-10-27'}
+    assert len(store.access) == 1 and store.locks == 1
+    row = store.access[0]
+    assert (row['sid'], row['kind'], row['ticker'], row['dataset']) == (1, 'file', quota.REF, 'xsection')
+    assert row['keys'] == [XSECTION['price']['key'], XSECTION['actions']['key']] and row['files'] == 2
+    assert row['bytes'] == 14_000_000 + 40_000                                 # bytes counted
+    assert store.usage(None, 1).tickers_hour == frozenset()                    # REF is never an opened ticker
+    assert store.usage(None, 1).files_hour == 2
+
+
+def test_xsection_refuses_a_subscriber_session_and_a_caller_without_the_gateway_key(rack):
+    client, store, _ = rack
+    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    assert sign_in(direct).status_code == 200
+    assert direct.get(f'{API}/state').status_code == 200                       # /state keeps its access: it grants nothing
+    r = direct.post(f'{API}/xsection', json={'names': ['price']})
+    assert r.status_code == 403 and r.json()['error'] == 'gateway_only' and 'x-terminal-proxy-key' in r.json()['message']
+    r = client.post(f'{API}/xsection', json={'names': ['price']})             # neither key nor session
+    assert r.status_code == 403 and r.json()['error'] == 'gateway_only'
+    r = direct.post(f'{API}/xsection', headers={'x-terminal-proxy-key': 'x' * 40}, json={'names': ['price']})
+    assert r.status_code == 401 and r.json()['error'] == 'proxy_key_rejected'
+    assert store.access == []
+
+
+def test_xsection_with_the_gateway_key_where_no_gateway_is_configured_is_refused(env):
+    client, store, _ = env
+    sign_in(client)
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price']})
+    assert r.status_code == 401 and r.json()['error'] == 'proxy_key_rejected' and store.access == []
+
+
+def test_xsection_quota_refuses_every_name_and_logs_nothing(rack):
+    client, store, _ = rack
+    store.limits_value['files_per_hour'] = 1
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price', 'actions']})
+    assert r.status_code == 429 and 'files_per_hour' in r.json()['message'] and store.access == []
+    store.limits_value.update(files_per_hour=60, megabytes_per_day=14)
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price', 'actions']})
+    assert r.status_code == 429 and 'megabytes_per_day' in r.json()['message'] and store.access == []
+    assert client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['actions']}).status_code == 200
+    assert len(store.access) == 1 and store.access[0]['bytes'] == 40_000
+
+
+def test_xsection_unknown_or_malformed_names_are_refused_with_the_indexed_list(rack):
+    client, store, _ = rack
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price', 'flow_f06']})
+    assert r.status_code == 404 and r.json()['error'] == 'xsection_not_published'
+    assert "['flow_f06']" in r.json()['message'] and "['actions', 'price']" in r.json()['message']
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price', 'Price!']})
+    assert r.status_code == 400 and r.json()['fields'][0]['field'] == 'names.1'
+    assert client.post(f'{API}/xsection', headers=GATEWAY, json={'names': []}).status_code == 400
+    assert client.post(f'{API}/xsection', headers=GATEWAY, json={}).status_code == 400
+    assert client.post(f'{API}/xsection', headers=GATEWAY,
+                       json={'names': [f'n{i}' for i in range(17)]}).status_code == 400
+    r = client.post(f'{API}/xsection', headers=GATEWAY,                    # a client never names a key
+                    json={'names': ['price'], 'key': 'v1/manifest/BBCA.json'})
+    assert r.status_code == 400 and r.json()['fields'][0]['field'] == 'key'
+    assert store.access == []
+
+
+def test_xsection_presigns_only_keys_of_the_xsection_family(rack):
+    client, store, bucket = rack
+    bucket.state_doc['xsection'].update(
+        evil={**XSECTION['actions'], 'key': 'v1/manifest/BBCA.json'},
+        other={**XSECTION['price']})                                       # another name's key
+    for name in ('evil', 'other'):
+        r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': [name]})
+        assert r.status_code == 404 and "indexed: ['actions', 'price']" in r.json()['message']
+    assert store.access == []
+
+
+def test_xsection_without_an_index_or_a_readable_state(rack):
+    client, store, bucket = rack
+    bucket.state_doc = dict(FakeBucket.state_doc)                         # a publisher before the xsection writer
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price']})
+    assert r.status_code == 404 and 'indexed: none' in r.json()['message']
+    bucket.state_doc = None
+    r = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['price']})
+    assert r.status_code == 503 and r.json()['error'] == 'state_unavailable' and store.access == []
+
+
+def test_state_returns_xsection_when_state_json_holds_it_and_still_answers_the_backtest_worker():
+    publication = {'finished_at': '2026-10-28T12:58:02Z', 'price_through': '2026-10-28', 'broker_through': '2026-10-27',
+                   'broker_behind_sessions': 1}
+    state = {'schema_version': 1, **publication, 'window': [2021, 2026], 'price_first_year': 2018,
+             'broker_first_year': 2016, 'last_mode': 'daily',
+             'xsection': {**XSECTION, 'price': {**XSECTION['price'], 'stamp': 'publisher-only'}}}
+    client, store = gateway_client(s3_bucket(state))
+    s = client.get(f'{API}/state', headers=GATEWAY).json()
+    assert s == {**publication, 'xsection': XSECTION}                       # each entry's five fields only
+    # what apps/backtest-worker/src/terminal.ts publication() reads is unchanged
+    assert {k: s[k] for k in ('finished_at', 'price_through', 'broker_through')} == \
+        {k: publication[k] for k in ('finished_at', 'price_through', 'broker_through')}
+    f = client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['actions']}).json()
+    assert f['finished_at'] == publication['finished_at']
+    assert f['files'][0]['url'] == f'https://bucket.example/{XSECTION["actions"]["key"]}?X-Amz-Expires=120&sig=x'
+    assert len(store.access) == 1 and store.access[0]['dataset'] == 'xsection'
+    del state['xsection']                                                  # the same app, a state without an index
+    client2, _ = gateway_client(s3_bucket(state))
+    assert client2.get(f'{API}/state', headers=GATEWAY).json() == {**publication, 'xsection': None}
+
+
+def test_xsection_index_keeps_only_well_formed_entries():
+    from app.bucket import xsection_index
+    good = XSECTION['price']
+    assert xsection_index(None) is None and xsection_index(['price']) is None and xsection_index({}) == {}
+    assert xsection_index({'price': {**good, 'stamp': 'x'}}) == {'price': good}
+    zeros = f'v1/xsection/a.{"0" * 16}.json.gz'
+    refused = {
+        'Price': good,                                                     # name: lower case, digits, _ and -
+        'actions': good,                                                   # key of another name
+        'a': {**good, 'key': zeros.replace('0', 'g')},                     # not hex
+        'b': {**good, 'key': 'v1/manifest/b.json'},
+        'c': {**good, 'key': zeros, 'sha256': 'A' * 64},
+        'd': {**good, 'key': zeros.replace('/a.', '/d.'), 'bytes': 0},
+        'e': {**good, 'key': zeros.replace('/a.', '/e.'), 'bytes': True},
+        'f': {**good, 'key': zeros.replace('/a.', '/f.'), 'rows': -1},
+        'g': {**good, 'key': zeros.replace('/a.', '/g.'), 'rows': '5'},
+        'h': 'v1/xsection/h.json.gz'}
+    assert xsection_index(refused) == {}
+    assert xsection_index({'a': {**good, 'key': zeros, 'as_of': 7}})['a']['as_of'] is None
 

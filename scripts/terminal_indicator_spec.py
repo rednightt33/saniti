@@ -11,6 +11,7 @@ Chande form (CMO); RVOL includes the current bar. "source" says which: FEATURE_0
 
   python3 scripts/terminal_indicator_spec.py            # writes both files
   python3 scripts/terminal_indicator_spec.py --check    # fails if either file differs from this source
+  python3 scripts/terminal_indicator_spec.py --json     # prints the rows with the Screener's parity oracle (ORACLE)
 """
 import sys
 from pathlib import Path
@@ -83,7 +84,7 @@ I = [
  ('I16', 'williams_r', 'Williams %R', 'HLC', 'length=14; source=close',
   '%R=-100*(MAX(H,n)-src)/(MAX(H,n)-MIN(L,n))', 'williams_r', 'TA_LIB', 'WILLR', '', 'CALC_037', ''),
  ('I17', 'roc', 'Rate of Change', 'C', 'length=9; source=close', 'ROC=100*(src[t]/src[t-n]-1)', 'roc', 'TA_LIB',
-  'ROC', '', 'CALC_030', ''),
+  'ROC', 'Feature_01 return_5d_pct, return_20d_pct, return_60d_pct (lengths 5, 20, 60)', 'CALC_030', ''),
  ('I18', 'momentum', 'Momentum', 'C', 'length=10; source=close', 'MOM=src[t]-src[t-n]', 'momentum', 'TA_LIB', 'MOM',
   '', 'CALC_031', ''),
  ('I19', 'cci', 'Commodity Channel Index', 'HLC', 'length=20; constant=0.015',
@@ -106,7 +107,8 @@ I = [
   'AO=SMA(HL2,fast)-SMA(HL2,slow)', 'ao', 'HTML', 'MEDPRICE + SMA', '', '', ''),
  ('I25', 'ppo', 'Percentage Price Oscillator', 'C', 'fast_length=12; slow_length=26; signal_length=9; source=close',
   'PPO=100*(EMA(src,fast)-EMA(src,slow))/EMA(src,slow); signal=EMA(PPO,signal); histogram=PPO-signal',
-  'ppo, signal, histogram', 'TA_LIB', 'PPO with matype=1 (EMA)', '', '',
+  'ppo, signal, histogram', 'TA_LIB', 'PPO with matype=1 (EMA)',
+  'derived, ppo line only: 100*(ema_12-ema_26)/NULLIF(ema_26,0)', '',
   'TA-Lib PPO defaults to SMA (matype 0): pass matype=1.'),
  ('I26', 'bop', 'Balance of Power', 'OHLC', 'none', 'BOP=(C-O)/(H-L); 0 when H=L (TA-Lib)', 'bop', 'TA_LIB', 'BOP',
   '', '', ''),
@@ -114,27 +116,31 @@ I = [
   'basis=SMA(src,n); upper/lower=basis±k*population stdev(src,n)', 'upper, basis, lower', 'FEATURE_04', 'BBANDS',
   'bb_upper_20, bb_middle_20, bb_lower_20', 'CALC_049, CALC_050', ''),
  ('I28', 'bollinger_pctb', 'Bollinger %B', 'C', 'length=20; source=close; std_dev=2',
-  '%B=(src-lower)/(upper-lower), bands as I27', 'percent_b', 'HTML', 'BBANDS', '', 'CALC_052', 'Ratio 0..1.'),
+  '%B=(src-lower)/(upper-lower), bands as I27', 'percent_b', 'HTML', 'BBANDS',
+  'derived: (close-bb_lower_20)/NULLIF(bb_upper_20-bb_lower_20,0)', 'CALC_052', 'Ratio 0..1.'),
  ('I29', 'bollinger_width', 'Bollinger Bandwidth', 'C', 'length=20; source=close; std_dev=2',
-  'BBW=100*(upper-lower)/basis, bands as I27', 'bandwidth', 'HTML', 'BBANDS', '', 'CALC_051',
+  'BBW=100*(upper-lower)/basis, bands as I27', 'bandwidth', 'HTML', 'BBANDS',
+  'derived: 100*(bb_upper_20-bb_lower_20)/NULLIF(bb_middle_20,0)', 'CALC_051',
   'Percent: 100 x CALC_051.'),
  ('I30', 'atr', 'Average True Range', 'HLC', 'length=14; smoothing_type=RMA',
   'TR=MAX(H-L,|H-Cprev|,|L-Cprev|) from the second bar; ATR=Wilder average seeded with the mean of the first n TR',
   'atr', 'FEATURE_04', 'ATR', 'atr_14', 'CALC_041, CALC_042',
   'The first bar has no TR (TA-Lib); the HTML used H-L there and differed up to 8.5% in the first year.'),
- ('I31', 'natr', 'Normalized ATR', 'HLC', 'length=14', 'NATR=100*ATR/C, ATR as I30', 'natr', 'TA_LIB', 'NATR', '',
-  'CALC_043', ''),
+ ('I31', 'natr', 'Normalized ATR', 'HLC', 'length=14', 'NATR=100*ATR/C, ATR as I30', 'natr', 'TA_LIB', 'NATR',
+  'derived: 100*atr_14/NULLIF(close,0)', 'CALC_043', ''),
  ('I32', 'stddev', 'Standard Deviation', 'C', 'length=20; source=close; stdev_method=population',
-  'SD=sqrt(SUM((src-SMA(src,n))^2,n)/n)', 'stddev', 'TA_LIB', 'STDDEV (nbdev=1)', '', '', 'Population form.'),
+  'SD=sqrt(SUM((src-SMA(src,n))^2,n)/n)', 'stddev', 'TA_LIB', 'STDDEV (nbdev=1)',
+  'derived: (bb_upper_20-bb_middle_20)/2', '', 'Population form.'),
  ('I33', 'hist_vol', 'Historical Volatility', 'C', 'length=20; source=close; return_type=log; annualization_periods=252',
   'r=ln(src[t]/src[t-1]); HV=population stdev(r,n)*sqrt(252)*100', 'historical_volatility', 'HTML', '', '',
   'CALC_044, CALC_045', 'Population stdev as the HTML engine; CALC_044 uses the sample form.'),
  ('I34', 'adr', 'Average Daily Range', 'HL', 'length=14', 'ADR=SMA(H-L,n)', 'adr', 'HTML', 'SMA', '', '', ''),
- ('I35', 'volume_sma', 'Volume SMA', 'V', 'length=20', 'SMA(V,n)', 'volume_sma', 'TA_LIB', 'SMA', '', 'CALC_061', ''),
+ ('I35', 'volume_sma', 'Volume SMA', 'V', 'length=20', 'SMA(V,n)', 'volume_sma', 'TA_LIB', 'SMA',
+  'Feature_01 volume_avg_20d', 'CALC_061', ''),
  ('I36', 'volume_ema', 'Volume EMA', 'V', 'length=20', 'EMA(V,n), SMA seed', 'volume_ema', 'TA_LIB', 'EMA', '', '',
   ''),
  ('I37', 'rvol', 'Relative Volume', 'V', 'length=20', 'RVOL=V[t]/SMA(V,n) with the window including t', 'rvol',
-  'HTML', '', '', 'CALC_062',
+  'HTML', '', 'Feature_01 volume_ratio_20d', 'CALC_062',
   'User 2026-10-25: includes the current bar (as Feature_01.volume_ratio_20d); CALC_062 excludes it.'),
  ('I38', 'pvo', 'Percentage Volume Oscillator', 'V', 'fast_length=12; slow_length=26; signal_length=9',
   'PVO=100*(EMA(V,fast)-EMA(V,slow))/EMA(V,slow); signal=EMA(PVO,signal); histogram=PVO-signal',
@@ -177,6 +183,67 @@ I = [
  ('I53', 'market_fi', 'Market Facilitation Index', 'HLV', 'volume_scale=1', 'MarketFI=(H-L)/V*scale (null if V=0)',
   'market_fi', 'HTML', '', '', '', 'Williams; not the Money Flow Index.'),
 ]
+
+# The parity oracle of the EDGE Screener (EXEC-SCREENER, go 2026-10-28; report DATABASE / FEATURE CHANGES 7.3), in the
+# structured form `--json` emits for apps/edge-bff/screener/scripts/build-screener-registry.mjs: per indicator, the
+# outputs a Feature 04 (or Feature 01) column equals when F runs with `params` on the ticker's full history from its
+# first price row; `column` is a stored column, `expr` a derivation over stored columns (`columns` lists them). The
+# `feature04` column of I above names the same columns for people; main() refuses a column missing from that text.
+# Feature 04 is the oracle only (P2 a: never read at runtime). I33 has no oracle (ORACLE_NOTES).
+F04 = 'Feature_04_Technical_Indicator'
+F01 = 'Feature_01_Stock_Daily'
+ORACLE = {
+    'I01': [dict(output='sma', params={'length': 20}, table=F04, column='sma_20'),
+            dict(output='sma', params={'length': 50}, table=F04, column='sma_50')],
+    'I02': [dict(output='ema', params={'length': n}, table=F04, column=f'ema_{n}') for n in (12, 26, 50, 200)],
+    'I06': [dict(output=o, params={}, table=F04, column=c)
+            for o, c in (('macd', 'macd'), ('signal', 'macd_signal'), ('histogram', 'macd_histogram'))],
+    'I07': [dict(output='adx', params={}, table=F04, column='adx_14')],
+    'I13': [dict(output='rsi', params={}, table=F04, column='rsi_14')],
+    'I17': [dict(output='roc', params={'length': n}, table=F01, column=f'return_{n}d_pct') for n in (5, 20, 60)],
+    'I25': [dict(output='ppo', params={}, table=F04, expr='100*(ema_12-ema_26)/NULLIF(ema_26,0)',
+                 columns=['ema_12', 'ema_26'])],
+    'I27': [dict(output=o, params={}, table=F04, column=c)
+            for o, c in (('upper', 'bb_upper_20'), ('basis', 'bb_middle_20'), ('lower', 'bb_lower_20'))],
+    'I28': [dict(output='percent_b', params={}, table=F04, expr='(close-bb_lower_20)/NULLIF(bb_upper_20-bb_lower_20,0)',
+                 columns=['close', 'bb_lower_20', 'bb_upper_20'])],
+    'I29': [dict(output='bandwidth', params={}, table=F04, expr='100*(bb_upper_20-bb_lower_20)/NULLIF(bb_middle_20,0)',
+                 columns=['bb_upper_20', 'bb_lower_20', 'bb_middle_20'])],
+    'I30': [dict(output='atr', params={}, table=F04, column='atr_14')],
+    'I31': [dict(output='natr', params={}, table=F04, expr='100*atr_14/NULLIF(close,0)', columns=['atr_14', 'close'])],
+    'I32': [dict(output='stddev', params={}, table=F04, expr='(bb_upper_20-bb_middle_20)/2',
+                 columns=['bb_upper_20', 'bb_middle_20'])],
+    'I35': [dict(output='volume_sma', params={}, table=F01, column='volume_avg_20d')],
+    'I37': [dict(output='rvol', params={}, table=F01, column='volume_ratio_20d')],
+}
+ORACLE_NOTES = {
+    'I33': 'No oracle: Feature 01 volatility is a different formula (sample stdev of simple returns).',
+}
+
+
+def oracle_problems():
+    """Every oracle column must appear in its row's feature04 text, so the people's view and the JSON cannot drift."""
+    text = {iid: f04 for iid, _k, _n, _i, _p, _f, _o, _s, _t, f04, _e, _x in I}
+    out = []
+    for iid, entries in ORACLE.items():
+        if iid not in text:
+            out.append(f'{iid}: not an indicator')
+            continue
+        for e in entries:
+            for col in ([e['column']] if 'column' in e else e['columns']):
+                if col not in text[iid]:
+                    out.append(f'{iid}: oracle column {col} is missing from the feature04 text')
+    return out
+
+
+def oracle_json():
+    import json
+    return json.dumps({
+        'generated_by': 'scripts/terminal_indicator_spec.py --json',
+        'indicators': [dict(id=r['iid'], key=r['key'], source=r['source'], talib=r['talib'], feature04=r['f04'],
+                            oracle=ORACLE.get(r['iid'], []), oracle_note=ORACLE_NOTES.get(r['iid']))
+                       for r in rows()],
+    }, indent=1, sort_keys=True)
 
 
 def rows():
@@ -242,6 +309,12 @@ def migration_sql():
 
 
 def main(argv):
+    problems = oracle_problems()
+    if problems:
+        sys.exit('oracle: ' + '; '.join(problems))
+    if '--json' in argv:
+        print(oracle_json())
+        return
     targets = {SPEC_MD: spec_markdown(), MIGRATION: migration_sql()}
     if '--check' in argv:
         stale = [str(p) for p, text in targets.items() if not p.exists() or p.read_text() != text]

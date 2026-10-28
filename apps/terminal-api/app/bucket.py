@@ -2,11 +2,42 @@
 out as short-lived presigned GET URLs for one exact key."""
 import gzip
 import json
+import re
 import time
 
 PREFIX = 'v1'
-STATE_FIELDS = ('finished_at', 'price_through', 'broker_through', 'broker_behind_sessions')
+# EXEC-SCREENER (P1 a, user 2026-10-28): `xsection` is the index of the run's cross-sectional files (xsection_index)
+STATE_FIELDS = ('finished_at', 'price_through', 'broker_through', 'broker_behind_sessions', 'xsection')
 MAX_CACHED = 4000   # manifests (a few KB each) and the logo index: a few MB at most
+XSECTION_NAME = re.compile(r'^[a-z0-9][a-z0-9_-]{0,31}$')
+XSECTION_FIELDS = ('key', 'sha256', 'bytes', 'rows', 'as_of')
+SHA256 = re.compile(r'^[0-9a-f]{64}$')
+
+
+def _count(v, least):
+    return isinstance(v, int) and not isinstance(v, bool) and v >= least
+
+
+def xsection_index(raw):
+    """EXEC-SCREENER (P1 a): state.json `xsection` = {name: {key, sha256, bytes, rows, as_of}}, the cross-sectional
+    files of the publication (written by the publisher before state.json, content-addressed keys
+    v1/xsection/<name>.<16 hex>.json.gz that are never overwritten). This is the index /state shows and /xsection
+    grants from: only well-formed entries, each with exactly those five fields, so /state never names a file
+    /xsection would refuse and a key outside the xsection family is never presigned. None when state.json holds no
+    index (a publisher before the xsection writer)."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for name, e in raw.items():
+        if not (isinstance(name, str) and XSECTION_NAME.fullmatch(name) and isinstance(e, dict)):
+            continue
+        key, sha, size, rows, as_of = (e.get(k) for k in XSECTION_FIELDS)
+        if not (isinstance(key, str) and re.fullmatch(rf'{PREFIX}/xsection/{re.escape(name)}\.[0-9a-f]{{16}}\.json\.gz', key)
+                and isinstance(sha, str) and SHA256.fullmatch(sha) and _count(size, 1) and _count(rows, 0)):
+            continue
+        out[name] = {'key': key, 'sha256': sha, 'bytes': size, 'rows': rows,
+                     'as_of': as_of if isinstance(as_of, str) and len(as_of) <= 64 else None}
+    return out
 
 
 class Bucket:
@@ -45,12 +76,15 @@ class Bucket:
     def state(self):
         """EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publisher's last finished run, as read for the manifest cache
         (at most cache_seconds old): which publication the files belong to and the newest date of each dataset. None
-        while state.json was never readable."""
+        while state.json was never readable. EXEC-SCREENER: plus `xsection`, the run's cross-sectional file index
+        (xsection_index; null when the run wrote none), taken from the same read as `finished_at`."""
         self._fresh()
         s = self._state
         if not isinstance(s, dict):
             return None
-        return {k: s.get(k) for k in STATE_FIELDS}
+        out = {k: s.get(k) for k in STATE_FIELDS}
+        out['xsection'] = xsection_index(out['xsection'])
+        return out
 
     def manifest(self, ticker):
         self._fresh()
