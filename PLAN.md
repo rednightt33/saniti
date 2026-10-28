@@ -972,6 +972,17 @@ patuhi aturannya bahwa setiap workflow maksimal 2 agents agar tidak ada flow yan
 - **Status:** keputusan ini bukan "go" eksekusi. Laporan dan desain diperbarui dulu dengan syarat di atas; eksekusi Phase 1
   menunggu "go" user dan dicatat di `EXEC.md`.
 
+**Jawaban user berikutnya, 2026-10-28 (kata user):** "Ok, gas" (atas langkah berikut yang diumumkan: memperbarui laporan dan
+desain, lalu menulis dokumen onboarding). Untuk fase 2: "Fase 2 — Flow/bandarmologi ... butuh keputusan Anda soal papan
+transaksi (Regular saja atau semua papan) dan definisi “bandar”. --> semua papan. But also research kira2 indikator apa
+yang bisa dipakai untuk screen. MIsal HHI, Buy intensity, propose ke saya 10-20 indicators nanti."
+
+- **Diputuskan:** P8 = semua papan (Regular, Nego dan Tunai digabung) sebagai papan bawaan metrik flow.
+- **Diminta:** riset indikator flow untuk screener (contoh user: HHI, buy intensity) dan usulan 10-20 indikator, masing-masing
+  dengan rumus, sumber tabel, biaya hitung dan bukti pada data live. Definisi bandar (P9) diputuskan sesudah usulan itu.
+- **Yang belum jelas:** apakah "gas" juga berarti "go" eksekusi Phase 1 (kode, migrasi `edge_bff` dan deploy ke dev);
+  ditanyakan ke user.
+
 **Pertanyaan terbuka (menunggu jawaban user):** keputusan produk P1-P23 dari laporan (UNKNOWNS / PRODUCT DECISIONS
 13.2). Semua rekomendasi masih usulan. Persetujuan untuk audit dan merencanakan bukan "go": eksekusi baru mulai sesudah
 user memberi "go", lalu dicatat sebagai bagian baru di `EXEC.md` bersama pilihan P1-P23 (AGENTS.md "Plans", R34). Yang
