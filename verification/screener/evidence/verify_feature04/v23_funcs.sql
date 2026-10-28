@@ -1,0 +1,2 @@
+select p.proname, position('is_universe_index' in pg_get_functiondef(p.oid))>0 skips_index, position('checkpoint_date>=p_dirty_date' in replace(pg_get_functiondef(p.oid),' ',''))>0 deletes_ckpt, position('least(' in pg_get_functiondef(p.oid))>0 uses_least from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('enqueue_feature04_group','enqueue_feature04_equity_price_row','feature04_retry_dirty_date','feature04_output_columns');;
+select "Market Code", correction_lookback_sessions, enabled from public."Equity_Market_Schedule"

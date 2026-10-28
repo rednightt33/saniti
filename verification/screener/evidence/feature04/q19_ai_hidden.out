@@ -1,0 +1,19 @@
+column_name
+calculated_at
+calculation_version
+temp_high
+temp_high_bar
+temp_low
+temp_low_bar
+tracking_high
+tracking_low
+(8 rows, 242 ms)
+---
+feature_column | version | lw | mh | semantic_review_status
+cdl_doji | v4 | 11 valid OHLCV bars; lookback=10 | 11 valid OHLCV bars; lookback=10 | CALCULATION_VERIFIED
+close | v4 | 1 source row | 1 source row | CALCULATION_VERIFIED
+ema_200 | v4 | 200 valid bars; full available history u | 200 valid bars; full available history u | CALCULATION_VERIFIED
+rsi_14 | v4 | 15 valid bars; full available history us | 15 valid bars; full available history us | CALCULATION_VERIFIED
+smi | v4 | First valid OHLCV bar with nonzero smoot | First valid OHLCV bar with nonzero smoot | CALCULATION_VERIFIED
+(5 rows, 226 ms)
+---

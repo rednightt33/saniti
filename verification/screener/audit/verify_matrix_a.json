@@ -1,0 +1,202 @@
+{
+ "area": "verify_matrix_a: adversarial re-check of the 53-indicator matrix rows I01-I27 (Trend I01-I12, Momentum I13-I26, Bollinger I27). Everything was read-only. The checks were re-run independently on 7 new sample tickers (BBRI, ASII, GOTO, BLTA illiquid, PRDL 75 bars, ASPR with a zero-volume bar, WBSA 125 bars) and on the FULL market (845 tickers, 1,330,722 bars). Scripts and raw outputs are in /tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_matrix_a/ (v_f04.txt, v_talib.txt, v_talib2.txt, v_market.txt, v_converge_max.txt, v_flat.txt, v_bench.txt, v_tail_custom.txt, v_f01.txt, v_st0.txt, xlsx_I01_I27.txt). TA-Lib 0.6.8 / C 0.6.4 came from the scratch venv; the terminal module was apps/edge-bff/terminal/src/calc/indicators.ts under node v22.22.0.",
+ "confirmed": [
+  "a-F04-stored-identical: FACT. Full market: 844 tickers and 114,544 Feature 04 rows (2026-04-01..2026-10-27); full history on 7 more tickers. All 15 columns (sma_20/50, ema_12/26/50/200, rsi_14, macd/signal/hist, atr_14, adx_14, bb_upper/middle/lower_20) have the same first valid bar and 0 null mismatches. Max rel is 1.25e-15 (adx_14, PSAB 2026-10-07), which is slightly above the stated 8.4e-16 bound; see row_corrections I07 (v_market.txt, v_f04.txt).",
+  "a-I07-adx-warmup: FACT. kDmi (indicators.ts:170-196) uses TA-Lib Wilder-sum seeding. ADX first valid bar is 27 in both; DI 14 equals talib.PLUS_DI/MINUS_DI with rel 0. INDICATOR_ALIGNMENT.md section 2 compared the old HTML engine; PARITY.md row I07 confirms the rebuilt module.",
+  "a-I07-di-not-stored: FACT. information_schema lists 32 non-cdl columns in Feature_04_Technical_Indicator and none is plus_di or minus_di. engine.py:25-27 and :44 define the stored set.",
+  "a-I02-ema20-not-stored: FACT. engine.py:247-249 stores EMA 12/26/50/200 only. SMA 150 and SMA 200 are not stored either. SMA 10 (prototype 'rebound' preset, prototype line 1098) is also missing.",
+  "a-I06-macd-talib: FACT. talib.MACD and MACDEXT(EMA) start at bar 33 instead of 25 and differ in warm-up. The build talib.EMA(12)-talib.EMA(26) with signal talib.EMA(macd[25:],9) is equal with rel 0 on 7 more tickers. The warm-up magnitudes depend on the sample; see row_corrections I06.",
+  "a-I14-stochrsi-k: FACT. K = STOCHRSI(14,14,3,SMA).fastd with rel 0, and D = SMA(fastd,3) with rel 0. The raw fastk differs by up to 66.7 points (v_talib.txt).",
+  "a-I20-cmo-talib: FACT. talib.CMO differs from the terminal CMO: median |diff| is 8.6-12.6 points on 6 tickers and 27 on PRDL. A plain-sum build matches within 1.2e-14 (v_talib2.txt).",
+  "a-I25-ppo-matype: FACT. talib.PPO(matype=1) plus talib.EMA(ppo,9) is equal with rel 0; matype 0 differs; TA-Lib swaps fast>slow and TS does not. The PPO line equals 100*(EMA12-EMA26)/EMA26 within 2.7e-16.",
+  "a-talib-equal-19: FACT for the 7 new tickers, including the flat BLTA, the 75-bar PRDL and the zero-volume ASPR. All 19 have rel <= 3.1e-16. Wording note: PPO needs two functions (PPO+EMA), Donchian two (MAX+MIN) and ADX three, so 'single function' is loose.",
+  "a-flat-stretch-artefacts: FACT, and broader than BEKS. Across the market, Ultimate Oscillator is outside [0,100] on 2,972 bars; 3,218 of 31,764 fully flat 28-bar windows give UO != 0; 3,299 of 41,412 flat 20-close windows give Bollinger upper > basis (v_flat.txt). No such artefact is on the 2026-10-27 bar.",
+  "a-I10-donchian-samebar: FACT for the whole market. Through backtest compare() on 844 tickers: C gt upper, C crosses_above upper, C lt lower and C crosses_below lower all give 0 hits. Against prior-bar bands they give 44,557 / 29,041 / 54,652 / 34,294 hits (v_market.txt). 'donchian' does not appear in ERRORS_AND_SOLUTIONS.md.",
+  "a-cost-defaults: FACT. All 27 defaults over the full history of all 845 tickers took 6.55 s on one core (7.76 ms/ticker average) (v_market.txt).",
+  "a-price-data-valid: FACT, all counts reproduced exactly: 1,330,722 rows, all Daily and final, 845 tickers; 0 rows break Feature 04's OHLC rule; 123,853 rows have H=L; 40 rows have zero volume. Additions: volume is NULL on 2,127 rows, all IHSG, which is valid under Feature 04's index rule; 150,797 rows (181 tickers) have non-integer OHLC.",
+  "a-segmentation-diff: the code difference is FACT: engine.py:128-151 (_valid on OHLC order and volume) vs indicators.ts:244-273 (finite needed inputs only). No such row exists today, so the INFERENCE label is still correct.",
+  "a-registry-sync: FACT. The sha256 of indRegistry.json (6a9bc397...) and of indicators.ts (0169f943...) equal backtest-registry.json 'sources'.",
+  "a-prototype-engine-diverges: FACT for XI. Prototype line 901 uses Math.round(sqrt n); 902 sets ER=0 on a zero path; 890/905 put bar 0's H-L into TR with RMA seeds; 918 starts PSAR from c[1]>=c[0]; 925 starts K earlier; 930 returns CMO 0 on a flat window. It is incomplete: a second engine exists (see additional findings)."
+ ],
+ "refuted": [
+  {
+   "id": "a-recursive-convergence",
+   "why": "The 5-ticker figures are roughly right for typical stocks, but the general rules drawn from them do not hold market-wide. (1) KAMA does not converge within 10-119 bars in general: on flat or noisy stocks the smoothing constant falls to (2/31)^2, about 0.0042, so a start-of-history error decays very slowly. (2) CMO is classed as finite-window ('converges at its first valid bar'), but it is not. Its n-bar sums are running sums (sum = sma x n, indicators.ts:46-56), and on non-integer split-adjusted prices a flat window can carry residue. (3) StochRSI, Supertrend and PSAR have much longer tails than the sample showed. (4) The pattern statement '100-200 typical, up to 670-760 on BEKS' is exceeded.",
+   "correct_statement": "Test: cut at bar 1000 on all 531 tickers with >= 1500 bars; tolerance 1e-6 x max|full value|; bars until convergence (median / p95 / max):\n- EMA20: 99 / 118 / 128\n- KAMA: 105 / 191 / 1,109 (BABP). Even a 1,000-bar tail leaves BABP's latest KAMA 1.3e-3 off (27.27348 vs 27.27221).\n- MACD: 159 / 184 / 199; signal max 205\n- ADX: 202 / 234 / 668 (BEKS); DI max 498\n- Supertrend line: 92 / 130 / 228; direction: 21 / 71 / 268\n- PSAR SAR: 23 / 79 / 288; direction max 195\n- RSI: 164 / 191 / 459 (KREN)\n- StochRSI: 185 / 456 / 713 (PCAR)\n- TSI: 180 / 206 / 510; signal max 553\n- TRIX: 128 / 142 / 151\n- PPO: 165 / 187 / 206\n- Keltner: about 99 / 118 / 139\n- CMO: 14 / 14 / 425 (VIVA)\n- UO: 28 / 28 / 1,087 (BABP)\n- SMA, WMA, HMA, Aroon, Donchian, Stochastic, %R, ROC, MOM, CCI, AO, BOP and Bollinger (SMA basis): exactly their first valid bar.\nCMO on flat 14-change windows is non-null (+/-100 or residue) on 3,231 of 44,033 such bars across 17 tickers, e.g. BABP 2024-04-24 CMO = +100.",
+   "evidence": "v_converge_max.mjs -> v_converge_max.txt; v_flat.mjs -> v_flat.txt; indicators.ts:46-56 (running-sum sma/sum), :290-306 (KAMA), :423-426 (CMO); price query: 150,797 non-integer OHLC rows / 181 tickers; BACKTEST_END_TO_END.md section 3 'Price adjustment' (back-adjusted before 2026-09-12)"
+  },
+  {
+   "id": "a-cost-long-length",
+   "why": "The O(N*n) classification and 'no registry maximum length' are correct: registry params have only min, except std_dev max 50 on I27/I28/I29, and registry.ts:62 enforces only p.max. The whole-market seconds, however, were extrapolated from one long-history ticker (BBCA x 845). Measured across the real market, where tickers have 74-2,127 bars and cost scales with (N-n)*n, they are 40-60% lower.",
+   "correct_statement": "Measured at n=1000 over all 845 tickers on one core:\n- CCI: 7.93 s (9.39 ms/ticker average)\n- HMA: 2.19 s\n- Aroon: 1.23 s\n- Donchian: 1.26 s\n- Stochastic (k_length 1000): 2.05 s\n- StochRSI (stoch_length 1000): 2.63 s\n- Williams %R: 2.58 s\n- WMA, SMA and KAMA at n=1000: <= 0.09 s (O(N) kernels)\n- CCI at default: 0.56 s market (0.67 ms/ticker)\nA length cap is still advisable, but the cost risk is moderate.",
+   "evidence": "v_bench.mjs -> v_bench.txt; backtest-registry.json params; apps/edge-bff/backtest/src/core/registry.ts:62"
+  }
+ ],
+ "uncertain": [
+  {
+   "id": "a-precompute-proposal",
+   "why": "This is a PROPOSED design, not a fact, so it cannot be confirmed. Its premises held under my checks:\n- Feature 04 is identical market-wide.\n- Computing all 27 defaults is cheap (6.55 s for the market).\n- Custom parameters must use full history. A tail is unsafe for long lengths: with only the last 1,000 bars, EMA 200 differs at the latest bar on 508/575 tickers (worst 6.2e-4 rel) and MACD 50/200/20 on 566/575 (NFCX -2.85 vs -3.18). With 500 bars, EMA 200 is up to 7.7% off and MACD flips sign. With 1,000 bars KAMA default still differs on BABP (v_tail_custom.txt, v_converge_max.txt).\nStill open and approval-dependent: where the snapshot lives, and that IHSG's Feature 04 values are in Feature_04_Technical_Indicator_INDEX rather than the main table."
+  }
+ ],
+ "row_corrections": [
+  {
+   "id": "I05",
+   "field": "warmup",
+   "was": "RECURSIVE: converges within 10-119 bars (1e-6) and 19-197 bars (1e-9) after a cut",
+   "should_be": "RECURSIVE with very slow decay on flat or noisy stocks, because SC -> (2/31)^2. Market-wide cut test: median 105, p95 191, max 1,109 bars (BABP). A 1,000-bar tail still leaves BABP's latest value 1.3e-3 off, so the default and custom values need the full history.",
+   "evidence": "v_converge_max.txt (kama.kama); indicators.ts:290-306"
+  },
+  {
+   "id": "I06",
+   "field": "talib_equal_to_terminal",
+   "was": "In warm-up the macd line differs by up to 78% rel, and by more than 1e-6 of scale until about bars 85-89 (BBCA/TLKM)",
+   "should_be": "The size depends on the sample. Up to 150% rel (ASII bars 33-60). The last bar beyond 1e-6 x max|macd| falls at 81-107 on 6 tickers. PRDL (75 bars) never converges. The conclusion stands: never call talib.MACD; use the EMA-EMA build (rel 0).",
+   "evidence": "v_talib2.txt; v_talib.txt (I06 rows)"
+  },
+  {
+   "id": "I06",
+   "field": "warmup",
+   "was": "converges within 153-187 bars (1e-6) and 242-277 bars (1e-9)",
+   "should_be": "Market-wide (531 tickers, 1e-6 x max): macd median 159, p95 184, max 199 (SHID); signal max 205",
+   "evidence": "v_converge_max.txt"
+  },
+  {
+   "id": "I07",
+   "field": "f04_formula_compatible",
+   "was": "same first bar 27; max rel 8.4e-16 on 6 tickers",
+   "should_be": "Market-wide, 844 tickers / 114,544 rows: same first bar, 0 null mismatches, max rel 1.25e-15 (PSAB 2026-10-07). This is 1-2 ulps from the Railway incremental worker, consistent with PARITY.md.",
+   "evidence": "v_market.txt; apps/edge-bff/terminal/tests/calc/PARITY.md row I07"
+  },
+  {
+   "id": "I09",
+   "field": "warmup",
+   "was": "line converges within 75-100 bars (1e-6) and 134-166 (1e-9); direction within 10-38 bars",
+   "should_be": "Market-wide: line median 92, p95 130, max 228 (SRSN); direction median 21, p95 71, max 268 (LAND)",
+   "evidence": "v_converge_max.txt"
+  },
+  {
+   "id": "I09",
+   "field": "notes",
+   "was": "INFERENCE: with factor=0 or ATR=0 the upper and lower bands are equal and 'prevSt === fu' (indicators.ts:338) is ambiguous",
+   "should_be": "FACT for factor 0. Comparing factor 0 with factor 3 on the same stock:\n- BBRI: 70 up-trend bars with the line above the close (0 at factor 3) and 1,128 flips in 2,115 bars (60 at factor 3).\n- BLTA and ASPR show the same pattern.\nThe registry allows factor min 0, so the screener should require factor > 0.",
+   "evidence": "v_st0.mjs -> v_st0.txt; backtest-registry.json I09 factor min 0"
+  },
+  {
+   "id": "I12",
+   "field": "warmup",
+   "was": "in the sample it converged within 7-26 bars after a cut (direction 1-26)",
+   "should_be": "Market-wide: SAR median 23, p95 79, max 288 (LAND); direction median 11, p95 61, max 195 (PADI). Use the full history.",
+   "evidence": "v_converge_max.txt"
+  },
+  {
+   "id": "I14",
+   "field": "warmup",
+   "was": "converges within 171-195 bars (1e-6), 453 on BEKS",
+   "should_be": "Market-wide: K median 185, p95 456, max 713 (PCAR); D max 715",
+   "evidence": "v_converge_max.txt"
+  },
+  {
+   "id": "I20",
+   "field": "warmup",
+   "was": "First valid n (14), later on flat starts (BEKS: 33, because a flat window is null); finite window",
+   "should_be": "Not start-independent: the n-bar sums are running sums. On split-adjusted non-integer prices, 3,231 of 44,033 flat 14-change windows (17 tickers) return +/-100 or residue instead of null, e.g. BABP 2024-04-24 = +100. Cut test max 425 bars (VIVA). The 2026-10-27 bar is unaffected.",
+   "evidence": "v_flat.txt; v_converge_max.txt; indicators.ts:46-56, :423-426"
+  },
+  {
+   "id": "I20",
+   "field": "notes",
+   "was": "A flat window gives null in TS and 0 in the prototype",
+   "should_be": "A flat window gives null in TS only when both running sums are exactly 0; after non-integer history it can give +/-100. The prototype (line 930) gives 0.",
+   "evidence": "v_flat.txt (cmoEx)"
+  },
+  {
+   "id": "I17",
+   "field": "f04_formula_compatible",
+   "was": "Feature_01 return_5d/20d/60d_pct ... computed in SQL numeric; INFERENCE: equal ROC 5/20/60 up to rounding; not tested",
+   "should_be": "Computed in double precision: (close::double precision / NULLIF(close_Nd_ago::double precision,0) - 1) * 100, with lag by row (migration 20260912_001 lines 163-191). FACT: equal to F.roc(length 5/20/60) exactly (max abs 0, 0 null mismatches) over the full history of BBRI, BLTA and GOTO. Base 0 gives NULL there and 0 in TS; no zero closes exist.",
+   "evidence": "v_f01.txt; database/migrations/20260912_001_create_feature_01_stock_daily.sql"
+  },
+  {
+   "id": "I04",
+   "field": "precompute_recommendation",
+   "was": "4.3 ms/ticker at n=1000, about 3.7 s for the whole market",
+   "should_be": "Measured whole market at n=1000: 2.19 s (2.59 ms/ticker average)",
+   "evidence": "v_bench.txt"
+  },
+  {
+   "id": "I08",
+   "field": "precompute_recommendation",
+   "was": "2.5 s for the whole market at n=1000",
+   "should_be": "Measured whole market at n=1000: 1.23 s",
+   "evidence": "v_bench.txt"
+  },
+  {
+   "id": "I19",
+   "field": "precompute_recommendation",
+   "was": "0.87 ms/ticker at default, 14.9 ms/ticker and 12.6 s for the whole market at n=1000",
+   "should_be": "Measured whole market: default 0.56 s (0.67 ms/ticker); n=1000 7.93 s (9.39 ms/ticker average)",
+   "evidence": "v_bench.txt"
+  },
+  {
+   "id": "I23",
+   "field": "warmup",
+   "was": "Finite window in exact arithmetic, but floating residue ... BEKS 2022-05-24 is -3.33",
+   "should_be": "Same mechanism, market-wide: UO is outside [0,100] on 2,972 bars; 3,218 of 31,764 fully flat 28-bar windows are non-zero; cut test max 1,087 bars (BABP). The cause is running-sum residue on non-integer split-adjusted history.",
+   "evidence": "v_flat.txt; v_converge_max.txt"
+  },
+  {
+   "id": "I27",
+   "field": "warmup",
+   "was": "The kStd E[x^2]-E[x]^2 form leaves residue on flat windows (BEKS upper 50.0000054 vs 50)",
+   "should_be": "Market-wide: 3,299 of 41,412 flat 20-close windows have upper > basis. The latest-bar residue is <= 8.3e-13 x max, so the SMA basis is start-independent within 1e-6.",
+   "evidence": "v_flat.txt; v_converge_max.txt"
+  },
+  {
+   "id": "I13",
+   "field": "warmup",
+   "was": "converges within 149-184 bars (1e-6) after a cut, 451 on BEKS",
+   "should_be": "Market-wide: median 164, p95 191, max 459 (KREN). On flat stretches Wilder RSI keeps its last value: 37,100 of 44,033 flat 14-change windows have RSI != 0, as in TA-Lib. It snaps to 0 only when the sums fall below 1e-14.",
+   "evidence": "v_converge_max.txt; v_flat.txt"
+  },
+  {
+   "id": "I02",
+   "field": "precompute_recommendation",
+   "was": "Custom lengths run dynamically on the full published history",
+   "should_be": "Confirmed, with evidence: a tail is unsafe for long lengths. With the last 1,000 bars only, EMA 200 differs at the latest bar on 508/575 tickers (worst 6.2e-4 rel). With 500 bars it is up to 7.7% off (SAPX 312.44 vs 336.37).",
+   "evidence": "v_tail_custom.txt"
+  },
+  {
+   "id": "I26",
+   "field": "notes",
+   "was": "123,853 of 1,330,722 final daily price rows (9.3%) have H = L, so BOP is 0 there",
+   "should_be": "BOP is also 0 whenever C = O. On 2026-10-27, 76 stocks have BOP exactly 0 while only 4 have H = L.",
+   "evidence": "v_market.txt (latest-bar line)"
+  },
+  {
+   "id": "I10",
+   "field": "notes",
+   "was": "... This is not recorded in ERRORS_AND_SOLUTIONS.md",
+   "should_be": "The same-bar defect is confirmed market-wide (0 hits vs 29,041-54,652 with prior-bar bands, 844 tickers). The Backtest already has a working prior-bar form: price_action 'breakout' compares the close with the highest high of the previous N bars (conditions.ts:126, :170-172). The trap is only the generic indicator condition on Donchian with a price lhs.",
+   "evidence": "v_market.txt; apps/edge-bff/backtest/src/core/conditions.ts:126,170-172"
+  },
+  {
+   "id": "I07",
+   "field": "notes",
+   "was": "(xlsx readiness not mentioned)",
+   "should_be": "xlsx 01_INDICATORS Calculation Readiness for I07 (like I09, I11 and I12) is PARTIAL_LOGIC ('Wilder smoothing and first ADX seed').",
+   "evidence": "xlsx_I01_I27.txt"
+  }
+ ],
+ "additional_findings": [
+  "The prototype has two indicator engines, not one (FACT).\n- The auditor compared only XI (lines 866-968, the 53-indicator builder).\n- The 'Technical metrics' catalog (lines 794-847) uses a second helper set (lines 753-777): EMA seeded with a[0] (line 754), MACD whose signal is an EMA over NaN->0, RSI with l||1e-9, STOCH with 50-filled warm-up, DMI, ATR as a running mean with TR on bar 0 = H-L, BB, SUPERTREND, ICHI, bullDiv.\n- Every Technical preset therefore runs on this second engine: Minervini, golden, oversold, rebound, squeeze, stflip, ichi and macddiv (lines 1091-1100).\n- Porting the presets means mapping price_ma, ma_cross, rsi, stoch, macd, adx, bb, atr and supertrend onto F[key].\n- The EMA option of price_ma will change in warm-up (SMA seed vs a[0] seed).\n- Ichimoku (the 'ichi' preset) has no indicator in the 53-key registry.\n- bullDiv (line 772) uses the same pivot and divergence logic as Backtest bullishDivergence (conditions.ts:140-155), so it can be reused.",
+  "Prices are split-adjusted before 2026-09-12 and raw after (FACT).\n- 150,797 price rows across 181 tickers have non-integer OHLC (query). The history is mixed: BACKTEST_END_TO_END.md section 3 'Price adjustment'; ADJUSTED_HISTORY_BOUNDARY in apps/edge-bff/backtest/src/core/engine.ts.\n- This causes the running-sum residue artefacts in CMO, UO and Bollinger.\n- INFERENCE: a split after 2026-09-12 would put a raw price gap into every indicator, identically in Feature 04 and the terminal code, so a screener needs a corporate-action warning.\n- INFERENCE: any re-ingest of adjusted history changes past values, so a snapshot must be rebuilt for each ticker whose price changes.",
+  "Feature 04 coverage of IHSG (FACT; replaces the auditor's INFERENCE).\n- IHSG has 0 rows in Feature_04_Technical_Indicator.\n- It has 2,127 rows (2018-01-02..2026-10-27, the same calculation version) in Feature_04_Technical_Indicator_INDEX.\n- So the 829 priced tickers vs 828 stock rows on 2026-10-27 is exactly IHSG.\n- A screener that reads Feature 04 must read the _INDEX table for the index.",
+  "Stale and short histories (FACT).\n- 16 tickers with 2026 prices have their last bar before 2026-10-27: ADHI 2026-08-21, PPGL 2026-09-04, IPAC 2026-09-10, INPS 2026-09-16, PTPP 2026-10-02, CSMI and XSPI 2026-10-06, IGAR and TFCO 2026-10-15, BIKE 2026-10-19, BSWD and MPRO 2026-10-20, TRUK 2026-10-21, MASB 2026-10-22, MSIN and TGKA 2026-10-26.\n- Their 'latest' indicator values are stale, so the screener must align on a common as-of date or flag them.\n- 8 stocks priced on 2026-10-27 have fewer than 200 bars, so SMA/EMA 200 is null for them (affects the Minervini and golden presets).",
+  "Dynamic computation from a tail of bars (FACT).\n- With all I01-I27 defaults computed from only the last 500 bars, the latest-bar values equal the full-history values within 1e-6 x max on every ticker except KAMA on BABP.\n- With 250 bars, ADX (5 tickers, DADA 0.074 abs), PSAR (LAJU 2.1 abs), TSI signal (DADA) and KAMA fail.\n- Long custom lengths need far more than 1,000 bars (v_tail_custom.txt).\n- So any 'short tail' optimisation must depend on the parameter values; full history is the only safe uniform rule.",
+  "Feature 04's equity source query has no is_final filter (FACT: features/feature04/pipeline.py:49-55), while the publisher (publisher.py:56-57) and terminal-api (store.py:12) filter is_final.\n- No divergence today: all 1,330,722 rows are final, and idx-price-cron writes is_final=True (price_update.py:1084).\n- INFERENCE: the two can diverge on the latest bar only if a non-final row is ever stored.",
+  "Registry inconsistency (FACT).\n- I27 basis_ma_type accepts VWMA, but I28/I29 do not.\n- A VWMA basis on IHSG gives 0 values (verified: all upper/basis/lower null), so the Backtest would raise INDICATOR_OUTPUT_EMPTY.\n- The screener should hide VWMA for the index.",
+  "AI sandbox risk.\n- FACT from INDICATOR_ALIGNMENT.md section 5: the AI sandbox follows 'TA-Lib first' (apps/market-python-sandbox/app/spec.py).\n- INFERENCE: model-written code calling talib.MACD, talib.CMO, STOCHRSI fastk or talib.PPO with default matype would disagree with the screener's numbers.\n- The AI_formula_reference entries should name the equal builds.",
+  "Load vs compute (FACT, measured over pgweb, not the production path): fetching the full 1.33M bars took 17.6 s in 29 batches, against 6.55 s to compute all 27 defaults for 845 tickers. This is consistent with the auditor's 'load dominates' INFERENCE.",
+  "Stale RSI on flat stocks (FACT, TA-Lib semantics): RSI holds its last value through flat stretches. An 'RSI < 30' screen can therefore match a suspended or flat stock on a value several hundred bars old. This supports a liquidity or flat-bar filter. The auditor proposed one for artefacts, but this case is not an artefact: it is the indicator's definition."
+ ]
+}

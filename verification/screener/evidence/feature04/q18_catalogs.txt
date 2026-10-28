@@ -1,0 +1,48 @@
+feature_table | is_active | semantic_review_status | version | count
+Feature_04_Technical_Indicator | False | CALCULATION_VERIFIED | v1 | 42
+Feature_04_Technical_Indicator | False | CALCULATION_VERIFIED | v2 | 46
+Feature_04_Technical_Indicator | True | CALCULATION_VERIFIED | v4 | 57
+Feature_04_Technical_Indicator_INDEX | True | CALCULATION_VERIFIED | v1 | 57
+(4 rows, 321 ms)
+---
+table_name | count
+Feature_04_Technical_Indicator | 57
+Feature04_Retry_Request | 17
+Feature_04_Technical_Indicator_INDEX | 57
+Feature04_Notification_Outbox | 13
+Feature04_Column_Status | 17
+Feature04_Calculation_State | 11
+Feature04_Calculation_Queue | 21
+Feature04_Calculation_Log | 24
+feature04_backfill_log | 13
+(9 rows, 215 ms)
+---
+table_name | def | related_functions
+Feature04_Column_Status | Per-ticker per-output Feature04 readiness and failure state. | {}
+Feature04_Calculation_Queue | Durable coalesced Feature04 work and lease state. | {"enqueue_feature04_group(text,date,text,text)",enqueue_feature04_price_row(),"request_feature04_retry(bigint,bigint,text,text[],text)"}
+Feature04_Notification_Outbox | Durable Feature04 completion-notification work. | {}
+Feature04_Calculation_Log | Immutable Feature04 calculation attempt audit. | {}
+Monitoring_Feature04 | Feature04 automatic/retry batch summary and notification ordering gate. | {}
+Monitoring_Feature04_Ticker | Per-ticker membership and outcome of a Feature04 execution. | {}
+Feature04_Retry_Request | Audited owner Telegram failure-only retry request with editable acknowledgement and bounded five-session replay. | {"request_feature04_retry(bigint,bigint,text,text[],text)","feature04_retry_dirty_date(text,text)"}
+Feature_04_Technical_Indicator | Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. | {feature04_asset_type(text),"feature04_source_min_date(text,text)",public.validate_feature_catalog_target(),public.ai_preview_table_rows(text),is_universe_index
+Feature04_Calculation_State | Recent versioned Feature04 recursive and rolling state checkpoints. | {"enqueue_feature04_group(text,text,date,text,text)"}
+feature04_backfill_log | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. | {}
+Feature_04_Technical_Indicator_INDEX | Dedicated index output. Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. Transaction | {validate_index_feature_identity()}
+(11 rows, 201 ms)
+---
+table_name | count
+Feature_04_Technical_Indicator_INDEX | 57
+Feature_04_Technical_Indicator | 57
+(2 rows, 208 ms)
+---
+target_table | status | count
+Feature_04_Technical_Indicator | ACTIVE | 57
+Feature_04_Technical_Indicator_INDEX | ACTIVE | 57
+(2 rows, 204 ms)
+---
+table_name | left
+Feature_04_Technical_Indicator | Daily technical indicators already calculated for every IDX stock (asset_type equity) and government bond benchmark (asset_type bonds): close, SMA 20/
+Feature_04_Technical_Indicator_INDEX | Daily technical indicators of the IDX Composite Index (IHSG) calculated from its actual index close: SMA 20/50, EMA 12/26/50/200, RSI 14, MACD, ATR 14
+(2 rows, 204 ms)
+---

@@ -1,0 +1,53 @@
+I01 sma ['C'] ['sma'] length=20,source=close bt= True
+I02 ema ['C'] ['ema'] length=20,source=close bt= True
+I03 wma ['C'] ['wma'] length=20,source=close bt= True
+I04 hma ['C'] ['hma'] length=9,source=close bt= True
+I05 kama ['C'] ['kama'] length=10,fast_length=2,slow_length=30,source=close bt= True
+I06 macd ['C'] ['macd', 'signal', 'histogram'] fast_length=12,slow_length=26,signal_length=9,source=close bt= True
+I07 adx ['H', 'L', 'C'] ['adx', 'plus_di', 'minus_di'] di_length=14,adx_smoothing=14 bt= True
+I08 aroon ['H', 'L'] ['aroon_up', 'aroon_down'] length=14 bt= True
+I09 supertrend ['H', 'L', 'C'] ['supertrend', 'direction'] atr_length=10,factor=3 bt= True
+I10 donchian ['H', 'L'] ['upper', 'basis', 'lower'] length=20 bt= True
+I11 keltner ['H', 'L', 'C'] ['upper', 'basis', 'lower'] length=20,source=close,multiplier=2,use_exponential_ma=True,bands_style=ATR,atr_length=10 bt= True
+I12 psar ['H', 'L', 'C'] ['sar', 'direction'] start=0.02,increment=0.02,maximum=0.2 bt= True
+I13 rsi ['C'] ['rsi'] length=14,source=close bt= True
+I14 stoch_rsi ['C'] ['k', 'd'] rsi_length=14,stoch_length=14,smooth_k=3,smooth_d=3,source=close bt= True
+I15 stochastic ['H', 'L', 'C'] ['k', 'd'] k_length=14,smooth_k=3,d_length=3 bt= True
+I16 williams_r ['H', 'L', 'C'] ['williams_r'] length=14,source=close bt= True
+I17 roc ['C'] ['roc'] length=9,source=close bt= True
+I18 momentum ['C'] ['momentum'] length=10,source=close bt= True
+I19 cci ['H', 'L', 'C'] ['cci'] length=20,constant=0.015 bt= True
+I20 cmo ['C'] ['cmo'] length=14,source=close bt= True
+I21 tsi ['C'] ['tsi', 'signal'] long_length=25,short_length=13,signal_length=7,source=close bt= True
+I22 trix ['C'] ['trix'] length=15,source=close bt= True
+I23 ultimate_osc ['H', 'L', 'C'] ['uo'] fast_length=7,middle_length=14,slow_length=28,weight_fast=4,weight_middle=2,weight_slow=1 bt= True
+I24 awesome_osc ['H', 'L'] ['ao'] fast_length=5,slow_length=34 bt= True
+I25 ppo ['C'] ['ppo', 'signal', 'histogram'] fast_length=12,slow_length=26,signal_length=9,source=close bt= True
+I26 bop ['O', 'H', 'L', 'C'] ['bop']  bt= True
+I27 bollinger ['C'] ['upper', 'basis', 'lower'] length=20,source=close,basis_ma_type=SMA,std_dev=2 bt= True
+I28 bollinger_pctb ['C'] ['percent_b'] length=20,source=close,std_dev=2,basis_ma_type=SMA bt= True
+I29 bollinger_width ['C'] ['bandwidth'] length=20,source=close,std_dev=2,basis_ma_type=SMA bt= True
+I30 atr ['H', 'L', 'C'] ['atr'] length=14,smoothing_type=RMA bt= True
+I31 natr ['H', 'L', 'C'] ['natr'] length=14,smoothing_type=RMA bt= True
+I32 stddev ['C'] ['stddev'] length=20,source=close,stdev_method=population bt= True
+I33 hist_vol ['C'] ['historical_volatility'] length=20,source=close,return_type=log,annualization_periods=252 bt= True
+I34 adr ['H', 'L'] ['adr'] length=14 bt= True
+I35 volume_sma ['V'] ['volume_sma'] length=20 bt= True
+I36 volume_ema ['V'] ['volume_ema'] length=20 bt= True
+I37 rvol ['V'] ['rvol'] length=20 bt= True
+I38 pvo ['V'] ['pvo', 'signal', 'histogram'] fast_length=12,slow_length=26,signal_length=9 bt= True
+I39 volume_roc ['V'] ['volume_roc'] length=10 bt= True
+I40 obv ['C', 'V'] ['obv']  bt= True
+I41 pvt ['C', 'V'] ['pvt']  bt= True
+I42 vwma ['C', 'V'] ['vwma'] length=20,source=close bt= True
+I43 vwap ['H', 'L', 'C', 'V'] ['vwap', 'upper1', 'lower1'] anchor=Session,source=hlc3,bands_mode=StdDev,band_1_multiplier=1 bt= True
+I44 adl ['H', 'L', 'C', 'V'] ['adl']  bt= True
+I45 cmf ['H', 'L', 'C', 'V'] ['cmf'] length=20 bt= True
+I46 chaikin_osc ['H', 'L', 'C', 'V'] ['chaikin_osc'] fast_length=3,slow_length=10 bt= True
+I47 mfi ['H', 'L', 'C', 'V'] ['mfi'] length=14 bt= True
+I48 force_index ['C', 'V'] ['force_index'] length=13 bt= True
+I49 eom ['H', 'L', 'V'] ['eom'] length=14,volume_scale=1000000 bt= True
+I50 nvi ['C', 'V'] ['nvi'] initial_value=1000 bt= True
+I51 pvi ['C', 'V'] ['pvi'] initial_value=1000 bt= True
+I52 kvo ['H', 'L', 'C', 'V'] ['kvo', 'signal'] fast_length=34,slow_length=55,signal_length=13 bt= True
+I53 market_fi ['H', 'L', 'V'] ['market_fi'] volume_scale=1 bt= True

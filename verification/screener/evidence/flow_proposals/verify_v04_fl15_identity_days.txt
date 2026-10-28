@@ -1,0 +1,7 @@
+liq | n | avg_days_traded | avg_zero_days | stocks_with_ge5_zero_days | zero_stock_days | traded_stock_days
+1 | 278 | 19.87 | 1.29 | 31 | 360 | 5524
+2 | 277 | 19.95 | 0.16 | 2 | 43 | 5526
+3 | 277 | 19.93 | 0.34 | 7 | 93 | 5520
+ | 832 | 19.92 | 0.60 | 40 | 496 | 16570
+(4 rows, 1449 ms)
+---

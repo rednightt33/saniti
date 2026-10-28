@@ -1,0 +1,5 @@
+asset_type | n | sma_20 | sma_50 | ema_12 | ema_26 | rsi_14 | macd | macd_signal | macd_histogram | atr_14 | bb_upper_20 | bb_middle_20 | bb_lower_20 | adx_14 | ema_50 | ema_200 | inside_bar | smi | tracking_high | tracking_low | temp_high | temp_high_bar | temp_low | temp_low_bar | last_swing_high | break_swing_high | close | cdl_piercing | cdl_doji | cdl_hikkake | cdl_mat_hold | cdl_engulfing
+equity | 828 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 | 0 | 0 | 0 | 789 | 789 | 468 | 468 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0
+bonds | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 10 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0
+(2 rows, 253 ms)
+---

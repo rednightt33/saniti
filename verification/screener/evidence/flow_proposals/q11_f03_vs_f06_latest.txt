@@ -1,0 +1,4 @@
+pairs | fnet_diff | value_diff | f_plus_d_nonzero | freq_unbalanced | f06_missing | f03_missing
+1004 | 0 | 0 | 0 | 0 | 0 | 0
+(1 rows, 622 ms)
+---

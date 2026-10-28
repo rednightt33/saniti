@@ -1,0 +1,12 @@
+id | asset_type | ticker | result | error_code | detail | started_at | finished_at | dirty_from_date | checkpoint_date
+10264 | equity | IHSG | FAILED | REPAIR_REQUIRED | RepairRequired: No compatible checkpoint immediately before 2018-01-02 for equity/IHSG | 2026-10-23T16:17:04.342422Z | 2026-10-23T16:17:04.483028Z |  |
+(1 rows, 645 ms)
+---
+run_id | ticker | status | source_start | source_end | source_rows | changed_rows | started_at | finished_at | left
+0a156342-9404-44e3-9aed-8def24c657bb | IHSG | COMPLETED | 2018-01-02T00:00:00Z | 2026-10-23T00:00:00Z | 2125 | 2125 | 2026-10-23T16:21:34.42498Z | 2026-10-23T16:21:35.7669Z | All stored payload columns verified; chronological full-history replay; no source write.
+(1 rows, 2734 ms)
+---
+asset_type | ticker | result | changed_rows | source_rows | dirty_from_date | checkpoint_date | finished_at
+equity | IHSG | FAILED |  |  |  |  | 2026-10-23T16:17:04.483028Z
+(1 rows, 8110 ms)
+---

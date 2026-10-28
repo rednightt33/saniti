@@ -1,0 +1,24 @@
+QUERY PLAN
+GroupAggregate  (cost=120584.99..121537.51 rows=30131 width=80) (actual time=38.267..53.074 rows=22669.00 loops=1)
+  Group Key: ticker, broker
+  Buffers: shared hit=1618
+  ->  Sort  (cost=120584.99..120668.42 rows=33370 width=30) (actual time=38.165..39.261 rows=24503.00 loops=1)
+        Sort Key: ticker, broker
+        Sort Method: quicksort  Memory: 1969kB
+        Buffers: shared hit=1618
+        ->  Bitmap Heap Scan on "Feature_02_Broker_Rolling"  (cost=490.61..118077.86 rows=33370 width=30) (actual time=10.027..21.270 rows=24503.00 loops=1)
+              Recheck Cond: ((date = '2026-10-27'::date) AND (market_board = 'Regular'::text))
+              Heap Blocks: exact=1589
+              Buffers: shared hit=1618
+              ->  Bitmap Index Scan on "Feature_02_Broker_Rolling_date_board_ticker_idx"  (cost=0.00..482.26 rows=33370 width=0) (actual time=0.872..0.873 rows=24503.00 loops=1)
+                    Index Cond: ((date = '2026-10-27'::date) AND (market_board = 'Regular'::text))
+                    Index Searches: 1
+                    Buffers: shared hit=29
+Planning Time: 0.178 ms
+JIT:
+  Functions: 9
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 1.229 ms (Deform 0.690 ms), Inlining 0.000 ms, Optimization 0.833 ms, Emission 8.189 ms, Total 10.250 ms
+Execution Time: 55.266 ms
+(21 rows, 316 ms)
+---

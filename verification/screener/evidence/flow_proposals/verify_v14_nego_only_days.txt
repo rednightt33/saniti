@@ -1,0 +1,4 @@
+boards | stock_days | tickers | abs_fnet_b | value_b | top_fnet_b
+Nego | 81 | 15 | 136.06 | 794.07 | TRUK 130.50; SMMA -4.87; AIMS -0.34
+(1 rows, 5448 ms)
+---

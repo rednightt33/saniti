@@ -1,0 +1,24 @@
+tickers=845 bars=1330722 f04 tickers compared=844 rows=114544 missingF04=IHSG datesMissing=0
+sma_20          n=114411 nullMismatch=0 maxRel=0.00e+0 worst=
+sma_50          n=114200 nullMismatch=0 maxRel=0.00e+0 worst=
+ema_12          n=114467 nullMismatch=0 maxRel=0.00e+0 worst=
+ema_26          n=114369 nullMismatch=0 maxRel=0.00e+0 worst=
+ema_50          n=114200 nullMismatch=0 maxRel=0.00e+0 worst=
+ema_200         n=113253 nullMismatch=0 maxRel=0.00e+0 worst=
+rsi_14          n=114446 nullMismatch=0 maxRel=2.84e-16 worst=AMOR 2026-10-26
+macd            n=114369 nullMismatch=0 maxRel=0.00e+0 worst=
+macd_signal     n=114313 nullMismatch=0 maxRel=0.00e+0 worst=
+macd_histogram  n=114313 nullMismatch=0 maxRel=0.00e+0 worst=
+atr_14          n=114446 nullMismatch=0 maxRel=0.00e+0 worst=
+adx_14          n=114355 nullMismatch=0 maxRel=1.25e-15 worst=PSAB 2026-10-07
+bb_upper_20     n=114411 nullMismatch=0 maxRel=0.00e+0 worst=
+bb_middle_20    n=114411 nullMismatch=0 maxRel=0.00e+0 worst=
+bb_lower_20     n=114411 nullMismatch=0 maxRel=2.53e-16 worst=UDNG 2026-10-06
+ALL 27 defaults over full history: total 6.55 s for 845 tickers (7.76 ms/ticker), one core
+Donchian (compare(), all tickers except IHSG): {"gt":0,"xa":0,"lt":0,"xb":0,"gtPrev":44557,"xaPrev":29041,"ltPrev":54652,"xbPrev":34294,"tickers":844}
+latest-bar 2026-10-27 stocks=828 rsi<30=109 rsi==0=0 uo<0=0 uo null=0 cmo null=0 bop==0=76 H=L today=4
+IHSG bollinger {"basis_ma_type":"VWMA"} { upper: 0, basis: 0, lower: 0 }
+IHSG bollinger {} { upper: 2108, basis: 2108, lower: 2108 }
+IHSG bop {} { bop: 2127 }
+IHSG adx {} { adx: 2100, plus_di: 2113, minus_di: 2113 }
+IHSG rsi {} { rsi: 2113 }

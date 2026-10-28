@@ -1,0 +1,27 @@
+I28 percent_b vs F04 (close-bb_lower)/(bb_upper-bb_lower): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=36723 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I28 percent_b vs TA-Lib BBANDS(20,2,2,0): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=36723 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I29 bandwidth vs F04 100*(bb_upper-bb_lower)/bb_middle: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=3.09e-16 bars_rel>1e-9(after abs tol)=0
+I29 bandwidth vs TA-Lib BBANDS: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I30 atr vs F04 atr_14: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39092 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I30 atr vs TA-Lib ATR 14: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39092 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I31 natr vs F04 100*atr_14/close: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39092 max_rel=2.83e-16 bars_rel>1e-9(after abs tol)=0
+I31 natr vs TA-Lib NATR 14: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39092 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I32 stddev vs F04 (bb_upper-bb_middle)/2: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=1.31e-09 bars_rel>1e-9(after abs tol)=80
+I32 stddev vs TA-Lib STDDEV 20 nbdev1: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I33 hist_vol vs TA-Lib STDDEV(log ret,20)*sqrt252*100: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38936 max_rel=3.71e-13 bars_rel>1e-9(after abs tol)=0
+I34 adr vs TA-Lib SMA(H-L,14): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39118 max_rel=1.5 bars_rel>1e-9(after abs tol)=99
+I35 volume_sma vs TA-Lib SMA(V,20): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I36 volume_ema vs TA-Lib EMA(V,20): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I37 rvol vs V/TA-Lib SMA(V,20): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=1.15e-11 bars_rel>1e-9(after abs tol)=0
+I38 pvo vs TA-Lib PPO(V,12,26,matype1): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38806 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I38 pvo signal vs TA-Lib EMA(PVO,9): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38598 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I38 pvo histogram: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38598 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I39 volume_roc vs TA-Lib ROC(V,10) null at V[t-10]=0: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39194 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I40 obv vs TA-Lib OBV: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39456 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I42 vwma vs SMA(C*V,20)/SMA(V,20) (TA-Lib SMA): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=1.15e-11 bars_rel>1e-9(after abs tol)=0
+I43 vwap Session vs hlc3 (TYPPRICE): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39454 max_rel=1.76e-16 bars_rel>1e-9(after abs tol)=0
+I44 adl vs TA-Lib AD: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39456 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I45 cmf vs SUM(MFM*V,20)/SUM(V,20) (TA-Lib SUM): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=38962 max_rel=1 bars_rel>1e-9(after abs tol)=20
+I46 chaikin_osc vs TA-Lib ADOSC(3,10): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39222 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I47 mfi vs TA-Lib MFI 14: tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39092 max_rel=0 bars_rel>1e-9(after abs tol)=0
+I48 force_index vs TA-Lib EMA(dC*V,13): tickers=26 first_valid_equal=26 null_mismatch=0 bars_compared=39118 max_rel=4.09e-11 bars_rel>1e-9(after abs tol)=0

@@ -1,0 +1,12 @@
+ticker | asset_type | calculation_version | count | min | max | max
+IHSG | index | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | 2127 | 2018-01-02T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T12:39:33.163482Z
+(1 rows, 261 ms)
+---
+max
+2026-10-27T00:00:00Z
+(1 rows, 196 ms)
+---
+count
+0
+(1 rows, 223 ms)
+---

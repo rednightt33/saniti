@@ -1,0 +1,34 @@
+db_now | current_user | ro | st
+2026-10-27T19:34:47.953055Z | pgweb | on | 30s
+(1 rows, 214 ms)
+---
+relname | reltuples | total | heap | n_live_tup | n_dead_tup | last_analyze | last_autoanalyze | last_autovacuum
+Equity_Market_Schedule | -1 | 48 kB | 8192 bytes | 1 | 0 |  |  |
+Feature04_Calculation_Log | 11872 | 33 MB | 19 MB | 11963 | 0 |  | 2026-10-27T10:09:03.713421Z | 2026-10-26T10:07:26.237083Z
+Feature04_Calculation_Queue | 868 | 672 kB | 472 kB | 868 | 192 |  | 2026-10-27T10:10:02.129647Z | 2026-10-27T10:09:02.083517Z
+Feature04_Calculation_State | 6076 | 18 MB | 6872 kB | 6076 | 957 |  | 2026-10-27T10:09:03.760875Z | 2026-10-26T10:09:25.674177Z
+Feature04_Column_Status | 44268 | 18 MB | 13 MB | 44268 | 153 |  | 2026-10-27T10:10:02.451309Z | 2026-10-27T10:10:02.276259Z
+Feature04_Notification_Outbox | 123 | 136 kB | 24 kB | 128 | 68 |  | 2026-10-27T00:04:46.656711Z | 2026-10-22T23:10:40.40868Z
+Feature04_Retry_Request | -1 | 32 kB | 0 bytes | 0 | 0 |  |  |
+Feature_04_Technical_Indicator | 1383577 | 2619 MB | 2479 MB | 1386117 | 4775 | 2026-10-23T05:56:25.324984Z | 2026-10-11T14:39:58.22767Z | 2026-10-11T15:58:55.673867Z
+Feature_04_Technical_Indicator_INDEX | 2127 | 1064 kB | 856 kB | 2127 | 0 | 2026-10-27T14:37:33.63816Z | 2026-10-24T19:13:39.849905Z | 2026-10-24T19:13:39.829571Z
+Fixed_Income_Market_Schedule | -1 | 48 kB | 8192 bytes | 2 | 6 |  |  |
+IDX_Stock_Universe | 844 | 808 kB | 704 kB | 845 | 6 |  | 2026-09-12T13:35:05.317512Z | 2026-09-12T13:35:05.302335Z
+Monitoring_Feature04 | 116 | 192 kB | 40 kB | 117 | 3 |  | 2026-10-27T10:10:02.456534Z | 2026-10-27T10:10:02.455199Z
+Monitoring_Feature04_Ticker | 10289 | 3336 kB | 1576 kB | 10290 | 919 |  | 2026-10-27T10:08:02.573209Z | 2026-10-27T10:07:02.611085Z
+Price_Fixed_Income | 121649 | 71 MB | 48 MB | 122117 | 246 |  | 2026-10-12T02:04:47.235843Z | 2026-10-12T02:04:46.955725Z
+Price_Stock_Indonesia_IDX | 1314088 | 533 MB | 385 MB | 1326177 | 3290 |  | 2026-10-12T04:58:19.262237Z | 2026-10-12T04:58:18.269024Z
+Universe_Fixed_income | 48 | 104 kB | 32 kB | 48 | 0 |  | 2026-10-12T02:04:46.700376Z | 2026-10-12T02:04:46.692106Z
+feature04_backfill_log | 1565 | 760 kB | 632 kB | 1691 | 0 |  | 2026-10-11T06:24:27.91078Z | 2026-10-11T06:22:25.921464Z
+(17 rows, 231 ms)
+---
+schemaname | tablename | indexname | indexdef
+public | Feature_04_Technical_Indicator | Feature_04_Technical_Indicator_pkey | CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_pkey" ON public."Feature_04_Technical_Indicator" USING btree (ticker, trade_date, timeframe, asset_type)
+public | Feature_04_Technical_Indicator | Feature_04_Technical_Indicator_trade_date_idx | CREATE INDEX "Feature_04_Technical_Indicator_trade_date_idx" ON public."Feature_04_Technical_Indicator" USING btree (trade_date)
+public | Feature_04_Technical_Indicator_INDEX | Feature_04_Technical_Indicator_INDEX_pkey | CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_INDEX_pkey" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (ticker, trade_date, timeframe, asset_type)
+public | Feature_04_Technical_Indicator_INDEX | Feature_04_Technical_Indicator_INDEX_trade_date_idx | CREATE INDEX "Feature_04_Technical_Indicator_INDEX_trade_date_idx" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (trade_date)
+public | Price_Stock_Indonesia_IDX | Price_Stock_Indonesia_IDX_date_idx | CREATE INDEX "Price_Stock_Indonesia_IDX_date_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (date)
+public | Price_Stock_Indonesia_IDX | Price_Stock_Indonesia_IDX_final_idx | CREATE INDEX "Price_Stock_Indonesia_IDX_final_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date DESC) WHERE (is_final AND ((timeframe)::text = 'Daily'::text))
+public | Price_Stock_Indonesia_IDX | Price_Stock_Indonesia_IDX_pkey | CREATE UNIQUE INDEX "Price_Stock_Indonesia_IDX_pkey" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date)
+(7 rows, 214 ms)
+---

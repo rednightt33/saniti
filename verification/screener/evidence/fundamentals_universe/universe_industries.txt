@@ -1,0 +1,66 @@
+Sector | Industry | count
+Basic Materials | Metals & Minerals | 32
+Basic Materials | Chemicals | 27
+Basic Materials | Containers & Packaging | 18
+Basic Materials | Construction Materials | 9
+Basic Materials | Forest & Paper | 7
+Consumer Cyclicals | Tourism & Recreation | 44
+Consumer Cyclicals | Specialty Retail | 23
+Consumer Cyclicals | Automotive Components | 16
+Consumer Cyclicals | Apparel & Luxury Goods | 15
+Consumer Cyclicals | Household Goods | 13
+Consumer Cyclicals | Media | 12
+Consumer Cyclicals | Entertainment & Movie Production | 5
+Consumer Cyclicals | Department Stores | 3
+Consumer Cyclicals | Education & Support Services | 3
+Consumer Cyclicals | Sports Equipment & Hobbies Goods | 2
+Consumer Cyclicals | Consumer Goods Distributors | 2
+Consumer Cyclicals | Consumer Electronics | 1
+Consumer Non-Cyclicals | Agricultural Food Products | 52
+Consumer Non-Cyclicals | Processed Foods | 32
+Consumer Non-Cyclicals | Food & Staples Retailing | 14
+Consumer Non-Cyclicals | Personal Care Products | 11
+Consumer Non-Cyclicals | Beverages | 9
+Consumer Non-Cyclicals | Tobacco | 4
+Energy | Coal | 41
+Energy | Oil, Gas & Coal Support | 20
+Energy | Oil & Gas | 16
+Energy | Alternative Energy Equipment | 1
+Financials | Banks | 48
+Financials | Holding & Investment Companies | 17
+Financials | Insurance | 16
+Financials | Consumer Financing | 13
+Financials | Investment Services | 6
+Healthcare | Healthcare Providers | 16
+Healthcare | Pharmaceuticals | 13
+Healthcare | Healthcare Equipment & Supplies | 10
+Industrials | Machinery | 14
+Industrials | Building Products & Fixtures | 12
+Industrials | Commercial Services | 11
+Industrials | Electrical Equipment | 7
+Industrials | Professional Services | 5
+Industrials | Multi-sector Holdings | 4
+Industrials | Diversified Industrial Trading | 3
+Infrastructures | Building Construction | 22
+Infrastructures | Wireless Telecommunication Services | 10
+Infrastructures | Telecommunication Services | 8
+Infrastructures | Electric Utilities | 8
+Infrastructures | Transportation Infrastructure Operators | 7
+Infrastructures | Gas Utilities | 1
+Properties & Real Estate | Real Estate Management & Development | 79
+Technology | Internet Applications & Services | 19
+Technology | IT Services & Consulting | 7
+Technology | Software | 5
+Technology | Computer Hardware | 5
+Technology | Electronic Equipment, Instruments & Components | 3
+Technology | Networking Equipment | 2
+Transportation & Logistic | Logistics & Deliveries | 27
+Transportation & Logistic | Passenger Ground Transportation | 9
+Transportation & Logistic | Airlines | 2
+Undefined | Undefined | 4
+(59 rows, 261 ms)
+---
+Undefined
+IHSG,XCID,XCIS,XSPI
+(1 rows, 274 ms)
+---

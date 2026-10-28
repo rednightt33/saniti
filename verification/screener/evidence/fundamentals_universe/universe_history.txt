@@ -1,0 +1,29 @@
+n | t | min_vf | max_vf | open_rows | current_recorded | min_rec | max_rec
+851 | 845 | 2026-09-28T00:00:00Z | 2026-10-23T00:00:00Z | 848 | 848 | 2026-09-28T08:22:31.697944Z | 2026-10-23T14:44:34.354906Z
+(1 rows, 267 ms)
+---
+valid_basis | available_basis | superseded_reason | count
+FIRST_CAPTURE | RECORDED |  | 845
+CHANGE_CAPTURED | RECORDED |  | 3
+FIRST_CAPTURE | RECORDED | CHANGE_CAPTURED | 3
+(3 rows, 209 ms)
+---
+Ticker | count
+XCID | 3
+XCIS | 3
+XSPI | 3
+(3 rows, 203 ms)
+---
+min | max | count
+2026-09-29T00:00:00Z | 2026-10-24T00:00:00Z | 845
+(1 rows, 193 ms)
+---
+Ticker | Sector | Industry | valid_from | valid_to | valid_basis | superseded_reason | recorded_from
+XCID | 0 | 0 | 2026-09-28T00:00:00Z |  | FIRST_CAPTURE | CHANGE_CAPTURED | 2026-09-28T00:00:00Z
+XCID | 0 | 0 | 2026-09-28T00:00:00Z | 2026-10-03T00:00:00Z | FIRST_CAPTURE |  | 2026-10-02T00:00:00Z
+XCID | Undefined | Undefined | 2026-10-03T00:00:00Z |  | CHANGE_CAPTURED |  | 2026-10-02T00:00:00Z
+XCIS | Undefined | Undefined | 2026-10-03T00:00:00Z |  | CHANGE_CAPTURED |  | 2026-10-02T00:00:00Z
+XSPI | Undefined | Undefined | 2026-10-03T00:00:00Z |  | CHANGE_CAPTURED |  | 2026-10-02T00:00:00Z
+IHSG | Undefined | Undefined | 2026-10-23T00:00:00Z |  | FIRST_CAPTURE |  | 2026-10-23T00:00:00Z
+(6 rows, 216 ms)
+---

@@ -1,0 +1,4 @@
+{"mode":"sequential","tickers":845,"bars":1330722,"wall_ms":3324.3,"cpu_ms":3414.4,"rss_mb":109}
+{"mode":"concurrent16","tickers":845,"bars":1330722,"wall_ms":2774.5,"cpu_ms":3176.9,"rss_mb":189}
+{"mode":"sequential","tickers":845,"bars":1330722,"wall_ms":2923.4,"cpu_ms":2899,"rss_mb":187}
+{"peak_rss_mb":190}

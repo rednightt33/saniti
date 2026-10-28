@@ -1,0 +1,232 @@
+{
+ "area": "verify_matrix_b: adversarial re-check of the 53-indicator matrix rows I28-I53 (Bollinger %B through Market Facilitation Index). Independent scripts and outputs are in /tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_matrix_b/:\n- fetch.py: read-only pgweb fetch of price, Feature 04 and Feature 01 for 20 tickers. Six overlap the auditor's sample (BBCA, BNBR, AYAM, TLKM, BLTA, BSWD); the rest are new: ELTY, RANS (74 bars), ADHI, AGRO, AADI, CHEK, ACST, ANTM, ASII, UNVR, BRPT, MDKA, BABP, BCAP.\n- run_ts.mjs: runs the real indicators.ts F.\n- compare.py and compare_report.txt: comparison with TA-Lib 0.6.8 / C 0.6.4, Feature 04 and Feature 01.\n- startdep.py and startdep_report.txt: 6 tickers x 3 later starts.\n- derived_state.py and derived_state_report.txt: start dependence of the derived states.\n- hv_vs_f01.txt; bench.mjs and bench_report.txt; registry_rows.txt; xlsx_calc_I28_I53.txt.\n\nNo file in /home/user/saniti was changed (git status is clean). Only SELECT and EXPLAIN were run. No Railway or EDGE call was made.",
+ "confirmed": [
+  "b-I30-atr-f04-identical: FACT. Re-checked on 18 tickers / 27,971 bars: TS F.atr equals Feature 04 atr_14 and talib.ATR(14) with max_rel 0, the same first valid bar (14) and 0 null mismatches (compare_report.txt). EMA/WMA smoothing equals talib.EMA/WMA(TRANGE,14) with rel 0 on BBCA, BNBR, TLKM and AGRO. Code: kTr/kAtr at indicators.ts:133-145; atrBy at :575.",
+  "b-I30-alignment-doc-outdated: FACT. INDICATOR_ALIGNMENT.md:27 describes the old HTML engine (bar-0 TR = H-L, first value at bar 13). The TS kTr has no TR on bar 0. Prototype xTR (line 890) puts t.h[i]-t.l[i] at i=0, and its ATR() (line 767) does the same.",
+  "b-I28-I29-I31-derivable-f04: FACT. Over 18 tickers, %B, BBW and NATR derived from Feature 04 match TS with rel 0 (24,946 bars), 3.1e-16 (27,881) and 2.8e-16 (27,971); null mismatches are 0 for all three. The Feature 04 columns are double precision (information_schema). A latest-date SQL cross-section joined to Feature 01 ran in 94.6 ms cold (EXPLAIN ANALYZE, bitmap scans on both date indexes).",
+  "b-I32-derivable-approx: FACT. (bb_upper_20-bb_middle_20)/2 matches TS within max_rel 1.31e-9, the outliers being BNBR flat windows; elsewhere within 1e-14.",
+  "b-I35-I37-f01-identical: FACT. volume_avg_20d matches TS volume_sma(20) with max_rel 3.2e-12, and volume_ratio_20d matches rvol(20) with 1.5e-11, both with 0 null mismatches on 18 tickers. The live definitions are migration 20260912_001 lines 207 and 304-306. Feature 01 has a row on the last price date for all 844 stocks.",
+  "b-talib-equal: FACT. Re-tested on 18 tickers with TA-Lib 0.6.8 / C 0.6.4: BBANDS-derived %B/BBW, ATR, NATR, STDDEV, SMA(V), EMA(V), PPO(V, matype 1) with an EMA(9) signal and histogram, OBV, AD, ADOSC(3,10) and MFI(14) all show max_rel 0 (BBW 3e-16) and an equal first valid bar. The EMA and WMA Bollinger bases equal BBANDS matype 1/2 with rel 0.",
+  "b-I39-vroc-null-vs-zero: FACT. indicators.ts:488 returns null where V[t-n]=0. Raw talib.ROC differs on exactly 3 bars (AYAM, AADI, CHEK at index 10, where V[0]=0) and on nothing else.",
+  "b-recursive-settle: FACT, with wider ranges (see the row corrections). On 6 tickers x 3 starts at 1e-9 x scale: ATR 192-271, NATR 188-277, volume EMA 146-205, PVO 233-316 (signal 246-330), Chaikin 9-105 (68-105 excluding one BNBR flat start), Force 59-135, KVO 418-624 (signal 440-641). All 6 KVO runs from 2025 never settle.",
+  "b-I52-kvo-definitions: FACT. TS (indicators.ts:547-556) uses Math.abs(2*(dm/cm-1)). xlsx 03_CALCULATIONS I52 reads 'VF=V*2*(dm/cm-1)*trend*100' with no abs. Prototype line 966 is a signed-volume EMA on the change in hlc3 with no dm/cm. Attributing it to TradingView's built-in KVO remains INFERENCE.",
+  "b-I37-rvol-current-bar: FACT. EXEC.md:7881 reads 'RVOLtermasuk volume hari ini'. The registry lists not_accepted [reference_method, include_current_bar]. Prototype line 948 uses base[i-1] when include_current_bar is false, and line 828 uses a[i-1]. AI_formula_reference CALC_062 excludes the bar; CALC_230 includes it.",
+  "b-annualization-floor: FACT. LENGTH_KEYS at indicators.ts:239 matches 'annualization_periods'; the registry types it number with min 1. resolveParams (registry.ts) refuses fractions only for integer types, so 252.9 passes the Backtest validation and is then floored silently.",
+  "b-compute-cost: measured FACT, extrapolation INFERENCE. All 26 TS functions on BBCA's 2,125 bars take 4.7 ms after warm-up; the slowest are vwap 0.40, cmf 0.37 and hist_vol 0.31 ms. Scaled linearly to 1,330,722 rows, that is about 2.9 s single-thread. Data loading is not included.",
+  "b-segmentation-differences: FACT. engine.py:128-141 _valid requires finite OHLC >= 0, l<=o<=h and l<=c<=h, and volume for equities. TS def() at indicators.ts:244-275 checks only isN on the needed fields. datafile.ts:158 drops a row without four finite prices instead of breaking the series. Live data: 0 null OHLC, 0 inconsistent rows, null volume only for IHSG (2,127 rows), 40 zero-volume rows."
+ ],
+ "refuted": [
+  {
+   "id": "b-flat-window-fp",
+   "why": "The trigger is wrong, the Feature 04 count is inflated, and %B is not 'noise'. Residue-width bands also occur on integer-price flat windows: the running sums carry floating-point residue from earlier fractional, split-adjusted history. In Feature 04's last year, 154 rows mix equities and bonds. On those windows TS %B is a stable 0.5, not a noisy value.",
+   "correct_statement": "Flat windows can get a tiny non-zero width (or a tiny negative or positive ADR) whenever the TA-Lib-order running sums carry residue from earlier history, even when the flat prices themselves are integers. Feature 04 stores the same residue.\n\nIn the last year (trade_date >= 2025-10-27):\n- 502 equity ticker-days on 16 tickers have exactly zero width, so %B is null and BBW is 0.\n- 100 equity ticker-days on 2 tickers (BABP 59, BCAP 41, both flat at close 50) have a width of 4.9e-7 to 5.4e-7 x close. On those days TS %B = 0.5 and BBW = about 5e-5 %.\n- The other 54 of the auditor's 154 rows are asset_type 'bonds'.\n\nADR residue goes both ways. BNBR has 905 negative values (min -3.0e-15). BABP has 274 bars with ADR > 0 where the true 14-bar range is 0. So 'ADR > 0' is true on some flat stocks.",
+   "evidence": "SQL on Feature_04, trade_date >= 2025-10-27, grouped by asset_type: equity zero_w 502 / noise_w 100; bonds 0 / 54. Per ticker: BABP 59 rows (minw 5.45e-7, close 50), BCAP 41 rows (4.86e-7, close 50). BABP has 878 fractional-close rows and BCAP 33, both before the flat windows. TS run on BABP and BCAP: the percent_b values on those days round to {0.5}. ADR check in this session: BNBR 905 negatives; BABP 404 true all-zero windows but only 130 with ADR exactly 0."
+  },
+  {
+   "id": "b-I43-session-trivial",
+   "why": "VWAP equals hlc3: confirmed. The bands are only approximately zero width, and 'no screening value' is overstated.",
+   "correct_statement": "With anchor Session on daily bars, vwap = hlc3 within 2e-16 relative. However:\n- upper1 and lower1 differ from vwap on 1,611 of 28,220 bars, by floating-point noise of up to 4.6e-8 x vwap.\n- On 57 bars, 'close > vwap' and 'close > upper1' give different answers. These are bars where close equals hlc3, such as H=L=C bars.\n- A Session VWAP condition reduces to close versus the typical price, which is a weak close-location signal rather than a VWAP.\n- Decade and Century anchors span the whole stored history (Century covers every bar since the first row), so they are start-dependent like the cumulative rows.\n- Any truncated load must start on an anchor-period boundary.",
+   "evidence": "compare_report.txt: 'I43 upper1 vs TYPPRICE' max_rel 2.28e-8 and vwap vs TYPPRICE 2.0e-16; a separate count over 18 tickers gave 1,611 bars with upper1/lower1 != vwap (max width/vwap 4.55e-8) and 57 differing close>vwap vs close>upper1. Code: indicators.ts:503 (sd = sqrt(max(0, sp2v/sv - v*v))) and periodKey :591-602 (Decade 'D'+floor(y/10), Century 'C'+floor(y/100)). BBCA last bar: vwap = upper1 = 4893.333 (H 4980, L 4800, C 4900)."
+  },
+  {
+   "id": "b-prototype-engine-differs",
+   "why": "A/D (I44) does not differ. The list also misses other differences.",
+   "correct_statement": "Prototype XI.adl (line 958) starts with s = 0 and adds bar 0's contribution, so AD[0] = MFM0*V0, identical to TS adStep and TA-Lib AD. Only OBV (line 951, OBV[0] = 0) differs by a constant offset.\n\nThe prototype engine differs from TS on:\n- I30/I31: bar-0 TR = H-L; first value at bar 13.\n- I33: sample stdev, line 944.\n- I37: excludes the current bar by default.\n- I40: constant offset V[0].\n- I46: SMA-seeded EMAs.\n- I47: q||1e-9 rule, line 771.\n- I49: 0 instead of null when V = 0.\n- I52: different formula.\n- I43: returns the source price instead of null when the period's volume is 0 (line 956, 'vv ? pv / vv : a[i]'). 21 of the 40 zero-volume rows are a ticker's first bar.\n- I28: two-pass stdev gives null where TS gives 0.5 on residue-width flat windows.\n- I38 and I31: no zero-denominator guards.",
+   "evidence": "Prototype lines 893 (xCum: s = init; s = step(i, s)), 951, 956, 958 and 939; indicators.ts adl at :511 and adStep at :565. TS vs talib.AD max_rel 0 on 18 tickers. SQL: 40 zero-volume rows, 21 of them on the ticker's first date."
+  },
+  {
+   "id": "b-cumulative-start-dependence",
+   "why": "Confirmed: the levels never settle. The sub-claim that 'the level against its own MA' is start-independent is false for the EMA-based states the prototype uses, and an FP tie on flat windows applies even to SMA-based states. The quoted range of 0.3%-85% is too narrow.",
+   "correct_statement": "OBV, PVT, A/D, NVI and PVI levels depend on the first bar forever. Last-bar relative differences after a 2021/2024/2025 start reach 93% (OBV), 170% (PVT), 107% (ADL), 370% (PVI) and about 96,800% (NVI, AGRO: 0.558 on full history vs 540.8 from 2025).\n\nk-bar changes, ratios and N-bar highs are start-independent. 'Level above its SMA(n)' is start-independent in exact arithmetic, but on flat windows (unchanged close, so OBV is constant) it is a floating-point tie: BNBR from 2021 shows 358 disagreements, all on flat-OBV windows.\n\n'Level above its EMA(n)', which the prototype's 53-list uses (line 1046: xEMA(s, K.avg)), is start-dependent. With EMA 20 the state disagrees for about 20-90 bars after a later start. With EMA 255 (NVI/PVI) it disagrees up to 1,021 bars after the start (BNBR, 2021 start), and on the last bar for ANTM from 2025. The EMA-255 seed weight reaches 1e-9 only after about 2,650 bars, longer than any stock's history (max 2,125 bars).",
+   "evidence": "startdep_report.txt (never settles 18/18 for obv/pvt/adl/nvi/pvi); last-bar table in this session (AGRO nvi 540.8 vs 0.5581; ANTM pvi 2502 vs 3.53e5). derived_state_report.txt: e.g. 'BNBR start 2021-01-04 nvi>EMA255 ... last_disagree_bar_after_start=1021', 'ANTM start 2025-01-02 nvi>EMA255 ... 428 (of 429)'; window-mean check: 358 of 358 BNBR obv>SMA20 disagreements on flat-OBV windows."
+  },
+  {
+   "id": "b-I33-f01-different-formula",
+   "why": "The formula statement is right; the size of the difference is understated.",
+   "correct_statement": "Feature_01 volatility_20d_ann_pct is stddev_samp of simple returns over 20 rows (confirmed in the live refresh_feature_01_stock_daily definition), while I33 uses the population stdev of log returns. Against TS hist_vol on 20 tickers (28,319 bars):\n- per-ticker medians run from 2.4% to 3.4% (overall 2.76%, roughly the sqrt(20/19) = 1.026 sample-to-population factor);\n- p95 is 6.9%;\n- the maximum is 23.2% (ACST).\nThe auditor's 'median 0.25-3%, max 14%' understates the gap.",
+   "evidence": "hv_vs_f01.txt (ALL 28,319 median 0.0276 p95 0.0686 max 0.2323). Migration 20260912_001 lines 200-234. Live check: pg_get_functiondef(refresh_feature_01_stock_daily) contains 'stddev_samp(daily_return_decimal)' = true."
+  }
+ ],
+ "uncertain": [
+  {
+   "id": "b-snapshot-recommendation",
+   "why": "PROPOSED, so it cannot be proven. Its premises hold for the default values: the Feature 04 and Feature 01 equalities, and the same F module. Three parts need a change before approval:\n(1) The 'start-independent derived states' for I40/I41/I44/I50/I51 hold only for SMA-based states with a tie rule. EMA-based states (EMA 20, EMA 255) must be computed from the first price row, and the EMA-255 seed never fully decays within the stored history.\n(2) Parity with the Backtest needs the same bar loader as well (priceSeries drops rows without four finite prices, datafile.ts:158), not only the same F.\n(3) 'indicators.ts is not modified' is a hard constraint. Any byte change to indicators.ts or indRegistry.json changes registry_version, and the worker then exits at start with registry_mismatch unless backtest-registry.json is rebuilt (server.ts:342-343, version.ts:37-41, build-registry.mjs:25)."
+  },
+  {
+   "id": "I43-calendar-anchor-start-independence (row I43 warmup)",
+   "why": "Correct for Week, Month, Quarter and Year when the load starts at a period boundary. Not checked on live data for Decade or Century, which by code (periodKey) span 2020+ and all stored history, and are therefore start-dependent if truncated."
+  },
+  {
+   "id": "I35 'volume in shares'",
+   "why": "Column_Catalog lists Feature_01 volume_avg_20d with unit 'Shares' (VERIFIED), but Price_Stock_Indonesia_IDX.volume has no unit (status PARTIAL). BBCA's 366,846,200 x ~4,900 is about Rp 1.8T traded, which supports shares (INFERENCE). For 180 split-adjusted tickers, volume is also adjusted and fractional (77,996 rows)."
+  }
+ ],
+ "row_corrections": [
+  {
+   "id": "I28",
+   "field": "notes",
+   "was": "502 ticker-days on 16 tickers have zero-width bands (%B null), 154 ticker-days have width > 0 but < 1e-6*close (%B is noise)",
+   "should_be": "502 equity ticker-days on 16 tickers have zero width (%B null). 100 equity ticker-days on 2 tickers (BABP, BCAP, flat at 50) have a residue width below 1e-6 x close, and TS %B is 0.5 there (null in the prototype's two-pass engine). The other 54 of the 154 are bond rows.",
+   "evidence": "SQL on Feature_04, trade_date >= 2025-10-27, grouped by asset_type; TS run on BABP and BCAP."
+  },
+  {
+   "id": "I28",
+   "field": "warmup",
+   "was": "on flat windows at non-integer prices the stdev is ~1e-5 noise or 0 depending on where history starts",
+   "should_be": "On flat windows the stdev is residue or 0, depending on the residue the running sums carry from all earlier bars. This includes integer-price windows when earlier history is fractional (split-adjusted). The BNBR 2021 start gives 412 null mismatches after warm-up (reproduced).",
+   "evidence": "BABP/BCAP case; startdep check: BNBR 2021 null mismatches 422, of which 412 after warm-up."
+  },
+  {
+   "id": "I30",
+   "field": "warmup",
+   "was": "settles to within 1e-9 x series scale only after ~190-253 bars",
+   "should_be": "About 190-271 bars at 1e-9 x scale (6 tickers x 3 starts). This depends on the tolerance: INDICATOR_ALIGNMENT.md section 2 gives about 50-80 bars at a 0.1% threshold.",
+   "evidence": "startdep_report.txt atr.atr min=192 max=271; INDICATOR_ALIGNMENT.md:30-32."
+  },
+  {
+   "id": "I31",
+   "field": "warmup",
+   "was": "settles in ~181-249 bars",
+   "should_be": "about 188-277 bars at 1e-9 x scale",
+   "evidence": "startdep_report.txt natr.natr min=188 max=277"
+  },
+  {
+   "id": "I36",
+   "field": "warmup",
+   "was": "settles in ~146-189 bars",
+   "should_be": "about 146-205 bars",
+   "evidence": "startdep_report.txt volume_ema min=146 max=205"
+  },
+  {
+   "id": "I46",
+   "field": "warmup",
+   "was": "settles in ~68-95 bars",
+   "should_be": "about 68-105 bars; 9 when the start falls inside a flat stretch (BNBR 2021)",
+   "evidence": "startdep_report.txt chaikin_osc min=9 max=105"
+  },
+  {
+   "id": "I48",
+   "field": "warmup",
+   "was": "settles in ~59-125 bars",
+   "should_be": "about 59-135 bars",
+   "evidence": "startdep_report.txt force_index min=59 max=135"
+  },
+  {
+   "id": "I52",
+   "field": "warmup",
+   "was": "settles to 1e-9 x scale only after ~433-600 bars, and with 429 bars (2025 start) is still 1.7e-6 rel off",
+   "should_be": "kvo about 418-624 bars and signal 440-641. Never settled from a 2025 start on all 6 tickers (last-bar relative difference up to 3.2e-6). RANS (74 bars) gets only 7 signal values.",
+   "evidence": "startdep_report.txt kvo never=6/18; first-valid check: RANS kvo 55, signal 67."
+  },
+  {
+   "id": "I33",
+   "field": "f04_columns",
+   "was": "median rel diff 0.25-3%, max 14% vs TS on 4 tickers",
+   "should_be": "per-ticker median 2.4-3.4% (overall 2.8%, about the sqrt(20/19) factor), p95 6.9%, max 23% (ACST), on 20 tickers",
+   "evidence": "hv_vs_f01.txt"
+  },
+  {
+   "id": "I43",
+   "field": "talib_equal_to_terminal",
+   "was": "the bands have zero width (BBCA last bar vwap = upper1 = 4893.333)",
+   "should_be": "The bands are about zero width: 1,611 of 28,220 Session bars have upper1/lower1 different from vwap by up to 4.6e-8 x vwap, and on 57 bars 'close > vwap' differs from 'close > upper1'.",
+   "evidence": "compare_report.txt I43 upper1 max_rel 2.28e-8; band count in this session."
+  },
+  {
+   "id": "I43",
+   "field": "precompute_recommendation",
+   "was": "dynamic-only for the default Session (trivial, no screening value). If the user picks a Week/Month anchor, a snapshot is possible (start-independent)",
+   "should_be": "Session reduces to close versus typical price (a weak close-location signal), so label it as such or hide it. Week, Month, Quarter and Year anchors are start-independent if the load starts on a period boundary. Decade and Century cover 2020+ and all stored history, so they behave like cumulative rows and must be computed from the first price row. The prototype returns the source price instead of null when the period volume is 0 (line 956).",
+   "evidence": "indicators.ts:591-602 periodKey; prototype line 956"
+  },
+  {
+   "id": "I40",
+   "field": "precompute_recommendation",
+   "was": "precompute only start-independent derived states (vs own MA, k-bar change, N-bar high)",
+   "should_be": "Only k-bar change, N-bar high and level vs SMA(n) are start-independent, and SMA states need a tie rule on flat windows (OBV constant). Level vs EMA(n) (the prototype's line 1046 uses EMA 20) is start-dependent for about 20-90 bars after a later start, so compute it from the first price row.",
+   "evidence": "derived_state_report.txt; BNBR window-mean check: 358 of 358 disagreements on flat-OBV windows"
+  },
+  {
+   "id": "I41",
+   "field": "precompute_recommendation",
+   "was": "derived states in the snapshot if the user wants PVT screens",
+   "should_be": "same caveat as I40 (EMA 20 states are start-dependent; SMA states need a tie rule)",
+   "evidence": "derived_state_report.txt pvt>EMA20 disagreements up to bar 55"
+  },
+  {
+   "id": "I44",
+   "field": "notes",
+   "was": "Prototype engine (line 958) starts at 0 contribution as well (listed as a difference in report section 2 and in b-prototype-engine-differs)",
+   "should_be": "Prototype A/D equals TS and TA-Lib AD (AD[0] = MFM0*V0); it is not a difference. Only its Chaikin (line 960, SMA-seeded EMA) differs. The derived-state caveat of I40 applies.",
+   "evidence": "prototype lines 893 and 958; TS vs talib.AD max_rel 0"
+  },
+  {
+   "id": "I50",
+   "field": "screener_condition_kinds",
+   "was": "state NVI above its 255-bar EMA (classic use), event cross of that EMA, k-bar change",
+   "should_be": "The NVI vs EMA-255 state is start-dependent across the whole stored history: the seed weight reaches 1e-9 only after about 2,650 bars, and the longest history is 2,125 bars. It needs at least 255 bars, and 13 stocks have fewer than 300. Use full history from the first row (for parity only), or use SMA-255 or a k-bar ratio. The k-bar ratio is start-independent.",
+   "evidence": "derived_state_report.txt (BNBR 2021 start, last disagreement at bar 1021; ANTM 2025 start disagrees on the last bar); SQL lt300 = 13"
+  },
+  {
+   "id": "I51",
+   "field": "screener_condition_kinds",
+   "was": "as I50 (vs own 255 EMA, crosses, k-bar change)",
+   "should_be": "same correction as I50 (PVI vs EMA-255 disagreements up to bar 801 after start, ANTM 2021)",
+   "evidence": "derived_state_report.txt"
+  },
+  {
+   "id": "I45",
+   "field": "notes",
+   "was": "Prototype curated CMF (line 843) uses ((H-L)||1)",
+   "should_be": "The ((H-L)||1) formula is in CMF() at prototype line 772. Line 843 (curated) and line 959 (53-list) both call it.",
+   "evidence": "prototype lines 772, 843, 959"
+  },
+  {
+   "id": "I31",
+   "field": "notes",
+   "was": "Prototype curated 'ATR %' (line 816) is this indicator; merge them",
+   "should_be": "The concept is the same, but line 816 uses the prototype ATR() (line 767: bar-0 TR = H-L, mean seed, first value at bar 13), so it differs from TS NATR during warm-up. Merge onto F.natr.",
+   "evidence": "prototype lines 767 and 816"
+  },
+  {
+   "id": "I34",
+   "field": "screener_condition_kinds",
+   "was": "avoid 'ADR > 0' (residue)",
+   "should_be": "Avoid 'ADR > 0'. The residue is negative on BNBR (905 bars) and positive on BABP (274 bars where the true range is 0), and the prototype's 53-list default for ATR, StdDev, ADR, Chaikin Osc, Force, EOM and Market FI is 'gt 0' (lines 997-1014).",
+   "evidence": "ADR residue check; prototype lines 997-1014"
+  },
+  {
+   "id": "I39",
+   "field": "notes",
+   "was": "40 zero-volume rows exist in the price table",
+   "should_be": "40 zero-volume rows, 21 of them on the ticker's first bar (listing day). EOM, VWAP, Market FI and RVOL are null there, and VROC is null 10 bars later.",
+   "evidence": "SQL: z.date = first_date for 21 of 40"
+  },
+  {
+   "id": "I37",
+   "field": "notes",
+   "was": "(no xlsx readiness given)",
+   "should_be": "xlsx 01_INDICATORS marks I37 PARTIAL_LOGIC ('Intraday RVOL needs time-of-day comparables'), as well as I43 and I52.",
+   "evidence": "xlsx_calc_I28_I53.txt"
+  },
+  {
+   "id": "report section 1",
+   "field": "Not stored anywhere count",
+   "was": "I34, I36, I38-I53 (19 rows)",
+   "should_be": "18 rows (I34, I36 and I38-I53). 1 + 3 + 1 + 2 + 1 + 18 = 26.",
+   "evidence": "arithmetic on the auditor's own table"
+  }
+ ],
+ "additional_findings": [
+  "FACT (Backtest must not break): the worker's start-up check compares a hash of indicators.ts and indRegistry.json with the built backtest-registry.json (build-registry.mjs:25, version.ts:37-41). Any byte change to either file, even a comment, makes the worker log registry_mismatch and exit (server.ts:342-343) until the registry is rebuilt and redeployed. engine_version hashes every *.ts and *.json file in apps/edge-bff/backtest/src/core (version.ts:18-21). So screener code and screener-only transforms must live outside indicators.ts and outside backtest/src/core.",
+  "FACT: OHLCV is split-adjusted as of load time, as TradingView 'splits' adjustment (price_update.py:311). 180 tickers have fractional closes (138,057 rows), 77,996 rows have fractional volume, and the latest fractional row is 2026-07-08 (BNBR, with a step at 2026-07-09). The daily cron upserts only the target-date candle (apps/idx-price-cron/README.md). INFERENCE/UNKNOWN: whether a future split re-adjusts stored history. If it does, every recursive and cumulative value, Feature 04/01 and any screener snapshot must be recomputed for that ticker. If it does not, a level break appears. ingestion_time is null for most older rows (BNBR: 2,027 of 2,057), so a rewrite before that field existed cannot be detected.",
+  "FACT: 16 stocks have their last bar before 2026-10-27 (from ADHI 2026-08-21 to MSIN/TGKA 2026-10-26). A latest-date cross-section returns 828 rows (EXPLAIN ANALYZE 94.6 ms), whereas 'latest bar per ticker' would show stale values. The prototype evaluates every ticker at one global index N-1 (lines 1058-1062). The screener needs an as-of-date and staleness policy.",
+  "FACT: the registry's 'inputs' ignore the chosen source: I28/I29/I32/I33 list [C] and I42 [C,V], and I43 lists [H,L,C,V] even with source=open. The TS def() derives the needed fields from the source (needSrc). A screener data loader must use that rule, not the registry's inputs.",
+  "FACT: the prototype's band-shape value (line 1027) already has a flat-band guard (width > 1e-9 x close) for I27, I10 and I11, but its %B (line 939) and BBW (line 940) do not. A screener-only epsilon guard would make the screener differ from Terminal and Backtest, which return 0.5 or 0 on residue-width windows (BABP/BCAP). If the user wants a guard, decide it explicitly.",
+  "FACT: Feature_01 also stores volume_std_20d and volume_zscore_20d (sample stdev over 20 rows including the current bar; migration 20260912_001 lines 208-209 and 307-311), and returns, high_20d/60d and drawdowns. These can back curated volume and return screens. Its volume unit is catalogued as 'Shares' (VERIFIED); the price table's volume unit is undocumented (PARTIAL).",
+  "FACT: warm-up figures depend on the tolerance. At 1e-9 x scale, ATR needs about 190-270 bars; INDICATOR_ALIGNMENT.md section 2 gives about 50-80 bars at 0.1%. Any truncated dynamic calculation should state its tolerance. Exact parity at a threshold boundary needs history from the first price row.",
+  "FACT: the Backtest resolveParams refuses fractions only for 'integer' parameters. annualization_periods is typed 'number', so a fractional value passes and def() then floors it silently, contrary to the registry.ts comment 'nothing is rounded or clamped silently'. The screener UI should treat it as an integer.",
+  "FACT: AI_formula_reference CALC_225 describes stdev as two-pass, sqrt(SUM((src-SMA)^2)/n), while TS uses the TA-Lib running E[x^2]-E[x]^2 (kStd). They are equal in exact arithmetic but differ on flat-window residue. CALC_041 still says 'first bar uses high-low if configured'.",
+  "FACT: price and volume are adjusted and fractional for 180 tickers, so OBV, PVT and A/D are not integer sums. Ties of 'level vs its MA' on flat windows are therefore decided by floating-point rounding (BNBR: 358 of 358 disagreements are on flat-OBV windows). Every derived 'above or below' state needs an explicit tie rule."
+ ]
+}

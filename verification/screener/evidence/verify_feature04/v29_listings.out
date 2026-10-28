@@ -1,0 +1,24 @@
+ticker | f
+RANS | 2026-07-10T00:00:00Z
+PRDL | 2026-07-09T00:00:00Z
+BACH | 2026-07-08T00:00:00Z
+EMMI | 2026-07-08T00:00:00Z
+JECX | 2026-07-07T00:00:00Z
+JELI | 2026-07-07T00:00:00Z
+WBSA | 2026-04-10T00:00:00Z
+SUPA | 2025-12-17T00:00:00Z
+(8 rows, 770 ms)
+---
+count
+845
+(1 rows, 222 ms)
+---
+Security Type | count
+stock | 844
+index | 1
+(2 rows, 190 ms)
+---
+count
+0
+(1 rows, 377 ms)
+---

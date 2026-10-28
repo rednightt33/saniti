@@ -1,0 +1,83 @@
+QUERY PLAN
+GroupAggregate  (cost=68088.13..68112.95 rows=7 width=304) (actual time=2164.339..2167.832 rows=7.00 loops=1)
+  Group Key: "*VALUES*".column1
+  Buffers: shared hit=5959 read=6520
+  CTE d
+    ->  GroupAggregate  (cost=25.09..59017.68 rows=21889 width=169) (actual time=12.418..2111.028 rows=21708.00 loops=1)
+          Group Key: "Feature_06_Foreign_Domestic".ticker, "Feature_06_Foreign_Domestic".trade_date
+          Buffers: shared hit=5901 read=6520
+          ->  Incremental Sort  (cost=25.09..57724.23 rows=22884 width=48) (actual time=12.394..2077.178 rows=24465.00 loops=1)
+                Sort Key: "Feature_06_Foreign_Domestic".ticker, "Feature_06_Foreign_Domestic".trade_date
+                Presorted Key: "Feature_06_Foreign_Domestic".ticker
+                Full-sort Groups: 470  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+                Pre-sorted Groups: 78  Sort Method: quicksort  Average Memory: 26kB  Peak Memory: 26kB
+                Buffers: shared hit=5901 read=6520
+                ->  Index Scan using feature_06_foreign_domestic_pkey on "Feature_06_Foreign_Domestic"  (cost=0.43..57014.31 rows=22884 width=48) (actual time=2.350..2067.139 rows=24465.00 loops=1)
+                      Index Cond: ((trade_date >= '2026-09-23'::date) AND (trade_date <= '2026-10-27'::date))
+                      Index Searches: 1797
+                      Buffers: shared hit=5901 read=6520
+  ->  Sort  (cost=9070.46..9072.21 rows=700 width=96) (actual time=2163.680..2164.061 rows=5824.00 loops=1)
+        Sort Key: "*VALUES*".column1
+        Sort Method: quicksort  Memory: 654kB
+        Buffers: shared hit=5959 read=6520
+        ->  Nested Loop  (cost=515.08..9037.38 rows=700 width=96) (actual time=2120.975..2161.964 rows=5824.00 loops=1)
+              Buffers: shared hit=5959 read=6520
+              ->  Merge Join  (cost=515.08..9021.63 rows=100 width=256) (actual time=2120.969..2160.367 rows=832.00 loops=1)
+                    Merge Cond: (d_1.ticker = u."Ticker")
+                    Buffers: shared hit=5959 read=6520
+                    ->  GroupAggregate  (cost=514.80..8872.01 rows=100 width=257) (actual time=2120.953..2159.336 rows=872.00 loops=1)
+                          Group Key: d_1.ticker
+                          Filter: bool_or((d.ticker IS NOT NULL)) FILTER (WHERE (c.k = 1))
+                          Rows Removed by Filter: 34
+                          Buffers: shared hit=5901 read=6520
+                          ->  Merge Left Join  (cost=514.80..4554.26 rows=40000 width=232) (actual time=2120.905..2144.506 rows=22650.00 loops=1)
+                                Merge Cond: ((d_1.ticker = d.ticker) AND (c.trade_date = d.trade_date))
+                                Buffers: shared hit=5901 read=6520
+                                ->  Incremental Sort  (cost=514.80..3533.42 rows=40000 width=44) (actual time=2120.897..2135.488 rows=22650.00 loops=1)
+                                      Sort Key: d_1.ticker, c.trade_date
+                                      Presorted Key: d_1.ticker
+                                      Full-sort Groups: 453  Sort Method: quicksort  Average Memory: 26kB  Peak Memory: 26kB
+                                      Buffers: shared hit=5901 read=6520
+                                      ->  Nested Loop  (cost=502.16..1500.65 rows=40000 width=44) (actual time=2120.854..2128.083 rows=22650.00 loops=1)
+                                            Buffers: shared hit=5901 read=6520
+                                            ->  Unique  (cost=0.00..492.50 rows=200 width=32) (actual time=12.423..14.756 rows=906.00 loops=1)
+                                                  Buffers: shared hit=14 read=17
+                                                  ->  CTE Scan on d d_1  (cost=0.00..437.78 rows=21889 width=32) (actual time=12.422..13.713 rows=21708.00 loops=1)
+                                                        Storage: Memory  Maximum Storage: 1830kB
+                                                        Buffers: shared hit=14 read=17
+                                            ->  Materialize  (cost=502.16..508.65 rows=200 width=12) (actual time=2.327..2.328 rows=25.00 loops=906)
+                                                  Storage: Memory  Maximum Storage: 17kB
+                                                  Buffers: shared hit=5887 read=6503
+                                                  ->  Subquery Scan on c  (cost=502.16..507.65 rows=200 width=12) (actual time=2108.422..2108.434 rows=25.00 loops=1)
+                                                        Buffers: shared hit=5887 read=6503
+                                                        ->  WindowAgg  (cost=502.16..505.65 rows=200 width=12) (actual time=2108.420..2108.429 rows=25.00 loops=1)
+                                                              Window: w1 AS (ORDER BY d_2.trade_date ROWS UNBOUNDED PRECEDING)
+                                                              Storage: Memory  Maximum Storage: 17kB
+                                                              Buffers: shared hit=5887 read=6503
+                                                              ->  Sort  (cost=502.15..502.65 rows=200 width=4) (actual time=2108.412..2108.415 rows=25.00 loops=1)
+                                                                    Sort Key: d_2.trade_date DESC
+                                                                    Sort Method: quicksort  Memory: 25kB
+                                                                    Buffers: shared hit=5887 read=6503
+                                                                    ->  HashAggregate  (cost=492.50..494.50 rows=200 width=4) (actual time=2108.397..2108.401 rows=25.00 loops=1)
+                                                                          Group Key: d_2.trade_date
+                                                                          Batches: 1  Memory Usage: 32kB
+                                                                          Buffers: shared hit=5887 read=6503
+                                                                          ->  CTE Scan on d d_2  (cost=0.00..437.78 rows=21889 width=4) (actual time=0.001..2105.288 rows=21708.00 loops=1)
+                                                                                Storage: Memory  Maximum Storage: 1830kB
+                                                                                Buffers: shared hit=5887 read=6503
+                                ->  Materialize  (cost=0.00..492.50 rows=21889 width=196) (actual time=0.002..2.978 rows=21708.00 loops=1)
+                                      Storage: Memory  Maximum Storage: 17kB
+                                      ->  CTE Scan on d  (cost=0.00..437.78 rows=21889 width=196) (actual time=0.000..1.189 rows=21708.00 loops=1)
+                                            Storage: Memory  Maximum Storage: 1830kB
+                    ->  Index Scan using "IDX_Stock_Universe_pkey" on "IDX_Stock_Universe" u  (cost=0.28..145.26 rows=844 width=5) (actual time=0.013..0.757 rows=844.00 loops=1)
+                          Filter: ("Security Type" = 'stock'::text)
+                          Rows Removed by Filter: 1
+                          Index Searches: 1
+                          Buffers: shared hit=58
+              ->  Values Scan on "*VALUES*"  (cost=0.00..0.09 rows=7 width=64) (actual time=0.000..0.001 rows=7.00 loops=832)
+Planning:
+  Buffers: shared hit=25
+Planning Time: 0.657 ms
+Execution Time: 2167.968 ms
+(80 rows, 2699 ms)
+---

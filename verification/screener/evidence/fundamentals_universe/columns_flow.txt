@@ -1,0 +1,215 @@
+table_name | pos | column_name | data_type
+Feature_03_Stock_Broker_Daily | 1 | date | date
+Feature_03_Stock_Broker_Daily | 2 | ticker | text
+Feature_03_Stock_Broker_Daily | 3 | market_board | text
+Feature_03_Stock_Broker_Daily | 4 | total_buy_value | numeric
+Feature_03_Stock_Broker_Daily | 5 | total_sell_value | numeric
+Feature_03_Stock_Broker_Daily | 6 | active_broker_count | smallint
+Feature_03_Stock_Broker_Daily | 7 | net_buy_broker_count | smallint
+Feature_03_Stock_Broker_Daily | 8 | net_sell_broker_count | smallint
+Feature_03_Stock_Broker_Daily | 9 | net_buy_broker_ratio | double precision
+Feature_03_Stock_Broker_Daily | 10 | foreign_net_value | numeric
+Feature_03_Stock_Broker_Daily | 11 | domestic_net_value | numeric
+Feature_03_Stock_Broker_Daily | 12 | institutional_net_value | numeric
+Feature_03_Stock_Broker_Daily | 13 | retail_net_value | numeric
+Feature_03_Stock_Broker_Daily | 14 | mixed_net_value | numeric
+Feature_03_Stock_Broker_Daily | 15 | niche_net_value | numeric
+Feature_03_Stock_Broker_Daily | 16 | top_buyer | text
+Feature_03_Stock_Broker_Daily | 17 | top_buyer_net_value | numeric
+Feature_03_Stock_Broker_Daily | 18 | top_seller | text
+Feature_03_Stock_Broker_Daily | 19 | top_seller_net_value | numeric
+Feature_03_Stock_Broker_Daily | 20 | top3_buyer_net_value | numeric
+Feature_03_Stock_Broker_Daily | 21 | positive_net_value_total | numeric
+Feature_03_Stock_Broker_Daily | 22 | top3_buyer_share | double precision
+Feature_03_Stock_Broker_Daily | 23 | broker_concentration_hhi | double precision
+Feature_03_Stock_Broker_Daily | 24 | calculated_at | timestamp with time zone
+Feature_06_Foreign_Domestic | 1 | trade_date | date
+Feature_06_Foreign_Domestic | 2 | ticker | text
+Feature_06_Foreign_Domestic | 3 | market_board | text
+Feature_06_Foreign_Domestic | 4 | foreign_buy_1d | numeric
+Feature_06_Foreign_Domestic | 5 | foreign_sell_1d | numeric
+Feature_06_Foreign_Domestic | 6 | foreign_net_1d | numeric
+Feature_06_Foreign_Domestic | 7 | domestic_buy_1d | numeric
+Feature_06_Foreign_Domestic | 8 | domestic_sell_1d | numeric
+Feature_06_Foreign_Domestic | 9 | domestic_net_1d | numeric
+Feature_06_Foreign_Domestic | 10 | foreign_cumulative_net | numeric
+Feature_06_Foreign_Domestic | 11 | domestic_cumulative_net | numeric
+Feature_06_Foreign_Domestic | 12 | foreign_net_5d | numeric
+Feature_06_Foreign_Domestic | 13 | foreign_net_10d | numeric
+Feature_06_Foreign_Domestic | 14 | foreign_net_20d | numeric
+Feature_06_Foreign_Domestic | 15 | foreign_net_40d | numeric
+Feature_06_Foreign_Domestic | 16 | foreign_net_60d | numeric
+Feature_06_Foreign_Domestic | 17 | domestic_net_5d | numeric
+Feature_06_Foreign_Domestic | 18 | domestic_net_10d | numeric
+Feature_06_Foreign_Domestic | 19 | domestic_net_20d | numeric
+Feature_06_Foreign_Domestic | 20 | domestic_net_60d | numeric
+Feature_06_Foreign_Domestic | 21 | foreign_net_turnover_ratio_1d | double precision
+Feature_06_Foreign_Domestic | 22 | foreign_net_turnover_ratio_5d | double precision
+Feature_06_Foreign_Domestic | 23 | foreign_net_turnover_ratio_20d | double precision
+Feature_06_Foreign_Domestic | 24 | foreign_buy_share_1d | double precision
+Feature_06_Foreign_Domestic | 25 | foreign_sell_share_1d | double precision
+Feature_06_Foreign_Domestic | 26 | foreign_buy_days_5d | smallint
+Feature_06_Foreign_Domestic | 27 | foreign_buy_days_10d | smallint
+Feature_06_Foreign_Domestic | 28 | foreign_buy_days_20d | smallint
+Feature_06_Foreign_Domestic | 29 | foreign_buy_days_40d | smallint
+Feature_06_Foreign_Domestic | 30 | foreign_sell_days_5d | smallint
+Feature_06_Foreign_Domestic | 31 | foreign_sell_days_10d | smallint
+Feature_06_Foreign_Domestic | 32 | foreign_sell_days_20d | smallint
+Feature_06_Foreign_Domestic | 33 | foreign_sell_days_40d | smallint
+Feature_06_Foreign_Domestic | 34 | foreign_net_zscore_5d_base252d | double precision
+Feature_06_Foreign_Domestic | 35 | foreign_net_zscore_10d_base252d | double precision
+Feature_06_Foreign_Domestic | 36 | foreign_net_zscore_20d_base252d | double precision
+Feature_06_Foreign_Domestic | 37 | foreign_net_zscore_40d_base252d | double precision
+Feature_06_Foreign_Domestic | 38 | foreign_net_zscore_60d_base252d | double precision
+Feature_06_Foreign_Domestic | 39 | foreign_net_percentile_5d_base252d | double precision
+Feature_06_Foreign_Domestic | 40 | foreign_net_percentile_10d_base252d | double precision
+Feature_06_Foreign_Domestic | 41 | foreign_net_percentile_20d_base252d | double precision
+Feature_06_Foreign_Domestic | 42 | foreign_net_percentile_40d_base252d | double precision
+Feature_06_Foreign_Domestic | 43 | foreign_net_percentile_60d_base252d | double precision
+Feature_06_Foreign_Domestic | 44 | foreign_net_zscore_5d_base60d | double precision
+Feature_06_Foreign_Domestic | 45 | foreign_net_zscore_10d_base60d | double precision
+Feature_06_Foreign_Domestic | 46 | foreign_net_zscore_20d_base60d | double precision
+Feature_06_Foreign_Domestic | 47 | foreign_net_percentile_5d_base60d | double precision
+Feature_06_Foreign_Domestic | 48 | foreign_net_percentile_10d_base60d | double precision
+Feature_06_Foreign_Domestic | 49 | foreign_net_percentile_20d_base60d | double precision
+Feature_06_Foreign_Domestic | 50 | foreign_flow_vs_prev_20d | numeric
+Feature_06_Foreign_Domestic | 51 | foreign_flow_vs_prev_40d | numeric
+Feature_06_Foreign_Domestic | 52 | foreign_strength_20d | double precision
+Feature_06_Foreign_Domestic | 53 | foreign_strength_50d | double precision
+Feature_06_Foreign_Domestic | 54 | foreign_strength_momentum_5d | double precision
+Feature_06_Foreign_Domestic | 55 | foreign_buy_freq_1d | bigint
+Feature_06_Foreign_Domestic | 56 | foreign_sell_freq_1d | bigint
+Feature_06_Foreign_Domestic | 57 | domestic_buy_freq_1d | bigint
+Feature_06_Foreign_Domestic | 58 | domestic_sell_freq_1d | bigint
+Feature_06_Foreign_Domestic | 59 | foreign_freq_imbalance_1d | double precision
+Feature_06_Foreign_Domestic | 60 | foreign_freq_imbalance_20d | double precision
+Feature_06_Foreign_Domestic | 61 | foreign_buy_freq_share_1d | double precision
+Feature_06_Foreign_Domestic | 62 | foreign_sell_freq_share_1d | double precision
+Feature_06_Foreign_Domestic | 63 | foreign_avg_buy_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 64 | foreign_avg_sell_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 65 | foreign_buy_sell_ticket_ratio_1d | double precision
+Feature_06_Foreign_Domestic | 66 | foreign_avg_buy_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 67 | foreign_avg_sell_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 68 | domestic_freq_imbalance_1d | double precision
+Feature_06_Foreign_Domestic | 69 | domestic_freq_imbalance_20d | double precision
+Feature_06_Foreign_Domestic | 70 | domestic_buy_freq_share_1d | double precision
+Feature_06_Foreign_Domestic | 71 | domestic_sell_freq_share_1d | double precision
+Feature_06_Foreign_Domestic | 72 | domestic_avg_buy_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 73 | domestic_avg_sell_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 74 | domestic_buy_sell_ticket_ratio_1d | double precision
+Feature_06_Foreign_Domestic | 75 | domestic_avg_buy_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 76 | domestic_avg_sell_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic | 77 | domestic_buy_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 78 | foreign_buy_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 79 | domestic_buy_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 80 | foreign_buy_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 81 | domestic_sell_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 82 | foreign_sell_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 83 | domestic_sell_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 84 | foreign_sell_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic | 85 | foreign_value_freq_sign_mismatch_1d | boolean
+Feature_06_Foreign_Domestic | 86 | source_balance_gap | boolean
+Feature_06_Foreign_Domestic | 87 | calculated_at | timestamp with time zone
+Feature_06_Foreign_Domestic_Stock | 1 | trade_date | date
+Feature_06_Foreign_Domestic_Stock | 2 | ticker | text
+Feature_06_Foreign_Domestic_Stock | 3 | market_board | text
+Feature_06_Foreign_Domestic_Stock | 4 | foreign_buy_1d | numeric
+Feature_06_Foreign_Domestic_Stock | 5 | foreign_sell_1d | numeric
+Feature_06_Foreign_Domestic_Stock | 6 | foreign_net_1d | numeric
+Feature_06_Foreign_Domestic_Stock | 7 | domestic_buy_1d | numeric
+Feature_06_Foreign_Domestic_Stock | 8 | domestic_sell_1d | numeric
+Feature_06_Foreign_Domestic_Stock | 9 | domestic_net_1d | numeric
+Feature_06_Foreign_Domestic_Stock | 10 | foreign_cumulative_net | numeric
+Feature_06_Foreign_Domestic_Stock | 11 | domestic_cumulative_net | numeric
+Feature_06_Foreign_Domestic_Stock | 12 | foreign_net_5d | numeric
+Feature_06_Foreign_Domestic_Stock | 13 | foreign_net_10d | numeric
+Feature_06_Foreign_Domestic_Stock | 14 | foreign_net_20d | numeric
+Feature_06_Foreign_Domestic_Stock | 15 | foreign_net_40d | numeric
+Feature_06_Foreign_Domestic_Stock | 16 | foreign_net_60d | numeric
+Feature_06_Foreign_Domestic_Stock | 17 | domestic_net_5d | numeric
+Feature_06_Foreign_Domestic_Stock | 18 | domestic_net_10d | numeric
+Feature_06_Foreign_Domestic_Stock | 19 | domestic_net_20d | numeric
+Feature_06_Foreign_Domestic_Stock | 20 | domestic_net_60d | numeric
+Feature_06_Foreign_Domestic_Stock | 21 | foreign_net_turnover_ratio_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 22 | foreign_net_turnover_ratio_5d | double precision
+Feature_06_Foreign_Domestic_Stock | 23 | foreign_net_turnover_ratio_20d | double precision
+Feature_06_Foreign_Domestic_Stock | 24 | foreign_buy_share_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 25 | foreign_sell_share_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 26 | foreign_buy_days_5d | smallint
+Feature_06_Foreign_Domestic_Stock | 27 | foreign_buy_days_10d | smallint
+Feature_06_Foreign_Domestic_Stock | 28 | foreign_buy_days_20d | smallint
+Feature_06_Foreign_Domestic_Stock | 29 | foreign_buy_days_40d | smallint
+Feature_06_Foreign_Domestic_Stock | 30 | foreign_sell_days_5d | smallint
+Feature_06_Foreign_Domestic_Stock | 31 | foreign_sell_days_10d | smallint
+Feature_06_Foreign_Domestic_Stock | 32 | foreign_sell_days_20d | smallint
+Feature_06_Foreign_Domestic_Stock | 33 | foreign_sell_days_40d | smallint
+Feature_06_Foreign_Domestic_Stock | 34 | foreign_net_zscore_5d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 35 | foreign_net_zscore_10d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 36 | foreign_net_zscore_20d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 37 | foreign_net_zscore_40d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 38 | foreign_net_zscore_60d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 39 | foreign_net_percentile_5d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 40 | foreign_net_percentile_10d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 41 | foreign_net_percentile_20d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 42 | foreign_net_percentile_40d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 43 | foreign_net_percentile_60d_base252d | double precision
+Feature_06_Foreign_Domestic_Stock | 44 | foreign_net_zscore_5d_base60d | double precision
+Feature_06_Foreign_Domestic_Stock | 45 | foreign_net_zscore_10d_base60d | double precision
+Feature_06_Foreign_Domestic_Stock | 46 | foreign_net_zscore_20d_base60d | double precision
+Feature_06_Foreign_Domestic_Stock | 47 | foreign_net_percentile_5d_base60d | double precision
+Feature_06_Foreign_Domestic_Stock | 48 | foreign_net_percentile_10d_base60d | double precision
+Feature_06_Foreign_Domestic_Stock | 49 | foreign_net_percentile_20d_base60d | double precision
+Feature_06_Foreign_Domestic_Stock | 50 | foreign_flow_vs_prev_20d | numeric
+Feature_06_Foreign_Domestic_Stock | 51 | foreign_flow_vs_prev_40d | numeric
+Feature_06_Foreign_Domestic_Stock | 52 | foreign_strength_20d | double precision
+Feature_06_Foreign_Domestic_Stock | 53 | foreign_strength_50d | double precision
+Feature_06_Foreign_Domestic_Stock | 54 | foreign_strength_momentum_5d | double precision
+Feature_06_Foreign_Domestic_Stock | 55 | foreign_buy_freq_1d | bigint
+Feature_06_Foreign_Domestic_Stock | 56 | foreign_sell_freq_1d | bigint
+Feature_06_Foreign_Domestic_Stock | 57 | domestic_buy_freq_1d | bigint
+Feature_06_Foreign_Domestic_Stock | 58 | domestic_sell_freq_1d | bigint
+Feature_06_Foreign_Domestic_Stock | 59 | foreign_freq_imbalance_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 60 | foreign_freq_imbalance_20d | double precision
+Feature_06_Foreign_Domestic_Stock | 61 | foreign_buy_freq_share_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 62 | foreign_sell_freq_share_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 63 | foreign_avg_buy_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 64 | foreign_avg_sell_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 65 | foreign_buy_sell_ticket_ratio_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 66 | foreign_avg_buy_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 67 | foreign_avg_sell_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 68 | domestic_freq_imbalance_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 69 | domestic_freq_imbalance_20d | double precision
+Feature_06_Foreign_Domestic_Stock | 70 | domestic_buy_freq_share_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 71 | domestic_sell_freq_share_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 72 | domestic_avg_buy_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 73 | domestic_avg_sell_value_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 74 | domestic_buy_sell_ticket_ratio_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 75 | domestic_avg_buy_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 76 | domestic_avg_sell_lots_per_freq_1d | double precision
+Feature_06_Foreign_Domestic_Stock | 77 | domestic_buy_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 78 | foreign_buy_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 79 | domestic_buy_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 80 | foreign_buy_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 81 | domestic_sell_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 82 | foreign_sell_freq_share_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 83 | domestic_sell_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 84 | foreign_sell_value_per_freq_change_5d_vs_prev20d | double precision
+Feature_06_Foreign_Domestic_Stock | 85 | foreign_value_freq_sign_mismatch_1d | boolean
+Feature_06_Foreign_Domestic_Stock | 86 | source_balance_gap | boolean
+IDX_Broker_Summary | 1 | Date | date
+IDX_Broker_Summary | 2 | Symbol | character varying
+IDX_Broker_Summary | 3 | Broker | character varying
+IDX_Broker_Summary | 4 | Investor Type | character varying
+IDX_Broker_Summary | 5 | Market Board | character varying
+IDX_Broker_Summary | 6 | Buy Value | numeric
+IDX_Broker_Summary | 7 | Sell Value | numeric
+IDX_Broker_Summary | 8 | Net Value | numeric
+IDX_Broker_Summary | 9 | Buy Lots | numeric
+IDX_Broker_Summary | 10 | Sell Lots | numeric
+IDX_Broker_Summary | 11 | Net Lots | numeric
+IDX_Broker_Summary | 12 | Avg Buy | numeric
+IDX_Broker_Summary | 13 | Avg Sell | numeric
+IDX_Broker_Summary | 14 | buy_freq | bigint
+IDX_Broker_Summary | 15 | sell_freq | bigint
+(212 rows, 751 ms)
+---

@@ -1,0 +1,8 @@
+non_v3 | nd | count
+0 | 0 | 261977
+(1 rows, 662 ms)
+---
+non_v3 | nd | count
+0 | 0 | 284652
+(1 rows, 1027 ms)
+---

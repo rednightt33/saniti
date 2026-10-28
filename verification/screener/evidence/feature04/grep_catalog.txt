@@ -1,0 +1,16 @@
+86:| `Feature_04_Technical_Indicator` | Cross-asset Daily close, technical indicators, candlestick codes, inside bars and Pine SMI/swing state | `FEATURE04_COLUMN_DEFINITIONS.md` |
+87:| `feature04_backfill_log` | Atomic per-run/ticker historical-load metadata and resume fingerprints | `FEATURE04_TECHNICAL_INDICATOR.md` |
+108:`Feature_04_Technical_Indicator` has 57 physical columns and 57 active v4 definitions: four identity fields, direct source `close`, the unchanged indicators/patterns, Pine SMI/swing state, and calculation metadata. It contains 844 equity tickers / 1,318,633 Daily rows and 24 bonds tickers / 60,4
+110:Feature04 automation adds `Feature04_Calculation_Queue`, `Feature04_Column_Status`,
+111:`Feature04_Calculation_Log`, `Monitoring_Feature04`, `Monitoring_Feature04_Ticker`,
+112:`Feature04_Retry_Request`, and `Feature04_Notification_Outbox`. These are operational
+116:derives its start from the latest configured five final sessions. The Feature04 outbox is
+120:`DATABASE_SCHEMA.md`; behavior is specified in `FEATURE04_TECHNICAL_INDICATOR.md`.
+122:`Feature04_Calculation_State` stores recent versioned calculation checkpoints. Its grain is
+137:Feature04 consumes only final `price`/`1D` rows.
+226:## AI exposure of fixed income and Feature 04 — 2026-10-20 (EXEC-ONBOARD-1)
+230:`Universe_Fixed_income` (reference, `instrument_name` marked `entity_name`) and `Feature_04_Technical_Indicator` (the
+232:`Source`), because `scripts/sync_database_catalog.py` registers base tables only. Feature 04's `AI_calculation_catalog`
+236:Indonesian meaning written by this change is `DRAFT`. Earlier statements in this file that Feature 04 has no AI
+297:| Feature 04 | timeframe, trade_date (asset_type differs: equity/bonds against index) |
+307:  `asset_type` for Feature 04), so a second index never doubles or mixes rows.

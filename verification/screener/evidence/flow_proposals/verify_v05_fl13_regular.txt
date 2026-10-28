@@ -1,0 +1,4 @@
+n | reg_n | all_vs_mixed_gt1 | all_vs_mixed_gt5 | all_vs_reg_gt1 | all_vs_reg_gt5 | reg_p50 | reg_min | reg_max | reg_p10 | reg_p90 | byan_reg | care_reg | bbca_reg
+828 | 828 | 70 | 34 | 71 | 31 | -1.64 | -32.51 | 22.97 | -11.04 | 5.26 | -5.29 | -11.17 | -4.45
+(1 rows, 1220 ms)
+---

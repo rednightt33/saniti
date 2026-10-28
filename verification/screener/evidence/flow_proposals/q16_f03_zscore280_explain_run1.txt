@@ -1,0 +1,75 @@
+QUERY PLAN
+Aggregate  (cost=203338.24..203338.29 rows=1 width=360) (actual time=12290.512..12290.626 rows=1.00 loops=1)
+  Buffers: shared hit=447 read=96862, temp read=1665 written=1670
+  ->  Hash Join  (cost=132650.88..203140.20 rows=966 width=54) (actual time=10395.349..12285.992 rows=832.00 loops=1)
+        Hash Cond: (z.ticker = u."Ticker")
+        Buffers: shared hit=447 read=96862, temp read=1665 written=1670
+        ->  Merge Left Join  (cost=132541.78..203028.56 rows=966 width=54) (actual time=10342.020..12230.705 rows=872.00 loops=1)
+              Merge Cond: (z.ticker = s.ticker)
+              Buffers: shared hit=359 read=96862, temp read=1665 written=1670
+              ->  Subquery Scan on z  (cost=129711.70..200189.38 rows=966 width=46) (actual time=10340.365..12226.668 rows=872.00 loops=1)
+                    Filter: (z.date = '2026-10-27'::date)
+                    Rows Removed by Filter: 339591
+                    Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                    ->  WindowAgg  (cost=129711.70..197775.55 rows=193106 width=50) (actual time=10340.315..12204.101 rows=340463.00 loops=1)
+                          Window: w1 AS (PARTITION BY r.ticker)
+                          Storage: Memory  Maximum Storage: 40kB
+                          Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                          ->  WindowAgg  (cost=129369.86..194878.96 rows=193106 width=50) (actual time=10338.174..12058.336 rows=340463.00 loops=1)
+                                Window: wp AS (PARTITION BY r.ticker ORDER BY r.date ROWS BETWEEN '252'::bigint PRECEDING AND '1'::bigint PRECEDING)
+                                Storage: Memory  Maximum Storage: 32kB
+                                Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                                ->  Subquery Scan on r  (cost=129369.52..189085.78 rows=193106 width=26) (actual time=10338.149..11316.022 rows=340463.00 loops=1)
+                                      Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                                      ->  WindowAgg  (cost=129369.52..187154.72 rows=193106 width=26) (actual time=10338.145..11281.116 rows=340463.00 loops=1)
+                                            Window: w20 AS (PARTITION BY d.ticker ORDER BY d.date ROWS BETWEEN '19'::bigint PRECEDING AND CURRENT ROW)
+                                            Storage: Memory  Maximum Storage: 18kB
+                                            Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                                            ->  Subquery Scan on d  (cost=129369.22..183292.60 rows=193106 width=18) (actual time=10338.111..10722.128 rows=340463.00 loops=1)
+                                                  Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                                                  ->  GroupAggregate  (cost=129369.22..181361.54 rows=193106 width=18) (actual time=10338.107..10694.873 rows=340463.00 loops=1)
+                                                        Group Key: "Feature_03_Stock_Broker_Daily".ticker, "Feature_03_Stock_Broker_Daily".date
+                                                        Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                                                        ->  Gather Merge  (cost=129369.22..173706.38 rows=380686 width=21) (actual time=10338.019..10464.466 rows=374928.00 loops=1)
+                                                              Workers Planned: 2
+                                                              Workers Launched: 2
+                                                              Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                                                              ->  Sort  (cost=128369.20..128765.75 rows=158619 width=21) (actual time=10306.889..10335.604 rows=124976.00 loops=3)
+                                                                    Sort Key: "Feature_03_Stock_Broker_Daily".ticker, "Feature_03_Stock_Broker_Daily".date
+                                                                    Sort Method: external merge  Disk: 5584kB
+                                                                    Buffers: shared hit=180 read=96862, temp read=1665 written=1670
+                                                                    Worker 0:  Sort Method: external merge  Disk: 4208kB
+                                                                    Worker 1:  Sort Method: external merge  Disk: 3528kB
+                                                                    ->  Parallel Seq Scan on "Feature_03_Stock_Broker_Daily"  (cost=0.00..111413.32 rows=158619 width=21) (actual time=3183.599..10132.233 rows=124976.00 loops=3)
+                                                                          Filter: ((date >= '2025-08-29'::date) AND (date <= '2026-10-27'::date))
+                                                                          Rows Removed by Filter: 644426
+                                                                          Buffers: shared hit=82 read=96862
+              ->  Sort  (cost=2830.08..2831.90 rows=731 width=13) (actual time=1.617..1.942 rows=865.00 loops=1)
+                    Sort Key: s.ticker
+                    Sort Method: quicksort  Memory: 51kB
+                    Buffers: shared hit=179
+                    ->  Bitmap Heap Scan on "Feature_06_Foreign_Domestic" s  (cost=11.92..2795.30 rows=731 width=13) (actual time=0.111..0.933 rows=865.00 loops=1)
+                          Recheck Cond: ((trade_date = '2026-10-27'::date) AND (market_board = 'Regular'::text))
+                          Heap Blocks: exact=176
+                          Buffers: shared hit=179
+                          ->  Bitmap Index Scan on "Feature_06_Foreign_Domestic_date_board_idx"  (cost=0.00..11.74 rows=731 width=0) (actual time=0.061..0.062 rows=865.00 loops=1)
+                                Index Cond: ((trade_date = '2026-10-27'::date) AND (market_board = 'Regular'::text))
+                                Index Searches: 1
+                                Buffers: shared hit=3
+        ->  Hash  (cost=98.55..98.55 rows=844 width=5) (actual time=53.307..53.307 rows=844.00 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 39kB
+              Buffers: shared hit=88
+              ->  Seq Scan on "IDX_Stock_Universe" u  (cost=0.00..98.55 rows=844 width=5) (actual time=52.659..53.198 rows=844.00 loops=1)
+                    Filter: ("Security Type" = 'stock'::text)
+                    Rows Removed by Filter: 1
+                    Buffers: shared hit=88
+Planning:
+  Buffers: shared hit=7 read=1
+Planning Time: 1.475 ms
+JIT:
+  Functions: 69
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 13.553 ms (Deform 3.006 ms), Inlining 0.000 ms, Optimization 4.605 ms, Emission 55.806 ms, Total 73.963 ms
+Execution Time: 12305.870 ms
+(72 rows, 12762 ms)
+---

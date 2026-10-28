@@ -1,0 +1,31 @@
+Basic Materials|Chemicals
+Basic Materials|Construction Materials
+Basic Materials|Forestry & Paper
+Basic Materials|Metals & Minerals
+Consumer Cyclicals|Automobiles & Components
+Consumer Cyclicals|Media & Entertainment
+Consumer Cyclicals|Retailing
+Consumer Non-Cyclicals|Agricultural Products
+Consumer Non-Cyclicals|Food & Beverage
+Consumer Non-Cyclicals|Food & Staples Retailing
+Consumer Non-Cyclicals|Household Products
+Consumer Non-Cyclicals|Tobacco
+Energy|Coal
+Energy|Oil & Gas
+Financials|Banks
+Financials|Consumer Financing
+Financials|Investment Companies
+Healthcare|Healthcare Providers
+Healthcare|Pharmaceuticals
+Industrials|Building Products
+Industrials|Machinery
+Industrials|Multi-sector Holdings
+Infrastructures|Heavy Constructions
+Infrastructures|Telecommunication
+Infrastructures|Transportation Infrastructure
+Infrastructures|Utilities
+Properties & Real Estate|Real Estate
+Technology|Software & IT Services
+Technology|Technology Hardware
+Transportation & Logistic|Logistics & Deliveries
+Transportation & Logistic|Transportation

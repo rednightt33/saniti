@@ -1,0 +1,54 @@
+I01 sma | Simple Moving Average | Trend | inputs ['C'] | price_input close | outputs ['sma'] | not_accepted [] | bt True | extra {}
+   params: length=20 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I02 ema | Exponential Moving Average | Trend | inputs ['C'] | price_input close | outputs ['ema'] | not_accepted [] | bt True | extra {}
+   params: length=20 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I03 wma | Weighted Moving Average | Trend | inputs ['C'] | price_input close | outputs ['wma'] | not_accepted [] | bt True | extra {}
+   params: length=20 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I04 hma | Hull Moving Average | Trend | inputs ['C'] | price_input close | outputs ['hma'] | not_accepted [] | bt True | extra {}
+   params: length=9 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I05 kama | Kaufman Adaptive Moving Average | Trend | inputs ['C'] | price_input close | outputs ['kama'] | not_accepted [] | bt True | extra {}
+   params: length=10 (integer; min 1, step 1); fast_length=2 (integer; min 1, step 1); slow_length=30 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I06 macd | MACD | Trend | inputs ['C'] | price_input close | outputs ['macd', 'signal', 'histogram'] | not_accepted [] | bt True | extra {}
+   params: fast_length=12 (integer; min 1, step 1); slow_length=26 (integer; min 1, step 1); signal_length=9 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I07 adx | Average Directional Index | Trend | inputs ['H', 'L', 'C'] | price_input close | outputs ['adx', 'plus_di', 'minus_di'] | not_accepted [] | bt True | extra {}
+   params: di_length=14 (integer; min 1, step 1); adx_smoothing=14 (integer; min 1, step 1)
+I08 aroon | Aroon Indicator | Trend | inputs ['H', 'L'] | price_input close | outputs ['aroon_up', 'aroon_down'] | not_accepted [] | bt True | extra {}
+   params: length=14 (integer; min 1, step 1)
+I09 supertrend | Supertrend | Trend | inputs ['H', 'L', 'C'] | price_input close | outputs ['supertrend', 'direction'] | not_accepted [] | bt True | extra {}
+   params: atr_length=10 (integer; min 1, step 1); factor=3 (number; min 0, step 0.1)
+I10 donchian | Donchian Channels | Trend | inputs ['H', 'L'] | price_input close | outputs ['upper', 'basis', 'lower'] | not_accepted [] | bt True | extra {}
+   params: length=20 (integer; min 1, step 1)
+I11 keltner | Keltner Channels | Trend | inputs ['H', 'L', 'C'] | price_input close | outputs ['upper', 'basis', 'lower'] | not_accepted [] | bt True | extra {}
+   params: length=20 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']; multiplier=2 (number; min 0, step 0.1); use_exponential_ma=True (boolean; ); bands_style=ATR enum['ATR', 'TR', 'HL_RANGE']; atr_length=10 (integer; min 1, step 1)
+I12 psar | Parabolic SAR | Trend | inputs ['H', 'L', 'C'] | price_input close | outputs ['sar', 'direction'] | not_accepted [] | bt True | extra {}
+   params: start=0.02 (number; min 0, step 0.01); increment=0.02 (number; min 0, step 0.01); maximum=0.2 (number; min 0, step 0.01)
+I13 rsi | Relative Strength Index | Momentum | inputs ['C'] | price_input close | outputs ['rsi'] | not_accepted [] | bt True | extra {}
+   params: length=14 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I14 stoch_rsi | Stochastic RSI | Momentum | inputs ['C'] | price_input close | outputs ['k', 'd'] | not_accepted [] | bt True | extra {}
+   params: rsi_length=14 (integer; min 1, step 1); stoch_length=14 (integer; min 1, step 1); smooth_k=3 (integer; min 1, step 1); smooth_d=3 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I15 stochastic | Stochastic Oscillator | Momentum | inputs ['H', 'L', 'C'] | price_input close | outputs ['k', 'd'] | not_accepted [] | bt True | extra {}
+   params: k_length=14 (integer; min 1, step 1); smooth_k=3 (integer; min 1, step 1); d_length=3 (integer; min 1, step 1)
+I16 williams_r | Williams %R | Momentum | inputs ['H', 'L', 'C'] | price_input close | outputs ['williams_r'] | not_accepted [] | bt True | extra {}
+   params: length=14 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I17 roc | Rate of Change | Momentum | inputs ['C'] | price_input close | outputs ['roc'] | not_accepted [] | bt True | extra {}
+   params: length=9 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I18 momentum | Momentum | Momentum | inputs ['C'] | price_input close | outputs ['momentum'] | not_accepted [] | bt True | extra {}
+   params: length=10 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I19 cci | Commodity Channel Index | Momentum | inputs ['H', 'L', 'C'] | price_input close | outputs ['cci'] | not_accepted [] | bt True | extra {}
+   params: length=20 (integer; min 1, step 1); constant=0.015 (number; min 0, step 0.001)
+I20 cmo | Chande Momentum Oscillator | Momentum | inputs ['C'] | price_input close | outputs ['cmo'] | not_accepted [] | bt True | extra {}
+   params: length=14 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I21 tsi | True Strength Index | Momentum | inputs ['C'] | price_input close | outputs ['tsi', 'signal'] | not_accepted [] | bt True | extra {}
+   params: long_length=25 (integer; min 1, step 1); short_length=13 (integer; min 1, step 1); signal_length=7 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I22 trix | TRIX | Momentum | inputs ['C'] | price_input close | outputs ['trix'] | not_accepted [] | bt True | extra {}
+   params: length=15 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I23 ultimate_osc | Ultimate Oscillator | Momentum | inputs ['H', 'L', 'C'] | price_input close | outputs ['uo'] | not_accepted [] | bt True | extra {}
+   params: fast_length=7 (integer; min 1, step 1); middle_length=14 (integer; min 1, step 1); slow_length=28 (integer; min 1, step 1); weight_fast=4 (number; min 0, step 1); weight_middle=2 (number; min 0, step 1); weight_slow=1 (number; min 0, step 1)
+I24 awesome_osc | Awesome Oscillator | Momentum | inputs ['H', 'L'] | price_input close | outputs ['ao'] | not_accepted [] | bt True | extra {}
+   params: fast_length=5 (integer; min 1, step 1); slow_length=34 (integer; min 1, step 1)
+I25 ppo | Percentage Price Oscillator | Momentum | inputs ['C'] | price_input close | outputs ['ppo', 'signal', 'histogram'] | not_accepted [] | bt True | extra {}
+   params: fast_length=12 (integer; min 1, step 1); slow_length=26 (integer; min 1, step 1); signal_length=9 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
+I26 bop | Balance of Power | Momentum | inputs ['O', 'H', 'L', 'C'] | price_input close | outputs ['bop'] | not_accepted [{'key': 'source', 'value': 'OHLC', 'reason': 'fixed in the workbook'}] | bt True | extra {}
+   params:
+I27 bollinger | Bollinger Bands | Volatility | inputs ['C'] | price_input close | outputs ['upper', 'basis', 'lower'] | not_accepted [] | bt True | extra {}
+   params: length=20 (integer; min 1, step 1); source=close enum['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']; basis_ma_type=SMA enum['SMA', 'EMA', 'WMA', 'RMA', 'VWMA']; std_dev=2 (number; min 0.0001, max 50, step 0.1)

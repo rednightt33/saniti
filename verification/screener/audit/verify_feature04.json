@@ -1,0 +1,166 @@
+{
+ "area": "feature04 (adversarial verification of the Feature 04 audit)",
+ "confirmed": [
+  "F04-01 FACT. Live 2026-10-27 19:52 UTC: queue 868 DONE with generation lag 0. Column_Status has 44,268 rows, all SUCCESS (868 x 51 FEATURE_COLUMNS). State has 6,076 rows, all feature04-state-v3. Retry_Request has 0 rows. Feature04_Notification_Outbox has 128 SENT (the real table name is Feature04_Notification_Outbox). Calculation_Log has 11,964 SUCCESS and 1 FAILED; the status column is `result`. Evidence: verify_feature04/v01_health.out, v03_logs.out.",
+  "F04-02 FACT. Equity: 844 tickers, 1,328,595 rows, 2018-01-02 to 2026-10-27, 384 start on 2018-01-02, 460 start later, median 1,802.5 rows, min 74, max 2,125, 10 under 200 rows, 95 under 750. Bonds: 24 tickers, 60,643 rows, from 2016-01-01. Evidence: v04_coverage.out (independent re-run).",
+  "F04-03 FACT. Equity count, first date and last date match Price_Stock_Indonesia_IDX (all rows Daily and final; 1,330,722 rows, 845 tickers) for all 844 stock tickers. The only price-only ticker is IHSG (2,127 rows). Bonds match Price_Fixed_Income (price, 1D, final) on 24/24. Evidence: v04_coverage.out, v25_bonds.out.",
+  "F04-04 FACT. pg_stats shows a single calculation_version, feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4, and a single timeframe, Daily. Four chunked counts (356,772 + 485,837 + 261,977 + 284,652 = 1,389,238 rows) show 0 rows with another version or timeframe; an unchunked >=2024 count timed out. Feature_Catalog: v1 (42) and v2 (46) inactive, v4 (57) active, no v3. Evidence: v05_versions.out, v06_versions2.out, v12_catalogs.out.",
+  "F04-05 FACT. On 2026-10-27, 828 equity rows: 0 NULLs in every indicator, candle and close column except ema_200 (8) and last_swing_high (5). temp_high/_bar are NULL on 789 rows and temp_low/_bar on 468. On the 11 bond rows only temp_* are NULL. Evidence: v07_nulls.out.",
+  "F04-07 FACT. Recent equity DAILY monitoring runs took 6.2, 7.4, 4.0, 23.2 and 3.1 minutes. Over the last 7 days, 4,248 SUCCESS jobs averaged 0.202 s (max 32.9 s) and every one read exactly 1 source row. The latest equity finish was 10:09:36 UTC; bonds finished 11:03:44 UTC. Evidence: v19_fresh.out.",
+  "F04-08 FACT (order of magnitude; the exact ms depend on cache). My re-runs: latest-date SELECT * took 16.7 ms (843 heap buffers for 828 rows); DISTINCT ON over a 10-day bound took 17.4 ms (835 tickers); an all-equity 90-day 4-column scan took 824 ms while partly warm (19,600 buffers). Evidence: v09_plans.out.",
+  "F04-09 FACT. Heap is 2,479 MB in 317,373 pages; reltuples 1,383,577 gives 4.36 rows/page (4.38 with the live count). The _INDEX table holds 2,127 rows in 107 pages (19.88 rows/page). n_tup_upd 9,356,027 vs n_tup_ins 1,393,549, HOT 36,280. Last autovacuum 2026-10-11; last manual analyze 2026-10-23. Sum of avg_width is 359 B. Evidence: v02_tables.out, v03_logs.out, v27_ext.out.",
+  "F04-10 INFERENCE, supported. At about 400 B per tuple (359 B data + 24 B header + null bitmap + line pointer), a page holds about 20 rows, which matches the dense _INDEX clone. That puts reclaimable free space at about 1.93 GB. n_dead_tup is only 4,775, so this is free space inside pages, not dead tuples. pgstattuple is not installed (only plpgsql and btree_gist), so the figure cannot be measured directly.",
+  "F04-11 FACT. worker.py:239-334: correction policy, checkpoint at max(source date < dirty_from_date) filtered on STATE_VERSION and VERSION, payload date and digest checks, suffix > lookback raises RepairRequired. worker.py:711-715: terminal_failure. Live Equity_Market_Schedule IDX correction_lookback_sessions = 5; retention is lookback + 2 = 7. Evidence: v24_sched.out.",
+  "F04-12 INFERENCE, supported. Live enqueue_feature04_group skips universe indices and deletes checkpoints with checkpoint_date >= p_dirty_date (pg_get_functiondef check, v23_funcs.out). A brand-new ticker has no previous source date, so the checkpoint join yields nothing and the job raises RepairRequired. Log id 10264 reads 'No compatible checkpoint immediately before 2018-01-02 for equity/IHSG' (2026-10-23 16:17 UTC, v03_logs.out).",
+  "F04-13 FACT. features/feature04/requirements.txt and apps/feature-04-worker/requirements.txt both pin numpy==2.3.5, TA-Lib==0.6.8 and psycopg[binary]==3.2.13. The cp312 manylinux wheel bundles ta_lib.libs/libta-lib-5c7e2605.so.0.6.4. engine.py:83-97 enforces the contract, and incremental.py:39-41 calls library_contract() at import.",
+  "F04-15 FACT. I re-ran on a scratch copy: 49 passed in 1.81 s, with test_repair_job.py and test_selected_date_repair.py excluded; those two need scripts/repair_fixed_income_dates.py and a database. .github/workflows/ has only database-schema-docs.yml, which runs no pytest. Evidence: verify_feature04/pytest_verify.out.",
+  "F04-16 FACT. relacl on Feature_04_Technical_Indicator grants SELECT to pgweb_reader, market_ai_sql_reader and market_ai_preview_owner only. has_table_privilege(terminal_market_reader, F04, SELECT) = false, while it holds SELECT on the price table. AI_column_catalog: 49 allowed and 8 hidden on both F04 tables. AI_calculation_catalog: 57 ACTIVE on both. Evidence: v10_acl.out, v12_catalogs.out.",
+  "F04-18 FACT, but incomplete; see row_corrections and additional_findings for writers and catalogs it leaves out. Every listed step is in code: engine.py:21,44-59,62-80; incremental.py:36,48-130; specs.py:99 (assert set(specs)==set(COLUMNS)); backfill_index_features.py prepare creates calc4 LIKE ..._INDEX and COPYs F4_COLUMNS; the worker SQL filters checkpoints on both versions.",
+  "F04-19 INFERENCE, supported from code, with one nuance. backfill.py builds its universe from every Price_Stock_Indonesia_IDX ticker, including IHSG. With --write, bulk_upsert inserts into F04, the BEFORE INSERT trigger stock_feature_index_guard raises 23514, and main() stops at the first failure; tickers that sort before IHSG are already committed. A dry-run does not abort. bootstrap_states.py lists IDX_Stock_Universe tickers that have prices, IHSG included as equity. Its validate_recent finds 0 stored equity rows for IHSG and raises 'Shadow row-count mismatch' even in --dry-run; --ticker X avoids this. backfill.py SOURCE_QUERY and TARGET_QUERY are equity only.",
+  "F04-20 INFERENCE, supported. validate_state (incremental.py:112-120) and the worker checkpoint SQL (state_version and calculation_version equality) reject old checkpoints after a version bump. Every instrument's next price change would therefore end REPAIR_REQUIRED.",
+  "F04-21 FACT. Table_Catalog update_rule for _INDEX reads 'Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled.' Yet live _INDEX rows reach 2026-10-27 with calculated_at 12:39:33 UTC; refresh.py:149-178 (index_needed, refresh_index) does this. INDICATOR_ALIGNMENT.md says '24' at line 13 and again at line 43; the engine has 25 PATTERNS. Evidence: v12_catalogs.out, v20_index.out.",
+  "F04-22 FACT. Feature_Vocabulary has rows only for F01, F02, F03, F05 and F06 and their _INDEX tables; none for F04. Evidence: v12_catalogs.out.",
+  "F04-23 confirmed and stronger than claimed: live data shows the break. See row_corrections (label) and additional_findings."
+ ],
+ "refuted": [
+  {
+   "id": "F04-17",
+   "why": "Three errors. (1) The count is inconsistent: the verdict says 8 of 53 and omits atr, while the key claim lists 9. (2) Two more indicators can be derived at default parameters but were missed: stddev(20, population) in full, and the ppo line only. (3) 'No custom parameters' is wrong: F04 stores registry sma at length 50 and ema at lengths 12, 26, 50 and 200.",
+   "correct_statement": "At registry defaults, F04 fully serves 9 of 53. Stored: sma(20), macd(12/26/9, all 3 outputs), rsi(14), bollinger(20, 2, SMA), atr(14, RMA). Derived by exact arithmetic: bollinger_pctb, bollinger_width, natr(14) = 100*atr_14/close, and stddev(20, population) = (bb_upper_20 - bb_middle_20)/2. Two are served partly: adx (adx output only; plus_di and minus_di missing) and ppo(12/26/9) (line only, = 100*(ema_12 - ema_26)/ema_26; signal and histogram need a recursive EMA). The other 42 are not served. At custom parameters, F04 also serves sma(length=50) and ema(length=12, 26, 50 or 200), source close only. Values equal TS and TA-Lib only when computed from the ticker's first price row.",
+   "evidence": "registry_list.txt (53 keys and defaults). indicators.ts:461-471 (bands, natr and stddev share kStd, population). PARITY.md: I02 compared F04 ema_12/26/50/200 with diff 0; I01 compared sma_20 and sma_50. derive_check.out on BBCA, PBID and BNBR against TA-Lib 0.6.8: stddev rel diff <= 1.2e-14 (1.3e-9 on flat BNBR windows), natr <= 2.8e-16, %B diff 0, PPO line <= 2.4e-16; stored sma, ema, rsi, atr and adx equal TA-Lib on full history to <= 6.5e-16."
+  },
+  {
+   "id": "F04-06",
+   "why": "The numbers are right only against the observed equity calendar (2,125 dates). That calendar already excludes 2026-09-17 and 2026-09-18, two real IDX sessions on which no equity price row exists (M238, OPEN). So the explanation 'rows exist only on traded days' is incomplete, and '242 tickers have no gap' is wrong.",
+   "correct_statement": "Against the true session calendar (2,127 dates: the IHSG _INDEX dates, which match IDX_Broker_Summary dates), 0 of 844 equity tickers are gap-free. 840 tickers span 2026-09-17/18, which are missing for every stock because of an ingestion gap (Price_Stock_Indonesia_IDX holds only IHSG on those dates, while IDX_Broker_Summary holds about 24.7k rows per day). 222 tickers miss more than 5%, 9 miss more than 50%, and 89,968 ticker-sessions are missing in total. F04 windows treat 2026-09-16 and 2026-09-21 as adjacent bars for every stock.",
+   "evidence": "v08_gaps.out reproduces the auditor's 242/602/220/9/88,288 against the observed calendar. v28_gaps2.out recomputes against the IHSG calendar. v21_ihsg_dates.out shows the two IHSG-only dates. v22_gapdays.out shows price vs broker rows for 2026-09-15..22. ERRORS_AND_SOLUTIONS.md:2135-2160 records M238 as OPEN."
+  }
+ ],
+ "uncertain": [
+  {
+   "id": "F04-14",
+   "why": "The three named paths are confirmed: .railway/railway.ts:162-169, apps/stockbit-updater/deploy.sh:13, and refresh.py:149-178 calling backfill_index_features. The list is not complete, and 'three' undercounts what imports features/feature04 and writes F04 or its checkpoints: scripts/repair_fixed_income_dates.py run through scripts/run_fixed_income_repair_job.py (a one-shot Railway job for bonds that writes F04 rows, Calculation_State and the queue), scripts/ihsg_price_release_job.py (mode initialize_feature04 = backfill.process_ticker + bootstrap_states --ticker --require-stored-match), and scripts/initialize_index_feature_sample.py. I could not check which of these are deployed today."
+  },
+  {
+   "id": "F04-24",
+   "why": "I found no source in code or docs for a 'three years' expectation. Greps of terminal-publisher, edge-bff terminal and backtest, backtest-worker, BACKTEST_END_TO_END.md and the prototype found only 'epsG3y' (3-year EPS growth). It stays UNKNOWN."
+  },
+  {
+   "id": "F04-08 (per-ticker 1-year max/min 2,243 ms; Price 1,649 ms)",
+   "why": "I did not re-run this pair. My 90-day plan differed from the auditor's (824 ms vs 2,579 ms) because of cache state, so the exact cold timings cannot be reproduced."
+  }
+ ],
+ "row_corrections": [
+  {
+   "id": "Verdict 'Fit to the 53-indicator registry'",
+   "field": "count",
+   "was": "8 of 53 (sma, macd, adx, rsi, bollinger, %B, bandwidth, natr)",
+   "should_be": "9 fully (sma, macd, rsi, bollinger, atr, bollinger_pctb, bollinger_width, natr, stddev) + 2 partly (adx: adx only; ppo: line only); 42 not served",
+   "evidence": "registry_list.txt; derive_check.out; engine.py:25-59"
+  },
+  {
+   "id": "Matrix row sma(20, close)",
+   "field": "custom parameters stored",
+   "was": "'It stores no custom parameters'",
+   "should_be": "sma(length=50, source=close) is stored as sma_50, equal to TA-Lib (PARITY I01 diff 0)",
+   "evidence": "engine.py:25-27,241-247; PARITY.md I01"
+  },
+  {
+   "id": "Matrix row ema(20)",
+   "field": "custom parameters stored",
+   "was": "none (only 12/26/50/200)",
+   "should_be": "none at the default 20; ema(length=12, 26, 50, 200, source=close) is stored and equal to TS kEma and TA-Lib (PARITY I02 diff 0). There is no SMA 200 (the prototype's default MA type is SMA).",
+   "evidence": "PARITY.md I02; derive_check.out (ema_12, ema_200 rel diff 0)"
+  },
+  {
+   "id": "Matrix (new row) stddev(20, population)",
+   "field": "F04 / equivalence",
+   "was": "counted among 'the other 45'",
+   "should_be": "derivable as (bb_upper_20 - bb_middle_20)/2. Rel diff <= 1.2e-14; on flat windows the absolute diff is about 1e-12 but the relative diff reaches 1.3e-9 (BNBR).",
+   "evidence": "indicators.ts:471 and bands() at 580-589 share kStd; derive_check.out"
+  },
+  {
+   "id": "Matrix (new row) ppo(12/26/9)",
+   "field": "F04 / equivalence",
+   "was": "counted among 'the other 45'",
+   "should_be": "line derivable as 100*(ema_12 - ema_26)/ema_26 (rel <= 2.4e-16 vs TA PPO with matype 1); signal and histogram not derivable in SQL",
+   "evidence": "indicators.ts:569-573 kPo; derive_check.out"
+  },
+  {
+   "id": "Matrix row 'The other 45 indicators'",
+   "field": "count",
+   "was": "45",
+   "should_be": "42 not served (53 - 9 full - 2 partial)",
+   "evidence": "registry_list.txt"
+  },
+  {
+   "id": "Matrix rows sma/ema/macd/rsi/atr/adx",
+   "field": "warm-up / value equality",
+   "was": "equivalence stated without a history condition",
+   "should_be": "equal only when computed from the ticker's first price row, as F04 does. Recomputed from only the last 260 bars, last-bar ema_200 differs by 0.13-1.35% and ema_50 by up to 8.3e-6; from 500 bars, ema_200 still differs by 0.1-0.19%. RSI, ADX and MACD differ by <= 7e-8.",
+   "evidence": "derive_check.out (BBCA, PBID, BNBR); PARITY.md rule 'full history (from the first price row)'"
+  },
+  {
+   "id": "Matrix rows bollinger_pctb / bollinger_width",
+   "field": "SQL derivation",
+   "was": "(close-lower)/(upper-lower); 100*(upper-lower)/basis",
+   "should_be": "same formulas, but wrap the denominator in NULLIF(...,0): TS div() returns null when upper = lower. 9.3% of equity bars are flat (high = low: 123,853 of 1,328,595), and flat 20-bar windows occur (BNBR).",
+   "evidence": "indicators.ts:36,463-465; v26_invalid.out; derive_check.out (divide-by-zero warning on BNBR)"
+  },
+  {
+   "id": "F04-23",
+   "field": "label",
+   "was": "INFERENCE",
+   "should_be": "FACT (live): PBSA 1:2 split, ex-date 2026-10-14. Stored close fell 845 -> 384 with older history unadjusted. On 2026-10-27, F04 shows rsi_14 22.8, sma_50 706.4 vs close 302, and bb_lower_20 85.7. FORU rights issue, ex-date 2026-09-22: close 2560 -> 176; bb_lower_20 negative from 2026-09-25 to 2026-10-16 (minimum -2,114 on 2026-10-12); sma_50 1,484 vs close 94 on 2026-10-27.",
+   "evidence": "v15_foru.out, v16_splitcheck.out, v17_split_breaks.out (of 13 STOCK_SPLITs since 2025, only PBSA is unadjusted; the others predate the bulk history load, whose ingestion_time is NULL)"
+  },
+  {
+   "id": "Section 2 pipeline.py",
+   "field": "line citation and bond path",
+   "was": "limits at l.128-175; 'backfill.py and pipeline.py source queries lack the is_final/timeframe filters'",
+   "should_be": "pipeline.py has 103 lines; its limits are at l.37-41 and l.74. It has a bond branch that filters is_final and Timeframe 1D; only its equity branch lacks the is_final and timeframe filters.",
+   "evidence": "features/feature04/pipeline.py:37-41,47-66,74"
+  },
+  {
+   "id": "F04-14",
+   "field": "engine copies / F04 writers",
+   "was": "worker, stockbit-updater, backfill/pipeline/bootstrap",
+   "should_be": "also scripts/repair_fixed_income_dates.py with run_fixed_income_repair_job.py (one-shot bond repair writing F04, state and queue), scripts/ihsg_price_release_job.py (initialize_feature04 mode), and scripts/initialize_index_feature_sample.py. All of them import engine and incremental, so they must change in step with any VERSION or column change.",
+   "evidence": "repair_fixed_income_dates.py:31-35,342-384; ihsg_price_release_job.py:10,39-48; initialize_index_feature_sample.py:13-17,91-98"
+  },
+  {
+   "id": "F04-18",
+   "field": "catalog cutover scope",
+   "was": "Feature_Catalog v5 for the main table",
+   "should_be": "also the _INDEX catalog rows: Feature_Catalog has 57 active v1 rows for Feature_04_Technical_Indicator_INDEX, plus 57 AI_calculation_catalog rows and 57 AI_column_catalog rows for _INDEX",
+   "evidence": "v12_catalogs.out"
+  },
+  {
+   "id": "Section 6 tests",
+   "field": "environment",
+   "was": "pinned venv",
+   "should_be": "the TA-Lib 0.6.8, C 0.6.4 and numpy 2.3.5 pins match production, but the scratch venv runs Python 3.13 while the image is python:3.12-slim",
+   "evidence": "feature04/venv (pip3.13, cp313 wheel); apps/feature-04-worker/Dockerfile:1"
+  },
+  {
+   "id": "Section 4.2 backoff",
+   "field": "formula",
+   "was": "30 s x 2^n",
+   "should_be": "min(1800, 30 x 2^(source_attempt_count-1)) seconds",
+   "evidence": "worker.py:640 and 724"
+  }
+ ],
+ "additional_findings": [
+  "FACT. The planned price refill would put most F04 equity rows into REPAIR_REQUIRED. EXEC.md ~l.7999 item F3 plans to refill 2026-09-17/18 prices with price_update.py --mode manual and says 'Feature 04 ikut dihitung ulang lewat jalur normal'. In code it cannot be recalculated that way. Each inserted row enqueues with dirty date 2026-09-17, and enqueue deletes every checkpoint on or after that date. The worker then needs a checkpoint at 2026-09-16 and a suffix of at most 5 rows. Live checkpoints for current tickers are 2026-10-15..10-27 (v24_sched.out), and the suffix would be about 28 rows. So about 840 equity tickers would end REPAIR_REQUIRED. Repair is manual: backfill.py with --tickers (10 at a time) or with --all-source-tickers (aborts at IHSG), then bootstrap_states (aborts at IHSG unless run per --ticker). This must be sequenced before any screener reads F04.",
+  "FACT. Stock-vs-IHSG joins on F04 are misaligned. IHSG (_INDEX) has 2 dates that no equity row has (2026-09-17, 2026-09-18). A rebased 'stock vs IHSG' chart or an 'RS vs IHSG over N sessions' metric that joins F04 equity to F04_INDEX by date or by bar offset will be off by 2 sessions across that span. Evidence: v21_ihsg_dates.out.",
+  "FACT. Corporate-action breaks in live stored prices already distort F04: PBSA and FORU (see the row correction for F04-23). Any screener built on F04 or on stored prices would list them as 'RSI < 30', 'close far below MA' or 'below lower band'. No documented handling exists: grep of ERRORS_AND_SOLUTIONS, PLAN and FUTURE_PLAN finds no PBSA, FORU or split re-adjustment entry. PROPOSED: run a split/rights detector against stockbit_corporate_action (it carries STOCK_SPLIT factors and RIGHT_ISSUE) and exclude or flag affected tickers until their history is re-ingested; re-ingesting itself triggers REPAIR_REQUIRED per ticker.",
+  "FACT. F04 stores only `close` among the OHLCV fields: no open, high, low or volume. The prototype metrics hi52, lo52, breakout, volspike, MACD bullish divergence (needs lows), supertrend, ichimoku and stochastic therefore need the price table or on-the-fly calculation whatever F04 holds. Evidence: engine.py COLUMNS; prototype 9c79bf9c lines 795-828.",
+  "FACT. F04 serves few of the prototype's technical presets. The prototype's price_ma and ma_cross default to SMA, and its presets need SMA 10, 20, 50, 150 and 200 (lines 1092-1100). F04 holds only sma_20 and sma_50, and its ema_200 is not an SMA 200. Not servable from F04: Minervini, Oversold in Uptrend (SMA200), Golden Cross (SMA 50/200), Rebound (SMA10 + volume), 52W Breakout, Supertrend Flip, Ichimoku. Fully servable: only Bollinger Squeeze Breakout (bandwidth over 120 sessions + upper-band cross). Servable legs: MA20/MA50 in the bandarmology presets, ADX >= 20. The +DI/-DI operators ('plus', 'dixa') are not servable because F04 has no DI. The prototype also has its own indicator engine (xRSI, xATR at about lines 892-943); whether it equals TS F or TA-Lib is UNKNOWN here and belongs to the html_model area.",
+  "FACT. Scan cost for the latest-date screener path comes from physical layout, not from bloat. Rows are clustered by ticker, so one date's 828 rows sit on 843 heap pages, about one row per page (v09_plans.out). VACUUM FULL or pg_repack would not change that; only CLUSTER by date or a narrow latest-snapshot table would. INFERENCE: bloat matters only for multi-day windows. shared_buffers is 128 MB against a 2.5 GB heap (v30_settings.out), so multi-day screens depend on the OS cache.",
+  "FACT. The universe is static: IDX_Stock_Universe holds 845 rows (844 stocks + IHSG), all with prices. The newest first price row is RANS on 2026-07-10, followed by PRDL, BACH, EMMI, JECX and JELI in 2026-07 (v29_listings.out). INFERENCE: no new IDX listings have been added since July. A new ticker would need the manual init used for IHSG on 2026-10-23 (ihsg_price_release_job.py initialize_feature04: backfill.process_ticker + bootstrap_states --ticker --require-stored-match); no automatic path exists.",
+  "FACT. F04 histories never reset mid-history today: equity prices have 0 NULL volumes, 0 invalid OHLC and 0 negatives (40 zero-volume bars). So F04's reset rule (invalid OHLCV) and the TS def() segment rule (only the needed fields finite) do not diverge on current data, though they could diverge on future NULL-volume rows. Evidence: v26_invalid.out.",
+  "FACT. bootstrap_states.py --dry-run is not side-effect free in one sense: it still raises at IHSG. backfill.py's dry-run computes IHSG without error. A full checkpoint re-bootstrap after any version bump therefore needs a per-ticker loop, or a code fix that excludes is_universe_index().",
+  "FACT (from code). The Option A blast radius also includes scripts/terminal_indicator_spec.py, which generates INDICATOR_SPEC rows with source FEATURE_04 and names F04 columns (sma_20, sma_50, adx_14, rsi_14, atr_14 ...), and the PARITY oracle tools (terminal/tests/calc/tools/fetch_live.py). New or renamed columns would need those regenerated.",
+  "All my SQL, outputs and the derivation script are in /tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_feature04/ (v01..v30 *.sql/*.out, derive_check.py, derive_check.out, pytest_verify.out, registry_list.txt). I modified no file in /home/user/saniti and ran only SELECT and EXPLAIN."
+ ]
+}

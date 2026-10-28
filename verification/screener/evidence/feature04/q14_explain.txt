@@ -1,0 +1,63 @@
+QUERY PLAN
+Unique  (cost=18760.14..18784.65 rows=861 width=359) (actual time=1474.699..1475.629 rows=835.00 loops=1)
+  Buffers: shared hit=836 read=186
+  ->  Sort  (cost=18760.14..18772.40 rows=4902 width=359) (actual time=1474.697..1475.034 rows=5810.00 loops=1)
+        Sort Key: ticker, trade_date DESC
+        Sort Method: quicksort  Memory: 2421kB
+        Buffers: shared hit=836 read=186
+        ->  Bitmap Heap Scan on "Feature_04_Technical_Indicator"  (cost=59.90..18459.67 rows=4902 width=359) (actual time=11.542..1466.625 rows=5810.00 loops=1)
+              Recheck Cond: (trade_date >= '2026-10-17'::date)
+              Filter: (asset_type = 'equity'::text)
+              Rows Removed by Filter: 138
+              Heap Blocks: exact=1011
+              Buffers: shared hit=833 read=186
+              ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..58.68 rows=5100 width=0) (actual time=2.139..2.140 rows=5953.00 loops=1)
+                    Index Cond: (trade_date >= '2026-10-17'::date)
+                    Index Searches: 1
+                    Buffers: shared hit=3 read=5
+Planning:
+  Buffers: shared hit=154 read=28
+Planning Time: 2508.305 ms
+Execution Time: 1476.010 ms
+(20 rows, 10503 ms)
+---
+QUERY PLAN
+Bitmap Heap Scan on "Feature_04_Technical_Indicator"  (cost=9.45..2298.17 rows=566 width=359) (actual time=0.173..1.515 rows=828.00 loops=1)
+  Recheck Cond: (trade_date = (InitPlan 2).col1)
+  Filter: (asset_type = 'equity'::text)
+  Rows Removed by Filter: 11
+  Heap Blocks: exact=839
+  Buffers: shared hit=847
+  InitPlan 2
+    ->  Result  (cost=0.46..0.47 rows=1 width=4) (actual time=0.019..0.021 rows=1.00 loops=1)
+          Buffers: shared hit=5
+          InitPlan 1
+            ->  Limit  (cost=0.43..0.46 rows=1 width=4) (actual time=0.017..0.018 rows=1.00 loops=1)
+                  Buffers: shared hit=5
+                  ->  Index Only Scan Backward using "Feature_04_Technical_Indicator_trade_date_idx" on "Feature_04_Technical_Indicator" "Feature_04_Technical_Indicator_1"  (cost=0.43..42364.29 rows=1383577 width=4) (actual time=0.016..0.016 rows=1.0
+                        Heap Fetches: 1
+                        Index Searches: 1
+                        Buffers: shared hit=5
+  ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..8.85 rows=589 width=0) (actual time=0.072..0.072 rows=839.00 loops=1)
+        Index Cond: (trade_date = (InitPlan 2).col1)
+        Index Searches: 1
+        Buffers: shared hit=8
+Planning Time: 0.191 ms
+Execution Time: 1.582 ms
+(22 rows, 246 ms)
+---
+QUERY PLAN
+Bitmap Heap Scan on "Feature_04_Technical_Indicator"  (cost=8.67..2203.21 rows=36 width=65) (actual time=0.246..1.535 rows=109.00 loops=1)
+  Recheck Cond: (trade_date = '2026-10-27'::date)
+  Filter: ((rsi_14 < '30'::double precision) AND (asset_type = 'equity'::text))
+  Rows Removed by Filter: 730
+  Heap Blocks: exact=839
+  Buffers: shared hit=842
+  ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..8.66 rows=564 width=0) (actual time=0.075..0.076 rows=839.00 loops=1)
+        Index Cond: (trade_date = '2026-10-27'::date)
+        Index Searches: 1
+        Buffers: shared hit=3
+Planning Time: 0.150 ms
+Execution Time: 1.565 ms
+(12 rows, 2369 ms)
+---

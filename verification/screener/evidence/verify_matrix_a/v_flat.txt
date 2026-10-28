@@ -1,0 +1,38 @@
+{
+ "cmoFlat": 44033,
+ "cmoFlatNonNull": 3231,
+ "cmoEx": [
+  "BABP 2024-04-24 cmo=100.00",
+  "BABP 2024-04-25 cmo=100.00",
+  "BABP 2024-04-26 cmo=100.00",
+  "BABP 2024-04-29 cmo=100.00",
+  "BABP 2024-04-30 cmo=100.00"
+ ],
+ "uoOut": 2972,
+ "uoEx": [
+  "AHAP 2020-05-15 uo=-8.67",
+  "AHAP 2020-05-18 uo=-8.84",
+  "AHAP 2020-05-19 uo=-9.82",
+  "AHAP 2020-05-20 uo=-8.79",
+  "AHAP 2020-05-26 uo=-7.79"
+ ],
+ "uoFlat": 31764,
+ "uoFlatNonZero": 3218,
+ "rsiFlat": 44033,
+ "rsiFlatNonZero": 37100,
+ "rsiEx": [
+  "ABDA 2021-04-26 rsi=89.10",
+  "ABDA 2021-04-27 rsi=89.10",
+  "AHAP 2020-05-15 rsi=45.46",
+  "AHAP 2020-05-18 rsi=45.46",
+  "AHAP 2020-05-19 rsi=45.46"
+ ],
+ "bbFlat": 41412,
+ "bbFlatWide": 3299,
+ "last": {
+  "cmo": 0,
+  "uo": 0,
+  "rsi": 0
+ },
+ "tick": 17
+}

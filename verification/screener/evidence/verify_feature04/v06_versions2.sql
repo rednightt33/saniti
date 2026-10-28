@@ -1,0 +1,2 @@
+select count(*) filter (where calculation_version <> 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4') non_v3, count(*) filter (where timeframe<>'Daily') nd, count(*) from public."Feature_04_Technical_Indicator" where trade_date >= '2024-01-01' and trade_date < '2025-06-01';;
+select count(*) filter (where calculation_version <> 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4') non_v3, count(*) filter (where timeframe<>'Daily') nd, count(*) from public."Feature_04_Technical_Indicator" where trade_date >= '2025-06-01'

@@ -1,0 +1,63 @@
+QUERY PLAN
+GroupAggregate  (cost=44450.41..44469.56 rows=2 width=304) (actual time=108.800..123.498 rows=2.00 loops=1)
+  Group Key: "*VALUES*".column1
+  Buffers: shared hit=23913
+  ->  Sort  (cost=44450.41..44451.77 rows=544 width=45) (actual time=108.482..122.962 rows=1664.00 loops=1)
+        Sort Key: "*VALUES*".column1
+        Sort Method: quicksort  Memory: 172kB
+        Buffers: shared hit=23913
+        ->  Nested Loop  (cost=43900.22..44425.69 rows=544 width=45) (actual time=104.427..122.559 rows=1664.00 loops=1)
+              Buffers: shared hit=23913
+              ->  Hash Right Join  (cost=43900.22..44413.45 rows=272 width=21) (actual time=104.415..121.676 rows=832.00 loops=1)
+                    Hash Cond: ("Feature_05_Foreign_Domestic_Broker_Detail".ticker = u."Ticker")
+                    Buffers: shared hit=23913
+                    ->  Finalize GroupAggregate  (cost=43727.20..44217.56 rows=1466 width=21) (actual time=103.432..120.342 rows=869.00 loops=1)
+                          Group Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                          Buffers: shared hit=23761
+                          ->  Gather Merge  (cost=43727.20..44136.93 rows=3518 width=69) (actual time=103.408..118.511 rows=2583.00 loops=1)
+                                Workers Planned: 2
+                                Workers Launched: 2
+                                Buffers: shared hit=23761
+                                ->  Sort  (cost=42727.18..42730.84 rows=1466 width=69) (actual time=49.650..49.744 rows=861.00 loops=3)
+                                      Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                                      Sort Method: quicksort  Memory: 150kB
+                                      Buffers: shared hit=23761
+                                      Worker 0:  Sort Method: quicksort  Memory: 150kB
+                                      Worker 1:  Sort Method: quicksort  Memory: 152kB
+                                      ->  Partial HashAggregate  (cost=42628.09..42650.08 rows=1466 width=69) (actual time=48.246..48.828 rows=861.00 loops=3)
+                                            Group Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                                            Batches: 1  Memory Usage: 625kB
+                                            Buffers: shared hit=23743
+                                            Worker 0:  Batches: 1  Memory Usage: 625kB
+                                            Worker 1:  Batches: 1  Memory Usage: 625kB
+                                            ->  Parallel Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..42552.27 rows=7582 width=15) (actual time=0.036..43.050 rows=5976.33 loops=3)
+                                                  Index Cond: ((trade_date >= '2026-09-30'::date) AND (trade_date <= '2026-10-27'::date))
+                                                  Filter: (broker = 'YP'::text)
+                                                  Rows Removed by Filter: 156595
+                                                  Index Searches: 1
+                                                  Buffers: shared hit=23743
+                    ->  Hash  (cost=169.61..169.61 rows=272 width=5) (actual time=0.974..0.979 rows=832.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 39kB
+                          Buffers: shared hit=152
+                          ->  Hash Right Semi Join  (cost=109.53..169.61 rows=272 width=5) (actual time=0.362..0.837 rows=832.00 loops=1)
+                                Hash Cond: (f.ticker = u."Ticker")
+                                Buffers: shared hit=152
+                                ->  Index Only Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily" f  (cost=0.43..55.25 rows=847 width=5) (actual time=0.023..0.300 rows=1004.00 loops=1)
+                                      Index Cond: (date = '2026-10-27'::date)
+                                      Heap Fetches: 1004
+                                      Index Searches: 1
+                                      Buffers: shared hit=64
+                                ->  Hash  (cost=98.55..98.55 rows=844 width=5) (actual time=0.334..0.336 rows=844.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 39kB
+                                      Buffers: shared hit=88
+                                      ->  Seq Scan on "IDX_Stock_Universe" u  (cost=0.00..98.55 rows=844 width=5) (actual time=0.016..0.250 rows=844.00 loops=1)
+                                            Filter: ("Security Type" = 'stock'::text)
+                                            Rows Removed by Filter: 1
+                                            Buffers: shared hit=88
+              ->  Values Scan on "*VALUES*"  (cost=0.00..0.03 rows=2 width=40) (actual time=0.000..0.001 rows=2.00 loops=832)
+Planning:
+  Buffers: shared hit=23
+Planning Time: 1.393 ms
+Execution Time: 123.700 ms
+(60 rows, 592 ms)
+---

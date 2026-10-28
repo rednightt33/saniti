@@ -1,0 +1,16 @@
+in_universe | same_sector
+93 | 0
+(1 rows, 827 ms)
+---
+missing
+WIKA
+(1 rows, 651 ms)
+---
+n | same_sector | same_industry
+93 | 92 | 43
+(1 rows, 406 ms)
+---
+tk | proto_sector | db_sector | proto_ind | db_ind
+SIDO | Consumer Non-Cyclicals | Healthcare | Household Products | Pharmaceuticals
+(1 rows, 189 ms)
+---

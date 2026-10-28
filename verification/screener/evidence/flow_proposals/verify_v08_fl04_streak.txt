@@ -1,0 +1,4 @@
+n | mn | p10 | p50 | p90 | mx | bbca | antm | care | fl04_zero | abs_fl02_lt1 | abs_fl02_lt01
+832 | -27 | -4 | 0 | 2 | 21 | -4 | -6 | -4 | 120 | 280 | 69
+(1 rows, 839 ms)
+---

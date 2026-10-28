@@ -1,0 +1,34 @@
+action_type | count | min | max
+RUPS | 6843 |  |
+DIVIDEND | 5301 | 2009-01-20T00:00:00Z | 2026-11-03T00:00:00Z
+PUBLIC_EXPOSE | 4002 |  |
+WARRANT | 2223 |  |
+RIGHT_ISSUE | 325 | 2004-10-01T00:00:00Z | 2026-11-24T00:00:00Z
+STOCK_SPLIT | 258 | 2003-01-10T00:00:00Z | 2026-12-18T00:00:00Z
+TENDER_OFFER | 190 |  |
+BONUS_SHARE | 91 | 2008-05-22T00:00:00Z | 2026-11-03T00:00:00Z
+REVERSE_SPLIT | 34 | 2004-04-29T00:00:00Z | 2024-10-22T00:00:00Z
+(9 rows, 810 ms)
+---
+ticker | date | close | pc | pd
+FORU | 2026-09-22T00:00:00Z | 176.00000000 | 2560.00000000 | 2026-09-21T00:00:00Z
+(1 rows, 924 ms)
+---
+ticker | ex_date | action_type | left
+SONA | 2024-01-03T00:00:00Z | STOCK_SPLIT | {"company_id": "396", "event_note": "", "stocksplit_id": "6055", "company_symbol": "SONA", "stocksplit_new": "2", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 2", "stocksplit_exdate": "2024-01-03", "stocksplit_factor": "2", "stocksplit_iqp_id": "", "corp_action_active": fals
+GMTD | 2024-01-04T00:00:00Z | STOCK_SPLIT | {"company_id": "176", "event_note": "", "stocksplit_id": "6056", "company_symbol": "GMTD", "stocksplit_new": "10", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 10", "stocksplit_exdate": "2024-01-04", "stocksplit_factor": "10", "stocksplit_iqp_id": "", "corp_action_active": f
+TBMS | 2024-02-16T00:00:00Z | STOCK_SPLIT | {"company_id": "413", "event_note": "", "stocksplit_id": "6057", "company_symbol": "TBMS", "stocksplit_new": "2", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 2", "stocksplit_exdate": "2024-02-16", "stocksplit_factor": "2", "stocksplit_iqp_id": "", "corp_action_active": fals
+SCCO | 2024-03-08T00:00:00Z | STOCK_SPLIT | {"company_id": "370", "event_note": "", "stocksplit_id": "6058", "company_symbol": "SCCO", "stocksplit_new": "4", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 4", "stocksplit_exdate": "2024-03-08", "stocksplit_factor": "4", "stocksplit_iqp_id": "", "corp_action_active": fals
+BPII | 2024-05-13T00:00:00Z | STOCK_SPLIT | {"company_id": "518", "event_note": "", "stocksplit_id": "6060", "company_symbol": "BPII", "stocksplit_new": "20", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 20", "stocksplit_exdate": "2024-05-13", "stocksplit_factor": "20", "stocksplit_iqp_id": "", "corp_action_active": f
+ASRM | 2024-05-22T00:00:00Z | STOCK_SPLIT | {"company_id": "43", "event_note": "", "stocksplit_id": "6061", "company_symbol": "ASRM", "stocksplit_new": "4", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 4", "stocksplit_exdate": "2024-05-22", "stocksplit_factor": "4", "stocksplit_iqp_id": "", "corp_action_active": false
+PBID | 2024-05-31T00:00:00Z | STOCK_SPLIT | {"company_id": "4999", "event_note": "", "stocksplit_id": "6062", "company_symbol": "PBID", "stocksplit_new": "4", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 4", "stocksplit_exdate": "2024-05-31", "stocksplit_factor": "4", "stocksplit_iqp_id": "", "corp_action_active": fal
+JECC | 2024-06-13T00:00:00Z | STOCK_SPLIT | {"company_id": "227", "event_note": "", "stocksplit_id": "6063", "company_symbol": "JECC", "stocksplit_new": "5", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 5", "stocksplit_exdate": "2024-06-13", "stocksplit_factor": "5", "stocksplit_iqp_id": "", "corp_action_active": fals
+INDS | 2024-07-04T00:00:00Z | STOCK_SPLIT | {"company_id": "210", "event_note": "", "stocksplit_id": "6064", "company_symbol": "INDS", "stocksplit_new": "10", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 10", "stocksplit_exdate": "2024-07-04", "stocksplit_factor": "10", "stocksplit_iqp_id": "", "corp_action_active": f
+PUDP | 2024-07-04T00:00:00Z | STOCK_SPLIT | {"company_id": "350", "event_note": "", "stocksplit_id": "6065", "company_symbol": "PUDP", "stocksplit_new": "2", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 2", "stocksplit_exdate": "2024-07-04", "stocksplit_factor": "2", "stocksplit_iqp_id": "", "corp_action_active": fals
+ALDO | 2024-07-08T00:00:00Z | STOCK_SPLIT | {"company_id": "19", "event_note": "", "stocksplit_id": "6066", "company_symbol": "ALDO", "stocksplit_new": "2", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 2", "stocksplit_exdate": "2024-07-08", "stocksplit_factor": "2", "stocksplit_iqp_id": "", "corp_action_active": false
+DSSA | 2024-07-18T00:00:00Z | STOCK_SPLIT | {"company_id": "143", "event_note": "", "stocksplit_id": "6067", "company_symbol": "DSSA", "stocksplit_new": "10", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 10", "stocksplit_exdate": "2024-07-18", "stocksplit_factor": "10", "stocksplit_iqp_id": "", "corp_action_active": f
+LPGI | 2024-09-17T00:00:00Z | STOCK_SPLIT | {"company_id": "264", "event_note": "", "stocksplit_id": "6069", "company_symbol": "LPGI", "stocksplit_new": "10", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 10", "stocksplit_exdate": "2024-09-17", "stocksplit_factor": "10", "stocksplit_iqp_id": "", "corp_action_active": f
+MSIN | 2024-10-07T00:00:00Z | STOCK_SPLIT | {"company_id": "1000000022", "event_note": "", "stocksplit_id": "6071", "company_symbol": "MSIN", "stocksplit_new": "5", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 5", "stocksplit_exdate": "2024-10-07", "stocksplit_factor": "5", "stocksplit_iqp_id": "", "corp_action_active
+ISAT | 2024-10-14T00:00:00Z | STOCK_SPLIT | {"company_id": "222", "event_note": "", "stocksplit_id": "6070", "company_symbol": "ISAT", "stocksplit_new": "4", "stocksplit_old": "1", "stocksplit_lock": 0, "stocksplit_ratio": "1 : 4", "stocksplit_exdate": "2024-10-14", "stocksplit_factor": "4", "stocksplit_iqp_id": "", "corp_action_active": fals
+(15 rows, 240 ms)
+---

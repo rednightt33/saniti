@@ -1,0 +1,20 @@
+data_origin | n | first_d | last_d | last_pull | since_0930 | tickers_since_0930 | buy_sell_since_0930 | removed
+IDX | 22440 | 2019-11-02T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T14:52:09.248227Z | 597 | 105 | 572 | 0
+KSEI | 81598 | 2017-10-12T00:00:00Z | 2026-10-26T00:00:00Z | 2026-10-27T14:52:09.248227Z | 1261 | 174 | 1111 | 1
+(2 rows, 4649 ms)
+---
+action_type | count
+BUY | 9658
+SELL | 5481
+TRANSFER | 551
+RIGHT_ISSUE | 237
+CROSS | 205
+WARRANT_EXERCISE | 157
+MESOP_OPTION | 53
+PRIVATE_PLACEMENT | 18
+(8 rows, 281 ms)
+---
+pub_insider | pub_annotation
+False | True
+(1 rows, 203 ms)
+---

@@ -1,0 +1,6 @@
+BBRI factor 0 bars 2115 up 1023 flips 1128 up-trend bars with line above close 70
+BBRI factor 3 bars 2115 up 1133 flips 60 up-trend bars with line above close 0
+BLTA factor 0 bars 1674 up 252 flips 269 up-trend bars with line above close 5
+BLTA factor 3 bars 1674 up 553 flips 31 up-trend bars with line above close 0
+ASPR factor 0 bars 298 up 119 flips 139 up-trend bars with line above close 10
+ASPR factor 3 bars 298 up 179 flips 3 up-trend bars with line above close 0

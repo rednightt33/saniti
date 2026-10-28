@@ -1,0 +1,4 @@
+n | big_acc | acc | neutral | dist | big_dist | acc_or_big_adv1b | adv1b | acc_and_narrow | acc_narrow_adv1b
+832 | 66 | 70 | 607 | 52 | 37 | 59 | 429 | 119 | 51
+(1 rows, 910 ms)
+---

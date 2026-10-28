@@ -1,0 +1,100 @@
+QUERY PLAN
+Sort  (cost=133746.49..133862.65 rows=46465 width=33) (actual time=2568.723..2575.236 rows=50721.00 loops=1)
+  Sort Key: ticker, trade_date
+  Sort Method: quicksort  Memory: 4002kB
+  Buffers: shared hit=2500 read=17100
+  ->  Bitmap Heap Scan on "Feature_04_Technical_Indicator"  (cost=4237.80..130144.56 rows=46465 width=33) (actual time=166.715..2514.140 rows=50721.00 loops=1)
+        Recheck Cond: ((trade_date >= '2026-07-29'::date) AND (asset_type = 'equity'::text))
+        Heap Blocks: exact=15636
+        Buffers: shared hit=2500 read=17100
+        ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_pkey"  (cost=0.00..4226.19 rows=46465 width=0) (actual time=148.311..148.313 rows=50721.00 loops=1)
+              Index Cond: ((trade_date >= '2026-07-29'::date) AND (asset_type = 'equity'::text))
+              Index Searches: 876
+              Buffers: shared hit=1646 read=2318
+Planning Time: 0.131 ms
+JIT:
+  Functions: 4
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 0.891 ms (Deform 0.727 ms), Inlining 0.000 ms, Optimization 2.662 ms, Emission 12.013 ms, Total 15.566 ms
+Execution Time: 2579.427 ms
+(18 rows, 2819 ms)
+---
+QUERY PLAN
+Finalize GroupAggregate  (cost=299909.83..300180.76 rows=864 width=29) (actual time=2228.098..2241.194 rows=844.00 loops=1)
+  Group Key: ticker
+  Buffers: shared hit=64 read=24321
+  ->  Gather Merge  (cost=299909.83..300151.38 rows=2074 width=29) (actual time=2228.005..2240.835 rows=2532.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=64 read=24321
+        ->  Sort  (cost=298909.80..298911.96 rows=864 width=29) (actual time=2196.223..2196.612 rows=844.00 loops=3)
+              Sort Key: ticker
+              Sort Method: quicksort  Memory: 64kB
+              Buffers: shared hit=64 read=24321
+              Worker 0:  Sort Method: quicksort  Memory: 64kB
+              Worker 1:  Sort Method: quicksort  Memory: 64kB
+              ->  Partial HashAggregate  (cost=298859.02..298867.66 rows=864 width=29) (actual time=2195.332..2195.539 rows=844.00 loops=3)
+                    Group Key: ticker
+                    Batches: 1  Memory Usage: 105kB
+                    Buffers: shared hit=46 read=24321
+                    Worker 0:  Batches: 1  Memory Usage: 105kB
+                    Worker 1:  Batches: 1  Memory Usage: 105kB
+                    ->  Parallel Bitmap Heap Scan on "Feature_04_Technical_Indicator"  (cost=2183.73..298085.34 rows=77368 width=13) (actual time=19.512..2181.141 rows=65394.33 loops=3)
+                          Recheck Cond: (trade_date >= '2025-10-27'::date)
+                          Filter: (asset_type = 'equity'::text)
+                          Rows Removed by Filter: 1966
+                          Heap Blocks: exact=9179
+                          Buffers: shared hit=46 read=24321
+                          Worker 0:  Heap Blocks: exact=7489
+                          Worker 1:  Heap Blocks: exact=7475
+                          ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..2137.31 rows=193184 width=0) (actual time=13.220..13.221 rows=202118.00 loops=1)
+                                Index Cond: (trade_date >= '2025-10-27'::date)
+                                Index Searches: 1
+                                Buffers: shared read=182
+Planning:
+  Buffers: shared hit=5 read=1
+Planning Time: 2.095 ms
+JIT:
+  Functions: 42
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 4.413 ms (Deform 2.451 ms), Inlining 0.000 ms, Optimization 3.509 ms, Emission 38.575 ms, Total 46.498 ms
+Execution Time: 2242.774 ms
+(39 rows, 2443 ms)
+---
+QUERY PLAN
+Finalize GroupAggregate  (cost=55666.04..55930.05 rows=842 width=77) (actual time=1647.434..1649.348 rows=845.00 loops=1)
+  Group Key: ticker
+  Buffers: shared hit=60 read=5402
+  ->  Gather Merge  (cost=55666.04..55901.42 rows=2021 width=77) (actual time=1647.422..1648.780 rows=2533.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=60 read=5402
+        ->  Sort  (cost=54666.01..54668.12 rows=842 width=77) (actual time=1311.755..1311.795 rows=844.33 loops=3)
+              Sort Key: ticker
+              Sort Method: quicksort  Memory: 58kB
+              Buffers: shared hit=60 read=5402
+              Worker 0:  Sort Method: quicksort  Memory: 58kB
+              Worker 1:  Sort Method: quicksort  Memory: 58kB
+              ->  Partial HashAggregate  (cost=54616.68..54625.10 rows=842 width=77) (actual time=1310.743..1311.017 rows=844.33 loops=3)
+                    Group Key: ticker
+                    Batches: 1  Memory Usage: 129kB
+                    Buffers: shared hit=42 read=5402
+                    Worker 0:  Batches: 1  Memory Usage: 129kB
+                    Worker 1:  Batches: 1  Memory Usage: 129kB
+                    ->  Parallel Bitmap Heap Scan on "Price_Stock_Indonesia_IDX"  (cost=3313.66..53831.07 rows=78561 width=15) (actual time=438.583..1296.076 rows=65474.33 loops=3)
+                          Recheck Cond: (date >= '2025-10-27'::date)
+                          Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+                          Heap Blocks: exact=1608
+                          Buffers: shared hit=42 read=5402
+                          Worker 0:  Heap Blocks: exact=1676
+                          Worker 1:  Heap Blocks: exact=1695
+                          ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..3266.52 rows=188546 width=0) (actual time=768.852..768.853 rows=197244.00 loops=1)
+                                Index Cond: (date >= '2025-10-27'::date)
+                                Index Searches: 1
+                                Buffers: shared read=423
+Planning:
+  Buffers: shared hit=10 read=5
+Planning Time: 0.241 ms
+Execution Time: 1649.452 ms
+(34 rows, 1872 ms)
+---

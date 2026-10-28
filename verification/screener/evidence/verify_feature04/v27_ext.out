@@ -1,0 +1,13 @@
+extname | extversion
+plpgsql | 1.0
+btree_gist | 1.8
+(2 rows, 233 ms)
+---
+sum
+359
+(1 rows, 265 ms)
+---
+current_setting | reloptions
+8192 |
+(1 rows, 207 ms)
+---

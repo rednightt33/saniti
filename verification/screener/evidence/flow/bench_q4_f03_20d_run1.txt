@@ -1,0 +1,15 @@
+QUERY PLAN
+HashAggregate  (cost=34230.92..34329.25 rows=2622 width=229) (actual time=345.211..347.134 rows=890.00 loops=1)
+  Group Key: ticker
+  Batches: 1  Memory Usage: 1617kB
+  Buffers: shared hit=28 read=561
+  ->  Index Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..33789.44 rows=16054 width=56) (actual time=3.226..325.980 rows=17252.00 loops=1)
+        Index Cond: ((date >= '2026-09-30'::date) AND (date <= '2026-10-27'::date) AND (market_board = 'Regular'::text))
+        Index Searches: 1
+        Buffers: shared hit=28 read=561
+Planning:
+  Buffers: shared hit=55 read=10
+Planning Time: 24.640 ms
+Execution Time: 347.340 ms
+(12 rows, 835 ms)
+---

@@ -1,0 +1,38 @@
+check | tickers | bars_both | null_mismatch | max_rel (ref>1e-9*scale) | max_abs/scale | first-valid differs (ts/ref) | null-mismatch tickers
+I28 pctb vs BBANDS | 18 | 24946 | 0 | 0 | 0 |  |
+I28 pctb vs F04 | 18 | 24946 | 0 | 0 | 0 |  |
+I29 bbw vs BBANDS | 18 | 27881 | 0 | 3.14e-16 | 2.24e-16 |  |
+I29 bbw vs F04 | 18 | 27881 | 0 | 3.14e-16 | 2.24e-16 |  |
+I30 atr vs ATR | 18 | 27971 | 0 | 0 | 0 |  |
+I30 atr vs F04 | 18 | 27971 | 0 | 0 | 0 |  |
+I31 natr vs NATR | 18 | 27971 | 0 | 0 | 0 |  |
+I31 natr vs F04 | 18 | 27971 | 0 | 2.84e-16 | 2.5e-16 |  |
+I32 std vs STDDEV | 18 | 27881 | 0 | 0 | 0 |  |
+I32 std vs F04 | 18 | 27881 | 0 | 1.31e-09 | 7.12e-16 |  |
+I33 hv vs 2pass | 18 | 27863 | 0 | 8.34e-16 | 5.46e-16 |  |
+I33 hv vs F01 vol20 | 18 | 27863 | 0 | 0.232 | 0.202 |  |
+I34 adr vs SMA(H-L) | 18 | 27989 | 0 | 7.52e-14 | 9.13e-16 |  |
+I35 vsma vs SMA | 18 | 27881 | 0 | 0 | 0 |  |
+I35 vsma vs F01 | 18 | 27881 | 0 | 3.17e-12 | 7.85e-16 |  |
+I36 vema vs EMA | 18 | 27881 | 0 | 0 | 0 |  |
+I37 rvol vs V/SMA | 18 | 27881 | 0 | 1.15e-11 | 2.89e-12 |  |
+I37 rvol vs F01 | 18 | 27881 | 0 | 1.46e-11 | 3.69e-12 |  |
+I38 pvo vs PPO | 18 | 27773 | 0 | 0 | 0 |  |
+I38 sig vs EMA(PPO) | 18 | 27629 | 0 | 0 | 0 |  |
+I38 hist | 18 | 27629 | 0 | 0 | 0 |  |
+I39 vroc vs ROC raw | 18 | 28040 | 3 | 0 | 0 | AYAM:11/10,AADI:11/10,CHEK:11/10 | AYAM:1,AADI:1,CHEK:1
+I39 vroc vs ROC nullrule | 18 | 28040 | 0 | 0 | 0 |  |
+I40 obv vs OBV | 18 | 28223 | 0 | 0 | 0 |  |
+I41 pvt vs numpy | 18 | 28223 | 0 | 0 | 0 |  |
+I42 vwma vs SUM | 18 | 27881 | 0 | 1.15e-11 | 1.15e-12 |  |
+I43 vwap(Session) vs TYPPRICE | 18 | 28220 | 0 | 2.01e-16 | 1.63e-16 |  |
+I43 upper1 vs TYPPRICE | 18 | 28220 | 0 | 2.28e-08 | 1.79e-08 |  |
+I44 adl vs AD | 18 | 28223 | 0 | 0 | 0 |  |
+I45 cmf vs SUM | 18 | 27881 | 0 | 1.16e-10 | 1.94e-13 |  |
+I46 chosc vs ADOSC | 18 | 28061 | 0 | 0 | 0 |  |
+I47 mfi vs MFI | 18 | 27971 | 0 | 0 | 0 |  |
+I48 force vs EMA | 18 | 27989 | 0 | 3.57e-11 | 3.81e-16 |  |
+I49 eom vs numpy sma | 18 | 27971 | 0 | 1.37e-09 | 1.04e-15 |  |
+I50 nvi vs numpy | 18 | 28223 | 0 | 0 | 0 |  |
+I51 pvi vs numpy | 18 | 28223 | 0 | 0 | 0 |  |
+I53 mfi_bw vs numpy | 18 | 28220 | 0 | 0 | 0 |  |

@@ -1,0 +1,66 @@
+PLAN.md:177:| Postgres conversation | Usulan satu kolom checkpoint dan katalog metadata; tidak menyentuh harga/Feature04. |
+PLAN.md:226:- Default model, provider routing, SQL grants, sandbox CPU/memory dan price/Feature04 tidak diubah. Batas helper
+PLAN.md:253:| 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (implementation plan disetujui) | Selesai; dipindahkan ke `EXEC.md` EXEC-F04 | Selesai 2026-10-11 |
+PLAN.md:254:| 15 | Finality equity, pemeriksaan koreksi lima sesi, dan Feature04 incremental dengan checkpoint state | 2026-10-12 ("Ok jalankan.") | Selesai; migration, 868-instrument shadow, 6.076 checkpoint, live five-session run dan zero-change repeat lulus | Selesai 2026-10-12 |
+PLAN.md:418:## 13. Feature04 otomatis setelah update harga — selesai
+PLAN.md:421:serta `verification/feature04/AUTOMATION.md`. Isi berikut dipertahankan sebagai riwayat
+PLAN.md:435:Bukti: `verification/feature04/automation_design_inspection.json` dan `automation_design_railway.json` dalam direktori yang sama.
+PLAN.md:478:  Feature04 belum mempunyai trigger/worker otomatis; harga dan Feature04 saat pemeriksaan sama-sama 1.318.633 baris,
+PLAN.md:486:TradingView -> price UPSERT + Feature04 enqueue + membership batch + monitoring (satu commit)
+PLAN.md:490:             feature-04-worker -> replay per ticker -> Feature04 + audit (commit atomik)
+PLAN.md:506:1. Buat trigger enqueue Feature04 yang ringan pada perubahan harga relevan. Berbeda dari Feature01,
+PLAN.md:512:2. Gunakan queue khusus Feature04, satu row `(ticker,timeframe)`, menggabungkan beberapa perubahan dalam ticker.
+PLAN.md:521:   `features/feature04/engine.py` dan `swing.py`. Jangan membatasi ke 200 atau 120 bar: EMA, ADX dan SMI/swing rekursif;
+PLAN.md:526:   Di transaksi final yang pendek, ambil existing Feature04 advisory lock dan queue row lock, periksa claim token,
+PLAN.md:542:Feature04 OPEN di transaksi yang sama. Trigger mencatat membership ticker beserta required generation; setelah UPSERT,
+PLAN.md:557:| `Feature04_Calculation_Queue` | Satu row per ticker/timeframe; work coalescing dan status freshness. |
+PLAN.md:558:| `Feature04_Calculation_Log` | Satu completed attempt; SUCCESS/PARTIAL/FAILED/SUPERSEDED, generation, scope kolom, outcomes per kelompok, source/output hash, durasi dan changed rows. |
+PLAN.md:559:| `Monitoring_Feature04` | Satu run per source execution; price scope, updated/missing, calculation scope, counts, status dan waktu. |
+PLAN.md:560:| `Monitoring_Feature04_Ticker` | Satu ticker/timeframe per run; required generation, requested columns, outcome dan error. |
+PLAN.md:561:| `Feature04_Notification_Outbox` | Satu event per run/type, atau ADHOC ticker/generation/error; payload reference, lease, next retry dan delivery state. |
+PLAN.md:562:| `Feature04_Column_Status` | Satu ticker/timeframe/feature column; source generation, calculation version, readiness/error dan legitimate NULL evidence. |
+PLAN.md:563:| `Feature04_Retry_Request` | Satu owner request/preview token; selected failure scope, parent run, dedup identity, lifecycle dan child retry run. |
+PLAN.md:568:failed/missing-price, durasi dan ticker bermasalah. Contoh hipotetis: "Feature04 DAILY — 827/827 calculated; price missing 17".
+PLAN.md:570:**Urutan delivery sesuai pertanyaan user:** pesan hasil price lebih dahulu, pesan hasil Feature04 sesudahnya.
+PLAN.md:571:Pesan Feature04 SUCCESS hanya boleh dilepas ketika kedua kondisi benar: (1) notification price untuk execution yang sama
+PLAN.md:575:Feature04 yang menunggu kedua kondisi. Jika Feature04 selesai lebih dahulu, outbox menunggu price delivery.
+PLAN.md:594:  memasukkan shared `features/feature04` dan pinned dependencies; root build repo dengan Dockerfile khusus worker,
+PLAN.md:596:- Forward migration + semua catalog/schema docs, least-privilege worker role (SELECT harga, write Feature04/control saja),
+PLAN.md:611:Desain secara umum dicatat disetujui; urutan price Telegram SENT kemudian hasil Feature04 ditetapkan.
+PLAN.md:618:Bukti baru: `verification/feature04/retry_design_inspection.json` dan `retry_design_railway.json`.
+PLAN.md:620:- Feature04: 55 kolom fisik = 3 identity + 50 feature outputs + 2 metadata. Seluruh 1.318.633 baris / 844 ticker memakai v3;
+PLAN.md:623:- Ketujuh objek kontrol Feature04 usulan belum ada. Engine `calculate()` monolitik: error satu call dapat menghentikan ticker.
+PLAN.md:630:  Railway, **bukan** kegagalan Feature04. Bot menu sekarang hanya dua price controls. Retry Feature04 tidak boleh menjalankan keduanya.
+PLAN.md:675:  arbitrary SQL, atau memanggil TradingView/Railway Run Now untuk retry Feature04. Semua handler tetap memeriksa webhook
+PLAN.md:695:`Feature04_Column_Status` mempunyai PK `(ticker,timeframe,feature_column)` (sekitar 42.200 row untuk 844 ticker),
+PLAN.md:728:| Service | Peran Feature04 | Tidak dikerjakan service ini |
+PLAN.md:730:| `telegram-trigger` | Menerima webhook/command owner, menampilkan menu status dan retry, memvalidasi callback/preview, dedup click, lalu memanggil routine DB terbatas untuk enqueue retry. Command price/recovery lama tetap memakai Railway Run Now. | Tidak menghitung indikator, tidak menu
+PLAN.md:732:| `telegram-monitor` | Menerima private notify untuk execution/run yang sudah committed, membaca monitoring/outbox, memformat dan mengirim hasil price/Feature04, serta mencatat delivery dedup. | Tidak menghitung ulang indikator dan tidak memutuskan scope retry. |
+PLAN.md:735:bangun karena private notify dari price job/worker. Worker Feature04 satu-satunya service baru dan berjalan terus sebagai
+PLAN.md:740:Retry menjadi child run bertipe `RETRY_TICKER` atau `RETRY_COLUMN`, menaut ke parent price/Feature04 run.
+PLAN.md:745:"Feature04 fully calculated". Request selesai berbeda dari ticker semuanya current.
+PLAN.md:746:Auto batch dan child run tetap menunggu parent price Telegram SENT dengan message ID sebelum pesan hasil Feature04.
+PLAN.md:754:| 1. Kontrak & engine diagnostics | Registry dependency/50 columns + group result/error/availability di `features/feature04`; refactor memakai rumus/seed yang sama, strict `calculate()` tetap kompatibel. | Existing engine tests + exact equal outputs old/new pada fixtures dan source snaps
+PLAN.md:755:| 2. Database control | Forward migration baru untuk tujuh tabel, routines enqueue/claim/retry/status, column/request revisions, price trigger dan permission roles; katalog seluruh tabel/kolom/routines. Forward alter `Telegram_Command_Log` tambah nullable `feature04_request_id`, tanpa me
+PLAN.md:757:| 4. Price/monitor integration | Transaction-local execution ID, batch membership/sealing di `apps/idx-price-cron/price_update.py`; allowlist/format/status acknowledgement dan inline Feature04 menu di `apps/telegram-monitor`. | Partial/empty price batch, strict price-message SENT gate, r
+PLAN.md:762:File baru/utama yang direncanakan: worker Dockerfile/requirements/README/tests; shared Feature04 dependency/diagnostic
+PLAN.md:764:price/telegram handler dan tests; `.railway/railway.ts`; `FEATURE04_TECHNICAL_INDICATOR.md`, `FEATURE04_COLUMN_DEFINITIONS.md`,
+PLAN.md:773:mengklaim ticker seluruhnya sukses, (k) parent price notification mendahului Feature04 result, (l) DB/Telegram outage
+PLAN.md:835:Feature04 checkpoint fingerprints include asset_type; do not blindly rename equity state to index.
+PLAN.md:976:- **Belum diizinkan:** perubahan skema/data, perubahan Feature 04, deploy Railway. Semuanya menunggu laporan approval gate
+FUTURE_PLAN.md:310:Desain Feature04 setelah update harga dipindahkan ke `PLAN.md` butir 13 pada 2026-10-11 setelah user menyetujui
+FUTURE_PLAN.md:311:secara umum dan mengonfirmasi urutan Telegram price lalu hasil kalkulasi Feature04. Implementasi belum dimulai.
+FUTURE_PLAN.md:790:## AI: pakai nilai tersimpan Feature 04 sebelum menghitung ulang (usulan 2026-10-25, menunggu keputusan)
+FUTURE_PLAN.md:794:AI_formula_reference, then CUSTOM" (`app/tools/analysis.py`); tidak ada aturan memakai nilai Feature 04 yang tersimpan
+FUTURE_PLAN.md:795:lebih dulu. Indikator rekursif (EMA, RSI, MACD, ATR, ADX) yang dihitung ulang dari riwayat pendek berbeda dari Feature 04
+FUTURE_PLAN.md:796:selama ratusan sesi (EMA 200 ±310–430). Usulan: untuk kolom yang tersimpan di Feature 04, pakai nilai tersimpan; jangan
+PROJECT_CONTEXT.md:34:- Feature 04 worker service ID: `bb1fcecc-a7b1-404f-b2af-9c3ab65a614f`
+PROJECT_CONTEXT.md:47:- Market SQL Governor (the only path from the AI to market-data SQL; login `market_sql_governor`, SELECT through role `market_ai_sql_reader` on the AI catalogs and the exposed objects listed in `scripts/provision_market_sql_governor_login.py` `APPROVED`: the seven original mark
+PROJECT_CONTEXT.md:131:-> Monitoring_Fixed_Income -> price Telegram -> changed price/1D tickers -> Feature04
+PROJECT_CONTEXT.md:132:-> Feature04 completion Telegram
+PROJECT_CONTEXT.md:138:rerun writes nothing and opens a skipped Feature04 execution.
+PROJECT_CONTEXT.md:151:`telegram-monitor` has no cron schedule and does not poll PostgreSQL. It sleeps while idle and is called only after a DAILY or RECOVERY monitoring transaction commits. The caller retries temporary cold-start/network failures; Telegram failure never rolls back price data. Price
+PROJECT_CONTEXT.md:161:`telegram-trigger` accepts only `/run_price`, `/run_recovery`, `/feature04`, and the matching fixed buttons. Telegram retries are deduplicated by `telegram_update_id`, while a short per-service cooldown blocks rapid repeat clicks. A Feature04 retry stores its acknowledgement m
+PROJECT_CONTEXT.md:176:- `Feature_04_Technical_Indicator`: 57-column cross-asset table with universe-derived `asset_type`, exact source `close` by `trade_date`, technical indicators, candlestick/inside-bar flags, and Pine SMI/swing state. It covers 844 equity tickers / 1,318,633 rows and 24 bonds ti
+PROJECT_CONTEXT.md:177:- `feature04_backfill_log`: atomic per-run/ticker load audit with source/output fingerprints and resumable COMPLETED/FAILED states; source ingestion timestamps are not fabricated.
+PROJECT_CONTEXT.md:186:- `Feature_Catalog`: machine-readable formula and semantic-governance layer for validated Feature columns. All 148 active definitions across Feature 01–04 include interpretation, recommended use, misuse warnings, semantic review status, and validation evidence; Feature 01 re

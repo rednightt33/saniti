@@ -1,0 +1,12 @@
+BBCA volume_sma vs F01 volume_avg_20d F01 rows 2125 common 2125 both 2106 null mismatch 0 max rel 0.0 median rel 0.0
+BBCA rvol vs F01 volume_ratio_20d F01 rows 2125 common 2125 both 2106 null mismatch 0 max rel 0.0 median rel 0.0
+BBCA hist_vol vs F01 volatility_20d_ann_pct F01 rows 2125 common 2125 both 2105 null mismatch 0 max rel 0.0810385813110618 median rel 0.027145441384852597
+GOTO volume_sma vs F01 volume_avg_20d F01 rows 1084 common 1084 both 1065 null mismatch 0 max rel 0.0 median rel 0.0
+GOTO rvol vs F01 volume_ratio_20d F01 rows 1084 common 1084 both 1065 null mismatch 0 max rel 0.0 median rel 0.0
+GOTO hist_vol vs F01 volatility_20d_ann_pct F01 rows 1084 common 1084 both 1064 null mismatch 0 max rel 0.138904632578725 median rel 0.031404526938201754
+BNBR volume_sma vs F01 volume_avg_20d F01 rows 2057 common 2057 both 2038 null mismatch 0 max rel 3.169231495978544e-12 median rel 1.8591817057722313e-14
+BNBR rvol vs F01 volume_ratio_20d F01 rows 2057 common 2057 both 2038 null mismatch 0 max rel 1.4635165995767474e-11 median rel 1.753948811082097e-14
+BNBR hist_vol vs F01 volatility_20d_ann_pct F01 rows 2057 common 2057 both 2037 null mismatch 0 max rel 0.13502283310637164 median rel 0.0025077656694378002
+AYAM volume_sma vs F01 volume_avg_20d F01 rows 678 common 678 both 659 null mismatch 0 max rel 0.0 median rel 0.0
+AYAM rvol vs F01 volume_ratio_20d F01 rows 678 common 678 both 659 null mismatch 0 max rel 0.0 median rel 0.0
+AYAM hist_vol vs F01 volatility_20d_ann_pct F01 rows 678 common 678 both 658 null mismatch 0 max rel 0.11205442358601297 median rel 0.027631490833408323

@@ -1,0 +1,55 @@
+{
+ "scenario": "c",
+ "data": "data/price_full.json",
+ "last": 250,
+ "from": null,
+ "reps": 3,
+ "node": "v22.22.0",
+ "tickers": 845,
+ "bars_total": 209725,
+ "max_bars_per_ticker": 250,
+ "last_date": "2026-10-27",
+ "tickers_last_bar_before_last_date": 16,
+ "tickers_with_history_longer_than_window": 833,
+ "load": {
+  "wall_ms": 456.5,
+  "cpu_ms": 589.3
+ },
+ "mem_after_load": {
+  "rss_mb": 227.6,
+  "heap_used_mb": 24.5,
+  "external_mb": 8.8,
+  "array_buffers_mb": 0
+ },
+ "compute": {
+  "reps": [
+   {
+    "wall_ms": 68.6,
+    "cpu_ms": 133.3
+   },
+   {
+    "wall_ms": 69,
+    "cpu_ms": 116.6
+   },
+   {
+    "wall_ms": 46.6,
+    "cpu_ms": 81.4
+   }
+  ],
+  "first_wall_ms": 68.6,
+  "first_cpu_ms": 133.3,
+  "min_wall_ms": 46.6,
+  "median_wall_ms": 68.6
+ },
+ "rows": 845,
+ "errors": {},
+ "mem_end": {
+  "rss_mb": 232.5,
+  "heap_used_mb": 25,
+  "external_mb": 8.9,
+  "array_buffers_mb": 0
+ },
+ "peak_rss_mb": 278,
+ "process_total_cpu_ms": 1253.3,
+ "process_uptime_ms": 859
+}

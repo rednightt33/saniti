@@ -1,0 +1,26 @@
+asset_type | status | n | min | max | last_completed | last_upd | gen_behind | with_err
+bonds | DONE | 24 | 2026-10-26T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T11:03:44.723762Z | 2026-10-27T11:03:44.723762Z | 0 | 0
+equity | DONE | 844 | 2026-08-14T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T10:09:36.256233Z | 2026-10-27T10:09:36.256233Z | 0 | 0
+(2 rows, 262 ms)
+---
+asset_type | ticker | status | dirty_from_date | requested_generation | completed_generation | source_attempt_count | next_attempt_at | last_error_code | err
+(0 rows, 238 ms)
+---
+asset_type | status | n | nt | ncol | max_valid | min_valid | latest_null
+bonds | SUCCESS | 1224 | 24 | 51 | 2026-10-27T00:00:00Z | 2026-10-26T00:00:00Z | 60
+equity | SUCCESS | 43044 | 844 | 51 | 2026-10-27T00:00:00Z | 2026-08-21T00:00:00Z | 2571
+(2 rows, 441 ms)
+---
+asset_type | null_reason | feature_column | count
+bonds | EXPECTED_FORMULA_NULL | temp_high_bar | 16
+bonds | EXPECTED_FORMULA_NULL | temp_high | 16
+bonds | EXPECTED_FORMULA_NULL | temp_low_bar | 14
+bonds | EXPECTED_FORMULA_NULL | temp_low | 14
+equity | EXPECTED_FORMULA_NULL | temp_high | 798
+equity | EXPECTED_FORMULA_NULL | temp_high_bar | 798
+equity | EXPECTED_FORMULA_NULL | temp_low | 480
+equity | EXPECTED_FORMULA_NULL | temp_low_bar | 480
+equity | EXPECTED_FORMULA_NULL | ema_200 | 10
+equity | EXPECTED_FORMULA_NULL | last_swing_high | 5
+(10 rows, 207 ms)
+---

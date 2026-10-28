@@ -1,0 +1,4 @@
+cal_days | tickers | no_gap | with_gap | gt5pct | gt50pct | missing_total | span_m238
+2127 | 844 | 0 | 844 | 222 | 9 | 89968 | 840
+(1 rows, 5861 ms)
+---

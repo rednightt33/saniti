@@ -1,0 +1,19 @@
+QUERY PLAN
+Bitmap Heap Scan on "Feature_06_Foreign_Domestic"  (cost=11.92..2798.96 rows=731 width=126) (actual time=2.050..22.556 rows=865.00 loops=1)
+  Recheck Cond: ((trade_date = '2026-10-27'::date) AND (market_board = 'Regular'::text))
+  Heap Blocks: exact=176
+  Buffers: shared read=179
+  ->  Bitmap Index Scan on "Feature_06_Foreign_Domestic_date_board_idx"  (cost=0.00..11.74 rows=731 width=0) (actual time=1.586..1.587 rows=865.00 loops=1)
+        Index Cond: ((trade_date = '2026-10-27'::date) AND (market_board = 'Regular'::text))
+        Index Searches: 1
+        Buffers: shared read=3
+Planning:
+  Buffers: shared hit=77 read=24 dirtied=3
+Planning Time: 391.510 ms
+Execution Time: 22.637 ms
+(12 rows, 2475 ms)
+---
+avg_row_bytes
+304
+(1 rows, 233 ms)
+---

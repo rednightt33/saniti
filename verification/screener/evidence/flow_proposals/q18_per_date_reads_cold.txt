@@ -1,0 +1,22 @@
+QUERY PLAN
+Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..1898.13 rows=16962 width=59) (actual time=3.262..1821.528 rows=26786.00 loops=1)
+  Index Cond: (trade_date = '2026-08-20'::date)
+  Index Searches: 1
+  Buffers: shared hit=1 read=1713
+Planning Time: 0.140 ms
+Execution Time: 1823.590 ms
+(6 rows, 2086 ms)
+---
+QUERY PLAN
+Bitmap Heap Scan on "Feature_06_Foreign_Domestic"  (cost=11.03..3232.56 rows=851 width=51) (actual time=4.624..523.405 rows=1446.00 loops=1)
+  Recheck Cond: (trade_date = '2026-08-20'::date)
+  Heap Blocks: exact=1437
+  Buffers: shared hit=2 read=1439
+  ->  Bitmap Index Scan on "Feature_06_Foreign_Domestic_date_board_idx"  (cost=0.00..10.81 rows=851 width=0) (actual time=2.068..2.069 rows=1446.00 loops=1)
+        Index Cond: (trade_date = '2026-08-20'::date)
+        Index Searches: 1
+        Buffers: shared hit=2 read=2
+Planning Time: 0.879 ms
+Execution Time: 523.685 ms
+(10 rows, 743 ms)
+---

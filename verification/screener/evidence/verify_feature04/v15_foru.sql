@@ -1,0 +1,3 @@
+select ticker, ex_date, action_type, source_payload->>'stocksplit_ratio' ratio, source_payload->>'stocksplit_factor' factor from public.stockbit_corporate_action where action_type in ('STOCK_SPLIT','REVERSE_SPLIT') and ex_date >= '2026-06-01' and ex_date <= '2026-10-27' order by ex_date;;
+select ticker, date, open, high, low, close, volume, ingestion_time from public."Price_Stock_Indonesia_IDX" where ticker='FORU' and date between '2026-09-15' and '2026-09-26' order by date;;
+select ticker, trade_date, close, sma_20, sma_50, ema_200, rsi_14, atr_14, bb_lower_20 from public."Feature_04_Technical_Indicator" where ticker='FORU' and trade_date between '2026-09-18' and '2026-10-27' order by trade_date

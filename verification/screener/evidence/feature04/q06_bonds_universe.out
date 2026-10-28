@@ -1,0 +1,38 @@
+metric_type | Timeframe | is_final | n | tickers | min | max
+price | 1D | True | 60643 | 24 | 2016-01-01T00:00:00Z | 2026-10-27T00:00:00Z
+yield_to_maturity | 1D | True | 61474 | 24 | 2016-01-01T00:00:00Z | 2026-10-27T00:00:00Z
+(2 rows, 7588 ms)
+---
+ticker | pn | fn | pf | ff | pl | fl
+(0 rows, 1750 ms)
+---
+metric_type | count | count | string_agg
+price | 24 | 24 | Indonesia,United States
+yield_to_maturity | 24 | 24 | Indonesia,United States
+(2 rows, 221 ms)
+---
+Security Type | count
+stock | 844
+index | 1
+(2 rows, 266 ms)
+---
+column_name | data_type
+Region | text
+Country | text
+Company Name | text
+Ticker | text
+Exchange | text
+TradingView Symbol | text
+TradingView URL | text
+Security Type | text
+Type Specs | text
+Is Common Stock | text
+TradingView Country | text
+Currency | text
+Fundamental Currency | text
+ISIN | text
+Sector | text
+Industry | text
+price_feed_daily | numeric
+(17 rows, 337 ms)
+---

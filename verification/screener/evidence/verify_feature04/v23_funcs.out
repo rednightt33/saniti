@@ -1,0 +1,9 @@
+proname | skips_index | deletes_ckpt | uses_least
+enqueue_feature04_equity_price_row | False | False | False
+enqueue_feature04_group | True | True | True
+feature04_output_columns | False | False | False
+feature04_retry_dirty_date | False | False | False
+(4 rows, 220 ms)
+---
+ERROR: HTTP 400: {"error":"pq: column \"Market Code\" does not exist","status":400}
+---

@@ -1,0 +1,49 @@
+13:  zero writable public tables and a successful bounded Feature04 SELECT. No password or
+186:| D20 | 2026-10-11 | Fixed-income prices had separate daily/recovery crons and monitoring rows, but no Feature04 enqueue or Telegram tracking path | Feature04 and telegram-monitor recognized only the IDX price source; the fixed-income updater source was deployed separately and is not present in
+545:| R37 | 2026-10-12 | EXEC-IMPL-1012 Fase 0 baseline: market-sql-governor 119 test errors and market-ai-orc 51 (`psycopg.errors.DatatypeMismatch: column "is_final" is of type boolean but expression is of type text`, then `AssertionError: unhandled type boolean`) | **Verified:** `Price_Stock_Indon
+717:### Feature04 implementation validation — 2026-10-11
+719:- **Full v2 historical load (COMPLETED, VERIFIED):** all 844 actual price-source tickers processed serially from their earliest through latest observations; 1,318,633 v2 rows, zero failed ticker logs, zero missing/extra keys, source fingerprint preserved. All stored payloads verified before atom
+721:- **Standalone frozen-migration QA (RESOLVED):** running the application's frozen-migration pytest file inside the isolated Feature04 venv loaded the orc conftest and required Pydantic. The two migration checks need no application fixtures; run both standalone through runpy in the Feature04 envi
+723:- **Oldest-month warmup availability (EXPECTED, VERIFIED):** authorized BBCA January 2018 backfill committed 22 rows with no earlier available source history. SMA50/EMA26/MACD remain NULL, SMA20/Bollinger first appear January 29, and RSI14/ATR14 January 22. Live readback matched calculation; ide
+724:- **Catalog naming incompatibility (FIXED):** rolled-back DDL rehearsal rejected the exact requested name `Feature04_Technical_Indicator`: `validate_feature_catalog_target()` allowed only `^Feature_[0-9]{2}_[A-Za-z0-9_]+$`. Migration `20261011_001` adds an exact-name exception, retains physical-
+726:- **Sandbox Python dependency compatibility (RESOLVED):** remote Python 3.14 had no NumPy 2.2.6 binary wheel. Both local and remote Feature04 environments now pin NumPy 2.3.5 and TA-Lib 0.6.8/C 0.6.4; 15 local tests and live remote calculation pass. Dependencies are isolated from deployed servic
+727:- **Recursive indicator short warmup (MITIGATED):** BBCA full-history versus last 50 bars differs materially (last MACD signal about 3.821 IDR, ATR about 1.768 IDR). The prepared pipeline reads full available history per requested ticker; 12 source tickers have under 250 bars and no matching lon
+730:### Feature04 SMI/swing extension validation — 2026-10-11
+732:- **BBCA-only SMI load (COMPLETED, VERIFIED):** 55-column schema, 2,113 BBCA v3 bars, 47 INTEGER 1/0 breakout trigger dates; 843 other tickers keep all previous payloads and timestamps, new fields NULL. Original BBCA indicators and source fingerprint preserved. All-column readback, zero-change r
+734:- **Standalone QA environment/transport types (RESOLVED):** first QA helper used system Python without TA-Lib; corrected to the pinned Feature04 venv. Independent Pgweb numeric inputs arrive as decimal strings; NumPy reduction without explicit dtype failed. Explicit float64 parsing fixed the rea
+737:### Feature04 full-source SMI continuation — 2026-10-11
+739:- **All-ticker SMI load (COMPLETED, VERIFIED):** user "Alright, proceeed untuk semua ticker." All 844 actual price-source tickers / 1,318,633 Daily rows use v3; 843 newly committed tickers, BBCA verified/skipped, failed 0. 16,344 trigger flags 1 and 1,302,289 flags 0. Source keys match exactly a
+743:### Feature04 automatic calculation — 2026-10-11
+749:- **Price/indicator Telegram ordering (IMPLEMENTED):** Feature04 may finish before Telegram sends the price result. Its durable outbox query requires `price_notification_sent_at`, which `telegram-monitor` records only after the price notification ledger reaches `SENT`. Telegram failure does not
+752:### Feature04 governed rename and source close — 2026-10-11
+754:- **Physical name outside the governed Feature convention (FIXED):** the original user-selected `Feature04_Technical_Indicator` spelling required a validator exception. The newly approved `Feature_04_Technical_Indicator` matches `^Feature_[0-9]{2}_[A-Za-z0-9_]+$`; migration `20261011_008` rename
+755:- **Close absent from the wide output (FIXED):** indicators used source close internally, but consumers could not retrieve the exact observed close from the Feature04 row. The engine now treats `close` as a direct, independently retryable output and the migration backfilled it by exact `asset_ty
+756:- **Queue-derived readiness undercount (FIXED):** migration 008 initially created close status from `Feature04_Calculation_Queue`, which currently holds 25 instruments rather than all 868 target partitions. The immediate readback exposed 25 close statuses. Migration 009 derives instrument covera
+769:  provider bar timestamp, close instant, or final flag, so zero Feature04/source mismatch
+771:  evidence and gates Feature04 on `is_final=true`. Legacy rows retain NULL
+791:### Feature04 incremental finality — 2026-10-12
+801:  schedule plus source timestamp, close instant, final flag, and finalization time. Feature04
+818:  v2 keeps the strict tolerance; the failed dry run wrote no checkpoint or Feature04 row.
+826:- **Temporary Feature04 operations service removed; stale dev patch needs dashboard cleanup
+828:  `feature04-incremental-ops` remained staged because the connector rejected both
+836:### Feature04 Telegram monitor and bounded retry — 2026-10-12
+838:- **One Feature04 completion message per execution caused bursts (FIXED):** DAILY and
+840:  repeated callbacks but still sent a separate Feature04 message for every execution. The
+845:  the failure list at Telegram's text limit. Feature04 now emits one compact final message,
+847:  opens `/feature04` for the complete failure-only retry menu.
+850:  `Feature04_Retry_Request` now stores the acknowledgement message ID; the outbox waits for
+1223:  (`summary.calendar_sql`, 20 tanggal terakhir) pada `Feature_04_Technical_Indicator` butuh 10.893 ms dengan
+1235:  3.660 hari) untuk tabel sumber mana pun dari data need, termasuk Feature 04 yang sudah terbuka ke AI
+1243:  kolom waktu, atau P5 > 1.000 ms, gagal) Feature 04 (3,0 juta baris, P5 10,9 detik), benchmark onboarding menurut
+1302:### M206 — Statistik Feature 04 basi menggandakan perkiraan scan Governor (2026-10-23)
+1304:- **Symptom:** `measure_indexes.py` 2026-10-23 (job `bcfce0bd`): Feature 04 "semua saham 365 hari" FAIL karena Seq Scan
+1313:- **Status:** FIXED for Feature 04 (2026-10-23). Open as a class: no check that a table's statistics are fresh.
+1492:    bar valid ticker (`features/feature04/engine.py` `_segments`), INDEX meng-clone writer yang sama
+1635:  sesaat: Postgres TX 8,3 GB pada 2026-10-11 (backfill Feature04), unggah dataset dan arsip audit saat golden test
+1755:  `9bcab66c` / A `41e5bc3a`). `Feature_04_Technical_Indicator` tidak punya baris IHSG.
+1760:- **Cakupan lebih luas (dicek 2026-10-25):** `feature04_asset_type()` menggolongkan IHSG sebagai `equity`, sehingga
+1765:  - `enqueue_feature_01_price_row` dan `enqueue_feature04_group` (semua jalur antrean F04) melewatkan indeks;
+1766:  - penjaga `stock_feature_index_guard` di `Feature_01_Stock_Daily` dan `Feature_04_Technical_Indicator`;
+1974:  `apps/edge-bff/terminal/src/calc/indicators.ts`, 659 tes paritas lulus (Feature 04, TA-Lib 0.6.8, engine referensi;
+2895:  schema also requires volume NOT NULL; Feature04 engine._valid permits absent
+2902:  OHLC rows inserted with NULL volume and exact source equality. Feature04 initial

@@ -1,0 +1,15 @@
+Security Type | count
+stock | 844
+index | 1
+(2 rows, 503 ms)
+---
+market_board | rows | tickers
+Nego | 130 | 130
+Regular | 865 | 865
+Tunai | 9 | 9
+(3 rows, 221 ms)
+---
+any_board_univ | reg_univ
+832 | 828
+(1 rows, 241 ms)
+---

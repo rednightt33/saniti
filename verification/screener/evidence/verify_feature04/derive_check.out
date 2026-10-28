@@ -1,0 +1,69 @@
+/tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_feature04/derive_check.py:32: RuntimeWarning: divide by zero encountered in divide
+  pctb=(c-lo)/(up-lo); pctb_d=(c-A['bb_lower_20'])/(A['bb_upper_20']-A['bb_lower_20'])
+/tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_feature04/derive_check.py:17: RuntimeWarning: invalid value encountered in subtract
+  d=np.abs(a[m]-b[m])/np.maximum(np.maximum(np.abs(a[m]),np.abs(b[m])),1e-300)
+/tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_feature04/derive_check.py:33: RuntimeWarning: invalid value encountered in subtract
+  print(' %B derived vs BBANDS-based:',rel(pctb_d,pctb), 'abs max', float(np.nanmax(np.abs(pctb_d-pctb))))
+== BBCA 2125 rows
+ stored sma_20 vs talib(full): (2106, 0.0)
+ stored ema_12 vs talib(full): (2114, 0.0)
+ stored ema_200 vs talib(full): (1926, 0.0)
+ stored rsi_14 vs talib(full): (2111, 2.1908259614353134e-16)
+ stored atr_14 vs talib(full): (2111, 0.0)
+ stored adx_14 vs talib(full): (2098, 6.089706240242953e-16)
+ stddev20 derived (upper-middle)/2 vs STDDEV: (2106, 9.600485243458851e-15)
+ natr derived 100*atr/close vs NATR: (2111, 2.8025173316131043e-16)
+ %B derived vs BBANDS-based: (2106, 0.0) abs max 0.0
+ ppo line derived 100*(ema12-ema26)/ema26 vs TA PPO(EMA): (2100, 2.2160253872396542e-16)
+  last-500-bars recompute ema_200: last-bar rel diff 0.0018683913576070176
+  last-500-bars recompute ema_50: last-bar rel diff 3.67577978853002e-10
+  last-500-bars recompute rsi_14: last-bar rel diff 0.0
+  last-500-bars recompute adx_14: last-bar rel diff 1.0603696337317254e-15
+  last-500-bars recompute macd: last-bar rel diff 0.0
+  last-260-bars recompute ema_200: last-bar rel diff 0.013475771027521273
+  last-260-bars recompute ema_50: last-bar rel diff 6.139557755596877e-06
+  last-260-bars recompute rsi_14: last-bar rel diff 5.281669073088107e-10
+  last-260-bars recompute adx_14: last-bar rel diff 2.26338328922875e-08
+  last-260-bars recompute macd: last-bar rel diff 8.59286542957151e-09
+== PBID 2123 rows
+ stored sma_20 vs talib(full): (2104, 0.0)
+ stored ema_12 vs talib(full): (2112, 0.0)
+ stored ema_200 vs talib(full): (1924, 0.0)
+ stored rsi_14 vs talib(full): (2109, 1.5911414953575336e-16)
+ stored atr_14 vs talib(full): (2109, 0.0)
+ stored adx_14 vs talib(full): (2096, 2.0266942293623116e-16)
+ stddev20 derived (upper-middle)/2 vs STDDEV: (2104, 1.2339132876673097e-14)
+ natr derived 100*atr/close vs NATR: (2109, 2.757252338466554e-16)
+ %B derived vs BBANDS-based: (2104, 0.0) abs max 0.0
+ ppo line derived 100*(ema12-ema26)/ema26 vs TA PPO(EMA): (2098, 2.2182868516219297e-16)
+  last-500-bars recompute ema_200: last-bar rel diff 0.0010549280250354153
+  last-500-bars recompute ema_50: last-bar rel diff 2.419102546653171e-10
+  last-500-bars recompute rsi_14: last-bar rel diff 1.3079548768635394e-16
+  last-500-bars recompute adx_14: last-bar rel diff 2.422699990882134e-15
+  last-500-bars recompute macd: last-bar rel diff 0.0
+  last-260-bars recompute ema_200: last-bar rel diff 0.0013368904155336059
+  last-260-bars recompute ema_50: last-bar rel diff 4.6889554092904865e-07
+  last-260-bars recompute rsi_14: last-bar rel diff 6.87185104800458e-11
+  last-260-bars recompute adx_14: last-bar rel diff 6.759801899156662e-08
+  last-260-bars recompute macd: last-bar rel diff 7.062750137944301e-09
+== BNBR 2057 rows
+ stored sma_20 vs talib(full): (2038, 0.0)
+ stored ema_12 vs talib(full): (2046, 0.0)
+ stored ema_200 vs talib(full): (1858, 0.0)
+ stored rsi_14 vs talib(full): (2043, 1.558315867652606e-16)
+ stored atr_14 vs talib(full): (2043, 0.0)
+ stored adx_14 vs talib(full): (2030, 6.519276231927748e-16)
+ stddev20 derived (upper-middle)/2 vs STDDEV: (2038, 1.3092029125732074e-09)
+ natr derived 100*atr/close vs NATR: (2043, 2.746307077035635e-16)
+ %B derived vs BBANDS-based: (2038, nan) abs max 0.0
+ ppo line derived 100*(ema12-ema26)/ema26 vs TA PPO(EMA): (2032, 2.3782348667226285e-16)
+  last-500-bars recompute ema_200: last-bar rel diff 0.001067192962028106
+  last-500-bars recompute ema_50: last-bar rel diff 5.370282276149836e-11
+  last-500-bars recompute rsi_14: last-bar rel diff 0.0
+  last-500-bars recompute adx_14: last-bar rel diff 1.5323278129339786e-15
+  last-500-bars recompute macd: last-bar rel diff 0.0
+  last-260-bars recompute ema_200: last-bar rel diff 0.006464126794043272
+  last-260-bars recompute ema_50: last-bar rel diff 8.29968969902265e-06
+  last-260-bars recompute rsi_14: last-bar rel diff 2.845567467795774e-09
+  last-260-bars recompute adx_14: last-bar rel diff 5.774558804849298e-09
+  last-260-bars recompute macd: last-bar rel diff 4.212292012650954e-09

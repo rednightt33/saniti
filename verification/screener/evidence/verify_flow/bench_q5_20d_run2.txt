@@ -1,0 +1,32 @@
+QUERY PLAN
+Finalize GroupAggregate  (cost=44168.55..44622.99 rows=1466 width=37) (actual time=84.702..102.540 rows=868.00 loops=1)
+  Group Key: ticker
+  Buffers: shared hit=23742
+  ->  Gather Merge  (cost=44168.55..44578.28 rows=3518 width=37) (actual time=84.690..101.941 rows=2555.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=23742
+        ->  Sort  (cost=43168.53..43172.19 rows=1466 width=37) (actual time=62.827..62.865 rows=851.67 loops=3)
+              Sort Key: ticker
+              Sort Method: quicksort  Memory: 99kB
+              Buffers: shared hit=23742
+              Worker 0:  Sort Method: quicksort  Memory: 98kB
+              Worker 1:  Sort Method: quicksort  Memory: 96kB
+              ->  Partial HashAggregate  (cost=43073.11..43091.43 rows=1466 width=37) (actual time=61.879..62.206 rows=851.67 loops=3)
+                    Group Key: ticker
+                    Batches: 1  Memory Usage: 625kB
+                    Buffers: shared hit=23724
+                    Worker 0:  Batches: 1  Memory Usage: 625kB
+                    Worker 1:  Batches: 1  Memory Usage: 369kB
+                    ->  Parallel Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..43035.85 rows=7452 width=11) (actual time=0.032..57
+                          Index Cond: ((trade_date >= '2026-09-30'::date) AND (trade_date <= '2026-10-27'::date))
+                          Filter: ((broker = 'YP'::text) AND (market_board = 'Regular'::text))
+                          Rows Removed by Filter: 156650
+                          Index Searches: 1
+                          Buffers: shared hit=23724
+Planning:
+  Buffers: shared hit=8
+Planning Time: 0.235 ms
+Execution Time: 102.657 ms
+(29 rows, 381 ms)
+---

@@ -1,0 +1,4 @@
+n_dropped | n_dropped_ge_1b | top_examples_rpb
+73 | 27 | BYAN -1206.28 of -1246.00; NATO 190.70 of 190.71; RLCO 136.27 of 138.24; INPP 119.21 of 119.17
+(1 rows, 476 ms)
+---

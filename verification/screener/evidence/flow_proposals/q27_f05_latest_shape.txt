@@ -1,0 +1,6 @@
+market_board | rows | tickers | brokers | zero_rows | freq_null | gap_rows | buy_value_t
+Nego | 338 | 130 | 50 | 0 | 0 | 0 | 1.559
+Regular | 24503 | 865 | 89 | 0 | 0 | 0 | 16.350
+Tunai | 19 | 9 | 7 | 0 | 0 | 0 | 0.000
+(3 rows, 244 ms)
+---

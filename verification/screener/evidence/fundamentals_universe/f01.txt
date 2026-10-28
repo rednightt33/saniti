@@ -1,0 +1,26 @@
+max
+2026-10-27T00:00:00Z
+(1 rows, 254 ms)
+---
+count | count
+828 | 828
+(1 rows, 216 ms)
+---
+min
+2018-01-02T00:00:00Z
+(1 rows, 210 ms)
+---
+min
+2018-01-02T00:00:00Z
+(1 rows, 194 ms)
+---
+min
+2016-01-04T00:00:00Z
+(1 rows, 227 ms)
+---
+reltuples | relname
+2315091 | Feature_03_Stock_Broker_Daily
+1314088 | Price_Stock_Indonesia_IDX
+1328996 | Feature_01_Stock_Daily
+(3 rows, 198 ms)
+---

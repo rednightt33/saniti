@@ -1,0 +1,47 @@
+QUERY PLAN
+Finalize GroupAggregate  (cost=100913.01..101444.38 rows=1728 width=19)
+  Group Key: asset_type, ticker
+  ->  Gather Merge  (cost=100913.01..101396.00 rows=4147 width=19)
+        Workers Planned: 2
+        ->  Sort  (cost=99912.99..99917.31 rows=1728 width=19)
+              Sort Key: asset_type, ticker
+              ->  Partial HashAggregate  (cost=99802.78..99820.06 rows=1728 width=19)
+                    Group Key: asset_type, ticker
+                    ->  Parallel Index Only Scan using "Feature_04_Technical_Indicator_pkey" on "Feature_04_Technical_Indicator"  (cost=0.43..95479.11 rows=576490 width=11)
+JIT:
+  Functions: 5
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+(12 rows, 432 ms)
+---
+asset_type | count | sum | min | max | s18 | later | med | min | max | lt200 | lt750
+bonds | 24 | 60643 | 2016-01-01T00:00:00Z | 2026-10-27T00:00:00Z | 0 | 3 | 2635.5 | 1012 | 2761 | 0 | 0
+equity | 844 | 1328595 | 2018-01-02T00:00:00Z | 2026-10-27T00:00:00Z | 384 | 460 | 1802.5 | 74 | 2125 | 10 | 95
+(2 rows, 1608 ms)
+---
+coalesce | n | n | f | f | l | l
+IHSG | 2127 |  | 2018-01-02T00:00:00Z |  | 2026-10-27T00:00:00Z |
+(1 rows, 898 ms)
+---
+timeframe | is_final | count | count
+Daily | True | 1330722 | 845
+(1 rows, 1429 ms)
+---
+ticker | l
+ADHI | 2026-08-21T00:00:00Z
+PPGL | 2026-09-04T00:00:00Z
+IPAC | 2026-09-10T00:00:00Z
+INPS | 2026-09-16T00:00:00Z
+PTPP | 2026-10-02T00:00:00Z
+XSPI | 2026-10-06T00:00:00Z
+CSMI | 2026-10-06T00:00:00Z
+IGAR | 2026-10-15T00:00:00Z
+TFCO | 2026-10-15T00:00:00Z
+BIKE | 2026-10-19T00:00:00Z
+BSWD | 2026-10-20T00:00:00Z
+MPRO | 2026-10-20T00:00:00Z
+TRUK | 2026-10-21T00:00:00Z
+MASB | 2026-10-22T00:00:00Z
+TGKA | 2026-10-26T00:00:00Z
+MSIN | 2026-10-26T00:00:00Z
+(16 rows, 495 ms)
+---

@@ -1,0 +1,10 @@
+k | n | diff_gt_1pt | diff_gt_5pt | reg_null | ticker | d_all | d_reg
+summary | 828 | 70 | 34 | 1 |  |  |
+largest gaps |  |  |  |  | BYAN | 275.84 | -5.02
+largest gaps |  |  |  |  | MMIX | 58.84 | -5.08
+largest gaps |  |  |  |  | BAJA | -62.19 | -9.96
+largest gaps |  |  |  |  | SKBM | 50.36 | 6.87
+largest gaps |  |  |  |  | TRST | -27.39 | 3.66
+largest gaps |  |  |  |  | TRIM | -15.36 | 14.47
+(7 rows, 959 ms)
+---

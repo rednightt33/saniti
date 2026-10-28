@@ -1,0 +1,69 @@
+/tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/matrix_a/talib_cmp.py:86: RuntimeWarning: invalid value encountered in divide
+  plain = np.concatenate([[np.nan], 100 * (g - ls) / (g + ls)])
+id   output                                   max_rel  absScale nullMis  n>1e-9 first-bar-diff | note
+I01  sma                                     0.00e+00  0.00e+00       0       0 - |
+I02  ema                                     0.00e+00  0.00e+00       0       0 - |
+I03  wma                                     0.00e+00  0.00e+00       0       0 - |
+I03  wma(hlc3,9)                             0.00e+00  0.00e+00       0       0 - |
+I04  hma                                     8.32e-12  1.41e-12       0       0 - | composed from talib.WMA (no TA-Lib HMA)
+I05  kama                                    0.00e+00  0.00e+00       0       0 - |
+I05  kama(hl2,5)                             0.00e+00  0.00e+00       0       0 - |
+I06  macd vs talib.MACD                      7.84e-01  2.61e-02      48     497 ANTM:25vs33,BBCA:25vs33,BEKS:25vs33,BUMI:25vs33,RANS:25vs33, | TA-Lib MACD seeds the fast EMA at the slow lookback
+I06  signal vs talib.MACD                    8.87e-01  6.11e-02       0     528 - |
+I06  histogram vs talib.MACD                 1.59e+00  8.48e-02       0     544 - |
+I06  macd vs talib.MACDEXT(EMA)              7.84e-01  2.61e-02      48     497 ANTM:25vs33,BBCA:25vs33,BEKS:25vs33,BUMI:25vs33,RANS:25vs33, |
+I06  signal vs talib.MACDEXT(EMA)            8.87e-01  6.11e-02       0     528 - |
+I06  macd vs F04 method                      0.00e+00  0.00e+00       0       0 - |
+I06  signal vs F04 method                    0.00e+00  0.00e+00       0       0 - |
+I06  histogram vs F04 method                 0.00e+00  0.00e+00       0       0 - |
+I07  adx                                     0.00e+00  0.00e+00       0       0 - |
+I07  plus_di                                 0.00e+00  0.00e+00       0       0 - |
+I07  minus_di                                0.00e+00  0.00e+00       0       0 - |
+I07  adx 7/7                                 0.00e+00  0.00e+00       0       0 - |
+I07  adx 14/7 vs talib.ADX(7)                7.96e-01  4.41e-01      42    9885 ANTM:20vs13,BBCA:20vs13,BEKS:20vs13,BUMI:20vs13,RANS:20vs13, | no TA-Lib equivalent when di_length != adx_smoothing
+I08  aroon_up                                0.00e+00  0.00e+00       0       0 - |
+I08  aroon_down                              0.00e+00  0.00e+00       0       0 - |
+I10  upper                                   0.00e+00  0.00e+00       0       0 - |
+I10  lower                                   0.00e+00  0.00e+00       0       0 - |
+I10  basis                                   0.00e+00  0.00e+00       0       0 - |
+I11  basis                                   7.26e-16  5.15e-16       0       0 - | composed EMA(20)+-2*ATR(10)
+I11  upper                                   7.40e-16  5.63e-16       0       0 - |
+I11  lower                                   8.03e-16  7.12e-16       0       0 - |
+I12  sar                                     0.00e+00  0.00e+00       0       0 - |
+I12  direction vs sign(SAREXT)               0.00e+00  0.00e+00       0       0 - |
+I12  sar alt 0.01/0.03/0.25 vs |SAREXT|      0.00e+00  0.00e+00       0       0 - |
+I13  rsi                                     0.00e+00  0.00e+00       0       0 - |
+I14  k vs SMA3(STOCHRSI fastk)               0.00e+00  0.00e+00       0       0 - |
+I14  d vs SMA3(SMA3(fastk))                  0.00e+00  0.00e+00       0       0 - |
+I14  k vs talib STOCHRSI fastk (raw)         1.46e+00  6.67e-01       0    9807 - | convention differs: TA-Lib fastk is unsmoothed
+I14  k vs talib STOCHRSI fastd               0.00e+00  0.00e+00       0       0 - | TA-Lib fastd(3,SMA) = SMA3(fastk) = terminal K
+I15  k                                       0.00e+00  0.00e+00       0       0 - |
+I15  d                                       0.00e+00  0.00e+00       0       0 - |
+I15  k 5/1/3                                 0.00e+00  0.00e+00       0       0 - |
+I15  d 5/1/3                                 0.00e+00  0.00e+00       0       0 - |
+I16  williams_r                              3.64e-16  2.84e-16       0       0 - |
+I17  roc                                     0.00e+00  0.00e+00       0       0 - |
+I18  momentum                                0.00e+00  0.00e+00       0       0 - |
+I19  cci                                     0.00e+00  0.00e+00       0       0 - |
+I19  cci 14                                  0.00e+00  0.00e+00       0       0 - |
+I20  cmo vs talib.CMO                        2.00e+00  9.92e-01    1298    9294 BEKS:33vs14 | convention differs: TA-Lib CMO Wilder-smooths
+I20  cmo vs plain-sum (talib.SUM)            1.15e-14  1.64e-16       0       0 - |
+I22  trix                                    0.00e+00  0.00e+00       0       0 - |
+I23  uo                                      0.00e+00  0.00e+00       0       0 - |
+I23  uo 5/10/20                              0.00e+00  0.00e+00       0       0 - |
+I24  ao                                      1.78e+00  6.52e-15       0     452 - | composed MEDPRICE+SMA
+I25  ppo vs PPO(matype=1)                    0.00e+00  0.00e+00       0       0 - |
+I25  signal vs EMA9(PPO)                     0.00e+00  0.00e+00       0       0 - |
+I25  histogram                               0.00e+00  0.00e+00       0       0 - |
+I25  ppo vs PPO default matype=0             2.00e+00  6.03e-01       0   10537 - | TA-Lib default is SMA
+I25  ppo 5/20/4                              0.00e+00  0.00e+00       0       0 - |
+I25  signal 5/20/4                           0.00e+00  0.00e+00       0       0 - |
+I26  bop                                     0.00e+00  0.00e+00       0       0 - |
+I27  upper                                   0.00e+00  0.00e+00       0       0 - |
+I27  basis                                   0.00e+00  0.00e+00       0       0 - |
+I27  lower                                   0.00e+00  0.00e+00       0       0 - |
+I27  upper EMA basis                         0.00e+00  0.00e+00       0       0 - |
+I27  basis EMA                               0.00e+00  0.00e+00       0       0 - |
+I27  upper 10/1.5                            0.00e+00  0.00e+00       0       0 - |
+I27  lower 10/1.5                            0.00e+00  0.00e+00       0       0 - |
+I30  atr (reference)                         0.00e+00  0.00e+00       0       0 - |

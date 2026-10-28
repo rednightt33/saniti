@@ -1,0 +1,7 @@
+BBRI: MACD talib last bar >1e-6*scale: 93; max rel (bars 33..60) 0.265; CMO median|diff|=10.67 p90=25.71 last TS=-20.34 talib=-11.99
+ASII: MACD talib last bar >1e-6*scale: 91; max rel (bars 33..60) 1.499; CMO median|diff|=10.76 p90=25.12 last TS=-9.55 talib=-1.11
+GOTO: MACD talib last bar >1e-6*scale: 107; max rel (bars 33..60) 0.827; CMO median|diff|=12.58 p90=31.84 last TS=-50.00 talib=-56.69
+BLTA: MACD talib last bar >1e-6*scale: 94; max rel (bars 33..60) 0.102; CMO median|diff|=8.57 p90=33.14 last TS=-21.43 talib=-15.15
+PRDL: MACD talib last bar >1e-6*scale: 74; max rel (bars 33..60) 0.068; CMO median|diff|=27.09 p90=50.88 last TS=-49.02 talib=-39.47
+ASPR: MACD talib last bar >1e-6*scale: 81; max rel (bars 33..60) 0.386; CMO median|diff|=8.82 p90=25.45 last TS=8.89 talib=8.17
+WBSA: MACD talib last bar >1e-6*scale: 104; max rel (bars 33..60) 0.235; CMO median|diff|=11.33 p90=41.26 last TS=-40.46 talib=-29.13

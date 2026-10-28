@@ -1,0 +1,32 @@
+now | current_user | ro | st
+2026-10-27T19:32:52.789173Z | pgweb | on | 30s
+(1 rows, 211 ms)
+---
+relname | reltuples | total | heap | last_analyze | last_autoanalyze | n_live_tup | n_dead_tup
+Feature04_Calculation_Log | 11872 | 33 MB | 19 MB |  | 2026-10-27T10:09:03.713421Z | 11963 | 0
+Feature04_Calculation_Queue | 868 | 672 kB | 472 kB |  | 2026-10-27T10:10:02.129647Z | 868 | 192
+Feature04_Calculation_State | 6076 | 18 MB | 6872 kB |  | 2026-10-27T10:09:03.760875Z | 6076 | 957
+Feature04_Column_Status | 44268 | 18 MB | 13 MB |  | 2026-10-27T10:10:02.451309Z | 44268 | 153
+Feature04_Notification_Outbox | 123 | 136 kB | 24 kB |  | 2026-10-27T00:04:46.656711Z | 128 | 68
+Feature04_Retry_Request | -1 | 32 kB | 0 bytes |  |  | 0 | 0
+Feature_04_Technical_Indicator | 1383577 | 2619 MB | 2479 MB | 2026-10-23T05:56:25.324984Z | 2026-10-11T14:39:58.22767Z | 1386117 | 4775
+Feature_04_Technical_Indicator_INDEX | 2127 | 1064 kB | 856 kB | 2026-10-27T14:37:33.63816Z | 2026-10-24T19:13:39.849905Z | 2127 | 0
+Monitoring_Feature04 | 116 | 192 kB | 40 kB |  | 2026-10-27T10:10:02.456534Z | 117 | 3
+Monitoring_Feature04_Ticker | 10289 | 3336 kB | 1576 kB |  | 2026-10-27T10:08:02.573209Z | 10290 | 919
+feature04_backfill_log | 1565 | 760 kB | 632 kB |  | 2026-10-11T06:24:27.91078Z | 1691 | 0
+(11 rows, 224 ms)
+---
+indexname | indexdef
+Feature_04_Technical_Indicator_pkey | CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_pkey" ON public."Feature_04_Technical_Indicator" USING btree (ticker
+Feature_04_Technical_Indicator_trade_date_idx | CREATE INDEX "Feature_04_Technical_Indicator_trade_date_idx" ON public."Feature_04_Technical_Indicator" USING btree (tra
+Feature_04_Technical_Indicator_INDEX_pkey | CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_INDEX_pkey" ON public."Feature_04_Technical_Indicator_INDEX" USING b
+Feature_04_Technical_Indicator_INDEX_trade_date_idx | CREATE INDEX "Feature_04_Technical_Indicator_INDEX_trade_date_idx" ON public."Feature_04_Technical_Indicator_INDEX" USIN
+(4 rows, 217 ms)
+---
+relname | sz | idx_scan | last_idx_scan
+Feature_04_Technical_Indicator_INDEX_pkey | 104 kB | 29814 | 2026-10-27T14:37:33.540859Z
+Feature_04_Technical_Indicator_INDEX_trade_date_idx | 64 kB | 248 | 2026-10-27T14:53:46.542948Z
+Feature_04_Technical_Indicator_pkey | 129 MB | 586223 | 2026-10-27T11:03:44.915911Z
+Feature_04_Technical_Indicator_trade_date_idx | 9848 kB | 2649 | 2026-10-27T19:31:53.841772Z
+(4 rows, 187 ms)
+---

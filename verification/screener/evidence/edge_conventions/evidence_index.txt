@@ -1,0 +1,49 @@
+edge_conventions evidence index (audit 2026-10-27, repo HEAD 3db84ae)
+apps/edge-bff/app/main.py:26-48   COOKIE, STATIC, SCRIPT_NAME, TERMINAL_APP/ASSET/ROUTES, TERMINAL_CSP, BACKTEST_APP, BACKTEST_CSP=TERMINAL_CSP
+apps/edge-bff/app/main.py:57-58   Strict pydantic base extra='forbid'
+apps/edge-bff/app/main.py:200-218 error handlers: {'error':{'code'}}; RequestValidationError->422 INVALID_INPUT; Exception->503 SERVICE_UNAVAILABLE
+apps/edge-bff/app/main.py:220-243 middleware: exact Origin on POST/PATCH/PUT/DELETE, 131072-byte body cap, no-store, nosniff, Referrer-Policy, CSP by path prefix
+apps/edge-bff/app/main.py:245-255 session (cookie hash lookup + owner_key==settings.owner) and write (HMAC CSRF) dependencies; HTTPException -> {"detail":...}
+apps/edge-bff/app/main.py:281-288 SPA paths served index.html: / /index.html /monitor /terminal /backtest /login
+apps/edge-bff/app/main.py:300-305 /{name}.js serves static/<name>.js
+apps/edge-bff/app/main.py:331-359 /terminal-app/, /backtest-app/ pages + hashed assets (immutable cache)
+apps/edge-bff/app/main.py:364-394 terminal gateway (allowlist, x-terminal-proxy-key, pooled AsyncClient timeout 30, JSON relayed verbatim)
+apps/edge-bff/app/main.py:397     backtests.routes(app, session, write)
+apps/edge-bff/app/main.py:399-424 sign-in: process-local limiter 5/min/IP, scrypt, cookie HttpOnly SameSite=Strict Secure(config)
+apps/edge-bff/app/main.py:426-430 /auth/session capabilities
+apps/edge-bff/app/main.py:547-554 POST /api/v1/dev/manual/steps/{id} uses Depends(session) not write (no CSRF; Origin only)
+apps/edge-bff/app/config.py:25-38,69-106 settings + validation (paired url/key, >=32 chars, *.railway.internal http outside local, edge_bff_login required)
+apps/edge-bff/app/store.py:21-29  Store.connect: new psycopg connection per call, SET LOCAL statement_timeout 5s
+apps/edge-bff/app/backtest.py:1-5,53-57,406-419,925-947,949-968,1049-1054  feature module pattern
+apps/edge-bff/app/backtest.py:287-292 relayed calls on event loop (thread pool starvation of session checks)
+apps/edge-bff/Dockerfile:3-33     node:22-slim stages terminal/backtest, python:3.12-slim, COPY --from, uid 10001, uvicorn 1 worker
+apps/edge-bff/.dockerignore       node_modules/tests/dist/static/*-app excluded per sub-app
+apps/edge-bff/static/index.html:10612-10614 nav array; 10653 Shell disabled list; 10796-10808 TerminalPage/BacktestPage iframes (fixed src)
+apps/edge-bff/static/index.html:12432,12447-12448,12460 App currentPath/go/render
+apps/edge-bff/static/index.html:10951,10973 parent->framed page sessionStorage handoff 'edge-side-attach:<id>' (tested tests/test_ask_branch.py:70-84)
+apps/edge-bff/static/index.html:2185-2309,2494-2522,7698-8286,9106 leftover .screener-*/.watchlist-* CSS only
+apps/edge-bff/static/edge-labels.js:129-132 terminal/backtest tab labels
+apps/edge-bff/static/edge-client.js:139 keys removed at load
+apps/edge-bff/backtest/src/app.ts:32-52 boot (catalog -> applyCatalog -> load -> bind -> render); reads no URL/hash/storage for strategy
+apps/edge-bff/backtest/src/state.ts:86-113 S defaults + applyCatalog
+apps/edge-bff/backtest/src/layout.ts:12-31 only ml.bw / ml.panel localStorage
+apps/edge-bff/backtest/src/api/request.ts:24-52 S -> BacktestRequest (no inverse exists)
+apps/edge-bff/backtest/src/api/live.ts:15-57 session/CSRF client, error mapping
+apps/edge-bff/backtest/src/core/catalog.ts:35-56,61-67,123-127 LegacyType/LEGACY ops/LegacyCard/RegCard
+apps/edge-bff/backtest/vite.config.ts base /backtest-app/, IIFE, test modes smoke/fixture
+apps/edge-bff/terminal/src/main.ts:117, data/live.ts:164 'ml.symbol' read at boot; app/indicators.ts:193 'ml.ind.v1'; drawings.ts:42 'ml.drawings.<sym>'
+apps/edge-bff/tests/conftest.py:19-24,32 migrations applied in order; TRUNCATE list; public.market_private probe
+apps/edge-bff/tests/test_backtest.py:1435-1460 tab/CSP test; 1497-1524 image-context test pins COPY list; 1955-2010 Chromium tab test pins ['Monitor','Terminal','Backtest']
+scripts/provision_edge_bff_login.py:10,14,36 TABLES/BACKTEST_GRANTS; refuses any other reachable relation
+database/migrations/20261008_002, 20261012_008, 20261024_002, 20261026_005, 20261027_005 edge_bff migration conventions
+.railway/railway.ts:7-24,158-190 Postgres/E8GM/buckets/terminal-api/feature workers/backtest-worker/edge-bff
+RAILWAY_CHANGELOG.md:3840-3856 edge-bff service c3656044..., domain edge-bff-dev.up.railway.app, EDGE_OWNER=edge-private
+RAILWAY_CHANGELOG.md:4577-4600 gateway vars EDGE_TERMINAL_URL/TERMINAL_PROXY_KEY on edge-bff; bucket CORS edge origin
+RAILWAY_CHANGELOG.md:4688-4727 backtest-worker service 9156a5c3..., CLI upload, private only
+RAILWAY_CHANGELOG.md:4887-4897 M252 skipped deploy after PR merge, manual serviceInstanceDeployV2
+DATABASE_CHANGELOG.md:2690-2702 terminal gateway subscriber 2 quotas TEMPORARY 1e9
+database/migrations/20261025_100_create_terminal_schema.sql:80-83 default quotas 60 files/h,30 tickers/h,150 tickers/day,300 MB/day
+PLAN.md:898-960 BACKTEST-LOAD (touches backtest boot, shared rack loader, edge-bff connection pool)
+PLAN.md:961-980 SCREENER approval scope
+Prototype: 1136 store(localStorage); 1144 MKEY 'edge-metrics'; 1154/1711 'edge-scr-theme'; 1187-1207,1455-1456,1645-1651 'edge-screens'; 1515 'edge-watchlist'; 1656-1673 toBacktest; 1675-1693 openSend '#import=' link; 531 header hidden; 553 Lightweight Charts v5.2.1
+Live DB: live_edge_bff_catalog.txt (same folder)

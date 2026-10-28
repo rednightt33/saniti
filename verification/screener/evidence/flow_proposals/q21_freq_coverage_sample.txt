@@ -1,0 +1,16 @@
+trade_date | rows | freq_null | freq_null_4letter
+2016-06-15T00:00:00Z | 399 | 17 | 0
+2020-06-15T00:00:00Z | 640 | 47 | 0
+2022-06-15T00:00:00Z | 787 | 59 | 0
+2024-06-14T00:00:00Z | 982 | 140 | 0
+2025-06-13T00:00:00Z | 1098 | 222 | 0
+2026-03-16T00:00:00Z | 1328 | 431 | 0
+(6 rows, 2281 ms)
+---
+broker_classification | n | sample
+Institutional-heavy | 25 | AK,BK,CS,DX,KZ,RX
+Mixed | 23 | CC,LG,MG,NI,OD,SQ
+Niche | 45 | AP
+Retail-heavy | 19 | DR,EP,GR,KK,PD,XC,XL,YP,YU,ZP
+(4 rows, 304 ms)
+---

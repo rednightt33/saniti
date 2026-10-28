@@ -1,0 +1,56 @@
+QUERY PLAN
+Nested Loop Left Join  (cost=54409.92..91902.05 rows=200 width=218) (actual time=309.253..547.353 rows=886.00 loops=1)
+  Buffers: shared hit=11525 read=2882, temp read=1092 written=1096
+  ->  GroupAggregate  (cost=54409.50..90212.02 rows=200 width=149) (actual time=309.163..536.528 rows=886.00 loops=1)
+        Group Key: b.ticker
+        Buffers: shared hit=8871 read=2050, temp read=1092 written=1096
+        ->  WindowAgg  (cost=54409.50..83235.11 rows=126753 width=184) (actual time=308.880..527.477 rows=36609.00 loops=1)
+              Window: w3 AS (PARTITION BY b.ticker)
+              Storage: Memory  Maximum Storage: 23kB
+              Buffers: shared hit=8871 read=2050, temp read=1092 written=1096
+              ->  WindowAgg  (cost=54264.82..81333.81 rows=126753 width=120) (actual time=308.303..513.706 rows=36609.00 loops=1)
+                    Window: w2 AS (PARTITION BY b.ticker ORDER BY b.net, b.broker ROWS UNBOUNDED PRECEDING)
+                    Storage: Memory  Maximum Storage: 17kB
+                    Buffers: shared hit=8871 read=2050, temp read=1092 written=1096
+                    ->  Incremental Sort  (cost=54264.61..78798.75 rows=126753 width=112) (actual time=308.298..505.896 rows=36609.00 loops=1)
+                          Sort Key: b.ticker, b.net, b.broker
+                          Presorted Key: b.ticker
+                          Full-sort Groups: 677  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+                          Pre-sorted Groups: 280  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+                          Buffers: shared hit=8871 read=2050, temp read=1092 written=1096
+                          ->  WindowAgg  (cost=54149.30..71311.38 rows=126753 width=112) (actual time=307.645..475.810 rows=36609.00 loops=1)
+                                Window: w1 AS (PARTITION BY b.ticker ORDER BY b.net, b.broker ROWS UNBOUNDED PRECEDING)
+                                Storage: Memory  Maximum Storage: 17kB
+                                Buffers: shared hit=8868 read=2050, temp read=1092 written=1096
+                                ->  Incremental Sort  (cost=54149.17..68776.32 rows=126753 width=104) (actual time=307.633..468.141 rows=36609.00 loops=1)
+                                      Sort Key: b.ticker, b.net DESC, b.broker
+                                      Presorted Key: b.ticker
+                                      Full-sort Groups: 677  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+                                      Pre-sorted Groups: 280  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+                                      Buffers: shared hit=8868 read=2050, temp read=1092 written=1096
+                                      ->  Subquery Scan on b  (cost=54083.64..61288.95 rows=126753 width=104) (actual time=307.064..445.878 rows=36609.00 loops=1)
+                                            Buffers: shared hit=8868 read=2050, temp read=1092 written=1096
+                                            ->  GroupAggregate  (cost=54083.64..60021.42 rows=126753 width=136) (actual time=307.061..442.875 rows=36609.00 loops=1)
+                                                  Group Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                  Buffers: shared hit=8868 read=2050, temp read=1092 written=1096
+                                                  ->  Sort  (cost=54083.64..54703.58 rows=247973 width=24) (actual time=307.019..365.721 rows=243193.00 loops=1)
+                                                        Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                        Sort Method: external merge  Disk: 8736kB
+                                                        Buffers: shared hit=8868 read=2050, temp read=1092 written=1096
+                                                        ->  Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..26779.98 rows=247973 width=24) (actual time=0.194..69.637 rows=243193.00 loops=1)
+                                                              Index Cond: ((trade_date >= '2026-10-14'::date) AND (trade_date <= '2026-10-27'::date))
+                                                              Filter: (market_board = 'Regular'::text)
+                                                              Rows Removed by Filter: 2794
+                                                              Index Searches: 1
+                                                              Buffers: shared hit=8868 read=2050
+  ->  Index Scan using "Price_Stock_Indonesia_IDX_pkey" on "Price_Stock_Indonesia_IDX" p  (cost=0.43..8.43 rows=1 width=10) (actual time=0.011..0.011 rows=0.93 loops=886)
+        Index Cond: (((ticker)::text = b.ticker) AND (date = '2026-10-27'::date))
+        Filter: ((timeframe)::text = 'Daily'::text)
+        Index Searches: 886
+        Buffers: shared hit=2654 read=832
+Planning:
+  Buffers: shared hit=125 read=13
+Planning Time: 7.067 ms
+Execution Time: 549.040 ms
+(53 rows, 776 ms)
+---

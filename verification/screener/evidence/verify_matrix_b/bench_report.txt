@@ -1,0 +1,2 @@
+bars 2125 all26_ms 4.69 max vwap:0.396 cmf:0.366 hist_vol:0.311 bollinger_width:0.284
+market estimate s (x 1330722/2125): 2.94

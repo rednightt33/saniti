@@ -1,0 +1,20 @@
+QUERY PLAN
+GroupAggregate  (cost=12349.43..12437.03 rows=1384 width=109) (actual time=29.362..30.624 rows=855.00 loops=1)
+  Group Key: ticker
+  Buffers: shared hit=4564
+  ->  Sort  (cost=12349.43..12360.00 rows=4225 width=25) (actual time=29.335..29.487 rows=4472.00 loops=1)
+        Sort Key: ticker, trade_date
+        Sort Method: quicksort  Memory: 403kB
+        Buffers: shared hit=4564
+        ->  Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..12094.99 rows=4225 width=25) (actual time=0.046..25.539 rows=4472.00 loops=1)
+              Index Cond: ((trade_date >= '2026-10-21'::date) AND (trade_date <= '2026-10-27'::date))
+              Filter: (broker = 'YP'::text)
+              Rows Removed by Filter: 117170
+              Index Searches: 1
+              Buffers: shared hit=4564
+Planning:
+  Buffers: shared hit=8
+Planning Time: 0.255 ms
+Execution Time: 30.710 ms
+(17 rows, 269 ms)
+---

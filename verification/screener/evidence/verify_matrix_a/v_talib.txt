@@ -1,0 +1,462 @@
+== BBRI bars=2125
+  I01 SMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I02 EMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I03 WMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I03 WMA hlc3 9                             fvTS=8 fvTL=8 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2117
+  I04 HMA9 via talib.WMA floor               fvTS=10 fvTL=10 nullMis=0 maxRel=8.67e-12 maxAbs=2.26e-08 n=2115
+  I04 HMA16 via talib.WMA floor              fvTS=18 fvTL=18 nullMis=0 maxRel=2.78e-12 maxAbs=7.58e-09 n=2107
+  I04 HMA7 via talib.WMA floor               fvTS=7 fvTL=7 nullMis=0 maxRel=1.45e-12 maxAbs=3.66e-09 n=2118
+  I04 HMA7 via round(sqrt)                   fvTS=7 fvTL=8 nullMis=1 maxRel=4.46e-02 maxAbs=1.29e+02 n=2117
+  I05 KAMA                                   fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2115
+  I05 KAMA hl2 5                             fvTS=5 fvTL=5 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2120
+  I05 KAMA fast3/slow20 vs talib KAMA10      fvTS=10 fvTL=10 nullMis=0 maxRel=1.07e-01 maxAbs=3.45e+02 n=2115
+  I06 macd vs talib.MACD                     fvTS=25 fvTL=33 nullMis=8 maxRel=2.65e-01 maxAbs=9.78e+00 maxAbs/scale=2.26e-02 n=2092
+  I06 signal vs talib.MACD                   fvTS=33 fvTL=33 nullMis=0 maxRel=1.49e+00 maxAbs=2.09e+01 n=2092
+  I06 macd EMA-EMA build                     fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2100
+  I06 signal build                           fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2092
+  I06 hist build                             fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2092
+  I06 macd vs MACDEXT(EMA)                   fvTS=25 fvTL=33 nullMis=8 maxRel=2.65e-01 maxAbs=9.78e+00 n=2092
+  I07 ADX                                    fvTS=27 fvTL=27 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2098
+  I07 +DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I07 -DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I07 ADX 7/7                                fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2112
+  I07 ADX 14/7 vs ADX14                      fvTS=20 fvTL=27 nullMis=7 maxRel=5.20e-01 maxAbs=1.38e+01 maxAbs/scale=1.38e-01 n=2098
+  I08 aroon_up                               fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I08 aroon_down                             fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I10 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I10 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I10 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I11 keltner upper ~ EMA20+2ATR10           fvTS=19 fvTL=19 nullMis=0 maxRel=5.75e-16 maxAbs=2.73e-12 n=2106
+  I11 keltner basis ~ EMA20                  fvTS=19 fvTL=19 nullMis=0 maxRel=5.97e-16 maxAbs=2.73e-12 n=2106
+  I12 SAR                                    fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2124
+  I12 direction vs sign(SAREXT)              fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2124
+  I12 alt |SAREXT|                           fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2124
+  I13 RSI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I14 K vs STOCHRSI fastd                    fvTS=29 fvTL=29 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=2096
+  I14 K vs STOCHRSI fastk                    fvTS=29 fvTL=29 nullMis=0 maxRel=1.60e+00 maxAbs=6.67e+01 maxAbs/scale=6.67e-01 n=2096
+  I14 D vs SMA(fastd,3)                      fvTS=31 fvTL=31 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2094
+  I15 K                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2108
+  I15 D                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2108
+  I15 5/1/3 K                                fvTS=6 fvTL=6 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2119
+  I16 WILLR                                  fvTS=13 fvTL=13 nullMis=0 maxRel=3.11e-16 maxAbs=2.84e-14 n=2112
+  I17 ROC                                    fvTS=9 fvTL=9 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2116
+  I18 MOM                                    fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2115
+  I19 CCI                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I19 CCI14                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2112
+  I20 CMO vs talib.CMO                       fvTS=14 fvTL=14 nullMis=0 maxRel=1.98e+00 maxAbs=4.72e+01 maxAbs/scale=4.72e-01 n=2111
+  I20 CMO plain-sum build                    fvTS=14 fvTL=14 nullMis=0 maxRel=5.78e-15 maxAbs=1.42e-14 n=2111
+  I22 TRIX                                   fvTS=43 fvTL=43 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2082
+  I23 ULTOSC                                 fvTS=28 fvTL=28 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2097
+  I23 desc periods vs ULTOSC(7,14,28)        fvTS=28 fvTL=28 nullMis=0 maxRel=4.07e-01 maxAbs=1.49e+01 maxAbs/scale=1.49e-01 n=2097
+  I24 AO ~ SMA(MED,5)-SMA(MED,34)            fvTS=33 fvTL=33 nullMis=0 maxRel=2.38e-11 maxAbs=9.09e-12 maxAbs/scale=1.42e-15 n=2092
+  I25 PPO matype1                            fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2100
+  I25 signal EMA(ppo,9)                      fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2092
+  I25 PPO matype0 (default)                  fvTS=25 fvTL=25 nullMis=0 maxRel=1.99e+00 maxAbs=8.07e+00 maxAbs/scale=8.07e+00 n=2100
+  I25 PPO 5/20 matype1                       fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I25 PPO fast26/slow12 vs talib(26,12)      fvTS=25 fvTL=25 nullMis=0 maxRel=2.00e+00 maxAbs=2.61e+01 maxAbs/scale=2.61e+01 n=2100
+  I25 PPO line vs 100*macd/ema26             fvTS=25 fvTL=25 nullMis=0 maxRel=2.42e-16 maxAbs=1.78e-15 n=2100
+  I26 BOP                                    fvTS=0 fvTL=0 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2125
+  I27 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 EMA basis upper vs matype1             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 EMA basis vs matype1                   fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 WMA basis upper vs matype2             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I30 ATR14                                  fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I30 ATR10                                  fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2115
+== ASII bars=2125
+  I01 SMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I02 EMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I03 WMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I03 WMA hlc3 9                             fvTS=8 fvTL=8 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2117
+  I04 HMA9 via talib.WMA floor               fvTS=10 fvTL=10 nullMis=0 maxRel=8.07e-13 maxAbs=3.60e-09 n=2115
+  I04 HMA16 via talib.WMA floor              fvTS=18 fvTL=18 nullMis=0 maxRel=3.46e-12 maxAbs=1.52e-08 n=2107
+  I04 HMA7 via talib.WMA floor               fvTS=7 fvTL=7 nullMis=0 maxRel=1.26e-12 maxAbs=5.21e-09 n=2118
+  I04 HMA7 via round(sqrt)                   fvTS=7 fvTL=8 nullMis=1 maxRel=3.16e-02 maxAbs=1.62e+02 n=2117
+  I05 KAMA                                   fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2115
+  I05 KAMA hl2 5                             fvTS=5 fvTL=5 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2120
+  I05 KAMA fast3/slow20 vs talib KAMA10      fvTS=10 fvTL=10 nullMis=0 maxRel=1.20e-01 maxAbs=5.01e+02 n=2115
+  I06 macd vs talib.MACD                     fvTS=25 fvTL=33 nullMis=8 maxRel=1.50e+00 maxAbs=1.23e+01 maxAbs/scale=1.80e-02 n=2092
+  I06 signal vs talib.MACD                   fvTS=33 fvTL=33 nullMis=0 maxRel=1.66e+00 maxAbs=2.64e+01 n=2092
+  I06 macd EMA-EMA build                     fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2100
+  I06 signal build                           fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2092
+  I06 hist build                             fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2092
+  I06 macd vs MACDEXT(EMA)                   fvTS=25 fvTL=33 nullMis=8 maxRel=1.50e+00 maxAbs=1.23e+01 n=2092
+  I07 ADX                                    fvTS=27 fvTL=27 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2098
+  I07 +DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I07 -DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I07 ADX 7/7                                fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2112
+  I07 ADX 14/7 vs ADX14                      fvTS=20 fvTL=27 nullMis=7 maxRel=4.40e-01 maxAbs=1.42e+01 maxAbs/scale=1.42e-01 n=2098
+  I08 aroon_up                               fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I08 aroon_down                             fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I10 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I10 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I10 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I11 keltner upper ~ EMA20+2ATR10           fvTS=19 fvTL=19 nullMis=0 maxRel=7.02e-16 maxAbs=3.64e-12 n=2106
+  I11 keltner basis ~ EMA20                  fvTS=19 fvTL=19 nullMis=0 maxRel=6.39e-16 maxAbs=3.64e-12 n=2106
+  I12 SAR                                    fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2124
+  I12 direction vs sign(SAREXT)              fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2124
+  I12 alt |SAREXT|                           fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2124
+  I13 RSI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I14 K vs STOCHRSI fastd                    fvTS=29 fvTL=29 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=2096
+  I14 K vs STOCHRSI fastk                    fvTS=29 fvTL=29 nullMis=0 maxRel=1.44e+00 maxAbs=6.67e+01 maxAbs/scale=6.67e-01 n=2096
+  I14 D vs SMA(fastd,3)                      fvTS=31 fvTL=31 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2094
+  I15 K                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2108
+  I15 D                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2108
+  I15 5/1/3 K                                fvTS=6 fvTL=6 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2119
+  I16 WILLR                                  fvTS=13 fvTL=13 nullMis=0 maxRel=2.84e-16 maxAbs=1.42e-14 n=2112
+  I17 ROC                                    fvTS=9 fvTL=9 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2116
+  I18 MOM                                    fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2115
+  I19 CCI                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I19 CCI14                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2112
+  I20 CMO vs talib.CMO                       fvTS=14 fvTL=14 nullMis=0 maxRel=2.00e+00 maxAbs=5.67e+01 maxAbs/scale=5.67e-01 n=2111
+  I20 CMO plain-sum build                    fvTS=14 fvTL=14 nullMis=0 maxRel=1.15e-14 maxAbs=1.42e-14 n=2111
+  I22 TRIX                                   fvTS=43 fvTL=43 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2082
+  I23 ULTOSC                                 fvTS=28 fvTL=28 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2097
+  I23 desc periods vs ULTOSC(7,14,28)        fvTS=28 fvTL=28 nullMis=0 maxRel=4.25e-01 maxAbs=1.92e+01 maxAbs/scale=1.92e-01 n=2097
+  I24 AO ~ SMA(MED,5)-SMA(MED,34)            fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=2092
+  I25 PPO matype1                            fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2100
+  I25 signal EMA(ppo,9)                      fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2092
+  I25 PPO matype0 (default)                  fvTS=25 fvTL=25 nullMis=0 maxRel=2.00e+00 maxAbs=6.81e+00 maxAbs/scale=6.81e+00 n=2100
+  I25 PPO 5/20 matype1                       fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I25 PPO fast26/slow12 vs talib(26,12)      fvTS=25 fvTL=25 nullMis=0 maxRel=2.00e+00 maxAbs=3.05e+01 maxAbs/scale=3.05e+01 n=2100
+  I25 PPO line vs 100*macd/ema26             fvTS=25 fvTL=25 nullMis=0 maxRel=2.53e-16 maxAbs=1.78e-15 n=2100
+  I26 BOP                                    fvTS=0 fvTL=0 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2125
+  I27 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 EMA basis upper vs matype1             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 EMA basis vs matype1                   fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I27 WMA basis upper vs matype2             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2106
+  I30 ATR14                                  fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2111
+  I30 ATR10                                  fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=2115
+== GOTO bars=1084
+  I01 SMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I02 EMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I03 WMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I03 WMA hlc3 9                             fvTS=8 fvTL=8 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1076
+  I04 HMA9 via talib.WMA floor               fvTS=10 fvTL=10 nullMis=0 maxRel=7.92e-13 maxAbs=1.94e-11 n=1074
+  I04 HMA16 via talib.WMA floor              fvTS=18 fvTL=18 nullMis=0 maxRel=2.61e-12 maxAbs=6.33e-11 n=1066
+  I04 HMA7 via talib.WMA floor               fvTS=7 fvTL=7 nullMis=0 maxRel=4.81e-12 maxAbs=1.17e-10 n=1077
+  I04 HMA7 via round(sqrt)                   fvTS=7 fvTL=8 nullMis=1 maxRel=7.53e-02 maxAbs=1.57e+01 n=1076
+  I05 KAMA                                   fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1074
+  I05 KAMA hl2 5                             fvTS=5 fvTL=5 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1079
+  I05 KAMA fast3/slow20 vs talib KAMA10      fvTS=10 fvTL=10 nullMis=0 maxRel=1.38e-01 maxAbs=2.50e+01 n=1074
+  I06 macd vs talib.MACD                     fvTS=25 fvTL=33 nullMis=8 maxRel=8.27e-01 maxAbs=6.97e+00 maxAbs/scale=2.36e-01 n=1051
+  I06 signal vs talib.MACD                   fvTS=33 fvTL=33 nullMis=0 maxRel=1.93e+00 maxAbs=1.49e+01 n=1051
+  I06 macd EMA-EMA build                     fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1059
+  I06 signal build                           fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1051
+  I06 hist build                             fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1051
+  I06 macd vs MACDEXT(EMA)                   fvTS=25 fvTL=33 nullMis=8 maxRel=8.27e-01 maxAbs=6.97e+00 n=1051
+  I07 ADX                                    fvTS=27 fvTL=27 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1057
+  I07 +DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1070
+  I07 -DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1070
+  I07 ADX 7/7                                fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1071
+  I07 ADX 14/7 vs ADX14                      fvTS=20 fvTL=27 nullMis=7 maxRel=5.91e-01 maxAbs=2.32e+01 maxAbs/scale=2.32e-01 n=1057
+  I08 aroon_up                               fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1070
+  I08 aroon_down                             fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1070
+  I10 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I10 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I10 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I11 keltner upper ~ EMA20+2ATR10           fvTS=19 fvTL=19 nullMis=0 maxRel=7.16e-16 maxAbs=2.27e-13 n=1065
+  I11 keltner basis ~ EMA20                  fvTS=19 fvTL=19 nullMis=0 maxRel=7.02e-16 maxAbs=2.27e-13 n=1065
+  I12 SAR                                    fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1083
+  I12 direction vs sign(SAREXT)              fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1083
+  I12 alt |SAREXT|                           fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1083
+  I13 RSI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1070
+  I14 K vs STOCHRSI fastd                    fvTS=29 fvTL=29 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=1055
+  I14 K vs STOCHRSI fastk                    fvTS=29 fvTL=29 nullMis=0 maxRel=1.00e+00 maxAbs=6.67e+01 maxAbs/scale=6.67e-01 n=1055
+  I14 D vs SMA(fastd,3)                      fvTS=31 fvTL=31 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1053
+  I15 K                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1067
+  I15 D                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1067
+  I15 5/1/3 K                                fvTS=6 fvTL=6 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1078
+  I16 WILLR                                  fvTS=13 fvTL=13 nullMis=0 maxRel=2.24e-16 maxAbs=1.42e-14 n=1071
+  I17 ROC                                    fvTS=9 fvTL=9 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1075
+  I18 MOM                                    fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1074
+  I19 CCI                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I19 CCI14                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1071
+  I20 CMO vs talib.CMO                       fvTS=14 fvTL=14 nullMis=82 maxRel=1.99e+00 maxAbs=1.22e+02 maxAbs/scale=1.22e+00 n=988
+  I20 CMO plain-sum build                    fvTS=14 fvTL=14 nullMis=0 maxRel=1.73e-15 maxAbs=1.42e-14 n=988
+  I22 TRIX                                   fvTS=43 fvTL=43 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1041
+  I23 ULTOSC                                 fvTS=28 fvTL=28 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1056
+  I23 desc periods vs ULTOSC(7,14,28)        fvTS=28 fvTL=28 nullMis=0 maxRel=7.50e-01 maxAbs=1.86e+01 maxAbs/scale=1.86e-01 n=1056
+  I24 AO ~ SMA(MED,5)-SMA(MED,34)            fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=1051
+  I25 PPO matype1                            fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1059
+  I25 signal EMA(ppo,9)                      fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1051
+  I25 PPO matype0 (default)                  fvTS=25 fvTL=25 nullMis=0 maxRel=1.99e+00 maxAbs=1.22e+01 maxAbs/scale=1.22e+01 n=1059
+  I25 PPO 5/20 matype1                       fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I25 PPO fast26/slow12 vs talib(26,12)      fvTS=25 fvTL=25 nullMis=0 maxRel=2.00e+00 maxAbs=4.68e+01 maxAbs/scale=4.68e+01 n=1059
+  I25 PPO line vs 100*macd/ema26             fvTS=25 fvTL=25 nullMis=0 maxRel=2.84e-16 maxAbs=3.55e-15 n=1059
+  I26 BOP                                    fvTS=0 fvTL=0 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1084
+  I27 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I27 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I27 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I27 EMA basis upper vs matype1             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I27 EMA basis vs matype1                   fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I27 WMA basis upper vs matype2             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1065
+  I30 ATR14                                  fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1070
+  I30 ATR10                                  fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1074
+== BLTA bars=1684
+  I01 SMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I02 EMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I03 WMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I03 WMA hlc3 9                             fvTS=8 fvTL=8 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1676
+  I04 HMA9 via talib.WMA floor               fvTS=10 fvTL=10 nullMis=0 maxRel=4.21e-13 maxAbs=1.19e-11 n=1674
+  I04 HMA16 via talib.WMA floor              fvTS=18 fvTL=18 nullMis=0 maxRel=1.73e-13 maxAbs=5.24e-12 n=1666
+  I04 HMA7 via talib.WMA floor               fvTS=7 fvTL=7 nullMis=0 maxRel=2.32e-13 maxAbs=6.68e-12 n=1677
+  I04 HMA7 via round(sqrt)                   fvTS=7 fvTL=8 nullMis=1 maxRel=4.63e-02 maxAbs=1.96e+00 n=1676
+  I05 KAMA                                   fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1674
+  I05 KAMA hl2 5                             fvTS=5 fvTL=5 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1679
+  I05 KAMA fast3/slow20 vs talib KAMA10      fvTS=10 fvTL=10 nullMis=0 maxRel=1.62e-01 maxAbs=6.42e+00 n=1674
+  I06 macd vs talib.MACD                     fvTS=25 fvTL=33 nullMis=8 maxRel=5.00e-01 maxAbs=2.47e-01 maxAbs/scale=2.88e-02 n=1651
+  I06 signal vs talib.MACD                   fvTS=33 fvTL=33 nullMis=0 maxRel=5.00e-01 maxAbs=5.28e-01 n=1651
+  I06 macd EMA-EMA build                     fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1659
+  I06 signal build                           fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1651
+  I06 hist build                             fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1651
+  I06 macd vs MACDEXT(EMA)                   fvTS=25 fvTL=33 nullMis=8 maxRel=5.00e-01 maxAbs=2.47e-01 n=1651
+  I07 ADX                                    fvTS=27 fvTL=27 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1657
+  I07 +DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1670
+  I07 -DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1670
+  I07 ADX 7/7                                fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1671
+  I07 ADX 14/7 vs ADX14                      fvTS=20 fvTL=27 nullMis=7 maxRel=3.87e-01 maxAbs=1.41e+01 maxAbs/scale=1.41e-01 n=1657
+  I08 aroon_up                               fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1670
+  I08 aroon_down                             fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1670
+  I10 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I10 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I10 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I11 keltner upper ~ EMA20+2ATR10           fvTS=19 fvTL=19 nullMis=0 maxRel=6.63e-16 maxAbs=2.84e-14 n=1665
+  I11 keltner basis ~ EMA20                  fvTS=19 fvTL=19 nullMis=0 maxRel=6.27e-16 maxAbs=2.84e-14 n=1665
+  I12 SAR                                    fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1683
+  I12 direction vs sign(SAREXT)              fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1683
+  I12 alt |SAREXT|                           fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1683
+  I13 RSI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1670
+  I14 K vs STOCHRSI fastd                    fvTS=29 fvTL=29 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=1655
+  I14 K vs STOCHRSI fastk                    fvTS=29 fvTL=29 nullMis=0 maxRel=1.00e+00 maxAbs=6.67e+01 maxAbs/scale=6.67e-01 n=1655
+  I14 D vs SMA(fastd,3)                      fvTS=31 fvTL=31 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1653
+  I15 K                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1667
+  I15 D                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1667
+  I15 5/1/3 K                                fvTS=6 fvTL=6 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1678
+  I16 WILLR                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1671
+  I17 ROC                                    fvTS=9 fvTL=9 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1675
+  I18 MOM                                    fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1674
+  I19 CCI                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I19 CCI14                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1671
+  I20 CMO vs talib.CMO                       fvTS=14 fvTL=14 nullMis=1057 maxRel=1.99e+00 maxAbs=9.98e+01 maxAbs/scale=9.98e-01 n=613
+  I20 CMO plain-sum build                    fvTS=14 fvTL=14 nullMis=0 maxRel=3.73e-16 maxAbs=1.42e-14 n=613
+  I22 TRIX                                   fvTS=43 fvTL=43 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1641
+  I23 ULTOSC                                 fvTS=28 fvTL=28 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1656
+  I23 desc periods vs ULTOSC(7,14,28)        fvTS=28 fvTL=28 nullMis=0 maxRel=5.64e-01 maxAbs=2.63e+01 maxAbs/scale=2.63e-01 n=1656
+  I24 AO ~ SMA(MED,5)-SMA(MED,34)            fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=1651
+  I25 PPO matype1                            fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1659
+  I25 signal EMA(ppo,9)                      fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1651
+  I25 PPO matype0 (default)                  fvTS=25 fvTL=25 nullMis=0 maxRel=1.96e+00 maxAbs=1.54e+01 maxAbs/scale=1.54e+01 n=1659
+  I25 PPO 5/20 matype1                       fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I25 PPO fast26/slow12 vs talib(26,12)      fvTS=25 fvTL=25 nullMis=0 maxRel=2.00e+00 maxAbs=6.25e+01 maxAbs/scale=6.25e+01 n=1659
+  I25 PPO line vs 100*macd/ema26             fvTS=25 fvTL=25 nullMis=0 maxRel=2.72e-16 maxAbs=3.55e-15 n=1659
+  I26 BOP                                    fvTS=0 fvTL=0 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1684
+  I27 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I27 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I27 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I27 EMA basis upper vs matype1             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I27 EMA basis vs matype1                   fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I27 WMA basis upper vs matype2             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1665
+  I30 ATR14                                  fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1670
+  I30 ATR10                                  fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=1674
+== PRDL bars=75
+  I01 SMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I02 EMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I03 WMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I03 WMA hlc3 9                             fvTS=8 fvTL=8 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=67
+  I04 HMA9 via talib.WMA floor               fvTS=10 fvTL=10 nullMis=0 maxRel=7.83e-15 maxAbs=1.05e-12 n=65
+  I04 HMA16 via talib.WMA floor              fvTS=18 fvTL=18 nullMis=0 maxRel=1.39e-14 maxAbs=1.75e-12 n=57
+  I04 HMA7 via talib.WMA floor               fvTS=7 fvTL=7 nullMis=0 maxRel=3.05e-15 maxAbs=7.96e-13 n=68
+  I04 HMA7 via round(sqrt)                   fvTS=7 fvTL=8 nullMis=1 maxRel=7.13e-02 maxAbs=2.49e+01 n=67
+  I05 KAMA                                   fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=65
+  I05 KAMA hl2 5                             fvTS=5 fvTL=5 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=70
+  I05 KAMA fast3/slow20 vs talib KAMA10      fvTS=10 fvTL=10 nullMis=0 maxRel=9.58e-02 maxAbs=1.59e+01 n=65
+  I06 macd vs talib.MACD                     fvTS=25 fvTL=33 nullMis=8 maxRel=6.76e-02 maxAbs=1.08e+00 maxAbs/scale=4.36e-02 n=42
+  I06 signal vs talib.MACD                   fvTS=33 fvTL=33 nullMis=0 maxRel=1.44e-01 maxAbs=2.30e+00 n=42
+  I06 macd EMA-EMA build                     fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=50
+  I06 signal build                           fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=42
+  I06 hist build                             fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=42
+  I06 macd vs MACDEXT(EMA)                   fvTS=25 fvTL=33 nullMis=8 maxRel=6.76e-02 maxAbs=1.08e+00 n=42
+  I07 ADX                                    fvTS=27 fvTL=27 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=48
+  I07 +DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=61
+  I07 -DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=61
+  I07 ADX 7/7                                fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=62
+  I07 ADX 14/7 vs ADX14                      fvTS=20 fvTL=27 nullMis=7 maxRel=3.78e-01 maxAbs=6.49e+00 maxAbs/scale=6.49e-02 n=48
+  I08 aroon_up                               fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=61
+  I08 aroon_down                             fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=61
+  I10 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I10 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I10 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I11 keltner upper ~ EMA20+2ATR10           fvTS=19 fvTL=19 nullMis=0 maxRel=3.10e-16 maxAbs=5.68e-14 n=56
+  I11 keltner basis ~ EMA20                  fvTS=19 fvTL=19 nullMis=0 maxRel=3.63e-16 maxAbs=5.68e-14 n=56
+  I12 SAR                                    fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=74
+  I12 direction vs sign(SAREXT)              fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=74
+  I12 alt |SAREXT|                           fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=74
+  I13 RSI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=61
+  I14 K vs STOCHRSI fastd                    fvTS=29 fvTL=29 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=46
+  I14 K vs STOCHRSI fastk                    fvTS=29 fvTL=29 nullMis=0 maxRel=1.00e+00 maxAbs=4.40e+01 maxAbs/scale=4.40e-01 n=46
+  I14 D vs SMA(fastd,3)                      fvTS=31 fvTL=31 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=44
+  I15 K                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=58
+  I15 D                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=58
+  I15 5/1/3 K                                fvTS=6 fvTL=6 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=69
+  I16 WILLR                                  fvTS=13 fvTL=13 nullMis=0 maxRel=2.84e-16 maxAbs=2.84e-14 n=62
+  I17 ROC                                    fvTS=9 fvTL=9 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=66
+  I18 MOM                                    fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=65
+  I19 CCI                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I19 CCI14                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=62
+  I20 CMO vs talib.CMO                       fvTS=14 fvTL=14 nullMis=0 maxRel=1.96e+00 maxAbs=8.37e+01 maxAbs/scale=8.37e-01 n=61
+  I20 CMO plain-sum build                    fvTS=14 fvTL=14 nullMis=0 maxRel=8.39e-16 maxAbs=1.42e-14 n=61
+  I22 TRIX                                   fvTS=43 fvTL=43 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=32
+  I23 ULTOSC                                 fvTS=28 fvTL=28 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=47
+  I23 desc periods vs ULTOSC(7,14,28)        fvTS=28 fvTL=28 nullMis=0 maxRel=3.08e-01 maxAbs=1.02e+01 maxAbs/scale=1.02e-01 n=47
+  I24 AO ~ SMA(MED,5)-SMA(MED,34)            fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=42
+  I25 PPO matype1                            fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=50
+  I25 signal EMA(ppo,9)                      fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=42
+  I25 PPO matype0 (default)                  fvTS=25 fvTL=25 nullMis=0 maxRel=3.09e-01 maxAbs=3.34e+00 maxAbs/scale=3.34e+00 n=50
+  I25 PPO 5/20 matype1                       fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I25 PPO fast26/slow12 vs talib(26,12)      fvTS=25 fvTL=25 nullMis=0 maxRel=1.96e+00 maxAbs=3.01e+01 maxAbs/scale=3.01e+01 n=50
+  I25 PPO line vs 100*macd/ema26             fvTS=25 fvTL=25 nullMis=0 maxRel=2.15e-16 maxAbs=1.78e-15 n=50
+  I26 BOP                                    fvTS=0 fvTL=0 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=75
+  I27 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I27 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I27 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I27 EMA basis upper vs matype1             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I27 EMA basis vs matype1                   fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I27 WMA basis upper vs matype2             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=56
+  I30 ATR14                                  fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=61
+  I30 ATR10                                  fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=65
+== ASPR bars=308
+  I01 SMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I02 EMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I03 WMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I03 WMA hlc3 9                             fvTS=8 fvTL=8 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=300
+  I04 HMA9 via talib.WMA floor               fvTS=10 fvTL=10 nullMis=0 maxRel=3.67e-14 maxAbs=4.77e-12 n=298
+  I04 HMA16 via talib.WMA floor              fvTS=18 fvTL=18 nullMis=0 maxRel=1.05e-13 maxAbs=1.44e-11 n=290
+  I04 HMA7 via talib.WMA floor               fvTS=7 fvTL=7 nullMis=0 maxRel=2.28e-13 maxAbs=2.69e-11 n=301
+  I04 HMA7 via round(sqrt)                   fvTS=7 fvTL=8 nullMis=1 maxRel=9.49e-02 maxAbs=3.41e+01 n=300
+  I05 KAMA                                   fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=298
+  I05 KAMA hl2 5                             fvTS=5 fvTL=5 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=303
+  I05 KAMA fast3/slow20 vs talib KAMA10      fvTS=10 fvTL=10 nullMis=0 maxRel=1.85e-01 maxAbs=7.83e+01 n=298
+  I06 macd vs talib.MACD                     fvTS=25 fvTL=33 nullMis=8 maxRel=3.86e-01 maxAbs=2.51e-01 maxAbs/scale=3.50e-03 n=275
+  I06 signal vs talib.MACD                   fvTS=33 fvTL=33 nullMis=0 maxRel=2.57e-01 maxAbs=5.36e-01 n=275
+  I06 macd EMA-EMA build                     fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=283
+  I06 signal build                           fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=275
+  I06 hist build                             fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=275
+  I06 macd vs MACDEXT(EMA)                   fvTS=25 fvTL=33 nullMis=8 maxRel=3.86e-01 maxAbs=2.51e-01 n=275
+  I07 ADX                                    fvTS=27 fvTL=27 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=281
+  I07 +DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=294
+  I07 -DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=294
+  I07 ADX 7/7                                fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=295
+  I07 ADX 14/7 vs ADX14                      fvTS=20 fvTL=27 nullMis=7 maxRel=6.27e-01 maxAbs=1.59e+01 maxAbs/scale=1.59e-01 n=281
+  I08 aroon_up                               fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=294
+  I08 aroon_down                             fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=294
+  I10 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I10 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I10 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I11 keltner upper ~ EMA20+2ATR10           fvTS=19 fvTL=19 nullMis=0 maxRel=3.55e-16 maxAbs=1.14e-13 n=289
+  I11 keltner basis ~ EMA20                  fvTS=19 fvTL=19 nullMis=0 maxRel=3.82e-16 maxAbs=1.14e-13 n=289
+  I12 SAR                                    fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=307
+  I12 direction vs sign(SAREXT)              fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=307
+  I12 alt |SAREXT|                           fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=307
+  I13 RSI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=294
+  I14 K vs STOCHRSI fastd                    fvTS=29 fvTL=29 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=279
+  I14 K vs STOCHRSI fastk                    fvTS=29 fvTL=29 nullMis=0 maxRel=1.00e+00 maxAbs=6.63e+01 maxAbs/scale=6.63e-01 n=279
+  I14 D vs SMA(fastd,3)                      fvTS=31 fvTL=31 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=277
+  I15 K                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=291
+  I15 D                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=291
+  I15 5/1/3 K                                fvTS=6 fvTL=6 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=302
+  I16 WILLR                                  fvTS=13 fvTL=13 nullMis=0 maxRel=3.06e-16 maxAbs=2.84e-14 n=295
+  I17 ROC                                    fvTS=9 fvTL=9 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=299
+  I18 MOM                                    fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=298
+  I19 CCI                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I19 CCI14                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=295
+  I20 CMO vs talib.CMO                       fvTS=14 fvTL=14 nullMis=0 maxRel=1.97e+00 maxAbs=5.06e+01 maxAbs/scale=5.06e-01 n=294
+  I20 CMO plain-sum build                    fvTS=14 fvTL=14 nullMis=0 maxRel=4.76e-15 maxAbs=1.42e-14 n=294
+  I22 TRIX                                   fvTS=43 fvTL=43 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=265
+  I23 ULTOSC                                 fvTS=28 fvTL=28 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=280
+  I23 desc periods vs ULTOSC(7,14,28)        fvTS=28 fvTL=28 nullMis=0 maxRel=3.56e-01 maxAbs=1.29e+01 maxAbs/scale=1.29e-01 n=280
+  I24 AO ~ SMA(MED,5)-SMA(MED,34)            fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=275
+  I25 PPO matype1                            fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=283
+  I25 signal EMA(ppo,9)                      fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=275
+  I25 PPO matype0 (default)                  fvTS=25 fvTL=25 nullMis=0 maxRel=1.97e+00 maxAbs=2.48e+01 maxAbs/scale=2.48e+01 n=283
+  I25 PPO 5/20 matype1                       fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I25 PPO fast26/slow12 vs talib(26,12)      fvTS=25 fvTL=25 nullMis=0 maxRel=2.00e+00 maxAbs=4.60e+01 maxAbs/scale=4.60e+01 n=283
+  I25 PPO line vs 100*macd/ema26             fvTS=25 fvTL=25 nullMis=0 maxRel=2.20e-16 maxAbs=3.55e-15 n=283
+  I26 BOP                                    fvTS=0 fvTL=0 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=308
+  I27 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I27 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I27 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I27 EMA basis upper vs matype1             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I27 EMA basis vs matype1                   fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I27 WMA basis upper vs matype2             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=289
+  I30 ATR14                                  fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=294
+  I30 ATR10                                  fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=298
+== WBSA bars=125
+  I01 SMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I02 EMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I03 WMA                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I03 WMA hlc3 9                             fvTS=8 fvTL=8 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=117
+  I04 HMA9 via talib.WMA floor               fvTS=10 fvTL=10 nullMis=0 maxRel=5.70e-15 maxAbs=3.98e-12 n=115
+  I04 HMA16 via talib.WMA floor              fvTS=18 fvTL=18 nullMis=0 maxRel=2.92e-15 maxAbs=1.82e-12 n=107
+  I04 HMA7 via talib.WMA floor               fvTS=7 fvTL=7 nullMis=0 maxRel=2.82e-14 maxAbs=1.31e-11 n=118
+  I04 HMA7 via round(sqrt)                   fvTS=7 fvTL=8 nullMis=1 maxRel=8.47e-02 maxAbs=8.39e+01 n=117
+  I05 KAMA                                   fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=115
+  I05 KAMA hl2 5                             fvTS=5 fvTL=5 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=120
+  I05 KAMA fast3/slow20 vs talib KAMA10      fvTS=10 fvTL=10 nullMis=0 maxRel=1.42e-01 maxAbs=1.40e+02 n=115
+  I06 macd vs talib.MACD                     fvTS=25 fvTL=33 nullMis=8 maxRel=2.35e-01 maxAbs=1.51e+01 maxAbs/scale=2.73e-01 n=92
+  I06 signal vs talib.MACD                   fvTS=33 fvTL=33 nullMis=0 maxRel=3.51e-01 maxAbs=3.22e+01 n=92
+  I06 macd EMA-EMA build                     fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=100
+  I06 signal build                           fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=92
+  I06 hist build                             fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=92
+  I06 macd vs MACDEXT(EMA)                   fvTS=25 fvTL=33 nullMis=8 maxRel=2.35e-01 maxAbs=1.51e+01 n=92
+  I07 ADX                                    fvTS=27 fvTL=27 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=98
+  I07 +DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=111
+  I07 -DI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=111
+  I07 ADX 7/7                                fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=112
+  I07 ADX 14/7 vs ADX14                      fvTS=20 fvTL=27 nullMis=7 maxRel=4.55e-01 maxAbs=1.23e+01 maxAbs/scale=1.23e-01 n=98
+  I08 aroon_up                               fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=111
+  I08 aroon_down                             fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=111
+  I10 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I10 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I10 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I11 keltner upper ~ EMA20+2ATR10           fvTS=19 fvTL=19 nullMis=0 maxRel=3.79e-16 maxAbs=3.41e-13 n=106
+  I11 keltner basis ~ EMA20                  fvTS=19 fvTL=19 nullMis=0 maxRel=4.51e-16 maxAbs=3.41e-13 n=106
+  I12 SAR                                    fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=124
+  I12 direction vs sign(SAREXT)              fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=124
+  I12 alt |SAREXT|                           fvTS=1 fvTL=1 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=124
+  I13 RSI                                    fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=111
+  I14 K vs STOCHRSI fastd                    fvTS=29 fvTL=29 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=96
+  I14 K vs STOCHRSI fastk                    fvTS=29 fvTL=29 nullMis=0 maxRel=1.00e+00 maxAbs=5.11e+01 maxAbs/scale=5.11e-01 n=96
+  I14 D vs SMA(fastd,3)                      fvTS=31 fvTL=31 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=94
+  I15 K                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=108
+  I15 D                                      fvTS=17 fvTL=17 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=108
+  I15 5/1/3 K                                fvTS=6 fvTL=6 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=119
+  I16 WILLR                                  fvTS=13 fvTL=13 nullMis=0 maxRel=3.11e-16 maxAbs=2.84e-14 n=112
+  I17 ROC                                    fvTS=9 fvTL=9 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=116
+  I18 MOM                                    fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=115
+  I19 CCI                                    fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I19 CCI14                                  fvTS=13 fvTL=13 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=112
+  I20 CMO vs talib.CMO                       fvTS=14 fvTL=14 nullMis=0 maxRel=1.90e+00 maxAbs=7.16e+01 maxAbs/scale=7.16e-01 n=111
+  I20 CMO plain-sum build                    fvTS=14 fvTL=14 nullMis=0 maxRel=2.92e-15 maxAbs=1.42e-14 n=111
+  I22 TRIX                                   fvTS=43 fvTL=43 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=82
+  I23 ULTOSC                                 fvTS=28 fvTL=28 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=97
+  I23 desc periods vs ULTOSC(7,14,28)        fvTS=28 fvTL=28 nullMis=0 maxRel=2.14e-01 maxAbs=1.10e+01 maxAbs/scale=1.10e-01 n=97
+  I24 AO ~ SMA(MED,5)-SMA(MED,34)            fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 maxAbs/scale=0.00e+00 n=92
+  I25 PPO matype1                            fvTS=25 fvTL=25 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=100
+  I25 signal EMA(ppo,9)                      fvTS=33 fvTL=33 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=92
+  I25 PPO matype0 (default)                  fvTS=25 fvTL=25 nullMis=0 maxRel=1.72e+00 maxAbs=1.67e+01 maxAbs/scale=1.67e+01 n=100
+  I25 PPO 5/20 matype1                       fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I25 PPO fast26/slow12 vs talib(26,12)      fvTS=25 fvTL=25 nullMis=0 maxRel=2.00e+00 maxAbs=2.65e+01 maxAbs/scale=2.65e+01 n=100
+  I25 PPO line vs 100*macd/ema26             fvTS=25 fvTL=25 nullMis=0 maxRel=2.22e-16 maxAbs=1.78e-15 n=100
+  I26 BOP                                    fvTS=0 fvTL=0 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=125
+  I27 upper                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I27 basis                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I27 lower                                  fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I27 EMA basis upper vs matype1             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I27 EMA basis vs matype1                   fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I27 WMA basis upper vs matype2             fvTS=19 fvTL=19 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=106
+  I30 ATR14                                  fvTS=14 fvTL=14 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=111
+  I30 ATR10                                  fvTS=10 fvTL=10 nullMis=0 maxRel=0.00e+00 maxAbs=0.00e+00 n=115

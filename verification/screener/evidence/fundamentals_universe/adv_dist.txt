@@ -1,0 +1,8 @@
+stocks_with_bar_in_20d | adv_ge_1b | adv_ge_5b | adv_ge_10b | default_universe_price50_adv1b | price_lt_50 | fewer_than_20_bars | min
+840 | 395 | 211 | 145 | 353 | 83 | 48 | 2026-09-30T00:00:00Z
+(1 rows, 549 ms)
+---
+px_ge1b | reg_ge1b | all_ge1b | px_vs_reg_disagree | median_ratio_px_reg | p05 | p95 | no_f03
+395 | 396 | 431 | 1 | 1.0001179245973864 | 0.9663465787493355 | 1.0184120475495466 | 4
+(1 rows, 715 ms)
+---

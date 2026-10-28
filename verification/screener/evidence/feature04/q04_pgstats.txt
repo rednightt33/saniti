@@ -1,0 +1,26 @@
+attname | null_frac | n_distinct | most_common_vals | most_common_freqs
+asset_type | 0 | 2 | {equity,bonds} | {0.9611667,0.038833335}
+calculation_version | 0 | 1 | {feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4} | {1}
+ticker | 0 | 864 | {MCAS,PSSI,ICBP,SMRA,DSFI,ARTO,SCMA,ACST,ERAA,MARK,US03MY,MNCN,CSAP,HMSP,ENRG,LINK,HRTA,UNTR,BBYB,DILD,FUJI,GWSA,PWON,SKBM,US01MY,JKON,PANS,POWR,DMND,EPMT,MPOW,CLEO,GJTL,MBTO,TKIM,US05Y,BRMS,ID05Y,IPOL,KOTA,LTLS,MEGA,TINS,TOBA,US07Y,AMFG,DNAR,DNET,BBSI,BUKK,DKFT,HOKI,JSMR,SIDO,WIIM,ZONE,DOID,INCI,KK | {0.0031333333,0.0029666666,0.0029333334,0.0028666668,0.0028333333,0.0027666667,0.0026666666,0.0026333334,0.0026,0.0026,0.0025666666,0.0025333334,0.0024666667,0.0024666667,0.0024,0.0024,0.0023666667,0.0023666667,0.0023333333,0.0023333333,0.0023333333,0.0023333333,0.0023333333,0.0023333333,0.002333333
+timeframe | 0 | 1 | {Daily} | {1}
+(4 rows, 334 ms)
+---
+QUERY PLAN
+Finalize GroupAggregate  (cost=103795.46..104347.56 rows=1728 width=27)
+  Group Key: ticker, asset_type
+  ->  Gather Merge  (cost=103795.46..104278.45 rows=4147 width=27)
+        Workers Planned: 2
+        ->  Sort  (cost=102795.44..102799.76 rows=1728 width=27)
+              Sort Key: ticker, asset_type
+              ->  Partial HashAggregate  (cost=102685.23..102702.51 rows=1728 width=27)
+                    Group Key: ticker, asset_type
+                    ->  Parallel Index Only Scan using "Feature_04_Technical_Indicator_pkey" on "Feature_04_Technical_Indicator"  (cost=0.43..95479.11 rows=576490 width=15)
+JIT:
+  Functions: 5
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+(12 rows, 212 ms)
+---
+relallvisible | relpages
+313197 | 317373
+(1 rows, 218 ms)
+---

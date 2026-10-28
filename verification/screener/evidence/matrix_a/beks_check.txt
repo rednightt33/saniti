@@ -1,0 +1,8 @@
+ultimate_osc uo max abs diff after bar 60: 3.333333333333334 at 61 2022-05-24 full -3.333333333333334 cut 0 nullMismatch 28
+bollinger upper max abs diff after bar 60: 0.00000539479660943698 at 61 2022-05-24 full 50.00000539479661 cut 50 nullMismatch 19
+rsi rsi max abs diff after bar 60: 46.028725331876316 at 450 2023-12-20 full 46.028725331876316 cut 0 nullMismatch 14
+adx adx max abs diff after bar 60: 12.304060378537315 at 482 2024-02-07 full 87.6959396214625 cut 99.99999999999982 nullMismatch 27
+cmo cmo max abs diff after bar 60: 0 at -1 2022-02-11 full undefined cut undefined nullMismatch 0
+BEKS close sample [ 50, 50, 50, 50, 50 ] distinct closes in cut window 28
+TA-Lib ULTOSC(7,14,28) full history on BEKS 2022-05-24 = -3.333333333333334 | from bar 1000: 0.0
+TA-Lib RSI(14) BEKS 2023-12-20 full = 46.028725331876316 | from bar 1000: 0.0

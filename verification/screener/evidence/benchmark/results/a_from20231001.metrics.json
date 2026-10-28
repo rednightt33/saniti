@@ -1,0 +1,55 @@
+{
+ "scenario": "a",
+ "data": "data/price_full.json",
+ "last": null,
+ "from": "2023-10-01",
+ "reps": 3,
+ "node": "v22.22.0",
+ "tickers": 845,
+ "bars_total": 576678,
+ "max_bars_per_ticker": 731,
+ "last_date": "2026-10-27",
+ "tickers_last_bar_before_last_date": 16,
+ "tickers_with_history_longer_than_window": null,
+ "load": {
+  "wall_ms": 503,
+  "cpu_ms": 659.5
+ },
+ "mem_after_load": {
+  "rss_mb": 244.4,
+  "heap_used_mb": 52.5,
+  "external_mb": 8.8,
+  "array_buffers_mb": 0
+ },
+ "compute": {
+  "reps": [
+   {
+    "wall_ms": 63.1,
+    "cpu_ms": 101.7
+   },
+   {
+    "wall_ms": 51,
+    "cpu_ms": 53.9
+   },
+   {
+    "wall_ms": 46.7,
+    "cpu_ms": 55.7
+   }
+  ],
+  "first_wall_ms": 63.1,
+  "first_cpu_ms": 101.7,
+  "min_wall_ms": 46.7,
+  "median_wall_ms": 51
+ },
+ "rows": 845,
+ "errors": {},
+ "mem_end": {
+  "rss_mb": 244.7,
+  "heap_used_mb": 52.8,
+  "external_mb": 8.9,
+  "array_buffers_mb": 0
+ },
+ "peak_rss_mb": 294.8,
+ "process_total_cpu_ms": 1285.4,
+ "process_uptime_ms": 929
+}

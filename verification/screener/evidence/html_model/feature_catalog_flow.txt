@@ -1,0 +1,28 @@
+feature_table | feature_column | unit | calc | nullr
+Feature_01_Stock_Daily | drawdown_60d_pct | Percent | (close / NULLIF(high_60d, 0) - 1) * 100. | NULL when fewer than 60 valid close observations exist or high_60d equals zero.
+Feature_01_Stock_Daily | high_60d | source price unit | When 60 close observations exist: MAX(close) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 59 PRECEDING AND CURRENT ROW). | NULL when fewer than 60 valid close observations exist in the window.
+Feature_01_Stock_Daily | return_20d_pct | Percent | (close / NULLIF(close_20d_ago, 0) - 1) * 100. | NULL when the twenty-observation-prior close is unavailable or equals zero.
+Feature_01_Stock_Daily | volume_avg_20d | Shares | When 20 volume observations exist: AVG(volume) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW). | NULL when fewer than 20 valid volume observations exist in the window.
+Feature_01_Stock_Daily | volume_ratio_20d | Ratio | volume / NULLIF(volume_avg_20d, 0). | NULL when fewer than 20 valid volume observations exist or the 20-observation average volume equals zero.
+Feature_02_Broker_Rolling | net_value_20d | IDR | SUM(net_value_1d) over the latest 20 ticker transaction dates, with absent broker-board days as zero. All broker windows partition by Broker, Investor Type and Market Board on the ticker transaction-date calendar; missing activity contributes zero. | NULL until ticker has 20 transaction dates.
+Feature_02_Broker_Rolling | net_value_5d | IDR | SUM(net_value_1d) over the latest 5 ticker transaction dates, with absent broker-board days as zero. All broker windows partition by Broker, Investor Type and Market Board on the ticker transaction-date calendar; missing activity contributes zero. | NULL until ticker has 5 transaction dates.
+Feature_03_Stock_Broker_Daily | broker_concentration_hhi | HHI ratio 0-1 | First SUM both Investor Types per broker; SUM((ABS(broker net value)/SUM ABS(broker net value))^2). | NULL when total absolute broker net value is zero.
+Feature_03_Stock_Broker_Daily | foreign_net_value | IDR | SUM(Feature_02.net_value_1d) where Feature_02.investor_type = Foreign at date, ticker and Market Board; no IDX_Broker_Profile.broker_type is used. | Never NULL; zero when no Foreign Investor Type source flow exists.
+Feature_03_Stock_Broker_Daily | net_buy_broker_ratio | Fraction | First calculate broker-level counts after summing both Investor Types per broker; divide net_buy_broker_count by active_broker_count. | NULL when active_broker_count is zero.
+Feature_03_Stock_Broker_Daily | positive_net_value_total | IDR | First SUM both Investor Types per broker; SUM every positive broker net value. | Never NULL; zero when no positive-net broker exists.
+Feature_03_Stock_Broker_Daily | top3_buyer_net_value | IDR | First SUM both Investor Types per broker; SUM the three greatest positive broker net values. | Never NULL; zero when no positive-net broker exists.
+Feature_03_Stock_Broker_Daily | top3_buyer_share | Fraction | top3_buyer_net_value / positive_net_value_total. | NULL when positive_net_value_total is zero.
+Feature_03_Stock_Broker_Daily | top_buyer | Broker code | First SUM both Investor Types per broker; choose greatest positive broker net value, ties broker code ascending. | NULL when no broker has positive net value.
+Feature_03_Stock_Broker_Daily | total_buy_value | IDR | SUM(Feature_02_Broker_Rolling.buy_value_1d) across brokers at date, ticker and board. | Never NULL for a stored row.
+Feature_06_Foreign_Domestic | foreign_buy_days_20d | sessions | COUNT(F > 0) over 20 sessions; F = 0 counts neither | NULL until the ticker has 20 sessions
+Feature_06_Foreign_Domestic | foreign_buy_freq_1d | transactions | BF = SUM(buy_freq) WHERE Foreign | NULL when no source row of the ticker, board and date carries frequency; otherwise the sum of the known frequencies of that investor type, 0 when it h
+Feature_06_Foreign_Domestic | foreign_buy_share_1d | percent | 100 * FB / T | NULL when T = 0.
+Feature_06_Foreign_Domestic | foreign_cumulative_net | IDR | SUM(F) over all sessions up to and including the date (a refresh continues the stored value of the row before its range) | Never NULL.
+Feature_06_Foreign_Domestic | foreign_net_1d | IDR | F = FB - FS over Feature 05 | Never NULL; zero when that investor type did not trade.
+Feature_06_Foreign_Domestic | foreign_net_20d | IDR | SUM_20(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero | NULL until the ticker has 20 sessions
+Feature_06_Foreign_Domestic | foreign_net_5d | IDR | SUM_5(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero | NULL until the ticker has 5 sessions
+Feature_06_Foreign_Domestic | foreign_net_turnover_ratio_20d | percent | 100 * SUM_20(F) / SUM_20(T) | NULL when the denominator is 0 or before 20 sessions.
+Feature_06_Foreign_Domestic | foreign_net_turnover_ratio_5d | percent | 100 * SUM_5(F) / SUM_5(T) | NULL when the denominator is 0 or before 5 sessions.
+Feature_06_Foreign_Domestic | foreign_strength_20d | index -100..100 | 100 * SUM_20(R) / SUM_20(ABS(R)), R = F / T; sessions with T = 0 have no R | NULL before 20 sessions or when SUM_20(ABS(R)) = 0.
+(25 rows, 283 ms)
+---

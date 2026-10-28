@@ -1,0 +1,848 @@
+r
+AADI|Pt Adaro Andalan Indonesia Tbk|Energy|Coal
+AALI|PT Astra Agro Lestari Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+ABDA|PT Asuransi Bina Dana Arta Tbk Class A|Financials|Insurance
+ABMM|PT ABM Investama Tbk|Energy|Coal
+ACES|PT Aspirasi Hidup Indonesia Tbk|Consumer Cyclicals|Specialty Retail
+ACRO|PT Samcro Hyosung Adilestari Tbk Class A|Consumer Cyclicals|Apparel & Luxury Goods
+ACST|PT Acset Indonusa Tbk|Infrastructures|Building Construction
+ADES|PT Akasha Wira International Tbk|Consumer Non-Cyclicals|Beverages
+ADHI|PT Adhi Karya (Persero) Tbk|Infrastructures|Building Construction
+ADMF|PT Adira Dinamika Multi Finance Tbk|Financials|Consumer Financing
+ADMG|PT Polychem Indonesia Tbk|Basic Materials|Chemicals
+ADMR|PT Alamtri Minerals Indonesia Tbk|Energy|Coal
+ADRO|PT Alamtri Resources Indonesia Tbk|Energy|Coal
+AEGS|PT Anugerah Spareparts Sejahtera Tbk|Consumer Cyclicals|Automotive Components
+AGAR|PT Asia Sejahtera Mina Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+AGII|PT Samator Indo Gas Tbk|Basic Materials|Chemicals
+AGRO|PT Bank Raya Indonesia Tbk|Financials|Banks
+AGRS|PT Bank IBK Indonesia Tbk|Financials|Banks
+AHAP|PT Asuransi Harta Aman Pratama Tbk|Financials|Insurance
+AIMS|PT Artha Mahiya Investama Tbk|Energy|Coal
+AISA|PT FKS Food Sejahtera Tbk Class A|Consumer Non-Cyclicals|Processed Foods
+AKPI|PT Argha Karya Prima Industry Tbk|Basic Materials|Chemicals
+AKRA|PT AKR Corporindo Tbk|Energy|Oil & Gas
+AKSI|PT Mineral Sumberdaya Mandiri Tbk|Transportation & Logistic|Logistics & Deliveries
+ALDO|PT Alkindo Naratama Tbk|Basic Materials|Containers & Packaging
+ALII|PT Ancara Logistics Indonesia Tbk|Energy|Coal
+ALKA|PT Alakasa Industrindo, Tbk Class A|Basic Materials|Metals & Minerals
+AMAG|PT Asuransi Multi Artha Guna Tbk|Financials|Insurance
+AMAN|PT Makmur Berkah Amanda Tbk|Properties & Real Estate|Real Estate Management & Development
+AMAR|PT Bank Amar Indonesia Tbk|Financials|Banks
+AMFG|PT Asahimas Flat Glass Tbk|Industrials|Building Products & Fixtures
+AMIN|PT Ateliers Mecaniques D'Indonesie Tbk|Industrials|Machinery
+AMMN|PT Amman Mineral Internasional Tbk|Basic Materials|Metals & Minerals
+AMMS|PT Agung Menjangan Mas Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+AMOR|PT Ashmore Asset Management Indonesia Tbk|Financials|Investment Services
+AMRT|PT Sumber Alfaria Trijaya|Consumer Non-Cyclicals|Food & Staples Retailing
+ANDI|PT Andira Agro Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+ANJT|PT Austindo Nusantara Jaya Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+ANTM|PT ANTAM (Persero) Tbk|Basic Materials|Metals & Minerals
+APEX|PT Apexindo Pratama Duta Tbk|Energy|Oil, Gas & Coal Support
+APIC|PT Pacific Strategic Financial Tbk Class A|Financials|Holding & Investment Companies
+APII|PT Arita Prima Indonesia Tbk|Industrials|Machinery
+APLI|PT Asiaplast Industries Tbk|Basic Materials|Chemicals
+APLN|PT Agung Podomoro Land Tbk|Properties & Real Estate|Real Estate Management & Development
+ARCI|PT Archi Indonesia Tbk|Basic Materials|Metals & Minerals
+AREA|PT Dunia Virtual Online Tbk|Technology|IT Services & Consulting
+ARGO|PT Argo Pantes Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+ARII|PT Atlas Resources Tbk|Energy|Coal
+ARKO|PT Arkora Hydro Tbk|Infrastructures|Electric Utilities
+ARNA|PT Arwana Citramulia Tbk|Industrials|Building Products & Fixtures
+ARTA|PT Arthavest Tbk|Consumer Cyclicals|Tourism & Recreation
+ARTO|PT Bank Jago Tbk|Financials|Banks
+ASBI|PT Asuransi Bintang Tbk|Financials|Insurance
+ASDM|PT Asuransi Dayin Mitra Tbk|Financials|Insurance
+ASGR|PT Astra Graphia Tbk|Industrials|Commercial Services
+ASHA|PT Cilacap Samudera Fishing Industry Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+ASII|PT Astra International Tbk|Industrials|Multi-sector Holdings
+ASJT|PT Asuransi Jasa Tania Tbk|Financials|Insurance
+ASLC|PT Autopedia Sukses Lestari Tbk|Consumer Cyclicals|Specialty Retail
+ASLI|PT Asri Karya Lestari Tbk|Infrastructures|Building Construction
+ASMI|PT Asuransi Maximus Graha Persada Tbk|Financials|Insurance
+ASPI|PT Andalan Sakti Primaindo Tbk|Properties & Real Estate|Real Estate Management & Development
+ASPR|PT Asia Pramulia Tbk|Basic Materials|Containers & Packaging
+ASRI|PT Alam Sutera Realty Tbk|Properties & Real Estate|Real Estate Management & Development
+ASRM|PT Asuransi Ramayana Tbk|Financials|Insurance
+ASSA|PT Adi Sarana Armada Tbk|Transportation & Logistic|Passenger Ground Transportation
+ATAP|PT Trimitra Prawara Goldland Tbk|Properties & Real Estate|Real Estate Management & Development
+ATIC|PT Anabatic Technologies Tbk|Technology|IT Services & Consulting
+ATLA|PT Atlantis Subsea Indonesia Tbk|Energy|Oil, Gas & Coal Support
+AUTO|PT Astra Otoparts Tbk|Consumer Cyclicals|Automotive Components
+AVIA|PT Avia Avian Tbk|Basic Materials|Chemicals
+AWAN|PT Era Digital Media Tbk|Technology|Internet Applications & Services
+AXIO|PT Tera Data Indonusa Tbk|Technology|Computer Hardware
+AYAM|PT Janu Putra Sejahtera Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+AYLS|PT Arkayana Lestari Grup Tbk|Basic Materials|Construction Materials
+BABP|PT Bank MNC Internasional Tbk|Financials|Banks
+BABY|PT Multitrend Indo Tbk|Consumer Cyclicals|Specialty Retail
+BACA|PT Bank Capital Indonesia Tbk|Financials|Banks
+BACH|PT Bach Multi Global Tbk|Industrials|Diversified Industrial Trading
+BAIK|PT Bersama Mencapai Puncak Tbk|Consumer Cyclicals|Tourism & Recreation
+BAJA|PT Saranacentral Bajatama Tbk|Basic Materials|Metals & Minerals
+BALI|PT Bali Towerindo Sentra Tbk|Infrastructures|Wireless Telecommunication Services
+BANK|PT Bank Aladin Syariah Tbk|Financials|Banks
+BAPA|PT Bekasi Asri Pemula Tbk|Properties & Real Estate|Real Estate Management & Development
+BAPI|PT Bhakti Agung Propertindo Tbk|Properties & Real Estate|Real Estate Management & Development
+BATR|PT Benteng Api Technic Tbk|Basic Materials|Construction Materials
+BAUT|PT Mitra Angkasa Sejahtera Tbk|Consumer Cyclicals|Specialty Retail
+BAYU|PT Bayu Buana Tbk|Consumer Cyclicals|Tourism & Recreation
+BBCA|PT Bank Central Asia Tbk|Financials|Banks
+BBHI|PT Allo Bank Indonesia Tbk|Financials|Banks
+BBKP|PT Bank KB Indonesia Tbk Class B|Financials|Banks
+BBLD|PT Buana Finance Tbk|Financials|Consumer Financing
+BBMD|PT Bank Mestika Dharma Tbk|Financials|Banks
+BBNI|PT Bank Negara Indonesia (Persero) Tbk Class B|Financials|Banks
+BBRI|PT Bank Rakyat Indonesia (Persero) Tbk Class B|Financials|Banks
+BBRM|PT Pelayaran Nasional Bina Buana Raya Tbk|Energy|Coal
+BBSI|PT Krom Bank Indonesia Tbk|Financials|Banks
+BBSS|PT Bumi Benowo Sukses Sejahtera Tbk|Properties & Real Estate|Real Estate Management & Development
+BBTN|PT Bank Tabungan Negara (Persero) Tbk|Financials|Banks
+BBYB|PT Bank Neo Commerce Tbk|Financials|Banks
+BCAP|PT MNC Kapital Indonesia Tbk|Financials|Holding & Investment Companies
+BCIC|PT Bank JTrust Indonesia Tbk|Financials|Banks
+BCIP|PT Bumi Citra Permai Tbk|Properties & Real Estate|Real Estate Management & Development
+BDKR|PT Berdikari Pondasi Perkasa Tbk|Infrastructures|Building Construction
+BDMN|PT Bank Danamon Indonesia Tbk Class A|Financials|Banks
+BEEF|PT Estika Tata Tiara Tbk|Consumer Non-Cyclicals|Processed Foods
+BEER|PT Jobubu Jarum Minahasa Tbk|Consumer Non-Cyclicals|Beverages
+BEKS|PT Bank Pembangunan Daerah Banten (Perseroda) Tbk Class A|Financials|Banks
+BELI|PT Global Digital Niaga Tbk|Technology|Internet Applications & Services
+BELL|PT Trisula Textile Industries Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+BESS|PT Batulicin Nusantara Maritim Tbk|Energy|Coal
+BEST|PT Bekasi Fajar Industrial Estate Tbk|Properties & Real Estate|Real Estate Management & Development
+BFIN|PT BFI Finance Indonesia Tbk|Financials|Consumer Financing
+BGTG|PT Bank Ganesha Tbk|Financials|Banks
+BHIT|PT MNC Asia Holding Tbk|Industrials|Multi-sector Holdings
+BIKE|PT Bhineka Inovasi Ketahanan Energi Tbk|Consumer Cyclicals|Sports Equipment & Hobbies Goods
+BINA|PT Bank Ina Perdana Tbk|Financials|Banks
+BINO|PT Perma Plasindo Tbk|Industrials|Commercial Services
+BIPI|PT Astrindo Nusantara Infrastruktur Tbk|Energy|Coal
+BIPP|PT Bhuwanatala Indah Permai Tbk Class A|Properties & Real Estate|Real Estate Management & Development
+BIRD|PT Blue Bird Tbk|Transportation & Logistic|Passenger Ground Transportation
+BISI|PT BISI International Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+BJBR|PT Bank Pembangunan Daerah Jawa Barat & Banten Tbk|Financials|Banks
+BJTM|PT Bank Pembangunan Daerah Jawa Timur Tbk Class B|Financials|Banks
+BKDP|PT Bukit Darmo Property Tbk|Properties & Real Estate|Real Estate Management & Development
+BKSL|PT Sentul City Tbk|Properties & Real Estate|Real Estate Management & Development
+BKSW|PT Bank QNB Indonesia Tbk|Financials|Banks
+BLES|PT Superior Prima Sukses Tbk|Basic Materials|Construction Materials
+BLOG|PT Trimitra Trans Persada Tbk|Transportation & Logistic|Logistics & Deliveries
+BLTA|PT Berlian Laju Tanker Tbk|Transportation & Logistic|Logistics & Deliveries
+BLTZ|PT Graha Layar Prima Tbk Class C|Consumer Cyclicals|Tourism & Recreation
+BLUE|PT Berkah Prima Perkasa Tbk|Industrials|Commercial Services
+BMAS|PT Bank Kasikorn Indonesia Tbk|Financials|Banks
+BMBL|PT Lavender Bina Cendikia Tbk|Consumer Cyclicals|Education & Support Services
+BMHS|PT Bundamedik Tbk|Healthcare|Healthcare Providers
+BMRI|PT Bank Mandiri (Persero) Tbk|Financials|Banks
+BMSR|PT Bintang Mitra Semestaraya Tbk|Basic Materials|Chemicals
+BMTR|PT Global Mediacom Tbk|Consumer Cyclicals|Media
+BNBA|PT Bank Bumi Arta Tbk|Financials|Banks
+BNBR|PT Bakrie & Brothers Tbk Class A|Industrials|Multi-sector Holdings
+BNGA|PT Bank CIMB Niaga Tbk Class A|Financials|Banks
+BNII|PT Bank Maybank Indonesia Tbk Class A|Financials|Banks
+BNLI|PT Bank Permata Tbk Class A|Financials|Banks
+BOAT|PT Newport Marine Services Tbk|Energy|Oil, Gas & Coal Support
+BOBA|PT Formosa Ingredient Factory Tbk|Consumer Non-Cyclicals|Processed Foods
+BOGA|PT Apollo Global Interactive Tbk|Consumer Cyclicals|Specialty Retail
+BOLA|PT Bali Bintang Sejahtera Tbk|Consumer Cyclicals|Tourism & Recreation
+BOLT|PT Garuda Metalindo Tbk|Consumer Cyclicals|Automotive Components
+BPFI|PT Woori Finance Indonesia Tbk|Financials|Consumer Financing
+BPII|PT Batavia Prosperindo Internasional Tbk|Financials|Holding & Investment Companies
+BPTR|PT Batavia Prosperindo Trans Tbk|Transportation & Logistic|Passenger Ground Transportation
+BRAM|PT Indo Kordsa Tbk|Consumer Cyclicals|Automotive Components
+BREN|PT Barito Renewables Energy Tbk|Infrastructures|Electric Utilities
+BRIS|PT Bank Syariah Indonesia (Persero) Tbk|Financials|Banks
+BRMS|PT Bumi Resources Minerals Tbk Class A|Basic Materials|Metals & Minerals
+BRNA|PT Berlina Tbk|Basic Materials|Containers & Packaging
+BRPT|PT Barito Pacific Tbk|Basic Materials|Chemicals
+BRRC|PT Raja Roti Cemerlang Tbk|Consumer Non-Cyclicals|Processed Foods
+BSBK|PT Wulandari Bangun Laksana Tbk|Properties & Real Estate|Real Estate Management & Development
+BSDE|PT Bumi Serpong Damai Tbk|Properties & Real Estate|Real Estate Management & Development
+BSIM|PT Bank Sinarmas Tbk|Financials|Banks
+BSML|PT Bintang Samudera Mandiri Lines Tbk|Energy|Coal
+BSSR|PT Baramulti Suksessarana Tbk|Energy|Coal
+BSWD|PT Bank of India Indonesia Tbk|Financials|Banks
+BTEK|PT Bumi Teknokultura Unggul Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+BTON|PT Betonjaya Manunggal Tbk|Basic Materials|Metals & Minerals
+BTPN|PT Bank SMBC Indonesia Tbk|Financials|Banks
+BTPS|PT Bank BTPN Syariah Tbk|Financials|Banks
+BUAH|PT Segar Kumala Indonesia Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+BUDI|PT Budi Starch & Sweetener Tbk|Consumer Non-Cyclicals|Processed Foods
+BUKA|PT Bukalapak.com Tbk|Technology|Internet Applications & Services
+BUKK|PT Bukaka Teknik Utama Tbk|Infrastructures|Building Construction
+BULL|PT Buana Lintas Lautan Tbk|Energy|Oil & Gas
+BUMI|PT Bumi Resources Tbk Class A|Energy|Coal
+BUVA|PT Bukit Uluwatu Villa Tbk|Consumer Cyclicals|Tourism & Recreation
+BVIC|PT Bank Victoria International Tbk|Financials|Banks
+BWPT|PT Eagle High Plantations Tbk.|Consumer Non-Cyclicals|Agricultural Food Products
+BYAN|PT Bayan Resources Tbk|Energy|Coal
+CAKK|PT Cahayaputra Asa Keramik Tbk|Industrials|Building Products & Fixtures
+CAMP|PT Campina Ice Cream Industry Tbk|Consumer Non-Cyclicals|Processed Foods
+CARE|PT Metro Healthcare Indonesia Tbk|Healthcare|Healthcare Providers
+CARS|PT Industri dan Perdagangan Bintraco Dharma Tbk|Consumer Cyclicals|Specialty Retail
+CASA|PT Capital Financial Indonesia Tbk|Financials|Holding & Investment Companies
+CASH|PT.Cashlez Worldwide Indonesia Tbk|Technology|Internet Applications & Services
+CASS|PT Cahaya Aero Services Tbk|Infrastructures|Transportation Infrastructure Operators
+CBDK|PT Bangun Kosambi Sukses Tbk|Properties & Real Estate|Real Estate Management & Development
+CBPE|PT Citra Buana Prasida Tbk|Properties & Real Estate|Real Estate Management & Development
+CBRE|PT Cakra Buana Resources Energi Tbk|Energy|Coal
+CBUT|PT Citra Borneo Utama Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+CCSI|PT Communication Cable Systems Indonesia Tbk|Industrials|Electrical Equipment
+CDIA|PT Chandra Daya Investasi Tbk.|Infrastructures|Electric Utilities
+CEKA|PT Wilmar Cahaya Indonesia Tbk|Consumer Non-Cyclicals|Processed Foods
+CENT|PT Centratama Telekomunikasi Indonesia Tbk|Infrastructures|Wireless Telecommunication Services
+CFIN|PT Clipan Finance Indonesia Tbk|Financials|Consumer Financing
+CGAS|PT Citra Nusantara Gemilang Tbk|Energy|Oil & Gas
+CHEK|PT Diastika Biotekindo Tbk|Healthcare|Healthcare Equipment & Supplies
+CHEM|PT Chemstar Indonesia Tbk|Basic Materials|Chemicals
+CHIP|PT Pelita Teknologi Global Tbk|Technology|Electronic Equipment, Instruments & Components
+CINT|PT Chitose Internasional Tbk|Consumer Cyclicals|Household Goods
+CITA|PT Cita Mineral Investindo Tbk|Basic Materials|Metals & Minerals
+CITY|PT Natura City Developments Tbk|Properties & Real Estate|Real Estate Management & Development
+CLAY|PT Citra Putra Realty Tbk|Consumer Cyclicals|Tourism & Recreation
+CLEO|PT Sariguna Primatirta Tbk|Consumer Non-Cyclicals|Beverages
+CLPI|PT Colorpak Indonesia Tbk|Basic Materials|Chemicals
+CMNP|PT Citra Marga Nusaphala Persada Tbk|Infrastructures|Transportation Infrastructure Operators
+CMNT|PT Cemindo Gemilang Tbk|Basic Materials|Construction Materials
+CMRY|PT Cisarua Mountain Dairy Tbk|Consumer Non-Cyclicals|Processed Foods
+CNMA|PT Nusantara Sejahtera Raya Tbk|Consumer Cyclicals|Tourism & Recreation
+COCO|PT Wahana Interfood Nusantara Tbk|Consumer Non-Cyclicals|Processed Foods
+COIN|PT Indokripto Koin Semesta Tbk|Financials|Holding & Investment Companies
+CPIN|PT Charoen Pokphand Indonesia Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+CPRO|PT Central Proteina Prima Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+CRSN|PT Carsurin Tbk|Industrials|Professional Services
+CSAP|PT Catur Sentosa Adiprana Tbk|Consumer Cyclicals|Specialty Retail
+CSIS|PT Cahayasakti Investindo Sukses Tbk|Properties & Real Estate|Real Estate Management & Development
+CSMI|PT Cipta Selera Murni Tbk|Consumer Cyclicals|Tourism & Recreation
+CSRA|PT Cisadane Sawit Raya Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+CTBN|PT Citra Tubindo Tbk|Basic Materials|Metals & Minerals
+CTRA|PT Ciputra Development Tbk|Properties & Real Estate|Real Estate Management & Development
+CTTH|PT Citatah Tbk|Industrials|Building Products & Fixtures
+CUAN|PT Petrindo Jaya Kreasi Tbk|Energy|Coal
+CYBR|PT ITSEC Asia Tbk|Technology|IT Services & Consulting
+DAAZ|PT Daaz Bara Lestari Tbk|Basic Materials|Metals & Minerals
+DADA|PT Diamond Citra Propertindo Tbk|Properties & Real Estate|Real Estate Management & Development
+DART|PT Duta Anggada Realty Tbk|Properties & Real Estate|Real Estate Management & Development
+DATA|PT Remala Abadi Tbk|Infrastructures|Telecommunication Services
+DAYA|PT Duta Intidaya Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+DCII|PT DCI Indonesia Tbk|Technology|IT Services & Consulting
+DEFI|PT Danasupra Erapacific Tbk|Financials|Holding & Investment Companies
+DEPO|PT Caturkarda Depo Bangunan Tbk|Consumer Cyclicals|Specialty Retail
+DEWA|PT Darma Henwa Tbk|Energy|Oil, Gas & Coal Support
+DEWI|PT Dewi Shri Farmindo Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+DFAM|PT Dafam Property Indonesia Tbk|Consumer Cyclicals|Tourism & Recreation
+DGIK|PT Nusa Konstruksi Enjiniring Tbk|Infrastructures|Building Construction
+DGNS|PT Diagnos Laboratorium Utama Tbk|Healthcare|Healthcare Providers
+DGWG|PT Delta Giri Wacana Tbk|Basic Materials|Chemicals
+DILD|PT Intiland Development Tbk|Properties & Real Estate|Real Estate Management & Development
+DIVA|PT Distribusi Voucher Nusantara Tbk|Technology|Internet Applications & Services
+DKFT|PT Central Omega Resources Tbk|Basic Materials|Metals & Minerals
+DKHH|Pt Cipta Sarana Medika Tbk.|Healthcare|Healthcare Providers
+DLTA|PT Delta Djakarta Tbk|Consumer Non-Cyclicals|Beverages
+DMAS|PT Puradelta Lestari Tbk|Properties & Real Estate|Real Estate Management & Development
+DMMX|PT Digital Mediatama Maxima Tbk|Technology|IT Services & Consulting
+DMND|PT Diamond Food Indonesia Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+DNAR|PT Bank Oke Indonesia Tbk|Financials|Banks
+DNET|PT Indoritel Makmur Internasional Tbk|Financials|Holding & Investment Companies
+DOID|PT BUMA Internasional Grup Tbk|Energy|Oil, Gas & Coal Support
+DOOH|PT Era Media Sejahtera Tbk|Consumer Cyclicals|Media
+DOSS|PT Global Sukses Digital Tbk|Consumer Cyclicals|Consumer Electronics
+DPUM|PT Dua Putra Utama Makmur Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+DRMA|PT Dharma Polimetal Tbk|Consumer Cyclicals|Automotive Components
+DSFI|PT Dharma Samudera Fishing Industries Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+DSNG|PT Dharma Satya Nusantara Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+DSSA|PT Dian Swastatika Sentosa Tbk|Energy|Coal
+DUTI|PT Duta Pertiwi Tbk|Properties & Real Estate|Real Estate Management & Development
+DVLA|PT Darya-Varia Laboratoria Tbk|Healthcare|Pharmaceuticals
+DWGL|PT Dwi Guna Laksana Tbk|Energy|Coal
+DYAN|PT Dyandra Media International Tbk|Industrials|Commercial Services
+EAST|PT Eastparc Hotel Tbk|Consumer Cyclicals|Tourism & Recreation
+ECII|PT Electronic City Indonesia Tbk|Consumer Cyclicals|Specialty Retail
+EKAD|PT Ekadharma International Tbk|Basic Materials|Chemicals
+ELIT|PT Data Sinergitama Jaya Tbk|Technology|IT Services & Consulting
+ELPI|PT Pelayaran Nasional Ekalya Purnamasari Tbk|Transportation & Logistic|Logistics & Deliveries
+ELSA|PT Elnusa Tbk|Energy|Oil, Gas & Coal Support
+ELTY|PT Bakrieland Development Tbk Class A|Properties & Real Estate|Real Estate Management & Development
+EMAS|PT Merdeka Gold Resources Tbk|Basic Materials|Metals & Minerals
+EMDE|PT Megapolitan Developments Tbk|Properties & Real Estate|Real Estate Management & Development
+EMMI|PT ESA Medika Mandiri Tbk|Healthcare|Healthcare Equipment & Supplies
+EMTK|PT Elang Mahkota Teknologi Tbk|Technology|Internet Applications & Services
+ENAK|PT Champ Resto Indonesia Tbk|Consumer Cyclicals|Tourism & Recreation
+ENRG|PT Energi Mega Persada Tbk|Energy|Oil & Gas
+ENZO|PT Morenzo Abadi Perkasa Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+EPAC|PT Megalestari Epack Sentosaraya Tbk|Basic Materials|Containers & Packaging
+EPMT|PT Enseval Putera Megatrading Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+ERAA|PT Erajaya Swasembada Tbk|Consumer Cyclicals|Specialty Retail
+ERAL|PT Sinar Eka Selaras Tbk|Consumer Cyclicals|Specialty Retail
+ERTX|PT Eratex Djaja Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+ESIP|PT Sinergi Inti Plastindo Tbk|Basic Materials|Containers & Packaging
+ESSA|PT ESSA Industries Indonesia Tbk|Basic Materials|Chemicals
+ESTA|PT Esta Multi Usaha Tbk|Consumer Cyclicals|Tourism & Recreation
+ESTI|PT Ever Shine Textile Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+EURO|PT Estee Gold Feet Tbk|Consumer Non-Cyclicals|Personal Care Products
+EXCL|PT XLSMART Telecom Sejahtera Tbk|Infrastructures|Wireless Telecommunication Services
+FAPA|PT FAP Agri Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+FAST|PT Fast Food Indonesia Tbk|Consumer Cyclicals|Tourism & Recreation
+FILM|PT MD Entertainment Tbk|Consumer Cyclicals|Entertainment & Movie Production
+FIRE|PT Alfa Energi Investama Tbk|Energy|Coal
+FISH|PT FKS Multi Agro Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+FITT|PT Hotel Fitra International Tbk|Consumer Cyclicals|Tourism & Recreation
+FLMC|PT Falmaco Nonwoven Industri Tbk|Consumer Non-Cyclicals|Personal Care Products
+FMII|PT Fortune Mate Indonesia Tbk|Properties & Real Estate|Real Estate Management & Development
+FOLK|PT Multi Garam Utama Tbk|Industrials|Multi-sector Holdings
+FORE|PT Fore Kopi Indonesia Tbk|Consumer Non-Cyclicals|Beverages
+FORU|PT Fortune Indonesia, Tbk|Consumer Cyclicals|Media
+FPNI|PT Lotte Chemical Titan Tbk|Basic Materials|Chemicals
+FUJI|PT Fuji Finance Indonesia Tbk.|Financials|Consumer Financing
+FUTR|PT Futura Energi Global Tbk|Consumer Cyclicals|Media
+FWCT|PT Wijaya Cahaya Timber Tbk|Basic Materials|Forest & Paper
+GDST|PT Gunawan Dianjaya Steel Tbk|Basic Materials|Metals & Minerals
+GDYR|PT Goodyear Indonesia Tbk|Consumer Cyclicals|Automotive Components
+GEMA|PT Gema Grahasarana Tbk|Consumer Cyclicals|Household Goods
+GEMS|PT Golden Energy Mines Tbk|Energy|Coal
+GGRM|PT Gudang Garam Tbk|Consumer Non-Cyclicals|Tobacco
+GGRP|PT Gunung Raja Paksi Tbk|Basic Materials|Metals & Minerals
+GHON|PT Gihon Telekomunikasi Indonesia|Infrastructures|Wireless Telecommunication Services
+GIAA|PT Garuda Indonesia (Persero) Tbk Class B|Transportation & Logistic|Airlines
+GJTL|PT Gajah Tunggal Tbk|Consumer Cyclicals|Automotive Components
+GLVA|PT Galva Technologies Tbk|Technology|Electronic Equipment, Instruments & Components
+GMFI|PT Garuda Maintenance Facility Aero Asia Tbk|Infrastructures|Transportation Infrastructure Operators
+GMTD|PT Gowa Makassar Tourism Development Tbk|Properties & Real Estate|Real Estate Management & Development
+GOLD|PT Visi Telekomunikasi Infrastruktur Tbk|Infrastructures|Wireless Telecommunication Services
+GOLF|PT Intra Golflink Resorts Tbk|Consumer Cyclicals|Tourism & Recreation
+GOOD|PT Garudafood Putra Putri Jaya Tbk|Consumer Non-Cyclicals|Processed Foods
+GOTO|PT GoTo Gojek Tokopedia Tbk|Technology|Internet Applications & Services
+GPRA|PT Perdana Gapuraprima Tbk|Properties & Real Estate|Real Estate Management & Development
+GPSO|PT Geoprima Solusi Tbk|Industrials|Machinery
+GRIA|PT Ingria Pratama Capitalindo Tbk|Properties & Real Estate|Real Estate Management & Development
+GRPH|PT Griptha Putra Persada Tbk|Consumer Cyclicals|Tourism & Recreation
+GRPM|PT Graha Prima Mentari Tbk|Consumer Non-Cyclicals|Beverages
+GSMF|PT Equity Development Investment Tbk Class A|Financials|Holding & Investment Companies
+GTRA|PT Grahaprima Suksesmandiri Tbk|Transportation & Logistic|Logistics & Deliveries
+GTSI|PT GTS Internasional|Energy|Oil & Gas
+GULA|PT Aman Agrindo Tbk|Consumer Non-Cyclicals|Processed Foods
+GUNA|PT Gunanusa Eramandiri Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+GWSA|PT Greenwood Sejahtera Tbk|Consumer Cyclicals|Tourism & Recreation
+GZCO|PT Gozco Plantations Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+HADE|PT Himalaya Energi Perkasa Tbk|Infrastructures|Gas Utilities
+HAIS|PT Hasnur Internasional Shipping Tbk|Transportation & Logistic|Logistics & Deliveries
+HAJJ|PT Arsy Buana Travelindo Tbk|Consumer Cyclicals|Tourism & Recreation
+HALO|PT Haloni Jane Tbk|Healthcare|Healthcare Equipment & Supplies
+HATM|PT Habco Trans Maritima Tbk|Transportation & Logistic|Logistics & Deliveries
+HBAT|PT Minahasa Membangun Hebat Tbk|Properties & Real Estate|Real Estate Management & Development
+HDFA|PT Radana Bhaskara Finance Tbk|Financials|Consumer Financing
+HDIT|PT Hensel Davest Indonesia Tbk|Technology|Internet Applications & Services
+HEAL|PT Medikaloka Hermina Tbk|Healthcare|Healthcare Providers
+HELI|PT Jaya Trishindo Tbk|Transportation & Logistic|Airlines
+HERO|PT DFI Retail Nusantara Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+HEXA|PT Hexindo Adiperkasa Tbk|Industrials|Machinery
+HGII|PT Hero Global Investment Tbk|Infrastructures|Electric Utilities
+HMSP|PT Hanjaya Mandala Sampoerna Tbk|Consumer Non-Cyclicals|Tobacco
+HOKI|PT Buyung Poetra Sembada Tbk|Consumer Non-Cyclicals|Processed Foods
+HOMI|PT Grand House Mulia Tbk|Properties & Real Estate|Real Estate Management & Development
+HOPE|PT Harapan Duta Pertiwi Tbk|Industrials|Machinery
+HRME|PT Menteng Heritage Realty Tbk|Consumer Cyclicals|Tourism & Recreation
+HRTA|PT Hartadinata Abadi Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+HRUM|PT Harum Energy Tbk|Energy|Coal
+HUMI|PT Humpuss Maritim Internasional Tbk|Energy|Oil & Gas
+HYGN|PT Ecocare Indo Pasifik Tbk|Industrials|Commercial Services
+IATA|PT Karya Pacific Energy Tbk|Energy|Coal
+IBOS|PT Indo Boga Sukses Tbk|Consumer Non-Cyclicals|Processed Foods
+ICBP|PT Indofood CBP Sukses Makmur Tbk|Consumer Non-Cyclicals|Processed Foods
+ICON|PT Island Concepts Indonesia Tbk|Industrials|Commercial Services
+IDEA|PT Idea Indonesia Akademi Tbk|Consumer Cyclicals|Education & Support Services
+IDPR|PT Indonesia Pondasi Raya Tbk|Infrastructures|Building Construction
+IFII|PT Indonesia Fibreboard Industry Tbk|Basic Materials|Forest & Paper
+IFSH|PT Ifishdeco Tbk|Basic Materials|Metals & Minerals
+IGAR|PT Champion Pacific Indonesia Tbk|Basic Materials|Containers & Packaging
+IHSG|IDX Composite Index|Undefined|Undefined
+IKAI|PT Intikeramik Alamasri Industri Tbk|Industrials|Building Products & Fixtures
+IKAN|PT Era Mandiri Cemerlang Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+IKBI|PT Sumi Indo Kabel Tbk|Industrials|Electrical Equipment
+IKPM|PT Ikapharmindo Putramas Tbk|Healthcare|Pharmaceuticals
+IMAS|PT Indomobil Sukses Internasional Tbk|Consumer Cyclicals|Specialty Retail
+IMJS|PT Indomobil Multi Jasa Tbk|Transportation & Logistic|Passenger Ground Transportation
+IMPC|PT Impack Pratama Industri Tbk|Industrials|Building Products & Fixtures
+INAI|PT Indal Aluminium Industry Tbk|Basic Materials|Metals & Minerals
+INCI|PT Intanwijaya Internasional Tbk|Basic Materials|Chemicals
+INCO|PT Vale Indonesia Tbk|Basic Materials|Metals & Minerals
+INDF|PT Indofood Sukses Makmur Tbk|Consumer Non-Cyclicals|Processed Foods
+INDO|PT Royalindo Investa Wijaya Tbk|Properties & Real Estate|Real Estate Management & Development
+INDR|PT Indo-Rama Synthetics Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+INDS|PT Indospring Tbk|Consumer Cyclicals|Automotive Components
+INDY|PT Indika Energy Tbk|Energy|Coal
+INET|PT Sinergi Inti Andalan Prima Tbk|Infrastructures|Telecommunication Services
+INKP|PT Indah Kiat Pulp & Paper Tbk|Basic Materials|Forest & Paper
+INOV|PT Inocycle Technology Group Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+INPC|PT Bank Artha Graha Internasional Tbk|Financials|Banks
+INPP|PT Indonesian Paradise Property Tbk|Properties & Real Estate|Real Estate Management & Development
+INPS|PT Indah Prakasa Sentosa Tbk|Energy|Oil & Gas
+INTD|PT Inter-Delta Tbk|Basic Materials|Forest & Paper
+INTP|PT Indocement Tunggal Prakarsa Tbk|Basic Materials|Construction Materials
+IOTF|PT Sumber Sinergi Makmur Tbk|Technology|Electronic Equipment, Instruments & Components
+IPAC|PT Era Graharealty Tbk|Properties & Real Estate|Real Estate Management & Development
+IPCC|PT Indonesia Kendaraan Terminal Tbk|Infrastructures|Transportation Infrastructure Operators
+IPCM|PT Jasa Armada Indonesia Tbk|Infrastructures|Transportation Infrastructure Operators
+IPOL|PT Indopoly Swakarsa Industry Tbk|Basic Materials|Containers & Packaging
+IPTV|PT MNC Vision Networks Tbk Class A|Consumer Cyclicals|Media
+IRRA|PT Itama Ranoraya Tbk|Healthcare|Healthcare Equipment & Supplies
+IRSX|PT Folago Global Nusantara Tbk|Technology|Software
+ISAP|PT Isra Presisi Indonesia Tbk|Consumer Cyclicals|Automotive Components
+ISAT|PT Indosat Tbk Class B|Infrastructures|Wireless Telecommunication Services
+ISEA|PT Indo American Seafoods Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+ISSP|PT Steel Pipe Industry of Indonesia Tbk|Basic Materials|Metals & Minerals
+ITIC|PT Indonesian Tobacco Tbk|Consumer Non-Cyclicals|Tobacco
+ITMA|PT Sumber Energi Andalan Tbk|Energy|Oil, Gas & Coal Support
+ITMG|PT Indo Tambangraya Megah Tbk|Energy|Coal
+JARR|PT Jhonlin Agro Raya Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+JAST|PT Jasnita Telekomindo Tbk|Infrastructures|Telecommunication Services
+JATI|PT Informasi Teknologi Indonesia Tbk|Technology|Internet Applications & Services
+JAWA|PT Jaya Agra Wattie Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+JAYA|PT Armada Berjaya Trans Tbk|Transportation & Logistic|Logistics & Deliveries
+JECC|PT Jembo Cable Co. Tbk|Industrials|Electrical Equipment
+JECX|PT Nitrasanata Dharma Tbk|Healthcare|Healthcare Providers
+JELI|PT Niramas Utama Tbk|Consumer Non-Cyclicals|Processed Foods
+JGLE|PT Graha Andrasentra Propertindo Tbk|Consumer Cyclicals|Tourism & Recreation
+JIHD|PT Jakarta International Hotels & Development Tbk|Consumer Cyclicals|Tourism & Recreation
+JKON|PT Jaya Konstruksi Manggala Pratama Tbk|Infrastructures|Building Construction
+JPFA|PT Japfa Comfeed Indonesia Tbk Class A|Consumer Non-Cyclicals|Agricultural Food Products
+JRPT|PT Jaya Real Property Tbk|Properties & Real Estate|Real Estate Management & Development
+JSMR|PT Jasa Marga (Persero) Tbk Class B|Infrastructures|Transportation Infrastructure Operators
+JSPT|PT Jakarta Setiabudi Internasional Tbk|Consumer Cyclicals|Tourism & Recreation
+JTPE|PT Jasuindo Tiga Perkasa Tbk|Industrials|Commercial Services
+KAEF|PT Kimia Farma (Persero) Tbk Class B|Healthcare|Pharmaceuticals
+KAQI|PT Jantra Grupo Indonesia Tbk|Consumer Cyclicals|Automotive Components
+KBAG|PT Karya Bersama Anugerah Tbk|Properties & Real Estate|Real Estate Management & Development
+KBLI|PT KMI Wire & Cable Tbk Class A|Industrials|Electrical Equipment
+KBLM|PT Kabelindo Murni Tbk Class A|Industrials|Electrical Equipment
+KBLV|PT First Media Tbk|Infrastructures|Telecommunication Services
+KDSI|PT Kedawung Setia Industrial Tbk|Basic Materials|Containers & Packaging
+KDTN|PT Puri Sentul Permai Tbk|Consumer Cyclicals|Tourism & Recreation
+KEEN|PT Kencana Energi Lestari Tbk|Infrastructures|Electric Utilities
+KEJU|PT Mulia Boga Raya Tbk|Consumer Non-Cyclicals|Processed Foods
+KETR|PT Ketrosden Triasmitra Tbk|Infrastructures|Telecommunication Services
+KICI|PT Kedaung Indah Can Tbk|Consumer Cyclicals|Household Goods
+KIJA|PT Kawasan Industri Jababeka Tbk Class A|Properties & Real Estate|Real Estate Management & Development
+KING|PT Hoffmen Cleanindo Tbk|Industrials|Professional Services
+KINO|PT Kino Indonesia Tbk|Consumer Non-Cyclicals|Personal Care Products
+KIOS|PT Kioson Komersial Indonesia Tbk|Technology|Internet Applications & Services
+KJEN|PT Krida Jaringan Nusantara Tbk|Transportation & Logistic|Logistics & Deliveries
+KKES|PT Kusuma Kemindo Sentosa Tbk|Basic Materials|Chemicals
+KKGI|PT Resource Alam Indonesia Tbk|Energy|Coal
+KLAS|PT Pelayaran Kurnia Lautan Semesta Tbk|Transportation & Logistic|Logistics & Deliveries
+KLBF|PT Kalbe Farma Tbk|Healthcare|Pharmaceuticals
+KLIN|PT Klinko Karya Imaji Tbk|Consumer Cyclicals|Specialty Retail
+KMDS|PT Kurniamitra Duta Sentosa Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+KMTR|PT Kirana Megatara Tbk|Basic Materials|Forest & Paper
+KOBX|PT Kobexindo Tractors Tbk|Industrials|Machinery
+KOCI|PT Kokoh Exa Nusantara Tbk|Properties & Real Estate|Real Estate Management & Development
+KOKA|PT Koka Indonesia Tbk|Infrastructures|Building Construction
+KONI|PT Perdana Bangun Pusaka Tbk|Industrials|Commercial Services
+KOPI|PT Mitra Energi Persada Tbk|Energy|Oil & Gas
+KOTA|PT DMS Propertindo Tbk|Consumer Cyclicals|Tourism & Recreation
+KPIG|PT MNC Tourism Indonesia Tbk|Consumer Cyclicals|Tourism & Recreation
+KRAS|PT Krakatau Steel (Persero) Tbk Class B|Basic Materials|Metals & Minerals
+KREN|PT Quantum Clovera Investama Tbk|Technology|Internet Applications & Services
+KRYA|PT Bangun Karya Perkasa Jaya Tbk|Infrastructures|Building Construction
+KSIX|PT Kentanix Supra International Tbk|Properties & Real Estate|Real Estate Management & Development
+KUAS|PT Ace Oldfields Tbk|Industrials|Building Products & Fixtures
+LABA|PT Green Power Group Tbk|Industrials|Machinery
+LABS|PT UBC Medical Indonesia Tbk|Healthcare|Healthcare Equipment & Supplies
+LAJU|PT Jasa Berdikari Logistics Tbk|Transportation & Logistic|Logistics & Deliveries
+LAND|PT Trimitra Propertindo Tbk|Properties & Real Estate|Real Estate Management & Development
+LAPD|PT Leyand International Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+LEAD|PT Logindo Samudramakmur Tbk|Energy|Oil & Gas
+LFLO|PT Imago Mulia Persada Tbk|Consumer Cyclicals|Household Goods
+LIFE|PT MSIG Life Insurance Indonesia Tbk|Financials|Insurance
+LINK|PT Link Net Tbk|Infrastructures|Telecommunication Services
+LION|PT Lion Metal Works Tbk|Industrials|Commercial Services
+LIVE|PT Homeco Victoria Makmur Tbk|Consumer Cyclicals|Household Goods
+LMAX|PT Lupromax Pelumas Indonesia Tbk|Consumer Cyclicals|Automotive Components
+LMPI|PT Langgeng Makmur Industri Tbk|Consumer Cyclicals|Household Goods
+LOPI|PT Logisticsplus International Tbk|Transportation & Logistic|Logistics & Deliveries
+LPCK|PT Lippo Cikarang Tbk|Properties & Real Estate|Real Estate Management & Development
+LPGI|PT Lippo General Insurance Tbk|Financials|Insurance
+LPIN|PT Multi Prima Sejahtera Tbk|Consumer Cyclicals|Automotive Components
+LPKR|PT Lippo Karawaci Tbk|Properties & Real Estate|Real Estate Management & Development
+LPLI|PT Star Pacific Tbk Class A|Properties & Real Estate|Real Estate Management & Development
+LPPF|PT MDS Retailing Tbk Class A|Consumer Cyclicals|Department Stores
+LPPS|PT Lenox Pasifik InvestamaTbk Class A|Financials|Holding & Investment Companies
+LRNA|PT Eka Sari Lorena Transport Tbk|Transportation & Logistic|Passenger Ground Transportation
+LSIP|PT Perusahaan Perkebunan London Sumatra Indonesia Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+LTLS|PT Lautan Luas Tbk|Basic Materials|Chemicals
+LUCK|PT Sentral Mitra Informatika Tbk|Technology|Computer Hardware
+LUCY|PT Lima Dua Lima Tiga Tbk|Consumer Cyclicals|Tourism & Recreation
+MAHA|PT Mandiri Herindo Adiperkasa Tbk|Energy|Coal
+MAIN|PT Malindo Feedmill Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+MANG|PT Manggung Polahraya Tbk|Infrastructures|Building Construction
+MAPA|PT MAP Aktif Adiperkasa Tbk|Consumer Cyclicals|Specialty Retail
+MAPB|PT Map Boga Adiperkasa Tbk|Consumer Cyclicals|Tourism & Recreation
+MAPI|PT Mitra Adiperkasa Tbk|Consumer Cyclicals|Specialty Retail
+MARK|PT Mark Dynamics Indonesia Tbk|Industrials|Machinery
+MASB|PT Bank Multiarta Sentosa Tbk|Financials|Banks
+MAXI|PT Maxindo Karya Anugerah Tbk|Consumer Non-Cyclicals|Processed Foods
+MAYA|PT Bank Mayapada Internasional Tbk Class A|Financials|Banks
+MBAP|PT Mitrabara Adiperdana Tbk|Energy|Coal
+MBMA|PT Merdeka Battery Materials Tbk|Basic Materials|Metals & Minerals
+MBSS|PT Mitrabahtera Segara Sejati Tbk|Energy|Coal
+MBTO|PT Martina Berto Tbk|Consumer Non-Cyclicals|Personal Care Products
+MCAS|PT M Cash Integrasi Tbk|Technology|Internet Applications & Services
+MCOL|PT Prima Andalan Mandiri Tbk|Energy|Coal
+MCOR|PT Bank China Construction Bank Indonesia Tbk|Financials|Banks
+MDIA|PT Intermedia Capital Tbk|Consumer Cyclicals|Media
+MDIY|PT Daya Intiguna Yasa Tbk|Consumer Cyclicals|Specialty Retail
+MDKA|PT Merdeka Copper Gold Tbk|Basic Materials|Metals & Minerals
+MDKI|PT Emdeki Utama Tbk|Basic Materials|Chemicals
+MDLA|PT Medela Potentia Tbk|Healthcare|Pharmaceuticals
+MDLN|PT Modernland Realty Tbk Class A|Properties & Real Estate|Real Estate Management & Development
+MEDC|PT Medco Energi Internasional Tbk|Energy|Oil & Gas
+MEDS|PT Hetzer Medical Indonesia Tbk|Healthcare|Healthcare Equipment & Supplies
+MEGA|PT Bank Mega Tbk|Financials|Banks
+MEJA|PT Harta Djaya Karya Tbk|Consumer Cyclicals|Household Goods
+MERI|PT Merry Riana Edukasi Tbk|Consumer Cyclicals|Education & Support Services
+MERK|PT Merck Tbk|Healthcare|Pharmaceuticals
+MGLV|PT NexAI Digital Infrastruktur Tbk.|Consumer Cyclicals|Household Goods
+MGNA|PT Magna Investama Mandiri Tbk|Consumer Cyclicals|Tourism & Recreation
+MGRO|PT Mahkota Group Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+MHKI|PT Multi Hanna Kreasindo Tbk|Industrials|Commercial Services
+MICE|PT Multi Indocitra Tbk|Consumer Cyclicals|Household Goods
+MIDI|PT Midi Utama Indonesia Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+MIKA|PT Mitra Keluarga Karyasehat Tbk|Healthcare|Healthcare Providers
+MINA|PT Sanurhasta Mitra Tbk.|Consumer Cyclicals|Tourism & Recreation
+MINE|PT Sinar Terang Mandiri TBK|Basic Materials|Metals & Minerals
+MIRA|PT Mitra International Resources Tbk|Transportation & Logistic|Logistics & Deliveries
+MITI|PT Mitra Investindo Tbk Class A|Transportation & Logistic|Logistics & Deliveries
+MKAP|PT Multikarya Asia Pasifik Raya Tbk|Energy|Oil, Gas & Coal Support
+MKPI|PT Metropolitan Kentjana Tbk|Properties & Real Estate|Real Estate Management & Development
+MKTR|PT Menthobi Karyatama Raya Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+MLBI|PT Multi Bintang Indonesia Tbk|Consumer Non-Cyclicals|Beverages
+MLIA|PT Mulia Industrindo Tbk|Industrials|Building Products & Fixtures
+MLPL|PT Multipolar Tbk Class A|Consumer Non-Cyclicals|Food & Staples Retailing
+MLPT|PT Multipolar Technology Tbk|Technology|IT Services & Consulting
+MMIX|PT Multi Medika Internasional Tbk|Healthcare|Healthcare Equipment & Supplies
+MMLP|PT Mega Manunggal Property Tbk|Properties & Real Estate|Real Estate Management & Development
+MNCN|PT Media Nusantara Citra Tbk|Consumer Cyclicals|Media
+MOLI|PT Madusari Murni Indah Tbk|Basic Materials|Chemicals
+MORA|PT Ekamas Mora Republik Tbk|Infrastructures|Telecommunication Services
+MPIX|PT Mitra Pedagang Indonesia Tbk|Technology|Internet Applications & Services
+MPMX|PT Mitra Pinasthika Mustika Tbk|Consumer Cyclicals|Specialty Retail
+MPOW|PT Megapower Makmur Tbk|Infrastructures|Electric Utilities
+MPPA|PT Matahari Putra Prima Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+MPRO|PT Maha Properti Indonesia Tbk|Properties & Real Estate|Real Estate Management & Development
+MPXL|PT MPX Logistics International Tbk|Transportation & Logistic|Logistics & Deliveries
+MRAT|PT Mustika Ratu Tbk|Consumer Non-Cyclicals|Personal Care Products
+MSIE|PT Multisarana Intan Eduka Tbk|Properties & Real Estate|Real Estate Management & Development
+MSIN|PT MNC Digital Entertainment Tbk|Consumer Cyclicals|Entertainment & Movie Production
+MSJA|PT Multi Spunindo Jaya Tbk|Consumer Non-Cyclicals|Personal Care Products
+MSKY|PT MNC Vision Network|Consumer Cyclicals|Media
+MSTI|PT Mastersystem Infotama Tbk|Technology|Networking Equipment
+MTDL|PT Metrodata Electronics Tbk|Technology|Computer Hardware
+MTEL|PT Dayamitra Telekomunikasi Tbk|Infrastructures|Wireless Telecommunication Services
+MTLA|PT Metropolitan Land Tbk|Properties & Real Estate|Real Estate Management & Development
+MTMH|PT Murni Sadar Tbk|Healthcare|Healthcare Providers
+MTWI|PT Malacca Trust Wuwungan Insurance Tbk|Financials|Insurance
+MUTU|PT Mutuagung Lestari Tbk|Industrials|Professional Services
+MYOH|PT Samindo Resources Tbk|Energy|Oil, Gas & Coal Support
+MYOR|PT Mayora Indah Tbk|Consumer Non-Cyclicals|Processed Foods
+NAIK|PT Adiwarna Anugerah Abadi Tbk|Industrials|Diversified Industrial Trading
+NANO|PT Nanotech Indonesia Global Tbk|Consumer Non-Cyclicals|Personal Care Products
+NASA|PT Andalan Perkasa Abadi Tbk|Properties & Real Estate|Real Estate Management & Development
+NASI|PT Wahana Inti Makmur Tbk|Consumer Non-Cyclicals|Processed Foods
+NATO|PT Olympus Strategic Indonesia Tbk|Consumer Cyclicals|Tourism & Recreation
+NAYZ|PT Hassana Boga Sejahtera Tbk|Consumer Non-Cyclicals|Processed Foods
+NCKL|PT Trimegah Bangun Persada Tbk|Basic Materials|Metals & Minerals
+NELY|PT Pelayaran Nelly Dwi Putri Tbk|Transportation & Logistic|Logistics & Deliveries
+NEST|PT Esta Indonesia Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+NETV|PT MDTV Media Technologies Tbk|Consumer Cyclicals|Media
+NFCX|PT NFC Indonesia Tbk|Technology|Internet Applications & Services
+NICE|PT Adhi Kartiko Pratama Tbk|Basic Materials|Metals & Minerals
+NICK|PT Charnic Capital Tbk|Financials|Holding & Investment Companies
+NICL|PT PAM Mineral Tbk|Basic Materials|Metals & Minerals
+NIKL|PT Pelat Timah Nusantara Tbk|Basic Materials|Metals & Minerals
+NINE|PT Techno9 Indonesia Tbk|Technology|Computer Hardware
+NIRO|PT City Retail Developments Tbk|Properties & Real Estate|Real Estate Management & Development
+NISP|PT Bank OCBC NISP Tbk|Financials|Banks
+NOBU|PT Bank Nationalnobu Tbk|Financials|Banks
+NPGF|PT Nusa Palapa Gemilang Tbk|Basic Materials|Chemicals
+NRCA|PT Nusa Raya Cipta Tbk|Infrastructures|Building Construction
+NSSS|PT Nusantara Sawit Sejahtera Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+NTBK|PT Nusatama Berkah Tbk|Industrials|Machinery
+NZIA|PT Nusantara Almazia Tbk|Properties & Real Estate|Real Estate Management & Development
+OASA|PT Maharaksa Biru Energi Tbk|Infrastructures|Wireless Telecommunication Services
+OBAT|PT Brigit Biofarmaka Teknologi Tbk|Healthcare|Pharmaceuticals
+OBMD|PT OBM Drilchem Tbk|Basic Materials|Chemicals
+OILS|PT Indo Oil Perkasa Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+OKAS|PT Ancora Indonesia Resources Tbk|Basic Materials|Chemicals
+OLIV|PT Atlas Nexus Group Tbk|Consumer Cyclicals|Household Goods
+OMED|PT Jayamas Medica Industri Tbk|Healthcare|Healthcare Equipment & Supplies
+OMRE|PT Indonesia Prima Property Tbk|Properties & Real Estate|Real Estate Management & Development
+OPMS|PT Optima Prima Metal Sinergi Tbk|Basic Materials|Metals & Minerals
+PACK|PT Abadi Nusantara Hijau Investama Tbk|Basic Materials|Containers & Packaging
+PADA|PT Personel Alih Daya Tbk|Industrials|Professional Services
+PADI|PT Minna Padi Investama Sekuritas Tbk|Financials|Investment Services
+PALM|PT Provident Investasi Bersama Tbk|Financials|Holding & Investment Companies
+PAMG|PT Bima Sakti Pertiwi Tbk|Properties & Real Estate|Real Estate Management & Development
+PANI|PT Pantai Indah Kapuk Dua Tbk|Properties & Real Estate|Real Estate Management & Development
+PANR|PT Panorama Sentrawisata Tbk|Consumer Cyclicals|Tourism & Recreation
+PANS|PT Panin Sekuritas Tbk|Financials|Investment Services
+PART|PT Cipta Perdana Lancar Tbk|Consumer Cyclicals|Automotive Components
+PBID|PT Panca Budi Idaman Tbk|Basic Materials|Containers & Packaging
+PBRX|PT Pan Brothers Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+PBSA|PT Paramita Bangun Sarana Tbk|Infrastructures|Building Construction
+PCAR|PT Prima Cakrawala Abadi Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+PDES|PT Destinasi Tirta Nusantara Tbk|Consumer Cyclicals|Tourism & Recreation
+PDPP|PT Primadaya Plastisindo Tbk|Basic Materials|Containers & Packaging
+PEGE|PT Panca Global Kapital Tbk|Financials|Holding & Investment Companies
+PEHA|PT Phapros Tbk|Healthcare|Pharmaceuticals
+PEVE|PT Penta Valent Tbk|Healthcare|Pharmaceuticals
+PGAS|PT Perusahaan Gas Negara (Persero) Tbk Class B|Energy|Oil & Gas
+PGEO|PT Pertamina Geothermal Energy Tbk|Infrastructures|Electric Utilities
+PGJO|PT Bahtera Bumi Raya Tbk|Technology|Internet Applications & Services
+PGLI|PT Pembangunan Graha Lestari Indah Tbk|Consumer Cyclicals|Tourism & Recreation
+PGUN|PT Pradiksi Gunatama Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+PICO|PT Pelangi Indah Canindo Tbk|Basic Materials|Containers & Packaging
+PIPA|PT Oxala Energy International Tbk|Industrials|Building Products & Fixtures
+PJAA|PT Pembangunan Jaya Ancol Tbk|Consumer Cyclicals|Tourism & Recreation
+PJHB|PT Pelayaran Jaya Hidup Baru|Transportation & Logistic|Logistics & Deliveries
+PKPK|PT Paragon Karya Perkasa Tbk|Energy|Oil, Gas & Coal Support
+PLAN|PT Planet Properindo Jaya Tbk|Consumer Cyclicals|Tourism & Recreation
+PMJS|PT Putra Mandiri Jembar Tbk|Consumer Cyclicals|Specialty Retail
+PMUI|PT Prima Multi Usaha Indonesia Tbk|Consumer Cyclicals|Consumer Goods Distributors
+PNBN|PT Bank Pan Indonesia Tbk|Financials|Banks
+PNBS|PT Bank Panin Dubai Syariah Tbk|Financials|Banks
+PNGO|PT AEP Pinago Plantations Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+PNIN|PT Paninvest Tbk|Financials|Insurance
+PNLF|PT Panin Financial Tbk|Financials|Insurance
+PNSE|PT Pudjiadi & Sons Tbk|Consumer Cyclicals|Tourism & Recreation
+POLA|PT Pool Advista Finance Tbk|Financials|Consumer Financing
+POLI|PT Pollux Hotels Group Tbk|Properties & Real Estate|Real Estate Management & Development
+POLU|PT Golden Flower Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+PORT|PT Nusantara Pelabuhan Handal Tbk|Infrastructures|Transportation Infrastructure Operators
+POWR|PT Cikarang Listrindo Tbk|Infrastructures|Electric Utilities
+PPGL|PT Prima Globalindo Logistik Tbk|Transportation & Logistic|Logistics & Deliveries
+PPRE|PT PP Presisi Tbk|Infrastructures|Building Construction
+PPRI|PT Paperocks Indonesia Tbk|Basic Materials|Containers & Packaging
+PPRO|PT PP Properti Tbk|Properties & Real Estate|Real Estate Management & Development
+PRAY|PT Famon Awal Bros Sedaya Tbk|Healthcare|Healthcare Providers
+PRDA|PT Prodia Widyahusada Tbk|Healthcare|Healthcare Providers
+PRDL|PT Prodia Diagnostic Line Tbk|Healthcare|Healthcare Equipment & Supplies
+PRIM|PT Royal Prima Tbk|Healthcare|Healthcare Providers
+PSAB|PT J Resources Asia Pasifik Tbk|Basic Materials|Metals & Minerals
+PSAT|PT Pancaran Samudera Transport Tbk|Energy|Coal
+PSDN|PT Prasidha Aneka Niaga Tbk|Consumer Non-Cyclicals|Processed Foods
+PSGO|PT Palma Serasih Tbk.|Consumer Non-Cyclicals|Agricultural Food Products
+PSKT|PT Red Planet Indonesia Tbk|Consumer Cyclicals|Tourism & Recreation
+PSSI|PT IMC Pelita Logistik Tbk|Energy|Coal
+PTBA|PT Bukit Asam (Persero) Tbk|Energy|Coal
+PTIS|PT Indo Straits Tbk|Energy|Coal
+PTMP|PT Mitra Pack Tbk|Industrials|Machinery
+PTPP|PT PP (Persero) Tbk|Infrastructures|Building Construction
+PTPS|PT Pulau Subur Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+PTPW|PT Pratama Widya Tbk|Infrastructures|Building Construction
+PTRO|PT Petrosea Tbk|Energy|Oil, Gas & Coal Support
+PTSN|PT Sat Nusapersada Tbk|Technology|Networking Equipment
+PTSP|PT Pioneerindo Gourmet International Tbk|Consumer Cyclicals|Tourism & Recreation
+PUDP|PT Pudjiadi Prestige Tbk Class A|Properties & Real Estate|Real Estate Management & Development
+PURA|PT Putra Rajawali Kencana Tbk|Transportation & Logistic|Logistics & Deliveries
+PURI|PT Puri Global Sukses Tbk|Properties & Real Estate|Real Estate Management & Development
+PWON|PT Pakuwon Jati Tbk|Properties & Real Estate|Real Estate Management & Development
+PYFA|PT Pyridam Farma Tbk|Healthcare|Pharmaceuticals
+PZZA|PT Sarimelati Kencana Tbk|Consumer Cyclicals|Tourism & Recreation
+RAAM|PT Tripar Multivision Plus Tbk|Consumer Cyclicals|Entertainment & Movie Production
+RAJA|PT Rukun Raharja Tbk|Energy|Oil & Gas
+RALS|PT Ramayana Lestari Sentosa Tbk|Consumer Cyclicals|Department Stores
+RANC|PT Supra Boga Lestari Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+RANS|PT Rans Entertainmen Indonesia Tbk|Consumer Cyclicals|Entertainment & Movie Production
+RATU|PT Raharja Energi Cepu Tbk|Energy|Oil & Gas
+RBMS|PT Ristia Bintang Mahkotasejati Tbk|Properties & Real Estate|Real Estate Management & Development
+RCCC|PT Utama Radar Cahaya Tbk|Transportation & Logistic|Logistics & Deliveries
+RDTX|PT Roda Vivatex Tbk|Properties & Real Estate|Real Estate Management & Development
+REAL|PT Repower Asia Indonesia Tbk|Properties & Real Estate|Real Estate Management & Development
+RELF|PT Graha Mitra Asia Tbk|Properties & Real Estate|Real Estate Management & Development
+RELI|PT Reliance Sekuritas Indonesia Tbk|Financials|Investment Services
+RGAS|PT Kian Santang Muliatama Tbk|Energy|Oil, Gas & Coal Support
+RICY|PT Ricky Putra Globalindo Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+RIGS|PT Rig Tenders Indonesia Tbk|Energy|Coal
+RISE|PT Jaya Sukses Makmur Sentosa Tbk|Properties & Real Estate|Real Estate Management & Development
+RLCO|PT Abadi Lestari Indonesia Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+RMKE|PT RMK Energy Tbk|Energy|Coal
+RMKO|PT Royaltama Mulia Kontraktorindo Tbk|Energy|Oil, Gas & Coal Support
+ROCK|PT Rockfields Properti Indonesia Tbk|Properties & Real Estate|Real Estate Management & Development
+RODA|PT Pikko Land Development Tbk|Properties & Real Estate|Real Estate Management & Development
+RONY|PT Aracord Nusantara Group Tbk|Infrastructures|Building Construction
+ROTI|PT Nippon Indosari Corpindo Tbk|Consumer Non-Cyclicals|Processed Foods
+RSCH|PT Charlie Hospital Semarang Tbk|Healthcare|Healthcare Providers
+RSGK|PT Kedoya Adyaraya Tbk|Healthcare|Healthcare Providers
+RUIS|PT Radiant Utama Interinsco Tbk|Energy|Oil, Gas & Coal Support
+RUNS|PT Global Sukses Solusi Tbk|Technology|Software
+SAFE|PT Steady Safe Tbk|Transportation & Logistic|Passenger Ground Transportation
+SAGE|PT Saptausaha Gemilangindah Tbk|Properties & Real Estate|Real Estate Management & Development
+SAME|PT Sarana Meditama Metropolitan Tbk|Healthcare|Healthcare Providers
+SAMF|PT Saraswanti Anugerah Makmur Tbk|Basic Materials|Chemicals
+SAPX|PT Satria Antaran Prima Tbk|Transportation & Logistic|Logistics & Deliveries
+SATU|PT Kota Satu Properti Tbk|Properties & Real Estate|Real Estate Management & Development
+SBMA|PT Surya Biru Murni Acetylene Tbk|Basic Materials|Chemicals
+SCCO|PT Supreme Cable Manufacturing & Commerce Tbk|Industrials|Electrical Equipment
+SCMA|PT Surya Citra Media Tbk|Consumer Cyclicals|Media
+SCNP|PT Selaras Citra Nusantara Perkasa Tbk|Consumer Cyclicals|Household Goods
+SDMU|PT Sidomulyo Selaras Tbk|Transportation & Logistic|Logistics & Deliveries
+SDPC|PT Millennium Pharmacon International Tbk|Consumer Non-Cyclicals|Food & Staples Retailing
+SDRA|PT Bank Woori Saudara Indonesia 1906 Tbk|Financials|Banks
+SEMA|PT Semacom Integrated Tbk|Energy|Alternative Energy Equipment
+SFAN|PT Surya Fajar Capital Tbk|Financials|Holding & Investment Companies
+SGER|PT Sumber Global Energy Tbk|Energy|Coal
+SGRO|PT Prime Agri Resources Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+SHID|PT Hotel Sahid Jaya International Tbk|Consumer Cyclicals|Tourism & Recreation
+SHIP|PT Sillo Maritime Perdana Tbk|Energy|Oil & Gas
+SICO|PT Sigma Energy Compressindo Tbk|Energy|Oil, Gas & Coal Support
+SIDO|PT Industri Jamu dan Farmasi Sido Muncul Tbk|Healthcare|Pharmaceuticals
+SILO|PT Siloam International Hospitals Tbk Reg-S|Healthcare|Healthcare Providers
+SIMP|PT Salim Ivomas Pratama Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+SINI|PT Singaraja Putra Tbk|Industrials|Building Products & Fixtures
+SIPD|PT Sreeya Sewu Indonesia Tbk Class A|Consumer Non-Cyclicals|Agricultural Food Products
+SKBM|PT Sekar Bumi Tbk|Consumer Non-Cyclicals|Processed Foods
+SKLT|PT Sekar Laut Tbk|Consumer Non-Cyclicals|Processed Foods
+SKRN|PT Superkrane Mitra Utama|Industrials|Machinery
+SLIS|PT Gaya Abadi Sempurna Tbk|Consumer Cyclicals|Specialty Retail
+SMAR|PT Sinar Mas Agro Resources & Technology Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+SMBR|PT Semen Baturaja (Persero) Tbk Class B|Basic Materials|Construction Materials
+SMDM|PT Suryamas Dutamakmur Tbk|Properties & Real Estate|Real Estate Management & Development
+SMDR|PT Samudera Indonesia Tbk|Transportation & Logistic|Logistics & Deliveries
+SMGA|PT Sumber Mineral Global Abadi Tbk|Basic Materials|Metals & Minerals
+SMGR|PT Semen Indonesia (Persero) Tbk|Basic Materials|Construction Materials
+SMIL|PT Sarana Mitra Luas Tbk|Industrials|Machinery
+SMKL|PT Satyamitra Kemas Lestari Tbk|Basic Materials|Containers & Packaging
+SMKM|PT Sumber Mas Konstruksi Tbk|Infrastructures|Building Construction
+SMLE|PT Sinergi Multi Lestarindo Tbk|Basic Materials|Chemicals
+SMMA|PT Sinar Mas Multiartha Tbk Class A|Financials|Holding & Investment Companies
+SMMT|PT Golden Eagle Energy Tbk|Energy|Coal
+SMRA|PT Summarecon Agung Tbk|Properties & Real Estate|Real Estate Management & Development
+SMSM|PT Selamat Sempurna Tbk|Consumer Cyclicals|Automotive Components
+SNLK|PT Sunter Lakeside Hotel Tbk|Consumer Cyclicals|Tourism & Recreation
+SOCI|PT Soechi Lines Tbk|Energy|Oil & Gas
+SOFA|PT Solusi Environment Asia Tbk|Consumer Cyclicals|Household Goods
+SOHO|PT Soho Global Health Tbk|Healthcare|Pharmaceuticals
+SOLA|PT Xolare Rcr Energy Tbk|Basic Materials|Construction Materials
+SONA|PT Sona Topas Tourism Industry Tbk|Consumer Cyclicals|Department Stores
+SOSS|PT ALSOK Indonesia Services Tbk|Industrials|Professional Services
+SOTS|PT Satria Mega Kencana Tbk|Consumer Cyclicals|Tourism & Recreation
+SPMA|PT Suparma Tbk|Basic Materials|Containers & Packaging
+SPRE|PT Soraya Berjaya Indonesia Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+SPTO|PT Surya Pertiwi Tbk|Industrials|Building Products & Fixtures
+SQMI|PT Wilton Makmur Indonesia Tbk|Basic Materials|Metals & Minerals
+SRAJ|PT Sejahteraraya Anugrahjaya Tbk|Healthcare|Healthcare Providers
+SRSN|PT Indo Acidatama Tbk|Basic Materials|Chemicals
+SRTG|PT Saratoga Investama Sedaya Tbk|Financials|Holding & Investment Companies
+SSIA|PT Surya Semesta Internusa Tbk|Infrastructures|Building Construction
+SSMS|PT Sawit Sumbermas Sarana Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+SSTM|PT Sunson Textile Manufacturer Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+STAA|PT Sumber Tani Agung Resources Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+STAR|PT Calculus Global Ventures Tbk|Financials|Holding & Investment Companies
+STRK|PT Lovina Beach Brewery Tbk|Consumer Non-Cyclicals|Beverages
+STTP|PT Siantar Top Tbk|Consumer Non-Cyclicals|Processed Foods
+SULI|PT SLJ Global Tbk|Basic Materials|Forest & Paper
+SUNI|PT Sunindo Pratama Tbk|Energy|Oil, Gas & Coal Support
+SUPA|PT Super Bank Indonesia Tbk|Financials|Banks
+SURE|PT Super Energy Tbk|Energy|Oil & Gas
+SURI|PT Maja Agung Latexindo Tbk|Healthcare|Healthcare Equipment & Supplies
+SWID|PT Saraswanti Indoland Development Tbk|Consumer Cyclicals|Tourism & Recreation
+TALF|PT Tunas Alfin Tbk|Basic Materials|Containers & Packaging
+TAMA|PT Lancartama Sejati Tbk|Infrastructures|Building Construction
+TAMU|PT Pelayaran Tamarin Samudra Tbk|Energy|Oil, Gas & Coal Support
+TAPG|PT Triputra Agro Persada Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+TARA|PT Agung Semesta Sejahtera Tbk|Properties & Real Estate|Real Estate Management & Development
+TAXI|PT Express Transindo Utama Tbk|Transportation & Logistic|Passenger Ground Transportation
+TBIG|PT Tower Bersama Infrastructure Tbk|Infrastructures|Wireless Telecommunication Services
+TBLA|PT Tunas Baru Lampung Tbk|Consumer Non-Cyclicals|Processed Foods
+TBMS|PT Tembaga Mulia Semanan Tbk|Basic Materials|Metals & Minerals
+TCID|PT Mandom Indonesia Tbk|Consumer Non-Cyclicals|Personal Care Products
+TCPI|PT Transcoal Pacific|Energy|Coal
+TEBE|PT Dana Brata Luhur Tbk|Energy|Coal
+TFAS|PT Telefast Indonesia Tbk|Technology|Internet Applications & Services
+TFCO|PT Tifico Fiber Indonesia, Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+TGKA|PT Tigaraksa Satria Tbk|Consumer Non-Cyclicals|Processed Foods
+TGUK|PT Platinum Wahab Nusantara Tbk|Consumer Non-Cyclicals|Processed Foods
+TIFA|PT KDB Tifa Finance Tbk|Financials|Consumer Financing
+TINS|PT TIMAH (Persero) Tbk|Basic Materials|Metals & Minerals
+TIRA|PT Tira Austenite Tbk|Industrials|Diversified Industrial Trading
+TKIM|PT Pabrik Kertas Tjiwi Kimia Tbk|Basic Materials|Forest & Paper
+TLDN|PT Teladan Prima Agro Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+TLKM|PT Telkom Indonesia (Persero) Tbk Class B|Infrastructures|Telecommunication Services
+TMAS|PT Temas Tbk|Transportation & Logistic|Logistics & Deliveries
+TMPO|PT Tempo Inti Media Tbk|Consumer Cyclicals|Media
+TNCA|PT Trimuda Nuansa Citra Tbk|Transportation & Logistic|Logistics & Deliveries
+TOBA|PT TBS Energi Utama Tbk|Energy|Coal
+TOOL|PT Rohartindo Nusantara Luas Tbk|Consumer Cyclicals|Specialty Retail
+TOSK|PT Topindo Solusi Komunika Tbk|Technology|Internet Applications & Services
+TOTL|PT Total Bangun Persada Tbk|Infrastructures|Building Construction
+TOTO|PT Surya Toto Indonesia Tbk|Industrials|Building Products & Fixtures
+TOWR|PT Sarana Menara Nusantara Tbk|Infrastructures|Wireless Telecommunication Services
+TPIA|PT Chandra Asri Pacific Tbk|Basic Materials|Chemicals
+TPMA|PT Trans Power Marine Tbk|Energy|Coal
+TRGU|PT Cerestar Indonesia Tbk|Consumer Non-Cyclicals|Processed Foods
+TRIM|PT Trimegah Sekuritas Indonesia Tbk|Financials|Investment Services
+TRIN|PT Perintis Triniti Properti Tbk|Properties & Real Estate|Real Estate Management & Development
+TRIS|PT Trisula International Tbk|Consumer Cyclicals|Apparel & Luxury Goods
+TRJA|PT Transkon Jaya Tbk|Transportation & Logistic|Passenger Ground Transportation
+TRON|PT Teknologi Karya Digital Nusa Tbk|Technology|Software
+TRST|PT Trias Sentosa, Tbk|Basic Materials|Containers & Packaging
+TRUK|PT Guna Timur Raya Tbk|Transportation & Logistic|Logistics & Deliveries
+TRUS|PT Trust Finance Indonesia Tbk|Financials|Consumer Financing
+TSPC|PT Tempo Scan Pacific Tbk|Healthcare|Pharmaceuticals
+TUGU|PT Asuransi Tugu Pratama Indonesia Tbk|Financials|Insurance
+TYRE|PT King Tire Indonesia Tbk|Consumer Cyclicals|Automotive Components
+UANG|PT Pakuan Tbk|Properties & Real Estate|Real Estate Management & Development
+UCID|PT Uni-Charm Indonesia Tbk|Consumer Non-Cyclicals|Personal Care Products
+UDNG|PT Agro Bahari Nusantara Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+UFOE|PT Damai Sejahtera Abadi Tbk|Consumer Cyclicals|Specialty Retail
+ULTJ|PT Ultrajaya Milk Industry & Trading Co. Tbk|Consumer Non-Cyclicals|Processed Foods
+UNIC|PT Unggul Indah Cahaya Tbk|Basic Materials|Chemicals
+UNIQ|PT Ulima Nitra Tbk|Energy|Oil, Gas & Coal Support
+UNTD|PT Terang Dunia Internusa Tbk|Consumer Cyclicals|Sports Equipment & Hobbies Goods
+UNTR|PT United Tractors Tbk|Industrials|Machinery
+UNVR|PT Unilever Indonesia Tbk|Consumer Non-Cyclicals|Personal Care Products
+URBN|PT Urban Jakarta Propertindo Tbk|Properties & Real Estate|Real Estate Management & Development
+UVCR|PT Trimegah Karya Pratama Tbk|Technology|Internet Applications & Services
+VAST|PT Vastland Indonesia Tbk|Properties & Real Estate|Real Estate Management & Development
+VERN|PT Verona Indah Pictures Tbk|Consumer Cyclicals|Entertainment & Movie Production
+VICI|PT Victoria Care Indonesia Tbk|Consumer Non-Cyclicals|Personal Care Products
+VICO|PT Victoria Investama Tbk|Financials|Holding & Investment Companies
+VINS|PT Victoria Insurance Tbk|Financials|Insurance
+VISI|PT Satu Visi Putra Tbk|Industrials|Commercial Services
+VIVA|PT Visi Media Asia Tbk Class A|Consumer Cyclicals|Media
+VKTR|PT VKTR Teknologi Mobilitas Tbk|Consumer Cyclicals|Automotive Components
+VOKS|PT Voksel Electric Tbk|Industrials|Electrical Equipment
+VRNA|PT Mizuho Leasing Indonesia Tbk|Financials|Consumer Financing
+VTNY|PT Venteny Fortuna International Tbk|Financials|Consumer Financing
+WAPO|PT Wahana Pronatural Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+WBSA|PT BSA Logistics Indonesia Tbk|Transportation & Logistic|Logistics & Deliveries
+WEGE|PT Wijaya Karya Bangunan Gedung Tbk|Infrastructures|Building Construction
+WEHA|PT WEHA Transportasi Indonesia Tbk|Transportation & Logistic|Passenger Ground Transportation
+WGSH|PT Wira Global Solusi Tbk|Technology|Software
+WIDI|PT Widiant Jaya Krenindo Tbk|Industrials|Machinery
+WIFI|PT Solusi Sinergi Digital Tbk|Technology|Internet Applications & Services
+WIIM|PT Wismilak Inti Makmur Tbk|Consumer Non-Cyclicals|Tobacco
+WINE|PT Hatten Bali Tbk|Consumer Non-Cyclicals|Beverages
+WINR|PT Winner Nusantara Jaya Tbk|Properties & Real Estate|Real Estate Management & Development
+WINS|PT Wintermar Offshore Marine Tbk|Energy|Oil, Gas & Coal Support
+WIRG|PT WIR Asia Tbk|Technology|Software
+WMPP|PT Widodo Makmur Perkasa Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+WMUU|PT Widodo Makmur Unggas Tbk|Consumer Non-Cyclicals|Agricultural Food Products
+WOMF|PT Wahana Ottomitra Multiartha Tbk|Financials|Consumer Financing
+WOOD|PT Integra Indocabinet Tbk|Consumer Cyclicals|Household Goods
+WOWS|PT Ginting Jaya Energi Tbk|Energy|Oil, Gas & Coal Support
+WTON|PT Wijaya Karya Beton Tbk|Basic Materials|Construction Materials
+XCID|DIRE CIPTADANA PROPERTI RITEL INDONESIA|Undefined|Undefined
+XCIS|Dana Investasi Real Estat Ciptadana Properti Perhotelan Padjajaran|Undefined|Undefined
+XSPI|Dana Investasi Real Estat Simas Plaza Indonesia|Undefined|Undefined
+YELO|PT Yelooo Integra Datanet Tbk|Consumer Cyclicals|Consumer Goods Distributors
+YOII|PT Asuransi Digital Bersama Tbk|Financials|Insurance
+YPAS|PT Yanaprima Hastapersada Tbk|Basic Materials|Containers & Packaging
+YULE|PT Yulie Sekuritas Indonesia Tbk|Financials|Investment Services
+YUPI|Pt Yupi Indo Jelly Gum Tbk|Consumer Non-Cyclicals|Processed Foods
+ZATA|PT Bersama Zatta Jaya Tbk|Consumer Cyclicals|Specialty Retail
+ZONE|PT Mega Perintis Tbk|Consumer Cyclicals|Specialty Retail
+ZYRX|PT Zyrexindo Mandiri Buana Tbk|Technology|Computer Hardware
+(845 rows, 508 ms)
+---

@@ -1,0 +1,8 @@
+ERROR: HTTP 400: {"error":"pq: canceling statement due to statement timeout","status":400}
+---
+ERROR: HTTP 400: {"error":"pq: canceling statement due to statement timeout","status":400}
+---
+asset_type | timeframe | calculation_version | n_rows | n_t | min | max | max
+index | Daily | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | 2127 | 1 | 2018-01-02T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T12:39:33.163482Z
+(1 rows, 559 ms)
+---

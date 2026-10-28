@@ -1,0 +1,4 @@
+matched | mismatched | string_agg
+24 | 0 |
+(1 rows, 4139 ms)
+---

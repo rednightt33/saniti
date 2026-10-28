@@ -1,0 +1,8 @@
+string_agg
+corporate_action_key,action_type,source_slug,source_record_id,symbol,ticker,instrument_code,annotation_date,annotation_date_role,cum_date,ex_date,record_date,pay_date,start_date,end_date,source_payload,first_seen_at,last_seen_at,source_removed_at,load_run_id,ingestion_time,updated_at
+(1 rows, 254 ms)
+---
+big_drop | big_jump
+1 | 0
+(1 rows, 2518 ms)
+---

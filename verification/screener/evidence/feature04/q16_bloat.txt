@@ -1,0 +1,16 @@
+avg_row_bytes | count
+400 | 839
+(1 rows, 16792 ms)
+---
+relpages | rows_per_page
+317373 | 4.36
+(1 rows, 1479 ms)
+---
+n_tup_ins | n_tup_upd | n_tup_hot_upd | n_tup_del | last_vacuum | last_autovacuum | vacuum_count | autovacuum_count
+1393549 | 9356027 | 36280 | 4339 |  | 2026-10-11T15:58:55.673867Z | 0 | 90
+(1 rows, 8532 ms)
+---
+count
+0
+(1 rows, 236 ms)
+---

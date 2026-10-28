@@ -1,0 +1,32 @@
+relname | relacl
+Price_Stock_Indonesia_IDX | {postgres=arwdDxtm/postgres,market_ai_app=r/postgres,market_ai_preview_owner=r/postgres,market_ai_sql_reader=r/postgres,pgweb_reader=r/postgres,terminal_market_reader=r/postgres}
+Feature04_Calculation_Queue | {postgres=arwdDxtm/postgres,pgweb_reader=r/postgres}
+Feature_04_Technical_Indicator | {postgres=arwdDxtm/postgres,pgweb_reader=r/postgres,market_ai_sql_reader=r/postgres,market_ai_preview_owner=r/postgres}
+Feature_04_Technical_Indicator_INDEX | {postgres=arwdDxtm/postgres,pgweb_reader=r/postgres,pgweb=r/postgres,market_ai_sql_reader=r/postgres,market_ai_preview_owner=r/postgres}
+(4 rows, 210 ms)
+---
+tgname | tgrelid | tgenabled | pg_get_triggerdef
+stock_feature_index_guard | "Feature_04_Technical_Indicator" | O | CREATE TRIGGER stock_feature_index_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_04_Technical_Indicator" FOR EACH ROW EXECUTE FUNCTION validate_stock_feature_identity()
+index_feature_identity_guard | "Feature_04_Technical_Indicator_INDEX" | O | CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_04_Technical_Indicator_INDEX" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity()
+Monitoring_Fixed_Income_open_feature04 | "Monitoring_Fixed_Income" | O | CREATE TRIGGER "Monitoring_Fixed_Income_open_feature04" AFTER INSERT ON public."Monitoring_Fixed_Income" FOR EACH ROW EXECUTE FUNCTION open_feature04_fixed_income_run()
+Price_Fixed_Income_enqueue_feature04 | "Price_Fixed_Income" | O | CREATE TRIGGER "Price_Fixed_Income_enqueue_feature04" AFTER INSERT OR DELETE OR UPDATE ON public."Price_Fixed_Income" FOR EACH ROW EXECUTE FUNCTION enqueue_feature04_bond_price_row()
+Price_Stock_Indonesia_IDX_enqueue_feature04 | "Price_Stock_Indonesia_IDX" | O | CREATE TRIGGER "Price_Stock_Indonesia_IDX_enqueue_feature04" AFTER INSERT OR DELETE OR UPDATE ON public."Price_Stock_Indonesia_IDX" FOR EACH ROW EXECUTE FUNCTION enqueue_feature04_equity_price_row()
+Price_Stock_Indonesia_IDX_enqueue_feature_01 | "Price_Stock_Indonesia_IDX" | O | CREATE TRIGGER "Price_Stock_Indonesia_IDX_enqueue_feature_01" AFTER INSERT OR UPDATE ON public."Price_Stock_Indonesia_IDX" FOR EACH ROW WHEN ((new.ingestion_time IS NOT NULL)) EXECUTE FUNCTION enqueue_feature_01_price_row()
+database_table_status_change_tracker | "Price_Stock_Indonesia_IDX" | O | CREATE TRIGGER database_table_status_change_tracker AFTER INSERT OR DELETE OR UPDATE OR TRUNCATE ON public."Price_Stock_Indonesia_IDX" FOR EACH STATEMENT EXECUTE FUNCTION track_database_table_change()
+idx_price_optional_volume_guard | "Price_Stock_Indonesia_IDX" | O | CREATE TRIGGER idx_price_optional_volume_guard BEFORE INSERT OR UPDATE OF ticker, volume ON public."Price_Stock_Indonesia_IDX" FOR EACH ROW EXECUTE FUNCTION validate_idx_optional_volume()
+(8 rows, 213 ms)
+---
+proname | md5
+enqueue_feature04_bond_price_row | 0834c4744ee0bf3b77b432507438377c
+enqueue_feature04_equity_price_row | 1c4e70a4c49ece4144e6d64cdaa02d25
+enqueue_feature04_group | 8a5d602f46d80738886b7eed01a21282
+feature04_asset_type | f8183eb0322b36bbc85677d753ece1af
+feature04_output_columns | e6bdac356cd2e0ef6f13423cb793d68b
+feature04_retry_dirty_date | 9316f9beddff2cecf0dfe9ac6794315c
+feature04_source_min_date | bc8d8fa8eb92a8d924f33e1e4f4b25c5
+is_universe_index | a423288eca61dca1c9ac88472adac9ae
+open_feature04_fixed_income_run | 1901234b6db7cccfab9b01ca4d7a97ad
+request_feature04_retry | ead7daa03da4ba31a5194f2a6d76bf24
+validate_stock_feature_identity | 78eb9b72d187ea9580738c05baf9b2be
+(11 rows, 198 ms)
+---

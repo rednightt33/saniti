@@ -1,0 +1,79 @@
+tablename | indexdef
+Feature_04_Technical_Indicator | CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_pkey" ON public."Feature_04_Technical_Indicator" USING btree (ticker, trade_date, timeframe, asset_type)
+Feature_04_Technical_Indicator | CREATE INDEX "Feature_04_Technical_Indicator_trade_date_idx" ON public."Feature_04_Technical_Indicator" USING btree (trade_date)
+Feature_04_Technical_Indicator_INDEX | CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_INDEX_pkey" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (ticker, trade_date, timeframe, asset_type)
+Feature_04_Technical_Indicator_INDEX | CREATE INDEX "Feature_04_Technical_Indicator_INDEX_trade_date_idx" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (trade_date)
+(4 rows, 236 ms)
+---
+attnum | attname | typ | attnotnull
+1 | ticker | text | True
+2 | trade_date | date | True
+3 | timeframe | text | True
+4 | sma_20 | double precision | False
+5 | sma_50 | double precision | False
+6 | ema_12 | double precision | False
+7 | ema_26 | double precision | False
+8 | rsi_14 | double precision | False
+9 | macd | double precision | False
+10 | macd_signal | double precision | False
+11 | macd_histogram | double precision | False
+12 | atr_14 | double precision | False
+13 | bb_upper_20 | double precision | False
+14 | bb_middle_20 | double precision | False
+15 | bb_lower_20 | double precision | False
+16 | cdl_piercing | integer | False
+17 | cdl_morning_star | integer | False
+18 | cdl_morning_doji_star | integer | False
+19 | cdl_engulfing | integer | False
+20 | cdl_3_white_soldiers | integer | False
+21 | cdl_hammer | integer | False
+22 | cdl_inverted_hammer | integer | False
+23 | cdl_3_inside | integer | False
+24 | cdl_3_outside | integer | False
+25 | cdl_harami | integer | False
+26 | cdl_harami_cross | integer | False
+27 | cdl_dark_cloud_cover | integer | False
+28 | cdl_evening_star | integer | False
+29 | cdl_evening_doji_star | integer | False
+30 | cdl_3_black_crows | integer | False
+31 | cdl_shooting_star | integer | False
+32 | cdl_hanging_man | integer | False
+33 | cdl_doji | integer | False
+34 | cdl_dragonfly_doji | integer | False
+35 | cdl_gravestone_doji | integer | False
+36 | cdl_marubozu | integer | False
+37 | cdl_kicking | integer | False
+38 | cdl_rise_fall_3_methods | integer | False
+39 | cdl_mat_hold | integer | False
+40 | cdl_hikkake | integer | False
+41 | calculation_version | text | True
+42 | calculated_at | timestamp with time zone | True
+43 | adx_14 | double precision | False
+44 | ema_50 | double precision | False
+45 | ema_200 | double precision | False
+46 | inside_bar | integer | False
+47 | smi | double precision | False
+48 | tracking_high | integer | False
+49 | tracking_low | integer | False
+50 | temp_high | double precision | False
+51 | temp_high_bar | integer | False
+52 | temp_low | double precision | False
+53 | temp_low_bar | integer | False
+54 | last_swing_high | double precision | False
+55 | break_swing_high | integer | False
+56 | asset_type | text | True
+57 | close | double precision | True
+(57 rows, 195 ms)
+---
+conname | pg_get_constraintdef
+Feature_04_Technical_Indicator_pkey | PRIMARY KEY (ticker, trade_date, timeframe, asset_type)
+(1 rows, 258 ms)
+---
+tgname | pg_get_triggerdef
+stock_feature_index_guard | CREATE TRIGGER stock_feature_index_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_04_Technical_Indicator" FOR EACH ROW EXECUTE FUNCTION validate_stock_feature_identity()
+(1 rows, 218 ms)
+---
+n_check
+33
+(1 rows, 210 ms)
+---

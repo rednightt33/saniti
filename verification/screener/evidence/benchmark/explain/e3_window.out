@@ -1,0 +1,72 @@
+##### RUN 1
+QUERY PLAN
+Sort  (cost=147231.27..148631.96 rows=560273 width=49) (actual time=15967.375..16048.613 rows=576678.00 loops=1)
+  Sort Key: ticker, date
+  Sort Method: external merge  Disk: 37272kB
+  Buffers: shared hit=456 read=13584, temp read=4659 written=4672
+  ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX"  (cost=9838.54..74585.05 rows=560273 width=49) (actual time=14102.642..15610.703 rows=576678.00 loops=1)
+        Recheck Cond: (date >= '2023-10-01'::date)
+        Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+        Heap Blocks: exact=12800
+        Buffers: shared hit=456 read=13584
+        ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..9698.48 rows=560273 width=0) (actual time=14095.192..14095.194 rows=577499.00 loops=1)
+              Index Cond: (date >= '2023-10-01'::date)
+              Index Searches: 1
+              Buffers: shared hit=31 read=1209
+Planning Time: 0.211 ms
+JIT:
+  Functions: 6
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 0.755 ms (Deform 0.418 ms), Inlining 0.000 ms, Optimization 0.726 ms, Emission 5.082 ms, Total 6.563 ms
+Execution Time: 16076.021 ms
+(19 rows, 16520 ms)
+---
+QUERY PLAN
+Index Scan using "Price_Stock_Indonesia_IDX_pkey" on "Price_Stock_Indonesia_IDX"  (cost=0.43..267882.38 rows=1314088 width=49) (actual time=19.231..2955.383 rows=1330722.00 loops=1)
+  Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+  Index Searches: 1
+  Buffers: shared hit=35634 read=33717
+Planning Time: 0.195 ms
+JIT:
+  Functions: 4
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 0.843 ms (Deform 0.450 ms), Inlining 0.000 ms, Optimization 0.922 ms, Emission 10.533 ms, Total 12.299 ms
+Execution Time: 3014.502 ms
+(10 rows, 3241 ms)
+---
+##### RUN 2
+QUERY PLAN
+Sort  (cost=147231.27..148631.96 rows=560273 width=49) (actual time=750.775..831.098 rows=576678.00 loops=1)
+  Sort Key: ticker, date
+  Sort Method: external merge  Disk: 37272kB
+  Buffers: shared hit=4175 read=9865, temp read=4659 written=4672
+  ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX"  (cost=9838.54..74585.05 rows=560273 width=49) (actual time=39.132..495.953 rows=576678.00 loops=1)
+        Recheck Cond: (date >= '2023-10-01'::date)
+        Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+        Heap Blocks: exact=12800
+        Buffers: shared hit=4175 read=9865
+        ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..9698.48 rows=560273 width=0) (actual time=31.036..31.037 rows=577499.00 loops=1)
+              Index Cond: (date >= '2023-10-01'::date)
+              Index Searches: 1
+              Buffers: shared read=1240
+Planning Time: 0.188 ms
+JIT:
+  Functions: 6
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 0.865 ms (Deform 0.474 ms), Inlining 0.000 ms, Optimization 0.629 ms, Emission 5.811 ms, Total 7.305 ms
+Execution Time: 857.412 ms
+(19 rows, 1067 ms)
+---
+QUERY PLAN
+Index Scan using "Price_Stock_Indonesia_IDX_pkey" on "Price_Stock_Indonesia_IDX"  (cost=0.43..267882.38 rows=1314088 width=49) (actual time=8.139..1308.675 rows=1330722.00 loops=1)
+  Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+  Index Searches: 1
+  Buffers: shared hit=36411 read=32940
+Planning Time: 0.250 ms
+JIT:
+  Functions: 4
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 0.669 ms (Deform 0.395 ms), Inlining 0.000 ms, Optimization 0.345 ms, Emission 7.698 ms, Total 8.713 ms
+Execution Time: 1373.586 ms
+(10 rows, 1588 ms)
+---
