@@ -933,3 +933,64 @@ def test_content_that_returns_to_an_object_still_in_the_bucket_is_not_put_again(
     n = len(bucket.puts)
     at(bucket, conn, 'daily', 2.5)
     assert price_key(bucket) == k1 and xsection_puts(bucket, n) == [] and k1 not in bucket.deleted
+
+
+# ---- bucket retries (ERRORS M263; M253 on PR #41's branch) ----------------------------------------------------------
+def client_error(code):
+    from botocore.exceptions import ClientError
+    return ClientError({'Error': {'Code': code, 'Message': 'x'}}, 'GetObject')
+
+
+@pytest.mark.parametrize('error', ['RequestCanceled', 'SlowDown', '503', 'connection'])
+def test_a_transient_bucket_error_is_asked_again(error):
+    from botocore.exceptions import EndpointConnectionError
+    calls, waits = [], []
+    def call():
+        calls.append(1)
+        if len(calls) < 3:
+            raise EndpointConnectionError(endpoint_url='https://bucket') if error == 'connection' else client_error(error)
+        return 'body'
+    assert pub.retried(call, sleep=waits.append) == 'body' and waits == [2, 4]
+
+
+def test_a_lasting_or_other_bucket_error_still_ends_the_run():
+    waits = []
+    with pytest.raises(Exception) as e:
+        pub.retried(lambda: (_ for _ in ()).throw(client_error('RequestCanceled')), sleep=waits.append)
+    assert e.value.response['Error']['Code'] == 'RequestCanceled' and waits == list(pub.BUCKET_RETRY_DELAYS)
+    waits.clear()
+    with pytest.raises(Exception) as e:
+        pub.retried(lambda: (_ for _ in ()).throw(client_error('AccessDenied')), sleep=waits.append)
+    assert e.value.response['Error']['Code'] == 'AccessDenied' and waits == []
+
+
+def test_the_bucket_listing_follows_every_page_and_asks_a_canceled_page_again(monkeypatch):
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    at = dt.datetime(2026, 10, 25, tzinfo=dt.timezone.utc)
+    pages = {None: {'IsTruncated': True, 'NextContinuationToken': 't1', 'Contents': [{'Key': 'v1/a', 'LastModified': at, 'Size': 1}]},
+             't1': {'IsTruncated': False, 'Contents': [{'Key': 'v1/b', 'LastModified': at, 'Size': 2}]}}
+    asked = []
+    class S3:
+        def list_objects_v2(self, **kw):
+            asked.append(kw.get('ContinuationToken'))
+            if asked.count('t1') == 1 and kw.get('ContinuationToken') == 't1':
+                raise client_error('RequestCanceled')
+            return pages[kw.get('ContinuationToken')]
+    b = pub.Bucket.__new__(pub.Bucket)
+    b.name, b.s3 = 'bucket', S3()
+    assert b.list() == {'a': (at, 1), 'b': (at, 2)} and asked == [None, 't1', 't1']
+
+
+def test_the_xsection_listing_asks_the_bucket_for_its_prefix_only():
+    at = dt.datetime(2026, 10, 25, tzinfo=dt.timezone.utc)
+    asked = []
+    class S3:
+        def list_objects_v2(self, **kw):
+            asked.append(kw['Prefix'])
+            return {'IsTruncated': False, 'Contents': [{'Key': 'v1/xsection/price.0123456789abcdef.json.gz',
+                                                        'LastModified': at, 'Size': 3}]}
+    b = pub.Bucket.__new__(pub.Bucket)
+    b.name, b.s3 = 'bucket', S3()
+    assert b.list(prefix='xsection/') == {'xsection/price.0123456789abcdef.json.gz': (at, 3)} and asked == ['v1/xsection/']
+    b.list()
+    assert asked[-1] == 'v1/'

@@ -237,6 +237,9 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 - **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later. The
   objects a crashed run wrote are newer than `state.json`, so the cleanup keeps them until a later run finishes; then
   it deletes those no manifest or index names (an xsection file whose content a later run indexes keeps its key).
+- **Bucket requests are asked again (ERRORS M263).** Every bucket call (get, put, each listing page, delete) is asked
+  again after 2, 4 and 8 s on a canceled, throttled or 5xx answer or a dropped connection (`transient`, `retried`, log
+  `bucket_retry`); any other error, or one that lasts past the third retry, ends the run as before.
 - **Objects never change (ERRORS M250).** Before content keys, a changed file was written again under its fixed key
   while terminal-api still served the previous run's cached manifest, so sha256-checking readers failed
   `DATA_INTEGRITY` during each run. Now a reader holding any manifest or `state.json` xsection index of the last

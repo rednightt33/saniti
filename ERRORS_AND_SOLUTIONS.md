@@ -3123,6 +3123,37 @@ change yet.
 - **Status:** FIXED on the Screener branch (reaches `main` with it).
 - **Lesson:** code loaded by Node type stripping uses erasable TypeScript only; the type check enforces it.
 
+### M263 — Run publisher berhenti total karena satu permintaan bucket dibatalkan (`RequestCanceled`) (2026-10-28)
+
+- **Numbering:** numbered M253 on branch claude/project-thread-k91bfk (PR #41); renumbered because main's M253 is the
+  Backtest page freeze. Commit `f98cc3d` di-cherry-pick (`-x`) ke branch Screener (EXEC-SCREENER, user 2026-10-28:
+  "We'll go with A"); kode dan dokumennya di branch ini menyebut M263.
+- **Symptom:** run terjadwal 00:30 UTC 2026-10-28 (deploy `4c2c3823`) CRASHED pukul 00:32:09 UTC, di tahap perencanaan
+  (`run` → `changed_prices` → `manifest` → `Bucket.get_raw`): `botocore ClientError (RequestCanceled) when calling the
+  GetObject operation`. Tidak ada file yang ditulis; `state.json` tetap dari run 12:00 UTC 2026-10-27, jadi pembaca
+  memakai data itu. Run 00:31 UTC 2026-10-27 crash dengan error yang sama (RAILWAY_CHANGELOG 2026-10-27).
+- **Verified (FACT):** traceback di log deploy; crash terjadi sebelum `collect_garbage` dan sebelum tulis pertama, di
+  kode yang tidak diubah M250. `Bucket` memakai botocore `retries={'max_attempts': 5}` (mode legacy), yang tidak
+  menganggap `RequestCanceled` sementara; publisher tidak punya coba-ulang sendiri, dan restart policy `NEVER`.
+- **Suspected (not verified):** penyedia bucket membatalkan permintaan sesaat (kedua kejadian sekitar 00:3x UTC).
+  Cek yang mengonfirmasi: log `bucket_retry` pada run berikutnya dan status penyedia pada jam itu.
+- **Root cause (verified part):** satu permintaan bucket yang gagal sesaat menghentikan seluruh run (sekitar 1 jam
+  kerja, dua kali sehari), tanpa coba-ulang.
+- **Class:** setiap panggilan bucket dari publisher (GetObject manifest/ref, PutObject data/manifest/state, listing dan
+  hapus milik `collect_garbage`), untuk semua dataset sekarang dan yang akan datang. Pembaca (worker, halaman) sudah
+  mengulang unduhan sendiri (M251); terminal-api belum ditinjau untuk kelas ini.
+- **Solution (IMPLEMENTED, belum di-deploy):** di lapisan klien bucket (`publisher.py` `transient`, `retried`): setiap
+  panggilan bucket diulang setelah 2, 4 dan 8 s bila gagal sementara (kode `BUCKET_TRANSIENT_CODES`: RequestCanceled,
+  RequestTimeout, InternalError, ServiceUnavailable, SlowDown, Throttling, 5xx; atau koneksi putus/timeout baca), dengan
+  log `bucket_retry` (kelas saja). Error lain (AccessDenied, NoSuchKey, ...) tetap seperti sebelumnya. Listing kini per
+  halaman dengan coba-ulang per halaman; di branch Screener listing yang sama (`Bucket.list`, dengan `prefix`) juga
+  dipakai untuk `xsection/` (`xsection_present`), jadi file xsection ikut tercakup. Tes: `tests/test_publisher.py`
+  (empat jenis error sementara, error yang menetap, error lain, halaman listing yang dibatalkan).
+- **Not covered:** gangguan yang lebih lama dari 14 s tetap menghentikan run (lalu menunggu run berikutnya); run yang
+  berhenti di tengah tidak dilanjutkan otomatis (restart `NEVER`, M229).
+- **Status:** OPEN, menunggu pilihan user (kartu 2026-10-28 01:2x UTC). Branch Screener: kode ada lewat cherry-pick
+  (pilihan A user 2026-10-28), belum di-deploy dari branch ini.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

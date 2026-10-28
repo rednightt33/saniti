@@ -157,6 +157,12 @@ GC_GRACE_SECONDS = 3600
 # collect_garbage's bucket listing gives up after this long, and the run publishes without cleaning (listing the dev
 # bucket took more than 6 minutes on 2026-10-27; a listing that never ends must not hold the publication).
 GC_LIST_SECONDS = 900
+# ERRORS M263 (M253 on PR #41's branch): a bucket request the provider cancels or drops (RequestCanceled at 00:32 UTC
+# 2026-10-28 and 00:36 UTC 2026-10-27) ended the whole run. Bucket requests that fail this way are asked again after
+# 2, 4 and 8 s; botocore's own retries do not count RequestCanceled as transient. Any other error still ends the run.
+BUCKET_TRANSIENT_CODES = {'RequestCanceled', 'RequestTimeout', 'RequestTimeoutException', 'InternalError',
+                          'ServiceUnavailable', 'SlowDown', 'Throttling', '500', '502', '503', '504'}
+BUCKET_RETRY_DELAYS = (2, 4, 8)
 
 
 def fetch(url, data=None, timeout=30):
@@ -447,6 +453,27 @@ def xsection_entries(raw):
     return out
 
 
+def transient(error):
+    """True for a bucket error that asking again may mend: a canceled, throttled or 5xx answer, or a dropped connection."""
+    from botocore.exceptions import ClientError, ConnectionError as BotoConnectionError, ReadTimeoutError
+    if isinstance(error, ClientError):
+        return str(error.response.get('Error', {}).get('Code')) in BUCKET_TRANSIENT_CODES
+    return isinstance(error, (BotoConnectionError, ReadTimeoutError))
+
+
+def retried(call, sleep=None):
+    """call() again after each of BUCKET_RETRY_DELAYS while it fails transiently (ERRORS M263)."""
+    for delay in BUCKET_RETRY_DELAYS:
+        try:
+            return call()
+        except Exception as e:  # noqa: BLE001 - classified below; anything else is raised as it is
+            if not transient(e):
+                raise
+            log('bucket_retry', error=type(e).__name__, wait_seconds=delay)
+            (sleep or time.sleep)(delay)
+    return call()
+
+
 class Bucket:
     def __init__(self):
         import boto3
@@ -459,33 +486,38 @@ class Bucket:
             config=Config(s3={'addressing_style': 'virtual'}, signature_version='s3v4', retries={'max_attempts': 5}))
 
     def put(self, key, body, content_type):
-        self.s3.put_object(Bucket=self.name, Key=f'{PREFIX}/{key}', Body=body, ContentType=content_type,
-                           CacheControl='private, max-age=0' if key.endswith('.json') else 'private, max-age=31536000')
+        retried(lambda: self.s3.put_object(
+            Bucket=self.name, Key=f'{PREFIX}/{key}', Body=body, ContentType=content_type,
+            CacheControl='private, max-age=0' if key.endswith('.json') else 'private, max-age=31536000'))
 
     def list(self, deadline=None, prefix=''):
         """Every object under v1/{prefix}: {key without v1/: (last modified, bytes)}; TimeoutError past `deadline`
         (time.monotonic())."""
-        out = {}
-        for page in self.s3.get_paginator('list_objects_v2').paginate(Bucket=self.name, Prefix=f'{PREFIX}/{prefix}'):
+        out, token = {}, None
+        while True:
             if deadline is not None and time.monotonic() > deadline:
                 raise TimeoutError('bucket listing took too long')
+            kw = {'Bucket': self.name, 'Prefix': f'{PREFIX}/{prefix}', **({'ContinuationToken': token} if token else {})}
+            page = retried(lambda: self.s3.list_objects_v2(**kw))
             for o in page.get('Contents', []):
                 out[o['Key'][len(PREFIX) + 1:]] = (o['LastModified'], o['Size'])
-        return out
+            token = page.get('NextContinuationToken') if page.get('IsTruncated') else None
+            if not token:
+                return out
 
     def delete(self, keys):
         """Delete keys (without the prefix), 1000 per request; returns the keys the bucket did not delete."""
         failed = []
         for i in range(0, len(keys), 1000):
             batch = keys[i:i + 1000]
-            answer = self.s3.delete_objects(Bucket=self.name, Delete={
-                'Objects': [{'Key': f'{PREFIX}/{k}'} for k in batch], 'Quiet': True})
+            answer = retried(lambda: self.s3.delete_objects(Bucket=self.name, Delete={
+                'Objects': [{'Key': f'{PREFIX}/{k}'} for k in batch], 'Quiet': True}))
             failed += [e['Key'][len(PREFIX) + 1:] for e in answer.get('Errors', [])]
         return failed
 
     def get_raw(self, key):
         try:
-            return self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/{key}')['Body'].read()
+            return retried(lambda: self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/{key}')['Body'].read())
         except self.s3.exceptions.NoSuchKey:
             return None
 
