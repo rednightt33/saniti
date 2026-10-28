@@ -3081,6 +3081,25 @@ change yet.
 - **Status:** OPEN.
 - **Lesson:** an error shape the contract promises for every error is enforced by one handler, not route by route.
 
+### M262 — backtest-worker tests fail on `main`: a TypeScript parameter property in the shared rack loader (2026-10-28)
+
+- **Symptom:** `npm test` in `apps/backtest-worker` at `main` `010af1e` gives 168 of 171: `tests/datafile.test.ts`,
+  `tests/flow.test.ts` and test 56 ("with the image's flags ... Node loads ... the Terminal's data readers") fail with
+  `SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript parameter property is not supported in strip-only mode`.
+  Found by the Screener build (EXEC-SCREENER) while proving the backtest worker untouched.
+- **Verified cause:** `apps/edge-bff/terminal/src/data/rack.ts:74` (EXEC-BACKTEST-LOAD 4, commit `2c1a484`) declares
+  `constructor(readonly status: number)`. Vite compiles it for the pages, but Node's `--experimental-strip-types` (the
+  worker's tests and start command) only strips types and refuses parameter properties. The deployed worker image is not
+  affected: its Dockerfile copies `terminal/src/calc` and `indRegistry.json`, not `terminal/src/data`.
+- **Class:** any TypeScript that both Vite and Node type stripping load (shared core, Terminal data readers, the
+  Screener core and `screener-worker`): parameter properties, enums, namespaces and other non-erasable syntax break the
+  Node side only.
+- **Solution:** the field is declared and assigned in the constructor body (same behaviour), on branch
+  `claude/charming-hamilton-faq25e`; `npm test` 186 of 186. Proposed general fix: `erasableSyntaxOnly` in the shared
+  `tsconfig` files so the type check refuses such syntax for every module Node loads.
+- **Status:** FIXED on the Screener branch (reaches `main` with it).
+- **Lesson:** code loaded by Node type stripping uses erasable TypeScript only; the type check enforces it.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

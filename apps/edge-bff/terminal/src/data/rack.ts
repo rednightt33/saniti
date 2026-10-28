@@ -71,7 +71,9 @@ export function fileCache(factory: IDBFactory | undefined = globalThis.indexedDB
 
 /** A download the storage host refused or that never arrived whole: `status` 0 when there was no answer. */
 export class DownloadError extends Error {
-  constructor(readonly status: number) { super(status ? `A data file could not be downloaded (${status}).` : 'A data file could not be downloaded.') }
+  readonly status: number;
+  // a declared field, not a parameter property: Node's type stripping (backtest-worker tests) refuses parameter properties (ERRORS M262)
+  constructor(status: number) { super(status ? `A data file could not be downloaded (${status}).` : 'A data file could not be downloaded.'); this.status = status }
 }
 
 /** The bytes of a presigned file (no cookies to the storage host), asked again as the header says. */
