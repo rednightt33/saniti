@@ -1,0 +1,25 @@
+{
+  "name": "edge-screener",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE screener page (EXEC-SCREENER, go 2026-10-28) and its pure screener core (src/core): the page renders the screener-worker's answers through edge-bff; the core runs in the worker on the Terminal's indicator module (F) and the Backtest core, never a second formula.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:smoke": "vite build --mode smoke",
+    "build:fixture": "vite build --mode fixture",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "registry": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../../backtest-worker/loader/register.mjs scripts/build-screener-registry.mjs",
+    "registry:check": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../../backtest-worker/loader/register.mjs scripts/build-screener-registry.mjs --check"
+  },
+  "dependencies": {
+    "lightweight-charts": "5.2.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}
