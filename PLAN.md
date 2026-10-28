@@ -908,3 +908,20 @@ Dieksekusi dan selesai: EXEC.md EXEC-BACKTEST-SPIN, ERRORS "EXEC-BACKTEST-SPIN".
 
 Dipindah ke `EXEC.md` EXEC-SCREENER pada 2026-10-28 setelah "go" user (persetujuan, jawaban P1-P23 dan pertanyaan yang
 masih terbuka ikut dipindah). Laporan: `verification/screener/AUDIT.md`.
+
+## EDGE-MULTIUSER — EDGE untuk user eksternal di semua tab (disetujui sebagai syarat 2026-10-28; rencana belum disusun, belum "go")
+
+**Persetujuan, 2026-10-28 (kata user):** "Also, ini nanti akan multiuse,r jadi infrastruktur harus bisa di scale UP + efficient
+cost wise." Lalu atas pertanyaan P29 (siapa "banyak user"): "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest juga".
+
+- **Lingkup:** akun user dan login (saat ini satu owner `EDGE_OWNER`, satu login), identitas dan kuota terminal-api per user
+  (saat ini satu akun gateway dengan override kuota TEMPORARY), keadilan dan batas komputasi per user di Backtest dan Screener,
+  pembatas sign-in per user, edge-bff lebih dari satu replika (state di memori proses), biaya per user, dan izin data untuk
+  user eksternal. Dasar: `verification/screener/AUDIT.md` bagian MULTI-USER SCALE AND COST (6d) dan keputusan P29-P34 di
+  `EXEC.md` EXEC-SCREENER.
+- **Hubungan dengan Screener:** Screener Phase 1 dibangun siap multi-user (semua data berkunci `owner_key`, batas per user,
+  cache bersama tanpa data user) dan tidak menunggu item ini.
+- **Pertanyaan terbuka:** cara user mendaftar (undangan saja, daftar sendiri, atau penyedia login luar); apakah ada paket atau
+  kuota berbeda per user; izin data untuk tampilan ke user eksternal (harga, broker summary Stockbit, corporate action,
+  insider); target jumlah user harian dan user bersamaan; apakah AI EDGE (chat) juga terbuka untuk user eksternal dan
+  anggarannya per user.

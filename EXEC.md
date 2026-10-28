@@ -8500,6 +8500,22 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
   perbaikan retry bucket (di branch itu bernomor M253, bentrok dengan M253 di `main`). Pilihan A: commit `6051f4d`, `cf60fed`
   dan `f98cc3d` ditarik (cherry-pick `-x`) ke branch Screener, penulis xsection disusun di atasnya, dan entri retry diberi
   nomor baru di branch ini; pemilik PR #41 diberi tahu bahwa perubahan publisher yang sama sudah ada di branch Screener.
+- **Keputusan lanjutan, 2026-10-28 (kata user):** atas P29 "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest
+  juga"; atas pertanyaan apakah rekomendasi juga berlaku untuk keputusan flow D1-D14 dan P24-P34: "YEs".
+  - **P29:** pengguna EDGE adalah user eksternal, untuk semua tab (Monitor, Terminal, Backtest, Screener).
+  - **P24-P34 sesuai rekomendasi laporan (AUDIT.md 13.3),** dengan cabang "eksternal" yang kini berlaku: P30 akun user EDGE
+    menjadi item tersendiri untuk seluruh EDGE (dicatat di `PLAN.md` EDGE-MULTIUSER), Screener Phase 1 tetap satu owner tetapi
+    semua datanya berkunci `owner_key`; P31 identitas terminal-api per user plus akun layanan untuk worker (bagian dari
+    EDGE-MULTIUSER); P32 dua replika `screener-worker` sejak user eksternal pertama memakai; P33 batas komputasi per user
+    (CPU per user) dibangun di Screener; P34 cache per replika.
+  - **Flow (AUDIT.md bagian 16.11, D1-D14) sesuai rekomendasi:** 11 indikator set pertama (FL09, FL01, FL02, FL07, FL08, FL10,
+    FL12, FL06, FL04, FL16, FL18), 9 lainnya Phase 2b; P9 = FL09 (3 broker teratas, 10 sesi, semua papan, status +-6/+-10,
+    ambang berlabel belum divalidasi); HHI dari net beli; buy intensity = net top-N pembeli / nilai transaksi; jendela dan top-N
+    seperti tabel; FL13 dan FL17 bawaan Regular; FL05 persentil riwayat sendiri; publisher membaca Feature 03 lewat migrasi
+    grant (D9 a); ambang tetap dengan lantai ADV; FL19/FL20 nanti; kalender sesi pasar (FL05 sesi ticker); broker FL06 = YP;
+    P10 (a) evaluasi pada tanggal as-of broker, berlabel.
+  - **Belum diketahui, harus dijawab sebelum user eksternal:** izin data (apakah harga, broker summary Stockbit dan event boleh
+    ditampilkan ke banyak user eksternal; AUDIT.md 6d, E6).
 
 ### Riwayat persetujuan dan keputusan (dipindah dari PLAN.md SCREENER)
 
