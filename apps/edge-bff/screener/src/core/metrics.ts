@@ -14,6 +14,7 @@ import { PRICE_FIELDS } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
 import type { ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
+import { resolveTransform } from './transforms.ts';
 
 /* ---- a ticker's data ------------------------------------------------------------------------------------------- */
 
@@ -72,17 +73,20 @@ export function resolvePrice(ref: PriceRef, field: string): ResolvedPrice {
   };
 }
 
-/** Any metric reference that is a numeric series on the ticker's bars. Implemented: indicator, price. transform ->
-    transforms.ts resolveTransform; pattern -> a 0/1 series (evaluate.ts patternSignal); flow, xsection and universe
-    are not bar series (flowmetrics.ts in Phase 2, xsection.ts, the snapshot's universe attributes) and are refused
-    here so a caller cannot read them as one. */
-export function resolveSeries(ref: MetricRef, field: string, opts: ParamOptions): ResolvedSeries {
+/** Any metric reference that is a numeric series on the ticker's bars: indicator and price here, transform through
+    transforms.ts resolveTransform (which resolves its `of` back through this function; `index` = IHSG's bars for
+    vs_index). A pattern is a 0/1 signal, not a value (transforms.ts patternSignal, read by STATE and EVENT tests);
+    flow, xsection and universe values are per ticker at E, not bar series (flowmetrics.ts in Phase 2, xsection.ts,
+    the snapshot's universe attributes); all three are refused here so no caller reads them as a series. */
+export function resolveSeries(ref: MetricRef, field: string, ctx: ParamOptions & { index?: TickerBars }): ResolvedSeries {
   if (!ref || typeof ref !== 'object') throw new ScreenerError('INVALID_CONDITION', `${field} must be a metric reference.`, field);
   switch (ref.kind) {
-    case 'indicator': return resolveIndicator(ref, field, opts);
+    case 'indicator': return resolveIndicator(ref, field, ctx);
     case 'price': return resolvePrice(ref, field);
-    case 'transform': case 'pattern': throw new Error(`not implemented: resolveSeries(${ref.kind})`);
-    default: throw new ScreenerError('INVALID_CONDITION', `${field}.kind ${JSON.stringify((ref as { kind?: unknown }).kind)} is not a series on the ticker's bars here.`, `${field}.kind`);
+    case 'transform':
+      if (!ctx.index) throw new RangeError('resolveSeries: a transform needs ctx.index (IHSG bars)');
+      return resolveTransform(ref, field, { ...ctx, index: ctx.index });
+    default: throw new ScreenerError('INVALID_CONDITION', `${field}: a ${JSON.stringify((ref as { kind?: unknown }).kind)} reference is not a series on the ticker's bars; use it where its test form allows it.`, `${field}.kind`);
   }
 }
 

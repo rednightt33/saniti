@@ -461,16 +461,17 @@ def test_each_ticker_slice_of_the_price_file_equals_its_price_pack():
 
 def test_a_pack_that_differs_from_the_table_is_republished_from_the_slice():
     _, conn, bucket = run('backfill')
-    # an open corrected without changing the stamp (rows, last date, sum of closes): daily plans no file for it
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')                 # the manifests now hold the daily stamps
+    # an open corrected without changing the stamp (rows, last date, sum of closes): daily plans no file and no pack
     conn.prices = [('BBCA', '2025-12-30', 99.0, 110.0, 95.0, 105.0, 1000.0)] + PRICES[1:]
-    p2 = pub.Publisher(conn, bucket, today=TODAY)
-    p2.run('daily')
-    pack = bucket.get_json('pack/BBCA/price.json.gz')
-    assert pack['o'][0] == 99.0 and ('pack', 'BBCA', 'price') in p2.changed
+    p3 = pub.Publisher(conn, bucket, today=TODAY)
+    p3.run('daily')
+    assert ('price', 'BBCA', 2025) not in p3.changed and ('pack', 'BBCA', 'price') in p3.changed
+    assert bucket.get_json('pack/BBCA/price.json.gz')['o'][0] == 99.0
     entry, doc = xsection(bucket, 'price')
     sha = bucket.get_json('manifest/BBCA.json')['packs']['price']['sha256']                  # the manifest was saved
     assert sha == hashlib.sha256(bucket.objects['pack/BBCA/price.json.gz']).hexdigest() == doc['tickers'][0]['pack_sha256']
-    assert pub.verify(conn, bucket) == 1      # only the yearly file the stamps missed is stale; the xsection files pass
+    assert doc['o'][0] == 99.0 and pub.verify(conn, bucket) == 0
 
 
 def test_the_xsection_files_are_written_before_the_state_json_that_indexes_them():
