@@ -29,7 +29,7 @@ import { closeDialog, dialogOpen, openMenu, openSave, toast } from './dialogs.ts
 import { closePop, onUniverseClick, onUniverseField, openDrawer, placePop, renderUniverse, updateUniverseLight, uCountTxt } from './universe-ui.ts';
 import { fitPresets, loadDefinition, onPresetClick, openSource, renderPresets } from './presets-ui.ts';
 import { hideSuggest, onAdderInput, onAdderKey, onBuilderClick, onBuilderField, renderConds, updateCondsLight, drawSuggest, bSum } from './builder.ts';
-import { exportCsv, onResultsChange, onResultsClick, onResultsKey, renderResults, sizePreview } from './results.ts';
+import { exportCsv, onResultsChange, onResultsClick, onResultsKey, renderResults, sizePreview, sortRows } from './results.ts';
 import { bindPreview, pickStock, renderDetails, resetPreview, togglePreview } from './preview.ts';
 import { cancelRun, resultOf, runHooks, schedule } from './run.ts';
 
@@ -77,11 +77,24 @@ export function refresh(level: Level) {
     else if (level === 'conds-light') updateCondsLight();
     else if (level === 'results') { const u = document.getElementById('uCount'); if (u) u.innerHTML = uCountTxt(); document.querySelectorAll('[data-ucount]').forEach(el => { el.innerHTML = uCountTxt() }); updateCondsLight(); const s = document.getElementById('bSum'); if (s) s.textContent = bSum() }
     if (level === 'conds' || level === 'conds-light') { const u = document.getElementById('uCount'); if (u) u.innerHTML = uCountTxt() }
+    if (ctx.repick) pickFirst();
     renderHeader(); renderResults();
     if (S.preview) renderDetails();
     if (level !== 'results') remember();
     if (ctx.R && ctx.catalog && ctx.bootState !== 'results' && !ctx.running) { ctx.bootState = 'results'; $('app').dataset.boot = 'results' }
   } finally { inRefresh = false }
+}
+/** The prototype's repick (openSource): once the result of a just loaded preset or saved screen is there, a picked
+    stock that is not among its matches (its rows, without conditions) gives way to the first of them in the table's
+    order. An edit before the result arrives cancels it. */
+function pickFirst() {
+  const key = canonical(definitionOf());
+  if (key !== ctx.repick) { ctx.repick = null; return }
+  const R = ctx.R; if (!R || R.defHash !== key || ctx.running) return;
+  ctx.repick = null;
+  if (!S.preview) return;
+  const list = R.rows.filter(r => r.status !== 'near');
+  if (list.length && !list.some(r => r.ticker === S.pick)) { S.pick = sortRows(list, S.sort)[0].ticker; S.dtab = 'stock' }
 }
 /** the last open screen, for the next visit (scr.last) */
 let rememberT: ReturnType<typeof setTimeout> | undefined, pending = false;
@@ -186,7 +199,8 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   itemsP.then(r => { ctx.saved = r.items; renderPresets(); if (S.source?.kind === 'saved') { const s = ctx.saved.find(x => x.item_id === (S.source as any).item_id); if (s) S.source = { kind:'saved', item_id:s.item_id, revision:s.revision }; else { S.source = null; S.dirty = true } renderHeader() } })
     .catch(e => { ctx.saved = []; renderPresets(); if (!(e instanceof ApiFailure && e.status === 401)) toast(`Saved screens: ${failMsg(e)}`) });
   metricsP.then(r => { ctx.metrics = r.items }).catch(() => { ctx.metrics = [] });
-  watchP.then(r => { ctx.watch = new Set(r.tickers.map(t => t.ticker)); renderResults() }).catch(() => { ctx.watch = null });
+  watchP.then(r => { ctx.watch = new Set(r.tickers.map(t => t.ticker)); ctx.watchError = null; renderResults() })
+    .catch(e => { ctx.watch = null; ctx.watchError = failMsg(e); renderResults() });   // the disabled stars say why
 
   let session;
   try { session = await sessionP }
@@ -243,12 +257,16 @@ function bind() {
   $('cardC').addEventListener('focusin', e => { const t = e.target as HTMLInputElement; if (t.id === 'adderQ') drawSuggest(t.value) });
   $('cardC').addEventListener('keydown', onAdderKey);
   $('drawerHost').addEventListener('mousedown', e => { if ((e.target as HTMLElement).matches('[data-dwrap]')) openDrawer(false) });
-  // role=tab segments: arrow keys move between the preset category tabs (report 9.2 accessibility)
-  $('cardU').addEventListener('keydown', e => {
-    const t = e.target as HTMLElement; if (t.getAttribute('role') !== 'tab' || !(e.key === 'ArrowRight' || e.key === 'ArrowLeft')) return;
-    const tabs = [...t.parentElement!.querySelectorAll<HTMLElement>('[role="tab"]')], i = tabs.indexOf(t) + (e.key === 'ArrowRight' ? 1 : -1);
-    const n = tabs[(i + tabs.length) % tabs.length]; e.preventDefault(); n.click();
-  });
+  // role=tab and role=radio segments: arrow keys move between the preset category tabs and the Match choices (report
+  // 9.2 accessibility); the choice re-renders its card, so the focus is put back on the chosen button
+  const arrows = (e: KeyboardEvent) => {
+    const t = e.target as HTMLElement, role = t.getAttribute('role');
+    if ((role !== 'tab' && role !== 'radio') || !(e.key === 'ArrowRight' || e.key === 'ArrowLeft')) return;
+    const all = [...t.parentElement!.querySelectorAll<HTMLElement>(`[role="${role}"]`)], i = all.indexOf(t) + (e.key === 'ArrowRight' ? 1 : -1);
+    const n = all[(i + all.length) % all.length]; e.preventDefault(); n.click();
+    if (n.dataset.logic) ($('cardC').querySelector(`[data-logic="${n.dataset.logic}"]`) as HTMLElement | null)?.focus();
+  };
+  $('cardU').addEventListener('keydown', arrows); $('cardC').addEventListener('keydown', arrows);
   document.addEventListener('pointerdown', e => {
     const t = e.target as HTMLElement;
     if (!t.closest('.adder')) hideSuggest();

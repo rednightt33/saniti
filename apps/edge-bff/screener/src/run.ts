@@ -12,8 +12,8 @@ import type { Definition, RunResponse } from './core/contract.ts';
 
 export const DEBOUNCE_MS = 350;
 let timer: ReturnType<typeof setTimeout> | undefined, ctl: AbortController | null = null, attempt = 0, wantKey = '';
-/** the definition the worker last refused (a 4xx refusal, not a failure to retry): not sent again until it changes or
-    the user presses Retry, so an unrelated re-render never repeats the same refusal */
+/** the definition the worker last refused (a 4xx refusal, or a 504 TIMEOUT / 503 SCREENER_DISABLED, which 6c.6 does
+    not retry): not sent again until it changes or the user presses Retry, so an unrelated re-render never repeats it */
 let refusedKey = '';
 /** a hook the app sets: a run answer and its bytes (kept for the cached paint, 6c.3) */
 export const runHooks = { answered:(_def: Definition, _bytes: Uint8Array, _r: RunResponse) => {}, mark:(_n: string) => {} };
@@ -87,7 +87,9 @@ async function send(def: Definition, key: string) {
     if (f.code === 'SCREENER_NOT_READY') return again(Math.max(1, f.retryAfter ?? 5) * 1000, f.message);
     if ((f.code === 'SCREENER_UNAVAILABLE' || f.code === 'NETWORK') && attempt < 1) return again(2000, T.unreachable);
     ctx.running = false; ctx.runError = f.message || T.unreachable;
-    if (f.status >= 400 && f.status < 500) refusedKey = key;
+    // 6c.6: a refusal (4xx), 504 TIMEOUT and 503 SCREENER_DISABLED are not retried: the same definition is sent again
+    // only after an edit or Retry (BUSY, NOT_READY and an unreachable service took their retries above)
+    if ((f.status >= 400 && f.status < 500) || f.code === 'TIMEOUT' || f.code === 'SCREENER_DISABLED') refusedKey = key;
     const card = cardOfField(f.field);
     ctx.refused = card ? { id:card.id, message:f.message || T.unreachable } : null;
     if (card) ui.renderConds();                                      // the card names the refusal (no new run)

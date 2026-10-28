@@ -7,11 +7,11 @@
 import { UNIVERSE_DEFAULTS, type Grouping } from './core/contract.ts';
 import { esc, nf } from './format.ts';
 import { IC, ico } from './icons.ts';
-import { ctx, freshUniverse, S, ui, type UState } from './state.ts';
+import { ctx, definitionOf, freshUniverse, S, ui, type UState } from './state.ts';
 import { chipNoBreak, chipTraded, T } from './texts.ts';
 import { condText, displayUnit, newCard, optOf, type Card } from './forms.ts';
 import { byGroup, OPLABEL } from './entries.ts';
-import { hiddenCounts } from './universe-view.ts';
+import { hiddenCounts, universeView } from './universe-view.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 const FRESH = freshUniverse();
@@ -65,6 +65,9 @@ const QF: QFDef[] = [
   ['board', 'Board', () => 'No data', () => false, T.noBoard],
 ];
 
+/** the prototype's market-cap buckets (CAPB, IDR T), shown disabled: market cap has no data (EXEC-MCAP) */
+const CAPB: [string, string][] = [['Mega', '≥ 200T'], ['Big', '50–200T'], ['Mid', '10–50T'], ['Small', '1–10T'], ['Micro', '< 1T']];
+
 const metricOpts = (cur: string | null) => {
   const list = byGroup(ctx.entries.filter(e => e.kind !== 'indicator' && e.opts.some(o => o.kind === 'value')));
   const groups = [...new Set(list.map(e => e.group))];
@@ -88,7 +91,8 @@ function usec(k: string): string {
       return `<div class="k">Sectors <small>· click to include, again to exclude, again to clear</small></div><div class="chips">${g.values.map(v => `<button class="chip ${U.sectors_in?.includes(v.value) ? 'on' : U.sectors_out?.includes(v.value) ? 'ex' : ''}" data-sector="${esc(v.value)}">${esc(v.value)} <small>${nf(v.tickers)}</small></button>`).join('')}</div>
         ${g.unclassified ? `<label class="chk" title="An include filter (sector or industry) keeps a stock without that classification only when this is on; an exclude filter never drops it."><input type="checkbox" data-u="include_unclassified" ${U.include_unclassified ? 'checked' : ''}>Unclassified (${nf(g.unclassified)}): keep them with an include filter</label>` : ''}`;
     }
-    case 'cap': return `<div class="k">Market cap <small>· no data</small></div><div class="mini2"><input class="inp" disabled placeholder="Min" aria-label="Min market cap: no data"><input class="inp" disabled placeholder="Max" aria-label="Max market cap: no data"></div><div class="note">${esc(T.noCap)}</div>`;
+    // the prototype's buckets (CAPB) stay visible, disabled with the reason; their bounds are still open (P11)
+    case 'cap': return `<div class="k">Market cap <small>· no data</small></div><div class="mini2"><input class="inp" disabled placeholder="Min" aria-label="Min market cap: no data"><input class="inp" disabled placeholder="Max" aria-label="Max market cap: no data"></div><div class="chips">${CAPB.map(([b, r]) => `<button class="chip" disabled title="${esc(`${b} (${r}, the prototype's bounds; P11). ${T.noCap}`)}">${b}</button>`).join('')}</div><div class="note">${esc(T.noCap)}</div>`;
     case 'industry': {
       const g = grouping('industry');
       if (!g) return '';
@@ -116,10 +120,15 @@ function filterRow(f: Card, i: number): string {
   return `<div class="frow ${o?.between ? 'btwn' : ''}"><select class="sel" data-f="${i}" data-fk="key" aria-label="Metric">${metricOpts(f.entry)}</select><select class="sel" data-f="${i}" data-fk="op" aria-label="Operator">${opts.map(x => `<option value="${esc(x.key)}" ${x.key === f.opt ? 'selected' : ''}>${esc(OPLABEL[x.op] || x.op)}</option>`).join('')}</select><input class="inp" type="number" step="any" data-f="${i}" data-fk="value" value="${f.value}" aria-label="Value${u ? ' (' + u + ')' : ''}">${o?.between ? `<input class="inp" type="number" step="any" data-f="${i}" data-fk="value2" value="${f.value2}" aria-label="To">` : ''}<button class="iconbtn sm" data-fdel="${i}" title="Remove filter" aria-label="Remove filter">${ico(IC.x, 's')}</button></div>`;
 }
 
+/** "In universe X of N", computed in the page from /universe on every edit with the worker's own function (report
+    9.2), so it follows an edit at once, before the run answers; a metric filter that needs a formula leaves it to the
+    run's count */
 export const uCountTxt = () => {
   const R = ctx.R, listed = ctx.universe?.rows.length ?? R?.listed ?? 0;
   if (!ctx.universe && !R) return `In universe <b>…</b>`;
-  return `In universe <b>${nf(R ? R.eligible : 0)}</b> of ${nf(listed)}`;
+  const v = ctx.universe ? universeView(ctx.universe.rows, definitionOf().universe) : null;
+  const n = v?.exact ? v.counts.eligible : R ? R.eligible : null;
+  return `In universe <b>${n == null ? '…' : nf(n)}</b> of ${nf(listed)}`;
 };
 const qfHtml = () => QF.map(([k, label, val, on, dis]) => dis
   ? `<button class="qf" disabled title="${esc(dis)}" aria-disabled="true"><span>${label}</span><b>${esc(val(S.universe))}</b>${ico(IC.chev, 's')}</button>`
@@ -137,14 +146,41 @@ export function updateUniverseLight() {
   const c = scopeChips(), n = c.removable;
   $('uQf').innerHTML = qfHtml(); $('uChips').innerHTML = c.html; $('uCount').innerHTML = uCountTxt();
   $('uN').innerHTML = n ? `<span class="count">${n}</span>` : '';
-  document.querySelectorAll('[data-ucount]').forEach(el => { el.innerHTML = uCountTxt() });
+  const uc = uCountTxt(); document.querySelectorAll('[data-ucount]').forEach(el => { el.innerHTML = uc });
+  // the open popover's Clear follows an edit made in it (the prototype left it as it was when the popover opened)
+  const qc = document.querySelector('#pop [data-uqclear]') as HTMLButtonElement | null, q = QF.find(x => x[0] === S.pop);
+  if (qc && q) qc.disabled = !q[3](S.universe);
 }
 
+/** the control a re-render replaces, found again by its data attributes (focus stays on it for keyboard users) */
+const FOCUS_KEYS = ['u', 'sector', 'tog', 'f', 'fdel', 'uqclear', 'act'] as const;
+function focusSel(a: Element | null): string | null {
+  if (!(a instanceof HTMLElement)) return null;
+  const d = a.dataset, k = FOCUS_KEYS.find(x => d[x] != null);
+  if (!k) return null;
+  const attr = (n: string, v: string) => `[data-${n}="${CSS.escape(v)}"]`;
+  return attr(k, d[k]!) + (d.fk != null ? attr('fk', d.fk) : '') + (d.v != null ? attr('v', d.v) : '');
+}
 const keepScroll = (el: HTMLElement, fn: () => void) => {
   const s = [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist')].map(x => x.scrollTop), top = el.scrollTop;
+  const a = document.activeElement, sel = a && el.contains(a) ? focusSel(a) : null;
   fn(); el.scrollTop = top;
   [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist')].forEach((x, i) => { x.scrollTop = s[i] || 0 });
+  if (sel) (el.querySelector(sel) as HTMLElement | null)?.focus({ preventScroll:true });
 };
+/** the drawer is modal (aria-modal): Tab and Shift+Tab stay inside it (report 9.2 accessibility, as the dialogs) */
+const FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function trapDrawer(e: KeyboardEvent) {
+  if (e.key !== 'Tab' || !S.drawer || !$('overlay').hidden) return;      // a dialog above keeps its own trap
+  const box = $('drawerHost').querySelector('.drawer'); if (!box) return;
+  const list = [...box.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(x => x.offsetParent !== null);
+  if (!list.length) return;
+  const first = list[0], last = list[list.length - 1], a = document.activeElement;
+  if (!box.contains(a)) { e.preventDefault(); (e.shiftKey ? last : first).focus() }
+  else if (e.shiftKey && a === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus() }
+}
+let trapBound = false;
 const QCLEAR: Record<string, (u: UState) => void> = {
   sector:u => { u.sectors_in = []; u.sectors_out = []; u.industries_in = []; u.industries_out = []; u.include_unclassified = false },
   liq:u => { u.adv20_min_idr = FRESH.adv20_min_idr; u.price_min = FRESH.price_min },
@@ -184,6 +220,7 @@ export function renderDrawer() {
   if (h.firstChild) keepScroll(h, () => { h.innerHTML = body() }); else h.innerHTML = body();
 }
 export function openDrawer(on: boolean) {
+  if (on && !trapBound) { document.addEventListener('keydown', trapDrawer); trapBound = true }
   if (on) drawerOpener = document.activeElement as HTMLElement | null;
   S.drawer = on;
   if (on) { S.pop = null; renderPop(); $('uQf').innerHTML = qfHtml() }

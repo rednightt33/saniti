@@ -65,10 +65,16 @@ export interface Ctx {
   counts: Map<string, { match: number; near: number } | { error: string }>;
   login: string;
   bootState: 'skeleton' | 'cached' | 'results';
+  /** the watchlist could not be loaded: why its buttons are disabled (null while loading or loaded) */
+  watchError: string | null;
+  /** a preset or saved screen was loaded with the preview open: the canonical key of its definition, until its result
+      arrives and the preview moves to the first row if the picked stock is not among them (the prototype's repick) */
+  repick: string | null;
 }
 export const ctx: Ctx = {
   api:null as unknown as ScreenerApi, catalog:null, universe:null, entries:[], byKey:new Map(), R:null,
   running:false, runError:null, updating:false, stale:false, refused:null, saved:null, metrics:null, watch:null, counts:new Map(), login:'', bootState:'skeleton',
+  watchError:null, repick:null,
 };
 
 /** The renderers and actions the modules register (app.ts wires them). */

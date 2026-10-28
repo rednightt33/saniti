@@ -23,8 +23,7 @@
    Counts (contract.ts UniverseCounts): listed = rows.length; eligible = rows kept; stale_hidden and
    price_break_hidden as above (0 when the chip is off); filtered_out = listed - eligible - stale_hidden -
    price_break_hidden.
-   Pure module (no DOM, no Node API). Implemented: applyUniverse, isStale, hasPriceBreak; priceBreakRemarks is a typed
-   stub (worker-side, at snapshot build). */
+   Pure module (no DOM, no Node API). priceBreakRemarks runs worker-side, at snapshot build. */
 import type { PriceBreakRemark, UniverseCounts, UniverseDef, UniverseRow, ValueTest } from './contract.ts';
 
 /** eligible: the rows kept, in row order; pending: indexes into def.metric_filters that need the worker (above). */
@@ -78,7 +77,9 @@ export const isStale = (row: Pick<UniverseRow, 'last_bar'>, evaluationDate: stri
 /** The row carries a PRICE_BREAK remark (derived at snapshot build, priceBreakRemarks). */
 export const hasPriceBreak = (row: Pick<UniverseRow, 'remarks'>): boolean => row.remarks.some(r => r.code === 'PRICE_BREAK');
 
-/** One price-affecting corporate action of the `actions` xsection file (report 6.5 Phase 1 files). */
+/** One corporate action of the `actions` xsection file for one ticker (report 6.5 Phase 1 files; the caller passes the
+    rows of that ticker). The file holds every action since the first price year and cash dividends too; the boundary
+    and type rules below pick the price breaks. */
 export interface ActionRow { ticker: string; type: string; ex_date: string; ratio_old: number | null; ratio_new: number | null }
 /** The derived PRICE_BREAK remarks of one ticker (TEMPORARY until the D22 data-layer fix; report 6.12): one per action
     whose type is in `priceActionTypes` (datafile.ts PRICE_ACTION_TYPES) with boundary (engine.ts
@@ -86,7 +87,25 @@ export interface ActionRow { ticker: string; type: string; ex_date: string; rati
     of the ticker's first bar on or after the ex-date / the close of the bar before it (null when either is missing).
     An ex-date after the last bar is not flagged until it is in the data (MGLV), an action before the boundary never
     (RAJA, adjusted); a cash dividend is not a price-affecting type. The two constants are passed in, so this module
-    stays free of the backtest core for the page. */
+    stays free of the backtest core for the page. The same action listed twice (same type, ex-date and ratios) gives one
+    remark; the remarks are ordered by ex-date, then type. */
 export function priceBreakRemarks(actions: readonly ActionRow[], dates: readonly string[], closes: ArrayLike<number | null | undefined>, opts: { boundary: string; priceActionTypes: readonly string[] }): PriceBreakRemark[] {
-  throw new Error('not implemented: priceBreakRemarks');
+  if (!dates.length) return [];
+  const last = dates[dates.length - 1], seen = new Set<string>(), out: PriceBreakRemark[] = [];
+  const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  const num = (v: unknown): number | null => ok(v) ? v : null;
+  for (const a of actions) {
+    if (!opts.priceActionTypes.includes(a.type) || !(a.ex_date >= opts.boundary && a.ex_date <= last)) continue;
+    const id = `${a.type}|${a.ex_date}|${a.ratio_old}|${a.ratio_new}`;
+    if (seen.has(id)) continue;                                   // the same action published twice is one remark
+    seen.add(id);
+    let lo = 0, hi = dates.length - 1, d = -1;                    // the ticker's first bar on or after the ex-date
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (dates[mid] >= a.ex_date) { d = mid; hi = mid - 1 } else lo = mid + 1 }
+    const c = d >= 0 ? closes[d] : null, c0 = d >= 1 ? closes[d - 1] : null;
+    out.push({ code: 'PRICE_BREAK', action: a.type, ex_date: a.ex_date, ratio_old: num(a.ratio_old), ratio_new: num(a.ratio_new),
+      close_ratio: ok(c) && ok(c0) && c0 !== 0 ? c / c0 : null });
+  }
+  return out.sort((x, y) => x.ex_date < y.ex_date ? -1 : x.ex_date > y.ex_date ? 1 : x.action < y.action ? -1 : x.action > y.action ? 1 : 0);
 }
+/** The ex-dates of a row's PRICE_BREAK remarks (the cell remark rule reads them, evaluate.ts priceBreakRemark). */
+export const priceBreakDates = (row: Pick<UniverseRow, 'remarks'>): string[] => row.remarks.flatMap(r => r.code === 'PRICE_BREAK' ? [r.ex_date] : []);

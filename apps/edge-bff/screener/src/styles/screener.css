@@ -570,3 +570,13 @@ body{min-height:100vh}
 /* phone width: the page actions get their own row under the page head (the prototype keeps them in a second column,
    where they overlap the screen name and data line at 390 px; same CSS in the prototype, fixed here) */
 @media (max-width:760px){.page-head{grid-column:1/-1}.page-acts{grid-column:1/-1;grid-row:2;justify-self:start;margin:-6px 0 16px}.maincol{grid-row:3}}
+/* the preview's actions: the port's "Open in Terminal" (report 9.3 item 6) is an icon button, so Copy and Send to
+   Backtest keep the prototype's two equal buttons inside the panel (with a third labelled button, Send to Backtest ran
+   past the panel's padding to its border at 1440 px) */
+.dacts #dTerm{flex:0 0 auto;padding:0 10px}
+/* the sector popover: the industries list is shortened by the height of the "Unclassified" row (P15) when it shows, so
+   the footer (count, Clear, Done) stays inside the popover's maximum height, as in the prototype */
+.pop .dsec:has(>.chk)+.dsec .indlist{max-height:154px}
+/* the builder's one column never grows past the card (the prototype's grid track took its widest item's min-content:
+   at 390 px the adder's Browse button and the condition strip ran past the card's edge); the strip scrolls inside */
+.builder-b{grid-template-columns:minmax(0,1fr)}

@@ -308,10 +308,50 @@ await at('markup in names is rendered as text only', async () => {
   const r2 = await page.evaluate(() => ({ xss:window.__xss, img:document.querySelectorAll('#dtb img').length }));
   expect(!r2.xss && !r2.img, 'markup became elements in the preview');
 });
+await at('prototype behaviours kept: repick, preset toast count, local universe count, cap buckets, drawer trap, popover footer, preview actions, bandar thresholds', async () => {
+  await fresh('?slow=run:900'); await ready();
+  await page.locator('#resPane tbody tr').first().click(); await page.waitForSelector('#dChart canvas', { timeout:8000 });
+  const before = await page.locator('#resPane tbody tr').first().getAttribute('data-tk');
+  const inside = await page.evaluate(() => { const p = document.getElementById('preview').getBoundingClientRect(), s = document.getElementById('dSend').getBoundingClientRect(); return s.right <= p.right - 15 && s.left >= p.left });
+  expect(inside, 'Send to Backtest runs past the preview panel\'s padding');
+  // the prototype's openSource: its toast names today's matches, and the preview moves to the first match (repick)
+  await page.click('[data-open="p:oversold"]');
+  expect(/Oversold in Uptrend · \d+ match/.test(await text('#toast')), 'preset toast without its count: ' + await text('#toast'));
+  await idle(); await page.waitForTimeout(300);
+  const matches = await page.locator('#resPane tbody tr:not(.near)').evaluateAll(rs => rs.map(r => r.dataset.tk));
+  expect(!matches.length || matches.includes(before) || (await text('#dtb .preview-head')).includes(matches[0]), `the preview did not move to the first match ${matches[0]} (was ${before})`);
+  // "In universe X of N" follows a universe edit at once, before the run answers (report 9.2: computed in the page)
+  const n0 = Number((await text('#uCount')).match(/In universe ([\d,]+)/)[1]);
+  await page.click('[data-qf="liq"]'); await page.fill('#pop [data-u="adv"]', '100'); await page.locator('#pop [data-u="adv"]').dispatchEvent('change');
+  await page.waitForTimeout(80);
+  const n1 = Number((await text('#uCount')).match(/In universe ([\d,]+)/)[1]);
+  expect(n1 < n0 && /Running screen/.test(await text('#resMeta')), `the universe count did not follow the edit before the run (${n0} -> ${n1})`);
+  await page.click('#pop [data-uqclear="liq"]'); await page.keyboard.press('Escape'); await idle();
+  // the sector popover keeps its footer inside its box with the "Unclassified" row (P15)
+  await page.click('[data-qf="sector"]');
+  const foot = await page.evaluate(() => { const p = document.getElementById('pop'), d = p.querySelector('[data-act="popclose"]').getBoundingClientRect(), b = p.getBoundingClientRect(); return { fits:d.bottom <= b.bottom - 4, scroll:p.scrollHeight - p.clientHeight } });
+  expect(foot.fits && foot.scroll <= 1, `the popover footer is cut off: ${JSON.stringify(foot)}`);
+  await page.keyboard.press('Escape');
+  // market cap buckets stay visible, disabled with the reason; Tab stays inside the modal drawer
+  await page.click('[data-act="drawer"]');
+  const caps = await page.locator('.drawer .chip[disabled]').evaluateAll(bs => bs.filter(b => /^(Mega|Big|Mid|Small|Micro)$/.test(b.textContent.trim()) && /No data/.test(b.title)).length);
+  expect(caps === 5, `market cap buckets not shown disabled with their reason (${caps})`);
+  let out = 0;
+  for (let i = 0; i < 70; i++) { await page.keyboard.press('Tab'); if (!await page.evaluate(() => !!document.activeElement?.closest('.drawer'))) out++ }
+  expect(out === 0, `Tab left the drawer ${out} times`);
+  await page.keyboard.press('Shift+Tab');
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.drawer')), 'Shift+Tab left the drawer');
+  await page.keyboard.press('Escape');
+  // Method & sources keeps the prototype's bandar thresholds, disabled with the reason (P9, Phase 3)
+  await page.click('[data-hd="export"]'); await page.click('#menu button:has-text("Method & sources")');
+  expect(/Bandar status thresholds/i.test(await text('#dtb')) && await page.locator('#dtb input[disabled]').count() === 2, 'bandar thresholds not shown disabled');
+});
 await at('phone width: no horizontal page scroll', async () => {
   await open({ width:390, height:844 }); await go(); await ready();
   const w = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(w <= 1, `the page scrolls sideways by ${w}px at 390 px`);
+  const browse = await page.evaluate(() => document.querySelector('.adder .xbtn').getBoundingClientRect().right <= document.getElementById('cardC').getBoundingClientRect().right - 1);
+  expect(browse, 'the adder\'s Browse button runs past the builder card at 390 px');
 });
 
 await ctx?.close(); await browser.close(); await srv.close();

@@ -3,14 +3,14 @@
    from 26 screens in the browser. An unavailable preset stays visible, disabled, its reason naming the unavailable
    legs; it never runs with a leg removed, and "Load without the unavailable legs" is an explicit action that lists the
    dropped legs (report 9.2). My screens' counts are asked (POST counts) only while their tab is open (6c.4 S7). */
-import type { CatalogPreset, Definition, ScreenItemDefinition } from './core/contract.ts';
+import type { CatalogPreset, Definition, SavedView, ScreenItemDefinition } from './core/contract.ts';
 import { esc, nf } from './format.ts';
 import { IC, ico } from './icons.ts';
-import { activeCards, ctx, presetOf, S, savedOf, stateOfDefinition, ui } from './state.ts';
+import { activeCards, canonical, cardOfField, ctx, definitionOf, presetOf, S, savedOf, stateOfDefinition, ui } from './state.ts';
 import { confirmDialog, dialog, closeDialog, newItemId, toast } from './dialogs.ts';
 import { ApiFailure } from './api/types.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
-import { T } from './texts.ts';
+import { errorText, T } from './texts.ts';
 
 const $ = (id: string) => document.getElementById(id);
 const CAT_ORDER = ['Bandarmology', 'Technical', 'Fundamental', 'Combined'];
@@ -94,28 +94,39 @@ export function openSource(id: string, opts: { partial?: boolean } = {}) {
       if (!opts.partial) { toast(`${p.name}: ${p.reason || 'not available'}`); return }
       def = { ...def, conditions:def.conditions.filter(c => !p.unavailable_legs.includes(c.id)) };
     }
-    loadDefinition(def, p.name, { kind:'preset', id:p.id });
-    toast(opts.partial ? `${p.name} loaded without: ${legNames(p).join(', ')}` : `${p.name} loaded`);
+    // a preset's default sort (the prototype's p.sort): an additive `view` of the catalog preset, as a saved screen's
+    loadDefinition(def, p.name, { kind:'preset', id:p.id }, (p as CatalogPreset & { view?: SavedView }).view, true);
+    // the prototype's toast names today's matches; the catalog's count is the preset's own (computed per publication)
+    const n = p.match_count;
+    toast(opts.partial ? `${p.name} loaded without: ${legNames(p).join(', ')}` : n != null ? `${p.name} · ${nf(n)} match${n === 1 ? '' : 'es'}` : `${p.name} loaded`);
     return;
   }
   const s = savedOf(id.slice(2)); if (!s) return;
   const d = s.definition as ScreenItemDefinition;
-  loadDefinition(d.definition, s.name, { kind:'saved', item_id:s.item_id, revision:s.revision }, d.view);
-  // needs_review fields are highlighted on their cards; nothing is adjusted (report 9.5)
+  loadDefinition(d.definition, s.name, { kind:'saved', item_id:s.item_id, revision:s.revision }, d.view, true);
+  // needs_review fields are highlighted on their cards; nothing is adjusted (report 9.5). The field is the worker's
+  // validation path (definition.conditions[i]..., API CONTRACT 8.8), the card the i-th (cardOfField); a field outside
+  // the conditions (the universe) is named in the toast
+  const elsewhere: string[] = [];
   for (const r of s.needs_review) {
-    const m = /^conditions\[(\d+)\]\.?(.*)$/.exec(r.field) || /^conditions\.(\d+)\.?(.*)$/.exec(r.field);
-    const c = m ? S.cards[+m[1]] : undefined;
-    if (c) (c.review ||= []).push(`${m![2] || 'condition'}: ${r.reason}`);
+    const x = r as typeof r & { message?: string; details?: Record<string, unknown> };
+    const text = errorText(x.reason, { field:x.field, details:x.details ?? null, server:x.message }) || `${x.field}: ${x.reason}`;
+    const c = cardOfField(x.field);
+    if (c) (c.review ||= []).push(text); else elsewhere.push(text);
   }
   ui.renderConds();
-  toast(`${s.name} loaded${s.needs_review.length ? ` · ${s.needs_review.length} field${s.needs_review.length > 1 ? 's' : ''} to review` : ''}`);
+  const n = s.needs_review.length;
+  toast(`${s.name} loaded${n ? ` · ${n} field${n > 1 ? 's' : ''} to review${elsewhere.length ? `: ${elsewhere.join('; ')}` : ''}` : ''}`);
 }
-export function loadDefinition(def: Definition, name: string, source: typeof S.source, view?: ScreenItemDefinition['view']) {
+/** Load a definition into the page. `repick`: with the preview open, the preview moves to the first row of the new
+    result when the picked stock is not among its matches (the prototype's repick after openSource). */
+export function loadDefinition(def: Definition, name: string, source: typeof S.source, view?: ScreenItemDefinition['view'], repick = false) {
   const st = stateOfDefinition(def);
   S.universe = st.universe; S.cards = st.cards; S.logic = st.logic; S.atLeast = st.atLeast;
   S.name = name; S.source = source; S.dirty = false; S.sel.clear(); S.open.clear(); S.errors = {};
   S.sort = view?.sort ? { key:view.sort.key as typeof S.sort.key, dir:view.sort.dir } : { key:'match', dir:'desc' };
   S.nearMiss = !!view?.show_near; S.page = 1;
+  ctx.repick = repick && S.preview ? canonical(definitionOf()) : null;
   ui.refresh('all');
 }
 

@@ -37,5 +37,5 @@ export const lastScreen = (): LastScreen | null => {
 };
 export const saveLast = (l: LastScreen) => store.set(KEYS.last, l);
 
-/** The watchlist key the Terminal reads at boot for its symbol (report 9.3 item 6: "Open in Terminal"). */
+/** The key the Terminal reads at boot for its symbol (report 9.3 item 6: "Open in Terminal"). */
 export const TERMINAL_SYMBOL = 'ml.symbol';

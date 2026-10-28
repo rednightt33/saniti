@@ -184,7 +184,10 @@ function renderMethod(): string {
     : `<div class="side-ctx"><b>${esc(s?.name || S.name)}</b><br>${A.length ? A.map(c => esc(condText(entryOf(c), c))).join(' · ') : 'No conditions yet.'}</div>`;
   const limits = (cat?.limits || []).map(l => `<div class="src"><b>${esc(l.rule)}</b><small>✓ ${esc(l.example_ok)}</small><small>✕ ${esc(l.example_refused)}</small></div>`).join('');
   const refresh = d?.refresh === 'failed_keeping_previous' ? 'The latest publication failed its checks; the previous one is kept.' : '';   // 'refreshing' is reported on /health only (report 8.3, 6d.4 rule 4)
-  return `${ctxBox}
+  // the prototype's global bandar thresholds, kept visible and disabled with the reason: they become each bandar
+  // condition's own parameters with the flow definitions (report 9.2 Method & sources; P9, Phase 3)
+  const bandar = `<div class="sec"><h6>Bandar status thresholds</h6><div class="mini2"><label class="fld" title="${esc(T.bandarPhase)}"><span>Accumulation ≥ %</span><input class="inp" type="number" disabled placeholder="Phase 3" aria-label="Accumulation threshold: ${esc(T.bandarPhase)}"></label><label class="fld" title="${esc(T.bandarPhase)}"><span>Big accumulation ≥ %</span><input class="inp" type="number" disabled placeholder="Phase 3" aria-label="Big accumulation threshold: ${esc(T.bandarPhase)}"></label></div><p class="note" style="margin:0">${esc(T.bandarPhase)}</p></div>`;
+  return `${ctxBox}${bandar}
     <div class="sec"><h6>How conditions work</h6><p class="note" style="margin:0">${esc(methodText(d?.evaluation_date || '—'))}</p></div>
     <div class="sec"><h6>Data</h6><div class="facts"><div><span>Evaluation date</span><b>${esc(d?.evaluation_date || '—')}</b></div><div><span>Prices through</span><b>${esc(d?.price_through || '—')}</b></div><div><span>Flow through</span><b>${esc(d?.flow_through || 'not yet (Phase 2)')}</b></div><div><span>Published</span><b>${esc(d?.published_at || '—')}</b></div><div><span>Listings</span><b>${nf(ctx.universe?.rows.length)}</b></div></div>${refresh ? `<p class="note">${esc(refresh)}</p>` : ''}
       <p class="note" style="margin:0">Fundamentals, market cap, index membership, listing board and special notation have no data yet; they are shown disabled with their reason.</p></div>
