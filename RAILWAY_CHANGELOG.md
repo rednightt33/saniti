@@ -4925,3 +4925,11 @@ User 2026-10-27: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya", "Go". `
 18:22 UTC; live Backtest and Terminal assets equal the builds (sha256). Live check: `#chartLoading` "Loading MAPI", one
 turn 0.15s, gone when the candles are drawn (3.9 s from the sandbox), three lane rings while the broker data loads, no
 page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: `d2e3aa1f` SUCCESS 18:23 UTC. No variable changed.
+
+## 2026-10-28 — edge-bff `32a25029` (EXEC-TERMINAL-BS-SIDE)
+
+- Service edge-bff, environment dev, from GitHub `main` `f265ae4` (auto-deploy). Status SUCCESS.
+- Change: Terminal front-end only (Broker summary window side by side, Alt+B, blue crosshair while choosing on the
+  chart). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-BEOCbHT-.js`, the same build checked locally against live
+  data (`verification/terminal_api/bs_side_live_check.py`, WIFI).

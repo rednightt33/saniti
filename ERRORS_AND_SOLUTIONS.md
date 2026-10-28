@@ -2880,7 +2880,7 @@ change yet.
   kotak teks diabaikan; tanpa error halaman. vitest 690; 1:1 Terminal fixture tidak berubah.
 - **Pelajaran:** posisi crosshair yang diatur dari kode tidak memberi tahu pendengar hover; yang perlu ikut harus
   digerakkan lewat satu jalur bersama (`ctx.crosshairAt`).
-- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+- **Status:** RESOLVED; live sejak edge-bff `32a25029` (`main` `f265ae4`), aset terminal = build yang diuji (RAILWAY_CHANGELOG).
 
 ### EXEC-BACKTEST-LOAD — halaman Backtest lambat tampil (2026-10-27)
 
