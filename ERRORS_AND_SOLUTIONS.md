@@ -2856,6 +2856,15 @@ change yet.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
 - **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
+### EXEC-TERMINAL-ASSETS-2 — grip Flow aset tertutup header (2026-10-28)
+
+- **Symptom (uji lokal sebelum deploy):** grip baru di tepi atas Flow aset tidak bisa diklik; header panel menerima klik.
+- **Verified cause:** `.flow-head` z-index 20, grip z-index 8 (nilai grip Flow chart); separuh bawah grip ada di atas
+  header panel yang sama.
+- **Solution:** grip Flow aset z-index 25. Bukti: `assets_check/check3.mjs` (tarik naik/turun, simpan, reload, klik
+  ganda; arsiran tampil; tanpa error), vitest 696, piksel fixture dan live tanpa aset 0 px.
+- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+
 ### EXEC-TERMINAL-ASSETS — aset tambahan dan Flow Timeline per aset (2026-10-28)
 
 - **User:** "ketika kita add asset, maka yang keluar adalah search box exactly sama seperti kalau kita search ticker ...

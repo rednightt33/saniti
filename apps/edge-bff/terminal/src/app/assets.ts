@@ -64,6 +64,7 @@ interface FlowPane {
   flt: { brokers: Set<string>; boards: Set<string>; investors: Set<string> }; filters: FilterApi[];
   net: Float64Array; cumArr: Float64Array<ArrayBuffer>; drawings: { detach(): void } | null; collapsed: boolean; alive: boolean;
   synced: boolean;                                       // the pane has taken the chart's range once: from then on it moves the chart too
+  through?: string; noData: HTMLElement; placeNoData: () => void;
 }
 interface Asset { ticker: string; name: string; opts: AssetOpts; bars: Bar[]; at: Map<string, number>; series: any; row: HTMLElement;
   state: 'loading' | 'ready' | 'failed'; pane: FlowPane | null }
@@ -339,7 +340,9 @@ export function initAssets(ctx: Ctx) {
   function buildPane(a: Asset): FlowPane {
     const el = document.createElement('section');
     el.className = 'bottom af'; el.setAttribute('aria-label', `Flow Timeline · ${a.ticker}`);
-    el.innerHTML = `<div class="flow-head af-head">
+    el.innerHTML = `<div class="flow-grip af-grip" role="separator" aria-orientation="horizontal" tabindex="0"
+        aria-label="Resize the ${a.ticker} Flow Timeline (drag, or arrow up/down; double-click to reset)"><i></i></div>
+      <div class="flow-head af-head">
         <div class="flow-title"><strong>Flow Timeline</strong><span class="af-badge"></span></div>
         <div class="flow-summary"></div>
         <span class="flow-note" hidden></span>
@@ -375,8 +378,27 @@ export function initAssets(ctx: Ctx) {
       combos:[], from:N, to:-1, end:-1, state:'loading',
       flt:{ brokers:new Set(), boards:new Set(ctx.BOARDS.map(b => b.id)), investors:new Set(['Foreign']) }, filters:[],
       net:new Float64Array(N), cumArr:new Float64Array(N).fill(NaN), drawings:null,
-      collapsed:store.get(`ml.assets.flow.collapsed.${a.ticker}`) === '1', alive:true, synced:false
+      collapsed:store.get(`ml.assets.flow.collapsed.${a.ticker}`) === '1', alive:true, synced:false,
+      noData:document.createElement('div'), placeNoData:() => {}
     };
+    /* the sessions after the asset's broker data are hatched, as on the chart's own Flow Timeline (EXEC-TERMINAL-FRESH) */
+    const noData = pane.noData;
+    noData.className = 'flow-nodata'; noData.hidden = true; noData.innerHTML = '<span>Broker data not yet loaded</span>';
+    (el.querySelector('.af-wrap') as HTMLElement).appendChild(noData);
+    let placeRaf = 0;
+    const place = () => {
+      if (!pane.alive || pane.state === 'loading' || !pane.combos.length || pane.end >= N - 1) { noData.hidden = true; return }
+      const ts = fc.timeScale(), c = ts.logicalToCoordinate(pane.end as any), w = ts.width();
+      const x = c === null ? null : c + ts.options().barSpacing / 2;
+      if (x === null || x >= w) { noData.hidden = true; return }
+      const left = fc.priceScale('left').width(), from = Math.max(0, x);
+      noData.hidden = false; noData.style.left = (left + from) + 'px'; noData.style.width = (w - from) + 'px';
+      noData.style.height = (host.clientHeight - ts.height()) + 'px';
+      noData.classList.toggle('narrow', w - from < 150);
+    };
+    // placed after the chart has drawn its new data or range (a coordinate read right after setData is the old one)
+    pane.placeNoData = () => { cancelAnimationFrame(placeRaf); placeRaf = requestAnimationFrame(() => { placeRaf = requestAnimationFrame(place) }) };
+    new ResizeObserver(pane.placeNoData).observe(host);
     /* the chart's sessions from the start (no values yet), so the pane's time scale is the chart's before any data arrives;
        an empty pane would otherwise hand its own default range to the chart */
     const blank = ctx.ohlc.map(b => ({ time:b.time }));
@@ -413,8 +435,38 @@ export function initAssets(ctx: Ctx) {
     };
     btn.onclick = () => setCollapsed(!pane.collapsed);
     setCollapsed(pane.collapsed);
+    /* raise or lower the pane (user 2026-10-28: "flow timeline aset kedua dan aset ketiga bisa juga dinaikkan dan
+       diturunkan"): the grip at its top edge, as on the chart's own Flow Timeline; the height is kept per ticker, a
+       double-click goes back to the shared height */
+    const grip = el.querySelector('.af-grip') as HTMLElement, hKey = `ml.assets.flow.h.${a.ticker}`, AF_MIN = 110;
+    const maxH = () => Math.max(AF_MIN, mainCol.clientHeight - 46 - 240 - ($('flowPanel') as HTMLElement).getBoundingClientRect().height
+      - panes().filter(q => q !== pane).reduce((t, q) => t + q.el.getBoundingClientRect().height, 0));
+    const setH = (h: number | null, save = true) => {
+      if (h === null) { el.style.removeProperty('height'); if (save) store.set(hKey, '') }
+      else { h = Math.round(Math.max(AF_MIN, Math.min(maxH(), h))); el.style.height = h + 'px'; if (save) store.set(hKey, String(h)) }
+      grip.setAttribute('aria-valuenow', String(Math.round(el.getBoundingClientRect().height)));
+      requestAnimationFrame(() => { ctx.refitFlow?.(); ctx.syncAxisWidths(); pane.placeNoData() });
+    };
+    const savedH = Number(store.get(hKey)); if (savedH) el.style.height = savedH + 'px';
+    let drag: { y: number; h: number } | null = null;
+    grip.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (e.button !== 0 || pane.collapsed) return;
+      drag = { y:e.clientY, h:el.getBoundingClientRect().height }; grip.setPointerCapture(e.pointerId); mainCol.classList.add('dragging'); e.preventDefault();
+    });
+    grip.addEventListener('pointermove', (e: PointerEvent) => { if (drag) setH(drag.h + (drag.y - e.clientY), false) });   // drag up = taller pane
+    const endDrag = (e: PointerEvent) => {
+      if (!drag) return; drag = null; mainCol.classList.remove('dragging');
+      try { grip.releasePointerCapture(e.pointerId) } catch (_) {}
+      setH(el.getBoundingClientRect().height);
+    };
+    grip.addEventListener('pointerup', endDrag); grip.addEventListener('pointercancel', endDrag);
+    grip.addEventListener('dblclick', () => setH(null));
+    grip.addEventListener('keydown', (e: KeyboardEvent) => {
+      const cur = el.getBoundingClientRect().height;
+      if (e.key === 'ArrowUp') { setH(cur + 16); e.preventDefault() } else if (e.key === 'ArrowDown') { setH(cur - 16); e.preventDefault() }
+    });
     /* time range, crosshair */
-    fc.timeScale().subscribeVisibleLogicalRangeChange(() => { if (pane.synced) syncRange(fc, chart); requestAnimationFrame(ctx.syncAxisWidths) });
+    fc.timeScale().subscribeVisibleLogicalRangeChange(() => { if (pane.synced) syncRange(fc, chart); requestAnimationFrame(ctx.syncAxisWidths); pane.placeNoData() });
     fc.subscribeCrosshairMove((p: any) => {
       if (xLock) return;
       const k = keyOf(p.time), i = k ? idxByTime.get(k) : undefined;
@@ -437,9 +489,9 @@ export function initAssets(ctx: Ctx) {
     p.el.remove();
   }
   function paintPaneHead(a: Asset, p = a.pane!) {
+    // the same badge as the chart's own ticker (user 2026-10-28: "ticker badge bisa disamakan saja dengan ticker main asset")
     const b = p.el.querySelector('.af-badge') as HTMLElement;
-    b.style.setProperty('--c', a.opts.color);
-    b.innerHTML = `<i></i>${hasLogos() ? logoHtml(a.ticker, 'tk-sm') : ''}<b>${a.ticker}</b><small>${esc(a.name)}</small>`;
+    b.innerHTML = `${hasLogos() ? logoHtml(a.ticker, 'tk-sm') : ''}<b>${a.ticker}</b>`;
     b.title = `${a.name}: added asset (the right panel stays ${SYMBOL})`;
   }
   function load(a: Asset, p: FlowPane) {
@@ -461,7 +513,7 @@ export function initAssets(ctx: Ctx) {
     const failed = () => { if (!p.alive) return; p.state = 'failed'; say('Broker data could not be loaded. Remove the asset and add it again to retry.') };
     ctx.M.loadAssetFlow!(a.ticker).then(f => {
       if (!p.alive) return;
-      p.end = brokerEnd(dates, f.through);
+      p.end = brokerEnd(dates, f.through); p.through = f.through;
       f.recent.then(r => { set(r, true); f.all.then(all => set(all, false), failed) }, failed);
     }, failed);
   }
@@ -478,6 +530,7 @@ export function initAssets(ctx: Ctx) {
     syncRange(chart, p.chart);                            // new data never moves the shared range
     paneSummary(p);
     paneTip(a, ctx.lastTipIdx);
+    p.placeNoData();
   }
   function computeCum(p: FlowPane) {
     const start = cumFrom === 'view' ? visibleRange()[0] : 0, E = p.end;
@@ -500,7 +553,8 @@ export function initAssets(ctx: Ctx) {
     if (p.state === 'loading' || !p.combos.length) { tip.innerHTML = ''; return }
     if (i > p.end || i < p.from) {
       p.netBadge.applyOptions({ axisLabelVisible:false }); p.cumBadge.applyOptions({ axisLabelVisible:false });
-      tip.innerHTML = `<b>${a.ticker}</b> &nbsp; <span class="flow-nodata-tip">No broker data on this ${U.one}</span>`; return;
+      const through = p.through ? new Date(p.through + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace(',', '') : '';
+      tip.innerHTML = `<b>${a.ticker}</b> &nbsp; <span class="flow-nodata-tip">${i > p.end && through ? `No broker data yet (through ${through})` : `No broker data on this ${U.one}`}</span>`; return;
     }
     const hasCum = Number.isFinite(p.cumArr[i]);
     p.netBadge.applyOptions({ price:Math.round(p.net[i]), axisLabelVisible:true, axisLabelColor:p.net[i] >= 0 ? '#089981' : '#f23645' });
