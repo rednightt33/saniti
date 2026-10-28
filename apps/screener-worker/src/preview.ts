@@ -11,7 +11,7 @@
      the full series), with the operator or the pattern type as the kind;
    - perf ("Stock vs IHSG", P14 relabelled): over the session counts of screener-metrics.json `periods` (P23 a), the
      return of the stock and of IHSG aligned to the stock's dates, both through F's roc (the one formula path). */
-import type { Definition, PerfPeriod, Periods, PreviewResponse } from '../../edge-bff/screener/src/core/contract.ts';
+import type { Definition, EventTest, PerfPeriod, Periods, PreviewResponse } from '../../edge-bff/screener/src/core/contract.ts';
 import { PERF_PERIODS, PREVIEW_BARS } from '../../edge-bff/screener/src/core/contract.ts';
 import { conditionSignal } from '../../edge-bff/screener/src/core/condition.ts';
 import { round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
@@ -62,8 +62,8 @@ export function runPreview(task: PreviewTask, snap: ThreadSnapshot, env: ThreadE
     if (b.kind !== 'event') continue;
     const sig = conditionSignal(b, full, n);
     if (!sig) continue;
-    const t = b.test as Extract<PreviewResponse['cells'][number], never> | any;
-    const kind = 'pattern' in t.signal ? String(t.signal.pattern.type) : String(t.signal.op);
+    const signal = (b.test as EventTest).signal;
+    const kind = 'pattern' in signal ? signal.pattern.type : signal.op;
     const fired: { date: string; kind: string }[] = [];
     for (let i = Math.max(1, from); i < n; i++) if (sig[i] === 1) fired.push({ date: tc.dates[i], kind });
     markers.push({ condition_id: b.id, bars: fired });

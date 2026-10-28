@@ -7,72 +7,35 @@
      (AGENTS.md "Gates and evidence"; edge-bff adds its own, screener.py with_own_limits);
    - indicators[]: registry.ts catalogIndicators at SCREENER_CAP_BUDGET_MS (caps as max);
    - metrics[], fundamentals[], periods: src/core/screener-metrics.json with availability derived at run time from the
-     files the publication indexes (validate.ts availabilityOf; 6.12), never a list kept here;
+     files the publication indexes (validate.ts availabilityMap; 6.12), never a list kept here;
    - groupings: the reference file's, by the Backtest's rule (snapshot.ts groupingsOf);
-   - presets[]: src/core/presets.json; each with its availability and, when available, its match and near counts at
+   - presets[]: src/core/presets.json (core catalog.ts PRESETS); each with its availability (validate.ts
+     presetAvailability: available only when every leg is, never run with a leg removed) and, when available, its match and near counts at
      this publication (computed by the refresh, which keeps each available preset's full result in the result cache, so
      a preset click is a cache hit; 6.7, 6c.4). */
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
-import type {
-  Availability, CatalogMetric, CatalogPreset, CatalogResponse, Definition, Grouping, LimitEntry, MetricRef, Periods, RefreshState, UniverseResponse,
-} from '../../edge-bff/screener/src/core/contract.ts';
+import type { Availability, CatalogMetric, CatalogPreset, CatalogResponse, Grouping, LimitEntry, Periods, RefreshState, UniverseResponse } from '../../edge-bff/screener/src/core/contract.ts';
+import type { MetricDefinition, MetricsCatalog } from '../../edge-bff/screener/src/core/catalog.ts';
 import { INDICATORS, capOf, catalogIndicators } from '../../edge-bff/screener/src/core/registry.ts';
-import type { MetricDefinition, MetricsCatalog } from '../../edge-bff/screener/src/core/validate.ts';
-import { availabilityOf } from '../../edge-bff/screener/src/core/validate.ts';
+import { availabilityMap } from '../../edge-bff/screener/src/core/validate.ts';
 import type { Limits } from './config.ts';
 import type { IndexEntry, SnapshotDesc } from './snapshot.ts';
 
-const CORE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../edge-bff/screener/src/core');
-export const METRICS_FILE = path.join(CORE, 'screener-metrics.json');
-export const PRESETS_FILE = path.join(CORE, 'presets.json');
-
-/** A preset as presets.json holds it (report 6.12, 7.1): id, category, name, why, its definition, and for a preset
-    shipped disabled (fundamental or flow legs, P11 / Phase 2) its availability, reason and unavailable legs. */
-export interface PresetDef { id: string; category: string; name: string; why: string; definition: Definition; availability?: Availability; reason?: string | null; unavailable_legs?: string[] }
-
-/** screener-metrics.json, or null when the file is not there (main() refuses to start without it). */
-export function loadMetrics(file = METRICS_FILE): MetricsCatalog | null {
-  if (!fs.existsSync(file)) return null;
-  return JSON.parse(fs.readFileSync(file, 'utf8')) as MetricsCatalog;
-}
-/** presets.json (a list, or {presets: [...]}), or null when the file is not there. */
-export function loadPresets(file = PRESETS_FILE): PresetDef[] | null {
-  if (!fs.existsSync(file)) return null;
-  const doc = JSON.parse(fs.readFileSync(file, 'utf8')) as PresetDef[] | { presets: PresetDef[] };
-  return Array.isArray(doc) ? doc : doc.presets;
-}
-
-/** Every metric reference a definition reads (the presets' configurations are pre-warmed, 6.7). */
-export function definitionRefs(d: Definition | undefined): MetricRef[] {
-  const out: MetricRef[] = [];
-  const add = (s: unknown) => { if (s && typeof s === 'object' && 'kind' in (s as object)) out.push(s as MetricRef) };
-  for (const c of d?.conditions ?? []) {
-    const t = c?.test as Record<string, any> | undefined;
-    if (!t) continue;
-    if (t.kind === 'value') add(t.metric);
-    else if (t.kind === 'state') { add(t.lhs); add(t.rhs) }
-    else if (t.kind === 'event') { add(t.signal?.lhs); add(t.signal?.rhs) }
-  }
-  for (const t of d?.universe?.metric_filters ?? []) add(t?.metric);
-  return out;
-}
-
 /* ---- availability (6.12) --------------------------------------------------------------------------------------- */
 
-/** Availability of every metric of screener-metrics.json against the publication's xsection index. */
-export function metricAvailability(m: MetricsCatalog | null, index: Record<string, IndexEntry> | null): Map<string, { availability: Availability; reason: string | null }> {
-  const out = new Map<string, { availability: Availability; reason: string | null }>();
-  for (const x of m?.metrics ?? []) out.set(x.id, availabilityOf(x, (index ?? {}) as Record<string, { columns?: string[] }>));
-  return out;
-}
+/** Availability of every metric of the catalog against the publication's xsection index (validate.ts availabilityMap). */
+export const metricAvailability = (m: MetricsCatalog, index: Record<string, IndexEntry> | null): Map<string, { availability: Availability; reason: string | null }> =>
+  availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m);
 const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
+/** A catalog entry as the page reads it (contract.ts CatalogMetric plus the additive fields screener-metrics.json
+    carries for the page: label, short, synonyms, default_test, ref, fl; the fixture tests/fixture/api.ts has the same
+    shape); the internal fields (requires, decision, evidence, unavailable_reason) stay in the worker. */
 function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }): CatalogMetric {
+  const extra: Record<string, unknown> = {};
+  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'fl'] as const) if (x[k] !== undefined) extra[k] = x[k];
   return { id: x.id, group: x.group, kind: x.kind, params: x.params, tests: x.tests, unit: x.unit, formula: x.formula, interpretation: x.interpretation,
-    misuse: x.misuse, availability: a.availability, reason: a.reason, applies_to: x.applies_to };
+    misuse: x.misuse, availability: a.availability, reason: a.reason, applies_to: x.applies_to, ...extra } as CatalogMetric;
 }
 
 /* ---- limits (8.9; the gate rule: the rule, how to pass it, one right and one wrong example, from the value) ------ */
@@ -123,13 +86,13 @@ export function doc(value: unknown): Doc {
 }
 
 export interface CatalogInput {
-  desc: SnapshotDesc; refresh: RefreshState; limits: Limits; metrics: MetricsCatalog | null;
+  desc: SnapshotDesc; refresh: RefreshState; limits: Limits; metrics: MetricsCatalog;
   availability: Map<string, { availability: Availability; reason: string | null }>;
   groupings: Grouping[]; presets: CatalogPreset[];
 }
 export function catalogDoc(c: CatalogInput): Doc {
   const metrics: CatalogMetric[] = [], fundamentals: CatalogMetric[] = [];
-  for (const x of c.metrics?.metrics ?? []) {
+  for (const x of c.metrics.metrics) {
     const a = c.availability.get(x.id) ?? { availability: 'REQUIRES_DATA' as Availability, reason: 'Not evaluated.' };
     (isFundamental(x) ? fundamentals : metrics).push(catalogMetric(x, a));
   }
@@ -137,7 +100,7 @@ export function catalogDoc(c: CatalogInput): Doc {
     versions: { ...c.desc.versions }, data: { ...c.desc.data, refresh: c.refresh },
     limits: limitEntries(c.limits),
     indicators: catalogIndicators({ capBudgetMs: c.limits.cap_budget_ms }),
-    metrics, fundamentals, periods: (c.metrics?.periods ?? null) as Periods, groupings: c.groupings, presets: c.presets,
+    metrics, fundamentals, periods: c.metrics.periods as Periods, groupings: c.groupings, presets: c.presets,
   };
   return doc(body);
 }

@@ -10,7 +10,7 @@
    cancel flag is a shared Int32Array the main thread sets to the task's seq (the caller left, or its deadline passed);
    plan.ts checks it between tickers. A thread that does not stop is terminated (pool.ts) and a new one is started. */
 import { isMainThread, parentPort, workerData } from 'node:worker_threads';
-import type { MetricRef } from '../../edge-bff/screener/src/core/contract.ts';
+import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
 import { TerminalClient } from '../../backtest-worker/src/terminal.ts';
 import type { TerminalOptions, TickerReference } from '../../backtest-worker/src/terminal.ts';
 import type { FileEntry } from '../../edge-bff/backtest/src/core/datafile.ts';
@@ -18,7 +18,7 @@ import { serialError } from './errors.ts';
 import { errorFields, log, setLogSink } from './log.ts';
 import { runPreview } from './preview.ts';
 import type { PreviewTask } from './preview.ts';
-import { CancelledRun, isCancelled, runScreen } from './run.ts';
+import { CancelledRun, isCancelled, runTask } from './run.ts';
 import type { CountsEntryOut, CountsTask, RunTask, ThreadEnv } from './run.ts';
 import { ThreadSnapshot, buildSnapshot, prewarmChunk, snapshotDigest } from './snapshot.ts';
 import type { PublicationState, SnapshotDesc } from './snapshot.ts';
@@ -28,13 +28,13 @@ export interface BuildTask {
   files: { price: FileEntry; actions: FileEntry };
   ref: TickerReference; state: PublicationState;
   engine: { screener_engine: string; registry: string; screener_registry: string };
-  tailLength: number; extra: MetricRef[];
+  tailLength: number; presets: PresetDefinition[];
 }
 export interface PrewarmTask { kind: 'prewarm'; desc: SnapshotDesc; from: number; to: number }
 export interface DigestTask { kind: 'digest'; desc: SnapshotDesc }
 export type Task = RunTask | CountsTask | PreviewTask | BuildTask | PrewarmTask | DigestTask;
 
-/** engine: an optional module URL whose runScreen / runPreview replace run.ts's and preview.ts's (the worker's tests
+/** engine: an optional module URL whose runTask / runPreview replace run.ts's and preview.ts's (the worker's tests
     of lanes, budgets and versions run on it; production never sets it). */
 export interface ThreadData { role: 'compute' | 'builder'; name: string; env: ThreadEnv; terminal: Omit<TerminalOptions, 'fetch' | 'log'> | null; flag: Int32Array; engine?: string }
 export type ToThread =
@@ -53,9 +53,9 @@ function start(d: ThreadData): void {
   setLogSink(line => port.postMessage({ type: 'log', line } satisfies FromThread));
   const snapshots = new Map<string, ThreadSnapshot>();
   const client = d.terminal ? new TerminalClient({ ...d.terminal, log: (event, fields) => log('info', event, { thread: d.name, ...fields }) }) : null;
-  let engine = { runScreen, runPreview };
+  let engine = { runTask, runPreview };
   let chain: Promise<void> = d.engine
-    ? import(d.engine).then((m: Partial<typeof engine>) => { engine = { runScreen: m.runScreen ?? runScreen, runPreview: m.runPreview ?? runPreview } })
+    ? import(d.engine).then((m: Partial<typeof engine>) => { engine = { runTask: m.runTask ?? runTask, runPreview: m.runPreview ?? runPreview } })
     : Promise.resolve();
   port.on('message', (m: ToThread) => { chain = chain.then(() => handle(m)) });
 
@@ -95,12 +95,12 @@ function start(d: ThreadData): void {
         const [price, actions] = await Promise.all([client.file(task.files.price, what('price'), 'price'), client.file(task.files.actions, what('actions'), 'actions')]);
         const t1 = performance.now();
         const built = await buildSnapshot({ price: price.doc, actions: actions.doc, ref: task.ref, state: task.state, engine: task.engine,
-          tailLength: task.tailLength, capBudgetMs: d.env.capBudgetMs, extra: task.extra });
+          tailLength: task.tailLength, capBudgetMs: d.env.capBudgetMs, withinMax: d.env.withinMax, presets: task.presets });
         return { ...built, cached: { price: price.cached, actions: actions.cached }, download_ms: Math.round(t1 - t0), decode_ms: Math.round(performance.now() - t1), downloads: client.stats.downloads, download_bytes: client.stats.download_bytes };
       }
       case 'prewarm': return prewarmChunk(task.desc, task.from, task.to, d.env.capBudgetMs);
       case 'digest': return { digest: snapshotDigest(task.desc) };
-      case 'run': case 'counts': return engine.runScreen(task, snapshot(task.sid), d.env, cancelled);
+      case 'run': case 'counts': return engine.runTask(task, snapshot(task.sid), d.env, cancelled);
       case 'preview': return engine.runPreview(task, snapshot(task.sid), d.env);
       case 'counts_list': {
         // each definition on its own; a failure is that entry's error, the others are still counted (8.6)
@@ -108,7 +108,7 @@ function start(d: ThreadData): void {
         for (const item of task.items) {
           if (cancelled()) throw new CancelledRun();
           try {
-            const o = engine.runScreen({ ...item, kind: 'counts', sid: task.sid, options: { exhaustive: false, explain: false }, queue_ms: 0, versions: snap.desc.versions, data: snap.desc.data }, snap, d.env, cancelled);
+            const o = engine.runTask({ ...item, kind: 'counts', sid: task.sid, options: { exhaustive: false, explain: false }, queue_ms: 0, s0_ms: 0, versions: snap.desc.versions, data: snap.desc.data }, snap, d.env, cancelled);
             out.push({ item_id: item.item_id, match_count: o.match_count, near_count: o.near_count, busy_ms: o.busy_ms });
           } catch (e) {
             if (cancelled() || isCancelled(e)) throw e;

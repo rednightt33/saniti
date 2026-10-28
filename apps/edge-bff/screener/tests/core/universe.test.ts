@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
 import type { UniverseDef, UniverseRow } from '../../src/core/contract.ts';
-import { applyUniverse, hasPriceBreak, isStale } from '../../src/core/universe.ts';
+import { applyUniverse, hasPriceBreak, isStale, priceBreakDates, priceBreakRemarks } from '../../src/core/universe.ts';
 
 const row = (ticker: string, o: Partial<UniverseRow> = {}): UniverseRow => ({
   ticker, name: `${ticker} Tbk`, sector: 'Financials', industry: 'Banks', last: 1000, chg_1d_pct: 0.5, adv20_idr: 5e9,
@@ -78,5 +78,29 @@ describe('applyUniverse', () => {
   it('isStale and hasPriceBreak read the row', () => {
     expect([isStale({ last_bar: '2026-10-24' }, '2026-10-27'), isStale({ last_bar: '2026-10-27' }, '2026-10-27')]).toEqual([true, false]);
     expect(ROWS.map(hasPriceBreak).filter(Boolean).length).toBe(1);
+  });
+});
+
+describe('priceBreakRemarks (P4; report 6.12 rule, TEST PLAN 10b.4 "Price breaks")', () => {
+  const BOUNDARY = '2026-09-12', TYPES = ['STOCK_SPLIT', 'REVERSE_SPLIT', 'BONUS_SHARE', 'RIGHT_ISSUE', 'STOCK_DIVIDEND'];
+  const dates = ['2026-07-15', '2026-07-16', '2026-10-13', '2026-10-14', '2026-10-27'];
+  const closes = [920, 875, 845, 384, 302];
+  const act = (type: string, ex_date: string, ratio_old: number | null = 1, ratio_new: number | null = 2) => ({ ticker: 'X', type, ex_date, ratio_old, ratio_new });
+  const opts = { boundary: BOUNDARY, priceActionTypes: TYPES };
+  it('flags a price-affecting action with boundary <= ex-date <= the last bar, with the observed close ratio', () => {
+    expect(priceBreakRemarks([act('STOCK_SPLIT', '2026-10-14')], dates, closes, opts)).toEqual([
+      { code: 'PRICE_BREAK', action: 'STOCK_SPLIT', ex_date: '2026-10-14', ratio_old: 1, ratio_new: 2, close_ratio: 384 / 845 }]);
+  });
+  it('never flags an action before the boundary (RAJA, adjusted), one after the last bar (MGLV) or a cash dividend', () => {
+    expect(priceBreakRemarks([act('STOCK_SPLIT', '2026-07-16'), act('STOCK_SPLIT', '2026-11-02'), act('DIVIDEND', '2026-10-13', null, null)], dates, closes, opts)).toEqual([]);
+  });
+  it('an ex-date between sessions reads the next bar; missing ratios stay null; a duplicate is one remark; oldest first', () => {
+    const r = priceBreakRemarks([act('RIGHT_ISSUE', '2026-10-20', null, null), act('BONUS_SHARE', '2026-10-01'), act('BONUS_SHARE', '2026-10-01')], dates, closes, opts);
+    expect(r.map(x => [x.action, x.ex_date, x.ratio_old, x.close_ratio])).toEqual([['BONUS_SHARE', '2026-10-01', 1, 845 / 875], ['RIGHT_ISSUE', '2026-10-20', null, 302 / 384]]);
+    expect(priceBreakRemarks([act('STOCK_SPLIT', '2026-10-14')], [], [], opts)).toEqual([]);
+  });
+  it('the ex-dates of a row\'s PRICE_BREAK remarks are what the cell rule reads', () => {
+    expect(priceBreakDates(ROWS.find(r => r.ticker === 'PBSA')!)).toEqual(['2026-10-14']);
+    expect(priceBreakDates(ROWS.find(r => r.ticker === 'ADHI')!)).toEqual([]);
   });
 });

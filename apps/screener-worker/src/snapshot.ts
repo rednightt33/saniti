@@ -29,17 +29,19 @@ import crypto from 'node:crypto';
 import { DataError, PRICE_ACTION_TYPES, dataVersion, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engine.ts';
-import { liquidity } from '../../edge-bff/backtest/src/core/signals.ts';
-import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { byTicker } from '../../edge-bff/backtest/src/core/signals.ts';
-import type { Bars, Num } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import type { DataStatus, Grouping, MetricRef, PriceBreakRemark, RowRemark, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
-import { SeriesCache, resolveSeries, series, seriesKey, tickerCalc } from '../../edge-bff/screener/src/core/metrics.ts';
+import type { Bars } from '../../edge-bff/terminal/src/calc/indicators.ts';
+import type { DataStatus, Grouping, MetricRef, PatternRef, PriceBreakRemark, RowRemark, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
+import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
+import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
+import { bindCondition } from '../../edge-bff/screener/src/core/condition.ts';
+import { SeriesCache, resolveSeries, series, seriesKey, tickerCalc, universeAttributes } from '../../edge-bff/screener/src/core/metrics.ts';
 import type { DataVersions, ResolvedSeries, Tail, TickerBars } from '../../edge-bff/screener/src/core/metrics.ts';
+import type { ParamOptions } from '../../edge-bff/screener/src/core/registry.ts';
 import { INDICATORS, startParams } from '../../edge-bff/screener/src/core/registry.ts';
+import { resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
 import { priceBreakRemarks } from '../../edge-bff/screener/src/core/universe.ts';
 import type { ActionRow } from '../../edge-bff/screener/src/core/universe.ts';
-import { isStale } from '../../edge-bff/screener/src/core/universe.ts';
 import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
 
 export const INDEX_TICKER = 'IHSG';
@@ -158,9 +160,10 @@ function sliceDoc(doc: Columnar, e: TickerEntry, at: number): Columnar {
 export interface BuildInput {
   price: Columnar; actions: Columnar; ref: TickerReference; state: PublicationState;
   engine: { screener_engine: string; registry: string; screener_registry: string };
-  tailLength: number; capBudgetMs: number;
-  /** extra series to pin (the presets' references, catalog.ts presetRefs); refused ones are left out and listed */
-  extra: MetricRef[];
+  tailLength: number; capBudgetMs: number; withinMax: number;
+  /** the presets: every series their enabled conditions read (bound as a run binds them, lagged sides included) is
+      pinned too; a condition that does not bind (an unavailable metric) is left out and listed */
+  presets: readonly PresetDefinition[];
 }
 export interface BuildStats { tickers: number; stocks: number; bars: number; dropped: number; no_price: number; actions: number; series: number; skipped: { ref: string; reason: string }[] }
 
@@ -210,24 +213,19 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     w += n;
     const r = refBy.get(e.t)!;
     if (r.type !== 'stock') continue;
-    // universe attributes (report 6.7): last close, 1D % (F.roc at length 1, the one formula path), ADV20 (signals.ts
-    // liquidity, the Backtest definition), first and last bar, bar count; remarks of P4
-    const calc = new Calc(b);
-    const roc1 = n >= 2 ? calc.out('roc', { length: 1, source: 'close' }).roc[n - 1] : null;
-    const adv = liquidity(calc)[n - 1];
-    const last_bar = s.dates[n - 1];
-    const stale = isStale({ last_bar }, E);
-    const remarks: RowRemark[] = stale ? [{ code: 'STALE', last_bar_date: last_bar }] : [];
+    // universe attributes (report 6.7) and the remarks of P4, by the core's own functions (metrics.ts
+    // universeAttributes: last close, 1D %, ADV20 = signals.ts liquidity, bars, stale; universe.ts priceBreakRemarks)
+    const a = universeAttributes(tickerCalc({ ticker: e.t, dates: s.dates, bars: b }), E);
+    const remarks: RowRemark[] = a.stale ? [{ code: 'STALE', last_bar_date: a.last_bar }] : [];
     const own = actions.get(e.t) ?? [];
     nActions += own.length;
-    // only a price-affecting type can give a PRICE_BREAK (its own rule filters by type and bounds)
-    if (own.some(a => PRICE_ACTION_TYPES.includes(a.type))) {
+    if (own.length) {
       const breaks: PriceBreakRemark[] = priceBreakRemarks(own, s.dates, b.C, { boundary: ADJUSTED_HISTORY_BOUNDARY, priceActionTypes: PRICE_ACTION_TYPES });
       remarks.push(...breaks);
     }
     rows.push({
       ticker: e.t, name: r.name, sector: r.groups.sector ?? null, industry: r.groups.industry ?? null,
-      last: b.C[n - 1] as number, chg_1d_pct: num(roc1), adv20_idr: num(adv), first_bar: s.dates[0], last_bar, bars: n, stale, remarks,
+      last: a.last, chg_1d_pct: a.chg_1d_pct, adv20_idr: a.adv20_idr, first_bar: a.first_bar, last_bar: a.last_bar, bars: a.bars, stale: a.stale, remarks,
     });
   }
   offsets[T] = w;
@@ -250,18 +248,19 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
   const ihsg = materialize(desc0, index);
   const dv: DataVersions = { price_data, screener_engine: versions.screener_engine };
   const seen = new Set<string>(), list: { ref: MetricRef; key: string }[] = [], skipped: BuildStats['skipped'] = [];
-  const add = (ref: MetricRef, field: string) => {
-    let r: ResolvedSeries;
-    try { r = resolveSeries(ref, field, { capBudgetMs: input.capBudgetMs, index: ihsg }) }
-    catch (e) { skipped.push({ ref: JSON.stringify(ref).slice(0, 200), reason: (e as Error)?.message?.slice(0, 200) ?? String(e) }); return }
-    const key = seriesKey(dv, r);
-    if (!seen.has(key)) { seen.add(key); list.push({ ref, key }) }
-  };
+  const opts = { capBudgetMs: input.capBudgetMs, index: ihsg };
+  const add = (r: ResolvedSeries) => { const key = seriesKey(dv, r); if (!seen.has(key)) { seen.add(key); list.push({ ref: r.ref, key }) } };
   for (const ind of INDICATORS) {
-    const params = startParams(ind, { capBudgetMs: input.capBudgetMs });
-    for (const o of ind.outputs) add({ kind: 'indicator', indicator: ind.id, params, output: o.key }, `start.${ind.id}.${o.key}`);
+    const params = startParams(ind, opts);
+    for (const o of ind.outputs) add(resolveSeries({ kind: 'indicator', indicator: ind.id, params, output: o.key }, `start.${ind.id}.${o.key}`, opts));
   }
-  input.extra.forEach((ref, k) => add(ref, `presets[${k}]`));
+  for (const p of input.presets) {
+    p.definition.conditions.forEach((c, k) => {
+      if (!c.enabled) return;
+      try { bindCondition(c, `presets.${p.id}.conditions[${k}]`, { ...opts, withinMax: input.withinMax, catalog: METRICS_CATALOG }).series.forEach(add) }
+      catch (e) { skipped.push({ ref: `${p.id}.${c.id}`, reason: (e as Error)?.message?.slice(0, 200) ?? String(e) }) }
+    });
+  }
   const S = list.length;
   const desc: SnapshotDesc = {
     sid, versions, data, finished_at: input.state.finished_at, tailLength: input.tailLength, ...desc0, rows, series: list,
@@ -270,7 +269,11 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
   const stats: BuildStats = { tickers: T, stocks: rows.length, bars: w, dropped, no_price: input.ref.tickers.filter(r => r.type === 'stock' && !entries.some(e => e.t === r.ticker)).length, actions: nActions, series: S, skipped };
   return { desc, entries, stats };
 }
-const num = (v: Num | undefined): number | null => typeof v === 'number' && Number.isFinite(v) ? v : null;
+/** A pinned series' reference resolved again (a thread resolves the list the builder wrote): a pattern through
+    transforms.ts resolveSignal, anything else through metrics.ts resolveSeries. */
+export function resolvePinned(ref: MetricRef, field: string, opts: ParamOptions & { index: TickerBars }): ResolvedSeries {
+  return ref.kind === 'pattern' ? resolveSignal(ref as PatternRef, field, opts) : resolveSeries(ref, field, opts);
+}
 
 /* ---- reading the bars back -------------------------------------------------------------------------------------- */
 type BarsDesc = Pick<SnapshotDesc, 'offsets' | 'O' | 'H' | 'L' | 'C' | 'V' | 'T' | 'dates' | 'tickers'>;
@@ -296,7 +299,7 @@ export const barCount = (d: Pick<SnapshotDesc, 'offsets'>, j: number): number =>
 export function prewarmChunk(d: SnapshotDesc, from: number, to: number, capBudgetMs: number): { ms: number; series: number } {
   const t0 = performance.now(), T = d.tickers.length, L = d.tailLength;
   const ihsg = materialize(d, d.index);
-  const resolved = d.series.map((s, k) => resolveSeries(s.ref, `series[${k}]`, { capBudgetMs, index: ihsg }));
+  const resolved = d.series.map((s, k) => resolvePinned(s.ref, `series[${k}]`, { capBudgetMs, index: ihsg }));
   const ctx = { versions: { price_data: d.versions.price_data, screener_engine: d.versions.screener_engine }, tailLength: L, cache: new SeriesCache(0) };
   for (let j = from; j < to; j++) {
     const tc = tickerCalc(materialize(d, j));
