@@ -35,6 +35,7 @@ const at = async (name, fn) => {
   try { await fn() } catch (e) { errors.push(`[${name}] ${process.env.SMOKE_DEBUG ? e.message.slice(0, 2500) : e.message.split('\n')[0]}`) }
   try { const l = await page.evaluate(() => window.__long || 0); if (l > longest.ms) { longest.ms = l; longest.step = name } } catch {}
   steps.push(`${errors.length === before ? 'ok  ' : 'FAIL'} ${name}`);
+  if (process.env.SMOKE_PROGRESS) console.log(steps[steps.length - 1]);
 };
 const expect = (ok, what) => { if (!ok) throw new Error(what) };
 const go = q => page.goto(`${srv.origin}/screener-app/${q || ''}`);
