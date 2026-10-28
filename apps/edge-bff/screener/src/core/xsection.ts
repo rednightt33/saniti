@@ -1,0 +1,31 @@
+/* Cross-sectional values on the fixed population (EXEC-SCREENER; report TARGET ARCHITECTURE 6.9 "rs_rank (P7)",
+   6.10 stage S1). Today: return_rank {window}. The population is fixed before any condition and never depends on the
+   user's universe filters, so editing a filter moves no rank and the planner can treat S1 as population-level (never
+   pruned):
+   - population: active, non-stale stocks (last bar = E) without a PRICE_BREAK remark and with a finite value at E
+     (P4: hidden tickers are outside it; a ticker the user shows through a chip is ranked AGAINST it, so showing it
+     moves no other rank);
+   - pct = 100 x #(population values strictly lower than the ticker's value) / (P - 1); a NaN value is excluded (fixes
+     the prototype's NaN-in-denominator defect, audit/html_model.md section 7 item 9); ties share a rank; P < 2 -> null;
+   - IHSG aligned with datafile.asOf where an index value is needed (datafile.ts:259).
+   Pure module (no DOM, no Node API). Typed stubs for the core-logic agent. */
+import type { UniverseRow } from './contract.ts';
+
+/** The fixed rank population at E (rows of the snapshot's universe, every listed stock, hidden ones included). */
+export function rankPopulation(rows: readonly UniverseRow[], values: ReadonlyMap<string, number>, evaluationDate: string): Set<string> {
+  throw new Error('not implemented: rankPopulation');
+}
+
+/** Percent rank of every ticker in `values` against the population (rule above): a ticker inside or outside the
+    population gets 100 x #(population values strictly lower) / (P - 1); null for a ticker without a finite value or
+    when P < 2. */
+export function percentRank(values: ReadonlyMap<string, number>, population: ReadonlySet<string>): Map<string, number | null> {
+  throw new Error('not implemented: percentRank');
+}
+
+/** return_rank {window}: each ticker's return over `window` of its own bars at its evaluation bar,
+    (close[at] / close[at - window] - 1) x 100, ranked with percentRank on the population. The default windows are
+    pre-warmed per publication (report 6.7); the window's range comes from screener-metrics.json. */
+export function returnRank(closes: ReadonlyMap<string, { at: number; close: ArrayLike<number | null> }>, window: number, population: ReadonlySet<string>): Map<string, number | null> {
+  throw new Error('not implemented: returnRank');
+}

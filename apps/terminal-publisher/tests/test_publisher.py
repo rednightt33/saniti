@@ -59,6 +59,20 @@ class FakeConn:
         self.statements.append(sql)
         return Result(self._rows(sql, params))
 
+    def cursor(self):
+        """A cursor for stream() (publisher.stream_rows): the same rows as execute."""
+        conn = self
+        class Cursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def stream(self, sql, params=(), size=1):
+                return iter(conn.execute(sql, params))
+        return Cursor()
+
     def _rows(self, sql, params):
         if sql == pub.XSECTION_PRICE_SQL:
             lo, hi = params

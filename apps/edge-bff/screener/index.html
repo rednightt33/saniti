@@ -6,12 +6,29 @@
 <title>EDGE Screener</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-<!-- Placeholder shell (EXEC-SCREENER Phase 1 foundation): the page agent ports the prototype's markup here, module by
-     module (report FRONTEND INTEGRATION 9.1-9.2). The entry tag below must stay exactly once: vite.config.ts swaps it for
-     the smoke and fixture entries and moves the built script to the end of <body> as one classic IIFE script. -->
-<main id="app"></main>
+<!-- The prototype's markup (screener EDGE layout.html lines 530-550), ported 1:1 without its inline script (the sub-app
+     CSP forbids inline scripts; report FRONTEND INTEGRATION 9.1). Its top bar was hidden in the prototype and is left out:
+     the EDGE shell keeps the top bar, search and theme (report 9.2). Each data area holds the shared loading ring in
+     static markup, so the first paint shows the whole layout before the script runs (report 6c.4 S1, data-boot). The
+     entry tag below must stay exactly once: vite.config.ts swaps it for the smoke and fixture entries and moves the built
+     script to the end of <body> as one classic IIFE script. -->
+<main class="page" id="app" data-boot="skeleton">
+  <div class="page-head" id="pageHead"><div><span class="eyebrow">Market intelligence</span><h1>Market Screener</h1><p>Screen <span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>Loading data status</span></p></div></div><div class="page-acts acts" id="pageActs"></div>
+  <div class="maincol">
+  <section class="card" id="cardU" style="margin-bottom:14px"><div class="boot-ring"><span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>Loading presets</span></div></section>
+  <section class="card" id="cardC" style="margin-bottom:14px"><div class="boot-ring"><span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>Loading indicators</span></div></section>
+  <div id="bulk"></div>
+  <section class="card" id="cardR"><div class="split" id="split"><div class="main-pane"><div class="tbl-meta"><div class="rmeta" id="resMeta"></div><label class="searchbox tsearch"><svg class="ico s" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input id="tq" placeholder="Search symbol or company" aria-label="Search symbol or company in the results" autocomplete="off"><button id="tqClear" type="button" aria-label="Clear search" hidden><svg class="ico s" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></label><div class="rtools" id="resTools"></div></div><div id="resPane"><div class="empty"><span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>Loading results</span></div></div></div></div></section>
+  </div>
+<aside class="preview" id="preview" aria-label="Stock detail" hidden><div class="pv-b" id="dtb"></div>
+      <div class="dacts" id="dacts" hidden><button class="btn" id="dCopy"><svg class="ico s" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>Copy</button><button class="btn" id="dTerm" title="Open this stock in the Terminal"><svg class="ico s" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>Terminal</button><button class="btn dark" id="dSend"><svg class="ico s" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Send to Backtest</button></div></aside>
+</main>
+<div class="pop" id="pop" hidden></div><div id="drawerHost"></div>
+<div class="menu" id="menu" hidden></div><div id="overlay" hidden></div><div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

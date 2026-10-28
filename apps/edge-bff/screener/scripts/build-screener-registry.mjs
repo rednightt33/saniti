@@ -238,7 +238,9 @@ export function costClass(run, B, p, value) {
 }
 
 /* ---- overlay checks ------------------------------------------------------------------------------------------- */
-function overlayProblems(overlay, base) {
+/** Every way the overlay breaks its rules (one entry per base id and vice versa, known shapes, forms, operators, labels,
+    defaults, overrides with evidence, the cost model); empty when sound. */
+export function overlayProblems(overlay, base) {
   const out = [], ids = base.indicators.map(r => r.id), oi = overlay.indicators || {};
   for (const id of ids) if (!oi[id]) out.push(`overlay: ${id} has no entry (one entry per base id)`);
   for (const id of Object.keys(oi)) if (!ids.includes(id)) out.push(`overlay: ${id} is not a base indicator`);

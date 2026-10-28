@@ -44,8 +44,10 @@ export interface Versions {
   definition_hash?: string;           // 64 hex, run and counts only: sha256 of canonicalJson(definition, params resolved, labels removed)
 }
 
-/** Snapshot state, catalog only (report 8.3). */
-export type RefreshState = 'ready' | 'refreshing' | 'failed_keeping_previous';
+/** The publication's outcome as the catalog reports it (report 8.3): equal on every worker replica, so the catalog
+    bytes and their ETag are too (report 6d.4 rule 4). The transient 'refreshing' and the snapshot age are on /health
+    only (WorkerHealth). */
+export type RefreshState = 'ready' | 'failed_keeping_previous';
 
 /** Every worker answer: which publication it was computed from (report 8.3; as-of policy 6.5). */
 export interface DataStatus {
@@ -54,7 +56,7 @@ export interface DataStatus {
   flow_through: string | null;        // last complete flow date (Phase 2); null before
   broker_behind_sessions: number | null;
   published_at: string;               // state.json finished_at
-  refresh?: RefreshState;             // catalog only
+  refresh?: RefreshState;             // catalog only: the publication's outcome
 }
 
 /** Error body, the edge-bff convention ({"error": {...}}; apps/edge-bff/backtest/CONTRACT.md section 11). TEMPORARY
@@ -80,7 +82,7 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, number>> = Object.freeze({
 export const ERROR_CODES = Object.freeze(Object.keys(ERROR_STATUS) as ErrorCode[]);
 /** LIMIT_EXCEEDED details (report 8.8, 8.9): which limit, the allowed value and what the request needed;
     `costliest` (a condition id) for limit 'compute_budget'. */
-export interface LimitExceededDetails { limit: LimitName | 'saved_items' | 'watchlist' | 'compute_budget'; allowed: number; needed: number; costliest?: string }
+export interface LimitExceededDetails { limit: LimitName | 'compute_budget'; allowed: number; needed: number; costliest?: string }
 /** PARAM_OUT_OF_RANGE details (report 8.8 `{field, min, max}`): max = the base max or the derived cap, whichever is
     lower; exclusive_min and integer say which narrowing rule refused the value (report 6.8 rules a and b). */
 export interface ParamRangeDetails { field: string; min?: number; max?: number; exclusive_min?: boolean; integer?: boolean }
@@ -230,7 +232,11 @@ export const CELL_REMARKS: readonly CellRemark[] = ['PRICE_BREAK_IN_LOOKBACK'];
 /* ------------------------------------------------------------------------------------------------------------ */
 
 export interface RunOptions { exhaustive?: boolean; explain?: boolean }
-export interface RunRequest { schema_version: 1; client_order: ClientOrder; definition: Definition; options?: RunOptions }
+/** data_version (optional, report 8.5 and 6d.4 rule 1): the price_data of the page's catalog. A replica answers at
+    that version while it holds it (its current one, or the previous one during SCREENER_PREVIOUS_GRACE_S); a newer
+    one answers the worker-only 409 DATA_VERSION_PENDING (edge-bff retries once, then 503 SCREENER_NOT_READY), an
+    older one 409 DATA_VERSION_CHANGED. Absent: the replica's current version. */
+export interface RunRequest { schema_version: 1; client_order: ClientOrder; data_version?: string; definition: Definition; options?: RunOptions }
 
 /** Where a condition's values came from: precomputed (a pre-warmed snapshot hit), dynamic (computed for this screen
     on full history), flow, xsection. is_default says whether the parameters are the registry's (report 8.5). */
@@ -301,8 +307,9 @@ export interface RunResponse {
 /* POST preview, validate, counts (report 8.6)                                                                   */
 /* ------------------------------------------------------------------------------------------------------------ */
 
-/** data_version: the price_data the page's table came from; a different worker version answers 409
-    DATA_VERSION_CHANGED and the page re-runs the screen (chart and table never mix two publications). */
+/** data_version: the price_data the page's table came from; older than the versions the replica holds answers 409
+    DATA_VERSION_CHANGED and the page re-reads the catalog and re-runs the screen (chart and table never mix two
+    publications); newer answers the worker-only DATA_VERSION_PENDING (report 8.6, 6d.4). */
 export interface PreviewRequest { schema_version: 1; client_order: ClientOrder; definition: Definition; ticker: string; data_version: string }
 export type PreviewStatus = 'match' | 'near' | 'fail' | 'outside_universe';
 export type PerfPeriod = '1M' | '3M' | '6M' | '1Y';
@@ -324,7 +331,8 @@ export const PREVIEW_BARS = 260;
 export interface ValidateRequest { schema_version: 1; definition: Definition }
 /** valid: the definition with parameters resolved (normalized) and its hash; a refusal is the 422 of the first problem. */
 export interface ValidateResponse { valid: true; definition_hash: string; normalized: Definition }
-export interface CountsRequest { schema_version: 1; definitions: { item_id: string; definition: Definition }[] }
+/** data_version as in RunRequest (report 8.6). At most max_counts definitions. */
+export interface CountsRequest { schema_version: 1; data_version?: string; definitions: { item_id: string; definition: Definition }[] }
 export type CountsEntry = { item_id: string; match_count: number; near_count: number } | { item_id: string; error: ApiError['error'] };
 export interface CountsResponse { versions: Versions; data: DataStatus; counts: CountsEntry[] }
 
@@ -332,9 +340,15 @@ export interface CountsResponse { versions: Versions; data: DataStatus; counts: 
 /* GET catalog, GET universe (report 8.4)                                                                        */
 /* ------------------------------------------------------------------------------------------------------------ */
 
-/** Worker limits (report 8.9), each an environment variable with no default on the worker. */
-export type LimitName = 'max_conditions' | 'max_metric_filters' | 'within_max' | 'max_counts' | 'deadline_ms'
-  | 'max_cpu_ms' | 'queue' | 'max_response_bytes' | 'request_bytes' | 'saved_definition_bytes';
+/** The limits of report 8.9 by name (catalog limits[].name; LIMIT_EXCEEDED details.limit). Worker limits are each an
+    environment variable with no default (SCREENER_MAX_CONDITIONS -> max_conditions, ...); edge-bff's follow its own
+    config (request_bytes, saved_definition_bytes, saved_items, watchlist, inflight_per_page). The refresh caps
+    (max_file_bytes, max_inflated_bytes, max_refresh_bytes) never refuse a request: they fail a refresh
+    (REFRESH_FAILED in the log), so they are listed for transparency only. */
+export type LimitName = 'max_conditions' | 'max_metric_filters' | 'within_max' | 'cap_budget_ms' | 'max_cpu_ms' | 'deadline_ms'
+  | 'inflight_per_page' | 'owner_inflight' | 'previous_grace_s' | 'queue' | 'request_bytes' | 'saved_definition_bytes'
+  | 'saved_items' | 'watchlist' | 'max_counts' | 'max_response_bytes' | 'max_file_bytes' | 'max_inflated_bytes'
+  | 'max_refresh_bytes';
 /** A limit as the page shows it before the user meets it (AGENTS.md "Gates and evidence": the rule, how to pass it,
     one right and one wrong example), generated from the value, never typed into the page. */
 export interface LimitEntry { name: LimitName | string; value: number; unit: string; rule: string; example_ok: string; example_refused: string }
@@ -467,17 +481,33 @@ export const TICKER = /^[A-Z0-9]{1,12}$/;              // terminal-api's ticker 
 
 export const WORKER_KEY_HEADER = 'x-screener-worker-key';
 export const WORKER_KEY_MIN_LENGTH = 32;
+/** The opaque owner tag edge-bff sends on every call except /health and /ready (report 8.11, 6d.6): the first 16 hex
+    of HMAC-SHA256(SCREENER_WORKER_KEY, owner_key), so the worker can share its threads fairly per owner (at most
+    SCREENER_OWNER_INFLIGHT running per tag per replica, round-robin across tags) without learning the owner's key. */
+export const WORKER_OWNER_HEADER = 'x-screener-owner';
+export const WORKER_OWNER_TAG = /^[0-9a-f]{16}$/;
+/** Worker-only refusal (report 8.8 note, 6d.4 rule 3): a request pinned to a data_version newer than the replica holds.
+    It never reaches the page: edge-bff retries once on a new connection, then answers 503 SCREENER_NOT_READY with
+    Retry-After: 2. */
+export type WorkerErrorCode = ErrorCode | 'DATA_VERSION_PENDING';
+export const WORKER_ERROR_STATUS: Readonly<Record<WorkerErrorCode, number>> = Object.freeze({ ...ERROR_STATUS, DATA_VERSION_PENDING: 409 });
+/** The worker answers these routes gzip-encoded (Content-Encoding: gzip, with an ETag of the JSON bytes); edge-bff
+    checks status and content type, reads at most SCREENER_MAX_RESPONSE_BYTES and relays the bytes without parsing a
+    2xx body (report 8.11, 6d.5). Error bodies are small JSON and are parsed to map codes. */
+export const WORKER_GZIP_ROUTES: readonly string[] = Object.freeze(['POST /v1/run', 'POST /v1/preview', 'POST /v1/counts']);
 /** The worker routes edge-bff relays; bodies are the public request and response types above. */
 export const WORKER_ROUTES = Object.freeze({
   health: 'GET /health', ready: 'GET /ready',
   catalog: 'GET /v1/catalog', universe: 'GET /v1/universe',
   run: 'POST /v1/run', preview: 'POST /v1/preview', validate: 'POST /v1/validate', counts: 'POST /v1/counts',
 } as const);
-/** GET /health (no key): liveness, versions, snapshot age and refresh state. edge-bff polls it at most every 60 s
-    and refetches catalog and universe only when price_data or screener_registry changed (report 8.4 Caching). */
+/** GET /health (no key): liveness, versions, snapshot age and refresh state ('loading' before the first snapshot,
+    'refreshing' while a new publication is built; report 8.11, 6d.4). edge-bff polls it at most every 60 s and refetches
+    catalog and universe only when price_data or screener_registry changed, replacing them only by a later published_at
+    (report 8.4 Caching, 6d.5). */
 export interface WorkerHealth {
   ok: boolean; versions: Omit<Versions, 'definition_hash'> | null; published_at: string | null;
-  snapshot_age_seconds: number | null; refresh: RefreshState | 'loading';
+  snapshot_age_seconds: number | null; refresh: RefreshState | 'refreshing' | 'loading';
 }
 /** GET /ready: 200 only with a loaded snapshot; otherwise 503 SCREENER_NOT_READY with retry_after_seconds. */
 export interface WorkerReady { ready: boolean; retry_after_seconds?: number }

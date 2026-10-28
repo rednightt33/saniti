@@ -66,7 +66,10 @@ const ind = (e: Entry, params: ParamMap, output: string): IndicatorRef => {
 export function metricRef(e: Entry, params: ParamMap): MetricRef {
   const m = e.metric!, tmpl = (m as any).ref as MetricRef | undefined, ch = changed(e, params);
   const withParams = (r: any) => Object.keys(ch).length || r.params ? { ...r, params:{ ...(r.params || {}), ...ch } } : r;
-  if (tmpl) return tmpl.kind === 'transform' ? { ...tmpl, args:{ ...(tmpl.args || {}), ...ch } } : tmpl.kind === 'universe' || tmpl.kind === 'price' ? tmpl : withParams(tmpl);
+  if (tmpl) {
+    if (tmpl.kind === 'transform') { const args = { ...(tmpl.args || {}), ...ch }; return Object.keys(args).length ? { ...tmpl, args } : tmpl }
+    return tmpl.kind === 'universe' || tmpl.kind === 'price' ? tmpl : withParams(tmpl);
+  }
   switch (m.kind) {
     case 'pattern': return withParams({ kind:'pattern', type:m.id });
     case 'xsection': return withParams({ kind:'xsection', metric:m.id });
@@ -140,6 +143,10 @@ const isInd = (s: any): s is IndicatorRef => s && s.kind === 'indicator';
 const isTr = (s: any, fn: string) => s && s.kind === 'transform' && s.fn === fn;
 const sameParams = (e: Entry, a?: ParamMap, b?: ParamMap) => e.params.every(p => String((a || {})[p.key] ?? p.default) === String((b || {})[p.key] ?? p.default));
 const full = (e: Entry, p?: ParamMap): ParamMap => ({ ...defaultParams(e), ...(p || {}) });
+/** a reference without its own parameters (top-level params, a transform's top-level args): the shape a catalog
+    template is matched by */
+const canonicalRef = (r: any) => { if (!r || typeof r !== 'object') return ''; const { params, args, ...rest } = r; void params; void args; return JSON.stringify(sortKeys(rest)) };
+const sortKeys = (v: any): any => Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sortKeys(v[k])])) : v;
 const keyOfRef = (r: any): string | null => r?.kind === 'pattern' ? r.type : r?.kind === 'flow' || r?.kind === 'xsection' ? r.metric
   : r?.kind === 'universe' ? r.attr : r?.kind === 'transform' ? r.fn : r?.kind === 'price' ? r.field : null;
 
@@ -147,15 +154,21 @@ const keyOfRef = (r: any): string | null => r?.kind === 'pattern' ? r.type : r?.
 export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
   const raw = (): Card => ({ id:cd.id, on:cd.enabled !== false, entry:null, params:{}, opt:'', value:'', value2:'', within:'', second:{}, raw:cd.test, ...(cd.label ? { label:cd.label } : {}) });
   const t = cd.test as any;
+  const kind = t?.kind as 'value' | 'state' | 'event';
   const mk = (e: Entry, form: string, output: string | undefined, op: TestOp, params: ParamMap | undefined, extra: Partial<Card> = {}, withOut?: string): Card | null => {
-    const o = e.opts.find(x => x.form === form && (output === undefined || x.output === output) && x.op === op && (withOut === undefined || x.with_output === withOut) && !x.disabled);
+    const o = e.opts.find(x => x.form === form && x.kind === kind && (output === undefined || x.output === output) && (form === 'metric' && x.value === 'none' || x.op === op) && (withOut === undefined || x.with_output === withOut) && !x.disabled);
     if (!o) return null;
     const scale = displayScale(o.unit);
     const sv = (v: unknown) => typeof v === 'number' ? v / scale : '' as const;
     return { id:cd.id, on:cd.enabled !== false, entry:e.key, params:full(e, params), opt:o.key, value:sv(t.value), value2:sv(t.value2),
       within:typeof t.within === 'number' ? t.within : e.def.within, second:full(e), ...(cd.label ? { label:cd.label } : {}), ...extra };
   };
-  const metricEntry = (r: any) => { const k = keyOfRef(r); const e = k ? entries.get(k) : undefined; return e && e.kind !== 'indicator' ? e : undefined };
+  const metricEntry = (r: any) => {
+    // an entry whose catalog template (`ref`) has this shape, its own parameters aside; else the entry named by the id
+    const shape = canonicalRef(r);
+    for (const e of entries.values()) if (e.kind !== 'indicator' && (e.metric as any)?.ref && canonicalRef((e.metric as any).ref) === shape) return e;
+    const k = keyOfRef(r); const e = k ? entries.get(k) : undefined; return e && e.kind !== 'indicator' && !(e.metric as any)?.ref ? e : undefined;
+  };
   try {
     if (t?.kind === 'value') {
       const m = t.metric;

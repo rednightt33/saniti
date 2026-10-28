@@ -20,15 +20,16 @@ RUN npm run build
 
 # EXEC-SCREENER (report FRONTEND INTEGRATION 9.1, 9.7): the screener page (screener/, TypeScript + Vite) is built here into
 # its dist/ and copied into static/screener-app. Its build typechecks the screener core (screener/src/core) with the page;
-# that core imports the Backtest core, which imports the Terminal's calculation module and indicator registry, so both
-# sources sit beside it as in the repository. The page bundle itself carries none of them (its bundle test). The build
+# that core imports the Backtest core (backtest/src/core), which imports the Terminal's calculation module and indicator
+# registry, and the page reuses Terminal and Backtest page helpers (the loading ring, the rack cache, the ticker search),
+# so both sources sit beside it as in the repository. The page bundle carries no formula (its bundle test). The build
 # output is not kept in git.
 FROM node:22-slim AS screener
 WORKDIR /build/screener
 COPY screener/package.json screener/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
-COPY backtest/src/core /build/backtest/src/core
+COPY backtest/src /build/backtest/src
 COPY screener/ ./
 RUN npm run build
 

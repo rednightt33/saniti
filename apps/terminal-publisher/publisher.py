@@ -326,6 +326,13 @@ def events_doc(ticker, rows):
             'columns': EVENT_COLUMNS, **columnar(rows, EVENT_COLUMNS)}
 
 
+def stream_rows(conn, sql, params, size=10_000):
+    """The rows of a large statement, fetched `size` at a time (libpq 17 chunked rows; one by one with an older libpq),
+    so the client library never holds the whole result while it is read."""
+    with conn.cursor() as cur:
+        yield from cur.stream(sql, params, size=size if psycopg.pq.version() >= 170000 else 1)
+
+
 def price_pack_doc(ticker, rows):
     """pack/{ticker}/price: every published price year of the ticker in one file (EXEC-TERMINAL-SPEED)."""
     return {**price_doc(ticker, None, rows), 'dataset': 'price-pack'}
@@ -547,14 +554,23 @@ class Publisher:
         pack the stamps missed) is republished from the slice, and the ticker's manifest is saved with the others, so
         every slice equals its published pack. -> (document, rows, as_of, log fields)."""
         lo, hi = f'{self.price_first_year}-01-01', f'{self.last_year}-12-31'
-        by, days = {}, {}
-        for t, d, *ohlcv in self.conn.execute(XSECTION_PRICE_SQL, (lo, hi)):    # streamed, no list of every row
-            if t in kind:
-                by.setdefault(t, []).append((days.setdefault(d, d), *ohlcv))  # a date string is kept once
+        # per ticker one list per column, and one object per distinct date and price (volumes are nearly all distinct):
+        # 1.32 M local rows peaked at 355 MB this way, 597 MB as row tuples, with the same bytes. 0 is kept as read.
+        by, shared = {}, {}
+        one = lambda x: shared.setdefault(x, x) if x else x
+        for t, d, o, h, l, c, v in stream_rows(self.conn, XSECTION_PRICE_SQL, (lo, hi)):
+            if t not in kind:
+                continue
+            cols = by.get(t)
+            if cols is None:
+                cols = by[t] = ([], [], [], [], [], [])
+            cols[0].append(one(d)); cols[1].append(one(o)); cols[2].append(one(h))
+            cols[3].append(one(l)); cols[4].append(one(c)); cols[5].append(v)
+        shared.clear()
         columns = {c: [] for c in PRICE_XSECTION_COLUMNS}
         tickers, repaired = [], []
         for t in sorted(by):
-            rows = sorted(by.pop(t), key=lambda r: r[0])
+            rows = sorted(zip(*by.pop(t)), key=lambda r: r[0])                     # PRICE_SQL's row order and shape
             body, sha = encode(price_pack_doc(t, rows))
             if self.manifest(t).get('packs', {}).get('price', {}).get('sha256') != sha:
                 self.put_pack(t, 'price', None, rows, encoded=(body, sha))

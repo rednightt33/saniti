@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "c9dcb05b2c86b31f",
+  "screener_registry_version": "6a631ded26a657ff",
   "registry_version": "b6a8dc0ba206ed65",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "c4559ca4213cc374b48a4300182c1d8281af5dd814986a9c174b5460e1233d42"
+      "sha256": "a519e931028c3ab251bda9ed440648c829454fecb3192ef1a870f45fb4de452c"
     }
   ],
   "probe": {

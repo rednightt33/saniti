@@ -1515,7 +1515,7 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
               for source in line.split()[1:-1]]
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'terminal/', 'backtest/package.json',
                       'backtest/package-lock.json', 'terminal/src', 'backtest/', 'screener/package.json',
-                      'screener/package-lock.json', 'terminal/src', 'backtest/src/core', 'screener/', 'requirements.txt',
+                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'screener/', 'requirements.txt',
                       'app', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources

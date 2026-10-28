@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "registry": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../../backtest-worker/loader/register.mjs scripts/build-screener-registry.mjs",
-    "registry:check": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../../backtest-worker/loader/register.mjs scripts/build-screener-registry.mjs --check"
+    "registry:check": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../../backtest-worker/loader/register.mjs scripts/build-screener-registry.mjs --check",
+    "tripwire": "cd ../../.. && node --experimental-strip-types --no-warnings=ExperimentalWarning --import ./apps/backtest-worker/loader/register.mjs scripts/screener/check_backtest_untouched.mjs"
   },
   "dependencies": {
     "lightweight-charts": "5.2.1"

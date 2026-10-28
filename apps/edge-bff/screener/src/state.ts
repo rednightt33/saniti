@@ -4,7 +4,7 @@
    CSV metadata and Send to Backtest. */
 import type {
   CatalogPreset, CatalogResponse, Definition, Logic, ResultRow, RunResponse, SavedItem, UniverseDef, UniverseResponse,
-  UniverseRow, ValueTest,
+  UniverseRow, ValueTest, Versions,
 } from './core/contract.ts';
 import { UNIVERSE_DEFAULTS } from './core/contract.ts';
 import type { ScreenerApi } from './api/types.ts';
@@ -74,7 +74,7 @@ export const ui = {
   refresh: (_level: 'all' | 'universe' | 'universe-light' | 'conds' | 'conds-light' | 'results') => {},
   renderHeader: () => {}, renderUniverse: () => {}, renderPresets: () => {}, renderConds: () => {}, renderResults: () => {},
   renderDetails: () => {}, togglePreview: (_on: boolean) => {}, pickStock: (_tk: string) => {}, openSource: (_id: string) => {},
-  toast: (_m: string) => {}, markDirty: () => {}, schedule: (_now?: boolean) => {},
+  toast: (_m: string) => {}, markDirty: () => {}, schedule: (_now?: boolean) => {}, versionSeen: (_v: Versions) => {},
 };
 
 export const activeCards = (cards = S.cards) => cards.filter(c => c.on);

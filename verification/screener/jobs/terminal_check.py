@@ -52,7 +52,7 @@ def out(q, **kw):
     print('OUT ' + json.dumps({'q': q, **kw}, default=str), flush=True)
 
 
-def err(q, why, **kw):
+def err(q, why='unexpected answer', **kw):
     failed.append(q)
     print('ERR ' + json.dumps({'q': q, 'error': why, **kw}, default=str), flush=True)
 

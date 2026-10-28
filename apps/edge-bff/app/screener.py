@@ -40,6 +40,9 @@ REQUEST_BYTES = 131072                              # main.py protections (the h
 # Report 8.4: edge-bff asks the worker's /health for its versions at most every 60 s and refetches the catalog and the
 # universe only when they changed (the Backtest's 60 s catalog time-to-live replaced by a version check).
 HEALTH_SECONDS = 60
+# Not derivable: how long a /health read may take. The worker answers it from memory (report 8.11), so a few seconds
+# bound it; a page's catalog waits for it at most once a minute.
+HEALTH_TIMEOUT = 5
 # P12 (a), user 2026-10-28; values set in Phase 1 (report 13 P12: "PROPOSED: the PIN_LIMIT precedent, at most 500
 # each"; report 11b: SCREENER_MAX_COUNTS is at least SCREEN_LIMIT, so every saved screen is counted in one counts call,
 # initially 50). SCREEN_LIMIT holds for each kind: at most 50 saved screens and 50 My metrics per owner.
@@ -149,6 +152,8 @@ class ScreenerWorker:
                                                  headers=headers, timeout=timeout or CONTROL_TIMEOUT)
             raw = response.content
         except httpx.HTTPError as e:        # no connection, a timeout, a broken gzip stream
+            # the route and the exception class only: never a body, a header or the key (report 6.16)
+            logger.warning(json.dumps({'event': 'screener_worker_unreachable', 'path': path, 'error': type(e).__name__}))
             raise WorkerUnavailable() from e
         status = response.status_code
         try:
@@ -490,10 +495,10 @@ class Screeners:
         price = price_data_of(data)
         if price is None:
             return
-        for name, doc in list(self.docs.items()):
-            if doc.price_data is not None and doc.price_data != price:
-                del self.docs[name]
-                self.health['at'] = None
+        for name in [name for name, doc in self.docs.items() if doc.price_data not in (None, price)]:
+            del self.docs[name]
+        if (self.health['versions'] or {}).get('price_data') != price:
+            self.health['at'] = None
 
     async def respond(self, request, raw, status=200, headers=None):
         """The worker's JSON bytes as they are; gzip when the client takes it (every browser)."""
@@ -515,7 +520,7 @@ class Screeners:
             if self.health['at'] is not None and time.monotonic() - self.health['at'] < HEALTH_SECONDS:
                 return self.health['key']
             try:
-                status, _, data = await self.worker.call('GET', '/health', key=False)
+                status, _, data = await self.worker.call('GET', '/health', timeout=httpx.Timeout(HEALTH_TIMEOUT), key=False)
                 versions = data.get('versions') if 200 <= status < 300 and isinstance(data, dict) else None
                 if isinstance(versions, dict):
                     self.health.update(versions=versions, key=versions_key(versions, data.get('refresh')))

@@ -32,7 +32,7 @@ export function universeEdited(u = S.universe): boolean {
 function scopeChips(): { html: string; removable: number } {
   const U = S.universe, out: string[] = []; let n = 0;
   const add = (label: string, val: string, clear: string | null, title = '') => {
-    if (clear) n++;
+    if (clear && clear !== 'traded' && clear !== 'breaks') n++;     // the P4 chips are on by default: not an edit
     out.push(`<span class="fchip ${clear ? '' : 'fixed'}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)} <b>${esc(val)}</b>${clear ? `<button data-uclear="${clear}" title="Remove filter" aria-label="Remove ${esc(label)} filter">${ico(IC.x, 's')}</button>` : ''}</span>`);
   };
   const list = (a: string[], one: string, many: string) => a.length > 2 ? `${a.length} ${many}` : a.join(', ') || one;
