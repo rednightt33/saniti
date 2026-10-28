@@ -8495,6 +8495,11 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
   terminal-api dan terminal-publisher (CLI, prosedur M248, di luar jendela publisher M250); `screener-worker` dan edge-bff dari
   `main`; verifikasi worker; E2E data asli; benchmark Phase 17; changelog, catalog dan dokumen; dokumen onboarding.
 - **Status 2026-10-28:** dimulai.
+- **Publisher PR #41, 2026-10-28 (kata user):** "Rekomendasi kamu sudah OK / We'll go with A". Publisher yang berjalan di dev
+  (`4c2c3823`) berasal dari PR #41 (`claude/project-thread-k91bfk`, belum di-merge): M250 (content keys, pembersihan) dan
+  perbaikan retry bucket (di branch itu bernomor M253, bentrok dengan M253 di `main`). Pilihan A: commit `6051f4d`, `cf60fed`
+  dan `f98cc3d` ditarik (cherry-pick `-x`) ke branch Screener, penulis xsection disusun di atasnya, dan entri retry diberi
+  nomor baru di branch ini; pemilik PR #41 diberi tahu bahwa perubahan publisher yang sama sudah ada di branch Screener.
 
 ### Riwayat persetujuan dan keputusan (dipindah dari PLAN.md SCREENER)
 
