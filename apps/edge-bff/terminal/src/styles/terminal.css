@@ -915,6 +915,10 @@ body.fw-dragging,body.fw-dragging *{cursor:grabbing!important;user-select:none}
 .pw-acc .trk.buy .fill{right:0;background:#089981}.pw-acc .trk.sell .fill{left:0;background:#f23645}
 .pw-acc .pa-b{cursor:pointer;border-radius:4px;padding:1px 3px}
 .pw-acc .pa-b.sel{background:var(--sel)}
+.pw-bs th.pw-mid,.pw-bs td.pw-mid{border-left:1px solid var(--border);padding-left:12px}
+.pw-bs th.l{padding-left:2px}
+.pw-bs td[data-b]{cursor:pointer}
+.pw-bs tbody td.sel{background:var(--sel)}
 .pw-legend{flex:0 0 auto;align-items:center}
 .pw-at{font-size:11px;color:var(--text-3);margin-left:4px}
 .pw-inv{flex:1;min-height:0;overflow:auto}

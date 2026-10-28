@@ -895,33 +895,9 @@ sah), penanganan berkas yang berganti sha256 sesudah publikasi, dan daftar refer
 Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keamanan: perangkat bersama), dan bentuk tanda
 "memperbarui…".
 
-## TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru saat pilih di chart (disetujui masuk rencana 2026-10-28)
+## TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (dieksekusi 2026-10-28)
 
-**Permintaan, 2026-10-27 (kata user):** "Boleh nggak instead of scroll down, ini kan kita pecah ya. Di atas net buy. Di
-bawah net sell. Boleh nggak kita buat sama seperti top brokers. Jadi dijajarin aja kiri dan kanan. Kalau semakin scroll
-down, ya berarti value-nya semakin kecil." dan "Bisa nggak dibuatkan shortcut seperti alt apa kek? Jadi langsung aja.
-Kalau kita klik itu, maka tombol select on chart buat lihat broker summary keluar. ... pas kita select on chart, hover
-state-nya currently di mana. Boleh nggak dibuat hover state-nya sama seperti crosshair? Tapi ya warna biru aja."
-
-**Pilihan user, 2026-10-28 (kata user):** "Opsi B: Ringkas + % of value" dan "Opsi A: Panel kanan saja ... Alt+B sama
-persis dengan menekan Custom → Select on chart di panel kanan."
-
-Isi:
-- BS-1, jendela pop-out Broker summary (`apps/edge-bff/terminal/src/app/popout.ts` renderBS): net buyer kiri, net
-  seller kanan, berjajar per baris seperti jendela Top brokers; makin ke bawah makin kecil. Kolom tiap sisi: Broker,
-  Net value, Net lot, Buy avg, Sell avg, % of value. Top 10/20/All per sisi; baris Total per sisi; CSV tetap lengkap;
-  klik broker tetap memilih broker; pencarian menyaring kedua sisi; klik judul kolom untuk mengurutkan dihapus. Panel
-  kanan Terminal tidak berubah.
-- BS-2, Alt+B: sama dengan Custom → Select on chart di panel kanan (periode keempat panel kanan); jendela pop-out tetap
-  memakai tombolnya sendiri. Alt+T/H/J/V/R sudah dipakai.
-- BS-3, crosshair biru: penyebab terverifikasi, lapisan pilih (`app/rangeSelect.ts`, `.rs-layer`) menangkap semua
-  gerakan mouse sehingga crosshair chart diam. Selama mode pilih, posisi mouse diteruskan ke crosshair chart dan
-  warnanya biru; kembali normal saat selesai atau Esc. Berlaku untuk setiap "Select on chart".
-
-Default yang saya pakai karena tidak dibantah (bisa diubah sebelum "go"): mode Gross = kiri diurutkan Buy value
-terbesar, kanan Sell value terbesar; crosshair biru lengkap (garis tegak + datar, label tanggal dan harga).
-
-Menunggu "go".
+Dieksekusi: EXEC.md EXEC-TERMINAL-BS-SIDE, ERRORS "EXEC-TERMINAL-BS-SIDE".
 
 ## BACKTEST-LOAD — halaman Backtest secepat Terminal (selesai 2026-10-27)
 

@@ -194,7 +194,8 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   (`ml.winst.<id>`) come back after a reload. Each window draws from `M.broker`; periods 1D/5D/20D, Chart (the
   visible sessions, redrawn on every range change) or Custom (the range calendar, "Select on chart").
 - `src/data/brokerAgg.ts`: `aggregate` (sums per broker for an investor type and board), `avgPrice` (value ÷ lots ×
-  100), `sessionSpan`, `summaryTable` (sort, Top N as N net buyers + N net sellers, search, total row, % of value),
+  100), `sessionSpan`, `sidesTable` (EXEC-TERMINAL-BS-SIDE: buyers left, sellers right, largest first; Net or Gross; Top N
+  per side, search, a total per side and for the period, % of value),
   `inventory` (daily net and running sum per broker with its period sums), `invStats`, `toCsv`.
 - `broker.ts` shares `ctx.brokerShared`: the Broker inventory brokers (one set for the panel and the window), `pick`
   (highlight and add), `changed` (the panel and every window redraw), `ensureDefaults` (three largest net buyers of the
@@ -209,3 +210,18 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   only does not store it); the Backtest page refuses it (`inflateVerified`, CONTRACT).
 - EXEC-BACKTEST-SPIN: the loading ring is `src/styles/spin.css` and `src/ui/spin.ts` (`context.ts` re-exports `spin`),
   imported by the Terminal and the Backtest page; one speed (0.15 s, 1.6 s with reduced motion).
+
+## 16. Broker summary side by side, Alt+B, blue crosshair (EXEC-TERMINAL-BS-SIDE, 2026-10-28)
+
+- The Broker summary window (`popout.ts renderBS`) is a paired table like Top brokers: net buyers left, net sellers
+  right (Gross: buy value left, sell value right), largest first; per side Broker, the two values, Buy avg, Sell avg,
+  % of value, mirrored around the middle line; a Total per side; no column sorting. The CSV keeps every column with a
+  Side column. A window remembered with the old column sort keeps its Net or Gross choice (`sort: 'share'` = Gross).
+- `broker.ts`: Alt+B (live, not while typing, once the broker data has come) is Custom → Select on chart of the right
+  panel: the chosen period goes to its four panels and Broker summary is shown (a collapsed panel opens). Windows keep
+  their own Custom button.
+- `rangeSelect.ts`: while choosing, the layer hands the pointer to the chart's crosshair (`SEL_LINE`, the band's blue;
+  the session under the pointer at the pointer's price) and puts the crosshair options back on finish or Esc. A
+  position set from code fires no `subscribeCrosshairMove` (lightweight-charts 5.2.1 synthetic position), so the legend,
+  the Flow chart and Broker inventory are moved through `ctx.crosshairAt` (flow.ts) first.
+- Live check: `verification/terminal_api/bs_side_live_check.py`.

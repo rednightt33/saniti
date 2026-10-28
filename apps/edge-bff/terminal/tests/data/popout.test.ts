@@ -1,6 +1,6 @@
 // EXEC-TERMINAL-POPOUT W1 + I2 (user 2026-10-27): the sums behind the panel windows and the window box.
 import { describe, expect, it } from 'vitest';
-import { aggregate, avgPrice, inventory, invStats, sessionSpan, summaryTable, toCsv } from '../../src/data/brokerAgg';
+import { aggregate, avgPrice, inventory, invStats, sessionSpan, sidesTable, toCsv } from '../../src/data/brokerAgg';
 import { clampBox } from '../../src/ui/floatwin';
 import type { BrokerRow } from '../../src/data/types';
 
@@ -40,29 +40,37 @@ describe('avgPrice and sessionSpan', () => {
   });
 });
 
-describe('summaryTable (Broker summary window)', () => {
+describe('sidesTable (Broker summary window, EXEC-TERMINAL-BS-SIDE)', () => {
   const list = [
     { b:'AA', bv:900, sv:100, bl:9, sl:1 }, { b:'BB', bv:500, sv:200, bl:5, sl:2 }, { b:'CC', bv:300, sv:300, bl:3, sl:3 },
     { b:'DD', bv:100, sv:600, bl:1, sl:6 }, { b:'EE', bv:0, sv:600, bl:0, sl:6 }
   ];
-  it('gives each broker its share of the period value; the shares and the totals add up', () => {
-    const t = summaryTable(list, { sort:'nv', desc:true, limit:null });
-    expect(t.rows.map(r => r.b)).toEqual(['AA', 'BB', 'CC', 'DD', 'EE']);
-    expect(t.rows.reduce((s, r) => s + r.share, 0)).toBeCloseTo(100, 9);
+  it('puts the net buyers left and the net sellers right, largest first; a broker with no net on neither', () => {
+    const t = sidesTable(list, { mode:'net', limit:null });
+    expect(t.left.rows.map(r => r.b)).toEqual(['AA', 'BB']);
+    expect(t.right.rows.map(r => r.b)).toEqual(['EE', 'DD']);
+    expect(t.left.rows[0]).toMatchObject({ nv:800, nl:8, ba:1, sa:1 });
+    expect(t.right.rows[0].ba).toBeNull();
     expect(t.total).toMatchObject({ bv:1800, sv:1800, bl:18, sl:18, nv:0, nl:0, share:100 });
-    expect(t.rows[0]).toMatchObject({ nv:800, nl:8, ba:1, sa:1 });
-    expect(t.rows[4].ba).toBeNull();
+    expect(t.left.total).toMatchObject({ bv:1400, sv:300, nv:1100 });
+    expect(t.right.total.nv).toBe(-1100);
+    // the shares of every broker add up to 100%; a side's total share is its brokers' shares
+    expect([...t.left.rows, ...t.right.rows].reduce((s, r) => s + r.share, 0) + 600 / 3600 * 100).toBeCloseTo(100, 9);
+    expect(t.left.total.share).toBeCloseTo(t.left.rows.reduce((s, r) => s + r.share, 0), 9);
   });
-  it('keeps the top net buyers and the top net sellers with a limit on a net column', () => {
-    const t = summaryTable(list, { sort:'nv', desc:true, limit:1 });
-    expect(t.rows.map(r => r.b)).toEqual(['AA', 'EE']);
-    expect(t.split).toBe(1); expect(t.count).toBe(5);
+  it('orders gross by buy value left and sell value right; a broker can be on both', () => {
+    const t = sidesTable(list, { mode:'gross', limit:null });
+    expect(t.left.rows.map(r => r.b)).toEqual(['AA', 'BB', 'CC', 'DD']);   // EE bought nothing
+    expect(t.right.rows.map(r => r.b)).toEqual(['DD', 'EE', 'CC', 'BB', 'AA']);   // DD and EE both sold 600: by code
   });
-  it('keeps the first rows for another column, and the search finds a code', () => {
-    expect(summaryTable(list, { sort:'share', desc:true, limit:2 }).rows.map(r => r.b)).toEqual(['AA', 'BB']);
-    expect(summaryTable(list, { sort:'b', desc:false, limit:null }).rows.map(r => r.b)).toEqual(['AA', 'BB', 'CC', 'DD', 'EE']);
-    const s = summaryTable(list, { sort:'nv', desc:true, limit:1, search:'d' });
-    expect(s.rows.map(r => r.b)).toEqual(['DD']); expect(s.split).toBe(-1);
+  it('keeps the first rows of each side; the count and total cover the whole side; the search finds a code', () => {
+    const t = sidesTable(list, { mode:'net', limit:1 });
+    expect(t.left.rows.map(r => r.b)).toEqual(['AA']); expect(t.right.rows.map(r => r.b)).toEqual(['EE']);
+    expect([t.left.count, t.right.count]).toEqual([2, 2]);
+    expect(t.right.total.nv).toBe(-1100);
+    const s = sidesTable(list, { mode:'net', limit:1, search:'e' });
+    expect(s.left.rows).toEqual([]); expect(s.right.rows.map(r => r.b)).toEqual(['EE']);
+    expect(s.total.bv).toBe(1800);                                          // the period total ignores the search
   });
 });
 

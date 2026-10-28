@@ -8471,3 +8471,16 @@ User 2026-10-27, atas PLAN.md BACKTEST-SPIN: "S1 dan S2 yes sesuai yang kamu sar
   menunggu katalog) dengan putaran.
 - Uji: smoke dengan harga, katalog dan broker lambat, kecepatan putaran, gerak dikurangi; vitest; piksel fixture
   Backtest lama/baru dan 1:1 Terminal 0 px; ukur live.
+
+## EXEC-TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (go 2026-10-28)
+
+User 2026-10-28, atas PLAN.md TERMINAL-BS-SIDE: "Opsi B: Ringkas + % of value", "Opsi A: Panel kanan saja ... Alt+B sama
+persis dengan menekan Custom → Select on chart di panel kanan", lalu "Coba dulu saja, go".
+- BS-1: jendela Broker summary: net buyer kiri, net seller kanan, berjajar seperti Top brokers, makin ke bawah makin
+  kecil; tiap sisi Broker, Net value, Net lot, Buy avg, Sell avg, % of value; Top 10/20/All per sisi; Total per sisi;
+  CSV lengkap; tanpa urut per kolom. Gross (default tidak dibantah): kiri Buy value terbesar, kanan Sell value terbesar.
+- BS-2: Alt+B = Custom → Select on chart di panel kanan (keempat panel), lalu Broker summary diperlihatkan.
+- BS-3: selama Select on chart, crosshair chart mengikuti mouse dan berwarna biru (garis tegak + datar, label);
+  kembali normal saat selesai atau Esc.
+- Infra: hanya front-end Terminal di edge-bff (deploy otomatis dari `main`); tanpa perubahan database, rak atau layanan
+  lain.

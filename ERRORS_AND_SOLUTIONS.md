@@ -2856,6 +2856,32 @@ change yet.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
 - **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
+### EXEC-TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (2026-10-28)
+
+- **User:** "Boleh nggak kita buat sama seperti top brokers. Jadi dijajarin aja kiri dan kanan"; "Bisa nggak dibuatkan
+  shortcut seperti alt apa kek?"; "pas kita select on chart, hover state-nya currently di mana ... sama seperti
+  crosshair? Tapi ya warna biru aja"; pilihan "Opsi B: Ringkas + % of value", "Opsi A: Panel kanan saja", lalu "go".
+- **Symptom (hover):** saat Select on chart, posisi mouse tidak terlihat sampai klik pertama.
+- **Verified cause:** lapisan pilih (`rangeSelect.ts`, `.rs-layer` z-index 30 di atas chart) menangkap setiap gerakan
+  mouse, sehingga crosshair chart diam.
+- **Class:** setiap lapisan yang mengambil pointer di atas chart (pilih periode sekarang, alat lain nanti) mematikan
+  crosshair dan legenda yang mengikutinya.
+- **Solution:** lapisan meneruskan posisi ke crosshair chart (biru selama memilih, opsi lama dikembalikan). Ditemukan
+  saat uji: posisi dari kode (`setCrosshairPosition`, lightweight-charts 5.2.1) tidak memicu event crosshair, jadi
+  legenda, Flow dan Broker inventory tetap di tanggal terakhir; dialihkan lewat `ctx.crosshairAt` seperti hover dari
+  Broker inventory. Broker summary jendela: `sidesTable` menggantikan `summaryTable`; Alt+B memanggil jalur yang sama
+  dengan Custom → Select on chart panel kanan.
+- **Bukti (lokal, data live WIFI 21–27 Okt 2026, `verification/terminal_api/bs_side_live_check.py`):** Net Top 20: 20
+  dari 41 net buyer, 18 dari 18 net seller, kedua sisi menurun dan bertanda benar; XL +15.3B kiri, MG −38.5B kanan
+  (sama dengan Top brokers); Total +52.1B / −52.1B, ±489.5K lot; Gross Top 10: 58 buyer / 53 seller, total 280.7B. Cari
+  "Y": YP, YU, YJ. Klik MG di kanan masuk Broker inventory. CSV 42 baris dengan kolom Side. Alt+B dari panel tertutup:
+  lapisan muncul, crosshair biru (piksel 38,133,245) mengikuti mouse, legenda 24 Jun lalu 31 Agu 2026, Inventory 24 Jun;
+  dua klik: panel terbuka, keempat panel 24 Jun – 12 Agu 2026 Custom; sesudahnya tanpa piksel biru; Esc batal; Alt+B di
+  kotak teks diabaikan; tanpa error halaman. vitest 690; 1:1 Terminal fixture tidak berubah.
+- **Pelajaran:** posisi crosshair yang diatur dari kode tidak memberi tahu pendengar hover; yang perlu ikut harus
+  digerakkan lewat satu jalur bersama (`ctx.crosshairAt`).
+- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+
 ### EXEC-BACKTEST-LOAD — halaman Backtest lambat tampil (2026-10-27)
 
 - **Symptom:** user 2026-10-27: "di Edge ada kata-kata which is backtest ... proses display ke front end-nya sangat
