@@ -12,6 +12,9 @@ import type { Definition, RunResponse } from './core/contract.ts';
 
 export const DEBOUNCE_MS = 350;
 let timer: ReturnType<typeof setTimeout> | undefined, ctl: AbortController | null = null, attempt = 0, wantKey = '';
+/** the definition the worker last refused (a 4xx refusal, not a failure to retry): not sent again until it changes or
+    the user presses Retry, so an unrelated re-render never repeats the same refusal */
+let refusedKey = '';
 /** a hook the app sets: a run answer and its bytes (kept for the cached paint, 6c.3) */
 export const runHooks = { answered:(_def: Definition, _bytes: Uint8Array, _r: RunResponse) => {}, mark:(_n: string) => {} };
 
@@ -52,6 +55,8 @@ export function schedule(now = false) {
     ui.refresh('results'); return;
   }
   if (ctx.R?.defHash === key && ctx.R.run && !now) { ctx.stale = false; ctx.running = false; ui.refresh('results'); return }
+  if (key === refusedKey && !now) { ui.refresh('results'); return }       // still refused: the message stays
+  refusedKey = '';
   if (key === wantKey && ctl && !now) return;     // the same definition is already on its way
   wantKey = key; attempt = 0;
   ctx.stale = !!ctx.R && ctx.R.defHash !== key; ctx.runError = null;
@@ -82,10 +87,12 @@ async function send(def: Definition, key: string) {
     if (f.code === 'SCREENER_NOT_READY') return again(Math.max(1, f.retryAfter ?? 5) * 1000, f.message);
     if ((f.code === 'SCREENER_UNAVAILABLE' || f.code === 'NETWORK') && attempt < 1) return again(2000, T.unreachable);
     ctx.running = false; ctx.runError = f.message || T.unreachable;
+    if (f.status >= 400 && f.status < 500) refusedKey = key;
     const card = cardOfField(f.field);
     ctx.refused = card ? { id:card.id, message:f.message || T.unreachable } : null;
-    ui.refresh(card ? 'conds' : 'results');
+    if (card) ui.renderConds();                                      // the card names the refusal (no new run)
+    ui.refresh('results');
   }
 }
 /** forget the in-flight run (a new catalog or a reset) */
-export function cancelRun() { clearTimeout(timer); ctl?.abort(); ctl = null; wantKey = ''; ctx.running = false }
+export function cancelRun() { clearTimeout(timer); ctl?.abort(); ctl = null; wantKey = ''; refusedKey = ''; ctx.running = false }

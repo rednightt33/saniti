@@ -9,7 +9,8 @@
    - percent values are percent where the metric is a percent (pct_distance, chg_1d_pct, RSI 0-100); an indicator
      output keeps its own unit (registry `unit`, derived by the scaling probe, report 6.8);
    - dates: exchange dates 'YYYY-MM-DD' (Asia/Jakarta trading days); timestamps ISO 8601 UTC;
-   - no NaN or Infinity on the wire: a missing number is null, and a null value always carries a reason (report I5);
+   - no NaN or Infinity on the wire: a missing number is null; a cell's tested value is null only on an NA cell, which
+     carries its reason (report I5; the exact per-field rule is on Cell);
    - values are raw doubles rounded to 12 significant digits (report 8.5).
 
    Lists that look like enums but are data (the valid indicator ids, transform `fn`, pattern `type`, flow and
@@ -260,6 +261,10 @@ export type CellStatus = 'pass' | 'fail' | 'na' | 'not_evaluated';
     event_date, bars_ago (the ticker's own bars), market_sessions_ago (the IHSG calendar, informational) and
     last_event_date (the last event within within_max bars) for EVENT. reason is set exactly when status is 'na' (I5);
     remark is null or PRICE_BREAK_IN_LOOKBACK (the value is shown and marked, P4.1 A).
+    Nulls (I5, "no null value without a reason"): value (VALUE) and lhs / rhs (STATE) are null only on an NA cell; on
+    EVENT, event_date, bars_ago and market_sessions_ago are null exactly when no event was found within `within` (FAIL
+    or NA), last_event_date when none was found within within_max, and lhs / rhs are the current values, shown for
+    information, so they may be null on a PASS (an earlier cross stands) or a FAIL (evaluate.ts evaluateEvent).
     Sort key: the value for VALUE and STATE, 1000 - bars_ago for EVENT; nulls last (report 6.9 Sort). */
 export interface Cell {
   id: string; status: CellStatus;
