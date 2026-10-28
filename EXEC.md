@@ -8838,3 +8838,32 @@ untuk Phase 1b; P8, P9, P10, P20 untuk Phase 2; P11 dan P14 mengonfirmasi apa ya
   04 berasal (faktanya riwayat saham ±8,8 tahun, 2018-01-02 sampai 2026-10-27; tidak mengubah desain); U9, apakah
   "retaining existing screener" berarti preset flow prototipe atau kondisi `fnet`, `broker`, `top5` Backtest (desain
   menyimpan keduanya).
+
+## EXEC-MU-RUNTIME — Terminal, Backtest dan Screener akurat dan cepat untuk banyak user (opsi A; go 2026-10-28)
+
+**Keputusan user, 2026-10-28 (kata user):** "Alright, untuk sekarang screener kita beresin dulu. Backtest dan juga terminal.
+We need to ensure that these three services sudah akurat dan cepat. Saya preferably opsi A. Tapi karena mungkin service ini
+akan dipakai oleh user bulan depan, jadi mungkin fokus sekarang adalah to get everything aligned in terms of terminal,
+backtest, and screener. While at the same time, terminal, backtest, dan screener dibuat sedemikian rupa menurut opsi A."
+
+- **Opsi A (dipilih):** satu service bersama per tab, bukan salinan per user (RT1); service menyala terus saat peluncuran
+  (RT14); Tahap 0 (ukur) dan Tahap 1 dikerjakan bersama Screener; keputusan RT4-RT15 mengikuti rekomendasi
+  `verification/edge_multiuser/runtime/RUNTIME.md` §12. Dasar: `verification/edge_multiuser/runtime/` (RUNTIME.md,
+  SILO_VS_POOL.md, ringkasan Indonesia).
+- **Urutan (tafsiran kata user "screener kita beresin dulu. Backtest dan juga terminal"):** Screener Phase 1 bersama Tahap 0 dan
+  Tahap 1 dulu; sesudahnya Tahap 2 (Backtest) lalu Tahap 3 (Terminal), keduanya dengan target akurat dan cepat
+  (`RUNTIME.md` §7, §8). Tahap 4 (akun per user, kuota, izin data, peluncuran) tetap dipending bersama EDGE-MULTIUSER;
+  dicatat bahwa user eksternal direncanakan bulan depan, jadi Tahap 4 perlu diangkat lagi setelah ketiga service selaras.
+- **Tahap 0, ukur:** waktu per fase Backtest, `request_key` dan `preview_wait_ms` di log; skrip waktu halaman Terminal; satu
+  bacaan `?perf=1` dari Indonesia (oleh user); harness beban multi-owner (job service sementara: perlu persetujuan saat dibuat).
+- **Tahap 1, bersama Screener:** 1a T5 file referensi ber-content-key di publisher; 1b terminal-api T1 (akun layanan per
+  worker), T3 (lookup subscriber di dalam transaksi grant), T5 `refs_index`, T9 healthcheck `/ready` dan `TERMINAL_POOL_MAX`;
+  1c screener-worker di Railway (healthcheck, batas memori dari puncak terukur, kunci terminal sendiri, 1 replika di dev);
+  1d backtest-worker memakai kunci layanannya sendiri (variabel saja); 1e T7 halaman Terminal memeriksa sha256 dan ukuran file
+  sebelum menggambar.
+- **Fakta saat keputusan (live Railway 2026-10-28 20:38 UTC, dibaca read-only):** `edge-bff`, `terminal-api` dan
+  `backtest-worker` menyala terus (`sleepApplication=false`, deployment tidak berhenti; memori tertagih 3 hari terakhir rata-rata
+  0,074 / 0,217 / 0,085 GB, ±USD 0,40 bertiga dalam 3 hari); `terminal-publisher` berjalan per jadwal
+  (`0,30 0,12 * * *` UTC) lalu berhenti; hanya `telegram-monitor` dan `telegram-trigger` yang tidur.
+- **Status 2026-10-28:** dimulai. Tahap 0 dan 1 dibangun di branch `mu-phase1` (worktree terpisah) agar tidak mengganggu build
+  Screener yang sedang berjalan, lalu digabung ke branch Screener. Belum deploy.

@@ -1002,6 +1002,7 @@ Coba saja di explore pakai benchmark yang best practice."
   ber-content-key, T7 cek sha256 sebelum menggambar, healthcheck; (2) Backtest: B1+B2 (tanpa polling tetap, cache seri yang
   sudah di-decode), lalu K thread dengan klaim adil, deploy aman, sisanya; (3) Terminal: satu grant per buka ticker, tampil dari
   cache dulu; (4) syarat sebelum user eksternal pertama.
-- **Pertanyaan terbuka (RT1-RT15, `RUNTIME.md` §12; rekomendasi di sana):** yang terpenting RT1 pool bersama, bukan salinan per
+- **Diputuskan 2026-10-28:** opsi A, eksekusi di `EXEC.md` EXEC-MU-RUNTIME (Tahap 0-3; Tahap 4 tetap dipending di sini).
+- **Pertanyaan yang dulu terbuka (RT1-RT15, `RUNTIME.md` §12; kini mengikuti rekomendasi lewat opsi A):** yang terpenting RT1 pool bersama, bukan salinan per
   user; RT2 "go" Tahap 0 + 1 bersama Screener; RT3 target waktu; RT14 service menyala terus saat peluncuran (tidur di luar
   08:10-22:10 WIB hanya hemat ±USD 8,6/bulan, user pertama menunggu 14-27 s, dan kode harus diubah dulu).
