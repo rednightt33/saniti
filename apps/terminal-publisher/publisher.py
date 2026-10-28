@@ -13,6 +13,8 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   logos         every ticker's logo (EXEC-TERMINAL-LOGO); `daily` also refreshes them when the index is > 7 days old.
   packs         every ticker's packs (EXEC-TERMINAL-SPEED); the other modes keep the packs of the tickers they touch.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
+The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
+`price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward.
 
 Schedule (T7, user 2026-10-26): TERMINAL_RUN_TIMES_WIB=07:30,19:00 and the service's Railway cronSchedule =
 cron_for(those times) ("0,30 0,12 * * *"); a tick that is not a listed time exits at once (should_run). A Railway
@@ -32,16 +34,27 @@ Objects (all under v1/):
   ref/logos.json.gz                columns ticker, file, sha256, source, fetched_at (tickers without a logo are absent)
   pack/{ticker}/price.json.gz      every price year in one file (the chart's only download)
   pack/{ticker}/broker-archive.json.gz   broker rows of every year before the last two (the last two stay yearly files)
+  xsection/{name}.{sha16}.json.gz   cross-sectional files for the screener-worker (EXEC-SCREENER, P1 a, user
+                                   2026-10-28): `price` (every published ticker's final daily rows from its first year,
+                                   one columnar file; each ticker's slice equals its price pack) and `actions` (the
+                                   corporate actions on their ex dates: share-count changes and cash dividends). The
+                                   key carries the first 16 hex of the file's sha256, so an object is never overwritten
+                                   (ERRORS M250, fix A); state.json `xsection` = {name: {key, sha256, bytes, rows, as_of}}
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
 Data files are written before the manifest that names them, so a reader never sees a manifest pointing at a file that
-is not there yet. The universe and the changes are derived from the database at run time; no ticker list is coded.
+is not there yet; the xsection files are written before the state.json that indexes them, and an xsection object is
+deleted only when neither the new index nor the previous one names it (a reader holding the previous index keeps its
+files until the run after the next one). A failed xsection file keeps its previous index entry, the rest of the run
+(the Terminal's and the Backtest's files, state.json) goes on, and the run exits 3. The universe and the changes are
+derived from the database at run time; no ticker list is coded.
 """
 import datetime as dt
 import gzip
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -95,6 +108,33 @@ BEHIND_SQL = ('SELECT count(DISTINCT date) FROM public."Price_Stock_Indonesia_ID
               "WHERE timeframe = 'Daily' AND is_final AND date > %s")
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry" FROM public."IDX_Stock_Universe" '
                 "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
+
+# ---- EXEC-SCREENER (P1 a, user 2026-10-28): cross-sectional files -------------------------------------------------
+# PRICE_SQL without the ticker filter and the ORDER BY: one sequential scan of the final daily rows instead of one
+# index walk per ticker; the rows are grouped and ordered here. Bounded by the published years, as the price packs are.
+# EXPLAIN (ANALYZE, BUFFERS) on dev 2026-10-28: Seq Scan, 1,331,548 rows, 49,339 buffers, 5.3 s; with ORDER BY ticker,
+# date it was 7.4 s and an external merge sort spilled 86 MB to disk (work_mem 4 MB), so the order is set here.
+XSECTION_PRICE_SQL = ('SELECT ticker, date::text, open::float8, high::float8, low::float8, close::float8, '
+                      'volume::float8 FROM public."Price_Stock_Indonesia_IDX" '
+                      "WHERE timeframe = 'Daily' AND is_final AND date BETWEEN %s AND %s")
+# verify: the same rows, counted per ticker
+XSECTION_PRICE_CHECK_SQL = ('SELECT ticker, count(*), min(date)::text, max(date)::text, sum(close)::float8 '
+                            'FROM public."Price_Stock_Indonesia_IDX" '
+                            "WHERE timeframe = 'Daily' AND is_final AND date BETWEEN %s AND %s GROUP BY ticker")
+# The share-count changes of apps/edge-bff/backtest/src/core/datafile.ts PRICE_ACTION_TYPES (tests keep the two lists
+# equal) and cash dividends, on their ex dates (role EX_DATE; annotation_date = ex_date on every such row). The term
+# columns come from the payload through idx_event_annotation_terms_map (migration 20261026_002).
+PRICE_ACTION_TYPES = ('STOCK_SPLIT', 'REVERSE_SPLIT', 'BONUS_SHARE', 'RIGHT_ISSUE', 'STOCK_DIVIDEND')
+ACTION_TYPES = PRICE_ACTION_TYPES + ('DIVIDEND',)
+XSECTION_ACTIONS_SQL = ('SELECT ticker, annotation_date::text, event_type, ratio_old::float8, ratio_new::float8, '
+                        'amount_per_share::float8, currency, event_key FROM public.idx_event_annotation '
+                        "WHERE event_family = 'CORPORATE_ACTION' AND annotation_date_role = 'EX_DATE' "
+                        'AND event_type = ANY(%s) AND annotation_date >= %s')
+ACTION_COLUMNS = ['t', 'd', 'type', 'ratio_old', 'ratio_new', 'amount_per_share', 'currency']
+PRICE_XSECTION_COLUMNS = ['t', 'd', 'o', 'h', 'l', 'c', 'v']
+# which modes rebuild which file (report 6.5); every other index entry is carried forward as it is
+XSECTION_REBUILT_BY = {'price': ('daily', 'backfill', 'packs'), 'actions': ('daily', 'backfill', 'packs', 'events')}
+XSECTION_KEY = re.compile(r'xsection/([a-z0-9][a-z0-9_-]{0,31})\.[0-9a-f]{16}\.json\.gz')
 
 
 # EXEC-TERMINAL-LOGO (user 2026-10-26): logo sources in order; a ticker none of them has gets a monogram on the page
@@ -286,6 +326,81 @@ def events_doc(ticker, rows):
             'columns': EVENT_COLUMNS, **columnar(rows, EVENT_COLUMNS)}
 
 
+def price_pack_doc(ticker, rows):
+    """pack/{ticker}/price: every published price year of the ticker in one file (EXEC-TERMINAL-SPEED)."""
+    return {**price_doc(ticker, None, rows), 'dataset': 'price-pack'}
+
+
+# ---- cross-sectional files (EXEC-SCREENER) --------------------------------------------------------------------------
+def xsection_price_doc(columns, tickers):
+    """The `price` xsection file: the columns t,d,o,h,l,c,v of every published ticker, ordered by ticker then date, and
+    `tickers`, one entry per ticker in file order. A ticker's slice is its price pack's rows (xsection_slices)."""
+    return {'schema_version': SCHEMA_VERSION, 'dataset': 'xsection', 'name': 'price',
+            'units': {'o': 'IDR per share (index points for an index)', 'v': 'shares'},
+            'means': {'t': 'ticker; rows ordered by ticker (code point order), then date',
+                      'v': 'null for an index without volume',
+                      'tickers': '[{t, pack_sha256, first, last, rows}] in file order: a ticker\'s slice is the rows of '
+                                 'its price pack (pack/{t}/price.json.gz), whose sha256 is pack_sha256'},
+            'columns': PRICE_XSECTION_COLUMNS, **columns, 'tickers': tickers}
+
+
+def xsection_slices(doc):
+    """A `price` xsection document -> (ticker, rows) per ticker in file order; rows as PRICE_SQL gives them."""
+    at, cols = 0, [doc[c] for c in PRICE_XSECTION_COLUMNS[1:]]
+    for entry in doc['tickers']:
+        n = entry['rows']
+        yield entry['t'], list(zip(*(c[at:at + n] for c in cols)))
+        at += n
+
+
+def xsection_actions_doc(rows):
+    """The `actions` xsection file: the corporate actions the screener reads on their ex dates (P4 price breaks; cash
+    dividends for Phase 2), from the first published price year on, future ex dates included. Readers apply their own
+    rules and windows (the price-break rule's ADJUSTED_HISTORY_BOUNDARY lives in the backtest core, engine.ts)."""
+    return {'schema_version': SCHEMA_VERSION, 'dataset': 'xsection', 'name': 'actions',
+            'units': {'ratio_old': 'shares', 'ratio_new': 'shares', 'amount_per_share': 'currency per share'},
+            'means': {'d': 'ex date (idx_event_annotation annotation_date, role EX_DATE)',
+                      'type': 'event_type: DIVIDEND is a cash dividend; ' + ', '.join(PRICE_ACTION_TYPES) +
+                              ' change the share count (datafile.ts PRICE_ACTION_TYPES)',
+                      'ratio_old': 'shares held before a split or reverse split, or that entitle to ratio_new (bonus, '
+                                   'rights)',
+                      'ratio_new': 'shares after a split or reverse split, or bonus or rights shares received, for '
+                                   'ratio_old',
+                      'amount_per_share': 'cash dividend per share in currency; for RIGHT_ISSUE the exercise price',
+                      'null': "not in the source; the source's 0 (Stockbit's unknown) is published as null"},
+            'columns': ACTION_COLUMNS, **columnar(rows, ACTION_COLUMNS)}
+
+
+def read_actions(conn, kind, first_year):
+    """The rows of the `actions` file in ticker, ex date, type and event key order, and the number of rows whose ticker
+    the terminal does not publish (left out, as their event files are)."""
+    rows, outside = [], 0
+    for t, d, typ, r_old, r_new, amount, currency, event_key in conn.execute(
+            XSECTION_ACTIONS_SQL, (list(ACTION_TYPES), f'{first_year}-01-01')).fetchall():
+        if t not in kind:
+            outside += 1
+            continue
+        # 0 is the source's "unknown" for a number, as in the events files (_val)
+        rows.append((t, d, typ, r_old or None, r_new or None, amount or None, currency, event_key))
+    rows.sort(key=lambda r: (r[0], r[1], r[2], r[7]))
+    return [r[:7] for r in rows], outside
+
+
+def xsection_entries(raw):
+    """The usable entries of a state.json `xsection` index: {name: {key, sha256, bytes, rows, as_of}} whose key is an
+    xsection object of that name (what terminal-api's xsection_index accepts). Anything else is dropped, so it is
+    neither carried forward nor protected from pruning."""
+    out = {}
+    for name, e in (raw.items() if isinstance(raw, dict) else ()):
+        key = e.get('key') if isinstance(e, dict) else None
+        m = XSECTION_KEY.fullmatch(key[len(PREFIX) + 1:]) if isinstance(key, str) and key.startswith(f'{PREFIX}/') else None
+        if m and m.group(1) == name and isinstance(e.get('sha256'), str) and e['sha256'].startswith(key[-24:-8]):
+            out[name] = {k: e.get(k) for k in ('key', 'sha256', 'bytes', 'rows', 'as_of')}
+        else:
+            log('xsection_entry_dropped', name=str(name)[:40])
+    return out
+
+
 class Bucket:
     def __init__(self):
         import boto3
@@ -313,6 +428,19 @@ class Bucket:
             return None
         return json.loads(gzip.decompress(body) if key.endswith('.gz') else body)
 
+    def keys(self, prefix):
+        """Every key under v1/{prefix}, without v1/ (EXEC-SCREENER: the xsection objects pruning looks at)."""
+        out, kw = [], {'Bucket': self.name, 'Prefix': f'{PREFIX}/{prefix}'}
+        while True:
+            page = self.s3.list_objects_v2(**kw)
+            out += [o['Key'][len(PREFIX) + 1:] for o in page.get('Contents', [])]
+            if not page.get('IsTruncated'):
+                return out
+            kw['ContinuationToken'] = page['NextContinuationToken']
+
+    def delete(self, key):
+        self.s3.delete_object(Bucket=self.name, Key=f'{PREFIX}/{key}')
+
 
 class Publisher:
     def __init__(self, conn, bucket, today=None, get=None):
@@ -328,6 +456,8 @@ class Publisher:
         self.written = 0
         self.broker_behind = None                          # final price sessions after the broker data (run())
         self.bytes = 0
+        self.xsection = {}                                  # the index written into state.json (run())
+        self.xsection_failed = []                           # xsection files whose rebuild failed (their entry kept)
 
     # ---- manifests -------------------------------------------------------------------------------------------
     def manifest(self, ticker):
@@ -376,13 +506,13 @@ class Publisher:
         return rows[-1][0]
 
     # ---- packs (EXEC-TERMINAL-SPEED) ---------------------------------------------------------------------------
-    def put_pack(self, ticker, name, doc, rows, extra=None):
+    def put_pack(self, ticker, name, doc, rows, extra=None, encoded=None):
         packs = self.manifest(ticker).setdefault('packs', {})
         if not rows:
             if packs.pop(name, None):
                 self.changed.add(('pack', ticker, name))
             return
-        body, sha = encode(doc)
+        body, sha = encoded or encode(doc)
         key = f'pack/{ticker}/{name}.json.gz'
         if packs.get(name, {}).get('sha256') != sha:
             self.bucket.put(key, body, 'application/gzip')
@@ -399,8 +529,7 @@ class Publisher:
         mine = {(d, y) for d, t, y in self.changed if t == ticker}
         if force or 'price' not in packs or any(d == 'price' for d, _ in mine):
             rows = self.conn.execute(PRICE_SQL, (ticker, f'{self.price_first_year}-01-01', f'{self.last_year}-12-31')).fetchall()
-            doc = {**price_doc(ticker, None, rows), 'dataset': 'price-pack'}
-            self.put_pack(ticker, 'price', doc, rows)
+            self.put_pack(ticker, 'price', price_pack_doc(ticker, rows), rows)
         if typ != 'stock':
             return
         hi = self.last_year - 2                                   # the last two years stay yearly files
@@ -410,6 +539,84 @@ class Publisher:
             rows = self.conn.execute(BROKER_SQL, (ticker, f'{self.broker_first_year}-01-01', f'{hi}-12-31')).fetchall() if hi >= self.broker_first_year else []
             doc = {**broker_doc(ticker, None, rows), 'dataset': 'broker-archive', 'years': span}
             self.put_pack(ticker, 'broker-archive', doc, rows, {'years': span})
+
+    # ---- cross-sectional files (EXEC-SCREENER, P1 a, user 2026-10-28; report 6.5) ------------------------------------
+    def xsection_price(self, kind, touched):
+        """The `price` file from one statement. Each ticker's slice is encoded as its price pack and compared with the
+        manifest's pack sha256: a pack that differs (the table changed after the pack was built this run, or an older
+        pack the stamps missed) is republished from the slice, and the ticker's manifest is saved with the others, so
+        every slice equals its published pack. -> (document, rows, as_of, log fields)."""
+        lo, hi = f'{self.price_first_year}-01-01', f'{self.last_year}-12-31'
+        by, days = {}, {}
+        for t, d, *ohlcv in self.conn.execute(XSECTION_PRICE_SQL, (lo, hi)):    # streamed, no list of every row
+            if t in kind:
+                by.setdefault(t, []).append((days.setdefault(d, d), *ohlcv))  # a date string is kept once
+        columns = {c: [] for c in PRICE_XSECTION_COLUMNS}
+        tickers, repaired = [], []
+        for t in sorted(by):
+            rows = sorted(by.pop(t), key=lambda r: r[0])
+            body, sha = encode(price_pack_doc(t, rows))
+            if self.manifest(t).get('packs', {}).get('price', {}).get('sha256') != sha:
+                self.put_pack(t, 'price', None, rows, encoded=(body, sha))
+                touched.add(t)
+                repaired.append(t)
+            columns['t'].extend([t] * len(rows))
+            for i, c in enumerate(PRICE_XSECTION_COLUMNS[1:]):
+                columns[c].extend([r[i] for r in rows])
+            tickers.append({'t': t, 'pack_sha256': sha, 'first': rows[0][0], 'last': rows[-1][0], 'rows': len(rows)})
+        as_of = max((e['last'] for e in tickers), default=None)
+        return (xsection_price_doc(columns, tickers), len(columns['t']), as_of,
+                {'tickers': len(tickers), 'packs_republished': len(repaired), 'republished': repaired[:20]})
+
+    def xsection_actions(self, kind, events_through):
+        """The `actions` file; as_of is the newest ingestion_time of idx_event_annotation (the events data_through)."""
+        rows, outside = read_actions(self.conn, kind, self.price_first_year)
+        return xsection_actions_doc(rows), len(rows), events_through, {'outside_universe': outside}
+
+    def publish_xsection(self, name, kind, through, touched, present):
+        """Build one xsection file and upload it under its content-addressed key unless an object of that key is
+        already there (same key, same bytes: never overwritten). -> its index entry."""
+        started = time.monotonic()
+        if name == 'price':
+            doc, rows, as_of, info = self.xsection_price(kind, touched)
+        else:
+            doc, rows, as_of, info = self.xsection_actions(kind, through['events'])
+        body, sha = encode(doc)
+        del doc
+        key = f'xsection/{name}.{sha[:16]}.json.gz'
+        uploaded = key not in present
+        if uploaded:
+            self.bucket.put(key, body, 'application/gzip')
+            self.written += 1
+            self.bytes += len(body)
+        log('xsection', name=name, key=f'{PREFIX}/{key}', rows=rows, bytes=len(body), uploaded=uploaded, as_of=as_of,
+            seconds=round(time.monotonic() - started, 1), **info)
+        return {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
+
+    def xsection_listing(self):
+        """The keys under xsection/, or None when the bucket cannot list them (nothing is pruned then)."""
+        try:
+            return set(self.bucket.keys('xsection/'))
+        except Exception as e:  # noqa: BLE001 - housekeeping only: the files are still written and indexed
+            log('xsection_list_failed', error=type(e).__name__)
+            return None
+
+    def prune_xsection(self, listing, index, previous):
+        """Delete the xsection objects that neither this run's index nor the previous one names (report 6.5): an object
+        goes on the run after the one that stopped naming it, so a reader holding the previous index keeps its file.
+        Only keys of the content-addressed form are deleted; anything else under xsection/ is left and logged."""
+        keep = {e['key'][len(PREFIX) + 1:] for e in (*index.values(), *previous.values())}
+        stale = sorted(k for k in listing - keep if XSECTION_KEY.fullmatch(k))
+        other = sorted(k for k in listing - keep if not XSECTION_KEY.fullmatch(k))
+        deleted = 0
+        try:
+            for key in stale:
+                self.bucket.delete(key)
+                deleted += 1
+        except Exception as e:  # noqa: BLE001 - the next run that rebuilds a file tries again
+            log('xsection_prune_failed', error=type(e).__name__, deleted=deleted, left=len(stale) - deleted)
+            return
+        log('xsection_pruned', deleted=deleted, kept=sorted(keep), not_xsection_files=other[:20])
 
     # ---- reference files and universe ------------------------------------------------------------------------
     def universe(self):
@@ -534,6 +741,20 @@ class Publisher:
             touched.add(ticker)
             if n % 200 == 0:
                 log('progress', step='packs', done=n, of=len(pack_tickers), written=self.written, mb=round(self.bytes / 1e6, 1))
+        # EXEC-SCREENER: the xsection files after the files and packs (a pack the price file finds stale is republished
+        # here, so its manifest is saved below) and before state.json, which indexes them. A file whose rebuild fails
+        # keeps its previous entry; the Terminal's and the Backtest's publication goes on.
+        previous = xsection_entries(state.get('xsection'))
+        self.xsection = dict(previous)
+        rebuilt = [name for name, modes in XSECTION_REBUILT_BY.items() if mode in modes]
+        listing = self.xsection_listing() if rebuilt else None
+        present = (listing or set()) | {e['key'][len(PREFIX) + 1:] for e in previous.values()}
+        for name in rebuilt:
+            try:
+                self.xsection[name] = self.publish_xsection(name, kind, through, touched, present)
+            except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
+                self.xsection_failed.append(name)
+                log('xsection_failed', name=name, error=type(e).__name__, kept=self.xsection.get(name, {}).get('key'))
         for ticker in sorted(touched):
             datasets = {'price': through['price']}
             if kind.get(ticker) == 'stock':
@@ -550,10 +771,13 @@ class Publisher:
             'schema_version': SCHEMA_VERSION, 'price_through': through['price'], 'broker_through': broker_through,
             'broker_behind_sessions': self.broker_behind,
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
-            'broker_first_year': self.broker_first_year, 'last_mode': mode,
+            'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
             'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
+        if rebuilt and listing is not None:
+            self.prune_xsection(listing, self.xsection, previous)
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
-            tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind)
+            tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind,
+            xsection=sorted(self.xsection), xsection_failed=self.xsection_failed)
 
     def changed_events(self, kind, force=False):
         """Tickers whose event rows changed (count, last date, last ingestion), or every ticker with events."""
@@ -593,12 +817,14 @@ def verify(conn, bucket):
     first_year, last_year = window()
     universe = conn.execute(UNIVERSE_SQL).fetchall()
     checked = bad = 0
+    pack_sha = {}                                           # ticker -> its price pack's sha256 (verify_xsection)
     for ticker, _, typ, *_ in universe:
         m = bucket.get_json(f'manifest/{ticker}.json')
         if not m:
             log('verify_missing_manifest', ticker=ticker)
             bad += 1
             continue
+        pack_sha[ticker] = m.get('packs', {}).get('price', {}).get('sha256')
         for dataset, ds in m['datasets'].items():
             for year, f in ds['files'].items():
                 body = bucket.get_raw(f['key'][len(PREFIX) + 1:])
@@ -631,8 +857,51 @@ def verify(conn, bucket):
                 if not same:
                     bad += 1
                     log('verify_mismatch', ticker=ticker, dataset=dataset, year=year, file=got, sql=sql_row)
+    x_checked, x_bad = verify_xsection(conn, bucket, {t: typ for t, _, typ, *_ in universe}, pack_sha)
+    checked, bad = checked + x_checked, bad + x_bad
     log('verify_done', files=checked, mismatches=bad, window=[first_year, last_year])
     return bad
+
+
+def verify_xsection(conn, bucket, kind, pack_sha):
+    """EXEC-SCREENER: the files of state.json's xsection index. Each: present, its bytes and sha256 as indexed, its rows
+    as indexed. price: every ticker's slice encodes to its published price pack (manifest `packs`) and has the rows,
+    first and last date and sum of closes of SQL, and no published ticker with rows is missing; actions: the rows SQL
+    gives now. -> (files checked, mismatches)."""
+    state = bucket.get_json('state.json') or {}
+    checked = bad = 0
+    for name, e in sorted(xsection_entries(state.get('xsection')).items()):
+        body = bucket.get_raw(e['key'][len(PREFIX) + 1:])
+        checked += 1
+        if body is None or len(body) != e['bytes'] or hashlib.sha256(body).hexdigest() != e['sha256']:
+            bad += 1
+            log('verify_bad_object', dataset='xsection', name=name, key=e['key'])
+            continue
+        doc = json.loads(gzip.decompress(body))
+        problems = [] if len(doc[doc['columns'][0]]) == e['rows'] else ['rows differ from the index']
+        if name == 'price':
+            lo, hi = f"{state['price_first_year']}-01-01", f"{state['window'][1]}-12-31"
+            sql = {t: (n, a, b, s) for t, n, a, b, s in conn.execute(XSECTION_PRICE_CHECK_SQL, (lo, hi)).fetchall()
+                   if t in kind}
+            seen = set()
+            for (t, rows), entry in zip(xsection_slices(doc), doc['tickers']):
+                seen.add(t)
+                sha = encode(price_pack_doc(t, rows))[1]
+                if not (sha == entry['pack_sha256'] == pack_sha.get(t)):
+                    problems.append(f'{t}: the slice is not its price pack')
+                n, a, b, s = sql.get(t, (0, None, None, 0.0))
+                got = (len(rows), rows[0][0] if rows else None, rows[-1][0] if rows else None, sum(r[4] for r in rows))
+                if got[:3] != (n, a, b) or abs(got[3] - s) > max(1.0, abs(s) * 1e-9):
+                    problems.append(f'{t}: rows {got} but SQL {(n, a, b, s)}')
+            problems += [f'{t}: in SQL, not in the file' for t in sorted(set(sql) - seen)]
+        elif name == 'actions':
+            rows, _ = read_actions(conn, kind, state['price_first_year'])
+            if columnar(rows, ACTION_COLUMNS) != {c: doc[c] for c in ACTION_COLUMNS}:
+                problems.append('the rows differ from SQL')
+        if problems:
+            bad += 1
+            log('verify_mismatch', dataset='xsection', name=name, problems=problems[:20], count=len(problems))
+    return checked, bad
 
 
 WIB = dt.timezone(dt.timedelta(hours=7))
@@ -714,7 +983,8 @@ def main(argv):
     # the evening run (TERMINAL_STALE_ALERT_WIB, default 19:00) warns when broker data lags the prices
     if mode == 'daily' and (pub.broker_behind or 0) >= 1 and near_time(run_times(os.environ.get('TERMINAL_STALE_ALERT_WIB', '19:00')), started):
         notify_broker_behind(started.astimezone(WIB).date().isoformat())
-    return 0
+    # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3)
+    return 3 if pub.xsection_failed else 0
 
 
 if __name__ == '__main__':

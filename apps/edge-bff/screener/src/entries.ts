@@ -51,7 +51,9 @@ const PCT_FORMS: TestForm[] = ['value_pct_distance', 'value_band_position'];
 function outLabel(ind: CatalogIndicator, o: CatalogOutput | undefined, key: string) {
   return o?.label || (ind.outputs.length === 1 ? shortOf(ind) : key.replace(/_/g, ' '));
 }
-export const shortOf = (ind: CatalogIndicator) => (ind.synonyms || []).find(s => /^[A-Z%][A-Za-z0-9 %/+-]{0,11}$/.test(s)) || ind.key.toUpperCase();
+/** the indicator's short name: the catalog's `short` (additive, the generated registry's), else its first upper-case
+    synonym, else its key */
+export const shortOf = (ind: CatalogIndicator) => (ind as any).short || (ind.synonyms || []).find(s => /^[A-Z%][A-Za-z0-9 %/+-]{0,11}$/.test(s)) || ind.key.toUpperCase();
 
 /** the label of an indicator test option when the overlay gives none (the prototype's words where it had them) */
 function optLabel(ind: CatalogIndicator, o: CatalogOutput, spec: TestFormSpec, op: TestOp, valueOuts: number): string {
@@ -82,8 +84,8 @@ function indicatorEntry(ind: CatalogIndicator): Entry {
   const valueOuts = ind.outputs.filter(o => o.tests.some(t => t.form === 'value' || t.form === 'event_value')).length;
   for (const o of ind.outputs) {
     for (const spec of o.tests) for (const op of spec.ops) {
-      const kind = kindOf(spec.form), labelled = !!spec.label;
-      const label = labelled ? (spec.ops.length > 1 ? `${spec.label}${op === 'lt' || op === 'crosses_below' ? ' (below)' : ''}` : spec.label!) : optLabel(ind, o, spec, op, valueOuts);
+      const kind = kindOf(spec.form), given = spec.labels?.[op], labelled = !!given;
+      const label = given || optLabel(ind, o, spec, op, valueOuts);
       const valued = spec.form === 'value' || PCT_FORMS.includes(spec.form) || spec.form === 'event_value' || spec.form === 'state_value';
       opts.push({
         key:`${spec.form}|${o.key}|${op}`, label, kind, form:spec.form, output:o.key, with_output:spec.with_output, op,

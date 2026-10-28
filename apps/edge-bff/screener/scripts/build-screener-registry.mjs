@@ -73,7 +73,8 @@ const MA_TYPES = ['SMA', 'EMA'];
 export const PROBE = Object.freeze({
   seed: 20261028, bars: 4000, start: '2016-01-04', cut_at: 1000,
   scale_price: 3.7, scale_volume: 5.3, shift_price_of_median: 0.5, shift_volume_of_median: 0.5,
-  tolerance: 1e-9, unit_tolerance: 1e-6, min_common_bars: 100, converged_ratio: 1e-3, cost_ratio_lengths: 20, cost_reps: 5,
+  tolerance: 1e-9, unit_tolerance: 1e-6, min_common_bars: 100, converged_ratio: 1e-3,
+  cost_bars: 10000, cost_long_length: 1000, cost_reps: 3, cost_slowdown: 2,
 });
 
 function mulberry32(seed) {
@@ -214,23 +215,26 @@ export function floored(run, B, p, value) {
   return Object.keys(a).filter(o => !o.startsWith('_')).every(o => sameSeries(a[o], b[o]));
 }
 
-/** Timing of one F call on the fixture: the minimum of `reps` runs after one warm-up. */
-function timeIt(fn, reps) {
-  fn(); let best = Infinity;
-  for (let r = 0; r < reps; r++) { const t0 = process.hrtime.bigint(); fn(); const t = Number(process.hrtime.bigint() - t0); if (t < best) best = t }
-  return best;
+/** The two timings of costClass: the minimum of `reps` alternating runs after one warm-up of each. */
+function timePair(a, b, reps) {
+  a(); b(); let ta = Infinity, tb = Infinity;
+  const time = fn => { const t0 = process.hrtime.bigint(); fn(); return Number(process.hrtime.bigint() - t0) };
+  for (let r = 0; r < reps; r++) { ta = Math.min(ta, time(a)); tb = Math.min(tb, time(b)) }
+  return [ta, tb];
 }
-/** cost_class of an integer parameter (report 6.8): the timing ratio between length L and L x cost_ratio_lengths
-    (at most a quarter of the fixture). A kernel that loops over its window (O(N·n)) slows down by about that factor;
-    a running-sum or recursive kernel (O(N)) does not. Gray results are re-measured with more runs; the class is
-    decided by the geometric middle of the two cases. */
+/** cost_class of an integer parameter (report 6.8), from timings at two lengths on a long fixture (cost_bars): the
+    default L1 and L2 = max(cost_long_length, 50 x L1), at most a quarter of the bars. The slowdown t(L2) / t(L1) - 1
+    of a kernel that loops over its window (O(N·n)) is large (measured 12-31 on HMA, Aroon, Donchian, Stochastic RSI,
+    Stochastic, Williams %R, CCI and historical volatility, 3 runs each, 2026-10-28); a running-sum or recursive kernel
+    (O(N)) stays at timer noise (measured -0.31 to 0.34 on the other 57 integer parameters). The class is O(N·n) at a
+    slowdown of at least cost_slowdown; a result between half and twice that is measured again with three times the
+    runs. */
 export function costClass(run, B, p, value) {
-  const L1 = Math.max(1, value), L2 = Math.min(L1 * PROBE.cost_ratio_lengths, Math.floor(B.C.length / 4));
-  const ratio = reps => timeIt(() => run(B, { [p]: L2 }), reps) / timeIt(() => run(B, { [p]: L1 }), reps);
-  const mid = Math.sqrt(L2 / L1);
-  let r = ratio(PROBE.cost_reps);
-  if (r > mid / 2 && r < mid * 2) r = ratio(PROBE.cost_reps * 4);
-  return { cost_class: r >= mid ? 'O(N·n)' : 'O(N)', lengths: [L1, L2] };
+  const L1 = Math.max(1, value), L2 = Math.min(Math.max(PROBE.cost_long_length, 50 * L1), Math.floor(B.C.length / 4));
+  const slowdown = reps => { const [t1, t2] = timePair(() => run(B, { [p]: L1 }), () => run(B, { [p]: L2 }), reps); return t2 / t1 - 1 };
+  let s = slowdown(PROBE.cost_reps);
+  if (s > PROBE.cost_slowdown / 2 && s < PROBE.cost_slowdown * 2) s = slowdown(PROBE.cost_reps * 3);
+  return { cost_class: s >= PROBE.cost_slowdown ? 'O(N·n)' : 'O(N)', lengths: [L1, L2], slowdown: s };
 }
 
 /* ---- overlay checks ------------------------------------------------------------------------------------------- */
@@ -301,7 +305,7 @@ export async function build() {
   const problems = overlayProblems(overlay, base);
   if (problems.length) throw new Error(`screener-overlay.json:\n  ${problems.join('\n  ')}`);
   const oracle = readOracle(), byTerminal = Object.fromEntries(terminal.map(r => [r.id, r]));
-  const B = fixture(), cut = sliceBars(B, PROBE.cut_at);
+  const B = fixture(), cut = sliceBars(B, PROBE.cut_at), CB = fixture({ bars: PROBE.cost_bars });
 
   const indicators = base.indicators.map(r => {
     const ov = overlay.indicators[r.id], ti = byTerminal[r.id], fn = F[r.key];
@@ -340,12 +344,12 @@ export async function build() {
         q.integer = true; q.narrowing.push({ rule: 'integer', source: 'floor_probe', evidence: `F gives the same outputs at ${p.default} and ${p.default + 0.5}` });
       }
       if (p.type === 'integer') {
-        const c = costClass(run, B, p.key, p.default);
+        const c = costClass(run, CB, p.key, p.default);
         q.cost_class = c.cost_class;
         // worst over the enum options: a basis or method can swap a running-sum kernel for a window loop (I32 sample)
         for (const e of r.params.filter(x => x.type === 'enum')) for (const opt of e.options) {
           if (q.cost_class === 'O(N·n)' || opt === e.default) continue;
-          if (costClass((bars, over) => run(bars, { [e.key]: opt, ...over }), B, p.key, p.default).cost_class === 'O(N·n)') q.cost_class = 'O(N·n)';
+          if (costClass((bars, over) => run(bars, { [e.key]: opt, ...over }), CB, p.key, p.default).cost_class === 'O(N·n)') q.cost_class = 'O(N·n)';
         }
       }
       return q;

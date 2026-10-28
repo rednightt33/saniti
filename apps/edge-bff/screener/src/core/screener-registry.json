@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "3465d895c996d662",
+  "screener_registry_version": "c9dcb05b2c86b31f",
   "registry_version": "b6a8dc0ba206ed65",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "ba3edde68c2a929a1c010ea16fe1918254f6f75593d77af2374511d3a8c84a1b"
+      "sha256": "c4559ca4213cc374b48a4300182c1d8281af5dd814986a9c174b5460e1233d42"
     }
   ],
   "probe": {
@@ -48,8 +48,10 @@
     "unit_tolerance": 0.000001,
     "min_common_bars": 100,
     "converged_ratio": 0.001,
-    "cost_ratio_lengths": 20,
-    "cost_reps": 5
+    "cost_bars": 10000,
+    "cost_long_length": 1000,
+    "cost_reps": 3,
+    "cost_slowdown": 2
   },
   "cost_model": {
     "status": "PROVISIONAL (P5): replaced by the Phase 17 measurement on the service, recorded in verification/screener/BENCHMARK.md with CPU and Node version",
@@ -2826,7 +2828,7 @@
           "exclusive_min": false,
           "integer": true,
           "narrowing": [],
-          "cost_class": "O(N)"
+          "cost_class": "O(N·n)"
         },
         {
           "key": "smooth_k",
@@ -2940,7 +2942,7 @@
         }
       ],
       "history_class": "window",
-      "cost_class": "O(N)",
+      "cost_class": "O(N·n)",
       "overlay": {
         "shape": "pair",
         "synonyms": [

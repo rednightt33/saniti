@@ -337,11 +337,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
 
     pruned = {'at': None}                                    # the first grant of a worker prunes once
 
-    def grant(request, who, ticker, chosen, one_row=False, dataset='bundle'):
+    def grant(request, who, ticker, chosen, one_row=False, row_dataset='bundle'):
         """Quota and audit for a set of files of one ticker, under one lock: the same counting for /files, /bundle and
         /xsection. chosen = [(dataset, year or None, manifest file entry)]. one_row (/bundle, EXEC-TERMINAL-SPEED;
-        /xsection under quota.REF, EXEC-SCREENER): one audit row with `dataset` that counts every file; quotas sum
-        file_count either way."""
+        /xsection under quota.REF, EXEC-SCREENER): one audit row, dataset row_dataset, that counts every file; quotas
+        sum file_count either way."""
         size = sum(f['bytes'] for _, _, f in chosen)
         sid, ip = who['subscriber_id'], ip_of(request)
         with store.tx() as c:
@@ -350,7 +350,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
             ttl = limits['url_ttl_seconds']
             if one_row:
-                store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, bytes_=size, keys=[f['key'] for _, _, f in chosen])
+                store.log_access(c, sid, 'file', ticker, ip, dataset=row_dataset, bytes_=size, keys=[f['key'] for _, _, f in chosen])
             else:
                 for dataset, y, f in chosen:
                     store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, year=y, key=f['key'], bytes_=f['bytes'])
@@ -434,7 +434,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                                  f'{state.get("finished_at")}; indexed: {sorted(index) or "none"}. '
                                                  f'GET {API}/state lists the index.')
         chosen = [('xsection', n, index[n]) for n in names]
-        ttl = grant(request, who, quota.REF, chosen, one_row=True, dataset='xsection')
+        ttl = grant(request, who, quota.REF, chosen, one_row=True, row_dataset='xsection')
         return {'finished_at': state.get('finished_at'), 'expires_in_seconds': ttl, 'encoding': 'gzip json',
                 'files': [{'name': n, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
                            'rows': f['rows'], 'as_of': f['as_of']} for _, n, f in chosen]}

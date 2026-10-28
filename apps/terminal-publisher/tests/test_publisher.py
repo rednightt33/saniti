@@ -1,6 +1,9 @@
 import datetime as dt
 import gzip
+import hashlib
+import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -13,9 +16,17 @@ import publisher as pub  # noqa: E402
 class FakeBucket:
     def __init__(self):
         self.objects = {}
+        self.puts = []                                     # every put, in order (the objects dict keeps first order)
 
     def put(self, key, body, content_type):
         self.objects[key] = body
+        self.puts.append(key)
+
+    def keys(self, prefix):
+        return [k for k in self.objects if k.startswith(prefix)]
+
+    def delete(self, key):
+        del self.objects[key]
 
     def get_raw(self, key):
         return self.objects.get(key)
@@ -27,27 +38,50 @@ class FakeBucket:
         return json.loads(gzip.decompress(body) if key.endswith('.gz') else body)
 
 
+class Result(list):
+    """A statement's rows, read as a psycopg cursor reads them: fetchall, fetchone or iteration."""
+    def fetchall(self):
+        return list(self)
+
+    def fetchone(self):
+        return self[0] if self else None
+
+
 class FakeConn:
     """Answers the publisher's statements from small in-memory tables."""
-    def __init__(self, prices, brokers, universe, events=None):
+    def __init__(self, prices, brokers, universe, events=None, actions=None):
         self.prices, self.brokers, self.universe = prices, brokers, universe
         self.events = list(EVENTS if events is None else events)
+        self.actions = list(ACTIONS if actions is None else actions)
         self.statements = []
 
     def execute(self, sql, params=()):
         self.statements.append(sql)
-        rows = self._rows(sql, params)
-        return type('R', (), {'fetchall': lambda s: rows, 'fetchone': lambda s: rows[0] if rows else None})()
+        return Result(self._rows(sql, params))
 
     def _rows(self, sql, params):
+        if sql == pub.XSECTION_PRICE_SQL:
+            lo, hi = params
+            # date-major, newest first, as no ORDER BY promises nothing: the publisher groups and orders the rows itself
+            return [r for r in sorted(self.prices, key=lambda r: (r[1], r[0]), reverse=True) if lo <= r[1] <= hi]
+        if sql == pub.XSECTION_PRICE_CHECK_SQL:
+            lo, hi = params
+            out = {}
+            for t, d, *_o, c, _v in self.prices:
+                if lo <= d <= hi:
+                    out.setdefault(t, []).append((d, c))
+            return [(t, len(v), min(x[0] for x in v), max(x[0] for x in v), sum(x[1] for x in v)) for t, v in out.items()]
+        if sql == pub.XSECTION_ACTIONS_SQL:
+            types, since = params
+            return [a for a in reversed(self.actions) if a[2] in types and a[1] >= since]
         if sql == pub.UNIVERSE_SQL:
             return self.universe
-        if sql == pub.PRICE_SQL:
+        if sql == pub.PRICE_SQL:                           # ORDER BY date
             t, lo, hi = params
-            return [r[1:] for r in self.prices if r[0] == t and lo <= r[1] <= hi]
-        if sql == pub.BROKER_SQL:
+            return sorted((r[1:] for r in self.prices if r[0] == t and lo <= r[1] <= hi), key=lambda r: r[0])
+        if sql == pub.BROKER_SQL:                          # ORDER BY trade_date, broker, investor_type, market_board
             t, lo, hi = params
-            return [r[1:] for r in self.brokers if r[0] == t and lo <= r[1] <= hi]
+            return sorted((r[1:] for r in self.brokers if r[0] == t and lo <= r[1] <= hi), key=lambda r: r[:4])
         if sql == pub.PRICE_STAMPS_SQL:
             out = {}
             for t, d, *_rest in self.prices:
@@ -104,6 +138,12 @@ EVENTS = [('BBCA', '2026-03-10', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None
           ('GONE', '2026-01-02', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
            None, None, 10.0, None, None, None, {}, None, None)]
 UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock', 'Finance', 'Banks'), ('IHSG', 'Composite', 'index', None, None)]
+# XSECTION_ACTIONS_SQL rows: ticker, ex date, type, ratio_old, ratio_new, amount_per_share, currency, event_key
+ACTIONS = [('BBCA', '2026-03-10', 'DIVIDEND', None, None, 250.0, 'IDR', 'k1'),
+           ('BBCA', '2026-10-14', 'STOCK_SPLIT', 1.0, 5.0, None, None, 'k2'),
+           ('BBCA', '2026-11-03', 'DIVIDEND', None, None, 0.0, 'IDR', 'k3'),        # future; 0 is the source's unknown
+           ('GONE', '2026-01-02', 'DIVIDEND', None, None, 10.0, 'IDR', 'k4'),       # not a published ticker
+           ('BBCA', '2012-05-02', 'STOCK_SPLIT', 1.0, 2.0, None, None, 'k5')]       # before the first published year
 TODAY = dt.date(2026, 10, 25)
 
 
@@ -157,7 +197,7 @@ def test_daily_republishes_only_the_changed_price_year_and_new_broker_dates():
     conn.brokers = BROKERS + [('BBCA', '2026-01-05', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False)]
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     p2.run('daily')
-    assert p2.written == 3  # price/BBCA/2026, broker/BBCA/2026 and BBCA's price pack; 2025 and IHSG untouched
+    assert p2.written == 4  # price/BBCA/2026, broker/BBCA/2026, BBCA's price pack, the xsection price; 2025, IHSG untouched
     assert ('pack', 'BBCA', 'broker-archive') not in p2.changed   # a current-year broker change leaves the archive
     assert bucket.get_json('manifest/BBCA.json')['datasets']['broker']['data_through'] == '2026-01-05'
 
@@ -192,7 +232,7 @@ def test_daily_adds_missing_early_price_years():
     conn.prices = PRICES + [('BBCA', '2019-06-03', 50.0, 51.0, 49.0, 50.5, 10.0)]
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     p2.run('daily')
-    assert 'price/BBCA/2019.json.gz' in bucket.objects and p2.written == 2   # the year and the price pack
+    assert 'price/BBCA/2019.json.gz' in bucket.objects and p2.written == 3   # the year, the price pack, the xsection price
 
 
 def test_events_are_one_file_per_listed_ticker_with_display_columns_only():
@@ -383,3 +423,185 @@ def test_the_evening_warning_time_is_the_listed_wib_time_with_slack(monkeypatch)
     assert pub.near_time(times, dt.datetime(2026, 10, 27, 12, 5, tzinfo=dt.timezone.utc))          # 19:05 WIB
     assert not pub.near_time(times, dt.datetime(2026, 10, 27, 0, 35, tzinfo=dt.timezone.utc))      # 07:35 WIB
 
+
+
+# ---- EXEC-SCREENER: cross-sectional files (report 6.5, 7.1) ---------------------------------------------------------
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def xsection(bucket, name):
+    """The state.json index entry of an xsection file, and its document."""
+    entry = bucket.get_json('state.json')['xsection'][name]
+    return entry, bucket.get_json(entry['key'][len('v1/'):])
+
+
+def xsection_puts(bucket, since=0):
+    return [k for k in bucket.puts[since:] if k.startswith('xsection/')]
+
+
+def test_each_ticker_slice_of_the_price_file_equals_its_price_pack():
+    _, _, bucket = run('backfill')
+    entry, doc = xsection(bucket, 'price')
+    assert doc['columns'] == ['t', 'd', 'o', 'h', 'l', 'c', 'v'] and doc['dataset'] == 'xsection'
+    # every published ticker with rows, ordered by ticker then date although the statement returns them newest first
+    assert doc['t'] == ['BBCA', 'BBCA', 'IHSG'] and doc['d'] == ['2025-12-30', '2026-01-02', '2026-01-02']
+    assert doc['v'] == [1000.0, 900.0, None]                                    # an index keeps its null volume
+    slices = dict(pub.xsection_slices(doc))
+    assert sorted(slices) == ['BBCA', 'IHSG']
+    for e in doc['tickers']:
+        t = e['t']
+        pack_bytes = bucket.objects[f'pack/{t}/price.json.gz']
+        assert pub.price_pack_doc(t, slices[t]) == bucket.get_json(f'pack/{t}/price.json.gz')
+        assert pub.encode(pub.price_pack_doc(t, slices[t]))[0] == pack_bytes                 # byte for byte
+        assert (e['pack_sha256'] == hashlib.sha256(pack_bytes).hexdigest()
+                == bucket.get_json(f'manifest/{t}.json')['packs']['price']['sha256'])
+        assert (e['rows'], e['first'], e['last']) == (len(slices[t]), slices[t][0][0], slices[t][-1][0])
+    assert entry['rows'] == 3 and entry['as_of'] == '2026-01-02'
+
+
+def test_a_pack_that_differs_from_the_table_is_republished_from_the_slice():
+    _, conn, bucket = run('backfill')
+    # an open corrected without changing the stamp (rows, last date, sum of closes): daily plans no file for it
+    conn.prices = [('BBCA', '2025-12-30', 99.0, 110.0, 95.0, 105.0, 1000.0)] + PRICES[1:]
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    pack = bucket.get_json('pack/BBCA/price.json.gz')
+    assert pack['o'][0] == 99.0 and ('pack', 'BBCA', 'price') in p2.changed
+    entry, doc = xsection(bucket, 'price')
+    sha = bucket.get_json('manifest/BBCA.json')['packs']['price']['sha256']                  # the manifest was saved
+    assert sha == hashlib.sha256(bucket.objects['pack/BBCA/price.json.gz']).hexdigest() == doc['tickers'][0]['pack_sha256']
+    assert pub.verify(conn, bucket) == 1      # only the yearly file the stamps missed is stale; the xsection files pass
+
+
+def test_the_xsection_files_are_written_before_the_state_json_that_indexes_them():
+    _, conn, bucket = run('backfill')
+    state = bucket.get_json('state.json')
+    assert sorted(state['xsection']) == ['actions', 'price'] and bucket.puts[-1] == 'state.json'
+    for name, e in state['xsection'].items():
+        key = e['key'][len('v1/'):]
+        assert re.fullmatch(rf'xsection/{name}\.{e["sha256"][:16]}\.json\.gz', key)          # content-addressed
+        assert key in bucket.puts[:-1]                                                        # before state.json
+        body = bucket.objects[key]
+        assert (len(body), hashlib.sha256(body).hexdigest()) == (e['bytes'], e['sha256'])
+        assert e['rows'] == len(bucket.get_json(key)['t'])
+    # a later run: the new object is put before that run's state.json
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    n = len(bucket.puts)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    new = xsection_puts(bucket, n)
+    assert len(new) == 1 and new[0].startswith('xsection/price.') and bucket.puts[-1] == 'state.json'
+    assert bucket.get_json('state.json')['xsection']['price']['key'] == f'v1/{new[0]}'
+
+
+def test_terminal_api_reads_the_index_as_written():
+    """The reader of the index (terminal-api bucket.py xsection_index, /state and /xsection) keeps every entry."""
+    spec = importlib.util.spec_from_file_location('terminal_api_bucket', ROOT / 'apps/terminal-api/app/bucket.py')
+    reader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(reader)
+    _, _, bucket = run('backfill')
+    index = bucket.get_json('state.json')['xsection']
+    assert reader.xsection_index(index) == index
+
+
+def test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward():
+    p, conn, bucket = run('backfill')
+    before = bucket.get_json('state.json')['xsection']
+    for mode, args in (('logos', ()), ('broker-range', ('2026-01-01', '2026-12-31'))):
+        n = len(bucket.puts)
+        pub.Publisher(conn, bucket, today=TODAY).run(mode, *args)
+        assert bucket.get_json('state.json')['xsection'] == before and xsection_puts(bucket, n) == []
+    # events rebuilds `actions` only; the price entry is carried as it is
+    conn.actions.append(('BBCA', '2026-11-24', 'RIGHT_ISSUE', 4.0, 1.0, 1200.0, None, 'k6'))
+    n = len(bucket.puts)
+    p3 = pub.Publisher(conn, bucket, today=TODAY)
+    p3.run('events')
+    after = bucket.get_json('state.json')['xsection']
+    assert after['price'] == before['price'] and after['actions']['key'] != before['actions']['key']
+    assert [k.split('.')[0] for k in xsection_puts(bucket, n)] == ['xsection/actions']
+    assert not any(s == pub.XSECTION_PRICE_SQL for s in conn.statements[-20:])
+
+
+def test_pruning_keeps_the_objects_of_the_previous_index():
+    _, conn, bucket = run('backfill')
+    k1 = xsection(bucket, 'price')[0]['key'][3:]
+    actions = xsection(bucket, 'actions')[0]['key'][3:]
+    bucket.objects['xsection/README.txt'] = b'not a file of the family'
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    k2 = xsection(bucket, 'price')[0]['key'][3:]
+    assert k2 != k1 and k1 in bucket.objects                          # k1 is the previous index's: a reader may hold it
+    pub.Publisher(conn, bucket, today=TODAY).run('logos')             # a carry-forward run deletes nothing
+    assert k1 in bucket.objects
+    conn.prices = conn.prices + [('BBCA', '2026-01-06', 101.0, 104.0, 100.0, 103.0, 700.0)]
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    k3 = xsection(bucket, 'price')[0]['key'][3:]
+    assert k1 not in bucket.objects and {k2, k3, actions, 'xsection/README.txt'} <= set(bucket.objects)
+
+
+def test_xsection_files_are_deterministic_and_never_rewritten():
+    _, conn, bucket = run('backfill')
+    _, _, other = run('backfill', conn=FakeConn(PRICES, BROKERS, UNIVERSE))
+    for name in ('price', 'actions'):
+        a, b = bucket.get_json('state.json')['xsection'][name], other.get_json('state.json')['xsection'][name]
+        assert a == b and bucket.objects[a['key'][3:]] == other.objects[b['key'][3:]]
+    n = len(bucket.puts)
+    for mode in ('daily', 'packs', 'backfill'):
+        pub.Publisher(conn, bucket, today=TODAY).run(mode)
+    assert xsection_puts(bucket, n) == []                             # same content, same key: not put again
+
+
+def test_the_actions_file_holds_share_count_changes_and_cash_dividends_on_their_ex_dates():
+    p, _, bucket = run('backfill')
+    entry, doc = xsection(bucket, 'actions')
+    assert doc['columns'] == pub.ACTION_COLUMNS and entry['rows'] == 3
+    assert doc['t'] == ['BBCA'] * 3 and doc['d'] == ['2026-03-10', '2026-10-14', '2026-11-03']   # future ex date kept
+    assert doc['type'] == ['DIVIDEND', 'STOCK_SPLIT', 'DIVIDEND']
+    assert (doc['ratio_old'], doc['ratio_new']) == ([None, 1.0, None], [None, 5.0, None])
+    assert doc['amount_per_share'] == [250.0, None, None] and doc['currency'] == ['IDR', None, 'IDR']   # 0 -> null
+    # read from the first published price year (2021 here): the 2012 split is not read; GONE is not published
+    assert entry['as_of'] == '2026-10-25 17:04:28+00'
+    assert p.price_first_year == 2021
+
+
+def test_price_action_types_are_the_backtest_cores():
+    src = (ROOT / 'apps/edge-bff/backtest/src/core/datafile.ts').read_text()
+    m = re.search(r'export const PRICE_ACTION_TYPES: readonly string\[\] = \[([^\]]*)\]', src)
+    assert m and tuple(re.findall(r"'([A-Z_]+)'", m.group(1))) == pub.PRICE_ACTION_TYPES
+    assert pub.ACTION_TYPES == pub.PRICE_ACTION_TYPES + ('DIVIDEND',)
+
+
+def test_a_failed_xsection_file_keeps_its_entry_and_the_rest_is_published():
+    _, conn, bucket = run('backfill')
+    before = bucket.get_json('state.json')
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    conn.actions.append(('BBCA', '2026-11-24', 'RIGHT_ISSUE', 4.0, 1.0, 1200.0, None, 'k6'))
+    rows = conn._rows
+    conn._rows = lambda sql, params: (_ for _ in ()).throw(TimeoutError()) if sql == pub.XSECTION_PRICE_SQL else rows(sql, params)
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    after = bucket.get_json('state.json')
+    assert p2.xsection_failed == ['price'] and after['finished_at'] != before['finished_at']
+    assert after['xsection']['price'] == before['xsection']['price']              # the previous file stays indexed
+    assert after['xsection']['actions'] != before['xsection']['actions']          # the other file was rebuilt
+    assert bucket.get_json('manifest/BBCA.json')['datasets']['price']['files']['2026']['rows'] == 2   # Terminal files
+
+
+def test_verify_checks_the_xsection_files():
+    _, conn, bucket = run('backfill')
+    assert pub.verify(conn, bucket) == 0
+    conn.actions.append(('BBCA', '2026-11-24', 'RIGHT_ISSUE', 4.0, 1.0, 1200.0, None, 'k6'))
+    assert pub.verify(conn, bucket) == 1                                          # actions differ from SQL now
+    conn.actions.pop()
+    key = xsection(bucket, 'price')[0]['key'][3:]
+    bucket.objects[key] = gzip.compress(b'{}')
+    assert pub.verify(conn, bucket) == 1                                          # not the indexed bytes
+
+
+def test_an_index_entry_that_is_not_an_xsection_object_is_neither_carried_nor_protected():
+    _, conn, bucket = run('backfill')
+    state = bucket.get_json('state.json')
+    state['xsection']['evil'] = {'key': 'v1/manifest/BBCA.json', 'sha256': 'ab' * 32, 'bytes': 1, 'rows': 0}
+    bucket.put('state.json', json.dumps(state).encode(), 'application/json')
+    pub.Publisher(conn, bucket, today=TODAY).run('logos')
+    assert sorted(bucket.get_json('state.json')['xsection']) == ['actions', 'price']
+    assert 'manifest/BBCA.json' in bucket.objects

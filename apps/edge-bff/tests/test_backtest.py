@@ -1497,7 +1497,8 @@ def dockerignore(text):
 def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth():
     """apps/edge-bff/.dockerignore: a pattern matches from the context root only, so caches that appear in any folder
     need '**/' (a bare '__pycache__' left app/__pycache__ in the image). Local builds, dependencies and tests of the
-    two pages stay out (the Dockerfile installs and builds them itself); every file its COPY lines take is kept."""
+    three pages (EXEC-SCREENER: the screener page is the third) stay out (the Dockerfile installs and builds them
+    itself); every file its COPY lines take is kept."""
     root = Path(__file__).resolve().parents[1]
     patterns = dockerignore((root / '.dockerignore').read_text())
     for path in ('app/__pycache__/main.cpython-312.pyc', 'app/x.pyc', 'tests/__pycache__/conftest.cpython-312.pyc',
@@ -1506,20 +1507,25 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  'tests/test_backtest.py', 'preview/edge_preview.py', 'terminal/node_modules/vite/package.json',
                  'terminal/tests/calc.test.ts', 'static/terminal-app/index.html', 'backtest/node_modules/vite/package.json',
                  'backtest/tests/fixture/api.ts', 'backtest/dist/index.html', 'backtest/dist-smoke/index.html',
-                 'backtest/dist-fixture/index.html', 'static/backtest-app/index.html'):
+                 'backtest/dist-fixture/index.html', 'static/backtest-app/index.html', 'screener/node_modules/vite/package.json',
+                 'screener/tests/smoke/main.ts', 'screener/dist/index.html', 'screener/dist-smoke/index.html',
+                 'screener/dist-fixture/index.html', 'static/screener-app/index.html', 'screener/src/__pycache__/x.pyc'):
         assert docker_ignored(patterns, path), path
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
               for source in line.split()[1:-1]]
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'terminal/', 'backtest/package.json',
-                      'backtest/package-lock.json', 'terminal/src', 'backtest/', 'requirements.txt', 'app', 'static']
+                      'backtest/package-lock.json', 'terminal/src', 'backtest/', 'screener/package.json',
+                      'screener/package-lock.json', 'terminal/src', 'backtest/src/core', 'screener/', 'requirements.txt',
+                      'app', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
-    # modules, the static files) and the two pages' sources
-    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest') for p in (root / folder).iterdir()
+    # modules, the static files) and the three pages' sources
+    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest', 'screener') for p in (root / folder).iterdir()
            if p.is_file() and not p.name.startswith('.env') and p.suffix != '.pyc']
-    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src') for p in (root / folder).rglob('*')
+    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src') for p in (root / folder).rglob('*')
                if p.is_file() and '__pycache__' not in p.parts]
     needed = [*copied, *top, *sources]
     assert 'backtest/src/core/engine.ts' in needed and 'backtest/vite.config.ts' in needed and 'app/backtest.py' in needed
+    assert 'screener/src/core/contract.ts' in needed and 'screener/vite.config.ts' in needed and 'app/screener.py' in needed
     assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []
 
 
@@ -1990,7 +1996,7 @@ def test_backtest_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
                 page.get_by_role('button', name='Sign In', exact=True).click()
                 tabs = page.locator('.topbar nav button')
                 tabs.first.wait_for()
-                assert tabs.all_inner_texts() == ['Monitor', 'Terminal', 'Backtest']
+                assert tabs.all_inner_texts() == ['Monitor', 'Terminal', 'Backtest', 'Screener']   # EXEC-SCREENER: Screener last
                 page.locator('.topbar nav button.nav-backtest').click()
                 page.wait_for_url(local.origin + '/backtest')
                 assert page.locator('.topbar nav button.nav-backtest').get_attribute('aria-current') == 'page'

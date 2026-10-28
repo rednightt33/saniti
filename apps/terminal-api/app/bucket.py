@@ -32,8 +32,9 @@ def xsection_index(raw):
         if not (isinstance(name, str) and XSECTION_NAME.fullmatch(name) and isinstance(e, dict)):
             continue
         key, sha, size, rows, as_of = (e.get(k) for k in XSECTION_FIELDS)
-        if not (isinstance(key, str) and re.fullmatch(rf'{PREFIX}/xsection/{re.escape(name)}\.[0-9a-f]{{16}}\.json\.gz', key)
-                and isinstance(sha, str) and SHA256.fullmatch(sha) and _count(size, 1) and _count(rows, 0)):
+        own_key = rf'{PREFIX}/xsection/{re.escape(name)}\.[0-9a-f]{{16}}\.json\.gz'
+        if not (isinstance(key, str) and re.fullmatch(own_key, key) and isinstance(sha, str) and SHA256.fullmatch(sha)
+                and _count(size, 1) and _count(rows, 0)):
             continue
         out[name] = {'key': key, 'sha256': sha, 'bytes': size, 'rows': rows,
                      'as_of': as_of if isinstance(as_of, str) and len(as_of) <= 64 else None}

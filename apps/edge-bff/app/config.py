@@ -36,6 +36,13 @@ class Settings:
     backtest_timeout_seconds: float = 0
     backtest_queued_per_owner: int = 3
     backtest_max_result_bytes: int = 0
+    # EDGE screener (EXEC-SCREENER, go 2026-10-28; report API CONTRACT 8.1, 8.11): the private screener-worker and its
+    # shared key; both empty = the feature is off (SCREENER_DISABLED). screener_timeout_seconds: the worker's deadline
+    # (its SCREENER_DEADLINE_MS in seconds), which every relayed call waits for plus one control call; no default, as
+    # the worker's limits have none (report 8.9).
+    screener_worker_url: str = ''
+    screener_worker_key: str = ''
+    screener_timeout_seconds: float = 0
 
     @classmethod
     def from_env(cls):
@@ -62,7 +69,10 @@ class Settings:
                 backtest_worker_key=os.environ.get('BACKTEST_WORKER_KEY', ''),
                 backtest_timeout_seconds=int(os.environ.get('BACKTEST_TIMEOUT_SECONDS', '0')),
                 backtest_queued_per_owner=int(os.environ.get('BACKTEST_QUEUED_PER_OWNER', '3')),
-                backtest_max_result_bytes=int(os.environ.get('BACKTEST_MAX_RESULT_BYTES', '0')))
+                backtest_max_result_bytes=int(os.environ.get('BACKTEST_MAX_RESULT_BYTES', '0')),
+                screener_worker_url=os.environ.get('SCREENER_WORKER_URL', '').strip().rstrip('/'),
+                screener_worker_key=os.environ.get('SCREENER_WORKER_KEY', ''),
+                screener_timeout_seconds=float(os.environ.get('SCREENER_TIMEOUT_SECONDS', '0')))
         s.validate()
         return s
 
@@ -100,6 +110,16 @@ class Settings:
             raise ValueError('BACKTEST_TIMEOUT_SECONDS is required with BACKTEST_WORKER_URL')
         if self.backtest_worker_url and self.backtest_max_result_bytes < 1:
             raise ValueError('BACKTEST_MAX_RESULT_BYTES is required with BACKTEST_WORKER_URL')
+        if bool(self.screener_worker_url) != bool(self.screener_worker_key):
+            raise ValueError('SCREENER_WORKER_URL and SCREENER_WORKER_KEY are set together or not at all')
+        if self.screener_worker_key and len(self.screener_worker_key) < 32:
+            raise ValueError('SCREENER_WORKER_KEY must be at least 32 characters')
+        if self.screener_worker_url and self.environment != 'local' and (
+                urlsplit(self.screener_worker_url).hostname != 'screener-worker.railway.internal'
+                or urlsplit(self.screener_worker_url).scheme != 'http'):
+            raise ValueError('SCREENER_WORKER_URL must use the Railway private screener-worker endpoint')
+        if self.screener_worker_url and not 0 < self.screener_timeout_seconds <= 3600:
+            raise ValueError('SCREENER_TIMEOUT_SECONDS is required with SCREENER_WORKER_URL (the worker deadline, 1 s to 3600 s)')
         if self.backtest_queued_per_owner < 1:
             raise ValueError('BACKTEST_QUEUED_PER_OWNER must be at least 1')
         if self.orc_timeout_seconds < 3900 or self.session_seconds < 60 or self.heartbeat_seconds <= 0 or self.poll_seconds <= 0 or self.lease_seconds < self.heartbeat_seconds * 2:

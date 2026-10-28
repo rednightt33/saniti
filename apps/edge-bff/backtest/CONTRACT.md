@@ -76,8 +76,10 @@ not in the path.
   This replaces the earlier `DATA_UNAVAILABLE` check on the loaded tickers' broker `data_through`. Caching
   **[D-L3]** (replaced 2026-10-27, EXEC-BACKTEST-LOAD K1, user: "Sesi ini, jalankan"): the catalog and the reference
   lists are kept per publication. terminal-api `GET /state` names it (state.json `finished_at`, `price_through`,
-  `broker_through`; no file granted, no quota, no audit row); the worker (`catalog.ts ByPublication`) asks it at most
-  every 60 s and builds again only when `finished_at` changed, and `catalog.flow.data_through` is the publication's
+  `broker_through`; no file granted, no quota, no audit row; the answer also carries `broker_behind_sessions` and,
+  since EXEC-SCREENER (2026-10-28), `xsection`, the screener's cross-sectional file index, which the worker does not
+  read: `terminal.ts publication` keeps the three fields named); the worker (`catalog.ts ByPublication`) asks it at
+  most every 60 s and builds again only when `finished_at` changed, and `catalog.flow.data_through` is the publication's
   `broker_through` (the newest Feature 05 date of the run, the date that run wrote into the manifests it touched).
   Without `/state` (an older terminal-api, state.json unreadable) nothing is kept and every build asks every stock's
   manifest, as before. The worker builds the catalog at start; edge-bff keeps it 60 s.

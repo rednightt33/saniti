@@ -275,15 +275,18 @@ bucket, checks quotas, writes an audit row, and answers presigned GET URLs. It n
 - **Direct subscriber sign-in is not on the backtest path.** terminal-api also serves its own sign-in (cookie
   `terminal_session`), yearly `/files`, a PostgreSQL `/history` for dates before the published years, `/logo` and
   admin routes.
+- **The screener-worker** (EXEC-SCREENER, user 2026-10-28) calls terminal-api with the same key on the private
+  network: `/state`, `/manifest`, `/reference` and `POST /xsection`. `/xsection` admits the gateway key only (6.2).
 
-### 6.2 The routes the backtest uses
+### 6.2 The routes the backtest and the screener use
 
 | Route | Used by | What it does |
 |---|---|---|
 | `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` | worker and page | see the steps below |
 | `GET /api/terminal/v1/manifest/{T}` | worker only (freshness and coverage checks) | `{ticker, window, generated_at, datasets: {name: {data_through, years: {id: {bytes, rows, first, last, sha256}}}}}`. No object key, no URL, no quota, no audit row. |
 | `GET /api/terminal/v1/reference/{tickers\|brokers}` | worker only (catalog, validation) | one presigned URL of the fixed key, counted against quota (pseudo-ticker `REF`, never an opened ticker), no sha256 |
-| `GET /api/terminal/v1/state` | worker only (EXEC-BACKTEST-LOAD, 2026-10-27) | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
+| `GET /api/terminal/v1/state` | the backtest worker (EXEC-BACKTEST-LOAD, 2026-10-27) and the screener-worker (EXEC-SCREENER). The code admits any subscriber (`Depends(subscriber)`: the gateway key or a session cookie), since it grants nothing; edge-bff does not forward it | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old), and `xsection`, the run's cross-sectional file index `{name: {key, sha256, bytes, rows, as_of}}` (`bucket.py xsection_index`: only well-formed entries, a key `v1/xsection/<name>.<16 hex>.json.gz`, each with these five fields; null when the run wrote none). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
+| `POST /api/terminal/v1/xsection {names}` | the screener-worker only, not the backtest: the gateway key; a request without it, a subscriber session included, is 403 `gateway_only` (`main.py gateway`); edge-bff does not forward it | presigned URLs for files of the `/state` index, named by their index names: `{finished_at, expires_in_seconds, encoding, files: [{name, url, sha256, bytes, rows, as_of}]}`. 1 to 16 names (a repeated name counts once); a name not in the index is 404 `xsection_not_published` with the indexed names. One file per name and their bytes count against the quota under the pseudo-ticker `REF` (never an opened ticker), with one `terminal.access_log` row (dataset `xsection`) listing every key; 429 `quota_exceeded` refuses every name. |
 
 What `/bundle` does:
 
@@ -296,7 +299,8 @@ What `/bundle` does:
 5. Answer `{ticker, window, generated_at, expires_in_seconds, datasets: {name: {data_through, first_year, files: [{year,
    url, sha256, bytes, rows, pack?}]}}}`.
 
-A client never names an object key. Only manifest keys and the fixed `REF_FILES` keys are presigned.
+A client never names an object key. Only manifest keys, the fixed `REF_FILES` keys and the keys of the `state.json`
+xsection index are presigned.
 
 ### 6.3 The manifest cache (`apps/terminal-api/app/bucket.py`, `Bucket._fresh`, `Bucket.manifest`)
 
@@ -310,6 +314,11 @@ A client never names an object key. Only manifest keys and the fixed `REF_FILES`
   - During a run, terminal-api keeps serving the manifests of the previous run. That is why overwriting a file in
     place breaks readers (M250).
   - A ticker first published after its "not found" was cached stays 404 until the next `finished_at`.
+- **The publication.** `/state` and the xsection index `/xsection` grants from come from the same read of `state.json`
+  (`Bucket.state`), so both are at most 60 s old. For up to 60 s after a run one of the two processes can answer the
+  new publication and the other the previous one. `/xsection` answers its `finished_at` and each file's sha256, so a
+  caller compares them with the `/state` index it acts on; the xsection keys are content-addressed and never
+  overwritten, so a file granted from the previous index is still that index's file.
 
 ### 6.4 The page's route: browser, edge-bff proxy, terminal-api (`apps/edge-bff/app/main.py`)
 
@@ -358,7 +367,8 @@ A client never names an object key. Only manifest keys and the fixed `REF_FILES`
   - one pooled HTTP request;
   - in terminal-api, one transaction for the gateway account and, for `/bundle` and `/reference`, a second
     transaction with the advisory lock, the usage aggregate and an INSERT.
-- **Shared lock.** Every grant of the page and the worker serializes on one subscriber lock.
+- **Shared lock.** Every grant of the page, the worker and the screener-worker (`/xsection`) serializes on one
+  subscriber lock.
 - **OPEN (security, dev):** terminal-api's public domain accepts the gateway key from anywhere; the code does not
   check where a proxied request comes from (`proxied`).
 
@@ -553,6 +563,7 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 | Where | What | Key | Lifetime |
 |---|---|---|---|
 | terminal-api process | manifests, "not found" too | ticker | until `state.json` `finished_at` changes (checked every 60 s) |
+| terminal-api process | `state.json`: the `/state` answer and the xsection index `/xsection` grants from | — | read again at most every 60 s; an unreadable `state.json` keeps the last one |
 | Presigned URL | access to one key | — | 120 s |
 | Worker memory (per thread) | verified gzip bytes | sha256 | LRU, `BACKTEST_CACHE_BYTES` |
 | Worker disk (shared by threads) | verified gzip bytes | `<sha256>.json.gz` | LRU, `BACKTEST_CACHE_DIR_BYTES`, lost on redeploy |

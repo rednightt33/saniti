@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .backtest import Backtests
+from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
 from .security import csrf_token, token_hash, verify_password
@@ -46,6 +47,15 @@ TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
 # bucket, so it takes the terminal page's policy.
 BACKTEST_APP = STATIC / 'backtest-app'
 BACKTEST_CSP = TERMINAL_CSP
+# EDGE screener (EXEC-SCREENER; report FRONTEND INTEGRATION 9.1, 9.7): the built screener page (apps/edge-bff/screener ->
+# static/screener-app), shown in the Screener tab's frame. It loads what the backtest page loads except the bucket: its
+# preview is computed by the screener-worker and every answer comes from /api/v1/screener on this origin, so it reads no
+# rack file and connect-src is 'self' only.
+SCREENER_APP = STATIC / 'screener-app'
+SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
+                "base-uri 'self'; frame-ancestors 'self'")
 CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
 # EXEC-MODELS: the shape of a model id and the reasoning levels; Orc checks the choice against its offered models
@@ -164,6 +174,7 @@ def create_app(settings=None, store=None, orc=None):
     orc = orc or OrcClient(settings)
     worker = Worker(settings, store, orc)
     backtests = Backtests(settings, store)
+    screeners = Screeners(settings, store)
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -191,6 +202,7 @@ def create_app(settings=None, store=None, orc=None):
                 await asyncio.gather(running, return_exceptions=True)
         orc.close()
         await backtests.aclose()
+        await screeners.aclose()
         if hasattr(store, 'close'):                          # EXEC-BACKTEST-LOAD: the connection pool
             await asyncio.to_thread(store.close)
         if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
@@ -198,6 +210,7 @@ def create_app(settings=None, store=None, orc=None):
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
+    app.state.screeners = screeners
 
     def error(code, status):
         return JSONResponse(status_code=status, content={'error': {'code': code}})
@@ -229,6 +242,11 @@ def create_app(settings=None, store=None, orc=None):
             async for chunk in request.stream():
                 total += len(chunk)
                 if total > 131072:
+                    if request.url.path.startswith('/api/v1/screener/'):
+                        # report 8.8: the screener's refusals name the fix (AGENTS.md "Gates and evidence" (d))
+                        return JSONResponse(status_code=413, content={'error': {
+                            'code': 'REQUEST_TOO_LARGE', 'message': SCREENER_MESSAGES['REQUEST_TOO_LARGE'],
+                            'details': {'limit': 'request_bytes', 'allowed': 131072}}})
                     return error('REQUEST_TOO_LARGE', 413)
                 chunks.append(chunk)
             request._body = b''.join(chunks)
@@ -241,7 +259,7 @@ def create_app(settings=None, store=None, orc=None):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith('/screener-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -285,6 +303,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/monitor')
     @app.get('/terminal')
     @app.get('/backtest')
+    @app.get('/screener')
     @app.get('/login')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
@@ -360,6 +379,22 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_FOUND', 404)
         return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
+    # EDGE screener (report FRONTEND INTEGRATION 9.1): the screener page is served like the backtest page (no data in it;
+    # it asks /api/v1/screener for it); its hashed assets never change and are cached.
+    @app.get('/screener-app/')
+    async def screener_page():
+        target = SCREENER_APP / 'index.html'
+        if not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type='text/html')
+
+    @app.get('/screener-app/assets/{name}')
+    async def screener_asset(name: str):
+        target = SCREENER_APP / 'assets' / name
+        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
     # same-origin and CSRF checks. Only the data routes are forwarded.
@@ -397,6 +432,8 @@ def create_app(settings=None, store=None, orc=None):
 
     # EDGE backtest (CONTRACT.md section 9): /api/v1/backtests... with this session (writes with CSRF, as /api/v1/runs)
     backtests.routes(app, session, write)
+    # EDGE screener (report API CONTRACT 8.2): /api/v1/screener... with this session (writes with CSRF, as the backtest)
+    screeners.routes(app, session, write)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
