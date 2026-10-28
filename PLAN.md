@@ -943,3 +943,14 @@ model biaya, keputusan MU1-MU26) dan ringkasan `verification/edge_multiuser/RING
 **Dipending, 2026-10-28 (kata user):** "Untuk saat ini, rencana untuk multi-user bisa dipending dulu. Jadi please continue
 sampai screener selesai terlebih dahulu." Keputusan MU1-MU26 tidak ditanyakan sekarang. Screener tetap dibangun sesuai
 P29-P34 (data berkunci `owner_key`, batas per user, cache bersama tanpa data user).
+
+**Arah user berikutnya, 2026-10-28 (kata user):** "Yang mesti dipastikan adalah screener worker beserta backtest machine secara
+arsitektur harus bisa menghandle multi-user termasuk terminal. Untuk AI org, leave as is saja. Untuk terminal backtest dan
+screener, efisiensi biaya dan efisiensi proses menjadi prioritas. Akurasi juga. Jadi untuk arsitektur bisa difokuskan untuk hal
+ini. Kita tidak mau biaya terlalu mahal, tapi kita juga tidak mau user kalau memproses, melakukan screen dan lain-lain menjadi
+terlalu lama."
+- **Lingkup aktif:** arsitektur runtime multi-user untuk Terminal, Backtest (mesin backtest) dan Screener, dengan prioritas biaya,
+  kecepatan proses dan akurasi. AI Orc (Monitor) tidak diubah. Bagian lain EDGE-MULTIUSER (akun, privasi, peluncuran) tetap
+  dipending.
+- **Langkah:** rancangan arsitektur dan model biaya disusun dulu (read-only), lalu diajukan ke user untuk "go" sebelum ada
+  perubahan pada Backtest atau Terminal.
