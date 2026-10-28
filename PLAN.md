@@ -951,6 +951,27 @@ laporan (semuanya masih usulan dan menunggu "go"):
   EXEC-MCAP), dan riwayat kinerja screen gaya Portfolio123 (belum ada universe point-in-time; tampilan prototipe diberi
   nama "Stock vs IHSG").
 
+**Jawaban user, 2026-10-28 (kata user):** "P1 OK P2 OK p3 OK P4 tidak, dihide tapi di remark saat di show di filter
+table P12 OK". Tambahan pada pesan yang sama: "Also, ini nanti akan multiuse,r jadi infrastruktur harus bisa di scale UP +
+efficient cost wise. Ada masalah sebelumnya terkait dengan seberapa lama FE displayed setelah browser dibuka. Jadi kamu feel
+free to lihat dan read bagaimana Terminal dan Backtest load its data to front end in terms of the sequence." Lalu: "indikator
+disini belum final, please nanti siapkan dokumentasi sama how screener ini works dan workflow kalau mau tambah indikator (apa
+requirementnya di postgres, table apa yang harus disiapkan) goalnya adalah MD itu bisa dijadikan onboarding documents apa yang
+mesti di cek di service dll to onboard new documents (bukan hanya technical, tapi ada macro juga dll)". Dan: "Please ensure
+patuhi aturannya bahwa setiap workflow maksimal 2 agents agar tidak ada flow yang lambat/ inefficient."
+
+- **Diputuskan:** P1 (a), P2 (a), P3 (a), P12 (a), sesuai rekomendasi laporan.
+- **P4, pilihan user:** saham basi dan saham dengan patahan harga **disembunyikan secara bawaan**; bila user menampilkannya
+  lewat filter, barisnya muncul di tabel dengan **keterangan (remark)** penyebabnya. Ini menggantikan rekomendasi (d)
+  untuk patahan harga. Detail yang masih ditanyakan: saat ditampilkan, apakah nilai indikator yang jendelanya melewati
+  tanggal ex tetap ditampilkan dengan remark, atau dikosongkan dengan remark.
+- **Syarat baru:** (1) multi-user: infrastruktur harus bisa di-scale up dan hemat biaya; (2) waktu tampil halaman setelah
+  browser dibuka: urutan muat mengikuti cara Terminal dan Backtest (EXEC-BACKTEST-LOAD); (3) dokumen onboarding: cara kerja
+  Screener dan alur menambah indikator atau data baru (teknikal, flow, fundamental, makro), termasuk syarat tabel di
+  PostgreSQL dan pemeriksaan per service; (4) setiap workflow agen maksimal 2 agen.
+- **Status:** keputusan ini bukan "go" eksekusi. Laporan dan desain diperbarui dulu dengan syarat di atas; eksekusi Phase 1
+  menunggu "go" user dan dicatat di `EXEC.md`.
+
 **Pertanyaan terbuka (menunggu jawaban user):** keputusan produk P1-P23 dari laporan (UNKNOWNS / PRODUCT DECISIONS
 13.2). Semua rekomendasi masih usulan. Persetujuan untuk audit dan merencanakan bukan "go": eksekusi baru mulai sesudah
 user memberi "go", lalu dicatat sebagai bagian baru di `EXEC.md` bersama pilihan P1-P23 (AGENTS.md "Plans", R34). Yang
