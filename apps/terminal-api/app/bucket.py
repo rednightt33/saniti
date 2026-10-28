@@ -24,8 +24,8 @@ def xsection_index(raw):
     v1/xsection/<name>.<first 16 hex of sha256>.json.gz that are never overwritten). This is the index /state shows
     and /xsection grants from: only well-formed entries, each with exactly those five fields, so /state never names a
     file /xsection would refuse and a key outside the xsection family is never presigned. The publisher keeps exactly
-    these entries when it carries the index forward and prunes (publisher.py xsection_entries; its tests hold the two
-    rules equal). None when state.json holds no index (a publisher before the xsection writer)."""
+    these entries when it carries the index forward and cleans up (publisher.py xsection_entries, collect_garbage; its
+    tests hold the two rules equal). None when state.json holds no index (a publisher before the xsection writer)."""
     if not isinstance(raw, dict):
         return None
     out = {}

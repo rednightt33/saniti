@@ -8323,8 +8323,11 @@ untuk future improvement/ efisiensi akan lebih mudah. Dari awal data, sampai loa
 - E2E dev 2026-10-27 13:27 UTC (edge-bff `390eca4b`, worker `97dd49ce`) lulus semua langkah (RAILWAY_CHANGELOG).
 - PR #39 digabung ke main 2026-10-27 13:55 UTC (`fdd00e7`); deploy otomatisnya dilewati Railway (ERRORS M252), jadi
   edge-bff dev dideploy dari commit itu (`43e5b185`, SUCCESS 14:00 UTC).
-- Sisa: dokumen end-to-end (permintaan N 13:37 UTC) dan PR publisher M250 (pilihan N 13:27 UTC); produksi tidak
-  disentuh.
+- Dokumen end-to-end `BACKTEST_END_TO_END.md` digabung lewat PR #40 (`cfa05ba`).
+- Publisher M250 (pilihan N 13:27 UTC): kunci berisi sha256 dan pembersihan pada run daily berikutnya, `6051f4d`,
+  CLI upload ke terminal-publisher dev `4c2c3823` SUCCESS 14:44 UTC (cron tetap). N 14:40 UTC: "Diuji dev pada run 7.30
+  besok"; uji tambahan sebelum itu dihentikan. Sisa: cek run 00:30 UTC 2026-10-28, lalu merge PR publisher; produksi
+  tidak disentuh.
 
 ## EXEC-TERMINAL-FRESH — broker tertinggal tampil jujur, alat gambar di Flow, kepala tabel Top brokers (go 2026-10-27)
 

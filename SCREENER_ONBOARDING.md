@@ -200,12 +200,12 @@ The existing publisher is described in `BACKTEST_END_TO_END.md` section 4. What 
 
 | Rule | Content |
 |---|---|
-| Key | `v1/xsection/<name>.<sha16>.json.gz`: content-addressed (the first 16 hex of its sha256), never overwritten. The first application of the M250 fix |
+| Key | `v1/xsection/<name>.<sha16>.json.gz`: content-addressed (the first 16 hex of its sha256), never overwritten: the M250 content keys (`content_key`, `store`), as for every data file and pack |
 | Body | one columnar document from `encode`: `schema_version`, `dataset`, `as_of`, `units`, `columns`, equal-length arrays; a row order stated in the document (for `price`: ticker, then date) |
 | Index | `state.json` gains `xsection: {name: {key, sha256, bytes, rows, as_of}}`, still written last |
 | Rebuild | each mode rebuilds the files whose inputs it changed (`daily`, `backfill`, `packs`: `price` and `actions`; `events`: `actions`; Phase 2 `daily`, `backfill`, `broker-range`: the flow files) and carries the other index entries forward unchanged. The publisher work in progress keeps this as one table, `XSECTION_REBUILT_BY` (name → modes); a new file adds its row there. A file that fails to build keeps its previous index entry |
-| Pruning | an object no index references is deleted on the run after the next, so a reader holding the previous index never loses its file |
-| Tests | a publisher unit test: each ticker's slice of `price` equals its pack document; the index is written before `state.json`; carry-forward; pruning keeps the previous index's objects; (Phase 2) the completeness gate |
+| Cleanup | the publisher's `collect_garbage` (ERRORS M250, the same cleanup as for data files and packs): a daily run, before it writes, deletes an xsection object the `state.json` index no longer names, once the last finished run is an hour old (nothing newer than `state.json`; nothing while no index names a file), so a reader holding the previous index keeps its file for at least that hour (BACKTEST_END_TO_END.md 4.3) |
+| Tests | a publisher unit test: each ticker's slice of `price` equals its pack document; the index is written before `state.json`; carry-forward; the cleanup keeps what the index names, waits the hour and keeps objects newer than `state.json`; (Phase 2) the completeness gate |
 
 Phase 1 files: `price` (every ticker including IHSG, full history, columns `t,d,o,h,l,c,v`, plus
 `tickers: [{t, pack_sha256, first, last, rows}]`) and `actions` (price-affecting actions with an ex-date on or after
