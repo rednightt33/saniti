@@ -5049,3 +5049,19 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   `bt_6789555252413858cb77f71bcaec08b1`; the worker still `292f7caa` on the gateway key). One K3 trial added.
 - Rollback (B9 order): workers back on `${{terminal-api.TERMINAL_PROXY_KEY}}` first (none uses a service key yet), then
   `deploymentRollback` of `689dc465-b4e8-45f4-966a-a825fdad9599`; the old build runs on the migrated schema.
+
+## 2026-10-29 — backtest-worker `e3c07b59` on its own terminal account (EXEC-MU-RUNTIME step 5, T1; Phase 0 timings)
+
+- Service backtest-worker, environment dev, 10:32 UTC: `TERMINAL_PROXY_KEY` set to the reference
+  `${{terminal-api.TERMINAL_SERVICE_KEY_BACKTEST_WORKER}}` (`--skip-deploys`; checked in memory: equal to terminal-api's
+  service key, not the gateway key), then a CLI upload of the Dockerfile's build context from `main` `b841a45` (the
+  paths its COPY lines name, the `Dockerfile` at the upload root, `--path-as-root`). Tree digest
+  `c35795ec89d7a3c7f51e9b02cfc531f344b9ad725a2caf407788fd68c40ba460`. Status SUCCESS at 10:34 UTC; start log
+  `engine_version` `ecebb87036dd030b` (the Phase 0 timing lines change the worker sources it hashes; nothing reads a
+  stored result's engine version, `scripts/screener/backtest_worker_baseline.json`), registry `b6a8dc0ba206ed65`.
+- Verified: its start-up catalog loaded IHSG through terminal-api with the service key; `verification/backtest/e2e_dev.py
+  --skip-page --only single` passed (no failed check; job `bt_18d1f1f9b2d40cce834c34468fc4e44b`; catalog 845 tickers
+  through 2026-10-28, engine `ecebb87036dd030b`); the log carries the new `job_end` line with `phases_ms` (Phase 0).
+  One K3 trial added.
+- Rollback: `TERMINAL_PROXY_KEY` back to `${{terminal-api.TERMINAL_PROXY_KEY}}` and `deploymentRollback` of
+  `292f7caa-009b-4cb1-b52d-8f9274c106ad` (both together restart once).
