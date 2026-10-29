@@ -8956,7 +8956,15 @@ berdasarkan inspeksi kode, log dan data live saat itu, bukan ingatan (AGENTS.md 
   dengan aturan aman yang sama, dibatasi waktu; (3) peringatan Telegram untuk run gagal dan publikasi yang tidak terbit.
   Format file, kunci objek dan pembaca (terminal-api, Terminal, Backtest, Screener) tidak berubah.
 - **Hanya dev.** Rollback: deploy ulang publisher `0d33d8ac` (sumber `main` `b841a45`).
-- **Status 2026-10-29:** dimulai.
+- **Status 2026-10-29:** di dev.
+  - PR rednightt33/saniti#45 (merge `2cdee55`) dibuat setelah tinjauan independen; tiga temuannya diperbaiki dengan tes.
+  - telegram-monitor `9451d652`; publisher run manual `f1092ec4`, lalu `1e251c3a` terjadwal; cron `0,30 0,1,12 * * *`.
+  - Run manual: 845 manifest terbaca 34,8 s (sebelumnya 8,7 menit), `state.json` 86,3 s setelah mulai (tanpa file
+    data yang berubah).
+  - Cek lulus: terminal-api `present`, Backtest E2E, dan Screener (baris identik).
+  - Sisa: jalur tulis paralel diukur oleh run terjadwal pertama (07:30 dan 19:00 WIB, 2026-10-30). Listing
+    bersih-bersih dari kontainer publisher masih macet (`gc_failed`, tidak menunda publikasi; ERRORS M301, penyebab
+    belum terverifikasi).
 
 ### Riwayat (dipindah dari PLAN.md PUBLISHER-SPEED)
 

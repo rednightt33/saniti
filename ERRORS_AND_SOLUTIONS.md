@@ -4216,7 +4216,15 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   Rehearsal at 0.54 s per request, 845 tickers: 125 s to `state.json` (was 55 minutes on dev). Tests
   `tests/test_publisher.py` (order with overlapping puts, failed put, cleanup after publication, mutations of each
   barrier caught). Not done: one manifest index object per run (the parallel reads take about 30 s).
-- **Status:** FIXED in code; deploy to dev and its measured run follow (RAILWAY_CHANGELOG).
+- **Deployed on dev 2026-10-29** (publisher `f1092ec4` then `1e251c3a`, RAILWAY_CHANGELOG): a manual daily run read 845
+  manifests in 34.8 s and wrote `state.json` 86.3 s after its start (no data file had changed); checks passed.
+- **Still open (cleanup listing):** after the publication, the cleanup's whole-bucket listing from the publisher's
+  container hung (`ReadTimeoutError` three times) and ended `gc_failed` 8.7 minutes later, deleting nothing; the same
+  listing from the sandbox took 11 s. The 19:00 WIB run before the change failed the same way, so the bucket keeps the
+  objects no publication names. SUSPECTED, not verified: something on the path from `sfo` for some listing page. Checks:
+  per-page time and size in the cleanup log, per-prefix listing with smaller pages, the same listing from another
+  `sfo` service (`verification/terminal_api/publisher_speed/PUBLISHER_SPEED.md` section 6).
+- **Status:** speed FIXED on dev (the write path is measured by the first scheduled runs); cleanup listing OPEN.
 - **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
   before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path.
 
@@ -4272,7 +4280,9 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   publisher then logs `publication_notify_failed`); a scheduled run that starts more than 20 minutes late is labelled
   manual, so its `failed` and the check's `missing` are two messages; a check tick that starts more than 20 minutes
   late runs a publication, as the 07:00 and 19:30 WIB ticks already did.
-- **Status:** FIXED in code; deploy (telegram-monitor from `main`, publisher by CLI upload, cron change) follows.
+- **Status:** deployed on dev 2026-10-29 (telegram-monitor `9451d652`, publisher `1e251c3a`, cron `0,30 0,1,12 * * *`;
+  RAILWAY_CHANGELOG). No alert has fired yet; the first check ticks are 07:00 and 08:00 WIB on 2026-10-30, and their
+  `check` lines show the result.
 - **Lesson for new data:** a new scheduled publication ships with its failure, slowness and freshness alerts, on paths
   that do not depend on the job being alive.
 

@@ -1,0 +1,11 @@
+Starting Container
+OUT {"q": "ready", "status": 200}
+OUT {"q": "state_without_key_refused", "status": 401, "code": "not_signed_in"}
+OUT {"q": "state", "fields": ["broker_behind_sessions", "broker_through", "finished_at", "price_through", "refs", "xsection"], "finished_at": "2026-10-29T15:23:23.954669+00:00", "price_through": "2026-10-29", "broker_through": "2026-10-27", "broker_behind_sessions": 2, "xsection": {"price": {"sha256": "2edae2c1ebfe74c3", "bytes": 11770934, "rows": 1332376, "as_of": "2026-10-29"}, "actions": {"sha256": "418246b16b3b19d5", "bytes": 20752, "rows": 3403, "as_of": "2026-10-27 14:52:25.727874+00"}}, "refs": ["brokers", "logos", "tickers"]}
+OUT {"q": "xsection_without_key_refused", "status": 403, "code": "gateway_only"}
+OUT {"q": "xsection_unknown_name_refused", "status": 404, "code": "xsection_not_published"}
+OUT {"q": "xsection_file_price", "host": "terminal-display-2tbjyena.t3.storageapi.dev", "bytes": 11770934, "inflated": 74361571, "sha256": "2edae2c1ebfe74c3", "rows": 1332376, "as_of": "2026-10-29", "shape": {"schema_version": 1, "name": "price", "units": 2, "means": 3, "columns": 7, "t": 1332376, "d": 1332376, "o": 1332376, "h": 1332376, "l": 1332376, "c": 1332376, "v": 1332376, "tickers": 845}}
+OUT {"q": "xsection_file_actions", "host": "terminal-display-2tbjyena.t3.storageapi.dev", "bytes": 20752, "inflated": 179331, "sha256": "418246b16b3b19d5", "rows": 3403, "as_of": "2026-10-27 14:52:25.727874+00", "shape": {"schema_version": 1, "name": "actions", "units": 3, "means": 6, "columns": 7, "t": 3403, "d": 3403, "type": 3403, "ratio_old": 3403, "ratio_new": 3403, "amount_per_share": 3403, "currency": 3403}}
+OUT {"q": "manifest_unchanged_route", "status": 200}
+VERDICT PASS
+JOB_DONE TERMINAL_CHECK

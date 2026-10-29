@@ -5154,3 +5154,55 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   (was the raw `12:59:56.101946+00:00`), cold open to first results 1.78 s, warm 1.01 s, a preset run 0.50 s, an edited
   run 0.48 s, a preview 0.31 s.
 - Rollback: `serviceInstanceDeployV2` with `main` `5c12216` (deployment `8191fff7`).
+
+## 2026-10-29 — telegram-monitor `9451d652`, terminal-publisher `f1092ec4` / `1e251c3a`, publisher cron `0,30 0,1,12 * * *` (EXEC-PUBLISHER-SPEED; PR #45)
+
+- **telegram-monitor:** environment dev, from GitHub `main` `2cdee55` (the merge of PR rednightt33/saniti#45,
+  auto-deploy; deployment `9451d652-b83b-4442-8bc4-cf62cc2a15ad`), SUCCESS 15:20 UTC; start log `server_started`,
+  `/health` 200. New source `Terminal_Publisher_Health` (ERRORS M303). edge-bff and screener-worker SKIPPED the commit
+  (watch paths). No variable changed.
+- **terminal-publisher**, M229 option A, outside the B6 windows:
+  1. `cronSchedule` set to null (`serviceInstanceUpdate`, read back `None`).
+  2. CLI upload of `git archive 2cdee55 apps/terminal-publisher` (tree `ec9b3de2e976c55dfa570ae13243f25d39b7dad4`;
+     `publisher.py` sha256 `0ec53d58727b93c8...`) as RUN `f1092ec4-c6f1-4cbb-89ba-c8324a7599fe`. It ran at once,
+     15:21:58-15:32:08 UTC.
+  3. `cronSchedule` set to `0,30 0,1,12 * * *` (read back; `nextCronRunAt` 2026-10-30 00:00 UTC, a check tick).
+  4. SCHED upload of the same tree, `1e251c3a-b16f-40bd-a255-3a1e4d85fb60`, SUCCESS 15:33 UTC; with the cron set it built
+     and did not run.
+
+  No variable changed: `TERMINAL_BUCKET_THREADS` and `TERMINAL_RUN_ALERT_MINUTES` take their defaults (16, 30), and
+  `TELEGRAM_NOTIFY_URL`/`SECRET` were already set (checked present, values not read).
+- **The run (`railway logs --json`):**
+
+  | Step | Result |
+  |---|---|
+  | 845 manifests read, 16 threads | 34.8 s (8.7 min on the 19:00 WIB run) |
+  | Plan | 0 files (nothing changed since the 19:00 WIB publication) |
+  | xsection (same bytes, not put again) | 35.1 s |
+  | refs | 2.6 s |
+  | `state.json` | 15:23:23.95 UTC |
+
+  `done` came 86.3 s after the start, with `phases` and `threads` 16. Two `bucket_retry` `ClientError` during the
+  manifest reads were asked again and passed.
+
+  The cleanup after `state.json` did not complete: its whole-bucket listing hung (`ReadTimeoutError` at 15:25:37,
+  15:27:47, 15:29:48) and ended `gc_failed` at 15:32:08, deleting nothing. The publication was not delayed.
+
+  The same listing from the sandbox at 15:30 UTC took 10.9 s for 21 pages, 0.4-1.8 s each
+  (`verification/terminal_api/publisher_speed/`). ERRORS M301 stays open for this part.
+- **Verified:**
+  - `verification/screener/jobs/run_terminal_check.sh present` VERDICT PASS (`finished_at` 15:23:23, both xsection
+    files granted, downloaded and checked; VAR_REMOVED);
+  - `verification/backtest/e2e_dev.py --skip-page --only single` passed (single and repeat FINISHED, no failed check;
+    catalog 845 tickers, data through 2026-10-29);
+  - `verification/screener/live_check_dev.py`: the worker serves the 15:23:23 publication, and the four screens'
+    rows are identical to the check before the change (155, 88, 249, 442 matches).
+- **IaC:**
+  - `.railway/railway.ts` carries the new cron (PR #45).
+  - edge-bff's `SCREENER_TIMEOUT_SECONDS`, `SCREENER_WORKER_KEY` and `SCREENER_WORKER_URL` (set when the Screener was
+    turned on, edge-bff `8191fff7` above) were missing from the file: `railway config plan` wanted to delete them. They are added as
+    `preserve()`, and the plan now reads "Your Railway configuration is already up to date." Nothing was applied.
+- **Rollback:**
+  - publisher: CLI upload of `git archive 5c12216 apps/terminal-publisher` (the code of `0d33d8ac`), with the cron back
+    to `0,30 0,12 * * *`, by the same M229 steps;
+  - telegram-monitor: redeploy `main` `ddd8e5f` (the new source is simply never asked).

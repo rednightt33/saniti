@@ -1,0 +1,23 @@
+run at 2026-10-29T15:35:14Z from the sandbox (US)
+page 0: 1000 keys 1.90 s first=v1/broker/AADI/2024.json.gz
+page 1: 1000 keys 0.67 s first=v1/broker/BGTG/2023.json.gz
+page 2: 1000 keys 0.66 s first=v1/broker/DEWA/2026.json.gz
+page 3: 1000 keys 0.48 s first=v1/broker/IDPR/2020.json.gz
+page 4: 1000 keys 0.45 s first=v1/broker/LSIP/2018.json.gz
+page 5: 1000 keys 0.45 s first=v1/broker/PEGE/2026.json.gz
+page 6: 1000 keys 0.47 s first=v1/broker/SMKL/2024.json.gz
+page 7: 1000 keys 0.78 s first=v1/broker/WTON/2016.json.gz
+page 8: 1000 keys 0.42 s first=v1/logo/ATIC.png
+page 9: 1000 keys 0.48 s first=v1/manifest/DATA.json
+page 10: 1000 keys 0.46 s first=v1/pack/CFIN/broker-archive.json.gz
+page 11: 1000 keys 0.48 s first=v1/pack/MTLA/price.json.gz
+page 12: 1000 keys 0.42 s first=v1/pack/UDNG/price.json.gz
+page 13: 1000 keys 0.58 s first=v1/price/BAUT/2026.1ab06364bb03c5c6f4793
+page 14: 1000 keys 0.48 s first=v1/price/CBUT/2026.c2561b272bb675a6045ad
+page 15: 1000 keys 0.46 s first=v1/price/GDST/2026.json.gz
+page 16: 1000 keys 0.48 s first=v1/price/JKON/2022.json.gz
+page 17: 1000 keys 0.51 s first=v1/price/MITI/2025.json.gz
+page 18: 1000 keys 0.45 s first=v1/price/PPRI/2026.json.gz
+page 19: 1000 keys 0.47 s first=v1/price/SPTO/2024.json.gz
+page 20: 73 keys 0.30 s first=v1/price/YELO/2021.json.gz
+total 11.8 s, 21 pages
