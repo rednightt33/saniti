@@ -4,7 +4,7 @@
    arrive late, ERRORS M253). The page modules never compute an indicator, a condition or a match themselves: they
    render what this interface returns (report I1). */
 import type {
-  CatalogResponse, CountsRequest, CountsResponse, Definition, ItemKind, ItemsResponse, PreviewRequest, PreviewResponse,
+  ApiError, CatalogResponse, CountsRequest, CountsResponse, Definition, ItemKind, ItemsResponse, PreviewRequest, PreviewResponse,
   PutItemRequest, RunRequest, RunResponse, SavedItem, UniverseResponse, ValidateResponse, WatchlistResponse,
 } from '../core/contract.ts';
 
@@ -21,10 +21,13 @@ export type Conditional<T> =
 export interface RunAnswer { body: RunResponse; bytes: Uint8Array }
 
 /** An answer that is an error, as the page shows it: the refusal's code, field and message (report 8.8), the HTTP
-    status, Retry-After in seconds where the server sent one, and the error's details. */
+    status, Retry-After in seconds where the server sent one, and the error's details. `wire`: the contract error body
+    as it came (null without one), so a caller whose request carried another definition than the page shows (a saved
+    screen duplicated) words it on that definition (texts.ts failureOn); the message names the page's cards. */
 export class ApiFailure extends Error {
   constructor(message: string, readonly code = '', readonly status = 0, readonly field?: string,
-              readonly retryAfter: number | null = null, readonly details: Record<string, unknown> | null = null) { super(message) }
+              readonly retryAfter: number | null = null, readonly details: Record<string, unknown> | null = null,
+              readonly wire: ApiError['error'] | null = null) { super(message) }
 }
 /** Whether a call failed because its caller aborted it (a newer edit replaced it): nothing to show. */
 export const isAbort = (e: unknown) => (e as { name?: string } | null)?.name === 'AbortError';

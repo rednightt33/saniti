@@ -125,7 +125,7 @@ describe('every (key, operator) pair of the prototype maps to a wire test or a s
       const [k] = pair.split(' ');
       const ok = (CAT[k].g === 'Fundamental' && /^METRIC_UNAVAILABLE/.test(why))
         || (['bandar', 'topacc', 'broker', 'bavg', 'fnet', 'fstreak', 'fpct', 'freq'].includes(k) && /^METRIC_UNAVAILABLE/.test(why))
-        || (k === 'ichimoku' && /^METRIC_UNAVAILABLE.*registry release/.test(why))
+        || (k === 'ichimoku' && /^METRIC_UNAVAILABLE.*later release of the indicator list/.test(why))
         || (['x_obv', 'x_pvt', 'x_adl', 'x_nvi', 'x_pvi'].includes(k) && /depends on where its history starts/.test(why));
       expect([pair, ok]).toEqual([pair, true]);
     }

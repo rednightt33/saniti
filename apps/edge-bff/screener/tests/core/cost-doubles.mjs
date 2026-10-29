@@ -26,8 +26,16 @@ function windowMax(x, n) {
   return o;
 }
 
+/* Run once when the module loads, so these two kernels are compiled at import: the probe has to start its work meter
+   before it imports the measured module (costWork), or their loops run without block counts and the probe stops
+   (registry-cost.test.mjs: with the module loaded before the meter, the probe refuses). */
+windowMax([3, 1, 2], 2);
+runningMean([1, 2, 3], 2);
+
 export const DEFAULTS = {
   window_max: { length: 14 },
+  window_reduce: { length: 14 },
+  wide_window: { length: 1500 },
   window_over_intermediate: { length: 14, smooth: 3 },
   running_mean: { length: 20 },
   recursive: { length: 20 },
@@ -37,6 +45,12 @@ export const DEFAULTS = {
 
 export const F = {
   window_max: (B, p) => ({ out: windowMax(B.C, p.length) }),
+  // O(N·n) through a built-in that calls back into JavaScript: each window's slice summed by reduce (the callback runs
+  // n times per bar and is counted); a window inside a built-in that does not call back is not counted (the generator's
+  // executedChars notes)
+  window_reduce: (B, p) => ({ out: B.C.map((_, i) => (i >= p.length - 1 ? B.C.slice(i - p.length + 1, i + 1).reduce((a, b) => a + b, 0) / p.length : null)) }),
+  // the window loop at a default so large that the probe's second length (at most a quarter of the bars) is close to it
+  wide_window: (B, p) => ({ out: windowMax(B.C, p.length) }),
   // O(N·n) in length on an internal intermediate array, O(N) in smooth (Stochastic RSI's shape: RSI, then a window)
   window_over_intermediate: (B, p) => {
     const m = runningMean(B.C, p.smooth);

@@ -655,7 +655,7 @@
       "id": "ichi",
       "category": "Technical",
       "name": "Ichimoku Bullish",
-      "why": "Close above the Ichimoku(9, 26, 52) cloud and Tenkan crossing above Kijun within the last 10 sessions (needs a registry release, P6).",
+      "why": "Close above the Ichimoku(9, 26, 52) cloud and Tenkan crossing above Kijun within the last 10 sessions (waits for a later release of the indicator list that adds Ichimoku).",
       "definition": {
         "universe": {
           "security_types": [

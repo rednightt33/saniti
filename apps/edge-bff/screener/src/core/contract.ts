@@ -377,7 +377,11 @@ export type Availability = 'AVAILABLE' | 'REQUIRES_DATA' | 'REQUIRES_DECISION' |
 /** history_class (report 6.8 cut probe): window (equal to full history once its window is full), recursive (decays
     toward the full-history value), cumulative (never converges: level depends on the start bar), calendar (anchored). */
 export type HistoryClass = 'window' | 'recursive' | 'cumulative' | 'calendar';
-/** cost_class (report 6.8): O(N) or O(N·n), from the timing ratio at two lengths. */
+/** cost_class (report 6.8): O(N) or O(N·n), from the work of F at two lengths of the parameter (its default L1 and
+    L2 = max(1000, 50 x L1), at most a quarter of the fixture's bars), counted, never timed: V8 precise block coverage
+    counts the executed source characters in a child process without the optimizing compiler (--max-opt=1). O(N·n) when
+    the work grows at least five times, O(N) when at most twice; a growth in between stops the build
+    (scripts/build-screener-registry.mjs costClass, costVerdict). */
 export type CostClass = 'O(N)' | 'O(N·n)';
 /** The prototype's shapes (report 6.9.1), kept in screener-overlay.json. */
 export type Shape = 'line' | 'band' | 'dir' | 'osc' | 'pair' | 'adx' | 'vol' | 'cum';

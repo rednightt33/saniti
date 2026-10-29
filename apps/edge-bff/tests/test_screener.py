@@ -308,7 +308,7 @@ def test_catalog_and_universe_are_kept_per_worker_state_with_an_etag(app, worker
     assert all(set(x) == {'name', 'value', 'unit', 'rule', 'example_ok', 'example_refused'} and all(x.values())
                for x in body['limits'])
     saved = body['limits'][1]
-    assert saved == {'name': 'saved_items', 'value': 50, 'unit': 'items of each kind',
+    assert saved == {'name': 'saved_items', 'value': 50, 'unit': 'saved items',
                      'rule': 'at most 50 saved screens and 50 My metrics',
                      'example_ok': 'saving a new screen while 49 are saved',
                      'example_refused': 'saving a new screen while 50 are saved (delete one first)'}
@@ -349,6 +349,19 @@ def test_catalog_and_universe_are_kept_per_worker_state_with_an_etag(app, worker
     assert [x['name'] for x in limits] == ['watchlist', 'saved_items', 'saved_definition_bytes', 'request_bytes',
                                            'inflight_per_page']
     assert limits[0]['value'] == 7
+
+
+def test_own_limits_are_plain_words_and_equal_the_page_tests_copy():
+    """The words of edge-bff's limits are shown as they are (Method & sources; a refusal quotes the rule, "this one
+    needs N <unit>" and the fix in the closing parenthesis of example_refused), so they name no limit or code; the
+    page tests read them from screener/tests/fixture/edge-bff-limits.json, which must equal own_limits() (its walk,
+    screener/tests/page/plain-words.test.ts, checks the words with the page's pattern)."""
+    copy = json.loads((Path(__file__).resolve().parents[1] / 'screener/tests/fixture/edge-bff-limits.json').read_text())
+    assert screener.own_limits() == copy
+    for x in screener.own_limits():
+        for k in ('unit', 'rule', 'example_ok', 'example_refused'):
+            assert '_' not in x[k] and 'replica' not in x[k], (x['name'], k, x[k])
+        assert x['example_refused'].rstrip().endswith(')'), x['name']   # the fix the page takes (texts.ts fixOf)
 
 
 def test_a_newer_publication_seen_in_a_run_drops_the_cached_catalog_at_once(app, worker):

@@ -35,7 +35,7 @@ export interface Entry {
   kind: 'indicator' | 'metric' | 'fundamental';
   group: string;
   label: string; short: string; desc: string; xid?: string;
-  params: CatalogParam[];
+  params: EntryParam[];
   opts: Opt[];
   def: { opt: string; value: number | ''; value2: number | ''; within: number };
   available: boolean; availability: Availability; reason: string | null;
@@ -54,6 +54,29 @@ function outLabel(ind: CatalogIndicator, o: CatalogOutput | undefined, key: stri
 /** the indicator's short name: the catalog's `short` (additive, the generated registry's), else its first upper-case
     synonym, else its key */
 export const shortOf = (ind: CatalogIndicator) => (ind as any).short || (ind.synonyms || []).find(s => /^[A-Z%][A-Za-z0-9 %/+()-]{0,11}$/.test(s)) || ind.key.replace(/_/g, ' ').toUpperCase();
+
+/** A catalog parameter as the page holds it: option_labels, the words of the options whose wire value is no word (a
+    line of another indicator, 'I40.obv', in a pattern's "Line" select; a value with an underscore, Keltner's
+    'HL_RANGE'), derived from the catalog. */
+export type EntryParam = CatalogParam & { option_labels?: Record<string, string> };
+/** an option (or any parameter value) as the page shows it: its label, else the value itself */
+export const optionText = (p: EntryParam, x: unknown): string => p.option_labels?.[String(x)] ?? String(x);
+/** option_labels of an entry's parameters: an option '<indicator id>.<output>' is named by that indicator (and the
+    output, for one of several), as the catalog's indicators name them; an option with underscores by its words (the
+    first as written, the others in lower case: 'HL_RANGE' is "HL range") */
+function withOptionLabels(params: CatalogParam[], indicators: readonly CatalogIndicator[]): EntryParam[] {
+  return params.map(p => {
+    const labels: Record<string, string> = {};
+    for (const o of p.options || []) {
+      const m = /^(I\d+)\.(\w+)$/.exec(o), ind = m ? indicators.find(i => i.id === m[1]) : undefined;
+      if (ind) {
+        const out = ind.outputs.find(x => x.key === m![2]);
+        labels[o] = ind.outputs.length > 1 && out?.label ? `${ind.name}, ${out.label}` : ind.name;
+      } else if (o.includes('_')) labels[o] = o.split('_').filter(Boolean).map((w, i) => i ? w.toLowerCase() : w).join(' ');
+    }
+    return Object.keys(labels).length ? { ...p, option_labels:labels } : p;
+  });
+}
 
 /** the label of an indicator test option when the overlay gives none (the prototype's words where it had them) */
 function optLabel(ind: CatalogIndicator, o: CatalogOutput, spec: TestFormSpec, op: TestOp, valueOuts: number): string {
@@ -79,7 +102,7 @@ function optLabel(ind: CatalogIndicator, o: CatalogOutput, spec: TestFormSpec, o
 }
 const kindOf = (f: TestForm): TestKind => f.startsWith('value') ? 'value' : f.startsWith('state') ? 'state' : 'event';
 
-function indicatorEntry(ind: CatalogIndicator): Entry {
+function indicatorEntry(ind: CatalogIndicator, indicators: readonly CatalogIndicator[] = []): Entry {
   const opts: Opt[] = [];
   const valueOuts = ind.outputs.filter(o => o.tests.some(t => t.form === 'value' || t.form === 'event_value')).length;
   for (const o of ind.outputs) {
@@ -103,7 +126,7 @@ function indicatorEntry(ind: CatalogIndicator): Entry {
   return {
     key:ind.id, kind:'indicator', group:ind.category, label:ind.name, short, xid:ind.id,
     desc:(ind as any).description || `${ind.name} (${ind.id}).`,
-    params:ind.params, opts,
+    params:withOptionLabels(ind.params, indicators), opts,
     def:{ opt:defOpt?.key || '', value:dt?.value ?? 0, value2:dt?.value2 ?? '', within:dt?.within ?? 5 },
     available:opts.some(o => !o.disabled), availability:'AVAILABLE', reason:opts.some(o => !o.disabled) ? null : 'No test is offered for this indicator.',
     synonyms:ind.synonyms || [],
@@ -112,7 +135,7 @@ function indicatorEntry(ind: CatalogIndicator): Entry {
   };
 }
 
-function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental'): Entry {
+function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental', indicators: readonly CatalogIndicator[] = []): Entry {
   const opts: Opt[] = [];
   const pattern = m.kind === 'pattern';
   for (const t of m.tests) {
@@ -129,7 +152,7 @@ function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental'): Entry {
     key:m.id, kind, group:kind === 'fundamental' ? 'Fundamental' : GROUP_OF_METRIC(m.group, m.kind),
     label:(m as any).label || (m as any).name || m.id, short:(m as any).short || (m as any).label || m.id,
     desc:m.interpretation || m.formula || '',
-    params:m.params || [], opts,
+    params:withOptionLabels(m.params || [], indicators), opts,
     def:{ opt:defOpt?.key || '', value:def?.value ?? 0, value2:def?.value2 ?? '', within:def?.within ?? 5 },
     available, availability:m.availability, reason:available ? null : (m.reason || 'Not available.'),
     synonyms:(m as any).synonyms || [], history:null, metric:m, metricKind:m.kind,
@@ -139,9 +162,9 @@ function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental'): Entry {
 /** Every entry of the catalog, indicators first (registry order), then metrics, then fundamentals. */
 export function entriesOf(cat: CatalogResponse): Entry[] {
   return [
-    ...cat.indicators.map(indicatorEntry),
-    ...cat.metrics.map(m => metricEntry(m, 'metric')),
-    ...cat.fundamentals.map(m => metricEntry(m, 'fundamental')),
+    ...cat.indicators.map(ind => indicatorEntry(ind, cat.indicators)),
+    ...cat.metrics.map(m => metricEntry(m, 'metric', cat.indicators)),
+    ...cat.fundamentals.map(m => metricEntry(m, 'fundamental', cat.indicators)),
   ];
 }
 export const byGroup = <T extends { group: string }>(list: T[]) => [...list].sort((x, y) => GORD.indexOf(x.group) - GORD.indexOf(y.group));
@@ -162,8 +185,8 @@ export const isDefP = (p: CatalogParam, v: ParamValue | undefined) => v === unde
 
 /** Check one parameter value against the catalog (report 9.2: invalid input is refused in place with the field and
     the allowed range, never rounded or ignored). Returns the error text or null. */
-export function paramError(p: CatalogParam, v: ParamValue): string | null {
-  if (p.type === 'enum') return (p.options || []).includes(String(v)) ? null : `Pick one of ${(p.options || []).join(', ')}.`;
+export function paramError(p: EntryParam, v: ParamValue): string | null {
+  if (p.type === 'enum') return (p.options || []).includes(String(v)) ? null : `Pick one of ${(p.options || []).map(x => optionText(p, x)).join(', ')}.`;
   if (p.type === 'boolean') return typeof v === 'boolean' ? null : 'Pick true or false.';
   if (typeof v !== 'number' || !Number.isFinite(v)) return 'Enter a number.';
   if ((p.integer || p.type === 'integer') && !Number.isInteger(v)) return 'Enter a whole number.';

@@ -180,9 +180,14 @@ function parseJson(body: Buffer | null): unknown {
   const text = body ? body.toString('utf8') : '';
   try { return text ? JSON.parse(text) : null } catch { throw refuse('INVALID_INPUT', 'The request body is not JSON.', 'body') }
 }
-const budgetRefusal = (what: string, e: Estimate, max: number) => refuse('LIMIT_EXCEEDED',
-  `This ${what} is predicted to need ${e.needed_ms} ms of compute, above the ${max} ms budget${e.costliest ? `; the costliest condition is ${e.costliest}` : ''}. Use default parameters, shorter lengths, fewer custom conditions or a narrower universe.`,
-  undefined, { limit: 'compute_budget', allowed: max, needed: e.needed_ms, ...(e.costliest ? { costliest: e.costliest } : {}) });
+/** compute_budget's refusal: the costliest condition by its number in the definition (details.costliest keeps its id,
+    which the page words as the card) */
+const budgetRefusal = (what: string, e: Estimate, max: number, def: Definition) => {
+  const at = e.costliest ? def.conditions.findIndex(c => c.id === e.costliest) : -1;
+  return refuse('LIMIT_EXCEEDED',
+    `This ${what} is predicted to need ${e.needed_ms} ms of compute, above the ${max} ms budget${at >= 0 ? `; the costliest is condition ${at + 1}` : ''}. Use default parameters, shorter lengths, fewer custom conditions or a narrower universe.`,
+    undefined, { limit: 'compute_budget', allowed: max, needed: e.needed_ms, ...(e.costliest ? { costliest: e.costliest } : {}) });
+};
 
 export interface AppOptions {
   engine?: Engine;                       // tests
@@ -384,7 +389,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     const c = counts.get(countsKey(s, hash));
     if (hit && c) return { gzip: hit.gzip, etag: hit.etag, match_count: c.match_count, near_count: c.near_count, cache_hit: true, outcome: null, queue_ms: 0, predicted_ms: 0 };
     const e = engine.estimate(def, s);
-    if (!system && e.needed_ms > L.max_cpu_ms) throw budgetRefusal('screen', e, L.max_cpu_ms);
+    if (!system && e.needed_ms > L.max_cpu_ms) throw budgetRefusal('screen', e, L.max_cpu_ms, def);
     if (!system) budget.check(owner, pool.reserved(owner), e.needed_ms);
     const task: RunTask = { kind: 'run', sid: s.sid, definition: def, hash, options, queue_ms: 0, s0_ms: e.s0_ms, versions: s.desc.versions, data: s.desc.data };
     const job = pool.submit({ owner, kind: system ? 'system' : 'run', page: order?.page ?? null, order: order?.seq ?? null, cost: e.needed_ms, deadlineAt, task });
@@ -456,12 +461,12 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const s = await pinned(e.data_version);
       const n = await engine.normalize(e.definition, s);
       const ticker = e.ticker as string;
-      if (!s.position.has(ticker) || !s.desc.rows.some(r => r.ticker === ticker)) throw refuse('INVALID_INPUT', `${ticker} is not a listed stock of this publication; preview a ticker of GET universe.`, 'ticker');
+      if (!s.position.has(ticker) || !s.desc.rows.some(r => r.ticker === ticker)) throw refuse('INVALID_INPUT', `${ticker} is not a listed stock of this publication; look up a listed ticker instead.`, 'ticker');
       const k = resultKey(s.desc, n.hash, e.options, `preview:${ticker}`), hit = results.get(k);
       const line = (o: Record<string, unknown>) => log('info', 'preview', { definition_hash: n.hash, data_version: s.price_data, ticker, owner_tag: owner, replica: REPLICA, ...o, total_ms: Math.round(performance.now() - arrived) });
       if (hit) { sendGzip(req, res, hit.gzip, hit.etag); line({ cache_hit: true }); return }
       const est = engine.estimate(n.normalized, s, ticker);
-      if (est.needed_ms > L.max_cpu_ms) throw budgetRefusal('preview', est, L.max_cpu_ms);
+      if (est.needed_ms > L.max_cpu_ms) throw budgetRefusal('preview', est, L.max_cpu_ms, n.normalized);
       budget.check(owner, pool.reserved(owner), est.needed_ms);
       const data = s.desc.data;                      // replaced by an advance: an answer computed before it is not cached (compute)
       const task: PreviewTask = { kind: 'preview', sid: s.sid, definition: n.normalized, ticker, periods: metrics.periods ?? null, versions: { ...s.desc.versions }, data: { ...data } };
@@ -489,7 +494,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
           const c = counts.get(countsKey(s, n.hash));
           if (c) { hits++; entries.push({ item_id: d.item_id, match_count: c.match_count, near_count: c.near_count, busy_ms: 0 }); continue }
           const est = engine.estimate(n.normalized, s);
-          if (est.needed_ms > L.max_cpu_ms) throw budgetRefusal('screen', est, L.max_cpu_ms);
+          if (est.needed_ms > L.max_cpu_ms) throw budgetRefusal('screen', est, L.max_cpu_ms, n.normalized);
           cost += est.needed_ms;
           items.push({ item_id: d.item_id, definition: n.normalized, hash: n.hash });
           entries.push(null);

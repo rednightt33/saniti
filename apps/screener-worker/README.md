@@ -206,12 +206,13 @@ The image keeps the repository layout under `/app`, because the worker imports t
 ## Tests
 
 `npm test` runs every suite with a fake terminal-api (`tests/fake-terminal.mjs`: `/state`, `/xsection` with the proxy key and
-skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file). Last run: 59 of 59 pass (2026-10-29).
+skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file). Last run: 61 of 61 pass (2026-10-29).
 
 | Suite | What it locks |
 |---|---|
 | `config.test.ts` | every limit required with no default; errors name the variable, not the value; cap and owner-budget checks; `screener_engine` is a content hash; the start-up check |
 | `readme_config.test.ts` | this README's "Configuration" table against `loadConfig` itself (the names it reads, recorded; each left out in turn): one row per name read and no other, each row's `config.ts` line reads it, its minimum is the `whole()` minimum, optional rows are the ones it starts without, the proposed values pass it together, the counts in the prose; and that each kind of drift fails |
+| `onboarding_pointers.test.ts` (rule and parser in `doc-pointers.ts`) | every `path:line` pointer of the repository's `SCREENER_ONBOARDING.md` against the files as they are now, read by the rule its "Pointers" bullet states: each names one file and existing lines, and the symbol written next to it is on its first cited line; and that each kind of drift fails (a line that moved under its symbol, a bare pointer after another file's pointer, a line past the end, an ambiguous name, a renamed symbol) |
 | `refresh.test.ts` | a publication loads end to end; integrity failures (sha256, manifest cross-check, reference) answer `424` with no snapshot and keep the previous one when held; file, refresh and inflate caps before any grant; a warm disk cache grants nothing; skew retry then deferral; skip unchanged; one refresh at a time; pinning across a swap (grace, `DATA_VERSION_CHANGED`, `DATA_VERSION_PENDING`) |
 | `snapshot.test.ts`, `typed_views.test.ts` | slices equal `priceSeries`; groupings parity with the Backtest; remarks; pinned tails equal F; digest stable across builds; materialized bars equal F bit for bit |
 | `views.test.ts` | a request's `TickerView`: `missingInput` from the snapshot's mask equals the scan; a screen of pre-warmed series reads no column and answers as plain arrays do; views out of `CALC_KEEP` release their `Calc` with the same answer; `return_rank` once per thread, same ranks |

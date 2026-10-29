@@ -297,7 +297,7 @@
       "unit": "%",
       "formula": "(close / highest high of the last 252 sessions, today included - 1) x 100",
       "interpretation": "Near 0: at the 52-week high; -25: 25% below it.",
-      "misuse": "Uses 252 sessions as one year (P23 a), not the prototype's 250. A stock with fewer than 252 bars has no value (NA INSUFFICIENT_HISTORY).",
+      "misuse": "Uses 252 sessions as one year, not the prototype's 250. A stock with fewer than 252 sessions of history has no value (n/a: not enough history).",
       "evidence": "verification/screener/audit/html_model.md section 2.1 hi52; report TARGET ARCHITECTURE 6.9.1 hi52 row",
       "requires": null,
       "decision": null,
@@ -337,7 +337,7 @@
       "unit": "%",
       "formula": "(close / lowest low of the last 252 sessions, today included - 1) x 100",
       "interpretation": "How far the stock is above its 52-week low; 30 means 30% above it.",
-      "misuse": "Uses 252 sessions as one year (P23 a). A stock with fewer than 252 bars has no value.",
+      "misuse": "Uses 252 sessions as one year. A stock with fewer than 252 sessions of history has no value.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 lo52; report TARGET ARCHITECTURE 6.9.1 lo52 row",
       "requires": null,
       "decision": null,
@@ -389,7 +389,7 @@
       "unit": "pts",
       "formula": "(close[t] / close[t - N] - IHSG[t] / IHSG[t - N]) x 100 over N of the ticker's sessions",
       "interpretation": "Positive: the stock beat the index over the window, in percentage points.",
-      "misuse": "Point difference, not a rank; IHSG is aligned to the ticker's dates (asOf).",
+      "misuse": "A difference in percentage points, not a rank; IHSG is read on the stock's own dates (its last close on or before each date).",
       "evidence": "verification/screener/audit/html_model.md section 2.1 rs; report TARGET ARCHITECTURE 6.9.1 rs row",
       "requires": null,
       "decision": null,
@@ -425,7 +425,7 @@
       "unit": "x",
       "formula": "volume[t] / SMA(volume, 20)[t - 1]: today's volume over the average of the previous 20 sessions (the Backtest volspike ratio)",
       "interpretation": "Above 1: more volume than usual; 2: twice the usual.",
-      "misuse": "The average excludes today (as the Backtest's volspike); registry RVOL (I37) includes it, so the two differ.",
+      "misuse": "The average leaves today out (as the Backtest's volume spike condition does); the Relative Volume indicator includes today, so the two differ.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 volspike; report TARGET ARCHITECTURE 6.9.1 volspike lt/between/xa row",
       "requires": null,
       "decision": null,
@@ -490,7 +490,7 @@
       ],
       "unit": "rank",
       "formula": "100 x (number of population returns strictly lower) / (P - 1), return = (close[t] / close[t - N] - 1) x 100 at each ticker's evaluation bar",
-      "interpretation": "Percentile of the N-session return among active, non-stale stocks without a price break (P7 a); 100 is the strongest.",
+      "interpretation": "Percentile of the N-session return among the listed stocks that traded on the evaluation date and have no unadjusted price break; 100 is the strongest.",
       "misuse": "The population is fixed before any filter, so filters never move a rank; a shown stale or price-break ticker is ranked against it without joining it.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 rs_rank; report TARGET ARCHITECTURE 6.9 rs_rank (P7)",
       "requires": null,
@@ -654,7 +654,7 @@
       "unit": null,
       "formula": "SMA(fast) crosses above SMA(slow) (backtest core PRICE_ACTION macross golden_cross)",
       "interpretation": "The fast average moved above the slow one on that bar.",
-      "misuse": "SMA only; an EMA or mixed cross is a cross between two I01 / I02 instances.",
+      "misuse": "SMA only; for an EMA or a mixed cross, cross a Simple or Exponential Moving Average with a second one.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 ma_cross; apps/edge-bff/backtest/src/core/conditions.ts PRICE_ACTION.macross",
       "requires": null,
       "decision": null,
@@ -836,7 +836,7 @@
       "unit": null,
       "formula": "I15 %K crosses above %D on a bar where %K < zone_max",
       "interpretation": "A bullish stochastic cross while still oversold.",
-      "misuse": "zone_max defaults to 25 as the prototype coded it; its label said \"below 20\" and is corrected to the coded test (P22 item 8).",
+      "misuse": "\"%K below\" defaults to 25, as the prototype coded it; the prototype's label said \"below 20\", and the label now follows the coded test.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 stoch kxd_os; report UNKNOWNS P22 item 8",
       "requires": null,
       "decision": null,
@@ -1011,10 +1011,10 @@
       "unit": null,
       "formula": "close > max(span A, span B) of the cloud computed 26 bars earlier (prototype ICHI)",
       "interpretation": "Price above the cloud: an established uptrend in Ichimoku terms.",
-      "misuse": "Not offered until the registry release adds Ichimoku to F (P6).",
+      "misuse": "Not offered until a later release of the indicator list adds Ichimoku to the Terminal's indicators.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 ichimoku; report TARGET ARCHITECTURE 6.9.1 ichimoku row",
       "requires": null,
-      "decision": "Ichimoku is not among the 53 registry indicators: it needs a registry release (P6, decided with the go 2026-10-28)",
+      "decision": "Ichimoku is not among the 53 indicators yet: it comes with a later release of the indicator list.",
       "applies_to": null
     },
     {
@@ -1063,10 +1063,10 @@
       "unit": null,
       "formula": "Tenkan (midpoint of 9) crosses above Kijun (midpoint of 26) (prototype ICHI)",
       "interpretation": "A short-term Ichimoku buy signal.",
-      "misuse": "Not offered until the registry release adds Ichimoku to F (P6).",
+      "misuse": "Not offered until a later release of the indicator list adds Ichimoku to the Terminal's indicators.",
       "evidence": "verification/screener/audit/html_model.md section 2.1 ichimoku; report TARGET ARCHITECTURE 6.9.1 ichimoku row",
       "requires": null,
-      "decision": "Ichimoku is not among the 53 registry indicators: it needs a registry release (P6, decided with the go 2026-10-28)",
+      "decision": "Ichimoku is not among the 53 indicators yet: it comes with a later release of the indicator list.",
       "applies_to": null
     },
     {
@@ -1081,7 +1081,7 @@
       "unit": "IDR per share",
       "formula": "close of the ticker's evaluation bar (its last bar on or before E)",
       "interpretation": "The price the screen evaluates at.",
-      "misuse": "A stale ticker's last close is older than E (row remark STALE).",
+      "misuse": "A stale stock's last close is older than the evaluation date (its row carries the Stale remark).",
       "evidence": "report TARGET ARCHITECTURE 6.7 universe attributes, 6.12; API CONTRACT 8.4 universe body",
       "requires": null,
       "decision": null,
@@ -1100,7 +1100,7 @@
       "unit": "%",
       "formula": "(close[at] / close[at - 1] - 1) x 100",
       "interpretation": "The last session's move.",
-      "misuse": "On an ex-date of an unadjusted action the move is distorted (row remark PRICE_BREAK).",
+      "misuse": "On the ex-date of an unadjusted corporate action the move is distorted (its row carries the Price break remark).",
       "evidence": "report TARGET ARCHITECTURE 6.7 universe attributes, 6.12; API CONTRACT 8.4 universe body",
       "requires": null,
       "decision": null,
@@ -1175,7 +1175,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No index constituent data exists yet (P11)."
+      "unavailable_reason": "No index constituent data exists yet."
     },
     {
       "id": "listing_board",
@@ -1189,7 +1189,7 @@
       "unit": null,
       "formula": "the stock's listing board",
       "interpretation": "Main or Development board.",
-      "misuse": "market_board (Regular, Nego, Tunai) is the trading board and must not be used for it.",
+      "misuse": "The board a trade is made on (Regular, Nego, Tunai) is a different thing and must not be used for it.",
       "evidence": "verification/screener/audit/fundamentals_universe.md section 4.1; report TARGET ARCHITECTURE 6.12 \"shown disabled\"",
       "requires": {
         "file": "listing_board",
@@ -1200,7 +1200,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No listing-board data exists yet (P11)."
+      "unavailable_reason": "No listing-board data exists yet."
     },
     {
       "id": "special_notation",
@@ -1214,7 +1214,7 @@
       "unit": null,
       "formula": "IDX special notation and full call auction flags",
       "interpretation": "Stocks under special notation.",
-      "misuse": "No source exists; the prototype's default-on filter is off (P22 item 7) so it is never a silent no-op.",
+      "misuse": "No source exists; the prototype's filter, on by default there, is off here, so it never silently does nothing.",
       "evidence": "verification/screener/audit/fundamentals_universe.md section 4.1; report TARGET ARCHITECTURE 6.12 \"shown disabled\"",
       "requires": {
         "file": "special_notation",
@@ -1225,7 +1225,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No special-notation data exists yet (P11)."
+      "unavailable_reason": "No special-notation data exists yet."
     },
     {
       "id": "fnet",
@@ -1265,7 +1265,7 @@
       "unit": "IDR",
       "formula": "sum over the last D sessions of the all-board foreign investor net (F03 foreign_net_value)",
       "interpretation": "Positive: foreign investors absorbed shares.",
-      "misuse": "Investor type, not broker domicile; rupiah amounts scale with liquidity (use fpct to compare stocks); one Nego block can dominate.",
+      "misuse": "Investor type, not broker domicile; rupiah amounts scale with liquidity (use Foreign net intensity to compare stocks); one Nego block can dominate.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL01",
       "requires": {
         "file": "flow_series",
@@ -1276,7 +1276,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL01",
       "short": "Foreign net",
       "default_test": {
@@ -1322,7 +1322,7 @@
       "unit": "%",
       "formula": "100 x sum of foreign net / sum of traded value over D sessions",
       "interpretation": "Comparable across stocks: +10 means foreign investors net took a tenth of all traded value.",
-      "misuse": "Small denominators give extremes: use with the ADV floor.",
+      "misuse": "Small denominators give extremes: use it with a minimum average daily value.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL02",
       "requires": {
         "file": "flow_series",
@@ -1334,7 +1334,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL02",
       "short": "Foreign %"
     },
@@ -1389,9 +1389,9 @@
           "sl"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL03"
     },
     {
@@ -1431,7 +1431,7 @@
       "unit": "sessions",
       "formula": "signed count of consecutive sessions up to today with foreign net > 0 (positive) or < 0 (negative), capped at 60",
       "interpretation": "Persistence of foreign demand.",
-      "misuse": "A streak of tiny amounts means little: combine with fpct.",
+      "misuse": "A streak of tiny amounts means little: combine it with Foreign net intensity.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL04",
       "requires": {
         "file": "flow_series",
@@ -1442,7 +1442,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL04",
       "short": "F streak",
       "default_test": {
@@ -1495,9 +1495,9 @@
           "foreign_net_value"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL05"
     },
     {
@@ -1563,7 +1563,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL06",
       "short": "Broker",
       "default_test": {
@@ -1619,7 +1619,7 @@
       "unit": "IDR",
       "formula": "B_N + S_N over D sessions (top-N net buyers plus bottom-N net sellers); N = 5 is the Backtest top5",
       "interpretation": "A positive value means the rest of the market sold to the top buyers.",
-      "misuse": "Rupiah amounts scale with liquidity: use bandar (FL09) to compare stocks.",
+      "misuse": "Rupiah amounts scale with liquidity: use Bandar balance to compare stocks.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL07",
       "requires": {
         "file": "broker_window",
@@ -1636,7 +1636,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL07",
       "short": "Top-N net"
     },
@@ -1687,7 +1687,7 @@
       "unit": "%",
       "formula": "100 x B_N / traded value over D sessions",
       "interpretation": "The share of trading net absorbed by the N biggest net buyers.",
-      "misuse": "Mechanically higher for illiquid stocks: read with bandar and the ADV floor.",
+      "misuse": "Mechanically higher for illiquid stocks: read it with Bandar balance and a minimum average daily value.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL08",
       "requires": {
         "file": "broker_window",
@@ -1704,7 +1704,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL08"
     },
     {
@@ -1755,7 +1755,7 @@
       ],
       "unit": "%",
       "formula": "100 x (B_N + S_N) / traded value over D sessions; states Big Acc >= 10, Acc >= 6, Dist <= -6, Big Dist <= -10 as per-condition thresholds",
-      "interpretation": "Whether the biggest buying brokers took in more than the biggest sellers let go, as a share of all trading (P9 = FL09).",
+      "interpretation": "Whether the biggest buying brokers took in more than the biggest sellers let go, as a share of all trading.",
       "misuse": "Thresholds are a prototype heuristic with no validation; larger for illiquid stocks; a Nego block counts as accumulation.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL09",
       "requires": {
@@ -1773,7 +1773,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL09",
       "short": "Bandar",
       "default_test": {
@@ -1835,7 +1835,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL10"
     },
     {
@@ -1889,9 +1889,9 @@
           "sl"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL11"
     },
     {
@@ -1931,7 +1931,7 @@
       "unit": "x",
       "formula": "buyers / (buyers + sellers) counted on each broker's D-session net (zero nets left out)",
       "interpretation": "The share of active brokers that were net buyers; liquidity-neutral.",
-      "misuse": "Ambiguous alone: read with bandar.",
+      "misuse": "Ambiguous alone: read it with Bandar balance.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL12",
       "requires": {
         "file": "broker_window",
@@ -1948,7 +1948,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL12"
     },
     {
@@ -1998,7 +1998,7 @@
       "unit": "%",
       "formula": "100 x (close / VWAP - 1), VWAP = sum of buy value / (sum of buy lots x 100) of the top-N net buyers over D sessions",
       "interpretation": "Near 0: price is at the top buyers' cost.",
-      "misuse": "On all boards a Nego price can be far from the market, so it defaults to Regular (D7).",
+      "misuse": "On all boards a Nego price can be far from the market, so its board defaults to Regular.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL13",
       "requires": {
         "file": "broker_window",
@@ -2013,9 +2013,9 @@
           "sl"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL13"
     },
     {
@@ -2069,9 +2069,9 @@
           "sl"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL14"
     },
     {
@@ -2136,9 +2136,9 @@
           "sl"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL15"
     },
     {
@@ -2197,7 +2197,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL16",
       "short": "Freq x",
       "default_test": {
@@ -2242,7 +2242,7 @@
       "unit": "%",
       "formula": "100 x (value per trade over 5 sessions / value per trade over the 20 before - 1)",
       "interpretation": "Larger tickets suggest larger participants.",
-      "misuse": "On all boards a Nego block dominates, so it defaults to Regular (D7).",
+      "misuse": "On all boards a Nego block dominates, so its board defaults to Regular.",
       "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL17",
       "requires": {
         "file": "broker_window",
@@ -2259,9 +2259,9 @@
           "sell_freq"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL17"
     },
     {
@@ -2301,7 +2301,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL18"
     },
     {
@@ -2338,9 +2338,9 @@
           "retail_net_value"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL19"
     },
     {
@@ -2376,9 +2376,9 @@
           "insider"
         ]
       },
-      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
       "fl": "FL20"
     },
     {
@@ -2393,7 +2393,7 @@
       "unit": "IDR",
       "formula": "close x shares outstanding on the same split basis",
       "interpretation": "Company size.",
-      "misuse": "Shares must be on the price's split basis; EXEC-MCAP waits for its go.",
+      "misuse": "Shares must be on the price's split basis; the plan for the shares-outstanding data still waits for approval.",
       "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#1)",
       "requires": {
         "file": "fundamentals",
@@ -2403,7 +2403,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Market cap waits for EXEC-MCAP (planned, awaiting go) and its bucket decision (P11)."
+      "unavailable_reason": "Market cap waits for its shares-outstanding data (planned, not yet approved) and a decision on its size buckets."
     },
     {
       "id": "pe",
@@ -2427,7 +2427,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "pb",
@@ -2451,7 +2451,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "peg",
@@ -2475,7 +2475,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "evEbitda",
@@ -2499,7 +2499,7 @@
       },
       "decision": null,
       "applies_to": "Industry != Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "divYield",
@@ -2513,7 +2513,7 @@
       "unit": "%",
       "formula": "trailing 12-month cash dividends per share (by ex-date) / close x 100",
       "interpretation": "Cash return from dividends.",
-      "misuse": "Amounts and price must be on the same split basis (P11: NA MIXED_ADJUSTMENT_BASIS across a price-affecting action).",
+      "misuse": "Amounts and price must be on the same split basis (n/a when the window contains a corporate action that changes the price, such as a split).",
       "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#6)",
       "requires": {
         "file": "dividends",
@@ -2523,7 +2523,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Dividends come with Phase 2, after validation against an independent sample and the adjustment-basis rule (P11)."
+      "unavailable_reason": "Dividends come with Phase 2, after validation against an independent sample and the adjustment-basis rule."
     },
     {
       "id": "payout",
@@ -2547,7 +2547,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "divYears",
@@ -2561,7 +2561,7 @@
       "unit": "years",
       "formula": "number of calendar years with a cash dividend ex-date before the evaluation date",
       "interpretation": "Dividend track record.",
-      "misuse": "Consecutive or total years is a decision (P11).",
+      "misuse": "Whether consecutive or total years count is still to be decided.",
       "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#8)",
       "requires": {
         "file": "dividends",
@@ -2571,7 +2571,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Dividends come with Phase 2, after validation (P11)."
+      "unavailable_reason": "Dividends come with Phase 2, after validation."
     },
     {
       "id": "roe",
@@ -2595,7 +2595,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "roa",
@@ -2619,7 +2619,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "roic",
@@ -2643,7 +2643,7 @@
       },
       "decision": null,
       "applies_to": "Industry != Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "netMargin",
@@ -2667,7 +2667,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "grossMargin",
@@ -2691,7 +2691,7 @@
       },
       "decision": null,
       "applies_to": "Sector != Financials",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "revG",
@@ -2715,7 +2715,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "epsG",
@@ -2739,7 +2739,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "epsGq",
@@ -2763,7 +2763,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "epsG3y",
@@ -2787,7 +2787,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "der",
@@ -2811,7 +2811,7 @@
       },
       "decision": null,
       "applies_to": "Industry != Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "curr",
@@ -2835,7 +2835,7 @@
       },
       "decision": null,
       "applies_to": "Sector != Financials",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "intCov",
@@ -2859,7 +2859,7 @@
       },
       "decision": null,
       "applies_to": "Industry != Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "fcfYield",
@@ -2873,7 +2873,7 @@
       "unit": "%",
       "formula": "(operating cash flow - capex) / market cap x 100 (TTM)",
       "interpretation": "Cash generation relative to price.",
-      "misuse": "Needs market cap (EXEC-MCAP).",
+      "misuse": "Needs market cap, which waits for its shares-outstanding data.",
       "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#21)",
       "requires": {
         "file": "fundamentals",
@@ -2883,7 +2883,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "piotroski",
@@ -2907,7 +2907,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "altman",
@@ -2931,7 +2931,7 @@
       },
       "decision": null,
       "applies_to": "Sector != Financials",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "grahamRatio",
@@ -2955,7 +2955,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "magicRank",
@@ -2979,7 +2979,7 @@
       },
       "decision": null,
       "applies_to": "Sector != Financials",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "freeFloat",
@@ -2993,7 +2993,7 @@
       "unit": "%",
       "formula": "float shares / shares outstanding x 100",
       "interpretation": "Tradable share of the company.",
-      "misuse": "Not in the EXEC-MCAP plan.",
+      "misuse": "Not in the plan for the shares-outstanding data.",
       "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#26)",
       "requires": {
         "file": "fundamentals",
@@ -3003,7 +3003,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "foreignOwn",
@@ -3027,7 +3027,7 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "nim",
@@ -3051,7 +3051,7 @@
       },
       "decision": null,
       "applies_to": "Industry = Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "npl",
@@ -3075,7 +3075,7 @@
       },
       "decision": null,
       "applies_to": "Industry = Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "car",
@@ -3099,7 +3099,7 @@
       },
       "decision": null,
       "applies_to": "Industry = Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "casa",
@@ -3123,7 +3123,7 @@
       },
       "decision": null,
       "applies_to": "Industry = Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     },
     {
       "id": "ldr",
@@ -3147,7 +3147,7 @@
       },
       "decision": null,
       "applies_to": "Industry = Banks",
-      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     }
   ]
 }

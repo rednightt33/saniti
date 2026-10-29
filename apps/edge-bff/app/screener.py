@@ -531,9 +531,12 @@ class Doc:
 def own_limits():
     """edge-bff's own limits as catalog limits[] entries (contract.ts LimitEntry; report 8.4 and 8.9: every limit is
     published with its rule, one right and one wrong example before the user meets it, AGENTS.md "Gates and evidence"),
-    generated from the values."""
+    generated from the values. The words are shown as they are (Method & sources; a refusal quotes the rule, the unit
+    as "this one needs N <unit>" and the fix in the closing parenthesis of example_refused), so they are plain words
+    with no limit or code name; screener/tests/fixture/edge-bff-limits.json is the copy the page tests read, and
+    tests/test_screener.py checks that it equals this."""
     return [
-        {'name': 'saved_items', 'value': SCREEN_LIMIT, 'unit': 'items of each kind',
+        {'name': 'saved_items', 'value': SCREEN_LIMIT, 'unit': 'saved items',
          'rule': f'at most {SCREEN_LIMIT} saved screens and {SCREEN_LIMIT} My metrics',
          'example_ok': f'saving a new screen while {SCREEN_LIMIT - 1} are saved',
          'example_refused': f'saving a new screen while {SCREEN_LIMIT} are saved (delete one first)'},
@@ -552,7 +555,7 @@ def own_limits():
          'example_refused': f'a run request of {REQUEST_BYTES + 1:,} bytes (remove conditions or filters)'},
         {'name': 'inflight_per_page', 'value': INFLIGHT_PER_PAGE, 'unit': 'requests of each kind per page',
          'rule': f'{INFLIGHT_PER_PAGE} screen and {INFLIGHT_PER_PAGE} preview in flight per page: a newer one replaces '
-                 'the older one, which answers SCREEN_REPLACED or PREVIEW_REPLACED',
+                 'the older one, which is answered as replaced',
          'example_ok': 'a preview while the same page runs a screen, or a screen run in another tab',
          'example_refused': 'a second screen of the same page while its first is running (the first is replaced; '
                             'nothing to do)'},

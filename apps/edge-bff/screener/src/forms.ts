@@ -6,7 +6,7 @@
 import type {
   ConditionDef, IndicatorRef, MetricRef, ParamMap, ParamValue, Side, Test, TestOp, ValueTest,
 } from './core/contract.ts';
-import { defaultParams, isDefP, OPLABEL, type Entry, type Opt } from './entries.ts';
+import { defaultParams, isDefP, OPLABEL, optionText, type Entry, type Opt } from './entries.ts';
 
 export interface Card {
   id: string;                  // ^[0-9a-z]{1,6}$, unique in the screen
@@ -224,7 +224,7 @@ export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
 }
 
 /* ---- words ---------------------------------------------------------------------------------------------- */
-const pv = (e: Entry, c: Card) => e.params.map(p => c.params[p.key]).join(', ');
+const pv = (e: Entry, c: Card) => e.params.map(p => optionText(p, c.params[p.key])).join(', ');
 /** the card's name (a My metric's name, else the entry's label) */
 export const cardName = (e: Entry | undefined, c: Card) => c.metric?.name || c.label || e?.label || rawName(c);
 function rawName(c: Card): string {
@@ -256,7 +256,7 @@ export function condRule(e: Entry | undefined, c: Card): string {
   return full.slice(pre.length).replace(/^:\s*/, '').trim();
 }
 /** parameter summary (the prototype's paramSummary) */
-export const paramSummary = (e: Entry, p: ParamMap) => e.params.map(x => `${x.label || x.key} ${p[x.key]}${String(p[x.key]) !== String(x.default) ? ` (default ${x.default})` : ''}`).join(' · ');
+export const paramSummary = (e: Entry, p: ParamMap) => e.params.map(x => `${x.label || x.key} ${optionText(x, p[x.key])}${String(p[x.key]) !== String(x.default) ? ` (default ${optionText(x, x.default)})` : ''}`).join(' · ');
 /** the column header's short name and its parameter pill (the prototype's shortName, shortPv) */
 export const shortName = (e: Entry | undefined, c: Card) => c.metric?.name || (e ? e.short : cardName(e, c));
 export const shortPv = (e: Entry | undefined, c: Card) => e ? e.params.filter(p => p.type !== 'enum' && p.type !== 'boolean').map(p => c.params[p.key]).join('/') : '';

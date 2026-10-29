@@ -40,7 +40,7 @@ function scopeChips(): { html: string; removable: number } {
   if (U.sectors_out?.length) add('Excluding', list(U.sectors_out, '', 'sectors'), 'sectors_out');
   if (U.industries_in?.length) add('Industry', list(U.industries_in, '', 'industries'), 'industries_in');
   if (U.industries_out?.length) add('Excluding industry', list(U.industries_out, '', 'industries'), 'industries_out');
-  if (U.include_unclassified) add('Keeps', 'unclassified', 'include_unclassified', 'Stocks without a sector or industry are kept by the include filters (P15).');
+  if (U.include_unclassified) add('Keeps', 'unclassified', 'include_unclassified', 'Stocks without a sector or industry are kept by the include filters.');
   const ab = advB(U);
   if (ab != null) add('Avg value ≥', `Rp ${nf(ab, ab % 1 ? 1 : 0)}B`, U.adv20_min_idr === UNIVERSE_DEFAULTS.adv20_min_idr ? null : 'adv', 'Average daily traded value over 20 sessions (close × volume). Default Rp 1B.');
   if (U.price_min != null) add('Price ≥', `Rp ${nf(U.price_min)}`, U.price_min === UNIVERSE_DEFAULTS.price_min ? null : 'price', 'Last close. Default Rp 50.');
@@ -50,7 +50,7 @@ function scopeChips(): { html: string; removable: number } {
   const h = hidden(), E = ctx.catalog?.data.evaluation_date || null;
   if (U.traded_on_eval_date) add(chipTraded(E), h ? `hides ${h.stale}` : '', 'traded', 'Hides stale stocks (no trade on the evaluation date). Remove to list them with a remark.');
   else out.push(`<span class="fchip off" title="Stale stocks are listed with a remark">Stale shown <b>${h ? h.stale : ''}</b><button class="link" data-uhide="traded" style="margin-left:4px">Hide</button></span>`);
-  if (U.exclude_price_breaks) add(chipNoBreak, h ? `hides ${h.breaks}` : '', 'breaks', 'Hides stocks whose price history crosses an unadjusted corporate action (TEMPORARY until the data layer adjusts history). Remove to list them with a remark.');
+  if (U.exclude_price_breaks) add(chipNoBreak, h ? `hides ${h.breaks}` : '', 'breaks', 'Hides stocks whose price history crosses an unadjusted corporate action (temporary: until the price history is adjusted for corporate actions). Remove to list them with a remark.');
   else out.push(`<span class="fchip off" title="Stocks with a price break are listed with a remark; their values are shown and marked">Price breaks shown <b>${h ? h.breaks : ''}</b><button class="link" data-uhide="breaks" style="margin-left:4px">Hide</button></span>`);
   return { html:out.join(''), removable:n };
 }
@@ -92,7 +92,7 @@ function usec(k: string): string {
         ${g.unclassified ? `<label class="chk" title="An include filter (sector or industry) keeps a stock without that classification only when this is on; an exclude filter never drops it."><input type="checkbox" data-u="include_unclassified" ${U.include_unclassified ? 'checked' : ''}>Unclassified (${nf(g.unclassified)}): keep them with an include filter</label>` : ''}`;
     }
     // the prototype's buckets (CAPB) stay visible, disabled with the reason; their bounds are still open (P11)
-    case 'cap': return `<div class="k">Market cap <small>· no data</small></div><div class="mini2"><input class="inp" disabled placeholder="Min" aria-label="Min market cap: no data"><input class="inp" disabled placeholder="Max" aria-label="Max market cap: no data"></div><div class="chips">${CAPB.map(([b, r]) => `<button class="chip" disabled title="${esc(`${b} (${r}, the prototype's bounds; P11). ${T.noCap}`)}">${b}</button>`).join('')}</div><div class="note">${esc(T.noCap)}</div>`;
+    case 'cap': return `<div class="k">Market cap <small>· no data</small></div><div class="mini2"><input class="inp" disabled placeholder="Min" aria-label="Min market cap: no data"><input class="inp" disabled placeholder="Max" aria-label="Max market cap: no data"></div><div class="chips">${CAPB.map(([b, r]) => `<button class="chip" disabled title="${esc(`${b} (${r}, the prototype's bounds). ${T.noCap}`)}">${b}</button>`).join('')}</div><div class="note">${esc(T.noCap)}</div>`;
     case 'industry': {
       const g = grouping('industry');
       if (!g) return '';
@@ -108,7 +108,7 @@ function usec(k: string): string {
       return `<div class="k">Stale stocks and price breaks</div>
         <label class="chk"><input type="checkbox" data-u="traded_on_eval_date" ${U.traded_on_eval_date ? 'checked' : ''}>${esc(chipTraded(E))}${h ? ` <span class="muted">hides ${h.stale}</span>` : ''}</label>
         <label class="chk"><input type="checkbox" data-u="exclude_price_breaks" ${U.exclude_price_breaks ? 'checked' : ''}>${esc(chipNoBreak)}${h ? ` <span class="muted">hides ${h.breaks}</span>` : ''}</label>
-        <div class="note">Turned off, the hidden stocks are listed with a remark: the last trade date, or the corporate action and its ex-date. Their values are shown (P4).</div>`;
+        <div class="note">Turned off, the hidden stocks are listed with a remark: the last trade date, or the corporate action and its ex-date. Their values are shown.</div>`;
     }
     case 'notation': return `<div class="k">Special notation <small>· no data</small></div><label class="chk" title="${esc(T.noNotation)}"><input type="checkbox" disabled>Exclude special-notation / FCA stocks</label><div class="note">${esc(T.noNotation)}</div>`;
   }

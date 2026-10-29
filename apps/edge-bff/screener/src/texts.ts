@@ -3,8 +3,9 @@
    it puts into markup (format.ts esc). The API sends codes, never messages for the page to show verbatim where the
    page has its own wording (report 9.2: remarks are worded here from the API's codes). */
 import type { ApiError, CellRemark, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
+import { ApiFailure } from './api/types.ts';
 import { nf } from './format.ts';
-import { OPLABEL } from './entries.ts';
+import { OPLABEL, optionText } from './entries.ts';
 import { cardName, type Card } from './forms.ts';
 import { ctx as page, entryOf, S, stateOfDefinition } from './state.ts';
 
@@ -23,15 +24,16 @@ export const T = {
   retry: 'Retry',
   // fixed reasons for what has no data (report 9.2 D rows; P11 a: shown disabled with the reason, not removed)
   noIndex: 'No data: index membership (LQ45, IDX30, IDX80, ISSI) is not in the market database.',
-  noBoard: 'No data: the listing board (Main, Development) is not in the market database; market_board is the trading board.',
-  noCap: 'No data: market cap waits for EXEC-MCAP (shares outstanding), which has no go yet.',
+  // (plain words: no decision, plan, field or code name; tests/page/plain-words.test.ts walks every T entry)
+  noBoard: 'No data: the listing board (Main, Development) is not in the market database; the board a trade is made on (Regular, Nego, Tunai) is a different thing.',
+  noCap: 'No data: market cap waits for its shares-outstanding data, which is planned but not yet approved.',
   noFreeFloat: 'No data: free float is not in the market database.',
-  noNotation: 'No data: special notation / FCA flags are not in the market database, so this filter is off (P11).',
-  noFundamentals: 'No data: fundamentals wait for a data source and its own decision (P11).',
-  sendPhase: 'Send to Backtest comes with Phase 1b (its rules, P13, are confirmed first).',
-  bandarPhase: 'Not editable here: the bandar thresholds become parameters of each bandar condition when the flow definitions arrive (P9, Phase 3).',
+  noNotation: 'No data: special notation / FCA flags are not in the market database, so this filter is off.',
+  noFundamentals: 'No data: fundamentals wait for a data source and a decision of their own.',
+  sendPhase: 'Send to Backtest comes with Phase 1b, once its rules are confirmed.',
+  bandarPhase: 'Not editable here: the bandar thresholds become parameters of each bandar condition when the flow definitions arrive (Phase 3).',
   // P17 consequence (catalog default_offered false: I43 VWAP, whose registry default anchor Session is not offered)
-  noDefault: 'The screener does not offer this indicator\'s registry default, so the card opens at the starting parameters shown; change them here.',
+  noDefault: 'The screener does not offer this indicator\'s standard default, so the card opens at the starting parameters shown; change them here.',
   noWatchlistPage: 'Saved in your EDGE watchlist.',
 } as const;
 
@@ -43,9 +45,10 @@ export const NA_TEXT: Record<NaReason, string> = {
   FLOW_LAGGED: 'n/a: flow data is older than the price data',
   NOT_APPLICABLE: 'n/a: this metric does not apply to this stock',
   DATA_INTEGRITY: 'n/a: the data failed its integrity check in this publication',
-  MIXED_ADJUSTMENT_BASIS: 'n/a: the window crosses an unadjusted corporate action',
+  // P11 (i): any price-affecting action in the TTM window (adjusted or not), not only an unadjusted one
+  MIXED_ADJUSTMENT_BASIS: 'n/a: the window contains a corporate action that changes the price, such as a split',
 };
-export const naText = (r: string | null | undefined) => r ? (NA_TEXT as Record<string, string>)[r] || `n/a (${r})` : 'n/a';
+export const naText = (r: string | null | undefined) => r ? (NA_TEXT as Record<string, string>)[r] || `n/a (${r.toLowerCase().replace(/_/g, ' ')})` : 'n/a';
 
 const ACTION: Record<string, string> = { STOCK_SPLIT:'stock split', REVERSE_SPLIT:'reverse split', RIGHTS_ISSUE:'rights issue',
   BONUS_SHARES:'bonus shares', STOCK_DIVIDEND:'stock dividend', WARRANT:'warrant' };
@@ -62,7 +65,7 @@ export const remarkBadge = (r: RowRemark) => r.code === 'STALE' ? 'Stale' : 'Pri
 export function remarkTitle(r: RowRemark): string {
   if (r.code === 'STALE') return `${remarkText(r)}. The stock is evaluated at its own last bar; its values are shown.`;
   const cr = r.close_ratio != null ? ` Close on the ex-date ÷ the close before: ${nf(r.close_ratio, 3)}.` : '';
-  return `${remarkText(r)}. Values whose look-back crosses the ex-date are shown and marked (P4.1 A).${cr} TEMPORARY until the data layer adjusts history (D22).`;
+  return `${remarkText(r)}. Values whose look-back crosses the ex-date are shown and marked.${cr} Temporary: until the price history is adjusted for corporate actions.`;
 }
 /** The CSV's remark cell (report 9.6): the code and its date. */
 export const remarkCsv = (rs: RowRemark[]) => rs.map(r => r.code === 'STALE' ? `STALE ${r.last_bar_date}` : `PRICE_BREAK ${r.action} ${r.ex_date}`).join('; ');
@@ -71,8 +74,8 @@ export const remarkCsv = (rs: RowRemark[]) => rs.map(r => r.code === 'STALE' ? `
 export function cellRemarkText(c: CellRemark, rowRemarks: RowRemark[]): string {
   const ex = rowRemarks.filter(r => r.code === 'PRICE_BREAK').map(r => (r as Extract<RowRemark, { code: 'PRICE_BREAK' }>).ex_date);
   return c === 'PRICE_BREAK_IN_LOOKBACK'
-    ? `Distorted: this value's look-back contains the unadjusted ex-date${ex.length ? ' ' + ex.join(', ') : ''}. Shown as computed (P4.1 A).`
-    : c;
+    ? `Distorted: this value's look-back contains the unadjusted ex-date${ex.length ? ' ' + ex.join(', ') : ''}. Shown as computed.`
+    : (c as string).toLowerCase().replace(/_/g, ' ');
 }
 
 /** The universe chips (P4): label while on, and what the drawer's checkbox says. */
@@ -85,8 +88,8 @@ export const chipNoBreak = 'No unadjusted price break';
    label) and how to fix it. A refusal that points at a limit (details.limit, or the limit its code stands for) is worded
    from that limit's catalog entry (limits[]: the rule, the unit, the fix its refused example names), the entry Method &
    sources lists before the user meets it, so no limit and no number is kept here. The server's message is used only
-   where the page has no structured reason (INVALID_INPUT, an INVALID_CONDITION whose allowed values are not ones a card
-   shows, a limit the catalog does not list), with its field paths put into the same words. */
+   where the page has no structured reason (INVALID_INPUT of a field the user edits, an INVALID_CONDITION whose allowed
+   values are not ones a card shows, a limit the catalog does not list), with its field paths put into the same words. */
 
 /** What a refusal is worded from. `limits`, `cards` and `filters` default to the page's catalog and cards (the
     definition the page sent); a caller wording another definition's refusal passes that one's. */
@@ -182,7 +185,8 @@ function allowedText(d: Record<string, unknown>, o: ErrorContext): string | null
   if (!a.length || a.length > 12) return null;
   if (a.every(x => OPLABEL[x])) return a.map(x => OPLABEL[x]).join(', ');
   const p = paramOf(o.field, o);
-  return p?.type === 'enum' && a.every(x => (p.options || []).map(String).includes(x)) ? a.join(', ') : null;
+  // as the select shows them (entries.ts optionText: a line of another indicator by its name, 'HL_RANGE' as HL range)
+  return p?.type === 'enum' && a.every(x => (p.options || []).map(String).includes(x)) ? a.map(x => optionText(p, x)).join(', ') : null;
 }
 
 type Range = { min?: number | null; max?: number | null; exclusive_min?: boolean; integer?: boolean; type?: string };
@@ -218,6 +222,15 @@ const inScreen = (o: ErrorContext) => {
   const f = o.field || '', p = f.replace(PATH, '') === '' ? placeText(f, o) : '';
   return p ? ` in ${p}` : '';
 };
+/** Whether the user can correct the field: one of the screen they build (the definition, a path in it) or the name they
+    type when saving (PutItemRequest.name, the save dialogs' Name); in a counts request, the definition of its entry k
+    (definitions[k].definition…). Every other field, and none, is one the page fills itself (schema_version,
+    client_order, data_version, the ticker it previews, an item id, the body): its refusal means the page is out of
+    date or wrong, and its reason names wire fields. */
+const userField = (field: string | null | undefined) => {
+  const f = (field || '').replace(/^definitions\[\d+\]\./, '');
+  return f === 'name' || f === 'definition' || (/^(?:definition|universe|conditions)\b/.test(f) && f.replace(PATH, '') === '');
+};
 /** what any refusal adds from its details: the costliest condition (as its place) and the wait it names (its
     details.retry_after_seconds, else a Retry-After) */
 function extras(d: Record<string, unknown>, o: ErrorContext): string {
@@ -232,15 +245,17 @@ function extras(d: Record<string, unknown>, o: ErrorContext): string {
 }
 
 /** The page's wording of a refusal or failure from its code (report 8.8, last column; the codes of contract.ts
-    ErrorCode, plus edge-bff's own ORIGIN_REJECTED and SERVICE_UNAVAILABLE, main.py): where the problem is and how to
-    fix it, in plain words. */
+    ErrorCode, plus edge-bff's own ORIGIN_REJECTED and SERVICE_UNAVAILABLE, main.py, and the worker's INTERNAL_ERROR
+    of a counts entry): where the problem is and how to fix it, in plain words. */
 export function errorText(code: string, o: ErrorContext = {}): string {
   const d = o.details || {}, place = placeText(o.field, o);
   const limit = (lead: string) => limitText(lead, typeof d.limit === 'string' ? d.limit : LIMIT_OF_CODE[code as ErrorCode], d, o);
   const why = reasonOf(o, place);
   let text: string;
   switch (code) {
-    case 'INVALID_INPUT': text = `${why || sentence(`${place || 'the request'} is not in a form the screener accepts`)} Correct it and try again, or reload the page.`; break;
+    case 'INVALID_INPUT': text = userField(o.field)
+      ? `${why || sentence(`${place || 'the request'} is not in a form the screener accepts`)} Correct it and try again, or reload the page.`
+      : 'This page sent a request the screener does not accept (the page is probably out of date after an update). Reload the page and try again.'; break;
     case 'INVALID_CONDITION': {
       // the structured reason (the field and the values it takes, in the card's words) before the server's message,
       // which names wire values (op codes, registry ids); the server's reason only where the values are not the card's
@@ -279,21 +294,28 @@ export function errorText(code: string, o: ErrorContext = {}): string {
     case 'SCREENER_UNAVAILABLE': text = T.unreachable; break;
     case 'TIMEOUT': text = limit('The screen took too long') ?? 'The screen took longer than the limit: use fewer custom conditions or shorter lengths.'; break;
     case 'ORIGIN_REJECTED': text = 'EDGE refused this change because it did not come from the EDGE page itself. Open EDGE at its own address and try again.'; break;
-    // edge-bff's answer to an unexpected server error on any route (main.py `unexpected`: no body, no message)
-    case 'SERVICE_UNAVAILABLE': text = 'EDGE could not complete this request because of a server error; retry shortly.'; break;
+    // edge-bff's answer to an unexpected server error on any route (main.py `unexpected`: no body, no message); the
+    // worker's (errors.ts toApiError), which edge-bff turns into SCREENER_UNAVAILABLE as an answer but relays inside a
+    // counts answer's entry (thread.ts counts_list: one saved screen's unexpected error, "the error is in its log")
+    case 'SERVICE_UNAVAILABLE': case 'INTERNAL_ERROR': text = 'EDGE could not complete this request because of a server error; retry shortly.'; break;
     default: text = `${why || 'The screener could not answer this request.'} Retry; if it fails again, reload the page.`;
   }
   return text + extras(d, o);
 }
 
-/** The refusal of one saved screen's entry in a counts answer (CountsEntry error), worded on that screen's own cards
-    and universe filters (its field and message are paths of that definition, under the request's definitions[k]),
-    never on the cards the page shows (without the definition: the card's number only). */
-export function savedErrorText(e: ApiError['error'], def: Definition | null | undefined): string {
+/** The refusal of a request that carried a saved screen's definition rather than the page's (a counts answer's entry,
+    CountsEntry error; a saved screen duplicated, ApiFailure.wire), worded on that screen's own cards and universe
+    filters (its field, message and costliest are of that definition, under a counts request's definitions[k]), never
+    on the cards the page shows (without the definition: the card's number only). */
+export function savedErrorText(e: ApiError['error'], def: Definition | null | undefined, retryAfter: number | null = null): string {
   const st = def ? stateOfDefinition(def) : null;
-  return errorText(String(e.code || ''), { field:e.field, details:e.details ?? null, server:e.message,
+  return errorText(String(e.code || ''), { field:e.field, details:e.details ?? null, server:e.message, retryAfter,
     cards:st?.cards ?? [], filters:st?.universe.filters ?? [] });
 }
+/** The message of a failed request that carried `def` rather than the page's definition (a saved screen duplicated):
+    a refusal (its contract body, ApiFailure.wire) worded on `def`; any other failure keeps its message. */
+export const failureOn = (e: unknown, def: Definition | null | undefined): string =>
+  e instanceof ApiFailure ? e.wire ? savedErrorText(e.wire, def, e.retryAfter) : e.message : String(e);
 
 /** The page head's data line (report 9.2): listings, evaluation date and publication. */
 export const dataLine = (listed: number, evalDate: string, published: string) =>

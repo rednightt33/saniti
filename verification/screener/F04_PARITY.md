@@ -19,6 +19,15 @@ the Feature 04 calculation version below requires a re-run (TEST PLAN 10b.10 "Pa
 | I33 vs `volatility_20d_ann_pct` (must differ) | median relative difference 0.017 over 825 tickers: different, as documented (sample stdev of simple returns vs F's population stdev of log returns) |
 | Self-check | BBCA with one bar perturbed (+1% on O, H, L, C three bars before the date): the comparison fails, as it must |
 
+**Carried over, 2026-10-29 (no re-run):** `screener_registry_version` `9d5ec0e4268e8b08` (the file as committed in
+`95526d5`) and `5f190a59af84614f` (the working-tree file regenerated after it by the registry follow-up, read at 07:20 UTC) differ
+from `0bc46ac2a39d7c21` (the file at `4542c64`, which this run used) only in `probe` (the cost probe counts work with
+V8 block coverage instead of timing it) and in the generator's own source hash. Compared field by field with
+`git show 4542c64:apps/edge-bff/screener/src/core/screener-registry.json`: `indicators[]` (every parameter, cap,
+output, `cost_class` and oracle row), `registry_version`, `cost_model` and the hashes of `backtest-registry.json`,
+`indRegistry.json`, `indicators.ts`, `screener-overlay.json` and `scripts/terminal_indicator_spec.py` are identical.
+The parity result above therefore holds for both versions, and for any later one of which the same comparison holds.
+
 ## Snapshot and dynamic paths vs Feature 04 (relative difference <= 1e-12, identical nulls)
 
 | Oracle column | Screener reference | Path | n | Null mismatches | Max relative difference (ticker) | Within 1e-12 |

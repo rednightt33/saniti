@@ -6,7 +6,7 @@ import type { SavedItem } from './core/contract.ts';
 import { esc } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { ctx } from './state.ts';
-import { byGroup, GHEAD, GL, GORD, matches, rangeText, type Entry } from './entries.ts';
+import { byGroup, GHEAD, GL, GORD, matches, optionText, rangeText, type Entry } from './entries.ts';
 import { condText, defaultOffered, fromWire, newCard } from './forms.ts';
 import { T } from './texts.ts';
 import { closeDialog, dialog } from './dialogs.ts';
@@ -70,7 +70,7 @@ function draw() {
   const [k, e, m] = x;
   const card = m ? fromWire({ id:'m', enabled:true, test:(m.definition as any).test }, ctx.byKey) : newCard(e, []);
   const p = card.params;
-  const fact = (pp: Entry['params'][number]) => `<div><span>${esc(pp.label || pp.key)}${rangeText(pp) ? ` <small class="muted">${esc(rangeText(pp))}</small>` : ''}</span><b>${esc(p[pp.key])}${pp.options ? ` <small class="muted">of ${pp.options.length}</small>` : ''}</b></div>`;
+  const fact = (pp: Entry['params'][number]) => `<div><span>${esc(pp.label || pp.key)}${rangeText(pp) ? ` <small class="muted">${esc(rangeText(pp))}</small>` : ''}</span><b>${esc(optionText(pp, p[pp.key]))}${pp.options ? ` <small class="muted">of ${pp.options.length}</small>` : ''}</b></div>`;
   $('bDet').innerHTML = `<div class="ib-h"><span class="tag ${esc(e.group)}">${esc(GL(e.group))}</span>${e.xid ? `<span class="muted">${esc(e.xid)}</span>` : ''}</div><h4>${esc(m ? m.name : e.label)}</h4><p class="muted">${esc(e.desc)}</p>
     ${e.available ? '' : `<p class="note down">${esc(e.reason || 'Not available.')}</p>`}${e.history ? `<p class="note">${esc(e.history)}</p>` : ''}
     <div class="sec-title">${m ? 'Saved parameters' : defaultOffered(e) ? 'Default parameters' : 'Starting parameters'}</div>${!m && !defaultOffered(e) ? `<p class="note">${esc(T.noDefault)}</p>` : ''}${e.params.length ? `<div class="facts">${e.params.map(fact).join('')}</div>` : '<p class="muted">Fixed definition — nothing to tune.</p>'}

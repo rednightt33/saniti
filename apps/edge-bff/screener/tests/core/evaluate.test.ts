@@ -157,7 +157,7 @@ describe('parity with the backtest core (conditionSeries[at]) on 200 tickers', (
     }
     expect(checked).toBe(cases.length * 4 * 200);
     expect(passes).toBeGreaterThan(checked / 10);
-  });
+  }, 120_000);   // about 4.7 s alone, near vitest's 5 s default: a heavy test's own timeout, as oracle.test.ts
   it('Donchian: close above the upper band reads the prior band (lag probe), so the state equals core breakout at every bar', () => {
     const t = synth('DON', 77, 600), calc = new Calc(t.bars), core = conditionSeries(calc, { id: 'x', kind: 'price_action', type: 'breakout', params: { length: 20 } } as any, 'c');
     const b = bindCondition(cond({ kind: 'state', lhs: { kind: 'price', field: 'close' }, op: 'gt', rhs: ind('I10', 'upper') }), 'definition.conditions[0]', { ...OPTS, withinMax: WITHIN_MAX });

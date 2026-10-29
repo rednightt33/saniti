@@ -132,7 +132,7 @@ describe('metrics without data (report 6.12; TEST PLAN 10b.5)', () => {
     for (const attr of ['cap', 'freeFloat', 'index_membership', 'listing_board', 'special_notation', 'pe', 'npl']) {
       const e = refusal(() => validateDefinition(def([c({ kind: 'value', op: 'gt', value: 1, metric: { kind: 'universe', attr } })]), CTX));
       expect([attr, e.code, e.field, (e.details as any).availability]).toEqual([attr, 'METRIC_UNAVAILABLE', 'definition.conditions[0].test.metric', 'REQUIRES_DATA']);
-      expect((e.details as any).reason).toMatch(/needs the published file/);
+      expect((e.details as any).reason).toMatch(/needs data that this publication does not carry/);
     }
     const f = refusal(() => validateDefinition(def([c({ kind: 'value', op: 'gt', value: 0, metric: { kind: 'flow', metric: 'fnet', params: { window: 20 } } })]), CTX));
     expect([f.code, (f.details as any).metric, (f.details as any).availability]).toEqual(['METRIC_UNAVAILABLE', 'fnet', 'REQUIRES_DATA']);

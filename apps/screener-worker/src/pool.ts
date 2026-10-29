@@ -250,7 +250,7 @@ export class Pool {
     const waitingUsers = this.waiting - (this.lanes.get(SYSTEM)?.length ?? 0);
     if (spec.owner !== SYSTEM && waitingUsers >= this.o.queue && !startsNow) {
       this.stats.busy++;
-      job.reject(refuse('BUSY', `The screener is busy: ${waitingUsers} screens are waiting on this replica, the most it holds (SCREENER_QUEUE ${this.o.queue}). Retry in a few seconds.`, undefined, { limit: 'queue', allowed: this.o.queue }));
+      job.reject(refuse('BUSY', `The screener is busy: ${waitingUsers} screens are waiting on this server, the most it holds (${this.o.queue}). Retry in a few seconds.`, undefined, { limit: 'queue', allowed: this.o.queue }));
       return { promise, cancel: () => {} };
     }
     if (!this.lanes.has(spec.owner)) { this.lanes.set(spec.owner, lane); this.ring.push(spec.owner) }
@@ -289,7 +289,7 @@ export class Pool {
     if (job.state === 'ended') return;
     this.stats.timeouts++;
     const ms = Math.round(performance.now() - job.enqueuedAt);
-    this.stop(job, refuse('TIMEOUT', `The request took longer than the ${Math.round(job.deadlineAt - job.enqueuedAt)} ms limit (SCREENER_DEADLINE_MS) after ${ms} ms: use fewer custom conditions or shorter lengths.`));
+    this.stop(job, refuse('TIMEOUT', `The request took longer than the ${Math.round(job.deadlineAt - job.enqueuedAt)} ms limit and was stopped after ${ms} ms: use fewer custom conditions or shorter lengths.`));
   }
   /** Stops a job: removed while waiting; asked to stop while running (terminated after KILL_GRACE_MS). error null =
       the caller left (nothing is answered). */

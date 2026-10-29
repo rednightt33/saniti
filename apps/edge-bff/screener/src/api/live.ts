@@ -38,7 +38,7 @@ export async function failure(res: Response): Promise<ApiFailure> {
   const details = err && err.details && typeof err.details === 'object' ? err.details : null;
   const msg = errorText(code, { field:err?.field, details, retryAfter:ra, server:err?.message || (typeof data?.detail === 'string' ? data.detail : '') })
     || `The screener answered ${res.status}${code ? ` (${code})` : ''}.`;
-  return new ApiFailure(msg, code || `HTTP_${res.status}`, res.status, err?.field, ra, details);
+  return new ApiFailure(msg, code || `HTTP_${res.status}`, res.status, err?.field, ra, details, err);
 }
 
 const unquote = (etag: string | null) => etag ? etag.replace(/^W\//, '').replace(/^"|"$/g, '') : null;

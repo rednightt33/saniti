@@ -3,7 +3,7 @@
    same bytes when every clock jumps at random (tests/core/noisy-clock.mjs), so no field depends on how long anything
    took, and (REGISTRY_LOAD_TEST=1, not in the default run because it saturates every core) five checks in a row pass
    while busy loops hold three times as many runnable processes as there are cores. The timeouts are wide because a
-   loaded machine slows the check (about 50 s at load 13 on 4 cores) without changing its answer. Plain JavaScript,
+   loaded machine slows the check (about 65 to 85 s at load 10 to 15 on 4 cores) without changing its answer. Plain JavaScript,
    because it spawns a process (node:child_process; the app's TypeScript has no Node typings, as the Backtest page). */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';

@@ -57,16 +57,17 @@ function checkParams(definition: Definition) {
 const P = (key: string, label: string, def: number, min = 1, max?: number) => ({ key, type:'integer' as const, label, default:def, min, ...(max ? { max } : {}), exclusive_min:false, integer:true, step:1 });
 const metric = (id: string, group: string, kind: CatalogMetric['kind'], label: string, unit: string | null, tests: CatalogMetric['tests'], extra: Record<string, unknown> = {}): CatalogMetric & Record<string, unknown> => ({
   id, group, kind, params:[], tests, unit, formula:'', interpretation:label, misuse:'', availability:'AVAILABLE', reason:null, applies_to:null, label, ...extra });
-const FLOW_REASON = 'Flow arrives with Phase 2 (all boards, P8).', BANDAR_REASON = 'Bandar definitions wait for P9 (Phase 3).';
-const FUND_REASON = 'No data: fundamentals wait for a data source and its own decision (P11).';
+// the catalog's reasons as the page shows them (screener-metrics.json, validate.ts availabilityOf): plain words
+const FLOW_REASON = 'Flow arrives with Phase 2 (all trading boards).', BANDAR_REASON = 'Bandar definitions come with Phase 3.';
+const FUND_REASON = 'No data: fundamentals wait for a data source and a decision of their own.';
 export const METRICS: (CatalogMetric & Record<string, unknown>)[] = [
-  metric('hi52', 'Technical', 'transform', 'Distance from 52W high', '%', ['value'], { short:'52W high', interpretation:'(Close ÷ 52-week high − 1), 252 sessions (P23 a).', default_test:{ op:'gt', value:-10, value2:0 },
+  metric('hi52', 'Technical', 'transform', 'Distance from 52W high', '%', ['value'], { short:'52W high', interpretation:'(Close ÷ 52-week high − 1), 252 sessions.', default_test:{ op:'gt', value:-10, value2:0 },
     ref:{ kind:'transform', fn:'pct_distance', of:{ kind:'transform', fn:'rolling_max', of:{ kind:'price', field:'high' }, args:{ length:252 } } } }),
-  metric('lo52', 'Technical', 'transform', 'Distance from 52W low', '%', ['value'], { short:'52W low', interpretation:'(Close ÷ 52-week low − 1), 252 sessions (P23 a).', default_test:{ op:'gt', value:30, value2:100 },
+  metric('lo52', 'Technical', 'transform', 'Distance from 52W low', '%', ['value'], { short:'52W low', interpretation:'(Close ÷ 52-week low − 1), 252 sessions.', default_test:{ op:'gt', value:30, value2:100 },
     ref:{ kind:'transform', fn:'pct_distance', of:{ kind:'transform', fn:'rolling_min', of:{ kind:'price', field:'low' }, args:{ length:252 } } } }),
   { ...metric('rs', 'Technical', 'transform', 'Relative strength vs IHSG', 'pts', ['value'], { short:'RS', interpretation:'Stock return minus IHSG return over N sessions (points).', default_test:{ op:'gt', value:0, value2:20 },
     ref:{ kind:'transform', fn:'vs_index', of:{ kind:'price', field:'close' }, args:{ window:63 } } }), params:[P('window', 'Sessions', 63)] },
-  { ...metric('return_rank', 'Technical', 'xsection', 'RS rank (percentile)', 'rank', ['value'], { short:'RS rank', interpretation:'Percentile of the N-session return on the fixed population (P7; 99 = strongest).', default_test:{ op:'gt', value:70, value2:100 } }), params:[P('window', 'Sessions', 252)] },
+  { ...metric('return_rank', 'Technical', 'xsection', 'RS rank (percentile)', 'rank', ['value'], { short:'RS rank', interpretation:'Percentile of the N-session return among the stocks that traded on the evaluation date (99 = strongest).', default_test:{ op:'gt', value:70, value2:100 } }), params:[P('window', 'Sessions', 252)] },
   { ...metric('breakout', 'Technical', 'pattern', 'Breakout', null, ['event'], { interpretation:'Close above the prior N-session high.', default_test:{ test:'event', within:3 } }), params:[P('length', 'Sessions', 20)] },
   { ...metric('volspike', 'Technical', 'pattern', 'Volume spike', null, ['state'], { interpretation:'Volume above 2× the average of the previous N sessions.' }), params:[P('length', 'Average of', 20)] },
   metric('adv20_idr', 'Flow', 'universe', 'Average daily value', 'IDR', ['value'], { short:'ADV20', interpretation:'Mean traded value (close × volume) over 20 sessions.', default_test:{ op:'gt', value:10, value2:100 } }),
@@ -111,7 +112,7 @@ export const PRESETS: CatalogPreset[] = [
   pre('brk20', 'Technical', 'Breakout + Volume', 'Close above the prior 20-session high in the last 3 sessions on a volume spike.', [
     { id:'a', enabled:true, test:{ kind:'event', within:3, signal:{ pattern:{ kind:'pattern', type:'breakout', params:{ length:20 } } } } },
     { id:'b', enabled:true, test:{ kind:'state', pattern:{ kind:'pattern', type:'volspike', params:{ length:20 } } } }]),
-  pre('ichi', 'Technical', 'Ichimoku Bullish', 'Close above the cloud and a Tenkan/Kijun bullish cross (needs a registry release, P6).', [
+  pre('ichi', 'Technical', 'Ichimoku Bullish', 'Close above the cloud and a Tenkan/Kijun bullish cross (comes with a later release of the indicator list).', [
     { id:'a', enabled:true, label:'Ichimoku cloud', test:{ kind:'state', pattern:{ kind:'pattern', type:'ichimoku_above' } } }], ['a']),
   pre('graham', 'Fundamental', 'Graham Defensive', 'P/E < 15, P/B < 1.5 (P/E × P/B < 22.5), D/E < 1, 5+ years of dividends, positive 3Y EPS growth.', [fundLeg('a', 'P/E', 'pe', 'lt', 15), fundLeg('b', 'Price ÷ Graham number', 'grahamRatio', 'lt', 1), fundLeg('c', 'Debt / equity', 'der', 'lt', 1)], ['a', 'b', 'c']),
   pre('piotroski', 'Fundamental', 'Piotroski F-score ≥ 7', 'Financially improving companies (score 7–9) that are not expensive (P/B < 3).', [fundLeg('a', 'Piotroski', 'piotroski', 'gt', 6), fundLeg('b', 'P/B', 'pb', 'lt', 3)], ['a', 'b']),
@@ -121,7 +122,7 @@ const limit = (name: string, value: number, unit: string, rule: string, ok: stri
 const LIMITS = [limit('max_conditions', 20, 'conditions', 'At most 20 enabled conditions', 'a screen with 20 enabled conditions', 'a screen with 21 enabled conditions'),
   limit('max_metric_filters', 8, 'filters', 'At most 8 universe metric filters', '8 metric filters', '9 metric filters'),
   limit('within_max', 130, 'sessions', '"within" is 1 to 130 sessions', 'within 130 sessions', 'within 131 sessions'),
-  limit('max_counts', 50, 'definitions', 'Counts for at most 50 saved screens at once', '50 saved screens', '51 saved screens')];
+  limit('max_counts', 50, 'saved screens', 'Counts for at most 50 saved screens at once', '50 saved screens', '51 saved screens')];
 
 const grouping = (key: 'sector' | 'industry', rows: Tk[]) => {
   const m = new Map<string, number>(); let un = 0;

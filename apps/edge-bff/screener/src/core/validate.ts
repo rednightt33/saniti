@@ -46,15 +46,17 @@ export type { MetricDefinition, MetricsCatalog, TransformDefinition, PresetDefin
 /** Availability of a metric at run time (report 6.12): REQUIRES_DECISION when `decision` is set; REQUIRES_DATA when its
     `requires.file` is not in the state.json xsection index or lacks a column (an index entry without a `columns` list
     is not checked for columns: the worker may add the columns of the decoded file to its index first); else AVAILABLE
-    (NOT_APPLICABLE is per ticker, from applies_to). reason: a plain sentence naming the file or the decision. */
+    (NOT_APPLICABLE is per ticker, from applies_to). reason: plain words the page shows as they are (tooltips, the
+    METRIC_UNAVAILABLE refusal): the decision, or the metric's unavailable_reason followed by what the publication lacks
+    (its data; with some of the columns, how many it lacks), never a file or column name. */
 export function availabilityOf(m: MetricDefinition, index: Readonly<Record<string, { columns?: string[] }>>): { availability: Availability; reason: string | null } {
   if (m.decision) return { availability: 'REQUIRES_DECISION', reason: m.decision };
   if (m.requires) {
     const e = Object.prototype.hasOwnProperty.call(index, m.requires.file) ? index[m.requires.file] : undefined;
     const why = m.unavailable_reason ? `${m.unavailable_reason} ` : '';
-    if (!e) return { availability: 'REQUIRES_DATA', reason: `${why}It needs the published file "${m.requires.file}", which this publication does not carry.` };
-    const missing = e.columns ? m.requires.columns.filter(c => !e.columns!.includes(c)) : [];
-    if (missing.length) return { availability: 'REQUIRES_DATA', reason: `${why}The published file "${m.requires.file}" lacks the column${missing.length > 1 ? 's' : ''} ${missing.join(', ')}.` };
+    const missing = e && e.columns ? m.requires.columns.filter(c => !e.columns!.includes(c)) : [];
+    if (!e || (missing.length && missing.length === m.requires.columns.length)) return { availability: 'REQUIRES_DATA', reason: `${why}It needs data that this publication does not carry.` };
+    if (missing.length) return { availability: 'REQUIRES_DATA', reason: `${why}This publication carries only part of its data: ${missing.length} of the ${m.requires.columns.length} columns it needs ${missing.length > 1 ? 'are' : 'is'} missing.` };
   }
   return { availability: 'AVAILABLE', reason: null };
 }
@@ -253,8 +255,8 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
     finite(t.value, `${field}.value`);
     if (t.op === 'between') {
       finite(t.value2, `${field}.value2`, 'a number (the upper bound of between)');
-      if ((t.value as number) > (t.value2 as number)) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 must be at least value (${t.value}): between is value <= x <= value2, and the bounds are never swapped.`, `${field}.value2`);
-    } else if (has(t, 'value2')) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 is used only with op between; remove it.`, `${field}.value2`);
+      if ((t.value as number) > (t.value2 as number)) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 must be at least the lower value (${t.value}): "between" includes both bounds, the lower one first, and never swaps them.`, `${field}.value2`);
+    } else if (has(t, 'value2')) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 is used only with the operator "between"; remove it.`, `${field}.value2`);
     refs(t.metric, `${field}.metric`);
     valueForm(t.metric as MetricRef, t.op as string, `${field}.metric`, ctx);
   } else if (kind === 'state') {
@@ -383,7 +385,7 @@ export function validateUniverse(input: unknown, field: string, ctx: ValidateCon
   const u = object(input, field, UNIVERSE_KEYS, 'the universe');
   if (u.security_types !== undefined) {
     if (!Array.isArray(u.security_types) || u.security_types.length !== 1 || u.security_types[0] !== 'stock')
-      throw new ScreenerError('INVALID_CONDITION', `${field}.security_types must be ["stock"]: stocks are the only security type today (P15).`, `${field}.security_types`, { allowed: ['stock'] });
+      throw new ScreenerError('INVALID_CONDITION', `${field}.security_types must be ["stock"]: stocks are the only security type today.`, `${field}.security_types`, { allowed: ['stock'] });
   }
   const values = (key: 'sector' | 'industry') => ctx.groupings.find(g => g.key === key)?.values.map(v => v.value) ?? [];
   const out: UniverseDef = { security_types: ['stock'] };
@@ -462,15 +464,17 @@ export const definitionHash = (normalized: Definition): Promise<string> => sha25
 
 /** A preset's availability at run time: AVAILABLE only when every enabled leg (and metric filter) is; otherwise
     REQUIRES_DECISION when a leg waits for a decision, else REQUIRES_DATA, with the unavailable legs (condition ids, and
-    `metric_filters[i]` for a filter) and a reason naming them. A preset never runs with a leg removed (report 6.12). */
+    `metric_filters[i]` for a filter) and a reason naming them as the page numbers its cards ("condition 2 (Foreign net
+    value)", "universe filter 1 (Market cap)"), one sentence per distinct metric reason. A preset never runs with a leg
+    removed (report 6.12). */
 export function presetAvailability(p: PresetDefinition, availability: ReadonlyMap<string, { availability: Availability; reason: string | null }>, catalog: MetricsCatalog = METRICS_CATALOG): { availability: Availability; reason: string | null; unavailable_legs: string[] } {
-  const legs: { leg: string; metric: string; a: Availability; reason: string | null }[] = [];
-  const look = (leg: string, test: unknown) => {
+  const legs: { leg: string; place: string; metric: string; a: Availability; reason: string | null }[] = [];
+  const look = (leg: string, place: string, test: unknown) => {
     const visit = (r: MetricRef) => {
       const id = r.kind === 'pattern' ? r.type : r.kind === 'flow' || r.kind === 'xsection' ? r.metric : r.kind === 'universe' ? r.attr : null;
       const m = id === null ? undefined : catalog.metrics.find(x => x.kind === r.kind && x.id === id);
       const a = m ? availability.get(m.id) : undefined;
-      if (m && a && a.availability !== 'AVAILABLE') legs.push({ leg, metric: m.label || m.id, a: a.availability, reason: a.reason });
+      if (m && a && a.availability !== 'AVAILABLE') legs.push({ leg, place, metric: m.label || m.id, a: a.availability, reason: a.reason });
     };
     const each = (x: unknown) => { if (isObj(x) && typeof x.kind === 'string' && REF_KEYS[x.kind]) { visit(x as unknown as MetricRef); if (x.kind === 'transform') { each(x.of); if (isObj(x.args)) Object.values(x.args).forEach(each) } } };
     const t = test as Record<string, unknown>;
@@ -478,12 +482,18 @@ export function presetAvailability(p: PresetDefinition, availability: ReadonlyMa
     each(t.metric); each(t.lhs); each(t.rhs); each(t.pattern);
     if (isObj(t.signal)) { each(t.signal.lhs); each(t.signal.rhs); each(t.signal.pattern) }
   };
-  for (const c of p.definition.conditions) if (c.enabled) look(c.id, c.test);
-  (p.definition.universe.metric_filters || []).forEach((t, i) => look(`metric_filters[${i}]`, t));
+  p.definition.conditions.forEach((c, i) => { if (c.enabled) look(c.id, `condition ${i + 1}`, c.test) });
+  (p.definition.universe.metric_filters || []).forEach((t, i) => look(`metric_filters[${i}]`, `universe filter ${i + 1}`, t));
   if (!legs.length) return { availability: 'AVAILABLE', reason: null, unavailable_legs: [] };
   const availabilityOut: Availability = legs.some(l => l.a === 'REQUIRES_DECISION') ? 'REQUIRES_DECISION' : legs.some(l => l.a === 'REQUIRES_DATA') ? 'REQUIRES_DATA' : 'NOT_APPLICABLE';
   const unavailable_legs = [...new Set(legs.map(l => l.leg))];
-  const reason = `Not available: ${legs.map(l => `${l.leg} (${l.metric}): ${l.reason}`).join(' ')}`;
+  const byReason = new Map<string, string[]>();
+  for (const l of legs) {
+    const named = `${l.place} (${l.metric})`, list = byReason.get(l.reason ?? '') ?? [];
+    if (!list.includes(named)) list.push(named);
+    byReason.set(l.reason ?? '', list);
+  }
+  const reason = `Not available: ${[...byReason].map(([why, named]) => `${named.join(', ')}: ${why || 'no data yet.'}`).join(' ')}`;
   return { availability: availabilityOut, reason, unavailable_legs };
 }
 /** The presets of presets.json (catalog.ts PRESETS). */

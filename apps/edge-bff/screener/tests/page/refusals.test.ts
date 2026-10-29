@@ -2,13 +2,13 @@
    (d)): every code and every limit the worker and edge-bff send the page is worded with where the problem is and how
    to fix it, from the catalog's limits[] (no limit and no number kept in the page), in plain words (no limit name, no
    field path, no code). LIMITS is GET /api/v1/screener/catalog limits[] as the worker (apps/screener-worker/src/
-   catalog.ts limitEntries, at the values below) and edge-bff (app/screener.py own_limits) generated it on 2026-10-29;
-   the tests check that each message is built from its entry, so a change of the generated words or values needs no
-   change here. */
+   catalog.ts limitEntries) and edge-bff (app/screener.py own_limits) generate it, copied in tests/page/limits.ts and
+   checked against both generators; the tests check that each message is built from its entry, so a change of the
+   generated words or values needs no change here. */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CatalogResponse, LimitEntry } from '../../src/core/contract.ts';
 import { ERROR_CODES } from '../../src/core/contract.ts';
-import { errorText, fieldWords, placeText, savedErrorText } from '../../src/texts.ts';
+import { errorText, failureOn, fieldWords, placeText, savedErrorText } from '../../src/texts.ts';
 import { ctx, definitionOf, freshUniverse, S } from '../../src/state.ts';
 import { entriesOf } from '../../src/entries.ts';
 import { newCard } from '../../src/forms.ts';
@@ -20,30 +20,10 @@ import { liveApi } from '../../src/api/live.ts';
 import { ApiFailure } from '../../src/api/types.ts';
 import type { Card } from '../../src/forms.ts';
 import type { Entry } from '../../src/entries.ts';
+import { L, LIMITS } from './limits.ts';
+import { INTERNAL } from './plain-words.ts';
 
-const L = (name: string, value: number, unit: string, rule: string, example_ok: string, example_refused: string): LimitEntry => ({ name, value, unit, rule, example_ok, example_refused });
-/** the worker's limits at max_cpu_ms 20000, cap_budget_ms 2000, deadline_ms 20000, max_conditions 20, max_metric_filters 8,
-    within_max 130, max_counts 50, max_response_bytes 2097152, queue 4, owner_inflight 2, owner_cpu_ms 60000,
-    previous_grace_s 600 (the refresh caps are left out: they fail a refresh, never a request), then edge-bff's own */
-const LIMITS: LimitEntry[] = [
-  L('max_conditions', 20, 'conditions', 'at most 20 enabled conditions in one screen', 'a screen with 20 enabled conditions', 'a screen with 21 enabled conditions (switch one off or remove it)'),
-  L('max_metric_filters', 8, 'filters', 'at most 8 universe metric filters in one screen', '8 metric filters', '9 metric filters (remove one)'),
-  L('within_max', 130, 'sessions', '"within" is a whole number of sessions from 1 to 130', 'within 130 sessions', 'within 131 sessions (use 130 or fewer)'),
-  L('cap_budget_ms', 2000, 'ms', "a length parameter is at most its cap (the catalog's max), the longest whose computation over the whole market fits 2000 ms on one thread", 'Hull Moving Average length 252', 'Hull Moving Average length 253 (use 252 or less)'),
-  L('compute_budget', 20000, 'ms', "a screen's predicted worst-case compute is at most 20000 ms; a costlier screen is refused before it runs, naming its costliest condition", 'a screen of default indicators (read from the snapshot)', 'a screen whose custom conditions are predicted at 20001 ms (use fewer custom conditions or shorter lengths)'),
-  L('deadline_ms', 20000, 'ms', 'a screen is answered within 20000 ms, waiting included, or stopped with TIMEOUT', 'a screen answered after 20000 ms', 'a screen still running after 20000 ms (use fewer custom conditions or shorter lengths)'),
-  L('owner_inflight', 2, 'requests', 'at most 2 requests of one user compute at once on a replica; the next ones wait their turn', '2 requests computing at once', 'request 3 waits until one of them ends (it is not refused)'),
-  L('owner_cpu_budget', 60000, 'ms per minute', "one user's requests use at most 60000 ms of compute per minute on a replica (P33); a request that would pass it is refused with the seconds to wait", 'requests using 60000 ms within one minute', 'a request that would bring the minute to 60001 ms (wait the seconds named, or use fewer custom conditions)'),
-  L('previous_grace_s', 600, 's', 'after new data is published, a page still showing the previous data is served on it for 600 s', 'a screen pinned to the previous data 600 s after the new data arrived', 'a screen pinned to the previous data 601 s after (DATA_VERSION_CHANGED: the page re-reads the catalog and runs again)'),
-  L('queue', 4, 'requests', 'at most 4 requests wait for a compute thread on a replica, every user together', 'a request arriving while 3 wait', 'a request arriving while 4 wait (BUSY: retry in a few seconds)'),
-  L('max_counts', 50, 'definitions', 'counts for at most 50 saved screens per request', '50 saved screens', '51 saved screens (ask for the rest in a second request)'),
-  L('max_response_bytes', 2097152, 'bytes', 'an answer is at most 2097152 bytes of JSON', 'an answer of 2097152 bytes', 'an answer of 2097153 bytes (narrow the universe or add a condition)'),
-  L('saved_items', 50, 'items of each kind', 'at most 50 saved screens and 50 My metrics', 'saving a new screen while 49 are saved', 'saving a new screen while 50 are saved (delete one first)'),
-  L('watchlist', 500, 'tickers', 'at most 500 tickers in the watchlist', 'watching a new ticker while 499 are watched', 'watching a new ticker while 500 are watched (remove one first)'),
-  L('saved_definition_bytes', 65536, 'bytes', 'a saved screen or My metric is at most 65,536 bytes of JSON as stored (a space after each colon and comma)', 'a saved definition of 65,536 bytes', 'a saved definition of 65,537 bytes (remove conditions or filters)'),
-  L('request_bytes', 131072, 'bytes', 'a request to the screener is at most 131,072 bytes', 'a run request of 131,072 bytes', 'a run request of 131,073 bytes (remove conditions or filters)'),
-  L('inflight_per_page', 1, 'requests of each kind per page', '1 screen and 1 preview in flight per page: a newer one replaces the older one, which answers SCREEN_REPLACED or PREVIEW_REPLACED', 'a preview while the same page runs a screen, or a screen run in another tab', 'a second screen of the same page while its first is running (the first is replaced; nothing to do)'),
-];
+// LIMITS: the catalog's limits[] copy (tests/page/limits.ts; plain-words.test.ts checks it against the generators)
 const limit = (name: string) => LIMITS.find(l => l.name === name)!;
 
 /* the page's cards: condition 1 SMA, condition 2 RSI, condition 3 a flow metric, universe filter 1 ADV20 (VWAP: a card of
@@ -56,19 +36,19 @@ const ENTRIES = [entry('I01', 'Simple Moving Average', [P('length', 'Length', 1,
   entry('fnet', 'Foreign net flow'), entry('adv20_idr', 'Average daily value'), entry('I43', 'Volume Weighted Average Price', [ENUM('anchor', 'Anchor', ['Week', 'Month'])])];
 const card = (id: string, e: string): Card => ({ id, on:true, entry:e, params:{}, opt:'', value:'', value2:'', within:'', second:{} });
 
-/** what a page message must never show: a limit or field name (snake_case), a code (UPPER_CASE, or any code the
-    contract, the worker or edge-bff answers with, one word ones such as TIMEOUT and BUSY included), a contract path, an
-    environment variable, a decision id (P33), a registry id (I43), a wire name with a digit (value2), a route (GET
-    universe) */
-const CODES = [...ERROR_CODES, 'DATA_VERSION_PENDING', 'ORIGIN_REJECTED', 'SERVICE_UNAVAILABLE'];
-const INTERNAL = new RegExp([String.raw`\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b`, String.raw`\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b`,
-  String.raw`definitions?\.(?=\w)|definitions?\[|conditions\[|universe\.(?=\w)`, `\\b(?:${CODES.join('|')})\\b`, String.raw`\bP\d+\b`, String.raw`\bI\d{2,3}\b`,
-  String.raw`\b[a-z]+\d+\b`, String.raw`\b(?:GET|POST|PUT|DELETE) [a-z/]`].join('|'));
+/** what a page message must never show: INTERNAL (tests/page/plain-words.ts: a limit or field name, a code, a contract
+    path, an environment variable, a decision, registry, flow or plan id, a wire name, a route, a replica) */
 const plainWords = (s: string) => { expect(s, s).not.toMatch(INTERNAL); return s };
 /** the page's own words of a message: what is left once the catalog's rules are taken out. A rule is shown as the
     catalog writes it (Method & sources lists the same words); its plain wording is the catalog generators' (worker
     catalog.ts limitEntries, edge-bff screener.py own_limits), not the page's. */
-const pageWords = (s: string) => { plainWords(LIMITS.reduce((m, l) => m.split(l.rule).join(''), s)); return s };
+const pageWords = (s: string) => {
+  const own = LIMITS.reduce((m, l) => m.split(l.rule).join(''), s);
+  plainWords(own);
+  // nor the service's own parts (the page speaks of the screener and EDGE, not of where a server keeps its errors)
+  expect(own, s).not.toMatch(/\b(?:worker|replica|thread|log|edge-bff|snapshot)\b/i);
+  return s;
+};
 
 beforeEach(() => {
   ctx.byKey = new Map(ENTRIES.map(e => [e.key, e]));
@@ -129,7 +109,7 @@ describe('LIMIT_EXCEEDED is worded from its catalog entry: where, the rule, what
   });
   it("edge-bff's limits: saved items, the watchlist and the saved definition's size (numbers as the rule writes them)", () => {
     expect(plainWords(errorText('LIMIT_EXCEEDED', { details:{ limit:'saved_items', allowed:50, needed:51 }, server:'At most 50 saved screens: delete one before saving another.' })))
-      .toBe(`Limit reached: ${limit('saved_items').rule}; this one needs 51 items of each kind. Delete one first.`);
+      .toBe(`Limit reached: ${limit('saved_items').rule}; this one needs 51 saved items. Delete one first.`);
     // the ticker is the request's field, not a place in the screen: the rule says where (the watchlist)
     expect(plainWords(errorText('LIMIT_EXCEEDED', { field:'ticker', details:{ limit:'watchlist', allowed:500, needed:501 } })))
       .toBe(`Limit reached: ${limit('watchlist').rule}; this one needs 501 tickers. Remove one first.`);
@@ -138,7 +118,7 @@ describe('LIMIT_EXCEEDED is worded from its catalog entry: where, the rule, what
   });
   it('max_counts and max_response_bytes', () => {
     expect(plainWords(errorText('LIMIT_EXCEEDED', { field:'definitions', details:{ limit:'max_counts', allowed:50, needed:51 } })))
-      .toBe(`Limit reached: ${limit('max_counts').rule}; this one needs 51 definitions. Ask for the rest in a second request.`);
+      .toBe(`Limit reached: ${limit('max_counts').rule}; this one needs 51 saved screens. Ask for the rest in a second request.`);
     expect(plainWords(errorText('LIMIT_EXCEEDED', { details:{ limit:'max_response_bytes', allowed:2097152, needed:2500000 } })))
       .toBe(`Limit reached: ${limit('max_response_bytes').rule}; this one needs 2500000 bytes. Narrow the universe or add a condition.`);
   });
@@ -172,14 +152,14 @@ describe('LIMIT_EXCEEDED is worded from its catalog entry: where, the rule, what
 
 describe('codes that stand for a limit (BUSY queue, TIMEOUT deadline, REQUEST_TOO_LARGE request size)', () => {
   it('BUSY words the queue rule and the fix after the code in its refused example', () => {
-    const m = plainWords(errorText('BUSY', { details:{ limit:'queue', allowed:4 }, server:'The screener is busy: 4 screens are waiting on this replica, the most it holds (SCREENER_QUEUE 4). Retry in a few seconds.' }));
+    const m = plainWords(errorText('BUSY', { details:{ limit:'queue', allowed:4 }, server:'The screener is busy: 4 screens are waiting on this server, the most it holds (4). Retry in a few seconds.' }));
     expect(m).toBe(`The screener is busy: ${limit('queue').rule}. Retry in a few seconds.`);
     expect(errorText('BUSY')).toBe(m);                      // run.ts's retry line: no body, the code's limit
     // a wait the answer names in Retry-After is said, as details.retry_after_seconds is
     expect(errorText('BUSY', { retryAfter:3 })).toBe(`${m} Try again in 3 s.`);
   });
   it('TIMEOUT words the deadline rule (its body names no limit)', () => {
-    expect(pageWords(errorText('TIMEOUT', { server:'The request took longer than the 20000 ms limit (SCREENER_DEADLINE_MS) after 20003 ms: use fewer custom conditions or shorter lengths.' })))
+    expect(pageWords(errorText('TIMEOUT', { server:'The request took longer than the 20000 ms limit and was stopped after 20003 ms: use fewer custom conditions or shorter lengths.' })))
       .toBe(`The screen took too long: ${limit('deadline_ms').rule}. Use fewer custom conditions or shorter lengths.`);
   });
   it('REQUEST_TOO_LARGE words the request size', () => {
@@ -220,16 +200,42 @@ describe('the other refusals name where and how to fix', () => {
       .toBe('Condition 2 (Relative Strength Index), kind must be value, state or event. Change it and run again.');
   });
   it('INVALID_CONDITION without allowed values: the server\'s reason led by the place, then the fix', () => {
-    // validate.ts:256; the page refuses this in place before it sends (forms.ts cardErrors), so it arrives only for a
-    // definition the page did not build. The reason after the place is the core's own words (value2 is its name)
-    const m = errorText('INVALID_CONDITION', { field:'definition.conditions[1].test.value2', server:'definition.conditions[1].test.value2 must be at least value (70): between is value <= x <= value2, and the bounds are never swapped.' });
-    expect(m).toMatch(/^Condition 2 \(Relative Strength Index\), upper value must be at least value \(70\)/);
-    expect(m).toMatch(/Change it and run again\.$/);
-    plainWords(m.slice(0, m.indexOf(':')));
+    // validate.ts (value test, between); the page refuses this in place before it sends (forms.ts cardErrors), so it
+    // arrives only for a definition the page did not build. The reason after the place is the core's own plain words
+    const m = plainWords(errorText('INVALID_CONDITION', { field:'definition.conditions[1].test.value2', server:'definition.conditions[1].test.value2 must be at least the lower value (70): "between" includes both bounds, the lower one first, and never swaps them.' }));
+    expect(m).toBe('Condition 2 (Relative Strength Index), upper value must be at least the lower value (70): "between" includes both bounds, the lower one first, and never swaps them. Change it and run again.');
   });
   it('INVALID_INPUT: an edge-bff field (the name) and a request the page built', () => {
     expect(errorText('INVALID_INPUT', { field:'name', server:'name is 1 to 120 characters' })).toBe('Name is 1 to 120 characters. Correct it and try again, or reload the page.');
     expect(errorText('INVALID_INPUT', { field:'definition.universe.price_min' })).toBe('The universe, minimum price is not in a form the screener accepts. Correct it and try again, or reload the page.');
+  });
+  it('INVALID_INPUT of a field the page fills itself: reload, never the server\'s wire names; a field the user edits keeps its reason', () => {
+    // the worker's envelope checks (screener-worker run.ts schema/order/version/closed, server.ts parseJson and the
+    // ticker check) and edge-bff's (screener.py checked_item, item routes, json_object), as they answer
+    const own: [string | undefined, string][] = [
+      ['schema_version', 'schema_version must be 1.'],
+      ['client_order', 'client_order is {page, seq}: page an id of 1-100 characters A-Z a-z 0-9 . _ : -, seq a whole number from 0.'],
+      ['data_version', 'data_version must be the 64-hex price_data of the catalog.'],
+      ['options.explain', 'options.explain must be true or false.'],
+      ['body', 'The request body is not JSON.'],
+      ['ticker', 'XYZ is not a listed stock of this publication; look up a listed ticker instead.'],
+      ['definitions[2].item_id', 'definitions[2].item_id scr_1 appears twice.'],
+      ['item_id', 'item_id is scr_ followed by 32 lowercase hexadecimal digits'],
+      ['kind', 'this item is a metric; an item keeps its kind (save a new item instead)'],
+      ['x-screener-owner', 'x-screener-owner must be 16 lowercase hex characters.'],
+      [undefined, 'The body is a JSON object.'],
+    ];
+    const reload = errorText('INVALID_INPUT', { field:'schema_version', server:own[0][1] });
+    expect(reload).toMatch(/^This page sent a request the screener does not accept .*Reload the page and try again\.$/);
+    for (const [field, server] of own) {
+      const m = pageWords(errorText('INVALID_INPUT', { field, server }));
+      expect(m, String(field)).toBe(reload);
+    }
+    // the screen the user builds and the name they type: the reason, its paths in words, and "correct it"
+    for (const [field, server] of [['definition.conditions[0].label', 'definition.conditions[0].label is at most 80 characters.'],
+      ['definition', 'the definition holds the character U+0000, which cannot be saved; remove it'], ['name', 'name has no control character (line break, tab)'],
+      ['definitions[1].definition.universe.tickers[0]', 'definitions[1].definition.universe.tickers[0] is not a ticker.']] as const)
+      expect(errorText('INVALID_INPUT', { field, server }), field).toMatch(/\. Correct it and try again, or reload the page\.$/);
   });
   it('UNKNOWN_INDICATOR and METRIC_UNAVAILABLE name the card and what to do with it', () => {
     expect(errorText('UNKNOWN_INDICATOR', { field:'definition.conditions[0].test.metric.indicator', details:{ allowed:['I01', 'I02'] } }))
@@ -258,7 +264,7 @@ describe('the other refusals name where and how to fix', () => {
   it('every contract code is worded in plain words, with or without a catalog', () => {
     for (const withCatalog of [true, false]) {
       if (!withCatalog) ctx.catalog = null;
-      for (const code of [...ERROR_CODES, 'ORIGIN_REJECTED', 'SERVICE_UNAVAILABLE']) {
+      for (const code of [...ERROR_CODES, 'ORIGIN_REJECTED', 'SERVICE_UNAVAILABLE', 'INTERNAL_ERROR']) {
         const m = errorText(code, { field:'definition.conditions[1].test.metric.params.length' });
         expect(m.length, code).toBeGreaterThan(20);
         expect(m, code).toMatch(/[.]$/);
@@ -309,5 +315,38 @@ describe("a saved screen's counts entry (POST counts) is worded on that screen's
     // without the definition (an item the list no longer holds): the card's number, never the page's card of that number
     expect(plainWords(savedErrorText({ code:'METRIC_UNAVAILABLE', field:'definitions[0].definition.conditions[0].test.metric', details:{ metric:'roe', reason:'No data yet.' } }, null)))
       .toBe(`Condition 1: ${ctx.byKey.get('roe')!.label} is not available yet: No data yet. Switch it off or remove it to run the screen.`);
+  });
+});
+
+describe('a request that carried another definition than the page shows', () => {
+  const refusal = (fn: () => unknown) => { try { fn() } catch (e) { if (e instanceof ScreenerError) return e.toApi().error; throw e } throw new Error('expected a refusal') };
+  const answering = (status: number, body: unknown, headers: Record<string, string> = {}) => {
+    const answers = [() => new Response(JSON.stringify({ login:'d', csrf_token:'t' }), { status:200 }),
+      () => new Response(JSON.stringify(body), { status, headers:{ 'Content-Type':'application/json', ...headers } })];
+    return liveApi({ fetchImpl:(async () => answers.shift()!()) as unknown as typeof fetch });
+  };
+  it('a saved screen duplicated (PUT items, validated again by edge-bff) is worded on the copy\'s cards, not the page\'s', async () => {
+    const cat = (await fixtureApi().catalog(null) as { status: 200; body: CatalogResponse }).body;
+    ctx.byKey = new Map(entriesOf(cat).map(e => [e.key, e]));
+    const hull = [...ctx.byKey.values()].find(e => e.kind === 'indicator' && /^Hull/.test(e.label))!;
+    const saved = definitionOf({ universe:freshUniverse(), cards:[newCard(ctx.byKey.get('I01')!, []), newCard(hull, [], { params:{ length:400 } })], logic:'all', atLeast:2 });
+    S.cards = [newCard(ctx.byKey.get('I13')!, []), newCard(ctx.byKey.get('I13')!, [])];     // the page shows another screen
+    // edge-bff validated(): /v1/validate of the screen's own definition, its 422 relayed as the worker gave it
+    const wire = refusal(() => validateDefinition(saved, vctx([])));
+    const e = await answering(422, { error:wire }).putItem('scr_' + '0'.repeat(32), { kind:'screen', name:'copy', definition:{ definition:saved } }).catch(x => x) as ApiFailure;
+    expect(e.wire).toEqual(wire);
+    expect(e.message).toMatch(/^Condition 2 \(Relative Strength Index\)/);         // the page's card 2: why the caller re-words
+    expect(plainWords(failureOn(e, saved))).toBe(`Condition 2 (${hull.label}), Length is out of range: use a whole number from 1 to ${(wire.details as { max: number }).max}. Change it and run again.`);
+    // a failure without a contract body keeps its message; a wait the answer names is kept
+    const signIn = await answering(401, { detail:'Not signed in' }).putItem('scr_' + '1'.repeat(32), { kind:'screen', name:'copy', definition:{ definition:saved } }).catch(x => x) as ApiFailure;
+    expect(failureOn(signIn, saved)).toBe(signIn.message);
+    const later = await answering(503, { error:{ code:'SCREENER_NOT_READY', message:'The screener tables are not installed yet; retry after the stated seconds.' } }, { 'Retry-After':'7' })
+      .putItem('scr_' + '2'.repeat(32), { kind:'screen', name:'copy', definition:{ definition:saved } }).catch(x => x) as ApiFailure;
+    expect(failureOn(later, saved)).toBe('The screener is starting or loading new data; retry in 7 s.');
+    expect(failureOn(new Error('boom'), saved)).toBe('Error: boom');
+  });
+  it("a counts entry's unexpected error (the worker thread's INTERNAL_ERROR, relayed inside the 200 answer) is the page's words", () => {
+    const m = pageWords(savedErrorText({ code:'INTERNAL_ERROR', message:'The worker failed; the error is in its log.' }, null));
+    expect(m).toBe(errorText('SERVICE_UNAVAILABLE'));
   });
 });

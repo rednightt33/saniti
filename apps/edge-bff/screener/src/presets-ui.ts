@@ -10,7 +10,7 @@ import { activeCards, canonical, cardOfField, ctx, definitionOf, presetOf, S, sa
 import { confirmDialog, dialog, closeDialog, newItemId, toast } from './dialogs.ts';
 import { ApiFailure } from './api/types.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
-import { errorText, savedErrorText, T } from './texts.ts';
+import { errorText, failureOn, placeText, savedErrorText, T } from './texts.ts';
 
 const $ = (id: string) => document.getElementById(id);
 const CAT_ORDER = ['Bandarmology', 'Technical', 'Fundamental', 'Combined'];
@@ -18,7 +18,20 @@ const tabLabel = (c: string) => c === 'Bandarmology' ? 'Bandar' : c;
 let countsAsked = '';
 
 const presetCats = () => { const cats = new Set((ctx.catalog?.presets || []).map(p => p.category)); return [...CAT_ORDER.filter(c => cats.has(c)), ...[...cats].filter(c => !CAT_ORDER.includes(c))] };
-const legNames = (p: CatalogPreset) => p.unavailable_legs.map(id => { const c = p.definition.conditions.find(x => x.id === id); return c?.label || id });
+/** the unavailable legs (condition ids, `metric_filters[i]`) as the page names cards (texts.ts placeText on the
+    preset's own cards): "condition 2 (Foreign net value)", "universe filter 1 (Market cap)", never the wire id; kept per
+    catalog preset object (a new catalog brings new objects) */
+const LEGS = new WeakMap<CatalogPreset, string[]>();
+export const legNames = (p: CatalogPreset): string[] => {
+  const kept = LEGS.get(p); if (kept) return kept;
+  const st = stateOfDefinition(p.definition);
+  const names = p.unavailable_legs.map(id => {
+    const f = /^metric_filters\[(\d+)\]$/.exec(id), i = p.definition.conditions.findIndex(x => x.id === id);
+    return f ? placeText(`universe.metric_filters[${f[1]}]`, { filters:st.universe.filters }) : i >= 0 ? placeText(`conditions[${i}]`, { cards:st.cards }) : 'a condition';
+  });
+  LEGS.set(p, names);
+  return names;
+};
 
 function presetsHtml(): string {
   if (!ctx.catalog) return `<span>Presets</span><span class="sbox">${spin(T.loadingPresets)}</span>`;
@@ -169,9 +182,11 @@ export function onPresetClick(b: HTMLElement): boolean {
   if (d.dupSaved) {
     const s = savedOf(d.dupSaved); if (!s) return true;
     const all = new Set((ctx.saved || []).map(x => x.name)); let nm = s.name + ' copy'; while (all.has(nm)) nm += '′';
+    // edge-bff validates the copy again (a saved screen that needs review is refused): its fields name the copied
+    // screen's cards, not the page's, so the refusal is worded on that definition (texts.ts failureOn)
     ctx.api.putItem(newItemId(), { kind:'screen', name:nm, definition:s.definition as ScreenItemDefinition })
       .then(it => { ctx.saved = [...(ctx.saved || []), it]; renderPresets(); toast(`Duplicated as ${nm}`) })
-      .catch(e => toast(e instanceof ApiFailure ? e.message : String(e)));
+      .catch(e => toast(failureOn(e, (s.definition as ScreenItemDefinition).definition)));
     return true;
   }
   if (d.act === 'pexp') { S.pexp = !S.pexp; renderPresets(); return true }

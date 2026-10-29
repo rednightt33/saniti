@@ -246,6 +246,14 @@ export function costLengths(value, bars) {
   return [L1, Math.min(Math.max(PROBE.cost_long_length, 50 * L1), Math.floor(bars / 4))];
 }
 
+/** The most an O(N·n) parameter can grow between the two lengths on `bars` bars: the growth of a kernel that is all
+    window loop (bars - L + 1 windows of L values each). The quarter-of-the-bars limit brings L2 close to a large
+    default L1 (a default of 1500 on 10000 bars: L2 = 2500, at most 0.47), where even such a kernel stays below the
+    O(N) bound and would be written O(N), without its cap; costClass refuses those lengths instead (review 2026-10-29). */
+export function windowGrowth([L1, L2], bars) {
+  return (L2 * (bars - L2 + 1)) / (L1 * (bars - L1 + 1)) - 1;
+}
+
 /** The class of a measured growth W(L2) / W(L1) - 1, or null when neither is decisive. A kernel that loops over its
     window (O(N·n)) grows 13.4 to 32.4 (HMA, Aroon, Donchian, Stochastic RSI, Stochastic, Williams %R, CCI, standard
     deviation 'sample', historical volatility: 34 configurations); a running-sum or recursive kernel (O(N)) grows -0.09
@@ -266,7 +274,11 @@ export function costVerdict(growth) {
     calls the meter, compiled before it started). A measured function that ran without block counts was compiled
     before the meter started (V8 adds block counters at compile time), so its loops would count as one: that stops the
     probe instead of under-counting. Not counted: work inside a built-in that does not call back into JavaScript
-    (Array.prototype.slice, fill, a spread); the Terminal's kernels loop in JavaScript (indicators.ts). */
+    (Array.prototype.slice, fill, a spread). A window taken that way, Math.max(...x.slice(i - n + 1, i + 1)), measures
+    O(N) (growth -0.05 from 14 to 1000; Donchian and Williams %R rewritten so would lose their caps, review 2026-10-29),
+    while one that calls back (slice(...).reduce(callback)) is counted O(N·n). Every window of the 53 kernels of
+    indicators.ts is a JavaScript loop (read 2026-10-29); a kernel that moves its window into a built-in needs its
+    class read from its code. */
 export function executedChars(scripts, harness = []) {
   let work = 0;
   for (const s of scripts) {
@@ -312,13 +324,27 @@ export async function workMeter(harness = [import.meta.url]) {
 }
 
 /** cost_class of an integer parameter p of `run` at its default `value` (report 6.8): the work at the two costLengths
-    on the bars B, classed by costVerdict (null when not decisive). */
+    on the bars B, classed by costVerdict (null when not decisive). Null without measuring (work null) when the lengths
+    cannot tell the classes apart: windowGrowth below the O(N·n) bound. */
 export async function costClass(meter, run, B, p, value) {
-  const lengths = costLengths(value, B.C.length);
+  const lengths = costLengths(value, B.C.length), ceiling = windowGrowth(lengths, B.C.length);
+  if (!(ceiling >= PROBE.cost_growth * PROBE.cost_margin)) return { cost_class: null, lengths, ceiling, work: null, growth: null };
   const work = [];
   for (const L of lengths) work.push(await meter.work(() => run(B, { [p]: L })));
   const growth = work[1] / work[0] - 1;
-  return { cost_class: costVerdict(growth), lengths, work, growth };
+  return { cost_class: costVerdict(growth), lengths, ceiling, work, growth };
+}
+
+/** Why a measurement of costClass gives no class, with its numbers and the probe setting that resolves it: the second
+    length comes from cost_long_length (or 50 x the default) until it reaches a quarter of cost_bars. */
+export function costRefusal(at, c, bars) {
+  const [L1, L2] = c.lengths, hi = PROBE.cost_growth * PROBE.cost_margin, lo = PROBE.cost_growth / PROBE.cost_margin;
+  const longer = L2 >= Math.floor(bars / 4) ? `raise PROBE.cost_bars (the second length is at most a quarter of the ${bars} bars)` : 'raise PROBE.cost_long_length';
+  if (c.work === null) return `${at}: at lengths ${L1} and ${L2} on ${bars} bars even a kernel that is all window loop grows only ${c.ceiling.toFixed(3)}, `
+    + `less than ${hi} (O(N·n)), so the probe cannot tell O(N·n) from O(N) at this default: ${longer} before building`;
+  return `${at}: the work grows ${c.growth.toFixed(3)} from length ${L1} to ${L2} (${c.work.join(' -> ')} executed source characters), neither at most `
+    + `${lo} (O(N)) nor at least ${hi} (O(N·n)), so no class can be derived with the required margin: read the kernel's loops, or ${longer} `
+    + 'before building';
 }
 
 /** The V8 tier limit of the cost probe's child (PROBE.cost_tier; see the cost_class notes above): no optimizing
@@ -333,8 +359,8 @@ export const costChildArgs = () => [COST_TIER_FLAG, '--experimental-strip-types'
     meter, then imports `module` (its F, as indicators.ts exports it) so that every function of it has block counters,
     and measures each group on the fixture of `bars` bars: { id, key, param, value, base (the start configuration),
     variants (enum overrides, the default first) }. A group is O(N·n) at its first variant that is (a basis or method
-    can swap a running-sum kernel for a window loop: I32 'sample'), else O(N). A growth that is not decisive stops the
-    probe with the numbers. */
+    can swap a running-sum kernel for a window loop: I32 'sample'), else O(N). A measurement without a class
+    (costRefusal) stops the probe with the numbers. */
 export async function costWork({ module, bars, groups }) {
   if (!process.execArgv.includes(COST_TIER_FLAG)) throw new Error(`cost probe: the child must run with ${COST_TIER_FLAG} (an optimizing tier changes block counts); start it with costChildArgs()`);
   const meter = await workMeter();
@@ -348,10 +374,7 @@ export async function costWork({ module, bars, groups }) {
     for (const v of g.variants) {
       const c = await costClass(meter, (b, over) => fn(b, { ...g.base, ...v, ...over }), B, g.param, g.value);
       measured.push({ variant: v, ...c });
-      if (!c.cost_class) throw new Error(`cost probe ${g.id}.${g.param} ${JSON.stringify(v)}: the work grows ${c.growth.toFixed(3)} from length ${c.lengths[0]} to `
-        + `${c.lengths[1]} (${c.work.join(' -> ')} executed source characters), neither at most ${PROBE.cost_growth / PROBE.cost_margin} (O(N)) nor at least `
-        + `${PROBE.cost_growth * PROBE.cost_margin} (O(N·n)), so no class can be derived with the required margin: read the kernel's loops (or lengthen the `
-        + 'probe, PROBE.cost_long_length) before building');
+      if (!c.cost_class) throw new Error(costRefusal(`cost probe ${g.id}.${g.param} ${JSON.stringify(v)}`, c, bars));
       if (c.cost_class === 'O(N·n)') { cls = 'O(N·n)'; break }
     }
     out.push({ id: g.id, param: g.param, cost_class: cls, measured });

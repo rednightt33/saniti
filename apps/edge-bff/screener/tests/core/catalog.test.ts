@@ -35,7 +35,7 @@ describe('screener-metrics.json', () => {
     const a = availabilityMap({});
     for (const m of fund) {
       expect([m.id, m.kind, a.get(m.id)!.availability]).toEqual([m.id, 'universe', 'REQUIRES_DATA']);
-      expect(a.get(m.id)!.reason).toMatch(/needs the published file/);
+      expect(a.get(m.id)!.reason).toMatch(/It needs data that this publication does not carry\.$/);
     }
     const banks = fund.filter(m => m.applies_to === 'Industry = Banks').map(m => m.id);
     expect(banks).toEqual(['nim', 'npl', 'car', 'casa', 'ldr']);
@@ -55,7 +55,15 @@ describe('screener-metrics.json', () => {
     for (const fl of decided) expect(withFlow.get(METRICS_CATALOG.metrics.find(m => m.fl === fl)!.id)!.availability).toBe('AVAILABLE');
     expect(withFlow.get('fsurprise')!.availability).toBe('REQUIRES_DECISION');                                 // a later-list metric
     const noFreq = availabilityOf(METRICS_CATALOG.metrics.find(m => m.id === 'freq')!, { broker_window: { columns: ['d', 'b'] } });
-    expect(noFreq).toEqual({ availability: 'REQUIRES_DATA', reason: expect.stringMatching(/lacks the columns i, m, bv, sv, bl, sl, buy_freq, sell_freq/) });
+    // i, m, bv, sv, bl, sl, buy_freq and sell_freq are missing: counted in words, never named (the page shows the reason)
+    expect(noFreq).toEqual({ availability: 'REQUIRES_DATA', reason: expect.stringMatching(/carries only part of its data: 8 of the 10 columns it needs are missing\.$/) });
+    // a file without any of the columns carries none of the data, never "part of it" ("1 of the 1 columns"); one
+    // missing column is singular; a file that lists them all is available
+    const pe = METRICS_CATALOG.metrics.find(m => m.id === 'pe')!, fnet = METRICS_CATALOG.metrics.find(m => m.id === 'fnet')!;
+    expect(availabilityOf(pe, { [pe.requires!.file]: { columns: ['d'] } }).reason).toMatch(/\. It needs data that this publication does not carry\.$/);
+    expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: ['x'] } }).reason).toMatch(/\. It needs data that this publication does not carry\.$/);
+    expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: [fnet.requires!.columns[0]] } }).reason).toMatch(/carries only part of its data: 1 of the 2 columns it needs is missing\.$/);
+    expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: [...fnet.requires!.columns] } })).toEqual({ availability: 'AVAILABLE', reason: null });
     expect(availabilityOf(METRICS_CATALOG.metrics.find(m => m.id === 'index_membership')!, {}).availability).toBe('REQUIRES_DATA');
   });
   it('checks catalog parameters as registry parameters are checked: defaults filled, nothing adjusted, the field named', () => {
@@ -77,7 +85,11 @@ describe('presets.json', () => {
     const a = availabilityMap({});
     const status = Object.fromEntries(PRESETS.presets.map(p => [p.id, presetAvailability(p, a)]));
     for (const id of ['brk52', 'oversold', 'golden', 'macddiv', 'rebound', 'squeeze', 'stflip', 'minervini']) expect([id, status[id].availability]).toEqual([id, 'AVAILABLE']);
-    expect(status.ichi).toEqual({ availability: 'REQUIRES_DECISION', reason: expect.stringMatching(/registry release \(P6/), unavailable_legs: ['a', 'b'] });
+    // the legs named as the page numbers its cards, one sentence per reason
+    expect(status.ichi).toEqual({ availability: 'REQUIRES_DECISION', unavailable_legs: ['a', 'b'],
+      reason: 'Not available: condition 1 (Close above the Ichimoku cloud), condition 2 (Tenkan crosses above Kijun): Ichimoku is not among the 53 indicators yet: it comes with a later release of the indicator list.' });
+    expect(status.magic.reason).toMatch(/^Not available: condition 1 \(Magic Formula rank\): No fundamental data source .* universe filter 1 \(Market cap\): Market cap waits /);
+    expect(status.qflow.reason).toMatch(/^Not available: condition 1 \(ROE\), condition 2 \(Debt \/ equity\): No fundamental .* condition 3 \(Foreign net value\): Flow metrics /);
     expect([status.fstreak.availability, status.fstreak.unavailable_legs]).toEqual(['REQUIRES_DATA', ['a', 'b']]);
     expect([status.qflow.availability, status.qflow.unavailable_legs]).toEqual(['REQUIRES_DATA', ['a', 'b', 'c']]);      // the MA50 leg is available
     expect([status.bavg.availability, status.bavg.unavailable_legs]).toEqual(['REQUIRES_DECISION', ['a', 'b']]);

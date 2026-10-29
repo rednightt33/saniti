@@ -9,7 +9,7 @@ import type { SavedItem } from './core/contract.ts';
 import { esc, nf } from './format.ts';
 import { COLORS, IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, S, ui } from './state.ts';
-import { byGroup, defaultParams, GHEAD, GL, isDefP, matches, paramError, rangeText, type Entry } from './entries.ts';
+import { byGroup, defaultParams, GHEAD, GL, isDefP, matches, optionText, paramError, rangeText, type Entry } from './entries.ts';
 import { cardErrors, cardName, condText, defaultOffered, displayUnit, fromWire, isCustom, newCard, newCardId, optOf, paramSummary, type Card } from './forms.ts';
 import { confirmDialog, openSaveMetric, toast } from './dialogs.ts';
 import { openBrowser } from './browser.ts';
@@ -45,16 +45,16 @@ function condRow(c: Card): string {
   const within = o?.within ? `<div class="vrow"><span class="unit">within</span><input class="inp" type="number" min="1" max="${withinMax()}" step="1" data-c="${c.id}" data-k="within" value="${c.within}" ${inv('within')} aria-label="Within sessions"><span class="unit">sessions</span></div>${err('within')}` : '';
   const pf = (p: Entry['params'][number], second = false) => {
     const v = second ? c.second[p.key] : c.params[p.key], k = (second ? '2.' : '') + p.key, attr = second ? 'data-p2' : 'data-p';
-    const field = p.options ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}">${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`
+    const field = p.options ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}">${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
       : p.type === 'boolean' ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}"><option value="true" ${v === true ? 'selected' : ''}>true</option><option value="false" ${v === false ? 'selected' : ''}>false</option></select>`
       : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="${p.step ?? (p.integer ? 1 : 'any')}" data-c="${c.id}" ${attr}="${p.key}" value="${esc(v)}" ${inv(k)} title="${esc(rangeText(p))}">`;
-    return `<label class="pf ${isDefP(p, v) ? '' : 'chg'}" data-pf="${c.id}|${k}"><span>${esc((second ? '2nd ' : '') + (p.label || p.key))}</span>${field}<small>${errs[k] ? `<b class="down">${esc(errs[k])}</b>` : `${defaultOffered(e) ? 'default' : 'opens at'} ${esc(p.default)}`}</small></label>`;
+    return `<label class="pf ${isDefP(p, v) ? '' : 'chg'}" data-pf="${c.id}|${k}"><span>${esc((second ? '2nd ' : '') + (p.label || p.key))}</span>${field}<small>${errs[k] ? `<b class="down">${esc(errs[k])}</b>` : `${defaultOffered(e) ? 'default' : 'opens at'} ${esc(optionText(p, p.default))}`}</small></label>`;
   };
   const twoLines = o && (o.form === 'state_instance' || o.form === 'event_instance');
   // P17 consequence (catalog default_offered false, I43): no Default chip, the card is Custom with its reason
   const mode = !e.params.length ? `<span class="note">No parameters</span>`
     : !defaultOffered(e) ? `<span class="seg sm mseg"><button class="on" data-segc="${c.id}" title="${esc(T.noDefault)}">Custom</button></span>`
-    : `<span class="seg sm mseg"><button class="${cus ? '' : 'on'}" data-segd="${c.id}" title="Use the standard parameters (the registry's defaults)">Default</button><button class="${cus ? 'on' : ''}" data-segc="${c.id}" title="Set your own parameters">Custom</button></span>`;
+    : `<span class="seg sm mseg"><button class="${cus ? '' : 'on'}" data-segd="${c.id}" title="Use the standard parameters (the defaults shown under each field)">Default</button><button class="${cus ? 'on' : ''}" data-segc="${c.id}" title="Set your own parameters">Custom</button></span>`;
   const grid = e.params.length && (cus || twoLines) ? `<div class="pgrid">${e.params.map(p => pf(p)).join('')}${twoLines ? e.params.map(p => pf(p, true)).join('') : ''}</div><div class="mrow"><span class="pbadge my" data-pm="${c.id}" ${c.metric ? '' : 'hidden'}>★ ${esc(c.metric?.name || '')}</span><button class="link" data-savem="${c.id}">${ico(IC.star, 's')}Save as My metric</button></div>` : '';
   const ops = `<select class="sel" data-c="${c.id}" data-k="op" aria-label="Condition">${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === c.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}</select>${err('op')}`;
   return `<div class="mc ${c.on ? '' : 'off'} ${cus ? 'cus' : ''}" data-card="${c.id}">${head}
@@ -120,7 +120,7 @@ export function drawSuggest(q: string) {
   box.innerHTML = emptyMine + sugList.map(({ e, m }, i) => {
     const g = m ? 'My metrics' : e.group, hd = g !== last ? `<div class="hd">${esc(GHEAD(g))}</div>` : ''; last = g;
     if (m) return hd + `<div class="mrow"><button class="${i === sugIdx ? 'act' : ''}" data-addm="${esc(m.item_id)}" role="option" aria-selected="${i === sugIdx}"><span class="tag My">★ Mine</span>${esc(m.name)}<small>${esc(e.label)}</small></button><button class="mdel" data-delm="${esc(m.item_id)}" title="Delete ${esc(m.name)}" aria-label="Delete ${esc(m.name)}">${ico(IC.trash, 's')}</button></div>`;
-    return hd + `<button class="sg1 ${i === sugIdx ? 'act' : ''} ${e.available ? '' : 'na'}" data-add="${esc(e.key)}" role="option" aria-selected="${i === sugIdx}" title="${esc(e.available ? e.desc : `${e.desc}\n${e.reason}`)}"><span class="tag ${esc(e.group)}">${esc(GL(e.group))}</span><span class="nm">${esc(e.label)}</span><small>${e.available ? (e.params.length ? esc(e.params.map(p => p.default).join(' · ')) : 'fixed') : 'no data'}</small></button>`;
+    return hd + `<button class="sg1 ${i === sugIdx ? 'act' : ''} ${e.available ? '' : 'na'}" data-add="${esc(e.key)}" role="option" aria-selected="${i === sugIdx}" title="${esc(e.available ? e.desc : `${e.desc}\n${e.reason}`)}"><span class="tag ${esc(e.group)}">${esc(GL(e.group))}</span><span class="nm">${esc(e.label)}</span><small>${e.available ? (e.params.length ? esc(e.params.map(p => optionText(p, p.default)).join(' · ')) : 'fixed') : 'no data'}</small></button>`;
   }).join('');
   box.innerHTML += `<button class="sgfoot" data-act="browse">${ico(IC.expand, 's')}Browse all ${ctx.entries.length} indicators with details${n ? ` for “${esc(q.trim())}”` : ''}</button>`;
   box.hidden = false; inp?.setAttribute('aria-expanded', 'true');
@@ -158,7 +158,7 @@ function deleteMetric(itemId: string) {
 }
 const resetParams = (c: Card) => {
   const e = entryOf(c)!; c.params = defaultParams(e); syncMetric(c); delete S.errors[c.id];
-  ui.markDirty(); ui.refresh('conds'); toast(`${e.label} back to default (${e.params.map(p => p.default).join(', ')})`);
+  ui.markDirty(); ui.refresh('conds'); toast(`${e.label} back to default (${e.params.map(p => optionText(p, p.default)).join(', ')})`);
 };
 const syncMetric = (c: Card) => { if (c.metric && JSON.stringify(c.metric.params) !== JSON.stringify(c.params)) delete c.metric };
 
