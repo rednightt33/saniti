@@ -1,0 +1,57 @@
+Starting Container
+MIG DRYRUN_BODY_OK 20261028_100_terminal_service_accounts.sql
+OUT {"q": "terminal_tables", "ms": 1, "part": 0, "rows": [["access_log"], ["admin_log"], ["quota"], ["quota_override"], ["session"], ["sign_in_attempt"]]}
+OUT {"q": "terminal_tables", "ms": 1, "part": 1, "rows": [["subscriber"], ["usage_hour"]]}
+OUT {"q": "runtime_grants", "ms": 1, "part": 0, "rows": [["access_log", "DELETE,INSERT,SELECT,UPDATE"], ["admin_log", "DELETE,INSERT,SELECT,UPDATE"], ["quota", "DELETE,INSERT,SELECT,UPDATE"], ["quota_override", "DELETE,INSERT,SELECT,UPDATE"], ["session", "DELETE,INSERT,SELECT,UPDATE"], ["sign_in_attempt", "DELETE,INSERT,SELECT,UPDATE"]]}
+OUT {"q": "runtime_grants", "ms": 1, "part": 1, "rows": [["subscriber", "DELETE,INSERT,SELECT,UPDATE"], ["usage_hour", "DELETE,INSERT,SELECT,UPDATE"]]}
+OUT {"q": "other_grantees", "ms": 1, "part": 0, "rows": []}
+OUT {"q": "schema_acl", "ms": 1, "part": 0, "rows": [["terminal_runtime", "USAGE"]]}
+OUT {"q": "role_members", "ms": 7, "part": 0, "rows": [["terminal_market_reader", "terminal_api_login"], ["terminal_market_reader", "terminal_publisher_login"], ["terminal_runtime", "terminal_api_login"]]}
+OUT {"q": "terminal_roles", "ms": 1, "part": 0, "rows": [["terminal_api_login", true, false, 20], ["terminal_market_reader", false, false, -1], ["terminal_publisher_login", true, false, 4], ["terminal_runtime", false, false, -1]]}
+OUT {"q": "kind_column", "ms": 3, "part": 0, "rows": [["text", "NO", "'person'::text"]]}
+MIG DRYRUN 20261028_100_terminal_service_accounts.sql sha256=a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7
+OUT {"q": "subscriber_constraints", "ms": 3, "part": 0, "rows": [["subscriber_disabled_reason_check", "c", "CHECK (((disabled_reason IS NULL) OR (length(disabled_reason) <= 500)))"], ["subscriber_display_name_check", "c", "CHECK (((length(btrim(display_name)) >= 1) AND (length(btrim(display_name)) <= 120)))"], ["subscriber_email_check", "c", "CHECK (((email = lower(btrim(email))) AND (email ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'::text)))"], ["subscriber_email_key", "u", "UNIQUE (email)"], ["subscriber_kind_check", "c", "CHECK ((kind = ANY (ARRAY['person'::text, 'service'::text])))"], ["subscriber_password_hash_check", "c", "CHECK ((password_hash ~ '^scrypt\\$[0-9a-f]{32}\\$[0-9a-f]{64}$'::text))"]]}
+OUT {"q": "subscriber_constraints", "ms": 3, "part": 1, "rows": [["subscriber_pkey", "p", "PRIMARY KEY (subscriber_id)"]]}
+OUT {"q": "usage_hour_columns", "ms": 2, "part": 0, "rows": [["subscriber_id", "bigint", true, null], ["hour_start", "timestamp with time zone", true, null], ["grants", "integer", true, "0"], ["files", "bigint", true, "0"], ["bytes", "bigint", true, "0"]]}
+OUT {"q": "usage_hour_constraints", "ms": 0, "part": 0, "rows": [["usage_hour_bytes_check", "c", "CHECK ((bytes >= 0))"], ["usage_hour_files_check", "c", "CHECK ((files >= 0))"], ["usage_hour_grants_check", "c", "CHECK ((grants >= 0))"], ["usage_hour_pkey", "p", "PRIMARY KEY (subscriber_id, hour_start)"], ["usage_hour_subscriber_id_fkey", "f", "FOREIGN KEY (subscriber_id) REFERENCES terminal.subscriber(subscriber_id) ON DELETE CASCADE"], ["usage_hour_whole_hour", "c", "CHECK ((hour_start = date_trunc('hour'::text, hour_start, 'UTC'::text)))"]]}
+OUT {"q": "usage_hour_indexes", "ms": 1, "part": 0, "rows": [["usage_hour_pkey", "CREATE UNIQUE INDEX usage_hour_pkey ON terminal.usage_hour USING btree (subscriber_id, hour_start)"]]}
+OUT {"q": "comments", "ms": 1, "part": 0, "rows": [[true, true]]}
+OUT {"q": "service_rows", "ms": 1, "part": 0, "rows": [["backtest-worker@terminal.local", "Backtest worker (service account)", "service", true, true, true, true], ["screener-worker@terminal.local", "Screener worker (service account)", "service", true, true, true, true]]}
+OUT {"q": "people_rows", "ms": 1, "part": 0, "rows": [[2, 2, 0]]}
+OUT {"q": "ceilings", "ms": 0, "part": 0, "rows": [["service_files_per_hour", 100000, "files"], ["service_grants_per_hour", 20000, "grants"], ["service_megabytes_per_hour", 100000, "MB"]]}
+OUT {"q": "person_quotas", "ms": 0, "part": 0, "rows": [["failed_sign_ins_per_email"], ["failed_sign_ins_per_ip"], ["files_per_hour"], ["history_per_hour"], ["megabytes_per_day"], ["session_hours"]]}
+OUT {"q": "person_quotas", "ms": 0, "part": 1, "rows": [["sessions_per_subscriber"], ["tickers_per_day"], ["tickers_per_hour"], ["url_ttl_seconds"]]}
+OUT {"q": "service_side_rows", "ms": 41, "part": 0, "rows": [[0, 0, 0, 0]]}
+OUT {"q": "privileges", "ms": 8, "part": 0, "rows": [["public", false, false, false, false, false, false, false, false, false], ["terminal_api_login", true, true, true, true, true, false, false, false, true], ["terminal_market_reader", false, false, false, false, false, false, false, false, false], ["terminal_publisher_login", false, false, false, false, false, false, false, false, false], ["terminal_runtime", true, true, true, true, true, false, false, false, true]]}
+OUT {"q": "verify_again", "ms": 10, "part": 0, "rows": [["verify passed"]]}
+OUT {"q": "as_api_ready", "ms": 1, "part": 0, "rows": [[1, 0, 0, 0]]}
+OUT {"q": "as_api_service_accounts", "ms": 1, "part": 0, "rows": [["backtest-worker@terminal.local", "service"], ["screener-worker@terminal.local", "service"]]}
+OUT {"q": "as_api_people", "ms": 1, "part": 0, "rows": [[1]]}
+OUT {"q": "as_api_service_limits", "ms": 1, "part": 0, "rows": [["service_files_per_hour", 100000], ["service_grants_per_hour", 20000], ["service_megabytes_per_hour", 100000]]}
+OUT {"q": "as_api_sign_in_lookup", "ms": 1, "part": 0, "rows": [["backtest-worker@terminal.local", "service", true, true], ["screener-worker@terminal.local", "service", true, true]]}
+ERR {"q": "expect_err_publisher_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+ERR {"q": "expect_err_publisher_reads_kind", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT kind FROM terminal.subscriber LIMIT 0\n                         ^"}
+ERR {"q": "expect_err_market_reader_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+OUT {"q": "as_api_meter_first", "ms": 1, "part": 0, "rows": [[1, 5, 1000000, true]]}
+OUT {"q": "as_api_meter_again", "ms": 0, "part": 0, "rows": [[2, 8, 1500000, true]]}
+OUT {"q": "as_api_meter_other_service", "ms": 1, "part": 0, "rows": [[1, 1, 100, true]]}
+OUT {"q": "as_api_audit_service", "ms": 3, "part": 0, "rows": [["file", 5]]}
+OUT {"q": "as_api_usage_rows", "ms": 1, "part": 0, "rows": [["backtest-worker@terminal.local", 2, 8, 1500000], ["screener-worker@terminal.local", 1, 1, 100]]}
+OUT {"q": "as_api_prune", "ms": 1, "part": 0, "rows": [[0]]}
+OUT {"q": "as_api_session_for_service", "ms": 1, "part": 0, "rows": [[1]]}
+OUT {"q": "as_api_session_lookup", "ms": 1, "part": 0, "rows": []}
+OUT {"q": "as_api_session_lookup_without_kind", "ms": 0, "part": 0, "rows": [["backtest-worker@terminal.local"]]}
+OUT {"q": "as_api_add_person", "ms": 1, "part": 0, "rows": [["person"]]}
+ERR {"q": "expect_err_person_on_service_address", "error": "UniqueViolation: duplicate key value violates unique constraint \"subscriber_email_key\"\nDETAIL:  Key (email)=(screener-worker@terminal.local) already exists."}
+ERR {"q": "expect_err_kind_value", "error": "CheckViolation: new row for relation \"subscriber\" violates check constraint \"subscriber_kind_check\"\nDETAIL:  Failing row contains (5, dryrun-probe@terminal.local, Dry run probe, scrypt$55555555555555555555555555555555$666666666666666666666666..., t, 2026-10-30 10:16:41.915407+00, null, 2026-10-29 10:16:41.915407+00"}
+ERR {"q": "expect_err_kind_null", "error": "NotNullViolation: null value in column \"kind\" of relation \"subscriber\" violates not-null constraint\nDETAIL:  Failing row contains (5, dryrun-probe@terminal.local, Dry run probe, scrypt$55555555555555555555555555555555$666666666666666666666666..., t, 2026-10-30 10:16:41.915407+00, null, 2026-10-29 10:16:41.915407+00, "}
+ERR {"q": "expect_err_usage_part_hour", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_whole_hour\"\nDETAIL:  Failing row contains (4, 2026-10-29 10:01:00+00, 0, 0, 0)."}
+ERR {"q": "expect_err_usage_negative_grants", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_grants_check\"\nDETAIL:  Failing row contains (4, 2026-10-29 09:00:00+00, -1, 0, 0)."}
+ERR {"q": "expect_err_usage_negative_files", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_files_check\"\nDETAIL:  Failing row contains (4, 2026-10-29 09:00:00+00, 0, -1, 0)."}
+ERR {"q": "expect_err_usage_negative_bytes", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_bytes_check\"\nDETAIL:  Failing row contains (4, 2026-10-29 09:00:00+00, 0, 0, -1)."}
+ERR {"q": "expect_err_usage_duplicate_hour", "error": "UniqueViolation: duplicate key value violates unique constraint \"usage_hour_pkey\"\nDETAIL:  Key (subscriber_id, hour_start)=(3, 2026-10-29 10:00:00+00) already exists."}
+ERR {"q": "expect_err_usage_unknown_subscriber", "error": "ForeignKeyViolation: insert or update on table \"usage_hour\" violates foreign key constraint \"usage_hour_subscriber_id_fkey\"\nDETAIL:  Key (subscriber_id)=(-1) is not present in table \"subscriber\"."}
+ERR {"q": "expect_err_ceiling_zero", "error": "CheckViolation: new row for relation \"quota\" violates check constraint \"quota_value_check\"\nDETAIL:  Failing row contains (service_grants_per_hour, 0, grants, Grants (one /bundle, /files, /xsection or /reference answer) one...)."}
+ERR {"q": "expect_err_ceiling_override_zero", "error": "CheckViolation: new row for relation \"quota_override\" violates check constraint \"quota_override_value_check\"\nDETAIL:  Failing row contains (3, service_megabytes_per_hour, 0)."}
+ERR {"q": "expect_err_usage_truncate", "error": "InsufficientPrivilege: permission denied for table usage_hour"}
+JOB_DONE MIGRATION DRYRUN

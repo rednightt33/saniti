@@ -1,0 +1,22 @@
+MIGRATION 20261028_100_terminal_service_accounts.sql dryrun sha256=a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7 commit=933aa6431f9e
+JOB 2885dcaf-abbe-4b8f-92d2-1853732e51b0
+38
+MIG DRYRUN_BODY_OK 20261028_100_terminal_service_accounts.sql
+MIG DRYRUN 20261028_100_terminal_service_accounts.sql sha256=a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7
+ERR {"q": "expect_err_publisher_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+ERR {"q": "expect_err_publisher_reads_kind", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT kind FROM terminal.subscriber LIMIT 0\n                         ^"}
+ERR {"q": "expect_err_market_reader_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+ERR {"q": "expect_err_person_on_service_address", "error": "UniqueViolation: duplicate key value violates unique constraint \"subscriber_email_key\"\nDETAIL:  Key (email)=(screener-worker@terminal.local) already exists."}
+ERR {"q": "expect_err_kind_value", "error": "CheckViolation: new row for relation \"subscriber\" violates check constraint \"subscriber_kind_check\"\nDETAIL:  Failing row contains (5, dryrun-probe@terminal.local, Dry run probe, scrypt$55555555555555555555555555555555$666666666666666666666666..., t, 2026-10-30 10:16:41.915407+00, null, 2026-10-29 10:16:41.915407+00"}
+ERR {"q": "expect_err_kind_null", "error": "NotNullViolation: null value in column \"kind\" of relation \"subscriber\" violates not-null constraint\nDETAIL:  Failing row contains (5, dryrun-probe@terminal.local, Dry run probe, scrypt$55555555555555555555555555555555$666666666666666666666666..., t, 2026-10-30 10:16:41.915407+00, null, 2026-10-29 10:16:41.915407+00, "}
+ERR {"q": "expect_err_usage_part_hour", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_whole_hour\"\nDETAIL:  Failing row contains (4, 2026-10-29 10:01:00+00, 0, 0, 0)."}
+ERR {"q": "expect_err_usage_negative_grants", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_grants_check\"\nDETAIL:  Failing row contains (4, 2026-10-29 09:00:00+00, -1, 0, 0)."}
+ERR {"q": "expect_err_usage_negative_files", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_files_check\"\nDETAIL:  Failing row contains (4, 2026-10-29 09:00:00+00, 0, -1, 0)."}
+ERR {"q": "expect_err_usage_negative_bytes", "error": "CheckViolation: new row for relation \"usage_hour\" violates check constraint \"usage_hour_bytes_check\"\nDETAIL:  Failing row contains (4, 2026-10-29 09:00:00+00, 0, 0, -1)."}
+ERR {"q": "expect_err_usage_duplicate_hour", "error": "UniqueViolation: duplicate key value violates unique constraint \"usage_hour_pkey\"\nDETAIL:  Key (subscriber_id, hour_start)=(3, 2026-10-29 10:00:00+00) already exists."}
+ERR {"q": "expect_err_usage_unknown_subscriber", "error": "ForeignKeyViolation: insert or update on table \"usage_hour\" violates foreign key constraint \"usage_hour_subscriber_id_fkey\"\nDETAIL:  Key (subscriber_id)=(-1) is not present in table \"subscriber\"."}
+ERR {"q": "expect_err_ceiling_zero", "error": "CheckViolation: new row for relation \"quota\" violates check constraint \"quota_value_check\"\nDETAIL:  Failing row contains (service_grants_per_hour, 0, grants, Grants (one /bundle, /files, /xsection or /reference answer) one...)."}
+ERR {"q": "expect_err_ceiling_override_zero", "error": "CheckViolation: new row for relation \"quota_override\" violates check constraint \"quota_override_value_check\"\nDETAIL:  Failing row contains (3, service_megabytes_per_hour, 0)."}
+ERR {"q": "expect_err_usage_truncate", "error": "InsufficientPrivilege: permission denied for table usage_hour"}
+JOB_DONE MIGRATION DRYRUN
+VAR_REMOVED

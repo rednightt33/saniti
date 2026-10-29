@@ -1,0 +1,9 @@
+MIGRATION 20261028_100_terminal_service_accounts.sql apply sha256=a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7 commit=933aa6431f9e
+JOB c07f9793-574d-4c2e-9e92-79cb589ce526
+28
+MIG APPLY 20261028_100_terminal_service_accounts.sql sha256=a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7
+ERR {"q": "expect_err_publisher_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+ERR {"q": "expect_err_publisher_reads_kind", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT kind FROM terminal.subscriber LIMIT 0\n                         ^"}
+ERR {"q": "expect_err_market_reader_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+JOB_DONE MIGRATION APPLY
+VAR_REMOVED
