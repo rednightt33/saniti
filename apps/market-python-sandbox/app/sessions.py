@@ -148,6 +148,17 @@ IN_PERIOD_HINT = ("in_period(frame, request) returns a mask (True/False per row)
                   "y = y[in_period(y, 'yields')]; wrong y = in_period(load('yields'), 'yields').")
 IN_PERIOD_CALL = re.compile(r"\bin_period\s*\(")
 MASK_ERROR = re.compile(r"'(Series|bool|numpy\.bool_?)' object has no attribute")
+# EXEC-C3 (user 2026-10-29 "C3 oke, masukan exec", go 2026-10-29; edge_8233fa7f: merge_asof on the date objects failed
+# and cost an iteration): pandas' own messages for a datetime idiom on the date columns, which hold datetime.date
+# (DATA_TYPES). tests/test_date_hint.py raises each from the installed pandas, so a wording change fails the test.
+DATE_DTYPE_ERROR = re.compile(r"Incompatible merge dtype|You are trying to merge on object and datetime"
+                              r"|Can only use \.dt accessor with datetimelike values"
+                              r"|Only valid with DatetimeIndex, TimedeltaIndex or PeriodIndex")
+DATE_DTYPE_HINT = ("The date columns of this session's data ({columns}) hold datetime.date values (object dtype). "
+                   "merge_asof, a merge with a datetime64 column, .dt and .resample need datetime64: convert first, on "
+                   "every frame involved, frame[col] = pd.to_datetime(frame[col]).")
+DATE_JOIN_HINT = (" For two datasets of this session linked by an approved AS_OF relationship, saniti.join({ids}) takes "
+                  "the latest earlier row per key without converting.")
 # M139: what happens to the tables and JSON a failed execution emitted (they stay loadable by name, unreleased)
 DISCARDED_NOTE = ("This execution failed, so the outputs it emitted are never released by complete_analysis. "
                   "Emit them again in the corrected run (load_output(name) still reads a discarded table).")
@@ -1239,6 +1250,11 @@ class SessionManager:
             view["next_action"] = "REVISE_PYTHON_CODE"
             if IN_PERIOD_CALL.search(code) and MASK_ERROR.search(str(view.get("message") or "")):
                 view["helper_hint"] = IN_PERIOD_HINT
+            date_hint = self._date_hint(record, view)
+            if date_hint:
+                view["date_hint"] = date_hint
+            self._log("script_error", session_id=session_id, error_type=view.get("error_type"),
+                      date_hint=bool(date_hint))
             missing = self._missing_columns(record, view)
             if missing:
                 # PLAN 14: a column no data request of the session holds is missing data, not a code error
@@ -1275,6 +1291,25 @@ class SessionManager:
             self._archive_execution(record, request_id, execution_id, seq, code, answer, status, started_at,
                                     runtime_ms, cpu)
         return view
+
+    def _date_hint(self, record: dict[str, Any], error: dict[str, Any]) -> str | None:
+        """EXEC-C3: a datetime idiom that failed on the date columns names this session's date columns and the fix;
+        the AS_OF relationships of the session's bundles are named for saniti.join. None for any other error, or when
+        the session has no date column."""
+        if not DATE_DTYPE_ERROR.search(str(error.get("message") or "")):
+            return None
+        columns: list[str] = []
+        joins: list[str] = []
+        for bundle_id in [record["bundle_id"], *[a["bundle_id"] for a in record.get("attached") or []]]:
+            manifest = (self.store.get_bundle(bundle_id) or {}).get("manifest") or {}
+            columns += [f"{d.get('logical_name') or d.get('data_request_id')}.{d['time_column']}"
+                        for d in manifest.get("datasets") or [] if d.get("time_column")]
+            joins += [str(r["relationship_id"]) for r in manifest.get("relationships") or []
+                      if r.get("join_semantics") == "AS_OF" and r.get("relationship_id") is not None]
+        if not columns:
+            return None
+        hint = DATE_DTYPE_HINT.format(columns=", ".join(dict.fromkeys(columns)))
+        return hint + (DATE_JOIN_HINT.format(ids=" or ".join(dict.fromkeys(joins))) if joins else "")
 
     def _missing_columns(self, record: dict[str, Any], error: dict[str, Any]) -> list[str]:
         """The column names a failed execution asked for that no data request of the session (its bundle and the
