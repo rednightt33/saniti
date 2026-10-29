@@ -2,17 +2,46 @@
 Signs in as the owner (credentials read from edge-bff's Railway variables into memory, never printed), opens
 /backtest (EDGE shell + iframe /backtest-app/), cold then warm, switches the ticker to a large one, loads a flow
 template (broker files), and times the API routes directly. Writes OUT/report.json and screenshots."""
-import json, os, statistics, subprocess, sys, time
+import json, os, re, statistics, subprocess, sys, time, traceback
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
+
+# Review of measure (EXEC-MU-RUNTIME Phase 0, ERRORS entry of the timing scripts): a Playwright error message ends with
+# its call log, and the call log of an API request lists the request's headers, the session cookie and the CSRF token
+# among them. So no error is shown or written as it is: safe_error keeps the message before its call log, without any
+# credential value this script holds (SECRETS) and without a URL's query (a presigned signature); an uncaught error
+# prints where it happened (file and line, never a value) and safe_error, not Python's own traceback. The same rule as
+# verification/terminal_api/page_timing_dev.py and verification/screener/page_timing_dev.py.
+SECRETS = set()
+
+
+def safe_error(e, limit=300):
+    text = str(e).split('\nCall log:', 1)[0]
+    for secret in sorted(SECRETS, key=len, reverse=True):
+        text = text.replace(secret, '[redacted]')
+    text = re.sub(r'(https?://[^\s?#"\']+)[?#][^\s"\']*', r'\1?[query]', text)
+    return f'{type(e).__name__}: {text[:limit]}'
+
+
+def uncaught(kind, e, tb):
+    sys.stderr.write('Traceback (most recent call last):\n' + ''.join(traceback.format_tb(tb)) + safe_error(e) + '\n')
+
+
+sys.excepthook = uncaught
+
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 BIG = sys.argv[2] if len(sys.argv) > 2 else 'BBRI'
-v = json.loads(subprocess.run(['railway', 'variable', 'list', '-s', 'edge-bff', '-e', 'dev', '--json'],
-                              capture_output=True, text=True, timeout=60, check=True).stdout)
-base = 'https://' + v['RAILWAY_PUBLIC_DOMAIN']
-login, password = v.get('EDGE_LOGIN'), v.get('EDGE_INITIAL_PASSWORD')
-del v
+if os.environ.get('EDGE_TIMING_BASE'):        # a local stand-in (verification/terminal_api/test_page_timing_scripts.py)
+    base = os.environ['EDGE_TIMING_BASE'].rstrip('/')
+    login, password = os.environ.get('EDGE_TIMING_LOGIN'), os.environ.get('EDGE_TIMING_PASSWORD')
+else:
+    v = json.loads(subprocess.run(['railway', 'variable', 'list', '-s', 'edge-bff', '-e', 'dev', '--json'],
+                                  capture_output=True, text=True, timeout=60, check=True).stdout)
+    base = 'https://' + v['RAILWAY_PUBLIC_DOMAIN']
+    login, password = v.get('EDGE_LOGIN'), v.get('EDGE_INITIAL_PASSWORD')
+    del v
+SECRETS.update(x for x in (password,) if x)
 
 INIT = """
 window.__lt = []; window.__t0 = performance.timeOrigin;
@@ -29,7 +58,8 @@ def kind(url):
 
 report = {'base_host': base.split('//')[1], 'big': BIG}
 with sync_playwright() as pw:
-    browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM') or None, proxy={'server': os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')})
+    proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
+    browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM') or None, proxy={'server': proxy} if proxy else None)
 
     def new_ctx():
         ctx = browser.new_context(viewport={'width': 1600, 'height': 1000})
@@ -38,6 +68,7 @@ with sync_playwright() as pw:
                              headers={'Content-Type': 'application/json', 'Origin': base})
         if r.status != 200:
             raise SystemExit(f'sign-in failed ({r.status})')
+        SECRETS.update(c['value'] for c in ctx.cookies() if c.get('value'))   # the session cookie
         return ctx
 
     def watch(page):
@@ -118,6 +149,7 @@ with sync_playwright() as pw:
             t = time.time(); r = fn(); xs.append(round((time.time() - t) * 1000)); st = r.status
         return {'status': st, 'ms': xs, 'median': statistics.median(xs)}
     sess = rq.get(base + '/api/v1/auth/session').json(); tok = sess.get('csrf_token', '')
+    SECRETS.update(x for x in (tok,) if x)
     H = {'Content-Type': 'application/json', 'Origin': base, 'X-CSRF-Token': tok}
     report['api'] = {
         'session': timed(lambda: rq.get(base + '/api/v1/auth/session'), 5),

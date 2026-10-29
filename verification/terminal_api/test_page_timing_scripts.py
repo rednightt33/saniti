@@ -1,5 +1,6 @@
 """The page timing scripts never show a credential (review of measure, EXEC-MU-RUNTIME Phase 0): neither the Terminal's
-(verification/terminal_api/page_timing_dev.py) nor the Screener's (verification/screener/page_timing_dev.py).
+(verification/terminal_api/page_timing_dev.py), the Screener's (verification/screener/page_timing_dev.py) nor the
+Backtest's (verification/backtest/page_timing_dev.py).
 
 A failed Playwright API request raises an error whose message ends with a call log that lists the request's headers,
 the session cookie and the CSRF token among them (seen with Playwright 1.56). Each script is run here against a local
@@ -23,13 +24,17 @@ pytest.importorskip('playwright')
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = {'terminal': ROOT / 'verification/terminal_api/page_timing_dev.py',
-           'screener': ROOT / 'verification/screener/page_timing_dev.py'}
+           'screener': ROOT / 'verification/screener/page_timing_dev.py',
+           'backtest': ROOT / 'verification/backtest/page_timing_dev.py'}
 COOKIE, CSRF, PASSWORD = 'cookie-value-must-not-show-3f9a', 'csrf-value-must-not-show-77c1', 'password-must-not-show-0b2e'
 PAGES = {
     '/terminal': '<!doctype html><iframe src="/terminal-app/"></iframe>',
     '/terminal-app/': '<!doctype html><div role="alert">stand-in: no chart</div>',
     '/screener': '<!doctype html><iframe src="/screener-app/"></iframe>',
     '/screener-app/': '<!doctype html><div id="app"></div><div id="resPane"><div role="alert">stand-in: no results</div></div>',
+    '/backtest': '<!doctype html><iframe src="/backtest-app/"></iframe>',
+    '/backtest-app/': ('<!doctype html><button class="js-run">Run</button><select data-k="ticker"><option>BBRI</option></select>'
+                       '<button data-tpl="Divergence + flow">flow</button>'),
 }
 
 
