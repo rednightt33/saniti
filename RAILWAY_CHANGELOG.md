@@ -4986,3 +4986,21 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
 - Change: Terminal front-end only (smoother chart drag with asset panes and Broker inventory; Broker inventory crosshair
   on a direct hover). No variable, database or other service changed.
 - Verified: the live `/terminal-app/` serves `assets/index-B1jkYNqZ.js`, the same build checked locally.
+
+## 2026-10-29 — terminal-publisher `0d33d8ac` (EXEC-SCREENER, EXEC-MU-RUNTIME T5; PR #42; fixes M263 on dev)
+
+- Service terminal-publisher, environment dev, CLI upload (ERRORS M229, M248) of `git archive 0fb3375
+  apps/terminal-publisher` from the branch `claude/charming-hamilton-faq25e` (it contains `origin/main` `d84be91`;
+  PR rednightt33/saniti#42). Tree digest `0166424a554f7c61bb4a4f2a0d773d64afd3b39bf8de8c41a6ed3c357f2a1769`. Status
+  SUCCESS at 09:33 UTC; with the cron kept the upload built and did not run (cron list unchanged, `nextCronRunAt`
+  12:00 UTC, schedule `0,30 0,12 * * *` read back).
+- Why now: the live publisher (`b8b51052`, the PR #41 build) CRASHED at 00:32 UTC today on a `RequestCanceled`
+  GetObject, as on 2026-10-28 (M263), so today's 07:30 WIB publication did not happen. This build retries every bucket
+  call (M263) and also writes the Screener xsection files and the content-keyed reference files with their indexes in
+  `state.json` (`xsection`, `refs`); the deployed terminal-api ignores both fields until its own deploy. The 12:00 UTC
+  tick (19:00 WIB, a listed run time) is this build's first run; its checks follow in the next entry.
+- A branch CLI upload can be overwritten by a later upload of another commit (M248); PR #42 brings the same code to
+  `main`.
+- Rollback: `deploymentRollback` of `b8b51052-f2e5-4426-9c43-cd1dcd70d5a4` (the PR #41 build), or a CLI upload of
+  `git archive 6051f4d apps/terminal-publisher`; the next run then writes `state.json` without `xsection` and `refs`, and
+  every reader stays valid.
