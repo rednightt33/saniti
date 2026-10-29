@@ -1099,3 +1099,21 @@ dikosongkan dengan alasan, sahamnya ditandai).
    - Risiko: `VACUUM FULL` mengunci tabel 2,5 GB secara eksklusif selama berjalan (worker dan pembaca Feature 04
      tertahan) dan butuh ruang disk sementara sebesar tabel.
    - Rollback: tidak berlaku: isi data tidak berubah.
+
+## Screener dan EXEC-MU-RUNTIME: sisa terbuka setelah Phase 1 (2026-10-29, usulan, menunggu keputusan)
+
+Ditemukan saat build dan tinjauan Phase 1 (log build di sesi; entri ERRORS M278, M279, M298-M300). Tidak satu pun
+memblokir deploy Phase 1 ke dev.
+- **S1 CI untuk pemeriksaan Screener.** Repositori hanya punya `.github/workflows/database-schema-docs.yml`; tidak ada CI yang
+  menjalankan `npm run registry:check`, vitest Screener, tes worker atau tripwire Backtest. Penjaga cost_class (M300) dan
+  tripwire hanya berlaku bila dijalankan lokal. Usulan: satu workflow per PR untuk paket yang berubah.
+- **S2 Kerja di dalam built-in tidak terhitung (M279, terbuka).** Kernel yang memindahkan loop jendelanya ke built-in
+  (`Math.max(...slice)`) terukur O(N) dan kehilangan cap; penjaga M300 hanya menangkap parameter yang turun kelas
+  terhadap registry yang di-commit, bukan parameter baru atau yang diganti nama. Pilihan: aturan tinjauan (sekarang) atau
+  instrumentasi probe.
+- **S3 File opsional untuk Phase 2.** Urutan "worker dulu" di onboarding bertentangan dengan aturan refresh 2 (file yang
+  dibaca worker harus sudah ada di indeks publisher). File flow Phase 2 butuh aturan file opsional dulu.
+- **S4 Skrip typecheck worker.** `apps/screener-worker` tidak punya skrip typecheck ketat (M266 kelas terbuka).
+- **S5 Cache review saved item di edge-bff** dikunci (definisi, versi) dan tidak berubah saat advance; aman di Phase 1, perlu
+  diperiksa saat file opsional ada.
+- **S6 `verification/backtest/e2e_dev.py`** belum diperiksa untuk kebocoran kredensial lewat pesan error Playwright (M293).
