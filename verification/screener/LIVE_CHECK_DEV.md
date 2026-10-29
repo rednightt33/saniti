@@ -55,3 +55,11 @@ Screener's stock universe. Every evaluation date equals Feature 04's date for th
 
 backtest-worker `e3c07b59` (engine `ecebb87036dd030b`, registry `b6a8dc0ba206ed65`); its Backtest E2E after the
 publication passed with `data_through` 2026-10-29 (RAILWAY_CHANGELOG 2026-10-29).
+
+## Terminal page baseline after T7 (EXEC-MU-RUNTIME Phase 0, verification/terminal_api/page_timing_dev.py)
+
+Same session, 2026-10-29 about 13:40 UTC, from the US sandbox: cold open (new profile) MAPI drawn 4.00 s (shell 1.27 s,
+network quiet 5.35 s); warm open 1.67 s; switch to an uncached ticker (BBRI) 1.79 s; switch back to a cached ticker
+1.19 s; timeframe weekly 0.72 s, daily 0.79 s; the bundle answer 2,765,211 bytes. The earlier readings in
+`verification/edge_multiuser/runtime/terminal.md` (warm 1.77 s; cached switch 1.8-2.5 s) were before T7; the targets of
+`RUNTIME.md` §7 (cached switch <= 0.9 s) are for Phase 3. An Indonesian `?perf=1` reading is still to come.
