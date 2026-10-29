@@ -111,8 +111,8 @@ export function initFlow(ctx: Ctx) {
     let total = 0; for(let i=from;i<=b;i++) total += flowNet[i];
     const lastI = LIVE ? Math.min(flowTo, ctx.brokerEnd) : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
     const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
-    const day = (l: string) => LIVE && l === LATEST && lastI >= 0 && lastI < N ? ` <span class="flow-stat-day">${fmtDMY(lastI)}</span>` : '';
-    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${day(l)}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
+    // EXEC-TERMINAL-NODAY (user 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline"): no date beside the label
+    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
     $('flowSummary').innerHTML = stat(LATEST, last) + stat('Period net total', total) + stat(AVG, avg);
   };
   let summaryRaf = 0;

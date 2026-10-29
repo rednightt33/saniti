@@ -8520,3 +8520,10 @@ flow timeline aset kedua atau aset ketiga".
 - B3: sesi sesudah tanggal data broker aset diarsir "Broker data not yet loaded" seperti Flow chart; tooltip "No broker
   data yet (through …)".
 - Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-TERMINAL-NODAY — tanpa tanggal di "Latest day net" Flow Timeline (2026-10-29)
+
+User 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline. Masukan exec."
+- Flow Timeline chart: label "Latest day net" (Latest week/month net) tanpa tanggal di sampingnya; angka dan info tetap
+  (sesi terakhir yang punya data broker). Flow aset memang tanpa tanggal. Fixture tidak berubah (tanggal hanya di live).
+- Infra: hanya front-end Terminal di edge-bff.
