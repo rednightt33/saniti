@@ -28,6 +28,16 @@ from .client import public_data
 from .store import StoreError
 
 logger = logging.getLogger('edge_bff.backtest')
+# The service's uvicorn configures only its own loggers (uvicorn, uvicorn.error, uvicorn.access) and nothing here sets
+# up the root logger, so a line of this module found no handler and went to logging.lastResort, which writes WARNING
+# and above only: every INFO line (backtest_state, the measurement lines) was dropped (EXEC-MU-RUNTIME Phase 0, measure
+# log). When no handler is set up at import, this module's lines go to stderr as lastResort wrote them (the message
+# alone), INFO included; a logging set-up made before (a test's capture, a service-wide configuration) is left alone.
+if not logger.hasHandlers():
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
 
 JOB_ID = re.compile(r'bt_[0-9a-f]{32}')
 SUBMISSION = re.compile(r'[A-Za-z0-9._:-]{1,100}')   # the house submission_key (main.RunInput)
@@ -118,6 +128,114 @@ def same_request(stored, sent):
         key = lambda v: json.dumps(v, sort_keys=True)
         return {**request, 'portfolio': {**p, 'tickers': sorted(p['tickers'], key=key)}}
     return unordered(stored) == unordered(sent)
+
+
+def _as_parsed(value):
+    """A JSON value as the worker's JSON.parse holds it: JavaScript has one number type, so an integral double is the
+    integer (1.0 and 1 are one number, JSON.stringify writes both as 1, -0 as 0); everything else as it is."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {k: _as_parsed(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_as_parsed(v) for v in value]
+    return value
+
+
+def request_key(request):
+    """EXEC-MU-RUNTIME Phase 0 (verification/edge_multiuser/runtime/backtest.md section 7, BT6): the sha256 of the request
+    in its canonical form, logged for every submitted job so the share of identical requests is counted before result
+    reuse (B6) is built. Canonical as the worker reads and hashes a request (core hash.ts canonicalRequest and
+    canonicalJson): a portfolio's picked stocks as a set (same_request's order), every object's keys sorted, numbers as
+    JSON.parse reads them (_as_parsed). So two requests have one key exactly when the worker runs them as the same
+    canonical request; on equal engine, registry and data versions (the job row's, once it finished) that is the same
+    result (CONTRACT.md section 7, BACKTEST_END_TO_END.md section 2 rule 4). A measurement only: edge-bff decides
+    nothing on it, and it is not the result's request_hash, which covers the versions too. None for a value it cannot
+    hash (never for a body read through loads), so a log line never fails a route."""
+    if not isinstance(request, dict):
+        return None
+    p = request.get('portfolio')
+    if isinstance(p, dict) and isinstance(p.get('tickers'), list):
+        request = {**request, 'portfolio': {**p, 'tickers': sorted(p['tickers'], key=lambda v: json.dumps(v, sort_keys=True))}}
+    try:
+        text = json.dumps(_as_parsed(request), sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
+        return hashlib.sha256(text.encode()).hexdigest()
+    except (ValueError, TypeError):
+        return None
+
+
+def tickers_in(request):
+    """How many stocks a request names (single: 1; a portfolio: its picked list), None when it names none: the request
+    fields edge-bff reads (module docstring), for the measurement lines."""
+    if not isinstance(request, dict):
+        return None
+    if request.get('mode') == 'single':
+        return 1 if isinstance(request.get('single'), dict) else None
+    p = request.get('portfolio') if request.get('mode') == 'portfolio' else request
+    found = p.get('tickers') if isinstance(p, dict) else None
+    return len(found) if isinstance(found, list) else None
+
+
+MODES = ('single', 'portfolio')     # contract.ts BacktestRequest.mode
+
+
+def mode_of(request):
+    """A request's mode for the measurement lines: one of the contract's modes, 'invalid' for any other value, None
+    when it names none. Never the value as sent: a submission the worker refuses was not checked, and its mode is
+    whatever the caller wrote (any length, any content), which a log line must not carry (review of measure,
+    EXEC-MU-RUNTIME Phase 0)."""
+    mode = request.get('mode') if isinstance(request, dict) else None
+    return mode if mode in MODES else (None if mode is None else 'invalid')
+
+
+def ms_since(t0):
+    return round((time.monotonic() - t0) * 1000)
+
+
+def db_ms(later, earlier):
+    """Milliseconds between two times of a job row (the database's clock), None when one is missing."""
+    if later is None or earlier is None:
+        return None
+    return round((later - earlier).total_seconds() * 1000)
+
+
+def measured(event, **fields):
+    """One measurement line (EXEC-MU-RUNTIME Phase 0, backtest.md section 7): JSON like every line of this module; ids,
+    hashes, counts, states and times only, never a request body, an owner or a key."""
+    logger.info(json.dumps({'event': event, **fields}))
+
+
+class JobTiming:
+    """Where the time of one job the loop follows goes (EXEC-MU-RUNTIME Phase 0; backtest.md section 1.2 and 7):
+    filled by the loop's steps and logged once, when the follower leaves the job, as backtest_job_timing. Times are
+    milliseconds: queue_wait_ms and e2e_ms by the job row's database times (created_at to started_at, and to
+    finished_at), the rest by this process's monotonic clock from the claim:
+    accepted_ms  the worker answered POST /v1/jobs 2xx (the prior trials read and BUSY waits included; post_ms the
+                 round trip of that POST, busy the BUSY answers before it);
+    seen_end_ms  the status read that saw the job ended at the worker (polls: the status reads, each also a
+                 backtest_poll line); worker_ms the worker's own duration of the job (the result's meta.duration_ms,
+                 or the status's for a job that failed or was cancelled there); poll_slack_ms = seen_end_ms -
+                 accepted_ms - worker_ms, the time lost between the worker's end and the poll that saw it (B1);
+    fetch_ms, json_bytes, split_ms, store_ms (store_attempts)  the result's download and unpacking, its split, and
+                 the transaction that stored it."""
+
+    def __init__(self, row):
+        self.t0 = time.monotonic()
+        self.row = row
+        self.fields = {'queue_wait_ms': db_ms(row.get('started_at'), row.get('created_at')), 'busy': 0, 'polls': 0}
+        self.ended = None
+
+    def at(self, name):
+        self.fields[name] = ms_since(self.t0)
+
+    def line(self):
+        f, end, request = self.fields, self.ended, self.row.get('request')
+        parts = (f.get('seen_end_ms'), f.get('accepted_ms'), f.get('worker_ms'))
+        return {'request_id': self.row['request_id'], 'request_key': request_key(request),
+                'mode': mode_of(request), 'tickers': tickers_in(request),
+                'state': end['state'] if end else None, 'code': (end.get('error') or {}).get('code') if end else None,
+                **f, 'poll_slack_ms': parts[0] - parts[1] - parts[2] if None not in parts else None,
+                'loop_ms': ms_since(self.t0), 'e2e_ms': db_ms(end.get('finished_at'), end.get('created_at')) if end else None}
 
 
 def finite(value):
@@ -616,6 +734,11 @@ class BacktestLoop:
     def __init__(self, settings, store, worker):
         self.settings, self.store, self.worker = settings, store, worker
         self.stopping = asyncio.Event()
+        self.timings = {}      # request_id -> JobTiming of a job this loop follows (EXEC-MU-RUNTIME Phase 0)
+
+    def timing(self, row):
+        """The JobTiming of the job this loop follows (a throwaway one for a step called on its own, as a test does)."""
+        return self.timings.get(row['request_id']) or JobTiming(row)
 
     async def call(self, fn, *args):
         return await asyncio.to_thread(fn, *args)
@@ -640,6 +763,8 @@ class BacktestLoop:
                 row = await self.call(self.store.claim, self.settings.lease_seconds)
                 not_ready = False
                 if row:
+                    measured('backtest_claim', request_id=row['request_id'],
+                             queue_wait_ms=db_ms(row.get('started_at'), row.get('created_at')))
                     await self.process(row)
                 else:
                     await self.sleep(self.settings.poll_seconds)
@@ -714,6 +839,8 @@ class BacktestLoop:
                 continue
             if changed is None:
                 await self.lost(row, 'end', held)
+            else:
+                self.timing(row).ended = changed
             return changed
 
     async def process(self, row):
@@ -738,8 +865,14 @@ class BacktestLoop:
 
     async def execute(self, row):
         deadline = time.monotonic() + self.settings.backtest_timeout_seconds
-        if await self.dispatch(row, deadline):
-            await self.follow(row, deadline)
+        timing = self.timings[row['request_id']] = JobTiming(row)
+        try:
+            if await self.dispatch(row, deadline):
+                timing.at('accepted_ms')
+                await self.follow(row, deadline)
+        finally:
+            del self.timings[row['request_id']]
+            measured('backtest_job_timing', **timing.line())
 
     async def dispatch(self, row, deadline):
         """POST /v1/jobs until the worker has the job; False when the job ended here instead (cancelled before it was
@@ -747,7 +880,7 @@ class BacktestLoop:
         database failure a retry may mend (OperationalError) is no unanswered worker call: the read is made again
         after a poll until the deadline, which is checked before it (as the follower checks it), and every end is made
         again by end_job."""
-        job_id, failures = row['request_id'], 0
+        job_id, failures, timing = row['request_id'], 0, self.timing(row)
         while not self.stopping.is_set():
             if time.monotonic() >= deadline:
                 await self.end_job(row, deadline, 'FAILED', {'code': 'TIMEOUT'})
@@ -766,8 +899,11 @@ class BacktestLoop:
                 await self.sleep(self.settings.poll_seconds)
                 continue
             body = {'job_id': job_id, 'request': row['request'], 'context': {'job_id': job_id, 'prior_trials': prior}}
+            timing.fields['prior_trials'] = len(prior)
             try:
+                sent = time.monotonic()
                 code, data = await self.call(self.worker.call, 'POST', '/v1/jobs', body)
+                timing.fields['post_ms'] = ms_since(sent)
                 if 200 <= code < 300:
                     return True
                 found = error_of(data)
@@ -775,6 +911,7 @@ class BacktestLoop:
                     raise WorkerUnavailable()     # an answer outside the worker's API (e.g. a route it does not have)
                 if code == 409 and found['code'] == 'BUSY':
                     # another job computes there; ours only when an earlier, unanswered POST reached the worker
+                    timing.fields['busy'] += 1
                     if await self.known(job_id):
                         return True
                     failures = 0
@@ -804,6 +941,7 @@ class BacktestLoop:
         is kept here and stored again at every poll (RESULT_NOT_STORED at the deadline), and every end is made again
         by end_job."""
         job_id, failures, cancel_sent, shown, held = row['request_id'], 0, False, row['progress'], None
+        timing = self.timing(row)
         while not self.stopping.is_set():
             await self.sleep(self.settings.poll_seconds)
             if self.stopping.is_set():
@@ -826,10 +964,12 @@ class BacktestLoop:
                     continue
                 if current['cancel_requested'] and not cancel_sent:
                     cancel_sent = await self.cancel_quietly(job_id)
+                asked = time.monotonic()
                 try:
                     code, data = await self.call(self.worker.call, 'GET', f'/v1/jobs/{job_id}')
                 except WorkerUnavailable:
                     code, data = None, None
+                self.polled(timing, job_id, asked, code, data)
                 if code == 404:
                     await self.end_job(row, deadline, 'FAILED', {'code': 'WORKER_LOST'})
                     return
@@ -868,32 +1008,55 @@ class BacktestLoop:
             except psycopg.OperationalError as e:
                 self.store_failed('follow', job_id, e)
 
+    @staticmethod
+    def polled(timing, job_id, asked, code, data):
+        """One status read of the follower as a backtest_poll line (EXEC-MU-RUNTIME Phase 0): its round trip, the state and
+        progress the worker answered (none when it did not answer as its API says); the first read that sees the job
+        ended there marks seen_end_ms, and a failed or cancelled job's own duration is the worker's time."""
+        ms = ms_since(asked)
+        timing.fields['polls'] += 1
+        status = data if code == 200 and isinstance(data, dict) else {}
+        progress = status.get('progress') if isinstance(status.get('progress'), dict) else {}
+        state = status.get('state') if isinstance(status.get('state'), str) else None
+        measured('backtest_poll', request_id=job_id, n=timing.fields['polls'], ms=ms, status=code, state=state,
+                 phase=progress.get('phase'), done=progress.get('done'), total=progress.get('total'))
+        if state in ENDED and 'seen_end_ms' not in timing.fields:
+            timing.at('seen_end_ms')
+            if state != 'FINISHED' and finite(status.get('duration_ms')):
+                timing.fields['worker_ms'] = int(status['duration_ms'])
+
     async def ingest(self, row, deadline):
         """Fetch, split and store the finished result. True when the job ended (FINISHED, or FAILED RESULT_INVALID /
         LIMIT_EXCEEDED / WORKER_LOST), None to fetch again at the next poll (no answer yet; follow bounds these
         attempts), the split result when its store failed (follow keeps it and stores it again; the result is fetched
         once). The worker answering that it does not have the result, 404 UNKNOWN_JOB or 410 RESULT_GONE (a newer job
         started there and replaced it), ends the job WORKER_LOST at once: no later fetch can get it."""
+        timing, asked = self.timing(row), time.monotonic()
         try:
             code, raw = await self.call(self.worker.result, row['request_id'])
         except WorkerUnavailable:
             return None
         except ResultTooLarge:
+            timing.fields['fetch_ms'] = ms_since(asked)
             limit = self.settings.backtest_max_result_bytes
             await self.end_job(row, deadline, 'FAILED', {'code': 'LIMIT_EXCEEDED', 'message':
                 f'The backtest result is larger than {limit} bytes of JSON, the most edge-bff stores (BACKTEST_MAX_RESULT_BYTES).'})
             return True
+        timing.fields['fetch_ms'] = ms_since(asked)
         if code in (404, 410):
             await self.end_job(row, deadline, 'FAILED', {'code': 'WORKER_LOST'})
             return True
         if code != 200:
             return None
         single = row['request'].get('single') if row['request'].get('mode') == 'single' else None
+        timing.fields['json_bytes'], unpacked = len(raw), time.monotonic()
         try:
             split = await self.call(lambda: split_result(loads(raw), (single or {}).get('ticker')))
         except (ValueError, TypeError, AttributeError):
+            timing.fields['split_ms'] = ms_since(unpacked)
             await self.end_job(row, deadline, 'FAILED', {'code': 'RESULT_INVALID'})
             return True
+        timing.fields['split_ms'], timing.fields['worker_ms'] = ms_since(unpacked), split['duration_ms']
         if split['lineage_key'] != row['lineage_key']:
             logger.warning(json.dumps({'event': 'backtest_lineage_differs', 'request_id': row['request_id']}))
         return True if await self.keep(row, split, deadline) else split
@@ -905,17 +1068,23 @@ class BacktestLoop:
         (any other than OperationalError: the data, an integrity or schema error, a bug), which ends the job FAILED
         RESULT_NOT_STORED at once; False when the database failed in a way a retry may mend (a lost connection, a
         timeout, a restart)."""
+        timing, storing = self.timing(row), time.monotonic()
+        timing.fields['store_attempts'] = timing.fields.get('store_attempts', 0) + 1
         try:
             stored = await self.call(self.store.finish, row, split)
         except Exception as e:
+            timing.fields['store_ms'] = ms_since(storing)
             logger.error(json.dumps({'event': 'backtest_result_store_failed', 'request_id': row['request_id'],
                                      **self.failure(e)}))
             if isinstance(e, psycopg.OperationalError):
                 return False
             await self.end_job(row, deadline, 'FAILED', NOT_STORED, held=True)
             return True
+        timing.fields['store_ms'] = ms_since(storing)
         if stored is None:
             await self.lost(row, 'finish', True)
+        else:
+            timing.ended = stored
         return True
 
     def stop(self):
@@ -1015,6 +1184,7 @@ class Backtests:
             page, seq = order
             pages = self.preview_pages.setdefault(owner, {})
             if seq < pages.get(page, seq):
+                measured('backtest_preview', outcome='stale', tickers=tickers_in(body))   # never sent on
                 raise PreviewReplaced()
             pages.pop(page, None)
             pages[page] = seq                    # the dict's order: the page whose preview arrived last is last
@@ -1025,16 +1195,41 @@ class Backtests:
         self.previews[owner] = mine
         if older:
             older['replaced'].set()
+        # EXEC-MU-RUNTIME Phase 0: one backtest_preview line per preview sent on: owner_wait_ms, the wait for the owner's
+        # older preview to end (latest wins); worker_ms, the worker's answer (its own queue and compute together: the
+        # worker logs its queue wait apart, server.ts preview_end); the outcome ok, replaced, gone or the error code
+        began, timed = time.monotonic(), {'owner_wait_ms': None, 'worker_ms': None}
         async def relay():
             if older:
+                waited = time.monotonic()
                 await older['ended'].wait()      # its worker call is closed (unless_gone gathered it)
-            return await self.ask('POST', '/v1/signals', body)
+                timed['owner_wait_ms'] = ms_since(waited)
+            asked = time.monotonic()
+            try:
+                return await self.ask('POST', '/v1/signals', body)
+            finally:
+                timed['worker_ms'] = ms_since(asked)
+        outcome = 'ok'
         try:
             return await self.unless_gone(request, relay(), mine['replaced'])
+        except PreviewReplaced:
+            outcome = 'replaced'
+            raise
+        except CallerGone:
+            outcome = 'gone'
+            raise
+        except BacktestError as e:
+            outcome = e.error.get('code')
+            raise
+        except BaseException as e:      # a cancellation (CancelledError is no Exception) is no 'ok' either
+            outcome = type(e).__name__
+            raise
         finally:
             mine['ended'].set()
             if self.previews.get(owner) is mine:
                 del self.previews[owner]
+            measured('backtest_preview', outcome=outcome, tickers=tickers_in(body), replaced_older=older is not None,
+                     **timed, ms=ms_since(began))
 
     @staticmethod
     async def json_object(request):
@@ -1095,18 +1290,37 @@ class Backtests:
                 key = 'auto:' + secrets.token_hex(16)
             elif not isinstance(key, str) or not SUBMISSION.fullmatch(key):
                 raise BacktestError(422, {'code': 'INVALID_INPUT', 'field': 'client_request_id'})
-            row = await asyncio.to_thread(self.store.find, owner, key)
-            created = False
-            if row is None:
-                checked = await self.ask('POST', '/v1/validate', {'request': body})
-                checked = checked if isinstance(checked, dict) and checked.get('ok') is True else {}
-                lineage, variant = checked.get('lineage_key'), checked.get('variant_hash')
-                if not all(isinstance(h, str) and HEX64.fullmatch(h) for h in (lineage, variant)):
-                    raise BacktestError(503, {'code': 'BACKTEST_UNAVAILABLE'})   # an answer outside the worker's API
-                row, created = await asyncio.to_thread(self.store.submit, owner, key, body, lineage, variant,
-                                                       settings.backtest_queued_per_owner)
-            elif not same_request(row['request'], body):
-                raise StoreError('SUBMISSION_CONFLICT')
+            # EXEC-MU-RUNTIME Phase 0: one backtest_submit line per submission that reached here (its request_key, the
+            # worker's validation and the queue insert timed; a refusal with its code and no request_id)
+            began, timed = time.monotonic(), {'validate_ms': None, 'store_ms': None}
+            def submitted(**fields):
+                measured('backtest_submit', request_key=request_key(body), mode=mode_of(body), tickers=tickers_in(body),
+                         **timed, ms=ms_since(began), **fields)
+            try:
+                row = await asyncio.to_thread(self.store.find, owner, key)
+                created = False
+                if row is None:
+                    asked = time.monotonic()
+                    try:
+                        checked = await self.ask('POST', '/v1/validate', {'request': body})
+                    finally:
+                        timed['validate_ms'] = ms_since(asked)
+                    checked = checked if isinstance(checked, dict) and checked.get('ok') is True else {}
+                    lineage, variant = checked.get('lineage_key'), checked.get('variant_hash')
+                    if not all(isinstance(h, str) and HEX64.fullmatch(h) for h in (lineage, variant)):
+                        raise BacktestError(503, {'code': 'BACKTEST_UNAVAILABLE'})   # an answer outside the worker's API
+                    stored = time.monotonic()
+                    try:
+                        row, created = await asyncio.to_thread(self.store.submit, owner, key, body, lineage, variant,
+                                                               settings.backtest_queued_per_owner)
+                    finally:
+                        timed['store_ms'] = ms_since(stored)
+                elif not same_request(row['request'], body):
+                    raise StoreError('SUBMISSION_CONFLICT')
+            except (BacktestError, StoreError) as e:
+                submitted(code=e.error.get('code') if isinstance(e, BacktestError) else e.code)
+                raise
+            submitted(request_id=row['request_id'], created=created)
             return JSONResponse(status_code=202, content={'request_id': row['request_id'], 'state': row['state'],
                                                           'created': created})
 

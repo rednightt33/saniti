@@ -295,7 +295,8 @@ main thread. The logs never contain a header, a request body, a key or a presign
 | `start`, `stop` | the configuration without its secrets; the signal |
 | `config_invalid`, `registry_mismatch` | the variable at fault; the two registry hashes (the process then exits 1) |
 | `http` | method, path, status, ms |
-| `job_start`, `job_end` | state, code, ms, result bytes |
+| `job_start`, `job_end` | state, code, ms, result bytes; the job's class (`mode`, `tickers`, `broker`: whether it reads the broker files); `job_end` also `phases_ms` (EXEC-MU-RUNTIME Phase 0: the milliseconds of each status phase the job reached, `start` to the thread's first report, then `loading`, `signals`, `backtest`, `sensitivity`, `monte_carlo`, `finalizing` until the packed result arrived; `server.ts PhaseClock`) and the process memory (`rss_bytes`, `max_rss_bytes` since start) |
+| `preview_end` | one per queued signals preview (EXEC-MU-RUNTIME Phase 0): `outcome` (`ok`, `failed` with its `code`, `timeout`, `left`: the caller went away), `preview_wait_ms` (its wait in the preview queue), `compute_ms` (null when it never started), `ahead` (previews computing or queued when it arrived), `refs_ms`, `tickers`, the memory |
 | `job_cancel` | |
 | `terminal_bundle`, `terminal_file` | ticker, file, cache use |
 | `terminal_retry` | |

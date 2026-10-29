@@ -111,8 +111,10 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
 2. **One formula path (I1).** Every technical number comes from `F` in `indicators.ts` through the Backtest core's
    `Calc`. There is no SQL, TA-Lib or Python copy of a formula. A test fails if a screener file defines an indicator
    kernel (PROPOSED).
-3. **The Backtest is untouched (I3).** No byte changes in `indicators.ts`, `indRegistry.json`, `backtest-registry.json`,
-   `apps/edge-bff/backtest/src/core/**` or `apps/backtest-worker/**` during the Screener build. Why: the Backtest's
+3. **The Backtest is untouched (I3).** No byte changes in `indicators.ts`, `indRegistry.json`, `backtest-registry.json`
+   or `apps/edge-bff/backtest/src/core/**` during the Screener build; `apps/backtest-worker/**` changes only as a
+   recorded approval says (EXEC-MU-RUNTIME: `scripts/screener/backtest_worker_baseline.json` names the approved worker
+   tree, its versions and the EXEC section; any other worker change fails the tripwire). Why: the Backtest's
    `engine_version` hashes every core file (`apps/backtest-worker/src/version.ts:18-21`, `SOURCES`) and its
    `registry_version` hashes `indRegistry.json` plus `indicators.ts`
    (`apps/backtest-worker/scripts/build-registry.mjs:24`, `registryVersion`); either change alters every Backtest result
@@ -584,7 +586,7 @@ database or bucket credential. Presigned URLs and keys are never logged. Every e
   | screener core and page | `npm test` (vitest), `npm run typecheck` in `apps/edge-bff/screener` | BRANCH / PROPOSED |
   | screener-worker | `npm test` in `apps/screener-worker` | PROPOSED |
   | edge-bff | `EDGE_TEST_POSTGRES_URL=<disposable Postgres> python -m pytest -q` in `apps/edge-bff` (`tests/test_screener.py`) | PROPOSED |
-  | tripwire | `node scripts/screener/check_backtest_untouched.mjs` | PROPOSED |
+  | tripwire | `npm run tripwire` in `apps/edge-bff/screener` (`scripts/screener/check_backtest_untouched.mjs`; its tests: `node --test scripts/screener/check_backtest_untouched.test.mjs`) | BRANCH |
   | Feature 04 parity | `scripts/screener/parity_f04.py`, record in `verification/screener/F04_PARITY.md` | PROPOSED |
 
 ## 1.20 Open and temporary items that affect onboarding
@@ -772,7 +774,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Alignment: the as-of rule for each cell (own bars, market sessions, or backward as-of on availability) and the `eval_date` each cell reports | a fixture across a holiday |
 | Its data version (as `flow_data`) enters `versions` and the cache keys | a version test |
 | Memory and start time measured with the new file (refresh log `rss`, `defaults_ms`) | `verification/screener/BENCHMARK.md` |
-| Tripwire green: no Backtest file changed | `check_backtest_untouched.mjs` |
+| Tripwire green: no Backtest formula or core file changed, the Backtest worker as its recorded baseline approves | `check_backtest_untouched.mjs` |
 
 **L6 — edge-bff:** nothing for a new metric (the catalog is relayed). A new route or setting only with its tests in
 `apps/edge-bff/tests/test_screener.py`.

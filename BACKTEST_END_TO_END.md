@@ -590,6 +590,14 @@ stocks) and of a result (versions, duration, trials, lineage key, events). Off (
    (`backtest_trials`, unique per owner, lineage and variant; `recorded_seq` kept).
 5. Every write after the claim is fenced by the lease token (ERRORS M246); a database failure a retry may mend is
    retried until the job's deadline.
+6. Measurement (EXEC-MU-RUNTIME Phase 0; `verification/edge_multiuser/runtime/backtest.md` section 7): log lines only,
+   nothing decides on them. edge-bff: `backtest_submit` (with `request_key`, the hash of the request in the worker's
+   canonical form, for the share of identical requests), `backtest_claim`, `backtest_poll` per status read,
+   `backtest_job_timing` per job (queue wait, hand-over, the worker's time, the poll slack, download, split, store, end to
+   end) and `backtest_preview` (`apps/edge-bff/README.md`). The worker: `job_end` with `phases_ms` per status phase and
+   the memory, `preview_end` with each preview's queue wait (`preview_wait_ms`) and compute time (worker README, Logs).
+   A worker source change changes `engine_version` (section 7.1); it is recorded for the Screener build's tripwire in
+   `scripts/screener/backtest_worker_baseline.json`.
 
 Tables (`database/migrations/20261026_005_edge_bff_backtest.sql`): `edge_bff.backtest_jobs` (one RUNNING per owner,
 unique partial index), `edge_bff.backtest_results` (`(request_id, part)`, bytea, sha256, 30 days), and
