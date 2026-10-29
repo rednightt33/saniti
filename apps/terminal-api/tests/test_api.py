@@ -1,4 +1,5 @@
 """terminal-api behaviour with an in-memory store and bucket (the SQL itself is checked live, Phase 7)."""
+import copy
 import datetime as dt
 import json
 from contextlib import contextmanager
@@ -15,10 +16,15 @@ ORIGIN = 'https://terminal.example'
 NOW = dt.datetime.now(dt.timezone.utc)
 LIMITS = {'url_ttl_seconds': 120, 'files_per_hour': 60, 'tickers_per_hour': 30, 'tickers_per_day': 150,
           'megabytes_per_day': 300, 'history_per_hour': 20, 'sessions_per_subscriber': 2, 'session_hours': 24,
-          'failed_sign_ins_per_email': 10, 'failed_sign_ins_per_ip': 30}
+          'failed_sign_ins_per_email': 10, 'failed_sign_ins_per_ip': 30,
+          # EXEC-MU-RUNTIME T1: the service ceilings of migration 20261028_100
+          'service_grants_per_hour': 20000, 'service_files_per_hour': 100000, 'service_megabytes_per_hour': 100000}
 
 
 class FakeStore:
+    """The SQL of app/store.py in memory. A transaction rolls back what it added when it raises (as psycopg's
+    transaction() does): the audit rows and the service hour counters. `events` records the order of the account
+    reads and the locks of every transaction (T3), `txs` the number of transactions."""
     def __init__(self):
         self.subs = {}
         self.sessions = {}
@@ -27,16 +33,33 @@ class FakeStore:
         self.limits_value = dict(LIMITS)
         self.history_rows = []
         self.admin = []
+        self.events = []
+        self.txs = 0
+        self.hours = {}                                  # terminal.usage_hour: (sid, hour_start) -> counters
+        self.hour = NOW.replace(minute=0, second=0, microsecond=0)
 
     @contextmanager
     def tx(self):
-        yield None
+        self.txs += 1
+        self.events.append(('tx',))
+        access, hours = len(self.access), copy.deepcopy(self.hours)
+        try:
+            yield None
+        except BaseException:
+            del self.access[access:]
+            self.hours = hours
+            raise
 
     def ready(self):
         pass
 
     def lock_subscriber(self, c, sid):
-        pass
+        self.events.append(('lock', sid))
+
+    def meter(self, c, sid, files, bytes_):
+        h = self.hours.setdefault((sid, self.hour), {'hour_start': self.hour, 'grants': 0, 'files': 0, 'bytes': 0})
+        h.update(grants=h['grants'] + 1, files=h['files'] + files, bytes=h['bytes'] + bytes_)
+        return dict(h)
 
     def limits(self, c, sid):
         return dict(self.limits_value)
@@ -65,7 +88,7 @@ class FakeStore:
         for sid, s in self.subs.items():
             if s['email'] == email:
                 return {'subscriber_id': sid, 'password_hash': s['hash'], 'active': s['active'],
-                        'current': s['expires_at'] > dt.datetime.now(dt.timezone.utc)}
+                        'current': s['expires_at'] > dt.datetime.now(dt.timezone.utc), 'kind': s.get('kind', 'person')}
         return None
 
     def open_session(self, c, sid, th, ip, hours, max_sessions):
@@ -75,18 +98,23 @@ class FakeStore:
         self.sessions[th] = {'sid': sid, 'revoked': False}
 
     def session_subscriber(self, c, th):
+        self.events.append(('session', th))
         s = self.sessions.get(th)
         if not s or s['revoked']:
             return None
         u = self.subs[s['sid']]
-        if not u['active'] or u['expires_at'] <= dt.datetime.now(dt.timezone.utc):
+        if not u['active'] or u['expires_at'] <= dt.datetime.now(dt.timezone.utc) or u.get('kind', 'person') != 'person':
             return None
-        return {'subscriber_id': s['sid'], 'email': u['email'], 'display_name': u['name'], 'expires_at': u['expires_at']}
+        return {'subscriber_id': s['sid'], 'email': u['email'], 'display_name': u['name'], 'expires_at': u['expires_at'],
+                'kind': 'person'}
 
-    def proxied_subscriber(self, c, email):
+    def account(self, c, email, kind):
+        self.events.append(('account', email))
         for sid, u in self.subs.items():
-            if u['email'] == email and u['active'] and u['expires_at'] > dt.datetime.now(dt.timezone.utc):
-                return {'subscriber_id': sid, 'email': email, 'display_name': u['name'], 'expires_at': u['expires_at']}
+            if (u['email'] == email and u.get('kind', 'person') == kind and u['active']
+                    and u['expires_at'] > dt.datetime.now(dt.timezone.utc)):
+                return {'subscriber_id': sid, 'email': email, 'display_name': u['name'], 'expires_at': u['expires_at'],
+                        'kind': kind}
         return None
 
     def revoke_session(self, c, th):
@@ -536,7 +564,8 @@ def test_bucket_state_keeps_the_last_read_publication(monkeypatch):
     monkeypatch.setattr(bucket_mod.time, 'monotonic', lambda: clock[0])
     assert b.state() == {'finished_at': 'run-1', 'price_through': '2026-10-26', 'broker_through': '2026-10-23',
                          'broker_behind_sessions': 1,                       # only the publication fields
-                         'xsection': {'price': XSECTION['price']}}          # and the index's well-formed entries
+                         'xsection': {'price': XSECTION['price']},          # and the index's well-formed entries
+                         'refs': None}                                      # a run before the reference index
     state.update(finished_at='run-2', broker_through='2026-10-27', xsection=XSECTION)
     assert b.state()['finished_at'] == 'run-1'                              # within the check interval
     clock[0] += 61
@@ -693,7 +722,7 @@ def test_state_returns_xsection_when_state_json_holds_it_and_still_answers_the_b
              'xsection': {**XSECTION, 'price': {**XSECTION['price'], 'stamp': 'publisher-only'}}}
     client, store = gateway_client(s3_bucket(state))
     s = client.get(f'{API}/state', headers=GATEWAY).json()
-    assert s == {**publication, 'xsection': XSECTION}                       # each entry's five fields only
+    assert s == {**publication, 'xsection': XSECTION, 'refs': None}         # each entry's five fields only
     # what apps/backtest-worker/src/terminal.ts publication() reads is unchanged
     assert {k: s[k] for k in ('finished_at', 'price_through', 'broker_through')} == \
         {k: publication[k] for k in ('finished_at', 'price_through', 'broker_through')}
@@ -703,7 +732,7 @@ def test_state_returns_xsection_when_state_json_holds_it_and_still_answers_the_b
     assert len(store.access) == 1 and store.access[0]['dataset'] == 'xsection'
     del state['xsection']                                                  # the same app, a state without an index
     client2, _ = gateway_client(s3_bucket(state))
-    assert client2.get(f'{API}/state', headers=GATEWAY).json() == {**publication, 'xsection': None}
+    assert client2.get(f'{API}/state', headers=GATEWAY).json() == {**publication, 'xsection': None, 'refs': None}
 
 
 def test_xsection_index_keeps_only_well_formed_entries():
@@ -727,3 +756,462 @@ def test_xsection_index_keeps_only_well_formed_entries():
     assert xsection_index(refused) == {}
     assert xsection_index({'a': {**good, 'key': own('a'), 'as_of': 7}})['a']['as_of'] is None
 
+
+
+# ---- EXEC-MU-RUNTIME Phase 1b (user 2026-10-28, option A; verification/edge_multiuser/runtime/terminal.md) --------
+BACKTEST_KEY, SCREENER_KEY = 'B' * 40, 'S' * 40
+BACKTEST = {'x-terminal-proxy-key': BACKTEST_KEY}
+SCREENER = {'x-terminal-proxy-key': SCREENER_KEY}
+
+
+def services_client(bucket=None):
+    """terminal-api with the gateway (sub@example.com, id 1) and the two service accounts of migration 20261028_100
+    (backtest-worker id 2, screener-worker id 3), each with its own key."""
+    bucket = bucket or FakeBucket()
+    store = FakeStore()
+    settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com',
+                           'service_keys': (('backtest-worker', BACKTEST_KEY), ('screener-worker', SCREENER_KEY))})
+    settings.validate()
+    client = TestClient(create_app(settings, store, bucket))
+    r = client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
+        'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
+        'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
+    assert r.status_code == 201, r.text
+    for sid, name in ((2, 'backtest-worker'), (3, 'screener-worker')):
+        store.subs[sid] = {'email': f'{name}@terminal.local', 'name': f'{name} (service account)', 'kind': 'service',
+                           'hash': password_verifier('a service never signs in'), 'active': True,
+                           'expires_at': NOW + dt.timedelta(days=365 * 70)}
+    return client, store, bucket
+
+
+def test_service_key_acts_as_its_own_account_and_cannot_name_an_owner():
+    client, store, _ = services_client()
+    assert client.get(f'{API}/manifest/BBCA', headers=BACKTEST).status_code == 200
+    r = client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA', 'packs': True})
+    assert r.status_code == 200, r.text
+    row = store.access[-1]
+    assert (row['sid'], row['ticker'], row['files']) == (2, 'BBCA', 13)              # its own audit row
+    assert store.hours[(2, store.hour)] == {'hour_start': store.hour, 'grants': 1, 'files': 13,
+                                            'bytes': 6 * 2000 + 6 * 250_000 + 9000}   # its own hourly counter
+    assert ('lock', 2) in store.events and ('lock', 1) not in store.events          # its own lock
+    assert store.usage(None, 1) == quota.Usage(0, frozenset(), frozenset(), 0, 0)    # nothing on the people's account
+    store.limits_value.update(files_per_hour=1, tickers_per_hour=1)                 # a person's quotas never apply to it
+    assert client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'T7'}).status_code == 200
+    # the gateway key works as before: the people's account, its rolling quotas, no hourly counter
+    assert client.post(f'{API}/bundle', headers=GATEWAY, json={'ticker': 'BBCA', 'datasets': ['events']}).status_code == 200
+    assert store.access[-1]['sid'] == 1 and set(store.hours) == {(2, store.hour)}
+    # an owner header with a service key: refused (where, why, how to fix, example); the gateway ignores it until T2
+    rows = len(store.access)
+    for path in ('/state', '/manifest/BBCA'):
+        r = client.get(f'{API}{path}', headers={**BACKTEST, 'x-terminal-proxy-owner': 'owner-a'})
+        m = r.json()['message']
+        assert r.status_code == 400 and r.json()['error'] == 'owner_not_allowed'
+        assert 'backtest-worker' in m and 'can never name an owner' in m and 'Fix:' in m and 'Example:' in m
+    r = client.post(f'{API}/bundle', headers={**BACKTEST, 'x-terminal-proxy-owner': 'owner-a'}, json={'ticker': 'BBCA'})
+    assert r.status_code == 400 and len(store.access) == rows
+    assert client.get(f'{API}/state', headers={**GATEWAY, 'x-terminal-proxy-owner': 'owner-a'}).status_code == 200
+    # a service account never signs in, whatever its password, and never uses a person's routes
+    r = TestClient(client.app, headers={'origin': ORIGIN}).post(f'{API}/auth/sign-in', json={
+        'email': 'backtest-worker@terminal.local', 'password': 'a service never signs in'})
+    assert r.status_code == 401 and r.json()['error'] == 'sign_in_failed'
+    r = client.get(f'{API}/history/price', headers=BACKTEST, params={'ticker': 'BBCA', 'from': '2019-01-01',
+                                                                      'to': '2019-12-31'})
+    assert r.status_code == 403 and r.json()['error'] == 'not_for_service_accounts' and 'Example:' in r.json()['message']
+    # an unknown key, and the key of an account that is not active, are refused with their fix
+    r = client.get(f'{API}/state', headers={'x-terminal-proxy-key': 'Z' * 40})
+    assert r.status_code == 401 and r.json()['error'] == 'proxy_key_rejected'
+    assert 'TERMINAL_SERVICE_KEY_' in r.json()['message'] and 'Example:' in r.json()['message']
+    store.subs[2]['active'] = False
+    r = client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA'})
+    assert r.status_code == 401 and r.json()['error'] == 'service_account_inactive'
+    assert 'backtest-worker@terminal.local' in r.json()['message'] and 'Fix:' in r.json()['message']
+
+
+def test_service_keys_are_strong_distinct_and_named():
+    base = {**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'}
+    Settings(**{**base, 'service_keys': (('backtest-worker', BACKTEST_KEY),)}).validate()
+    for bad in ((('backtest-worker', 'short'),), (('backtest-worker', PROXY_KEY),), (('backtest-worker', 'k' * 40),),
+                (('backtest-worker', BACKTEST_KEY), ('screener-worker', BACKTEST_KEY)), (('Bad Name', BACKTEST_KEY),)):
+        with pytest.raises(ValueError):
+            Settings(**{**base, 'service_keys': bad}).validate()
+
+
+def test_xsection_admits_only_the_screener_service_account():
+    bucket = FakeBucket()
+    bucket.state_doc = {**FakeBucket.state_doc, 'xsection': json.loads(json.dumps(XSECTION))}
+    client, store, _ = services_client(bucket)
+    r = client.post(f'{API}/xsection', headers=SCREENER, json={'names': ['price', 'actions']})
+    assert r.status_code == 200, r.text
+    row = store.access[-1]
+    assert (row['sid'], row['ticker'], row['dataset'], row['files']) == (3, quota.REF, 'xsection', 2)
+    assert store.hours[(3, store.hour)]['files'] == 2
+    r = client.post(f'{API}/xsection', headers=BACKTEST, json={'names': ['price']})          # another service
+    assert r.status_code == 403 and r.json()['error'] == 'gateway_only'
+    assert 'backtest-worker' in r.json()['message'] and 'TERMINAL_SERVICE_KEY_SCREENER_WORKER' in r.json()['message']
+    assert '${{terminal-api.TERMINAL_SERVICE_KEY_SCREENER_WORKER}}' in r.json()['message']
+    # the gateway key keeps its access until a later step removes it (compatibility)
+    assert client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['actions']}).status_code == 200
+    assert store.access[-1]['sid'] == 1
+    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    assert sign_in(direct).status_code == 200
+    assert direct.post(f'{API}/xsection', json={'names': ['price']}).json()['error'] == 'gateway_only'
+    assert len(store.access) == 2
+
+
+def test_service_ceiling_refuses_with_its_message():
+    client, store, _ = services_client()
+    store.limits_value['service_grants_per_hour'] = 2
+    codes = [client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA', 'datasets': ['events']}).status_code
+             for _ in range(3)]
+    assert codes == [200, 200, 429]
+    r = client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA', 'datasets': ['events']})
+    b, reset = r.json(), (store.hour + dt.timedelta(hours=1)).strftime('%H:%M UTC')
+    assert r.status_code == 429 and b['error'] == 'service_ceiling_reached'
+    for part in ('backtest-worker', 'service_grants_per_hour', '3 of 2 grants', 'runaway guard', f'until {reset}',
+                 'Fix:', 'terminal.quota_override', 'Example of normal use:'):
+        assert part in b['message'], part
+    # a refused grant is rolled back with its transaction: no audit row, the counter not raised
+    assert store.hours[(2, store.hour)]['grants'] == 2 and sum(a['sid'] == 2 for a in store.access) == 2
+    # the gateway is not a service: its own rolling quotas, unaffected
+    assert client.post(f'{API}/bundle', headers=GATEWAY, json={'ticker': 'BBCA', 'datasets': ['events']}).status_code == 200
+    # files and megabytes have their own ceilings; a new clock hour starts from zero
+    store.hour += dt.timedelta(hours=1)
+    store.limits_value.update(service_grants_per_hour=100, service_files_per_hour=12)
+    r = client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA'})              # 13 files
+    assert r.status_code == 429 and '13 of 12 files' in r.json()['message']
+    store.limits_value.update(service_files_per_hour=100, service_megabytes_per_hour=1)
+    r = client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA'})              # 1.52 MB
+    assert r.status_code == 429 and 'service_megabytes_per_hour' in r.json()['message'] and '(1.52 of 1 MB' in r.json()['message']
+    assert client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA', 'datasets': ['price']}).status_code == 200
+
+
+def test_inactive_account_is_refused_at_the_grant(monkeypatch):
+    client, store, _ = services_client()
+    assert client.get(f'{API}/manifest/BBCA', headers=GATEWAY).status_code == 200            # the account is known
+    store.events.clear()
+    assert client.post(f'{API}/bundle', headers=GATEWAY, json={'ticker': 'BBCA'}).status_code == 200
+    # one transaction: the lock, then the account read (a process's first grant prunes after it, in its own)
+    assert store.events[:4] == [('tx',), ('lock', 1), ('account', 'sub@example.com'), ('tx',)]
+    # deactivated by the administrator through another process (this process's cache is not cleared)
+    store.subs[1]['active'] = False
+    assert client.get(f'{API}/manifest/BBCA', headers=GATEWAY).status_code == 200            # reads: up to 60 s more
+    rows = len(store.access)
+    r = client.post(f'{API}/bundle', headers=GATEWAY, json={'ticker': 'BBCA'})
+    assert r.status_code == 401 and r.json()['error'] == 'session_ended' and len(store.access) == rows
+    assert client.get(f'{API}/manifest/BBCA', headers=GATEWAY).status_code == 401            # the refusal drops the cache
+    # deactivated while the grant waited for the lock: the account is read after it, so the grant is refused
+    store.subs[1]['active'] = True
+    assert client.get(f'{API}/state', headers=GATEWAY).status_code == 200
+    def lock(c, sid):
+        store.events.append(('lock', sid))
+        store.subs[sid]['active'] = False
+    monkeypatch.setattr(store, 'lock_subscriber', lock)
+    r = client.post(f'{API}/files', headers=GATEWAY, json={'ticker': 'BBCA', 'dataset': 'events'})
+    assert r.status_code == 401 and len(store.access) == rows
+    # a signed-in session revoked elsewhere is refused at its next grant the same way
+    store.subs[1]['active'] = True
+    monkeypatch.undo()
+    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    assert sign_in(direct).status_code == 200 and direct.get(f'{API}/manifest/BBCA').status_code == 200
+    for v in store.sessions.values():
+        v['revoked'] = True
+    assert direct.post(f'{API}/bundle', json={'ticker': 'BBCA'}).status_code == 401 and len(store.access) == rows
+
+
+def test_read_routes_reuse_the_account_for_60_seconds(monkeypatch):
+    from app import accounts as accounts_mod
+    clock = [5000.0]
+    monkeypatch.setattr(accounts_mod.time, 'monotonic', lambda: clock[0])
+    client, store, _ = services_client()
+    lookups = lambda: sum(1 for e in store.events if e[0] in ('account', 'session'))
+    assert client.get(f'{API}/manifest/BBCA', headers=BACKTEST).status_code == 200
+    assert (lookups(), store.txs) == (1, 2)                     # the admin's add, then one lookup
+    for path in ('/manifest/BBCA', '/state', '/logo/BBCA', '/manifest/BBCA'):
+        clock[0] += 14
+        assert client.get(f'{API}{path}', headers=BACKTEST).status_code == 200
+    assert (lookups(), store.txs) == (1, 2)                     # 56 s later: no transaction for four reads
+    clock[0] += 5
+    assert client.get(f'{API}/state', headers=BACKTEST).status_code == 200
+    assert (lookups(), store.txs) == (2, 3)                     # 61 s after the check: read once more
+    # one transaction per grant once the account is known (the first grant of a process also prunes, once)
+    client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA', 'datasets': ['events']})
+    before = store.txs
+    for _ in range(3):
+        assert client.post(f'{API}/bundle', headers=BACKTEST, json={'ticker': 'BBCA', 'datasets': ['events']}).status_code == 200
+    assert store.txs - before == 3
+    # each credential has its own entry: the gateway is read once for itself
+    assert client.get(f'{API}/state', headers=GATEWAY).status_code == 200 and store.events[-1] == ('account', 'sub@example.com')
+
+
+REF_SHA = {name: (c * 64) for name, c in (('tickers', '1'), ('brokers', '2'), ('logos', '3'), ('sectors', '4'))}
+
+
+def ref_entry(name, **over):
+    return {'key': f'v1/ref/{name}.{REF_SHA[name][:16]}.json.gz', 'sha256': REF_SHA[name], 'bytes': 14_449,
+            'rows': 845, **over}
+
+
+def test_state_lists_refs_and_reference_presigns_only_indexed_keys():
+    """T5 (api side; the bundle `refs` of T4 are Phase 3): /state shows the reference index, /reference presigns the
+    indexed content key, and the fixed key for a name the index lacks or a publication without an index."""
+    state = {'finished_at': '2026-10-29T00:51:00Z', 'price_through': '2026-10-28', 'broker_through': '2026-10-28',
+             'broker_behind_sessions': 0,
+             'refs': {'tickers': {**ref_entry('tickers'), 'stamp': 'publisher-only'},
+                      'brokers': ref_entry('brokers', key='v1/xsection/brokers.2222222222222222.json.gz'),  # wrong family
+                      'sectors': ref_entry('sectors', rows=40)}}
+    client, store = gateway_client(s3_bucket(state))
+    s = client.get(f'{API}/state', headers=GATEWAY).json()
+    assert s['refs'] == {'tickers': ref_entry('tickers'), 'sectors': ref_entry('sectors', rows=40)}
+    r = client.get(f'{API}/reference/tickers', headers=GATEWAY).json()
+    assert r == {'url': f'https://bucket.example/{ref_entry("tickers")["key"]}?X-Amz-Expires=120&sig=x',
+                 'expires_in_seconds': 120, 'encoding': 'gzip json', 'sha256': REF_SHA['tickers'], 'bytes': 14_449,
+                 'rows': 845}
+    a = store.access[-1]
+    assert (a['ticker'], a['dataset'], a['key'], a['bytes']) == (quota.REF, 'reference', ref_entry('tickers')['key'], 14_449)
+    assert store.usage(None, 1).tickers_hour == frozenset()                       # never an opened ticker
+    for name in ('brokers', 'logos'):                                             # malformed or not indexed: fixed key
+        r = client.get(f'{API}/reference/{name}', headers=GATEWAY).json()
+        assert r['url'].startswith(f'https://bucket.example/v1/ref/{name}.json.gz?') and r['sha256'] is None
+        assert store.access[-1]['key'] == f'v1/ref/{name}.json.gz' and store.access[-1]['bytes'] == 0
+    assert 'v1/ref/sectors.4444' in client.get(f'{API}/reference/sectors', headers=GATEWAY).json()['url']
+    r = client.get(f'{API}/reference/manifest', headers=GATEWAY)
+    assert r.status_code == 404 and r.json()['message'] == 'Reference files: brokers, logos, sectors, tickers.'
+    rows = len(store.access)
+    del state['refs']                                                             # a publication before the index
+    old, _ = gateway_client(s3_bucket(state))
+    assert old.get(f'{API}/state', headers=GATEWAY).json()['refs'] is None
+    r = old.get(f'{API}/reference/tickers', headers=GATEWAY).json()
+    assert 'v1/ref/tickers.json.gz?' in r['url'] and (r['sha256'], r['bytes'], r['rows']) == (None, None, None)
+    assert old.get(f'{API}/reference/sectors', headers=GATEWAY).status_code == 404 and len(store.access) == rows
+
+
+def test_refs_index_keeps_only_well_formed_entries():
+    from app.bucket import refs_index
+    good = ref_entry('tickers')
+    assert refs_index(None) is None and refs_index(['tickers']) is None and refs_index({}) == {}
+    assert refs_index({'tickers': {**good, 'as_of': '2026-10-28', 'stamp': 'x'}}) == {'tickers': good}
+    own = lambda name, hexes=REF_SHA['tickers'][:16]: f'v1/ref/{name}.{hexes}.json.gz'
+    refused = {
+        'Tickers': good,                                                           # name: lower case, digits, _ and -
+        'brokers': good,                                                           # key of another name
+        'a': {**good, 'key': own('a', 'g' * 16)},                                  # not hex
+        'b': {**good, 'key': 'v1/ref/b.json.gz'},                                  # the fixed key is not an index key
+        'c': {**good, 'key': f'v1/xsection/c.{REF_SHA["tickers"][:16]}.json.gz'},  # another family
+        'd': {**good, 'key': own('d'), 'bytes': 0},
+        'e': {**good, 'key': own('e'), 'rows': True},
+        'f': {**good, 'key': own('f'), 'sha256': 'A' * 64},
+        'g': {**good, 'key': own('g', '0' * 16)},                                  # 16 hex not the sha256's first 16
+        'h': 'v1/ref/h.json.gz'}
+    assert refs_index(refused) == {}
+
+
+def test_pool_size_comes_from_the_environment(monkeypatch):
+    from app.store import Store
+    for name, value in {'TERMINAL_DATABASE_URL': 'postgresql://terminal_api_login@db/x', 'TERMINAL_ADMIN_KEY': 'k' * 40,
+                        'TERMINAL_BUCKET_NAME': 'b', 'TERMINAL_BUCKET_ENDPOINT': 'https://e',
+                        'TERMINAL_BUCKET_REGION': 'auto', 'TERMINAL_BUCKET_ACCESS_KEY_ID': 'a',
+                        'TERMINAL_BUCKET_SECRET_ACCESS_KEY': 's', 'TERMINAL_ALLOWED_ORIGINS': ORIGIN}.items():
+        monkeypatch.setenv(name, value)
+    for name in [n for n in __import__('os').environ if n.startswith('TERMINAL_SERVICE_KEY_')] + ['TERMINAL_POOL_MAX']:
+        monkeypatch.delenv(name, raising=False)
+    assert Settings.from_env().pool_max == 8                                      # the value before the variable
+    monkeypatch.setenv('TERMINAL_POOL_MAX', '4')
+    s = Settings.from_env()
+    assert s.pool_max == 4 and Store(s.database_url, s.pool_max).pool.max_size == 4
+    import app.store as store_mod                                                 # the store create_app builds
+    built = []
+    with monkeypatch.context() as m:
+        m.setattr(store_mod, 'Store', lambda url, max_size=8: built.append(Store(url, max_size)) or built[-1])
+        create_app(s, None, FakeBucket())
+    assert [b.pool.max_size for b in built] == [4]
+    for bad in ('0', '21', 'eight'):
+        monkeypatch.setenv('TERMINAL_POOL_MAX', bad)
+        with pytest.raises(ValueError, match='TERMINAL_POOL_MAX'):
+            Settings.from_env()
+    monkeypatch.setenv('TERMINAL_POOL_MAX', '8')
+    monkeypatch.setenv('TERMINAL_SERVICE_KEY_BACKTEST_WORKER', BACKTEST_KEY)
+    monkeypatch.setenv('TERMINAL_SERVICE_KEY_SCREENER_WORKER', SCREENER_KEY)
+    monkeypatch.setenv('TERMINAL_SERVICE_KEY_UNUSED', '')                          # an empty variable names no service
+    assert Settings.from_env().service_keys == (('backtest-worker', BACKTEST_KEY), ('screener-worker', SCREENER_KEY))
+
+
+def test_ready_fails_while_the_schema_lacks_what_this_build_reads():
+    """T9: /ready is the healthcheck (.railway/railway.ts), so a deployment started before migration 20261028_100
+    never becomes ready (Railway keeps the previous one serving). Store.ready reads, without rows, every column and
+    table the later migrations added; on a disposable PostgreSQL 16 the same check answered 503 before the migration
+    and 200 after it (scratchpad build log api.md)."""
+    from contextlib import contextmanager as cm
+    from app.store import READY, Store
+
+    class Conn:
+        def __init__(self, missing):
+            self.missing, self.ran = missing, []
+
+        def execute(self, statement):
+            self.ran.append(statement)
+            if any(m in statement for m in self.missing):
+                raise RuntimeError('column or relation does not exist')
+
+    def store_with(missing):
+        s, conn = Store('postgresql://terminal_api_login@db/x'), Conn(missing)
+        s.tx = cm(lambda: (yield conn))
+        return s, conn
+
+    s, conn = store_with(())
+    s.ready()
+    assert conn.ran == list(READY)
+    assert any('subscriber' in q and 'kind' in q for q in READY) and any('usage_hour' in q for q in READY)
+    assert all(q.endswith('LIMIT 0') or q.endswith('LIMIT 1') for q in READY)          # no row is read
+    for missing in ('kind', 'usage_hour', 'file_count'):
+        s, _ = store_with((missing,))
+        client = TestClient(create_app(SETTINGS, s, FakeBucket()))
+        r = client.get('/ready')
+        assert r.status_code == 503 and r.json() == {'status': 'not_ready'}, missing   # the driver error never leaks
+    s, _ = store_with(())
+    assert TestClient(create_app(SETTINGS, s, FakeBucket())).get('/ready').json() == {'status': 'ready'}
+
+
+def test_railway_declares_the_healthcheck_and_a_key_variable_for_every_service_account():
+    """T1/T9: the terminal-api block of .railway/railway.ts names /ready as its healthcheck and one
+    TERMINAL_SERVICE_KEY_<NAME> per service account the migrations create (derived from their rows), so the IaC file,
+    the migration and app/config.py cannot drift apart unnoticed."""
+    import pathlib
+    import re as re_
+    from app.config import SERVICE_DOMAIN, service_variable
+    root = pathlib.Path(__file__).resolve().parents[3]
+    block = re_.search(r'service\("terminal-api", \{(.*?)\n  \}\);', (root / '.railway/railway.ts').read_text(), re_.S)
+    assert block, 'terminal-api block not found in .railway/railway.ts'
+    body = block.group(1)
+    assert 'healthcheck: "/ready"' in body and 'TERMINAL_POOL_MAX' not in body.split('env:')[1]   # default 8 applies
+    sql = ''.join(p.read_text() for p in sorted((root / 'database/migrations').glob('*_terminal_*.sql')))
+    rows = re_.findall(r'INSERT INTO terminal\.subscriber \([^)]*\bkind\) VALUES(.*?)ON CONFLICT', sql, re_.S)
+    services = sorted({m.group(1) for block in rows for m in re_.finditer(
+        r"\('([a-z0-9-]+)@" + re_.escape(SERVICE_DOMAIN) + r"',[^\n]*\n[^\n]*'service'\)", block)})
+    assert services == ['backtest-worker', 'screener-worker']
+    for name in services:
+        assert f'{service_variable(name)}: preserve()' in body, name
+    assert 'TERMINAL_PROXY_KEY: preserve()' in body and 'TERMINAL_PROXY_SUBSCRIBER: preserve()' in body
+
+
+# ---- EXEC-MU-RUNTIME Phase 1b review (adversarial reviewer of the api role, 2026-10-29) ----------------------------
+def test_one_service_account_takes_one_key_variable(monkeypatch):
+    """Two TERMINAL_SERVICE_KEY_ variables that differ only in case or in '-'/'_' name one service: both keys would act
+    as that one account (a leftover after a rotation would stay valid). Refused at start, naming the variable to keep."""
+    base = {**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'}
+    for twice in ((('backtest-worker', BACKTEST_KEY), ('backtest-worker', SCREENER_KEY)),
+                  (('screener-worker', SCREENER_KEY), ('backtest-worker', BACKTEST_KEY), ('screener-worker', 'Q' * 40))):
+        with pytest.raises(ValueError, match='one service account, one key') as e:
+            Settings(**{**base, 'service_keys': twice}).validate()
+        assert 'Fix: keep only TERMINAL_SERVICE_KEY_' in str(e.value)
+    Settings(**{**base, 'service_keys': (('backtest-worker', BACKTEST_KEY), ('screener-worker', SCREENER_KEY))}).validate()
+    for name, value in {'TERMINAL_DATABASE_URL': 'postgresql://terminal_api_login@db/x', 'TERMINAL_ADMIN_KEY': 'k' * 40,
+                        'TERMINAL_BUCKET_NAME': 'b', 'TERMINAL_BUCKET_ENDPOINT': 'https://e',
+                        'TERMINAL_BUCKET_REGION': 'auto', 'TERMINAL_BUCKET_ACCESS_KEY_ID': 'a',
+                        'TERMINAL_BUCKET_SECRET_ACCESS_KEY': 's', 'TERMINAL_ALLOWED_ORIGINS': ORIGIN}.items():
+        monkeypatch.setenv(name, value)
+    for name in [n for n in __import__('os').environ if n.startswith('TERMINAL_SERVICE_KEY_')]:
+        monkeypatch.delenv(name)
+    monkeypatch.setenv('TERMINAL_SERVICE_KEY_BACKTEST_WORKER', BACKTEST_KEY)
+    monkeypatch.setenv('TERMINAL_SERVICE_KEY_backtest-worker', SCREENER_KEY)                 # the same service again
+    with pytest.raises(ValueError, match='2 variables name the service backtest-worker'):
+        Settings.from_env()
+
+
+def test_pool_limit_is_the_login_limit_shared_by_the_processes_of_a_replica(monkeypatch):
+    """TERMINAL_POOL_MAX is per process; terminal_api_login's connection limit is for all of them together, and a
+    replica runs the Dockerfile's --workers processes. A value the processes together could not open is refused at
+    start (where, why, fix, example) instead of failing with 'too many connections' at the first peak."""
+    import pathlib
+    import re as re_
+    from app.config import POOL_MAX_DEFAULT, POOL_MAX_LIMIT, PROCESSES_PER_REPLICA, ROLE_CONNECTION_LIMIT
+    root = pathlib.Path(__file__).resolve().parents[3]
+    cmd = re_.search(r'^CMD (\[.*\])$', (root / 'apps/terminal-api/Dockerfile').read_text(), re_.M)
+    args = json.loads(cmd.group(1))
+    assert int(args[args.index('--workers') + 1]) == PROCESSES_PER_REPLICA
+    limit = re_.search(r"'terminal_api_login': \{.*?'limit': (\d+)", (root / 'scripts/provision_terminal_logins.py').read_text(),
+                       re_.S)
+    assert int(limit.group(1)) == ROLE_CONNECTION_LIMIT
+    assert POOL_MAX_LIMIT * PROCESSES_PER_REPLICA <= ROLE_CONNECTION_LIMIT < (POOL_MAX_LIMIT + 1) * PROCESSES_PER_REPLICA
+    assert 1 <= POOL_MAX_DEFAULT <= POOL_MAX_LIMIT
+    base = {**SETTINGS.__dict__}
+    Settings(**{**base, 'pool_max': POOL_MAX_LIMIT}).validate()
+    for bad in (0, POOL_MAX_LIMIT + 1, ROLE_CONNECTION_LIMIT):
+        with pytest.raises(ValueError) as e:
+            Settings(**{**base, 'pool_max': bad}).validate()
+        m = str(e.value)
+        assert f'TERMINAL_POOL_MAX must be 1-{POOL_MAX_LIMIT}' in m and f'{bad} was given' in m
+        assert 'Fix:' in m and 'for example TERMINAL_POOL_MAX=' in m
+
+
+def test_railway_healthcheck_probes_the_port_the_app_listens_on():
+    """Railway probes a healthcheck on the service's PORT. A service whose Dockerfile fixes its port (uvicorn --port
+    8080) and that has a healthcheck must declare PORT (set to that port), as every other such service does; without it
+    the probe goes to the port Railway injects and the deployment is never promoted. Derived for every service of
+    .railway/railway.ts with a healthcheck, terminal-api included."""
+    import pathlib
+    import re as re_
+    root = pathlib.Path(__file__).resolve().parents[3]
+    text = (root / '.railway/railway.ts').read_text()
+    checked = []
+    for name, body in re_.findall(r'service\("([^"]+)", \{(.*?)\n  \}\);', text, re_.S):
+        if 'healthcheck:' not in body:
+            continue
+        rootdir = re_.search(r'rootDirectory: "/(apps/[^"]+)"', body)
+        dockerfile = root / (rootdir.group(1) if rootdir else f'apps/{name}') / 'Dockerfile'
+        if not dockerfile.exists():
+            continue
+        fixed = re_.search(r'^CMD \[.*"--port", "(\d+)"', dockerfile.read_text(), re_.M)
+        if fixed:
+            assert re_.search(r'\bPORT: preserve\(\)', body.split('env:')[1]), f'{name}: healthcheck on port {fixed.group(1)} without PORT'
+            checked.append(name)
+    assert 'terminal-api' in checked and len(checked) >= 2
+
+
+def test_megabyte_ceiling_message_never_reads_within_the_ceiling():
+    hour = NOW.replace(minute=0, second=0, microsecond=0)
+    limits = {'service_grants_per_hour': 10, 'service_files_per_hour': 10, 'service_megabytes_per_hour': 100_000}
+    used = lambda b: {'hour_start': hour, 'grants': 1, 'files': 1, 'bytes': b}
+    assert quota.check_service('backtest-worker', limits, used(100_000 * 1_000_000)) is None              # at the ceiling
+    tiny = quota.check_service('backtest-worker', limits, used(100_000 * 1_000_000 + 4_000)).message()  # 4 KB over
+    assert '(100,000.01 of 100,000 MB' in tiny
+    limits['service_megabytes_per_hour'] = 1
+    assert '(1.52 of 1 MB' in quota.check_service('backtest-worker', limits, used(1_521_000)).message()
+    assert '(2 of 1 MB' in quota.check_service('backtest-worker', limits, used(2_000_000)).message()
+
+
+def test_account_cache_is_dropped_where_this_process_changes_the_account():
+    """T3: the read cache is never the reason a changed account keeps reading on the process that changed it: sign-out
+    drops that session, an admin change and a password change clear the process's entries; a grant whose cached id is
+    no longer the key's account takes the new account's lock and books on it; a service key never changes a password."""
+    client, store, _ = services_client()
+    store.limits_value['sessions_per_subscriber'] = 3
+    one, two = (TestClient(client.app, headers={'origin': ORIGIN}) for _ in range(2))
+    for c in (one, two):
+        assert sign_in(c).status_code == 200 and c.get(f'{API}/manifest/BBCA').status_code == 200   # both cached
+    # a password change on this process ends the other session at once (no cached read for it here)
+    r = one.post(f'{API}/auth/change-password', json={'current_password': 'correct horse battery',
+                                                       'new_password': 'another horse battery'})
+    assert r.status_code == 200 and two.get(f'{API}/manifest/BBCA').status_code == 401
+    # sign-out drops this session's entry at once (the same cookie, sent again, is not served from the cache)
+    assert one.get(f'{API}/state').status_code == 200
+    replay = TestClient(client.app, headers={'origin': ORIGIN}, cookies={'terminal_session': one.cookies.get('terminal_session')})
+    assert replay.get(f'{API}/state').status_code == 200 and one.post(f'{API}/auth/sign-out').status_code == 200
+    r = replay.get(f'{API}/state')
+    assert r.status_code == 401 and r.json()['error'] == 'session_ended'
+    # an admin change through this process: the gateway's next read is checked again, not served from the cache
+    assert client.get(f'{API}/state', headers=GATEWAY).status_code == 200
+    assert client.post(f'{API}/admin/subscribers/1', headers={**ADMIN, 'origin': ORIGIN}, json={'active': False}).status_code == 200
+    assert client.get(f'{API}/state', headers=GATEWAY).status_code == 401
+    client.post(f'{API}/admin/subscribers/1', headers={**ADMIN, 'origin': ORIGIN}, json={'active': True})
+    # the gateway's account row replaced (same address, new id) while its old id is cached: the grant re-locks and
+    # books on the new account
+    assert client.get(f'{API}/state', headers=GATEWAY).status_code == 200
+    store.subs[7] = store.subs.pop(1)
+    store.events.clear()
+    assert client.post(f'{API}/bundle', headers=GATEWAY, json={'ticker': 'BBCA', 'datasets': ['events']}).status_code == 200
+    assert [e for e in store.events if e[0] == 'lock'][:2] == [('lock', 1), ('lock', 7)] and store.access[-1]['sid'] == 7
+    # a service key never changes its account's password, even with the right current one
+    before = store.subs[2]['hash']
+    r = client.post(f'{API}/auth/change-password', headers=BACKTEST, json={
+        'current_password': 'a service never signs in', 'new_password': 'a new service password'})
+    assert r.status_code == 403 and r.json()['error'] == 'not_for_service_accounts' and store.subs[2]['hash'] == before

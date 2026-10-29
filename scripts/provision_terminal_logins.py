@@ -16,7 +16,8 @@ MARKET = {('public', t) for t in ('Price_Stock_Indonesia_IDX', 'Feature_05_Forei
                                    'IDX_Broker_Profile', 'IDX_Stock_Universe',
                                    'idx_event_annotation')}  # since 20261025_101
 TERMINAL = {('terminal', t) for t in ('subscriber', 'session', 'access_log', 'sign_in_attempt', 'quota',
-                                      'quota_override', 'admin_log')}
+                                      'quota_override', 'admin_log',
+                                      'usage_hour')}  # since 20261028_100 (EXEC-MU-RUNTIME T1)
 LOGINS = {
     'terminal_api_login': {'env': 'TERMINAL_DB_PASSWORD', 'groups': {'terminal_runtime', 'terminal_market_reader'},
                            'reach': MARKET | TERMINAL, 'limit': 20,

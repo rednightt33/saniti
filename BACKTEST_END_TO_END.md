@@ -352,24 +352,42 @@ The manifest:
 
 `apps/terminal-api` is a FastAPI app run as `uvicorn --workers 2`, one replica in `sfo`. It reads manifests from the
 bucket, checks quotas, writes an audit row, and answers presigned GET URLs. It never streams a data file itself.
+EXEC-MU-RUNTIME Phase 1b (user 2026-10-28, option A; `verification/edge_multiuser/runtime/terminal.md` T1, T3, T5,
+T9): service accounts for the workers, the account read inside each grant, the reference file index, `/ready` as the
+Railway healthcheck (`.railway/railway.ts`; it answers 200 only once the database holds what the build reads,
+`store.py READY`) and `TERMINAL_POOL_MAX` (connections per process, default 8).
 
 ### 6.1 Who may call it
 
-- **The backtest's two callers both use the gateway key** in the header `x-terminal-proxy-key`:
+- **The backtest's two callers** send a key in the header `x-terminal-proxy-key`:
   - the **worker** calls it directly on the private network, at `TERMINAL_URL`, dev
-    `http://terminal-api.railway.internal:8080`;
-  - the **page** goes through edge-bff's proxy (6.4).
-- **One shared account.** A request with the header is either proxied (valid key) or refused with 401
-  `proxy_key_rejected`. There is no fallback to cookies (`proxied`). Proxied requests act as the one subscriber
-  `TERMINAL_PROXY_SUBSCRIBER` (dev `edge-owner@terminal.local`, subscriber 2), checked active on every request
-  (`subscriber`). Every page and worker request is therefore booked on one account.
-  - This is TEMPORARY, decision U1 in CONTRACT.md.
-  - Its quotas are overridden to 1,000,000,000 (TEMPORARY, `verification/terminal_api/jobs/quota_unlimited_edge_owner.sql`).
+    `http://terminal-api.railway.internal:8080`, with its `TERMINAL_PROXY_KEY`: the gateway key until the variable
+    references its own service key `${{terminal-api.TERMINAL_SERVICE_KEY_BACKTEST_WORKER}}` (EXEC-MU-RUNTIME T1);
+  - the **page** goes through edge-bff's proxy (6.4), always with the gateway key.
+- **Keys and accounts** (`accounts.py`, `main.py identify`). A request with the header holds the gateway key
+  (`TERMINAL_PROXY_KEY`), a service key (`TERMINAL_SERVICE_KEY_<NAME>`, one Railway secret per worker) or is refused
+  with 401 `proxy_key_rejected`. There is no fallback to cookies.
+  - The gateway key acts as the one subscriber `TERMINAL_PROXY_SUBSCRIBER` (dev `edge-owner@terminal.local`, subscriber
+    2), kind `person`. Every page request, and every worker request while the worker presents the gateway key, is
+    booked on that account. This is TEMPORARY, decision U1 in CONTRACT.md; its quotas are overridden to 1,000,000,000
+    (TEMPORARY, `verification/terminal_api/jobs/quota_unlimited_edge_owner.sql`).
+  - A service key acts as its own account `<name>@terminal.local` (`terminal.subscriber.kind = 'service'`, migration
+    `20261028_100`: `backtest-worker`, `screener-worker`): its own advisory lock and audit rows; counted per clock hour
+    (UTC) in `terminal.usage_hour` against the ceilings `service_grants_per_hour`, `service_files_per_hour` and
+    `service_megabytes_per_hour` (a runaway guard, not a person's quota; 429 `service_ceiling_reached`); never signs
+    in; can never name an owner (400 `owner_not_allowed` with `x-terminal-proxy-owner`); published files only (403
+    `not_for_service_accounts` on `/history` and the password route); 401 `service_account_inactive` when its row is
+    missing, inactive or expired.
+  - The account is checked (active, unexpired) inside each grant's transaction, after its lock (T3, `main.py admit`):
+    a grant never passes for an account deactivated while it waited. `/manifest`, `/state` and `/logo` grant nothing
+    and use this process's last check of the same key, at most 60 s old (`AccountCache`): a deactivated account can
+    read those for up to 60 s more.
 - **Direct subscriber sign-in is not on the backtest path.** terminal-api also serves its own sign-in (cookie
   `terminal_session`), yearly `/files`, a PostgreSQL `/history` for dates before the published years, `/logo` and
   admin routes.
-- **The screener-worker** (EXEC-SCREENER, user 2026-10-28) calls terminal-api with the same key on the private
-  network: `/state`, `/manifest`, `/reference` and `POST /xsection`. `/xsection` admits the gateway key only (6.2).
+- **The screener-worker** (EXEC-SCREENER, user 2026-10-28) calls terminal-api on the private network: `/state`,
+  `/manifest`, `/reference` and `POST /xsection`. `/xsection` admits the screener-worker's service key and, until a
+  later step removes it from the workers, the gateway key (6.2).
 
 ### 6.2 The routes the backtest and the screener use
 
@@ -377,23 +395,26 @@ bucket, checks quotas, writes an audit row, and answers presigned GET URLs. It n
 |---|---|---|
 | `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` | worker and page | see the steps below |
 | `GET /api/terminal/v1/manifest/{T}` | worker only (freshness and coverage checks) | `{ticker, window, generated_at, datasets: {name: {data_through, years: {id: {bytes, rows, first, last, sha256}}}}}`. No object key, no URL, no quota, no audit row. |
-| `GET /api/terminal/v1/reference/{tickers\|brokers}` | worker only (catalog, validation) | one presigned URL of the fixed key, counted against quota (pseudo-ticker `REF`, never an opened ticker), no sha256 |
-| `GET /api/terminal/v1/state` | the backtest worker (EXEC-BACKTEST-LOAD, 2026-10-27) and the screener-worker (EXEC-SCREENER). The code admits any subscriber (`Depends(subscriber)`: the gateway key or a session cookie), since it grants nothing; edge-bff does not forward it | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old), and `xsection`, the run's cross-sectional file index `{name: {key, sha256, bytes, rows, as_of}}` (`bucket.py xsection_index`: only well-formed entries, a key `v1/xsection/<name>.<16 hex>.json.gz` whose 16 hex are the first 16 of its `sha256`, each with these five fields; null when the run wrote none; the publisher carries forward and protects from its cleanup exactly these entries, `publisher.py xsection_entries`). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
-| `POST /api/terminal/v1/xsection {names}` | the screener-worker only, not the backtest: the gateway key; a request without it, a subscriber session included, is 403 `gateway_only` (`main.py gateway`); edge-bff does not forward it | presigned URLs for files of the `/state` index, named by their index names: `{finished_at, expires_in_seconds, encoding, files: [{name, url, sha256, bytes, rows, as_of}]}`. 1 to 16 names (a repeated name counts once); a name not in the index is 404 `xsection_not_published` with the indexed names. One file per name and their bytes count against the quota under the pseudo-ticker `REF` (never an opened ticker), with one `terminal.access_log` row (dataset `xsection`) listing every key; 429 `quota_exceeded` refuses every name. |
+| `GET /api/terminal/v1/reference/{tickers\|brokers}` | worker only (catalog, validation) | one presigned URL: of the content key `v1/ref/<name>.<16 hex>.json.gz` when the publication's `refs` index (`/state`) names the file, the answer then adding its `sha256`, `bytes` and `rows` and its bytes counting; otherwise (a publication before EXEC-MU-RUNTIME T5, or a name the index lacks) of the fixed key `REF_FILES`, with those three fields null. The bytes are the same either way. Counted against quota (pseudo-ticker `REF`, never an opened ticker); a name neither in the index nor in `REF_FILES` is 404 `unknown_reference` |
+| `GET /api/terminal/v1/state` | the backtest worker (EXEC-BACKTEST-LOAD, 2026-10-27) and the screener-worker (EXEC-SCREENER). The code admits any account (`Depends(reader)`: the gateway key, a service key or a session cookie, from this process's check at most 60 s old), since it grants nothing; edge-bff does not forward it | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old), and `xsection`, the run's cross-sectional file index `{name: {key, sha256, bytes, rows, as_of}}` (`bucket.py xsection_index`: only well-formed entries, a key `v1/xsection/<name>.<16 hex>.json.gz` whose 16 hex are the first 16 of its `sha256`, each with these five fields; null when the run wrote none; the publisher carries forward and protects from its cleanup exactly these entries, `publisher.py xsection_entries`); and `refs` (EXEC-MU-RUNTIME T5), the run's reference file index `{name: {key, sha256, bytes, rows}}` (`bucket.py refs_index`, the same rules under `v1/ref/`; null when the run wrote none), which `/reference` grants from. No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
+| `POST /api/terminal/v1/xsection {names}` | the screener-worker only, not the backtest: its service key (`TERMINAL_SERVICE_KEY_SCREENER_WORKER`) or, until a later step removes it, the gateway key; any other caller, another service or a subscriber session included, is 403 `gateway_only` (`main.py xsection_caller`); edge-bff does not forward it | presigned URLs for files of the `/state` index, named by their index names: `{finished_at, expires_in_seconds, encoding, files: [{name, url, sha256, bytes, rows, as_of}]}`. 1 to 16 names (a repeated name counts once); a name not in the index is 404 `xsection_not_published` with the indexed names. One file per name and their bytes count against the quota under the pseudo-ticker `REF` (never an opened ticker; for the service account its hourly ceilings), with one `terminal.access_log` row (dataset `xsection`) listing every key; 429 `quota_exceeded` (`service_ceiling_reached`) refuses every name. |
 
 What `/bundle` does:
 
 1. Read the manifest (6.3).
 2. Choose the files. Price is the price pack when one exists. Broker is the broker archive, then the yearly files after
    its last year. Events is the `all` file. A dataset the ticker does not have answers no files and no error.
-3. `grant`: in one transaction under `pg_advisory_xact_lock(hashtext('terminal.subscriber'), sid)`, check the quota
-   (429 `quota_exceeded` for the whole bundle) and write one `terminal.access_log` row that lists every key.
+3. `grant`: in one transaction under `pg_advisory_xact_lock(hashtext('terminal.subscriber'), sid)`, read the account
+   again (401 when it is no longer active), check the quota (429 `quota_exceeded` for the whole bundle) or, for a
+   service account, add the grant to its clock hour in `terminal.usage_hour` and check its ceilings (429
+   `service_ceiling_reached`; a refused grant is rolled back), and write one `terminal.access_log` row that lists every
+   key.
 4. Presign each manifest `key` for `url_ttl_seconds`: 120 s by default, from table `terminal.quota`.
 5. Answer `{ticker, window, generated_at, expires_in_seconds, datasets: {name: {data_through, first_year, files: [{year,
    url, sha256, bytes, rows, pack?}]}}}`.
 
 A client never names an object key. Only manifest keys, the fixed `REF_FILES` keys and the keys of the `state.json`
-xsection index are presigned.
+xsection and refs indexes are presigned.
 
 ### 6.3 The manifest cache (`apps/terminal-api/app/bucket.py`, `Bucket._fresh`, `Bucket.manifest`)
 
@@ -407,11 +428,11 @@ xsection index are presigned.
   - During a run, terminal-api keeps serving the manifests of the previous run. Content keys keep the bytes those
     manifests name readable (M250); the publisher's cleanup waits an hour after the last finished run.
   - A ticker first published after its "not found" was cached stays 404 until the next `finished_at`.
-- **The publication.** `/state` and the xsection index `/xsection` grants from come from the same read of `state.json`
-  (`Bucket.state`), so both are at most 60 s old. For up to 60 s after a run one of the two processes can answer the
-  new publication and the other the previous one. `/xsection` answers its `finished_at` and each file's sha256, so a
-  caller compares them with the `/state` index it acts on; the xsection keys are content-addressed and never
-  overwritten, so a file granted from the previous index is still that index's file.
+- **The publication.** `/state` and the xsection and refs indexes `/xsection` and `/reference` grant from come from the
+  same read of `state.json` (`Bucket.state`), so all are at most 60 s old. For up to 60 s after a run one of the two
+  processes can answer the new publication and the other the previous one. `/xsection` answers its `finished_at` and
+  each file's sha256, so a caller compares them with the `/state` index it acts on; the xsection keys are
+  content-addressed and never overwritten, so a file granted from the previous index is still that index's file.
 
 ### 6.4 The page's route: browser, edge-bff proxy, terminal-api (`apps/edge-bff/app/main.py`)
 
@@ -448,7 +469,7 @@ xsection index are presigned.
   |---|---|---|
   | `/bundle` lists no file for the dataset | `DATA_MISSING`; a portfolio leaves the stock out | `DATA_MISSING` |
   | 404 `unknown_ticker` | `DATA_MISSING`; a portfolio leaves the stock out | terminal-api's message, code `unknown_ticker` |
-  | 429 `quota_exceeded` | `DATA_UNAVAILABLE` | "Limit reached: …" |
+  | 429 `quota_exceeded` (worker with its service key: `service_ceiling_reached`) | `DATA_UNAVAILABLE` | "Limit reached: …" |
   | 401 (key or gateway account) | `DATA_UNAVAILABLE` | "Sign in to EDGE first", which is misleading for a gateway-key problem |
   | Bucket 403 (URL expired) | asks a new `/bundle` once | `DATA_UNAVAILABLE` (403); the next chart load asks a new `/bundle` |
   | Bucket 404 | `DATA_MISSING` | `DATA_UNAVAILABLE` (404) |
@@ -458,10 +479,13 @@ xsection index are presigned.
 - **Cost of each page call through the proxy** (FACT):
   - one new PostgreSQL connection in edge-bff for the session check (`Store.connect` per call);
   - one pooled HTTP request;
-  - in terminal-api, one transaction for the gateway account and, for `/bundle` and `/reference`, a second
-    transaction with the advisory lock, the usage aggregate and an INSERT.
-- **Shared lock.** Every grant of the page, the worker and the screener-worker (`/xsection`) serializes on one
-  subscriber lock.
+  - in terminal-api (T3), for `/bundle` and `/reference` one transaction: the advisory lock, the account read, the
+    limits, the usage aggregate and an INSERT; for `/manifest`, `/state` and `/logo` none. One account read in its own
+    transaction comes first only when this process has not checked the key in the last 60 s. Measured on a disposable
+    PostgreSQL 16 with the gateway key (`apps/terminal-api/scripts/measure_grant_transactions.py`): 2.0 transactions
+    per grant and 1.0 per read before, 1.0 and 0 after.
+- **Shared lock.** Every grant of the page, and of a worker while it presents the gateway key, serializes on one
+  subscriber lock; a worker with its service key takes its own account's lock.
 - **OPEN (security, dev):** terminal-api's public domain accepts the gateway key from anywhere; the code does not
   check where a proxied request comes from (`proxied`).
 
@@ -691,7 +715,8 @@ Full list with HTTP statuses and page texts: CONTRACT.md section 11.
 | `TERMINAL_PUBLISHER_DATABASE_URL` | publisher | read-only market tables |
 | `TERMINAL_BUCKET_*` (endpoint, region, name, key id, secret) | publisher (write), terminal-api | the bucket; never the worker, never the browser |
 | `TERMINAL_DATABASE_URL` (`terminal_api_login`) | terminal-api | quotas and audit (schema `terminal`) |
-| `TERMINAL_PROXY_KEY` | terminal-api, edge-bff, worker (Railway reference) | the gateway account (TEMPORARY, decision U1) |
+| `TERMINAL_PROXY_KEY` | terminal-api, edge-bff; the workers (Railway reference) until theirs references their service key | the gateway account (TEMPORARY, decision U1) |
+| `TERMINAL_SERVICE_KEY_BACKTEST_WORKER`, `TERMINAL_SERVICE_KEY_SCREENER_WORKER` | terminal-api; each worker's `TERMINAL_PROXY_KEY` references its own | the worker's service account (EXEC-MU-RUNTIME T1) |
 | `BACKTEST_WORKER_KEY` | worker, edge-bff (reference) | edge-bff → worker calls |
 | `EDGE_DATABASE_URL` (`edge_bff_login`), `EDGE_SESSION_SECRET` | edge-bff | sessions, CSRF, backtest tables |
 
@@ -730,7 +755,7 @@ in the worker, class names only in the publisher).
 | Merge deploy skipped by Railway | MITIGATED by hand; automatic check PROPOSED | ERRORS M252 |
 | Terminal page download has no retry | not covered (the backtest page has it) | ERRORS M251 |
 | Mixed adjusted/raw price history (2026-09-12) | warned; origin of the date unknown; fix belongs to the data layer | decision K4 |
-| One shared gateway account and unlimited quota overrides | TEMPORARY | decision U1 |
+| One shared gateway account and unlimited quota overrides | TEMPORARY for the page; the workers' own service accounts are in code (EXEC-MU-RUNTIME T1, migration `20261028_100`), active once their variables reference their keys | decision U1 |
 | Broker data lags prices until a new Stockbit token | OPEN | ERRORS M243 |
 | No delisted stocks, no historical index membership | warned (`SURVIVORSHIP`) | decision K6 |
 | `backtest_jobs` rows and `backtest_trials` are never purged; `prior_trials` grows per lineage | no decision yet | `apps/edge-bff/README.md` |

@@ -155,9 +155,19 @@ export default defineRailway(() => {
     deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
+  // EXEC-MU-RUNTIME Phase 1b (user 2026-10-28, option A; verification/edge_multiuser/runtime/terminal.md T1, T9):
+  // /ready answers 200 only once the database holds what the build reads (app/store.py READY), so a deploy that
+  // runs ahead of migration 20261028_100 never takes traffic. Railway probes the healthcheck on PORT, and uvicorn
+  // listens on a fixed 8080 (apps/terminal-api/Dockerfile), so PORT=8080 is set with the healthcheck, as on the other
+  // services that fix their port. TERMINAL_POOL_MAX is not set: the code default 8
+  // (2 uvicorn workers x 8 = 16 of terminal_api_login's 20 connections). TERMINAL_SERVICE_KEY_<NAME>: one secret per
+  // worker service account (app/config.py), referenced by that worker's TERMINAL_PROXY_KEY. Code only: never
+  // `railway config apply` (pull first, R5); values are set with the CLI as in the build log's deploy order.
   const terminalApi = service("terminal-api", {
+    healthcheck: "/ready",
+    healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
-    env: { TERMINAL_ADMIN_KEY: preserve(), TERMINAL_ALLOWED_ORIGINS: preserve(), TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_DATABASE_URL: preserve(), TERMINAL_DB_PASSWORD: preserve() },
+    env: { PORT: preserve(), TERMINAL_ADMIN_KEY: preserve(), TERMINAL_ALLOWED_ORIGINS: preserve(), TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_DATABASE_URL: preserve(), TERMINAL_DB_PASSWORD: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_PROXY_SUBSCRIBER: preserve(), TERMINAL_SERVICE_KEY_BACKTEST_WORKER: preserve(), TERMINAL_SERVICE_KEY_SCREENER_WORKER: preserve() },
   });
   const feature04Worker = service("feature-04-worker", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
