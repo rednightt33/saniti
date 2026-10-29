@@ -311,6 +311,8 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   | backfill (2021–2026) | 8,150 s | 284 MB |
   | packs | 4,202 s | 302 MB, 1,656 packs |
   | daily, 2026-10-27 12:00 UTC | 3,496.5 s | 2,492 files, 64.4 MB, 835 tickers |
+  | daily, 2026-10-29 12:04 UTC (before EXEC-PUBLISHER-SPEED) | 3,314.5 s | 1,658 files, 27.7 MB, 828 tickers |
+  | daily, 2026-10-29 15:21 UTC (manual, 16 threads) | 86.3 s to `state.json`; cleanup after it `gc_failed` at 15:32 | 0 files (nothing changed), manifests read in 34.8 s |
 
   INFERENCE: the bucket holds about 0.7 GB.
 

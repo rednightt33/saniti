@@ -123,6 +123,34 @@ The review found the cleanup rule sound in every scenario tried:
 - content returning to an old key;
 - logos, backfill, packs and events runs before a daily run.
 
-## 6. Dev run after the deploy
+## 6. Dev run after the deploy (2026-10-29, manual run, deployment `f1092ec4`)
 
-(Added after the deploy.)
+The deploys are listed in RAILWAY_CHANGELOG 2026-10-29. The run's own log is `dev_run_20261029_1521.jsonl`.
+
+| Step | Seconds | Before (19:00 WIB run) |
+|---|---|---|
+| 845 manifests read | 34.8 | 8.7 minutes |
+| Plan in all (DB stamps, baseline, manifests) | 48.1 | about 9 minutes |
+| Files and packs | 0 (nothing had changed) | about 18 minutes |
+| xsection (same bytes) | 35.1 | 41 |
+| refs | 2.6 | in the 8 minutes with the manifests |
+| `state.json` at | 86.3 s after the start | 55 minutes after the start |
+
+- **Not yet measured:** no data file changed, so the parallel write path has not run on dev yet. The first scheduled
+  daily runs measure it: 07:30 WIB (new broker data, if Stockbit has loaded it) and 19:00 WIB (new prices).
+- **Checks after the run:**
+  - terminal-api check `present` VERDICT PASS (`verification/screener/jobs/terminal_check_pub_speed_20261029.log`);
+  - Backtest E2E single passed;
+  - the Screener serves the new publication, and its four test screens return rows identical to before.
+- **Still open, the cleanup listing from the publisher (ERRORS M301):**
+  - After `state.json`, the whole-bucket listing hung three times (`ReadTimeoutError`) and the cleanup ended
+    `gc_failed` at 15:32:08, 8.7 minutes after the publication. Nothing was deleted, and nothing was delayed.
+  - The same listing from the sandbox, at the same time and again later, took 10.9 and 11.8 s for 21 pages
+    (`list_probe_20261029.txt`).
+  - The 19:00 WIB run's cleanup, before the change, failed the same way.
+  - So the hang depends on the path from the publisher's container, not on the bucket alone. The cause is SUSPECTED,
+    not verified.
+  - Checks that would tell:
+    - log every listing page's time and size, so the page that hangs is known;
+    - list per family prefix with smaller pages (`MaxKeys`);
+    - run the same listing from another `sfo` service.
