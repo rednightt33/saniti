@@ -10,7 +10,7 @@ import type { Ctx } from './context';
 import { $, keyOf, nfCompact, spin, store } from './context';
 import { longDay, openRangeCalendar } from '../ui/calendar';
 import { getWin, isWinOpen, openWin, type Win } from '../ui/floatwin';
-import { aggregate, avgPrice, inventory, invStats, sessionSpan, sidesTable, toCsv, type SumKey, type SumRow } from '../data/brokerAgg';
+import { aggregate, avgPrice, inventory, invStats, sessionSpan, sidesTable, SPLIT_LEGEND, splitFill, toCsv, type SumKey, type SumRow } from '../data/brokerAgg';
 import { niceTicks } from './broker';
 
 type Key = 'bs' | 'acc' | 'inv';
@@ -160,16 +160,19 @@ export function initPopout(ctx: Ctx) {
     const span = msg ? null : resolve(st.p);
     if (msg || !span) { w.body.innerHTML = head + `<div class="rp-empty">${msg || 'No broker session in this period'}</div>`; w.setSub(B().label + tf); wireCtl('acc', w, () => renderAcc(w)); return }
     const [f, t] = span, lot = st.unit === 'lot', N = +st.limit;
-    const all = aggregate(B().rows, f, t, st.inv, st.board).map(o => ({ b:o.b, net:lot ? o.bl - o.sl : o.bv - o.sv, ba:avgPrice(o.bv, o.bl), sa:avgPrice(o.sv, o.sl) }));
+    // EXEC-TERMINAL-TOPSPLIT: with All investors each bar is split into Domestic (solid) and Foreign (faded)
+    const split = st.inv === 'All', part = (inv: string) => new Map(split ? aggregate(B().rows, f, t, inv, st.board).map(o => [o.b, lot ? o.bl - o.sl : o.bv - o.sv] as [string, number]) : []);
+    const fm = part('Foreign'), dm = part('Domestic');
+    const all = aggregate(B().rows, f, t, st.inv, st.board).map(o => ({ b:o.b, net:lot ? o.bl - o.sl : o.bv - o.sv, ba:avgPrice(o.bv, o.bl), sa:avgPrice(o.sv, o.sl), f:fm.get(o.b) || 0, d:dm.get(o.b) || 0 }));
     const buy = all.filter(x => x.net > 0).sort((a, b) => b.net - a.net).slice(0, N), sell = all.filter(x => x.net < 0).sort((a, b) => a.net - b.net).slice(0, N);
     const mx = Math.max(1, ...buy.map(x => x.net), ...sell.map(x => -x.net)), sel = S.selected();
-    const bar = (x: any, side: string) => `<td class="pw-bar"><div class="trk ${side}">${x ? `<div class="fill" style="width:${(Math.abs(x.net) / mx * 100).toFixed(1)}%"></div>` : ''}</div></td>`;
+    const bar = (x: any, side: 'buy' | 'sell') => `<td class="pw-bar"><div class="trk ${side}">${!x ? '' : split ? splitFill(Math.abs(x.net) / mx * 100, x.f, x.d, side) : `<div class="fill" style="width:${(Math.abs(x.net) / mx * 100).toFixed(1)}%"></div>`}</div></td>`;
     const rows = Array.from({ length:Math.max(buy.length, sell.length) }, (_, i) => { const b = buy[i], s = sell[i];
       return `<tr><td class="pw-rank">${i + 1}</td><td>${b ? `<span class="pa-b${b.b === sel ? ' sel' : ''}" data-b="${b.b}">${bkTag(b.b)}</span>` : ''}</td><td class="up">${b ? sgn(b.net) : ''}</td><td>${b ? price(b.ba) : ''}</td>${bar(b, 'buy')}${bar(s, 'sell')}
         <td>${s ? price(s.sa) : ''}</td><td class="down">${s ? sgn(s.net) : ''}</td><td>${s ? `<span class="pa-b${s.b === sel ? ' sel' : ''}" data-b="${s.b}">${bkTag(s.b)}</span>` : ''}</td></tr>` }).join('');
     w.body.innerHTML = head + (rows ? `<div class="pw-scroll"><table class="pw-t pw-acc"><thead><tr><th></th><th class="l"><i class="up"></i>Top accumulators</th><th>Net ${lot ? 'lot' : 'value'}</th><th data-tip="Avg buy|Buy value ÷ (buy lots × 100)">Avg buy</th><th></th>
         <th></th><th data-tip="Avg sell|Sell value ÷ (sell lots × 100)">Avg sell</th><th>Net ${lot ? 'lot' : 'value'}</th><th class="r">Top distributors<i class="down"></i></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="pw-foot">Both bars share one scale · click a broker to add it to Broker inventory</div>` : `<div class="rp-empty">No net buyer or seller in this period</div>`);
+      <div class="pw-foot">Both bars share one scale · click a broker to add it to Broker inventory${split ? ' · ' + SPLIT_LEGEND : ''}</div>` : `<div class="rp-empty">No net buyer or seller in this period</div>`);
     w.setSub(`${B().label} · ${spanText(f, t)}${st.p.n === 'view' ? ' · follows chart' : ''}${tf}`);
     wireCtl('acc', w, () => renderAcc(w));
   }

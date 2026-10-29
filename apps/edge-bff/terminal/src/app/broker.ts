@@ -3,7 +3,7 @@
 import type { Ctx } from './context';
 import { $, keyOf, nfCompact, pct, row, spin, store } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
-import { aggregate } from '../data/brokerAgg';
+import { aggregate, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
 
 /** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
 export function niceTicks(lo: number, hi: number): number[] {
@@ -21,7 +21,7 @@ export function initBroker(ctx: Ctx) {
   // panel state kept across redraws (declared before the first draw below can run)
   const live = M.mode === 'live';
   const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', bdN:5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
+  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', bdN:5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
   const invSel = new Set<string>();                                 // brokers drawn in Broker inventory (max INV_MAX)
   const INV_MAX = 5, INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
   /* EXEC-TERMINAL-POPOUT: the panel and its windows share the inventory brokers and the highlighted broker; a change
@@ -292,22 +292,30 @@ export function initBroker(ctx: Ctx) {
      switcher ... Top accumulators|Value|Bar Buy (ke kiri)|Bar Sell (ke kanan)|Sell|Top Distributors"), live: one table,
      rank k pairs the k-th accumulator with the k-th distributor; both bars share one scale. The fixture keeps the
      reference's Buy/Sell switch (1:1 check). */
+  /* EXEC-TERMINAL-TOPSPLIT (user 2026-10-28: "di bagian top broker bisa ditambahkan filter lagi untuk boards", 2026-10-29
+     "All boards", "pakai versi ini saja, tapi di balik ya, yang tebal = domestic"), live: a Board choice (All boards by
+     default) where the fixture has its Buy/Sell switch, and each bar split into Domestic (solid) and Foreign (faded) */
   if(live){
     $('accTitle').textContent = 'Top brokers';
-    ($('accSide').closest('.rp-ctl') as HTMLElement).hidden = true;
+    const ctl = $('accSide').closest('.rp-ctl') as HTMLElement;
+    ctl.innerHTML = `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`;
+    $('accBoard').onchange = e => { RS.accBoard = e.target.value; renderAcc() };
   }
   function renderAccPaired(){
-    const all = bkAggRange(accRange.bf, accRange.bt, 'All', 'All').map(o => ({ b:o.b, net:netOf(o), lot:netLotOf(o) }));
+    const board = RS.accBoard, part = inv => new Map(bkAggRange(accRange.bf, accRange.bt, inv, board).map(o => [o.b, netOf(o)]));
+    const fm = part('Foreign'), dm = part('Domestic');
+    const all = bkAggRange(accRange.bf, accRange.bt, 'All', board).map(o => ({ b:o.b, net:netOf(o), lot:netLotOf(o), f:fm.get(o.b) || 0, d:dm.get(o.b) || 0 }));
     const buy = all.filter(x => x.net > 0).sort((a,b) => b.net-a.net).slice(0,8);
     const sell = all.filter(x => x.net < 0).sort((a,b) => a.net-b.net).slice(0,8);
     const mx = Math.max(1, ...buy.map(x => x.net), ...sell.map(x => -x.net));
-    const cell = (x, side) => x ? `<span class="pa-b" data-b="${x.b}" data-tip="${x.b}|${accRange.text()} net ${sgn(x.net)} · ${sgn(x.lot)} lot">${bkTag(x.b)}</span>` : '<span class="pa-b"></span>';
+    const cell = (x, side) => x ? `<span class="pa-b" data-b="${x.b}" data-tip="${x.b}|${accRange.text()}${board === 'All' ? '' : ' ' + board} net ${sgn(x.net)} · ${sgn(x.lot)} lot · Domestic ${sgn(x.d)} · Foreign ${sgn(x.f)}">${bkTag(x.b)}</span>` : '<span class="pa-b"></span>';
     const val = (x, side) => `<span class="v ${side==='buy'?'up':'down'}">${x ? sgn(x.net) : ''}</span>`;
-    const bar = (x, side) => `<div class="trk ${side}">${x ? `<div class="fill" style="width:${(Math.abs(x.net)/mx*100).toFixed(1)}%"></div>` : ''}</div>`;
+    const bar = (x, side) => `<div class="trk ${side}">${x ? splitFill(Math.abs(x.net)/mx*100, x.f, x.d, side) : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
     $('accBody').innerHTML = n ? `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
+        + `<div class="acc-leg">${SPLIT_LEGEND}</div>`
       : `<div class="rp-empty">Tidak ada data</div>`;
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
     $('accHint').textContent = `${accRange.text()} · net`;
@@ -479,7 +487,7 @@ export function initBroker(ctx: Ctx) {
     $(id).querySelectorAll('button').forEach(x=>x.classList.toggle('active', x===btn)); fn(btn.dataset[attr]);
   });
   segWire('bsMode','mode', v => { RS.mode = v; renderBS() });
-  segWire('accSide','side', v => { RS.accSide = v; renderAcc() });
+  if($('accSide')) segWire('accSide','side', v => { RS.accSide = v; renderAcc() });   // live: the Board choice took its place
   segWire('bdTop','n', v => { RS.bdN = +v; renderBD() });
   renderAll();
   }

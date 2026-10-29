@@ -94,3 +94,18 @@ export function toCsv(head: string[], rows: (string | number | null)[][]): strin
   const cell = (v: string | number | null) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s };
   return [head, ...rows].map(r => r.map(cell).join(',')).join('\n');
 }
+
+/** EXEC-TERMINAL-TOPSPLIT (user 2026-10-29: "pakai versi ini saja, tapi di balik ya, yang tebal = domestic"): the parts of a
+    Top brokers bar. The bar's length stays the broker's net; inside it, the investor types that go the net's way, in
+    proportion, Domestic first (beside the middle line, solid) then Foreign (faded). A type that went the other way is not
+    drawn (the hover says it). */
+export function splitParts(foreign: number, domestic: number, side: 'buy' | 'sell'): { k: 'D' | 'F'; share: number }[] {
+  const same = ([['D', domestic], ['F', foreign]] as ['D' | 'F', number][]).filter(([, v]) => side === 'buy' ? v > 0 : v < 0);
+  const tot = same.reduce((s, [, v]) => s + Math.abs(v), 0);
+  return tot ? same.map(([k, v]) => ({ k, share:Math.abs(v) / tot })) : [];
+}
+/** the bar's fill: `width` % of the track, split as splitParts */
+export const splitFill = (width: number, foreign: number, domestic: number, side: 'buy' | 'sell') =>
+  `<div class="fill split" style="width:${width.toFixed(1)}%">${splitParts(foreign, domestic, side)
+    .map(p => `<i class="${p.k === 'F' ? 'f' : 'd'}" style="width:${(p.share * 100).toFixed(1)}%"></i>`).join('')}</div>`;
+export const SPLIT_LEGEND = '<span class="split-leg"><span><i class="d"></i>Domestic</span><span><i class="f"></i>Foreign</span></span>';

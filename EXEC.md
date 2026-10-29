@@ -8534,3 +8534,17 @@ User 2026-10-29: "Date di kasih badge maybe fill gelap warna terang? masukan exe
 - Broker summary (panel kanan): tanggal di antara tombol ‹ › menjadi badge (fill `--text` #171717, teks putih, sudut
   bulat), di tengah. Live saja (`html.fit`); fixture tetap teks biasa (piksel fixture 0 px).
 - Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-TERMINAL-TOPSPLIT — Top brokers: bar Domestic / Foreign, filter Board (2026-10-29)
+
+User 2026-10-28: "di bagian top broker bisa ditambahkan filter lagi untuk boards ... yang di display adalah tipe
+investor saja"; 2026-10-29: "1. All boards 2. Tidak usah" (tanpa garis aliran berlawanan), lalu atas mock
+`top-brokers-panel-and-window.html`: "pakai versi ini saja, tapi di balik ya, yang tebal = domestic".
+- Panel kanan Top brokers: pilihan Board (All boards default, Regular, Nego, Cash) menggantikan Buy/Sell fixture; bar
+  dipecah Domestic (solid, di sisi garis tengah) dan Foreign (pudar, 42%); panjang bar tetap net; legend Domestic /
+  Foreign; hover memberi net Domestic dan Foreign.
+- Jendela Top brokers: dengan All investors bar dipecah sama dan legend di catatan bawah; dengan Foreign atau Domestic
+  bar satu warna seperti sebelumnya. Kontrol lain tidak berubah.
+- Investor type yang berlawanan arah dengan net tidak digambar (hanya di hover). Helper `brokerAgg.ts splitParts /
+  splitFill`. Fixture tetap (0 px).
+- Infra: hanya front-end Terminal di edge-bff.

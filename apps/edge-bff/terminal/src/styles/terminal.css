@@ -965,3 +965,15 @@ body.fw-dragging,body.fw-dragging *{cursor:grabbing!important;user-select:none}
 /* EXEC-TERMINAL-DATEBADGE (user 2026-10-29: "Date di kasih badge maybe fill gelap warna terang"), live: the date between
    the ‹ › buttons (Broker summary) is a dark badge with light text; the fixture keeps the reference's plain text */
 html.fit .rp-date{flex:0 0 auto;margin:0 auto;padding:3px 11px;border-radius:999px;background:var(--text);color:#fff;font-weight:500;line-height:1.4}
+/* EXEC-TERMINAL-TOPSPLIT (user 2026-10-29: "yang tebal = domestic"), live: Top brokers bars (panel and window) split into
+   Domestic (solid, beside the middle line) and Foreign (faded); the panel's Board choice */
+.trk .fill.split{display:flex;background:none}
+.trk.buy .fill.split{flex-direction:row-reverse}
+.trk .fill.split i{display:block;height:100%}
+.trk.buy .fill.split i{background:#089981}.trk.sell .fill.split i{background:#f23645}
+.trk .fill.split i.f{opacity:.42}
+.split-leg{display:inline-flex;align-items:center;gap:12px;font-size:11px;color:var(--text-2);vertical-align:middle}
+.split-leg span{display:inline-flex;align-items:center;gap:5px}
+.split-leg i{width:14px;height:7px;border-radius:2px;display:inline-block;background:linear-gradient(90deg,#089981 50%,#f23645 50%)}
+.split-leg i.f{opacity:.42}
+.acc-leg{margin-top:8px;padding-top:7px;border-top:1px solid var(--border)}
