@@ -5024,3 +5024,11 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
 - Change: Terminal front-end only (undo for indicator settings; Broker inventory chips in three columns and its count badge;
   Shift + wheel pans the chart). No variable, database or other service changed.
 - Verified: the live `/terminal-app/` serves `assets/index-Cf28Q5Tj.js`, the same build checked locally.
+
+## 2026-10-29 — edge-bff `ddf3d6b5` (EXEC-TERMINAL-TOPSPLIT-2)
+
+- Service edge-bff, environment dev, from GitHub `main` `bab40dd` (auto-deploy). Status SUCCESS.
+- Change: Terminal stylesheet only (Top brokers Foreign part no longer under the solid fill). No variable, database or
+  other service changed.
+- Verified: the live `/terminal-app/` serves `assets/style-Dq-8w5nn.css` (the local build's) with the new rule, and the same
+  `assets/index-Cf28Q5Tj.js` as before.

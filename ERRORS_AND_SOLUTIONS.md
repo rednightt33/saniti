@@ -2919,7 +2919,7 @@ change yet.
   142,203,193 / 241,162,168, di panel dan jendela; piksel fixture 0 px.
 - **Pelajaran:** cek tampilan dengan warna piksel, bukan hanya struktur DOM; tes EXEC-TERMINAL-TOPSPLIT hanya membaca
   elemen `<i>` dan lolos.
-- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+- **Status:** RESOLVED; live sejak edge-bff `ddf3d6b5` (`main` `bab40dd`).
 
 ### EXEC-TERMINAL-LAG — drag chart utama lambat; crosshair Broker inventory hilang saat di-hover (2026-10-29)
 
