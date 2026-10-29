@@ -4189,6 +4189,29 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
   before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path.
 
+### M302 — Screener page: the publication time shown raw, because the page read only one ISO 8601 spelling (2026-10-29)
+
+- **Symptom:** on dev (edge-bff `8191fff7`) the Screener head read "published 2026-10-29 12:59:56.101946+00:00" and
+  the preview's Data facts "2026-10-29T12:59:56.101946+00:00" (LIVE_CHECK_DEV.md, screenshots of 13:27 UTC).
+- **Verified (FACT):** the live catalog's `data.published_at` is `2026-10-29T12:59:56.101946+00:00` (the publisher's
+  `finished_at`, Python `isoformat`; `verification/screener/live_check_dev.py` report of 13:28 UTC). The head's
+  `dataLine` (`apps/edge-bff/screener/src/texts.ts`) only rewrote a `Z` suffix; the preview printed the field as it
+  came; a saved screen's date was `updated_at.slice(0, 10)`, the UTC date (a screen saved at 23:30 UTC, 06:30 WIB,
+  showed the day before).
+- **Root cause:** each display formatted a timestamp by text surgery on one spelling instead of reading the instant.
+- **Class:** every timestamp a page shows from another service (publisher, worker, edge-bff): the Screener's head,
+  preview and saved screens today; any time a later Screener phase, alert or the macro and cross-asset publications
+  show. The Backtest and Terminal pages show no such timestamp today (checked by grep of `backtest/src`,
+  `terminal/src`, `static/edge-view.js`).
+- **Solution:** one formatter, `timeText` in `apps/edge-bff/screener/src/format.ts`: reads any ISO 8601 spelling (`Z`,
+  `+00:00`, `+0000`, no offset as UTC, any fraction cut to milliseconds), shows the instant in WIB (Asia/Jakarta, the
+  zone of the exchange dates) as `2026-10-29 19:59 WIB` or the date alone; a text that is not a timestamp stays as it
+  is. Used by the head, the preview and the saved-screen chip; the CSV keeps the exact source value. Test
+  `tests/page/time-text.test.ts` (seven spellings of one instant, the WIB date in the late UTC evening, non-timestamps).
+  FIXED in code; deploy with the next edge-bff deployment.
+- **Lesson for new data:** a new source may spell its timestamps differently; the page reads them through `timeText`,
+  never by slicing the text.
+
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
 Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate

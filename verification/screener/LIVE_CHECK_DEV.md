@@ -1,7 +1,7 @@
 # EDGE Screener on Railway dev: first live check (2026-10-29)
 
 EXEC-SCREENER Phase 1, dev deploy chosen by the user on 2026-10-29 ("A": PR to `main` after every check, then the
-runbook step by step). Everything below was read on dev at 13:22-13:40 UTC on the publication of 12:59:56 UTC (the
+runbook step by step). Everything below was read on dev at 13:23-13:31 UTC on the publication of 12:59:56 UTC (the
 19:00 WIB publisher run, `price_through` 2026-10-29). Times are measured from the sandbox in the US, not from Indonesia.
 
 ## What runs
@@ -30,8 +30,9 @@ Phase 1); `published_at` equals the publication's `finished_at`; then `swap`. No
 
 The screenshots showed the header "IDX equities (844 listings) · close 2026-10-29", preset counts (Oversold in Uptrend
 19, Golden Cross 24, MACD Bullish Divergence 34, Minervini 12), the P4 chips (traded on 2026-10-29 hides 17; no
-unadjusted price break hides 8), the result and its reasons in the preview. Note: the header prints the publication
-time as the raw timestamp; a readable local time is a small follow-up.
+unadjusted price break hides 8), the result and its reasons in the preview. The header printed the publication time
+raw (`2026-10-29 12:59:56.101946+00:00`); fixed in code as ERRORS M302 (shown in WIB), deployed with the next
+edge-bff deployment.
 
 ## Answers against the database (verification/screener/live_check_dev.py, then pgweb, read-only)
 
@@ -58,7 +59,7 @@ publication passed with `data_through` 2026-10-29 (RAILWAY_CHANGELOG 2026-10-29)
 
 ## Terminal page baseline after T7 (EXEC-MU-RUNTIME Phase 0, verification/terminal_api/page_timing_dev.py)
 
-Same session, 2026-10-29 about 13:40 UTC, from the US sandbox: cold open (new profile) MAPI drawn 4.00 s (shell 1.27 s,
+Same session, 2026-10-29 13:30-13:31 UTC, from the US sandbox: cold open (new profile) MAPI drawn 4.00 s (shell 1.27 s,
 network quiet 5.35 s); warm open 1.67 s; switch to an uncached ticker (BBRI) 1.79 s; switch back to a cached ticker
 1.19 s; timeframe weekly 0.72 s, daily 0.79 s; the bundle answer 2,765,211 bytes. The earlier readings in
 `verification/edge_multiuser/runtime/terminal.md` (warm 1.77 s; cached switch 1.8-2.5 s) were before T7; the targets of

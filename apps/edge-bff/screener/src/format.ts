@@ -21,6 +21,20 @@ export const idr = (v: number | null | undefined): string => {
   return (v < 0 ? '−' : '') + 'Rp ' + s;
 };
 export const tone = (v: number | null | undefined) => v == null || !isFinite(v) || v === 0 ? '' : v > 0 ? 'up' : 'down';
+/** a timestamp in the exchange's zone, WIB (Asia/Jakarta, the zone of the exchange dates): '2026-10-29 19:59 WIB', or
+    its date alone. Any ISO 8601 spelling is read (the publisher writes '+00:00' with microseconds, other sources 'Z' or
+    no offset, which the contract means as UTC; ERRORS M302); the fraction is cut to milliseconds before parsing so every
+    browser reads it the same. A text that is not a timestamp is returned unchanged, a missing one as '—'. */
+const WIB = new Intl.DateTimeFormat('en-US', { timeZone:'Asia/Jakarta', year:'numeric', month:'2-digit', day:'2-digit',
+  hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+export function timeText(iso: string | null | undefined, dateOnly = false): string {
+  if (!iso) return '—';
+  const m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d)?)(\.\d+)?(Z|[+-]\d\d:?\d\d)?$/i.exec(iso.trim());
+  const t = m ? Date.parse(`${m[1]}T${m[2]}${m[3] ? m[3].slice(0, 4) : ''}${!m[4] || m[4].toUpperCase() === 'Z' ? 'Z' : m[4].length === 5 ? m[4].slice(0, 3) + ':' + m[4].slice(3) : m[4]}`) : NaN;
+  if (!isFinite(t)) return iso;
+  const p = Object.fromEntries(WIB.formatToParts(t).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}` + (dateOnly ? '' : ` ${p.hour}:${p.minute} WIB`);
+}
 /** the prototype's escape for text put into markup (report 9.1: every untrusted string goes through it) */
 export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]!));
 /** the prototype's format for values in price, volume or raw index units (xfmt) */

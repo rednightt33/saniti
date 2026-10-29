@@ -4,7 +4,7 @@
    page has its own wording (report 9.2: remarks are worded here from the API's codes). */
 import type { ApiError, CellRemark, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
 import { ApiFailure } from './api/types.ts';
-import { nf } from './format.ts';
+import { nf, timeText } from './format.ts';
 import { OPLABEL, optionText } from './entries.ts';
 import { cardName, type Card } from './forms.ts';
 import { ctx as page, entryOf, S, stateOfDefinition } from './state.ts';
@@ -319,7 +319,7 @@ export const failureOn = (e: unknown, def: Definition | null | undefined): strin
 
 /** The page head's data line (report 9.2): listings, evaluation date and publication. */
 export const dataLine = (listed: number, evalDate: string, published: string) =>
-  `IDX equities (${nf(listed)} listings) · close ${evalDate} · published ${published.replace('T', ' ').replace(/:\d\d(\.\d+)?Z$/, ' UTC').replace(/Z$/, ' UTC')}`;
+  `IDX equities (${nf(listed)} listings) · close ${evalDate} · published ${timeText(published)}`;
 
 /** "How conditions work", rewritten to the real semantics (report 9.2 Method & sources). */
 export const methodText = (evalDate: string) =>

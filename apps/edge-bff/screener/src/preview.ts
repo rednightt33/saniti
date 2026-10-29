@@ -9,7 +9,7 @@
 import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, LineSeries, type IChartApi, type SeriesMarker, type Time } from 'lightweight-charts';
 import type { PerfPeriod, PreviewResponse } from './core/contract.ts';
 import { PERF_PERIODS } from './core/contract.ts';
-import { esc, hue, nf, sectorTag, sgn, tone, valueText } from './format.ts';
+import { esc, hue, nf, sectorTag, sgn, timeText, tone, valueText } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { activeCards, ctx, definitionOf, entryOf, presetOf, S, savedOf, ui } from './state.ts';
 import { condText, optOf, shortName } from './forms.ts';
@@ -189,7 +189,7 @@ function renderMethod(): string {
   const bandar = `<div class="sec"><h6>Bandar status thresholds</h6><div class="mini2"><label class="fld" title="${esc(T.bandarPhase)}"><span>Accumulation ≥ %</span><input class="inp" type="number" disabled placeholder="Phase 3" aria-label="Accumulation threshold: ${esc(T.bandarPhase)}"></label><label class="fld" title="${esc(T.bandarPhase)}"><span>Big accumulation ≥ %</span><input class="inp" type="number" disabled placeholder="Phase 3" aria-label="Big accumulation threshold: ${esc(T.bandarPhase)}"></label></div><p class="note" style="margin:0">${esc(T.bandarPhase)}</p></div>`;
   return `${ctxBox}${bandar}
     <div class="sec"><h6>How conditions work</h6><p class="note" style="margin:0">${esc(methodText(d?.evaluation_date || '—'))}</p></div>
-    <div class="sec"><h6>Data</h6><div class="facts"><div><span>Evaluation date</span><b>${esc(d?.evaluation_date || '—')}</b></div><div><span>Prices through</span><b>${esc(d?.price_through || '—')}</b></div><div><span>Flow through</span><b>${esc(d?.flow_through || 'not yet (Phase 2)')}</b></div><div><span>Published</span><b>${esc(d?.published_at || '—')}</b></div><div><span>Listings</span><b>${nf(ctx.universe?.rows.length)}</b></div></div>${refresh ? `<p class="note">${esc(refresh)}</p>` : ''}
+    <div class="sec"><h6>Data</h6><div class="facts"><div><span>Evaluation date</span><b>${esc(d?.evaluation_date || '—')}</b></div><div><span>Prices through</span><b>${esc(d?.price_through || '—')}</b></div><div><span>Flow through</span><b>${esc(d?.flow_through || 'not yet (Phase 2)')}</b></div><div><span>Published</span><b>${esc(timeText(d?.published_at))}</b></div><div><span>Listings</span><b>${nf(ctx.universe?.rows.length)}</b></div></div>${refresh ? `<p class="note">${esc(refresh)}</p>` : ''}
       <p class="note" style="margin:0">Fundamentals, market cap, index membership, listing board and special notation have no data yet; they are shown disabled with their reason.</p></div>
     ${limits ? `<div class="sec"><h6>Limits</h6>${limits}</div>` : ''}
     <div class="sec"><h6>Preset sources</h6>${[['Stockbit & Ajaib screeners', 'Bandarmology, valuation and technical categories'], ['Mark Minervini', 'Trend template'], ['Joel Greenblatt', 'Magic Formula: earnings yield + return on capital'], ['Benjamin Graham', 'Defensive investor: P/E × P/B < 22.5'], ['Joseph Piotroski', 'F-score, 9 binary tests'], ['William O’Neil', 'CANSLIM (loosened for IDX)']].map(([x, y]) => `<div class="src"><b>${x}</b><small>${y}</small></div>`).join('')}</div>`;
