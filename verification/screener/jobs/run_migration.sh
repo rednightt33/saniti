@@ -17,9 +17,13 @@
 # ${{Postgres.DATABASE_URL}}, and removed afterwards (run_job.sh prints VAR_REMOVED or VAR_STILL_PRESENT); no value is
 # printed. run_job.sh refuses while another job runs there (ERRORS M210, M227).
 # Refuses, before any Railway call: an unexpected sha256 (the file must be the reviewed one), a file not committed, a
-# migration without its params file or without checks in check_migration_log.py, an APPLY without a passing DRYRUN log
-# of the same sha256, an APPLY of a file APPLIED.sha256 already lists, an existing log. After each job it runs
-# check_migration_log.py on the log; an APPLY is claimed only on its VERDICT PASS (AGENTS.md: read back, then claim).
+# migration without its params file or without checks in check_migration_log.py, params whose probes are not the
+# reviewed ones (check_migration_log.py --params-ok: names, roles, data statements only), a job file not committed (the
+# params, check_migration_log.py, this script, run_job.sh, migration_job.py, Dockerfile: what runs on dev or judges it),
+# an APPLY without a passing DRYRUN log of the same sha256, an APPLY of a file APPLIED.sha256 already lists, an existing
+# log. After each job it runs check_migration_log.py on the log; an APPLY is claimed only on its VERDICT PASS (AGENTS.md:
+# read back, then claim). A failed APPLY may still have committed (a job that fails after the file's COMMIT keeps it):
+# read the state back before anything else.
 set -u
 MODE=${1:-}; WANT=${2:-}; NAME=${3:-}
 DIR=database/migrations
@@ -42,14 +46,25 @@ MIG=$DIR/$NAME
 [ -f "$MIG" ] || { echo "NO_SUCH_MIGRATION $MIG"; exit 2; }
 PARAMS="$HERE/migration${ID}_${MODE}.params.json"
 JOBMODE=$(printf '%s' "$MODE" | tr '[:lower:]' '[:upper:]')
-python3 -I -c 'import json, sys; p = json.load(open(sys.argv[1])); sys.exit(0 if p.get("migrations") == [sys.argv[2]] and p.get("mode") == sys.argv[3] else 1)' \
-  "$PARAMS" "$NAME" "$JOBMODE" 2>/dev/null || { echo "NO_PARAMS_FOR_THIS_MIGRATION $PARAMS (must name $NAME, mode $JOBMODE)"; exit 2; }
-python3 -I "$HERE/check_migration_log.py" --covers "$NAME" || { echo "NO_LOG_CHECKS_FOR_THIS_MIGRATION $NAME (add them to $HERE/check_migration_log.py)"; exit 2; }
+python3 -I -c 'import json, sys; p = json.load(open(sys.argv[1]))
+sys.exit(0 if p.get("migrations") == [sys.argv[2]] and p.get("mode") == sys.argv[3] else 1)' "$PARAMS" "$NAME" "$JOBMODE" \
+  2>/dev/null || { echo "NO_PARAMS_FOR_THIS_MIGRATION $PARAMS (must name $NAME, mode $JOBMODE)"; exit 2; }
+python3 -I "$HERE/check_migration_log.py" --covers "$NAME" \
+  || { echo "NO_LOG_CHECKS_FOR_THIS_MIGRATION $NAME (add them to $HERE/check_migration_log.py)"; exit 2; }
+python3 -I "$HERE/check_migration_log.py" --params-ok "$PARAMS" \
+  || { echo "PARAMS_NOT_AS_REVIEWED $PARAMS (each probe as in check_migration_log.py's list for $NAME)"; exit 2; }
 command -v railway >/dev/null || { echo "RAILWAY_CLI_NOT_ON_PATH"; exit 2; }
 HAVE=$(sha256sum "$MIG" | cut -d' ' -f1)
 [ "$HAVE" = "$WANT" ] || { echo "SHA_MISMATCH have=$HAVE want=$WANT"; exit 6; }
 git diff --quiet HEAD -- "$MIG" && git ls-files --error-unmatch "$MIG" >/dev/null 2>&1 \
   || { echo "MIGRATION_NOT_COMMITTED"; exit 6; }
+# what else runs on dev or judges it is the committed version too: an edited params file reaches the database as SQL
+JOBFILES=$(printf '%s\n' "$PARAMS" "$HERE/migration${ID}_dryrun.params.json" "$HERE/check_migration_log.py" \
+  "$HERE/run_migration.sh" scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py scripts/onboarding/Dockerfile \
+  | sort -u)
+UNCOMMITTED=$(for f in $JOBFILES; do git diff --quiet HEAD -- "$f" && git ls-files --error-unmatch "$f" >/dev/null 2>&1 \
+  || echo "$f"; done)
+[ -z "$UNCOMMITTED" ] || { echo "JOB_FILES_NOT_COMMITTED $(echo $UNCOMMITTED) (commit them, then run again)"; exit 6; }
 LOG="$HERE/migration${ID}_${MODE}.log"
 if [ "$MODE" = apply ]; then
   ! awk '{print $2}' "$DIR/APPLIED.sha256" | grep -qxF "$NAME" || { echo "ALREADY_IN_APPLIED_SHA256"; exit 8; }
@@ -58,11 +73,15 @@ if [ "$MODE" = apply ]; then
     || { echo "NO_PASSING_DRYRUN_FOR_THIS_SHA256"; exit 7; }
 fi
 [ ! -e "$LOG" ] || { echo "LOG_EXISTS $LOG (keep it; move it aside to run again)"; exit 9; }
-echo "MIGRATION $NAME $MODE sha256=$WANT"
-scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py "$PARAMS" "$LOG" "$MIG" 2>&1 \
+{ echo "MIGRATION $NAME $MODE sha256=$WANT commit=$(git rev-parse --short=12 HEAD)"
+  scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py "$PARAMS" "$LOG" "$MIG"; } 2>&1 \
   | tee "$HERE/migration${ID}_${MODE}.run.txt"
 echo "RUN_JOB_EXIT ${PIPESTATUS[0]}"
 grep -q '^VAR_REMOVED$' "$HERE/migration${ID}_${MODE}.run.txt" \
   || echo "WARNING: VAR_REMOVED not printed: remove DATABASE_URL from orc-test-runner and check it is gone before anything else"
-[ -s "$LOG" ] || { echo "NO_LOG"; exit 4; }
-python3 -I "$HERE/check_migration_log.py" "$LOG" "$PARAMS" "$WANT"
+UNVERIFIED="APPLY_NOT_VERIFIED: the file may still have committed (a job that fails after its COMMIT keeps it):"
+UNVERIFIED+=" read the state back before anything else"
+[ -s "$LOG" ] || { echo "NO_LOG"; [ "$MODE" = dryrun ] || echo "$UNVERIFIED"; exit 4; }
+python3 -I "$HERE/check_migration_log.py" "$LOG" "$PARAMS" "$WANT"; RC=$?
+[ "$RC" = 0 ] || [ "$MODE" = dryrun ] || echo "$UNVERIFIED"
+exit "$RC"

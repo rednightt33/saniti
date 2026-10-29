@@ -3,20 +3,34 @@ its migration must leave, so the go/no-go after each job is a script's answer, n
 
     python3 -I verification/screener/jobs/check_migration_log.py <log> <params.json> <expected sha256 of the file>
     python3 -I verification/screener/jobs/check_migration_log.py --covers <migration file name>
+    python3 -I verification/screener/jobs/check_migration_log.py --params-ok <params.json>
 
 Migrations with checks (MIGRATIONS below): 20261028_001_edge_bff_screener.sql (EXEC-SCREENER migration 1) and
 20261028_100_terminal_service_accounts.sql (EXEC-MU-RUNTIME step 1). A log of any other file FAILs; --covers exits 0
 only for a file with checks (run_migration.sh asks before it starts a job).
 The log is the one scripts/onboarding/run_job.sh writes (lines `MIG ...`, `OUT {json}`, `ERR {json}`, `JOB_DONE ...`).
 Checks: the job ran the named file with the expected sha256 (DRYRUN: its body ran and was rolled back); every probe
-printed; probes named expect_err_* printed ERR with the text the migration's checks name (a refusal for another reason,
-e.g. a missing table, is not the check) and every other probe OUT; the read-back equals the expected state of that
-migration. Prints PASS or FAIL lines and `VERDICT PASS n/n` or `VERDICT FAIL n/m`, exits 0 only when every check passes.
-No secret is read or printed."""
+printed once; probes named expect_err_* printed ERR with the text the migration's checks name (a refusal for another
+reason, e.g. a missing table, is not the check) and every other probe OUT; the read-back equals the expected state of
+that migration. Prints PASS or FAIL lines and `VERDICT PASS n/n` or `VERDICT FAIL n/m`, exits 0 only when every check
+passes. No secret is read or printed.
+
+The probes are the reviewed ones (each migration's `probes` and `roles` below), not whatever a params file holds:
+- the params name exactly the reviewed probes of the mode, in their order; a probe missing, added or renamed FAILs;
+- each probe runs as the role its name gives (`roles`: the first matching prefix; no prefix: the admin connection).
+  Right: ["as_api_ready", "terminal_api_login", ...]. Wrong: ["as_api_ready", null, ...] (the admin passes every read);
+- each statement is data statements only (SELECT, WITH, INSERT, UPDATE, DELETE, TRUNCATE, VALUES, TABLE; DO only as the
+  admin), outside comments, quoted text and $$ bodies, and never set_config: a probe can neither end the DRYRUN's
+  transaction nor leave its role. Right: "SELECT count(*) FROM terminal.usage_hour". Wrong: "COMMIT" or
+  "SELECT set_config('role', 'postgres', true)" (the first keeps the DRYRUN's writes, ERRORS M230's class).
+--params-ok prints `PARAMS_NOT_AS_REVIEWED <probe>: <reason>` per problem and exits 1 (run_migration.sh asks before any
+Railway call); after a job, the same reasons FAIL that probe's check. To add or change a probe, change the params and
+the migration's `probes` here in one commit."""
 import ast
 import hashlib
 import json
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -45,6 +59,16 @@ ERR_TEXT = {'expect_err_item_id_format': '"screener_items_item_id_check"', 'expe
             'expect_err_watchlist_update': 'InsufficientPrivilege: permission denied for table watchlist_items',
             'expect_err_truncate': 'InsufficientPrivilege: permission denied for table screener_items',
             'expect_err_public_market_read': 'InsufficientPrivilege: permission denied for table Price_Stock_Indonesia_IDX'}
+# the reviewed probes in their order (migration20261028_001_dryrun.params.json); the APPLY runs the first 10 (read-only)
+SCREENER_PROBES = ['edge_bff_tables', 'runtime_grants', 'other_grantees_on_new_tables', 'runtime_members',
+                   'screener_indexes', 'screener_constraints', 'screener_comments', 'runtime_public_reach',
+                   'as_runtime_reads', 'as_runtime_reads_existing', 'as_runtime_insert_screen', 'as_runtime_insert_metric',
+                   'as_runtime_replace_revision', 'as_runtime_watch_add', 'as_runtime_watch_add_again',
+                   'as_runtime_counts_after_writes', 'as_runtime_delete', 'expect_err_item_id_format', 'expect_err_kind',
+                   'expect_err_name_untrimmed', 'expect_err_definition_not_object', 'expect_err_definition_too_large',
+                   'expect_err_definition_hash', 'expect_err_duplicate_name', 'expect_err_ticker_format',
+                   'expect_err_watchlist_update', 'expect_err_truncate', 'expect_err_public_market_read']
+SCREENER_ROLES = (('as_runtime_', 'edge_bff_runtime'), ('expect_err_', 'edge_bff_runtime'))
 
 
 def check_screener(check, mode, outs, sha):
@@ -119,7 +143,8 @@ SCHEMA_DENIED = 'InsufficientPrivilege: permission denied for schema terminal'
 ERR_TEXT_SERVICE_ACCOUNTS = {
     'expect_err_publisher_reads_usage': SCHEMA_DENIED, 'expect_err_publisher_reads_kind': SCHEMA_DENIED,
     'expect_err_market_reader_reads_usage': SCHEMA_DENIED,
-    'expect_err_person_on_service_address': 'UniqueViolation: duplicate key value violates unique constraint "subscriber_email_key"',
+    'expect_err_person_on_service_address':
+        'UniqueViolation: duplicate key value violates unique constraint "subscriber_email_key"',
     'expect_err_kind_value': '"subscriber_kind_check"',
     'expect_err_kind_null': 'NotNullViolation: null value in column "kind" of relation "subscriber"',
     'expect_err_usage_part_hour': '"usage_hour_whole_hour"',
@@ -131,6 +156,22 @@ ERR_TEXT_SERVICE_ACCOUNTS = {
     'expect_err_ceiling_zero': '"quota_value_check"',
     'expect_err_ceiling_override_zero': '"quota_override_value_check"',
     'expect_err_usage_truncate': 'InsufficientPrivilege: permission denied for table usage_hour'}
+# the reviewed probes in their order (migration20261028_100_dryrun.params.json); the APPLY runs the first 27 (read-only)
+SERVICE_PROBES = ['terminal_tables', 'runtime_grants', 'other_grantees', 'schema_acl', 'role_members', 'terminal_roles',
+                  'kind_column', 'subscriber_constraints', 'usage_hour_columns', 'usage_hour_constraints',
+                  'usage_hour_indexes', 'comments', 'service_rows', 'people_rows', 'ceilings', 'person_quotas',
+                  'service_side_rows', 'privileges', 'verify_again', 'as_api_ready', 'as_api_service_accounts',
+                  'as_api_people', 'as_api_service_limits', 'as_api_sign_in_lookup', 'expect_err_publisher_reads_usage',
+                  'expect_err_publisher_reads_kind', 'expect_err_market_reader_reads_usage', 'as_api_meter_first',
+                  'as_api_meter_again', 'as_api_meter_other_service', 'as_api_audit_service', 'as_api_usage_rows',
+                  'as_api_prune', 'as_api_session_for_service', 'as_api_session_lookup',
+                  'as_api_session_lookup_without_kind', 'as_api_add_person', 'expect_err_person_on_service_address',
+                  'expect_err_kind_value', 'expect_err_kind_null', 'expect_err_usage_part_hour',
+                  'expect_err_usage_negative_grants', 'expect_err_usage_negative_files', 'expect_err_usage_negative_bytes',
+                  'expect_err_usage_duplicate_hour', 'expect_err_usage_unknown_subscriber', 'expect_err_ceiling_zero',
+                  'expect_err_ceiling_override_zero', 'expect_err_usage_truncate']
+SERVICE_ROLES = (('as_api_', 'terminal_api_login'), ('expect_err_publisher_', 'terminal_publisher_login'),
+                 ('expect_err_market_reader_', 'terminal_market_reader'), ('expect_err_', 'terminal_api_login'))
 
 
 def file_text(name, sha):
@@ -153,11 +194,13 @@ def ready_statements():
 
 
 def check_service_accounts(check, mode, outs, sha, probes):
-    check('terminal tables', [r[0] for r in outs.get('terminal_tables', [])] == TERMINAL_TABLES, outs.get('terminal_tables'))
+    check('terminal tables', [r[0] for r in outs.get('terminal_tables', [])] == TERMINAL_TABLES,
+          outs.get('terminal_tables'))
     check('terminal_runtime grants exact on every terminal table',
           {r[0]: r[1] for r in outs.get('runtime_grants', [])} == {t: RUNTIME for t in TERMINAL_TABLES},
           outs.get('runtime_grants'))
-    check('no PUBLIC or other grantee on any terminal relation', outs.get('other_grantees') == [], outs.get('other_grantees'))
+    check('no PUBLIC or other grantee on any terminal relation', outs.get('other_grantees') == [],
+          outs.get('other_grantees'))
     check('schema terminal: USAGE for terminal_runtime only', outs.get('schema_acl') == [['terminal_runtime', 'USAGE']],
           outs.get('schema_acl'))
     check('role memberships unchanged', outs.get('role_members') == MEMBERS, outs.get('role_members'))
@@ -225,15 +268,68 @@ def check_service_accounts(check, mode, outs, sha, probes):
               outs.get('as_api_add_person'))
 
 
-# file name -> (expected ERR text per expect_err_* probe, the migration's own checks)
+# file name -> the expected ERR text per expect_err_* probe, the migration's own checks, the reviewed probes per mode
+# and the role each probe's name gives (first matching prefix; none: the admin connection)
 MIGRATIONS = {
-    SCREENER: (ERR_TEXT, lambda check, mode, outs, sha, probes: check_screener(check, mode, outs, sha)),
-    SERVICE_ACCOUNTS: (ERR_TEXT_SERVICE_ACCOUNTS, check_service_accounts),
+    SCREENER: {'err_text': ERR_TEXT,
+               'checks': lambda check, mode, outs, sha, probes: check_screener(check, mode, outs, sha),
+               'probes': {'DRYRUN': SCREENER_PROBES, 'APPLY': SCREENER_PROBES[:10]}, 'roles': SCREENER_ROLES},
+    SERVICE_ACCOUNTS: {'err_text': ERR_TEXT_SERVICE_ACCOUNTS, 'checks': check_service_accounts,
+                       'probes': {'DRYRUN': SERVICE_PROBES, 'APPLY': SERVICE_PROBES[:27]}, 'roles': SERVICE_ROLES},
 }
+# what a probe statement may be (outside comments, quoted text and $$ bodies): data statements only, so no probe can end
+# the DRYRUN's one transaction (a COMMIT there keeps the migration, ERRORS M230's class) or leave its role (SET ROLE,
+# RESET, SET SESSION AUTHORIZATION; set_config('role', ...) is refused by name); DO only on the admin connection
+PROBE_STATEMENTS = {'SELECT', 'WITH', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'VALUES', 'TABLE'}
+SQL_TEXT = re.compile(r"--[^\n]*|/\*.*?\*/|\$((?:[A-Za-z_]\w*)?)\$.*?\$\1\$|'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"", re.S)
+
+
+def probe_role(spec, name):
+    return next((role for prefix, role in spec['roles'] if name.startswith(prefix)), None)
+
+
+def probe_problem(spec, mode, probe):
+    """Why a params probe is not the reviewed one ('' when it is): its name, its role, its statement."""
+    if not (isinstance(probe, list) and len(probe) == 3 and all(isinstance(x, str) for x in (probe[0], probe[2]))
+            and (probe[1] is None or isinstance(probe[1], str))):
+        return 'not a [name, role or null, statement] probe'
+    name, role, statement = probe
+    if name not in spec['probes'].get(mode, []):
+        return f'not a reviewed {mode} probe of this migration'
+    want = probe_role(spec, name)
+    if role != want:
+        return f'runs as {role or "the admin connection"}; its name gives {want or "the admin connection"}'
+    if 'set_config' in statement.lower():
+        return 'set_config can change the role or the transaction'
+    for part in SQL_TEXT.sub(' ', statement).split(';'):
+        word = (part.split() or [''])[0].upper()
+        if word and word not in PROBE_STATEMENTS and not (word == 'DO' and role is None):
+            return f'{word} is not a data statement' + (' (DO only as the admin)' if word == 'DO' else '')
+    return ''
+
+
+def params_problems(params):
+    """run_migration.sh's question before any Railway call: are these the reviewed probes of one migration and mode?"""
+    named = params.get('migrations')
+    spec = MIGRATIONS.get(named[0]) if isinstance(named, list) and len(named) == 1 else None
+    mode = params.get('mode')
+    if spec is None or mode not in spec['probes']:
+        return [f'migrations {named} mode {mode}: one file with checks here ({", ".join(MIGRATIONS)}), DRYRUN or APPLY']
+    probes = params.get('probes') if isinstance(params.get('probes'), list) else []
+    names = [p[0] if isinstance(p, list) and p else None for p in probes]
+    problems = [f'{p[0] if isinstance(p, list) and p else p}: {why}' for p in probes
+                if (why := probe_problem(spec, mode, p))]
+    want = spec['probes'][mode]
+    missing, extra = [n for n in want if n not in names], [n for n in names if n not in want]
+    if missing or extra:
+        problems.append(f'not the reviewed {mode} probes: missing {missing}, not reviewed {extra}')
+    elif names != want:
+        problems.append(f'the reviewed {mode} probes in another order or twice (reads first, then writes): {names}')
+    return problems
 
 
 def parse(path):
-    mig, outs, errs, done, unreadable = [], {}, {}, [], []
+    mig, parts, errs, done, unreadable, repeated = [], {}, {}, [], [], []
     for raw in open(path, encoding='utf-8', errors='replace'):
         line = raw.strip()
         if line.startswith('MIG '):
@@ -242,21 +338,32 @@ def parse(path):
             try:
                 o = json.loads(line[4:])
                 if line.startswith('OUT '):
-                    outs.setdefault(o['q'], []).extend(o['rows'])
+                    key, rows = (o['q'], int(o['part'])), o['rows']
+                    if not isinstance(rows, list):
+                        raise TypeError(rows)
+                    repeated += [f'{key[0]} part {key[1]}'] if key in parts else []
+                    parts[key] = rows
                 else:
+                    repeated += [f'{o["q"]} ERR'] if o['q'] in errs else []
                     errs[o['q']] = o['error']
             except (ValueError, KeyError, TypeError):
                 unreadable.append(line[:120])   # e.g. a line the log service cut; judged below, never skipped
         elif line.startswith('JOB_DONE'):
             done.append(line)
-    return mig, outs, errs, done, unreadable
+    # a probe's rows in the order of its parts (the job prints them in order; a log service may not keep the order of
+    # lines it stamped alike), its parts 0..n-1; a part or an ERR printed twice means two runs or a repeated line
+    outs = {}
+    for q, part in sorted(parts):
+        repeated += [f'{q} part {part} without part {part - 1}'] if part and (q, part - 1) not in parts else []
+        outs.setdefault(q, []).extend(parts[(q, part)])
+    return mig, outs, errs, done, unreadable, repeated
 
 
 def main(log, params_path, sha):
     params = json.load(open(params_path))
     mode = params['mode']
     try:
-        mig, outs, errs, done, unreadable = parse(log)
+        mig, outs, errs, done, unreadable, repeated = parse(log)
     except FileNotFoundError:
         print(f'FAIL no log at {log}')
         print('VERDICT FAIL')
@@ -273,22 +380,38 @@ def main(log, params_path, sha):
     if migration is None:
         print('VERDICT FAIL', f'{sum(results)}/{len(results)}')
         return 1
-    err_text, specific = MIGRATIONS[migration]
+    spec = MIGRATIONS[migration]
+    err_text = spec['err_text']
     check('file and sha256', f'MIG {mode} {migration} sha256={sha}' in mig, mig)
     if mode == 'DRYRUN':
         check('dry-run body ran (then rolled back)', f'MIG DRYRUN_BODY_OK {migration}' in mig, mig)
     check('job finished', done == [f'JOB_DONE MIGRATION {mode}'], done)
     if unreadable:
         check('every OUT and ERR line readable', False, unreadable[:3])
-    for name in [p[0] for p in params['probes']]:
+    if repeated:
+        check('every probe printed once, its parts in sequence', False, repeated[:3])
+    probes = params.get('probes') if isinstance(params.get('probes'), list) else []
+    # each probe as reviewed (its name, the role its name gives, data statements only), then its answer; a reviewed
+    # probe the params leave out FAILs below, so a shorter params file never gives a shorter PASS
+    for probe in probes:
+        name = probe[0] if isinstance(probe, list) and probe else str(probe)
+        problem = probe_problem(spec, mode, probe)
         if name.startswith('expect_err_'):
             # a refusal without its expected text here is a FAIL, never "any error"
             want = err_text.get(name)
-            check(f'{name} refused', want is not None and name in errs and want in errs[name] and name not in outs,
-                  errs.get(name) or 'printed OUT or nothing' if want else 'no expected error text in this checker')
+            check(f'{name} refused',
+                  not problem and want is not None and name in errs and want in errs[name] and name not in outs,
+                  problem or (errs.get(name) or 'printed OUT or nothing' if want
+                              else 'no expected error text in this checker'))
         else:
-            check(f'{name} answered', name in outs and name not in errs, errs.get(name) or 'not printed')
-    specific(check, mode, outs, sha, params['probes'])
+            check(f'{name} answered', not problem and name in outs and name not in errs,
+                  problem or errs.get(name) or 'not printed')
+    stated = [p[0] for p in probes if isinstance(p, list) and p]
+    for name in spec['probes'][mode]:
+        if name not in stated:
+            check(f'{name} {"refused" if name.startswith("expect_err_") else "answered"}', False,
+                  f'a reviewed {mode} probe the params leave out')
+    spec['checks'](check, mode, outs, sha, [p for p in probes if isinstance(p, list) and len(p) == 3])
     print('VERDICT', 'PASS' if all(results) else 'FAIL', f'{sum(results)}/{len(results)}')
     return 0 if all(results) else 1
 
@@ -296,6 +419,14 @@ def main(log, params_path, sha):
 if __name__ == '__main__':
     if len(sys.argv) == 3 and sys.argv[1] == '--covers':
         sys.exit(0 if sys.argv[2] in MIGRATIONS else 1)
+    if len(sys.argv) == 3 and sys.argv[1] == '--params-ok':
+        try:
+            found = params_problems(json.load(open(sys.argv[2])))
+        except (OSError, ValueError, AttributeError) as e:
+            found = [f'{sys.argv[2]} is not a readable params file ({type(e).__name__})']
+        for problem in found:
+            print(f'PARAMS_NOT_AS_REVIEWED {problem}'[:600])
+        sys.exit(1 if found else 0)
     if len(sys.argv) != 4:
         raise SystemExit(__doc__)
     sys.exit(main(*sys.argv[1:]))
