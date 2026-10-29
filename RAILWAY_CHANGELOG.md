@@ -4959,3 +4959,11 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
 - Change: Terminal front-end only (no date beside Latest day net in the Flow Timeline; the Broker summary date as a dark
   badge). No variable, database or other service changed.
 - Verified: the live `/terminal-app/` serves `assets/index--b79c-ca.js`, the same build checked locally.
+
+## 2026-10-29 — edge-bff `700f3638` (EXEC-TERMINAL-TOPSPLIT)
+
+- Service edge-bff, environment dev, from GitHub `main` `cec0e08` (auto-deploy). Status SUCCESS.
+- Change: Terminal front-end only (Top brokers bars split Domestic solid / Foreign faded in the panel and the window; a
+  Board choice in the panel). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-DY8AVLvr.js`, the same build checked locally
+  (`verification/terminal_api/assets_check/tsplit.mjs`).
