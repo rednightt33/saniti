@@ -58,9 +58,11 @@ export function initBroker(ctx: Ctx) {
     ctx.selectRangeOnChart((f, t) => { showBS(); applyChartRange(f, t) });   // a collapsed panel draws itself on opening
   });
   /* EXEC-TERMINAL-PANELS-2 C: Broker inventory follows the chart (its visible range and its crosshair), live */
-  let invFollow: (() => void) | null = null, invOnCross: ((t: string | null) => void) | null = null, invRaf = 0;
+  let invFollow: (() => void) | null = null, invOnCross: ((t: string | null) => void) | null = null, invTimer: any = 0;
   if(live){
-    ctx.chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if(!invRaf) invRaf = requestAnimationFrame(() => { invRaf = 0; invFollow?.() }) });
+    /* EXEC-TERMINAL-LAG (user 2026-10-29: "slide cross hair di main chart ... sangat laggy"): redrawn once the chart stops
+       moving for a moment, not on every frame of a drag (each redraw sums every broker day of the view) */
+    ctx.chart.timeScale().subscribeVisibleLogicalRangeChange(() => { clearTimeout(invTimer); invTimer = setTimeout(() => invFollow?.(), 120) });
     ctx.chart.subscribeCrosshairMove((p: any) => invOnCross?.(p && p.time != null && p.point && p.point.x >= 0 ? keyOf(p.time) : null));
   }
   const RIGHT_MIN = 260, RIGHT_MAX = 520;
@@ -399,10 +401,13 @@ export function initBroker(ctx: Ctx) {
         <span class="rp-invdate" hidden></span></div>
       <div class="axis"><span class="l">${bkDates[f].slice(5)}</span><span class="r">${bkDates[t].slice(5)}</span></div>`;
     const svg = $('invBody').querySelector('svg'), xh = svg.querySelector('.inv-xh'), lab = $('invBody').querySelector('.rp-invdate');
+    // EXEC-TERMINAL-LAG: the plot's place is measured once per drawing, not on every crosshair move (a forced layout each time)
+    let geo = null;
+    const place = () => geo || (geo = { left:svg.getBoundingClientRect().left - svg.parentElement.getBoundingClientRect().left, w:svg.clientWidth });
     const show = i => {
       if(i === null){ xh.setAttribute('visibility', 'hidden'); lab.hidden = true; $('invLegend').innerHTML = chips(); wireChips(); return }
       xh.setAttribute('x1', x(i).toFixed(1)); xh.setAttribute('x2', x(i).toFixed(1)); xh.setAttribute('visibility', 'visible');
-      lab.hidden = false; lab.textContent = longDay(bkDates[f + i]); lab.style.left = (svg.getBoundingClientRect().left - svg.parentElement.getBoundingClientRect().left + i/(n-1)*svg.clientWidth).toFixed(1) + 'px';
+      const g = place(); lab.hidden = false; lab.textContent = longDay(bkDates[f + i]); lab.style.left = (g.left + i/(n-1)*g.w).toFixed(1) + 'px';
       $('invLegend').innerHTML = chips(i); wireChips();
     };
     // the main chart's crosshair (also when it follows the Flow chart or this panel)
@@ -410,9 +415,13 @@ export function initBroker(ctx: Ctx) {
     svg.addEventListener('pointermove', e => {
       const rc = svg.getBoundingClientRect(), i = Math.max(0, Math.min(n-1, Math.round((e.clientX - rc.left) / rc.width * (n-1))));
       const d = bkDates[f + i], ci = ctx.idxByTime.get(ctx.M.barOf ? ctx.M.barOf(d) ?? d : d);   // W/M: the candle holding the day
-      if(ci !== undefined) ctx.crosshairAt(ci); else show(i);
+      /* EXEC-TERMINAL-LAG (user 2026-10-29: "Cross hair di broker inventory tidak ada kalau kita hover langsung ke broker
+         inventory"): a crosshair put on the chart from code fires no crosshair event, so this panel draws its own line */
+      if(ci !== undefined) ctx.crosshairAt(ci);
+      show(i);
     });
     svg.addEventListener('pointerleave', () => { ctx.crosshairAt(null); show(null) });
+    new ResizeObserver(() => { geo = null }).observe(svg);
   }
   invFollow = live ? () => { if(rendered) renderInvLive() } : null;
   function renderInv(){

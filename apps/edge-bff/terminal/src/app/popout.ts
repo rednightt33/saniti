@@ -244,7 +244,8 @@ export function initPopout(ctx: Ctx) {
     svgEl.addEventListener('pointermove', e => {
       const rc = svgEl.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.round((e.clientX - rc.left - AX) / pw * (n - 1))));
       const day = d[span[0] + i], ci = ctx.idxByTime.get(ctx.M.barOf ? ctx.M.barOf(day) ?? day : day);
-      if (ci !== undefined) ctx.crosshairAt(ci); else show(i);
+      if (ci !== undefined) ctx.crosshairAt(ci);
+      show(i);                                          // EXEC-TERMINAL-LAG: a code-set chart crosshair fires no event back here
     });
     svgEl.addEventListener('pointerleave', () => { ctx.crosshairAt(null); show(null) });
     box.querySelectorAll('tr[data-b]').forEach((tr: any) => tr.onclick = () => S.pick(tr.dataset.b));

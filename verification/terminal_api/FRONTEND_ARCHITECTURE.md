@@ -251,3 +251,7 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 - EXEC-TERMINAL-TOPSPLIT: Top brokers bars (panel `broker.ts renderAccPaired`, window `popout.ts renderAcc` with All
   investors) are `brokerAgg.ts splitFill`: Domestic solid beside the middle line, Foreign faded; the panel's Board choice
   (`RS.accBoard`, `#accBoard`) replaces the fixture's Buy/Sell switch in live. Check: `assets_check/tsplit.mjs`.
+- EXEC-TERMINAL-LAG: Broker inventory follows the chart's range 120 ms after it stops (`invTimer`), draws its own line on
+  a direct hover, measures its plot once per drawing; asset panes pass range and crosshair to the chart only while the
+  pointer is on them (`pane.over`) and never re-set an equal range; `flow.ts fmtDMY` is cached. Measure:
+  `assets_check/perf_drag.mjs` with `mock_big.py` (3,200 sessions, 60 brokers).

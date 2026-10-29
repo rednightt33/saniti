@@ -8548,3 +8548,15 @@ investor saja"; 2026-10-29: "1. All boards 2. Tidak usah" (tanpa garis aliran be
 - Investor type yang berlawanan arah dengan net tidak digambar (hanya di hover). Helper `brokerAgg.ts splitParts /
   splitFill`. Fixture tetap (0 px).
 - Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-TERMINAL-LAG — drag chart lambat, crosshair Broker inventory (2026-10-29)
+
+User 2026-10-29: "Cross hair di broker inveotry tidak ada kalau kita hover langsung ke broker inventory"; "slide cross hair
+di main chart (hold kiri click dan slide mouse) sangat laggy, please check".
+- Broker inventory (panel dan jendela): hover langsung menggambar garis dan tanggalnya sendiri (crosshair chart dari kode
+  tidak memicu event, ERRORS EXEC-TERMINAL-BS-SIDE); posisi plot diukur sekali per gambar, bukan per gerakan.
+- Panel inventory digambar ulang 120 ms sesudah chart berhenti bergeser, bukan tiap frame.
+- Flow aset: crosshair dan rentang dari panel aset hanya diteruskan ke chart saat pointer di panel itu; rentang yang sama
+  tidak disetel ulang (memutus ping-pong chart ↔ panel).
+- Tooltip Flow: tanggal diformat sekali per sesi (cache).
+- Infra: hanya front-end Terminal di edge-bff.

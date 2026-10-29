@@ -199,7 +199,9 @@ export function initFlow(ctx: Ctx) {
   /* ---- hover read-out ---- */
   ctx.lastTipIdx = N-1;
   let cumOn = store.get('ml.flow.cum') !== '0';
-  const fmtDMY = (i: number) => new Date(dates[i]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', '');   // 28 Nov 2025
+  // EXEC-TERMINAL-LAG: formatted once per session (toLocaleDateString on every crosshair move cost ~0.5 s per drag)
+  const dmyCache = new Map<number, string>();
+  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
   ctx.tipHooks = [];                                       // crosshair listeners (indicator legend values)
   const showTip = (i: number) => {
     ctx.lastTipIdx = i;
