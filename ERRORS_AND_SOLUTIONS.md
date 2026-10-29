@@ -4286,6 +4286,34 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **Lesson for new data:** a new scheduled publication ships with its failure, slowness and freshness alerts, on paths
   that do not depend on the job being alive.
 
+### M304 — `run_python` dengan `complete` berbentuk teks tidak memicu `complete_analysis` otomatis (2026-10-29)
+
+- **Symptom:** run `edge_f9a9164ada799bb67bb9fae523d2bdf2` ("apakah ada broker melakukan akumulasi ptro"): kode jalan OK
+  dengan `complete`, tetapi `complete_analysis` tidak dijalankan backend; model harus memanggilnya sendiri (iterasi 4,
+  87.363 token input, 2,2 s), dan penalarannya mencatat "complete=true didn't trigger complete_analysis".
+- **Verified cause (kode + log):** registry mengurai `complete` dari teks menjadi nilai sebelum validasi
+  (`apps/market-ai-orc/app/tools/registry.py`:452-456, log `ai_tool_arguments_decoded paths=["complete"]`), tetapi
+  langkah mekanis membaca ulang argumen mentah dengan `_normalized_arguments` (`app/orchestrator.py`:5100, 7824-7830),
+  yang hanya `json.loads`, sehingga `complete` tetap teks dan `is True` gagal.
+- **Class:** pemeriksaan orc yang membaca argumen mentah, padahal tool memakai argumen yang sudah didekode registry; dua
+  pengurai bisa berbeda untuk setiap ruas yang didekode (boolean, angka, daftar berbentuk teks).
+- **Solution (usulan, menunggu go):** registry mengembalikan argumen tervalidasi di `ToolOutcome`, dan langkah mekanis
+  (serta pemeriksaan lain yang memakai `_normalized_arguments`) membaca itu.
+- **Status:** OPEN.
+
+### M305 — Instruksi tabel ditolak karena huruf besar-kecil nama kolom (`broker` lawan `Broker`) (2026-10-29)
+
+- **Symptom:** run yang sama: `ai_table_directive tables=[] refused=1`; gerbang akhir `ANNOTATED` ("Table out.o31: column
+  broker does not exist; its columns are Broker, ..."), jawaban dikirim dengan label dan tanpa tabel broker.
+- **Verified cause (log):** tabel dirilis dengan kolom `Broker` (nama kolom sumber `IDX_Broker_Summary`), model menulis
+  `broker` di instruksi tabel; pencocokan kolom persis. Dalam mode advice gerbang tidak meminta perbaikan.
+- **Class:** rujukan model ke nama kolom keluaran yang berbeda hanya di huruf besar-kecil; berlaku untuk setiap tabel
+  sumber bernama campuran (`"Investor Type"`, `"Market Board"`, Part A butir 20).
+- **Solution (usulan, menunggu go):** instruksi tabel dan rujukan nilai menerima nama kolom yang sama bila dilipat huruf
+  kecil dan hanya cocok dengan satu kolom (diturunkan dari kolom keluaran); bila lebih dari satu, tetap ditolak dengan
+  daftar kolom.
+- **Status:** OPEN.
+
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
 Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate

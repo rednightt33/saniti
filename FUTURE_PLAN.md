@@ -1117,3 +1117,16 @@ memblokir deploy Phase 1 ke dev.
 - **S5 Cache review saved item di edge-bff** dikunci (definisi, versi) dan tidak berubah saat advance; aman di Phase 1, perlu
   diperiksa saat file opsional ada.
 - **S6 `verification/backtest/e2e_dev.py`** belum diperiksa untuk kebocoran kredensial lewat pesan error Playwright (M293).
+
+## Run lambat `edge_f9a9164a` (2026-10-29, usulan menunggu keputusan)
+
+Bukti (log orc, read-only): 240 s total, 228 s di panggilan model (95%); data dan sandbox ±8 s. Dua panggilan memakan
+187 s: iterasi 1 57 s (2.620 token penalaran, token pertama 28 s, 68.675 token input tanpa cache) dan iterasi 3 130 s
+(6.209 token penalaran dari 7.493 output). Semua panggilan di Relace, 48–58 token/s pada panggilan panjang (run
+`edge_8233fa7f` di Cohere: 77 token/s).
+1. **Kecepatan penyedia (dugaan, satu run):** gabung dengan cek biaya C1 di atas: dari log orc beberapa hari, per
+   penyedia × model, median `output_tokens_per_second` dan porsi cache 0. Perubahan preferensi penyedia perlu persetujuan.
+2. **Penalaran pada aturan format:** penalaran iterasi 3 banyak membahas aturan satuan, rujukan nilai dan apakah tanggal
+   boleh diketik, lalu kode ditulis dua kali (draf di penalaran, lalu argumen). Usulan ukur dulu: hitung porsi penalaran
+   yang menyebut aturan format di 20 run terakhir sebelum mengubah prompt.
+3. Cacat kecil di run yang sama: ERRORS M304 (complete otomatis) dan M305 (tabel ditolak karena huruf besar-kecil).
