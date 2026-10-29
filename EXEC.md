@@ -8927,3 +8927,10 @@ menjadi horizontal scroll. Di main chart".
   perubahan, menunggu contoh ticker dari user.
 - Infra: hanya front-end Terminal di edge-bff. Mock `assets_check/mock_server.py` kini mengirim sha256 dan ukuran file
   (EXEC-MU-RUNTIME T7).
+
+## EXEC-TERMINAL-TOPSPLIT-2 — bagian Foreign Top brokers tertutup warna solid (2026-10-29)
+
+User 2026-10-29 (screenshot jendela Top brokers TOBA): "Sepertinya belum ada warna gradient ya, porsi foreign dan
+domestic".
+- Bar Top brokers (panel dan jendela) sekarang benar-benar dua warna: Domestic solid, Foreign pudar. Hanya CSS.
+- Infra: hanya front-end Terminal di edge-bff.

@@ -968,6 +968,9 @@ html.fit .rp-date{flex:0 0 auto;margin:0 auto;padding:3px 11px;border-radius:999
 /* EXEC-TERMINAL-TOPSPLIT (user 2026-10-29: "yang tebal = domestic"), live: Top brokers bars (panel and window) split into
    Domestic (solid, beside the middle line) and Foreign (faded); the panel's Board choice */
 .trk .fill.split{display:flex;background:none}
+/* the panel's and the window's own fill colour (.pa-row / .pw-acc .trk.buy .fill) is more specific: without this the solid
+   colour showed through the faded Foreign part and every bar looked Domestic (user 2026-10-29, ERRORS EXEC-TERMINAL-TOPSPLIT-2) */
+.pa-row .trk .fill.split,.pw-acc .trk .fill.split{background:none}
 .trk.buy .fill.split{flex-direction:row-reverse}
 .trk .fill.split i{display:block;height:100%}
 .trk.buy .fill.split i{background:#089981}.trk.sell .fill.split i{background:#f23645}
