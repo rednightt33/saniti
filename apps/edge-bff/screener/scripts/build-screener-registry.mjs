@@ -229,9 +229,14 @@ export function floored(run, B, p, value) {
 /* The class decides a parameter's cap (registry.ts capOf), so it is part of the contract and of its version. It was
    once a wall-clock ratio (process.hrtime): under CPU contention an O(N) parameter's ratio crossed the threshold
    (6 to 16 of the 58 O(N) parameters came out O(N·n) in each of 5 runs with 12 busy loops on 4 cores, 2026-10-29), so
-   --check failed and the version depended on the machine's load. The measure is now the work F does: V8's precise block coverage (the
-   inspector Profiler with call counts per block) counts how many times every block of the measured code ran, an exact
-   number that no scheduler, frequency or other process changes. */
+   --check failed and the version depended on the machine's load. The measure is now the work F does: V8's precise
+   block coverage (the inspector Profiler with call counts per block) counts how many times every block of the measured
+   code ran. The count is exact only below V8's optimizing compiler: TurboFan counts some blocks differently from the
+   bytecode (121 of the 268 measurements, e.g. I05 KAMA by 306,000 characters at length 1000), and when it takes over
+   depends on background compile threads, so under load 1 of 3 and 2 of 8 runs gave other numbers (the classes held).
+   The probe's child therefore runs with --max-opt=1: the interpreter and the Sparkplug baseline compiler, which emits
+   the same builtin call for every bytecode, count each block as the bytecode does (8 of 8 runs identical under 12 busy
+   loops on 4 cores, the same numbers as the interpreter alone). */
 
 /** The two lengths of the cost probe: the default L1 and L2 = max(cost_long_length, 50 x L1), at most a quarter of the
     bars (with the 53 defaults, at most 55: L2 / L1 is at least 45). */
@@ -315,12 +320,21 @@ export async function costClass(meter, run, B, p, value) {
   return { cost_class: costVerdict(growth), lengths, work, growth };
 }
 
-/** The cost probe's child process (`--cost-work`, the job as JSON on stdin): starts the meter, then imports `module`
-    (its F, as indicators.ts exports it) so that every function of it has block counters, and measures each group on the
-    fixture of `bars` bars: { id, key, param, value, base (the start configuration), variants (enum overrides, the
-    default first) }. A group is O(N·n) at its first variant that is (a basis or method can swap a running-sum kernel for
-    a window loop: I32 'sample'), else O(N). A growth that is not decisive stops the probe with the numbers. */
+/** The V8 tier limit of the cost probe's child (see the cost_class notes above): no optimizing compiler. */
+export const COST_TIER_FLAG = '--max-opt=1';
+/** The node arguments of the cost probe's child process: the tier limit, the Terminal's TypeScript loader (as the npm
+    scripts), this script and --cost-work. */
+export const costChildArgs = () => [COST_TIER_FLAG, '--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import', pathToFileURL(at(PATHS.loader)).href,
+  fileURLToPath(import.meta.url), '--cost-work'];
+
+/** The cost probe's child process (`--cost-work`, the job as JSON on stdin, only under COST_TIER_FLAG): starts the
+    meter, then imports `module` (its F, as indicators.ts exports it) so that every function of it has block counters,
+    and measures each group on the fixture of `bars` bars: { id, key, param, value, base (the start configuration),
+    variants (enum overrides, the default first) }. A group is O(N·n) at its first variant that is (a basis or method
+    can swap a running-sum kernel for a window loop: I32 'sample'), else O(N). A growth that is not decisive stops the
+    probe with the numbers. */
 export async function costWork({ module, bars, groups }) {
+  if (!process.execArgv.includes(COST_TIER_FLAG)) throw new Error(`cost probe: the child must run with ${COST_TIER_FLAG} (an optimizing tier changes block counts); start it with costChildArgs()`);
   const meter = await workMeter();
   const { F } = await import(pathToFileURL(module).href);
   const B = fixture({ bars }), out = [];
@@ -332,7 +346,10 @@ export async function costWork({ module, bars, groups }) {
     for (const v of g.variants) {
       const c = await costClass(meter, (b, over) => fn(b, { ...g.base, ...v, ...over }), B, g.param, g.value);
       measured.push({ variant: v, ...c });
-      if (!c.cost_class) throw new Error(`cost probe ${g.id}.${g.param} ${JSON.stringify(v)}: the work grows ${c.growth.toFixed(3)} from length ${c.lengths[0]} to ${c.lengths[1]} (${c.work.join(' -> ')} executed source characters), neither at most ${PROBE.cost_growth / PROBE.cost_margin} (O(N)) nor at least ${PROBE.cost_growth * PROBE.cost_margin} (O(N·n)), so no class can be derived with the required margin: read the kernel's loops (or lengthen the probe, PROBE.cost_long_length) before building`);
+      if (!c.cost_class) throw new Error(`cost probe ${g.id}.${g.param} ${JSON.stringify(v)}: the work grows ${c.growth.toFixed(3)} from length ${c.lengths[0]} to `
+        + `${c.lengths[1]} (${c.work.join(' -> ')} executed source characters), neither at most ${PROBE.cost_growth / PROBE.cost_margin} (O(N)) nor at least `
+        + `${PROBE.cost_growth * PROBE.cost_margin} (O(N·n)), so no class can be derived with the required margin: read the kernel's loops (or lengthen the `
+        + 'probe, PROBE.cost_long_length) before building');
       if (c.cost_class === 'O(N·n)') { cls = 'O(N·n)'; break }
     }
     out.push({ id: g.id, param: g.param, cost_class: cls, measured });
@@ -342,10 +359,9 @@ export async function costWork({ module, bars, groups }) {
 }
 
 /** Runs costWork in a child process of this script (the meter must start before the measured module is compiled, and
-    the rest of the build runs at full speed without coverage) and returns its answer. */
+    the rest of the build runs at full speed without coverage or the tier limit) and returns its answer. */
 export function measureCost(job) {
-  const args = ['--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import', pathToFileURL(at(PATHS.loader)).href, fileURLToPath(import.meta.url), '--cost-work'];
-  const r = spawnSync(process.execPath, args, { input: JSON.stringify(job), encoding: 'utf8', maxBuffer: 64 << 20 });
+  const r = spawnSync(process.execPath, costChildArgs(), { input: JSON.stringify(job), encoding: 'utf8', maxBuffer: 64 << 20 });
   if (r.error) throw new Error(`cost probe: ${r.error.message}`);
   if (r.status !== 0) throw new Error(`cost probe failed (exit ${r.status}): ${r.stderr.trim()}`);
   const out = JSON.parse(r.stdout);

@@ -1,7 +1,8 @@
 /* The generator's cost probe (scripts/build-screener-registry.mjs, cost_class of report 6.8) counts work, never time:
    its class follows how a kernel's work grows with the length, is the same under a noisy clock to the last executed
-   character, and refuses a growth that neither class owns. Kernels: tests/core/cost-doubles.mjs. Plain JavaScript,
-   because it spawns the probe's child process (node:child_process), as registry-check.test.mjs. */
+   character, runs only below V8's optimizing compiler, and refuses a growth that neither class owns. Kernels:
+   tests/core/cost-doubles.mjs. Plain JavaScript, because it spawns the probe's child process (node:child_process), as
+   registry-check.test.mjs. */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,10 +16,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url)), APP = path.resolve(HE
 const DOUBLES = path.join(HERE, 'cost-doubles.mjs'), NOISY = pathToFileURL(path.join(HERE, 'noisy-clock.mjs')).href;
 
 const group = (key, param, variants = [{}]) => ({ id: key, key, param, value: DEFAULTS[key][param], base: DEFAULTS[key], variants });
-/** The probe's child process as build() starts it (--cost-work, the job on stdin), with extra environment. */
-function costWork(groups, env = {}) {
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import', '../../backtest-worker/loader/register.mjs',
-    'scripts/build-screener-registry.mjs', '--cost-work'], { cwd: APP, encoding: 'utf8', input: JSON.stringify({ module: DOUBLES, bars: G.PROBE.cost_bars, groups }), env: { ...process.env, ...env } });
+/** The probe's child process as build() starts it (G.costChildArgs(): --cost-work, the job on stdin), with extra
+    environment, or with other node arguments. */
+function costWork(groups, env = {}, args = G.costChildArgs()) {
+  const r = spawnSync(process.execPath, args, { cwd: APP, encoding: 'utf8', input: JSON.stringify({ module: DOUBLES, bars: G.PROBE.cost_bars, groups }), env: { ...process.env, ...env } });
   return { ...r, out: r.status === 0 ? JSON.parse(r.stdout) : null };
 }
 const classes = out => Object.fromEntries(out.map(g => [`${g.id}.${g.param}#${g.measured.length}`, g.cost_class]));
@@ -52,23 +53,31 @@ describe('cost probe: work, not time', () => {
       if (m.cost_class === 'O(N·n)') expect(m.growth).toBeGreaterThanOrEqual(G.PROBE.cost_growth * G.PROBE.cost_margin);
       else expect(m.growth).toBeLessThanOrEqual(G.PROBE.cost_growth / G.PROBE.cost_margin);
     }
-  }, 120_000);
+  }, 600_000);
 
   it('measures the same work, to the character, when every clock jumps at random (a noisy clock cannot flip a class)', () => {
-    const plain = costWork(GROUPS);
-    const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'noisy-clock-')), 'pids');
-    const noisy = costWork(GROUPS, { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${NOISY}`.trim(), NOISY_CLOCK_LOG: log });
-    expect(noisy.stderr).toBe('');
-    expect(fs.readFileSync(log, 'utf8').trim().split('\n').length).toBeGreaterThanOrEqual(1);   // the clock was in place
-    expect(noisy.out).toEqual(plain.out);
-    fs.rmSync(path.dirname(log), { recursive: true, force: true });
-  }, 120_000);
+    const plain = costWork(GROUPS), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noisy-clock-')), log = path.join(dir, 'pids');
+    try {
+      const noisy = costWork(GROUPS, { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${NOISY}`.trim(), NOISY_CLOCK_LOG: log });
+      expect(noisy.stderr).toBe('');
+      expect(fs.readFileSync(log, 'utf8').trim().split('\n').length).toBeGreaterThanOrEqual(1);   // the clock was in place
+      expect(noisy.out).toEqual(plain.out);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 600_000);
+
+  it('runs only below the optimizing compiler, whose block counts depend on when it takes over', () => {
+    const r = costWork([group('running_mean', 'length')], {}, G.costChildArgs().filter(a => a !== G.COST_TIER_FLAG));
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain(`cost probe: the child must run with ${G.COST_TIER_FLAG}`);
+  }, 600_000);
 
   it('stops the build, naming the numbers, when the growth is between the classes', () => {
     const r = costWork([group('stepped', 'length')]);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/cost probe stepped\.length \{\}: the work grows 1\.\d+ from length 20 to 1000 .* neither at most 1 \(O\(N\)\) nor at least 4 \(O\(N·n\)\)/);
-  }, 120_000);
+  }, 600_000);
 });
 
 describe('cost probe: the decision rule and the work sum', () => {
