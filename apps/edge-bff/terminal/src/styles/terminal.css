@@ -962,3 +962,6 @@ body.fw-dragging,body.fw-dragging *{cursor:grabbing!important;user-select:none}
 .main-col .bottom.af.nodata{height:auto!important}
 .main-col .bottom.af.nodata .flow-wrap,.main-col .bottom.af.nodata .flow-filters,.main-col .bottom.af.nodata .flow-summary,.main-col .bottom.af.nodata .flow-collapse{display:none}
 .main-col .bottom.af.nodata .flow-head{border-bottom:0}
+/* EXEC-TERMINAL-DATEBADGE (user 2026-10-29: "Date di kasih badge maybe fill gelap warna terang"), live: the date between
+   the ‹ › buttons (Broker summary) is a dark badge with light text; the fixture keeps the reference's plain text */
+html.fit .rp-date{flex:0 0 auto;margin:0 auto;padding:3px 11px;border-radius:999px;background:var(--text);color:#fff;font-weight:500;line-height:1.4}

@@ -8527,3 +8527,10 @@ User 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline. Masukan exe
 - Flow Timeline chart: label "Latest day net" (Latest week/month net) tanpa tanggal di sampingnya; angka dan info tetap
   (sesi terakhir yang punya data broker). Flow aset memang tanpa tanggal. Fixture tidak berubah (tanggal hanya di live).
 - Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-TERMINAL-DATEBADGE — tanggal Broker summary sebagai badge gelap (2026-10-29)
+
+User 2026-10-29: "Date di kasih badge maybe fill gelap warna terang? masukan exec."
+- Broker summary (panel kanan): tanggal di antara tombol ‹ › menjadi badge (fill `--text` #171717, teks putih, sudut
+  bulat), di tengah. Live saja (`html.fit`); fixture tetap teks biasa (piksel fixture 0 px).
+- Infra: hanya front-end Terminal di edge-bff.
