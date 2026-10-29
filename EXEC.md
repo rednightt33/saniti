@@ -8524,6 +8524,46 @@ flow timeline aset kedua atau aset ketiga".
   data yet (through …)".
 - Infra: hanya front-end Terminal di edge-bff.
 
+## EXEC-TERMINAL-NODAY — tanpa tanggal di "Latest day net" Flow Timeline (2026-10-29)
+
+User 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline. Masukan exec."
+- Flow Timeline chart: label "Latest day net" (Latest week/month net) tanpa tanggal di sampingnya; angka dan info tetap
+  (sesi terakhir yang punya data broker). Flow aset memang tanpa tanggal. Fixture tidak berubah (tanggal hanya di live).
+- Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-TERMINAL-DATEBADGE — tanggal Broker summary sebagai badge gelap (2026-10-29)
+
+User 2026-10-29: "Date di kasih badge maybe fill gelap warna terang? masukan exec."
+- Broker summary (panel kanan): tanggal di antara tombol ‹ › menjadi badge (fill `--text` #171717, teks putih, sudut
+  bulat), di tengah. Live saja (`html.fit`); fixture tetap teks biasa (piksel fixture 0 px).
+- Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-TERMINAL-TOPSPLIT — Top brokers: bar Domestic / Foreign, filter Board (2026-10-29)
+
+User 2026-10-28: "di bagian top broker bisa ditambahkan filter lagi untuk boards ... yang di display adalah tipe
+investor saja"; 2026-10-29: "1. All boards 2. Tidak usah" (tanpa garis aliran berlawanan), lalu atas mock
+`top-brokers-panel-and-window.html`: "pakai versi ini saja, tapi di balik ya, yang tebal = domestic".
+- Panel kanan Top brokers: pilihan Board (All boards default, Regular, Nego, Cash) menggantikan Buy/Sell fixture; bar
+  dipecah Domestic (solid, di sisi garis tengah) dan Foreign (pudar, 42%); panjang bar tetap net; legend Domestic /
+  Foreign; hover memberi net Domestic dan Foreign.
+- Jendela Top brokers: dengan All investors bar dipecah sama dan legend di catatan bawah; dengan Foreign atau Domestic
+  bar satu warna seperti sebelumnya. Kontrol lain tidak berubah.
+- Investor type yang berlawanan arah dengan net tidak digambar (hanya di hover). Helper `brokerAgg.ts splitParts /
+  splitFill`. Fixture tetap (0 px).
+- Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-TERMINAL-LAG — drag chart lambat, crosshair Broker inventory (2026-10-29)
+
+User 2026-10-29: "Cross hair di broker inveotry tidak ada kalau kita hover langsung ke broker inventory"; "slide cross hair
+di main chart (hold kiri click dan slide mouse) sangat laggy, please check".
+- Broker inventory (panel dan jendela): hover langsung menggambar garis dan tanggalnya sendiri (crosshair chart dari kode
+  tidak memicu event, ERRORS EXEC-TERMINAL-BS-SIDE); posisi plot diukur sekali per gambar, bukan per gerakan.
+- Panel inventory digambar ulang 120 ms sesudah chart berhenti bergeser, bukan tiap frame.
+- Flow aset: crosshair dan rentang dari panel aset hanya diteruskan ke chart saat pointer di panel itu; rentang yang sama
+  tidak disetel ulang (memutus ping-pong chart ↔ panel).
+- Tooltip Flow: tanggal diformat sekali per sesi (cache).
+- Infra: hanya front-end Terminal di edge-bff.
+
 ## EXEC-SCREENER — EDGE Screener dari prototipe `screener EDGE layout.html` (go 2026-10-28)
 
 **Go, 2026-10-28 (kata user):** "P4 - pakai A / Arti gas maksudnya tetap jalankan sesuai fsae, take into account jawaban saya

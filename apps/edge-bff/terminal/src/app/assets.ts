@@ -64,6 +64,7 @@ interface FlowPane {
   flt: { brokers: Set<string>; boards: Set<string>; investors: Set<string> }; filters: FilterApi[];
   net: Float64Array; cumArr: Float64Array<ArrayBuffer>; drawings: { detach(): void } | null; collapsed: boolean; alive: boolean;
   synced: boolean;                                       // the pane has taken the chart's range once: from then on it moves the chart too
+  over: boolean;                                         // the pointer is on the pane (only then it moves the chart: EXEC-TERMINAL-LAG)
   through?: string; noData: HTMLElement; placeNoData: () => void;
 }
 interface Asset { ticker: string; name: string; opts: AssetOpts; bars: Bar[]; at: Map<string, number>; series: any; row: HTMLElement;
@@ -378,7 +379,7 @@ export function initAssets(ctx: Ctx) {
       combos:[], from:N, to:-1, end:-1, state:'loading',
       flt:{ brokers:new Set(), boards:new Set(ctx.BOARDS.map(b => b.id)), investors:new Set(['Foreign']) }, filters:[],
       net:new Float64Array(N), cumArr:new Float64Array(N).fill(NaN), drawings:null,
-      collapsed:store.get(`ml.assets.flow.collapsed.${a.ticker}`) === '1', alive:true, synced:false,
+      collapsed:store.get(`ml.assets.flow.collapsed.${a.ticker}`) === '1', alive:true, synced:false, over:false,
       noData:document.createElement('div'), placeNoData:() => {}
     };
     /* the sessions after the asset's broker data are hatched, as on the chart's own Flow Timeline (EXEC-TERMINAL-FRESH) */
@@ -466,9 +467,12 @@ export function initAssets(ctx: Ctx) {
       if (e.key === 'ArrowUp') { setH(cur + 16); e.preventDefault() } else if (e.key === 'ArrowDown') { setH(cur - 16); e.preventDefault() }
     });
     /* time range, crosshair */
-    fc.timeScale().subscribeVisibleLogicalRangeChange(() => { if (pane.synced) syncRange(fc, chart); requestAnimationFrame(ctx.syncAxisWidths); pane.placeNoData() });
+    fc.timeScale().subscribeVisibleLogicalRangeChange(() => { if (pane.synced && pane.over) syncRange(fc, chart); requestAnimationFrame(ctx.syncAxisWidths); pane.placeNoData() });
+    /* only a pointer over this pane moves the others: a crosshair put here from code (the chart's hover) also fires this
+       event a frame later, which sent it back to the chart and redrew everything again (EXEC-TERMINAL-LAG) */
+    host.addEventListener('pointerenter', () => { pane.over = true }); host.addEventListener('pointerleave', () => { pane.over = false });
     fc.subscribeCrosshairMove((p: any) => {
-      if (xLock) return;
+      if (xLock || !pane.over) return;
       const k = keyOf(p.time), i = k ? idxByTime.get(k) : undefined;
       xLock = true;
       try {
@@ -568,6 +572,8 @@ export function initAssets(ctx: Ctx) {
   function syncRange(from: any, to: any) {
     if (rLock) return;
     const r = from.timeScale().getVisibleLogicalRange(); if (!r) return;
+    // EXEC-TERMINAL-LAG: the same range again would fire another change on the other chart, and back
+    const c = to.timeScale().getVisibleLogicalRange(); if (c && Math.abs(c.from - r.from) < 1e-6 && Math.abs(c.to - r.to) < 1e-6) return;
     rLock = true; try { to.timeScale().setVisibleLogicalRange(r) } finally { rLock = false }
   }
   let raf = 0;

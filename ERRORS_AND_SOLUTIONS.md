@@ -2907,6 +2907,27 @@ change yet.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
 - **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
+### EXEC-TERMINAL-LAG — drag chart utama lambat; crosshair Broker inventory hilang saat di-hover (2026-10-29)
+
+- **User:** "Cross hair di broker inveotry tidak ada kalau kita hover langsung ke broker inventory"; "slide cross hair di
+  main chart (hold kiri click dan slide mouse) sangat laggy".
+- **Verified cause (inventory):** garis inventory hanya digambar dari event crosshair chart; hover inventory memasang
+  crosshair chart dari kode, yang tidak memicu event (lightweight-charts 5.2.1, EXEC-TERMINAL-BS-SIDE). Kode lama
+  (`else show(i)`) hanya menggambar sendiri bila tanggal tidak ada di chart.
+- **Verified cause (lag, profil CPU Chromium, data tiruan 3.200 sesi × 60 broker, drag 80 langkah):** (1) crosshair yang
+  dipasang ke panel Flow aset memicu event panel itu satu frame kemudian, yang memasang crosshair chart lagi dan
+  menggambar ulang semua (EXEC-TERMINAL-ASSETS); rentang waktu juga bolak-balik chart ↔ panel; (2) Broker inventory
+  digambar ulang tiap frame dan `getBoundingClientRect` tiap gerakan (layout paksa, 485 ms); (3) `toLocaleDateString`
+  di tooltip Flow tiap gerakan (~480 ms).
+- **Solution:** lihat EXEC.md EXEC-TERMINAL-LAG.
+- **Bukti (long task selama drag, `assets_check/perf_drag.mjs`):** build sebelum aset, panel terbuka: 1–3 task / 50–172
+  ms. Sebelum perbaikan: 2 aset + panel terbuka 74–76 task / 4,9–5,4 s. Sesudah: panel terbuka tanpa aset 0 task; 2 aset
+  (data lengkap) 7–12 task / 0,44–0,75 s, panel tertutup 8 / 0,43 s. Hover inventory: garis dan tanggal tampil, chart
+  ikut (`inv_hover.mjs`). vitest 698; piksel fixture 0 px; check_assets, check2, check3, tsplit tanpa error.
+- **Class:** sinkronisasi dua arah antar chart harus memutus arah balik (pointer di mana, nilai sama); pekerjaan per
+  gerakan pointer tidak boleh memformat tanggal atau mengukur layout sesudah menulis DOM.
+- **Status:** RESOLVED; live sejak edge-bff `f295d813` (`main` `a124b0a`).
+
 ### EXEC-TERMINAL-ASSETS-2 — grip Flow aset tertutup header (2026-10-28)
 
 - **Symptom (uji lokal sebelum deploy):** grip baru di tepi atas Flow aset tidak bisa diklik; header panel menerima klik.

@@ -97,3 +97,17 @@ describe('toCsv and clampBox', () => {
     expect(clampBox({ x:10, y:10, w:100, h:50 }, 1400, 900, 360, 240)).toEqual({ x:10, y:10, w:360, h:240 });
   });
 });
+
+// EXEC-TERMINAL-TOPSPLIT (user 2026-10-29): a Top brokers bar is split into Domestic then Foreign, the side's way only
+import { splitParts, splitFill } from '../../src/data/brokerAgg';
+describe('splitParts', () => {
+  it('shares the bar between the investor types that go the net\'s way, Domestic first', () => {
+    expect(splitParts(30, 10, 'buy')).toEqual([{ k:'D', share:.25 }, { k:'F', share:.75 }]);
+    expect(splitParts(-6, 45.8, 'buy')).toEqual([{ k:'D', share:1 }]);           // Foreign sold: not drawn on a buy bar
+    expect(splitParts(-80, -20, 'sell')).toEqual([{ k:'D', share:.2 }, { k:'F', share:.8 }]);
+    expect(splitParts(0, 0, 'sell')).toEqual([]);
+  });
+  it('draws the fill at its width with one part per type', () => {
+    expect(splitFill(50, 30, 10, 'buy')).toBe('<div class="fill split" style="width:50.0%"><i class="d" style="width:25.0%"></i><i class="f" style="width:75.0%"></i></div>');
+  });
+});

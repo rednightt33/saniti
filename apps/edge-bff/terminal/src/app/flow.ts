@@ -111,8 +111,8 @@ export function initFlow(ctx: Ctx) {
     let total = 0; for(let i=from;i<=b;i++) total += flowNet[i];
     const lastI = LIVE ? Math.min(flowTo, ctx.brokerEnd) : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
     const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
-    const day = (l: string) => LIVE && l === LATEST && lastI >= 0 && lastI < N ? ` <span class="flow-stat-day">${fmtDMY(lastI)}</span>` : '';
-    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${day(l)}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
+    // EXEC-TERMINAL-NODAY (user 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline"): no date beside the label
+    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
     $('flowSummary').innerHTML = stat(LATEST, last) + stat('Period net total', total) + stat(AVG, avg);
   };
   let summaryRaf = 0;
@@ -199,7 +199,9 @@ export function initFlow(ctx: Ctx) {
   /* ---- hover read-out ---- */
   ctx.lastTipIdx = N-1;
   let cumOn = store.get('ml.flow.cum') !== '0';
-  const fmtDMY = (i: number) => new Date(dates[i]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', '');   // 28 Nov 2025
+  // EXEC-TERMINAL-LAG: formatted once per session (toLocaleDateString on every crosshair move cost ~0.5 s per drag)
+  const dmyCache = new Map<number, string>();
+  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
   ctx.tipHooks = [];                                       // crosshair listeners (indicator legend values)
   const showTip = (i: number) => {
     ctx.lastTipIdx = i;
