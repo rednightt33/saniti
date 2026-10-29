@@ -8998,3 +8998,49 @@ storage. Inspect kenapa bisa lama, sebetulnya ini hanya proses penjndahan data s
   - Target: `state.json` <= 10 menit sesudah mulai (perkiraan 4-6 menit, INFERENCE, diukur di dev).
   - Waktu: build dan tes setelah "go"; deploy dev di luar jendela B6 lalu satu run manual terukur; run terjadwal
     berikutnya sebagai bukti kedua.
+
+## EXEC-M304-M305 — argumen tool yang sudah didekode dan nama kolom tanpa beda huruf besar-kecil (disetujui 2026-10-29, BELUM dijalankan)
+
+User 2026-10-29: "Oke, untuk M304-305, masukkan ke exec." Ini persetujuan isi rencana; eksekusi menunggu "go"
+(AGENTS: rencana ≠ perintah jalan). Bukti: run `edge_f9a9164ada799bb67bb9fae523d2bdf2`, ERRORS M304 dan M305.
+Hanya `market-ai-orc`; tanpa migrasi, tanpa variabel Railway, tanpa perubahan prompt atau skema jawaban.
+
+**Langkah 1 — M304, satu sumber argumen (lapisan: kontrak registry ↔ orchestrator).**
+- `app/tools/registry.py` `ToolOutcome` (60-65) mendapat ruas `arguments`: dict yang sudah melewati `_parse_arguments`,
+  `_unwrap` dan `decode_text_values` (452-456), sebelum validasi Pydantic. Diisi pada hasil berhasil dan pada penolakan
+  (bila penguraian sampai di sana).
+- `app/orchestrator.py`: tempat yang sekarang membaca ulang argumen mentah lewat `_normalized_arguments` membaca
+  `outcome.arguments` bila ada: langkah mekanis (5090, 5100), pelacak (5308-5330) dan kunci pengulangan (5218, 5227,
+  5280) diperiksa satu per satu. Kunci pengulangan tetap memakai bentuk yang sama sebelum dan sesudah, supaya deteksi
+  panggilan berulang tidak berubah arti. `_normalized_arguments` tetap sebagai cadangan bila `arguments` kosong.
+- Tes: `tests/test_merged_steps.py` — `run_python` dengan `complete` berupa teks `"true"` memicu `complete_analysis`
+  otomatis; kasus kedua: ruas lain yang didekode (angka berupa teks) terbaca sama oleh pelacak; kasus yang tidak berlaku:
+  `complete` berupa teks `"false"` tidak memicu. `tests/test_tool_registry.py`: `outcome.arguments` sama dengan argumen
+  yang dipakai handler.
+
+**Langkah 2 — M305, nama kolom dilipat huruf kecil bila hanya cocok satu (lapisan: pembaca rujukan).**
+- Satu fungsi bersama `resolve_column(name, present)`: cocok persis lebih dulu; bila tidak ada, cari kolom yang sama
+  sesudah dilipat huruf kecil; tepat satu → pakai nama kolom asli; lebih dari satu atau tidak ada → ditolak seperti
+  sekarang. Daftar kolom diturunkan dari keluaran yang dirilis, tidak diketik.
+- Dipakai di `app/table_directives.py` (kolom sel 213-216 dan kolom urut 237-239) dan `app/value_refs.py` (pemilih baris
+  `[kolom=nilai]` 546 dan ruas kolom sesudahnya).
+- Gerbang (AGENTS, Gates and evidence): (a) aturan yang dilihat model tidak berubah — nama kolom ditulis seperti di
+  daftar kolom; (b) cara lolos dan (c) contoh: `Broker` atau `broker` untuk kolom tunggal `Broker` diterima; untuk
+  tabel yang punya `Net` dan `net`, `NET` ditolak; (d) pesan penolakan untuk yang ambigu menyebut kandidatnya
+  ("column NET matches Net and net; write one exactly").
+- Tes: `tests/test_table_directives.py` dan `tests/test_value_references.py` — `broker` → `Broker` (kasus run ini);
+  kasus kedua dengan nama berspasi `investor type` → `Investor Type`; kasus yang tidak berlaku: dua kolom yang hanya
+  beda huruf besar-kecil tetap ditolak dengan pesan kandidat.
+
+**Langkah 3 — validasi, deploy, dokumen.**
+- Suite orc lengkap lokal (`ORC_TEST_POSTGRES_URL`), `git diff --check`; cek tidak ada run EDGE aktif; push `main`;
+  deploy orc sampai SUCCESS.
+- Cek live tanpa biaya model bila bisa (replay argumen run ini ke registry dan ke pembaca tabel di runner); bila perlu
+  satu pertanyaan live sejenis (berbayar kecil), hanya dengan izin.
+- ERRORS M304 dan M305 → status diperbarui; RAILWAY_CHANGELOG (deploy orc); bagian ini dihapus dari EXEC setelah
+  selesai. `AI_TOOLS.md`, snapshot prompt dan `AI_MODELS.md` tidak berubah (tidak ada deskripsi tool, prompt atau
+  panggilan model yang disentuh); bila tes generator menunjukkan lain, diperbarui di tugas yang sama.
+
+**Risiko:** langkah 1 menyentuh banyak tempat yang membaca argumen; bila satu pelacak menerima bentuk yang berbeda,
+catatan run (sumber, keputusan) bisa berubah. Tiap tempat diperiksa dan suite lengkap harus hijau. Langkah 2 bisa
+menerima rujukan yang dulu ditolak; ini hanya terjadi bila tepat satu kolom cocok, jadi angka yang ditunjuk tetap satu.

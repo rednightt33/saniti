@@ -4297,7 +4297,7 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   yang hanya `json.loads`, sehingga `complete` tetap teks dan `is True` gagal.
 - **Class:** pemeriksaan orc yang membaca argumen mentah, padahal tool memakai argumen yang sudah didekode registry; dua
   pengurai bisa berbeda untuk setiap ruas yang didekode (boolean, angka, daftar berbentuk teks).
-- **Solution (usulan, menunggu go):** registry mengembalikan argumen tervalidasi di `ToolOutcome`, dan langkah mekanis
+- **Solution (rencana EXEC-M304-M305, disetujui 2026-10-29, menunggu go):** registry mengembalikan argumen tervalidasi di `ToolOutcome`, dan langkah mekanis
   (serta pemeriksaan lain yang memakai `_normalized_arguments`) membaca itu.
 - **Status:** OPEN.
 
@@ -4309,7 +4309,7 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   `broker` di instruksi tabel; pencocokan kolom persis. Dalam mode advice gerbang tidak meminta perbaikan.
 - **Class:** rujukan model ke nama kolom keluaran yang berbeda hanya di huruf besar-kecil; berlaku untuk setiap tabel
   sumber bernama campuran (`"Investor Type"`, `"Market Board"`, Part A butir 20).
-- **Solution (usulan, menunggu go):** instruksi tabel dan rujukan nilai menerima nama kolom yang sama bila dilipat huruf
+- **Solution (rencana EXEC-M304-M305, disetujui 2026-10-29, menunggu go):** instruksi tabel dan rujukan nilai menerima nama kolom yang sama bila dilipat huruf
   kecil dan hanya cocok dengan satu kolom (diturunkan dari kolom keluaran); bila lebih dari satu, tetap ditolak dengan
   daftar kolom.
 - **Status:** OPEN.
