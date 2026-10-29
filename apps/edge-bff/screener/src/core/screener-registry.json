@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "0bc46ac2a39d7c21",
+  "screener_registry_version": "45452d948154888b",
   "registry_version": "b6a8dc0ba206ed65",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "bc971a14a1e630cf868f45f5c7498b9aae14ce8732bec91db0c863494d1a6148"
+      "sha256": "b967934c4908acadb1f8ef1b0a66c890265e1ce9bcf28208a21ce3e43ec10efb"
     }
   ],
   "probe": {
@@ -50,8 +50,9 @@
     "converged_ratio": 0.001,
     "cost_bars": 10000,
     "cost_long_length": 1000,
-    "cost_reps": 3,
-    "cost_slowdown": 2
+    "cost_measure": "v8_block_coverage_executed_source_chars",
+    "cost_growth": 2,
+    "cost_margin": 2
   },
   "cost_model": {
     "status": "PROVISIONAL (P5): replaced by the Phase 17 measurement on the service, recorded in verification/screener/BENCHMARK.md with CPU and Node version",
