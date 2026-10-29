@@ -5138,3 +5138,19 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   other service changed.
 - Verified: the live `/terminal-app/` serves `assets/style-Dq-8w5nn.css` (the local build's) with the new rule, and the same
   `assets/index-Cf28Q5Tj.js` as before.
+
+## 2026-10-29 — edge-bff `074b2cc9` (EXEC-SCREENER: the publication time in WIB, ERRORS M302; PR #43)
+
+- Service edge-bff, environment dev, from GitHub `main` `85f1e6c` (the merge of PR rednightt33/saniti#43, auto-deploy;
+  deployment `074b2cc9-39d0-4a30-8fb7-a2266e67be87`). Status SUCCESS at 13:57 UTC. screener-worker SKIPPED the commit
+  (`8cb6d5d9`; no file of its watch paths changed); terminal-api, backtest-worker and the publisher are not GitHub-built
+  here and did not change. No variable changed.
+- Change: the Screener page reads every timestamp through one reader and shows it in WIB (the head, the preview's Data
+  facts, a saved screen's date); the PR also carried the records of the day's dev deploy and the merge of `main`
+  `5c12216` (Terminal work already live since `8191fff7`).
+- Verified: `/ready`, `/screener`, `/screener-app/`, `/terminal-app/`, `/backtest-app/` 200; the live Screener bundle
+  `assets/index-BE2cCmOQ.js` equals the local build of the merged head; start-up log without error (uvicorn's INFO lines
+  only); `verification/screener/page_timing_dev.py` at 13:58 UTC: the head reads "published 2026-10-29 19:59 WIB"
+  (was the raw `12:59:56.101946+00:00`), cold open to first results 1.78 s, warm 1.01 s, a preset run 0.50 s, an edited
+  run 0.48 s, a preview 0.31 s.
+- Rollback: `serviceInstanceDeployV2` with `main` `5c12216` (deployment `8191fff7`).

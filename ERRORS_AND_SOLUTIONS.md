@@ -4222,7 +4222,8 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   zone of the exchange dates) as `2026-10-29 19:59 WIB` or the date alone; a text that is not a timestamp stays as it
   is. Used by the head, the preview and the saved-screen chip; the CSV keeps the exact source value. Test
   `tests/page/time-text.test.ts` (seven spellings of one instant, the WIB date in the late UTC evening, non-timestamps).
-  FIXED in code; deploy with the next edge-bff deployment.
+  FIXED, on dev since edge-bff `074b2cc9` (PR #43, 2026-10-29; the head reads "published 2026-10-29 19:59 WIB",
+  RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson for new data:** a new source may spell its timestamps differently; the page reads them through `timeText`,
   never by slicing the text.
 

@@ -31,8 +31,9 @@ Phase 1); `published_at` equals the publication's `finished_at`; then `swap`. No
 The screenshots showed the header "IDX equities (844 listings) · close 2026-10-29", preset counts (Oversold in Uptrend
 19, Golden Cross 24, MACD Bullish Divergence 34, Minervini 12), the P4 chips (traded on 2026-10-29 hides 17; no
 unadjusted price break hides 8), the result and its reasons in the preview. The header printed the publication time
-raw (`2026-10-29 12:59:56.101946+00:00`); fixed in code as ERRORS M302 (shown in WIB), deployed with the next
-edge-bff deployment.
+raw (`2026-10-29 12:59:56.101946+00:00`); fixed as ERRORS M302 (shown in WIB) and live since
+edge-bff `074b2cc9` (13:57 UTC): the head reads "published 2026-10-29 19:59 WIB"; the same page check then gave cold
+1.78 s, warm 1.01 s, preset run 0.50 s, edited run 0.48 s, preview 0.31 s.
 
 ## Answers against the database (verification/screener/live_check_dev.py, then pgweb, read-only)
 
