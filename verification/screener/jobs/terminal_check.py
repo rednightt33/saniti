@@ -25,7 +25,11 @@ p = json.load(open('params.json'))
 BASE = p['base'].rstrip('/')
 API = BASE + '/api/terminal/v1'
 KEY = os.environ.get('TERMINAL_PROXY_KEY', '')
-STATE_FIELDS = {'finished_at', 'price_through', 'broker_through', 'broker_behind_sessions', 'xsection'}
+# EXEC-MU-RUNTIME T5 (merged in 12a4a0a): /state also carries `refs`, the index of the run's content-keyed reference
+# files (null until a publication by the T5 publisher writes it), in the xsection index's shape.
+STATE_FIELDS = {'finished_at', 'price_through', 'broker_through', 'broker_behind_sessions', 'xsection', 'refs'}
+REF_NAMES = {'tickers', 'brokers', 'logos'}
+REF_FIELDS = {'key', 'sha256', 'bytes', 'rows'}           # apps/terminal-api/app/bucket.py REF_FIELDS
 INDEX_FIELDS = {'key', 'sha256', 'bytes', 'rows', 'as_of'}
 failed = []
 
@@ -87,14 +91,19 @@ else:
                'price_through': state.get('price_through'), 'broker_through': state.get('broker_through'),
                'broker_behind_sessions': state.get('broker_behind_sessions'),
                'xsection': ({n: {k: (v[:16] if k == 'sha256' else v) for k, v in f.items() if k != 'key'}
-                             for n, f in index.items()} if isinstance(index, dict) else index)}
+                             for n, f in index.items()} if isinstance(index, dict) else index),
+               'refs': sorted(state['refs']) if isinstance(state.get('refs'), dict) else state.get('refs')}
+    refs = state.get('refs')
     if set(state) != STATE_FIELDS:
         err('state', 'the answer does not carry exactly the expected fields', **summary)
-    elif p['expect'] == 'absent' and index not in (None, {}):
-        err('state', 'xsection index present before a publication wrote it', **summary)
+    elif p['expect'] == 'absent' and (index not in (None, {}) or refs not in (None, {})):
+        err('state', 'xsection or refs index present before a publication wrote it', **summary)
     elif p['expect'] == 'present' and not (isinstance(index, dict) and set(p['names']) <= set(index)
                                            and all(set(f) == INDEX_FIELDS for f in index.values())):
         err('state', 'xsection index missing a file or a field', **summary)
+    elif p['expect'] == 'present' and not (isinstance(refs, dict) and REF_NAMES <= set(refs)
+                                           and all(set(f) == REF_FIELDS for f in refs.values())):
+        err('state', 'refs index missing a reference file or a field', **summary)
     else:
         out('state', **summary)
 
