@@ -3404,9 +3404,9 @@ change yet.
 - **Class:** a bound that evicts one reference while another holder keeps the object, so it bounds a map, not the
   memory.
 - **Solution:** a view that falls out of the request's LRU (touched on every use) releases its `Calc`
-  (`apps/screener-worker/src/run.ts:213-234`; `TickerView.release`, `snapshot.ts:357`); the same screen ran within 400
-  MB. Test: `tests/views.test.ts` "a request releases the Calc of the tickers that fall out of its LRU (CALC_KEEP): …"
-  (`:79`).
+  (`apps/screener-worker/src/run.ts:213-234`; `TickerView.release`, `snapshot.ts:357`); the same screen ran within
+  400 MB. Test: `tests/views.test.ts` "a request releases the Calc of the tickers that fall out of its LRU (CALC_KEEP):
+  …" (`:79`).
 - **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
 - **Lesson:** a memory bound is tested by what stays reachable, not by the size of the structure it trims.
 
@@ -3449,17 +3449,17 @@ change yet.
 - **Solution:** `SCREENER_THREAD_HEAP_MB` (required, no default, at least 64; `apps/screener-worker/src/config.ts:126`)
   applied as `resourceLimits.maxOldGenerationSizeMb` to every compute thread and the builder
   (`pool.ts:56-66, 213, 216`). A thread that needs more stops alone with `ERR_WORKER_OUT_OF_MEMORY` (its request answers
-  500 `OUT_OF_MEMORY`) and is started again. Effect (LOCAL, after M272-M275): end RSS 2.75 -> 1.81 GB, refresh peak 2.06
-  -> 1.46 GB, cold-start peak 1.40 -> 0.89 GB. Tests: `tests/heap.test.ts` (`:27, 34, 48`). The value 512 and a 2.75 GB
-  replica limit are LOCAL proposals for the user's decision (`BENCHMARK_LOCAL.md` §8).
+  500 `OUT_OF_MEMORY`) and is started again. Effect (LOCAL, after M272-M275): end RSS 2.75 -> 1.81 GB, refresh peak
+  2.06 -> 1.46 GB, cold-start peak 1.40 -> 0.89 GB. Tests: `tests/heap.test.ts` (`:27, 34, 48`). The value 512 and a
+  2.75 GB replica limit are LOCAL proposals for the user's decision (`BENCHMARK_LOCAL.md` §8).
 - **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending, and the deploy must set the new
   required variable.
 - **Lesson:** memory is bounded per thread inside the platform's limit, from measured peaks, as a required setting.
 
 ### M277 — screener-worker: a getter call on every read of a price column (2026-10-29)
 
-- **Symptom:** F reads `B.C`, `B.H`, … inside its loops, and the lazy columns' getters ran on every read: pre-warm 22.9
-  s, custom RSI p50 308-337 ms (in process, single thread, LOCAL). Found by the performance review.
+- **Symptom:** F reads `B.C`, `B.H`, … inside its loops, and the lazy columns' getters ran on every read: pre-warm
+  22.9 s, custom RSI p50 308-337 ms (in process, single thread, LOCAL). Found by the performance review.
 - **Verified cause:** `lazyBars` defined each column as an accessor property that stayed an accessor after its first
   read.
 - **Class:** a lazy value on a hot path that stays lazy after it is made.
@@ -3665,8 +3665,8 @@ change yet.
 - **Symptom:** `verification/edge_multiuser/runtime/RUNTIME.md` (§11 R1, §8 A2: `:408`) and `terminal.md` (§9 R1) give
   the publisher's pre-deploy check as `git merge-base --is-ancestor 6051f4d HEAD`. On the Screener branch it answers
   false although the content-key code is there (re-checked 2026-10-29).
-- **Verified cause:** the PR #41 commits were cherry-picked onto the Screener branch, which gives new hashes: `6051f4d`
-  -> `94c1491` (content keys, M250), the retry -> `80d37e1` (M263), both ancestors of HEAD. Their
+- **Verified cause:** the PR #41 commits were cherry-picked onto the Screener branch, which gives new hashes:
+  `6051f4d` -> `94c1491` (content keys, M250), the retry -> `80d37e1` (M263), both ancestors of HEAD. Their
   `git patch-id --stable` differs too, because the integration adapted them to the xsection writer, so no hash-based
   check can recognise them. In code: `apps/terminal-publisher/publisher.py` `BUCKET_TRANSIENT_CODES` (`:188`),
   `content_key` (`:244`), `retried` (`:511`), `store` (`:620`), `collect_garbage` (`:962`).
