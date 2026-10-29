@@ -18,6 +18,8 @@ from telegram_monitor import (
     BrokerFreshnessSummary,
     TelegramMonitor,
     build_freshness_message,
+    build_publisher_message,
+    parse_publisher_health,
 )
 
 
@@ -229,6 +231,82 @@ class BrokerFreshnessTests(unittest.TestCase):
         finally:
             tm.psycopg.connect, tm.fetch_broker_freshness = original_connect, original_fetch
         self.assertEqual(sent, [])
+
+
+class PublisherHealthTests(unittest.TestCase):
+    """EXEC-PUBLISHER-SPEED (user go 2026-10-29, ERRORS M303): terminal-publisher's alerts, in fixed shapes only."""
+
+    RUN = "terminal-publish-2026-10-29-1900"
+
+    def details(self, **over):
+        return {"status": "failed", "run_time": "2026-10-29 19:00", "manual": False, "stage": "files",
+                "error": "ReadTimeoutError", "last_published": "2026-10-29T00:36:12.5+00:00", **over}
+
+    def test_each_kind_reads_in_plain_words_with_the_run_time_and_the_last_publication_in_wib(self):
+        failed = build_publisher_message(parse_publisher_health(self.RUN, self.details()))
+        self.assertIn("publikasi Thu 29 Oct 2026 19:00 WIB gagal", failed)
+        self.assertIn("Tahap: menulis file data • galat: ReadTimeoutError", failed)
+        self.assertIn("memakai publikasi Thu 29 Oct 2026 07:36 WIB", failed)
+        missing = build_publisher_message(parse_publisher_health(self.RUN, self.details(status="missing", stage=None, error=None)))
+        self.assertIn("belum terbit", missing)
+        self.assertIn("Publikasi terakhir: Thu 29 Oct 2026 07:36 WIB", missing)
+        slow = build_publisher_message(parse_publisher_health(self.RUN + "-slow", self.details(status="slow", stage="packs", minutes=30, error=None)))
+        self.assertIn("masih berjalan setelah 30 menit", slow)
+        self.assertIn("Tahap: menulis paket harga", slow)
+        partial = build_publisher_message(parse_publisher_health(self.RUN + "-partial", {"status": "partial", "run_time": "2026-10-29 19:00", "manual": False, "files": ["price", "logos"]}))
+        self.assertIn("terbit tanpa file harga lintas-saham (Screener), daftar logo", partial)
+        manual = build_publisher_message(parse_publisher_health("terminal-publish-manual-2026-10-29-2203", self.details(run_time="2026-10-29 22:03", manual=True)))
+        self.assertIn("run manual Thu 29 Oct 2026 22:03 WIB gagal", manual)
+
+    def test_anything_but_the_fixed_shapes_is_refused(self):
+        bad = [
+            (self.RUN, self.details(error="OSError: password=x")),          # free text
+            (self.RUN, self.details(stage="somewhere")),
+            (self.RUN, self.details(extra="x")),
+            (self.RUN, self.details(status="slow")),                         # the id has no -slow
+            (self.RUN + "-slow", self.details()),                            # failed under a -slow id
+            (self.RUN, self.details(manual=True)),                           # not a manual id
+            (self.RUN, self.details(last_published="yesterday")),
+            (self.RUN, self.details(last_published="2026-10-29T00:36:12")),  # no zone
+            (self.RUN, self.details(minutes=True)),
+            (self.RUN, self.details(files=["../x"])),
+            ("terminal-2026-10-29", self.details()),
+            (self.RUN, "failed"),
+        ]
+        for execution_id, details in bad:
+            with self.assertRaises(ValueError, msg=(execution_id, details)):
+                parse_publisher_health(execution_id, details)
+
+    def test_one_message_per_run_time_and_kind(self):
+        import telegram_monitor as tm
+        sent, claims = [], {}
+
+        class Conn:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def claim(connection, source, execution_id):
+            if (source, execution_id) in claims:
+                return "duplicate", claims[(source, execution_id)]
+            claims[(source, execution_id)] = len(claims) + 1
+            return "claimed", claims[(source, execution_id)]
+
+        monitor = TelegramMonitor.__new__(TelegramMonitor)
+        monitor.database_url, monitor.token, monitor.chat_id = "postgresql://unused", "t", "c"
+        monitor.send_message = lambda token, chat, text, *a: sent.append(text) or len(sent)
+        saved = tm.psycopg.connect, tm.claim_delivery, tm.mark_sent
+        tm.psycopg.connect = lambda *a, **k: Conn()
+        tm.claim_delivery, tm.mark_sent = claim, lambda c, log_id, ids: None
+        try:
+            self.assertEqual(monitor.notify(tm.HEALTH_SOURCE, self.RUN, self.details())[0], "sent")
+            # the check tick finds the same run time unpublished: the same id, so no second message
+            self.assertEqual(monitor.notify(tm.HEALTH_SOURCE, self.RUN, self.details(status="missing"))[0], "duplicate")
+            with self.assertRaises(ValueError):
+                monitor.notify(tm.HEALTH_SOURCE, self.RUN, None)
+        finally:
+            tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
+        self.assertEqual(len(sent), 1)
+        self.assertIn("gagal", sent[0])
 
 
 if __name__ == "__main__":

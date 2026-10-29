@@ -1700,3 +1700,26 @@ def test_the_logo_index_is_put_after_the_images_it_names():
     p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get(), threads=8)
     p.run('logos')
     assert bucket.spans['logo/BBCA.png'][1] <= bucket.spans['ref/logos.json.gz'][0]
+
+
+def test_telegram_monitor_accepts_every_alert_the_publisher_sends(alerts):
+    """The two services share the shape of an alert: each one the publisher builds passes telegram-monitor's checks."""
+    spec = importlib.util.spec_from_file_location('telegram_monitor', ROOT / 'apps/telegram-monitor/telegram_monitor.py')
+    monitor = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault('telegram_monitor', monitor)                    # its dataclasses look their module up
+    spec.loader.exec_module(monitor)
+    slot = dt.datetime(2026, 10, 29, 19, 0, tzinfo=pub.WIB)
+    last = '2026-10-29T00:36:12.101946+00:00'                              # state.json finished_at as written
+    pub.notify_publication('failed', slot, stage='manifests', error='ReadTimeoutError', last_published=last)
+    pub.notify_publication('failed', slot, True, stage='connect', error='OperationalError', last_published=None)
+    pub.notify_publication('missing', slot, last_published=last)
+    pub.notify_publication('missing', slot, last_published=None)
+    pub.notify_publication('slow', slot, stage='packs', minutes=30, last_published=last)
+    pub.notify_publication('partial', slot, files=['price', 'tickers'])
+    for a in alerts:
+        assert a['source_table'] == monitor.HEALTH_SOURCE
+        health = monitor.parse_publisher_health(a['execution_id'], a['details'])
+        assert health.status == a['details']['status'] and monitor.build_publisher_message(health)
+    p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket(), today=TODAY)
+    p.run('daily')
+    assert set(p.phases) | {'connect', 'start', 'cleanup'} <= set(monitor.HEALTH_STAGES)   # every step it can report

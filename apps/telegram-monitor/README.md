@@ -27,6 +27,14 @@ evening run (19:00 WIB) when broker data lags the prices. The service reads the 
 (Feature 05 last `trade_date`, final daily price dates after it), not from the request; nothing is sent or
 logged when nothing lags, and the `execution_id` `terminal-YYYY-MM-DD` keeps it to one message a day.
 
+`Terminal_Publisher_Health` (EXEC-PUBLISHER-SPEED, user 2026-10-29, ERRORS M303) is asked by terminal-publisher when a
+publication fails, is still running after 30 minutes, is published without one of its cross-sectional or reference
+files, or is missing at the check tick 30 minutes after a run time. These facts exist only in the publisher, so they
+come in the request's `details`, and `parse_publisher_health` accepts them only in fixed shapes (status, run time,
+stage, error class, minutes, last publication time, file names; never free text). The `execution_id`
+`terminal-publish-YYYY-MM-DD-HHMM` (`-slow`, `-partial`; `manual-` for a manual run) keeps it to one message per run
+time and kind; a failed run and its missing publication share one id, so only the first is sent.
+
 ## Required Railway variables
 
 - `DATABASE_URL`

@@ -27,7 +27,12 @@ STOCKBIT_SOURCE = "Monitoring_Stockbit_Update"
 # EXEC-TERMINAL-FRESH (user 2026-10-27): terminal-publisher asks after its evening run; the numbers are read here from
 # the tables themselves, not taken from the request
 FRESHNESS_SOURCE = "Terminal_Broker_Freshness"
-SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE}
+# EXEC-PUBLISHER-SPEED (user go 2026-10-29, ERRORS M303): terminal-publisher reports a failed, slow, partial or missing
+# publication. These facts exist only in the publisher (its run, the bucket's state.json), so they come with the request,
+# from the service holding TELEGRAM_NOTIFY_SECRET, and are accepted only in the fixed shapes parse_publisher_health
+# checks: enumerations, timestamps, numbers and file names, never free text.
+HEALTH_SOURCE = "Terminal_Publisher_Health"
+SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -228,6 +233,89 @@ class BrokerFreshnessSummary:
     broker_through: date | None
     price_through: date | None
     behind_sessions: int
+
+
+@dataclass(frozen=True)
+class PublisherHealth:
+    execution_id: str
+    status: str
+    run_time: datetime
+    manual: bool
+    stage: str | None
+    error: str | None
+    minutes: int | None
+    last_published: datetime | None
+    files: tuple[str, ...]
+
+
+HEALTH_ID = re.compile(r"^terminal-publish-(manual-)?\d{4}-\d{2}-\d{2}-\d{4}(-slow|-partial)?$")
+HEALTH_STAGES = {
+    "connect": "koneksi database", "start": "persiapan", "plan": "perencanaan", "files": "menulis file data",
+    "packs": "menulis paket harga", "xsection": "file Screener", "manifests": "menulis daftar isi",
+    "refs": "file referensi", "state": "menulis state.json", "cleanup": "bersih-bersih",
+}
+HEALTH_FILES = {
+    "price": "harga lintas-saham (Screener)", "actions": "aksi korporasi lintas-saham (Screener)",
+    "tickers": "daftar saham", "brokers": "daftar broker", "logos": "daftar logo",
+}
+ERROR_CLASS = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,80}$")
+FILE_NAME = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+
+
+def parse_publisher_health(execution_id: str, details: object) -> PublisherHealth:
+    """The publisher's alert, checked field by field; anything else is a ValueError (400)."""
+    if not HEALTH_ID.fullmatch(execution_id) or not isinstance(details, dict):
+        raise ValueError("invalid publisher alert")
+    status = details.get("status")
+    suffix = {"slow": "-slow", "partial": "-partial"}.get(status, "")
+    if status not in ("failed", "missing", "slow", "partial") or not execution_id.endswith(suffix) or (
+            not suffix and execution_id.endswith(("-slow", "-partial"))):
+        raise ValueError("invalid publisher alert status")
+    manual = details.get("manual", False)
+    if not isinstance(manual, bool) or manual != ("-manual-" in execution_id):
+        raise ValueError("invalid publisher alert run")
+    try:
+        run_time = datetime.strptime(str(details.get("run_time")), "%Y-%m-%d %H:%M").replace(tzinfo=JAKARTA_TZ)
+        last = details.get("last_published")
+        last_published = datetime.fromisoformat(last) if last is not None else None
+    except (TypeError, ValueError):
+        raise ValueError("invalid publisher alert time") from None
+    if last is not None and (len(last) > 40 or last_published.tzinfo is None):
+        raise ValueError("invalid publisher alert time")
+    stage, error, minutes = details.get("stage"), details.get("error"), details.get("minutes")
+    files = details.get("files", [])
+    if (stage is not None and stage not in HEALTH_STAGES) or (error is not None and not (isinstance(error, str) and ERROR_CLASS.fullmatch(error))):
+        raise ValueError("invalid publisher alert detail")
+    if minutes is not None and (isinstance(minutes, bool) or not isinstance(minutes, int) or not 0 <= minutes <= 10_000):
+        raise ValueError("invalid publisher alert detail")
+    if not isinstance(files, list) or len(files) > 10 or not all(isinstance(f, str) and FILE_NAME.fullmatch(f) for f in files):
+        raise ValueError("invalid publisher alert detail")
+    unknown = set(details) - {"status", "run_time", "manual", "stage", "error", "minutes", "last_published", "files"}
+    if unknown:
+        raise ValueError("invalid publisher alert detail")
+    return PublisherHealth(execution_id, status, run_time, manual, stage, error, minutes, last_published, tuple(files))
+
+
+def build_publisher_message(health: PublisherHealth) -> str:
+    when = lambda d: d.astimezone(JAKARTA_TZ).strftime("%a %d %b %Y %H:%M WIB") if d else "-"
+    run = f"{'run manual' if health.manual else 'publikasi'} {when(health.run_time)}"
+    stage = HEALTH_STAGES.get(health.stage or "", "-")
+    last = when(health.last_published)
+    if health.status == "failed":
+        return (f"❌ Terminal publisher: {run} gagal\n"
+                f"Tahap: {stage} • galat: {health.error or '-'}\n"
+                f"Terminal, Backtest dan Screener tetap memakai publikasi {last}.\n"
+                "Lihat log terminal-publisher di Railway.")
+    if health.status == "missing":
+        return (f"❌ Terminal publisher: {run} belum terbit\n"
+                f"Publikasi terakhir: {last}; Terminal, Backtest dan Screener memakai publikasi itu.\n"
+                "Lihat terminal-publisher di Railway: run gagal, terhenti, atau tidak berjalan.")
+    if health.status == "slow":
+        return (f"⏳ Terminal publisher: {run} masih berjalan setelah {health.minutes} menit\n"
+                f"Tahap: {stage}. Sampai selesai, Terminal, Backtest dan Screener memakai publikasi {last}.")
+    files = ", ".join(HEALTH_FILES.get(f, f) for f in health.files) or "-"
+    return (f"⚠️ Terminal publisher: {run} terbit tanpa file {files}\n"
+            "File itu tetap versi sebelumnya; lihat log terminal-publisher di Railway.")
 
 
 def fetch_broker_freshness(connection: psycopg.Connection, execution_id: str) -> BrokerFreshnessSummary:
@@ -714,14 +802,17 @@ class TelegramMonitor:
         self.send_message = send_message
         self.edit_message = edit_message
 
-    def notify(self, source_table: str, execution_id: str) -> tuple[str, int]:
+    def notify(self, source_table: str, execution_id: str, details: object = None) -> tuple[str, int]:
         if source_table not in SUPPORTED_SOURCES:
             raise ValueError("unsupported source_table")
         if not EXECUTION_ID_PATTERN.fullmatch(execution_id):
             raise ValueError("invalid execution_id")
+        health = parse_publisher_health(execution_id, details) if source_table == HEALTH_SOURCE else None
 
         with psycopg.connect(self.database_url) as connection:
-            if source_table == "Monitoring_Price_ALL":
+            if health is not None:
+                summary = health
+            elif source_table == "Monitoring_Price_ALL":
                 summary = fetch_monitoring_summary(connection, execution_id)
             elif source_table == "Monitoring_Fixed_Income":
                 summary = fetch_fixed_income_summary(connection, execution_id)
@@ -763,6 +854,8 @@ class TelegramMonitor:
             try:
                 if isinstance(summary, BrokerFreshnessSummary):
                     message_ids.append(self.send_message(self.token, self.chat_id, build_freshness_message(summary)))
+                elif isinstance(summary, PublisherHealth):
+                    message_ids.append(self.send_message(self.token, self.chat_id, build_publisher_message(summary)))
                 elif isinstance(summary, StockbitUpdateSummary):
                     # every round is reported, success included (EXEC-STOCKBIT-UPDATER, decision K5)
                     for message in build_stockbit_messages(summary):
@@ -838,6 +931,7 @@ class Handler(BaseHTTPRequestHandler):
             state, log_id = self.server.monitor.notify(
                 str(payload.get("source_table", "")),
                 str(payload.get("execution_id", "")),
+                payload.get("details"),
             )
             code = 202 if state == "in_progress" else 200
             self.send_json(code, {"status": state, "log_id": log_id})
