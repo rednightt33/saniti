@@ -5016,3 +5016,11 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   and already answers `/ready`; the new build reads them after migration `20261028_100` and its own deploy.
 - Rollback: delete the three variables with `--skip-deploys` and set `healthcheckPath` back to null; nothing reads them
   until the new build is deployed.
+
+## 2026-10-29 — edge-bff `2064404c` (EXEC-TERMINAL-UNDO-INV-WHEEL)
+
+- Service edge-bff, environment dev, from GitHub `main` `6bd41c3` (auto-deploy). Status SUCCESS. `main` already held the
+  Screener merge `b841a45`, deployed before as `96346c1f`.
+- Change: Terminal front-end only (undo for indicator settings; Broker inventory chips in three columns and its count badge;
+  Shift + wheel pans the chart). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-Cf28Q5Tj.js`, the same build checked locally.
