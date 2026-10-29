@@ -939,6 +939,26 @@ storage. Inspect kenapa bisa lama, sebetulnya ini hanya proses penjndahan data s
   (2) bersih-bersih setelah `state.json` dan dibatasi waktu; (3) satu indeks manifest per run; terpisah: peringatan
   Telegram saat publisher crash atau publikasi belum terbit.
 - **Pertanyaan terbuka:** tingkat paralel (usulan 16); apakah peringatan crash ikut di item ini.
+- **Prioritas, 2026-10-29 (kata user):** "Ya, kita coba kita perbaiki kecepatan publisher dulu. What's the plan? Dan kapan
+  ini bisa dikerjakan?" (atas usulan: publisher dulu, lalu Screener Phase 2 dan 2b). Ini persetujuan urutan dan permintaan
+  rencana, belum "go" eksekusi.
+- **Rencana yang diajukan 2026-10-29 (menunggu "go"):**
+  - Urutan run yang terukur (log JSON run 12:04-13:00 UTC): cek perubahan 12 s (stamp 6.218 ticker-tahun) + baca 845
+    manifest satu per satu 8,7 menit; bersih-bersih 19 menit (gagal); 828 file harga tahun 2026 ±8 menit; 828 price pack
+    ±10 menit; xsection 41 s; simpan 828 manifest 8 menit; refs dan `state.json` 13:00:00. Hanya tahun berjalan yang
+    ditulis ulang; data historis tidak.
+  - (1) Paralel dalam setiap tahap (bacaan manifest, file data, pack, manifest; batas `TERMINAL_BUCKET_THREADS`, usulan
+    16), urutan tahap tetap: file dan pack -> xsection -> manifest -> refs -> `state.json`; query database tetap satu
+    koneksi berurutan.
+  - (2) Bersih-bersih pindah ke sesudah `state.json`, dengan aturan aman yang sama (hanya objek yang sudah tidak disebut
+    sejak publikasi sebelumnya), listing per prefix, batas waktu keras; gagal tidak menunda publikasi.
+  - (3) Peringatan Telegram lewat rute telegram-monitor yang sudah ada: run gagal, dan publikasi yang tidak terbit
+    (diperiksa oleh tick cron yang bukan jam run).
+  - Tidak diusulkan sekarang: indeks manifest tunggal (paralel sudah cukup), format pack per tahun (mengubah pembaca
+    Terminal), memindah publisher ke `sin` (database di `sfo`).
+  - Target: `state.json` <= 10 menit sesudah mulai (perkiraan 4-6 menit, INFERENCE, diukur di dev).
+  - Waktu: build dan tes setelah "go"; deploy dev di luar jendela B6 lalu satu run manual terukur; run terjadwal
+    berikutnya sebagai bukti kedua.
 
 ## SCREENER — EDGE Screener dari prototipe `screener EDGE layout.html` (go 2026-10-28; dieksekusi di EXEC.md EXEC-SCREENER)
 
