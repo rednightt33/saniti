@@ -100,8 +100,8 @@ export default defineRailway(() => {
   });
   const terminalPublisher = service("terminal-publisher", {
     replicas: { "sfo": 1 },
-    deploy: { restartPolicyType: "NEVER" },
-    env: { TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_PUBLISHER_DATABASE_URL: preserve(), TERMINAL_PUBLISHER_DB_PASSWORD: preserve(), TERMINAL_PUBLISH_MODE: preserve(), TERMINAL_YEARS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
+    deploy: { cronSchedule: "0,30 0,12 * * *", restartPolicyType: "NEVER" },
+    env: { TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_PUBLISHER_DATABASE_URL: preserve(), TERMINAL_PUBLISHER_DB_PASSWORD: preserve(), TERMINAL_PUBLISH_MODE: preserve(), TERMINAL_RUN_TIMES_WIB: preserve(), TERMINAL_YEARS: preserve() },
   });
   const telegramTrigger = service("telegram-trigger", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-trigger" }),
@@ -186,7 +186,14 @@ export default defineRailway(() => {
   const backtestWorker = service("backtest-worker", {
     build: { buildEnvironment: "V3", builder: "RAILPACK" },
     replicas: { "sfo": 1 },
-    env: { BACKTEST_CACHE_BYTES: preserve(), BACKTEST_DOWNLOAD_CONCURRENCY: preserve(), BACKTEST_DOWNLOAD_RETRIES: preserve(), BACKTEST_FILE_ORIGIN: preserve(), BACKTEST_FLOW_ENABLED: preserve(), BACKTEST_HTTP_TIMEOUT_MS: preserve(), BACKTEST_MAX_BROKER_ROWS: preserve(), BACKTEST_MAX_CONDITIONS: preserve(), BACKTEST_MAX_DOWNLOAD_BYTES: preserve(), BACKTEST_MAX_FILE_BYTES: preserve(), BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_RETRY_BASE_MS: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
+    env: { BACKTEST_CACHE_BYTES: preserve(), BACKTEST_CACHE_DIR: preserve(), BACKTEST_CACHE_DIR_BYTES: preserve(), BACKTEST_DOWNLOAD_CONCURRENCY: preserve(), BACKTEST_DOWNLOAD_RETRIES: preserve(), BACKTEST_FILE_ORIGIN: preserve(), BACKTEST_FLOW_ENABLED: preserve(), BACKTEST_HTTP_TIMEOUT_MS: preserve(), BACKTEST_MAX_BROKER_ROWS: preserve(), BACKTEST_MAX_CONDITIONS: preserve(), BACKTEST_MAX_DOWNLOAD_BYTES: preserve(), BACKTEST_MAX_FILE_BYTES: preserve(), BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_RETRY_BASE_MS: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
+  });
+  // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): created empty, variables set, then its source (runbook 7e)
+  const screenerWorker = service("screener-worker", {
+    healthcheck: "/ready",
+    healthcheckTimeout: 300,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS", limitOverride: { containers: { memoryBytes: 2750000000 } } },
   });
   const edgeBff = service("edge-bff", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),
@@ -196,7 +203,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), BACKTEST_WORKER_URL: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_MAX_RESULT_BYTES: preserve() },
+    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
   const aiDataCoverage = service("ai-data-coverage", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
@@ -231,6 +238,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, terminalPublisher, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, terminalApi, feature04Worker, Postgres, stockbitUpdater, backtestWorker, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, stockbitUpdaterVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, terminalDisplay, marketAiAuditArtifacts],
+    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, terminalPublisher, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, terminalApi, feature04Worker, Postgres, stockbitUpdater, backtestWorker, screenerWorker, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, stockbitUpdaterVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, terminalDisplay, marketAiAuditArtifacts],
   });
 });
