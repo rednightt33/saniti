@@ -3272,7 +3272,7 @@ change yet.
 - **Solution:** the queue check counts only users' waiting jobs (`waitingUsers`, `pool.ts:249-251`); the system lane is
   still never refused. Test: `tests/pool.test.ts` "the queue is bounded: beyond SCREENER_QUEUE waiting requests the
   answer is 409 BUSY" (`:62-79`): three waiting system jobs never make a user `BUSY`; it fails without the fix.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a limit stated for users counts users' requests only, and its test runs with the service's own work
   waiting.
 
@@ -3291,7 +3291,7 @@ change yet.
   no download, no recompute, no swap; only published_at advances (6d.2)" (`:146`): a run after the advance names the new
   `published_at` with the same rows, and the catalog's presets keep their counts. A run in flight across the advance is
   M270.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** everything a cached answer carries is part of its key, or the entry is dropped when that part changes.
 
 ### M266 — Screener core: `UNIVERSE_DEFAULTS` failed the worker's strict type check (TS2352) (2026-10-28)
@@ -3328,7 +3328,7 @@ change yet.
   and volspike(20) within 7 at `:93-94`, which failed before the fix): an ex-date on the first bar read leaves the cell
   unmarked, one bar later marks it. The oracle (240 seeds in the suite, 3,000 by hand) and 60 seeds on the real price
   history agree with the core.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a lookback is derived from what each form reads: a pattern's window already holds its bar before, a
   cross's sides do not.
 
@@ -3345,7 +3345,7 @@ change yet.
   (`apps/edge-bff/screener/src/core/transforms.ts:310, 317`). Test: `tests/core/lookback.test.ts` "a window-class
   pattern reads exactly its stated window" (`:33-38`): for every window-class pattern, the last-bar signal on its last
   `window` bars equals the full-history one, and on `window - 1` bars it never fires.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a stated window is proven by a cut probe (equal on `window` bars, never firing on `window - 1`), not
   written by hand.
 
@@ -3366,7 +3366,7 @@ change yet.
   `price_through` one session before the newest bar is refused; on the newest bar or later the file loads.
 - **Not covered:** the publisher can still write such a publication; the worker refuses it and serves the previous
   snapshot until the next one.
-- **Status:** FIXED on the Screener branch at the reader (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch at the reader (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a reader checks the invariants its consumers assume about a file another service writes, and refuses the
   file, not the request.
 
@@ -3383,7 +3383,7 @@ change yet.
   (`task.data === s.desc.data`, `server.ts:401-404`; the preview keeps the reference, `:471, 478`); it is still sent to
   its caller. Test: `tests/refresh.test.ts` "a screen still computing when the same files advance the publication is
   never cached under the newer one: …" (`:177-199`), which asserts that the run was in flight across the advance.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** an invalidation is matched by a check at the write: a result computed before it is never stored after it.
 
 ### M271 — Screener core: a switched-off condition skipped the binding's shape checks (2026-10-29)
@@ -3400,7 +3400,7 @@ change yet.
   decision not there yet) is tolerated, and the test still normalizes without the binding, with the same hash on and off
   (`validate.ts:294-302`). Test: `tests/core/validate.test.ts` "a shape the binding refuses is refused on or off, with
   the same field …" (`:218`), with the cases that must still pass (flow and Ichimoku switched off are kept).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** switching a condition off may defer what waits for data, never the check of its shape.
 
 ### M272 — screener-worker: a default-only screen read every ticker's bars and made a `Calc` per request (2026-10-29)
@@ -3419,7 +3419,7 @@ change yet.
   is computed once per request. Effect (LOCAL): 17 and 62 CPU ms, counts 0.85 s. Tests:
   `apps/screener-worker/tests/views.test.ts` (`:43` the mask equals the core's scan for every ticker, field set and bar;
   `:60` a pre-warmed screen makes no price column and answers as the plain-array path does).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a stage the design states as a lookup is tested as one: it reads no input.
 
 ### M273 — screener-worker: a request kept every survivor's computed outputs and ran out of memory (2026-10-29)
@@ -3434,7 +3434,7 @@ change yet.
   (`apps/screener-worker/src/run.ts:213-234`; `TickerView.release`, `snapshot.ts:357`); the same screen ran within
   400 MB. Test: `tests/views.test.ts` "a request releases the Calc of the tickers that fall out of its LRU (CALC_KEEP):
   …" (`:79`).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a memory bound is tested by what stays reachable, not by the size of the structure it trims.
 
 ### M274 — screener-worker: `return_rank` was computed on every request (2026-10-29)
@@ -3449,7 +3449,7 @@ change yet.
   `XSECTION_KEEP` (16) windows (`apps/screener-worker/src/snapshot.ts:451-466`; `run.ts` `xsectionValues`). Test:
   `tests/views.test.ts` "return_rank (stage S1) is computed once per thread and snapshot by the core's functions: …"
   (`:96`): the same ranks as `screen.ts` computes, and no column read on the next request.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** an optional hook the design relies on is asserted in the host's tests, by what the host no longer reads.
 
 ### M275 — screener-worker: the counts cache had no bound (2026-10-29)
@@ -3462,7 +3462,7 @@ change yet.
 - **Class:** a cache keyed by what users send, with no bound.
 - **Solution:** `CountsCache` (`server.ts:130-149`): at most `COUNTS_KEEP` (50,000 entries, about 18 MB), least recently
   used out, the presets' counts pinned, a snapshot dropping its own. Test: `tests/counts_cache.test.ts` (`:8`).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** every cache keyed by user input has a bound and a test of it.
 
 ### M276 — screener-worker: thread heaps had no bound, above the replica's memory limit (2026-10-29)
@@ -3479,7 +3479,7 @@ change yet.
   500 `OUT_OF_MEMORY`) and is started again. Effect (LOCAL, after M272-M275): end RSS 2.75 -> 1.81 GB, refresh peak
   2.06 -> 1.46 GB, cold-start peak 1.40 -> 0.89 GB. Tests: `tests/heap.test.ts` (`:27, 34, 48`). The value 512 and a
   2.75 GB replica limit are LOCAL proposals for the user's decision (`BENCHMARK_LOCAL.md` §8).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending, and the deploy must set the new
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29), and the deploy must set the new
   required variable.
 - **Lesson:** memory is bounded per thread inside the platform's limit, from measured peaks, as a required setting.
 
@@ -3493,7 +3493,7 @@ change yet.
 - **Solution:** a column becomes a plain data property after its first read
   (`apps/screener-worker/src/snapshot.ts:318-325`): pre-warm 21.1-21.9 s, custom RSI p50 279-293 ms. Covered by
   `tests/typed_views.test.ts` (`:15`, F bit-identical on the views) and `tests/views.test.ts`.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a value made lazily on a hot path replaces its getter once it exists.
 
 ### M278 — Screener registry: `cost_class` came from wall-clock timing; `registry:check` failed under load (2026-10-29)
@@ -3526,7 +3526,7 @@ change yet.
   cost probe jumps at random" (`:37`) and the opt-in `REGISTRY_LOAD_TEST=1` "is current in 5 of 5 checks under full
   synthetic CPU load" (`:48`, passed at load about 13). Every probe mutant (timed work, no margin, no tier, flat sum,
   meter started late, …) is killed by a test.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (with screener-worker, whose
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29) (with screener-worker, whose
   start-up check compares the registry's source hashes).
 - **Lesson:** a field of a generated artefact is derived from a count, never from a time measurement, and a run with a
   noisy clock proves it.
@@ -3591,7 +3591,7 @@ change yet.
   contract code `:264`; the production path through `liveApi` `:278`); the Chromium smoke asserts the card's place,
   parameter, range and fix (`tests/smoke/smoke.mjs:126`). The words of the catalog rules themselves belong to their
   owners (`limitEntries`, edge-bff `own_limits`), reworded by the plain-words follow-up.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a refusal on the page is worded from the gate's published rule and fix, not from the code, so a limit the
   page has never seen is still worded right.
 
@@ -3615,7 +3615,7 @@ change yet.
   saved screen's card (not the page's, not its place in the request) and the fix" (`:293`) and "a saved screen
   duplicated (PUT items, validated again by edge-bff) is worded on the copy's cards, not the page's" (`:328`), each with
   a real core refusal.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a refusal is worded on the definition its request carried.
 
 ### M282 — Screener page: `INVALID_CONDITION` showed the server's message ahead of its structured reason (2026-10-29)
@@ -3632,7 +3632,7 @@ change yet.
   other wire values (kinds, keys, ids) keep the server's reason. Now: "Condition 1 (Volume Weighted Average Price),
   Anchor is not valid: use one of Week, Month, Quarter, Year. Change it and run again." Test:
   `tests/page/refusals.test.ts` "INVALID_CONDITION as the worker sends it: …" (`:188`).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a page's refusal test uses the body the server really sends.
 
 ### M283 — Screener page: `SERVICE_UNAVAILABLE` and a counts entry's `INTERNAL_ERROR` read as generic text (2026-10-29)
@@ -3650,7 +3650,7 @@ change yet.
 - **Solution:** both are worded as a server error: "EDGE could not complete this request because of a server error;
   retry shortly." (`apps/edge-bff/screener/src/texts.ts:298`). Tests: `INTERNAL_ERROR` in the every-code test
   (`tests/page/refusals.test.ts:264`) and a test of the counts entry (`:348`).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** the codes a page words are taken from what each route can send, entries included.
 
 ### M284 — Screener page tests: the plain-words check let internal words through (2026-10-29)
@@ -3684,7 +3684,7 @@ change yet.
   reads "This page sent a request the screener does not accept (the page is probably out of date after an update).
   Reload the page and try again." Test: `tests/page/refusals.test.ts` "INVALID_INPUT of a field the page fills itself:
   …" (`:212`): 11 envelope fields from the real refusal sites against 4 user fields.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a refusal asks the user to change only what the user can change; for what the page sent itself, it says to
   reload.
 
@@ -3736,7 +3736,7 @@ change yet.
   bundles are byte-identical before and after.
 - **Not covered:** backtest-worker and screener-worker read reference files without checking the announced sha256 (Phase
   2/3), and the Backtest page asks no new `/bundle` on a failed check.
-- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29)
   (edge-bff from `main`, page only).
 - **Lesson:** every reader of a published file checks the announced size and sha256 on every use, downloaded or cached,
   refuses an announcement it cannot check, and takes that rule from one shared module per build unit; a new reader is
@@ -3803,7 +3803,7 @@ change yet.
   interpreter under uvicorn's LOGGING_CONFIG: the INFO line reaches stderr once; with a root handler set up first, no
   second copy).
 - **Status:** FIXED on the Screener branch for `edge_bff.backtest` (EXEC-MU-RUNTIME, merged into it; reaches `main` with
-  it); deploy pending. OPEN for the other `edge_bff.*` loggers: the owning layer is edge-bff's start-up (`app/main.py`
+  it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29). OPEN for the other `edge_bff.*` loggers: the owning layer is edge-bff's start-up (`app/main.py`
   `create_app`, one handler on the `edge_bff` logger; the `backtest.py` guard then adds none).
 - **Lesson:** a log line is evidence only once it has been seen in the service's own log: when a line is added, check
   that the deployed process writes it (logger level and handler), not only that the code calls it.
@@ -3848,7 +3848,7 @@ change yet.
   too, …" (`:272`) and "an added asset's Flow Timeline retried …" (`:282`): the first two fail on the code before the
   fix, the fourth when the `onto` branch is removed; `tests/smoke/integrity.mjs` adds 3 Chromium checks, the third
   failing on the build before the fix.
-- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29)
   (with T7, edge-bff page only).
 - **Lesson:** a retry or refresh that replaces part of a view puts the new part on the view's own axis (its sessions),
   not on the axis of the answer it came from.
@@ -3897,7 +3897,7 @@ change yet.
   other value, None for none; used by both lines (`:235, 1297`). Test:
   `apps/edge-bff/tests/test_backtest.py::test_a_measurement_line_never_carries_an_unchecked_mode` (`:2175`; a
   2,000-character mode, an object mode, none): it fails before the fix.
-- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** a log field taken from a request is a checked value or a class of it, never the value as sent.
 
 ### M295 — EXEC-MU-RUNTIME: a cancelled signals preview was logged as `outcome: ok` (2026-10-29)
@@ -3912,7 +3912,7 @@ change yet.
   (`apps/edge-bff/app/backtest.py:1224`). Test:
   `apps/edge-bff/tests/test_backtest.py::test_a_cancelled_preview_is_logged_as_cancelled_not_ok` (`:2192`; the owner's
   place is freed): it fails before the fix.
-- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending.
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson:** an outcome field defaults to nothing and is set where the outcome is known.
 
 ### M296 — EXEC-MU-RUNTIME: a test PostgreSQL in the scratchpad dies when `/tmp/claude-0` returns to 0700 (2026-10-29)
@@ -3998,7 +3998,7 @@ change yet.
   leaks all fail it; `apps/edge-bff/tests/test_screener.py:354` holds `own_limits()` equal to the page tests' copy;
   `tests/page/forms.test.ts` "names a kept card by the catalog's name of what it reads …" (seven references besides the
   observed one, every transform-based catalog metric in two kept forms, the user's label first).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (screener-worker and edge-bff).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29) (screener-worker and edge-bff).
   Left as they are, open for a wording decision: "prototype" in 8 strings (EDGE users are external, P29) and the
   browser's indicator detail tag (`browser.ts` `e.xid`, the prototype's design); the CSV keeps its remark codes by
   design (report 9.6).
@@ -4051,7 +4051,7 @@ change yet.
   and keeps only its own counts (`:310-311`, the `finished_at` guard); test `availability.test.ts:89` `presetsFollow`
   reads the catalog document synchronously after each advance (fails without the re-derivation every run; without the
   guard, timing-dependent: 1 run of 3).
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (screener-worker and edge-bff).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29) (screener-worker and edge-bff).
   OPEN, not changed: a file in the worker's list is required in the index (refresh rule 2), so a Phase 2 file needs an
   optional-file rule before it joins the list (`SCREENER_ONBOARDING.md` 2.3 L5, L12).
 - **Lesson:** a reader advertises only what it can read: derive availability from the intersection of what the
@@ -4090,7 +4090,7 @@ change yet.
   first build pass), `:185` (each review problem), `tests/core/registry-check.test.mjs:49` (`--check --against` a
   registry where a derived-O(N) parameter was O(N·n): exit 1 with the refusal; where a derived-O(N·n) one was O(N):
   current; `--against` without `--check`: exit 2, nothing written); double `tests/core/cost-doubles.mjs:74`.
-- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (with screener-worker, whose
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deployed on dev 2026-10-29 (PR #42; RAILWAY_CHANGELOG 2026-10-29) (with screener-worker, whose
   start-up check compares the registry's source hashes). The blind spot itself stays (M279; an instrumented probe
   remains the user's choice); this makes it visible and reviewed instead of silent.
 - **Lesson:** a derived field that guards cost or safety is compared with its committed value at every regeneration,

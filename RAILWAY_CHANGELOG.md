@@ -5103,3 +5103,22 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   `/state` `finished_at` 12:59:56, `price_through` 2026-10-29, both xsection files granted to the gateway key and
   downloaded with the indexed sha256 and size; `verification/backtest/e2e_dev.py --skip-page --only single` passed with
   catalog `data_through` 2026-10-29 (job `bt_afdccaaaa418f4bf1e84b194db49334c`); `/terminal-app/` 200.
+
+## 2026-10-29 — screener-worker `7a961374` and edge-bff `8191fff7`: the Screener is on in dev (EXEC-SCREENER Phase 1)
+
+- **screener-worker (runbook 7e):** `.railway/railway.ts` gained the service's GitHub source (repository root),
+  Dockerfile `apps/screener-worker/Dockerfile`, its watch paths and its 29 variables as `preserve()` (checked equal to
+  `config.ts`, ENV_OK). Pinned plan (sha256 `453e97d45a35f5ef1e8c579411509e468e5b5a7b14d67642e0b15c28f0358f15`, read line by
+  line: only screener-worker's source and build) applied at 13:21 UTC, after the publisher window. It deployed `main`
+  `5c12216` (two Terminal commits after `b841a45`, none in the worker's inputs). SUCCESS 13:23 UTC through `/ready`;
+  start line `screener_engine` `86839fc327abfebb` (equal to the local computation), registry `b6a8dc0ba206ed65`, screener
+  registry `638ee5ea6bbf05b5`, Node 22; first refresh on the 12:59:56 publication: 845 tickers, 844 stocks, 1,332,376
+  bars, files granted on its service key, 42.4 s, RSS 0.66 GB, then swap; no error line.
+- **edge-bff (runbook 9):** `SCREENER_WORKER_URL` (the private endpoint), `SCREENER_WORKER_KEY` (the reference
+  `${{screener-worker.SCREENER_WORKER_KEY}}`, checked equal in memory) and `SCREENER_TIMEOUT_SECONDS` 20, each
+  `--skip-deploys`, then `serviceInstanceDeployV2` of `main` `5c12216`: deployment `8191fff7`, SUCCESS 13:26 UTC.
+- **Verified (verification/screener/LIVE_CHECK_DEV.md):** the page in Chromium (cold 1.62 s to first results, warm 1.15 s,
+  a preset run 0.53 s, an edited custom run 1.10 s, a preview 0.49 s); four screens through the API equal to Feature 04
+  on each ticker's last bar (match sets equal apart from bond yields, values within 4.34e-12); backtest-worker unchanged.
+- Rollback: delete edge-bff's `SCREENER_WORKER_KEY` and `SCREENER_TIMEOUT_SECONDS` (`--skip-deploys`), then
+  `SCREENER_WORKER_URL` (redeploys; the page answers `SCREENER_DISABLED`); `railway down -s screener-worker`.

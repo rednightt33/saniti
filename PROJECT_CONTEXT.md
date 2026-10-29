@@ -64,6 +64,12 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - Dashboard: <https://railway.com/project/8aef1702-030b-49cb-9df7-5ac2e0a42691?environmentId=4d3e5af2-302b-4a2e-84e2-7d7476d6ff49>
 - GitHub: <https://github.com/rednightt33/saniti>
 
+- EDGE services (IDs read with `railway status --json`, 2026-10-29): edge-bff `c3656044-2817-44a7-9b55-54910bab416f`;
+  terminal-api `ba235c68-d3f5-400c-9bb3-a774b9c47a32`; terminal-publisher `523a3135-16dc-458d-b8c7-f4f666736880`;
+  backtest-worker `9156a5c3-c8a4-49b8-9172-ea6eb95157d2`; screener-worker `bad6feef-aba6-4520-b0ad-8be4ed093f1c` (private
+  `screener-worker.railway.internal:8080`, GitHub `main` with the repository root as build context); orc-test-runner
+  `09358b92-09d4-4da2-b547-bf8f621e226c`.
+
 Always scope Railway CLI calls with these explicit IDs. Do not rely on an unrelated locally linked project.
 
 ### Service sources and deployment isolation
