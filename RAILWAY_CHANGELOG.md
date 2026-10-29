@@ -5122,3 +5122,19 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   on each ticker's last bar (match sets equal apart from bond yields, values within 4.34e-12); backtest-worker unchanged.
 - Rollback: delete edge-bff's `SCREENER_WORKER_KEY` and `SCREENER_TIMEOUT_SECONDS` (`--skip-deploys`), then
   `SCREENER_WORKER_URL` (redeploys; the page answers `SCREENER_DISABLED`); `railway down -s screener-worker`.
+
+## 2026-10-29 — edge-bff `2064404c` (EXEC-TERMINAL-UNDO-INV-WHEEL)
+
+- Service edge-bff, environment dev, from GitHub `main` `6bd41c3` (auto-deploy). Status SUCCESS. `main` already held the
+  Screener merge `b841a45`, deployed before as `96346c1f`.
+- Change: Terminal front-end only (undo for indicator settings; Broker inventory chips in three columns and its count badge;
+  Shift + wheel pans the chart). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-Cf28Q5Tj.js`, the same build checked locally.
+
+## 2026-10-29 — edge-bff `ddf3d6b5` (EXEC-TERMINAL-TOPSPLIT-2)
+
+- Service edge-bff, environment dev, from GitHub `main` `bab40dd` (auto-deploy). Status SUCCESS.
+- Change: Terminal stylesheet only (Top brokers Foreign part no longer under the solid fill). No variable, database or
+  other service changed.
+- Verified: the live `/terminal-app/` serves `assets/style-Dq-8w5nn.css` (the local build's) with the new rule, and the same
+  `assets/index-Cf28Q5Tj.js` as before.

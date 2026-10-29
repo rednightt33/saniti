@@ -2,6 +2,7 @@
 Serves the built page at /terminal-app/ and answers the routes live.ts calls with synthetic columnar files of the same
 shape as the rack's. Usage: python mock_server.py <dist dir> <port>"""
 import datetime as dt
+import hashlib
 import json
 import math
 import random
@@ -57,6 +58,20 @@ def ref(name):
     return {'columns': ['ticker', 'sha256'], 'ticker': [], 'sha256': []}
 
 
+CACHE = {}
+def body(p):
+    # the bytes of a mock file, built once (their sha256 and size go into /bundle, as terminal-api announces them)
+    if p not in CACHE:
+        if p.startswith('/mock/ref/'): doc = ref(p.rsplit('/', 1)[1])
+        elif p.startswith('/mock/price/'): doc = price_doc(p.rsplit('/', 1)[1])
+        else: _, _, _, t, y = p.split('/'); doc = broker_doc(t, y)
+        CACHE[p] = json.dumps(doc).encode()
+    return CACHE[p]
+def ref_of(url):
+    b = body(url.split(str(PORT), 1)[1])
+    return {'url': url, 'sha256': hashlib.sha256(b).hexdigest(), 'bytes': len(b)}
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
@@ -71,11 +86,8 @@ class H(BaseHTTPRequestHandler):
             f = DIST / 'assets' / p.rsplit('/', 1)[1]
             return self.send(200, f.read_bytes(), 'text/javascript' if f.suffix == '.js' else 'text/css') if f.is_file() else self.send(404, {})
         if p == '/api/v1/auth/session': return self.send(200, {'csrf_token': 't'})
-        if p.startswith('/api/terminal/v1/reference/'): return self.send(200, {'url': f'http://127.0.0.1:{PORT}/mock/ref/' + p.rsplit('/', 1)[1]})
-        if p.startswith('/mock/ref/'): return self.send(200, ref(p.rsplit('/', 1)[1]))
-        if p.startswith('/mock/price/'): return self.send(200, price_doc(p.rsplit('/', 1)[1]))
-        if p.startswith('/mock/broker/'):
-            _, _, _, t, y = p.split('/'); return self.send(200, broker_doc(t, y))
+        if p.startswith('/api/terminal/v1/reference/'): return self.send(200, ref_of(f'http://127.0.0.1:{PORT}/mock/ref/' + p.rsplit('/', 1)[1]))
+        if p.startswith('/mock/'): return self.send(200, body(p))
         return self.send(404, {'error': 'NOT_FOUND'})
 
     def do_POST(self):
@@ -84,8 +96,8 @@ class H(BaseHTTPRequestHandler):
             t = body['ticker']; base = f'http://127.0.0.1:{PORT}/mock'
             years = sorted({d[:4] for d in DAYS})
             out = {'datasets': {
-                'price': {'files': [{'url': f'{base}/price/{t}', 'pack': 'all'}], 'data_through': DAYS[-1]},
-                'broker': {'files': [] if t == 'IHSG' else [{'url': f'{base}/broker/{t}/{y}', 'year': y} for y in years], 'data_through': None if t == 'IHSG' else BROKER_THROUGH},
+                'price': {'files': [{**ref_of(f'{base}/price/{t}'), 'pack': 'all'}], 'data_through': DAYS[-1]},
+                'broker': {'files': [] if t == 'IHSG' else [{**ref_of(f'{base}/broker/{t}/{y}'), 'year': y} for y in years], 'data_through': None if t == 'IHSG' else BROKER_THROUGH},
                 'events': {'files': []}}}
             return self.send(200, {'ticker': t, 'datasets': {k: v for k, v in out['datasets'].items() if k in body['datasets']}})
         return self.send(404, {})

@@ -2907,6 +2907,20 @@ change yet.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
 - **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
+### EXEC-TERMINAL-TOPSPLIT-2 — bar Top brokers terlihat Domestic semua (2026-10-29)
+
+- **User:** screenshot jendela Top brokers TOBA, semua bar solid: "Sepertinya belum ada warna gradient ya, porsi foreign
+  dan domestic".
+- **Verified cause:** `.pw-acc .trk.buy .fill` / `.pa-row .trk.buy .fill` (warna isi bar lama, 4 kelas) lebih spesifik dari
+  `.trk .fill.split{background:none}` (3 kelas): latar hijau/merah penuh tetap ada di belakang bagian Foreign yang pudar,
+  jadi bar terlihat solid. Data dan pembagian benar (kolom investor Foreign/Domestic).
+- **Solution:** `.pa-row .trk .fill.split,.pw-acc .trk .fill.split{background:none}`.
+- **Bukti:** warna piksel bagian bar (lokal, `assets_check/top_colors.mjs`): Domestic 8,153,129 / 242,54,69, Foreign
+  142,203,193 / 241,162,168, di panel dan jendela; piksel fixture 0 px.
+- **Pelajaran:** cek tampilan dengan warna piksel, bukan hanya struktur DOM; tes EXEC-TERMINAL-TOPSPLIT hanya membaca
+  elemen `<i>` dan lolos.
+- **Status:** RESOLVED; live sejak edge-bff `ddf3d6b5` (`main` `bab40dd`).
+
 ### EXEC-TERMINAL-LAG — drag chart utama lambat; crosshair Broker inventory hilang saat di-hover (2026-10-29)
 
 - **User:** "Cross hair di broker inveotry tidak ada kalau kita hover langsung ke broker inventory"; "slide cross hair di

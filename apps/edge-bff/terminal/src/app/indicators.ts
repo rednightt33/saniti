@@ -517,7 +517,17 @@ export function initIndicators(ctx: Ctx) {
     const close = keep => {
       if(keep && !check()) { tab = 'Inputs'; paint(); return }   // keep the dialog open until the inputs are valid
       closeCpop();
-      if(!keep) { restore(); recompute(inst) } else save();
+      if(!keep) { restore(); recompute(inst) }
+      else {
+        save();
+        /* EXEC-TERMINAL-UNDO (user 2026-10-29: "saya tweak parameternya ... fungsi control set adalah meng-undo parameter yang
+           saya tweak"): Ok with changed inputs or style is one step of the chart's undo timeline (Ctrl/Cmd+Z, redo Ctrl+Y) */
+        const after = JSON.stringify({ p:inst.params, s:inst.style });
+        if(after !== snap) {
+          const set = (json: string) => { if(!list.includes(inst)) return; const o = JSON.parse(json); inst.params = o.p; inst.style = o.s; recompute(inst); save() };
+          Hist.push({ undo:() => set(snap), redo:() => set(after) });
+        }
+      }
       back.hidden = true; document.removeEventListener('keydown', onKey, true); openFor = null; inst.row.querySelector('[data-act="cfg"]').focus();
     };
     const onKey = (e: any) => {

@@ -8920,3 +8920,26 @@ backtest, and screener. While at the same time, terminal, backtest, dan screener
   backtest-worker `e3c07b59` pada kunci layanannya sendiri dengan baris waktu Tahap 0; screener-worker pada kuncinya
   sendiri; edge-bff dengan T7. Belum: Tahap 2 (Backtest) dan 3 (Terminal) menunggu rencana; PUBLISHER-SPEED (PLAN.md)
   diajukan besok; pengukuran `?perf=1` dari Indonesia oleh user.
+
+## EXEC-TERMINAL-UNDO-INV-WHEEL — undo parameter indikator, chip dan badge Broker inventory, Shift+scroll (2026-10-29)
+
+User 2026-10-29: "Kadang bisa dua row, dua kolom. Kadang bisa satu row, tiga kolom ... jumlah kolom harus konsisten";
+"batch 3/5 dikasih batch juga"; "saya menambahkan indikator kemudian ... men-tweak parameternya. Saya mau fungsi control
+set adalah meng-undo parameter yang saya tweak"; "kalau saya hold shift and then I scroll the mouse maka fungsinya akan
+menjadi horizontal scroll. Di main chart".
+- Undo: Ok di dialog pengaturan indikator dengan input/style berubah = satu langkah undo (Ctrl/Cmd+Z), redo Ctrl+Y /
+  Ctrl+Shift+Z; tersimpan seperti biasa.
+- Broker inventory (panel, live): chip broker selalu grid 3 kolom (1 baris untuk ≤3 broker, 2 baris untuk 4–5); tombol ×
+  muncul saat hover supaya angka utuh; jumlah broker (3/5) jadi badge gelap seperti tanggal Broker summary.
+- Shift + scroll di chart (dan Flow Timeline) menggeser rentang waktu ke samping 8% per notch; scroll biasa tetap zoom.
+- Top brokers "hanya Domestic": kode dicek (kolom investor file = Foreign/Domestic, sama dengan filter); tidak ada
+  perubahan, menunggu contoh ticker dari user.
+- Infra: hanya front-end Terminal di edge-bff. Mock `assets_check/mock_server.py` kini mengirim sha256 dan ukuran file
+  (EXEC-MU-RUNTIME T7).
+
+## EXEC-TERMINAL-TOPSPLIT-2 — bagian Foreign Top brokers tertutup warna solid (2026-10-29)
+
+User 2026-10-29 (screenshot jendela Top brokers TOBA): "Sepertinya belum ada warna gradient ya, porsi foreign dan
+domestic".
+- Bar Top brokers (panel dan jendela) sekarang benar-benar dua warna: Domestic solid, Foreign pudar. Hanya CSS.
+- Infra: hanya front-end Terminal di edge-bff.
