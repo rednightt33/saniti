@@ -5065,3 +5065,27 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   One K3 trial added.
 - Rollback: `TERMINAL_PROXY_KEY` back to `${{terminal-api.TERMINAL_PROXY_KEY}}` and `deploymentRollback` of
   `292f7caa-009b-4cb1-b52d-8f9274c106ad` (both together restart once).
+
+## 2026-10-29 — screener-worker created empty, its variables set (EXEC-SCREENER P3 a; runbook 7a, 7c, 7d)
+
+- **7a IaC reconcile (no Railway change):** `.railway/railway.ts` gained by hand, each in its own service block, the four
+  live names the file lacked (terminal-publisher `TERMINAL_RUN_TIMES_WIB` and its cron `0,30 0,12 * * *`; backtest-worker
+  `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES`; edge-bff `EDGE_TERMINAL_URL`, `TERMINAL_PROXY_KEY`, all `preserve()`).
+  `railway config plan` then read "Your Railway configuration is already up to date." (CLI 5.71.0; the SDK finds the
+  CLI through `_`, RAILWAY_CHANGELOG 2026-10-21).
+- **7c:** the empty `screener-worker` block (healthcheck `/ready` 300 s, 1 replica in `sfo`, restart ALWAYS, memory limit
+  2.75 GB from `verification/screener/BENCHMARK_LOCAL.md` §8) committed, then a pinned plan
+  (`railway config plan --verbose --out`, sha256 `fe233042f16fa689bf73f433e5eb91ada24ea03116d3ce12cf3a5351f22279d6`, read
+  line by line: exactly `+ Create service screener-worker`, kind empty, severity safe, nothing destructive) applied at
+  10:36 UTC ("Applied pinned Railway configuration."). Service ID `bad6feef-aba6-4520-b0ad-8be4ed093f1c`; no source, no
+  deployment.
+- **7d variables** (`--skip-deploys`, names only here): the 29 names `apps/screener-worker/src/config.ts` reads, read back
+  equal to the code's list (VARS_OK). `SCREENER_WORKER_KEY` a new random 64-hex value through `--stdin`;
+  `TERMINAL_PROXY_KEY` the reference `${{terminal-api.TERMINAL_SERVICE_KEY_SCREENER_WORKER}}` (terminal-api `c6b1385a`
+  reads service keys); `TERMINAL_URL` the private terminal-api endpoint; `SCREENER_FILE_ORIGIN` piped from
+  backtest-worker's `BACKTEST_FILE_ORIGIN` (checked equal in memory, never printed); threads, heap, caches, downloads,
+  compute, fairness and answer limits at the README's LOCAL, provisional values (K 2, heap 512 MB, owner inflight 1, CPU
+  4500 ms, deadline 20 s); the file caps 24000000 / 150000000 / 24000000 and the disk budget 48000000 from the local
+  measurement of the same data, to be re-checked against the 12:00 UTC run's logged sizes.
+- Next: the source is attached (pinned plan, 7e) after the 12:00 UTC publisher run has written the first xsection index,
+  so `/ready` can pass within its 300 s.
