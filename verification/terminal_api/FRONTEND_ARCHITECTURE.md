@@ -267,3 +267,6 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   a direct hover, measures its plot once per drawing; asset panes pass range and crosshair to the chart only while the
   pointer is on them (`pane.over`) and never re-set an equal range; `flow.ts fmtDMY` is cached. Measure:
   `assets_check/perf_drag.mjs` with `mock_big.py` (3,200 sessions, 60 brokers).
+- EXEC-TERMINAL-UNDO-INV-WHEEL: an indicator's settings Ok pushes one undo entry (`indicators.ts` close); `#invLegend` is a
+  three-column grid with the count as `.rp-count`; Shift + wheel over `.chart-wrap` / `.bottom` pans the time range
+  (`chart.ts`, live). Checks: `assets_check/undo_inv_badge.mjs`, `shift_wheel.mjs`.

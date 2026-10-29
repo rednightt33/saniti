@@ -977,3 +977,13 @@ html.fit .rp-date{flex:0 0 auto;margin:0 auto;padding:3px 11px;border-radius:999
 .split-leg i{width:14px;height:7px;border-radius:2px;display:inline-block;background:linear-gradient(90deg,#089981 50%,#f23645 50%)}
 .split-leg i.f{opacity:.42}
 .acc-leg{margin-top:8px;padding-top:7px;border-top:1px solid var(--border)}
+/* EXEC-TERMINAL-INVBADGE (user 2026-10-29), live: Broker inventory chips in three equal columns (one row up to three
+   brokers, two rows for four or five), and its broker count as a dark badge like the Broker summary date */
+html.fit #invLegend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+html.fit #invLegend:empty{display:none}
+html.fit #invLegend .rp-chip{position:relative;min-width:0;gap:4px;padding:0 6px}
+html.fit #invLegend .rp-chip b{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the remove button shows over the value on hover or focus, so three chips fit the panel with their values whole */
+html.fit #invLegend .rp-chip button{position:absolute;right:2px;top:2px;background:var(--surface);opacity:0}
+html.fit #invLegend .rp-chip:hover button,html.fit #invLegend .rp-chip button:focus-visible{opacity:1}
+html.fit .rp-count{display:inline-block;padding:0 7px;border-radius:999px;background:var(--text);color:#fff;font-weight:500;line-height:1.6}

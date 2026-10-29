@@ -8911,3 +8911,19 @@ backtest, and screener. While at the same time, terminal, backtest, dan screener
   (`0,30 0,12 * * *` UTC) lalu berhenti; hanya `telegram-monitor` dan `telegram-trigger` yang tidur.
 - **Status 2026-10-28:** dimulai. Tahap 0 dan 1 dibangun di branch `mu-phase1` (worktree terpisah) agar tidak mengganggu build
   Screener yang sedang berjalan, lalu digabung ke branch Screener. Belum deploy.
+
+## EXEC-TERMINAL-UNDO-INV-WHEEL — undo parameter indikator, chip dan badge Broker inventory, Shift+scroll (2026-10-29)
+
+User 2026-10-29: "Kadang bisa dua row, dua kolom. Kadang bisa satu row, tiga kolom ... jumlah kolom harus konsisten";
+"batch 3/5 dikasih batch juga"; "saya menambahkan indikator kemudian ... men-tweak parameternya. Saya mau fungsi control
+set adalah meng-undo parameter yang saya tweak"; "kalau saya hold shift and then I scroll the mouse maka fungsinya akan
+menjadi horizontal scroll. Di main chart".
+- Undo: Ok di dialog pengaturan indikator dengan input/style berubah = satu langkah undo (Ctrl/Cmd+Z), redo Ctrl+Y /
+  Ctrl+Shift+Z; tersimpan seperti biasa.
+- Broker inventory (panel, live): chip broker selalu grid 3 kolom (1 baris untuk ≤3 broker, 2 baris untuk 4–5); tombol ×
+  muncul saat hover supaya angka utuh; jumlah broker (3/5) jadi badge gelap seperti tanggal Broker summary.
+- Shift + scroll di chart (dan Flow Timeline) menggeser rentang waktu ke samping 8% per notch; scroll biasa tetap zoom.
+- Top brokers "hanya Domestic": kode dicek (kolom investor file = Foreign/Domestic, sama dengan filter); tidak ada
+  perubahan, menunggu contoh ticker dari user.
+- Infra: hanya front-end Terminal di edge-bff. Mock `assets_check/mock_server.py` kini mengirim sha256 dan ukuran file
+  (EXEC-MU-RUNTIME T7).

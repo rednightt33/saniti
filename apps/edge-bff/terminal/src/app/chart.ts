@@ -263,4 +263,16 @@ export function initChart(ctx: Ctx) {
   const firstBars = ({ D:252, W:104, M:120 } as Record<string, number>)[ctx.M.tf || 'D'];
   chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
   ctx.resetRange = () => chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
+
+  /* EXEC-TERMINAL-SHIFTWHEEL (user 2026-10-29: "kalau saya hold shift and then I scroll the mouse maka fungsinya akan menjadi
+     horizontal scroll. Di main chart"), live: Shift + wheel over the chart or a Flow Timeline moves the time range sideways
+     (8% of the visible bars per notch, down = later) instead of zooming; the Flow charts follow the chart */
+  if (ctx.M.mode === 'live') document.querySelector('.main-col')?.addEventListener('wheel', (e: any) => {
+    if (!e.shiftKey || e.ctrlKey || e.metaKey || !e.target.closest('.chart-wrap, .bottom')) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; if (!d) return;
+    e.preventDefault(); e.stopPropagation();
+    const ts = chart.timeScale(), r = ts.getVisibleLogicalRange(); if (!r) return;
+    const step = Math.sign(d) * Math.max(1, (r.to - r.from) * .08);
+    ts.setVisibleLogicalRange({ from:r.from + step, to:r.to + step });
+  }, { capture:true, passive:false });
 }

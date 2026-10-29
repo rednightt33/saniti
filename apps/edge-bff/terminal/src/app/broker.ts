@@ -377,7 +377,8 @@ export function initBroker(ctx: Ctx) {
     if(!none){ invRange.bf = f; invRange.bt = t }                    // invSeries reads the period from invRange
     const n = none ? 0 : t - f + 1, all = none ? [] : picks.map(invSeries);
     const scope = [RS.invInv, RS.invBoard].filter(v => v !== 'All').join(' · ');      // F1: the filters in force
-    $('invHint').textContent = `${picks.length}/${INV_MAX}${scope ? ' · ' + scope : ''} · ${none ? 'no broker data in view' : invRange.text()}`;
+    // EXEC-TERMINAL-INVBADGE (user 2026-10-29: "batch 3/5 dikasih batch juga"): the count of brokers as a badge
+    $('invHint').innerHTML = `<span class="rp-count">${picks.length}/${INV_MAX}</span>${scope ? ' · ' + scope : ''} · ${none ? 'no broker data in view' : invRange.text()}`;
     const chips = (i = null) => picks.map((bk, k) => {
       const p = all[k] ? (i === null ? all[k].at(-1) : all[k][i]) : null, v = p ? p.cum : 0;
       return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${bk}<b class="${v>=0?'up':'down'}">${sgn(v)}</b><button type="button" data-rm="${bk}" aria-label="Remove ${bk}">×</button></span>`;
