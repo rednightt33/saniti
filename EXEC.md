@@ -8978,6 +8978,17 @@ berdasarkan inspeksi kode, log dan data live saat itu, bukan ingatan (AGENTS.md 
 
   Urutan: kode dan tes malam ini; deploy besok setelah run 07:30 WIB diperiksa (pengukuran pertama jalur tulis
   paralel tidak bercampur dengan perubahan ini).
+- **Status go lanjutan, 2026-10-29 malam:** kode dan tes selesai di branch, belum di-merge, belum di-deploy.
+  - `delete_replaced`: sesudah `state.json`, tunggu `TERMINAL_DELETE_AFTER_SECONDS` (600, minimal 300), lalu hapus
+    tepat kunci yang tidak disebut lagi oleh publikasi baru, tanpa listing. Dilewati bila run lain sudah terbit selama
+    jeda (`still_current`).
+  - Listing lengkap (`collect_garbage`) hanya di run 19:00 WIB (`TERMINAL_SWEEP_WIB`), dibatasi 300 s, per folder,
+    halaman 200 kunci, log per folder dan per halaman lambat; mode `cleanup` untuk run manual tanpa database.
+  - Tambahan dari inspeksi (di luar tiga butir, demi keamanan): pemeriksaan `state.json` sebelum hapus, karena run lain
+    yang terbit selama jeda bisa menyebut kunci lama lagi.
+  - Bukti: 120 tes lulus; 22 mutasi aturan baru masing-masing digagalkan tes
+    (`verification/terminal_api/publisher_speed/PUBLISHER_SPEED.md` bagian 7).
+  - Sisa: deploy dev setelah run 07:30 WIB 2026-10-30 diperiksa, lalu satu run terukur dan cek pembaca.
 
 **Persetujuan, 2026-10-29 (kata user):** "A alright", atas pilihan "Opsi A — Screener dinyalakan malam ini, perbaikan
 publisher besok"; sebelumnya: "Boleh lakukan pengecekan berapa lama proses publisher memindahkan data dari Postgres ke

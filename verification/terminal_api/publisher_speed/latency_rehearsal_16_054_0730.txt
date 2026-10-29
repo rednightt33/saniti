@@ -1,0 +1,4 @@
+{"event": "done", "mode": "daily", "files_planned": 6760, "files_written": 1657, "mb": 0.43, "tickers": 845, "seconds": 117.4, "broker_behind_sessions": 1, "xsection": ["actions", "price"], "xsection_failed": [], "refs": ["brokers", "logos", "tickers"], "refs_failed": [], "phases": {"plan": 29.2, "files": 26.0, "packs": 28.0, "xsection": 2.2, "manifests": 28.7, "refs": 2.7, "state": 0.5}, "threads": 16}
+{"event": "replaced_wait", "objects": 1657, "seconds": 600}
+{"event": "replaced", "objects": 1657, "deleted": 1657, "not_deleted": 0, "waited": 600, "seconds": 1.1}
+{"threads": 16, "latency": 0.54, "sweep": false, "seconds": 119.0, "to_state_json": 117.3, "written": 1657, "phases": {"plan": 29.2, "files": 26.0, "packs": 28.0, "xsection": 2.2, "manifests": 28.7, "refs": 2.7, "state": 0.5}, "replaced": 1657, "waited": [600], "requests": {"put": 2505, "get": 849, "list": 2, "delete": 2}}

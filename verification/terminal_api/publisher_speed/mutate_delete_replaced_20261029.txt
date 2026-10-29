@@ -1,0 +1,23 @@
+(baseline, no mutation)                          SURVIVED 120 passed in 6.04s
+no wait                                          KILLED 10 test_a_pack_that_differs_from_the_table_is_republished_from_the_slice, test_pruning_keeps_the_objects_of_the_previous_index, test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_stay_through_the_wait
+no floor                                         KILLED 1 test_the_wait_follows_its_variable_and_is_never_below_its_floor
+named keys not protected                         KILLED 1 test_a_key_the_new_publication_names_is_never_a_replaced_one
+index part dropped                               KILLED 11 test_pruning_keeps_the_objects_of_the_previous_index, test_a_bucket_that_cannot_list_or_delete_prunes_nothing_and_still_publishes, test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_stay_through_the_wait
+manifest part dropped                            KILLED 4 test_a_pack_that_differs_from_the_table_is_republished_from_the_slice, test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_stay_through_the_wait, test_an_unchanged_file_keeps_its_fixed_key_from_before_content_keys_and_a_change_retires_it
+held-manifest guard dropped                      KILLED 1 test_a_key_the_new_publication_names_is_never_a_replaced_one
+guard and reset both dropped                     KILLED 2 test_a_key_the_new_publication_names_is_never_a_replaced_one, test_a_publisher_used_again_after_a_failed_run_deletes_nothing_a_manifest_still_names
+reset after failure dropped                      KILLED 1 test_a_publisher_used_again_after_a_failed_run_deletes_nothing_a_manifest_still_names
+still_current dropped in delete                  KILLED 1 test_a_newer_publication_during_the_wait_keeps_the_replaced_files_for_a_later_cleanup
+still_current dropped in sweep                   KILLED 1 test_a_newer_publication_during_the_wait_keeps_the_replaced_files_for_a_later_cleanup
+sweep_due ignores manual                         KILLED 1 test_the_full_cleanup_runs_in_the_scheduled_evening_run_only
+sweep_due ignores mode                           KILLED 1 test_the_full_cleanup_runs_in_the_scheduled_evening_run_only
+sweep_due ignores time                           KILLED 1 test_the_full_cleanup_runs_in_the_scheduled_evening_run_only
+main ignores sweep_due                           KILLED 1 test_main_passes_the_sweep_to_the_run
+cleanup mode does nothing                        KILLED 1 test_the_cleanup_mode_needs_no_database_and_deletes_only_what_no_publication_names
+no MaxKeys                                       KILLED 1 test_the_listing_asks_small_pages_and_logs_each_folder_and_each_slow_page
+slow page never logged                           KILLED 1 test_the_listing_asks_small_pages_and_logs_each_folder_and_each_slow_page
+listed never logged                              KILLED 1 test_the_listing_asks_small_pages_and_logs_each_folder_and_each_slow_page
+retry request dropped                            KILLED 1 test_a_retried_request_names_itself_in_the_log
+indexed folders not listed                       KILLED 4 test_the_xsection_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_index_names_a_file, test_the_cleanup_lists_each_folder_and_the_indexed_files_their_prefix_only, test_ref_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_refs_index_names_a_file
+keep_manifest forgets reads                      KILLED 3 test_a_pack_that_differs_from_the_table_is_republished_from_the_slice, test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_stay_through_the_wait, test_an_unchanged_file_keeps_its_fixed_key_from_before_content_keys_and_a_change_retires_it
+wait before state.json skipped (delete first)    KILLED 10 test_a_pack_that_differs_from_the_table_is_republished_from_the_slice, test_pruning_keeps_the_objects_of_the_previous_index, test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_stay_through_the_wait
