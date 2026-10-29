@@ -7611,8 +7611,8 @@ Rencana pengganti L2 — **remark, bukan tolak** (lapisan: database, supaya seti
 - R4. Isi awal: R2 dijalankan sekali untuk semua tanggal yang ada (read-only terhadap data broker). Contoh yang
   diharapkan muncul: tanggal sejak 2026-09-01 tanpa simbol bukan 4 huruf (ERRORS M218).
 - R5. Pembaca remark: pesan Telegram `stockbit-updater` menyebut tanggal INCOMPLETE dan remarknya; `UPDATE_TABLE.md`
-  memeriksanya. Apakah AI juga menyebut remark di jawaban yang memakai tanggal itu: **pertanyaan terbuka untuk user**
-  (usulan: profil data bundle menyebut tanggal INCOMPLETE dalam rentang yang diminta).
+  memeriksanya. AI **tidak** menyebut remark (user 2026-10-29: "M217 tidak perlu AI menyebut remark. Selebihnya sudah
+  oke, khusus untuk M217."); orc, Governor dan profil data tidak diubah.
 - R6. Loader lama: jalur tulisnya dialihkan ke importir `stockbit-updater` atau dihapus. Larangan di `UPDATE_TABLE.md`
   bagian 2 dicabut sesudahnya.
 - Dokumen: migrasi baru, Table_Catalog/Column_Catalog, DATABASE_SCHEMA, DATABASE_CHANGELOG, Part A (aturan: setiap muatan
@@ -9087,7 +9087,7 @@ menerima rujukan yang dulu ditolak; ini hanya terjadi bila tepat satu kolom coco
 
 ## EXEC-C3 — petunjuk terarah untuk error tanggal di kode analisis (disetujui 2026-10-29, BELUM dijalankan)
 
-User 2026-10-29: "C3 oke, masukan exec." Eksekusi menunggu go. Asal: FUTURE_PLAN "Biaya run panjang" butir 3, run
+User 2026-10-29: "C3 oke, masukan exec.", lalu "Oke, untuk exec C3". Eksekusi dimulai setelah go yang jelas. Asal: FUTURE_PLAN "Biaya run panjang" butir 3, run
 `edge_8233fa7f6e2386bc368387b700838f1f` (iterasi 4 gagal `merge_asof` pada tanggal bertipe object, satu iterasi
 tambahan untuk memperbaikinya).
 
