@@ -598,7 +598,9 @@ class SandboxClient:
         # an approved need carried into a later request)
         self.supporting_data = False
         self.runtime_snapshot: dict[str, Any] | None = None
-        self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds, transport=transport,
+        from ..wake import transport as waking  # EXEC-U4: the sandbox sleeps when idle; a refused request wakes it
+        self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds,
+                                    transport=waking("Python sandbox", transport),
                                     headers={"Authorization": f"Bearer {api_key}"})
 
     def ready(self) -> bool:

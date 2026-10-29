@@ -9139,10 +9139,15 @@ Tidak termasuk: U1 (ditunda), EXEC-MCAP (sesi lain), PENDING-M204 P6–P8 (ditah
 ## EXEC-U4 — sandbox tidur saat diam, orc membangunkannya (disetujui dan go 2026-10-29)
 
 Rencana dan bukti: FUTURE_PLAN "U1 dan U4 — tinjauan ulang dan rencana implementasi" (inspeksi 2026-10-29). Ringkas:
-1. orc `app/wake.py`: sebelum panggilan ke sandbox (dan web-governor), bila kontak sukses terakhir lebih lama dari
-   ambang (240 s), `GET /ready` diulang dengan jeda 1, 2, 4, 8, 8 s sampai 30 s; POST tidak pernah diulang; gagal →
-   `SERVICE_WAKING`; log `downstream_wake`; progres `PROGRESS_SERVICES_WAIT`.
-2. Tes orc (gagal lalu siap, 502 lalu siap, anggaran habis, jalur hangat tanpa `/ready`).
+1. orc `app/wake.py` (desain akhir, diputuskan dari tes 2026-10-29): transport HTTP klien sandbox dan web-governor
+   dibungkus `WakeTransport`. Permintaan dikirim biasa; hanya bila koneksi ditolak (permintaan belum sampai ke layanan)
+   atau GET dijawab 502, orc memanggil `GET /ready` dengan jeda 1, 2, 4, 8, 8 s (total 23 s) sampai layanan menjawab
+   < 500, lalu mengirim permintaan itu sekali lagi. POST yang dijawab layanan tidak pernah dikirim ulang; jalur hangat
+   tanpa permintaan tambahan. Gagal sesudah semua jeda → galat lama "sandbox unreachable". Log `downstream_wake`;
+   progres `PROGRESS_SERVICES_WAIT`. Versi pertama (cek `/ready` sebelum setiap permintaan sesudah 4 menit diam)
+   ditinggalkan: menambah permintaan di jalur hangat dan 35 tes lama gagal karena sandbox tiruan tidak punya `/ready`.
+2. Tes orc `tests/test_wake.py` (POST ditolak lalu dikirim ulang, GET 502, POST 502 tidak diulang, jalur hangat,
+   tetap mati, web-governor); suite orc lengkap 2.070 lulus.
 3. Deploy orc SUCCESS, lalu `sleepApplication: true` untuk `market-python-sandbox`; `railway config pull/plan`;
    RAILWAY_CHANGELOG.
 4. Cek live: status `SLEEPING` dan `Stopping Container`; bangun lewat jaringan privat diukur.

@@ -40,6 +40,28 @@ def test_a_caller_reads_the_arguments_the_tool_validates() -> None:
     assert reg.arguments_of("unknown", {"data_need_spec": spec}) == {"data_need_spec": spec}
 
 
+class Typed(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    complete: bool | None
+    limit: int | None
+    tickers: list[str] | None
+
+
+def test_a_caller_reads_text_values_decoded_as_the_tool_reads_them() -> None:
+    """M304: arguments_of decodes text values exactly as execute does ("true", "20", a JSON list as text), on a copy,
+    so a backend check after the call reads what the tool ran with."""
+    reg = ToolRegistry()
+    reg.register(ToolSpec(name="typed", description="d", arguments_model=Typed,
+                          handler=lambda a: {"complete": a.complete, "limit": a.limit, "tickers": a.tickers}))
+    raw = {"complete": "true", "limit": "20", "tickers": json.dumps(["BBCA", "BBRI"])}
+    ran = reg.execute("c1", "typed", json.dumps(raw)).output["result"]
+    read = reg.arguments_of("typed", raw)
+    assert read == ran == {"complete": True, "limit": 20, "tickers": ["BBCA", "BBRI"]}
+    assert raw["complete"] == "true"  # the caller's object is not changed
+    # a text that is not the expected type stays text (the tool refuses it, and the reader sees the same text)
+    assert reg.arguments_of("typed", {"complete": "yes", "limit": None, "tickers": None})["complete"] == "yes"
+
+
 def test_anything_else_is_refused_as_before() -> None:
     reg = registry()
     assert not reg.execute("c1", "submit", json.dumps({"mode": "A", "data_need_spec": {"mode": "A",
