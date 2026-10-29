@@ -5004,3 +5004,15 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
 - Rollback: `deploymentRollback` of `b8b51052-f2e5-4426-9c43-cd1dcd70d5a4` (the PR #41 build), or a CLI upload of
   `git archive 6051f4d apps/terminal-publisher`; the next run then writes `state.json` without `xsection` and `refs`, and
   every reader stays valid.
+
+## 2026-10-29 — terminal-api variables and healthcheck for EXEC-MU-RUNTIME T1/T9 (no deploy)
+
+- Service terminal-api, environment dev, 09:34 UTC, all with `--skip-deploys` (the active deployment stays
+  `689dc465`, read back): added `TERMINAL_SERVICE_KEY_BACKTEST_WORKER` and `TERMINAL_SERVICE_KEY_SCREENER_WORKER` (new
+  random 64-hex values set through `--stdin`, never printed; checked in memory to be present, at least 32 characters and
+  distinct from each other, `TERMINAL_ADMIN_KEY` and `TERMINAL_PROXY_KEY`), and `PORT=8080` (ERRORS M289: the fixed port
+  the app listens on, which Railway's healthcheck probes). Service setting: `healthcheckPath` `/ready`,
+  `healthcheckTimeout` 120 (`serviceInstanceUpdate`; read back `health=/ready`). The running build ignores the two keys
+  and already answers `/ready`; the new build reads them after migration `20261028_100` and its own deploy.
+- Rollback: delete the three variables with `--skip-deploys` and set `healthcheckPath` back to null; nothing reads them
+  until the new build is deployed.
