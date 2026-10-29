@@ -5016,3 +5016,16 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   and already answers `/ready`; the new build reads them after migration `20261028_100` and its own deploy.
 - Rollback: delete the three variables with `--skip-deploys` and set `healthcheckPath` back to null; nothing reads them
   until the new build is deployed.
+
+## 2026-10-29 — edge-bff `96346c1f` (EXEC-SCREENER Phase 1, EXEC-MU-RUNTIME T7 and Phase 0; PR #42)
+
+- Service edge-bff, environment dev, from GitHub `main` `b841a45` (the merge of PR rednightt33/saniti#42,
+  auto-deploy). Status SUCCESS at 10:23 UTC. `market-ai-orc` and `feature-04-worker` SKIPPED the commit (watch paths);
+  terminal-api, backtest-worker and the publisher are not GitHub-built here and did not change.
+- Change: the Screener page and relay (`/screener`, `/screener-app/`, `/api/v1/screener/*`; off, because
+  `SCREENER_WORKER_URL` is not set), the Terminal page's download check (T7: a file is drawn only when its size and
+  sha256 match the announcement), the Backtest timing and `request_key` log lines (Phase 0). No variable changed.
+- Verified: `/ready`, `/terminal-app/`, `/backtest-app/`, `/screener-app/`, `/screener` 200; the live page builds equal
+  local builds of `b841a45` (Terminal `assets/index-7b76YLLw.js`; Backtest `assets/index-DwzUe4Tj.js`, built in the
+  Dockerfile's folder layout; Screener `assets/index-TookIbNo.js`); no error line in the start-up log.
+- Rollback: `serviceInstanceDeployV2` with the previous main commit `d84be91` (deployment `f295d813`).
