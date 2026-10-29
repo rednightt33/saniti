@@ -95,26 +95,29 @@ Feature 01 dan 04 saham dihitung dari harga, bukan dari broker. Keduanya diurus 
 
 ## 2. Memuat `IDX_Broker_Summary` dari Stockbit
 
-**Loader di Git:** `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py`. Cara kerjanya:
-- berjalan di PC lokal, bukan di Railway;
-- token JWT dibaca dari `STOCKBIT_TOKEN`, `--token-stdin` atau prompt, dan tidak pernah ditulis ke Git;
-- per tanggal: menghapus tanggal itu, menulis ulang semua baris (`COPY`), lalu menandai `COMPLETED` di log, semuanya
-  dalam satu transaksi;
-- lima kali berturut-turut 401/403 menghentikan job dengan `STOPPED_INVALID_TOKEN`. Ambil token baru lalu jalankan
-  ulang; tanggal yang sudah `COMPLETED` dilewati.
+**Loader yang dipakai (sejak 2026-10-25):** `apps/stockbit-updater/broker_import.py`, dijalankan service
+`stockbit-updater` (Bagian 0). Loader ini **menulis `buy_freq`/`sell_freq`**: keduanya ada di 15 kolom `COLS` yang
+ditulis. Terbukti di data: putaran 2026-10-27 (eksekusi `38cdc7dc`) memuat 2026-10-26 (23.801 baris) dan 2026-10-27
+(24.860 baris) dengan frekuensi di 100 % baris, dan F05 ikut 100 %. Cara kerjanya (dari kode):
+- berjalan di Railway, bukan di PC; token JWT dari variabel `STOCKBIT_TOKEN`, tidak pernah ditulis ke Git, log atau
+  tabel;
+- tanggal yang dimuat diturunkan dari data: tanggal harga harian yang lebih baru dari `max("Date")`, atau tanggal
+  harga 30 hari terakhir yang belum punya baris broker;
+- simbol hanya 4 huruf (keputusan K1; waran/right diunggah user terpisah, ERRORS M218);
+- per tanggal, satu transaksi: baris masuk ke staging lalu di-upsert (tidak ada hapus), lalu staging dan tabel
+  dibandingkan dua arah di 15 kolom. Beda apa pun, termasuk baris tersimpan yang tidak dikirim lagi oleh Stockbit,
+  membatalkan tanggal itu (rollback);
+- status per tanggal dicatat di `stockbit_full_broker_import_status` (bukan `stockbit_broker_summary_load_log`);
+- HTTP 401/403/404, nilai negatif, frekuensi pecahan atau identitas tidak cocok menghentikan putaran.
 
-**Celah yang sudah diverifikasi (2026-10-25)**
-- Loader di Git **tidak menulis `buy_freq`/`sell_freq`**: `CANONICAL_KEYS` tidak memuat kolom itu, dan tidak ada
-  branch yang memuatnya.
-- Tanggal 2026-09-01…10-23 punya frekuensi di 100 % baris tanpa baris log, jadi dimuat oleh loader lain yang belum
-  ada di Git.
-- Akibatnya, kalau loader Git dipakai untuk tanggal yang sudah ada, tanggal itu dihapus lalu ditulis ulang **tanpa
-  frekuensi**. Kolom frekuensi di F05/F06 untuk tanggal itu jadi kosong. Staging `IDX_Broker_Summary_Freq` sudah
-  dihapus (`20261025_007`), jadi tidak ada cadangan.
-- Sampai loader yang menulis frekuensi masuk Git, **pakai loader yang sama dengan yang memuat 2026-09-01…10-23**.
-- **Sejak 2026-10-25** loader itu (importir user) ada di Git sebagai `apps/stockbit-updater/broker_import.py` dan menulis
-  frekuensi; pakai service di Bagian 0. Loader lama `apps/stockbit-broker-backfill/` tetap tidak boleh dipakai untuk
-  tanggal yang sudah berfrekuensi (ERRORS M217).
+**Loader lama, jangan dipakai untuk tanggal yang sudah ada:**
+`apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py` (jalan di PC lokal).
+- **Tidak menulis `buy_freq`/`sell_freq`**: `CANONICAL_KEYS` tidak memuat kolom itu.
+- Per tanggal ia menghapus seluruh tanggal lalu menulis ulang, jadi kalau dipakai untuk tanggal yang sudah ada,
+  frekuensi tanggal itu hilang, dan kolom frekuensi di F05/F06 ikut kosong. Staging `IDX_Broker_Summary_Freq` sudah
+  dihapus (`20261025_007`), jadi tidak ada cadangan (ERRORS M217).
+- Riwayat: 2026-09-01…10-23 dimuat oleh importir user sebelum masuk Git (tanpa baris di
+  `stockbit_broker_summary_load_log`); importir itulah yang sekarang menjadi `broker_import.py`.
 
 ## 3. Sebelum refresh: pastikan sumber selesai dan utuh
 
