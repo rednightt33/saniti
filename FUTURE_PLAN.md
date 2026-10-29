@@ -787,7 +787,9 @@ Urutan yang disarankan: U1 → M215 usulan A → U4.
   2026-10-25 sejalan dengan job (10:00 1,86 GB; 18:00 1,48 GB saat putaran stockbit-updater) dan turun kembali dalam
   satu jam. Batas memori sudah memotong biaya cache halaman; menjadwalkan job berdekatan tidak diperlukan sekarang.
 
-## U1 dan U4 — tinjauan ulang dan rencana implementasi (diminta user 2026-10-29, menunggu keputusan)
+## U1 dan U4 — tinjauan ulang dan rencana implementasi (2026-10-29; U4 → EXEC-U4, U1 DITUNDA)
+
+Keputusan user 2026-10-29: "Oke, U4 masukkan exec. U1 ditunda dulu aja."
 
 User 2026-10-29: "U1 dan U4, coba ditinjau, inspect database, dan come up with implementation plan." Belum disetujui;
 tidak ada yang dijalankan. Semua angka dibaca 2026-10-29 dari Railway, log dan kode (read-only).

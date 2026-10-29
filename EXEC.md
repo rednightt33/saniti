@@ -9122,3 +9122,28 @@ datetime64, `.dt`, `.resample`, indeks tanggal. Pesan pandas 3.0.6 yang direprod
   semua frame — mengubah keputusan "DATE stays a date" dan semua kode yang membandingkan dengan `datetime.date`.
 - **Verifikasi:** tes lokal; sesudah deploy, log `script_error` dengan `date_hint` dan iterasi berikutnya yang lulus.
 - Sifat: permanen.
+
+## EXEC-GO-1029 — go user untuk butir EXEC yang disetujui (2026-10-29)
+
+User 2026-10-29: "Oke, U4 masukkan exec. U1 ditunda dulu aja. Sekarang untuk approve exec, feel free to inspect database
+dan arsitektur beserta kode. Setiap keputusan yang diambil tidak boleh berdasarkan memori. Semua harus berdasarkan kode
+dan inspeksi. Setelah done jalankan 3 testing Go"
+
+Cakupan go (daftar "disetujui, menunggu go" yang dilaporkan 2026-10-29): EXEC-M304-M305, EXEC-LOADER-M217, EXEC-C3,
+EXEC-M179, EXEC-U4. Pertanyaan yang belum dijawab user diambil sesempit rencana yang disetujui:
+- EXEC-M179: hanya angka berskala (rupiah triliun/miliar/juta); format persen dan desimal biasa tidak diubah.
+- EXEC-U4: sleep hanya untuk `market-python-sandbox`; web-governor tetap menyala (penjaga bangun di orc dipasang untuk
+  kedua klien, tanpa mengubah web-governor).
+Tidak termasuk: U1 (ditunda), EXEC-MCAP (sesi lain), PENDING-M204 P6–P8 (ditahan user). Sesudah selesai: tiga uji live.
+
+## EXEC-U4 — sandbox tidur saat diam, orc membangunkannya (disetujui dan go 2026-10-29)
+
+Rencana dan bukti: FUTURE_PLAN "U1 dan U4 — tinjauan ulang dan rencana implementasi" (inspeksi 2026-10-29). Ringkas:
+1. orc `app/wake.py`: sebelum panggilan ke sandbox (dan web-governor), bila kontak sukses terakhir lebih lama dari
+   ambang (240 s), `GET /ready` diulang dengan jeda 1, 2, 4, 8, 8 s sampai 30 s; POST tidak pernah diulang; gagal →
+   `SERVICE_WAKING`; log `downstream_wake`; progres `PROGRESS_SERVICES_WAIT`.
+2. Tes orc (gagal lalu siap, 502 lalu siap, anggaran habis, jalur hangat tanpa `/ready`).
+3. Deploy orc SUCCESS, lalu `sleepApplication: true` untuk `market-python-sandbox`; `railway config pull/plan`;
+   RAILWAY_CHANGELOG.
+4. Cek live: status `SLEEPING` dan `Stopping Container`; bangun lewat jaringan privat diukur.
+Kembali: `sleepApplication: false`.
