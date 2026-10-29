@@ -8965,8 +8965,19 @@ berdasarkan inspeksi kode, log dan data live saat itu, bukan ingatan (AGENTS.md 
   - Sisa: jalur tulis paralel diukur oleh run terjadwal pertama (07:30 dan 19:00 WIB, 2026-10-30). Listing
     bersih-bersih dari kontainer publisher masih macet (`gc_failed`, tidak menunda publikasi; ERRORS M301, penyebab
     belum terverifikasi).
+- **Go lanjutan, 2026-10-29 (kata user):** "Ok setuju." Pertanyaannya: "Setuju dengan jeda 10 menit dan urutan itu,
+  atau Anda mau jedanya lebih panjang (misalnya 30 menit) atau dikerjakan malam ini?" Konteks: usulan user ("ketika
+  file di storage sudah fully updated, maka langsung di-switch ... dan proses penghapusan file lama langsung
+  dijalankan") yang disempurnakan:
+  - (1) sesudah `state.json`, tunggu 10 menit (bisa diatur), lebih lama dari cache manifest terminal-api (60 s) +
+    umur link unduhan (120 s) + unduhan;
+  - (2) hapus tepat file yang digantikan run itu (daftar isi lama dikurangi yang baru, juga indeks xsection/refs),
+    tanpa listing storage;
+  - (3) listing lengkap hanya sebagai jaring pengaman: sekali sehari, per folder, halaman lebih kecil, waktu tiap
+    halaman di log.
 
-### Riwayat (dipindah dari PLAN.md PUBLISHER-SPEED)
+  Urutan: kode dan tes malam ini; deploy besok setelah run 07:30 WIB diperiksa (pengukuran pertama jalur tulis
+  paralel tidak bercampur dengan perubahan ini).
 
 **Persetujuan, 2026-10-29 (kata user):** "A alright", atas pilihan "Opsi A — Screener dinyalakan malam ini, perbaikan
 publisher besok"; sebelumnya: "Boleh lakukan pengecekan berapa lama proses publisher memindahkan data dari Postgres ke
