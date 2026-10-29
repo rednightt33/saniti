@@ -366,7 +366,7 @@ function stringList(x: unknown, field: string, allowed: readonly string[], what:
   x.forEach((v, i) => {
     const f = `${field}[${i}]`;
     if (typeof v !== 'string') throw new ScreenerError('INVALID_INPUT', `${f} must be a string.`, f);
-    if (!allowed.includes(v)) throw new ScreenerError('INVALID_CONDITION', `${f}: ${JSON.stringify(v)} is not ${what === 'tickers' ? 'a listed stock' : `a ${what.replace(/s$/, '')} of the reference file`}; use one of the catalog's values.`, f, { allowed: [...allowed] });
+    if (!allowed.includes(v)) throw new ScreenerError('INVALID_CONDITION', `${f}: ${JSON.stringify(v)} is not ${what === 'tickers' ? 'a listed stock' : `one of the ${what} in the reference file`}; use one of the catalog's values.`, f, { allowed: [...allowed] });
     if (seen.has(v)) throw new ScreenerError('INVALID_CONDITION', `${f}: ${v} is listed twice; list it once.`, f);
     seen.add(v);
   });
