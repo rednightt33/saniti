@@ -953,7 +953,7 @@ ditambah. Panggilan 1, 5, 10 tanpa cache sama sekali (USD 0,0090 + 0,0137 + 0,02
    catatan giliran 9.466 (±16 rb token) ikut di 10 panggilan (±16% input), padahal giliran NEW_TOPIC dan 0 dari 12 output
    lama dibaca (`conversation_reuse_summary released_outputs_read=[]`). Usulan: giliran baru menerima indeks singkat
    (nama dan satu baris per tabel) dan membuka rincian lewat alat yang ada (`load_output`).
-3. **Iterasi tambahan:** dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
+3. **Iterasi tambahan** (petunjuk error tanggal: EXEC-C3, disetujui 2026-10-29): dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
    (M241). Usulan: petunjuk error terarah seperti `IN_PERIOD_HINT` (`apps/market-python-sandbox/app/sessions.py`) untuk
    galat kunci merge bertipe object, yang menyebut `saniti.join` (AS_OF) atau `pd.to_datetime`.
 
@@ -1129,4 +1129,11 @@ Bukti (log orc, read-only): 240 s total, 228 s di panggilan model (95%); data da
 2. **Penalaran pada aturan format:** penalaran iterasi 3 banyak membahas aturan satuan, rujukan nilai dan apakah tanggal
    boleh diketik, lalu kode ditulis dua kali (draf di penalaran, lalu argumen). Usulan ukur dulu: hitung porsi penalaran
    yang menyebut aturan format di 20 run terakhir sebelum mengubah prompt.
+   **Diukur 2026-10-29** (user: "silakan dilakukan pengecekan dulu"; `verification/reasoning_format_share/`): 26 run,
+   156 panggilan, 166.581 token penalaran (2026-10-25..10-29). Aturan format ±18,6%: menulis draf rujukan `{{…}}` 6,5%,
+   menimbang aturan 12,1% (bagian jawaban 30%, satuan/persen 27%, rujukan/angka diketik 24%, gerbang 13%, instruksi
+   tabel 6%). Panggilan jawaban akhir 36%, panggilan lain 15%. Rata-rata ±1.200 token per run (±20 s pada 55 token/s).
+   Klasifikasi kata kunci, kira-kira batas bawah. Kesimpulan: nyata tetapi bukan penyebab utama run lambat; sisanya
+   keputusan analisis (periode, tabel, metode). Bila dikerjakan, sasaran pertama: satuan/persen yang bisa diturunkan
+   backend dari katalog (model menimbang "apakah ini sudah persen?").
 3. Cacat kecil di run yang sama: ERRORS M304 (complete otomatis) dan M305 (tabel ditolak karena huruf besar-kecil).

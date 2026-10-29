@@ -7579,10 +7579,50 @@ data yang baru dihitung dengan formula yang berbeda dengan data sebelumnya. Go."
   (riwayat tidak berubah), 2026 hanya baris baru (F02/F05 7.802, F03/F06 117). INDEX broker sampai 2026-10-23.
 - T: laporan sub-agent menyusul.
 
-### EXEC-LOADER-M217: loader Stockbit berfrekuensi di Git dan penjaga di database (diusulkan 2026-10-25, BELUM dijalankan)
+### EXEC-LOADER-M217: loader Stockbit berfrekuensi di Git dan remark muatan tidak lengkap di database (diusulkan 2026-10-25, direvisi 2026-10-29, BELUM dijalankan)
 
 **Kata-kata user (2026-10-25):** "Oke, untuk proposal solusi M217, masukkan kan, ke exec jangan eksekusi dulu."
 Status: tercatat sebagai rencana. Eksekusi baru dimulai setelah user memberi go dan menjawab pertanyaan terbuka di bawah.
+
+**Revisi user 2026-10-29 (berlaku di atas L2 di bawah):** "exec217, database tidak menolak muatan yang tidak lengkap,
+tapi setiap muatan yang tidak lengkap harus di-remark. masukan exec." Eksekusi tetap menunggu go.
+
+Keadaan sekarang (dibaca 2026-10-29 dari kode dan ERRORS M217):
+- L1 sebagian selesai: importir user ada di Git sebagai `stockbit-updater` (`apps/stockbit-updater/broker_import.py`),
+  menulis `buy_freq`/`sell_freq`. Sisa: loader lama `apps/stockbit-broker-backfill/` masih menulis tanpa frekuensi.
+- L3 sebagian selesai: log per tanggal ada di `stockbit_full_broker_import_status` (`broker_import.py`:275, 330, 338),
+  tetapi hanya untuk muatan lewat importir itu; penulisan lain tidak tercatat.
+- Pertanyaan terbuka 1 dan 2 terjawab oleh `stockbit-updater`; pertanyaan 3 (mencabut hak tulis langsung) tidak perlu
+  lagi karena tidak ada penolakan.
+
+Rencana pengganti L2 — **remark, bukan tolak** (lapisan: database, supaya setiap penulis tercakup):
+- R1. Tabel baru `broker_summary_date_quality` (satu baris per `Date`): jumlah baris, broker, simbol (dan simbol
+  bukan 4 huruf), cakupan frekuensi per kelompok simbol, kolom wajib yang kosong, pembanding (jsonb), `status`
+  COMPLETE / INCOMPLETE, `remark` (kalimat biasa: apa yang kurang, dibanding apa, cara memperbaiki), `checked_at`,
+  penulis (`application_name`).
+- R2. Fungsi `remark_broker_summary_date(date)` menghitung baris itu dari `IDX_Broker_Summary` (indeks primer dimulai
+  dengan `"Date"`, jadi per tanggal tidak memindai seluruh tabel; dibuktikan dengan `EXPLAIN (ANALYZE, BUFFERS)` sebelum
+  dipasang). Pembanding diturunkan dari tanggal-tanggal lengkap sebelumnya (misalnya 20 tanggal terakhir), bukan angka
+  tetap; aturan akhirnya ditetapkan dari data saat dibangun dan dicatat di sini.
+- R3. Pemicu statement-level `AFTER INSERT OR UPDATE OR DELETE` dengan transition table pada `IDX_Broker_Summary`
+  memanggil R2 untuk setiap tanggal yang tersentuh. Muatan selalu masuk; yang tidak lengkap ditandai. Bila ukuran
+  biaya pemicu terlalu besar untuk muatan massal, cadangannya: R2 dipanggil di akhir setiap muatan ditambah sapuan
+  harian; pilihan diambil dari ukuran, bukan dugaan.
+- R4. Isi awal: R2 dijalankan sekali untuk semua tanggal yang ada (read-only terhadap data broker). Contoh yang
+  diharapkan muncul: tanggal sejak 2026-09-01 tanpa simbol bukan 4 huruf (ERRORS M218).
+- R5. Pembaca remark: pesan Telegram `stockbit-updater` menyebut tanggal INCOMPLETE dan remarknya; `UPDATE_TABLE.md`
+  memeriksanya. Apakah AI juga menyebut remark di jawaban yang memakai tanggal itu: **pertanyaan terbuka untuk user**
+  (usulan: profil data bundle menyebut tanggal INCOMPLETE dalam rentang yang diminta).
+- R6. Loader lama: jalur tulisnya dialihkan ke importir `stockbit-updater` atau dihapus. Larangan di `UPDATE_TABLE.md`
+  bagian 2 dicabut sesudahnya.
+- Dokumen: migrasi baru, Table_Catalog/Column_Catalog, DATABASE_SCHEMA, DATABASE_CHANGELOG, Part A (aturan: setiap muatan
+  yang tidak lengkap diberi remark, bukan ditolak).
+- Tes (transaksi rollback): (a) tanggal lama dimuat ulang sama → COMPLETE, data tidak berubah; (b) tanggal yang sama
+  tanpa frekuensi → masuk, INCOMPLETE dengan remark yang menyebut frekuensi; (c) broker hilang → INCOMPLETE; kasus
+  lain dari pola yang sama: simbol bukan 4 huruf hilang (M218). Kasus yang tidak berlaku: waran/right lama yang memang
+  tanpa frekuensi di sumber tidak ditandai, karena pembanding dihitung per kelompok simbol.
+- Berlaku juga untuk sumber lain dengan pola sama (loader harga, makro dan lintas aset nanti): tabel kualitas per tanggal
+  dan remark, tanpa menolak muatan.
 
 **Akar masalah (terverifikasi, ERRORS M217):**
 - `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py` `CANONICAL_KEYS` (baris 42-46) tidak memuat
@@ -9044,3 +9084,41 @@ Hanya `market-ai-orc`; tanpa migrasi, tanpa variabel Railway, tanpa perubahan pr
 **Risiko:** langkah 1 menyentuh banyak tempat yang membaca argumen; bila satu pelacak menerima bentuk yang berbeda,
 catatan run (sumber, keputusan) bisa berubah. Tiap tempat diperiksa dan suite lengkap harus hijau. Langkah 2 bisa
 menerima rujukan yang dulu ditolak; ini hanya terjadi bila tepat satu kolom cocok, jadi angka yang ditunjuk tetap satu.
+
+## EXEC-C3 — petunjuk terarah untuk error tanggal di kode analisis (disetujui 2026-10-29, BELUM dijalankan)
+
+User 2026-10-29: "C3 oke, masukan exec." Eksekusi menunggu go. Asal: FUTURE_PLAN "Biaya run panjang" butir 3, run
+`edge_8233fa7f6e2386bc368387b700838f1f` (iterasi 4 gagal `merge_asof` pada tanggal bertipe object, satu iterasi
+tambahan untuk memperbaikinya).
+
+**Akar (terverifikasi):** frame dari `load`, `range`, `sql` dan `join` sengaja memakai `datetime.date` (tipe object)
+untuk kolom tanggal (`apps/market-python-sandbox/runtime/saniti.py`:188, `runtime/saniti_session.py`:394). Model
+diberi tahu lewat catatan `DATA_TYPES` (`app/sessions.py`:133-139), tetapi tetap memakai idiom datetime pandas. Saat
+gagal, sandbox hanya mengembalikan pesan pandas; tidak ada petunjuk seperti `IN_PERIOD_HINT` (`app/sessions.py`:146-150,
+1240-1241). Uji stres 2026-09-26 sudah mencatat kelas yang sama (komentar di `app/sessions.py`:133).
+
+**Kelas:** setiap idiom datetime pandas pada kolom tanggal object: `merge_asof`, `merge` antara object dan
+datetime64, `.dt`, `.resample`, indeks tanggal. Pesan pandas 3.0.6 yang direproduksi 2026-10-29:
+- `MergeError: Incompatible merge dtype, dtype('O') and dtype('O'), both sides must have numeric dtype`;
+- `ValueError: You are trying to merge on object and datetime64[s] columns for key ...`;
+- `AttributeError: Can only use .dt accessor with datetimelike values`;
+- `TypeError: Only valid with DatetimeIndex, TimedeltaIndex or PeriodIndex, but got an instance of 'Index'`.
+
+**Rencana (lapisan: respons error sandbox, pola yang sama dengan `IN_PERIOD_HINT`):**
+1. `DATE_DTYPE_HINT` di `app/sessions.py`, ditempel di cabang `SCRIPT_ERROR` (1237-1250) bila pesan error cocok dengan
+   tanda error tanggal di atas **dan** sesi memuat dataset dengan kolom waktu. Petunjuk menyebut kolom tanggal sesi
+   itu (diturunkan dari kontrak data sesi, tidak diketik) dan perbaikannya: `frame[col] = pd.to_datetime(frame[col])`
+   di kedua sisi sebelum `merge_asof`, `.dt` atau `.resample`; bila ada relasi AS_OF terdaftar antara dataset sesi,
+   `saniti.join(relationship_id)` disebut dengan id-nya (diturunkan dari relasi sesi).
+2. Tanda error tidak hanya diketik: tes menjalankan keempat idiom di pandas yang terpasang dan memeriksa pola cocok
+   dengan pesannya. Jadi bila pandas naik versi dan kata-katanya berubah, tes gagal, bukan petunjuknya diam-diam hilang.
+3. Log `script_error` (jenis error, `date_hint` ya/tidak) supaya frekuensinya bisa diukur sebelum dan sesudah.
+- Tes `tests/test_unit_hints.py` atau berkas baru: keempat idiom memberi petunjuk; kasus lain yang memakai mekanisme
+  sama: `.resample` di frame `range()`; kasus yang tidak berlaku: `KeyError` kolom dan error di sesi tanpa kolom waktu
+  tidak memberi petunjuk tanggal.
+- Deploy sandbox sampai SUCCESS (cek tidak ada run EDGE aktif). `AI_TOOLS.md` diperiksa dengan tesnya; tidak ada
+  helper atau tool baru.
+- **Tidak mencakup:** mencegah error sejak awal. Alternatif yang tidak dipilih: mengganti tanggal menjadi datetime64 di
+  semua frame — mengubah keputusan "DATE stays a date" dan semua kode yang membandingkan dengan `datetime.date`.
+- **Verifikasi:** tes lokal; sesudah deploy, log `script_error` dengan `date_hint` dan iterasi berikutnya yang lulus.
+- Sifat: permanen.

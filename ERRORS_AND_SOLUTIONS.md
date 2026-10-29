@@ -1745,7 +1745,8 @@ change yet.
   menghentikan run), log per tanggal di `stockbit_full_broker_import_status` dan per putaran di
   `Monitoring_Stockbit_Update`. VERIFY `70aa6c1b` (2026-10-23: 23.711 baris diambil = tersimpan, 0 beda) dan APPLY
   `a02b83df` SUCCESS. Sisa: loader lama `apps/stockbit-broker-backfill/` tetap tanpa frekuensi (larangan bagian 2 tetap)
-  dan penjaga di database (EXEC-LOADER-M217) belum dibangun.
+  dan penjaga di database (EXEC-LOADER-M217) belum dibangun. Revisi user 2026-10-29: tidak menolak muatan, tetapi setiap
+  muatan yang tidak lengkap diberi remark (EXEC-LOADER-M217, menunggu go).
 - **Lesson:** loader setiap sumber baru harus ada di Git dan menulis log muat per tanggal sebelum datanya dipakai
   Feature (Part A).
 
