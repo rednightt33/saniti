@@ -34,6 +34,10 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
   ref/tickers.json.gz, ref/brokers.json.gz, state.json
   logo/{ticker}.png|svg            the ticker's logo: Stockbit's PNG, else TradingView's SVG (scanner `logoid`)
   ref/logos.json.gz                columns ticker, file, sha256, source, fetched_at (tickers without a logo are absent)
+  ref/{name}.<sha16>.json.gz       EXEC-MU-RUNTIME T5 (user chose option A, 2026-10-28): the same bytes as each fixed-key
+                                   reference file above, under a content key in the xsection form; state.json `refs` =
+                                   {name: {key, sha256, bytes, rows}} is their index (index_refs). The fixed keys are
+                                   still written, unchanged, for the readers that open them by name
   pack/{ticker}/price.<sha>.json.gz      every price year in one file (the chart's only download)
   pack/{ticker}/broker-archive.<sha>.json.gz   broker rows of every year before the last two (the last two stay yearly)
   xsection/{name}.<sha16>.json.gz  cross-sectional files for the screener-worker (EXEC-SCREENER, P1 a, user
@@ -44,16 +48,18 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
                                    `xsection` = {name: {key, sha256, bytes, rows, as_of}} is their manifest
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
-Data files are written before the manifest that names them, and the xsection files before the state.json that indexes
-them, so a reader never sees a manifest or an index pointing at a file that is not there yet. A changed data file, pack
-or xsection file is a new object (its key carries its sha256) and an object is never written again with other bytes,
-so the bytes a manifest or index that terminal-api still serves names stay readable during a run (ERRORS M250, user
-2026-10-27; content_key, store). Files written before content keys keep their fixed key until their bytes change. A
-daily run deletes, before it writes anything, the data files no manifest names any more and the xsection files the
-state.json index no longer names, once no reader can still use them (collect_garbage). Manifests, reference files,
-logos and state.json keep fixed keys: readers open them by name. A failed xsection file keeps its previous index entry,
-the rest of the run (the Terminal's and the Backtest's files, state.json) goes on, and the run exits 3. The universe
-and the changes are derived from the database at run time; no ticker list is coded.
+Data files are written before the manifest that names them, and the xsection and content-keyed reference files before
+the state.json that indexes them, so a reader never sees a manifest or an index pointing at a file that is not there
+yet. A changed data file, pack, xsection or content-keyed reference file is a new object (its key carries its sha256)
+and an object is never written again with other bytes, so the bytes a manifest or index that terminal-api still serves
+names stay readable during a run (ERRORS M250, user 2026-10-27; content_key, store). Files written before content keys
+keep their fixed key until their bytes change. A daily run deletes, before it writes anything, the data files no
+manifest names any more and the xsection and content-keyed reference files their state.json index no longer names,
+once no reader can still use them (collect_garbage). Manifests, the fixed-key reference files, logos and state.json
+keep fixed keys: readers open them by name and they are never deleted. A failed xsection or content-keyed reference
+file keeps its previous index entry, the rest of the run (the Terminal's and the Backtest's files, state.json) goes
+on, and the run exits 3. The universe and the changes are derived from the database at run time; no ticker list is
+coded.
 """
 import datetime as dt
 import gzip
@@ -140,8 +146,27 @@ ACTION_COLUMNS = ['t', 'd', 'type', 'ratio_old', 'ratio_new', 'amount_per_share'
 PRICE_XSECTION_COLUMNS = ['t', 'd', 'o', 'h', 'l', 'c', 'v']
 # which modes rebuild which file (report 6.5); every other index entry is carried forward as it is
 XSECTION_REBUILT_BY = {'price': ('daily', 'backfill', 'packs'), 'actions': ('daily', 'backfill', 'packs', 'events')}
-XSECTION_KEY = re.compile(r'xsection/([a-z0-9][a-z0-9_-]{0,31})\.([0-9a-f]{16})\.json\.gz')
+
+
+def indexed_key(family):
+    """The key (without v1/) of a file a state.json index names instead of a manifest: `<family>/<name>.<first 16 hex
+    of its sha256>.json.gz` (content_key with ticker None), the form terminal-api's xsection_index accepts."""
+    return re.compile(rf'{family}/([a-z0-9][a-z0-9_-]{{0,31}})\.([0-9a-f]{{16}})\.json\.gz')
+
+
+XSECTION_KEY = indexed_key('xsection')
+# EXEC-MU-RUNTIME T5: the reference files under content keys; their fixed keys (ref_key) never match: `.json.gz`
+# follows the name directly
+REF_KEY = indexed_key('ref')
 SHA256 = re.compile(r'[0-9a-f]{64}')
+# The reference files the publisher writes under fixed keys, the ones terminal-api main.py REF_FILES serves (a test keeps
+# the two equal). Each is also stored under its content key and listed in state.json `refs` (index_refs).
+REF_NAMES = ('tickers', 'brokers', 'logos')
+
+
+def ref_key(name):
+    """The fixed key of a reference file: `ref/tickers.json.gz`; readers open it by name."""
+    return f'ref/{name}.json.gz'
 
 
 # EXEC-TERMINAL-LOGO (user 2026-10-26): logo sources in order; a ticker none of them has gets a monogram on the page
@@ -218,8 +243,9 @@ def encode(doc):
 
 def content_key(family, ticker, name, sha):
     """`price/BBCA/2026.<sha256>.json.gz`: the file's name, then the sha256 of its gzip bytes (ERRORS M250). A family
-    without tickers (ticker None: xsection, EXEC-SCREENER) is `xsection/price.<first 16 hex>.json.gz`, the form
-    terminal-api's xsection_index accepts (XSECTION_KEY); its state.json index entry carries the whole sha256."""
+    without tickers (ticker None: xsection, EXEC-SCREENER; ref, EXEC-MU-RUNTIME T5) is
+    `xsection/price.<first 16 hex>.json.gz`, the form terminal-api's xsection_index accepts (indexed_key); its
+    state.json index entry carries the whole sha256."""
     if ticker is None:
         return f'{family}/{name}.{sha[:16]}.json.gz'
     return f'{family}/{ticker}/{name}.{sha}.json.gz'
@@ -433,24 +459,45 @@ def _count(v, least):
     return isinstance(v, int) and not isinstance(v, bool) and v >= least
 
 
-def xsection_entries(raw):
-    """The usable entries of a state.json `xsection` index: {name: {key, sha256, bytes, rows, as_of}} whose key is the
-    xsection object of that name named by the first 16 hex of its sha256 (64 lowercase hex), with whole bytes >= 1 and
-    rows >= 0. This is exactly what terminal-api's xsection_index serves (a test holds the two equal), so the index
-    collect_garbage protects is the one terminal-api serves. Anything else is dropped: neither carried forward nor
-    protected."""
+def index_entries(raw, pattern, dropped):
+    """The usable entries of a state.json file index: {name: ({key, sha256, bytes, rows}, the raw entry)} whose key is
+    the object of that name of the index's family (`pattern`, indexed_key) named by the first 16 hex of its sha256 (64
+    lowercase hex), with whole bytes >= 1 and rows >= 0. Anything else is dropped (logged as `dropped`): neither carried
+    forward nor protected from collect_garbage."""
     out = {}
     for name, e in (raw.items() if isinstance(raw, dict) else ()):
         key = e.get('key') if isinstance(e, dict) else None
-        m = XSECTION_KEY.fullmatch(key[len(PREFIX) + 1:]) if isinstance(key, str) and key.startswith(f'{PREFIX}/') else None
-        sha, as_of = (e.get('sha256'), e.get('as_of')) if m else (None, None)
+        m = pattern.fullmatch(key[len(PREFIX) + 1:]) if isinstance(key, str) and key.startswith(f'{PREFIX}/') else None
+        sha = e.get('sha256') if m else None
         if (m and m.group(1) == name and isinstance(sha, str) and SHA256.fullmatch(sha) and sha[:16] == m.group(2)
                 and _count(e.get('bytes'), 1) and _count(e.get('rows'), 0)):
-            out[name] = {'key': key, 'sha256': sha, 'bytes': e['bytes'], 'rows': e['rows'],
-                         'as_of': as_of if isinstance(as_of, str) and len(as_of) <= 64 else None}
+            out[name] = ({'key': key, 'sha256': sha, 'bytes': e['bytes'], 'rows': e['rows']}, e)
         else:
-            log('xsection_entry_dropped', name=str(name)[:40])
+            log(dropped, name=str(name)[:40])
     return out
+
+
+def xsection_entries(raw):
+    """The usable entries of a state.json `xsection` index: {name: {key, sha256, bytes, rows, as_of}} (index_entries,
+    plus `as_of`: a string of at most 64 characters, else None). This is exactly what terminal-api's xsection_index
+    serves (a test holds the two equal), so the index collect_garbage protects is the one terminal-api serves."""
+    out = {}
+    for name, (entry, e) in index_entries(raw, XSECTION_KEY, 'xsection_entry_dropped').items():
+        as_of = e.get('as_of')
+        out[name] = {**entry, 'as_of': as_of if isinstance(as_of, str) and len(as_of) <= 64 else None}
+    return out
+
+
+def ref_entries(raw):
+    """EXEC-MU-RUNTIME T5: the usable entries of a state.json `refs` index: {name: {key, sha256, bytes, rows}}
+    (index_entries; key `v1/ref/<name>.<16 hex>.json.gz`). A reference file has no data date of its own, so its entry
+    has no `as_of`: the publication's `finished_at` dates it."""
+    return {name: entry for name, (entry, _) in index_entries(raw, REF_KEY, 'ref_entry_dropped').items()}
+
+
+# The families whose objects a state.json index names instead of a manifest: family -> (state.json field, key pattern,
+# entries reader). collect_garbage treats every one alike (one mechanism).
+INDEXED = {'xsection': ('xsection', XSECTION_KEY, xsection_entries), 'ref': ('refs', REF_KEY, ref_entries)}
 
 
 def transient(error):
@@ -545,6 +592,9 @@ class Publisher:
         self.bytes = 0
         self.xsection = {}                                  # the index written into state.json (run())
         self.xsection_failed = []                           # xsection files whose rebuild failed (their entry kept)
+        self.ref_written = {}                               # name -> the bytes put under its fixed key this run
+        self.refs = {}                                      # the `refs` index written into state.json (index_refs)
+        self.refs_failed = []                               # reference files whose content copy failed (entry kept)
 
     # ---- manifests -------------------------------------------------------------------------------------------
     def manifest(self, ticker):
@@ -567,11 +617,13 @@ class Publisher:
         self.bucket.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
 
     # ---- one file --------------------------------------------------------------------------------------------
-    def store(self, entry, family, ticker, name, body, sha, present=None):
-        """Upload a data file, pack or xsection file under its content key unless its manifest entry (xsection: its
-        state.json index entry) already names these bytes. -> (key with v1/, uploaded). An object is never written with
-        other bytes (ERRORS M250). `present` (xsection: the keys a listing of the bucket holds) also puts an object its
-        entry names but the bucket lacks again, with the same bytes, and does not put a key the bucket already holds."""
+    def store(self, entry, family, ticker, name, body, sha, present=None, counted=True):
+        """Upload a data file, pack, xsection or reference file under its content key unless its manifest entry
+        (xsection, ref: its state.json index entry) already names these bytes. -> (key with v1/, uploaded). An object
+        is never written with other bytes (ERRORS M250). `present` (xsection, ref: the keys a listing of the bucket
+        holds) also puts an object its entry names but the bucket lacks again, with the same bytes, and does not put a
+        key the bucket already holds. `counted` False keeps the upload out of files_written (reference files, which
+        were never counted there)."""
         named = entry.get('key') if entry.get('sha256') == sha else None
         if named and (present is None or named[len(PREFIX) + 1:] in present):
             return named, False
@@ -579,8 +631,9 @@ class Publisher:
         if present is not None and key in present:
             return f'{PREFIX}/{key}', False
         self.bucket.put(key, body, 'application/gzip')
-        self.written += 1
-        self.bytes += len(body)
+        if counted:
+            self.written += 1
+            self.bytes += len(body)
         return f'{PREFIX}/{key}', True
 
     def publish(self, dataset, ticker, year, stamp=None):
@@ -694,13 +747,14 @@ class Publisher:
             seconds=round(time.monotonic() - started, 1), **info)
         return {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
 
-    def xsection_present(self, previous):
-        """The keys under xsection/ (one listing, taken after collect_garbage), or, when the bucket cannot list them,
-        the keys of the previous index (`store` then trusts the index, as it trusts a manifest)."""
+    def present_keys(self, family, previous):
+        """The keys under `<family>/` of an indexed family (xsection, ref; one listing of that prefix, taken after
+        collect_garbage), or, when the bucket cannot list them, the keys of the previous index (`store` then trusts the
+        index, as it trusts a manifest)."""
         try:
-            return set(self.bucket.list(prefix='xsection/'))
+            return set(self.bucket.list(prefix=f'{family}/'))
         except Exception as e:  # noqa: BLE001 - the files are still written and indexed; the class only
-            log('xsection_list_failed', error=type(e).__name__)
+            log(f'{family}_list_failed', error=type(e).__name__)
             return {x['key'][len(PREFIX) + 1:] for x in previous.values()}
 
     # ---- reference files and universe ------------------------------------------------------------------------
@@ -718,12 +772,46 @@ class Publisher:
         brokers_doc = {'schema_version': SCHEMA_VERSION, 'columns': ['code', 'name', 'type'],
                        'type_means': 'broker domicile (label only; the Foreign figures use investor type)',
                        **columnar(brokers, ['code', 'name', 'type'])}
-        for key, doc in (('ref/tickers.json.gz', tickers), ('ref/brokers.json.gz', brokers_doc)):
+        for name, doc in (('tickers', tickers), ('brokers', brokers_doc)):
             body, _ = encode(doc)
-            self.bucket.put(key, body, 'application/gzip')
+            self.bucket.put(ref_key(name), body, 'application/gzip')
+            self.ref_written[name] = body                       # its content-keyed copy: index_refs
+
+    def index_refs(self, previous):
+        """EXEC-MU-RUNTIME T5 (user chose option A, 2026-10-28): every reference file of REF_NAMES also under its content
+        key `ref/<name>.<first 16 hex of sha256>.json.gz`, the exact bytes of its fixed-key copy: those put this run, or
+        the fixed-key object as it stands (the logos, refreshed weekly). Stored through `store` as the xsection files
+        are, against one listing of `ref/` taken after collect_garbage (a key the bucket holds is not put again; an
+        indexed object it lacks is put again with the same bytes). Called after the fixed-key copies and before
+        state.json, which carries the result as `refs`; collect_garbage deletes, in a later daily run, the content-keyed
+        reference objects that index no longer names. A reference file that was never published (no logo run yet) has
+        no entry; one whose copy fails keeps its previous entry (refs_failed: the run exits 3). -> the `refs` index."""
+        present = self.present_keys('ref', previous)
+        out, uploaded = {}, []
+        for name in REF_NAMES:
+            try:
+                body = self.ref_written.get(name)
+                if body is None:
+                    body = self.bucket.get_raw(ref_key(name))
+                if body is None:
+                    continue
+                doc = json.loads(gzip.decompress(body))
+                rows = len(doc[doc['columns'][0]])                  # every reference file is columnar
+                sha = hashlib.sha256(body).hexdigest()
+                key, put = self.store(previous.get(name, {}), 'ref', None, name, body, sha, present, counted=False)
+                out[name] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows}
+                if put:
+                    uploaded.append(name)
+            except Exception as e:  # noqa: BLE001 - the class only; the fixed-key copy stands, the previous entry stays
+                self.refs_failed.append(name)
+                if name in previous:
+                    out[name] = previous[name]
+                log('ref_failed', name=name, error=type(e).__name__, kept=previous.get(name, {}).get('key'))
+        log('refs', names=sorted(out), uploaded=uploaded, failed=self.refs_failed)
+        return out
 
     def logos_stale(self, now=None):
-        index = self.bucket.get_json('ref/logos.json.gz')
+        index = self.bucket.get_json(ref_key('logos'))
         if not index or not index.get('generated_at'):
             return True
         age = (now or dt.datetime.now(dt.timezone.utc)) - dt.datetime.fromisoformat(index['generated_at'])
@@ -732,7 +820,7 @@ class Publisher:
     def publish_logos(self, universe):
         """Every ticker's logo; an image is uploaded only when its sha256 changed."""
         get = self.get
-        old = self.bucket.get_json('ref/logos.json.gz') or {}
+        old = self.bucket.get_json(ref_key('logos')) or {}
         known = dict(zip(old.get('ticker', []), zip(old.get('file', []), old.get('sha256', []))))
         logoids = tradingview_logoids(get)
         tickers = [t for t, *_ in universe]
@@ -753,7 +841,8 @@ class Publisher:
         doc = {'schema_version': SCHEMA_VERSION, 'columns': ['ticker', 'file', 'sha256', 'source', 'fetched_at'],
                **columnar(rows, ['ticker', 'file', 'sha256', 'source', 'fetched_at']), 'generated_at': now}
         body, _ = encode(doc)
-        self.bucket.put('ref/logos.json.gz', body, 'application/gzip')
+        self.bucket.put(ref_key('logos'), body, 'application/gzip')
+        self.ref_written['logos'] = body                            # its content-keyed copy: index_refs
         log('logos', tickers=len(tickers), with_logo=len(rows), uploaded=uploaded, sources=sources,
             tradingview_logoids=len(logoids), without=[t for t, hit in found if not hit][:40])
 
@@ -814,8 +903,9 @@ class Publisher:
         log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year],
             price_first_year=self.price_first_year, broker_first_year=self.broker_first_year, data_through=through)
         previous = xsection_entries(state.get('xsection'))        # the index terminal-api serves (EXEC-SCREENER)
-        if mode == 'daily':
-            self.collect_garbage(previous)                        # before the first write of this run (ERRORS M250)
+        previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
+        if mode == 'daily':                                       # before the first write of this run (ERRORS M250)
+            self.collect_garbage({'xsection': previous, 'ref': previous_refs})
         touched = set()
         for n, (dataset, ticker, year, stamp) in enumerate(todo, 1):
             self.publish(dataset, ticker, year, stamp)
@@ -836,7 +926,7 @@ class Publisher:
         rebuilt = [name for name, modes in XSECTION_REBUILT_BY.items() if mode in modes]
         # a key the bucket holds is not put again; an indexed object the listing lacks (deleted by hand) is put again,
         # the same bytes. The listing comes after collect_garbage, so it never names an object this run deleted.
-        present = self.xsection_present(previous) if rebuilt else None
+        present = self.present_keys('xsection', previous) if rebuilt else None
         for name in rebuilt:
             try:
                 self.xsection[name] = self.publish_xsection(name, kind, through, touched, previous, present)
@@ -853,6 +943,9 @@ class Publisher:
         self.publish_refs(universe)
         if mode == 'logos' or (mode == 'daily' and self.logos_stale()):
             self.publish_logos(universe)
+        # EXEC-MU-RUNTIME T5: the reference files' content-keyed copies, after their fixed-key copies and before the
+        # state.json that indexes them (every mode: the ticker and broker lists are rewritten by every run)
+        self.refs = self.index_refs(previous_refs)
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
         self.broker_behind = self.conn.execute(BEHIND_SQL, (through['broker'],)).fetchone()[0] if through['broker'] else None
         self.bucket.put('state.json', json.dumps({
@@ -860,29 +953,33 @@ class Publisher:
             'broker_behind_sessions': self.broker_behind,
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
-            'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
+            'refs': self.refs, 'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind,
-            xsection=sorted(self.xsection), xsection_failed=self.xsection_failed)
+            xsection=sorted(self.xsection), xsection_failed=self.xsection_failed, refs=sorted(self.refs),
+            refs_failed=self.refs_failed)
 
-    def collect_garbage(self, index=None):
+    def collect_garbage(self, indexes=None):
         """ERRORS M250 (user 2026-10-27, option A of 3): delete the data files and packs no manifest names any more, and
-        the xsection files the state.json index no longer names (EXEC-SCREENER: that index is their manifest), once no
-        reader can still use them. It runs in a daily run before the run writes anything, so the manifests and the
-        index it reads are the ones terminal-api serves (its cache follows state.json finished_at, bucket.py _fresh). An
-        object is deleted only when all of these hold:
+        the files of an indexed family (INDEXED: xsection, EXEC-SCREENER; ref, EXEC-MU-RUNTIME T5) their state.json
+        index no longer names (that index is their manifest), once no reader can still use them. It runs in a daily run
+        before the run writes anything, so the manifests and the indexes it reads are the ones terminal-api serves (its
+        cache follows state.json finished_at, bucket.py _fresh). An object is deleted only when all of these hold:
           - its key is <family>/<ticker>/<file>, the family being one that the manifests name (derived from them, so a
             new dataset is covered), and the ticker has a manifest that names at least one file but not this one;
-            or its key is an xsection object (XSECTION_KEY: `xsection/<name>.<16 hex>.json.gz`, nothing else under
-            xsection/) and the xsection index of state.json names at least one file but not this one (`index`: that
-            index as xsection_entries keeps it, read from the bucket when not given; terminal-api presigns only what
-            it names; a state.json without an index, from a publisher before the xsection writer, deletes none);
+            or its key is an object of an indexed family (its pattern: `xsection/<name>.<16 hex>.json.gz`,
+            `ref/<name>.<16 hex>.json.gz`; nothing else under xsection/ or ref/, so the fixed-key reference files never
+            match) and that family's state.json index names at least one file but not this one (`indexes`: {family:
+            that index as its entries reader keeps it}, read from the bucket's state.json when not given; terminal-api
+            presigns only what it names; a state.json without an index of the family, from a publisher before its
+            writer or a rollback to one, deletes none of that family);
           - that manifest and the object were written no later than state.json, the last finished run: a manifest
             written after it comes from a run that did not finish, and terminal-api may still serve the one before it;
             an object written after it may belong to such a run;
           - the last finished run ended at least GC_GRACE_SECONDS ago.
         A listing longer than GC_LIST_SECONDS is abandoned and nothing is deleted.
-        Manifests, reference files, logos and state.json are never deleted. A failure is logged; the run goes on."""
+        Manifests, the fixed-key reference files, logos and state.json are never deleted. A failure is logged; the run
+        goes on."""
         try:
             started = time.monotonic()
             listing = self.bucket.list(deadline=started + GC_LIST_SECONDS)
@@ -904,14 +1001,16 @@ class Publisher:
                     continue
                 named[ticker] = keys
             families = {k.split('/', 1)[0] for keys in named.values() for k in keys}
-            if index is None:
-                index = xsection_entries((self.bucket.get_json('state.json') or {}).get('xsection'))
-            indexed = {e['key'][len(PREFIX) + 1:] for e in index.values()}
+            if indexes is None:
+                state = self.bucket.get_json('state.json') or {}
+                indexes = {family: read(state.get(field)) for family, (field, _, read) in INDEXED.items()}
+            indexed = {family: {e['key'][len(PREFIX) + 1:] for e in (indexes.get(family) or {}).values()}
+                       for family in INDEXED}
             doomed, freed, newer = [], 0, 0
             for key, (at, size) in listing.items():
                 parts = key.split('/')
-                if XSECTION_KEY.fullmatch(key):
-                    if not indexed or key in indexed:
+                if parts[0] in INDEXED and INDEXED[parts[0]][1].fullmatch(key):
+                    if not indexed[parts[0]] or key in indexed[parts[0]]:
                         continue
                 elif len(parts) != 3 or parts[0] not in families or parts[1] not in named or key in named[parts[1]]:
                     continue
@@ -923,7 +1022,8 @@ class Publisher:
             failed = self.bucket.delete(sorted(doomed)) if doomed else []
             log('gc', deleted=len(doomed) - len(failed), not_deleted=len(failed), mb=round(freed / 1e6, 1),
                 kept_newer_than_last_run=newer, tickers_skipped=skipped, families=sorted(families),
-                xsection_named=len(indexed), objects_listed=len(listing), last_run_finished=finished,
+                xsection_named=len(indexed['xsection']), refs_named=len(indexed['ref']), objects_listed=len(listing),
+                last_run_finished=finished,
                 seconds=round(time.monotonic() - started, 1))
             return len(doomed) - len(failed)
         except Exception as e:  # noqa: BLE001 - the cleanup never stops a publication; the class only, no detail
@@ -1009,9 +1109,37 @@ def verify(conn, bucket):
                     bad += 1
                     log('verify_mismatch', ticker=ticker, dataset=dataset, year=year, file=got, sql=sql_row)
     x_checked, x_bad = verify_xsection(conn, bucket, {t: typ for t, _, typ, *_ in universe}, pack_sha)
-    checked, bad = checked + x_checked, bad + x_bad
+    r_checked, r_bad = verify_refs(bucket)
+    checked, bad = checked + x_checked + r_checked, bad + x_bad + r_bad
     log('verify_done', files=checked, mismatches=bad, window=[first_year, last_year])
     return bad
+
+
+def verify_refs(bucket):
+    """EXEC-MU-RUNTIME T5: the files of state.json's `refs` index. Each: present, its bytes and sha256 as indexed, its
+    rows as indexed, and byte for byte its fixed-key copy (both are written in the same run, before state.json; a
+    verify during a run can see the fixed copy of the next publication). -> (files checked, mismatches)."""
+    checked = bad = 0
+    for name, e in sorted(ref_entries((bucket.get_json('state.json') or {}).get('refs')).items()):
+        body = bucket.get_raw(e['key'][len(PREFIX) + 1:])
+        checked += 1
+        problems = []
+        if body is None or len(body) != e['bytes'] or hashlib.sha256(body).hexdigest() != e['sha256']:
+            problems.append('not the indexed bytes')
+        else:
+            try:
+                doc = json.loads(gzip.decompress(body))
+                rows = len(doc[doc['columns'][0]])
+            except (OSError, ValueError, KeyError, IndexError, TypeError):
+                rows = None
+            if rows != e['rows']:
+                problems.append('rows differ from the index' if rows is not None else 'not a columnar file')
+            if bucket.get_raw(ref_key(name)) != body:
+                problems.append('differs from the fixed-key copy')
+        if problems:
+            bad += 1
+            log('verify_mismatch', dataset='ref', name=name, key=e['key'], problems=problems)
+    return checked, bad
 
 
 def verify_xsection(conn, bucket, kind, pack_sha):
@@ -1134,8 +1262,9 @@ def main(argv):
     # the evening run (TERMINAL_STALE_ALERT_WIB, default 19:00) warns when broker data lags the prices
     if mode == 'daily' and (pub.broker_behind or 0) >= 1 and near_time(run_times(os.environ.get('TERMINAL_STALE_ALERT_WIB', '19:00')), started):
         notify_broker_behind(started.astimezone(WIB).date().isoformat())
-    # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3)
-    return 3 if pub.xsection_failed else 0
+    # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3); so does a
+    # reference file whose content-keyed copy failed (EXEC-MU-RUNTIME T5; its fixed-key copy was written)
+    return 3 if pub.xsection_failed or pub.refs_failed else 0
 
 
 if __name__ == '__main__':

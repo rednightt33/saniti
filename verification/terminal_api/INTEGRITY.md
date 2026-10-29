@@ -59,3 +59,18 @@ data files, manifests, packs, reference files, logos and `state.json`:
   slice of `price` encodes to the ticker's published price pack (manifest `packs.price.sha256`) and has the rows,
   first and last date and sum of closes of SQL, and every published ticker with final daily rows is in it; the
   `actions` rows equal what the publisher's statement returns now.
+
+## Since EXEC-MU-RUNTIME T5 (2026-10-28): reference files under content keys
+
+- **`state.json` `refs`** = `{name: {key, sha256, bytes, rows}}`, the index of the reference files `tickers`, `brokers`
+  and `logos` under content keys `v1/ref/<name>.<first 16 hex of sha256>.json.gz`, written by the publisher
+  (`index_refs`) after the objects it names and before `state.json`. Each object holds exactly the bytes of its
+  fixed-key copy `v1/ref/<name>.json.gz`, which the publisher still writes on every run (logos: when refreshed) for the
+  readers that open it by name. A `state.json` from a publisher before T5 has no `refs`.
+- **Keys under `v1/ref/`**: the three fixed-key files, never deleted; the content-keyed objects the current index
+  names; and those an earlier index named until a daily run starts an hour or more after the last finished run, when
+  `collect_garbage` deletes them under the xsection rule (only a key of that form, only while the index names at least
+  one file, nothing newer than `state.json`). `integrity_check.py` counts the indexed keys as referenced.
+- **Content checks**: the publisher's `verify` mode (`verify_refs`) checks each indexed reference file: bytes, sha256
+  and rows as indexed, and byte for byte equal to its fixed-key copy (a verify during a run can see the next
+  publication's fixed copy and report a difference).

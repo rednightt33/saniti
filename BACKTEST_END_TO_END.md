@@ -141,8 +141,9 @@ Facts that matter downstream:
 
 1. `universe()` reads the universe and builds `kind`, mapping each ticker to stock or index. `data_through()` gives the
    global newest date per dataset. `resolve_price_first_year()` derives the first stored year per dataset, today 2018
-   for price and 2016 for broker. `state.json` is read for `broker_through` and its `xsection` index (the files of the
-   last finished run, `xsection_entries`).
+   for price and 2016 for broker. `state.json` is read for `broker_through`, its `xsection` index (the files of the
+   last finished run, `xsection_entries`) and its `refs` index (the content-keyed reference files, `ref_entries`;
+   EXEC-MU-RUNTIME T5).
 2. **Plan (mode `daily`).**
    - `changed_prices`: one `PRICE_STAMPS_SQL` row per ticker-year gives a stamp
      (`rows=…;last=…;ing=<max ingestion_time>;sum=<sum(close)>`). It is compared with the manifest entry's `stamp`.
@@ -151,8 +152,8 @@ Facts that matter downstream:
    - `changed_events`: the same idea per ticker, with `format=2;rows;last;ing`.
    - Broker: the ticker-years of trading dates newer than `state.json` `broker_through`.
 3. **Cleanup (`collect_garbage`, mode `daily` only, before the first write).** The data files and packs no manifest
-   names any more, and the xsection files the `state.json` index no longer names, are deleted once the last finished
-   run is an hour old. One mechanism for every family; see section 4.3.
+   names any more, and the xsection and content-keyed reference files their `state.json` index no longer names, are
+   deleted once the last finished run is an hour old. One mechanism for every family; see section 4.3.
 4. **One file (`publish`).** The steps are:
    - SQL for the ticker-year;
    - build the document (`price_doc`, `broker_doc` or `events_doc`);
@@ -194,7 +195,7 @@ Facts that matter downstream:
      sha)` = `xsection/<name>.<first 16 hex of the sha256>.json.gz` (the form terminal-api's `xsection_index`
      accepts; the index entry carries the whole sha256). `encode` is deterministic, so unchanged rows give the same key,
      and a changed file is a new object: an object is never written again with other bytes (ERRORS M250). A listing of
-     `xsection/` (`xsection_present`, taken after the cleanup of step 3, so it never names an object this run deleted)
+     `xsection/` (`present_keys`, taken after the cleanup of step 3, so it never names an object this run deleted)
      decides what is there: a key it holds is not put again, an indexed object it lacks (deleted by hand) is put again
      with the same bytes, and without a listing the previous index stands in for it.
    - A file whose build fails (`xsection_failed`, the error class only) keeps its previous index entry; the rest of the
@@ -205,9 +206,18 @@ Facts that matter downstream:
 7. **Manifests.** `save_manifest` writes the manifest of every touched ticker: `window`, per dataset `data_through` and
    `first_year`, and `generated_at`.
 8. **The rest.** `publish_refs` rewrites `ref/tickers.json.gz` and `ref/brokers.json.gz` on every run. Logos are
-   refreshed in mode `logos`, or in `daily` when the logo index is more than 7 days old. **`state.json` is written
-   last**, with `finished_at` and the `xsection` index; nothing is written or deleted after it. terminal-api's manifest
-   cache keys on `finished_at` (section 6.3).
+   refreshed in mode `logos`, or in `daily` when the logo index is more than 7 days old. These fixed keys are written
+   exactly as before, for the readers that open them by name. Then `index_refs` (EXEC-MU-RUNTIME T5, user option A
+   2026-10-28) stores each reference file of `REF_NAMES` (tickers, brokers, logos: the names terminal-api's
+   `REF_FILES` serves, a test keeps the two equal) also under its content key `ref/<name>.<first 16 hex of the
+   sha256>.json.gz`: the exact bytes of its fixed-key copy, those written this run or, for logos not refreshed, the
+   fixed-key object as it stands. It goes through `store` as the xsection files do, against one listing of `ref/`
+   taken after the cleanup (a key the bucket holds is not put again; without a listing the previous index stands in),
+   and these uploads are not counted in `files_written`. A reference file never published (no logo run yet) has no
+   entry; one whose copy fails keeps its previous entry (`ref_failed`, the class only) and the process exits 3 after
+   `state.json`, as for an xsection file. **`state.json` is written last**, with `finished_at`, the `xsection` index
+   and the `refs` index; nothing is written or deleted after it. terminal-api's manifest cache keys on `finished_at`
+   (section 6.3).
 9. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
    telegram-monitor to send an alert (ERRORS M243).
 
@@ -221,7 +231,7 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 | `events` | changed events files and the `actions` xsection file |
 | `logos` | every logo; xsection entries carried forward |
 | `packs` | every pack, written only when missing or changed, and both xsection files |
-| `verify` | every file listed in a manifest, checked against live SQL (rows, first and last date, a column sum); packs are not checked except through the xsection check; the files of the `state.json` xsection index: bytes and sha256, every `price` slice encodes to its published price pack and has SQL's rows, dates and sum of closes, the `actions` rows equal the statement's; exits 1 on any mismatch |
+| `verify` | every file listed in a manifest, checked against live SQL (rows, first and last date, a column sum); packs are not checked except through the xsection check; the files of the `state.json` xsection index: bytes and sha256, every `price` slice encodes to its published price pack and has SQL's rows, dates and sum of closes, the `actions` rows equal the statement's; the files of the `state.json` refs index: bytes, sha256 and rows as indexed and byte for byte their fixed-key copy (`verify_refs`); exits 1 on any mismatch |
 
 ### 4.3 Guarantees and limits
 
@@ -231,9 +241,10 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 - **No coded ticker list.** The universe comes from the database at run time, and so do the first years.
 - **Bytes are deterministic.** A daily run right after a backfill uploads nothing
   (`apps/terminal-publisher/tests/test_publisher.py`).
-- **Write order.** In a daily run the cleanup first; then data files, packs, the xsection files, manifests, reference
-  files and `state.json`. A manifest therefore never names a new key that is not there yet, and neither does the
-  `state.json` xsection index; nothing is written or deleted after `state.json`.
+- **Write order.** In a daily run the cleanup first; then data files, packs, the xsection files, manifests, the
+  fixed-key reference files, their content-keyed copies and `state.json`. A manifest therefore never names a new key
+  that is not there yet, and neither do the `state.json` xsection and refs indexes; nothing is written or deleted
+  after `state.json`.
 - **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later. The
   objects a crashed run wrote are newer than `state.json`, so the cleanup keeps them until a later run finishes; then
   it deletes those no manifest or index names (an xsection file whose content a later run indexes keeps its key).
@@ -244,16 +255,19 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   while terminal-api still served the previous run's cached manifest, so sha256-checking readers failed
   `DATA_INTEGRITY` during each run. Now a reader holding any manifest or `state.json` xsection index of the last
   finished run downloads exactly the bytes it names, during the whole run: data files, packs (the price pack a slice of
-  the xsection `price` file repairs included) and xsection files all go through `content_key` and `store`. Manifests,
-  `ref/*`, logos and `state.json` keep fixed keys: readers open them by name and no reader checks their bytes against
-  a manifest.
+  the xsection `price` file repairs included), xsection files and the content-keyed reference copies all go through
+  `content_key` and `store`. Manifests, the fixed-key `ref/<name>.json.gz`, logos and `state.json` keep fixed keys:
+  readers open them by name and no reader checks their bytes against a manifest. Since EXEC-MU-RUNTIME T5 a reader of
+  the `state.json` `refs` index gets each reference file under a key that names its bytes, with their sha256.
 - **Cleanup (`collect_garbage`).** A daily run lists the bucket before it writes and deletes an object only when all
   of these hold: its key is `<family>/<ticker>/<file>` with a family some manifest names (derived from the manifests,
   so a new dataset is covered) and the ticker's manifest names at least one file but not this one, or its key is an
-  xsection object (`xsection/<name>.<16 hex>.json.gz`; nothing else under `xsection/`) and the `state.json` xsection
-  index names at least one file but not this one (that index, as `xsection_entries` reads it, is exactly what
-  terminal-api serves, `bucket.py xsection_index`; a `state.json` without one, from a publisher before the xsection
-  writer, deletes no xsection object); that manifest and the object are no newer than `state.json` (the last finished
+  object of an indexed family (`INDEXED`: `xsection/<name>.<16 hex>.json.gz`, and since EXEC-MU-RUNTIME T5
+  `ref/<name>.<16 hex>.json.gz`; nothing else under `xsection/` or `ref/`, so the fixed-key reference files never
+  match) and that family's `state.json` index names at least one file but not this one (the index, as
+  `xsection_entries` or `ref_entries` reads it, is exactly what terminal-api serves, `bucket.py xsection_index`,
+  `refs_index`; a `state.json` without one, from a publisher before that index's writer or a rollback to one, deletes
+  no object of that family); that manifest and the object are no newer than `state.json` (the last finished
   run; anything newer may belong to a run that did not finish); and that run finished at least `GC_GRACE_SECONDS`
   (3600) ago, which exceeds the manifest cache check (60 s), the URL lifetime (120 s) and a download. So an object
   goes in the first daily run that starts an hour or more after the last finished run, once no manifest or index of
@@ -263,7 +277,7 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   `packs` or `events` run replaces goes in a later daily run under the same rule. A listing longer than
   `GC_LIST_SECONDS` (900) is abandoned. A failure is logged (`gc_failed`, class only) and the run goes on: cleanup
   never stops a publication. Its log line `gc` gives `deleted`, `not_deleted`, `mb`, `kept_newer_than_last_run`,
-  `tickers_skipped`, `families`, `xsection_named`.
+  `tickers_skipped`, `families`, `xsection_named`, `refs_named`.
 - **Recorded sizes and times** (`RAILWAY_CHANGELOG.md`):
 
   | Run | Duration | Written |
@@ -290,9 +304,10 @@ Bucket `terminal-display` is a Railway S3-compatible bucket in region `sin`. Its
 | `ref/tickers.json.gz` | columns `ticker, name, type, sector, industry`. Readers take columns by name; every column after `type` becomes a portfolio filter (CONTRACT decision PF6). | gzip |
 | `ref/brokers.json.gz` | columns `code, name, type` | gzip |
 | `ref/logos.json.gz`, `logo/{T}.png\|svg` | logo index and images (Terminal page) | |
+| `ref/<name>.<sha16>.json.gz` (`tickers`, `brokers`, `logos`; EXEC-MU-RUNTIME T5) | the exact bytes of `ref/<name>.json.gz` under a content key (`<sha16>` is the first 16 hex of the sha256), named by `state.json` `refs` | `application/gzip`, `private, max-age=31536000` |
 | `xsection/price.<sha16>.json.gz` | `{schema_version: 1, dataset: 'xsection', name: 'price', units, means, columns: [t,d,o,h,l,c,v], t: [...], ..., tickers: [{t, pack_sha256, first, last, rows}]}`: every published ticker's final daily rows from `price_first_year`, ordered by ticker (code point order) then date; a ticker's slice is the rows of its `pack/{T}/price` (`xsection_slices` cuts it by `tickers`); `v` null for an index | `application/gzip`, `private, max-age=31536000` |
 | `xsection/actions.<sha16>.json.gz` | `{schema_version: 1, dataset: 'xsection', name: 'actions', units, means, columns: [t, d, type, ratio_old, ratio_new, amount_per_share, currency], ...}`: corporate actions on their ex dates from `price_first_year` (future ones included), ordered by ticker, ex date, type: the share-count changes of `PRICE_ACTION_TYPES` and cash dividends; `amount_per_share` is the dividend per share, for a rights issue its exercise price; a null term is not in the source | same |
-| `state.json` | `price_through, broker_through, broker_behind_sessions, window, price_first_year, broker_first_year, last_mode, xsection, finished_at`; `xsection` = `{name: {key, sha256, bytes, rows, as_of}}` with `key` `v1/xsection/<name>.<sha16>.json.gz` (`as_of`: for `price` the newest date in the file, for `actions` the newest `ingestion_time` of `idx_event_annotation`) | `private, max-age=0` |
+| `state.json` | `price_through, broker_through, broker_behind_sessions, window, price_first_year, broker_first_year, last_mode, xsection, refs, finished_at`; `xsection` = `{name: {key, sha256, bytes, rows, as_of}}` with `key` `v1/xsection/<name>.<sha16>.json.gz` (`as_of`: for `price` the newest date in the file, for `actions` the newest `ingestion_time` of `idx_event_annotation`); `refs` = `{name: {key, sha256, bytes, rows}}` with `key` `v1/ref/<name>.<sha16>.json.gz` (`rows`: the rows of the file; no `as_of`, `finished_at` dates the publication; absent from a `state.json` of a publisher before T5) | `private, max-age=0` |
 
 The manifest:
 
@@ -316,8 +331,13 @@ The manifest:
 - **Readers verify, they do not trust.** Every reader of a data file checks its byte count and sha256 against the
   manifest entry. `inflateVerified` in `apps/edge-bff/backtest/src/core/datafile.ts` is shared by the worker and the
   page. Both cache files by sha256 (sections 7.3 and 10).
-- **Reference files carry no sha256.** They are downloaded again on each use. The xsection files reuse
-  `ref/tickers.json.gz` for names, types, sectors and industries; it is not copied into them.
+- **The fixed-key reference files carry no sha256.** A reader of `ref/<name>.json.gz` downloads it again on each use.
+  Since EXEC-MU-RUNTIME T5 each is also under a content key with its sha256 and size in `state.json` `refs`, the same
+  bytes, so a reader of that index can check and cache it by sha256 like a data file. The xsection files reuse the
+  ticker reference for names, types, sectors and industries; it is not copied into them.
+- **Content-keyed reference objects are immutable** for the same reason as the xsection objects below: the bucket holds
+  those of the current `refs` index and, until a daily run starts an hour or more after the last finished run, those
+  of earlier ones (section 4.3, Cleanup); the fixed-key copies are never deleted.
 - **xsection objects are immutable.** `<sha16>` is the first 16 hex of the file's sha256, so a key names one content and
   is written once; readers check bytes and sha256 against the `state.json` index (terminal-api `/state`, `/xsection`).
   The bucket holds the objects of the current index and, until a daily run starts an hour or more after the last
