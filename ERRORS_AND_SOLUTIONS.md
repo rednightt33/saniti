@@ -2875,7 +2875,7 @@ change yet.
   ikut (`inv_hover.mjs`). vitest 698; piksel fixture 0 px; check_assets, check2, check3, tsplit tanpa error.
 - **Class:** sinkronisasi dua arah antar chart harus memutus arah balik (pointer di mana, nilai sama); pekerjaan per
   gerakan pointer tidak boleh memformat tanggal atau mengukur layout sesudah menulis DOM.
-- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+- **Status:** RESOLVED; live sejak edge-bff `f295d813` (`main` `a124b0a`).
 
 ### EXEC-TERMINAL-ASSETS-2 — grip Flow aset tertutup header (2026-10-28)
 

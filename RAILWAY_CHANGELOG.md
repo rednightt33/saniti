@@ -4967,3 +4967,10 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   Board choice in the panel). No variable, database or other service changed.
 - Verified: the live `/terminal-app/` serves `assets/index-DY8AVLvr.js`, the same build checked locally
   (`verification/terminal_api/assets_check/tsplit.mjs`).
+
+## 2026-10-29 — edge-bff `f295d813` (EXEC-TERMINAL-LAG)
+
+- Service edge-bff, environment dev, from GitHub `main` `a124b0a` (auto-deploy). Status SUCCESS.
+- Change: Terminal front-end only (smoother chart drag with asset panes and Broker inventory; Broker inventory crosshair
+  on a direct hover). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-B1jkYNqZ.js`, the same build checked locally.
