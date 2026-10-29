@@ -8604,7 +8604,8 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
 - **Status 2026-10-29, Phase 1 di dev:** migration `20261028_001` diterapkan (41/41, 21/21); PR rednightt33/saniti#42
   di-merge (`b841a45`); screener-worker `7a961374` dan edge-bff `8191fff7` aktif; halaman dan API Screener diperiksa
   (`verification/screener/LIVE_CHECK_DEV.md`: buka pertama 1,62 s, run 0,5-1,1 s, preview 0,49 s; empat screen sama dengan
-  Feature 04). Sisa Phase 1: tampilan waktu publikasi yang mentah di header; Phase 1b dan 2 belum dimulai.
+  Feature 04). Sisa Phase 1 (waktu publikasi mentah di header) selesai: ERRORS M302, PR rednightt33/saniti#43,
+  edge-bff `074b2cc9`. Phase 1b dan 2 belum dimulai.
 - **Keputusan lanjutan, 2026-10-28 (kata user):** atas P29 "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest
   juga"; atas pertanyaan apakah rekomendasi juga berlaku untuk keputusan flow D1-D14 dan P24-P34: "YEs".
   - **P29:** pengguna EDGE adalah user eksternal, untuk semua tab (Monitor, Terminal, Backtest, Screener).
