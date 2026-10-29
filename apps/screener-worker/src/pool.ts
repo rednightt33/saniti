@@ -232,9 +232,11 @@ export class Pool {
       }
     }
     const startsNow = !!this.idleThread() && (this.running.get(spec.owner) ?? 0) < this.o.ownerInflight && !lane.length;
-    if (spec.owner !== SYSTEM && this.waiting >= this.o.queue && !startsNow) {
+    // the system lane (the presets of a refresh) is outside the queue: its waiting jobs never make a user's request BUSY
+    const waitingUsers = this.waiting - (this.lanes.get(SYSTEM)?.length ?? 0);
+    if (spec.owner !== SYSTEM && waitingUsers >= this.o.queue && !startsNow) {
       this.stats.busy++;
-      job.reject(refuse('BUSY', `The screener is busy: ${this.waiting} screens are waiting on this replica, the most it holds (SCREENER_QUEUE ${this.o.queue}). Retry in a few seconds.`, undefined, { limit: 'queue', allowed: this.o.queue }));
+      job.reject(refuse('BUSY', `The screener is busy: ${waitingUsers} screens are waiting on this replica, the most it holds (SCREENER_QUEUE ${this.o.queue}). Retry in a few seconds.`, undefined, { limit: 'queue', allowed: this.o.queue }));
       return { promise, cancel: () => {} };
     }
     if (!this.lanes.has(spec.owner)) { this.lanes.set(spec.owner, lane); this.ring.push(spec.owner) }

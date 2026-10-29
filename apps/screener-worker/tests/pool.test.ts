@@ -70,6 +70,12 @@ test('the queue is bounded: beyond SCREENER_QUEUE waiting requests the answer is
   // the system lane (the presets' pre-warm) is never refused
   const s = p.submit(job(SYSTEM, 's', 1));
   await s.promise;
+  // and is outside the queue: system jobs waiting during a refresh never make a user's request BUSY
+  const busy = p.submit(job('A', 'r2', 100));
+  await sleep(10);
+  const sys = [1, 2, 3].map(k => p.submit(job(SYSTEM, `s${k}`, 5)));
+  const u1 = p.submit(job('B', 'u1', 5)), u2 = p.submit(job('C', 'u2', 5));
+  await Promise.all([busy, ...sys, u1, u2].map(r => r.promise));
 });
 
 test('a newer request of the same page replaces its waiting older one (409 SCREEN_REPLACED); another page is kept', async () => {

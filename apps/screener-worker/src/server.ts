@@ -263,9 +263,17 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     abandon() { if (builder) builder.kill().catch(() => {}); builder = null; staged = null },
     advance(st) {
       if (!current) return;
-      current.finished_at = st.finished_at;
-      current.desc.data = { ...current.desc.data, published_at: st.finished_at, price_through: st.price_through ?? current.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions };
-      rebuildDocs(current);
+      const s = current;
+      s.finished_at = st.finished_at;
+      s.desc.data = { ...s.desc.data, published_at: st.finished_at, price_through: st.price_through ?? s.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions };
+      // a cached answer carries the data block it was computed with (published_at): drop this snapshot's answers and
+      // counts, so every answer names the publication it is served at (the numbers are the same), and compute the
+      // presets again in the system lane, pinned as at a swap
+      results.dropSnapshot(s.sid);
+      for (const [k, v] of counts) if (v.sid === s.sid) counts.delete(k);
+      rebuildDocs(s);
+      presets(s).then(p => { if (current === s) { s.presets = p; rebuildDocs(s) } })
+        .catch(e => log('error', 'preset_failed', { phase: 'advance', ...errorFields(e, true) }));
     },
     outcome(state, error) {
       const before = outcome;

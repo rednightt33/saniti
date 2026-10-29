@@ -62,7 +62,8 @@ bytes of a gzip answer and relays the rest unparsed.
 2. **Caps before any grant.** The index must name `price` and `actions`. A file above `SCREENER_MAX_FILE_BYTES`, or a
    download total above `SCREENER_MAX_REFRESH_BYTES`, fails the refresh before `/xsection` is called.
 3. **Skip unchanged.** The same sha256 for both files and the same reference contents: nothing is downloaded, recomputed
-   or swapped. Only `published_at` advances (log `refresh_skipped`).
+   or swapped. Only `published_at` advances (log `refresh_skipped`); the snapshot's cached answers are dropped, so
+   no answer names the older publication, and the presets are computed again in the system lane.
 4. **Grant only what is missing.** `POST /xsection` names only the files that neither cache holds. The answer must name
    the publication `/state` named (`finished_at`, and each file's sha256 and size). A skewed answer (terminal-api's two
    processes may lag each other by up to a minute) is asked again `SCREENER_DOWNLOAD_RETRIES` times, then the refresh
@@ -200,7 +201,7 @@ K = 2. These are local figures, not the Railway service's. Phase 17 measures the
 | Step | Local |
 |---|---|
 | First snapshot ready (cold, no file cache) | 11-13 s: download 1.5 s, decode 2.0 s, manifest check 0.7 s, defaults 7.1-7.8 s on builder plus 2 threads, install 24-29 ms, presets 0.17-0.25 s |
-| Pinned series | 91 (76 default outputs plus the presets' series) |
+| Pinned series | 113 (76 default outputs, the declared derived series and the presets' series; integration run 2026-10-28, publisher-written files through the real terminal-api app) |
 | RSS | 0.63-0.76 GB after a refresh; plateau about 1.19 GB after 40 custom screens; peak 1.36 GB |
 | Default-parameter screen | about 45 ms cold, about 2 ms from the result cache |
 | Custom-parameter RSI screen | 0.18-0.30 s |

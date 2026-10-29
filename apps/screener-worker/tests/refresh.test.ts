@@ -148,6 +148,9 @@ test('the same files on a new publication: no download, no recompute, no swap; o
   const { app, port, fake } = await start(pub);
   await app.refresher.tick();
   const sid = app.state().current!.sid, swaps = logs.events('swap').length;
+  const body = { schema_version: 1, client_order: { page: 'p', seq: 1 }, definition: RSI };
+  const before = await call(port, 'POST', '/v1/run', body, auth(OWNER_A));
+  assert.equal(before.body.data.published_at, '2026-10-27T13:03:23Z');
   fake.publish({ ...pub, finished_at: '2026-10-27T23:00:00Z', broker_behind_sessions: 1 });
   await app.refresher.tick();
   assert.equal(app.state().current!.sid, sid);
@@ -157,6 +160,18 @@ test('the same files on a new publication: no download, no recompute, no swap; o
   const cat = await call(port, 'GET', '/v1/catalog', undefined, auth());
   assert.equal(cat.body.data.published_at, '2026-10-27T23:00:00Z'); assert.equal(cat.body.data.broker_behind_sessions, 1);
   assert.equal((await call(port, 'GET', '/health')).body.published_at, '2026-10-27T23:00:00Z');
+  // a cached answer is never served with the older publication's data block: the same numbers, the new published_at
+  const after = await call(port, 'POST', '/v1/run', { ...body, client_order: { page: 'p', seq: 2 } }, auth(OWNER_A));
+  assert.equal(after.status, 200, JSON.stringify(after.body));
+  assert.equal(after.body.data.published_at, '2026-10-27T23:00:00Z'); assert.equal(after.body.data.broker_behind_sessions, 1);
+  assert.deepEqual(after.body.rows, before.body.rows);
+  // the presets are computed again (pinned, so a preset click stays a cache hit) and the catalog keeps their counts
+  let presets: any[] = [];
+  for (let i = 0; i < 100 && !presets.some(p => p.availability === 'AVAILABLE' && typeof p.match_count === 'number'); i++) {
+    await sleep(50);
+    presets = (await call(port, 'GET', '/v1/catalog', undefined, auth())).body.presets;
+  }
+  assert.ok(presets.some(p => p.availability === 'AVAILABLE' && typeof p.match_count === 'number'));
 });
 
 test('one refresh at a time: a poll while a refresh runs does nothing', async () => {
