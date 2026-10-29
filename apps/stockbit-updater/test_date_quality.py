@@ -12,7 +12,8 @@ import pytest
 
 URL = os.environ.get('UPDATER_TEST_POSTGRES_URL') or os.environ.get('ORC_TEST_POSTGRES_URL')
 pytestmark = pytest.mark.skipif(not URL, reason='UPDATER_TEST_POSTGRES_URL is not set')
-MIGRATION = Path(__file__).resolve().parents[2] / 'database/migrations/20261029_001_broker_summary_date_quality.sql'
+MIGRATIONS = [Path(__file__).resolve().parents[2] / 'database/migrations' / name for name in
+              ('20261029_001_broker_summary_date_quality.sql', '20261029_002_broker_summary_quality_checks.sql')]
 SCRATCH = 'm217_quality_test'
 BASE = '''
 CREATE TABLE public."IDX_Broker_Summary" ("Date" date NOT NULL, "Symbol" varchar NOT NULL, "Broker" varchar NOT NULL,
@@ -43,7 +44,8 @@ def db():
     url = psycopg.conninfo.make_conninfo(URL, dbname=SCRATCH)
     with psycopg.connect(url, autocommit=True) as conn:
         conn.execute(BASE)
-        conn.execute(MIGRATION.read_text())
+        for migration in MIGRATIONS:
+            conn.execute(migration.read_text())
         yield conn
     with psycopg.connect(URL, autocommit=True) as admin:
         admin.execute(f'DROP DATABASE IF EXISTS {SCRATCH}')
@@ -106,7 +108,7 @@ def test_missing_brokers_are_remarked_and_the_bad_date_is_no_baseline(db) -> Non
     bad = DAY0 + timedelta(days=8)
     load(db, rows(bad, brokers=BROKERS[:4]))  # (c) half the brokers
     status, remark, stock_ok, _, findings = quality(db, bad)
-    assert status == 'INCOMPLETE' and not stock_ok and {'stock_brokers', 'stock_rows'} <= {f['check'] for f in findings}
+    assert status == 'INCOMPLETE' and not stock_ok and [f['check'] for f in findings] == ['stock_brokers']
     assert 'broker 4 (biasanya 8)' in remark
     load(db, rows(DAY0 + timedelta(days=9)))  # the next good date is compared with the good dates only
     assert quality(db, DAY0 + timedelta(days=9))[0] == 'COMPLETE'
@@ -135,3 +137,13 @@ def test_deleting_a_date_removes_its_row_and_a_partial_delete_is_remarked(db) ->
     assert quality(db, day)[0] == 'INCOMPLETE'
     db.execute('DELETE FROM public."IDX_Broker_Summary" WHERE "Date" = %s', (day,))
     assert quality(db, day) is None
+
+
+def test_a_quiet_day_with_every_stock_and_broker_is_complete(db) -> None:
+    """20261029_002: fewer rows with the same stocks and brokers is less activity, not a partial load (2025-10-16 was
+    flagged by the row check and matched the exchange volume like its neighbours)."""
+    history(db, 8)
+    day = DAY0 + timedelta(days=8)
+    quiet = [r for r in rows(day) if not (r[1] in STOCKS[:20] and r[2] in BROKERS[4:])]  # 33% fewer stock rows
+    load(db, quiet)
+    assert quality(db, day)[:1] == ('COMPLETE',)

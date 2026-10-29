@@ -5206,3 +5206,19 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   - publisher: CLI upload of `git archive 5c12216 apps/terminal-publisher` (the code of `0d33d8ac`), with the cron back
     to `0,30 0,12 * * *`, by the same M229 steps;
   - telegram-monitor: redeploy `main` `ddd8e5f` (the new source is simply never asked).
+
+## 2026-10-29 — EXEC-GO-1029: orc, sandbox, telegram-monitor deploys; sandbox sleeps when idle (EXEC-U4)
+
+- **User go 2026-10-29:** "Oke, U4 masukkan exec. U1 ditunda dulu aja. ... Setelah done jalankan 3 testing Go".
+- **Deploys (commit `3bed26b`, all SUCCESS):** market-ai-orc `89084f73` (M304 decoded arguments, M305 column match,
+  M179 scaled rupiah, U4 `WakeTransport`), market-python-sandbox `b02a5e72` (C3 `date_hint`), telegram-monitor
+  `2e527478` (INCOMPLETE broker dates in the round message). No active EDGE run before the push (`live_active2.py`).
+  orc startup: no `*_inactive` event.
+- **Sandbox sleep:** `.railway/railway.ts` `market-python-sandbox` `deploy.sleepApplication: true`. `railway config
+  pull --force` on the live project, the one line added, `railway config plan` = "1 to change
+  (deploy.sleepApplication null → true)", `railway config apply --yes`; the redeploy `2ce76b3d` reached SUCCESS and
+  then SLEEPING (log "Stopping Container", 19:26 UTC). The committed file keeps its comments plus that line; a plan
+  against it shows only the runner's temporary `DATABASE_URL` of the backfill job, which the job removed.
+- **Wake evidence before the change:** telegram-monitor (sleeping since 2026-10-27) woke 14 times on private-network
+  `/notify` in 0.2-9 s; the first request while asleep failed once (`telegram_notify_failed URLError`, retry passed).
+- **Rollback:** `sleepApplication: false` (plan/apply); orc `WakeTransport` is harmless with an awake service.

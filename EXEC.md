@@ -253,24 +253,6 @@ User 2026-10-17: "Oke, untuk M181, masukkan exec, jangan eksekusi dulu."
 - Uji: penyedia tiruan yang diam dipotong di N; penyedia yang lambat tetapi terus mengalir tidak dipotong; pencarian
   endpoint mengembalikan nama penyedia untuk id dari Responses API.
 
-### EXEC-M179: angka berskala tidak kehilangan digit pentingnya (disetujui 2026-10-17, belum dieksekusi)
-
-User 2026-10-17: "Ok M179 masukan exec". Persetujuan ini untuk masuk EXEC; eksekusi menunggu go.
-- Akar (terverifikasi, kode): `value_refs.format_value` format `rp` membagi angka ke triliun, miliar atau juta lalu
-  memakai jumlah desimal yang diminta rujukan; `rp:0` menampilkan 1,51 triliun sebagai "Rp 2 triliun" (A/B E2 lengan
-  A, ERRORS M179).
-- Kelas: setiap angka berskala (rupiah, nanti volume dan seri makro atau lintas aset berskala) yang presisinya dipilih
-  model, di teks dan tabel.
-- Rancangan (lapisan backend, penjamin kebenaran angka): angka yang diskalakan selalu tampil dengan minimal tiga digit
-  penting; desimal yang diminta model dipakai bila lebih banyak. Contoh: 1,51 triliun → "Rp 1,51 triliun"; 209,74
-  miliar dengan `rp:0` → "Rp 210 miliar"; 5,16 miliar dengan `rp:0` → "Rp 5,16 miliar". Angka tanpa skala tidak
-  berubah. Bila tampilan berubah dari permintaan, dicatat di log (`ai_reference_precision_raised`).
-- Tidak tercakup: format persen atau desimal biasa dengan desimal sedikit (mis. 0,4% dengan `pct:0` menjadi "0%").
-  Pertanyaan untuk user saat go: aturan yang sama diterapkan juga ke format itu?
-- Uji: kasus di atas, angka negatif, batas skala (999,6 miliar → "Rp 1,00 triliun" bukan "Rp 1.000 miliar"),
-  pemeriksaan bahwa setiap tampilan dibaca balik sama oleh `provenance.parse_numbers`; snapshot prompt bila teks
-  format di prompt berubah.
-
 ### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; go 2026-10-15; selesai kecuali cek berbayar)
 
 **Hasil (2026-10-15).** Fase 1 EDGE `e3ccf5d` (edge-bff `0eb6c761`); Fase 2 `c997c4d` + `bb2430d` (sandbox `b1f26312`,
@@ -7579,112 +7561,6 @@ data yang baru dihitung dengan formula yang berbeda dengan data sebelumnya. Go."
   (riwayat tidak berubah), 2026 hanya baris baru (F02/F05 7.802, F03/F06 117). INDEX broker sampai 2026-10-23.
 - T: laporan sub-agent menyusul.
 
-### EXEC-LOADER-M217: loader Stockbit berfrekuensi di Git dan remark muatan tidak lengkap di database (diusulkan 2026-10-25, direvisi 2026-10-29, BELUM dijalankan)
-
-**Kata-kata user (2026-10-25):** "Oke, untuk proposal solusi M217, masukkan kan, ke exec jangan eksekusi dulu."
-Status: tercatat sebagai rencana. Eksekusi baru dimulai setelah user memberi go dan menjawab pertanyaan terbuka di bawah.
-
-**Revisi user 2026-10-29 (berlaku di atas L2 di bawah):** "exec217, database tidak menolak muatan yang tidak lengkap,
-tapi setiap muatan yang tidak lengkap harus di-remark. masukan exec." Eksekusi tetap menunggu go.
-
-Keadaan sekarang (dibaca 2026-10-29 dari kode dan ERRORS M217):
-- L1 sebagian selesai: importir user ada di Git sebagai `stockbit-updater` (`apps/stockbit-updater/broker_import.py`),
-  menulis `buy_freq`/`sell_freq`. Sisa: loader lama `apps/stockbit-broker-backfill/` masih menulis tanpa frekuensi.
-- L3 sebagian selesai: log per tanggal ada di `stockbit_full_broker_import_status` (`broker_import.py`:275, 330, 338),
-  tetapi hanya untuk muatan lewat importir itu; penulisan lain tidak tercatat.
-- Pertanyaan terbuka 1 dan 2 terjawab oleh `stockbit-updater`; pertanyaan 3 (mencabut hak tulis langsung) tidak perlu
-  lagi karena tidak ada penolakan.
-
-Rencana pengganti L2 — **remark, bukan tolak** (lapisan: database, supaya setiap penulis tercakup):
-- R1. Tabel baru `broker_summary_date_quality` (satu baris per `Date`): jumlah baris, broker, simbol (dan simbol
-  bukan 4 huruf), cakupan frekuensi per kelompok simbol, kolom wajib yang kosong, pembanding (jsonb), `status`
-  COMPLETE / INCOMPLETE, `remark` (kalimat biasa: apa yang kurang, dibanding apa, cara memperbaiki), `checked_at`,
-  penulis (`application_name`).
-- R2. Fungsi `remark_broker_summary_date(date)` menghitung baris itu dari `IDX_Broker_Summary` (indeks primer dimulai
-  dengan `"Date"`, jadi per tanggal tidak memindai seluruh tabel; dibuktikan dengan `EXPLAIN (ANALYZE, BUFFERS)` sebelum
-  dipasang). Pembanding diturunkan dari tanggal-tanggal lengkap sebelumnya (misalnya 20 tanggal terakhir), bukan angka
-  tetap; aturan akhirnya ditetapkan dari data saat dibangun dan dicatat di sini.
-- R3. Pemicu statement-level `AFTER INSERT OR UPDATE OR DELETE` dengan transition table pada `IDX_Broker_Summary`
-  memanggil R2 untuk setiap tanggal yang tersentuh. Muatan selalu masuk; yang tidak lengkap ditandai. Bila ukuran
-  biaya pemicu terlalu besar untuk muatan massal, cadangannya: R2 dipanggil di akhir setiap muatan ditambah sapuan
-  harian; pilihan diambil dari ukuran, bukan dugaan.
-- R4. Isi awal: R2 dijalankan sekali untuk semua tanggal yang ada (read-only terhadap data broker). Contoh yang
-  diharapkan muncul: tanggal sejak 2026-09-01 tanpa simbol bukan 4 huruf (ERRORS M218).
-- R5. Pembaca remark: pesan Telegram `stockbit-updater` menyebut tanggal INCOMPLETE dan remarknya; `UPDATE_TABLE.md`
-  memeriksanya. AI **tidak** menyebut remark (user 2026-10-29: "M217 tidak perlu AI menyebut remark. Selebihnya sudah
-  oke, khusus untuk M217."); orc, Governor dan profil data tidak diubah.
-- R6. Loader lama: jalur tulisnya dialihkan ke importir `stockbit-updater` atau dihapus. Larangan di `UPDATE_TABLE.md`
-  bagian 2 dicabut sesudahnya.
-- Dokumen: migrasi baru, Table_Catalog/Column_Catalog, DATABASE_SCHEMA, DATABASE_CHANGELOG, Part A (aturan: setiap muatan
-  yang tidak lengkap diberi remark, bukan ditolak).
-- Tes (transaksi rollback): (a) tanggal lama dimuat ulang sama → COMPLETE, data tidak berubah; (b) tanggal yang sama
-  tanpa frekuensi → masuk, INCOMPLETE dengan remark yang menyebut frekuensi; (c) broker hilang → INCOMPLETE; kasus
-  lain dari pola yang sama: simbol bukan 4 huruf hilang (M218). Kasus yang tidak berlaku: waran/right lama yang memang
-  tanpa frekuensi di sumber tidak ditandai, karena pembanding dihitung per kelompok simbol.
-- Berlaku juga untuk sumber lain dengan pola sama (loader harga, makro dan lintas aset nanti): tabel kualitas per tanggal
-  dan remark, tanpa menolak muatan.
-
-**Akar masalah (terverifikasi, ERRORS M217):**
-- `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py` `CANONICAL_KEYS` (baris 42-46) tidak memuat
-  `buy_freq`/`sell_freq`. `replace_date` (526) menghapus seluruh tanggal lalu menulis hanya kolom itu.
-- Data 2026-09-01…10-23 memuat frekuensi di 100 % baris tanpa baris `stockbit_broker_summary_load_log`, jadi
-  dimuat program di luar Git.
-- Staging `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi tidak ada cadangan frekuensi.
-
-**Kelas:** sumber data yang dimuat kode di luar repo dan tanpa log muat per tanggal. Tidak bisa diperiksa, diulang,
-atau dilindungi. Berlaku untuk setiap loader lokal (Stockbit sekarang; cross-asset dan makro nanti).
-
-**Usulan (lapisan yang memiliki mekanismenya):**
-- L1. **Loader di Git.** Program yang dipakai user untuk 2026-09-01…10-23 masuk ke `apps/stockbit-broker-backfill/`.
-  - Menulis semua kolom tabel, termasuk `buy_freq`/`sell_freq`.
-  - Token tetap dari `STOCKBIT_TOKEN`, `--token-stdin` atau prompt, tidak pernah ke Git.
-  - Satu loader saja; jalur tulis loader lama yang tanpa frekuensi dihapus atau dialihkan ke loader ini.
-- L2. **Penjaga di database** (lapisan backend, bukan aturan di loader saja).
-  - Loader menulis satu tanggal ke staging. Fungsi `apply_broker_summary_date(date)` menukar isinya ke
-    `IDX_Broker_Summary` dalam satu transaksi, hanya bila:
-    - semua kolom wajib terisi;
-    - cakupan frekuensi tidak lebih rendah dari isi lama tanggal itu, dihitung per kelompok simbol, karena
-      warrant/right lama memang ada yang tanpa frekuensi (cek sub-agent C1);
-    - jumlah broker dan baris tidak turun tajam dari isi lama.
-  - Bila gagal, fungsi menolak dengan pesan yang menyebut tanggal, kolom dan cara memperbaikinya (AGENTS Gates and
-    evidence: aturan terlihat, cara lolos, contoh benar/salah, pesan tolak).
-  - Batas "turun tajam" diturunkan dari data tanggal-tanggal sebelumnya, bukan angka tetap.
-- L3. **Log muat wajib.** Fungsi L2 menulis baris `stockbit_broker_summary_load_log`: jumlah baris, cakupan
-  frekuensi, sha256 respons, versi loader.
-  - Log 2026-09-01…10-23 diisi dari data yang ada, ditandai `source = unlogged loader`, tanpa mengubah data.
-- L4. **`UPDATE_TABLE.md` bagian 2** diperbarui ke loader baru; larangan sementara dicabut setelah L1-L2 berjalan.
-
-**Cakupan:**
-- Tercakup: tanggal baru, koreksi tanggal lama, pemuatan ulang tidak sengaja dengan loader tanpa frekuensi (ditolak
-  oleh L2), dan audit per tanggal (L3).
-- Tidak tercakup:
-  - kebenaran angka Stockbit sendiri (tetap dicek dengan rekonsiliasi Feature);
-  - penulisan langsung ke `IDX_Broker_Summary` yang melewati fungsi L2. Ditutup dengan mencabut hak INSERT/DELETE
-    langsung dari login loader, setelah login itu dicek.
-
-**Risiko dan biaya:**
-- Staging menambah satu tanggal (±27 rb baris, beberapa MB) sementara.
-- Loader user perlu diubah sedikit agar menulis ke staging.
-- Migrasi baru: tabel staging, fungsi, hak akses; Table_Catalog, Column_Catalog, DATABASE_SCHEMA, DATABASE_CHANGELOG.
-
-**Verifikasi:**
-- Tes loader: tanpa token berhenti; 401/403 berhenti; frekuensi ikut ditulis.
-- Tes fungsi L2 di transaksi rollback, untuk tiga kasus:
-  - (a) satu tanggal lama dimuat ulang dengan isi sama: diterima, data tidak berubah;
-  - (b) tanggal yang sama tanpa frekuensi: ditolak dengan pesan yang benar;
-  - (c) tanggal dengan broker hilang: ditolak.
-- Live: satu tanggal baru dimuat lewat jalur baru, lalu `UPDATE_TABLE.md` dijalankan untuk tanggal itu dan semua cek
-  0 selisih.
-- Kasus lain yang memakai pola sama: loader harga lokal, dan sumber makro/cross-asset nanti.
-- Kasus yang tidak cocok: data yang datang dari service Railway terjadwal dengan log sendiri (`idx-price-cron`).
-  Pola log sudah ada di sana; yang dipakai cukup penjaga L2-nya.
-- Sifat: permanen.
-
-**Pertanyaan terbuka untuk user:**
-1. Loader yang dipakai untuk 2026-09-01…10-23: skrip apa dan di mana? Boleh dimasukkan ke Git (tanpa token)?
-2. Apakah loader itu juga menulis ke CSV harian lokal seperti loader lama?
-3. Login database apa yang dipakai loader (untuk L2, mencabut tulis langsung)?
-
 ### EXEC-M216: sambungan "per tanggal saja" (Langkah B, dengan katalog Langkah A di dalamnya) (disetujui 2026-10-25)
 
 **Kata-kata user (2026-10-25):** "dari langkah A dan langkah B, mana yang bisa solve the problem entirely dengan risiko
@@ -9039,90 +8915,6 @@ storage. Inspect kenapa bisa lama, sebetulnya ini hanya proses penjndahan data s
   - Waktu: build dan tes setelah "go"; deploy dev di luar jendela B6 lalu satu run manual terukur; run terjadwal
     berikutnya sebagai bukti kedua.
 
-## EXEC-M304-M305 — argumen tool yang sudah didekode dan nama kolom tanpa beda huruf besar-kecil (disetujui 2026-10-29, BELUM dijalankan)
-
-User 2026-10-29: "Oke, untuk M304-305, masukkan ke exec." Ini persetujuan isi rencana; eksekusi menunggu "go"
-(AGENTS: rencana ≠ perintah jalan). Bukti: run `edge_f9a9164ada799bb67bb9fae523d2bdf2`, ERRORS M304 dan M305.
-Hanya `market-ai-orc`; tanpa migrasi, tanpa variabel Railway, tanpa perubahan prompt atau skema jawaban.
-
-**Langkah 1 — M304, satu sumber argumen (lapisan: kontrak registry ↔ orchestrator).**
-- `app/tools/registry.py` `ToolOutcome` (60-65) mendapat ruas `arguments`: dict yang sudah melewati `_parse_arguments`,
-  `_unwrap` dan `decode_text_values` (452-456), sebelum validasi Pydantic. Diisi pada hasil berhasil dan pada penolakan
-  (bila penguraian sampai di sana).
-- `app/orchestrator.py`: tempat yang sekarang membaca ulang argumen mentah lewat `_normalized_arguments` membaca
-  `outcome.arguments` bila ada: langkah mekanis (5090, 5100), pelacak (5308-5330) dan kunci pengulangan (5218, 5227,
-  5280) diperiksa satu per satu. Kunci pengulangan tetap memakai bentuk yang sama sebelum dan sesudah, supaya deteksi
-  panggilan berulang tidak berubah arti. `_normalized_arguments` tetap sebagai cadangan bila `arguments` kosong.
-- Tes: `tests/test_merged_steps.py` — `run_python` dengan `complete` berupa teks `"true"` memicu `complete_analysis`
-  otomatis; kasus kedua: ruas lain yang didekode (angka berupa teks) terbaca sama oleh pelacak; kasus yang tidak berlaku:
-  `complete` berupa teks `"false"` tidak memicu. `tests/test_tool_registry.py`: `outcome.arguments` sama dengan argumen
-  yang dipakai handler.
-
-**Langkah 2 — M305, nama kolom dilipat huruf kecil bila hanya cocok satu (lapisan: pembaca rujukan).**
-- Satu fungsi bersama `resolve_column(name, present)`: cocok persis lebih dulu; bila tidak ada, cari kolom yang sama
-  sesudah dilipat huruf kecil; tepat satu → pakai nama kolom asli; lebih dari satu atau tidak ada → ditolak seperti
-  sekarang. Daftar kolom diturunkan dari keluaran yang dirilis, tidak diketik.
-- Dipakai di `app/table_directives.py` (kolom sel 213-216 dan kolom urut 237-239) dan `app/value_refs.py` (pemilih baris
-  `[kolom=nilai]` 546 dan ruas kolom sesudahnya).
-- Gerbang (AGENTS, Gates and evidence): (a) aturan yang dilihat model tidak berubah — nama kolom ditulis seperti di
-  daftar kolom; (b) cara lolos dan (c) contoh: `Broker` atau `broker` untuk kolom tunggal `Broker` diterima; untuk
-  tabel yang punya `Net` dan `net`, `NET` ditolak; (d) pesan penolakan untuk yang ambigu menyebut kandidatnya
-  ("column NET matches Net and net; write one exactly").
-- Tes: `tests/test_table_directives.py` dan `tests/test_value_references.py` — `broker` → `Broker` (kasus run ini);
-  kasus kedua dengan nama berspasi `investor type` → `Investor Type`; kasus yang tidak berlaku: dua kolom yang hanya
-  beda huruf besar-kecil tetap ditolak dengan pesan kandidat.
-
-**Langkah 3 — validasi, deploy, dokumen.**
-- Suite orc lengkap lokal (`ORC_TEST_POSTGRES_URL`), `git diff --check`; cek tidak ada run EDGE aktif; push `main`;
-  deploy orc sampai SUCCESS.
-- Cek live tanpa biaya model bila bisa (replay argumen run ini ke registry dan ke pembaca tabel di runner); bila perlu
-  satu pertanyaan live sejenis (berbayar kecil), hanya dengan izin.
-- ERRORS M304 dan M305 → status diperbarui; RAILWAY_CHANGELOG (deploy orc); bagian ini dihapus dari EXEC setelah
-  selesai. `AI_TOOLS.md`, snapshot prompt dan `AI_MODELS.md` tidak berubah (tidak ada deskripsi tool, prompt atau
-  panggilan model yang disentuh); bila tes generator menunjukkan lain, diperbarui di tugas yang sama.
-
-**Risiko:** langkah 1 menyentuh banyak tempat yang membaca argumen; bila satu pelacak menerima bentuk yang berbeda,
-catatan run (sumber, keputusan) bisa berubah. Tiap tempat diperiksa dan suite lengkap harus hijau. Langkah 2 bisa
-menerima rujukan yang dulu ditolak; ini hanya terjadi bila tepat satu kolom cocok, jadi angka yang ditunjuk tetap satu.
-
-## EXEC-C3 — petunjuk terarah untuk error tanggal di kode analisis (disetujui 2026-10-29, BELUM dijalankan)
-
-User 2026-10-29: "C3 oke, masukan exec.", lalu "Oke, untuk exec C3". Eksekusi dimulai setelah go yang jelas. Asal: FUTURE_PLAN "Biaya run panjang" butir 3, run
-`edge_8233fa7f6e2386bc368387b700838f1f` (iterasi 4 gagal `merge_asof` pada tanggal bertipe object, satu iterasi
-tambahan untuk memperbaikinya).
-
-**Akar (terverifikasi):** frame dari `load`, `range`, `sql` dan `join` sengaja memakai `datetime.date` (tipe object)
-untuk kolom tanggal (`apps/market-python-sandbox/runtime/saniti.py`:188, `runtime/saniti_session.py`:394). Model
-diberi tahu lewat catatan `DATA_TYPES` (`app/sessions.py`:133-139), tetapi tetap memakai idiom datetime pandas. Saat
-gagal, sandbox hanya mengembalikan pesan pandas; tidak ada petunjuk seperti `IN_PERIOD_HINT` (`app/sessions.py`:146-150,
-1240-1241). Uji stres 2026-09-26 sudah mencatat kelas yang sama (komentar di `app/sessions.py`:133).
-
-**Kelas:** setiap idiom datetime pandas pada kolom tanggal object: `merge_asof`, `merge` antara object dan
-datetime64, `.dt`, `.resample`, indeks tanggal. Pesan pandas 3.0.6 yang direproduksi 2026-10-29:
-- `MergeError: Incompatible merge dtype, dtype('O') and dtype('O'), both sides must have numeric dtype`;
-- `ValueError: You are trying to merge on object and datetime64[s] columns for key ...`;
-- `AttributeError: Can only use .dt accessor with datetimelike values`;
-- `TypeError: Only valid with DatetimeIndex, TimedeltaIndex or PeriodIndex, but got an instance of 'Index'`.
-
-**Rencana (lapisan: respons error sandbox, pola yang sama dengan `IN_PERIOD_HINT`):**
-1. `DATE_DTYPE_HINT` di `app/sessions.py`, ditempel di cabang `SCRIPT_ERROR` (1237-1250) bila pesan error cocok dengan
-   tanda error tanggal di atas **dan** sesi memuat dataset dengan kolom waktu. Petunjuk menyebut kolom tanggal sesi
-   itu (diturunkan dari kontrak data sesi, tidak diketik) dan perbaikannya: `frame[col] = pd.to_datetime(frame[col])`
-   di kedua sisi sebelum `merge_asof`, `.dt` atau `.resample`; bila ada relasi AS_OF terdaftar antara dataset sesi,
-   `saniti.join(relationship_id)` disebut dengan id-nya (diturunkan dari relasi sesi).
-2. Tanda error tidak hanya diketik: tes menjalankan keempat idiom di pandas yang terpasang dan memeriksa pola cocok
-   dengan pesannya. Jadi bila pandas naik versi dan kata-katanya berubah, tes gagal, bukan petunjuknya diam-diam hilang.
-3. Log `script_error` (jenis error, `date_hint` ya/tidak) supaya frekuensinya bisa diukur sebelum dan sesudah.
-- Tes `tests/test_unit_hints.py` atau berkas baru: keempat idiom memberi petunjuk; kasus lain yang memakai mekanisme
-  sama: `.resample` di frame `range()`; kasus yang tidak berlaku: `KeyError` kolom dan error di sesi tanpa kolom waktu
-  tidak memberi petunjuk tanggal.
-- Deploy sandbox sampai SUCCESS (cek tidak ada run EDGE aktif). `AI_TOOLS.md` diperiksa dengan tesnya; tidak ada
-  helper atau tool baru.
-- **Tidak mencakup:** mencegah error sejak awal. Alternatif yang tidak dipilih: mengganti tanggal menjadi datetime64 di
-  semua frame — mengubah keputusan "DATE stays a date" dan semua kode yang membandingkan dengan `datetime.date`.
-- **Verifikasi:** tes lokal; sesudah deploy, log `script_error` dengan `date_hint` dan iterasi berikutnya yang lulus.
-- Sifat: permanen.
-
 ## EXEC-GO-1029 — go user untuk butir EXEC yang disetujui (2026-10-29)
 
 User 2026-10-29: "Oke, U4 masukkan exec. U1 ditunda dulu aja. Sekarang untuk approve exec, feel free to inspect database
@@ -9136,19 +8928,8 @@ EXEC-M179, EXEC-U4. Pertanyaan yang belum dijawab user diambil sesempit rencana 
   kedua klien, tanpa mengubah web-governor).
 Tidak termasuk: U1 (ditunda), EXEC-MCAP (sesi lain), PENDING-M204 P6–P8 (ditahan user). Sesudah selesai: tiga uji live.
 
-## EXEC-U4 — sandbox tidur saat diam, orc membangunkannya (disetujui dan go 2026-10-29)
-
-Rencana dan bukti: FUTURE_PLAN "U1 dan U4 — tinjauan ulang dan rencana implementasi" (inspeksi 2026-10-29). Ringkas:
-1. orc `app/wake.py` (desain akhir, diputuskan dari tes 2026-10-29): transport HTTP klien sandbox dan web-governor
-   dibungkus `WakeTransport`. Permintaan dikirim biasa; hanya bila koneksi ditolak (permintaan belum sampai ke layanan)
-   atau GET dijawab 502, orc memanggil `GET /ready` dengan jeda 1, 2, 4, 8, 8 s (total 23 s) sampai layanan menjawab
-   < 500, lalu mengirim permintaan itu sekali lagi. POST yang dijawab layanan tidak pernah dikirim ulang; jalur hangat
-   tanpa permintaan tambahan. Gagal sesudah semua jeda → galat lama "sandbox unreachable". Log `downstream_wake`;
-   progres `PROGRESS_SERVICES_WAIT`. Versi pertama (cek `/ready` sebelum setiap permintaan sesudah 4 menit diam)
-   ditinggalkan: menambah permintaan di jalur hangat dan 35 tes lama gagal karena sandbox tiruan tidak punya `/ready`.
-2. Tes orc `tests/test_wake.py` (POST ditolak lalu dikirim ulang, GET 502, POST 502 tidak diulang, jalur hangat,
-   tetap mati, web-governor); suite orc lengkap 2.070 lulus.
-3. Deploy orc SUCCESS, lalu `sleepApplication: true` untuk `market-python-sandbox`; `railway config pull/plan`;
-   RAILWAY_CHANGELOG.
-4. Cek live: status `SLEEPING` dan `Stopping Container`; bangun lewat jaringan privat diukur.
-Kembali: `sleepApplication: false`.
+**Status EXEC-GO-1029: selesai 2026-10-29.** Bagian EXEC-M304-M305, EXEC-C3, EXEC-M179, EXEC-LOADER-M217 dan EXEC-U4
+dihapus dari file ini (aturan AGENTS); hasil, bukti dan tes ada di ERRORS M304, M305, M179 (tabel), M217 (dan Part A
+butir 28), RAILWAY_CHANGELOG dan DATABASE_CHANGELOG 2026-10-29. Tiga uji live (`edge_6f8de485…`, `edge_dd6cf882…`,
+`edge_deb3fc4d…`) dan temuan baru M306 di ERRORS. Kode: `943f312` (orc), `1a52498` (sandbox), `3bed26b` (M217,
+telegram-monitor), migrasi `20261029_001/002/003`.

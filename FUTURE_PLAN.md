@@ -787,7 +787,7 @@ Urutan yang disarankan: U1 → M215 usulan A → U4.
   2026-10-25 sejalan dengan job (10:00 1,86 GB; 18:00 1,48 GB saat putaran stockbit-updater) dan turun kembali dalam
   satu jam. Batas memori sudah memotong biaya cache halaman; menjadwalkan job berdekatan tidak diperlukan sekarang.
 
-## U1 dan U4 — tinjauan ulang dan rencana implementasi (2026-10-29; U4 → EXEC-U4, U1 DITUNDA)
+## U1 dan U4 — tinjauan ulang dan rencana implementasi (2026-10-29; U4 SELESAI 2026-10-29 lewat EXEC-GO-1029, U1 DITUNDA)
 
 Keputusan user 2026-10-29: "Oke, U4 masukkan exec. U1 ditunda dulu aja."
 
@@ -1012,7 +1012,7 @@ Target ukur: chart tampil < 1 s sesudah halaman terbuka pada koneksi biasa; kunj
    tidak terpasang; sebelum memilih aturan, ukur dulu berapa pasangan dalam jendela ±N hari.
 2. **Loader (M242):** `stockbit_events.py` menyimpan NULL bila `formatted` sumber "-"; 0 dengan tampilan "0" tetap 0.
    Muat ulang lewat ronde event berikutnya; deskripsi `value_idr` menyebut harga perkiraan (`is_estimated_price`).
-3. **Standar (Part A butir 28, 29):** tabel multi-sumber wajib punya penanda baris utama; angka "tidak ada" wajib NULL
+3. **Standar (Part A butir baru, nomor sesudah 28):** tabel multi-sumber wajib punya penanda baris utama; angka "tidak ada" wajib NULL
    menurut penanda sumber.
 - Verifikasi: hitung ulang jendela 19–23 Okt BUY dari `is_primary_report` = Rp12.414.182.494.587; 0 baris `formatted`
   "-" yang bernilai 0; satu pertanyaan live sejenis `edge_8233fa7f` tanpa langkah buang kembar.
@@ -1031,7 +1031,7 @@ ditambah. Panggilan 1, 5, 10 tanpa cache sama sekali (USD 0,0090 + 0,0137 + 0,02
    catatan giliran 9.466 (±16 rb token) ikut di 10 panggilan (±16% input), padahal giliran NEW_TOPIC dan 0 dari 12 output
    lama dibaca (`conversation_reuse_summary released_outputs_read=[]`). Usulan: giliran baru menerima indeks singkat
    (nama dan satu baris per tabel) dan membuka rincian lewat alat yang ada (`load_output`).
-3. **Iterasi tambahan** (petunjuk error tanggal: EXEC-C3, disetujui 2026-10-29): dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
+3. **Iterasi tambahan** (petunjuk error tanggal: EXEC-C3, SELESAI 2026-10-29, sandbox `b02a5e72`): dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
    (M241). Usulan: petunjuk error terarah seperti `IN_PERIOD_HINT` (`apps/market-python-sandbox/app/sessions.py`) untuk
    galat kunci merge bertipe object, yang menyebut `saniti.join` (AS_OF) atau `pd.to_datetime`.
 

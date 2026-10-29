@@ -21,6 +21,15 @@ lewat stdin). Railway men-deploy ulang dan deploy itu menjalankan satu putaran. 
 atau tabel; yang disimpan hanya waktu kedaluwarsanya (`token_expires_at`). Token kedaluwarsa menghentikan putaran
 dengan pesan yang menyebutnya.
 
+**Kelengkapan per tanggal (EXEC-LOADER-M217, sejak 2026-10-29):** setiap tulisan ke `IDX_Broker_Summary`, oleh loader
+mana pun, memicu `remark_broker_summary_date(date)` lewat trigger, yang mengisi satu baris `broker_summary_date_quality`
+per tanggal: COMPLETE, INCOMPLETE dengan `remark` (apa yang kurang dan cara memperbaikinya), atau UNCHECKED. Muatan tidak
+pernah ditolak. Yang diperiksa, dibanding median 20 tanggal sebelumnya yang lolos: jumlah broker dan saham (toleransi
+5 x MAD, minimal 10 %), cakupan frekuensi baris saham, dan hilangnya semua simbol non-saham (M218). Pesan Telegram
+putaran menyebut tanggal INCOMPLETE beserta remark-nya. AI tidak membaca tabel ini (keputusan user 2026-10-29).
+Cek cepat: `SELECT trade_date, status, remark FROM broker_summary_date_quality WHERE status <> 'COMPLETE' ORDER BY 1
+DESC LIMIT 20`.
+
 **Isi satu putaran APPLY** (`updater.py` `main`):
 1. Broker Summary (`broker_import.py`, importir user): tanggal harga harian yang lebih baru dari `max("Date")`
    `IDX_Broker_Summary`, atau 30 hari terakhir yang belum punya baris broker. Simbol = universe 4 huruf ∪ harga ∪
@@ -115,6 +124,9 @@ Feature 01 dan 04 saham dihitung dari harga, bukan dari broker. Keduanya diurus 
 - **Sejak 2026-10-25** loader itu (importir user) ada di Git sebagai `apps/stockbit-updater/broker_import.py` dan menulis
   frekuensi; pakai service di Bagian 0. Loader lama `apps/stockbit-broker-backfill/` tetap tidak boleh dipakai untuk
   tanggal yang sudah berfrekuensi (ERRORS M217).
+- **Sejak 2026-10-29** loader lama menolak menulis `IDX_Broker_Summary` (keluar dengan kode 2 dan pesan yang menunjuk ke
+  Bagian 0; `--check-database-only` dan tabel tujuan lain tetap jalan). Bila tanggal tetap dimuat tanpa frekuensi oleh
+  cara lain, `broker_summary_date_quality` menandainya INCOMPLETE.
 
 ## 3. Sebelum refresh: pastikan sumber selesai dan utuh
 
