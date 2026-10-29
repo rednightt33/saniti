@@ -5089,3 +5089,17 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   measurement of the same data, to be re-checked against the 12:00 UTC run's logged sizes.
 - Next: the source is attached (pinned plan, 7e) after the 12:00 UTC publisher run has written the first xsection index,
   so `/ready` can pass within its 300 s.
+
+## 2026-10-29 — terminal-publisher `0d33d8ac`: first run (12:00 UTC tick) published, with xsection and refs
+
+- The 19:00 WIB tick ran `0d33d8ac` from 12:04:40 to 13:00:01 UTC: `done` mode daily, 828 files planned, 1,658 written,
+  27.68 MB, 3,314.5 s, exit 0; `xsection` price (845 tickers, 1,332,376 rows, 11,770,934 B, as of 2026-10-29) and actions
+  (3,403 rows, 20,752 B); `refs` tickers, brokers, logos uploaded, none failed; three bucket calls retried (M263 fix seen
+  on dev); `gc_failed` `ConnectionClosedError` after a 19-minute listing (nothing deleted; ERRORS M301);
+  `broker_behind_sessions` 2 (broker data through 2026-10-27), Telegram notice sent.
+- The cron list shows the 12:30 tick as an execution created 12:34:21 while the same process went on to `done`
+  (ERRORS M301 "also seen"); there was one run.
+- Verified: `run_terminal_check.sh present` (job on orc-test-runner, `terminal_check_pub_20261029.log`) VERDICT PASS:
+  `/state` `finished_at` 12:59:56, `price_through` 2026-10-29, both xsection files granted to the gateway key and
+  downloaded with the indexed sha256 and size; `verification/backtest/e2e_dev.py --skip-page --only single` passed with
+  catalog `data_through` 2026-10-29 (job `bt_afdccaaaa418f4bf1e84b194db49334c`); `/terminal-app/` 200.

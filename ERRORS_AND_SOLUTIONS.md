@@ -3249,8 +3249,11 @@ change yet.
   (empat jenis error sementara, error yang menetap, error lain, halaman listing yang dibatalkan).
 - **Not covered:** gangguan yang lebih lama dari 14 s tetap menghentikan run (lalu menunggu run berikutnya); run yang
   berhenti di tengah tidak dilanjutkan otomatis (restart `NEVER`, M229).
-- **Status:** OPEN, menunggu pilihan user (kartu 2026-10-28 01:2x UTC). Branch Screener: kode ada lewat cherry-pick
-  (pilihan A user 2026-10-28), belum di-deploy dari branch ini.
+- **Status:** FIXED di dev 2026-10-29. Run 07:30 WIB 2026-10-29 (00:32 UTC, build PR #41 `b8b51052`) masih CRASHED
+  oleh `RequestCanceled` yang sama, jadi publikasi pagi itu tidak ada. Build `0d33d8ac` (PR #42, cherry-pick pilihan A
+  user 2026-10-28) terpasang 09:33 UTC; run 19:00 WIB (12:04-13:00 UTC) mengulang tiga panggilan yang gagal
+  (`ClientError` 12:07, `ReadTimeoutError` 12:20 dan 12:26, semuanya `bucket_retry`) dan selesai `done` exit 0,
+  `price_through` 2026-10-29 (pemeriksaan `verification/screener/jobs/terminal_check_pub_20261029.log` PASS).
 - **Lesson for new data:** setiap panggilan bucket dari kode yang menerbitkan data (dataset, pack, file xsection, dan
   data makro atau lintas aset berikutnya) lewat `Bucket` publisher, jadi lewat `retried`; listing dibaca per halaman
   supaya tiap halaman bisa diulang. Tes `test_every_bucket_call_is_asked_again_after_a_canceled_answer` mengunci itu.
@@ -4157,6 +4160,34 @@ Table_Catalog entries came from the earlier 20261023_004 onboarding; this migrat
 does not touch them. Scoped Feature01/04 semantic and volume-nullability checks
 have zero failures. Preserve this distinction: passing target checks is not a
 claim that the global audit passed. Evidence: verification/ihsg_price_history/apply/.
+
+
+### M301 — Publisher: the next-run cleanup sits in front of the writes, so a slow bucket listing delays every reader's publication (2026-10-29)
+
+- **Symptom:** the 19:00 WIB run of 2026-10-29 (deployment `0d33d8ac`) took 3,314.5 s against 2,057.7 s the day
+  before, and published at 13:00 UTC instead of about 12:37. Terminal, Backtest and (from now) the Screener read the
+  previous publication meanwhile.
+- **Verified (FACT, publisher log in JSON, `railway logs --json`):** planning 12:04:53-12:13:36 (845 manifests read
+  one by one); then `collect_garbage` 12:13:36-12:32:37, listing the whole bucket page by page, two `ReadTimeoutError`
+  retries, ended `gc_failed` `ConnectionClosedError` (19 min, nothing deleted); writes 12:32-12:51; xsection 12:51:56
+  (41 s); refs 12:51:56-13:00:00 (8 min); `done` 13:00:00. Code: `publisher.py` `run` calls `collect_garbage` (line 908)
+  before the file writes (line 910 on), and `collect_garbage` lists every object (`Bucket.list`).
+- **Also seen, not a fault:** Railway's cron list shows the 12:30 tick as a new execution created at 12:34:21 and the
+  12:04 one EXITED at that moment, while the same process kept logging until `done` (the progress counts continue from
+  the 12:13 plan without a new planning phase). Railway's documented rule is that a tick skips while an execution runs
+  (docs.railway.com/reference/cron-jobs, read 2026-10-29). Judge a run by its own `done` event, never by the cron list.
+  The plain-text log omits structured lines; read them with `--json`.
+- **Root cause:** the cleanup, which by design never decides the publication (a failure only logs `gc_failed`), runs on
+  the publication's critical path, and its cost grows with the bucket (about 17,500 objects) and with the bucket's
+  latency from `sfo` to `sin`.
+- **Class:** any housekeeping step placed before the step that publishes: the cleanup, and the per-manifest planning
+  reads (one GET per ticker), for every dataset the publisher carries (prices, broker, events, xsection, refs, and the
+  macro or cross-asset data planned).
+- **Solution:** OPEN, proposal to the user (FUTURE_PLAN): bound the cleanup by time and run it after `state.json` (its
+  grace rule already protects the publication being read), and later one manifest index object per run (EXEC-MU-RUNTIME
+  T9) instead of 845 GETs. No change made.
+- **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
+  before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path.
 
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
