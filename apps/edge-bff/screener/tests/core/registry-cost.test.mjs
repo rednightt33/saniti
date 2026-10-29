@@ -141,3 +141,61 @@ describe('cost probe: the decision rule and the work sum', () => {
     expect(() => G.executedChars([{ url: KERNEL, functions: [fn([[0, 100, 1], [10, 30, 5], [20, 40, 7]])] }])).toThrow(/overlap without nesting/);
   });
 });
+
+describe('a lowered cost_class needs a reviewed reason (the probe does not count work inside built-ins)', () => {
+  // a committed registry as the generator writes it (indicators[].params[].cost_class) over the doubles: builtin_window
+  // was window_max's loop (O(N·n)) before its window moved into built-ins; window_max was O(N) (a raise now); running_mean
+  // stays O(N); recursive was O(N·n) and has a review
+  const committed = { indicators: [
+    { id: 'builtin_window', name: 'Window maximum', params: [{ key: 'length', type: 'integer', cost_class: 'O(N·n)' }] },
+    { id: 'window_max', name: 'Window maximum (loop)', params: [{ key: 'length', type: 'integer', cost_class: 'O(N)' }] },
+    { id: 'running_mean', name: 'Running mean', params: [{ key: 'length', type: 'integer', cost_class: 'O(N)' }] },
+    { id: 'recursive', name: 'Exponential average', params: [{ key: 'length', type: 'integer', cost_class: 'O(N·n)' }] },
+  ] };
+  const base = { indicators: committed.indicators.map(r => ({ id: r.id, key: r.id, params: [{ key: 'length', type: 'integer', default: DEFAULTS[r.id].length }] })) };
+  const reviewed = { indicator: 'recursive', param: 'length', from: 'O(N·n)', to: 'O(N)', reason: 'an exponential average: one multiply-add per bar whatever the length', reviewed: '2026-10-29, test double' };
+
+  it('refuses a lowering the probe derives (a window inside built-ins measures O(N)) with the rule, the fix and a right and a wrong example; the right one passes, a raise needs nothing', () => {
+    const r = costWork([group('builtin_window', 'length'), group('window_max', 'length'), group('running_mean', 'length'), group('recursive', 'length')]);
+    expect(r.stderr).toBe('');
+    const derived = new Map(r.out.map(g => [`${g.id}.${g.param}`, g.cost_class]));
+    // the blind spot itself: the same outputs as window_max, measured O(N); window_max O(N·n)
+    expect([derived.get('builtin_window.length'), derived.get('window_max.length')]).toEqual(['O(N)', 'O(N·n)']);
+    const overlay = { cost_reviews: [reviewed] };
+    const lowered = G.costLowerings(committed, derived, overlay);
+    expect(lowered).toEqual([{ id: 'builtin_window', param: 'length', name: 'Window maximum' }]);    // not the raise, not the reviewed one
+    const msg = G.costLoweringRefusal(lowered, 'git HEAD:apps/edge-bff/screener/src/core/screener-registry.json');
+    // (d) where the problem is and what it would do; (a) the rule; (b) how to pass; (c) a right and a wrong example
+    expect(msg).toMatch(/^cost_class lowered: the regeneration derives O\(N\) for builtin_window\.length \(Window maximum\), which git HEAD:\S+ has as O\(N·n\); writing it would drop the cap/);
+    expect(msg).toMatch(/\nRule: the cost probe counts JavaScript work only, .* a lowered class is written only with a reviewed reason in apps\/edge-bff\/screener\/src\/core\/screener-overlay\.json cost_reviews \(a raise to O\(N·n\) needs none\)\.\n/);
+    expect(msg).toMatch(/\nHow to pass: read the kernel of each parameter above in apps\/edge-bff\/terminal\/src\/calc\/indicators\.ts\. .* cost_reviews entry per parameter \{indicator, param, from, to, reason, reviewed\}/);
+    const right = JSON.parse(/\nRight: (\{.*\})\n/.exec(msg)[1]), wrong = JSON.parse(/\nWrong: (\{.*?\}) \(/.exec(msg)[1]);
+    expect(G.costReviewProblems([right], base)).toEqual([]);
+    expect(G.costLowerings(committed, derived, { cost_reviews: [reviewed, right] })).toEqual([]);
+    expect(G.costReviewProblems([wrong], base)).toEqual([
+      'cost_reviews builtin_window.length: from must be "O(N·n)" and to "O(N)" (only a lowered class needs a review)',
+      'cost_reviews builtin_window.length: reviewed is required (who approved it, when, and where it is recorded)',
+    ]);
+    expect(G.costLowerings(committed, derived, { cost_reviews: [reviewed, wrong] })).toEqual(lowered);
+    // the first build (nothing committed) has nothing to lower; a committed class that is no integer parameter's is skipped
+    expect(G.costLowerings(null, derived, overlay)).toEqual([]);
+    expect(G.costLowerings({ indicators: [{ id: 'gone', params: [{ key: 'length', cost_class: 'O(N·n)' }] }] }, derived, overlay)).toEqual([]);
+  }, 600_000);
+
+  it('checks every review: an integer parameter, from O(N·n) to O(N), a reason and a reviewer, no other field, once', () => {
+    expect(G.costReviewProblems(undefined, base)).toEqual([]);
+    expect(G.costReviewProblems({}, base)).toEqual(['cost_reviews must be a list of {indicator, param, from, to, reason, reviewed}']);
+    expect(G.costReviewProblems([{ ...reviewed, param: 'smooth' }, { ...reviewed, from: 'O(N)', to: 'O(N·n)' }, { ...reviewed, reason: ' ' }, { ...reviewed, note: 'x' }, reviewed], base)).toEqual([
+      'cost_reviews recursive.smooth: no such integer parameter (a cost_class is derived for integer parameters only)',
+      'cost_reviews recursive.length: from must be "O(N·n)" and to "O(N)" (only a lowered class needs a review)',
+      'cost_reviews recursive.length: reason is required (what in the kernel\'s code makes its work stop growing with the length)',
+      'cost_reviews recursive.length: repeated',
+      'cost_reviews recursive.length: note is not a field (indicator, param, from, to, reason, reviewed)',
+      'cost_reviews recursive.length: repeated',
+      'cost_reviews recursive.length: repeated',
+    ]);
+    // an incomplete review never counts as one
+    expect(G.costReviewOf({ cost_reviews: [{ ...reviewed, reviewed: '' }] }, 'recursive', 'length')).toBeUndefined();
+    expect(G.costReviewOf({ cost_reviews: [reviewed] }, 'recursive', 'length')).toBe(reviewed);
+  });
+});

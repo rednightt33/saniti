@@ -19,6 +19,7 @@ export interface Card {
   label?: string;
   metric?: { item_id: string; name: string; params: ParamMap };   // a My metric link (prototype c.m / mName / mp)
   raw?: Test;                  // a raw card's wire test
+  rawName?: string;            // a raw card's name: the catalog's name of what its test reads (fromWire; never on the wire)
   review?: string[];           // needs_review fields of a loaded saved screen (report 9.5), shown, never adjusted
 }
 
@@ -157,9 +158,35 @@ const sortKeys = (v: any): any => Array.isArray(v) ? v.map(sortKeys) : v && type
 const keyOfRef = (r: any): string | null => r?.kind === 'pattern' ? r.type : r?.kind === 'flow' || r?.kind === 'xsection' ? r.metric
   : r?.kind === 'universe' ? r.attr : r?.kind === 'transform' ? r.fn : r?.kind === 'price' ? r.field : null;
 
+/** The catalog entry a metric reference names (fromWire): an entry whose catalog template (`ref`) has this shape, its own
+    parameters aside; else the entry named by the id. */
+function metricEntryOf(r: any, entries: Map<string, Entry>): Entry | undefined {
+  const shape = canonicalRef(r);
+  for (const e of entries.values()) if (e.kind !== 'indicator' && (e.metric as any)?.ref && canonicalRef((e.metric as any).ref) === shape) return e;
+  const k = keyOfRef(r); const e = k ? entries.get(k) : undefined; return e && e.kind !== 'indicator' && !(e.metric as any)?.ref ? e : undefined;
+}
+/** The name of what a wire test reads, as the catalog names it (a raw card's header and the place of its refusals): its
+    first reference that is not a bar field (close above an SMA is the SMA's card, as condition.ts names it), else the
+    bar field; a transform that is a catalog metric's template (Distance from 52W high) by that metric, any other
+    transform by what it is computed on; an indicator or metric by its catalog label, a bar field by its word; the id
+    only when the catalog has no entry for it (an unknown indicator: the only name there is); null for no reference. */
+export function refName(t: any, entries: Map<string, Entry>): string | null {
+  const isRef = (r: any) => !!r && typeof r === 'object' && typeof r.kind === 'string';
+  const refs = [t?.metric, t?.pattern, t?.lhs, t?.rhs, t?.signal?.pattern, t?.signal?.lhs, t?.signal?.rhs].filter(isRef);
+  let r = refs.find(x => x.kind !== 'price') ?? refs[0];
+  while (r?.kind === 'transform' && isRef(r.of) && !metricEntryOf(r, entries)) r = r.of;
+  if (!r) return null;
+  if (r.kind === 'price') return typeof r.field === 'string' ? r.field.charAt(0).toUpperCase() + r.field.slice(1) : null;
+  if (r.kind !== 'indicator') { const m = metricEntryOf(r, entries); if (m?.label) return m.label }
+  const id = r.kind === 'indicator' ? r.indicator : keyOfRef(r);
+  return typeof id === 'string' && id ? entries.get(id)?.label || id : null;
+}
 /** A wire condition as a card on `entries` (by key); an unmapped one becomes a raw card. */
 export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
-  const raw = (): Card => ({ id:cd.id, on:cd.enabled !== false, entry:null, params:{}, opt:'', value:'', value2:'', within:'', second:{}, raw:cd.test, ...(cd.label ? { label:cd.label } : {}) });
+  const raw = (): Card => {
+    const name = refName(cd.test, entries);
+    return { id:cd.id, on:cd.enabled !== false, entry:null, params:{}, opt:'', value:'', value2:'', within:'', second:{}, raw:cd.test, ...(name ? { rawName:name } : {}), ...(cd.label ? { label:cd.label } : {}) };
+  };
   const t = cd.test as any;
   const kind = t?.kind as 'value' | 'state' | 'event';
   const mk = (e: Entry, form: string, output: string | undefined, op: TestOp, params: ParamMap | undefined, extra: Partial<Card> = {}, withOut?: string): Card | null => {
@@ -170,12 +197,7 @@ export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
     return { id:cd.id, on:cd.enabled !== false, entry:e.key, params:full(e, params), opt:o.key, value:sv(t.value), value2:sv(t.value2),
       within:typeof t.within === 'number' ? t.within : e.def.within, second:full(e), ...(cd.label ? { label:cd.label } : {}), ...extra };
   };
-  const metricEntry = (r: any) => {
-    // an entry whose catalog template (`ref`) has this shape, its own parameters aside; else the entry named by the id
-    const shape = canonicalRef(r);
-    for (const e of entries.values()) if (e.kind !== 'indicator' && (e.metric as any)?.ref && canonicalRef((e.metric as any).ref) === shape) return e;
-    const k = keyOfRef(r); const e = k ? entries.get(k) : undefined; return e && e.kind !== 'indicator' && !(e.metric as any)?.ref ? e : undefined;
-  };
+  const metricEntry = (r: any) => metricEntryOf(r, entries);
   try {
     if (t?.kind === 'value') {
       const m = t.metric;
@@ -226,11 +248,7 @@ export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
 /* ---- words ---------------------------------------------------------------------------------------------- */
 const pv = (e: Entry, c: Card) => e.params.map(p => optionText(p, c.params[p.key])).join(', ');
 /** the card's name (a My metric's name, else the entry's label) */
-export const cardName = (e: Entry | undefined, c: Card) => c.metric?.name || c.label || e?.label || rawName(c);
-function rawName(c: Card): string {
-  const t = c.raw as any, ref = t?.metric || t?.lhs || t?.signal?.lhs || t?.pattern || t?.signal?.pattern;
-  return ref ? (ref.indicator || ref.type || ref.metric || ref.attr || ref.fn || ref.field || 'Condition') : 'Condition';
-}
+export const cardName = (e: Entry | undefined, c: Card) => c.metric?.name || c.label || e?.label || c.rawName || 'Condition';
 const vtxt = (v: number | '' | undefined) => v === '' || v == null ? '…' : String(v);
 /** The card's rule in words (the prototype's condText). */
 export function condText(e: Entry | undefined, c: Card): string {

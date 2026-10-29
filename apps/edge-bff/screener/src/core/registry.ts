@@ -31,6 +31,7 @@ export interface ScreenerParam {
   integer: boolean;                  // whole numbers only (the base type, or the floor probe)
   narrowing: Narrowing[];
   cost_class?: CostClass;            // integer parameters: how the compute grows with the value (decides the cap)
+  cost_review?: { reason: string; reviewed: string };   // a class lowered to O(N) with its reviewed reason (overlay cost_reviews)
 }
 /** Units the scaling and shift probes derive (report 6.8): a price level (comparable with close), a price change, a
     volume level or quantity, a product of price and volume, dimensionless (percent, ratio, index), other (EOM, MFI-BW). */

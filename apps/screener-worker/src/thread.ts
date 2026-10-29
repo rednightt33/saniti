@@ -20,12 +20,12 @@ import { runPreview } from './preview.ts';
 import type { PreviewTask } from './preview.ts';
 import { CancelledRun, isCancelled, runTask } from './run.ts';
 import type { CountsEntryOut, CountsTask, RunTask, ThreadEnv } from './run.ts';
-import { ThreadSnapshot, buildSnapshot, prewarmChunk, snapshotDigest } from './snapshot.ts';
-import type { PublicationState, SnapshotDesc } from './snapshot.ts';
+import { PHASE1_FILES, ThreadSnapshot, buildSnapshot, prewarmChunk, snapshotDigest } from './snapshot.ts';
+import type { PublicationState, ReadFile, SnapshotDesc } from './snapshot.ts';
 
 export interface BuildTask {
   kind: 'build';
-  files: { price: FileEntry; actions: FileEntry };
+  files: Record<ReadFile, FileEntry>;
   ref: TickerReference; state: PublicationState;
   engine: { screener_engine: string; registry: string; screener_registry: string };
   tailLength: number; presets: PresetDefinition[];
@@ -86,12 +86,13 @@ function start(d: ThreadData): void {
       case 'build': {
         if (!client) throw new Error('build: this thread has no terminal client');
         const t0 = performance.now();
-        const what = (n: string) => `The ${n} cross-sectional file`;
-        const [price, actions] = await Promise.all([client.file(task.files.price, what('price'), 'price'), client.file(task.files.actions, what('actions'), 'actions')]);
+        // every file of the worker's one file list (snapshot.ts PHASE1_FILES), decoded by name into the build's input
+        const got = await Promise.all(PHASE1_FILES.map(n => client.file(task.files[n], `The ${n} cross-sectional file`, n)));
+        const byName = <T>(f: (k: number) => T) => Object.fromEntries(PHASE1_FILES.map((n, k) => [n, f(k)])) as Record<ReadFile, T>;
         const t1 = performance.now();
-        const built = await buildSnapshot({ price: price.doc, actions: actions.doc, ref: task.ref, state: task.state, engine: task.engine,
+        const built = await buildSnapshot({ ...byName(k => got[k].doc), ref: task.ref, state: task.state, engine: task.engine,
           tailLength: task.tailLength, capBudgetMs: d.env.capBudgetMs, withinMax: d.env.withinMax, presets: task.presets });
-        return { ...built, cached: { price: price.cached, actions: actions.cached }, download_ms: Math.round(t1 - t0), decode_ms: Math.round(performance.now() - t1), downloads: client.stats.downloads, download_bytes: client.stats.download_bytes };
+        return { ...built, cached: byName(k => got[k].cached), download_ms: Math.round(t1 - t0), decode_ms: Math.round(performance.now() - t1), downloads: client.stats.downloads, download_bytes: client.stats.download_bytes };
       }
       case 'prewarm': return prewarmChunk(task.desc, task.from, task.to, d.env.capBudgetMs);
       case 'digest': return { digest: snapshotDigest(task.desc) };

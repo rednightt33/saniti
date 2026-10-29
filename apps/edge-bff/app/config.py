@@ -118,7 +118,7 @@ class Settings:
                 urlsplit(self.screener_worker_url).hostname != 'screener-worker.railway.internal'
                 or urlsplit(self.screener_worker_url).scheme != 'http'):
             raise ValueError('SCREENER_WORKER_URL must use the Railway private screener-worker endpoint')
-        if self.screener_worker_url and not 0 < self.screener_timeout_seconds <= 3600:
+        if self.screener_worker_url and not 1 <= self.screener_timeout_seconds <= 3600:
             raise ValueError('SCREENER_TIMEOUT_SECONDS is required with SCREENER_WORKER_URL (the worker deadline, 1 s to 3600 s)')
         if self.backtest_queued_per_owner < 1:
             raise ValueError('BACKTEST_QUEUED_PER_OWNER must be at least 1')

@@ -13,10 +13,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), APP = path.resolve(HERE, '../..');
-/** build-screener-registry.mjs --check as npm run registry:check starts it, with extra environment. */
-const check = (env = {}) => new Promise((resolve, reject) => {
+/** build-screener-registry.mjs --check as npm run registry:check starts it, with extra environment and arguments
+    (mode null: without --check, as npm run registry starts it). */
+const check = (env = {}, args = [], mode = '--check') => new Promise((resolve, reject) => {
   const p = spawn(process.execPath, ['--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import', '../../backtest-worker/loader/register.mjs',
-    'scripts/build-screener-registry.mjs', '--check'], { cwd: APP, env: { ...process.env, ...env } });
+    'scripts/build-screener-registry.mjs', ...(mode ? [mode] : []), ...args], { cwd: APP, env: { ...process.env, ...env } });
   let stdout = '', stderr = '';
   p.stdout.on('data', d => { stdout += d });
   p.stderr.on('data', d => { stderr += d });
@@ -40,6 +41,35 @@ describe('screener-registry.json', () => {
       const noisy = `--import=${pathToFileURL(path.join(HERE, 'noisy-clock.mjs')).href}`;
       expectCurrent(await check({ NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} ${noisy}`.trim(), NOISY_CLOCK_LOG: log }));
       expect(fs.readFileSync(log, 'utf8').trim().split('\n').length).toBeGreaterThanOrEqual(2);   // the generator and its probe child
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 600_000);
+
+  it.concurrent('refuses a regeneration that lowers a committed O(N·n) class to O(N) without a reviewed reason, and lets a raise through', async () => {
+    // the committed registry as it would be had a parameter the probe derives O(N) been O(N·n) before (the generator
+    // compares with git HEAD; --against names the file instead), and one that is O(N·n) now been O(N)
+    const reg = JSON.parse(fs.readFileSync(path.join(APP, 'src/core/screener-registry.json'), 'utf8'));
+    const find = cls => reg.indicators.flatMap(r => r.params.filter(p => p.cost_class === cls).map(p => ({ r, p })))[0];
+    const was = find('O(N)'), now = find('O(N·n)');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-against-'));
+    try {
+      const write = (name, edit) => { const doc = structuredClone(reg), f = path.join(dir, name); edit(doc); fs.writeFileSync(f, JSON.stringify(doc)); return f };
+      const at = (doc, x) => doc.indicators.find(r => r.id === x.r.id).params.find(p => p.key === x.p.key);
+      const lowered = write('lowered.json', d => { at(d, was).cost_class = 'O(N·n)' });
+      const raised = write('raised.json', d => { at(d, now).cost_class = 'O(N)' });
+      const before = fs.readFileSync(path.join(APP, 'src/core/screener-registry.json'));
+      const [refused, allowed, writing] = await Promise.all([check({}, ['--against', lowered]), check({}, ['--against', raised]), check({}, ['--against', lowered], null)]);
+      // --against is a check's: a regeneration that writes is always compared with the committed registry, so the flag
+      // never lets a lowered class be written (review of the last guards); nothing is written
+      expect([writing.status, writing.stdout]).toEqual([2, '']);
+      expect(writing.stderr).toContain('--against <registry file> is for --check only');
+      expect(fs.readFileSync(path.join(APP, 'src/core/screener-registry.json')).equals(before)).toBe(true);
+      expect(refused.status).toBe(1);
+      expect(refused.stdout).toBe('');
+      expect(refused.stderr).toContain(`cost_class lowered: the regeneration derives O(N) for ${was.r.id}.${was.p.key} (${was.r.name}), which ${lowered} has as O(N·n)`);
+      for (const part of ['\nRule: ', '\nHow to pass: ', `\nRight: {"indicator":"${was.r.id}","param":"${was.p.key}","from":"O(N·n)","to":"O(N)"`, '\nWrong: ']) expect(refused.stderr).toContain(part);
+      expectCurrent(allowed);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

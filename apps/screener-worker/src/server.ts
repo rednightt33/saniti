@@ -53,7 +53,7 @@ import type { ComputeThread } from './pool.ts';
 import type { PreviewOutcome, PreviewTask } from './preview.ts';
 import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
-import { countsEnvelope, estimateCost, newCostTracker, normalize, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
+import { countsAnswer, countsEnvelope, estimateCost, newCostTracker, normalize, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
 import { groupingsOf, materialize, referenceHash } from './snapshot.ts';
 import type { BuildStats, SnapshotDesc, TickerEntry } from './snapshot.ts';
@@ -275,7 +275,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       await pool.install(desc.sid, desc, lruBytes);
       fields.install_ms = Math.round(performance.now() - ti);
       try {
-        const groupings = groupingsOf(ref), availability = metricAvailability(metrics, input.state.xsection);
+        const groupings = groupingsOf(ref), availability = metricAvailability(metrics, input.state.xsection, Object.keys(input.files));
         const snap: Snap = {
           sid: desc.sid, desc, price_data: desc.versions.price_data, finished_at: input.state.finished_at, files: input.files, refHash: referenceHash(ref),
           vctx: engine.validateContext(desc, groupings, metrics, availability), pinned: new Set(desc.series.map(s => s.key)),
@@ -298,13 +298,17 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const s = current;
       s.finished_at = st.finished_at;
       s.desc.data = { ...s.desc.data, published_at: st.finished_at, price_through: st.price_through ?? s.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions };
+      // availability from this publication's index and the files the snapshot read, by the rule of the swap, so the
+      // catalog, validation and the presets below never answer by an index the publication no longer has
+      s.availability = metricAvailability(metrics, st.xsection, Object.keys(s.files));
+      s.vctx = engine.validateContext(s.desc, s.groupings, metrics, s.availability);
       // a cached answer carries the data block it was computed with (published_at): drop this snapshot's answers and
       // counts, so every answer names the publication it is served at (the numbers are the same), and compute the
       // presets again in the system lane, pinned as at a swap
-      results.dropSnapshot(s.sid);
-      counts.dropSnapshot(s.sid);
-      rebuildDocs(s);
-      presets(s).then(p => { if (current === s) { s.presets = p; rebuildDocs(s) } })
+      results.dropSnapshot(s.sid); counts.dropSnapshot(s.sid);
+      s.presets = s.presets.map(p => presetByMap(p, presetDefs, s.availability, metrics)); rebuildDocs(s);   // by the new map at once
+      const at = s.finished_at;                                  // a later advance's presets win over this one's
+      presets(s).then(p => { if (current === s && s.finished_at === at) { s.presets = p; rebuildDocs(s) } })
         .catch(e => log('error', 'preset_failed', { phase: 'advance', ...errorFields(e, true) }));
     },
     outcome(state, error) {
@@ -504,16 +508,15 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
           entries.push({ item_id: d.item_id, error: a.error });
         }
       }
-      let queue_ms = 0, busy = 0;
+      let queue_ms = 0, busy = 0, computed: CountsEntryOut[] = [];
       if (items.length) {
         budget.check(owner, pool.reserved(owner), cost);
         const job = pool.submit({ owner, kind: 'counts', page: null, order: null, cost, deadlineAt, task: { kind: 'counts_list', sid: s.sid, items } });
         res.once('close', () => { if (!res.writableFinished) job.cancel() });
         const r = await job.promise;
         queue_ms = r.queue_ms;
-        for (const g of (r.outcome as { counts: CountsEntryOut[] }).counts) {
-          const at = defs.findIndex((x, k) => entries[k] === null && x.item_id === g.item_id);
-          if (at >= 0) entries[at] = g;
+        computed = (r.outcome as { counts: CountsEntryOut[] }).counts.filter(g => items.some(i => i.item_id === g.item_id));
+        for (const g of computed) {
           if ('match_count' in g) {
             busy += g.busy_ms;
             const it = items.find(i => i.item_id === g.item_id)!;
@@ -522,8 +525,10 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
         }
         budget.record(owner, busy);
       }
-      const body = { versions: { ...s.desc.versions }, data: { ...s.desc.data },
-        counts: entries.map(x => !x ? null : 'error' in x ? { item_id: x.item_id, error: x.error } : { item_id: x.item_id, match_count: x.match_count, near_count: x.near_count }) };
+      // every entry is counts or an error (contract.ts CountsEntry), in request order; an item without an answer is its error
+      const answer = countsAnswer(defs, entries, computed);
+      if (answer.missing.length) log('error', 'counts_entry_missing', { data_version: s.price_data, owner_tag: owner, item_ids: answer.missing.slice(0, 5), missing: answer.missing.length });
+      const body = { versions: { ...s.desc.versions }, data: { ...s.desc.data }, counts: answer.counts };
       const json = Buffer.from(JSON.stringify(body));
       if (json.byteLength > L.max_response_bytes)
         throw refuse('LIMIT_EXCEEDED', `The answer would have ${json.byteLength} bytes of JSON; the limit is ${L.max_response_bytes}.`, undefined, { limit: 'max_response_bytes', allowed: L.max_response_bytes, needed: json.byteLength });
@@ -602,3 +607,12 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+
+/** A catalog preset by an availability map (an advance, before the presets are counted again on the snapshot): its
+    counts kept while it stays AVAILABLE (the same files), none for one whose availability changed, so a catalog read
+    meanwhile (edge-bff's, once /health names the new publication) never shows a preset by the map before. */
+function presetByMap(p: CatalogPreset, defs: readonly PresetDefinition[], availability: Snap['availability'], metrics: MetricsCatalog): CatalogPreset {
+  const a = presetAvailability(defs.find(d => d.id === p.id)!, availability, metrics);
+  if (a.availability === 'AVAILABLE' && p.availability === 'AVAILABLE') return p;
+  return { ...p, availability: a.availability, reason: a.reason, unavailable_legs: a.unavailable_legs, match_count: null, near_count: null };
+}

@@ -51,8 +51,8 @@ type Shown = [string, string | null | undefined];
 const limitTexts = (where: string, ls: readonly LimitEntry[]): Shown[] =>
   ls.flatMap(l => (['unit', 'rule', 'example_ok', 'example_refused'] as const).map((k): Shown => [`${where} ${l.name}.${k}`, l[k]]));
 /** the catalog GET /catalog answers on a publication with this xsection index, through the worker's own catalogDoc */
-function catalogAt(index: Record<string, { columns?: string[] }>, limits: Limits = DEV): CatalogResponse {
-  const availability = availabilityMap(index, METRICS_CATALOG);
+function catalogAt(index: Record<string, { columns?: string[] }>, limits: Limits = DEV, reads?: ReadonlySet<string>): CatalogResponse {
+  const availability = availabilityMap(index, METRICS_CATALOG, reads);
   const presets: CatalogPreset[] = presetDefinitions().map(p => {
     const a = presetAvailability(p, availability, METRICS_CATALOG);
     return { id: p.id, category: p.category, name: p.name, why: p.why, definition: p.definition, ...(p.view ? { view: p.view } : {}),
@@ -119,7 +119,7 @@ describe('the catalog a user reads is plain words', () => {
     // the metrics' descriptions are their interpretation (entriesOf falls back to the formula only without one)
     for (const m of METRICS_CATALOG.metrics) expect(m.interpretation.trim(), m.id).not.toBe('');
   });
-  it('on publications that carry the files, without some columns and complete: the reasons stay plain', () => {
+  it('on publications that carry the files, without some columns, complete, and complete but not read by the Screener: the reasons stay plain', () => {
     const files = [...new Set(METRICS_CATALOG.metrics.flatMap(m => m.requires ? [m.requires.file] : []))];
     const partial = Object.fromEntries(files.map(f => [f, { columns: ['d'] }]));
     const full = Object.fromEntries(files.map(f => [f, {}]));
@@ -128,6 +128,9 @@ describe('the catalog a user reads is plain words', () => {
     expect(p.some(([, s]) => /columns it needs (are|is) missing/.test(s || ''))).toBe(true);
     expect(offending(p)).toEqual([]);
     expect(offending(reasons(catalogAt(full)))).toEqual([]);
+    const unread = reasons(catalogAt(full, DEV, new Set()));
+    expect(unread.some(([, s]) => /does not read yet/.test(s || ''))).toBe(true);
+    expect(offending(unread)).toEqual([]);
   });
   it("the page's own fixed words: T, the n/a and remark wording, the method text and the chips", () => {
     const remarks: RowRemark[] = [{ code: 'STALE', last_bar_date: '2026-10-20' },

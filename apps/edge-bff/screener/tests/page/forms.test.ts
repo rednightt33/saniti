@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 import type { CatalogResponse, ConditionDef } from '../../src/core/contract.ts';
 import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
 import { entriesOf, paramError, type Entry } from '../../src/entries.ts';
-import { cardErrors, condText, defaultOffered, fromWire, isCustom, newCard, toWire, type Card } from '../../src/forms.ts';
+import { cardErrors, cardName, condText, defaultOffered, fromWire, isCustom, newCard, toWire, type Card } from '../../src/forms.ts';
+import { placeText } from '../../src/texts.ts';
 import { fixtureApi } from '../fixture/api.ts';
 
 const api = fixtureApi();
@@ -75,6 +76,37 @@ describe('toWire / fromWire (forms.ts)', () => {
     expect(card.raw).toEqual(cd.test);
     expect(toWire(undefined, card)).toEqual(cd);
     expect(condText(undefined, card)).toMatch(/not editable/);
+  });
+  it('names a kept card by the catalog\'s name of what it reads, in its header and in a refusal\'s place, never by a registry or metric id', () => {
+    const named = (test: any) => { const c = fromWire({ id:'z', enabled:true, test }, byKey); expect(c.raw).toEqual(test); return c };
+    const label = (k: string) => byKey.get(k)!.label;
+    const rsi = named({ kind:'state', lhs:{ kind:'indicator', indicator:'I13', output:'rsi' }, op:'gt', rhs:{ kind:'transform', fn:'change', of:{ kind:'price', field:'close' }, args:{ bars:3 } } });
+    expect(cardName(undefined, rsi)).toBe(label('I13'));
+    expect(condText(undefined, rsi)).toBe(`${label('I13')}: state (kept as saved; not editable here)`);
+    expect(placeText('definition.conditions[0]', { cards:[rsi], filters:[] })).toBe(`condition 1 (${label('I13')})`);
+    // the cases besides the observed one: close against an indicator (the indicator's card, not the bar's), a transform
+    // over an indicator (what it is computed on), a pattern, a flow and a cross-section metric in a form the page does
+    // not offer, two bar fields, and an indicator the catalog does not know (its id is the only name there is)
+    expect(cardName(undefined, named({ kind:'event', within:3, signal:{ lhs:{ kind:'price', field:'close' }, op:'crosses_above', rhs:{ kind:'transform', fn:'lag', of:{ kind:'indicator', indicator:'I01', output:'sma' }, args:{ bars:2 } } } }))).toBe(label('I01'));
+    expect(cardName(undefined, named({ kind:'value', op:'gt', value:1, metric:{ kind:'transform', fn:'change', of:{ kind:'indicator', indicator:'I06', output:'macd' }, args:{ bars:3 } } }))).toBe(label('I06'));
+    expect(cardName(undefined, named({ kind:'event', within:3, signal:{ pattern:{ kind:'pattern', type:'volspike' } } }))).toBe(label('volspike'));
+    expect(cardName(undefined, named({ kind:'value', op:'gt', value:1, metric:{ kind:'flow', metric:'bandar', params:{ window:20 } } }))).toBe(label('bandar'));
+    expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'xsection', metric:'return_rank', params:{ window:252 } }, op:'gt', rhs:{ value:50 } }))).toBe(label('return_rank'));
+    expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'price', field:'close' }, op:'gt', rhs:{ kind:'price', field:'open' } }))).toBe('Close');
+    expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'price', field:'close' }, op:'gt', rhs:{ kind:'indicator', indicator:'I99', output:'x' } }))).toBe('I99');
+    // a transform that is a catalog metric's template is that metric, not the bar field it is computed on (review of the
+    // last guards: a kept "Distance from 52W high" card was named "High", "Relative strength vs IHSG" "Close"), with its
+    // own parameters aside as fromWire matches it; the catalog's templates, never a list here
+    const templated = [...byKey.values()].filter(e => e.kind !== 'indicator' && (e.metric as any)?.ref?.kind === 'transform');
+    expect(templated.length).toBeGreaterThanOrEqual(3);
+    for (const e of templated) {
+      const ref = (e.metric as any).ref;
+      expect([e.key, cardName(undefined, named({ kind:'event', within:3, signal:{ lhs:ref, op:'crosses_above', rhs:{ value:0 } } }))]).toEqual([e.key, e.label]);
+      expect([e.key, cardName(undefined, named({ kind:'state', lhs:{ ...ref, args:{ ...(ref.args || {}), zz:1 } }, op:'gt', rhs:{ kind:'price', field:'close' } }))]).toEqual([e.key, e.label]);
+    }
+    for (const k of ['I13', 'I01', 'I06', 'volspike', 'bandar', 'return_rank', ...templated.map(e => e.key)]) expect(label(k)).not.toBe(k);
+    // a label the user gave is kept before any of these
+    expect(cardName(undefined, fromWire({ id:'z', enabled:true, label:'My RSI', test:rsi.raw! }, byKey))).toBe('My RSI');
   });
   it('scales IDR values to Rp B on the card and back', () => {
     const adv = byKey.get('adv20_idr')!;

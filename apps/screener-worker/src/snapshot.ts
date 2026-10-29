@@ -52,8 +52,11 @@ import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
 export const INDEX_TICKER = 'IHSG';
 export const PRICE_FILE = 'price';
 export const ACTIONS_FILE = 'actions';
-/** The xsection files Phase 1 reads (report 6.5 "Phase 1 files"). */
+/** The xsection files this build reads (report 6.5 "Phase 1 files"), the one list of them: the refresh requires and
+    downloads exactly these (refresh.ts), the builder decodes each into BuildInput (thread.ts), and a metric counts as
+    available only over a file of this list (catalog.ts metricAvailability), never over one the index merely names. */
 export const PHASE1_FILES = [PRICE_FILE, ACTIONS_FILE] as const;
+export type ReadFile = typeof PHASE1_FILES[number];
 
 /** One state.json xsection index entry as terminal-api serves it (bucket.py xsection_index). */
 export interface IndexEntry { key: string; sha256: string; bytes: number; rows: number; as_of: string | null }
@@ -162,8 +165,9 @@ function sliceDoc(doc: Columnar, e: TickerEntry, at: number): Columnar {
   return { schema_version: 1, dataset: 'price-pack', ticker: e.t, columns: ['d', 'o', 'h', 'l', 'c', 'v'], d, o: cut('o'), h: cut('h'), l: cut('l'), c: cut('c'), v: cut('v') };
 }
 
-export interface BuildInput {
-  price: Columnar; actions: Columnar; ref: TickerReference; state: PublicationState;
+/** The decoded files of PHASE1_FILES by name, and what the build needs besides them. */
+export interface BuildInput extends Record<ReadFile, Columnar> {
+  ref: TickerReference; state: PublicationState;
   engine: { screener_engine: string; registry: string; screener_registry: string };
   tailLength: number; capBudgetMs: number; withinMax: number;
   /** the presets: every series their enabled conditions read (bound as a run binds them, lagged sides included) is

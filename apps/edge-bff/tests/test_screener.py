@@ -160,7 +160,7 @@ class FakeScreenerWorker:
                                          'owner': self.headers.get('x-screener-owner'), 'port': self.client_address[1]})
                 v = worker.versions
                 if self.path == '/health':
-                    return self.answer(200, {'ok': True, 'versions': v, 'published_at': '2026-10-27T13:03:23Z',
+                    return self.answer(200, {'ok': True, 'versions': v, 'published_at': worker.published,
                                              'snapshot_age_seconds': 5, 'refresh': worker.refresh})
                 if self.headers.get('x-screener-worker-key') != KEY:
                     return self.answer(401, {'error': {'code': 'UNAUTHORIZED'}})
@@ -600,6 +600,24 @@ def test_the_catalog_never_goes_back_and_ignores_transient_refresh_states(app, w
     # a run answered at that previous publication drops nothing
     assert c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body()).status_code == 200
     assert c.get('/api/v1/screener/catalog').headers['etag'] == newer.headers['etag']
+    assert len(worker.called('/v1/catalog')) == 2
+
+
+def test_the_catalog_and_universe_follow_a_publication_that_keeps_the_versions(app, worker):
+    """A publication with the same files keeps the worker's snapshot and its versions (an advance, 6.5 rule 3) while the
+    worker answers from the new one: its published_at and broker lag, and its availability (ERRORS M299: taken again at
+    every advance). /health names that published_at, so the catalog and the universe edge-bff keeps are fetched again,
+    never served at the publication before; the same state again fetches nothing (review of the last guards)."""
+    c = app
+    sc = c.app.state.screeners
+    assert c.get('/api/v1/screener/catalog').json()['data']['published_at'] == '2026-10-27T13:03:23Z'
+    assert c.get('/api/v1/screener/universe').json()['data']['published_at'] == '2026-10-27T13:03:23Z'
+    worker.published, sc.health['at'] = '2026-10-27T23:00:00Z', None          # the same versions, a later publication
+    for path in ('catalog', 'universe'):
+        assert c.get(f'/api/v1/screener/{path}').json()['data']['published_at'] == '2026-10-27T23:00:00Z', path
+    assert [len(worker.called('/v1/catalog')), len(worker.called('/v1/universe'))] == [2, 2]
+    sc.health['at'] = None
+    assert c.get('/api/v1/screener/catalog').json()['data']['published_at'] == '2026-10-27T23:00:00Z'
     assert len(worker.called('/v1/catalog')) == 2
 
 
@@ -1175,8 +1193,13 @@ def test_screener_settings_are_paired_strong_private_and_bounded(settings):
     on = dict(screener_worker_url='http://screener-worker.railway.internal:8080', screener_worker_key=KEY,
               screener_timeout_seconds=20)
     dataclasses.replace(settings, **on).validate()
+    # the timeout is what its refusal says, 1 s to 3600 s, bounds included (a value in (0, 1) was let through)
+    for seconds in (1, 1.5, 3600):
+        dataclasses.replace(settings, **{**on, 'screener_timeout_seconds': seconds}).validate()
     for bad, message in (({'screener_worker_key': ''}, 'set together'), ({'screener_worker_key': 'short'}, 'at least 32'),
                          ({'screener_timeout_seconds': 0}, 'SCREENER_TIMEOUT_SECONDS'),
+                         ({'screener_timeout_seconds': 0.5}, r'1 s to 3600 s'), ({'screener_timeout_seconds': 0.999}, r'1 s to 3600 s'),
+                         ({'screener_timeout_seconds': -1}, 'SCREENER_TIMEOUT_SECONDS'),
                          ({'screener_timeout_seconds': float('nan')}, 'SCREENER_TIMEOUT_SECONDS'),
                          ({'screener_timeout_seconds': 3601}, 'SCREENER_TIMEOUT_SECONDS')):
         with pytest.raises(ValueError, match=message):

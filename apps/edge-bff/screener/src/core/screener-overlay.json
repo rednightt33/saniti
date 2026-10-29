@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "about": "Hand-kept product choices of the EDGE Screener (report TARGET ARCHITECTURE 6.8, 6.9.1): per registry indicator the prototype shape, the test forms each output allows (with the prototype operators and labels), search synonyms, a one-line plain-English description (the catalog's tooltip and search text), the card a new condition opens with and, where a user decision narrows them, the offered options of an enum parameter with the value a card opens with (params; today P17 a for the I43 anchor); plus explicit overrides with evidence and the provisional cost model of the caps. Never a parameter range, unit, lag or input list: those come from backtest-registry.json or are derived by scripts/build-screener-registry.mjs.",
+  "about": "Hand-kept product choices of the EDGE Screener (report TARGET ARCHITECTURE 6.8, 6.9.1): per registry indicator the prototype shape, the test forms each output allows (with the prototype operators and labels), search synonyms, a one-line plain-English description (the catalog's tooltip and search text), the card a new condition opens with and, where a user decision narrows them, the offered options of an enum parameter with the value a card opens with (params; today P17 a for the I43 anchor); plus explicit overrides with evidence, cost_reviews (one reviewed reason per integer parameter whose cost_class a regeneration lowers from O(N·n) to O(N), which drops its cap: the build refuses a lowering against the committed registry without one, because the cost probe does not count work inside built-ins; a raise needs none) and the provisional cost model of the caps. Never a parameter range, unit, lag or input list: those come from backtest-registry.json or are derived by scripts/build-screener-registry.mjs.",
   "cost_model": {
     "status": "PROVISIONAL (P5): replaced by the Phase 17 measurement on the service, recorded in verification/screener/BENCHMARK.md with CPU and Node version",
     "rule": "cap = floor(SCREENER_CAP_BUDGET_MS * 1e6 / (ns_per_bar_length * reference_bars)) for a parameter whose cost_class is O(N·n); none for O(N)",
@@ -17,6 +17,7 @@
       "evidence": "ERRORS M257; report 6.8: factor 0 passes the degeneracy probe (finite, varying output) yet gives 1,128 direction flips in 2,115 bars on BBRI against 60 at factor 3"
     }
   ],
+  "cost_reviews": [],
   "indicators": {
     "I01": {
       "shape": "line",

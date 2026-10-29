@@ -31,7 +31,8 @@
       the digest, the install on every compute thread, the presets and the documents, and the swap, all-or-nothing:
       any failure keeps the previous snapshot serving, logs REFRESH_FAILED with the reason, and is retried (rule 1).
    Logs: refresh {data_version, published_at, files, bytes, granted, cached, grant_ms, download_ms, decode_ms,
-   check_ms, defaults_ms, install_ms, presets_ms, integrity_failures, orphans, snapshot_digest, rss} (6.16). */
+   check_ms, defaults_ms, install_ms, presets_ms, orphans, snapshot_digest, rss} (6.16); REFRESH_FAILED adds the
+   failure, integrity_failures (DATA_INTEGRITY failures since the start), keeping_previous and retry_in_ms. */
 import { DataError } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { FileEntry } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { isIsoDate } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -40,7 +41,7 @@ import type { TerminalClient, TickerReference } from '../../backtest-worker/src/
 import type { Limits } from './config.ts';
 import { errorFields, log } from './log.ts';
 import { PHASE1_FILES, referenceHash } from './snapshot.ts';
-import type { IndexEntry, PublicationState, TickerEntry } from './snapshot.ts';
+import type { IndexEntry, PublicationState, ReadFile, TickerEntry } from './snapshot.ts';
 
 export const API = '/api/terminal/v1';
 export const PROXY_HEADER = 'x-terminal-proxy-key';
@@ -178,7 +179,7 @@ export interface Held { finished_at: string; files: Record<string, string>; refH
 export interface RefreshHost {
   held(): Held | null;
   /** download, verify and decode on a builder thread -> the staged snapshot's entries (for the cross-check) */
-  build(input: { files: { price: FileEntry; actions: FileEntry }; ref: TickerReference; state: PublicationState }): Promise<{ entries: TickerEntry[]; stats: Record<string, unknown> }>;
+  build(input: { files: Record<ReadFile, FileEntry>; ref: TickerReference; state: PublicationState }): Promise<{ entries: TickerEntry[]; stats: Record<string, unknown> }>;
   /** pre-warm, digest, install, presets, documents, swap; throws to abort (nothing changes) */
   complete(input: { state: PublicationState; ref: TickerReference; files: Record<string, string> }): Promise<Record<string, unknown>>;
   /** the builder's work is dropped (a failure before complete() succeeded) */
@@ -302,7 +303,7 @@ export class Refresher {
       const entry = (n: string): FileEntry => ({ url: urls[n] ?? '', sha256: index[n].sha256, bytes: index[n].bytes });
       // rule 5: build, check, pre-warm, install, swap
       built = true;
-      const b = await this.host.build({ files: { price: entry('price'), actions: entry('actions') }, ref, state: st });
+      const b = await this.host.build({ files: Object.fromEntries(PHASE1_FILES.map(n => [n, entry(n)])) as Record<ReadFile, FileEntry>, ref, state: st });
       Object.assign(fields, b.stats);
       const tc = performance.now();
       await this.crossCheck(b.entries);

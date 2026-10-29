@@ -13,8 +13,9 @@
       a deterministic synthetic series, for all 76 outputs: first_valid_bar, history_class (cut probe), unit and
       level_comparable (scaling and shift probes), price_compare_lag (lag probe), inputs per enum option (poison
       probe), the narrowing (degeneracy probe at each numeric minimum, floor probe, the not_accepted rule),
-      cost_class (work ratio at two lengths, counted by V8 block coverage, never timed), and the Feature 04 /
-      Feature 01 parity oracle read from `python3 scripts/terminal_indicator_spec.py --json`.
+      cost_class (work ratio at two lengths, counted by V8 block coverage, never timed; a class lowered from the
+      committed registry's needs a reviewed reason in the overlay's cost_reviews, see costLowerings), and the Feature 04
+      / Feature 01 parity oracle read from `python3 scripts/terminal_indicator_spec.py --json`.
    Every derived field is a pure function of the inputs and the code: nothing reads a clock, so the file and its version
    are the same bytes on any machine at any load (ERRORS: the timed cost_class flipped under CPU contention).
    The overlay and the derived narrowing may only narrow the base (report 6.8 narrow-only rule), so every transferable
@@ -25,7 +26,8 @@
 
    Run (from apps/edge-bff/screener): npm run registry (writes) / npm run registry:check (fails when the committed file
    is stale: every probe field is re-derived and compared). Needs python3 for the oracle mapping. The cost probe runs
-   in a child process of this script (--cost-work, see costWork). */
+   in a child process of this script (--cost-work, see costWork). `--check --against <file>` compares the cost classes
+   with that registry instead of the committed one (committedRegistry; the tests use it; never when writing). */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -394,6 +396,75 @@ export function measureCost(job) {
   return out;
 }
 
+/* ---- a lowered cost_class needs a reviewed reason (ERRORS M300; AGENTS.md "Gates and evidence") ------------------ */
+/* The probe counts the work JavaScript does, so work inside a built-in that does not call back is invisible to it
+   (executedChars): a kernel whose window loop moves into such a built-in regenerates O(N) and loses its cap while its
+   work still grows with the length. The build therefore never lowers a class silently. Rule: against the committed
+   registry (committedRegistry), a parameter that was O(N·n) and is derived O(N) stops the build unless
+   screener-overlay.json `cost_reviews` holds a reviewed reason for it; the reason is copied into the parameter
+   (`cost_review`), so the registry shows which classes rest on a review. A raise to O(N·n) needs nothing: it only adds
+   a cap. A review of a parameter the probe finds O(N·n) again is not copied (the cap is back). */
+export const COST_REVIEW_FIELDS = ['indicator', 'param', 'from', 'to', 'reason', 'reviewed'];
+const LOWER = { from: 'O(N·n)', to: 'O(N)' };
+/** The review of a lowered id.param in the overlay's cost_reviews, or undefined (only a complete one counts). */
+export const costReviewOf = (overlay, id, param) => (overlay?.cost_reviews || []).find(v => v && v.indicator === id && v.param === param
+  && v.from === LOWER.from && v.to === LOWER.to && typeof v.reason === 'string' && v.reason.trim() && typeof v.reviewed === 'string' && v.reviewed.trim());
+/** Every way the overlay's cost_reviews break their rule (costLowerings); empty when sound. */
+export function costReviewProblems(reviews, base) {
+  if (reviews === undefined) return [];
+  if (!Array.isArray(reviews)) return ['cost_reviews must be a list of {indicator, param, from, to, reason, reviewed}'];
+  const out = [], seen = new Set();
+  for (const v of reviews) {
+    const where = `cost_reviews ${v?.indicator}.${v?.param}`, p = base.indicators.find(x => x.id === v?.indicator)?.params.find(x => x.key === v?.param);
+    if (!p || p.type !== 'integer') out.push(`${where}: no such integer parameter (a cost_class is derived for integer parameters only)`);
+    if (v?.from !== LOWER.from || v?.to !== LOWER.to) out.push(`${where}: from must be "${LOWER.from}" and to "${LOWER.to}" (only a lowered class needs a review)`);
+    if (typeof v?.reason !== 'string' || !v.reason.trim()) out.push(`${where}: reason is required (what in the kernel's code makes its work stop growing with the length)`);
+    if (typeof v?.reviewed !== 'string' || !v.reviewed.trim()) out.push(`${where}: reviewed is required (who approved it, when, and where it is recorded)`);
+    for (const k of Object.keys(v || {})) if (!COST_REVIEW_FIELDS.includes(k)) out.push(`${where}: ${k} is not a field (${COST_REVIEW_FIELDS.join(', ')})`);
+    if (seen.has(`${v?.indicator}.${v?.param}`)) out.push(`${where}: repeated`);
+    seen.add(`${v?.indicator}.${v?.param}`);
+  }
+  return out;
+}
+/** The registry the derived cost classes are compared with: `against` (a file) when given; else the one committed at
+    git HEAD; else (no git, or the file not committed yet) the file on disk; null at the first build. */
+export function committedRegistry(against = null) {
+  if (against) return { from: against, doc: JSON.parse(fs.readFileSync(path.resolve(against), 'utf8')) };
+  const g = spawnSync('git', ['-C', ROOT, 'show', `HEAD:${PATHS.out}`], { encoding: 'utf8', maxBuffer: 64 << 20 });
+  if (!g.error && g.status === 0 && g.stdout.trim()) return { from: `git HEAD:${PATHS.out}`, doc: JSON.parse(g.stdout) };
+  return fs.existsSync(at(PATHS.out)) ? { from: PATHS.out, doc: readJson(PATHS.out) } : null;
+}
+/** The parameters whose class the regeneration lowers without a review: O(N·n) in `committed` (a registry document),
+    O(N) in `derived` (`id.param` -> class, measureCost's answer), and no costReviewOf in the overlay. */
+export function costLowerings(committed, derived, overlay) {
+  const out = [];
+  for (const r of committed?.indicators || []) for (const p of r.params || []) {
+    const now = derived.get(`${r.id}.${p.key}`);
+    if (p.cost_class === LOWER.from && now === LOWER.to && !costReviewOf(overlay, r.id, p.key)) out.push({ id: r.id, param: p.key, name: r.name ?? r.id });
+  }
+  return out;
+}
+/** The refusal of costLowerings: where (the parameters and the registry compared with), the rule, how to pass, and one
+    right and one wrong cost_reviews entry for the first of them. */
+export function costLoweringRefusal(lowered, from) {
+  const first = lowered[0], list = lowered.map(x => `${x.id}.${x.param} (${x.name})`).join(', ');
+  // the right one shows the shape and the kind of words (the code that makes it O(N); who approved it and where)
+  const right = { indicator: first.id, param: first.param, ...LOWER,
+    reason: 'the window maximum is kept in a monotonic deque: each bar enters and leaves it once, so the work per bar does not grow with the length',
+    reviewed: '2026-11-02, approved by the user, recorded in EXEC.md EXEC-SCREENER' };
+  const wrong = { indicator: first.id, param: first.param, reason: 'the probe now says O(N)' };
+  return `cost_class lowered: the regeneration derives O(N) for ${list}, which ${from} has as O(N·n); writing it would drop the cap of each `
+    + '(registry.ts capOf).\n'
+    + 'Rule: the cost probe counts JavaScript work only, so a window loop moved into a built-in that does not call back (slice, a spread into '
+    + 'Math.max) measures O(N) while its work still grows with the length; a lowered class is written only with a reviewed reason in '
+    + `${PATHS.overlay} cost_reviews (a raise to O(N·n) needs none).\n`
+    + `How to pass: read the kernel of each parameter above in ${PATHS.calc}. If its work per bar no longer grows with the length, add one `
+    + `cost_reviews entry per parameter {${COST_REVIEW_FIELDS.join(', ')}} with the reason and who reviewed it, then run npm run registry; if it `
+    + 'still loops over the window inside a built-in, write that loop in JavaScript again so the probe counts it.\n'
+    + `Right: ${JSON.stringify(right)}\n`
+    + `Wrong: ${JSON.stringify(wrong)} (it restates the probe, whose answer is what is under review, and has no from, to or reviewed)`;
+}
+
 /* ---- overlay checks ------------------------------------------------------------------------------------------- */
 /** Every way the overlay breaks its rules (one entry per base id and vice versa, known shapes, forms, operators, labels,
     defaults, overrides with evidence, the cost model); empty when sound. */
@@ -460,6 +531,7 @@ export function overlayProblems(overlay, base) {
   const cm = overlay.cost_model || {};
   for (const k of ['ns_per_bar_length', 'reference_bars']) if (!(isN(cm[k]) && cm[k] > 0)) out.push(`cost_model.${k} must be a positive number`);
   if (typeof cm.evidence !== 'string' || !cm.evidence) out.push('cost_model.evidence is required');
+  out.push(...costReviewProblems(overlay.cost_reviews, base));
   return out;
 }
 
@@ -494,7 +566,7 @@ export function costJob(base, overlay, DEFAULTS) {
 }
 
 /* ---- build ---------------------------------------------------------------------------------------------------- */
-export async function build() {
+export async function build({ against = null } = {}) {
   const base = readJson(PATHS.base), terminal = readJson(PATHS.terminal), overlay = readJson(PATHS.overlay);
   const { F, DEFAULTS } = await import(at(PATHS.calc));
   const { BY_ID, REGISTRY_VERSION, resolveParams } = await import(at(PATHS.coreRegistry));
@@ -505,6 +577,8 @@ export async function build() {
   const oracle = readOracle(), byTerminal = Object.fromEntries(terminal.map(r => [r.id, r]));
   const B = fixture(), cut = sliceBars(B, PROBE.cut_at);
   const cost = new Map(measureCost(costJob(base, overlay, DEFAULTS)).map(c => [`${c.id}.${c.param}`, c.cost_class]));
+  const committed = committedRegistry(against), lowered = costLowerings(committed?.doc, cost, overlay);
+  if (lowered.length) throw new Error(costLoweringRefusal(lowered, committed.from));
 
   const indicators = base.indicators.map(r => {
     const ov = overlay.indicators[r.id], ti = byTerminal[r.id], fn = F[r.key];
@@ -549,7 +623,11 @@ export async function build() {
       if (p.type === 'number' && (p.max === undefined || p.default + 0.5 <= p.max) && floored(run, B, p.key, p.default)) {
         q.integer = true; q.narrowing.push({ rule: 'integer', source: 'floor_probe', evidence: `F gives the same outputs at ${p.default} and ${p.default + 0.5}` });
       }
-      if (p.type === 'integer') q.cost_class = cost.get(`${r.id}.${p.key}`);
+      if (p.type === 'integer') {
+        q.cost_class = cost.get(`${r.id}.${p.key}`);
+        const review = q.cost_class === LOWER.to ? costReviewOf(overlay, r.id, p.key) : undefined;
+        if (review) q.cost_review = { reason: review.reason, reviewed: review.reviewed };
+      }
       return q;
     });
     const outputs = r.outputs.map(o => {
@@ -632,7 +710,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
       process.exitCode = 1;
     }
   } else {
-    const text = serialize(await build());
+    const k = process.argv.indexOf('--against'), against = k > 0 ? process.argv[k + 1] : null;
+    if (k > 0 && (!against || !process.argv.includes('--check'))) { console.error('--against <registry file> is for --check only: a regeneration that writes is compared with the committed registry (a lowered cost_class needs its cost_reviews entry)'); process.exit(2) }
+    let text;
+    try { text = serialize(await build({ against })) }
+    catch (e) {                 // a refusal of the build is its message (rule, fix and examples); anything else keeps its stack
+      if (!(e instanceof Error && e.message.startsWith('cost_class lowered'))) throw e;
+      console.error(e.message);
+      process.exit(1);
+    }
     if (process.argv.includes('--check')) {
       const current = fs.existsSync(at(PATHS.out)) ? fs.readFileSync(at(PATHS.out), 'utf8') : '';
       if (current !== text) { console.error(`${PATHS.out} is stale: run npm run registry (in apps/edge-bff/screener)`); process.exit(1) }

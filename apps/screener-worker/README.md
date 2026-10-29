@@ -46,7 +46,7 @@ edge-bff computes) selects the owner's lane and budget.
 |---|---|
 | `GET /health` | `{ok, versions, published_at, snapshot_age_seconds, refresh}`; `refresh` is `loading`, `refreshing`, `ready` or `failed_keeping_previous` |
 | `GET /ready` | `200 {ready: true}` with a snapshot, else `503 SCREENER_NOT_READY` with `Retry-After` (the Railway healthcheck) |
-| `GET /v1/catalog` | indicators, metrics and fundamentals with their availability at this publication, periods, groupings, presets with their availability, the limits, `versions` and `data`; `ETag`, `304` on `If-None-Match` |
+| `GET /v1/catalog` | indicators, metrics and fundamentals with their availability at this publication (a file counts only when it is indexed and in the worker's file list, `PHASE1_FILES`), periods, groupings, presets with their availability, the limits, `versions` and `data`; `ETag`, `304` on `If-None-Match` |
 | `GET /v1/universe` | every listed stock with last, change, ADV20, groups and remarks (stale, price break with its ex-date); `ETag` |
 | `POST /v1/run` | `RunResponse`: rows (match, near), per-condition counts and source (`precomputed` or `dynamic`), `plan` when asked; gzip, `ETag` |
 | `POST /v1/preview` | one ticker's bars, overlays and markers at a pinned `data_version`; gzip |

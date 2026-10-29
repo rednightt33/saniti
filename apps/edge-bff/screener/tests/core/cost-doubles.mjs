@@ -41,6 +41,7 @@ export const DEFAULTS = {
   recursive: { length: 20 },
   switchable: { length: 20, method: 'running' },
   stepped: { length: 20 },
+  builtin_window: { length: 14 },
 };
 
 export const F = {
@@ -67,6 +68,10 @@ export const F = {
     for (let i = n; i < x.length; i++) { prev = a * x[i] + (1 - a) * prev; o[i] = prev }
     return { out: o };
   },
+  // window_max's outputs with its window inside built-ins that do not call back (slice, a spread into Math.max): its work
+  // still grows with the length, but the probe counts none of it and measures O(N), the class a regeneration would
+  // lower window_max's to (the generator's executedChars notes; costLowerings refuses that without a review)
+  builtin_window: (B, p) => ({ out: B.C.map((_, i) => (i >= p.length - 1 ? Math.max(...B.C.slice(i - p.length + 1, i + 1)) : null)) }),
   // O(N) at its default method, O(N·n) at the other option (I32 stddev 'sample' swaps its kernel the same way)
   switchable: (B, p) => ({ out: p.method === 'loop' ? windowMax(B.C, p.length) : runningMean(B.C, p.length) }),
   // between the classes: per bar one heavy step at the short length and three at the long one, so the work grows by

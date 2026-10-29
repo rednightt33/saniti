@@ -120,9 +120,12 @@ A new table (any asset class, any frequency) is ready for the AI only when every
     - `Table_Catalog` and `Column_Catalog` (description, data type, unit);
     - the AI catalogs (`AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, `AI_calculation_catalog`), including `ai_allowed` and `is_sensitive` flags decided per column, not defaulted;
     - `Feature_Catalog` for derived columns (formula, interpretation, misuse warning);
-    - `Tool_Catalog` for new tools.
+    - `Tool_Catalog` for new tools;
+    - for a Screener metric, the fields the page shows (`label`, `short`, `interpretation`, `misuse`,
+      `unavailable_reason`, `decision`, parameter labels and options) in plain English, naming other metrics by the label
+      the page shows and never an id, code, file or column name; `tests/page/plain-words.test.ts` checks them (M298).
 
-    Follow `AGENTS.md` step 5. (D18, C04)
+    Follow `AGENTS.md` step 5. (D18, C04, M298)
 17. **Every safe join is registered** with:
     - its join columns;
     - its temporal rule (`EXACT_DATE`, `AS_OF` backward, `EFFECTIVE_DATED`, `CURRENT_STATE`);
@@ -3532,7 +3535,9 @@ change yet.
   Open decision for the user: a documented limit with a review rule ("a cost_class that falls to O(N) on regeneration
   needs the kernel read"), or an instrumented probe.
 - **Status:** FIXED on the Screener branch for the lengths and the refusal (reaches `main` with it); OPEN for the
-  built-in limit (the user's decision).
+  built-in limit (the user's decision). Update 2026-10-29 (last guards, M300): the build now refuses a regeneration that
+  lowers a committed O(N·n) class to O(N) without a reviewed reason in the overlay's `cost_reviews`, so the limit can no
+  longer drop a cap silently; the limit itself stays, and an instrumented probe remains the user's choice.
 - **Lesson:** a derived class comes with proof that its probe can tell the classes apart at its settings, and a work
   count states what it cannot see.
 
@@ -3922,6 +3927,150 @@ change yet.
 - **Status:** FIXED on the Screener branch (test only; no product effect).
 - **Lesson:** a test of a concurrent scheduler asserts only the order the code decides; anything two threads race for is
   checked as a set.
+
+### M298 — Screener: user-visible text carried decision, registry and wire ids, codes and service parts (2026-10-29)
+
+- **Symptom:** the Screener page showed developer names as they were: decision ids (P6, P11, P22 item 7, D7, "16.11
+  D1"), flow and plan ids (FL09, EXEC-MCAP), registry ids (I01, I37, "F"), NA and remark codes
+  (`NA INSUFFICIENT_HISTORY`, `MIXED_ADJUSTMENT_BASIS`, row remark STALE / PRICE_BREAK), wire, file and column names
+  (`market_board`, `zone_max`, `asOf`, `value2`, metric ids such as `fpct`, "broker_window", "buy_freq"), error codes in
+  limit texts (TIMEOUT, BUSY, DATA_VERSION_CHANGED), environment variables (`SCREENER_DEADLINE_MS`), "on a replica",
+  "a compute thread" and "GET universe", in tooltips, availability reasons, limits (Method & sources) and refusals: 88
+  user-visible strings of `screener-metrics.json` at the time. The pattern "New N-session high of a line" offered its
+  Line options as `I40.obv`, `I41.pvt`, `I44.adl`, `I50.nvi`, `I51.pvi`; Keltner's bands style `HL_RANGE`; every
+  unavailable preset listed its legs by condition id ("unavailable: a, b", "metric_filters[0]"); an `INVALID_CONDITION`
+  refusal of an option listed the raw options; the Default button said "the registry's defaults"; a kept (raw) card's
+  header and refusal place showed the registry id ("Condition 1 (I13)") where the catalog has the indicator's name. The
+  review of the rewording found three more: the dividend-yield misuse narrowed P11 (i) to an "unadjusted" corporate
+  action (copied from a page text with the same narrowing), a file with none of the needed columns read "carries only part
+  of its data: 1 of the 1 columns", and the option refusal above. Found by the plain-words editor and its review, and
+  the last-guards build (EXEC-SCREENER).
+- **Verified cause:** the catalog's and the servers' texts were written for developers and shown verbatim: the page
+  renders `interpretation` (`apps/edge-bff/screener/src/entries.ts`), availability `reason` (core `validate.ts`
+  `availabilityOf`), parameter options, preset `why` / `reason` and their legs (`presets-ui.ts` `legNames`, which fell
+  back to the condition id because `presets.json` conditions carry no labels), the worker's `limits[]` (`catalog.ts`
+  `limitEntries`) and every refusal through `texts.ts`; nothing walked those strings, and `forms.ts` `rawName` took the
+  reference's raw id (`ref.indicator`, `ref.type`, `ref.fn`) for a card the page cannot map.
+- **Class:** user-visible text that names the code instead of the page (ids, codes, wire and file names, service parts).
+- **Solution:** 93 fields of `screener-metrics.json` reworded with their facts kept (others named by the label the page
+  shows; NA codes as the page's n/a words; the Phase 2b and Ichimoku decisions in plain sentences); `availabilityOf`
+  names no file or column; `presetAvailability` and `legNames` name legs as the page numbers its cards ("condition 1
+  (Magic Formula rank)", "universe filter 1 (Market cap)"); `entries.ts:63` `optionText` shows an option '<indicator
+  id>.<output>' by the indicator's catalog name and an underscored option by its words, derived from the catalog (also
+  in `texts.ts:183` `allowedText`); the worker's limits, BUSY / TIMEOUT and preview texts, edge-bff's `own_limits`
+  (`apps/edge-bff/app/screener.py:531`), the page's fixed texts and tooltips without ids; review fixes: the divYield
+  misuse and `NA_TEXT.MIXED_ADJUSTMENT_BASIS` say "the window contains a corporate action that changes the price", a
+  file with none of the columns reads "It needs data that this publication does not carry."; last guards: `forms.ts`
+  `refName` names a kept card by the catalog's name of what it reads (the first reference that is not a bar field; a
+  transform that is a catalog metric's template by that metric, any other transform by what it is computed on; the id
+  only for an indicator the catalog does not know; review of the last guards: a kept "Distance from 52W high" card read
+  "High" and "Relative strength vs IHSG" "Close", so `refName` now matches templates through `forms.ts` `metricEntryOf`,
+  the matching `fromWire` uses), stored as the page-only `rawName` by `fromWire`, so its header and refusal place read
+  "Condition 1 (Relative Strength Index)". Tests: `apps/edge-bff/screener/tests/page/plain-words.test.ts` walks every
+  string the page shows, built by the real generators (the worker's `catalogDoc` and `limitEntries` at the dev values
+  and at 1, edge-bff's limits, entries, presets and legs, the page's fixed texts, every page module's sentences through
+  the TypeScript AST) with the pattern of `tests/page/plain-words.ts:24` `INTERNAL` (codes from the contract, metric ids
+  from the catalog), and fails naming the field; a self-check proves the pattern catches each old class; 11 injected
+  leaks all fail it; `apps/edge-bff/tests/test_screener.py:354` holds `own_limits()` equal to the page tests' copy;
+  `tests/page/forms.test.ts` "names a kept card by the catalog's name of what it reads …" (seven references besides the
+  observed one, every transform-based catalog metric in two kept forms, the user's label first).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (screener-worker and edge-bff).
+  Left as they are, open for a wording decision: "prototype" in 8 strings (EDGE users are external, P29) and the
+  browser's indicator detail tag (`browser.ts` `e.xid`, the prototype's design); the CSV keeps its remark codes by
+  design (report 9.6).
+- **Lesson:** every user-visible field of a new metric, limit or refusal is plain English and names other things by
+  the label the page shows; a test walks what the page actually shows, built by the real generators, with forbidden
+  words derived from the code's own codes and ids (Part A item 16).
+
+### M299 — screener-worker: a metric showed AVAILABLE when the publication indexed its file, though the worker cannot read it (2026-10-29)
+
+- **Symptom:** none on dev yet (the publisher writes only `price` and `actions`). Shown with an index that names a file
+  the worker does not read: with `broker_window` indexed, the catalog showed the first-set flow metrics (Broker net,
+  Bandar balance, frequency, …) `AVAILABLE`, and every run with one answered `422 METRIC_UNAVAILABLE` at bind with other
+  words ("… is not available yet: Flow metrics arrive with Phase 2"); with `fundamentals` (or `listing_board`,
+  `index_membership`, `special_notation`, `dividends`) indexed, their metrics showed `AVAILABLE` and validated, and
+  every ticker's cell would have been n/a, because the worker's universe row has no such field. Found by the docs
+  follow-up (open issue 1) and verified by the last-guards build (EXEC-SCREENER).
+- **Verified cause:** availability was derived from the file name in the index alone (worker `catalog.ts:28-29` at
+  HEAD `182136a` -> core `validate.ts:52-61` `availabilityOf`; the entries terminal-api serves carry no column list),
+  while the worker downloads and decodes only `PHASE1_FILES` (`snapshot.ts:56` at HEAD) and the core refuses flow at
+  bind (`condition.ts:182`). An advance (the same files on a new publication) kept the map of the swap
+  (`server.ts:296-309` at HEAD), so the catalog and validation also answered by an index the publication no longer had.
+- **Class:** a capability advertised from what the publisher wrote rather than from what the reader can read.
+- **Solution:** in the owning layer, the worker's availability map: a file counts only when it is indexed AND read by
+  this build. `availabilityOf` takes the reader's files (`apps/edge-bff/screener/src/core/validate.ts:55-66`; indexed
+  but not read is `REQUIRES_DATA`, reason "<the metric's reason> It needs data that the Screener does not read yet.");
+  `metricAvailability` passes the names of the files the snapshot was built from
+  (`apps/screener-worker/src/catalog.ts:32`, `server.ts:278` at a swap) and the advance takes the map again from its
+  publication's index by the same rule and rebuilds the validation context (`server.ts:300-304`). The list is the one
+  the code reads by: `PHASE1_FILES` and its type `ReadFile` (`snapshot.ts:58-59`) key the build input (`snapshot.ts:169`
+  `BuildInput`), the builder's downloads (`thread.ts:28`, `:90`) and the refresh's build call (`refresh.ts:182`,
+  `:306`); no second list. A run with such a metric is refused before compute by `validate.ts` `checkRef` with the
+  catalog's availability and reason. Tests: `apps/screener-worker/tests/availability.test.ts` (`broker_window` indexed:
+  every metric over it `REQUIRES_DATA` with that reason, run, validation and a counts entry refused with the same
+  details, a preset quoting it, `:58`; an advance that adds and drops a file, `:89`; over the whole catalog with every
+  file a metric needs indexed, a metric is `AVAILABLE` exactly when a definition with it validates and runs, refused
+  ones carry the catalog's availability and reason, an available universe attribute is a field of every universe row,
+  and a preset runs exactly when it is shown `AVAILABLE`, `:132`); core `tests/core/catalog.test.ts:84` "counts a
+  published file only when the reader reads it"; `tests/page/plain-words.test.ts:122` walks the new reason. Mutation
+  check: availability without the read files fails all three worker tests; the advance without the recompute, or with
+  the old validation context, fails the advance test; a read list naming files nobody decodes or binds fails the
+  whole-catalog test. Review of the last guards: edge-bff kept the catalog and the universe per worker versions and
+  refresh state (`apps/edge-bff/app/screener.py` `versions_key`), which an advance does not change, so the page went on
+  reading the documents of the publication before (its availability, `published_at` and broker lag) until the next swap;
+  the key now holds `/health`'s `published_at` too (`screener.py:594`, `:707`; test
+  `apps/edge-bff/tests/test_screener.py:606`, which fails with the old key); the whole-catalog test also runs every
+  metric and every preset (the runs added to the validations). With edge-bff reading the catalog right after an advance,
+  two windows of the advance mattered: its presets kept the map before until their counts were computed again, and the
+  counts of an earlier advance could land after a later one; the advance now re-derives every preset's availability at
+  once (`apps/screener-worker/src/server.ts:309`, `presetByMap` `:614`; counts kept while a preset stays `AVAILABLE`)
+  and keeps only its own counts (`:310-311`, the `finished_at` guard); test `availability.test.ts:89` `presetsFollow`
+  reads the catalog document synchronously after each advance (fails without the re-derivation every run; without the
+  guard, timing-dependent: 1 run of 3).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (screener-worker and edge-bff).
+  OPEN, not changed: a file in the worker's list is required in the index (refresh rule 2), so a Phase 2 file needs an
+  optional-file rule before it joins the list (`SCREENER_ONBOARDING.md` 2.3 L5, L12).
+- **Lesson:** a reader advertises only what it can read: derive availability from the intersection of what the
+  publisher indexes and the reader's own file list, take it again whenever the index changes, and test it over the whole
+  catalog against what a run accepts.
+
+### M300 — Screener registry: a kernel whose window moved into a built-in would lose its cap silently (2026-10-29)
+
+- **Symptom:** none in today's 53 kernels. Shown with the registry review's mutant (Donchian and Williams %R windows as
+  `Math.max(...x.slice(i - n + 1, i + 1))`, identical outputs) and a test double (`builtin_window`, window_max's outputs
+  through `slice` and a spread into `Math.max`): the regeneration writes I10 `length` and I16 `length` (the double:
+  `builtin_window.length`) as O(N), so `registry.ts` `capOf` gives them no cap, and the build succeeds; only the diff of
+  the regenerated file shows it. Found by the registry review (M279 "Not covered"); guarded by the last-guards build
+  (EXEC-SCREENER).
+- **Verified cause:** the cost probe counts executed JavaScript source characters (V8 block coverage,
+  `apps/edge-bff/screener/scripts/build-screener-registry.mjs` `executedChars`); work inside a built-in that does not
+  call back into JavaScript is not counted, and the build compared the derived classes with nothing, so a class that
+  fell from O(N·n) to O(N) was written like any other.
+- **Class:** a derived safety field that can fall silently when the measure is blind to a change of the code.
+- **Solution:** in the generator (the owning layer), a lowered class is a gate (AGENTS.md "Gates and evidence"): against
+  the committed registry (`committedRegistry`, `build-screener-registry.mjs:431`: git HEAD's file, else the file on
+  disk, none at the first build; `--check --against <file>` names another, and the CLI refuses `--against` when it
+  writes, `:714`, so the flag cannot let a lowering be written: review of the last guards), a parameter that was O(N·n)
+  and is derived O(N) stops the build (`costLowerings`, `:439`; `build`, `:580`) unless `screener-overlay.json`
+  `cost_reviews` holds a reviewed reason for it (`costReviewOf`, `:410`; `costReviewProblems`, `:413`, checked with the
+  overlay at `:534`: an integer parameter, from O(N·n) to O(N), a reason and a reviewer, no other field, once); the
+  reason is copied into the parameter as `cost_review` (`:629`); a raise needs nothing. (a) The rule is in the
+  generator's header, the overlay's `about` and `SCREENER_ONBOARDING.md` 1.10; (b, c, d) the refusal
+  (`costLoweringRefusal`, `:449`) names the parameters and the registry compared with, says the rule and how to pass,
+  and gives one right and one wrong `cost_reviews` entry; the CLI prints it without a stack (`:718`). The regenerated
+  registry (`screener_registry_version` `638ee5ea6bbf05b5`) differs from the committed one only in the generator's and
+  the overlay's hashes (overlay: its `about` sentence and an empty `cost_reviews`). Tests:
+  `apps/edge-bff/screener/tests/core/registry-cost.test.mjs:158` (through the real probe child: the built-in window
+  measured O(N) next to window_max O(N·n); the lowering refused with every part of the message; the refusal's right
+  example passes, its wrong one fails the review check and the gate; a raise, an unchanged class, a reviewed one and the
+  first build pass), `:185` (each review problem), `tests/core/registry-check.test.mjs:49` (`--check --against` a
+  registry where a derived-O(N) parameter was O(N·n): exit 1 with the refusal; where a derived-O(N·n) one was O(N):
+  current; `--against` without `--check`: exit 2, nothing written); double `tests/core/cost-doubles.mjs:74`.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (with screener-worker, whose
+  start-up check compares the registry's source hashes). The blind spot itself stays (M279; an instrumented probe
+  remains the user's choice); this makes it visible and reviewed instead of silent.
+- **Lesson:** a derived field that guards cost or safety is compared with its committed value at every regeneration,
+  and a change that weakens it is refused until a reviewed reason is recorded next to the input; a strengthening passes.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

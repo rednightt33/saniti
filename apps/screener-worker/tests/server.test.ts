@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { after, before, test } from 'node:test';
+import { countsAnswer } from '../src/run.ts';
 import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import { startFakeTerminal, universe, walk } from './fake-terminal.mjs';
@@ -222,6 +223,21 @@ test('counts: each definition counted (cached per definition), an invalid one is
   // the versions it was checked against (edge-bff stores registry and screener_registry with a saved item from them)
   const { definition_hash: _h, ...runVersions } = run.body.versions;
   assert.deepEqual(v.body.versions, runVersions);
+});
+
+test('counts: every entry of the answer is counts or an error in request order (contract CountsEntry); an item the thread did not answer is that entry\'s error, never a null', () => {
+  const ok = (item_id: string, n: number) => ({ item_id, match_count: n, near_count: 1, busy_ms: 7 });
+  const refused = { item_id: 'c', error: { code: 'INVALID_CONDITION', field: 'definitions[2].definition.logic', message: 'logic must be one of all, any, at_least.' } };
+  // a: from the counts cache; b: computed; c: refused before compute; d: sent to the thread, which answered nothing for
+  // it; the thread's answers in another order, one for an item already settled and one for an item never asked
+  const a = countsAnswer([{ item_id: 'a' }, { item_id: 'b' }, { item_id: 'c' }, { item_id: 'd' }], [ok('a', 3), null, refused, null], [ok('zz', 5), ok('b', 4), ok('a', 99)]);
+  assert.deepEqual(a.missing, ['d']);
+  assert.deepEqual(a.counts, [
+    { item_id: 'a', match_count: 3, near_count: 1 }, { item_id: 'b', match_count: 4, near_count: 1 }, { item_id: 'c', error: refused.error },
+    { item_id: 'd', error: { code: 'INTERNAL_ERROR', message: 'The worker failed; the error is in its log.' } },
+  ]);
+  for (const x of a.counts) assert.ok(x && typeof x.item_id === 'string' && ('error' in x ? typeof x.error.code === 'string' : Number.isInteger(x.match_count) && Number.isInteger(x.near_count)), JSON.stringify(x));
+  assert.deepEqual(countsAnswer([], [], []), { counts: [], missing: [] });
 });
 
 test('preview: one ticker\'s cells and status (match.ts), bars, IHSG aligned, overlays, markers, perf; pinned to its data_version; an unknown ticker is refused', async () => {

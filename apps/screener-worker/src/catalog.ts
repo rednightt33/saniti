@@ -7,7 +7,7 @@
      (AGENTS.md "Gates and evidence"; edge-bff adds its own, screener.py with_own_limits);
    - indicators[]: registry.ts catalogIndicators at SCREENER_CAP_BUDGET_MS (caps as max);
    - metrics[], fundamentals[], periods: src/core/screener-metrics.json with availability derived at run time from the
-     files the publication indexes (validate.ts availabilityMap; 6.12), never a list kept here;
+     files the publication indexes and this snapshot read (validate.ts availabilityMap; 6.12), never a list kept here;
    - groupings: the reference file's, by the Backtest's rule (snapshot.ts groupingsOf);
    - presets[]: src/core/presets.json (core catalog.ts PRESETS); each with its availability (validate.ts
      presetAvailability: available only when every leg is, never run with a leg removed) and, when available, its match and near counts at
@@ -24,9 +24,13 @@ import type { IndexEntry, SnapshotDesc } from './snapshot.ts';
 
 /* ---- availability (6.12) --------------------------------------------------------------------------------------- */
 
-/** Availability of every metric of the catalog against the publication's xsection index (validate.ts availabilityMap). */
-export const metricAvailability = (m: MetricsCatalog, index: Record<string, IndexEntry> | null): Map<string, { availability: Availability; reason: string | null }> =>
-  availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m);
+/** Availability of every metric of the catalog (validate.ts availabilityMap) against the publication's xsection index
+    and `read`, the files the snapshot was built from (the names of its `files`: snapshot.ts PHASE1_FILES, as the
+    refresh downloaded them): a file counts only when it is both indexed and read, so a metric over a file the publisher
+    writes before this build reads it shows REQUIRES_DATA ("the Screener does not read it yet"), the reason a run with it
+    is refused with, never AVAILABLE and then refused at bind. */
+export const metricAvailability = (m: MetricsCatalog, index: Record<string, IndexEntry> | null, read: Iterable<string>): Map<string, { availability: Availability; reason: string | null }> =>
+  availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m, new Set(read));
 const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
 /** A catalog entry as the page reads it (contract.ts CatalogMetric plus the additive fields screener-metrics.json
     carries for the page: label, short, synonyms, default_test, ref, fl; the fixture tests/fixture/api.ts has the same

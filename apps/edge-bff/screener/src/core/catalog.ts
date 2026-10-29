@@ -32,7 +32,7 @@ export interface TransformDefinition {
 }
 
 /** One entry of src/core/screener-metrics.json (report 6.12): the non-indicator metrics (transform-based metrics,
-    patterns, cross-section, flow, universe attributes, the 32 fundamental metrics) with the Feature_Catalog fields, so
+    patterns, cross-section, flow, universe attributes, the fundamental metrics) with the Feature_Catalog fields, so
     a later AI onboarding can reuse them. requires: the xsection file and columns the metric reads (null: computed from
     the price snapshot alone); decision: set while the metric waits for a user decision (REQUIRES_DECISION);
     applies_to: a predicate on the reference file, `<Sector|Industry> = <value>` or `!=` (NOT_APPLICABLE elsewhere).
@@ -196,7 +196,9 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
     if (m.kind === 'transform' && !m.ref) out.push(`${w}: a transform-based metric needs its reference template (ref)`);
     if (m.kind === 'pattern' && m.tests.includes('value')) out.push(`${w}: a pattern is a signal, never a VALUE`);
   }
-  if (c.metrics.filter(m => m.group === 'Fundamental').length !== 32) out.push('the catalog must hold the 32 fundamental metrics (report APPENDIX C.3)');
+  // a fundamental is a universe attribute read from its file (the worker's universe row), never counted here: that the
+  // catalog holds every fundamental of APPENDIX C.3 is derived from the prototype's catalogue in tests/core/catalog.test.ts
+  for (const m of c.metrics) if (m.group === 'Fundamental' && (m.kind !== 'universe' || !m.requires)) out.push(`metric ${m.id}: a fundamental is kind universe and requires its file`);
   if (implemented) {
     for (const fn of fns) if (!implemented.transforms.includes(fn)) out.push(`transform ${fn} is in the catalog but transforms.ts does not compute it`);
     for (const fn of implemented.transforms) if (!fns.has(fn)) out.push(`transforms.ts computes ${fn}, which the catalog does not list`);

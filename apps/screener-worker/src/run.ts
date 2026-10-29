@@ -21,7 +21,7 @@
    computed on a miss goes back to the main thread's cost model (observe). */
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
-import type { DataStatus, Definition, MetricRef, RunResponse, UniverseCounts, UniverseDef, Versions } from '../../edge-bff/screener/src/core/contract.ts';
+import type { CountsEntry, DataStatus, Definition, MetricRef, RunResponse, UniverseCounts, UniverseDef, Versions } from '../../edge-bff/screener/src/core/contract.ts';
 import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
 import { bindCondition, bindTest } from '../../edge-bff/screener/src/core/condition.ts';
 import type { BindContext } from '../../edge-bff/screener/src/core/condition.ts';
@@ -38,7 +38,7 @@ import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
 import { TickerView, barCount } from './snapshot.ts';
 import type { SnapshotDesc, ThreadSnapshot } from './snapshot.ts';
-import { refuse } from './errors.ts';
+import { refuse, toApiError } from './errors.ts';
 
 /* ================================================================================================================ */
 /* the request envelope (report 8.5, 8.6; the definition itself is validate.ts's)                                  */
@@ -277,6 +277,20 @@ export interface RunTask {
 /** POST /v1/counts as one job: each definition's match and near counts (8.6), one after the other on one thread. */
 export interface CountsTask { kind: 'counts_list'; sid: string; items: { item_id: string; definition: Definition; hash: string }[] }
 export type CountsEntryOut = { item_id: string; match_count: number; near_count: number; busy_ms: number } | { item_id: string; error: { code: string; field?: string; message?: string; details?: Record<string, unknown> } };
+/** The counts answer's entries, one per requested definition in request order (contract.ts CountsEntry[]): its cached
+    counts or its refusal (`settled[k]`, null while it waits for the thread), else the thread's answer for its item_id
+    (item ids are unique, countsEnvelope); an item the thread did not answer becomes that entry's error, as an
+    unexpected failure of the thread is (errors.ts toApiError: INTERNAL_ERROR, the detail in the log), never a null
+    entry the contract does not allow. `missing` names those items for the log. */
+export function countsAnswer(defs: readonly { item_id: string }[], settled: readonly (CountsEntryOut | null)[], computed: readonly CountsEntryOut[]): { counts: CountsEntry[]; missing: string[] } {
+  const by = new Map(computed.map(g => [g.item_id, g])), missing: string[] = [];
+  const counts = defs.map((d, k): CountsEntry => {
+    const x = settled[k] ?? by.get(d.item_id);
+    if (!x) { missing.push(d.item_id); return { item_id: d.item_id, error: toApiError(new Error('counts: the thread answered no entry for this item')).error } }
+    return 'error' in x ? { item_id: x.item_id, error: x.error } : { item_id: x.item_id, match_count: x.match_count, near_count: x.near_count };
+  });
+  return { counts, missing };
+}
 export interface RunLog { stages: { name: string; in: number; out: number; ms: number }[]; conditions: { id: string; source: string; evaluated: number; exhaustive: boolean }[]; pruned: number; pinned_hits: number; lru_hits: number; computed: number }
 export interface RunOutcome {
   kind: 'run' | 'counts';

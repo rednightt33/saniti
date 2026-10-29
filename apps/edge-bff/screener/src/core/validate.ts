@@ -17,8 +17,8 @@
      including Session taken as the registry default when anchor is left out) is INVALID_CONDITION with the offered
      options;
    - METRIC_UNAVAILABLE {metric, availability, reason}: a metric whose availability is not AVAILABLE (derived at run
-     time from screener-metrics.json `requires` against the files indexed in state.json; report 6.12) in an enabled
-     condition or a metric filter (a switched-off condition is kept and checked for shape only);
+     time from screener-metrics.json `requires` against the files indexed in state.json that the worker reads; report
+     6.12) in an enabled condition or a metric filter (a switched-off condition is kept and checked for shape only);
    - LIMIT_EXCEEDED {limit, allowed, needed}: more than max_conditions enabled conditions, more than
      max_metric_filters metric filters (VALUE tests only), a within above within_max (a published limit of 8.9, so its
      rule and examples are in catalog.limits[] before the user meets it).
@@ -45,11 +45,14 @@ export type { MetricDefinition, MetricsCatalog, TransformDefinition, PresetDefin
 
 /** Availability of a metric at run time (report 6.12): REQUIRES_DECISION when `decision` is set; REQUIRES_DATA when its
     `requires.file` is not in the state.json xsection index or lacks a column (an index entry without a `columns` list
-    is not checked for columns: the worker may add the columns of the decoded file to its index first); else AVAILABLE
+    is not checked for columns: the worker may add the columns of the decoded file to its index first), or when the
+    index names it but `reads` (the files the reader reads: the worker's file list) does not, so a file the publisher
+    writes before the worker reads it never shows its metrics enabled to be refused at bind; else AVAILABLE
     (NOT_APPLICABLE is per ticker, from applies_to). reason: plain words the page shows as they are (tooltips, the
     METRIC_UNAVAILABLE refusal): the decision, or the metric's unavailable_reason followed by what the publication lacks
-    (its data; with some of the columns, how many it lacks), never a file or column name. */
-export function availabilityOf(m: MetricDefinition, index: Readonly<Record<string, { columns?: string[] }>>): { availability: Availability; reason: string | null } {
+    (its data; with some of the columns, how many it lacks) or that the Screener does not read it yet, never a file or
+    column name. `reads` omitted (the core's own tests): every indexed file counts as read. */
+export function availabilityOf(m: MetricDefinition, index: Readonly<Record<string, { columns?: string[] }>>, reads?: ReadonlySet<string>): { availability: Availability; reason: string | null } {
   if (m.decision) return { availability: 'REQUIRES_DECISION', reason: m.decision };
   if (m.requires) {
     const e = Object.prototype.hasOwnProperty.call(index, m.requires.file) ? index[m.requires.file] : undefined;
@@ -57,12 +60,13 @@ export function availabilityOf(m: MetricDefinition, index: Readonly<Record<strin
     const missing = e && e.columns ? m.requires.columns.filter(c => !e.columns!.includes(c)) : [];
     if (!e || (missing.length && missing.length === m.requires.columns.length)) return { availability: 'REQUIRES_DATA', reason: `${why}It needs data that this publication does not carry.` };
     if (missing.length) return { availability: 'REQUIRES_DATA', reason: `${why}This publication carries only part of its data: ${missing.length} of the ${m.requires.columns.length} columns it needs ${missing.length > 1 ? 'are' : 'is'} missing.` };
+    if (reads && !reads.has(m.requires.file)) return { availability: 'REQUIRES_DATA', reason: `${why}It needs data that the Screener does not read yet.` };
   }
   return { availability: 'AVAILABLE', reason: null };
 }
-/** availabilityOf for every metric of the catalog, by id (ValidateContext.availability). */
-export const availabilityMap = (index: Readonly<Record<string, { columns?: string[] }>>, catalog: MetricsCatalog = METRICS_CATALOG): Map<string, { availability: Availability; reason: string | null }> =>
-  new Map(catalog.metrics.map(m => [m.id, availabilityOf(m, index)]));
+/** availabilityOf for every metric of the catalog, by id (ValidateContext.availability); `reads` as there. */
+export const availabilityMap = (index: Readonly<Record<string, { columns?: string[] }>>, catalog: MetricsCatalog = METRICS_CATALOG, reads?: ReadonlySet<string>): Map<string, { availability: Availability; reason: string | null }> =>
+  new Map(catalog.metrics.map(m => [m.id, availabilityOf(m, index, reads)]));
 
 /** What validation needs besides the definition. limits: the worker's environment values (report 8.9); capBudgetMs:
     SCREENER_CAP_BUDGET_MS (registry.ts caps); tickers: the listed stocks of the snapshot; groupings: catalog.groupings

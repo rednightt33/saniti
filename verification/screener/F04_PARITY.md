@@ -27,6 +27,11 @@ V8 block coverage instead of timing it) and in the generator's own source hash. 
 output, `cost_class` and oracle row), `registry_version`, `cost_model` and the hashes of `backtest-registry.json`,
 `indRegistry.json`, `indicators.ts`, `screener-overlay.json` and `scripts/terminal_indicator_spec.py` are identical.
 The parity result above therefore holds for both versions, and for any later one of which the same comparison holds.
+Carried over again, 2026-10-29 (last guards and their review, no re-run): `638ee5ea6bbf05b5` (the generator gained the
+lowered-cost_class guard and `--against` for checks only, and `screener-overlay.json` its `about` sentence and an empty
+`cost_reviews` list; the build's `0e89b34fb99ef36d` before the review was never committed) differs from `5f190a59af84614f`
+only in the hashes of the generator and the overlay; `indicators[]`, `registry_version`, `cost_model`, `probe` and the
+other source hashes are identical (compared with `git show HEAD:` of the file), so the result holds for it too.
 
 ## Snapshot and dynamic paths vs Feature 04 (relative difference <= 1e-12, identical nulls)
 

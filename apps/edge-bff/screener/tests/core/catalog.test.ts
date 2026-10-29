@@ -2,9 +2,11 @@
    availability", 10b.5 "Board, index, market cap, free float, notation"): screener-metrics.json keeps its rules and
    lists exactly what transforms.ts computes; the comparison lag of the rolling windows is the generator's lag probe
    re-derived on its fixture (a hand edit fails here); availability is derived from the published index (removing a
-   file turns its metrics REQUIRES_DATA, technical metrics stay); bank metrics apply to banks only; every one of the 32
-   fundamental metrics is there, unavailable with a reason; presets carry no stored availability. */
+   file turns its metrics REQUIRES_DATA, technical metrics stay; a file counts only when the reader reads it); bank
+   metrics apply to banks only; every fundamental metric of the prototype's catalogue (APPENDIX C.3) is there,
+   unavailable with a reason; presets carry no stored availability. */
 import { describe, expect, it } from 'vitest';
+import prototypeText from '../../../../../verification/screener/evidence/html_ui/catalog.json?raw';
 import * as G from '../../scripts/build-screener-registry.mjs';
 import { METRICS_CATALOG, PRESETS, appliesTo, catalogProblems, resolveCatalogParams, transformSpec } from '../../src/core/catalog.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
@@ -29,9 +31,22 @@ describe('screener-metrics.json', () => {
       }
     }
   });
-  it('holds the 32 fundamental metrics of APPENDIX C.3, each unavailable with a reason; bank-only ones apply to banks only', () => {
+  it('holds every fundamental metric of the prototype\'s catalogue (APPENDIX C.3), each unavailable with a reason; bank-only ones apply to banks only', () => {
     const fund = METRICS_CATALOG.metrics.filter(m => m.group === 'Fundamental');
-    expect(fund.length).toBe(32);
+    // derived from the prototype's catalogue (verification/screener/evidence/html_ui/catalog.json byGroup), never a count
+    // kept here: a new fundamental beyond it is allowed, a missing one fails
+    const prototype = (JSON.parse(prototypeText as unknown as string).byGroup as Record<string, string[]>).Fundamental;
+    expect(prototype.length).toBeGreaterThan(0);
+    expect(prototype.filter(id => !fund.some(m => m.id === id))).toEqual([]);
+    // the import check holds the rule of a fundamental, not their number: one more passes, one of another kind fails
+    const extra = { ...fund[0], id: 'evSales' }, pe = fund.find(m => m.id === 'pe')!;
+    try {
+      METRICS_CATALOG.metrics.push(extra);
+      expect(catalogProblems()).toEqual([]);
+      pe.kind = 'xsection';
+      expect(catalogProblems()).toEqual(['metric pe: a fundamental is kind universe and requires its file']);
+    } finally { METRICS_CATALOG.metrics.splice(METRICS_CATALOG.metrics.indexOf(extra), 1); pe.kind = 'universe' }
+    expect(catalogProblems()).toEqual([]);
     const a = availabilityMap({});
     for (const m of fund) {
       expect([m.id, m.kind, a.get(m.id)!.availability]).toEqual([m.id, 'universe', 'REQUIRES_DATA']);
@@ -65,6 +80,20 @@ describe('screener-metrics.json', () => {
     expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: [fnet.requires!.columns[0]] } }).reason).toMatch(/carries only part of its data: 1 of the 2 columns it needs is missing\.$/);
     expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: [...fnet.requires!.columns] } })).toEqual({ availability: 'AVAILABLE', reason: null });
     expect(availabilityOf(METRICS_CATALOG.metrics.find(m => m.id === 'index_membership')!, {}).availability).toBe('REQUIRES_DATA');
+  });
+  it('counts a published file only when the reader reads it: indexed but not read is REQUIRES_DATA in plain words, a missing file keeps its reason, a decision still wins (ERRORS M299)', () => {
+    const files = [...new Set(METRICS_CATALOG.metrics.flatMap(m => m.requires ? [m.requires.file] : []))];
+    const all = Object.fromEntries(files.map(f => [f, {}]));
+    const readsNone = availabilityMap(all, METRICS_CATALOG, new Set()), readsAll = availabilityMap(all, METRICS_CATALOG, new Set(files));
+    for (const m of METRICS_CATALOG.metrics) {
+      if (m.decision) { expect([m.id, readsNone.get(m.id)!.availability]).toEqual([m.id, 'REQUIRES_DECISION']); continue }
+      if (!m.requires) { expect([m.id, readsNone.get(m.id)!.availability]).toEqual([m.id, 'AVAILABLE']); continue }
+      expect([m.id, readsNone.get(m.id)]).toEqual([m.id, { availability: 'REQUIRES_DATA', reason: `${m.unavailable_reason} It needs data that the Screener does not read yet.` }]);
+      expect([m.id, readsAll.get(m.id)!.availability]).toEqual([m.id, 'AVAILABLE']);
+      // read but not published: what the publication lacks comes first; omitted reads (core tests) count every indexed file
+      expect(availabilityOf(m, {}, new Set(files)).reason).toMatch(/It needs data that this publication does not carry\.$/);
+      expect(availabilityOf(m, all).availability).toBe('AVAILABLE');
+    }
   });
   it('checks catalog parameters as registry parameters are checked: defaults filled, nothing adjusted, the field named', () => {
     const spec = transformSpec('ma', 'f').args;

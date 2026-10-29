@@ -2,7 +2,7 @@
    catalog, universe and last open screen's result are kept as their JSON bytes in the browser's shared file cache
    (IndexedDB 'terminal-files' through the Terminal's rack.ts fileCache, keyed by sha256 = the ETag edge-bff sends),
    and one pointer in localStorage scr.boot names them with their versions and the login.
-   Rules (6c.3, 6c.5; tests/page/boot-cache.test.ts):
+   Rules (6c.3, 6c.5; tests/page/page.test.ts "boot pointer"):
    - nothing cached is drawn before an authenticated answer of this page load (app.ts calls read() after one);
    - a pointer of another login is dropped and never read (its bytes age out of the shared LRU);
    - a cached result is used only when its versions equal the cached catalog's, field by field;

@@ -64,8 +64,8 @@ NAME_MAX = 120                                      # migration 20261028_001: le
 DEFINITION_BYTES = 65536                            # migration 20261028_001 (octet_length(definition::text)); report 8.9
 INFLIGHT_PER_PAGE = 1                               # report 8.9: one screen and one preview in flight per (owner, page)
 REQUEST_BYTES = 131072                              # main.py protections (the house body cap); report 8.9
-# Report 8.4: edge-bff asks the worker's /health for its versions at most every 60 s and refetches the catalog and the
-# universe only when they changed (the Backtest's 60 s catalog time-to-live replaced by a version check).
+# Report 8.4: edge-bff reads the worker's /health at most every 60 s and refetches the catalog and the universe only
+# when its versions or published_at changed (versions_key: an advance keeps the versions, not the documents; M299).
 HEALTH_SECONDS = 60
 # Not derivable: how long a /health read may take. The worker answers it from memory (report 8.11), so a few seconds
 # bound it; a page's catalog waits for it at most once a minute.
@@ -591,8 +591,8 @@ def published_of(data):
     return published if isinstance(published, str) else None
 
 
-def versions_key(versions, refresh):
-    return json.dumps({'versions': versions, 'refresh': refresh}, sort_keys=True)
+def versions_key(health, refresh):     # a publication with the same files keeps the versions, not published_at (6.5)
+    return json.dumps({**{k: health.get(k) for k in ('versions', 'published_at')}, 'refresh': refresh}, sort_keys=True)
 
 
 class Screeners:
@@ -689,8 +689,8 @@ class Screeners:
     # ---- catalog and universe: kept per worker state, ETag ----------------------------------------------------------
 
     async def current(self):
-        """The worker's state from its /health ({versions, refresh}), read at most every HEALTH_SECONDS; the last one
-        read while the worker does not answer (None before any, or while it has no snapshot)."""
+        """The worker's state from its /health ({versions, refresh, published_at}), read at most every HEALTH_SECONDS;
+        the last one read while the worker does not answer (None before any, or while it has no snapshot)."""
         if self.health['at'] is not None and time.monotonic() - self.health['at'] < HEALTH_SECONDS:
             return self.health['key']
         async with self.lock('health'):
@@ -704,7 +704,7 @@ class Screeners:
                     refresh = data.get('refresh')
                     if refresh not in ('ready', 'failed_keeping_previous'):
                         refresh = self.health['refresh']     # refreshing, loading: the catalog keeps the last outcome
-                    self.health.update(versions=versions, refresh=refresh, key=versions_key(versions, refresh))
+                    self.health.update(versions=versions, refresh=refresh, key=versions_key(data, refresh))
                 else:
                     self.health.update(versions=None, key=None)
             except WorkerUnavailable:
