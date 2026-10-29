@@ -228,8 +228,8 @@ export function floored(run, B, p, value) {
 /* ---- cost_class: how the work of F grows with an integer parameter (report 6.8), counted, never timed ---------- */
 /* The class decides a parameter's cap (registry.ts capOf), so it is part of the contract and of its version. It was
    once a wall-clock ratio (process.hrtime): under CPU contention an O(N) parameter's ratio crossed the threshold
-   (6 to 16 of 58 flipped to O(N·n) in each of 5 runs at load 13-15 on 4 cores, 2026-10-29), so --check failed and the
-   version depended on the machine's load. The measure is now the work F does: V8's precise block coverage (the
+   (6 to 16 of the 58 O(N) parameters came out O(N·n) in each of 5 runs with 12 busy loops on 4 cores, 2026-10-29), so
+   --check failed and the version depended on the machine's load. The measure is now the work F does: V8's precise block coverage (the
    inspector Profiler with call counts per block) counts how many times every block of the measured code ran, an exact
    number that no scheduler, frequency or other process changes. */
 
@@ -243,10 +243,10 @@ export function costLengths(value, bars) {
 /** The class of a measured growth W(L2) / W(L1) - 1, or null when neither is decisive. A kernel that loops over its
     window (O(N·n)) grows 13.6 to 32.4 (HMA, Aroon, Donchian, Stochastic RSI, Stochastic, Williams %R, CCI, standard
     deviation 'sample', historical volatility); a running-sum or recursive kernel (O(N)) grows -0.09 to 0 (the other 58
-    integer parameters at every offered enum option; 293 measurements, 2026-10-29). O(N·n) needs a growth of at least
+    integer parameters at every offered enum option; 293 configurations, 2026-10-29). O(N·n) needs a growth of at least
     cost_growth x cost_margin (4: the work at least five times larger at the longer length), O(N) at most
-    cost_growth / cost_margin (1: at most twice). A class is written only that far from the boundary, so a change in
-    how a V8 version splits blocks cannot flip it; a growth in between stops the build instead of guessing. */
+    cost_growth / cost_margin (1: at most twice). A class is written only that far from the boundary, so a small change
+    in how a V8 version splits blocks does not flip it; a growth in between stops the build instead of guessing. */
 export function costVerdict(growth) {
   if (!Number.isFinite(growth)) return null;
   if (growth >= PROBE.cost_growth * PROBE.cost_margin) return 'O(N·n)';
