@@ -5029,3 +5029,23 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   local builds of `b841a45` (Terminal `assets/index-7b76YLLw.js`; Backtest `assets/index-DwzUe4Tj.js`, built in the
   Dockerfile's folder layout; Screener `assets/index-TookIbNo.js`); no error line in the start-up log.
 - Rollback: `serviceInstanceDeployV2` with the previous main commit `d84be91` (deployment `f295d813`).
+
+## 2026-10-29 — terminal-api `c6b1385a` (EXEC-SCREENER /xsection, EXEC-MU-RUNTIME T1/T3/T5/T9; PR #42)
+
+- Service terminal-api, environment dev, CLI upload (ERRORS M248) of `git archive b841a45 apps/terminal-api` (`main`,
+  the merge of PR rednightt33/saniti#42). Tree digest `ebe518fdc46e0a9fa6ea10cde993c34703bac92744e7906bf1c3993c0d2bbf09`.
+  Status SUCCESS at 10:26 UTC, promoted by the `/ready` healthcheck (set at 09:34, see above) on the migrated schema
+  (`20261028_100` applied at 10:19).
+- Change: `/state` gains `xsection` and `refs`; `POST /xsection` for the screener-worker service key and the gateway
+  key; each worker's service key acts as its own account with an hourly ceiling (T1); the account is read inside each
+  grant (T3); `/reference` presigns the indexed content key when `refs` names it (T5); `/ready` healthcheck,
+  `TERMINAL_POOL_MAX` (default 8, not set).
+- Verified: `/ready` 200; keyless `POST /xsection` 403 `gateway_only` (the old build had no such route); the private
+  network check `verification/screener/jobs/terminal_check.py` (job `974ca534` then the re-run after teaching it the
+  `refs` field, `terminal_check_api_20261029.log`) VERDICT PASS: `/state` without key 401, with the gateway key 200
+  with exactly the six fields (`xsection` and `refs` null until the T5 publisher's first run), unknown xsection name 404
+  `xsection_not_published`, `/manifest` 200, VAR_REMOVED; Backtest unchanged: `verification/backtest/e2e_dev.py
+  --skip-page --only single` passed (no failed check; catalog 845 tickers through 2026-10-28; job
+  `bt_6789555252413858cb77f71bcaec08b1`; the worker still `292f7caa` on the gateway key). One K3 trial added.
+- Rollback (B9 order): workers back on `${{terminal-api.TERMINAL_PROXY_KEY}}` first (none uses a service key yet), then
+  `deploymentRollback` of `689dc465-b4e8-45f4-966a-a825fdad9599`; the old build runs on the migrated schema.
