@@ -8604,7 +8604,8 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
 - **Status 2026-10-29, Phase 1 di dev:** migration `20261028_001` diterapkan (41/41, 21/21); PR rednightt33/saniti#42
   di-merge (`b841a45`); screener-worker `7a961374` dan edge-bff `8191fff7` aktif; halaman dan API Screener diperiksa
   (`verification/screener/LIVE_CHECK_DEV.md`: buka pertama 1,62 s, run 0,5-1,1 s, preview 0,49 s; empat screen sama dengan
-  Feature 04). Sisa Phase 1: tampilan waktu publikasi yang mentah di header; Phase 1b dan 2 belum dimulai.
+  Feature 04). Sisa Phase 1 (waktu publikasi mentah di header) selesai: ERRORS M302, PR rednightt33/saniti#43,
+  edge-bff `074b2cc9`. Phase 1b dan 2 belum dimulai.
 - **Keputusan lanjutan, 2026-10-28 (kata user):** atas P29 "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest
   juga"; atas pertanyaan apakah rekomendasi juga berlaku untuk keputusan flow D1-D14 dan P24-P34: "YEs".
   - **P29:** pengguna EDGE adalah user eksternal, untuk semua tab (Monitor, Terminal, Backtest, Screener).
@@ -8943,3 +8944,49 @@ User 2026-10-29 (screenshot jendela Top brokers TOBA): "Sepertinya belum ada war
 domestic".
 - Bar Top brokers (panel dan jendela) sekarang benar-benar dua warna: Domestic solid, Foreign pudar. Hanya CSS.
 - Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-PUBLISHER-SPEED — publisher cepat, bersih-bersih sesudah terbit, peringatan Telegram (go 2026-10-29)
+
+**Go, 2026-10-29 (kata user):** "Okay, jalankan ensure bahwa semua step yang dilakukan berdasarkan inspeksi code writer dan
+just memory. Buat implementation, dan it's a go. Jalankan." Atas pertanyaan: "Boleh saya \"go\" sekarang, dengan
+peringatan Telegram (nomor 3) ikut dikerjakan? Kalau Anda lebih suka deploy besok pagi setelah 08:45 WIB supaya bisa
+dipantau, bilang saja." Tafsiran: go untuk butir 1-3, deploy ke dev malam ini di luar jendela B6; setiap langkah
+berdasarkan inspeksi kode, log dan data live saat itu, bukan ingatan (AGENTS.md "Gates and evidence").
+- **Lingkup:** (1) permintaan bucket paralel di setiap tahap, urutan tahap tetap; (2) bersih-bersih sesudah `state.json`
+  dengan aturan aman yang sama, dibatasi waktu; (3) peringatan Telegram untuk run gagal dan publikasi yang tidak terbit.
+  Format file, kunci objek dan pembaca (terminal-api, Terminal, Backtest, Screener) tidak berubah.
+- **Hanya dev.** Rollback: deploy ulang publisher `0d33d8ac` (sumber `main` `b841a45`).
+- **Status 2026-10-29:** dimulai.
+
+### Riwayat (dipindah dari PLAN.md PUBLISHER-SPEED)
+
+**Persetujuan, 2026-10-29 (kata user):** "A alright", atas pilihan "Opsi A — Screener dinyalakan malam ini, perbaikan
+publisher besok"; sebelumnya: "Boleh lakukan pengecekan berapa lama proses publisher memindahkan data dari Postgres ke
+storage. Inspect kenapa bisa lama, sebetulnya ini hanya proses penjndahan data saja right".
+- **Temuan (run 2026-10-29 12:04-13:00 UTC, ERRORS M301):** 55 menit untuk 27,7 MB; database < 1 menit (6 ms per file
+  tahunan, 27 ms per pack, `EXPLAIN ANALYZE`); sisanya ±3.300 permintaan ke bucket satu per satu (±0,6 s per permintaan,
+  publisher `sfo`, bucket `sin`) ditambah 19 menit listing bersih-bersih yang macet lalu gagal.
+- **Usulan (belum "go"):** (1) permintaan bucket paralel per tahap, urutan file -> manifest -> `state.json` tetap;
+  (2) bersih-bersih setelah `state.json` dan dibatasi waktu; (3) satu indeks manifest per run; terpisah: peringatan
+  Telegram saat publisher crash atau publikasi belum terbit.
+- **Pertanyaan terbuka:** tingkat paralel (usulan 16); apakah peringatan crash ikut di item ini.
+- **Prioritas, 2026-10-29 (kata user):** "Ya, kita coba kita perbaiki kecepatan publisher dulu. What's the plan? Dan kapan
+  ini bisa dikerjakan?" (atas usulan: publisher dulu, lalu Screener Phase 2 dan 2b). Ini persetujuan urutan dan permintaan
+  rencana, belum "go" eksekusi.
+- **Rencana yang diajukan 2026-10-29 (menunggu "go"):**
+  - Urutan run yang terukur (log JSON run 12:04-13:00 UTC): cek perubahan 12 s (stamp 6.218 ticker-tahun) + baca 845
+    manifest satu per satu 8,7 menit; bersih-bersih 19 menit (gagal); 828 file harga tahun 2026 ±8 menit; 828 price pack
+    ±10 menit; xsection 41 s; simpan 828 manifest 8 menit; refs dan `state.json` 13:00:00. Hanya tahun berjalan yang
+    ditulis ulang; data historis tidak.
+  - (1) Paralel dalam setiap tahap (bacaan manifest, file data, pack, manifest; batas `TERMINAL_BUCKET_THREADS`, usulan
+    16), urutan tahap tetap: file dan pack -> xsection -> manifest -> refs -> `state.json`; query database tetap satu
+    koneksi berurutan.
+  - (2) Bersih-bersih pindah ke sesudah `state.json`, dengan aturan aman yang sama (hanya objek yang sudah tidak disebut
+    sejak publikasi sebelumnya), listing per prefix, batas waktu keras; gagal tidak menunda publikasi.
+  - (3) Peringatan Telegram lewat rute telegram-monitor yang sudah ada: run gagal, dan publikasi yang tidak terbit
+    (diperiksa oleh tick cron yang bukan jam run).
+  - Tidak diusulkan sekarang: indeks manifest tunggal (paralel sudah cukup), format pack per tahun (mengubah pembaca
+    Terminal), memindah publisher ke `sin` (database di `sfo`).
+  - Target: `state.json` <= 10 menit sesudah mulai (perkiraan 4-6 menit, INFERENCE, diukur di dev).
+  - Waktu: build dan tes setelah "go"; deploy dev di luar jendela B6 lalu satu run manual terukur; run terjadwal
+    berikutnya sebagai bukti kedua.

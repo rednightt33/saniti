@@ -1,0 +1,2 @@
+{"event": "gc", "deleted": 0, "not_deleted": 0, "mb": 0.0, "kept_newer_than_last_run": 0, "tickers_skipped": 0, "families": ["broker", "pack", "price"], "xsection_named": 3, "refs_named": 3, "objects_listed": 11806, "last_run_finished": "2026-10-25 00:00:00+00:00", "after_publication": true, "seconds": 6.5}
+{"threads": 16, "latency": 0.54, "seconds": 125.1, "written": 1657, "phases": {"plan": 30.3, "files": 26.1, "packs": 28.0, "xsection": 2.2, "manifests": 28.7, "refs": 2.7, "state": 0.5}, "requests": {"put": 2505, "get": 848, "list": 16, "delete": 0}}

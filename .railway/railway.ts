@@ -100,7 +100,7 @@ export default defineRailway(() => {
   });
   const terminalPublisher = service("terminal-publisher", {
     replicas: { "sfo": 1 },
-    deploy: { cronSchedule: "0,30 0,12 * * *", restartPolicyType: "NEVER" },
+    deploy: { cronSchedule: "0,30 0,1,12 * * *", restartPolicyType: "NEVER" },
     env: { TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_PUBLISHER_DATABASE_URL: preserve(), TERMINAL_PUBLISHER_DB_PASSWORD: preserve(), TERMINAL_PUBLISH_MODE: preserve(), TERMINAL_RUN_TIMES_WIB: preserve(), TERMINAL_YEARS: preserve() },
   });
   const telegramTrigger = service("telegram-trigger", {

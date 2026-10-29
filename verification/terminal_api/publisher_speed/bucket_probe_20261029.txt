@@ -1,0 +1,8 @@
+first page (seconds, keys): {'state.json': (0.5, 1), 'manifest/': (1.39, 845), 'xsection/': (0.28, 2), 'ref/': (0.29, 6), 'events/': (0.89, 842), 'pack/': (0.66, 1000), 'price/BBCA/': (0.28, 11)}
+price/ pages: [(0.49, 1000), (0.43, 1000), (0.44, 1000), (0.42, 1000), (0.5, 1000), (0.44, 1000), (0.44, 1000), (0.4, 872)] total 3.6
+sequential GET seconds: [0.54, 0.54, 0.54, 0.55, 0.54, 0.53, 0.57, 0.54]
+64 GETs with 8 threads: 5.76 s
+64 GETs with 16 threads: 2.95 s
+64 GETs with 32 threads: 2.08 s
+
+[exited with code 0]

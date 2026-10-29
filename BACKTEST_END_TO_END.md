@@ -127,15 +127,19 @@ Facts that matter downstream:
 
 - **Service.** Railway service `terminal-publisher`: region `sfo`, restart policy `NEVER`, Dockerfile
   `CMD ["python", "publisher.py"]`. It is deployed by CLI upload and has no GitHub source.
-- **Schedule.** Railway `cronSchedule` `0,30 0,12 * * *` (UTC) together with `TERMINAL_RUN_TIMES_WIB=07:30,19:00`.
-  The publisher function `cron_for(times)` gives that schedule.
+- **Schedule.** Railway `cronSchedule` `0,30 0,1,12 * * *` (UTC) together with `TERMINAL_RUN_TIMES_WIB=07:30,19:00`.
+  The publisher function `cron_for(times)` gives that schedule: the run times and their check times, 30 minutes later
+  (`check_times`, EXEC-PUBLISHER-SPEED, ERRORS M303). Before 2026-10-29 it was `0,30 0,12 * * *`.
 - **Which ticks run.** `should_run` lets a `daily` run go ahead only within 20 minutes after a listed WIB time, or
-  away from every cron tick (a manual run). The other ticks log `skipped` and exit before connecting to the database.
+  away from every cron tick (a manual run). The other ticks log `skipped`, never connect to the database, and check
+  that the last run time's publication came out (`check_publication`: `state.json` `finished_at` at or after that run
+  time, else the `missing` alert, section 4.3).
 - **Manual runs.** A Railway service with a cron does not run on deploy, and `railway redeploy` keeps the old cron.
   A manual run therefore follows ERRORS M229: clear the cron, set `TERMINAL_PUBLISH_MODE`, `railway up` a new
-  deployment, then restore the cron and mode.
-- **Out of date in the repo.** `.railway/railway.ts` does not list the publisher's cron or `TERMINAL_RUN_TIMES_WIB`.
-  INFERENCE: a `railway config apply` from that file might clear them; check before applying it.
+  deployment, then restore the cron and mode. A `daily` run that starts within 20 minutes after any tick (07:00, 07:30,
+  08:00, 08:30, 19:00 or 19:30 WIB) is taken for that tick: away from the run times it only checks.
+- **In the repo.** `.railway/railway.ts` lists the publisher's cron and its variables (`preserve()`), since the
+  reconciliation of 2026-10-29 (RAILWAY_CHANGELOG).
 
 ### 4.2 One run, in order (`Publisher.run`)
 
@@ -147,13 +151,16 @@ Facts that matter downstream:
 2. **Plan (mode `daily`).**
    - `changed_prices`: one `PRICE_STAMPS_SQL` row per ticker-year gives a stamp
      (`rows=…;last=…;ing=<max ingestion_time>;sum=<sum(close)>`). It is compared with the manifest entry's `stamp`.
-     Each ticker's manifest is read from the bucket once; that is up to 845 GETs and, as the code says, "the slow part
-     of planning".
+     Every listed ticker's manifest is read once before planning, `TERMINAL_BUCKET_THREADS` (16) at a time
+     (`load_manifests`, EXEC-PUBLISHER-SPEED): 845 GETs took 8.7 minutes one at a time on 2026-10-29, about 30 s at
+     16 (rehearsal).
    - `changed_events`: the same idea per ticker, with `format=2;rows;last;ing`.
    - Broker: the ticker-years of trading dates newer than `state.json` `broker_through`.
-3. **Cleanup (`collect_garbage`, mode `daily` only, before the first write).** The data files and packs no manifest
-   names any more, and the xsection and content-keyed reference files their `state.json` index no longer names, are
-   deleted once the last finished run is an hour old. One mechanism for every family; see section 4.3.
+3. **Cleanup baseline (mode `daily` only, before the first write).** `cleanup_baseline` lists `state.json` and
+   `manifest/` (two requests, about 2 s; given up after `BASELINE_SECONDS`, 60, and the cleanup is then skipped): the
+   time of the last finished run and of every manifest, kept with the manifests' keys
+   and the previous indexes for the cleanup after `state.json` (step 8; section 4.3). Until 2026-10-29 the cleanup
+   itself ran here, and a slow listing held the publication 19 minutes (ERRORS M301).
 4. **One file (`publish`).** The steps are:
    - SQL for the ticker-year;
    - build the document (`price_doc`, `broker_doc` or `events_doc`);
@@ -195,8 +202,8 @@ Facts that matter downstream:
      sha)` = `xsection/<name>.<first 16 hex of the sha256>.json.gz` (the form terminal-api's `xsection_index`
      accepts; the index entry carries the whole sha256). `encode` is deterministic, so unchanged rows give the same key,
      and a changed file is a new object: an object is never written again with other bytes (ERRORS M250). A listing of
-     `xsection/` (`present_keys`, taken after the cleanup of step 3, so it never names an object this run deleted)
-     decides what is there: a key it holds is not put again, an indexed object it lacks (deleted by hand) is put again
+     `xsection/` (`present_keys`; the cleanup runs after `state.json`, so nothing is deleted during the run) decides
+     what is there: a key it holds is not put again, an indexed object it lacks (deleted by hand) is put again
      with the same bytes, and without a listing the previous index stands in for it.
    - A file whose build fails (`xsection_failed`, the error class only) keeps its previous index entry; the rest of the
      run goes on, and the process exits 3 after `state.json`, so the Terminal and the Backtest are never held back by it.
@@ -212,14 +219,16 @@ Facts that matter downstream:
    `REF_FILES` serves, a test keeps the two equal) also under its content key `ref/<name>.<first 16 hex of the
    sha256>.json.gz`: the exact bytes of its fixed-key copy, those written this run or, for logos not refreshed, the
    fixed-key object as it stands. It goes through `store` as the xsection files do, against one listing of `ref/`
-   taken after the cleanup (a key the bucket holds is not put again; without a listing the previous index stands in),
+   (a key the bucket holds is not put again; without a listing the previous index stands in),
    and these uploads are not counted in `files_written`. A reference file never published (no logo run yet) has no
    entry; one whose copy fails keeps its previous entry (`ref_failed`, the class only) and the process exits 3 after
-   `state.json`, as for an xsection file. **`state.json` is written last**, with `finished_at`, the `xsection` index
-   and the `refs` index; nothing is written or deleted after it. terminal-api's manifest cache keys on `finished_at`
-   (section 6.3).
+   `state.json`, as for an xsection file. **`state.json` is written last of the publication**, with `finished_at`, the
+   `xsection` index and the `refs` index; nothing is written after it. terminal-api's manifest cache keys on
+   `finished_at` (section 6.3). Then, in a `daily` run, the cleanup (`collect_garbage(indexes, before)`, section 4.3)
+   deletes what no reader of this or the previous publication can still use; the `done` log line comes before it, with
+   the seconds of each step (`phases`) and `threads`.
 9. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
-   telegram-monitor to send an alert (ERRORS M243).
+   telegram-monitor to send an alert (ERRORS M243). Publication alerts (ERRORS M303, section 4.3) go the same way.
 
 Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 
@@ -241,16 +250,27 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 - **No coded ticker list.** The universe comes from the database at run time, and so do the first years.
 - **Bytes are deterministic.** A daily run right after a backfill uploads nothing
   (`apps/terminal-publisher/tests/test_publisher.py`).
-- **Write order.** In a daily run the cleanup first; then data files, packs, the xsection files, manifests, the
-  fixed-key reference files, their content-keyed copies and `state.json`. A manifest therefore never names a new key
-  that is not there yet, and neither do the `state.json` xsection and refs indexes; nothing is written or deleted
-  after `state.json`.
+- **Write order.** Data files, packs and the xsection files; a barrier; the manifests; a barrier; the fixed-key
+  reference files and their content-keyed copies; a barrier; `state.json`; then, in a daily run, the cleanup. The
+  puts within a step run `TERMINAL_BUCKET_THREADS` (16) at a time (`Uploads`, EXEC-PUBLISHER-SPEED); each barrier
+  (`Uploads.wait`) returns only when every put asked so far is in the bucket, and raises the first failure, which ends
+  the run before a manifest or `state.json` can name the object. The xsection files and the content-keyed reference
+  copies are put at once, so their failure stays theirs (exit 3). A manifest therefore never names a new key that is
+  not there yet, and neither do the `state.json` xsection and refs indexes; nothing is written after `state.json`, and
+  the cleanup after it deletes only what neither publication names.
 - **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later. The
   objects a crashed run wrote are newer than `state.json`, so the cleanup keeps them until a later run finishes; then
   it deletes those no manifest or index names (an xsection file whose content a later run indexes keeps its key).
 - **Bucket requests are asked again (ERRORS M263).** Every bucket call (get, put, each listing page, delete) is asked
   again after 2, 4 and 8 s on a canceled, throttled or 5xx answer or a dropped connection (`transient`, `retried`, log
-  `bucket_retry`); any other error, or one that lasts past the third retry, ends the run as before.
+  `bucket_retry`); any other error, or one that lasts past the third retry, ends the run as before. Since
+  EXEC-PUBLISHER-SPEED the client gives up on an answer after 30 s per socket operation (10 s to connect, 3 attempts;
+  it was 60 s and 5 attempts, and a hung listing page cost about 6 minutes, ERRORS M301).
+- **Alerts (ERRORS M303).** telegram-monitor, source `Terminal_Publisher_Health`, one message per run time and kind:
+  `failed` (the step and the error class), `slow` (still going after `TERMINAL_RUN_ALERT_MINUTES`, 30), `partial` (an
+  xsection or reference file kept at its previous version, exit 3) and `missing` (a check tick finds no publication
+  since the run time; it shares its id with `failed`). The facts come in the request, in fixed shapes only
+  (`parse_publisher_health`).
 - **Objects never change (ERRORS M250).** Before content keys, a changed file was written again under its fixed key
   while terminal-api still served the previous run's cached manifest, so sha256-checking readers failed
   `DATA_INTEGRITY` during each run. Now a reader holding any manifest or `state.json` xsection index of the last
@@ -259,8 +279,13 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   `content_key` and `store`. Manifests, the fixed-key `ref/<name>.json.gz`, logos and `state.json` keep fixed keys:
   readers open them by name and no reader checks their bytes against a manifest. Since EXEC-MU-RUNTIME T5 a reader of
   the `state.json` `refs` index gets each reference file under a key that names its bytes, with their sha256.
-- **Cleanup (`collect_garbage`).** A daily run lists the bucket before it writes and deletes an object only when all
-  of these hold: its key is `<family>/<ticker>/<file>` with a family some manifest names (derived from the manifests,
+- **Cleanup (`collect_garbage`).** A daily run lists the bucket after its `state.json` (EXEC-PUBLISHER-SPEED; before
+  2026-10-29 it listed before its first write) and deletes an object only when all of these hold. With the baseline
+  taken before the first write, "the manifest" and "the index" below mean both the previous one and the new one, and
+  "`state.json`" means the one the run started from: it deletes what the old cleanup deleted at the start of the same
+  run, at its end instead (minus an object the run names again, which the old one deleted and put back). The grace is
+  measured at the end, so a manual run that starts within the hour after the last one and ends after it may delete,
+  never sooner than `GC_GRACE_SECONDS` after that run. The conditions: its key is `<family>/<ticker>/<file>` with a family some manifest names (derived from the manifests,
   so a new dataset is covered) and the ticker's manifest names at least one file but not this one, or its key is an
   object of an indexed family (`INDEXED`: `xsection/<name>.<16 hex>.json.gz`, and since EXEC-MU-RUNTIME T5
   `ref/<name>.<16 hex>.json.gz`; nothing else under `xsection/` or `ref/`, so the fixed-key reference files never
@@ -270,14 +295,15 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   no object of that family); that manifest and the object are no newer than `state.json` (the last finished
   run; anything newer may belong to a run that did not finish); and that run finished at least `GC_GRACE_SECONDS`
   (3600) ago, which exceeds the manifest cache check (60 s), the URL lifetime (120 s) and a download. So an object
-  goes in the first daily run that starts an hour or more after the last finished run, once no manifest or index of
-  that run names it: never sooner than an hour after the run that stopped naming it, and later when another run
+  goes at the end of the first daily run that finishes an hour or more after the run before it, once no manifest or
+  index of either run names it: never sooner than an hour after the run that stopped naming it, and later when another run
   finished in between (each finished run starts the hour again). A reader holding the previous manifest or index keeps
   its files, and two runs minutes apart (a manual run right after a scheduled one) delete nothing. What a `backfill`,
   `packs` or `events` run replaces goes in a later daily run under the same rule. A listing longer than
   `GC_LIST_SECONDS` (900) is abandoned. A failure is logged (`gc_failed`, class only) and the run goes on: cleanup
   never stops a publication. Its log line `gc` gives `deleted`, `not_deleted`, `mb`, `kept_newer_than_last_run`,
-  `tickers_skipped`, `families`, `xsection_named`, `refs_named`.
+  `tickers_skipped`, `families`, `xsection_named`, `refs_named`, `after_publication`; a baseline the bucket could not
+  list is `gc_failed` with `step` `baseline`, and the cleanup is skipped.
 - **Recorded sizes and times** (`RAILWAY_CHANGELOG.md`):
 
   | Run | Duration | Written |
@@ -690,7 +716,7 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 
 | Where | What | Key | Lifetime |
 |---|---|---|---|
-| Bucket (publisher) | data files, packs, xsection files | key with the content's sha256 (`content_key`; xsection: its first 16 hex) | never rewritten; deleted by the first daily run that starts an hour or more after the last finished run, once no manifest or index of that run names it (`collect_garbage`, section 4.3) |
+| Bucket (publisher) | data files, packs, xsection files | key with the content's sha256 (`content_key`; xsection: its first 16 hex) | never rewritten; deleted at the end of the first daily run that finishes an hour or more after the run before it, once no manifest or index of either run names it (`collect_garbage`, section 4.3) |
 | terminal-api process | manifests, "not found" too | ticker | until `state.json` `finished_at` changes (checked every 60 s) |
 | terminal-api process | `state.json`: the `/state` answer and the xsection index `/xsection` grants from | — | read again at most every 60 s; an unreadable `state.json` keeps the last one |
 | Presigned URL | access to one key | — | 120 s |
