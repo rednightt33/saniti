@@ -123,6 +123,33 @@ export class ResultCache {
   get size(): { entries: number; lru_bytes: number } { return { entries: this.map.size, lru_bytes: this.lru } }
 }
 
+/* ---- the counts cache: match and near counts by (snapshot, definition hash), for runs and counts requests ------- */
+/** Entries the counts cache keeps besides the pinned ones (least recently used out): one per distinct definition
+    computed on a snapshot, about 360 bytes each (its key and counts), so about 18 MB at most. Without a bound it grew
+    with every distinct definition until the next publication (performance review 2026-10-29). */
+export const COUNTS_KEEP = 50_000;
+interface Counted { match_count: number; near_count: number; sid: string; pinned: boolean }
+export class CountsCache {
+  private map = new Map<string, Counted>(); private lru = 0; private max: number;
+  constructor(max = COUNTS_KEEP) { this.max = max }
+  get(key: string): Counted | undefined {
+    const e = this.map.get(key);
+    if (e && !e.pinned) { this.map.delete(key); this.map.set(key, e) }
+    return e;
+  }
+  /** pinned: the presets' counts (with their pinned results), never evicted, dropped with their snapshot. */
+  set(key: string, v: { match_count: number; near_count: number; sid: string }, pinned = false): void {
+    this.delete(key);
+    this.map.set(key, { match_count: v.match_count, near_count: v.near_count, sid: v.sid, pinned });
+    if (pinned) return;
+    this.lru++;
+    for (const [k, e] of this.map) { if (this.lru <= this.max) break; if (!e.pinned) { this.map.delete(k); this.lru-- } }
+  }
+  delete(key: string): void { const e = this.map.get(key); if (e) { this.map.delete(key); if (!e.pinned) this.lru-- } }
+  dropSnapshot(sid: string): void { for (const [k, e] of [...this.map]) if (e.sid === sid) this.delete(k) }
+  get size(): number { return this.map.size }
+}
+
 /* ---- HTTP helpers ------------------------------------------------------------------------------------------------- */
 const sameKey = (given: string | string[] | undefined, key: Buffer) => {
   if (typeof given !== 'string') return false;
@@ -181,9 +208,9 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   const { fetch: _f, log: _l, ...terminal } = cfg.terminal;
   const script = new URL('./thread.ts', import.meta.url);
   const budget = new OwnerBudget(L.owner_cpu_ms, now);
-  const pool = new Pool({ threads: cfg.threads, queue: L.queue, ownerInflight: L.owner_inflight, quantumMs: L.max_cpu_ms / 4, script, data: { env, terminal: null }, budget });
+  const pool = new Pool({ threads: cfg.threads, queue: L.queue, ownerInflight: L.owner_inflight, quantumMs: L.max_cpu_ms / 4, script, data: { env, terminal: null }, budget, heapMb: cfg.threadHeapMb });
   const results = new ResultCache(cacheShare(cfg));
-  const counts = new Map<string, { match_count: number; near_count: number; sid: string }>();
+  const counts = new CountsCache();
   const key = Buffer.from(cfg.workerKey);
   const engineVersions = { screener_engine: ENGINE_VERSION, registry: REGISTRY_VERSION, screener_registry: SCREENER_REGISTRY_VERSION };
   const client = new TerminalClient({ ...cfg.terminal, log: (event, fields) => log('info', event, { thread: 'http', ...fields }) });
@@ -270,7 +297,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       // counts, so every answer names the publication it is served at (the numbers are the same), and compute the
       // presets again in the system lane, pinned as at a swap
       results.dropSnapshot(s.sid);
-      for (const [k, v] of counts) if (v.sid === s.sid) counts.delete(k);
+      counts.dropSnapshot(s.sid);
       rebuildDocs(s);
       presets(s).then(p => { if (current === s) { s.presets = p; rebuildDocs(s) } })
         .catch(e => log('error', 'preset_failed', { phase: 'advance', ...errorFields(e, true) }));
@@ -304,7 +331,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   }
   function retire(s: Snap): void {
     pool.drop(s.sid); results.dropSnapshot(s.sid);
-    for (const [k, v] of counts) if (v.sid === s.sid) counts.delete(k);
+    counts.dropSnapshot(s.sid);
     if (s.price_data !== current?.price_data) retired.add(s.price_data);
     if (previous === s) previous = null;
   }
@@ -366,8 +393,11 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     const out = o as RunOutcome;
     budget.record(owner, out.busy_ms);
     engine.observe(out.observe);
-    if (out.gzip && out.etag) results.set(k, s.sid, out.gzip, out.etag, system);
-    counts.set(countsKey(s, hash), { match_count: out.match_count, near_count: out.near_count, sid: s.sid });
+    // a job submitted before an advance (same files, a newer published_at) answers with the data block it was given:
+    // it is sent to its caller, but never cached, so no later answer names the older publication (advance dropped this
+    // snapshot's answers; caching this one after that would bring the old data block back)
+    if (out.gzip && out.etag && task.data === s.desc.data) results.set(k, s.sid, out.gzip, out.etag, system);
+    counts.set(countsKey(s, hash), { match_count: out.match_count, near_count: out.near_count, sid: s.sid }, system);
     return { gzip: out.gzip as Uint8Array, etag: out.etag as string, match_count: out.match_count, near_count: out.near_count, cache_hit: false, outcome: out, queue_ms, predicted_ms: e.needed_ms };
   }
 
@@ -433,13 +463,14 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const est = engine.estimate(n.normalized, s, ticker);
       if (est.needed_ms > L.max_cpu_ms) throw budgetRefusal('preview', est, L.max_cpu_ms);
       budget.check(owner, pool.reserved(owner), est.needed_ms);
-      const task: PreviewTask = { kind: 'preview', sid: s.sid, definition: n.normalized, ticker, periods: metrics.periods ?? null, versions: { ...s.desc.versions }, data: { ...s.desc.data } };
+      const data = s.desc.data;                      // replaced by an advance: an answer computed before it is not cached (compute)
+      const task: PreviewTask = { kind: 'preview', sid: s.sid, definition: n.normalized, ticker, periods: metrics.periods ?? null, versions: { ...s.desc.versions }, data: { ...data } };
       const job = pool.submit({ owner, kind: 'preview', page: e.client_order?.page ?? null, order: e.client_order?.seq ?? null, cost: est.needed_ms, deadlineAt, task });
       res.once('close', () => { if (!res.writableFinished) job.cancel() });
       const { outcome: o, queue_ms } = await job.promise;
       const out = o as PreviewOutcome;
       budget.record(owner, out.busy_ms);
-      results.set(k, s.sid, out.gzip, out.etag);
+      if (s.desc.data === data) results.set(k, s.sid, out.gzip, out.etag);
       if (res.destroyed) return;
       sendGzip(req, res, out.gzip, out.etag);
       line({ cache_hit: false, status: out.status, predicted_ms: est.needed_ms, queue_ms: Math.round(queue_ms), busy_ms: out.busy_ms, payload_bytes: out.gzip.byteLength });

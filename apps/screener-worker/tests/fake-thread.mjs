@@ -1,7 +1,7 @@
 /* A compute thread for the pool's tests (pool.ts protocol, thread.ts): install / drop are acknowledged; a task
    {kind: 'sleep', ms, busy?, stuck?, tag} waits `ms` (busy: spins the CPU, checking the cancel flag between slices;
    stuck: spins without checking, so only termination stops it) and answers {tag, busy_ms}; {kind: 'fail'} answers a
-   contract error. Each task's start and end are posted as log lines ({event: 'fake_start' | 'fake_end', tag}). */
+   contract error; {kind: 'alloc', mb} keeps about `mb` MB of heap alive (the thread heap limit's test). Each task's start and end are posted as log lines ({event: 'fake_start' | 'fake_end', tag}). */
 import { parentPort, workerData } from 'node:worker_threads';
 
 const port = parentPort;
@@ -17,6 +17,7 @@ async function handle(m) {
   line('fake_start', { tag: task.tag, seq });
   try {
     if (task.kind === 'fail') throw Object.assign(new Error('refused'), { code: 'INVALID_CONDITION' });
+    if (task.kind === 'alloc') { const keep = []; for (let i = 0; i < task.mb; i++) keep.push(new Array(131072).fill(i)); line('fake_alloc', { tag: task.tag, arrays: keep.length }) }
     const end = performance.now() + (task.ms ?? 0);
     if (task.stuck) { while (performance.now() < end) { /* no cancel check */ } }
     else if (task.busy) {

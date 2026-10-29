@@ -36,7 +36,7 @@ import { applyUniverse } from '../../edge-bff/screener/src/core/universe.ts';
 import { definitionHash, validateDefinition } from '../../edge-bff/screener/src/core/validate.ts';
 import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
-import { barCount } from './snapshot.ts';
+import { TickerView, barCount } from './snapshot.ts';
 import type { SnapshotDesc, ThreadSnapshot } from './snapshot.ts';
 import { refuse } from './errors.ts';
 
@@ -210,23 +210,32 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
 /* ================================================================================================================ */
 
 export interface ThreadEnv { capBudgetMs: number; withinMax: number; maxResponseBytes: number }
-export const CALC_KEEP = 256;          // tickers whose bars and Calc one request keeps (least recently used out)
+/** Tickers whose price columns and Calc (with its memo of full outputs) one request keeps: the planner holds every
+    survivor's view to the end of the screen, so a view that falls out of this LRU (by its last use) is released
+    (snapshot.ts TickerView.release) and makes them again if it is read later. Bounds a request's transient memory to
+    about this many tickers' bars and outputs, whatever the number of custom series. */
+export const CALC_KEEP = 256;
 
 /** What a request measured on the snapshot: pinned tails read, series computed (by cost key, for the cost model). */
 export interface Measured { pinned_hits: number; lru_hits: number; computed: number; observe: Map<string, { ms: number; bars: number; length: number }> }
 
-/** The snapshot as screen.ts reads it (header). */
-export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () => boolean): { env: ScreenEnv; measured: Measured; calc(ticker: string): TickerCalc | undefined } {
-  const calcs = new Map<string, TickerCalc>();
+/** The snapshot as screen.ts reads it (header). A ticker is the thread's TickerView (dates kept by the thread, columns
+    and Calc made on first use, missingInput from the snapshot's mask), so a screen of pre-warmed series is lookups
+    only; the LRU of views is touched on every use and releases what falls out of it (CALC_KEEP). Each resolved
+    series' cache key is computed once per request. */
+export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () => boolean, keep = CALC_KEEP): { env: ScreenEnv; measured: Measured; calc(ticker: string): TickerCalc | undefined } {
+  const calcs = new Map<string, TickerView>();
   const measured: Measured = { pinned_hits: 0, lru_hits: 0, computed: 0, observe: new Map() };
   const sctx = { versions: snap.dv, tailLength: snap.desc.tailLength, cache: snap.cache };
-  const calc = (ticker: string): TickerCalc | undefined => {
-    let c = calcs.get(ticker);
-    if (c) { calcs.delete(ticker); calcs.set(ticker, c); return c }
-    if (!snap.position.has(ticker)) return undefined;
-    c = tickerCalc(snap.bars(ticker));
-    calcs.set(ticker, c);
-    if (calcs.size > CALC_KEEP) calcs.delete(calcs.keys().next().value as string);
+  const keys = new WeakMap<ResolvedSeries, string>();
+  const keyOf = (r: ResolvedSeries): string => { let k = keys.get(r); if (k === undefined) keys.set(r, k = seriesKey(snap.dv, r)); return k };
+  const touch = (ticker: string, c: TickerView): void => {
+    calcs.delete(ticker); calcs.set(ticker, c);
+    if (calcs.size > keep) { const [k, old] = calcs.entries().next().value as [string, TickerView]; calcs.delete(k); old.release() }
+  };
+  const calc = (ticker: string): TickerView | undefined => {
+    const c = calcs.get(ticker) ?? snap.view(ticker);
+    if (c) touch(ticker, c);
     return c;
   };
   const screen: ScreenEnv = {
@@ -234,9 +243,10 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
     evaluationDate: snap.desc.data.evaluation_date, rows: snap.desc.rows, ihsgCalendar: snap.ihsgCalendar,
     bars: ticker => calc(ticker),
     series(r: ResolvedSeries, t: TickerBars): { tail: Tail; source: SeriesSource } {
-      const hit = snap.cache.get(seriesKey(snap.dv, r), t.ticker);
+      const hit = snap.cache.get(keyOf(r), t.ticker);
       if (hit) { if (hit.pinned) measured.pinned_hits++; else measured.lru_hits++; return { tail: hit.tail, source: hit.pinned ? 'precomputed' : 'dynamic' } }
-      const tc = (t as TickerCalc).calc ? t as TickerCalc : tickerCalc(t), t0 = performance.now();
+      if (t instanceof TickerView) touch(t.ticker, t);
+      const tc = t instanceof TickerView || (t as TickerCalc).calc ? t as TickerCalc : tickerCalc(t), t0 = performance.now();
       const out = series(sctx, tc, r);
       const ms = performance.now() - t0, units = costUnits(r.ref);
       measured.computed++;
@@ -246,8 +256,9 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
       }
       return out;
     },
-    isPrewarmed: r => snap.pinned.has(seriesKey(snap.dv, r)),
+    isPrewarmed: r => snap.pinned.has(keyOf(r)),
     predictMs: (r, bars) => predictMs(threadTracker, r, bars),
+    xsectionValues: need => snap.crossSection(need),
     cacheHits: () => measured.pinned_hits + measured.lru_hits,
     cancelled,
   };

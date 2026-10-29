@@ -299,19 +299,22 @@ const PATTERNS: Record<string, PatternImpl> = {
     },
     window: p => (p.length as number) + (p.lookback as number) - 1, historyClass: 'window', inputs: () => ['C'],
   },
-  /** I15 %K crosses above %D on a bar where %K < zone_max */
+  /** I15 %K crosses above %D on a bar where %K < zone_max. Window: %D at i reads [i - k - s - d + 3, i] (raw %K over
+      k_length, smoothed over smooth_k, %D over d_length) and the cross reads bar i - 1 too: k + s + d - 1 bars */
   stoch_cross_in_zone: {
     signal: (t, p) => {
       const o = t.calc.out('stochastic', { k_length: p.k_length, smooth_k: p.smooth_k, d_length: p.d_length }), x = compare(o.k, 'crosses_above', o.d, 0, t.calc.n);
       for (let i = 0; i < x.length; i++) if (x[i] && !((o.k[i] as number) < (p.zone_max as number))) x[i] = 0;
       return x;
     },
-    window: p => (p.k_length as number) + (p.smooth_k as number) + (p.d_length as number), historyClass: 'window', inputs: () => ['H', 'L', 'C'],
+    window: p => (p.k_length as number) + (p.smooth_k as number) + (p.d_length as number) - 1, historyClass: 'window', inputs: () => ['H', 'L', 'C'],
   },
-  /** x > the highest x of the previous `length` bars, on every such bar */
+  /** x > the highest x of the previous `length` bars, on every such bar. Window: bars [i - length, i], length + 1 (for
+      the cumulative lines too: x[i] > x[j] depends only on the increments over (j, i], each reading its bar and the one
+      before, so the line's start never matters) */
   new_high: {
     signal: (t, p, opts) => { const x = lineOf(t, p.of as string, opts); return compare(x as Num[], 'gt', lag(rollingMax(x, p.length as number), 1), 0, t.calc.n) },
-    window: p => (p.length as number) + 2, historyClass: 'window', inputs: p => lineInputs(p.of as string),
+    window: p => (p.length as number) + 1, historyClass: 'window', inputs: p => lineInputs(p.of as string),
   },
   /** SMA(volume, days)[t] / SMA(volume, length)[t - days] >= volx and |close[t] / close[t - days] - 1| x 100 <= move */
   silent: {

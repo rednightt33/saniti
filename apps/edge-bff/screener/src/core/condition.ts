@@ -13,7 +13,9 @@
    - the remark: on a row with PRICE_BREAK remarks, the cell is marked when the lookback of any side it read contains an
      ex-date (evaluate.ts priceBreakRemark); a side's lookback is its window (a pattern's stated window, else the first
      valid bar's) for window-class series, the whole history for recursive, cumulative and calendar ones, one bar for a
-     bar field; an EVENT extends each side's lookback by `within`; a cross-section value reads (at - window, at];
+     bar field; an EVENT cross extends each side's lookback by `within` (the cross at the window's first bar reads the
+     bar before it), an EVENT pattern by `within - 1` (its stated window already holds that bar); a cross-section value
+     reads (at - window, at];
      universe attributes (and Phase 2 flow) never carry it (report 6.12);
    - a universe attribute is the snapshot row's value (S2, O(1)); a null attribute is NA INSUFFICIENT_HISTORY (it is
      null only for too few bars); a metric whose applies_to excludes the ticker is NA NOT_APPLICABLE;
@@ -62,6 +64,8 @@ export interface TickerInput {
   series(r: ResolvedSeries): { tail: Tail; source: SeriesSource };
   /** a population-level value (stage S1) by the bound condition's xsection key; null when the ticker has none */
   xsection(key: string): number | null;
+  /** the snapshot's answer of metrics.ts missingInput for this ticker, when the caller has one (TickerBars.missing) */
+  missing?: TickerBars['missing'];
 }
 
 /** A population-level metric a condition reads (report 6.10 stage S1; xsection.ts). */
@@ -246,7 +250,9 @@ function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within:
     evaluate: input => {
       const { view, tail, source } = read(input, r, kind === 'event' ? ctx.withinMax : 0);
       const e = kind === 'state' ? evaluateStatePattern(view, input.at) : evaluateEvent(i => signalAt(view, i), within, ctx.withinMax, input.at);
-      return { cell: cellOf(id, e, input, null, [startOf(r, tail, input.at, kind === 'event' ? within : 0)]), source };
+      // an EVENT reads the signal on bars [at - within + 1, at], each over its own window (which already holds the bar
+      // before that a cross reads), so the lookback extends by within - 1 bars, not by within as a cross's sides do
+      return { cell: cellOf(id, e, input, null, [startOf(r, tail, input.at, kind === 'event' ? within - 1 : 0)]), source };
     },
   };
 }

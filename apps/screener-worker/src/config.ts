@@ -12,6 +12,10 @@
    SCREENER_FILE_ORIGIN          the bucket origin every presigned URL must have (the backtest's BACKTEST_FILE_ORIGIN
                                  rule, terminal.ts fileOriginOf: scheme://host[:port], a host may start with '*.')
    SCREENER_THREADS              K, the compute threads (worker_threads) that run screens, previews and counts
+   SCREENER_THREAD_HEAP_MB       each compute and builder thread's V8 old-generation limit in MB (worker_threads
+                                 resourceLimits.maxOldGenerationSizeMb): bounds a replica's memory to K + 1 heaps of this
+                                 size plus the shared snapshot and the caches; a thread that needs more stops alone
+                                 (500 OUT_OF_MEMORY, restarted), never the replica
    SCREENER_CACHE_BYTES          the bytes the series LRU (custom parameters) and the result cache may hold in total on
                                  one replica: split in K + 1 equal shares, one per compute thread's series LRU and one
                                  for the result cache (the pinned snapshot is not counted: it is the publication)
@@ -58,6 +62,7 @@ export interface Config {
   port: number;
   workerKey: string;
   threads: number;
+  threadHeapMb: number;
   cacheBytes: number;
   terminal: TerminalOptions;          // the backtest worker's client options (maxFileBytes = SCREENER_MAX_INFLATED_BYTES)
   limits: Limits;
@@ -118,7 +123,7 @@ export function loadConfig(env: Env = process.env): Config {
     retryBaseMs: whole('SCREENER_RETRY_BASE_MS', 0), timeoutMs: whole('SCREENER_HTTP_TIMEOUT_MS', 1),
     fileOrigin, maxFileBytes: limits.max_inflated_bytes,
   };
-  return { port, workerKey, threads: whole('SCREENER_THREADS', 1), cacheBytes: whole('SCREENER_CACHE_BYTES', 0), terminal, limits };
+  return { port, workerKey, threads: whole('SCREENER_THREADS', 1), threadHeapMb: whole('SCREENER_THREAD_HEAP_MB', 64), cacheBytes: whole('SCREENER_CACHE_BYTES', 0), terminal, limits };
 }
 
 /** The share of SCREENER_CACHE_BYTES each cache gets (header: K + 1 equal shares). */
@@ -128,7 +133,7 @@ export const cacheShare = (c: Pick<Config, 'cacheBytes' | 'threads'>): number =>
 export function describeConfig(c: Config): Record<string, unknown> {
   const t = c.terminal;
   return {
-    port: c.port, threads: c.threads, cache_bytes: c.cacheBytes, limits: c.limits,
+    port: c.port, threads: c.threads, thread_heap_mb: c.threadHeapMb, cache_bytes: c.cacheBytes, limits: c.limits,
     terminal: { origin: new URL(t.url).origin, file_origin: t.fileOrigin, max_file_bytes: t.maxFileBytes, cache_dir: !!t.cacheDir,
       cache_dir_bytes: t.cacheDirBytes ?? null, concurrency: t.concurrency, retries: t.retries, retry_base_ms: t.retryBaseMs, timeout_ms: t.timeoutMs },
   };

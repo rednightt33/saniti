@@ -32,7 +32,9 @@ export interface ScreenEnv extends BindContext {
   evaluationDate: string;
   /** every listed stock's universe row (GET /universe rows: hidden ones included, with their remarks) */
   rows: readonly UniverseRow[];
-  /** a listed stock's bars and dates (its own sessions) */
+  /** a listed stock's bars and dates (its own sessions), none after evaluationDate: every series is a tail at the
+      ticker's last bar, so its evaluation bar must be that bar (the worker refuses a publication whose price file holds
+      a bar after its price_through, snapshot.ts) */
   bars(ticker: string): TickerBars | undefined;
   /** IHSG's calendar (market_sessions_ago) */
   ihsgCalendar: readonly string[];
@@ -67,11 +69,14 @@ const byTicker = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
 /** The per-ticker reader a bound condition evaluates on (condition.ts TickerInput). */
 function inputOf(env: ScreenEnv, row: UniverseRow, t: TickerBars, xs: Map<string, ReadonlyMap<string, number | null>>): TickerInput {
-  return {
+  const input: TickerInput = {
     ticker: row.ticker, dates: t.dates, bars: t.bars as Bars, at: evaluationBar(t.dates, env.evaluationDate), row, ihsgCalendar: env.ihsgCalendar,
     series: r => env.series(r, t),
     xsection: key => xs.get(key)?.get(row.ticker) ?? null,
   };
+  // the snapshot's answer of missingInput (no bar column read for a lookup), when the worker gives one
+  if (t.missing) input.missing = (inputs, at) => t.missing!(inputs, at);
+  return input;
 }
 /** Every cross-section the bound conditions read, over all listed stocks (population fixed at E, xsection.ts). */
 function crossSections(env: ScreenEnv, bound: readonly BoundCondition[]): Map<string, ReadonlyMap<string, number | null>> {

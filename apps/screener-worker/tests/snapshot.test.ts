@@ -96,6 +96,17 @@ test('integrity: a price ticker outside the reference file, a tickers list that 
   await assert.rejects(buildSnapshot(await input(noIndex, u.ref)), (e: unknown) => e instanceof DataError && e.code === 'DATA_MISSING');
 });
 
+test('no look-ahead (6.5 as-of policy): a price file with a bar after its publication\'s price_through is refused (DATA_INTEGRITY), never evaluated past E or off its tails', async () => {
+  const u = market(), inp = await input(u.prices, u.ref);
+  // the fixture ends on 2026-10-27; a state naming 2026-10-26 is torn (a session loaded while the publisher ran)
+  await assert.rejects(buildSnapshot({ ...inp, state: state({ price_through: '2026-10-26' }) }), (e: unknown) => integrity('price')(e) && /after the publication's price_through 2026-10-26/.test((e as Error).message));
+  // must not apply: price_through on the newest bar, or later (no session after it yet), loads
+  for (const through of ['2026-10-27', '2026-10-28']) {
+    const { desc } = await buildSnapshot({ ...inp, state: state({ price_through: through }) });
+    assert.equal(desc.data.evaluation_date, through);
+  }
+});
+
 test('price breaks (P4): a price-affecting action from ADJUSTED_HISTORY_BOUNDARY to the last bar flags the row; before the boundary, after the last bar, or a dividend does not', async () => {
   const u = market();
   const ex = u.prices.T001[u.prices.T001.length - 10][0] as string;

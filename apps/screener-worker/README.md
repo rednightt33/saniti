@@ -88,6 +88,17 @@ Memory: the bars of every ticker are stored once per replica in `SharedArrayBuff
 are materialized back into plain arrays equal to `priceSeries`' output (`tests/typed_views.test.ts`). The pinned tails
 sit in one shared `Float64Array` and are installed in each thread's `SeriesCache` as pinned entries.
 
+A request reads a ticker through the thread's `TickerView` (`snapshot.ts`): the dates are the thread's own copy, kept
+for the snapshot's life (about 10.6 MB per thread); a price column is made on its first read and the backtest core's
+`Calc` on the first computation; `missingInput` is answered from the snapshot's per-ticker mask. A screen of
+pre-warmed series therefore reads no bar column (`tests/views.test.ts`). The planner holds every survivor's view to the
+end of a screen, so a request releases the `Calc` (and its memo of full outputs) of a ticker that falls out of its
+LRU of `CALC_KEEP` (256) tickers; without that, five custom conditions kept about 0.2 GB of outputs per request and a
+ten-condition ANY screen ran out of a 600 MB heap. `return_rank` (stage S1) is computed once per thread and snapshot
+(at most 16 windows). Each thread runs under `SCREENER_THREAD_HEAP_MB` (V8 old generation): without it V8 let each
+thread's heap grow towards its default limit (about 2 GB per thread on a 16 GB host) with the garbage of the screens.
+Measured local figures: `verification/screener/BENCHMARK_LOCAL.md`.
+
 ## Admission and fairness (06d.6, P33)
 
 In order: result-cache hit (answered at once, outside every queue and budget) → per-request cost budget
@@ -111,8 +122,9 @@ replica from measured runs (exponential average, alpha 0.2). Pre-warmed series c
   problem, and its sources' sha256 match. Otherwise the process exits with `startup_check_failed`.
 - Result cache (gzip bytes): keyed by the snapshot identity (price data plus the actions and reference contents),
   `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive` and `explain`. Nothing
-  user-specific goes into the key or the answer. Counts and previews have their own small caches. Every cache is
-  per replica and dropped with its snapshot.
+  user-specific goes into the key or the answer. Previews share the result cache; counts have their own (`CountsCache`,
+  at most 50,000 entries, about 18 MB, least recently used out, the presets' counts pinned). Every cache is per replica
+  and dropped with its snapshot.
 - `SCREENER_CACHE_BYTES` is split into K + 1 equal shares: one series LRU per compute thread and one for the result
   cache. The pinned snapshot is not counted.
 
@@ -129,28 +141,30 @@ Initial values are the report's provisional ones (8.9, P5), to be replaced by th
 | `TERMINAL_PROXY_KEY` | terminal-api gateway key, at least 32 characters | `${{terminal-api.TERMINAL_PROXY_KEY}}` |
 | `SCREENER_FILE_ORIGIN` | the bucket origin every presigned URL must have | as `BACKTEST_FILE_ORIGIN` |
 | `SCREENER_THREADS` | K compute threads (plus one builder thread during a refresh) | from the replica's vCPU |
-| `SCREENER_CACHE_BYTES` | series LRUs plus result cache, split K + 1 | Phase 17 |
+| `SCREENER_THREAD_HEAP_MB` | each compute and builder thread's V8 old-generation limit (MB, at least 64); a thread that needs more stops alone (`500 OUT_OF_MEMORY`, restarted) | 512 (BENCHMARK_LOCAL.md) |
+| `SCREENER_CACHE_BYTES` | series LRUs plus result cache, split K + 1 | Phase 17; local proposal 268435456 (BENCHMARK_LOCAL.md §8) |
 | `SCREENER_CACHE_DIR`, `SCREENER_CACHE_DIR_BYTES` | optional file cache by sha256 on the container's disk (no volume) and its budget | e.g. `/tmp/screener-cache` |
 | `SCREENER_DOWNLOAD_CONCURRENCY`, `SCREENER_DOWNLOAD_RETRIES`, `SCREENER_RETRY_BASE_MS`, `SCREENER_HTTP_TIMEOUT_MS` | download settings (`TerminalOptions` requires them); the retries also bound the skew retries | as backtest-worker |
-| `SCREENER_MAX_CPU_MS` | per-request compute budget | Phase 17 |
-| `SCREENER_CAP_BUDGET_MS` | the length caps (`registry.ts capOf`); a value whose caps refuse a registry default is refused at start | Phase 17 (provisional) |
+| `SCREENER_MAX_CPU_MS` | per-request compute budget | Phase 17; local proposal 4500 (the cost model under-predicts up to 4.4 x, §7) |
+| `SCREENER_CAP_BUDGET_MS` | the length caps (`registry.ts capOf`); a value whose caps refuse a registry default is refused at start | Phase 17; local proposal = `SCREENER_MAX_CPU_MS` (4500, caps 567) |
 | `SCREENER_DEADLINE_MS` | request deadline, queue included; edge-bff's `SCREENER_TIMEOUT_SECONDS` = this / 1000 | 20000 |
 | `SCREENER_MAX_CONDITIONS` | enabled conditions per definition | 20 |
 | `SCREENER_MAX_METRIC_FILTERS` | universe metric filters | 8 |
 | `SCREENER_WITHIN_MAX` | longest `within`; tails are this + 1 bars | 130 |
 | `SCREENER_MAX_COUNTS` | definitions per counts request | 50 |
-| `SCREENER_MAX_RESPONSE_BYTES` | JSON bytes of one answer | 2097152 |
+| `SCREENER_MAX_RESPONSE_BYTES` | JSON bytes of one answer | 2097152; local proposal 4194304 (an answer inside the limits reaches about 2.8 MB) |
 | `SCREENER_QUEUE` | waiting requests per replica | 4 |
-| `SCREENER_OWNER_INFLIGHT` | running requests per owner tag | 2 |
-| `SCREENER_OWNER_CPU_MS` | P33: thread ms per owner tag per minute; at least `SCREENER_MAX_CPU_MS` | Phase 17 |
+| `SCREENER_OWNER_INFLIGHT` | running requests per owner tag | 2; local proposal K - 1 (at K = 2 one owner otherwise holds every thread: light owners' p95 x 32-41, with 1: x 1.6) |
+| `SCREENER_OWNER_CPU_MS` | P33: thread ms per owner tag per minute; at least `SCREENER_MAX_CPU_MS` | Phase 17; local proposal 30000 |
 | `SCREENER_PREVIOUS_GRACE_S` | seconds the previous snapshot serves pinned requests | 600 |
-| `SCREENER_MAX_FILE_BYTES` | gzip bytes per xsection file | 2 × measured |
-| `SCREENER_MAX_INFLATED_BYTES` | inflated bytes per file (`TerminalClient` `maxFileBytes`) | above about 80 MB (price document) |
-| `SCREENER_MAX_REFRESH_BYTES` | gzip bytes per refresh | sum of the per-file caps |
+| `SCREENER_MAX_FILE_BYTES` | gzip bytes per xsection file | 2 × measured: 24000000 (price file 11,758,823 B) |
+| `SCREENER_MAX_INFLATED_BYTES` | inflated bytes per file (`TerminalClient` `maxFileBytes`) | 2 × measured: 150000000 (price document 74,272,854 B) |
+| `SCREENER_MAX_REFRESH_BYTES` | gzip bytes per refresh | 2 × measured: 24000000 (a cold refresh 11,772,808 B) |
 | `SCREENER_MAX_REQUEST_BYTES` | bytes of one request body (`413 REQUEST_TOO_LARGE`) | 131072 (edge-bff's own limit) |
 
 Added to the report's 6.17 list, each because a component needs a value and limits have no default: the four
-download settings and the disk budget, `SCREENER_OWNER_CPU_MS` (P33) and `SCREENER_MAX_REQUEST_BYTES`.
+download settings and the disk budget, `SCREENER_OWNER_CPU_MS` (P33), `SCREENER_MAX_REQUEST_BYTES` and
+`SCREENER_THREAD_HEAP_MB` (the per-thread heap limit, performance review 2026-10-29).
 
 ## Logs
 
@@ -182,30 +196,36 @@ The image keeps the repository layout under `/app`, because the worker imports t
 ## Tests
 
 `npm test` runs every suite with a fake terminal-api (`tests/fake-terminal.mjs`: `/state`, `/xsection` with the proxy key and
-skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file). Last run: 47 of 47 pass.
+skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file). Last run: 57 of 57 pass.
 
 | Suite | What it locks |
 |---|---|
 | `config.test.ts` | every limit required with no default; errors name the variable, not the value; cap and owner-budget checks; `screener_engine` is a content hash; the start-up check |
 | `refresh.test.ts` | a publication loads end to end; integrity failures (sha256, manifest cross-check, reference) answer `424` with no snapshot and keep the previous one when held; file, refresh and inflate caps before any grant; a warm disk cache grants nothing; skew retry then deferral; skip unchanged; one refresh at a time; pinning across a swap (grace, `DATA_VERSION_CHANGED`, `DATA_VERSION_PENDING`) |
 | `snapshot.test.ts`, `typed_views.test.ts` | slices equal `priceSeries`; groupings parity with the Backtest; remarks; pinned tails equal F; digest stable across builds; materialized bars equal F bit for bit |
+| `views.test.ts` | a request's `TickerView`: `missingInput` from the snapshot's mask equals the scan; a screen of pre-warmed series reads no column and answers as plain arrays do; views out of `CALC_KEEP` release their `Calc` with the same answer; `return_rank` once per thread, same ranks |
+| `counts_cache.test.ts`, `heap.test.ts` | the counts cache's bound, order, pinned presets and snapshot drop; `SCREENER_THREAD_HEAP_MB` required, applied to compute and builder threads, an out-of-memory thread stops alone and is started again |
 | `run.test.ts` | VALUE, STATE, EVENT, ALL / ANY / AT LEAST with the near rule, precomputed vs dynamic, pruning never changes the answer: all against F and the backtest core's `compare` directly |
 | `pool.test.ts` | owner inflight, round robin and cost-weighted deficit round robin, queue `BUSY`, same-page replacement, deadline, kill and respawn with reinstall, a caller that leaves, the owner budget (P33) |
 | `server.test.ts` | the key; protocol errors (404, 405, 413, 422); the envelope; catalog limits and `ETag` / `304`; the result cache shared byte for byte across owners; universe-only screens; P4 hidden tickers and remarks; compute and owner budgets (a cache hit is never refused); response and counts caps; counts with per-entry errors; preview; request logs without secrets |
 
 ## Durations observed (local, not the service)
 
-Local runs of the 2026-10-28 build, Node 22.22 in the build sandbox, on the real publication shape (845 tickers),
-K = 2. These are local figures, not the Railway service's. Phase 17 measures the service.
+Local runs of the performance review (2026-10-29), Node 22.22 in the build sandbox (4 vCPU, shared with other
+builds), the real full history (845 tickers, 1.33 M bars) through the real publisher and terminal-api app, K = 2,
+`SCREENER_THREAD_HEAP_MB` 512. Local figures, not the Railway service's: `verification/screener/BENCHMARK_LOCAL.md` has
+the method, every scenario, K = 1 and K = 4, and the proposed limits. Phase 17 measures the service.
 
 | Step | Local |
 |---|---|
-| First snapshot ready (cold, no file cache) | 11-13 s: download 1.5 s, decode 2.0 s, manifest check 0.7 s, defaults 7.1-7.8 s on builder plus 2 threads, install 24-29 ms, presets 0.17-0.25 s |
-| Pinned series | 113 (76 default outputs, the declared derived series and the presets' series; integration run 2026-10-28, publisher-written files through the real terminal-api app) |
-| RSS | 0.63-0.76 GB after a refresh; plateau about 1.19 GB after 40 custom screens; peak 1.36 GB |
-| Default-parameter screen | about 45 ms cold, about 2 ms from the result cache |
-| Custom-parameter RSI screen | 0.18-0.30 s |
-| Catalog / universe | 168 KB / about 188 KB JSON |
+| First snapshot ready (cold, no file cache) | 16 s: download 1.6 s, decode 2.6 s, manifest check 1.8 s, defaults 8.7 s on builder plus 2 threads, install 0.06 s, presets 0.17 s; peak RSS 0.89 GB |
+| Refresh while serving (builder alone) | 34 s (pre-warm 26 s; 47-58 s under load); peak RSS 1.46 GB with both snapshots |
+| Pinned series | 113 (76 default outputs, the declared derived series and the presets' series) |
+| RSS | 0.57 GB idle after start; 1.81 GB with both caches full (512 MiB) and the previous snapshot in its grace |
+| Default-parameter screen, whole market | p50 11 ms (1 condition) to 42 ms (10 conditions); about 2 ms from the result cache |
+| Custom-parameter RSI screen | p50 0.30 s cold, 11 ms with the series in the thread's LRU |
+| Counts of 50 saved default screens | 0.8-0.9 s |
+| Catalog / universe | 177 KB / 225 KB JSON (22.5 KB / 35.8 KB gzip) |
 
 ## Open items
 
@@ -214,6 +234,6 @@ K = 2. These are local figures, not the Railway service's. Phase 17 measures the
   as `503 SCREENER_UNAVAILABLE`. `owner_cpu_budget` is a contract `LimitName` (integration, 2026-10-28).
 - Railway: the service, its variables and its watch patterns (`/apps/screener-worker/**`, the cores and the
   registry generators) are not created yet. That is the deploy step, not this build.
-- Thread heap growth under many custom screens: consider `resourceLimits` on the compute threads after Phase 17.
+- A counts request is one job on one thread: 50 saved screens with distinct custom series took 15-18 s locally (deadline 20 s), and a timeout loses every entry computed before it (`BENCHMARK_LOCAL.md`).
 - One ticker whose every row is dropped by `priceSeries` (`DATA_MISSING`) fails the whole refresh by design (keeps the
   previous snapshot). Review whether the publisher can ever produce that.

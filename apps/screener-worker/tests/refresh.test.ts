@@ -174,6 +174,29 @@ test('the same files on a new publication: no download, no recompute, no swap; o
   assert.ok(presets.some(p => p.availability === 'AVAILABLE' && typeof p.match_count === 'number'));
 });
 
+test('a screen still computing when the same files advance the publication is never cached under the newer one: the next run names the new published_at', async () => {
+  const pub = pubOf('2026-10-27T13:03:23Z', universe(30, 2500));
+  const { app, port, fake } = await start(pub);
+  await app.refresher.tick();
+  // twenty custom O(N·n) lengths with logic any (no pruning): long enough to be in flight across the advance
+  const heavy = { ...RSI, logic: 'any', conditions: Array.from({ length: 20 }, (_, k) => ({ id: `c${k}`, enabled: true, test: { kind: 'value', op: 'gt', value: -1e9, metric: { kind: 'indicator', indicator: 'I19', params: { length: 200 + k }, output: 'cci' } } })) };
+  const body = (seq: number) => ({ schema_version: 1, client_order: { page: 'p', seq }, definition: heavy });
+  const inflight = call(port, 'POST', '/v1/run', body(1), auth(OWNER_A)).then(r => ({ r, at: performance.now() }));
+  await sleep(30);
+  fake.publish({ ...pub, finished_at: '2026-10-27T23:00:00Z' });
+  await app.refresher.tick();
+  const advanced = performance.now();
+  assert.equal(logs.events('refresh_skipped').at(-1)!.published_at, '2026-10-27T23:00:00Z');
+  const first = await inflight;
+  assert.equal(first.r.status, 200, JSON.stringify(first.r.body));
+  assert.ok(first.at > advanced, `the run must still be computing at the advance (it ended ${Math.round(advanced - first.at)} ms before it): make it heavier`);
+  assert.equal(first.r.body.data.published_at, '2026-10-27T13:03:23Z', 'computed on the publication it was asked on');
+  const next = await call(port, 'POST', '/v1/run', body(2), auth(OWNER_A));
+  assert.equal(next.status, 200);
+  assert.equal(next.body.data.published_at, '2026-10-27T23:00:00Z', 'a later answer names the publication it is served at');
+  assert.deepEqual(next.body.rows, first.r.body.rows, 'the same numbers');
+});
+
 test('one refresh at a time: a poll while a refresh runs does nothing', async () => {
   const { app, fake } = await start(pubOf('2026-10-27T13:03:23Z'));
   await Promise.all([app.refresher.tick(), app.refresher.tick(), app.refresher.tick()]);

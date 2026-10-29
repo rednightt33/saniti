@@ -289,9 +289,20 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
     }
   } else throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be value, state or event.`, `${field}.kind`, { allowed: ['value', 'state', 'event'] });
   // normalize through the binding: every reference resolved (parameters, arguments), and a bar field compared with a
-  // transform only where the transform is a level of that field
-  if (!enabled) return normalizeTest(input as unknown as Test, field, ctx);   // switched off: never bound, shape and parameters only
-  const b = bindTest('v', input as unknown as Test, field, { capBudgetMs: ctx.capBudgetMs, withinMax: ctx.limits.within_max, catalog: ctx.metrics });
+  // transform only where the transform is a level of that field. A switched-off condition is bound too, so a shape the
+  // binding refuses (a ratio without its `by`, vs_index of anything but the close, the close against a volume level) is
+  // refused on or off, and a saved screen never holds a card that fails the moment it is switched on; only the
+  // metric's availability is not asked of it (it may wait for data: METRIC_UNAVAILABLE), and it normalizes without the
+  // binding (same shape, so the hash is the same on and off)
+  let b: ReturnType<typeof bindTest> | null;
+  try { b = bindTest('v', input as unknown as Test, field, { capBudgetMs: ctx.capBudgetMs, withinMax: ctx.limits.within_max, catalog: ctx.metrics }) }
+  catch (e) { if (enabled || !(e instanceof ScreenerError && e.code === 'METRIC_UNAVAILABLE')) throw e; b = null }
+  if (!enabled) { if (b) comparable(b, field); return normalizeTest(input as unknown as Test, field, ctx) }
+  comparable(b!, field);
+  return b!.test;
+}
+/** A bar field compared with a transform only where the transform is a level of that field (validateTest). */
+function comparable(b: ReturnType<typeof bindTest>, field: string): void {
   if (b.test.kind === 'state' || b.test.kind === 'event') {
     const s = (b.test.kind === 'state' ? b.test : b.test.signal) as { lhs?: Side; rhs?: Side };
     const lf = s.lhs && (s.lhs as MetricRef).kind === 'price' ? (s.lhs as { field: string }).field : null;
@@ -301,7 +312,6 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
         throw formRefusal(`${field}${b.test.kind === 'event' ? '.signal' : ''}.rhs`, `${level ? level.label : 'the right side'} is not a level comparable with ${lf}${level?.comparableWith ? ` (it is comparable with ${level.comparableWith})` : ''}`);
     }
   }
-  return b.test;
 }
 /** A reference with its parameters and arguments complete, without binding it to a computation (a switched-off
     condition may name a metric that has no data yet, report 6.12). */

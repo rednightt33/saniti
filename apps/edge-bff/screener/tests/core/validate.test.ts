@@ -216,4 +216,20 @@ describe('a switched-off condition normalizes as an enabled one', () => {
       expect([p.id, cd.id, off]).toEqual([p.id, cd.id, on]);
     }
   });
+  it('a shape the binding refuses is refused on or off, with the same field (a saved card never fails only once switched on)', () => {
+    const vol = { kind: 'price', field: 'volume' };
+    const cases: [unknown, string][] = [
+      [{ kind: 'value', op: 'gt', value: 1, metric: { kind: 'transform', fn: 'ratio', of: vol } }, 'definition.conditions[0].test.metric.args.by'],
+      [{ kind: 'value', op: 'gt', value: 1, metric: { kind: 'transform', fn: 'vs_index', of: vol } }, 'definition.conditions[0].test.metric.of'],
+      [{ kind: 'state', lhs: close, op: 'gt', rhs: { kind: 'transform', fn: 'rolling_max', of: vol, args: { length: 20 } } }, 'definition.conditions[0].test.rhs'],
+      [{ kind: 'event', within: 5, signal: { lhs: close, op: 'crosses_above', rhs: { kind: 'transform', fn: 'ma', of: vol, args: { ma: 'SMA', length: 20 } } } }, 'definition.conditions[0].test.signal.rhs'],
+    ];
+    for (const [test, field] of cases) for (const enabled of [true, false]) expect([enabled, why(def([c(test, 'a', enabled)]))]).toEqual([enabled, ['INVALID_CONDITION', field]]);
+    // must not apply: a metric that waits for data or a decision is kept switched off (its availability is not asked)
+    for (const test of [{ kind: 'value', op: 'gt', value: 0, metric: { kind: 'flow', metric: 'fnet', params: { window: 20 } } },
+      { kind: 'state', pattern: { kind: 'pattern', type: 'ichimoku_above' } }]) {
+      expect(validateDefinition(def([c(test, 'a', false)]), CTX).conditions[0].enabled).toBe(false);
+      expect(why(def([c(test, 'a', true)]))[0]).toBe('METRIC_UNAVAILABLE');
+    }
+  });
 });

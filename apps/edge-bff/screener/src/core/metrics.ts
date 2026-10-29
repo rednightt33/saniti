@@ -23,8 +23,9 @@ import { resolveTransform } from './transforms.ts';
 /* ---- a ticker's data ------------------------------------------------------------------------------------------- */
 
 /** One ticker's bars as the snapshot holds them: datafile.priceSeries (its own sessions, oldest first, a row without
-    four finite prices dropped), dates 'YYYY-MM-DD' aligned with the bars. */
-export interface TickerBars { ticker: string; dates: readonly string[]; bars: Bars }
+    four finite prices dropped), dates 'YYYY-MM-DD' aligned with the bars. `missing` (optional, the worker's snapshot):
+    missingInput's answer without reading the bar columns; it must equal scanMissingInput on the same bars. */
+export interface TickerBars { ticker: string; dates: readonly string[]; bars: Bars; missing?(inputs: readonly BarField[], at: number): BarField | null }
 /** A ticker with the backtest core's per-ticker memo of indicator outputs. A TickerCalc lives for one ticker's work (one
     pre-warm pass or one request) and is then dropped: Calc keeps every full output it computed. */
 export interface TickerCalc extends TickerBars { calc: Calc }
@@ -106,9 +107,14 @@ export function resolvePrice(ref: PriceRef, field: string): ResolvedPrice {
 /** The first field of `inputs` the ticker lacks up to bar `at` (no finite non-zero value on bars 0..at: IHSG's volume,
     which is null), or null when it has them all (rows without four finite prices are already dropped by
     datafile.priceSeries, so in practice only volume can be missing). A cell on a series that needs it is NA
-    NULL_AT_EVALUATION (evaluate.ts BarView.inputMissing; report 6.8 "each option's volume need"); the worker may hold
-    the answer per ticker and field in its snapshot instead of scanning per condition. */
+    NULL_AT_EVALUATION (evaluate.ts BarView.inputMissing; report 6.8 "each option's volume need"). The worker holds the
+    answer per ticker and field in its snapshot (TickerBars.missing), so a lookup of a pre-warmed series reads no bar
+    column; otherwise the bars are scanned (scanMissingInput). */
 export function missingInput(t: TickerBars, inputs: readonly BarField[], at: number): BarField | null {
+  return t.missing ? t.missing(inputs, at) : scanMissingInput(t, inputs, at);
+}
+/** missingInput by reading the bars (the rule itself). */
+export function scanMissingInput(t: TickerBars, inputs: readonly BarField[], at: number): BarField | null {
   for (const f of inputs) {
     const xs = t.bars[f] as ArrayLike<number | null | undefined>;
     let has = false;

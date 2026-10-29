@@ -50,13 +50,20 @@ export class ComputeThread {
   private installs: Map<string, { desc: SnapshotDesc; lruBytes: number }>;   // the pool's: what every thread must hold
   private installing: Promise<void> | null = null;
   private acks = new Map<string, { resolve(): void; reject(e: unknown): void }>();
+  private heapMb: number | null;
   busy = false;
 
-  constructor(name: string, script: URL, data: Omit<ThreadData, 'flag' | 'name'>, installs: Map<string, { desc: SnapshotDesc; lruBytes: number }>) {
-    this.name = name; this.script = script; this.data = data; this.installs = installs;
+  /** heapMb: the thread's V8 old-generation limit (SCREENER_THREAD_HEAP_MB; worker_threads resourceLimits), null for
+      V8's own (tests). Without it V8 lets each thread's heap grow towards its default limit (about 2 GB per thread on a
+      16 GB host) before it collects, so a replica's memory followed the garbage of its screens, not what they keep
+      (performance review 2026-10-29). A thread that needs more than its limit stops with ERR_WORKER_OUT_OF_MEMORY: its
+      request answers 500 OUT_OF_MEMORY and the thread is started again, the others keep serving. */
+  constructor(name: string, script: URL, data: Omit<ThreadData, 'flag' | 'name'>, installs: Map<string, { desc: SnapshotDesc; lruBytes: number }>, heapMb: number | null = null) {
+    this.name = name; this.script = script; this.data = data; this.installs = installs; this.heapMb = heapMb;
   }
   private spawn(): Worker {
-    const w = new Worker(this.script, { workerData: { ...this.data, name: this.name, flag: this.flag } satisfies ThreadData });
+    const w = new Worker(this.script, { workerData: { ...this.data, name: this.name, flag: this.flag } satisfies ThreadData,
+      ...(this.heapMb ? { resourceLimits: { maxOldGenerationSizeMb: this.heapMb } } : {}) });
     w.on('message', (m: FromThread) => {
       if (m.type === 'log') { writeLine(m.line); return }
       if (m.type === 'installed' || m.type === 'install_failed') {
@@ -123,6 +130,13 @@ export class ComputeThread {
     await w.terminate();
   }
   get alive(): boolean { return this.worker !== null }
+  /** The running thread's V8 heap (MB), or null: for the logs and the tests. */
+  async heap(): Promise<{ used_mb: number; total_mb: number; limit_mb: number } | null> {
+    const w = this.worker;
+    if (!w) return null;
+    const h = await w.getHeapStatistics();
+    return { used_mb: Math.round(h.used_heap_size / 2 ** 20), total_mb: Math.round(h.total_heap_size / 2 ** 20), limit_mb: Math.round(h.heap_size_limit / 2 ** 20) };
+  }
 }
 
 /** A task the thread failed, as it reported it (its class does not cross the thread boundary). */
@@ -178,7 +192,7 @@ interface Job extends JobSpec {
   timer: NodeJS.Timeout | null; killTimer: NodeJS.Timeout | null; stopping: boolean;
   resolve(o: { outcome: unknown; queue_ms: number }): void; reject(e: unknown): void;
 }
-export interface PoolOptions { threads: number; queue: number; ownerInflight: number; quantumMs: number; script: URL; data: Omit<ThreadData, 'flag' | 'name' | 'role'>; budget: OwnerBudget }
+export interface PoolOptions { threads: number; queue: number; ownerInflight: number; quantumMs: number; script: URL; data: Omit<ThreadData, 'flag' | 'name' | 'role'>; budget: OwnerBudget; heapMb?: number | null }
 const REPLACED = { run: 'SCREEN_REPLACED', counts: 'SCREEN_REPLACED', preview: 'PREVIEW_REPLACED', system: 'SCREEN_REPLACED' } as const;
 
 export class Pool {
@@ -196,10 +210,10 @@ export class Pool {
 
   constructor(o: PoolOptions) {
     this.o = o;
-    this.threads = Array.from({ length: o.threads }, (_, k) => new ComputeThread(`compute-${k + 1}`, o.script, { ...o.data, role: 'compute' }, this.installs));
+    this.threads = Array.from({ length: o.threads }, (_, k) => new ComputeThread(`compute-${k + 1}`, o.script, { ...o.data, role: 'compute' }, this.installs, o.heapMb ?? null));
   }
   /** A thread for one refresh (the builder), outside the pool's scheduling; the caller kills it when done. */
-  builder(name: string, data: Omit<ThreadData, 'flag' | 'name'>): ComputeThread { return new ComputeThread(name, this.o.script, data, new Map()) }
+  builder(name: string, data: Omit<ThreadData, 'flag' | 'name'>): ComputeThread { return new ComputeThread(name, this.o.script, data, new Map(), this.o.heapMb ?? null) }
 
   /** Registers a snapshot and installs it on every thread; all-or-nothing (a failure removes it everywhere). */
   async install(sid: string, desc: SnapshotDesc, lruBytes: number): Promise<number> {

@@ -31,17 +31,20 @@ import { DataError, PRICE_ACTION_TYPES, dataVersion, priceSeries } from '../../e
 import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engine.ts';
 import { byTicker } from '../../edge-bff/backtest/src/core/signals.ts';
+import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Bars } from '../../edge-bff/terminal/src/calc/indicators.ts';
 import type { DataStatus, Grouping, MetricRef, PatternRef, PriceBreakRemark, RowRemark, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
 import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
 import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
 import { bindCondition, declaredDerivedSeries } from '../../edge-bff/screener/src/core/condition.ts';
-import { SeriesCache, resolveSeries, series, seriesKey, tickerCalc, universeAttributes } from '../../edge-bff/screener/src/core/metrics.ts';
-import type { DataVersions, ResolvedSeries, Tail, TickerBars } from '../../edge-bff/screener/src/core/metrics.ts';
-import type { ParamOptions } from '../../edge-bff/screener/src/core/registry.ts';
+import type { XsectionNeed } from '../../edge-bff/screener/src/core/condition.ts';
+import { SeriesCache, resolveSeries, scanMissingInput, series, seriesKey, tickerCalc, universeAttributes } from '../../edge-bff/screener/src/core/metrics.ts';
+import type { DataVersions, ResolvedSeries, Tail, TickerBars, TickerCalc } from '../../edge-bff/screener/src/core/metrics.ts';
+import type { BarField, ParamOptions } from '../../edge-bff/screener/src/core/registry.ts';
 import { INDICATORS, startParams } from '../../edge-bff/screener/src/core/registry.ts';
 import { resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
-import { round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
+import { evaluationBar, round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
+import { returnRankAll } from '../../edge-bff/screener/src/core/xsection.ts';
 import { priceBreakRemarks } from '../../edge-bff/screener/src/core/universe.ts';
 import type { ActionRow } from '../../edge-bff/screener/src/core/universe.ts';
 import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
@@ -190,12 +193,14 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
   const E = input.state.price_through && isDate(input.state.price_through) ? input.state.price_through : entries.reduce((m, e) => e.last > m ? e.last : m, '');
   const rows: UniverseRow[] = [];
   let at = 0, w = 0, dropped = 0, nActions = 0;
+  const afterE: string[] = [];
   for (let j = 0; j < T; j++) {
     const e = entries[j];
     const s = priceSeries(e.t, [sliceDoc(doc, e, at)]);
     at += e.rows; dropped += s.dropped;
     offsets[j] = w;
     const n = s.dates.length, b = s.bars;
+    if (n && s.dates[n - 1] > E) afterE.push(e.t);
     let mask = 0;
     for (let k = 0; k < FIELDS.length; k++) {
       const xs = b[FIELDS[k]];
@@ -232,6 +237,11 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     });
   }
   offsets[T] = w;
+  // no bar after E (6.5 as-of policy; no look-ahead): every series is cut to its tail at the ticker's last bar and the
+  // core evaluates there (evaluate.ts evaluationBar), so a ticker with a bar after price_through would be read at a bar
+  // its tail does not hold, or past E. A file holding one disagrees with the state of its own publication (a session
+  // loaded while the publisher ran): DATA_INTEGRITY, the previous snapshot keeps serving
+  if (afterE.length) throw integrity(`${afterE.length} ticker(s) of the price file have bars after the publication's price_through ${E} (${afterE.slice(0, 5).join(', ')}${afterE.length > 5 ? ', ...' : ''}); the file and the state disagree, so the publication is not loaded.`);
   // the date table in date order; the bars' indexes renumbered to it
   const order = dateList.map((d, i) => [d, i] as const).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
   const renum = new Int32Array(order.length);
@@ -284,25 +294,68 @@ export function resolvePinned(ref: MetricRef, field: string, opts: ParamOptions 
 
 /* ---- reading the bars back -------------------------------------------------------------------------------------- */
 type BarsDesc = Pick<SnapshotDesc, 'offsets' | 'O' | 'H' | 'L' | 'C' | 'V' | 'T' | 'dates' | 'tickers'>;
+type Field = typeof FIELDS[number];
+/** Ticker j's own dates, oldest first. */
+function datesOf(d: BarsDesc, j: number): string[] {
+  const a = d.offsets[j], n = d.offsets[j + 1] - a, T = new Array<string>(n);
+  for (let i = 0; i < n; i++) T[i] = d.dates[d.T[a + i]];
+  return T;
+}
+/** Ticker j's price column k as a plain array: numbers, and V's NaN back to null (header). */
+function column(d: BarsDesc, j: number, k: Field): (number | null)[] {
+  const a = d.offsets[j], n = d.offsets[j + 1] - a, src = d[k], out = new Array<number | null>(n);
+  if (k === 'V') for (let i = 0; i < n; i++) { const v = src[a + i]; out[i] = Number.isNaN(v) ? null : v }
+  else for (let i = 0; i < n; i++) out[i] = src[a + i];
+  return out;
+}
 /** Ticker j's bars as plain arrays, value for value what priceSeries gave (header): O H L C numbers, V a number or
     null, T and `dates` the ticker's own dates. The dates are built at once (every evaluation reads them); each price
     column on its first read (a screen of pre-warmed series reads none of them), then kept. */
 export function materialize(d: BarsDesc, j: number): TickerBars {
-  const a = d.offsets[j], n = d.offsets[j + 1] - a;
-  const T = new Array<string>(n);
-  for (let i = 0; i < n; i++) T[i] = d.dates[d.T[a + i]];
-  const cols: Partial<Record<'O' | 'H' | 'L' | 'C' | 'V', (number | null)[]>> = {};
-  const col = (k: 'O' | 'H' | 'L' | 'C' | 'V'): (number | null)[] => {
-    let out = cols[k];
-    if (out) return out;
-    const src = d[k];
-    out = new Array<number | null>(n);
-    if (k === 'V') for (let i = 0; i < n; i++) { const v = src[a + i]; out[i] = Number.isNaN(v) ? null : v }
-    else for (let i = 0; i < n; i++) out[i] = src[a + i];
-    return cols[k] = out;
+  const T = datesOf(d, j);
+  return { ticker: d.tickers[j], dates: T, bars: lazyBars(T, k => column(d, j, k)) };
+}
+/** Bars whose price columns are made on their first read and then become plain data properties, so the loops of F
+    that read B.C, B.H ... again and again pay no getter call (about 4% of a pre-warm, measured). */
+function lazyBars(T: readonly string[], make: (k: Field) => (number | null)[]): Bars {
+  const bars: Record<string, unknown> = { T };
+  for (const k of FIELDS) Object.defineProperty(bars, k, { configurable: true, enumerable: true,
+    get() { const v = make(k); Object.defineProperty(bars, k, { value: v, enumerable: true, writable: false, configurable: false }); return v } });
+  return bars as unknown as Bars;
+}
+
+/** One ticker of a compute thread's snapshot as one request reads it (run.ts screenEnv; report 6.7: a screen of
+    pre-warmed series is a lookup that reads no bar). The dates are the thread's own copy, kept for the snapshot's life
+    (ThreadSnapshot.view); each price column is made on its first read and the backtest core's Calc on the first
+    computation (its constructor reads the close column); `missing` answers metrics.ts missingInput from the snapshot's
+    per-ticker mask (built from the same bars with the same rule, so a lookup reads no column), and scans only when the
+    evaluation bar is not the last bar (the mask covers the whole history). release() drops the Calc with its memo of
+    full outputs (about 25 KB per output per ticker as F returns them): the planner holds every survivor's view until
+    the screen ends, so without it a request with k custom series would keep k outputs of every survivor (about
+    0.2 GB for five custom conditions on the whole market); with it a request keeps at most run.ts CALC_KEEP tickers'
+    outputs, plus the columns it read (at most five of every survivor, about 55 MB; making them again on every
+    condition pass costs more CPU than it saves, measured). A released view computes again, the same values. */
+export class TickerView implements TickerCalc {
+  readonly ticker: string;
+  readonly dates: readonly string[];
+  readonly bars: Bars;
+  private desc: SnapshotDesc;
+  private j: number;
+  private made: Calc | null = null;
+  constructor(desc: SnapshotDesc, j: number, dates: readonly string[], onColumn: () => void = () => {}) {
+    this.desc = desc; this.j = j; this.ticker = desc.tickers[j]; this.dates = dates;
+    this.bars = lazyBars(dates, k => { onColumn(); return column(desc, j, k) });
+  }
+  get calc(): Calc { return this.made ??= new Calc(this.bars) }
+  readonly missing = (inputs: readonly BarField[], at: number): BarField | null => {
+    if (at !== this.dates.length - 1) return scanMissingInput(this, inputs, at);
+    const m = this.desc.missing[this.j];
+    for (const f of inputs) if (m & (1 << FIELDS.indexOf(f))) return f;
+    return null;
   };
-  const bars: Bars = { get O() { return col('O') }, get H() { return col('H') }, get L() { return col('L') }, get C() { return col('C') }, get V() { return col('V') }, T };
-  return { ticker: d.tickers[j], dates: T, bars };
+  /** Whether the view holds a Calc (outputs computed since its creation or its last release). */
+  get holding(): boolean { return this.made !== null }
+  release(): void { this.made = null }
 }
 export const barCount = (d: Pick<SnapshotDesc, 'offsets'>, j: number): number => d.offsets[j + 1] - d.offsets[j];
 
@@ -357,8 +410,14 @@ export class ThreadSnapshot {
   breaks = new Map<string, string[]>();
   /** SeriesCache key of each pinned series */
   pinned: Set<string>;
+  /** each ticker's dates, built on its first request and kept for the snapshot's life on this thread (every request
+      reads them; at most one string reference per bar of the snapshot, about 10.6 MB for 1.33 M bars) */
+  private dates: (readonly string[] | undefined)[];
+  /** price columns made for requests on this thread (a screen of pre-warmed series makes none) */
+  stats = { columns: 0 };
   constructor(desc: SnapshotDesc, lruBytes: number) {
     this.desc = desc;
+    this.dates = new Array(desc.tickers.length);
     this.cache = new SeriesCache(lruBytes);
     this.dv = { price_data: desc.versions.price_data, screener_engine: desc.versions.screener_engine };
     desc.tickers.forEach((t, j) => this.position.set(t, j));
@@ -378,9 +437,30 @@ export class ThreadSnapshot {
     if (j === undefined) throw new RangeError(`snapshot: no ticker ${ticker}`);
     return materialize(this.desc, j);
   }
-  /** The bar fields a ticker lacks over its whole history (metrics.ts missingInput at its last bar). */
-  missingFields(ticker: string): string[] {
-    const m = this.desc.missing[this.position.get(ticker) ?? -1] ?? 0;
-    return FIELDS.filter((_, k) => m & (1 << k));
+  /** A request's view of one ticker (TickerView), with this thread's copy of its dates; undefined for an unknown ticker. */
+  view(ticker: string): TickerView | undefined {
+    const j = this.position.get(ticker);
+    if (j === undefined) return undefined;
+    const dates = this.dates[j] ??= datesOf(this.desc, j);
+    return new TickerView(this.desc, j, dates, () => { this.stats.columns++ });
   }
+  /** A cross-section's values (stage S1, report 6.7 "pre-warmed per publication", 6.10; core screen.ts
+      xsectionValues): return_rank on the fixed population depends on the snapshot alone (every listed row, never the
+      request's filters, xsection.ts), so it is computed once per thread by the core's own functions on the same inputs
+      screen.ts would give them (each row's close and evaluation bar) and kept for the snapshot's life; at most
+      XSECTION_KEEP windows (least recently used out). undefined for another metric: screen.ts then computes it. */
+  crossSection(need: XsectionNeed): ReadonlyMap<string, number | null> | undefined {
+    if (need.metric !== 'return_rank') return undefined;
+    let v = this.xs.get(need.key);
+    if (v) { this.xs.delete(need.key); this.xs.set(need.key, v); return v }
+    const E = this.desc.data.evaluation_date, closes = new Map<string, { at: number; close: ArrayLike<number | null | undefined> }>();
+    for (const r of this.desc.rows) { const t = this.view(r.ticker); if (t) closes.set(r.ticker, { at: evaluationBar(t.dates, E), close: t.bars.C }) }
+    v = returnRankAll(this.desc.rows, closes, need.window, E).ranks;
+    this.xs.set(need.key, v);
+    if (this.xs.size > XSECTION_KEEP) this.xs.delete(this.xs.keys().next().value as string);
+    return v;
+  }
+  private xs = new Map<string, ReadonlyMap<string, number | null>>();
 }
+/** Cross-sections (one per window) a thread keeps per snapshot: about 844 numbers each. */
+export const XSECTION_KEEP = 16;
