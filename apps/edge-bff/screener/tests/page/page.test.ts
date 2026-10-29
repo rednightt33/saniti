@@ -132,7 +132,7 @@ describe('live client (8.1, 8.8)', () => {
     expect(e1.message).toMatch(/1 to 500/);
     const e2 = await api.catalog(null).catch(e => e) as ApiFailure;
     expect([e2.code, e2.status, e2.retryAfter]).toEqual(['SCREENER_NOT_READY', 503, 7]);
-    expect(e2.message).toMatch(/retries in 7 s/);
+    expect(e2.message).toMatch(/retry in 7 s/);
   });
   it('reads Retry-After as seconds or an HTTP date', () => {
     expect(retryAfter('3')).toBe(3);

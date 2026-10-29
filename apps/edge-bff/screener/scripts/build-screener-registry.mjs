@@ -13,8 +13,10 @@
       a deterministic synthetic series, for all 76 outputs: first_valid_bar, history_class (cut probe), unit and
       level_comparable (scaling and shift probes), price_compare_lag (lag probe), inputs per enum option (poison
       probe), the narrowing (degeneracy probe at each numeric minimum, floor probe, the not_accepted rule),
-      cost_class (timing ratio at two lengths), and the Feature 04 / Feature 01 parity oracle read from
-      `python3 scripts/terminal_indicator_spec.py --json`.
+      cost_class (work ratio at two lengths, counted by V8 block coverage, never timed), and the Feature 04 /
+      Feature 01 parity oracle read from `python3 scripts/terminal_indicator_spec.py --json`.
+   Every derived field is a pure function of the inputs and the code: nothing reads a clock, so the file and its version
+   are the same bytes on any machine at any load (ERRORS: the timed cost_class flipped under CPU contention).
    The overlay and the derived narrowing may only narrow the base (report 6.8 narrow-only rule), so every transferable
    screener condition stays Backtest-valid. Nothing here changes indicators.ts, indRegistry.json or
    backtest-registry.json (report I3; scripts/screener/check_backtest_untouched.mjs).
@@ -22,12 +24,13 @@
    that field (base registry_version and source hashes included), so it changes whenever any input or derived field does.
 
    Run (from apps/edge-bff/screener): npm run registry (writes) / npm run registry:check (fails when the committed file
-   is stale: every probe field is re-derived and compared). Needs python3 for the oracle mapping. */
+   is stale: every probe field is re-derived and compared). Needs python3 for the oracle mapping. The cost probe runs
+   in a child process of this script (--cost-work, see costWork). */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '../../../..');
@@ -41,6 +44,7 @@ export const PATHS = {
   overlay: 'apps/edge-bff/screener/src/core/screener-overlay.json',
   spec: 'scripts/terminal_indicator_spec.py',
   generator: 'apps/edge-bff/screener/scripts/build-screener-registry.mjs',
+  loader: 'apps/backtest-worker/loader/register.mjs',
   out: 'apps/edge-bff/screener/src/core/screener-registry.json',
 };
 
@@ -76,7 +80,7 @@ export const PROBE = Object.freeze({
   seed: 20261028, bars: 4000, start: '2016-01-04', cut_at: 1000,
   scale_price: 3.7, scale_volume: 5.3, shift_price_of_median: 0.5, shift_volume_of_median: 0.5,
   tolerance: 1e-9, unit_tolerance: 1e-6, min_common_bars: 100, converged_ratio: 1e-3,
-  cost_bars: 10000, cost_long_length: 1000, cost_reps: 3, cost_slowdown: 2,
+  cost_bars: 10000, cost_long_length: 1000, cost_measure: 'v8_block_coverage_executed_source_chars', cost_growth: 2, cost_margin: 2,
 });
 
 function mulberry32(seed) {
@@ -221,26 +225,132 @@ export function floored(run, B, p, value) {
   return Object.keys(a).filter(o => !o.startsWith('_')).every(o => sameSeries(a[o], b[o]));
 }
 
-/** The two timings of costClass: the minimum of `reps` alternating runs after one warm-up of each. */
-function timePair(a, b, reps) {
-  a(); b(); let ta = Infinity, tb = Infinity;
-  const time = fn => { const t0 = process.hrtime.bigint(); fn(); return Number(process.hrtime.bigint() - t0) };
-  for (let r = 0; r < reps; r++) { ta = Math.min(ta, time(a)); tb = Math.min(tb, time(b)) }
-  return [ta, tb];
+/* ---- cost_class: how the work of F grows with an integer parameter (report 6.8), counted, never timed ---------- */
+/* The class decides a parameter's cap (registry.ts capOf), so it is part of the contract and of its version. It was
+   once a wall-clock ratio (process.hrtime): under CPU contention an O(N) parameter's ratio crossed the threshold
+   (6 to 16 of 58 flipped to O(N·n) in each of 5 runs at load 13-15 on 4 cores, 2026-10-29), so --check failed and the
+   version depended on the machine's load. The measure is now the work F does: V8's precise block coverage (the
+   inspector Profiler with call counts per block) counts how many times every block of the measured code ran, an exact
+   number that no scheduler, frequency or other process changes. */
+
+/** The two lengths of the cost probe: the default L1 and L2 = max(cost_long_length, 50 x L1), at most a quarter of the
+    bars (with the 53 defaults, at most 55: L2 / L1 is at least 45). */
+export function costLengths(value, bars) {
+  const L1 = Math.max(1, value);
+  return [L1, Math.min(Math.max(PROBE.cost_long_length, 50 * L1), Math.floor(bars / 4))];
 }
-/** cost_class of an integer parameter (report 6.8), from timings at two lengths on a long fixture (cost_bars): the
-    default L1 and L2 = max(cost_long_length, 50 x L1), at most a quarter of the bars. The slowdown t(L2) / t(L1) - 1
-    of a kernel that loops over its window (O(N·n)) is large (measured 12-31 on HMA, Aroon, Donchian, Stochastic RSI,
-    Stochastic, Williams %R, CCI and historical volatility, 3 runs each, 2026-10-28); a running-sum or recursive kernel
-    (O(N)) stays at timer noise (measured -0.31 to 0.34 on the other 57 integer parameters). The class is O(N·n) at a
-    slowdown of at least cost_slowdown; a result between half and twice that is measured again with three times the
-    runs. */
-export function costClass(run, B, p, value) {
-  const L1 = Math.max(1, value), L2 = Math.min(Math.max(PROBE.cost_long_length, 50 * L1), Math.floor(B.C.length / 4));
-  const slowdown = reps => { const [t1, t2] = timePair(() => run(B, { [p]: L1 }), () => run(B, { [p]: L2 }), reps); return t2 / t1 - 1 };
-  let s = slowdown(PROBE.cost_reps);
-  if (s > PROBE.cost_slowdown / 2 && s < PROBE.cost_slowdown * 2) s = slowdown(PROBE.cost_reps * 3);
-  return { cost_class: s >= PROBE.cost_slowdown ? 'O(N·n)' : 'O(N)', lengths: [L1, L2], slowdown: s };
+
+/** The class of a measured growth W(L2) / W(L1) - 1, or null when neither is decisive. A kernel that loops over its
+    window (O(N·n)) grows 13.6 to 32.4 (HMA, Aroon, Donchian, Stochastic RSI, Stochastic, Williams %R, CCI, standard
+    deviation 'sample', historical volatility); a running-sum or recursive kernel (O(N)) grows -0.09 to 0 (the other 58
+    integer parameters at every offered enum option; 293 measurements, 2026-10-29). O(N·n) needs a growth of at least
+    cost_growth x cost_margin (4: the work at least five times larger at the longer length), O(N) at most
+    cost_growth / cost_margin (1: at most twice). A class is written only that far from the boundary, so a change in
+    how a V8 version splits blocks cannot flip it; a growth in between stops the build instead of guessing. */
+export function costVerdict(growth) {
+  if (!Number.isFinite(growth)) return null;
+  if (growth >= PROBE.cost_growth * PROBE.cost_margin) return 'O(N·n)';
+  if (growth <= PROBE.cost_growth / PROBE.cost_margin) return 'O(N)';
+  return null;
+}
+
+/** The work of one measured window, in executed source characters: per function, each character of its source counted
+    once per run of the innermost block that holds it (V8 reports a block only where its count differs from the block
+    around it, and this sum does not depend on that). Skips node internals and the harness scripts (the code that
+    calls the meter, compiled before it started). A measured function that ran without block counts was compiled
+    before the meter started (V8 adds block counters at compile time), so its loops would count as one: that stops the
+    probe instead of under-counting. Not counted: work inside a built-in that does not call back into JavaScript
+    (Array.prototype.slice, fill, a spread); the Terminal's kernels loop in JavaScript (indicators.ts). */
+export function executedChars(scripts, harness = []) {
+  let work = 0;
+  for (const s of scripts) {
+    if (s.url.startsWith('node:') || harness.includes(s.url)) continue;
+    for (const f of s.functions) {
+      const name = `${f.functionName || '(anonymous)'} in ${s.url || '(no url)'}`;
+      if (!f.isBlockCoverage) {
+        if (f.ranges.some(r => r.count > 0)) throw new Error(`cost probe: ${name} ran without block counts (compiled before the work meter started), so its loops would not be counted`);
+        continue;
+      }
+      const ranges = [...f.ranges].sort((a, b) => a.startOffset - b.startOffset || b.endOffset - a.endOffset), open = [];
+      for (const r of ranges) {
+        while (open.length && open[open.length - 1].endOffset <= r.startOffset) open.pop();
+        const parent = open[open.length - 1];
+        if (parent && r.endOffset > parent.endOffset) throw new Error(`cost probe: the coverage blocks of ${name} overlap without nesting`);
+        work += (r.endOffset - r.startOffset) * (r.count - (parent ? parent.count : 0));
+        open.push(r);
+      }
+    }
+  }
+  return work;
+}
+
+/** A work meter: starts V8's precise block coverage in this process; work(fn) runs fn and returns its executedChars.
+    Only code compiled after the meter started is measured, so the measured module is imported after this. */
+export async function workMeter(harness = [import.meta.url]) {
+  const { Session } = await import('node:inspector/promises');
+  const session = new Session();
+  session.connect();
+  await session.post('Profiler.enable');
+  await session.post('Profiler.startPreciseCoverage', { callCount: true, detailed: true });
+  const take = async () => (await session.post('Profiler.takePreciseCoverage')).result;   // also resets the counts
+  return {
+    async work(fn) {
+      await take();
+      fn();
+      const w = executedChars(await take(), harness);
+      if (!(w > 0)) throw new Error('cost probe: the measured run executed no counted code');
+      return w;
+    },
+    async close() { await session.post('Profiler.stopPreciseCoverage'); await session.post('Profiler.disable'); session.disconnect() },
+  };
+}
+
+/** cost_class of an integer parameter p of `run` at its default `value` (report 6.8): the work at the two costLengths
+    on the bars B, classed by costVerdict (null when not decisive). */
+export async function costClass(meter, run, B, p, value) {
+  const lengths = costLengths(value, B.C.length);
+  const work = [];
+  for (const L of lengths) work.push(await meter.work(() => run(B, { [p]: L })));
+  const growth = work[1] / work[0] - 1;
+  return { cost_class: costVerdict(growth), lengths, work, growth };
+}
+
+/** The cost probe's child process (`--cost-work`, the job as JSON on stdin): starts the meter, then imports `module`
+    (its F, as indicators.ts exports it) so that every function of it has block counters, and measures each group on the
+    fixture of `bars` bars: { id, key, param, value, base (the start configuration), variants (enum overrides, the
+    default first) }. A group is O(N·n) at its first variant that is (a basis or method can swap a running-sum kernel for
+    a window loop: I32 'sample'), else O(N). A growth that is not decisive stops the probe with the numbers. */
+export async function costWork({ module, bars, groups }) {
+  const meter = await workMeter();
+  const { F } = await import(pathToFileURL(module).href);
+  const B = fixture({ bars }), out = [];
+  for (const g of groups) {
+    const fn = F[g.key];
+    if (typeof fn !== 'function') throw new Error(`cost probe: ${module} has no function ${g.key}`);
+    const measured = [];
+    let cls = 'O(N)';
+    for (const v of g.variants) {
+      const c = await costClass(meter, (b, over) => fn(b, { ...g.base, ...v, ...over }), B, g.param, g.value);
+      measured.push({ variant: v, ...c });
+      if (!c.cost_class) throw new Error(`cost probe ${g.id}.${g.param} ${JSON.stringify(v)}: the work grows ${c.growth.toFixed(3)} from length ${c.lengths[0]} to ${c.lengths[1]} (${c.work.join(' -> ')} executed source characters), neither at most ${PROBE.cost_growth / PROBE.cost_margin} (O(N)) nor at least ${PROBE.cost_growth * PROBE.cost_margin} (O(N·n)), so no class can be derived with the required margin: read the kernel's loops (or lengthen the probe, PROBE.cost_long_length) before building`);
+      if (c.cost_class === 'O(N·n)') { cls = 'O(N·n)'; break }
+    }
+    out.push({ id: g.id, param: g.param, cost_class: cls, measured });
+  }
+  await meter.close();
+  return out;
+}
+
+/** Runs costWork in a child process of this script (the meter must start before the measured module is compiled, and
+    the rest of the build runs at full speed without coverage) and returns its answer. */
+export function measureCost(job) {
+  const args = ['--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import', pathToFileURL(at(PATHS.loader)).href, fileURLToPath(import.meta.url), '--cost-work'];
+  const r = spawnSync(process.execPath, args, { input: JSON.stringify(job), encoding: 'utf8', maxBuffer: 64 << 20 });
+  if (r.error) throw new Error(`cost probe: ${r.error.message}`);
+  if (r.status !== 0) throw new Error(`cost probe failed (exit ${r.status}): ${r.stderr.trim()}`);
+  const out = JSON.parse(r.stdout);
+  if (out.length !== job.groups.length || out.some((x, i) => x.id !== job.groups[i].id || x.param !== job.groups[i].param)) throw new Error('cost probe: the answer does not match the job');
+  return out;
 }
 
 /* ---- overlay checks ------------------------------------------------------------------------------------------- */
@@ -320,6 +430,28 @@ function readOracle() {
   return Object.fromEntries(JSON.parse(r.stdout).indicators.map(x => [x.id, x]));
 }
 
+/** The options the screener offers per enum parameter of base indicator r (the base's, or the overlay's decided subset
+    in base order), and the start configuration: the registry defaults, with the overlay's start where the registry
+    default is not offered (P17 a: I43 anchor Week instead of Session). It is what a new card opens with and what the
+    snapshot pre-warms (report 6.7), so the derived fields are measured on it. */
+function startConfig(r, ov, DEFAULTS) {
+  const offered = Object.fromEntries(r.params.filter(p => p.type === 'enum')
+    .map(p => [p.key, ov.params?.[p.key] ? p.options.filter(o => ov.params[p.key].options.includes(o)) : p.options]));
+  const starts = Object.fromEntries(Object.entries(ov.params || {}).filter(([, s]) => s.start !== undefined).map(([k, s]) => [k, s.start]));
+  return { offered, starts, defaults: { ...DEFAULTS[r.key], ...starts } };
+}
+
+/** The cost probe's job for the base registry: every integer parameter at its start configuration, worst over the
+    offered options of every enum parameter (the default first). */
+export function costJob(base, overlay, DEFAULTS) {
+  const groups = base.indicators.flatMap(r => {
+    const { offered, defaults } = startConfig(r, overlay.indicators[r.id], DEFAULTS);
+    const variants = [{}, ...r.params.filter(e => e.type === 'enum').flatMap(e => offered[e.key].filter(o => o !== defaults[e.key]).map(o => ({ [e.key]: o })))];
+    return r.params.filter(p => p.type === 'integer').map(p => ({ id: r.id, key: r.key, param: p.key, value: p.default, base: defaults, variants }));
+  });
+  return { module: at(PATHS.calc), bars: PROBE.cost_bars, groups };
+}
+
 /* ---- build ---------------------------------------------------------------------------------------------------- */
 export async function build() {
   const base = readJson(PATHS.base), terminal = readJson(PATHS.terminal), overlay = readJson(PATHS.overlay);
@@ -330,20 +462,14 @@ export async function build() {
   const problems = overlayProblems(overlay, base);
   if (problems.length) throw new Error(`screener-overlay.json:\n  ${problems.join('\n  ')}`);
   const oracle = readOracle(), byTerminal = Object.fromEntries(terminal.map(r => [r.id, r]));
-  const B = fixture(), cut = sliceBars(B, PROBE.cut_at), CB = fixture({ bars: PROBE.cost_bars });
+  const B = fixture(), cut = sliceBars(B, PROBE.cut_at);
+  const cost = new Map(measureCost(costJob(base, overlay, DEFAULTS)).map(c => [`${c.id}.${c.param}`, c.cost_class]));
 
   const indicators = base.indicators.map(r => {
     const ov = overlay.indicators[r.id], ti = byTerminal[r.id], fn = F[r.key];
     if (!fn || !ti) throw new Error(`${r.id}: no function or terminal entry`);
-    // the options the screener offers per enum parameter (the base's, or the overlay's decided subset in base order),
-    // and the start configuration: the registry defaults, with the overlay's start where the registry default is not
-    // offered (P17 a: I43 anchor Week instead of Session). It is what a new card opens with and what the snapshot
-    // pre-warms (report 6.7), so the derived fields below are measured on it.
-    const offered = Object.fromEntries(r.params.filter(p => p.type === 'enum')
-      .map(p => [p.key, ov.params?.[p.key] ? p.options.filter(o => ov.params[p.key].options.includes(o)) : p.options]));
-    const starts = Object.fromEntries(Object.entries(ov.params || {}).filter(([, s]) => s.start !== undefined).map(([k, s]) => [k, s.start]));
+    const { offered, starts, defaults } = startConfig(r, ov, DEFAULTS);
     const startParams = resolveParams(BY_ID[r.id], starts, `overlay ${r.id}.params`);
-    const defaults = { ...DEFAULTS[r.key], ...starts };
     const run = (bars, over = {}) => fn(bars, { ...defaults, ...over });
     const bandOutputs = ov.shape === 'band' ? r.outputs : [];
     const hasAnchor = r.params.some(p => p.key === 'anchor');
@@ -382,15 +508,7 @@ export async function build() {
       if (p.type === 'number' && (p.max === undefined || p.default + 0.5 <= p.max) && floored(run, B, p.key, p.default)) {
         q.integer = true; q.narrowing.push({ rule: 'integer', source: 'floor_probe', evidence: `F gives the same outputs at ${p.default} and ${p.default + 0.5}` });
       }
-      if (p.type === 'integer') {
-        const c = costClass(run, CB, p.key, p.default);
-        q.cost_class = c.cost_class;
-        // worst over the enum options: a basis or method can swap a running-sum kernel for a window loop (I32 sample)
-        for (const e of r.params.filter(x => x.type === 'enum')) for (const opt of offered[e.key]) {
-          if (q.cost_class === 'O(N·n)' || opt === defaults[e.key]) continue;
-          if (costClass((bars, over) => run(bars, { [e.key]: opt, ...over }), CB, p.key, p.default).cost_class === 'O(N·n)') q.cost_class = 'O(N·n)';
-        }
-      }
+      if (p.type === 'integer') q.cost_class = cost.get(`${r.id}.${p.key}`);
       return q;
     });
     const outputs = r.outputs.map(o => {
@@ -465,13 +583,22 @@ export async function build() {
 export const serialize = doc => JSON.stringify(doc, null, 2) + '\n';
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  const text = serialize(await build());
-  if (process.argv.includes('--check')) {
-    const current = fs.existsSync(at(PATHS.out)) ? fs.readFileSync(at(PATHS.out), 'utf8') : '';
-    if (current !== text) { console.error(`${PATHS.out} is stale: run npm run registry (in apps/edge-bff/screener)`); process.exit(1) }
-    console.log(`${PATHS.out} is current`);
+  if (process.argv.includes('--cost-work')) {
+    try {
+      process.stdout.write(JSON.stringify(await costWork(JSON.parse(fs.readFileSync(0, 'utf8')))));
+    } catch (e) {               // a refusal of the probe is its message; anything else keeps its stack
+      console.error(e instanceof Error && e.message.startsWith('cost probe') ? e.message : e);
+      process.exitCode = 1;
+    }
   } else {
-    fs.writeFileSync(at(PATHS.out), text);
-    console.log(`wrote ${PATHS.out}`);
+    const text = serialize(await build());
+    if (process.argv.includes('--check')) {
+      const current = fs.existsSync(at(PATHS.out)) ? fs.readFileSync(at(PATHS.out), 'utf8') : '';
+      if (current !== text) { console.error(`${PATHS.out} is stale: run npm run registry (in apps/edge-bff/screener)`); process.exit(1) }
+      console.log(`${PATHS.out} is current`);
+    } else {
+      fs.writeFileSync(at(PATHS.out), text);
+      console.log(`wrote ${PATHS.out}`);
+    }
   }
 }

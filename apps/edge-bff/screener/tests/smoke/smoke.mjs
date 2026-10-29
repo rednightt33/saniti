@@ -122,7 +122,8 @@ await at('a worker refusal names its card and is not sent again until the card c
   await page.waitForSelector('[data-refused]', { timeout:5000 });
   const card = page.locator('#condList .mc').nth(1);
   expect(await card.locator('[data-refused]').count() === 1, 'the refusal is not on the second card');
-  expect(/out of range \(definition\.conditions\[1\]/.test(await card.innerText()), 'the refusal does not name its field: ' + await card.innerText());
+  // the place in the page's words (texts.ts placeText: the card by its number and name, the parameter by its label) and the fix
+  expect(/Condition 2 \([^)]+\), [^.]+ is out of range: use a whole number [^.]+\. Change it and run again\./.test(await card.innerText()), 'the refusal does not name its card, parameter and fix: ' + await card.innerText());
   const n = (await counters()).run;
   await page.evaluate(() => document.getElementById('nearT')?.click()); await page.click('[data-act="drawer"]'); await page.keyboard.press('Escape'); await page.waitForTimeout(600);
   expect((await counters()).run === n, 'the refused definition was sent again without a change');
