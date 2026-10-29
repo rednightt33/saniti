@@ -337,10 +337,14 @@ def test_broker_is_published_from_its_first_stored_year():
 
 def test_run_times_skip_only_the_unlisted_cron_ticks():
     times = pub.run_times('07:30,19:00')
-    assert pub.cron_for(times) == '0,30 0,12 * * *'                   # 00:30 and 12:00 UTC are 07:30 and 19:00 WIB
+    # 00:30 and 12:00 UTC are 07:30 and 19:00 WIB; 01:00 and 12:30 UTC (08:00 and 19:30 WIB) are their check times
+    # (EXEC-PUBLISHER-SPEED, ERRORS M303), so hour 1 joins the product
+    assert pub.check_times(times) == [(8, 0), (19, 30)]
+    assert pub.cron_for(times) == '0,30 0,1,12 * * *'
     at = lambda h, m: dt.datetime(2026, 10, 26, h, m, tzinfo=dt.timezone.utc)
     assert pub.should_run(times, at(0, 31)) and pub.should_run(times, at(12, 2))      # listed times
     assert not pub.should_run(times, at(0, 1)) and not pub.should_run(times, at(12, 31))  # 07:00 and 19:30 WIB
+    assert not pub.should_run(times, at(1, 1)) and not pub.should_run(times, at(1, 31))   # 08:00 and 08:30 WIB
     assert pub.should_run(times, at(5, 0))                             # a deploy or manual run away from every tick
     assert pub.should_run([], at(0, 1))                                # no list: always runs
 
@@ -908,17 +912,29 @@ def test_the_xsection_cleanup_keeps_newer_objects_other_keys_and_everything_when
 
 
 def test_content_that_returns_to_an_object_the_cleanup_deleted_is_put_again():
-    """The xsection listing is taken after collect_garbage: a key it deleted in this run is never taken as present."""
+    """EXEC-PUBLISHER-SPEED: the cleanup runs after state.json. Content that returns to a key the previous index still
+    names is neither deleted nor put again; a key a cleanup deleted is gone from the next run's xsection listing, so
+    content that returns to it is put again, never taken as present."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     k1 = price_key(bucket)
     body = bucket.objects[k1]
-    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    changed = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    conn.prices = changed
     at(bucket, conn, 'daily', 2)
-    conn.prices = PRICES                                                  # the change is undone: k1's content again
-    at(bucket, conn, 'daily', 4)                                          # cleanup deletes k1, the rebuild puts it
-    assert k1 in bucket.deleted and price_key(bucket) == k1 and bucket.objects[k1] == body
+    k2 = price_key(bucket)
+    conn.prices = PRICES                                                  # undone: k1's content again
+    n = len(bucket.puts)
+    at(bucket, conn, 'daily', 4)                                          # k1 is still there (k2's run kept it)
+    assert price_key(bucket) == k1 and xsection_puts(bucket, n) == [] and {k1, k2} <= set(bucket.objects)
+    conn.prices = changed
+    at(bucket, conn, 'daily', 6)                                          # k2's content again: named, so k2 is kept
+    at(bucket, conn, 'daily', 8)                                          # this cleanup deletes k1 (named by no index)
+    assert k1 in bucket.deleted and k1 not in bucket.objects and price_key(bucket) == k2
+    conn.prices = PRICES
+    at(bucket, conn, 'daily', 10)                                         # back to k1: put again from the rebuild
+    assert price_key(bucket) == k1 and bucket.objects[k1] == body
     assert named(bucket) | indexed(bucket) <= set(bucket.objects) and pub.verify(conn, bucket) == 0
 
 
@@ -936,16 +952,19 @@ def test_content_that_returns_to_an_object_still_in_the_bucket_is_not_put_again(
 
 
 def test_the_cleanup_lists_the_whole_bucket_and_the_indexed_files_their_prefix_only():
-    """The xsection and the content-keyed reference listings ask for `xsection/` and `ref/` only (listing the whole dev
-    bucket took more than 6 minutes, and these listings have no deadline), and they come after the cleanup's listing of
-    the whole bucket."""
+    """The xsection and the content-keyed reference listings ask for `xsection/` and `ref/` only (these listings have no
+    deadline). EXEC-PUBLISHER-SPEED: a daily run first lists `state.json` and `manifest/` (the cleanup's baseline, before
+    its first write), and the cleanup's listing of the whole bucket comes last, after state.json."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     asked, whole = [], bucket.list
-    bucket.list = lambda deadline=None, prefix='': asked.append(prefix) or whole(deadline, prefix)
+    bucket.list = lambda deadline=None, prefix='': asked.append((prefix, len(bucket.puts))) or whole(deadline, prefix)
+    n = len(bucket.puts)
     at(bucket, conn, 'daily', 2)
-    assert asked == ['', 'xsection/', 'ref/']
+    assert [p for p, _ in asked] == ['state.json', 'manifest/', 'xsection/', 'ref/', '']
+    assert asked[0][1] == asked[1][1] == n                                 # the baseline: before the run's first put
+    assert asked[-1][1] == len(bucket.puts) and bucket.puts[-1] == 'state.json'   # the cleanup: after state.json
 
 # ---- bucket retries (ERRORS M263; M253 on PR #41's branch) ----------------------------------------------------------
 def client_error(code):
@@ -1276,9 +1295,18 @@ def test_a_reference_object_the_cleanup_deleted_is_put_again_when_its_content_re
     body = bucket.objects[k1]
     conn.universe = renamed('BCA')
     at(bucket, conn, 'daily', 2)
+    k2 = refs(bucket)['tickers']['key'][3:]
     conn.universe = UNIVERSE                                               # undone: k1's content again
-    at(bucket, conn, 'daily', 4)                                           # the cleanup deletes k1, index_refs puts it
-    assert k1 in bucket.deleted and refs(bucket)['tickers']['key'] == f'v1/{k1}' and bucket.objects[k1] == body
+    n = len(bucket.puts)
+    at(bucket, conn, 'daily', 4)                                           # k1 is still there: indexed, not put again
+    assert refs(bucket)['tickers']['key'] == f'v1/{k1}' and ref_puts(bucket, n) == [] and {k1, k2} <= set(bucket.objects)
+    conn.universe = renamed('BCA')
+    at(bucket, conn, 'daily', 6)                                           # k2 again
+    at(bucket, conn, 'daily', 8)                                           # this cleanup deletes k1
+    assert k1 in bucket.deleted and k1 not in bucket.objects
+    conn.universe = UNIVERSE
+    at(bucket, conn, 'daily', 10)                                          # back to k1: index_refs puts it again
+    assert refs(bucket)['tickers']['key'] == f'v1/{k1}' and bucket.objects[k1] == body
     assert pub.verify(conn, bucket) == 0
 
 
@@ -1382,3 +1410,293 @@ def test_the_real_bucket_client_puts_and_lists_the_reference_copies_as_the_s3_ap
     pub.Publisher(conn, b, today=TODAY, get=fake_get()).run('events')
     assert not [c for c in b.s3.calls[n:] if c[0] == 'put' and pub.REF_KEY.fullmatch(c[1][3:])]
     assert json.loads(b.s3.objects['v1/state.json'][0])['refs'] == state['refs']
+
+
+# ---- EXEC-PUBLISHER-SPEED (user go 2026-10-29; ERRORS M301, M303) ------------------------------------------------------
+class SlowBucket(FakeBucket):
+    """A FakeBucket whose puts and gets take `delay` seconds and may overlap; it records when each put started and
+    ended, and the most requests in flight at once."""
+    def __init__(self, delay=0.02, slow=None):
+        super().__init__()
+        self.delay, self.lock, self.inflight, self.most = delay, pub.threading.Lock(), 0, 0
+        self.slow = slow or (lambda key: 0)                # extra seconds for a key's put
+        self.spans = {}                                    # key -> (start, end) of its last put
+
+    def _enter(self):
+        with self.lock:
+            self.inflight += 1
+            self.most = max(self.most, self.inflight)
+
+    def _leave(self):
+        with self.lock:
+            self.inflight -= 1
+
+    def put(self, key, body, content_type):
+        self._enter()
+        start = pub.time.monotonic()
+        pub.time.sleep(self.delay + self.slow(key))
+        try:
+            super().put(key, body, content_type)
+        finally:
+            self.spans[key] = (start, pub.time.monotonic())
+            self._leave()
+
+    def get_json(self, key):
+        self._enter()
+        try:
+            pub.time.sleep(self.delay)
+            return super().get_json(key)
+        finally:
+            self._leave()
+
+
+def many(n=24):
+    """A universe of n stocks with two price years each, and broker rows: enough puts to overlap."""
+    tickers = [f'T{i:02d}' for i in range(n)]
+    prices = [(t, d, 10.0, 11.0, 9.0, 10.0 + i, 100.0) for i, t in enumerate(tickers) for d in ('2025-12-30', '2026-01-02')]
+    brokers = [(t, '2026-01-02', 'AK', 'Foreign', 'Regular', 5.0, 0.0, 0.05, 0.0, False) for t in tickers]
+    universe = [(t, f'Company {t}', 'stock', 'Finance', 'Banks') for t in tickers]
+    return FakeConn(prices, brokers, universe, events=[], actions=[])
+
+
+def test_puts_overlap_and_every_manifest_and_state_json_come_after_what_they_name():
+    """The bucket requests go through TERMINAL_BUCKET_THREADS threads; the barriers keep the order readers rely on: no
+    manifest put starts before every object it names is in the bucket, and state.json starts after every other put.
+    T00's price pack and T23's manifest are slow: without a barrier, T00's manifest would start before its pack is
+    written, and state.json before T23's manifest."""
+    bucket = SlowBucket(slow=lambda key: 0.4 if key.startswith('pack/T00/price.') or key == 'manifest/T23.json' else 0)
+    p = pub.Publisher(many(), bucket, today=TODAY, threads=8)
+    p.run('backfill')
+    assert bucket.most > 1 and p.threads == 8
+    for t in [f'T{i:02d}' for i in range(24)]:
+        start = bucket.spans[f'manifest/{t}.json'][0]
+        for key in pub.named_keys(bucket.get_json(f'manifest/{t}.json')):
+            assert bucket.spans[key][1] <= start, (t, key)
+    state_start = bucket.spans['state.json'][0]
+    assert all(end <= state_start for key, (_, end) in bucket.spans.items() if key != 'state.json')
+    assert bucket.puts[-1] == 'state.json' and pub.verify(many(), bucket) == 0
+
+
+def test_parallel_and_one_at_a_time_publish_the_same_bytes():
+    one, eight = FakeBucket(), FakeBucket()
+    pub.Publisher(many(), one, today=TODAY, threads=1).run('backfill')
+    pub.Publisher(many(), eight, today=TODAY, threads=8).run('backfill')
+    data = lambda b: {k: v for k, v in b.objects.items() if not k.startswith('manifest/') and k != 'state.json'}
+    assert data(one) == data(eight)
+    strip = lambda b, k: {**b.get_json(k), 'generated_at': None}
+    assert all(strip(one, k) == strip(eight, k) for k in one.objects if k.startswith('manifest/'))
+    assert {**one.get_json('state.json'), 'finished_at': None} == {**eight.get_json('state.json'), 'finished_at': None}
+
+
+def test_the_manifests_are_read_in_parallel_before_planning():
+    conn = many()
+    _, _, filled = run('backfill', conn=conn)
+    bucket = SlowBucket()
+    bucket.objects, bucket.modified = dict(filled.objects), dict(filled.modified)
+    started = pub.time.monotonic()
+    p = pub.Publisher(conn, bucket, today=TODAY, threads=8)
+    p.run('daily')
+    # 24 manifests at 0.02 s each one at a time would be 0.48 s for the reads alone
+    assert bucket.most > 1 and p.written == 0 and pub.time.monotonic() - started < 0.48 + 0.3
+
+
+def test_a_failed_put_stops_the_run_before_any_manifest_or_state_json_names_it():
+    conn = many()
+    bucket = FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    state, manifests = bucket.objects['state.json'], {k: v for k, v in bucket.objects.items() if k.startswith('manifest/')}
+    conn.prices = conn.prices + [('T05', '2026-01-05', 10.0, 11.0, 9.0, 10.5, 100.0)]
+    put = FakeBucket.put
+    def failing(self, key, body, ctype):
+        if key.startswith('price/T05/2026.'):
+            raise PermissionError('denied')
+        put(self, key, body, ctype)
+    bucket.put = failing.__get__(bucket)
+    p = pub.Publisher(conn, bucket, today=TODAY, threads=8)
+    with pytest.raises(PermissionError):
+        p.run('daily')
+    assert bucket.objects['state.json'] == state                          # the previous publication stands
+    assert {k: v for k, v in bucket.objects.items() if k.startswith('manifest/')} == manifests
+    assert p.stage in ('files', 'packs', 'xsection')                      # stopped before the manifests step
+    assert p.uploads.pool is None                                         # the pool ended with the run
+
+
+def test_the_cleanup_comes_after_state_json_so_a_slow_or_failed_listing_never_holds_the_publication(capsys):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    plant(bucket, 'price/IHSG/2019.json.gz', -24)
+    whole = bucket.list
+    def listing(deadline=None, prefix=''):
+        if prefix == '':
+            assert bucket.puts[-1] == 'state.json'                       # published before the cleanup lists
+            raise TimeoutError('bucket listing took too long')
+        return whole(deadline, prefix)
+    bucket.list = listing
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    at(bucket, conn, 'daily', 2)
+    out = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    names = [e['event'] for e in out]
+    assert names.index('done') < names.index('gc_failed') and 'price/IHSG/2019.json.gz' in bucket.objects
+    assert bucket.modified['state.json'] == bucket.clock
+    done = [e for e in out if e['event'] == 'done'][0]
+    assert set(done['phases']) == {'plan', 'files', 'packs', 'xsection', 'manifests', 'refs', 'state'}
+
+
+def test_after_the_run_a_ticker_whose_manifest_a_run_that_did_not_finish_wrote_keeps_its_objects(capsys):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    finished = bucket.modified['state.json']
+    plant(bucket, 'price/BBCA/2019.json.gz', -24)                          # BBCA's manifest is from an unfinished run
+    bucket.modified['manifest/BBCA.json'] = finished + dt.timedelta(seconds=1)
+    plant(bucket, 'price/IHSG/2019.json.gz', -24)                          # IHSG's is the finished run's: deleted
+    at(bucket, conn, 'daily', 2)
+    assert 'price/BBCA/2019.json.gz' in bucket.objects and 'price/IHSG/2019.json.gz' not in bucket.objects
+    gc = events(capsys, 'gc')[0]
+    assert gc['after_publication'] and gc['tickers_skipped'] == 1 and gc['deleted'] == 1
+
+
+def test_after_the_run_a_manifest_outside_the_universe_is_cleaned_by_its_own_names():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    gone = 'price/GONE/2026.' + 'a' * 64 + '.json.gz'
+    plant(bucket, gone, -24)
+    bucket.objects['manifest/GONE.json'] = json.dumps({'datasets': {'price': {'files': {'2026': {'key': f'v1/{gone}'}}}}}).encode()
+    bucket.modified['manifest/GONE.json'] = bucket.modified['state.json']
+    plant(bucket, 'price/GONE/2019.json.gz', -24)
+    at(bucket, conn, 'daily', 2)
+    assert gone in bucket.objects and 'price/GONE/2019.json.gz' not in bucket.objects
+
+
+# ---- alerts (ERRORS M303) -----------------------------------------------------------------------------------------
+@pytest.fixture
+def alerts(monkeypatch):
+    sent = []
+    monkeypatch.setattr(pub, 'post_notify', lambda payload, event: sent.append(payload))
+    return sent
+
+
+def test_the_alert_ids_are_one_per_run_time_and_kind(alerts):
+    slot = dt.datetime(2026, 10, 29, 19, 0, tzinfo=pub.WIB)
+    pub.notify_publication('failed', slot, stage='files', error='ReadTimeoutError', last_published=None)
+    pub.notify_publication('missing', slot, last_published='2026-10-29T00:35:00+00:00')
+    pub.notify_publication('slow', slot, stage='packs', minutes=30)
+    pub.notify_publication('partial', slot, files=['price'])
+    pub.notify_publication('failed', dt.datetime(2026, 10, 29, 12, 3, tzinfo=dt.timezone.utc), True, stage='plan')
+    ids = [a['execution_id'] for a in alerts]
+    assert ids == ['terminal-publish-2026-10-29-1900'] * 2 + ['terminal-publish-2026-10-29-1900-slow',
+                   'terminal-publish-2026-10-29-1900-partial', 'terminal-publish-manual-2026-10-29-1903']
+    assert all(a['source_table'] == 'Terminal_Publisher_Health' for a in alerts)
+    assert alerts[0]['details'] == {'status': 'failed', 'run_time': '2026-10-29 19:00', 'manual': False,
+                                    'stage': 'files', 'error': 'ReadTimeoutError'}          # None is left out
+
+
+def test_a_run_belongs_to_its_listed_run_time_and_a_manual_run_to_its_start():
+    times = pub.run_times('07:30,19:00')
+    utc = lambda d, h, m: dt.datetime(2026, 10, d, h, m, tzinfo=dt.timezone.utc)
+    assert pub.run_slot(times, utc(29, 12, 4)) == (dt.datetime(2026, 10, 29, 19, 0, tzinfo=pub.WIB), False)
+    assert pub.run_slot(times, utc(29, 0, 31)) == (dt.datetime(2026, 10, 29, 7, 30, tzinfo=pub.WIB), False)
+    assert pub.run_slot(times, utc(29, 15, 2)) == (dt.datetime(2026, 10, 29, 22, 2, tzinfo=pub.WIB), True)
+    assert pub.last_run_time(times, utc(29, 0, 0)) == dt.datetime(2026, 10, 28, 19, 0, tzinfo=pub.WIB)   # 07:00 WIB
+    assert pub.last_run_time(times, utc(29, 1, 0)) == dt.datetime(2026, 10, 29, 7, 30, tzinfo=pub.WIB)   # 08:00 WIB
+
+
+def test_a_check_tick_reports_a_missing_publication_once_per_run_time(alerts):
+    times = pub.run_times('07:30,19:00')
+    bucket = FakeBucket()
+    state = lambda finished: bucket.put('state.json', json.dumps({'finished_at': finished}).encode(), 'application/json')
+    check = dt.datetime(2026, 10, 29, 12, 30, tzinfo=dt.timezone.utc)                       # 19:30 WIB
+    state('2026-10-29T12:05:00+00:00')                                                        # 19:05 WIB: out
+    pub.check_publication(times, check, bucket)
+    assert alerts == []
+    state('2026-10-29T00:36:00+00:00')                                                        # only the morning's
+    pub.check_publication(times, check, bucket)
+    assert [a['details']['status'] for a in alerts] == ['missing']
+    assert alerts[0]['execution_id'] == 'terminal-publish-2026-10-29-1900'
+    assert alerts[0]['details']['last_published'] == '2026-10-29T00:36:00+00:00'
+    bucket.get_json = lambda key: (_ for _ in ()).throw(OSError('secret detail'))
+    pub.check_publication(times, check, bucket)                                              # logged only
+    assert len(alerts) == 1
+
+
+def test_main_on_a_tick_that_is_not_a_run_time_checks_and_never_publishes(monkeypatch, alerts):
+    monkeypatch.setenv('TERMINAL_RUN_TIMES_WIB', '07:30,19:00')
+    monkeypatch.setattr(pub, 'should_run', lambda times: False)
+    checked = []
+    monkeypatch.setattr(pub, 'check_publication', lambda times: checked.append(times))
+    monkeypatch.setattr(pub.psycopg, 'connect', lambda *a, **k: pytest.fail('a check tick connected'))
+    assert pub.main(['publisher.py', 'daily']) == 0 and checked == [[(7, 30), (19, 0)]]
+
+
+def wire_main(monkeypatch, conn, bucket):
+    monkeypatch.setattr(pub.psycopg, 'connect', lambda *a, **k: __import__('contextlib').nullcontext(conn))
+    monkeypatch.setattr(pub, 'Bucket', lambda: bucket)
+    monkeypatch.setenv('TERMINAL_PUBLISHER_DATABASE_URL', 'unused')
+    monkeypatch.delenv('TERMINAL_RUN_TIMES_WIB', raising=False)
+
+
+def test_a_failed_run_reports_its_step_and_error_class_and_still_fails(monkeypatch, alerts, capsys):
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    wire_main(monkeypatch, conn, bucket)
+    assert pub.main(['publisher.py', 'backfill']) == 0
+    put = bucket.put
+    bucket.put = lambda key, body, ctype: ((_ for _ in ()).throw(OSError('secret detail'))
+                                           if key.startswith('manifest/') else put(key, body, ctype))
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    with pytest.raises(OSError):
+        pub.main(['publisher.py', 'daily'])
+    (alert,) = alerts
+    assert alert['details']['status'] == 'failed' and alert['details']['stage'] == 'manifests'
+    assert alert['details']['error'] == 'OSError' and alert['details']['manual'] is True
+    assert alert['details']['last_published'] == json.loads(bucket.objects['state.json'])['finished_at']
+    assert 'secret detail' not in json.dumps(alert) and '"failed"' in capsys.readouterr().out
+    conn._rows = lambda sql, params: (_ for _ in ()).throw(pub.psycopg.OperationalError('password=x'))
+    assert pub.main(['publisher.py', 'daily']) == 2                       # a driver error: the class only, exit 2
+    assert alerts[-1]['details']['stage'] == 'plan' and 'password' not in json.dumps(alerts[-1])
+
+
+def test_a_run_that_publishes_without_an_xsection_file_reports_it_as_partial(monkeypatch, alerts):
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    wire_main(monkeypatch, conn, bucket)
+    rows = conn._rows
+    conn._rows = lambda sql, params: (_ for _ in ()).throw(TimeoutError()) if sql == pub.XSECTION_PRICE_SQL else rows(sql, params)
+    assert pub.main(['publisher.py', 'daily']) == 3
+    (alert,) = alerts
+    assert alert['details']['status'] == 'partial' and alert['details']['files'] == ['price']
+    assert alert['execution_id'].endswith('-partial')
+
+
+def test_the_watchdog_alerts_once_after_its_minutes_and_never_once_stopped():
+    calls = []
+    dog = pub.Watchdog(0.001, lambda: calls.append(1))                   # 60 ms
+    pub.time.sleep(0.3)
+    assert calls == [1]
+    dog = pub.Watchdog(0.01, lambda: calls.append(2))
+    dog.stop()
+    pub.time.sleep(0.8)
+    assert calls == [1]
+
+
+def test_a_failed_xsection_upload_is_that_files_failure_and_the_rest_is_published():
+    """The xsection files are put at once (store now=True), not through the pool: a failed put is caught where the file
+    is built (xsection_failed, exit 3), as before EXEC-PUBLISHER-SPEED, not the whole run's at the next barrier."""
+    _, conn, bucket = run('backfill')
+    before = bucket.get_json('state.json')['xsection']
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    put = bucket.put
+    bucket.put = lambda key, body, ctype: ((_ for _ in ()).throw(PermissionError('denied'))
+                                           if key.startswith('xsection/price.') else put(key, body, ctype))
+    p = pub.Publisher(conn, bucket, today=TODAY, threads=8)
+    p.run('daily')
+    after = bucket.get_json('state.json')
+    assert p.xsection_failed == ['price'] and after['xsection']['price'] == before['price']
+    assert bucket.get_json('manifest/BBCA.json')['datasets']['price']['files']['2026']['rows'] == 2
+
+
+def test_the_logo_index_is_put_after_the_images_it_names():
+    bucket = SlowBucket(slow=lambda key: 0.3 if key == 'logo/BBCA.png' else 0)
+    p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get(), threads=8)
+    p.run('logos')
+    assert bucket.spans['logo/BBCA.png'][1] <= bucket.spans['ref/logos.json.gz'][0]

@@ -5,9 +5,9 @@ terminal-display. Browsers download them through presigned URLs issued by termin
 
 Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   daily         price: every ticker-year whose source stamp changed; broker: the ticker-years of trading dates newer
-                than the published data_through. Reference files are refreshed. Run after the price cron. Before it
-                writes, the files no manifest or state.json index names any more are deleted (collect_garbage,
-                ERRORS M250).
+                than the published data_through. Reference files are refreshed. Run after the price cron. After its
+                state.json, the files no manifest or state.json index of this run or the one before names any more
+                are deleted (collect_garbage, ERRORS M250; after the publication since EXEC-PUBLISHER-SPEED, M301).
   backfill      every ticker-year of the window (initial load or a schema change).
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
                 refresh_feature_05 of that range (the same arguments).
@@ -19,10 +19,21 @@ The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_B
 `price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward.
 
 Schedule (T7, user 2026-10-26): TERMINAL_RUN_TIMES_WIB=07:30,19:00 and the service's Railway cronSchedule =
-cron_for(those times) ("0,30 0,12 * * *"); a tick that is not a listed time exits at once (should_run). A Railway
-service with a cronSchedule does not run when deployed: for a manual run clear the cronSchedule, upload a NEW deployment
-(`railway up`; a `railway redeploy` keeps the old deployment's cron and does not run, ERRORS M229) and set the
-cronSchedule back after the run.
+cron_for(those times) ("0,30 0,1,12 * * *": the run times and, CHECK_AFTER_MINUTES later, the check times). A tick that
+is not a run time does not publish (should_run): it checks that the last run time's publication came out
+(check_publication) and exits. A Railway service with a cronSchedule does not run when deployed: for a manual run clear
+the cronSchedule, upload a NEW deployment (`railway up`; a `railway redeploy` keeps the old deployment's cron and does
+not run, ERRORS M229) and set the cronSchedule back after the run.
+
+Alerts (EXEC-PUBLISHER-SPEED, user go 2026-10-29; ERRORS M303): through telegram-monitor's /notify (source
+Terminal_Publisher_Health), one message per kind and run time: a run that fails (`failed`), a run still going after
+TERMINAL_RUN_ALERT_MINUTES (`slow`), a run that published without an xsection or reference file (`partial`), and a run
+time whose publication a check tick does not find (`missing`; the same message id as `failed`, so one of the two).
+
+Speed (EXEC-PUBLISHER-SPEED, ERRORS M301): the bucket is in `sin` and the publisher in `sfo` with the database; a bucket
+request takes about 0.55 s, so the manifests are read and every object is put by TERMINAL_BUCKET_THREADS threads
+(Uploads), with a barrier (Uploads.wait) before the manifests and before state.json. Database statements stay on one
+connection, in order.
 Price and broker are published from their first stored year (broker: T8, user 2026-10-26).
 
 Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M250):
@@ -53,10 +64,10 @@ the state.json that indexes them, so a reader never sees a manifest or an index 
 yet. A changed data file, pack, xsection or content-keyed reference file is a new object (its key carries its sha256)
 and an object is never written again with other bytes, so the bytes a manifest or index that terminal-api still serves
 names stay readable during a run (ERRORS M250, user 2026-10-27; content_key, store). Files written before content keys
-keep their fixed key until their bytes change. A daily run deletes, before it writes anything, the data files no
-manifest names any more and the xsection and content-keyed reference files their state.json index no longer names,
-once no reader can still use them (collect_garbage). Manifests, the fixed-key reference files, logos and state.json
-keep fixed keys: readers open them by name and they are never deleted. A failed xsection or content-keyed reference
+keep their fixed key until their bytes change. A daily run deletes, after its state.json, the data files that neither
+its manifests nor the ones it started from name any more and the xsection and content-keyed reference files neither of
+those state.json indexes names, once no reader can still use them (collect_garbage). Manifests, the fixed-key
+reference files, logos and state.json keep fixed keys: readers open them by name and they are never deleted. A failed xsection or content-keyed reference
 file keeps its previous index entry, the rest of the run (the Terminal's and the Backtest's files, state.json) goes
 on, and the run exits 3. The universe and the changes are derived from the database at run time; no ticker list is
 coded.
@@ -68,6 +79,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -188,6 +200,19 @@ GC_LIST_SECONDS = 900
 BUCKET_TRANSIENT_CODES = {'RequestCanceled', 'RequestTimeout', 'RequestTimeoutException', 'InternalError',
                           'ServiceUnavailable', 'SlowDown', 'Throttling', '500', '502', '503', '504'}
 BUCKET_RETRY_DELAYS = (2, 4, 8)
+# EXEC-PUBLISHER-SPEED (user go 2026-10-29, ERRORS M301): the bucket requests of a run go through this many threads
+# (TERMINAL_BUCKET_THREADS). Measured read-only from a US host to the bucket in `sin` on 2026-10-29: one GET 0.54 s;
+# 64 GETs took 5.8 s with 8 threads, 2.95 s with 16 and 2.1 s with 32 (verification/terminal_api/PUBLISHER_SPEED.md).
+BUCKET_THREADS = 16
+# A bucket answer that does not start within BUCKET_READ_SECONDS is a ReadTimeoutError, asked again by `retried`
+# (botocore's default was 60 s with 5 attempts: one hung listing page held the cleanup for about 6 minutes, twice, in
+# the run of 2026-10-29). The timeout is per socket operation, not per request, so a large upload is not cut.
+BUCKET_CONNECT_SECONDS, BUCKET_READ_SECONDS, BUCKET_ATTEMPTS = 10, 30, 3
+# check_publication: a tick this many minutes after a run time checks that run time's publication (cron_for)
+CHECK_AFTER_MINUTES = 30
+# a daily run still going after this many minutes sends the `slow` alert once (TERMINAL_RUN_ALERT_MINUTES)
+RUN_ALERT_MINUTES = 30
+HEALTH_SOURCE = 'Terminal_Publisher_Health'
 
 
 def fetch(url, data=None, timeout=30):
@@ -220,8 +245,19 @@ def tradingview_logoids(get=fetch):
         return {}
 
 
+LOG_LOCK = threading.Lock()
+
+
 def log(event, **kw):
-    print(json.dumps({'event': event, **kw}, default=str), flush=True)
+    """One JSON line; the bucket threads log too (bucket_retry), so a line is written whole under a lock."""
+    line = json.dumps({'event': event, **kw}, default=str)
+    with LOG_LOCK:
+        print(line, flush=True)
+
+
+def bucket_threads():
+    """TERMINAL_BUCKET_THREADS, at least 1 (1: one request at a time, as before EXEC-PUBLISHER-SPEED)."""
+    return max(1, int(os.environ.get('TERMINAL_BUCKET_THREADS') or BUCKET_THREADS))
 
 
 def window(today=None, years=None):
@@ -530,7 +566,9 @@ class Bucket:
             's3', endpoint_url=os.environ['TERMINAL_BUCKET_ENDPOINT'], region_name=os.environ['TERMINAL_BUCKET_REGION'],
             aws_access_key_id=os.environ['TERMINAL_BUCKET_ACCESS_KEY_ID'],
             aws_secret_access_key=os.environ['TERMINAL_BUCKET_SECRET_ACCESS_KEY'],
-            config=Config(s3={'addressing_style': 'virtual'}, signature_version='s3v4', retries={'max_attempts': 5}))
+            config=Config(s3={'addressing_style': 'virtual'}, signature_version='s3v4',
+                          retries={'max_attempts': BUCKET_ATTEMPTS}, connect_timeout=BUCKET_CONNECT_SECONDS,
+                          read_timeout=BUCKET_READ_SECONDS, max_pool_connections=max(10, 2 * bucket_threads())))
 
     def put(self, key, body, content_type):
         retried(lambda: self.s3.put_object(
@@ -575,8 +613,60 @@ class Bucket:
         return json.loads(gzip.decompress(body) if key.endswith('.gz') else body)
 
 
+class Uploads:
+    """EXEC-PUBLISHER-SPEED (user go 2026-10-29, ERRORS M301): the run's bucket puts, `threads` at a time. One at a time
+    they were most of the 55-minute run of 2026-10-29 (about 2,500 puts at about 0.55 s each, sfo to sin). The run keeps
+    building files (database statements stay on its one connection, in order) while earlier puts are in flight; at most
+    4 x threads puts wait, so a backfill's memory stays bounded. `wait` is the barrier between the steps whose order
+    readers rely on (data files and packs, then manifests, then state.json): it returns once every put asked so far is
+    in the bucket and raises the first failure, so the run stops before a manifest or state.json can name an object that
+    was not written. After a failure no new put is asked. threads 1: every put at once, in order, as before."""
+
+    def __init__(self, bucket, threads):
+        self.bucket, self.threads = bucket, threads
+        self.pool, self.futures, self.error = None, [], None
+        self.slots = threading.BoundedSemaphore(4 * threads)
+
+    def put(self, key, body, content_type):
+        if self.error is not None:
+            raise self.error
+        if self.threads <= 1:
+            self.bucket.put(key, body, content_type)
+            return
+        if self.pool is None:
+            self.pool = ThreadPoolExecutor(self.threads, thread_name_prefix='put')
+        self.slots.acquire()
+        try:
+            future = self.pool.submit(self.bucket.put, key, body, content_type)
+        except BaseException:
+            self.slots.release()
+            raise
+        future.add_done_callback(self._done)
+        self.futures.append(future)
+
+    def _done(self, future):
+        self.slots.release()
+        if not future.cancelled() and future.exception() is not None and self.error is None:
+            self.error = future.exception()
+
+    def wait(self):
+        futures, self.futures = self.futures, []
+        for future in futures:
+            if not future.cancelled():
+                future.exception()                       # blocks until that put is done; _done keeps the first error
+        if self.error is not None:
+            raise self.error
+
+    def close(self):
+        """End the pool (a failed run: the puts not started are dropped); a later run starts a new one."""
+        if self.pool is not None:
+            self.pool.shutdown(wait=True, cancel_futures=True)
+        self.pool, self.futures, self.error = None, [], None
+        self.slots = threading.BoundedSemaphore(4 * self.threads)
+
+
 class Publisher:
-    def __init__(self, conn, bucket, today=None, get=None, clock=None):
+    def __init__(self, conn, bucket, today=None, get=None, clock=None, threads=None):
         self.conn, self.bucket = conn, bucket
         self.get = get or fetch                                  # HTTP for the logo sources (tests pass a fake)
         self.clock = clock or (lambda: dt.datetime.now(dt.timezone.utc))   # collect_garbage's grace (tests pass a fake)
@@ -595,6 +685,18 @@ class Publisher:
         self.ref_written = {}                               # name -> the bytes put under its fixed key this run
         self.refs = {}                                      # the `refs` index written into state.json (index_refs)
         self.refs_failed = []                               # reference files whose content copy failed (entry kept)
+        self.threads = threads or bucket_threads()          # EXEC-PUBLISHER-SPEED: bucket requests in parallel
+        self.uploads = Uploads(bucket, self.threads)
+        self.stage = 'start'                                # the step the run is in (alerts, the done line's phases)
+        self.phases = {}                                    # step -> seconds (the done line)
+        self.previous_finished = None                       # state.json finished_at when the run started (alerts)
+
+    def step(self, name):
+        """Enter step `name`; the time since the previous step is booked on that one (the done line's phases)."""
+        now = time.monotonic()
+        if getattr(self, '_step_at', None) is not None:
+            self.phases[self.stage] = round(self.phases.get(self.stage, 0) + now - self._step_at, 1)
+        self.stage, self._step_at = name, now
 
     # ---- manifests -------------------------------------------------------------------------------------------
     def manifest(self, ticker):
@@ -602,6 +704,22 @@ class Publisher:
             m = self.bucket.get_json(f'manifest/{ticker}.json')
             self.manifests[ticker] = m or {'schema_version': SCHEMA_VERSION, 'ticker': ticker, 'datasets': {}}
         return self.manifests[ticker]
+
+    def load_manifests(self, tickers):
+        """The manifests of `tickers` not read yet, `threads` at a time (EXEC-PUBLISHER-SPEED: one at a time, the 845 of
+        2026-10-29 took 8.7 minutes, \"the slow part of planning\"). A ticker without one starts empty, as in `manifest`;
+        a failed read ends the run, as before."""
+        todo = [t for t in dict.fromkeys(tickers) if t not in self.manifests]
+        if not todo:
+            return
+        read = lambda t: self.bucket.get_json(f'manifest/{t}.json')
+        if self.threads <= 1:
+            found = map(read, todo)
+        else:
+            with ThreadPoolExecutor(self.threads, thread_name_prefix='get') as ex:
+                found = list(ex.map(read, todo))
+        for t, m in zip(todo, found):
+            self.manifests[t] = m or {'schema_version': SCHEMA_VERSION, 'ticker': t, 'datasets': {}}
 
     def save_manifest(self, ticker, data_through):
         m = self.manifest(ticker)
@@ -614,23 +732,24 @@ class Publisher:
             ds['first_year'] = first
             ds['files'] = {y: f for y, f in ds['files'].items() if not y.isdigit() or int(y) >= first}
         m['generated_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
-        self.bucket.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
+        self.uploads.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
 
     # ---- one file --------------------------------------------------------------------------------------------
-    def store(self, entry, family, ticker, name, body, sha, present=None, counted=True):
+    def store(self, entry, family, ticker, name, body, sha, present=None, counted=True, now=False):
         """Upload a data file, pack, xsection or reference file under its content key unless its manifest entry
         (xsection, ref: its state.json index entry) already names these bytes. -> (key with v1/, uploaded). An object
         is never written with other bytes (ERRORS M250). `present` (xsection, ref: the keys a listing of the bucket
         holds) also puts an object its entry names but the bucket lacks again, with the same bytes, and does not put a
         key the bucket already holds. `counted` False keeps the upload out of files_written (reference files, which
-        were never counted there)."""
+        were never counted there). `now` puts at once instead of through `uploads` (the xsection and reference files: a
+        failed put is that file's failure, caught where it is built, not the run's at the next barrier)."""
         named = entry.get('key') if entry.get('sha256') == sha else None
         if named and (present is None or named[len(PREFIX) + 1:] in present):
             return named, False
         key = content_key(family, ticker, name, sha)
         if present is not None and key in present:
             return f'{PREFIX}/{key}', False
-        self.bucket.put(key, body, 'application/gzip')
+        (self.bucket if now else self.uploads).put(key, body, 'application/gzip')   # uploads: by the next wait
         if counted:
             self.written += 1
             self.bytes += len(body)
@@ -742,7 +861,7 @@ class Publisher:
             doc, rows, as_of, info = self.xsection_actions(kind, through['events'])
         body, sha = encode(doc)
         del doc
-        key, uploaded = self.store(previous.get(name, {}), 'xsection', None, name, body, sha, present)
+        key, uploaded = self.store(previous.get(name, {}), 'xsection', None, name, body, sha, present, now=True)
         log('xsection', name=name, key=key, rows=rows, bytes=len(body), uploaded=uploaded, as_of=as_of,
             seconds=round(time.monotonic() - started, 1), **info)
         return {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
@@ -798,7 +917,7 @@ class Publisher:
                 doc = json.loads(gzip.decompress(body))
                 rows = len(doc[doc['columns'][0]])                  # every reference file is columnar
                 sha = hashlib.sha256(body).hexdigest()
-                key, put = self.store(previous.get(name, {}), 'ref', None, name, body, sha, present, counted=False)
+                key, put = self.store(previous.get(name, {}), 'ref', None, name, body, sha, present, counted=False, now=True)
                 out[name] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows}
                 if put:
                     uploaded.append(name)
@@ -834,13 +953,14 @@ class Publisher:
             body, ext, source = hit
             sha, name = hashlib.sha256(body).hexdigest(), f'{ticker}.{ext}'
             if known.get(ticker) != (name, sha):
-                self.bucket.put(f'logo/{name}', body, 'image/png' if ext == 'png' else 'image/svg+xml')
+                self.uploads.put(f'logo/{name}', body, 'image/png' if ext == 'png' else 'image/svg+xml')
                 uploaded += 1
             rows.append((ticker, name, sha, source, now))
             sources[source] = sources.get(source, 0) + 1
         doc = {'schema_version': SCHEMA_VERSION, 'columns': ['ticker', 'file', 'sha256', 'source', 'fetched_at'],
                **columnar(rows, ['ticker', 'file', 'sha256', 'source', 'fetched_at']), 'generated_at': now}
         body, _ = encode(doc)
+        self.uploads.wait()                                         # the images before the index that names them
         self.bucket.put(ref_key('logos'), body, 'application/gzip')
         self.ref_written['logos'] = body                            # its content-keyed copy: index_refs
         log('logos', tickers=len(tickers), with_logo=len(rows), uploaded=uploaded, sources=sources,
@@ -869,12 +989,34 @@ class Publisher:
 
     # ---- modes -----------------------------------------------------------------------------------------------
     def run(self, mode, start_from=None, end_to=None, only=None):
+        """One run of `mode`. The bucket requests go through `uploads` (EXEC-PUBLISHER-SPEED); its pool ends with the run,
+        and a failed run drops the puts it had not started (the objects already put are content-keyed and harmless: no
+        manifest or index names them, and the cleanup takes them once they are older than a finished run)."""
+        try:
+            self._run(mode, start_from, end_to, only)
+        finally:
+            self.uploads.close()
+
+    def _run(self, mode, start_from=None, end_to=None, only=None):
         started = time.monotonic()
+        self.step('plan')
         universe = self.universe()
         kind = {t: typ for t, _, typ, *_ in universe}
         through = self.data_through()
         self.resolve_price_first_year()
         state = self.bucket.get_json('state.json') or {}
+        self.previous_finished = state.get('finished_at')
+        previous = xsection_entries(state.get('xsection'))        # the index terminal-api serves (EXEC-SCREENER)
+        previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
+        # the cleanup after state.json needs what the bucket held before this run wrote anything (collect_garbage)
+        before = self.cleanup_baseline() if mode == 'daily' else None
+        loaded = time.monotonic()
+        self.load_manifests(kind)
+        log('planning', step='manifests read', tickers=len(kind), seconds=round(time.monotonic() - loaded, 1),
+            threads=self.threads)
+        if before is not None:
+            before['named'] = {t: named_keys(m) for t, m in self.manifests.items()}
+            before['indexes'] = {'xsection': previous, 'ref': previous_refs}
         todo = []  # (dataset, ticker, year, stamp)
         years = range(self.broker_first_year, self.last_year + 1)
         if mode == 'backfill':
@@ -902,10 +1044,7 @@ class Publisher:
             raise SystemExit(f'unknown mode {mode}')
         log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year],
             price_first_year=self.price_first_year, broker_first_year=self.broker_first_year, data_through=through)
-        previous = xsection_entries(state.get('xsection'))        # the index terminal-api serves (EXEC-SCREENER)
-        previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
-        if mode == 'daily':                                       # before the first write of this run (ERRORS M250)
-            self.collect_garbage({'xsection': previous, 'ref': previous_refs})
+        self.step('files')
         touched = set()
         for n, (dataset, ticker, year, stamp) in enumerate(todo, 1):
             self.publish(dataset, ticker, year, stamp)
@@ -913,6 +1052,7 @@ class Publisher:
             if n % 500 == 0:
                 log('progress', done=n, of=len(todo), written=self.written, mb=round(self.bytes / 1e6, 1))
         # packs: every ticker in mode packs (or a ticker without them yet), else the tickers whose files changed
+        self.step('packs')
         pack_tickers = list(kind) if mode in ('packs', 'backfill') else sorted({t for _, t, _ in self.changed})
         for n, ticker in enumerate(pack_tickers, 1):
             self.publish_packs(ticker, kind.get(ticker), force=mode == 'backfill')
@@ -922,10 +1062,11 @@ class Publisher:
         # EXEC-SCREENER: the xsection files after the files and packs (a pack the price file finds stale is republished
         # here, so its manifest is saved below) and before state.json, which indexes them. A file whose rebuild fails
         # keeps its previous entry; the Terminal's and the Backtest's publication goes on.
+        self.step('xsection')
         self.xsection, self.xsection_failed = dict(previous), []
         rebuilt = [name for name, modes in XSECTION_REBUILT_BY.items() if mode in modes]
         # a key the bucket holds is not put again; an indexed object the listing lacks (deleted by hand) is put again,
-        # the same bytes. The listing comes after collect_garbage, so it never names an object this run deleted.
+        # the same bytes. The cleanup runs after state.json, so no object this listing names is deleted during the run.
         present = self.present_keys('xsection', previous) if rebuilt else None
         for name in rebuilt:
             try:
@@ -933,6 +1074,9 @@ class Publisher:
             except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
                 self.xsection_failed.append(name)
                 log('xsection_failed', name=name, error=type(e).__name__, kept=self.xsection.get(name, {}).get('key'))
+        # barrier: every data file, pack and xsection file is in the bucket before a manifest names it
+        self.uploads.wait()
+        self.step('manifests')
         for ticker in sorted(touched):
             datasets = {'price': through['price']}
             if kind.get(ticker) == 'stock':
@@ -940,12 +1084,17 @@ class Publisher:
             if self.manifest(ticker)['datasets'].get('events', {}).get('files'):
                 datasets['events'] = through['events']
             self.save_manifest(ticker, datasets)
+        self.uploads.wait()
+        self.step('refs')
         self.publish_refs(universe)
         if mode == 'logos' or (mode == 'daily' and self.logos_stale()):
             self.publish_logos(universe)
         # EXEC-MU-RUNTIME T5: the reference files' content-keyed copies, after their fixed-key copies and before the
         # state.json that indexes them (every mode: the ticker and broker lists are rewritten by every run)
         self.refs = self.index_refs(previous_refs)
+        # barrier: every manifest and content-keyed reference copy is in the bucket before state.json
+        self.uploads.wait()
+        self.step('state')
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
         self.broker_behind = self.conn.execute(BEHIND_SQL, (through['broker'],)).fetchone()[0] if through['broker'] else None
         self.bucket.put('state.json', json.dumps({
@@ -954,36 +1103,70 @@ class Publisher:
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
             'refs': self.refs, 'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
+        self.step('cleanup')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind,
             xsection=sorted(self.xsection), xsection_failed=self.xsection_failed, refs=sorted(self.refs),
-            refs_failed=self.refs_failed)
+            refs_failed=self.refs_failed, phases=self.phases, threads=self.threads)
+        if mode == 'daily':
+            # ERRORS M301 (EXEC-PUBLISHER-SPEED): after the publication, never in front of it. The same objects go as
+            # when the cleanup ran before the next run's first write (collect_garbage); a failure only logs.
+            if before is not None:
+                self.collect_garbage({'xsection': self.xsection, 'ref': self.refs}, before)
+            else:
+                log('gc_skipped', reason='no listing of the bucket before this run')
 
-    def collect_garbage(self, indexes=None):
+    def cleanup_baseline(self):
+        """What the bucket held before this run wrote anything, for the cleanup after its state.json (collect_garbage):
+        the time of the last finished run (state.json LastModified) and of every manifest, from two listings (a prefix
+        each; about 2 s on dev). None, logged as gc_failed, when the bucket cannot list them: the cleanup is skipped and
+        the run publishes."""
+        try:
+            deadline = time.monotonic() + GC_LIST_SECONDS
+            finished = (self.bucket.list(deadline, prefix='state.json').get('state.json') or (None,))[0]
+            manifests = {key[len('manifest/'):-len('.json')]: at
+                         for key, (at, _) in self.bucket.list(deadline, prefix='manifest/').items()
+                         if key.endswith('.json') and key.count('/') == 1}
+            return {'finished': finished, 'manifests': manifests}
+        except Exception as e:  # noqa: BLE001 - the cleanup never stops a publication; the class only, no detail
+            log('gc_failed', step='baseline', error=type(e).__name__)
+            return None
+
+    def collect_garbage(self, indexes=None, before=None):
         """ERRORS M250 (user 2026-10-27, option A of 3): delete the data files and packs no manifest names any more, and
         the files of an indexed family (INDEXED: xsection, EXEC-SCREENER; ref, EXEC-MU-RUNTIME T5) their state.json
-        index no longer names (that index is their manifest), once no reader can still use them. It runs in a daily run
-        before the run writes anything, so the manifests and the indexes it reads are the ones terminal-api serves (its
-        cache follows state.json finished_at, bucket.py _fresh). An object is deleted only when all of these hold:
+        index no longer names (that index is their manifest), once no reader can still use them.
+
+        A daily run calls it after its own state.json (EXEC-PUBLISHER-SPEED, ERRORS M301: before, it ran in front of the
+        first write and one slow listing delayed the publication 19 minutes), with `before`, what the bucket held when
+        the run started (cleanup_baseline, plus `named`: each manifest's keys as read then, and `indexes`: that
+        state.json's index entries), and `indexes`, the entries this run wrote. An object a reader of either publication
+        can hold is kept: the rule below protects what the previous manifests and indexes name as well as the new ones,
+        and its times are those of the previous state.json. So it deletes exactly what the old cleanup deleted at the
+        start of the next daily run, a few minutes later than that. Without `before` (a call outside a run) the bucket's
+        state.json and manifests are both "previous" and "new": the rule of the old cleanup.
+
+        An object is deleted only when all of these hold:
           - its key is <family>/<ticker>/<file>, the family being one that the manifests name (derived from them, so a
-            new dataset is covered), and the ticker has a manifest that names at least one file but not this one;
-            or its key is an object of an indexed family (its pattern: `xsection/<name>.<16 hex>.json.gz`,
-            `ref/<name>.<16 hex>.json.gz`; nothing else under xsection/ or ref/, so the fixed-key reference files never
-            match) and that family's state.json index names at least one file but not this one (`indexes`: {family:
-            that index as its entries reader keeps it}, read from the bucket's state.json when not given; terminal-api
-            presigns only what it names; a state.json without an index of the family, from a publisher before its
-            writer or a rollback to one, deletes none of that family);
-          - that manifest and the object were written no later than state.json, the last finished run: a manifest
-            written after it comes from a run that did not finish, and terminal-api may still serve the one before it;
-            an object written after it may belong to such a run;
-          - the last finished run ended at least GC_GRACE_SECONDS ago.
+            new dataset is covered), and the ticker has a manifest that names at least one file but not this one (with
+            `before`: neither its manifest as read at the start nor the one this run holds names it); or its key is an
+            object of an indexed family (its pattern: `xsection/<name>.<16 hex>.json.gz`, `ref/<name>.<16 hex>.json.gz`;
+            nothing else under xsection/ or ref/, so the fixed-key reference files never match) and that family's
+            state.json index names at least one file but not this one (with `before`: neither the previous nor the new
+            index names it; terminal-api presigns only what an index names; a previous state.json without an index of
+            the family, from a publisher before its writer or a rollback to one, deletes none of that family);
+          - that manifest and the object were written no later than the last finished run's state.json (with `before`:
+            the one this run started from): a manifest written after it comes from a run that did not finish, and
+            terminal-api may still serve the one before it; an object written after it may belong to such a run, or to
+            this one;
+          - that run ended at least GC_GRACE_SECONDS ago.
         A listing longer than GC_LIST_SECONDS is abandoned and nothing is deleted.
         Manifests, the fixed-key reference files, logos and state.json are never deleted. A failure is logged; the run
         goes on."""
         try:
             started = time.monotonic()
             listing = self.bucket.list(deadline=started + GC_LIST_SECONDS)
-            finished = (listing.get('state.json') or (None,))[0]
+            finished = before['finished'] if before is not None else (listing.get('state.json') or (None,))[0]
             if finished is None:
                 log('gc_skipped', reason='no finished run (state.json)'); return 0
             age = (self.clock() - finished).total_seconds()
@@ -995,8 +1178,15 @@ class Publisher:
                 if not (key.startswith('manifest/') and key.endswith('.json')):
                     continue
                 ticker = key[len('manifest/'):-len('.json')]
-                keys = named_keys(self.manifests.get(ticker) or self.bucket.get_json(key))
-                if not keys or at > finished:
+                if before is None:
+                    keys = named_keys(self.manifests.get(ticker) or self.bucket.get_json(key))
+                elif (was := before['manifests'].get(ticker)) is None or was > finished:
+                    keys = set()                                  # new in this run, or written by a run that did not finish
+                elif ticker in before['named']:
+                    keys = before['named'][ticker] | named_keys(self.manifests.get(ticker))
+                else:                                             # not read at the start: this run did not write it
+                    keys = named_keys(self.bucket.get_json(key)) if at == was else set()
+                if not keys or (before is None and at > finished):
                     skipped += 1                                  # unread, empty, or written by a run that did not finish
                     continue
                 named[ticker] = keys
@@ -1004,8 +1194,11 @@ class Publisher:
             if indexes is None:
                 state = self.bucket.get_json('state.json') or {}
                 indexes = {family: read(state.get(field)) for family, (field, _, read) in INDEXED.items()}
-            indexed = {family: {e['key'][len(PREFIX) + 1:] for e in (indexes.get(family) or {}).values()}
-                       for family in INDEXED}
+            keys_of = lambda entries: {e['key'][len(PREFIX) + 1:] for e in (entries or {}).values()}
+            indexed = {family: keys_of(indexes.get(family)) for family in INDEXED}
+            if before is not None:                                # what either publication names; none if the old named none
+                indexed = {family: (keys_of(before['indexes'].get(family)) | indexed[family])
+                           if keys_of(before['indexes'].get(family)) else set() for family in INDEXED}
             doomed, freed, newer = [], 0, 0
             for key, (at, size) in listing.items():
                 parts = key.split('/')
@@ -1023,7 +1216,7 @@ class Publisher:
             log('gc', deleted=len(doomed) - len(failed), not_deleted=len(failed), mb=round(freed / 1e6, 1),
                 kept_newer_than_last_run=newer, tickers_skipped=skipped, families=sorted(families),
                 xsection_named=len(indexed['xsection']), refs_named=len(indexed['ref']), objects_listed=len(listing),
-                last_run_finished=finished,
+                last_run_finished=finished, after_publication=before is not None,
                 seconds=round(time.monotonic() - started, 1))
             return len(doomed) - len(failed)
         except Exception as e:  # noqa: BLE001 - the cleanup never stops a publication; the class only, no detail
@@ -1046,16 +1239,12 @@ class Publisher:
     def changed_prices(self, kind):
         """Price ticker-years whose source stamp (rows, last date, last ingestion, sum of closes) differs from the
         manifest; a correction of an old candle changes the stamp of its year."""
-        out, seen = [], set()
+        out = []
         rows = self.conn.execute(PRICE_STAMPS_SQL, (f'{self.price_first_year}-01-01',)).fetchall()
         log('planning', step='price stamps read', ticker_years=len(rows))
         for ticker, year, count, last, ingested, total in rows:
             if ticker not in kind:
                 continue
-            if ticker not in seen:  # reading each manifest from the bucket is the slow part of planning
-                seen.add(ticker)
-                if len(seen) % 200 == 0:
-                    log('planning', step='manifests read', tickers=len(seen))
             stamp = f'rows={count};last={last};ing={ingested};sum={total}'
             current = self.manifest(ticker)['datasets'].get('price', {}).get('files', {}).get(str(year), {})
             if current.get('stamp') != stamp:
@@ -1196,11 +1385,21 @@ def run_times(value):
     return out
 
 
+def check_times(times):
+    """The WIB times CHECK_AFTER_MINUTES after each run time: a tick there checks that run time's publication."""
+    return [((h * 60 + m + CHECK_AFTER_MINUTES) // 60 % 24, (m + CHECK_AFTER_MINUTES) % 60) for h, m in times]
+
+
+def cron_parts(times):
+    """The UTC minutes and hours of the cron: those of the run times and of their check times."""
+    utc = [((h - 7) % 24, m) for h, m in list(times) + check_times(times)]
+    return sorted({m for _, m in utc}), sorted({h for h, _ in utc})
+
+
 def cron_for(times):
-    """The one Railway cronSchedule (UTC) that fires at every listed WIB time: the product of their UTC minutes and
-    hours; ticks that are not a listed time are skipped by should_run."""
-    utc = [((h - 7) % 24, m) for h, m in times]
-    minutes = sorted({m for _, m in utc}); hours = sorted({h for h, _ in utc})
+    """The one Railway cronSchedule (UTC) that fires at every listed WIB time and every check time: the product of their
+    UTC minutes and hours; ticks that are not a run time do not publish (should_run) and check (check_publication)."""
+    minutes, hours = cron_parts(times)
     return f"{','.join(map(str, minutes))} {','.join(map(str, hours))} * * *"
 
 
@@ -1211,27 +1410,101 @@ def near_time(times, now=None, slack_minutes=20):
     return any(0 <= (mins - (h * 60 + m)) % 1440 <= slack_minutes for h, m in times)
 
 
-def notify_broker_behind(run_day):
-    """EXEC-TERMINAL-FRESH (user 2026-10-27: "peringatan Telegram kalau broker masih tertinggal setelah putaran 19:00
-    WIB"): ask telegram-monitor once per day; it reads the gap from the tables itself and sends only when one exists."""
+def post_notify(payload, event):
+    """POST `payload` to telegram-monitor's /notify (TELEGRAM_NOTIFY_URL, TELEGRAM_NOTIFY_SECRET); three tries. The URL
+    and the secret are never printed; a failure is logged and the caller goes on."""
     url, secret = os.environ.get('TELEGRAM_NOTIFY_URL', '').strip(), os.environ.get('TELEGRAM_NOTIFY_SECRET', '').strip()
     if not url or not secret:
-        log('broker_behind_notify_skipped', reason='not_configured'); return
-    body = json.dumps({'source_table': 'Terminal_Broker_Freshness', 'execution_id': f'terminal-{run_day}'}).encode()
+        log(f'{event}_skipped', reason='not_configured'); return
+    body = json.dumps(payload).encode()
     for attempt in range(1, 4):
         try:
             req = urllib.request.Request(url, data=body, method='POST',
                                          headers={'Content-Type': 'application/json', 'X-Notify-Secret': secret})
             with urllib.request.urlopen(req, timeout=20) as resp:
-                log('broker_behind_notify', status=json.loads(resp.read() or b'{}').get('status'), attempt=attempt); return
+                log(event, status=json.loads(resp.read() or b'{}').get('status'), attempt=attempt); return
         except Exception as e:                                   # the URL and secret are never printed
-            log('broker_behind_notify_failed', attempt=attempt, error=type(e).__name__)
+            log(f'{event}_failed', attempt=attempt, error=type(e).__name__)
             time.sleep(2 ** attempt)
+
+
+def notify_broker_behind(run_day):
+    """EXEC-TERMINAL-FRESH (user 2026-10-27: "peringatan Telegram kalau broker masih tertinggal setelah putaran 19:00
+    WIB"): ask telegram-monitor once per day; it reads the gap from the tables itself and sends only when one exists."""
+    post_notify({'source_table': 'Terminal_Broker_Freshness', 'execution_id': f'terminal-{run_day}'}, 'broker_behind_notify')
+
+
+def notify_publication(status, run_time, manual=False, **details):
+    """EXEC-PUBLISHER-SPEED (user go 2026-10-29, ERRORS M303): ask telegram-monitor (source Terminal_Publisher_Health) to
+    send one alert. `run_time`: the WIB run time the run belongs to (a manual run: its start). One message id per run
+    time for `failed` and `missing` (a failed run is not reported again as missing), one each for `slow` and `partial`.
+    `details` are the run's own facts (stage, error class, minutes, last_published, files), never free text: the
+    monitor refuses anything else."""
+    stamp = run_time.astimezone(WIB)
+    execution_id = 'terminal-publish-' + ('manual-' if manual else '') + stamp.strftime('%Y-%m-%d-%H%M')
+    if status not in ('failed', 'missing'):
+        execution_id += f'-{status}'
+    post_notify({'source_table': HEALTH_SOURCE, 'execution_id': execution_id,
+                 'details': {'status': status, 'run_time': stamp.strftime('%Y-%m-%d %H:%M'), 'manual': manual,
+                             **{k: v for k, v in details.items() if v is not None}}}, 'publication_notify')
+
+
+def run_slot(times, now, slack_minutes=20):
+    """(run time, manual) of a run started at `now`: the listed WIB run time it belongs to, or its own start (minute)
+    for a manual run."""
+    wib = now.astimezone(WIB).replace(second=0, microsecond=0)
+    for h, m in times:
+        slot = wib.replace(hour=h, minute=m)
+        if slot > wib:
+            slot -= dt.timedelta(days=1)
+        if (wib - slot) <= dt.timedelta(minutes=slack_minutes):
+            return slot, False
+    return wib, True
+
+
+def last_run_time(times, now):
+    """The latest listed WIB run time at or before `now`."""
+    wib = now.astimezone(WIB)
+    slots = []
+    for h, m in times:
+        slot = wib.replace(hour=h, minute=m, second=0, microsecond=0)
+        slots.append(slot if slot <= wib else slot - dt.timedelta(days=1))
+    return max(slots)
+
+
+def check_publication(times, now=None, bucket=None):
+    """ERRORS M303: on a tick that is not a run time, the publication of the last run time must be out: state.json
+    finished_at at or after that run time. Otherwise the `missing` alert (once per run time: the same message id as a
+    `failed` alert, so a run that reported its own failure is not reported again). A run still going when a tick
+    comes is reported as missing too: it has not published. A bucket that cannot be read is logged only."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    slot = last_run_time(times, now)
+    try:
+        finished = ((bucket or Bucket()).get_json('state.json') or {}).get('finished_at')
+    except Exception as e:  # noqa: BLE001 - the class only
+        log('check_failed', error=type(e).__name__); return
+    published = bool(finished) and dt.datetime.fromisoformat(finished) >= slot
+    log('check', run_time=slot.strftime('%Y-%m-%d %H:%M WIB'), published=published, last_published=finished)
+    if not published:
+        notify_publication('missing', slot, last_published=finished)
+
+
+class Watchdog:
+    """ERRORS M303: calls `alert` once when the run is still going after `minutes` (a run that hangs reports itself;
+    Railway does not start a cron tick while the run is going, so a check tick cannot)."""
+
+    def __init__(self, minutes, alert):
+        self.done = threading.Event()
+        threading.Thread(target=lambda: self.done.wait(minutes * 60) or alert(), daemon=True).start()
+
+    def stop(self):
+        self.done.set()
 
 
 def should_run(times, now=None, slack_minutes=20):
     """T7 (user 2026-10-26: "jadwal publisher ... jam 19.00 dan jam 7.30"): a run near a cron tick that is not a listed
-    time exits at once; a run near a listed time, or away from every tick (a deploy or manual run), goes ahead."""
+    time does not publish (main checks the last publication instead); a run near a listed time, or away from every tick
+    (a deploy or manual run), goes ahead."""
     if not times:
         return True
     now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(WIB)
@@ -1239,8 +1512,8 @@ def should_run(times, now=None, slack_minutes=20):
     near = lambda h, m: 0 <= (mins - (h * 60 + m)) % 1440 <= slack_minutes
     if any(near(h, m) for h, m in times):
         return True
-    utc = [((h - 7) % 24, m) for h, m in times]
-    ticks = {((uh + 7) % 24, um) for uh in {h for h, _ in utc} for um in {m for _, m in utc}}
+    minutes, hours = cron_parts(times)
+    ticks = {((uh + 7) % 24, um) for uh in hours for um in minutes}
     return not any(near(h, m) for h, m in ticks)
 
 
@@ -1250,21 +1523,44 @@ def main(argv):
     if mode == 'daily' and not should_run(times):
         log('skipped', reason='cron tick is not a listed run time', run_times_wib=os.environ.get('TERMINAL_RUN_TIMES_WIB'),
             cron=cron_for(times))
+        check_publication(times)
         return 0
-    with psycopg.connect(os.environ['TERMINAL_PUBLISHER_DATABASE_URL'], autocommit=True) as conn:
-        bucket = Bucket()
-        if mode == 'verify':
-            return 1 if verify(conn, bucket) else 0
-        only = [t.strip().upper() for t in os.environ.get('TERMINAL_TICKERS', '').split(',') if t.strip()] or None
-        started = dt.datetime.now(dt.timezone.utc)
-        pub = Publisher(conn, bucket)
-        pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only)
+    started = dt.datetime.now(dt.timezone.utc)
+    slot, manual = run_slot(times, started)
+    pub, watchdog = None, None
+    try:
+        with psycopg.connect(os.environ['TERMINAL_PUBLISHER_DATABASE_URL'], autocommit=True) as conn:
+            bucket = Bucket()
+            if mode == 'verify':
+                return 1 if verify(conn, bucket) else 0
+            only = [t.strip().upper() for t in os.environ.get('TERMINAL_TICKERS', '').split(',') if t.strip()] or None
+            pub = Publisher(conn, bucket)
+            if mode == 'daily':
+                minutes = int(os.environ.get('TERMINAL_RUN_ALERT_MINUTES') or RUN_ALERT_MINUTES)
+                watchdog = Watchdog(minutes, lambda: notify_publication(
+                    'slow', slot, manual, stage=pub.stage, minutes=minutes, last_published=pub.previous_finished))
+            pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only)
+    except Exception as e:  # noqa: BLE001 - reported, then raised (driver errors: the class only, as before)
+        stage = pub.stage if pub else 'connect'
+        log('failed', error=type(e).__name__, stage=stage)
+        if mode != 'verify':
+            notify_publication('failed', slot, manual, stage=stage, error=type(e).__name__,
+                               last_published=pub.previous_finished if pub else None)
+        if isinstance(e, psycopg.Error):
+            return 2                                     # driver errors may include connection details
+        raise
+    finally:
+        if watchdog:
+            watchdog.stop()
     # the evening run (TERMINAL_STALE_ALERT_WIB, default 19:00) warns when broker data lags the prices
     if mode == 'daily' and (pub.broker_behind or 0) >= 1 and near_time(run_times(os.environ.get('TERMINAL_STALE_ALERT_WIB', '19:00')), started):
         notify_broker_behind(started.astimezone(WIB).date().isoformat())
     # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3); so does a
     # reference file whose content-keyed copy failed (EXEC-MU-RUNTIME T5; its fixed-key copy was written)
-    return 3 if pub.xsection_failed or pub.refs_failed else 0
+    if pub.xsection_failed or pub.refs_failed:
+        notify_publication('partial', slot, manual, files=sorted(pub.xsection_failed + pub.refs_failed))
+        return 3
+    return 0
 
 
 if __name__ == '__main__':
