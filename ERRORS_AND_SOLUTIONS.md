@@ -4197,9 +4197,26 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **Class:** any housekeeping step placed before the step that publishes: the cleanup, and the per-manifest planning
   reads (one GET per ticker), for every dataset the publisher carries (prices, broker, events, xsection, refs, and the
   macro or cross-asset data planned).
-- **Solution:** OPEN, proposal to the user (FUTURE_PLAN): bound the cleanup by time and run it after `state.json` (its
-  grace rule already protects the publication being read), and later one manifest index object per run (EXEC-MU-RUNTIME
-  T9) instead of 845 GETs. No change made.
+- **Also verified (2026-10-29, EXEC-PUBLISHER-SPEED, `verification/terminal_api/publisher_speed/PUBLISHER_SPEED.md`):**
+  the bucket itself is not slow. From a US host, a listing page of 1,000 keys takes 0.4-0.5 s (all 7,872 `price/` keys
+  in 3.6 s), and one GET 0.54 s; 64 GETs take 2.95 s with 16 threads. The 19 minutes were three hung requests, each
+  waiting botocore's 60 s read timeout over 5 attempts (about 6 minutes each). The rest of the 55 minutes was about
+  3,300 requests made one at a time at about 0.55 s each.
+- **Class (extended):** any step that makes its bucket requests one at a time across `sfo` -> `sin` (manifest reads,
+  data files, packs, manifests; the flow files planned for Screener Phase 2, macro and cross-asset files later), and any
+  bucket request without a short timeout.
+- **Solution (EXEC-PUBLISHER-SPEED, user go 2026-10-29), in `apps/terminal-publisher/publisher.py`:**
+  - the requests go through `TERMINAL_BUCKET_THREADS` threads (default 16; `Uploads`, `load_manifests`);
+  - barriers (`Uploads.wait`) keep the order readers rely on: data files, packs and xsection files, then manifests,
+    then `state.json`;
+  - the bucket client gets a 10 s connect and 30 s read timeout, with 3 attempts;
+  - the cleanup runs after `state.json`, from a baseline taken before the first write (`cleanup_baseline`). It
+    protects what the previous and the new publication name, so it deletes what the old cleanup deleted at the start
+    of the next daily run.
+  Rehearsal at 0.54 s per request, 845 tickers: 125 s to `state.json` (was 55 minutes on dev). Tests
+  `tests/test_publisher.py` (order with overlapping puts, failed put, cleanup after publication, mutations of each
+  barrier caught). Not done: one manifest index object per run (the parallel reads take about 30 s).
+- **Status:** FIXED in code; deploy to dev and its measured run follow (RAILWAY_CHANGELOG).
 - **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
   before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path.
 
@@ -4226,6 +4243,34 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   RAILWAY_CHANGELOG 2026-10-29).
 - **Lesson for new data:** a new source may spell its timestamps differently; the page reads them through `timeText`,
   never by slicing the text.
+
+### M303 — Publisher: a failed, stuck or missing publication raised no alert (2026-10-29)
+
+- **Symptom:** the 07:30 WIB runs of 2026-10-27, 2026-10-28 and 2026-10-29 crashed on `RequestCanceled` (M263;
+  RAILWAY_CHANGELOG 2026-10-27 and 2026-10-29); nobody was told,
+  and Terminal, Backtest and (since 2026-10-29) the Screener served the previous publication until it was noticed by
+  hand. The 19:00 WIB run of 2026-10-29 published 55 minutes late (M301), also without a message.
+- **Verified (FACT, code at `0d33d8ac`):** the publisher's only message is `notify_broker_behind` (broker data behind
+  the prices, after the evening run). An exception in `run` ends the process with a traceback (exit 1); a
+  `psycopg.Error` logs `failed` (exit 2); neither tells anyone. A run killed by the platform or never started leaves
+  no trace a reader is told about.
+- **Root cause:** the scheduled producer had no failure or freshness signal outside its own log.
+- **Class:** every scheduled job whose output other services read on a schedule: the terminal publisher, and later
+  the flow, macro and cross-asset publications. A crash, a hang, a platform kill and a partial publication each need
+  their own path, because a process that hangs or is killed cannot report itself.
+- **Solution (EXEC-PUBLISHER-SPEED, user go 2026-10-29):** telegram-monitor's `/notify` with source
+  `Terminal_Publisher_Health`. Its facts exist only in the publisher, so they come in the request, checked in fixed
+  shapes, never free text (`parse_publisher_health`). The cases:
+  - `failed`: `main` catches the exception and sends the step and error class only;
+  - `slow`: `Watchdog`, after `TERMINAL_RUN_ALERT_MINUTES` (30);
+  - `partial`: exit 3, an xsection or reference file kept at its previous version;
+  - `missing`: a cron tick 30 minutes after a run time (`check_times`; cron `0,30 0,1,12 * * *`) finds `state.json`
+    `finished_at` older than that run time (`check_publication`).
+  One message per run time and kind (`failed` and `missing` share an id). Tests: `tests/test_publisher.py`,
+  `apps/telegram-monitor/test_telegram_monitor.py`, and one cross-service test of the alert shape.
+- **Status:** FIXED in code; deploy (telegram-monitor from `main`, publisher by CLI upload, cron change) follows.
+- **Lesson for new data:** a new scheduled publication ships with its failure, slowness and freshness alerts, on paths
+  that do not depend on the job being alive.
 
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
