@@ -213,6 +213,12 @@ CHECK_AFTER_MINUTES = 30
 # a daily run still going after this many minutes sends the `slow` alert once (TERMINAL_RUN_ALERT_MINUTES)
 RUN_ALERT_MINUTES = 30
 HEALTH_SOURCE = 'Terminal_Publisher_Health'
+# the step a failed put belongs to, by its key's first part (a failed run's alert names it)
+PUT_STEPS = {'price': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'xsection': 'xsection',
+             'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs'}
+# cleanup_baseline gives up after this long and the run publishes without a cleanup (one hung listing page must not
+# hold the publication; the two listings take about 2 s on dev)
+BASELINE_SECONDS = 60
 
 
 def fetch(url, data=None, timeout=30):
@@ -624,14 +630,18 @@ class Uploads:
 
     def __init__(self, bucket, threads):
         self.bucket, self.threads = bucket, threads
-        self.pool, self.futures, self.error = None, [], None
+        self.pool, self.futures, self.error, self.error_key = None, [], None, None
         self.slots = threading.BoundedSemaphore(4 * threads)
 
     def put(self, key, body, content_type):
         if self.error is not None:
             raise self.error
         if self.threads <= 1:
-            self.bucket.put(key, body, content_type)
+            try:
+                self.bucket.put(key, body, content_type)
+            except Exception as e:
+                self.error, self.error_key = e, key
+                raise
             return
         if self.pool is None:
             self.pool = ThreadPoolExecutor(self.threads, thread_name_prefix='put')
@@ -641,19 +651,27 @@ class Uploads:
         except BaseException:
             self.slots.release()
             raise
+        future.key = key
         future.add_done_callback(self._done)
         self.futures.append(future)
 
     def _done(self, future):
         self.slots.release()
-        if not future.cancelled() and future.exception() is not None and self.error is None:
-            self.error = future.exception()
+        if not future.cancelled():
+            self._failed(future.exception(), future.key)
+
+    def _failed(self, error, key):
+        if error is not None and self.error is None:
+            self.error, self.error_key = error, key
 
     def wait(self):
         futures, self.futures = self.futures, []
         for future in futures:
             if not future.cancelled():
-                future.exception()                       # blocks until that put is done; _done keeps the first error
+                # the exception future.exception() returns, not only the one _done records: Future.set_exception wakes
+                # this wait before it runs the done callbacks, so a barrier relying on _done alone could let a failed
+                # put through (review 2026-10-29)
+                self._failed(future.exception(), future.key)
         if self.error is not None:
             raise self.error
 
@@ -661,7 +679,7 @@ class Uploads:
         """End the pool (a failed run: the puts not started are dropped); a later run starts a new one."""
         if self.pool is not None:
             self.pool.shutdown(wait=True, cancel_futures=True)
-        self.pool, self.futures, self.error = None, [], None
+        self.pool, self.futures, self.error, self.error_key = None, [], None, None
         self.slots = threading.BoundedSemaphore(4 * self.threads)
 
 
@@ -867,8 +885,8 @@ class Publisher:
         return {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
 
     def present_keys(self, family, previous):
-        """The keys under `<family>/` of an indexed family (xsection, ref; one listing of that prefix, taken after
-        collect_garbage), or, when the bucket cannot list them, the keys of the previous index (`store` then trusts the
+        """The keys under `<family>/` of an indexed family (xsection, ref; one listing of that prefix; no cleanup runs
+        during the run, it comes after state.json), or, when the bucket cannot list them, the keys of the previous index (`store` then trusts the
         index, as it trusts a manifest)."""
         try:
             return set(self.bucket.list(prefix=f'{family}/'))
@@ -900,7 +918,7 @@ class Publisher:
         """EXEC-MU-RUNTIME T5 (user chose option A, 2026-10-28): every reference file of REF_NAMES also under its content
         key `ref/<name>.<first 16 hex of sha256>.json.gz`, the exact bytes of its fixed-key copy: those put this run, or
         the fixed-key object as it stands (the logos, refreshed weekly). Stored through `store` as the xsection files
-        are, against one listing of `ref/` taken after collect_garbage (a key the bucket holds is not put again; an
+        are, against one listing of `ref/` (no cleanup runs during the run; a key the bucket holds is not put again; an
         indexed object it lacks is put again with the same bytes). Called after the fixed-key copies and before
         state.json, which carries the result as `refs`; collect_garbage deletes, in a later daily run, the content-keyed
         reference objects that index no longer names. A reference file that was never published (no logo run yet) has
@@ -994,6 +1012,14 @@ class Publisher:
         manifest or index names them, and the cleanup takes them once they are older than a finished run)."""
         try:
             self._run(mode, start_from, end_to, only)
+        except BaseException:
+            # the step whose put failed, rather than the barrier that found it (the alert names it); and the in-memory
+            # manifests and changes, which name objects that may never have been written, are dropped, so a later run
+            # on this object reads the manifests from the bucket again (review 2026-10-29)
+            if self.uploads.error_key:
+                self.stage = PUT_STEPS.get(self.uploads.error_key.split('/', 1)[0], self.stage)
+            self.manifests, self.changed = {}, set()
+            raise
         finally:
             self.uploads.close()
 
@@ -1010,10 +1036,11 @@ class Publisher:
         previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
         # the cleanup after state.json needs what the bucket held before this run wrote anything (collect_garbage)
         before = self.cleanup_baseline() if mode == 'daily' else None
-        loaded = time.monotonic()
-        self.load_manifests(kind)
-        log('planning', step='manifests read', tickers=len(kind), seconds=round(time.monotonic() - loaded, 1),
-            threads=self.threads)
+        if mode in ('daily', 'backfill', 'packs', 'events'):          # the modes that read (nearly) every manifest
+            loaded = time.monotonic()
+            self.load_manifests(kind)
+            log('planning', step='manifests read', tickers=len(kind), seconds=round(time.monotonic() - loaded, 1),
+                threads=self.threads)
         if before is not None:
             before['named'] = {t: named_keys(m) for t, m in self.manifests.items()}
             before['indexes'] = {'xsection': previous, 'ref': previous_refs}
@@ -1110,7 +1137,7 @@ class Publisher:
             refs_failed=self.refs_failed, phases=self.phases, threads=self.threads)
         if mode == 'daily':
             # ERRORS M301 (EXEC-PUBLISHER-SPEED): after the publication, never in front of it. The same objects go as
-            # when the cleanup ran before the next run's first write (collect_garbage); a failure only logs.
+            # when the cleanup ran before this run's first write (collect_garbage); a failure only logs.
             if before is not None:
                 self.collect_garbage({'xsection': self.xsection, 'ref': self.refs}, before)
             else:
@@ -1121,16 +1148,27 @@ class Publisher:
         the time of the last finished run (state.json LastModified) and of every manifest, from two listings (a prefix
         each; about 2 s on dev). None, logged as gc_failed, when the bucket cannot list them: the cleanup is skipped and
         the run publishes."""
-        try:
-            deadline = time.monotonic() + GC_LIST_SECONDS
-            finished = (self.bucket.list(deadline, prefix='state.json').get('state.json') or (None,))[0]
-            manifests = {key[len('manifest/'):-len('.json')]: at
-                         for key, (at, _) in self.bucket.list(deadline, prefix='manifest/').items()
-                         if key.endswith('.json') and key.count('/') == 1}
-            return {'finished': finished, 'manifests': manifests}
-        except Exception as e:  # noqa: BLE001 - the cleanup never stops a publication; the class only, no detail
-            log('gc_failed', step='baseline', error=type(e).__name__)
-            return None
+        found = {}
+
+        def read():
+            try:
+                deadline = time.monotonic() + BASELINE_SECONDS
+                finished = (self.bucket.list(deadline, prefix='state.json').get('state.json') or (None,))[0]
+                found['baseline'] = {'finished': finished, 'manifests': {
+                    key[len('manifest/'):-len('.json')]: at for key, (at, _) in self.bucket.list(deadline, prefix='manifest/').items()
+                    if key.endswith('.json') and key.count('/') == 1}}
+            except Exception as e:  # noqa: BLE001 - the cleanup never stops a publication; the class only, no detail
+                found['error'] = type(e).__name__
+        # in a thread joined for at most BASELINE_SECONDS: the listing's own deadline is checked only between pages,
+        # and one hung page can take minutes of retries (review 2026-10-29); a listing still going is left to finish
+        # on its own (read-only, its result unused)
+        worker = threading.Thread(target=read, daemon=True)
+        worker.start()
+        worker.join(BASELINE_SECONDS)
+        if 'baseline' in found:
+            return found['baseline']
+        log('gc_failed', step='baseline', error=found.get('error', 'TimeoutError'))
+        return None
 
     def collect_garbage(self, indexes=None, before=None):
         """ERRORS M250 (user 2026-10-27, option A of 3): delete the data files and packs no manifest names any more, and
@@ -1142,8 +1180,10 @@ class Publisher:
         the run started (cleanup_baseline, plus `named`: each manifest's keys as read then, and `indexes`: that
         state.json's index entries), and `indexes`, the entries this run wrote. An object a reader of either publication
         can hold is kept: the rule below protects what the previous manifests and indexes name as well as the new ones,
-        and its times are those of the previous state.json. So it deletes exactly what the old cleanup deleted at the
-        start of the next daily run, a few minutes later than that. Without `before` (a call outside a run) the bucket's
+        and its times are those of the previous state.json. So it deletes what the old cleanup deleted at the start of
+        this same run, at its end instead (minus an object this run names again, which the old one deleted and then put
+        again). The grace is measured at the end: a manual run that starts within the hour after the last one and ends
+        after it may delete, still never sooner than GC_GRACE_SECONDS after that run. Without `before` (a call outside a run) the bucket's
         state.json and manifests are both "previous" and "new": the rule of the old cleanup.
 
         An object is deleted only when all of these hold:
@@ -1501,6 +1541,15 @@ class Watchdog:
         self.done.set()
 
 
+def slow_alert(pub, slot, manual, minutes):
+    """The Watchdog's alert: `slow`, with the step the run is in, unless the run is already in its cleanup (its
+    state.json is out, so the publication is not late; review 2026-10-29)."""
+    if pub.stage == 'cleanup':
+        log('slow_alert_skipped', reason='published; the cleanup is still going', minutes=minutes)
+        return
+    notify_publication('slow', slot, manual, stage=pub.stage, minutes=minutes, last_published=pub.previous_finished)
+
+
 def should_run(times, now=None, slack_minutes=20):
     """T7 (user 2026-10-26: "jadwal publisher ... jam 19.00 dan jam 7.30"): a run near a cron tick that is not a listed
     time does not publish (main checks the last publication instead); a run near a listed time, or away from every tick
@@ -1537,8 +1586,7 @@ def main(argv):
             pub = Publisher(conn, bucket)
             if mode == 'daily':
                 minutes = int(os.environ.get('TERMINAL_RUN_ALERT_MINUTES') or RUN_ALERT_MINUTES)
-                watchdog = Watchdog(minutes, lambda: notify_publication(
-                    'slow', slot, manual, stage=pub.stage, minutes=minutes, last_published=pub.previous_finished))
+                watchdog = Watchdog(minutes, lambda: slow_alert(pub, slot, manual, minutes))
             pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only)
     except Exception as e:  # noqa: BLE001 - reported, then raised (driver errors: the class only, as before)
         stage = pub.stage if pub else 'connect'

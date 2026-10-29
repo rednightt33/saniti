@@ -62,7 +62,8 @@ Two conclusions follow:
 3. **Cleanup after `state.json`.** The cleanup runs after `state.json` (`collect_garbage(indexes, before)`).
    - It uses the baseline taken before the run's first write (`cleanup_baseline`) and protects what either the
      previous or the new publication names.
-   - It deletes the same objects the old cleanup deleted at the start of the next daily run, a few minutes later.
+   - It deletes the objects the old cleanup deleted at the start of the same run, at its end instead.
+   - The baseline is given up after 60 s, and the cleanup is then skipped.
    - A failed or slow listing no longer delays the publication.
 4. **Alerts (M303).**
    - telegram-monitor sends a message (source `Terminal_Publisher_Health`) for a failed run, a run still going
@@ -93,6 +94,35 @@ memory, with no wait.
 - **Expected on dev (INFERENCE):** the rehearsal's 2 minutes, plus about 30 s of database statements, plus the
   xsection build measured on dev (41 s): about 3-4 minutes to `state.json`. It is checked by the dev run below.
 
-## 5. Dev run after the deploy
+## 5. Independent review (2026-10-29, before the PR)
+
+A separate review agent, given the code and the readers' rules rather than our conclusions, found three bugs. Each fix
+has a test that fails when the fix is removed.
+
+| Finding | Fix |
+|---|---|
+| A barrier could let a failed put through. `Future.set_exception` wakes the waiter before the done callback that recorded the error runs; reproduced at 21 of 5,000 with a tiny switch interval. | `Uploads.wait` keeps what `future.exception()` returns. |
+| A `Publisher` used again after a failed run kept in-memory manifest entries for puts that never happened. Production makes one per process. | A failed run drops its in-memory manifests and changes. |
+| The `slow` alert could fire during the cleanup, after the publication was already out. | `slow_alert` skips it in the cleanup step. |
+
+Further points from the review:
+
+- **Baseline listing:** it could still hold the publication on a hung page, so it now runs in a thread joined for at
+  most 60 s.
+- **Failure step:** the alert now names the step of the put that failed.
+- **Fewer manifest reads:** a logos or broker-range run no longer reads every manifest.
+- **Test timing:** one timing assertion was removed.
+- **Wording:** the documentation now says "at the start of the same run".
+
+The review found the cleanup rule sound in every scenario tried:
+
+- daily sequences;
+- manual runs minutes apart;
+- a run that crashed, with or without manifests;
+- tickers leaving or joining the universe;
+- content returning to an old key;
+- logos, backfill, packs and events runs before a daily run.
+
+## 6. Dev run after the deploy
 
 (Added after the deploy.)

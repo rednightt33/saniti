@@ -136,7 +136,8 @@ Facts that matter downstream:
   time, else the `missing` alert, section 4.3).
 - **Manual runs.** A Railway service with a cron does not run on deploy, and `railway redeploy` keeps the old cron.
   A manual run therefore follows ERRORS M229: clear the cron, set `TERMINAL_PUBLISH_MODE`, `railway up` a new
-  deployment, then restore the cron and mode.
+  deployment, then restore the cron and mode. A `daily` run that starts within 20 minutes after any tick (07:00, 07:30,
+  08:00, 08:30, 19:00 or 19:30 WIB) is taken for that tick: away from the run times it only checks.
 - **In the repo.** `.railway/railway.ts` lists the publisher's cron and its variables (`preserve()`), since the
   reconciliation of 2026-10-29 (RAILWAY_CHANGELOG).
 
@@ -156,7 +157,8 @@ Facts that matter downstream:
    - `changed_events`: the same idea per ticker, with `format=2;rows;last;ing`.
    - Broker: the ticker-years of trading dates newer than `state.json` `broker_through`.
 3. **Cleanup baseline (mode `daily` only, before the first write).** `cleanup_baseline` lists `state.json` and
-   `manifest/` (two requests): the time of the last finished run and of every manifest, kept with the manifests' keys
+   `manifest/` (two requests, about 2 s; given up after `BASELINE_SECONDS`, 60, and the cleanup is then skipped): the
+   time of the last finished run and of every manifest, kept with the manifests' keys
    and the previous indexes for the cleanup after `state.json` (step 8; section 4.3). Until 2026-10-29 the cleanup
    itself ran here, and a slow listing held the publication 19 minutes (ERRORS M301).
 4. **One file (`publish`).** The steps are:
@@ -280,8 +282,10 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 - **Cleanup (`collect_garbage`).** A daily run lists the bucket after its `state.json` (EXEC-PUBLISHER-SPEED; before
   2026-10-29 it listed before its first write) and deletes an object only when all of these hold. With the baseline
   taken before the first write, "the manifest" and "the index" below mean both the previous one and the new one, and
-  "`state.json`" means the one the run started from: it deletes exactly what the old cleanup deleted at the start of
-  the next daily run, a few minutes later. The conditions: its key is `<family>/<ticker>/<file>` with a family some manifest names (derived from the manifests,
+  "`state.json`" means the one the run started from: it deletes what the old cleanup deleted at the start of the same
+  run, at its end instead (minus an object the run names again, which the old one deleted and put back). The grace is
+  measured at the end, so a manual run that starts within the hour after the last one and ends after it may delete,
+  never sooner than `GC_GRACE_SECONDS` after that run. The conditions: its key is `<family>/<ticker>/<file>` with a family some manifest names (derived from the manifests,
   so a new dataset is covered) and the ticker's manifest names at least one file but not this one, or its key is an
   object of an indexed family (`INDEXED`: `xsection/<name>.<16 hex>.json.gz`, and since EXEC-MU-RUNTIME T5
   `ref/<name>.<16 hex>.json.gz`; nothing else under `xsection/` or `ref/`, so the fixed-key reference files never

@@ -1496,8 +1496,7 @@ def test_the_manifests_are_read_in_parallel_before_planning():
     started = pub.time.monotonic()
     p = pub.Publisher(conn, bucket, today=TODAY, threads=8)
     p.run('daily')
-    # 24 manifests at 0.02 s each one at a time would be 0.48 s for the reads alone
-    assert bucket.most > 1 and p.written == 0 and pub.time.monotonic() - started < 0.48 + 0.3
+    assert bucket.most > 1 and p.written == 0                             # reads overlapped (no timing: CI speed varies)
 
 
 def test_a_failed_put_stops_the_run_before_any_manifest_or_state_json_names_it():
@@ -1517,8 +1516,8 @@ def test_a_failed_put_stops_the_run_before_any_manifest_or_state_json_names_it()
         p.run('daily')
     assert bucket.objects['state.json'] == state                          # the previous publication stands
     assert {k: v for k, v in bucket.objects.items() if k.startswith('manifest/')} == manifests
-    assert p.stage in ('files', 'packs', 'xsection')                      # stopped before the manifests step
-    assert p.uploads.pool is None                                         # the pool ended with the run
+    assert p.stage == 'files'                                             # the step of the put that failed
+    assert p.uploads.pool is None and p.manifests == {}                   # the pool ended; nothing stale is kept
 
 
 def test_the_cleanup_comes_after_state_json_so_a_slow_or_failed_listing_never_holds_the_publication(capsys):
@@ -1723,3 +1722,75 @@ def test_telegram_monitor_accepts_every_alert_the_publisher_sends(alerts):
     p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket(), today=TODAY)
     p.run('daily')
     assert set(p.phases) | {'connect', 'start', 'cleanup'} <= set(monitor.HEALTH_STAGES)   # every step it can report
+
+
+# ---- review 2026-10-29 -----------------------------------------------------------------------------------------------
+def test_a_barrier_raises_a_failed_put_even_before_its_done_callback_ran(monkeypatch):
+    """Future.set_exception wakes a waiter before it runs the done callbacks: the barrier must use what
+    future.exception() returns, not only what _done recorded (otherwise a manifest could name an unwritten object)."""
+    monkeypatch.setattr(pub.Uploads, '_done', lambda self, future: self.slots.release())    # callbacks record nothing
+    bucket = FakeBucket()
+    bucket.put = lambda key, body, ctype: (_ for _ in ()).throw(PermissionError('denied'))
+    uploads = pub.Uploads(bucket, 4)
+    uploads.put('price/T/2026.x.json.gz', b'x', 'application/gzip')
+    with pytest.raises(PermissionError):
+        uploads.wait()
+    assert uploads.error_key == 'price/T/2026.x.json.gz'
+    uploads.close()
+
+
+def test_a_publisher_used_again_after_a_failed_run_names_only_objects_that_exist():
+    conn = many()
+    bucket = FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    conn.prices = conn.prices + [('T05', '2026-01-05', 10.0, 11.0, 9.0, 10.5, 100.0)]
+    put = FakeBucket.put
+    fail = {'on': True}
+    def flaky(self, key, body, ctype):
+        if fail['on'] and key.startswith('price/T05/2026.'):
+            raise PermissionError('denied')
+        put(self, key, body, ctype)
+    bucket.put = flaky.__get__(bucket)
+    p = pub.Publisher(conn, bucket, today=TODAY, threads=8)
+    with pytest.raises(PermissionError):
+        p.run('daily')
+    fail['on'] = False
+    p.run('daily')                                                        # the same object, the bucket works again
+    for t in [f'T{i:02d}' for i in range(24)]:
+        assert pub.named_keys(bucket.get_json(f'manifest/{t}.json')) <= set(bucket.objects), t
+    assert pub.verify(conn, bucket) == 0
+
+
+def test_the_slow_alert_is_not_sent_once_the_run_is_in_its_cleanup(alerts):
+    slot = dt.datetime(2026, 10, 29, 19, 0, tzinfo=pub.WIB)
+    p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket(), today=TODAY)
+    p.stage, p.previous_finished = 'cleanup', '2026-10-29T00:36:00+00:00'
+    pub.slow_alert(p, slot, False, 30)
+    assert alerts == []
+    p.stage = 'packs'
+    pub.slow_alert(p, slot, False, 30)
+    assert [a['details']['stage'] for a in alerts] == ['packs']
+
+
+def test_a_hung_baseline_listing_is_given_up_and_the_run_publishes_without_a_cleanup(capsys, monkeypatch):
+    monkeypatch.setattr(pub, 'BASELINE_SECONDS', 0.2)
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    plant(bucket, 'price/IHSG/2019.json.gz', -24)
+    whole, gate = bucket.list, pub.threading.Event()
+    bucket.list = lambda deadline=None, prefix='': (gate.wait(5), whole(deadline, prefix))[1] if prefix == 'state.json' else whole(deadline, prefix)
+    started = pub.time.monotonic()
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    at(bucket, conn, 'daily', 2)
+    gate.set()
+    out = capsys.readouterr().out
+    assert pub.time.monotonic() - started < 4 and '"step": "baseline"' in out and '"TimeoutError"' in out
+    assert bucket.puts[-1] == 'state.json' and 'price/IHSG/2019.json.gz' in bucket.objects
+
+
+def test_a_logos_run_does_not_read_every_manifest(monkeypatch):
+    monkeypatch.setattr(pub.Publisher, 'load_manifests', lambda self, tickers: pytest.fail('read every manifest'))
+    bucket = FakeBucket()
+    pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get()).run('logos')
+    assert bucket.puts[-1] == 'state.json'

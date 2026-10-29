@@ -4210,9 +4210,9 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   - barriers (`Uploads.wait`) keep the order readers rely on: data files, packs and xsection files, then manifests,
     then `state.json`;
   - the bucket client gets a 10 s connect and 30 s read timeout, with 3 attempts;
-  - the cleanup runs after `state.json`, from a baseline taken before the first write (`cleanup_baseline`). It
-    protects what the previous and the new publication name, so it deletes what the old cleanup deleted at the start
-    of the next daily run.
+  - the cleanup runs after `state.json`, from a baseline taken before the first write (`cleanup_baseline`, given up
+    after 60 s). It protects what the previous and the new publication name, so it deletes what the old cleanup
+    deleted at the start of the same run, at its end instead.
   Rehearsal at 0.54 s per request, 845 tickers: 125 s to `state.json` (was 55 minutes on dev). Tests
   `tests/test_publisher.py` (order with overlapping puts, failed put, cleanup after publication, mutations of each
   barrier caught). Not done: one manifest index object per run (the parallel reads take about 30 s).
@@ -4268,6 +4268,10 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
     `finished_at` older than that run time (`check_publication`).
   One message per run time and kind (`failed` and `missing` share an id). Tests: `tests/test_publisher.py`,
   `apps/telegram-monitor/test_telegram_monitor.py`, and one cross-service test of the alert shape.
+- **Does not cover:** an outage of telegram-monitor or of its database (it records each message before sending; the
+  publisher then logs `publication_notify_failed`); a scheduled run that starts more than 20 minutes late is labelled
+  manual, so its `failed` and the check's `missing` are two messages; a check tick that starts more than 20 minutes
+  late runs a publication, as the 07:00 and 19:30 WIB ticks already did.
 - **Status:** FIXED in code; deploy (telegram-monitor from `main`, publisher by CLI upload, cron change) follows.
 - **Lesson for new data:** a new scheduled publication ships with its failure, slowness and freshness alerts, on paths
   that do not depend on the job being alive.
