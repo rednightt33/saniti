@@ -8557,6 +8557,10 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
   bucket). Tinjauan: publisher 66 lulus, terminal-api 40, backtest-worker 186, 20 dari 20 mutasi tertangkap, uji
   kompatibilitas lokal dengan bucket dari publisher `main` dan PR #41 serta rollback ke PR #41 lulus. Belum deploy.
   Pemberitahuan ke pemilik PR #41 menunggu deploy publisher ke dev.
+- **Cara deploy ke dev, 2026-10-29 (kata user):** "A", atas pilihan "Opsi A — PR ke `main` setelah semua pemeriksaan lolos:
+  saya buat PR dari branch ini ke `main`, lalu deploy ke dev bertahap mengikuti runbook (perubahan database, terminal-api,
+  publisher, mesin screener, lalu edge-bff), tiap langkah diverifikasi dan bisa di-rollback". Tahap 0-1 EXEC-MU-RUNTIME ikut
+  dalam PR dan jendela deploy yang sama. PR dibuat hanya setelah semua suite lolos di HEAD branch; deploy hanya ke dev.
 - **Keputusan lanjutan, 2026-10-28 (kata user):** atas P29 "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest
   juga"; atas pertanyaan apakah rekomendasi juga berlaku untuk keputusan flow D1-D14 dan P24-P34: "YEs".
   - **P29:** pengguna EDGE adalah user eksternal, untuk semua tab (Monitor, Terminal, Backtest, Screener).
