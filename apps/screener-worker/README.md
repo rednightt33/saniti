@@ -143,7 +143,7 @@ benchmark on the dev service (report 11b; DEPLOY_RUNBOOK step 11) replaces every
 | `PORT` | :84-85, 1-65535, default 8080 (`DEFAULT_PORT`, :53) | HTTP port | not set: 8080, the port the private URL names |
 | `SCREENER_WORKER_KEY` | :86-87, at least 32 characters (contract.ts `WORKER_KEY_MIN_LENGTH`) | shared secret with edge-bff (`x-screener-worker-key`) | secret: 64 hex generated on Railway, never printed; edge-bff reads it by reference |
 | `TERMINAL_URL` | :88-92, an http(s) origin, no path, user name or password | terminal-api origin on the private network | `http://terminal-api.railway.internal:8080` |
-| `TERMINAL_PROXY_KEY` | :93-94, at least 32 characters | terminal-api gateway key (`/state`, `/xsection`, `/manifest`, `/reference`) | reference `${{terminal-api.TERMINAL_PROXY_KEY}}`, as backtest-worker |
+| `TERMINAL_PROXY_KEY` | :93-94, at least 32 characters | the key the worker sends terminal-api as `x-terminal-proxy-key` (`/state`, `/xsection`, `/manifest`, `/reference`) | a reference, never a value: `${{terminal-api.TERMINAL_SERVICE_KEY_SCREENER_WORKER}}`, the worker's own service account (EXEC-MU-RUNTIME T1; `/xsection` admits it, terminal-api `main.py` `xsection_caller`), once terminal-api holds it; until then the gateway key `${{terminal-api.TERMINAL_PROXY_KEY}}` (TEMPORARY) |
 | `SCREENER_FILE_ORIGIN` | :95-96, `scheme://host[:port]` (terminal.ts `fileOriginOf`) | the bucket origin every presigned URL must have | the value of backtest-worker's `BACKTEST_FILE_ORIGIN`, copied without printing it |
 | `SCREENER_THREADS` | :126, at least 1 | K compute threads (plus one builder thread during a refresh) | 2 (K = 2 on a 4-vCPU replica; K = 4 failed the 1.5 x rule; re-measure on the service's vCPU) |
 | `SCREENER_THREAD_HEAP_MB` | :126, at least 64 | each compute and builder thread's V8 old-generation limit (MB); a thread that needs more stops alone (`500 OUT_OF_MEMORY`, restarted) | 512 (every thread stayed at or under 354 MB with a 384 MB limit) |
@@ -206,11 +206,12 @@ The image keeps the repository layout under `/app`, because the worker imports t
 ## Tests
 
 `npm test` runs every suite with a fake terminal-api (`tests/fake-terminal.mjs`: `/state`, `/xsection` with the proxy key and
-skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file). Last run: 57 of 57 pass.
+skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file). Last run: 59 of 59 pass (2026-10-29).
 
 | Suite | What it locks |
 |---|---|
 | `config.test.ts` | every limit required with no default; errors name the variable, not the value; cap and owner-budget checks; `screener_engine` is a content hash; the start-up check |
+| `readme_config.test.ts` | this README's "Configuration" table against `loadConfig` itself (the names it reads, recorded; each left out in turn): one row per name read and no other, each row's `config.ts` line reads it, its minimum is the `whole()` minimum, optional rows are the ones it starts without, the proposed values pass it together, the counts in the prose; and that each kind of drift fails |
 | `refresh.test.ts` | a publication loads end to end; integrity failures (sha256, manifest cross-check, reference) answer `424` with no snapshot and keep the previous one when held; file, refresh and inflate caps before any grant; a warm disk cache grants nothing; skew retry then deferral; skip unchanged; one refresh at a time; pinning across a swap (grace, `DATA_VERSION_CHANGED`, `DATA_VERSION_PENDING`) |
 | `snapshot.test.ts`, `typed_views.test.ts` | slices equal `priceSeries`; groupings parity with the Backtest; remarks; pinned tails equal F; digest stable across builds; materialized bars equal F bit for bit |
 | `views.test.ts` | a request's `TickerView`: `missingInput` from the snapshot's mask equals the scan; a screen of pre-warmed series reads no column and answers as plain arrays do; views out of `CALC_KEEP` release their `Calc` with the same answer; `return_rank` once per thread, same ranks |

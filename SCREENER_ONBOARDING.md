@@ -19,11 +19,13 @@ technical, tapi ada macro juga dll)".
   Phase 2 (flow) and Phase 3 (presets with a bandar leg, after P9) are not built and are marked so. **When Phase 1
   lands on dev, change each BRANCH below to FACT with its deployment ID or measurement, in the same change.**
 - **Verified against:** the repository at commit `12a4a0a` (branch `claude/charming-hamilton-faq25e`, 2026-10-29),
-  every `path:line` below re-read on that tree; the approval-gate report `verification/screener/AUDIT.md` (cited by
-  section name: TARGET ARCHITECTURE 6.x, PAGE LOAD SEQUENCE 6c.x, MULTI-USER SCALE AND COST 6d.x, DATABASE / FEATURE
-  CHANGES 7.x, API CONTRACT 8.x, TEST PLAN 10b.x, PERFORMANCE BENCHMARK PLAN 11b.x, UNKNOWNS / PRODUCT DECISIONS 13.x,
-  FLOW INDICATOR PROPOSALS 16.x, APPENDIX C); the records `verification/screener/F04_PARITY.md` and
-  `verification/screener/BENCHMARK_LOCAL.md`; read-only live PostgreSQL checks of 2026-10-28 where a line says "live".
+  every `path:line` below re-read on that tree (none of the files cited by line changed after it on 2026-10-29:
+  `git diff --name-only 12a4a0a` against the cited files is empty); the approval-gate report
+  `verification/screener/AUDIT.md` (cited by section name: TARGET ARCHITECTURE 6.x, PAGE LOAD SEQUENCE 6c.x,
+  MULTI-USER SCALE AND COST 6d.x, DATABASE / FEATURE CHANGES 7.x, API CONTRACT 8.x, TEST PLAN 10b.x, PERFORMANCE
+  BENCHMARK PLAN 11b.x, UNKNOWNS / PRODUCT DECISIONS 13.x, FLOW INDICATOR PROPOSALS 16.x, APPENDIX C); the records
+  `verification/screener/F04_PARITY.md` and `verification/screener/BENCHMARK_LOCAL.md`; read-only live PostgreSQL
+  checks of 2026-10-28 where a line says "live".
 - **Pointers** are `path:line` at `12a4a0a` plus the symbol. Lines move: when a line does not match, search for the
   symbol.
 - **Labels.** FACT: in code on `main` or deployed, in data, or in a recorded measurement. BRANCH: built on the working
@@ -255,7 +257,7 @@ cache and quotas.
 | Route | Status | Answer | Quota, audit |
 |---|---|---|---|
 | `GET /api/terminal/v1/state` | FACT on `main` (EXEC-BACKTEST-LOAD); the `xsection` and `refs` fields BRANCH (`bucket.py:11` `STATE_FIELDS`; `xsection_index` `bucket.py:51`, `refs_index` `bucket.py:62`) | `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, the `xsection` index (well-formed entries only, else null) and `refs` | none |
-| `POST /api/terminal/v1/xsection {names}` | BRANCH (`main.py:548`; caller check `xsection_caller`, `main.py:289`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:39`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:5`), dataset `xsection`; file quota = number of names; bytes counted |
+| `POST /api/terminal/v1/xsection {names}` | BRANCH (`main.py:548`; caller check `xsection_caller`, `main.py:289`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:39`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
 
 Rules a new file must meet at terminal-api (`bucket.py:13` `XSECTION_NAME` and `xsection_index`): the name matches
 `^[a-z0-9][a-z0-9_-]{0,31}$`; the index entry has exactly `key`, `sha256` (64 hex), `bytes` (≥ 1), `rows` (≥ 0) and
@@ -293,7 +295,8 @@ and the borrowed backtest-worker files.
   does not stop is terminated after the grace and started again with the snapshots installed".
 - **Configuration** (`src/config.ts:74-127` `loadConfig`): 30 variables, every limit without a default; a missing or
   invalid one stops the start with `config_invalid` naming the variable, never its value. The full list with the
-  proposed dev values (LOCAL, provisional) is the worker README's "Configuration" table. Test: `tests/config.test.ts`.
+  proposed dev values (LOCAL, provisional) is the worker README's "Configuration" table. Tests: `tests/config.test.ts`;
+  `tests/readme_config.test.ts` (the README table against `loadConfig` itself).
 - **Start-up check** (`src/version.ts:56-71` `checkStartup`): the screener registry has no problem against the base
   registry (`registry.ts:87` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
   with the transforms and patterns `transforms.ts` computes (`IMPLEMENTED_TRANSFORMS`, `IMPLEMENTED_PATTERNS`); the
@@ -528,9 +531,10 @@ README "Logs".
 | `GET items?kind=screen\|metric`, `PUT items/{item_id}`, `DELETE items/{item_id}` | session; writes with CSRF | `PUT` validates through `/v1/validate` first |
 | `GET watchlist`, `PUT watchlist/{ticker}`, `DELETE watchlist/{ticker}` | session; writes with CSRF | — |
 
-- **Relay as bytes.** `run`, `preview`, `validate` and `counts` are passed through as the worker's gzip bytes with its
-  `ETag`; edge-bff reads only the first 4,096 inflated bytes for `price_data` and `published_at` (`PEEK_BYTES`,
-  `screener.py:59`) and parses only error bodies. Test `test_relayed_answers_are_the_workers_gzip_bytes_never_parsed`.
+- **Relay as bytes.** `run`, `preview` and `counts` are passed through as the worker's gzip bytes with its `ETag`
+  (`validate` as the worker's JSON); edge-bff reads only the first 4,096 inflated bytes for `price_data` and
+  `published_at` (`PEEK_BYTES`, `screener.py:59`) and parses only error bodies (and a validation's hash and versions
+  for a saved item). Test `test_relayed_answers_are_the_workers_gzip_bytes_never_parsed`.
 - **Refusals.** The worker's contract refusals are relayed at their status (`RELAYED`, `screener.py:51`); any other
   4xx is `503 SCREENER_UNAVAILABLE` (test `test_worker_refusals_outside_the_contract_are_unavailable`); a
   `DATA_VERSION_PENDING` is asked once more on a new connection, then `503 SCREENER_NOT_READY` with `Retry-After` 2
@@ -623,7 +627,7 @@ available; it never runs with a leg removed.
   `scripts/terminal_indicator_spec.py` holds the specification of every indicator and generates
   `verification/terminal_api/INDICATOR_SPEC.md` and the applied migration `20261025_102_terminal_indicator_formulas.sql`
   (the AI's `AI_formula_reference` rows CALC_201 onward); its `--check` proves both unchanged.
-- **The screener registry (BRANCH; generator header `build-screener-registry.mjs:1-30`).** The overlay holds only
+- **The screener registry (BRANCH; the generator's header comment).** The overlay holds only
   product choices, per indicator: `shape`, the allowed test forms per output with the prototype's operators and labels,
   search `synonyms`, a one-line `description` in our own plain English (20-160 characters, checked by
   `overlayProblems`), the `default_test` a new card opens with, the options of an enum a user decision narrows (P17 a:
@@ -635,8 +639,8 @@ available; it never runs with a leg removed.
   floors; `not_accepted` parameters hidden); `cost_class` by counting the work F does at two lengths with V8 block
   coverage, never by timing, so the file is the same bytes at any machine load; caps; the Feature 04 / Feature 01 oracle
   mapping from `scripts/terminal_indicator_spec.py --json`. `screener_registry_version` is the first 16 hex of the
-  sha256 of the generated document without that field (`a14ff73436cb0e44` in the working tree of 2026-10-29), so any
-  input or derived change moves it.
+  sha256 of the generated document without that field (read it from the file: it moved twice on 2026-10-29 while
+  the cost probe was made reproducible), so any input or derived change moves it.
 - **Narrow-only.** The overlay and the derived narrowing may only narrow the base registry
   (`registry.ts:87` `registryProblems` fails on a wider range), so every transferable screener condition is also valid
   for the Backtest.
@@ -650,11 +654,11 @@ available; it never runs with a leg removed.
 
 Everything that is not one of the registry indicators is described as **data** in
 `apps/edge-bff/screener/src/core/screener-metrics.json`: 10 transforms (`fn`, label, `args` with ranges, `ref_args`,
-`tests`, `formula`, `interpretation`, `misuse`, `evidence`), 75 metrics (patterns, the `return_rank` cross-section,
-universe attributes, the 20 flow metrics FL01-FL20 of PHASE 2, 30 fundamentals, dividends, index membership, listing
-board, notation) and the `periods` block (1M, 3M, 6M, 1Y = 21, 63, 126, 252 sessions, P23 a). `catalog.ts`
-(`METRICS_CATALOG` `:75`) loads and checks it at import, and `catalogProblems` again at the worker's start. Each metric
-entry carries:
+`tests`, `formula`, `interpretation`, `misuse`, `evidence`), 75 metrics (11 patterns, 4 transform-based metrics such as
+the 52-week high distance, the `return_rank` cross-section, 4 universe attributes, the 20 flow metrics FL01-FL20 of
+PHASE 2, the 32 fundamentals of APPENDIX C.3 with the 2 dividend metrics among them, index membership, listing board,
+notation) and the `periods` block (1M, 3M, 6M, 1Y = 21, 63, 126, 252 sessions, P23 a). `catalog.ts` (`METRICS_CATALOG`
+`:75`) loads and checks it at import, and `catalogProblems` again at the worker's start. Each metric entry carries:
 
 | Field | Meaning |
 |---|---|
@@ -855,7 +859,7 @@ time and never logs a key, header, body or presigned URL (section 1.7.8). edge-b
   | indicator spec | `python3 scripts/terminal_indicator_spec.py --check` | FACT |
   | screener registry | `npm run registry:check` in `apps/edge-bff/screener` (needs python3 for the oracle) | BRANCH |
   | screener core and page | `npm run typecheck`, `npm test` (vitest; the bundle tests need `npm run build` first) in `apps/edge-bff/screener`; Chromium smoke `tests/smoke/smoke.mjs` | BRANCH |
-  | screener-worker | `npm test` in `apps/screener-worker` (57 of 57 on 2026-10-29) | BRANCH |
+  | screener-worker | `npm test` in `apps/screener-worker` (59 of 59 on 2026-10-29) | BRANCH |
   | edge-bff | `EDGE_TEST_POSTGRES_URL=<disposable Postgres> python -m pytest -q tests/test_screener.py` in `apps/edge-bff` | BRANCH |
   | tripwire | `npm run tripwire` in `apps/edge-bff/screener` (`scripts/screener/check_backtest_untouched.mjs`; its tests: `node --test scripts/screener/check_backtest_untouched.test.mjs`) | BRANCH |
   | Feature 04 parity | `python3 -I scripts/screener/parity_f04.py --write` (read-only through pgweb), record in `verification/screener/F04_PARITY.md` | BRANCH, recorded PASS |

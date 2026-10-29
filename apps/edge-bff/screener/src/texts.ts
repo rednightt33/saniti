@@ -2,11 +2,11 @@
    Backtest's api/texts.ts; the shell's words live in static/edge-labels.js). Plain text: the page escapes every string
    it puts into markup (format.ts esc). The API sends codes, never messages for the page to show verbatim where the
    page has its own wording (report 9.2: remarks are worded here from the API's codes). */
-import type { CellRemark, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
+import type { ApiError, CellRemark, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
 import { nf } from './format.ts';
 import { OPLABEL } from './entries.ts';
 import { cardName, type Card } from './forms.ts';
-import { ctx as page, entryOf, S } from './state.ts';
+import { ctx as page, entryOf, S, stateOfDefinition } from './state.ts';
 
 export const T = {
   signIn: 'Sign in to EDGE first, then open the Screener tab again.',
@@ -85,8 +85,8 @@ export const chipNoBreak = 'No unadjusted price break';
    label) and how to fix it. A refusal that points at a limit (details.limit, or the limit its code stands for) is worded
    from that limit's catalog entry (limits[]: the rule, the unit, the fix its refused example names), the entry Method &
    sources lists before the user meets it, so no limit and no number is kept here. The server's message is used only
-   where the page has no structured reason (INVALID_INPUT, INVALID_CONDITION, a limit the catalog does not list), with
-   its field paths put into the same words. */
+   where the page has no structured reason (INVALID_INPUT, an INVALID_CONDITION whose allowed values are not ones a card
+   shows, a limit the catalog does not list), with its field paths put into the same words. */
 
 /** What a refusal is worded from. `limits`, `cards` and `filters` default to the page's catalog and cards (the
     definition the page sent); a caller wording another definition's refusal passes that one's. */
@@ -146,7 +146,9 @@ function spot(field: string, o: ErrorContext): { words: string[]; card: Card | n
       words.push(`${filter ? 'universe filter' : 'condition'} ${i + 1}${named && named !== 'Condition' ? ` (${named})` : ''}`); continue;
     }
     if (name === 'universe') { words.push('the universe'); continue }
-    if (name === 'definitions' && i != null) { words.push(`saved screen ${i + 1}`); continue }
+    // a counts request's definitions[k]: k is the screen's place in that request (the page asks for a subset), never
+    // its place in the user's list; the caller words it on that screen's own cards (savedErrorText)
+    if (name === 'definitions' && i != null) continue;
     if (SILENT.has(name)) continue;
     words.push(fieldWords(name) + (i != null ? ` ${i + 1}` : ''));
   }
@@ -162,13 +164,25 @@ function paramOf(field: string | null | undefined, o: ErrorContext) {
   const s = spot(field, o);
   return s.card && s.param ? entryOf(s.card)?.params.find(p => p.key === s.param) ?? null : null;
 }
-/** the contract paths in a server message (definition.…, universe.…, conditions[i]…) in the page's words */
-const PATH = /\b(?:(?:definition|universe)\.(?=[A-Za-z_])|conditions\[\d+\])[\w.[\]]*/g;
+/** the contract paths in a server message (definition.…, universe.…, conditions[i]…, a counts entry's
+    definitions[k].…) in the page's words */
+const PATH = /\b(?:(?:definition|universe)\.(?=[A-Za-z_])|(?:conditions|definitions)\[\d+\])[\w.[\]]*/g;
 const worded = (s: string, o: ErrorContext) => s.replace(PATH, p => { const t = p.replace(/\.+$/, ''); return placeText(t, o) + p.slice(t.length) });
 /** the server's reason in the page's words, led by the place when it does not name it */
 function reasonOf(o: ErrorContext, place: string): string {
   const s = o.server ? worded(o.server, o).trim() : '';
   return s ? sentence(place && !s.toLowerCase().includes(place.toLowerCase()) ? `${place}: ${s}` : s) : '';
+}
+
+/** An INVALID_CONDITION's allowed values (details.allowed) in the words the card shows them: operators by their labels,
+    the options of the catalog parameter the field names as its list shows them; null when they are other wire values
+    (kinds, keys, ids), whose refusals the page does not build (the server's reason is used then). */
+function allowedText(d: Record<string, unknown>, o: ErrorContext): string | null {
+  const a = Array.isArray(d.allowed) ? d.allowed.map(String) : [];
+  if (!a.length || a.length > 12) return null;
+  if (a.every(x => OPLABEL[x])) return a.map(x => OPLABEL[x]).join(', ');
+  const p = paramOf(o.field, o);
+  return p?.type === 'enum' && a.every(x => (p.options || []).map(String).includes(x)) ? a.join(', ') : null;
 }
 
 type Range = { min?: number | null; max?: number | null; exclusive_min?: boolean; integer?: boolean; type?: string };
@@ -218,7 +232,8 @@ function extras(d: Record<string, unknown>, o: ErrorContext): string {
 }
 
 /** The page's wording of a refusal or failure from its code (report 8.8, last column; the codes of contract.ts
-    ErrorCode, plus edge-bff's own ORIGIN_REJECTED): where the problem is and how to fix it, in plain words. */
+    ErrorCode, plus edge-bff's own ORIGIN_REJECTED and SERVICE_UNAVAILABLE, main.py): where the problem is and how to
+    fix it, in plain words. */
 export function errorText(code: string, o: ErrorContext = {}): string {
   const d = o.details || {}, place = placeText(o.field, o);
   const limit = (lead: string) => limitText(lead, typeof d.limit === 'string' ? d.limit : LIMIT_OF_CODE[code as ErrorCode], d, o);
@@ -227,8 +242,10 @@ export function errorText(code: string, o: ErrorContext = {}): string {
   switch (code) {
     case 'INVALID_INPUT': text = `${why || sentence(`${place || 'the request'} is not in a form the screener accepts`)} Correct it and try again, or reload the page.`; break;
     case 'INVALID_CONDITION': {
-      const allowed = Array.isArray(d.allowed) ? d.allowed.map(x => OPLABEL[String(x)] || String(x)) : [];
-      text = `${why || sentence(`${place || 'a condition'} is not valid${allowed.length && allowed.length <= 12 ? `: use one of ${allowed.join(', ')}` : ''}`)} Change it and run again.`; break;
+      // the structured reason (the field and the values it takes, in the card's words) before the server's message,
+      // which names wire values (op codes, registry ids); the server's reason only where the values are not the card's
+      const allowed = allowedText(d, o);
+      text = `${allowed ? sentence(`${place || 'a condition'} is not valid: use one of ${allowed}`) : why || sentence(`${place || 'a condition'} is not valid`)} Change it and run again.`; break;
     }
     case 'UNKNOWN_INDICATOR':
       text = `${sentence(`${place ? `${place}: ` : ''}this indicator is not in the screener's catalog (it was renamed or removed)`)} Remove the condition, or add it again from the indicator list.`; break;
@@ -262,9 +279,20 @@ export function errorText(code: string, o: ErrorContext = {}): string {
     case 'SCREENER_UNAVAILABLE': text = T.unreachable; break;
     case 'TIMEOUT': text = limit('The screen took too long') ?? 'The screen took longer than the limit: use fewer custom conditions or shorter lengths.'; break;
     case 'ORIGIN_REJECTED': text = 'EDGE refused this change because it did not come from the EDGE page itself. Open EDGE at its own address and try again.'; break;
+    // edge-bff's answer to an unexpected server error on any route (main.py `unexpected`: no body, no message)
+    case 'SERVICE_UNAVAILABLE': text = 'EDGE could not complete this request because of a server error; retry shortly.'; break;
     default: text = `${why || 'The screener could not answer this request.'} Retry; if it fails again, reload the page.`;
   }
   return text + extras(d, o);
+}
+
+/** The refusal of one saved screen's entry in a counts answer (CountsEntry error), worded on that screen's own cards
+    and universe filters (its field and message are paths of that definition, under the request's definitions[k]),
+    never on the cards the page shows (without the definition: the card's number only). */
+export function savedErrorText(e: ApiError['error'], def: Definition | null | undefined): string {
+  const st = def ? stateOfDefinition(def) : null;
+  return errorText(String(e.code || ''), { field:e.field, details:e.details ?? null, server:e.message,
+    cards:st?.cards ?? [], filters:st?.universe.filters ?? [] });
 }
 
 /** The page head's data line (report 9.2): listings, evaluation date and publication. */

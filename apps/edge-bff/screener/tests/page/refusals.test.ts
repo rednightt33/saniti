@@ -8,8 +8,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CatalogResponse, LimitEntry } from '../../src/core/contract.ts';
 import { ERROR_CODES } from '../../src/core/contract.ts';
-import { errorText, fieldWords, placeText } from '../../src/texts.ts';
-import { ctx, S } from '../../src/state.ts';
+import { errorText, fieldWords, placeText, savedErrorText } from '../../src/texts.ts';
+import { ctx, definitionOf, freshUniverse, S } from '../../src/state.ts';
+import { entriesOf } from '../../src/entries.ts';
+import { newCard } from '../../src/forms.ts';
+import { ScreenerError } from '../../src/core/errors.ts';
+import { validateDefinition } from '../../src/core/validate.ts';
+import { vctx } from '../core/helpers.ts';
+import { fixtureApi } from '../fixture/api.ts';
 import { liveApi } from '../../src/api/live.ts';
 import { ApiFailure } from '../../src/api/types.ts';
 import type { Card } from '../../src/forms.ts';
@@ -40,18 +46,29 @@ const LIMITS: LimitEntry[] = [
 ];
 const limit = (name: string) => LIMITS.find(l => l.name === name)!;
 
-/* the page's cards: condition 1 SMA, condition 2 RSI, condition 3 a flow metric, universe filter 1 ADV20 */
+/* the page's cards: condition 1 SMA, condition 2 RSI, condition 3 a flow metric, universe filter 1 ADV20 (VWAP: a card of
+   another definition, for a saved screen's refusal) */
 const P = (key: string, label: string, min: number, max: number) => ({ key, type:'integer', label, default:min, min, max, exclusive_min:false, integer:true, step:1 });
 const entry = (key: string, label: string, params: unknown[] = []) => ({ key, kind:'indicator', group:'Trend', label, short:label, desc:'', params, opts:[],
   def:{ opt:'', value:'', value2:'', within:1 }, available:true, availability:'AVAILABLE', reason:null, synonyms:[], history:null }) as unknown as Entry;
+const ENUM = (key: string, label: string, options: string[]) => ({ key, type:'enum', label, default:options[0], options, exclusive_min:false });
 const ENTRIES = [entry('I01', 'Simple Moving Average', [P('length', 'Length', 1, 567)]), entry('I13', 'Relative Strength Index', [P('length', 'Length', 2, 500)]),
-  entry('fnet', 'Foreign net flow'), entry('adv20_idr', 'Average daily value')];
+  entry('fnet', 'Foreign net flow'), entry('adv20_idr', 'Average daily value'), entry('I43', 'Volume Weighted Average Price', [ENUM('anchor', 'Anchor', ['Week', 'Month'])])];
 const card = (id: string, e: string): Card => ({ id, on:true, entry:e, params:{}, opt:'', value:'', value2:'', within:'', second:{} });
 
-/** what a page message must never show: a limit or field name (snake_case), a code (UPPER_CASE), a contract path, an
-    environment variable */
-const INTERNAL = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|definition\.|conditions\[|universe\./;
+/** what a page message must never show: a limit or field name (snake_case), a code (UPPER_CASE, or any code the
+    contract, the worker or edge-bff answers with, one word ones such as TIMEOUT and BUSY included), a contract path, an
+    environment variable, a decision id (P33), a registry id (I43), a wire name with a digit (value2), a route (GET
+    universe) */
+const CODES = [...ERROR_CODES, 'DATA_VERSION_PENDING', 'ORIGIN_REJECTED', 'SERVICE_UNAVAILABLE'];
+const INTERNAL = new RegExp([String.raw`\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b`, String.raw`\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b`,
+  String.raw`definitions?\.(?=\w)|definitions?\[|conditions\[|universe\.(?=\w)`, `\\b(?:${CODES.join('|')})\\b`, String.raw`\bP\d+\b`, String.raw`\bI\d{2,3}\b`,
+  String.raw`\b[a-z]+\d+\b`, String.raw`\b(?:GET|POST|PUT|DELETE) [a-z/]`].join('|'));
 const plainWords = (s: string) => { expect(s, s).not.toMatch(INTERNAL); return s };
+/** the page's own words of a message: what is left once the catalog's rules are taken out. A rule is shown as the
+    catalog writes it (Method & sources lists the same words); its plain wording is the catalog generators' (worker
+    catalog.ts limitEntries, edge-bff screener.py own_limits), not the page's. */
+const pageWords = (s: string) => { plainWords(LIMITS.reduce((m, l) => m.split(l.rule).join(''), s)); return s };
 
 beforeEach(() => {
   ctx.byKey = new Map(ENTRIES.map(e => [e.key, e]));
@@ -94,7 +111,7 @@ describe('LIMIT_EXCEEDED is worded from its catalog entry: where, the rule, what
     const m = errorText('LIMIT_EXCEEDED', { details:{ limit:'owner_cpu_budget', allowed:60000, needed:61000, retry_after_seconds:12 },
       server:"This user's screens used 59000 ms of compute in the last minute and have 0 ms waiting; with this one (about 2000 ms) that is above the 60000 ms a user may use per minute. Wait 12 s, or use fewer custom conditions." });
     expect(m).toBe(`Limit reached: ${l.rule}; this one needs 61000 ms per minute. Wait the seconds named, or use fewer custom conditions. Try again in 12 s.`);
-    expect(m).not.toContain('owner_cpu_budget');
+    pageWords(m);
   });
   it('within_max on a condition (a case other than owner_cpu_budget): the card, the rule and the fix', () => {
     const m = plainWords(errorText('LIMIT_EXCEEDED', { field:'definition.conditions[0].test.within', details:{ limit:'within_max', allowed:130, needed:131 } }));
@@ -130,7 +147,7 @@ describe('LIMIT_EXCEEDED is worded from its catalog entry: where, the rule, what
       const m = errorText('LIMIT_EXCEEDED', { details:{ limit:l.name, allowed:l.value, needed:l.value + 1 } });
       expect(m, l.name).toContain(l.rule);
       // what the page adds to the catalog's rule is plain words (the rule's own words are the catalog's)
-      plainWords(m.replace(l.rule, ''));
+      pageWords(m);
       const fix = /\(([^()]*)\)\W*$/.exec(l.example_refused)?.[1].replace(/^[A-Z_]+:\s*/, '');
       expect(m.toLowerCase(), l.name).toContain((fix || l.example_ok).toLowerCase());
     }
@@ -162,7 +179,7 @@ describe('codes that stand for a limit (BUSY queue, TIMEOUT deadline, REQUEST_TO
     expect(errorText('BUSY', { retryAfter:3 })).toBe(`${m} Try again in 3 s.`);
   });
   it('TIMEOUT words the deadline rule (its body names no limit)', () => {
-    expect(errorText('TIMEOUT', { server:'The request took longer than the 20000 ms limit (SCREENER_DEADLINE_MS) after 20003 ms: use fewer custom conditions or shorter lengths.' }))
+    expect(pageWords(errorText('TIMEOUT', { server:'The request took longer than the 20000 ms limit (SCREENER_DEADLINE_MS) after 20003 ms: use fewer custom conditions or shorter lengths.' })))
       .toBe(`The screen took too long: ${limit('deadline_ms').rule}. Use fewer custom conditions or shorter lengths.`);
   });
   it('REQUEST_TOO_LARGE words the request size', () => {
@@ -188,12 +205,27 @@ describe('the other refusals name where and how to fix', () => {
     expect(errorText('PARAM_OUT_OF_RANGE', { field:'definition.conditions[0].test.metric.params.mult', details:{ field:'mult', min:0, max:10, exclusive_min:true } }))
       .toBe('Condition 1 (Simple Moving Average), mult is out of range: use a number above 0 and at most 10. Change it and run again.');
   });
-  it('INVALID_CONDITION: the server\'s reason with its paths in words, or the allowed values in words', () => {
-    const m = plainWords(errorText('INVALID_CONDITION', { field:'definition.conditions[1].test.value2', server:'definition.conditions[1].test.value2 must be at least value (70): between is value <= x <= value2, and the bounds are never swapped.' }));
+  it('INVALID_CONDITION as the worker sends it: the allowed values in the card\'s words before its message (op codes, registry ids)', () => {
+    // validate.ts:252: the message lists op codes, details.allowed the same codes; the page words them as its operator list
+    expect(plainWords(errorText('INVALID_CONDITION', { field:'definition.conditions[0].test.op', details:{ allowed:['gt', 'lt', 'between'] },
+      server:'definition.conditions[0].test.op must be one of gt, lt, between.' })))
+      .toBe('Condition 1 (Simple Moving Average), operator is not valid: use one of greater than, less than, between. Change it and run again.');
+    // registry.ts:231 (P17): an option the screener does not offer on a saved screen's card, named with the registry id
+    const vwap = [card('v', 'I43')];
+    expect(plainWords(errorText('INVALID_CONDITION', { field:'definition.conditions[0].test.rhs.params.anchor', details:{ allowed:['Week', 'Month'] }, cards:vwap,
+      server:'definition.conditions[0].test.rhs.params.anchor: "Session" is not offered for I43 VWAP (it is the registry default, taken because anchor was left out); use one of Week, Month.' })))
+      .toBe('Condition 1 (Volume Weighted Average Price), Anchor is not valid: use one of Week, Month. Change it and run again.');
+    // allowed values that are no card's words (test kinds): the server's reason, its paths in words
+    expect(errorText('INVALID_CONDITION', { field:'definition.conditions[1].test.kind', details:{ allowed:['value', 'state', 'event'] }, server:'definition.conditions[1].test.kind must be value, state or event.' }))
+      .toBe('Condition 2 (Relative Strength Index), kind must be value, state or event. Change it and run again.');
+  });
+  it('INVALID_CONDITION without allowed values: the server\'s reason led by the place, then the fix', () => {
+    // validate.ts:256; the page refuses this in place before it sends (forms.ts cardErrors), so it arrives only for a
+    // definition the page did not build. The reason after the place is the core's own words (value2 is its name)
+    const m = errorText('INVALID_CONDITION', { field:'definition.conditions[1].test.value2', server:'definition.conditions[1].test.value2 must be at least value (70): between is value <= x <= value2, and the bounds are never swapped.' });
     expect(m).toMatch(/^Condition 2 \(Relative Strength Index\), upper value must be at least value \(70\)/);
     expect(m).toMatch(/Change it and run again\.$/);
-    expect(errorText('INVALID_CONDITION', { field:'definition.conditions[0].test.op', details:{ allowed:['gt', 'lt'] } }))
-      .toBe('Condition 1 (Simple Moving Average), operator is not valid: use one of greater than, less than. Change it and run again.');
+    plainWords(m.slice(0, m.indexOf(':')));
   });
   it('INVALID_INPUT: an edge-bff field (the name) and a request the page built', () => {
     expect(errorText('INVALID_INPUT', { field:'name', server:'name is 1 to 120 characters' })).toBe('Name is 1 to 120 characters. Correct it and try again, or reload the page.');
@@ -218,17 +250,19 @@ describe('the other refusals name where and how to fix', () => {
     expect(errorText('SCREENER_NOT_READY', { details:{ retry_after_seconds:2 } })).toMatch(/retry in 2 s/);
     expect(errorText('SCREENER_UNAVAILABLE')).toMatch(/retry shortly/);
     expect(errorText('ORIGIN_REJECTED')).toMatch(/Open EDGE at its own address and try again/);
+    // edge-bff main.py `unexpected`: any server error of a screener route, a code and nothing else
+    expect(plainWords(errorText('SERVICE_UNAVAILABLE'))).toBe('EDGE could not complete this request because of a server error; retry shortly.');
     expect(errorText('SOMETHING_NEW', { server:'The worker said no.' })).toBe('The worker said no. Retry; if it fails again, reload the page.');
     expect(errorText('')).toBe('The screener could not answer this request. Retry; if it fails again, reload the page.');
   });
   it('every contract code is worded in plain words, with or without a catalog', () => {
     for (const withCatalog of [true, false]) {
       if (!withCatalog) ctx.catalog = null;
-      for (const code of ERROR_CODES) {
+      for (const code of [...ERROR_CODES, 'ORIGIN_REJECTED', 'SERVICE_UNAVAILABLE']) {
         const m = errorText(code, { field:'definition.conditions[1].test.metric.params.length' });
         expect(m.length, code).toBeGreaterThan(20);
         expect(m, code).toMatch(/[.]$/);
-        plainWords(m);
+        pageWords(m);
       }
     }
   });
@@ -243,5 +277,37 @@ describe('through the live client (the production path: edge-bff answer -> ApiFa
     expect(e).toBeInstanceOf(ApiFailure);
     expect(e.code).toBe('LIMIT_EXCEEDED');
     expect(e.message).toBe(`Limit reached: ${limit('owner_cpu_budget').rule}; this one needs 60500 ms per minute. Wait the seconds named, or use fewer custom conditions. Try again in 9 s.`);
+  });
+});
+
+describe("a saved screen's counts entry (POST counts) is worded on that screen's own cards", () => {
+  /* the real catalog entries (the fixture's, from the generated registry) and the real core refusal under the counts
+     request's definitions[k] (apps/screener-worker/src/server.ts /v1/counts: normalize(..., `definitions[${k}].definition`)) */
+  const refusal = (fn: () => unknown) => { try { fn() } catch (e) { if (e instanceof ScreenerError) return e.toApi().error; throw e } throw new Error('expected a refusal') };
+  it('names the saved screen\'s card (not the page\'s, not its place in the request) and the fix', async () => {
+    const cat = (await fixtureApi().catalog(null) as { status: 200; body: CatalogResponse }).body;
+    ctx.byKey = new Map(entriesOf(cat).map(e => [e.key, e]));
+    const hull = [...ctx.byKey.values()].find(e => e.kind === 'indicator' && /^Hull/.test(e.label))!;
+    const cards = [newCard(ctx.byKey.get('I01')!, []), newCard(hull, [], { params:{ length:400 } })];
+    const saved = definitionOf({ universe:freshUniverse(), cards, logic:'all', atLeast:2 });
+    S.cards = [newCard(ctx.byKey.get('I13')!, []), newCard(ctx.byKey.get('I13')!, [])];     // the page shows another screen
+    const e = refusal(() => validateDefinition(saved, vctx([]), 'definitions[3].definition'));
+    expect(e.code).toBe('PARAM_OUT_OF_RANGE');
+    expect(e.field).toMatch(/^definitions\[3\]\.definition\.conditions\[1\]\.test\.\w+\.params\.length$/);
+    const m = plainWords(savedErrorText(e, saved));
+    expect(m).toBe(`Condition 2 (${hull.label}), Length is out of range: use a whole number from 1 to ${(e.details as { max: number }).max}. Change it and run again.`);
+    // a reason the page takes from the server's message: its definitions[k] path in the same words; a limit's place too
+    const f = 'definitions[3].definition.conditions[1].test.kind';
+    expect(plainWords(savedErrorText({ code:'INVALID_CONDITION', field:f, message:`${f} must be value, state or event.`, details:{ allowed:['value', 'state', 'event'] } }, saved)))
+      .toBe(`Condition 2 (${hull.label}), kind must be value, state or event. Change it and run again.`);
+    expect(savedErrorText({ code:'LIMIT_EXCEEDED', field:'definitions[3].definition.conditions[0].test.within', details:{ limit:'within_max', allowed:130, needed:131 } }, saved))
+      .toBe(`Limit reached in condition 1 (${ctx.byKey.get('I01')!.label}), within (sessions): ${limit('within_max').rule}; this one needs 131 sessions. Use 130 or fewer.`);
+    // its costliest condition (server.ts budgetRefusal) is that screen's card too
+    const budget = savedErrorText({ code:'LIMIT_EXCEEDED', message:`This screen is predicted to need 31000 ms of compute, above the 20000 ms budget; the costliest condition is ${cards[1].id}.`,
+      details:{ limit:'compute_budget', allowed:20000, needed:31000, costliest:cards[1].id } }, saved);
+    expect(budget).toMatch(new RegExp(`The costliest is condition 2 \\(${hull.label}\\)\\.$`));
+    // without the definition (an item the list no longer holds): the card's number, never the page's card of that number
+    expect(plainWords(savedErrorText({ code:'METRIC_UNAVAILABLE', field:'definitions[0].definition.conditions[0].test.metric', details:{ metric:'roe', reason:'No data yet.' } }, null)))
+      .toBe(`Condition 1: ${ctx.byKey.get('roe')!.label} is not available yet: No data yet. Switch it off or remove it to run the screen.`);
   });
 });

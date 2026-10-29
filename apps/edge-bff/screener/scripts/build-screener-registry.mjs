@@ -80,7 +80,8 @@ export const PROBE = Object.freeze({
   seed: 20261028, bars: 4000, start: '2016-01-04', cut_at: 1000,
   scale_price: 3.7, scale_volume: 5.3, shift_price_of_median: 0.5, shift_volume_of_median: 0.5,
   tolerance: 1e-9, unit_tolerance: 1e-6, min_common_bars: 100, converged_ratio: 1e-3,
-  cost_bars: 10000, cost_long_length: 1000, cost_measure: 'v8_block_coverage_executed_source_chars', cost_growth: 2, cost_margin: 2,
+  cost_bars: 10000, cost_long_length: 1000, cost_measure: 'v8_block_coverage_executed_source_chars', cost_tier: '--max-opt=1',
+  cost_growth: 2, cost_margin: 2,
 });
 
 function mulberry32(seed) {
@@ -246,12 +247,12 @@ export function costLengths(value, bars) {
 }
 
 /** The class of a measured growth W(L2) / W(L1) - 1, or null when neither is decisive. A kernel that loops over its
-    window (O(N·n)) grows 13.6 to 32.4 (HMA, Aroon, Donchian, Stochastic RSI, Stochastic, Williams %R, CCI, standard
-    deviation 'sample', historical volatility); a running-sum or recursive kernel (O(N)) grows -0.09 to 0 (the other 58
-    integer parameters at every offered enum option; 293 configurations, 2026-10-29). O(N·n) needs a growth of at least
-    cost_growth x cost_margin (4: the work at least five times larger at the longer length), O(N) at most
-    cost_growth / cost_margin (1: at most twice). A class is written only that far from the boundary, so a small change
-    in how a V8 version splits blocks does not flip it; a growth in between stops the build instead of guessing. */
+    window (O(N·n)) grows 13.4 to 32.4 (HMA, Aroon, Donchian, Stochastic RSI, Stochastic, Williams %R, CCI, standard
+    deviation 'sample', historical volatility: 34 configurations); a running-sum or recursive kernel (O(N)) grows -0.09
+    to 0 (the other 58 integer parameters: 259 configurations; every offered enum option, 2026-10-29). O(N·n) needs a
+    growth of at least cost_growth x cost_margin (4: the work at least five times larger at the longer length), O(N) at
+    most cost_growth / cost_margin (1: at most twice). A class is written only that far from the boundary, so a small
+    change in how a V8 version splits blocks does not flip it; a growth in between stops the build instead of guessing. */
 export function costVerdict(growth) {
   if (!Number.isFinite(growth)) return null;
   if (growth >= PROBE.cost_growth * PROBE.cost_margin) return 'O(N·n)';
@@ -320,8 +321,9 @@ export async function costClass(meter, run, B, p, value) {
   return { cost_class: costVerdict(growth), lengths, work, growth };
 }
 
-/** The V8 tier limit of the cost probe's child (see the cost_class notes above): no optimizing compiler. */
-export const COST_TIER_FLAG = '--max-opt=1';
+/** The V8 tier limit of the cost probe's child (PROBE.cost_tier; see the cost_class notes above): no optimizing
+    compiler. */
+export const COST_TIER_FLAG = PROBE.cost_tier;
 /** The node arguments of the cost probe's child process: the tier limit, the Terminal's TypeScript loader (as the npm
     scripts), this script and --cost-work. */
 export const costChildArgs = () => [COST_TIER_FLAG, '--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import', pathToFileURL(at(PATHS.loader)).href,

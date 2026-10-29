@@ -10,7 +10,7 @@ import { activeCards, canonical, cardOfField, ctx, definitionOf, presetOf, S, sa
 import { confirmDialog, dialog, closeDialog, newItemId, toast } from './dialogs.ts';
 import { ApiFailure } from './api/types.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
-import { errorText, T } from './texts.ts';
+import { errorText, savedErrorText, T } from './texts.ts';
 
 const $ = (id: string) => document.getElementById(id);
 const CAT_ORDER = ['Bandarmology', 'Technical', 'Fundamental', 'Combined'];
@@ -79,8 +79,11 @@ async function askCounts() {
   if (!todo.length || key === countsAsked) return;
   countsAsked = key;
   try {
-    const r = await ctx.api.counts({ schema_version:1, definitions:todo.map(s => ({ item_id:s.item_id, definition:(s.definition as ScreenItemDefinition).definition })) });
-    for (const c of r.counts) ctx.counts.set(c.item_id, 'error' in c ? { error:c.error.message || c.error.code } : { match:c.match_count, near:c.near_count });
+    const defs = new Map(todo.map(s => [s.item_id, (s.definition as ScreenItemDefinition).definition]));
+    const r = await ctx.api.counts({ schema_version:1, definitions:todo.map(s => ({ item_id:s.item_id, definition:defs.get(s.item_id)! })) });
+    // an entry's refusal in the page's words, on that saved screen's own cards (texts.ts savedErrorText), never the
+    // worker's raw message (its paths name the request's definitions[k])
+    for (const c of r.counts) ctx.counts.set(c.item_id, 'error' in c ? { error:savedErrorText(c.error, defs.get(c.item_id)) } : { match:c.match_count, near:c.near_count });
     if (S.pcat === 'My screens') { const el = $('uPresets'); if (el) { el.innerHTML = presetsHtml(); fitPresets() } }
   } catch { countsAsked = '' }
 }
