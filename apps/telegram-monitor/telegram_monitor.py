@@ -204,6 +204,8 @@ class StockbitUpdateSummary:
     events: dict
     verify: dict
     last_error: str | None
+    # EXEC-LOADER-M217: the round's broker dates that broker_summary_date_quality marks INCOMPLETE, with their remark
+    incomplete: tuple[tuple[str, str], ...] = ()
 
 
 def fetch_stockbit_update_summary(
@@ -217,13 +219,23 @@ def fetch_stockbit_update_summary(
             (execution_id,),
         )
         row = cursor.fetchone()
+        incomplete: tuple[tuple[str, str], ...] = ()
+        if row is not None and row[5]:
+            cursor.execute("SELECT to_regclass('public.broker_summary_date_quality') IS NOT NULL")
+            if cursor.fetchone()[0]:
+                cursor.execute(
+                    """SELECT trade_date::text, remark FROM public.broker_summary_date_quality
+                       WHERE trade_date = ANY(%s::date[]) AND status = 'INCOMPLETE' ORDER BY trade_date""",
+                    (list(row[5]),),
+                )
+                incomplete = tuple((str(d), str(r or "")) for d, r in cursor.fetchall())
     if row is None or row[3] is None:
         return None
     return StockbitUpdateSummary(
         execution_id=execution_id, mode=str(row[0]), status=str(row[1]), started_at=row[2], finished_at=row[3],
         token_expires_at=row[4], broker_dates=tuple(row[5] or ()), broker_rows=row[6], features=row[7] or {},
         index_result=row[8] or {}, events=row[9] or {}, verify=(row[10] or {}).get("verify") or {},
-        last_error=row[11],
+        last_error=row[11], incomplete=incomplete,
     )
 
 
@@ -353,6 +365,8 @@ def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MA
     elif summary.mode == "APPLY":
         dates = ", ".join(summary.broker_dates) if summary.broker_dates else "tidak ada tanggal baru"
         lines.append(f"Broker Summary: {dates} • rows {summary.broker_rows or 0}")
+        for day, remark in summary.incomplete:  # EXEC-LOADER-M217: loaded, but remarked by the database
+            lines.append(f"⚠️ {day}: {remark}")
         changed = summary.features.get("changed_dates")
         if changed is not None:
             lines.append(f"Feature 02/03/05/06: {len(changed)} tanggal di-refresh" + (f" (dari {changed[0]})" if changed else ""))

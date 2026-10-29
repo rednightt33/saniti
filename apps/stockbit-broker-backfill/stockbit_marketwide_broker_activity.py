@@ -760,9 +760,18 @@ def validate_args(args: argparse.Namespace) -> None:
         raise StockbitError("--retry-base-seconds cannot be negative")
 
 
+PRODUCTION_TABLE = "IDX_Broker_Summary"
+RETIRED_WRITE = ("This loader writes no buy_freq/sell_freq, so it no longer writes {table} (EXEC-LOADER-M217, user go "
+                 "2026-10-29; ERRORS M217). Load broker dates with the stockbit-updater service (UPDATE_TABLE.md "
+                 "section 0); --check-database-only and other target tables still work.")
+
+
 def main() -> int:
     args = parse_args()
     validate_args(args)
+    if args.table == PRODUCTION_TABLE and not args.check_database_only:
+        print(json.dumps({"status": "refused", "reason": RETIRED_WRITE.format(table=PRODUCTION_TABLE)}), file=sys.stderr)
+        return 2
     requested_dates = weekdays_between(args.from_date, args.to_date)
     if args.date_order == "descending":
         requested_dates.reverse()
