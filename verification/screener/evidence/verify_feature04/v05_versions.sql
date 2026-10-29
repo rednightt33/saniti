@@ -1,0 +1,4 @@
+select attname, n_distinct, null_frac, left(most_common_vals::text,200) mcv, left(most_common_freqs::text,60) mcf from pg_stats where tablename='Feature_04_Technical_Indicator' and attname in ('calculation_version','timeframe','asset_type');;
+select count(*) filter (where calculation_version <> 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4') non_v3, count(*) filter (where timeframe<>'Daily') non_daily, count(*) from public."Feature_04_Technical_Indicator" where trade_date >= '2024-01-01';;
+select count(*) filter (where calculation_version <> 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4') non_v3, count(*) filter (where timeframe<>'Daily') non_daily, count(*) from public."Feature_04_Technical_Indicator" where trade_date < '2021-01-01';;
+select count(*) filter (where calculation_version <> 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4') non_v3, count(*) from public."Feature_04_Technical_Indicator" where trade_date >= '2021-01-01' and trade_date < '2024-01-01'

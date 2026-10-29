@@ -1,0 +1,2 @@
+select n_tup_ins, n_tup_upd, n_tup_hot_upd, n_tup_del, n_live_tup, n_dead_tup, last_vacuum, last_autovacuum, vacuum_count, autovacuum_count, stats_reset from pg_stat_user_tables s left join pg_stat_database d on d.datname=current_database() where relname='Feature_04_Technical_Indicator';;
+select ticker, count(*), min(trade_date), max(trade_date), min(calculated_at), max(calculated_at) from public."Feature_04_Technical_Indicator" where ticker in ('KPIG','SBMA','SURE','TRON','IKPM') group by 1

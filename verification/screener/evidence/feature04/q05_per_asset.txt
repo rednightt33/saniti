@@ -1,0 +1,5 @@
+asset_type | n_tickers | n_rows | min_first | max_first | min_last | max_last | first_2018_01_02 | first_jan2018 | at_latest | median_rows | min_rows | max_rows
+bonds | 24 | 60643 | 2016-01-01T00:00:00Z | 2022-10-20T00:00:00Z | 2026-10-26T00:00:00Z | 2026-10-27T00:00:00Z | 0 | 21 | 11 | 2635.5 | 1012 | 2761
+equity | 844 | 1328595 | 2018-01-02T00:00:00Z | 2026-07-10T00:00:00Z | 2026-08-21T00:00:00Z | 2026-10-27T00:00:00Z | 384 | 446 | 828 | 1802.5 | 74 | 2125
+(2 rows, 8310 ms)
+---

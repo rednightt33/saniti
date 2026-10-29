@@ -1,0 +1,17 @@
+table_name | column_name | data_type
+Feature_05_Foreign_Domestic_Broker_Detail | buy_freq | bigint
+Feature_05_Foreign_Domestic_Broker_Detail | buy_lots | numeric
+Feature_05_Foreign_Domestic_Broker_Detail | buy_value | numeric
+Feature_05_Foreign_Domestic_Broker_Detail | net_value | numeric
+IDX_Broker_Profile | broker_classification | text
+IDX_Broker_Profile | broker_code | character varying
+IDX_Broker_Profile | broker_name | text
+IDX_Broker_Profile | broker_type | text
+Price_Stock_Indonesia_IDX | close | numeric
+Price_Stock_Indonesia_IDX | date | date
+Price_Stock_Indonesia_IDX | is_final | boolean
+Price_Stock_Indonesia_IDX | ticker | character varying
+Price_Stock_Indonesia_IDX | timeframe | character varying
+Price_Stock_Indonesia_IDX | volume | numeric
+(14 rows, 503 ms)
+---

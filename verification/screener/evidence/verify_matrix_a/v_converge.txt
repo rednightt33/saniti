@@ -1,0 +1,93 @@
+(A) cut at bar 1000: bars after the cut until |cut-full| <= 1e-6 x median|full| (or first valid). Tickers with >=1500 bars: 531
+sma.sma                  min=19 median=19 p95=19 max=19 (AALI)
+ema.ema                  min=19 median=109 p95=129 max=139 (MPPA)
+wma.wma                  min=19 median=19 p95=19 max=19 (AALI)
+hma.hma                  min=10 median=10 p95=10 max=10 (AALI)
+kama.kama                min=10 median=114 p95=201 max=1109 (BABP)
+macd.macd                min=25 median=198 p95=222 max=446 (ELTY)
+macd.signal              min=33 median=204 p95=228 max=459 (ELTY)
+macd.histogram           min=33 median=204 p95=228 max=459 (ELTY)
+adx.adx                  min=162 median=217 p95=251 max=669 (BEKS)
+adx.plus_di              min=14 median=176 p95=201 max=498 (BEKS)
+adx.minus_di             min=14 median=174 p95=205 max=513 (PPRO)
+aroon.aroon_up           min=14 median=14 p95=14 max=14 (AALI)
+aroon.aroon_down         min=14 median=14 p95=14 max=14 (AALI)
+supertrend.supertrend    min=10 median=104 p95=138 max=228 (SRSN)
+supertrend.direction     min=10 median=21 p95=71 max=268 (LAND)
+donchian.upper           min=19 median=19 p95=19 max=19 (AALI)
+donchian.basis           min=19 median=19 p95=19 max=19 (AALI)
+donchian.lower           min=19 median=19 p95=19 max=19 (AALI)
+keltner.upper            min=19 median=108 p95=128 max=139 (MPPA)
+keltner.basis            min=19 median=109 p95=129 max=139 (MPPA)
+keltner.lower            min=19 median=109 p95=129 max=140 (AIMS)
+psar.sar                 min=1 median=23 p95=79 max=288 (LAND)
+psar.direction           min=1 median=11 p95=61 max=195 (PADI)
+rsi.rsi                  min=14 median=172 p95=202 max=513 (PPRO)
+stoch_rsi.k              min=29 median=195 p95=461 max=713 (PCAR)
+stoch_rsi.d              min=31 median=194 p95=463 max=715 (PCAR)
+stochastic.k             min=17 median=17 p95=17 max=1122 (BEKS)
+stochastic.d             min=17 median=17 p95=17 max=1122 (BEKS)
+williams_r.williams_r    min=13 median=13 p95=13 max=13 (AALI)
+roc.roc                  min=9 median=9 p95=9 max=9 (AALI)
+momentum.momentum        min=10 median=10 p95=10 max=10 (AALI)
+cci.cci                  min=19 median=19 p95=19 max=19 (AALI)
+cmo.cmo                  min=14 median=14 p95=14 max=425 (VIVA)
+tsi.tsi                  min=51 median=203 p95=230 max=513 (PPRO)
+tsi.signal               min=79 median=207 p95=235 max=562 (BEKS)
+trix.trix                min=43 median=149 p95=162 max=318 (ELTY)
+ultimate_osc.uo          min=28 median=28 p95=28 max=1087 (BABP)
+awesome_osc.ao           min=33 median=33 p95=33 max=1122 (BEKS)
+ppo.ppo                  min=25 median=197 p95=220 max=446 (ELTY)
+ppo.signal               min=33 median=203 p95=225 max=461 (ELTY)
+ppo.histogram            min=33 median=204 p95=226 max=461 (ELTY)
+bop.bop                  min=0 median=0 p95=0 max=0 (AALI)
+bollinger.upper          min=19 median=19 p95=19 max=395 (SLIS)
+bollinger.basis          min=19 median=19 p95=19 max=19 (AALI)
+bollinger.lower          min=19 median=19 p95=19 max=395 (SLIS)
+
+(B) latest bar (each ticker's last bar) computed on only the last K bars vs full history: count of tickers differing by > 1e-6 x median|full| (or null mismatch)
+sma.sma                  K=250: 0/831 max|d|/S=4.5e-14 | K=500: 0/796 max|d|/S=4.5e-14 | K=1000: 0/645 max|d|/S=4.6e-14
+ema.ema                  K=250: 0/831 max|d|/S=1.0e-9 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+wma.wma                  K=250: 0/831 max|d|/S=2.8e-12 | K=500: 0/796 max|d|/S=2.8e-12 | K=1000: 0/645 max|d|/S=2.8e-12
+hma.hma                  K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+kama.kama                K=250: 2/831 max|d|/S=2.4e-5 [BABP full=27.2735 tail=27.2722] | K=500: 1/796 max|d|/S=2.4e-5 [BABP full=27.2735 tail=27.2722] | K=1000: 1/645 max|d|/S=2.4e-5 [BABP full=27.2735 tail=27.2722]
+macd.macd                K=250: 20/831 max|d|/S=1.5e+0 [ELTY full=-2.66657 tail=-2.66657] | K=500: 0/796 max|d|/S=4.0e-14 | K=1000: 0/645 max|d|/S=0.0e+0
+macd.signal              K=250: 28/831 max|d|/S=2.2e+0 [ELTY full=-2.78122 tail=-2.78122] | K=500: 0/796 max|d|/S=1.6e-12 | K=1000: 0/645 max|d|/S=0.0e+0
+macd.histogram           K=250: 27/831 max|d|/S=7.0e-1 [ELTY full=0.114654 tail=0.114654] | K=500: 0/796 max|d|/S=4.9e-12 | K=1000: 0/645 max|d|/S=0.0e+0
+adx.adx                  K=250: 21/831 max|d|/S=1.2e-3 [DADA full=76.0445 tail=75.9706] | K=500: 0/796 max|d|/S=1.1e-8 | K=1000: 0/645 max|d|/S=0.0e+0
+adx.plus_di              K=250: 1/831 max|d|/S=4.6e+1 [BLTA full=27.0023 tail=27.0023] | K=500: 0/796 max|d|/S=9.2e-16 | K=1000: 0/645 max|d|/S=0.0e+0
+adx.minus_di             K=250: 1/831 max|d|/S=1.1e+2 [ELTY full=22.1181 tail=22.1181] | K=500: 0/796 max|d|/S=8.7e-16 | K=1000: 0/645 max|d|/S=0.0e+0
+aroon.aroon_up           K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+aroon.aroon_down         K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+supertrend.supertrend    K=250: 0/831 max|d|/S=1.8e-9 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+supertrend.direction     K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+donchian.upper           K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+donchian.basis           K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+donchian.lower           K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+keltner.upper            K=250: 0/831 max|d|/S=9.8e-10 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+keltner.basis            K=250: 0/831 max|d|/S=1.0e-9 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+keltner.lower            K=250: 0/831 max|d|/S=9.9e-10 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+psar.sar                 K=250: 1/831 max|d|/S=3.2e-2 [LAJU full=61.9452 tail=59.8548] | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+psar.direction           K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+rsi.rsi                  K=250: 2/831 max|d|/S=2.3e+2 [ELTY full=40.3114 tail=40.3114] | K=500: 0/796 max|d|/S=7.5e-16 | K=1000: 0/645 max|d|/S=0.0e+0
+stoch_rsi.k              K=250: 3/831 max|d|/S=7.3e+2 [ELTY full=87.3707 tail=87.3707] | K=500: 2/796 max|d|/S=2.1e-4 [BLTA full=21.0383 tail=21.0383] | K=1000: 0/645 max|d|/S=1.1e-14
+stoch_rsi.d              K=250: 3/831 max|d|/S=1.1e+3 [ELTY full=84.0228 tail=84.0228] | K=500: 2/796 max|d|/S=2.3e-4 [BLTA full=21.6662 tail=21.6662] | K=1000: 0/645 max|d|/S=1.6e-14
+stochastic.k             K=250: 13/831 max|d|/S=1.1e-4 [BEKS full=5.12821 tail=5.12821] | K=500: 9/796 max|d|/S=7.8e-5 [BNBR full=22.4702 tail=22.4702] | K=1000: 4/645 max|d|/S=7.1e-5 [ANDI full=81.7694 tail=81.7694]
+stochastic.d             K=250: 14/831 max|d|/S=1.6e-4 [MIRA full=28.8889 tail=28.8889] | K=500: 13/796 max|d|/S=1.5e-4 [NTBK full=36.5185 tail=36.5185] | K=1000: 7/645 max|d|/S=2.0e-4 [BNBR full=23.1151 tail=23.1151]
+williams_r.williams_r    K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+roc.roc                  K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+momentum.momentum        K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+cci.cci                  K=250: 3/831 max|d|/S=1.4e-4 [BLTA full=-81.5567 tail=-81.5567] | K=500: 2/796 max|d|/S=8.5e-5 [TAXI full=-35.4687 tail=-35.4687] | K=1000: 2/645 max|d|/S=8.5e-5 [TAXI full=-35.4687 tail=-35.4687]
+cmo.cmo                  K=250: 0/831 max|d|/S=4.3e-14 | K=500: 0/796 max|d|/S=4.3e-14 | K=1000: 0/645 max|d|/S=4.3e-14
+tsi.tsi                  K=250: 2/831 max|d|/S=1.7e-6 [TIRA full=-44.6245 tail=-44.6245] | K=500: 0/796 max|d|/S=3.2e-15 | K=1000: 0/645 max|d|/S=0.0e+0
+tsi.signal               K=250: 5/831 max|d|/S=1.9e-3 [DADA full=-73.8501 tail=-73.8656] | K=500: 0/796 max|d|/S=3.1e-14 | K=1000: 0/645 max|d|/S=0.0e+0
+trix.trix                K=250: 3/831 max|d|/S=2.7e-3 [BLTA full=-0.00871081 tail=-0.00871081] | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+ultimate_osc.uo          K=250: 0/831 max|d|/S=1.9e-14 | K=500: 0/796 max|d|/S=1.9e-14 | K=1000: 0/645 max|d|/S=1.7e-14
+awesome_osc.ao           K=250: 1/831 max|d|/S=6.4e-5 [BEKS full=0.700000 tail=0.700000] | K=500: 1/796 max|d|/S=6.4e-5 [BEKS full=0.700000 tail=0.700000] | K=1000: 1/645 max|d|/S=6.4e-5 [BEKS full=0.700000 tail=0.700000]
+ppo.ppo                  K=250: 7/831 max|d|/S=5.0e+0 [ELTY full=-9.88183 tail=-9.88183] | K=500: 0/796 max|d|/S=1.2e-14 | K=1000: 0/645 max|d|/S=0.0e+0
+ppo.signal               K=250: 12/831 max|d|/S=6.8e+0 [ELTY full=-9.87825 tail=-9.87825] | K=500: 0/796 max|d|/S=6.3e-12 | K=1000: 0/645 max|d|/S=0.0e+0
+ppo.histogram            K=250: 12/831 max|d|/S=1.8e+0 [ELTY full=-0.00358602 tail=-0.00358602] | K=500: 0/796 max|d|/S=2.0e-11 | K=1000: 0/645 max|d|/S=0.0e+0
+bop.bop                  K=250: 0/831 max|d|/S=0.0e+0 | K=500: 0/796 max|d|/S=0.0e+0 | K=1000: 0/645 max|d|/S=0.0e+0
+bollinger.upper          K=250: 0/831 max|d|/S=4.7e-11 | K=500: 0/796 max|d|/S=4.7e-11 | K=1000: 0/645 max|d|/S=4.7e-11
+bollinger.basis          K=250: 0/831 max|d|/S=4.5e-14 | K=500: 0/796 max|d|/S=4.5e-14 | K=1000: 0/645 max|d|/S=4.6e-14
+bollinger.lower          K=250: 0/831 max|d|/S=6.0e-11 | K=500: 0/796 max|d|/S=6.0e-11 | K=1000: 0/645 max|d|/S=6.0e-11

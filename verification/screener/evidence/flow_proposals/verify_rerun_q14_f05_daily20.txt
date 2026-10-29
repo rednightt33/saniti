@@ -1,0 +1,7 @@
+name | n | mn | p10 | p50 | p90 | mx | bbca | antm | care | top1_bbca_antm_care
+FL14 top-1 20d net buyer: buy-day ratio 20 | 832 | 0.050 | 0.250 | 0.600 | 0.800 | 1.000 | 0.700 | 0.600 | 0.200 | SQ/YU/AP
+FL15 accumulation-day ratio 20 (daily top-3 balance > 0) | 832 | 0.000 | 0.250 | 0.450 | 0.650 | 0.950 | 0.400 | 0.400 | 0.850 | SQ/YU/AP
+FL15 ref: days with daily top-3 balance <= -5% (of 20) | 832 | 0.000 | 2.000 | 5.000 | 10.000 | 17.000 | 8.000 | 9.000 | 1.000 | SQ/YU/AP
+FL15 ref: days with daily top-3 balance >= +5% (of 20) | 832 | 0.000 | 1.000 | 4.000 | 8.000 | 19.000 | 3.000 | 5.000 | 8.000 | SQ/YU/AP
+(4 rows, 2240 ms)
+---

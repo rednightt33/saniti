@@ -1,0 +1,4 @@
+n | state_differs | state_flips | diff_gt_2pt | top_buyer_differs | care_all | care_reg | care_top_all_reg
+832 | 37 | 0 | 59 | 55 | 0.033439575832299714 | 0.04612827485636871 | AP/CC
+(1 rows, 981 ms)
+---

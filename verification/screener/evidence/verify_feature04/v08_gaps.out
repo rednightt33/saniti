@@ -1,0 +1,6 @@
+cal_days | tickers | no_gap | with_gap | gt5pct | gt50pct | missing_total | impossible
+2125 | 844 | 242 | 602 | 220 | 9 | 88288 | 0
+(1 rows, 1590 ms)
+---
+ERROR: HTTP 400: {"error":"pq: canceling statement due to statement timeout","status":400}
+---

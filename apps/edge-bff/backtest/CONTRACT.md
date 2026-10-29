@@ -24,10 +24,14 @@ not in the path.
 ## 2. Market data
 
 - Datasets: `price` (`d,o,h,l,c,v`), `broker` (`d,b,i,m,bv,sv,bl,sl`), `events` (corporate actions), from
-  `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` (header `x-terminal-proxy-key`; the gateway account
-  `TERMINAL_PROXY_SUBSCRIBER`, quota unlimited for now **[D-U1]**). Every file is checked against its manifest
-  `sha256` and `bytes` before use; a mismatch, a missing file, or a missing dataset is an explicit error
-  (`DATA_INTEGRITY`, `DATA_MISSING`), never a fallback (a portfolio leaves out a ticker without published files, below).
+  `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` (header `x-terminal-proxy-key` with the worker's
+  `TERMINAL_PROXY_KEY` **[D-U1]**: since EXEC-MU-RUNTIME T1 (2026-10-28) a reference to terminal-api's
+  `TERMINAL_SERVICE_KEY_BACKTEST_WORKER`, the worker's own service account `backtest-worker@terminal.local` with its
+  own lock, audit rows and hourly runaway ceilings; until that variable is switched, the gateway key and its account
+  `TERMINAL_PROXY_SUBSCRIBER`, quota unlimited for now; both keys get the same answers). Every file is checked
+  against its manifest `sha256` and `bytes` before use; a mismatch, a missing file, or a missing dataset is an explicit
+  error (`DATA_INTEGRITY`, `DATA_MISSING`), never a fallback (a portfolio leaves out a ticker without published files,
+  below).
 - What the worker accepts from terminal-api and the bucket: a file or reference URL on `BACKTEST_FILE_ORIGIN` only
   (scheme, host, port; a leading `*.` matches subdomains, as the pages' CSP `https://*.t3.storageapi.dev`), redirects
   refused; any other URL is `DATA_INTEGRITY` and never requested. Bodies are read as streams and dropped at their size:
@@ -42,8 +46,9 @@ not in the path.
   new answer asked right before the ticker's downloads; a ticker whose file the bucket still refuses with 403 (the URL
   expired) is loaded once more from a new answer. A new answer is the run's data, from a later publish too: its files
   are the ones read (`data_version`) and take the place of the ticker's first ones in the limits (section 3). Every
-  answer counts its files in terminal-api's quota and writes an audit row, so a ticker costs one answer, two once its
-  first one is too old and a file of it is not cached, three with a 403 (review COST-1). A download in flight is
+  answer counts its files in terminal-api (the gateway account's quota, or the service account's hourly ceilings
+  `service_*_per_hour`, 429 `service_ceiling_reached`) and writes an audit row, so a ticker costs one answer, two once
+  its first one is too old and a file of it is not cached, three with a 403 (review COST-1). A download in flight is
   shared only by callers of the same file and URL. Known limits: the publisher rewrites a changed file under the same
   bucket key, so an answer reused across a publish reads other bytes and fails the run (`DATA_INTEGRITY`); a ticker
   whose new answer is a 404 or lacks a dataset fails the run (`DATA_MISSING`), in a portfolio too;
@@ -76,8 +81,10 @@ not in the path.
   This replaces the earlier `DATA_UNAVAILABLE` check on the loaded tickers' broker `data_through`. Caching
   **[D-L3]** (replaced 2026-10-27, EXEC-BACKTEST-LOAD K1, user: "Sesi ini, jalankan"): the catalog and the reference
   lists are kept per publication. terminal-api `GET /state` names it (state.json `finished_at`, `price_through`,
-  `broker_through`; no file granted, no quota, no audit row); the worker (`catalog.ts ByPublication`) asks it at most
-  every 60 s and builds again only when `finished_at` changed, and `catalog.flow.data_through` is the publication's
+  `broker_through`; no file granted, no quota, no audit row; the answer also carries `broker_behind_sessions` and,
+  since EXEC-SCREENER (2026-10-28), `xsection`, the screener's cross-sectional file index, which the worker does not
+  read: `terminal.ts publication` keeps the three fields named); the worker (`catalog.ts ByPublication`) asks it at
+  most every 60 s and builds again only when `finished_at` changed, and `catalog.flow.data_through` is the publication's
   `broker_through` (the newest Feature 05 date of the run, the date that run wrote into the manifests it touched).
   Without `/state` (an older terminal-api, state.json unreadable) nothing is kept and every build asks every stock's
   manifest, as before. The worker builds the catalog at start; edge-bff keeps it 60 s.
@@ -671,7 +678,7 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | K7b | Limits | — | env-configurable without a code default (section 3 Limits), measured in the dev E2E | — |
 | K9 | Liquidity value | close × volume / Σ broker buy | close × volume | the page's definition, needs no broker data |
 | K10 | fast < slow | require / follow page | follow page | the page and TradingView accept it |
-| U1 | Worker data identity | gateway key / own service key | gateway key via `${{terminal-api.TERMINAL_PROXY_KEY}}`, TEMPORARY | no terminal-api change while Terminal work runs in parallel |
+| U1 | Worker data identity | gateway key / own service key | gateway key via `${{terminal-api.TERMINAL_PROXY_KEY}}`, TEMPORARY; replaced by the own service key via `${{terminal-api.TERMINAL_SERVICE_KEY_BACKTEST_WORKER}}` (EXEC-MU-RUNTIME T1, user 2026-10-28 option A; migration `20261028_100`): the worker's variable is switched after terminal-api accepts the key, and terminal-api keeps accepting the gateway key until a later step removes it from the workers | no terminal-api change while Terminal work ran in parallel; then the worker's grants stop sharing the people's lock, usage and audit, and the gateway key, which a per-owner header must be able to trust (T2), leaves the workers |
 | X2 | Benchmark + compare | request field / browser | benchmark in the request; compare lines in the browser | compare lines do not change results |
 | slots | ARA/cash skip wastes the slot | page / next candidate | next candidate | slots go to eligible signals |
 | grid | Which condition the grid varies | page (legacy cards only) / any numeric threshold | any numeric threshold | registry cards were only excluded by the mock-up |

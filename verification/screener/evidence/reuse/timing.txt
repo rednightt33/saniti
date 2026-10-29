@@ -1,0 +1,4 @@
+53 indicators x 40 tickers (63564 bars): 696 ms; per ticker 17.4 ms; x845 ~ 14.7 s
+5 conditions x 40 tickers: 46 ms; per ticker 1.15 ms; x845 ~ 971 ms
+decode 40 price packs: 208 ms; per ticker 5.19 ms; gz bytes avg 17085
+heap MB 27

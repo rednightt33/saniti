@@ -4903,6 +4903,18 @@ The other session's work reached `main` (EDGE backtest, merge `fdd00e7`, #39) an
 `cfa05ba`; live terminal `index-BwPhz-tP.js`, `style-CEs0cb7F.css` and `worker-Cvg2XSvx.js` equal the W1 + I2 build
 (sha256), checked 2026-10-27 after 14:27 UTC. No variable changed.
 
+## 2026-10-27 — terminal-publisher: content keys and next-run cleanup (ERRORS M250, dev)
+
+User 2026-10-27 13:27 UTC: option A of 3 ("Ya, PR terpisah setelah PR backtest"); 14:40 UTC: "Diuji dev pada run 7.30
+besok". CLI upload of a clean `git archive` of `6051f4d` (`apps/terminal-publisher`, `--path-as-root`, outside the
+00:00–01:00 and 12:00–13:05 UTC windows): `4c2c3823-fc67-48f5-92a4-93017332c821` SUCCESS 14:44 UTC; cronSchedule
+`0,30 0,12 * * *` unchanged; no variable changed. The upload does not run the job (ERRORS M229): the first run with
+the new code is the 00:30 UTC tick of 2026-10-28. Rollback: `0b1b5343` (main `704ab0d` publisher).
+- A read-only listing of the dev bucket started 14:34 UTC ran more than 6 minutes without finishing and was stopped
+  at the user's word; nothing was written or deleted. So the listing time and the delete permission are verified by
+  the scheduled run: its `gc`, `gc_skipped` or `gc_failed` line (the cleanup is bounded by `GC_LIST_SECONDS`, 900 s,
+  and never stops the run).
+
 ## 2026-10-27 — EXEC-BACKTEST-LOAD: terminal-api, backtest-worker, edge-bff
 
 User 2026-10-27: "Sesi ini, jalankan" (PLAN BACKTEST-LOAD; EXEC.md EXEC-BACKTEST-LOAD). No variable changed.
@@ -4974,3 +4986,33 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
 - Change: Terminal front-end only (smoother chart drag with asset panes and Broker inventory; Broker inventory crosshair
   on a direct hover). No variable, database or other service changed.
 - Verified: the live `/terminal-app/` serves `assets/index-B1jkYNqZ.js`, the same build checked locally.
+
+## 2026-10-29 — terminal-publisher `0d33d8ac` (EXEC-SCREENER, EXEC-MU-RUNTIME T5; PR #42; fixes M263 on dev)
+
+- Service terminal-publisher, environment dev, CLI upload (ERRORS M229, M248) of `git archive 0fb3375
+  apps/terminal-publisher` from the branch `claude/charming-hamilton-faq25e` (it contains `origin/main` `d84be91`;
+  PR rednightt33/saniti#42). Tree digest `0166424a554f7c61bb4a4f2a0d773d64afd3b39bf8de8c41a6ed3c357f2a1769`. Status
+  SUCCESS at 09:33 UTC; with the cron kept the upload built and did not run (cron list unchanged, `nextCronRunAt`
+  12:00 UTC, schedule `0,30 0,12 * * *` read back).
+- Why now: the live publisher (`b8b51052`, the PR #41 build) CRASHED at 00:32 UTC today on a `RequestCanceled`
+  GetObject, as on 2026-10-28 (M263), so today's 07:30 WIB publication did not happen. This build retries every bucket
+  call (M263) and also writes the Screener xsection files and the content-keyed reference files with their indexes in
+  `state.json` (`xsection`, `refs`); the deployed terminal-api ignores both fields until its own deploy. The 12:00 UTC
+  tick (19:00 WIB, a listed run time) is this build's first run; its checks follow in the next entry.
+- A branch CLI upload can be overwritten by a later upload of another commit (M248); PR #42 brings the same code to
+  `main`.
+- Rollback: `deploymentRollback` of `b8b51052-f2e5-4426-9c43-cd1dcd70d5a4` (the PR #41 build), or a CLI upload of
+  `git archive 6051f4d apps/terminal-publisher`; the next run then writes `state.json` without `xsection` and `refs`, and
+  every reader stays valid.
+
+## 2026-10-29 — terminal-api variables and healthcheck for EXEC-MU-RUNTIME T1/T9 (no deploy)
+
+- Service terminal-api, environment dev, 09:34 UTC, all with `--skip-deploys` (the active deployment stays
+  `689dc465`, read back): added `TERMINAL_SERVICE_KEY_BACKTEST_WORKER` and `TERMINAL_SERVICE_KEY_SCREENER_WORKER` (new
+  random 64-hex values set through `--stdin`, never printed; checked in memory to be present, at least 32 characters and
+  distinct from each other, `TERMINAL_ADMIN_KEY` and `TERMINAL_PROXY_KEY`), and `PORT=8080` (ERRORS M289: the fixed port
+  the app listens on, which Railway's healthcheck probes). Service setting: `healthcheckPath` `/ready`,
+  `healthcheckTimeout` 120 (`serviceInstanceUpdate`; read back `health=/ready`). The running build ignores the two keys
+  and already answers `/ready`; the new build reads them after migration `20261028_100` and its own deploy.
+- Rollback: delete the three variables with `--skip-deploys` and set `healthcheckPath` back to null; nothing reads them
+  until the new build is deployed.

@@ -1,0 +1,21 @@
+{
+ "full_history_pack": {
+  "tickers": 845,
+  "gzip_total_mb": 14.22,
+  "raw_total_mb": 65.01,
+  "gzip_median_kb": 17.2,
+  "gzip_p90_kb": 25.6,
+  "gzip_max_kb": 42.3,
+  "max_ticker": "BRPT"
+ },
+ "last_750_bars_pack": {
+  "tickers": 845,
+  "gzip_total_mb": 6.38,
+  "raw_total_mb": 28.96,
+  "gzip_median_kb": 7.5,
+  "gzip_p90_kb": 9.1,
+  "gzip_max_kb": 16.4,
+  "max_ticker": "PANI"
+ },
+ "build_seconds_python": 25.4
+}

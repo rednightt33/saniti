@@ -60,6 +60,9 @@ A new table (any asset class, any frequency) is ready for the AI only when every
      (`Column_Catalog`, `AI_column_catalog`) says it is not a real category and is reported apart. Any other
      unknown value still follows NULL plus reason.
    - A category column of a dated table declares its values as a single-column `CHECK (column = ANY (ARRAY[...]))` list where the set is fixed (boards, investor types, tenors). The Governor reads it into the catalog contract and filter values are matched to it at approval regardless of case; without it a dated category has no stored-value list and a misspelt value is not caught there. (G16)
+   - The kind of instrument is a real category too. A universe that holds more than one kind (common stocks, DIRE
+     real-estate funds, an index) records each instrument's kind in a type or subtype column from a controlled list,
+     set at the data layer; consumers filter on that column, never on a list of names. (D30)
 
 ### A2. Time
 
@@ -117,9 +120,12 @@ A new table (any asset class, any frequency) is ready for the AI only when every
     - `Table_Catalog` and `Column_Catalog` (description, data type, unit);
     - the AI catalogs (`AI_table_catalog`, `AI_column_catalog`, `AI_catalog_relationships`, `AI_calculation_catalog`), including `ai_allowed` and `is_sensitive` flags decided per column, not defaulted;
     - `Feature_Catalog` for derived columns (formula, interpretation, misuse warning);
-    - `Tool_Catalog` for new tools.
+    - `Tool_Catalog` for new tools;
+    - for a Screener metric, the fields the page shows (`label`, `short`, `interpretation`, `misuse`,
+      `unavailable_reason`, `decision`, parameter labels and options) in plain English, naming other metrics by the label
+      the page shows and never an id, code, file or column name; `tests/page/plain-words.test.ts` checks them (M298).
 
-    Follow `AGENTS.md` step 5. (D18, C04)
+    Follow `AGENTS.md` step 5. (D18, C04, M298)
 17. **Every safe join is registered** with:
     - its join columns;
     - its temporal rule (`EXACT_DATE`, `AS_OF` backward, `EFFECTIVE_DATED`, `CURRENT_STATE`);
@@ -185,6 +191,15 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 | D19 | 2026-09-12 | First Feature 01 migration failed | A renamed CTE alias; PostgreSQL rolled the whole transaction back | Alias corrected, absence of partial objects verified, re-applied | FIXED | Migrations run in one transaction and are rehearsed on a scratch database |
 | D20 | 2026-10-11 | Fixed-income prices had separate daily/recovery crons and monitoring rows, but no Feature04 enqueue or Telegram tracking path | Feature04 and telegram-monitor recognized only the IDX price source; the fixed-income updater source was deployed separately and is not present in this repository | Universe-classified database triggers enqueue only fixed-income `price/1D` tickers and translate each committed `Monitoring_Fixed_Income` row into a source-specific price event plus gated Feature04 run. Existing worker/monitor/trigger services were extended; cron services and schedules stay independent. Rollback trigger tests, 24-ticker backfill, and live Telegram completion passed | FIXED | A new source with its own scheduler needs a committed monitoring-to-feature bridge and source-specific notification acknowledgement; do not couple it through a hardcoded ticker list |
 | D21 | 2026-10-25 | Stockbit insider (`/insider/company/majorholder`, pulled 2026-10-25, not loaded): 38 percentage values are `±922337203685477.62`; 475 rows show previous % `0.00` although previous shares > 0 (e.g. ABBA 2020-02-25, 1,592,831,618 shares); 2.8% of previous/current % do not match shares ÷ shares outstanding; change % differs from current % − previous % in 22% of rows; the API `id` repeats across rows | Verified by recomputation (shares outstanding derived per ticker and date from holders ≥5%): 93.1% of 209,438 values match exactly and 3.3% within one last digit. The sentinel is an int64 overflow (division by a missing share base). Previous % uses the share base of the previous report: after a rights issue or placement it differs (546 of 1,278 previous-only mismatches match an earlier base, e.g. ACST 2020-09-07 86.13% → 73.11% with no change in shares). Change % is change shares ÷ current base (97% match), not the difference of the rounded percentages (78%), except when the base changed. `id` is the holder id, not a transaction id (153 rows stay identical on every transaction field). Shares: current − previous = change in 104,738 of 104,738 rows | Planned for `idx_event_annotation` (PLAN.md, EVENT-ANNOTATION): sentinel and placeholder 0 stored as NULL with a reason; a percentage-quality flag per row; key = transaction fields + sequence number | OPEN | A percentage needs its denominator: declare which base (previous or current report) each percentage uses and validate it by recomputation on the full history, not a sample; a source `id` is not a row key until its uniqueness is measured (A1.1, A1.4, A3.15a) |
+| D22 | 2026-10-27 | Split history is mixed in `Price_Stock_Indonesia_IDX`: PBSA closes 845 on 2026-10-13 and 384 on 2026-10-14 (its split ex-date) with every older row on the pre-split scale, while RAJA is adjusted across its 2026-07-16 split. Every indicator over such a boundary is distorted (Feature 04 PBSA 2026-10-27: `rsi_14` 22.8, `sma_50` 706.4 against a close near 300); the Backtest warns with `ADJUSTED_HISTORY_BOUNDARY` 2026-09-12 (CONTRACT.md K4). Second observed instance, FORU (rights issue, ex-date 2026-09-22): close 2,560 → 176, Feature 04 `bb_lower_20` negative on 16 sessions 2026-09-25..10-16 (lowest −2,114.1) and `sma_50` 1,484.04 against a close of 94 on 2026-10-27. Derived count (live 2026-10-28: `idx_event_annotation` family `CORPORATE_ACTION`, type in `PRICE_ACTION_TYPES` (`apps/edge-bff/backtest/src/core/datafile.ts:236`), ex-date from `ADJUSTED_HISTORY_BOUNDARY` to the last bar 2026-10-27): 8 price-affecting actions on 8 tickers: rights issues FORU 09-22, BAJA 09-28, ENRG 10-05 (1,440 → 1,030), VKTR 10-07 (835 → 670), AHAP 10-09, BRNA 10-09, BUVA 10-14 and the PBSA split 10-14; 5 more are dated later (MGLV, CBRE, PPGL, BMAS, PRDA, 2026-11-02..12-18). Found by the Screener audit (`verification/screener/AUDIT.md`) | Verified from code: `apps/idx-price-cron/price_update.py` asks TradingView for split-adjusted candles (`request_symbol`, `"adjustment": "splits"`) but only the last `--request-bars` (default 5) per run, and upserts them; rows loaded earlier are never rewritten, so a split after a row was loaded leaves that row on the old scale. Suspected, not verified: the history before 2026-09-12 was adjusted once at the bulk load. **Class:** any incrementally loaded series whose source revises history retroactively (splits, bonus shares, rights; later index rebasing, macro revisions); every consumer computed from it (Feature 01/04, Terminal, Backtest, Screener, AI answers) inherits it | None yet. The fix belongs to the data layer: on a split/bonus/rights event (`idx_event_annotation`), re-pull or rescale the ticker's full history, then let Feature 04 recalculate the affected suffix (needs the user's go). Until then the Backtest warns (`ADJUSTED_HISTORY_BOUNDARY`), and the Screener applies a TEMPORARY rule (user decision P4, 2026-10-28, `EXEC.md` EXEC-SCREENER): a ticker with such an action between the boundary and its last bar is hidden by default; when the user shows it through the filter, its row and its values are shown with a remark naming the action and the ex-date. Proposal: `FUTURE_PLAN.md` E2 | OPEN | A3.14: a source that adjusts history retroactively needs a history refresh triggered by the corporate-action event, not only a daily tail |
+| D23 | 2026-10-27 | `Universe_Equity_Description` has `Sector` and `Industry` swapped relative to `IDX_Stock_Universe`: 844 of 844 rows are consistent with a swap; 841 differ, the other 3 are `Undefined` in both columns (XCID, XCIS, XSPI) (ADRO: Sector `Coal`, Industry `Energy`; BBCA: Sector `Banks`, Industry `Financials`; pgweb query 2026-10-27, re-checked 2026-10-28). The table is in the AI backend's table list (`apps/market-ai-backend/app/tools.py`) | Verified: `IDX_Stock_Universe` took its classification from this table on 2026-09-07 (migration `20260907_001`), and D01's swap (2026-09-12) corrected `IDX_Stock_Universe` only. **Class:** a column-meaning fix applied to one table while copies of the same columns live in other tables | None yet: a one-transaction swap of the two columns, verified against `IDX_Stock_Universe`, needs the user's go. The Screener reads classification from `IDX_Stock_Universe` only. Proposal: `FUTURE_PLAN.md` E3 | OPEN | A1.4: after fixing a column's meaning, search every table and catalog row that carries the same column and fix or document each |
+| D24 | 2026-10-27 | stockbit-updater round `3323340d` (`Monitoring_Stockbit_Update`, APPLY, deployment `255ca937`, 2026-10-27 14:18:02–14:24:52 UTC) ended `FAILED` with `TypeError: Object of type date is not JSON serializable`, after its broker step (no pending date, 0 rows) and its Feature step were recorded and before `index_result` (pgweb read 2026-10-28). The next round, `51a399f1` of a new deployment `168cfa9e` (14:28–14:53 UTC), succeeded; its `index_result` carries `"mode": "incremental"` and a `tickers.IHSG.price` block with first and last dates. None of these IDs is in `RAILWAY_CHANGELOG.md` or this file. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_flow.json`, additional findings) | Suspected: the deployed index step returned `date` objects inside `index_result`, and `record()` wraps a dict in psycopg `Jsonb` (`apps/stockbit-updater/updater.py:59-62`), which serialises with plain `json.dumps` (no `default=str`, unlike `emit()` at :44). Verified: the code of both deployments is not in Git: `refresh_index` at HEAD and at `origin/main` `010af1e` returns only `newest` and `seconds` (`apps/stockbit-updater/refresh.py:157-180`), no branch holds `incremental` or `p_from` there, and `deploy.sh` uploads the local working tree. Check: the `round_failed` trace in the log of deployment `255ca937`, and the uploaded source of `168cfa9e` compared with Git. **Class:** every JSON column written from Python values through `Jsonb` without a serialiser (dates, `Decimal`); every CLI-uploaded service deployed from a tree that is not committed (M217) | None yet: commit the deployed stockbit-updater code (from whoever deployed it), then give `record()` an explicit serialiser (`Jsonb(v, dumps=...)` with `default=str`) and a test that records each step's real payload; needs the user's go | OPEN | A load log writes its payloads with an explicit serialiser and is tested with the types the steps really return; the code a service runs is in Git before it is deployed |
+| D25 | 2026-10-27 | `Monitoring_Stockbit_Update` row `e3331473` (APPLY, deployment `255ca937`, started 2026-10-27 14:25:02 UTC, 10 s after round `3323340d` of the same deployment failed, D24) is still `RUNNING`: no `finished_at`, `updated_at` 14:25:08, broker step recorded, Feature step not (pgweb read 2026-10-28). Round `51a399f1` (deployment `168cfa9e`) started 14:28:31 and succeeded. A reader that waits for "no RUNNING row" would wait forever. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_flow.json`, additional findings) | Suspected: the process was stopped during the Feature step, most likely when deployment `168cfa9e` replaced `255ca937` at 14:28:31. `updater.py` writes the final status only on a normal return or a caught `Exception` (`apps/stockbit-updater/updater.py:129-169`); it has no signal handler, and no start closes an earlier `RUNNING` row. Unknown: why a second round ran in the same deployment while the documented restart policy is `NEVER` (`apps/stockbit-updater/railway.json`, `PROJECT_CONTEXT.md:35`; `.railway/railway.ts:170-174` sets none). Check: the events and log of deployment `255ca937` (a restart; a SIGTERM at 14:28) and the live restart policy (`railway config plan`). **Class:** every run-log row whose writer can be killed by a deploy, a restart or the OOM killer (the `Monitoring_*` tables; per-date control rows such as `stockbit_full_broker_import_status` `fetching`) | None yet: at start, close older `RUNNING` rows of the service as `FAILED` with a `last_error` that names the abandoned round (the table's CHECK allows only `RUNNING`, `SUCCESS`, `FAILED`), and record `FAILED` on SIGTERM; readers take the newest row by `started_at` (as `UPDATE_TABLE.md` §0 reads it) or the publisher's `broker_through` (M243). Needs the user's go. The Screener gates on the newest row, never on the absence of a `RUNNING` row | OPEN | A run-log row reaches a final state even when its process is killed; a `RUNNING` row is never read as "a load is in progress" without a staleness rule |
+| D26 | 2026-10-27 | The deferred price refill EXEC-TERMINAL-1026B F3 (all stocks on 2026-09-17 and 2026-09-18 with `price_update.py --mode manual`) says "Feature 04 ikut dihitung ulang lewat jalur normal" (`EXEC.md:7999-8000`); the normal path cannot do it. Each inserted row enqueues with dirty date 2026-09-17, the live `enqueue_feature04_group` deletes every checkpoint on or after that date, and the worker then needs the checkpoint of the last source date before it (2026-09-16) and a suffix of at most `correction_lookback_sessions` rows (`apps/feature-04-worker/worker.py:262-334`, `RepairRequired` at :292 and :330). Live 2026-10-28: lookback 5 (`Equity_Market_Schedule` IDX); 840 stocks have prices on both sides of the gap; the 5,908 equity checkpoints (844 tickers, 7 each) hold 2026-09-16 only for INPS, whose last bar is that date; BBRI's suffix would be 29 rows (27 stored sessions after 2026-09-16 plus the 2 refilled). About 840 tickers would end `REPAIR_REQUIRED`. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_feature04.json`, additional findings) | Verified from code and live data: the incremental worker absorbs only corrections inside the lookback window and has no full-history fallback by design ("Feature04 incremental finality — 2026-10-12" in this file); a back-dated insert older than the window needs the manual per-ticker rebuild, which F3 does not plan. **Class:** any back-dated price insert or correction older than the window: the F3 refill, a re-adjusted split or rights history (the D22 fix), fixed-income date repairs; a `VERSION` bump invalidates every checkpoint the same way | None yet: F3 adds a per-ticker Feature 04 rebuild (`features/feature04/backfill.py --tickers`, then `apps/feature-04-worker/bootstrap_states.py --ticker`; whole-universe runs are blocked by D27) or a bulk repair path, sequenced before any Screener read of Feature 04; needs the user's go (F3 is deferred, "nanti saja"). Proposal: `FUTURE_PLAN.md` E4 | OPEN (not triggered: F3 deferred) | A back-dated load is planned with the rebuild of every derived table whose correction window it exceeds; read that window in code before writing that a table is recalculated by the normal path |
+| D27 | 2026-10-27 | The Feature 04 repair tools stop at IHSG. `features/feature04/backfill.py --all-source-tickers` takes every `Price_Stock_Indonesia_IDX` ticker (`backfill.py:145-151`), IHSG included; with `--write` the IHSG insert into `Feature_04_Technical_Indicator` is refused by the live trigger `stock_feature_index_guard` (`validate_stock_feature_identity`, SQLSTATE 23514), and `main()` stops at the first failure (`backfill.py:156-172`) after the tickers sorted before IHSG were committed. `apps/feature-04-worker/bootstrap_states.py` lists every `IDX_Stock_Universe` ticker with prices as `equity` (`bootstrap_states.py:100-118`), IHSG included; `validate_recent` finds 0 stored IHSG rows and raises "Shadow row-count mismatch" (`:72-76`), in `--dry-run` too. Live 2026-10-28: IHSG is `Security Type` `index`, with 2,127 price rows and 0 rows in `Feature_04_Technical_Indicator` (its rows are in `_INDEX`). Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_feature04.json` F04-19) | Verified from code and the live definitions: M219's fix (migration `20261025_011`) added `is_universe_index()`, the guard and the index skip in the enqueue functions, but not in these two scripts' instrument lists. **Class:** every tool that lists "equity" instruments from the price table or the universe without `is_universe_index()` (M219) | None yet: both scripts exclude `public.is_universe_index(ticker)` (the `_INDEX` tables keep `scripts/backfill_index_features.py`), with a test on a fixture that holds an index row; needs the user's go. Until then they run per ticker (`--tickers`, `--ticker`). Proposal: `FUTURE_PLAN.md` E4 | OPEN | When a guard fences off one kind of instrument, every query that lists instruments (writers, repair and bootstrap tools) gets the same predicate, found by searching the queries, not only the queue functions |
+| D28 | 2026-10-27 | `Feature_04_Technical_Indicator` holds 1,383,577 rows (`reltuples`) in 317,373 pages (2,479 MB): 4.36 rows per 8 KB page at a summed `avg_width` of 359 B, where about 20 would fit (its `_INDEX` copy: 19.88 rows/page). `n_dead_tup` 4,775 against 1,386,130 live; `n_tup_upd` 9,356,027 against `n_tup_ins` 1,393,562 (HOT 36,280); last autovacuum 2026-10-11 15:58 UTC, last analyze 2026-10-23 (`pg_class`, `pg_stat_user_tables`, live 2026-10-28). Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_feature04.json` F04-09, F04-10) | Suspected, not dead tuples: free space left inside the pages by the 2026-10-11 full-table rewrites (v2 backfill, v3 SMI/swing on 1,318,633 rows, the `close` column; `DATABASE_CHANGELOG.md` 2026-10-11), about 6.7 updates per row, vacuumed and reusable but never returned (about 1.9 GB). Check: `pgstattuple` (not installed: only `btree_gist` and `plpgsql`) or a page sample. The latest-date scan cost has another cause: rows are clustered by ticker, so one date's 852 rows sit on 839 heap pages (EXPLAIN ANALYZE 2026-10-28), which `VACUUM FULL` does not change. **Class:** any bulk rewrite of a large table (a Feature 04 `VERSION` bump, Feature 01, the broker Feature refreshes) | None yet; `VACUUM FULL` or `pg_repack` is not proposed now (locks and cost; the user's go). General fix at the bulk-rewrite procedure: write a new table and swap it in, or rewrite in batches with `VACUUM` between them, and record rows per page before and after. Proposal: `FUTURE_PLAN.md` E5 | OPEN | A full-table rewrite is planned with its space effect (rows per page before and after), as A5.25 asks for a new table |
+| D29 | 2026-10-27 | On 2026-10-27, 37 of the 865 `Feature_06_Foreign_Domestic` Regular tickers are not in `IDX_Stock_Universe`: 32 `X…` codes (ETFs and similar) and AKKU, CRAB, GTBO, TRUE and UNSP (live 2026-10-28). The five have Regular F06 rows from 2016–2022 up to 2026-10-27 and no row in `Price_Stock_Indonesia_IDX`. A universe-driven page (Screener, Terminal) or AI scope leaves them out without saying so; a flow-driven one lists tickers without a price or a classification. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/flow.md` §1, `verify_flow.json`) | Suspected: the universe and the broker feed take their tickers from different sources. Verified half: the stockbit-updater fetches the union of `IDX_Stock_Universe`, recent price tickers and the four-letter symbols already in `IDX_Broker_Summary` over its last `GAP_LOOKBACK_DAYS` (`apps/stockbit-updater/broker_import.py:98-109`), so a symbol once loaded keeps being fetched, and the Feature refresh covers every symbol with broker rows. Unverified half: why the universe leaves the five out. Check: their IDX listing status and the universe loader's source list. **Class:** any per-ticker feed keyed outside the universe (broker, insider, corporate actions) | None yet: each refresh logs the number of keys outside the universe (a count, never a name list) and the universe decides membership; whether the five join the universe is the user's decision. The Screener reads the universe and shows that count | OPEN | A per-entity feed checks its key set against the universe on every load and logs the difference as a count |
+| D30 | 2026-10-27 | XCID, XCIS and XSPI, Dana Investasi Real Estat (DIRE) funds with ISINs `IDX000000105`, `IDX000000303` and `IDX000000600`, are `Security Type` `stock`, `Type Specs` `common`, `Is Common Stock` `Yes` in `IDX_Stock_Universe`, with Sector and Industry `Undefined` (live 2026-10-28; 844 rows are `stock`/`Yes`, IHSG `index`/`No`). Every stock-only consumer (the Screener universe, the Feature 01/04 stock tables, AI "all stocks" scopes) counts them as common stocks. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/fundamentals_universe.md` §4) | Suspected: the universe loader copies TradingView's type, which lists these funds as `stock`/`common`. Check: TradingView's symbol metadata for the three and the loader's mapping. **Class:** non-stock instruments (DIRE, ETFs, warrants, rights) typed `stock`; every consumer that filters on `Security Type` or `Is Common Stock` | None yet: an instrument type or subtype in `IDX_Stock_Universe` from a controlled list (common stock, DIRE, ETF, index, …), set at the data layer with its catalog rows, never a list of names in code; needs the user's go. The Screener counts them as unclassified (Sector `Undefined`) and names none in code | OPEN | A1.4 (added): an instrument's kind is a real category from a controlled list, so a fund is never typed as a common stock |
 
 ### B2. Catalog and metadata (C)
 
@@ -198,6 +213,10 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 | C06 | 2026-09-28 | suite8 on dev (w02, w03, p01, r02): answers said daily prices end on 2026-09-25 although `Price_Stock_Indonesia_IDX` already held 2026-09-28 (the extractions themselves returned 2026-09-28 rows) | The cached catalog summary shows `AI_data_coverage.actual_max_date`, which the coverage check had last refreshed before the 2026-09-28 price load; the model trusts the summary over the delivered data Recurred 2026-10-02 and verified from the logs and the reasoning: idx-price-cron loaded 2026-10-02 at 10:06 UTC and feature-01-worker finished at 10:08 UTC, but ai-data-coverage last ran at 00:32 UTC, so the catalog showed `expected_max_date` 2026-10-01; golden a (10:11-10:15 UTC) and g6 (16:39 UTC, reasoning: "coverage 2018-01-02 to 2026-10-01 … use 2018-01-02 to 2026-10-01") requested ranges ending 2026-10-01 and silently left out 2026-10-02. Every analysis between the evening load and the next morning's coverage run misses the newest trading day. | Round 2026-10-03 phase B (1b): a DataNeed time range may end `LATEST`; the sandbox binds it to the reference date on a copy (the submitted spec and its hashes keep `LATEST`), the bundle reports `end_requested` beside `actual_end`, and the catalog COVERAGE section says its dates can lag and to use `LATEST` (orc deployment `60136c77`, sandbox `707318d9`, migrations 20261003_004/005 on dev; tests `test_dataneed_validator.py`, `test_freshness.py`). The permanent part, coverage refreshed after each load (1a-permanent), is in services built from `main` and waits for the user | MITIGATED (1b deployed on dev 2026-10-03, not yet live-verified; earlier: TEMPORARY twice-daily cron live since 17:26 UTC 2026-10-02; not yet testable in `ma-golden-20261002c`, GOLDEN_TEST_HIGH_ALERT_2026-10-02.md: the catalog was still checked at 00:32 UTC and data ended 2026-10-01; first valid check after the 10:30 UTC run of 2026-10-03) | Register coverage on every load, not on a schedule that can lag it |
 | C07 | 2026-09-29 | Dry run of migration `20260929_001` on dev (temporary job `ma-migrate-job`, deployment `38ab664c`): the preflight refused because `AI_research_catalog` has none of the eight Multi-Angle Research method ids (`conditional_distribution`, `threshold_sensitivity`, `streak_persistence`, `regime_comparison`, `cohort_comparison`, `quantile_ranking`, `lead_lag`, `correlation_dependency`); nothing changed | The engine's method ids were defined in code (`MULTI_ANGLE_RESEARCH.md` §3.1, pinned by `method_registry_sha256`) without reading the live catalog, whose 18 reviewed methods (all `REFERENCE_ONLY`) use other ids. The migration was written against the assumed ids; its preflight caught the mismatch before any change | User decision 2026-09-29: `AI_research_catalog` stays unchanged (18 reference methods). Resolved the same day by `public."AI_research_library"` (migration `20260930_001`, item 2): the eight runnable methods, generated from `app/research_library.py` and bound by `library_sha256`; market-ai-orc serves it through `get_research_library`, names no method in its prompt, and labels the catalog's RESEARCH section reference-only while the library is served. Verified on dev: table = sandbox = market-ai-orc (no `research_library_mismatch` at startup) | FIXED | Read the live ids of a catalog before designing a migration that updates it, and keep the preflight that names every missing id |
 | C08 | 2026-10-02 | While adding `units=` to the run tool description (P23): the model-facing description of the DataNeed tool `run_python` in `Tool_Catalog` (registered by `20260926_001`) no longer matches the code; it already lagged before this change (G14's `MaterializationLimitExceeded` and frame budget, 5b's `load_output`) | Verified from `git log -S`: commits that changed `apps/market-ai-orc/app/tools/session.py` `RUN_DESCRIPTION` added no Tool_Catalog migration, and no test compares the two (unlike `get_method_guide`, whose row is generated and checked) | Not fixed (proposal): one forward migration that refreshes the model-facing descriptions of the market-ai-orc DataNeed and session tools from code, generated like `scripts/generate_ai_method_guide_migration.py`, with a drift test in each app; the rows stay inactive (documentation, not runtime) Partly addressed 2026-10-02: the DataNeed tools' Tool_Catalog rows are now generated from code (`scripts/generate_warehouse_summary_tool_migration.py`, migration 20261002_002) and `tests/test_data_need_tool.py` fails on drift. The session tools' descriptions (`run_python`) are still not refreshed. | OPEN | A catalog row that documents a code-owned description needs a drift test, or it silently goes stale |
+| C09 | 2026-10-27 | `Table_Catalog.update_rule` of all six `_INDEX` tables reads "Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled." and `Feature_Catalog.refresh_trigger` of their 255 active rows "Approved manual INDEX historical bootstrap; no automatic daily update." (live 2026-10-28), yet every stockbit-updater round (one per deployment, `UPDATE_TABLE.md` §0) with a changed broker date or a newer IHSG price rebuilds them (`apps/stockbit-updater/refresh.py:149-180`): `Feature_04_Technical_Indicator_INDEX` reaches 2026-10-27, calculated 2026-10-27 12:39:33 UTC. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_feature04.json` F04-21) | Verified from code: the end of `apply_chunks` (`scripts/backfill_index_features.py:311-320`) rewrites both texts on every run and reports `daily_updates_enabled=False`, and the round at HEAD calls it (`refresh.py:174`); the last rewrite was `Table_Catalog.updated_at` 2026-10-27 12:41:59 UTC, inside round `38cdc7dc` (the later round ran code that is not in Git, D24). **Class:** catalog text written by a one-off job that later became a recurring path | None yet: a migration with the true rule (rebuilt by the stockbit-updater round when a broker date changes or IHSG has a newer price) and `apply_chunks` no longer writing catalog text; `scripts/audit_feature_catalog_semantics.py` after the Feature_Catalog change; needs the user's go | OPEN | Catalog metadata is written by migrations, not by the job it describes; when a manual job becomes a recurring one, its catalog rule changes in the same task (A4.16) |
+| C10 | 2026-10-27 | `AI_formula_reference` (live 2026-10-28): CALC_225 (Terminal Standard Deviation, I32) gives the two-pass `SD=sqrt(SUM((src-SMA(src,n))^2,n)/n)`, while the TS module computes TA-Lib's running sums, E[x²] − E[x]² (`kStd`, `apps/edge-bff/terminal/src/calc/indicators.ts:120`, used at :471): equal in exact arithmetic, not on flat windows of non-integer prices (running-sum residue, `verification/screener/audit/verify_matrix_a.json`, additional findings). CALC_041 (True Range) says "first bar uses high-low if configured" (parameters `first_bar=high_minus_low`), while the implementations linked to it give no value on bar 0 (TS `kTr`, `indicators.ts:135-137`; TA-Lib TRANGE in Feature 04 `atr_14`; link in `scripts/terminal_indicator_spec.py:123`). Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_matrix_b.json`) | CALC_225 verified: generated from `scripts/terminal_indicator_spec.py:127-128` (migration `20261025_102`), whose text gives the definition, not the computed form. CALC_041 suspected: written for an engine that seeds bar 0 with high − low (the uploaded HTML engine, `verification/terminal_api/INDICATOR_ALIGNMENT.md:27`) and not revised when the TS module took TA-Lib's form; it is in no migration in Git. Check: the source that loaded it. **Class:** formula text kept by hand next to the code it describes | None yet: CALC_225 generated with the running-sum form; CALC_041 corrected by a migration; needs the user's go | OPEN | A formula reference states the computed form and the bar-0 rule of the implementation it links, and is generated from it or tested against it |
+| C11 | 2026-10-27 | `verification/terminal_api/INDICATOR_ALIGNMENT.md:13` and `:43` say Feature 04 holds 24 TA-Lib candlestick patterns; `features/feature04/engine.py:28-42` `PATTERNS` has 25 (`cdl_piercing` … `cdl_hikkake`), and both `Feature_04_Technical_Indicator` and its `_INDEX` copy have 25 `cdl_` columns (live 2026-10-28). Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_feature04.json` F04-21) | Verified: the 25 have been there since v1 (`engine.py:43`, `V1_COLUMNS` includes all of `PATTERNS`), so the 24 is a miscount in the document, not a later change. **Class:** counts quoted by hand in verification documents | None yet: correct both lines, or generate the count from `engine.py`; needs the user's go | OPEN | A count quoted in a document is generated from the code or tested against it |
+| C12 | 2026-10-28 | `scripts/terminal_indicator_spec.py` writes two targets from one indicator list: `verification/terminal_api/INDICATOR_SPEC.md` and the applied migration `database/migrations/20261025_102_terminal_indicator_formulas.sql` (`MIGRATION`, line 21; `migration_sql()`, line 281; `main`, line 318), whose sha256 is pinned in `database/migrations/APPLIED.sha256`. Adding or changing an indicator row therefore rewrites an applied migration and fails `--check` and the frozen-migration test. Found while writing `SCREENER_ONBOARDING.md` (EXEC-SCREENER) | Verified from the code: the generator has no notion of a migration that is already applied. **Class:** any generator that renders SQL migrations from a living source list (indicator specs, catalog seeds); every later catalog addition (screener indicators, macro or cross-asset formulas) hits it | None yet: freeze `20261025_102` (render it only under `--check` from the rows it was applied with) and render each later addition as a new forward migration with its own `AI_formula_reference` rows; a test that a new row never changes an applied file. Needed before the first new indicator (onboarding Part 2, I54) | OPEN | A generator may append new migrations; it never rewrites an applied one |
 
 ### B3. Data access: Governor, DataNeed, bundles (G)
 
@@ -546,6 +565,9 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 | R38 | 2026-10-12 | EXEC-IMPL-1012 Fase 1, market-python-sandbox suite run from /opt (R36): 812 passed, 2 failed: `test_derived_frequency_session.py::test_a_weekly_analysis_records_its_derivation` (`assert 0 == 1`) and `test_session_worker_state.py::test_a_crash_is_labelled_after_the_process_exits` | **Verified only that they are not from this change:** both fail the same way on an unmodified export of `main` `9941ef3`; their cause (local environment or code) is not verified | None yet | OPEN | A red test is compared with the unmodified base before it is blamed on, or excused from, a change |
 | R39 | 2026-10-12 | EXEC-IMPL-1012 Fase 3a preparation: a read of market-ai-orc variable names, filtered by substrings to print only mode settings, printed the value of `OPENROUTER_API_KEY` into the agent session output | **Verified:** the substring filter `ROUTER` (meant for `AI_ENABLE_*_ROUTER`) also matched `OPENROUTER_API_KEY`; the value went only to the session output, not to any file, commit or log in the repository | Reported to the user at once; rotation of the key is the user's decision (secret change) | OPEN (rotation pending user decision) | Read variables by an explicit allowlist of exact names, never by substring; print secret-typed names with the value redacted |
 | R40 | 2026-10-24 | EXEC-TERMINAL-API Phase 2: the agent session could not reach Railway. `railway status` and `railway variables` failed with "tunnel error: unsuccessful"; `https://edge-bff-dev.up.railway.app/health` failed with "CONNECT tunnel failed, response 403" | **Verified** (`$HTTPS_PROXY/__agentproxy/status`, recentRelayFailures: `connect_rejected` 403 for `backboard.railway.com:443`): the session environment's network policy does not allow Railway hosts, so the user's Railway token cannot be used and no live database read is possible. **Class:** any live Railway or PostgreSQL step from a cloud agent session whose environment does not allow-list Railway hosts (the same kind of egress limit as R16) | Needs the user: allow `backboard.railway.com` (Railway API and CLI; also used by `railway up` for read-only runner jobs) and, if pgweb is used, its `*.up.railway.app` domain under the environment's Network access. Meanwhile Phase 1 and the repository-based part of Phase 2 were done and every live claim is marked NOT VERIFIED (`verification/terminal_api/PHASE1_PHASE2.md`) | RESOLVED 2026-10-24: the user opened network access; `backboard.railway.com` and `pgweb-dev-a888.up.railway.app` answered, and Phase 2 ran read-only through pgweb (role `pgweb`, `default_transaction_read_only=on`) | Before a live task, check the proxy status first; report a denied host instead of retrying, and never stand in for live data with documentation |
+| R41 | 2026-10-27 | `.railway/railway.ts:189` (edge-bff `env`) lacks `EDGE_TERMINAL_URL` and `TERMINAL_PROXY_KEY`, which were set on edge-bff on 2026-10-25 (`RAILWAY_CHANGELOG.md:4593-4596`) and which the Terminal gateway reads (`apps/edge-bff/app/config.py:59-60`); every other live variable is listed there as `preserve()`. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/edge_conventions.md` §6) | Verified from the changelog: the 2026-10-25 entry (EXEC-TERMINAL-API T3, T4, T6, `RAILWAY_CHANGELOG.md:4577-4605`) set them with the CLI and records no `railway config pull --force` or `railway config plan` (AGENTS.md step 5); the 2026-10-26 hand edit added only the four backtest names (`:4725-4727`). **Class:** any variable set on the dashboard or with the CLI without a config pull and plan | None yet: `railway config pull --force` and a reviewed `railway config plan` (or the two names as `preserve()` and a plan that reads "up to date"), as AUDIT.md TARGET ARCHITECTURE §6.17 asks before the Screener deploy; needs the user's go | OPEN | The IaC file is pulled from the live project after every live change; a hand edit names every variable it touches and ends with `railway config plan` |
+| R42 | 2026-10-27 | `.railway/railway.ts:177` gives backtest-worker `builder: "RAILPACK"`, while its deployment `f06fd2eb` (2026-10-26, CLI upload with the `Dockerfile` at the upload root) built with `DOCKERFILE` (`RAILWAY_CHANGELOG.md:4702-4705`). Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/edge_conventions.md` §6) | Suspected, two readings: the block was written by hand (`RAILWAY_CHANGELOG.md:4725-4727`) and its builder is stale; or the live service is `RAILPACK` and Railway detected the root `Dockerfile` itself (as the GraphQL builder note under "EDGE live rollout — 2026-10-08" in this file describes), so the file matches the live setting but not how the service builds. Check: `railway config pull --force`, then `railway config plan` against the live service. **Class:** IaC fields typed by hand for CLI-uploaded services | None yet: as R41; needs the user's go | OPEN | A field that differs from what the deployments do is settled with `railway config plan`, not by reading the file |
+| R43 | 2026-10-28 | Screener audit session: commits made after 2026-10-27 19:05 UTC stayed on a detached HEAD while `git push origin claude/charming-hamilton-faq25e` answered success; the remote branch stayed at `9db630b` until 2026-10-28 03:05 UTC (the reflog shows `checkout: moving from claude/charming-hamilton-faq25e to origin/main`) | Verified: the agent ran `git checkout -q origin/main --` meaning a no-op read of main; with no path after `--` git checks out the ref itself (detached HEAD). A later push named the local branch, whose ref had not moved, so git pushed nothing new and reported no error. **Class:** any push by branch name from a detached or different HEAD; AGENTS.md workflow step 6 (verify the branch matches the remote) was not run after those pushes | Fixed: `git checkout -B claude/charming-hamilton-faq25e HEAD` (a fast-forward of the same commits, no force), pushed, and `git rev-parse HEAD` = `origin/claude/charming-hamilton-faq25e` = `270dde5` verified. Nothing was lost; no other branch was touched | FIXED | Read `main` with `git show origin/main:<path>` or `git diff`, never `git checkout <ref> --`; after every push compare `git rev-parse HEAD` with the remote branch |
 
 ### B8. Web Governor (W)
 
@@ -2638,19 +2660,48 @@ change yet.
   dengan cara yang sama) dan semua pembaca terminal-api (worker backtest: katalog, pratinjau, run; halaman backtest;
   halaman Terminal; pembaca berikutnya), dua kali sehari selama run publisher (hari ini sekitar 58 menit, 19:05–20:03
   WIB). Tidak berlaku untuk file referensi (`ref/*`): terminal-api tidak memberi sha256 untuknya.
-- **Solution (PROPOSED, menunggu keputusan user):** di lapisan pemilik mekanisme, tata letak objek publisher: kunci file
-  data dan pack memuat hash isinya (mis. `pack/{ticker}/price.{sha256 16 karakter}.json.gz`), jadi objek tidak pernah
-  berubah. File baru ditulis di kunci baru, manifest memindahkan pembaca, dan objek lama tetap terbaca oleh manifest lama
-  di cache dan URL yang masih hidup. Objek yang tidak lagi dirujuk manifest dihapus pada run berikutnya (jauh di atas
-  cache 60 s dan umur URL `url_ttl_seconds` 120 s); daftarnya diturunkan dari isi bucket dibanding manifest, bukan
-  daftar tetap. terminal-api dan pembaca tidak berubah, karena mereka memakai `key` dan sha256 dari manifest.
-- **Not covered:** jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah ditangani: worker dan
-  halaman meminta jawaban baru); data di bucket tetap baru setelah publisher menulisnya, jadi pembaca bisa melihat
-  manifest lama sampai run selesai (sesuai desain cache).
-- **Status:** OPEN. User 2026-10-27 13:27 UTC memilih A dari 3 pilihan: "Ya, PR terpisah setelah PR backtest" (kunci
-  berisi hash isi, file lama tidak ditimpa, file basi dihapus pada run berikutnya; diuji di dev pada run 07:30 WIB).
-  Sementara (TEMPORARY): E2E dan pengukuran backtest dijalankan di luar run publisher. Pengguna yang menjalankan
-  backtest selama run tetap mendapat `DATA_INTEGRITY` untuk ticker yang berubah, sampai PR publisher masuk.
+- **Solution (IMPLEMENTED 2026-10-27, user pilihan A dari 3):** di lapisan pemilik mekanisme, tata letak objek
+  publisher (`apps/terminal-publisher/publisher.py`). (1) `content_key` / `store`: file data dan pack ditulis di
+  `{family}/{ticker}/{name}.{sha256 penuh}.json.gz`; file yang berubah adalah objek baru, objek tidak pernah ditulis
+  ulang dengan byte lain. Entri yang sha256-nya tidak berubah memakai kunci yang sudah ada (termasuk kunci tetap lama),
+  jadi tidak ada upload ulang massal. (2) `collect_garbage`, hanya mode `daily`, sebelum tulis pertama: daftar isi
+  bucket dibanding kunci yang dinamai manifest; dihapus hanya objek `<family>/<ticker>/<file>` dengan family yang
+  dinamai manifest (diturunkan, jadi dataset baru tercakup), ticker punya manifest yang menamai file tetapi tidak
+  objek ini, manifest dan objek tidak lebih baru dari `state.json` (run selesai terakhir), dan run itu selesai minimal
+  `GC_GRACE_SECONDS` (3600 s; > cache 60 s + URL 120 s + unduhan). Listing > `GC_LIST_SECONDS` (900 s) dibatalkan;
+  kegagalan dicatat `gc_failed` (kelas saja) dan run tetap jalan. terminal-api dan pembaca tidak berubah: mereka memakai
+  `key` dan sha256 dari manifest (dicek: tidak ada pembaca yang menyusun kunci sendiri; `verification/terminal_api/
+  integrity_check.py` diubah membaca kunci dari manifest).
+- **Covers:** semua dataset dan pack, dataset baru dengan pola manifest yang sama, semua pembaca terminal-api (worker,
+  halaman backtest, halaman Terminal). Tes: `tests/test_publisher.py` (format kunci = sha256 byte; byte yang dinamai
+  manifest lama tidak berubah selama run berikutnya untuk tiap family; kunci tetap lama dipertahankan lalu dipensiunkan;
+  grace; manifest lebih baru dari state; objek lebih baru; ticker tanpa manifest; logo/ref/family lain tidak disentuh;
+  family dari manifest; hanya mode daily; hapus gagal; listing kelewat batas). Cabang Screener (EXEC-SCREENER, user
+  2026-10-28 memilih A: commit PR #41 di-cherry-pick ke cabang Screener): file lintas-saham `xsection/` memakai
+  mekanisme yang sama, bukan mekanisme kedua: `content_key('xsection', None, name, sha)` =
+  `xsection/<name>.<16 hex pertama sha256>.json.gz` (bentuk yang diterima `xsection_index` terminal-api), `store`
+  (dengan listing `xsection/` sesudah cleanup: objek yang diindeks tetapi hilang ditulis lagi dengan byte yang sama), dan
+  `collect_garbage` dengan indeks `xsection` di `state.json` sebagai manifestnya (dihapus hanya kunci berbentuk itu yang
+  tidak dinamai indeks run selesai terakhir, indeks itu menamai minimal satu file, objek tidak lebih baru dari
+  `state.json`, grace sama). Pack harga yang diperbaiki dari irisan `price` juga lewat `store`, jadi tidak lagi ditimpa
+  di kunci tetap. Pruning xsection sesudah `state.json` (rancangan awal Screener) dihapus: tidak ada tulis atau hapus
+  sesudah `state.json`. Tes tambahan: grace untuk dua run berdekatan, objek xsection lebih baru/kunci lain/tanpa indeks
+  tidak dihapus, isi yang kembali ke objek yang baru dihapus ditulis lagi, listing `xsection/` hanya dengan prefiksnya
+  dan sesudah listing cleanup. Bucket yang ditulis publisher `main` (kunci tetap) lalu PR #41 (`6051f4d`, dev
+  `4c2c3823`) diuji lokal dengan publisher terintegrasi: pembaca manifest dan indeks lama tetap utuh selama dan sesudah
+  run, pack dari publisher lama tidak diterbitkan ulang, rollback ke PR #41 lalu kembali tidak menghapus file xsection
+  yang masih dirujuk.
+- **Not covered:** logo (`logo/{ticker}.*`) dan `ref/*` tetap kunci tetap: tidak ada pembaca yang mencocokkan byte-nya
+  dengan manifest, jadi bukan kelas ini. Jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah
+  ditangani pembaca). Dua run publisher bersamaan tidak dikunci (sudah begitu sebelumnya); cleanup aman karena objek
+  dan manifest yang lebih baru dari `state.json` tidak disentuh. Izin hapus bucket dan lama listing di dev belum diukur
+  (uji dihentikan atas permintaan user; listing > 6 menit belum selesai): diverifikasi oleh run terjadwal pertama.
+- **Status:** FIXED in code, VERIFY PENDING. User 2026-10-27 14:40 UTC: "Diuji dev pada run 7.30 besok". Cek pada run
+  00:30 UTC 2026-10-28: log `gc` atau `gc_skipped`/`gc_failed`, objek baru berkunci sha256, tidak ada `DATA_INTEGRITY`.
+  Run pertama hanya menulis kunci baru untuk file yang berubah; file lama berkunci tetap dihapus pada run daily
+  berikutnya setelah grace. TEMPORARY sampai terverifikasi: E2E dan pengukuran backtest tetap di luar run publisher.
+  Run 00:30 UTC 2026-10-28 crash di tahap perencanaan, sebelum cleanup dan sebelum tulis pertama (M263), jadi belum
+  memverifikasi apa pun; cek di atas berlaku untuk run pertama dengan kode ini yang selesai.
 - **Lesson for new data:** objek yang dirujuk metadata (sha256, ukuran) tidak ditimpa di kunci yang sama; kunci yang
   memuat hash isinya membuat setiap cache metadata aman.
 
@@ -3012,6 +3063,1035 @@ change yet.
   ponsel: panel riwayat yang dibuka sebelum daftar percakapan selesai dimuat tertutup lagi oleh render daftar (cek: rekam
   urutan `aria-expanded` panel dan selesainya `/conversations` pada kegagalan).
 - **Status:** OPEN; tidak diubah dalam EXEC-BACKTEST-LOAD.
+
+### M255 — Donchian `price > upper` is never true in the Backtest's indicator condition (2026-10-27)
+
+- **Symptom:** in the generic indicator condition (`apps/edge-bff/backtest/src/core/conditions.ts:91-102`; `compare`
+  at :52-61; a `price` side is the close, :65), price `gt` or `crosses_above` Donchian `upper` and price `lt` or
+  `crosses_below` `lower` give 0 hits on all 844 tickers, against 44,557, 29,041, 54,652 and 34,294 with the bands of
+  the bar before (`verification/screener/audit/verify_matrix_a.json`). Re-checked at HEAD on 2026-10-28 with live prices
+  (BBRI, BBCA, ASII, TLKM, BMRI): 0 same-bar hits each, 89–137 with the prior bar. The Backtest accepts the condition,
+  and an entry that needs it never fires, without an error (the output has values, so `INDICATOR_OUTPUT_EMPTY`,
+  :97-100, does not fire). Found by the Screener audit (`verification/screener/AUDIT.md`).
+- **Verified cause:** Donchian `upper` and `lower` are `kMax(H, n)` and `kMin(L, n)` over a window that includes the
+  current bar (`apps/edge-bff/terminal/src/calc/indicators.ts:132, 345-347`), so close ≤ high ≤ upper and close ≥ low ≥
+  lower on every bar. The condition compares bar i with bar i, and the registry carries no comparison lag per output.
+  The prior-bar form exists only as the price-action `breakout` (`conditions.ts:126, 170-172`).
+- **Class:** any output whose window includes the current bar's high or low, compared with that bar's price (the
+  Screener's planned `rolling_max(high, n)` and `rolling_min(low, n)` included). A condition that can never be true runs
+  as "no trades" instead of failing.
+- **Solution:** none yet. At the owner, the registry release (P6; AUDIT.md CHANGES AWAITING APPROVAL D2): a lag probe
+  derives `price_compare_lag` per output (AUDIT.md TARGET ARCHITECTURE §6.8), and the generic condition reads the prior
+  bar where the probe says so, or refuses the same-bar form; needs the user's go. TEMPORARY in the Screener: its derived
+  registry gives these outputs lag 1 and never offers the same-bar form. The live Backtest still offers it.
+- **Status:** OPEN.
+- **Lesson:** before a comparison is offered, a probe on real data checks that it can be true; a condition that is never
+  true is an error, not an empty result.
+
+### M256 — Registry I37 shows `include_current_bar = false` while RVOL includes the current bar (2026-10-27)
+
+- **Symptom:** `apps/edge-bff/backtest/src/core/backtest-registry.json` I37 (`rvol`) lists `not_accepted`
+  `include_current_bar: false` and `reference_method: rolling_sma`, with the reason "not read by the calculation
+  module". `F.rvol` divides the volume by `sma(V, n)[i]`, whose window includes the current bar
+  (`apps/edge-bff/terminal/src/calc/indicators.ts:484`; `scripts/terminal_indicator_spec.py:10, 136-138`, user
+  2026-10-25). `regToCondition` drops such a parameter only when it holds the stated value
+  (`apps/edge-bff/backtest/src/core/catalog.ts:128-139`), so a card that reads `include_current_bar = false` runs with
+  the current bar included, and `true`, which is what the module does, is refused `PARAM_NOT_ACCEPTED`. Found by the
+  Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/reuse.md` §7.2).
+- **Verified cause:** `apps/backtest-worker/scripts/build-registry.mjs:37` writes the workbook default (`p.def`) as the
+  `not_accepted` value of every workbook parameter missing from `DEFAULTS`, without checking what `F` implements.
+- **Class:** every `not_accepted` entry with the reason "not read by the calculation module" (today I34 `timeframe`
+  `1D`, I37 `reference_method`, I37 `include_current_bar`); any parameter metadata copied from the workbook instead of
+  derived from the code.
+- **Solution:** none yet. At the owner (the registry release, P6): derive the value from `F` by a probe, or hide such
+  parameters; needs the user's go. TEMPORARY in the Screener: such parameters are hidden and their stated value is never
+  shown (AUDIT.md TARGET ARCHITECTURE §6.8, rule c).
+- **Status:** OPEN.
+- **Lesson:** a value shown for a parameter is derived from the code that computes it, or it is not shown.
+
+### M257 — The registry accepts Supertrend `factor` 0, which flips the direction on about half the bars (2026-10-27)
+
+- **Symptom:** I09 (`supertrend`) `factor` has `min: 0` in `backtest-registry.json`, and `resolveParams` checks only
+  the minimum and maximum (`apps/edge-bff/backtest/src/core/registry.ts:61-62`). At 0 both bands equal (high + low) / 2
+  (`apps/edge-bff/terminal/src/calc/indicators.ts:334`). Re-checked at HEAD on 2026-10-28 with live prices: BBRI 1,128
+  direction flips in 2,115 bars at factor 0 against 60 at factor 3 (BBCA 1,116 against 51, BMRI 1,138 against 50); the
+  audit also found up-trend bars with the line above the close (70 on BBRI, 0 at factor 3). The output is finite and
+  varies, so `INDICATOR_OUTPUT_EMPTY` does not catch it. Found by the Screener audit (`verification/screener/AUDIT.md`;
+  `verification/screener/audit/verify_matrix_a.json`, I09).
+- **Verified cause:** the registry copies the workbook's `min: 0`, and nothing runs the indicator at its minimum.
+- **Class:** every numeric parameter with `min: 0` whose minimum gives a degenerate output: I09 `factor`, I11
+  `multiplier`, I12 `start`, `increment` and `maximum`, I19 `constant` (division by zero), I43 `band_1_multiplier`, I49
+  and I53 `volume_scale`, I50 and I51 `initial_value`; an I23 weight of 0 is valid (AUDIT.md TARGET ARCHITECTURE §6.8,
+  rule a).
+- **Solution:** none yet. At the owner (the registry release, P6): a degeneracy probe at each minimum makes the bound
+  exclusive where the output degenerates; needs the user's go. TEMPORARY in the Screener: the overlay override
+  `factor > 0` and the same derived narrowing.
+- **Status:** OPEN.
+- **Lesson:** a parameter range is tested at its bounds on real data, not copied from the workbook.
+
+### M258 — `annualization_periods` is typed `number` but floored without notice (2026-10-27)
+
+- **Symptom:** I33 (`hist_vol`) `annualization_periods` is typed `number` (min 1, step 1) in `backtest-registry.json`,
+  so `resolveParams` accepts 252.9 (it refuses fractions only for `integer`,
+  `apps/edge-bff/backtest/src/core/registry.ts:58-62`), and `def()` then floors it to 252 because the key matches
+  `LENGTH_KEYS` (`apps/edge-bff/terminal/src/calc/indicators.ts:239, 249`), against `registry.ts:43-45` ("nothing is
+  rounded or clamped silently"). Re-checked at HEAD on 2026-10-28: `F.hist_vol` with 252.9 equals 252 on every bar of
+  BBRI, BBCA, ASII, TLKM and BMRI (live prices). Found by the Screener audit (`verification/screener/AUDIT.md`;
+  `verification/screener/audit/verify_matrix_b.json`).
+- **Verified cause:** the registry type comes from the workbook, while `def()` floors by key name; nothing checks that
+  the two agree.
+- **Class:** every key matching `LENGTH_KEYS` (`length`, `smoothing`, `smooth_k`, `smooth_d`, `periods`) whose registry
+  type is not `integer`; today only I33 `annualization_periods`.
+- **Solution:** none yet. At the owner (the registry release, P6): type it `integer`, or derive integer-only parameters
+  by a floor probe (AUDIT.md TARGET ARCHITECTURE §6.8, rule b); needs the user's go. TEMPORARY in the Screener:
+  integer-only, from that probe.
+- **Status:** OPEN.
+- **Lesson:** a parameter's type is derived from what the calculation does with it.
+
+### M259 — `POST /api/v1/dev/manual/steps/{step_id}` has no CSRF check (2026-10-27)
+
+- **Symptom:** the route declares `Depends(session)`, not `Depends(write)` (`apps/edge-bff/app/main.py:549-550`), so it
+  checks no `X-CSRF-Token`, while `apps/edge-bff/README.md:273` says every write except sign-in needs one. It is the
+  only one of edge-bff's 13 POST, PATCH and DELETE routes other than sign-in (`main.py`, `app/backtest.py`) without
+  `write`.
+  The exact-Origin middleware (`main.py:222-227`) and the SameSite=Strict cookie still block cross-site posts, and the
+  route's "no CSRF token" test gets its 403 from the Origin check, because it sends no Origin
+  (`apps/edge-bff/tests/test_manual_routes.py:34`). Found by the Screener audit (`verification/screener/AUDIT.md`;
+  `verification/screener/audit/edge_conventions.md` §5.3 item 1).
+- **Verified cause:** the route was declared with the read dependency, and no test checks that every write route
+  carries `write`.
+- **Class:** any edge-bff write route declared with `Depends(session)`, the Screener's routes included.
+- **Solution:** none yet: `Depends(write)` on the route; a test that walks `app.routes` and asserts that every POST,
+  PUT, PATCH and DELETE route except sign-in depends on `write` (derived from the route table, not from a list); the
+  403 case sent with the Origin. Needs the user's go.
+- **Status:** OPEN (low severity: the Origin check holds).
+- **Lesson:** a rule for "every write" is tested by walking the route table.
+
+### M260 — The Terminal gateway relays terminal-api JSON without `public_data` (2026-10-27)
+
+- **Symptom:** `forward_terminal` returns terminal-api's JSON as received (`apps/edge-bff/app/main.py:384-388`), while
+  the Orc and backtest-worker relays pass theirs through `public_data` (`apps/edge-bff/app/client.py:17-25`, used at
+  :56, :149 and :172; `app/backtest.py:167, 182`), which drops private keys (`reasoning`, `token`, `api_key`, …) and
+  redacts `*.railway.internal` addresses. No private field is known to pass today; nothing guarantees it. Found by the
+  Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/edge_conventions.md` §5.3 item 2).
+- **Verified cause:** the gateway (EXEC-TERMINAL-API T4, `main.py:363-396`) was added without the house filter, and no
+  test covers what a relay may pass.
+- **Class:** every relay of upstream JSON in edge-bff (the Terminal today, a Screener worker next).
+- **Solution:** none yet: `public_data` on the gateway's JSON, after checking that no terminal-api field the page reads
+  is in `PRIVATE_KEYS`, plus a route-walking test that every relay applies it; needs the user's go.
+- **Status:** OPEN.
+- **Lesson:** what may reach the browser is filtered in one relay helper that every route uses, and a test that walks
+  the routes proves it.
+
+### M261 — edge-bff answers 401 and 403 with `{"detail": …}`, outside the error shape (2026-10-27)
+
+- **Symptom:** the auth dependencies raise FastAPI `HTTPException` (`apps/edge-bff/app/main.py:251`, 401
+  "Authentication required"; `:256`, 403 "Invalid CSRF token"), and edge-bff registers handlers only for `StoreError`,
+  `OrcError`, `RequestValidationError` and `Exception` (`main.py:205-220`), so the body is FastAPI's
+  `{"detail": "..."}`, not `{"error": {code, field?, message?, details?}}` (`apps/edge-bff/backtest/CONTRACT.md` §11,
+  line 621; the house `error()`, `main.py:202-203`). The 400s at `main.py:519` and `:554` answer the same way, as the
+  live `{"detail":"Not Found"}` of M214 did. The clients cope by status code
+  (`apps/edge-bff/backtest/src/api/live.ts:37, 51`; `apps/edge-bff/terminal/src/data/live.ts:64`). Found by the Screener
+  audit (`verification/screener/AUDIT.md`; `verification/screener/audit/edge_conventions.md` §5.3 item 3).
+- **Verified cause:** FastAPI's default `HTTPException` handler applies, because edge-bff registers none for it.
+- **Class:** every `HTTPException` raised in edge-bff.
+- **Solution:** none yet: one handler that maps `HTTPException` to `{"error": {code, message}}`, with the Backtest
+  `live.ts` mapping and the tests adjusted, or ACCEPTED with the reason (AUDIT.md API CONTRACT §8.1); needs the user's
+  go. TEMPORARY in the Screener's API contract: 401 and 403 are documented as this exception (AUDIT.md API CONTRACT
+  §8.1).
+- **Status:** OPEN.
+- **Lesson:** an error shape the contract promises for every error is enforced by one handler, not route by route.
+
+### M262 — backtest-worker tests fail on `main`: a TypeScript parameter property in the shared rack loader (2026-10-28)
+
+- **Symptom:** `npm test` in `apps/backtest-worker` at `main` `010af1e` gives 168 of 171: `tests/datafile.test.ts`,
+  `tests/flow.test.ts` and test 56 ("with the image's flags ... Node loads ... the Terminal's data readers") fail with
+  `SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript parameter property is not supported in strip-only mode`.
+  Found by the Screener build (EXEC-SCREENER) while proving the backtest worker untouched.
+- **Verified cause:** `apps/edge-bff/terminal/src/data/rack.ts:74` (EXEC-BACKTEST-LOAD 4, commit `2c1a484`) declares
+  `constructor(readonly status: number)`. Vite compiles it for the pages, but Node's `--experimental-strip-types` (the
+  worker's tests and start command) only strips types and refuses parameter properties. The deployed worker image is not
+  affected: its Dockerfile copies `terminal/src/calc` and `indRegistry.json`, not `terminal/src/data`.
+- **Class:** any TypeScript that both Vite and Node type stripping load (shared core, Terminal data readers, the
+  Screener core and `screener-worker`): parameter properties, enums, namespaces and other non-erasable syntax break the
+  Node side only.
+- **Solution:** the field is declared and assigned in the constructor body (same behaviour), on branch
+  `claude/charming-hamilton-faq25e`; `npm test` 186 of 186. Proposed general fix: `erasableSyntaxOnly` in the shared
+  `tsconfig` files so the type check refuses such syntax for every module Node loads.
+- **Status:** FIXED on the Screener branch (reaches `main` with it).
+- **Lesson:** code loaded by Node type stripping uses erasable TypeScript only; the type check enforces it.
+
+### M263 — Run publisher berhenti total karena satu permintaan bucket dibatalkan (`RequestCanceled`) (2026-10-28)
+
+- **Numbering:** numbered M253 on branch claude/project-thread-k91bfk (PR #41); renumbered because main's M253 is the
+  Backtest page freeze. Commit `f98cc3d` di-cherry-pick (`-x`) ke branch Screener (EXEC-SCREENER, user 2026-10-28:
+  "We'll go with A"); kode dan dokumennya di branch ini menyebut M263.
+- **Symptom:** run terjadwal 00:30 UTC 2026-10-28 (deploy `4c2c3823`) CRASHED pukul 00:32:09 UTC, di tahap perencanaan
+  (`run` → `changed_prices` → `manifest` → `Bucket.get_raw`): `botocore ClientError (RequestCanceled) when calling the
+  GetObject operation`. Tidak ada file yang ditulis; `state.json` tetap dari run 12:00 UTC 2026-10-27, jadi pembaca
+  memakai data itu. Run 00:31 UTC 2026-10-27 crash dengan error yang sama (RAILWAY_CHANGELOG 2026-10-27).
+- **Verified (FACT):** traceback di log deploy; crash terjadi sebelum `collect_garbage` dan sebelum tulis pertama, di
+  kode yang tidak diubah M250. `Bucket` memakai botocore `retries={'max_attempts': 5}` (mode legacy), yang tidak
+  menganggap `RequestCanceled` sementara; publisher tidak punya coba-ulang sendiri, dan restart policy `NEVER`.
+- **Suspected (not verified):** penyedia bucket membatalkan permintaan sesaat (kedua kejadian sekitar 00:3x UTC).
+  Cek yang mengonfirmasi: log `bucket_retry` pada run berikutnya dan status penyedia pada jam itu.
+- **Root cause (verified part):** satu permintaan bucket yang gagal sesaat menghentikan seluruh run (sekitar 1 jam
+  kerja, dua kali sehari), tanpa coba-ulang.
+- **Class:** setiap panggilan bucket dari publisher (GetObject manifest/ref, PutObject data/manifest/state, listing dan
+  hapus milik `collect_garbage`), untuk semua dataset sekarang dan yang akan datang. Pembaca (worker, halaman) sudah
+  mengulang unduhan sendiri (M251); terminal-api belum ditinjau untuk kelas ini.
+- **Solution (IMPLEMENTED, belum di-deploy):** di lapisan klien bucket (`publisher.py` `transient`, `retried`): setiap
+  panggilan bucket diulang setelah 2, 4 dan 8 s bila gagal sementara (kode `BUCKET_TRANSIENT_CODES`: RequestCanceled,
+  RequestTimeout, InternalError, ServiceUnavailable, SlowDown, Throttling, 5xx; atau koneksi putus/timeout baca), dengan
+  log `bucket_retry` (kelas saja). Error lain (AccessDenied, NoSuchKey, ...) tetap seperti sebelumnya. Listing kini per
+  halaman dengan coba-ulang per halaman; di branch Screener listing yang sama (`Bucket.list`, dengan `prefix`) juga
+  dipakai untuk `xsection/` (`xsection_present`), jadi file xsection ikut tercakup. Tes: `tests/test_publisher.py`
+  (empat jenis error sementara, error yang menetap, error lain, halaman listing yang dibatalkan).
+- **Not covered:** gangguan yang lebih lama dari 14 s tetap menghentikan run (lalu menunggu run berikutnya); run yang
+  berhenti di tengah tidak dilanjutkan otomatis (restart `NEVER`, M229).
+- **Status:** OPEN, menunggu pilihan user (kartu 2026-10-28 01:2x UTC). Branch Screener: kode ada lewat cherry-pick
+  (pilihan A user 2026-10-28), belum di-deploy dari branch ini.
+- **Lesson for new data:** setiap panggilan bucket dari kode yang menerbitkan data (dataset, pack, file xsection, dan
+  data makro atau lintas aset berikutnya) lewat `Bucket` publisher, jadi lewat `retried`; listing dibaca per halaman
+  supaya tiap halaman bisa diulang. Tes `test_every_bucket_call_is_asked_again_after_a_canceled_answer` mengunci itu.
+
+### M264 — screener-worker: the presets' system lane counted toward `SCREENER_QUEUE`, so users got BUSY (2026-10-28)
+
+- **Symptom:** while a refresh computed the presets of the next snapshot (the previous one keeps serving users), users'
+  runs were refused 409 `BUSY` with only system jobs waiting (8 waiting preset jobs filled the queue). Found by the
+  Screener core/worker integration (EXEC-SCREENER) when the advance recompute of M265 hit `BUSY` in
+  `apps/screener-worker/tests/refresh.test.ts`.
+- **Verified cause:** `Pool.submit` refused a user's job when `this.waiting >= this.o.queue`
+  (`apps/screener-worker/src/pool.ts:235` before the fix), and `waiting` counts every lane, the system lane `SYSTEM`
+  (`pool.ts:33`) included, although the pool's header puts the system lane "outside the queue and budgets"
+  (`pool.ts:19`).
+- **Class:** a shared admission limit that counts the service's own work as users' requests.
+- **Solution:** the queue check counts only users' waiting jobs (`waitingUsers`, `pool.ts:249-251`); the system lane is
+  still never refused. Test: `tests/pool.test.ts` "the queue is bounded: beyond SCREENER_QUEUE waiting requests the
+  answer is 409 BUSY" (`:62-79`): three waiting system jobs never make a user `BUSY`; it fails without the fix.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a limit stated for users counts users' requests only, and its test runs with the service's own work
+  waiting.
+
+### M265 — screener-worker: after an unchanged publication, cached answers named the older `published_at` (2026-10-28)
+
+- **Symptom:** when a new publication carries the same files, the worker only advances `published_at` (report 6d.2), but
+  a run, preview or counts answer served from the result cache still carried the older `data.published_at`. Found by the
+  screener-worker build (its issue 5) and fixed by the core/worker integration (EXEC-SCREENER).
+- **Verified cause:** `advance` replaced the snapshot's data block and rebuilt the documents only
+  (`apps/screener-worker/src/server.ts` before the fix: `current.desc.data = {...}; rebuildDocs(current)`). The
+  result-cache key holds the snapshot id (`resultKey`, `run.ts`), the same files keep the same `sid`, so every cached
+  answer stayed a hit with bytes computed under the older block.
+- **Class:** a cache keyed by content (the snapshot id) whose stored answer also carries something outside the key.
+- **Solution:** `advance` drops that snapshot's cached answers and counts and computes the presets again in the system
+  lane, pinned as at a swap (`server.ts:296-309`). Test: `tests/refresh.test.ts` "the same files on a new publication:
+  no download, no recompute, no swap; only published_at advances (6d.2)" (`:146`): a run after the advance names the new
+  `published_at` with the same rows, and the catalog's presets keep their counts. A run in flight across the advance is
+  M270.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** everything a cached answer carries is part of its key, or the entry is dropped when that part changes.
+
+### M266 — Screener core: `UNIVERSE_DEFAULTS` failed the worker's strict type check (TS2352) (2026-10-28)
+
+- **Symptom:** the screener-worker sources, type-checked with TypeScript 5.9.3 `strict`, gave `TS2352` at
+  `apps/edge-bff/screener/src/core/contract.ts:187`: `Object.freeze({...}) as Readonly<UniverseDef>` is not a valid
+  conversion. No runtime effect (Node strips the types). Found by the core/worker integration.
+- **Verified cause:** the shared core is type-checked only by the page's `npm run typecheck`
+  (`apps/edge-bff/screener/tsconfig.json`: `strictNullChecks: false`), where the cast passes; under the worker's strict
+  settings it does not. `apps/screener-worker/package.json` has no type-check script, so nothing ran that check.
+- **Class:** code shared by two build units and checked only under the looser unit's settings (the shape of M262, where
+  Node type stripping refused what Vite accepted).
+- **Solution:** `Object.freeze<UniverseDef>({...})` (`contract.ts:187`; type only, the same value). The worker's strict
+  type check (a tsconfig with the worker's strict options over `src/server.ts` and `src/thread.ts`) is clean; it was run
+  by hand.
+- **Status:** FIXED on the Screener branch for this line (reaches `main` with it). OPEN for the class: no repository
+  script runs the worker's strict type check.
+- **Lesson:** each build unit that loads shared code type-checks it under its own settings, in a script its suite runs.
+
+### M267 — Screener core: an EVENT pattern marked `PRICE_BREAK_IN_LOOKBACK` one bar too far back (2026-10-29)
+
+- **Symptom:** an EVENT condition on a pattern (`breakout`, `volspike`, … with `within`) marked its cell
+  `PRICE_BREAK_IN_LOOKBACK` when the ex-date fell on the first bar the signal reads, where every bar read is on one
+  price basis. The independent oracle (`apps/edge-bff/screener/tests/core/oracle.test.ts`, seed 469: `breakout(59)`
+  within 2 on BRKB, ex-date 60 bars back) did not mark it. Only the remark was wrong; PASS, FAIL, NA, values and matches
+  were right. Found by the semantic review (EXEC-SCREENER).
+- **Verified cause:** `bindPattern` extended the pattern's lookback by `within`, as for a cross, whose sides need the
+  bar before the window. A pattern's stated window already holds that bar (`breakout(N)` reads bars i - N to i), so the
+  signal at the first bar of the `within` window reads from `at - within + 1 - N`, not `at - within - N`
+  (`apps/edge-bff/screener/src/core/condition.ts:240-255`).
+- **Class:** every EVENT condition on a pattern.
+- **Solution:** EVENT extends a pattern's lookback by `within - 1` (`condition.ts:254-255`; header `:17`). Tests:
+  `tests/core/lookback.test.ts` "PRICE_BREAK_IN_LOOKBACK at the edge of each lookback" (`:99`, cases EVENT breakout(20)
+  and volspike(20) within 7 at `:93-94`, which failed before the fix): an ex-date on the first bar read leaves the cell
+  unmarked, one bar later marks it. The oracle (240 seeds in the suite, 3,000 by hand) and 60 seeds on the real price
+  history agree with the core.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a lookback is derived from what each form reads: a pattern's window already holds its bar before, a
+  cross's sides do not.
+
+### M268 — Screener core: two pattern windows were one bar too long (`stoch_cross_in_zone`, `new_high`) (2026-10-29)
+
+- **Symptom:** the same over-marking as M267, for STATE and EVENT conditions on two patterns: `stoch_cross_in_zone`
+  stated k + s + d bars and fires on 10 bars where its window said 11 (Stochastic 5/3/3); `new_high` stated length + 2
+  and fires on 2 bars where its window said 3 (close, length 1). Found by the semantic review with a cut probe.
+- **Verified cause:** the windows in `PATTERNS` were written beside the signals by hand. `stoch_cross_in_zone` reads raw
+  %K over k, smoothed over s, %D over d, the cross one bar back: k + s + d - 1 bars; `new_high` reads length + 1 (for
+  the cumulative lines too: x[i] > x[j] depends only on the increments over (j, i]).
+- **Class:** a pattern window stated beside its signal instead of proven from it.
+- **Solution:** the two windows corrected with their derivation in doc comments
+  (`apps/edge-bff/screener/src/core/transforms.ts:310, 317`). Test: `tests/core/lookback.test.ts` "a window-class
+  pattern reads exactly its stated window" (`:33-38`): for every window-class pattern, the last-bar signal on its last
+  `window` bars equals the full-history one, and on `window - 1` bars it never fires.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a stated window is proven by a cut probe (equal on `window` bars, never firing on `window - 1`), not
+  written by hand.
+
+### M269 — screener-worker: a ticker with a bar after E crashed an EVENT screen (RangeError, 500) (2026-10-29)
+
+- **Symptom:** with a price file holding a bar after its publication's `price_through` (E), an EVENT MACD cross threw
+  `RangeError: the tail of I06.macd on AAAA starts at bar 169, but bar 167 is needed` from `condition.ts` `read`, a 500
+  to the user; VALUE and STATE conditions would have read tails cut at a bar after E. Found by the semantic review
+  (probe: E two bars before a ticker's last bar).
+- **Verified cause:** the core assumes that E covers every bar (`evaluate.ts` `evaluationBar`), and the worker never
+  checked it: E is `state.price_through` (`apps/screener-worker/src/snapshot.ts:193`), while the publisher's xsection
+  price query is bounded by year, not by `price_through` (`apps/terminal-publisher/publisher.py` `XSECTION_PRICE_SQL`,
+  `:129-131`, `xsection_price` `:694-704`), so a session loaded while the publisher runs gives a torn publication.
+- **Class:** an invariant one layer assumes about data another service writes, checked by neither.
+- **Solution:** `buildSnapshot` refuses such a file with `DATA_INTEGRITY` naming the tickers
+  (`snapshot.ts:196-203, 241-244`); the previous snapshot keeps serving; the invariant is stated at `screen.ts`
+  `ScreenEnv.bars`. Test: `apps/screener-worker/tests/snapshot.test.ts` "no look-ahead (6.5 as-of policy): …" (`:99`):
+  `price_through` one session before the newest bar is refused; on the newest bar or later the file loads.
+- **Not covered:** the publisher can still write such a publication; the worker refuses it and serves the previous
+  snapshot until the next one.
+- **Status:** FIXED on the Screener branch at the reader (reaches `main` with it); deploy pending.
+- **Lesson:** a reader checks the invariants its consumers assume about a file another service writes, and refuses the
+  file, not the request.
+
+### M270 — screener-worker: a run in flight across a skip-unchanged advance was cached under the newer one (2026-10-29)
+
+- **Symptom:** M265 came back through a race: a run still computing when the same files advanced the publication was
+  stored in the result cache after the advance had dropped the snapshot's answers, so every later hit named the older
+  `published_at` (the next run named 2026-10-27T13:03:23Z instead of 23:00:00Z); a preset's fresh pinned entry could
+  also be overwritten by the stale unpinned one. The preview path had the same race. Found by the semantic review.
+- **Verified cause:** `compute()` gave the task the data block before `advance()` replaced `s.desc.data`, and stored the
+  answer after it without checking (`apps/screener-worker/src/server.ts` before the fix).
+- **Class:** a cache write that lands after the invalidation it should have obeyed.
+- **Solution:** an answer is cached only when the snapshot's data block is still the one its task was given
+  (`task.data === s.desc.data`, `server.ts:401-404`; the preview keeps the reference, `:471, 478`); it is still sent to
+  its caller. Test: `tests/refresh.test.ts` "a screen still computing when the same files advance the publication is
+  never cached under the newer one: …" (`:177-199`), which asserts that the run was in flight across the advance.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** an invalidation is matched by a check at the write: a result computed before it is never stored after it.
+
+### M271 — Screener core: a switched-off condition skipped the binding's shape checks (2026-10-29)
+
+- **Symptom:** a saved screen could hold a card that is refused only once switched on: a `ratio` without `by`,
+  `vs_index` of anything but the close, and the close against a volume-level transform (`rolling_max(volume)`,
+  `ma(volume)`) validated while switched off and answered `INVALID_CONDITION` when switched on. Found by the semantic
+  review.
+- **Verified cause:** `validateTest` with `enabled` false checked the shape of the JSON and the parameters but never
+  bound the test, and the comparability rules live in the binding (`apps/edge-bff/screener/src/core/validate.ts` before
+  the fix; doc `:246-247`).
+- **Class:** a check that runs on one state of the same input only (on, not off).
+- **Solution:** a switched-off test is bound too and its comparability checked; only `METRIC_UNAVAILABLE` (data or a
+  decision not there yet) is tolerated, and the test still normalizes without the binding, with the same hash on and off
+  (`validate.ts:294-302`). Test: `tests/core/validate.test.ts` "a shape the binding refuses is refused on or off, with
+  the same field …" (`:218`), with the cases that must still pass (flow and Ichimoku switched off are kept).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** switching a condition off may defer what waits for data, never the check of its shape.
+
+### M272 — screener-worker: a default-only screen read every ticker's bars and made a `Calc` per request (2026-10-29)
+
+- **Symptom:** a screen of pre-warmed (default-parameter) series, stage S2 of report 6.10, "O(1) per ticker", cost
+  O(bars): 96 CPU ms for one condition, 314 for ten; counts of 50 default screens 9.5 s (LOCAL, K = 2;
+  `verification/screener/BENCHMARK_LOCAL.md` §6 item 1). Found by the performance review (EXEC-SCREENER).
+- **Verified cause:** core `missingInput` scanned the ticker's price columns for every cell, so the lazy columns were
+  made for every ticker, and each request rebuilt every ticker's dates and a backtest-core `Calc`, whose constructor
+  reads the close column.
+- **Class:** work that depends only on the snapshot, redone on every request.
+- **Solution:** `TickerView` (`apps/screener-worker/src/snapshot.ts:327-358`): the thread keeps each ticker's dates for
+  the snapshot's life (about 10.6 MB per thread), makes columns and the `Calc` on first use, and answers `missingInput`
+  from the snapshot's per-ticker mask (`snapshot.ts:81, 211`) through a new optional core hook `TickerBars.missing`
+  (`apps/edge-bff/screener/src/core/metrics.ts:28, 112-117`), which must equal the scan; each resolved series' cache key
+  is computed once per request. Effect (LOCAL): 17 and 62 CPU ms, counts 0.85 s. Tests:
+  `apps/screener-worker/tests/views.test.ts` (`:43` the mask equals the core's scan for every ticker, field set and bar;
+  `:60` a pre-warmed screen makes no price column and answers as the plain-array path does).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a stage the design states as a lookup is tested as one: it reads no input.
+
+### M273 — screener-worker: a request kept every survivor's computed outputs and ran out of memory (2026-10-29)
+
+- **Symptom:** five custom conditions kept about 0.2 GB per request; a ten-condition ANY screen ran out of a 600 MB heap
+  (in process, LOCAL). Found by the performance review.
+- **Verified cause:** `CALC_KEEP` dropped a ticker from a map the planner did not use: the planner holds every
+  survivor's input until the screen ends, so each ticker's `Calc` memo (every full output it computed) stayed reachable.
+- **Class:** a bound that evicts one reference while another holder keeps the object, so it bounds a map, not the
+  memory.
+- **Solution:** a view that falls out of the request's LRU (touched on every use) releases its `Calc`
+  (`apps/screener-worker/src/run.ts:213-234`; `TickerView.release`, `snapshot.ts:357`); the same screen ran within
+  400 MB. Test: `tests/views.test.ts` "a request releases the Calc of the tickers that fall out of its LRU (CALC_KEEP):
+  …" (`:79`).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a memory bound is tested by what stays reachable, not by the size of the structure it trims.
+
+### M274 — screener-worker: `return_rank` was computed on every request (2026-10-29)
+
+- **Symptom:** a screen with the cross-sectional `return_rank` computed the whole market's ranks on every request, while
+  report 6.7 has the cross-sections pre-warmed per publication. Found by the performance review.
+- **Verified cause:** the worker did not implement the core's optional `xsectionValues` hook, so `screen.ts` computed
+  the ranks itself each time.
+- **Class:** an optional hook the design counts on, left out by the host, which falls back to the slow path without a
+  sign.
+- **Solution:** each compute thread computes a window's ranks once per snapshot with the core's own functions, at most
+  `XSECTION_KEEP` (16) windows (`apps/screener-worker/src/snapshot.ts:451-466`; `run.ts` `xsectionValues`). Test:
+  `tests/views.test.ts` "return_rank (stage S1) is computed once per thread and snapshot by the core's functions: …"
+  (`:96`): the same ranks as `screen.ts` computes, and no column read on the next request.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** an optional hook the design relies on is asserted in the host's tests, by what the host no longer reads.
+
+### M275 — screener-worker: the counts cache had no bound (2026-10-29)
+
+- **Symptom:** the worker kept one counts entry per distinct definition until the next publication; with external users
+  (P29) and default screens taking milliseconds, about 100 MB an hour at the measured 82 distinct default screens a
+  second (K = 2, LOCAL). Found by the performance review.
+- **Verified cause:** the counts cache was a plain `Map` (`apps/screener-worker/src/server.ts` before the fix:
+  `const counts = new Map<...>()`), emptied only when its snapshot left.
+- **Class:** a cache keyed by what users send, with no bound.
+- **Solution:** `CountsCache` (`server.ts:130-149`): at most `COUNTS_KEEP` (50,000 entries, about 18 MB), least recently
+  used out, the presets' counts pinned, a snapshot dropping its own. Test: `tests/counts_cache.test.ts` (`:8`).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** every cache keyed by user input has a bound and a test of it.
+
+### M276 — screener-worker: thread heaps had no bound, above the replica's memory limit (2026-10-29)
+
+- **Symptom:** V8's default old-generation limit for a worker thread here is 2,096 MB; heaps grew with garbage to
+  600-850 MB each and the replica reached 2.7-3.9 GB at K = 2, above the 2 GB starting memory limit (report 6.17), where
+  Railway would stop the whole replica (LOCAL). Found by the performance review.
+- **Verified cause:** the compute threads and the builder were started without `resourceLimits`
+  (`apps/screener-worker/src/pool.ts` `ComputeThread` before the fix).
+- **Class:** a process whose memory limit is the platform's while its threads are bounded only by the runtime's default.
+- **Solution:** `SCREENER_THREAD_HEAP_MB` (required, no default, at least 64; `apps/screener-worker/src/config.ts:126`)
+  applied as `resourceLimits.maxOldGenerationSizeMb` to every compute thread and the builder
+  (`pool.ts:56-66, 213, 216`). A thread that needs more stops alone with `ERR_WORKER_OUT_OF_MEMORY` (its request answers
+  500 `OUT_OF_MEMORY`) and is started again. Effect (LOCAL, after M272-M275): end RSS 2.75 -> 1.81 GB, refresh peak
+  2.06 -> 1.46 GB, cold-start peak 1.40 -> 0.89 GB. Tests: `tests/heap.test.ts` (`:27, 34, 48`). The value 512 and a
+  2.75 GB replica limit are LOCAL proposals for the user's decision (`BENCHMARK_LOCAL.md` §8).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending, and the deploy must set the new
+  required variable.
+- **Lesson:** memory is bounded per thread inside the platform's limit, from measured peaks, as a required setting.
+
+### M277 — screener-worker: a getter call on every read of a price column (2026-10-29)
+
+- **Symptom:** F reads `B.C`, `B.H`, … inside its loops, and the lazy columns' getters ran on every read: pre-warm
+  22.9 s, custom RSI p50 308-337 ms (in process, single thread, LOCAL). Found by the performance review.
+- **Verified cause:** `lazyBars` defined each column as an accessor property that stayed an accessor after its first
+  read.
+- **Class:** a lazy value on a hot path that stays lazy after it is made.
+- **Solution:** a column becomes a plain data property after its first read
+  (`apps/screener-worker/src/snapshot.ts:318-325`): pre-warm 21.1-21.9 s, custom RSI p50 279-293 ms. Covered by
+  `tests/typed_views.test.ts` (`:15`, F bit-identical on the views) and `tests/views.test.ts`.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a value made lazily on a hot path replaces its getter once it exists.
+
+### M278 — Screener registry: `cost_class` came from wall-clock timing; `registry:check` failed under load (2026-10-29)
+
+- **Symptom:** `npx vitest run` failed 1 of 639 (`apps/edge-bff/screener/tests/core/registry-check.test.mjs`:
+  "screener-registry.json is stale") in 3 of 6 full runs at load 11-12 on 4 cores, while `npm run registry:check` alone
+  passed. With 12 busy loops on 4 cores: 5 of 5 checks stale, 6 to 16 parameters flipped from O(N) to O(N·n) per run
+  (e.g. I11 `atr_length`, I20 `length`, I21 `signal_length`, I29 `length`, I52 `fast_length`); with a jittered clock, 21
+  flips per run in both directions. Found by the semantic review; root cause by the registry follow-up (EXEC-SCREENER).
+- **Verified cause:** the generator classed each integer parameter from wall-clock times (`process.hrtime.bigint`, the
+  minimum of 3 runs at two lengths, threshold `cost_slowdown: 2`;
+  `apps/edge-bff/screener/scripts/build-screener-registry.mjs` `timePair` and `costClass`, lines 224-244 at `4542c64`).
+  `--check` compares bytes, and `cost_class` is in the file and in `screener_registry_version`, so the artefact depended
+  on machine load. A first counted replacement (V8 precise block coverage at the default tiers) was still not exact:
+  TurboFan counts some blocks differently from the bytecode (121 of 268 measurements; I05 KAMA by 306,000 characters at
+  length 1000), and when it takes over depends on background compile threads (1 of 3, then 2 of 8 loaded runs gave other
+  numbers).
+- **Class:** a field of a generated, versioned artefact that comes from a non-deterministic measurement. Same class in a
+  test: the 200-ticker parity test of `tests/core/evaluate.test.ts` ran near vitest's 5 s default and timed out under
+  load; it now has its own timeout (`:160`).
+- **Solution:** in the generator (the owning layer), `cost_class` is derived from the work F does, never from time:
+  executed source characters counted by V8 block coverage (`executedChars`, `workMeter`,
+  `build-screener-registry.mjs:282-325`) in a child process under `--max-opt=1` (`COST_TIER_FLAG`, `:352-365`; the child
+  refuses to run without it, and Node refuses `--max-opt` in `NODE_OPTIONS`), classed with a decisive margin
+  (`costVerdict`, `:264-269`: O(N·n) at a growth of at least 4, O(N) at most 1, in between the build stops with the
+  numbers). Nothing in the generator reads a clock; `PROBE` records `cost_measure` and `cost_tier`; every `cost_class`
+  is unchanged (the 9 O(N·n) parameters stay). Tests: `tests/core/registry-cost.test.mjs` (the same work to the
+  character under a noisy clock, `:61`; the tier refusal, `:73`) with `tests/core/noisy-clock.mjs`;
+  `registry-check.test.mjs` keeps the exact `--check` and adds "is current when every clock of the generator and its
+  cost probe jumps at random" (`:37`) and the opt-in `REGISTRY_LOAD_TEST=1` "is current in 5 of 5 checks under full
+  synthetic CPU load" (`:48`, passed at load about 13). Every probe mutant (timed work, no margin, no tier, flat sum,
+  meter started late, …) is killed by a test.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (with screener-worker, whose
+  start-up check compares the registry's source hashes).
+- **Lesson:** a field of a generated artefact is derived from a count, never from a time measurement, and a run with a
+  noisy clock proves it.
+
+### M279 — Screener registry: the work probe could not tell the classes apart at a large default (2026-10-29)
+
+- **Symptom:** through the real probe child, a kernel that is all window loop (a TA-Lib style MAX) with default 1500
+  measured growth 0.466 and was written O(N), so it would get no length cap; at default 3000 the second length fell
+  below the first (growth -0.106, O(N)); at 500 the build stopped with a refusal that said to raise
+  `PROBE.cost_long_length`, which changes nothing there. None of today's 53 indicators is affected (every integer
+  default is at most 55). Found by the registry review (EXEC-SCREENER).
+- **Verified cause:** `costLengths` caps the second length at a quarter of the bars
+  (`apps/edge-bff/screener/scripts/build-screener-registry.mjs:244-247`; 2,500 on 10,000 bars), so near a large default
+  even an all-window kernel cannot reach the O(N·n) bound; nothing checked that the two lengths can separate the
+  classes, and the refusal assumed the second length came from `cost_long_length`. The timed rule (M278) had the same
+  lengths.
+- **Class:** a derived classification without proof that the probe can tell the classes apart at its settings.
+- **Solution:** `windowGrowth(lengths, bars)` (`:253-255`), the growth of a kernel that is all window loop; `costClass`
+  refuses without measuring when it is below the O(N·n) bound (`:329-337`), from the existing constants; `costRefusal`
+  names the setting in force, `cost_long_length` or `cost_bars` at the quarter-of-the-bars limit (`:340-348`). Tests:
+  `tests/core/registry-cost.test.mjs` "refuses lengths too close to tell the classes apart: …" (`:86`), "bounds the
+  growth of an O(N·n) parameter by a kernel that is all window loop" (`:110`), and the stepped refusal naming
+  `cost_long_length`. A new integer parameter with a default above about 390 now stops the build until `PROBE.cost_bars`
+  is raised; the refusal says so.
+- **Not covered:** work inside a built-in that does not call back into JavaScript is not counted. Donchian's and
+  Williams %R's window rewritten as `Math.max(...x.slice(i - n + 1, i + 1))` (same outputs) regenerates I10 `length` and
+  I16 `length` as O(N), without their caps, visible only in the diff of the regenerated file (documented at
+  `executedChars`, `:271-281`). Node has no deterministic counter of native work. Every window of today's 53 kernels is
+  a JavaScript loop, and the deadline, `SCREENER_MAX_CPU_MS` and the per-owner CPU budget still bound such a request.
+  Open decision for the user: a documented limit with a review rule ("a cost_class that falls to O(N) on regeneration
+  needs the kernel read"), or an instrumented probe.
+- **Status:** FIXED on the Screener branch for the lengths and the refusal (reaches `main` with it); OPEN for the
+  built-in limit (the user's decision). Update 2026-10-29 (last guards, M300): the build now refuses a regeneration that
+  lowers a committed O(N·n) class to O(N) without a reviewed reason in the overlay's `cost_reviews`, so the limit can no
+  longer drop a cap silently; the limit itself stays, and an instrumented probe remains the user's choice.
+- **Lesson:** a derived class comes with proof that its probe can tell the classes apart at its settings, and a work
+  count states what it cannot see.
+
+### M280 — Screener page: refusals worded from the code alone; `LIMIT_EXCEEDED` named the limit, no fix (2026-10-29)
+
+- **Symptom:** `owner_cpu_budget` and every other limit but `compute_budget` read "Limit reached (owner_cpu_budget): at
+  most N, this needs M." (`apps/edge-bff/screener/src/texts.ts:96` at `4542c64`): an internal name and no way to pass,
+  against the AGENTS.md gate rule (d) (a refusal names where the problem is and how to fix it). The worker's refusal
+  sends `details.retry_after_seconds` (`apps/screener-worker/src/pool.ts:175`) and the catalog's `limits[]` carries the
+  rule and examples (`apps/screener-worker/src/catalog.ts` `limitEntries`); the page read neither. Same class: TIMEOUT
+  said "longer than the limit" with no value; BUSY's "retrying" stayed as the final message after the retries ran out;
+  INVALID_INPUT, PARAM_OUT_OF_RANGE and INVALID_CONDITION printed the raw contract path
+  (`(definition.conditions[1].test.metric.params.length)`, which the smoke test asserted); METRIC_UNAVAILABLE printed
+  the metric id; an unknown code read "The screener answered 403 (ORIGIN_REJECTED)." Found by the core/worker
+  integration and the refusal follow-up (EXEC-SCREENER).
+- **Verified cause:** the page's wording (`texts.ts` `errorText`) used the code and the server's message only: it read
+  neither the catalog's limit entries (rule, unit, fix) nor the field as a place on the page.
+- **Class:** a refusal shown to the user without the rule and the fix its gate publishes.
+- **Solution:** in the owning layer, `texts.ts`: `errorText(code, ErrorContext)` (`:248`) builds each message from the
+  code, the field, the details, Retry-After and the catalog; `placeText` (`:161`) words a contract path as the page
+  shows it ("Condition 2 (Relative Strength Index), Length"); a limit refusal is worded from its catalog entry (rule,
+  "this one needs N <unit>", the fix from `example_refused`, `fixOf` `:202`), with the costliest condition and the wait;
+  no limit name or number is kept in the page, so a limit the catalog adds later is worded with no code change; without
+  the catalog, the report 8.8 wording. ORIGIN_REJECTED and an unknown code have their own words. Tests:
+  `apps/edge-bff/screener/tests/page/refusals.test.ts` (owner_cpu_budget with the wait `:89`; every published limit
+  `:125`; derived from the catalog `:135`; BUSY, TIMEOUT and REQUEST_TOO_LARGE through their limits `:154-167`; every
+  contract code `:264`; the production path through `liveApi` `:278`); the Chromium smoke asserts the card's place,
+  parameter, range and fix (`tests/smoke/smoke.mjs:126`). The words of the catalog rules themselves belong to their
+  owners (`limitEntries`, edge-bff `own_limits`), reworded by the plain-words follow-up.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a refusal on the page is worded from the gate's published rule and fix, not from the code, so a limit the
+  page has never seen is still worded right.
+
+### M281 — Screener page: a saved screen's refusal was worded on the page's cards, or shown raw (2026-10-29)
+
+- **Symptom:** (1) a saved-screen chip showed the worker's raw counts message, e.g.
+  `definitions[3].definition.conditions[1].test.rhs.params.length must be a whole number at least 1 and at most 252 …`;
+  (2) `definitions[k]` was worded "saved screen k+1", while k is the position in the counts request, which holds a
+  filtered subset, never the place in the user's list; (3) Duplicate (a PUT of the stored definition, which edge-bff
+  validates again, `apps/edge-bff/app/screener.py` `validated`) worded its 422 on the page's cards: with the page
+  showing RSI, RSI and the copy holding SMA, HMA 400, it said "Condition 2 (Relative Strength Index), Length is out of
+  range…", while condition 2 of the copy is the Hull MA. Found by the refusal reviews 1 and 2.
+- **Verified cause:** the counts path stored `c.error.message || c.error.code`
+  (`apps/edge-bff/screener/src/presets-ui.ts:83` before the fix), bypassing `texts.ts`; `live.ts` `failure()` worded
+  every refusal on the page's own cards (`S.cards`), not on the definition the request carried.
+- **Class:** a refusal worded on the definition the page shows instead of the one the request carried.
+- **Solution:** `texts.ts` `savedErrorText(error, definition, retryAfter)` (`:308`) words an error on that screen's own
+  cards and filters; `definitions[k]` adds no place; `failureOn(e, def)` (`:315`) words a failure on `def`, with
+  `ApiFailure.wire` keeping the contract error body (`src/api/types.ts:24-30`, filled by `live.ts`); the counts entries
+  (`presets-ui.ts:97-99`) and the Duplicate catch (`:186-189`) use them. Tests: `tests/page/refusals.test.ts` "names the
+  saved screen's card (not the page's, not its place in the request) and the fix" (`:293`) and "a saved screen
+  duplicated (PUT items, validated again by edge-bff) is worded on the copy's cards, not the page's" (`:328`), each with
+  a real core refusal.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a refusal is worded on the definition its request carried.
+
+### M282 — Screener page: `INVALID_CONDITION` showed the server's message ahead of its structured reason (2026-10-29)
+
+- **Symptom:** the user saw "operator must be one of gt, lt, between" and, for a saved VWAP card after the I43 anchor
+  narrowing, `"Session" is not offered for I43 VWAP (it is the registry default, taken because anchor was left out)`.
+  Found by the refusal review.
+- **Verified cause:** `texts.ts` used `why || …details.allowed…` (`:231` before the fix); the worker always sends a
+  message, so the branch that words `details.allowed` never ran in production. The builder's test covered details
+  without a message, a body the wire never sends.
+- **Class:** a refusal test built on a body the server never sends (cf. M68).
+- **Solution:** `allowedText` (`apps/edge-bff/screener/src/texts.ts:182-189`) words the allowed values as the card shows
+  them (operators by their labels, the options of the catalog enum parameter the field names) ahead of the message;
+  other wire values (kinds, keys, ids) keep the server's reason. Now: "Condition 1 (Volume Weighted Average Price),
+  Anchor is not valid: use one of Week, Month, Quarter, Year. Change it and run again." Test:
+  `tests/page/refusals.test.ts` "INVALID_CONDITION as the worker sends it: …" (`:188`).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a page's refusal test uses the body the server really sends.
+
+### M283 — Screener page: `SERVICE_UNAVAILABLE` and a counts entry's `INTERNAL_ERROR` read as generic text (2026-10-29)
+
+- **Symptom:** edge-bff's `SERVICE_UNAVAILABLE` (an unexpected error on any screener route,
+  `apps/edge-bff/app/main.py:233`) read "The screener could not answer this request. Retry; if it fails again, reload
+  the page."; the worker's `INTERNAL_ERROR` inside a 200 counts answer (`apps/screener-worker/src/thread.ts`
+  `counts_list`, `:100-115`, through `serialError`; edge-bff relays the bytes as they are) read "The worker failed; the
+  error is in its log. Retry; …" in the saved-screen chip. Found by the refusal reviews 1 and 2.
+- **Verified cause:** the page's cases came from a list of codes that missed edge-bff's own `SERVICE_UNAVAILABLE` and a
+  code that reaches the page inside an entry; the first review's "INTERNAL_ERROR never reaches the page" holds for a
+  whole answer only.
+- **Class:** the codes a page words, taken from a list instead of from every place a code can reach it (whole answers
+  and the entries inside them).
+- **Solution:** both are worded as a server error: "EDGE could not complete this request because of a server error;
+  retry shortly." (`apps/edge-bff/screener/src/texts.ts:298`). Tests: `INTERNAL_ERROR` in the every-code test
+  (`tests/page/refusals.test.ts:264`) and a test of the counts entry (`:348`).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** the codes a page words are taken from what each route can send, entries included.
+
+### M284 — Screener page tests: the plain-words check let internal words through (2026-10-29)
+
+- **Symptom:** the `INTERNAL` pattern of `apps/edge-bff/screener/tests/page/refusals.test.ts` caught only snake_case and
+  UPPER_SNAKE, so one-word codes ("stopped with TIMEOUT", BUSY), decision ids (P33, P11), registry ids (I43), wire names
+  with a digit (value2) and routes ("GET universe") passed; the TIMEOUT test had no plain-words check, and the
+  owner_cpu_budget test only checked that the limit name was absent. Found by the refusal review.
+- **Verified cause:** the forbidden words were a hand-written pattern of what an internal name looks like.
+- **Class:** a test whose pass condition is narrower than the rule it guards.
+- **Solution:** `INTERNAL` is derived from `ERROR_CODES` plus the worker's and edge-bff's codes, with those patterns
+  added; `pageWords()` (`refusals.test.ts:45-52`) checks the page's own words with the catalog rules taken out, and
+  refuses service-internal words (worker, replica, thread, log, edge-bff, snapshot); it runs on TIMEOUT,
+  owner_cpu_budget, every limit and every code. Mutation check: each of the review's fixes reverted alone fails exactly
+  one test.
+- **Status:** FIXED on the Screener branch (test only; reaches `main` with it).
+- **Lesson:** a wording rule's test derives its forbidden words from the codes and names in the code, and a mutation
+  shows that it fails.
+
+### M285 — Screener page: `INVALID_INPUT` of a field the page fills asked the user to correct it (2026-10-29)
+
+- **Symptom:** "Schema version: schema_version must be 1. Correct it and try again, or reload the page." Reachable after
+  a deploy changes the envelope while a page stays open. Such fields: worker `run.ts` (schema_version, client_order,
+  data_version, options, closed fields), `server.ts` (body, `x-screener-owner`, whose reason names SCREENER_WORKER_KEY
+  and HMAC, ticker); edge-bff `screener.py` `checked_item` (kind, item_id, revision) and `json_object`. Found by the
+  refusal review 2.
+- **Verified cause:** `errorText` treated every `INVALID_INPUT` field as one the user can edit.
+- **Class:** a refusal that asks the user to fix what only the page sends.
+- **Solution:** `userField` (`apps/edge-bff/screener/src/texts.ts:228-232`): a definition path, a counts entry's
+  `definitions[k].definition` path, `definition` or `name` keeps the reason and "Correct it"; any other field, or none,
+  reads "This page sent a request the screener does not accept (the page is probably out of date after an update).
+  Reload the page and try again." Test: `tests/page/refusals.test.ts` "INVALID_INPUT of a field the page fills itself:
+  …" (`:212`): 11 envelope fields from the real refusal sites against 4 user fields.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending.
+- **Lesson:** a refusal asks the user to change only what the user can change; for what the page sent itself, it says to
+  reload.
+
+### M286 — EXEC-MU-RUNTIME: the R1 pre-deploy check names a commit hash a correct branch does not contain (2026-10-29)
+
+- **Numbering:** MU-E1 in the EXEC-MU-RUNTIME build logs.
+- **Symptom:** `verification/edge_multiuser/runtime/RUNTIME.md` (§11 R1, §8 A2: `:408`) and `terminal.md` (§9 R1) give
+  the publisher's pre-deploy check as `git merge-base --is-ancestor 6051f4d HEAD`. On the Screener branch it answers
+  false although the content-key code is there (re-checked 2026-10-29).
+- **Verified cause:** the PR #41 commits were cherry-picked onto the Screener branch, which gives new hashes:
+  `6051f4d` -> `94c1491` (content keys, M250), the retry -> `80d37e1` (M263), both ancestors of HEAD. Their
+  `git patch-id --stable` differs too, because the integration adapted them to the xsection writer, so no hash-based
+  check can recognise them. In code: `apps/terminal-publisher/publisher.py` `BUCKET_TRANSIENT_CODES` (`:188`),
+  `content_key` (`:244`), `retried` (`:511`), `store` (`:620`), `collect_garbage` (`:962`).
+- **Class:** a guarantee about code checked by a commit hash.
+- **Solution:** check the code, not a hash: the symbols above in the `publisher.py` being deployed, with its suite green
+  (or the ancestry of the cherry-picked commits). The EXEC-MU-RUNTIME integration's deploy order says so.
+- **Status:** OPEN (documentation): the spec lines are not corrected (`RUNTIME.md:408, 494`;
+  `terminal.md:24-25, 565-566, 616`); the check by code passes on the Screener branch.
+- **Lesson:** a guarantee that depends on code being present is checked on the code (a symbol, a test), never on a
+  commit hash: cherry-picks, rebases and squash merges change hashes and patch ids.
+
+### M287 — EXEC-MU-RUNTIME: the Terminal page drew bytes unlike their announcement and trusted its cache (2026-10-29)
+
+- **Numbering:** MU-E2.
+- **Symptom:** during the 2026-10-27 publisher run the Backtest failed `DATA_INTEGRITY` while the Terminal drew the
+  newer bytes (M250, Verified item 5). Reproduced locally (Chromium, the page as it was, against a stand-in whose
+  `/bundle` announces one price file and serves another): the page drew the served file (volume legend "3M" of the other
+  file instead of "7M"), also when IndexedDB held other bytes under the announced sha256; a flipped byte showed "Failed
+  to fetch" (the gzip error), a damaged reference file the generic message.
+- **Verified cause:** `apps/edge-bff/terminal/src/data/worker.ts` before T7: `download()` took `cache.get(ref.sha)`
+  without hashing it again, downloaded and only skipped `cache.put` when the sha256 differed, then decoded and returned
+  the bytes anyway; `FileRef` had no size and `live.ts` `bundle()` dropped `f.bytes`; reference files were read as bare
+  URLs. The siblings verify: the Backtest page through the core's `inflateVerified`
+  (`apps/edge-bff/backtest/src/core/datafile.ts`), backtest-worker `src/terminal.ts`, screener-worker through that
+  client.
+- **Class:** a reader of published files that trusts unverified bytes while its siblings verify.
+- **Solution:** one check for the rack pages in the shared module `apps/edge-bff/terminal/src/data/rack.ts`
+  (`IntegrityError` `:121`, `mismatch` `:137`, `readVerified` `:148`; the Terminal cannot import the backtest core,
+  because the edge-bff Dockerfile's `terminal` stage copies `terminal/` only): size and sha256 of downloaded and cached
+  bytes; an announcement without a valid sha256 and size refused before any download; only verified bytes stored; a bare
+  URL (no index) read as before. `FileRef` carries `bytes`; `live.ts` checks `/reference` files announced with sha256
+  and bytes (T5), asks one new `/bundle` per ticker job and one new `/reference` per reference file, then shows
+  `DATA_INTEGRITY` "A data file did not match its published checksum; reload the page." (what differed goes to the
+  console, never a URL). Also fixed: without a Worker, the page left the broker and events downloads without a handler
+  (an unhandled rejection when one failed before the price was read). Tests:
+  `apps/edge-bff/terminal/tests/data/download.test.ts` and `tests/smoke/integrity.mjs` (Chromium: Worker and IndexedDB
+  of a real browser); against the original code 7 vitest cases and 8 smoke checks fail. The Backtest and Screener page
+  bundles are byte-identical before and after.
+- **Not covered:** backtest-worker and screener-worker read reference files without checking the announced sha256 (Phase
+  2/3), and the Backtest page asks no new `/bundle` on a failed check.
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending
+  (edge-bff from `main`, page only).
+- **Lesson:** every reader of a published file checks the announced size and sha256 on every use, downloaded or cached,
+  refuses an announcement it cannot check, and takes that rule from one shared module per build unit; a new reader is
+  listed with the others (`BACKTEST_END_TO_END.md` §5, `verification/terminal_api/FRONTEND_ARCHITECTURE.md` §15).
+
+### M288 — EXEC-MU-RUNTIME: the Terminal assets check's stand-in fails on Python 3.12+, announces no sha256 (2026-10-29)
+
+- **Numbering:** MU-E3.
+- **Symptom:** `python3 verification/terminal_api/assets_check/mock_server.py <dist> <port>`: every `/bundle` POST
+  raises `TypeError: 'float' object cannot be interpreted as an integer`, so `check_assets.mjs` times out waiting for
+  `#chart canvas` (any page version). With that fixed, the T7 page refuses its files: the stand-in answers `/bundle`
+  files without `sha256` and `bytes` and serves plain JSON.
+- **Verified cause:** `mock_server.py:31` `rnd.randint(1e6, 9e6)`: float bounds are refused since Python 3.12
+  (re-checked on 3.13.17). The stand-in predates T7, while the real terminal-api always announces `sha256` and `bytes`
+  (`apps/terminal-api/app/main.py` `file_answer`, `:492-493`).
+- **Class:** a stand-in for a service that does not announce what the real one announces.
+- **Solution:** proposed, not applied: integer bounds; gzip the documents and announce `sha256` and `bytes` in
+  `/bundle`. On a scratch copy with exactly these changes the whole assets check passes against the T7 page.
+- **Status:** OPEN (tooling; `mock_server.py:31` unchanged on the Screener branch).
+- **Lesson:** a stand-in for terminal-api announces what the real one announces (sha256, bytes, gzip bodies), or it
+  tests a reader the product no longer has.
+
+### M289 — EXEC-MU-RUNTIME: terminal-api got a Railway healthcheck without `PORT` while its port is fixed (2026-10-29)
+
+- **Numbering:** MU-E4.
+- **Symptom:** found in review before any deploy: the terminal-api block of `.railway/railway.ts` gained
+  `healthcheck: "/ready"` but declared no `PORT`, and the deploy order only said to check for it. terminal-api's uvicorn
+  listens on a fixed 8080 (`apps/terminal-api/Dockerfile:10`), and Railway probes a healthcheck on the service's `PORT`.
+- **Verified cause:** derived from `.railway/railway.ts` and the Dockerfiles: every other service that fixes its port
+  and has an HTTP healthcheck declares `PORT` (market-sql-governor, market-web-governor, market-python-sandbox,
+  market-ai-orc, market-audit-store, edge-bff; `RAILWAY_CHANGELOG.md` records `PORT=8080` for them), and the two with a
+  healthcheck but no `PORT` read the injected one (`apps/telegram-trigger/telegram_trigger.py:613`,
+  `apps/telegram-monitor/telegram_monitor.py:884`). terminal-api was created without `PORT` (`RAILWAY_CHANGELOG.md`,
+  2026-10-25). With the healthcheck and no `PORT=8080` the probe would miss the app and a new deployment would never be
+  promoted (safe, but the deploy blocked).
+- **Class:** a healthcheck added to a service whose listening port is fixed in its image instead of taken from `PORT`.
+- **Solution:** `PORT: preserve()` in the terminal-api block, with the comment that it is set to 8080 with the
+  healthcheck (`.railway/railway.ts:160-170`); the deploy order sets `PORT=8080` together with the healthcheck path.
+  Test: `apps/terminal-api/tests/test_api.py::test_railway_healthcheck_probes_the_port_the_app_listens_on` (`:1146`)
+  derives the rule for every service of `railway.ts` with a healthcheck whose Dockerfile fixes `--port` (7 today).
+- **Status:** FIXED in code on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy
+  pending: the variable is set at the terminal-api deploy step (needs the user's go).
+- **Lesson:** a healthcheck and the port the app listens on are one setting; a service that fixes its port declares
+  `PORT` with that value before a healthcheck path is set.
+
+### M290 — EXEC-MU-RUNTIME: edge-bff's INFO log lines never reached the service log (2026-10-29)
+
+- **Numbering:** MU-E5.
+- **Symptom:** `apps/edge-bff/app/backtest.py` writes `backtest_state` (every job state change) and the Phase 0
+  measurement lines with `logger.info`; none appears in edge-bff's log, only the WARNING and ERROR lines
+  (`backtest_lease_lost`, `backtest_result_store_failed`, …).
+- **Verified cause:** edge-bff runs `uvicorn app.main:create_app --factory …` (`apps/edge-bff/Dockerfile:49`), and
+  nothing in `apps/edge-bff/app` configured logging. uvicorn's `LOGGING_CONFIG` (0.35.0) configures only `uvicorn`,
+  `uvicorn.error` and `uvicorn.access`, so a record of `edge_bff.*` falls to `logging.lastResort`, whose level is
+  WARNING. Reproduced: after `logging.config.dictConfig(uvicorn.config.LOGGING_CONFIG)`,
+  `getLogger('edge_bff.backtest').info(...)` prints nothing and `.warning(...)` prints. The same holds for every
+  `edge_bff.*` logger: `edge_bff.lifecycle` drops its `job_state` lines (`app/store.py:150, 199, 232`);
+  `edge_bff.worker` and `edge_bff.screener` write only WARNING and ERROR lines today.
+- **Class:** a log line the deployed process never writes (no handler, or a level above the line's).
+- **Solution:** `backtest.py:30-40`: when no handler is set up at import, the module's logger gets a stderr handler with
+  the message alone at INFO (what lastResort wrote for WARNING and up), so the existing lines look the same and INFO
+  lines join them; a logging set-up made before (a test's capture, a service-wide one) is left alone. Test:
+  `apps/edge-bff/tests/test_backtest.py::test_the_modules_info_lines_reach_the_service_log` (`:2156`, a fresh
+  interpreter under uvicorn's LOGGING_CONFIG: the INFO line reaches stderr once; with a root handler set up first, no
+  second copy).
+- **Status:** FIXED on the Screener branch for `edge_bff.backtest` (EXEC-MU-RUNTIME, merged into it; reaches `main` with
+  it); deploy pending. OPEN for the other `edge_bff.*` loggers: the owning layer is edge-bff's start-up (`app/main.py`
+  `create_app`, one handler on the `edge_bff` logger; the `backtest.py` guard then adds none).
+- **Lesson:** a log line is evidence only once it has been seen in the service's own log: when a line is added, check
+  that the deployed process writes it (logger level and handler), not only that the code calls it.
+
+### M291 — EXEC-MU-RUNTIME: a test PostgreSQL initialised as root is SQL_ASCII; edge-bff tests answer 401 (2026-10-29)
+
+- **Numbering:** MU-E6.
+- **Symptom:** `apps/edge-bff/tests/test_backtest.py` on a fresh local PostgreSQL 16: every test that signs in and then
+  calls a route answers 401 `Authentication required` (the sign-in itself answers 200).
+- **Verified cause:** `initdb` without `-E` in this sandbox (root's POSIX locale) creates the cluster with encoding
+  SQL_ASCII; psycopg then returns `text` as `bytes`, so `main.py` `session` compares `b'local-test-owner'` with the
+  configured `'local-test-owner'` and refuses (seen: `SELECT owner_key FROM edge_bff.sessions` returns bytes). The
+  unchanged code fails the same way: not a code defect.
+- **Class:** a test database created with another encoding than production's.
+- **Solution:** `initdb -E UTF8 --locale=C.UTF-8`; then the suite passes (59 of 59 at the time). Not built: a guard in
+  `apps/edge-bff/tests/conftest.py` that refuses a non-UTF8 server with a clear message.
+- **Status:** MITIGATED (test set-up; no product effect).
+- **Lesson:** a disposable database for tests is created with the production encoding (UTF8), and the harness checks
+  `server_encoding` before it runs.
+
+### M292 — EXEC-MU-RUNTIME: the T7 retry put new broker data on the new answer's sessions, not the chart's (2026-10-29)
+
+- **Numbering:** MU-E7.
+- **Symptom:** found in review before any deploy. When a broker file fails its check and the page's one new `/bundle`
+  (M287) comes from a later publication whose price has other sessions, the chart keeps the first answer's price while
+  the Flow Timeline is built on the second answer's sessions, so every Flow value is drawn on the wrong session.
+  Reproduced in vitest (chart 1-3 October, a new answer on 2-4 October: Flow `[5, 7, 9]` instead of `[0, 5, 7]`; a
+  session corrected away: `[3, 4, 6]` instead of `[3, 0, 4, 6]`) and in Chromium with the real Web Worker: "Latest day
+  net 31 Dec 2025 Rp 9B", the next session's value, instead of Rp 7B.
+- **Verified cause:** `apps/edge-bff/terminal/src/data/live.ts` `checked()` as first built for T7:
+  `second ||= again().then(f => run(f, tf, onto))`. For the chart's own ticker `onto` is undefined, so the new job's
+  worker (`worker.ts`, `dates = onto || rows.map(r => r.d)`) or the page path indexed `net` by the new answer's price
+  sessions, while the stages already answered (the price) kept the first answer's. Before T7 a ticker's price and broker
+  data always came from one `/bundle` answer; the retry is the first place where they can come from two.
+- **Class:** index-aligned data of a view built from one source while the view's axis comes from another (mixed versions
+  inside one view), here introduced by a retry inside one ticker's job.
+- **Solution:** `checked()` gives the new job the sessions the page draws: `onto` (an added asset's Flow), else the
+  first job's price sessions once that price was read, else (the price failed too, so the chart takes the new answer's
+  price) the new job's own (`live.ts:151-171`), the rule `loadAssetFlow` already follows. Tests:
+  `apps/edge-bff/terminal/tests/data/download.test.ts` "a retried broker answer from a publication whose year window
+  moved stays on the chart's sessions" (`:251`), "… that removed a session …" (`:262`), "when the first price failed
+  too, …" (`:272`) and "an added asset's Flow Timeline retried …" (`:282`): the first two fail on the code before the
+  fix, the fourth when the `onto` branch is removed; `tests/smoke/integrity.mjs` adds 3 Chromium checks, the third
+  failing on the build before the fix.
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending
+  (with T7, edge-bff page only).
+- **Lesson:** a retry or refresh that replaces part of a view puts the new part on the view's own axis (its sessions),
+  not on the axis of the answer it came from.
+
+### M293 — EXEC-MU-RUNTIME: the page timing scripts printed the session cookie and CSRF token on a failure (2026-10-29)
+
+- **Numbering:** MU-E8, extended by the lead to the Backtest script.
+- **Symptom:** `verification/terminal_api/page_timing_dev.py` and `verification/screener/page_timing_dev.py` (new in
+  Phase 0), and `verification/backtest/page_timing_dev.py` with the same calls: when a request of their route timings
+  fails (a hang-up, a timeout, a refused connection), the uncaught error prints `cookie: edge_session=<value>` and
+  `X-CSRF-Token: <value>`, a live owner session, in the terminal and in any log or report that quotes it.
+- **Verified cause:** a failed Playwright API request (`APIRequestContext.get/post`, Playwright 1.56) raises an error
+  whose message ends with a call log listing every request header, the context's cookie and the script's `X-CSRF-Token`
+  included (probe: cookie and token in the message, the body's password absent). The scripts left that error uncaught,
+  and the Terminal script also wrote `str(e)[:300]` of an action's error into `report.json`.
+- **Class:** a tool that holds a credential and prints a library's error message as it comes.
+- **Solution:** in the three scripts (the owning layer: the scripts that hold the credentials), `safe_error` keeps an
+  error's message before its call log, replaces every credential value the script holds (`SECRETS`: the password, the
+  context's cookies after sign-in, the CSRF token) and drops a URL's query; `sys.excepthook` prints the traceback's
+  frames (file and line, no values) and `safe_error` instead of Python's own traceback; the Terminal action error in the
+  report goes through `safe_error` (`verification/terminal_api/page_timing_dev.py:37-54`; the same in
+  `verification/screener/page_timing_dev.py`; `verification/backtest/page_timing_dev.py:16-31`, which also gains an
+  `EDGE_TIMING_BASE` stand-in mode). Test:
+  `verification/terminal_api/test_page_timing_scripts.py::test_a_failed_request_names_the_error_and_shows_no_credential`
+  (`:82`, all three scripts against a local stand-in that signs in with test values and hangs up on the session route):
+  it fails before the fix (the cookie in stderr) and passes after (3 passed).
+- **Not covered:** other scripts with a signed-in Playwright request context were not reviewed for this class:
+  `verification/backtest/e2e_dev.py` shortens the errors it records (`brief`, `:657-662`), but its uncaught paths were
+  not checked. The `verification/terminal_api/*_live_check.py` scripts sign in to a local app with test values only.
+- **Status:** FIXED on the Screener branch for the three timing scripts (EXEC-MU-RUNTIME, merged into it; reaches `main`
+  with it); nothing to deploy (local tools).
+- **Lesson:** a tool's error message is output too: before a script holding a credential prints or stores an exception,
+  check what the library puts in its message (Playwright: the request headers and cookies).
+
+### M294 — EXEC-MU-RUNTIME: `backtest_submit` logged the request's `mode` as the caller sent it (2026-10-29)
+
+- **Numbering:** MU-E9.
+- **Symptom:** a submission the worker refuses (422) was logged with `mode` exactly as sent: any string up to the body
+  limit, or an object, e.g. a note, although the lines are documented as "ids, hashes, counts, states and milliseconds
+  only".
+- **Verified cause:** `apps/edge-bff/app/backtest.py` `submit` logged `mode=body.get('mode')` for every outcome, the
+  refusals included; only the worker checks `mode` (`validate.ts` `checkRequest`), and edge-bff passes the body on
+  unread. `JobTiming.line` read the stored request the same way.
+- **Class:** a log field copied from a request nothing has checked yet.
+- **Solution:** `mode_of` (`backtest.py:182`): a contract mode (`single` or `portfolio`) as it is, `invalid` for any
+  other value, None for none; used by both lines (`:235, 1297`). Test:
+  `apps/edge-bff/tests/test_backtest.py::test_a_measurement_line_never_carries_an_unchecked_mode` (`:2175`; a
+  2,000-character mode, an object mode, none): it fails before the fix.
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending.
+- **Lesson:** a log field taken from a request is a checked value or a class of it, never the value as sent.
+
+### M295 — EXEC-MU-RUNTIME: a cancelled signals preview was logged as `outcome: ok` (2026-10-29)
+
+- **Numbering:** MU-E10.
+- **Symptom:** the `backtest_preview` line of a preview whose route was cancelled (`CancelledError`: a shutdown) said
+  `ok`.
+- **Verified cause:** `Backtests.latest_preview` set `outcome = 'ok'` first and replaced it only in `except` clauses up
+  to `except Exception`; `asyncio.CancelledError` is a `BaseException`, so the `finally` logged `ok`.
+- **Class:** an outcome field that starts at the success value.
+- **Solution:** the last clause catches `BaseException` (the outcome names its class) and re-raises
+  (`apps/edge-bff/app/backtest.py:1224`). Test:
+  `apps/edge-bff/tests/test_backtest.py::test_a_cancelled_preview_is_logged_as_cancelled_not_ok` (`:2192`; the owner's
+  place is freed): it fails before the fix.
+- **Status:** FIXED on the Screener branch (EXEC-MU-RUNTIME, merged into it; reaches `main` with it); deploy pending.
+- **Lesson:** an outcome field defaults to nothing and is set where the outcome is known.
+
+### M296 — EXEC-MU-RUNTIME: a test PostgreSQL in the scratchpad dies when `/tmp/claude-0` returns to 0700 (2026-10-29)
+
+- **Numbering:** MU-E11.
+- **Symptom:** a PostgreSQL 16 cluster run as `ubuntu` under the session scratchpad PANICs mid-run
+  (`could not open file .../global/pg_control: Permission denied`), and the test teardown fails with
+  `server closed the connection`.
+- **Verified cause:** PostgreSQL refuses to run as root, so the cluster runs as `ubuntu`, which needs search permission
+  on every directory of the path; `/tmp/claude-0` is `drwx------ root` and is set back to 0700 seconds to minutes after
+  a `chmod 711` (seen twice, 03:16 and 03:25 UTC; another session restores it). The checkpointer then cannot reach the
+  data directory.
+- **Class:** a test service running as another user on a path whose parent the environment keeps closed.
+- **Solution:** keep the data in the scratchpad but reach it by a path outside `/tmp/claude-0`
+  (`mount --bind <scratchpad dir> /var/tmp/<name>`, initdb and pg_ctl on that path, unmount after the run); no
+  permission of `/tmp/claude-0` is changed.
+- **Status:** MITIGATED (test set-up; no product effect).
+- **Lesson:** a test service that runs as another user is given a path that user can reach for the whole run; do not
+  rely on loosening a shared parent directory.
+
+### M297 — EXEC-MU-RUNTIME: a screener-worker pool test asserted an order two threads decide (2026-10-29)
+
+- **Numbering:** MU-E12.
+- **Symptom:** `npm test` in `apps/screener-worker`, run while the backtest-worker suite ran in parallel on the same
+  machine (EXEC-MU-RUNTIME integration, on its base `3f5156c`): 42 of 43, `tests/pool.test.ts` "an owner never runs more
+  than SCREENER_OWNER_INFLIGHT at once; the rest wait in its lane" failed with `order()` `['a2', 'a1', 'a4', 'a3']`
+  against `['a1', 'a2', 'a3', 'a4']`. Run alone right after: 43 of 43.
+- **Verified cause:** the test (pool `threads: 3, inflight: 2`) hands a1 and a2 to two threads at once, then a3 and a4,
+  and asserted the exact order of the threads' `fake_start` log lines. Which of two threads logs its start first is
+  decided by the operating system's scheduling, not by the pool; the pool's guarantee (two run, two wait; the lane
+  drains in submission order per round) held.
+- **Class:** a test of a concurrent scheduler that asserts an order the scheduler does not decide.
+- **Solution:** the test asserts the set of each dispatch round (`{a1, a2}`, then `{a3, a4}`)
+  (`apps/screener-worker/tests/pool.test.ts:26-36`). The Screener build had already changed it on the Screener branch,
+  after the EXEC-MU-RUNTIME base.
+- **Status:** FIXED on the Screener branch (test only; no product effect).
+- **Lesson:** a test of a concurrent scheduler asserts only the order the code decides; anything two threads race for is
+  checked as a set.
+
+### M298 — Screener: user-visible text carried decision, registry and wire ids, codes and service parts (2026-10-29)
+
+- **Symptom:** the Screener page showed developer names as they were: decision ids (P6, P11, P22 item 7, D7, "16.11
+  D1"), flow and plan ids (FL09, EXEC-MCAP), registry ids (I01, I37, "F"), NA and remark codes
+  (`NA INSUFFICIENT_HISTORY`, `MIXED_ADJUSTMENT_BASIS`, row remark STALE / PRICE_BREAK), wire, file and column names
+  (`market_board`, `zone_max`, `asOf`, `value2`, metric ids such as `fpct`, "broker_window", "buy_freq"), error codes in
+  limit texts (TIMEOUT, BUSY, DATA_VERSION_CHANGED), environment variables (`SCREENER_DEADLINE_MS`), "on a replica",
+  "a compute thread" and "GET universe", in tooltips, availability reasons, limits (Method & sources) and refusals: 88
+  user-visible strings of `screener-metrics.json` at the time. The pattern "New N-session high of a line" offered its
+  Line options as `I40.obv`, `I41.pvt`, `I44.adl`, `I50.nvi`, `I51.pvi`; Keltner's bands style `HL_RANGE`; every
+  unavailable preset listed its legs by condition id ("unavailable: a, b", "metric_filters[0]"); an `INVALID_CONDITION`
+  refusal of an option listed the raw options; the Default button said "the registry's defaults"; a kept (raw) card's
+  header and refusal place showed the registry id ("Condition 1 (I13)") where the catalog has the indicator's name. The
+  review of the rewording found three more: the dividend-yield misuse narrowed P11 (i) to an "unadjusted" corporate
+  action (copied from a page text with the same narrowing), a file with none of the needed columns read "carries only part
+  of its data: 1 of the 1 columns", and the option refusal above. Found by the plain-words editor and its review, and
+  the last-guards build (EXEC-SCREENER).
+- **Verified cause:** the catalog's and the servers' texts were written for developers and shown verbatim: the page
+  renders `interpretation` (`apps/edge-bff/screener/src/entries.ts`), availability `reason` (core `validate.ts`
+  `availabilityOf`), parameter options, preset `why` / `reason` and their legs (`presets-ui.ts` `legNames`, which fell
+  back to the condition id because `presets.json` conditions carry no labels), the worker's `limits[]` (`catalog.ts`
+  `limitEntries`) and every refusal through `texts.ts`; nothing walked those strings, and `forms.ts` `rawName` took the
+  reference's raw id (`ref.indicator`, `ref.type`, `ref.fn`) for a card the page cannot map.
+- **Class:** user-visible text that names the code instead of the page (ids, codes, wire and file names, service parts).
+- **Solution:** 93 fields of `screener-metrics.json` reworded with their facts kept (others named by the label the page
+  shows; NA codes as the page's n/a words; the Phase 2b and Ichimoku decisions in plain sentences); `availabilityOf`
+  names no file or column; `presetAvailability` and `legNames` name legs as the page numbers its cards ("condition 1
+  (Magic Formula rank)", "universe filter 1 (Market cap)"); `entries.ts:63` `optionText` shows an option '<indicator
+  id>.<output>' by the indicator's catalog name and an underscored option by its words, derived from the catalog (also
+  in `texts.ts:183` `allowedText`); the worker's limits, BUSY / TIMEOUT and preview texts, edge-bff's `own_limits`
+  (`apps/edge-bff/app/screener.py:531`), the page's fixed texts and tooltips without ids; review fixes: the divYield
+  misuse and `NA_TEXT.MIXED_ADJUSTMENT_BASIS` say "the window contains a corporate action that changes the price", a
+  file with none of the columns reads "It needs data that this publication does not carry."; last guards: `forms.ts`
+  `refName` names a kept card by the catalog's name of what it reads (the first reference that is not a bar field; a
+  transform that is a catalog metric's template by that metric, any other transform by what it is computed on; the id
+  only for an indicator the catalog does not know; review of the last guards: a kept "Distance from 52W high" card read
+  "High" and "Relative strength vs IHSG" "Close", so `refName` now matches templates through `forms.ts` `metricEntryOf`,
+  the matching `fromWire` uses), stored as the page-only `rawName` by `fromWire`, so its header and refusal place read
+  "Condition 1 (Relative Strength Index)". Tests: `apps/edge-bff/screener/tests/page/plain-words.test.ts` walks every
+  string the page shows, built by the real generators (the worker's `catalogDoc` and `limitEntries` at the dev values
+  and at 1, edge-bff's limits, entries, presets and legs, the page's fixed texts, every page module's sentences through
+  the TypeScript AST) with the pattern of `tests/page/plain-words.ts:24` `INTERNAL` (codes from the contract, metric ids
+  from the catalog), and fails naming the field; a self-check proves the pattern catches each old class; 11 injected
+  leaks all fail it; `apps/edge-bff/tests/test_screener.py:354` holds `own_limits()` equal to the page tests' copy;
+  `tests/page/forms.test.ts` "names a kept card by the catalog's name of what it reads …" (seven references besides the
+  observed one, every transform-based catalog metric in two kept forms, the user's label first).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (screener-worker and edge-bff).
+  Left as they are, open for a wording decision: "prototype" in 8 strings (EDGE users are external, P29) and the
+  browser's indicator detail tag (`browser.ts` `e.xid`, the prototype's design); the CSV keeps its remark codes by
+  design (report 9.6).
+- **Lesson:** every user-visible field of a new metric, limit or refusal is plain English and names other things by
+  the label the page shows; a test walks what the page actually shows, built by the real generators, with forbidden
+  words derived from the code's own codes and ids (Part A item 16).
+
+### M299 — screener-worker: a metric showed AVAILABLE when the publication indexed its file, though the worker cannot read it (2026-10-29)
+
+- **Symptom:** none on dev yet (the publisher writes only `price` and `actions`). Shown with an index that names a file
+  the worker does not read: with `broker_window` indexed, the catalog showed the first-set flow metrics (Broker net,
+  Bandar balance, frequency, …) `AVAILABLE`, and every run with one answered `422 METRIC_UNAVAILABLE` at bind with other
+  words ("… is not available yet: Flow metrics arrive with Phase 2"); with `fundamentals` (or `listing_board`,
+  `index_membership`, `special_notation`, `dividends`) indexed, their metrics showed `AVAILABLE` and validated, and
+  every ticker's cell would have been n/a, because the worker's universe row has no such field. Found by the docs
+  follow-up (open issue 1) and verified by the last-guards build (EXEC-SCREENER).
+- **Verified cause:** availability was derived from the file name in the index alone (worker `catalog.ts:28-29` at
+  HEAD `182136a` -> core `validate.ts:52-61` `availabilityOf`; the entries terminal-api serves carry no column list),
+  while the worker downloads and decodes only `PHASE1_FILES` (`snapshot.ts:56` at HEAD) and the core refuses flow at
+  bind (`condition.ts:182`). An advance (the same files on a new publication) kept the map of the swap
+  (`server.ts:296-309` at HEAD), so the catalog and validation also answered by an index the publication no longer had.
+- **Class:** a capability advertised from what the publisher wrote rather than from what the reader can read.
+- **Solution:** in the owning layer, the worker's availability map: a file counts only when it is indexed AND read by
+  this build. `availabilityOf` takes the reader's files (`apps/edge-bff/screener/src/core/validate.ts:55-66`; indexed
+  but not read is `REQUIRES_DATA`, reason "<the metric's reason> It needs data that the Screener does not read yet.");
+  `metricAvailability` passes the names of the files the snapshot was built from
+  (`apps/screener-worker/src/catalog.ts:32`, `server.ts:278` at a swap) and the advance takes the map again from its
+  publication's index by the same rule and rebuilds the validation context (`server.ts:300-304`). The list is the one
+  the code reads by: `PHASE1_FILES` and its type `ReadFile` (`snapshot.ts:58-59`) key the build input (`snapshot.ts:169`
+  `BuildInput`), the builder's downloads (`thread.ts:28`, `:90`) and the refresh's build call (`refresh.ts:182`,
+  `:306`); no second list. A run with such a metric is refused before compute by `validate.ts` `checkRef` with the
+  catalog's availability and reason. Tests: `apps/screener-worker/tests/availability.test.ts` (`broker_window` indexed:
+  every metric over it `REQUIRES_DATA` with that reason, run, validation and a counts entry refused with the same
+  details, a preset quoting it, `:58`; an advance that adds and drops a file, `:89`; over the whole catalog with every
+  file a metric needs indexed, a metric is `AVAILABLE` exactly when a definition with it validates and runs, refused
+  ones carry the catalog's availability and reason, an available universe attribute is a field of every universe row,
+  and a preset runs exactly when it is shown `AVAILABLE`, `:132`); core `tests/core/catalog.test.ts:84` "counts a
+  published file only when the reader reads it"; `tests/page/plain-words.test.ts:122` walks the new reason. Mutation
+  check: availability without the read files fails all three worker tests; the advance without the recompute, or with
+  the old validation context, fails the advance test; a read list naming files nobody decodes or binds fails the
+  whole-catalog test. Review of the last guards: edge-bff kept the catalog and the universe per worker versions and
+  refresh state (`apps/edge-bff/app/screener.py` `versions_key`), which an advance does not change, so the page went on
+  reading the documents of the publication before (its availability, `published_at` and broker lag) until the next swap;
+  the key now holds `/health`'s `published_at` too (`screener.py:594`, `:707`; test
+  `apps/edge-bff/tests/test_screener.py:606`, which fails with the old key); the whole-catalog test also runs every
+  metric and every preset (the runs added to the validations). With edge-bff reading the catalog right after an advance,
+  two windows of the advance mattered: its presets kept the map before until their counts were computed again, and the
+  counts of an earlier advance could land after a later one; the advance now re-derives every preset's availability at
+  once (`apps/screener-worker/src/server.ts:309`, `presetByMap` `:614`; counts kept while a preset stays `AVAILABLE`)
+  and keeps only its own counts (`:310-311`, the `finished_at` guard); test `availability.test.ts:89` `presetsFollow`
+  reads the catalog document synchronously after each advance (fails without the re-derivation every run; without the
+  guard, timing-dependent: 1 run of 3).
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (screener-worker and edge-bff).
+  OPEN, not changed: a file in the worker's list is required in the index (refresh rule 2), so a Phase 2 file needs an
+  optional-file rule before it joins the list (`SCREENER_ONBOARDING.md` 2.3 L5, L12).
+- **Lesson:** a reader advertises only what it can read: derive availability from the intersection of what the
+  publisher indexes and the reader's own file list, take it again whenever the index changes, and test it over the whole
+  catalog against what a run accepts.
+
+### M300 — Screener registry: a kernel whose window moved into a built-in would lose its cap silently (2026-10-29)
+
+- **Symptom:** none in today's 53 kernels. Shown with the registry review's mutant (Donchian and Williams %R windows as
+  `Math.max(...x.slice(i - n + 1, i + 1))`, identical outputs) and a test double (`builtin_window`, window_max's outputs
+  through `slice` and a spread into `Math.max`): the regeneration writes I10 `length` and I16 `length` (the double:
+  `builtin_window.length`) as O(N), so `registry.ts` `capOf` gives them no cap, and the build succeeds; only the diff of
+  the regenerated file shows it. Found by the registry review (M279 "Not covered"); guarded by the last-guards build
+  (EXEC-SCREENER).
+- **Verified cause:** the cost probe counts executed JavaScript source characters (V8 block coverage,
+  `apps/edge-bff/screener/scripts/build-screener-registry.mjs` `executedChars`); work inside a built-in that does not
+  call back into JavaScript is not counted, and the build compared the derived classes with nothing, so a class that
+  fell from O(N·n) to O(N) was written like any other.
+- **Class:** a derived safety field that can fall silently when the measure is blind to a change of the code.
+- **Solution:** in the generator (the owning layer), a lowered class is a gate (AGENTS.md "Gates and evidence"): against
+  the committed registry (`committedRegistry`, `build-screener-registry.mjs:431`: git HEAD's file, else the file on
+  disk, none at the first build; `--check --against <file>` names another, and the CLI refuses `--against` when it
+  writes, `:714`, so the flag cannot let a lowering be written: review of the last guards), a parameter that was O(N·n)
+  and is derived O(N) stops the build (`costLowerings`, `:439`; `build`, `:580`) unless `screener-overlay.json`
+  `cost_reviews` holds a reviewed reason for it (`costReviewOf`, `:410`; `costReviewProblems`, `:413`, checked with the
+  overlay at `:534`: an integer parameter, from O(N·n) to O(N), a reason and a reviewer, no other field, once); the
+  reason is copied into the parameter as `cost_review` (`:629`); a raise needs nothing. (a) The rule is in the
+  generator's header, the overlay's `about` and `SCREENER_ONBOARDING.md` 1.10; (b, c, d) the refusal
+  (`costLoweringRefusal`, `:449`) names the parameters and the registry compared with, says the rule and how to pass,
+  and gives one right and one wrong `cost_reviews` entry; the CLI prints it without a stack (`:718`). The regenerated
+  registry (`screener_registry_version` `638ee5ea6bbf05b5`) differs from the committed one only in the generator's and
+  the overlay's hashes (overlay: its `about` sentence and an empty `cost_reviews`). Tests:
+  `apps/edge-bff/screener/tests/core/registry-cost.test.mjs:158` (through the real probe child: the built-in window
+  measured O(N) next to window_max O(N·n); the lowering refused with every part of the message; the refusal's right
+  example passes, its wrong one fails the review check and the gate; a raise, an unchanged class, a reviewed one and the
+  first build pass), `:185` (each review problem), `tests/core/registry-check.test.mjs:49` (`--check --against` a
+  registry where a derived-O(N) parameter was O(N·n): exit 1 with the refusal; where a derived-O(N·n) one was O(N):
+  current; `--against` without `--check`: exit 2, nothing written); double `tests/core/cost-doubles.mjs:74`.
+- **Status:** FIXED on the Screener branch (reaches `main` with it); deploy pending (with screener-worker, whose
+  start-up check compares the registry's source hashes). The blind spot itself stays (M279; an instrumented probe
+  remains the user's choice); this makes it visible and reviewed instead of silent.
+- **Lesson:** a derived field that guards cost or safety is compared with its committed value at every regeneration,
+  and a change that weakens it is refused until a reviewed reason is recorded next to the input; a strengthening passes.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

@@ -1,0 +1,181 @@
+{
+ "area": "flow (adversarial verification of the flow / bandarmology audit)",
+ "confirmed": [
+  "C1: FACT, re-read 2026-10-27 19:50 UTC. max date = 2026-10-27 for IDX_Broker_Summary, F05, F02, F03 and F06 (indexed date predicates). Price Daily is_final also ends 2026-10-27 (829 tickers). Monitoring row 38cdc7dc: APPLY SUCCESS 11:08-12:58 UTC, 48,661 rows for 2026-10-26/27, features 2,214.2 s, index 2,077.2 s.",
+  "C3: FACT. The live refresh_feature_02 body, read with pg_get_functiondef, equals migration 20261025_008, and its final `FROM history JOIN daily` writes rows only where the combination traded. Re-measured over 2026-09-30..10-27: ANTM F02 latest-date foreign net20 is Regular -408.39 B + Nego 0.34 B = -408.05 B, against the true -477.18 + 0.07 = -477.11 B; DMAS 39.09 vs 82.41 B. Combinations with a latest-date row: ANTM 79/143 (88.6 B of |net20| missing), BBCA 112/169 (658.6 B), DMAS 52/94 (61.5 B).",
+  "C4: FACT. The live refresh_feature_06 body equals 20261022_005:66-298, and 20261022_003 after renames is identical (diff 0 of 233 lines). Grid = ticker sessions \u00d7 all boards, zero-filled. Rows are inserted `WHERE x.active`. The ratio is 100\u00b7\u03a3F/\u03a3(fb+db). z-score and percentile windows use 252 or 60 PRECEDING rows, today excluded. Stored windows: net 1/5/10/20/40/60; ratio 1/5/20; buy/sell days 5/10/20/40 (there is no 60d days column).",
+  "C5: FACT. Recomputed on the market calendar: 833/865 ratio and 847/865 net equal the stored F06 Regular values on 2026-10-27. Zero mismatches among tickers that have 20 sessions in the window (any board or Regular). Script: verify_flow/c5.sql.",
+  "C6: FACT. No column for a D-day broker ranking, top-N net, bandar VWAP, streak or D-day breadth exists in F02, F03, F05 or F06 (live information_schema dump in verify_flow/f06_cols.txt). F03 top3_buyer_share = top-3 positive daily net / positive_net_value_total, one day only (20260914_047:105-123).",
+  "C7: FACT. flow.ts:108-119: on each bar, positives among the top 5 of the n-bar broker sums plus negatives among the bottom 5, starting at from+n, no denominator. Same rule as HTML 782-783 (slice(0,top).filter(>0) + slice(-top).filter(<0)).",
+  "C8: FACT for the data. Buy freq = sell freq on 865/865 latest Regular rows and on 18,546/18,546 rows of October 2026 (Regular 16,392, Nego 2,068, Tunai 86). Universe-stock Regular rows in 2026: 161,294, of which 0 have null frequency. BBCA 81,369 and BBRI 60,879 on 2026-10-27. Reading the sum as 'number of trades' is an inference; the equality supports it.",
+  "C9: FACT. Price volume = Regular sum(buy_lots)*100 on 10/10 tickers for 2026-10-27 and on 11/11 historical samples (2019-03-12, 2022-06-15, 2025-06-10). BBCA all boards 457.17 M vs price 366.85 M.",
+  "C10: FACT. Avg Buy and Avg Sell = value/(lots*100) on 574 buy rows and on the sell rows of 7 tickers, 2026-10-27; max difference 8.2e-13 and 9.0e-13.",
+  "C11: FACT. 168 differ, 59 by more than 10 %, 20 sign flips; CARE Regular -1.50 B vs all boards +376.22 B. The denominator is 841 universe stocks with any F06 row in the window, not 844. Script: verify_flow/c11.sql.",
+  "C13: FACT. The Q2 SQL (calendar CTE plus `c.k <= 61`, no literal bound on f.trade_date) gives a Seq Scan of F06 in bench_q2_f06_window_run1.txt, 18,634 ms. With the literal range, Q2b uses the pkey index scan.",
+  "C15: FACT. refresh.py:68-74: run_in opens a connection and commits per call. F02 refresh runs per ticker (118-121), F06 per ticker (138-139). Features took 2,214 s on 2026-10-27.",
+  "C16 (Backtest part): FACT for the data path. Backtest conditions fnet, broker and top5 read published per-ticker broker files (conditions.ts:190-245, flow.ts). The publisher builds them from F05 (publisher.py:58-62 BROKER_SQL). The worker loads them from the manifest and files (load.ts). An additive table, file or endpoint does not touch them. The pipeline caveat is under additional findings.",
+  "C17: FACT. apps/edge-bff/static/index.html has 33 'screener' lines, all inside the <style> block (lines 15-10286). There are no screener hits in the other apps/ .ts/.py/.js/.html sources.",
+  "C18: FACT. DESIGN.md:37 (Broker action gauge UNVERIFIED), :40 (Bandar detector UNVERIFIED), :147 (gap 1). FUTURE_PLAN.md:814 (item 5, hidden).",
+  "C19: FACT. bandarStatus (HTML 784) and topBrokers (785) appear only where they are defined. BANDAR {acc:4, big:10} at 781 is reset to 6/10 at 1082, is editable at 1621/1628, is saved in snapshot() at 1643 and is restored at 1199.",
+  "Section 1 table: FACT. reltuples, sizes, PKs and indexes match pg_class/pg_indexes. Correlations: F05 trade_date 0.990, F06 ticker 0.969 and trade_date 0.047, F03 date 0.897. shared_buffers 16384\u00d78 kB = 128 MB, work_mem 4 MB, effective_cache_size 4 GB, max_parallel_workers_per_gather 2, database 42 GB, PostgreSQL 18.6.",
+  "Section 1 coverage: FACT. Latest rows: F06/F03 Regular 865, Nego 130, Tunai 9; F02 Regular 24,503. Price: 829 tickers = 828 universe + IHSG. All 828 have an F06 Regular row. 37 F06 Regular tickers are outside the universe; the non-X ones are AKKU, CRAB, GTBO, TRUE, UNSP.",
+  "Broker profile: FACT. 112 rows; Institutional-heavy 25, Mixed 23, Niche 45, Retail-heavy 19. YP, ZP, YU, DR and KK are broker_type Foreign and Retail-heavy. All 89 brokers trading on 2026-10-27 are in the profile.",
+  "Feature_Catalog: FACT. Active rows F02 v2 38, F03 v2 24, F05 v1 15, F06 v1 87, all CALCULATION_VERIFIED. F03 institutional_net_value has point_in_time_safe = false.",
+  "History depth: FACT, approximately. Among 844 universe stocks, F06 Regular rows \u226560: 844, \u2265252: 833, \u2265312: 830. Median 1,931.5, p10 716, min 76. The auditor's 1,930 / 715 are rounding.",
+  "Streak: FACT. With Q2b on market sessions the max foreign net-buy streak is 21 and 27 tickers have \u22655, all universe stocks.",
+  "Prototype metric formulas, operators and defaults in the section 3 rows 1-9 and 11 match HTML 782-786 and 830-846. The six Bandarmology presets match HTML 1084-1089. Terminal avgPrice = value/(lots\u00d7100) (brokerAgg.ts:25). publisher broker_doc labels investor_type 'source investor identity ... not broker domicile' (publisher.py:170).",
+  "Whole-universe screening from the published files is impractical: the CONTRACT.md:183-184 figure (12 largest broker files 28.4 MB gzip) and BACKTEST_END_TO_END.md:420 (BBRI 2.2 MB gzip / 14.5 MB inflated) are cited correctly; the conclusion is an inference from them."
+ ],
+ "refuted": [
+  {
+   "id": "C2",
+   "why": "A round does not run only when the token is replaced. Every deployment of stockbit-updater runs a round, including deploys without a token change. The conclusion (no schedule, so the lag recurs) still holds.",
+   "correct_statement": "FACT: one round runs per deployment of stockbit-updater, including the redeploy Railway starts after a variable change. Replacing STOCKBIT_TOKEN is the documented way to start one; no schedule exists, and a push to main never starts a round. On 2026-10-27 three rounds ran between 14:18 and 14:53 UTC with an unchanged token_expires_at of 2026-10-28 10:53 UTC. After that time every round fails until a new token is set. So the broker lag recurs unless someone deploys with a valid token after each session.",
+   "evidence": "apps/stockbit-updater/README.md:8,20-21 ('One round per deployment'; 'Every deployment runs a round'); UPDATE_TABLE.md:14 ('K2 A: putaran berjalan saat service di-deploy'); Monitoring_Stockbit_Update rows 3323340d (FAILED 14:18-14:24), e3331473 (RUNNING since 14:25:02, never finished) and 51a399f1 (SUCCESS 14:28-14:53, 0 broker rows), all with token_expires_at 2026-10-28T10:53:34Z"
+  },
+  {
+   "id": "C12",
+   "why": "The figures match the auditor's saved EXPLAIN outputs. The 'warm' figures do not reproduce, and the Q3-60 'warm' run was not served from shared_buffers.",
+   "correct_statement": "The recorded single runs are Q1 22.6 ms, Q2b 1,533/583 ms, Q3-10 4,265/549 ms, Q3-20 852/545 ms, Q3-60 12,271/1,918 ms, Q7 4,726/1,466 ms and Q4 347/14 ms. Re-runs of the identical SQL between 19:58 and 20:03 UTC gave: Q2b 3,259 ms and 7,324 ms, plus one statement timeout over 30 s with the same plan; Q7 4,085 ms (8,958 blocks read again); Q3-20 4,894 ms (9,866 blocks read). The Q3-60 'warm' run still read 26,908 blocks from outside shared_buffers. 'Warm' therefore means OS-cache best case. Expect 3-8 s, with occasional timeouts, for whole-universe multi-date F06/F05 aggregates on this 128 MB-buffer database. This strengthens the snapshot case. Q3-60 ran with 2 launched workers plus the leader, about 30 MB HashAgg spill and about 10 MB sort spill per process.",
+   "evidence": "/tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_flow/bench_q2b_verify.txt (timeout), bench_q2b_verify2.txt (3259 ms), bench_q2b_verify3.txt (7324 ms), bench_q7_verify.txt (4085 ms), bench_q3_20d_verify.txt (4894 ms); auditor bench_q3_f05_60d_run1.txt:37-51 and run2 Buffers read=26908"
+  }
+ ],
+ "uncertain": [
+  {
+   "id": "C14",
+   "why": "The recommendation (daily snapshot for broker ranking, streak and frequency; F06 direct for fixed windows) is plausible and the re-measured variance strengthens it. Part of its stated rationale is wrong: 'multiplies with within-N-days operators' does not apply to the ranking metrics. In the prototype, bandar has only acc/bigacc/dist/bigdist/gt/lt, topacc and bavg have only gt/lt/between (HTML 830-835), so they read the last bar only and one as-of date is enough. Crossing ops exist only for fnet (xa/xb), broker (xa), freq (xa), mfi/cmf (xa) and obv 'high'. Better drivers are cold-cache variance and the prototype's libCounts, which evaluates every preset over the whole universe (additional findings). The refresh-cost and size figures are arithmetic on single-run timings."
+  },
+  {
+   "id": "C20",
+   "why": "Not checked by either auditor; whether Stockbit's or IDX's public foreign net uses Regular or all boards stays UNKNOWN. No external call was allowed."
+  },
+  {
+   "id": "S1 source gaps (M157: 4 rows since 2025, all warrants)",
+   "why": "My bounded re-check on F06 (source_balance_gap since 2025-01-01) hit the 30 s statement timeout, so it is unverified. Low impact."
+  },
+  {
+   "id": "Interpretation of 'existing screener' (report section 6)",
+   "why": "The auditor reads it as the Backtest flow conditions fnet/broker/top5. In PLAN.md:968-972 the sentence follows 'Indikator flow, feel free untuk benchmark dan come up with your own screener', so it can equally mean the prototype's own flow screeners and presets. There is no screener in the repo (C17). Ask the user."
+  }
+ ],
+ "row_corrections": [
+  {
+   "id": "S3 row 10 (mfi, cmf, obv)",
+   "field": "prototype line",
+   "was": "841-843",
+   "should_be": "mfi 842, cmf 843, obv 844 (841 continues silent)",
+   "evidence": "grep -n on the prototype HTML: '842:  mfi:', '843:  cmf:', '844:  obv:'"
+  },
+  {
+   "id": "S3 row 11 (adv)",
+   "field": "prototype line",
+   "was": "844",
+   "should_be": "846",
+   "evidence": "grep -n: '846:  adv:{g:'Flow'...'"
+  },
+  {
+   "id": "S3 row 11 (adv) / open question 8",
+   "field": "close\u00d7volume vs exact traded value",
+   "was": "about 1-2% (ANTM 375.0 vs 370.2 B)",
+   "should_be": "1-day, 828 stocks, 2026-10-27: median 1.45 %, p90 4.05 %, p99 7.92 %, max 14.8 %. 20-session mean over 840 stocks: median 0.67 %, p90 2.57 %, max 15.3 %. 2 stocks land on opposite sides of the advMin 1 B threshold under the two definitions.",
+   "evidence": "pgweb: price close*volume vs F06 Regular foreign_buy_1d+domestic_buy_1d, 2026-10-27 and 2026-09-30..10-27"
+  },
+  {
+   "id": "S3 row 1 (bandar)",
+   "field": "operators / history needed",
+   "was": "evaluation multiplies with within-N-days operators (section 5)",
+   "should_be": "States acc/bigacc/dist/bigdist and gt/lt read the last bar only. bandar has no xa/xb/within-n operator, so one as-of date per (D, top) is enough. Send to Backtest maps acc/bigacc/gt to Backtest top5 > 0, which drops the ratio, the thresholds and N.",
+   "evidence": "HTML 830-832 ops list; evalCond 1056-1069; toBacktest 1670"
+  },
+  {
+   "id": "S3 row 2 (topacc)",
+   "field": "Backtest equivalence",
+   "was": "With top = 5 it is the Backtest top5 formula",
+   "should_be": "Equal only with top = 5 and all boards. The prototype sends topacc to the Backtest as type top5 whatever its top parameter (default 5, but editable), so top = 3 is silently run as top-5.",
+   "evidence": "HTML 1669 `case 'topacc': ... {type:'top5', len:p.days ...}`; flow.ts:108-119 fixed 5"
+  },
+  {
+   "id": "S3 evaluation note",
+   "field": "event markers",
+   "was": "collected over the last 130 sessions, for the selected ticker only (HTML 1602, 1614)",
+   "should_be": "evalCond collects the markers over the last 130 sessions for every evaluated ticker (event ops and xa/xb value ops, HTML 1060, 1066). Only drawChart draws them, for the selected ticker (1614). A server can compute markers for the selected ticker only.",
+   "evidence": "HTML 1060, 1066, 1614"
+  },
+  {
+   "id": "S2 'Foreign' bullet",
+   "field": "BROKERS list location / domicile",
+   "was": "HTML 572ff ['AK','UBS Sekuritas',1]",
+   "should_be": "BROKERS is at HTML 667. It flags YP (Mirae) as domestic (0), but IDX_Broker_Profile has YP broker_type Foreign, Retail-heavy. All 14 prototype codes exist in the profile.",
+   "evidence": "HTML 667; pgweb IDX_Broker_Profile rows AK, BK, CC, DR, EP, KK, KZ, LG, NI, OD, PD, RX, XL, YP, YU, ZP"
+  },
+  {
+   "id": "S3.1 Quality + Foreign Inflow",
+   "field": "conditions",
+   "was": "fnet(20) > 0 + fundamentals",
+   "should_be": "roe > 15, der < 1, fnet(20) > 0, close above MA50",
+   "evidence": "HTML PRESETS id 'qflow'"
+  },
+  {
+   "id": "B5 (D-day broker breadth)",
+   "field": "1-day stored equivalent",
+   "was": "1-day version stored: F03.net_buy_broker_ratio",
+   "should_be": "Not equivalent. F03.net_buy_broker_ratio = net_buy_broker_count / active_broker_count, and the denominator includes active brokers whose net is zero. On 2026-10-27, 79 of 865 Regular rows have active_broker_count \u2260 buyers + sellers. Use buyers/(buyers+sellers) from F05 or the snapshot, or define B5 as F03's ratio.",
+   "evidence": "20260914_047 (net_buy_broker_count::double precision/NULLIF(active_broker_count,0)); pgweb count 79/865"
+  },
+  {
+   "id": "B4 (broker net D)",
+   "field": "cost",
+   "was": "dynamic, 30 ms warm (Q5), any broker, D \u2264 20",
+   "should_be": "Q5 measured D = 5 only (31-34 ms). D = 20 for one broker across all tickers, Regular: 85-103 ms (parallel index scan on trade_date_idx, 156,650 rows filtered). F05 has no (broker, trade_date) index. Still cheap; no snapshot needed.",
+   "evidence": "verify_flow/bench_q5_20d_run1.txt, bench_q5_20d_run2.txt"
+  },
+  {
+   "id": "F5 (unusual foreign flow)",
+   "field": "availability",
+   "was": "N + 252 history",
+   "should_be": "NULL until the ticker has 252 non-null prior N-day values, i.e. \u2265 252 + N ticker sessions (271+ for N = 20). Today: 11 universe stocks have fewer than 252 F06 Regular rows (min 76) and 14 fewer than 312. The prototype counts n/a as a fail (HTML 1063), so disclose it.",
+   "evidence": "20261022_005 refresh_feature_06 (n20 = 252 rule); pgweb history-depth query"
+  },
+  {
+   "id": "C1 metric (institutional vs retail net)",
+   "field": "classification caveat",
+   "was": "current broker classification",
+   "should_be": "INFERENCE: F03 joins IDX_Broker_Profile when each row is refreshed, and only changed dates are refreshed. A row carries the classification of its last refresh: current for new rows, possibly stale for old ones if the profile changed. Catalog marks it point_in_time_safe = false.",
+   "evidence": "20260914_047:68-74,82-85; refresh.py:127-130; Feature_Catalog F03 institutional_net_value"
+  },
+  {
+   "id": "Q3-60",
+   "field": "plan / spill",
+   "was": "parallel (3 workers), 3 \u00d7 30 MB spill",
+   "should_be": "2 workers launched plus the leader. Per process: HashAgg spill \u2248 30 MB and external sort \u2248 10 MB. The 'warm' run still read 26,908 blocks from disk or OS cache.",
+   "evidence": "auditor bench_q3_f05_60d_run1.txt lines 37-51; run2 Buffers"
+  },
+  {
+   "id": "Q2b / Q7 / Q3-20",
+   "field": "warm timing",
+   "was": "0.58 s / 1.47 s / 0.55 s",
+   "should_be": "Re-runs 19:58-20:03 UTC: Q2b 3.26 s, 7.32 s and one >30 s timeout; Q7 4.08 s; Q3-20 4.89 s. Not stable; use about 3-8 s as the planning figure.",
+   "evidence": "verify_flow/bench_q2b_verify*.txt, bench_q7_verify.txt, bench_q3_20d_verify.txt"
+  },
+  {
+   "id": "Section 7 risk 1 / C11",
+   "field": "denominator",
+   "was": "168 of 844",
+   "should_be": "168 of 841 (universe stocks with any F06 row in 2026-09-30..10-27)",
+   "evidence": "verify_flow/c11.sql result n = 841"
+  }
+ ],
+ "additional_findings": [
+  "Preset counts multiply the cost (FACT). The prototype's libCounts() evaluates every preset (25) and every saved screen over the whole universe. It runs at boot (HTML 1713), after each Bandar threshold edit (1628), and after save, delete and duplicate (1455, 1456, 1651); HTML 1187 renders the counts on the preset chips (1208). A server version needs every preset's result per as-of date. Every Bandarmology and Combined flow preset uses a fixed grid: bandar(10,3), bavg(10), broker(YP,5), fnet(20), fstreak, freq(20) xa within 3, silent(5,20,1.3,4). A fixed-grid daily snapshot, or precomputed preset counts, therefore covers all presets. This is a stronger snapshot argument than 'within N days'.",
+  "Send to Backtest handoff (FACT, HTML 1655-1670) exists in the prototype. fnet gt/lt goes to Backtest fnet; broker gt to broker; topacc to top5 (top N dropped); bandar acc/bigacc/gt to top5 > 0 (ratio and thresholds dropped). Backtest fnet, broker and top5 use all boards and the price-bar calendar (flow.ts:8-14). With a Regular-default screener, the sent conditions evaluate differently in the Backtest (168 of 841 stocks differ on 20D foreign net, 20 flip sign). Nothing breaks, because the types exist in catalog.ts:53-55, but the user should decide whether to label or translate the board.",
+  "The Terminal's shipped broker ranking uses all boards (FACT). 'Top accumulators' (DESIGN.md:38) ranks by \u03a3 net value, All investors, All boards, default 5 sessions. A Regular-default screener can show different top brokers than the Terminal panel for the same stock. Add this to the board decision.",
+  "Monitoring gate trap (FACT). Monitoring_Stockbit_Update has a stale RUNNING row e3331473 (started 2026-10-27 14:25:02 UTC, updated_at 14:25:08, no finished_at), superseded by 51a399f1 (SUCCESS 14:28-14:53). The round before it, 3323340d, FAILED 14:18-14:24 with 'TypeError: Object of type date is not JSON serializable'. A screener gated on 'no RUNNING row' would be blocked indefinitely. Gate on the newest row by started_at being SUCCESS, or on the publisher state.json broker_through / broker_behind_sessions (ERRORS M243). Grep found neither row nor that error in ERRORS_AND_SOLUTIONS.md or RAILWAY_CHANGELOG.md, so they may be unrecorded.",
+  "Cross-table skew during a round (FACT, refresh.py). F05 is written and committed per date for all tickers at once (102-111). F02 follows per ticker (118-121), then F03 per date after all of F02 (129-130), then F06 per ticker (138-139). For most of the about 37 min, F05 already holds the new date for every ticker while F03 lacks it and F06 is partial. A snapshot that combines F05 rankings with F06 or F03 must be built only after the round reaches SUCCESS.",
+  "Pipeline risk of snapshot option (a), INFERENCE from updater.py:134-162. The broker load, features, INDEX, events and table status run in one try block. A snapshot step placed inline in refresh_broker_features or after it would, on failure, mark the round FAILED and skip INDEX, events and Database_Table_Status. It needs its own try, or must run after table_status, to keep the existing round intact. Option (b), publisher-written, does not have this coupling.",
+  "F06 physical order (FACT: pg_stats ticker corr 0.969, trade_date 0.047). Multi-date cross-sections are scattered random reads (Q2b reads about 22k blocks through 1,717 pkey searches); this explains the 3-8 s re-run times and the one timeout. The latest date is cheap (Q1: 176 heap blocks), plausibly because freshly re-inserted rows sit together (INFERENCE). Fixed-window metrics read from the latest F06 row stay in milliseconds.",
+  "Stored F06 'trade count' frequency is complete for universe stocks in 2026 (0 nulls in 161,294 Regular rows). The price table has no frequency column, so freq spike (D1) depends on broker data and therefore on the broker lag (M243), unlike volume-based metrics.",
+  "Five 4-letter tickers (AKKU, CRAB, GTBO, TRUE, UNSP) have F06 Regular rows on 2026-10-27 but are absent from IDX_Stock_Universe and from price. A universe driven by IDX_Stock_Universe excludes them; disclose it, or confirm with the user.",
+  "Backtest broker default is YU (catalog.ts:54); the prototype's Broker Follow preset uses YP (HTML 1089). Choose one default for the screener.",
+  "Scratch evidence: /tmp/claude-0/-home-user-saniti/65bd49d0-9dca-5072-b7db-b62314cf2cd3/scratchpad/audit/verify_flow/ holds live_f02.sql, live_f06.sql and live_f05.sql (live function bodies), f06_a.sql and f06_b.sql (migration diff = 0), f06_cols.txt (live columns), c5.sql, c11.sql, streak.sql, q2b_explain.sql, q7_explain.sql, q3_20d_explain.sql, q5_20d.sql and the bench_*_verify*.txt outputs."
+ ]
+}

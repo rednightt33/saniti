@@ -1,0 +1,9 @@
+BBRI ROC5 vs return_5d_pct: rows=2125 n=2120 nullMismatch=0 maxAbs=0.00e+0
+BBRI ROC20 vs return_20d_pct: rows=2125 n=2105 nullMismatch=0 maxAbs=0.00e+0
+BBRI ROC60 vs return_60d_pct: rows=2125 n=2065 nullMismatch=0 maxAbs=0.00e+0
+BLTA ROC5 vs return_5d_pct: rows=1684 n=1679 nullMismatch=0 maxAbs=0.00e+0
+BLTA ROC20 vs return_20d_pct: rows=1684 n=1664 nullMismatch=0 maxAbs=0.00e+0
+BLTA ROC60 vs return_60d_pct: rows=1684 n=1624 nullMismatch=0 maxAbs=0.00e+0
+GOTO ROC5 vs return_5d_pct: rows=1084 n=1079 nullMismatch=0 maxAbs=0.00e+0
+GOTO ROC20 vs return_20d_pct: rows=1084 n=1064 nullMismatch=0 maxAbs=0.00e+0
+GOTO ROC60 vs return_60d_pct: rows=1084 n=1024 nullMismatch=0 maxAbs=0.00e+0

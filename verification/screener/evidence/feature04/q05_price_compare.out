@@ -1,0 +1,12 @@
+timeframe | is_final | n | tickers | mn | mx
+Daily | True | 1330722 | 845 | 2018-01-02T00:00:00Z | 2026-10-27T00:00:00Z
+(1 rows, 5323 ms)
+---
+price_tickers | f04_tickers | price_only | f04_only | mismatched | matched
+845 | 844 | 1 | 0 | 0 | 844
+(1 rows, 24094 ms)
+---
+ticker | pn | fn | pf | ff | pl | fl | sec_type
+IHSG | 2127 |  | 2018-01-02T00:00:00Z |  | 2026-10-27T00:00:00Z |  | index
+(1 rows, 9708 ms)
+---

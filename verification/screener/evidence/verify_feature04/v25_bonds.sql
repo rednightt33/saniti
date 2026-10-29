@@ -1,0 +1,3 @@
+with p as (select ticker, count(*) n, min(date) f, max(date) l from public."Price_Fixed_Income" where metric_type='price' and "Timeframe"='1D' and is_final group by 1),
+f as (select ticker, count(*) n, min(trade_date) f, max(trade_date) l from public."Feature_04_Technical_Indicator" where asset_type='bonds' group by 1)
+select count(*) filter (where p.ticker is not null and f.ticker is not null and p.n=f.n and p.f=f.f and p.l=f.l) matched, count(*) filter (where p.ticker is null or f.ticker is null or p.n<>f.n or p.f<>f.f or p.l<>f.l) mismatched, string_agg(case when p.ticker is null or f.ticker is null or p.n<>f.n then coalesce(p.ticker,f.ticker) end, ',') from p full join f using (ticker)

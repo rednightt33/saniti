@@ -1,0 +1,8 @@
+attname | n_distinct
+ticker | 842
+(1 rows, 233 ms)
+---
+distinct_price_tickers | not_in_universe
+845 | 0
+(1 rows, 379 ms)
+---

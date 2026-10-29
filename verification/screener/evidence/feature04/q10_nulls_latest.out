@@ -1,0 +1,22 @@
+asset_type | trade_date | n_rows | sma_20 | sma_50 | ema_12 | ema_26 | rsi_14 | macd | macd_signal | macd_histogram | atr_14 | bb_upper_20 | bb_middle_20 | bb_lower_20 | cdl_piercing | cdl_morning_star | cdl_morning_doji_star | cdl_engulfing | cdl_3_white_soldiers | cdl_hammer | cdl_inverted_hammer | cdl_3_inside | cdl_3_outside | cdl_harami | cdl_harami_cross | cdl_dark_cloud_cover | cdl_evening_star | cdl_evening_doji_star | cdl_3_black_crows | cdl_shooting_star | cdl_hanging_man | cdl_doji | cdl_dragonfly_doji | cdl_gravestone_doji | cdl_marubozu | cdl_kicking | cdl_rise_fall_3_methods | cdl_mat_hold | cdl_hikkake | adx_14 | ema_50 | ema_200 | inside_bar | smi | tracking_high | tracking_low | temp_high | temp_high_bar | temp_low | temp_low_bar | last_swing_high | break_swing_high | close | calculation_version | calculated_at
+bonds | 2026-10-26T00:00:00Z | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 12 | 14 | 14 | 0 | 0 | 0 | 0 | 0
+bonds | 2026-10-27T00:00:00Z | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 10 | 1 | 1 | 0 | 0 | 0 | 0 | 0
+equity | 2026-10-26T00:00:00Z | 828 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 | 0 | 0 | 0 | 794 | 794 | 457 | 457 | 5 | 0 | 0 | 0 | 0
+equity | 2026-10-27T00:00:00Z | 828 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 | 0 | 0 | 0 | 789 | 789 | 468 | 468 | 5 | 0 | 0 | 0 | 0
+(4 rows, 274 ms)
+---
+asset_type | trade_date | max_calc | min_calc | count
+bonds | 2026-10-20T00:00:00Z | 2026-10-20T23:01:05.34936Z | 2026-10-20T12:34:16.733553Z | 24
+bonds | 2026-10-21T00:00:00Z | 2026-10-21T11:03:54.109454Z | 2026-10-21T10:02:53.560848Z | 11
+bonds | 2026-10-22T00:00:00Z | 2026-10-22T23:10:04.868179Z | 2026-10-22T10:04:23.245991Z | 24
+bonds | 2026-10-23T00:00:00Z | 2026-10-23T23:03:48.736344Z | 2026-10-23T10:04:39.133431Z | 24
+bonds | 2026-10-26T00:00:00Z | 2026-10-26T23:00:55.774777Z | 2026-10-26T10:03:42.443902Z | 20
+bonds | 2026-10-27T00:00:00Z | 2026-10-27T11:03:44.690383Z | 2026-10-27T10:02:17.040833Z | 11
+equity | 2026-10-20T00:00:00Z | 2026-10-20T10:04:33.87577Z | 2026-10-20T10:02:56.871779Z | 834
+equity | 2026-10-21T00:00:00Z | 2026-10-21T10:06:44.922717Z | 2026-10-21T10:05:12.34814Z | 828
+equity | 2026-10-22T00:00:00Z | 2026-10-22T10:27:11.976147Z | 2026-10-22T10:07:46.21672Z | 829
+equity | 2026-10-23T00:00:00Z | 2026-10-23T10:04:38.956337Z | 2026-10-23T10:02:17.990068Z | 829
+equity | 2026-10-26T00:00:00Z | 2026-10-26T23:04:52.828637Z | 2026-10-26T10:04:53.53654Z | 828
+equity | 2026-10-27T00:00:00Z | 2026-10-27T10:09:36.222312Z | 2026-10-27T10:04:56.943778Z | 828
+(12 rows, 216 ms)
+---

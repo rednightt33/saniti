@@ -1,0 +1,1 @@
+{"sha256": "2946fbc5fcf98a4c561a6bbb3939314fc2ecba5c06e3b2cfca48505e03077b3c", "bytes": 11758425, "inflated_bytes": 74272565, "rows": 1330722, "tickers": 845, "build_s": 27.2}

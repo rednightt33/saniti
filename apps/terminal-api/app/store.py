@@ -19,9 +19,20 @@ BROKER_HISTORY = ('SELECT trade_date::text, broker, investor_type, market_board,
                   'ORDER BY trade_date, broker, investor_type, market_board')
 
 
+ACCOUNT = 'subscriber_id, email, display_name, expires_at, kind'
+# What the migrations after the terminal schema (20261025_100) added and this build reads, without reading a row: a
+# missing column, table or privilege fails the statement. 20261026_100: access_log.file_count; 20261028_100
+# (EXEC-MU-RUNTIME T1): subscriber.kind and usage_hour.
+READY = ('SELECT 1 FROM terminal.quota LIMIT 1',
+         'SELECT file_count FROM terminal.access_log LIMIT 0',
+         'SELECT kind FROM terminal.subscriber LIMIT 0',
+         'SELECT hour_start, grants, files, bytes FROM terminal.usage_hour LIMIT 0')
+
+
 class Store:
-    def __init__(self, url):
-        self.pool = ConnectionPool(url, min_size=1, max_size=8, open=False,
+    def __init__(self, url, max_size=8):
+        """max_size: TERMINAL_POOL_MAX (config.py; EXEC-MU-RUNTIME T9), connections per process."""
+        self.pool = ConnectionPool(url, min_size=1, max_size=max_size, open=False,
                                    kwargs={'row_factory': dict_row, 'connect_timeout': 5})
 
     def open(self):
@@ -37,8 +48,12 @@ class Store:
                 yield c
 
     def ready(self):
+        """/ready, the Railway healthcheck (EXEC-MU-RUNTIME T9): the database answers and holds what this build reads
+        (READY), so a deployment started before its migration never becomes ready and Railway keeps the previous
+        deployment serving instead of switching to one whose every account read would fail."""
         with self.tx() as c:
-            c.execute('SELECT 1 FROM terminal.quota LIMIT 1')
+            for statement in READY:
+                c.execute(statement)
 
     # ---- quotas ----------------------------------------------------------------------------------------------
     @staticmethod
@@ -67,6 +82,18 @@ class Store:
                      r['history_hour'])
 
     @staticmethod
+    def meter(c, sid, files, bytes_):
+        """EXEC-MU-RUNTIME T1: a service account's grant added to its clock hour (UTC) in terminal.usage_hour, and the
+        hour's totals after it (hour_start, grants, files, bytes). The row lock of the UPSERT orders concurrent grants
+        of one service, so every grant sees the totals that include it; a refused grant rolls its addition back with
+        its transaction."""
+        return c.execute(
+            'INSERT INTO terminal.usage_hour AS u (subscriber_id, hour_start, grants, files, bytes) '
+            "VALUES (%s, date_trunc('hour', now(), 'UTC'), 1, %s, %s) "
+            'ON CONFLICT (subscriber_id, hour_start) DO UPDATE SET grants = u.grants + 1, files = u.files + EXCLUDED.files, '
+            'bytes = u.bytes + EXCLUDED.bytes RETURNING hour_start, grants, files, bytes', (sid, files, bytes_)).fetchone()
+
+    @staticmethod
     def log_access(c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None):
         """One row; `keys` (EXEC-TERMINAL-SPEED): every file a /bundle grants, counted in file_count."""
         c.execute('INSERT INTO terminal.access_log(subscriber_id, kind, ticker, dataset, year, object_key, bytes, ip, '
@@ -76,7 +103,9 @@ class Store:
 
     @staticmethod
     def prune(c, days):
-        """Audit rows older than `days` (user 2026-10-26: 90); quotas look back one day at most."""
+        """Audit rows older than `days` (user 2026-10-26: 90); quotas look back one day at most. The service accounts'
+        hourly counters (EXEC-MU-RUNTIME T1) are kept as long as the audit rows they summarize."""
+        c.execute('DELETE FROM terminal.usage_hour WHERE hour_start < now() - make_interval(days => %s)', (days,))
         return c.execute('DELETE FROM terminal.access_log WHERE at < now() - make_interval(days => %s)', (days,)).rowcount
 
     # ---- accounts and sessions -------------------------------------------------------------------------------
@@ -94,7 +123,7 @@ class Store:
 
     @staticmethod
     def subscriber_by_email(c, email):
-        return c.execute('SELECT subscriber_id, password_hash, active, expires_at > now() AS current '
+        return c.execute('SELECT subscriber_id, password_hash, active, expires_at > now() AS current, kind '
                          'FROM terminal.subscriber WHERE email = %s', (email,)).fetchone()
 
     @staticmethod
@@ -108,15 +137,18 @@ class Store:
 
     @staticmethod
     def session_subscriber(c, token_hash):
-        return c.execute('SELECT s.subscriber_id, u.email, u.display_name, u.expires_at FROM terminal.session s '
+        """The active person behind a sign-in (a service account never signs in: main.py sign_in)."""
+        return c.execute('SELECT s.subscriber_id, u.email, u.display_name, u.expires_at, u.kind FROM terminal.session s '
                          'JOIN terminal.subscriber u USING (subscriber_id) WHERE s.token_hash = %s '
-                         'AND s.revoked_at IS NULL AND s.expires_at > now() AND u.active AND u.expires_at > now()',
-                         (token_hash,)).fetchone()
+                         "AND s.revoked_at IS NULL AND s.expires_at > now() AND u.active AND u.expires_at > now() "
+                         "AND u.kind = 'person'", (token_hash,)).fetchone()
 
     @staticmethod
-    def proxied_subscriber(c, email):
-        return c.execute('SELECT subscriber_id, email, display_name, expires_at FROM terminal.subscriber '
-                         'WHERE email = %s AND active AND expires_at > now()', (email,)).fetchone()
+    def account(c, email, kind):
+        """The active, unexpired account of a key: the gateway's TERMINAL_PROXY_SUBSCRIBER (kind 'person') or a
+        service account (kind 'service', EXEC-MU-RUNTIME T1). One row by the unique email index (subscriber_email_key)."""
+        return c.execute(f'SELECT {ACCOUNT} FROM terminal.subscriber '
+                         'WHERE email = %s AND kind = %s AND active AND expires_at > now()', (email, kind)).fetchone()
 
     @staticmethod
     def revoke_session(c, token_hash):
@@ -145,7 +177,7 @@ class Store:
     @staticmethod
     def list_subscribers(c):
         return c.execute(
-            'SELECT u.subscriber_id, u.email, u.display_name, u.active, u.expires_at, u.disabled_reason, u.created_at, '
+            'SELECT u.subscriber_id, u.email, u.display_name, u.kind, u.active, u.expires_at, u.disabled_reason, u.created_at, '
             '(SELECT max(at) FROM terminal.access_log a WHERE a.subscriber_id = u.subscriber_id) AS last_access, '
             "(SELECT coalesce(sum(bytes), 0) FROM terminal.access_log a WHERE a.subscriber_id = u.subscriber_id "
             "AND at > now() - interval '1 day') AS bytes_day "

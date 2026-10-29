@@ -1,0 +1,40 @@
+max
+2026-10-27T00:00:00Z
+(1 rows, 243 ms)
+---
+market_board | count | count
+Nego | 130 | 130
+Regular | 865 | 865
+Tunai | 9 | 9
+(3 rows, 211 ms)
+---
+pg_get_constraintdef
+CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::t
+CHECK (((active_broker_count >= 0) AND (net_buy_broker_count
+CHECK ((((top_buyer IS NULL) = (top_buyer_net_value IS NULL)
+CHECK (((total_buy_value >= (0)::numeric) AND (total_sell_va
+CHECK ((btrim(ticker) <> ''::text))
+CHECK ((((net_buy_broker_ratio IS NULL) OR ((net_buy_broker_
+(6 rows, 226 ms)
+---
+f03_regular_not_in_universe | sample
+37 | AKKU,CRAB,GTBO,TRUE,UNSP,XBID,XBLQ,XBSK,XCLQ,XDES,XDIF,XGLD,
+(1 rows, 290 ms)
+---
+last_price_date | rows_last
+2026-10-27T00:00:00Z | 829
+(1 rows, 221 ms)
+---
+date | count
+2026-10-20T00:00:00Z | 835
+2026-10-21T00:00:00Z | 829
+2026-10-22T00:00:00Z | 830
+2026-10-23T00:00:00Z | 830
+2026-10-26T00:00:00Z | 829
+2026-10-27T00:00:00Z | 829
+(6 rows, 196 ms)
+---
+string_agg
+AKKU,CRAB,GTBO,TRUE,UNSP,XBID,XBLQ,XBSK,XCLQ,XDES,XDIF,XGLD,XIFE,XIHD,XIID,XIIT,XIJI,XILV,XIML,XIPB,XIPI,XISI,XISR,XKGS,XKID,XKMS,XMES,XMIG,XMLF,XPIN,XPLQ,XPTD,XRDN,XSBC,XSGO,XSSI,XTRA
+(1 rows, 455 ms)
+---

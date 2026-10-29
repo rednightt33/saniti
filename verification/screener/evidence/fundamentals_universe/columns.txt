@@ -1,0 +1,194 @@
+table_name | pos | column_name | data_type
+Equity_Market_Schedule | 1 | market_code | text
+Equity_Market_Schedule | 2 | exchange | text
+Equity_Market_Schedule | 3 | timezone_name | text
+Equity_Market_Schedule | 4 | session_close_local | time without time zone
+Equity_Market_Schedule | 5 | finality_delay_minutes | integer
+Equity_Market_Schedule | 6 | correction_lookback_sessions | integer
+Equity_Market_Schedule | 7 | enabled | boolean
+Equity_Market_Schedule | 8 | updated_at | timestamp with time zone
+Feature_01_Stock_Daily | 1 | date | date
+Feature_01_Stock_Daily | 2 | ticker | text
+Feature_01_Stock_Daily | 3 | close | numeric
+Feature_01_Stock_Daily | 4 | volume | numeric
+Feature_01_Stock_Daily | 5 | sector | text
+Feature_01_Stock_Daily | 6 | industry | text
+Feature_01_Stock_Daily | 7 | close_1d_ago | numeric
+Feature_01_Stock_Daily | 8 | close_5d_ago | numeric
+Feature_01_Stock_Daily | 9 | close_20d_ago | numeric
+Feature_01_Stock_Daily | 10 | close_60d_ago | numeric
+Feature_01_Stock_Daily | 11 | return_1d_pct | double precision
+Feature_01_Stock_Daily | 12 | return_5d_pct | double precision
+Feature_01_Stock_Daily | 13 | return_20d_pct | double precision
+Feature_01_Stock_Daily | 14 | return_60d_pct | double precision
+Feature_01_Stock_Daily | 15 | abs_return_1d_pct | double precision
+Feature_01_Stock_Daily | 16 | volatility_5d_ann_pct | double precision
+Feature_01_Stock_Daily | 17 | volatility_20d_ann_pct | double precision
+Feature_01_Stock_Daily | 18 | volatility_60d_ann_pct | double precision
+Feature_01_Stock_Daily | 19 | volatility_5d_change_pct | double precision
+Feature_01_Stock_Daily | 20 | volatility_20d_change_pct | double precision
+Feature_01_Stock_Daily | 21 | volatility_60d_change_pct | double precision
+Feature_01_Stock_Daily | 22 | volume_avg_20d | double precision
+Feature_01_Stock_Daily | 23 | volume_std_20d | double precision
+Feature_01_Stock_Daily | 24 | volume_ratio_20d | double precision
+Feature_01_Stock_Daily | 25 | volume_zscore_20d | double precision
+Feature_01_Stock_Daily | 26 | high_20d | numeric
+Feature_01_Stock_Daily | 27 | high_60d | numeric
+Feature_01_Stock_Daily | 28 | drawdown_20d_pct | double precision
+Feature_01_Stock_Daily | 29 | drawdown_60d_pct | double precision
+IDX_Stock_Universe | 1 | Region | text
+IDX_Stock_Universe | 2 | Country | text
+IDX_Stock_Universe | 3 | Company Name | text
+IDX_Stock_Universe | 4 | Ticker | text
+IDX_Stock_Universe | 5 | Exchange | text
+IDX_Stock_Universe | 6 | TradingView Symbol | text
+IDX_Stock_Universe | 7 | TradingView URL | text
+IDX_Stock_Universe | 8 | Security Type | text
+IDX_Stock_Universe | 9 | Type Specs | text
+IDX_Stock_Universe | 10 | Is Common Stock | text
+IDX_Stock_Universe | 15 | TradingView Country | text
+IDX_Stock_Universe | 16 | Currency | text
+IDX_Stock_Universe | 17 | Fundamental Currency | text
+IDX_Stock_Universe | 22 | ISIN | text
+IDX_Stock_Universe | 23 | Sector | text
+IDX_Stock_Universe | 24 | Industry | text
+IDX_Stock_Universe | 25 | price_feed_daily | numeric
+IDX_Stock_Universe_History | 1 | history_id | bigint
+IDX_Stock_Universe_History | 2 | Ticker | text
+IDX_Stock_Universe_History | 3 | Company Name | text
+IDX_Stock_Universe_History | 4 | Exchange | text
+IDX_Stock_Universe_History | 5 | Security Type | text
+IDX_Stock_Universe_History | 6 | Type Specs | text
+IDX_Stock_Universe_History | 7 | Is Common Stock | text
+IDX_Stock_Universe_History | 8 | ISIN | text
+IDX_Stock_Universe_History | 9 | Sector | text
+IDX_Stock_Universe_History | 10 | Industry | text
+IDX_Stock_Universe_History | 11 | valid_from | date
+IDX_Stock_Universe_History | 12 | valid_to | date
+IDX_Stock_Universe_History | 13 | valid_basis | text
+IDX_Stock_Universe_History | 14 | available_at | timestamp with time zone
+IDX_Stock_Universe_History | 15 | available_basis | text
+IDX_Stock_Universe_History | 16 | recorded_from | timestamp with time zone
+IDX_Stock_Universe_History | 17 | recorded_to | timestamp with time zone
+IDX_Stock_Universe_History | 18 | superseded_reason | text
+IDX_Stock_Universe_History | 19 | pit_valid_from | date
+IDX_Stock_Universe_History | 20 | pit_valid_to | date
+IDX_Stock_Universe_History | 21 | capture_id | bigint
+IDX_Stock_Universe_History | 22 | source_provenance | jsonb
+Price_Stock_Indonesia_IDX | 1 | company_name | text
+Price_Stock_Indonesia_IDX | 2 | ticker | character varying
+Price_Stock_Indonesia_IDX | 3 | tradingview_symbol | character varying
+Price_Stock_Indonesia_IDX | 4 | date | date
+Price_Stock_Indonesia_IDX | 5 | open | numeric
+Price_Stock_Indonesia_IDX | 6 | high | numeric
+Price_Stock_Indonesia_IDX | 7 | low | numeric
+Price_Stock_Indonesia_IDX | 8 | close | numeric
+Price_Stock_Indonesia_IDX | 9 | volume | numeric
+Price_Stock_Indonesia_IDX | 10 | source | character varying
+Price_Stock_Indonesia_IDX | 11 | query_date | date
+Price_Stock_Indonesia_IDX | 12 | timeframe | character varying
+Price_Stock_Indonesia_IDX | 13 | ingestion_time | timestamp with time zone
+Price_Stock_Indonesia_IDX | 14 | market_code | text
+Price_Stock_Indonesia_IDX | 15 | source_bar_time | timestamp with time zone
+Price_Stock_Indonesia_IDX | 16 | market_close_at | timestamp with time zone
+Price_Stock_Indonesia_IDX | 17 | is_final | boolean
+Price_Stock_Indonesia_IDX | 18 | finalized_at | timestamp with time zone
+Universe_Equity_Description | 1 | Region | text
+Universe_Equity_Description | 2 | Market | text
+Universe_Equity_Description | 3 | Country | text
+Universe_Equity_Description | 4 | Exchange | text
+Universe_Equity_Description | 5 | Ticker | text
+Universe_Equity_Description | 6 | Company_Name | text
+Universe_Equity_Description | 7 | TV_Sector | text
+Universe_Equity_Description | 8 | TV_Industry | text
+Universe_Equity_Description | 9 | ISIN | text
+Universe_Equity_Description | 10 | Sector | text
+Universe_Equity_Description | 11 | Industry | text
+idx_event_annotation | 1 | event_key | text
+idx_event_annotation | 2 | event_family | text
+idx_event_annotation | 3 | event_type | text
+idx_event_annotation | 4 | ticker | text
+idx_event_annotation | 5 | instrument_code | text
+idx_event_annotation | 6 | annotation_date | date
+idx_event_annotation | 7 | annotation_date_role | text
+idx_event_annotation | 8 | action | text
+idx_event_annotation | 9 | holder_name | text
+idx_event_annotation | 10 | holder_role | text
+idx_event_annotation | 11 | holder_nationality | text
+idx_event_annotation | 12 | broker_code | text
+idx_event_annotation | 13 | shares_before | numeric
+idx_event_annotation | 14 | shares_after | numeric
+idx_event_annotation | 15 | shares_change | numeric
+idx_event_annotation | 16 | pct_after | numeric
+idx_event_annotation | 17 | pct_change | numeric
+idx_event_annotation | 18 | pct_quality_flag | text
+idx_event_annotation | 19 | price | numeric
+idx_event_annotation | 20 | is_estimated_price | boolean
+idx_event_annotation | 21 | value_idr | numeric
+idx_event_annotation | 22 | data_origin | text
+idx_event_annotation | 23 | source_payload | jsonb
+idx_event_annotation | 24 | source_endpoint | text
+idx_event_annotation | 25 | source_fetched_at | timestamp with time zone
+idx_event_annotation | 26 | ingestion_time | timestamp with time zone
+idx_event_annotation | 27 | cum_date | date
+idx_event_annotation | 28 | ex_date | date
+idx_event_annotation | 29 | record_date | date
+idx_event_annotation | 30 | pay_date | date
+idx_event_annotation | 31 | start_date | date
+idx_event_annotation | 32 | end_date | date
+idx_event_annotation | 33 | amount_per_share | numeric
+idx_event_annotation | 34 | currency | text
+idx_event_annotation | 35 | ratio_old | numeric
+idx_event_annotation | 36 | ratio_new | numeric
+stockbit_corporate_action | 1 | corporate_action_key | text
+stockbit_corporate_action | 2 | action_type | text
+stockbit_corporate_action | 3 | source_slug | text
+stockbit_corporate_action | 4 | source_record_id | text
+stockbit_corporate_action | 5 | symbol | text
+stockbit_corporate_action | 6 | ticker | text
+stockbit_corporate_action | 7 | instrument_code | text
+stockbit_corporate_action | 8 | annotation_date | date
+stockbit_corporate_action | 9 | annotation_date_role | text
+stockbit_corporate_action | 10 | cum_date | date
+stockbit_corporate_action | 11 | ex_date | date
+stockbit_corporate_action | 12 | record_date | date
+stockbit_corporate_action | 13 | pay_date | date
+stockbit_corporate_action | 14 | start_date | date
+stockbit_corporate_action | 15 | end_date | date
+stockbit_corporate_action | 16 | source_payload | jsonb
+stockbit_corporate_action | 17 | first_seen_at | timestamp with time zone
+stockbit_corporate_action | 18 | last_seen_at | timestamp with time zone
+stockbit_corporate_action | 19 | source_removed_at | timestamp with time zone
+stockbit_corporate_action | 20 | load_run_id | text
+stockbit_corporate_action | 21 | ingestion_time | timestamp with time zone
+stockbit_corporate_action | 22 | updated_at | timestamp with time zone
+stockbit_insider_transaction | 1 | insider_key | text
+stockbit_insider_transaction | 2 | ticker | text
+stockbit_insider_transaction | 3 | transaction_date | date
+stockbit_insider_transaction | 4 | action_type | text
+stockbit_insider_transaction | 5 | holder_id | text
+stockbit_insider_transaction | 6 | holder_name | text
+stockbit_insider_transaction | 7 | holder_roles | ARRAY
+stockbit_insider_transaction | 8 | holder_nationality | text
+stockbit_insider_transaction | 9 | broker_code | text
+stockbit_insider_transaction | 10 | shares_before | numeric
+stockbit_insider_transaction | 11 | shares_after | numeric
+stockbit_insider_transaction | 12 | shares_change | numeric
+stockbit_insider_transaction | 13 | pct_before | numeric
+stockbit_insider_transaction | 14 | pct_after | numeric
+stockbit_insider_transaction | 15 | pct_change | numeric
+stockbit_insider_transaction | 16 | pct_quality_flag | text
+stockbit_insider_transaction | 17 | price | numeric
+stockbit_insider_transaction | 18 | is_estimated_price | boolean
+stockbit_insider_transaction | 19 | value_idr | numeric
+stockbit_insider_transaction | 20 | data_origin | text
+stockbit_insider_transaction | 21 | source_copies | integer
+stockbit_insider_transaction | 22 | source_payload | jsonb
+stockbit_insider_transaction | 23 | first_seen_at | timestamp with time zone
+stockbit_insider_transaction | 24 | last_seen_at | timestamp with time zone
+stockbit_insider_transaction | 25 | source_removed_at | timestamp with time zone
+stockbit_insider_transaction | 26 | load_run_id | text
+stockbit_insider_transaction | 27 | ingestion_time | timestamp with time zone
+stockbit_insider_transaction | 28 | updated_at | timestamp with time zone
+(191 rows, 664 ms)
+---

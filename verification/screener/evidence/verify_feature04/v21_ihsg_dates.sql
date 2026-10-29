@@ -1,0 +1,2 @@
+select f.trade_date from public."Feature_04_Technical_Indicator_INDEX" f where not exists (select 1 from public."Feature_04_Technical_Indicator" e where e.trade_date=f.trade_date and e.asset_type='equity');;
+select e.trade_date, count(*) from public."Feature_04_Technical_Indicator" e where e.asset_type='equity' and e.trade_date >= '2018-01-01' and not exists (select 1 from public."Feature_04_Technical_Indicator_INDEX" f where f.trade_date=e.trade_date) group by 1 order by 1 limit 20

@@ -1,0 +1,1 @@
+select table_name, string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name in ('Feature_Catalog','Table_Catalog','AI_column_catalog','AI_calculation_catalog','Feature_Vocabulary','AI_table_catalog') group by 1

@@ -926,3 +926,83 @@ bagian 17.
 ## BACKTEST-SPIN — putaran loading di halaman Backtest (selesai 2026-10-27)
 
 Dieksekusi dan selesai: EXEC.md EXEC-BACKTEST-SPIN, ERRORS "EXEC-BACKTEST-SPIN".
+
+## SCREENER — EDGE Screener dari prototipe `screener EDGE layout.html` (go 2026-10-28; dieksekusi di EXEC.md EXEC-SCREENER)
+
+Dipindah ke `EXEC.md` EXEC-SCREENER pada 2026-10-28 setelah "go" user (persetujuan, jawaban P1-P23 dan pertanyaan yang
+masih terbuka ikut dipindah). Laporan: `verification/screener/AUDIT.md`.
+
+## EDGE-MULTIUSER — EDGE untuk user eksternal di semua tab (disetujui sebagai syarat 2026-10-28; rencana disusun; DIPENDING 2026-10-28)
+
+**Persetujuan, 2026-10-28 (kata user):** "Also, ini nanti akan multiuse,r jadi infrastruktur harus bisa di scale UP + efficient
+cost wise." Lalu atas pertanyaan P29 (siapa "banyak user"): "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest juga".
+
+- **Lingkup:** akun user dan login (saat ini satu owner `EDGE_OWNER`, satu login), identitas dan kuota terminal-api per user
+  (saat ini satu akun gateway dengan override kuota TEMPORARY), keadilan dan batas komputasi per user di Backtest dan Screener,
+  pembatas sign-in per user, edge-bff lebih dari satu replika (state di memori proses), biaya per user, dan izin data untuk
+  user eksternal. Dasar: `verification/screener/AUDIT.md` bagian MULTI-USER SCALE AND COST (6d) dan keputusan P29-P34 di
+  `EXEC.md` EXEC-SCREENER.
+- **Hubungan dengan Screener:** Screener Phase 1 dibangun siap multi-user (semua data berkunci `owner_key`, batas per user,
+  cache bersama tanpa data user) dan tidak menunggu item ini.
+- **Pertanyaan terbuka:** cara user mendaftar (undangan saja, daftar sendiri, atau penyedia login luar); apakah ada paket atau
+  kuota berbeda per user; izin data untuk tampilan ke user eksternal (harga, broker summary Stockbit, corporate action,
+  insider); target jumlah user harian dan user bersamaan; apakah AI EDGE (chat) juga terbuka untuk user eksternal dan
+  anggarannya per user.
+
+**Rencana disusun, 2026-10-28 (read-only; belum "go"):** `verification/edge_multiuser/AUDIT.md` (rencana lengkap, enam tahap,
+model biaya, keputusan MU1-MU26) dan ringkasan `verification/edge_multiuser/RINGKASAN.md`; bukti per area di folder yang sama.
+- **Temuan utama:** chat AI (Monitor) memproses satu pesan untuk semua user (rata-rata 100-200 s per run); Backtest satu job
+  untuk semua user, urut kedatangan; satu akun terminal untuk semua user dengan kuota dimatikan sementara; mode "manual" bisa
+  memperlihatkan pertanyaan user lain begitu ada user kedua (M259 terkait); pembatas salah sandi berbagi alamat proxy; tidak
+  ada anggaran AI per user; izin data per sumber belum tercatat.
+- **Tahap:** (1) pengamanan, (2) akun user dengan undangan admin, `edge-private` menjadi admin, (3) akun terminal per user
+  plus akun layanan worker, (4) keadilan dan anggaran per user, (5) privasi dan izin data, (6) siap luncur.
+- **Biaya (perkiraan):** sekarang sekitar USD 33/bulan; sekitar USD 115 (10 user), 415 (50 user), 1.445 (200 user) per bulan
+  dengan chat AI; tanpa chat AI sekitar USD 50, 80, 140.
+- **Pertanyaan paling mendesak:** MU1 (setujui rencana, "go" Tahap 1 saja), MU2 (izin data tertulis dari TradingView, Stockbit,
+  IDX/KSEI sebelum user eksternal), MU5 (perkiraan jumlah user), MU6 (chat AI untuk user eksternal), MU20 (environment
+  produksi sebelum peluncuran terbuka).
+
+**Dipending, 2026-10-28 (kata user):** "Untuk saat ini, rencana untuk multi-user bisa dipending dulu. Jadi please continue
+sampai screener selesai terlebih dahulu." Keputusan MU1-MU26 tidak ditanyakan sekarang. Screener tetap dibangun sesuai
+P29-P34 (data berkunci `owner_key`, batas per user, cache bersama tanpa data user).
+
+**Arah user berikutnya, 2026-10-28 (kata user):** "Yang mesti dipastikan adalah screener worker beserta backtest machine secara
+arsitektur harus bisa menghandle multi-user termasuk terminal. Untuk AI org, leave as is saja. Untuk terminal backtest dan
+screener, efisiensi biaya dan efisiensi proses menjadi prioritas. Akurasi juga. Jadi untuk arsitektur bisa difokuskan untuk hal
+ini. Kita tidak mau biaya terlalu mahal, tapi kita juga tidak mau user kalau memproses, melakukan screen dan lain-lain menjadi
+terlalu lama."
+- **Lingkup aktif:** arsitektur runtime multi-user untuk Terminal, Backtest (mesin backtest) dan Screener, dengan prioritas biaya,
+  kecepatan proses dan akurasi. AI Orc (Monitor) tidak diubah. Bagian lain EDGE-MULTIUSER (akun, privasi, peluncuran) tetap
+  dipending.
+- **Langkah:** rancangan arsitektur dan model biaya disusun dulu (read-only), lalu diajukan ke user untuk "go" sebelum ada
+  perubahan pada Backtest atau Terminal.
+
+**Ide user, 2026-10-28 (kata user):** "jika screener, backtest, dan terminal adalah idle, dalam artian ketika user tidak
+mengakses maka tidak ada biaya, we might as well to create more the same service. Jadi misalkan ada service, kita duplicate
+service yang sama untuk serve user ID 123, kemudian kita duplicate lagi service yang sama untuk serve user 456 dan seterusnya.
+Coba saja di explore pakai benchmark yang best practice."
+
+**Rancangan disusun, 2026-10-28 (read-only; belum "go"):** `verification/edge_multiuser/runtime/` (`RUNTIME.md`,
+`SILO_VS_POOL.md`, ringkasan `RINGKASAN_RUNTIME.md` dan `RINGKASAN_SILO.md`, studi `backtest.md`, `terminal.md`,
+`silo_research.md`, `silo_bench.md`, model dan benchmark).
+- **Satu service per user (silo) vs satu service bersama (pool):** rekomendasi pool per service, user dipisah lewat `owner_key`
+  (antrean adil, batas per user, cache bersama tanpa data user). Biaya nol saat idle datang dari fitur tidur Railway, bukan dari
+  duplikasi; pool juga bisa tidur. Salinan per user membuat Screener menunggu ±20-27 s di tiap sesi (pool hangat 0,003-0,26 s),
+  mentok di batas 100 service per project dan 20 koneksi database terminal-api, dan versi data bisa berbeda antar user.
+  Perkiraan biaya 10/50/200 user: silo USD 3,5/12,7/48,3; pool menyala terus USD 15,8/16,0/17,9; pool tidur saat idle
+  USD 3,5/4,4/6,4. Salinan khusus hanya sebagai pengecualian (user berat atau berbayar: mesin Backtest sendiri ±USD 4/bulan).
+- **Temuan diverifikasi di kode `main` `15ec418`:** Backtest satu job dan satu preview untuk seluruh EDGE, urut kedatangan
+  (`apps/backtest-worker/src/server.ts:270`, `apps/edge-bff/app/backtest.py:516-527`); halaman Terminal menggambar file yang
+  checksum-nya tidak cocok (`apps/edge-bff/terminal/src/data/worker.ts:36-42`, usulan T7); tidak ada service EDGE yang tidur
+  (`.railway/railway.ts:113,147` hanya Telegram); satu switch `EDGE_WORKER_ENABLED` menyalakan loop AI Orc dan Backtest di
+  setiap proses edge-bff (`apps/edge-bff/app/main.py:180,183`), jadi edge-bff kedua butuh pemisahan loop dulu; Backtest worker
+  dan semua user berbagi satu akun terminal-api (T1 atau B7 sebelum Backtest menjalankan 4 job atau lebih sekaligus).
+- **Urutan usulan (tiap tahap butuh "go"):** (0) ukur dulu; (1) bersama Screener: T1 akun layanan worker, T3, T5 file referensi
+  ber-content-key, T7 cek sha256 sebelum menggambar, healthcheck; (2) Backtest: B1+B2 (tanpa polling tetap, cache seri yang
+  sudah di-decode), lalu K thread dengan klaim adil, deploy aman, sisanya; (3) Terminal: satu grant per buka ticker, tampil dari
+  cache dulu; (4) syarat sebelum user eksternal pertama.
+- **Diputuskan 2026-10-28:** opsi A, eksekusi di `EXEC.md` EXEC-MU-RUNTIME (Tahap 0-3; Tahap 4 tetap dipending di sini).
+- **Pertanyaan yang dulu terbuka (RT1-RT15, `RUNTIME.md` §12; kini mengikuti rekomendasi lewat opsi A):** yang terpenting RT1 pool bersama, bukan salinan per
+  user; RT2 "go" Tahap 0 + 1 bersama Screener; RT3 target waktu; RT14 service menyala terus saat peluncuran (tidur di luar
+  08:10-22:10 WIB hanya hemat ±USD 8,6/bulan, user pertama menunggu 14-27 s, dan kode harus diubah dulu).

@@ -1,0 +1,26 @@
+I28 bollinger_pctb Volatility in= ['C'] pi= close out= ['percent_b'] |  length:integer=20 min=1; source:enum=close opts=['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']; std_dev:number=2 min=0.0001 max=50; basis_ma_type:enum=SMA opts=['SMA', 'EMA', 'WMA', 'RMA'] | na= [] bt= True
+I29 bollinger_width Volatility in= ['C'] pi= close out= ['bandwidth'] |  length:integer=20 min=1; source:enum=close opts=['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']; std_dev:number=2 min=0.0001 max=50; basis_ma_type:enum=SMA opts=['SMA', 'EMA', 'WMA', 'RMA'] | na= [] bt= True
+I30 atr Volatility in= ['H', 'L', 'C'] pi= close out= ['atr'] |  length:integer=14 min=1; smoothing_type:enum=RMA opts=['RMA', 'SMA', 'EMA', 'WMA'] | na= [] bt= True
+I31 natr Volatility in= ['H', 'L', 'C'] pi= close out= ['natr'] |  length:integer=14 min=1; smoothing_type:enum=RMA opts=['RMA', 'SMA', 'EMA', 'WMA'] | na= [] bt= True
+I32 stddev Volatility in= ['C'] pi= close out= ['stddev'] |  length:integer=20 min=1; source:enum=close opts=['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']; stdev_method:enum=population opts=['population', 'sample'] | na= [] bt= True
+I33 hist_vol Volatility in= ['C'] pi= close out= ['historical_volatility'] |  length:integer=20 min=1; source:enum=close opts=['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']; return_type:enum=log opts=['log', 'simple']; annualization_periods:number=252 min=1 | na= [] bt= True
+I34 adr Volatility in= ['H', 'L'] pi= close out= ['adr'] |  length:integer=14 min=1 | na= ['timeframe'] bt= True
+I35 volume_sma Volume in= ['V'] pi= volume out= ['volume_sma'] |  length:integer=20 min=1 | na= [] bt= True
+I36 volume_ema Volume in= ['V'] pi= volume out= ['volume_ema'] |  length:integer=20 min=1 | na= [] bt= True
+I37 rvol Volume in= ['V'] pi= close out= ['rvol'] |  length:integer=20 min=1 | na= ['reference_method', 'include_current_bar'] bt= True
+I38 pvo Volume in= ['V'] pi= close out= ['pvo', 'signal', 'histogram'] |  fast_length:integer=12 min=1; slow_length:integer=26 min=1; signal_length:integer=9 min=1 | na= [] bt= True
+I39 volume_roc Volume in= ['V'] pi= close out= ['volume_roc'] |  length:integer=10 min=1 | na= [] bt= True
+I40 obv PriceVolume in= ['C', 'V'] pi= close out= ['obv'] |   | na= ['calculation_parameters'] bt= True
+I41 pvt PriceVolume in= ['C', 'V'] pi= close out= ['pvt'] |   | na= ['calculation_parameters'] bt= True
+I42 vwma PriceVolume in= ['C', 'V'] pi= close out= ['vwma'] |  length:integer=20 min=1; source:enum=close opts=['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4'] | na= [] bt= True
+I43 vwap PriceVolume in= ['H', 'L', 'C', 'V'] pi= close out= ['vwap', 'upper1', 'lower1'] |  anchor:enum=Session opts=['Session', 'Week', 'Month', 'Quarter', 'Year', 'Decade', 'Century']; source:enum=hlc3 opts=['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']; bands_mode:enum=StdDev opts=['StdDev', 'Percentage', 'None']; band_1_multiplier:number=1 min=0 | na= [] bt= True
+I44 adl PriceVolume in= ['H', 'L', 'C', 'V'] pi= close out= ['adl'] |   | na= ['calculation_parameters'] bt= True
+I45 cmf PriceVolume in= ['H', 'L', 'C', 'V'] pi= close out= ['cmf'] |  length:integer=20 min=1 | na= [] bt= True
+I46 chaikin_osc PriceVolume in= ['H', 'L', 'C', 'V'] pi= close out= ['chaikin_osc'] |  fast_length:integer=3 min=1; slow_length:integer=10 min=1 | na= [] bt= True
+I47 mfi PriceVolume in= ['H', 'L', 'C', 'V'] pi= close out= ['mfi'] |  length:integer=14 min=1 | na= [] bt= True
+I48 force_index PriceVolume in= ['C', 'V'] pi= close out= ['force_index'] |  length:integer=13 min=1 | na= [] bt= True
+I49 eom PriceVolume in= ['H', 'L', 'V'] pi= close out= ['eom'] |  length:integer=14 min=1; volume_scale:number=1000000 min=0 | na= [] bt= True
+I50 nvi PriceVolume in= ['C', 'V'] pi= close out= ['nvi'] |  initial_value:number=1000 min=0 | na= [] bt= True
+I51 pvi PriceVolume in= ['C', 'V'] pi= close out= ['pvi'] |  initial_value:number=1000 min=0 | na= [] bt= True
+I52 kvo PriceVolume in= ['H', 'L', 'C', 'V'] pi= close out= ['kvo', 'signal'] |  fast_length:integer=34 min=1; slow_length:integer=55 min=1; signal_length:integer=13 min=1 | na= [] bt= True
+I53 market_fi PriceVolume in= ['H', 'L', 'V'] pi= close out= ['market_fi'] |  volume_scale:number=1 min=0 | na= [] bt= True

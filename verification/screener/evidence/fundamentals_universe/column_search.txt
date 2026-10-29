@@ -1,0 +1,64 @@
+table_schema | table_name | column_name | data_type
+public | AI_calculation_catalog | missing_data_policy | text
+public | AI_table_catalog | asset_type | text
+public | Feature04_Calculation_Log | asset_type | text
+public | Feature04_Calculation_Queue | asset_type | text
+public | Feature04_Calculation_State | asset_type | text
+public | Feature04_Column_Status | asset_type | text
+public | Feature04_Retry_Request | asset_type | text
+public | Feature_01_Stock_Daily | volume_ratio_20d | double precision
+public | Feature_01_Stock_Daily_INDEX | volume_ratio_20d | double precision
+public | Feature_02_Broker_Rolling | buy_day_ratio_20d | double precision
+public | Feature_02_Broker_Rolling | buy_day_ratio_60d | double precision
+public | Feature_02_Broker_Rolling | market_board | text
+public | Feature_02_Broker_Rolling_INDEX | buy_day_ratio_20d | double precision
+public | Feature_02_Broker_Rolling_INDEX | buy_day_ratio_60d | double precision
+public | Feature_02_Broker_Rolling_INDEX | market_board | text
+public | Feature_03_Stock_Broker_Daily | market_board | text
+public | Feature_03_Stock_Broker_Daily_INDEX | market_board | text
+public | Feature_04_Technical_Indicator | asset_type | text
+public | Feature_04_Technical_Indicator_INDEX | asset_type | text
+public | Feature_05_Foreign_Domestic_Broker_Detail | market_board | text
+public | Feature_05_Foreign_Domestic_Broker_Detail_INDEX | market_board | text
+public | Feature_05_Foreign_Domestic_Broker_Detail_Stock | market_board | text
+public | Feature_06_Foreign_Domestic | domestic_buy_sell_ticket_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic | foreign_buy_sell_ticket_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic | foreign_net_turnover_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic | foreign_net_turnover_ratio_20d | double precision
+public | Feature_06_Foreign_Domestic | foreign_net_turnover_ratio_5d | double precision
+public | Feature_06_Foreign_Domestic | market_board | text
+public | Feature_06_Foreign_Domestic_INDEX | buy_freq_missing_rows | bigint
+public | Feature_06_Foreign_Domestic_INDEX | domestic_buy_sell_ticket_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic_INDEX | foreign_buy_sell_ticket_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic_INDEX | foreign_net_turnover_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic_INDEX | foreign_net_turnover_ratio_20d | double precision
+public | Feature_06_Foreign_Domestic_INDEX | foreign_net_turnover_ratio_5d | double precision
+public | Feature_06_Foreign_Domestic_INDEX | market_board | text
+public | Feature_06_Foreign_Domestic_INDEX | sell_freq_missing_rows | bigint
+public | Feature_06_Foreign_Domestic_Stock | domestic_buy_sell_ticket_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic_Stock | foreign_buy_sell_ticket_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic_Stock | foreign_net_turnover_ratio_1d | double precision
+public | Feature_06_Foreign_Domestic_Stock | foreign_net_turnover_ratio_20d | double precision
+public | Feature_06_Foreign_Domestic_Stock | foreign_net_turnover_ratio_5d | double precision
+public | Feature_06_Foreign_Domestic_Stock | market_board | text
+public | IDX_Broker_Summary | Market Board | character varying
+public | Monitoring_Feature04_Ticker | asset_type | text
+public | Monitoring_Fixed_Income | missing_series | integer
+public | Monitoring_Fixed_Income | missing_series_list | jsonb
+public | Monitoring_Price_ALL | asset_type | text
+public | Monitoring_Price_ALL | missing_symbol_list | jsonb
+public | Monitoring_Price_ALL | missing_symbols | integer
+public | idx_event_annotation | annotation_date | date
+public | idx_event_annotation | annotation_date_role | text
+public | idx_event_annotation | ratio_new | numeric
+public | idx_event_annotation | ratio_old | numeric
+public | idx_event_annotation | shares_after | numeric
+public | idx_event_annotation | shares_before | numeric
+public | idx_event_annotation | shares_change | numeric
+public | stockbit_corporate_action | annotation_date | date
+public | stockbit_corporate_action | annotation_date_role | text
+public | stockbit_insider_transaction | shares_after | numeric
+public | stockbit_insider_transaction | shares_before | numeric
+public | stockbit_insider_transaction | shares_change | numeric
+(61 rows, 359 ms)
+---

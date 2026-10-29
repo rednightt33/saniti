@@ -1,0 +1,37 @@
+306:- `railway config pull --force` also pulled unrelated start-command changes of the Feature04 recovery jobs (cron drift
+510:  default on, zero writable public tables, and successful bounded Feature04 SELECT.
+612:## 2026-10-12 — Feature04 compact Telegram monitor rollout
+614:- Commit `35fee3f` deployed the Feature04 notification changes from Git main. Exact
+620:  provider changed. Scheduled Feature04 delivery now reuses a market/trade-date ledger key;
+622:- Temporary private Function `feature04-telegram-ops` ran the migration rollback/apply and
+633:## 2026-10-12 — Feature04 incremental finality rollout
+637:  Feature04 worker `e1dcb031-e040-4d44-98f1-f7004b27ba01`; IDX daily
+648:- Temporary private service `feature04-incremental-ops` performed baseline inspection,
+691:## 2026-10-11 — Feature04 rename/close migration runner
+696:- No persistent live service, variable, domain, replica, schedule, model, provider, price source, or Telegram flow changed. `config pull --force` added the already-live fixed-income daily/recovery services and Feature04 worker to `.railway/railway.ts`; the following `config plan` reported the li
+698:## 2026-10-11 — Feature04 bonds worker and fixed-income Telegram bridge
+701:- No service, cron, variable, domain, replica, or fixed-income updater deployment was added or changed. `fixed-income-daily` remains `0 10 * * *`; recovery remains `0 23 * * *`. Database triggers and the existing always-on Feature04 worker bridge the separate source executions.
+703:- Bootstrap processed 24 bond tickers serially and sent its Feature04 completion notification. Future fixed-income runs use durable order: source monitor committed → fixed-income price Telegram sent → all eligible Feature04 ticker jobs terminal → Feature04 Telegram sent.
+706:## 2026-10-11 — Feature04 complete NULL availability validation
+714:  `verification/feature04/AUTOMATION.md` and `null_availability_deployment.json`.
+716:## 2026-10-11 — Feature04 event-driven worker and Telegram retry controls
+718:- User approved execution after reviewing the design. Railway IaC plan for lucid-patience/dev showed exactly one add (`feature-04-worker`), zero changes, zero destroys. Existing `idx-price-cron` and recovery cron remain the only schedules.
+719:- `feature-04-worker` is an always-on GitHub service with root build context, pinned Python/TA-Lib dependencies, `DATABASE_URL`, private `telegram-monitor` notify URL, and shared notify-secret references. It polls the durable PostgreSQL queue and never calls TradingView.
+720:- Price services bind changed rows to a Feature04 execution in the same transaction. `telegram-monitor` handles price and Feature04 sources; `telegram-trigger` provides owner-only status and failure-only retry without Railway Run Now.
+721:- All commit `4082626` deployments reached `SUCCESS`: worker `2f02c16a`, price daily `37138769`, recovery `a9f666b9`, monitor `9e22ab6f`, trigger `4939858d`. Startup logged the exact v3 calculation version. BBCA canary processed 2,113 bars / 50 outputs with zero failed columns and zero changed r
+724:## 2026-10-11 — Feature04 v2 serial historical backfill, no deployed service change
+726:- Ephemeral PRIVATE sandbox `1637bf99-fa9e-41c6-b25e-05427d5be158` in lucid-patience/dev used a server-side Postgres DATABASE_URL reference, isolated pinned dependencies, and the repository's Feature04 code. No new service/database, deploy, service variable, cron, domain, project configuration,
+727:- Applied/rehearsed Feature04 v2, then one-ticker-at-a-time backfill: 844 source tickers, 1,318,633 rows, zero failures or missing/extra keys. Main run 12:14:35–12:18:53 Asia/Jakarta (258.114 seconds); the preceding BBCA smoke was verified/skipped on resume. Aggregate evidence in `verification
+728:- Destroyed the task sandbox after completed load, independent readback and read-only schema export; terminal DESTROYED verified in `verification/feature04/full_execution_cleanup.json`. No recurring writer was created.
+730:## 2026-10-11 — Feature04 bounded BBCA backfill execution sandbox
+733:- After committed database verification, destroyed the sandbox and read back terminal `DESTROYED`. Result: 22 Feature04 rows, identical rerun 0 changes; evidence in `verification/feature04/backfill_bbca_201801.json`.
+4014:## 2026-10-11 — Feature04 SMI BBCA execution via temporary private sandbox
+4016:Scope `lucid-patience` / `dev`, primary `Postgres` service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`. Temporary private Railway sandbox `c54edee9-c495-43b2-be2d-e7ca7c98db12` used the server-resolved Postgres variable reference for a rolled-back rehearsal, forward 55-column migration, and BBCA-onl
+4019:## 2026-10-11 — Feature04 v3 full-source SMI execution
+4021:User: "Alright, proceeed untuk semua ticker." Scope `lucid-patience` (`8aef1702-030b-49cb-9df7-5ac2e0a42691`) / `dev` (`4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`) / primary `Postgres` (`bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`). Temporary private sandbox `ecd8c8d5-5b5a-4d24-a0f2-62fcaa38eb66` ran the
+4023:No persistent service/environment configuration, IaC, permissions, source writer, deployment or scheduler changes. Source data, original indicators and BBCA payload/timestamps preserved. Credentials remained server-resolved/environment-only. Explicit sandbox destruction observed terminal DESTRO
+4125:User: “Okay, merge and release ke main ya”. PR37 merged into main at19:09 WIB, merge commit e3f7dfd9e2be074d019304eb32c999b88af8028d. Existing migration011 and the six-date repair were not rerun. Four bonds cron builds triggered automatically from Git; final deployment verification is recor
+4127:Release readback19:12 WIB: all four bonds crons SUCCESS on e3f7dfd: ID daily fde3c6c1-41f5-4c56-8f06-5f59e5b7abf9, ID recovery154d49df-0778-4a22-92a4-f5866dd9d109, US daily7b8ec1a6-4f1e-454c-9303-21b09a541bda, US recovery dabbe502-78d1-44f6-bfeb-24a71485ca48. Feature04 worker38d71d8e-b143-42b3-
+4131:User approval recorded in DATABASE_CHANGELOG.md. Dev-only service fixed-income-oct20-manual6ac72bad-25e7-4701-b4dc-2cd916af1cc5, pinned Git21d2e02, no cron, restart NEVER. Read-only dry-run f7d6b00b-c413-41a0-acbb-0fb0ebcc12e3 SUCCESS verified22/22 final candles. The selected-deployment redeplo
+4133:## 2026-10-20 — EXEC-ONBOARD-1: fixed income and Feature 04 onboarded to the AI (orc, sandbox, ai-data-coverage)
+4360:then apply, 2,125 price inserts, explicit new-index Feature04 initialization and

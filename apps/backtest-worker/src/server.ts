@@ -46,7 +46,7 @@ import { errorFields, log } from './log.ts';
 import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
 import { checkRequest } from './validate.ts';
-import type { References } from './validate.ts';
+import type { CheckedRequest, References } from './validate.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, checkRegistry } from './version.ts';
 
 export const KEY_HEADER = 'x-backtest-worker-key';
@@ -57,7 +57,37 @@ const ENDED: JobState[] = ['FINISHED', 'FAILED', 'CANCELLED'];
 interface Job {
   id: string; status: JobStatus; gzip: Uint8Array | null; seq: number; t0: number;
   cancel: boolean; timer: NodeJS.Timeout | null; json_bytes: number | null;
+  clock: PhaseClock; kind: JobKind;
 }
+/** What a job is, for its log lines (EXEC-MU-RUNTIME Phase 0, c_job per class): its mode, how many stocks and whether it
+    reads the broker files; never the request itself. */
+interface JobKind { mode: unknown; tickers: number; broker: boolean }
+
+/** Where a job's time goes (EXEC-MU-RUNTIME Phase 0, verification/edge_multiuser/runtime/backtest.md section 7), logged
+    with its job_end line as phases_ms: the milliseconds from one phase the job thread reports to the next, on this
+    thread's clock as each progress message arrives (the thread posts every one, compute.ts), so the phases are the
+    JobStatus phases edge-bff and the page see: start (the hand-over until the thread's first report), loading,
+    signals, backtest, sensitivity, monte_carlo, finalizing (until the packed result arrived). A phase the job does not
+    reach is absent. Logs only: no phase, result, check or limit depends on it. */
+export class PhaseClock {
+  private at: number; private phase = 'start';
+  readonly ms: Record<string, number> = {};
+  constructor(t0: number) { this.at = t0 }
+  /** the phase now reported (the same phase again is no change) */
+  report(phase: string, now = performance.now()): void {
+    if (phase === this.phase) return;
+    this.close(now);
+    this.phase = phase;
+  }
+  /** the current phase ends now; the totals, rounded */
+  stop(now = performance.now()): Record<string, number> {
+    this.close(now);
+    return Object.fromEntries(Object.entries(this.ms).map(([k, v]) => [k, Math.round(v)]));
+  }
+  private close(now: number): void { this.ms[this.phase] = (this.ms[this.phase] ?? 0) + (now - this.at); this.at = now }
+}
+/** The process's memory for a log line: resident now and the most since the process started (BT3, RSS per thread). */
+const memory = () => ({ rss_bytes: process.memoryUsage.rss(), max_rss_bytes: process.resourceUsage().maxRSS * 1024 });
 
 export interface WorkerApp {
   server: http.Server;
@@ -131,7 +161,8 @@ export function createApp(cfg: Config): WorkerApp {
     if (!running(j)) return;
     if (j.timer) clearTimeout(j.timer);
     Object.assign(j.status, { state, error, finished_at: new Date().toISOString(), duration_ms: Math.round(performance.now() - j.t0) });
-    log(state === 'FAILED' ? 'warn' : 'info', 'job_end', { job_id: j.id, state, code: error?.code ?? null, ms: j.status.duration_ms, result_bytes: j.status.result_bytes, json_bytes: j.json_bytes });
+    log(state === 'FAILED' ? 'warn' : 'info', 'job_end', { job_id: j.id, state, code: error?.code ?? null, ms: j.status.duration_ms, result_bytes: j.status.result_bytes, json_bytes: j.json_bytes,
+      ...j.kind, phases_ms: j.clock.stop(), ...memory() });
   }
   function settle(j: Job, e: unknown): void {
     if (e instanceof TaskFailed) {
@@ -146,13 +177,13 @@ export function createApp(cfg: Config): WorkerApp {
       end(j, 'FAILED', { code: 'INTERNAL_ERROR', message: 'The worker failed; the error is in its log.' });
     }
   }
-  function startJob(id: string, task: Extract<Task, { kind: 'job' }>): Job {
-    const at = new Date().toISOString();
+  function startJob(id: string, task: Extract<Task, { kind: 'job' }>, kind: JobKind): Job {
+    const at = new Date().toISOString(), t0 = performance.now();
     const j: Job = {
-      id, gzip: null, seq: 0, t0: performance.now(), cancel: false, timer: null, json_bytes: null,
+      id, gzip: null, seq: 0, t0, cancel: false, timer: null, json_bytes: null, clock: new PhaseClock(t0), kind,
       status: { request_id: id, state: 'RUNNING', progress: { phase: 'queued', done: 0, total: 0 }, error: null, created_at: at, started_at: at, finished_at: null, duration_ms: null, result_bytes: null },
     };
-    const { seq, done } = threads.jobs.run(task, p => { if (running(j)) j.status.progress = p });
+    const { seq, done } = threads.jobs.run(task, p => { if (running(j)) { j.status.progress = p; j.clock.report(p.phase) } });
     j.seq = seq;
     j.timer = setTimeout(() => {
       if (!running(j)) return;
@@ -168,7 +199,7 @@ export function createApp(cfg: Config): WorkerApp {
       j.status.progress = { phase: 'finalizing', done: 1, total: 1 };
       end(j, 'FINISHED', null);
     }, e => settle(j, e));
-    log('info', 'job_start', { job_id: id, prior_trials: task.context.prior_trials.length });
+    log('info', 'job_start', { job_id: id, prior_trials: task.context.prior_trials.length, ...kind });
     return j;
   }
 
@@ -195,21 +226,39 @@ export function createApp(cfg: Config): WorkerApp {
   }
 
   /* ---- previews: one at a time on the preview thread, the next ones wait in arrival order ---- */
-  interface Waiting { task: Task; ok(o: Outcome): void; no(e: unknown): void; gone: boolean; seq: number | null }
+  interface Waiting {
+    task: Task; ok(o: Outcome): void; no(e: unknown): void; gone: boolean; seq: number | null;
+    /* EXEC-MU-RUNTIME Phase 0 (backtest.md section 7, BT2): when it was queued, when its computation started, how many
+       previews were ahead of it, and what its preview_end line says besides */
+    queued: number; started: number | null; ahead: number; info: PreviewInfo; logged: boolean;
+  }
+  interface PreviewInfo { refs_ms: number; tickers: number | null }
   const queue: Waiting[] = [];
   let previewing: Waiting | null = null;
+  /** One preview_end line per queued preview, when its caller got its answer or left: preview_wait_ms, the wait in the
+      queue (until now for one that never started); compute_ms, from its start on the preview thread (null when it
+      never started); outcome ok, failed (code: the error's), timeout or left (the caller went away, queued or
+      computing). Logs only: the queue, the answers and the deadline are as before. */
+  function previewEnd(w: Waiting, outcome: 'ok' | 'failed' | 'timeout' | 'left', code: string | null = null): void {
+    if (w.logged) return;
+    w.logged = true;
+    const now = performance.now();
+    log('info', 'preview_end', { outcome, code, preview_wait_ms: Math.round((w.started ?? now) - w.queued),
+      compute_ms: w.started === null ? null : Math.round(now - w.started), ahead: w.ahead, ...w.info, ...memory() });
+  }
   function nextPreview(): void {
     if (previewing) return;
     const w = queue.shift();
     if (!w) return;
     previewing = w;
+    w.started = performance.now();
     const { seq, done } = threads.previews.run(w.task);
     w.seq = seq;
     done.then(w.ok, w.no).finally(() => { previewing = null; nextPreview() });
   }
-  function preview(task: Task, res: http.ServerResponse): Promise<Outcome> {
+  function preview(task: Task, res: http.ServerResponse, info: PreviewInfo): Promise<Outcome> {
     return new Promise<Outcome>((ok, no) => {
-      const w: Waiting = { task, ok, no, gone: false, seq: null };
+      const w: Waiting = { task, ok, no, gone: false, seq: null, queued: performance.now(), started: null, ahead: queue.length + (previewing ? 1 : 0), info, logged: false };
       const d = deadline(timeout, 'The signals preview');
       d.promise.catch(e => {
         if (w.gone) return;
@@ -217,18 +266,20 @@ export function createApp(cfg: Config): WorkerApp {
         const k = queue.indexOf(w);
         if (k >= 0) queue.splice(k, 1);
         else if (previewing === w) threads.previews.kill().catch(err => log('error', 'thread_kill_failed', errorFields(err)));
+        previewEnd(w, 'timeout', 'TIMEOUT');
         no(e);
       });
       // the caller gave up (edge-bff's own timeout): stop computing for nobody
       res.on('close', () => {
         if (w.gone || res.writableFinished) return;
         w.gone = true;
+        previewEnd(w, 'left');
         const k = queue.indexOf(w);
         if (k >= 0) queue.splice(k, 1);
         else if (previewing === w && w.seq !== null) threads.previews.cancel(w.seq);
       });
-      w.ok = o => { d.clear(); if (!w.gone) { w.gone = true; ok(o) } };
-      w.no = e => { d.clear(); if (!w.gone) { w.gone = true; no(e) } };
+      w.ok = o => { d.clear(); if (!w.gone) { w.gone = true; previewEnd(w, 'ok'); ok(o) } };
+      w.no = e => { d.clear(); if (!w.gone) { w.gone = true; previewEnd(w, 'failed', answerError(e).error.code); no(e) } };
       queue.push(w);
       nextPreview();
     });
@@ -257,10 +308,12 @@ export function createApp(cfg: Config): WorkerApp {
     }
     if (path === '/v1/signals') {
       allow('POST');
-      const body = parseJson(raw), left = callerWatch(res);
+      const body = parseJson(raw), left = callerWatch(res), asked = performance.now();
       const list = await within('The reference list', refs());
       if (left()) return;                                                // nobody waits for it: never queued
-      const o = await preview({ kind: 'signals', request: body, refs: list }, res);
+      const picked = (body as { tickers?: unknown } | null)?.tickers;
+      const o = await preview({ kind: 'signals', request: body, refs: list }, res,
+        { refs_ms: Math.round(performance.now() - asked), tickers: Array.isArray(picked) ? picked.length : null });
       return send(res, 200, o.kind === 'signals' ? o.preview : null);
     }
     if (path === '/v1/jobs') {
@@ -270,13 +323,14 @@ export function createApp(cfg: Config): WorkerApp {
       if (starting || (job && running(job))) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       starting = true;
       const left = callerWatch(res);
-      let list: References;
-      try { list = await within('The validation', refs()); checkRequest(b.request, list, cfg) }
+      let list: References, checked: CheckedRequest;
+      try { list = await within('The validation', refs()); checked = checkRequest(b.request, list, cfg) }
       finally { starting = false }
       if (left()) return;                                                // nobody waits for its 202: never started
       if (job && running(job)) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       replaced = job && job.status.state === 'FINISHED' ? job.id : null;
-      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials }, refs: list });   // the previous job and its result are dropped
+      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials }, refs: list },   // the previous job and its result are dropped
+        { mode: (b.request as { mode?: unknown }).mode, tickers: checked.tickers.length, broker: checked.broker });
       return send(res, 202, { job_id: b.job_id });
     }
     const m = /^\/v1\/jobs\/([^/]+)(\/result|\/cancel)?$/.exec(path);

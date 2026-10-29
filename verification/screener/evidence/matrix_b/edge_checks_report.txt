@@ -1,0 +1,10 @@
+hist_vol 252 vs 252.9: 69.19388435038847 69.19388435038847
+vwap Session 4893.333 upper1 4893.333 breaks 2124
+vwap Week 4938.327 upper1 4984.152 breaks 455
+vwap Month 5341.011 upper1 5757.038 breaks 105
+vwap Quarter 5341.011 upper1 5757.038 breaks 35
+vwap Year 6284.713 upper1 7076.681 breaks 8
+pctb SMA/RMA/VWMA: 0.11915682896228529 0.035133918187538304 0.27672273271184966
+null close at 1000 -> volume_sma[1000..1001] true true | atr[1000], atr first valid after null 1015 | obv[999], obv[1001] (restarts at V[1001]) -975829700 93277000 93277000
+obv last full vs 2025 start: -8654490200 -8676661000 | nvi: 2086.976577885843 1045.3091329878457
+%B min/max -0.483 1.509

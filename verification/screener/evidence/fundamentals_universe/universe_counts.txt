@@ -1,0 +1,36 @@
+n | tickers
+845 | 845
+(1 rows, 615 ms)
+---
+Exchange | Security Type | Type Specs | Is Common Stock | Currency | Fundamental Currency | count
+IDX | stock | common | Yes | IDR | IDR | 844
+IDX | index | Undefined | No | Not applicable | Not applicable | 1
+(2 rows, 494 ms)
+---
+Sector | count
+Consumer Cyclicals | 139
+Consumer Non-Cyclicals | 122
+Financials | 100
+Basic Materials | 93
+Properties & Real Estate | 79
+Energy | 78
+Infrastructures | 56
+Industrials | 56
+Technology | 41
+Healthcare | 39
+Transportation & Logistic | 38
+Undefined | 4
+(12 rows, 184 ms)
+---
+industries | undef_ind
+59 | 4
+(1 rows, 208 ms)
+---
+price_feed_daily | count
+ | 845
+(1 rows, 315 ms)
+---
+Region | Country | TradingView Country | count
+Asia | Indonesia | Indonesia | 845
+(1 rows, 298 ms)
+---

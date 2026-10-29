@@ -1,0 +1,54 @@
+src | metric_id | label | source_table
+metric | net_foreign_value | Net beli asing (nilai) | Feature_03_Stock_Broker_Daily
+metric | broker_net_value | Net beli per broker (nilai) | IDX_Broker_Summary
+metric | volume | Volume | Price_Stock_Indonesia_IDX
+metric | last_close | Harga penutupan terakhir | Price_Stock_Indonesia_IDX
+metric | period_high | Harga tertinggi dalam periode | Price_Stock_Indonesia_IDX
+metric | period_low | Harga terendah dalam periode | Price_Stock_Indonesia_IDX
+(6 rows, 243 ms)
+---
+src | calculation_id | calculation_name
+formula | CALC_001 | Latest Close
+formula | CALC_008 | Bar Return
+formula | CALC_045 | Annualized Volatility
+formula | CALC_067 | Free Float Turnover
+formula | CALC_079 | Trade Count Intensity
+formula | CALC_113 | Rolling Covariance
+formula | CALC_175 | Event Cooldown Selection
+formula | CALC_192 | Block Bootstrap Mean CI
+formula | CALC_198 | Annualized Sharpe Ratio
+(9 rows, 276 ms)
+---
+src | feature_table | feature_column
+(0 rows, 491 ms)
+---
+src | table_name | category | data_domain
+(0 rows, 241 ms)
+---
+src | table_name | category
+(0 rows, 275 ms)
+---
+calculation_id | calculation_name | description | required_inputs | formula_method | implementation
+CALC_067 | Free Float Turnover | Volume perdagangan relatif terhadap float shares yang berlaku saat itu. | period_volume;free_float_shares | period_volume/free_float_shares; reject missing or zero float. | Python / Polars
+(1 rows, 1337 ms)
+---
+metric_id | label | source_table | measure_column | is_active
+broker_net_value | Net beli per broker (nilai) | IDX_Broker_Summary | Net Value | True
+last_close | Harga penutupan terakhir | Price_Stock_Indonesia_IDX | close | True
+net_foreign_value | Net beli asing (nilai) | Feature_03_Stock_Broker_Daily | foreign_net_value | True
+period_high | Harga tertinggi dalam periode | Price_Stock_Indonesia_IDX | high | True
+period_low | Harga terendah dalam periode | Price_Stock_Indonesia_IDX | low | True
+volume | Volume | Price_Stock_Indonesia_IDX | volume | True
+(6 rows, 324 ms)
+---
+total | fundamental_input
+246 | 4
+(1 rows, 234 ms)
+---
+calculation_id | calculation_name | required_inputs
+CALC_059 | Maximum Drawdown | price_or_equity_series;timestamp
+CALC_066 | Turnover Ratio | period_volume;shares_outstanding
+CALC_067 | Free Float Turnover | period_volume;free_float_shares
+CALC_082 | Sector Cap Weighted Return | asset_returns;lagged_market_cap;sector_membership;timestamp
+(4 rows, 314 ms)
+---

@@ -96,6 +96,15 @@ SQLSTATE or libpq's text without credentials, names or addresses. The lease toke
 lets reap end a job its follower left. A follower that finds the job no longer its own (reap took it, or a write of its
 own committed although the database's answer was lost) stops and logs `backtest_lease_lost` once, with the job's state
 read then.
+Measurement lines (EXEC-MU-RUNTIME Phase 0; `verification/edge_multiuser/runtime/backtest.md` section 7), INFO, ids,
+hashes, counts, states and milliseconds only: `backtest_submit` (each submission: `request_key`, the sha256 of the
+request in the worker's canonical form, to count identical requests; the validation and queue-insert times; a refusal's
+code), `backtest_claim` (`queue_wait_ms`), `backtest_poll` (each status read: round trip, state, phase),
+`backtest_job_timing` (one per job when the follower leaves it: queue wait, hand-over, the worker's own time, the poll
+slack between its end and the read that saw it, result download, split and store, end to end; `JobTiming`) and
+`backtest_preview` (each preview: outcome, the wait for the owner's older preview, the worker's answer time). The
+module's lines reach the service log since this change: under uvicorn's own logging set-up an INFO line of
+`edge_bff.backtest` used to find no handler and was dropped (`backtest_state` included).
 A job is never sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or no longer keeping its result (`410
 RESULT_GONE`: a newer job started there) is `FAILED WORKER_LOST` at once, not answering three times in a row is `FAILED
 WORKER_LOST` too, as is a job reap took because its lease expired (edge-bff stopped while following it; the worker is
@@ -115,6 +124,94 @@ them. The Railway dev column holds the dev values (the limits are initial values
 
 Tests: `tests/test_backtest.py` (fake worker as a local HTTP server, disposable Postgres, one Chromium check of the
 tab, and the image's build context: `.dockerignore` matched as Docker matches it, against the Dockerfile's COPY lines).
+
+## Screener tab (EXEC-SCREENER, 2026-10-28)
+
+Design: the approval report of EXEC-SCREENER (`EXEC.md`; TARGET ARCHITECTURE 6.14-6.17, API CONTRACT section 8, PAGE
+LOAD SEQUENCE 6c); wire types: `screener/src/core/contract.ts`. The page `screener/` (TypeScript + Vite) is built by the
+Dockerfile's `screener` stage into `static/screener-app/` (not kept in git) and shown under the EDGE top bar in a frame
+at `/screener` (Screener tab, next to Backtest; wording in `static/edge-labels.js`). The stage places `terminal/src`
+and `backtest/src` beside the page as in the repository: the screener core imports the Backtest core and, through it,
+the Terminal's formulas, and the page reuses Terminal and Backtest page helpers (`tests/test_screener.py` checks that
+every file the page reaches outside its folder is in those trees). `/screener-app/` has the backtest page's CSP except
+the bucket (`SCREENER_CSP`: `connect-src 'self'` only): the page reads no rack file, every answer comes from
+`/api/v1/screener`. Screens, previews and counts are computed by the private `screener-worker` (Node) from the rack;
+edge-bff relays them, keeps the catalog and the universe per worker state, and stores the saved items and the watchlist.
+
+| Method/path (session cookie; PUT, POST and DELETE with Origin + `X-CSRF-Token`) | Result |
+| --- | --- |
+| GET `/api/v1/screener/catalog` | the worker's `CatalogResponse` with edge-bff's own limits added to `limits[]` (`saved_items`, `watchlist`, `saved_definition_bytes`, `request_bytes`, each with its rule and one right and one wrong example; a limit the worker lists is kept as it is); `ETag` = sha256 of the JSON bytes, `If-None-Match` -> 304 |
+| GET `/api/v1/screener/universe` | the worker's `UniverseResponse`; `ETag` / 304 as the catalog |
+| POST `/api/v1/screener/run` | `RunRequest` -> `RunResponse`, relayed as sent (`client_order` included) and answered with the worker's gzip bytes and `ETag`; latest wins per (owner, page): 409 `SCREEN_REPLACED` |
+| POST `/api/v1/screener/preview` | `PreviewRequest` -> `PreviewResponse`, as the run; latest wins per (owner, page) in its own lane: 409 `PREVIEW_REPLACED` |
+| POST `/api/v1/screener/validate` | `ValidateRequest` -> `{valid, definition_hash, normalized}` or the worker's 422 |
+| POST `/api/v1/screener/counts` | `CountsRequest` -> `CountsResponse` (the worker's limit on definitions), as the run |
+| GET `/api/v1/screener/items?kind=screen\|metric` | `{items: SavedItem[]}` of the owner (one kind, or both without `kind`), latest changed first, each with `needs_review` |
+| PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 422 `LIMIT_EXCEEDED` |
+| DELETE `/api/v1/screener/items/{item_id}` | 204; 404 `NOT_FOUND` |
+| GET `/api/v1/screener/watchlist` | `{tickers: [{ticker, added_at}]}` (one list per owner) |
+| PUT / DELETE `/api/v1/screener/watchlist/{ticker}` | 204, idempotent; 422 `INVALID_INPUT` (`ticker`, terminal-api's rule `^[A-Z0-9]{1,12}$`), 422 `LIMIT_EXCEEDED` |
+
+Errors are `{"error": {code, field?, message?, details?}}`; every refusal edge-bff gives itself names the field where
+there is one and the fix (AGENTS.md "Gates and evidence"). A body that is not a JSON object the contract can carry is
+422 `INVALID_INPUT` before anything is relayed, as for the backtest (`backtest.loads`), and a body over 131,072 bytes
+413 `REQUEST_TOO_LARGE` with its fix. The relayed calls are awaited on the event loop; the worker's 4xx error is passed
+on with its status, its own 504 `TIMEOUT` as 504 (edge-bff waits `SCREENER_TIMEOUT_SECONDS` + 30 s for an answer), its
+own 503 `SCREENER_NOT_READY` (no snapshot yet) as 503 with `Retry-After`; its worker-only 409 `DATA_VERSION_PENDING` (a
+replica that has not loaded the requested publication yet) is asked once more on a new connection, then answered 503
+`SCREENER_NOT_READY` with `Retry-After: 2`. Only the worker's refusals of the contract (report 8.8: `INVALID_INPUT`,
+`INVALID_CONDITION`, `UNKNOWN_INDICATOR`, `PARAM_OUT_OF_RANGE`, `METRIC_UNAVAILABLE`, `LIMIT_EXCEEDED` 422,
+`DATA_UNAVAILABLE`, `DATA_INTEGRITY` 424, `BUSY`, `DATA_VERSION_CHANGED` 409, `REQUEST_TOO_LARGE` 413), each at its
+status, are passed on (internal addresses redacted); the worker unreachable or answering outside its API (another code
+or status, a route it does not have, an answer over 16 MiB) is 503 `SCREENER_UNAVAILABLE` (logged with its status and
+code only), the feature off (no `SCREENER_WORKER_URL`) 503 `SCREENER_DISABLED`, the tables missing 503
+`SCREENER_NOT_READY` with `Retry-After: 60` (`/ready` does not read them). Every worker call but `/health` carries the
+key and `x-screener-owner`, the first 16 hex of HMAC-SHA256(`SCREENER_WORKER_KEY`, owner), so the worker can be fair
+per owner without learning the owner (report 8.11, 6d.6). A run, preview, counts or validate answer the worker sends
+gzip is passed to the browser as its bytes with its `ETag`, never parsed here (only the versions at its head are read);
+it is inflated only for a client that takes no gzip (report 6d.5). Runs and previews are latest wins per (owner, page),
+each in its own lane, as the backtest's signals preview: a call that arrives while an older one of the same page is in
+flight ends that one (its worker call is closed; 409) and is sent once it has ended, while another page's calls (a
+second tab, or another person on today's one login) go on; a call its page had already sent a newer one of (by
+`client_order {page, seq}`) answers 409 at once and never reaches the worker; a call whose page went away is cancelled,
+which closes its connection to the worker.
+
+The catalog and the universe are kept in memory per worker state: edge-bff reads the worker's `/health` (versions and
+the last refresh outcome; the transient `refreshing` and `loading` change no catalog byte) at most every 60 s and
+fetches a document again only when that state changed; a worker answer at another `price_data` and not at an older
+publication (the previous snapshot in its grace window) has them fetched again at their next request (PAGE LOAD
+SEQUENCE 6c.5). A document is never replaced by one of an older `published_at` (a replica that has not swapped yet,
+report 6d.5). While the worker cannot answer, the last ones are kept. Answers keep the house `Cache-Control: no-store`;
+the page keeps the bytes itself and sends `If-None-Match`.
+
+Saved items (P12 a, user 2026-10-28): a saved screen (`kind` `screen`, `definition` `{definition, view?}`) or a My
+metric (`kind` `metric`, `definition` `{test}`, validated as the one condition of a screen of the required universe
+fields; the worker's field is then named from the test). A definition is stored as the page sent it, with the
+worker's `definition_hash` and the registry versions of that validation, and never adjusted: on load, an item saved
+under other registry versions than the worker's current ones is validated again and each refusal is listed in
+`needs_review` with its field (kept per definition and versions; not listed while the worker cannot answer, and after
+one unanswered question the rest of that list is not asked either, so the list waits for one call at most). Limits
+(`app/screener.py`, the `PIN_LIMIT` precedent; values set in Phase 1, to be recorded in `EXEC.md`): `SCREEN_LIMIT` 50
+saved screens and 50 My metrics per owner (so the worker's counts call takes every saved screen at once),
+`WATCHLIST_LIMIT` 500 tickers, a definition at most 65,536 bytes of JSON as the table's CHECK measures its jsonb text
+(a space after each colon and comma, UTF-8; edge-bff counts the same way before the worker, and the CHECK refuses a
+number the database writes out longer with the same code). These and `inflight_per_page` (1 screen and 1 preview per
+page) are published in the catalog's `limits[]` with their rule and examples.
+
+Tables (migration `database/migrations/20261028_001_edge_bff_screener.sql`): `edge_bff.screener_items` (item id
+`scr_` + 32 hex, owner, kind, name unique per owner and kind, definition, schema and registry versions, definition
+hash, revision) and `edge_bff.watchlist_items` (owner, ticker). The runtime role gets only what the code does: saved
+items SELECT/INSERT/UPDATE/DELETE, watchlist SELECT/INSERT/DELETE; PUBLIC gets nothing (the migration's verify block
+checks both). No market data.
+
+| Variable | Default | Railway dev | Meaning |
+| --- | --- | --- | --- |
+| SCREENER_WORKER_URL | empty = feature off | `http://screener-worker.railway.internal:8080` | the worker's private Railway endpoint (`http`, host `screener-worker.railway.internal`; anything else is refused outside `EDGE_ENVIRONMENT=local`) |
+| SCREENER_WORKER_KEY | empty | `${{screener-worker.SCREENER_WORKER_KEY}}` (Railway reference; never a value here) | sent as `x-screener-worker-key` (not to `/health`); at least 32 characters; set together with the URL |
+| SCREENER_TIMEOUT_SECONDS | required with the URL | the worker's `SCREENER_DEADLINE_MS` in seconds (20 initially) | the worker's deadline; the relayed calls wait this + 30 s for its answer (1 to 3600) |
+
+Tests: `tests/test_screener.py` (fake worker as a local HTTP server, disposable Postgres, the migration's verify block
+and the provisioning script's reach, one Chromium check of the tab, and the screener stage of the image).
 
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
@@ -236,12 +333,14 @@ Limitations written out (Word has no folded sections) and the footer. Tests: `te
 Orc owns history, answers, methodology, evidence, usage and exports. BFF accesses them only through authenticated
 Orc endpoints, not SQL. Its dedicated restricted schema holds its operational tables: sessions, jobs and UI metadata,
 and, with migration `20261026_005`, the three backtest tables (backtest jobs, result parts and trials; see Backtest
-tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
+tab), and with migration `20261028_001` the screener's saved items and watchlist (see Screener tab), which hold no
+market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
 not extend Orc's retention (code default 30 days, actual configuration must be checked before rollout). Expired
 history returns 410.
 There is currently no automatic purge of terminal job inputs/UI metadata or of backtest jobs: define an operational
 retention policy before long-term use. Backtest result parts are deleted after 30 days; the backtest trials are never
-reset (K3). Sessions are cleaned when the loop starts and then hourly.
+reset (K3). Saved screener items and the watchlist are the user's own objects and are not purged (each owner at most
+`SCREEN_LIMIT` items of each kind and `WATCHLIST_LIMIT` tickers); every statement on them names the owner. Sessions are cleaned when the loop starts and then hourly.
 
 Deployment configuration rejects an administrative database username; it requires `edge_bff_login`.
 The server sets `X-Saniti-Owner`; a browser cannot choose an owner. One active job per owner is intentional for this

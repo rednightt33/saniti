@@ -1,0 +1,495 @@
+=== database/migrations/20261011_001_create_feature04_technical_indicator.sql
+4:DO $guard$
+7:  RAISE EXCEPTION 'Feature04_Technical_Indicator exists; stop for inspection, no conflicting changes';
+10:  RAISE EXCEPTION 'Verified source table is absent';
+13:  RAISE EXCEPTION 'Verified source grain changed';
+16:  RAISE EXCEPTION 'Source dimensions/mapping differ from inspection';
+21:  RAISE EXCEPTION 'Verified source column contract changed';
+24:CREATE TABLE public."Feature04_Technical_Indicator" (
+86:COMMENT ON TABLE public."Feature04_Technical_Indicator" IS 'Daily IDX wide technical features; 42 columns; full-history causal TA-Lib initialization. TradingView numerical parity and point-in-time training eligibility
+129:INSERT INTO public."Table_Catalog"(table_schema,table_name,category,definition,grain,primary_key_columns,source_system,source_tables,source_code_paths,update_rule,related_functions,documentation_status,readiness_mode
+131:DO $validator_guard$ BEGIN IF md5(pg_get_functiondef('public.validate_feature_catalog_target()'::regprocedure)) <> md5('CREATE OR REPLACE FUNCTION public.validate_feature_catalog_target()
+138:            RAISE EXCEPTION ''Active Feature table name % is not governed'', NEW.feature_table;
+145:            RAISE EXCEPTION ''Active catalog target %.% does not exist'',
+153:            RAISE EXCEPTION ''Active Feature table % is not VERIFIED in Table_Catalog'',
+161:CREATE OR REPLACE FUNCTION public.validate_feature_catalog_target()
+168:            RAISE EXCEPTION 'Active Feature table name % is not governed', NEW.feature_table;
+175:            RAISE EXCEPTION 'Active catalog target %.% does not exist',
+183:            RAISE EXCEPTION 'Active Feature table % is not VERIFIED in Table_Catalog',
+190:UPDATE public."Table_Catalog" SET related_functions=array_append(related_functions,'public.validate_feature_catalog_target()'),updated_at=clock_timestamp() WHERE table_schema='public' AND table_name IN ('Feature_Cata
+191:INSERT INTO public."Feature_Relationship_Catalog"(left_feature_table,right_feature_table,left_join_columns,right_join_columns,relationship_type,safe_output_grain,requires_preaggregation,definition,version,is_active)
+192:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+194:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+195:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+197:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+198:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+200:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+201:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+203:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+204:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+206:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+207:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+209:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+210:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+212:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+213:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+215:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+216:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+218:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+219:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+221:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+222:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+224:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+225:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+227:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+228:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+230:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+231:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+233:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+234:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+236:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+237:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+239:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+240:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+242:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+243:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+245:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+246:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+248:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+249:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+251:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_r
+252:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+=== database/migrations/20261011_002_extend_feature04_and_backfill_log.sql
+4:DO $guard$
+7:  RAISE EXCEPTION 'Expected the inspected 42-column v1 table; stop for inspection';
+10:  RAISE EXCEPTION 'Feature04 v2 is already registered';
+13:  RAISE EXCEPTION 'Expected all 42 active v1 definitions';
+16:  RAISE EXCEPTION 'Backfill log exists; stop for inspection';
+19:ALTER TABLE public."Feature04_Technical_Indicator"
+28:CREATE TABLE public.feature04_backfill_log (
+48:COMMENT ON TABLE public.feature04_backfill_log IS 'Atomic per-run/ticker Feature04 historical load metadata and resume fingerprints; no copied price or feature rows. Source hash is an extraction fingerprint, not point
+49:COMMENT ON TABLE public."Feature04_Technical_Indicator" IS 'Daily IDX wide technical features; 46 columns; v2 adds ADX14, close EMA50/200 and strict current-candle inside bar. Full-history causal initialization. Tradi
+50:UPDATE public."Table_Catalog" SET definition='Causal daily technical indicators, independent native TA-Lib codes, and strict current-candle inside bar; 46 columns, v2 calculation-verified. TradingView parity NOT VERIF
+54:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+58:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+62:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+66:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+69:UPDATE public."Feature_Catalog" SET is_active=false WHERE feature_table='Feature04_Technical_Indicator' AND version='v1';
+70:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+71:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+72:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+73:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+74:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+75:INSERT INTO public."Table_Catalog"(table_schema,table_name,category,definition,grain,primary_key_columns,source_system,source_tables,source_code_paths,update_rule,related_functions,documentation_status)
+78:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+82:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+86:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+90:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+94:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+98:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+102:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+106:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+110:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+114:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+118:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+122:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+126:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths
+129:DO $verify$ BEGIN
+132: RAISE EXCEPTION 'Feature04 v2 schema/catalog mismatch'; END IF;
+=== database/migrations/20261011_003_add_feature04_smi_swing.sql
+5:DO $guard$ BEGIN
+9: RAISE EXCEPTION 'Expected inspected v2 schema/catalog; stop for inspection'; END IF;
+11:ALTER TABLE public."Feature04_Technical_Indicator"
+30:COMMENT ON TABLE public."Feature04_Technical_Indicator" IS '55-column daily technical Feature04: unchanged TA-Lib v1/v2 formulas plus Pine SMI14/5/5 ±40 and post-bar swing state. v3 BBCA only initially; other tickers
+31:UPDATE public."Table_Catalog" SET definition='55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Initial SMI extension calculated for BBCA only; other rows retain
+34:UPDATE public."Feature_Catalog" SET is_active=false WHERE feature_table='Feature04_Technical_Indicator' AND version='v2';
+35:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+37:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+40:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+42:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+45:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+47:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+50:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+52:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+55:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+57:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+60:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+62:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+65:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+67:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+70:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+72:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+75:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+77:INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,default_expression,is_primary_key,definition,source_column_or_expression,unit,null_rule,source_code_paths,
+80:INSERT INTO public."Feature_Catalog"(feature_table,feature_column,grain,feature_category,definition,calculation,source_tables,source_columns,lookback_window,minimum_history,unit,null_rule,refresh_trigger,dependency_ru
+81:DO $verify$ BEGIN
+84: RAISE EXCEPTION 'Feature04 v3 schema/catalog mismatch'; END IF;
+=== database/migrations/20261011_004_record_feature04_smi_full_coverage.sql
+7:DO $guard$ BEGIN
+14:  RAISE EXCEPTION 'Expected completed v3 source-universe backfill; stop for inspection';
+19:  RAISE EXCEPTION 'Expected inspected initial coverage metadata; stop for inspection';
+23:COMMENT ON TABLE public."Feature04_Technical_Indicator" IS
+26:UPDATE public."Table_Catalog"
+33:UPDATE public."Column_Catalog"
+40:UPDATE public."Feature_Catalog"
+45:UPDATE public."Feature_Catalog"
+=== database/migrations/20261011_005_automate_feature04.sql
+6:DO $guard$
+11:        RAISE EXCEPTION 'Feature04 automation control objects already exist';
+16:        RAISE EXCEPTION 'Required price, Feature04, or Telegram command table is absent';
+21:CREATE TABLE public."Feature04_Calculation_Queue" (
+53:CREATE INDEX "Feature04_Calculation_Queue_ready_idx"
+56:CREATE INDEX "Feature04_Calculation_Queue_lease_idx"
+60:CREATE TABLE public."Feature04_Column_Status" (
+85:CREATE INDEX "Feature04_Column_Status_failure_idx"
+89:CREATE TABLE public."Feature04_Calculation_Log" (
+118:CREATE INDEX "Feature04_Calculation_Log_ticker_time_idx"
+120:ALTER TABLE public."Feature04_Column_Status"
+124:CREATE TABLE public."Monitoring_Feature04" (
+148:CREATE INDEX "Monitoring_Feature04_status_idx"
+151:CREATE TABLE public."Monitoring_Feature04_Ticker" (
+170:CREATE INDEX "Monitoring_Feature04_Ticker_pending_idx"
+174:CREATE TABLE public."Feature04_Retry_Request" (
+197:ALTER TABLE public."Feature04_Calculation_Log"
+200:ALTER TABLE public."Monitoring_Feature04_Ticker"
+204:CREATE TABLE public."Feature04_Notification_Outbox" (
+224:CREATE INDEX "Feature04_Notification_Outbox_ready_idx"
+228:ALTER TABLE public."Telegram_Command_Log"
+233:CREATE FUNCTION public.feature04_output_columns()
+250:CREATE FUNCTION public.enqueue_feature04_group(
+259:        RAISE EXCEPTION 'Valid ticker/date and Daily timeframe are required';
+261:    INSERT INTO public."Feature04_Calculation_Queue"(
+277:        INSERT INTO public."Monitoring_Feature04_Ticker"(
+288:CREATE FUNCTION public.enqueue_feature04_price_row()
+314:CREATE TRIGGER "Price_Stock_Indonesia_IDX_enqueue_feature04"
+318:CREATE FUNCTION public.request_feature04_retry(
+336:        RAISE EXCEPTION 'A canonical ticker is required';
+339:        RAISE EXCEPTION 'Ticker % has no price source',p_ticker;
+358:    INSERT INTO public."Feature04_Calculation_Queue"(
+377:    INSERT INTO public."Feature04_Retry_Request"(
+382:    INSERT INTO public."Monitoring_Feature04"(
+388:    INSERT INTO public."Monitoring_Feature04_Ticker"(
+398:INSERT INTO public."Feature04_Column_Status"(
+418:COMMENT ON TABLE public."Feature04_Calculation_Queue" IS 'Durable coalesced Feature04 work per ticker/timeframe; generation tracks source change and work_revision tracks retry scope.';
+419:COMMENT ON TABLE public."Feature04_Column_Status" IS 'Current readiness/failure state for each Feature04 output column per ticker; expected NULL is a successful availability outcome.';
+420:COMMENT ON TABLE public."Feature04_Calculation_Log" IS 'Immutable Feature04 worker attempt history with per-group success/failure and retry lineage.';
+421:COMMENT ON TABLE public."Monitoring_Feature04" IS 'Feature04 batch/retry run summary and price-notification ordering gate.';
+422:COMMENT ON TABLE public."Monitoring_Feature04_Ticker" IS 'Per-ticker membership and terminal result for one Feature04 run.';
+423:COMMENT ON TABLE public."Feature04_Retry_Request" IS 'Audited owner Telegram retry request for one failed ticker or failed indicator bundle.';
+424:COMMENT ON TABLE public."Feature04_Notification_Outbox" IS 'Durable Feature04 completion delivery request; calculation success never depends on Telegram availability.';
+426:INSERT INTO public."Table_Catalog"(
+439:INSERT INTO public."Column_Catalog"(
+462:UPDATE public."Table_Catalog"
+469:UPDATE public."Table_Catalog"
+475:UPDATE public."Table_Catalog"
+481:INSERT INTO public."Column_Catalog"(
+=== database/migrations/20261011_006_extend_feature04_to_bonds.sql
+6:DO $guard$
+12:        RAISE EXCEPTION 'Feature04 or fixed-income source objects are absent';
+15:        RAISE EXCEPTION 'Feature04 worker has an active claim';
+21:        RAISE EXCEPTION 'A ticker exists in both equity and fixed-income universes';
+27:        RAISE EXCEPTION 'An existing Feature04 ticker is absent from IDX_Stock_Universe';
+32:CREATE FUNCTION public.feature04_asset_type(p_ticker text)
+45:        RAISE EXCEPTION 'Ticker % must exist in exactly one approved asset universe',p_ticker;
+51:CREATE FUNCTION public.feature04_source_min_date(p_asset_type text,p_ticker text)
+65:        RAISE EXCEPTION 'Unsupported Feature04 asset_type %',p_asset_type;
+72:ALTER TABLE public."Feature04_Technical_Indicator" ADD COLUMN asset_type text;
+73:UPDATE public."Feature04_Technical_Indicator" f
+75:ALTER TABLE public."Feature04_Technical_Indicator"
+76:    ALTER COLUMN asset_type SET NOT NULL,
+79:    DROP CONSTRAINT "Feature04_Technical_Indicator_pkey",
+83:ALTER TABLE public."Feature04_Calculation_Queue" ADD COLUMN asset_type text;
+84:UPDATE public."Feature04_Calculation_Queue" SET asset_type=public.feature04_asset_type(ticker);
+85:ALTER TABLE public."Feature04_Calculation_Queue"
+86:    ALTER COLUMN asset_type SET NOT NULL,
+88:    DROP CONSTRAINT "Feature04_Calculation_Queue_pkey",
+91:ALTER TABLE public."Feature04_Column_Status" ADD COLUMN asset_type text;
+92:UPDATE public."Feature04_Column_Status" SET asset_type=public.feature04_asset_type(ticker);
+93:ALTER TABLE public."Feature04_Column_Status"
+94:    ALTER COLUMN asset_type SET NOT NULL,
+96:    DROP CONSTRAINT "Feature04_Column_Status_pkey",
+99:ALTER TABLE public."Feature04_Calculation_Log" ADD COLUMN asset_type text;
+100:UPDATE public."Feature04_Calculation_Log" SET asset_type=public.feature04_asset_type(ticker);
+101:ALTER TABLE public."Feature04_Calculation_Log"
+102:    ALTER COLUMN asset_type SET NOT NULL,
+105:ALTER TABLE public."Monitoring_Feature04_Ticker" ADD COLUMN asset_type text;
+106:UPDATE public."Monitoring_Feature04_Ticker" SET asset_type=public.feature04_asset_type(ticker);
+107:ALTER TABLE public."Monitoring_Feature04_Ticker"
+108:    ALTER COLUMN asset_type SET NOT NULL,
+110:    DROP CONSTRAINT "Monitoring_Feature04_Ticker_pkey",
+113:ALTER TABLE public."Feature04_Retry_Request" ADD COLUMN asset_type text;
+114:UPDATE public."Feature04_Retry_Request" SET asset_type=public.feature04_asset_type(ticker);
+115:ALTER TABLE public."Feature04_Retry_Request"
+119:ALTER TABLE public."Monitoring_Feature04"
+124:DROP INDEX public."Feature04_Column_Status_failure_idx";
+125:CREATE INDEX "Feature04_Column_Status_failure_idx"
+128:DROP INDEX public."Feature04_Calculation_Log_ticker_time_idx";
+129:CREATE INDEX "Feature04_Calculation_Log_ticker_time_idx"
+131:DROP INDEX public."Monitoring_Feature04_Ticker_pending_idx";
+132:CREATE INDEX "Monitoring_Feature04_Ticker_pending_idx"
+136:DROP TRIGGER "Price_Stock_Indonesia_IDX_enqueue_feature04" ON public."Price_Stock_Indonesia_IDX";
+137:DROP FUNCTION public.enqueue_feature04_price_row();
+138:DROP FUNCTION public.enqueue_feature04_group(text,date,text,text);
+140:CREATE FUNCTION public.enqueue_feature04_group(
+150:        RAISE EXCEPTION 'asset_type does not match approved universe for %',p_ticker;
+153:        RAISE EXCEPTION 'Valid date and Daily timeframe are required';
+155:    INSERT INTO public."Feature04_Calculation_Queue"(
+169:        INSERT INTO public."Monitoring_Feature04_Ticker"(
+180:CREATE FUNCTION public.enqueue_feature04_equity_price_row()
+201:CREATE TRIGGER "Price_Stock_Indonesia_IDX_enqueue_feature04"
+205:CREATE FUNCTION public.enqueue_feature04_bond_price_row()
+228:CREATE TRIGGER "Price_Fixed_Income_enqueue_feature04"
+232:CREATE OR REPLACE FUNCTION public.request_feature04_retry(
+251:        RAISE EXCEPTION 'A canonical ticker is required';
+272:    INSERT INTO public."Feature04_Calculation_Queue"(
+287:    INSERT INTO public."Feature04_Retry_Request"(
+292:    INSERT INTO public."Monitoring_Feature04"(
+=== database/migrations/20261011_007_document_fixed_income_feature04.sql
+3:DO $guard$
+10:        RAISE EXCEPTION 'Required Feature04/fixed-income documentation objects are missing';
+17:        RAISE EXCEPTION 'Feature04 asset_type migration must be applied first';
+22:COMMENT ON TABLE public."Feature04_Technical_Indicator" IS
+24:COMMENT ON TABLE public."Universe_Fixed_income" IS
+26:COMMENT ON TABLE public."Price_Fixed_Income" IS
+28:COMMENT ON TABLE public."Monitoring_Fixed_Income" IS
+31:INSERT INTO public."Database_Table_Status"(
+61:DO $verify$
+65:        RAISE EXCEPTION 'Fixed-income status documentation is incomplete';
+=== database/migrations/20261011_008_rename_feature04_add_close.sql
+9:DO $guard$
+12:        RAISE EXCEPTION 'Expected source table Feature04_Technical_Indicator is missing';
+15:        RAISE EXCEPTION 'Target table Feature_04_Technical_Indicator already exists';
+19:        RAISE EXCEPTION 'Expected the 56-column cross-asset Feature04 source schema';
+22:        RAISE EXCEPTION 'Feature04 queue must be fully terminal before table rename';
+31:        RAISE EXCEPTION 'Feature04 has AI catalog references; migrate them explicitly before rename';
+36:ALTER TABLE public."Feature04_Technical_Indicator"
+39:ALTER TABLE public."Feature_04_Technical_Indicator"
+42:UPDATE public."Feature_04_Technical_Indicator" f
+48:UPDATE public."Feature_04_Technical_Indicator" f
+54:DO $close_guard$
+57:        RAISE EXCEPTION 'Close backfill left unmatched Feature04 rows';
+72:        RAISE EXCEPTION 'Close backfill differs from a classified source close';
+77:ALTER TABLE public."Feature_04_Technical_Indicator"
+78:    ALTER COLUMN close SET NOT NULL,
+84:DO $rename_objects$
+106:COMMENT ON TABLE public."Feature_04_Technical_Indicator" IS
+111:INSERT INTO public."Table_Catalog"(
+129:UPDATE public."Column_Catalog"
+133:UPDATE public."Feature_Catalog"
+139:UPDATE public."Feature_Relationship_Catalog"
+153:UPDATE public."Table_Catalog"
+158:INSERT INTO public."Database_Table_Status"(
+174:DELETE FROM public."Database_Table_Status" WHERE "Table Name"='Feature04_Technical_Indicator';
+175:DELETE FROM public."Table_Catalog"
+178:INSERT INTO public."Column_Catalog"(
+192:INSERT INTO public."Feature_Catalog"(
+217:CREATE OR REPLACE FUNCTION public.feature04_output_columns()
+234:INSERT INTO public."Feature04_Column_Status"(
+254:CREATE OR REPLACE FUNCTION public.validate_feature_catalog_target()
+261:            RAISE EXCEPTION 'Active Feature table name % is not governed', NEW.feature_table;
+268:            RAISE EXCEPTION 'Active catalog target %.% does not exist',
+276:            RAISE EXCEPTION 'Active Feature table % is not VERIFIED in Table_Catalog',NEW.feature_table;
+283:DO $verify$
+287:        RAISE EXCEPTION 'Physical Feature04 rename verification failed';
+291:        RAISE EXCEPTION 'Feature04 must contain exactly 57 physical columns';
+296:        RAISE EXCEPTION 'Feature04 close constraint verification failed';
+300:        RAISE EXCEPTION 'Feature04 Column_Catalog coverage must be 57/57';
+304:        RAISE EXCEPTION 'Feature04 active Feature_Catalog coverage must be 57/57';
+307:        RAISE EXCEPTION 'Feature04 selectable output list must contain 51 columns';
+311:        RAISE EXCEPTION 'Close readiness was not bootstrapped for every queued instrument';
+320:        RAISE EXCEPTION 'Stale active catalog reference to the old table name remains';
+328:        RAISE EXCEPTION 'Stale physical constraint/index name remains';
+=== database/migrations/20261011_009_complete_feature04_close_status.sql
+6:DO $guard$
+9:        RAISE EXCEPTION 'Feature_04_Technical_Indicator is missing';
+12:        RAISE EXCEPTION 'Feature04 close must be complete before status bootstrap';
+30:INSERT INTO public."Feature04_Column_Status"(
+48:DO $verify$
+58:        RAISE EXCEPTION 'Close status coverage mismatch: % status rows for % instruments',
+67:        RAISE EXCEPTION 'At least one close status is not a complete successful baseline';
+=== database/migrations/20261012_001_finalize_fixed_income_markets.sql
+8:DO $guard$
+14:        RAISE EXCEPTION 'Required fixed-income/Feature04 objects are absent';
+17:        RAISE EXCEPTION 'Feature04 worker has an active claim';
+25:        RAISE EXCEPTION 'Historical fixed-income symbol/unit mapping is ambiguous';
+30:CREATE TABLE public."Fixed_Income_Market_Schedule" (
+46:INSERT INTO public."Fixed_Income_Market_Schedule"(
+52:ALTER TABLE public."Universe_Fixed_income"
+62:UPDATE public."Universe_Fixed_income" u
+68:DO $mapping_guard$
+75:        RAISE EXCEPTION 'Every fixed-income universe series needs a source symbol and unit';
+84:        RAISE EXCEPTION 'Every fixed-income universe country needs a market schedule';
+89:ALTER TABLE public."Universe_Fixed_income"
+90:    ALTER COLUMN tradingview_symbol SET NOT NULL,
+91:    ALTER COLUMN value_unit SET NOT NULL,
+97:ALTER TABLE public."Price_Fixed_Income"
+103:UPDATE public."Price_Fixed_Income" p
+110:ALTER TABLE public."Price_Fixed_Income"
+111:    ALTER COLUMN market_close_at SET NOT NULL,
+112:    ALTER COLUMN finalized_at SET NOT NULL,
+113:    ALTER COLUMN is_final SET DEFAULT false,
+120:ALTER TABLE public."Monitoring_Fixed_Income"
+130:CREATE INDEX "Monitoring_Fixed_Income_market_target_idx"
+132:CREATE INDEX "Price_Fixed_Income_final_market_idx"
+136:CREATE OR REPLACE FUNCTION public.feature04_source_min_date(p_asset_type text,p_ticker text)
+150:        RAISE EXCEPTION 'Unsupported Feature04 asset_type %',p_asset_type;
+157:CREATE OR REPLACE FUNCTION public.enqueue_feature04_bond_price_row()
+194:CREATE OR REPLACE FUNCTION public.open_feature04_fixed_income_run()
+203:    INSERT INTO public."Monitoring_Feature04"(
+229:    UPDATE public."Monitoring_Feature04" SET
+234:    INSERT INTO public."Feature04_Notification_Outbox"(
+242:COMMENT ON TABLE public."Fixed_Income_Market_Schedule" IS
+267:INSERT INTO public."Table_Catalog"(
+289:UPDATE public."Table_Catalog" SET
+317:INSERT INTO public."Column_Catalog"(
+368:UPDATE public."Feature_Catalog" SET
+381:DO $verify$
+384:        RAISE EXCEPTION 'Expected two enabled fixed-income markets';
+387:        RAISE EXCEPTION 'Fixed-income source mapping remains incomplete';
+390:        RAISE EXCEPTION 'Legacy fixed-income rows were not initialized as completed sessions';
+=== database/migrations/20261012_003_incremental_feature04_finality.sql
+8:DO $guard$
+11:        RAISE EXCEPTION 'Feature04 incremental state already exists';
+14:        RAISE EXCEPTION 'Feature04 worker has an active claim';
+18:        RAISE EXCEPTION 'Required price/schedule tables are absent';
+23:ALTER TABLE public."Fixed_Income_Market_Schedule"
+28:CREATE TABLE public."Equity_Market_Schedule" (
+49:INSERT INTO public."Equity_Market_Schedule"(
+54:ALTER TABLE public."Price_Stock_Indonesia_IDX"
+61:UPDATE public."Price_Stock_Indonesia_IDX" p
+72:ALTER TABLE public."Price_Stock_Indonesia_IDX"
+73:    ALTER COLUMN market_code SET NOT NULL,
+74:    ALTER COLUMN market_close_at SET NOT NULL,
+75:    ALTER COLUMN finalized_at SET NOT NULL,
+81:CREATE INDEX "Price_Stock_Indonesia_IDX_final_idx"
+85:CREATE TABLE public."Feature04_Calculation_State" (
+108:CREATE INDEX "Feature04_Calculation_State_latest_idx"
+111:ALTER TABLE public."Feature04_Calculation_Log"
+117:CREATE OR REPLACE FUNCTION public.feature04_source_min_date(p_asset_type text,p_ticker text)
+131:        RAISE EXCEPTION 'Unsupported Feature04 asset_type %',p_asset_type;
+134:        RAISE EXCEPTION 'No final Feature04 source history for %/%',p_asset_type,p_ticker;
+140:CREATE OR REPLACE FUNCTION public.enqueue_feature04_group(
+150:        RAISE EXCEPTION 'asset_type does not match approved universe for %',p_ticker;
+153:        RAISE EXCEPTION 'Valid date and Daily timeframe are required';
+155:    DELETE FROM public."Feature04_Calculation_State"
+158:    INSERT INTO public."Feature04_Calculation_Queue"(
+178:        INSERT INTO public."Monitoring_Feature04_Ticker"(
+189:CREATE OR REPLACE FUNCTION public.request_feature04_retry(
+209:        RAISE EXCEPTION 'A canonical ticker is required';
+216:            RAISE EXCEPTION 'Unsupported Feature04 columns: %',v_invalid;
+223:            RAISE EXCEPTION 'Selected columns have no active failure for %/%',v_asset_type,p_ticker;
+237:            RAISE EXCEPTION 'Ticker %/% has no active Feature04 failure',v_asset_type,p_ticker;
+240:    DELETE FROM public."Feature04_Calculation_State"
+243:    INSERT INTO public."Feature04_Calculation_Queue"(
+262:    INSERT INTO public."Feature04_Retry_Request"(
+267:    INSERT INTO public."Monitoring_Feature04"(
+273:    INSERT INTO public."Monitoring_Feature04_Ticker"(
+280:CREATE OR REPLACE FUNCTION public.enqueue_feature04_equity_price_row()
+316:COMMENT ON TABLE public."Equity_Market_Schedule" IS
+328:COMMENT ON TABLE public."Feature04_Calculation_State" IS
+333:INSERT INTO public."Table_Catalog"(
+367:UPDATE public."Table_Catalog" SET
+390:INSERT INTO public."Column_Catalog"(
+436:UPDATE public."Feature_Catalog" SET
+448:DO $verify$
+451:        RAISE EXCEPTION 'IDX correction window is not five sessions';
+454:        RAISE EXCEPTION 'Legacy equity prices were not initialized as completed sessions';
+=== database/migrations/20261012_004_feature04_telegram_monitor.sql
+8:ALTER TABLE public."Feature04_Retry_Request"
+16:CREATE OR REPLACE FUNCTION public.feature04_retry_dirty_date(
+50:        RAISE EXCEPTION 'Unsupported Feature04 asset_type %',p_asset_type;
+53:        RAISE EXCEPTION 'No enabled correction policy or final history for %/%',p_asset_type,p_ticker;
+59:CREATE OR REPLACE FUNCTION public.request_feature04_retry(
+79:        RAISE EXCEPTION 'A canonical ticker is required';
+91:            RAISE EXCEPTION 'Unsupported Feature04 columns: %',v_invalid;
+98:            RAISE EXCEPTION 'Selected columns have no active failure for %/%',v_asset_type,p_ticker;
+108:        RAISE EXCEPTION 'Ticker %/% has no active Feature04 failure',v_asset_type,p_ticker;
+112:    DELETE FROM public."Feature04_Calculation_State"
+116:    INSERT INTO public."Feature04_Calculation_Queue"(
+136:    INSERT INTO public."Feature04_Retry_Request"(
+141:    INSERT INTO public."Monitoring_Feature04"(
+147:    INSERT INTO public."Monitoring_Feature04_Ticker"(
+156:UPDATE public."Table_Catalog"
+164:INSERT INTO public."Column_Catalog"(
+=== database/migrations/20261012_005_document_feature04_delivery_key.sql
+8:UPDATE public."Table_Catalog"
+15:UPDATE public."Column_Catalog"
+25:DO $block$
+33:        RAISE EXCEPTION 'Telegram_Notification_Log.source_execution_id catalog row is missing';
+=== database/migrations/20261023_001_feature_04_trade_date_index.sql
+9:CREATE INDEX CONCURRENTLY IF NOT EXISTS "Feature_04_Technical_Indicator_trade_date_idx"
+=== database/migrations/20261023_003_analyze_feature_04_05.sql
+=== database/migrations/20261023_007_idx_index_optional_volume.sql
+6:ALTER TABLE public."Price_Stock_Indonesia_IDX" ALTER COLUMN volume DROP NOT NULL;
+7:ALTER TABLE public."Feature_01_Stock_Daily" ALTER COLUMN volume DROP NOT NULL;
+9:CREATE OR REPLACE FUNCTION public.validate_idx_optional_volume()
+16:    RAISE EXCEPTION 'Missing volume is allowed only for an IDX universe index: %',NEW.ticker
+24:CREATE TRIGGER idx_price_optional_volume_guard
+27:CREATE TRIGGER feature01_optional_volume_guard
+36:UPDATE public."Column_Catalog" SET is_nullable=true,
+41:UPDATE public."Feature_Catalog" SET
+45:UPDATE public."Feature_Catalog" SET
+51:UPDATE public."Feature_Catalog" SET
+57:UPDATE public."Table_Catalog" SET
+63:UPDATE public."Table_Catalog" SET
+67:UPDATE public."Feature_Catalog" SET unit='source price unit',updated_at=CURRENT_TIMESTAMP
+69:UPDATE public."Column_Catalog" SET unit='source price unit',updated_at=CURRENT_TIMESTAMP
+=== database/migrations/20261024_010_create_index_feature_tables.sql
+3:CREATE SCHEMA IF NOT EXISTS migration_archive;
+4:CREATE TABLE IF NOT EXISTS migration_archive.index_feature_rows (
+8:CREATE OR REPLACE FUNCTION public.validate_index_feature_identity()
+13:  RAISE EXCEPTION 'INDEX feature target requires unambiguous universe index identity: %',NEW.ticker;
+17:DO $ddl$
+52:DO $catalog$
+58:  INSERT INTO public."Table_Catalog"
+67:  INSERT INTO public."Column_Catalog"
+73:  INSERT INTO public."Feature_Catalog"
+85:UPDATE public."Feature_Catalog" SET definition='Universe index code; eligibility from IDX_Stock_Universe Security Type=index.',calculation='Universe index ticker'
+87:UPDATE public."Feature_Catalog" SET calculation='index',definition='Index asset class, resolved from approved universe metadata.'
+89:UPDATE public."Feature_Catalog" SET calculation='NULL by user policy for index aggregate',null_rule='Always NULL by explicit user decision; not an error or retry target.'
+91:UPDATE public."Feature_Catalog" SET calculation='SUM of available raw frequency across declared source symbols on identical date/broker/investor/board scope',
+94:UPDATE public."Column_Catalog" c SET definition=f.definition,source_column_or_expression=f.calculation,null_rule=f.null_rule
+98:UPDATE public."Feature_Catalog" SET unit='index points' WHERE feature_table IN ('Feature_01_Stock_Daily_INDEX','Feature_04_Technical_Indicator_INDEX')
+100:UPDATE public."Column_Catalog" c SET unit=f.unit FROM public."Feature_Catalog" f WHERE c.table_schema='public' AND c.table_name=f.feature_table
+102:DO $coverage$
+117:   INSERT INTO public."Column_Catalog"(table_schema,table_name,column_name,ordinal_position,data_type,is_nullable,is_primary_key,
+123:   INSERT INTO public."Feature_Catalog"
+135:    INSERT INTO public."Feature_Catalog"
+148:UPDATE public."Feature_Catalog" SET null_rule='Sum available source frequency; NULL if all relevant inputs are unknown; zero only for known no activity. Coverage columns describe completeness.'
+150:UPDATE public."Feature_Catalog" SET null_rule=null_rule||' INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.'
+154:INSERT INTO public."Feature_Relationship_Catalog"
+=== database/migrations/20261025_011_exclude_index_from_stock_features.sql
+19:DO $preflight$
+23:        RAISE EXCEPTION 'enqueue_feature_01_price_row differs from 20260913_006: reconcile first';
+28:        RAISE EXCEPTION 'enqueue_feature04_group differs from 20261012_003: reconcile first';
+32:        RAISE EXCEPTION 'An index Feature 01 queue row is open: let it finish, then rerun';
+35:        RAISE EXCEPTION 'No universe index found: nothing to separate';
+39:        RAISE EXCEPTION 'The dedicated INDEX tables are missing';
+44:CREATE FUNCTION public.is_universe_index(p_ticker text)
+54:CREATE OR REPLACE FUNCTION public.enqueue_feature_01_price_row()
+63:    INSERT INTO public."Feature_Calculation_Queue" (
+88:CREATE OR REPLACE FUNCTION public.enqueue_feature04_group(
+102:        RAISE EXCEPTION 'asset_type does not match approved universe for %',p_ticker;
+105:        RAISE EXCEPTION 'Valid date and Daily timeframe are required';
+107:    DELETE FROM public."Feature04_Calculation_State"
+110:    INSERT INTO public."Feature04_Calculation_Queue"(
+130:        INSERT INTO public."Monitoring_Feature04_Ticker"(
+141:CREATE FUNCTION public.validate_stock_feature_identity()
+147:        RAISE EXCEPTION '% is a universe index: its rows belong to %_INDEX, not to %', NEW.ticker, TG_TABLE_NAME,
+157:DELETE FROM public."Feature_01_Stock_Daily" WHERE public.is_universe_index(ticker);
+158:DELETE FROM public."Feature_04_Technical_Indicator" WHERE public.is_universe_index(ticker);
+159:DELETE FROM public."Feature_Status" WHERE public.is_universe_index(ticker);
+160:DELETE FROM public."Feature04_Column_Status" WHERE asset_type = 'equity' AND public.is_universe_index(ticker);
+161:DELETE FROM public."Feature04_Calculation_State" WHERE asset_type = 'equity' AND public.is_universe_index(ticker);
+162:DELETE FROM public."Feature04_Calculation_Queue" WHERE asset_type = 'equity' AND public.is_universe_index(ticker);
+164:CREATE TRIGGER stock_feature_index_guard
+167:CREATE TRIGGER stock_feature_index_guard
+171:UPDATE public."Table_Catalog" SET
+178:UPDATE public."Table_Catalog" SET
+184:DO $verify$
+190:        RAISE EXCEPTION 'An index row is still in a stock Feature table or queue';
+193:        RAISE EXCEPTION 'The guard is not on both stock tables';
+196:        RAISE EXCEPTION 'Feature_01_Stock_Daily_INDEX is empty: the index rows would have no home';
+=== database/migrations/20261025_016_calculation_window_basis.sql
+20:UPDATE public."AI_calculation_catalog" k
+33:DO $check$ DECLARE missing int; wrong int; BEGIN

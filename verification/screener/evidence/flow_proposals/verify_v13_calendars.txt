@@ -1,0 +1,4 @@
+broker_days | price_days | broker_no_price | price_no_broker | price_no_broker_vol0 | tickers_price_no_broker | tickers_broker_no_price
+16659 | 16578 | 81 | 0 | 0 | 0 | 15
+(1 rows, 675 ms)
+---

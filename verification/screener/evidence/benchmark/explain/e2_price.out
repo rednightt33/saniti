@@ -1,0 +1,120 @@
+##### RUN 1
+QUERY PLAN
+Nested Loop  (cost=82.90..69816.06 rows=844 width=145) (actual time=36.039..2287.745 rows=845.00 loops=1)
+  Buffers: shared hit=18768 read=1422
+  ->  Index Only Scan using "IDX_Stock_Universe_pkey" on "IDX_Stock_Universe" u  (cost=0.28..56.52 rows=844 width=5) (actual time=3.453..8.646 rows=845.00 loops=1)
+        Heap Fetches: 41
+        Index Searches: 1
+        Buffers: shared read=10
+  ->  Aggregate  (cost=82.63..82.64 rows=1 width=108) (actual time=2.694..2.694 rows=1.00 loops=845)
+        Buffers: shared hit=18768 read=1412
+        ->  Limit  (cost=4.13..81.84 rows=21 width=24) (actual time=2.285..2.682 rows=21.00 loops=845)
+              Buffers: shared hit=18768 read=1412
+              ->  WindowAgg  (cost=4.13..5780.26 rows=1561 width=24) (actual time=2.284..2.679 rows=21.00 loops=845)
+                    Window: w1 AS (ORDER BY p.date ROWS UNBOUNDED PRECEDING)
+                    Storage: Memory  Maximum Storage: 17kB
+                    Buffers: shared hit=18768 read=1412
+                    ->  Index Scan using "Price_Stock_Indonesia_IDX_final_idx" on "Price_Stock_Indonesia_IDX" p  (cost=0.43..5756.85 rows=1561 width=16) (actual time=2.280..2.668 rows=21.00 loops=845)
+                          Index Cond: ((ticker)::text = u."Ticker")
+                          Index Searches: 845
+                          Buffers: shared hit=18768 read=1412
+Planning Time: 0.288 ms
+Execution Time: 2288.151 ms
+(20 rows, 2578 ms)
+---
+QUERY PLAN
+Subquery Scan on w  (cost=34807.88..35922.62 rows=80 width=118) (actual time=58.640..116.739 rows=842.00 loops=1)
+  Filter: (w.date = w.last_date)
+  Rows Removed by Filter: 24057
+  Buffers: shared hit=507 read=131
+  ->  WindowAgg  (cost=34807.88..35722.87 rows=15932 width=90) (actual time=58.627..115.370 rows=24899.00 loops=1)
+        Window: w3 AS (PARTITION BY "Price_Stock_Indonesia_IDX".ticker)
+        Storage: Memory  Maximum Storage: 19kB
+        Buffers: shared hit=507 read=131
+        ->  WindowAgg  (cost=34806.84..35483.89 rows=15932 width=93) (actual time=58.535..101.150 rows=24899.00 loops=1)
+              Window: w2 AS (PARTITION BY "Price_Stock_Indonesia_IDX".ticker ORDER BY "Price_Stock_Indonesia_IDX".date ROWS BETWEEN '19'::bigint PRECEDING AND CURRENT ROW)
+              Storage: Memory  Maximum Storage: 18kB
+              Buffers: shared hit=507 read=131
+              ->  WindowAgg  (cost=34806.80..35125.42 rows=15932 width=53) (actual time=58.504..81.427 rows=24899.00 loops=1)
+                    Window: w1 AS (PARTITION BY "Price_Stock_Indonesia_IDX".ticker ORDER BY "Price_Stock_Indonesia_IDX".date)
+                    Storage: Memory  Maximum Storage: 17kB
+                    Buffers: shared hit=507 read=131
+                    ->  Sort  (cost=34806.78..34846.61 rows=15932 width=21) (actual time=58.476..60.111 rows=24899.00 loops=1)
+                          Sort Key: "Price_Stock_Indonesia_IDX".ticker, "Price_Stock_Indonesia_IDX".date
+                          Sort Method: quicksort  Memory: 1756kB
+                          Buffers: shared hit=507 read=131
+                          ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX"  (cost=283.90..33694.75 rows=15932 width=21) (actual time=13.971..28.723 rows=24899.00 loops=1)
+                                Recheck Cond: (date >= '2026-09-12'::date)
+                                Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+                                Heap Blocks: exact=585
+                                Buffers: shared hit=507 read=131
+                                ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..279.92 rows=15932 width=0) (actual time=13.896..13.896 rows=25720.00 loops=1)
+                                      Index Cond: (date >= '2026-09-12'::date)
+                                      Index Searches: 1
+                                      Buffers: shared hit=3 read=50
+Planning:
+  Buffers: shared hit=1 read=4
+Planning Time: 3.393 ms
+Execution Time: 116.874 ms
+(33 rows, 326 ms)
+---
+##### RUN 2
+QUERY PLAN
+Nested Loop  (cost=82.90..69816.06 rows=844 width=145) (actual time=0.132..31.217 rows=845.00 loops=1)
+  Buffers: shared hit=20190
+  ->  Index Only Scan using "IDX_Stock_Universe_pkey" on "IDX_Stock_Universe" u  (cost=0.28..56.52 rows=844 width=5) (actual time=0.030..0.219 rows=845.00 loops=1)
+        Heap Fetches: 41
+        Index Searches: 1
+        Buffers: shared hit=10
+  ->  Aggregate  (cost=82.63..82.64 rows=1 width=108) (actual time=0.036..0.036 rows=1.00 loops=845)
+        Buffers: shared hit=20180
+        ->  Limit  (cost=4.13..81.84 rows=21 width=24) (actual time=0.011..0.030 rows=21.00 loops=845)
+              Buffers: shared hit=20180
+              ->  WindowAgg  (cost=4.13..5780.26 rows=1561 width=24) (actual time=0.011..0.029 rows=21.00 loops=845)
+                    Window: w1 AS (ORDER BY p.date ROWS UNBOUNDED PRECEDING)
+                    Storage: Memory  Maximum Storage: 17kB
+                    Buffers: shared hit=20180
+                    ->  Index Scan using "Price_Stock_Indonesia_IDX_final_idx" on "Price_Stock_Indonesia_IDX" p  (cost=0.43..5756.85 rows=1561 width=16) (actual time=0.011..0.022 rows=21.00 loops=845)
+                          Index Cond: ((ticker)::text = u."Ticker")
+                          Index Searches: 845
+                          Buffers: shared hit=20180
+Planning Time: 0.254 ms
+Execution Time: 31.328 ms
+(20 rows, 253 ms)
+---
+QUERY PLAN
+Subquery Scan on w  (cost=34807.88..35922.62 rows=80 width=118) (actual time=29.515..83.567 rows=842.00 loops=1)
+  Filter: (w.date = w.last_date)
+  Rows Removed by Filter: 24057
+  Buffers: shared hit=638
+  ->  WindowAgg  (cost=34807.88..35722.87 rows=15932 width=90) (actual time=29.503..82.080 rows=24899.00 loops=1)
+        Window: w3 AS (PARTITION BY "Price_Stock_Indonesia_IDX".ticker)
+        Storage: Memory  Maximum Storage: 19kB
+        Buffers: shared hit=638
+        ->  WindowAgg  (cost=34806.84..35483.89 rows=15932 width=93) (actual time=29.419..72.977 rows=24899.00 loops=1)
+              Window: w2 AS (PARTITION BY "Price_Stock_Indonesia_IDX".ticker ORDER BY "Price_Stock_Indonesia_IDX".date ROWS BETWEEN '19'::bigint PRECEDING AND CURRENT ROW)
+              Storage: Memory  Maximum Storage: 18kB
+              Buffers: shared hit=638
+              ->  WindowAgg  (cost=34806.80..35125.42 rows=15932 width=53) (actual time=29.389..48.450 rows=24899.00 loops=1)
+                    Window: w1 AS (PARTITION BY "Price_Stock_Indonesia_IDX".ticker ORDER BY "Price_Stock_Indonesia_IDX".date)
+                    Storage: Memory  Maximum Storage: 17kB
+                    Buffers: shared hit=638
+                    ->  Sort  (cost=34806.78..34846.61 rows=15932 width=21) (actual time=29.354..31.177 rows=24899.00 loops=1)
+                          Sort Key: "Price_Stock_Indonesia_IDX".ticker, "Price_Stock_Indonesia_IDX".date
+                          Sort Method: quicksort  Memory: 1756kB
+                          Buffers: shared hit=638
+                          ->  Bitmap Heap Scan on "Price_Stock_Indonesia_IDX"  (cost=283.90..33694.75 rows=15932 width=21) (actual time=0.535..8.684 rows=24899.00 loops=1)
+                                Recheck Cond: (date >= '2026-09-12'::date)
+                                Filter: (is_final AND ((timeframe)::text = 'Daily'::text))
+                                Heap Blocks: exact=585
+                                Buffers: shared hit=638
+                                ->  Bitmap Index Scan on "Price_Stock_Indonesia_IDX_date_idx"  (cost=0.00..279.92 rows=15932 width=0) (actual time=0.461..0.462 rows=25720.00 loops=1)
+                                      Index Cond: (date >= '2026-09-12'::date)
+                                      Index Searches: 1
+                                      Buffers: shared hit=53
+Planning:
+  Buffers: shared hit=5
+Planning Time: 0.313 ms
+Execution Time: 83.718 ms
+(33 rows, 321 ms)
+---

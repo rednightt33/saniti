@@ -1,0 +1,2144 @@
+{
+ "groups": {
+  "Technical": 17,
+  "Flow": 13,
+  "Fundamental": 32,
+  "Trend": 12,
+  "Momentum": 14,
+  "Volatility": 8,
+  "Volume": 5,
+  "PriceVolume": 14
+ },
+ "total": 115,
+ "rows": [
+  {
+   "key": "price_ma",
+   "g": "Technical",
+   "label": "Price vs moving average",
+   "unit": "%",
+   "params": "len=50, kind=SMA{SMA/EMA}",
+   "ops": "above[state] below[state] xa[event] xb[event] rising[state] gt lt between",
+   "def": "{\"op\":\"above\",\"n\":5,\"v\":0,\"v2\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "ma_cross",
+   "g": "Technical",
+   "label": "Moving-average cross",
+   "unit": "",
+   "params": "fast=50, slow=200, kind=SMA{SMA/EMA}",
+   "ops": "golden[event] death[event] above[state]",
+   "def": "{\"op\":\"golden\",\"n\":20}",
+   "kind": "series"
+  },
+  {
+   "key": "rsi",
+   "g": "Technical",
+   "label": "RSI",
+   "unit": "",
+   "params": "len=14",
+   "ops": "gt lt between xa xb",
+   "def": "{\"op\":\"lt\",\"v\":30,\"v2\":50,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "stoch",
+   "g": "Technical",
+   "label": "Stochastic",
+   "unit": "",
+   "params": "len=14, smooth=3, dlen=3",
+   "ops": "lt gt between xa xb kxd[event] kxd_os[event]",
+   "def": "{\"op\":\"lt\",\"v\":20,\"v2\":40,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "macd",
+   "g": "Technical",
+   "label": "MACD",
+   "unit": "",
+   "params": "fast=12, slow=26, sig=9",
+   "ops": "xsig[event] zero[event] bdiv[event] hup[state] gt lt",
+   "def": "{\"op\":\"xsig\",\"n\":5,\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "adx",
+   "g": "Technical",
+   "label": "ADX / DMI",
+   "unit": "",
+   "params": "len=14",
+   "ops": "gt lt between xa plus[state] dixa[event]",
+   "def": "{\"op\":\"gt\",\"v\":25,\"v2\":40,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "bb",
+   "g": "Technical",
+   "label": "Bollinger Bands",
+   "unit": "",
+   "params": "len=20, k=2, sq=120",
+   "ops": "lt gt between below[state] brk[event] squeeze[event]",
+   "def": "{\"op\":\"lt\",\"v\":0,\"v2\":0.2,\"n\":10}",
+   "kind": "series"
+  },
+  {
+   "key": "atr",
+   "g": "Technical",
+   "label": "ATR %",
+   "unit": "%",
+   "params": "len=14",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":3,\"v2\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "supertrend",
+   "g": "Technical",
+   "label": "Supertrend",
+   "unit": "",
+   "params": "len=10, mult=3",
+   "ops": "flip[event] bull[state]",
+   "def": "{\"op\":\"flip\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "ichimoku",
+   "g": "Technical",
+   "label": "Ichimoku",
+   "unit": "",
+   "params": "a=9, b=26, s=52",
+   "ops": "above[state] tk[event]",
+   "def": "{\"op\":\"above\",\"n\":10}",
+   "kind": "series"
+  },
+  {
+   "key": "breakout",
+   "g": "Technical",
+   "label": "Breakout",
+   "unit": "",
+   "params": "days=20",
+   "ops": "up[event] dn[event]",
+   "def": "{\"op\":\"up\",\"n\":3}",
+   "kind": "series"
+  },
+  {
+   "key": "hi52",
+   "g": "Technical",
+   "label": "Distance from 52W high",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":-10,\"v2\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "lo52",
+   "g": "Technical",
+   "label": "Distance from 52W low",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":30,\"v2\":100}",
+   "kind": "series"
+  },
+  {
+   "key": "ret",
+   "g": "Technical",
+   "label": "Return over N sessions",
+   "unit": "%",
+   "params": "days=20",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":5,\"v2\":20}",
+   "kind": "series"
+  },
+  {
+   "key": "rs",
+   "g": "Technical",
+   "label": "Relative strength vs IHSG",
+   "unit": "pts",
+   "params": "days=63",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":20}",
+   "kind": "series"
+  },
+  {
+   "key": "rs_rank",
+   "g": "Technical",
+   "label": "RS rank (percentile)",
+   "unit": "",
+   "params": "days=252",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":70,\"v2\":100}",
+   "kind": "last-only"
+  },
+  {
+   "key": "volspike",
+   "g": "Technical",
+   "label": "Volume spike",
+   "unit": "×",
+   "params": "len=20",
+   "ops": "gt lt between xa",
+   "def": "{\"op\":\"gt\",\"v\":2,\"v2\":5,\"n\":3}",
+   "kind": "series"
+  },
+  {
+   "key": "bandar",
+   "g": "Flow",
+   "label": "Bandar status",
+   "unit": "%",
+   "params": "days=10, top=3",
+   "ops": "acc[state] bigacc[state] dist[state] bigdist[state] gt lt",
+   "def": "{\"op\":\"acc\",\"v\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "topacc",
+   "g": "Flow",
+   "label": "Top-N broker net",
+   "unit": "Rp B",
+   "params": "top=5, days=10",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":5,\"v2\":50}",
+   "kind": "series"
+  },
+  {
+   "key": "broker",
+   "g": "Flow",
+   "label": "Broker net buy",
+   "unit": "Rp B",
+   "params": "code=YP{AK/BK/ZP/KZ/RX/DR/YP/CC/PD/XL/NI/OD/LG/EP}, days=5",
+   "ops": "gt lt between xa",
+   "def": "{\"op\":\"gt\",\"v\":1,\"v2\":20,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "bavg",
+   "g": "Flow",
+   "label": "Price vs bandar average",
+   "unit": "%",
+   "params": "days=10",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"between\",\"v\":-3,\"v2\":3}",
+   "kind": "series"
+  },
+  {
+   "key": "fnet",
+   "g": "Flow",
+   "label": "Foreign net flow",
+   "unit": "Rp B",
+   "params": "days=5",
+   "ops": "gt lt between xa xb",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":50,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "fstreak",
+   "g": "Flow",
+   "label": "Foreign net-buy streak",
+   "unit": "days",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":4,\"v2\":10}",
+   "kind": "series"
+  },
+  {
+   "key": "fpct",
+   "g": "Flow",
+   "label": "Foreign net % of value",
+   "unit": "%",
+   "params": "days=20",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":3,\"v2\":20}",
+   "kind": "series"
+  },
+  {
+   "key": "freq",
+   "g": "Flow",
+   "label": "Frequency spike",
+   "unit": "×",
+   "params": "len=20",
+   "ops": "gt lt xa",
+   "def": "{\"op\":\"gt\",\"v\":2.5,\"n\":3}",
+   "kind": "series"
+  },
+  {
+   "key": "silent",
+   "g": "Flow",
+   "label": "Silent accumulation",
+   "unit": "",
+   "params": "days=5, len=20, volx=1.5, move=3",
+   "ops": "on[state]",
+   "def": "{\"op\":\"on\"}",
+   "kind": "series"
+  },
+  {
+   "key": "mfi",
+   "g": "Flow",
+   "label": "Money Flow Index",
+   "unit": "",
+   "params": "len=14",
+   "ops": "gt lt between xa xb",
+   "def": "{\"op\":\"lt\",\"v\":20,\"v2\":50,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "cmf",
+   "g": "Flow",
+   "label": "Chaikin Money Flow",
+   "unit": "",
+   "params": "len=20",
+   "ops": "gt lt between xa",
+   "def": "{\"op\":\"gt\",\"v\":0.05,\"v2\":0.3,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "obv",
+   "g": "Flow",
+   "label": "On-Balance Volume",
+   "unit": "",
+   "params": "len=20",
+   "ops": "rising[state] high[event]",
+   "def": "{\"op\":\"rising\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "adv",
+   "g": "Flow",
+   "label": "Average daily value",
+   "unit": "Rp B",
+   "params": "len=20",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":10,\"v2\":100}",
+   "kind": "series"
+  },
+  {
+   "key": "cap",
+   "g": "Fundamental",
+   "label": "Market cap",
+   "unit": "IDR T",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":10,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "pe",
+   "g": "Fundamental",
+   "label": "P/E",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"lt\",\"v\":15,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "pb",
+   "g": "Fundamental",
+   "label": "P/B",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"lt\",\"v\":1.5,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "peg",
+   "g": "Fundamental",
+   "label": "PEG (P/E ÷ 3Y EPS CAGR)",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "evEbitda",
+   "g": "Fundamental",
+   "label": "EV/EBITDA",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "divYield",
+   "g": "Fundamental",
+   "label": "Dividend yield",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":4,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "payout",
+   "g": "Fundamental",
+   "label": "Payout ratio",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "divYears",
+   "g": "Fundamental",
+   "label": "Years of dividends",
+   "unit": "yrs",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "roe",
+   "g": "Fundamental",
+   "label": "ROE",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":15,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "roa",
+   "g": "Fundamental",
+   "label": "ROA",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "roic",
+   "g": "Fundamental",
+   "label": "ROIC",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "netMargin",
+   "g": "Fundamental",
+   "label": "Net margin",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "grossMargin",
+   "g": "Fundamental",
+   "label": "Gross margin",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "revG",
+   "g": "Fundamental",
+   "label": "Revenue growth YoY",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "epsG",
+   "g": "Fundamental",
+   "label": "EPS growth YoY",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "epsGq",
+   "g": "Fundamental",
+   "label": "EPS growth, latest quarter YoY",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "epsG3y",
+   "g": "Fundamental",
+   "label": "EPS CAGR 3Y",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "der",
+   "g": "Fundamental",
+   "label": "Debt / equity",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"lt\",\"v\":1,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "curr",
+   "g": "Fundamental",
+   "label": "Current ratio",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "intCov",
+   "g": "Fundamental",
+   "label": "Interest coverage",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "fcfYield",
+   "g": "Fundamental",
+   "label": "FCF yield",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "piotroski",
+   "g": "Fundamental",
+   "label": "Piotroski F-score (0–9)",
+   "unit": "",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":6,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "altman",
+   "g": "Fundamental",
+   "label": "Altman Z-score",
+   "unit": "",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "grahamRatio",
+   "g": "Fundamental",
+   "label": "Price ÷ Graham number",
+   "unit": "×",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"lt\",\"v\":1,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "magicRank",
+   "g": "Fundamental",
+   "label": "Magic Formula rank",
+   "unit": "#",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"lt\",\"v\":21,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "freeFloat",
+   "g": "Fundamental",
+   "label": "Free float",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "foreignOwn",
+   "g": "Fundamental",
+   "label": "Foreign ownership",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "nim",
+   "g": "Fundamental",
+   "label": "NIM (banks)",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "npl",
+   "g": "Fundamental",
+   "label": "Gross NPL (banks)",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "car",
+   "g": "Fundamental",
+   "label": "CAR (banks)",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "casa",
+   "g": "Fundamental",
+   "label": "CASA (banks)",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "ldr",
+   "g": "Fundamental",
+   "label": "LDR (banks)",
+   "unit": "%",
+   "params": "",
+   "ops": "gt lt between",
+   "def": "{\"op\":\"gt\",\"v\":0,\"v2\":10}",
+   "kind": "last-only"
+  },
+  {
+   "key": "x_sma",
+   "g": "Trend",
+   "label": "Simple Moving Average",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "above[state] below[state] xa[event] xb[event] rising[state] gt lt between",
+   "def": "{\"op\":\"above\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_ema",
+   "g": "Trend",
+   "label": "Exponential Moving Average",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "above[state] below[state] xa[event] xb[event] rising[state] gt lt between",
+   "def": "{\"op\":\"above\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_wma",
+   "g": "Trend",
+   "label": "Weighted Moving Average",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "above[state] below[state] xa[event] xb[event] rising[state] gt lt between",
+   "def": "{\"op\":\"above\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_hma",
+   "g": "Trend",
+   "label": "Hull Moving Average",
+   "unit": "%",
+   "params": "length=9, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "above[state] below[state] xa[event] xb[event] rising[state] gt lt between",
+   "def": "{\"op\":\"above\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_kama",
+   "g": "Trend",
+   "label": "Kaufman Adaptive Moving Average",
+   "unit": "%",
+   "params": "length=10, fast_length=2, slow_length=30, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "above[state] below[state] xa[event] xb[event] rising[state] gt lt between",
+   "def": "{\"op\":\"above\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_macd",
+   "g": "Trend",
+   "label": "MACD",
+   "unit": "",
+   "params": "fast_length=12, slow_length=26, signal_length=9, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"xsig\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_adx",
+   "g": "Trend",
+   "label": "Average Directional Index",
+   "unit": "",
+   "params": "di_length=14, adx_smoothing=14",
+   "ops": "plus[state] dixa[event] gt lt between xa xb",
+   "def": "{\"n\":5,\"op\":\"gt\",\"v\":25,\"v2\":40}",
+   "kind": "series"
+  },
+  {
+   "key": "x_aroon",
+   "g": "Trend",
+   "label": "Aroon Indicator",
+   "unit": "",
+   "params": "length=14",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"xsig\",\"v\":70}",
+   "kind": "series"
+  },
+  {
+   "key": "x_supertrend",
+   "g": "Trend",
+   "label": "Supertrend",
+   "unit": "%",
+   "params": "atr_length=10, factor=3",
+   "ops": "up[state] flipup[event] flipdn[event] gt lt between",
+   "def": "{\"op\":\"up\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_donchian",
+   "g": "Trend",
+   "label": "Donchian Channels",
+   "unit": "%",
+   "params": "length=20",
+   "ops": "abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between",
+   "def": "{\"op\":\"abu\",\"v\":80,\"v2\":100,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_keltner",
+   "g": "Trend",
+   "label": "Keltner Channels",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}, multiplier=2, use_exponential_ma=true{true/false}, bands_style=ATR{ATR/TR/HL_RANGE}, atr_length=10",
+   "ops": "abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between",
+   "def": "{\"op\":\"abu\",\"v\":80,\"v2\":100,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_psar",
+   "g": "Trend",
+   "label": "Parabolic SAR",
+   "unit": "%",
+   "params": "start=0.02, increment=0.02, maximum=0.2",
+   "ops": "up[state] flipup[event] flipdn[event] gt lt between",
+   "def": "{\"op\":\"up\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_rsi",
+   "g": "Momentum",
+   "label": "Relative Strength Index",
+   "unit": "",
+   "params": "length=14, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":50,\"op\":\"lt\",\"v\":30}",
+   "kind": "series"
+  },
+  {
+   "key": "x_stoch_rsi",
+   "g": "Momentum",
+   "label": "Stochastic RSI",
+   "unit": "",
+   "params": "rsi_length=14, stoch_length=14, smooth_k=3, smooth_d=3, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":80,\"op\":\"lt\",\"v\":20}",
+   "kind": "series"
+  },
+  {
+   "key": "x_stochastic",
+   "g": "Momentum",
+   "label": "Stochastic Oscillator",
+   "unit": "",
+   "params": "k_length=14, smooth_k=3, d_length=3",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":80,\"op\":\"lt\",\"v\":20}",
+   "kind": "series"
+  },
+  {
+   "key": "x_williams_r",
+   "g": "Momentum",
+   "label": "Williams %R",
+   "unit": "",
+   "params": "length=14, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":-20,\"op\":\"lt\",\"v\":-80}",
+   "kind": "series"
+  },
+  {
+   "key": "x_roc",
+   "g": "Momentum",
+   "label": "Rate of Change",
+   "unit": "%",
+   "params": "length=9, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":10,\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_momentum",
+   "g": "Momentum",
+   "label": "Momentum",
+   "unit": "",
+   "params": "length=10, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_cci",
+   "g": "Momentum",
+   "label": "Commodity Channel Index",
+   "unit": "",
+   "params": "length=20, constant=0.015",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":100,\"op\":\"lt\",\"v\":-100}",
+   "kind": "series"
+  },
+  {
+   "key": "x_cmo",
+   "g": "Momentum",
+   "label": "Chande Momentum Oscillator",
+   "unit": "",
+   "params": "length=14, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":50,\"op\":\"lt\",\"v\":-50}",
+   "kind": "series"
+  },
+  {
+   "key": "x_tsi",
+   "g": "Momentum",
+   "label": "True Strength Index",
+   "unit": "",
+   "params": "long_length=25, short_length=13, signal_length=7, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"xsig\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_trix",
+   "g": "Momentum",
+   "label": "TRIX",
+   "unit": "%",
+   "params": "length=15, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_ultimate_osc",
+   "g": "Momentum",
+   "label": "Ultimate Oscillator",
+   "unit": "",
+   "params": "fast_length=7, middle_length=14, slow_length=28, weight_fast=4, weight_middle=2, weight_slow=1",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":70,\"op\":\"lt\",\"v\":30}",
+   "kind": "series"
+  },
+  {
+   "key": "x_awesome_osc",
+   "g": "Momentum",
+   "label": "Awesome Oscillator",
+   "unit": "",
+   "params": "fast_length=5, slow_length=34",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_ppo",
+   "g": "Momentum",
+   "label": "Percentage Price Oscillator",
+   "unit": "",
+   "params": "fast_length=12, slow_length=26, signal_length=9, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"xsig\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_bop",
+   "g": "Momentum",
+   "label": "Balance of Power",
+   "unit": "",
+   "params": "",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":0.5,\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_bollinger",
+   "g": "Volatility",
+   "label": "Bollinger Bands",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}, basis_ma_type=SMA{SMA/EMA/WMA/RMA/VWMA}, std_dev=2",
+   "ops": "abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between",
+   "def": "{\"op\":\"abu\",\"v\":80,\"v2\":100,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_bollinger_pctb",
+   "g": "Volatility",
+   "label": "Bollinger %B",
+   "unit": "",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}, std_dev=2, basis_ma_type=SMA{SMA/EMA/WMA/RMA}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":1,\"op\":\"lt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_bollinger_width",
+   "g": "Volatility",
+   "label": "Bollinger Bandwidth",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}, std_dev=2, basis_ma_type=SMA{SMA/EMA/WMA/RMA}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":20,\"op\":\"lt\",\"v\":10}",
+   "kind": "series"
+  },
+  {
+   "key": "x_atr",
+   "g": "Volatility",
+   "label": "Average True Range",
+   "unit": "",
+   "params": "length=14, smoothing_type=RMA{RMA/SMA/EMA/WMA}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_natr",
+   "g": "Volatility",
+   "label": "Normalized ATR",
+   "unit": "%",
+   "params": "length=14, smoothing_type=RMA{RMA/SMA/EMA/WMA}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":6,\"op\":\"gt\",\"v\":3}",
+   "kind": "series"
+  },
+  {
+   "key": "x_stddev",
+   "g": "Volatility",
+   "label": "Standard Deviation",
+   "unit": "",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}, stdev_method=population{population/sample}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_hist_vol",
+   "g": "Volatility",
+   "label": "Historical Volatility",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}, return_type=log{log/simple}, annualization_periods=252",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":60,\"op\":\"gt\",\"v\":30}",
+   "kind": "series"
+  },
+  {
+   "key": "x_adr",
+   "g": "Volatility",
+   "label": "Average Daily Range",
+   "unit": "",
+   "params": "length=14, timeframe=1D{1D}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_volume_sma",
+   "g": "Volume",
+   "label": "Volume SMA",
+   "unit": "",
+   "params": "length=20",
+   "ops": "vabove[state] vxa[event] gt lt between",
+   "def": "{\"op\":\"vabove\",\"v\":0,\"v2\":\"\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_volume_ema",
+   "g": "Volume",
+   "label": "Volume EMA",
+   "unit": "",
+   "params": "length=20",
+   "ops": "vabove[state] vxa[event] gt lt between",
+   "def": "{\"op\":\"vabove\",\"v\":0,\"v2\":\"\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_rvol",
+   "g": "Volume",
+   "label": "Relative Volume",
+   "unit": "×",
+   "params": "length=20, reference_method=rolling_sma{rolling_sma/same_time_of_day}, include_current_bar=false{true/false}",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":3,\"op\":\"gt\",\"v\":1.5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_pvo",
+   "g": "Volume",
+   "label": "Percentage Volume Oscillator",
+   "unit": "",
+   "params": "fast_length=12, slow_length=26, signal_length=9",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"xsig\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_volume_roc",
+   "g": "Volume",
+   "label": "Volume Rate of Change",
+   "unit": "%",
+   "params": "length=10",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":200,\"op\":\"gt\",\"v\":50}",
+   "kind": "series"
+  },
+  {
+   "key": "x_obv",
+   "g": "PriceVolume",
+   "label": "On-Balance Volume",
+   "unit": "",
+   "params": "",
+   "ops": "cabove[state] cxa[event] crise[state] gt lt",
+   "def": "{\"op\":\"cabove\",\"v\":0,\"v2\":\"\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_pvt",
+   "g": "PriceVolume",
+   "label": "Price Volume Trend",
+   "unit": "",
+   "params": "",
+   "ops": "cabove[state] cxa[event] crise[state] gt lt",
+   "def": "{\"op\":\"cabove\",\"v\":0,\"v2\":\"\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_vwma",
+   "g": "PriceVolume",
+   "label": "Volume Weighted Moving Average",
+   "unit": "%",
+   "params": "length=20, source=close{open/high/low/close/hl2/hlc3/ohlc4}",
+   "ops": "above[state] below[state] xa[event] xb[event] rising[state] gt lt between",
+   "def": "{\"op\":\"above\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_vwap",
+   "g": "PriceVolume",
+   "label": "Volume Weighted Average Price",
+   "unit": "%",
+   "params": "anchor=Session{Session/Week/Month/Quarter/Year/Decade/Century}, source=hlc3{open/high/low/close/hl2/hlc3/ohlc4}, bands_mode=StdDev{StdDev/Percentage/None}, band_1_multiplier=1",
+   "ops": "abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between",
+   "def": "{\"op\":\"abb\",\"v\":0,\"v2\":5,\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_adl",
+   "g": "PriceVolume",
+   "label": "Accumulation/Distribution Line",
+   "unit": "",
+   "params": "",
+   "ops": "cabove[state] cxa[event] crise[state] gt lt",
+   "def": "{\"op\":\"cabove\",\"v\":0,\"v2\":\"\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_cmf",
+   "g": "PriceVolume",
+   "label": "Chaikin Money Flow",
+   "unit": "",
+   "params": "length=20",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":0.2,\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_chaikin_osc",
+   "g": "PriceVolume",
+   "label": "Chaikin Oscillator",
+   "unit": "",
+   "params": "fast_length=3, slow_length=10",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_mfi",
+   "g": "PriceVolume",
+   "label": "Money Flow Index",
+   "unit": "",
+   "params": "length=14",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":80,\"op\":\"lt\",\"v\":20}",
+   "kind": "series"
+  },
+  {
+   "key": "x_force_index",
+   "g": "PriceVolume",
+   "label": "Elder's Force Index",
+   "unit": "",
+   "params": "length=13",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_eom",
+   "g": "PriceVolume",
+   "label": "Ease of Movement",
+   "unit": "",
+   "params": "length=14, volume_scale=1000000",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_nvi",
+   "g": "PriceVolume",
+   "label": "Negative Volume Index",
+   "unit": "",
+   "params": "initial_value=1000",
+   "ops": "cabove[state] cxa[event] crise[state] gt lt",
+   "def": "{\"op\":\"cabove\",\"v\":0,\"v2\":\"\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_pvi",
+   "g": "PriceVolume",
+   "label": "Positive Volume Index",
+   "unit": "",
+   "params": "initial_value=1000",
+   "ops": "cabove[state] cxa[event] crise[state] gt lt",
+   "def": "{\"op\":\"cabove\",\"v\":0,\"v2\":\"\",\"n\":5}",
+   "kind": "series"
+  },
+  {
+   "key": "x_kvo",
+   "g": "PriceVolume",
+   "label": "Klinger Volume Oscillator",
+   "unit": "",
+   "params": "fast_length=34, slow_length=55, signal_length=13",
+   "ops": "xsig[event] xsigd[event] asig[state] gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"xsig\",\"v\":0}",
+   "kind": "series"
+  },
+  {
+   "key": "x_market_fi",
+   "g": "PriceVolume",
+   "label": "Market Facilitation Index",
+   "unit": "",
+   "params": "volume_scale=1",
+   "ops": "gt lt between xa xb",
+   "def": "{\"n\":5,\"v2\":\"\",\"op\":\"gt\",\"v\":0}",
+   "kind": "series"
+  }
+ ],
+ "presets": [
+  {
+   "id": "bigacc",
+   "cat": "Bandarmology",
+   "logic": "all",
+   "universe": null,
+   "sort": [
+    "c0",
+    "desc"
+   ],
+   "conds": [
+    {
+     "key": "bandar",
+     "op": "bigacc",
+     "p": {
+      "days": 10,
+      "top": 3
+     },
+     "v": 5,
+     "kind": "state"
+    },
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 20,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    }
+   ]
+  },
+  {
+   "id": "fstreak",
+   "cat": "Bandarmology",
+   "logic": "all",
+   "universe": null,
+   "sort": [
+    "c0",
+    "desc"
+   ],
+   "conds": [
+    {
+     "key": "fstreak",
+     "op": "gt",
+     "p": {},
+     "v": 4,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "fnet",
+     "op": "gt",
+     "p": {
+      "days": 20
+     },
+     "v": 0,
+     "v2": 50,
+     "n": 5,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "silent",
+   "cat": "Bandarmology",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "silent",
+     "op": "on",
+     "p": {
+      "days": 5,
+      "len": 20,
+      "volx": 1.3,
+      "move": 4
+     },
+     "kind": "state"
+    },
+    {
+     "key": "bandar",
+     "op": "gt",
+     "p": {
+      "days": 10,
+      "top": 3
+     },
+     "v": 0,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "freq",
+   "cat": "Bandarmology",
+   "logic": "all",
+   "universe": null,
+   "sort": [
+    "c0",
+    "desc"
+   ],
+   "conds": [
+    {
+     "key": "freq",
+     "op": "xa",
+     "p": {
+      "len": 20
+     },
+     "v": 2.5,
+     "n": 3,
+     "kind": "value"
+    },
+    {
+     "key": "ret",
+     "op": "gt",
+     "p": {
+      "days": 1
+     },
+     "v": 0,
+     "v2": 20,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "bavg",
+   "cat": "Bandarmology",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "bavg",
+     "op": "between",
+     "p": {
+      "days": 10
+     },
+     "v": -3,
+     "v2": 3,
+     "kind": "value"
+    },
+    {
+     "key": "bandar",
+     "op": "acc",
+     "p": {
+      "days": 10,
+      "top": 3
+     },
+     "v": 5,
+     "kind": "state"
+    }
+   ]
+  },
+  {
+   "id": "follow",
+   "cat": "Bandarmology",
+   "logic": "all",
+   "universe": null,
+   "sort": [
+    "c0",
+    "desc"
+   ],
+   "conds": [
+    {
+     "key": "broker",
+     "op": "gt",
+     "p": {
+      "code": "YP",
+      "days": 5
+     },
+     "v": 1,
+     "v2": 20,
+     "n": 5,
+     "kind": "value"
+    },
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 50,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    }
+   ]
+  },
+  {
+   "id": "minervini",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": {
+    "advMin": 5
+   },
+   "sort": null,
+   "conds": [
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 150,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    },
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 200,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    },
+    {
+     "key": "ma_cross",
+     "op": "above",
+     "p": {
+      "fast": 150,
+      "slow": 200,
+      "kind": "SMA"
+     },
+     "n": 20,
+     "kind": "state"
+    },
+    {
+     "key": "price_ma",
+     "op": "rising",
+     "p": {
+      "len": 200,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    },
+    {
+     "key": "ma_cross",
+     "op": "above",
+     "p": {
+      "fast": 50,
+      "slow": 150,
+      "kind": "SMA"
+     },
+     "n": 20,
+     "kind": "state"
+    },
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 50,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    },
+    {
+     "key": "lo52",
+     "op": "gt",
+     "p": {},
+     "v": 30,
+     "v2": 100,
+     "kind": "value"
+    },
+    {
+     "key": "hi52",
+     "op": "gt",
+     "p": {},
+     "v": -25,
+     "v2": 0,
+     "kind": "value"
+    },
+    {
+     "key": "rs_rank",
+     "op": "gt",
+     "p": {
+      "days": 252
+     },
+     "v": 70,
+     "v2": 100,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "brk52",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "breakout",
+     "op": "up",
+     "p": {
+      "days": 250
+     },
+     "n": 3,
+     "kind": "event"
+    },
+    {
+     "key": "volspike",
+     "op": "gt",
+     "p": {
+      "len": 20
+     },
+     "v": 1.5,
+     "v2": 5,
+     "n": 3,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "oversold",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": [
+    "c1",
+    "asc"
+   ],
+   "conds": [
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 200,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    },
+    {
+     "key": "rsi",
+     "op": "lt",
+     "p": {
+      "len": 14
+     },
+     "v": 40,
+     "v2": 50,
+     "n": 5,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "golden",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "ma_cross",
+     "op": "golden",
+     "p": {
+      "fast": 50,
+      "slow": 200,
+      "kind": "SMA"
+     },
+     "n": 20,
+     "kind": "event"
+    }
+   ]
+  },
+  {
+   "id": "macddiv",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "macd",
+     "op": "bdiv",
+     "p": {
+      "fast": 12,
+      "slow": 26,
+      "sig": 9
+     },
+     "v": 0,
+     "n": 10,
+     "kind": "event"
+    }
+   ]
+  },
+  {
+   "id": "rebound",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 50,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    },
+    {
+     "key": "price_ma",
+     "op": "xa",
+     "p": {
+      "len": 10,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 3,
+     "kind": "event"
+    },
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 20,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    },
+    {
+     "key": "volspike",
+     "op": "gt",
+     "p": {
+      "len": 20
+     },
+     "v": 1.3,
+     "v2": 5,
+     "n": 3,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "squeeze",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "bb",
+     "op": "squeeze",
+     "p": {
+      "len": 20,
+      "k": 2,
+      "sq": 120
+     },
+     "v": 0,
+     "v2": 0.2,
+     "n": 15,
+     "kind": "event"
+    },
+    {
+     "key": "bb",
+     "op": "brk",
+     "p": {
+      "len": 20,
+      "k": 2,
+      "sq": 120
+     },
+     "v": 0,
+     "v2": 0.2,
+     "n": 5,
+     "kind": "event"
+    }
+   ]
+  },
+  {
+   "id": "stflip",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "supertrend",
+     "op": "flip",
+     "p": {
+      "len": 10,
+      "mult": 3
+     },
+     "n": 5,
+     "kind": "event"
+    },
+    {
+     "key": "adx",
+     "op": "gt",
+     "p": {
+      "len": 14
+     },
+     "v": 20,
+     "v2": 40,
+     "n": 5,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "ichi",
+   "cat": "Technical",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "ichimoku",
+     "op": "above",
+     "p": {
+      "a": 9,
+      "b": 26,
+      "s": 52
+     },
+     "n": 10,
+     "kind": "state"
+    },
+    {
+     "key": "ichimoku",
+     "op": "tk",
+     "p": {
+      "a": 9,
+      "b": 26,
+      "s": 52
+     },
+     "n": 10,
+     "kind": "event"
+    }
+   ]
+  },
+  {
+   "id": "graham",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "pe",
+     "op": "lt",
+     "p": {},
+     "v": 15,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "grahamRatio",
+     "op": "lt",
+     "p": {},
+     "v": 1,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "der",
+     "op": "lt",
+     "p": {},
+     "v": 1,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "divYears",
+     "op": "gt",
+     "p": {},
+     "v": 4,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "epsG3y",
+     "op": "gt",
+     "p": {},
+     "v": 0,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "piotroski",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": null,
+   "sort": [
+    "c0",
+    "desc"
+   ],
+   "conds": [
+    {
+     "key": "piotroski",
+     "op": "gt",
+     "p": {},
+     "v": 6,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "pb",
+     "op": "lt",
+     "p": {},
+     "v": 3,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "magic",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": {
+    "capMin": 5,
+    "sectorsEx": [
+     "Financials"
+    ]
+   },
+   "sort": [
+    "c0",
+    "asc"
+   ],
+   "conds": [
+    {
+     "key": "magicRank",
+     "op": "lt",
+     "p": {},
+     "v": 21,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "quality",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "roe",
+     "op": "gt",
+     "p": {},
+     "v": 15,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "der",
+     "op": "lt",
+     "p": {},
+     "v": 0.8,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "netMargin",
+     "op": "gt",
+     "p": {},
+     "v": 10,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "epsG3y",
+     "op": "gt",
+     "p": {},
+     "v": 8,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "dividend",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": null,
+   "sort": [
+    "c0",
+    "desc"
+   ],
+   "conds": [
+    {
+     "key": "divYield",
+     "op": "gt",
+     "p": {},
+     "v": 5,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "payout",
+     "op": "lt",
+     "p": {},
+     "v": 85,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "divYears",
+     "op": "gt",
+     "p": {},
+     "v": 4,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "garp",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "peg",
+     "op": "lt",
+     "p": {},
+     "v": 1,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "epsG",
+     "op": "gt",
+     "p": {},
+     "v": 15,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "roe",
+     "op": "gt",
+     "p": {},
+     "v": 12,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "deep",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "pb",
+     "op": "lt",
+     "p": {},
+     "v": 1,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "pe",
+     "op": "between",
+     "p": {},
+     "v": 0,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "bank",
+   "cat": "Fundamental",
+   "logic": "all",
+   "universe": {
+    "industries": [
+     "Banks"
+    ]
+   },
+   "sort": null,
+   "conds": [
+    {
+     "key": "roe",
+     "op": "gt",
+     "p": {},
+     "v": 12,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "npl",
+     "op": "lt",
+     "p": {},
+     "v": 3,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "car",
+     "op": "gt",
+     "p": {},
+     "v": 18,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "casa",
+     "op": "gt",
+     "p": {},
+     "v": 60,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "canslim",
+   "cat": "Combined",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "epsGq",
+     "op": "gt",
+     "p": {},
+     "v": 20,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "epsG3y",
+     "op": "gt",
+     "p": {},
+     "v": 10,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "hi52",
+     "op": "gt",
+     "p": {},
+     "v": -20,
+     "v2": 0,
+     "kind": "value"
+    },
+    {
+     "key": "rs_rank",
+     "op": "gt",
+     "p": {
+      "days": 252
+     },
+     "v": 70,
+     "v2": 100,
+     "kind": "value"
+    },
+    {
+     "key": "roe",
+     "op": "gt",
+     "p": {},
+     "v": 12,
+     "v2": 10,
+     "kind": "value"
+    }
+   ]
+  },
+  {
+   "id": "qflow",
+   "cat": "Combined",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "roe",
+     "op": "gt",
+     "p": {},
+     "v": 15,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "der",
+     "op": "lt",
+     "p": {},
+     "v": 1,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "fnet",
+     "op": "gt",
+     "p": {
+      "days": 20
+     },
+     "v": 0,
+     "v2": 50,
+     "n": 5,
+     "kind": "value"
+    },
+    {
+     "key": "price_ma",
+     "op": "above",
+     "p": {
+      "len": 50,
+      "kind": "SMA"
+     },
+     "v": 0,
+     "v2": 5,
+     "n": 5,
+     "kind": "state"
+    }
+   ]
+  },
+  {
+   "id": "vacc",
+   "cat": "Combined",
+   "logic": "all",
+   "universe": null,
+   "sort": null,
+   "conds": [
+    {
+     "key": "pb",
+     "op": "lt",
+     "p": {},
+     "v": 1.5,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "pe",
+     "op": "lt",
+     "p": {},
+     "v": 12,
+     "v2": 10,
+     "kind": "value"
+    },
+    {
+     "key": "bandar",
+     "op": "acc",
+     "p": {
+      "days": 10,
+      "top": 3
+     },
+     "v": 5,
+     "kind": "state"
+    }
+   ]
+  }
+ ],
+ "BANDAR": {
+  "acc": 6,
+  "big": 10
+ },
+ "tickers": 94
+}

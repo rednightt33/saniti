@@ -1,0 +1,36 @@
+column_name
+table_name
+column_name
+ordinal_position
+description
+data_type
+semantic_type
+unit
+nullable
+is_primary_key
+source_column_or_expression
+is_sensitive
+ai_allowed
+allowed_aggregations
+filter_allowed
+group_by_allowed
+example_value
+coverage_required
+documentation_status
+created_at
+updated_at
+resample_aggregation
+cross_entity_aggregation
+value_time_basis
+description_id
+description_id_status
+entity_name
+(26 rows, 243 ms)
+---
+table_name | row_presence | time_semantics
+Price_Stock_Indonesia_IDX | ACTIVITY_ONLY | Asia/Jakarta exchange trading date
+IDX_Stock_Universe | NOT_APPLICABLE | Current-state reference data; not point-in-time
+Feature_01_Stock_Daily | ACTIVITY_ONLY | Asia/Jakarta exchange trading date
+IDX_Stock_Universe_History | NOT_APPLICABLE | Effective-dated reference history: valid_from/valid_to effective period, recorded_from/recorded_to knowledge period; pit_valid_from/pit_valid_to is the point-in-time validity joins use
+(4 rows, 188 ms)
+---

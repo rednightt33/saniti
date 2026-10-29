@@ -1,0 +1,76 @@
+{
+ "scenario": "abc",
+ "data": "data/price_full.json",
+ "last": null,
+ "from": null,
+ "reps": 3,
+ "node": "v22.22.0",
+ "tickers": 845,
+ "bars_total": 1330722,
+ "max_bars_per_ticker": 2127,
+ "last_date": "2026-10-27",
+ "tickers_last_bar_before_last_date": 16,
+ "tickers_with_history_longer_than_window": null,
+ "load": {
+  "wall_ms": 447.2,
+  "cpu_ms": 572.5
+ },
+ "mem_after_load": {
+  "rss_mb": 230,
+  "heap_used_mb": 110.1,
+  "external_mb": 8.9,
+  "array_buffers_mb": 0
+ },
+ "compute": {
+  "reps": [
+   {
+    "wall_ms": 563.5,
+    "cpu_ms": 647.3
+   },
+   {
+    "wall_ms": 427.7,
+    "cpu_ms": 428.4
+   },
+   {
+    "wall_ms": 517.2,
+    "cpu_ms": 490.7
+   }
+  ],
+  "first_wall_ms": 563.5,
+  "first_cpu_ms": 647.3,
+  "min_wall_ms": 427.7,
+  "median_wall_ms": 517.2
+ },
+ "rows": 845,
+ "errors": {},
+ "matches": {
+  "a_rsi7_lt_30": 183,
+  "b_close_gt_sma75": 166,
+  "c_macd_cross_up_last5": 221,
+  "all_three": 0
+ },
+ "payload": {
+  "rows": 845,
+  "objects_full_precision": {
+   "bytes": 112458,
+   "gzip_bytes": 37066
+  },
+  "objects_10_sig_digits": {
+   "bytes": 91912,
+   "gzip_bytes": 27472
+  },
+  "columnar_10_sig_digits": {
+   "bytes": 49722,
+   "gzip_bytes": 23552
+  }
+ },
+ "mem_end": {
+  "rss_mb": 239.6,
+  "heap_used_mb": 113.3,
+  "external_mb": 9.4,
+  "array_buffers_mb": 0
+ },
+ "peak_rss_mb": 280.3,
+ "process_total_cpu_ms": 2656.8,
+ "process_uptime_ms": 2246
+}

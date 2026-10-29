@@ -1,0 +1,5478 @@
+{
+ "catCount": 115,
+ "byGroup": {
+  "Technical": [
+   "price_ma",
+   "ma_cross",
+   "rsi",
+   "stoch",
+   "macd",
+   "adx",
+   "bb",
+   "atr",
+   "supertrend",
+   "ichimoku",
+   "breakout",
+   "hi52",
+   "lo52",
+   "ret",
+   "rs",
+   "rs_rank",
+   "volspike"
+  ],
+  "Flow": [
+   "bandar",
+   "topacc",
+   "broker",
+   "bavg",
+   "fnet",
+   "fstreak",
+   "fpct",
+   "freq",
+   "silent",
+   "mfi",
+   "cmf",
+   "obv",
+   "adv"
+  ],
+  "Fundamental": [
+   "cap",
+   "pe",
+   "pb",
+   "peg",
+   "evEbitda",
+   "divYield",
+   "payout",
+   "divYears",
+   "roe",
+   "roa",
+   "roic",
+   "netMargin",
+   "grossMargin",
+   "revG",
+   "epsG",
+   "epsGq",
+   "epsG3y",
+   "der",
+   "curr",
+   "intCov",
+   "fcfYield",
+   "piotroski",
+   "altman",
+   "grahamRatio",
+   "magicRank",
+   "freeFloat",
+   "foreignOwn",
+   "nim",
+   "npl",
+   "car",
+   "casa",
+   "ldr"
+  ],
+  "Trend": [
+   "x_sma",
+   "x_ema",
+   "x_wma",
+   "x_hma",
+   "x_kama",
+   "x_macd",
+   "x_adx",
+   "x_aroon",
+   "x_supertrend",
+   "x_donchian",
+   "x_keltner",
+   "x_psar"
+  ],
+  "Momentum": [
+   "x_rsi",
+   "x_stoch_rsi",
+   "x_stochastic",
+   "x_williams_r",
+   "x_roc",
+   "x_momentum",
+   "x_cci",
+   "x_cmo",
+   "x_tsi",
+   "x_trix",
+   "x_ultimate_osc",
+   "x_awesome_osc",
+   "x_ppo",
+   "x_bop"
+  ],
+  "Volatility": [
+   "x_bollinger",
+   "x_bollinger_pctb",
+   "x_bollinger_width",
+   "x_atr",
+   "x_natr",
+   "x_stddev",
+   "x_hist_vol",
+   "x_adr"
+  ],
+  "Volume": [
+   "x_volume_sma",
+   "x_volume_ema",
+   "x_rvol",
+   "x_pvo",
+   "x_volume_roc"
+  ],
+  "PriceVolume": [
+   "x_obv",
+   "x_pvt",
+   "x_vwma",
+   "x_vwap",
+   "x_adl",
+   "x_cmf",
+   "x_chaikin_osc",
+   "x_mfi",
+   "x_force_index",
+   "x_eom",
+   "x_nvi",
+   "x_pvi",
+   "x_kvo",
+   "x_market_fi"
+  ]
+ },
+ "cat": {
+  "price_ma": {
+   "g": "Technical",
+   "label": "Price vs moving average",
+   "unit": "%",
+   "params": [
+    {
+     "k": "len",
+     "def": 50
+    },
+    {
+     "k": "kind",
+     "def": "SMA",
+     "opts": [
+      "SMA",
+      "EMA"
+     ]
+    }
+   ],
+   "ops": [
+    "above",
+    "below",
+    "xa",
+    "xb",
+    "rising",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above MA",
+     "kind": "state"
+    },
+    "below": {
+     "label": "Close below MA",
+     "kind": "state"
+    },
+    "xa": {
+     "label": "Close crosses above MA",
+     "kind": "event"
+    },
+    "xb": {
+     "label": "Close crosses below MA",
+     "kind": "event"
+    },
+    "rising": {
+     "label": "MA is rising (vs 1 month ago)",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "above",
+    "n": 5,
+    "v": 0,
+    "v2": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "ma_cross": {
+   "g": "Technical",
+   "label": "Moving-average cross",
+   "params": [
+    {
+     "k": "fast",
+     "def": 50
+    },
+    {
+     "k": "slow",
+     "def": 200
+    },
+    {
+     "k": "kind",
+     "def": "SMA",
+     "opts": [
+      "SMA",
+      "EMA"
+     ]
+    }
+   ],
+   "ops": [
+    "golden",
+    "death",
+    "above"
+   ],
+   "custom": {
+    "golden": {
+     "label": "Golden cross (fast crosses above slow)",
+     "kind": "event"
+    },
+    "death": {
+     "label": "Death cross (fast crosses below slow)",
+     "kind": "event"
+    },
+    "above": {
+     "label": "Fast above slow",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "golden",
+    "n": 20
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "rsi": {
+   "g": "Technical",
+   "label": "RSI",
+   "params": [
+    {
+     "k": "len",
+     "def": 14
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "op": "lt",
+    "v": 30,
+    "v2": 50,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "stoch": {
+   "g": "Technical",
+   "label": "Stochastic",
+   "params": [
+    {
+     "k": "len",
+     "def": 14
+    },
+    {
+     "k": "smooth",
+     "def": 3
+    },
+    {
+     "k": "dlen",
+     "def": 3
+    }
+   ],
+   "ops": [
+    "lt",
+    "gt",
+    "between",
+    "xa",
+    "xb",
+    "kxd",
+    "kxd_os"
+   ],
+   "custom": {
+    "kxd": {
+     "label": "%K crosses above %D",
+     "kind": "event"
+    },
+    "kxd_os": {
+     "label": "%K crosses above %D below 20",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "lt",
+    "v": 20,
+    "v2": 40,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "macd": {
+   "g": "Technical",
+   "label": "MACD",
+   "params": [
+    {
+     "k": "fast",
+     "def": 12
+    },
+    {
+     "k": "slow",
+     "def": 26
+    },
+    {
+     "k": "sig",
+     "def": 9
+    }
+   ],
+   "ops": [
+    "xsig",
+    "zero",
+    "bdiv",
+    "hup",
+    "gt",
+    "lt"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "MACD crosses above signal",
+     "kind": "event"
+    },
+    "zero": {
+     "label": "MACD crosses above zero",
+     "kind": "event"
+    },
+    "bdiv": {
+     "label": "Bullish divergence (lower price low, higher MACD low)",
+     "kind": "event"
+    },
+    "hup": {
+     "label": "Histogram rising 3 sessions",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "xsig",
+    "n": 5,
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "adx": {
+   "g": "Technical",
+   "label": "ADX / DMI",
+   "params": [
+    {
+     "k": "len",
+     "def": 14
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "plus",
+    "dixa"
+   ],
+   "custom": {
+    "plus": {
+     "label": "+DI above −DI (uptrend)",
+     "kind": "state"
+    },
+    "dixa": {
+     "label": "+DI crosses above −DI",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "gt",
+    "v": 25,
+    "v2": 40,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "bb": {
+   "g": "Technical",
+   "label": "Bollinger Bands",
+   "params": [
+    {
+     "k": "len",
+     "def": 20
+    },
+    {
+     "k": "k",
+     "def": 2
+    },
+    {
+     "k": "sq",
+     "def": 120
+    }
+   ],
+   "ops": [
+    "lt",
+    "gt",
+    "between",
+    "below",
+    "brk",
+    "squeeze"
+   ],
+   "custom": {
+    "below": {
+     "label": "Close below lower band",
+     "kind": "state"
+    },
+    "brk": {
+     "label": "Close crosses above upper band",
+     "kind": "event"
+    },
+    "squeeze": {
+     "label": "Band width at its look-back low (squeeze)",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "lt",
+    "v": 0,
+    "v2": 0.2,
+    "n": 10
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "atr": {
+   "g": "Technical",
+   "label": "ATR %",
+   "unit": "%",
+   "params": [
+    {
+     "k": "len",
+     "def": 14
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 3,
+    "v2": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "supertrend": {
+   "g": "Technical",
+   "label": "Supertrend",
+   "params": [
+    {
+     "k": "len",
+     "def": 10
+    },
+    {
+     "k": "mult",
+     "def": 3
+    }
+   ],
+   "ops": [
+    "flip",
+    "bull"
+   ],
+   "custom": {
+    "bull": {
+     "label": "In uptrend",
+     "kind": "state"
+    },
+    "flip": {
+     "label": "Flipped to uptrend",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "flip",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "ichimoku": {
+   "g": "Technical",
+   "label": "Ichimoku",
+   "params": [
+    {
+     "k": "a",
+     "def": 9
+    },
+    {
+     "k": "b",
+     "def": 26
+    },
+    {
+     "k": "s",
+     "def": 52
+    }
+   ],
+   "ops": [
+    "above",
+    "tk"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above the cloud",
+     "kind": "state"
+    },
+    "tk": {
+     "label": "Tenkan crosses above Kijun",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "above",
+    "n": 10
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "breakout": {
+   "g": "Technical",
+   "label": "Breakout",
+   "params": [
+    {
+     "k": "days",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "up",
+    "dn"
+   ],
+   "custom": {
+    "up": {
+     "label": "Close above prior N-day high",
+     "kind": "event"
+    },
+    "dn": {
+     "label": "Close below prior N-day low",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "up",
+    "n": 3
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "hi52": {
+   "g": "Technical",
+   "label": "Distance from 52W high",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": -10,
+    "v2": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "lo52": {
+   "g": "Technical",
+   "label": "Distance from 52W low",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 30,
+    "v2": 100
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "ret": {
+   "g": "Technical",
+   "label": "Return over N sessions",
+   "unit": "%",
+   "params": [
+    {
+     "k": "days",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 5,
+    "v2": 20
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "rs": {
+   "g": "Technical",
+   "label": "Relative strength vs IHSG",
+   "unit": "pts",
+   "params": [
+    {
+     "k": "days",
+     "def": 63
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 20
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "rs_rank": {
+   "g": "Technical",
+   "label": "RS rank (percentile)",
+   "params": [
+    {
+     "k": "days",
+     "def": 252
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 70,
+    "v2": 100
+   },
+   "cross": true,
+   "last": true,
+   "overlay": false
+  },
+  "volspike": {
+   "g": "Technical",
+   "label": "Volume spike",
+   "unit": "×",
+   "params": [
+    {
+     "k": "len",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 2,
+    "v2": 5,
+    "n": 3
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "bandar": {
+   "g": "Flow",
+   "label": "Bandar status",
+   "unit": "%",
+   "params": [
+    {
+     "k": "days",
+     "def": 10
+    },
+    {
+     "k": "top",
+     "def": 3
+    }
+   ],
+   "ops": [
+    "acc",
+    "bigacc",
+    "dist",
+    "bigdist",
+    "gt",
+    "lt"
+   ],
+   "custom": {
+    "bigacc": {
+     "label": "Big Accumulation",
+     "kind": "state"
+    },
+    "acc": {
+     "label": "Accumulation or stronger",
+     "kind": "state"
+    },
+    "dist": {
+     "label": "Distribution or stronger",
+     "kind": "state"
+    },
+    "bigdist": {
+     "label": "Big Distribution",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "acc",
+    "v": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "topacc": {
+   "g": "Flow",
+   "label": "Top-N broker net",
+   "unit": "Rp B",
+   "params": [
+    {
+     "k": "top",
+     "def": 5
+    },
+    {
+     "k": "days",
+     "def": 10
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 5,
+    "v2": 50
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "broker": {
+   "g": "Flow",
+   "label": "Broker net buy",
+   "unit": "Rp B",
+   "params": [
+    {
+     "k": "code",
+     "def": "YP",
+     "opts": [
+      "AK",
+      "BK",
+      "ZP",
+      "KZ",
+      "RX",
+      "DR",
+      "YP",
+      "CC",
+      "PD",
+      "XL",
+      "NI",
+      "OD",
+      "LG",
+      "EP"
+     ]
+    },
+    {
+     "k": "days",
+     "def": 5
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 1,
+    "v2": 20,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "bavg": {
+   "g": "Flow",
+   "label": "Price vs bandar average",
+   "unit": "%",
+   "params": [
+    {
+     "k": "days",
+     "def": 10
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "between",
+    "v": -3,
+    "v2": 3
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "fnet": {
+   "g": "Flow",
+   "label": "Foreign net flow",
+   "unit": "Rp B",
+   "params": [
+    {
+     "k": "days",
+     "def": 5
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 50,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "fstreak": {
+   "g": "Flow",
+   "label": "Foreign net-buy streak",
+   "unit": "days",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 4,
+    "v2": 10
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "fpct": {
+   "g": "Flow",
+   "label": "Foreign net % of value",
+   "unit": "%",
+   "params": [
+    {
+     "k": "days",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 3,
+    "v2": 20
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "freq": {
+   "g": "Flow",
+   "label": "Frequency spike",
+   "unit": "×",
+   "params": [
+    {
+     "k": "len",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "xa"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 2.5,
+    "n": 3
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "silent": {
+   "g": "Flow",
+   "label": "Silent accumulation",
+   "params": [
+    {
+     "k": "days",
+     "def": 5
+    },
+    {
+     "k": "len",
+     "def": 20
+    },
+    {
+     "k": "volx",
+     "def": 1.5
+    },
+    {
+     "k": "move",
+     "def": 3
+    }
+   ],
+   "ops": [
+    "on"
+   ],
+   "custom": {
+    "on": {
+     "label": "Detected",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "on"
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "mfi": {
+   "g": "Flow",
+   "label": "Money Flow Index",
+   "params": [
+    {
+     "k": "len",
+     "def": 14
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "op": "lt",
+    "v": 20,
+    "v2": 50,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "cmf": {
+   "g": "Flow",
+   "label": "Chaikin Money Flow",
+   "params": [
+    {
+     "k": "len",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0.05,
+    "v2": 0.3,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "obv": {
+   "g": "Flow",
+   "label": "On-Balance Volume",
+   "params": [
+    {
+     "k": "len",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "rising",
+    "high"
+   ],
+   "custom": {
+    "rising": {
+     "label": "OBV above its N-session average",
+     "kind": "state"
+    },
+    "high": {
+     "label": "OBV makes an N-session high",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "rising",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "adv": {
+   "g": "Flow",
+   "label": "Average daily value",
+   "unit": "Rp B",
+   "params": [
+    {
+     "k": "len",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 10,
+    "v2": 100
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "cap": {
+   "g": "Fundamental",
+   "label": "Market cap",
+   "unit": "IDR T",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 10,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "pe": {
+   "g": "Fundamental",
+   "label": "P/E",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "lt",
+    "v": 15,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "pb": {
+   "g": "Fundamental",
+   "label": "P/B",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "lt",
+    "v": 1.5,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "peg": {
+   "g": "Fundamental",
+   "label": "PEG (P/E ÷ 3Y EPS CAGR)",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "evEbitda": {
+   "g": "Fundamental",
+   "label": "EV/EBITDA",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "divYield": {
+   "g": "Fundamental",
+   "label": "Dividend yield",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 4,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "payout": {
+   "g": "Fundamental",
+   "label": "Payout ratio",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "divYears": {
+   "g": "Fundamental",
+   "label": "Years of dividends",
+   "unit": "yrs",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "roe": {
+   "g": "Fundamental",
+   "label": "ROE",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 15,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "roa": {
+   "g": "Fundamental",
+   "label": "ROA",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "roic": {
+   "g": "Fundamental",
+   "label": "ROIC",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "netMargin": {
+   "g": "Fundamental",
+   "label": "Net margin",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "grossMargin": {
+   "g": "Fundamental",
+   "label": "Gross margin",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "revG": {
+   "g": "Fundamental",
+   "label": "Revenue growth YoY",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "epsG": {
+   "g": "Fundamental",
+   "label": "EPS growth YoY",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "epsGq": {
+   "g": "Fundamental",
+   "label": "EPS growth, latest quarter YoY",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "epsG3y": {
+   "g": "Fundamental",
+   "label": "EPS CAGR 3Y",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "der": {
+   "g": "Fundamental",
+   "label": "Debt / equity",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "lt",
+    "v": 1,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "curr": {
+   "g": "Fundamental",
+   "label": "Current ratio",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "intCov": {
+   "g": "Fundamental",
+   "label": "Interest coverage",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "fcfYield": {
+   "g": "Fundamental",
+   "label": "FCF yield",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "piotroski": {
+   "g": "Fundamental",
+   "label": "Piotroski F-score (0–9)",
+   "unit": "",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 6,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "altman": {
+   "g": "Fundamental",
+   "label": "Altman Z-score",
+   "unit": "",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "grahamRatio": {
+   "g": "Fundamental",
+   "label": "Price ÷ Graham number",
+   "unit": "×",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "lt",
+    "v": 1,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "magicRank": {
+   "g": "Fundamental",
+   "label": "Magic Formula rank",
+   "unit": "#",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "lt",
+    "v": 21,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "freeFloat": {
+   "g": "Fundamental",
+   "label": "Free float",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "foreignOwn": {
+   "g": "Fundamental",
+   "label": "Foreign ownership",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "nim": {
+   "g": "Fundamental",
+   "label": "NIM (banks)",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "npl": {
+   "g": "Fundamental",
+   "label": "Gross NPL (banks)",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "car": {
+   "g": "Fundamental",
+   "label": "CAR (banks)",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "casa": {
+   "g": "Fundamental",
+   "label": "CASA (banks)",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "ldr": {
+   "g": "Fundamental",
+   "label": "LDR (banks)",
+   "unit": "%",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {},
+   "def": {
+    "op": "gt",
+    "v": 0,
+    "v2": 10
+   },
+   "cross": false,
+   "last": true,
+   "overlay": false
+  },
+  "x_sma": {
+   "g": "Trend",
+   "label": "Simple Moving Average",
+   "short": "SMA",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "above",
+    "below",
+    "xa",
+    "xb",
+    "rising",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above SMA",
+     "kind": "state"
+    },
+    "below": {
+     "label": "Close below SMA",
+     "kind": "state"
+    },
+    "xa": {
+     "label": "Close crosses above SMA",
+     "kind": "event"
+    },
+    "xb": {
+     "label": "Close crosses below SMA",
+     "kind": "event"
+    },
+    "rising": {
+     "label": "SMA rising (vs 5 sessions ago)",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "above",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_ema": {
+   "g": "Trend",
+   "label": "Exponential Moving Average",
+   "short": "EMA",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "above",
+    "below",
+    "xa",
+    "xb",
+    "rising",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above EMA",
+     "kind": "state"
+    },
+    "below": {
+     "label": "Close below EMA",
+     "kind": "state"
+    },
+    "xa": {
+     "label": "Close crosses above EMA",
+     "kind": "event"
+    },
+    "xb": {
+     "label": "Close crosses below EMA",
+     "kind": "event"
+    },
+    "rising": {
+     "label": "EMA rising (vs 5 sessions ago)",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "above",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_wma": {
+   "g": "Trend",
+   "label": "Weighted Moving Average",
+   "short": "WMA",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "above",
+    "below",
+    "xa",
+    "xb",
+    "rising",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above WMA",
+     "kind": "state"
+    },
+    "below": {
+     "label": "Close below WMA",
+     "kind": "state"
+    },
+    "xa": {
+     "label": "Close crosses above WMA",
+     "kind": "event"
+    },
+    "xb": {
+     "label": "Close crosses below WMA",
+     "kind": "event"
+    },
+    "rising": {
+     "label": "WMA rising (vs 5 sessions ago)",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "above",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_hma": {
+   "g": "Trend",
+   "label": "Hull Moving Average",
+   "short": "HMA",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 9
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "above",
+    "below",
+    "xa",
+    "xb",
+    "rising",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above HMA",
+     "kind": "state"
+    },
+    "below": {
+     "label": "Close below HMA",
+     "kind": "state"
+    },
+    "xa": {
+     "label": "Close crosses above HMA",
+     "kind": "event"
+    },
+    "xb": {
+     "label": "Close crosses below HMA",
+     "kind": "event"
+    },
+    "rising": {
+     "label": "HMA rising (vs 5 sessions ago)",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "above",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_kama": {
+   "g": "Trend",
+   "label": "Kaufman Adaptive Moving Average",
+   "short": "KAMA",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 10
+    },
+    {
+     "k": "fast_length",
+     "def": 2
+    },
+    {
+     "k": "slow_length",
+     "def": 30
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "above",
+    "below",
+    "xa",
+    "xb",
+    "rising",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above KAMA",
+     "kind": "state"
+    },
+    "below": {
+     "label": "Close below KAMA",
+     "kind": "state"
+    },
+    "xa": {
+     "label": "Close crosses above KAMA",
+     "kind": "event"
+    },
+    "xb": {
+     "label": "Close crosses below KAMA",
+     "kind": "event"
+    },
+    "rising": {
+     "label": "KAMA rising (vs 5 sessions ago)",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "above",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_macd": {
+   "g": "Trend",
+   "label": "MACD",
+   "short": "MACD",
+   "params": [
+    {
+     "k": "fast_length",
+     "def": 12
+    },
+    {
+     "k": "slow_length",
+     "def": 26
+    },
+    {
+     "k": "signal_length",
+     "def": 9
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "MACD crosses above signal",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "MACD crosses below signal",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "MACD above signal",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "xsig",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_adx": {
+   "g": "Trend",
+   "label": "Average Directional Index",
+   "short": "ADX",
+   "params": [
+    {
+     "k": "di_length",
+     "def": 14
+    },
+    {
+     "k": "adx_smoothing",
+     "def": 14
+    }
+   ],
+   "ops": [
+    "plus",
+    "dixa",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "plus": {
+     "label": "+DI above −DI (uptrend)",
+     "kind": "state"
+    },
+    "dixa": {
+     "label": "+DI crosses above −DI",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "n": 5,
+    "op": "gt",
+    "v": 25,
+    "v2": 40
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_aroon": {
+   "g": "Trend",
+   "label": "Aroon Indicator",
+   "short": "Aroon",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "Aroon Up crosses above Aroon Down",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "Aroon Up crosses below Aroon Down",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "Aroon Up above Aroon Down",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "xsig",
+    "v": 70
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_supertrend": {
+   "g": "Trend",
+   "label": "Supertrend",
+   "short": "Supertrend",
+   "unit": "%",
+   "params": [
+    {
+     "k": "atr_length",
+     "def": 10
+    },
+    {
+     "k": "factor",
+     "def": 3
+    }
+   ],
+   "ops": [
+    "up",
+    "flipup",
+    "flipdn",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "up": {
+     "label": "In uptrend",
+     "kind": "state"
+    },
+    "flipup": {
+     "label": "Flipped to uptrend",
+     "kind": "event"
+    },
+    "flipdn": {
+     "label": "Flipped to downtrend",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "up",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_donchian": {
+   "g": "Trend",
+   "label": "Donchian Channels",
+   "short": "Donchian",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "abu",
+    "bll",
+    "xau",
+    "xbl",
+    "abb",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "abu": {
+     "label": "Close above upper (prior session)",
+     "kind": "state"
+    },
+    "bll": {
+     "label": "Close below lower (prior session)",
+     "kind": "state"
+    },
+    "xau": {
+     "label": "Close crosses above upper band",
+     "kind": "event"
+    },
+    "xbl": {
+     "label": "Close crosses below lower band",
+     "kind": "event"
+    },
+    "abb": {
+     "label": "Close above middle line",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "abu",
+    "v": 80,
+    "v2": 100,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_keltner": {
+   "g": "Trend",
+   "label": "Keltner Channels",
+   "short": "Keltner",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    },
+    {
+     "k": "multiplier",
+     "def": 2
+    },
+    {
+     "k": "use_exponential_ma",
+     "def": "true",
+     "opts": [
+      "true",
+      "false"
+     ]
+    },
+    {
+     "k": "bands_style",
+     "def": "ATR",
+     "opts": [
+      "ATR",
+      "TR",
+      "HL_RANGE"
+     ]
+    },
+    {
+     "k": "atr_length",
+     "def": 10
+    }
+   ],
+   "ops": [
+    "abu",
+    "bll",
+    "xau",
+    "xbl",
+    "abb",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "abu": {
+     "label": "Close above upper band",
+     "kind": "state"
+    },
+    "bll": {
+     "label": "Close below lower band",
+     "kind": "state"
+    },
+    "xau": {
+     "label": "Close crosses above upper band",
+     "kind": "event"
+    },
+    "xbl": {
+     "label": "Close crosses below lower band",
+     "kind": "event"
+    },
+    "abb": {
+     "label": "Close above middle line",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "abu",
+    "v": 80,
+    "v2": 100,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_psar": {
+   "g": "Trend",
+   "label": "Parabolic SAR",
+   "short": "PSAR",
+   "unit": "%",
+   "params": [
+    {
+     "k": "start",
+     "def": 0.02
+    },
+    {
+     "k": "increment",
+     "def": 0.02
+    },
+    {
+     "k": "maximum",
+     "def": 0.2
+    }
+   ],
+   "ops": [
+    "up",
+    "flipup",
+    "flipdn",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "up": {
+     "label": "In uptrend",
+     "kind": "state"
+    },
+    "flipup": {
+     "label": "Flipped to uptrend",
+     "kind": "event"
+    },
+    "flipdn": {
+     "label": "Flipped to downtrend",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "up",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_rsi": {
+   "g": "Momentum",
+   "label": "Relative Strength Index",
+   "short": "RSI",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 50,
+    "op": "lt",
+    "v": 30
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_stoch_rsi": {
+   "g": "Momentum",
+   "label": "Stochastic RSI",
+   "short": "Stoch RSI",
+   "params": [
+    {
+     "k": "rsi_length",
+     "def": 14
+    },
+    {
+     "k": "stoch_length",
+     "def": 14
+    },
+    {
+     "k": "smooth_k",
+     "def": 3
+    },
+    {
+     "k": "smooth_d",
+     "def": 3
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "%K crosses above %D",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "%K crosses below %D",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "%K above %D",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": 80,
+    "op": "lt",
+    "v": 20
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_stochastic": {
+   "g": "Momentum",
+   "label": "Stochastic Oscillator",
+   "short": "Stoch",
+   "params": [
+    {
+     "k": "k_length",
+     "def": 14
+    },
+    {
+     "k": "smooth_k",
+     "def": 3
+    },
+    {
+     "k": "d_length",
+     "def": 3
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "%K crosses above %D",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "%K crosses below %D",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "%K above %D",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": 80,
+    "op": "lt",
+    "v": 20
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_williams_r": {
+   "g": "Momentum",
+   "label": "Williams %R",
+   "short": "Williams %R",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": -20,
+    "op": "lt",
+    "v": -80
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_roc": {
+   "g": "Momentum",
+   "label": "Rate of Change",
+   "short": "ROC",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 9
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 10,
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_momentum": {
+   "g": "Momentum",
+   "label": "Momentum",
+   "short": "Momentum",
+   "params": [
+    {
+     "k": "length",
+     "def": 10
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_cci": {
+   "g": "Momentum",
+   "label": "Commodity Channel Index",
+   "short": "CCI",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "constant",
+     "def": 0.015
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 100,
+    "op": "lt",
+    "v": -100
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_cmo": {
+   "g": "Momentum",
+   "label": "Chande Momentum Oscillator",
+   "short": "CMO",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 50,
+    "op": "lt",
+    "v": -50
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_tsi": {
+   "g": "Momentum",
+   "label": "True Strength Index",
+   "short": "TSI",
+   "params": [
+    {
+     "k": "long_length",
+     "def": 25
+    },
+    {
+     "k": "short_length",
+     "def": 13
+    },
+    {
+     "k": "signal_length",
+     "def": 7
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "TSI crosses above signal",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "TSI crosses below signal",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "TSI above signal",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "xsig",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_trix": {
+   "g": "Momentum",
+   "label": "TRIX",
+   "short": "TRIX",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 15
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_ultimate_osc": {
+   "g": "Momentum",
+   "label": "Ultimate Oscillator",
+   "short": "UO",
+   "params": [
+    {
+     "k": "fast_length",
+     "def": 7
+    },
+    {
+     "k": "middle_length",
+     "def": 14
+    },
+    {
+     "k": "slow_length",
+     "def": 28
+    },
+    {
+     "k": "weight_fast",
+     "def": 4
+    },
+    {
+     "k": "weight_middle",
+     "def": 2
+    },
+    {
+     "k": "weight_slow",
+     "def": 1
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 70,
+    "op": "lt",
+    "v": 30
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_awesome_osc": {
+   "g": "Momentum",
+   "label": "Awesome Oscillator",
+   "short": "AO",
+   "params": [
+    {
+     "k": "fast_length",
+     "def": 5
+    },
+    {
+     "k": "slow_length",
+     "def": 34
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_ppo": {
+   "g": "Momentum",
+   "label": "Percentage Price Oscillator",
+   "short": "PPO",
+   "params": [
+    {
+     "k": "fast_length",
+     "def": 12
+    },
+    {
+     "k": "slow_length",
+     "def": 26
+    },
+    {
+     "k": "signal_length",
+     "def": 9
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "PPO crosses above signal",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "PPO crosses below signal",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "PPO above signal",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "xsig",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_bop": {
+   "g": "Momentum",
+   "label": "Balance of Power",
+   "short": "BOP",
+   "params": [],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 0.5,
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_bollinger": {
+   "g": "Volatility",
+   "label": "Bollinger Bands",
+   "short": "BB",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    },
+    {
+     "k": "basis_ma_type",
+     "def": "SMA",
+     "opts": [
+      "SMA",
+      "EMA",
+      "WMA",
+      "RMA",
+      "VWMA"
+     ]
+    },
+    {
+     "k": "std_dev",
+     "def": 2
+    }
+   ],
+   "ops": [
+    "abu",
+    "bll",
+    "xau",
+    "xbl",
+    "abb",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "abu": {
+     "label": "Close above upper band",
+     "kind": "state"
+    },
+    "bll": {
+     "label": "Close below lower band",
+     "kind": "state"
+    },
+    "xau": {
+     "label": "Close crosses above upper band",
+     "kind": "event"
+    },
+    "xbl": {
+     "label": "Close crosses below lower band",
+     "kind": "event"
+    },
+    "abb": {
+     "label": "Close above middle line",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "abu",
+    "v": 80,
+    "v2": 100,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_bollinger_pctb": {
+   "g": "Volatility",
+   "label": "Bollinger %B",
+   "short": "%B",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    },
+    {
+     "k": "std_dev",
+     "def": 2
+    },
+    {
+     "k": "basis_ma_type",
+     "def": "SMA",
+     "opts": [
+      "SMA",
+      "EMA",
+      "WMA",
+      "RMA"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 1,
+    "op": "lt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_bollinger_width": {
+   "g": "Volatility",
+   "label": "Bollinger Bandwidth",
+   "short": "BBW",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    },
+    {
+     "k": "std_dev",
+     "def": 2
+    },
+    {
+     "k": "basis_ma_type",
+     "def": "SMA",
+     "opts": [
+      "SMA",
+      "EMA",
+      "WMA",
+      "RMA"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 20,
+    "op": "lt",
+    "v": 10
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_atr": {
+   "g": "Volatility",
+   "label": "Average True Range",
+   "short": "ATR",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    },
+    {
+     "k": "smoothing_type",
+     "def": "RMA",
+     "opts": [
+      "RMA",
+      "SMA",
+      "EMA",
+      "WMA"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_natr": {
+   "g": "Volatility",
+   "label": "Normalized ATR",
+   "short": "NATR",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    },
+    {
+     "k": "smoothing_type",
+     "def": "RMA",
+     "opts": [
+      "RMA",
+      "SMA",
+      "EMA",
+      "WMA"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 6,
+    "op": "gt",
+    "v": 3
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_stddev": {
+   "g": "Volatility",
+   "label": "Standard Deviation",
+   "short": "StdDev",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    },
+    {
+     "k": "stdev_method",
+     "def": "population",
+     "opts": [
+      "population",
+      "sample"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_hist_vol": {
+   "g": "Volatility",
+   "label": "Historical Volatility",
+   "short": "HV",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    },
+    {
+     "k": "return_type",
+     "def": "log",
+     "opts": [
+      "log",
+      "simple"
+     ]
+    },
+    {
+     "k": "annualization_periods",
+     "def": 252
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 60,
+    "op": "gt",
+    "v": 30
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_adr": {
+   "g": "Volatility",
+   "label": "Average Daily Range",
+   "short": "ADR",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    },
+    {
+     "k": "timeframe",
+     "def": "1D",
+     "opts": [
+      "1D"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_volume_sma": {
+   "g": "Volume",
+   "label": "Volume SMA",
+   "short": "Vol SMA",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "vabove",
+    "vxa",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "vabove": {
+     "label": "Volume above Vol SMA",
+     "kind": "state"
+    },
+    "vxa": {
+     "label": "Volume crosses above Vol SMA",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "vabove",
+    "v": 0,
+    "v2": "",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_volume_ema": {
+   "g": "Volume",
+   "label": "Volume EMA",
+   "short": "Vol EMA",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "vabove",
+    "vxa",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "vabove": {
+     "label": "Volume above Vol EMA",
+     "kind": "state"
+    },
+    "vxa": {
+     "label": "Volume crosses above Vol EMA",
+     "kind": "event"
+    }
+   },
+   "def": {
+    "op": "vabove",
+    "v": 0,
+    "v2": "",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_rvol": {
+   "g": "Volume",
+   "label": "Relative Volume",
+   "short": "RVOL",
+   "unit": "×",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "reference_method",
+     "def": "rolling_sma",
+     "opts": [
+      "rolling_sma",
+      "same_time_of_day"
+     ]
+    },
+    {
+     "k": "include_current_bar",
+     "def": "false",
+     "opts": [
+      "true",
+      "false"
+     ]
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 3,
+    "op": "gt",
+    "v": 1.5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_pvo": {
+   "g": "Volume",
+   "label": "Percentage Volume Oscillator",
+   "short": "PVO",
+   "params": [
+    {
+     "k": "fast_length",
+     "def": 12
+    },
+    {
+     "k": "slow_length",
+     "def": 26
+    },
+    {
+     "k": "signal_length",
+     "def": 9
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "PVO crosses above signal",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "PVO crosses below signal",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "PVO above signal",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "xsig",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_volume_roc": {
+   "g": "Volume",
+   "label": "Volume Rate of Change",
+   "short": "Vol ROC",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 10
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 200,
+    "op": "gt",
+    "v": 50
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_obv": {
+   "g": "PriceVolume",
+   "label": "On-Balance Volume",
+   "short": "OBV",
+   "params": [],
+   "ops": [
+    "cabove",
+    "cxa",
+    "crise",
+    "gt",
+    "lt"
+   ],
+   "custom": {
+    "cabove": {
+     "label": "Above its 20-session average",
+     "kind": "state"
+    },
+    "cxa": {
+     "label": "Crosses above its 20-session average",
+     "kind": "event"
+    },
+    "crise": {
+     "label": "Rising over 20 sessions",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "cabove",
+    "v": 0,
+    "v2": "",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_pvt": {
+   "g": "PriceVolume",
+   "label": "Price Volume Trend",
+   "short": "PVT",
+   "params": [],
+   "ops": [
+    "cabove",
+    "cxa",
+    "crise",
+    "gt",
+    "lt"
+   ],
+   "custom": {
+    "cabove": {
+     "label": "Above its 20-session average",
+     "kind": "state"
+    },
+    "cxa": {
+     "label": "Crosses above its 20-session average",
+     "kind": "event"
+    },
+    "crise": {
+     "label": "Rising over 20 sessions",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "cabove",
+    "v": 0,
+    "v2": "",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_vwma": {
+   "g": "PriceVolume",
+   "label": "Volume Weighted Moving Average",
+   "short": "VWMA",
+   "unit": "%",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    },
+    {
+     "k": "source",
+     "def": "close",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    }
+   ],
+   "ops": [
+    "above",
+    "below",
+    "xa",
+    "xb",
+    "rising",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "above": {
+     "label": "Close above VWMA",
+     "kind": "state"
+    },
+    "below": {
+     "label": "Close below VWMA",
+     "kind": "state"
+    },
+    "xa": {
+     "label": "Close crosses above VWMA",
+     "kind": "event"
+    },
+    "xb": {
+     "label": "Close crosses below VWMA",
+     "kind": "event"
+    },
+    "rising": {
+     "label": "VWMA rising (vs 5 sessions ago)",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "above",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_vwap": {
+   "g": "PriceVolume",
+   "label": "Volume Weighted Average Price",
+   "short": "VWAP",
+   "unit": "%",
+   "params": [
+    {
+     "k": "anchor",
+     "def": "Session",
+     "opts": [
+      "Session",
+      "Week",
+      "Month",
+      "Quarter",
+      "Year",
+      "Decade",
+      "Century"
+     ]
+    },
+    {
+     "k": "source",
+     "def": "hlc3",
+     "opts": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "hl2",
+      "hlc3",
+      "ohlc4"
+     ]
+    },
+    {
+     "k": "bands_mode",
+     "def": "StdDev",
+     "opts": [
+      "StdDev",
+      "Percentage",
+      "None"
+     ]
+    },
+    {
+     "k": "band_1_multiplier",
+     "def": 1
+    }
+   ],
+   "ops": [
+    "abu",
+    "bll",
+    "xau",
+    "xbl",
+    "abb",
+    "gt",
+    "lt",
+    "between"
+   ],
+   "custom": {
+    "abu": {
+     "label": "Close above upper band",
+     "kind": "state"
+    },
+    "bll": {
+     "label": "Close below lower band",
+     "kind": "state"
+    },
+    "xau": {
+     "label": "Close crosses above upper band",
+     "kind": "event"
+    },
+    "xbl": {
+     "label": "Close crosses below lower band",
+     "kind": "event"
+    },
+    "abb": {
+     "label": "Close above middle line",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "abb",
+    "v": 0,
+    "v2": 5,
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": true
+  },
+  "x_adl": {
+   "g": "PriceVolume",
+   "label": "Accumulation/Distribution Line",
+   "short": "A/D",
+   "params": [],
+   "ops": [
+    "cabove",
+    "cxa",
+    "crise",
+    "gt",
+    "lt"
+   ],
+   "custom": {
+    "cabove": {
+     "label": "Above its 20-session average",
+     "kind": "state"
+    },
+    "cxa": {
+     "label": "Crosses above its 20-session average",
+     "kind": "event"
+    },
+    "crise": {
+     "label": "Rising over 20 sessions",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "cabove",
+    "v": 0,
+    "v2": "",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_cmf": {
+   "g": "PriceVolume",
+   "label": "Chaikin Money Flow",
+   "short": "CMF",
+   "params": [
+    {
+     "k": "length",
+     "def": 20
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 0.2,
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_chaikin_osc": {
+   "g": "PriceVolume",
+   "label": "Chaikin Oscillator",
+   "short": "Chaikin Osc",
+   "params": [
+    {
+     "k": "fast_length",
+     "def": 3
+    },
+    {
+     "k": "slow_length",
+     "def": 10
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_mfi": {
+   "g": "PriceVolume",
+   "label": "Money Flow Index",
+   "short": "MFI",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": 80,
+    "op": "lt",
+    "v": 20
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_force_index": {
+   "g": "PriceVolume",
+   "label": "Elder's Force Index",
+   "short": "Force",
+   "params": [
+    {
+     "k": "length",
+     "def": 13
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_eom": {
+   "g": "PriceVolume",
+   "label": "Ease of Movement",
+   "short": "EOM",
+   "params": [
+    {
+     "k": "length",
+     "def": 14
+    },
+    {
+     "k": "volume_scale",
+     "def": 1000000
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_nvi": {
+   "g": "PriceVolume",
+   "label": "Negative Volume Index",
+   "short": "NVI",
+   "params": [
+    {
+     "k": "initial_value",
+     "def": 1000
+    }
+   ],
+   "ops": [
+    "cabove",
+    "cxa",
+    "crise",
+    "gt",
+    "lt"
+   ],
+   "custom": {
+    "cabove": {
+     "label": "Above its 255-session average",
+     "kind": "state"
+    },
+    "cxa": {
+     "label": "Crosses above its 255-session average",
+     "kind": "event"
+    },
+    "crise": {
+     "label": "Rising over 20 sessions",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "cabove",
+    "v": 0,
+    "v2": "",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_pvi": {
+   "g": "PriceVolume",
+   "label": "Positive Volume Index",
+   "short": "PVI",
+   "params": [
+    {
+     "k": "initial_value",
+     "def": 1000
+    }
+   ],
+   "ops": [
+    "cabove",
+    "cxa",
+    "crise",
+    "gt",
+    "lt"
+   ],
+   "custom": {
+    "cabove": {
+     "label": "Above its 255-session average",
+     "kind": "state"
+    },
+    "cxa": {
+     "label": "Crosses above its 255-session average",
+     "kind": "event"
+    },
+    "crise": {
+     "label": "Rising over 20 sessions",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "op": "cabove",
+    "v": 0,
+    "v2": "",
+    "n": 5
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_kvo": {
+   "g": "PriceVolume",
+   "label": "Klinger Volume Oscillator",
+   "short": "KVO",
+   "params": [
+    {
+     "k": "fast_length",
+     "def": 34
+    },
+    {
+     "k": "slow_length",
+     "def": 55
+    },
+    {
+     "k": "signal_length",
+     "def": 13
+    }
+   ],
+   "ops": [
+    "xsig",
+    "xsigd",
+    "asig",
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {
+    "xsig": {
+     "label": "KVO crosses above signal",
+     "kind": "event"
+    },
+    "xsigd": {
+     "label": "KVO crosses below signal",
+     "kind": "event"
+    },
+    "asig": {
+     "label": "KVO above signal",
+     "kind": "state"
+    }
+   },
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "xsig",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  },
+  "x_market_fi": {
+   "g": "PriceVolume",
+   "label": "Market Facilitation Index",
+   "short": "MFI (BW)",
+   "params": [
+    {
+     "k": "volume_scale",
+     "def": 1
+    }
+   ],
+   "ops": [
+    "gt",
+    "lt",
+    "between",
+    "xa",
+    "xb"
+   ],
+   "custom": {},
+   "def": {
+    "n": 5,
+    "v2": "",
+    "op": "gt",
+    "v": 0
+   },
+   "cross": false,
+   "last": false,
+   "overlay": false
+  }
+ },
+ "metricFilterOpts": [
+  [
+   "Technical",
+   [
+    "rsi",
+    "atr",
+    "hi52",
+    "lo52",
+    "ret",
+    "rs",
+    "rs_rank",
+    "volspike"
+   ]
+  ],
+  [
+   "Flow",
+   [
+    "topacc",
+    "broker",
+    "bavg",
+    "fnet",
+    "fstreak",
+    "fpct",
+    "freq",
+    "mfi",
+    "cmf",
+    "adv"
+   ]
+  ],
+  [
+   "Fundamental",
+   [
+    "cap",
+    "pe",
+    "pb",
+    "peg",
+    "evEbitda",
+    "divYield",
+    "payout",
+    "divYears",
+    "roe",
+    "roa",
+    "roic",
+    "netMargin",
+    "grossMargin",
+    "revG",
+    "epsG",
+    "epsGq",
+    "epsG3y",
+    "der",
+    "curr",
+    "intCov",
+    "fcfYield",
+    "piotroski",
+    "altman",
+    "grahamRatio",
+    "magicRank",
+    "freeFloat",
+    "foreignOwn",
+    "nim",
+    "npl",
+    "car",
+    "casa",
+    "ldr"
+   ]
+  ]
+ ],
+ "presets": [
+  {
+   "id": "bigacc",
+   "cat": "Bandarmology",
+   "name": "Big Accumulation",
+   "conds": [
+    [
+     "bandar",
+     "bigacc",
+     {
+      "days": 10,
+      "top": 3
+     }
+    ],
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 20
+     }
+    ]
+   ],
+   "sort": [
+    "c0",
+    "desc"
+   ]
+  },
+  {
+   "id": "fstreak",
+   "cat": "Bandarmology",
+   "name": "Foreign Accumulation Streak",
+   "conds": [
+    [
+     "fstreak",
+     "gt",
+     {},
+     4
+    ],
+    [
+     "fnet",
+     "gt",
+     {
+      "days": 20
+     },
+     0
+    ]
+   ],
+   "sort": [
+    "c0",
+    "desc"
+   ]
+  },
+  {
+   "id": "silent",
+   "cat": "Bandarmology",
+   "name": "Silent Accumulation",
+   "conds": [
+    [
+     "silent",
+     "on",
+     {
+      "days": 5,
+      "len": 20,
+      "volx": 1.3,
+      "move": 4
+     }
+    ],
+    [
+     "bandar",
+     "gt",
+     {
+      "days": 10,
+      "top": 3
+     },
+     0
+    ]
+   ]
+  },
+  {
+   "id": "freq",
+   "cat": "Bandarmology",
+   "name": "Frequency Spike",
+   "conds": [
+    [
+     "freq",
+     "xa",
+     {
+      "len": 20
+     },
+     2.5,
+     null,
+     3
+    ],
+    [
+     "ret",
+     "gt",
+     {
+      "days": 1
+     },
+     0
+    ]
+   ],
+   "sort": [
+    "c0",
+    "desc"
+   ]
+  },
+  {
+   "id": "bavg",
+   "cat": "Bandarmology",
+   "name": "Near Bandar Average Price",
+   "conds": [
+    [
+     "bavg",
+     "between",
+     {
+      "days": 10
+     },
+     -3,
+     3
+    ],
+    [
+     "bandar",
+     "acc",
+     {
+      "days": 10,
+      "top": 3
+     }
+    ]
+   ]
+  },
+  {
+   "id": "follow",
+   "cat": "Bandarmology",
+   "name": "Broker Follow",
+   "conds": [
+    [
+     "broker",
+     "gt",
+     {
+      "code": "YP",
+      "days": 5
+     },
+     1
+    ],
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 50
+     }
+    ]
+   ],
+   "sort": [
+    "c0",
+    "desc"
+   ]
+  },
+  {
+   "id": "minervini",
+   "cat": "Technical",
+   "name": "Minervini Trend Template",
+   "conds": [
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 150
+     }
+    ],
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 200
+     }
+    ],
+    [
+     "ma_cross",
+     "above",
+     {
+      "fast": 150,
+      "slow": 200
+     }
+    ],
+    [
+     "price_ma",
+     "rising",
+     {
+      "len": 200
+     }
+    ],
+    [
+     "ma_cross",
+     "above",
+     {
+      "fast": 50,
+      "slow": 150
+     }
+    ],
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 50
+     }
+    ],
+    [
+     "lo52",
+     "gt",
+     {},
+     30
+    ],
+    [
+     "hi52",
+     "gt",
+     {},
+     -25
+    ],
+    [
+     "rs_rank",
+     "gt",
+     {
+      "days": 252
+     },
+     70
+    ]
+   ],
+   "universe": {
+    "advMin": 5
+   }
+  },
+  {
+   "id": "brk52",
+   "cat": "Technical",
+   "name": "52W Breakout + Volume",
+   "conds": [
+    [
+     "breakout",
+     "up",
+     {
+      "days": 250
+     },
+     null,
+     null,
+     3
+    ],
+    [
+     "volspike",
+     "gt",
+     {
+      "len": 20
+     },
+     1.5
+    ]
+   ]
+  },
+  {
+   "id": "oversold",
+   "cat": "Technical",
+   "name": "Oversold in Uptrend",
+   "conds": [
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 200
+     }
+    ],
+    [
+     "rsi",
+     "lt",
+     {
+      "len": 14
+     },
+     40
+    ]
+   ],
+   "sort": [
+    "c1",
+    "asc"
+   ]
+  },
+  {
+   "id": "golden",
+   "cat": "Technical",
+   "name": "Golden Cross",
+   "conds": [
+    [
+     "ma_cross",
+     "golden",
+     {
+      "fast": 50,
+      "slow": 200
+     },
+     null,
+     null,
+     20
+    ]
+   ]
+  },
+  {
+   "id": "macddiv",
+   "cat": "Technical",
+   "name": "MACD Bullish Divergence",
+   "conds": [
+    [
+     "macd",
+     "bdiv",
+     {},
+     null,
+     null,
+     10
+    ]
+   ]
+  },
+  {
+   "id": "rebound",
+   "cat": "Technical",
+   "name": "Rebound on Bullish Trend",
+   "conds": [
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 50
+     }
+    ],
+    [
+     "price_ma",
+     "xa",
+     {
+      "len": 10
+     },
+     null,
+     null,
+     3
+    ],
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 20
+     }
+    ],
+    [
+     "volspike",
+     "gt",
+     {
+      "len": 20
+     },
+     1.3
+    ]
+   ]
+  },
+  {
+   "id": "squeeze",
+   "cat": "Technical",
+   "name": "Bollinger Squeeze Breakout",
+   "conds": [
+    [
+     "bb",
+     "squeeze",
+     {},
+     null,
+     null,
+     15
+    ],
+    [
+     "bb",
+     "brk",
+     {},
+     null,
+     null,
+     5
+    ]
+   ]
+  },
+  {
+   "id": "stflip",
+   "cat": "Technical",
+   "name": "Supertrend Flip",
+   "conds": [
+    [
+     "supertrend",
+     "flip",
+     {},
+     null,
+     null,
+     5
+    ],
+    [
+     "adx",
+     "gt",
+     {},
+     20
+    ]
+   ]
+  },
+  {
+   "id": "ichi",
+   "cat": "Technical",
+   "name": "Ichimoku Bullish",
+   "conds": [
+    [
+     "ichimoku",
+     "above",
+     {}
+    ],
+    [
+     "ichimoku",
+     "tk",
+     {},
+     null,
+     null,
+     10
+    ]
+   ]
+  },
+  {
+   "id": "graham",
+   "cat": "Fundamental",
+   "name": "Graham Defensive",
+   "conds": [
+    [
+     "pe",
+     "lt",
+     {},
+     15
+    ],
+    [
+     "grahamRatio",
+     "lt",
+     {},
+     1
+    ],
+    [
+     "der",
+     "lt",
+     {},
+     1
+    ],
+    [
+     "divYears",
+     "gt",
+     {},
+     4
+    ],
+    [
+     "epsG3y",
+     "gt",
+     {},
+     0
+    ]
+   ]
+  },
+  {
+   "id": "piotroski",
+   "cat": "Fundamental",
+   "name": "Piotroski F-score ≥ 7",
+   "conds": [
+    [
+     "piotroski",
+     "gt",
+     {},
+     6
+    ],
+    [
+     "pb",
+     "lt",
+     {},
+     3
+    ]
+   ],
+   "sort": [
+    "c0",
+    "desc"
+   ]
+  },
+  {
+   "id": "magic",
+   "cat": "Fundamental",
+   "name": "Magic Formula (Greenblatt)",
+   "conds": [
+    [
+     "magicRank",
+     "lt",
+     {},
+     21
+    ]
+   ],
+   "universe": {
+    "capMin": 5,
+    "sectorsEx": [
+     "Financials"
+    ]
+   },
+   "sort": [
+    "c0",
+    "asc"
+   ]
+  },
+  {
+   "id": "quality",
+   "cat": "Fundamental",
+   "name": "Quality Compounder",
+   "conds": [
+    [
+     "roe",
+     "gt",
+     {},
+     15
+    ],
+    [
+     "der",
+     "lt",
+     {},
+     0.8
+    ],
+    [
+     "netMargin",
+     "gt",
+     {},
+     10
+    ],
+    [
+     "epsG3y",
+     "gt",
+     {},
+     8
+    ]
+   ]
+  },
+  {
+   "id": "dividend",
+   "cat": "Fundamental",
+   "name": "High Dividend",
+   "conds": [
+    [
+     "divYield",
+     "gt",
+     {},
+     5
+    ],
+    [
+     "payout",
+     "lt",
+     {},
+     85
+    ],
+    [
+     "divYears",
+     "gt",
+     {},
+     4
+    ]
+   ],
+   "sort": [
+    "c0",
+    "desc"
+   ]
+  },
+  {
+   "id": "garp",
+   "cat": "Fundamental",
+   "name": "GARP",
+   "conds": [
+    [
+     "peg",
+     "lt",
+     {},
+     1
+    ],
+    [
+     "epsG",
+     "gt",
+     {},
+     15
+    ],
+    [
+     "roe",
+     "gt",
+     {},
+     12
+    ]
+   ]
+  },
+  {
+   "id": "deep",
+   "cat": "Fundamental",
+   "name": "Deep Value",
+   "conds": [
+    [
+     "pb",
+     "lt",
+     {},
+     1
+    ],
+    [
+     "pe",
+     "between",
+     {},
+     0,
+     10
+    ]
+   ]
+  },
+  {
+   "id": "bank",
+   "cat": "Fundamental",
+   "name": "Bank Quality",
+   "conds": [
+    [
+     "roe",
+     "gt",
+     {},
+     12
+    ],
+    [
+     "npl",
+     "lt",
+     {},
+     3
+    ],
+    [
+     "car",
+     "gt",
+     {},
+     18
+    ],
+    [
+     "casa",
+     "gt",
+     {},
+     60
+    ]
+   ],
+   "universe": {
+    "industries": [
+     "Banks"
+    ]
+   }
+  },
+  {
+   "id": "canslim",
+   "cat": "Combined",
+   "name": "CANSLIM-lite",
+   "conds": [
+    [
+     "epsGq",
+     "gt",
+     {},
+     20
+    ],
+    [
+     "epsG3y",
+     "gt",
+     {},
+     10
+    ],
+    [
+     "hi52",
+     "gt",
+     {},
+     -20
+    ],
+    [
+     "rs_rank",
+     "gt",
+     {
+      "days": 252
+     },
+     70
+    ],
+    [
+     "roe",
+     "gt",
+     {},
+     12
+    ]
+   ]
+  },
+  {
+   "id": "qflow",
+   "cat": "Combined",
+   "name": "Quality + Foreign Inflow",
+   "conds": [
+    [
+     "roe",
+     "gt",
+     {},
+     15
+    ],
+    [
+     "der",
+     "lt",
+     {},
+     1
+    ],
+    [
+     "fnet",
+     "gt",
+     {
+      "days": 20
+     },
+     0
+    ],
+    [
+     "price_ma",
+     "above",
+     {
+      "len": 50
+     }
+    ]
+   ]
+  },
+  {
+   "id": "vacc",
+   "cat": "Combined",
+   "name": "Value + Accumulation",
+   "conds": [
+    [
+     "pb",
+     "lt",
+     {},
+     1.5
+    ],
+    [
+     "pe",
+     "lt",
+     {},
+     12
+    ],
+    [
+     "bandar",
+     "acc",
+     {
+      "days": 10,
+      "top": 3
+     }
+    ]
+   ]
+  }
+ ],
+ "presetCondKeys": [
+  "bandar",
+  "price_ma",
+  "fstreak",
+  "fnet",
+  "silent",
+  "freq",
+  "ret",
+  "bavg",
+  "broker",
+  "ma_cross",
+  "lo52",
+  "hi52",
+  "rs_rank",
+  "breakout",
+  "volspike",
+  "rsi",
+  "macd",
+  "bb",
+  "supertrend",
+  "adx",
+  "ichimoku",
+  "pe",
+  "grahamRatio",
+  "der",
+  "divYears",
+  "epsG3y",
+  "piotroski",
+  "pb",
+  "magicRank",
+  "roe",
+  "netMargin",
+  "divYield",
+  "payout",
+  "peg",
+  "epsG",
+  "npl",
+  "car",
+  "casa",
+  "epsGq"
+ ],
+ "toBacktest": [
+  [
+   "price_ma",
+   "above",
+   {
+    "type": "ma",
+    "len": 50,
+    "op": "above"
+   }
+  ],
+  [
+   "price_ma",
+   "below",
+   {
+    "type": "ma",
+    "len": 50,
+    "op": "below"
+   }
+  ],
+  [
+   "price_ma",
+   "xa",
+   {
+    "type": "ma",
+    "len": 50,
+    "op": "xab"
+   }
+  ],
+  [
+   "ma_cross",
+   "golden",
+   {
+    "type": "macross",
+    "fast": 50,
+    "slow": 200,
+    "op": "golden"
+   }
+  ],
+  [
+   "ma_cross",
+   "above",
+   {
+    "type": "macross",
+    "fast": 50,
+    "slow": 200,
+    "op": "fabove"
+   }
+  ],
+  [
+   "rsi",
+   "gt",
+   {
+    "type": "rsi",
+    "len": 14,
+    "op": "gt",
+    "val": 30
+   }
+  ],
+  [
+   "rsi",
+   "lt",
+   {
+    "type": "rsi",
+    "len": 14,
+    "op": "lt",
+    "val": 30
+   }
+  ],
+  [
+   "rsi",
+   "xa",
+   {
+    "type": "rsi",
+    "len": 14,
+    "op": "ca",
+    "val": 30
+   }
+  ],
+  [
+   "rsi",
+   "xb",
+   {
+    "type": "rsi",
+    "len": 14,
+    "op": "cb",
+    "val": 30
+   }
+  ],
+  [
+   "stoch",
+   "lt",
+   {
+    "type": "stoch",
+    "len": 14,
+    "smooth": 3,
+    "op": "lt",
+    "val": 20
+   }
+  ],
+  [
+   "stoch",
+   "gt",
+   {
+    "type": "stoch",
+    "len": 14,
+    "smooth": 3,
+    "op": "gt",
+    "val": 20
+   }
+  ],
+  [
+   "stoch",
+   "xa",
+   {
+    "type": "stoch",
+    "len": 14,
+    "smooth": 3,
+    "op": "ca",
+    "val": 20
+   }
+  ],
+  [
+   "stoch",
+   "xb",
+   {
+    "type": "stoch",
+    "len": 14,
+    "smooth": 3,
+    "op": "cb",
+    "val": 20
+   }
+  ],
+  [
+   "macd",
+   "xsig",
+   {
+    "type": "macd",
+    "fast": 12,
+    "slow": 26,
+    "sig": 9,
+    "op": "xsig"
+   }
+  ],
+  [
+   "macd",
+   "bdiv",
+   {
+    "type": "macd",
+    "fast": 12,
+    "slow": 26,
+    "sig": 9,
+    "op": "bdiv"
+   }
+  ],
+  [
+   "macd",
+   "gt",
+   {
+    "type": "macd",
+    "fast": 12,
+    "slow": 26,
+    "sig": 9,
+    "op": "hpos"
+   }
+  ],
+  [
+   "adx",
+   "gt",
+   {
+    "type": "adx",
+    "len": 14,
+    "op": "gt",
+    "val": 25
+   }
+  ],
+  [
+   "adx",
+   "lt",
+   {
+    "type": "adx",
+    "len": 14,
+    "op": "lt",
+    "val": 25
+   }
+  ],
+  [
+   "adx",
+   "xa",
+   {
+    "type": "adx",
+    "len": 14,
+    "op": "ca",
+    "val": 25
+   }
+  ],
+  [
+   "adx",
+   "plus",
+   {
+    "type": "dmi",
+    "len": 14,
+    "op": "plus"
+   }
+  ],
+  [
+   "adx",
+   "dixa",
+   {
+    "type": "dmi",
+    "len": 14,
+    "op": "pcross"
+   }
+  ],
+  [
+   "bb",
+   "below",
+   {
+    "type": "bb",
+    "len": 20,
+    "k": 2,
+    "op": "blow"
+   }
+  ],
+  [
+   "breakout",
+   "up",
+   {
+    "type": "breakout",
+    "len": 20,
+    "op": "brk"
+   }
+  ],
+  [
+   "volspike",
+   "gt",
+   {
+    "type": "volspike",
+    "len": 20,
+    "op": "gt",
+    "val": 2
+   }
+  ],
+  [
+   "bandar",
+   "acc",
+   {
+    "type": "top5",
+    "len": 10,
+    "op": "gt",
+    "val": 0
+   }
+  ],
+  [
+   "bandar",
+   "bigacc",
+   {
+    "type": "top5",
+    "len": 10,
+    "op": "gt",
+    "val": 0
+   }
+  ],
+  [
+   "bandar",
+   "gt",
+   {
+    "type": "top5",
+    "len": 10,
+    "op": "gt",
+    "val": 0
+   }
+  ],
+  [
+   "topacc",
+   "gt",
+   {
+    "type": "top5",
+    "len": 10,
+    "op": "gt",
+    "val": 5
+   }
+  ],
+  [
+   "broker",
+   "gt",
+   {
+    "type": "broker",
+    "broker": "YP",
+    "len": 5,
+    "op": "gt",
+    "val": 1
+   }
+  ],
+  [
+   "fnet",
+   "gt",
+   {
+    "type": "fnet",
+    "len": 5,
+    "op": "gt",
+    "val": 0
+   }
+  ],
+  [
+   "fnet",
+   "lt",
+   {
+    "type": "fnet",
+    "len": 5,
+    "op": "lt",
+    "val": 0
+   }
+  ]
+ ],
+ "N": 400,
+ "days": [
+  "2025-04-14",
+  "2026-10-23"
+ ],
+ "tickers": 94
+}

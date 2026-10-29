@@ -1,0 +1,12 @@
+{"level":"info","message":"Starting Container","timestamp":"2026-10-28T19:35:36.047732207Z"}
+{"message":"","port":8080,"level":"info","timestamp":"2026-10-28T19:35:41.850346202Z","event":"server_started"}
+{"level":"info","message":"\"GET /health HTTP/1.1\" 200 -","event":"http","timestamp":"2026-10-28T19:35:41.850351362Z"}
+{"message":"\"GET /health HTTP/1.1\" 200 -","timestamp":"2026-10-28T19:35:41.850355292Z","level":"info","event":"http"}
+{"level":"info","message":"\"GET /health HTTP/1.1\" 200 -","event":"http","timestamp":"2026-10-28T19:35:41.850361052Z"}
+{"level":"info","message":"\"GET /health HTTP/1.1\" 200 -","timestamp":"2026-10-28T19:35:45.339218318Z","event":"http"}
+{"timestamp":"2026-10-28T19:42:06.165044226Z","level":"info","message":"Stopping Container"}
+{"timestamp":"2026-10-28T19:42:46.851126816Z","message":"Starting Container","level":"info"}
+{"level":"info","event":"server_started","port":8080,"message":"","timestamp":"2026-10-28T19:42:52.035639785Z"}
+{"message":"\"GET /health HTTP/1.1\" 200 -","event":"http","timestamp":"2026-10-28T19:42:52.035655455Z","level":"info"}
+{"message":"\"GET /health HTTP/1.1\" 200 -","timestamp":"2026-10-28T19:42:52.035663465Z","event":"http","level":"info"}
+{"event":"http","level":"info","message":"\"GET /health HTTP/1.1\" 200 -","timestamp":"2026-10-28T19:42:52.035670835Z"}

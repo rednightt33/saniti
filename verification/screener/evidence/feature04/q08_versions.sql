@@ -1,0 +1,2 @@
+select attname, n_distinct, most_common_vals::text, most_common_freqs::text from pg_stats where schemaname='public' and tablename='Feature_04_Technical_Indicator' and attname in ('calculation_version','timeframe','asset_type');;
+explain (analyze, buffers) select calculation_version, timeframe, asset_type, count(*), min(calculated_at), max(calculated_at) from public."Feature_04_Technical_Indicator" group by 1,2,3

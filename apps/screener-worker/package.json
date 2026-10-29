@@ -1,0 +1,12 @@
+{
+  "name": "edge-screener-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE screener worker (EXEC-SCREENER, P3 a): private HTTP service that screens the whole published universe with the screener core (edge-bff/screener/src/core) on the rack's cross-sectional files and the Terminal's own indicator module; no npm dependency.",
+  "engines": { "node": ">=22.6" },
+  "scripts": {
+    "start": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../backtest-worker/loader/register.mjs src/server.ts",
+    "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --import ../backtest-worker/loader/register.mjs --test --test-concurrency=1 tests/*.test.ts"
+  }
+}

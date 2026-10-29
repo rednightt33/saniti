@@ -1,0 +1,2 @@
+select c.relname, c.relkind, c.reltuples::bigint, pg_relation_size(c.oid)/1048576 as heap_mb, pg_total_relation_size(c.oid)/1048576 as total_mb, c.relpages from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname ilike '%feature04%' or c.relname ilike 'feature_04%' order by 1;;
+select table_name, string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name in ('Feature04_Calculation_Log','Monitoring_Feature04') group by 1

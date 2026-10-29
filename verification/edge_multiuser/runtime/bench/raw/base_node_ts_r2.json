@@ -1,0 +1,117 @@
+{
+ "load_start": [
+  1.12,
+  2.57,
+  2.81
+ ],
+ "load_end": [
+  1.12,
+  2.57,
+  2.81
+ ],
+ "cmd": "node --experimental-strip-types --no-warnings --import /home/user/saniti/apps/backtest-worker/loader/register.mjs scripts/empty_server_ts.mts",
+ "spawn_to_ready_ms": 118,
+ "peak_rss_mb": 82,
+ "idle_rss_mb": 82,
+ "max_sampled_rss_mb": 82,
+ "exit": {
+  "code": null,
+  "sig": "SIGTERM"
+ },
+ "killed": true,
+ "stderr_tail": "",
+ "lines": [
+  {
+   "at": 118,
+   "event": "ready",
+   "boot_ms": 113,
+   "rss_mb": 82
+  }
+ ],
+ "rss_curve": [
+  [
+   24,
+   44
+  ],
+  [
+   125,
+   82
+  ],
+  [
+   224,
+   82
+  ],
+  [
+   325,
+   82
+  ],
+  [
+   426,
+   82
+  ],
+  [
+   528,
+   82
+  ],
+  [
+   630,
+   82
+  ],
+  [
+   731,
+   82
+  ],
+  [
+   833,
+   82
+  ],
+  [
+   934,
+   82
+  ],
+  [
+   1035,
+   82
+  ],
+  [
+   1134,
+   82
+  ],
+  [
+   1236,
+   82
+  ],
+  [
+   1336,
+   82
+  ],
+  [
+   1436,
+   82
+  ],
+  [
+   1537,
+   82
+  ],
+  [
+   1638,
+   82
+  ],
+  [
+   1739,
+   82
+  ],
+  [
+   1840,
+   82
+  ],
+  [
+   1939,
+   82
+  ],
+  [
+   2040,
+   82
+  ]
+ ]
+}

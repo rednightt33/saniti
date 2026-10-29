@@ -13,3 +13,11 @@ apps/edge-bff/static/backtest-app/
 apps/edge-bff/backtest/node_modules/
 apps/edge-bff/backtest/dist/
 apps/edge-bff/backtest/dist-fixture/
+
+# EDGE screener (EXEC-SCREENER): built by the edge-bff Dockerfile from apps/edge-bff/screener; its packages and its
+# build outputs are not kept in git
+apps/edge-bff/static/screener-app/
+apps/edge-bff/screener/node_modules/
+apps/edge-bff/screener/dist/
+apps/edge-bff/screener/dist-smoke/
+apps/edge-bff/screener/dist-fixture/

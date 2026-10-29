@@ -1,0 +1,9 @@
+QUERY PLAN
+Index Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..1915.57 rows=847 width=35) (actual time=6.682..12.202 rows=1170.00 loops=1)
+  Index Cond: (date = '2025-03-14'::date)
+  Index Searches: 1
+  Buffers: shared hit=32 read=41
+Planning Time: 0.126 ms
+Execution Time: 12.291 ms
+(6 rows, 440 ms)
+---

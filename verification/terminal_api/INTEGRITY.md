@@ -39,3 +39,38 @@ Cross-check of "zero source_balance_gap rows in 2021-2026": Feature 06 has 4 suc
 are warrant symbols, which the publisher does not publish (stock and index tickers only), so the statement holds for
 every published file. The gap path itself remains exercised only by the unit test (`tests/test_publisher.py`) and by
 history requests before 2021.
+
+## Since EXEC-SCREENER (2026-10-28): state.json and the bucket listing
+
+The audit above predates packs, logos and the cross-sectional files. A later audit of the bucket counts, besides the
+data files, manifests, packs, reference files, logos and `state.json`:
+- **`state.json` `xsection`** = `{name: {key, sha256, bytes, rows, as_of}}`, the index of the run's cross-sectional
+  files (Phase 1: `price` and `actions`), written by `apps/terminal-publisher/publisher.py` after the files it names.
+  `key` is `v1/xsection/<name>.<first 16 hex of sha256>.json.gz`; `as_of` is the newest date of the `price` file and the
+  newest `ingestion_time` of `idx_event_annotation` for `actions`. A mode that does not rebuild a file (`logos`,
+  `broker-range`; `events` for `price`) carries its entry forward unchanged.
+- **Keys under `v1/xsection/`**: the objects the current index names, plus those an earlier index named until a daily
+  run starts an hour or more after the last finished run: the publisher's `collect_garbage` (ERRORS M250, the same
+  cleanup as for data files and packs) then deletes a key of that form that the `state.json` index does not name (only
+  when that index names at least one file), never another key, and nothing newer than `state.json` (an orphan of a
+  crashed run stays until a later run finishes).
+  `integrity_check.py` counts the indexed keys as referenced. Each object's bytes and sha256 equal its index entry.
+- **Content checks**: the publisher's `verify` mode checks each indexed xsection file: bytes and sha256; each ticker's
+  slice of `price` encodes to the ticker's published price pack (manifest `packs.price.sha256`) and has the rows,
+  first and last date and sum of closes of SQL, and every published ticker with final daily rows is in it; the
+  `actions` rows equal what the publisher's statement returns now.
+
+## Since EXEC-MU-RUNTIME T5 (2026-10-28): reference files under content keys
+
+- **`state.json` `refs`** = `{name: {key, sha256, bytes, rows}}`, the index of the reference files `tickers`, `brokers`
+  and `logos` under content keys `v1/ref/<name>.<first 16 hex of sha256>.json.gz`, written by the publisher
+  (`index_refs`) after the objects it names and before `state.json`. Each object holds exactly the bytes of its
+  fixed-key copy `v1/ref/<name>.json.gz`, which the publisher still writes on every run (logos: when refreshed) for the
+  readers that open it by name. A `state.json` from a publisher before T5 has no `refs`.
+- **Keys under `v1/ref/`**: the three fixed-key files, never deleted; the content-keyed objects the current index
+  names; and those an earlier index named until a daily run starts an hour or more after the last finished run, when
+  `collect_garbage` deletes them under the xsection rule (only a key of that form, only while the index names at least
+  one file, nothing newer than `state.json`). `integrity_check.py` counts the indexed keys as referenced.
+- **Content checks**: the publisher's `verify` mode (`verify_refs`) checks each indexed reference file: bytes, sha256
+  and rows as indexed, and byte for byte equal to its fixed-key copy (a verify during a run can see the next
+  publication's fixed copy and report a difference).

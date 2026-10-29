@@ -1,0 +1,8 @@
+{"out":"raw/screener_k1_r1.json","spawn_to_ready_ms":17760,"peak_rss_mb":733,"idle_rss_mb":null,"exit":{"code":0,"sig":null}}
+{"out":"raw/screener_k1_r2.json","spawn_to_ready_ms":19960,"peak_rss_mb":736,"idle_rss_mb":null,"exit":{"code":0,"sig":null}}
+{"out":"raw/screener_k1_r3.json","spawn_to_ready_ms":20078,"peak_rss_mb":738,"idle_rss_mb":null,"exit":{"code":0,"sig":null}}
+{"out":"raw/screener_k2_r1.json","spawn_to_ready_ms":13084,"peak_rss_mb":1030,"idle_rss_mb":null,"exit":{"code":0,"sig":null}}
+{"out":"raw/screener_k2_r2.json","spawn_to_ready_ms":14435,"peak_rss_mb":1030,"idle_rss_mb":null,"exit":{"code":0,"sig":null}}
+{"out":"raw/screener_k4_r1.json","spawn_to_ready_ms":11075,"peak_rss_mb":1171,"idle_rss_mb":null,"exit":{"code":0,"sig":null}}
+{"out":"raw/screener_k4_r2.json","load":[4.34,4.92],"spawn_to_ready_ms":11931,"peak_rss_mb":1165,"idle_rss_mb":null,"exit":{"code":0,"sig":null}}
+DONE

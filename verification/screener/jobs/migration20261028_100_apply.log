@@ -1,0 +1,34 @@
+Starting Container
+MIG APPLY 20261028_100_terminal_service_accounts.sql sha256=a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7
+OUT {"q": "terminal_tables", "ms": 3, "part": 0, "rows": [["access_log"], ["admin_log"], ["quota"], ["quota_override"], ["session"], ["sign_in_attempt"]]}
+OUT {"q": "terminal_tables", "ms": 3, "part": 1, "rows": [["subscriber"], ["usage_hour"]]}
+OUT {"q": "runtime_grants", "ms": 3, "part": 0, "rows": [["access_log", "DELETE,INSERT,SELECT,UPDATE"], ["admin_log", "DELETE,INSERT,SELECT,UPDATE"], ["quota", "DELETE,INSERT,SELECT,UPDATE"], ["quota_override", "DELETE,INSERT,SELECT,UPDATE"], ["session", "DELETE,INSERT,SELECT,UPDATE"], ["sign_in_attempt", "DELETE,INSERT,SELECT,UPDATE"]]}
+OUT {"q": "runtime_grants", "ms": 3, "part": 1, "rows": [["subscriber", "DELETE,INSERT,SELECT,UPDATE"], ["usage_hour", "DELETE,INSERT,SELECT,UPDATE"]]}
+OUT {"q": "other_grantees", "ms": 3, "part": 0, "rows": []}
+OUT {"q": "schema_acl", "ms": 2, "part": 0, "rows": [["terminal_runtime", "USAGE"]]}
+OUT {"q": "role_members", "ms": 3, "part": 0, "rows": [["terminal_market_reader", "terminal_api_login"], ["terminal_market_reader", "terminal_publisher_login"], ["terminal_runtime", "terminal_api_login"]]}
+OUT {"q": "terminal_roles", "ms": 3, "part": 0, "rows": [["terminal_api_login", true, false, 20], ["terminal_market_reader", false, false, -1], ["terminal_publisher_login", true, false, 4], ["terminal_runtime", false, false, -1]]}
+OUT {"q": "kind_column", "ms": 4, "part": 0, "rows": [["text", "NO", "'person'::text"]]}
+OUT {"q": "subscriber_constraints", "ms": 4, "part": 0, "rows": [["subscriber_disabled_reason_check", "c", "CHECK (((disabled_reason IS NULL) OR (length(disabled_reason) <= 500)))"], ["subscriber_display_name_check", "c", "CHECK (((length(btrim(display_name)) >= 1) AND (length(btrim(display_name)) <= 120)))"], ["subscriber_email_check", "c", "CHECK (((email = lower(btrim(email))) AND (email ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'::text)))"], ["subscriber_email_key", "u", "UNIQUE (email)"], ["subscriber_kind_check", "c", "CHECK ((kind = ANY (ARRAY['person'::text, 'service'::text])))"], ["subscriber_password_hash_check", "c", "CHECK ((password_hash ~ '^scrypt\\$[0-9a-f]{32}\\$[0-9a-f]{64}$'::text))"]]}
+OUT {"q": "subscriber_constraints", "ms": 4, "part": 1, "rows": [["subscriber_pkey", "p", "PRIMARY KEY (subscriber_id)"]]}
+OUT {"q": "usage_hour_columns", "ms": 3, "part": 0, "rows": [["subscriber_id", "bigint", true, null], ["hour_start", "timestamp with time zone", true, null], ["grants", "integer", true, "0"], ["files", "bigint", true, "0"], ["bytes", "bigint", true, "0"]]}
+OUT {"q": "usage_hour_constraints", "ms": 3, "part": 0, "rows": [["usage_hour_bytes_check", "c", "CHECK ((bytes >= 0))"], ["usage_hour_files_check", "c", "CHECK ((files >= 0))"], ["usage_hour_grants_check", "c", "CHECK ((grants >= 0))"], ["usage_hour_pkey", "p", "PRIMARY KEY (subscriber_id, hour_start)"], ["usage_hour_subscriber_id_fkey", "f", "FOREIGN KEY (subscriber_id) REFERENCES terminal.subscriber(subscriber_id) ON DELETE CASCADE"], ["usage_hour_whole_hour", "c", "CHECK ((hour_start = date_trunc('hour'::text, hour_start, 'UTC'::text)))"]]}
+OUT {"q": "usage_hour_indexes", "ms": 3, "part": 0, "rows": [["usage_hour_pkey", "CREATE UNIQUE INDEX usage_hour_pkey ON terminal.usage_hour USING btree (subscriber_id, hour_start)"]]}
+OUT {"q": "comments", "ms": 3, "part": 0, "rows": [[true, true]]}
+OUT {"q": "service_rows", "ms": 2, "part": 0, "rows": [["backtest-worker@terminal.local", "Backtest worker (service account)", "service", true, true, true, true], ["screener-worker@terminal.local", "Screener worker (service account)", "service", true, true, true, true]]}
+OUT {"q": "people_rows", "ms": 2, "part": 0, "rows": [[2, 2, 0]]}
+OUT {"q": "ceilings", "ms": 2, "part": 0, "rows": [["service_files_per_hour", 100000, "files"], ["service_grants_per_hour", 20000, "grants"], ["service_megabytes_per_hour", 100000, "MB"]]}
+OUT {"q": "as_api_sign_in_lookup", "ms": 2, "part": 0, "rows": [["backtest-worker@terminal.local", "service", true, true], ["screener-worker@terminal.local", "service", true, true]]}
+OUT {"q": "person_quotas", "ms": 2, "part": 1, "rows": [["sessions_per_subscriber"], ["tickers_per_day"], ["tickers_per_hour"], ["url_ttl_seconds"]]}
+OUT {"q": "service_side_rows", "ms": 4, "part": 0, "rows": [[0, 0, 0, 0]]}
+OUT {"q": "privileges", "ms": 2, "part": 0, "rows": [["public", false, false, false, false, false, false, false, false, false], ["terminal_api_login", true, true, true, true, true, false, false, false, true], ["terminal_market_reader", false, false, false, false, false, false, false, false, false], ["terminal_publisher_login", false, false, false, false, false, false, false, false, false], ["terminal_runtime", true, true, true, true, true, false, false, false, true]]}
+OUT {"q": "person_quotas", "ms": 2, "part": 0, "rows": [["failed_sign_ins_per_email"], ["failed_sign_ins_per_ip"], ["files_per_hour"], ["history_per_hour"], ["megabytes_per_day"], ["session_hours"]]}
+OUT {"q": "verify_again", "ms": 7, "part": 0, "rows": [["verify passed"]]}
+OUT {"q": "as_api_ready", "ms": 3, "part": 0, "rows": [[1, 0, 0, 0]]}
+OUT {"q": "as_api_service_accounts", "ms": 2, "part": 0, "rows": [["backtest-worker@terminal.local", "service"], ["screener-worker@terminal.local", "service"]]}
+OUT {"q": "as_api_people", "ms": 2, "part": 0, "rows": [[1]]}
+OUT {"q": "as_api_service_limits", "ms": 3, "part": 0, "rows": [["service_files_per_hour", 100000], ["service_grants_per_hour", 20000], ["service_megabytes_per_hour", 100000]]}
+ERR {"q": "expect_err_publisher_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+ERR {"q": "expect_err_publisher_reads_kind", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT kind FROM terminal.subscriber LIMIT 0\n                         ^"}
+ERR {"q": "expect_err_market_reader_reads_usage", "error": "InsufficientPrivilege: permission denied for schema terminal\nLINE 1: SELECT count(*) FROM terminal.usage_hour\n                             ^"}
+JOB_DONE MIGRATION APPLY

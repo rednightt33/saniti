@@ -1,0 +1,1 @@
+select table_name, column_name, data_type from information_schema.columns where table_schema='public' and table_name in ('IDX_Stock_Universe_History','Universe_Equity_Description') and (column_name ilike '%list%' or column_name ilike '%date%' or column_name ilike '%ipo%') order by 1,2

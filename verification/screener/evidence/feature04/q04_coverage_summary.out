@@ -1,0 +1,39 @@
+asset_type | tickers | rows_ | min_first | max_last | start_20180102 | start_before_2018 | start_after_20180102 | end_on_latest | end_before_latest | min_rows | median_rows | max_rows | lt200_rows | lt750_rows
+bonds | 24 | 60643 | 2016-01-01T00:00:00Z | 2026-10-27T00:00:00Z | 0 | 21 | 3 | 11 | 13 | 1012 | 2635.5 | 2761 | 0 | 0
+equity | 844 | 1328595 | 2018-01-02T00:00:00Z | 2026-10-27T00:00:00Z | 384 | 0 | 460 | 828 | 16 | 74 | 1802.5 | 2125 | 10 | 95
+(2 rows, 1859 ms)
+---
+asset_type | last_date | tickers
+bonds | 2026-10-27T00:00:00Z | 11
+bonds | 2026-10-26T00:00:00Z | 13
+equity | 2026-10-27T00:00:00Z | 828
+equity | 2026-10-26T00:00:00Z | 2
+equity | 2026-10-22T00:00:00Z | 1
+equity | 2026-10-21T00:00:00Z | 1
+equity | 2026-10-20T00:00:00Z | 2
+equity | 2026-10-19T00:00:00Z | 1
+equity | 2026-10-15T00:00:00Z | 2
+equity | 2026-10-06T00:00:00Z | 2
+equity | 2026-10-02T00:00:00Z | 1
+equity | 2026-09-16T00:00:00Z | 1
+equity | 2026-09-10T00:00:00Z | 1
+equity | 2026-09-04T00:00:00Z | 1
+equity | 2026-08-21T00:00:00Z | 1
+(15 rows, 569 ms)
+---
+asset_type | first_year | count
+bonds | 2016 | 21
+bonds | 2018 | 1
+bonds | 2020 | 1
+bonds | 2022 | 1
+equity | 2018 | 497
+equity | 2019 | 50
+equity | 2020 | 45
+equity | 2021 | 48
+equity | 2022 | 55
+equity | 2023 | 76
+equity | 2024 | 40
+equity | 2025 | 26
+equity | 2026 | 7
+(13 rows, 551 ms)
+---

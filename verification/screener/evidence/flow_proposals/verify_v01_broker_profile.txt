@@ -1,0 +1,33 @@
+broker_code | broker_type | broker_classification
+AK | Foreign | Institutional-heavy
+CC | Domestic | Mixed
+SQ | Domestic | Mixed
+AP | Domestic | Niche
+DR | Foreign | Retail-heavy
+EP | Domestic | Retail-heavy
+GR | Domestic | Retail-heavy
+KK | Foreign | Retail-heavy
+PD | Domestic | Retail-heavy
+XC | Domestic | Retail-heavy
+XL | Domestic | Retail-heavy
+YP | Foreign | Retail-heavy
+YU | Foreign | Retail-heavy
+ZP | Foreign | Retail-heavy
+(14 rows, 508 ms)
+---
+broker_type | broker_classification | count
+Domestic | Institutional-heavy | 12
+Domestic | Mixed | 19
+Domestic | Niche | 39
+Domestic | Retail-heavy | 10
+Foreign | Institutional-heavy | 13
+Foreign | Mixed | 4
+Foreign | Niche | 6
+Foreign | Retail-heavy | 9
+(8 rows, 235 ms)
+---
+d | brokers | not_in_profile | codes | pct_value_not_in_profile
+2019-06-14T00:00:00Z | 103 | 0 |  |
+2026-10-27T00:00:00Z | 89 | 0 |  |
+(2 rows, 1074 ms)
+---

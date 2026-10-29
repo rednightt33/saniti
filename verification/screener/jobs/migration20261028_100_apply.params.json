@@ -1,0 +1,144 @@
+{
+ "_note": "EXEC-MU-RUNTIME step 1, migration 20261028_100_terminal_service_accounts.sql. Staged by scripts/onboarding/run_job.sh with the migration file as an extra (verification/screener/jobs/run_migration.sh). Probes named expect_err_* must print ERR with the text check_migration_log.py names; every other probe must print OUT. Probes as terminal_api_login run what terminal-api runs (apps/terminal-api/app/store.py). APPLY: the file commits, then the read-backs run read-only (BEGIN READ ONLY).",
+ "mode": "APPLY",
+ "migrations": [
+  "20261028_100_terminal_service_accounts.sql"
+ ],
+ "probes": [
+  [
+   "terminal_tables",
+   null,
+   "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'terminal' AND c.relkind IN ('r', 'p') ORDER BY 1"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT c.relname, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault(CASE WHEN c.relkind = 'S' THEN 's'::\"char\" ELSE 'r'::\"char\" END, c.relowner))) a WHERE n.nspname = 'terminal' AND c.relkind IN ('r', 'p') AND a.grantee = 'terminal_runtime'::regrole GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "other_grantees",
+   null,
+   "SELECT c.relname, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault(CASE WHEN c.relkind = 'S' THEN 's'::\"char\" ELSE 'r'::\"char\" END, c.relowner))) a WHERE n.nspname = 'terminal' AND c.relkind IN ('r', 'p', 'v', 'm', 'S') AND a.grantee <> c.relowner AND a.grantee <> 'terminal_runtime'::regrole GROUP BY 1, 2 ORDER BY 1, 2"
+  ],
+  [
+   "schema_acl",
+   null,
+   "SELECT CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_namespace n CROSS JOIN LATERAL aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a WHERE n.nspname = 'terminal' AND a.grantee <> n.nspowner GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "role_members",
+   null,
+   "SELECT r.rolname, m.rolname FROM pg_auth_members a JOIN pg_roles r ON r.oid = a.roleid JOIN pg_roles m ON m.oid = a.member WHERE r.rolname IN ('terminal_runtime', 'terminal_market_reader') ORDER BY 1, 2"
+  ],
+  [
+   "terminal_roles",
+   null,
+   "SELECT rolname, rolcanlogin, rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls, rolconnlimit FROM pg_roles WHERE rolname LIKE 'terminal\\_%' ORDER BY 1"
+  ],
+  [
+   "kind_column",
+   null,
+   "SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'terminal' AND table_name = 'subscriber' AND column_name = 'kind'"
+  ],
+  [
+   "subscriber_constraints",
+   null,
+   "SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'terminal.subscriber'::regclass AND contype <> 'n' ORDER BY 1"
+  ],
+  [
+   "usage_hour_columns",
+   null,
+   "SELECT a.attname, format_type(a.atttypid, a.atttypmod), a.attnotnull, pg_get_expr(d.adbin, d.adrelid) FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum WHERE a.attrelid = 'terminal.usage_hour'::regclass AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum"
+  ],
+  [
+   "usage_hour_constraints",
+   null,
+   "SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'terminal.usage_hour'::regclass AND contype <> 'n' ORDER BY 1"
+  ],
+  [
+   "usage_hour_indexes",
+   null,
+   "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'terminal' AND tablename = 'usage_hour' ORDER BY 1"
+  ],
+  [
+   "comments",
+   null,
+   "SELECT col_description('terminal.subscriber'::regclass, (SELECT attnum FROM pg_attribute WHERE attrelid = 'terminal.subscriber'::regclass AND attname = 'kind')) LIKE '%(EXEC-MU-RUNTIME T1).', obj_description('terminal.usage_hour'::regclass, 'pg_class') LIKE '%(EXEC-MU-RUNTIME T1).'"
+  ],
+  [
+   "service_rows",
+   null,
+   "SELECT email, display_name, kind, active, expires_at = timestamptz '2100-01-01 00:00:00+00', password_hash = 'scrypt$' || repeat('0', 32) || '$' || repeat('0', 64), disabled_reason IS NULL FROM terminal.subscriber WHERE email IN ('backtest-worker@terminal.local', 'screener-worker@terminal.local') OR kind = 'service' ORDER BY email"
+  ],
+  [
+   "people_rows",
+   null,
+   "SELECT count(*), count(*) FILTER (WHERE kind = 'person'), count(*) FILTER (WHERE kind = 'service') FROM terminal.subscriber WHERE email NOT IN ('backtest-worker@terminal.local', 'screener-worker@terminal.local')"
+  ],
+  [
+   "ceilings",
+   null,
+   "SELECT name, value, unit FROM terminal.quota WHERE name LIKE 'service\\_%' ORDER BY 1"
+  ],
+  [
+   "person_quotas",
+   null,
+   "SELECT name FROM terminal.quota WHERE name NOT LIKE 'service\\_%' ORDER BY 1"
+  ],
+  [
+   "service_side_rows",
+   null,
+   "WITH s AS (SELECT subscriber_id FROM terminal.subscriber WHERE email IN ('backtest-worker@terminal.local', 'screener-worker@terminal.local')) SELECT (SELECT count(*) FROM terminal.quota_override WHERE subscriber_id IN (SELECT subscriber_id FROM s)), (SELECT count(*) FROM terminal.session WHERE subscriber_id IN (SELECT subscriber_id FROM s)), (SELECT count(*) FROM terminal.access_log WHERE subscriber_id IN (SELECT subscriber_id FROM s)), (SELECT count(*) FROM terminal.usage_hour)"
+  ],
+  [
+   "privileges",
+   null,
+   "SELECT r.role, has_schema_privilege(r.role, 'terminal', 'USAGE'), has_table_privilege(r.role, 'terminal.usage_hour', 'SELECT'), has_table_privilege(r.role, 'terminal.usage_hour', 'INSERT'), has_table_privilege(r.role, 'terminal.usage_hour', 'UPDATE'), has_table_privilege(r.role, 'terminal.usage_hour', 'DELETE'), has_table_privilege(r.role, 'terminal.usage_hour', 'TRUNCATE'), has_table_privilege(r.role, 'terminal.usage_hour', 'REFERENCES'), has_table_privilege(r.role, 'terminal.usage_hour', 'TRIGGER'), has_column_privilege(r.role, 'terminal.subscriber', 'kind', 'SELECT') FROM (VALUES ('terminal_runtime'), ('terminal_api_login'), ('terminal_publisher_login'), ('terminal_market_reader'), ('public')) AS r(role) ORDER BY 1"
+  ],
+  [
+   "verify_again",
+   null,
+   "SELECT 'verify passed'; DO $verify$\nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'terminal' AND table_name = 'subscriber'\n                   AND column_name = 'kind' AND is_nullable = 'NO' AND column_default LIKE '''person''%')\n       OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'terminal.subscriber'::regclass\n                      AND conname = 'subscriber_kind_check' AND contype = 'c') THEN\n        RAISE EXCEPTION 'terminal.subscriber.kind is not NOT NULL DEFAULT person with its check';\n    END IF;\n    IF (SELECT count(*) FROM terminal.subscriber WHERE kind = 'service'\n        AND email IN ('backtest-worker@terminal.local', 'screener-worker@terminal.local')) <> 2 THEN\n        RAISE EXCEPTION 'the two service accounts are not both present as kind service';\n    END IF;\n    IF (SELECT array_agg(a.attname ORDER BY k.n) FROM pg_index i\n        CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, n)\n        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum\n        WHERE i.indrelid = 'terminal.usage_hour'::regclass AND i.indisprimary) IS DISTINCT FROM\n       ARRAY['subscriber_id', 'hour_start']::name[] THEN\n        RAISE EXCEPTION 'terminal.usage_hour has no primary key (subscriber_id, hour_start)';\n    END IF;\n    IF (SELECT count(*) FROM terminal.quota WHERE value > 0 AND name IN\n        ('service_grants_per_hour', 'service_files_per_hour', 'service_megabytes_per_hour')) <> 3 THEN\n        RAISE EXCEPTION 'a service ceiling is missing from terminal.quota';\n    END IF;\n    -- one privilege per call: has_table_privilege with a list is true when any one of them is held\n    IF EXISTS (SELECT 1 FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) AS p(privilege)\n               WHERE NOT has_table_privilege('terminal_runtime', 'terminal.usage_hour', p.privilege)) THEN\n        RAISE EXCEPTION 'terminal_runtime cannot use terminal.usage_hour';\n    END IF;\n    -- and nothing else: TRUNCATE would empty every service's counter at once (a list: true when any one is held)\n    IF has_table_privilege('terminal_runtime', 'terminal.usage_hour', 'TRUNCATE, REFERENCES, TRIGGER') THEN\n        RAISE EXCEPTION 'terminal_runtime has more than terminal.usage_hour needs';\n    END IF;\n    IF has_table_privilege('public', 'terminal.usage_hour', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') THEN\n        RAISE EXCEPTION 'PUBLIC can use terminal.usage_hour';\n    END IF;\n    -- terminal-api reads the new column through its existing table grant\n    IF NOT has_column_privilege('terminal_runtime', 'terminal.subscriber', 'kind', 'SELECT') THEN\n        RAISE EXCEPTION 'terminal_runtime cannot read terminal.subscriber.kind';\n    END IF;\n    -- and its login inherits all of it, where the login exists (scripts/provision_terminal_logins.py)\n    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'terminal_api_login')\n       AND NOT (has_table_privilege('terminal_api_login', 'terminal.usage_hour', 'INSERT')\n                AND has_table_privilege('terminal_api_login', 'terminal.usage_hour', 'UPDATE')\n                AND has_column_privilege('terminal_api_login', 'terminal.subscriber', 'kind', 'SELECT')) THEN\n        RAISE EXCEPTION 'terminal_api_login does not reach terminal.usage_hour and terminal.subscriber.kind';\n    END IF;\nEND $verify$;"
+  ],
+  [
+   "as_api_ready",
+   "terminal_api_login",
+   "SELECT (SELECT count(*) FROM (SELECT 1 FROM terminal.quota LIMIT 1) r1), (SELECT count(*) FROM (SELECT file_count FROM terminal.access_log LIMIT 0) r2), (SELECT count(*) FROM (SELECT kind FROM terminal.subscriber LIMIT 0) r3), (SELECT count(*) FROM (SELECT hour_start, grants, files, bytes FROM terminal.usage_hour LIMIT 0) r4)"
+  ],
+  [
+   "as_api_service_accounts",
+   "terminal_api_login",
+   "SELECT email, kind FROM terminal.subscriber WHERE email IN ('backtest-worker@terminal.local', 'screener-worker@terminal.local') AND kind = 'service' AND active AND expires_at > now() ORDER BY email"
+  ],
+  [
+   "as_api_people",
+   "terminal_api_login",
+   "SELECT count(*) FROM terminal.subscriber WHERE kind = 'person' AND active AND expires_at > now()"
+  ],
+  [
+   "as_api_service_limits",
+   "terminal_api_login",
+   "SELECT q.name, coalesce(o.value, q.value) AS value FROM terminal.quota q LEFT JOIN terminal.quota_override o ON o.name = q.name AND o.subscriber_id = (SELECT subscriber_id FROM terminal.subscriber WHERE email = 'backtest-worker@terminal.local') WHERE q.name LIKE 'service\\_%' ORDER BY 1"
+  ],
+  [
+   "as_api_sign_in_lookup",
+   "terminal_api_login",
+   "SELECT email, kind, active, expires_at > now() AS current FROM terminal.subscriber WHERE email IN ('backtest-worker@terminal.local', 'screener-worker@terminal.local') ORDER BY email"
+  ],
+  [
+   "expect_err_publisher_reads_usage",
+   "terminal_publisher_login",
+   "SELECT count(*) FROM terminal.usage_hour"
+  ],
+  [
+   "expect_err_publisher_reads_kind",
+   "terminal_publisher_login",
+   "SELECT kind FROM terminal.subscriber LIMIT 0"
+  ],
+  [
+   "expect_err_market_reader_reads_usage",
+   "terminal_market_reader",
+   "SELECT count(*) FROM terminal.usage_hour"
+  ]
+ ]
+}

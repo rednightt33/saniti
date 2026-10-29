@@ -1,0 +1,60 @@
+relname | relkind | est_rows | sz | relacl
+backtest_jobs | r | 43 | 312 kB | {postgres=arwdDxtm/postgres,edge_bff_runtime=arw/postgres}
+backtest_jobs_claim | i | 0 | 16 kB |
+backtest_jobs_one_running_owner | i | 0 | 16 kB |
+backtest_jobs_owner_created | i | 43 | 16 kB |
+backtest_jobs_owner_key_submission_key_key | i | 43 | 16 kB |
+backtest_jobs_pkey | i | 43 | 16 kB |
+backtest_results | r | 181 | 6248 kB | {postgres=arwdDxtm/postgres,edge_bff_runtime=ard/postgres}
+backtest_results_created | i | 181 | 16 kB |
+backtest_results_pkey | i | 181 | 40 kB |
+backtest_trials | r | 250 | 208 kB | {postgres=arwdDxtm/postgres,edge_bff_runtime=arw/postgres}
+backtest_trials_owner_key_lineage_key_variant_hash_key | i | 250 | 72 kB |
+backtest_trials_recorded_seq_key | i | 250 | 16 kB |
+backtest_trials_recorded_seq_seq | S | 1 | 8192 bytes |
+conversation_ui | r | 88 | 88 kB | {postgres=arwdDxtm/postgres,edge_bff_runtime=arwd/postgres}
+conversation_ui_pkey | i | 88 | 16 kB |
+conversation_ui_side_chat_key | i | 3 | 16 kB |
+edge_bff_claim | i | 1 | 16 kB |
+edge_bff_one_active_owner | i | 1 | 16 kB |
+jobs | r | 340 | 424 kB | {postgres=arwdDxtm/postgres,edge_bff_runtime=arwd/postgres}
+jobs_owner_key_submission_key_key | i | 340 | 56 kB |
+jobs_pkey | i | 340 | 40 kB |
+sessions | r | 28 | 104 kB | {postgres=arwdDxtm/postgres,edge_bff_runtime=arwd/postgres}
+sessions_pkey | i | 28 | 40 kB |
+(23 rows, 242 ms)
+---
+nspname | owner | nspacl | comment
+edge_bff | postgres | {postgres=UC/postgres,edge_bff_runtime=U/postgres} | EDGE sessions, delivery jobs and UI metadata only; Orc owns canonical history/results.
+terminal | postgres | {postgres=UC/postgres,terminal_runtime=U/postgres} | Subscriber terminal API: subscribers, sessions, quotas and access audit only; market data stays in public.
+(2 rows, 205 ms)
+---
+defaclrole | defaclnamespace | defaclobjtype | defaclacl
+postgres | public | r | {pgweb_reader=r/postgres}
+(1 rows, 191 ms)
+---
+rolname | rolconnlimit | rolconfig
+pgweb_reader | -1 |
+pgweb | 5 | {default_transaction_read_only=on,statement_timeout=30s,lock_timeout=5s,idle_in_transaction_session_timeout=5min}
+edge_bff_runtime | -1 |
+edge_bff_login | 20 | {statement_timeout=5s,lock_timeout=2s,idle_in_transaction_session_timeout=15s,"search_path=\"edge_bff,pg_catalog\""}
+terminal_runtime | -1 |
+(5 rows, 203 ms)
+---
+grp | member
+pgweb_reader | pgweb
+edge_bff_runtime | edge_bff_login
+terminal_runtime | terminal_api_login
+(3 rows, 204 ms)
+---
+bff_select_on_public | public_tables
+0 | 87
+(1 rows, 188 ms)
+---
+nspname | relname
+(0 rows, 191 ms)
+---
+version
+PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+(1 rows, 181 ms)
+---

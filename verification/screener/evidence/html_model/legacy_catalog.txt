@@ -1,0 +1,62 @@
+price_ma|Technical|Price vs moving average|%|len=50, kind=SMA{SMA/EMA}|above[state] below[state] xa[event] xb[event] rising[state] gt lt between|{"op":"above","n":5,"v":0,"v2":5}|series
+ma_cross|Technical|Moving-average cross||fast=50, slow=200, kind=SMA{SMA/EMA}|golden[event] death[event] above[state]|{"op":"golden","n":20}|series
+rsi|Technical|RSI||len=14|gt lt between xa xb|{"op":"lt","v":30,"v2":50,"n":5}|series
+stoch|Technical|Stochastic||len=14, smooth=3, dlen=3|lt gt between xa xb kxd[event] kxd_os[event]|{"op":"lt","v":20,"v2":40,"n":5}|series
+macd|Technical|MACD||fast=12, slow=26, sig=9|xsig[event] zero[event] bdiv[event] hup[state] gt lt|{"op":"xsig","n":5,"v":0}|series
+adx|Technical|ADX / DMI||len=14|gt lt between xa plus[state] dixa[event]|{"op":"gt","v":25,"v2":40,"n":5}|series
+bb|Technical|Bollinger Bands||len=20, k=2, sq=120|lt gt between below[state] brk[event] squeeze[event]|{"op":"lt","v":0,"v2":0.2,"n":10}|series
+atr|Technical|ATR %|%|len=14|gt lt between|{"op":"gt","v":3,"v2":5}|series
+supertrend|Technical|Supertrend||len=10, mult=3|flip[event] bull[state]|{"op":"flip","n":5}|series
+ichimoku|Technical|Ichimoku||a=9, b=26, s=52|above[state] tk[event]|{"op":"above","n":10}|series
+breakout|Technical|Breakout||days=20|up[event] dn[event]|{"op":"up","n":3}|series
+hi52|Technical|Distance from 52W high|%||gt lt between|{"op":"gt","v":-10,"v2":0}|series
+lo52|Technical|Distance from 52W low|%||gt lt between|{"op":"gt","v":30,"v2":100}|series
+ret|Technical|Return over N sessions|%|days=20|gt lt between|{"op":"gt","v":5,"v2":20}|series
+rs|Technical|Relative strength vs IHSG|pts|days=63|gt lt between|{"op":"gt","v":0,"v2":20}|series
+rs_rank|Technical|RS rank (percentile)||days=252|gt lt between|{"op":"gt","v":70,"v2":100}|last-only
+volspike|Technical|Volume spike|×|len=20|gt lt between xa|{"op":"gt","v":2,"v2":5,"n":3}|series
+bandar|Flow|Bandar status|%|days=10, top=3|acc[state] bigacc[state] dist[state] bigdist[state] gt lt|{"op":"acc","v":5}|series
+topacc|Flow|Top-N broker net|Rp B|top=5, days=10|gt lt between|{"op":"gt","v":5,"v2":50}|series
+broker|Flow|Broker net buy|Rp B|code=YP{AK/BK/ZP/KZ/RX/DR/YP/CC/PD/XL/NI/OD/LG/EP}, days=5|gt lt between xa|{"op":"gt","v":1,"v2":20,"n":5}|series
+bavg|Flow|Price vs bandar average|%|days=10|gt lt between|{"op":"between","v":-3,"v2":3}|series
+fnet|Flow|Foreign net flow|Rp B|days=5|gt lt between xa xb|{"op":"gt","v":0,"v2":50,"n":5}|series
+fstreak|Flow|Foreign net-buy streak|days||gt lt between|{"op":"gt","v":4,"v2":10}|series
+fpct|Flow|Foreign net % of value|%|days=20|gt lt between|{"op":"gt","v":3,"v2":20}|series
+freq|Flow|Frequency spike|×|len=20|gt lt xa|{"op":"gt","v":2.5,"n":3}|series
+silent|Flow|Silent accumulation||days=5, len=20, volx=1.5, move=3|on[state]|{"op":"on"}|series
+mfi|Flow|Money Flow Index||len=14|gt lt between xa xb|{"op":"lt","v":20,"v2":50,"n":5}|series
+cmf|Flow|Chaikin Money Flow||len=20|gt lt between xa|{"op":"gt","v":0.05,"v2":0.3,"n":5}|series
+obv|Flow|On-Balance Volume||len=20|rising[state] high[event]|{"op":"rising","n":5}|series
+adv|Flow|Average daily value|Rp B|len=20|gt lt between|{"op":"gt","v":10,"v2":100}|series
+cap|Fundamental|Market cap|IDR T||gt lt between|{"op":"gt","v":10,"v2":10}|last-only
+pe|Fundamental|P/E|×||gt lt between|{"op":"lt","v":15,"v2":10}|last-only
+pb|Fundamental|P/B|×||gt lt between|{"op":"lt","v":1.5,"v2":10}|last-only
+peg|Fundamental|PEG (P/E ÷ 3Y EPS CAGR)|×||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+evEbitda|Fundamental|EV/EBITDA|×||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+divYield|Fundamental|Dividend yield|%||gt lt between|{"op":"gt","v":4,"v2":10}|last-only
+payout|Fundamental|Payout ratio|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+divYears|Fundamental|Years of dividends|yrs||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+roe|Fundamental|ROE|%||gt lt between|{"op":"gt","v":15,"v2":10}|last-only
+roa|Fundamental|ROA|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+roic|Fundamental|ROIC|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+netMargin|Fundamental|Net margin|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+grossMargin|Fundamental|Gross margin|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+revG|Fundamental|Revenue growth YoY|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+epsG|Fundamental|EPS growth YoY|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+epsGq|Fundamental|EPS growth, latest quarter YoY|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+epsG3y|Fundamental|EPS CAGR 3Y|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+der|Fundamental|Debt / equity|×||gt lt between|{"op":"lt","v":1,"v2":10}|last-only
+curr|Fundamental|Current ratio|×||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+intCov|Fundamental|Interest coverage|×||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+fcfYield|Fundamental|FCF yield|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+piotroski|Fundamental|Piotroski F-score (0–9)|||gt lt between|{"op":"gt","v":6,"v2":10}|last-only
+altman|Fundamental|Altman Z-score|||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+grahamRatio|Fundamental|Price ÷ Graham number|×||gt lt between|{"op":"lt","v":1,"v2":10}|last-only
+magicRank|Fundamental|Magic Formula rank|#||gt lt between|{"op":"lt","v":21,"v2":10}|last-only
+freeFloat|Fundamental|Free float|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+foreignOwn|Fundamental|Foreign ownership|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+nim|Fundamental|NIM (banks)|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+npl|Fundamental|Gross NPL (banks)|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+car|Fundamental|CAR (banks)|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+casa|Fundamental|CASA (banks)|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only
+ldr|Fundamental|LDR (banks)|%||gt lt between|{"op":"gt","v":0,"v2":10}|last-only

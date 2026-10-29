@@ -1,0 +1,10 @@
+name | n | mn | p10 | p50 | p90 | mx | bbca | antm | care | nulls
+FL03 foreign participation % 20 (all boards) | 832 | 0.000 | 1.756 | 9.220 | 37.052 | 99.720 | 62.780 | 36.194 | 64.765 | 0
+FL16 ref: trade-count spike x (Regular) | 831 | 0.000 | 0.293 | 0.774 | 1.785 | 49.251 | 1.641 | 1.118 | 0.923 | 1
+FL16 trade-count spike x (all boards) | 832 | 0.001 | 0.293 | 0.773 | 1.763 | 49.244 | 1.641 | 1.118 | 0.924 | 0
+FL17 avg trade size change % 5 vs prior 20 (all boards) | 832 | -99.669 | -58.829 | -16.012 | 58.652 | 13327.707 | -16.204 | -4.693 | -1.382 | 0
+FL17 ref: avg trade size change % (Regular) | 830 | -95.368 | -51.489 | -15.227 | 38.763 | 6903.232 | -16.257 | -4.099 | -33.734 | 2
+ref: avg trade size 20 (Rp M, all boards) | 832 | 0.066 | 0.580 | 1.623 | 10.337 | 2869.030 | 35.773 | 12.402 | 91.992 | 0
+ref: avg trade size 20 (Rp M, Regular) | 831 | 0.066 | 0.550 | 1.479 | 7.452 | 55.771 | 31.805 | 12.324 | 42.375 | 1
+(7 rows, 335 ms)
+---

@@ -1,0 +1,110 @@
+relname
+AI_calculation_catalog
+AI_catalog_relationships
+AI_column_catalog
+AI_conversation
+AI_conversation_evidence
+AI_conversation_execution
+AI_conversation_export
+AI_conversation_output
+AI_conversation_run_memory
+AI_conversation_turn
+AI_data_coverage
+AI_entity_alias
+AI_formula_reference
+AI_method_guide
+AI_metric_catalog
+AI_research_catalog
+AI_research_library
+AI_research_run_audit
+AI_table_catalog
+Column_Catalog
+Feature_Catalog
+Feature_Relationship_Catalog
+Feature_Vocabulary
+Table_Catalog
+Tool_Catalog
+(25 rows, 223 ms)
+---
+ERROR: HTTP 400: {"error":"pq: column \"left_table\" does not exist","status":400}
+---
+t | count
+Feature_Relationship_Catalog | 3
+(1 rows, 255 ms)
+---
+t | count
+AI_catalog_relationships | 7
+(1 rows, 194 ms)
+---
+t | count
+Feature_Vocabulary | 0
+(1 rows, 259 ms)
+---
+t | count
+AI_metric_catalog | 0
+(1 rows, 216 ms)
+---
+t | count
+AI_method_guide | 0
+(1 rows, 241 ms)
+---
+t | count
+AI_formula_reference | 46
+(1 rows, 204 ms)
+---
+t | count
+AI_data_coverage | 871
+(1 rows, 230 ms)
+---
+t | count
+Tool_Catalog | 3
+(1 rows, 2214 ms)
+---
+t | count
+AI_entity_alias | 0
+(1 rows, 1733 ms)
+---
+column_name
+source_schema
+source_table
+column_name
+language_code
+feature_number
+scope
+column_name_proper
+formula
+unit
+definition
+what_it_tells_us
+grain
+null_rule
+lookback_window
+minimum_history
+caveat
+column_kind
+display_order
+source_feature_version
+source_semantic_hash
+review_status
+validation_evidence
+created_at
+updated_at
+(24 rows, 254 ms)
+---
+n | rsi | tech
+391 | 391 | 0
+(1 rows, 218 ms)
+---
+source_table | feature_number | language_code | count
+Feature_01_Stock_Daily | 1 | id-ID | 29
+Feature_01_Stock_Daily_INDEX | 1 | id-ID | 29
+Feature_02_Broker_Rolling | 2 | id-ID | 38
+Feature_02_Broker_Rolling_INDEX | 2 | id-ID | 38
+Feature_03_Stock_Broker_Daily | 3 | id-ID | 24
+Feature_03_Stock_Broker_Daily_INDEX | 3 | id-ID | 24
+Feature_05_Foreign_Domestic_Broker_Detail | 5 | id-ID | 15
+Feature_05_Foreign_Domestic_Broker_Detail_INDEX | 5 | id-ID | 15
+Feature_06_Foreign_Domestic | 6 | id-ID | 87
+Feature_06_Foreign_Domestic_INDEX | 6 | id-ID | 92
+(10 rows, 303 ms)
+---

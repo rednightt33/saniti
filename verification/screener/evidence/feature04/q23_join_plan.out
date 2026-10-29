@@ -1,0 +1,33 @@
+QUERY PLAN
+Nested Loop  (cost=10.68..2366.22 rows=8 width=68) (actual time=83.993..84.000 rows=0.00 loops=1)
+  Buffers: shared hit=9 read=837
+  ->  Nested Loop  (cost=10.25..2302.05 rows=13 width=37) (actual time=83.992..83.997 rows=0.00 loops=1)
+        Buffers: shared hit=9 read=837
+        ->  Result  (cost=1.40..1.41 rows=1 width=4) (actual time=0.029..0.033 rows=1.00 loops=1)
+              Buffers: shared hit=4
+              InitPlan 1
+                ->  Limit  (cost=0.43..1.40 rows=1 width=4) (actual time=0.025..0.027 rows=1.00 loops=1)
+                      Buffers: shared hit=4
+                      ->  Index Scan Backward using "Feature_04_Technical_Indicator_trade_date_idx" on "Feature_04_Technical_Indicator"  (cost=0.43..1297276.15 rows=1329848 width=4) (actual time=0.023..0.024 rows=1.00 loops=1)
+                            Filter: (asset_type = 'equity'::text)
+                            Index Searches: 1
+                            Buffers: shared hit=4
+        ->  Bitmap Heap Scan on "Feature_04_Technical_Indicator" f  (cost=8.85..2300.51 rows=13 width=33) (actual time=83.957..83.958 rows=0.00 loops=1)
+              Recheck Cond: (trade_date = ((InitPlan 1).col1))
+              Filter: ((rsi_14 < '30'::double precision) AND (close > sma_50) AND (asset_type = 'equity'::text))
+              Rows Removed by Filter: 839
+              Heap Blocks: exact=839
+              Buffers: shared hit=5 read=837
+              ->  Bitmap Index Scan on "Feature_04_Technical_Indicator_trade_date_idx"  (cost=0.00..8.85 rows=589 width=0) (actual time=0.061..0.062 rows=839.00 loops=1)
+                    Index Cond: (trade_date = ((InitPlan 1).col1))
+                    Index Searches: 1
+                    Buffers: shared hit=3
+  ->  Index Scan using "Price_Stock_Indonesia_IDX_pkey" on "Price_Stock_Indonesia_IDX" p  (cost=0.43..4.93 rows=1 width=21) (never executed)
+        Index Cond: (((ticker)::text = f.ticker) AND (date = f.trade_date))
+        Index Searches: 0
+Planning:
+  Buffers: shared hit=10 read=28
+Planning Time: 35.147 ms
+Execution Time: 84.134 ms
+(30 rows, 615 ms)
+---

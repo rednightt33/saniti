@@ -1,0 +1,10 @@
+bucket | count | string_agg
+a_2026-10-27 | 828 |
+b_last_2wk | 9 | BIKE,BSWD,IGAR,MASB,MPRO,MSIN,TFCO,TGKA,TRUK
+c_last_3m | 7 | ADHI,CSMI,INPS,IPAC,PPGL,PTPP,XSPI
+(3 rows, 14704 ms)
+---
+zero_vol_last
+0
+(1 rows, 621 ms)
+---

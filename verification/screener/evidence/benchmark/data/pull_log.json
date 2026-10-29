@@ -1,0 +1,282 @@
+{
+ "chunks": [
+  {
+   "from": "2018-01-01",
+   "to": "2018-07-01",
+   "rows": 46698,
+   "ms": 5422,
+   "json_bytes": 2750567,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 46698,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:33:43.732208354Z",
+    "query_finish_time": "2026-10-27T19:33:48.271241114Z",
+    "query_duration_ms": 4539
+   }
+  },
+  {
+   "from": "2018-07-01",
+   "to": "2019-01-01",
+   "rows": 52050,
+   "ms": 2807,
+   "json_bytes": 3054824,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 52050,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:33:48.97427621Z",
+    "query_finish_time": "2026-10-27T19:33:51.167735876Z",
+    "query_duration_ms": 2193
+   }
+  },
+  {
+   "from": "2019-01-01",
+   "to": "2019-07-01",
+   "rows": 51806,
+   "ms": 3434,
+   "json_bytes": 3033443,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 51806,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:33:51.857200051Z",
+    "query_finish_time": "2026-10-27T19:33:54.554319834Z",
+    "query_duration_ms": 2697
+   }
+  },
+  {
+   "from": "2019-07-01",
+   "to": "2020-01-01",
+   "rows": 59747,
+   "ms": 1603,
+   "json_bytes": 3480679,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 59747,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:33:55.387442936Z",
+    "query_finish_time": "2026-10-27T19:33:56.433917203Z",
+    "query_duration_ms": 1046
+   }
+  },
+  {
+   "from": "2020-01-01",
+   "to": "2020-07-01",
+   "rows": 57062,
+   "ms": 4840,
+   "json_bytes": 3274873,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 57062,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:33:57.071445835Z",
+    "query_finish_time": "2026-10-27T19:34:01.331117307Z",
+    "query_duration_ms": 4259
+   }
+  },
+  {
+   "from": "2020-07-01",
+   "to": "2021-01-01",
+   "rows": 63572,
+   "ms": 5910,
+   "json_bytes": 3654269,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 63572,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:01.980721537Z",
+    "query_finish_time": "2026-10-27T19:34:07.241876944Z",
+    "query_duration_ms": 5261
+   }
+  },
+  {
+   "from": "2021-01-01",
+   "to": "2021-07-01",
+   "rows": 68262,
+   "ms": 4659,
+   "json_bytes": 3997172,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 68262,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:08.002863113Z",
+    "query_finish_time": "2026-10-27T19:34:12.048807848Z",
+    "query_duration_ms": 4045
+   }
+  },
+  {
+   "from": "2021-07-01",
+   "to": "2022-01-01",
+   "rows": 75964,
+   "ms": 930,
+   "json_bytes": 4407160,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 75964,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:12.810175992Z",
+    "query_finish_time": "2026-10-27T19:34:13.028155195Z",
+    "query_duration_ms": 217
+   }
+  },
+  {
+   "from": "2022-01-01",
+   "to": "2022-07-01",
+   "rows": 72712,
+   "ms": 884,
+   "json_bytes": 4139528,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 72712,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:13.931218298Z",
+    "query_finish_time": "2026-10-27T19:34:14.128289001Z",
+    "query_duration_ms": 197
+   }
+  },
+  {
+   "from": "2022-07-01",
+   "to": "2023-01-01",
+   "rows": 83952,
+   "ms": 861,
+   "json_bytes": 4722165,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 83952,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:14.864077956Z",
+    "query_finish_time": "2026-10-27T19:34:15.049497193Z",
+    "query_duration_ms": 185
+   }
+  },
+  {
+   "from": "2023-01-01",
+   "to": "2023-07-01",
+   "rows": 77988,
+   "ms": 1102,
+   "json_bytes": 4292949,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 77988,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:15.864773057Z",
+    "query_finish_time": "2026-10-27T19:34:16.226607982Z",
+    "query_duration_ms": 361
+   }
+  },
+  {
+   "from": "2023-07-01",
+   "to": "2024-01-01",
+   "rows": 90246,
+   "ms": 1209,
+   "json_bytes": 4922438,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 90246,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:17.114563956Z",
+    "query_finish_time": "2026-10-27T19:34:17.473425965Z",
+    "query_duration_ms": 358
+   }
+  },
+  {
+   "from": "2024-01-01",
+   "to": "2024-07-01",
+   "rows": 82965,
+   "ms": 1091,
+   "json_bytes": 4450463,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 82965,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:18.496949208Z",
+    "query_finish_time": "2026-10-27T19:34:18.902081702Z",
+    "query_duration_ms": 405
+   }
+  },
+  {
+   "from": "2024-07-01",
+   "to": "2025-01-01",
+   "rows": 98809,
+   "ms": 1510,
+   "json_bytes": 5279999,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 98809,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:19.694379472Z",
+    "query_finish_time": "2026-10-27T19:34:20.36225706Z",
+    "query_duration_ms": 667
+   }
+  },
+  {
+   "from": "2025-01-01",
+   "to": "2025-07-01",
+   "rows": 86549,
+   "ms": 1209,
+   "json_bytes": 4597827,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 86549,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:21.421038214Z",
+    "query_finish_time": "2026-10-27T19:34:21.994208324Z",
+    "query_duration_ms": 573
+   }
+  },
+  {
+   "from": "2025-07-01",
+   "to": "2026-01-01",
+   "rows": 102511,
+   "ms": 1226,
+   "json_bytes": 5520924,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 102511,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:22.734581878Z",
+    "query_finish_time": "2026-10-27T19:34:23.16227519Z",
+    "query_duration_ms": 427
+   }
+  },
+  {
+   "from": "2026-01-01",
+   "to": "2026-07-01",
+   "rows": 92362,
+   "ms": 2405,
+   "json_bytes": 4949703,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 92362,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:24.384951919Z",
+    "query_finish_time": "2026-10-27T19:34:25.876034882Z",
+    "query_duration_ms": 1491
+   }
+  },
+  {
+   "from": "2026-07-01",
+   "to": "2027-01-01",
+   "rows": 67467,
+   "ms": 861,
+   "json_bytes": 3573412,
+   "stats": {
+    "columns_count": 7,
+    "rows_count": 67467,
+    "rows_affected": 0,
+    "query_start_time": "2026-10-27T19:34:26.721490778Z",
+    "query_finish_time": "2026-10-27T19:34:26.903522899Z",
+    "query_duration_ms": 182
+   }
+  }
+ ],
+ "total_wall_s": 44.23,
+ "tickers_full": 845,
+ "rows_full": 1330722,
+ "bytes_full_json": 52843773,
+ "tickers_3y": 845,
+ "rows_3y": 576678,
+ "bytes_3y_json": 21680993,
+ "sum_query_ms": 41963
+}

@@ -1,0 +1,12 @@
+BNBR ADR: bars TS!=TA-Lib 961 max abs diff 1.7763568394002505e-14 TS min -3.045183153257572e-15 TS negatives 905 TS tiny nonzero (0<|x|<1e-9) 905 TA-Lib negatives 825 TA-Lib tiny 905
+BNBR CMF tiny nonzero (0<|x|<1e-12) 855 exact zeros 85
+BNBR STDDEV tiny (0<x<1e-4) 80 zeros 923
+BNBR %B null after warmup 923 bandwidth zeros 923 bandwidth tiny(0<x<1e-3) 80 %B abs>5 0
+GOTO ADR: bars TS!=TA-Lib 0 max abs diff 0.0 TS min 0.0 TS negatives 0 TS tiny nonzero (0<|x|<1e-9) 0 TA-Lib negatives 0 TA-Lib tiny 0
+GOTO CMF tiny nonzero (0<|x|<1e-12) 72 exact zeros 0
+GOTO STDDEV tiny (0<x<1e-4) 0 zeros 75
+GOTO %B null after warmup 75 bandwidth zeros 75 bandwidth tiny(0<x<1e-3) 0 %B abs>5 0
+BLTA ADR: bars TS!=TA-Lib 0 max abs diff 0.0 TS min 0.0 TS negatives 0 TS tiny nonzero (0<|x|<1e-9) 0 TA-Lib negatives 0 TA-Lib tiny 0
+BLTA CMF tiny nonzero (0<|x|<1e-12) 0 exact zeros 1061
+BLTA STDDEV tiny (0<x<1e-4) 0 zeros 1051
+BLTA %B null after warmup 1051 bandwidth zeros 1051 bandwidth tiny(0<x<1e-3) 0 %B abs>5 0

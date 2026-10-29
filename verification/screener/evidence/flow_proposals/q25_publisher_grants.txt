@@ -1,0 +1,8 @@
+t | publisher_select
+public."Feature_03_Stock_Broker_Daily" | False
+public."Feature_05_Foreign_Domestic_Broker_Detail" | True
+public."Feature_06_Foreign_Domestic" | False
+public."IDX_Broker_Profile" | True
+public."Feature_02_Broker_Rolling" | False
+(5 rows, 445 ms)
+---

@@ -1,0 +1,1 @@
+select update_for_date, run_type, eligible_tickers, completed_tickers, started_at, finished_at, round(extract(epoch from finished_at-started_at)::numeric/60,1) minutes from public."Monitoring_Feature04" where execution_id not like 'f04-fi-%' and status='SUCCESS' and started_at > now()-interval '16 days' order by started_at

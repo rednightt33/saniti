@@ -1,0 +1,12 @@
+sma           {"length":1000}           0.34 ms/ticker  ~0.3 s/845 tickers
+wma           {"length":1000}           0.32 ms/ticker  ~0.3 s/845 tickers
+hma           {"length":1000}           4.34 ms/ticker  ~3.7 s/845 tickers
+aroon         {"length":1000}           2.97 ms/ticker  ~2.5 s/845 tickers
+donchian      {"length":1000}           2.60 ms/ticker  ~2.2 s/845 tickers
+stochastic    {"k_length":1000}         2.39 ms/ticker  ~2.0 s/845 tickers
+stoch_rsi     {"stoch_length":1000}     6.12 ms/ticker  ~5.2 s/845 tickers
+williams_r    {"length":1000}           2.47 ms/ticker  ~2.1 s/845 tickers
+cci           {"length":1000}          14.89 ms/ticker  ~12.6 s/845 tickers
+kama          {"length":1000}           0.38 ms/ticker  ~0.3 s/845 tickers
+ultimate_osc  {"slow_length":1000}      0.98 ms/ticker  ~0.8 s/845 tickers
+bollinger     {"length":1000}           0.54 ms/ticker  ~0.5 s/845 tickers

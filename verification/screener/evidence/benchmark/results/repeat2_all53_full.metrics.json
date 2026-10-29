@@ -1,0 +1,575 @@
+{
+ "scenario": "all53",
+ "data": "data/price_full.json",
+ "last": null,
+ "from": null,
+ "reps": 3,
+ "node": "v22.22.0",
+ "tickers": 845,
+ "bars_total": 1330722,
+ "max_bars_per_ticker": 2127,
+ "last_date": "2026-10-27",
+ "tickers_last_bar_before_last_date": 16,
+ "tickers_with_history_longer_than_window": null,
+ "load": {
+  "wall_ms": 502.5,
+  "cpu_ms": 640.7
+ },
+ "mem_after_load": {
+  "rss_mb": 229.4,
+  "heap_used_mb": 110.1,
+  "external_mb": 8.9,
+  "array_buffers_mb": 0
+ },
+ "all53": {
+  "total_wall_ms_all_reps": 28087.2,
+  "total_cpu_ms_all_reps": 28628.3,
+  "sum_first_wall_ms": 9552.7,
+  "sum_min_wall_ms": 8795.8,
+  "sum_first_cpu_ms": 10162.5,
+  "output_series": 76,
+  "output_values_one_pass": 101134872,
+  "output_values_one_pass_float64_mb": 771.6
+ },
+ "per_indicator": [
+  {
+   "id": "I01",
+   "key": "sma",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 110.6,
+   "first_cpu_ms": 145.1,
+   "min_wall_ms": 71.2,
+   "median_wall_ms": 74.7
+  },
+  {
+   "id": "I02",
+   "key": "ema",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 74.3,
+   "first_cpu_ms": 90.8,
+   "min_wall_ms": 46.8,
+   "median_wall_ms": 51.9
+  },
+  {
+   "id": "I03",
+   "key": "wma",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 57.9,
+   "first_cpu_ms": 73.5,
+   "min_wall_ms": 41.6,
+   "median_wall_ms": 44.1
+  },
+  {
+   "id": "I04",
+   "key": "hma",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 189,
+   "first_cpu_ms": 216.4,
+   "min_wall_ms": 157.9,
+   "median_wall_ms": 185.7
+  },
+  {
+   "id": "I05",
+   "key": "kama",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 79.6,
+   "first_cpu_ms": 102.3,
+   "min_wall_ms": 68,
+   "median_wall_ms": 69.9
+  },
+  {
+   "id": "I06",
+   "key": "macd",
+   "outputs": 3,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 182.9,
+   "first_cpu_ms": 197.5,
+   "min_wall_ms": 159.1,
+   "median_wall_ms": 175
+  },
+  {
+   "id": "I07",
+   "key": "adx",
+   "outputs": 3,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 207.2,
+   "first_cpu_ms": 244.5,
+   "min_wall_ms": 166.9,
+   "median_wall_ms": 170.8
+  },
+  {
+   "id": "I08",
+   "key": "aroon",
+   "outputs": 2,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 311.4,
+   "first_cpu_ms": 336,
+   "min_wall_ms": 299,
+   "median_wall_ms": 311.4
+  },
+  {
+   "id": "I09",
+   "key": "supertrend",
+   "outputs": 2,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 229,
+   "first_cpu_ms": 266.8,
+   "min_wall_ms": 174.5,
+   "median_wall_ms": 194.4
+  },
+  {
+   "id": "I10",
+   "key": "donchian",
+   "outputs": 3,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 337.9,
+   "first_cpu_ms": 341.6,
+   "min_wall_ms": 323,
+   "median_wall_ms": 330.6
+  },
+  {
+   "id": "I11",
+   "key": "keltner",
+   "outputs": 3,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 224,
+   "first_cpu_ms": 244.6,
+   "min_wall_ms": 222.2,
+   "median_wall_ms": 224
+  },
+  {
+   "id": "I12",
+   "key": "psar",
+   "outputs": 2,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 135.8,
+   "first_cpu_ms": 148,
+   "min_wall_ms": 109,
+   "median_wall_ms": 111.4
+  },
+  {
+   "id": "I13",
+   "key": "rsi",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 76.3,
+   "first_cpu_ms": 81.5,
+   "min_wall_ms": 74.6,
+   "median_wall_ms": 76.3
+  },
+  {
+   "id": "I14",
+   "key": "stoch_rsi",
+   "outputs": 2,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 342.9,
+   "first_cpu_ms": 351.6,
+   "min_wall_ms": 342.9,
+   "median_wall_ms": 347
+  },
+  {
+   "id": "I15",
+   "key": "stochastic",
+   "outputs": 2,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 357,
+   "first_cpu_ms": 366,
+   "min_wall_ms": 349.6,
+   "median_wall_ms": 357
+  },
+  {
+   "id": "I16",
+   "key": "williams_r",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 284.4,
+   "first_cpu_ms": 291.5,
+   "min_wall_ms": 284.4,
+   "median_wall_ms": 312.1
+  },
+  {
+   "id": "I17",
+   "key": "roc",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 81.5,
+   "first_cpu_ms": 84.4,
+   "min_wall_ms": 73.3,
+   "median_wall_ms": 81.5
+  },
+  {
+   "id": "I18",
+   "key": "momentum",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 76.4,
+   "first_cpu_ms": 77.8,
+   "min_wall_ms": 76.4,
+   "median_wall_ms": 77.5
+  },
+  {
+   "id": "I19",
+   "key": "cci",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 563.4,
+   "first_cpu_ms": 571.8,
+   "min_wall_ms": 563.4,
+   "median_wall_ms": 616.5
+  },
+  {
+   "id": "I20",
+   "key": "cmo",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 248.7,
+   "first_cpu_ms": 259.9,
+   "min_wall_ms": 232.7,
+   "median_wall_ms": 248.7
+  },
+  {
+   "id": "I21",
+   "key": "tsi",
+   "outputs": 2,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 191.4,
+   "first_cpu_ms": 198.7,
+   "min_wall_ms": 191.3,
+   "median_wall_ms": 191.4
+  },
+  {
+   "id": "I22",
+   "key": "trix",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 133.4,
+   "first_cpu_ms": 137.8,
+   "min_wall_ms": 125,
+   "median_wall_ms": 133.4
+  },
+  {
+   "id": "I23",
+   "key": "ultimate_osc",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 294.3,
+   "first_cpu_ms": 325.7,
+   "min_wall_ms": 245.1,
+   "median_wall_ms": 255.8
+  },
+  {
+   "id": "I24",
+   "key": "awesome_osc",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 173.5,
+   "first_cpu_ms": 177.7,
+   "min_wall_ms": 173.5,
+   "median_wall_ms": 178.1
+  },
+  {
+   "id": "I25",
+   "key": "ppo",
+   "outputs": 3,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 168.8,
+   "first_cpu_ms": 170.2,
+   "min_wall_ms": 168.3,
+   "median_wall_ms": 168.8
+  },
+  {
+   "id": "I26",
+   "key": "bop",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 185.4,
+   "first_cpu_ms": 211.6,
+   "min_wall_ms": 172.8,
+   "median_wall_ms": 176.1
+  },
+  {
+   "id": "I27",
+   "key": "bollinger",
+   "outputs": 3,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 180,
+   "first_cpu_ms": 189.6,
+   "min_wall_ms": 175.5,
+   "median_wall_ms": 178.3
+  },
+  {
+   "id": "I28",
+   "key": "bollinger_pctb",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 248.7,
+   "first_cpu_ms": 267.4,
+   "min_wall_ms": 187.4,
+   "median_wall_ms": 196.5
+  },
+  {
+   "id": "I29",
+   "key": "bollinger_width",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 195.4,
+   "first_cpu_ms": 190.3,
+   "min_wall_ms": 184.1,
+   "median_wall_ms": 195.4
+  },
+  {
+   "id": "I30",
+   "key": "atr",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 149.6,
+   "first_cpu_ms": 152.6,
+   "min_wall_ms": 137.8,
+   "median_wall_ms": 143.7
+  },
+  {
+   "id": "I31",
+   "key": "natr",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 165.2,
+   "first_cpu_ms": 166.6,
+   "min_wall_ms": 158.9,
+   "median_wall_ms": 162.9
+  },
+  {
+   "id": "I32",
+   "key": "stddev",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 71,
+   "first_cpu_ms": 70.9,
+   "min_wall_ms": 70.8,
+   "median_wall_ms": 71
+  },
+  {
+   "id": "I33",
+   "key": "hist_vol",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 336.3,
+   "first_cpu_ms": 345.4,
+   "min_wall_ms": 336.3,
+   "median_wall_ms": 351.3
+  },
+  {
+   "id": "I34",
+   "key": "adr",
+   "outputs": 1,
+   "tickers_without_latest_value": 0,
+   "first_wall_ms": 117.4,
+   "first_cpu_ms": 123.7,
+   "min_wall_ms": 110.8,
+   "median_wall_ms": 116.6
+  },
+  {
+   "id": "I35",
+   "key": "volume_sma",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 80.9,
+   "first_cpu_ms": 98.1,
+   "min_wall_ms": 56.5,
+   "median_wall_ms": 59.4
+  },
+  {
+   "id": "I36",
+   "key": "volume_ema",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 57.3,
+   "first_cpu_ms": 58,
+   "min_wall_ms": 53.7,
+   "median_wall_ms": 54.8
+  },
+  {
+   "id": "I37",
+   "key": "rvol",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 77.9,
+   "first_cpu_ms": 91.8,
+   "min_wall_ms": 77.9,
+   "median_wall_ms": 80.4
+  },
+  {
+   "id": "I38",
+   "key": "pvo",
+   "outputs": 3,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 154.8,
+   "first_cpu_ms": 171.4,
+   "min_wall_ms": 142.7,
+   "median_wall_ms": 142.7
+  },
+  {
+   "id": "I39",
+   "key": "volume_roc",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 70.1,
+   "first_cpu_ms": 72.5,
+   "min_wall_ms": 68,
+   "median_wall_ms": 68.5
+  },
+  {
+   "id": "I40",
+   "key": "obv",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 92.1,
+   "first_cpu_ms": 99.7,
+   "min_wall_ms": 86.9,
+   "median_wall_ms": 88.9
+  },
+  {
+   "id": "I41",
+   "key": "pvt",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 89,
+   "first_cpu_ms": 99.5,
+   "min_wall_ms": 83.8,
+   "median_wall_ms": 83.9
+  },
+  {
+   "id": "I42",
+   "key": "vwma",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 158,
+   "first_cpu_ms": 159.5,
+   "min_wall_ms": 158,
+   "median_wall_ms": 168.7
+  },
+  {
+   "id": "I43",
+   "key": "vwap",
+   "outputs": 3,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 318.2,
+   "first_cpu_ms": 353.2,
+   "min_wall_ms": 309.1,
+   "median_wall_ms": 318.2
+  },
+  {
+   "id": "I44",
+   "key": "adl",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 117,
+   "first_cpu_ms": 120.4,
+   "min_wall_ms": 114.9,
+   "median_wall_ms": 117
+  },
+  {
+   "id": "I45",
+   "key": "cmf",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 296.2,
+   "first_cpu_ms": 301.4,
+   "min_wall_ms": 296.2,
+   "median_wall_ms": 309.5
+  },
+  {
+   "id": "I46",
+   "key": "chaikin_osc",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 128.6,
+   "first_cpu_ms": 135,
+   "min_wall_ms": 122.3,
+   "median_wall_ms": 125.6
+  },
+  {
+   "id": "I47",
+   "key": "mfi",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 158.7,
+   "first_cpu_ms": 168,
+   "min_wall_ms": 152.6,
+   "median_wall_ms": 155.7
+  },
+  {
+   "id": "I48",
+   "key": "force_index",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 130.9,
+   "first_cpu_ms": 117,
+   "min_wall_ms": 107.6,
+   "median_wall_ms": 112.9
+  },
+  {
+   "id": "I49",
+   "key": "eom",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 178.9,
+   "first_cpu_ms": 186,
+   "min_wall_ms": 163.9,
+   "median_wall_ms": 170.5
+  },
+  {
+   "id": "I50",
+   "key": "nvi",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 146.2,
+   "first_cpu_ms": 149.9,
+   "min_wall_ms": 85.6,
+   "median_wall_ms": 92.2
+  },
+  {
+   "id": "I51",
+   "key": "pvi",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 91.2,
+   "first_cpu_ms": 97,
+   "min_wall_ms": 85.7,
+   "median_wall_ms": 91.2
+  },
+  {
+   "id": "I52",
+   "key": "kvo",
+   "outputs": 2,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 290.7,
+   "first_cpu_ms": 327.1,
+   "min_wall_ms": 220.9,
+   "median_wall_ms": 226.3
+  },
+  {
+   "id": "I53",
+   "key": "market_fi",
+   "outputs": 1,
+   "tickers_without_latest_value": 1,
+   "first_wall_ms": 135.4,
+   "first_cpu_ms": 137.2,
+   "min_wall_ms": 135.4,
+   "median_wall_ms": 138.9
+  }
+ ],
+ "mem_end": {
+  "rss_mb": 298.3,
+  "heap_used_mb": 126.9,
+  "external_mb": 8.9,
+  "array_buffers_mb": 0
+ },
+ "peak_rss_mb": 298.3,
+ "process_total_cpu_ms": 29795.9,
+ "process_uptime_ms": 28879
+}

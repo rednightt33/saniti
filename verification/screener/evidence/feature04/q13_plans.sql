@@ -1,0 +1,4 @@
+explain (analyze, buffers, settings) select distinct on (ticker) ticker, trade_date, close, sma_20, sma_50, ema_12, ema_26, ema_50, ema_200, rsi_14, macd, macd_signal, macd_histogram, atr_14, bb_upper_20, bb_middle_20, bb_lower_20, adx_14, smi, inside_bar, break_swing_high from public."Feature_04_Technical_Indicator" where asset_type='equity' and timeframe='Daily' and trade_date >= date '2026-10-27' - 10 order by ticker, trade_date desc;;
+explain (analyze, buffers) select f.* from public."Feature_04_Technical_Indicator" f where f.asset_type='equity' and f.trade_date = (select max(trade_date) from public."Feature_04_Technical_Indicator" where asset_type='equity');;
+explain (analyze, buffers) select max(trade_date) from public."Feature_04_Technical_Indicator";;
+explain (analyze, buffers) select * from public."Feature_04_Technical_Indicator" where ticker='BBCA' and asset_type='equity' and timeframe='Daily' and trade_date >= date '2026-10-27' - 1100 order by trade_date

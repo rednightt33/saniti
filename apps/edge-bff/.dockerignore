@@ -12,3 +12,7 @@ backtest/node_modules
 backtest/tests
 backtest/dist*
 static/backtest-app
+screener/node_modules
+screener/tests
+screener/dist*
+static/screener-app

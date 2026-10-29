@@ -14,6 +14,13 @@ TABLES = {'sessions','jobs','conversation_ui'}
 BACKTEST_GRANTS = {'backtest_jobs':{'SELECT','INSERT','UPDATE'},'backtest_results':{'SELECT','INSERT','DELETE'},
                    'backtest_trials':{'SELECT','INSERT','UPDATE'}}
 BACKTEST_TABLES = set(BACKTEST_GRANTS)
+# EDGE screener (migration 20261028_001, EXEC-SCREENER P12 a): reachable once that migration is applied, then both, each
+# with exactly the privileges the migration grants it (what app/screener.py does: saved items are listed, created,
+# replaced and deleted; watchlist rows are added and removed, never updated)
+SCREENER_GRANTS = {'screener_items':{'SELECT','INSERT','UPDATE','DELETE'},'watchlist_items':{'SELECT','INSERT','DELETE'}}
+SCREENER_TABLES = set(SCREENER_GRANTS)
+# a table of a later migration is held to exactly its grants, TRUNCATE included
+EXACT_GRANTS = {**BACKTEST_GRANTS, **SCREENER_GRANTS}
 
 def main():
     url,password=os.environ.get('DATABASE_URL',''),os.environ.get('EDGE_DB_PASSWORD','')
@@ -33,11 +40,15 @@ def main():
         # Include inherited PUBLIC rights: a grant there is still a leak even with a dedicated login.
         reachable=c.execute("SELECT n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%%' AND c.relkind IN ('r','p','v','m','f') AND has_table_privilege(%s,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')",(LOGIN,)).fetchall()
         found={(r['nspname'],r['relname']) for r in reachable};backtest={('edge_bff',name) for name in BACKTEST_TABLES}
-        if found-backtest!={('edge_bff',name) for name in TABLES} or found&backtest not in (set(),backtest):raise RuntimeError('EDGE has unexpected reachable relations; provisioning rolled back')
-        for name in sorted(TABLES|(BACKTEST_TABLES if found&backtest else set())):
-            granted=BACKTEST_GRANTS.get(name,{'SELECT','INSERT','UPDATE','DELETE'})
-            # a backtest table is held to exactly its grants, TRUNCATE included (it would empty the trials as DELETE would)
-            for privilege in ('SELECT','INSERT','UPDATE','DELETE',*(('TRUNCATE','REFERENCES','TRIGGER') if name in BACKTEST_GRANTS else ())):
+        screener={('edge_bff',name) for name in SCREENER_TABLES}
+        # each later migration's tables: all of them or none (a migration grants its tables together)
+        if found-backtest-screener!={('edge_bff',name) for name in TABLES} or found&backtest not in (set(),backtest) \
+                or found&screener not in (set(),screener):raise RuntimeError('EDGE has unexpected reachable relations; provisioning rolled back')
+        for name in sorted(TABLES|(BACKTEST_TABLES if found&backtest else set())|(SCREENER_TABLES if found&screener else set())):
+            granted=EXACT_GRANTS.get(name,{'SELECT','INSERT','UPDATE','DELETE'})
+            # a backtest or screener table is held to exactly its grants, TRUNCATE included (it would empty the trials as
+            # DELETE would, and every owner's saved items at once)
+            for privilege in ('SELECT','INSERT','UPDATE','DELETE',*(('TRUNCATE','REFERENCES','TRIGGER') if name in EXACT_GRANTS else ())):
                 allowed=c.execute('SELECT has_table_privilege(%s,%s,%s) AS allowed',(LOGIN,'edge_bff.'+name,privilege)).fetchone()['allowed']
                 if privilege in granted and not allowed:raise RuntimeError('Incomplete EDGE grants')
                 if privilege not in granted and allowed:raise RuntimeError('Unexpected EDGE grants; reconcile first')

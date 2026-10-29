@@ -1,0 +1,2 @@
+select id, asset_type, ticker, result, error_code, left(detail,200) detail, started_at, dirty_from_date, checkpoint_date from public."Feature04_Calculation_Log" where result<>'SUCCESS' order by id;;
+select date_trunc('day', started_at)::date d, count(*), sum(changed_rows) changed, sum(source_rows) src, max(source_rows) max_src from public."Feature04_Calculation_Log" where started_at > now()-interval '10 days' group by 1 order by 1

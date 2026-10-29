@@ -1,0 +1,5 @@
+name | n | mn | p10 | p50 | p90 | mx | bbca | antm | care | zero
+FL06 broker YP net 20 (Rp B, all boards) | 832 | -75.732 | -1.238 | 0.001 | 1.428 | 570.124 | 570.124 | -8.302 | -0.002 | 1
+FL06 broker YP net 5 (Rp B, all boards) | 832 | -155.723 | -0.489 | 0.000 | 0.425 | 114.098 | 114.098 | -9.388 | -0.003 | 4
+(2 rows, 305 ms)
+---

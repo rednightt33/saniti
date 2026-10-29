@@ -1,0 +1,405 @@
+{
+ "params": {
+  "TD": 21,
+  "S": 2,
+  "L": 20.0,
+  "TAIL": 10.0,
+  "SCR": {
+   "rss_awake": 0.55,
+   "rss_pool": 0.52,
+   "cold_cpu": 20.0,
+   "run_cpu": 0.22,
+   "lookup_cpu": 0.005,
+   "bytes_per_load": 11758425
+  },
+  "BT": {
+   "rss_awake": 0.25,
+   "rss_pool": 0.4,
+   "cold_cpu": 1.0,
+   "job_cpu": 2.0,
+   "prev_cpu": 1.0
+  },
+  "TAPI": {
+   "usd_copy": 1.5
+  },
+  "H": 0.5,
+  "PEAK": 0.3,
+  "WINDOWS": [
+   [
+    480,
+    600,
+    0.45
+   ],
+   [
+    930,
+    1050,
+    0.25
+   ],
+   [
+    1140,
+    1320,
+    0.3
+   ]
+  ],
+  "R_SCR": 2
+ },
+ "rows": [
+  {
+   "model": "SILO (all three per user)",
+   "usd": {
+    "screener": 1.71,
+    "backtest": 0.78,
+    "terminal_api": 15.0
+   },
+   "total": 17.49,
+   "services": 30,
+   "cold_starts": 840,
+   "screener_snapshot_builds": 472.5,
+   "screener_download_gb": 5.5558558125,
+   "init_cpu_hours": 2.7416666666666667,
+   "sessions_with_cold_wait": 1.0,
+   "db_connections_min": 20,
+   "N": 10,
+   "per_user": 1.749
+  },
+  {
+   "model": "SILO (screener + backtest per user; terminal-api pooled)",
+   "usd": {
+    "screener": 1.71,
+    "backtest": 0.78,
+    "terminal_api": 1.2
+   },
+   "total": 3.69,
+   "services": 21,
+   "cold_starts": 840,
+   "screener_snapshot_builds": 472.5,
+   "screener_download_gb": 5.5558558125,
+   "init_cpu_hours": 2.7416666666666667,
+   "sessions_with_cold_wait": 1.0,
+   "db_connections_min": 2,
+   "N": 10,
+   "per_user": 0.369
+  },
+  {
+   "model": "POOL 24/7",
+   "usd": {
+    "screener": 10.57,
+    "backtest": 4.04,
+    "terminal_api": 1.2
+   },
+   "total": 15.81,
+   "services": 3,
+   "screener_replicas": 2,
+   "peak_users": 3,
+   "screener_editing_users_per_replica": 85,
+   "screener_snapshot_builds": 124,
+   "screener_download_gb": 1.4580447,
+   "init_cpu_hours": 0.6888888888888889,
+   "sessions_with_cold_wait": 0.0,
+   "db_connections_min": 2,
+   "N": 10,
+   "per_user": 1.581
+  },
+  {
+   "model": "POOL, serverless + 08:00 pre-warm",
+   "usd": {
+    "screener": 1.69,
+    "backtest": 0.67,
+    "terminal_api": 1.2
+   },
+   "total": 3.56,
+   "awake_hours_month": 113.3,
+   "wakes_month": 122.5,
+   "sessions_opening_a_cold_pool": 101.5,
+   "sessions_month": 420,
+   "sessions_with_cold_wait": 0.2417,
+   "screener_snapshot_builds": 318.6,
+   "N": 10,
+   "per_user": 0.356
+  },
+  {
+   "model": "POOL, Serverless + kept awake 14 h on trading days",
+   "usd": {
+    "screener": 4.32,
+    "backtest": 1.67,
+    "terminal_api": 1.2
+   },
+   "total": 7.19,
+   "awake_hours_month": 294.0,
+   "wakes_month": 21,
+   "sessions_with_cold_wait": 0.0,
+   "screener_snapshot_builds": 84,
+   "services": 3,
+   "N": 10,
+   "per_user": 0.719
+  },
+  {
+   "model": "HYBRID (POOL, Serverless + kept awake 14 h on trading days + 1 dedicated always-on backtest workers)",
+   "usd": {
+    "screener": 4.32,
+    "backtest": 1.67,
+    "terminal_api": 1.2,
+    "dedicated_backtest": 4.0
+   },
+   "total": 11.19,
+   "dedicated": 1,
+   "sessions_with_cold_wait": 0.0,
+   "services": 4,
+   "N": 10,
+   "per_user": 1.119
+  },
+  {
+   "model": "HYBRID (POOL, Serverless + kept awake 14 h on trading days + 1 dedicated always-on backtest workers)",
+   "usd": {
+    "screener": 4.32,
+    "backtest": 1.67,
+    "terminal_api": 1.2,
+    "dedicated_backtest": 4.0
+   },
+   "total": 11.19,
+   "dedicated": 1,
+   "sessions_with_cold_wait": 0.0,
+   "services": 4,
+   "N": 10,
+   "per_user": 1.119
+  },
+  {
+   "model": "SILO (all three per user)",
+   "usd": {
+    "screener": 8.55,
+    "backtest": 3.91,
+    "terminal_api": 75.0
+   },
+   "total": 87.45,
+   "services": 150,
+   "cold_starts": 4200,
+   "screener_snapshot_builds": 2362.5,
+   "screener_download_gb": 27.7792790625,
+   "init_cpu_hours": 13.708333333333334,
+   "sessions_with_cold_wait": 1.0,
+   "db_connections_min": 100,
+   "N": 50,
+   "per_user": 1.749
+  },
+  {
+   "model": "SILO (screener + backtest per user; terminal-api pooled)",
+   "usd": {
+    "screener": 8.55,
+    "backtest": 3.91,
+    "terminal_api": 1.2
+   },
+   "total": 13.65,
+   "services": 101,
+   "cold_starts": 4200,
+   "screener_snapshot_builds": 2362.5,
+   "screener_download_gb": 27.7792790625,
+   "init_cpu_hours": 13.708333333333334,
+   "sessions_with_cold_wait": 1.0,
+   "db_connections_min": 2,
+   "N": 50,
+   "per_user": 0.273
+  },
+  {
+   "model": "POOL 24/7",
+   "usd": {
+    "screener": 10.6,
+    "backtest": 4.19,
+    "terminal_api": 1.2
+   },
+   "total": 15.99,
+   "services": 3,
+   "screener_replicas": 2,
+   "peak_users": 15,
+   "screener_editing_users_per_replica": 85,
+   "screener_snapshot_builds": 124,
+   "screener_download_gb": 1.4580447,
+   "init_cpu_hours": 0.6888888888888889,
+   "sessions_with_cold_wait": 0.0,
+   "db_connections_min": 2,
+   "N": 50,
+   "per_user": 0.32
+  },
+  {
+   "model": "POOL, serverless + 08:00 pre-warm",
+   "usd": {
+    "screener": 2.24,
+    "backtest": 1.03,
+    "terminal_api": 1.2
+   },
+   "total": 4.47,
+   "awake_hours_month": 151.0,
+   "wakes_month": 64.2,
+   "sessions_opening_a_cold_pool": 43.2,
+   "sessions_month": 2100,
+   "sessions_with_cold_wait": 0.0205,
+   "screener_snapshot_builds": 212.1,
+   "N": 50,
+   "per_user": 0.089
+  },
+  {
+   "model": "POOL, Serverless + kept awake 14 h on trading days",
+   "usd": {
+    "screener": 4.34,
+    "backtest": 1.83,
+    "terminal_api": 1.2
+   },
+   "total": 7.37,
+   "awake_hours_month": 294.0,
+   "wakes_month": 21,
+   "sessions_with_cold_wait": 0.0,
+   "screener_snapshot_builds": 84,
+   "services": 3,
+   "N": 50,
+   "per_user": 0.147
+  },
+  {
+   "model": "HYBRID (POOL, Serverless + kept awake 14 h on trading days + 1 dedicated always-on backtest workers)",
+   "usd": {
+    "screener": 4.34,
+    "backtest": 1.83,
+    "terminal_api": 1.2,
+    "dedicated_backtest": 4.0
+   },
+   "total": 11.37,
+   "dedicated": 1,
+   "sessions_with_cold_wait": 0.0,
+   "services": 4,
+   "N": 50,
+   "per_user": 0.227
+  },
+  {
+   "model": "HYBRID (POOL, Serverless + kept awake 14 h on trading days + 5 dedicated always-on backtest workers)",
+   "usd": {
+    "screener": 4.34,
+    "backtest": 1.83,
+    "terminal_api": 1.2,
+    "dedicated_backtest": 20.0
+   },
+   "total": 27.37,
+   "dedicated": 5,
+   "sessions_with_cold_wait": 0.0,
+   "services": 8,
+   "N": 50,
+   "per_user": 0.547
+  },
+  {
+   "model": "SILO (all three per user)",
+   "usd": {
+    "screener": 34.19,
+    "backtest": 15.62,
+    "terminal_api": 300.0
+   },
+   "total": 349.81,
+   "services": 600,
+   "cold_starts": 16800,
+   "screener_snapshot_builds": 9450.0,
+   "screener_download_gb": 111.11711625,
+   "init_cpu_hours": 54.833333333333336,
+   "sessions_with_cold_wait": 1.0,
+   "db_connections_min": 400,
+   "N": 200,
+   "per_user": 1.749
+  },
+  {
+   "model": "SILO (screener + backtest per user; terminal-api pooled)",
+   "usd": {
+    "screener": 34.19,
+    "backtest": 15.62,
+    "terminal_api": 2.4
+   },
+   "total": 52.21,
+   "services": 401,
+   "cold_starts": 16800,
+   "screener_snapshot_builds": 9450.0,
+   "screener_download_gb": 111.11711625,
+   "init_cpu_hours": 54.833333333333336,
+   "sessions_with_cold_wait": 1.0,
+   "db_connections_min": 2,
+   "N": 200,
+   "per_user": 0.261
+  },
+  {
+   "model": "POOL 24/7",
+   "usd": {
+    "screener": 10.68,
+    "backtest": 4.78,
+    "terminal_api": 2.4
+   },
+   "total": 17.86,
+   "services": 3,
+   "screener_replicas": 2,
+   "peak_users": 60,
+   "screener_editing_users_per_replica": 85,
+   "screener_snapshot_builds": 124,
+   "screener_download_gb": 1.4580447,
+   "init_cpu_hours": 0.6888888888888889,
+   "sessions_with_cold_wait": 0.0,
+   "db_connections_min": 4,
+   "N": 200,
+   "per_user": 0.089
+  },
+  {
+   "model": "POOL, serverless + 08:00 pre-warm",
+   "usd": {
+    "screener": 2.39,
+    "backtest": 1.64,
+    "terminal_api": 2.4
+   },
+   "total": 6.44,
+   "awake_hours_month": 155.7,
+   "wakes_month": 63.0,
+   "sessions_opening_a_cold_pool": 42.0,
+   "sessions_month": 8400,
+   "sessions_with_cold_wait": 0.005,
+   "screener_snapshot_builds": 210.0,
+   "N": 200,
+   "per_user": 0.032
+  },
+  {
+   "model": "POOL, Serverless + kept awake 14 h on trading days",
+   "usd": {
+    "screener": 4.42,
+    "backtest": 2.41,
+    "terminal_api": 2.4
+   },
+   "total": 9.23,
+   "awake_hours_month": 294.0,
+   "wakes_month": 21,
+   "sessions_with_cold_wait": 0.0,
+   "screener_snapshot_builds": 84,
+   "services": 3,
+   "N": 200,
+   "per_user": 0.046
+  },
+  {
+   "model": "HYBRID (POOL, Serverless + kept awake 14 h on trading days + 1 dedicated always-on backtest workers)",
+   "usd": {
+    "screener": 4.42,
+    "backtest": 2.41,
+    "terminal_api": 2.4,
+    "dedicated_backtest": 4.0
+   },
+   "total": 13.23,
+   "dedicated": 1,
+   "sessions_with_cold_wait": 0.0,
+   "services": 4,
+   "N": 200,
+   "per_user": 0.066
+  },
+  {
+   "model": "HYBRID (POOL, Serverless + kept awake 14 h on trading days + 20 dedicated always-on backtest workers)",
+   "usd": {
+    "screener": 4.42,
+    "backtest": 2.41,
+    "terminal_api": 2.4,
+    "dedicated_backtest": 80.0
+   },
+   "total": 89.23,
+   "dedicated": 20,
+   "sessions_with_cold_wait": 0.0,
+   "services": 23,
+   "N": 200,
+   "per_user": 0.446
+  }
+ ]
+}

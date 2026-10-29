@@ -1,0 +1,13 @@
+{
+ "raw_bytes": 68997672,
+ "index_bytes": 1931012,
+ "values": 8383332,
+ "gzip1_bytes": 50906469,
+ "gzip6_bytes": 50092492,
+ "gzip1_ms": 1496,
+ "gzip6_ms": 1979,
+ "load_inflate_rebuild_ms": 606,
+ "load_cpu_ms": 1099,
+ "entries": 64220,
+ "rss_mb": 1214
+}

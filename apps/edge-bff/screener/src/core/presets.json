@@ -1,0 +1,1864 @@
+{
+  "schema_version": 1,
+  "note": "The prototype's 26 presets (report APPENDIX A.2; evidence/html_model/presets_resolved.txt) remapped onto the registry and screener-metrics.json as report TARGET ARCHITECTURE 6.9.1 and 6.12 decide (P6 a: F conventions; P23 a: one year = 252 sessions, so 52W is 252 where the prototype had 250; P9 = FL09 bandar, states as per-condition thresholds; P8 all boards). The why texts state exactly what the definition tests. A preset is AVAILABLE only when every leg is (validate.ts presetAvailability); it never runs with a leg removed. Availability and counts are derived at run time. `view.sort` is the prototype's default sort of the eight presets that had one (bigacc, fstreak, freq, follow, oversold, piotroski, magic, dividend; its condition index mapped to the condition id, key \"c:<id>\"), kept on the unavailable ones too so it applies when they are enabled.",
+  "presets": [
+    {
+      "id": "brk52",
+      "category": "Technical",
+      "name": "52W Breakout + Volume",
+      "why": "Closed above the highest high of the previous 252 sessions in the last 3 sessions, and today's volume is above 1.5x the average of the previous 20 sessions (not necessarily on the breakout day).",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "pattern": {
+                  "kind": "pattern",
+                  "type": "breakout",
+                  "params": {
+                    "length": 252
+                  }
+                }
+              },
+              "within": 3
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "pattern": {
+                "kind": "pattern",
+                "type": "volspike",
+                "params": {
+                  "length": 20,
+                  "threshold": 1.5
+                }
+              }
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "oversold",
+      "category": "Technical",
+      "name": "Oversold in Uptrend",
+      "why": "Close above its 200-session SMA, with RSI(14) below 40: a pullback in a long uptrend.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 200
+                }
+              }
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "indicator",
+                "indicator": "I13",
+                "output": "rsi"
+              },
+              "op": "lt",
+              "value": 40
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:b",
+          "dir": "asc"
+        }
+      }
+    },
+    {
+      "id": "golden",
+      "category": "Technical",
+      "name": "Golden Cross",
+      "why": "The 50-session SMA crossed above the 200-session SMA within the last 20 sessions.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "lhs": {
+                  "kind": "indicator",
+                  "indicator": "I01",
+                  "output": "sma",
+                  "params": {
+                    "length": 50
+                  }
+                },
+                "op": "crosses_above",
+                "rhs": {
+                  "kind": "indicator",
+                  "indicator": "I01",
+                  "output": "sma",
+                  "params": {
+                    "length": 200
+                  }
+                }
+              },
+              "within": 20
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "macddiv",
+      "category": "Technical",
+      "name": "MACD Bullish Divergence",
+      "why": "A MACD(12, 26, 9) bullish divergence (a lower price swing low with a higher MACD low, flagged 3 sessions after the low) within the last 10 sessions.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "pattern": {
+                  "kind": "pattern",
+                  "type": "macd_divergence"
+                }
+              },
+              "within": 10
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "rebound",
+      "category": "Technical",
+      "name": "Rebound on Bullish Trend",
+      "why": "Close above the 50- and 20-session SMAs, crossed above the 10-session SMA within the last 3 sessions, and today's volume above 1.3x the average of the previous 20 sessions.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 50
+                }
+              }
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "lhs": {
+                  "kind": "price",
+                  "field": "close"
+                },
+                "op": "crosses_above",
+                "rhs": {
+                  "kind": "indicator",
+                  "indicator": "I01",
+                  "output": "sma",
+                  "params": {
+                    "length": 10
+                  }
+                }
+              },
+              "within": 3
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma"
+              }
+            }
+          },
+          {
+            "id": "d",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "pattern": {
+                "kind": "pattern",
+                "type": "volspike",
+                "params": {
+                  "length": 20,
+                  "threshold": 1.3
+                }
+              }
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "squeeze",
+      "category": "Technical",
+      "name": "Bollinger Squeeze Breakout",
+      "why": "Bollinger(20, 2) bandwidth at its lowest of the last 120 sessions within the last 15 sessions, and a close crossing above the upper band within the last 5 sessions (in either order).",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "pattern": {
+                  "kind": "pattern",
+                  "type": "squeeze",
+                  "params": {
+                    "length": 20,
+                    "std_dev": 2,
+                    "lookback": 120
+                  }
+                }
+              },
+              "within": 15
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "lhs": {
+                  "kind": "price",
+                  "field": "close"
+                },
+                "op": "crosses_above",
+                "rhs": {
+                  "kind": "indicator",
+                  "indicator": "I27",
+                  "output": "upper"
+                }
+              },
+              "within": 5
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "stflip",
+      "category": "Technical",
+      "name": "Supertrend Flip",
+      "why": "Supertrend(10, 3) turned up (direction crossed above 0) within the last 5 sessions, with ADX(14) above 20.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "lhs": {
+                  "kind": "indicator",
+                  "indicator": "I09",
+                  "output": "direction"
+                },
+                "op": "crosses_above",
+                "rhs": {
+                  "value": 0
+                }
+              },
+              "within": 5
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "indicator",
+                "indicator": "I07",
+                "output": "adx"
+              },
+              "op": "gt",
+              "value": 20
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "minervini",
+      "category": "Technical",
+      "name": "Minervini Trend Template",
+      "why": "Close above the 150-, 200- and 50-session SMAs; SMA150 above SMA200; SMA200 above its value 21 sessions ago; SMA50 above SMA150; more than 30% above the 52-week low; within 25% of the 52-week high; RS rank (252 sessions) above 70; ADV20 at least Rp 5 B.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 5000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 150
+                }
+              }
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 200
+                }
+              }
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 150
+                }
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 200
+                }
+              }
+            }
+          },
+          {
+            "id": "d",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 200
+                }
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "transform",
+                "fn": "lag",
+                "of": {
+                  "kind": "indicator",
+                  "indicator": "I01",
+                  "output": "sma",
+                  "params": {
+                    "length": 200
+                  }
+                },
+                "args": {
+                  "bars": 21
+                }
+              }
+            }
+          },
+          {
+            "id": "e",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 50
+                }
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 150
+                }
+              }
+            }
+          },
+          {
+            "id": "f",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 50
+                }
+              }
+            }
+          },
+          {
+            "id": "g",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "transform",
+                "fn": "pct_distance",
+                "of": {
+                  "kind": "transform",
+                  "fn": "rolling_min",
+                  "of": {
+                    "kind": "price",
+                    "field": "low"
+                  },
+                  "args": {
+                    "length": 252
+                  }
+                },
+                "args": {}
+              },
+              "op": "gt",
+              "value": 30
+            }
+          },
+          {
+            "id": "h",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "transform",
+                "fn": "pct_distance",
+                "of": {
+                  "kind": "transform",
+                  "fn": "rolling_max",
+                  "of": {
+                    "kind": "price",
+                    "field": "high"
+                  },
+                  "args": {
+                    "length": 252
+                  }
+                },
+                "args": {}
+              },
+              "op": "gt",
+              "value": -25
+            }
+          },
+          {
+            "id": "i",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "xsection",
+                "metric": "return_rank",
+                "params": {
+                  "window": 252
+                }
+              },
+              "op": "gt",
+              "value": 70
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "ichi",
+      "category": "Technical",
+      "name": "Ichimoku Bullish",
+      "why": "Close above the Ichimoku(9, 26, 52) cloud and Tenkan crossing above Kijun within the last 10 sessions (waits for a later release of the indicator list that adds Ichimoku).",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "pattern": {
+                "kind": "pattern",
+                "type": "ichimoku_above"
+              }
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "pattern": {
+                  "kind": "pattern",
+                  "type": "ichimoku_tk_cross"
+                }
+              },
+              "within": 10
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "bigacc",
+      "category": "Bandarmology",
+      "name": "Big Accumulation",
+      "why": "Top-3 bandar balance over 10 sessions at least 10% of traded value (Big Acc), with the close above its 20-session SMA.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "bandar",
+                "params": {
+                  "window": 10,
+                  "top": 3
+                }
+              },
+              "op": "between",
+              "value": 10,
+              "value2": 100
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma"
+              }
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
+      }
+    },
+    {
+      "id": "fstreak",
+      "category": "Bandarmology",
+      "name": "Foreign Accumulation Streak",
+      "why": "Foreign investors net bought on more than 4 sessions in a row, and their net over 20 sessions is positive.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "fstreak",
+                "params": {
+                  "window": 60
+                }
+              },
+              "op": "gt",
+              "value": 4
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "fnet",
+                "params": {
+                  "window": 20
+                }
+              },
+              "op": "gt",
+              "value": 0
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
+      }
+    },
+    {
+      "id": "silent",
+      "category": "Bandarmology",
+      "name": "Silent Accumulation",
+      "why": "Silent accumulation (5-session volume at least 1.3x the 20-session baseline while the 5-session move is at most 4%), with a positive top-3 bandar balance over 10 sessions.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "pattern": {
+                "kind": "pattern",
+                "type": "silent",
+                "params": {
+                  "days": 5,
+                  "length": 20,
+                  "volx": 1.3,
+                  "move": 4
+                }
+              }
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "bandar",
+                "params": {
+                  "window": 10,
+                  "top": 3
+                }
+              },
+              "op": "gt",
+              "value": 0
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "freq",
+      "category": "Bandarmology",
+      "name": "Frequency Spike",
+      "why": "The trade count crossed above 2.5x its prior 20-session average within the last 3 sessions, with a positive one-session return.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "event",
+              "signal": {
+                "lhs": {
+                  "kind": "flow",
+                  "metric": "freq",
+                  "params": {
+                    "window": 20
+                  }
+                },
+                "op": "crosses_above",
+                "rhs": {
+                  "value": 2.5
+                }
+              },
+              "within": 3
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "indicator",
+                "indicator": "I17",
+                "output": "roc",
+                "params": {
+                  "length": 1
+                }
+              },
+              "op": "gt",
+              "value": 0
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
+      }
+    },
+    {
+      "id": "bavg",
+      "category": "Bandarmology",
+      "name": "Near Bandar Average Price",
+      "why": "Close within 3% of the top-3 buyers' average buy price over 10 sessions, with a top-3 bandar balance of at least 6% (Acc).",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "bavg",
+                "params": {
+                  "window": 10,
+                  "top": 3
+                }
+              },
+              "op": "between",
+              "value": -3,
+              "value2": 3
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "bandar",
+                "params": {
+                  "window": 10,
+                  "top": 3
+                }
+              },
+              "op": "between",
+              "value": 6,
+              "value2": 100
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "follow",
+      "category": "Bandarmology",
+      "name": "Broker Follow",
+      "why": "Broker YP net bought more than Rp 1 B over 5 sessions, with the close above its 50-session SMA.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "broker",
+                "params": {
+                  "window": 5,
+                  "broker": "YP"
+                }
+              },
+              "op": "gt",
+              "value": 1000000000
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 50
+                }
+              }
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
+      }
+    },
+    {
+      "id": "graham",
+      "category": "Fundamental",
+      "name": "Graham Defensive",
+      "why": "P/E below 15, price below the Graham number, debt/equity below 1, dividends in more than 4 years and positive 3-year EPS growth (the prototype's text also named P/B below 1.5, which it never tested).",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "pe"
+              },
+              "op": "lt",
+              "value": 15
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "grahamRatio"
+              },
+              "op": "lt",
+              "value": 1
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "der"
+              },
+              "op": "lt",
+              "value": 1
+            }
+          },
+          {
+            "id": "d",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "divYears"
+              },
+              "op": "gt",
+              "value": 4
+            }
+          },
+          {
+            "id": "e",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "epsG3y"
+              },
+              "op": "gt",
+              "value": 0
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "piotroski",
+      "category": "Fundamental",
+      "name": "Piotroski F-score ≥ 7",
+      "why": "Piotroski F-score above 6 with P/B below 3.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "piotroski"
+              },
+              "op": "gt",
+              "value": 6
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "pb"
+              },
+              "op": "lt",
+              "value": 3
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
+      }
+    },
+    {
+      "id": "magic",
+      "category": "Fundamental",
+      "name": "Magic Formula (Greenblatt)",
+      "why": "Magic Formula rank below 21, outside Financials, market cap above Rp 5 T.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null,
+          "sectors_out": [
+            "Financials"
+          ],
+          "metric_filters": [
+            {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "cap"
+              },
+              "op": "gt",
+              "value": 5000000000000
+            }
+          ]
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "magicRank"
+              },
+              "op": "lt",
+              "value": 21
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "asc"
+        }
+      }
+    },
+    {
+      "id": "quality",
+      "category": "Fundamental",
+      "name": "Quality Compounder",
+      "why": "ROE above 15%, debt/equity below 0.8, net margin above 10% and 3-year EPS growth above 8%.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "roe"
+              },
+              "op": "gt",
+              "value": 15
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "der"
+              },
+              "op": "lt",
+              "value": 0.8
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "netMargin"
+              },
+              "op": "gt",
+              "value": 10
+            }
+          },
+          {
+            "id": "d",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "epsG3y"
+              },
+              "op": "gt",
+              "value": 8
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "dividend",
+      "category": "Fundamental",
+      "name": "High Dividend",
+      "why": "Dividend yield above 5%, payout below 85% and dividends in more than 4 years.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "divYield"
+              },
+              "op": "gt",
+              "value": 5
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "payout"
+              },
+              "op": "lt",
+              "value": 85
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "divYears"
+              },
+              "op": "gt",
+              "value": 4
+            }
+          }
+        ],
+        "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
+      }
+    },
+    {
+      "id": "garp",
+      "category": "Fundamental",
+      "name": "GARP",
+      "why": "PEG below 1, EPS growth above 15% and ROE above 12%.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "peg"
+              },
+              "op": "lt",
+              "value": 1
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "epsG"
+              },
+              "op": "gt",
+              "value": 15
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "roe"
+              },
+              "op": "gt",
+              "value": 12
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "deep",
+      "category": "Fundamental",
+      "name": "Deep Value",
+      "why": "P/B below 1 and P/E between 0 and 10.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "pb"
+              },
+              "op": "lt",
+              "value": 1
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "pe"
+              },
+              "op": "between",
+              "value": 0,
+              "value2": 10
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "bank",
+      "category": "Fundamental",
+      "name": "Bank Quality",
+      "why": "Banks with ROE above 12%, gross NPL below 3%, CAR above 18% and CASA above 60%.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null,
+          "industries_in": [
+            "Banks"
+          ]
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "roe"
+              },
+              "op": "gt",
+              "value": 12
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "npl"
+              },
+              "op": "lt",
+              "value": 3
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "car"
+              },
+              "op": "gt",
+              "value": 18
+            }
+          },
+          {
+            "id": "d",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "casa"
+              },
+              "op": "gt",
+              "value": 60
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "canslim",
+      "category": "Combined",
+      "name": "CANSLIM-lite",
+      "why": "Latest-quarter EPS growth above 20%, 3-year EPS growth above 10%, within 20% of the 52-week high, RS rank (252 sessions) above 70 and ROE above 12%.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "epsGq"
+              },
+              "op": "gt",
+              "value": 20
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "epsG3y"
+              },
+              "op": "gt",
+              "value": 10
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "transform",
+                "fn": "pct_distance",
+                "of": {
+                  "kind": "transform",
+                  "fn": "rolling_max",
+                  "of": {
+                    "kind": "price",
+                    "field": "high"
+                  },
+                  "args": {
+                    "length": 252
+                  }
+                },
+                "args": {}
+              },
+              "op": "gt",
+              "value": -20
+            }
+          },
+          {
+            "id": "d",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "xsection",
+                "metric": "return_rank",
+                "params": {
+                  "window": 252
+                }
+              },
+              "op": "gt",
+              "value": 70
+            }
+          },
+          {
+            "id": "e",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "roe"
+              },
+              "op": "gt",
+              "value": 12
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "qflow",
+      "category": "Combined",
+      "name": "Quality + Foreign Inflow",
+      "why": "ROE above 15%, debt/equity below 1, positive foreign net over 20 sessions and the close above its 50-session SMA.",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "roe"
+              },
+              "op": "gt",
+              "value": 15
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "der"
+              },
+              "op": "lt",
+              "value": 1
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "fnet",
+                "params": {
+                  "window": 20
+                }
+              },
+              "op": "gt",
+              "value": 0
+            }
+          },
+          {
+            "id": "d",
+            "enabled": true,
+            "test": {
+              "kind": "state",
+              "lhs": {
+                "kind": "price",
+                "field": "close"
+              },
+              "op": "gt",
+              "rhs": {
+                "kind": "indicator",
+                "indicator": "I01",
+                "output": "sma",
+                "params": {
+                  "length": 50
+                }
+              }
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    },
+    {
+      "id": "vacc",
+      "category": "Combined",
+      "name": "Value + Accumulation",
+      "why": "P/B below 1.5, P/E below 12 and a top-3 bandar balance over 10 sessions of at least 6% (Acc).",
+      "definition": {
+        "universe": {
+          "security_types": [
+            "stock"
+          ],
+          "include_unclassified": false,
+          "price_min": 50,
+          "adv20_min_idr": 1000000000,
+          "min_history_bars": null,
+          "traded_on_eval_date": true,
+          "exclude_price_breaks": true,
+          "tickers": null
+        },
+        "conditions": [
+          {
+            "id": "a",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "pb"
+              },
+              "op": "lt",
+              "value": 1.5
+            }
+          },
+          {
+            "id": "b",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "universe",
+                "attr": "pe"
+              },
+              "op": "lt",
+              "value": 12
+            }
+          },
+          {
+            "id": "c",
+            "enabled": true,
+            "test": {
+              "kind": "value",
+              "metric": {
+                "kind": "flow",
+                "metric": "bandar",
+                "params": {
+                  "window": 10,
+                  "top": 3
+                }
+              },
+              "op": "between",
+              "value": 6,
+              "value2": 100
+            }
+          }
+        ],
+        "logic": "all"
+      }
+    }
+  ]
+}

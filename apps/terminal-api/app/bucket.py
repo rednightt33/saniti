@@ -2,11 +2,70 @@
 out as short-lived presigned GET URLs for one exact key."""
 import gzip
 import json
+import re
 import time
 
 PREFIX = 'v1'
-STATE_FIELDS = ('finished_at', 'price_through', 'broker_through', 'broker_behind_sessions')
+# EXEC-SCREENER (P1 a, user 2026-10-28): `xsection` is the index of the run's cross-sectional files (xsection_index).
+# EXEC-MU-RUNTIME T5 (user 2026-10-28, option A): `refs` is the index of the run's reference files (refs_index).
+STATE_FIELDS = ('finished_at', 'price_through', 'broker_through', 'broker_behind_sessions', 'xsection', 'refs')
 MAX_CACHED = 4000   # manifests (a few KB each) and the logo index: a few MB at most
+XSECTION_NAME = re.compile(r'^[a-z0-9][a-z0-9_-]{0,31}$')
+XSECTION_FIELDS = ('key', 'sha256', 'bytes', 'rows', 'as_of')
+REF_NAME = XSECTION_NAME
+REF_FIELDS = ('key', 'sha256', 'bytes', 'rows')
+SHA256 = re.compile(r'^[0-9a-f]{64}$')
+
+
+def _count(v, least):
+    return isinstance(v, int) and not isinstance(v, bool) and v >= least
+
+
+def content_index(raw, family, fields):
+    """The well-formed entries of a state.json index of content-addressed files of one key family: {name: entry} whose
+    name matches XSECTION_NAME and whose key is v1/<family>/<name>.<first 16 hex of its sha256>.json.gz (the publisher's
+    content_key for a file without a ticker, never overwritten), with sha256 64 lowercase hex, whole bytes >= 1 and rows
+    >= 0; each entry keeps exactly `fields` (an `as_of` field: a string of at most 64 characters, else null). Anything
+    else is left out, so a route never presigns a key outside the family or names a file it would refuse. None when
+    `raw` is not an index (a publisher before the index existed)."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for name, e in raw.items():
+        if not (isinstance(name, str) and XSECTION_NAME.fullmatch(name) and isinstance(e, dict)):
+            continue
+        key, sha, size, rows = (e.get(k) for k in ('key', 'sha256', 'bytes', 'rows'))
+        own_key = rf'{PREFIX}/{family}/{re.escape(name)}\.([0-9a-f]{{16}})\.json\.gz'
+        m = re.fullmatch(own_key, key) if isinstance(key, str) else None
+        if not (m and isinstance(sha, str) and SHA256.fullmatch(sha) and sha[:16] == m.group(1) and _count(size, 1)
+                and _count(rows, 0)):
+            continue
+        entry = {'key': key, 'sha256': sha, 'bytes': size, 'rows': rows}
+        if 'as_of' in fields:
+            as_of = e.get('as_of')
+            entry['as_of'] = as_of if isinstance(as_of, str) and len(as_of) <= 64 else None
+        out[name] = {k: entry[k] for k in fields}
+    return out
+
+
+def xsection_index(raw):
+    """EXEC-SCREENER (P1 a): state.json `xsection` = {name: {key, sha256, bytes, rows, as_of}}, the cross-sectional
+    files of the publication (written by the publisher before state.json, content-addressed keys
+    v1/xsection/<name>.<first 16 hex of sha256>.json.gz that are never overwritten). This is the index /state shows
+    and /xsection grants from: only well-formed entries, each with exactly those five fields, so /state never names a
+    file /xsection would refuse and a key outside the xsection family is never presigned. The publisher keeps exactly
+    these entries when it carries the index forward and cleans up (publisher.py xsection_entries, collect_garbage; its
+    tests hold the two rules equal). None when state.json holds no index (a publisher before the xsection writer)."""
+    return content_index(raw, 'xsection', XSECTION_FIELDS)
+
+
+def refs_index(raw):
+    """EXEC-MU-RUNTIME T5: state.json `refs` = {name: {key, sha256, bytes, rows}}, the publication's reference files
+    (tickers, brokers, logos) under content keys v1/ref/<name>.<first 16 hex of sha256>.json.gz, validated by the same
+    rules as xsection_index (content_index). /state shows it and /reference/{name} presigns from it; the fixed keys
+    v1/ref/<name>.json.gz, which the publisher keeps writing for old readers, are the fallback while a publication has
+    no index (None) or the index lacks the name."""
+    return content_index(raw, 'ref', REF_FIELDS)
 
 
 class Bucket:
@@ -45,12 +104,17 @@ class Bucket:
     def state(self):
         """EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publisher's last finished run, as read for the manifest cache
         (at most cache_seconds old): which publication the files belong to and the newest date of each dataset. None
-        while state.json was never readable."""
+        while state.json was never readable. EXEC-SCREENER: plus `xsection`, the run's cross-sectional file index
+        (xsection_index; null when the run wrote none), taken from the same read as `finished_at`. EXEC-MU-RUNTIME T5:
+        plus `refs`, the run's reference file index (refs_index; null when the run wrote none), from the same read."""
         self._fresh()
         s = self._state
         if not isinstance(s, dict):
             return None
-        return {k: s.get(k) for k in STATE_FIELDS}
+        out = {k: s.get(k) for k in STATE_FIELDS}
+        out['xsection'] = xsection_index(out['xsection'])
+        out['refs'] = refs_index(out['refs'])
+        return out
 
     def manifest(self, ticker):
         self._fresh()

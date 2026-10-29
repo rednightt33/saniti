@@ -1,0 +1,59 @@
+Basic Materials|Chemicals
+Basic Materials|Construction Materials
+Basic Materials|Containers & Packaging
+Basic Materials|Forest & Paper
+Basic Materials|Metals & Minerals
+Consumer Cyclicals|Apparel & Luxury Goods
+Consumer Cyclicals|Automotive Components
+Consumer Cyclicals|Consumer Electronics
+Consumer Cyclicals|Consumer Goods Distributors
+Consumer Cyclicals|Department Stores
+Consumer Cyclicals|Education & Support Services
+Consumer Cyclicals|Entertainment & Movie Production
+Consumer Cyclicals|Household Goods
+Consumer Cyclicals|Media
+Consumer Cyclicals|Specialty Retail
+Consumer Cyclicals|Sports Equipment & Hobbies Goods
+Consumer Cyclicals|Tourism & Recreation
+Consumer Non-Cyclicals|Agricultural Food Products
+Consumer Non-Cyclicals|Beverages
+Consumer Non-Cyclicals|Food & Staples Retailing
+Consumer Non-Cyclicals|Personal Care Products
+Consumer Non-Cyclicals|Processed Foods
+Consumer Non-Cyclicals|Tobacco
+Energy|Alternative Energy Equipment
+Energy|Coal
+Energy|Oil & Gas
+Energy|Oil, Gas & Coal Support
+Financials|Banks
+Financials|Consumer Financing
+Financials|Holding & Investment Companies
+Financials|Insurance
+Financials|Investment Services
+Healthcare|Healthcare Equipment & Supplies
+Healthcare|Healthcare Providers
+Healthcare|Pharmaceuticals
+Industrials|Building Products & Fixtures
+Industrials|Commercial Services
+Industrials|Diversified Industrial Trading
+Industrials|Electrical Equipment
+Industrials|Machinery
+Industrials|Multi-sector Holdings
+Industrials|Professional Services
+Infrastructures|Building Construction
+Infrastructures|Electric Utilities
+Infrastructures|Gas Utilities
+Infrastructures|Telecommunication Services
+Infrastructures|Transportation Infrastructure Operators
+Infrastructures|Wireless Telecommunication Services
+Properties & Real Estate|Real Estate Management & Development
+Technology|Computer Hardware
+Technology|Electronic Equipment, Instruments & Components
+Technology|IT Services & Consulting
+Technology|Internet Applications & Services
+Technology|Networking Equipment
+Technology|Software
+Transportation & Logistic|Airlines
+Transportation & Logistic|Logistics & Deliveries
+Transportation & Logistic|Passenger Ground Transportation
+Undefined|Undefined

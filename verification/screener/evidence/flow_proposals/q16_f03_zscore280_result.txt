@@ -1,0 +1,4 @@
+name | n | mn | p10 | p50 | p90 | mx | bbca | antm | care | nulls | parity_pop | parity_equal | board_diff_ge_half_sigma | care_stored_regular
+FL05 foreign net 20 z-score vs prior 252 (all boards, ticker sessions) | 723 | -10.331 | -0.907 | 0.097 | 1.126 | 157.127 | -0.688 | -0.287 | 1.139 | 109 | 38 | 38 | 66 | 0.174
+(1 rows, 2854 ms)
+---

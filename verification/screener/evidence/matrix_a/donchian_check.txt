@@ -1,0 +1,5 @@
+BBCA C crosses_above donchian.upper (same bar): 0 | C gt upper: 0 | C lt lower: 0 | C gt upper[t-1]: 124 | C lt lower[t-1]: 105 | BB C crosses_above upper: 74
+TLKM C crosses_above donchian.upper (same bar): 0 | C gt upper: 0 | C lt lower: 0 | C gt upper[t-1]: 117 | C lt lower[t-1]: 107 | BB C crosses_above upper: 63
+ANTM C crosses_above donchian.upper (same bar): 0 | C gt upper: 0 | C lt lower: 0 | C gt upper[t-1]: 109 | C lt lower[t-1]: 143 | BB C crosses_above upper: 74
+BUMI C crosses_above donchian.upper (same bar): 0 | C gt upper: 0 | C lt lower: 0 | C gt upper[t-1]: 72 | C lt lower[t-1]: 124 | BB C crosses_above upper: 54
+BEKS C crosses_above donchian.upper (same bar): 0 | C gt upper: 0 | C lt lower: 0 | C gt upper[t-1]: 37 | C lt lower[t-1]: 52 | BB C crosses_above upper: 28

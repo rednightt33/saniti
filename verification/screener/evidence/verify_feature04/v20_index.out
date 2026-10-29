@@ -1,0 +1,16 @@
+ticker | asset_type | count | min | max | max | min | max
+IHSG | index | 2127 | 2018-01-02T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T12:39:33.163482Z | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4
+(1 rows, 273 ms)
+---
+count
+0
+(1 rows, 232 ms)
+---
+conname | pg_get_constraintdef
+index_asset_type_only | CHECK ((asset_type = 'index'::text))
+(1 rows, 229 ms)
+---
+conname | pg_get_constraintdef
+Feature_04_Technical_Indicator_asset_type_check | CHECK ((asset_type = ANY (ARRAY['equity'::text, 'bonds'::text])))
+(1 rows, 217 ms)
+---

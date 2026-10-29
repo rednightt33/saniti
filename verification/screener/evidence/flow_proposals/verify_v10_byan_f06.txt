@@ -1,0 +1,6 @@
+ticker | market_board | stored_fnet20_b
+BYAN | Regular | -39.72
+CARE | Nego | 377.72
+CARE | Regular | -1.50
+(3 rows, 298 ms)
+---

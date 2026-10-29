@@ -1,0 +1,73 @@
+QUERY PLAN
+HashAggregate  (cost=677624.20..677630.70 rows=200 width=208) (actual time=18624.225..18625.372 rows=1525.00 loops=1)
+  Group Key: w.ticker
+  Batches: 1  Memory Usage: 1609kB
+  Buffers: shared hit=40879 read=160841, temp read=1155 written=2646
+  CTE w
+    ->  HashAggregate  (cost=554524.83..613376.74 rows=465400 width=173) (actual time=18332.963..18535.239 rows=61884.00 loops=1)
+          Group Key: f.ticker, c.k
+          Planned Partitions: 64  Batches: 65  Memory Usage: 8209kB  Disk Usage: 12176kB
+          Buffers: shared hit=40876 read=160841, temp read=708 written=2198
+          ->  Hash Join  (cost=19772.31..235281.86 rows=2306044 width=58) (actual time=2116.479..18217.024 rows=68865.00 loops=1)
+                Hash Cond: (f.trade_date = c.trade_date)
+                Buffers: shared hit=40876 read=160841
+                ->  Seq Scan on "Feature_06_Foreign_Domestic" f  (cost=0.00..183801.44 rows=2306044 width=54) (actual time=1.018..15709.965 rows=2308206.00 loops=1)
+                      Buffers: shared hit=3806 read=156935
+                ->  Hash  (cost=19739.80..19739.80 rows=2601 width=12) (actual time=2105.886..2105.892 rows=61.00 loops=1)
+                      Buckets: 4096  Batches: 1  Memory Usage: 35kB
+                      Buffers: shared hit=37070 read=3906
+                      ->  Subquery Scan on c  (cost=19668.29..19739.80 rows=2601 width=12) (actual time=2105.849..2105.870 rows=61.00 loops=1)
+                            Buffers: shared hit=37070 read=3906
+                            ->  WindowAgg  (cost=19668.29..19713.79 rows=2601 width=12) (actual time=2105.845..2105.861 rows=61.00 loops=1)
+                                  Window: w1 AS (ORDER BY "Feature_06_Foreign_Domestic".trade_date ROWS UNBOUNDED PRECEDING)
+                                  Run Condition: (row_number() OVER w1 <= 61)
+                                  Storage: Memory  Maximum Storage: 17kB
+                                  Buffers: shared hit=37070 read=3906
+                                  ->  Sort  (cost=19668.27..19674.78 rows=2601 width=4) (actual time=2105.735..2105.740 rows=62.00 loops=1)
+                                        Sort Key: "Feature_06_Foreign_Domestic".trade_date DESC
+                                        Sort Method: quicksort  Memory: 25kB
+                                        Buffers: shared hit=37070 read=3906
+                                        ->  Unique  (cost=0.43..19520.74 rows=2601 width=4) (actual time=658.480..2105.600 rows=84.00 loops=1)
+                                              Buffers: shared hit=37070 read=3906
+                                              ->  Index Only Scan using "Feature_06_Foreign_Domestic_date_board_idx" on "Feature_06_Foreign_Domestic"  (cost=0.43..19276.58 rows=97661 width=4) (actual time=658.474..2100.586 rows=102292.00 loops=1)
+                                                    Index Cond: ((trade_date > '2026-06-29'::date) AND (trade_date <= '2026-10-27'::date))
+                                                    Heap Fetches: 41970
+                                                    Index Searches: 1
+                                                    Buffers: shared hit=37070 read=3906
+  ->  Hash Left Join  (cost=33912.39..44467.96 rows=465400 width=208) (actual time=18591.690..18608.810 rows=61884.00 loops=1)
+        Hash Cond: (w.ticker = s.ticker)
+        Buffers: shared hit=40879 read=160841, temp read=1155 written=2646
+        ->  CTE Scan on w  (cost=0.00..9308.00 rows=465400 width=200) (actual time=18332.969..18339.805 rows=61884.00 loops=1)
+              Storage: Disk  Maximum Storage: 4093kB
+              Buffers: shared hit=40876 read=160841, temp read=447 written=2198
+        ->  Hash  (cost=33909.89..33909.89 rows=200 width=40) (actual time=258.650..258.672 rows=871.00 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 47kB
+              Buffers: shared hit=3, temp read=708 written=448
+              ->  Subquery Scan on s  (cost=28088.42..33909.89 rows=200 width=40) (actual time=248.486..258.487 rows=871.00 loops=1)
+                    Buffers: shared hit=3, temp read=708 written=448
+                    ->  GroupAggregate  (cost=28088.42..33907.89 rows=200 width=40) (actual time=248.482..258.410 rows=871.00 loops=1)
+                          Group Key: w_1.ticker
+                          Buffers: shared hit=3, temp read=708 written=448
+                          ->  WindowAgg  (cost=28088.42..31191.06 rows=155133 width=208) (actual time=248.422..256.721 rows=19518.00 loops=1)
+                                Window: w1 AS (PARTITION BY w_1.ticker ORDER BY w_1.k ROWS UNBOUNDED PRECEDING)
+                                Storage: Memory  Maximum Storage: 17kB
+                                Buffers: shared hit=3, temp read=708 written=448
+                                ->  Sort  (cost=28088.40..28476.24 rows=155133 width=40) (actual time=248.351..250.429 rows=19518.00 loops=1)
+                                      Sort Key: w_1.ticker, w_1.k
+                                      Sort Method: quicksort  Memory: 1379kB
+                                      Buffers: shared hit=3, temp read=708 written=448
+                                      ->  CTE Scan on w w_1  (cost=0.00..10471.50 rows=155133 width=40) (actual time=0.021..229.940 rows=19518.00 loops=1)
+                                            Filter: (fnet_reg > '0'::numeric)
+                                            Rows Removed by Filter: 42366
+                                            Storage: Disk  Maximum Storage: 4093kB
+                                            Buffers: temp read=708 written=448
+Planning:
+  Buffers: shared hit=56 read=9
+Planning Time: 2.243 ms
+JIT:
+  Functions: 55
+  Options: Inlining true, Optimization true, Expressions true, Deforming true
+  Timing: Generation 5.778 ms (Deform 2.651 ms), Inlining 127.458 ms, Optimization 392.459 ms, Emission 308.955 ms, Total 834.650 ms
+Execution Time: 18634.610 ms
+(70 rows, 18884 ms)
+---

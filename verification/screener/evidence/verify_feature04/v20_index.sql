@@ -1,0 +1,4 @@
+select ticker, asset_type, count(*), min(trade_date), max(trade_date), max(calculated_at), min(calculation_version), max(calculation_version) from public."Feature_04_Technical_Indicator_INDEX" group by 1,2;;
+select count(*) from public."Price_Stock_Indonesia_IDX" p where ticker='IHSG' and not exists (select 1 from public."Feature_04_Technical_Indicator_INDEX" f where f.ticker='IHSG' and f.trade_date=p.date);;
+select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid='public."Feature_04_Technical_Indicator_INDEX"'::regclass and contype='c' and pg_get_constraintdef(oid) ilike '%asset_type%';;
+select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid='public."Feature_04_Technical_Indicator"'::regclass and contype='c' and pg_get_constraintdef(oid) ilike '%asset_type%'

@@ -1,0 +1,86 @@
+149:## 2026-10-12 — Feature04 compact Telegram monitor and bounded retry
+151:- User authorized execution with `"Okay gas."` after confirming the Feature04-only
+152:  monitoring design. Migration `20261012_004_feature04_telegram_monitor.sql`
+155:- Added nullable `Feature04_Retry_Request.acknowledgement_message_id` with a nonnegative
+158:- Added `feature04_retry_dirty_date(asset_type,ticker)`. It reads the enabled market policy
+160:  all current markets). `request_feature04_retry` now uses that exact boundary, deletes
+170:- Follow-up catalog migration `20261012_005_document_feature04_delivery_key.sql`
+173:  carries the logical Feature04 market/date delivery key; the physical type and constraint
+176:## 2026-10-12 — Feature04 exact incremental state and equity finality
+179:  Migration `20261012_003_incremental_feature04_finality.sql` (`a4aa1bf5…46af9`)
+186:- Added `Feature04_Calculation_State` and incremental range fields on the attempt log.
+203:- Evidence: `verification/feature04/INCREMENTAL_FINALITY.md` and
+204:  `verification/feature04/incremental_finality.json`.
+222:  enabled market rows, and zero active Feature04 claims.
+223:- Feature04 source reads and database triggers now require final `price`/`1D` rows. A
+227:- Evidence: `verification/feature04/FIXED_INCOME_FINALITY.md`. Recent-session source
+228:  re-query and post-cutover Feature04 readback are recorded there after the Git/Railway
+240:- All 24 affected price tickers reached Feature04 `SUCCESS`; 120/120 five-session feature
+242:  all price and Feature04 Telegram ledgers are `SENT`, and the zero-change run produced a
+243:  `SKIPPED` Feature04 execution. Semantic audit passed 148/148 active definitions with
+244:  57/57 Feature04 coverage; `DATABASE_SCHEMA.md` was regenerated from live introspection.
+246:## 2026-10-11 — Feature04 governed rename and source close
+248:- User approved physical target name `Feature_04_Technical_Indicator`, required all related runtime scripts to follow it, added `close` by `trade_date`, and requested all related documentation be updated. Applied forward migrations `20261011_008_rename_feature04_add_close.sql` (`66bceac1…babf`
+251:- Catalog coverage is 57/57 physical/column/active-feature definitions; semantic audit PASS is 148/148 active definitions across four Feature tables. The Feature01 relationship explicitly filters Feature04 to equity, and the standard governed Feature-name validator has been restored.
+252:- Initial queue-derived readiness inserted close status for only the 25 instruments currently represented in the queue. The readback caught this immediately; migration 009 instead derives all instruments from the target and completed 868/868 successful close statuses. Total Feature04 status rows
+254:- Evidence: `verification/feature04/RENAME_CLOSE.md` and `rename_close_validation.json`. `DATABASE_SCHEMA.md` was refreshed by read-only introspection.
+256:## 2026-10-11 — Feature04 cross-asset fixed-income price support
+258:- User required the same OHLC-based Feature04 metrics for `Price_Fixed_Income` price rows, an `asset_type` identity, and classification exclusively from live universe membership. Applied forward migrations `20261011_006_extend_feature04_to_bonds.sql` (`9a9e14e…4c45`) and `20261011_007_document
+259:- `Feature04_Technical_Indicator` now has 56 columns and primary key `(ticker,trade_date,timeframe,asset_type)`. Existing 1,318,633 rows / 844 tickers became `equity`; new rows become `bonds` only when their ticker is in `Universe_Fixed_income`. Missing or dual universe membership raises an erro
+260:- Added fixed-income price and monitor triggers. Only `metric_type='price'` / `Timeframe='1D'` enters Feature04. A committed `Monitoring_Fixed_Income` row binds eligible bond tickers and creates the fixed-income price notification gate; the independent fixed-income cron schedules and source data
+262:- Formula invariants passed on every bond row: zero inside-bar, MACD, histogram, or Bollinger-middle mismatch; `break_swing_high` is always INTEGER 1/0; ADX14 has 648 expected warmup NULLs and EMA200 has 4,776. Feature semantic audit: 147/147 active definitions verified, Feature04 56/56 physical
+263:- Evidence: `verification/feature04/BONDS.md` and `cross_asset_validation.json`. `DATABASE_SCHEMA.md` was refreshed from read-only introspection; fixed-income status/catalog documentation was registered without global status reconciliation.
+265:## 2026-10-11 — Feature04 automatic per-ticker calculation and failure-only retry
+267:- User approved the reviewed design with "Ok, jalankan" and required documentation after all Markdown files were read. Applied forward migration `20261011_005_automate_feature04.sql`, SHA256 `0293c4bb2cecf4940a72635afa466647c47d03bb0c39fccc428c978f503b6967`, to lucid-patience/dev primary Postgre
+268:- Added seven control/monitoring tables: coalesced ticker queue, per-column readiness, immutable attempt log, execution summary, execution ticker members, Telegram retry requests, and a notification outbox. Added a nullable Feature04 retry link to `Telegram_Command_Log`, four helper functions, a
+269:- Bootstrap readback: 42,200 `Feature04_Column_Status` rows = 844 tickers × 50 feature outputs, all `SUCCESS`; zero work queued. Existing 1,318,633 Feature04 rows and prices were not recalculated by the migration. Expected EMA200/SMI NULL availability remains successful state.
+271:- Price notification ordering uses `Monitoring_Feature04.price_notification_sent_at`; terminal Feature04 outbox delivery waits for that gate. Calculation commits never depend on Telegram availability. No new database, price schedule, AI catalog/allowlist, model, or source fetch was added.
+272:- Evidence: `verification/feature04/automation_live_readback.json` and `verification/feature04/AUTOMATION.md`.
+274:## 2026-10-11 — Feature04 v2 and complete serial source-ticker backfill
+277:- Applied forward migration `20261011_002_extend_feature04_and_backfill_log.sql`, SHA256 `b0cd9ec8528baf0df444c8fc57980edb805d523314b585185c57a260e99d644b`, after successful rolled-back rehearsal. Appended ADX14, EMA50, EMA200 and strict inside_bar, making 46 columns. Original v1 migration and e
+278:- Added monitoring table `feature04_backfill_log` (13 columns, PK run_id/ticker), registered in Table_Catalog and Column_Catalog. Source timestamps are incomplete, so the Feature01 attempt log was not repurposed by fabricating ingestion times. Feature04 output and its COMPLETED ticker log commit
+283:- 21 local calculation/guard tests and both standalone applied-migration immutability checks passed. Live rehearsal verified 2,113-row COPY/UPSERT, identical rerun zero, one changed-payload update, constraints and rollback. `DATABASE_SCHEMA.md` refreshed read-only (53 public tables, target 46 co
+286:## 2026-10-11 — Feature04 first-month BBCA backfill test
+289:- Existing bounded Python pipeline read 22 chronological source observations and committed 22 daily rows to `public."Feature04_Technical_Indicator"` (actual dates 2018-01-02..31). Version `feature04-v1-talib0.6.8-c0.6.4`; no source fetch, schema migration, source write, full backfill, scheduler
+292:- TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. Evidence: `verification/feature04/BACKFILL_BBCA_201801.md` and aggregate manifest `backfill_bbca_201801.json`; no row-by-row database mirror in GitHub. The execution sandbox was read back DESTROYED.
+294:## 2026-10-11 — Feature04 technical indicator table and bounded Python engine
+296:- User supplied direct execution instruction: "Create a technically correct, auditable, and XGBoost-ready feature table derived from existing Indonesian equity OHLCV data." Target exact name `Feature04_Technical_Indicator`; no source modifications, full backfill, model training, new service/data
+298:- Applied forward migration `20261011_001_create_feature04_technical_indicator.sql` after a successful rolled-back rehearsal. Created exactly 42 horizontal columns and PK `(ticker,trade_date,timeframe)`. One table and its 42 columns/formulas are registered in the existing catalogs; one safe exac
+299:- The existing catalog validator's name regex excluded the user's exact spelling. Added only the `Feature04_Technical_Indicator` exception to `public.validate_feature_catalog_target()`; physical-column and VERIFIED-table guards remain. Registered the existing routine with the affected catalogs;
+300:- Engine `features/feature04/engine.py`, bounded pipeline `pipeline.py`, reviewed definitions `specs.py`; pinned TA-Lib 0.6.8 (C 0.6.4), NumPy 2.3.5, psycopg 3.2.13. Full available per-ticker history supplies initialization; default dry-run, explicit tickers/range, bounded optional UPSERT. MACD
+303:- Evidence: `verification/feature04/REPORT.md`, `inspection.json`, `apply.json`, `validate.json`, `calculation_validation.json`; design/mapping/DDL guide `FEATURE04_TECHNICAL_INDICATOR.md`. `DATABASE_SCHEMA.md` refreshed using read-only generator helpers, without global status reconciliation or
+1983:## 2026-10-11 — Feature04 v3 Pine SMI/swing extension, BBCA only
+1985:User: "Bisa buat itu di table feature 04, termasuk SMI dan signal kapan break swing high trigger? Mulai dari BBCA saja ya. Konfirmasi", then "Sure, please create MD di git menjelaskan setiap kolom pada feature 4 technical indicator ini ya dari segi definisi." Encoding correction: "Buat 1 saja a
+1987:Applied forward migration `20261011_003_add_feature04_smi_swing.sql` (SHA256 `d96fd3273ca0ef35e5dc9e685296fbb6304a3d348bf625d18147d0215303ac31`): append smi, tracking_high/low, temp_high/low and their bar indices, last_swing_high, and INTEGER 1/0 break_swing_high. Existing 46 columns/order pres
+1991:27 feature tests, rolled-back DDL/data rehearsal, binary constraint rejection, all-column committed readback, independent SQL crossover reference (0 mismatches), independent closed-form EMA convolution on 2,113 live rows (error <1e-10), and frozen migration checks pass. Read-only schema export
+1994:## 2026-10-11 — Feature04 v3 SMI/swing full source-ticker continuation
+1998:Target `public."Feature04_Technical_Indicator"`: all 844 tickers / 1,318,633 Daily rows, 2018-01-02..2026-10-09, now v3. 1,316,520 rows changed in this continuation; earlier BBCA 2,113-row payload/timestamps unchanged. Original indicator/identity payload excluding version/timestamp fingerprint
+2004:Applied metadata-only forward migration `20261011_004_record_feature04_smi_full_coverage.sql`, SHA256 `304301a858b13cbc900101e5ac9b1d134e98b2d537e06db35c561f4433590cf6`, after successful rollback rehearsal. Updated Table/Column/Feature coverage/evidence metadata to reflect full v3 rollout. Phys
+2031:User: “Coba tarik manual saja untuk 20 oktober serta kalkulasi feature 4 manual, hanya untuk bonds ya.” At19:34 WIB, native Git-released ingestion (commit21d2e02), mode manual, marketID, explicit target2026-10-20 inserted22 final TradingView rows (11 price +11 yield; previously0). Execution
+2033:## 2026-10-20 — EXEC-ONBOARD-1: Price_Fixed_Income (view), Universe_Fixed_income and Feature 04 exposed to the AI
+2039:always NULL); `Price_Stock_Indonesia_IDX` has no provisional row; Feature 04 equity 1,324,453 rows / 844 tickers and
+2042:- Migration `20261020_001_onboard_fixed_income_and_feature04.sql` (SHA256
+2045:  `Universe_Fixed_income` and `Feature_04_Technical_Indicator`; `AI_column_catalog` 10 + 14 + 57 rows (exposed 10 + 10
+2046:  + 49; Feature 04 `tracking_*`, `temp_*`, `*_bar`, `calculation_version`, `calculated_at` and the universe's
+2048:  meanings `DRAFT`; five `AI_catalog_relationships` (157-161); 57 `AI_calculation_catalog` rows for Feature 04 from
+2053:  objects; Feature 04 rows without the hidden columns); `Table_Catalog` / `Column_Catalog` for the view, migration path
+2062:  refused on the base table; preview of Feature 04 20 rows / 49 columns, view 20 / 10, universe 20 / 14, the old
+2064:- Performance (bounded `EXPLAIN (ANALYZE, BUFFERS)` in the rehearsal, no index added): Feature 04 latest session
+2067:  one month 2.2 ms and one country one month 0.28 ms (`Price_Fixed_Income_date_idx`). The Feature 04 preview order
+2072:  Feature 04); columns 57/49, 10/10, 14/10 with every exposed column DRAFT; relationships 157-161; 57 calculations, 19
+2095:  15 GB (heap 11 GB, 45.2 million rows, last date 2026-08-31), `IDX_Broker_Summary` 7.7 GB, Feature 04 2.6 GB.
+2150:## 2026-10-23 — Feature 04 and Feature 05 `(trade_date)` indexes (EXEC-M204 step 4)
+2155:  `20261023_001` `CREATE INDEX CONCURRENTLY "Feature_04_Technical_Indicator_trade_date_idx" (trade_date)`;
+2158:- Read back (same job): both indexes `indisvalid` and `indisready`; Feature 04 index 9,832 kB, Feature 05 index 300 MB;
+2159:  reltuples Feature 04 1,383,577 (was 3,008,498: stale since 2026-10-11, ERRORS M206), Feature 05 45,234,964; database
+2162:  Feature 04, 05 and 06 every pattern PASS; Feature 04 calendar 7,004.8 ms → 0.2 ms, every ticker over 365 days from
+2254:features NULL while price/return fields remain available. Feature04 accepts
+2270:Feature04 backfill verified 2,125 rows and latest-five checkpoint parity (0 drift),
+2271:with 7 recent checkpoints. Routine Feature04 queue retry awaits the patched worker
+2310:empty for IHSG and Feature04's 2,125 IHSG rows retain the exact before/after fingerprint. Evidence:
+2353:| Feature_04_Technical_Indicator_INDEX | 2,125 | 2018-01-02 | 2026-10-23 |
+2521:  - `enqueue_feature_01_price_row` and `enqueue_feature04_group` replaced by their live bodies (md5 checked) plus an
+2523:  - trigger `stock_feature_index_guard` on `Feature_01_Stock_Daily` and `Feature_04_Technical_Indicator`;
+2525:    Feature 04 queue row and its 51 column-status rows. The 2,125 DONE Feature 01 queue rows stay (referenced by
+2569:grains/analytical columns; Feature04 asset_type is constrained to index. Feature05/06 each add five
+2676:  Feature 04 column, generated from the single spec `scripts/terminal_indicator_spec.py` (also the source of

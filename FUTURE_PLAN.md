@@ -1021,3 +1021,99 @@ Usulan (belum disetujui): (a) katalog berlaku sampai `state.json` `finished_at` 
 di `state.json`; (b) satu pemuat data bersama Terminal dan Backtest (satu `/bundle` per saham, pekerja latar, harga
 dulu lalu broker, cache yang sama, pengukur `?perf=1`); (c) pool koneksi database untuk cek sesi edge-bff. Lama Run
 di worker (1 saham 5,3 s, 12 saham 13,4 s menurut uji E2E sesi backtest) di luar usulan ini.
+
+## Screener: usulan perbaikan data dan Feature 04 dari audit (usulan 2026-10-28, menunggu keputusan)
+
+Ditemukan oleh audit read-only EDGE Screener (laporan `verification/screener/AUDIT.md`, bagian CHANGES AWAITING APPROVAL
+14.6; item PLAN.md SCREENER). Kelimanya di luar cakupan Screener, dan masing-masing butuh persetujuan dan "go" sendiri.
+Audit tidak mengubah apa pun di database, Feature 04 atau Railway. Screener tidak menunggu butir-butir ini: sampai E2
+selesai, Screener memakai aturan TEMPORARY P4 (d) (sel turunan harga yang jendela hitungnya melewati tanggal ex
+dikosongkan dengan alasan, sahamnya ditandai).
+
+1. **E1 — Jadwal rak lebih segar (terkait keputusan P1).**
+   - Apa: menambah (atau memindah) satu publikasi rak tepat sesudah cron harga (`idx-price-cron` 10:00 UTC = 17:00 WIB,
+     `.railway/railway.ts`:93), supaya Terminal, Backtest dan Screener sama-sama memuat sesi hari itu lebih awal. Jadwal
+     sekarang, 07:30 dan 19:00 WIB, adalah keputusan user 2026-10-26 (T7, `apps/terminal-publisher/publisher.py`:17-18),
+     jadi perubahan ini mengubah keputusan user.
+   - Mengapa: tidak memperbaiki entri ERRORS. Dengan satu sumber data (P1 a), setiap hari bursa database sudah memegang
+     sesi terbaru ±3 jam sebelum rak (cron harga 17:00 WIB; publikasi 19:00 WIB selesai ±20:03 WIB, ERRORS M250), jadi
+     jawaban AI bisa memakai sesi yang belum tampil di Terminal, Backtest dan Screener.
+   - Risiko: lebih banyak run publisher; backtest-worker membangun ulang katalognya setiap ada `finished_at` baru
+     (`apps/backtest-worker/src/catalog.ts`:58-81) dan screener-worker membangun ulang snapshot-nya (±8-10 detik); satu
+     jendela publisher lagi yang harus dihindari saat deploy (M250).
+   - Rollback: kembalikan `TERMINAL_RUN_TIMES_WIB` dan cronSchedule terminal-publisher ke 07:30 dan 19:00 WIB.
+2. **E2 — Perbaikan lapisan data untuk split dan rights yang belum disesuaikan (ERRORS D22).**
+   - Apa: saat ada split, saham bonus atau rights (tercatat di `idx_event_annotation`), tarik ulang atau skalakan
+     seluruh riwayat harga saham itu di `Price_Stock_Indonesia_IDX`, lalu Feature 04 menghitung ulang bagian yang
+     terdampak. Sekarang `apps/idx-price-cron/price_update.py` hanya meminta 5 bar terakhir yang sudah disesuaikan split
+     dan tidak pernah menulis ulang baris lama.
+   - Mengapa: D22 (OPEN). Contoh: PBSA (split, ex 2026-10-14; Feature 04 2026-10-27 `rsi_14` 22,8 dan `sma_50` 706,4
+     dengan close ±300) dan FORU (rights, ex 2026-09-22; close 2.560 → 176; `bb_lower_20` negatif). Audit menghitung 8
+     aksi yang memengaruhi harga antara `ADJUSTED_HISTORY_BOUNDARY` (2026-09-12) dan 2026-10-27. Semua pemakai harga
+     (Feature 01/04, Terminal, Backtest, Screener, jawaban AI) ikut terdistorsi; Backtest dan Screener hanya memberi
+     peringatan atau mengosongkan sel.
+   - Risiko: menulis ulang riwayat harga; perhitungan ulang Feature 04 atas bagian yang terdampak berakhir
+     `REPAIR_REQUIRED` per saham tanpa perbaikan manual, dan alat perbaikan manual itu sekarang berhenti di IHSG (E4).
+   - Rollback: belum ada; ditetapkan di rencana eksekusi D22 sebelum "go" (usulan: simpan salinan baris harga lama per
+     saham sebelum ditimpa).
+3. **E3 — Kembalikan `Sector` dan `Industry` di `Universe_Equity_Description` (ERRORS D23).**
+   - Apa: tukar isi dua kolom itu dalam satu transaksi, lalu verifikasi terhadap `IDX_Stock_Universe`; deskripsi dua
+     kolom itu di `Column_Catalog` diperiksa ikut (AGENTS.md, Metadata).
+   - Mengapa: D23 (OPEN): kolomnya tertukar (ADRO: Sector `Coal`, Industry `Energy`). Audit menghitung 841 dari 844
+     baris berbeda dari `IDX_Stock_Universe`; 3 lainnya `Undefined` di kedua tabel
+     (`verification/screener/evidence/fundamentals_universe/ued.txt`; AUDIT.md §7.5 mengoreksi angka D23). Perbaikan
+     D01 (2026-09-12) hanya membetulkan `IDX_Stock_Universe`. Screener tidak membaca tabel ini.
+   - Risiko: hasil pembaca tabel itu berubah, terutama AI backend yang memuatnya di daftar tabelnya
+     (`apps/market-ai-backend/app/tools.py`).
+   - Rollback: tukar lagi dalam satu transaksi.
+4. **E4 — Isi harga 17–18 Sep 2026 bersama perbaikan Feature 04, dan alat perbaikan yang tidak berhenti di IHSG.**
+   - Apa: (a) isi harga 2026-09-17/18 (EXEC.md EXEC-TERMINAL-1026B F3, ditunda user "nanti saja") hanya bersama rencana
+     perbaikan Feature 04 yang terjadwal: `backfill.py`, lalu `bootstrap_states.py` per saham, lalu antrean ulang,
+     dengan worker dijeda (`apps/feature-04-worker/README.md`); (b) `features/feature04/backfill.py` dan
+     `apps/feature-04-worker/bootstrap_states.py` melewati ticker indeks lewat fungsi yang sudah ada,
+     `public.is_universe_index()` (migrasi `20261025_011`), bukan daftar nama.
+   - Mengapa: ERRORS M238 (OPEN, harga dua tanggal itu hilang) dan dua temuan Feature 04 dari audit yang dicatat di
+     ERRORS pada Phase 0 (AUDIT.md §7.5 butir 6 dan 7; id ERRORS-nya ditetapkan saat dicatat). F3 menyebut "Feature 04
+     ikut dihitung ulang lewat jalur normal", tetapi kode tidak bisa: setiap baris yang disisipkan menandai 2026-09-17
+     kotor dan menghapus checkpoint pada atau sesudah tanggal itu; worker butuh checkpoint 2026-09-16 dan sisa paling
+     banyak 5 baris, padahal sisanya ±28 baris (checkpoint live 2026-10-15..10-27), jadi ±840 saham berakhir
+     `REPAIR_REQUIRED` (`verification/screener/audit/verify_feature04.json`). Perbaikannya manual, dan kedua alat
+     berhenti di IHSG: `backfill.py` mengambil semua ticker harga termasuk IHSG (:146-151), trigger
+     `stock_feature_index_guard` menolak baris IHSG, dan run `--write` berhenti di kegagalan pertama (:158-171);
+     `bootstrap_states.py` memasukkan IHSG sebagai saham (:100-118) dan gagal "Shadow row-count mismatch" (:72-76), juga
+     saat dry-run, kecuali dijalankan per `--ticker`.
+   - Risiko: Feature 04 tidak tersedia untuk saham terdampak sampai diperbaiki (jawaban AI dan pembaca Feature 04 lain).
+   - Rollback: menurut runbook Feature 04 (`apps/feature-04-worker/README.md`).
+5. **E5 — Kepadatan heap Feature 04 (4,36 baris per halaman).**
+   - Apa: tidak menjalankan `VACUUM FULL` sekarang. Perbaikan umum di lapisan pemiliknya: prosedur penulisan ulang
+     massal (tabel baru lalu ditukar, atau penulisan ulang bertahap dengan `VACUUM` di antara batch) untuk kenaikan
+     VERSION Feature 04 berikutnya, refresh Feature 01 dan refresh fitur broker. `VACUUM FULL` atau `pg_repack` tetap
+     pilihan bila scan banyak hari perlu dipercepat.
+   - Mengapa: temuan Feature 04 dari audit (AUDIT.md §7.5 butir 8; id ERRORS-nya ditetapkan saat dicatat di Phase 0).
+     Fakta live (pgweb, dibaca ulang 2026-10-28): `relpages` 317.373 untuk 1.383.577 baris (heap 2.479 MB), lebar
+     rata-rata 359 B, padahal ±21 baris muat per halaman; `n_dead_tup` hanya 4.775, autovacuum terakhir 2026-10-11.
+     Dugaan, belum terverifikasi: ruang kosong sisa penulisan ulang seluruh tabel 2026-10-11 (`n_tup_upd` 9,36 juta
+     dibanding 1,39 juta insert), sudah di-vacuum dan bisa dipakai lagi; cek: `pg_stat_user_tables`, `relpages`
+     dibanding `reltuples` × lebar. Scan tanggal terakhir lambat karena baris tersusun per ticker (±1 baris per
+     halaman), dan `VACUUM FULL` tidak mengubahnya.
+   - Risiko: `VACUUM FULL` mengunci tabel 2,5 GB secara eksklusif selama berjalan (worker dan pembaca Feature 04
+     tertahan) dan butuh ruang disk sementara sebesar tabel.
+   - Rollback: tidak berlaku: isi data tidak berubah.
+
+## Screener dan EXEC-MU-RUNTIME: sisa terbuka setelah Phase 1 (2026-10-29, usulan, menunggu keputusan)
+
+Ditemukan saat build dan tinjauan Phase 1 (log build di sesi; entri ERRORS M278, M279, M298-M300). Tidak satu pun
+memblokir deploy Phase 1 ke dev.
+- **S1 CI untuk pemeriksaan Screener.** Repositori hanya punya `.github/workflows/database-schema-docs.yml`; tidak ada CI yang
+  menjalankan `npm run registry:check`, vitest Screener, tes worker atau tripwire Backtest. Penjaga cost_class (M300) dan
+  tripwire hanya berlaku bila dijalankan lokal. Usulan: satu workflow per PR untuk paket yang berubah.
+- **S2 Kerja di dalam built-in tidak terhitung (M279, terbuka).** Kernel yang memindahkan loop jendelanya ke built-in
+  (`Math.max(...slice)`) terukur O(N) dan kehilangan cap; penjaga M300 hanya menangkap parameter yang turun kelas
+  terhadap registry yang di-commit, bukan parameter baru atau yang diganti nama. Pilihan: aturan tinjauan (sekarang) atau
+  instrumentasi probe.
+- **S3 File opsional untuk Phase 2.** Urutan "worker dulu" di onboarding bertentangan dengan aturan refresh 2 (file yang
+  dibaca worker harus sudah ada di indeks publisher). File flow Phase 2 butuh aturan file opsional dulu.
+- **S4 Skrip typecheck worker.** `apps/screener-worker` tidak punya skrip typecheck ketat (M266 kelas terbuka).
+- **S5 Cache review saved item di edge-bff** dikunci (definisi, versi) dan tidak berubah saat advance; aman di Phase 1, perlu
+  diperiksa saat file opsional ada.
+- **S6 `verification/backtest/e2e_dev.py`** belum diperiksa untuk kebocoran kredensial lewat pesan error Playwright (M293).

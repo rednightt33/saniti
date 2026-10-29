@@ -1,0 +1,74 @@
+Ticker | Company Name | Security Type | Type Specs
+IHSG | IDX Composite Index | index | Undefined
+XCID | DIRE CIPTADANA PROPERTI RITEL INDONESIA | stock | common
+XCIS | Dana Investasi Real Estat Ciptadana Properti Perhotelan Padj | stock | common
+XSPI | Dana Investasi Real Estat Simas Plaza Indonesia | stock | common
+(4 rows, 237 ms)
+---
+n | t
+844 | 844
+(1 rows, 236 ms)
+---
+Region | Market | Country | Exchange | count
+Asia | Emerging | Indonesia | IDX | 844
+(1 rows, 188 ms)
+---
+ued_not_in_univ | ued_in_univ
+0 | 844
+(1 rows, 248 ms)
+---
+same_sector | same_ind | count
+True | True | 3
+False | False | 841
+(2 rows, 240 ms)
+---
+TV_Sector | count
+Finance | 179
+Process Industries | 93
+Consumer Non-Durables | 63
+Consumer Services | 59
+Transportation | 59
+Distribution Services | 53
+Non-Energy Minerals | 45
+Industrial Services | 39
+Producer Manufacturing | 36
+Energy Minerals | 36
+Technology Services | 31
+Commercial Services | 31
+Retail Trade | 29
+Consumer Durables | 27
+Health Services | 17
+Health Technology | 14
+Communications | 13
+Utilities | 11
+Electronic Technology | 7
+Miscellaneous | 2
+(20 rows, 264 ms)
+---
+Ticker | ued_sector | ued_industry | u_sector | u_industry | TV_Sector | TV_Industry
+ADRO | Coal | Energy | Energy | Coal | Energy Minerals | Coal
+ASII | Multi-sector Holdings | Industrials | Industrials | Multi-sector Holdings | Technology Services | Information Technology Services
+BBCA | Banks | Financials | Financials | Banks | Finance | Major Banks
+GOTO | Internet Applications & Services | Technology | Technology | Internet Applications & Services | Technology Services | Packaged Software
+TLKM | Telecommunication Services | Infrastructures | Infrastructures | Telecommunication Services | Communications | Wireless Telecommunications
+XCID | Undefined | Undefined | Undefined | Undefined | Finance | Real Estate Investment Trusts
+(6 rows, 269 ms)
+---
+Sector | count
+Real Estate Management & Development | 79
+Agricultural Food Products | 52
+Banks | 48
+Tourism & Recreation | 44
+Coal | 41
+Metals & Minerals | 32
+Processed Foods | 32
+Logistics & Deliveries | 27
+Chemicals | 27
+Specialty Retail | 23
+Building Construction | 22
+Oil, Gas & Coal Support | 20
+Internet Applications & Services | 19
+Containers & Packaging | 18
+Holding & Investment Companies | 17
+(15 rows, 184 ms)
+---

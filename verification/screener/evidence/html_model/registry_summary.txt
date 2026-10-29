@@ -1,0 +1,53 @@
+I01 sma close out=sma | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I02 ema close out=ema | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I03 wma close out=wma | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I04 hma close out=hma | length=9[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I05 kama close out=kama | length=10[1..], fast_length=2[1..], slow_length=30[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I06 macd close out=macd,signal,histogram | fast_length=12[1..], slow_length=26[1..], signal_length=9[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I07 adx close out=adx,plus_di,minus_di | di_length=14[1..], adx_smoothing=14[1..]  | bt
+I08 aroon close out=aroon_up,aroon_down | length=14[1..]  | bt
+I09 supertrend close out=supertrend,direction | atr_length=10[1..], factor=3[0..]  | bt
+I10 donchian close out=upper,basis,lower | length=20[1..]  | bt
+I11 keltner close out=upper,basis,lower | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}, multiplier=2[0..], use_exponential_ma=True(bool), bands_style=ATR{ATR/TR/HL_RANGE}, atr_length=10[1..]  | bt
+I12 psar close out=sar,direction | start=0.02[0..], increment=0.02[0..], maximum=0.2[0..]  | bt
+I13 rsi close out=rsi | length=14[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I14 stoch_rsi close out=k,d | rsi_length=14[1..], stoch_length=14[1..], smooth_k=3[1..], smooth_d=3[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I15 stochastic close out=k,d | k_length=14[1..], smooth_k=3[1..], d_length=3[1..]  | bt
+I16 williams_r close out=williams_r | length=14[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I17 roc close out=roc | length=9[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I18 momentum close out=momentum | length=10[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I19 cci close out=cci | length=20[1..], constant=0.015[0..]  | bt
+I20 cmo close out=cmo | length=14[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I21 tsi close out=tsi,signal | long_length=25[1..], short_length=13[1..], signal_length=7[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I22 trix close out=trix | length=15[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I23 ultimate_osc close out=uo | fast_length=7[1..], middle_length=14[1..], slow_length=28[1..], weight_fast=4[0..], weight_middle=2[0..], weight_slow=1[0..]  | bt
+I24 awesome_osc close out=ao | fast_length=5[1..], slow_length=34[1..]  | bt
+I25 ppo close out=ppo,signal,histogram | fast_length=12[1..], slow_length=26[1..], signal_length=9[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I26 bop close out=bop |  | NA:source | bt
+I27 bollinger close out=upper,basis,lower | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}, basis_ma_type=SMA{SMA/EMA/WMA/RMA/VWMA}, std_dev=2[0.0001..50]  | bt
+I28 bollinger_pctb close out=percent_b | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}, std_dev=2[0.0001..50], basis_ma_type=SMA{SMA/EMA/WMA/RMA}  | bt
+I29 bollinger_width close out=bandwidth | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}, std_dev=2[0.0001..50], basis_ma_type=SMA{SMA/EMA/WMA/RMA}  | bt
+I30 atr close out=atr | length=14[1..], smoothing_type=RMA{RMA/SMA/EMA/WMA}  | bt
+I31 natr close out=natr | length=14[1..], smoothing_type=RMA{RMA/SMA/EMA/WMA}  | bt
+I32 stddev close out=stddev | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}, stdev_method=population{population/sample}  | bt
+I33 hist_vol close out=historical_volatility | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}, return_type=log{log/simple}, annualization_periods=252[1..]  | bt
+I34 adr close out=adr | length=14[1..] | NA:timeframe | bt
+I35 volume_sma volume out=volume_sma | length=20[1..]  | bt
+I36 volume_ema volume out=volume_ema | length=20[1..]  | bt
+I37 rvol close out=rvol | length=20[1..] | NA:reference_method;include_current_bar | bt
+I38 pvo close out=pvo,signal,histogram | fast_length=12[1..], slow_length=26[1..], signal_length=9[1..]  | bt
+I39 volume_roc close out=volume_roc | length=10[1..]  | bt
+I40 obv close out=obv |  | NA:calculation_parameters | bt
+I41 pvt close out=pvt |  | NA:calculation_parameters | bt
+I42 vwma close out=vwma | length=20[1..], source=close{open/high/low/close/hl2/hlc3/ohlc4}  | bt
+I43 vwap close out=vwap,upper1,lower1 | anchor=Session{Session/Week/Month/Quarter/Year/Decade/Century}, source=hlc3{open/high/low/close/hl2/hlc3/ohlc4}, bands_mode=StdDev{StdDev/Percentage/None}, band_1_multiplier=1[0..]  | bt
+I44 adl close out=adl |  | NA:calculation_parameters | bt
+I45 cmf close out=cmf | length=20[1..]  | bt
+I46 chaikin_osc close out=chaikin_osc | fast_length=3[1..], slow_length=10[1..]  | bt
+I47 mfi close out=mfi | length=14[1..]  | bt
+I48 force_index close out=force_index | length=13[1..]  | bt
+I49 eom close out=eom | length=14[1..], volume_scale=1000000[0..]  | bt
+I50 nvi close out=nvi | initial_value=1000[0..]  | bt
+I51 pvi close out=pvi | initial_value=1000[0..]  | bt
+I52 kvo close out=kvo,signal | fast_length=34[1..], slow_length=55[1..], signal_length=13[1..]  | bt
+I53 market_fi close out=market_fi | volume_scale=1[0..]  | bt

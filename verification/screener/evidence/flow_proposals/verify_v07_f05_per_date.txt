@@ -1,0 +1,9 @@
+QUERY PLAN
+Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..1898.13 rows=16962 width=59) (actual time=4.413..1677.992 rows=2
+  Index Cond: (trade_date = '2026-06-10'::date)
+  Index Searches: 1
+  Buffers: shared hit=1 read=1769
+Planning Time: 0.111 ms
+Execution Time: 1679.923 ms
+(6 rows, 2190 ms)
+---

@@ -1,0 +1,3 @@
+explain (analyze, buffers) select ticker, trade_date, close, rsi_14, macd_histogram from public."Feature_04_Technical_Indicator" where asset_type='equity' and trade_date >= date '2026-10-27' - 90 order by ticker, trade_date;;
+explain (analyze, buffers) select ticker, max(close) hi, min(close) lo, count(*) from public."Feature_04_Technical_Indicator" where asset_type='equity' and trade_date >= date '2026-10-27' - 365 group by ticker;;
+explain (analyze, buffers) select ticker, max(high) hi, min(low) lo, count(*) from public."Price_Stock_Indonesia_IDX" where is_final and timeframe='Daily' and date >= date '2026-10-27' - 365 group by ticker

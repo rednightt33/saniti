@@ -1,0 +1,9 @@
+BBCA ppo vs 100*macd/ema_26 (F04): max rel 2.22e-16 null mismatch 0
+TLKM ppo vs 100*macd/ema_26 (F04): max rel 2.21e-16 null mismatch 0
+ANTM ppo vs 100*macd/ema_26 (F04): max rel 2.83e-16 null mismatch 0
+BUMI ppo vs 100*macd/ema_26 (F04): max rel 2.82e-16 null mismatch 0
+BEKS ppo vs 100*macd/ema_26 (F04): max rel 2.21e-16 null mismatch 0
+RANS ppo vs 100*macd/ema_26 (F04): max rel 2.21e-16 null mismatch 0
+BBCA bollinger WMA basis upper vs talib.BBANDS matype=2: max rel 0.0 null mismatch 0
+TLKM bollinger WMA basis upper vs talib.BBANDS matype=2: max rel 0.0 null mismatch 0
+BEKS bollinger WMA basis upper vs talib.BBANDS matype=2: max rel 0.0 null mismatch 0

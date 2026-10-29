@@ -1,0 +1,95 @@
+QUERY PLAN
+GroupAggregate  (cost=102011.82..225475.08 rows=200 width=437) (actual time=3955.868..4714.864 rows=890.00 loops=1)
+  Group Key: r.ticker
+  Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+  ->  Incremental Sort  (cost=102011.82..204955.00 rows=151871 width=312) (actual time=3955.105..4667.412 rows=40541.00 loops=1)
+        Sort Key: r.ticker, r.n20 DESC, r.broker
+        Presorted Key: r.ticker
+        Full-sort Groups: 749  Sort Method: quicksort  Average Memory: 34kB  Peak Memory: 34kB
+        Pre-sorted Groups: 259  Sort Method: quicksort  Average Memory: 35kB  Peak Memory: 35kB
+        Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+        ->  Subquery Scan on r  (cost=101504.08..195786.62 rows=151871 width=312) (actual time=3954.532..4622.941 rows=40541.00 loops=1)
+              Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+              ->  WindowAgg  (cost=101504.08..194267.91 rows=151871 width=312) (actual time=3954.525..4619.161 rows=40541.00 loops=1)
+                    Window: w6 AS (PARTITION BY "Feature_05_Foreign_Domestic_Broker_Detail".ticker ORDER BY (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-21'::date))), "Feature_05_Foreign_Domestic_Broker_Detail".broker ROWS UNBOUNDED PRECEDING)
+                    Storage: Memory  Maximum Storage: 17kB
+                    Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                    ->  Incremental Sort  (cost=101503.47..191230.49 rows=151871 width=304) (actual time=3954.516..4606.820 rows=40541.00 loops=1)
+                          Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-21'::date))), "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                          Presorted Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                          Full-sort Groups: 749  Sort Method: quicksort  Average Memory: 33kB  Peak Memory: 33kB
+                          Pre-sorted Groups: 259  Sort Method: quicksort  Average Memory: 34kB  Peak Memory: 34kB
+                          Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                          ->  WindowAgg  (cost=101062.14..182062.12 rows=151871 width=304) (actual time=3953.900..4569.932 rows=40541.00 loops=1)
+                                Window: w5 AS (PARTITION BY "Feature_05_Foreign_Domestic_Broker_Detail".ticker ORDER BY (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-21'::date))), "Feature_05_Foreign_Domestic_Broker_Detail".broker ROWS UNBOUNDED PRECEDING)
+                                Storage: Memory  Maximum Storage: 17kB
+                                Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                ->  Incremental Sort  (cost=101061.60..179024.70 rows=151871 width=296) (actual time=3953.883..4555.880 rows=40541.00 loops=1)
+                                      Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-21'::date))) DESC NULLS LAST, "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                      Presorted Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                                      Full-sort Groups: 749  Sort Method: quicksort  Average Memory: 32kB  Peak Memory: 32kB
+                                      Pre-sorted Groups: 259  Sort Method: quicksort  Average Memory: 33kB  Peak Memory: 33kB
+                                      Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                      ->  WindowAgg  (cost=100679.39..169856.32 rows=151871 width=296) (actual time=3953.122..4521.765 rows=40541.00 loops=1)
+                                            Window: w4 AS (PARTITION BY "Feature_05_Foreign_Domestic_Broker_Detail".ticker ORDER BY (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-14'::date))), "Feature_05_Foreign_Domestic_Broker_Detail".broker ROWS UNBOUNDED PRECEDING)
+                                            Storage: Memory  Maximum Storage: 17kB
+                                            Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                            ->  Incremental Sort  (cost=100678.93..166818.90 rows=151871 width=288) (actual time=3953.102..4507.536 rows=40541.00 loops=1)
+                                                  Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-14'::date))), "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                  Presorted Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                                                  Full-sort Groups: 749  Sort Method: quicksort  Average Memory: 32kB  Peak Memory: 32kB
+                                                  Pre-sorted Groups: 259  Sort Method: quicksort  Average Memory: 32kB  Peak Memory: 32kB
+                                                  Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                  ->  WindowAgg  (cost=100356.13..157650.53 rows=151871 width=288) (actual time=3952.566..4466.935 rows=40541.00 loops=1)
+                                                        Window: w3 AS (PARTITION BY "Feature_05_Foreign_Domestic_Broker_Detail".ticker ORDER BY (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-14'::date))), "Feature_05_Foreign_Domestic_Broker_Detail".broker ROWS UNBOUNDED PRECEDING)
+                                                        Storage: Memory  Maximum Storage: 17kB
+                                                        Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                        ->  Incremental Sort  (cost=100355.75..154613.11 rows=151871 width=280) (actual time=3952.547..4452.818 rows=40541.00 loops=1)
+                                                              Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value) FILTER (WHERE ("Feature_05_Foreign_Domestic_Broker_Detail".trade_date >= '2026-10-14'::date))) DESC NULLS LAST, "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                              Presorted Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                                                              Full-sort Groups: 749  Sort Method: quicksort  Average Memory: 31kB  Peak Memory: 31kB
+                                                              Pre-sorted Groups: 259  Sort Method: quicksort  Average Memory: 32kB  Peak Memory: 32kB
+                                                              Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                              ->  WindowAgg  (cost=100092.66..145444.73 rows=151871 width=280) (actual time=3951.950..4415.441 rows=40541.00 loops=1)
+                                                                    Window: w2 AS (PARTITION BY "Feature_05_Foreign_Domestic_Broker_Detail".ticker ORDER BY (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value)), "Feature_05_Foreign_Domestic_Broker_Detail".broker ROWS UNBOUNDED PRECEDING)
+                                                                    Storage: Memory  Maximum Storage: 17kB
+                                                                    Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                                    ->  Incremental Sort  (cost=100092.37..142407.31 rows=151871 width=272) (actual time=3951.940..4403.521 rows=40541.00 loops=1)
+                                                                          Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value)), "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                                          Presorted Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                                                                          Full-sort Groups: 749  Sort Method: quicksort  Average Memory: 30kB  Peak Memory: 30kB
+                                                                          Pre-sorted Groups: 259  Sort Method: quicksort  Average Memory: 31kB  Peak Memory: 31kB
+                                                                          Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                                          ->  WindowAgg  (cost=99889.29..133238.94 rows=151871 width=272) (actual time=3949.118..4354.785 rows=40541.00 loops=1)
+                                                                                Window: w1 AS (PARTITION BY "Feature_05_Foreign_Domestic_Broker_Detail".ticker ORDER BY (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value)), "Feature_05_Foreign_Domestic_Broker_Detail".broker ROWS UNBOUNDED PRECEDING)
+                                                                                Storage: Memory  Maximum Storage: 17kB
+                                                                                Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                                                ->  Incremental Sort  (cost=99889.07..130201.52 rows=151871 width=264) (actual time=3949.097..4340.180 rows=40541.00 loops=1)
+                                                                                      Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, (sum("Feature_05_Foreign_Domestic_Broker_Detail".net_value)) DESC, "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                                                      Presorted Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker
+                                                                                      Full-sort Groups: 749  Sort Method: quicksort  Average Memory: 30kB  Peak Memory: 30kB
+                                                                                      Pre-sorted Groups: 259  Sort Method: quicksort  Average Memory: 31kB  Peak Memory: 31kB
+                                                                                      Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                                                      ->  GroupAggregate  (cost=99746.30..121033.14 rows=151871 width=264) (actual time=3948.401..4302.848 rows=40541.00 loops=1)
+                                                                                            Group Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                                                            Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                                                            ->  Sort  (cost=99746.30..100887.00 rows=456277 width=28) (actual time=3948.318..4106.676 rows=482620.00 loops=1)
+                                                                                                  Sort Key: "Feature_05_Foreign_Domestic_Broker_Detail".ticker, "Feature_05_Foreign_Domestic_Broker_Detail".broker
+                                                                                                  Sort Method: external merge  Disk: 20016kB
+                                                                                                  Buffers: shared hit=14551 read=8958, temp read=2502 written=2510
+                                                                                                  ->  Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..45937.29 rows=456277 width=28) (actual time=71.979..3381.257 rows=482620.00 loops=1)
+                                                                                                        Index Cond: ((trade_date >= '2026-09-30'::date) AND (trade_date <= '2026-10-27'::date))
+                                                                                                        Filter: (market_board = 'Regular'::text)
+                                                                                                        Rows Removed by Filter: 5095
+                                                                                                        Index Searches: 1
+                                                                                                        Buffers: shared hit=14551 read=8958
+Planning:
+  Buffers: shared hit=4 read=4
+Planning Time: 5.626 ms
+JIT:
+  Functions: 41
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 4.921 ms (Deform 1.771 ms), Inlining 0.000 ms, Optimization 3.262 ms, Emission 66.492 ms, Total 74.675 ms
+Execution Time: 4725.618 ms
+(92 rows, 5037 ms)
+---

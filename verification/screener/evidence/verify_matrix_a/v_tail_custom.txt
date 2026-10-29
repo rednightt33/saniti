@@ -1,0 +1,8 @@
+ema {"length":200} K=500: 729/729 tickers differ > 1e-6 rel at the latest bar; worst rel 7.7e-2 SAPX full=312.44217 tail=336.36682
+ema {"length":200} K=1000: 508/575 tickers differ > 1e-6 rel at the latest bar; worst rel 6.2e-4 SLIS full=75.965531 tail=75.918501
+rsi {"length":50} K=500: 574/729 tickers differ > 1e-6 rel at the latest bar; worst rel 2.8e-4 BCAP full=17.555226 tail=17.550318
+rsi {"length":50} K=1000: 0/575 tickers differ > 1e-6 rel at the latest bar; worst rel 1.9e-8 TFAS full=42.799451 tail=42.799451
+adx {"di_length":50,"adx_smoothing":50} K=500: 724/729 tickers differ > 1e-6 rel at the latest bar; worst rel 8.8e-3 PPRO full=14.580994 tail=14.453334
+adx {"di_length":50,"adx_smoothing":50} K=1000: 15/575 tickers differ > 1e-6 rel at the latest bar; worst rel 1.6e-4 VIVA full=6.2490442 tail=6.2500540
+macd {"fast_length":50,"slow_length":200,"signal_length":20} K=500: 729/729 tickers differ > 1e-6 rel at the latest bar; worst rel 5.6e+0 NFCX full=-2.8472280 tail=13.084506
+macd {"fast_length":50,"slow_length":200,"signal_length":20} K=1000: 566/575 tickers differ > 1e-6 rel at the latest bar; worst rel 1.2e-1 NFCX full=-2.8472280 tail=-3.1771396

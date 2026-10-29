@@ -1,0 +1,13 @@
+source_table | feature_number | language_code | count
+Feature_01_Stock_Daily | 1 | id-ID | 29
+Feature_01_Stock_Daily_INDEX | 1 | id-ID | 29
+Feature_02_Broker_Rolling | 2 | id-ID | 38
+Feature_02_Broker_Rolling_INDEX | 2 | id-ID | 38
+Feature_03_Stock_Broker_Daily | 3 | id-ID | 24
+Feature_03_Stock_Broker_Daily_INDEX | 3 | id-ID | 24
+Feature_05_Foreign_Domestic_Broker_Detail | 5 | id-ID | 15
+Feature_05_Foreign_Domestic_Broker_Detail_INDEX | 5 | id-ID | 15
+Feature_06_Foreign_Domestic | 6 | id-ID | 87
+Feature_06_Foreign_Domestic_INDEX | 6 | id-ID | 92
+(10 rows, 250 ms)
+---

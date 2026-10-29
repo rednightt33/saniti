@@ -1,0 +1,38 @@
+QUERY PLAN
+HashAggregate  (cost=144859.23..144865.73 rows=200 width=208)
+  Group Key: w.ticker
+  CTE w
+    ->  GroupAggregate  (cost=134789.44..138375.38 rows=65199 width=173)
+          Group Key: f.ticker, c.k
+          ->  Sort  (cost=134789.44..134952.44 rows=65199 width=58)
+                Sort Key: f.ticker, c.k
+                ->  Hash Join  (cost=4178.47..127122.44 rows=65199 width=58)
+                      Hash Cond: (f.trade_date = c.trade_date)
+                      ->  Index Scan using feature_06_foreign_domestic_pkey on "Feature_06_Foreign_Domestic" f  (cost=0.43..122046.12 rows=65679 width=54)
+                            Index Cond: ((trade_date >= '2026-07-31'::date) AND (trade_date <= '2026-10-27'::date))
+                      ->  Hash  (cost=4145.77..4145.77 rows=2582 width=12)
+                            ->  Subquery Scan on c  (cost=4074.78..4145.77 rows=2582 width=12)
+                                  ->  WindowAgg  (cost=4074.78..4119.95 rows=2582 width=12)
+                                        Window: w1 AS (ORDER BY "Feature_03_Stock_Broker_Daily".date ROWS UNBOUNDED PRECEDING)
+                                        Run Condition: (row_number() OVER w1 <= 61)
+                                        ->  Sort  (cost=4074.76..4081.22 rows=2582 width=4)
+                                              Sort Key: "Feature_03_Stock_Broker_Daily".date DESC
+                                              ->  Unique  (cost=0.43..3928.44 rows=2582 width=4)
+                                                    ->  Index Only Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..3784.16 rows=57711 width=4)
+                                                          Index Cond: ((date >= '2026-07-31'::date) AND (date <= '2026-10-27'::date) AND (market_board = 'Regular'::text))
+  ->  Hash Left Join  (cost=2234.13..3712.89 rows=65199 width=208)
+        Hash Cond: (w.ticker = s.ticker)
+        ->  CTE Scan on w  (cost=0.00..1303.98 rows=65199 width=200)
+        ->  Hash  (cost=2231.63..2231.63 rows=200 width=40)
+              ->  Subquery Scan on s  (cost=0.08..2231.63 rows=200 width=40)
+                    ->  GroupAggregate  (cost=0.08..2229.63 rows=200 width=40)
+                          Group Key: w_1.ticker
+                          ->  WindowAgg  (cost=0.08..1847.30 rows=21733 width=208)
+                                Window: w1 AS (PARTITION BY w_1.ticker ORDER BY w_1.k ROWS UNBOUNDED PRECEDING)
+                                ->  CTE Scan on w w_1  (cost=0.00..1466.98 rows=21733 width=40)
+                                      Filter: (fnet_reg > '0'::numeric)
+JIT:
+  Functions: 47
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+(35 rows, 231 ms)
+---

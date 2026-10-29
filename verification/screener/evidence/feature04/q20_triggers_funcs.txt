@@ -1,0 +1,29 @@
+tbl | tgname | proname
+Feature_04_Technical_Indicator | stock_feature_index_guard | validate_stock_feature_identity
+Feature_04_Technical_Indicator_INDEX | index_feature_identity_guard | validate_index_feature_identity
+Monitoring_Fixed_Income | Monitoring_Fixed_Income_open_feature04 | open_feature04_fixed_income_run
+Price_Fixed_Income | Price_Fixed_Income_enqueue_feature04 | enqueue_feature04_bond_price_row
+Price_Stock_Indonesia_IDX | Price_Stock_Indonesia_IDX_enqueue_feature04 | enqueue_feature04_equity_price_row
+(5 rows, 487 ms)
+---
+proname | args
+enqueue_feature04_bond_price_row |
+enqueue_feature04_equity_price_row |
+enqueue_feature04_group | p_asset_type text, p_ticker text, p_dirty_date date, p_timeframe text, p_execution_id text
+feature04_asset_type | p_ticker text
+feature04_output_columns |
+feature04_retry_dirty_date | p_asset_type text, p_ticker text
+feature04_source_min_date | p_asset_type text, p_ticker text
+open_feature04_fixed_income_run |
+request_feature04_retry | p_chat_id bigint, p_telegram_update_id bigint, p_ticker text, p_columns text[], p_source_execution_id text
+(9 rows, 229 ms)
+---
+market_code | enabled | correction_lookback_sessions
+IDX | True | 5
+(1 rows, 264 ms)
+---
+country | enabled | correction_lookback_sessions
+Indonesia | True | 5
+United States | True | 5
+(2 rows, 223 ms)
+---

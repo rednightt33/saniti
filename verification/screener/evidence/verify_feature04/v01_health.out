@@ -1,0 +1,24 @@
+now | version
+2026-10-27T19:52:46.379199Z | PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+(1 rows, 220 ms)
+---
+status | count | lag
+DONE | 868 | 0
+(1 rows, 194 ms)
+---
+status | count
+SUCCESS | 44268
+(1 rows, 408 ms)
+---
+count | count | min | max
+6076 | 868 | feature04-state-v3 | feature04-state-v3
+(1 rows, 327 ms)
+---
+ERROR: HTTP 400: {"error":"pq: column \"status\" does not exist","status":400}
+---
+ERROR: HTTP 400: {"error":"pq: relation \"Feature04_Telegram_Outbox\" does not exist","status":400}
+---
+count
+0
+(1 rows, 183 ms)
+---

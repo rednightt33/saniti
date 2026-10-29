@@ -1,0 +1,3 @@
+select ticker, date, open, close, volume, ingestion_time from public."Price_Stock_Indonesia_IDX" where (ticker='PBSA' and date between '2026-10-09' and '2026-10-17') or (ticker='MLPT' and date between '2026-07-17' and '2026-07-23') or (ticker='RAJA' and date between '2026-07-14' and '2026-07-17') order by ticker, date;;
+select min(ingestion_time), max(ingestion_time), percentile_disc(0.5) within group (order by ingestion_time) from public."Price_Stock_Indonesia_IDX" where date < '2026-01-01' and ticker in ('BBCA','PBSA','MLPT','FORU','RAJA');;
+select ticker, trade_date, close, sma_20, sma_50, bb_lower_20, bb_upper_20, rsi_14 from public."Feature_04_Technical_Indicator" where ticker='PBSA' and trade_date between '2026-10-09' and '2026-10-27' order by trade_date

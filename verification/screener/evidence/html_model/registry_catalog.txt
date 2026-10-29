@@ -1,0 +1,53 @@
+x_sma|Trend|%|above[state] below[state] xa[event] xb[event] rising[state] gt lt between|{"op":"above","v":0,"v2":5,"n":5}
+x_ema|Trend|%|above[state] below[state] xa[event] xb[event] rising[state] gt lt between|{"op":"above","v":0,"v2":5,"n":5}
+x_wma|Trend|%|above[state] below[state] xa[event] xb[event] rising[state] gt lt between|{"op":"above","v":0,"v2":5,"n":5}
+x_hma|Trend|%|above[state] below[state] xa[event] xb[event] rising[state] gt lt between|{"op":"above","v":0,"v2":5,"n":5}
+x_kama|Trend|%|above[state] below[state] xa[event] xb[event] rising[state] gt lt between|{"op":"above","v":0,"v2":5,"n":5}
+x_macd|Trend||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":"","op":"xsig","v":0}
+x_adx|Trend||plus[state] dixa[event] gt lt between xa xb|{"n":5,"op":"gt","v":25,"v2":40}
+x_aroon|Trend||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":"","op":"xsig","v":70}
+x_supertrend|Trend|%|up[state] flipup[event] flipdn[event] gt lt between|{"op":"up","v":0,"v2":5,"n":5}
+x_donchian|Trend|%|abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between|{"op":"abu","v":80,"v2":100,"n":5}
+x_keltner|Trend|%|abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between|{"op":"abu","v":80,"v2":100,"n":5}
+x_psar|Trend|%|up[state] flipup[event] flipdn[event] gt lt between|{"op":"up","v":0,"v2":5,"n":5}
+x_rsi|Momentum||gt lt between xa xb|{"n":5,"v2":50,"op":"lt","v":30}
+x_stoch_rsi|Momentum||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":80,"op":"lt","v":20}
+x_stochastic|Momentum||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":80,"op":"lt","v":20}
+x_williams_r|Momentum||gt lt between xa xb|{"n":5,"v2":-20,"op":"lt","v":-80}
+x_roc|Momentum|%|gt lt between xa xb|{"n":5,"v2":10,"op":"gt","v":0}
+x_momentum|Momentum||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_cci|Momentum||gt lt between xa xb|{"n":5,"v2":100,"op":"lt","v":-100}
+x_cmo|Momentum||gt lt between xa xb|{"n":5,"v2":50,"op":"lt","v":-50}
+x_tsi|Momentum||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":"","op":"xsig","v":0}
+x_trix|Momentum|%|gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_ultimate_osc|Momentum||gt lt between xa xb|{"n":5,"v2":70,"op":"lt","v":30}
+x_awesome_osc|Momentum||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_ppo|Momentum||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":"","op":"xsig","v":0}
+x_bop|Momentum||gt lt between xa xb|{"n":5,"v2":0.5,"op":"gt","v":0}
+x_bollinger|Volatility|%|abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between|{"op":"abu","v":80,"v2":100,"n":5}
+x_bollinger_pctb|Volatility||gt lt between xa xb|{"n":5,"v2":1,"op":"lt","v":0}
+x_bollinger_width|Volatility|%|gt lt between xa xb|{"n":5,"v2":20,"op":"lt","v":10}
+x_atr|Volatility||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_natr|Volatility|%|gt lt between xa xb|{"n":5,"v2":6,"op":"gt","v":3}
+x_stddev|Volatility||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_hist_vol|Volatility|%|gt lt between xa xb|{"n":5,"v2":60,"op":"gt","v":30}
+x_adr|Volatility||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_volume_sma|Volume||vabove[state] vxa[event] gt lt between|{"op":"vabove","v":0,"v2":"","n":5}
+x_volume_ema|Volume||vabove[state] vxa[event] gt lt between|{"op":"vabove","v":0,"v2":"","n":5}
+x_rvol|Volume|×|gt lt between xa xb|{"n":5,"v2":3,"op":"gt","v":1.5}
+x_pvo|Volume||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":"","op":"xsig","v":0}
+x_volume_roc|Volume|%|gt lt between xa xb|{"n":5,"v2":200,"op":"gt","v":50}
+x_obv|PriceVolume||cabove[state] cxa[event] crise[state] gt lt|{"op":"cabove","v":0,"v2":"","n":5}
+x_pvt|PriceVolume||cabove[state] cxa[event] crise[state] gt lt|{"op":"cabove","v":0,"v2":"","n":5}
+x_vwma|PriceVolume|%|above[state] below[state] xa[event] xb[event] rising[state] gt lt between|{"op":"above","v":0,"v2":5,"n":5}
+x_vwap|PriceVolume|%|abu[state] bll[state] xau[event] xbl[event] abb[state] gt lt between|{"op":"abb","v":0,"v2":5,"n":5}
+x_adl|PriceVolume||cabove[state] cxa[event] crise[state] gt lt|{"op":"cabove","v":0,"v2":"","n":5}
+x_cmf|PriceVolume||gt lt between xa xb|{"n":5,"v2":0.2,"op":"gt","v":0}
+x_chaikin_osc|PriceVolume||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_mfi|PriceVolume||gt lt between xa xb|{"n":5,"v2":80,"op":"lt","v":20}
+x_force_index|PriceVolume||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_eom|PriceVolume||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}
+x_nvi|PriceVolume||cabove[state] cxa[event] crise[state] gt lt|{"op":"cabove","v":0,"v2":"","n":5}
+x_pvi|PriceVolume||cabove[state] cxa[event] crise[state] gt lt|{"op":"cabove","v":0,"v2":"","n":5}
+x_kvo|PriceVolume||xsig[event] xsigd[event] asig[state] gt lt between xa xb|{"n":5,"v2":"","op":"xsig","v":0}
+x_market_fi|PriceVolume||gt lt between xa xb|{"n":5,"v2":"","op":"gt","v":0}

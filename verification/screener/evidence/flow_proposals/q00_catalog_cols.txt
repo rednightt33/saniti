@@ -1,0 +1,38 @@
+column_name | data_type
+feature_table | text
+feature_column | text
+grain | text
+feature_category | text
+definition | text
+calculation | text
+source_tables | text
+source_columns | text
+lookback_window | text
+minimum_history | text
+unit | text
+null_rule | text
+refresh_trigger | text
+dependency_rule | text
+version | text
+is_active | boolean
+created_at | timestamp with time zone
+updated_at | timestamp with time zone
+semantic_role | text
+allowed_aggregations | ARRAY
+ranking_interpretation | text
+is_filterable | boolean
+is_groupable | boolean
+availability_rule | text
+point_in_time_safe | boolean
+historical_metadata_warning | text
+analytical_interpretation | text
+recommended_use | text
+misuse_warning | text
+semantic_review_status | text
+validation_evidence | ARRAY
+(31 rows, 413 ms)
+---
+now | st | wm | sb
+2026-10-28T02:59:40.568583Z | 30s | 4MB | 128MB
+(1 rows, 261 ms)
+---

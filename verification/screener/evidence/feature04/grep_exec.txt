@@ -1,0 +1,56 @@
+3657:### EXEC-F04: otomatisasi Feature04 dan retry failure melalui Telegram
+3663:pesan price harus terkirim sebelum hasil Feature04; dan pencatatan lengkap pada schema/catalog/changelog/Railway/docs/evidence.
+3664:NULL yang sah tidak dianggap failure. Retry Feature04 tidak menjalankan TradingView atau price cron.
+3684:outbox and Telegram delivery reached `SENT`. Evidence: `verification/feature04/AUTOMATION.md`.
+3694:### EXEC-F04-BONDS: perluasan Feature04 ke harga fixed income
+3697:`Price_Fixed_Income` untuk dimasukkan ke Feature04, menetapkan `asset_type`, melarang
+3706:Feature04.
+3719:maupun bonds, nol salah klasifikasi, serta 56/56 definisi Feature04 aktif. Bukti:
+3720:`verification/feature04/BONDS.md` dan `cross_asset_validation.json`.
+3722:### EXEC-F04-RENAME-CLOSE: nama tabel governed dan close per trade_date
+3724:**Otorisasi 2026-10-11:** user meminta `feature04_technical_indicator` diganti menjadi
+3725:`Feature_04_Technical_Indicator`, seluruh script terkait diselaraskan, kolom `close`
+3727:Nama operasional queue/monitor/function `Feature04_*` tetap karena nama itu adalah kontrol
+3743:**Status:** COMPLETED 2026-10-11. Sebanyak 38 uji Feature04 dan 2 pemeriksaan migrasi
+3750:`verification/feature04/RENAME_CLOSE.md` dan `rename_close_validation.json`.
+3752:### EXEC-F04-FIXED-INCOME-FINALITY: market-specific closing jobs
+3761:latest completed session; hanya perubahan final `price`/`1D` yang memicu Feature04;
+3762:pertahankan urutan Telegram price lalu Feature04; lakukan re-query lima sesi terakhir,
+3769:seri final, nol missing; 24 ticker harga menyelesaikan Feature04, close cocok 120/120, dan
+3770:semua notifikasi price/Feature04 `SENT`. Recovery identik memverifikasi 26 seri dengan
+3771:`changed_series=0` dan Feature04 `SKIPPED`. Semantic audit 148/148 lulus, schema/IaC
+3773:`verification/feature04/FIXED_INCOME_FINALITY.md`.
+3788:### EXEC-F04-INCREMENTAL-FINALITY: exact checkpoint suffix dan recovery lima sesi
+3800:`verification/feature04/INCREMENTAL_FINALITY.md`.
+3802:### EXEC-F04-TELEGRAM-MONITOR: one daily result and failure-only bounded retry
+3804:**Otorisasi 2026-10-12:** user narrowed the issue to the Feature04 monitor and requested:
+3810:**Scope:** Feature04-only Telegram changes. Scheduled DAILY and RECOVERY for the same
+3812:blocked counts. Failure details are capped at ten and link to `/feature04`. Ticker/column
+3821:service or schedule was added. Evidence: `verification/feature04/TELEGRAM_MONITOR.md`.
+4283:    Feature04 yang tidak terkait (drift cron yang user tunda: "nanti saja"), jadi tidak ikut di-commit.
+5979:**EXEC-ONBOARD-1 – integrasi pertama `Price_Fixed_Income` (raw) dan `Feature_04_Technical_Indicator` (Feature) ke AI
+5980:(user 2026-10-20: "minta tolong agar price_fixed_income dan feature 04 bisa di expose ke AI … candle di feature 4 bisa
+5988:- Gabungan candle/indikator ke katalog: baris `AI_calculation_catalog` untuk Feature 04 (keluarga indikator dan candle)
+5993:  `Universe_Fixed_income` sebagai tabel referensi; Feature 04 lintas aset (kolom state Pine disembunyikan); coverage dua
+6000:  kalkulasi Feature 04 dengan 19 rujukan formula, relasi 157-161, grant, preview sepuluh objek, Table/Column_Catalog)
+6003:  kolom tersimpan, preview, token G13 untuk kode obligasi; coverage job (sumber obligasi, Feature 04 dari dua sumber);
+6010:  CALC_165 → `cdl_doji`, CALC_040 → `adx_14`; preview 20 baris (10/14/49 kolom); coverage Feature 04 868 entitas
+6142:(scan penuh Feature 04, ±2,4 GB halaman dibaca). Dugaan (belum diverifikasi): angka memori kontainer memasukkan cache
+6439:      sebelum tanggal itu; kumulatif melanjutkan nilai baris F06 tersimpan sehari sebelumnya (pola Feature 04, tanpa
+6472:  Dicek ke data: tabel harga dan Feature 04 juga hanya punya baris di hari saham bertransaksi (2025: 297 dari 835
+6576:| 1 | `scripts/onboarding/measure_indexes.py` on Feature 04 (benchmark, read-only) | measurement | verdict per pattern P1-P5 recorded in `DATABASE_INDEX_ACCEPTANCE.md` |
+6583:time-leading index FAILS" also fails Feature 04 although its extraction patterns pass through the key's skip scan
+7030:update daily parsing and Feature04 mapping/eligibility without ticker-specific
+7032:IHSG only, initialize the new ticker's Feature04 state, verify last-five-session
+7037:rows, source equality, stock-volume guard, initial Feature04/checkpoint parity).
+7415:excluding Feature04, and review of the implementation plan before bulk INDEX/new-table execution.
+7444:stock/non-INDEX 193 + INDEX 198, Feature04 excluded. Stored payload matches seed; rerun updates=0.
+7702:- `feature04_asset_type()` (`20261011_006`) menggolongkan IHSG sebagai `equity`; `enqueue_feature04_group`
+7712:- Penjaga `stock_feature_index_guard` di `Feature_01_Stock_Daily` dan `Feature_04_Technical_Indicator`: menolak baris
+7814:   `Feature_04_Technical_Indicator_INDEX`. Semua angka = SQL (job `afdd0a90`): −12,86 %, 50,92 %, Regular −Rp 8,03 T,
+7877:  feature 4, tapi jika tidak ada kita pakai HTML." Indicators that Feature 04 stores follow Feature 04 (TA-Lib: ATR, ADX
+7879:- The 38 indicators without a Feature 04 column: catalog only, in `AI_formula_reference` ("1. ok formula reference").
+7911:- Deferred by the user ("let me decide later"): AI rule "use the stored Feature 04 value first" (FUTURE_PLAN.md).
+7956:  calculation module (TA-Lib / Feature 04 conventions for a zero denominator, INDICATOR_SPEC.md), with no blanking or
+8000:  --target-date … --request-bars 40` (dry-run dulu, lalu tulis; Feature 04 ikut dihitung ulang lewat jalur normal),
+8218:   (`enqueue_feature_01_price_row`), jadi UPDATE kedua akan mengantre ulang 845 baris setiap hari. Trigger Feature 04

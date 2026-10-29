@@ -8323,8 +8323,11 @@ untuk future improvement/ efisiensi akan lebih mudah. Dari awal data, sampai loa
 - E2E dev 2026-10-27 13:27 UTC (edge-bff `390eca4b`, worker `97dd49ce`) lulus semua langkah (RAILWAY_CHANGELOG).
 - PR #39 digabung ke main 2026-10-27 13:55 UTC (`fdd00e7`); deploy otomatisnya dilewati Railway (ERRORS M252), jadi
   edge-bff dev dideploy dari commit itu (`43e5b185`, SUCCESS 14:00 UTC).
-- Sisa: dokumen end-to-end (permintaan N 13:37 UTC) dan PR publisher M250 (pilihan N 13:27 UTC); produksi tidak
-  disentuh.
+- Dokumen end-to-end `BACKTEST_END_TO_END.md` digabung lewat PR #40 (`cfa05ba`).
+- Publisher M250 (pilihan N 13:27 UTC): kunci berisi sha256 dan pembersihan pada run daily berikutnya, `6051f4d`,
+  CLI upload ke terminal-publisher dev `4c2c3823` SUCCESS 14:44 UTC (cron tetap). N 14:40 UTC: "Diuji dev pada run 7.30
+  besok"; uji tambahan sebelum itu dihentikan. Sisa: cek run 00:30 UTC 2026-10-28, lalu merge PR publisher; produksi
+  tidak disentuh.
 
 ## EXEC-TERMINAL-FRESH — broker tertinggal tampil jujur, alat gambar di Flow, kepala tabel Top brokers (go 2026-10-27)
 
@@ -8560,3 +8563,351 @@ di main chart (hold kiri click dan slide mouse) sangat laggy, please check".
   tidak disetel ulang (memutus ping-pong chart ↔ panel).
 - Tooltip Flow: tanggal diformat sekali per sesi (cache).
 - Infra: hanya front-end Terminal di edge-bff.
+
+## EXEC-SCREENER — EDGE Screener dari prototipe `screener EDGE layout.html` (go 2026-10-28)
+
+**Go, 2026-10-28 (kata user):** "P4 - pakai A / Arti gas maksudnya tetap jalankan sesuai fsae, take into account jawaban saya
+diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai batasan maks 2 agents/ workflow ya."
+
+- **Keputusan yang berlaku:** P1 (a) satu sumber data, rak (file lintas-saham ditulis pada run publisher 07:30/19:00 WIB);
+  P2 (a) Feature 04 tidak diubah dan tidak dibaca saat runtime, nilai bawaan 53 indikator dihitung ulang di memori sekali per
+  publikasi, Feature 04 jadi pembanding di tes; P3 (a) service baru `screener-worker`, deploy dari GitHub `main`, hanya dev;
+  P4 (pilihan user): saham basi dan saham dengan patahan harga disembunyikan secara bawaan; bila ditampilkan lewat filter,
+  barisnya muncul dengan remark penyebabnya, dan nilai indikator yang jendelanya melewati tanggal ex **tetap ditampilkan**
+  dengan remark (sub-pilihan A); P8 semua papan untuk flow; P12 (a) tabel `edge_bff` untuk saved screens, My metrics dan satu
+  watchlist. Keputusan lain (P5-P7, P15-P19, P21-P23) mengikuti rekomendasi laporan dan disebutkan ke user, seperti
+  EXEC-BACKTEST-LOAD. P9, P10, P20 (definisi bandar, lag broker, detail flow) diputuskan sesudah usulan indikator flow.
+- **Batas agen:** user mencabut batas 2 agen per workflow (2026-10-28).
+- **Fase:** Phase 1 (dev): universe, 53 indikator default dan custom, VALUE/STATE/EVENT, ALL/ANY/AT LEAST N, near miss,
+  ranking, sorting, preview, CSV, saved screens dan watchlist, urutan muat seperti Terminal/Backtest, desain multi-user.
+  Phase 1b: Send to Backtest (impor di halaman Backtest saja). Phase 2: flow dari indikator yang dipilih user. Fundamental,
+  market cap dan riwayat kinerja screen menunggu data atau keputusan sendiri.
+- **Langkah Phase 1 (laporan NEXT ACTION 15.2):** kode di branch dengan tes; baca `BACKTEST_END_TO_END.md` dan `CONTRACT.md`
+  sebelum mengubah publisher/terminal-api; periksa state live; migrasi `edge_bff` di dev (DRYRUN lalu APPLY, read back);
+  terminal-api dan terminal-publisher (CLI, prosedur M248, di luar jendela publisher M250); `screener-worker` dan edge-bff dari
+  `main`; verifikasi worker; E2E data asli; benchmark Phase 17; changelog, catalog dan dokumen; dokumen onboarding.
+- **Status 2026-10-28:** dimulai.
+- **Publisher PR #41, 2026-10-28 (kata user):** "Rekomendasi kamu sudah OK / We'll go with A". Publisher yang berjalan di dev
+  (`4c2c3823`) berasal dari PR #41 (`claude/project-thread-k91bfk`, belum di-merge): M250 (content keys, pembersihan) dan
+  perbaikan retry bucket (di branch itu bernomor M253, bentrok dengan M253 di `main`). Pilihan A: commit `6051f4d`, `cf60fed`
+  dan `f98cc3d` ditarik (cherry-pick `-x`) ke branch Screener, penulis xsection disusun di atasnya, dan entri retry diberi
+  nomor baru di branch ini; pemilik PR #41 diberi tahu bahwa perubahan publisher yang sama sudah ada di branch Screener.
+  Dikerjakan 2026-10-28: ketiga commit masuk lewat `41f14b7` (entri retry menjadi M263); file per-ticker dan file
+  xsection kini memakai satu mekanisme (content key, `collect_garbage` pada run harian berikutnya, retry setiap panggilan
+  bucket). Tinjauan: publisher 66 lulus, terminal-api 40, backtest-worker 186, 20 dari 20 mutasi tertangkap, uji
+  kompatibilitas lokal dengan bucket dari publisher `main` dan PR #41 serta rollback ke PR #41 lulus. Belum deploy.
+  Pemberitahuan ke pemilik PR #41 menunggu deploy publisher ke dev.
+- **Cara deploy ke dev, 2026-10-29 (kata user):** "A", atas pilihan "Opsi A — PR ke `main` setelah semua pemeriksaan lolos:
+  saya buat PR dari branch ini ke `main`, lalu deploy ke dev bertahap mengikuti runbook (perubahan database, terminal-api,
+  publisher, mesin screener, lalu edge-bff), tiap langkah diverifikasi dan bisa di-rollback". Tahap 0-1 EXEC-MU-RUNTIME ikut
+  dalam PR dan jendela deploy yang sama. PR dibuat hanya setelah semua suite lolos di HEAD branch; deploy hanya ke dev.
+- **Keputusan lanjutan, 2026-10-28 (kata user):** atas P29 "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest
+  juga"; atas pertanyaan apakah rekomendasi juga berlaku untuk keputusan flow D1-D14 dan P24-P34: "YEs".
+  - **P29:** pengguna EDGE adalah user eksternal, untuk semua tab (Monitor, Terminal, Backtest, Screener).
+  - **P24-P34 sesuai rekomendasi laporan (AUDIT.md 13.3),** dengan cabang "eksternal" yang kini berlaku: P30 akun user EDGE
+    menjadi item tersendiri untuk seluruh EDGE (dicatat di `PLAN.md` EDGE-MULTIUSER), Screener Phase 1 tetap satu owner tetapi
+    semua datanya berkunci `owner_key`; P31 identitas terminal-api per user plus akun layanan untuk worker (bagian dari
+    EDGE-MULTIUSER); P32 dua replika `screener-worker` sejak user eksternal pertama memakai; P33 batas komputasi per user
+    (CPU per user) dibangun di Screener; P34 cache per replika.
+  - **Flow (AUDIT.md bagian 16.11, D1-D14) sesuai rekomendasi:** 11 indikator set pertama (FL09, FL01, FL02, FL07, FL08, FL10,
+    FL12, FL06, FL04, FL16, FL18), 9 lainnya Phase 2b; P9 = FL09 (3 broker teratas, 10 sesi, semua papan, status +-6/+-10,
+    ambang berlabel belum divalidasi); HHI dari net beli; buy intensity = net top-N pembeli / nilai transaksi; jendela dan top-N
+    seperti tabel; FL13 dan FL17 bawaan Regular; FL05 persentil riwayat sendiri; publisher membaca Feature 03 lewat migrasi
+    grant (D9 a); ambang tetap dengan lantai ADV; FL19/FL20 nanti; kalender sesi pasar (FL05 sesi ticker); broker FL06 = YP;
+    P10 (a) evaluasi pada tanggal as-of broker, berlabel.
+  - **Belum diketahui, harus dijawab sebelum user eksternal:** izin data (apakah harga, broker summary Stockbit dan event boleh
+    ditampilkan ke banyak user eksternal; AUDIT.md 6d, E6).
+- **Batas penyimpanan P12 (nilai awal, 2026-10-28):** 50 saved screens dan 50 My metrics per owner, 500 ticker per
+  watchlist (konstanta edge-bff; preseden `PIN_LIMIT` 500; 50 dipilih agar semua saved screen muat dalam satu panggilan
+  counts). Disebutkan ke user; bisa diubah.
+
+### Riwayat persetujuan dan keputusan (dipindah dari PLAN.md SCREENER)
+
+**Persetujuan, 2026-10-27 (kata user):** "Goalnya adalah kita akan membangun sesuatu, which is semacam screener. Menggunakan
+logik yang mirip-mirip." Lalu brief "EDGE SCREENER — IMPLEMENTATION BRIEF": "You are responsible for turning the attached
+`screener EDGE layout.html` prototype into a fully operational EDGE Screener using the existing EDGE backend
+architecture ... APPROVAL GATE: Before database schema mutation or Railway deployment, report: 1. existing architecture
+... 16. risks and unresolved product decisions." Lalu: "Yes, oke. Opsi nomor 1, saya kasih izin. Untuk push ke branch
+dulu. One thing to note adalah Excel saat ini hanya berisi indikator technical. Sedangkan di HTML itu banyak
+preset-preset yang juga mungkin indikator fundamental, flow, dan lain sebagainya. Indikator flow, feel free untuk
+benchmark dan come up with your own screener lah ya. Retaining existing screener juga tidak apa. Tidak perlu terlalu
+memperhatikan backtesting karena nanti indikator di backtesting bisa kita tambahkan apabila ternyata indikator di
+screener ini lebih banyak. Gas."
+
+- **Izin yang diberikan:** audit read-only (kode, Railway, database lewat pgweb dengan kredensial yang dibaca dari variabel
+  Railway ke memori; role `pgweb`, `default_transaction_read_only on`); push ke branch kerja sesi, belum ke `main`.
+- **Belum diizinkan:** perubahan skema/data, perubahan Feature 04, deploy Railway. Semuanya menunggu laporan approval gate
+  dan "go" user.
+- **Input:** prototipe `screener EDGE layout.html` dan `Technical_Indicators_53_Frontend_Display_Spec.xlsx` (unggahan user,
+  tidak di-commit).
+- **Laporan audit:** `verification/screener/AUDIT.md` (dibuat pada tugas ini).
+
+**Laporan audit (2026-10-28):** laporan approval gate ada di `verification/screener/AUDIT.md` (bukti per area di
+`verification/screener/audit/`, skrip dan keluaran di `verification/screener/evidence/`). Audit ini read-only: tidak ada
+yang diubah di database (skema maupun data), di Feature 04, atau di Railway (variabel, service, deployment). Rekomendasi
+laporan (semuanya masih usulan dan menunggu "go"):
+- **Satu sumber data: rak.** Rak adalah file siap-saji yang ditulis terminal-publisher ke bucket pada 07:30 dan 19:00
+  WIB dan sudah dibaca Terminal dan Backtest. Run yang sama menambah file lintas-saham (semua saham dalam satu file),
+  jadi Screener selalu menampilkan sesi yang sama dengan Terminal dan Backtest. Akibatnya, setiap sore data Screener ±3
+  jam di belakang database (cron harga 17:00 WIB, publikasi 19:00 WIB selesai ±20:03 WIB); jadwal rak yang lebih segar
+  untuk semua halaman diusulkan terpisah (FUTURE_PLAN.md, E1).
+- **Service baru `screener-worker`** (private, tanpa kredensial database atau bucket) menghitung setiap screen dan
+  preview di server dengan modul rumus yang sama dengan Terminal dan Backtest (`indicators.ts`). Tidak ada rumus yang
+  ditulis dua kali; kode Backtest dan worker-nya tidak berubah, jadi hasil Backtest tetap sama.
+- **Feature 04 tidak diubah dan tidak dibaca saat Screener berjalan**; ia menjadi pembanding di tes. Nilai bawaan 53
+  indikator dihitung ulang di memori sekali per publikasi rak (±8-10 detik, tidak disimpan), parameter custom dihitung
+  saat diminta. Alasannya: Feature 04 hanya mencakup penuh 9 dari 53 indikator, dan memperluasnya berarti setiap
+  indikator dibuat dua kali serta 6.076 checkpoint (status hitung tersimpan per saham) tidak berlaku lagi.
+- **Phase 1 (dev saja, sesudah "go"):** filter universe dari `IDX_Stock_Universe` (saham, sektor, industri, harga,
+  ADV20, diperdagangkan pada tanggal evaluasi, tanda patahan harga, panjang riwayat); 53 indikator dengan parameter
+  bawaan atau custom; kondisi nilai, keadaan dan kejadian (VALUE, STATE, EVENT) dengan ALL, ANY dan AT LEAST N; 8 dari 9
+  preset teknikal (Ichimoku menunggu rilis registry); preview saham dengan candle asli; "Stock vs IHSG"; ekspor CSV;
+  saved screens, My metrics dan satu watchlist di dua tabel `edge_bff` baru bila P12 disetujui. Send to Backtest (Phase
+  1b) dan flow (Phase 2) menyusul.
+- **Belum dibuat:** fundamental (datanya belum ada; tampil nonaktif dengan alasan), market cap (menunggu "go"
+  EXEC-MCAP), dan riwayat kinerja screen gaya Portfolio123 (belum ada universe point-in-time; tampilan prototipe diberi
+  nama "Stock vs IHSG").
+
+**Jawaban user, 2026-10-28 (kata user):** "P1 OK P2 OK p3 OK P4 tidak, dihide tapi di remark saat di show di filter
+table P12 OK". Tambahan pada pesan yang sama: "Also, ini nanti akan multiuse,r jadi infrastruktur harus bisa di scale UP +
+efficient cost wise. Ada masalah sebelumnya terkait dengan seberapa lama FE displayed setelah browser dibuka. Jadi kamu feel
+free to lihat dan read bagaimana Terminal dan Backtest load its data to front end in terms of the sequence." Lalu: "indikator
+disini belum final, please nanti siapkan dokumentasi sama how screener ini works dan workflow kalau mau tambah indikator (apa
+requirementnya di postgres, table apa yang harus disiapkan) goalnya adalah MD itu bisa dijadikan onboarding documents apa yang
+mesti di cek di service dll to onboard new documents (bukan hanya technical, tapi ada macro juga dll)". Dan: "Please ensure
+patuhi aturannya bahwa setiap workflow maksimal 2 agents agar tidak ada flow yang lambat/ inefficient."
+
+- **Diputuskan:** P1 (a), P2 (a), P3 (a), P12 (a), sesuai rekomendasi laporan.
+- **P4, pilihan user:** saham basi dan saham dengan patahan harga **disembunyikan secara bawaan**; bila user menampilkannya
+  lewat filter, barisnya muncul di tabel dengan **keterangan (remark)** penyebabnya. Ini menggantikan rekomendasi (d)
+  untuk patahan harga. Detail yang masih ditanyakan: saat ditampilkan, apakah nilai indikator yang jendelanya melewati
+  tanggal ex tetap ditampilkan dengan remark, atau dikosongkan dengan remark.
+- **Syarat baru:** (1) multi-user: infrastruktur harus bisa di-scale up dan hemat biaya; (2) waktu tampil halaman setelah
+  browser dibuka: urutan muat mengikuti cara Terminal dan Backtest (EXEC-BACKTEST-LOAD); (3) dokumen onboarding: cara kerja
+  Screener dan alur menambah indikator atau data baru (teknikal, flow, fundamental, makro), termasuk syarat tabel di
+  PostgreSQL dan pemeriksaan per service; (4) setiap workflow agen maksimal 2 agen.
+- **Status:** keputusan ini bukan "go" eksekusi. Laporan dan desain diperbarui dulu dengan syarat di atas; eksekusi Phase 1
+  menunggu "go" user dan dicatat di `EXEC.md`.
+
+**Jawaban user berikutnya, 2026-10-28 (kata user):** "Ok, gas" (atas langkah berikut yang diumumkan: memperbarui laporan dan
+desain, lalu menulis dokumen onboarding). Untuk fase 2: "Fase 2 — Flow/bandarmologi ... butuh keputusan Anda soal papan
+transaksi (Regular saja atau semua papan) dan definisi “bandar”. --> semua papan. But also research kira2 indikator apa
+yang bisa dipakai untuk screen. MIsal HHI, Buy intensity, propose ke saya 10-20 indicators nanti."
+
+- **Diputuskan:** P8 = semua papan (Regular, Nego dan Tunai digabung) sebagai papan bawaan metrik flow.
+- **Diminta:** riset indikator flow untuk screener (contoh user: HHI, buy intensity) dan usulan 10-20 indikator, masing-masing
+  dengan rumus, sumber tabel, biaya hitung dan bukti pada data live. Definisi bandar (P9) diputuskan sesudah usulan itu.
+- **Yang belum jelas:** apakah "gas" juga berarti "go" eksekusi Phase 1 (kode, migrasi `edge_bff` dan deploy ke dev);
+  ditanyakan ke user.
+
+**Pertanyaan terbuka (menunggu jawaban user):** keputusan produk P1-P23 dari laporan (UNKNOWNS / PRODUCT DECISIONS
+13.2). Semua rekomendasi masih usulan. Persetujuan untuk audit dan merencanakan bukan "go": eksekusi baru mulai sesudah
+user memberi "go", lalu dicatat sebagai bagian baru di `EXEC.md` bersama pilihan P1-P23 (AGENTS.md "Plans", R34). Yang
+membuka Phase 1: P1, P2, P3, P4, P12. P5-P7, P15-P19 dan P21-P23 bisa diterima sesuai rekomendasi bersama Phase 1; P13
+untuk Phase 1b; P8, P9, P10, P20 untuk Phase 2; P11 dan P14 mengonfirmasi apa yang tetap nonaktif.
+- **P1 — Sumber dan kesegaran data pasar.** Dari mana Screener membaca data pasar, dan seberapa segar? Pilihan: (a) file
+  lintas-saham di rak, ditulis pada run publisher 07:30/19:00 WIB yang sudah ada (satu versi data dengan Terminal dan
+  Backtest); (b) file per saham lewat `/bundle` (publisher tidak diubah, tetapi ±845-1.690 izin unduh per publikasi dan
+  bergantung pada override kuota gateway yang TEMPORARY); (c) build screen sendiri lebih awal (±17:20 WIB, ±3 jam lebih
+  segar, tetapi dua versi data di halaman EDGE); (d) login database read-only di worker (lebih segar, tetapi kredensial
+  database dan versi data kedua). Rekomendasi: (a); bila data sore yang lebih segar penting, ubah jadwal rak untuk semua
+  halaman sebagai item sendiri (E1); (b) hanya cadangan sementara bila perubahan publisher tidak disetujui. Mengubah:
+  apakah Phase 1 mengubah terminal-publisher dan terminal-api (deploy CLI; satu field tambahan di `GET /state` dan route
+  baru `POST /xsection` yang hanya bisa dipanggil dengan kunci proxy gateway), apakah worker memegang kredensial
+  database, dan apakah Screener, Terminal dan Backtest bisa berbeda sesi terakhir ±3 jam sehari.
+- **P2 — Peran Feature 04 dan hitung ulang per publikasi.** Apa peran Feature 04, dan bolehkah nilai bawaan dihitung
+  ulang di memori setiap publikasi? Pilihan: (a) Feature 04 tidak diubah dan tidak dibaca saat berjalan, hanya
+  pembanding di tes; 53 indikator bawaan (76 keluaran) dihitung ulang ±8-10 detik per publikasi, tanpa disimpan (Option
+  C brief tanpa membaca Feature 04 saat berjalan); (b) membaca Feature 04 saat berjalan untuk 9 indikator yang
+  dicakupnya penuh (butuh grant, basis waktu kedua, ikut terkena `REPAIR_REQUIRED`); (c) memperluas Feature 04 (Option
+  A: setiap indikator dibuat dua kali, VERSION naik sehingga 6.076 checkpoint batal, 1,39 juta baris ditulis ulang).
+  Rekomendasi: (a); ini menyimpang dari harapan brief bahwa nilai bawaan diambil dari data tersimpan dan "tidak
+  menghitung ulang semua riwayat setiap hari", karena indikator rekursif dan kumulatif hanya tepat dengan riwayat penuh
+  atau checkpoint. Mengubah: ada atau tidaknya migrasi, backfill atau perubahan worker Feature 04 (tidak ada pada a),
+  dan apakah publisher butuh SELECT pada Feature 04 (hanya untuk file rekonsiliasi opsional).
+- **P3 — Service baru dan cara deploy.** Setujui service `screener-worker` (Node 22, tanpa dependensi npm, region `sfo`,
+  private, tanpa kredensial database atau bucket) dan pilih sumber deploy: (a) GitHub `main` dengan watch pattern pada
+  kode inti bersama (seperti feature-04-worker); (b) upload CLI seperti backtest-worker. Rekomendasi: setujui
+  service-nya, deploy dengan (a), hanya ke dev dan di luar jendela publisher. Mengubah: satu service Railway,
+  variabelnya dan pasangan URL/kunci di edge-bff; `.railway/railway.ts` dan `RAILWAY_CHANGELOG.md`; dengan (a),
+  perubahan `indicators.ts` atau kode inti ikut me-redeploy Screener.
+- **P4 — Saham basi dan patahan harga di universe bawaan.** Apa yang dilakukan universe bawaan terhadap saham yang tidak
+  diperdagangkan pada tanggal evaluasi ("basi", 16 hari ini) dan saham yang harganya patah di corporate action (ERRORS
+  D22)? Saham basi: (a) dikecualikan lewat chip bawaan yang terlihat "Traded on evaluation date", ditandai bila
+  diikutkan; (b) diikutkan dan ditandai. Patahan harga (aksi yang memengaruhi harga dengan tanggal ex antara
+  `ADJUSTED_HISTORY_BOUNDARY` 2026-09-12 dan bar terakhir saham; 8 saham pada 2026-10-27, mis. PBSA split dan FORU
+  rights): (a) dikecualikan secara bawaan; (b) hanya ditandai; (c) perbaiki lapisan data dulu (D22, usulan E2); (d) sel
+  turunan harga yang jendela hitungnya melewati tanggal ex dikosongkan dengan alasan `PRICE_BREAK_IN_LOOKBACK`, saham
+  ditandai, sel flow dan ADV tetap, plus chip opsional untuk mengecualikan. Rekomendasi: saham basi (a); patahan (d),
+  berlabel TEMPORARY sampai perbaikan D22 (E2) yang diputuskan terpisah. Ini tidak menutup aksi yang tidak tercatat di
+  `idx_event_annotation`, aksi sebelum batas itu (diduga, belum diverifikasi), dan Terminal, Backtest, Feature 04 serta
+  jawaban AI yang tetap terdistorsi. Mengubah: jumlah hasil bawaan dan preset, sinyal oversold palsu yang sampai ke
+  user, dan file `actions` di rak yang harus membawa corporate action sejak Phase 1.
+- **P5 — Batas parameter custom dan kerumitan permintaan.** Batas apa yang berlaku? Registry hanya punya `min: 1` tanpa
+  batas atas panjang. Usulan sementara: batas panjang dari aturan biaya terukur (hitung seluruh pasar pada batas itu
+  tetap dalam anggaran; CCI(1000) butuh 7,93 detik, kernel O(N) ≤ 0,09 detik); `within` ≤ 130 sesi untuk metrik
+  teknikal; batas flow mengikuti jendela yang dipublikasikan; 20 kondisi; 8 filter metrik universe; tenggat 20 detik;
+  antrean 4. Rekomendasi: setujui sebagai sementara, diganti nilai terukur dari benchmark Phase 17. Mengubah: rentang
+  yang tampil di UI, penolakan yang bisa ditemui user, ukuran memori dan jumlah thread worker.
+- **P6 — Katalog teknikal lama prototipe, konvensinya, dan indikator baru.** Bagaimana 17 entri teknikal lama dan 9
+  preset teknikal prototipe ditangani? Pilihan: (a) dipetakan ke 53 indikator registry (daftar indikator dan
+  parameternya yang dipakai bersama Terminal dan Backtest) dengan konvensi `F` (modul rumus bersama di `indicators.ts`)
+  sebagai acuan: EMA dimulai dari SMA; `volspike` tanpa bar berjalan seperti Backtest; RVOL dengan bar berjalan
+  (keputusan user 2026-10-25) dan parameter `include_current_bar` yang bertentangan disembunyikan; ambang level mentah
+  OBV, PVT, A/D, NVI dan PVI tidak ditawarkan; Ichimoku menunggu rilis registry yang disengaja (`F`, `indRegistry.json`,
+  rebuild backtest-worker); (b) memakai rumus prototipe (implementasi kedua; ditolak); (c) menambah Ichimoku sekarang
+  dalam rilis registry terkoordinasi. Rekomendasi: (a), Ichimoku di rilis registry berikutnya yang direncanakan.
+  Mengubah: preset yang ikut Phase 1 (Ichimoku nonaktif), katalog yang terlihat, dan apakah `indicators.ts` berubah
+  sekarang (tidak, pada a).
+- **P7 — Populasi peringkat lintas saham.** Atas populasi apa `rs_rank` (dan peringkat lintas saham lain) dihitung?
+  Pilihan: (a) semua saham aktif yang tidak basi dan punya nilai pada tanggal evaluasi, tidak bergantung pada filter
+  user; (b) universe hasil filter user; (c) semua listing termasuk yang basi (cara prototipe; NaN tetap di penyebut).
+  Rekomendasi: (a): peringkat tidak bergeser saat filter berubah, bisa dihitung lebih dulu, dan aman untuk planner
+  (bagian yang menentukan urutan dan cakupan hitung). Mengubah: hasil Minervini dan CANSLIM; desain planner (populasi
+  dihitung sebelum tahap kondisi).
+- **P8 — Papan bawaan untuk flow, dan labelnya ke Backtest.** Papan mana yang dipakai metrik flow secara bawaan?
+  Pilihan: (a) Regular (sama dengan volume harga dan "Foreign Flow" Stockbit), dengan toggle semua papan; Send to
+  Backtest hanya utuh untuk `fnet`, `broker` dan `top5` semua papan; (b) semua papan (sama dengan Terminal dan
+  Backtest); (c) Regular saja. Catatan: 2026-10-27 user mempertahankan semua papan sebagai bawaan Flow Terminal ("Untuk
+  papan bawaan, kita tetap semua papan") dan memakai Regular untuk membandingkan dengan Stockbit (ERRORS M244); pilihan
+  papan mengubah foreign net 20 hari untuk 168 dari 841 saham dan membalik tandanya untuk 20. Rekomendasi: (a), dengan
+  papan tertera di setiap kondisi flow dan di serah-terima ke Backtest; pilih (b) bila kesamaan dengan bawaan Terminal
+  lebih penting daripada kesamaan dengan volume harga dan Stockbit. Mengubah: angka flow yang dilihat user dan kondisi
+  flow mana yang pindah utuh ke Backtest.
+- **P9 — Definisi bandar dan metrik flow pertama.** Apa definisi bandar, dan metrik flow mana yang dikirim dulu? Rasio
+  bandar (jendela D, top-N, penyebut Σ nilai beli, ambang 6/10), `bavg` (VWAP kotor 3 net buyer teratas, sama dengan Avg
+  Buy Stockbit; prototipe memakai proksi harga tipikal) dan breadth D hari (pembeli / (pembeli + penjual)) belum pernah
+  disetujui (`verification/terminal_api/DESIGN.md`:40, 147). Pilihan: (a) kirim dulu foreign net, % dari nilai, streak,
+  lonjakan transaksi, satu broker, top-5/top-N dan metrik unusual-flow dan strength Feature 06 yang tersimpan; bandar,
+  `bavg` dan breadth menyusul sesudah disetujui eksplisit, dengan satu definisi bersama detektor Terminal; (b) setujui
+  definisi usulan sekarang; (c) ganti definisinya. Rekomendasi: (a). Mengubah: cakupan Phase 2 vs Phase 3, preset
+  bandarmology yang aktif, dan konsistensi Terminal dengan Screener.
+- **P10 — Data broker tertinggal dari harga.** Apa yang terjadi bila data broker tertinggal? Pilihan: (a) flow
+  dievaluasi pada tanggal data broker terakhir, tanggal per sel dan banner ditampilkan, dan sel dikosongkan dengan
+  alasan `FLOW_LAGGED` bila tertinggal lebih dari batas user (bawaan 1 sesi); (b) selalu kosong bila tertinggal; (c)
+  screen flow diblokir. Opsional: file flow juga dipublikasikan sesudah ronde Stockbit yang sukses, tidak hanya pada run
+  07:30/19:00. Rekomendasi: (a); pemicu publikasi tambahan diputuskan terpisah. Mengubah: arti sel flow di screen
+  gabungan dan seberapa sering hasil flow tertinggal dari harga.
+- **P11 — Filter universe dan fundamental yang belum punya data.** Pilihan: (a) market cap, keanggotaan indeks, papan
+  pencatatan, notasi khusus (bawaan **off**, berbeda dari prototipe), free float, metrik laporan keuangan dan metrik
+  bank tampil nonaktif dengan alasan; metrik bank `NOT_APPLICABLE` di luar sektor Banks; dividen di Phase 2 sesudah
+  divalidasi, dengan dasar penyesuaian yang jelas (ERRORS D10, A3.14): jendela TTM yang memuat aksi yang memengaruhi
+  harga (i) dikosongkan dengan alasan `MIXED_ADJUSTMENT_BASIS` atau (ii) diskalakan dengan `ratio_old`/`ratio_new` dari
+  `idx_event_annotation`; ADV = close × volume selama 20 bar (definisi Backtest); (b) disembunyikan. Terpisah: "go"
+  untuk EXEC-MCAP, apakah free float ikut, dan pilihan sumber serta lisensi data fundamental. Opsional: "High Dividend"
+  sebagai varian berlabel tanpa payout. Rekomendasi: (a) dengan (i) sampai penskalaan divalidasi pada sampel; EXEC-MCAP
+  dan sumber fundamental sebagai item sendiri. Mengubah: 11 dari 26 preset dan kolom market cap tampil nonaktif; cakupan
+  Phase 2 atau 4.
+- **P12 — Penyimpanan saved screens, My metrics dan watchlist.** Di mana disimpan, dan berapa watchlist? Pilihan: (a)
+  tabel `edge_bff` sekarang: `screener_items` (jenis `screen` atau `metric`) dan satu tabel `watchlist_items`, lewat
+  migrasi forward dengan pemeriksaan `$verify$`; (b) penyimpanan browser (`localStorage`) TEMPORARY dulu, lalu impor
+  sekali; (c) lokal saja. Sub-pertanyaan: satu watchlist atau beberapa daftar bernama; nilai `SCREEN_LIMIT` dan
+  `WATCHLIST_LIMIT` (preseden: `PIN_LIMIT` ≤ 500). Catatan: shell EDGE masih menyimpan CSS sisa untuk halaman Watchlist
+  dengan pemilih beberapa daftar (`apps/edge-bff/static/index.html`:2494, 8219-8286), tanpa markup, skrip, tabel atau
+  API yang memakainya. Rekomendasi: (a) di gerbang yang sama, satu watchlist; (b) hanya bila migrasi tidak disetujui.
+  Mengubah: apakah Phase 1 memuat migrasi skema beserta perubahan skrip provisioning dan tes.
+- **P13 — Send to Backtest di atas batas ticker Backtest dan untuk arti yang hanya ada di Screener.** Batas dibaca dari
+  katalog Backtest (`max_portfolio_tickers` 12 hari ini, `window_bars.max` 20, `max_conditions`), tidak diketik ulang di
+  Screener. Lebih banyak ticker dari batas: (a) dipilih otomatis sebanyak batas menurut urutan saat ini, bisa diedit
+  user; (b) ditolak. Jendela: (a) ketat: `window_bars` dikirim hanya bila semua kondisi kejadian memakai N yang sama ≤
+  `window_bars.max` dan tidak ada kondisi keadaan atau nilai; sisanya didaftar sebagai tidak ikut, dengan alasan; (b)
+  didekati dengan W = N terbesar plus peringatan. Pengiriman: impor satu kali di `boot()` halaman Backtest. Rekomendasi:
+  pilih menurut urutan (bisa diedit) dan aturan jendela ketat. Mengubah: halaman Backtest (`app.ts`, `import.ts`,
+  `CONTRACT.md` §10) dan apa yang dilihat user sebagai tidak ikut.
+- **P14 — Screen Performance History.** Apa yang terjadi dengan riwayat kinerja screen gaya Portfolio123? Pilihan: (a)
+  ditunda, dan tampilan prototipe diberi nama "Stock vs IHSG"; (b) evaluator teknikal saja dengan label jelas "bukan
+  point-in-time, bias survivorship"; (c) menunggu engine Backtest yang menerima lebih dari 12 ticker. Rekomendasi: (a)
+  sampai ada universe point-in-time termasuk saham delisting dan harga yang disesuaikan (D22). Mengubah: apakah ada
+  evaluator historis yang dibuat sekarang (tidak ada, pada a).
+- **P15 — Dana DIRE dan saham tanpa klasifikasi.** Apakah tiga dana DIRE real estat (XCID, XCIS, XSPI), yang bertipe
+  `stock/common` dengan sektor dan industri `Undefined`, termasuk universe saham, dan bagaimana saham tanpa klasifikasi
+  ditampilkan? Pilihan: (a) ikut sebagai saham; saham tanpa klasifikasi dihitung terpisah sebagai "Unclassified (n)",
+  tidak pernah sebagai nilai, dan hanya ikut filter include lewat opsi eksplisit "include unclassified" (aturan
+  Backtest); (b) dikecualikan secara bawaan dengan chip terlihat, berdasarkan tipe instrumen di lapisan data setelah
+  tipe itu ada; (c) selalu dikecualikan. Rekomendasi: (a) sampai tipe instrumen ada di `IDX_Stock_Universe`, lalu
+  universe mengikuti tipe itu (bukan daftar nama di kode). Mengubah: jumlah universe (3 saham) dan daftar sektor (11
+  sektor plus "Unclassified (3)").
+- **P16 — Definisi KVO (I52).** Definisi Klinger Volume Oscillator mana yang disetujui? Pilihan: (a) Klinger klasik di
+  `F` dengan `|2(dm/cm − 1)|` (`apps/edge-bff/terminal/src/calc/indicators.ts`:547-556), yang sudah dipakai registry dan
+  Backtest; (b) rumus workbook tanpa `abs`; (c) EMA volume bertanda atas perubahan hlc3 tanpa dm/cm (prototipe).
+  Rekomendasi: (a), ditampilkan "definition pending" sampai disetujui; sampai itu I52 hanya dihitung dinamis. Mengubah:
+  perlu rilis registry atau tidak (hanya pada b atau c, lihat P6).
+- **P17 — Anchor Session VWAP (I43).** Bagaimana I43 ditawarkan pada bar harian? Pada bar harian, VWAP dengan anchor
+  Session sama dengan harga tipikal (hlc3), jadi kondisinya hanya close dibanding harga tipikal; workbook menandai I43
+  `PARTIAL_LOGIC`. Pilihan: (a) hanya anchor Week, Month, Quarter dan Year; (b) Session ditawarkan dengan label "=
+  typical price"; (c) I43 disembunyikan. Rekomendasi: (a). Mengubah: pilihan anchor satu indikator di katalog.
+- **P18 — Nama volatilitas historis (I33 dibanding Feature 01).** Bagaimana I33 diberi label di samping volatilitas
+  Feature 01? I33 adalah simpangan baku populasi dari log return, disetahunkan; Feature 01 `volatility_20d_ann_pct`
+  adalah simpangan baku sampel dari return biasa (selisih median 2,8%, sampai 23%). Pilihan: (a) I33 dinamai "Historical
+  volatility (log, population)" dengan satuannya, dan angka Feature 01 tidak pernah tampil dengan nama yang sama; (b)
+  memakai nama workbook. Rekomendasi: (a). Mengubah: label dan tooltip saja.
+- **P19 — Nilai kembar pada jendela datar.** Bagaimana dua nilai yang persis sama diputuskan pada jendela datar (mis.
+  "OBV di atas SMA-nya")? Pilihan: (a) angka double mentah, seperti Backtest (R14; sisa pembulatan jumlah berjalan
+  memutuskan 358 dari 358 perbedaan BNBR); (b) aturan epsilon (toleransi kecil) di rilis kode inti berikutnya, bersama
+  Backtest. Rekomendasi: (a) sekarang; (b) hanya sebagai rilis kode inti yang disengaja. Mengubah: sel di perbatasan
+  pada jendela datar.
+- **P20 — Detail flow dan filter yang tersisa.** Empat detail yang diputuskan sementara oleh audit. Pilihan: (a) broker
+  bawaan untuk B4 dan preset Broker Follow: YP (prototipe) atau YU (bawaan Backtest,
+  `apps/edge-bff/backtest/src/core/catalog.ts`:54); (b) kalender: dua, masing-masing berlabel di selnya (metrik Feature
+  06 pada sesi Feature 06 saham itu; metrik broker pada bar harganya, seperti Backtest), atau satu untuk keduanya; (c)
+  ticker dengan baris flow di luar universe (AKKU, CRAB, GTBO, TRUE, UNSP, dan ETF): dikecualikan dan diungkapkan, atau
+  diikutkan di screen khusus flow; (d) apakah 53 indikator registry boleh menjadi filter metrik universe (prototipe
+  hanya menawarkan 8 metrik teknikal, 10 flow dan 32 fundamental di sana). Rekomendasi: (a) YP, dengan broker tertera di
+  kartu; (b) dua kalender berlabel; (c) dikecualikan dan diungkapkan, dihitung di log refresh; (d) ya, sebagai filter
+  VALUE lewat registry yang sama. Mengubah: bawaan flow Phase 2 dan pemilih filter metrik.
+- **P21 — Arti chip "Default" untuk nilai bawaan workbook yang belum terverifikasi.** Apa yang ditampilkan "Default" di
+  kartu kondisi bila workbook user menandai nilai bawaan registry sebagai usulan atau profil referensi, bukan nilai
+  bawaan UI yang terverifikasi? Hanya 9 indikator yang semua nilai bawaannya terverifikasi (I10, I12, I13, I15, I16,
+  I17, I30, I47, I48). Pilihan: (a) "Default" = nilai bawaan registry (sama dengan Backtest), diberi label status
+  workbook bila belum terverifikasi ("proposed default"); (b) chip "Default" hanya untuk yang terverifikasi, sisanya
+  terbuka sebagai Custom berisi nilai registry; (c) ubah nilai bawaan registry dulu lewat rilis registry (P6).
+  Rekomendasi: (a): nilai bawaan yang berbeda dari registry akan memisahkan Screener dari Backtest; setiap perubahan
+  lewat rilis registry (P6). Mengubah: label chip; konfigurasi yang dihitung lebih dulu sama pada (a) dan (b).
+- **P22 — Perubahan UX prototipe.** Setujui perubahan berikut sebagai satu paket, atau tolak per butir (alasan
+  masing-masing di laporan, FRONTEND INTEGRATION 9.2 dan 9.4): (1) "Copy link" di Send to Backtest dihapus (tidak ada
+  data di URL; tujuannya tidak ada di EDGE); (2) toggle tema dan pencarian global/⌘K pindah ke shell EDGE; (3) Delete
+  meminta konfirmasi; (4) `between` dengan nilai pertama lebih besar dari nilai kedua ditolak, bukan ditukar diam-diam;
+  (5) ambang bandar per kondisi, bukan global; (6) paging tetap di halaman yang sama kecuali baris atau urutan berubah;
+  (7) filter notasi khusus bawaan off; (8) `stoch` `kxd_os`: tetap K < 25 dan label "below 20" dikoreksi, atau uji
+  diubah menjadi K < 20 agar sesuai label. Rekomendasi: setujui (1)-(7); untuk (8), tetap K < 25 dan koreksi labelnya,
+  supaya screen prototipe yang tersimpan tidak berubah arti. Mengubah: perilaku halaman yang terlihat; tidak ada angka
+  hitungan yang berubah (kecuali bila (8) diubah menjadi K < 20).
+- **P23 — Panjang "satu tahun" dan periode lain.** Berapa sesi untuk 1M, 3M, 6M dan 1Y di Screener? Prototipe memakai
+  250 untuk `hi52`, `lo52` dan tampilan kinerja 1Y, tetapi 252 untuk `rs_rank`; fast-lane defaults EDGE yang disetujui
+  user memakai 21 untuk sebulan dan 252 untuk setahun (`apps/market-ai-orc/app/fastlane_defaults.py`), dan I33
+  disetahunkan dengan 252. Pilihan: (a) satu entri `periods` bernama di katalog metrik: 21/63/126/252; (b) pertahankan
+  250 di tempat prototipe memakainya, dicatat sebagai pilihan user. Rekomendasi: (a): satu definisi tahun di semua
+  halaman EDGE. Mengubah: `hi52`, `lo52`, tampilan Stock vs IHSG dan preset yang memakainya (Minervini).
+- **Juga ditanyakan (bukan keputusan produk, laporan 13.1):** U7, dari mana harapan "sekitar tiga tahun" riwayat Feature
+  04 berasal (faktanya riwayat saham ±8,8 tahun, 2018-01-02 sampai 2026-10-27; tidak mengubah desain); U9, apakah
+  "retaining existing screener" berarti preset flow prototipe atau kondisi `fnet`, `broker`, `top5` Backtest (desain
+  menyimpan keduanya).
+
+## EXEC-MU-RUNTIME — Terminal, Backtest dan Screener akurat dan cepat untuk banyak user (opsi A; go 2026-10-28)
+
+**Keputusan user, 2026-10-28 (kata user):** "Alright, untuk sekarang screener kita beresin dulu. Backtest dan juga terminal.
+We need to ensure that these three services sudah akurat dan cepat. Saya preferably opsi A. Tapi karena mungkin service ini
+akan dipakai oleh user bulan depan, jadi mungkin fokus sekarang adalah to get everything aligned in terms of terminal,
+backtest, and screener. While at the same time, terminal, backtest, dan screener dibuat sedemikian rupa menurut opsi A."
+
+- **Opsi A (dipilih):** satu service bersama per tab, bukan salinan per user (RT1); service menyala terus saat peluncuran
+  (RT14); Tahap 0 (ukur) dan Tahap 1 dikerjakan bersama Screener; keputusan RT4-RT15 mengikuti rekomendasi
+  `verification/edge_multiuser/runtime/RUNTIME.md` §12. Dasar: `verification/edge_multiuser/runtime/` (RUNTIME.md,
+  SILO_VS_POOL.md, ringkasan Indonesia).
+- **Urutan (tafsiran kata user "screener kita beresin dulu. Backtest dan juga terminal"):** Screener Phase 1 bersama Tahap 0 dan
+  Tahap 1 dulu; sesudahnya Tahap 2 (Backtest) lalu Tahap 3 (Terminal), keduanya dengan target akurat dan cepat
+  (`RUNTIME.md` §7, §8). Tahap 4 (akun per user, kuota, izin data, peluncuran) tetap dipending bersama EDGE-MULTIUSER;
+  dicatat bahwa user eksternal direncanakan bulan depan, jadi Tahap 4 perlu diangkat lagi setelah ketiga service selaras.
+- **Tahap 0, ukur:** waktu per fase Backtest, `request_key` dan `preview_wait_ms` di log; skrip waktu halaman Terminal; satu
+  bacaan `?perf=1` dari Indonesia (oleh user); harness beban multi-owner (job service sementara: perlu persetujuan saat dibuat).
+- **Tahap 1, bersama Screener:** 1a T5 file referensi ber-content-key di publisher; 1b terminal-api T1 (akun layanan per
+  worker), T3 (lookup subscriber di dalam transaksi grant), T5 `refs_index`, T9 healthcheck `/ready` dan `TERMINAL_POOL_MAX`;
+  1c screener-worker di Railway (healthcheck, batas memori dari puncak terukur, kunci terminal sendiri, 1 replika di dev);
+  1d backtest-worker memakai kunci layanannya sendiri (variabel saja); 1e T7 halaman Terminal memeriksa sha256 dan ukuran file
+  sebelum menggambar.
+- **Fakta saat keputusan (live Railway 2026-10-28 20:38 UTC, dibaca read-only):** `edge-bff`, `terminal-api` dan
+  `backtest-worker` menyala terus (`sleepApplication=false`, deployment tidak berhenti; memori tertagih 3 hari terakhir rata-rata
+  0,074 / 0,217 / 0,085 GB, ±USD 0,40 bertiga dalam 3 hari); `terminal-publisher` berjalan per jadwal
+  (`0,30 0,12 * * *` UTC) lalu berhenti; hanya `telegram-monitor` dan `telegram-trigger` yang tidur.
+- **Status 2026-10-28:** dimulai. Tahap 0 dan 1 dibangun di branch `mu-phase1` (worktree terpisah) agar tidak mengganggu build
+  Screener yang sedang berjalan, lalu digabung ke branch Screener. Belum deploy.

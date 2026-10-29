@@ -1,0 +1,26 @@
+I28 bollinger_pctb | Bollinger %B | Volatility |in ['C'] |pi close |out ['percent_b'] | length=20[integer,min=1]; source=close[enum,opts=open/high/low/close/hl2/hlc3/ohlc4]; std_dev=2[number,min=0.0001,max=50]; basis_ma_type=SMA[enum,opts=SMA/EMA/WMA/RMA] |NA [] |bt True {}
+I29 bollinger_width | Bollinger Bandwidth | Volatility |in ['C'] |pi close |out ['bandwidth'] | length=20[integer,min=1]; source=close[enum,opts=open/high/low/close/hl2/hlc3/ohlc4]; std_dev=2[number,min=0.0001,max=50]; basis_ma_type=SMA[enum,opts=SMA/EMA/WMA/RMA] |NA [] |bt True {}
+I30 atr | Average True Range | Volatility |in ['H', 'L', 'C'] |pi close |out ['atr'] | length=14[integer,min=1]; smoothing_type=RMA[enum,opts=RMA/SMA/EMA/WMA] |NA [] |bt True {}
+I31 natr | Normalized ATR | Volatility |in ['H', 'L', 'C'] |pi close |out ['natr'] | length=14[integer,min=1]; smoothing_type=RMA[enum,opts=RMA/SMA/EMA/WMA] |NA [] |bt True {}
+I32 stddev | Standard Deviation | Volatility |in ['C'] |pi close |out ['stddev'] | length=20[integer,min=1]; source=close[enum,opts=open/high/low/close/hl2/hlc3/ohlc4]; stdev_method=population[enum,opts=population/sample] |NA [] |bt True {}
+I33 hist_vol | Historical Volatility | Volatility |in ['C'] |pi close |out ['historical_volatility'] | length=20[integer,min=1]; source=close[enum,opts=open/high/low/close/hl2/hlc3/ohlc4]; return_type=log[enum,opts=log/simple]; annualization_periods=252[number,min=1] |NA [] |bt True {}
+I34 adr | Average Daily Range | Volatility |in ['H', 'L'] |pi close |out ['adr'] | length=14[integer,min=1] |NA [{'key': 'timeframe', 'value': '1D', 'reason': 'not read by the calculation module'}] |bt True {}
+I35 volume_sma | Volume SMA | Volume |in ['V'] |pi volume |out ['volume_sma'] | length=20[integer,min=1] |NA [] |bt True {}
+I36 volume_ema | Volume EMA | Volume |in ['V'] |pi volume |out ['volume_ema'] | length=20[integer,min=1] |NA [] |bt True {}
+I37 rvol | Relative Volume | Volume |in ['V'] |pi close |out ['rvol'] | length=20[integer,min=1] |NA [{'key': 'reference_method', 'value': 'rolling_sma', 'reason': 'not read by the calculation module'}, {'key': 'include_current_bar', 'value': False, 'reason': 'not read by the calculation module'}] |bt True {}
+I38 pvo | Percentage Volume Oscillator | Volume |in ['V'] |pi close |out ['pvo', 'signal', 'histogram'] | fast_length=12[integer,min=1]; slow_length=26[integer,min=1]; signal_length=9[integer,min=1] |NA [] |bt True {}
+I39 volume_roc | Volume Rate of Change | Volume |in ['V'] |pi close |out ['volume_roc'] | length=10[integer,min=1] |NA [] |bt True {}
+I40 obv | On-Balance Volume | PriceVolume |in ['C', 'V'] |pi close |out ['obv'] |  |NA [{'key': 'calculation_parameters', 'value': 'none', 'reason': 'fixed in the workbook'}] |bt True {}
+I41 pvt | Price Volume Trend | PriceVolume |in ['C', 'V'] |pi close |out ['pvt'] |  |NA [{'key': 'calculation_parameters', 'value': 'none', 'reason': 'fixed in the workbook'}] |bt True {}
+I42 vwma | Volume Weighted Moving Average | PriceVolume |in ['C', 'V'] |pi close |out ['vwma'] | length=20[integer,min=1]; source=close[enum,opts=open/high/low/close/hl2/hlc3/ohlc4] |NA [] |bt True {}
+I43 vwap | Volume Weighted Average Price | PriceVolume |in ['H', 'L', 'C', 'V'] |pi close |out ['vwap', 'upper1', 'lower1'] | anchor=Session[enum,opts=Session/Week/Month/Quarter/Year/Decade/Century]; source=hlc3[enum,opts=open/high/low/close/hl2/hlc3/ohlc4]; bands_mode=StdDev[enum,opts=StdDev/Percentage/None]; band_1_multiplier=1[number,min=0] |NA [] |bt True {}
+I44 adl | Accumulation/Distribution Line | PriceVolume |in ['H', 'L', 'C', 'V'] |pi close |out ['adl'] |  |NA [{'key': 'calculation_parameters', 'value': 'none', 'reason': 'fixed in the workbook'}] |bt True {}
+I45 cmf | Chaikin Money Flow | PriceVolume |in ['H', 'L', 'C', 'V'] |pi close |out ['cmf'] | length=20[integer,min=1] |NA [] |bt True {}
+I46 chaikin_osc | Chaikin Oscillator | PriceVolume |in ['H', 'L', 'C', 'V'] |pi close |out ['chaikin_osc'] | fast_length=3[integer,min=1]; slow_length=10[integer,min=1] |NA [] |bt True {}
+I47 mfi | Money Flow Index | PriceVolume |in ['H', 'L', 'C', 'V'] |pi close |out ['mfi'] | length=14[integer,min=1] |NA [] |bt True {}
+I48 force_index | Elder's Force Index | PriceVolume |in ['C', 'V'] |pi close |out ['force_index'] | length=13[integer,min=1] |NA [] |bt True {}
+I49 eom | Ease of Movement | PriceVolume |in ['H', 'L', 'V'] |pi close |out ['eom'] | length=14[integer,min=1]; volume_scale=1000000[number,min=0] |NA [] |bt True {}
+I50 nvi | Negative Volume Index | PriceVolume |in ['C', 'V'] |pi close |out ['nvi'] | initial_value=1000[number,min=0] |NA [] |bt True {}
+I51 pvi | Positive Volume Index | PriceVolume |in ['C', 'V'] |pi close |out ['pvi'] | initial_value=1000[number,min=0] |NA [] |bt True {}
+I52 kvo | Klinger Volume Oscillator | PriceVolume |in ['H', 'L', 'C', 'V'] |pi close |out ['kvo', 'signal'] | fast_length=34[integer,min=1]; slow_length=55[integer,min=1]; signal_length=13[integer,min=1] |NA [] |bt True {}
+I53 market_fi | Market Facilitation Index | PriceVolume |in ['H', 'L', 'V'] |pi close |out ['market_fi'] | volume_scale=1[number,min=0] |NA [] |bt True {}

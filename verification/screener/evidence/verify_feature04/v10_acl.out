@@ -1,0 +1,21 @@
+relname | relacl
+Price_Stock_Indonesia_IDX | {postgres=arwdDxtm/postgres,market_ai_app=r/postgres,market_ai_preview_owner=r/postgres,market_ai_sql_reader=r/postgres,pgweb_reader=r/postgres,terminal_market_reader=r/postgres}
+Feature_04_Technical_Indicator | {postgres=arwdDxtm/postgres,pgweb_reader=r/postgres,market_ai_sql_reader=r/postgres,market_ai_preview_owner=r/postgres}
+Feature_04_Technical_Indicator_INDEX | {postgres=arwdDxtm/postgres,pgweb_reader=r/postgres,pgweb=r/postgres,market_ai_sql_reader=r/postgres,market_ai_preview_owner=r/postgres}
+(3 rows, 2282 ms)
+---
+rolname | f04 | price
+market_ai_preview_owner | True | True
+market_ai_sql_reader | True | True
+pgweb | True | True
+terminal_market_reader | False | True
+(4 rows, 4003 ms)
+---
+tgname | tgrelid | tgenabled
+Price_Stock_Indonesia_IDX_enqueue_feature04 | "Price_Stock_Indonesia_IDX" | O
+stock_feature_index_guard | "Feature_04_Technical_Indicator" | O
+Price_Fixed_Income_enqueue_feature04 | "Price_Fixed_Income" | O
+Monitoring_Fixed_Income_open_feature04 | "Monitoring_Fixed_Income" | O
+index_feature_identity_guard | "Feature_04_Technical_Indicator_INDEX" | O
+(5 rows, 1812 ms)
+---

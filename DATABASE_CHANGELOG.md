@@ -2816,3 +2816,127 @@ table, role or grant.
   set only for each run and removed after (VAR_REMOVED). Read back after APPLY: the new comment; the runtime role
   reads the 27 dev jobs.
 - Logs: `verification/backtest/jobs/migration20261027_005_{dryrun,apply}.log`.
+
+## 2026-10-29 — EDGE Screener: saved screens, My metrics and the watchlist (schema `edge_bff`, EXEC-SCREENER P12 a)
+
+User 2026-10-28 (EXEC.md EXEC-SCREENER): P12 "OK" (P12 (a): edge_bff tables for saved screens, My metrics and one
+watchlist; limits 50 screens, 50 My metrics, 500 watchlist tickers), and the go "Arti gas maksudnya tetap jalankan
+sesuai fsae". The dev deploy, 2026-10-29: "A" (PR to `main` after every check passes, then the runbook step by step).
+Operational schema `edge_bff`, no market data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as
+`20261026_005`.
+
+- **`20261028_001_edge_bff_screener.sql`** (sha256 `58558e5a446e5dc4b078f6aa77edeab270262c2e6ed2d01e0d50f6ac7f5327dd`):
+  - `edge_bff.screener_items`: one owner's saved screens and My metrics (kind, name, definition JSON with its hash and
+    versions, view), unique name per owner and kind; index `screener_items_owner_kind_updated`.
+  - `edge_bff.watchlist_items`: one owner's watchlist tickers (no update: add or delete).
+  - Grants to `edge_bff_runtime`: screener_items SELECT/INSERT/UPDATE/DELETE, watchlist_items SELECT/INSERT/DELETE; no
+    PUBLIC or other grantee. The file's preflight refuses a second run.
+- DRYRUN (job `feeeaf2e`, rolled back) then APPLY (job `56a8859a`) on orc-test-runner, 10:12–10:15 UTC, through
+  `verification/screener/jobs/run_migration.sh`; `DATABASE_URL` set only for each run and removed after (VAR_REMOVED
+  twice; orc-test-runner read back with `MARKET_AI_ORC_API_KEY` only). `check_migration_log.py`: DRYRUN `VERDICT PASS
+  41/41` (18 write probes as `edge_bff_runtime`, 11 of them refusals as stated, all rolled back; the database read 6
+  tables after it), APPLY `VERDICT PASS 21/21`.
+- Read back after APPLY (job, then pgweb catalogs): 8 `edge_bff` tables; the two new grant lines exactly as above and the
+  six existing ones unchanged; `edge_bff_login` the only member of `edge_bff_runtime`; the 4 indexes; comments; the
+  runtime role reaches 0 public relations; the new tables empty.
+- `database/migrations/APPLIED.sha256` gains the file; `scripts/provision_edge_bff_login.py` and
+  `apps/edge-bff/tests/conftest.py` already carry the two tables.
+- Rollback: a new forward migration with the file's rollback body (drop both tables) through the same jobs, after
+  edge-bff's screener is switched off; it loses every saved screen and watchlist row.
+- Logs: `verification/screener/jobs/migration20261028_001_{dryrun,apply}.{log,run.txt}`.
+
+## 2026-10-29 — Terminal: worker service accounts and their hourly counter (EXEC-MU-RUNTIME step 1, T1)
+
+User 2026-10-28 (EXEC.md EXEC-MU-RUNTIME): "Saya preferably opsi A. Tapi karena mungkin service ini akan dipakai oleh
+user bulan depan, jadi mungkin fokus sekarang adalah to get everything aligned in terms of terminal, backtest, and
+screener. While at the same time, terminal, backtest, dan screener dibuat sedemikian rupa menurut opsi A." (Tahap 1b:
+terminal-api T1, its own account for each worker). The dev deploy, 2026-10-29 (EXEC.md EXEC-SCREENER): "A", which
+chose the option "PR ke `main` setelah semua pemeriksaan lolos: ... lalu deploy ke dev bertahap mengikuti runbook
+(perubahan database, terminal-api, publisher, mesin screener, lalu edge-bff), tiap langkah diverifikasi dan bisa
+di-rollback". The same entry also says "Tahap 0-1 EXEC-MU-RUNTIME ikut dalam PR dan jendela deploy yang sama". Go for
+this step: the dev deploy "A" above (2026-10-29).
+
+Schema `terminal` is operational, so the migration adds no Table/Column_Catalog row (as with `20261025_100` and
+`20261026_100`). `DATABASE_SCHEMA.md` does not change, because it is generated from schema `public`.
+
+- **`20261028_100_terminal_service_accounts.sql`** (sha256 `a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7`):
+  - `terminal.subscriber.kind`: `text NOT NULL DEFAULT 'person'`, check `subscriber_kind_check` (`person` |
+    `service`). Every existing row is `person`, and so is every row the admin route adds.
+  - `terminal.usage_hour (subscriber_id, hour_start, grants, files, bytes)`:
+    - primary key `(subscriber_id, hour_start)`;
+    - a foreign key to `subscriber`, `ON DELETE CASCADE`;
+    - check `usage_hour_whole_hour`, so `hour_start` is a whole UTC hour;
+    - a `>= 0` check on each counter.
+
+    terminal-api adds each grant of a service account here in one UPSERT inside the grant's transaction
+    (`apps/terminal-api/app/store.py` `meter`), and deletes rows older than 90 days.
+  - Two service rows:
+    - `backtest-worker@terminal.local` and `screener-worker@terminal.local`;
+    - kind `service`, active, expiring 2100-01-01;
+    - the all-zero scrypt verifier, which no password derives, so the account has no usable password. terminal-api
+      also refuses a service account at sign-in.
+  - Three ceilings in `terminal.quota`: `service_grants_per_hour` 20,000, `service_files_per_hour` 100,000 and
+    `service_megabytes_per_hour` 100,000. They are TEMPORARY until Phase 0 measures the services (D-T6), and each
+    service can get its own value through `terminal.quota_override`.
+  - Grants: `terminal_runtime` gets SELECT, INSERT, UPDATE and DELETE on `usage_hour`; no TRUNCATE, REFERENCES or
+    TRIGGER, and nothing for PUBLIC.
+  - Unchanged: no market table, role, login or existing grant. No existing value.
+- **Jobs.** DRYRUN (job `2885dcaf`, rolled back) then APPLY (job `c07f9793`) on orc-test-runner, 10:15–10:19 UTC,
+  through `verification/screener/jobs/run_migration.sh <mode> a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7 20261028_100_terminal_service_accounts.sql`.
+  `DATABASE_URL` was set only for each run, as `${{Postgres.DATABASE_URL}}`, and removed after it (VAR_REMOVED twice).
+  `check_migration_log.py` verdicts: DRYRUN `VERDICT PASS 81/81`, APPLY `VERDICT PASS 54/54`.
+- **DRYRUN probes.** The body ran in one transaction with 49 probes, then ROLLBACK.
+  - As `terminal_api_login`, what terminal-api runs succeeded:
+    - the `/ready` statements;
+    - the account lookup of both services;
+    - their ceilings;
+    - the meter UPSERT (first grant 1/5/1,000,000, then the ON CONFLICT addition 2/8/1,500,000, one row per service);
+    - a service audit row;
+    - the retention DELETE;
+    - the admin INSERT, which gives `person`.
+  - Refused as stated:
+    - each `usage_hour` check, the primary key and the foreign key;
+    - `kind` `'robot'` and NULL;
+    - a person on a service address;
+    - a zero ceiling and a zero override;
+    - TRUNCATE by the API login;
+    - `terminal_publisher_login` and `terminal_market_reader` (no USAGE on schema `terminal`).
+  - A session row on a service account is not returned by the session lookup. Only `kind` refuses it: the lookup
+    without `kind` (6f318ea) returns it.
+- **Read back after APPLY** (the same job, admin then the roles, `BEGIN READ ONLY`):
+  - 8 terminal tables, `terminal_runtime` DELETE,INSERT,SELECT,UPDATE on each, no PUBLIC or other grantee;
+  - schema `terminal`: USAGE for `terminal_runtime` only. Memberships and the four terminal roles are unchanged
+    (connection limits 20 and 4, no elevated attribute);
+  - the `kind` column and its check;
+  - the `usage_hour` columns, its 6 constraints, and its primary key as its only index;
+  - both comments;
+  - the two service rows as above (kind `service`, active, no usable password), every other subscriber `person`;
+  - the three ceilings, the ten people's quotas kept, no override, session, audit or usage row for the services;
+  - `has_table_privilege('terminal_api_login', 'terminal.usage_hour', 'INSERT')` true, and the same for SELECT,
+    UPDATE and DELETE. TRUNCATE, REFERENCES and TRIGGER are false, and so is everything for PUBLIC, the publisher login
+    and the market reader;
+  - the file's own `$verify$` block, run again, passes;
+  - this build's `/ready` statements, run as `terminal_api_login`, succeed.
+- **Not rolled back by the DRYRUN: the identity sequences.** PostgreSQL sequences are not transactional, so the
+  DRYRUN advanced `terminal.subscriber`'s sequence by 4 (the two service rows and two probe rows) and `access_log`'s
+  by 1. The service rows' ids therefore follow a gap. Nothing reads ids for contiguity.
+- **pgweb catalog read** (`pg_class`/`pg_attribute`/`pg_constraint` only; pgweb has no USAGE on schema `terminal`)
+  of `usage_hour`, `kind` and `subscriber_kind_check`. The counts were 0/0/0 before (2026-10-29 09:37 UTC) and after
+  the DRYRUN (10:17 UTC), and 1/1/1 after the APPLY (10:19 UTC). The `usage_hour` ACL reads
+  `{postgres=arwdDxtm/postgres,terminal_runtime=arwd/postgres}`.
+- **Rehearsal.** Local PostgreSQL 16, built from the repository's migrations in order, with origin/main's logins and
+  dev-shaped rows (scratch `build/mu/m100/`, `build/mu/migration100_jobs.md`):
+  - DRYRUN 81/81, after which the dump is identical except the two sequences;
+  - APPLY 54/54;
+  - a second APPLY that only advances the sequence by 2 (ON CONFLICT DO NOTHING), checked 54/54;
+  - the running terminal-api `6f318ea` answers on the migrated schema (19/19, a service key 401 `proxy_key_rejected`),
+    and so does this branch's (23/23).
+- `database/migrations/APPLIED.sha256`: `a4ef5379d092f28a75d1205d7cbd14b3428bae7183607d6935d6cdb044e2e2f7  20261028_100_terminal_service_accounts.sql` added
+  (`apps/market-ai-orc/tests/test_migrations_frozen.py`). Do not run `main`'s `scripts/provision_terminal_logins.py`
+  after this migration: it refuses (13 relations). The branch's version lists `usage_hour`, but it does not need to run,
+  because the migration grants what it needs and its verify block checks the grants.
+- Rollback: a new forward migration made from the commented block at the end of the file. Run it only after
+  terminal-api runs code that reads neither `kind` nor `usage_hour`, and after the workers stop presenting their
+  service keys (EXEC-MU-RUNTIME deploy steps 5 and 3 rolled back first). It deletes the service rows, their audit rows,
+  sessions and overrides by cascade, together with the counter table and the ceilings.
+- Logs: `verification/screener/jobs/migration20261028_100_{dryrun,apply}.{log,run.txt}`.

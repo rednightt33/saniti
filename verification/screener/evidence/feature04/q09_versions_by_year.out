@@ -1,0 +1,53 @@
+yr | calculation_version | timeframe | asset_type | count | min | max
+2016 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 4613 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+(1 rows, 327 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2017 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5299 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+(1 rows, 243 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2018 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5376 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2018 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 98508 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.037527Z
+(2 rows, 4989 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2019 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5656 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2019 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 111308 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.037527Z
+(2 rows, 5286 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2020 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5620 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2020 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 120392 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.037527Z
+(2 rows, 663 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2021 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5539 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2021 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 143979 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.523796Z
+(2 rows, 5185 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2022 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5799 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2022 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 156418 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.523796Z
+(2 rows, 4105 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2023 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 6107 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2023 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 167995 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.523796Z
+(2 rows, 3940 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2024 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5938 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2024 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 181537 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.523796Z
+(2 rows, 851 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2025 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 5886 | 2026-10-11T13:53:56.477352Z | 2026-10-11T13:55:17.102127Z
+2025 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 188824 | 2026-10-11T05:55:02.473918Z | 2026-10-11T06:25:12.523796Z
+(2 rows, 386 ms)
+---
+yr | calculation_version | timeframe | asset_type | count | min | max
+2026 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | bonds | 4810 | 2026-10-11T13:53:56.477352Z | 2026-10-27T11:03:44.690383Z
+2026 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | Daily | equity | 159634 | 2026-10-11T05:55:02.473918Z | 2026-10-27T10:09:36.222312Z
+(2 rows, 382 ms)
+---

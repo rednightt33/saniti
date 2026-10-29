@@ -1,0 +1,31 @@
+asset_type | status | count | min | max | max | max | gen_lag | max_src_attempts
+bonds | DONE | 24 | 2026-10-26T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T11:03:44.723762Z | 2026-10-27T11:03:44.723762Z | 0 | 1
+equity | DONE | 844 | 2026-08-14T00:00:00Z | 2026-10-27T00:00:00Z | 2026-10-27T10:09:36.256233Z | 2026-10-27T10:09:36.256233Z | 0 | 1
+(2 rows, 472 ms)
+---
+asset_type | ticker | status | dirty_from_date | requested_generation | completed_generation | last_error_code | err | updated_at
+(0 rows, 223 ms)
+---
+asset_type | status | calculation_version | count | count | min | max | latest_unavailable | cols
+bonds | SUCCESS | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | 1224 | 24 | 2026-10-26T00:00:00Z | 2026-10-27T00:00:00Z | 60 | 51
+equity | SUCCESS | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4 | 43044 | 844 | 2026-08-21T00:00:00Z | 2026-10-27T00:00:00Z | 2571 | 51
+(2 rows, 1247 ms)
+---
+null_reason | feature_column | count
+EXPECTED_FORMULA_NULL | temp_high | 814
+EXPECTED_FORMULA_NULL | temp_high_bar | 814
+EXPECTED_FORMULA_NULL | temp_low | 494
+EXPECTED_FORMULA_NULL | temp_low_bar | 494
+EXPECTED_FORMULA_NULL | ema_200 | 10
+EXPECTED_FORMULA_NULL | last_swing_high | 5
+(6 rows, 720 ms)
+---
+asset_type | states | tickers | min | max | sv | cv
+bonds | 168 | 24 | 2026-10-15T00:00:00Z | 2026-10-27T00:00:00Z | feature04-state-v3 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4
+equity | 5908 | 844 | 2026-08-12T00:00:00Z | 2026-10-27T00:00:00Z | feature04-state-v3 | feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4
+(2 rows, 6488 ms)
+---
+n_per_ticker | count
+7 | 868
+(1 rows, 418 ms)
+---

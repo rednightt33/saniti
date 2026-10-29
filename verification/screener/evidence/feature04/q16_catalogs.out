@@ -1,0 +1,49 @@
+feature_table | version | is_active | count
+Feature_04_Technical_Indicator | v1 | False | 42
+Feature_04_Technical_Indicator | v2 | False | 46
+Feature_04_Technical_Indicator | v4 | True | 57
+Feature_04_Technical_Indicator_INDEX | v1 | True | 57
+(4 rows, 235 ms)
+---
+table_name | count
+Feature_04_Technical_Indicator | 57
+Feature_04_Technical_Indicator_INDEX | 57
+(2 rows, 200 ms)
+---
+table_name | category | documentation_status | update_rule | nfun
+feature04_backfill_log | Monitoring | VERIFIED | Manual serial runner; completed output and audit committed together; failed ticker rolls back. |
+Feature04_Calculation_Log | System | VERIFIED | One terminal attempt row per claim, including partial and superseded results. |
+Feature04_Calculation_Queue | System | VERIFIED | Final source changes coalesce the earliest dirty date per ticker and invalidate dependent checkpoints. | 3
+Feature04_Calculation_State | System | VERIFIED | Written transactionally after a validated suffix; invalidated on/after a changed source date. | 1
+Feature04_Column_Status | System | VERIFIED | Worker advances only validated output bundles; expected NULL remains SUCCESS. |
+Feature04_Notification_Outbox | System | VERIFIED | Worker inserts after terminal run; dispatcher retries independently of calculations. |
+Feature04_Retry_Request | System | VERIFIED | telegram-trigger stores the acknowledgement message ID; the worker records terminal status and telegram-monitor edits th | 2
+Feature_04_Technical_Indicator | Feature | VERIFIED | Committed final source changes recalculate only the affected suffix from a compatible prior checkpoint. | 6
+Feature_04_Technical_Indicator_INDEX | Feature | VERIFIED | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | 1
+Monitoring_Feature04 | Monitoring | VERIFIED | Price writer opens/seals automatic runs; worker finalizes; monitor records price delivery. |
+Monitoring_Feature04_Ticker | Monitoring | VERIFIED | Trigger records required generation; worker records terminal result. |
+(11 rows, 212 ms)
+---
+table_name | is_active | left
+Feature_04_Technical_Indicator | True | Daily technical indicators already calculated for every IDX stock (asset_type eq
+Feature_04_Technical_Indicator_INDEX | True | Daily technical indicators of the IDX Composite Index (IHSG) calculated from its
+(2 rows, 228 ms)
+---
+table_name | ai_allowed | count
+Feature_04_Technical_Indicator | False | 8
+Feature_04_Technical_Indicator | True | 49
+Feature_04_Technical_Indicator_INDEX | False | 8
+Feature_04_Technical_Indicator_INDEX | True | 49
+(4 rows, 207 ms)
+---
+target_table | status | count
+Feature_04_Technical_Indicator | ACTIVE | 57
+Feature_04_Technical_Indicator_INDEX | ACTIVE | 57
+(2 rows, 242 ms)
+---
+grantee | privilege_type | table_name
+pgweb_reader | SELECT | Feature_04_Technical_Indicator
+pgweb | SELECT | Feature_04_Technical_Indicator_INDEX
+pgweb_reader | SELECT | Feature_04_Technical_Indicator_INDEX
+(3 rows, 267 ms)
+---

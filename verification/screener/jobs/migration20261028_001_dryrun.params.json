@@ -1,0 +1,149 @@
+{
+ "_note": "EXEC-SCREENER migration 1 (20261028_001_edge_bff_screener.sql). Staged by scripts/onboarding/run_job.sh with the migration file as an extra; see the deploy runbook. Probes named expect_err_* must print ERR; every other probe must print OUT.",
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261028_001_edge_bff_screener.sql"
+ ],
+ "probes": [
+  [
+   "edge_bff_tables",
+   null,
+   "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relkind IN ('r', 'p') ORDER BY 1"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT c.relname, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'edge_bff' AND c.relkind IN ('r', 'p') AND a.grantee = 'edge_bff_runtime'::regrole GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "other_grantees_on_new_tables",
+   null,
+   "SELECT c.relname, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'edge_bff' AND c.relname IN ('screener_items', 'watchlist_items') AND a.grantee <> c.relowner AND a.grantee <> 'edge_bff_runtime'::regrole GROUP BY 1, 2 ORDER BY 1, 2"
+  ],
+  [
+   "runtime_members",
+   null,
+   "SELECT m.rolname FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member WHERE a.roleid = 'edge_bff_runtime'::regrole ORDER BY 1"
+  ],
+  [
+   "screener_indexes",
+   null,
+   "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename IN ('screener_items', 'watchlist_items') ORDER BY 1, 2"
+  ],
+  [
+   "screener_constraints",
+   null,
+   "SELECT conrelid::regclass::text, conname, contype FROM pg_constraint WHERE conrelid IN ('edge_bff.screener_items'::regclass, 'edge_bff.watchlist_items'::regclass) ORDER BY 1, 2"
+  ],
+  [
+   "screener_comments",
+   null,
+   "SELECT c.relname, a.attname, col_description(c.oid, a.attnum) IS NOT NULL AS has_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_attribute a ON a.attrelid = c.oid WHERE n.nspname = 'edge_bff' AND c.relname = 'screener_items' AND a.attname IN ('definition', 'registry_version', 'screener_registry_version', 'definition_hash', 'revision') UNION ALL SELECT c.relname, '(table)', obj_description(c.oid, 'pg_class') IS NOT NULL FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relname IN ('screener_items', 'watchlist_items') ORDER BY 1, 2"
+  ],
+  [
+   "runtime_public_reach",
+   null,
+   "SELECT count(*) FILTER (WHERE has_table_privilege('edge_bff_runtime', c.oid, 'SELECT')) AS readable, count(*) AS relations FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm')"
+  ],
+  [
+   "as_runtime_reads",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.screener_items) AS screener_items, (SELECT count(*) FROM edge_bff.watchlist_items) AS watchlist_items"
+  ],
+  [
+   "as_runtime_reads_existing",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.backtest_jobs) AS backtest_jobs, (SELECT count(*) FROM edge_bff.conversation_ui) AS conversation_ui"
+  ],
+  [
+   "as_runtime_insert_screen",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('0', 32), 'dryrun-probe', 'screen', 'Dry run probe', '{\"definition\": {}}'::jsonb, 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "as_runtime_insert_metric",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('1', 32), 'dryrun-probe', 'metric', 'Dry run probe', '{\"test\": {}}'::jsonb, 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "as_runtime_replace_revision",
+   "edge_bff_runtime",
+   "UPDATE edge_bff.screener_items SET name = 'Dry run probe 2', revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE owner_key = 'dryrun-probe' AND item_id = 'scr_' || repeat('0', 32) AND revision = 1 RETURNING revision"
+  ],
+  [
+   "as_runtime_watch_add",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.watchlist_items (owner_key, ticker) VALUES ('dryrun-probe', 'BBCA') ON CONFLICT DO NOTHING RETURNING ticker"
+  ],
+  [
+   "as_runtime_watch_add_again",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.watchlist_items (owner_key, ticker) VALUES ('dryrun-probe', 'BBCA') ON CONFLICT DO NOTHING RETURNING ticker"
+  ],
+  [
+   "as_runtime_counts_after_writes",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.screener_items) AS screener_items, (SELECT count(*) FROM edge_bff.watchlist_items) AS watchlist_items"
+  ],
+  [
+   "as_runtime_delete",
+   "edge_bff_runtime",
+   "WITH a AS (DELETE FROM edge_bff.screener_items WHERE owner_key = 'dryrun-probe' AND kind = 'metric' RETURNING 1), b AS (DELETE FROM edge_bff.watchlist_items WHERE owner_key = 'dryrun-probe' AND ticker = 'BBCA' RETURNING 1) SELECT (SELECT count(*) FROM a), (SELECT count(*) FROM b)"
+  ],
+  [
+   "expect_err_item_id_format",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_bad', 'dryrun-probe', 'screen', 'Dry run probe', '{\"definition\": {}}'::jsonb, 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "expect_err_kind",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('2', 32), 'dryrun-probe', 'preset', 'Dry run probe', '{\"definition\": {}}'::jsonb, 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "expect_err_name_untrimmed",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('3', 32), 'dryrun-probe', 'screen', ' padded ', '{\"definition\": {}}'::jsonb, 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "expect_err_definition_not_object",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('4', 32), 'dryrun-probe', 'screen', 'Dry run probe', '[]'::jsonb, 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "expect_err_definition_too_large",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('5', 32), 'dryrun-probe', 'screen', 'Dry run probe', jsonb_build_object('x', repeat('a', 70000)), 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "expect_err_definition_hash",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('6', 32), 'dryrun-probe', 'screen', 'Dry run probe', '{\"definition\": {}}'::jsonb, 1, 'probe', 'probe', 'abc') RETURNING item_id, revision"
+  ],
+  [
+   "expect_err_duplicate_name",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.screener_items (item_id, owner_key, kind, name, definition, schema_version, registry_version, screener_registry_version, definition_hash) VALUES ('scr_' || repeat('7', 32), 'dryrun-probe', 'screen', 'Dry run probe 2', '{\"definition\": {}}'::jsonb, 1, 'probe', 'probe', repeat('a', 64)) RETURNING item_id, revision"
+  ],
+  [
+   "expect_err_ticker_format",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.watchlist_items (owner_key, ticker) VALUES ('dryrun-probe', 'bbca') RETURNING ticker"
+  ],
+  [
+   "expect_err_watchlist_update",
+   "edge_bff_runtime",
+   "UPDATE edge_bff.watchlist_items SET ticker = 'BBRI' WHERE owner_key = 'dryrun-probe' RETURNING ticker"
+  ],
+  [
+   "expect_err_truncate",
+   "edge_bff_runtime",
+   "TRUNCATE edge_bff.screener_items"
+  ],
+  [
+   "expect_err_public_market_read",
+   "edge_bff_runtime",
+   "SELECT count(*) FROM public.\"Price_Stock_Indonesia_IDX\" WHERE false"
+  ]
+ ]
+}

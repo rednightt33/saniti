@@ -1,0 +1,35 @@
+QUERY PLAN
+Index Scan using "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" on "Feature_05_Foreign_Domestic_Broker_Detail"  (cost=0.44..1898.13 rows=16962 width=59) (actual time=0.023..5.507 rows=23711.00 loops=1)
+  Index Cond: (trade_date = '2026-10-23'::date)
+  Index Searches: 1
+  Buffers: shared hit=1227
+Planning:
+  Buffers: shared hit=5 read=1
+Planning Time: 0.936 ms
+Execution Time: 6.697 ms
+(8 rows, 467 ms)
+---
+QUERY PLAN
+Bitmap Heap Scan on "Feature_06_Foreign_Domestic"  (cost=11.03..3232.56 rows=851 width=51) (actual time=10.208..104.049 rows=972.00 loops=1)
+  Recheck Cond: (trade_date = '2026-10-23'::date)
+  Heap Blocks: exact=942
+  Buffers: shared hit=298 read=649
+  ->  Bitmap Index Scan on "Feature_06_Foreign_Domestic_date_board_idx"  (cost=0.00..10.81 rows=851 width=0) (actual time=9.907..9.908 rows=974.00 loops=1)
+        Index Cond: (trade_date = '2026-10-23'::date)
+        Index Searches: 1
+        Buffers: shared hit=2 read=3
+Planning:
+  Buffers: shared hit=2 read=1
+Planning Time: 0.861 ms
+Execution Time: 104.169 ms
+(12 rows, 359 ms)
+---
+QUERY PLAN
+Index Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..1915.57 rows=847 width=35) (actual time=0.059..6.698 rows=972.00 loops=1)
+  Index Cond: (date = '2026-10-23'::date)
+  Index Searches: 1
+  Buffers: shared hit=43 read=20
+Planning Time: 0.116 ms
+Execution Time: 6.770 ms
+(6 rows, 237 ms)
+---

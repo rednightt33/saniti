@@ -1,0 +1,42 @@
+feature_table | version | is_active | count
+Feature_04_Technical_Indicator | v1 | False | 42
+Feature_04_Technical_Indicator | v2 | False | 46
+Feature_04_Technical_Indicator | v4 | True | 57
+Feature_04_Technical_Indicator_INDEX | v1 | True | 57
+(4 rows, 381 ms)
+---
+table_name | left
+Feature_04_Technical_Indicator | Committed final source changes recalculate only the affected suffix from a compatible prior checkpoint.
+Feature_04_Technical_Indicator_INDEX | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled.
+(2 rows, 245 ms)
+---
+table_name | ai_allowed | count | string_agg
+Feature_04_Technical_Indicator | False | 8 | calculated_at,calculation_version,temp_high,temp_high_bar,temp_low,temp_low_bar,tracking_high,tracking_low
+Feature_04_Technical_Indicator | True | 49 |
+Feature_04_Technical_Indicator_INDEX | False | 8 | calculated_at,calculation_version,temp_high,temp_high_bar,temp_low,temp_low_bar,tracking_high,tracking_low
+Feature_04_Technical_Indicator_INDEX | True | 49 |
+(4 rows, 239 ms)
+---
+target_table | status | count
+Feature_04_Technical_Indicator | ACTIVE | 57
+Feature_04_Technical_Indicator_INDEX | ACTIVE | 57
+(2 rows, 230 ms)
+---
+table_name | is_active | ai_access_level
+Feature_04_Technical_Indicator | True | BOUNDED_READ
+Feature_04_Technical_Indicator_INDEX | True | BOUNDED_READ
+(2 rows, 207 ms)
+---
+source_table | feature_number | count
+Feature_01_Stock_Daily | 1 | 29
+Feature_01_Stock_Daily_INDEX | 1 | 29
+Feature_02_Broker_Rolling | 2 | 38
+Feature_02_Broker_Rolling_INDEX | 2 | 38
+Feature_03_Stock_Broker_Daily | 3 | 24
+Feature_03_Stock_Broker_Daily_INDEX | 3 | 24
+Feature_05_Foreign_Domestic_Broker_Detail | 5 | 15
+Feature_05_Foreign_Domestic_Broker_Detail_INDEX | 5 | 15
+Feature_06_Foreign_Domestic | 6 | 87
+Feature_06_Foreign_Domestic_INDEX | 6 | 92
+(10 rows, 226 ms)
+---

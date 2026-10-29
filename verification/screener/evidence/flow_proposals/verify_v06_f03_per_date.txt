@@ -1,0 +1,36 @@
+QUERY PLAN
+Index Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..1915.57 rows=847 width=35) (actual time=5.584..19.683 rows=1242.00 loops=1)
+  Index Cond: (date = '2025-09-15'::date)
+  Index Searches: 1
+  Buffers: shared hit=37 read=43
+Planning Time: 0.134 ms
+Execution Time: 19.769 ms
+(6 rows, 508 ms)
+---
+QUERY PLAN
+Index Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..1915.57 rows=847 width=35) (actual time=6.862..26.259 rows=1354.00 loops=1)
+  Index Cond: (date = '2025-12-10'::date)
+  Index Searches: 1
+  Buffers: shared hit=42 read=45
+Planning Time: 2.079 ms
+Execution Time: 26.355 ms
+(6 rows, 285 ms)
+---
+QUERY PLAN
+Index Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..1915.57 rows=847 width=35) (actual time=3.079..18.142 rows=1435.00 loops=1)
+  Index Cond: (date = '2026-05-20'::date)
+  Index Searches: 1
+  Buffers: shared hit=44 read=48
+Planning Time: 0.113 ms
+Execution Time: 18.235 ms
+(6 rows, 259 ms)
+---
+QUERY PLAN
+Index Scan using "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" on "Feature_03_Stock_Broker_Daily"  (cost=0.43..1915.57 rows=847 width=35) (actual time=4.223..15.281 rows=1446.00 loops=1)
+  Index Cond: (date = '2026-08-20'::date)
+  Index Searches: 1
+  Buffers: shared hit=48 read=48
+Planning Time: 0.129 ms
+Execution Time: 15.383 ms
+(6 rows, 226 ms)
+---

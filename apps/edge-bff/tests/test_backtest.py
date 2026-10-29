@@ -1497,7 +1497,8 @@ def dockerignore(text):
 def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth():
     """apps/edge-bff/.dockerignore: a pattern matches from the context root only, so caches that appear in any folder
     need '**/' (a bare '__pycache__' left app/__pycache__ in the image). Local builds, dependencies and tests of the
-    two pages stay out (the Dockerfile installs and builds them itself); every file its COPY lines take is kept."""
+    three pages (EXEC-SCREENER: the screener page is the third) stay out (the Dockerfile installs and builds them
+    itself); every file its COPY lines take is kept."""
     root = Path(__file__).resolve().parents[1]
     patterns = dockerignore((root / '.dockerignore').read_text())
     for path in ('app/__pycache__/main.cpython-312.pyc', 'app/x.pyc', 'tests/__pycache__/conftest.cpython-312.pyc',
@@ -1506,20 +1507,25 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  'tests/test_backtest.py', 'preview/edge_preview.py', 'terminal/node_modules/vite/package.json',
                  'terminal/tests/calc.test.ts', 'static/terminal-app/index.html', 'backtest/node_modules/vite/package.json',
                  'backtest/tests/fixture/api.ts', 'backtest/dist/index.html', 'backtest/dist-smoke/index.html',
-                 'backtest/dist-fixture/index.html', 'static/backtest-app/index.html'):
+                 'backtest/dist-fixture/index.html', 'static/backtest-app/index.html', 'screener/node_modules/vite/package.json',
+                 'screener/tests/smoke/main.ts', 'screener/dist/index.html', 'screener/dist-smoke/index.html',
+                 'screener/dist-fixture/index.html', 'static/screener-app/index.html', 'screener/src/__pycache__/x.pyc'):
         assert docker_ignored(patterns, path), path
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
               for source in line.split()[1:-1]]
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'terminal/', 'backtest/package.json',
-                      'backtest/package-lock.json', 'terminal/src', 'backtest/', 'requirements.txt', 'app', 'static']
+                      'backtest/package-lock.json', 'terminal/src', 'backtest/', 'screener/package.json',
+                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'screener/', 'requirements.txt',
+                      'app', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
-    # modules, the static files) and the two pages' sources
-    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest') for p in (root / folder).iterdir()
+    # modules, the static files) and the three pages' sources
+    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest', 'screener') for p in (root / folder).iterdir()
            if p.is_file() and not p.name.startswith('.env') and p.suffix != '.pyc']
-    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src') for p in (root / folder).rglob('*')
+    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src') for p in (root / folder).rglob('*')
                if p.is_file() and '__pycache__' not in p.parts]
     needed = [*copied, *top, *sources]
     assert 'backtest/src/core/engine.ts' in needed and 'backtest/vite.config.ts' in needed and 'app/backtest.py' in needed
+    assert 'screener/src/core/contract.ts' in needed and 'screener/vite.config.ts' in needed and 'app/screener.py' in needed
     assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []
 
 
@@ -1990,7 +1996,7 @@ def test_backtest_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
                 page.get_by_role('button', name='Sign In', exact=True).click()
                 tabs = page.locator('.topbar nav button')
                 tabs.first.wait_for()
-                assert tabs.all_inner_texts() == ['Monitor', 'Terminal', 'Backtest']
+                assert tabs.all_inner_texts() == ['Monitor', 'Terminal', 'Backtest', 'Screener']   # EXEC-SCREENER: Screener last
                 page.locator('.topbar nav button.nav-backtest').click()
                 page.wait_for_url(local.origin + '/backtest')
                 assert page.locator('.topbar nav button.nav-backtest').get_attribute('aria-current') == 'page'
@@ -2010,3 +2016,199 @@ def test_backtest_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
         thread.join(timeout=10)
         sock.close()
     assert [c['path'] for c in worker.calls] == ['/v1/catalog']     # the reload was served from the catalog cache
+
+
+# ---- EXEC-MU-RUNTIME Phase 0: the measurement lines (verification/edge_multiuser/runtime/backtest.md section 7) ----
+
+def measuring(caplog):
+    """The module's INFO lines captured (the measurement lines are INFO; the tests above capture WARNING and up)."""
+    import logging
+    caplog.set_level(logging.INFO, logger='edge_bff.backtest')
+
+
+def test_request_key_is_one_per_canonical_request():
+    """BT6 counts identical requests by request_key: equal exactly when the worker runs the same canonical request
+    (hash.ts canonicalRequest, canonicalJson): the picked stocks as a set, keys in any order, numbers as JSON.parse
+    reads them; every other field counts, the seed and a stock listed twice too."""
+    rk = backtest.request_key
+    assert re.fullmatch(r'[0-9a-f]{64}', rk(single()))
+    assert rk(portfolio()) == rk(portfolio(tickers=['BBRI', 'BMRI', 'BBCA']))           # PF3: a set
+    assert rk(portfolio()) != rk(portfolio(tickers=['BBCA', 'BBRI']))                   # another set
+    assert rk(portfolio(tickers=['BBCA', 'BBCA'])) != rk(portfolio(tickers=['BBCA']))   # a stock twice stays twice
+    assert rk(single()) != rk(single('TLKM')) and rk(single()) != rk(portfolio(tickers=['BBCA']))
+    assert rk(single()) != rk(single(robustness={'monte_carlo_runs': 1000, 'seed': 8, 'sensitivity': True}))
+    as_double = loads(json.dumps(single()).replace('"value": 30', '"value": 30.0'))
+    assert type(as_double['entry']['conditions'][0]['rhs']['value']) is float
+    assert rk(as_double) == rk(single())                                                 # 30.0 is JSON.parse's 30
+    assert rk(json.loads(json.dumps(single(), sort_keys=True))) == rk(single())          # keys in another order
+    assert rk({'x': True}) != rk({'x': 1}) and rk({'x': 0.5}) != rk({'x': 1})
+    assert rk([1]) is None and rk({'x': float('nan')}) is None and rk(None) is None     # never raises
+
+
+def test_a_job_logs_its_submit_polls_and_where_its_time_went(app, worker, caplog):
+    measuring(caplog)
+    c = app
+    job_id = submit(c, portfolio(), 'timed').json()['request_id']
+    assert submit(c, portfolio(tickers=['BBRI', 'BMRI', 'BBCA']), 'timed').json()['created'] is False
+    run_next(c)
+    first, again = logged(caplog, 'backtest_submit')
+    key = backtest.request_key(portfolio())
+    assert (first['request_id'], first['created'], first['request_key'], first['mode'], first['tickers']) == (job_id, True, key, 'portfolio', 3)
+    assert all(type(first[k]) is int and first[k] >= 0 for k in ('validate_ms', 'store_ms', 'ms'))
+    assert (again['request_id'], again['created'], again['request_key'], again['validate_ms'], again['store_ms']) == (job_id, False, key, None, None)
+    polls = [p for p in logged(caplog, 'backtest_poll') if p['request_id'] == job_id]
+    assert [(p['n'], p['status'], p['state'], p['phase']) for p in polls] == [
+        (1, 200, 'RUNNING', 'backtest'), (2, 200, 'RUNNING', 'backtest'), (3, 200, 'FINISHED', 'finalizing')]
+    assert all(type(p['ms']) is int and p['ms'] >= 0 for p in polls)
+    (t,) = [x for x in logged(caplog, 'backtest_job_timing') if x['request_id'] == job_id]
+    row = db(c, 'SELECT created_at, started_at, finished_at FROM edge_bff.backtest_jobs WHERE request_id=%s', job_id)[0]
+    assert (t['state'], t['code'], t['request_key'], t['mode'], t['tickers']) == ('FINISHED', None, key, 'portfolio', 3)
+    assert (t['polls'], t['busy'], t['prior_trials'], t['store_attempts'], t['worker_ms']) == (3, 0, 0, 1, 1234)
+    assert t['json_bytes'] == len(json.dumps(result_of(job_id, portfolio())).encode())
+    assert t['queue_wait_ms'] == round((row['started_at'] - row['created_at']).total_seconds() * 1000)
+    assert t['e2e_ms'] == round((row['finished_at'] - row['created_at']).total_seconds() * 1000)
+    assert 0 <= t['accepted_ms'] <= t['seen_end_ms'] <= t['loop_ms'] and t['poll_slack_ms'] == t['seen_end_ms'] - t['accepted_ms'] - 1234
+    assert all(type(t[k]) is int and t[k] >= 0 for k in ('post_ms', 'fetch_ms', 'split_ms', 'store_ms'))
+    # ids, hashes, counts, states and times only: no owner, no request body
+    assert 'local-test-owner' not in caplog.text and '"conditions"' not in caplog.text and '"BBCA"' not in caplog.text
+
+
+def test_a_refused_or_failed_job_logs_its_code_and_the_workers_time(app, worker, caplog):
+    measuring(caplog)
+    c = app
+    worker.validate_error = (422, {'code': 'UNKNOWN_TICKER', 'field': 'single.ticker', 'message': 'NOPE is not a published stock.'})
+    assert submit(c, single('NOPE'), 'refused').status_code == 422
+    (refused,) = logged(caplog, 'backtest_submit')
+    assert refused['code'] == 'UNKNOWN_TICKER' and 'request_id' not in refused and refused['store_ms'] is None
+    assert type(refused['validate_ms']) is int and refused['request_key'] == backtest.request_key(single('NOPE'))
+    worker.validate_error, worker.busy = None, 2
+    worker.fail_with = {'code': 'DATA_MISSING', 'field': 'single.ticker', 'message': 'No price file is published for BBCA.'}
+    job_id = submit(c, single(), 'failed').json()['request_id']
+    run_next(c)
+    (t,) = [x for x in logged(caplog, 'backtest_job_timing') if x['request_id'] == job_id]
+    assert (t['state'], t['code'], t['busy'], t['polls'], t['worker_ms']) == ('FAILED', 'DATA_MISSING', 2, 1, 55)
+    assert 'fetch_ms' not in t and t['poll_slack_ms'] == t['seen_end_ms'] - t['accepted_ms'] - 55 and t['e2e_ms'] >= 0
+    worker.fail_with, worker.unstarted = None, 3          # never taken by the worker: WORKER_LOST, no acceptance
+    lost = submit(c, single(), 'lost-timed').json()['request_id']
+    run_next(c)
+    (t,) = [x for x in logged(caplog, 'backtest_job_timing') if x['request_id'] == lost]
+    assert (t['state'], t['code'], t['polls']) == ('FAILED', 'WORKER_LOST', 0) and 'accepted_ms' not in t and t['poll_slack_ms'] is None
+
+
+def test_the_loop_logs_each_claim_with_its_queue_wait(app, worker, caplog):
+    measuring(caplog)
+    c = app
+    bt = c.app.state.backtests
+    job_id = submit(c, single(), 'claimed').json()['request_id']
+    db(c, "UPDATE edge_bff.backtest_jobs SET created_at=created_at-interval '3 seconds' WHERE request_id=%s", job_id)
+    loop = BacktestLoop(bt.settings, bt.store, bt.worker)
+
+    async def one_job():
+        task = asyncio.create_task(loop.run())
+        for _ in range(2000):
+            await asyncio.sleep(0.005)
+            if db(c, 'SELECT state FROM edge_bff.backtest_jobs WHERE request_id=%s', job_id)[0]['state'] == 'FINISHED':
+                break
+        loop.stop()
+        await task
+    asyncio.run(one_job())
+    (claim,) = [x for x in logged(caplog, 'backtest_claim') if x['request_id'] == job_id]
+    (t,) = [x for x in logged(caplog, 'backtest_job_timing') if x['request_id'] == job_id]
+    assert claim['queue_wait_ms'] >= 3000 and claim['queue_wait_ms'] == t['queue_wait_ms'] and t['state'] == 'FINISHED'
+    assert loop.timings == {}                             # nothing kept once the follower left the job
+
+
+def test_a_preview_logs_its_outcome_and_waits(configured, store, worker, monkeypatch, caplog):
+    """backtest_preview: ok with the worker's answer time; the worker's refusal by its code; a preview its page had
+    replaced already ('stale', never sent on); one a newer preview of the owner ended ('replaced'), and that newer one
+    with its wait for the older one to end (owner_wait_ms)."""
+    measuring(caplog)
+    worker.delay = {'/v1/signals': 1.0}
+    local, stop = serve(configured, store)
+    try:
+        headers, cookies = sign_in(local)
+        def preview(body):
+            with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as p:
+                return p.post('/api/v1/backtests/signals', headers=headers, json=body)
+        assert preview(ordered('page-1', 5)).status_code == 200
+        assert preview(ordered('page-1', 3)).status_code == 409
+        assert preview(preview_of(['NOPE'])).status_code == 422
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            first = pool.submit(preview, preview_of())
+            for _ in range(500):
+                if len(worker.posted('/v1/signals')) == 3:
+                    break
+                time.sleep(0.01)
+            second = pool.submit(preview, preview_of(['BBCA']))
+            assert first.result().status_code == 409 and second.result().status_code == 200
+    finally:
+        stop()
+    ok, stale, refused, *rest = logged(caplog, 'backtest_preview')
+    assert (ok['outcome'], ok['tickers'], ok['replaced_older'], ok['owner_wait_ms']) == ('ok', 2, False, None)
+    assert ok['worker_ms'] >= 1000 and ok['ms'] >= ok['worker_ms']
+    assert stale == {'event': 'backtest_preview', 'outcome': 'stale', 'tickers': 2}
+    assert (refused['outcome'], refused['tickers']) == ('UNKNOWN_TICKER', 1)
+    replaced, newer = sorted(rest, key=lambda x: x['outcome'] != 'replaced')
+    assert replaced['outcome'] == 'replaced' and replaced['ms'] < 1000
+    assert (newer['outcome'], newer['tickers'], newer['replaced_older']) == ('ok', 1, True) and type(newer['owner_wait_ms']) is int
+
+
+def test_the_modules_info_lines_reach_the_service_log():
+    """Under the service's uvicorn logging (its LOGGING_CONFIG configures only uvicorn's own loggers) this module's
+    INFO lines were dropped by logging.lastResort (WARNING and up): they now reach stderr, once, as the message; a
+    logging set-up made before the import is left alone (no second copy of a line)."""
+    import subprocess
+    import sys
+    run = lambda setup: subprocess.run([sys.executable, '-c', setup + '\nfrom app import backtest\n'
+                                        "backtest.measured('probe_line', n=1)\nbacktest.logger.warning('warn_line')"],
+                                       cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=60)
+    served = run('import logging.config, uvicorn.config\nlogging.config.dictConfig(uvicorn.config.LOGGING_CONFIG)')
+    assert served.returncode == 0, served.stderr
+    assert served.stderr.splitlines() == ['{"event": "probe_line", "n": 1}', 'warn_line'] and served.stdout == ''
+    configured = run("import logging, sys\nlogging.basicConfig(stream=sys.stdout, level=logging.INFO, format='root %(message)s')")
+    assert configured.returncode == 0, configured.stderr
+    assert configured.stdout.splitlines() == ['root {"event": "probe_line", "n": 1}', 'root warn_line'] and configured.stderr == ''
+
+
+# ---- review of measure (EXEC-MU-RUNTIME Phase 0) ----
+
+def test_a_measurement_line_never_carries_an_unchecked_mode(app, worker, caplog):
+    """A submission the worker refuses was never checked: its mode is whatever the caller wrote. The lines carry a
+    contract mode, 'invalid' for any other value and None for none, never the value as sent (a refused submission
+    logged it verbatim, any length and content, before this review)."""
+    measuring(caplog)
+    c = app
+    sent = 'portfolio-of-' + 'x' * 2000 + '-private-note'
+    worker.validate_error = (422, {'code': 'INVALID_REQUEST', 'field': 'mode', 'message': 'mode must be single or portfolio.'})
+    assert submit(c, single(mode=sent), 'odd-mode').status_code == 422
+    assert submit(c, single(mode={'note': 'private'}), 'object-mode').status_code == 422
+    body = single(); del body['mode']
+    assert submit(c, body, 'no-mode').status_code == 422
+    assert [x['mode'] for x in logged(caplog, 'backtest_submit')] == ['invalid', 'invalid', None]
+    assert 'private' not in caplog.text and 'x' * 50 not in caplog.text
+    assert [backtest.mode_of(q) for q in (single(), portfolio(), {'mode': ['single']}, {}, None)] == ['single', 'portfolio', 'invalid', None, None]
+
+
+def test_a_cancelled_preview_is_logged_as_cancelled_not_ok(app, monkeypatch, caplog):
+    """backtest_preview names the outcome of every preview it sent on: a cancellation of the route (CancelledError, a
+    BaseException: a server shutdown, say) was logged as 'ok' before this review. The owner's place is freed as before."""
+    measuring(caplog)
+    bt = app.app.state.backtests
+    async def never(*_):
+        await asyncio.sleep(30)
+    monkeypatch.setattr(bt, 'ask', never)
+
+    class Caller:                      # a caller that stays: its disconnect never comes
+        async def receive(self):
+            await asyncio.Event().wait()
+
+    async def cancelled():
+        task = asyncio.create_task(bt.latest_preview(bt.settings.owner, Caller(), preview_of()))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    asyncio.run(cancelled())
+    (line,) = logged(caplog, 'backtest_preview')
+    assert (line['outcome'], line['tickers'], line['replaced_older']) == ('CancelledError', 2, False)
+    assert bt.settings.owner not in bt.previews

@@ -1,0 +1,2 @@
+select column_name from public."AI_column_catalog" where table_name='Feature_04_Technical_Indicator' and not ai_allowed order by 1;;
+select feature_column, version, left(lookback_window,40) lw, left(minimum_history,40) mh, semantic_review_status from public."Feature_Catalog" where feature_table='Feature_04_Technical_Indicator' and is_active and feature_column in ('rsi_14','ema_200','smi','cdl_doji','close') order by 1

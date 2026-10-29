@@ -1,0 +1,3 @@
+select relname, relacl::text from pg_class where relname in ('Feature_04_Technical_Indicator','Feature_04_Technical_Indicator_INDEX','Price_Stock_Indonesia_IDX');;
+select r.rolname, has_table_privilege(r.oid, 'public."Feature_04_Technical_Indicator"', 'SELECT') f04, has_table_privilege(r.oid, 'public."Price_Stock_Indonesia_IDX"', 'SELECT') price from pg_roles r where r.rolname in ('terminal_market_reader','market_ai_sql_reader','market_ai_preview_owner','pgweb');;
+select tgname, tgrelid::regclass, tgenabled from pg_trigger where not tgisinternal and (tgrelid::regclass::text ilike '%feature_04%' or tgname ilike '%feature04%') order by 2,1

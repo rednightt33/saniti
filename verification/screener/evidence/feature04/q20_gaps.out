@@ -1,0 +1,4 @@
+calendar_dates | tickers | no_gap | with_gaps | gap_gt5pct | gap_gt50pct | missing_ticker_sessions
+2125 | 844 | 242 | 602 | 220 | 9 | 88288
+(1 rows, 5291 ms)
+---

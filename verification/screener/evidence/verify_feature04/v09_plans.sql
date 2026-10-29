@@ -1,0 +1,3 @@
+explain (analyze, buffers) select f.* from public."Feature_04_Technical_Indicator" f where f.asset_type='equity' and f.trade_date=(select max(trade_date) from public."Feature_04_Technical_Indicator");;
+explain (analyze, buffers) select distinct on (ticker) ticker, trade_date, close, sma_20, sma_50, ema_50, ema_200, rsi_14, macd, macd_signal, adx_14, atr_14, bb_upper_20, bb_lower_20 from public."Feature_04_Technical_Indicator" where asset_type='equity' and trade_date >= date '2026-10-27' - 10 order by ticker, trade_date desc;;
+explain (analyze, buffers) select ticker, trade_date, close, sma_50 from public."Feature_04_Technical_Indicator" where asset_type='equity' and trade_date >= date '2026-10-27' - 90

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "saved_items",
+    "value": 50,
+    "unit": "saved items",
+    "rule": "at most 50 saved screens and 50 My metrics",
+    "example_ok": "saving a new screen while 49 are saved",
+    "example_refused": "saving a new screen while 50 are saved (delete one first)"
+  },
+  {
+    "name": "watchlist",
+    "value": 500,
+    "unit": "tickers",
+    "rule": "at most 500 tickers in the watchlist",
+    "example_ok": "watching a new ticker while 499 are watched",
+    "example_refused": "watching a new ticker while 500 are watched (remove one first)"
+  },
+  {
+    "name": "saved_definition_bytes",
+    "value": 65536,
+    "unit": "bytes",
+    "rule": "a saved screen or My metric is at most 65,536 bytes of JSON as stored (a space after each colon and comma)",
+    "example_ok": "a saved definition of 65,536 bytes",
+    "example_refused": "a saved definition of 65,537 bytes (remove conditions or filters)"
+  },
+  {
+    "name": "request_bytes",
+    "value": 131072,
+    "unit": "bytes",
+    "rule": "a request to the screener is at most 131,072 bytes",
+    "example_ok": "a run request of 131,072 bytes",
+    "example_refused": "a run request of 131,073 bytes (remove conditions or filters)"
+  },
+  {
+    "name": "inflight_per_page",
+    "value": 1,
+    "unit": "requests of each kind per page",
+    "rule": "1 screen and 1 preview in flight per page: a newer one replaces the older one, which is answered as replaced",
+    "example_ok": "a preview while the same page runs a screen, or a screen run in another tab",
+    "example_refused": "a second screen of the same page while its first is running (the first is replaced; nothing to do)"
+  }
+]

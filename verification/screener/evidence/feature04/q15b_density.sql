@@ -1,0 +1,2 @@
+select relname, relpages, reltuples::bigint, round((reltuples/nullif(relpages,0))::numeric,2) tuples_per_page, pg_size_pretty(pg_relation_size(oid)) heap, pg_size_pretty(pg_indexes_size(oid)) idx from pg_class where relname in ('Feature_04_Technical_Indicator','Feature_04_Technical_Indicator_INDEX','Price_Stock_Indonesia_IDX','Feature_01_Stock_Daily');;
+select name, setting, unit from pg_settings where name in ('shared_buffers','effective_cache_size','work_mem','max_parallel_workers_per_gather','random_page_cost','server_version','autovacuum_vacuum_scale_factor') order by 1

@@ -1,0 +1,8 @@
+null_vol | bad_ohlc | neg | zero_vol | flat_bar | total
+0 | 0 | 0 | 40 | 123853 | 1328595
+(1 rows, 5992 ms)
+---
+null_sma20 | null_rsi | null_close
+150 | 105 | 0
+(1 rows, 7122 ms)
+---

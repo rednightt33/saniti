@@ -1,0 +1,79 @@
+QUERY PLAN
+Finalize GroupAggregate  (cost=103795.46..104347.56 rows=1728 width=27)
+  Group Key: asset_type, ticker
+  ->  Gather Merge  (cost=103795.46..104278.45 rows=4147 width=27)
+        Workers Planned: 2
+        ->  Sort  (cost=102795.44..102799.76 rows=1728 width=27)
+              Sort Key: asset_type, ticker
+              ->  Partial HashAggregate  (cost=102685.23..102702.51 rows=1728 width=27)
+                    Group Key: asset_type, ticker
+                    ->  Parallel Index Only Scan using "Feature_04_Technical_Indicator_pkey" on "Feature_04_Technical_Indicator"  (cost=0.43..95479.11 rows=576490 width=15)
+JIT:
+  Functions: 5
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+(12 rows, 216 ms)
+---
+attname | avg_width | null_frac
+adx_14 | 8 | 0.018233333
+asset_type | 6 | 0
+atr_14 | 8 | 0.010666667
+bb_lower_20 | 8 | 0.0139
+bb_middle_20 | 8 | 0.0139
+bb_upper_20 | 8 | 0.0139
+break_swing_high | 4 | 0
+calculated_at | 8 | 0
+calculation_version | 46 | 0
+cdl_3_black_crows | 4 | 0.009966667
+cdl_3_inside | 4 | 0.009266667
+cdl_3_outside | 4 | 0.0023
+cdl_3_white_soldiers | 4 | 0.009266667
+cdl_dark_cloud_cover | 4 | 0.0084
+cdl_doji | 4 | 0.007766667
+cdl_dragonfly_doji | 4 | 0.007766667
+cdl_engulfing | 4 | 0.0016333334
+cdl_evening_doji_star | 4 | 0.009266667
+cdl_evening_star | 4 | 0.009266667
+cdl_gravestone_doji | 4 | 0.007766667
+cdl_hammer | 4 | 0.0084
+cdl_hanging_man | 4 | 0.0084
+cdl_harami | 4 | 0.0084
+cdl_harami_cross | 4 | 0.0084
+cdl_hikkake | 4 | 0.0039666668
+cdl_inverted_hammer | 4 | 0.0084
+cdl_kicking | 4 | 0.0084
+cdl_marubozu | 4 | 0.007766667
+cdl_mat_hold | 4 | 0.010666667
+cdl_morning_doji_star | 4 | 0.009266667
+cdl_morning_star | 4 | 0.009266667
+cdl_piercing | 4 | 0.0084
+cdl_rise_fall_3_methods | 4 | 0.010666667
+cdl_shooting_star | 4 | 0.0084
+close | 8 | 0
+ema_12 | 8 | 0.0084
+ema_200 | 8 | 0.122833334
+ema_26 | 8 | 0.017333332
+ema_50 | 8 | 0.030966667
+inside_bar | 4 | 0.001
+last_swing_high | 8 | 0.05843333
+macd | 8 | 0.017333332
+macd_histogram | 8 | 0.022166668
+macd_signal | 8 | 0.022166668
+rsi_14 | 8 | 0.010666667
+sma_20 | 8 | 0.0139
+sma_50 | 8 | 0.030966667
+smi | 8 | 0.00086666667
+temp_high | 8 | 0.8492
+temp_high_bar | 4 | 0.8492
+temp_low | 8 | 0.66723335
+temp_low_bar | 4 | 0.66723335
+ticker | 5 | 0
+timeframe | 6 | 0
+tracking_high | 4 | 0
+tracking_low | 4 | 0
+trade_date | 4 | 0
+(57 rows, 223 ms)
+---
+sum_avg_width | count
+359 | 57
+(1 rows, 192 ms)
+---

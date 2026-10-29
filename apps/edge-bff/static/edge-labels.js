@@ -129,5 +129,7 @@ window.EdgeLabels = {
   // EXEC-TERMINAL-API T3: the Terminal tab next to Monitor
   terminal: { nav:"Terminal", frameTitle:"Financial terminal" },
   // EDGE backtest (CONTRACT.md section 10): the Backtest tab next to Terminal
-  backtest: { nav:"Backtest", frameTitle:"Backtest" }
+  backtest: { nav:"Backtest", frameTitle:"Backtest" },
+  // EXEC-SCREENER (report FRONTEND INTEGRATION 9.7): the Screener tab next to Backtest
+  screener: { nav:"Screener", frameTitle:"Stock screener" }
 };

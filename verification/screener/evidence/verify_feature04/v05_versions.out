@@ -1,0 +1,16 @@
+attname | n_distinct | null_frac | mcv | mcf
+asset_type | 2 | 0 | {equity,bonds} | {0.9611667,0.038833335}
+calculation_version | 1 | 0 | {feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4} | {1}
+timeframe | 1 | 0 | {Daily} | {1}
+(3 rows, 470 ms)
+---
+ERROR: HTTP 400: {"error":"pq: canceling statement due to statement timeout","status":400}
+---
+non_v3 | non_daily | count
+0 | 0 | 356772
+(1 rows, 8026 ms)
+---
+non_v3 | count
+0 | 485837
+(1 rows, 685 ms)
+---

@@ -1,0 +1,13 @@
+timeframe | is_final | n | nt | min | max
+Daily | True | 1330722 | 845 | 2018-01-02T00:00:00Z | 2026-10-27T00:00:00Z
+(1 rows, 1915 ms)
+---
+st | count
+stock | 844
+index | 1
+(2 rows, 207 ms)
+---
+n_universe | with_price
+845 | 845
+(1 rows, 1018 ms)
+---
