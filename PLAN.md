@@ -895,6 +895,31 @@ sah), penanganan berkas yang berganti sha256 sesudah publikasi, dan daftar refer
 Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keamanan: perangkat bersama), dan bentuk tanda
 "memperbarui…".
 
+## MONITOR-REVAMP — tampilan halaman Monitor (AI) mengikuti AI_revamp.html (disetujui 2026-10-29)
+
+**Permintaan, 2026-10-29 (kata user):** "boleh cek BFF sheet monitor ... HTML yang mana kita akan fully replace dan fully
+revamp just the front end side ... Kita tidak akan menambah fitur apapun". Acuan: `AI_revamp.html` (prototipe statis:
+CSS Design Spec + JavaScript tanpa API, data contoh di dalam file; diperiksa dari kodenya).
+
+**Keputusan user, 2026-10-29:** fitur prototipe yang belum ada: A1 mode Full/Docked "tidak perlu ada dulu"; A2 Data scope
+"non aktifkan dulu as kondisi sekarang"; A3 action bar di atas kotak pesan "abaikan"; A4 info run "sudah ada" (tab Flow,
+`ResponseFlows`); A5–A10 "pakai existing" (halaman kosong, tombol Revise per field tidak dibuat, grafik CI tidak dibuat,
+Stop & send, Enter untuk kirim, side chat sebagai panel sendiri). B "ensure tetap ada semua": tab Terminal / Backtest /
+Screener, notifikasi, Support, Research, menu akun, "Show n more rows", "Hambatan proses" di Sources, alamat `/c/<id>`.
+Lalu: "1. Agree, pastikan 1:1 ya tampilan, interaksi"; "2. HTML baru" (label mengikuti prototipe); "3. Terang dan gelap",
+tema awal "Terang" (pilihan yang tersimpan tetap dipakai). Prinsip: "setiap keputusan ... berdasarkan kode dan live
+condition", bukan asumsi.
+
+Isi:
+- Pendekatan: markup dan CSS `static/index.html` mengikuti prototipe 1:1 (tampilan dan interaksi) untuk bagian dalam
+  ruang lingkup; logika, `edge-client.js`, `edge-view.js` tetap; kata-kata di `edge-labels.js` mengikuti prototipe.
+- Tahap: (1) baseline: screenshot tiap keadaan halaman sekarang (pratinjau `preview/edge_preview.py`) dan semua tes
+  edge-bff; (2) token Design Spec (terang + gelap), tema awal terang; (3) komponen per area: top bar (dengan item B),
+  panel kiri, kartu jawaban, rencana, temuan, tabel, kotak pesan, Details (Flow / Sources), menu, dialog, side chat;
+  (4) tes disesuaikan hanya di bagian tampilan, tidak ada tes perilaku yang dihapus; (5) file standalone hasil revamp
+  untuk review user sebelum deploy; (6) deploy edge-bff, verifikasi live, catatan EXEC / README / RAILWAY_CHANGELOG.
+- Halaman Terminal, Backtest dan Screener (aplikasi Vite terpisah dalam iframe) tidak berubah.
+
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
 **Permintaan, 2026-10-28 (kata user):** "Saat ini yes, kita bisa gambar trendline langsung di panel bawah. Tapi untuk draw
