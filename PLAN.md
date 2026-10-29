@@ -927,6 +927,19 @@ bagian 17.
 
 Dieksekusi dan selesai: EXEC.md EXEC-BACKTEST-SPIN, ERRORS "EXEC-BACKTEST-SPIN".
 
+## PUBLISHER-SPEED — publisher cepat dan tidak tertunda bersih-bersih (disetujui untuk direncanakan 2026-10-29; belum "go")
+
+**Persetujuan, 2026-10-29 (kata user):** "A alright", atas pilihan "Opsi A — Screener dinyalakan malam ini, perbaikan
+publisher besok"; sebelumnya: "Boleh lakukan pengecekan berapa lama proses publisher memindahkan data dari Postgres ke
+storage. Inspect kenapa bisa lama, sebetulnya ini hanya proses penjndahan data saja right".
+- **Temuan (run 2026-10-29 12:04-13:00 UTC, ERRORS M301):** 55 menit untuk 27,7 MB; database < 1 menit (6 ms per file
+  tahunan, 27 ms per pack, `EXPLAIN ANALYZE`); sisanya ±3.300 permintaan ke bucket satu per satu (±0,6 s per permintaan,
+  publisher `sfo`, bucket `sin`) ditambah 19 menit listing bersih-bersih yang macet lalu gagal.
+- **Usulan (belum "go"):** (1) permintaan bucket paralel per tahap, urutan file -> manifest -> `state.json` tetap;
+  (2) bersih-bersih setelah `state.json` dan dibatasi waktu; (3) satu indeks manifest per run; terpisah: peringatan
+  Telegram saat publisher crash atau publikasi belum terbit.
+- **Pertanyaan terbuka:** tingkat paralel (usulan 16); apakah peringatan crash ikut di item ini.
+
 ## SCREENER — EDGE Screener dari prototipe `screener EDGE layout.html` (go 2026-10-28; dieksekusi di EXEC.md EXEC-SCREENER)
 
 Dipindah ke `EXEC.md` EXEC-SCREENER pada 2026-10-28 setelah "go" user (persetujuan, jawaban P1-P23 dan pertanyaan yang

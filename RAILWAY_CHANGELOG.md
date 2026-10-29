@@ -5017,6 +5017,112 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
 - Rollback: delete the three variables with `--skip-deploys` and set `healthcheckPath` back to null; nothing reads them
   until the new build is deployed.
 
+## 2026-10-29 — edge-bff `96346c1f` (EXEC-SCREENER Phase 1, EXEC-MU-RUNTIME T7 and Phase 0; PR #42)
+
+- Service edge-bff, environment dev, from GitHub `main` `b841a45` (the merge of PR rednightt33/saniti#42,
+  auto-deploy). Status SUCCESS at 10:23 UTC. `market-ai-orc` and `feature-04-worker` SKIPPED the commit (watch paths);
+  terminal-api, backtest-worker and the publisher are not GitHub-built here and did not change.
+- Change: the Screener page and relay (`/screener`, `/screener-app/`, `/api/v1/screener/*`; off, because
+  `SCREENER_WORKER_URL` is not set), the Terminal page's download check (T7: a file is drawn only when its size and
+  sha256 match the announcement), the Backtest timing and `request_key` log lines (Phase 0). No variable changed.
+- Verified: `/ready`, `/terminal-app/`, `/backtest-app/`, `/screener-app/`, `/screener` 200; the live page builds equal
+  local builds of `b841a45` (Terminal `assets/index-7b76YLLw.js`; Backtest `assets/index-DwzUe4Tj.js`, built in the
+  Dockerfile's folder layout; Screener `assets/index-TookIbNo.js`); no error line in the start-up log.
+- Rollback: `serviceInstanceDeployV2` with the previous main commit `d84be91` (deployment `f295d813`).
+
+## 2026-10-29 — terminal-api `c6b1385a` (EXEC-SCREENER /xsection, EXEC-MU-RUNTIME T1/T3/T5/T9; PR #42)
+
+- Service terminal-api, environment dev, CLI upload (ERRORS M248) of `git archive b841a45 apps/terminal-api` (`main`,
+  the merge of PR rednightt33/saniti#42). Tree digest `ebe518fdc46e0a9fa6ea10cde993c34703bac92744e7906bf1c3993c0d2bbf09`.
+  Status SUCCESS at 10:26 UTC, promoted by the `/ready` healthcheck (set at 09:34, see above) on the migrated schema
+  (`20261028_100` applied at 10:19).
+- Change: `/state` gains `xsection` and `refs`; `POST /xsection` for the screener-worker service key and the gateway
+  key; each worker's service key acts as its own account with an hourly ceiling (T1); the account is read inside each
+  grant (T3); `/reference` presigns the indexed content key when `refs` names it (T5); `/ready` healthcheck,
+  `TERMINAL_POOL_MAX` (default 8, not set).
+- Verified: `/ready` 200; keyless `POST /xsection` 403 `gateway_only` (the old build had no such route); the private
+  network check `verification/screener/jobs/terminal_check.py` (job `974ca534` then the re-run after teaching it the
+  `refs` field, `terminal_check_api_20261029.log`) VERDICT PASS: `/state` without key 401, with the gateway key 200
+  with exactly the six fields (`xsection` and `refs` null until the T5 publisher's first run), unknown xsection name 404
+  `xsection_not_published`, `/manifest` 200, VAR_REMOVED; Backtest unchanged: `verification/backtest/e2e_dev.py
+  --skip-page --only single` passed (no failed check; catalog 845 tickers through 2026-10-28; job
+  `bt_6789555252413858cb77f71bcaec08b1`; the worker still `292f7caa` on the gateway key). One K3 trial added.
+- Rollback (B9 order): workers back on `${{terminal-api.TERMINAL_PROXY_KEY}}` first (none uses a service key yet), then
+  `deploymentRollback` of `689dc465-b4e8-45f4-966a-a825fdad9599`; the old build runs on the migrated schema.
+
+## 2026-10-29 — backtest-worker `e3c07b59` on its own terminal account (EXEC-MU-RUNTIME step 5, T1; Phase 0 timings)
+
+- Service backtest-worker, environment dev, 10:32 UTC: `TERMINAL_PROXY_KEY` set to the reference
+  `${{terminal-api.TERMINAL_SERVICE_KEY_BACKTEST_WORKER}}` (`--skip-deploys`; checked in memory: equal to terminal-api's
+  service key, not the gateway key), then a CLI upload of the Dockerfile's build context from `main` `b841a45` (the
+  paths its COPY lines name, the `Dockerfile` at the upload root, `--path-as-root`). Tree digest
+  `c35795ec89d7a3c7f51e9b02cfc531f344b9ad725a2caf407788fd68c40ba460`. Status SUCCESS at 10:34 UTC; start log
+  `engine_version` `ecebb87036dd030b` (the Phase 0 timing lines change the worker sources it hashes; nothing reads a
+  stored result's engine version, `scripts/screener/backtest_worker_baseline.json`), registry `b6a8dc0ba206ed65`.
+- Verified: its start-up catalog loaded IHSG through terminal-api with the service key; `verification/backtest/e2e_dev.py
+  --skip-page --only single` passed (no failed check; job `bt_18d1f1f9b2d40cce834c34468fc4e44b`; catalog 845 tickers
+  through 2026-10-28, engine `ecebb87036dd030b`); the log carries the new `job_end` line with `phases_ms` (Phase 0).
+  One K3 trial added.
+- Rollback: `TERMINAL_PROXY_KEY` back to `${{terminal-api.TERMINAL_PROXY_KEY}}` and `deploymentRollback` of
+  `292f7caa-009b-4cb1-b52d-8f9274c106ad` (both together restart once).
+
+## 2026-10-29 — screener-worker created empty, its variables set (EXEC-SCREENER P3 a; runbook 7a, 7c, 7d)
+
+- **7a IaC reconcile (no Railway change):** `.railway/railway.ts` gained by hand, each in its own service block, the four
+  live names the file lacked (terminal-publisher `TERMINAL_RUN_TIMES_WIB` and its cron `0,30 0,12 * * *`; backtest-worker
+  `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES`; edge-bff `EDGE_TERMINAL_URL`, `TERMINAL_PROXY_KEY`, all `preserve()`).
+  `railway config plan` then read "Your Railway configuration is already up to date." (CLI 5.71.0; the SDK finds the
+  CLI through `_`, RAILWAY_CHANGELOG 2026-10-21).
+- **7c:** the empty `screener-worker` block (healthcheck `/ready` 300 s, 1 replica in `sfo`, restart ALWAYS, memory limit
+  2.75 GB from `verification/screener/BENCHMARK_LOCAL.md` §8) committed, then a pinned plan
+  (`railway config plan --verbose --out`, sha256 `fe233042f16fa689bf73f433e5eb91ada24ea03116d3ce12cf3a5351f22279d6`, read
+  line by line: exactly `+ Create service screener-worker`, kind empty, severity safe, nothing destructive) applied at
+  10:36 UTC ("Applied pinned Railway configuration."). Service ID `bad6feef-aba6-4520-b0ad-8be4ed093f1c`; no source, no
+  deployment.
+- **7d variables** (`--skip-deploys`, names only here): the 29 names `apps/screener-worker/src/config.ts` reads, read back
+  equal to the code's list (VARS_OK). `SCREENER_WORKER_KEY` a new random 64-hex value through `--stdin`;
+  `TERMINAL_PROXY_KEY` the reference `${{terminal-api.TERMINAL_SERVICE_KEY_SCREENER_WORKER}}` (terminal-api `c6b1385a`
+  reads service keys); `TERMINAL_URL` the private terminal-api endpoint; `SCREENER_FILE_ORIGIN` piped from
+  backtest-worker's `BACKTEST_FILE_ORIGIN` (checked equal in memory, never printed); threads, heap, caches, downloads,
+  compute, fairness and answer limits at the README's LOCAL, provisional values (K 2, heap 512 MB, owner inflight 1, CPU
+  4500 ms, deadline 20 s); the file caps 24000000 / 150000000 / 24000000 and the disk budget 48000000 from the local
+  measurement of the same data, to be re-checked against the 12:00 UTC run's logged sizes.
+- Next: the source is attached (pinned plan, 7e) after the 12:00 UTC publisher run has written the first xsection index,
+  so `/ready` can pass within its 300 s.
+
+## 2026-10-29 — terminal-publisher `0d33d8ac`: first run (12:00 UTC tick) published, with xsection and refs
+
+- The 19:00 WIB tick ran `0d33d8ac` from 12:04:40 to 13:00:01 UTC: `done` mode daily, 828 files planned, 1,658 written,
+  27.68 MB, 3,314.5 s, exit 0; `xsection` price (845 tickers, 1,332,376 rows, 11,770,934 B, as of 2026-10-29) and actions
+  (3,403 rows, 20,752 B); `refs` tickers, brokers, logos uploaded, none failed; three bucket calls retried (M263 fix seen
+  on dev); `gc_failed` `ConnectionClosedError` after a 19-minute listing (nothing deleted; ERRORS M301);
+  `broker_behind_sessions` 2 (broker data through 2026-10-27), Telegram notice sent.
+- The cron list shows the 12:30 tick as an execution created 12:34:21 while the same process went on to `done`
+  (ERRORS M301 "also seen"); there was one run.
+- Verified: `run_terminal_check.sh present` (job on orc-test-runner, `terminal_check_pub_20261029.log`) VERDICT PASS:
+  `/state` `finished_at` 12:59:56, `price_through` 2026-10-29, both xsection files granted to the gateway key and
+  downloaded with the indexed sha256 and size; `verification/backtest/e2e_dev.py --skip-page --only single` passed with
+  catalog `data_through` 2026-10-29 (job `bt_afdccaaaa418f4bf1e84b194db49334c`); `/terminal-app/` 200.
+
+## 2026-10-29 — screener-worker `7a961374` and edge-bff `8191fff7`: the Screener is on in dev (EXEC-SCREENER Phase 1)
+
+- **screener-worker (runbook 7e):** `.railway/railway.ts` gained the service's GitHub source (repository root),
+  Dockerfile `apps/screener-worker/Dockerfile`, its watch paths and its 29 variables as `preserve()` (checked equal to
+  `config.ts`, ENV_OK). Pinned plan (sha256 `453e97d45a35f5ef1e8c579411509e468e5b5a7b14d67642e0b15c28f0358f15`, read line by
+  line: only screener-worker's source and build) applied at 13:21 UTC, after the publisher window. It deployed `main`
+  `5c12216` (two Terminal commits after `b841a45`, none in the worker's inputs). SUCCESS 13:23 UTC through `/ready`;
+  start line `screener_engine` `86839fc327abfebb` (equal to the local computation), registry `b6a8dc0ba206ed65`, screener
+  registry `638ee5ea6bbf05b5`, Node 22; first refresh on the 12:59:56 publication: 845 tickers, 844 stocks, 1,332,376
+  bars, files granted on its service key, 42.4 s, RSS 0.66 GB, then swap; no error line.
+- **edge-bff (runbook 9):** `SCREENER_WORKER_URL` (the private endpoint), `SCREENER_WORKER_KEY` (the reference
+  `${{screener-worker.SCREENER_WORKER_KEY}}`, checked equal in memory) and `SCREENER_TIMEOUT_SECONDS` 20, each
+  `--skip-deploys`, then `serviceInstanceDeployV2` of `main` `5c12216`: deployment `8191fff7`, SUCCESS 13:26 UTC.
+- **Verified (verification/screener/LIVE_CHECK_DEV.md):** the page in Chromium (cold 1.62 s to first results, warm 1.15 s,
+  a preset run 0.53 s, an edited custom run 1.10 s, a preview 0.49 s); four screens through the API equal to Feature 04
+  on each ticker's last bar (match sets equal apart from bond yields, values within 4.34e-12); backtest-worker unchanged.
+- Rollback: delete edge-bff's `SCREENER_WORKER_KEY` and `SCREENER_TIMEOUT_SECONDS` (`--skip-deploys`), then
+  `SCREENER_WORKER_URL` (redeploys; the page answers `SCREENER_DISABLED`); `railway down -s screener-worker`.
+
 ## 2026-10-29 — edge-bff `2064404c` (EXEC-TERMINAL-UNDO-INV-WHEEL)
 
 - Service edge-bff, environment dev, from GitHub `main` `6bd41c3` (auto-deploy). Status SUCCESS. `main` already held the

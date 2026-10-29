@@ -4,7 +4,7 @@
    legs; it never runs with a leg removed, and "Load without the unavailable legs" is an explicit action that lists the
    dropped legs (report 9.2). My screens' counts are asked (POST counts) only while their tab is open (6c.4 S7). */
 import type { CatalogPreset, Definition, SavedView, ScreenItemDefinition } from './core/contract.ts';
-import { esc, nf } from './format.ts';
+import { esc, nf, timeText } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { activeCards, canonical, cardOfField, ctx, definitionOf, presetOf, S, savedOf, stateOfDefinition, ui } from './state.ts';
 import { confirmDialog, dialog, closeDialog, newItemId, toast } from './dialogs.ts';
@@ -44,7 +44,7 @@ function presetsHtml(): string {
       : saved.length ? saved.map(s => {
         const c = ctx.counts.get(s.item_id), n = c && 'match' in c ? c.match : null, def = (s.definition as ScreenItemDefinition).definition;
         const conds = def?.conditions?.filter(x => x.enabled !== false).length ?? 0;
-        return chip('s:' + s.item_id, s.name, `${conds} conditions · saved ${s.updated_at.slice(0, 10)}${s.needs_review.length ? ' · needs review' : ''}${c && 'error' in c ? ' · ' + c.error : ''}`, n,
+        return chip('s:' + s.item_id, s.name, `${conds} conditions · saved ${timeText(s.updated_at, true)}${s.needs_review.length ? ' · needs review' : ''}${c && 'error' in c ? ' · ' + c.error : ''}`, n,
           `<button class="x" data-dup-saved="${esc(s.item_id)}" title="Duplicate ${esc(s.name)}" aria-label="Duplicate ${esc(s.name)}">${ico(IC.dup, 's')}</button><button class="x" data-del-saved="${esc(s.item_id)}" title="Delete ${esc(s.name)}" aria-label="Delete ${esc(s.name)}">${ico(IC.x, 's')}</button>`);
       }).join('')
       : `<small class="muted">No saved screens yet. Build a screen, then use Save screen.</small>`;

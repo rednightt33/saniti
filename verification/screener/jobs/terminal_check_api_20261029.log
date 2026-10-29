@@ -1,0 +1,9 @@
+Starting Container
+OUT {"q": "ready", "status": 200}
+OUT {"q": "state_without_key_refused", "status": 401, "code": "not_signed_in"}
+OUT {"q": "state", "fields": ["broker_behind_sessions", "broker_through", "finished_at", "price_through", "refs", "xsection"], "finished_at": "2026-10-28T12:37:34.624652+00:00", "price_through": "2026-10-28", "broker_through": "2026-10-27", "broker_behind_sessions": 1, "xsection": null, "refs": null}
+OUT {"q": "xsection_without_key_refused", "status": 403, "code": "gateway_only"}
+OUT {"q": "xsection_unknown_name_refused", "status": 404, "code": "xsection_not_published"}
+OUT {"q": "manifest_unchanged_route", "status": 200}
+VERDICT PASS
+JOB_DONE TERMINAL_CHECK

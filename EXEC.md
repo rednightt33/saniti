@@ -8601,6 +8601,10 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
   saya buat PR dari branch ini ke `main`, lalu deploy ke dev bertahap mengikuti runbook (perubahan database, terminal-api,
   publisher, mesin screener, lalu edge-bff), tiap langkah diverifikasi dan bisa di-rollback". Tahap 0-1 EXEC-MU-RUNTIME ikut
   dalam PR dan jendela deploy yang sama. PR dibuat hanya setelah semua suite lolos di HEAD branch; deploy hanya ke dev.
+- **Status 2026-10-29, Phase 1 di dev:** migration `20261028_001` diterapkan (41/41, 21/21); PR rednightt33/saniti#42
+  di-merge (`b841a45`); screener-worker `7a961374` dan edge-bff `8191fff7` aktif; halaman dan API Screener diperiksa
+  (`verification/screener/LIVE_CHECK_DEV.md`: buka pertama 1,62 s, run 0,5-1,1 s, preview 0,49 s; empat screen sama dengan
+  Feature 04). Sisa Phase 1: tampilan waktu publikasi yang mentah di header; Phase 1b dan 2 belum dimulai.
 - **Keputusan lanjutan, 2026-10-28 (kata user):** atas P29 "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest
   juga"; atas pertanyaan apakah rekomendasi juga berlaku untuk keputusan flow D1-D14 dan P24-P34: "YEs".
   - **P29:** pengguna EDGE adalah user eksternal, untuk semua tab (Monitor, Terminal, Backtest, Screener).
@@ -8911,6 +8915,11 @@ backtest, and screener. While at the same time, terminal, backtest, dan screener
   (`0,30 0,12 * * *` UTC) lalu berhenti; hanya `telegram-monitor` dan `telegram-trigger` yang tidur.
 - **Status 2026-10-28:** dimulai. Tahap 0 dan 1 dibangun di branch `mu-phase1` (worktree terpisah) agar tidak mengganggu build
   Screener yang sedang berjalan, lalu digabung ke branch Screener. Belum deploy.
+- **Status 2026-10-29:** Tahap 0 dan 1 di dev (PR #42, merge `b841a45`): migration `20261028_100` diterapkan (81/81,
+  54/54); terminal-api `c6b1385a` (T1, T3, T5, T9); publisher `0d33d8ac` (T5 refs, run pertama 12:04-13:00 UTC lulus);
+  backtest-worker `e3c07b59` pada kunci layanannya sendiri dengan baris waktu Tahap 0; screener-worker pada kuncinya
+  sendiri; edge-bff dengan T7. Belum: Tahap 2 (Backtest) dan 3 (Terminal) menunggu rencana; PUBLISHER-SPEED (PLAN.md)
+  diajukan besok; pengukuran `?perf=1` dari Indonesia oleh user.
 
 ## EXEC-TERMINAL-UNDO-INV-WHEEL — undo parameter indikator, chip dan badge Broker inventory, Shift+scroll (2026-10-29)
 
