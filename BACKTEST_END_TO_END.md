@@ -330,7 +330,10 @@ The manifest:
   across manifests as the flow coverage (CONTRACT section 2).
 - **Readers verify, they do not trust.** Every reader of a data file checks its byte count and sha256 against the
   manifest entry. `inflateVerified` in `apps/edge-bff/backtest/src/core/datafile.ts` is shared by the worker and the
-  page. Both cache files by sha256 (sections 7.3 and 10).
+  page. Both cache files by sha256 (sections 7.3 and 10). The Terminal page applies the same rule since EXEC-MU-RUNTIME
+  T7 (`apps/edge-bff/terminal/src/data/rack.ts readVerified`, on downloaded and cached bytes, and on a reference file
+  `/reference` announces with sha256 and size), and asks one new `/bundle` before it shows a failed check; before T7 it
+  drew a downloaded file whose sha256 differed and only did not cache it.
 - **The fixed-key reference files carry no sha256.** A reader of `ref/<name>.json.gz` downloads it again on each use.
   Since EXEC-MU-RUNTIME T5 each is also under a content key with its sha256 and size in `state.json` `refs`, the same
   bytes, so a reader of that index can check and cache it by sha256 like a data file. The xsection files reuse the

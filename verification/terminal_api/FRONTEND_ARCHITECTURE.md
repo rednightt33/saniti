@@ -124,10 +124,10 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 
 ## 9. Packs, browser file cache and stage timings (EXEC-TERMINAL-SPEED, 2026-10-26)
 
-- `live.ts` asks `POST /bundle` with `packs: true` and hands the worker `FileRef {url, sha, name}` lists. The worker
-  reads each file from IndexedDB by sha256 first (`cacheGet`), else downloads it and stores it when the bytes hash to
-  that sha256 (`cachePut`, 50 MB LRU). Broker: the last two refs are the recent years (answered as `broker`), the rest
-  (the archive pack first) follow as `brokerAll`.
+- `live.ts` asks `POST /bundle` with `packs: true` and hands the worker `FileRef {url, sha, bytes, name}` lists
+  (`bytes` since EXEC-MU-RUNTIME T7). The worker reads each file from IndexedDB by sha256 first, else downloads it, and
+  uses and stores (50 MB LRU) only bytes of the announced size and sha256 (section 15). Broker: the last two refs are the
+  recent years (answered as `broker`), the rest (the archive pack first) follow as `brokerAll`.
 - `src/app/perf.ts`: `mark(name)` at session, ticker list and bundle, price read, page script, chart drawn, Flow last
   two years, Flow every year; the worker posts per-file stats (`stats`). `?perf=1` shows them (`.ml-perf`).
 - The loading ring turns in 0.15 s (`.ml-spin`, user 2026-10-26).
@@ -206,8 +206,20 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 
 - `src/data/rack.ts`: the browser file cache (IndexedDB `terminal-files`, the record and the 50 MB limit as before) and
   the presigned download with retries (ERRORS M251), used by the Terminal's worker and the Backtest page's loading
-  worker (`apps/edge-bff/backtest/src/api/load.worker.ts`). The Terminal still uses a file whose sha256 differs (it
-  only does not store it); the Backtest page refuses it (`inflateVerified`, CONTRACT).
+  worker (`apps/edge-bff/backtest/src/api/load.worker.ts`).
+- EXEC-MU-RUNTIME T7 (2026-10-29, accuracy): `rack.ts readVerified` is the Terminal's one check of a published file, the
+  rule of the Backtest core's `inflateVerified` (the Terminal is built alone, so it cannot import that core). A file
+  `/bundle` announces, and a reference file `/reference` announces with `sha256` and `bytes` (T5), is used and stored
+  only when its bytes have that size and sha256, downloaded or cached (a cached copy is checked on every use; one that
+  differs is downloaded again and replaced); an announcement without a valid sha256 and size is refused before any
+  download; a reference file without them (an older terminal-api or publication) is read as before and not stored.
+  A failed check is `IntegrityError` (`DATA_INTEGRITY`, "A data file did not match its published checksum; reload the
+  page."), never drawn: `live.ts checked` runs the ticker's job once more on one new `/bundle` (`once`: one new
+  `/reference`), then the page shows the message (the chart's notice; the Flow note and the side panels keep their own
+  texts). The new job puts its broker data on the sessions the chart draws (the first job's price when it was read),
+  so a publication between the two answers never shifts the Flow against the candles. Before T7 the Terminal drew a
+  downloaded file whose sha256 differed (it only did not store it), never checked the size and trusted a cached copy.
+  Tests: `tests/data/download.test.ts`.
 - EXEC-BACKTEST-SPIN: the loading ring is `src/styles/spin.css` and `src/ui/spin.ts` (`context.ts` re-exports `spin`),
   imported by the Terminal and the Backtest page; one speed (0.15 s, 1.6 s with reduced motion).
 

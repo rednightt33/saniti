@@ -2,14 +2,20 @@
    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
    Everything is mapped into the reference page's own shapes (types.ts). */
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
-import { brokerData, download, priceRows, rowsOf, type FileRef, type PriceRow, type WorkerAnswer } from './worker';
+import { brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
+import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
 import { aggregateRows, alignCandles, buckets, candleOf, type Timeframe } from './timeframe';
 import { fileStats, mark } from '../app/perf';
 
 const API = '/api/terminal/v1';
 
+/** `code` DATA_INTEGRITY: a file was not the one terminal-api announced (rack.ts IntegrityError; `detail` what differed,
+    never a URL) */
 export class TerminalError extends Error {
-  constructor(message: string, readonly status = 0) { super(message) }
+  readonly status: number;
+  readonly code: string | undefined;
+  readonly detail: string | undefined;
+  constructor(message: string, status = 0, code?: string, detail?: string) { super(message); this.status = status; this.code = code; this.detail = detail }
 }
 
 /* the compare list of the reference's Add Series panel, with its colours; offered when the ticker is published */
@@ -81,8 +87,9 @@ type Dataset = 'price' | 'broker' | 'events';
    objects instead of 21); each file carries its sha256, the key of the browser cache */
 async function bundle(ticker: string, datasets: Dataset[], csrf: string) {
   const answer = await api('/bundle', csrf, { ticker, datasets, packs:true });
+  // EXEC-MU-RUNTIME T7: each file with the sha256 and size /bundle announces; the worker draws only bytes that match both
   const refs = (name: Dataset): FileRef[] => (answer.datasets?.[name]?.files || []).map((f: any) =>
-    ({ url:f.url, sha:f.sha256, name:`${name}/${f.pack || f.year || 'all'}` }));
+    ({ url:f.url, sha:f.sha256, bytes:f.bytes, name:`${name}/${f.pack || f.year || 'all'}` }));
   // EXEC-TERMINAL-FRESH: each dataset's own last date (a session after the broker's has no broker data yet, not zero)
   const through = { price:answer.datasets?.price?.data_through ?? undefined, broker:answer.datasets?.broker?.data_through ?? undefined };
   return { price:refs('price'), broker:refs('broker'), events:refs('events'), through };
@@ -101,6 +108,7 @@ function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, 
   if (typeof Worker === 'undefined') {
     (async () => {
       const brokerDocs = Promise.all(files.broker.map(download)), eventDocs = Promise.all(files.events.map(download));
+      brokerDocs.catch(() => {}); eventDocs.catch(() => {});      // read below, after the price; no unhandled rejection (as worker.ts)
       const rows = priceRows(await Promise.all(files.price.map(download))); price.ok(rows);
       const ds = onto || rows.map(r => r.d), all = brokerData(await brokerDocs, ds, tf === 'D' ? null : buckets(ds, tf)); broker.ok(all); brokerAll.ok(all);
       events.ok((await eventDocs).flatMap(rowsOf));
@@ -114,7 +122,7 @@ function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, 
       const w = waiting.get(e.data.id); if (!w) return;
       const { id, type, ...data } = e.data as any;
       if (type === 'error') {
-        const err = new TerminalError(data.message, data.status);
+        const err = new TerminalError(data.message, data.status, data.code, data.detail);
         Object.values(w).forEach(([, no]) => no(err)); waiting.delete(id); return;
       }
       w[type][0](type === 'price' ? data.rows : type === 'events' ? data.rows : data);
@@ -127,8 +135,60 @@ function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, 
   return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
 }
 
+/* EXEC-MU-RUNTIME T7: a job whose files fail their check (DATA_INTEGRITY: bytes unlike the sha256 and size /bundle
+   announced) runs once more on a new /bundle (`again`, the same request). A content key never names other bytes (ERRORS
+   M250), so a mismatch is a stale answer or a damaged transfer, which the new answer and download mend; the stages still
+   waiting (every stage the failure ended) take the new job's answers. A failure of the second job, or any other error,
+   reaches the page as it is, a failed check with the plain INTEGRITY_MESSAGE. */
+type Files = { price: FileRef[]; broker: FileRef[]; events: FileRef[] };
+/* a failed check as the page shows it (TerminalError, INTEGRITY_MESSAGE); its detail goes to the console once */
+const logged = new WeakSet<object>();
+function integrityFailure(e: any) {
+  if (!isIntegrity(e)) return e;
+  if (e.detail && !logged.has(e)) { logged.add(e); console.warn(`terminal: a data file failed its check: ${e.detail}`) }
+  return e instanceof TerminalError ? e : new TerminalError(INTEGRITY_MESSAGE, 0, 'DATA_INTEGRITY', e.detail);
+}
+function checked(files: Files, again: () => Promise<Files>, tf: Timeframe = 'D', onto?: string[]): Job {
+  const first = run(files, tf, onto);
+  /* review of T7 (2026-10-29): the sessions the new job puts its broker data on are the ones the page draws: `onto`, else
+     the first job's price once it was read (the chart keeps that price), else (the price failed too) the new job's own.
+     A publication between the two answers can move the price's sessions (the year window, a corrected session); the
+     new answer's own sessions would then shift every Flow value against the chart's candles. */
+  const drawn = onto ? Promise.resolve(onto) : first.price.then(rows => rows.map(r => r.d), () => undefined);
+  let second: Promise<Job> | null = null;
+  const stage = <K extends keyof Job>(k: K): Job[K] => {
+    const p = (first[k] as Promise<unknown>).catch(e => {
+      if (!isIntegrity(e)) throw e;
+      integrityFailure(e);                                     // logs what differed
+      // one new /bundle per job, whichever stage failed first
+      second ||= Promise.all([again(), drawn]).then(([f, on]) => run(f, tf, on));
+      return second.then(j => j[k] as Promise<unknown>).catch(e2 => { throw integrityFailure(e2) });
+    }) as Job[K];
+    p.catch(() => {});
+    return p;
+  };
+  return { price:stage('price'), broker:stage('broker'), brokerAll:stage('brokerAll'), events:stage('events') };
+}
+
+/* one ticker's datasets, checked (one new /bundle on a failed check) */
+async function load(ticker: string, datasets: Dataset[], csrf: string, tf: Timeframe = 'D', onto?: string[], first?: Files) {
+  const again = () => bundle(ticker, datasets, csrf);
+  return checked(first || await again(), again, tf, onto);
+}
+
+/* a published file outside a job (the reference files), read on the page: a failed check asks its announcement once
+   more (`attempt` asks terminal-api again), then shows INTEGRITY_MESSAGE */
+async function once<T>(attempt: () => Promise<T>): Promise<T> {
+  try { return await attempt() }
+  catch (e) {
+    if (!isIntegrity(e)) throw e;
+    integrityFailure(e);                                       // logs what differed
+    try { return await attempt() } catch (e2) { throw integrityFailure(e2) }
+  }
+}
+
 async function prices(ticker: string, csrf: string) {
-  return run(await bundle(ticker, ['price'], csrf)).price;
+  return (await load(ticker, ['price'], csrf)).price;
 }
 
 /* a series on the chart's sessions: the last close on or before each session (forward fill); sessions before its
@@ -149,7 +209,12 @@ function alignTo(dates: string[], rows: { d: string; c: number }[], ends: string
 export async function liveData(stored: string | null, tf: Timeframe = 'D'): Promise<MarketData> {
   const csrf = await session();
   mark('session');
-  const reference = async (name: string) => rowsOf(await download((await api(`/reference/${name}`, csrf)).url));
+  /* EXEC-MU-RUNTIME T5/T7: a reference file the publication's refs index names comes with its sha256 and size, and is
+     checked and cached as a data file; without them (an older terminal-api or publication) it is the fixed-key copy no
+     index describes, read as it comes */
+  const refFile = (a: any, name: string): string | FileRef => a && (a.sha256 != null || a.bytes != null)
+    ? { url:a.url, sha:a.sha256, bytes:a.bytes, name:`ref/${name}` } : a?.url;
+  const reference = (name: string) => once(async () => rowsOf(await download(refFile(await api(`/reference/${name}`, csrf), name))));
   /* the ticker list, the broker list and the files of the remembered ticker are asked for together */
   const tickersP = reference('tickers'), brokerRefP = reference('brokers');
   /* EXEC-TERMINAL-LOGO: ticker → logo version (sha256 prefix); a ticker without one shows its monogram */
@@ -163,7 +228,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
   const instruments: Instrument[] = tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0]);
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
   const files = SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf);
-  const job = run(files, tf);
+  const job = await load(SYMBOL, ['price', 'broker', 'events'], csrf, tf, undefined, files);
 
   mark('ticker list and bundle');
   const rows = await job.price;                            // daily sessions
@@ -211,12 +276,12 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
      puts them there, `dates`); the right panel stays the chart's own ticker */
   const loadAsset = async (ticker: string): Promise<Bar[]> => {
     if (!known.has(ticker)) return [];
-    const daily = ticker === SYMBOL ? rows : await run(await bundle(ticker, ['price'], csrf)).price;
+    const daily = ticker === SYMBOL ? rows : await prices(ticker, csrf);
     return alignCandles(sessions, groups, daily);
   };
   const loadAssetFlow = async (ticker: string) => {
     const files = await bundle(ticker, ['broker'], csrf);
-    const asset = run({ price:[], broker:files.broker, events:[] }, tf, sessions);
+    const asset = await load(ticker, ['broker'], csrf, tf, sessions, files);   // a broker-only answer: no price or events files
     const part = async (stage: Promise<BrokerAnswer>) => {
       const b = await stage;
       return { combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom, flowTo:b.flowTo };
