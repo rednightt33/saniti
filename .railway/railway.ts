@@ -188,12 +188,19 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     env: { BACKTEST_CACHE_BYTES: preserve(), BACKTEST_CACHE_DIR: preserve(), BACKTEST_CACHE_DIR_BYTES: preserve(), BACKTEST_DOWNLOAD_CONCURRENCY: preserve(), BACKTEST_DOWNLOAD_RETRIES: preserve(), BACKTEST_FILE_ORIGIN: preserve(), BACKTEST_FLOW_ENABLED: preserve(), BACKTEST_HTTP_TIMEOUT_MS: preserve(), BACKTEST_MAX_BROKER_ROWS: preserve(), BACKTEST_MAX_CONDITIONS: preserve(), BACKTEST_MAX_DOWNLOAD_BYTES: preserve(), BACKTEST_MAX_FILE_BYTES: preserve(), BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_RETRY_BASE_MS: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
   });
-  // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): created empty, variables set, then its source (runbook 7e)
+  // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): built from GitHub main with the repository root as context
   const screenerWorker = service("screener-worker", {
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/screener-worker/Dockerfile",
+      watchPatterns: ["/apps/screener-worker/**", "/apps/edge-bff/screener/src/core/**",
+        "/apps/edge-bff/screener/scripts/build-screener-registry.mjs", "/apps/edge-bff/backtest/src/core/**",
+        "/apps/edge-bff/terminal/src/calc/**", "/apps/edge-bff/terminal/src/data/indRegistry.json",
+        "/apps/backtest-worker/src/terminal.ts", "/apps/backtest-worker/loader/**", "/apps/backtest-worker/scripts/build-registry.mjs"] },
     healthcheck: "/ready",
     healthcheckTimeout: 300,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS", limitOverride: { containers: { memoryBytes: 2750000000 } } },
+    env: { SCREENER_CACHE_BYTES: preserve(), SCREENER_CACHE_DIR: preserve(), SCREENER_CACHE_DIR_BYTES: preserve(), SCREENER_CAP_BUDGET_MS: preserve(), SCREENER_DEADLINE_MS: preserve(), SCREENER_DOWNLOAD_CONCURRENCY: preserve(), SCREENER_DOWNLOAD_RETRIES: preserve(), SCREENER_FILE_ORIGIN: preserve(), SCREENER_HTTP_TIMEOUT_MS: preserve(), SCREENER_MAX_CONDITIONS: preserve(), SCREENER_MAX_COUNTS: preserve(), SCREENER_MAX_CPU_MS: preserve(), SCREENER_MAX_FILE_BYTES: preserve(), SCREENER_MAX_INFLATED_BYTES: preserve(), SCREENER_MAX_METRIC_FILTERS: preserve(), SCREENER_MAX_REFRESH_BYTES: preserve(), SCREENER_MAX_REQUEST_BYTES: preserve(), SCREENER_MAX_RESPONSE_BYTES: preserve(), SCREENER_OWNER_CPU_MS: preserve(), SCREENER_OWNER_INFLIGHT: preserve(), SCREENER_PREVIOUS_GRACE_S: preserve(), SCREENER_QUEUE: preserve(), SCREENER_RETRY_BASE_MS: preserve(), SCREENER_THREADS: preserve(), SCREENER_THREAD_HEAP_MB: preserve(), SCREENER_WITHIN_MAX: preserve(), SCREENER_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
   });
   const edgeBff = service("edge-bff", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),
