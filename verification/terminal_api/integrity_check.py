@@ -236,6 +236,8 @@ def do_compare(work):
                  f'{PREFIX}/state.json'}
     # EXEC-SCREENER: the cross-sectional files are named by the state.json `xsection` index, not by a manifest
     expected |= {e['key'] for e in (F['state'].get('xsection') or {}).values() if isinstance(e, dict) and e.get('key')}
+    # EXEC-MU-RUNTIME T5: the content-keyed copies of the reference files are named by the state.json `refs` index
+    expected |= {e['key'] for e in (F['state'].get('refs') or {}).values() if isinstance(e, dict) and e.get('key')}
     # logos are named by ref/logos.json.gz; a data file a newer manifest (or an xsection file a newer index) replaced
     # stays until the publisher's next daily run deletes it (collect_garbage, ERRORS M250), so a few unreferenced keys
     # right after a run are expected

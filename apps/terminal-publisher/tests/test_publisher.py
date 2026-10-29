@@ -935,16 +935,17 @@ def test_content_that_returns_to_an_object_still_in_the_bucket_is_not_put_again(
     assert price_key(bucket) == k1 and xsection_puts(bucket, n) == [] and k1 not in bucket.deleted
 
 
-def test_the_cleanup_lists_the_whole_bucket_and_the_xsection_files_their_prefix_only():
-    """The xsection listing asks for `xsection/` only (listing the whole dev bucket took more than 6 minutes, and this
-    listing has no deadline), and it comes after the cleanup's listing of the whole bucket."""
+def test_the_cleanup_lists_the_whole_bucket_and_the_indexed_files_their_prefix_only():
+    """The xsection and the content-keyed reference listings ask for `xsection/` and `ref/` only (listing the whole dev
+    bucket took more than 6 minutes, and these listings have no deadline), and they come after the cleanup's listing of
+    the whole bucket."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     asked, whole = [], bucket.list
     bucket.list = lambda deadline=None, prefix='': asked.append(prefix) or whole(deadline, prefix)
     at(bucket, conn, 'daily', 2)
-    assert asked == ['', 'xsection/']
+    assert asked == ['', 'xsection/', 'ref/']
 
 # ---- bucket retries (ERRORS M263; M253 on PR #41's branch) ----------------------------------------------------------
 def client_error(code):
@@ -1037,3 +1038,347 @@ def test_every_bucket_call_is_asked_again_after_a_canceled_answer(monkeypatch):
     assert b.get_json('state.json') == {'a': 1} and b.get_raw('manifest/NONE.json') is None
     assert b.delete(['price/BBCA/2026.json.gz']) == []
     assert calls == ['put', 'put', 'get', 'get', 'missing', 'delete', 'delete']
+
+
+# ---- EXEC-MU-RUNTIME T5: reference files under content keys, listed in state.json `refs` ----------------------------
+FIXED_REFS = {f'ref/{n}.json.gz' for n in pub.REF_NAMES}
+# sha256 of the JSON inside ref/tickers.json.gz and ref/brokers.json.gz as the publisher before T5 (3f5156c) wrote them
+# for this file's fixture: the fixed-key copies must stay byte for byte what the deployed readers already read
+BEFORE_T5_RAW_SHA256 = {'tickers': '9c49504a1d4896d948dc24ba00dfc4c3a10060782496fdb8691a0085ac1e4ef0',
+                        'brokers': 'a4075aee964c309ecf8cb5575d7b128baee86a8e51fa8a778e05ba72267c4597'}
+
+
+def refs(bucket):
+    return bucket.get_json('state.json')['refs']
+
+
+def ref_puts(bucket, since=0):
+    """The content-keyed reference objects put since `since` (the fixed-key copies are not content-keyed)."""
+    return [k for k in bucket.puts[since:] if pub.REF_KEY.fullmatch(k)]
+
+
+def renamed(name):
+    """The fixture universe with BBCA's company name changed: only ref/tickers changes."""
+    return [(UNIVERSE[0][0], name) + UNIVERSE[0][2:]] + UNIVERSE[1:]
+
+
+def test_every_reference_file_is_also_stored_under_its_content_key_and_listed_in_state_json():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    at(bucket, conn, 'logos', 1)                                           # the logo index exists from now on
+    index = refs(bucket)
+    assert sorted(index) == sorted(pub.REF_NAMES) and pub.ref_entries(index) == index    # exactly the well-formed shape
+    for name, e in index.items():
+        assert set(e) == {'key', 'sha256', 'bytes', 'rows'}
+        key = e['key'][len(pub.PREFIX) + 1:]
+        assert key == f'ref/{name}.{e["sha256"][:16]}.json.gz' and pub.REF_KEY.fullmatch(key)     # content-addressed
+        body = bucket.objects[key]
+        assert (len(body), hashlib.sha256(body).hexdigest()) == (e['bytes'], e['sha256'])
+        assert body == bucket.objects[f'ref/{name}.json.gz']               # the fixed-key copy's exact bytes
+        doc = bucket.get_json(key)
+        assert e['rows'] == len(doc[doc['columns'][0]])
+    assert index['tickers']['rows'] == len(UNIVERSE) and index['brokers']['rows'] == 2 and index['logos']['rows'] == 0
+
+
+def test_equal_reference_bytes_give_the_same_key_and_are_never_put_again():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    first = refs(bucket)
+    _, _, other = run('backfill', conn=FakeConn(PRICES, BROKERS, UNIVERSE))           # another bucket, same rows
+    assert refs(other) == first
+    n = len(bucket.puts)
+    for i, (mode, args) in enumerate((('backfill', ()), ('packs', ()), ('events', ()),
+                                      ('broker-range', ('2026-01-01', '2026-12-31')))):
+        at(bucket, conn, mode, 0.1 * (i + 1), *args)
+        assert {k: refs(bucket)[k] for k in first} == first
+    assert ref_puts(bucket, n) == []                                       # same content, same key: not put again
+    # a changed list is a new object; undone within the grace, the old key is still there and is not put again
+    conn.universe = renamed('Bank Central Asia Tbk')
+    at(bucket, conn, 'daily', 2)
+    changed = refs(bucket)['tickers']['key']
+    assert changed != first['tickers']['key'] and refs(bucket)['brokers'] == first['brokers']
+    conn.universe = UNIVERSE
+    n = len(bucket.puts)
+    at(bucket, conn, 'daily', 2.5)
+    assert refs(bucket)['tickers'] == first['tickers'] and ref_puts(bucket, n) == []
+
+
+def test_the_refs_index_is_written_after_its_objects_and_before_state_json():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    put, seen = bucket.put, []
+    def checked(key, body, ctype):
+        """Every state.json put names only reference objects the bucket already holds."""
+        if key == 'state.json':
+            named = {e['key'][3:] for e in json.loads(body).get('refs', {}).values()}
+            assert named and named <= set(bucket.objects), named - set(bucket.objects)
+            seen.append(named)
+        put(key, body, ctype)
+    bucket.put = checked
+    at(bucket, conn, 'backfill', 0)
+    assert len(seen) == 1
+    assert bucket.puts[-1] == 'state.json'
+    for e in refs(bucket).values():
+        key = e['key'][len(pub.PREFIX) + 1:]
+        assert key in bucket.puts[:-1]                                    # before state.json
+        assert bucket.puts.index(key) > bucket.puts.index(f'ref/{key.split("/")[1].split(".")[0]}.json.gz')
+    conn.universe = renamed('BCA')
+    n = len(bucket.puts)
+    at(bucket, conn, 'daily', 2)                                           # a later run: the new object first
+    new = ref_puts(bucket, n)
+    assert [k.split('.')[0] for k in new] == ['ref/tickers', 'ref/logos'] and bucket.puts[-1] == 'state.json'
+    assert refs(bucket)['tickers']['key'] == f'v1/{new[0]}' and len(seen) == 2
+
+
+@pytest.mark.parametrize('mode,args,logos', [('backfill', (), False), ('daily', (), True), ('logos', (), True),
+                                             ('events', (), False), ('packs', (), False),
+                                             ('broker-range', ('2026-01-01', '2026-12-31'), False)])
+def test_fixed_key_reference_files_are_written_byte_identical_to_before(mode, args, logos):
+    """The deployed readers (terminal-api REF_FILES and its logo index, the pages, both workers) open the fixed keys:
+    each run still writes them, in the same order, with the same bytes as before the content-keyed copies."""
+    bucket = FakeBucket()
+    p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get())
+    p.run(mode, *args)
+    fixed = [k for k in bucket.puts if k in FIXED_REFS]
+    assert fixed == ['ref/tickers.json.gz', 'ref/brokers.json.gz'] + (['ref/logos.json.gz'] if logos else [])
+    for name, sha in BEFORE_T5_RAW_SHA256.items():
+        body = bucket.objects[f'ref/{name}.json.gz']
+        raw = gzip.decompress(body)
+        assert hashlib.sha256(raw).hexdigest() == sha and body == gzip.compress(raw, compresslevel=9, mtime=0)
+    assert bucket.get_json('ref/tickers.json.gz')['columns'] == ['ticker', 'name', 'type', 'sector', 'industry']
+    assert all(bucket.objects[e['key'][3:]] == bucket.objects[f'ref/{n}.json.gz'] for n, e in refs(bucket).items())
+
+
+def test_ref_names_are_the_reference_files_terminal_api_serves():
+    main = (ROOT / 'apps/terminal-api/app/main.py').read_text()
+    m = re.search(r'^REF_FILES = (\{[^}]*\})', main, re.M)
+    assert m and json.loads(m.group(1).replace("'", '"')) == {n: f'v1/{pub.ref_key(n)}' for n in pub.REF_NAMES}
+
+
+def test_terminal_api_reads_the_refs_index_as_written():
+    """Phase 1b gives terminal-api a refs_index validated like xsection_index; it must serve exactly the entries the
+    publisher writes, carries and protects. Until 1b lands the reader is absent and the check is skipped."""
+    spec = importlib.util.spec_from_file_location('terminal_api_bucket', ROOT / 'apps/terminal-api/app/bucket.py')
+    reader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(reader)
+    if not hasattr(reader, 'refs_index'):
+        pytest.skip('terminal-api bucket.refs_index is not built yet (EXEC-MU-RUNTIME Phase 1b)')
+    _, _, bucket = run('backfill')
+    index = refs(bucket)
+    assert reader.refs_index(index) == index == pub.ref_entries(index)
+    good = index['tickers']
+    raw = {**index, 'Tickers': good, 'fixed': {**good, 'key': 'v1/ref/fixed.json.gz'},
+           'x': {**good, 'key': f'v1/xsection/x.{good["sha256"][:16]}.json.gz'}, 'y': {**good, 'rows': -1}}
+    assert reader.refs_index(raw) == pub.ref_entries(raw) == index
+
+
+def test_a_refs_entry_that_is_not_a_content_keyed_reference_object_is_neither_carried_nor_protected():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    good = refs(bucket)['tickers']
+    raw = {**refs(bucket), 'evil': {'key': 'v1/manifest/BBCA.json', 'sha256': 'ab' * 32, 'bytes': 1, 'rows': 0},
+           'fixed': {**good, 'key': 'v1/ref/tickers.json.gz'}, 'other': good,
+           'short': {**good, 'key': f'v1/ref/short.{"0" * 16}.json.gz'}, 'odd': {**good, 'bytes': True},
+           'upper': {**good, 'sha256': good['sha256'].upper()},
+           'xs': {**good, 'key': f'v1/xsection/xs.{good["sha256"][:16]}.json.gz'}}       # another family's object
+    assert sorted(pub.ref_entries(raw)) == ['brokers', 'tickers']
+    state = bucket.get_json('state.json')
+    state['refs'] = raw
+    bucket.put('state.json', json.dumps(state).encode(), 'application/json')
+    bucket.modified['state.json'] -= 3 * HOUR
+    at(bucket, conn, 'daily', 0.5)                                         # the cleanup reads that index
+    assert sorted(refs(bucket)) == sorted(pub.REF_NAMES)
+    assert {'manifest/BBCA.json'} | FIXED_REFS <= set(bucket.objects)
+
+
+def test_the_logos_copy_follows_the_fixed_copy_and_a_bucket_from_before_t5_is_indexed_at_once():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    at(bucket, conn, 'logos', 1)
+    logos = refs(bucket)['logos']
+    for i, (mode, args) in enumerate((('events', ()), ('broker-range', ('2026-01-01', '2026-12-31')), ('packs', ()))):
+        at(bucket, conn, mode, 1.1 + 0.1 * i, *args)                      # logos not refreshed: the fixed copy stands
+        assert refs(bucket)['logos'] == logos
+    p = pub.Publisher(conn, bucket, today=TODAY, get=fake_get(stockbit=('BBCA',)))
+    p.run('logos')                                                         # a refreshed index is a new object
+    assert refs(bucket)['logos']['key'] != logos['key'] and refs(bucket)['logos']['rows'] == 1
+    assert bucket.objects[refs(bucket)['logos']['key'][3:]] == bucket.objects['ref/logos.json.gz']
+    # a bucket the publisher before T5 wrote: fixed copies and a state.json without `refs`; the first run of this one
+    # indexes all three, the logos from their fixed copy, without fetching any logo
+    state = bucket.get_json('state.json')
+    state.pop('refs')
+    for k in [k for k in bucket.objects if pub.REF_KEY.fullmatch(k)]:
+        del bucket.objects[k]
+    bucket.objects['state.json'] = json.dumps(state).encode()
+    fetched = []
+    p = pub.Publisher(conn, bucket, today=TODAY, get=lambda url, data=None, timeout=30: fetched.append(url))
+    p.run('events')
+    assert sorted(refs(bucket)) == sorted(pub.REF_NAMES) and fetched == []
+    assert bucket.objects[refs(bucket)['logos']['key'][3:]] == bucket.objects['ref/logos.json.gz']
+
+
+def test_cleanup_removes_an_unnamed_content_keyed_reference_object_only_after_the_grace():
+    """The same rule as for xsection: the first daily run that starts an hour or more after the last finished run
+    deletes the content-keyed reference objects its index does not name; a reader of the previous index keeps its file
+    until then, and the fixed-key copies are never deleted."""
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    k1 = refs(bucket)['tickers']['key'][3:]
+    conn.universe = renamed('BCA one')
+    at(bucket, conn, 'daily', 2)
+    k2 = refs(bucket)['tickers']['key'][3:]
+    conn.universe = renamed('BCA two')
+    at(bucket, conn, 'daily', 2.25)                                        # 15 minutes after the last run: no cleanup
+    k3 = refs(bucket)['tickers']['key'][3:]
+    assert len({k1, k2, k3}) == 3 and {k1, k2, k3} <= set(bucket.objects)
+    at(bucket, conn, 'logos', 4)                                           # not a daily run: deletes nothing
+    assert {k1, k2} <= set(bucket.objects)
+    at(bucket, conn, 'daily', 6)
+    assert k1 not in bucket.objects and k2 not in bucket.objects and k3 in bucket.objects
+    assert {k1, k2} <= set(bucket.deleted) and not FIXED_REFS & set(bucket.deleted)
+    assert FIXED_REFS <= set(bucket.objects) and {e['key'][3:] for e in refs(bucket).values()} <= set(bucket.objects)
+
+
+def test_ref_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_refs_index_names_a_file(capsys):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    finished = bucket.modified['state.json']
+    stale, newer = f'ref/tickers.{"b" * 16}.json.gz', f'ref/brokers.{"a" * 16}.json.gz'
+    plant(bucket, stale, -24)                                             # named by no index: deleted
+    plant(bucket, newer, 1)                                               # written by a run that did not finish: kept
+    for k in FIXED_REFS | {'ref/notes.txt', 'ref/old.json.gz', f'ref/x/tickers.{"c" * 16}.json.gz'}:
+        plant(bucket, k, -24)                                             # not content-keyed reference objects: kept
+    bucket.clock = finished + 2 * HOUR
+    p = pub.Publisher(conn, bucket, today=TODAY, clock=lambda: bucket.clock)
+    assert p.collect_garbage() == 1 and bucket.deleted == [stale]
+    gc = events(capsys, 'gc')[0]
+    assert gc['refs_named'] == 2 and gc['kept_newer_than_last_run'] == 1
+    # a state.json without `refs` (the publisher before T5, or a rollback to it) names no reference file: no
+    # content-keyed reference object is deleted until an index names one again
+    state = bucket.get_json('state.json')
+    state.pop('refs')
+    bucket.objects['state.json'] = json.dumps(state).encode()             # same LastModified
+    plant(bucket, stale, -24)
+    assert p.collect_garbage() == 0 and stale in bucket.objects and bucket.deleted == [stale]
+
+
+def test_a_reference_object_the_cleanup_deleted_is_put_again_when_its_content_returns():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    k1 = refs(bucket)['tickers']['key'][3:]
+    body = bucket.objects[k1]
+    conn.universe = renamed('BCA')
+    at(bucket, conn, 'daily', 2)
+    conn.universe = UNIVERSE                                               # undone: k1's content again
+    at(bucket, conn, 'daily', 4)                                           # the cleanup deletes k1, index_refs puts it
+    assert k1 in bucket.deleted and refs(bucket)['tickers']['key'] == f'v1/{k1}' and bucket.objects[k1] == body
+    assert pub.verify(conn, bucket) == 0
+
+
+def test_a_bucket_that_cannot_list_ref_still_indexes_the_reference_files(capsys):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    before = refs(bucket)
+    whole = bucket.list
+    bucket.list = lambda deadline=None, prefix='': ((_ for _ in ()).throw(PermissionError('detail'))
+                                                    if prefix == 'ref/' else whole(deadline, prefix))
+    n = len(bucket.puts)
+    p = at(bucket, conn, 'events', 1)
+    assert refs(bucket) == before and ref_puts(bucket, n) == [] and p.refs_failed == []
+    out = capsys.readouterr().out
+    assert '"ref_list_failed"' in out and 'detail' not in out
+
+
+def test_a_failed_reference_copy_keeps_its_entry_the_rest_is_published_and_the_run_exits_3(capsys, monkeypatch):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    before = refs(bucket)
+    conn.universe = renamed('BCA')
+    put = bucket.put
+    bucket.put = lambda key, body, ctype: ((_ for _ in ()).throw(OSError('secret detail'))
+                                           if pub.REF_KEY.fullmatch(key) else put(key, body, ctype))
+    monkeypatch.setattr(pub.psycopg, 'connect', lambda *a, **k: __import__('contextlib').nullcontext(conn))
+    monkeypatch.setattr(pub, 'Bucket', lambda: bucket)
+    monkeypatch.setenv('TERMINAL_PUBLISHER_DATABASE_URL', 'unused')
+    monkeypatch.delenv('TERMINAL_RUN_TIMES_WIB', raising=False)
+    assert pub.main(['publisher.py', 'events']) == 3
+    after = bucket.get_json('state.json')
+    assert after['refs']['tickers'] == before['tickers'] and after['refs']['brokers'] == before['brokers']
+    assert bucket.get_json('ref/tickers.json.gz')['name'][0] == 'BCA'   # the fixed copy was written
+    out = capsys.readouterr().out
+    assert '"ref_failed"' in out and 'OSError' in out and 'secret detail' not in out
+    bucket.put = put
+    assert pub.main(['publisher.py', 'events']) == 0 and bucket.get_json('state.json')['refs']['tickers'] != before['tickers']
+
+
+def test_verify_checks_the_refs_index():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    at(bucket, conn, 'logos', 1)
+    assert pub.verify(conn, bucket) == 0 and pub.verify_refs(bucket) == (3, 0)
+    fixed = bucket.objects['ref/brokers.json.gz']
+    bucket.objects['ref/brokers.json.gz'] = pub.encode({'columns': ['code'], 'code': []})[0]
+    assert pub.verify_refs(bucket) == (3, 1)                               # the content copy is not the fixed copy
+    bucket.objects['ref/brokers.json.gz'] = fixed
+    key = refs(bucket)['tickers']['key'][3:]
+    good = bucket.objects[key]
+    bucket.objects[key] = gzip.compress(b'{}')
+    assert pub.verify(conn, bucket) == 1                                   # not the indexed bytes
+    bucket.objects[key] = good
+    body, sha = pub.encode({'not': 'columnar'})                            # indexed bytes, but not a reference file
+    state = bucket.get_json('state.json')
+    state['refs']['brokers'] = {'key': f'v1/{pub.content_key("ref", None, "brokers", sha)}', 'sha256': sha,
+                                'bytes': len(body), 'rows': 2}
+    bucket.objects[state['refs']['brokers']['key'][3:]] = body
+    bucket.objects['state.json'] = json.dumps(state).encode()
+    assert pub.verify_refs(bucket) == (3, 1)
+
+
+def test_the_real_bucket_client_puts_and_lists_the_reference_copies_as_the_s3_api_expects():
+    """The whole run through publisher.Bucket (not FakeBucket) over an in-memory S3 client: the content-keyed copies go
+    to v1/ref/<name>.<16 hex>.json.gz with the gzip type and the long cache header, the listing asks for v1/ref/ only,
+    and a second run puts none of them again."""
+    from botocore.exceptions import ClientError
+    class NoSuchKey(ClientError):
+        pass
+    class S3:
+        exceptions = type('Exceptions', (), {'NoSuchKey': NoSuchKey})
+        def __init__(self):
+            self.objects, self.calls = {}, []
+        def put_object(self, Bucket, Key, Body, ContentType, CacheControl):
+            self.calls.append(('put', Key, ContentType, CacheControl))
+            self.objects[Key] = (Body, dt.datetime(2026, 10, 25, tzinfo=dt.timezone.utc))
+        def get_object(self, Bucket, Key):
+            if Key not in self.objects:
+                raise NoSuchKey({'Error': {'Code': 'NoSuchKey', 'Message': 'x'}}, 'GetObject')
+            return {'Body': type('Body', (), {'read': lambda _, b=self.objects[Key][0]: b})()}
+        def list_objects_v2(self, Bucket, Prefix, **kw):
+            self.calls.append(('list', Prefix))
+            return {'IsTruncated': False, 'Contents': [{'Key': k, 'LastModified': at, 'Size': len(b)}
+                                                        for k, (b, at) in sorted(self.objects.items()) if k.startswith(Prefix)]}
+        def delete_objects(self, Bucket, Delete):
+            return {}
+    b = pub.Bucket.__new__(pub.Bucket)
+    b.name, b.s3 = 'bucket', S3()
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    pub.Publisher(conn, b, today=TODAY, get=fake_get()).run('logos')
+    state = json.loads(b.s3.objects['v1/state.json'][0])
+    puts = {key: (ctype, cache) for op, key, *rest in b.s3.calls if op == 'put' for ctype, cache in [rest]}
+    assert sorted(state['refs']) == sorted(pub.REF_NAMES) and ('list', 'v1/ref/') in b.s3.calls
+    for name, e in state['refs'].items():
+        assert e['key'].startswith(f'v1/ref/{name}.') and puts[e['key']] == ('application/gzip', 'private, max-age=31536000')
+        assert b.s3.objects[e['key']][0] == b.s3.objects[f'v1/ref/{name}.json.gz'][0]
+    n = len(b.s3.calls)
+    pub.Publisher(conn, b, today=TODAY, get=fake_get()).run('events')
+    assert not [c for c in b.s3.calls[n:] if c[0] == 'put' and pub.REF_KEY.fullmatch(c[1][3:])]
+    assert json.loads(b.s3.objects['v1/state.json'][0])['refs'] == state['refs']

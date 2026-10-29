@@ -5,10 +5,11 @@
    120 s). The shapes match what live.ts built before on the main thread. */
 import type { BrokerRow } from './types';
 import { buckets, type Buckets, type Timeframe } from './timeframe';
-import { fetchFile, fileCache, sha256Hex } from './rack';
+import { fileCache, readVerified, type FileRef } from './rack';
 
-/** one file to read: its presigned URL and, from /bundle, the sha256 of its bytes (the browser cache key) */
-export interface FileRef { url: string; sha?: string; name?: string }
+/** one file to read: its presigned URL and, from /bundle, the sha256 (the browser cache key) and size of its bytes
+    (EXEC-MU-RUNTIME T7: rack.ts FileRef, checked by readVerified) */
+export type { FileRef } from './rack';
 /** `dates` (EXEC-TERMINAL-ASSETS): the daily sessions of the chart's own ticker; with it the broker files of another ticker
     (an added asset's Flow Timeline) are put on those sessions, and its price is not read */
 export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[]; tf?: Timeframe; dates?: string[] }
@@ -21,26 +22,27 @@ export type WorkerAnswer =
   | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; flowTo: number; dates: string[]; rows: BrokerRow[][] }
   | { id: number; type: 'events'; rows: Record<string, unknown>[] }
   | { id: number; type: 'stats'; files: FileStat[] }
-  | { id: number; type: 'error'; message: string; status: number };
+  /** `code` DATA_INTEGRITY: a file was not the one /bundle announced (rack.ts IntegrityError, `detail` what differed) */
+  | { id: number; type: 'error'; message: string; status: number; code?: string; detail?: string };
 
 interface Columnar { columns: string[]; [k: string]: any }
 
 /* EXEC-TERMINAL-SPEED step 3 (user 2026-10-26: "Cache boleh, tapi jangan sampai cache itu terlalu menjadi besar"): the
-   files are kept in the browser (IndexedDB) under the sha256 of their bytes, the least recently used going first; a
-   file is stored only when its bytes hash to the sha256 /bundle announced. Since EXEC-BACKTEST-LOAD (K3) the cache and
-   the download (asked again on a cut-off body or a 5xx, ERRORS M251) are the module every rack page shares (rack.ts). */
+   files are kept in the browser (IndexedDB) under the sha256 of their bytes, the least recently used going first. Since
+   EXEC-BACKTEST-LOAD (K3) the cache and the download (asked again on a cut-off body or a 5xx, ERRORS M251) are the module
+   every rack page shares (rack.ts), and since EXEC-MU-RUNTIME T7 so is the check: a file is drawn and stored only when
+   its bytes have the size and sha256 /bundle announced, from the network or the cache (readVerified; before T7 a
+   mismatched download was drawn and only not stored, the size was never checked and a cached copy was never checked
+   again). */
 const cache = fileCache();
 export const stats: FileStat[] = [];
 
-/* gzip JSON from a presigned URL (or the browser cache); a body the browser already inflated is read as is */
+/* gzip JSON from a presigned URL (or the browser cache), checked first (rack.ts readVerified: IntegrityError when the
+   bytes are not the announced file); a bare URL is a file no index describes, read unchecked, and a body the browser
+   already inflated is read as is */
 export async function download(file: string | FileRef): Promise<Columnar> {
   const ref = typeof file === 'string' ? { url:file } : file, t0 = performance.now();
-  let bytes: Uint8Array | null = ref.sha ? await cache.get(ref.sha) : null;
-  const cached = !!bytes;
-  if (!bytes) {
-    bytes = await fetchFile(ref.url);                      // DownloadError carries the storage host's status
-    if (ref.sha && typeof crypto !== 'undefined' && crypto.subtle && await sha256Hex(bytes) === ref.sha) cache.put(ref.sha, bytes);
-  }
+  const { bytes, cached } = await readVerified(file, cache);
   stats.push({ name:ref.name || ref.url.split('?')[0].split('/').slice(-2).join('/'), ms:Math.round(performance.now() - t0), bytes:bytes.byteLength, cached });
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
     const stream = new Blob([bytes as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -106,7 +108,8 @@ if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.Wor
   scope.onmessage = async (e: MessageEvent<WorkerJob>) => {
     const { id, price, broker, events, tf, dates:onto } = e.data;
     const post = (answer: WorkerAnswer, transfer: Transferable[] = []) => scope.postMessage(answer, transfer);
-    const fail = (err: any) => post({ id, type:'error', message:err?.message || 'The terminal could not read its data.', status:err?.status || 0 });
+    const fail = (err: any) => post({ id, type:'error', message:err?.message || 'The terminal could not read its data.', status:err?.status || 0,
+      ...(typeof err?.code === 'string' ? { code:err.code } : {}), ...(typeof err?.detail === 'string' ? { detail:err.detail } : {}) });
     /* EXEC-TERMINAL-1026B F5 (user 2026-10-26: "dimuat di awal tahun, tapi setelah terload maka sistem akan otomatis meload
        seluruh data"): the broker files (about 98 % of a ticker's bytes) come newest first: the last RECENT years are read
        and answered (`broker`), then the older years follow by themselves and the whole history is answered

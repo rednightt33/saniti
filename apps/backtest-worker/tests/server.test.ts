@@ -24,7 +24,7 @@ import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';
 import { PlannedClient } from '../src/load.ts';
 import { setLogSink } from '../src/log.ts';
 import { runJob, runSignals } from '../src/run.ts';
-import { createApp } from '../src/server.ts';
+import { PhaseClock, createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import type { References } from '../src/validate.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, checkRegistry } from '../src/version.ts';
@@ -696,6 +696,60 @@ test('start-up: the registry artifact matches; a bad configuration exits 1 namin
     up.child.kill('SIGTERM');
     assert.equal(await exit, 0);
   }
+});
+
+/* ---- EXEC-MU-RUNTIME Phase 0: where the time goes (verification/edge_multiuser/runtime/backtest.md section 7) ---------- */
+const linesFrom = (from: number) => lines.slice(from).map(l => JSON.parse(l) as Record<string, any>);
+
+test('PhaseClock: the time from each reported phase to the next, a phase reported again is no change', () => {
+  const c = new PhaseClock(100);
+  c.report('loading', 110); c.report('loading', 150); c.report('signals', 160); c.report('backtest', 160.4); c.report('signals', 170);
+  assert.deepEqual(c.stop(200), { start: 10, loading: 50, signals: 30, backtest: 10 });  // rounded totals; signals twice summed (0.4 + 30)
+});
+
+test('job_end names the job (mode, stocks, broker) and where its time went (phases_ms), with the memory; job_start too', async () => {
+  const id = newId(), q = portfolioDefault(), from = lines.length;
+  assert.equal((await call('POST', '/v1/jobs', jobBody(id, q))).status, 202);
+  const { status, phases } = await until(id);
+  assert.equal(status.state, 'FINISHED', JSON.stringify(status.error));
+  const seen = linesFrom(from), start = seen.find(o => o.event === 'job_start' && o.job_id === id)!, end = seen.find(o => o.event === 'job_end' && o.job_id === id)!;
+  for (const o of [start, end]) assert.deepEqual([o.mode, o.tickers, o.broker], ['portfolio', STOCKS.length, false]);
+  const names = Object.keys(end.phases_ms), total = Object.values(end.phases_ms as Record<string, number>).reduce((a, b) => a + b, 0);
+  assert.equal(names[0], 'start'); assert.equal(names[names.length - 1], 'finalizing');
+  assert.ok(subsequence(names.slice(1), PHASES) && phases.slice(1).every(p => names.includes(p)), `${names} / ${phases}`);
+  assert.ok(Object.values(end.phases_ms).every(v => Number.isInteger(v) && (v as number) >= 0));
+  assert.ok(Math.abs(total - end.ms) <= names.length + 1, `${total} vs ${end.ms}`);          // the phases cover the job
+  assert.ok(end.rss_bytes > 0 && end.max_rss_bytes + 4096 >= end.rss_bytes);
+  observed.phases_ms = end.phases_ms;
+});
+
+test('preview_end: each preview\'s wait in the queue (preview_wait_ms), its compute time, the previews ahead and its outcome', async () => {
+  const body = (tickers: string[]) => ({ schema_version: 1, tickers, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry });
+  slow.bundleMs = 300;
+  try {
+    const from = lines.length;
+    const first = call('POST', '/v1/signals', body(STOCKS));
+    await tick(80);
+    const ac = new AbortController();
+    const left = call('POST', '/v1/signals', body(['GOTO']), { signal: ac.signal }).catch(e => e);   // queued behind it
+    await tick(30);
+    const second = call('POST', '/v1/signals', body(['BBCA']));
+    await tick(30); ac.abort();
+    assert.equal((await left).name, 'AbortError');
+    const [a, b] = await Promise.all([first, second]);
+    assert.equal(a.status, 200); assert.equal(b.status, 200);
+    slow.bundleMs = 0;
+    assert.equal((await call('POST', '/v1/signals', body(['BBCA', 'NOPE']))).status, 422);
+    const ends = linesFrom(from).filter(o => o.event === 'preview_end'), by = (n: number, outcome: string) => ends.find(o => o.tickers === n && o.outcome === outcome)!;
+    assert.equal(ends.length, 4);
+    const [p1, gone, p2, bad] = [by(STOCKS.length, 'ok'), by(1, 'left'), by(1, 'ok'), by(2, 'failed')];
+    assert.deepEqual([p1.ahead, gone.ahead, p2.ahead], [0, 1, 2]);                       // the computing one and the queued ones
+    assert.ok(p1.compute_ms >= 300 && p1.preview_wait_ms < 50, JSON.stringify(p1));
+    assert.ok(gone.compute_ms === null && gone.preview_wait_ms >= 20, JSON.stringify(gone)); // left while queued
+    assert.ok(p2.preview_wait_ms >= 100 && p2.compute_ms >= 300, JSON.stringify(p2));      // waited for the first
+    assert.equal(bad.code, 'UNKNOWN_TICKER');
+    assert.ok(ends.every(o => Number.isInteger(o.refs_ms) && o.rss_bytes > 0));
+  } finally { slow.bundleMs = 0 }
 });
 
 /* ---- what was observed (durations on this machine, for the report; not asserted) ---------------------------------- */

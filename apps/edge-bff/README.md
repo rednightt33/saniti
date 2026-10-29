@@ -96,6 +96,15 @@ SQLSTATE or libpq's text without credentials, names or addresses. The lease toke
 lets reap end a job its follower left. A follower that finds the job no longer its own (reap took it, or a write of its
 own committed although the database's answer was lost) stops and logs `backtest_lease_lost` once, with the job's state
 read then.
+Measurement lines (EXEC-MU-RUNTIME Phase 0; `verification/edge_multiuser/runtime/backtest.md` section 7), INFO, ids,
+hashes, counts, states and milliseconds only: `backtest_submit` (each submission: `request_key`, the sha256 of the
+request in the worker's canonical form, to count identical requests; the validation and queue-insert times; a refusal's
+code), `backtest_claim` (`queue_wait_ms`), `backtest_poll` (each status read: round trip, state, phase),
+`backtest_job_timing` (one per job when the follower leaves it: queue wait, hand-over, the worker's own time, the poll
+slack between its end and the read that saw it, result download, split and store, end to end; `JobTiming`) and
+`backtest_preview` (each preview: outcome, the wait for the owner's older preview, the worker's answer time). The
+module's lines reach the service log since this change: under uvicorn's own logging set-up an INFO line of
+`edge_bff.backtest` used to find no handler and was dropped (`backtest_state` included).
 A job is never sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or no longer keeping its result (`410
 RESULT_GONE`: a newer job started there) is `FAILED WORKER_LOST` at once, not answering three times in a row is `FAILED
 WORKER_LOST` too, as is a job reap took because its lease expired (edge-bff stopped while following it; the worker is
