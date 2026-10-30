@@ -5267,3 +5267,46 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
     are older leftovers, for the 19:00 WIB full cleanup.
 - **IaC:** `railway config plan`: "Your Railway configuration is already up to date."
 - **Rollback:** CLI upload of the `apps/terminal-publisher` tree of `c2544ff` (M229 option A).
+
+## 2026-10-30 — edge-bff `56c765d0` (EXEC-MONITOR-REVAMP: Monitor page and top bar follow AI_revamp.html)
+
+- **Commit:** `71f31c6` on `main`, deployed by the GitHub connection: edge-bff deployment `56c765d0` SUCCESS
+  (04:16:52 BUILDING, 04:17:34 SUCCESS UTC). Front end only (static page, labels, view words, Screener theme default);
+  no variable, no other service.
+- **Before the push:** no `edge_` run in flight (the market-ai-orc log's last run `edge_deb3fc4d…` at 19:31 UTC on
+  2026-10-29; checked 04:16 UTC).
+- **Checks:** the live `/monitor` page is byte-identical to `apps/edge-bff/static/index.html` of `71f31c6` (200, 560,628
+  bytes, the "MONITOR-REVAMP" style block present); the live `edge-labels.js` carries the new words; the live Screener
+  bundle `assets/index-CvB2JGE9.js` is the name of the local build of the same source (theme default light); the page
+  opens in a browser without a page error and starts light. Signed-in screens were checked on the static preview and
+  the edge-bff suite before the push (267 passed, 3 failed = the `main` baseline), not live (no credentials used).
+- **Rollback:** redeploy edge-bff `074b2cc9` (commit `85f1e6c`).
+
+## 2026-10-30 — edge-bff `e9e2794b`, `20fb04fa` (EXEC-MONITOR-REVAMP lanjutan "1 2 4": Branch nesting, lineage bar, sidebar Share, ⌘K)
+
+- **Commits:** `b92c7c2` on `main` → edge-bff deployment `e9e2794b` SUCCESS (05:24:58 created, SUCCESS by 05:25:35
+  UTC); `b3d55ad` (16 px under the lineage bar) → `20fb04fa` SUCCESS (05:29:50 created, SUCCESS by 05:30:26 UTC).
+  Front end only (static page, `edge-client.js` list mapping, labels); no variable, no other service.
+- **Before the push:** no `edge_` run in flight (market-ai-orc log: last `POST /v1/agent/run` was `edge_deb3fc4d…` on
+  2026-10-29 19:29 UTC, saved; later entries only reads; checked 05:24 UTC).
+- **Checks (live, read-only; signed in with the Railway-held login in memory, no question sent, no bookmark, pin,
+  delete or share file):** `/monitor`, `edge-client.js` and `edge-labels.js` byte-identical to `b3d55ad`; 55
+  conversations, the 2 Branch rows sit under their parent with the branch icon (16 px indent); the lineage bar heads the
+  branch, 768 px wide like the first turn, 16 px above it; "Share latest answer" is enabled and opens PDF/PNG/Word;
+  Ctrl+K focuses "Search conversations"; the Details text without a run is the prototype's; light and dark; no page
+  error (the only HTTP ≥400 is the 401 session probe before signing in).
+- **Rollback:** redeploy edge-bff `56c765d0` (commit `71f31c6`).
+
+## 2026-10-30 — edge-bff `b5e5e8ac` (Monitor: Terminal-speed running ring, dates "19 October 2026", suggestions folded)
+
+- **Commit:** `c65be8a` on `main` (rebased onto `4f7bdaf`, ERRORS M308 from another session; no overlap) → edge-bff
+  deployment `b5e5e8ac` SUCCESS (07:34:17 created, SUCCESS by 07:34:55 UTC). Front end only; no variable, no other
+  service.
+- **Before the push:** no `edge_` run in flight (market-ai-orc log: last run `edge_28475c26…` completed 07:12:56 UTC;
+  checked 07:33 UTC).
+- **Checks (live, read-only; login from Railway in memory, no question sent):** `/monitor` byte-identical to `c65be8a`;
+  on a 390 px phone, the user's IHSG conversation shows its table dates as "19 October 2026" (0 ISO dates left in the
+  answers), "Suggested next questions (5)" and "Insight ideas (3)" folded and closed, no kind pill; the served style
+  turns the running rings in 0.15 s; no page error. The running card itself was not shown live (it needs a question
+  sent); it is covered by the edge-bff suite (268 passed, 2 failed = baseline).
+- **Rollback:** redeploy edge-bff `20fb04fa` (commit `b3d55ad`).

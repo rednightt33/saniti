@@ -29,12 +29,29 @@ def test_branch_opens_a_new_tab_that_continues_the_answer(fixture_server, browse
     branch_id = tab.url.split('/c/')[1][:37]  # EXEC-CHAT-URL: the conversation's own address
     assert branch_id != parent[2].get('conversation_id')
     tab.get_by_placeholder('Ask a research question…').fill('lanjut dari sini')
-    tab.get_by_role('button', name='Submit', exact=True).click()
+    tab.get_by_role('button', name='Send', exact=True).click()
     tab.wait_for_function('() => document.querySelectorAll("article.result").length === 2 && !document.querySelector(".composer-status")')
     assert orc.calls[-1][2]['conversation_id'] == branch_id
     divider = tab.locator('.edge-branch-divider').bounding_box()
     own = tab.locator('.research-exchange:not(.inherited)').bounding_box()
     assert divider['y'] < own['y']  # the divider sits before the branch's own question
+    # MONITOR-REVAMP (user 2026-10-30, AI_revamp.html): the lineage bar heads the branch, as wide as the reading column,
+    # and the branch nests under its parent in the list, with the branch icon
+    inherited = tab.locator('.research-exchange.inherited').bounding_box()
+    assert divider['y'] + divider['height'] + 14 <= inherited['y'] and abs(divider['x'] - own['x']) <= 1 and abs(divider['width'] - own['width']) <= 1, (divider, own)
+    tab.reload()
+    tab.locator('.conversation.child').wait_for(timeout=10000)
+    rows = tab.locator('.conversation-group .conversation')
+    titles = rows.evaluate_all('rows => rows.map(r => [r.classList.contains("child"), Boolean(r.querySelector("strong > svg"))])')
+    at = [i for i, (child, _) in enumerate(titles) if child]
+    assert len(at) == 1 and at[0] >= 1 and titles[at[0]][1] and not titles[at[0] - 1][0], titles
+    assert tab.locator('.conversation.child').get_attribute('aria-selected') == 'true'
+    child, parent = tab.locator('.conversation.child').bounding_box(), rows.nth(at[0] - 1).bounding_box()
+    assert child['x'] > parent['x'] and abs(child['x'] + child['width'] - parent['x'] - parent['width']) <= 1, (child, parent)
+    # ⌘K goes to "Search conversations"
+    tab.evaluate('() => document.activeElement?.blur()')
+    tab.keyboard.press('Control+K')
+    assert tab.evaluate('() => document.activeElement === document.querySelector(".conversation-panel .search input")')
     if (directory := __import__('os').environ.get('EDGE_UI_ARTIFACT_DIR')):
         tab.screenshot(path=f'{directory}/branch-tab.png')
     tab.close()
@@ -54,7 +71,7 @@ def test_the_side_chat_asks_about_one_answer_and_is_not_in_the_list(fixture_serv
     assert frame.locator('.research-exchange').count() == 0 and frame.locator('.edge-side-empty').is_visible()
     assert frame.locator('.conversation-panel').is_hidden() and frame.locator('.edge-branch-action').count() == 0
     frame.get_by_placeholder('Ask a research question…').fill('kenapa naik?')
-    frame.get_by_role('button', name='Submit', exact=True).click()
+    frame.get_by_role('button', name='Send', exact=True).click()
     frame.locator('article.result').first.wait_for(timeout=10000)
     side_id = orc.calls[-1][2]['conversation_id']
     assert side_id and side_id != orc.saved[answered_id]['conversation_id']

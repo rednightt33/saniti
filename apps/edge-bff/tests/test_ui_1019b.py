@@ -182,7 +182,7 @@ def test_the_running_step_shows_its_label_and_the_total_keeps_counting(fixture_s
         # EXEC-UI-1024 1A (user 2026-10-24: "1A yg dihapus hanya yang 7S"): the running step shows its label only;
         # the run's total keeps counting
         page.wait_for_function("() => Number(document.querySelector('.edge-run-progress-now .edge-run-clock')?.dataset.seconds) >= 130")
-        assert step.inner_text().strip() == 'Thinking', step.inner_text()
+        assert step.inner_text().strip() == 'Thinking\u2026', step.inner_text()  # MONITOR-REVAMP: "…" as AI_revamp.html
         assert step.locator('.edge-run-clock').count() == 0
     finally:
         release.set()

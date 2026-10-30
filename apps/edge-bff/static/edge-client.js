@@ -61,7 +61,9 @@
   async function conversations() {
     let offset = 0, result = [];
     do { const page = await api('/conversations?limit=100&offset=' + offset); result.push(...page.items); offset = page.next_offset; } while (offset !== null);
-    return result.map(ui => ({id:ui.conversation_id,title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,lastMessage:ui.last_message||null,messages:[],runs:[]}));
+    // MONITOR-REVAMP (user 2026-10-30): the list keeps a branch's kind and parent so it nests under that conversation
+    return result.map(ui => ({id:ui.conversation_id,title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,lastMessage:ui.last_message||null,
+      kind:ui.kind||'MAIN',parent:ui.parent_conversation_id?{conversationId:ui.parent_conversation_id,requestId:ui.parent_request_id}:null,messages:[],runs:[]}));
   }
   // EXEC-UI-1012 C: the first question's answer is headed by the short title Orc's first-message router wrote
   // EXEC 2026-10-20 (user screenshot: "…buying p"): a title made from the question is cut at a word, with an ellipsis

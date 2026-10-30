@@ -59,7 +59,8 @@ def test_one_gap_above_the_composer_and_a_768_column_with_panels_open_or_closed(
     page.evaluate(bottom)
     page.wait_for_timeout(300)
     first = page.evaluate(measure)
-    assert 14 <= first['gap'] <= 22, first
+    # MONITOR-REVAMP (AI_revamp.html .col, .composer): 40 px under the last answer and the box's own 12 px above it
+    assert 48 <= first['gap'] <= 56, first
     assert first['exchange'] <= 768.5 and first['composer'] <= 768.5, first
     show = page.get_by_role('button', name='Show Details', exact=True)
     if show.count():

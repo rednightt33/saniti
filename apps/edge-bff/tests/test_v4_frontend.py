@@ -95,6 +95,7 @@ def test_on_a_phone_the_running_line_sits_right_above_the_composer(slow_server, 
     page.locator('.edge-inline-progress').wait_for()
     time.sleep(0.5)
     gap = page.evaluate('''() => {
-        const progress = [...document.querySelectorAll(".edge-inline-progress")].pop().getBoundingClientRect();
+        // MONITOR-REVAMP (AI_revamp.html): the running answer is a card; its bottom edge is measured
+        const progress = [...document.querySelectorAll(".edge-inline-progress-wrap")].pop().getBoundingClientRect();
         return document.querySelector(".composer").getBoundingClientRect().top - progress.bottom; }''')
     assert 0 <= gap <= 20, gap  # was 60 px (22 exchange margin + 32 scroll padding + 6 composer margin)

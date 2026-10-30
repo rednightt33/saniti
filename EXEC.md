@@ -8963,3 +8963,251 @@ dihapus dari file ini (aturan AGENTS); hasil, bukti dan tes ada di ERRORS M304, 
 butir 28), RAILWAY_CHANGELOG dan DATABASE_CHANGELOG 2026-10-29. Tiga uji live (`edge_6f8de485…`, `edge_dd6cf882…`,
 `edge_deb3fc4d…`) dan temuan baru M306 di ERRORS. Kode: `943f312` (orc), `1a52498` (sandbox), `3bed26b` (M217,
 telegram-monitor), migrasi `20261029_001/002/003`.
+
+## EXEC-MONITOR-REVAMP — halaman Monitor (AI) dan top bar mengikuti AI_revamp.html (go 2026-10-29, deploy 2026-10-30)
+
+Rencana dan keputusan A/B: `PLAN.md` "MONITOR-REVAMP". Tambahan keputusan user selama eksekusi:
+- 2026-10-29, top bar dipakai bersama empat tab: "Semua tab"; tema awal terang juga untuk Screener: "Ubah default
+  Screener juga".
+- 2026-10-29, sepuluh bagian prototipe yang bertentangan dengan keputusan lama (saran lanjutan dilipat, tanpa "Sends
+  right away", tabel selebar isi, semua sel rata kiri dan tengah, kicker berjarak huruf, Bookmark di rail desktop, jarak
+  18 px di atas kotak pesan, "High", langkah selesai dilipat, lampiran kutipan tanpa kotak): "Ikuti HTML baru semua".
+- 2026-10-30, sesudah review pratinjau statis: "aight pls proceed".
+
+Isi (front-end edge-bff saja; API, `edge-client.js` dan perilaku tetap):
+- Token Design Spec v1 di `.app` (terang; gelap di `html.dark`), tipografi Inter per peran, ikon prototipe; tema awal
+  terang (`edge-auth-monitor-theme` kosong = light; `screener/src/storage.ts` ikut).
+- Top bar keempat tab; panel kiri ("Workspace", Details/Share di samping menu, "New Chat", "Search conversations",
+  filter pil, baris percakapan); kartu jawaban (kicker dengan pill status, metarow, Tokens 12K, evidence + centang,
+  aksi di pita bawah, "Ask about this"); temuan (grid label/teks); rencana (scope chips, grid field, asumsi/batasan dua
+  kolom); "Your next step · …" dengan "Sends right away"; saran lanjutan satu daftar terbuka dengan pill jenis;
+  Assumptions/Limitations/Methodology terlipat; tabel berbingkai selebar kartu (HP: selebar isi, geser samping), Download
+  dan Enlarge di kanan bawah; kotak pesan (tombol kirim ikon, "↵ to send", Stop merah, "Stop & send", "Data scope"
+  nonaktif); Details (tab + tutup satu baris, Pinned/Response history dengan ikon dan jumlah, kartu riwayat, Sources
+  terlipat per bagian dan diingat browser, Pinned hanya di tab Flow); kartu run berjalan (pill "Running · waktu",
+  langkah selesai dan langkah sekarang); menu model, Share, teks terpilih, dialog, toast; lebar awal sidebar 272 px,
+  Details 340 px.
+- Tidak 1:1 (data tidak ada di API daftar percakapan atau keputusan A/B): pill status dan anak Branch di daftar
+  percakapan, grup "This week", status "Approved" rencana, waktu relatif, tombol Stop di kartu run, tooltip klaim khusus.
+- Tes: hanya bagian tampilan disesuaikan (komentar "MONITOR-REVAMP" di tiap tes); satu tes baris status kotak pesan
+  diganti tes petunjuk "Running… press to stop" dan tombol Stop. Suite edge-bff (Postgres 16 lokal, Chromium):
+  267 lulus, 3 gagal = baseline `main` sebelum revamp (`test_ui_1015c` judul pendek di 1440, `test_composer_layout`
+  mobile ×2, gejala sama).
+- Infra: hanya edge-bff (static + build Screener); hasil deploy di `RAILWAY_CHANGELOG.md`.
+
+Lanjutan 2026-10-30 (cek live dibanding `AI_revamp.html`, read-only; user: "ada fitur branch chat di panel kiri yg
+sepertinya belum aktif, cek yg lain"; pilihan user "1 2 4"). Front-end edge-bff saja; API dan query BFF tetap:
+- 1, Branch di daftar percakapan: API daftar sudah mengirim `kind` dan `parent_conversation_id`; `edge-client.js`
+  `conversations()` kini menyimpannya. Baris BRANCH tampil tepat di bawah percakapan induknya (grup induk), menjorok
+  16 px dengan garis penghubung dan ikon branch (prototipe `.conv.child`); branch dari branch ikut induknya; branch yang
+  induknya tidak ada di daftar (tersembunyi atau tersaring) tetap baris biasa di grupnya sendiri, dengan ikon.
+- 2, Bar "Branched from …": selebar kolom baca (maks 768 px; sebelumnya ±950 px live) dan berada paling atas percakapan
+  branch, di atas giliran yang dilanjutkan (prototipe `.lineage`). Side chat tidak berubah.
+- 4, tiga hal kecil: tombol Share di header panel kiri (dan di rail saat dilipat atau di HP) membuka menu Share
+  jawaban terakhir yang selesai (PDF/PNG/Word, sama dengan Share di jawaban), bernama "Share latest answer" agar tidak
+  bentrok dengan Share jawaban; nonaktif bila belum ada jawaban. ⌘K/Ctrl+K memfokuskan "Search conversations" bila
+  kotak itu tampil (selain itu tetap "Coming soon" pasar). Teks Details kosong: "Open or start a conversation to see
+  its outline, sources and run details."
+- Tidak dikerjakan (tidak dipilih): status di daftar percakapan (butuh perubahan query BFF).
+- Tes: tes Share sidebar (menu terbuka, tidak terpotong), tes branch (bar di atas, selebar kolom, baris anak dengan ikon
+  di bawah induk, ⌘K) ditambahkan; tes yang mengharapkan "Public sharing unavailable" nonaktif disesuaikan. Suite edge-bff:
+  269 lulus, 1 gagal = baseline (`test_ui_1015c` judul pendek di 1440; dua tes `test_composer_layout` mobile baseline kali
+  ini lulus).
+- Deploy: edge-bff `e9e2794b` (`b92c7c2`) dan `20fb04fa` (`b3d55ad`, jarak 16 px di bawah bar lineage dari cek live)
+  SUCCESS; cek live read-only di `RAILWAY_CHANGELOG.md`.
+
+Lanjutan 2026-10-30 siang (screenshot HP user). Front-end edge-bff saja:
+- Tanggal (user: "format date yang ada di format sebagai DD MMMM YYYY"; pilih "19 October 2026"): tanggal di semua jawaban
+  (bukan hanya lane fast, keputusan V5 diganti) ditulis "19 October 2026", bulan "October 2024", tahun di kolom Tahun
+  "2020"; di teks, tabel, Assumptions/Limitations/Methodology dan nilai data (Sources "Data as of"). Kode, link dan jam
+  tetap; tabel tetap terurut sebagai tanggal.
+- Saran (user: "suggested next question dan insight idea bisa disamakan? bisa collapse dan expand each"; pilih
+  dipisah dan terlipat, tertutup di awal): "Suggested next questions (n)", "Insight ideas (n)", "Further research (n)"
+  jadi bagian terlipat sendiri-sendiri, tampilannya sama dengan Assumptions/Limitations; pill jenis dihapus (judul
+  bagian sudah menyebut jenisnya); klik tetap mengirim kata-katanya.
+- Kartu running (user: "berapa kecepatan putaran ... buat sama dengan terminal speednya"): tiga titik (siklus 1,2 s)
+  diganti cincin Terminal; cincin langkah (0,8 s) dan cincin Details Flow (1 s) jadi 0,15 s per putaran seperti
+  `.ml-spin` Terminal; dengan "kurangi gerakan" 1,6 s. Baris "AI request running" disembunyikan begitu langkah Orc
+  tampil, sehingga kartu menyebut "Running" sekali (prototipe). Tumpang-tindih yang terlihat di screenshot ternyata
+  coretan pena: reproduksi HP 390 px menunjukkan kotak bersebelahan, tidak bertumpuk.
+- Tes: suite edge-bff 268 lulus, 2 gagal = baseline. Deploy edge-bff `b5e5e8ac` (`c65be8a`) SUCCESS; cek live di
+  `RAILWAY_CHANGELOG.md`.
+
+## EXEC-TERMINAL-FLOW-IND — 39 indikator Flow di Terminal, frekuensi dan klasifikasi broker di storage (go 2026-10-30)
+
+**Go, 2026-10-30 (kata user):** "Alright, please proceed." atas rencana di bawah (S1-S8). Dua konfirmasi yang ditanyakan
+bersama rencana diambil sesuai usulan: kolom frekuensi `bf`/`sf`; tanggal awal FL18-FL20 (dan kelompok Top-N bekunya)
+mengikuti candle pertama yang terlihat. Hanya dev. Setiap langkah berdasarkan inspeksi kode, log dan data live saat itu.
+
+
+Sumber: lampiran user `indicator_specs.xlsx` (30 indikator broker); versi final `flow_indicator_parameters_final.xlsx`
+(sheet `Indicator_SPECS_reviewed`, `Parameter_Terminal`, `Keputusan`, `Screener_ke_Chart`). Keputusan 2026-10-30 (kata
+user): grup Flow ("benar ini masuk ke indikator \"Flow\""); A1 "Terminal dulu"; A2 "Jadikan 1 saja, di storage saat ini
+sudah ada broker, tinggal di tambahkan kan?" (frekuensi masuk file broker yang ada; pembaca membaca per nama kolom,
+`backtest/src/core/datafile.ts` `brokerRows`, `terminal/src/data/worker.ts`); urutan "B dulu" (storage dulu); B3 "Yes
+agree" (Top-N menurut net beli Rp); B4 "Hitung hulang tiap hari"; B5 "Yes agree" (default Top-N; N menjadi 3, keputusan di bawah); C6 "Go with B"
+(pasangan beli/jual = satu indikator dengan Side Buy/Sell/Both); D7 "OK"; D8 "OK"; D9 "Ya"; D10 "Ok make sense (punya
+transaksi beli atau jual pada hari itu)"; D11 "Ya"; D12 "ya"; E13 "OK"; E14 "OK"; F15 "tetap LOT"; nama baru #11/#13/#14
+("Nama indikator pakai nama baru diatas"); #25 "B alright" (Show cohort total di Broker Inventory); anchor default "no
+need"; Default Display "abaikan kata default ini."; koreksi rujukan #10->#9, #11->#1/#2, #19->#18, #26->#27 "benar".
+
+- 23 indikator Flow (FL01-FL23) dari 30 baris spec; 193 parameter di sheet `Parameter_Terminal`.
+- 12 baris spec butuh frekuensi (FL01, FL02, FL04-FL06, FL08-FL10). Frekuensi ada di Feature 05 (sampel read-only
+  BBCA/GOTO/WIFI 2016-2026 terisi 100%), tetapi `apps/terminal-publisher/publisher.py` `BROKER_SQL` tidak mengirimnya.
+
+Keputusan 2026-10-30 (kata user): FL18-FL20 "yes pakai kelompok broker tetap untuk ketiganya."; nama FL01 "Average Lot per
+Transaction": "yes"; indikator preset Screener di chart: "ini tidak usah."; tujuan (kata user): "karena ini fase pemindahan
+data dari pg ke storage, maka we might as well pindahkan data yang nantinya engine screener hanya perlu build the
+formula, karna data sudah ada."
+
+Keputusan 2026-10-30 lanjutan (kata user): breadth "Kita pakai D10" (satu definisi untuk Terminal dan Screener);
+klasifikasi broker ke storage "Ok, tapi nanti harus dibuat opsi juga buat user mereka mau manually edit mana broker
+institusi/ mana broker retail. Tapi ini nanti saja saat pembangunan screener."; file lintas saham Screener "nanti saja ...
+This is for later setelah fase terminal done."; nama "Samakan"; varian Screener "lebih baik dibuat baru, dengan nama
+indikator dipisahkan". Usulan FL24-FL39 (dari metrik Screener) di Excel untuk direview user.
+
+Keputusan 2026-10-30 lanjutan (kata user): Bandar "Kita pakai B dulu ya which B: pakai batas Screener (6/10%), default
+Top 3." (berlaku untuk FL24, panel Bandar Terminal `broker.ts` verdict, dan Screener); "Semua indikator F24-35 OK kecuali:"
+FL25, FL33, FL34.
+
+Keputusan 2026-10-30 lanjutan (kata user): "FL 25 tetap ada.", "FL 33 OK", "FL 34 OK" (kelompok institusi/ritel bisa
+dipilih user, default dari `IDX_Broker_Profile`).
+
+Keputusan 2026-10-30 lanjutan (kata user): "FL36 OK", "FL 37 OK", "FL 38 OK", "FL 39 OK"; 25 default usulan dan arti
+"hari rolling" = candle di chart mingguan/bulanan: "2-3 OK"; rilis: "4 sekaligus" (39 indikator sekaligus setelah
+storage).
+
+Keputusan 2026-10-30 lanjutan (kata user): "bandar" = N broker dengan net beli (Rp) terbesar dalam jendela indikator,
+dihitung ulang tiap hari, default N = 3 untuk semua ("Usul saya: satu default untuk semua, yaitu Top 3 ... OK"); nama
+pola "Keluarga · pembeda" ("Indikator yang hanya beda dasar atau filter, tapi namanya jauh berbeda OK"); panel Bandar
+Terminal ikut 6/10% dan Top 3 ("3. OK"). User: "Jangan go dulu."
+
+Keputusan 2026-10-30 lanjutan (kata user): histori percentile FL21/FL37 250 sesi ("1. OK"); FL07 "Tetap pisah dulu";
+menu Flow dibagi subgrup per keluarga ("3. OK"). Permintaan rencana (kata user): "Mari rekap rencananya. Inspect kondisi
+arsitektur, kondisi PG, kondisi storage serta worker yang memindahkan datana ... The end goal for now is that the terminal
+will have that flow indicators according to Excel you sent earlier. And later on, the raw data that needed untuk generete
+flow indicator for this terminal, can also be simultaneously used setelah di olah oleh engine yang nanti digunakan u/
+screener and backtest as well. Generate implementation plan. Siapkan 2 sub agents sonnet 5.5 medium later on untuk review".
+Catatan: entri bertanggal 2026-10-31 di versi sebelumnya salah tulis; semua keputusan ini dari 2026-10-30.
+
+Kontrak yang disepakati: `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx` (39 indikator FL01-FL39,
+275 parameter; sheet `Indicator_SPECS_reviewed`, `Parameter_Terminal`, `Ringkasan`, `Keputusan`, `Screener_ke_Chart`,
+`Indikator_baru_dari_Screener`), dibuat oleh `build_spec_workbook.py` dari masukan user `user_input_20261030.xlsx`.
+
+### Inspeksi 2026-10-30 (kode, storage dan database saat itu; read-only)
+
+- **Publisher** (`apps/terminal-publisher/publisher.py`, live `8d4e509c`, cron `0,30 0,1,12 * * *`; EXEC-PUBLISHER-SPEED):
+  bucket paralel 16 thread, kunci objek beralamat isi (`<sha>`, M250), hapus file yang digantikan 600 s sesudah
+  `state.json` (`delete_replaced`), listing penuh hanya run 19:00 WIB. File broker: tahunan untuk dua tahun terakhir dan
+  `pack/{ticker}/broker-archive` untuk tahun sebelumnya, kolom `d,b,i,m,bv,sv,bl,sl` + `gap` (`broker_doc`, baris 330;
+  `BROKER_SQL` baris 97 dari Feature 05). Mode `daily` hanya menulis ulang ticker-tahun yang datanya baru; perubahan
+  format butuh mode `broker-range` (seluruh tahun) atau `backfill` (`_run`, baris 1068-1112). `ref/brokers` berisi
+  `code,name,type` dari `IDX_Broker_Profile` (`publish_refs`, baris 943).
+- **Storage** (`state.json` dan 845 manifest, probe read-only `verification/terminal_api/flow_indicators/storage_probe.py`): publikasi 2026-10-30 01:58 UTC,
+  harga s.d. 2026-10-29, broker s.d. 2026-10-27, `broker_first_year` 2016. Broker: 7.091 file tahunan (401,0 MB,
+  40,3 juta baris) + 811 arsip (288,0 MB, 30,2 juta baris). Ukur ulang BBCA 2025 dengan `broker_doc`: tanpa frekuensi
+  257.543 byte, dengan `bf,sf` 311.039 byte (+21%); encode 0,29 -> 0,35 s.
+- **PostgreSQL** (pgweb read-only): Feature 05 `buy_freq`/`sell_freq` bigint. Sampel 2% (`TABLESAMPLE SYSTEM (2)`):
+  ticker 4 huruf 878.943 baris, 0 frekuensi kosong; simbol bukan 4 huruf 40.869 baris, semuanya kosong (sesuai
+  DATABASE_CHANGELOG 2026-10-22: Freq tidak punya simbol non-4-huruf). 844 saham + 1 indeks yang diterbitkan semuanya
+  4 huruf. 2026-10-15..27 tanpa kosong; tanpa frekuensi pecahan di 2026. `IDX_Broker_Profile`: 112 broker, semuanya
+  berkelas (Institutional-heavy 25, Retail-heavy 19, Mixed 23, Niche 45). Papan di Feature 05: Regular, Nego, Tunai
+  (Terminal menampilkan Tunai sebagai Cash, `worker.ts` `board`).
+- **Pembaca file broker** membaca per nama kolom, kolom tambahan diabaikan: Terminal `worker.ts` `brokerData`
+  (destrukturisasi `d,b,i,m,bv,sv,bl,sl`), Backtest/Screener `backtest/src/core/datafile.ts` `cols` (baris 115) dan
+  `BROKER_COLUMNS` (baris 166), backtest-worker `terminal.ts` `reference` (baris 609-630, `ref/brokers` per nama).
+  `engine_version` Backtest menghitung `backtest/src/core` dan `backtest-worker/src` saja (`version.ts` baris 18-21);
+  tripwire Screener melindungi `calc/indicators.ts` dan `indRegistry.json` (`check_backtest_untouched.mjs` baris 45-46).
+  screener-worker dibangun ulang bila `terminal/src/calc/**` berubah (`.railway/railway.ts` watchPatterns).
+- **Terminal**: Flow indicator memakai `ctx.COMBOS` (per broker × investor × papan, satu array `net` per candle;
+  `worker.ts` baris 75-95) dan skema tulisan tangan (`indicators.ts` `flowDef`, `flowLineDef`). Data broker datang 2 tahun
+  terbaru lebih dulu, lalu seluruh histori (`worker.ts` `RECENT = 2`). Jenis isian dialog yang ada: int, num, select,
+  bool, multi, color, fixed; belum ada tanggal, tombol, dan tanda di bawah candle. Volume terbesar: TLKM 363 kombinasi,
+  2.601 sesi, 234.254 baris (BBRI 242.947 baris).
+
+### Kontradiksi dan hal yang perlu dikonfirmasi (dilaporkan ke user 2026-10-30)
+
+1. Nama kolom frekuensi: file broker memakai singkatan dua huruf (`bv`, `sv`), jadi usulan `bf`, `sf`; katalog
+   Screener (Phase 2) menyebut `buy_freq`/`sell_freq` untuk file `broker_window` yang belum ada. Usulan: `bf`, `sf`, dan
+   katalog Screener menyesuaikan saat Phase 2.
+2. Akibat default tanggal awal = candle pertama yang terlihat (keputusan "no need"): FL18-FL20 dan kelompok Top-N bekunya
+   berubah ketika chart digeser atau di-zoom, sama seperti panel Broker inventory.
+3. Indikator dengan histori panjang (percentile 250, tanggal awal jauh) kosong di awal sampai histori broker lama selesai
+   dimuat (`RECENT = 2`).
+
+### Rencana implementasi (menunggu "go")
+
+**S1. Storage (publisher).**
+- `BROKER_SQL` + `buy_freq`, `sell_freq`; `broker_doc` menulis kolom `bf`, `sf` (bilangan bulat atau null) di file
+  tahunan dan arsip; unit dan arti di `units`; `gap` dan urutan kolom lama tidak berubah; `SCHEMA_VERSION` tetap 1
+  (kolom tambahan, pembaca lama tidak terpengaruh).
+- `ref/brokers`: kolom `classification` dari `IDX_Broker_Profile.broker_classification` (salinan beralamat isi ikut,
+  `index_refs`).
+- `verify` membandingkan juga jumlah `bf`/`sf` per file dengan SQL.
+- Tes `apps/terminal-publisher/tests/test_publisher.py`: kolom baru, null, arsip, refs, verify.
+
+**S2. Terbit ulang semua file broker sekali** (mode `broker-range`, `TERMINAL_FROM=2016-01-01`, `TERMINAL_TO`=hari itu;
+prosedur M229 seperti 2026-10-25): latihan dulu dengan `TERMINAL_TICKERS` beberapa ticker (BBCA, TLKM, BBRI, GOTO, WIFI)
+untuk mengukur waktu dan byte; lalu penuh di luar jendela B6 (00:00-01:45 dan 12:00-13:20 UTC) dan jauh dari tick cron.
+Perkiraan (INFERENCE, diukur di latihan): ±7.900 objek, ±830 MB, 20-45 menit; `delete_replaced` menghapus ±7.900 objek
+lama 10 menit sesudahnya. Cek: `verify` (baris, jumlah nilai, lot, frekuensi), terminal-api `present`, Backtest E2E,
+Screener live check (harus identik: Screener Phase 1 tidak membaca broker).
+
+**S3. Modul rumus bersama** `apps/edge-bff/terminal/src/calc/flow.ts` (murni, tanpa DOM, seperti `calc/indicators.ts`):
+- Masukan satu bentuk data mentah `FlowRows` (per baris: indeks candle, broker, investor, papan, bv, sv, bl, sl, bf, sf;
+  typed arrays) + referensi broker (klasifikasi); keluaran deret per candle (null = tidak ada data, tidak diisi nol).
+- 39 fungsi FL01-FL39 sesuai rumus Excel; definisi bersama: Top-N bandar (net beli Rp, jendela indikator, ulang tiap
+  hari; beku untuk FL18-FL20 dan FL35), rolling = jumlah N candle dibagi jumlah N candle, broker aktif D10, percentile
+  mid-rank 250, inventori awal 0.
+- `apps/edge-bff/terminal/src/data/flowRegistry.json`: nama, keluarga (subgrup menu), parameter, default, batas, satuan,
+  bentuk tampilan, dibuat dari `FLOW_INDICATORS_SPEC.xlsx` oleh skrip; tes gagal bila kode dan registry berbeda.
+- Backtest dan Screener nanti memakai modul dan registry yang sama (membangun `FlowRows` dari `datafile.ts brokerRows`);
+  tidak ada perubahan `backtest/src/core`, `indicators.ts` atau `indRegistry.json` di fase ini.
+
+**S4. Terminal.**
+- `worker.ts`: selain `combos`, kirim `FlowRows` (typed arrays, transfer tanpa salin), untuk 2 tahun terbaru lalu seluruh
+  histori; target memori <= 15 MB untuk TLKM/BBRI (diukur).
+- `indicators.ts`: indikator Flow dibangun dari `flowRegistry.json` (seperti `regDef` untuk 53 indikator harga); jenis
+  isian baru: tanggal (dengan pilih di chart), tombol (kembalikan klasifikasi bawaan); tampilan baru: tanda di bawah
+  candle (FL09, FL27); validasi broker yang sama tidak boleh di dua kelompok (FL34).
+- `picker.ts`: grup Flow dengan subgrup per keluarga (Share, Transaction Size, Transactions, Concentration, Bandar
+  Balance, Buy VWAP & Implied Cost, Net Flow, Lainnya), Net Buy Flow dan Net Buy Flow (Line) tetap.
+- `broker.ts` panel Bandar: batas Acc >= 6%, Big Acc >= 10% (Dist/Big Dist cerminannya), default Top 3; label Neutral,
+  Acc, Big Acc, Dist, Big Dist.
+- Saham tanpa data broker (indeks) dan hari tanpa data: pesan, bukan nol (pola EXEC-TERMINAL-FRESH).
+- Anggaran: hitung ulang satu indikator <= 50 ms pada TLKM harian (diukur; bila lewat, hitung di worker).
+
+**S5. Uji.**
+- Vitest `tests/calc/flow.test.ts`: tiap FL dengan contoh hitung tangan (termasuk contoh di Excel), kasus tepi (hari
+  tanpa transaksi, frekuensi 0, satu broker, Top-N > jumlah broker, pekan/bulan).
+- Paritas data: skrip read-only menghitung ulang semua FL dari Feature 05 (SQL + Python, implementasi terpisah) untuk
+  BBCA, TLKM, GOTO, WIFI dan 3 ticker acak; beda relatif <= 1e-9, null di tempat yang sama.
+- Terminal: 1:1 fixture 0 px (tidak berubah), pemeriksaan live lokal dengan data dev (pola `bs_side_live_check.py`):
+  tiap FL tampil, dialog berisi parameter dan default sesuai Excel, nilai legenda = modul; publisher pytest; backtest-worker
+  `npm test`; Screener core tests (harus tetap hijau).
+
+**S6. Deploy (dev).** Urutan: publisher (S1, M229) -> latihan S2 -> S2 penuh + cek -> edge-bff (Terminal, dari `main`) ->
+screener-worker dibangun ulang otomatis oleh perubahan `terminal/src/calc/**` (perilaku tidak berubah; dicek `/health`).
+Klaim hanya setelah `SUCCESS` dan baca balik live.
+Rollback: Terminal: revert commit edge-bff; publisher: unggah ulang pohon `8d4e509c` (file dengan kolom tambahan tetap
+terbaca semua pembaca, jadi tidak perlu terbit ulang mundur).
+
+**S7. Review independen** (diminta user: "Siapkan 2 sub agents sonnet 5.5 medium later on untuk review"), sesudah S5,
+sebelum melapor selesai; model `sonnet`, effort `medium`; keduanya hanya diberi kode, Excel dan akses read-only, bukan
+kesimpulan saya:
+- **Reviewer A (data dan rumus):** dari `FLOW_INDICATORS_SPEC.xlsx` (rumus, parameter, default) dan Feature 05 / file
+  storage, hitung ulang sendiri minimal 15 indikator (wajib FL01, FL05, FL11, FL13, FL18, FL19, FL21, FL22, FL24, FL26,
+  FL29, FL34, FL35, FL37, FL39) pada 3 ticker dan 3 tanggal pilihannya, bandingkan dengan `calc/flow.ts`; laporkan setiap
+  beda rumus, default, batas parameter, perlakuan null, dan definisi bersama (bandar, rolling, broker aktif, percentile).
+- **Reviewer B (tampilan Terminal):** di Terminal lokal dengan data dev, untuk setiap FL: nama dan subgrup menu sama
+  dengan Excel, isian dialog dan default sama dengan `Parameter_Terminal`, tempat (panel, di atas candle, tanda), nilai
+  legenda pada 2 tanggal sama dengan hitung ulangnya dari file storage, panel Bandar memakai 6/10% dan Top 3.
+- Temuan yang terbukti diperbaiki dan diuji ulang; yang tidak diperbaiki dilaporkan dengan alasan.
+
+**S8. Catatan.** `ERRORS_AND_SOLUTIONS.md` (entri EXEC), `RAILWAY_CHANGELOG.md` (publisher, terbit ulang, edge-bff,
+screener-worker), `BACKTEST_END_TO_END.md` bagian publisher (kolom broker), `verification/terminal_api/FRONTEND_ARCHITECTURE.md`,
+`SCREENER_ONBOARDING.md` (data flow kini ada di storage: frekuensi, klasifikasi), `apps/edge-bff/backtest/CONTRACT.md`
+bila bentuk file disebut; item ini pindah ke `EXEC.md` saat "go".
+
+Di luar lingkup fase ini (keputusan user): indikator dan parameter Screener, file lintas saham `broker_window`, edit
+klasifikasi broker oleh user di Screener, kondisi Backtest, AI EDGE.

@@ -10,6 +10,25 @@ from app.main import create_app
 from conftest import FakeOrc
 
 
+
+def bookmark_open_conversation(page):
+    """MONITOR-REVAMP (AI_revamp.html): an open desktop sidebar bookmarks a conversation from its own row; the rail
+    (folded sidebar, tablet, phone) keeps its Bookmark button."""
+    rail = page.get_by_role('button', name='Bookmark', exact=True)
+    if rail.count():
+        rail.click()
+        page.wait_for_function("() => document.querySelector('[aria-label=Bookmark]').getAttribute('aria-pressed') === 'true'")
+    else:
+        page.locator('.conversation.active').get_by_role('button', name='Add bookmark', exact=True).click()
+        page.locator('.conversation.active').get_by_role('button', name='Remove bookmark', exact=True).wait_for(state='attached')
+
+
+def open_conversation_bookmarked(page):
+    rail = page.get_by_role('button', name='Bookmark', exact=True)
+    if rail.count():
+        return rail.get_attribute('aria-pressed') == 'true'
+    return page.locator('.conversation.active').get_by_role('button', name='Remove bookmark', exact=True).count() == 1
+
 def test_dependency_wait_then_session_initialization_is_visible_without_duplicate_dispatch(server):
     """Real BFF queue + Postgres + browser, deterministic upstream; no paid model call."""
     playwright = pytest.importorskip('playwright.sync_api')
@@ -36,7 +55,7 @@ def test_dependency_wait_then_session_initialization_is_visible_without_duplicat
             page.get_by_role('button', name='Sign In', exact=True).click()
             composer = page.get_by_placeholder('Ask a research question…')
             composer.fill('Calculate in sandbox')
-            page.get_by_role('button', name='Submit', exact=True).click()
+            page.get_by_role('button', name='Send', exact=True).click()
             page.get_by_text('Waiting for services to be ready.', exact=True).first.wait_for()
             assert not orc.calls
             ready.set()
@@ -89,18 +108,17 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
         page.locator('#auth-login').fill('owner');page.locator('#auth-password').fill('local-test-password')
         page.get_by_role('button',name='Sign In',exact=True).click()
         composer=page.get_by_placeholder('Ask a research question…')
-        composer.wait_for();composer.fill('Explain GOTO');page.get_by_role('button',name='Submit',exact=True).click()
+        composer.wait_for();composer.fill('Explain GOTO');page.get_by_role('button',name='Send',exact=True).click()
         page.locator('article.result').wait_for()
         assert page.evaluate('window.pwned') is None
         assert 'Saved answer' in page.locator('article.result').inner_text()
         page.locator('.edge-model-trigger:not([disabled])').wait_for()
         assert page.locator('.edge-model-trigger').inner_text().split()[:3]==['DeepSeek','V4.1','Flash']
         assert page.locator('.edge-model-trigger img.edge-model-logo').get_attribute('src')=='/model-logos/deepseek-color.svg'
-        assert page.get_by_role('button',name='Public sharing unavailable').is_disabled()
+        assert page.get_by_role('button',name='Share latest answer').is_enabled()  # MONITOR-REVAMP: the sidebar's Share
         page.get_by_role('button',name='Pin',exact=True).click()
         page.get_by_role('button',name='Pinned',exact=True).wait_for()
-        page.get_by_role('button',name='Bookmark',exact=True).click()
-        page.wait_for_function("() => document.querySelector('[aria-label=Bookmark]').getAttribute('aria-pressed')==='true'")
+        bookmark_open_conversation(page)
         page.get_by_role('tab',name='Sources',exact=True).click()
         assert page.get_by_text('No source or evidence metadata returned for this response.').is_visible()
         assert page.evaluate("localStorage.getItem('edge-auth-monitor-conversations')") is None
@@ -108,12 +126,12 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
         page.locator('.conversation-list .conversation[role=button]').first.click()
         page.locator('article.result').wait_for()
         assert page.get_by_role('button',name='Pinned',exact=True).is_visible()
-        assert page.get_by_role('button',name='Bookmark',exact=True).get_attribute('aria-pressed')=='true'
+        assert open_conversation_bookmarked(page)
         for action,label in (('APPROVE','Approve & run'),('REVISE','Revise'),('CANCEL','Cancel')):
-            page.get_by_role('button',name='New conversation',exact=True).click()
-            composer.fill('Plan '+action);page.get_by_role('button',name='Submit',exact=True).click()
+            page.get_by_role('button',name='New Chat',exact=True).click()
+            composer.fill('Plan '+action);page.get_by_role('button',name='Send',exact=True).click()
             button=page.get_by_role('button',name=label,exact=True);button.wait_for();button.click()
-            if action=='REVISE':composer.fill('Use one year');page.get_by_role('button',name='Submit',exact=True).click()
+            if action=='REVISE':composer.fill('Use one year');page.get_by_role('button',name='Send',exact=True).click()
             page.wait_for_function("() => document.querySelector('.composer-status')===null")
             # the reply is sent after the click's redraw: wait for Orc to receive it (the composer can be idle before)
             for _ in range(100):
@@ -121,7 +139,7 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
                 page.wait_for_timeout(50)
             assert orc.calls[-1][2]['plan_reply']['action']==action
             if action=='REVISE':assert orc.calls[-1][2]['plan_reply']['revision_instruction']=='Use one year'
-        page.get_by_role('button',name='New conversation',exact=True).click();composer.fill('Clarify');page.get_by_role('button',name='Submit',exact=True).click()
+        page.get_by_role('button',name='New Chat',exact=True).click();composer.fill('Clarify');page.get_by_role('button',name='Send',exact=True).click()
         page.get_by_role('button',name='Quick summary',exact=True).click();page.wait_for_timeout(350)
         assert orc.calls[-1][2]['chosen_option']=='QUICK_SUMMARY'
         assert len({id for _,id,_ in orc.calls})==len(orc.calls)
@@ -178,7 +196,7 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         page.get_by_role('button',name='Sign In',exact=True).click()
         composer=page.get_by_placeholder('Ask a research question…');composer.wait_for()
         trigger=page.locator('.edge-model-trigger:not([disabled])');trigger.wait_for()
-        assert 'High' in trigger.inner_text()
+        assert 'high' in trigger.inner_text()  # MONITOR-REVAMP (AI_revamp.html): the level in small letters
         trigger.click()
         options=page.locator('.edge-model-option')
         assert options.count()==4
@@ -193,18 +211,19 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Off','On']
         glm.click();page.locator('.edge-model-levels button',has_text='Max').click()
         page.keyboard.press('Escape');assert not page.locator('.edge-model-menu').count()
-        composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
+        composer.fill('Explain BBRI');page.get_by_role('button',name='Send',exact=True).click()
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['model']=='z-ai/glm-5.3-flash' and orc.calls[-1][2]['reasoning_level']=='max'
         assert 'lane' not in orc.calls[-1][2] and not page.locator('.edge-model-lanes').count()  # no lane_selection
         # EXEC-UI-1015E (user 2026-10-15, "ini nama mode saja langsung"): the model's name, its id in the tooltip
-        assert 'GLM 5.3 Flash · Max' in page.locator('.edge-run-model').first.inner_text()
+        # MONITOR-REVAMP (AI_revamp.html .metarow): the level as Orc names it, in small letters
+        assert 'GLM 5.3 Flash · max' in page.locator('.edge-run-model').first.inner_text()
         assert page.locator('.edge-run-model-name').first.get_attribute('title') == 'z-ai/glm-5.3-flash'
         # EXEC-UI-1013B (gambar 2): the model's logo left of its name in the answer's header
         header_logo = page.locator('.edge-run-model').first.locator('.edge-model-logo')
         assert header_logo.count() == 1 and header_logo.is_visible()
         page.reload();ready=page.locator('.edge-model-trigger:not([disabled])');ready.wait_for()
-        assert 'GLM 5.3 Flash' in ready.inner_text() and 'Max' in ready.inner_text()
+        assert 'GLM 5.3 Flash' in ready.inner_text() and 'max' in ready.inner_text()
         assert errors==[],errors
         browser.close()
 
@@ -263,7 +282,7 @@ def test_without_the_model_list_the_choice_is_hidden_and_the_message_goes_withou
             page.get_by_role('button',name='Sign In',exact=True).click()
             composer=page.get_by_placeholder('Ask a research question…');composer.wait_for();page.wait_for_timeout(300)
             assert not page.locator('.edge-model-trigger').count()
-            composer.fill('Explain GOTO');page.get_by_role('button',name='Submit',exact=True).click()
+            composer.fill('Explain GOTO');page.get_by_role('button',name='Send',exact=True).click()
             page.locator('article.result').wait_for()
             assert 'model' not in orc.calls[-1][2] and 'reasoning_level' not in orc.calls[-1][2]
             browser.close()
@@ -291,7 +310,7 @@ def test_a_silent_run_stream_is_replaced_and_the_answer_shows_without_a_reload(s
     playwright=pytest.importorskip('playwright.sync_api')
     with playwright.sync_playwright() as pw:
         browser,page,composer=_blocked_stream_page(server,pw)
-        composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
+        composer.fill('Explain BBRI');page.get_by_role('button',name='Send',exact=True).click()
         page.locator('article.result').wait_for(timeout=30000)
         assert 'Saved answer' in page.locator('article.result').inner_text()
         browser.close()
@@ -302,7 +321,7 @@ def test_a_page_shown_again_reads_the_run_at_once(server):
     playwright=pytest.importorskip('playwright.sync_api')
     with playwright.sync_playwright() as pw:
         browser,page,composer=_blocked_stream_page(server,pw)
-        composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
+        composer.fill('Explain BBRI');page.get_by_role('button',name='Send',exact=True).click()
         page.wait_for_timeout(1500)  # the worker has answered; the hung stream has not told the page
         assert not page.locator('article.result').count()
         page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
@@ -332,7 +351,7 @@ def test_every_message_runs_the_fast_lane_without_a_lane_choice(server):
         trigger.click()
         assert not page.locator('.edge-model-lanes').count() and 'Lane' not in page.locator('.edge-model-menu').inner_text()
         page.keyboard.press('Escape')
-        composer.fill('Explain BBRI cepat');page.get_by_role('button',name='Submit',exact=True).click()
+        composer.fill('Explain BBRI cepat');page.get_by_role('button',name='Send',exact=True).click()
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['lane']=='fast'
         # EXEC-UI-1015E (user 2026-10-15, "tidak perlu ada fast lane, karena ini default"): the lane is not named

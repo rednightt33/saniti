@@ -25,7 +25,7 @@ PRINTED = """() => {
              notes: stage?.querySelectorAll('.edge-notes[data-section]').length,
              question: (q => q && [getComputedStyle(q).backgroundColor, getComputedStyle(q.querySelector('p')).color])(
                stage?.querySelector('.edge-share-question')),
-             evidence: (e => e && [e.lastElementChild?.tagName.toLowerCase(), getComputedStyle(e.querySelector('.edge-badge')).color])(
+             evidence: (e => e && [e.lastElementChild?.tagName.toLowerCase(), getComputedStyle(e.querySelector('.edge-evidence-text')).color])(
                stage?.querySelector('.edge-evidence-line')),
              width: stage?.querySelector('.edge-share-card')?.getBoundingClientRect().width,
              meta: stage?.querySelector('.edge-share-meta')?.innerText || null,
@@ -76,7 +76,7 @@ def test_share_offers_pdf_and_png_and_the_pdf_prints_the_card_alone(fixture_serv
     # E: Assumptions and Limitations show their title and count only; the methodology stays written out
     assert 'Assumptions (1)' in card['text'] and 'Data sampai akhir Agustus.' not in card['text']
     assert 'Return harian dirata-rata.' in card['text']
-    for chrome in ('Pin', 'Submit', 'Share', 'Reported cost', 'Copy'):
+    for chrome in ('Pin', 'Send', 'Share', 'Reported cost', 'Copy'):
         assert chrome not in card['text'], chrome
     assert card['buttons'] == 0 and card['folded'] == 0 and card['closed'] == card['notes'] >= 1
     assert card['title'].startswith('EDGE ')

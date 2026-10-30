@@ -94,10 +94,11 @@ def test_alignment_and_border_resize(fixture_server, device_page):
     measurements['resized'] = aligned(page)
     field.focus()
     capture(page, 'ui1019-' + name + '-resized')
-    page.get_by_role('button', name='Switch to light theme', exact=True).click()
+    # MONITOR-REVAMP (user 2026-10-29): the page starts light; the dark theme is one press away
+    page.get_by_role('button', name='Switch to dark theme', exact=True).click()
     page.wait_for_timeout(400)  # theme colour transitions must settle before visual review
     aligned(page)
-    capture(page, 'ui1019-' + name + '-light')
+    capture(page, 'ui1019-' + name + '-dark')
     # Bound height on a small/rotated viewport; toolbar and conversation stay usable.
     page.set_viewport_size({'width': 740 if touch else 1280, 'height': 390 if touch else 620})
     page.wait_for_timeout(200)
@@ -122,7 +123,7 @@ def test_submit_history_and_fixed_headers(fixture_server, device_page):
         field.press('Enter')  # touch keyboard retains multiline editing
         assert field.input_value().endswith('\n')
         assert page.locator('article.result').count() == 0
-        page.get_by_role('button', name='Submit', exact=True).click()
+        page.get_by_role('button', name='Send', exact=True).click()
     else:
         field.press('Shift+Enter')
         assert field.input_value().endswith('\n')
@@ -154,13 +155,15 @@ def test_submit_history_and_fixed_headers(fixture_server, device_page):
         before = page.locator(header).bounding_box()['y']
         scroll.evaluate('n=>n.scrollTop=n.scrollHeight')
         page.wait_for_timeout(100)
-        assert scroll.evaluate('n=>n.scrollTop') > 30
+        # MONITOR-REVAMP (AI_revamp.html .sec): Pinned responses grows with its cards (up to half the panel), so it may
+        # scroll only a little; the title still never moves
+        assert scroll.evaluate('n=>n.scrollTop') > 0
         after = page.locator(header).bounding_box()['y']
         assert abs(before-after) <= 1, (container, before, after)
         assert page.locator(header + ' button').is_visible()
     capture(page, 'ui1019-' + name + '-headers-scrolled')
     # Collapse/reopen stays interactive and the history order survives server reload.
-    for label in ('Pinned responses', 'Response History'):
+    for label in ('Pinned responses', 'Response history'):
         toggle = panel.get_by_role('button', name=label, exact=True)
         toggle.tap() if touch else toggle.click()
         assert toggle.get_attribute('aria-expanded') == 'false'

@@ -13,12 +13,12 @@ def test_a_completed_answer_says_edge_only_and_the_picker_names_model_and_level(
     submit(page, 'fx:answer_table')
     saved(page)
     kicker = article(page).locator('.result-kicker')
-    assert kicker.text_content() == 'EDGE' and kicker.locator('.edge-dot').count() == 0
+    assert kicker.text_content() == 'EDGE' and kicker.locator('.edge-badge').count() == 0
     trigger = page.locator('.composer .edge-model-trigger:not([disabled])')
     trigger.wait_for()
     shown = trigger.evaluate("""t => { const box = n => n.getBoundingClientRect(), vis = n => !!n && getComputedStyle(n).display !== 'none' && box(n).width > 0;
       const name = t.querySelector('.edge-model-name'), level = t.querySelector('.edge-model-level'),
-            send = document.querySelector('.composer [aria-label="Submit"], .composer button[type=submit]') || [...document.querySelectorAll('.composer button')].pop(),
+            send = document.querySelector('.composer [aria-label="Send"], .composer button[type=submit]') || [...document.querySelectorAll('.composer button')].pop(),
             composer = document.querySelector('.composer');
       return {name: vis(name) && name.textContent, level: vis(level) && level.textContent, logo: vis(t.querySelector('.edge-model-logo')),
               sendInside: box(send).right <= box(composer).right + 0.5, overlap: box(t).right > box(send).left,
@@ -45,4 +45,5 @@ def test_another_status_stays_named(fixture_server, device_page):
     finally:
         orc.run = original
     kicker = page.locator('article.result').last.locator('.result-kicker')
-    assert kicker.text_content() == 'EDGE · Limited' and kicker.locator('.edge-dot').count() == 1
+    # MONITOR-REVAMP (AI_revamp.html .kick): "EDGE", then the status as a pill
+    assert kicker.text_content() == 'EDGELimited' and kicker.locator('.edge-badge').text_content() == 'Limited'

@@ -916,7 +916,9 @@ sah), penanganan berkas yang berganti sha256 sesudah publikasi, dan daftar refer
 Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keamanan: perangkat bersama), dan bentuk tanda
 "memperbarui…".
 
-## MONITOR-REVAMP — tampilan halaman Monitor (AI) mengikuti AI_revamp.html (disetujui 2026-10-29)
+## MONITOR-REVAMP — tampilan halaman Monitor (AI) mengikuti AI_revamp.html (disetujui 2026-10-29, dieksekusi 2026-10-30)
+
+**Status: dieksekusi, lihat EXEC-MONITOR-REVAMP di `EXEC.md`.**
 
 **Permintaan, 2026-10-29 (kata user):** "boleh cek BFF sheet monitor ... HTML yang mana kita akan fully replace dan fully
 revamp just the front end side ... Kita tidak akan menambah fitur apapun". Acuan: `AI_revamp.html` (prototipe statis:
@@ -940,6 +942,8 @@ Isi:
   (4) tes disesuaikan hanya di bagian tampilan, tidak ada tes perilaku yang dihapus; (5) file standalone hasil revamp
   untuk review user sebelum deploy; (6) deploy edge-bff, verifikasi live, catatan EXEC / README / RAILWAY_CHANGELOG.
 - Halaman Terminal, Backtest dan Screener (aplikasi Vite terpisah dalam iframe) tidak berubah.
+
+## TERMINAL-FLOW-IND — indikator Flow baru (go 2026-10-30; dipindah ke `EXEC.md` EXEC-TERMINAL-FLOW-IND)
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 

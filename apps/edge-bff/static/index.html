@@ -9471,14 +9471,9 @@ html:not(.dark):has(.monitor-layout), .app:not(.dark):has(.monitor-layout) {
 .monitor-layout .user-message .message-attachments span {color:#24364B; border-color:#CBD6E3;}
 .monitor-layout .result {background:transparent; animation:edge-ai-arrival .3s ease-out both;}
 .monitor-layout .edge-inline-progress {display:flex;align-items:center;gap:8px;margin:0 0 15px;min-height:35px;color:var(--muted-foreground);font-size:11px;}
-.edge-response-dots {display:inline-flex;align-items:center;gap:4px;}
-.edge-response-dots i {width:4px;height:4px;border-radius:50%;background:currentColor;animation:edge-response-pulse 1.2s infinite;}
-.edge-response-dots i:nth-child(2) {animation-delay:.15s;}
-.edge-response-dots i:nth-child(3) {animation-delay:.3s;}
-@keyframes edge-response-pulse {0%,80%,100% {opacity:.35;}40% {opacity:1;}}
 @keyframes edge-user-send {from {opacity:0;transform:translateY(6px);}to {opacity:1;transform:translateY(0);}}
 @keyframes edge-ai-arrival {from {opacity:0;}to {opacity:1;}}
-@media(prefers-reduced-motion:reduce) {.monitor-layout .user-message,.monitor-layout .result,.edge-response-dots i {animation:none;}}
+@media(prefers-reduced-motion:reduce) {.monitor-layout .user-message,.monitor-layout .result {animation:none;}}
 
 
 /* Sign-in focus and centered action; light-theme user message. */
@@ -9628,7 +9623,7 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-share-body th,.edge-share-body td {padding:4px 6px;}
 .edge-share-body details>summary {list-style:none;}
 .edge-share-body .edge-evidence-line {display:flex;align-items:center;gap:6px;margin:0 0 14px;}
-.edge-share-body .edge-evidence-line>.edge-badge {padding:0;border:0;background:none;color:#030213;font-size:12px;font-weight:500;}
+.edge-share-body .edge-evidence-line>.edge-badge,.edge-share-body .edge-evidence-line>.edge-evidence-text {padding:0;border:0;background:none;color:#030213;font-size:12px;font-weight:500;}
 .edge-share-body .edge-badge::before {display:none;}
 .edge-share-foot {margin-top:16px;padding-top:9px;border-top:1px solid #0000001a;display:flex;flex-direction:column;gap:1px;font-size:11px;color:#717182;}
 .edge-share-anchor {position:relative;display:inline-flex;align-items:center;gap:6px;}
@@ -10283,6 +10278,608 @@ html.dark .composer:focus-within,html.dark .composer.has-text{box-shadow:0 6px 2
 /* a running answer's progress sits close under the question */
 .monitor-layout .user-message-footer:has(+ .edge-inline-progress-wrap){margin-bottom:6px;}
 .monitor-layout .edge-inline-progress-wrap>.edge-inline-progress{min-height:24px;}
+/* =====================================================================================================================
+   MONITOR-REVAMP (user 2026-10-29, PLAN.md "MONITOR-REVAMP"): the Monitor page and the shared top bar take the look of
+   the user's AI_revamp.html (EDGE / Market Lab Design Spec v1): its tokens, light and dark, and its components mapped
+   onto this page's own markup. Behaviour stays; the phone layout (max-width 1050px) keeps its own arrangement and takes
+   the colours and type. Rules here come last and carry the selectors of the rules they replace.
+   ===================================================================================================================== */
+/* ---- 1. Design Spec tokens on the app (every tab's top bar and the Monitor page); the older names follow them (the
+   second selector outranks the older Monitor light palette, ".app:not(.dark):has(.monitor-layout)") ---- */
+.app,.app:not(.dark):has(.monitor-layout){
+  --bg:#fafafa;--surface:#ffffff;--surface-2:#f7f7f7;--hover:#f3f3f3;--sel:#efefef;--border:#eaeaea;--border-2:#dcdcdc;
+  --text:#171717;--text-2:#666666;--text-3:#8f8f8f;
+  --green:#087f5b;--green-bg:rgba(8,153,129,.10);--red:#d62839;--red-bg:rgba(242,54,69,.09);--up:#089981;--down:#f23645;
+  --blue:#0070f3;--blue-bg:rgba(0,112,243,.08);--amber:#b45309;--amber-bg:rgba(245,166,35,.14);--navy:#17348c;
+  --b-green:var(--green);--b-red:var(--red);--b-amber:#f5b041;--b-blue:#17348c;--b-neutral:var(--text-2);
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  --fs-2xs:10.5px;--fs-xs:11px;--fs-sm:11.5px;--fs-12:12px;--fs-md:12.5px;--fs-base:13px;--fs-lg:14px;--fs-xl:15px;
+  --t-meta:var(--fs-2xs);--t-ctl:var(--fs-xs);--t-num:var(--fs-sm);--t-body:var(--fs-12);--t-section:var(--fs-md);
+  --t-title:var(--fs-base);--t-symbol:var(--fs-lg);--t-stat:var(--fs-xl);--lh-read:1.5;--lh-tight:1.35;
+  --s-1:2px;--s-2:4px;--s-3:6px;--s-4:8px;--s-5:10px;--s-6:12px;--s-7:14px;--s-8:16px;--s-9:20px;--s-10:24px;
+  --r-xs:4px;--r-sm:6px;--r-md:8px;--r-lg:10px;--r-xl:12px;--r-2xl:14px;--r-pill:999px;
+  --h-sm:28px;--h-md:32px;--h-top:52px;--topbar:52px;
+  --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px -8px rgba(0,0,0,.22);
+  --shadow-lg:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);
+  --ds-ring:0 0 0 3px var(--blue-bg);
+  --background:var(--surface);--foreground:var(--text);--card:var(--surface);--card-foreground:var(--text);
+  --popover:var(--surface);--popover-foreground:var(--text);--primary:var(--text);--primary-foreground:var(--surface);
+  --secondary:var(--hover);--secondary-foreground:var(--text);--muted:var(--sel);--muted-foreground:var(--text-2);
+  --accent:var(--hover);--accent-foreground:var(--text);--input-background:var(--hover);--sidebar:var(--surface);
+  --surface-3:var(--sel);--border-soft:var(--border);--accent-strong:var(--text);--accent-soft:var(--hover);
+  font-family:var(--sans);color:var(--text);background:var(--bg);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;
+}
+html.dark .app{
+  --bg:#0a0a0a;--surface:#111111;--surface-2:#161616;--hover:#1c1c1c;--sel:#232323;--border:#262626;--border-2:#333333;
+  --text:#ededed;--text-2:#b4b4b4;--text-3:#7c7c7c;
+  --green:#3ecf8e;--green-bg:rgba(62,207,142,.12);--red:#ff6369;--red-bg:rgba(255,99,105,.12);
+  --blue:#52a8ff;--blue-bg:rgba(82,168,255,.12);--amber:#f5b041;--amber-bg:rgba(245,176,65,.14);--navy:#7d9bff;
+  --b-green:#087f5b;--b-red:#d62839;--b-amber:#f5b041;--b-blue:#17348c;--b-neutral:#4d4d4d;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px -8px rgba(0,0,0,.7);
+  --shadow-lg:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;
+}
+html .app svg.icon{stroke-width:1.6;}
+/* ---- 2. top bar (shared by Monitor, Terminal, Backtest and Screener) ---- */
+html .app .topbar{height:var(--h-top);gap:var(--s-6);padding:0 var(--s-8);border-bottom:1px solid var(--border);background:var(--surface);font-size:var(--t-body);line-height:normal;color:var(--text);}
+html .app .topbar .brand{gap:10px;letter-spacing:.14em;font-size:var(--t-symbol);font-weight:400;line-height:normal;}
+html .app .topbar .brand strong{font-weight:700;}
+html .app .topbar .brand-mark{width:32px;height:32px;border-radius:var(--r-sm);background:var(--text);color:var(--surface);font-size:var(--t-symbol);font-weight:600;letter-spacing:0;}
+html .app .topbar nav{margin-left:var(--s-4);}
+html .app .topbar nav button{height:100%;padding:0 var(--s-6);border-radius:0;font-size:var(--t-title);font-weight:500;line-height:normal;color:var(--text-2);background:transparent;}
+html .app .topbar nav button:hover{color:var(--text);background:transparent;}
+html .app .topbar nav button.active,html .app .topbar nav button.nav-monitor.active{color:var(--text);font-weight:600;}
+html .app .topbar nav button.nav-monitor:not(.active){font-weight:500;color:var(--text-2);}
+html .app .topbar nav button.active:after{left:var(--s-6);right:var(--s-6);bottom:-1px;height:2px;background:var(--text);}
+html .app .topbar .top-actions{gap:var(--s-6);}
+html .app .topbar .top-actions .market-search-inactive{display:flex;align-items:center;gap:var(--s-4);height:36px;width:210px;padding:0 var(--s-6);border:1px solid transparent;border-radius:var(--r-sm);background:var(--hover);color:var(--text-3);font-size:var(--t-section);line-height:normal;}
+html .app .topbar .market-search-placeholder{color:var(--text-3);}
+html .app .topbar .market-search-inactive kbd{margin-left:auto;padding:1px 5px;border:1px solid var(--border);border-radius:var(--r-xs);background:transparent;color:var(--text-3);font:500 var(--t-ctl)/normal var(--sans);}
+html .app .topbar .market-search-inactive:is(.active,:focus-visible){background:var(--surface);color:var(--text);box-shadow:0 3px 13px rgba(23,32,51,.15);}
+html .app .topbar .market-search-ribbon{padding:var(--s-4) var(--s-5);border-radius:var(--r-sm);background:var(--text);color:var(--surface);font-weight:500;font-size:var(--t-body);box-shadow:0 5px 20px rgba(23,32,51,.07);}
+html .app .topbar .market-search-ribbon:before{background:var(--text);}
+html .app .topbar .market-search-ribbon-close{color:var(--surface);opacity:.7;}
+html .app .topbar .market-search-ribbon-close:hover{background:color-mix(in srgb,var(--surface) 15%,transparent);color:var(--surface);opacity:1;}
+html .app .topbar .top-actions>.icon-btn{width:var(--h-md);height:var(--h-md);padding:0;border:0;border-radius:var(--r-md);background:none;color:var(--text-2);box-shadow:none;}
+html .app .topbar .top-actions>.icon-btn:hover:not(:disabled){background:var(--hover);color:var(--text);}
+html .app .topbar .top-actions>.icon-btn.selected{background:var(--sel);color:var(--text);}
+html .app .topbar .top-actions>.btn.ghost{height:var(--h-md);padding:0 var(--s-6);border:1px solid transparent;border-radius:var(--r-md);background:none;color:var(--text);font-size:var(--t-title);font-weight:500;box-shadow:none;}
+html .app .topbar .top-actions>.btn.ghost:hover{background:var(--hover);}
+html .app .topbar .avatar{width:30px;height:30px;margin-left:0;border:0;border-radius:50%;background:var(--sel);color:var(--text);font-size:var(--t-ctl);font-weight:600;line-height:normal;}
+html .app .topbar .avatar:hover,html .app .topbar .avatar.open{background:var(--hover);color:var(--text);}
+html .app .topbar .top-actions>.icon-btn,html .app .topbar .top-actions>.btn.ghost{min-height:0;font-size:var(--t-body);font-weight:400;}
+html .app .topbar .top-actions>.btn.ghost{font-size:var(--t-title);font-weight:500;}
+/* ---- 3. left panel (AI_revamp.html .nav) ---- */
+html .app .monitor-layout .conversation-panel{background:var(--surface);border-right:1px solid var(--border);color:var(--text);font-size:var(--t-body);line-height:normal;}
+html .app .conversation-panel .eyebrow{text-transform:none;letter-spacing:normal;}
+html .app .conversation-panel .conversation-list{scrollbar-color:color-mix(in srgb,var(--text-3) 45%,transparent) transparent;}
+html .app .conversation-panel .conversation-group>span{display:block;margin:0;padding:var(--s-6) var(--s-4) var(--s-2);font-size:var(--t-meta);font-weight:500;line-height:normal;color:var(--text-3);text-transform:none;letter-spacing:normal;}
+html .app .conversation-panel .conversation{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--s-1) var(--s-4);align-items:start;padding:var(--s-4);border:1px solid transparent;border-radius:var(--r-md);background:transparent;color:var(--text);font-weight:400;}
+html .app .conversation-panel .conversation:hover{background:var(--hover);color:var(--text);}
+html .app .conversation-panel .conversation.active{background:var(--surface-2);border-color:var(--border);color:var(--text);font-weight:400;}
+html .app .conversation-panel .conversation:focus-visible{outline:none;border-color:var(--border-2);}
+html .app .conversation-panel .conversation>span{gap:var(--s-1);}
+html .app .conversation-panel .conversation>span strong{min-height:22px;font-size:var(--t-body);font-weight:500;line-height:normal;color:var(--text);}
+html .app .conversation-panel .conversation.active>span strong{font-weight:600;}
+html .app .conversation-panel .conversation>span small{font-size:var(--t-meta);font-weight:400;line-height:normal;color:var(--text-3);}
+html .app .conversation-panel .conversation-state{width:8px;height:8px;margin-top:7px;opacity:1;box-shadow:none;animation:none;background:var(--border-2);}
+html .app .conversation-panel .conversation-state.completed{background:var(--green);}
+html .app .conversation-panel .conversation-state:is(.submitted,.running,.streaming){background:var(--blue);}
+html .app .conversation-panel .conversation-state.failed{background:var(--red);}
+html .app .conversation-panel .conversation>span.conversation-actions{display:flex;flex-direction:row;gap:var(--s-1);opacity:0;overflow:visible;}
+html .app .conversation-panel .conversation:hover .conversation-actions,html .app .conversation-panel .conversation-actions.keep,html .app .conversation-panel .conversation-actions:focus-within{opacity:1;}
+html .app .conversation-panel .conversation-bookmark{width:22px;height:22px;border-radius:var(--r-sm);color:var(--text-3);}
+html .app .conversation-panel .conversation .conversation-bookmark:hover:not(:disabled){background:var(--border);color:var(--text);}
+html .app .conversation-panel .conversation-bookmark.active{color:var(--text);}
+html .app .conversation-panel .conversation .conversation-bookmark>.icon{width:16px;height:16px;}
+/* MONITOR-REVAMP (user 2026-10-30, AI_revamp.html .conv.child): a branch nests under its parent with a connector and the branch icon */
+html .app .conversation-panel .conversation.child{position:relative;width:auto;margin-left:var(--s-8);}
+html .app .conversation-panel .conversation.child::before{content:"";position:absolute;left:-8px;top:0;bottom:50%;width:8px;border-left:1px solid var(--border-2);border-bottom:1px solid var(--border-2);border-bottom-left-radius:var(--r-sm);pointer-events:none;}
+html .app .conversation-panel .conversation>span strong>.icon{display:inline-block;width:12px;height:12px;margin-right:var(--s-2);vertical-align:-2px;flex:none;}
+html .app .conversation-panel .conversation-empty{padding:var(--s-6);text-align:left;font-size:var(--t-ctl);color:var(--text-3);}
+html .app .conversation-panel .sidebar-foot{border-top:1px solid var(--border);color:var(--text-3);font-size:var(--t-meta);}
+html .app .conversation-panel .sidebar-foot .status-dot{width:7px;height:7px;background:var(--text-3);box-shadow:none;animation:none;}
+html .app .conversation-panel .sidebar-foot span:not(.status-dot),html .app .conversation-panel .sidebar-foot small{color:var(--text-3);font-size:var(--t-meta);}
+html .app .conversation-panel>.search{gap:var(--s-4);height:36px;padding:0 var(--s-5);border:1px solid transparent;border-radius:var(--r-sm);background:var(--hover);color:var(--text-3);font-size:var(--t-section);font-weight:500;box-shadow:none;}
+html .app .conversation-panel>.search:is(:focus-within,:has(input:not(:placeholder-shown))){border-color:transparent;background:var(--surface);color:var(--text);box-shadow:0 3px 13px rgba(23,32,51,.15);}
+html.dark .app .conversation-panel>.search:focus-within{background:var(--sel);box-shadow:0 3px 13px rgba(0,0,0,.5);}
+html .app .conversation-panel>.search input{height:auto;padding:0;border:0;background:transparent;font-size:var(--t-section);font-weight:400;color:var(--text);}
+html .app .conversation-panel>.search input::placeholder{color:var(--text-3);}
+html .app .conversation-panel>.search kbd{display:none;}
+html .app .conversation-panel .mini-tabs{gap:2px;padding:3px;border-radius:22px;background:var(--hover);}
+html .app .conversation-panel .mini-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:var(--s-3);height:26px;min-height:0;padding:0;border-radius:22px;background:transparent;color:var(--text-3);font-size:var(--t-ctl);font-weight:500;line-height:normal;box-shadow:none;}
+html .app .conversation-panel .mini-tabs button b{font-weight:500;}
+html .app .conversation-panel .mini-tabs button:hover{background:var(--sel);color:var(--text);}
+html .app .conversation-panel .mini-tabs button.active{background:var(--surface);color:var(--text);box-shadow:0 2px 7px rgba(24,34,48,.09),0 1px 2px rgba(24,34,48,.05);}
+html.dark .app .monitor-layout .conversation-panel .mini-tabs{background:var(--hover);}
+html.dark .app .monitor-layout .conversation-panel .mini-tabs button{color:var(--text-3);}
+html.dark .app .monitor-layout .conversation-panel .mini-tabs button:hover{background:var(--sel);color:var(--text);}
+html.dark .app .monitor-layout .conversation-panel .mini-tabs button.active{background:var(--sel);color:var(--text);box-shadow:0 3px 10px rgba(0,0,0,.33),0 1px 3px rgba(0,0,0,.2);}
+html .app .conversation-panel .mini-tabs button.active::after{display:none;}
+html .app .conversation-panel>.btn.primary{height:var(--h-md);min-height:0;padding:0 var(--s-6);gap:var(--s-3);border:1px solid var(--text);border-radius:var(--r-md);background:var(--text);color:var(--surface);font-size:var(--t-title);font-weight:500;line-height:normal;box-shadow:none;}
+html .app .conversation-panel>.btn.primary:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow);}
+html .app .conversation-panel .icon-btn{width:var(--h-md);height:var(--h-md);min-height:0;padding:0;border:0;border-radius:var(--r-md);background:none;color:var(--text-2);box-shadow:none;}
+html .app .conversation-panel .icon-btn:hover:not(:disabled){background:var(--hover);color:var(--text);}
+html .app .conversation-panel .icon-btn.selected{background:var(--sel);color:var(--text);}
+html .app .sidebar-resizer{right:0;}
+html .app .sidebar-resizer:after{left:auto;right:0;width:2px;transition:background .12s;}
+html .app .sidebar-resizer:hover:after{background:var(--text-3);}
+@media (min-width:1051px){
+  html .app .monitor-layout .conversation-panel{padding:0;gap:0;}
+  html .app .conversation-panel>*:not(.conversation-list,.sidebar-foot,.sidebar-resizer){margin:0 var(--s-6);}
+  html .app .conversation-panel .panel-head{flex-wrap:wrap;justify-content:flex-start;row-gap:4px;column-gap:2px;margin-top:var(--s-6);}
+  html .app .conversation-panel .panel-head>div{flex:0 0 100%;}
+  html .app .conversation-panel .panel-head>div .eyebrow{font-size:var(--t-title);font-weight:600;line-height:normal;color:var(--text);}
+  html .app .conversation-panel .panel-head>div strong{display:none;}
+  html .app .conversation-panel .panel-head>.icon-btn{margin-left:-6px;}
+  html .app .conversation-panel .edge-nav-acts{display:flex;gap:2px;}
+  html .app .monitor-layout:not(.sidebar-collapsed) .edge-rail-actions{display:none;}
+  html .app .conversation-panel>.btn.primary,html .app .conversation-panel>.search,html .app .conversation-panel .mini-tabs{margin-top:var(--s-4);}
+  html .app .conversation-panel .conversation-list{margin:var(--s-4) 0 0;padding:var(--s-1) var(--s-4) var(--s-6);flex:1;}
+  html .app .conversation-panel .sidebar-foot{margin:0;padding:var(--s-5) var(--s-7);justify-content:space-between;}
+  html .app .conversation-panel .sidebar-foot small{margin-left:auto;}
+  html .app .sidebar-collapsed .conversation-panel{padding:10px 8px;align-items:center;}
+  html .app .sidebar-collapsed .conversation-panel>*:not(.conversation-list,.sidebar-foot,.sidebar-resizer){margin:0;}
+  html .app .sidebar-collapsed .conversation-panel .panel-head{margin:0;}
+  html .app .sidebar-collapsed .conversation-panel .panel-head>.icon-btn{margin-left:0;}
+  html .app .sidebar-collapsed .conversation-panel .panel-head>.icon-btn,html .app .sidebar-collapsed .conversation-panel>.btn.primary,html .app .sidebar-collapsed .edge-rail-actions .icon-btn{width:36px;height:36px;}
+  html .app .sidebar-collapsed .conversation-panel>.btn.primary{margin-top:var(--s-4);padding:0;border-radius:var(--r-sm);}
+  html .app .sidebar-collapsed .edge-rail-actions{gap:6px;margin-top:var(--s-4);}
+  html .app .sidebar-collapsed .conversation-panel .sidebar-foot{display:none;}
+}
+/* ---- 4. thread: reading column, question, answer card (AI_revamp.html .thread .col .q .ans) ---- */
+html .app .monitor-layout .research-workspace{background:var(--bg);--conversation-left:var(--s-9);--conversation-right:var(--s-9);--conversation-inset:var(--s-8);--conversation-max-width:768px;}
+html .app .monitor-layout .research-scroll{padding-top:var(--s-10);padding-bottom:40px;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--text-3) 45%,transparent) transparent;}
+html .app .monitor-layout .research-scroll::-webkit-scrollbar{width:6px;height:6px;}
+html .app .monitor-layout .research-scroll::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text-3) 45%,transparent);border-radius:3px;}
+html .app .monitor-layout .research-exchange{display:grid;gap:var(--s-8);margin-bottom:var(--s-8);}
+html .app .monitor-layout .research-exchange:last-of-type{margin-bottom:0;}
+html .app .monitor-layout .research-exchange>*{min-width:0;margin:0;}
+html .app .monitor-layout .user-message{justify-self:end;max-width:82%;margin:0;padding:var(--s-5) var(--s-7);border:1px solid var(--text);border-radius:var(--r-2xl) var(--r-2xl) var(--r-xs) var(--r-2xl);background:var(--text);color:var(--surface);box-shadow:none;font-family:var(--sans);}
+html .app .monitor-layout .user-message .message-label{display:none;}
+html .app .monitor-layout .user-message p{margin:0;color:var(--surface);font-size:var(--t-body);line-height:var(--lh-read);}
+html .app .monitor-layout .user-message .message-attachments span{color:var(--surface);border-color:color-mix(in srgb,var(--surface) 25%,transparent);background:color-mix(in srgb,var(--surface) 10%,transparent);}
+html .app .monitor-layout .user-message-footer{justify-self:end;gap:var(--s-4);margin:calc(-1 * var(--s-6)) 0 0;min-height:0;color:var(--text-3);font-size:var(--t-meta);}
+html .app .monitor-layout .user-message-footer .user-sent-at{color:var(--text-3);font-size:var(--t-meta);}
+html .app .monitor-layout .user-message-footer .result-action{padding:0;color:var(--text-3);background:none;}
+html .app .monitor-layout .user-message-footer .result-action:hover{color:var(--text);background:none;}
+html .app .monitor-layout .user-message-footer .result-action .icon{width:13px;height:13px;}
+html .app .monitor-layout .result{padding:var(--s-7) 0 0;border:1px solid var(--border);border-radius:var(--r-xl);background:var(--surface);overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 14px -4px rgba(0,0,0,.16);color:var(--text);font-size:var(--t-body);--edge-result-bg:var(--surface);}
+/* the older dark answer palette (".result" in "html.dark") gives way to the Design Spec's dark tokens */
+html.dark .app .monitor-layout .result{--text:#ededed;--text-2:#b4b4b4;--foreground:#ededed;--muted-foreground:#b4b4b4;--card:#111111;--card-foreground:#ededed;--secondary:#1c1c1c;--secondary-foreground:#ededed;--accent:#1c1c1c;--accent-foreground:#ededed;--border:#262626;--border-soft:#262626;--control-background:#111111;--control-border:#262626;
+  background:var(--surface);color:var(--text);--edge-result-bg:var(--surface);border-color:var(--border);box-shadow:0 1px 2px rgba(0,0,0,.5),0 6px 18px -6px rgba(0,0,0,.65);}
+html .app .monitor-layout .result>*{margin-left:var(--s-8);margin-right:var(--s-8);}
+html .app .monitor-layout .result>.result-kicker{gap:var(--s-4);flex-wrap:wrap;color:var(--text-3);font-size:var(--t-meta);font-weight:500;letter-spacing:normal;line-height:normal;}
+html .app .monitor-layout .result>.result-kicker>span:not(.edge-badge){margin:0;color:inherit;font-weight:inherit;letter-spacing:normal;}
+html .app .monitor-layout .result>.result-metadata>span.edge-tokens{display:inline;}
+html .app .monitor-layout .result>.result-kicker .icon{width:13px;height:13px;color:var(--text-3);}
+html .app .monitor-layout .result>h1{margin-top:9px;margin-bottom:0;font-size:var(--t-title);font-weight:600;line-height:var(--lh-tight);letter-spacing:normal;color:var(--text);}
+html .app .monitor-layout .result>.result-metadata{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2) var(--s-6);margin-top:10px;margin-bottom:0;color:var(--text-3);font-size:var(--t-meta);line-height:normal;}
+html .app .monitor-layout .result>.result-metadata>span{min-height:0;}
+html .app .monitor-layout .result>.result-metadata b{color:var(--text-2);font-weight:500;}
+html .app .monitor-layout .result>.edge-evidence-line{display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--text-3);font-size:var(--t-meta);}
+html .app .monitor-layout .result>.content-block{margin-top:var(--s-10);}
+html .app .monitor-layout .result>.content-block.edge-answer{margin-top:var(--s-10);}
+html .app .monitor-layout .result>.result-actions{display:flex;flex-wrap:wrap;gap:var(--s-1);margin:var(--s-7) 0 0;padding:var(--s-4) var(--s-5);border-top:1px solid var(--border);background:var(--surface-2);}
+html .app .monitor-layout .result-actions .result-action{display:inline-flex;align-items:center;gap:var(--s-3);height:26px;padding:0 var(--s-4);border:1px solid transparent;border-radius:var(--r-md);background:none;color:var(--text-2);font:500 var(--t-ctl)/normal var(--sans);box-shadow:none;}
+html .app .monitor-layout .result-actions .result-action:hover{background:var(--hover);color:var(--text);}
+html .app .monitor-layout .result-actions .result-action .icon{width:13px;height:13px;}
+html .app .monitor-layout .result-actions .result-action[aria-pressed="true"]{color:var(--blue);}
+html .app .monitor-layout .result-actions .edge-branch-action{margin-left:auto;}
+html .app .monitor-layout .result-actions .message-clipboard-actions{display:inline-flex;align-items:center;}
+/* ---- 5. answer body (AI_revamp.html .md .sec-title .fcard .plan .next .fups .discs .tblwrap) ---- */
+html .app .monitor-layout .result .edge-md{color:var(--text);font-size:var(--t-body);line-height:21.546px;}
+html .app .monitor-layout .result .edge-md>:first-child{margin-top:var(--s-2);}
+html .app .monitor-layout .result .edge-md p{margin:0 0 10.64px;font-size:var(--t-body);line-height:21.546px;color:var(--text);}
+html .app .monitor-layout .result .edge-md :is(h1,h2,h3){margin:19.66px 0 7.56px;font-size:var(--t-section);font-weight:600;line-height:20.412px;letter-spacing:normal;color:var(--text);}
+html .app .monitor-layout .result .edge-md :is(h4,h5,h6){margin:17.29px 0 6.65px;font-size:var(--t-body);font-weight:600;line-height:17.955px;color:var(--text);}
+html .app .monitor-layout .result .edge-md :is(ul,ol){margin:2.66px 0 11.97px;padding-left:17.96px;}
+html .app .monitor-layout .result .edge-md li{margin:3.325px 0;font-size:var(--t-body);line-height:21.546px;}
+html .app .monitor-layout .result .edge-md strong{font-weight:600;}
+html .app .monitor-layout .result .edge-md code{font-family:var(--sans);font-size:var(--t-num);font-weight:500;background:var(--hover);border-radius:var(--r-xs);padding:1px 4px;}
+html .app .monitor-layout .result .edge-md a{color:var(--blue);font-weight:500;}
+html .app .monitor-layout .result :is(.edge-claim,mark.edge-claim){border-bottom:2px dotted var(--amber);background:none;cursor:help;}
+html .app .monitor-layout .result .section-title{margin:var(--s-7) 0 var(--s-2);padding:0;border:0;font-size:var(--t-section);font-weight:600;line-height:normal;color:var(--text);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .section-title>span{font:inherit;color:inherit;}
+html .app .monitor-layout .result .section-title .edge-count{color:var(--text-3);font-weight:500;}
+/* status pills: solid fill, white text (the light-theme hues in both themes) */
+html .app .monitor-layout :is(.result,.details-panel) .edge-badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 var(--s-4);border:0;border-radius:var(--r-pill);background:var(--b-neutral);color:#fff;font-size:var(--t-meta);font-weight:600;line-height:normal;letter-spacing:normal;text-transform:none;white-space:nowrap;}
+html .app .monitor-layout :is(.result,.details-panel) .edge-badge.positive{background:var(--b-green);}
+html .app .monitor-layout :is(.result,.details-panel) .edge-badge.negative{background:var(--b-red);}
+html .app .monitor-layout :is(.result,.details-panel) .edge-badge.warning{background:var(--b-amber);}
+html .app .monitor-layout :is(.result,.details-panel) .edge-badge.info{background:var(--b-blue);}
+html .app .monitor-layout .edge-badge-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;}
+html .app .monitor-layout .result-kicker .edge-badge{margin:0;}
+html .app .monitor-layout .result .edge-evidence-line .edge-evidence-text{color:var(--text-3);font-size:var(--t-meta);}
+html .app .monitor-layout .result .edge-evidence-line .edge-evidence-check{flex:none;}
+html .app .monitor-layout .result>.result-metadata .edge-run-model{display:inline-flex;align-items:center;gap:6px;}
+html .app .monitor-layout .result>.result-metadata .edge-run-model .edge-model-logo{width:16px;height:16px;}
+html .app .monitor-layout .result>.result-metadata .edge-run-model-name{color:var(--text-2);font-weight:500;}
+html .app .monitor-layout .result>.result-metadata .edge-duration{display:inline-flex;align-items:center;gap:4px;}
+html .app .monitor-layout .result>.result-metadata .edge-cost{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+html .app .monitor-layout .result .edge-cost-badge{display:inline-flex;align-items:center;padding:1px 8px;border-radius:var(--r-pill);background:var(--text-3);color:var(--surface);font-size:var(--t-meta);font-weight:500;line-height:1.5;}
+html.dark .app .monitor-layout .result .edge-cost-badge{background:var(--sel);color:var(--text);}
+/* findings */
+html .app .monitor-layout .result .edge-finding{margin:var(--s-4) 0;padding:0;border:1px solid var(--border);border-radius:var(--r-lg);background:transparent;overflow:hidden;display:block;box-shadow:none;}
+html .app .monitor-layout .result .edge-finding-head{display:flex;align-items:flex-start;gap:var(--s-5);margin:0;padding:var(--s-6) var(--s-7);}
+html .app .monitor-layout .result .edge-finding-head>strong{flex:1;margin:0;font-size:var(--t-section);font-weight:600;line-height:var(--lh-tight);color:var(--text);}
+html .app .monitor-layout .result .edge-metrics{display:flex;flex-wrap:wrap;gap:var(--s-3) var(--s-9);margin:0;padding:0 var(--s-7) var(--s-5);border:0;background:none;}
+html .app .monitor-layout .result .edge-metrics>div{display:block;padding:0;border:0;background:none;}
+html .app .monitor-layout .result .edge-metrics span{display:block;font-size:var(--t-body);font-weight:400;color:var(--text-2);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-metrics strong{display:block;font-size:var(--t-num);font-weight:500;color:var(--text);}
+html .app .monitor-layout .result .edge-finding-parts{display:grid;grid-template-columns:110px 1fr;gap:var(--s-3) var(--s-7);padding:var(--s-5) var(--s-7) var(--s-6);border-top:1px solid var(--border);}
+html .app .monitor-layout .result .edge-finding-part{display:contents;}
+html .app .monitor-layout .result .edge-finding-part>.edge-eyebrow{display:block;margin:0;font-size:var(--t-meta);font-weight:500;line-height:21.546px;color:var(--text-3);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-finding-part>.edge-md{margin:0;color:var(--text);}
+html .app .monitor-layout .result .edge-finding-part>.edge-md>:first-child{margin-top:0;}
+html .app .monitor-layout .result .edge-finding-part>.edge-md p:last-child{margin-bottom:0;}
+html .app .monitor-layout .result .edge-finding>.edge-data-rows{margin:0;padding:0 var(--s-7) var(--s-5);}
+html .app .monitor-layout .result .edge-finding>details.edge-more{margin:0;padding:0 var(--s-7) var(--s-5);border:0;background:none;}
+html .app .monitor-layout .result .edge-finding>details.edge-more>summary{padding:0;font-size:var(--t-ctl);font-weight:500;color:var(--text-3);}
+/* plan */
+html .app .monitor-layout .result .edge-plan{margin-top:var(--s-3);margin-bottom:var(--s-6);padding:0;border:1px solid var(--border);border-radius:var(--r-lg);background:transparent;overflow:hidden;box-shadow:none;}
+html .app .monitor-layout .result .edge-plan-head{display:flex;align-items:center;justify-content:flex-start;gap:var(--s-4);margin:0;padding:var(--s-5) var(--s-7);background:var(--surface-2);border-bottom:1px solid var(--border);}
+html .app .monitor-layout .result .edge-plan-head .icon{width:16px;height:16px;color:var(--text);}
+html .app .monitor-layout .result .edge-plan-head>.edge-eyebrow{font-size:var(--t-section);font-weight:600;color:var(--text);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-plan-head>.edge-badge{margin-left:auto;}
+html .app .monitor-layout .result .edge-plan-summary{display:flex;flex-wrap:wrap;gap:var(--s-3);margin:0;padding:var(--s-6) var(--s-7) var(--s-2);border:0;background:none;}
+html .app .monitor-layout .result .edge-plan-summary>div{display:block;padding:3px var(--s-4);border:1px solid var(--border);border-radius:var(--r-sm);background:none;color:var(--text-2);font-size:var(--t-ctl);}
+html .app .monitor-layout .result .edge-plan-summary :is(dt,dd){display:inline;margin:0;padding:0;border:0;border-radius:0;background:none;font-size:var(--t-ctl);line-height:normal;text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-plan-summary dt{color:var(--text-2);font-weight:400;}
+html .app .monitor-layout .result .edge-plan-summary dd{color:var(--text);font-weight:500;}
+html .app .monitor-layout .result .edge-plan :is(.edge-plan-objective,.edge-plan-root){margin:0;padding:var(--s-5) var(--s-7) 0;font-size:var(--t-body);font-weight:400;line-height:var(--lh-read);color:var(--text-2);}
+html .app .monitor-layout .result .edge-plan-root strong{font-weight:600;color:var(--text);}
+html .app .monitor-layout .result .edge-plan-item{margin:0;padding:var(--s-5) var(--s-7) var(--s-7);border:0;background:none;}
+html .app .monitor-layout .result .edge-plan-item+.edge-plan-item{border-top:1px solid var(--border);}
+html .app .monitor-layout .result .edge-plan-item-head{display:block;margin:var(--s-2) 0 var(--s-1);font-size:var(--t-section);font-weight:600;line-height:normal;color:var(--text);}
+html .app .monitor-layout .result .edge-plan-item-head .edge-step{display:inline;padding:0;border-radius:0;background:none;color:var(--text);font:inherit;}
+html .app .monitor-layout .result .edge-plan-item-head code{font-family:var(--sans);font-size:var(--t-num);font-weight:500;background:var(--hover);border-radius:var(--r-xs);padding:1px 4px;}
+html.dark .app .monitor-layout .result .edge-plan-item-head .edge-step{background:none;color:var(--text);}
+html .app .monitor-layout .result .edge-plan-item .edge-plan-question{margin:0 0 var(--s-2);font-size:var(--t-body);line-height:var(--lh-read);color:var(--text-2);}
+html .app .monitor-layout .result .edge-plan-item .edge-plan-question:last-of-type{margin-bottom:var(--s-5);}
+html .app .monitor-layout .result .edge-plan-item .edge-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0;padding:0;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:none;}
+html .app .monitor-layout .result .edge-plan-item .edge-facts>div{position:relative;min-height:62px;margin:0;padding:var(--s-4) var(--s-5);border:0;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:none;border-radius:0;}
+html .app .monitor-layout .result .edge-plan-item .edge-facts>div:nth-child(3n){border-right:0;}
+html .app .monitor-layout .result .edge-plan-item .edge-facts dt{display:flex;align-items:center;gap:var(--s-3);margin:0;padding:0;border:0;border-radius:0;background:none;font-size:var(--t-meta);font-weight:500;line-height:normal;color:var(--text-3);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-plan-item .edge-facts dd{margin:var(--s-1) 0 0;padding:0;font-size:var(--t-body);font-weight:400;line-height:var(--lh-read);color:var(--text);}
+html .app .monitor-layout .result .edge-plan-item .edge-facts dd small{display:block;font-size:var(--t-meta);color:var(--amber);}
+html .app .monitor-layout .result .edge-plan>details.edge-more,html .app .monitor-layout .result .edge-plan-item>details.edge-more{margin:var(--s-4) 0 0;padding:0;border:0;background:none;}
+html .app .monitor-layout .result .edge-plan>details.edge-more{padding:0 var(--s-7) var(--s-5);}
+html .app .monitor-layout .result .edge-plan details.edge-more>summary{padding:0;font-size:var(--t-ctl);font-weight:500;color:var(--text-3);}
+html .app .monitor-layout .result .edge-plan>.edge-plan-notes{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-8);margin:0;padding:0 var(--s-7) var(--s-7);border:0;background:none;}
+html .app .monitor-layout .result .edge-plan>.edge-plan-notes.edge-plan-carried{display:block;padding:0 var(--s-7) var(--s-5);}
+html .app .monitor-layout .result .edge-plan-notes .edge-eyebrow{display:block;margin:0 0 var(--s-2);font-size:var(--t-meta);font-weight:500;color:var(--text-3);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-plan-notes ul{margin:0;padding-left:18px;color:var(--text-2);font-size:var(--t-body);line-height:var(--lh-read);}
+/* choices ("Your next step") */
+html .app .monitor-layout .result .edge-response-choices{margin-top:var(--s-4);margin-bottom:var(--s-3);padding:var(--s-6);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface-2);box-shadow:none;}
+html .app .monitor-layout .result .edge-response-choices .edge-choices-title{margin:0 0 var(--s-2);font-size:var(--t-meta);font-weight:500;line-height:normal;color:var(--text-3);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-response-choices .edge-choices-prompt,html .app .monitor-layout .result .edge-response-choices .edge-choices-prompt p{margin:0 0 var(--s-5);font-size:var(--t-body);line-height:var(--lh-read);color:var(--text);}
+html .app .monitor-layout .result .edge-response-choices .edge-choices-prompt .edge-md p:last-child{margin-bottom:0;}
+html .app .monitor-layout .result .edge-choice-area{margin:0;padding:0;border:0;background:none;box-shadow:none;}
+html .app .monitor-layout .result .edge-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:var(--s-4);}
+html .app .monitor-layout .result .edge-choice{display:flex;align-items:center;justify-content:flex-start;gap:var(--s-5);min-height:0;height:auto;padding:var(--s-5) var(--s-6);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);text-align:left;font-size:var(--t-body);font-weight:500;box-shadow:none;}
+html .app .monitor-layout .result .edge-choice:hover:not(:disabled){border-color:transparent;background:var(--surface);box-shadow:var(--shadow);}
+html .app .monitor-layout .result .edge-choice:is(.primary,.sent){background:var(--text);border-color:var(--text);color:var(--surface);}
+html .app .monitor-layout .result .edge-choice:is(.primary,.sent):hover:not(:disabled){background:var(--text);}
+html .app .monitor-layout .result .edge-choice:disabled{box-shadow:none;cursor:not-allowed;opacity:.45;}
+html .app .monitor-layout .result .edge-choice .edge-choice-icon{display:inline-grid;place-items:center;width:auto;height:auto;margin:0;border:0;border-radius:0;background:none;color:inherit;}
+html .app .monitor-layout .result .edge-choice .edge-choice-icon .icon{width:16px;height:16px;}
+html .app .monitor-layout .result .edge-choice .edge-choice-copy{display:block;min-width:0;}
+html .app .monitor-layout .result .edge-choice .edge-choice-copy strong{display:block;font-size:var(--t-body);font-weight:500;line-height:normal;color:inherit;}
+html .app .monitor-layout .result .edge-choice .edge-choice-copy small{display:block;margin:0;font-size:var(--t-meta);font-weight:400;line-height:normal;color:var(--text-3);}
+html .app .monitor-layout .result .edge-choice:is(.primary,.sent) .edge-choice-copy small{color:var(--surface);opacity:.7;}
+html .app .monitor-layout .result .edge-choice .edge-choice-tail{display:none;}
+html .app .monitor-layout .result .edge-response-choices .edge-choices-help{margin:var(--s-4) 0 0;font-size:var(--t-ctl);line-height:var(--lh-tight);color:var(--text-3);}
+html .app .monitor-layout .result .edge-pause-line{display:flex;gap:var(--s-5);align-items:flex-start;margin-top:var(--s-2);margin-bottom:var(--s-5);padding:var(--s-5) var(--s-6);border-radius:var(--r-lg);background:var(--amber-bg);font-size:var(--t-body);line-height:var(--lh-read);color:var(--text);}
+html .app .monitor-layout .result .edge-pause-line .icon{width:16px;height:16px;margin-top:2px;color:var(--amber);}
+html .app .monitor-layout .result .edge-pause-line b{font-weight:600;}
+/* suggested next questions */
+html .app .monitor-layout .result .edge-next{margin-top:var(--s-3);}
+html .app .monitor-layout .result .edge-fup-title{display:block;font-size:var(--t-meta);font-weight:500;color:var(--text-3);text-transform:none;letter-spacing:normal;}
+html .app .monitor-layout .result .edge-fups{display:grid;gap:var(--s-3);margin:var(--s-3) 0 var(--s-6);}
+html .app .monitor-layout .result .edge-discs>details.edge-fup-group>.edge-fups{margin:0;}
+html .app .monitor-layout .result .edge-fup{display:flex;align-items:center;justify-content:flex-start;gap:var(--s-5);width:100%;min-height:0;padding:var(--s-4) var(--s-5);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);text-align:left;font:400 var(--t-body)/var(--lh-read) var(--sans);box-shadow:none;cursor:pointer;}
+html .app .monitor-layout .result .edge-fup:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow);}
+html .app .monitor-layout .result .edge-fup:disabled{cursor:not-allowed;opacity:.45;}
+html .app .monitor-layout .result .edge-fup.sent{border-color:var(--text);}
+html .app .monitor-layout .result .edge-fup>.icon{width:16px;height:16px;flex:none;}
+html .app .monitor-layout .result .edge-fup-label{flex:1;min-width:0;}
+/* Assumptions, Limitations, Methodology */
+html .app .monitor-layout .result>.content-block.edge-discs{margin-top:var(--s-10);}
+html .app .monitor-layout .result .edge-discs>details.edge-notes{margin:0;padding:0;border:0;background:none;}
+html .app .monitor-layout .result .edge-discs>details.edge-notes+details.edge-notes{margin-top:var(--s-6);}
+html .app .monitor-layout .result .edge-discs>details.edge-notes>summary{display:list-item;width:max-content;max-width:100%;padding:0;cursor:pointer;font-size:var(--t-ctl);font-weight:500;line-height:normal;color:var(--text-3);list-style:revert;}
+html .app .monitor-layout .result .edge-discs>details.edge-notes>summary::-webkit-details-marker{display:revert;}
+html .app .monitor-layout .result .edge-discs>details.edge-notes>summary::before,html .app .monitor-layout .result .edge-discs>details.edge-notes>summary::after{content:none;display:none;}
+html .app .monitor-layout .result .edge-discs>details.edge-notes>summary:hover{color:var(--text);}
+html .app .monitor-layout .result .edge-discs>details.edge-notes[open]>summary{margin-bottom:var(--s-4);}
+html .app .monitor-layout .result .edge-discs>details.edge-notes>:not(summary){margin:0;padding:0;font-size:var(--t-body);line-height:21.546px;color:var(--text);}
+html .app .monitor-layout .result .edge-discs .edge-list{margin:0;padding-left:var(--s-8);}
+html .app .monitor-layout .result .edge-discs .edge-list li{font-size:var(--t-body);line-height:21.546px;color:var(--text);}
+html .app .monitor-layout .result .edge-reproduced,html .app .monitor-layout .result .edge-attached-line{display:flex;align-items:center;gap:6px;margin-top:var(--s-4);font-size:var(--t-meta);color:var(--text-3);}
+html .app .monitor-layout .result .edge-reproduced .icon{color:var(--green);}
+/* answer tables (AI_revamp.html .tblwrap .tblscroll .tbltools): the table in a framed box at full width, its header row
+   on a fill; "Show n more rows" under it on the left, Download and Enlarge on the right */
+html .app .monitor-layout .result .edge-md-table-frame{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:var(--s-3);margin:var(--s-2) 0 var(--s-7);padding:0;}
+html .app .monitor-layout .result .edge-md-table-frame>.edge-md-table{grid-column:1/-1;grid-row:1;margin:0;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);overflow-x:auto;scrollbar-width:thin;}
+html .app .monitor-layout .result .edge-md-table-frame>.edge-table-tools{position:static;grid-column:2;grid-row:2;display:flex;justify-content:flex-end;gap:var(--s-3);padding:var(--s-5) 0 0;}
+html .app .monitor-layout .result .edge-md-table-frame>.edge-table-more{grid-column:1;grid-row:2;justify-self:start;margin:var(--s-5) 0 0;}
+html .app .monitor-layout .result :is(.edge-table-download,.edge-table-expand){width:28px;height:28px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text-2);}
+html .app .monitor-layout .result :is(.edge-table-download,.edge-table-expand):hover:not(:disabled){background:var(--surface);color:var(--text);box-shadow:var(--shadow);}
+html .app .monitor-layout .result :is(.edge-table-download,.edge-table-expand) .icon{width:16px;height:16px;}
+html .app .monitor-layout .result .edge-table-more{height:var(--h-sm);padding:0 9px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-2);font:500 var(--t-ctl)/normal var(--sans);}
+html .app .monitor-layout .result .edge-table-more:hover{color:var(--text);box-shadow:var(--shadow);background:var(--surface);}
+html .app .monitor-layout .result .edge-md-table .data-table{width:100%;max-width:none;margin:0;border:0;border-collapse:separate;border-spacing:0;background:var(--surface);font-size:12.04px;color:var(--text);}
+html .app .monitor-layout .result .edge-md-table .data-table th{height:35px;padding:0;border:0;border-bottom:1px solid color-mix(in srgb,var(--text) 24%,var(--surface));background:color-mix(in srgb,var(--text) 15%,var(--surface));color:var(--text);font-size:10.92px;font-weight:600;line-height:normal;text-align:left;vertical-align:middle;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort{display:block;width:100%;min-height:35px;padding:10px 12px;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort:hover{color:var(--text);}
+/* the arrow stands just after the title, outside its 14ch width (EXEC-UI-1019B), as AI_revamp.html's .ar */
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-icon{display:inline-flex;opacity:.5;}
+html .app .monitor-layout .result .edge-md-table .data-table :is(th.sorted,th:hover) .edge-sort-icon{opacity:1;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-icon .icon{width:12px;height:12px;}
+html .app .monitor-layout .result .edge-md-table .data-table td{padding:8px 12px;border:0;border-bottom:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.04px;line-height:19.5px;vertical-align:top;}
+html .app .monitor-layout .result .edge-md-table .data-table tbody tr:last-child td{border-bottom:0;}
+html .app .monitor-layout .result .edge-md-table .data-table tbody tr:hover td{background:var(--surface-2);}
+html .app .monitor-layout .result .edge-md-table .data-table tbody tr:hover{background:transparent;}
+html .app .monitor-layout .result .edge-md-table .data-table .num{text-align:right;white-space:nowrap;}
+html.dark .app .monitor-layout .result .edge-md-table .data-table td:first-child{background:var(--surface);}
+html.dark .app .monitor-layout .result .edge-md-table .data-table th:first-child{background:color-mix(in srgb,var(--text) 15%,var(--surface));}
+html.dark .app .monitor-layout .result .edge-md-table .data-table tbody tr:hover td{background:var(--surface-2);}
+/* Jump to latest sits over the middle of the reading column, above the message box (AI_revamp.html .jump) */
+html .app .monitor-layout .jump-latest{left:calc((100% - var(--edge-conversation-scrollbar,0px)) / 2);right:auto;bottom:calc(var(--edge-composer-height,123px) + 60px);transform:translateX(-50%);}
+/* ---- 6. message box (AI_revamp.html .composer .cbox .cbar .send) ---- */
+html .app .monitor-layout .composer{margin-top:12px;margin-bottom:16px;padding:20px 18px 14px;--composer-pad-top:20px;border:1px solid var(--border);border-radius:var(--r-xl);background:var(--surface);box-shadow:none;transition:box-shadow .15s,border-color .15s;color:var(--text);}
+html .app .monitor-layout .composer:is(:focus-within,.has-text){border-color:var(--border);box-shadow:0 6px 20px -6px rgba(0,0,0,.18),0 2px 6px -2px rgba(0,0,0,.10);}
+html.dark .app .monitor-layout .composer{background:var(--surface);}
+html.dark .app .monitor-layout .composer:is(:focus-within,.has-text){box-shadow:0 6px 22px -6px rgba(0,0,0,.6),0 2px 6px -2px rgba(0,0,0,.4);}
+html .app .monitor-layout .composer>textarea{display:block;min-height:46px;padding:0;border:0;background:transparent;color:var(--text);font:400 var(--t-section)/normal var(--sans);resize:none;}
+html .app .monitor-layout .composer>textarea::placeholder{color:var(--text-3);opacity:1;}
+html .app .monitor-layout .composer>div:last-child{display:flex;align-items:center;gap:var(--s-2);min-height:36px;margin-top:5px;padding:0;}
+html .app .monitor-layout .composer>div:last-child>div:first-child{flex:1;display:flex;align-items:center;gap:var(--s-2);min-width:0;}
+html .app .monitor-layout .composer .edge-model-trigger{display:inline-flex;align-items:center;gap:var(--s-3);height:var(--h-sm);padding:0 9px;border:1px solid transparent;border-radius:var(--r-md);background:none;color:var(--text-2);font:500 var(--t-ctl)/normal var(--sans);}
+html .app .monitor-layout .composer .edge-model-trigger:hover:not(:disabled){background:var(--hover);color:var(--text);}
+html .app .monitor-layout .composer .edge-model-trigger .edge-model-name{color:var(--text);}
+html .app .monitor-layout .composer .edge-model-trigger .edge-model-level{color:var(--text-3);text-transform:lowercase;}
+html .app .monitor-layout .composer .edge-model-trigger>.icon{width:12px;height:12px;}
+html .app .monitor-layout .composer .edge-model-trigger :is(.edge-model-logo,.edge-model-initial){width:18px;height:18px;}
+html .app .monitor-layout .composer>div:last-child .btn.ghost{display:inline-flex;align-items:center;gap:var(--s-3);height:var(--h-sm);min-height:0;padding:0 9px;border:1px solid transparent;border-radius:var(--r-md);background:none;color:var(--text-2);font:500 var(--t-ctl)/normal var(--sans);box-shadow:none;}
+html .app .monitor-layout .composer>div:last-child .btn.ghost .icon{width:16px;height:16px;}
+html .app .monitor-layout .composer>div:last-child .btn.ghost:disabled{opacity:1;cursor:not-allowed;}
+html .app .monitor-layout .composer>div:last-child .icon-btn{width:var(--h-sm);height:var(--h-sm);min-height:0;padding:0;border:1px solid transparent;border-radius:var(--r-md);background:none;color:var(--text-2);box-shadow:none;}
+html .app .monitor-layout .composer>div:last-child .icon-btn:disabled{opacity:1;}
+html .app .monitor-layout .composer .edge-send-group{display:flex;align-items:center;gap:var(--s-3);margin-left:auto;}
+html .app .monitor-layout .composer .edge-send-hint{color:var(--text-3);font-size:var(--t-ctl);line-height:var(--lh-tight);white-space:nowrap;}
+html .app .monitor-layout .composer .edge-send{display:grid;place-items:center;flex:0 0 auto;width:var(--h-md);height:var(--h-md);padding:0;border:0;border-radius:var(--r-md);background:var(--text);color:var(--surface);cursor:pointer;}
+html .app .monitor-layout .composer .edge-send .icon{width:16px;height:16px;}
+html .app .monitor-layout .composer .edge-send:disabled{cursor:not-allowed;opacity:.45;}
+html .app .monitor-layout .composer .edge-send.stop{background:var(--red);}
+html .app .monitor-layout .edge-composer-resizer{left:calc(50% - 44px);top:-12px;width:88px;height:24px;border-radius:var(--r-md);}
+html .app .monitor-layout .edge-composer-resizer:after{left:26px;right:26px;top:10px;height:4px;border-radius:2px;background:var(--border-2);opacity:0;transition:opacity .12s,background .12s;}
+html .app .monitor-layout .composer:is(:hover,:focus-within) .edge-composer-resizer:after,html .app .monitor-layout .edge-composer-resizer:is(:focus-visible,.dragging):after{opacity:1;}
+html .app .monitor-layout .edge-composer-resizer:is(:hover,:focus-visible,.dragging):after{background:var(--text-3);}
+html .app .monitor-layout .composer .edge-attached-chip{margin:0 0 8px;padding:var(--s-3) var(--s-4);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);font-size:var(--t-ctl);}
+html .app .monitor-layout .composer .edge-attached-text{color:var(--text-2);font-size:var(--t-ctl);}
+html .app .monitor-layout .composer textarea.edge-attached-comment{border-top:1px dashed var(--border);padding:var(--s-2) 0 0;font-size:var(--t-ctl);}
+html .app .monitor-layout .composer-status{display:flex;align-items:center;gap:var(--s-4);width:100%;max-width:var(--conversation-max-width);margin:0 auto;padding:var(--s-5) var(--conversation-left) 0;border:0;color:var(--text);font-size:var(--t-body);}
+html .app .monitor-layout .composer-status button{height:var(--h-md);min-height:0;margin-left:auto;padding:0 var(--s-6);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:500 var(--t-title)/normal var(--sans);cursor:pointer;}
+html .app .monitor-layout .composer-status button:hover{border-color:transparent;box-shadow:var(--shadow);}
+html .app .monitor-layout .jump-latest{display:inline-flex;align-items:center;gap:var(--s-3);height:var(--h-sm);padding:0 9px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface);color:var(--text);font:500 var(--t-ctl)/normal var(--sans);box-shadow:var(--shadow);}
+html .app .monitor-layout .jump-latest .icon{width:16px;height:16px;}
+/* model menu (AI_revamp.html #pop.models .mm-*) */
+html .app .monitor-layout .edge-model-menu{width:min(420px,calc(100vw - 48px));padding:8px;border:0;border-radius:9px;background:var(--surface);color:var(--text);box-shadow:0 6px 28px rgba(0,0,0,.15);font-family:var(--sans);line-height:normal;}
+html.dark .app .monitor-layout .edge-model-menu{box-shadow:var(--shadow-lg);}
+html .app .monitor-layout .edge-model-head{display:flex;justify-content:space-between;align-items:center;gap:var(--s-4);margin:0;padding:7px 8px 12px;border:0;}
+html .app .monitor-layout .edge-model-head strong{font-size:var(--fs-12);font-weight:600;color:var(--text);}
+html .app .monitor-layout .edge-model-head small{font-size:10px;color:var(--text-3);}
+html .app .monitor-layout .edge-model-options{display:block;max-height:min(444px,calc(100vh - 220px));overflow-y:auto;overscroll-behavior:contain;gap:0;}
+html .app .monitor-layout .edge-model-options>.edge-model-card{min-height:0;}
+html .app .monitor-layout .edge-model-card{display:grid;grid-template-columns:minmax(0,1fr);margin:0;padding:0;border:0;border-radius:6px;background:none;box-shadow:none;}
+html .app .monitor-layout .edge-model-card.chosen{grid-template-columns:minmax(0,1fr) minmax(128px,42%);background:var(--surface-2);box-shadow:0 2px 9px rgba(0,0,0,.07);}
+html .app .monitor-layout .edge-model-option{display:block;width:100%;height:auto;min-height:0;margin:0;padding:12px;border:0;border-radius:6px;background:none;color:var(--text);text-align:left;box-shadow:none;font:inherit;}
+html .app .monitor-layout .edge-model-option:hover{background:var(--hover);}
+html .app .monitor-layout .edge-model-card.chosen .edge-model-option:hover{background:transparent;}
+html .app .monitor-layout .edge-model-brand{display:flex;align-items:center;gap:9px;}
+html .app .monitor-layout .edge-model-brand :is(.edge-model-logo,.edge-model-initial){width:27px;height:27px;}
+html .app .monitor-layout .edge-model-brand small{display:block;margin:0 0 3px;font-size:10px;line-height:normal;color:var(--text-3);}
+html .app .monitor-layout .edge-model-brand strong{display:block;font-size:var(--fs-12);font-weight:600;line-height:normal;color:var(--text);}
+html .app .monitor-layout .edge-model-stats{display:flex;gap:24px;margin-top:11px;}
+html .app .monitor-layout .edge-model-stats small{display:block;margin:0 0 3px;font-size:9px;line-height:normal;color:var(--text-3);}
+html .app .monitor-layout .edge-model-stats b{font-size:var(--fs-12);font-weight:500;line-height:normal;color:var(--text);}
+html .app .monitor-layout .edge-model-id{display:block;margin-top:8px;font-size:10px;line-height:normal;color:var(--text-3);overflow-wrap:anywhere;}
+html .app .monitor-layout .edge-model-controls{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:10px 10px 10px 0;min-width:0;}
+html .app .monitor-layout .edge-model-levels{display:flex;flex-wrap:wrap;gap:4px;margin:0;}
+html .app .monitor-layout .edge-model-levels small{flex:0 0 100%;margin:0 0 4px;font-size:9px;color:var(--text-3);}
+html .app .monitor-layout .edge-model-levels button{height:auto;min-height:0;padding:5px 9px;border:0;border-radius:var(--r-pill);background:var(--surface);color:var(--text);font:500 11px/normal var(--sans);box-shadow:none;}
+html .app .monitor-layout .edge-model-levels button[aria-checked="true"]{background:var(--text);color:var(--surface);}
+/* ---- 7. Details panel (AI_revamp.html .details .dt-h .dtabs .sec .hist .src) ---- */
+html .app .monitor-layout .details-panel{background:var(--surface);border-left:1px solid var(--border);color:var(--text);font-size:var(--t-body);line-height:normal;--edge-panel-bg:var(--surface);--edge-raised-bg:var(--surface);}
+html .app .monitor-layout .details-head{display:flex;align-items:center;gap:var(--s-3);margin:0;padding:var(--s-5) var(--s-6);border-bottom:1px solid var(--border);}
+html .app .monitor-layout .details-head>.tabs{flex:1;display:flex;flex-wrap:nowrap;gap:2px;margin:0;padding:0;border:0;background:none;}
+html .app .monitor-layout .details-head>.tabs button{position:relative;display:inline-flex;align-items:center;gap:5px;height:var(--h-md);min-height:0;margin:0 var(--s-6) 0 0;padding:0 3px;border:0;border-radius:3px;background:none;color:var(--text-2);font:500 var(--t-title)/normal var(--sans);box-shadow:none;}
+html .app .monitor-layout .details-head>.tabs button:hover{background:var(--hover);color:var(--text);}
+html .app .monitor-layout .details-head>.tabs button.active{background:transparent;color:var(--text);font-weight:600;}
+html .app .monitor-layout .details-head>.tabs button::after{content:"";position:absolute;left:3px;right:3px;bottom:0;height:2px;border-radius:2px;background:transparent;}
+html .app .monitor-layout .details-head>.tabs button.active::after{background:var(--text);}
+html .app .monitor-layout .details-head>.icon-btn{width:var(--h-md);height:var(--h-md);min-height:0;padding:0;border:0;border-radius:var(--r-md);background:none;color:var(--text-2);box-shadow:none;}
+html .app .monitor-layout .details-head>.icon-btn:hover{background:var(--hover);color:var(--text);}
+html .app .monitor-layout .details-panel .edge-pins{flex:0 0 auto;height:auto;min-height:0;max-height:50%;padding:0 var(--s-6) var(--s-2);border-bottom:0;}
+html .app .monitor-layout .details-panel .edge-flow-list{padding:0 var(--s-6) var(--s-6);}
+/* the section titles stay at the top of their scroll area (sticky at 0), the room above them inside the title */
+html .app .monitor-layout .details-panel :is(.edge-pins-head,.edge-history-head){top:0;margin:0 0 var(--s-3);padding:var(--s-6) 0 0;background:var(--surface);}
+html .app .monitor-layout .details-panel .edge-history-head{padding-top:var(--s-2);}
+html .app .monitor-layout .details-panel :is(.edge-pins-head,.edge-history-head):before{display:none;}
+html .app .monitor-layout .details-panel .edge-section-toggle{display:flex;align-items:center;gap:var(--s-3);min-height:36px;margin:0 calc(-1 * var(--s-5));padding:var(--s-4) var(--s-5);width:calc(100% + 2 * var(--s-5));border-radius:var(--r-md);color:var(--text-2);font:600 var(--t-section)/normal var(--sans);}
+html .app .monitor-layout .details-panel .edge-section-toggle:hover{background:var(--hover);color:var(--text);}
+html .app .monitor-layout .details-panel .edge-section-toggle:focus-visible{outline:2px solid var(--text-3);outline-offset:0;}
+html .app .monitor-layout .details-panel .edge-section-toggle>.icon{width:13px;height:13px;}
+html .app .monitor-layout .details-panel .edge-section-toggle .edge-section-count{color:var(--text-3);font-size:var(--t-meta);font-weight:500;}
+html .app .monitor-layout .details-panel .edge-section-toggle>.edge-disclosure-chevron{width:14px;height:14px;margin-left:auto;color:var(--text-3);}
+html .app .monitor-layout .details-panel .edge-pins-empty{padding:var(--s-3) 0;font-size:var(--t-ctl);line-height:var(--lh-tight);color:var(--text-3);}
+html .app .monitor-layout .details-panel .edge-pins-resizer:after{background:transparent;}
+html .app .monitor-layout .details-panel .edge-pins-resizer:is(:hover,:focus-visible,.dragging):after{background:var(--text-3);}
+html .app .monitor-layout .details-panel .edge-flow-accordion{margin:0 0 6px;padding:0;border:0;}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--s-1) 9px;align-items:center;box-sizing:border-box;min-height:63px;padding:var(--s-4);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.05),0 3px 8px -4px rgba(0,0,0,.14);transition:box-shadow .15s,transform .15s;}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary:hover{background:var(--surface);box-shadow:var(--shadow);transform:translateY(-1px);}
+html .app .monitor-layout .details-panel .edge-flow-accordion[open]>summary{background:var(--surface);box-shadow:var(--shadow);}
+html.dark .app .monitor-layout .details-panel .edge-flow-accordion>summary{box-shadow:0 1px 2px rgba(0,0,0,.5),0 3px 8px -4px rgba(0,0,0,.6);}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary>div{min-width:0;}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:var(--t-body);font-weight:400;line-height:normal;color:var(--text);}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary small{display:block;margin-top:var(--s-1);font-size:var(--t-meta);line-height:normal;color:var(--text-3);}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary>.edge-disclosure-chevron{width:14px;height:14px;color:var(--text-3);}
+html .app .monitor-layout .details-panel .edge-okmark{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:var(--b-green);flex:0 0 auto;}
+html .app .monitor-layout .details-panel .edge-okmark svg{width:12px;height:12px;fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+html .app .monitor-layout .details-panel .edge-history-dot{width:7px;height:7px;margin:0 6px;border-radius:50%;background:var(--amber);}
+html .app .monitor-layout .details-panel .edge-history-dot.negative{background:var(--red);}
+html .app .monitor-layout .details-panel .edge-history-dot.info{background:var(--blue);}
+html .app .monitor-layout .details-panel .edge-history-dot.neutral{background:var(--text-3);}
+html .app .monitor-layout .details-panel .edge-history-jump{height:var(--h-sm);padding:0 9px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface);color:var(--text);font:500 var(--t-ctl)/normal var(--sans);}
+html .app .monitor-layout .details-panel .edge-history-jump:hover{background:var(--hover);}
+html .app .monitor-layout .details-panel .edge-pin-card{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.05),0 3px 8px -4px rgba(0,0,0,.14);font-size:var(--t-body);}
+html .app .monitor-layout .details-panel .edge-details-resizer:after{background:transparent;}
+html .app .monitor-layout .details-panel .edge-details-resizer:is(:hover,:focus-visible):after{background:var(--text-3);}
+html .app .monitor-layout .details-panel :is(.edge-details-upper,.edge-pins){scrollbar-color:color-mix(in srgb,var(--text-3) 45%,transparent) transparent;}
+html .app .monitor-layout :is(.result,.details-panel) .edge-badge,html .app .monitor-layout :is(.result,.details-panel) .edge-badge:is(.positive,.warning,.negative,.info,.neutral){color:#fff !important;}
+/* Sources (AI_revamp.html .sec .src) */
+html .app .monitor-layout .details-panel .sources{padding:var(--s-6);}
+html .app .monitor-layout .details-panel .sources>.content-block{margin:0 0 var(--s-8);padding:0;border:0;}
+html .app .monitor-layout .details-panel .edge-source-fold>summary{display:flex;align-items:center;gap:var(--s-3);min-height:36px;margin:0 calc(-1 * var(--s-5));padding:var(--s-4) var(--s-5);border-radius:var(--r-md);list-style:none;cursor:pointer;user-select:none;color:var(--text-2);font:600 var(--t-section)/normal var(--sans);}
+html .app .monitor-layout .details-panel .edge-source-fold>summary::-webkit-details-marker{display:none;}
+html .app .monitor-layout .details-panel .edge-source-fold>summary:hover{background:var(--hover);color:var(--text);}
+html .app .monitor-layout .details-panel .edge-source-fold>summary .edge-section-count{color:var(--text-3);font-size:var(--t-meta);font-weight:500;}
+html .app .monitor-layout .details-panel .edge-source-fold>summary .edge-disclosure-chevron{width:14px;height:14px;margin-left:auto;color:var(--text-3);transition:transform .15s;}
+html .app .monitor-layout .details-panel .edge-source-fold[open]>summary .edge-disclosure-chevron{transform:rotate(180deg);}
+html .app .monitor-layout .details-panel .edge-source-fold[open]>summary{margin-bottom:var(--s-3);}
+html .app .monitor-layout .details-panel .edge-source{margin:0 0 var(--s-3);padding:var(--s-4) var(--s-5);border:1px solid var(--border);border-radius:var(--r-md);background:none;font-size:var(--t-body);}
+html .app .monitor-layout .details-panel .edge-source+.edge-source{border-top:1px solid var(--border);}
+html .app .monitor-layout .details-panel .edge-source-head{display:flex;align-items:flex-start;gap:var(--s-4);}
+html .app .monitor-layout .details-panel .edge-source-head>:is(strong,code){flex:1;min-width:0;font-size:var(--t-body);font-weight:600;line-height:var(--lh-tight);color:var(--text);background:none;padding:0;}
+html .app .monitor-layout .details-panel .edge-source .edge-data-rows{margin:var(--s-1) 0 0;font-size:var(--t-ctl);color:var(--text-2);}
+html .app .monitor-layout .details-panel .edge-source .edge-data-row :is(dt,dd){font-size:var(--t-ctl);}
+html .app .monitor-layout .details-panel .edge-source-ref{font-family:var(--sans);font-size:var(--t-ctl);background:none;padding:0;color:var(--text-2);}
+html .app .monitor-layout .details-panel .edge-source-action{height:var(--h-sm);margin-top:var(--s-3);padding:0 9px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:500 var(--t-ctl)/normal var(--sans);}
+html .app .monitor-layout .details-panel .edge-source-action:hover{box-shadow:var(--shadow);}
+html .app .monitor-layout .details-panel .sources-empty{padding:var(--s-6);font-size:var(--t-ctl);color:var(--text-3);}
+/* ---- 8. running answer, inline states, branch line, empty state (AI_revamp.html .ans .run .stp .err .lineage) ---- */
+html .app .monitor-layout .edge-run-card{padding:var(--s-7) var(--s-8);border:1px solid var(--border);border-radius:var(--r-xl);background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 14px -4px rgba(0,0,0,.16);}
+html.dark .app .monitor-layout .edge-run-card{box-shadow:0 1px 2px rgba(0,0,0,.5),0 6px 18px -6px rgba(0,0,0,.65);}
+html .app .monitor-layout .edge-run-card>.edge-inline-progress{display:flex;align-items:center;gap:var(--s-4);min-height:0;margin:0;color:var(--text-2);font-size:var(--t-body);}
+html .app .monitor-layout .edge-run-progress{display:block;margin:0;font:400 var(--t-body)/normal var(--sans);color:var(--text-2);}
+html .app .monitor-layout .edge-run-progress-now{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4);color:var(--text-3);font-size:var(--t-meta);font-weight:500;}
+html .app .monitor-layout .edge-run-progress-now>.icon{width:13px;height:13px;color:var(--text-3);}
+html .app .monitor-layout .edge-run-progress-now .edge-badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);background:var(--b-blue);color:#fff !important;font-size:var(--t-meta);font-weight:600;}
+html .app .monitor-layout .edge-run-progress-now .edge-run-clock{color:inherit;}
+html .app .monitor-layout .edge-run-steps{display:grid;gap:7px;margin:var(--s-6) 0 var(--s-2);}
+html .app .monitor-layout .edge-run-earlier{font-size:var(--t-meta);color:var(--text-3);}
+html .app .monitor-layout .edge-run-step{display:flex;align-items:center;gap:9px;color:var(--text-2);font-size:var(--t-body);}
+html .app .monitor-layout .edge-run-step.now{color:var(--text);font-weight:500;}
+html .app .monitor-layout .edge-run-step-mark{display:grid;place-items:center;flex:0 0 auto;width:16px;height:16px;border-radius:50%;font-size:var(--t-meta);font-weight:600;}
+html .app .monitor-layout .edge-run-step.done .edge-run-step-mark{background:var(--green-bg);color:var(--green);}
+html .app .monitor-layout .edge-run-step.done .edge-run-step-mark .icon{width:11px;height:11px;stroke-width:2.2;}
+html .app .monitor-layout .edge-run-step.warn .edge-run-step-mark{background:var(--amber-bg);color:var(--amber);}
+html .app .monitor-layout .edge-run-step.now .edge-run-step-mark{border:2px solid var(--border-2);border-top-color:var(--text);animation:edge-flow-rotate .15s linear infinite;}
+html .app .monitor-layout .edge-run-step em{font-style:normal;color:var(--amber);}
+html .app .monitor-layout .edge-run-step time{margin-left:auto;font-size:var(--t-meta);color:var(--text-3);}
+html .app .monitor-layout .edge-run-note{margin:var(--s-6) 0 0;font-size:var(--t-ctl);line-height:var(--lh-tight);color:var(--text-3);}
+/* user 2026-10-30 ("buat sama dengan terminal speednya"): every running ring turns once in 0.15 s like the Terminal's
+   (.ml-spin, EXEC-TERMINAL-SPEED), 1.6 s when the user asks for less motion; the line above the steps goes once Orc's
+   steps show, so the card says "Running" once (AI_revamp.html running card) */
+html .app .monitor-layout .edge-run-ring{display:block;flex:none;width:14px;height:14px;box-sizing:border-box;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:edge-flow-rotate .15s linear infinite;}
+html .app .monitor-layout .edge-flow-spinner{animation-duration:.15s;}
+html .app .monitor-layout .edge-run-card:has(.edge-run-progress)>.edge-inline-progress{display:none;}
+@media (prefers-reduced-motion:reduce){html .app .monitor-layout :is(.edge-run-ring,.edge-flow-spinner,.edge-run-step.now .edge-run-step-mark){animation-duration:1.6s;}}
+html .app .monitor-layout .run-inline-state{display:flex;gap:var(--s-5);align-items:flex-start;justify-content:flex-start;flex-wrap:wrap;margin:0;padding:var(--s-6);border:0 solid var(--border);border-radius:var(--r-lg);background:var(--surface-2);color:var(--text);font-size:var(--t-body);line-height:var(--lh-read);}
+html .app .monitor-layout .run-inline-state.failed{background:var(--red-bg);}
+html .app .monitor-layout .run-inline-state>div:first-child{flex:1 1 260px;display:block;}
+html .app .monitor-layout .run-inline-state strong{display:block;font-size:var(--t-body);font-weight:600;color:var(--text);}
+html .app .monitor-layout .run-inline-state span{color:var(--text);font-size:var(--t-body);}
+html .app .monitor-layout .run-inline-state .btn,html .app .monitor-layout .run-inline-state>.edge-stalled-actions .btn{height:var(--h-md);min-height:0;padding:0 var(--s-6);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:500 var(--t-title)/normal var(--sans);box-shadow:none;}
+html .app .monitor-layout .run-inline-state .btn.primary{background:var(--text);border-color:var(--text);color:var(--surface);}
+html .app .monitor-layout .run-inline-state .btn:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow);}
+html .app .monitor-layout .run-inline-state>.edge-stalled-actions{display:flex;gap:var(--s-3);flex-basis:100%;}
+html .app .monitor-layout .edge-branch-divider{display:flex;align-items:center;gap:var(--s-4);margin:0;padding:var(--s-5) var(--s-7);border:0;border-radius:var(--r-lg);background:color-mix(in srgb,var(--green) 11%,var(--surface));color:var(--text-2);font-size:var(--t-body);line-height:var(--lh-read);}
+html .app .monitor-layout .edge-branch-divider:before,html .app .monitor-layout .edge-branch-divider:after{display:none;}
+html .app .monitor-layout .edge-branch-divider>.icon{width:16px;height:16px;flex:none;color:var(--green);}
+html .app .monitor-layout .edge-branch-divider button{display:inline;padding:0;border:0;background:none;color:var(--green);font:600 var(--t-body)/inherit var(--sans);cursor:pointer;}
+html .app .monitor-layout .edge-branch-divider button:hover{text-decoration:underline;}
+/* MONITOR-REVAMP (user 2026-10-30): the lineage bar is as wide as the reading column */
+html .app .monitor-layout .research-workspace .edge-branch-divider{box-sizing:border-box;width:100%;max-width:var(--conversation-max-width);margin:0 auto var(--s-8);}
+/* MONITOR-REVAMP (AI_revamp.html .dt-b .note.pad): the Details text without a run is a quiet note at the top */
+html .app .monitor-layout .details-panel .details-empty{display:block;min-height:0;padding:calc(var(--s-6) + var(--s-3)) var(--s-6);text-align:left;color:var(--text-3);font-size:var(--t-ctl);line-height:var(--lh-tight);}
+html .app .monitor-layout .research-empty{color:var(--text-2);font-size:var(--t-body);}
+html .app .monitor-layout .research-empty strong{font-size:var(--t-stat);font-weight:600;color:var(--text);}
+html .app .monitor-layout .research-empty p{color:var(--text-2);font-size:var(--t-body);line-height:var(--lh-read);}
+html .app .monitor-layout .research-empty .block-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-md);background:var(--sel);color:var(--text);}
+html .app .monitor-layout .research-empty .pill{background:var(--b-neutral);color:#fff;border:0;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);font-size:var(--t-meta);font-weight:600;}
+html .app .monitor-layout .message-attachments span{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:0;border-radius:var(--r-sm);background:var(--b-amber);color:#fff;font-size:var(--t-ctl);font-weight:500;}
+/* ---- 9. menus, dialogs, toast, side chat (AI_revamp.html .pop .menu-item .dialog .toast) ---- */
+html .app .edge-share-anchor{position:relative;}
+html .app .monitor-layout .edge-share-menu{top:calc(100% + 6px);bottom:auto;left:0;z-index:60;min-width:220px;padding:var(--s-3);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-lg);}
+html .app .monitor-layout .edge-share-menu .edge-menu-title{padding:var(--s-3) var(--s-4) var(--s-2);font-size:var(--t-meta);font-weight:500;color:var(--text-3);}
+html .app .monitor-layout .edge-share-menu button{display:flex;align-items:center;gap:var(--s-4);width:100%;height:auto;min-height:0;padding:7px var(--s-4);border:0;border-radius:var(--r-sm);background:none;color:var(--text);font:400 var(--t-body)/var(--lh-tight) var(--sans);text-align:left;box-shadow:none;}
+html .app .monitor-layout .edge-share-menu button:hover,html .app .monitor-layout .edge-share-menu button:focus-visible{background:var(--hover);}
+html .app .monitor-layout .edge-share-menu button .icon{width:16px;height:16px;}
+html .app .conversation-panel .edge-share-anchor>.clipboard-status{position:absolute;top:calc(100% + 6px);left:0;z-index:60;white-space:nowrap;}
+.edge-selection-menu{min-width:220px;padding:6px;border:1px solid #eaeaea;border-radius:10px;background:#fff;box-shadow:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);font:400 12px/1.35 Inter,"Segoe UI",system-ui,sans-serif;color:#171717;}
+html.dark .edge-selection-menu{border-color:#262626;background:#111;color:#ededed;box-shadow:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;}
+.edge-selection-menu button{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;color:inherit;font:inherit;}
+.edge-selection-menu button:hover,.edge-selection-menu button:focus-visible{background:#f3f3f3;}
+html.dark .edge-selection-menu button:hover,html.dark .edge-selection-menu button:focus-visible{background:#1c1c1c;}
+.edge-selection-menu button .icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+html .app .dialog-backdrop{background:rgba(0,0,0,.32);}
+html .app .dialog{border:0;border-radius:var(--r-2xl);background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);font-family:var(--sans);}
+html .app .dialog-head{min-height:0;padding:var(--s-8) 18px var(--s-6);border-bottom:1px solid var(--border);}
+html .app .dialog-head strong{font-size:var(--t-title);font-weight:600;color:var(--text);}
+html .app .dialog-head small{font-size:var(--t-ctl);color:var(--text-3);}
+html .app .dialog-head .icon-btn{width:var(--h-md);height:var(--h-md);min-height:0;padding:0;border:0;border-radius:var(--r-md);background:none;color:var(--text-2);box-shadow:none;}
+html .app .dialog-head .icon-btn:hover{background:var(--hover);color:var(--text);}
+html .app .confirm-dialog-actions{padding:var(--s-6) 18px;gap:var(--s-4);}
+html .app .confirm-dialog-actions .btn{height:var(--h-md);min-height:0;padding:0 var(--s-6);border-radius:var(--r-md);font:500 var(--t-title)/normal var(--sans);}
+html .app .confirm-dialog-actions .btn.secondary{border:1px solid var(--border);background:var(--surface);color:var(--text);}
+html .app .confirm-dialog-actions .btn.danger{border:1px solid var(--red);background:var(--red);color:#fff;}
+html .app .toast{left:50%;right:auto;bottom:24px;transform:translateX(-50%);min-height:0;padding:var(--s-4) var(--s-7);border:0;border-radius:var(--r-pill);background:var(--text);color:var(--surface);font:400 var(--t-body)/normal var(--sans);box-shadow:var(--shadow-lg);}
+html .app .toast .icon{color:var(--surface);width:16px;height:16px;}
+html .app .top-actions .account-menu{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-lg);padding:var(--s-3);}
+html .app .top-actions .account-menu>button{min-height:0;padding:7px var(--s-4);border-radius:var(--r-sm);color:var(--text);font:400 var(--t-body)/normal var(--sans);}
+html .app .top-actions .account-menu>button:hover{background:var(--hover);}
+html .app .monitor-layout .edge-side-chat{border-left:1px solid var(--border);background:var(--surface);box-shadow:var(--shadow-lg);top:var(--h-top);}
+html .app .monitor-layout .edge-side-head{padding:var(--s-5) var(--s-6);border-bottom:1px solid var(--border);font-size:var(--t-title);}
+html .app .monitor-layout .edge-side-head strong{font-weight:600;color:var(--text);}
+html .app .monitor-layout .edge-side-head .icon-btn{width:var(--h-md);height:var(--h-md);min-height:0;padding:0;border:0;border-radius:var(--r-md);background:none;color:var(--text-2);box-shadow:none;}
+html .app .monitor-layout .edge-side-head .icon-btn:hover{background:var(--hover);color:var(--text);}
+@media (max-width:1050px){
+  html .app .monitor-layout .composer .edge-send-hint{display:none;}
+  html .app .topbar{gap:10px;padding:0 10px;}
+  html .app .topbar nav button{padding:0 8px;}
+  html .app .topbar nav button.active:after{left:8px;right:8px;}
+  html .app .topbar .top-actions{gap:5px;}
+  html .app .topbar nav{margin-left:0;}
+  html .app .topbar .top-actions .market-search-inactive{width:170px;}
+}
+/* ---- 10. phone (max-width 720px): the existing arrangement (menu and "+" in the top bar, a round message box) keeps its
+   sizes; it takes the colours and type above ---- */
+@media (max-width:720px){
+  html .app .topbar{gap:8px;padding:0 10px;}
+  html .app .topbar .top-actions{gap:5px;min-width:0;}
+  html .app .topbar .top-actions .market-search-inactive{width:36px;min-width:36px;justify-content:center;padding:0;}
+  html .app .topbar .top-actions>.icon-btn{width:36px;height:36px;}
+  html .app .topbar .avatar{flex:none;width:32px;height:32px;}
+  html .app .monitor-layout:not(.mobile-history-open) .conversation-panel{padding:0;border:0;background:transparent;}
+  html .app .monitor-layout:not(.mobile-history-open) .conversation-panel>.btn.primary{width:36px;height:36px;padding:0;}
+  html .app .monitor-layout:not(.mobile-history-open) .conversation-panel .icon-btn{width:36px;height:36px;}
+  html .app .monitor-layout .composer>div:last-child .btn.ghost[title="Data Scope is not available yet"]{display:none;}
+  html .app .monitor-layout .composer>div:last-child>div:first-child>.icon-btn{order:-1;width:32px;height:32px;border-radius:999px;}
+  html .app .monitor-layout .composer .edge-model-trigger>.icon{display:none;}
+  html .app .monitor-layout .user-message{max-width:94%;}
+  html .app .monitor-layout .research-scroll{padding-bottom:8px;}
+  /* a table on a phone keeps its own width and scrolls sideways (EXEC-UI-1015D), its first column sticky */
+  html .app .monitor-layout .result .edge-md-table .data-table{width:auto;}
+  html .app .monitor-layout .result .edge-md-table .data-table td,html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort{padding:6px 10px;}
+  /* the phone's model menu stays the panel over the conversation, as wide as the message box (EXEC-UI-1015 U5) */
+  html .app .monitor-layout .edge-model-menu{width:var(--edge-composer-width,calc(100vw - 20px));padding:10px 12px;border-radius:16px;overflow-y:auto;box-shadow:0 8px 32px #00000033;}
+  html .app .monitor-layout .edge-model-options{max-height:none;overflow:visible;}
+  html .app .monitor-layout .composer{margin-top:6px;margin-bottom:calc(8px + env(safe-area-inset-bottom));padding:8px 8px 8px 14px;border-radius:22px;}
+  html .app .monitor-layout .composer>textarea{min-height:24px;max-height:120px;padding:6px 2px 4px;font-size:14px;line-height:1.5;}
+  html .app .monitor-layout .composer .edge-send{width:36px;height:36px;border-radius:999px;}
+}
 </style>
 </head>
 <body><div id="root"></div>
@@ -10295,7 +10892,8 @@ html.dark .composer:focus-within,html.dark .composer.has-text{box-shadow:0 6px 2
 // Native DOM utilities: real elements, explicit view state, and event listeners.
 // No virtual DOM, runtime compiler, npm, or frontend framework is used.
 let currentView = null;
-let themeState = {theme:'dark', toggle:()=>{}};
+// MONITOR-REVAMP (user 2026-10-29: "Terang"): a browser with no saved choice starts light; a saved choice is kept
+let themeState = {theme:'light', toggle:()=>{}};
 const views = new Map();
 let pendingRefresh = false;
 const fragment = Symbol('fragment');
@@ -10490,10 +11088,11 @@ addEventListener('hashchange',()=>dispatchEvent(new PopStateEvent('popstate')));
 const paths = {
     // EXEC-CHOICES: a choice sent at once (arrow) and a choice the user completes in the message box (pen)
     arrow: element("path", { d: "M5 12h14M13 6l6 6-6 6" }),
-    pen: element("path", { d: "m14 4 6 6M4 20l4-1L20 7a2 2 0 0 0-3-3L5 16z" }),
+    pen: element("path", { d: "M4 20h4L19 9l-4-4L4 16z" }),
+    // MONITOR-REVAMP: the glyphs of AI_revamp.html where it draws the same thing
     search: element(fragment, null,
-        element("circle", { cx: "11", cy: "11", r: "6" }),
-        element("path", { d: "m16 16 4 4" })),
+        element("circle", { cx: "11", cy: "11", r: "7" }),
+        element("path", { d: "m20 20-3.5-3.5" })),
     bell: element(fragment, null,
         element("path", { d: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" }),
         element("path", { d: "M10 21h4" })),
@@ -10502,26 +11101,28 @@ const paths = {
         element("path", { d: "M9.7 9a2.5 2.5 0 1 1 3.8 2.1c-1.5.9-1.5 1.4-1.5 2.4M12 17h.01" })),
     settings: element(fragment, null,
         element("circle", { cx: "12", cy: "12", r: "3" }),
-        element("path", { d: "M20.957 11.118 L20.957 12.882 L18.699 14.032 L18.173 15.300 L18.957 17.710 L17.710 18.957 L15.300 18.173 L14.032 18.699 L12.882 20.957 L11.118 20.957 L9.968 18.699 L8.700 18.173 L6.290 18.957 L5.043 17.710 L5.827 15.300 L5.301 14.032 L3.043 12.882 L3.043 11.118 L5.301 9.968 L5.827 8.700 L5.043 6.290 L6.290 5.043 L8.700 5.827 L9.968 5.301 L11.118 3.043 L12.882 3.043 L14.032 5.301 L15.300 5.827 L17.710 5.043 L18.957 6.290 L18.173 8.700 L18.699 9.968Z" })),
+        element("path", { d: "M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" })),
     user: element(fragment, null,
         element("circle", { cx: "12", cy: "8", r: "4" }),
         element("path", { d: "M4 21a8 8 0 0 1 16 0" })),
-    bookmark: element("path", { d: "M6 4h12v17l-6-4-6 4Z" }),
-    pin: element("path", {d:"M9 3h6l-1 7 4 4v2H6v-2l4-4-1-7ZM12 16v6"}),
-    copy: element(fragment,null,element("rect",{x:8,y:8,width:12,height:12,rx:2}),element("path",{d:"M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"})),
+    bookmark: element("path", { d: "M6 3h12v18l-6-4-6 4z" }),
+    pin: element("path", {d:"M12 17v5M9 3h6l-1 6 4 4H6l4-4z"}),
+    copy: element(fragment,null,element("rect",{x:9,y:9,width:12,height:12,rx:2}),element("path",{d:"M5 15V5a2 2 0 0 1 2-2h10"})),
     share: element(fragment, null,
-        element("circle", { cx: "18", cy: "5", r: "2" }),
-        element("circle", { cx: "6", cy: "12", r: "2" }),
-        element("circle", { cx: "18", cy: "19", r: "2" }),
-        element("path", { d: "m8 11 8-5M8 13l8 5" })),
+        element("circle", { cx: "18", cy: "5", r: "3" }),
+        element("circle", { cx: "6", cy: "12", r: "3" }),
+        element("circle", { cx: "18", cy: "19", r: "3" }),
+        element("path", { d: "m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" })),
+    panel: element(fragment, null, element("rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" }), element("path", { d: "M15 4v16" })),
+    database: element(fragment, null, element("ellipse", { cx: "12", cy: "5", rx: "8", ry: "3" }), element("path", { d: "M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" })),
+    history: element(fragment, null, element("path", { d: "M3 12a9 9 0 1 0 3-6.7L3 8" }), element("path", { d: "M3 3v5h5M12 7v5l3 2" })),
+    fork: element("path", { d: "M4 4v6a4 4 0 0 0 4 4h12M16 9l4 5-4 5" }),
     plus: element("path", { d: "M12 5v14M5 12h14" }), more: element(fragment, null,
         element("circle", { cx: "5", cy: "12", r: "1" }),
         element("circle", { cx: "12", cy: "12", r: "1" }),
         element("circle", { cx: "19", cy: "12", r: "1" })),
-    chevron: element("path", { d: "m8 10 4 4 4-4" }), close: element("path", { d: "m6 6 12 12M18 6 6 18" }),
-    download: element(fragment, null,
-        element("path", { d: "M12 3v12m-4-4 4 4 4-4" }),
-        element("path", { d: "M4 20h16" })),
+    chevron: element("path", { d: "m6 9 6 6 6-6" }), close: element("path", { d: "M6 6l12 12M18 6 6 18" }),
+    download: element("path", { d: "M12 4v12M6 11l6 6 6-6M4 20h16" }),
     expand: element(fragment, null,
         element("path", { d: "M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" })),
     spark: element("path", { d: "m3 16 4-5 4 3 5-8 5 3" }), filter: element("path", { d: "M3 5h18l-7 8v6l-4 2v-8Z" }),
@@ -10530,11 +11131,9 @@ const paths = {
         element("path", { d: "M5 13v7h14v-7" })), save: element(fragment, null,
         element("path", { d: "M5 4h12l2 2v14H5Z" }),
         element("path", { d: "M8 4v6h8V4M8 20v-6h8v6" })),
-    refresh: element(fragment, null,
-        element("path", { d: "M20 7h-6V1" }),
-        element("path", { d: "M20 7a9 9 0 1 0 1 9" })), check: element("path", { d: "m5 12 4 4L19 6" }),
-    stop: element("rect", { x: "7", y: "7", width: "10", height: "10", rx: "1" }), send: element("path", { d: "m3 4 18 8-18 8 3-8Zm3 8h15" }),
-    attach: element("path", { d: "M8 12.5 14.5 6a3 3 0 0 1 4.2 4.2l-8.5 8.5a5 5 0 0 1-7-7l8-8" }),
+    refresh: element("path", { d: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" }), check: element("path", { d: "m5 12 5 5 9-10" }),
+    stop: element("rect", { x: "6", y: "6", width: "12", height: "12", rx: "2" }), send: element("path", { d: "M12 19V5M5 12l7-7 7 7" }),
+    attach: element("path", { d: "m21 12-8.5 8.5a5 5 0 0 1-7-7L14 5a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 8" }),
     trend: element("path", { d: "m3 17 6-6 4 4 8-9" }), eye: element(fragment, null,
         element("path", { d: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12" }),
         element("circle", { cx: "12", cy: "12", r: "3" })),
@@ -10550,8 +11149,7 @@ const paths = {
         element("path", { d: "M11 20h10" })), camera: element(fragment, null,
         element("path", { d: "M4 7h4l2-3h4l2 3h4v12H4Z" }),
         element("circle", { cx: "12", cy: "13", r: "4" })),
-    maximize: element(fragment, null,
-        element("path", { d: "M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" })), sliders: element(fragment, null,
+    maximize: element("path", { d: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" }), sliders: element(fragment, null,
         element("path", { d: "M4 6h7m4 0h5M4 12h3m4 0h9M4 18h10m4 0h2" }),
         element("circle", { cx: "13", cy: "6", r: "2" }),
         element("circle", { cx: "9", cy: "12", r: "2" }),
@@ -10563,19 +11161,24 @@ const paths = {
     "arrow-right": element("path", { d: "M5 12h14m-5-5 5 5-5 5" }),
     "arrow-left": element("path", { d: "M19 12H5m5-5-5 5 5 5" }),
     "arrow-up": element("path", { d: "M12 19V5m-5 5 5-5 5 5" }),
-    "arrow-down": element("path", { d: "M12 5v14m5-5-5 5-5-5" }),
+    "arrow-down": element("path", { d: "M12 5v14M6 13l6 6 6-6" }),
     play: element("path", { d: "m8 5 11 7-11 7Z" }),
     sort: element("path", { d: "m8 9 4-4 4 4M8 15l4 4 4-4" }),
     "sort-arrows": element("path", { d: "M8 18V6M5 9l3-3 3 3M16 6v12m-3-3 3 3 3-3" }),
-    trash: element("path", { d: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" }),
+    trash: element("path", { d: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" }),
     info: element(fragment, null,
         element("circle", { cx: "12", cy: "12", r: "9" }),
         element("path", { d: "M12 11v5M12 8h.01" })),
     // EXEC-ASK-BRANCH: Branch (a fork) and the side chat (a speech bubble)
     branch: element(fragment, null,
         element("circle", { cx: "6", cy: "5", r: "2" }), element("circle", { cx: "6", cy: "19", r: "2" }),
-        element("circle", { cx: "18", cy: "7", r: "2" }), element("path", { d: "M6 7v10M18 9c0 4-6 3-12 8" })),
-    chat: element("path", { d: "M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" }),
+        element("circle", { cx: "18", cy: "8", r: "2" }), element("path", { d: "M6 7v10M18 10c0 4-6 3-12 7" })),
+    chat: element("path", { d: "M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12z" }),
+    alert: element("path", { d: "M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" }),
+    pause: element(fragment, null, element("circle", { cx: "12", cy: "12", r: "9" }), element("path", { d: "M10 9v6M14 9v6" })),
+    flask: element("path", { d: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3" }),
+    bulb: element("path", { d: "M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" }),
+    reply: element("path", { d: "M9 14 4 9l5-5M4 9h11a5 5 0 0 1 5 5v6" }),
     support: element(fragment, null,
         element("path", { d: "M4 13v-1a8 8 0 0 1 16 0v1" }),
         element("path", { d: "M4 13h3v5H5a1 1 0 0 1-1-1Zm16 0h-3v5h2a1 1 0 0 0 1-1Z" }),
@@ -10643,7 +11246,9 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
     },[marketSoon]);
     onLifecycle(viewRecord, "effect0", () => { const onKey = (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        showMarketSoon();
+        // MONITOR-REVAMP (user 2026-10-30, AI_revamp.html): on the Monitor page ⌘K goes to "Search conversations"
+        const search = document.querySelector(".conversation-panel .search input");
+        if (search && search.offsetParent) { search.focus(); search.select(); } else showMarketSoon();
     } }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, []);
     return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""}` },
         element("header", { className: "topbar", inert: mobilePanelOpen },
@@ -10853,9 +11458,9 @@ function Monitor({ go }) {
     const pinsOpen = initialValue(viewRecord, "pinsOpen", () => stored("edge-pins-open", true) !== false), flowOpen = initialValue(viewRecord, "flowOpen", () => stored("edge-flow-open", true) !== false);
     const togglePins = () => { keep("edge-pins-open", !pinsOpen); updateValue(viewRecord, "pinsOpen", !pinsOpen); };
     const toggleFlow = () => { keep("edge-flow-open", !flowOpen); updateValue(viewRecord, "flowOpen", !flowOpen); };
-    const detailsWidth = initialValue(viewRecord,"detailsWidth",()=>Math.min(560,Math.max(280,Number(localStorage.getItem("edge-details-width"))||320))), setDetailsWidth=next=>updateValue(viewRecord,"detailsWidth",next);
+    const detailsWidth = initialValue(viewRecord,"detailsWidth",()=>Math.min(560,Math.max(280,Number(localStorage.getItem("edge-details-width"))||340))), setDetailsWidth=next=>updateValue(viewRecord,"detailsWidth",next);
     const collapsed = initialValue(viewRecord, "collapsed", () => ((() => { const seed = () => localStorage.getItem("edge-monitor-collapsed") === "true"; return typeof seed === "function" ? seed() : seed; })())), setCollapsed = next => updateValue(viewRecord, "collapsed", next);
-    const sidebarWidth = initialValue(viewRecord, "sidebarWidth", () => ((() => { const seed = () => Math.min(360, Math.max(180, Number(localStorage.getItem("edge-monitor-width")) || 230)); return typeof seed === "function" ? seed() : seed; })())), setSidebarWidth = next => updateValue(viewRecord, "sidebarWidth", next);
+    const sidebarWidth = initialValue(viewRecord, "sidebarWidth", () => ((() => { const seed = () => Math.min(360, Math.max(180, Number(localStorage.getItem("edge-monitor-width")) || 272)); return typeof seed === "function" ? seed() : seed; })())), setSidebarWidth = next => updateValue(viewRecord, "sidebarWidth", next);
     const expandedRuns = initialValue(viewRecord, "expandedRuns", () => ((() => { const seed = []; return typeof seed === "function" ? seed() : seed; })())), setExpandedRuns = next => updateValue(viewRecord, "expandedRuns", next);
     const shareOpen = initialValue(viewRecord, "shareOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setShareOpen = next => updateValue(viewRecord, "shareOpen", next);
     const attachments = initialValue(viewRecord, "attachments", () => ((() => { const seed = []; return typeof seed === "function" ? seed() : seed; })())), setAttachments = next => updateValue(viewRecord, "attachments", next);
@@ -10889,6 +11494,8 @@ function Monitor({ go }) {
     const selected = items.find(item => item.id === selectedId);
     const run = selected?.runs.find(item => item.id === selectedRunId) ?? latestRun(selected);
     const runNumber = run && selected ? selected.runs.findIndex(item => item.id === run.id) + 1 : 0;
+    // MONITOR-REVAMP (user 2026-10-30): the sidebar's Share shares the conversation's latest answer
+    const shareRun = selected?.runs.findLast(item => item.status === "completed" && !item.stopped && item.raw);
     const executionRun = items.flatMap(c=>c.runs).findLast(item => ["submitted", "running"].includes(item.status));
     const active = Boolean(executionRun);
 
@@ -10961,7 +11568,7 @@ function Monitor({ go }) {
     // closing the side chat refreshes the answers' side-chat links (how many questions each holds)
     const closeSide=async()=>{setSidePanel(null);const id=selectedId;if(!id?.startsWith("conv_"))return;try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?{...x,sideChats:loaded.sideChats}:x));}catch{/* the links refresh on the next load */}};
     // a branch shows the turns it continues; a side chat (its frame) only the answer it asks about. The divider names
-    // where the continued turns come from and sits before the conversation's own first question
+    // where the continued turns come from and heads the conversation
     // EXEC-UI-1025 (user 2026-10-24: a side chat opens empty, "seperti how Claude works"): the side chat shows only its
     // own questions; the answer it is about stays its context (Orc reads it) and is named above them
     const shownMessages=conversation=>{const asked=conversation.messages.filter(m=>m.role==="user");
@@ -10970,10 +11577,11 @@ function Monitor({ go }) {
       const ui=edgeUi(),asked=conversation.messages.filter(m=>m.inherited).at(-1);
       const text=conversation.kind==="SIDE"?ui.sideFrom.replace("{title}",Edge.shortTitle(asked?.content||from.title||"",90)):ui.branchedFrom.replace("{title}",from.title||"");
       return element("div",{key:"edge-branch-divider",className:"edge-branch-divider",role:"separator"},
-        link.side?element("span",null,text):element("button",{type:"button",onClick:()=>selectConversation(from.conversationId)},element(Icon,{name:"branch",size:13}),text));};
+        link.side?element("span",null,text):element(fragment,null,element(Icon,{name:"fork"}),element("span",null,element("button",{type:"button",onClick:()=>selectConversation(from.conversationId)},text),conversation.kind==="SIDE"?null:ui.branchedNote)));};
     const withDivider=(conversation,nodes)=>{const divider=branchDivider(conversation);if(!divider)return nodes;
       if(link.side&&!nodes.length)return [divider,element("p",{key:"edge-side-empty",className:"edge-side-empty"},edgeUi().sideEmpty)];
-      const at=shownMessages(conversation).findIndex(m=>!m.inherited);return [...nodes.slice(0,at<0?nodes.length:at),divider,...nodes.slice(at<0?nodes.length:at)];};
+      // MONITOR-REVAMP (user 2026-10-30, AI_revamp.html lineage): the bar heads the branch, above the turns it continues
+      return [divider,...nodes];};
     viewRecord.refs.askHandler=detail=>{const run=items.find(x=>x.id===selectedId)?.runs.find(r=>r.id===detail?.request_id);if(run)askRun(run,detail);};
     if(!viewRecord.refs.askInstalled){viewRecord.refs.askInstalled=true;
       window.addEventListener("edge-ask",event=>viewRecord.refs.askHandler?.(event.detail));}
@@ -11106,22 +11714,27 @@ function Monitor({ go }) {
                     element("div", null,
                         element("span", { className: "eyebrow" }, "Workspace"),
                         element("strong", null, "Edge Research")),
-                    element(IconButton, { icon: "menu", onClick: () => narrow ? setHistoryOpen(!historyOpen) : toggleCollapsed(), title: narrow ? historyOpen ? "Close history" : "Open history" : collapsed ? "Expand sidebar" : "Collapse sidebar" })),
-                element(Button, { kind: "primary", icon: "plus", ariaLabel:"New conversation", onClick: newConversation }, collapsed && !(narrow && historyOpen) ? undefined : "New conversation"),
+                    element(IconButton, { icon: "menu", onClick: () => narrow ? setHistoryOpen(!historyOpen) : toggleCollapsed(), title: narrow ? historyOpen ? "Close history" : "Open history" : collapsed ? "Expand sidebar" : "Collapse sidebar" }),
+                    // MONITOR-REVAMP (AI_revamp.html nav-acts): an open desktop sidebar carries Details and Share beside its menu
+                    // button; the rail under "+" keeps them when the sidebar is folded, and on a phone
+                    !collapsed && !narrow && element("span", { className: "edge-nav-acts" },
+                        element(IconButton, { icon: "panel", selected: detailsOpen, title: detailsOpen ? edgeUi().railHideDetails : edgeUi().railDetails, onClick: () => setDetailsOpen(!detailsOpen) }),
+                        selected && (shareRun ? element(ShareAction, { key: shareRun.id, run: shareRun, iconTitle: edgeUi().railShare }) : element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare })))),
+                element(Button, { kind: "primary", icon: "plus", ariaLabel:"New Chat", onClick: newConversation }, collapsed && !(narrow && historyOpen) ? undefined : "New Chat"),
                 // EXEC-UI-1015C (desktop): Details, bookmark and share sit in the rail under menu and "+"
-                element("div", { className: "edge-rail-actions" },
+                (collapsed || narrow) && element("div", { className: "edge-rail-actions" },
                     element(IconButton, { icon: "sliders", selected: narrow ? mobileDetailsOpen : detailsOpen, title: (narrow ? mobileDetailsOpen : detailsOpen) ? edgeUi().railHideDetails : edgeUi().railDetails, onClick: () => { if (narrow) { setHistoryOpen(false); setDetailsOpen(true); setMobileDetailsOpen(!mobileDetailsOpen); } else setDetailsOpen(!detailsOpen); } }),
                     element(IconButton, { icon: "bookmark", selected: selected?.bookmarked, disabled: !selected || selected.id.startsWith("draft:"), onClick: () => toggleBookmark(), title: edgeUi().railBookmark }),
-                    element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare })),
-                (!collapsed || (narrow && historyOpen)) && element(Search, { placeholder: "Search conversation", value: query, onChange: setQuery, conversation: true }),
+                    shareRun ? element(ShareAction, { key: shareRun.id, run: shareRun, iconTitle: edgeUi().railShare }) : element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare })),
+                (!collapsed || (narrow && historyOpen)) && element(Search, { placeholder: "Search conversations", value: query, onChange: setQuery, conversation: true }),
                 " ",
                 (!collapsed || (narrow && historyOpen)) && element("div", { className: "mini-tabs" },
                     element("button", { className: listFilter === "All" ? "active" : "", "aria-pressed": listFilter === "All", onClick: () => setListFilter("All") },
                         "All ",
-                        items.length),
+                        element("b", null, items.length)),
                     element("button", { className: listFilter === "Bookmarked" ? "active" : "", "aria-pressed": listFilter === "Bookmarked", onClick: () => setListFilter("Bookmarked") },
                         "Bookmarked ",
-                        items.filter(item => item.bookmarked).length)),
+                        element("b", null, items.filter(item => item.bookmarked).length))),
                 element("div", { className: "conversation-list" },
                     !filtered.length && element("div", { className: "conversation-empty" }, query ? "No matching conversations" : listFilter === "Bookmarked" ? "No bookmarked conversations" : "No conversations"),
                     element(ConversationHistoryList, { items: filtered, selectedId: selectedId, select: selectConversation, toggleBookmark: toggleBookmark, requestHide: setHideTarget }),
@@ -11133,7 +11746,7 @@ function Monitor({ go }) {
                     element("span", { className: "status-dot demo" }),
                     element("span", null, "Private workspace"),
                     element("small", null, "Saved history")),
-                element("div", { className: "sidebar-resizer", onPointerDown: startResize, onDoubleClick: () => { setSidebarWidth(230); localStorage.setItem("edge-monitor-width", "230"); }, title: "Drag to resize \u00B7 double-click to reset" })),
+                element("div", { className: "sidebar-resizer", onPointerDown: startResize, onDoubleClick: () => { setSidebarWidth(272); localStorage.setItem("edge-monitor-width", "272"); }, title: "Drag to resize \u00B7 double-click to reset" })),
             element("section", { className: "research-workspace",inert:narrow&&(historyOpen||mobileDetailsOpen) },
                 element("div", { className: "workspace-tools" },
                     element("div", null,
@@ -11171,10 +11784,8 @@ function Monitor({ go }) {
                 inputHint && element("div",{className:"composer-status"},inputHint,element("button",{onClick:()=>setInputHint(null)},"Dismiss")),
                 element("div", { key: "research-composer", ref:composerPanelRef, className: `composer ${active ? "running" : ""} ${prompt.trim() ? "has-text" : ""}` },
                     element(ComposerResizeHandle,{fieldRef:composerRef,height:composerHeight,setHeight:setComposerHeight}),
-                    active && element("div", { className: "composer-status composer-running" },
-                        element("span", { className: "pulse" }),
-                        element("span", null, executionRun?.status === "streaming" ? "Streaming research result…" : executionRun?.steps.find(step => step.status === "running")?.label ?? "Research running…"),
-                        null),
+                    // MONITOR-REVAMP (AI_revamp.html): no running line in the box; the answer shows its steps and the hint
+                    // beside the send button says what the button does now
                     // EXEC-UI-1024 2c: each attachment carries its own comment; the message stays the general question. The
                     // comment is kept on the item as typed (no redraw per keystroke) and sent with it
                     // EXEC-UI-1025 (user 2026-10-24: "dibuat lebih nice"; ChatGPT/Claude benchmark): each attachment is a
@@ -11212,18 +11823,23 @@ function Monitor({ go }) {
                         element("div", null,
                             // EXEC-SHARE-UI (user 2026-10-19, screenshot 2: "item tersebut di remove saja"): no Research Mode menu
                             element(EdgeModelSelector, null),
-                            element(Button, { kind: "ghost", icon: "sliders", disabled: true, title: "Data Scope is not available yet" }, "Data Scope"),
+                            element(Button, { kind: "ghost", icon: "database", disabled: true, title: "Data Scope is not available yet" }, "Data scope"),
                             element(IconButton, { icon: "attach", disabled: true, title: "Attachments are not available yet" })),
-                        active && !submitting ? (prompt.trim() ? element(Button, { kind: "primary", icon: "send", onClick: () => submit({}, null, {afterStop: true}) }, edgeUi().stopAndSend) : element(Button, { kind: "primary", disabled: stoppingId === executionRun.id, icon: "stop", onClick: stopRun }, stoppingId === executionRun.id ? edgeUi().stopping : edgeUi().stop)) : element(Button, { kind: "primary", disabled: active || submitting || !prompt.trim(), icon: "send", onClick: () => submit() }, submitting ? "Processing…" : "Submit")))),
+                        // MONITOR-REVAMP (AI_revamp.html .cbar): a hint, then one square button (send; stop in red; Stop & send
+                        // when text waits while a run goes on); its name stays in its label
+                        element("div", { className: "edge-send-group" },
+                            element("span", { className: "edge-send-hint" }, active && !submitting ? (prompt.trim() ? edgeUi().stopAndSend : edgeUi().runningHint) : edgeUi().sendHint),
+                            active && !submitting ? (prompt.trim() ? element("button", { type: "button", className: "edge-send", "aria-label": edgeUi().stopAndSend, title: edgeUi().stopAndSend, onClick: () => submit({}, null, {afterStop: true}) }, element(Icon, { name: "send" })) : element("button", { type: "button", className: "edge-send stop", disabled: stoppingId === executionRun.id, "aria-label": stoppingId === executionRun.id ? edgeUi().stopping : edgeUi().stop, title: stoppingId === executionRun.id ? edgeUi().stopping : edgeUi().stop, onClick: stopRun }, element(Icon, { name: "stop" }))) : element("button", { type: "button", className: "edge-send", disabled: active || submitting || !prompt.trim(), "aria-label": submitting ? "Processing…" : edgeUi().send, title: submitting ? "Processing…" : edgeUi().send, onClick: () => submit() }, element(Icon, { name: "send" })))))),
             detailsOpen && element("aside", { id:"edge-details",className: `details-panel${pinsOpen ? "" : " pins-collapsed"}${flowOpen || detailsTab !== "Flow" ? "" : " flow-collapsed"}`,role:narrow&&mobileDetailsOpen?"dialog":undefined,"aria-modal":narrow&&mobileDetailsOpen?true:undefined,"aria-label":"Response details",inert:narrow&&historyOpen },
                 element(DetailsResizeHandle,{width:detailsWidth,setWidth:setDetailsWidth}),
+                // MONITOR-REVAMP (AI_revamp.html .dt-h): the tabs and the close button share the panel's first row
                 element("div", { className: "details-head" },
-                    element("strong", null, "Details"),
+                    element(Tabs, { items: ["Flow", "Sources"], active: detailsTab, onChange: value => { setDetailsTab(value); setSourceDetail(null); } }),
                     element(IconButton, { icon: "close", onClick: () => {setMobileDetailsOpen(false);setDetailsOpen(false);}, title: "Close details" })),
-                element(Tabs, { items: ["Flow", "Sources"], active: detailsTab, onChange: value => { setDetailsTab(value); setSourceDetail(null); } }),
-                element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:jumpToRun }),
-                pinsOpen && (flowOpen || detailsTab !== "Flow") && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
-                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run,act}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "No research run selected."))),
+                // MONITOR-REVAMP (AI_revamp.html): Pinned responses belong to the Flow tab (Outline there); Sources shows its parts only
+                detailsTab === "Flow" && element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:jumpToRun }),
+                detailsTab === "Flow" && pinsOpen && flowOpen && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
+                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run,act}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "Open or start a conversation to see its outline, sources and run details."))),
             // EXEC-ASK-BRANCH: the side chat of one answer: the same EDGE, showing only that conversation (Q2: it is not
             // in the conversation list; the answer links to it)
             sidePanel && element("aside",{className:"edge-side-chat","aria-label":edgeUi().askAbout},
@@ -11234,20 +11850,30 @@ function Monitor({ go }) {
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
 function ConversationHistoryList({ items, selectedId, select, toggleBookmark, requestHide }) {
-    return element(fragment, null, ["Today", "Yesterday", "Previous 7 Days", "Older"].map(group => { const conversations = items.filter(item => conversationGroup(item.updatedAt) === group); return conversations.length ? element("div", { className: "conversation-group", key: group },
-        element("span", null, group),
-        conversations.map(item => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+    // MONITOR-REVAMP (user 2026-10-30, AI_revamp.html renderNav): a branch sits under the conversation it continues, in
+    // that conversation's group, with the branch icon; a branch whose parent is not in the list stays in its own group
+    const shown = new Set(items.map(item => item.id));
+    const nested = item => item.kind === "BRANCH" && item.parent?.conversationId && item.parent.conversationId !== item.id && shown.has(item.parent.conversationId);
+    const row = (item, child) => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}${child ? " child" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
                 event.preventDefault();
                 select(item.id);
             } } },
             element("i", { className: `conversation-state ${itemRun?.status ?? "draft"}` }),
             element("span", null,
-                element("strong", null, item.title),
+                element("strong", null, item.kind === "BRANCH" && element(Icon, { name: "branch", size: 12 }), item.title),
                 element("small", null, item.messages.findLast(message => message.role === "user")?.content ?? item.lastMessage)),
+            element("span", { className: `conversation-actions${item.bookmarked ? " keep" : ""}` },
             element("button", { className: `conversation-bookmark ${item.bookmarked ? "active" : ""}`, "aria-label": `${item.bookmarked ? "Remove" : "Add"} bookmark`, "aria-pressed":Boolean(item.bookmarked), onClick: event => { event.stopPropagation(); toggleBookmark(item.id); } },
                 element(Icon, { name: "bookmark" })),
             element("button", { className: "conversation-bookmark conversation-delete", "aria-label": `Delete ${item.title}`, title: "Delete conversation", disabled: ["submitted", "running", "streaming"].includes(itemRun?.status) || item.id.startsWith("draft:"), onClick: event => { event.stopPropagation(); requestHide?.(item); } },
-                element(Icon, { name: "trash" }))); })) : null; }));
+                element(Icon, { name: "trash" })))); };
+    // a branch of a branch follows its own parent; each conversation shows once
+    const withChildren = (item, child, seen) => { if (seen.has(item.id)) return []; seen.add(item.id);
+        return [row(item, child), ...items.filter(other => nested(other) && other.parent.conversationId === item.id).flatMap(other => withChildren(other, true, seen))]; };
+    const seen = new Set();
+    return element(fragment, null, ["Today", "Yesterday", "Previous 7 Days", "Older"].map(group => { const conversations = items.filter(item => !nested(item) && conversationGroup(item.updatedAt) === group); return conversations.length ? element("div", { className: "conversation-group", key: group },
+        element("span", null, group),
+        conversations.flatMap(item => withChildren(item, false, seen))) : null; }));
 }
 
 function formatMessageJakarta(iso) {
@@ -11416,18 +12042,22 @@ function RunProgress({ run }) {
     }, [run.id]);
     const view = EdgeView.progressView(data);
     if (!view) return null;
+    // MONITOR-REVAMP (AI_revamp.html running card): "EDGE" with a blue "Running · <time>" pill, then the finished steps
+    // (a check and their time) and the step running now (a spinner); EXEC-UI-1024 1A: the running step shows its label only
     return element("div", { className: "edge-run-progress" },
         element("div", { className: "edge-run-progress-now" },
-            view.elapsed && element(RunClock, { elapsedMs: data.elapsed_ms, at: data.receivedAt }),
-            // EXEC-UI-1024 1A (user 2026-10-24: "1A yg dihapus hanya yang 7S"): the running step shows its label only;
-            // the total in front and the durations under "Steps done" stay
-            view.current && element("span", { className: "edge-run-progress-step" }, element("span", null, view.current))),
-        view.done.length > 0 && element("details", { className: "edge-run-progress-done" },
-            element("summary", null, view.doneTitle),
-            view.earlier && element("small", null, view.earlier),
-            element("ol", null, view.done.map((step, index) => element("li", { key: index },
+            element(Icon, { name: "spark" }), element("span", null, edgeUi().answerKicker),
+            element("span", { className: "edge-badge info" }, element("i", { className: "edge-badge-dot", "aria-hidden": "true" }), edgeUi().running,
+                view.elapsed && element(fragment, null, " \u00B7 ", element(RunClock, { elapsedMs: data.elapsed_ms, at: data.receivedAt })))),
+        element("div", { className: "edge-run-steps" },
+            view.earlier && element("small", { className: "edge-run-earlier" }, view.earlier),
+            view.done.map((step, index) => element("div", { key: index, className: `edge-run-step done${step.note ? " warn" : ""}` },
+                element("span", { className: "edge-run-step-mark", "aria-hidden": "true" }, step.note ? "!" : element(Icon, { name: "check" })),
                 element("span", null, step.label), step.note && element("em", null, step.note),
-                step.duration && element("small", null, step.duration))))));
+                step.duration && element("time", null, step.duration))),
+            view.current && element("div", { className: "edge-run-step now" }, element("span", { className: "edge-run-step-mark", "aria-hidden": "true" }),
+                element("span", { className: "edge-run-progress-step" }, element("span", null, /[.…!?]$/.test(view.current) ? view.current : view.current + "\u2026")))),
+        element("p", { className: "edge-run-note" }, edgeUi().runNote));
 }
 
 // E12 (EXEC-1018B, user 2026-10-16 "as smooth as 1 detik"): each server reading implies when the run started (the
@@ -11457,9 +12087,11 @@ function RunClock({ elapsedMs, at, className = "edge-run-progress-time edge-run-
 const PROVIDER_STALL_CODES = new Set(["PROVIDER_STALLED", "PROVIDER_TIMEOUT", "REASONING_RUNAWAY"]);
 function RunStatus({ run, stopping, expanded, toggle, retry, retryNow, changeModel, enabled = true }) {
     const active = ["submitted", "running", "streaming"].includes(run.status);
-    if (active) return element("div", { className: "edge-inline-progress-wrap" },
+    // MONITOR-REVAMP (AI_revamp.html running card): the running answer is a card like an answer
+    if (active) return element("div", { className: "edge-inline-progress-wrap edge-run-card" },
         element("div", { className: "edge-inline-progress", role: "status", "aria-live": "polite" },
-        element("span", { className: "edge-response-dots", "aria-hidden": "true" }, element("i"), element("i"), element("i")),
+        // user 2026-10-30 ("buat sama dengan terminal speednya"): the Terminal's ring, one turn in 0.15 s
+        element("span", { className: "edge-run-ring", "aria-hidden": "true" }),
         element("span", null, stopping ? edgeUi().stoppingHint : run.status === "streaming" ? "Streaming research result…" : run.steps.find(step => step.status === "running")?.label ?? "Submitted")),
         run.status === "running" && !stopping && element(RunProgress, { key: run.id, run }));
     // EXEC-Y Fase 1 (S1): an answer stopped by the user offers its question back to edit and resend
@@ -11489,7 +12121,7 @@ function DetailsResizeHandle({width,setWidth}) {
         event.preventDefault();drag.cleanup?.();
         const startX=event.clientX,startWidth=width;
         const layout=event.currentTarget.closest(".monitor-layout"),left=layout?.querySelector(".conversation-panel");
-        const maxWidth=Math.max(280,Math.min(560,(layout?.clientWidth||1120)-(left?.clientWidth||230)-560));
+        const maxWidth=Math.max(280,Math.min(560,(layout?.clientWidth||1120)-(left?.clientWidth||272)-560));
         let nextWidth=width;
         const move=e=>{nextWidth=Math.min(maxWidth,Math.max(280,startWidth+startX-e.clientX));setWidth(nextWidth);};
         const end=()=>{localStorage.setItem("edge-details-width",String(nextWidth));drag.cleanup?.();};
@@ -11499,7 +12131,7 @@ function DetailsResizeHandle({width,setWidth}) {
         document.addEventListener("pointermove",move);document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
     };
     onLifecycle(view,"resize-cleanup",()=>()=>drag.cleanup?.(),[]);
-    return element("div",{className:"edge-details-resizer",role:"separator",tabIndex:0,"aria-label":"Resize Details panel","aria-orientation":"vertical","aria-valuemin":280,"aria-valuemax":560,"aria-valuenow":width,onPointerDown:start,onDoubleClick:()=>commit(320),onKeyDown:e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();commit(Math.min(560,Math.max(280,width+(e.key==="ArrowLeft"?20:-20))));}},title:"Drag to resize · double-click to reset"});
+    return element("div",{className:"edge-details-resizer",role:"separator",tabIndex:0,"aria-label":"Resize Details panel","aria-orientation":"vertical","aria-valuemin":280,"aria-valuemax":560,"aria-valuenow":width,onPointerDown:start,onDoubleClick:()=>commit(340),onKeyDown:e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();commit(Math.min(560,Math.max(280,width+(e.key==="ArrowLeft"?20:-20))));}},title:"Drag to resize · double-click to reset"});
 }
 function DisclosureChevron() {
     return element("svg",{className:"edge-disclosure-chevron",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.6,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},element("path",{d:"m6 9 6 6 6-6"}));
@@ -11508,18 +12140,26 @@ function DisclosureChevron() {
 const runDuration=run=>{if(run.status==="running"||run.status==="submitted")return null;
     const orc=run.raw?.execution?.duration_ms;if(typeof orc==="number")return EdgeView.durationText(orc);
     const start=Date.parse(run.createdAt),end=Date.parse(run.completedAt);return Number.isFinite(start)&&Number.isFinite(end)&&end>=start?EdgeView.durationText(end-start):null;};
+// MONITOR-REVAMP (AI_revamp.html .hist): a response is a raised card: a green check when it completed (a coloured dot
+// otherwise), its title in two lines, then its status, time and processing time
+const EDGE_HISTORY_DOT = {running:"info", submitted:"info", streaming:"info", failed:"negative", cancelled:"neutral"};
 function ResponseFlowItem({run,initiallyOpen=false,jump}) {
     const view=currentView,expanded=initialValue(view,"expanded",()=>initiallyOpen);
+    const label=Edge.statusLabel(run.status,run.domainStatus,run.paused),done=run.status==="completed"&&!run.paused&&!["AWAITING_CONFIRMATION","NEEDS_CLARIFICATION","FAILED","LIMITED"].includes(run.domainStatus);
+    const tone=done?"positive":EDGE_HISTORY_DOT[run.status]||(run.domainStatus==="FAILED"?"negative":"warning");
     return element("details",{id:`edge-history-${run.id}`,className:"edge-flow-accordion",open:expanded,onToggle:event=>updateValue(view,"expanded",event.currentTarget.open)},
-        element("summary",null,element("div",null,
+        element("summary",null,
+            done?element("b",{className:"edge-okmark",role:"img","aria-label":label},element("svg",{viewBox:"0 0 24 24","aria-hidden":"true"},element("path",{d:"m5 12 4.5 4.5L19 7"})))
+                :element("i",{className:`edge-history-dot ${tone}`,"aria-hidden":"true"}),
+            element("div",null,
             element("strong",{title:run.result?.title ?? run.question},run.result?.title ?? run.question),
-            element("small",null,formatMessageJakarta(run.completedAt ?? run.createdAt)," · ",run.status,runDuration(run)?" · "+runDuration(run):"")),element(DisclosureChevron)),
+            element("small",null,label," · ",formatMessageJakarta(run.completedAt ?? run.createdAt),runDuration(run)?" · "+runDuration(run):"")),element(DisclosureChevron)),
         element(Flow,{run}),
         // EXEC-UI-1015C: back to this response in the conversation
         jump&&element("button",{type:"button",className:"edge-history-jump",onClick:()=>jump(run.id)},edgeUi().historyJump,element(Icon,{name:"arrow-right",size:13})));
 }
 // EXEC-DETAILS: a section title that collapses and expands its section
-function SectionToggle({label,open,toggle,controls}) {
+function SectionToggle({label,open,toggle,controls,icon=null,count=null}) {
     // Some touch browsers suppress the compatibility click immediately after a drag. Handle an unmoved
     // touch release directly; suppress only its later click, while keyboard/mouse activation stays native.
     const touch=cachedValue(currentView,"touch",()=>({start:null,released:false,ignoreUntil:0}),[]);
@@ -11531,17 +12171,17 @@ function SectionToggle({label,open,toggle,controls}) {
     const end=event=>{if(!touch.released)return;touch.released=false;event.preventDefault();touch.ignoreUntil=performance.now()+750;toggle();};
     const click=event=>{if(event.detail===0||(event.pointerType==="mouse"&&!event.sourceCapabilities?.firesTouchEvents)||performance.now()>touch.ignoreUntil)toggle();};
     return element("button",{type:"button",className:"edge-section-toggle","aria-expanded":open,"aria-controls":controls,onPointerDown:down,onPointerUp:up,onPointerCancel:()=>{touch.start=null;touch.released=false;},onTouchEnd:end,onTouchCancel:()=>{touch.start=null;touch.released=false;},onClick:click},
-        element("span",null,label),element(DisclosureChevron));
+        icon&&element(Icon,{name:icon}),element("span",null,label),count!=null&&element("span",{className:"edge-section-count","aria-hidden":"true"},String(count)),element(DisclosureChevron));
 }
 function ResponseFlows({runs,autoOpenRunId,open=true,toggle,jump}) {
-    return element("div",{className:"edge-flow-list"},element("div",{className:"edge-history-head"},element(SectionToggle,{label:"Response History",open,toggle,controls:"edge-flow-items"})),
+    return element("div",{className:"edge-flow-list"},element("div",{className:"edge-history-head"},element(SectionToggle,{label:"Response history",icon:"history",count:runs.length,open,toggle,controls:"edge-flow-items"})),
         open&&element("div",{id:"edge-flow-items"},[...runs].reverse().map(run=>element(ResponseFlowItem,{key:run.id,run,initiallyOpen:run.id===autoOpenRunId,jump}))));
 }
 function PinnedResponses({runs,unpin,jump,open=true,toggle,height}) {
     const pinned=runs.filter(run=>run.pinned&&run.result);
     return element("section",{className:"edge-pins","aria-label":"Pinned responses",style:open&&height?{flex:`0 0 ${height}px`,height:`${height}px`}:undefined},
-        element("div",{className:"edge-pins-head"},element(SectionToggle,{label:"Pinned responses",open,toggle,controls:"edge-pins-items"})),
-        open&&element("div",{id:"edge-pins-items"},pinned.length?pinned.map(run=>element(PinnedResponseCard,{key:run.id,run,unpin:()=>unpin(run.id),jump:()=>jump(run.id)})):element("p",{className:"edge-pins-empty"},"No pinned responses")));
+        element("div",{className:"edge-pins-head"},element(SectionToggle,{label:"Pinned responses",icon:"pin",count:pinned.length,open,toggle,controls:"edge-pins-items"})),
+        open&&element("div",{id:"edge-pins-items"},pinned.length?pinned.map(run=>element(PinnedResponseCard,{key:run.id,run,unpin:()=>unpin(run.id),jump:()=>jump(run.id)})):element("p",{className:"edge-pins-empty"},"Pin an answer to keep it here.")));
 }
 function ComposerResizeHandle({fieldRef,height,setHeight}) {
     const view=currentView,drag=cachedValue(view,"drag",()=>({cleanup:null}),[]);
@@ -11777,21 +12417,27 @@ const EdgeShare = (() => {
   };
   return {card, pdf, png, docx};
 })();
-function ShareAction({run}) {
+// MONITOR-REVAMP (user 2026-10-30, AI_revamp.html navShare): with an icon title, the same menu opens from an icon
+// button (the sidebar's Share, for the conversation's latest answer)
+function ShareAction({run,iconTitle}) {
  const view=currentView,ui=edgeUi();
  const open=initialValue(view,"shareOpen",()=>false),setOpen=next=>updateValue(view,"shareOpen",next);
  const status=initialValue(view,"shareStatus",()=>""),setStatus=next=>updateValue(view,"shareStatus",next);
+ // the sidebar clips what overflows it, so the icon button's menu is placed on the page under the button
+ const at=initialValue(view,"shareAt",()=>null),setAt=next=>updateValue(view,"shareAt",next);
  const pick=async kind=>{setOpen(false);
   if(kind==="pdf"){EdgeShare.pdf(run);return;}
   setStatus(kind==="docx"?ui.shareWordPreparing:ui.sharePreparing);
   try{await (kind==="docx"?EdgeShare.docx(run):EdgeShare.png(run));setStatus("");}
   catch(error){setStatus(kind==="docx"?ui.shareWordFailed:ui.shareFailed);}};
  return element("span",{className:"edge-share-anchor"},
-  element("button",{className:"result-action",type:"button","aria-haspopup":"menu","aria-expanded":Boolean(open),onClick:()=>setOpen(!open)},element(Icon,{name:"share"}),ui.share),
-  open&&element("div",{className:"edge-share-menu",role:"menu","aria-label":ui.share},
-   element("button",{type:"button",role:"menuitem",onClick:()=>pick("pdf")},ui.sharePdf),
-   element("button",{type:"button",role:"menuitem",onClick:()=>pick("png")},ui.sharePng),
-   element("button",{type:"button",role:"menuitem",onClick:()=>pick("docx")},ui.shareWord)),
+  iconTitle?element("button",{className:`icon-btn ${open?"selected":""}`,type:"button",title:iconTitle,"aria-label":iconTitle,"aria-haspopup":"menu","aria-expanded":Boolean(open),onClick:event=>{const r=event.currentTarget.getBoundingClientRect();setAt({top:r.bottom+6,left:Math.max(8,Math.min(r.left,innerWidth-236))});setOpen(!open);}},element(Icon,{name:"share"}))
+   :element("button",{className:"result-action",type:"button","aria-haspopup":"menu","aria-expanded":Boolean(open),onClick:()=>setOpen(!open)},element(Icon,{name:"share"}),ui.share),
+  open&&element("div",{className:"edge-share-menu",role:"menu","aria-label":ui.share,style:iconTitle&&at?{position:"fixed",top:at.top+"px",left:at.left+"px"}:undefined},
+   element("div",{className:"edge-menu-title","aria-hidden":"true"},ui.shareTitle),
+   element("button",{type:"button",role:"menuitem",onClick:()=>pick("pdf")},element(Icon,{name:"download"}),ui.sharePdf),
+   element("button",{type:"button",role:"menuitem",onClick:()=>pick("png")},element(Icon,{name:"download"}),ui.sharePng),
+   element("button",{type:"button",role:"menuitem",onClick:()=>pick("docx")},element(Icon,{name:"download"}),ui.shareWord)),
   status&&element("span",{className:"clipboard-status",role:"status"},status));
 }
 function ResponseActions({run,togglePin,artifacts=[],carry=null}) {
@@ -11799,7 +12445,7 @@ function ResponseActions({run,togglePin,artifacts=[],carry=null}) {
  return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),element(ShareAction,{run}),
   // EXEC-ASK-BRANCH (user 2026-10-24): continue this answer in a new tab, or ask about it in a side chat
   carry&&element("button",{className:"result-action edge-branch-action",title:ui.branchHint,onClick:carry.branch},element(Icon,{name:"branch"}),ui.branch),
-  carry&&element("button",{className:"result-action edge-ask-action",title:ui.askHint,onClick:()=>carry.ask()},element(Icon,{name:"chat"}),carry.side?ui.sideChat.replace("{n}",String(carry.side.questions)):ui.askAbout),
+  carry&&element("button",{className:"result-action edge-ask-action",title:ui.askHint,onClick:()=>carry.ask()},element(Icon,{name:"chat"}),carry.side?ui.sideChat.replace("{n}",String(carry.side.questions)):ui.askAboutShort),
   artifacts.map(file=>{const href=Edge.exportUrl(file.id);return href&&element("a",{className:"result-action",href},element(FileTypeIcon,{label:file.label}),"Download "+file.label);}));
 }
 // EXEC-X (M124): the answer view renders the view model of static/edge-view.js (EdgeView.toView), the only code that
@@ -11808,8 +12454,11 @@ function ResponseActions({run,togglePin,artifacts=[],carry=null}) {
 const edgeFormat = () => EdgeView.format;
 const edgeUi = () => EdgeLabels.ui;
 function edgeVerdict(verdict) {
-  return element("span", {className:`edge-badge ${verdict.tone}`, title:verdict.code}, verdict.label);
+  // MONITOR-REVAMP: the Design Spec pill (solid fill, a dot, the label)
+  return element("span", {className:`edge-badge ${verdict.tone}`, title:verdict.code}, element("i", {className:"edge-badge-dot", "aria-hidden":"true"}), verdict.label);
 }
+// MONITOR-REVAMP (AI_revamp.html fmtTok): a token count as 900, 12K or 1.25M
+const edgeTokens = n => typeof n !== "number" || !Number.isFinite(n) ? String(n ?? "") : n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n);
 
 // EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "select as context ... fungsinya klik kanan kayak claude"; "di ponsel memakai
 // tombol mengambang"): on text selected in an answer, a right click opens EDGE's menu (Copy, Attach selection as
@@ -11841,23 +12490,29 @@ const EdgeSelection = (() => {
     menu = document.createElement("div");
     menu.className = "edge-selection-menu" + (floating ? " floating" : "");
     menu.setAttribute("role", "menu");
-    const item = (label, run) => {
+    // MONITOR-REVAMP (AI_revamp.html selection menu): each item starts with its icon (copy, reply, chat)
+    const GLYPHS = {copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+      reply:'<path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 5 5v6"/>', chat:'<path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12z"/>'};
+    const item = (label, run, glyph) => {
       const button = document.createElement("button");
-      button.type = "button"; button.setAttribute("role", "menuitem"); button.textContent = label;
+      button.type = "button"; button.setAttribute("role", "menuitem");
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("class", "icon"); svg.setAttribute("aria-hidden", "true");
+      svg.innerHTML = GLYPHS[glyph] || ""; button.append(svg, document.createTextNode(label));
       button.addEventListener("mousedown", event => event.preventDefault());
       button.addEventListener("click", () => { run(); close(); });
       menu.appendChild(button);
     };
-    item(ui.selectionCopy, () => navigator.clipboard?.writeText(info.text).catch(() => {}));
+    item(ui.selectionCopy, () => navigator.clipboard?.writeText(info.text).catch(() => {}), "copy");
     item(ui.selectionAttach, () => {
       window.dispatchEvent(new CustomEvent("edge-attach", {detail:build(info)}));
       window.getSelection()?.removeAllRanges();
-    });
+    }, "reply");
     // EXEC-ASK-BRANCH: the passage opens the answer's side chat, attached there (not inside the side chat itself)
     if (!document.documentElement.classList.contains("edge-side-view")) item(ui.selectionAsk, () => {
       window.dispatchEvent(new CustomEvent("edge-ask", {detail:build(info)}));
       window.getSelection()?.removeAllRanges();
-    });
+    }, "chat");
     document.body.appendChild(menu);
     menu.style.left = Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8)) + "px";
     menu.style.top = Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8)) + "px";
@@ -12019,9 +12674,10 @@ function mdList(lines, start, ctx) {
 function touchKeyboard() {
   return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
 }
-// EXEC-FASTLANE V5 (user 2026-10-14: "7 Oktober 2026"; a month "September 2024"; a year "2020", not "2.020"): dates in
-// a fast-lane answer are written out in Indonesian; code, links and times are left as they are
-const FAST_MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+// EXEC-FASTLANE V5 (user 2026-10-14; a month "September 2024"; a year "2020", not "2.020"): dates in an answer are
+// written out; code, links and times are left as they are. User 2026-10-30 ("format date ... DD MMMM YYYY", chose
+// "19 October 2026"): every answer, whatever its lane, with the month in English like the rest of the page
+const FAST_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const FAST_DAY = /(?<![\w/.:-])(\d{4})-(\d{2})-(\d{2})(?![\w/-]|:\d)/g;
 const FAST_MONTH = /(?<![\w/.:-])(\d{4})-(\d{2})(?![\w/-]|:\d)/g;
 function fastDatePart(part) {
@@ -12040,7 +12696,7 @@ function fastYearCell(cell) {
   return m && +(m[2] + m[3]) >= 1900 && +(m[2] + m[3]) <= 2100 ? `${m[1] ?? ""}${m[2]}${m[3]}${m[4] ?? ""}` : cell;
 }
 function renderMarkdown(text, ctx = {}) {
-  if (ctx.fast && !ctx.datesDone) { text = fastDates(text); ctx = {...ctx, datesDone:true}; }
+  if (!ctx.datesDone) { text = fastDates(text); ctx = {...ctx, datesDone:true}; }
   const lines = String(text ?? "").replace(/\r\n?/g, "\n").split("\n"), blocks = [];
   let index = 0;
   while (index < lines.length) {
@@ -12073,7 +12729,7 @@ function renderMarkdown(text, ctx = {}) {
       const rows = [];
       index += 2;
       while (index < lines.length && lines[index].includes("|") && lines[index].trim()) rows.push(mdCells(lines[index++]));
-      if (ctx.fast) head.forEach((name, column) => { if (FAST_YEAR_HEAD.test(name.replace(/[*_`]/g, "").trim())) rows.forEach(row => { if (column < row.length) row[column] = fastYearCell(row[column]); }); });
+      head.forEach((name, column) => { if (FAST_YEAR_HEAD.test(name.replace(/[*_`]/g, "").trim())) rows.forEach(row => { if (column < row.length) row[column] = fastYearCell(row[column]); }); });
       // a column's alignment as written; otherwise one alignment per column (Fase 5 QA 2026-10-09: "211" right and
       // "Rp 83,27 triliun" left in one column): figures right when every cell of the column is one, words left
       const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
@@ -12246,8 +12902,8 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
       showAll ? ui.tableFewerRows : ui.tableMoreRows.replace("{n}", hidden)));
 }
 
-function Markdown({text, claims, className = "", fast = false, tables = null, attach = null, figures = null, conversationId = null}) {
-  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast, tables, attach, conversationId, usedTables:[],
+function Markdown({text, claims, className = "", tables = null, attach = null, figures = null, conversationId = null}) {
+  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, tables, attach, conversationId, usedTables:[],
     figures:Array.isArray(figures) && figures.length ? {list:figures, next:0} : null}));
 }
 
@@ -12257,7 +12913,7 @@ function DataValue({value, depth = 0}) {
   if (empty(value)) return element("span", {className:"edge-muted"}, "—");
   if (typeof value === "string") {
     const href = /^https?:\/\//.test(value) ? Edge.safeUrl(value) : null;
-    return href ? element("a", {href, target:"_blank", rel:"noopener noreferrer"}, value) : element("span", {className:"edge-text"}, valueText(value));
+    return href ? element("a", {href, target:"_blank", rel:"noopener noreferrer"}, value) : element("span", {className:"edge-text"}, fastDates(valueText(value)));
   }
   if (typeof value !== "object") return element("span", null, valueText(value));
   if (Array.isArray(value)) {
@@ -12284,23 +12940,24 @@ const edgeMore = (value, label) => value ? element("details", {className:"edge-m
 // ---- Research plan ----
 function PlanItem({item}) {
   return element("section", {className:"edge-plan-item"},
-    element("div", {className:"edge-plan-item-head"}, element("span", {className:"edge-step"}, item.step), element("strong", null, item.title)),
+    element("div", {className:"edge-plan-item-head"}, element("span", {className:"edge-step"}, item.step), typeof item.key === "string" && element(fragment, null, " \u00B7 ", element("code", null, item.key))),
+    element("p", {className:"edge-plan-question"}, item.title),
     item.question && element("p", {className:"edge-plan-question"}, item.question),
-    item.objective && element("p", {className:"edge-muted"}, item.objective),
+    item.objective && element("p", {className:"edge-plan-question"}, item.objective),
     element("dl", {className:"edge-facts"}, item.facts.map(fact => element("div", null, element("dt", {className: "edge-fact-label"}, fact.label),
       element("dd", null, fact.value, fact.note && element("small", null, fact.note))))),
     edgeMore(item.more, item.moreLabel));
 }
 function PlanCard({plan, actions, pending, notes}) {
-  return element("section", {className:"edge-plan", "aria-label":plan.label},
-    element("div", {className:"edge-plan-head"}, element("span", {className:"edge-eyebrow"}, plan.label), pending && element("span", {className:"edge-badge warning"}, plan.pendingLabel)),
+  return element(fragment, null, element("section", {className:"edge-plan", "aria-label":plan.label},
+    element("div", {className:"edge-plan-head"}, element(Icon, {name:"flask"}), element("span", {className:"edge-eyebrow"}, plan.label), pending && element("span", {className:"edge-badge warning"}, element("i", {className:"edge-badge-dot", "aria-hidden":"true"}), plan.pendingLabel)),
+    plan.summary.length > 0 && element("dl", {className:"edge-facts edge-plan-summary"}, plan.summary.map(fact => element("div", null, element("dt", null, fact.label), " ", element("dd", null, fact.value)))),
     plan.objective && element("p", {className:"edge-plan-objective"}, plan.objective),
-    plan.root && element("p", {className:"edge-plan-question"}, element("strong", null, plan.root.label + ": "), plan.root.text),
-    plan.summary.length > 0 && element("dl", {className:"edge-facts edge-plan-summary"}, plan.summary.map(fact => element("div", null, element("dt", null, fact.label), element("dd", null, fact.value)))),
+    plan.root && element("p", {className:"edge-plan-question edge-plan-root"}, element("strong", null, plan.root.label + ": "), plan.root.text),
     plan.items.map(item => element(PlanItem, {key:item.key, item:{...item, moreLabel:plan.itemMoreLabel}})),
-    plan.carried && element("div", {className:"edge-plan-notes"}, element("strong", null, plan.carried.label), DataValue({value:plan.carried.value})),
+    plan.carried && element("div", {className:"edge-plan-notes edge-plan-carried"}, element("strong", null, plan.carried.label), DataValue({value:plan.carried.value})),
     edgeMore(plan.more, plan.moreLabel),
-    notes,
+    notes),
     actions);
 }
 
@@ -12309,7 +12966,7 @@ function FindingCard({finding, claims}) {
   return element("section", {className:"edge-finding"},
     element("div", {className:"edge-finding-head"}, element("strong", null, finding.title), edgeVerdict(finding.verdict)),
     finding.metrics.length > 0 && element("div", {className:"edge-metrics"}, finding.metrics.map(metric => element("div", null, element("span", null, metric.label), element("strong", null, metric.value)))),
-    finding.parts.map(part => element("div", {className:"edge-finding-part"}, element("span", {className:"edge-eyebrow"}, part.label), element(Markdown, {text:part.text, claims}))),
+    finding.parts.length > 0 && element("div", {className:"edge-finding-parts"}, finding.parts.map(part => element("div", {className:"edge-finding-part"}, element("span", {className:"edge-eyebrow"}, part.label), element(Markdown, {text:part.text, claims})))),
     finding.other && DataRows({value:finding.other}),
     edgeMore(finding.backendMore, finding.backendMoreLabel));
 }
@@ -12331,43 +12988,60 @@ function ChoiceBar({choices, enabled, act, scope}) {
           "aria-label":choice.label,
           onClick:() => {if(scope)edgeChosen.set(scope,id);act(choice.action);}},
         element("span",{className:"edge-choice-icon"},element(Icon,{name:draft?"pen":"arrow"})),
+        // MONITOR-REVAMP (AI_revamp.html .choice): every choice says what it does under its label ("Sends right away")
         element("span",{className:"edge-choice-copy"},element("strong",null,choice.label),
-          // V4 (user 2026-10-14): a choice that sends at once has no subtitle ("Kirim balasan langsung" removed)
-          (chosen||choice.note||draft)&&element("small",null,chosen?(draft?ui.choiceChosenDraft:ui.choiceChosen):(choice.note||ui.choiceDraft))),
-        element("span",{className:"edge-choice-tail"},draft?ui.choiceWrite:"\u2192"));
+          element("small",null,chosen?(draft?ui.choiceChosenDraft:ui.choiceChosen):(choice.note||(draft?(choice.hint||ui.choiceDraft):ui.choiceSends)))));
     }));
 }
 function ResponseChoices({title, prompt, choices, enabled, act, scope, help, boundary=true, kind=""}) {
   const ui=edgeUi();
   return element("section",{className:"edge-response-choices"+(boundary?"":" no-boundary")+(kind?" "+kind:""),"aria-label":title||ui.choicesTitle},
-    boundary&&element("span",{className:"edge-boundary-label"},ui.nextAction),
-    element("div",{className:"edge-choices-title"},title||ui.choicesTitle),
+    element("div",{className:"edge-choices-title"},boundary?ui.nextAction+" \u00B7 "+(title||ui.choicesTitle):title||ui.choicesTitle),
     prompt,
     choices.length>0&&element("div",{className:"edge-choice-area"},element(ChoiceBar,{choices,enabled,act,scope})),
-    help&&element("p",{className:"edge-choices-help"},help));
+    (help||(enabled&&boundary))&&element("p",{className:"edge-choices-help"},help||ui.pauseHint));
 }
 function PauseCard({pause, enabled, act, scope}) {
-  return element(ResponseChoices,{title:pause.label,kind:"pause",scope,enabled,act,help:pause.hint,
-    prompt:pause.reason&&element("p",{className:"edge-choices-prompt"},pause.reason),
+  // MONITOR-REVAMP (AI_revamp.html .pause, .next): the paused line names the reason; its choices follow as "Response choices"
+  return element(fragment,null,element("div",{className:"edge-pause-line",role:"note","aria-label":pause.region},element(Icon,{name:"pause"}),
+      element("div",null,element("b",null,pause.label+"."),pause.reason?" "+pause.reason:null)),
+    element(ResponseChoices,{kind:"pause",scope,enabled,act,help:pause.hint,
     choices:(()=>{const first=pause.choices.findIndex(choice=>!edgeChoiceDraft(choice.action));
-      return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()});  // the first choice sent at once leads
+      return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()}));  // the first choice sent at once leads
+}
+// MONITOR-REVAMP (AI_revamp.html followUps): the icon of each kind of suggestion
+const EDGE_FOLLOW_KIND = {FOLLOW_UP:["reply","",""], INSIGHT_IDEA:["bulb","info",""], DATA_TEST:["flask","warning",""]};
+function FollowUps({groups, enabled, act, scope}) {
+  // user 2026-10-30 ("suggested next question dan insight idea bisa disamakan? bisa collapse dan expand each"): one
+  // folded section per kind, closed at first, drawn like Assumptions and Limitations; a click still sends the words
+  const ui=edgeUi(), titles={FOLLOW_UP:ui.suggestedNext, INSIGHT_IDEA:ui.insightIdeas, DATA_TEST:ui.dataTest};
+  return element("div",{className:"content-block edge-next edge-discs"},groups.map(group=>{const title=titles[group.key]||group.label;
+    return element("details",{key:group.key,className:"edge-more edge-notes edge-fup-group","data-kind":group.key},
+      element("summary",null,`${title} (${group.choices.length})`),
+      element("div",{className:"edge-fups",role:"group","aria-label":title},group.choices.map(choice=>{
+        const [icon]=EDGE_FOLLOW_KIND[group.key]||EDGE_FOLLOW_KIND.FOLLOW_UP, id=scope+":"+choice.key, chosen=edgeChosen.get(scope)===id;
+        return element("button",{key:choice.key,type:"button",className:`edge-fup${chosen?" sent":""}`,disabled:!enabled,"aria-pressed":chosen,"aria-label":choice.label,
+            title:enabled?undefined:ui.choicesDisabled,onClick:()=>{edgeChosen.set(scope,id);act(choice.action);}},
+          element(Icon,{name:icon}),element("span",{className:"edge-fup-label"},choice.label));})));}));
 }
 function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conversationId,carry=null}) {
- const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims), fast=v.meta.lane==="fast";
- const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fast?fastDates(x):x,{claims}):DataValue({value:x}))));
+ const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims);
+ const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fastDates(x),{claims}):DataValue({value:x}))));
  // EXEC-STYLE S3: assumptions and limitations sit folded under the answer, with their count
- const list=part=>element("details",{key:part.label,className:"content-block edge-block edge-more edge-notes","data-section":part.label===edgeUi().limitations?"LIMITATIONS":"ASSUMPTIONS"},element("summary",null,`${part.label} (${part.items.length})`),items(part.items));
+ const list=part=>element("details",{key:part.label,className:"edge-more edge-notes","data-section":part.label===edgeUi().limitations?"LIMITATIONS":"ASSUMPTIONS"},element("summary",null,`${part.label} (${part.items.length})`),items(part.items));
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
    [v.plan.notes.assumptions,v.plan.notes.limitations].map(part=>part.items.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},part.label),items(part.items)))):null;
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
   // user 2026-10-21 (screenshot): a completed answer says "EDGE" only; any other status (Limited, Paused, Failed, ...) stays named
-  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),v.status.code==="COMPLETED"?edgeUi().answerKicker:edgeUi().answerKicker+" · "+v.status.label,v.status.code!=="COMPLETED"&&element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
+  // MONITOR-REVAMP (AI_revamp.html .kick): the status of any other answer is a pill after "EDGE"
+  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),element("span",null,edgeUi().answerKicker),v.status.code!=="COMPLETED"&&element("span",{className:`edge-badge ${v.status.tone}`},element("i",{className:"edge-badge-dot","aria-hidden":"true"}),v.status.label)),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Processing time"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
-  v.evidence&&element("div",{className:"edge-tags edge-evidence-line"},v.evidence.positive&&element("svg",{className:"edge-evidence-check",width:12,height:12,viewBox:"0 0 16 16","aria-hidden":"true"},element("circle",{cx:"8",cy:"8",r:"8",fill:"#16a34a"}),element("path",{d:"M4.6 8.3l2.2 2.2 4.6-4.8",fill:"none",stroke:"#ffffff",strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round"})),element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+v.meta.reasoningLevel:null)),v.meta.tokens!==undefined&&element("span",{className:"edge-tokens"},"Tokens ",element("b",null,edgeTokens(v.meta.tokens))),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost)),v.meta.duration&&element("span",{className:"edge-duration",title:"Processing time"},element("svg",{className:"icon",width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},element("circle",{cx:"12",cy:"12",r:"9"}),element("path",{d:"M12 7v5l3 2"})),element("b",null,v.meta.duration))),
+  // MONITOR-REVAMP (AI_revamp.html .evline): the evidence label as text, a positive one followed by its green check
+  v.evidence&&element("div",{className:"edge-tags edge-evidence-line"},element("span",{className:"edge-evidence-text",title:v.evidence.code},v.evidence.label),v.evidence.positive&&element("svg",{className:"edge-evidence-check",width:12,height:12,viewBox:"0 0 16 16","aria-hidden":"true"},element("circle",{cx:"8",cy:"8",r:"8",fill:"#087f5b"}),element("path",{d:"M4.6 8.3l2.2 2.2 4.6-4.8",fill:"none",stroke:"#ffffff",strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round"}))),
   v.attached.length>0&&element("div",{className:"edge-attached-line"},element(Icon,{name:"attach",size:13}),
     element("span",null,edgeUi().attachedPrefix+": "+v.attached.join("; "))),
-  v.answer&&element("div",{className:"content-block edge-answer","data-section":"ANSWER"},element(Markdown,{text:v.answer,claims,fast,
+  v.answer&&element("div",{className:"content-block edge-answer","data-section":"ANSWER"},element(Markdown,{text:v.answer,claims,
     tables:run.raw?.answer_tables,attach:act?(selection=>act({type:"attach",selection})):null,figures:run.raw?.answer_figures,
     conversationId:conversationId&&!String(conversationId).startsWith("draft:")?conversationId:null})),
   v.reproduced.map((line,index)=>element("div",{key:`reproduced-${index}`,className:"edge-reproduced"},element(Icon,{name:"check",size:13}),element("span",null,line))),
@@ -12377,15 +13051,13 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conve
   v.pause&&element(PauseCard,{pause:v.pause,enabled,act,scope:run.id+":pause"}),
   v.plan&&element(PlanCard,{plan:v.plan,pending:planEnabled,actions:element(ResponseChoices,{scope:run.id+":plan",enabled:planEnabled,act,
     title:edgeUi().planChoicesTitle,choices:v.plan.choices,prompt:v.plan.confirmation&&element("p",{className:"edge-choices-prompt"},v.plan.confirmation)}),notes}),
-  v.findings&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.findings.label),
+  v.findings&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.findings.label," ",element("span",{className:"edge-muted edge-count"},`(${v.findings.items.length})`)),
     v.findings.items.map(finding=>element(FindingCard,{key:finding.key,finding,claims}))),
-  v.lists.map(list),
-  v.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims,fast})),
-  // EXEC-IMPL-1017 Fase 2 (user 2026-10-16: "tidak usah di bold ... collapse dan expand sama seperti asumsi dan batasan";
-  // "Terlipat saat jawaban datang"): each group of suggestions folds like Assumptions and Limitations, with its count
-  v.next&&element("div",{className:"content-block edge-next"},v.next.map(group=>element("details",{key:group.key,className:"edge-more edge-notes edge-next-group"},
-    element("summary",null,`${group.label} (${group.choices.length})`),
-    group.choices.length>0&&element(ChoiceBar,{choices:group.choices,enabled,act,scope:run.id+":next:"+group.key})))),
+  // the suggestions, one folded section per kind (user 2026-10-30); a click sends its words, as before (EXEC-Y Fase 2)
+  v.next&&element(FollowUps,{groups:v.next,enabled,act,scope:run.id+":next"}),
+  // MONITOR-REVAMP (AI_revamp.html .discs): Assumptions, Limitations and Methodology fold the same way, in that order
+  (v.lists.length>0||v.methodology)&&element("div",{className:"content-block edge-discs"},v.lists.map(list),
+    v.methodology&&element("details",{className:"edge-more edge-notes edge-methodology"},element("summary",null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims}))),
   element(ResponseActions,{run,togglePin,artifacts:v.artifacts,carry}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}
@@ -12396,16 +13068,23 @@ function SourceItem({item, act}) {
   DataRows({value:item.rows}),
   item.action&&act&&element("button",{type:"button",className:"edge-source-action",onClick:()=>act(item.action)},item.actionLabel));
 }
+// MONITOR-REVAMP (AI_revamp.html .sec .tg, DEFAULT_CLOSED): every part of Sources folds under its title and count; a part
+// starts folded and this browser keeps whether the user opened it
+function SourceFold({title, children}) {
+ const m=/^(.*) \((\d+)\)$/.exec(title), label=m?m[1]:title, count=m?m[2]:null, key="edge-sources-open:"+label;
+ let open=false;try{open=localStorage.getItem(key)==="true";}catch{/* folded */}
+ return element("details",{className:"content-block edge-source-fold",open,onToggle:event=>{try{localStorage.setItem(key,String(event.currentTarget.open));}catch{/* not kept */}}},
+  element("summary",null,element("span",null,label),count!=null&&element("span",{className:"edge-section-count","aria-hidden":"true"},count),element(DisclosureChevron)),
+  children);
+}
 function Sources({run, act}) {
  const v=EdgeView.sources(run.raw);
  // EXEC-UI-1024 1C: the empty state sits where the panel's content starts (left, the sources' own padding)
  if(v.empty)return element("p",{className:"sources-empty"},v.emptyText);
  const items=section=>section.items.map((item,index)=>element(SourceItem,{key:index,item,act}));
  return element("div",{className:"sources"},
-  v.sections.map(section=>section.folded
-   ?element("details",{className:"content-block edge-source-folded"},element("summary",null,section.title),items(section))
-   :element("section",{className:"content-block"},element(SectionTitle,null,section.title),items(section))),
-  v.record&&element("section",{className:"content-block"},element(SectionTitle,null,v.record.title),DataRows({value:v.record.summary}),element(TechnicalDetail,{value:v.record.raw,label:v.record.technicalLabel})));
+  v.sections.map(section=>element(SourceFold,{key:section.title.replace(/ \(\d+\)$/,""),title:section.title},items(section))),
+  v.record&&element(SourceFold,{key:"record",title:v.record.title},DataRows({value:v.record.summary}),element(TechnicalDetail,{value:v.record.raw,label:v.record.technicalLabel})));
 }
 
 function SourceSection({ title, count, children }) {
@@ -12441,7 +13120,7 @@ function App() {
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
-    const theme = initialValue(viewRecord, "theme", () => localStorage.getItem("edge-auth-monitor-theme") || "dark"), setTheme = next => updateValue(viewRecord, "theme", next);
+    const theme = initialValue(viewRecord, "theme", () => localStorage.getItem("edge-auth-monitor-theme") || "light"), setTheme = next => updateValue(viewRecord, "theme", next);
     onLifecycle(viewRecord, "navigation", () => {
         const sync = () => setPath(currentPath());
         addEventListener("popstate", sync);

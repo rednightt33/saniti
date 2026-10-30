@@ -25,19 +25,35 @@ def test_on_a_desktop_the_session_bar_is_gone_and_its_buttons_sit_in_the_rail(fi
         saved(page)
         assert not page.locator('.workspace-tools').is_visible()
         rail = box(page, '.conversation-panel')
-        for name in ('Bookmark', 'Public sharing unavailable'):
+        # MONITOR-REVAMP (AI_revamp.html .nav-acts): an open desktop sidebar carries Details and Share beside its menu
+        # button and bookmarks from the conversation's row; the folded rail keeps Bookmark
+        for name in ('Bookmark', 'Share latest answer') if width <= 1050 else ('Share latest answer',):
             button = page.get_by_role('button', name=name, exact=True)
             assert button.is_visible()
             b = button.bounding_box()
             assert rail['x'] <= b['x'] and b['x'] + b['width'] <= rail['x'] + rail['width'] + 1, (width, name)
-        assert page.get_by_role('button', name='Public sharing unavailable', exact=True).is_disabled()
-        page.get_by_role('button', name='Bookmark', exact=True).click()
-        page.wait_for_function("() => document.querySelector('[aria-label=Bookmark]').getAttribute('aria-pressed') === 'true'")
+        # MONITOR-REVAMP (user 2026-10-30): the sidebar's Share opens the Share menu of the latest answer
+        page.get_by_role('button', name='Share latest answer', exact=True).click()
+        menu = page.locator('.conversation-panel .edge-share-menu')
+        menu.wait_for()
+        assert menu.get_by_role('menuitem').all_inner_texts() == ['PDF (document)', 'PNG (image)', 'Word (document)']
+        m = menu.bounding_box()
+        assert m['x'] >= 0 and m['x'] + m['width'] <= width, (width, m)
+        assert page.evaluate('([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".edge-share-menu"))',
+                             [m['x'] + m['width'] / 2, m['y'] + m['height'] - 8])  # not clipped by the sidebar
+        page.get_by_role('button', name='Share latest answer', exact=True).click()
+        menu.wait_for(state='detached')
+        if width <= 1050:
+            page.get_by_role('button', name='Bookmark', exact=True).click()
+            page.wait_for_function("() => document.querySelector('[aria-label=Bookmark]').getAttribute('aria-pressed') === 'true'")
+        else:
+            page.locator('.conversation.active').get_by_role('button', name='Add bookmark', exact=True).click()
+            page.locator('.conversation.active').get_by_role('button', name='Remove bookmark', exact=True).wait_for(state='attached')
         if width > 1050:  # details open by default on a wide screen: the rail button closes and opens it
             page.get_by_role('button', name='Hide Details', exact=True).click()
             page.locator('.details-panel').wait_for(state='hidden')
         page.get_by_role('button', name='Show Details', exact=True).click()
-        page.get_by_text('Response History', exact=True).wait_for()
+        page.get_by_text('Response history', exact=True).wait_for()
         page.context.clear_cookies()
 
 
@@ -101,7 +117,7 @@ def test_on_a_phone_menu_and_new_sit_in_the_header_and_the_chat_is_full_width(fi
         brand = box(page, '.topbar .brand-mark')
         search = box(page, '.top-actions .search')
         menu = page.get_by_role('button', name='Open history', exact=True).bounding_box()
-        plus = page.get_by_role('button', name='New conversation', exact=True).bounding_box()
+        plus = page.get_by_role('button', name='New Chat', exact=True).bounding_box()
         for b in (menu, plus):  # inside the header, between the logo and search
             assert top['y'] <= b['y'] and b['y'] + b['height'] <= top['y'] + top['height'] + 1
         assert brand['x'] + brand['width'] < menu['x'] < menu['x'] + menu['width'] <= plus['x']
@@ -114,7 +130,7 @@ def test_on_a_phone_menu_and_new_sit_in_the_header_and_the_chat_is_full_width(fi
         page.get_by_role('dialog', name='Appearance', exact=True).wait_for()
         page.keyboard.press('Escape')
         page.get_by_role('button', name='Open history', exact=True).click()  # the history drawer still opens
-        page.get_by_placeholder('Search conversation').wait_for(state='visible')
+        page.get_by_placeholder('Search conversations').wait_for(state='visible')
         page.keyboard.press('Escape')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         page.context.clear_cookies()
@@ -180,9 +196,11 @@ def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browse
         frame_width = short.evaluate('f => f.getBoundingClientRect().width')
         natural = short.locator('table').evaluate("t => { const w = t.style.width; t.style.width = 'max-content'; "
                                                   "const n = t.getBoundingClientRect().width; t.style.width = w; return n; }")
-        assert abs(table_width - natural) <= 1 and table_width <= frame_width, (width, table_width, natural)  # its content, not the card
+        # MONITOR-REVAMP (user 2026-10-29, AI_revamp.html .tblscroll): at least as wide as its content, and on a wide
+        # screen the whole framed box
+        assert table_width >= natural - 1 and table_width <= frame_width, (width, table_width, natural)
         if width > 720:
-            assert table_width < frame_width * 0.8
+            assert frame_width - table_width <= 3, (table_width, frame_width)
         cells = page.locator('article.result').nth(1).locator('tbody tr').first.locator('td')
         one_line = cells.nth(0).evaluate('td => parseFloat(getComputedStyle(td).lineHeight)')
         for column in (0, 1, 3):  # code, date, amount: one line each
@@ -202,8 +220,8 @@ def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browse
         assert kicker.text_content() == 'EDGE'  # user 2026-10-21: Completed is not written
         weight, transform, spacing = kicker.evaluate(
             "k => { const s = getComputedStyle(k); return [s.fontWeight, s.textTransform, "
-            "parseFloat(s.letterSpacing) / parseFloat(s.fontSize)]; }")
-        assert (weight, transform) == ('500', 'none') and abs(spacing - 0.1) < 0.005  # .1em at every width
+            "(parseFloat(s.letterSpacing) || 0) / parseFloat(s.fontSize)]; }")
+        assert (weight, transform) == ('500', 'none') and spacing == 0  # MONITOR-REVAMP (AI_revamp.html .kick): no letter spacing
         assert kicker.evaluate("k => getComputedStyle(k).color") == kicker.evaluate(
             "k => getComputedStyle(k.closest('article').querySelector('.result-metadata')).color")
         page.context.clear_cookies()
@@ -255,10 +273,13 @@ def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertic
         saved(page)
         tables = page.locator('article.result').last.locator('.edge-md-table table')
         for table in range(3):
+            # MONITOR-REVAMP (user 2026-10-29, AI_revamp.html .md .tbl): text left and numbers right; the titles sit in
+            # the middle of their row, the values start at the top of theirs
             cells = tables.nth(table).evaluate("""t => [...t.rows].flatMap(r => [...r.cells].map(c => {
-                const inner = c.querySelector('.edge-sort') || c; return [getComputedStyle(inner).textAlign,
-                getComputedStyle(c).verticalAlign]; }))""")
-            assert all(align in ('left', 'start') and middle == 'middle' for align, middle in cells), (width, table, cells[:6])
+                const inner = c.querySelector('.edge-sort') || c; return [c.tagName, c.classList.contains('num'),
+                getComputedStyle(c).textAlign, getComputedStyle(inner).textAlign, getComputedStyle(c).verticalAlign]; }))""")
+            assert all((align == 'right' if num and tag == 'TD' else inner in ('left', 'start'))
+                       and valign == ('middle' if tag == 'TH' else 'top') for tag, num, align, inner, valign in cells), (width, table, cells[:6])
         title = tables.nth(1).locator('th').nth(2)
         lines = title.locator('.edge-sort-label').evaluate(TEXT_LINES)
         cell = tables.nth(1).locator('tbody tr').first.locator('td').nth(2)
@@ -266,6 +287,8 @@ def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertic
         assert cell.evaluate("td => getComputedStyle(td).whiteSpace") == 'nowrap'
         # a column's title starts where its values start (the same padding everywhere)
         for column in (1, 2, 3):
+            if tables.nth(1).locator('tbody tr').first.locator('td').nth(column).evaluate("td => td.classList.contains('num')"):
+                continue  # MONITOR-REVAMP (AI_revamp.html .md .tbl .num): a number column's values stand on the right
             head_left = tables.nth(1).locator('th').nth(column).locator('.edge-sort-label').evaluate(
                 "s => { const r = document.createRange(); r.selectNodeContents(s); return r.getBoundingClientRect().left; }")
             cell_left = tables.nth(1).locator('tbody tr').first.locator('td').nth(column).evaluate(
@@ -275,29 +298,16 @@ def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertic
             shadows = tables.nth(table).evaluate("""t => [...t.querySelectorAll('th,td')].map(c => {
                 const s = getComputedStyle(c); return [s.boxShadow, s.borderLeftWidth, s.borderRightWidth]; })""")
             assert all(box == 'none' and left == '0px' and right == '0px' for box, left, right in shadows), shadows[:3]
-        # "jarak antar kolom tidak konsisten": every column is its widest title or value plus the same cell padding;
-        # the title's sort control adds no width of its own
+        # MONITOR-REVAMP (AI_revamp.html .tblscroll): the table fills its framed box, as wide as the answer
         for table in range(3):
-            slack = tables.nth(table).evaluate("""t => { const text = n => { const r = document.createRange();
-                r.selectNodeContents(n); return r.getBoundingClientRect().width; };
-              return [...t.tHead.rows[0].cells].map((th, i) => { const s = getComputedStyle(th);
-                const b = getComputedStyle(th.querySelector('.edge-sort'));
-                const inner = th.getBoundingClientRect().width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
-                  - parseFloat(b.paddingLeft) - parseFloat(b.paddingRight);
-                const label = th.querySelector('.edge-sort-label').getBoundingClientRect().width;
-                const values = Math.max(...[...t.tBodies[0].rows].map(r => text(r.cells[i])));
-                const wraps = [...t.tBodies[0].rows].some(r => r.cells[i].getClientRects().length && text(r.cells[i]) &&
-                  (() => { const g = document.createRange(); g.selectNodeContents(r.cells[i]); return g.getClientRects().length > 1; })());
-                const word = Math.max(...[...t.tBodies[0].rows].flatMap(r => r.cells[i].innerText.split(/\\s+/)).map(w => w.length)) * 9;
-                return [Math.round(inner - Math.max(label, values)), wraps, word]; }); }""")
-            # a one-line column has no leftover; a folded text column keeps at most its ragged edge, under one word
-            assert all(abs(gap) <= 2 or (wraps and 0 <= gap < word) for gap, wraps, word in slack), (width, table, slack)
+            fill = tables.nth(table).evaluate("t => t.parentElement.clientWidth - t.getBoundingClientRect().width")
+            assert fill <= 1 or width <= 720, (width, table, fill)
         # the phone's sticky first cell takes its row's hover colour (the row reads as one band)
         row = tables.nth(1).locator('tbody tr').first
         row.locator('td').nth(1).hover()
         first, other = row.evaluate("r => [...r.cells].slice(0, 2).map(c => getComputedStyle(c).backgroundColor)")
         row_color = row.evaluate("r => getComputedStyle(r).backgroundColor")
-        assert first in (other, row_color) if width > 720 else first == row_color, (width, first, other, row_color)
+        assert first == other, (width, first, other, row_color)  # MONITOR-REVAMP: every cell of the row takes the hover fill
         if directory := __import__('os').environ.get('EDGE_UI_ARTIFACT_DIR'):
             page.locator('article.result').last.locator('.edge-answer').screenshot(path=f'{directory}/table-align-{width}.png')
         page.context.clear_cookies()
