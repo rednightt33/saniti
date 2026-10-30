@@ -32,7 +32,7 @@ export function niceTicks(lo: number, hi: number): number[] {
 
 export function initBroker(ctx: Ctx) {
   const { M, ws, showStTip, hideStTip, tipHtml, makeFilter } = ctx;
-  if(M.hide.bandar) ($('brokerPanel').querySelector('.st[data-sec="bd"]') as HTMLElement).hidden = true;   // live: formula not approved yet
+  if(M.hide.bandar) ($('brokerPanel').querySelector('.st[data-sec="bd"]') as HTMLElement).hidden = true;   // a page that hides it (none since EXEC-TERMINAL-FLOW-IND)
   const rpAside = $('brokerPanel');
   // panel state kept across redraws (declared before the first draw below can run)
   const live = M.mode === 'live';

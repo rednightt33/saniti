@@ -9039,6 +9039,22 @@ Lanjutan 2026-10-30 siang (screenshot HP user). Front-end edge-bff saja:
 bersama rencana diambil sesuai usulan: kolom frekuensi `bf`/`sf`; tanggal awal FL18-FL20 (dan kelompok Top-N bekunya)
 mengikuti candle pertama yang terlihat. Hanya dev. Setiap langkah berdasarkan inspeksi kode, log dan data live saat itu.
 
+**Keputusan tambahan 2026-10-30 (kata user):**
+- **Panel Bandar.** Ditanyakan: "Panel Bandar mau ditampilkan di Terminal live sekarang (1) atau tetap disembunyikan
+  (2)?" Jawaban user: "Sekarang." Artinya panel Bandar tampil di live dengan definisi yang disepakati:
+  - verdict = Bandar Balance · % (FL24);
+  - Neutral di bawah 6 %, Acc/Dist mulai 6 %, Big mulai 10 %;
+  - default Top 3.
+
+  Perubahannya: `live.ts` `hide.bandar=false`, dan `broker.ts` `bandarVerdict` membaca default FL24.
+- **Audit front end.** Kata user: "Lakukan audit Front end, minta 2 agent Sonnet 5.5 medium to inspect visually dan
+  secara interaksi animasi juga. To report to you and you should fix it." Dijalankan sebagai dua agent `sonnet`
+  dengan effort `medium` di Terminal lokal (data dev), sebelum deploy edge-bff:
+  - **agent V:** tampilan;
+  - **agent I:** interaksi dan animasi.
+
+  Temuan yang terbukti diperbaiki dan diuji ulang. Review S7 (data/rumus dan tampilan) tetap berjalan sesuai rencana.
+
 
 Sumber: lampiran user `indicator_specs.xlsx` (30 indikator broker); versi final `flow_indicator_parameters_final.xlsx`
 (sheet `Indicator_SPECS_reviewed`, `Parameter_Terminal`, `Keputusan`, `Screener_ke_Chart`). Keputusan 2026-10-30 (kata

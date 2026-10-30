@@ -320,6 +320,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
     tf, endDates:ends, barOf:(d: string) => candleOf(d, groups, sessions),
     through: files.through,
     loadEvents,
-    hide: { brokerGauge:true, bandar:true }
+    // the Bandar panel is shown on the agreed definition (EXEC-TERMINAL-FLOW-IND, user 2026-10-30: "Sekarang.");
+    // the broker-action gauge has no approved formula yet
+    hide: { brokerGauge:true, bandar:false }
   };
 }

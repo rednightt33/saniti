@@ -104,7 +104,7 @@ per-context font downloads.
 the deployed terminal-api with the gateway key; the browser opens `/terminal-app/` signed in as the EDGE owner.
 BBCA, GOTO and IHSG load without page errors; BBCA's close 5,025 and volume 495.6M (2026-10-23), broker net and lots
 (YU +709.0 B / 1.38M lots, SQ, AK) and the foreign net of the day (−767 B) equal SQL; an index (no broker data) shows
-"no broker data". The broker-action gauge and the Bandar detector are hidden on live data (formulas not approved).
+"no broker data". The broker-action gauge is hidden on live data (formula not approved); the Bandar detector is shown since 2026-10-30 on the agreed definition (EXEC-TERMINAL-FLOW-IND: FL24's levels 6/10 % and Top 3).
 Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 
 ## 8. Staged loading, Web Worker and screen-filling layout (EXEC-TERMINAL-UI-1026, 2026-10-26)
