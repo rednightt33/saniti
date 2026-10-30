@@ -38,7 +38,7 @@ def test_branch_opens_a_new_tab_that_continues_the_answer(fixture_server, browse
     # MONITOR-REVAMP (user 2026-10-30, AI_revamp.html): the lineage bar heads the branch, as wide as the reading column,
     # and the branch nests under its parent in the list, with the branch icon
     inherited = tab.locator('.research-exchange.inherited').bounding_box()
-    assert divider['y'] < inherited['y'] and abs(divider['x'] - own['x']) <= 1 and abs(divider['width'] - own['width']) <= 1, (divider, own)
+    assert divider['y'] + divider['height'] + 14 <= inherited['y'] and abs(divider['x'] - own['x']) <= 1 and abs(divider['width'] - own['width']) <= 1, (divider, own)
     tab.reload()
     tab.locator('.conversation.child').wait_for(timeout=10000)
     rows = tab.locator('.conversation-group .conversation')
