@@ -5267,3 +5267,17 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
     are older leftovers, for the 19:00 WIB full cleanup.
 - **IaC:** `railway config plan`: "Your Railway configuration is already up to date."
 - **Rollback:** CLI upload of the `apps/terminal-publisher` tree of `c2544ff` (M229 option A).
+
+## 2026-10-30 — edge-bff `56c765d0` (EXEC-MONITOR-REVAMP: Monitor page and top bar follow AI_revamp.html)
+
+- **Commit:** `71f31c6` on `main`, deployed by the GitHub connection: edge-bff deployment `56c765d0` SUCCESS
+  (04:16:52 BUILDING, 04:17:34 SUCCESS UTC). Front end only (static page, labels, view words, Screener theme default);
+  no variable, no other service.
+- **Before the push:** no `edge_` run in flight (the market-ai-orc log's last run `edge_deb3fc4d…` at 19:31 UTC on
+  2026-10-29; checked 04:16 UTC).
+- **Checks:** the live `/monitor` page is byte-identical to `apps/edge-bff/static/index.html` of `71f31c6` (200, 560,628
+  bytes, the "MONITOR-REVAMP" style block present); the live `edge-labels.js` carries the new words; the live Screener
+  bundle `assets/index-CvB2JGE9.js` is the name of the local build of the same source (theme default light); the page
+  opens in a browser without a page error and starts light. Signed-in screens were checked on the static preview and
+  the edge-bff suite before the push (267 passed, 3 failed = the `main` baseline), not live (no credentials used).
+- **Rollback:** redeploy edge-bff `074b2cc9` (commit `85f1e6c`).
