@@ -376,6 +376,23 @@ def offline(monkeypatch):
     monkeypatch.setattr(pub, 'fetch', fake_get(stockbit=()))
 
 
+WAITS, AT_WAIT = [], []
+
+
+@pytest.fixture(autouse=True)
+def no_wait(monkeypatch):
+    """delete_replaced's wait is recorded, not slept (WAITS); a test sees the bucket during it through AT_WAIT."""
+    WAITS.clear(); AT_WAIT.clear()
+    monkeypatch.setattr(pub, 'wait', lambda seconds: (WAITS.append(seconds), [f() for f in AT_WAIT]))
+
+
+def during_wait(bucket):
+    """The bucket's objects at the moment of delete_replaced's wait (state.json written, nothing deleted yet)."""
+    seen = []
+    AT_WAIT.append(lambda: seen.append(dict(bucket.objects)))
+    return seen
+
+
 def test_logo_comes_from_stockbit_then_tradingview_and_a_page_is_not_an_image():
     assert pub.logo_image('BBCA', None, fake_get())[1:] == ('png', 'stockbit')
     assert pub.logo_image('IHSG', 'composite', fake_get(tradingview=True))[1:] == ('svg', 'tradingview')
@@ -502,11 +519,13 @@ def test_a_pack_that_differs_from_the_table_is_republished_from_the_slice():
     conn.prices = [('BBCA', '2025-12-30', 99.0, 110.0, 95.0, 105.0, 1000.0)] + PRICES[1:]
     old = key_of(bucket, 'BBCA', 'pack', 'price')
     old_bytes = bucket.objects[old]
+    seen = during_wait(bucket)
     p3 = pub.Publisher(conn, bucket, today=TODAY)
     p3.run('daily')
     assert ('price', 'BBCA', 2025) not in p3.changed and ('pack', 'BBCA', 'price') in p3.changed
     assert doc_of(bucket, 'BBCA', 'pack', 'price')['o'][0] == 99.0
-    assert key_of(bucket, 'BBCA', 'pack', 'price') != old and bucket.objects[old] == old_bytes   # a new object (M250)
+    assert key_of(bucket, 'BBCA', 'pack', 'price') != old and seen[0][old] == old_bytes   # a new object (M250)
+    assert old in p3.replaced and old not in bucket.objects                # replaced: gone after the wait
     entry, doc = xsection(bucket, 'price')
     sha = bucket.get_json('manifest/BBCA.json')['packs']['price']['sha256']                  # the manifest was saved
     assert (sha == hashlib.sha256(bucket.objects[key_of(bucket, 'BBCA', 'pack', 'price')]).hexdigest()
@@ -574,22 +593,20 @@ def test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward():
 
 
 def test_pruning_keeps_the_objects_of_the_previous_index():
-    """The xsection cleanup is collect_garbage's (daily runs, before the first write): an object goes on the first daily
-    run after the run that stopped naming it, so a reader holding the previous index keeps its file."""
+    """EXEC-PUBLISHER-SPEED: an xsection file the new index stops naming stays through the run and the wait after its
+    state.json (a reader of the previous index keeps its file), then goes; other keys under xsection/ stay."""
     _, conn, bucket = run('backfill')
     k1 = xsection(bucket, 'price')[0]['key'][3:]
     actions = xsection(bucket, 'actions')[0]['key'][3:]
     bucket.objects['xsection/README.txt'] = b'not a file of the family'
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    seen = during_wait(bucket)
     pub.Publisher(conn, bucket, today=TODAY).run('daily')
     k2 = xsection(bucket, 'price')[0]['key'][3:]
-    assert k2 != k1 and k1 in bucket.objects                          # k1 is the previous index's: a reader may hold it
-    pub.Publisher(conn, bucket, today=TODAY).run('logos')             # a carry-forward run deletes nothing
-    assert k1 in bucket.objects
-    conn.prices = conn.prices + [('BBCA', '2026-01-06', 101.0, 104.0, 100.0, 103.0, 700.0)]
-    pub.Publisher(conn, bucket, today=TODAY).run('daily')
-    k3 = xsection(bucket, 'price')[0]['key'][3:]
-    assert k1 not in bucket.objects and {k2, k3, actions, 'xsection/README.txt'} <= set(bucket.objects)
+    assert k2 != k1 and k1 in seen[0] and bucket.get_json('state.json')['xsection']['price']['key'] == f'v1/{k2}'
+    assert k1 not in bucket.objects and {k2, actions, 'xsection/README.txt'} <= set(bucket.objects)
+    pub.Publisher(conn, bucket, today=TODAY).run('logos')             # a carry-forward run replaces no xsection file
+    assert {k2, actions} <= set(bucket.objects)
 
 
 def test_an_indexed_object_missing_from_the_bucket_is_put_again():
@@ -600,24 +617,25 @@ def test_an_indexed_object_missing_from_the_bucket_is_put_again():
     assert bucket.objects[key] == body and xsection(bucket, 'price')[0]['key'] == f'v1/{key}'
 
 
-def test_a_bucket_that_cannot_list_or_delete_prunes_nothing_and_still_publishes():
+def test_a_bucket_that_cannot_list_or_delete_prunes_nothing_and_still_publishes(capsys):
+    """Without listings the publication goes on and the replaced files still go by name; a bucket that refuses deletes
+    keeps everything, and the run publishes."""
     _, conn, bucket = run('backfill')
     k1 = xsection(bucket, 'price')[0]['key'][3:]
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
-    pub.Publisher(conn, bucket, today=TODAY).run('daily')
-    k2 = xsection(bucket, 'price')[0]['key'][3:]
-    conn.prices = conn.prices + [('BBCA', '2026-01-06', 101.0, 104.0, 100.0, 103.0, 700.0)]
     bucket.list = lambda deadline=None, prefix='': (_ for _ in ()).throw(PermissionError())    # no ListObjectsV2
     p = pub.Publisher(conn, bucket, today=TODAY)
     p.run('daily')
-    k3 = xsection(bucket, 'price')[0]['key'][3:]
-    assert p.xsection_failed == [] and {k1, k2, k3} <= set(bucket.objects) and bucket.puts[-1] == 'state.json'
+    k2 = xsection(bucket, 'price')[0]['key'][3:]
+    assert p.xsection_failed == [] and k2 in bucket.objects and k1 not in bucket.objects and bucket.puts[-1] == 'state.json'
     del bucket.list                                                   # listing works again, deleting does not
     bucket.delete = lambda keys: (_ for _ in ()).throw(PermissionError())
-    conn.prices = conn.prices + [('BBCA', '2026-01-07', 103.0, 104.0, 100.0, 102.0, 600.0)]
+    conn.prices = conn.prices + [('BBCA', '2026-01-06', 101.0, 104.0, 100.0, 103.0, 700.0)]
     p = pub.Publisher(conn, bucket, today=TODAY)
     p.run('daily')
-    assert p.xsection_failed == [] and {k1, k2, k3} <= set(bucket.objects) and bucket.puts[-1] == 'state.json'
+    k3 = xsection(bucket, 'price')[0]['key'][3:]
+    assert p.xsection_failed == [] and {k2, k3} <= set(bucket.objects) and bucket.puts[-1] == 'state.json'
+    assert '"replaced_failed"' in capsys.readouterr().out
 
 
 def test_xsection_files_are_deterministic_and_never_rewritten():
@@ -725,8 +743,9 @@ def test_every_data_file_and_pack_is_named_by_the_sha256_of_its_bytes():
         assert key == pub.content_key(family, ticker, name, sha)
 
 
-def test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_stay_until_the_next_run():
-    """M250: during a run, a reader holding the previous manifest still downloads exactly the bytes it names."""
+def test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_stay_through_the_wait():
+    """M250: during a run, and through the wait after its state.json, a reader holding the previous manifest still
+    downloads exactly the bytes it names; then exactly the replaced objects go (EXEC-PUBLISHER-SPEED)."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
@@ -735,16 +754,17 @@ def test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_sta
     conn.brokers = BROKERS + [('BBCA', '2026-01-05', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False)]
     conn.events = EVENTS + [('BBCA', '2026-06-01', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND') + (None,) * 9 +
                             (5.0, None, None, None, {}, None, None)]
+    seen = during_wait(bucket)
     p = at(bucket, conn, 'daily', 2)
     replaced = set(old) - named(bucket) - indexed(bucket)
     # every family changed; the xsection `price` file too (`actions` reads ACTIONS, unchanged here)
     assert {k.split('/')[0] for k in replaced} == {'price', 'broker', 'events', 'pack', 'xsection'}
     assert [k for k in replaced if k.startswith('xsection/')][0].startswith('xsection/price.')
-    assert p.written == len(replaced)
-    assert all(bucket.objects[k] == body for k, body in old.items())     # nothing the old manifest names was touched
-    at(bucket, conn, 'daily', 4)                                          # the next run: no reader can hold it now
-    assert not replaced & set(bucket.objects) and named(bucket) | indexed(bucket) <= set(bucket.objects)
-    assert sorted(bucket.deleted) == sorted(replaced)
+    assert p.written == len(replaced) and WAITS == [pub.DELETE_AFTER_SECONDS]
+    assert seen[0]['state.json'] == bucket.objects['state.json']          # the wait came after the switch
+    assert all(seen[0][k] == body for k, body in old.items())             # nothing the old manifest names was touched
+    assert set(p.replaced) == replaced and not replaced & set(bucket.objects)
+    assert named(bucket) | indexed(bucket) <= set(bucket.objects) and pub.verify(conn, bucket) == 0
 
 
 def test_an_unchanged_file_keeps_its_fixed_key_from_before_content_keys_and_a_change_retires_it():
@@ -761,10 +781,10 @@ def test_an_unchanged_file_keeps_its_fixed_key_from_before_content_keys_and_a_ch
     p = at(bucket, conn, 'daily', 2)
     assert p.written == 0 and key_of(bucket, 'BBCA', 'price', 2026) == legacy and legacy in bucket.objects
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
-    at(bucket, conn, 'daily', 4)
-    assert key_of(bucket, 'BBCA', 'price', 2026) != legacy and legacy in bucket.objects
-    at(bucket, conn, 'daily', 6)
-    assert legacy not in bucket.objects
+    seen = during_wait(bucket)
+    p = at(bucket, conn, 'daily', 4)
+    assert key_of(bucket, 'BBCA', 'price', 2026) != legacy and legacy in seen[0]      # kept through the wait
+    assert legacy in p.replaced and legacy not in bucket.objects                       # then retired by name
 
 
 def plant(bucket, key, hours):
@@ -859,7 +879,8 @@ def test_a_bucket_listing_past_its_deadline_skips_the_cleanup_and_the_run_publis
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
     p = at(bucket, conn, 'daily', 2)
     assert '"TimeoutError"' in capsys.readouterr().out and p.written > 0
-    assert 'price/IHSG/2019.json.gz' in bucket.objects and not bucket.deleted
+    assert 'price/IHSG/2019.json.gz' in bucket.objects                    # the sweep needs a listing: skipped
+    assert sorted(bucket.deleted) == p.replaced                           # the replaced files go by name
 
 
 # ---- one mechanism for both: the xsection family under content keys and collect_garbage (M250 x EXEC-SCREENER) -------
@@ -867,8 +888,9 @@ def price_key(bucket):
     return xsection(bucket, 'price')[0]['key'][len(pub.PREFIX) + 1:]
 
 
-def test_the_xsection_cleanup_waits_for_the_grace_so_two_runs_minutes_apart_keep_the_previous_index(capsys):
-    """A manual run right after a scheduled one deletes nothing: a reader of the index before it keeps its files."""
+def test_two_runs_minutes_apart_each_delete_what_they_replaced_after_their_own_wait(capsys):
+    """A manual run right after a scheduled one: each run deletes what it replaced, after the wait that follows its own
+    state.json (a reader of the index before it keeps its file until then); the sweep keeps its one-hour grace."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
@@ -877,13 +899,12 @@ def test_the_xsection_cleanup_waits_for_the_grace_so_two_runs_minutes_apart_keep
     at(bucket, conn, 'daily', 2)
     k2 = price_key(bucket)
     conn.prices = conn.prices + [('BBCA', '2026-01-06', 101.0, 104.0, 100.0, 103.0, 700.0)]
+    seen = during_wait(bucket)
     at(bucket, conn, 'daily', 2.25)                                       # 15 minutes after the last run finished
     k3 = price_key(bucket)
-    assert len({k1, k2, k3}) == 3 and {k1, k2, k3} <= set(bucket.objects)
+    assert len({k1, k2, k3}) == 3 and k2 in seen[0] and k1 not in seen[0]
+    assert k3 in bucket.objects and not {k1, k2} & set(bucket.objects) and {k1, k2} <= set(bucket.deleted)
     assert events(capsys, 'gc_skipped')[0]['grace'] == pub.GC_GRACE_SECONDS
-    at(bucket, conn, 'daily', 4)
-    assert k1 not in bucket.objects and k2 not in bucket.objects and k3 in bucket.objects
-    assert {k1, k2} <= set(bucket.deleted)
 
 
 def test_the_xsection_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_index_names_a_file(capsys):
@@ -912,59 +933,55 @@ def test_the_xsection_cleanup_keeps_newer_objects_other_keys_and_everything_when
 
 
 def test_content_that_returns_to_an_object_the_cleanup_deleted_is_put_again():
-    """EXEC-PUBLISHER-SPEED: the cleanup runs after state.json. Content that returns to a key the previous index still
-    names is neither deleted nor put again; a key a cleanup deleted is gone from the next run's xsection listing, so
-    content that returns to it is put again, never taken as present."""
+    """A key deleted after a run's wait is gone from the next run's xsection listing, so content that returns to it is
+    put again, never taken as present."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     k1 = price_key(bucket)
     body = bucket.objects[k1]
-    changed = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
-    conn.prices = changed
-    at(bucket, conn, 'daily', 2)
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    at(bucket, conn, 'daily', 2)                                          # k1 replaced, deleted after the wait
     k2 = price_key(bucket)
-    conn.prices = PRICES                                                  # undone: k1's content again
-    n = len(bucket.puts)
-    at(bucket, conn, 'daily', 4)                                          # k1 is still there (k2's run kept it)
-    assert price_key(bucket) == k1 and xsection_puts(bucket, n) == [] and {k1, k2} <= set(bucket.objects)
-    conn.prices = changed
-    at(bucket, conn, 'daily', 6)                                          # k2's content again: named, so k2 is kept
-    at(bucket, conn, 'daily', 8)                                          # this cleanup deletes k1 (named by no index)
-    assert k1 in bucket.deleted and k1 not in bucket.objects and price_key(bucket) == k2
-    conn.prices = PRICES
-    at(bucket, conn, 'daily', 10)                                         # back to k1: put again from the rebuild
-    assert price_key(bucket) == k1 and bucket.objects[k1] == body
+    assert k1 in bucket.deleted and k1 not in bucket.objects
+    conn.prices = PRICES                                                  # the change is undone: k1's content again
+    at(bucket, conn, 'daily', 4)
+    assert price_key(bucket) == k1 and bucket.objects[k1] == body and k2 not in bucket.objects
     assert named(bucket) | indexed(bucket) <= set(bucket.objects) and pub.verify(conn, bucket) == 0
 
 
 def test_content_that_returns_to_an_object_still_in_the_bucket_is_not_put_again():
+    """A replaced key the bucket kept (its delete refused) and whose content returns is indexed again, not put again."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     k1 = price_key(bucket)
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    bucket.delete = lambda keys: list(keys)                              # every delete refused: k1 stays
     at(bucket, conn, 'daily', 2)
-    conn.prices = PRICES                                                  # undone within the grace: k1 is still there
+    conn.prices = PRICES
     n = len(bucket.puts)
     at(bucket, conn, 'daily', 2.5)
-    assert price_key(bucket) == k1 and xsection_puts(bucket, n) == [] and k1 not in bucket.deleted
+    assert price_key(bucket) == k1 and xsection_puts(bucket, n) == [] and k1 in bucket.objects
 
 
-def test_the_cleanup_lists_the_whole_bucket_and_the_indexed_files_their_prefix_only():
-    """The xsection and the content-keyed reference listings ask for `xsection/` and `ref/` only (these listings have no
-    deadline). EXEC-PUBLISHER-SPEED: a daily run first lists `state.json` and `manifest/` (the cleanup's baseline, before
-    its first write), and the cleanup's listing of the whole bucket comes last, after state.json."""
+def test_the_cleanup_lists_each_folder_and_the_indexed_files_their_prefix_only():
+    """The xsection and the content-keyed reference listings ask for `xsection/` and `ref/` only. A daily run first
+    lists `state.json` and `manifest/` (the sweep's baseline, before its first write); the sweep, after state.json and
+    the replaced files' deletion, lists `manifest/` and `state.json`, then each family folder (ERRORS M301)."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     asked, whole = [], bucket.list
     bucket.list = lambda deadline=None, prefix='': asked.append((prefix, len(bucket.puts))) or whole(deadline, prefix)
     n = len(bucket.puts)
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
     at(bucket, conn, 'daily', 2)
-    assert [p for p, _ in asked] == ['state.json', 'manifest/', 'xsection/', 'ref/', '']
-    assert asked[0][1] == asked[1][1] == n                                 # the baseline: before the run's first put
-    assert asked[-1][1] == len(bucket.puts) and bucket.puts[-1] == 'state.json'   # the cleanup: after state.json
+    prefixes = [p for p, _ in asked]
+    assert prefixes[:4] == ['state.json', 'manifest/', 'xsection/', 'ref/'] and asked[0][1] == asked[1][1] == n
+    assert prefixes[4:6] == ['manifest/', 'state.json']
+    assert sorted(prefixes[6:]) == ['broker/', 'events/', 'pack/', 'price/', 'ref/', 'xsection/'] and '' not in prefixes
+    assert all(at_put == len(bucket.puts) for _, at_put in asked[4:]) and bucket.puts[-1] == 'state.json'
 
 # ---- bucket retries (ERRORS M263; M253 on PR #41's branch) ----------------------------------------------------------
 def client_error(code):
@@ -1113,15 +1130,16 @@ def test_equal_reference_bytes_give_the_same_key_and_are_never_put_again():
         at(bucket, conn, mode, 0.1 * (i + 1), *args)
         assert {k: refs(bucket)[k] for k in first} == first
     assert ref_puts(bucket, n) == []                                       # same content, same key: not put again
-    # a changed list is a new object; undone within the grace, the old key is still there and is not put again
+    # a changed list is a new object, and the one it replaced goes after the wait; content that returns is put again
     conn.universe = renamed('Bank Central Asia Tbk')
     at(bucket, conn, 'daily', 2)
     changed = refs(bucket)['tickers']['key']
     assert changed != first['tickers']['key'] and refs(bucket)['brokers'] == first['brokers']
+    assert first['tickers']['key'][3:] not in bucket.objects and first['brokers']['key'][3:] in bucket.objects
     conn.universe = UNIVERSE
     n = len(bucket.puts)
     at(bucket, conn, 'daily', 2.5)
-    assert refs(bucket)['tickers'] == first['tickers'] and ref_puts(bucket, n) == []
+    assert refs(bucket)['tickers'] == first['tickers'] and [k.split('.')[0] for k in ref_puts(bucket, n)] == ['ref/tickers']
 
 
 def test_the_refs_index_is_written_after_its_objects_and_before_state_json():
@@ -1240,27 +1258,22 @@ def test_the_logos_copy_follows_the_fixed_copy_and_a_bucket_from_before_t5_is_in
     assert bucket.objects[refs(bucket)['logos']['key'][3:]] == bucket.objects['ref/logos.json.gz']
 
 
-def test_cleanup_removes_an_unnamed_content_keyed_reference_object_only_after_the_grace():
-    """The same rule as for xsection: the first daily run that starts an hour or more after the last finished run
-    deletes the content-keyed reference objects its index does not name; a reader of the previous index keeps its file
-    until then, and the fixed-key copies are never deleted."""
+def test_a_replaced_content_keyed_reference_object_goes_after_the_wait_and_fixed_copies_never():
+    """As for xsection: a reference object the new refs index stops naming stays through the run and the wait after its
+    state.json, then goes; a carry-forward run (logos) replaces none, and the fixed-key copies are never deleted."""
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     k1 = refs(bucket)['tickers']['key'][3:]
     conn.universe = renamed('BCA one')
+    seen = during_wait(bucket)
     at(bucket, conn, 'daily', 2)
     k2 = refs(bucket)['tickers']['key'][3:]
-    conn.universe = renamed('BCA two')
-    at(bucket, conn, 'daily', 2.25)                                        # 15 minutes after the last run: no cleanup
-    k3 = refs(bucket)['tickers']['key'][3:]
-    assert len({k1, k2, k3}) == 3 and {k1, k2, k3} <= set(bucket.objects)
-    at(bucket, conn, 'logos', 4)                                           # not a daily run: deletes nothing
-    assert {k1, k2} <= set(bucket.objects)
-    at(bucket, conn, 'daily', 6)
-    assert k1 not in bucket.objects and k2 not in bucket.objects and k3 in bucket.objects
-    assert {k1, k2} <= set(bucket.deleted) and not FIXED_REFS & set(bucket.deleted)
-    assert FIXED_REFS <= set(bucket.objects) and {e['key'][3:] for e in refs(bucket).values()} <= set(bucket.objects)
+    assert k1 in seen[0] and k1 not in bucket.objects and k2 in bucket.objects
+    at(bucket, conn, 'logos', 4)                                           # the same ticker list: k2 stays
+    assert k2 in bucket.objects
+    assert not FIXED_REFS & set(bucket.deleted) and FIXED_REFS <= set(bucket.objects)
+    assert {e['key'][3:] for e in refs(bucket).values()} <= set(bucket.objects)
 
 
 def test_ref_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_refs_index_names_a_file(capsys):
@@ -1294,18 +1307,10 @@ def test_a_reference_object_the_cleanup_deleted_is_put_again_when_its_content_re
     k1 = refs(bucket)['tickers']['key'][3:]
     body = bucket.objects[k1]
     conn.universe = renamed('BCA')
-    at(bucket, conn, 'daily', 2)
-    k2 = refs(bucket)['tickers']['key'][3:]
-    conn.universe = UNIVERSE                                               # undone: k1's content again
-    n = len(bucket.puts)
-    at(bucket, conn, 'daily', 4)                                           # k1 is still there: indexed, not put again
-    assert refs(bucket)['tickers']['key'] == f'v1/{k1}' and ref_puts(bucket, n) == [] and {k1, k2} <= set(bucket.objects)
-    conn.universe = renamed('BCA')
-    at(bucket, conn, 'daily', 6)                                           # k2 again
-    at(bucket, conn, 'daily', 8)                                           # this cleanup deletes k1
+    at(bucket, conn, 'daily', 2)                                           # k1 replaced: deleted after the wait
     assert k1 in bucket.deleted and k1 not in bucket.objects
-    conn.universe = UNIVERSE
-    at(bucket, conn, 'daily', 10)                                          # back to k1: index_refs puts it again
+    conn.universe = UNIVERSE                                               # undone: k1's content again
+    at(bucket, conn, 'daily', 4)                                           # index_refs puts it again
     assert refs(bucket)['tickers']['key'] == f'v1/{k1}' and bucket.objects[k1] == body
     assert pub.verify(conn, bucket) == 0
 
@@ -1525,10 +1530,11 @@ def test_the_cleanup_comes_after_state_json_so_a_slow_or_failed_listing_never_ho
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     plant(bucket, 'price/IHSG/2019.json.gz', -24)
-    whole = bucket.list
+    whole, sweeping = bucket.list, []
+    AT_WAIT.append(lambda: sweeping.append(True))                          # after state.json: the sweep's listings fail
     def listing(deadline=None, prefix=''):
-        if prefix == '':
-            assert bucket.puts[-1] == 'state.json'                       # published before the cleanup lists
+        if sweeping:
+            assert bucket.puts[-1] == 'state.json'                       # published before the sweep lists
             raise TimeoutError('bucket listing took too long')
         return whole(deadline, prefix)
     bucket.list = listing
@@ -1536,8 +1542,8 @@ def test_the_cleanup_comes_after_state_json_so_a_slow_or_failed_listing_never_ho
     at(bucket, conn, 'daily', 2)
     out = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     names = [e['event'] for e in out]
-    assert names.index('done') < names.index('gc_failed') and 'price/IHSG/2019.json.gz' in bucket.objects
-    assert bucket.modified['state.json'] == bucket.clock
+    assert names.index('done') < names.index('replaced') < names.index('gc_failed')
+    assert 'price/IHSG/2019.json.gz' in bucket.objects and bucket.modified['state.json'] == bucket.clock
     done = [e for e in out if e['event'] == 'done'][0]
     assert set(done['phases']) == {'plan', 'files', 'packs', 'xsection', 'manifests', 'refs', 'state'}
 
@@ -1794,3 +1800,200 @@ def test_a_logos_run_does_not_read_every_manifest(monkeypatch):
     bucket = FakeBucket()
     pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get()).run('logos')
     assert bucket.puts[-1] == 'state.json'
+
+
+# ---- delete the replaced files after the switch (user 2026-10-29: "Ok setuju"; ERRORS M301) ------------------------
+def logged(capsys):
+    return [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith('{')]
+
+
+def test_the_wait_follows_its_variable_and_is_never_below_its_floor(monkeypatch):
+    p = lambda **kw: pub.Publisher(None, FakeBucket(), today=TODAY, **kw)
+    monkeypatch.delenv('TERMINAL_DELETE_AFTER_SECONDS', raising=False)
+    assert p().delete_after == pub.DELETE_AFTER_SECONDS == 600
+    monkeypatch.setenv('TERMINAL_DELETE_AFTER_SECONDS', '900')
+    assert p().delete_after == 900
+    monkeypatch.setenv('TERMINAL_DELETE_AFTER_SECONDS', '60')                # below what a reader may still hold
+    assert p().delete_after == pub.MIN_DELETE_AFTER_SECONDS == 300
+    assert p(delete_after=1).delete_after == 300 and p(delete_after=1200).delete_after == 1200
+
+
+def test_a_key_the_new_publication_names_is_never_a_replaced_one():
+    """replaced_keys: what a manifest named when it was read, or the previous index named, and the new publication no
+    longer names anywhere (another ticker's manifest or either index naming it keeps it)."""
+    key = lambda k: {'key': f'{pub.PREFIX}/{k}'}
+    manifest = lambda *keys: {'datasets': {'price': {'files': {str(i): key(k) for i, k in enumerate(keys)}}}}
+    p = pub.Publisher(None, FakeBucket(), today=TODAY)
+    p.loaded_named = {'AAAA': {'price/AAAA/2025.a.json.gz', 'price/AAAA/2026.a.json.gz', 'price/AAAA/2024.a.json.gz'},
+                      'BBBB': {'price/BBBB/2026.b.json.gz'}}
+    p.manifests = {'AAAA': manifest('price/AAAA/2025.a.json.gz', 'price/AAAA/2026.c.json.gz'),
+                   'BBBB': manifest('price/BBBB/2026.b.json.gz', 'price/AAAA/2024.a.json.gz')}
+    previous = {'xsection': {'price': key('xsection/price.1111111111111111.json.gz'),
+                             'actions': key('xsection/actions.2222222222222222.json.gz')}, 'ref': {}}
+    now = {'xsection': {'price': key('xsection/price.3333333333333333.json.gz'),
+                        'actions': key('xsection/actions.2222222222222222.json.gz')},
+           'ref': {'tickers': key('xsection/price.1111111111111111.json.gz')}}
+    assert p.replaced_keys(previous, now) == {'price/AAAA/2026.a.json.gz'}
+    now['ref'] = {}
+    assert p.replaced_keys(previous, now) == {'price/AAAA/2026.a.json.gz', 'xsection/price.1111111111111111.json.gz'}
+    p.loaded_named['CCCC'] = {'price/CCCC/2026.c.json.gz'}               # read, but its manifest is no longer held
+    assert 'price/CCCC/2026.c.json.gz' not in p.replaced_keys(previous, now)
+
+
+def test_a_run_stopped_during_the_wait_deletes_nothing_and_the_full_cleanup_takes_what_it_left(monkeypatch):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    k1 = price_key(bucket)
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    monkeypatch.setattr(pub, 'wait', lambda seconds: (_ for _ in ()).throw(KeyboardInterrupt()))   # the stop
+    with pytest.raises(KeyboardInterrupt):
+        at(bucket, conn, 'daily', 2)
+    assert bucket.puts[-1] == 'state.json' and price_key(bucket) != k1                      # published
+    assert k1 in bucket.objects and bucket.deleted == []                                    # nothing deleted
+    left = set(bucket.objects) - named(bucket) - indexed(bucket) - {k for k in bucket.objects if '/' not in k
+                                                                       or k.startswith(('manifest/', 'logo/'))}
+    left -= {k for k in left if pub.REF_KEY.fullmatch(k)} | {k for k in left if k.startswith('ref/')}
+    assert k1 in left
+    # the cleanup outside a run, more than an hour later: what the stopped run replaced goes, what is named stays
+    pub.Publisher(None, bucket, today=TODAY, clock=lambda: bucket.clock + 2 * HOUR).collect_garbage()
+    assert k1 not in bucket.objects and named(bucket) | indexed(bucket) <= set(bucket.objects)
+    assert pub.verify(conn, bucket) == 0
+
+
+def test_a_newer_publication_during_the_wait_keeps_the_replaced_files_for_a_later_cleanup(capsys):
+    """Another run published during the wait: its manifests may name a replaced key again (content that returned), so
+    this run deletes nothing and skips its sweep; a later cleanup, which reads them, decides."""
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    k1 = price_key(bucket)
+    capsys.readouterr()
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    newer = lambda: bucket.put('state.json', json.dumps({**json.loads(bucket.objects['state.json']),
+                                                         'finished_at': '2099-01-01T00:00:00+00:00'}).encode(), 'x')
+    AT_WAIT.append(newer)
+    p = at(bucket, conn, 'daily', 2)
+    lines = logged(capsys)
+    assert k1 in p.replaced and k1 in bucket.objects and bucket.deleted == []
+    assert [e['reason'] for e in lines if e['event'] == 'replaced_skipped'] == ['a newer publication came out during the wait']
+    assert [e['reason'] for e in lines if e['event'] == 'gc_skipped'] == ['a newer publication came out after this run']
+
+
+def test_a_run_outside_the_sweep_time_deletes_by_name_and_never_lists_the_bucket(capsys):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    k1 = price_key(bucket)
+    plant(bucket, 'price/IHSG/2019.json.gz', -24)                        # an orphan only the full cleanup takes
+    listed = []
+    whole = bucket.list
+    bucket.list = lambda deadline=None, prefix='': listed.append(prefix) or whole(deadline, prefix)
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    bucket.clock = dt.datetime(2026, 10, 25, tzinfo=dt.timezone.utc) + 2 * HOUR
+    p = pub.Publisher(conn, bucket, today=TODAY, clock=lambda: bucket.clock)
+    capsys.readouterr()
+    p.run('daily', sweep=False)
+    done = [e for e in logged(capsys) if e['event'] == 'replaced']
+    assert [prefix for prefix in listed if prefix != 'xsection/' and prefix != 'ref/'] == []   # no cleanup listing
+    assert k1 in p.replaced and k1 not in bucket.objects and 'price/IHSG/2019.json.gz' in bucket.objects
+    assert done[0]['objects'] == len(p.replaced) == done[0]['deleted'] and done[0]['waited'] == pub.DELETE_AFTER_SECONDS
+    assert WAITS == [pub.DELETE_AFTER_SECONDS] and pub.verify(conn, bucket) == 0
+
+
+def test_a_run_that_replaced_nothing_does_not_wait(capsys):
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    WAITS.clear()
+    p = at(bucket, conn, 'daily', 2)
+    assert p.replaced == [] and WAITS == []
+
+
+def test_the_full_cleanup_runs_in_the_scheduled_evening_run_only(monkeypatch):
+    monkeypatch.delenv('TERMINAL_SWEEP_WIB', raising=False)
+    utc = lambda h, m: dt.datetime(2026, 10, 29, h, m, tzinfo=dt.timezone.utc)
+    assert pub.sweep_due('daily', False, utc(12, 4))                     # 19:04 WIB
+    assert not pub.sweep_due('daily', False, utc(0, 34))                 # 07:34 WIB
+    assert not pub.sweep_due('daily', True, utc(12, 4))                  # a manual run
+    assert not pub.sweep_due('backfill', False, utc(12, 4))
+    monkeypatch.setenv('TERMINAL_SWEEP_WIB', '07:30')
+    assert pub.sweep_due('daily', False, utc(0, 34)) and not pub.sweep_due('daily', False, utc(12, 4))
+
+
+def test_main_passes_the_sweep_to_the_run(monkeypatch):
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    wire_main(monkeypatch, conn, bucket)
+    asked = []
+    monkeypatch.setattr(pub, 'sweep_due', lambda mode, manual, now: asked.append((mode, manual)) or True)
+    run = pub.Publisher.run
+    monkeypatch.setattr(pub.Publisher, 'run', lambda self, *a, sweep=None: asked.append(sweep) or run(self, *a, sweep=sweep))
+    assert pub.main(['publisher.py', 'backfill']) == 0
+    assert asked == [('backfill', True), True]
+
+
+def test_the_cleanup_mode_needs_no_database_and_deletes_only_what_no_publication_names(monkeypatch, capsys):
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    plant(bucket, 'price/IHSG/2019.json.gz', -24)
+    keep = named(bucket) | indexed(bucket)
+    monkeypatch.setattr(pub, 'Bucket', lambda: bucket)
+    monkeypatch.setattr(pub.psycopg, 'connect', lambda *a, **k: pytest.fail('the cleanup connected to the database'))
+    monkeypatch.delenv('TERMINAL_RUN_TIMES_WIB', raising=False)
+    assert pub.main(['publisher.py', 'cleanup']) == 0
+    assert 'price/IHSG/2019.json.gz' not in bucket.objects and keep <= set(bucket.objects)
+    assert bucket.puts[-1] == 'state.json' and WAITS == []
+    (gc,) = [e for e in logged(capsys) if e['event'] == 'gc']
+    assert gc['deleted'] == 1 and gc['not_deleted'] == 0
+
+
+def test_the_listing_asks_small_pages_and_logs_each_folder_and_each_slow_page(monkeypatch, capsys):
+    at = dt.datetime(2026, 10, 25, tzinfo=dt.timezone.utc)
+    pages = {None: {'IsTruncated': True, 'NextContinuationToken': 't1', 'Contents': [{'Key': 'v1/price/a', 'LastModified': at, 'Size': 1}]},
+             't1': {'IsTruncated': False, 'Contents': [{'Key': 'v1/price/b', 'LastModified': at, 'Size': 2}]}}
+    asked = []
+    class S3:
+        def list_objects_v2(self, **kw):
+            asked.append(kw)
+            return pages[kw.get('ContinuationToken')]
+    b = pub.Bucket.__new__(pub.Bucket)
+    b.name, b.s3 = 'bucket', S3()
+    monkeypatch.setattr(pub, 'SLOW_PAGE_SECONDS', -1)                    # every page counts as slow
+    assert b.list(prefix='price/') == {'price/a': (at, 1), 'price/b': (at, 2)}
+    assert [kw['MaxKeys'] for kw in asked] == [pub.LIST_PAGE_KEYS] * 2 == [200, 200]
+    lines = logged(capsys)
+    assert [(e['prefix'], e['page'], e['keys']) for e in lines if e['event'] == 'list_page_slow'] == [('price/', 0, 1), ('price/', 1, 1)]
+    (done,) = [e for e in lines if e['event'] == 'listed']
+    assert (done['prefix'], done['pages'], done['keys']) == ('price/', 2, 2) and 'slowest_page_seconds' in done
+
+
+def test_a_retried_request_names_itself_in_the_log(capsys):
+    calls = []
+    def call():
+        calls.append(1)
+        if len(calls) == 1:
+            raise client_error('RequestCanceled')
+        return 'ok'
+    assert pub.retried(call, sleep=lambda s: None, what='list price/ page 3') == 'ok'
+    (retry,) = [e for e in logged(capsys) if e['event'] == 'bucket_retry']
+    assert retry['request'] == 'list price/ page 3' and retry['error'] == 'ClientError'
+
+
+def test_a_publisher_used_again_after_a_failed_run_deletes_nothing_a_manifest_still_names(monkeypatch):
+    """The failed run's reads are dropped with its manifests; a logos run after it on the same object reads no manifest,
+    so it replaces no data file."""
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    keep = named(bucket) | indexed(bucket)
+    p = pub.Publisher(conn, bucket, today=TODAY, get=fake_get())
+    put = bucket.put
+    bucket.put = lambda key, body, ctype: ((_ for _ in ()).throw(OSError('x')) if key.startswith('manifest/')
+                                           else put(key, body, ctype))
+    conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
+    with pytest.raises(OSError):
+        p.run('daily')
+    assert p.manifests == {} and p.loaded_named == {}
+    bucket.put = put
+    p.run('logos')
+    assert keep <= set(bucket.objects) and not set(p.replaced) & keep

@@ -8881,8 +8881,30 @@ berdasarkan inspeksi kode, log dan data live saat itu, bukan ingatan (AGENTS.md 
   - Sisa: jalur tulis paralel diukur oleh run terjadwal pertama (07:30 dan 19:00 WIB, 2026-10-30). Listing
     bersih-bersih dari kontainer publisher masih macet (`gc_failed`, tidak menunda publikasi; ERRORS M301, penyebab
     belum terverifikasi).
+- **Go lanjutan, 2026-10-29 (kata user):** "Ok setuju." Pertanyaannya: "Setuju dengan jeda 10 menit dan urutan itu,
+  atau Anda mau jedanya lebih panjang (misalnya 30 menit) atau dikerjakan malam ini?" Konteks: usulan user ("ketika
+  file di storage sudah fully updated, maka langsung di-switch ... dan proses penghapusan file lama langsung
+  dijalankan") yang disempurnakan:
+  - (1) sesudah `state.json`, tunggu 10 menit (bisa diatur), lebih lama dari cache manifest terminal-api (60 s) +
+    umur link unduhan (120 s) + unduhan;
+  - (2) hapus tepat file yang digantikan run itu (daftar isi lama dikurangi yang baru, juga indeks xsection/refs),
+    tanpa listing storage;
+  - (3) listing lengkap hanya sebagai jaring pengaman: sekali sehari, per folder, halaman lebih kecil, waktu tiap
+    halaman di log.
 
-### Riwayat (dipindah dari PLAN.md PUBLISHER-SPEED)
+  Urutan: kode dan tes malam ini; deploy besok setelah run 07:30 WIB diperiksa (pengukuran pertama jalur tulis
+  paralel tidak bercampur dengan perubahan ini).
+- **Status go lanjutan, 2026-10-29 malam:** kode dan tes selesai di branch, belum di-merge, belum di-deploy.
+  - `delete_replaced`: sesudah `state.json`, tunggu `TERMINAL_DELETE_AFTER_SECONDS` (600, minimal 300), lalu hapus
+    tepat kunci yang tidak disebut lagi oleh publikasi baru, tanpa listing. Dilewati bila run lain sudah terbit selama
+    jeda (`still_current`).
+  - Listing lengkap (`collect_garbage`) hanya di run 19:00 WIB (`TERMINAL_SWEEP_WIB`), dibatasi 300 s, per folder,
+    halaman 200 kunci, log per folder dan per halaman lambat; mode `cleanup` untuk run manual tanpa database.
+  - Tambahan dari inspeksi (di luar tiga butir, demi keamanan): pemeriksaan `state.json` sebelum hapus, karena run lain
+    yang terbit selama jeda bisa menyebut kunci lama lagi.
+  - Bukti: 120 tes lulus; 22 mutasi aturan baru masing-masing digagalkan tes
+    (`verification/terminal_api/publisher_speed/PUBLISHER_SPEED.md` bagian 7).
+  - Sisa: deploy dev setelah run 07:30 WIB 2026-10-30 diperiksa, lalu satu run terukur dan cek pembaca.
 
 **Persetujuan, 2026-10-29 (kata user):** "A alright", atas pilihan "Opsi A — Screener dinyalakan malam ini, perbaikan
 publisher besok"; sebelumnya: "Boleh lakukan pengecekan berapa lama proses publisher memindahkan data dari Postgres ke

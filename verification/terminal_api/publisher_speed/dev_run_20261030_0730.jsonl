@@ -1,0 +1,19 @@
+{"timestamp": "2026-10-30T00:03:04.450185674Z", "message": "Starting Container", "level": "info"}
+{"timestamp": "2026-10-30T00:03:04.956261569Z", "message": "", "cron": "0,30 0,1,12 * * *", "event": "skipped", "reason": "cron tick is not a listed run time", "run_times_wib": "07:30,19:00", "level": "info"}
+{"timestamp": "2026-10-30T00:03:05.981065089Z", "message": "", "level": "info", "published": true, "run_time": "2026-10-29 19:00 WIB", "event": "check", "last_published": "2026-10-29T15:23:23.954669+00:00"}
+{"timestamp": "2026-10-30T00:32:26.172128131Z", "message": "Starting Container", "level": "info"}
+{"timestamp": "2026-10-30T00:33:07.731958258Z", "message": "", "level": "info", "tickers": 845, "threads": 16, "step": "manifests read", "seconds": 31.3, "event": "planning"}
+{"timestamp": "2026-10-30T00:33:10.782562477Z", "message": "", "level": "info", "event": "planning", "step": "price stamps read", "ticker_years": 6218}
+{"timestamp": "2026-10-30T00:33:10.782566607Z", "message": "", "level": "info", "event": "planning", "step": "event stamps read", "changed": 0}
+{"timestamp": "2026-10-30T00:33:10.782570877Z", "message": "", "files": 0, "mode": "daily", "event": "plan", "window": [2021, 2026], "price_first_year": 2018, "data_through": {"broker": "2026-10-27", "events": "2026-10-27 14:52:25.727874+00", "price": "2026-10-29"}, "level": "info", "broker_first_year": 2016}
+{"timestamp": "2026-10-30T00:34:00.899109387Z", "message": "", "key": "v1/xsection/price.2edae2c1ebfe74c3.json.gz", "tickers": 845, "packs_republished": 0, "event": "xsection", "rows": 1332376, "level": "info", "uploaded": false, "bytes": 11770934, "as_of": "2026-10-29", "seconds": 43.4, "republished": [], "name": "price"}
+{"timestamp": "2026-10-30T00:34:00.899127997Z", "message": "", "event": "xsection", "as_of": "2026-10-27 14:52:25.727874+00", "key": "v1/xsection/actions.418246b16b3b19d5.json.gz", "bytes": 20752, "name": "actions", "uploaded": false, "seconds": 0.1, "level": "info", "rows": 3403, "outside_universe": 219}
+{"timestamp": "2026-10-30T00:34:00.899136947Z", "message": "", "names": ["brokers", "logos", "tickers"], "event": "refs", "uploaded": [], "level": "info", "failed": []}
+{"timestamp": "2026-10-30T00:34:00.899142777Z", "message": "", "tickers": 0, "broker_behind_sessions": 2, "seconds": 91.5, "refs_failed": [], "files_written": 0, "refs": ["brokers", "logos", "tickers"], "xsection_failed": [], "mb": 0, "mode": "daily", "event": "done", "files_planned": 0, "xsection": ["actions", "price"], "phases": {"files": 0, "manifests": 0, "packs": 0, "plan": 44.1, "refs": 3, "state": 0.6, "xsection": 43.8}, "threads": 16, "level": "info"}
+{"timestamp": "2026-10-30T00:36:22.878904435Z", "message": "", "level": "info", "wait_seconds": 2, "event": "bucket_retry", "error": "ReadTimeoutError"}
+{"timestamp": "2026-10-30T00:38:23.853898249Z", "message": "", "level": "info", "event": "bucket_retry", "error": "ReadTimeoutError", "wait_seconds": 4}
+{"timestamp": "2026-10-30T00:40:35.149076004Z", "message": "", "event": "bucket_retry", "wait_seconds": 8, "level": "info", "error": "ReadTimeoutError"}
+{"timestamp": "2026-10-30T00:42:46.350458422Z", "message": "", "event": "gc_failed", "error": "ReadTimeoutError", "level": "info"}
+{"timestamp": "2026-10-30T01:00:54.301732717Z", "message": "Starting Container", "level": "info"}
+{"timestamp": "2026-10-30T01:00:57.048680024Z", "message": "", "reason": "cron tick is not a listed run time", "cron": "0,30 0,1,12 * * *", "event": "skipped", "run_times_wib": "07:30,19:00", "level": "info"}
+{"timestamp": "2026-10-30T01:00:57.048684944Z", "message": "", "event": "check", "run_time": "2026-10-30 07:30 WIB", "published": true, "last_published": "2026-10-30T00:33:57.526788+00:00", "level": "info"}

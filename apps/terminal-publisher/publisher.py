@@ -5,9 +5,11 @@ terminal-display. Browsers download them through presigned URLs issued by termin
 
 Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   daily         price: every ticker-year whose source stamp changed; broker: the ticker-years of trading dates newer
-                than the published data_through. Reference files are refreshed. Run after the price cron. After its
-                state.json, the files no manifest or state.json index of this run or the one before names any more
-                are deleted (collect_garbage, ERRORS M250; after the publication since EXEC-PUBLISHER-SPEED, M301).
+                than the published data_through. Reference files are refreshed. Run after the price cron. Every mode
+                that publishes deletes, TERMINAL_DELETE_AFTER_SECONDS (600) after its state.json, the files its
+                publication stopped naming (delete_replaced). The daily run at TERMINAL_SWEEP_WIB (19:00) then runs the
+                full cleanup (collect_garbage, ERRORS M250, M301), the safety net for what a crashed or stopped run left.
+  cleanup       the full cleanup alone (no database, no publication).
   backfill      every ticker-year of the window (initial load or a schema change).
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
                 refresh_feature_05 of that range (the same arguments).
@@ -64,9 +66,9 @@ the state.json that indexes them, so a reader never sees a manifest or an index 
 yet. A changed data file, pack, xsection or content-keyed reference file is a new object (its key carries its sha256)
 and an object is never written again with other bytes, so the bytes a manifest or index that terminal-api still serves
 names stay readable during a run (ERRORS M250, user 2026-10-27; content_key, store). Files written before content keys
-keep their fixed key until their bytes change. A daily run deletes, after its state.json, the data files that neither
-its manifests nor the ones it started from name any more and the xsection and content-keyed reference files neither of
-those state.json indexes names, once no reader can still use them (collect_garbage). Manifests, the fixed-key
+keep their fixed key until their bytes change. After its state.json a run waits until no reader can still use the
+previous publication's files, then deletes the ones its publication stopped naming (delete_replaced, by name, without
+a listing); once a day the full cleanup (collect_garbage) takes what a crashed or stopped run left. Manifests, the fixed-key
 reference files, logos and state.json keep fixed keys: readers open them by name and they are never deleted. A failed xsection or content-keyed reference
 file keeps its previous index entry, the rest of the run (the Terminal's and the Backtest's files, state.json) goes
 on, and the run exits 3. The universe and the changes are derived from the database at run time; no ticker list is
@@ -219,6 +221,20 @@ PUT_STEPS = {'price': 'files', 'broker': 'files', 'events': 'files', 'pack': 'pa
 # cleanup_baseline gives up after this long and the run publishes without a cleanup (one hung listing page must not
 # hold the publication; the two listings take about 2 s on dev)
 BASELINE_SECONDS = 60
+# EXEC-PUBLISHER-SPEED (user 2026-10-29: "Ok setuju", on deleting the replaced files after the switch): after
+# state.json the run waits this long, then deletes the objects its publication stopped naming (TERMINAL_DELETE_AFTER_
+# SECONDS). A reader may still use the previous publication's files for terminal-api's manifest cache (60 s) plus a
+# presigned URL's lifetime (url_ttl_seconds, 120 s) plus its download: the wait is never set below MIN_DELETE_AFTER.
+DELETE_AFTER_SECONDS = 600
+MIN_DELETE_AFTER_SECONDS = 300
+# the full cleanup (collect_garbage, the safety net for what a crashed or stopped run left) runs in one daily run a
+# day, the one at TERMINAL_SWEEP_WIB, and is given up after SWEEP_SECONDS
+SWEEP_WIB = '19:00'
+SWEEP_SECONDS = 300
+# keys per listing page (the server's default is 1,000); every listing logs one line per prefix (`listed`), and a
+# page slower than SLOW_PAGE_SECONDS its own line, so a listing that hangs shows where (ERRORS M301)
+LIST_PAGE_KEYS = 200
+SLOW_PAGE_SECONDS = 5
 
 
 def fetch(url, data=None, timeout=30):
@@ -259,6 +275,11 @@ def log(event, **kw):
     line = json.dumps({'event': event, **kw}, default=str)
     with LOG_LOCK:
         print(line, flush=True)
+
+
+def wait(seconds):
+    """time.sleep, named so tests replace it (delete_replaced's wait)."""
+    time.sleep(seconds)
 
 
 def bucket_threads():
@@ -550,15 +571,16 @@ def transient(error):
     return isinstance(error, (BotoConnectionError, ReadTimeoutError))
 
 
-def retried(call, sleep=None):
-    """call() again after each of BUCKET_RETRY_DELAYS while it fails transiently (ERRORS M263)."""
+def retried(call, sleep=None, what=None):
+    """call() again after each of BUCKET_RETRY_DELAYS while it fails transiently (ERRORS M263). `what` names the
+    request in the log line (a listing: its prefix and page)."""
     for delay in BUCKET_RETRY_DELAYS:
         try:
             return call()
         except Exception as e:  # noqa: BLE001 - classified below; anything else is raised as it is
             if not transient(e):
                 raise
-            log('bucket_retry', error=type(e).__name__, wait_seconds=delay)
+            log('bucket_retry', error=type(e).__name__, wait_seconds=delay, **({'request': what} if what else {}))
             (sleep or time.sleep)(delay)
     return call()
 
@@ -583,17 +605,27 @@ class Bucket:
 
     def list(self, deadline=None, prefix=''):
         """Every object under v1/{prefix}: {key without v1/: (last modified, bytes)}; TimeoutError past `deadline`
-        (time.monotonic())."""
-        out, token = {}, None
+        (time.monotonic()). LIST_PAGE_KEYS keys a page; one `listed` log line per listing, and a `list_page_slow` line
+        for a page slower than SLOW_PAGE_SECONDS (ERRORS M301: the cleanup's listing hung from the publisher)."""
+        out, token, pages, started, slowest = {}, None, 0, time.monotonic(), 0.0
         while True:
             if deadline is not None and time.monotonic() > deadline:
                 raise TimeoutError('bucket listing took too long')
-            kw = {'Bucket': self.name, 'Prefix': f'{PREFIX}/{prefix}', **({'ContinuationToken': token} if token else {})}
-            page = retried(lambda: self.s3.list_objects_v2(**kw))
+            kw = {'Bucket': self.name, 'Prefix': f'{PREFIX}/{prefix}', 'MaxKeys': LIST_PAGE_KEYS,
+                  **({'ContinuationToken': token} if token else {})}
+            asked = time.monotonic()
+            page = retried(lambda: self.s3.list_objects_v2(**kw), what=f'list {prefix or "/"} page {pages}')
+            took = time.monotonic() - asked
+            slowest = max(slowest, took)
+            if took > SLOW_PAGE_SECONDS:
+                log('list_page_slow', prefix=prefix, page=pages, keys=len(page.get('Contents', [])), seconds=round(took, 1))
+            pages += 1
             for o in page.get('Contents', []):
                 out[o['Key'][len(PREFIX) + 1:]] = (o['LastModified'], o['Size'])
             token = page.get('NextContinuationToken') if page.get('IsTruncated') else None
             if not token:
+                log('listed', prefix=prefix, pages=pages, keys=len(out), seconds=round(time.monotonic() - started, 1),
+                    slowest_page_seconds=round(slowest, 1))
                 return out
 
     def delete(self, keys):
@@ -684,7 +716,7 @@ class Uploads:
 
 
 class Publisher:
-    def __init__(self, conn, bucket, today=None, get=None, clock=None, threads=None):
+    def __init__(self, conn, bucket, today=None, get=None, clock=None, threads=None, delete_after=None):
         self.conn, self.bucket = conn, bucket
         self.get = get or fetch                                  # HTTP for the logo sources (tests pass a fake)
         self.clock = clock or (lambda: dt.datetime.now(dt.timezone.utc))   # collect_garbage's grace (tests pass a fake)
@@ -704,10 +736,15 @@ class Publisher:
         self.refs = {}                                      # the `refs` index written into state.json (index_refs)
         self.refs_failed = []                               # reference files whose content copy failed (entry kept)
         self.threads = threads or bucket_threads()          # EXEC-PUBLISHER-SPEED: bucket requests in parallel
+        self.delete_after = max(MIN_DELETE_AFTER_SECONDS, int(delete_after or os.environ.get('TERMINAL_DELETE_AFTER_SECONDS')
+                                                              or DELETE_AFTER_SECONDS))
         self.uploads = Uploads(bucket, self.threads)
         self.stage = 'start'                                # the step the run is in (alerts, the done line's phases)
         self.phases = {}                                    # step -> seconds (the done line)
         self.previous_finished = None                       # state.json finished_at when the run started (alerts)
+        self.loaded_named = {}                              # ticker -> the keys its manifest named when it was read
+        self.replaced = None                                # the keys this run's publication stopped naming (run())
+        self.finished_at = None                             # this run's state.json finished_at (still_current)
 
     def step(self, name):
         """Enter step `name`; the time since the previous step is booked on that one (the done line's phases)."""
@@ -719,9 +756,14 @@ class Publisher:
     # ---- manifests -------------------------------------------------------------------------------------------
     def manifest(self, ticker):
         if ticker not in self.manifests:
-            m = self.bucket.get_json(f'manifest/{ticker}.json')
-            self.manifests[ticker] = m or {'schema_version': SCHEMA_VERSION, 'ticker': ticker, 'datasets': {}}
+            self.keep_manifest(ticker, self.bucket.get_json(f'manifest/{ticker}.json'))
         return self.manifests[ticker]
+
+    def keep_manifest(self, ticker, m):
+        """A manifest as read from the bucket, and the keys it names then (loaded_named: what this run may find replaced,
+        delete_replaced); a ticker without one starts empty."""
+        self.manifests[ticker] = m or {'schema_version': SCHEMA_VERSION, 'ticker': ticker, 'datasets': {}}
+        self.loaded_named[ticker] = named_keys(m)
 
     def load_manifests(self, tickers):
         """The manifests of `tickers` not read yet, `threads` at a time (EXEC-PUBLISHER-SPEED: one at a time, the 845 of
@@ -737,7 +779,7 @@ class Publisher:
             with ThreadPoolExecutor(self.threads, thread_name_prefix='get') as ex:
                 found = list(ex.map(read, todo))
         for t, m in zip(todo, found):
-            self.manifests[t] = m or {'schema_version': SCHEMA_VERSION, 'ticker': t, 'datasets': {}}
+            self.keep_manifest(t, m)
 
     def save_manifest(self, ticker, data_through):
         m = self.manifest(ticker)
@@ -1006,24 +1048,24 @@ class Publisher:
         return {'price': price, 'broker': broker, 'events': events}
 
     # ---- modes -----------------------------------------------------------------------------------------------
-    def run(self, mode, start_from=None, end_to=None, only=None):
+    def run(self, mode, start_from=None, end_to=None, only=None, sweep=None):
         """One run of `mode`. The bucket requests go through `uploads` (EXEC-PUBLISHER-SPEED); its pool ends with the run,
         and a failed run drops the puts it had not started (the objects already put are content-keyed and harmless: no
         manifest or index names them, and the cleanup takes them once they are older than a finished run)."""
         try:
-            self._run(mode, start_from, end_to, only)
+            self._run(mode, start_from, end_to, only, mode == 'daily' if sweep is None else sweep)
         except BaseException:
             # the step whose put failed, rather than the barrier that found it (the alert names it); and the in-memory
             # manifests and changes, which name objects that may never have been written, are dropped, so a later run
             # on this object reads the manifests from the bucket again (review 2026-10-29)
             if self.uploads.error_key:
                 self.stage = PUT_STEPS.get(self.uploads.error_key.split('/', 1)[0], self.stage)
-            self.manifests, self.changed = {}, set()
+            self.manifests, self.changed, self.loaded_named = {}, set(), {}
             raise
         finally:
             self.uploads.close()
 
-    def _run(self, mode, start_from=None, end_to=None, only=None):
+    def _run(self, mode, start_from=None, end_to=None, only=None, sweep=False):
         started = time.monotonic()
         self.step('plan')
         universe = self.universe()
@@ -1034,8 +1076,8 @@ class Publisher:
         self.previous_finished = state.get('finished_at')
         previous = xsection_entries(state.get('xsection'))        # the index terminal-api serves (EXEC-SCREENER)
         previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
-        # the cleanup after state.json needs what the bucket held before this run wrote anything (collect_garbage)
-        before = self.cleanup_baseline() if mode == 'daily' else None
+        # the full cleanup after state.json needs what the bucket held before this run wrote anything (collect_garbage)
+        before = self.cleanup_baseline() if sweep else None
         if mode in ('daily', 'backfill', 'packs', 'events'):          # the modes that read (nearly) every manifest
             loaded = time.monotonic()
             self.load_manifests(kind)
@@ -1124,24 +1166,92 @@ class Publisher:
         self.step('state')
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
         self.broker_behind = self.conn.execute(BEHIND_SQL, (through['broker'],)).fetchone()[0] if through['broker'] else None
+        self.finished_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.bucket.put('state.json', json.dumps({
             'schema_version': SCHEMA_VERSION, 'price_through': through['price'], 'broker_through': broker_through,
             'broker_behind_sessions': self.broker_behind,
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
-            'refs': self.refs, 'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
+            'refs': self.refs, 'finished_at': self.finished_at}).encode(), 'application/json')
         self.step('cleanup')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind,
             xsection=sorted(self.xsection), xsection_failed=self.xsection_failed, refs=sorted(self.refs),
             refs_failed=self.refs_failed, phases=self.phases, threads=self.threads)
-        if mode == 'daily':
-            # ERRORS M301 (EXEC-PUBLISHER-SPEED): after the publication, never in front of it. The same objects go as
-            # when the cleanup ran before this run's first write (collect_garbage); a failure only logs.
+        # EXEC-PUBLISHER-SPEED (user 2026-10-29, "Ok setuju"): the objects this publication stopped naming go once no
+        # reader can still use them, by name, without a listing of the bucket (delete_replaced)
+        indexes = {'xsection': self.xsection, 'ref': self.refs}
+        self.delete_replaced({'xsection': previous, 'ref': previous_refs}, indexes)
+        if sweep:
+            # ERRORS M301: the full cleanup, the safety net for what a crashed or stopped run left, once a day; after
+            # the publication, never in front of it, given up after SWEEP_SECONDS; a failure only logs
             if before is not None:
-                self.collect_garbage({'xsection': self.xsection, 'ref': self.refs}, before)
+                self.bounded(SWEEP_SECONDS, 'sweep', lambda: self.sweep(indexes, before))
             else:
                 log('gc_skipped', reason='no listing of the bucket before this run')
+
+    def replaced_keys(self, previous_indexes, indexes):
+        """The objects this run's publication stopped naming: keys a manifest named when this run read it and no longer
+        names, and keys the previous state.json index named and the new one does not. A key the new publication names
+        (any manifest this run holds, either index) is never one of them."""
+        index_keys = lambda entries: {e['key'][len(PREFIX) + 1:] for e in (entries or {}).values()}
+        gone = set()
+        for ticker, was in self.loaded_named.items():
+            if ticker in self.manifests:                          # a manifest this run no longer holds replaced nothing
+                gone |= was - named_keys(self.manifests[ticker])
+        for family, entries in previous_indexes.items():
+            gone |= index_keys(entries) - index_keys(indexes.get(family))
+        named_now = set().union(*(named_keys(m) for m in self.manifests.values())) if self.manifests else set()
+        named_now |= set().union(*(index_keys(e) for e in indexes.values()))
+        return gone - named_now
+
+    def delete_replaced(self, previous_indexes, indexes):
+        """EXEC-PUBLISHER-SPEED (user 2026-10-29: "ketika file di storage sudah fully updated, maka langsung di-switch
+        ... dan proses penghapusan file lama langsung dijalankan"; "Ok setuju" on a 10-minute wait): after state.json,
+        wait `delete_after` seconds, then delete the keys this publication stopped naming (replaced_keys). A reader of
+        the previous publication holds its files for at most terminal-api's manifest cache (60 s), a URL's lifetime
+        (120 s) and a download; the wait is never below MIN_DELETE_AFTER_SECONDS. A run stopped during the wait deletes
+        nothing (the sweep takes those later), and so does a run whose state.json another run replaced during the wait:
+        that run's manifests may name one of these keys again (content that returned), so the sweep, which reads them,
+        decides instead. A failure only logs; the publication is out."""
+        self.replaced = sorted(self.replaced_keys(previous_indexes, indexes))
+        if not self.replaced:
+            log('replaced', objects=0); return
+        log('replaced_wait', objects=len(self.replaced), seconds=self.delete_after)
+        wait(self.delete_after)
+        try:
+            if not self.still_current():
+                log('replaced_skipped', reason='a newer publication came out during the wait', objects=len(self.replaced))
+                return
+            started = time.monotonic()
+            failed = self.bucket.delete(self.replaced)
+            log('replaced', objects=len(self.replaced), deleted=len(self.replaced) - len(failed), not_deleted=len(failed),
+                waited=self.delete_after, seconds=round(time.monotonic() - started, 1))
+        except Exception as e:  # noqa: BLE001 - the publication is out; the sweep takes what stays; the class only
+            log('replaced_failed', error=type(e).__name__)
+
+    def still_current(self):
+        """True while the bucket's state.json is still this run's publication (another run may publish after it)."""
+        return (self.bucket.get_json('state.json') or {}).get('finished_at') == self.finished_at
+
+    def sweep(self, indexes, before):
+        """The daily full cleanup after this run's publication (collect_garbage with its baseline), unless another run
+        published since: this run's baseline and indexes no longer describe the bucket (the next sweep runs instead)."""
+        try:
+            if not self.still_current():
+                log('gc_skipped', reason='a newer publication came out after this run'); return
+        except Exception as e:  # noqa: BLE001 - the class only; the publication is out
+            log('gc_failed', step='sweep', error=type(e).__name__); return
+        self.collect_garbage(indexes, before)
+
+    def bounded(self, seconds, step, work):
+        """work() in a thread joined for at most `seconds`; past that it is logged as gc_failed (step, TimeoutError) and
+        left to the end of the process (one hung listing page can take minutes of retries)."""
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+        worker.join(seconds)
+        if worker.is_alive():
+            log('gc_failed', step=step, error='TimeoutError', seconds=seconds)
 
     def cleanup_baseline(self):
         """What the bucket held before this run wrote anything, for the cleanup after its state.json (collect_garbage):
@@ -1175,8 +1285,12 @@ class Publisher:
         the files of an indexed family (INDEXED: xsection, EXEC-SCREENER; ref, EXEC-MU-RUNTIME T5) their state.json
         index no longer names (that index is their manifest), once no reader can still use them.
 
-        A daily run calls it after its own state.json (EXEC-PUBLISHER-SPEED, ERRORS M301: before, it ran in front of the
-        first write and one slow listing delayed the publication 19 minutes), with `before`, what the bucket held when
+        Since EXEC-PUBLISHER-SPEED (user 2026-10-29, "Ok setuju") each run deletes what it replaced by name
+        (delete_replaced), and this full cleanup is the daily safety net for what a crashed or stopped run left: the
+        daily run at TERMINAL_SWEEP_WIB (sweep_due) calls it after its own state.json and delete_replaced (ERRORS M301:
+        before, it ran in front of the first write and one slow listing delayed the publication 19 minutes), and the
+        `cleanup` mode calls it alone. Its listing goes per folder (the manifests and state.json, then each family) with
+        LIST_PAGE_KEYS keys a page and a log line per folder. A run calls it with `before`, what the bucket held when
         the run started (cleanup_baseline, plus `named`: each manifest's keys as read then, and `indexes`: that
         state.json's index entries), and `indexes`, the entries this run wrote. An object a reader of either publication
         can hold is kept: the rule below protects what the previous manifests and indexes name as well as the new ones,
@@ -1205,7 +1319,9 @@ class Publisher:
         goes on."""
         try:
             started = time.monotonic()
-            listing = self.bucket.list(deadline=started + GC_LIST_SECONDS)
+            deadline = started + GC_LIST_SECONDS
+            # per prefix (ERRORS M301): the manifests and state.json first, then, below, each family's folder in parallel
+            listing = {**self.bucket.list(deadline, prefix='manifest/'), **self.bucket.list(deadline, prefix='state.json')}
             finished = before['finished'] if before is not None else (listing.get('state.json') or (None,))[0]
             if finished is None:
                 log('gc_skipped', reason='no finished run (state.json)'); return 0
@@ -1214,12 +1330,15 @@ class Publisher:
                 log('gc_skipped', reason='the last run finished too recently', seconds=round(age), grace=GC_GRACE_SECONDS)
                 return 0
             named, skipped = {}, 0
-            for key, (at, _) in listing.items():
+            listed = {k[len('manifest/'):-len('.json')] for k in listing if k.startswith('manifest/') and k.endswith('.json')}
+            if before is None:
+                self.load_manifests(sorted(listed))                # in parallel; a call outside a run reads them all
+            for key, (at, _) in list(listing.items()):
                 if not (key.startswith('manifest/') and key.endswith('.json')):
                     continue
                 ticker = key[len('manifest/'):-len('.json')]
                 if before is None:
-                    keys = named_keys(self.manifests.get(ticker) or self.bucket.get_json(key))
+                    keys = named_keys(self.manifests.get(ticker))
                 elif (was := before['manifests'].get(ticker)) is None or was > finished:
                     keys = set()                                  # new in this run, or written by a run that did not finish
                 elif ticker in before['named']:
@@ -1231,6 +1350,10 @@ class Publisher:
                     continue
                 named[ticker] = keys
             families = {k.split('/', 1)[0] for keys in named.values() for k in keys}
+            prefixes = sorted(families | set(INDEXED))
+            with ThreadPoolExecutor(max(1, min(8, len(prefixes))), thread_name_prefix='list') as ex:
+                for part in ex.map(lambda family: self.bucket.list(deadline, prefix=f'{family}/'), prefixes):
+                    listing.update(part)
             if indexes is None:
                 state = self.bucket.get_json('state.json') or {}
                 indexes = {family: read(state.get(field)) for family, (field, _, read) in INDEXED.items()}
@@ -1450,6 +1573,13 @@ def near_time(times, now=None, slack_minutes=20):
     return any(0 <= (mins - (h * 60 + m)) % 1440 <= slack_minutes for h, m in times)
 
 
+def sweep_due(mode, manual, now):
+    """The full cleanup (collect_garbage) runs in one run a day: the scheduled daily run at TERMINAL_SWEEP_WIB (default
+    19:00), never a manual one (EXEC-PUBLISHER-SPEED, user 2026-10-29 "Ok setuju"; the other runs delete what they
+    replaced, delete_replaced)."""
+    return mode == 'daily' and not manual and near_time(run_times(os.environ.get('TERMINAL_SWEEP_WIB') or SWEEP_WIB), now)
+
+
 def post_notify(payload, event):
     """POST `payload` to telegram-monitor's /notify (TELEGRAM_NOTIFY_URL, TELEGRAM_NOTIFY_SECRET); three tries. The URL
     and the secret are never printed; a failure is logged and the caller goes on."""
@@ -1574,8 +1704,14 @@ def main(argv):
             cron=cron_for(times))
         check_publication(times)
         return 0
+    if mode == 'cleanup':
+        # the full cleanup alone (a manual run, M229), no publication and no database: collect_garbage's rule outside a
+        # run, against the bucket's state.json and manifests as they are
+        Publisher(None, Bucket()).collect_garbage()
+        return 0
     started = dt.datetime.now(dt.timezone.utc)
     slot, manual = run_slot(times, started)
+    sweep = sweep_due(mode, manual, started)
     pub, watchdog = None, None
     try:
         with psycopg.connect(os.environ['TERMINAL_PUBLISHER_DATABASE_URL'], autocommit=True) as conn:
@@ -1587,7 +1723,7 @@ def main(argv):
             if mode == 'daily':
                 minutes = int(os.environ.get('TERMINAL_RUN_ALERT_MINUTES') or RUN_ALERT_MINUTES)
                 watchdog = Watchdog(minutes, lambda: slow_alert(pub, slot, manual, minutes))
-            pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only)
+            pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only, sweep=sweep)
     except Exception as e:  # noqa: BLE001 - reported, then raised (driver errors: the class only, as before)
         stage = pub.stage if pub else 'connect'
         log('failed', error=type(e).__name__, stage=stage)

@@ -4236,9 +4236,36 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   objects no publication names. SUSPECTED, not verified: something on the path from `sfo` for some listing page. Checks:
   per-page time and size in the cleanup log, per-prefix listing with smaller pages, the same listing from another
   `sfo` service (`verification/terminal_api/publisher_speed/PUBLISHER_SPEED.md` section 6).
-- **Status:** speed FIXED on dev (the write path is measured by the first scheduled runs); cleanup listing OPEN.
+- **Root cause of the leftover objects (verified, code):** every run's deletion depended on one listing of the whole
+  bucket, so one hung page left everything in place. Class: housekeeping that needs a listing of the whole store to
+  decide what one run already knows (the objects it replaced), for every family under content keys (data files,
+  packs, xsection, refs, and the flow, macro and cross-asset files planned).
+- **Solution, part 2 (EXEC-PUBLISHER-SPEED, user 2026-10-29: "bisa nggak kita siapin satu kode di mana ketika file di
+  storage sudah fully updated, maka langsung di-switch ... dan proses penghapusan file lama langsung dijalankan", then
+  "Ok setuju" on a 10-minute wait; not yet deployed):**
+  - `delete_replaced`: after `state.json` every run waits `TERMINAL_DELETE_AFTER_SECONDS` (600, never below 300: the
+    manifest cache of 60 s, the URL lifetime of 120 s and a download) and deletes by name, without a listing, the keys
+    its publication stopped naming (`replaced_keys`: what each manifest named when read and the previous indexes named,
+    minus every key the new publication names). It skips the deletion when another run published during the wait
+    (`still_current`). The keys are derived from the manifests and indexes, so a new family is covered without a code
+    change.
+  - the full cleanup (`collect_garbage`) becomes the daily safety net, in the 19:00 WIB run only (`sweep_due`,
+    `TERMINAL_SWEEP_WIB`), given up after 300 s, and as mode `cleanup` (no database);
+  - its listing goes per folder with 200-key pages and logs each folder (`listed`) and each page over 5 s
+    (`list_page_slow`); a retried request names itself (`bucket_retry` `request`), so the page that hangs is known.
+  Tests `tests/test_publisher.py` (120 passed; 22 mutations of the new rules each fail a test). Covers: what any run
+  replaces, at every run. Does not cover: what a run stopped during its wait leaves (the sweep takes it), and a
+  second run between its manifests and its `state.json` at the moment of the deletion that names a deleted key again
+  (scheduled runs never overlap; manual runs follow M229). The cause of the hung listing itself stays SUSPECTED; the
+  per-folder logs are the check.
+- **The 07:30 WIB run of 2026-10-30 (`1e251c3a`, PUBLISHER_SPEED.md section 6.1):** published 91.5 s after its start
+  (no data file had changed, so the write path is still unmeasured); its cleanup hung again (three
+  `ReadTimeoutError`, `gc_failed` 9 minutes after the publication); the check ticks found the publications.
+- **Status:** speed FIXED on dev (the write path is measured by the 19:00 WIB run); cleanup listing OPEN (part 2 in
+  code, deployed after the 07:30 WIB check of 2026-10-30).
 - **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
-  before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path.
+  before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path. A run deletes what it
+  replaced itself, by name; a whole-store listing is only a safety net, never the normal path.
 
 ### M302 — Screener page: the publication time shown raw, because the page read only one ISO 8601 spelling (2026-10-29)
 
@@ -4293,8 +4320,9 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   manual, so its `failed` and the check's `missing` are two messages; a check tick that starts more than 20 minutes
   late runs a publication, as the 07:00 and 19:30 WIB ticks already did.
 - **Status:** deployed on dev 2026-10-29 (telegram-monitor `9451d652`, publisher `1e251c3a`, cron `0,30 0,1,12 * * *`;
-  RAILWAY_CHANGELOG). No alert has fired yet; the first check ticks are 07:00 and 08:00 WIB on 2026-10-30, and their
-  `check` lines show the result.
+  RAILWAY_CHANGELOG). The first check ticks, 07:00 and 08:00 WIB on 2026-10-30, read `published` true for 19:00 WIB
+  (2026-10-29) and 07:30 WIB, so no alert was due and none went out (PUBLISHER_SPEED.md section 6.1). A `missing` or
+  `failed` alert has not been seen live yet.
 - **Lesson for new data:** a new scheduled publication ships with its failure, slowness and freshness alerts, on paths
   that do not depend on the job being alive.
 

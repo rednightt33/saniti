@@ -156,11 +156,13 @@ Facts that matter downstream:
      16 (rehearsal).
    - `changed_events`: the same idea per ticker, with `format=2;rows;last;ing`.
    - Broker: the ticker-years of trading dates newer than `state.json` `broker_through`.
-3. **Cleanup baseline (mode `daily` only, before the first write).** `cleanup_baseline` lists `state.json` and
-   `manifest/` (two requests, about 2 s; given up after `BASELINE_SECONDS`, 60, and the cleanup is then skipped): the
-   time of the last finished run and of every manifest, kept with the manifests' keys
-   and the previous indexes for the cleanup after `state.json` (step 8; section 4.3). Until 2026-10-29 the cleanup
-   itself ran here, and a slow listing held the publication 19 minutes (ERRORS M301).
+3. **Cleanup baseline (the daily run at `TERMINAL_SWEEP_WIB`, 19:00 WIB, only; before the first write).**
+   `cleanup_baseline` lists `state.json` and `manifest/` (two requests, about 2 s; given up after `BASELINE_SECONDS`,
+   60, and the full cleanup is then skipped): the time of the last finished run and of every manifest, kept with the
+   manifests' keys and the previous indexes for the full cleanup after `state.json` (step 8; section 4.3). Until
+   2026-10-29 the cleanup itself ran here, and a slow listing held the publication 19 minutes (ERRORS M301). Every
+   run also keeps the keys each manifest named when it was read (`keep_manifest`, `loaded_named`), for the deletion
+   of what it replaces (step 8).
 4. **One file (`publish`).** The steps are:
    - SQL for the ticker-year;
    - build the document (`price_doc`, `broker_doc` or `events_doc`);
@@ -169,7 +171,7 @@ Facts that matter downstream:
    - upload only when the sha256 differs from the manifest entry;
    - update the entry in memory.
 
-   A year that has no rows any more loses its manifest entry; the next daily run's cleanup deletes its object.
+   A year that has no rows any more loses its manifest entry; the run deletes its object after its wait (step 8).
    Each data file is written under a **content key**, `{family}/{T}/{name}.{sha256}.json.gz` (`content_key`, `store`):
    a changed file is a new object, and an object is never written again with other bytes (ERRORS M250). An entry whose
    sha256 is unchanged keeps the key it has, including a fixed key from before content keys. Packs (step 5) and the
@@ -202,7 +204,7 @@ Facts that matter downstream:
      sha)` = `xsection/<name>.<first 16 hex of the sha256>.json.gz` (the form terminal-api's `xsection_index`
      accepts; the index entry carries the whole sha256). `encode` is deterministic, so unchanged rows give the same key,
      and a changed file is a new object: an object is never written again with other bytes (ERRORS M250). A listing of
-     `xsection/` (`present_keys`; the cleanup runs after `state.json`, so nothing is deleted during the run) decides
+     `xsection/` (`present_keys`; a run deletes only after its `state.json`, so it deletes nothing during the run) decides
      what is there: a key it holds is not put again, an indexed object it lacks (deleted by hand) is put again
      with the same bytes, and without a listing the previous index stands in for it.
    - A file whose build fails (`xsection_failed`, the error class only) keeps its previous index entry; the rest of the
@@ -224,9 +226,11 @@ Facts that matter downstream:
    entry; one whose copy fails keeps its previous entry (`ref_failed`, the class only) and the process exits 3 after
    `state.json`, as for an xsection file. **`state.json` is written last of the publication**, with `finished_at`, the
    `xsection` index and the `refs` index; nothing is written after it. terminal-api's manifest cache keys on
-   `finished_at` (section 6.3). Then, in a `daily` run, the cleanup (`collect_garbage(indexes, before)`, section 4.3)
-   deletes what no reader of this or the previous publication can still use; the `done` log line comes before it, with
-   the seconds of each step (`phases`) and `threads`.
+   `finished_at` (section 6.3). The `done` log line follows, with the seconds of each step (`phases`) and `threads`.
+   Then every mode that publishes waits `TERMINAL_DELETE_AFTER_SECONDS` (600, never below 300) and deletes, by name and
+   without a listing, the objects its publication stopped naming (`delete_replaced`, section 4.3; user 2026-10-29
+   "Ok setuju"). The daily run at `TERMINAL_SWEEP_WIB` (19:00 WIB, `sweep_due`) then runs the full cleanup
+   (`collect_garbage(indexes, before)`, section 4.3), the daily safety net for what a crashed or stopped run left.
 9. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
    telegram-monitor to send an alert (ERRORS M243). Publication alerts (ERRORS M303, section 4.3) go the same way.
 
@@ -240,6 +244,7 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 | `events` | changed events files and the `actions` xsection file |
 | `logos` | every logo; xsection entries carried forward |
 | `packs` | every pack, written only when missing or changed, and both xsection files |
+| `cleanup` | no database and no publication: the full cleanup alone (`collect_garbage` outside a run, against the bucket's `state.json` and manifests as they are; for a manual run, M229) |
 | `verify` | every file listed in a manifest, checked against live SQL (rows, first and last date, a column sum); packs are not checked except through the xsection check; the files of the `state.json` xsection index: bytes and sha256, every `price` slice encodes to its published price pack and has SQL's rows, dates and sum of closes, the `actions` rows equal the statement's; the files of the `state.json` refs index: bytes, sha256 and rows as indexed and byte for byte their fixed-key copy (`verify_refs`); exits 1 on any mismatch |
 
 ### 4.3 Guarantees and limits
@@ -251,16 +256,36 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 - **Bytes are deterministic.** A daily run right after a backfill uploads nothing
   (`apps/terminal-publisher/tests/test_publisher.py`).
 - **Write order.** Data files, packs and the xsection files; a barrier; the manifests; a barrier; the fixed-key
-  reference files and their content-keyed copies; a barrier; `state.json`; then, in a daily run, the cleanup. The
+  reference files and their content-keyed copies; a barrier; `state.json`; then the wait and the deletion of what the
+  run replaced and, in the 19:00 WIB daily run, the full cleanup. The
   puts within a step run `TERMINAL_BUCKET_THREADS` (16) at a time (`Uploads`, EXEC-PUBLISHER-SPEED); each barrier
   (`Uploads.wait`) returns only when every put asked so far is in the bucket, and raises the first failure, which ends
   the run before a manifest or `state.json` can name the object. The xsection files and the content-keyed reference
   copies are put at once, so their failure stays theirs (exit 3). A manifest therefore never names a new key that is
   not there yet, and neither do the `state.json` xsection and refs indexes; nothing is written after `state.json`, and
-  the cleanup after it deletes only what neither publication names.
+  what is deleted after it is never named by the new publication.
 - **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later. The
-  objects a crashed run wrote are newer than `state.json`, so the cleanup keeps them until a later run finishes; then
-  it deletes those no manifest or index names (an xsection file whose content a later run indexes keeps its key).
+  objects a crashed run wrote are newer than `state.json`, so the full cleanup keeps them until a later run finishes;
+  then it deletes those no manifest or index names (an xsection file whose content a later run indexes keeps its key).
+  A run stopped during its wait (step 8) deletes nothing; the full cleanup takes those objects later.
+- **Deleting what a run replaced (`delete_replaced`; EXEC-PUBLISHER-SPEED, user 2026-10-29: "ketika file di storage
+  sudah fully updated, maka langsung di-switch ... dan proses penghapusan file lama langsung dijalankan", then "Ok
+  setuju" on a 10-minute wait).** After `state.json` the run waits `TERMINAL_DELETE_AFTER_SECONDS` (600; never below
+  `MIN_DELETE_AFTER_SECONDS`, 300), then deletes `replaced_keys`: the keys a manifest named when this run read it and
+  no longer names, and the keys the previous `state.json` xsection and refs indexes named and the new ones do not,
+  minus every key the new publication names (any manifest the run holds, either index). No listing is needed. The
+  wait covers a reader of the previous publication: terminal-api's manifest and `state.json` cache (60 s), a
+  presigned URL's lifetime (`terminal.quota` `url_ttl_seconds`, 120 s by the migration; the publisher cannot read the
+  live value, its login has no right on schema `terminal`, checked 2026-10-29) and the download started on it. A
+  value raised above about 500 s needs a longer wait. terminal-api grants only keys of the current publication
+  (`/files`, `/bundle` from the manifest, `/xsection` and `/reference` from `state.json`), so a reader that comes back
+  later gets the new keys. Before deleting, the run reads `state.json` again (`still_current`): when another run
+  published during the wait, it deletes nothing and skips its full cleanup, since that run's manifests may name one
+  of these keys again (content that returned); a later full cleanup decides. Log lines: `replaced_wait` (objects,
+  seconds), then `replaced` (objects, deleted, not_deleted, waited, seconds), `replaced_skipped` or `replaced_failed`
+  (class only). A failure only logs: the publication is out. Known limit: a second run that is between its manifests
+  and its `state.json` at the moment of the deletion, and names a deleted key again, is not seen; scheduled runs never
+  overlap (Railway does not start a cron tick while a run goes on) and manual runs follow M229 away from the run times.
 - **Bucket requests are asked again (ERRORS M263).** Every bucket call (get, put, each listing page, delete) is asked
   again after 2, 4 and 8 s on a canceled, throttled or 5xx answer or a dropped connection (`transient`, `retried`, log
   `bucket_retry`); any other error, or one that lasts past the third retry, ends the run as before. Since
@@ -279,8 +304,14 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   `content_key` and `store`. Manifests, the fixed-key `ref/<name>.json.gz`, logos and `state.json` keep fixed keys:
   readers open them by name and no reader checks their bytes against a manifest. Since EXEC-MU-RUNTIME T5 a reader of
   the `state.json` `refs` index gets each reference file under a key that names its bytes, with their sha256.
-- **Cleanup (`collect_garbage`).** A daily run lists the bucket after its `state.json` (EXEC-PUBLISHER-SPEED; before
-  2026-10-29 it listed before its first write) and deletes an object only when all of these hold. With the baseline
+- **Full cleanup (`collect_garbage`).** The daily safety net for what a crashed or stopped run left: the daily run at
+  `TERMINAL_SWEEP_WIB` (19:00 WIB, `sweep_due`; never a manual run) runs it after its `state.json` and its own
+  deletion, given up after `SWEEP_SECONDS` (300, `gc_failed` with `step` `sweep`), and the `cleanup` mode runs it
+  alone. It lists per folder (EXEC-PUBLISHER-SPEED, ERRORS M301): `manifest/` and `state.json` first, then each family
+  the manifests name and each indexed family, up to 8 at a time, `LIST_PAGE_KEYS` (200) keys a page, one `listed` log
+  line per folder (pages, keys, seconds, slowest page) and a `list_page_slow` line for a page over
+  `SLOW_PAGE_SECONDS` (5); a retried page names itself (`bucket_retry` `request`). Before 2026-10-29 every daily
+  run listed the whole bucket before its first write. It deletes an object only when all of these hold. With the baseline
   taken before the first write, "the manifest" and "the index" below mean both the previous one and the new one, and
   "`state.json`" means the one the run started from: it deletes what the old cleanup deleted at the start of the same
   run, at its end instead (minus an object the run names again, which the old one deleted and put back). The grace is
@@ -298,8 +329,8 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   goes at the end of the first daily run that finishes an hour or more after the run before it, once no manifest or
   index of either run names it: never sooner than an hour after the run that stopped naming it, and later when another run
   finished in between (each finished run starts the hour again). A reader holding the previous manifest or index keeps
-  its files, and two runs minutes apart (a manual run right after a scheduled one) delete nothing. What a `backfill`,
-  `packs` or `events` run replaces goes in a later daily run under the same rule. A listing longer than
+  its files, and two runs minutes apart (a manual run right after a scheduled one) delete nothing under this rule
+  (each still deletes what it replaced, after its own wait). A listing longer than
   `GC_LIST_SECONDS` (900) is abandoned. A failure is logged (`gc_failed`, class only) and the run goes on: cleanup
   never stops a publication. Its log line `gc` gives `deleted`, `not_deleted`, `mb`, `kept_newer_than_last_run`,
   `tickers_skipped`, `families`, `xsection_named`, `refs_named`, `after_publication`; a baseline the bucket could not
@@ -367,12 +398,13 @@ The manifest:
   bytes, so a reader of that index can check and cache it by sha256 like a data file. The xsection files reuse the
   ticker reference for names, types, sectors and industries; it is not copied into them.
 - **Content-keyed reference objects are immutable** for the same reason as the xsection objects below: the bucket holds
-  those of the current `refs` index and, until a daily run starts an hour or more after the last finished run, those
-  of earlier ones (section 4.3, Cleanup); the fixed-key copies are never deleted.
+  those of the current `refs` index and, for `TERMINAL_DELETE_AFTER_SECONDS` (600 s) after a run, those of the index
+  before it (section 4.3, Deleting what a run replaced); the fixed-key copies are never deleted.
 - **xsection objects are immutable.** `<sha16>` is the first 16 hex of the file's sha256, so a key names one content and
   is written once; readers check bytes and sha256 against the `state.json` index (terminal-api `/state`, `/xsection`).
-  The bucket holds the objects of the current index and, until a daily run starts an hour or more after the last
-  finished run, those of earlier ones (section 4.3, Cleanup). Their long `max-age` is correct for that reason.
+  The bucket holds the objects of the current index and, for `TERMINAL_DELETE_AFTER_SECONDS` (600 s) after a run,
+  those of the index before it (section 4.3, Deleting what a run replaced). Their long `max-age` is correct for that
+  reason.
 - **Cache-Control is not used.** The `max-age` of a year has no effect today: every presigned URL is new, and readers
   keep their own sha256-keyed caches. With content keys a long max-age is also correct.
 - **Keys are never built by a reader.** Every reader takes `key` from the manifest (terminal-api presigns it verbatim),
@@ -457,7 +489,8 @@ xsection and refs indexes are presigned.
 - **Consequences:**
   - After a publisher run, every process serves new manifests within about 60 s.
   - During a run, terminal-api keeps serving the manifests of the previous run. Content keys keep the bytes those
-    manifests name readable (M250); the publisher's cleanup waits an hour after the last finished run.
+    manifests name readable (M250); after its `state.json` the publisher waits 600 s before it deletes what the
+    previous publication named and the new one does not (section 4.3).
   - A ticker first published after its "not found" was cached stays 404 until the next `finished_at`.
 - **The publication.** `/state` and the xsection and refs indexes `/xsection` and `/reference` grant from come from the
   same read of `state.json` (`Bucket.state`), so all are at most 60 s old. For up to 60 s after a run one of the two
@@ -718,7 +751,7 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 
 | Where | What | Key | Lifetime |
 |---|---|---|---|
-| Bucket (publisher) | data files, packs, xsection files | key with the content's sha256 (`content_key`; xsection: its first 16 hex) | never rewritten; deleted at the end of the first daily run that finishes an hour or more after the run before it, once no manifest or index of either run names it (`collect_garbage`, section 4.3) |
+| Bucket (publisher) | data files, packs, xsection files | key with the content's sha256 (`content_key`; xsection: its first 16 hex) | never rewritten; deleted `TERMINAL_DELETE_AFTER_SECONDS` (600 s) after the `state.json` of the run that stopped naming it (`delete_replaced`), or by the 19:00 WIB full cleanup when a crashed or stopped run left it (`collect_garbage`, section 4.3) |
 | terminal-api process | manifests, "not found" too | ticker | until `state.json` `finished_at` changes (checked every 60 s) |
 | terminal-api process | `state.json`: the `/state` answer and the xsection index `/xsection` grants from | — | read again at most every 60 s; an unreadable `state.json` keeps the last one |
 | Presigned URL | access to one key | — | 120 s |

@@ -154,3 +154,128 @@ The deploys are listed in RAILWAY_CHANGELOG 2026-10-29. The run's own log is `de
     - log every listing page's time and size, so the page that hangs is known;
     - list per family prefix with smaller pages (`MaxKeys`);
     - run the same listing from another `sfo` service.
+
+### 6.1 The first scheduled runs (2026-10-30, deployment `1e251c3a`, log `dev_run_20261030_0730.jsonl`)
+
+| Tick (UTC) | What happened |
+|---|---|
+| 00:03 (07:00 WIB, check) | `skipped` (not a run time); `check` of 19:00 WIB 2026-10-29: `published` true (last `2026-10-29T15:23:23`, the manual run) |
+| 00:32 (07:30 WIB, run) | manifests read in 31.3 s; `files` 0 (prices through 2026-10-29 and broker through 2026-10-27, both unchanged); xsection 43.8 s (same bytes); `done` 91.5 s after the start, `state.json` at 00:33:57 |
+| 00:36-00:42 | the cleanup after `state.json`: three `bucket_retry` `ReadTimeoutError` (2, 4, 8 s), then `gc_failed` `ReadTimeoutError` at 00:42:46, 9 minutes after the publication; nothing deleted, nothing delayed |
+| 01:00 (08:00 WIB, check) | `check` of 07:30 WIB: `published` true (`2026-10-30T00:33:57`); no alert needed, none sent |
+
+- **Healthy:** the run published 91.5 s after its start (`broker_behind_sessions` 2: Stockbit's broker data had not
+  come in). The check ticks work as designed.
+- **Still not measured:** no data file changed, so the parallel write path has still not run on dev. The 19:00 WIB
+  run (new prices) measures it. The change of section 7 does not touch the write path: everything before
+  `state.json` is the same code, so the `done` line's phases stay comparable.
+- **Same failure as section 6:** the whole-bucket listing hung again from the publisher's container (M301).
+
+## 7. Deleting what a run replaced, after the switch (user 2026-10-29: "Ok setuju"; not yet deployed)
+
+The user's idea (2026-10-29): "ketika file di storage sudah fully updated, maka langsung di-switch aja storage akan
+langsung menggunakan file baru dan proses penghapusan file lama langsung dijalankan". The refined proposal was
+approved with "Ok setuju": a 10-minute wait, deletion by name without a listing, and the full listing only as a daily
+safety net.
+
+### 7.1 Root cause and class
+
+- **Verified (code, section 6):** every run's deletion depended on one listing of the whole bucket (`collect_garbage`).
+  When one page hung, nothing was deleted, though the run already knew which objects it had replaced.
+- **Class:** housekeeping that needs a listing of the whole store to decide what one run already knows. It affects
+  every family under content keys: data files, packs, xsection, refs, and the flow, macro and cross-asset files
+  planned.
+- **SUSPECTED, not verified:** why the listing hangs from the publisher's container. The per-folder logs below are
+  the check.
+
+### 7.2 The change (`apps/terminal-publisher/publisher.py`)
+
+1. **`delete_replaced`, every mode that publishes.**
+   - After `state.json` the run waits `TERMINAL_DELETE_AFTER_SECONDS` (600; never below `MIN_DELETE_AFTER_SECONDS`,
+     300), then deletes `replaced_keys` in one batch per 1,000 keys.
+   - `replaced_keys` holds the keys a manifest named when this run read it (`keep_manifest`, `loaded_named`) and no
+     longer names, and the keys the previous `state.json` xsection and refs indexes named and the new ones do not.
+   - Every key the new publication names (any manifest the run holds, either index) is taken out.
+   - The keys are derived from the manifests and indexes, so a new family is covered without a code change.
+2. **The wait covers a reader of the previous publication.**
+   - terminal-api's manifest and `state.json` cache: 60 s (`manifest_cache_seconds`).
+   - A presigned URL's lifetime: `terminal.quota` `url_ttl_seconds`, 120 s by the migration. Neither the publisher's
+     login nor pgweb can read the live value: "permission denied for schema terminal" (checked 2026-10-29).
+   - The download started on that URL.
+   - terminal-api grants only keys of the current publication (`/files` and `/bundle` from the manifest, `/xsection`
+     and `/reference` from `state.json`). The screener-worker downloads right after its grant and caches by sha256
+     (`apps/screener-worker/src/refresh.ts` rule 4).
+3. **Another run during the wait (`still_current`, added from inspection).**
+   - Before deleting, the run reads `state.json` again.
+   - If another run published during the wait, it deletes nothing (`replaced_skipped`) and skips its full cleanup,
+     because that run's manifests may name one of these keys again (content that returned).
+4. **The full cleanup (`collect_garbage`) as the daily safety net.**
+   - It runs only in the daily run at `TERMINAL_SWEEP_WIB` (19:00, `sweep_due`; never a manual run).
+   - It is given up after `SWEEP_SECONDS` (300; `gc_failed` with step `sweep`).
+   - The new mode `cleanup` runs it alone, without the database.
+5. **Diagnosable listing.**
+   - The listing goes per folder: first `manifest/` and `state.json`, then each family, 8 at a time.
+   - Pages are `LIST_PAGE_KEYS` (200) keys; the server's default is 1,000.
+   - Each folder logs one `listed` line (pages, keys, seconds, slowest page), and each page over 5 s logs
+     `list_page_slow`.
+   - A retried request names itself (`bucket_retry` `request`, for example `list price/ page 12`).
+
+### 7.3 Rehearsal (`latency_rehearsal.py 16 0.54 [0|1]`)
+
+The synthetic daily run of section 4 is repeated on the new code. Every request waits 0.54 s; the wait is recorded,
+not slept.
+
+| Run | To `state.json` | Replaced and deleted | Full cleanup |
+|---|---|---|---|
+| 07:30 WIB, no full cleanup (`latency_rehearsal_16_054_0730.txt`) | 117.3 s | 1,657 objects, 2 delete requests, 1.1 s, after the 600 s wait | none; 2 listing requests in all (the `xsection/` and `ref/` checks) |
+| 19:00 WIB, with the full cleanup (`latency_rehearsal_16_054_1900.txt`) | 120.6 s | 1,657 objects, 1.1 s | 10,149 objects listed in 64 pages of 200, 21.7 s; 0 deleted (nothing left over) |
+
+- **Before this change:** the cleanup of section 4 deleted 0 objects in this rehearsal. It protected the previous
+  publication, so what a run replaced stayed until the next run.
+- **Now:** the same 1,657 objects go 10 minutes after the switch.
+- **On dev (INFERENCE):** a daily run ends about 10 minutes later than its `state.json`. The 19:00 WIB run ends at
+  most 5 minutes after that. The check tick 30 minutes after the run time still finds the run finished.
+
+### 7.4 Tests and mutation check
+
+- **Tests:** `apps/terminal-publisher/tests/test_publisher.py`, 120 passed, three runs in a row. The new tests cover:
+  - the wait and its floor;
+  - `replaced_keys` never returns a key the new publication names;
+  - a run stopped during the wait deletes nothing, and the cleanup outside a run takes what it left;
+  - a newer publication during the wait;
+  - a run outside the sweep time deletes by name and never lists the bucket;
+  - a run that replaced nothing does not wait;
+  - `sweep_due`, and `main` passing it to the run;
+  - mode `cleanup` without a database;
+  - listing pages and logs;
+  - the retry's request name;
+  - a `Publisher` used again after a failed run.
+- **Mutation check:** `mutate_delete_replaced.py`, output `mutate_delete_replaced_20261029.txt`. It applies 22
+  mutations of the new rules to a copy of the publisher. Each one fails at least one test, and the unmutated copy
+  passes. Among the mutations:
+  - no wait, or the deletion before the wait;
+  - no floor;
+  - named keys not protected;
+  - the index part or the manifest part dropped;
+  - the held-manifest guard and the reset after a failure, each alone and both together;
+  - `still_current` dropped, in the deletion or in the sweep;
+  - `sweep_due` ignoring the mode, a manual run or the time;
+  - `main` ignoring `sweep_due`;
+  - mode `cleanup` doing nothing;
+  - `MaxKeys` and the listing logs dropped;
+  - the indexed folders not listed.
+
+### 7.5 What it covers and what it does not
+
+- **Covers:**
+  - what any run replaces, at every run, without a listing;
+  - the objects a crashed or stopped run left, at the next 19:00 WIB full cleanup or by mode `cleanup`.
+- **Does not cover:**
+  - why a listing hangs from the publisher's container (the logs will show which folder and page);
+  - a second run that is between its manifests and its `state.json` at the moment of the deletion and names a deleted
+    key again. Scheduled runs never overlap, because Railway does not start a cron tick while a run goes on; manual
+    runs follow M229, away from the run times.
+  - a `url_ttl_seconds` raised above about 500 s. `TERMINAL_DELETE_AFTER_SECONDS` must then be raised with it.
+- **Deploy (dev, after the 07:30 WIB run of 2026-10-30 is checked):** CLI upload of the publisher (M229 option A),
+  one measured run, then the checks of section 6: terminal-api `present`, Backtest E2E, the Screener, and a count of
+  objects no publication names (`garbage_probe.py`, read-only).
