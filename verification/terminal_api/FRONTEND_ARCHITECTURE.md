@@ -270,3 +270,45 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 - EXEC-TERMINAL-UNDO-INV-WHEEL: an indicator's settings Ok pushes one undo entry (`indicators.ts` close); `#invLegend` is a
   three-column grid with the count as `.rp-count`; Shift + wheel over `.chart-wrap` / `.bottom` pans the time range
   (`chart.ts`, live). Checks: `assets_check/undo_inv_badge.mjs`, `shift_wheel.mjs`.
+
+## 18. Flow indicators FL01-FL39 (EXEC-TERMINAL-FLOW-IND, 2026-10-30)
+
+**The contract.** The contract is `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx` (the user's
+sheets). `FORMULAS.md` next to it states every formula and the shared conventions.
+
+**Code.**
+- **Calculations:** `apps/edge-bff/terminal/src/calc/flow.ts`. Pure functions, with no DOM: `flowRows`, `computeFlow`,
+  `flowDefaults`.
+  - A parameter that is left out takes the registry default.
+  - Window sums are prefix differences. A measure with fractions keeps a compensated array, so a sum is exact (ERRORS
+    M309).
+  - Thresholds compare with an equality tolerance through `atLeast`, `atMost` and `above` (M310).
+  - The Screener and the Backtest can call the same module on the same rows.
+- **Registry:** `src/data/flowRegistry.json`, generated from the spreadsheet by `scripts/build_flow_registry.py`.
+  `--check` fails when the two drift apart.
+- **Data path:** the worker (`data/worker.ts` `flowRowsOf`) sends the broker rows of the chart's candles as typed arrays
+  (`FlowRows`). A broker session on a date without a price candle is on no candle (M238).
+- **Page:** `src/app/flowIndicators.ts` turns the registry into indicator definitions of the generic engine
+  (`indicators.ts`: legend row, settings dialog, undo, saved list). It covers:
+  - the "view" anchor of FL18-FL20 and FL23;
+  - the broker lists given as a rule (a classification, "Top 3 net buyers, last 20");
+  - the legend note where a value is empty: loading, no broker data, no volume, transaction counts missing, or the
+    classification not published.
+
+  `picker.ts` lists one group "Flow · <family>" per family.
+- **Bandar panel:** `broker.ts`, live only. Its verdict is Bandar Balance · % (FL24) at FL24's levels (6 / 10 %, Top 3),
+  read from the registry.
+- **Live-only styles (`html.fit`):** the fixture stays 1:1. These come from the front-end audit (ERRORS M312):
+  - legend rows on a backdrop;
+  - the row's buttons ahead of the values, shown on hover;
+  - Flow dialogs at one width;
+  - the centre column at the screen's width.
+
+**Checks.**
+- `verification/terminal_api/flow_indicators/oracle/oracle.py` is an independent recomputation in exact arithmetic.
+- `oracle_compare.ts` runs `flow.ts` on the same rows: 319,000 values, 0 differences.
+- `flow_indicators_live_check.py` checks the page with dev data.
+- `storage_freq_check.py` checks the published files against Feature 05.
+- `verification/terminal_api/frontend_audit/` holds the server and page helper of the two-auditor front-end audit.
+- **Speed:** the slowest recompute on TLKM daily is 28 ms (budget 50 ms). Measures are built on first use, cohorts are
+  kept per grid, and anchored indicators follow the view at most every 120 ms.

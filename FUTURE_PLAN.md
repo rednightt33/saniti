@@ -1215,3 +1215,33 @@ Bukti (log orc, read-only): 240 s total, 228 s di panggilan model (95%); data da
    keputusan analisis (periode, tabel, metode). Bila dikerjakan, sasaran pertama: satuan/persen yang bisa diturunkan
    backend dari katalog (model menimbang "apakah ini sudah persen?").
 3. Cacat kecil di run yang sama: ERRORS M304 (complete otomatis) dan M305 (tabel ditolak karena huruf besar-kecil).
+
+## Flow indicators: keputusan yang masih terbuka (EXEC-TERMINAL-FLOW-IND, 2026-10-30; menunggu keputusan user)
+
+Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan data dev.
+
+1. **FL19/FL20: harga pokok saat inventori model negatif (Reviewer A, A2).**
+   - Spreadsheet: `Indicator_SPECS_reviewed` L27 hanya menulis kasus "net add > 0". `Parameter_Terminal` D11 menulis
+     inventori awal 0, dan harga kosong bila inventori ≤ 0.
+   - Modul (`FORMULAS.md`, FL19): pembelian yang mengangkat inventori dari ≤ 0 hanya menghitung bagian di atas 0.
+   - Tiga pilihan, dengan contoh BBCA (anchor 2026-08-03, Top 3) pada 2026-10-23:
+     - (a) modul sekarang: 5.636,58;
+     - (b) teks spreadsheet apa adanya: 6.196,87;
+     - (c) inventori tidak pernah di bawah 0: 5.674,39.
+   - Usulan: (a), dengan teks spreadsheet dilengkapi.
+2. **FL36/FL37: cakupan default (A3).**
+   - `Parameter_Terminal` menulis Top-N cohort.
+   - `Indikator_baru_dari_Screener` H14/H15 dan `Screener_ke_Chart` F6/F8 menulis "Semua broker" (Foreign), yaitu metrik
+     Screener fpart/fsurprise.
+   - Registry mengikuti `Parameter_Terminal`.
+   - Contoh FL37 TLKM 2026-10-23: 84,0 (Top 3) lawan 0,8 (semua broker).
+3. **Pengelompokan menu (Reviewer B, B7).** "Flow · Other" berisi 8 indikator yang tidak saling terkait:
+   - FL09, FL27, FL28, FL29, FL30, FL31, FL32, FL33 (lihat registry).
+
+   FL12 dan FL35 (Net Buy Persistence) ada di "Net Flow". Perlu dikonfirmasi, atau keluarga baru untuk spreadsheet.
+4. **Teks spreadsheet yang tertinggal (A6):**
+   - `Keputusan` baris 20 masih menyebut FL01 "Average Lot per Transaction". Pola nama keluarga dari baris 36 dipakai:
+     "Transaction Size · Lot".
+   - Baris 8 dan `Indikator_baru` H3 masih Top 5 (sekarang Top 3).
+5. **Celah harga 17–18 September 2026 (M238).** Setiap jendela Flow yang melintasinya mundur dua sesi. Perbaikannya
+   pengisian harga F3, yang ditunda user ("nanti saja").

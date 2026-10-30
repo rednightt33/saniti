@@ -4593,6 +4593,64 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
 - A layout must not move a control in response to that control's own hover.
 - A filler value for drawing (0 for a missing volume) must never reach a calculation; carry the absence beside it.
 
+### EXEC-TERMINAL-FLOW-IND — selesai (2026-10-30)
+
+**Go user.** Kata user: "Alright, please proceed." (rencana S1–S8), lalu "Oke, jalan kan.". Keputusan yang diterapkan:
+- grup Flow dengan subgrup per keluarga ("3. OK");
+- frekuensi masuk ke file broker yang ada (A2);
+- Top-N menurut net beli (Rp), dihitung ulang tiap candle (B3, B4);
+- satu indikator dengan sisi Buy/Sell/Both (C6);
+- breadth "Kita pakai D10";
+- tetap dalam LOT (F15);
+- FL18–FL20 memakai kelompok Top-N beku ("yes pakai kelompok broker tetap untuk ketiganya");
+- bandar = N net beli dan N net jual terbesar, dengan batas Screener 6/10 % dan Top 3 ("Kita pakai B dulu ya");
+- "hari" = candle di chart mingguan dan bulanan ("2-3 OK");
+- 39 indikator dirilis sekaligus ("4 sekaligus");
+- panel Bandar tampil di live ("Sekarang.");
+- audit front end oleh dua agent ("Lakukan audit Front end, minta 2 agent Sonnet 5.5 medium ...").
+
+**Yang dibuat**
+- **S1:** file broker membawa `bf`/`sf` dan `ref/brokers` membawa `classification`; `verify` publisher membandingkan
+  jumlah transaksi (commit `95035b25`).
+- **S2:** latihan 5 ticker, lalu terbit ulang penuh 2016–2026 (7.852 file, 794,6 MB, 36 menit).
+- **S3:** modul `calc/flow.ts` dan `flowRegistry.json` dari spreadsheet.
+- **S4:** Terminal (39 indikator, dialog, legenda dengan alasan bila kosong, panel Bandar).
+- **S5:** oracle independen.
+- **S6:** deploy.
+- **S7:** dua reviewer dan dua auditor front end.
+- **S8:** catatan.
+
+**Bukti**
+- **Oracle Python dari Feature 05** (aritmetika eksak, tanpa membaca `flow.ts`): 319.000 nilai pada 7 ticker dan 99
+  kasus, 0 beda. Sebelumnya ada 12 beda, yang membuka M309 dan M310.
+- **Terminal lokal dengan data dev:** TLKM dan WIFI, 35 indikator sama dengan oracle (FL18–FL20 dan FL23 mengikuti
+  tampilan).
+- **Reviewer A (data dan rumus):** 15 indikator wajib ditambah 20 lain, 5 ticker, setiap candle, 0 beda. Temuan A4, A5,
+  A7 dan A8 diperbaiki; A1 = M238; A2 dan A3 butuh keputusan user.
+- **Reviewer B (tampilan):** 39 nama, dialog dan tempat; 74 uji rentang; 2.640 bacaan legenda sama dengan hitung ulang
+  SQL; panel Bandar = FL24. B1–B5 diperbaiki.
+- **Audit front end:** M312.
+- **Storage:** `storage_freq_check.py` mencocokkan 35 ticker, setiap tahun, dengan Feature 05, dan `ref/brokers` dengan
+  `IDX_Broker_Profile`.
+- **Layanan lain:** Backtest E2E (single, repeat) FINISHED, dan Screener live 4 screen 200.
+- **Tes dan kecepatan:** vitest 756, backtest 88, screener-worker 65, publisher 123; 1:1 tanpa beda markup; hitung
+  ulang terlama 28 ms di TLKM harian.
+- **Deploy:**
+  - publisher `4634b7f5` (SCHED);
+  - edge-bff `327aaf47`, lalu `f34a02e7`;
+  - screener-worker `c7775f95`, lalu `be75d1c6`.
+
+**Masih terbuka**
+- Keputusan user, di `FUTURE_PLAN.md` "Flow indicators: keputusan yang masih terbuka".
+- M238 (celah harga 17–18 Sep).
+- 7.852 objek lama tersisa di bucket karena penghapusan timeout (M301, rencana PUBLISHER-CLEANUP-MANUAL).
+
+- **Status:** RESOLVED (lingkup S1–S8).
+- **Lesson:**
+  - Pembanding independen dalam aritmetika eksak menemukan kelas cacat yang tidak terlihat oleh tes contoh, yaitu
+    pembulatan prefix dan ambang (M309, M310).
+  - Reviewer dan auditor terpisah menemukan cacat interaksi dan tampilan yang tidak terlihat dari angka (M312).
+
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
 Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate

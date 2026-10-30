@@ -5357,3 +5357,10 @@ B6 window:
 - screener-worker `c7775f95` SUCCESS (its engine version covers `terminal/src/calc`): `start`, snapshot `swap`, then
   `refresh_skipped` "same files and reference" for the 14:13:43 publication.
 - No variable changed.
+- **Second deploy, 14:48 UTC:** reviewer fixes (Reviewer A: registry defaults in `computeFlow`, the exclusive `> 0` bound;
+  Reviewer B: reference lines without a default, weekly/monthly wording, FL09 label, FL14 decimals).
+  - `main` `630034de`.
+  - edge-bff `f34a02e7` SUCCESS, bundle `index-fpb2OPe2.js` byte-equal to the local build (sha256 `b293c96351acb52d…`).
+  - screener-worker `be75d1c6` SUCCESS (`start`, `swap` on the 14:13:43 publication).
+  - Before it: Backtest E2E (`e2e_dev.py --skip-page --only single`) single and repeat FINISHED with no failed check, and
+    `verification/screener/live_check_dev.py` 4 screens 200.

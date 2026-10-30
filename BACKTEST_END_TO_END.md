@@ -358,13 +358,13 @@ Bucket `terminal-display` is a Railway S3-compatible bucket in region `sin`. Its
 | Key under `v1/` | Content | Headers |
 |---|---|---|
 | `price/{T}/{Y}.{sha256}.json.gz` | `{schema_version: 1, dataset: 'price', ticker, year, units, columns: [d,o,h,l,c,v], d: [...], o: [...], ...}` (columnar; `v` null for an index) | `application/gzip`, `private, max-age=31536000` |
-| `broker/{T}/{Y}.{sha256}.json.gz` (stocks) | columns `d, b, i, m, bv, sv, bl, sl` (date, broker, investor type, board, buy and sell value in IDR, buy and sell lots) plus `gap: [[date, board], …]` | same |
+| `broker/{T}/{Y}.{sha256}.json.gz` (stocks) | columns `d, b, i, m, bv, sv, bl, sl, bf, sf` (date, broker, investor type, board, buy and sell value in IDR, buy and sell lots, buy and sell transactions; `bf`/`sf` since 2026-10-30, EXEC-TERMINAL-FLOW-IND; readers take columns by name) plus `gap: [[date, board], …]` | same |
 | `events/{T}/all.{sha256}.json.gz` | 19 columns, `d, role, family, type, action, …, title, detail`; `format: 2` | same |
 | `pack/{T}/price.{sha256}.json.gz` | every price year in one `price_doc` (`dataset: 'price-pack'`) | same |
 | `pack/{T}/broker-archive.{sha256}.json.gz` (stocks) | broker years `[broker_first_year, last_year - 2]` (`dataset: 'broker-archive'`, `years: [a, b]`) | same |
 | `manifest/{T}.json` | the ticker's index of files (below) | `application/json`, `private, max-age=0` |
 | `ref/tickers.json.gz` | columns `ticker, name, type, sector, industry`. Readers take columns by name; every column after `type` becomes a portfolio filter (CONTRACT decision PF6). | gzip |
-| `ref/brokers.json.gz` | columns `code, name, type` | gzip |
+| `ref/brokers.json.gz` | columns `code, name, type, classification` (`IDX_Broker_Profile.broker_classification`: Institutional-heavy, Retail-heavy, Mixed, Niche; since 2026-10-30) | gzip |
 | `ref/logos.json.gz`, `logo/{T}.png\|svg` | logo index and images (Terminal page) | |
 | `ref/<name>.<sha16>.json.gz` (`tickers`, `brokers`, `logos`; EXEC-MU-RUNTIME T5) | the exact bytes of `ref/<name>.json.gz` under a content key (`<sha16>` is the first 16 hex of the sha256), named by `state.json` `refs` | `application/gzip`, `private, max-age=31536000` |
 | `xsection/price.<sha16>.json.gz` | `{schema_version: 1, dataset: 'xsection', name: 'price', units, means, columns: [t,d,o,h,l,c,v], t: [...], ..., tickers: [{t, pack_sha256, first, last, rows}]}`: every published ticker's final daily rows from `price_first_year`, ordered by ticker (code point order) then date; a ticker's slice is the rows of its `pack/{T}/price` (`xsection_slices` cuts it by `tickers`); `v` null for an index | `application/gzip`, `private, max-age=31536000` |

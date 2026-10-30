@@ -66,7 +66,7 @@ using the AI's `market-sql-datasets` bucket (would mix AI and display data); rou
 ```
 v1/manifest/{ticker}.json                 small; never cached long
 v1/price/{ticker}/{year}.json.gz          columnar: d, o, h, l, c, v
-v1/broker/{ticker}/{year}.json.gz         columnar: d, b, i, m, bv, sv, bl, sl, gap(date×board list)
+v1/broker/{ticker}/{year}.json.gz         columnar: d, b, i, m, bv, sv, bl, sl, bf, sf (2026-10-30), gap(date×board list)
 v1/ref/brokers.json.gz                    broker_code, broker_name, broker_type
 v1/ref/tickers.json.gz                    ticker, company name, security type
 ```

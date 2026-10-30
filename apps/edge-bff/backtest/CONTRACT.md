@@ -23,7 +23,7 @@ not in the path.
 
 ## 2. Market data
 
-- Datasets: `price` (`d,o,h,l,c,v`), `broker` (`d,b,i,m,bv,sv,bl,sl`), `events` (corporate actions), from
+- Datasets: `price` (`d,o,h,l,c,v`), `broker` (`d,b,i,m,bv,sv,bl,sl,bf,sf`; `bf`/`sf` buy and sell transactions since 2026-10-30, read by name), `events` (corporate actions), from
   `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` (header `x-terminal-proxy-key` with the worker's
   `TERMINAL_PROXY_KEY` **[D-U1]**: since EXEC-MU-RUNTIME T1 (2026-10-28) a reference to terminal-api's
   `TERMINAL_SERVICE_KEY_BACKTEST_WORKER`, the worker's own service account `backtest-worker@terminal.local` with its

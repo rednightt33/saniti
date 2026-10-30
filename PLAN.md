@@ -944,8 +944,6 @@ Isi:
   untuk review user sebelum deploy; (6) deploy edge-bff, verifikasi live, catatan EXEC / README / RAILWAY_CHANGELOG.
 - Halaman Terminal, Backtest dan Screener (aplikasi Vite terpisah dalam iframe) tidak berubah.
 
-## TERMINAL-FLOW-IND — indikator Flow baru (go 2026-10-30; dipindah ke `EXEC.md` EXEC-TERMINAL-FLOW-IND)
-
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
 **Permintaan, 2026-10-28 (kata user):** "Saat ini yes, kita bisa gambar trendline langsung di panel bawah. Tapi untuk draw

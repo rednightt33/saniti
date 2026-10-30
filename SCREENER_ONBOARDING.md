@@ -252,6 +252,18 @@ catalog already names them in `requires`): `broker_window` (raw F05 rows of the 
 `flow_series` (the long all-board flow series); their final shape follows the flow indicators the user picks (FLOW
 INDICATOR PROPOSALS 16.9).
 
+**Flow raw data and formulas ready (EXEC-TERMINAL-FLOW-IND, 2026-10-30).** The terminal-display broker files carry
+`bf`/`sf`, the buy and sell transactions of every Feature 05 row, besides `bv, sv, bl, sl`. `ref/brokers` carries
+`classification` (`IDX_Broker_Profile`). The 39 Flow formulas the Terminal draws are one pure module,
+`apps/edge-bff/terminal/src/calc/flow.ts` (`computeFlow(id, ctx, params)`), with its registry `flowRegistry.json` and its
+conventions in `verification/terminal_api/flow_indicators/FORMULAS.md`.
+- A Screener metric built on a Flow indicator calls this module on the same rows, so the screen and the chart agree.
+- Which indicators enter the Screener, with which defaults, is decided later (user 2026-10-30: "This is for later setelah
+  fase terminal done").
+- Cautions:
+  - The frozen Top-N of FL18-FL20 is ranked over the whole period, so it must not be read as known at a past date.
+  - A broker session on a date without a price candle (2026-09-17/18, M238) is on no candle.
+
 ## 1.6 Stage 3: terminal-api
 
 The only holder of the bucket key. See `BACKTEST_END_TO_END.md` section 6 for its routes, keys, service accounts (6.1),
