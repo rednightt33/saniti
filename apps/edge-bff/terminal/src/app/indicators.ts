@@ -71,7 +71,8 @@ export function initIndicators(ctx: Ctx) {
     r.outs.forEach(o => {
       if(o.r === 'state') return;
       const s: any = { on:o.vis || /bands_mode/.test(o.cond), width:o.w || 2 };
-      if(o.r === 'histogram') { s.color = UP; s.color2 = DOWN; if(/optional_state/.test(o.rule)) s.states = true }
+      if(o.color) s.color = o.color;                                    // fixed by the definition (FL23: the inventory colours)
+      else if(o.r === 'histogram') { s.color = UP; s.color2 = DOWN; if(/optional_state/.test(o.rule)) s.states = true }
       else if(o.r === 'segmented_line' || o.r === 'dots') { s.color = UP; s.color2 = DOWN }
       else if(o.role === 'signal_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
       else if(o.role === 'center_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
@@ -205,7 +206,9 @@ export function initIndicators(ctx: Ctx) {
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
     const panes = chart.panes(), subs = Math.max(0, panes.length - 1);
-    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? (subs ? 2.4 : 1) : 1));
+    /* the price pane keeps at least ~45 % of the height however many panes are open (front-end audit 2026-10-30: 10 panes
+       left it 113 px); up to two panes the factor stays the reference's 2.4 */
+    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? (subs ? Math.max(2.4, 0.82 * subs) : 1) : 1));
     requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow) });
   };
   const stage = legend.parentElement;
@@ -377,12 +380,12 @@ export function initIndicators(ctx: Ctx) {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
         if(!s.on || v === null || v === undefined) return '';
         const prev = inst.disp[pt.o.k][i - 1];
-        const c = pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
+        const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
         const txt = overlay && pt.kind !== 'marker' ? (ret ? ((v / closes[0] - 1) * 100).toFixed(2) + '%' : NF.format(v)) : inst.def.format(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
-      if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
+      if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
       b.style.color = '';
     } else if(inst.def.lines) {
       b.innerHTML = (inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;');
@@ -454,6 +457,7 @@ export function initIndicators(ctx: Ctx) {
         <div class="idlg-foot"><button class="idlg-btn" type="button" data-act="reset">Reset</button><span class="sp"></span><button class="idlg-btn" type="button" data-act="cancel">Cancel</button><button class="idlg-btn pri" type="button" data-act="ok">Ok</button></div></div>`;
     back.querySelector('h2').textContent = def.name;
     const body = back.querySelector('.idlg-body'), errBox = back.querySelector('.idlg-err'), dlg = back.querySelector('.idlg');
+    dlg.classList.toggle('idlg-flow', !!def.flow);
     const check = () => { const m = def.validate ? def.validate(inst.params) : ''; errBox.textContent = m; errBox.hidden = !m; return !m };
     const live = needsRecompute => { if(!needsRecompute) return refresh(inst); if(check()) recompute(inst) };
     const row = (label, ctl, hint?, cls = '') => { const l = document.createElement('label'); l.className = 'idlg-row' + cls; const s = document.createElement('span'); s.textContent = label; if(hint) s.title = hint; l.append(s, ctl); return l };

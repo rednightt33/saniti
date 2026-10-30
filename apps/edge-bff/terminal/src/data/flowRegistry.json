@@ -27,7 +27,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Rata-rata jumlah saham pada setiap transaksi beli broker.",
+   "tip": "Rata-rata lot per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.",
    "params": [
     {
      "key": "scope",
@@ -164,7 +164,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Nilai Rupiah rata-rata satu transaksi beli.",
+   "tip": "Rata-rata nilai Rupiah per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.",
    "params": [
     {
      "key": "scope",
@@ -301,7 +301,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Proporsi seluruh buy volume yang berasal dari broker tertentu. ATAU top N broker",
+   "tip": "Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker.",
    "params": [
     {
      "key": "scope",
@@ -438,7 +438,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Proporsi seluruh buy transaction count yang berasal dari broker tertentu. ATAU top N broker",
+   "tip": "Porsi jumlah transaksi beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih.",
    "params": [
     {
      "key": "scope",
@@ -575,7 +575,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Rasio antara porsi volume broker dan porsi frequency broker.",
+   "tip": "Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata pasar.",
    "params": [
     {
      "key": "scope",
@@ -718,7 +718,7 @@
    "outputs": [
     "ratio"
    ],
-   "tip": "Perbandingan average buy ticket dengan average sell ticket.",
+   "tip": "Ukuran rata-rata transaksi beli dibanding ukuran rata-rata transaksi jual dari kelompok yang sama.",
    "params": [
     {
      "key": "scope",
@@ -840,7 +840,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Porsi pembelian broker terhadap total market volume saham.",
+   "tip": "Porsi pembelian broker atau kelompok broker terhadap seluruh volume saham.",
    "params": [
     {
      "key": "scope",
@@ -972,7 +972,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Posisi average ticket hari ini dibanding distribusi historis saham/broker yang sama.",
+   "tip": "Posisi ukuran transaksi hari ini dibanding riwayat saham itu sendiri (0-100).",
    "params": [
     {
      "key": "scope",
@@ -1128,7 +1128,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Composite flag for unusually large-ticket, materially participating, directionally positive broker/cohort buying.",
+   "tip": "Tanda saat pembelian berukuran besar, berporsi berarti dan berarus bersih positif terjadi bersamaan.",
    "params": [
     {
      "key": "scope",
@@ -1303,7 +1303,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Directional balance of buy execution count versus sell execution count for the selected broker/cohort.",
+   "tip": "Selisih jumlah transaksi beli dan jual dibagi totalnya (-1 sampai 1) untuk broker atau kelompok yang dipilih.",
    "params": [
     {
      "key": "scope",
@@ -1442,7 +1442,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Net purchasing dibanding total traded value/turnover saham.",
+   "tip": "Pembelian bersih broker atau kelompok broker dibanding seluruh nilai transaksi saham.",
    "params": [
     {
      "key": "scope",
@@ -1595,7 +1595,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Persentase hari dalam rolling window ketika broker/cohort menjadi net buyer.",
+   "tip": "Persentase hari dalam jendela ketika broker atau kelompok broker menjadi pembeli bersih.",
    "params": [
     {
      "key": "scope",
@@ -1715,7 +1715,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Konsentrasi buy volume di antara seluruh broker pembeli.",
+   "tip": "Seberapa terpusat pembelian (atau penjualan) pada sedikit broker (0-1).",
    "params": [
     {
      "key": "boards",
@@ -1789,7 +1789,7 @@
    "outputs": [
     "asym"
    ],
-   "tip": "Perbedaan concentration buy versus sell.",
+   "tip": "Keterpusatan sisi beli dikurangi keterpusatan sisi jual.",
    "params": [
     {
      "key": "boards",
@@ -1866,7 +1866,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Persentase gross buy flow yang dikuasai Top-N buyer brokers.",
+   "tip": "Persentase pembelian yang dikuasai N broker pembeli terbesar.",
    "params": [
     {
      "key": "boards",
@@ -1928,7 +1928,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Proporsi positive net-buy flow yang datang dari Top-N net buyers.",
+   "tip": "Persentase pembelian bersih positif yang berasal dari N pembeli bersih terbesar.",
    "params": [
     {
      "key": "boards",
@@ -1990,7 +1990,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Harga rata-rata seluruh pembelian cohort selama trailing N trading days.",
+   "tip": "Harga rata-rata pembelian kelompok broker selama N hari terakhir.",
    "params": [
     {
      "key": "scope",
@@ -2105,7 +2105,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Rata-rata purchase price frozen cohort sejak accumulation episode dimulai.",
+   "tip": "Harga rata-rata pembelian kelompok broker tetap sejak tanggal awal.",
    "params": [
     {
      "key": "scope",
@@ -2218,7 +2218,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Estimated weighted-average cost dari modeled remaining inventory.",
+   "tip": "Perkiraan harga pokok rata-rata posisi yang masih dipegang kelompok broker sejak tanggal awal.",
    "params": [
     {
      "key": "scope",
@@ -2347,7 +2347,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Persentase jarak close terhadap modeled inventory average cost.",
+   "tip": "Jarak harga penutupan dari perkiraan harga pokok rata-rata, dalam persen.",
    "params": [
     {
      "key": "scope",
@@ -2483,7 +2483,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Posisi Net Flow / Turnover hari ini dibanding distribusi historis saham yang sama.",
+   "tip": "Posisi arus bersih dibanding nilai transaksi hari ini terhadap riwayat saham itu sendiri (0-100).",
    "params": [
     {
      "key": "scope",
@@ -2618,7 +2618,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Persentase active brokers yang menjadi net buyer pada suatu tanggal.",
+   "tip": "Persentase broker aktif yang menjadi pembeli bersih.",
    "params": [
     {
      "key": "boards",
@@ -2672,7 +2672,7 @@
     "lines",
     "total"
    ],
-   "tip": "Model estimate posisi net cohort sejak anchor.",
+   "tip": "Perkiraan posisi bersih (lot atau Rupiah) tiap broker yang dipilih sejak tanggal awal; bukan kepemilikan sebenarnya.",
    "params": [
     {
      "key": "brokers",

@@ -30,6 +30,9 @@ export function niceTicks(lo: number, hi: number): number[] {
   return out;
 }
 
+/** the Broker inventory colours, one per picked broker (the panel and Broker Inventory, FL23) */
+export const INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
+
 export function initBroker(ctx: Ctx) {
   const { M, ws, showStTip, hideStTip, tipHtml, makeFilter } = ctx;
   if(M.hide.bandar) ($('brokerPanel').querySelector('.st[data-sec="bd"]') as HTMLElement).hidden = true;   // a page that hides it (none since EXEC-TERMINAL-FLOW-IND)
@@ -38,8 +41,12 @@ export function initBroker(ctx: Ctx) {
   const live = M.mode === 'live';
   const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
   const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
+  if(live){
+    $('bdTop').querySelectorAll('button').forEach((b: any) => b.classList.toggle('active', +b.dataset.n === RS.bdN));
+    $('bdHint').textContent = `Top ${RS.bdN}`;
+  }
   const invSel = new Set<string>();                                 // brokers drawn in Broker inventory (max INV_MAX)
-  const INV_MAX = 5, INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
+  const INV_MAX = 5;
   /* EXEC-TERMINAL-POPOUT: the panel and its windows share the inventory brokers and the highlighted broker; a change
      redraws the panel (when drawn) and every open window */
   const listeners: (() => void)[] = [];
@@ -519,7 +526,6 @@ export function initBroker(ctx: Ctx) {
   segWire('bsMode','mode', v => { RS.mode = v; renderBS() });
   if($('accSide')) segWire('accSide','side', v => { RS.accSide = v; renderAcc() });   // live: the Board choice took its place
   segWire('bdTop','n', v => { RS.bdN = +v; renderBD() });
-  if(live) $('bdTop').querySelectorAll('button').forEach(b => b.classList.toggle('active', +b.dataset.n === RS.bdN));
   renderAll();
   }
   renderWhenReady();

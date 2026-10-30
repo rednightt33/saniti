@@ -8,6 +8,7 @@ import { classBrokers, computeFlow, defaultInventoryBrokers, type FlowContext, t
 import REG from '../data/flowRegistry.json';
 import type { Ctx } from './context';
 import { nfCompact, rupiah } from './context';
+import { INV_COLORS } from './broker';
 
 export interface FlowRegParam { key: string; label: string; kind: string; status: string; default?: any; options?: any[]; min?: number | null; max?: number | null; text?: string }
 export interface FlowRegIndicator { id: string; name: string; family: string; place: 'pane' | 'price' | 'marker'; unit: string; needs_frequency: boolean; outputs: string[]; tip: string; params: FlowRegParam[] }
@@ -49,7 +50,9 @@ export function initFlowIndicators(ctx: Ctx) {
     insider = rows.flatMap(r => { const time = M.barOf ? M.barOf(r.d) : r.d, t = time == null ? undefined : idxByTime.get(time); return t === undefined ? [] : [{ t, value:r.value }] });
     ctx.refreshFlowIndicators?.();
   }, () => {});
-  M.brokerClass?.then(c => { classification = c; ctx.refreshFlowIndicators?.() }, () => {});
+  let classState: 'loading' | 'ready' | 'missing' = M.brokerClass ? 'loading' : 'missing';
+  M.brokerClass?.then(c => { classification = c; classState = Object.keys(c).length ? 'ready' : 'missing'; ctx.refreshFlowIndicators?.() },
+    () => { classState = 'missing'; ctx.refreshFlowIndicators?.() });
   const volume = M.volume.map(v => v.value ?? null);
   let cached: { rows: FlowRows; ins: InsiderRow[]; cls: Record<string, string>; c: FlowContext } | null = null;
   const context = (): FlowContext => {
@@ -81,12 +84,13 @@ export function initFlowIndicators(ctx: Ctx) {
     const plotDefault = byKey.plot?.default === 'hist' ? 'histogram' : 'line';
     const outs = (plot: string) => {
       const kind = r.place === 'marker' ? 'marker' : plot;
-      if (r.id === 'FL23') return [...SLOTS.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'' })),
-        { k:'total', label:'Total', r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'' }];
+      /* Broker Inventory: the panel's inventory colours, the total in ink (front-end audit 2026-10-30: two orange lines) */
+      if (r.id === 'FL23') return [...SLOTS.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:INV_COLORS[j] })),
+        { k:'total', label:'Total', r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:'#171717' }];
       return r.outputs.map(k => ({ k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'' }));
     };
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
-      guides:levels, fill:null, tip:r.tip, info:r.tip + (r.needs_frequency ? ' Needs the transaction counts of the broker files.' : ''), flow:true, place:r.place };
+      guides:levels, fill:null, tip:r.tip, info:r.tip + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
     const inputs = r.params.filter(q => q.key !== 'levels').map(q => {
       const base: any = { key:q.key, label:relabel(q.label), hint:q.status === 'PROPOSED' ? 'Proposed default' : undefined };
       switch (q.kind) {
@@ -124,9 +128,12 @@ export function initFlowIndicators(ctx: Ctx) {
         return slots;
       },
       /* the legend's text where the value is empty: why, when the reason is the data (plan S4: a message, not a zero) */
-      note:(i: number, raw: any) => {
+      note:(i: number, raw: any, p: any) => {
         const R = ctx.flowRows;
         if (raw && raw._brokerBased === false) return '';
+        /* a list given as a classification (FL34) waits for the reference file's classes */
+        const usesClass = p && Object.values(p).some(v => typeof v === 'string' && v.startsWith('class:'));
+        if (usesClass && classState !== 'ready') return classState === 'loading' ? 'Loading the broker classification' : 'No broker classification published yet';
         if (!R) return 'Loading broker data';
         if (!R.n) return 'No broker data for this ticker';
         if (i > ctx.brokerEnd) return 'No broker data yet';

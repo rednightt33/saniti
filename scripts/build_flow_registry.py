@@ -149,6 +149,37 @@ def outputs(fid, params):
     return {'FL06': ['ratio'], 'FL14': ['asym'], 'FL23': ['lines', 'total']}.get(fid, ['value'])
 
 
+# The tooltip in plain Indonesian, like the 53 price indicators' tips. FL24-FL39 take the meaning the Screener sheet
+# gives; FL01-FL23 the spec's Definition column, which mixes languages ("Rata-rata purchase price frozen cohort sejak
+# accumulation episode dimulai"), so their sentence is restated here with the same meaning (front-end audit V8,
+# 2026-10-30). An id missing here falls back to the Definition column.
+PLAIN = {
+    'FL01': 'Rata-rata lot per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.',
+    'FL02': 'Rata-rata nilai Rupiah per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.',
+    'FL03': 'Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker.',
+    'FL04': 'Porsi jumlah transaksi beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih.',
+    'FL05': 'Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata pasar.',
+    'FL06': 'Ukuran rata-rata transaksi beli dibanding ukuran rata-rata transaksi jual dari kelompok yang sama.',
+    'FL07': 'Porsi pembelian broker atau kelompok broker terhadap seluruh volume saham.',
+    'FL08': 'Posisi ukuran transaksi hari ini dibanding riwayat saham itu sendiri (0-100).',
+    'FL09': 'Tanda saat pembelian berukuran besar, berporsi berarti dan berarus bersih positif terjadi bersamaan.',
+    'FL10': 'Selisih jumlah transaksi beli dan jual dibagi totalnya (-1 sampai 1) untuk broker atau kelompok yang dipilih.',
+    'FL11': 'Pembelian bersih broker atau kelompok broker dibanding seluruh nilai transaksi saham.',
+    'FL12': 'Persentase hari dalam jendela ketika broker atau kelompok broker menjadi pembeli bersih.',
+    'FL13': 'Seberapa terpusat pembelian (atau penjualan) pada sedikit broker (0-1).',
+    'FL14': 'Keterpusatan sisi beli dikurangi keterpusatan sisi jual.',
+    'FL15': 'Persentase pembelian yang dikuasai N broker pembeli terbesar.',
+    'FL16': 'Persentase pembelian bersih positif yang berasal dari N pembeli bersih terbesar.',
+    'FL17': 'Harga rata-rata pembelian kelompok broker selama N hari terakhir.',
+    'FL18': 'Harga rata-rata pembelian kelompok broker tetap sejak tanggal awal.',
+    'FL19': 'Perkiraan harga pokok rata-rata posisi yang masih dipegang kelompok broker sejak tanggal awal.',
+    'FL20': 'Jarak harga penutupan dari perkiraan harga pokok rata-rata, dalam persen.',
+    'FL21': 'Posisi arus bersih dibanding nilai transaksi hari ini terhadap riwayat saham itu sendiri (0-100).',
+    'FL22': 'Persentase broker aktif yang menjadi pembeli bersih.',
+    'FL23': 'Perkiraan posisi bersih (lot atau Rupiah) tiap broker yang dipilih sejak tanggal awal; bukan kepemilikan sebenarnya.',
+}
+
+
 def build():
     wb = openpyxl.load_workbook(SPEC, data_only=True)
     params = {}
@@ -172,7 +203,7 @@ def build():
         ps = params[fid]
         indicators.append({'id': fid, 'name': name, 'family': family, 'place': PLACE[place.split(' (')[0]],
                            'unit': UNIT[unit], 'needs_frequency': freq == 'Ya', 'outputs': outputs(fid, ps),
-                           'tip': tips[fid], 'params': ps})
+                           'tip': PLAIN.get(fid, tips[fid]), 'params': ps})
     return {'schema_version': 1, 'generated_by': 'scripts/build_flow_registry.py',
             'source': {'file': str(SPEC.relative_to(ROOT)), 'sha256': hashlib.sha256(SPEC.read_bytes()).hexdigest()},
             'families': FAMILIES, 'indicators': indicators}

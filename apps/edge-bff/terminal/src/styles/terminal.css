@@ -990,3 +990,28 @@ html.fit #invLegend .rp-chip b{margin-left:auto;min-width:0;overflow:hidden;text
 html.fit #invLegend .rp-chip button{position:absolute;right:2px;top:2px;background:var(--surface);opacity:0}
 html.fit #invLegend .rp-chip:hover button,html.fit #invLegend .rp-chip button:focus-visible{opacity:1}
 html.fit .rp-count{display:inline-block;padding:0 7px;border-radius:999px;background:var(--text);color:#fff;font-weight:500;line-height:1.6}
+
+/* EXEC-TERMINAL-FLOW-IND front-end audit (2026-10-30), live layout only (html.fit; the fixture stays 1:1):
+   - legend rows sit on a light backdrop so candles, lines and marks under them do not strike the text (V1); a long
+     row ends with an ellipsis before the right axis instead of running off the chart (V5) */
+html.fit .chart-legend{right:72px}
+html.fit .ind-row{background:rgba(255,255,255,.86);border-radius:4px;padding:0 4px;margin-left:-4px;max-width:100%;box-sizing:border-box}
+html.fit .ind-row.in-pane{max-width:calc(100% - var(--ax-l,94px) - 72px)}
+html.fit .ind-row .ind-k{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* - Flow settings dialogs: every select as wide as the multi-selects, labels on one line, the date field and its
+     "On chart" button whole, a shadow where the body scrolls (V4, V7, V9) */
+.idlg-flow select.idlg-in{width:176px;padding-right:26px;text-overflow:ellipsis}
+.idlg-flow .idlg-row > span:first-child{white-space:nowrap}
+.idlg-flow .idlg-fixed{max-width:176px;text-align:right;white-space:normal}
+.idlg-flow input[type=date].idlg-in{width:136px;padding:0 8px;font-size:13px}
+.idlg-flow .idlg-ctl .idlg-btn{white-space:nowrap;padding:0 12px}
+.idlg-flow .idlg-body{background:
+  linear-gradient(var(--surface) 30%,transparent) top/100% 24px no-repeat local,
+  linear-gradient(transparent,var(--surface) 70%) bottom/100% 24px no-repeat local,
+  radial-gradient(farthest-side at 50% 0,rgba(0,0,0,.14),transparent) top/100% 8px no-repeat scroll,
+  radial-gradient(farthest-side at 50% 100%,rgba(0,0,0,.14),transparent) bottom/100% 8px no-repeat scroll}
+@media (max-width:480px){
+  .idlg-flow .idlg-row > span:first-child{white-space:normal}
+  .idlg-flow .idlg-row:has(input[type=date]){flex-wrap:wrap;row-gap:8px}
+  .idlg-flow .idlg-row:has(input[type=date]) .idlg-ctl{margin-left:auto}
+}
