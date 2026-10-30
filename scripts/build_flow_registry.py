@@ -66,7 +66,7 @@ LABELS = {
     'Bentuk': ('plot', 'Plot'), 'Penyebut': ('denom', 'Denominator'), 'Dasar': ('basis', 'Basis'),
     'Ambang percentile ukuran transaksi >=': ('pct_min', 'Size percentile at least'),
     'Ambang Size Ratio (Buy) >=': ('ratio_min', 'Size ratio (buy) at least'),
-    'Ambang Buy Participation >=': ('part_min', 'Market volume share (%) at least'),
+    'Ambang Buy Participation >=': ('part_min', 'Buy participation (%) at least'),
     'Ambang Net Flow / Turnover >': ('flow_min', 'Net flow / turnover (%) above'),
     'Pakai Frequency Imbalance': ('use_imb', 'Use buy/sell imbalance'),
     'Ambang Frequency Imbalance >=': ('imb_min', 'Buy/sell imbalance at least'),

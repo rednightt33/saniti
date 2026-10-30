@@ -1260,7 +1260,7 @@
     },
     {
      "key": "part_min",
-     "label": "Market volume share (%) at least",
+     "label": "Buy participation (%) at least",
      "status": "DECIDED",
      "kind": "num",
      "default": 5,

@@ -240,7 +240,7 @@ export function initIndicators(ctx: Ctx) {
       else inst.parts.push({ o, kind:'line', series:mk(L.LineSeries, {}) });
     });
     inst.series = inst.parts.find(pt => pt.series)?.series || null;
-    if(panel && r.guides.length) inst.series.applyOptions({ autoscaleInfoProvider:orig => {   // keep visible reference levels inside the pane (e.g. RSI 30 / 70)
+    if(panel && (r.guides.length || r.levelsParam)) inst.series.applyOptions({ autoscaleInfoProvider:orig => {   // keep visible reference levels inside the pane (e.g. RSI 30 / 70)
       const res = orig(), lv = inst.on && inst.style.guides.on ? guideLevels(inst) : [];
       if(!res || !res.priceRange || !lv.length) return res;
       return { ...res, priceRange:{ minValue:Math.min(res.priceRange.minValue, ...lv), maxValue:Math.max(res.priceRange.maxValue, ...lv) } };
@@ -586,7 +586,7 @@ export function initIndicators(ctx: Ctx) {
       const extra = (label, ctl) => { const l = document.createElement('div'); l.className = 'idlg-row compact'; const a = document.createElement('span'); a.className = 'idlg-lab'; a.append(...label); l.append(a, ctl); body.appendChild(l) };
       if(def.fill) extra([checkbox(st.fill.on, v => { st.fill.on = v; refresh(inst) }, 'Background fill'), document.createTextNode('Background fill')],
         sel([5, 10, 15, 20, 30], st.fill.opacity, v => { st.fill.opacity = +v; refresh(inst) }, v => v + '%'));
-      if(r.guides.length) {
+      if(r.guides.length || r.levelsParam) {                            // levelsParam: offered with no default (Flow FL08, FL21, FL37)
         const t = document.createElement('input'); t.type = 'text'; t.className = 'idlg-in'; t.value = st.guides.levels; t.setAttribute('aria-label', 'Reference levels');
         t.oninput = () => { st.guides.levels = t.value; refresh(inst) };
         extra([checkbox(st.guides.on, v => { st.guides.on = v; refresh(inst) }, 'Reference lines'), document.createTextNode('Reference lines')], t);

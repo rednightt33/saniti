@@ -32,9 +32,9 @@ export function flowFormat(unit: string): { fmt: (v: number) => string; minMove:
   switch (unit) {
     case 'IDR/tx': case 'IDR': return { fmt:v => rupiah(v), minMove:1 };
     case 'lot|IDR': return { fmt:v => nfCompact.format(v), minMove:1 };
-    case '%': case 'diff': return { fmt:v => v.toFixed(2) + (unit === '%' ? '%' : ''), minMove:.01 };
+    case '%': return { fmt:v => v.toFixed(2) + '%', minMove:.01 };
     case 'x': return { fmt:v => v.toFixed(3) + 'x', minMove:.001 };
-    case '0-1': case '-1..1': return { fmt:v => v.toFixed(4), minMove:.0001 };
+    case '0-1': case '-1..1': case 'diff': return { fmt:v => v.toFixed(4), minMove:.0001 };   // diff: HHI buy - sell (Reviewer B, B5)
     case 'days': return { fmt:v => String(Math.round(v)), minMove:1 };
     case 'flag': return { fmt:v => v ? 'Yes' : 'No', minMove:1 };
     default: return { fmt:v => NF2.format(v), minMove:.01 };      // lot/tx, 0-100, price
@@ -86,7 +86,11 @@ export function initFlowIndicators(ctx: Ctx) {
       : v === 'top3_net_buy_20' ? defaultInventoryBrokers(context().rows) : [];
 
   const tokenLabel = (v: string) => v.startsWith('class:') ? v.slice(6) : v === 'top3_net_buy_20' ? 'Top 3 net buyers, last 20' : v;
-  const relabel = (s: string) => s.replace(/\bdays\b/, word).replace(/\bSessions\b/, tf === 'D' ? 'Sessions' : word[0].toUpperCase() + word.slice(1));
+  const per = tf === 'W' ? 'weekly' : tf === 'M' ? 'monthly' : 'daily';
+  /* a candle is a "day" (user 2026-10-30: "2-3 OK"); on weekly and monthly charts the words follow the candle (Reviewer B,
+     B2, B3: "Rolling weeks (1 = daily)", "Average Daily Value · 20W") */
+  const relabel = (s: string) => s.replace(/\bdays\b/, word).replace(/\bSessions\b/, tf === 'D' ? 'Sessions' : word[0].toUpperCase() + word.slice(1))
+    .replace(/\(1 = daily\)/, `(1 = ${per})`).replace(/\bDaily\b/, per[0].toUpperCase() + per.slice(1));
   const scopeText = (p: any) => p.scope === 'all' ? 'All brokers' : p.scope === 'selected'
     ? (Array.isArray(p.brokers) && p.brokers.length ? (p.brokers.length <= 3 ? p.brokers.join(', ') : `${p.brokers.length} brokers`) : 'no broker')
     : `Top ${p.top}${p.rank && p.rank !== 'net_buy' ? (p.rank === 'gross_buy' ? ' gross buy' : ' net sell') : ''}`;
@@ -105,7 +109,7 @@ export function initFlowIndicators(ctx: Ctx) {
       return r.outputs.map(k => ({ k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'' }));
     };
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
-      guides:levels, fill:null, tip:r.tip, info:r.tip + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
+      guides:levels, levelsParam:!!byKey.levels, fill:null, tip:r.tip, info:r.tip + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
     /* a field that only applies to one broker scope is shown only with it (audit I8: "Brokers: None" beside Top-N) */
     const hasScope = r.params.some(q => q.key === 'scope');
     const topnOnly = hasScope ? { when:(p: any) => (p.scope ?? 'topn') === 'topn' } : {};
@@ -165,7 +169,7 @@ export function initFlowIndicators(ctx: Ctx) {
         return '';
       },
       title:(p: any) => {
-        const parts = [r.name];
+        const parts = [relabel(r.name)];
         if (p.scope) parts.push(scopeText(p));
         if (p.side && p.side !== 'buy') parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
         const f = filterText(p); if (f) parts.push(f);
