@@ -155,6 +155,22 @@ The deploys are listed in RAILWAY_CHANGELOG 2026-10-29. The run's own log is `de
     - list per family prefix with smaller pages (`MaxKeys`);
     - run the same listing from another `sfo` service.
 
+### 6.1 The first scheduled runs (2026-10-30, deployment `1e251c3a`, log `dev_run_20261030_0730.jsonl`)
+
+| Tick (UTC) | What happened |
+|---|---|
+| 00:03 (07:00 WIB, check) | `skipped` (not a run time); `check` of 19:00 WIB 2026-10-29: `published` true (last `2026-10-29T15:23:23`, the manual run) |
+| 00:32 (07:30 WIB, run) | manifests read in 31.3 s; `files` 0 (prices through 2026-10-29 and broker through 2026-10-27, both unchanged); xsection 43.8 s (same bytes); `done` 91.5 s after the start, `state.json` at 00:33:57 |
+| 00:36-00:42 | the cleanup after `state.json`: three `bucket_retry` `ReadTimeoutError` (2, 4, 8 s), then `gc_failed` `ReadTimeoutError` at 00:42:46, 9 minutes after the publication; nothing deleted, nothing delayed |
+| 01:00 (08:00 WIB, check) | `check` of 07:30 WIB: `published` true (`2026-10-30T00:33:57`); no alert needed, none sent |
+
+- **Healthy:** the run published 91.5 s after its start (`broker_behind_sessions` 2: Stockbit's broker data had not
+  come in). The check ticks work as designed.
+- **Still not measured:** no data file changed, so the parallel write path has still not run on dev. The 19:00 WIB
+  run (new prices) measures it. The change of section 7 does not touch the write path: everything before
+  `state.json` is the same code, so the `done` line's phases stay comparable.
+- **Same failure as section 6:** the whole-bucket listing hung again from the publisher's container (M301).
+
 ## 7. Deleting what a run replaced, after the switch (user 2026-10-29: "Ok setuju"; not yet deployed)
 
 The user's idea (2026-10-29): "ketika file di storage sudah fully updated, maka langsung di-switch aja storage akan
