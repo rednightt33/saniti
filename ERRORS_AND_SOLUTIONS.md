@@ -4491,6 +4491,80 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **Lesson:** a render function must be safe to run again. A one-time change of the page belongs behind an existence
   check.
 
+### M312 — Terminal front-end audit: legend flicker, dead dialog after Esc, undo duplicates, phone overflow, and more (2026-10-30)
+
+Two auditor agents (Sonnet, effort medium) checked the Terminal on dev data. User 2026-10-30: "Lakukan audit Front
+end, minta 2 agent Sonnet 5.5 medium to inspect visually dan secara interaksi animasi juga".
+- **V** checked how it looks: 16 findings.
+- **I** checked interactions and animation: 17 findings.
+
+Each finding was reproduced again after its fix. Tools are in `verification/terminal_api/frontend_audit/`
+(`audit_server.py`, `audit_page.py`). Fixes are in commits `3f8e6d77` and `1041ec88`.
+
+**Fixed.** Each item gives the verified cause, then the class of problem.
+- **I1, I6: legend flicker, about 120 changes per second.**
+  - Cause: the eye, gear and remove buttons sat after the values. A value's width depends on the hovered candle, so the
+    buttons moved under a resting pointer. The pointer left the chart, the crosshair cleared, the width changed, and
+    the cycle repeated.
+  - Class: a control whose position depends on content that its own hover changes.
+  - Fix (live): the buttons sit after the name and appear on hover.
+  - Re-test: 0 mutations in 2 s, and the gear x did not move.
+- **I2, I10: Esc during the "On chart" date pick left a stuck pick layer and a dead dialog.**
+  - Cause: the dialog's capture-phase key handler swallowed Esc while the dialog was hidden.
+  - Class: two modal layers listening to the same key.
+  - Fix:
+    - a hidden dialog ignores keys;
+    - every pick that ends without a range calls its caller back (`selectRangeOnChart(done, cancelled)`);
+    - the hint has a Cancel button, because a touch screen has no Esc.
+- **I3: undo after remove lost the edit steps, and redo added a second copy.**
+  - Cause: each history step held an indicator object that a revive had already replaced.
+  - Class: identity by object across delete and restore.
+  - Fix: a history id that survives a revive, and a revive that never adds a second copy.
+- **V5, I4: on a phone the chart and its right axis ran 42 px past the screen, and the legend buttons were off-screen.**
+  - Cause: the centre column's implicit grid track took the toolbar's min-content width (432 px on a 390 px phone).
+  - Fix: `minmax(0,1fr)` (live), plus legend rows that end with an ellipsis.
+- **An index without volume: FL27 and FL28 read the histogram's 0 ("Rp 0").**
+  - Cause: `live.ts` gave the volume histogram 0 for a null volume, and the Flow indicators read that 0.
+  - Class: a display filler read as data.
+  - Fix:
+    - a candle without volume carries `none` and is null for the calculations;
+    - the legend says "No volume for this ticker";
+    - which indicators read no broker rows is derived by computing each one without broker rows, not listed.
+- **The rest:**
+  - V1: legends on a backdrop.
+  - V2/I13: the price pane keeps about 45 % of the height.
+  - V3/I9: the FL34 note while the classification is loading or missing.
+  - V4/V7/V9: Flow dialog widths, the date field, and a scroll shadow.
+  - V8: tooltips in plain Indonesian.
+  - V11: the FL23 colours equal the inventory panel's.
+  - V13: a mark's "No" in plain text.
+  - V14: the Bandar section starts on Top 3 also without broker data.
+  - I5: dialog focus on the first visible control.
+  - I7: keyboard use of the indicator menu.
+  - I8: fields shown only for their scope, and rule defaults named.
+  - I12: anchored indicators recompute at most every 120 ms.
+  - I15: no focus ring left on the gear.
+  - I16: number fields state their range.
+
+**Not changed, with the reason** (reported to the user):
+- **Reference design, or behaviour that predates this work:**
+  - V6: the Broker panel is not shown on a phone.
+  - V10: an index's zero volume bars look like a dashed line.
+  - V12: guide lines without labels, the same as RSI and MACD.
+  - V14: "Tidak ada data" in the panels.
+  - V15: the Bandar bar layout.
+  - V16: colour by slot.
+  - I14: no panel animation.
+  - I17: the range calendar's Custom toggle, and days after the last data day can be picked.
+- **Chart library behaviour (lightweight-charts):** I11, the axis width stays wider after panes are removed.
+- **Browser locale:** the date field's mm/dd/yyyy format.
+
+**Status:** FIXED on the branch (not yet deployed). Page and console errors: none in either audit.
+
+**Lesson:**
+- A layout must not move a control in response to that control's own hover.
+- A filler value for drawing (0 for a missing volume) must never reach a calculation; carry the absence beside it.
+
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
 Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate
