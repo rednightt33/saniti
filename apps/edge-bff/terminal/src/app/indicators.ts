@@ -473,10 +473,10 @@ export function initIndicators(ctx: Ctx) {
     const row = (label, ctl, hint?, cls = '') => { const l = document.createElement('label'); l.className = 'idlg-row' + cls; const s = document.createElement('span'); s.textContent = label; if(hint) s.title = hint; l.append(s, ctl); return l };
     const numInput = (f, store_, recomputes, isInt) => {
       const inp: any = document.createElement('input'); inp.type = 'number'; inp.className = 'idlg-in'; inp.min = f.min; inp.max = f.max; inp.step = isInt ? 1 : f.step; inp.value = store_[f.key];
-      if(def.flow) inp.title = `From ${f.min} to ${f.max}`;              // the range (audit I16), Flow only: the fixture's dialogs stay 1:1
-      const okv = v => Number.isFinite(v) && (!isInt || Number.isInteger(v)) && v >= f.min && v <= f.max;
+      if(def.flow) inp.title = `${f.minExclusive ? 'Above' : 'From'} ${f.min}${f.max < 1e12 ? ` to ${f.max}` : ''}`;              // the range (audit I16), Flow only: the fixture's dialogs stay 1:1
+      const okv = v => Number.isFinite(v) && (!isInt || Number.isInteger(v)) && (f.minExclusive ? v > f.min : v >= f.min) && v <= f.max;
       inp.oninput = () => { const v = inp.valueAsNumber; inp.classList.toggle('bad', !okv(v)); if(okv(v)) { store_[f.key] = v; live(recomputes) } };
-      inp.onchange = () => { let v = inp.valueAsNumber; if(!Number.isFinite(v)) v = f.def; v = Math.min(f.max, Math.max(f.min, isInt ? Math.round(v) : v)); inp.value = v; inp.classList.remove('bad'); store_[f.key] = v; live(recomputes) };
+      inp.onchange = () => { let v = inp.valueAsNumber; if(!Number.isFinite(v) || f.minExclusive && v <= f.min) v = f.def; v = Math.min(f.max, Math.max(f.min, isInt ? Math.round(v) : v)); inp.value = v; inp.classList.remove('bad'); store_[f.key] = v; live(recomputes) };
       return inp;
     };
     let cpop = null;

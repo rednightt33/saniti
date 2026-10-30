@@ -121,7 +121,7 @@ export function initFlowIndicators(ctx: Ctx) {
         case 'brokers': return { ...base, kind:'brokers', def:q.default, max:q.max ?? undefined, resolve:brokersOf, tokenLabel,
           ...(hasScope ? { when:(p: any) => p.scope === 'selected' } : {}) };
         case 'int': return { ...base, kind:'int', min:q.min ?? 1, max:q.max ?? 5000, def:q.default };
-        case 'num': return { ...base, kind:'num', min:q.min ?? -1e12, max:q.max ?? 1e12, step:'any', def:q.default };
+        case 'num': return { ...base, kind:'num', min:q.min ?? -1e12, max:q.max ?? 1e12, minExclusive:!!(q as any).min_exclusive, step:'any', def:q.default };
         case 'bool': return { ...base, kind:'bool', def:!!q.default };
         case 'date': return { ...base, kind:'date', def:'view', first:firstVisible };
         case 'button': return { ...base, kind:'button', reset:['inst', 'retail'] };

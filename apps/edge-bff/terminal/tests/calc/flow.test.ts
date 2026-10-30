@@ -143,8 +143,13 @@ describe('cost basis', () => {
 describe('streaks, persistence, spikes and percentiles', () => {
   it('FL26 counts consecutive net buying (+) or selling (-) days, capped at the limit', () => {
     const rows = [r(D[0], 'A', 10, 0, 1, 0), r(D[1], 'A', 10, 0, 1, 0), r(D[2], 'A', 0, 5, 0, 1), r(D[3], 'A', 0, 5, 0, 1), r(D[4], 'A', 1, 1, 1, 1)];
-    expect(computeFlow('FL26', ctx(rows, D), { scope:'all', window:60 }).value).toEqual([1, 2, -1, -2, 0]);
-    expect(computeFlow('FL26', ctx(rows, D), { scope:'all', window:1 }).value.slice(0, 2)).toEqual([1, 1]);
+    const all = ['Foreign', 'Domestic'];          // FL26's agreed default investor is Foreign; these rows are Domestic
+    expect(computeFlow('FL26', ctx(rows, D), { scope:'all', window:60, investors:all }).value).toEqual([1, 2, -1, -2, 0]);
+    expect(computeFlow('FL26', ctx(rows, D), { scope:'all', window:1, investors:all }).value.slice(0, 2)).toEqual([1, 1]);
+    // a parameter left out takes the registry default (Reviewer A, A4: without `scope` FL26 ranked a Top-3 cohort)
+    expect(computeFlow('FL26', ctx(rows, D), { window:60, investors:all }).value).toEqual([1, 2, -1, -2, 0]);
+    // the default Foreign filter on Domestic rows: the candles have data but no net, so the streak is 0 (not null)
+    expect(computeFlow('FL26', ctx(rows, D), { scope:'all', window:60 }).value).toEqual([0, 0, 0, 0, 0]);
   });
   it('FL12 the share of window days the cohort bought (#17: 4 of 5 = 80%)', () => {
     const rows = [0, 1, 2, 3].map(k => r(D[k], 'A', 10, 0, 1, 0)).concat([r(D[4], 'A', 0, 1, 0, 1), r(D[4], 'B', 0, 0, 1, 1)]);

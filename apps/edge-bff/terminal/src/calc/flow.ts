@@ -13,6 +13,8 @@
    backtest/src/core/datafile.ts brokerRows, so the three show the same numbers.
    ========================================================================== */
 
+import REG from '../data/flowRegistry.json';
+
 export type Num = number | null;
 export type Series = Num[];
 export type FlowParams = Record<string, any>;
@@ -553,8 +555,17 @@ export const FLOW: Record<string, Fn> = {
 
 for (const id of Object.keys(FLOW)) { const fn = FLOW[id]; FLOW[id] = (c, p) => { ctxRows = c.rows; return fn(c, p) } }
 
+/* A parameter the caller leaves out takes the agreed default of the registry (FLOW_INDICATORS_SPEC.xlsx, Parameter_Terminal),
+   never a fallback written in a function: FL26 without `scope` read 'all' in one place and 'topn' in another (Reviewer A,
+   A4, 2026-10-30). The Terminal always sends every parameter; the Screener and the Backtest may not. */
+const DEFAULTS: Record<string, FlowParams> = Object.fromEntries((REG as any).indicators.map((r: any) =>
+  [r.id, Object.fromEntries(r.params.filter((q: any) => q.default !== undefined && q.kind !== 'button' && q.kind !== 'fixed').map((q: any) => [q.key, q.default]))]));
+export const flowDefaults = (id: string): FlowParams => structuredClone(DEFAULTS[id] || {});
+
 /** Run one indicator; an unknown id answers no output. */
 export function computeFlow(id: string, ctx: FlowContext, params: FlowParams): FlowOut {
   const fn = FLOW[id];
-  return fn ? fn(ctx, params) : {};
+  if (!fn) return {};
+  const given = Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined));
+  return fn(ctx, { ...flowDefaults(id), ...given });
 }

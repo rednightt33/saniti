@@ -127,7 +127,9 @@ def param(row):
         p.update(kind='levels', default='' if default in ('', 'None') else default)
     elif control.startswith('Angka'):
         lo, hi = span(choices)
-        p.update(kind='num', default=number(default), **({'min': lo} if lo is not None else {}), **({'max': hi} if hi is not None else {}))
+        p.update(kind='num', default=number(default), **({'min': lo} if lo is not None else {}), **({'max': hi} if hi is not None else {}),
+                 # '> 0' excludes its bound (Reviewer A, A5: FL09's size-ratio threshold accepted 0)
+                 **({'min_exclusive': True} if str(choices).strip().startswith('>') else {}))
     elif control == 'Centang':
         p.update(kind='bool', default=OPTIONS[default][0])
     elif control.startswith('Tanggal'):

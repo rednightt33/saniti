@@ -2196,6 +2196,15 @@ change yet.
 - **Solution (usulan, perlu keputusan user):** isi ulang harga dua tanggal itu (backfill, perlu go); halaman memberi
   tanda bila ada tanggal broker di luar sesi harga pada rentang terlihat.
 - **Status:** OPEN.
+- **Tambahan 2026-10-30 (EXEC-TERMINAL-FLOW-IND, Reviewer A):** 39 indikator Flow mewarisi celah ini. Baris broker
+  dua tanggal itu tidak masuk candle mana pun (`worker.ts` `flowRowsOf`), sehingga setiap jendela yang melintasinya
+  mundur dua sesi lebih jauh, dan setiap nilai kumulatif kehilangan dua sesi. Contoh dengan dua sesi itu ditambahkan
+  sebagai candle:
+  - BBCA FL24 (Top 3, 10 hari) pada 2026-09-24: −6,23 % menjadi −3,93 %;
+  - BBCA FL01 (5 hari): 145,45 menjadi 126,34;
+  - BBCA FL19 (anchor 2026-08-03) pada 2026-10-23: 5.636,58 menjadi 5.677,19.
+
+  Perbaikannya tetap pengisian harga yang diusulkan (F3, menunggu keputusan user).
 - **Lesson:** penyejajaran antar-sumber harus melaporkan tanggal yang tidak cocok, bukan membuangnya tanpa jejak.
 
 ### EXEC-TERMINAL-UI-1026 — selesai (2026-10-26)

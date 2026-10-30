@@ -35,13 +35,20 @@ Later the Screener and the Backtest use the same module on the same raw data.
     or net sell `Σ(sv-bv)`. Only brokers with score > 0 are eligible; the N highest are taken (ties: broker code A-Z).
     The cohort is recomputed at every candle ("Hitung ulang tiap hari").
   - Frozen Top-N (FL18-FL20, user 2026-10-30: "yes pakai kelompok broker tetap untuk ketiganya"): ranked once over the
-    candles from the anchor to the last candle with data, then kept for every candle.
+    candles from the anchor to the last candle with data, then kept for every candle. The ranking sees candles after `t`
+    (it is the cohort of the whole period on the chart): a Backtest or a Screener rule must not read it as known at `t`
+    (Reviewer A, A8, 2026-10-30).
 - **Bandar** (user 2026-10-30): the N largest net buyers by net buy (IDR) over the indicator's window, recomputed every
   candle; the bandar sellers are the N largest net sellers by `Σ(sv-bv)` (eligible when > 0). Default N = 3.
 - **Percentile** (mid-rank): `P = 100 x (count(v < x) + 0.5 x count(v = x)) / count`, over the non-null values `v` of
   the same series at the `baseline` candles before `t` (`t` itself excluded). Null when `x` is null, when fewer than
   `baseline` candles precede `t` since the series' first non-null value, or when none of them is non-null.
 - **Default anchor** (FL18-FL20, FL23): the first visible candle; the values follow the chart's view.
+- **Defaults**: a parameter the caller leaves out takes its default in the registry (`flowRegistry.json`, from
+  `Parameter_Terminal`), never a fallback inside a formula (`computeFlow`; Reviewer A, A4).
+- **Candles without a price**: the candles are the price dates. A broker session on a date the price table lacks is not
+  on any candle (2026-09-17 and 2026-09-18 for almost every stock, an open price-table gap: ERRORS_AND_SOLUTIONS M238);
+  windows that span those dates reach two sessions further back (Reviewer A, A1).
 - **Default brokers of FL23** (`top3_net_buy_20`): the three largest net buyers by `Σ(bv-sv)` (all boards, all
   investors) over the last 20 candles with data, as the Broker inventory panel picks them.
 - **Default lists of FL34** (`class:Institutional-heavy`, `class:Retail-heavy`): the brokers of that classification in
@@ -81,7 +88,7 @@ draws the Buy and the Sell line in one panel.
 | FL23 | Broker Inventory | one line per broker, total | per chosen broker (and, when "Show cohort total", their sum): from the start candle, Lot: cumulative `Σ(bl-sl)`, Value: cumulative `Σ(bv-sv)`; Daily: the candle's own `bl-sl` or `bv-sv`; null before the start |
 | FL24 | Bandar Balance · % | balance | `100 (NB + NS) / TBV(filter)`; `NB` = sum of `BV-SV` of the N bandar buyers, `NS` = sum of `BV-SV` (negative) of the N bandar sellers, over the window; `TBV(filter) = BV(A)` with the filter; reference lines 6, 10, -6, -10 |
 | FL25 | Bandar Balance · Rupiah | net | `NB + NS` (IDR) |
-| FL26 | Net Flow Streak | streak | per candle net `n_k = BV_k(C)-SV_k(C)` (`C` ranked over the last `limit` candles); `s_t = s_{t-1}+1` if `n_t > 0` and `s_{t-1} > 0`, `1` if `n_t > 0` otherwise; `s_{t-1}-1` if `n_t < 0` and `s_{t-1} < 0`, `-1` if `n_t < 0` otherwise; 0 when `n_t = 0` or no row; capped at `±limit` |
+| FL26 | Net Flow Streak | streak | per candle net `n_k = BV_k(C)-SV_k(C)` (`C` ranked over the last `limit` candles); `s_t = s_{t-1}+1` if `n_t > 0` and `s_{t-1} > 0`, `1` if `n_t > 0` otherwise; `s_{t-1}-1` if `n_t < 0` and `s_{t-1} < 0`, `-1` if `n_t < 0` otherwise; 0 on a candle with data where `n_t = 0` (no row of the cohort or the filter); null on a candle without data, after which the count starts again; capped at `±limit` |
 | FL27 | Silent Accumulation | flag | 1 when `SMA(volume,recent)_t / SMA(volume,baseline)_{t-recent} >= volume x` and `100 |close_t/close_{t-recent} - 1| <= max move`; drawn as a mark under the candle |
 | FL28 | Average Daily Value | adv | `SMA(close x volume, sessions)` (IDR) |
 | FL29 | Bandar Balance · Accumulation Days | ratio | `100 x` (candles in the last `days` whose own one-candle FL24 (N, filter) is above the threshold) / `days` |

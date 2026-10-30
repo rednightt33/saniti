@@ -14,6 +14,7 @@ import json
 import random
 import subprocess
 import sys
+import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -41,10 +42,15 @@ doc = lambda k: json.loads(gzip.decompress(raw(k)))
 
 
 def sql(q):
-    r = pgq.q(q)
-    if 'error' in r:
-        raise SystemExit('pgweb: ' + str(r['error'])[:300])
-    return r['rows']
+    """pgweb allows a few connections per role (other read-only checks may hold some): a refusal is tried again"""
+    for attempt in range(6):
+        r = pgq.q(q)
+        if 'error' not in r:
+            return r['rows']
+        if 'too many connections' not in str(r['error']):
+            break
+        time.sleep(3 + 4 * attempt)
+    raise SystemExit('pgweb: ' + str(r['error'])[:300])
 
 
 state = json.loads(raw('state.json'))
@@ -117,7 +123,7 @@ def check(t):
     return t, len(want), sum(w[0] for w in want.values()), problems
 
 
-with ThreadPoolExecutor(6) as ex:
+with ThreadPoolExecutor(2) as ex:   # two pgweb connections at most
     results = list(ex.map(check, tickers))
 bad = [r for r in results if r[3]]
 for t, years, rows, problems in results:

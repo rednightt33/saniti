@@ -1255,7 +1255,8 @@
      "status": "DECIDED",
      "kind": "num",
      "default": 2.0,
-     "min": 0
+     "min": 0,
+     "min_exclusive": true
     },
     {
      "key": "part_min",
