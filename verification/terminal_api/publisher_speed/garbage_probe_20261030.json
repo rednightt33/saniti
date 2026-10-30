@@ -1,0 +1,20 @@
+{
+ "objects": 19759,
+ "bytes_mb": 756.1,
+ "named_by_current_publication": 15812,
+ "unused_objects": 2256,
+ "unused_mb": 13.7,
+ "unused_by_family": {
+  "pack": {
+   "objects": 602,
+   "mb": 9.9
+  },
+  "price": {
+   "objects": 1654,
+   "mb": 3.8
+  }
+ },
+ "unused_oldest": "2026-10-25T06:53:19+00:00",
+ "unused_newest": "2026-10-28T12:29:58+00:00",
+ "state_finished_at": "2026-10-30T01:58:55.441391+00:00"
+}

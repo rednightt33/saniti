@@ -8905,6 +8905,14 @@ berdasarkan inspeksi kode, log dan data live saat itu, bukan ingatan (AGENTS.md 
   - Bukti: 120 tes lulus; 22 mutasi aturan baru masing-masing digagalkan tes
     (`verification/terminal_api/publisher_speed/PUBLISHER_SPEED.md` bagian 7).
   - Sisa: deploy dev setelah run 07:30 WIB 2026-10-30 diperiksa, lalu satu run terukur dan cek pembaca.
+- **Status 2026-10-30:** di dev.
+  - Run 07:30 WIB (kode lama) sehat: terbit 91,5 s, 0 file (tidak ada data baru); listing bersih-bersih macet lagi.
+  - PR rednightt33/saniti#47 (merge `32ef4d7`); publisher RUN `f3e3a64c`, SCHED `8d4e509c`; cron
+    `0,30 0,1,12 * * *`. Upload pertama `be0d8c21` hanya mengecek karena terlalu dekat tick 08:30 WIB (M229).
+  - Run manual: `state.json` 86,3 s, tidak ada file yang digantikan, log listing per folder muncul. Cek terminal-api,
+    Backtest E2E dan Screener lulus (M307 diperbaiki di script cek).
+  - Sisa: run 19:00 WIB membuktikan penghapusan sesudah jeda dan listing lengkap; 2.256 objek lama (13,7 MB) menunggu
+    listing itu.
 
 **Persetujuan, 2026-10-29 (kata user):** "A alright", atas pilihan "Opsi A — Screener dinyalakan malam ini, perbaikan
 publisher besok"; sebelumnya: "Boleh lakukan pengecekan berapa lama proses publisher memindahkan data dari Postgres ke

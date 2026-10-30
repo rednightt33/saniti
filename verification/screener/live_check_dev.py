@@ -84,10 +84,12 @@ SCREENS = {
     'macd_hist_gt_0': {'kind': 'value', 'metric': ind('I06', 'histogram'), 'op': 'gt', 'value': 0},
     'adx14_gt_25': {'kind': 'value', 'metric': ind('I07', 'adx'), 'op': 'gt', 'value': 25},
 }
-seq = 0
+# edge-bff keeps the latest order per (owner, page) while it runs, so each check is its own page: with one fixed page a
+# second check's seq 1-3 answered 409 SCREEN_REPLACED at once (2026-10-30, ERRORS M307)
+page, seq = f'live-check-{int(time.time())}', 0
 for name, test in SCREENS.items():
     seq += 1
-    body = {'schema_version': 1, 'client_order': {'page': 'live-check', 'seq': seq},
+    body = {'schema_version': 1, 'client_order': {'page': page, 'seq': seq},
             'definition': {'universe': WIDE, 'conditions': [{'id': 'a', 'enabled': True, 'test': test}], 'logic': 'all'}}
     s, ans, ms = call('POST', '/api/v1/screener/run', body)
     rows = (ans or {}).get('rows', [])

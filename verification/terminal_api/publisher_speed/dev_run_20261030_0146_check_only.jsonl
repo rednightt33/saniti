@@ -1,0 +1,3 @@
+{"timestamp": "2026-10-30T01:46:58.357923528Z", "message": "", "run_times_wib": "07:30,19:00", "level": "info", "event": "skipped", "reason": "cron tick is not a listed run time", "cron": "0,30 0,1,12 * * *"}
+{"timestamp": "2026-10-30T01:46:58.590771085Z", "message": "Starting Container", "level": "info"}
+{"timestamp": "2026-10-30T01:46:58.853060272Z", "message": "", "run_time": "2026-10-30 07:30 WIB", "last_published": "2026-10-30T00:33:57.526788+00:00", "level": "info", "event": "check", "published": true}
