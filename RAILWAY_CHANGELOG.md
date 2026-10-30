@@ -5321,3 +5321,39 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
     passed).
   - Probe: 0 named objects missing, 3,383 unused (ERRORS M301, corrected root cause: the delete request, not the
     listing).
+
+## 2026-10-30 — terminal-publisher `80610002`, `4b550c4f`, `4634b7f5`; edge-bff `327aaf47`; screener-worker `c7775f95` (EXEC-TERMINAL-FLOW-IND S2, S6)
+
+Go of the user 2026-10-30 ("Alright, please proceed.", then "Oke, jalan kan."): the broker files carry the transaction
+counts `bf`/`sf` and `ref/brokers` the broker classification, for the 39 Flow indicators of the Terminal.
+
+**terminal-publisher** (commit `95035b25`, tree `4fad1eca5bfdaf7f1deae0c32d0166b24bcaff47`), M229 option A, after the
+B6 window:
+
+| Step | Detail | Result |
+|---|---|---|
+| 1 | `cronSchedule` null (read back) | — |
+| 2 | Variables with `--skip-deploys`: `TERMINAL_PUBLISH_MODE=broker-range`, `TERMINAL_FROM=2016-01-01`, `TERMINAL_TO=2026-10-30`, `TERMINAL_TICKERS=BBCA,TLKM,BBRI,GOTO,WIFI` | — |
+| 3 | Rehearsal `80610002`, 13:25 UTC | 55 planned, 50 written, 20.68 MB, 51.5 s; `ref/brokers` uploaded with `classification`; 51 replaced objects deleted after 600 s |
+| 4 | Rehearsal check (bucket and SQL, read-only) | TLKM and GOTO 2025 and 2026 rows and `bf`/`sf` sums equal Feature 05 (TLKM 2025: 19,750 rows, 3,565,824 transactions each side); the archive packs carry `bf` on every row |
+| 5 | `TERMINAL_TICKERS=` (empty, `--skip-deploys`), full run `4b550c4f`, 13:38 UTC | 9,284 planned, 7,852 written, 794.55 MB, 844 tickers, 2,145 s (files 1,356 s, packs 755 s); xsection and refs without failure; `state.json` 14:13:43 UTC |
+| 6 | Deletion of what the run replaced | `replaced_failed` `ReadTimeoutError` at 14:32 UTC: the 7,852 replaced objects stay in the bucket, unreferenced (ERRORS M301, the delete request times out; PLAN PUBLISHER-CLEANUP-MANUAL) |
+| 7 | Restore the schedule | `cronSchedule "0,30 0,1,12 * * *"` (read back, `nextCronRunAt` 2026-10-31 00:00 UTC); `TERMINAL_PUBLISH_MODE=daily`; `TERMINAL_FROM`, `TERMINAL_TO`, `TERMINAL_TICKERS` deleted; SCHED upload `4634b7f5` SUCCESS 14:33 UTC, no run (no log) |
+
+- **Check after the run** (`verification/terminal_api/flow_indicators/storage_freq_check.py`, read-only):
+  - BBCA, TLKM, BBRI, GOTO, WIFI and 30 random stocks (fixed seed), every year: rows and the sums of bv, sv, bl, sl, bf
+    and sf of the yearly files equal Feature 05; each archive pack equals the yearly files of its years. 35 of 35 OK.
+  - `ref/brokers` columns `code, name, type, classification`: 25 Institutional-heavy, 19 Retail-heavy, 23 Mixed,
+    45 Niche, equal to `IDX_Broker_Profile`.
+- **IaC:** `railway config plan`: "Your Railway configuration is already up to date." (run without a `timeout` wrapper:
+  the SDK reads the CLI version from `$_`).
+- **Rollback:** CLI upload of the `apps/terminal-publisher` tree of `32ef4d7` (M229 option A). Files with the extra
+  columns stay readable by every reader (columns by name), so no reverse republish is needed.
+
+**edge-bff and screener-worker:** `main` `83d8c169` (branch `claude/laughing-goodall-x2dkmt`, merged with `main`
+`ef731479` first).
+- edge-bff `327aaf47` SUCCESS 14:13 UTC: `/terminal-app/` 200; bundle `index-Ejyt-C3G.js` byte-equal to the local
+  build (sha256 `2208034193fe949e…`).
+- screener-worker `c7775f95` SUCCESS (its engine version covers `terminal/src/calc`): `start`, snapshot `swap`, then
+  `refresh_skipped` "same files and reference" for the 14:13:43 publication.
+- No variable changed.
