@@ -1235,6 +1235,9 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
      Screener fpart/fsurprise.
    - Registry mengikuti `Parameter_Terminal`.
    - Contoh FL37 TLKM 2026-10-23: 84,0 (Top 3) lawan 0,8 (semua broker).
+   - **DIPUTUSKAN user 2026-10-30: "2A pakai top 3".** Default FL36/FL37 tetap Top-N cohort, Top 3, Foreign, seperti
+     `Parameter_Terminal` dan registry yang sudah live. Kode tidak berubah. "Semua broker" di sheet Screener berlaku
+     untuk metrik Screener fpart/fsurprise sendiri, bukan default indikator Terminal.
 3. **Pengelompokan menu (Reviewer B, B7).** "Flow · Other" berisi 8 indikator yang tidak saling terkait:
    - FL09, FL27, FL28, FL29, FL30, FL31, FL32, FL33 (lihat registry).
 
