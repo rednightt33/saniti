@@ -1,5 +1,6 @@
 /* The data the terminal draws, in the reference page's own shapes (03-terminal-right-panel.html). Two sources fill it:
    fixture.ts (the reference's synthetic generator, for the 1:1 check) and live.ts (the published files of the rack). */
+import type { FlowRows } from '../calc/flow';
 
 export interface Bar { time: string; open: number; high: number; low: number; close: number }
 export interface Point { time: string; value: number }
@@ -27,7 +28,11 @@ export interface AssetFlowPart { combos: Combo[]; flowFrom: number; flowTo: numb
 export interface AssetFlow { recent: Promise<AssetFlowPart>; all: Promise<AssetFlowPart>; through?: string }
 
 /** live broker data that arrives after the first draw: the recent years first, then the whole history (F5) */
-export interface LateBroker { combos: Combo[]; flowFrom: number; flowTo: number; broker: MarketData['broker'] }
+/** flow (EXEC-TERMINAL-FLOW-IND): the raw broker rows on the chart's candles, for the Flow indicators (calc/flow.ts) */
+export interface LateBroker { combos: Combo[]; flowFrom: number; flowTo: number; broker: MarketData['broker']; flow?: FlowRows }
+
+/** an insider transaction of the events file: its date and signed value (BUY +, SELL −; IDR) */
+export interface InsiderTx { d: string; value: number }
 
 export interface MarketData {
   mode: 'fixture' | 'live';
@@ -47,6 +52,10 @@ export interface MarketData {
   loadIhsg?(): Promise<Point[]>;
   /** live: the broker data, after the first draw (Flow Timeline, then Broker activity when its panel is open) */
   later?: { broker: Promise<LateBroker>; brokerAll: Promise<LateBroker> };
+  /** EXEC-TERMINAL-FLOW-IND, live: the insider transactions of the events file, and each broker's classification
+      (ref/brokers `classification`: Institutional-heavy, Retail-heavy, Mixed, Niche) */
+  loadInsider?: () => Promise<InsiderTx[]>;
+  brokerClass?: Promise<Record<string, string>>;
   combos: Combo[];
   flowSource: 'synthetic' | 'real';
   /** first session index that has broker data (0 in the fixture) */

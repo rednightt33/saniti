@@ -1,7 +1,7 @@
 // EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): the Flow indicators against hand-computed values, the spreadsheet's own
 // illustrations (FLOW_INDICATORS_SPEC.xlsx, column "Example Illustration") and the conventions of FORMULAS.md.
 import { describe, expect, it } from 'vitest';
-import { computeFlow, defaultInventoryBrokers, flowRows, percentile, type FlowContext } from '../../src/calc/flow';
+import { above, atLeast, atMost, computeFlow, defaultInventoryBrokers, flowRows, percentile, type FlowContext } from '../../src/calc/flow';
 import REG from '../../src/data/flowRegistry.json';
 
 type Row = { d: string; b: string; i: string; m: string; bv: number; sv: number; bl: number; sl: number; bf?: number | null; sf?: number | null };
@@ -178,5 +178,36 @@ describe('Broker Inventory and the classification lists', () => {
       { classification:{ II:'Institutional-heavy', RR:'Retail-heavy', XX:'Mixed' } });
     near(computeFlow('FL34', c, { window:1, inst:'class:Institutional-heavy', retail:'class:Retail-heavy' }).value[0], 100 * (60 + 40) / 100);
     expect(computeFlow('FL34', c, { window:1, inst:['II'], retail:['II'] }).value[0]).toBeNull();
+    // the classification has not arrived (no list at all): no value, not a 0
+    const bare = ctx([r(D[0], 'II', 100, 40, 1, 1)], D);
+    expect(computeFlow('FL34', bare, { window:1, inst:'class:Institutional-heavy', retail:'class:Retail-heavy' }).value[0]).toBeNull();
+  });
+});
+
+// Found by the oracle comparison of 2026-10-30 (verification/terminal_api/flow_indicators/oracle_compare.ts): the class of
+// each defect, on a case other than the one observed.
+describe('exact sums and thresholds', () => {
+  it('a one-candle sum stays exact after a large running total with fractions (lots: odd lots, adjusted lots)', () => {
+    const dates = Array.from({ length:400 }, (_, k) => new Date(Date.UTC(2020, 0, 1 + k)).toISOString().slice(0, 10));
+    const rows = dates.map((d, k) => r(d, 'AA', 1e12, 0, k < 399 ? 123456789.37 : 0.26, 0, 1, 0));
+    const c = ctx(rows, dates);
+    expect(computeFlow('FL01', c, { scope:'selected', brokers:['AA'], window:1, side:'buy' }).buy[399]).toBe(0.26);
+    expect(computeFlow('FL17', c, { scope:'selected', brokers:['AA'], window:1 }).value[399]).toBe(1e12 / 26);
+  });
+  it('a value equal to the threshold in exact arithmetic passes >= and <=, and fails >', () => {
+    const move = 100 * Math.abs(1030 / 1000 - 1);                     // 3.0000000000000027 in floating point
+    expect(move > 3).toBe(true);
+    expect(atMost(move, 3)).toBe(true);
+    expect(atLeast(100 * (0.7 / 0.1 / 7), 100)).toBe(true);           // 99.99999999999999
+    expect(above(100 + 1e-13, 100)).toBe(false);
+    expect(above(100.001, 100)).toBe(true);
+    expect(above(1e-20, 0)).toBe(true);                                // a threshold of 0 stays exact
+    expect(atLeast(-1e-20, 0)).toBe(false);
+  });
+  it('FL27 counts a move of exactly the maximum as quiet (DAYA 2025-10-02: 1000 -> 1030, max 3%)', () => {
+    const dates = D.concat(['2026-01-12', '2026-01-13']), close = [1000, 1000, 1000, 1000, 1000, 1000, 1030];
+    const c = ctx([], dates, { close, volume:[100, 100, 100, 100, 100, 300, 300] });
+    expect(computeFlow('FL27', c, { recent:2, baseline:2, volx:3, move:3 }).value[6]).toBe(1);
+    expect(computeFlow('FL27', c, { recent:2, baseline:2, volx:3, move:2.9 }).value[6]).toBe(0);
   });
 });

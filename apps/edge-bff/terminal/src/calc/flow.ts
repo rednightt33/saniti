@@ -67,56 +67,96 @@ export function flowRows(rows: { d: string; b: string; i: string; m: string; bv:
 }
 
 /* ---- per-filter grid: per broker prefix sums over the candles (a window sum is two lookups) ----
-   Rupiah values and transaction counts are integers, so their prefix sums are exact (below 2^53); lots carry odd-lot
-   fractions, far below the size where a prefix difference loses a digit that matters. */
+   A prefix difference P[t+1] - P[a] carries the rounding of the cumulative total, not of the window: on a measure with
+   fractions (lots: odd lots, and lots adjusted for corporate actions such as BRPT 2016) a broker's running total of
+   1e8 lots leaves about 1e-8 lot of noise in a one-candle sum (BBCA 0.26 lot read as 0.2599999905, checked against the
+   oracle 2026-10-30). So a measure keeps a second, compensated array (`lo`, the running rounding error) whenever its
+   cells are not all integers or its total passes 2^53; the window sum is then exact to the last digit. Whole-number
+   measures below 2^53 (rupiah, transaction counts on today's data) need no second array: their prefix sums are exact. */
 const MEASURES = ['bv', 'sv', 'bl', 'sl', 'bf', 'sf'] as const;
 type Measure = typeof MEASURES[number];
+type Col = Measure | 'miss';                     // miss: rows without bf/sf
 interface Grid {
-  B: number; N: number;
-  pre: Record<Measure, Float64Array>;       // per broker prefix over candles: [b * (N + 1) + t + 1]
-  tot: Record<Measure, Float64Array>;       // all brokers prefix: [t + 1]
-  miss: Float64Array; missTot: Float64Array; // rows without bf/sf: per broker prefix, all brokers prefix
+  R: FlowRows; B: number; N: number;
+  keep: Int32Array;                              // the rows that pass the filter
+  pre: Partial<Record<Col, Float64Array>>;       // per broker prefix over candles: [b * (N + 1) + t + 1]
+  lo: Partial<Record<Col, Float64Array>>;        // its compensation, when the measure needs one
+  tot: Partial<Record<Col, Float64Array>>;       // all brokers prefix: [t + 1]
+  totLo: Partial<Record<Col, Float64Array>>;
+  cohorts: Map<string, Map<number, number[]>>;   // cohorts by rule, then by window (cohort)
 }
-/* a few filters per ticker are in use at once (each about 20 MB on the largest tickers): the last GRIDS are kept */
+/* a few filters per ticker are in use at once (up to about 15 MB each on the largest tickers, only the measures an
+   indicator reads are built): the last GRIDS are kept */
 const GRIDS = 4;
 const gridCache = new WeakMap<FlowRows, Map<string, Grid>>();
+
+/** running sums of `arr` in place over [o+1 .. o+n]; with `lo`, compensated (TwoSum) so hi + lo is the exact sum */
+function runSum(arr: Float64Array, lo: Float64Array | undefined, o: number, n: number) {
+  if (!lo) { for (let t = o + 1; t <= o + n; t++) arr[t] += arr[t - 1]; return }
+  let hi = 0, err = 0;
+  for (let t = o + 1; t <= o + n; t++) {
+    const x = arr[t], s = hi + x, bb = s - hi;
+    err += (hi - (s - bb)) + (x - bb); hi = s;
+    arr[t] = hi; lo[t] = err;
+  }
+}
+/** hi[j] + lo[j] - (hi[i] + lo[i]), exact before the final rounding */
+function diff(hi: Float64Array, lo: Float64Array | undefined, j: number, i: number): number {
+  const a = hi[j], b = hi[i], s = a - b;
+  if (!lo) return s;
+  const bb = s - a, e = (a - (s - bb)) + (-b - bb);
+  return s + (e + (lo[j] - lo[i]));
+}
 
 function grid(R: FlowRows, boards: readonly string[] | null, investors: readonly string[] | null): Grid {
   const bs = new Set((boards ?? BOARDS).map(boardIndex)), is = new Set((investors ?? INVESTORS).map(investorIndex));
   const key = [...bs].sort().join() + '|' + [...is].sort().join();
   let per = gridCache.get(R); if (!per) gridCache.set(R, per = new Map());
   const hit = per.get(key); if (hit) { per.delete(key); per.set(key, hit); return hit }
-  const B = R.brokers.length, N = R.N, stride = N + 1;
-  const pre = {} as Grid['pre'], tot = {} as Grid['tot'];
-  for (const m of MEASURES) { pre[m] = new Float64Array(B * stride); tot[m] = new Float64Array(stride) }
-  const miss = new Float64Array(B * stride), missTot = new Float64Array(stride);
-  // cell sums first (into the slot t + 1), then running sums along each broker's row
-  for (let k = 0; k < R.n; k++) {
-    if (!bs.has(R.brd[k]) || !is.has(R.inv[k])) continue;
-    const at = R.b[k] * stride + R.t[k] + 1, f = R.bf[k], s = R.sf[k];
-    pre.bv[at] += R.bv[k]; pre.sv[at] += R.sv[k]; pre.bl[at] += R.bl[k]; pre.sl[at] += R.sl[k];
-    if (Number.isNaN(f) || Number.isNaN(s)) miss[at] += 1; else { pre.bf[at] += f; pre.sf[at] += s }
-  }
-  for (const arr of [...MEASURES.map(m => pre[m]), miss]) {
-    const t2 = arr === miss ? missTot : tot[MEASURES.find(m => pre[m] === arr)!];
-    for (let b = 0; b < B; b++) { const o = b * stride; for (let t = 1; t <= N; t++) { t2[t] += arr[o + t]; arr[o + t] += arr[o + t - 1] } }
-    for (let t = 1; t <= N; t++) t2[t] += t2[t - 1];
-  }
-  const g: Grid = { B, N, pre, tot, miss, missTot };
+  const okB = [0, 1, 2].map(x => bs.has(x)), okI = [0, 1].map(x => is.has(x)), keep = new Int32Array(R.n);
+  let n = 0;
+  for (let k = 0; k < R.n; k++) if (okB[R.brd[k]] && okI[R.inv[k]]) keep[n++] = k;
+  const g: Grid = { R, B:R.brokers.length, N:R.N, keep:keep.slice(0, n), pre:{}, lo:{}, tot:{}, totLo:{}, cohorts:new Map() };
   per.set(key, g);
   while (per.size > GRIDS) per.delete(per.keys().next().value!);
   return g;
 }
+/** build measure m of a grid on first use: cell sums (slot t + 1), then running sums per broker and over all brokers */
+function build(g: Grid, m: Col): Float64Array {
+  const { R, B, N, keep } = g, stride = N + 1, arr = new Float64Array(B * stride), t2 = new Float64Array(stride);
+  const { t, b, bf, sf } = R, col = m === 'miss' ? null : R[m], counts = m === 'bf' || m === 'sf';
+  for (let j = 0; j < keep.length; j++) {
+    const k = keep[j], at = b[k] * stride + t[k] + 1, gap = Number.isNaN(bf[k]) || Number.isNaN(sf[k]);
+    if (!col) { if (gap) arr[at] += 1 }
+    else if (!counts || !gap) arr[at] += col[k];
+  }
+  let exact = true, sum = 0;
+  for (let j = 0; j < arr.length; j++) { const x = arr[j]; if (x) { if (exact && !Number.isInteger(x)) exact = false; sum += Math.abs(x) } }
+  for (let k = 0; k < B; k++) { const o = k * stride; for (let i = 1; i <= N; i++) t2[i] += arr[o + i] }
+  const lo = !exact || sum >= 2 ** 53 ? new Float64Array(B * stride) : undefined, totLo = lo ? new Float64Array(stride) : undefined;
+  for (let k = 0; k < B; k++) runSum(arr, lo, k * stride, N);
+  runSum(t2, totLo, 0, N);
+  g.pre[m] = arr; g.tot[m] = t2; g.lo[m] = lo; g.totLo[m] = totLo;
+  return arr;
+}
 /** sum of measure m of broker b over candles a..t (inclusive) */
-const bw = (g: Grid, m: Measure | 'miss', b: number, a: number, t: number) => {
-  const p = m === 'miss' ? g.miss : g.pre[m], o = b * (g.N + 1);
-  return p[o + t + 1] - p[o + a];
+const bw = (g: Grid, m: Col, b: number, a: number, t: number) => {
+  const o = b * (g.N + 1), hi = g.pre[m] ?? build(g, m);
+  return diff(hi, g.lo[m], o + t + 1, o + a);
 };
 /** sum over every broker of measure m over candles a..t */
-const aw = (g: Grid, m: Measure | 'miss', a: number, t: number) => { const p = m === 'miss' ? g.missTot : g.tot[m]; return p[t + 1] - p[a] };
+const aw = (g: Grid, m: Col, a: number, t: number) => {
+  if (!g.tot[m]) build(g, m);
+  return diff(g.tot[m]!, g.totLo[m], t + 1, a);
+};
 
 const div = (a: number, b: number): Num => b !== 0 && Number.isFinite(a) && Number.isFinite(b) ? a / b : null;
-const firstData = (R: FlowRows) => { for (let t = 0; t < R.N; t++) if (R.has[t]) return t; return R.N };
+const firsts = new WeakMap<FlowRows, number>();
+const firstData = (R: FlowRows) => {
+  let f = firsts.get(R);
+  if (f === undefined) { f = R.N; for (let t = 0; t < R.N; t++) if (R.has[t]) { f = t; break } firsts.set(R, f) }
+  return f;
+};
 const lastData = (R: FlowRows) => { for (let t = R.N - 1; t >= 0; t--) if (R.has[t]) return t; return -1 };
 /** the window a..t of length W ending at t, or null when t has no data or the window starts before the first data */
 function win(R: FlowRows, t: number, W: number): number | null {
@@ -126,6 +166,16 @@ function win(R: FlowRows, t: number, W: number): number | null {
 const series = (N: number): Series => new Array(N).fill(null);
 const int = (v: any, d: number) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 1 ? n : d };
 
+/* ---- a figure against the user's threshold ----
+   The figures are computed in floating point from exact data, so a value that equals the threshold exactly can land a
+   hair either side of it (DAYA 2025-10-02: 1000 -> 1030 is a 3% move, computed 3.0000000000000027, which failed
+   "move <= 3%"; checked against the oracle 2026-10-30). A difference below 1e-12 of the larger magnitude is equality,
+   so ">=" and "<=" hold and ">" does not. A threshold of 0 stays exact. */
+const near = (x: number, th: number) => Math.abs(x - th) <= 1e-12 * Math.max(Math.abs(x), Math.abs(th));
+export const atLeast = (x: number, th: number) => x >= th || near(x, th);
+export const atMost = (x: number, th: number) => x <= th || near(x, th);
+export const above = (x: number, th: number) => x > th && !near(x, th);
+
 /* ---- cohorts ---- */
 const SCORE: Record<string, (g: Grid, b: number, a: number, t: number) => number> = {
   net_buy:(g, b, a, t) => bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t),
@@ -133,19 +183,39 @@ const SCORE: Record<string, (g: Grid, b: number, a: number, t: number) => number
   net_sell:(g, b, a, t) => bw(g, 'sv', b, a, t) - bw(g, 'bv', b, a, t),
   gross_buy_lots:(g, b, a, t) => bw(g, 'bl', b, a, t),
 };
-/** the top `n` brokers by score over a..t (score > 0; ties by broker code) */
+/** the top `n` brokers by score over a..t (score > 0; ties by broker code). A selection, not a sort: N is small. */
 function topBrokers(g: Grid, R: FlowRows, a: number, t: number, n: number, basis: string): number[] {
-  const f = SCORE[basis] || SCORE.net_buy, out: [number, number][] = [];
-  for (let b = 0; b < g.B; b++) { const s = f(g, b, a, t); if (s > 0) out.push([b, s]) }
-  out.sort((x, y) => y[1] - x[1] || (R.brokers[x[0]] < R.brokers[y[0]] ? -1 : 1));
-  return out.slice(0, n).map(x => x[0]);
+  const f = SCORE[basis] || SCORE.net_buy;
+  return topOf(R, n, b => f(g, b, a, t));
 }
-/** the cohort at t for window a..t: null = every broker */
+/** the top `n` of score(b) over every broker (score > 0; ties by broker code) */
+function topOf(R: FlowRows, n: number, score: (b: number) => number): number[] {
+  const ids: number[] = [], sc: number[] = [];
+  for (let b = 0; b < R.brokers.length; b++) {
+    const s = score(b);
+    if (!(s > 0) || ids.length === n && s <= sc[n - 1] && !(s === sc[n - 1] && R.brokers[b] < R.brokers[ids[n - 1]])) continue;
+    let j = ids.length;
+    while (j > 0 && (sc[j - 1] < s || sc[j - 1] === s && R.brokers[b] < R.brokers[ids[j - 1]])) j--;
+    ids.splice(j, 0, b); sc.splice(j, 0, s);
+    if (ids.length > n) { ids.pop(); sc.pop() }
+  }
+  return ids;
+}
+/** the cohort at t for window a..t: null = every broker. Kept per grid, so the parts of one indicator (FL09 reads four
+    others) and a recompute with the same rule rank each window once. */
 function cohort(g: Grid, R: FlowRows, p: FlowParams, a: number, t: number): number[] | null {
   const scope = p.scope ?? 'topn';
   if (scope === 'all') return null;
-  if (scope === 'selected') { const want = new Set<string>(p.brokers || []); return R.brokers.map((b, k) => want.has(b) ? k : -1).filter(k => k >= 0) }
-  return topBrokers(g, R, a, t, int(p.top, 3), p.rank || 'net_buy');
+  const sel = scope === 'selected', key = sel ? 'sel|' + [...(p.brokers || [])].sort().join() : `top|${int(p.top, 3)}|${p.rank || 'net_buy'}`;
+  let memo = g.cohorts.get(key); if (!memo) g.cohorts.set(key, memo = new Map());
+  const at = sel ? -1 : a * (g.N + 1) + t;
+  let C = memo.get(at);
+  if (C === undefined) {
+    if (sel) { const want = new Set<string>(p.brokers || []); C = R.brokers.map((b, k) => want.has(b) ? k : -1).filter(k => k >= 0) }
+    else C = topBrokers(g, R, a, t, int(p.top, 3), p.rank || 'net_buy');
+    memo.set(at, C);
+  }
+  return C;
 }
 /** sum of measure m over the cohort and window */
 const cw = (g: Grid, C: number[] | null, m: Measure, a: number, t: number) => C ? C.reduce((s, b) => s + bw(g, m, b, a, t), 0) : aw(g, m, a, t);
@@ -154,7 +224,6 @@ const cmiss = (g: Grid, C: number[] | null, a: number, t: number) => (C ? C.redu
 /** one candle's sum of measure m over the cohort */
 const cc = (g: Grid, C: number[] | null, m: Measure, k: number) => C ? C.reduce((s, b) => s + bw(g, m, b, k, k), 0) : aw(g, m, k, k);
 
-const filt = (p: FlowParams) => [p.boards ?? null, p.investors ?? null] as const;
 const boardOnly = (p: FlowParams) => grid0(p, true);
 let ctxRows: FlowRows;                                    // set by each call (the functions below are synchronous)
 function grid0(p: FlowParams, boardsOnly = false) { return grid(ctxRows, p.boards ?? null, boardsOnly ? null : p.investors ?? null) }
@@ -227,9 +296,10 @@ function hhi(ctx: FlowContext, p: FlowParams, m: 'bl' | 'sl'): Series {  // FL13
 }
 /** bandar: the N largest net buyers and net sellers over a..t; [sum of buyers' net, sum of sellers' net (negative)] */
 function bandar(g: Grid, R: FlowRows, a: number, t: number, n: number): [number, number] {
-  const buy = topBrokers(g, R, a, t, n, 'net_buy'), sell = topBrokers(g, R, a, t, n, 'net_sell');
-  const net = (b: number) => bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t);
-  return [buy.reduce((s, b) => s + net(b), 0), sell.reduce((s, b) => s + net(b), 0)];
+  const nets = new Float64Array(g.B);                    // each broker's net once, for both sides
+  for (let b = 0; b < g.B; b++) nets[b] = bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t);
+  const buy = topOf(R, n, b => nets[b]), sell = topOf(R, n, b => -nets[b]);
+  return [buy.reduce((s, b) => s + nets[b], 0), sell.reduce((s, b) => s + nets[b], 0)];
 }
 function balancePct(ctx: FlowContext, p: FlowParams, Wd: number): Series {  // FL24
   const R = ctx.rows, g = grid0(p);
@@ -315,8 +385,8 @@ export const FLOW: Record<string, Fn> = {
     return { value:pct.map((x, t) => {
       const ins = [x, ratio[t], part[t], flow[t], ...(imb ? [imb[t]] : [])];
       if (ins.some(v => v === null)) return null;
-      const ok = x! >= Number(p.pct_min) && ratio[t]! >= Number(p.ratio_min) && part[t]! >= Number(p.part_min) && flow[t]! > Number(p.flow_min)
-        && (!imb || imb[t]! >= Number(p.imb_min));
+      const ok = atLeast(x!, Number(p.pct_min)) && atLeast(ratio[t]!, Number(p.ratio_min)) && atLeast(part[t]!, Number(p.part_min))
+        && above(flow[t]!, Number(p.flow_min)) && (!imb || atLeast(imb[t]!, Number(p.imb_min)));
       return ok ? 1 : 0;
     }) };
   },
@@ -397,7 +467,7 @@ export const FLOW: Record<string, Fn> = {
     for (let t = r + bsl - 1; t < c.rows.N; t++) {
       const s1 = mean(t - r + 1, t), s0 = mean(t - r - bsl + 1, t - r), c1 = c.close[t], c0 = c.close[t - r];
       if (s1 === null || s0 === null || c1 === null || c0 === null || !s0 || !c0) continue;
-      out[t] = s1 / s0 >= volx && 100 * Math.abs(c1 / c0 - 1) <= move ? 1 : 0;
+      out[t] = atLeast(s1 / s0, volx) && atMost(100 * Math.abs(c1 / c0 - 1), move) ? 1 : 0;
     }
     return { value:out };
   },
@@ -413,7 +483,7 @@ export const FLOW: Record<string, Fn> = {
   FL29:(c, p) => {
     const R = c.rows, g = grid0(p), n = int(p.top, 3), D = W(p, 20), th = Number(p.threshold) || 0;
     const bal = series(R.N).map((_, k) => { if (!R.has[k]) return null; const [nb, ns] = bandar(g, R, k, k, n), v = div(nb + ns, aw(g, 'bv', k, k)); return v === null ? null : 100 * v });
-    return { value:each(R, D, (a, t) => { let k2 = 0; for (let k = a; k <= t; k++) if (bal[k] !== null && bal[k]! > th) k2++; return 100 * k2 / D }) };
+    return { value:each(R, D, (a, t) => { let k2 = 0; for (let k = a; k <= t; k++) if (bal[k] !== null && above(bal[k]!, th)) k2++; return 100 * k2 / D }) };
   },
   FL30:(c, p) => {
     const R = c.rows, all = grid(R, null, p.investors ?? null), cross = grid(R, ['Nego', 'Cash'], p.investors ?? null);
@@ -444,7 +514,8 @@ export const FLOW: Record<string, Fn> = {
   FL34:(c, p) => {
     const R = c.rows, g = grid0(p);
     const inst = new Set(resolveBrokers(c, p.inst, () => classBrokers(c, 'Institutional-heavy'))), retail = new Set(resolveBrokers(c, p.retail, () => classBrokers(c, 'Retail-heavy')));
-    if ([...inst].some(b => retail.has(b))) return { value:series(R.N) };
+    /* no list (the classification has not arrived) or a broker in both lists: no value, never a 0 */
+    if (!inst.size && !retail.size || [...inst].some(b => retail.has(b))) return { value:series(R.N) };
     const idx = (s: Set<string>) => R.brokers.map((b, k) => s.has(b) ? k : -1).filter(k => k >= 0), I = idx(inst), Rt = idx(retail);
     return { value:each(R, W(p, 20), (a, t) => {
       const net = (C: number[]) => cw(g, C, 'bv', a, t) - cw(g, C, 'sv', a, t), v = div(net(I) - net(Rt), aw(g, 'bv', a, t));

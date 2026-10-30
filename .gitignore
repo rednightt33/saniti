@@ -21,3 +21,9 @@ apps/edge-bff/screener/node_modules/
 apps/edge-bff/screener/dist/
 apps/edge-bff/screener/dist-smoke/
 apps/edge-bff/screener/dist-fixture/
+
+# EXEC-TERMINAL-FLOW-IND: the oracle's raw-row cache (Feature 05 rows fetched through pgweb) and its outputs are
+# rebuilt by oracle/oracle.py and oracle_compare.ts; raw rows are not mirrored in git (AGENTS.md, History rules)
+verification/terminal_api/flow_indicators/oracle/cache/
+verification/terminal_api/flow_indicators/oracle/out/
+verification/terminal_api/flow_indicators/oracle/compare.json

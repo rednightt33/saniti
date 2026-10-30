@@ -297,10 +297,13 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-TERMINAL-TOPSPLIT (user 2026-10-28: "di bagian top broker bisa ditambahkan filter lagi untuk boards", 2026-10-29
      "All boards", "pakai versi ini saja, tapi di balik ya, yang tebal = domestic"), live: a Board choice (All boards by
      default) where the fixture has its Buy/Sell switch, and each bar split into Domestic (solid) and Foreign (faded) */
+  /* renderData runs again when the full two years arrive: the switch is replaced once (like the inventory filters
+     below), then rewired with the user's choice kept (a second replace found no #accSide and stopped the render,
+     2026-10-30) */
   if(live){
     $('accTitle').textContent = 'Top brokers';
-    const ctl = $('accSide').closest('.rp-ctl') as HTMLElement;
-    ctl.innerHTML = `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`;
+    if($('accSide')) ($('accSide').closest('.rp-ctl') as HTMLElement).innerHTML = `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`;
+    $('accBoard').value = RS.accBoard;
     $('accBoard').onchange = e => { RS.accBoard = e.target.value; renderAcc() };
   }
   function renderAccPaired(){

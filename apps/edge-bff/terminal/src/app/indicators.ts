@@ -6,6 +6,7 @@
    Backend: window.marketLabIndicators.export() / import() carry the saved list as JSON.
    Ported line for line; closure values the reference reassigns are read from ctx. */
 import { F } from '../calc/indicators';
+import { initFlowIndicators } from './flowIndicators';
 import type { Ctx } from './context';
 import { $, nfCompact, rupiah, store } from './context';
 
@@ -74,8 +75,9 @@ export function initIndicators(ctx: Ctx) {
       else if(o.r === 'segmented_line' || o.r === 'dots') { s.color = UP; s.color2 = DOWN }
       else if(o.role === 'signal_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
       else if(o.role === 'center_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
-      else if(/(^|_)(plus|up)(_|$)/.test(o.k)) s.color = UP;
-      else if(/(^|_)(minus|down)(_|$)/.test(o.k)) s.color = DOWN;
+      else if(o.r === 'marker') s.color = UP;
+      else if(/(^|_)(plus|up|buy)(_|$)/.test(o.k)) s.color = UP;
+      else if(/(^|_)(minus|down|sell)(_|$)/.test(o.k)) s.color = DOWN;
       else if(o.role === 'boundary_line') s.color = base;
       else s.color = n++ === 0 ? base : PALETTE[(PALETTE.indexOf(base) + n) % 6];
       out[o.k] = s;
@@ -185,7 +187,8 @@ export function initIndicators(ctx: Ctx) {
     lineTag: p => p.mode === 'Rolling' ? `Net buy ${p.length}D` : 'Net buy',
     title: p => `${p.mode === 'Rolling' ? `Net buy ${p.length}D` : 'Net buy (cumulative)'} · ${p.brokers.length ? p.brokers.join(', ') : 'no broker'}`
   };
-  const DEFS: any[] = [...IND_REG.map(regDef), flowDef, flowLineDef];
+  /* EXEC-TERMINAL-FLOW-IND, live: the 39 Flow indicators of flowRegistry.json (the fixture keeps the reference's list) */
+  const DEFS: any[] = [...IND_REG.map(regDef), flowDef, flowLineDef, ...(ctx.M.mode === 'live' ? initFlowIndicators(ctx) : [])];
   const defOf = id => DEFS.find(d => d.id === id);
   DEFS.forEach(d => { Ind.byName[d.name] = d.id; Ind.tips[d.name] = d.reg ? d.reg.tip : d.tip });
 
@@ -197,7 +200,7 @@ export function initIndicators(ctx: Ctx) {
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
   const save = () => store.set(KEY, JSON.stringify(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base }))));
-  const defaults = (fields, over?) => Object.fromEntries(fields.filter(f => f.kind !== 'fixed' && (f.kind !== 'color' || f.def !== undefined)).map(f => [f.key, over && over[f.key] !== undefined ? over[f.key] : f.def]));
+  const defaults = (fields, over?) => Object.fromEntries(fields.filter(f => f.kind !== 'fixed' && f.kind !== 'button' && (f.kind !== 'color' || f.def !== undefined)).map(f => [f.key, over && over[f.key] !== undefined ? over[f.key] : f.def]));
 
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
@@ -214,22 +217,26 @@ export function initIndicators(ctx: Ctx) {
   }
 
   /* registry indicators: one chart series per plotted output (state outputs only drive colours) */
-  function buildParts(inst) {
+  function buildParts(inst, intoPane?: number) {
     const r = inst.def.reg, panel = r.zone === 'panel';
     const scale = r.zone === 'overlay' ? 'left' : r.zone === 'volume' ? 'volume' : 'right';
-    let paneIdx = panel ? chart.panes().length : 0;
+    let paneIdx = panel ? (intoPane ?? chart.panes().length) : 0;
+    // EXEC-TERMINAL-FLOW-IND: a Flow indicator's outputs depend on its plot choice (histogram or line)
+    const outs = inst.outs = inst.def.outsOf ? inst.def.outsOf(inst.params) : r.outs;
+    inst.plotKey = outs.map(o => o.r).join();
     const opts: any = { priceScaleId:scale, lastValueVisible:panel, priceLineVisible:false, crosshairMarkerVisible:false };
     if(r.zone !== 'overlay') opts.priceFormat = { type:'custom', formatter:inst.def.format, minMove:inst.def.minMove };
     const mk = (type, extra) => { const s = chart.addSeries(type, { ...opts, ...extra }, paneIdx); paneIdx = s.getPane().paneIndex(); return s };
     inst.parts = [];
-    r.outs.forEach(o => {
+    outs.forEach(o => {
       if(o.r === 'state') return;
-      if(o.r === 'histogram') inst.parts.push({ o, kind:'hist', series:mk(L.HistogramSeries, { base:0 }) });
+      if(o.r === 'marker') inst.parts.push({ o, kind:'marker', series:null, plugin:null });      // marks under the candles
+      else if(o.r === 'histogram') inst.parts.push({ o, kind:'hist', series:mk(L.HistogramSeries, { base:0 }) });
       else if(o.r === 'segmented_line') inst.parts.push({ o, kind:'seg', series:mk(L.LineSeries, {}), series2:mk(L.LineSeries, { lastValueVisible:false }) });
       else if(o.r === 'dots') inst.parts.push({ o, kind:'dots', series:mk(L.LineSeries, { lineVisible:false, pointMarkersVisible:true }) });
       else inst.parts.push({ o, kind:'line', series:mk(L.LineSeries, {}) });
     });
-    inst.series = inst.parts[0].series;
+    inst.series = inst.parts.find(pt => pt.series)?.series || null;
     if(panel && r.guides.length) inst.series.applyOptions({ autoscaleInfoProvider:orig => {   // keep visible reference levels inside the pane (e.g. RSI 30 / 70)
       const res = orig(), lv = inst.on && inst.style.guides.on ? guideLevels(inst) : [];
       if(!res || !res.priceRange || !lv.length) return res;
@@ -244,12 +251,21 @@ export function initIndicators(ctx: Ctx) {
     const r = inst.def.reg, st = inst.style, p = inst.params, N2 = N, off = st.offset | 0, op = (st.opacity ?? 100) / 100;
     const ret = r.zone === 'overlay' && ctx.displayMode === 'return', base = closes[0], conv = v => ret ? (v / base - 1) * 100 : v;
     const shift = a => { const o = new Array(N2).fill(null); if(a) a.forEach((v, i) => { const j = i + off; if(v !== null && j >= 0 && j < N2) o[j] = v }); return o };
-    inst.disp = {}; r.outs.forEach(o => { inst.disp[o.k] = shift(inst.raw[o.k]) });
+    inst.disp = {}; (inst.outs || r.outs).forEach(o => { inst.disp[o.k] = shift(inst.raw[o.k]) });
+    if(inst.raw._labels) inst.parts.forEach((pt, j) => { if(pt.o.k !== 'total') pt.o = { ...pt.o, label:inst.raw._labels[j] || `Broker ${j + 1}` } });   // FL23: the brokers' codes
     const breaks = new Set((inst.raw._breaks || []).map(i => i + off));         // calculation restarts here: never draw a line into this bar
     const dir = inst.disp.direction, bandsOff = 'bands_mode' in p && p.bands_mode === 'None', T = i => ohlc[i].time;
     const shown = pt => inst.on && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
     inst.parts.forEach(pt => {
       const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
+      if(pt.kind === 'marker') {
+        /* EXEC-TERMINAL-FLOW-IND: a mark under each candle where the indicator holds (FL09, FL27), on the series drawn */
+        const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
+        if(pt.plugin && pt.host !== host) { pt.plugin.detach(); pt.plugin = null }
+        if(!pt.plugin) { pt.plugin = L.createSeriesMarkers(host, []); pt.host = host }
+        pt.plugin.setMarkers(vis ? a.flatMap((v, i) => v === 1 ? [{ time:T(i), position:'belowBar', color:c1, shape:'arrowUp', size:1 }] : []) : []);
+        return;
+      }
       if(pt.kind === 'hist') {
         const rising = /rising/.test(pt.o.rule), states = s.states && /optional_state/.test(pt.o.rule), V = BARS.V;
         pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:v,
@@ -329,9 +345,26 @@ export function initIndicators(ctx: Ctx) {
     inst.series.applyOptions(o);
     paintRow(inst);
   }
-  const recompute = inst => { inst.raw = inst.def.compute(inst.params); refresh(inst) };
+  /* a Flow indicator whose plot changed (histogram or line) gets new series in its own pane, then the old ones go */
+  function rebuildParts(inst) {
+    const old = inst.parts, pane = inst.series ? inst.series.getPane().paneIndex() : undefined;
+    (inst.guideLines || []).forEach(([se, pl]) => { try{ se.removePriceLine(pl) }catch(e){} }); inst.guideLines = [];
+    buildParts(inst, pane);
+    old.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
+    if(inst.def.pane === 'sub') layoutPanes();
+  }
+  const recompute = inst => {
+    if(inst.def.outsOf && inst.parts && inst.def.outsOf(inst.params).map(o => o.r).join() !== inst.plotKey) rebuildParts(inst);
+    inst.raw = inst.def.compute(inst.params); refresh(inst);
+  };
   // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
-  ctx.refreshFlowIndicators = () => list.forEach(inst => { if(inst.def === flowDef || inst.def === flowLineDef) recompute(inst) });
+  ctx.refreshFlowIndicators = () => list.forEach(inst => { if(inst.def === flowDef || inst.def === flowLineDef || inst.def.flow) recompute(inst) });
+  /* EXEC-TERMINAL-FLOW-IND: an anchor on the first visible candle (FL18-FL20) and Broker Inventory (FL23) follow the view */
+  let viewRaf = 0;
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+    if(viewRaf || !list.some(inst => inst.def.viewBound)) return;
+    viewRaf = requestAnimationFrame(() => { viewRaf = 0; list.forEach(inst => { if(inst.def.viewBound && (inst.def.id === 'FL23' || inst.params.anchor === 'view')) recompute(inst) }) });
+  });
 
   function paintRow(inst, i = ctx.lastTipIdx) {
     if(!inst.row || (inst.def.multi && !inst.disp)) return;          // still being built
@@ -395,7 +428,7 @@ export function initIndicators(ctx: Ctx) {
   function remove(inst) {
     const sub = inst.def.pane === 'sub', pane = sub ? inst.series.getPane() : null;
     if(inst.ro) inst.ro.disconnect();
-    if(inst.def.multi) inst.parts.forEach(pt => { chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2) });
+    if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove();
     if(sub && pane && pane.getSeries().length === 0 && chart.panes().length > 1) { try { chart.removePane(pane.paneIndex()) } catch(e) {} }
@@ -458,7 +491,7 @@ export function initIndicators(ctx: Ctx) {
       }
       if(f.kind === 'select') {
         const s = document.createElement('select'); s.className = 'idlg-in';
-        f.options.forEach(o => s.add(new Option(String(o), String(o), false, String(store_[f.key]) === String(o))));
+        f.options.forEach(o => s.add(new Option(f.labels ? f.labels[o] ?? String(o) : String(o), String(o), false, String(store_[f.key]) === String(o))));
         s.onchange = () => { store_[f.key] = typeof f.options[0] === 'number' ? +s.value : s.value; live(recomputes) };
         return row(f.label, s, f.hint);
       }
@@ -469,6 +502,32 @@ export function initIndicators(ctx: Ctx) {
           summary:s => s.size === all.length ? `All (${all.length})` : s.size === 0 ? 'None' : s.size <= 2 ? [...s].sort().join(', ') : `${s.size} selected`,
           onChange:() => { store_[f.key] = state.size === all.length && f.def === null ? null : [...state]; live(recomputes) } });
         return row(f.label, host);
+      }
+      /* EXEC-TERMINAL-FLOW-IND: broker codes (a default may be a token: a classification, the three largest net buyers) */
+      if(f.kind === 'brokers') {
+        const host = document.createElement('div'); host.className = 'fl idlg-fl';
+        const state = new Set<string>(f.resolve(store_[f.key]));
+        makeFilter(host, { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:f.max,
+          getOptions:() => allBrokers().map(b => ({ id:b, label:b })), state,
+          summary:s => s.size === 0 ? 'None' : s.size <= 3 ? [...s].sort().join(', ') : `${s.size} selected`,
+          onChange:() => { store_[f.key] = [...state].sort(); live(recomputes) } });
+        return row(f.label, host, f.hint);
+      }
+      /* a date: empty = the first visible candle; "On chart" picks it with the range tool (the dialog steps aside) */
+      if(f.kind === 'date') {
+        const box = document.createElement('span'); box.className = 'idlg-ctl';
+        const inp: any = document.createElement('input'); inp.type = 'date'; inp.className = 'idlg-in'; inp.value = store_[f.key] === 'view' ? '' : store_[f.key];
+        inp.title = 'Empty: the first visible candle'; inp.setAttribute('aria-label', f.label);
+        inp.onchange = () => { store_[f.key] = inp.value || 'view'; live(recomputes) };
+        const pick = document.createElement('button'); pick.type = 'button'; pick.className = 'idlg-btn'; pick.textContent = 'On chart';
+        pick.onclick = () => { back.hidden = true; ctx.selectRangeOnChart(from => { store_[f.key] = from; back.hidden = false; live(recomputes); paint() }) };
+        box.append(inp, pick);
+        return row(f.label, box, f.hint);
+      }
+      if(f.kind === 'button') {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'idlg-btn'; b.textContent = f.label;
+        b.onclick = () => { const d = defaults(def.inputs); f.reset.forEach(k => { store_[k] = d[k] }); live(recomputes); paint() };
+        const w = document.createElement('div'); w.className = 'idlg-row compact'; w.appendChild(b); return w;
       }
       if(f.kind === 'int' || f.kind === 'num') return row(f.label, numInput(f, store_, recomputes, f.kind === 'int'), f.hint);
       const box = document.createElement('div'); box.className = 'idlg-sw';
@@ -601,7 +660,13 @@ export function initIndicators(ctx: Ctx) {
     list: () => list.map(i => ({ uid:i.uid, def:i.def.id, params:{ ...i.params }, values:i.disp || i.vals })),
     export: () => JSON.stringify(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on }))),
     import: json => { [...list].forEach(remove); JSON.parse(json).map(migrate).forEach(o => add(o.def, o)); save() },
-    add, count: () => list.length
+    add, count: () => list.length,
+    /* EXEC-TERMINAL-FLOW-IND: for the live check and the reviewers (verification/terminal_api/flow_indicators) */
+    removeAll: () => [...list].forEach(remove),
+    flowIds: () => DEFS.filter(d => d.flow).map(d => d.id),
+    values: (from = '2025-01-01') => list.filter(i => i.def.flow).map(i => ({ id:i.def.id, params:{ ...i.params }, title:i.def.title(i.params),
+      outputs:Object.fromEntries(Object.entries(i.raw || {}).filter(([k]) => !k.startsWith('_')).map(([k, a]: [string, any]) =>
+        [i.raw._labels && /^b\d$/.test(k) ? i.raw._labels[+k[1] - 1] : k, a.flatMap((v, t) => ohlc[t].time >= from ? [[ohlc[t].time, v]] : [])])) }))
   };
   (window as any).marketLabIndicators = Indicators;
   return Indicators;

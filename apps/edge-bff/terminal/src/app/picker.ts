@@ -1,6 +1,7 @@
 /* INDICATORS — picker UI (reference lines 2047-2125). */
 import type { Ctx } from './context';
 import { $ } from './context';
+import { FLOW_REG } from './flowIndicators';
 
 export function initPicker(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
@@ -15,6 +16,14 @@ export function initPicker(ctx: Ctx) {
   (INDICATORS.find(g => g[3] === 'Volume') || [, , []] as any)[2].unshift('Volume');         // the base volume histogram (restore after removing it)
   INDICATORS.push(['Flow', '#12a594', ['Net Buy Flow', 'Net Buy Flow (Line)'], 'Flow']);
   const SEARCH: Record<string, string> = Object.fromEntries(IND_REG.map((r: any) => [r.name, `${r.name} ${r.short} ${r.key}`.toLowerCase()]));
+  /* EXEC-TERMINAL-FLOW-IND (user 2026-10-30: the Flow group in subgroups per family, "3. OK"), live: one subgroup per family
+     of flowRegistry.json, in its order; the fixture keeps the reference's list (1:1 check) */
+  if(ctx.M.mode === 'live') FLOW_REG.families.forEach(f => {
+    const items = FLOW_REG.indicators.filter(r => r.family === f);
+    if(!items.length) return;
+    INDICATORS.push([`Flow · ${f}`, '#12a594', items.map(r => r.name), 'Flow']);
+    items.forEach(r => { SEARCH[r.name] = `${r.name} ${r.id} ${f} flow`.toLowerCase() });
+  });
   Ind.tips.Volume = 'Batang volume transaksi harian di bagian bawah chart harga.';
   const isActive = (x: string) => x === 'Volume' && !volCtl.removed;      // volume histogram is drawn unless removed with the X
   const btn = $('indBtn'), pop = $('indPop'), list = $('indList'), q = $('indSearch');

@@ -82,3 +82,21 @@ describe('broker data older than the prices (EXEC-TERMINAL-FRESH)', () => {
     expect(brokerEnd(dates, '2026-01-02')).toBe(-1);
   });
 });
+
+describe('Flow indicators raw rows (EXEC-TERMINAL-FLOW-IND, worker.ts flowRowsOf)', () => {
+  it('keeps every row on its candle with the transaction counts, NaN where a file has none', () => {
+    const dates = ['2026-10-20', '2026-10-21', '2026-10-22'];
+    const withFreq = { ...doc(['2026-10-20', '2026-10-21']), columns:['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'bf', 'sf'], bf:[3, null], sf:[1, 2] };
+    const b = brokerData([withFreq, doc(['2026-10-22', '2026-10-30'])], dates);
+    const R = b.flow;
+    expect(R.n).toBe(3); expect(R.N).toBe(3); expect([...R.t]).toEqual([0, 1, 2]);       // 10-30 is not a candle
+    expect(R.brokers).toEqual(['YP']); expect([...R.has]).toEqual([1, 1, 1]);
+    expect(R.bf[0]).toBe(3); expect(Number.isNaN(R.bf[1])).toBe(true); expect(Number.isNaN(R.bf[2])).toBe(true);
+    expect(R.brd[0]).toBe(0);                                            // board 'RG' reads as Regular
+  });
+  it('puts the sessions of a weekly candle on that candle', () => {
+    const dates = ['2026-10-19', '2026-10-20', '2026-10-27'];
+    const b = brokerData([doc(dates)], dates, { starts:[0, 2], of:[0, 0, 1], ends:['2026-10-20', '2026-10-27'] } as any);
+    expect(b.flow.N).toBe(2); expect([...b.flow.t]).toEqual([0, 0, 1]);
+  });
+});

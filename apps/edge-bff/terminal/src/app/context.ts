@@ -1,6 +1,7 @@
 /* Shared state of the terminal page. The reference page (03-terminal-right-panel.html) keeps it in one closure; here it
    is one object every section module receives, with the same names. Values that the reference reassigns
    (displayMode, chartStyle, axisLabel, onDisplayMode, COMBOS, lastTipIdx …) live on it so every module sees the change. */
+import type { FlowRows } from '../calc/flow';
 import type * as LWC from 'lightweight-charts';
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, Point, VolumePoint } from '../data/types';
 
@@ -121,6 +122,8 @@ export interface Ctx {
   setFlowData: (combos: Combo[], flowFrom: number, more?: boolean, flowTo?: number) => void;
   setBrokerPanelData: (broker: MarketData['broker']) => void;
   refreshFlowIndicators: () => void;
+  /* EXEC-TERMINAL-FLOW-IND, live: the raw broker rows on the candles (worker.ts flowRowsOf), for the Flow indicators */
+  flowRows?: FlowRows;
   /* EXEC-TERMINAL-PANELS: drag a period on the main chart (rangeSelect.ts) */
   selectRangeOnChart: (done: (from: string, to: string) => void) => void;
   crosshairAt: (i: number | null) => void;           // flow.ts: both charts' crosshair on session i

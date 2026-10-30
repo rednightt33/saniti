@@ -4,6 +4,7 @@
    as soon as the price files are read, then `broker`, then `events`. Every download starts at once (the URLs live
    120 s). The shapes match what live.ts built before on the main thread. */
 import type { BrokerRow } from './types';
+import { boardIndex, investorIndex, type FlowRows } from '../calc/flow';
 import { buckets, type Buckets, type Timeframe } from './timeframe';
 import { fileCache, readVerified, type FileRef } from './rack';
 
@@ -19,7 +20,7 @@ export interface PriceRow { d: string; o: number; h: number; l: number; c: numbe
 export interface WorkerCombo { broker: string; investor: string; board: string; gross: number; net: Float64Array }
 export type WorkerAnswer =
   | { id: number; type: 'price'; rows: PriceRow[] }
-  | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; flowTo: number; dates: string[]; rows: BrokerRow[][] }
+  | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; flowTo: number; dates: string[]; rows: BrokerRow[][]; flow: FlowRows }
   | { id: number; type: 'events'; rows: Record<string, unknown>[] }
   | { id: number; type: 'stats'; files: FileStat[] }
   /** `code` DATA_INTEGRITY: a file was not the one /bundle announced (rack.ts IntegrityError, `detail` what differed) */
@@ -94,8 +95,36 @@ export function brokerData(docs: Columnar[], dates: string[], groups: Buckets | 
   }
   const all = [...byDate.keys()].sort(), from = all.length ? panelStart(all[all.length - 1]) : '';
   const last = all.filter(t => t > from);
-  return { combos:[...combos.values()], flowFrom, flowTo, dates:last, rows:last.map(t => byDate.get(t)!) };
+  return { combos:[...combos.values()], flowFrom, flowTo, dates:last, rows:last.map(t => byDate.get(t)!), flow:flowRowsOf(docs, idx, N) };
 }
+
+/* EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): the raw broker rows for the Flow indicators (calc/flow.ts FlowRows), one
+   typed array per column, on the chart's candles (a weekly or monthly candle holds its sessions' rows). bf/sf are NaN in
+   a file published before the transaction counts (the formulas that need them then give null). */
+export function flowRowsOf(docs: Columnar[], idx: Map<string, number>, N: number): FlowRows {
+  let n = 0;
+  const codes = new Set<string>();
+  for (const doc of docs) for (let k = 0; k < doc.d.length; k++) if (idx.has(doc.d[k])) { n++; codes.add(doc.b[k]) }
+  const brokers = [...codes].sort(), at = new Map(brokers.map((b, k) => [b, k]));
+  const R: FlowRows = { n, N, t:new Int32Array(n), b:new Uint16Array(n), inv:new Uint8Array(n), brd:new Uint8Array(n),
+    bv:new Float64Array(n), sv:new Float64Array(n), bl:new Float64Array(n), sl:new Float64Array(n), bf:new Float64Array(n), sf:new Float64Array(n),
+    brokers, has:new Uint8Array(N) };
+  let j = 0;
+  for (const doc of docs) {
+    const { d, b, i: inv, m, bv, sv, bl, sl, bf, sf } = doc;
+    for (let k = 0; k < d.length; k++) {
+      const t = idx.get(d[k]); if (t === undefined) continue;
+      R.t[j] = t; R.b[j] = at.get(b[k])!; R.inv[j] = investorIndex(inv[k]); R.brd[j] = boardIndex(m[k]);
+      R.bv[j] = bv[k] || 0; R.sv[j] = sv[k] || 0; R.bl[j] = bl[k] || 0; R.sl[j] = sl[k] || 0;
+      R.bf[j] = bf && bf[k] != null ? bf[k] : NaN; R.sf[j] = sf && sf[k] != null ? sf[k] : NaN;
+      R.has[t] = 1; j++;
+    }
+  }
+  return R;
+}
+/** the buffers of a FlowRows, to move it to the page without a copy */
+export const flowBuffers = (R: FlowRows): ArrayBuffer[] =>
+  [R.t, R.b, R.inv, R.brd, R.bv, R.sv, R.bl, R.sl, R.bf, R.sf, R.has].map(a => a.buffer as ArrayBuffer);
 
 export const rowsOf = (doc: Columnar) => {
   const n = doc[doc.columns[0]].length;
@@ -127,12 +156,12 @@ if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.Wor
     try {
       latest = await recentDocs;
       const b = brokerData(latest, dates, groups);
-      post({ id, type:'broker', ...b }, b.combos.map(c => c.net.buffer));
+      post({ id, type:'broker', ...b }, [...b.combos.map(c => c.net.buffer), ...flowBuffers(b.flow)]);
     } catch (err) { return fail(err) }
     try { post({ id, type:'events', rows:(await eventDocs).flatMap(rowsOf) }) } catch (err) { fail(err) }
     try {
       const all = brokerData([...await Promise.all(older.map(download)), ...latest], dates, groups);
-      post({ id, type:'brokerAll', ...all }, all.combos.map(c => c.net.buffer));
+      post({ id, type:'brokerAll', ...all }, [...all.combos.map(c => c.net.buffer), ...flowBuffers(all.flow)]);
     } catch (err) { fail(err) }
     post({ id, type:'stats', files:stats.splice(0) });
   };

@@ -1,7 +1,7 @@
 /* Live data: the pre-published files of the rack (bucket terminal-display) reached through EDGE's /api/terminal
    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
    Everything is mapped into the reference page's own shapes (types.ts). */
-import type { Bar, Combo, CompareSpec, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
+import type { Bar, Combo, CompareSpec, InsiderTx, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
 import { brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
 import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
 import { aggregateRows, alignCandles, buckets, candleOf, type Timeframe } from './timeframe';
@@ -255,7 +255,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
     const b = await stage;
     const brokerTypes = new Map((await brokerRefP.catch(() => [])).map((r: any) => [r.code, r.type] as [string, string]));
     return {
-      combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom, flowTo:b.flowTo,
+      combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom, flowTo:b.flowTo, flow:b.flow,
       broker:{ dates:b.dates, rows:(d: number) => b.rows[d] || [], label:SYMBOL,
                category:(code: string) => brokerTypes.get(code) === 'Foreign' ? 'F' : 'L' }
     };
@@ -304,8 +304,15 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
     return [{ id:`${SYMBOL}-${type}-${r.d}-${k}`, type, date:r.d, label:longDates(r.d), at, title:r.title || EVENT_TITLE[type], rows }];
   });
 
+  /* EXEC-TERMINAL-FLOW-IND: Insider Net Change reads the insider rows of the same events file; Institutional vs Retail
+     Net the brokers' classification (absent from a reference file published before it: no list, no value) */
+  const loadInsider = async (): Promise<InsiderTx[]> => (await job.events).flatMap((r: any) =>
+    r.family === 'INSIDER' && (r.action === 'BUY' || r.action === 'SELL') && Number.isFinite(r.value) ? [{ d:r.d, value:r.action === 'BUY' ? r.value : -r.value }] : []);
+  const brokerClass = brokerRefP.then((rows: any[]) => Object.fromEntries(rows.filter(r => typeof r.classification === 'string').map(r => [r.code, r.classification])), () => ({}));
+
   return {
     mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logos:await logosP,
+    loadInsider, brokerClass,
     loadAsset, loadAssetFlow,
     combos:[], flowSource:'real', flowFrom:N,
     broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
