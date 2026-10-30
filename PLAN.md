@@ -954,8 +954,11 @@ Keputusan 2026-10-31 lanjutan (kata user): Bandar "Kita pakai B dulu ya which B:
 Top 3." (berlaku untuk FL24, panel Bandar Terminal `broker.ts` verdict, dan Screener); "Semua indikator F24-35 OK kecuali:"
 FL25, FL33, FL34.
 
-Pertanyaan terbuka: FL25 dipertahankan atau tidak; FL33 cukup dengan Recent sessions = 1; FL34 kelompok institusi/ritel
-dipilih user; FL36-FL39 belum direview.
+Keputusan 2026-10-31 lanjutan (kata user): "FL 25 tetap ada.", "FL 33 OK", "FL 34 OK" (kelompok institusi/ritel bisa
+dipilih user, default dari `IDX_Broker_Profile`).
+
+Pertanyaan terbuka: FL36-FL39; 25 default usulan (kuning) di sheet `Parameter_Terminal`; arti "hari rolling" di chart
+mingguan/bulanan; rilis 39 indikator sekaligus atau bertahap setelah storage.
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
