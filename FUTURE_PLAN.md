@@ -1229,6 +1229,8 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
      - (b) teks spreadsheet apa adanya: 6.196,87;
      - (c) inventori tidak pernah di bawah 0: 5.674,39.
    - Usulan: (a), dengan teks spreadsheet dilengkapi.
+   - **DIPUTUSKAN user 2026-10-30: "1 pakai A".** Aturan modul yang sudah live tetap berlaku (`FORMULAS.md` FL19): bila
+     inventori ≤ 0, pembelian hanya dihitung untuk bagian yang mengangkat inventori di atas 0. Kode tidak berubah.
 2. **FL36/FL37: cakupan default (A3).**
    - `Parameter_Terminal` menulis Top-N cohort.
    - `Indikator_baru_dari_Screener` H14/H15 dan `Screener_ke_Chart` F6/F8 menulis "Semua broker" (Foreign), yaitu metrik

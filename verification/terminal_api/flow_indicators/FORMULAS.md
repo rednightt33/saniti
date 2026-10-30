@@ -81,7 +81,7 @@ draws the Buy and the Sell line in one panel.
 | FL16 | Concentration Top-N · Net Buy | share | `n_b = BV(b)-SV(b)`; `100 x` (sum of the N largest positive `n_b`) / (sum of all positive `n_b`) |
 | FL17 | Buy VWAP · Rolling | vwap | `BV(C) / (100 BL(C))` (IDR per share), on the price axis |
 | FL18 | Buy VWAP · Anchored | vwap | frozen `C`; sums from the anchor to `t`: `BV(C) / (100 BL(C))`; null before the anchor |
-| FL19 | Implied Cost · Anchored | cost | frozen `C`, from the anchor, `Q`, `K` start at 0; per candle `q = BL_k(C)-SL_k(C)`: if `q > 0`: if `Q <= 0` then `K = max(Q+q,0) x BV_k(C)/BL_k(C)` else `K += q x BV_k(C)/BL_k(C)`; if `q < 0` and `Q > 0`: `K = K x max(Q+q,0)/Q`; then `Q += q`. Output `K/(100 Q)` when `Q > 0`, else null |
+| FL19 | Implied Cost · Anchored | cost | frozen `C`, from the anchor, `Q`, `K` start at 0; per candle `q = BL_k(C)-SL_k(C)`: if `q > 0`: if `Q <= 0` then `K = max(Q+q,0) x BV_k(C)/BL_k(C)` else `K += q x BV_k(C)/BL_k(C)`; if `q < 0` and `Q > 0`: `K = K x max(Q+q,0)/Q`; then `Q += q`. Output `K/(100 Q)` when `Q > 0`, else null (user 2026-10-30, "1 pakai A": the rule for an inventory at or below 0, which the spreadsheet leaves open) |
 | FL20 | Implied Cost · Distance % | dist | `100 (close / FL19 - 1)` |
 | FL21 | Net Flow Percentile · vs Turnover | pct | percentile (baseline 250) of FL11 (same cohort, filter, `W`, denominator) |
 | FL22 | Broker Buy Breadth | breadth | `n_b = BV(b)-SV(b)` over the window with the filter; active = brokers with any `bv` or `sv` > 0 in it; `100 x` (active with `n_b > 0`) / active |
