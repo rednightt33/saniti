@@ -1,0 +1,1919 @@
+{
+ "tickers": [
+  "BBCA",
+  "TLKM",
+  "GOTO",
+  "WIFI",
+  "NINE",
+  "DAYA",
+  "OMED"
+ ],
+ "price_through": "2026-10-29",
+ "broker_through": "2026-10-27",
+ "report_from": "2025-01-01",
+ "timeframe": "D",
+ "cases": [
+  {
+   "id": "FL01",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL01",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "side": "both",
+    "window": 5
+   }
+  },
+  {
+   "id": "FL01",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL02",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL02",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "side": "both",
+    "window": 5
+   }
+  },
+  {
+   "id": "FL02",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL03",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL03",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "side": "both",
+    "window": 5
+   }
+  },
+  {
+   "id": "FL03",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL04",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL04",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "side": "both",
+    "window": 5
+   }
+  },
+  {
+   "id": "FL04",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL05",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1,
+    "levels": "1.0"
+   }
+  },
+  {
+   "id": "FL05",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "side": "both",
+    "window": 5,
+    "levels": "1.0"
+   }
+  },
+  {
+   "id": "FL05",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1,
+    "levels": "1.0"
+   }
+  },
+  {
+   "id": "FL06",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "levels": "1.0"
+   }
+  },
+  {
+   "id": "FL06",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "levels": "1.0"
+   }
+  },
+  {
+   "id": "FL06",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "levels": "1.0"
+   }
+  },
+  {
+   "id": "FL07",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "denom": "board"
+   }
+  },
+  {
+   "id": "FL07",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "denom": "filter"
+   }
+  },
+  {
+   "id": "FL07",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "denom": "board"
+   }
+  },
+  {
+   "id": "FL08",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL08",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "side": "sell",
+    "window": 5,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL08",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL09",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "baseline": 250,
+    "pct_min": 90,
+    "ratio_min": 2.0,
+    "part_min": 5,
+    "flow_min": 0,
+    "use_imb": false,
+    "imb_min": 0
+   }
+  },
+  {
+   "id": "FL09",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "baseline": 250,
+    "pct_min": 90,
+    "ratio_min": 2.0,
+    "part_min": 5,
+    "flow_min": 0,
+    "use_imb": true,
+    "imb_min": 0
+   }
+  },
+  {
+   "id": "FL09",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "baseline": 250,
+    "pct_min": 90,
+    "ratio_min": 2.0,
+    "part_min": 5,
+    "flow_min": 0,
+    "use_imb": false,
+    "imb_min": 0
+   }
+  },
+  {
+   "id": "FL10",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "levels": "0",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL10",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "levels": "0",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL10",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "levels": "0",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL11",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "denom": "board",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL11",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "denom": "filter",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL11",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "denom": "board",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL12",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL12",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 7
+   }
+  },
+  {
+   "id": "FL12",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL13",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "side": "buy",
+    "window": 1
+   }
+  },
+  {
+   "id": "FL13",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "side": "both",
+    "window": 5
+   }
+  },
+  {
+   "id": "FL14",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "levels": "0",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL14",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "levels": "0",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL15",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "top": 3
+   }
+  },
+  {
+   "id": "FL15",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "top": 5
+   }
+  },
+  {
+   "id": "FL16",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "top": 3
+   }
+  },
+  {
+   "id": "FL16",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "top": 5
+   }
+  },
+  {
+   "id": "FL17",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 20
+   }
+  },
+  {
+   "id": "FL17",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL17",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 20
+   }
+  },
+  {
+   "id": "FL18",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "anchor": "2025-06-02"
+   }
+  },
+  {
+   "id": "FL18",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "anchor": "2025-09-01"
+   }
+  },
+  {
+   "id": "FL18",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "anchor": "2025-06-02"
+   }
+  },
+  {
+   "id": "FL19",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "anchor": "2025-06-02"
+   }
+  },
+  {
+   "id": "FL19",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "anchor": "2025-09-01"
+   }
+  },
+  {
+   "id": "FL19",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "anchor": "2025-06-02"
+   }
+  },
+  {
+   "id": "FL20",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "anchor": "2025-06-02",
+    "levels": "0"
+   }
+  },
+  {
+   "id": "FL20",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "anchor": "2025-09-01",
+    "levels": "0"
+   }
+  },
+  {
+   "id": "FL20",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "anchor": "2025-06-02",
+    "levels": "0"
+   }
+  },
+  {
+   "id": "FL21",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL21",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL21",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL22",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 1
+   }
+  },
+  {
+   "id": "FL22",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL23",
+   "case": "default",
+   "params": {
+    "brokers": "top3_net_buy_20",
+    "unit": "lot",
+    "view": "cum",
+    "total": false,
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "start": "2025-06-02"
+   }
+  },
+  {
+   "id": "FL23",
+   "case": "variant",
+   "params": {
+    "brokers": [
+     "YP",
+     "AK",
+     "CC"
+    ],
+    "unit": "value",
+    "view": "daily",
+    "total": true,
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "start": "2025-06-02"
+   }
+  },
+  {
+   "id": "FL24",
+   "case": "default",
+   "params": {
+    "top": 3,
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 10,
+    "levels": "6, 10, -6, -10"
+   }
+  },
+  {
+   "id": "FL24",
+   "case": "variant",
+   "params": {
+    "top": 5,
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "levels": "6, 10, -6, -10"
+   }
+  },
+  {
+   "id": "FL25",
+   "case": "default",
+   "params": {
+    "top": 3,
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 10,
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL25",
+   "case": "variant",
+   "params": {
+    "top": 5,
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL26",
+   "case": "default",
+   "params": {
+    "scope": "all",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 60,
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL26",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 60,
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL26",
+   "case": "topn_variant",
+   "params": {
+    "scope": "all",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 60,
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL27",
+   "case": "default",
+   "params": {
+    "recent": 5,
+    "baseline": 20,
+    "volx": 1.5,
+    "move": 3
+   }
+  },
+  {
+   "id": "FL27",
+   "case": "variant",
+   "params": {
+    "recent": 5,
+    "baseline": 20,
+    "volx": 1.5,
+    "move": 3
+   }
+  },
+  {
+   "id": "FL28",
+   "case": "default",
+   "params": {
+    "window": 20
+   }
+  },
+  {
+   "id": "FL28",
+   "case": "variant",
+   "params": {
+    "window": 5
+   }
+  },
+  {
+   "id": "FL29",
+   "case": "default",
+   "params": {
+    "top": 3,
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 20,
+    "threshold": 0
+   }
+  },
+  {
+   "id": "FL29",
+   "case": "variant",
+   "params": {
+    "top": 5,
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "threshold": 0
+   }
+  },
+  {
+   "id": "FL30",
+   "case": "default",
+   "params": {
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 20
+   }
+  },
+  {
+   "id": "FL30",
+   "case": "variant",
+   "params": {
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL31",
+   "case": "default",
+   "params": {
+    "window": 20,
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL31",
+   "case": "variant",
+   "params": {
+    "window": 5,
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL32",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "baseline": 20,
+    "levels": "2.5"
+   }
+  },
+  {
+   "id": "FL32",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "baseline": 20,
+    "levels": "2.5"
+   }
+  },
+  {
+   "id": "FL33",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "recent": 5,
+    "baseline": 20,
+    "levels": "0"
+   }
+  },
+  {
+   "id": "FL33",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "recent": 5,
+    "baseline": 20,
+    "levels": "0"
+   }
+  },
+  {
+   "id": "FL34",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "window": 20,
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "inst": "class:Institutional-heavy",
+    "retail": "class:Retail-heavy",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL34",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "window": 5,
+    "investors": [
+     "Foreign"
+    ],
+    "inst": "class:Institutional-heavy",
+    "retail": "class:Retail-heavy",
+    "plot": "hist"
+   }
+  },
+  {
+   "id": "FL35",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 20
+   }
+  },
+  {
+   "id": "FL35",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL36",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 20
+   }
+  },
+  {
+   "id": "FL36",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL36",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 20
+   }
+  },
+  {
+   "id": "FL37",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 20,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL37",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL37",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 20,
+    "baseline": 250,
+    "levels": ""
+   }
+  },
+  {
+   "id": "FL38",
+   "case": "default",
+   "params": {
+    "boards": [
+     "Regular",
+     "Nego",
+     "Cash"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 20
+   }
+  },
+  {
+   "id": "FL38",
+   "case": "variant",
+   "params": {
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5
+   }
+  },
+  {
+   "id": "FL39",
+   "case": "default",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 10,
+    "levels": "0"
+   }
+  },
+  {
+   "id": "FL39",
+   "case": "variant",
+   "params": {
+    "scope": "selected",
+    "brokers": [
+     "YP",
+     "AK",
+     "CC",
+     "XL"
+    ],
+    "top": 3,
+    "rank": "net_buy",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "window": 5,
+    "levels": "0"
+   }
+  },
+  {
+   "id": "FL39",
+   "case": "topn_variant",
+   "params": {
+    "scope": "topn",
+    "brokers": [],
+    "top": 1,
+    "rank": "net_sell",
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign",
+     "Domestic"
+    ],
+    "window": 10,
+    "levels": "0"
+   }
+  }
+ ]
+}
