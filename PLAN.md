@@ -920,6 +920,24 @@ Isi:
   untuk review user sebelum deploy; (6) deploy edge-bff, verifikasi live, catatan EXEC / README / RAILWAY_CHANGELOG.
 - Halaman Terminal, Backtest dan Screener (aplikasi Vite terpisah dalam iframe) tidak berubah.
 
+## TERMINAL-FLOW-IND — indikator Flow baru dari `indicator_specs.xlsx` (disetujui masuk rencana 2026-10-30, belum "go")
+
+Sumber: lampiran user `indicator_specs.xlsx` (sheet `Indicator_Spec_REVIEWED`, 30 indikator broker). Jawaban
+2026-10-30 (kata user): "benar ini masuk ke indikator \"Flow\""; #25/#30: "OK pakai yang sudah ada di terminal saja.
+Jadikan indikator flow yang bisa ditambahkan."; Default Display: "abaikan kata default ini."; koreksi rujukan
+"#10->#9 benar", "#11→#1/#2 benar", "#19→#18 benar", "#26→#27 benar"; #13: "Lembar, bisa paramter opsi beli dan jual";
+rolling: "Ok rolling" (jumlah N hari dibagi jumlah N hari); urutan: "B dulu" (storage dulu, lalu semua indikator).
+
+- 29 indikator di grup Flow Terminal (#25 dan #30 menjadi satu: panel Broker inventory sebagai indikator Flow).
+- Parameter yang bisa diubah user per indikator: lampiran balik `flow_indicator_parameters.xlsx` (sheet
+  `Parameter_Terminal`; DECIDED / PROPOSED per baris).
+- 12 indikator butuh frekuensi transaksi (#1-4, #6, #8-11, #13-15). Frekuensi ada di Feature 05 (sampel read-only
+  BBCA/GOTO/WIFI 2016-2026 terisi 100%), tetapi `apps/terminal-publisher/publisher.py` `BROKER_SQL` tidak
+  mengirimnya; file broker dibaca Terminal, Backtest dan Screener.
+
+Pertanyaan terbuka: dasar dan cara ranking Top-N (usulan: net beli Rp, diulang tiap hari; beku sejak anchor untuk
+#24/#26/#27); turnover #16; validitas inventori #26/#27; #17 hari tanpa transaksi; #29 broker aktif; ambang #14.
+
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
 **Permintaan, 2026-10-28 (kata user):** "Saat ini yes, kita bisa gambar trendline langsung di panel bawah. Tapi untuk draw
