@@ -4593,6 +4593,24 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
 - A layout must not move a control in response to that control's own hover.
 - A filler value for drawing (0 for a missing volume) must never reach a calculation; carry the absence beside it.
 
+### M313 — PBSA 2026-10-08: TradingView sekarang memberi harga seperempat dari yang tersimpan (2026-10-30)
+
+- **Symptom:** pemeriksaan skala PRICE-GAP-0917 (`verification/price_gap_0917/scale_scan.py`, read-only). Untuk PBSA,
+  rasio close tersimpan ÷ TradingView = 2 pada setiap hari 2026-09-01..2026-10-13 (split 1:2, ex-date 2026-10-14),
+  kecuali 2026-10-08 dengan rasio 4. Close tersimpan 10-08 adalah 780 (10-07: 800, 10-09: 855); TradingView sekarang
+  memberi 195, padahal skala split seharusnya 390.
+- **Verified:** baris tersimpan 10-08 masuk lewat run harian 2026-10-08 10:05 UTC dan cocok dengan tetangganya.
+- **Suspected, not verified:** data TradingView untuk PBSA 10-08 berubah atau keliru setelah split. Cek yang akan
+  memastikan: ambil ulang candle PBSA beberapa hari kemudian dan bandingkan dengan sumber lain (Stockbit) untuk 10-08.
+- **Class:** sumber harga eksternal dapat merevisi satu candle lama sendirian. Setiap pengisian ulang tanggal lama dari
+  sumber itu harus dibandingkan dengan data tersimpan di sekitarnya, bukan ditulis langsung. Ini berlaku untuk saham,
+  indeks, obligasi, dan nanti data lintas aset atau makro.
+- **Solution:** tidak ada yang ditulis. PRICE-GAP-0917 P0 (a) membandingkan tetangga sebelum menulis tanggal lama,
+  sehingga candle seperti ini tidak masuk diam-diam.
+- **Status:** OPEN (dipantau; data tersimpan tidak diubah).
+- **Lesson:** sumber eksternal bukan kebenaran mutlak untuk tanggal yang sudah tersimpan. Perbedaan dicatat dan
+  diputuskan, tidak ditimpa.
+
 ### EXEC-TERMINAL-FLOW-IND — selesai (2026-10-30)
 
 **Go user.** Kata user: "Alright, please proceed." (rencana S1–S8), lalu "Oke, jalan kan.". Keputusan yang diterapkan:

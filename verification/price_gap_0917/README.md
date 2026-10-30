@@ -1,0 +1,32 @@
+# PRICE-GAP-0917 — bukti read-only
+
+Rencana: `PLAN.md`, bagian PRICE-GAP-0917.
+
+## Perbandingan skala TradingView vs harga tersimpan (2026-10-30, `scale_scan.py`)
+
+Hanya membaca: TradingView lewat klien milik `apps/idx-price-cron/price_update.py` (`adjustment: splits`, sama dengan
+run harian), SQL lewat pgweb (role read-only). Tidak ada yang ditulis.
+
+- 843 saham universe (bukan indeks) yang punya harga tersimpan 2026-09-01..2026-10-30.
+- **815 sama skala:** close tersimpan 09-16 dan 09-21 sama persis dengan TradingView, begitu juga setiap hari tersimpan
+  lain di jendela itu.
+- **22 tanpa tetangga tersimpan** pada 09-16 atau 09-21 (saham yang hari itu tidak punya candle). Setiap hari tersimpan
+  yang sama tanggalnya tetap sama persis dengan TradingView, jadi skalanya sama.
+- **6 beda skala:** AHAP, BUVA, ENRG, FORU, PBSA, VKTR. Untuk masing-masing:
+  - rasio close tersimpan ÷ TradingView sama di setiap hari sampai tepat sehari sebelum ex-date aksi korporasinya;
+  - candle 09-17/18 TradingView yang dikali rasio itu jatuh di rupiah bulat (dan di fraksi harga BEI).
+
+  | Saham | Aksi (ex-date) | Rasio | 09-17 O/H/L/C setelah dikali rasio | 09-18 O/H/L/C setelah dikali rasio |
+  |---|---|---|---|---|
+  | AHAP | rights 7:5 (10-09) | 1,219401 | 112 / 120 / 111 / 115 | 117 / 117 / 103 / 104 |
+  | BUVA | rights 4:1 (10-14) | 1,130269 | 700 / 715 / 660 / 685 | 690 / 700 / 660 / 665 |
+  | ENRG | rights 2:1 (10-05) | 1,354234 | 1.350 / 1.380 / 1.260 / 1.310 | 1.310 / 1.325 / 1.250 / 1.305 |
+  | FORU | rights 100:46.235 (09-22) | 19,504203 | 4.000 / 4.060 / 3.540 / 3.540 | 3.340 / 3.350 / 3.010 / 3.010 |
+  | PBSA | split 1:2 (10-14) | 2 | 750 / 755 / 730 / 740 | 745 / 745 / 710 / 725 |
+  | VKTR | rights 35:12 (10-07) | 1,331920 | 730 / 775 / 725 / 770 | 770 / 800 / 740 / 785 |
+
+- BAJA (rights 09-28) dan BRNA (rights 10-09) **sama skala**: TradingView tidak menyesuaikan keduanya. Daftar aksi
+  korporasi saja tidak cukup untuk menebak saham mana yang beda skala; perbandingan dengan data tersimpan yang menentukan.
+- Candle TradingView yang tersedia untuk saham sama skala: 825 pada 09-17 dan 823 pada 09-18.
+- Temuan sampingan: PBSA 2026-10-08, TradingView sekarang memberi close seperempat dari nilai tersimpan (rasio 4,
+  hari lain 2). Dicatat sebagai M313; tidak disentuh rencana ini.

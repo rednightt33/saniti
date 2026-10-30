@@ -32,6 +32,12 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 "Go" ini dibaca sebagai go untuk pemetaan dan rencana. Penulisan data menunggu go terpisah. Rencana ini menggantikan F3
 (EXEC-TERMINAL-1026B) dan FUTURE_PLAN E4.
 
+**Syarat user, 2026-10-30 (bukan go eksekusi):** "Oke, untuk fitur 1 dan fitur 4, we just need to make sure bahwa kita
+tidak mengulang dari awal sekali 2016. Hanya tanggal-tanggal di atas 16 September yang dihitung ulang." User juga
+bertanya apakah Feature 05 dan 06 perlu dihitung ulang dan berapa saham yang beda skala, dan mencatat untuk BUVA:
+"kenaikan harga tersebut bukan disebabkan oleh aksi korporasi ... hanya karena swing atau kenaikan harga biasa saja."
+Jawaban dan buktinya: "Pemeriksaan lanjutan" di bawah.
+
 **Pemetaan** (diperiksa 2026-10-30, read-only: kode `main` `7af79430`, katalog dan data live lewat pgweb):
 
 | Sumber | Bukti |
@@ -47,7 +53,8 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
    - ±1.654 baris baru: 2 tanggal × 827 saham, semua kolom harga.
    - Baris IHSG dua tanggal itu sudah ada. Run manual ikut meng-upsert IHSG dengan nilai yang sama.
 2. **`Feature_01_Stock_Daily`.** Otomatis: trigger → `Feature_Calculation_Queue` → `apps/feature-01-worker` →
-   `refresh_feature_01_stock_daily(tanggal, ticker)`, yang menghitung ulang 120 observasi mulai tanggal itu.
+   `refresh_feature_01_stock_daily(tanggal, ticker)`. Fungsi ini hanya menulis baris mulai tanggal itu (paling banyak
+   121 observasi ke depan). Baris sebelumnya hanya dibaca untuk jendela 60 hari dan tidak ditulis.
    - 2 baris baru per saham.
    - 24.859 baris lama (840 saham, 09-21..10-30) dihitung ulang. Per kelompok kolom, baris lama yang berubah per saham:
      - **1 sesi** (09-21): `close_1d_ago`, `return_1d_pct`, `abs_return_1d_pct`.
@@ -70,8 +77,9 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
        - yang rekursif: `ema_12/26/50/200`, `macd`, `macd_signal`, `macd_histogram`, `rsi_14`, `atr_14`, `adx_14`,
          `smi`;
        - kolom swing: `tracking_*`, `temp_*`, `last_swing_high`, `break_swing_high`.
-     - **Tidak berubah:** `close` baris lama.
-     - **Diperbarui:** `calculation_version` dan `calculated_at`.
+     - **Tidak berubah:** `close` baris lama, dan `calculation_version` (live hanya satu versi,
+       `feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`, sama dengan `VERSION` di `engine.py`).
+     - **Diperbarui:** `calculated_at`.
    - Tabel kontrol ikut berubah: `Feature04_Calculation_State` (checkpoint dibangun ulang), `_Queue`, `_Log`,
      `_Column_Status`, `_Notification_Outbox`, `Monitoring_Feature04`.
 4. **Tabel kontrol lain:** `Feature_Calculation_Queue` dan `_Log` (±1.654 item), `Feature_Status`
@@ -80,6 +88,8 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
    - `Feature_01_Stock_Daily_INDEX` dan `Feature_04_Technical_Indicator_INDEX`: IHSG sudah punya dua tanggal itu.
    - Feature 02, 03, 05, 06 (beserta `_INDEX` dan `_Stock`): dihitung dari `IDX_Broker_Summary`. Tabel harga hanya
      dipakai untuk mencari tanggal broker yang belum dimuat (`stockbit-updater/broker_import.py:91-101`, `refresh.py:153`).
+     Dicek live 2026-10-30: Feature 05 dan 06 sama-sama punya 864 saham pada 09-17 dan 863 pada 09-18, dan tidak ada
+     fungsi Feature 02/05/06 yang membaca tabel harga, Feature 01 atau Feature 04 (`pg_proc`).
    - Harga obligasi.
 6. **Storage (terminal-display).** Run `daily` publisher berikutnya menerbitkan ulang sendiri, karena stamp harga
    (baris, tanggal terakhir, ingestion, jumlah close; `publisher.py` `changed_prices`) berubah:
@@ -99,34 +109,83 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
    - **Backtest:** `data_version` baru. Run lama tetap tercatat dengan versi lamanya.
    - **AI:** membaca tabel live. Cache hasil di sandbox diperiksa saat eksekusi.
 
+**Pemeriksaan lanjutan (2026-10-30, read-only)**
+- **Feature 01 hanya menulis mulai 09-17.** Definisi live `refresh_feature_01_stock_daily`: baris yang ditulis dibatasi
+  `observation_number BETWEEN first_target_observation AND first_target_observation + 120`, dengan
+  `first_target_observation` = observasi pertama pada atau sesudah `p_changed_date`. Syarat user terpenuhi tanpa
+  perubahan kode.
+- **Feature 04 belum punya jalan yang memenuhi syarat user.**
+  - Worker butuh checkpoint tepat sebelum tanggal kotor (`apps/feature-04-worker/worker.py:262-293`) dan menolak suffix
+    lebih dari `correction_lookback_sessions` = 5 sesi (`worker.py:329-333`). 09-17..10-30 = 32 sesi, jadi worker
+    menolak meski checkpoint ada.
+  - `features/feature04/backfill.py` menghitung seluruh riwayat dan meng-upsert semua baris yang berbeda
+    (`:57-60`, `ON CONFLICT … WHERE ROW(…) IS DISTINCT FROM`). Baris sebelum 09-17 hanya tertulis bila nilainya
+    berbeda, tetapi kode tidak menjaminnya.
+  - Indikator rekursif (EMA 200, RSI, ATR, ADX, SMI, swing) memerlukan keadaan hitungan pada 09-16. Tanpa checkpoint
+    tersimpan, keadaan itu hanya bisa didapat dengan membaca riwayat dari awal di memori. Membaca tidak menulis apa pun.
+  - Maka P0 (d) di bawah: opsi `--write-from`.
+- **Skala harga** (`verification/price_gap_0917/README.md`, `scale_scan.py`; TradingView lewat klien `price_update.py`
+  sendiri, SQL lewat pgweb):
+  - 843 saham diperiksa. 815 sama skala pada 09-16, 09-21 dan setiap hari tersimpan 09-01..10-30. 22 saham tidak punya
+    harga tersimpan pada 09-16 atau 09-21, tetapi setiap hari tersimpan lainnya sama persis dengan TradingView.
+  - **6 beda skala:** AHAP, BUVA, ENRG, FORU, PBSA, VKTR. Rasio tersimpan ÷ TradingView konstan sampai sehari sebelum
+    ex-date aksi korporasinya. Candle 09-17/18 yang dikali rasio itu jatuh di rupiah bulat (BUVA 09-17: 700 / 715 /
+    660 / 685).
+  - Kenaikan atau penurunan harga BUVA pada 09-17/18 tidak memengaruhi pemeriksaan ini. Yang dibandingkan adalah hari
+    yang sama (09-16 dan 09-21) di dua sumber. Beda skala terjadi karena TradingView sekarang menyesuaikan seluruh harga
+    BUVA sebelum 2026-10-14 dengan faktor rights issue 4:1 (Rp250). Data tersimpan memakai harga asli.
+  - BAJA dan BRNA (rights) sama skala karena TradingView tidak menyesuaikannya. Daftar aksi korporasi saja tidak bisa
+    dipakai untuk menebak.
+  - Candle TradingView tersedia untuk saham sama skala: 825 pada 09-17, 823 pada 09-18 (sebagian kecil saham memang
+    tidak punya candle hari itu, seperti di log harian `Monitoring_Price_ALL`).
+  - Temuan sampingan: PBSA 2026-10-08 (M313), di luar celah.
+
 **Risiko yang sudah terlihat**
-- **R1, skala harga (D22).** TradingView mengirim candle saham yang disesuaikan split, sedangkan riwayat tersimpan
-  campuran.
-  - Aksi korporasi pengubah harga dengan ex-date sesudah celah (live): FORU 09-22, BAJA 09-28, ENRG 10-05, VKTR 10-07,
-    BRNA 10-09, AHAP 10-09, PBSA (split) 10-14, BUVA 10-14.
-  - Untuk saham seperti ini, candle 09-17/18 dari TradingView bisa berbeda skala dengan baris tersimpan 09-16 dan 09-21.
-- **R2, Feature 04.** Lihat butir 3 (D26). Alat perbaikannya berhenti di IHSG (D27). `backfill.py --tickers` menerima
-  1–10 ticker per run, dan `bootstrap_states.py --ticker` satu per run.
+- **R1, skala harga (D22).** TradingView mengirim candle saham yang disesuaikan split (dan sebagian rights issue),
+  sedangkan riwayat tersimpan memakai harga asli. Diukur: 6 saham beda skala (lihat di atas).
+- **R2, Feature 04.** Lihat butir 3 (D26) dan pemeriksaan lanjutan. Alat perbaikannya berhenti di IHSG (D27).
+  `backfill.py --tickers` menerima 1–10 ticker per run; `--all-source-tickers` serial dan bisa dilanjutkan.
 - **R3, TradingView.** Perlu memastikan TradingView masih mengirim candle 32 sesi ke belakang (`--request-bars 40`).
   Dibuktikan dengan dry-run.
 
 **Usulan langkah** (P0 kode dan tes, tanpa data; P1–P7 butuh go)
 - **P0. Perbaikan umum, dengan tes.**
-  - (a) `price_update.py`: target lama (sebelum sesi tersimpan terakhir) hanya menulis saham yang candle tetangganya
-    dari TradingView (sesi tersimpan sebelum dan sesudah) sama dengan baris tersimpan. Yang beda dilewati dan dicatat
-    (`SCALE_MISMATCH`). Aturan ini diturunkan dari data, bukan daftar saham. Opsi `--tickers` ditambahkan untuk
-    mengulang.
-  - (b) D27: `backfill.py` dan `bootstrap_states.py` melewati indeks lewat `public.is_universe_index()`.
+  - (a) `price_update.py`, untuk target lama (sebelum sesi tersimpan terakhir): rasio close tersimpan ÷ TradingView
+    pada sesi tersimpan terdekat sebelum dan sesudah target.
+    - Kedua rasio = 1: candle ditulis apa adanya.
+    - Usulan (pertanyaan 1): kedua rasio sama tetapi ≠ 1, dan OHLC × rasio tidak punya desimal lebih banyak dari harga
+      tersimpan saham itu (IDX: rupiah bulat). Candle ditulis dalam skala tersimpan: OHLC × rasio, volume ÷ rasio
+      dibulatkan ke lembar. Rasionya dicatat di log run.
+    - Selain itu (rasio beda, tetangga tidak ada di TradingView, atau presisi gagal): dilewati dan dicatat
+      `SCALE_MISMATCH`.
+    - Aturannya diturunkan dari data, bukan daftar saham. Opsi `--tickers` ditambahkan untuk mengulang.
+  - (b) D27: `backfill.py` dan `bootstrap_states.py` melewati indeks lewat `public.is_universe_index()`. Diperlukan
+    untuk (d) dengan `--all-source-tickers`.
   - (c) `recovery_window.py`: sesi yang punya candle indeks final tetapi kekurangan saham diperiksa ulang. Ini mencegah
     celah serupa terulang.
+  - (d) `backfill.py --write-from DATE` (syarat user):
+    - riwayat dibaca dan dihitung di memori;
+    - baris sebelum `DATE` dibandingkan dengan yang tersimpan. Bila ada yang berbeda, ticker itu berhenti tanpa menulis
+      apa pun dan dilaporkan;
+    - hanya baris pada atau sesudah `DATE` yang di-upsert.
+
+    Berlaku juga untuk perbaikan lama lain di luar jendela 5 sesi worker.
 - **P1. Dry-run** dua tanggal (`--mode manual --target-date 2026-09-17` / `09-18 --request-bars 40 --dry-run`): jumlah
   baris, daftar `SCALE_MISMATCH`, contoh nilai. Hasilnya dilaporkan ke user.
 - **P2. Tulis harga.** Worker Feature 04 dijeda sesuai runbook, lalu run manual dua tanggal. Dibaca balik: jumlah per
   tanggal ±827, dan close contoh = TradingView.
 - **P3. Feature 01** lewat antrean otomatis. Cek: antrean habis, +2 baris per saham, contoh kolom per kelompok di atas
   sama dengan hitung ulang mandiri.
-- **P4. Feature 04.** `backfill.py` per kelompok ticker, lalu `bootstrap_states.py` (dry-run, lalu tulis,
-  `--require-stored-match`), lalu worker dilanjutkan. Cek: 0 `REPAIR_REQUIRED`, checkpoint lengkap, dan sampel paritas.
+- **P4. Feature 04.**
+  1. `backfill.py --all-source-tickers --write-from 2026-09-17` (dry-run dulu, lalu tulis).
+  2. `bootstrap_states.py` (dry-run, lalu tulis, `--require-stored-match`). Ini menulis checkpoint terbaru saja.
+  3. Worker dilanjutkan.
+
+  Cek:
+  - 0 baris Feature 04 sebelum 09-17 yang `calculated_at`-nya berubah;
+  - 0 `REPAIR_REQUIRED`;
+  - checkpoint lengkap;
+  - sampel paritas.
 - **P5. Storage.** Run `daily` publisher (terjadwal 19:00 / 07:30 WIB, atau run manual M229 di luar jendela B6). Cek:
   file harga = SQL (rows, sum close), xsection baru.
 - **P6. Pembaca.** Terminal (candle 09-17/18, contoh Flow), Screener live, Backtest E2E.
@@ -139,12 +198,13 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 - Rebuild Feature 04 per ticker seperti P4.
 - Storage terbit ulang sendiri lewat stamp.
 
-**Pertanyaan untuk user**
-1. Saham dengan `SCALE_MISMATCH`:
-   - (A) tidak ditulis dan dilaporkan (usulan);
-   - (B) diskalakan ke skala tersimpan memakai rasio tetangga;
+**Pertanyaan untuk user** (diperbarui 2026-10-30 sesudah pemeriksaan lanjutan)
+1. Enam saham beda skala (AHAP, BUVA, ENRG, FORU, PBSA, VKTR):
+   - (B) dikembalikan ke skala tersimpan dengan rasio tetangga, dengan syarat di P0 (a) (usulan; bukti: rasio konstan
+     dan hasilnya rupiah bulat);
+   - (A) tidak ditulis dan dilaporkan;
    - (C) ditulis apa adanya.
-2. P0 (b) dan (c) ikut dikerjakan?
+2. P0 (c) ikut dikerjakan? P0 (b) dan (d) diperlukan untuk syarat user.
 3. Waktu eksekusi.
 
 ## PUBLISHER-CLEANUP-MANUAL — bersih-bersih lengkap manual dan diagnosis listing (EXEC-PUBLISHER-SPEED, M301)
