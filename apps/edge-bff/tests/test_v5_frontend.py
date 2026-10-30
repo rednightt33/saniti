@@ -29,6 +29,8 @@ def test_dates_in_a_fast_lane_answer_are_written_out_and_the_standard_lane_is_un
     sign_in(page, origin)
     submit(page, 'fx:v5_fast_dates')
     saved(page)
+    # MONITOR-REVAMP (AI_revamp.html .discs): Assumptions, Limitations and Methodology fold; they are opened to read them
+    article(page).locator('.edge-discs details').evaluate_all('nodes => nodes.forEach(node => { node.open = true; })')
     text = article(page).inner_text()
     assert 'Periode 7 Oktober 2026 sampai September 2024' in text
     assert '2026-10-07T10:00' in text and '2024-01-02' in text  # a time and code keep their text

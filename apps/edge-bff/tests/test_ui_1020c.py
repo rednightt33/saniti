@@ -76,8 +76,10 @@ def test_the_pinned_title_never_covers_its_first_row_and_cards_show_in_both_them
           const bg = n => { for (; n; n = n.parentElement) { const c = getComputedStyle(n).backgroundColor;
                             if (c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c; } return null; };
           return {gap: r(empty).top - r(head).bottom, card: getComputedStyle(card).backgroundColor,
-                  behind: bg(card.parentElement), width: getComputedStyle(p.querySelector('.edge-pins')).scrollbarWidth}; }""")
+                  behind: bg(card.parentElement), width: getComputedStyle(p.querySelector('.edge-pins')).scrollbarWidth,
+                  border: getComputedStyle(card).borderTopWidth, shadow: getComputedStyle(card).boxShadow}; }""")
         assert found['gap'] >= 0, (name, found)
-        assert found['card'] != found['behind'], (name, found)
+        # MONITOR-REVAMP (AI_revamp.html .hist): a response card is the panel's surface raised by its border and shadow
+        assert found['border'] == '1px' and found['shadow'] != 'none', (name, found)
         assert found['width'] == 'thin', (name, found)
         capture(page, f'ui-1020c-details-{name}')

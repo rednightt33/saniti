@@ -895,7 +895,9 @@ sah), penanganan berkas yang berganti sha256 sesudah publikasi, dan daftar refer
 Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keamanan: perangkat bersama), dan bentuk tanda
 "memperbarui…".
 
-## MONITOR-REVAMP — tampilan halaman Monitor (AI) mengikuti AI_revamp.html (disetujui 2026-10-29)
+## MONITOR-REVAMP — tampilan halaman Monitor (AI) mengikuti AI_revamp.html (disetujui 2026-10-29, dieksekusi 2026-10-30)
+
+**Status: dieksekusi, lihat EXEC-MONITOR-REVAMP di `EXEC.md`.**
 
 **Permintaan, 2026-10-29 (kata user):** "boleh cek BFF sheet monitor ... HTML yang mana kita akan fully replace dan fully
 revamp just the front end side ... Kita tidak akan menambah fitur apapun". Acuan: `AI_revamp.html` (prototipe statis:

@@ -9,7 +9,9 @@ from test_answer_view import attach_by_right_click, built_answer, fixture_server
 from test_visual import browser_page, capture, saved, sign_in, submit  # noqa: F401 (fixtures)
 
 
-def test_the_running_status_row_has_the_same_room_above_and_below_its_text(fixture_server, browser_page):
+def test_while_an_answer_runs_the_message_box_says_its_button_stops_it(fixture_server, browser_page):
+    """MONITOR-REVAMP (user 2026-10-29, AI_revamp.html .cbar): the box has no running row (EXEC-UI-1024 1B); the hint
+    beside the send button says what it does now, and the button is the red Stop."""
     origin, orc = fixture_server
     page = browser_page
     sign_in(page, origin)
@@ -21,12 +23,10 @@ def test_the_running_status_row_has_the_same_room_above_and_below_its_text(fixtu
     orc.run = slow
     try:
         submit(page, 'net beli asing BBRI')
-        page.locator('.composer-running').wait_for(timeout=10000)
-        room = page.evaluate("""() => { const box = document.querySelector('.composer').getBoundingClientRect();
-            const row = document.querySelector('.composer-running').getBoundingClientRect();
-            const text = document.querySelector('.composer-running span:not(.pulse)').getBoundingClientRect();
-            return {above: text.top - box.top - 1, below: row.bottom - text.bottom}; }""")
-        assert abs(room['above'] - room['below']) <= 1.5, room
+        stop = page.get_by_role('button', name='Stop', exact=True)
+        stop.wait_for(timeout=10000)
+        assert 'stop' in stop.get_attribute('class') and not page.locator('.composer-running').count()
+        assert page.locator('.composer .edge-send-hint').inner_text() == 'Running\u2026 press to stop'
         capture(page, 'ui1024-running-row')
     finally:
         release.set()
@@ -92,8 +92,11 @@ def test_an_attachment_is_a_quote_with_a_plain_note_under_it(fixture_server, bro
     chip = page.locator('.composer .edge-attached-chip')
     note = chip.locator('.edge-attached-comment')
     style = note.evaluate("n => { const c = getComputedStyle(n); return [c.borderTopWidth, c.borderBottomWidth, c.borderLeftWidth, c.backgroundColor]; }")
-    assert style[:3] == ['0px', '0px', '0px'] and style[3] in ('rgba(0, 0, 0, 0)', 'transparent'), style
-    assert chip.evaluate("n => getComputedStyle(n).borderLeftWidth") == '0px'  # no side accent bar (user 2026-10-24)
+    # MONITOR-REVAMP (user 2026-10-29, AI_revamp.html .att): the note sits under a dashed line, without a box; the
+    # attachment is a framed card with no side accent bar
+    assert style[:3] == ['1px', '0px', '0px'] and style[3] in ('rgba(0, 0, 0, 0)', 'transparent'), style
+    assert note.evaluate("n => getComputedStyle(n).borderTopStyle") == 'dashed'
+    assert chip.evaluate("n => getComputedStyle(n).borderLeftWidth === getComputedStyle(n).borderRightWidth")
     assert chip.locator('.edge-attached-text').evaluate("n => getComputedStyle(n).webkitLineClamp") == '2'
     short = note.bounding_box()['height']
     note.fill('baris satu ' * 30)

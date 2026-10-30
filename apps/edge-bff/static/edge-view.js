@@ -71,7 +71,7 @@
       notes:{assumptions:{label:ui.planAssumptions, items:unique(raw.assumptions, seen)}, limitations:{label:ui.planLimitations, items:unique(raw.limitations, seen)}},
       confirmation:raw.confirmation_question || null,
       choices:[{key:"APPROVE", label:ui.approve, primary:true, action:{type:"plan", plan:"APPROVE", planId:id, message:ui.approveMessage}},
-               {key:"REVISE", label:ui.revise, action:{type:"plan", plan:"REVISE", planId:id}},
+               {key:"REVISE", label:ui.revise, hint:ui.reviseHint, action:{type:"plan", plan:"REVISE", planId:id}},
                {key:"CANCEL", label:ui.cancel, kind:"ghost", action:{type:"plan", plan:"CANCEL", planId:id, message:ui.cancelMessage}}]};
   }
 

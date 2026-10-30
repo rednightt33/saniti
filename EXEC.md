@@ -8963,3 +8963,34 @@ dihapus dari file ini (aturan AGENTS); hasil, bukti dan tes ada di ERRORS M304, 
 butir 28), RAILWAY_CHANGELOG dan DATABASE_CHANGELOG 2026-10-29. Tiga uji live (`edge_6f8de485…`, `edge_dd6cf882…`,
 `edge_deb3fc4d…`) dan temuan baru M306 di ERRORS. Kode: `943f312` (orc), `1a52498` (sandbox), `3bed26b` (M217,
 telegram-monitor), migrasi `20261029_001/002/003`.
+
+## EXEC-MONITOR-REVAMP — halaman Monitor (AI) dan top bar mengikuti AI_revamp.html (go 2026-10-29, deploy 2026-10-30)
+
+Rencana dan keputusan A/B: `PLAN.md` "MONITOR-REVAMP". Tambahan keputusan user selama eksekusi:
+- 2026-10-29, top bar dipakai bersama empat tab: "Semua tab"; tema awal terang juga untuk Screener: "Ubah default
+  Screener juga".
+- 2026-10-29, sepuluh bagian prototipe yang bertentangan dengan keputusan lama (saran lanjutan dilipat, tanpa "Sends
+  right away", tabel selebar isi, semua sel rata kiri dan tengah, kicker berjarak huruf, Bookmark di rail desktop, jarak
+  18 px di atas kotak pesan, "High", langkah selesai dilipat, lampiran kutipan tanpa kotak): "Ikuti HTML baru semua".
+- 2026-10-30, sesudah review pratinjau statis: "aight pls proceed".
+
+Isi (front-end edge-bff saja; API, `edge-client.js` dan perilaku tetap):
+- Token Design Spec v1 di `.app` (terang; gelap di `html.dark`), tipografi Inter per peran, ikon prototipe; tema awal
+  terang (`edge-auth-monitor-theme` kosong = light; `screener/src/storage.ts` ikut).
+- Top bar keempat tab; panel kiri ("Workspace", Details/Share di samping menu, "New Chat", "Search conversations",
+  filter pil, baris percakapan); kartu jawaban (kicker dengan pill status, metarow, Tokens 12K, evidence + centang,
+  aksi di pita bawah, "Ask about this"); temuan (grid label/teks); rencana (scope chips, grid field, asumsi/batasan dua
+  kolom); "Your next step · …" dengan "Sends right away"; saran lanjutan satu daftar terbuka dengan pill jenis;
+  Assumptions/Limitations/Methodology terlipat; tabel berbingkai selebar kartu (HP: selebar isi, geser samping), Download
+  dan Enlarge di kanan bawah; kotak pesan (tombol kirim ikon, "↵ to send", Stop merah, "Stop & send", "Data scope"
+  nonaktif); Details (tab + tutup satu baris, Pinned/Response history dengan ikon dan jumlah, kartu riwayat, Sources
+  terlipat per bagian dan diingat browser, Pinned hanya di tab Flow); kartu run berjalan (pill "Running · waktu",
+  langkah selesai dan langkah sekarang); menu model, Share, teks terpilih, dialog, toast; lebar awal sidebar 272 px,
+  Details 340 px.
+- Tidak 1:1 (data tidak ada di API daftar percakapan atau keputusan A/B): pill status dan anak Branch di daftar
+  percakapan, grup "This week", status "Approved" rencana, waktu relatif, tombol Stop di kartu run, tooltip klaim khusus.
+- Tes: hanya bagian tampilan disesuaikan (komentar "MONITOR-REVAMP" di tiap tes); satu tes baris status kotak pesan
+  diganti tes petunjuk "Running… press to stop" dan tombol Stop. Suite edge-bff (Postgres 16 lokal, Chromium):
+  267 lulus, 3 gagal = baseline `main` sebelum revamp (`test_ui_1015c` judul pendek di 1440, `test_composer_layout`
+  mobile ×2, gejala sama).
+- Infra: hanya edge-bff (static + build Screener); hasil deploy di `RAILWAY_CHANGELOG.md`.

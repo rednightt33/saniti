@@ -37,10 +37,11 @@ def test_the_answer_head_is_even_and_the_evidence_line_reads_like_the_metadata(f
     assert page.evaluate("q => Edge.shortTitle(q)", 'pendek') == 'pendek'
     head = article(page).evaluate("""a => { const r = n => n.getBoundingClientRect(), s = n => getComputedStyle(n);
       const h = a.querySelector('h1'), m = a.querySelector('.result-metadata'), t = a.querySelector('.edge-evidence-line'),
-            b = t.querySelector('.edge-badge'), req = m.querySelector('span'), ans = a.querySelector('.edge-answer');
+            b = t.querySelector('.edge-evidence-text'), req = m.querySelector('span'), ans = a.querySelector('.edge-answer');
       return {title: h.textContent, titleGap: r(m).top - r(h).bottom, evidenceGap: r(t).top - r(m).bottom,
               answerGap: r(ans).top - r(t).bottom, font: [s(b).fontFamily, s(b).fontSize], requestFont: [s(req).fontFamily,
-              s(req).fontSize], check: !!t.querySelector('svg.edge-evidence-check circle[fill="#16a34a"]')}; }""")
+              s(req).fontSize], check: !!t.querySelector('svg.edge-evidence-check circle[fill="#087f5b"]')}; }""")
+    # MONITOR-REVAMP (AI_revamp.html .evline): the evidence label is text like the metadata, its green check after it
     assert abs(head['titleGap'] - head['evidenceGap']) <= 1, head
     assert 22 <= head['answerGap'] <= 26, head
     assert head['font'] == head['requestFont'] and head['check'], head
@@ -92,10 +93,13 @@ def test_the_table_icons_stand_eight_pixels_above_the_table(fixture_server, brow
         saved(page)
     finally:
         orc.run = original
-    gap = article(page).locator('.edge-md-table-frame').first.evaluate(
-        "f => f.querySelector('.edge-md-table').getBoundingClientRect().top - "
-        "f.querySelector('.edge-table-tools').getBoundingClientRect().bottom")
-    assert 7 <= gap <= 9, gap
+    # MONITOR-REVAMP (AI_revamp.html .tbltools): Download and Enlarge stand 10 px under the table, on its right
+    frame = article(page).locator('.edge-md-table-frame').first
+    gap = frame.evaluate("f => f.querySelector('.edge-table-tools button').getBoundingClientRect().top - "
+                         "f.querySelector('.edge-md-table').getBoundingClientRect().bottom")
+    assert 9 <= gap <= 11, gap
+    assert frame.evaluate("f => Math.abs(f.querySelector('.edge-table-tools').getBoundingClientRect().right - "
+                          "f.querySelector('.edge-md-table').getBoundingClientRect().right)") <= 1
 
 
 def test_progress_sits_under_the_question_follows_to_the_bottom_and_has_no_lane_label(fixture_server, browser_page):
@@ -121,14 +125,14 @@ def test_progress_sits_under_the_question_follows_to_the_bottom_and_has_no_lane_
         gap = page.evaluate("""() => { const w = document.querySelector('.edge-inline-progress-wrap');
             const f = w.previousElementSibling; return w.querySelector('.edge-inline-progress span:last-child')
               .getBoundingClientRect().top - f.querySelector('.user-sent-at').getBoundingClientRect().bottom; }""")
-        assert gap <= 26, gap
-        assert 'Standard' not in page.locator('.composer-status').first.inner_text()
+        # MONITOR-REVAMP (AI_revamp.html running card): the running answer is a card right under the question
+        assert gap <= 40, gap
+        assert 'Standard' not in page.locator('.edge-run-card').first.inner_text()
         # more steps arrive: the page stays at the bottom while it follows
         for n in range(8):
             steps.append({'label': f'Step {n}', 'state': 'done', 'started_ms': 2000 + n, 'duration_ms': 1000})
         steps.append({'label': 'Thinking', 'state': 'running', 'started_ms': 9000, 'duration_ms': 3000})
-        page.locator('.edge-run-progress-done summary').wait_for(timeout=10000)
-        page.locator('.edge-run-progress-done summary').evaluate("s => s.parentElement.open = true")
+        page.wait_for_function("() => document.querySelectorAll('.edge-run-step.done').length >= 9", timeout=10000)
         page.wait_for_timeout(700)
         rest = page.locator('.research-scroll').evaluate("s => s.scrollHeight - s.scrollTop - s.clientHeight")
         assert rest <= 2, rest

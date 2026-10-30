@@ -29,7 +29,7 @@ def test_branch_opens_a_new_tab_that_continues_the_answer(fixture_server, browse
     branch_id = tab.url.split('/c/')[1][:37]  # EXEC-CHAT-URL: the conversation's own address
     assert branch_id != parent[2].get('conversation_id')
     tab.get_by_placeholder('Ask a research question…').fill('lanjut dari sini')
-    tab.get_by_role('button', name='Submit', exact=True).click()
+    tab.get_by_role('button', name='Send', exact=True).click()
     tab.wait_for_function('() => document.querySelectorAll("article.result").length === 2 && !document.querySelector(".composer-status")')
     assert orc.calls[-1][2]['conversation_id'] == branch_id
     divider = tab.locator('.edge-branch-divider').bounding_box()
@@ -54,7 +54,7 @@ def test_the_side_chat_asks_about_one_answer_and_is_not_in_the_list(fixture_serv
     assert frame.locator('.research-exchange').count() == 0 and frame.locator('.edge-side-empty').is_visible()
     assert frame.locator('.conversation-panel').is_hidden() and frame.locator('.edge-branch-action').count() == 0
     frame.get_by_placeholder('Ask a research question…').fill('kenapa naik?')
-    frame.get_by_role('button', name='Submit', exact=True).click()
+    frame.get_by_role('button', name='Send', exact=True).click()
     frame.locator('article.result').first.wait_for(timeout=10000)
     side_id = orc.calls[-1][2]['conversation_id']
     assert side_id and side_id != orc.saved[answered_id]['conversation_id']

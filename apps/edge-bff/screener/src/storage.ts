@@ -10,10 +10,11 @@ export const store = {
   del(k: string) { try { localStorage.removeItem(k) } catch { /* storage off */ } },
 };
 
-/** EDGE's one theme (report 9.2 Theme): the shell's key, default dark; the prototype's own key is dropped. */
+/** EDGE's one theme (report 9.2 Theme): the shell's key, default light (MONITOR-REVAMP, user 2026-10-29), as the shell;
+ * the prototype's own key is dropped. */
 export const THEME_KEY = 'edge-auth-monitor-theme';
 export function readTheme(): 'light' | 'dark' {
-  try { return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark' } catch { return 'dark' }
+  try { return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light' } catch { return 'light' }
 }
 export function applyTheme(t = readTheme()) {
   const root = document.documentElement;

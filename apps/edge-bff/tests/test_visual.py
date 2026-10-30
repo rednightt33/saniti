@@ -9,6 +9,25 @@ import pytest
 from test_browser import server  # shared real-HTTP fixture
 
 
+def bookmark_open_conversation(page):
+    """MONITOR-REVAMP (AI_revamp.html): an open desktop sidebar bookmarks a conversation from its own row; the rail
+    (folded sidebar, tablet, phone) keeps its Bookmark button."""
+    rail = page.get_by_role('button', name='Bookmark', exact=True)
+    if rail.count():
+        rail.click()
+        page.wait_for_function("() => document.querySelector('[aria-label=Bookmark]').getAttribute('aria-pressed') === 'true'")
+    else:
+        page.locator('.conversation.active').get_by_role('button', name='Add bookmark', exact=True).click()
+        page.locator('.conversation.active').get_by_role('button', name='Remove bookmark', exact=True).wait_for(state='attached')
+
+
+def open_conversation_bookmarked(page):
+    rail = page.get_by_role('button', name='Bookmark', exact=True)
+    if rail.count():
+        return rail.get_attribute('aria-pressed') == 'true'
+    return page.locator('.conversation.active').get_by_role('button', name='Remove bookmark', exact=True).count() == 1
+
+
 @pytest.fixture
 def browser_page(request):
     playwright = pytest.importorskip('playwright.sync_api')
@@ -76,7 +95,7 @@ def sign_in(page, origin):
 
 def submit(page, question):
     page.get_by_placeholder('Ask a research question…').fill(question)
-    page.get_by_role('button', name='Submit', exact=True).click()
+    page.get_by_role('button', name='Send', exact=True).click()
 
 
 def saved(page, count=1):
@@ -90,7 +109,7 @@ def no_clipping(page):
             continue  # EXEC-UI-1015C: above a phone the session bar is gone, its buttons sit in the rail
         box = page.locator(selector).bounding_box()
         assert box and box['x'] >= -1 and box['x'] + box['width'] <= page.viewport_size['width'] + 1, selector
-    for label in ('Account menu', 'Show Details', 'Submit'):
+    for label in ('Account menu', 'Show Details', 'Send'):
         button = page.get_by_role('button', name=label, exact=True)
         if button.is_visible():
             box = button.bounding_box()
@@ -148,7 +167,7 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
         assert entered.wait(3)
         stop = page.get_by_role('button', name='Stop', exact=True)  # EXEC-X 2026-10-09: the stop button
         stop.wait_for()
-        assert stop.is_enabled() and not page.get_by_role('button', name='Submit', exact=True).count()
+        assert stop.is_enabled() and not page.get_by_role('button', name='Send', exact=True).count()
         assert page.locator('.edge-response-dots i').count() == 3
         assert page.locator('.edge-response-dots i').first.evaluate('(node) => getComputedStyle(node).animationName') == 'edge-response-pulse'
         animation = page.locator('.edge-response-dots i').first
@@ -172,12 +191,15 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
         assert not page.locator('.edge-response-dots').count()
         assert page.locator('article.result').evaluate('(node) => getComputedStyle(node).animationName') == 'edge-ai-arrival'
         page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
-        capture(page, 'desktop-answer-dark')
-        page.get_by_role('button', name='Switch to light theme', exact=True).click()
+        # MONITOR-REVAMP (user 2026-10-29): the page starts light; the dark theme is one press away
         capture(page, 'desktop-answer-light')
+        page.get_by_role('button', name='Switch to dark theme', exact=True).click()
+        capture(page, 'desktop-answer-dark')
         page.emulate_media(reduced_motion='reduce')
         assert page.locator('article.result').evaluate('(node) => getComputedStyle(node).animationName') == 'none'
         page.get_by_role('tab', name='Sources', exact=True).click()
+        # MONITOR-REVAMP (AI_revamp.html): each part of Sources starts folded under its title and count
+        page.locator('.edge-source-fold').evaluate_all('nodes => nodes.forEach(node => { node.open = true; })')
         assert page.get_by_text('IDX — dummy metadata', exact=True).is_visible()
         capture(page, 'desktop-sources')
     finally:
@@ -192,15 +214,13 @@ def test_follow_up_questions_and_insight_ideas_are_clicked_as_the_next_message(d
     sign_in(page, origin)
     submit(page, 'Dummy follow ups')
     saved(page)
-    # EXEC-IMPL-1017 Fase 2 (user 2026-10-16): each group folds like Assumptions, closed when the answer arrives, its
-    # count in the title, and the suggestions are not bold
-    follow = page.locator('details.edge-next-group summary', has_text='Insight ideas (')  # the question is an insight idea
-    assert follow.is_visible() and page.locator('details.edge-next-group summary', has_text='Follow-up questions (').is_visible()
+    # MONITOR-REVAMP (user 2026-10-29, AI_revamp.html .fups): one open list under "Suggested next questions", each
+    # suggestion marked with its kind and not bold
+    assert page.locator('.edge-fup-title').inner_text() == 'Suggested next questions'
     question = page.get_by_role('button', name='Bulan apa jual asing BBRI paling besar?', exact=True)
-    assert not question.is_visible()  # folded when the answer arrives
-    follow.click()
-    assert question.is_visible()
-    assert question.locator('strong').evaluate('n => getComputedStyle(n).fontWeight') == '400'
+    assert question.is_visible() and question.locator('.edge-badge').inner_text() == 'Insight idea'
+    assert page.locator('.edge-fup .edge-badge', has_text='Follow-up').count() >= 1
+    assert question.locator('.edge-fup-label').evaluate('n => getComputedStyle(n).fontWeight') == '400'
     capture(page, 'follow-ups')
     question.click()
     saved(page, 2)
@@ -265,8 +285,7 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     capture(page, f'answer-{width}')
     page.get_by_role('button', name='Pin', exact=True).click()
     page.get_by_role('button', name='Pinned', exact=True).wait_for()
-    page.get_by_role('button', name='Bookmark', exact=True).click()
-    page.wait_for_function("() => document.querySelector('[aria-label=Bookmark]').getAttribute('aria-pressed') === 'true'")
+    bookmark_open_conversation(page)
     if width <= 1050:
         page.get_by_role('button', name='Show Details', exact=True).click()
         details = page.get_by_role('dialog', name='Response details', exact=True)
@@ -277,6 +296,8 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     assert details.locator('.edge-pin-body').is_visible()
     page.get_by_role('button', name='Expand pinned response', exact=True).click()
     page.get_by_role('tab', name='Sources', exact=True).click()
+    # MONITOR-REVAMP (AI_revamp.html): each part of Sources starts folded under its title and count
+    page.locator('.edge-source-fold').evaluate_all('nodes => nodes.forEach(node => { node.open = true; })')
     assert page.get_by_text('IDX — dummy metadata', exact=True).is_visible()
     capture(page, f'details-{width}')
     if width <= 1050:
@@ -290,9 +311,9 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
         page.get_by_role('dialog', name='Conversation history', exact=True).wait_for()
     page.get_by_role('button', name='Bookmarked 1', exact=True).click()
     assert page.locator('.conversation-list .conversation').count() == 1
-    page.get_by_placeholder('Search conversation').fill('no matching title')
+    page.get_by_placeholder('Search conversations').fill('no matching title')
     page.get_by_text('No matching conversations', exact=True).wait_for()
-    page.get_by_placeholder('Search conversation').fill('Dummy first')
+    page.get_by_placeholder('Search conversations').fill('Dummy first')
     page.locator('.conversation-list .conversation').wait_for()
     capture(page, f'history-{width}')
     page.locator('.conversation-list .conversation').click()
@@ -303,8 +324,8 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     # conversation opens by itself, with its pin and bookmark
     assert '/c/conv_' in page.url
     page.get_by_role('button', name='Pinned', exact=True).wait_for()
-    assert page.get_by_role('button', name='Bookmark', exact=True).get_attribute('aria-pressed') == 'true'
-    page.get_by_role('button', name='New conversation', exact=True).click()
+    assert open_conversation_bookmarked(page)
+    page.get_by_role('button', name='New Chat', exact=True).click()
     submit(page, 'Dummy second answer')
     saved(page)
     if width <= 1050:
@@ -348,13 +369,13 @@ def test_failure_retry_limited_and_multi_turn_history(dummy_orc, browser_page):
     page.get_by_role('button', name='Retry', exact=True).click()
     assert page.get_by_placeholder('Ask a research question…').input_value() == 'Dummy failure'
     assert len(orc.calls) == 1
-    page.get_by_role('button', name='Submit', exact=True).click()
+    page.get_by_role('button', name='Send', exact=True).click()
     saved(page, 2)
     assert len(orc.calls) == 2 and orc.calls[1][1] != first
     assert orc.calls[1][2]['conversation_id'] == orc.saved[first]['conversation_id']
     submit(page, 'Dummy limited')
     saved(page, 3)
-    assert page.locator('article.result').last.locator('.result-kicker').text_content() == 'EDGE · Limited'
+    assert page.locator('article.result').last.locator('.result-kicker .edge-badge').text_content() == 'Limited'
     page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
     capture(page, 'desktop-history-multiple')
     page.reload()
@@ -393,7 +414,7 @@ def test_submit_error_keyboard_disabled_controls_and_resizing(dummy_orc, browser
     assert len(orc.calls) == 1
     assert attempts[0]['message'] == orc.calls[0][2]['message']
     assert not page.locator('.mode-anchor').count()  # EXEC-SHARE-UI: the Research Mode menu is removed
-    for label in ('Data Scope', 'Attachments are not available yet', 'Public sharing unavailable', 'Support unavailable', 'Notifications unavailable'):
+    for label in ('Data scope', 'Attachments are not available yet', 'Public sharing unavailable', 'Support unavailable', 'Notifications unavailable'):
         assert page.get_by_role('button', name=label, exact=True).is_disabled()
     page.get_by_role('button', name='Account menu', exact=True).click()
     composer.click()
@@ -402,15 +423,15 @@ def test_submit_error_keyboard_disabled_controls_and_resizing(dummy_orc, browser
     resizer = page.get_by_role('separator', name='Resize Details panel', exact=True)
     resizer.focus()
     resizer.press('ArrowLeft')
-    assert resizer.get_attribute('aria-valuenow') == '340'
+    assert resizer.get_attribute('aria-valuenow') == '360'  # MONITOR-REVAMP: Details is 340 px at first (AI_revamp.html)
     resizer.dblclick()
-    assert resizer.get_attribute('aria-valuenow') == '320'
+    assert resizer.get_attribute('aria-valuenow') == '340'
     page.get_by_role('button', name='Collapse sidebar', exact=True).click()
-    assert page.get_by_role('button', name='New conversation', exact=True).is_visible()
+    assert page.get_by_role('button', name='New Chat', exact=True).is_visible()
     # A persisted collapsed desktop sidebar must still expose mobile history/search.
     page.set_viewport_size({'width': 390, 'height': 844})
     page.get_by_role('button', name='Open history', exact=True).click()
-    page.get_by_placeholder('Search conversation').wait_for(state='visible')
+    page.get_by_placeholder('Search conversations').wait_for(state='visible')
     capture(page, 'mobile-history-from-collapsed-desktop')
     page.keyboard.press('Escape')
     page.get_by_role('button', name='Show Details', exact=True).click()
@@ -442,10 +463,10 @@ def test_mobile_research_plan_and_clarification(server, browser_page):
     page.get_by_role('button', name='Revise', exact=True).click()
     page.locator('.composer-status').filter(has_text='Describe the plan revision').wait_for()
     page.get_by_placeholder('Ask a research question…').fill('Use one year')
-    page.get_by_role('button', name='Submit', exact=True).click()
+    page.get_by_role('button', name='Send', exact=True).click()
     saved(page, 2)
     assert orc.calls[-1][2]['plan_reply']['revision_instruction'] == 'Use one year'
-    page.get_by_role('button', name='New conversation', exact=True).click()
+    page.get_by_role('button', name='New Chat', exact=True).click()
     submit(page, 'Clarify')
     page.get_by_role('button', name='Quick summary', exact=True).wait_for()
     capture(page, 'mobile-clarification')
@@ -510,12 +531,12 @@ def test_typing_does_not_redraw_the_page(dummy_orc, browser_page):
     assert page.evaluate('window.__created') == 0
     assert box.input_value() == 'halo dunia'
     assert page.evaluate('document.activeElement === document.querySelector(".composer textarea")')
-    assert page.get_by_role('button', name='Submit', exact=True).is_enabled()
+    assert page.get_by_role('button', name='Send', exact=True).is_enabled()
     page.keyboard.press('Enter')
     saved(page, 2)
     assert orc.calls[-1][2]['message'] == 'halo dunia'
     assert box.input_value() == ''
-    assert page.get_by_role('button', name='Submit', exact=True).is_disabled()
+    assert page.get_by_role('button', name='Send', exact=True).is_disabled()
 
 
 def test_typing_while_an_answer_arrives_keeps_focus(dummy_orc, browser_page):
@@ -573,7 +594,8 @@ def test_answer_table_sorts_by_its_column_titles(dummy_orc, browser_page):
     title = grid.locator('th').nth(1)
     title.hover()
     assert title.locator('.edge-sort-icon').evaluate('n => getComputedStyle(n).opacity') == '1'
-    assert grid.locator('th').nth(0).locator('.edge-sort-icon').evaluate('n => getComputedStyle(n).opacity') == '0'
+    # MONITOR-REVAMP (AI_revamp.html .tbl th .ar): every title shows its sort arrow, faint until hovered or sorted
+    assert grid.locator('th').nth(0).locator('.edge-sort-icon').evaluate('n => getComputedStyle(n).opacity') == '0.5'
     title.locator('button').click()
     assert first() == ['TLKM', 'BBRI', 'BMRI', 'BBCA', 'Total']
     assert title.get_attribute('aria-sort') == 'descending'
@@ -629,7 +651,7 @@ def test_left_panel_shows_each_question_and_hides_a_deleted_conversation(dummy_o
     sign_in(page, origin)
     submit(page, 'Dummy first question')
     saved(page)
-    page.get_by_role('button', name='New conversation').first.click()
+    page.get_by_role('button', name='New Chat').first.click()
     submit(page, 'Dummy second question')
     saved(page)
     page.reload()

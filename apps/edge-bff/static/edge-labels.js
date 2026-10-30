@@ -67,6 +67,13 @@ window.EdgeLabels = {
     approve:"Approve & run", revise:"Revise", cancel:"Cancel",
     stop:"Stop", stopping:"Stopping…", stopNotYet:"Nothing to stop yet; try again in a moment.", stopped:"Stopped by you.",
     followUps:"Follow-up questions", insightIdeas:"Insight ideas", dataTest:"Further research",
+    // MONITOR-REVAMP (user 2026-10-29, AI_revamp.html): the suggestions as one list, each with its kind; the note of a choice
+    // sent at once; the short label of the side-chat button under an answer
+    suggestedNext:"Suggested next questions", followUpKind:"Follow-up", insightIdeaKind:"Insight idea", dataTestKind:"Further research",
+    choiceSends:"Sends right away", reviseHint:"Write what to change", askAboutShort:"Ask about this",
+    send:"Send", sendHint:"\u21B5 to send", runningHint:"Running\u2026 press to stop",
+    running:"Running", runNote:"You can keep typing; \u201cStop & send\u201d sends your next message right away.",
+    shareTitle:"Share this answer", branchedNote:" \u2014 continues from that answer without recomputing.",
     stopAndSend:"Stop & send", stoppingHint:"Stopping — waiting for the current step to finish", editResend:"Edit & resend",
     stoppedHint:"What was done so far stays in this conversation.",
     findings:"Research findings", finding:"Finding", backendMore:"Backend details",

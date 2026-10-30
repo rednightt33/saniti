@@ -224,6 +224,12 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
 | Look and layout | `static/index.html` (markup, CSS, renderers) | anything visual; renderers read the view model only |
 
+- Look (MONITOR-REVAMP, user 2026-10-29): the Monitor page and the top bar of every tab follow the user's
+  `AI_revamp.html` (EDGE / Market Lab Design Spec v1): its tokens on `.app` (light, and dark under `html.dark`), its
+  components mapped onto this page's markup in the last block of `index.html`'s style ("MONITOR-REVAMP"). A browser
+  with no saved theme starts light (`edge-auth-monitor-theme`; the Screener reads the same key and default). The phone
+  layout (max-width 720px) keeps its own arrangement and takes the colours and type.
+
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.
 - An answer's assumptions and limitations (`lists`) are folded under the answer as "Asumsi (n)" and "Batasan (n)"
@@ -232,8 +238,8 @@ The page is edited as one HTML file and its API wiring is not locked to the view
   through `staticUrl` (EXEC-EXPORT). After each redraw the element that had focus gets it back with its caret, and a
   keystroke in the message box redraws only when the box turns empty or non-empty (EXEC-TYPING).
 - A table in an answer sorts by a click on a column title: descending (↓), ascending (↑), then the original order; the
-  hovered title shows ⇅; a Total row stays last; Indonesian numbers, money scales and dates are read (`MdTable`,
-  EXEC-SORT). The table's look is unchanged. A dash (`–`, a missing value in a table Orc builds, EXEC-TABLE) sorts
+  title shows its arrow, faint until hovered or sorted (MONITOR-REVAMP); a Total row stays last; Indonesian numbers,
+  money scales and dates are read (`MdTable`, EXEC-SORT). A dash (`–`, a missing value in a table Orc builds, EXEC-TABLE) sorts
   last like an empty cell.
 - The left panel shows each conversation's latest question under its title (`last_message` from the job table,
   EXEC-UI-1012 B1). The conversation's title is Orc's first-message router title when there is one (only the first

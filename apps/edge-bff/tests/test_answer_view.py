@@ -82,11 +82,12 @@ def test_markdown_answer_renders_headings_bold_and_tables_as_elements(fixture_se
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Completed')  # the frame stays English
     page.get_by_role('tab', name='Sources', exact=True).click()
     assert page.locator('.sources').get_by_text('Conversation data record').is_visible()
-    capture(page, 'x-answer-table-dark')
-    capture_answer(page, 'full-answer-table-dark')
-    page.get_by_role('button', name='Switch to light theme', exact=True).click()
+    # MONITOR-REVAMP (user 2026-10-29): the page starts light; the dark theme is one press away
     capture(page, 'x-answer-table-light')
     capture_answer(page, 'full-answer-table-light')
+    page.get_by_role('button', name='Switch to dark theme', exact=True).click()
+    capture(page, 'x-answer-table-dark')
+    capture_answer(page, 'full-answer-table-dark')
 
 
 def test_plan_card_has_no_raw_json_and_its_buttons_reply_in_indonesian(fixture_server, browser_page):
@@ -114,12 +115,13 @@ def test_plan_card_has_no_raw_json_and_its_buttons_reply_in_indonesian(fixture_s
     # EXEC-CHOICES: the "Response choices" panel under the plan: a labelled separator, Setujui as the main choice sent
     # at once, Revisi completed in the message box first
     panel = article(page).locator('.edge-response-choices')
-    assert panel.locator('.edge-boundary-label').inner_text().upper() == 'YOUR NEXT STEP'
+    # MONITOR-REVAMP (AI_revamp.html .next): one line "Your next step · Plan approval" heads the choices
+    assert panel.locator('.edge-choices-title').inner_text() == 'Your next step · Plan approval'
     approve = panel.get_by_role('button', name='Approve & run', exact=True)
     revise = panel.get_by_role('button', name='Revise', exact=True)
-    # V4 (user 2026-10-14): a choice sent at once has no subtitle ("Kirim balasan langsung" removed)
-    assert 'primary' in approve.get_attribute('class') and approve.locator('small').count() == 0
-    assert 'Fill in the message box first' in revise.inner_text() and 'Write' in revise.inner_text()
+    # MONITOR-REVAMP (AI_revamp.html .choice): every choice says what it does under its label
+    assert 'primary' in approve.get_attribute('class') and approve.locator('small').inner_text() == 'Sends right away'
+    assert revise.locator('small').inner_text() == 'Write what to change'
     calls = len(orc.calls)
     revise.click()
     page.locator('.composer-status').wait_for()
@@ -206,9 +208,12 @@ def test_a_pause_shows_its_choices_as_buttons_once(fixture_server, browser_page)
     saved(page)
     pause = FIXTURES['paused']['execution']['pause']
     card = article(page).locator('.edge-response-choices.pause')
-    assert 'This answer is paused' in card.inner_text() and pause['reason'] in card.inner_text()
+    # MONITOR-REVAMP (AI_revamp.html .pause): the paused line names the reason above the choices
+    line = article(page).locator('.edge-pause-line')
+    assert 'This answer is paused' in line.inner_text() and pause['reason'] in line.inner_text()
     assert pause['question'] not in article(page).locator('.edge-answer').inner_text()  # not shown twice
-    assert article(page).locator('.result-kicker').text_content() == 'EDGE · Paused'
+    # MONITOR-REVAMP (AI_revamp.html .kick): "EDGE", then the status as a pill
+    assert article(page).locator('.result-kicker .edge-badge').text_content() == 'Paused'
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Paused')
     capture(page, 'x-paused-dark')
     capture_answer(page, 'full-paused-dark')
@@ -371,15 +376,18 @@ def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, 
     orc.run = original
     page.get_by_role('tab', name='Sources', exact=True).click()
     sources = page.locator('.sources')
-    assert sources.get_by_text('Result tables (1)').is_visible()
+    # MONITOR-REVAMP (AI_revamp.html): each part starts folded under its title and count; the tables part is opened
+    tables = sources.locator('details.edge-source-fold').filter(has=page.locator('summary', has_text='Result tables'))
+    assert tables.locator('.edge-section-count').inner_text() == '1' and not tables.evaluate('node => node.open')
+    tables.locator('summary').click()
     assert sources.get_by_text('Net beli broker asing', exact=True).is_visible()
     assert sources.locator('.edge-source-ref').first.inner_text() == 'out.1'
     table = sources.locator('.edge-source').first.inner_text()
     assert 'Rows\n12' in table and 'Columns\n3' in table and 'Data as of\n2026-10-15' in table and '{n}' not in table
     assert 'older' not in sources.inner_text() and 'ringkasan' not in sources.inner_text()
     assert 'DATA_COVERAGE_VERIFIED' not in sources.inner_text() and 'Net beli harian per broker asing.' in table
-    folded = sources.locator('details.edge-source-folded')
-    assert folded.count() == 1 and folded.locator('summary').inner_text().startswith('Figure references')
+    folded = sources.locator('details.edge-source-fold').filter(has=page.locator('summary', has_text='Figure references'))
+    assert folded.count() == 1
     assert not folded.evaluate('node => node.open')
     capture(page, 'x-sources-tables-dark')
     sources.get_by_role('button', name='Ask AI to export data', exact=True).click()
@@ -409,11 +417,11 @@ def test_a_running_answer_shows_its_steps_from_orc(fixture_server, browser_page)
         progress = page.locator('.edge-run-progress')
         progress.wait_for(timeout=10000)
         assert progress.locator('.edge-run-progress-time').inner_text() == '42s'
-        assert 'Kode analisis' in progress.locator('.edge-run-progress-now').inner_text()
-        done = progress.locator('details.edge-run-progress-done')
-        assert done.locator('summary').inner_text() == 'Steps done (2)' and not done.evaluate('n => n.open')
-        done.locator('summary').click()
-        assert 'refused, trying again' in done.inner_text() and 'Memahami pertanyaan' in done.inner_text()
+        # MONITOR-REVAMP (AI_revamp.html running card): the finished steps are listed, then the step running now
+        assert progress.locator('.edge-run-step.now').inner_text() == 'Kode analisis\u2026'
+        done = progress.locator('.edge-run-step.done')
+        assert done.count() == 2 and 'Memahami pertanyaan' in done.nth(0).inner_text()
+        assert 'refused, trying again' in done.nth(1).inner_text() and 'warn' in done.nth(1).get_attribute('class')
         capture(page, 'x-run-progress-dark')
     finally:
         release.set()

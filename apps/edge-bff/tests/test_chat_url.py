@@ -16,7 +16,7 @@ def two_conversations(page, origin, orc):
     saved(page)
     first = orc.calls[-1][2].get('conversation_id') or orc.saved[orc.calls[-1][1]]['conversation_id']
     page.wait_for_function('(id) => location.pathname === "/c/" + id', arg=first)
-    page.get_by_role('button', name='New conversation').click()
+    page.get_by_role('button', name='New Chat').click()
     page.wait_for_function('() => location.pathname === "/monitor"')
     submit(page, 'harga BBCA minggu ini')
     saved(page)
