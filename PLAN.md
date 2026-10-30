@@ -20,6 +20,133 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## PRICE-GAP-0917 — isi harga 17–18 Sep 2026 dan hitung ulang turunannya (rencana 2026-10-30; menunggu go)
+
+**Permintaan user, 2026-10-30:**
+- "Oke, untuk harga 17-18 September, it's actually bisa ditarik pakai API trading view dengan metode yang ada di Git.
+  Coba map out, kalau kita update data ini, maka ini akan update ke table mana saja. Siapkan plan untuk mengupdate data
+  beserta indikator yang terpengaruh, fitur 1, dan seterusnya, termasuk dengan data yang ada di storage."
+- Lalu: "Oke, lanjutkan pemetaannya dan describe apa yang terimpact, feature-feature beserta row-row, kolom-kolom yang
+  terimpact yang perlu di recall kulit. Go."
+
+"Go" ini dibaca sebagai go untuk pemetaan dan rencana. Penulisan data menunggu go terpisah. Rencana ini menggantikan F3
+(EXEC-TERMINAL-1026B) dan FUTURE_PLAN E4.
+
+**Pemetaan** (diperiksa 2026-10-30, read-only: kode `main` `7af79430`, katalog dan data live lewat pgweb):
+
+| Sumber | Bukti |
+|---|---|
+| Celah | `Price_Stock_Indonesia_IDX` Daily punya 0 saham pada 2026-09-17 dan 2026-09-18 (hanya IHSG). Sesi lain ±828–832 saham. Feature 05 punya 864 dan 863 saham pada dua tanggal itu (M238). 827 saham punya harga pada 09-16 dan sesudah 09-21. Sesudah celah ada 30 sesi (09-21..10-30). |
+| Alat | `apps/idx-price-cron/price_update.py --mode manual --target-date … --request-bars N [--dry-run]`. Satu run per tanggal, seluruh universe. Hanya candle yang tanggalnya persis tanggal target yang ditulis. Saham diminta `adjustment: splits` (:311), indeks `none`. Tulisan memakai upsert dengan `is_final` dan `ingestion_time`. |
+| Trigger tabel harga | `Price_Stock_Indonesia_IDX_enqueue_feature_01` (INSERT/UPDATE, indeks dilewati); `Price_Stock_Indonesia_IDX_enqueue_feature04` (INSERT/UPDATE/DELETE); `idx_price_optional_volume_guard`; `database_table_status_change_tracker` |
+| Fungsi yang membaca harga | `refresh_feature_01_stock_daily`, `feature04_retry_dirty_date`, `feature04_source_min_date`, `ai_preview_table_rows`. Tidak ada view yang bergantung pada tabel harga. |
+
+**Yang berubah per tabel:**
+
+1. **`Price_Stock_Indonesia_IDX`.**
+   - ±1.654 baris baru: 2 tanggal × 827 saham, semua kolom harga.
+   - Baris IHSG dua tanggal itu sudah ada. Run manual ikut meng-upsert IHSG dengan nilai yang sama.
+2. **`Feature_01_Stock_Daily`.** Otomatis: trigger → `Feature_Calculation_Queue` → `apps/feature-01-worker` →
+   `refresh_feature_01_stock_daily(tanggal, ticker)`, yang menghitung ulang 120 observasi mulai tanggal itu.
+   - 2 baris baru per saham.
+   - 24.859 baris lama (840 saham, 09-21..10-30) dihitung ulang. Per kelompok kolom, baris lama yang berubah per saham:
+     - **1 sesi** (09-21): `close_1d_ago`, `return_1d_pct`, `abs_return_1d_pct`.
+     - **5 sesi** (09-21..09-25): `close_5d_ago`, `return_5d_pct`, `volatility_5d_ann_pct`.
+     - **10 sesi** (..10-02): `volatility_5d_change_pct`.
+     - **20 sesi** (..10-16): `close_20d_ago`, `return_20d_pct`, `volatility_20d_ann_pct`, `volume_avg_20d`,
+       `volume_std_20d`, `volume_ratio_20d`, `volume_zscore_20d`, `high_20d`, `drawdown_20d_pct`.
+     - **Semua 30 sesi** (..10-30): `volatility_20d_change_pct`, `close_60d_ago`, `return_60d_pct`,
+       `volatility_60d_ann_pct`, `volatility_60d_change_pct`, `high_60d`, `drawdown_60d_pct`.
+     - **Tidak berubah:** `close`, `volume`, `sector`, `industry` baris lama.
+3. **`Feature_04_Technical_Indicator`.** TIDAK otomatis (D26). Setiap baris yang disisipkan menandai 09-17 kotor, dan
+   worker butuh checkpoint tepat sebelum 09-17. Hanya 5 ticker punya checkpoint ≤ 09-16
+   (`Feature04_Calculation_State`, live), jadi ±830 saham akan `REPAIR_REQUIRED` tanpa rebuild manual.
+   - 2 baris baru per saham.
+   - ±830 × 30 baris lama dihitung ulang. Per kelompok kolom:
+     - **3 sesi** (09-21..09-23): pola candle `cdl_*` dan `inside_bar`.
+     - **20 sesi** (..10-16): `sma_20`, `bb_upper_20`, `bb_middle_20`, `bb_lower_20`.
+     - **Semua 30 sesi:**
+       - `sma_50`;
+       - yang rekursif: `ema_12/26/50/200`, `macd`, `macd_signal`, `macd_histogram`, `rsi_14`, `atr_14`, `adx_14`,
+         `smi`;
+       - kolom swing: `tracking_*`, `temp_*`, `last_swing_high`, `break_swing_high`.
+     - **Tidak berubah:** `close` baris lama.
+     - **Diperbarui:** `calculation_version` dan `calculated_at`.
+   - Tabel kontrol ikut berubah: `Feature04_Calculation_State` (checkpoint dibangun ulang), `_Queue`, `_Log`,
+     `_Column_Status`, `_Notification_Outbox`, `Monitoring_Feature04`.
+4. **Tabel kontrol lain:** `Feature_Calculation_Queue` dan `_Log` (±1.654 item), `Feature_Status`
+   (`refresh_feature_01_control_status`), `Monitoring_Price_ALL` (2 baris run MANUAL), `Database_Table_Status`.
+5. **Tidak berubah:**
+   - `Feature_01_Stock_Daily_INDEX` dan `Feature_04_Technical_Indicator_INDEX`: IHSG sudah punya dua tanggal itu.
+   - Feature 02, 03, 05, 06 (beserta `_INDEX` dan `_Stock`): dihitung dari `IDX_Broker_Summary`. Tabel harga hanya
+     dipakai untuk mencari tanggal broker yang belum dimuat (`stockbit-updater/broker_import.py:91-101`, `refresh.py:153`).
+   - Harga obligasi.
+6. **Storage (terminal-display).** Run `daily` publisher berikutnya menerbitkan ulang sendiri, karena stamp harga
+   (baris, tanggal terakhir, ingestion, jumlah close; `publisher.py` `changed_prices`) berubah:
+   - `price/{T}/2026` untuk ±827 saham;
+   - `pack/{T}/price` untuk ±827 saham;
+   - `xsection/price`;
+   - manifest dan `state.json`.
+
+   Tidak berubah:
+   - file broker dan arsipnya (Feature 05 sudah punya dua tanggal itu);
+   - file events: tidak ada cum date 09-17/18, dan tender SUPR 09-24 membaca close 09-23;
+   - `xsection/actions` (tidak membaca harga).
+7. **Pembaca:**
+   - **Terminal:** dua candle baru. Indikator Flow otomatis memakai baris broker 09-17/18, dan efek M238 hilang
+     (contoh BBCA FL24 09-24 −6,23 % → ≈ −3,93 %). Statistik ikut berubah.
+   - **Screener:** snapshot baru dari `xsection/price`.
+   - **Backtest:** `data_version` baru. Run lama tetap tercatat dengan versi lamanya.
+   - **AI:** membaca tabel live. Cache hasil di sandbox diperiksa saat eksekusi.
+
+**Risiko yang sudah terlihat**
+- **R1, skala harga (D22).** TradingView mengirim candle saham yang disesuaikan split, sedangkan riwayat tersimpan
+  campuran.
+  - Aksi korporasi pengubah harga dengan ex-date sesudah celah (live): FORU 09-22, BAJA 09-28, ENRG 10-05, VKTR 10-07,
+    BRNA 10-09, AHAP 10-09, PBSA (split) 10-14, BUVA 10-14.
+  - Untuk saham seperti ini, candle 09-17/18 dari TradingView bisa berbeda skala dengan baris tersimpan 09-16 dan 09-21.
+- **R2, Feature 04.** Lihat butir 3 (D26). Alat perbaikannya berhenti di IHSG (D27). `backfill.py --tickers` menerima
+  1–10 ticker per run, dan `bootstrap_states.py --ticker` satu per run.
+- **R3, TradingView.** Perlu memastikan TradingView masih mengirim candle 32 sesi ke belakang (`--request-bars 40`).
+  Dibuktikan dengan dry-run.
+
+**Usulan langkah** (P0 kode dan tes, tanpa data; P1–P7 butuh go)
+- **P0. Perbaikan umum, dengan tes.**
+  - (a) `price_update.py`: target lama (sebelum sesi tersimpan terakhir) hanya menulis saham yang candle tetangganya
+    dari TradingView (sesi tersimpan sebelum dan sesudah) sama dengan baris tersimpan. Yang beda dilewati dan dicatat
+    (`SCALE_MISMATCH`). Aturan ini diturunkan dari data, bukan daftar saham. Opsi `--tickers` ditambahkan untuk
+    mengulang.
+  - (b) D27: `backfill.py` dan `bootstrap_states.py` melewati indeks lewat `public.is_universe_index()`.
+  - (c) `recovery_window.py`: sesi yang punya candle indeks final tetapi kekurangan saham diperiksa ulang. Ini mencegah
+    celah serupa terulang.
+- **P1. Dry-run** dua tanggal (`--mode manual --target-date 2026-09-17` / `09-18 --request-bars 40 --dry-run`): jumlah
+  baris, daftar `SCALE_MISMATCH`, contoh nilai. Hasilnya dilaporkan ke user.
+- **P2. Tulis harga.** Worker Feature 04 dijeda sesuai runbook, lalu run manual dua tanggal. Dibaca balik: jumlah per
+  tanggal ±827, dan close contoh = TradingView.
+- **P3. Feature 01** lewat antrean otomatis. Cek: antrean habis, +2 baris per saham, contoh kolom per kelompok di atas
+  sama dengan hitung ulang mandiri.
+- **P4. Feature 04.** `backfill.py` per kelompok ticker, lalu `bootstrap_states.py` (dry-run, lalu tulis,
+  `--require-stored-match`), lalu worker dilanjutkan. Cek: 0 `REPAIR_REQUIRED`, checkpoint lengkap, dan sampel paritas.
+- **P5. Storage.** Run `daily` publisher (terjadwal 19:00 / 07:30 WIB, atau run manual M229 di luar jendela B6). Cek:
+  file harga = SQL (rows, sum close), xsection baru.
+- **P6. Pembaca.** Terminal (candle 09-17/18, contoh Flow), Screener live, Backtest E2E.
+- **P7. Catatan.** DATABASE_CHANGELOG (sumber dan verifikasi data), ERRORS M238/D26/D27 → FIXED, RAILWAY_CHANGELOG.
+
+**Rollback**
+- Hapus baris dua tanggal untuk ticker yang ditulis. Trigger Feature 04 ikut mengantre.
+- Trigger Feature 01 hanya INSERT/UPDATE, jadi baris Feature 01 dua tanggal itu dihapus eksplisit, lalu
+  `refresh_feature_01_stock_daily(09-17)`.
+- Rebuild Feature 04 per ticker seperti P4.
+- Storage terbit ulang sendiri lewat stamp.
+
+**Pertanyaan untuk user**
+1. Saham dengan `SCALE_MISMATCH`:
+   - (A) tidak ditulis dan dilaporkan (usulan);
+   - (B) diskalakan ke skala tersimpan memakai rasio tetangga;
+   - (C) ditulis apa adanya.
+2. P0 (b) dan (c) ikut dikerjakan?
+3. Waktu eksekusi.
+
 ## PUBLISHER-CLEANUP-MANUAL — bersih-bersih lengkap manual dan diagnosis listing (EXEC-PUBLISHER-SPEED, M301)
 
 **Persetujuan masuk rencana, 2026-10-30 (kata user):** "Ok, masukan ke plan ya", atas opsi: "Saya bisa menjalankan
