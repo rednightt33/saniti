@@ -957,8 +957,13 @@ FL25, FL33, FL34.
 Keputusan 2026-10-31 lanjutan (kata user): "FL 25 tetap ada.", "FL 33 OK", "FL 34 OK" (kelompok institusi/ritel bisa
 dipilih user, default dari `IDX_Broker_Profile`).
 
-Pertanyaan terbuka: FL36-FL39; 25 default usulan (kuning) di sheet `Parameter_Terminal`; arti "hari rolling" di chart
-mingguan/bulanan; rilis 39 indikator sekaligus atau bertahap setelah storage.
+Keputusan 2026-10-31 lanjutan (kata user): "FL36 OK", "FL 37 OK", "FL 38 OK", "FL 39 OK"; 25 default usulan dan arti
+"hari rolling" = candle di chart mingguan/bulanan: "2-3 OK"; rilis: "4 sekaligus" (39 indikator sekaligus setelah
+storage).
+
+Pertanyaan terbuka: label panel Bandar Terminal (6/10%, Top 3); arti "bandar" per indikator dan satu default N; nama
+seragam per keluarga indikator yang hanya beda dasar/filter (permintaan user: "kalau bisa namanya kita samakan saja tuh,
+kita buat mirip-mirip").
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
