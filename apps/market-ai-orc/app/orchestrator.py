@@ -5087,7 +5087,7 @@ class AgentOrchestrator:
                 and {"prepare_data_bundle", "open_analysis_session"} <= desk:
             steps.append(("prepare_data_bundle", {"need_id": result["need_id"]}))
             # PLAN 14: the need asked to join an open session of this answer; any other id opens a new session
-            given = self._normalized_arguments(raw_arguments)
+            given = self._tool_arguments(name, raw_arguments)
             target = given.get("attach_to_session_id") if isinstance(given, dict) else None
             if isinstance(target, str) and target and "attach_data_bundle" in desk:
                 if target in state.sessions and not state.sessions[target].get("closed_by_model") \
@@ -5097,7 +5097,7 @@ class AgentOrchestrator:
                     attach_note = (f"attach_to_session_id {target} is not an open, uncompleted session of this "
                                    "answer; a new session was opened instead.")
         elif name == "run_python" and result.get("status") == "OK" and "complete_analysis" in desk:
-            arguments = self._normalized_arguments(raw_arguments)
+            arguments = self._tool_arguments(name, raw_arguments)
             if isinstance(arguments, dict) and arguments.get("complete") is True and arguments.get("session_id"):
                 # EXEC-OUTPUT-REUSE: the code may have run in a session the backend opened for a gone one
                 steps.append(("complete_analysis", {"session_id": result.get("session_id") or arguments["session_id"]}))
@@ -5215,7 +5215,7 @@ class AgentOrchestrator:
             )
         state.tool_calls += 1
 
-        key = stable_hash({"tool": name, "arguments": self._normalized_arguments(raw_arguments)})
+        key = stable_hash({"tool": name, "arguments": self._tool_arguments(name, raw_arguments)})
         count, last_result = state.call_history.get(key, (0, None))
         if count >= self.settings.ai_max_identical_tool_calls:
             return error_outcome(
@@ -5224,7 +5224,7 @@ class AgentOrchestrator:
                 "Use the earlier result instead of repeating it.",
             )
 
-        arguments = self._normalized_arguments(raw_arguments)
+        arguments = self._tool_arguments(name, raw_arguments)
         stored_hash = None
         if self.catalog_protocol and name in CACHEABLE_TOOLS:
             state.catalog.calls[name] = state.catalog.calls.get(name, 0) + 1
@@ -5277,7 +5277,7 @@ class AgentOrchestrator:
         self._name_valid_ids(state, outcome)
         if name == "lookup_reference" and outcome.ok:
             state.reference_reads += 1
-        normalized = self._normalized_arguments(raw_arguments)
+        normalized = self._tool_arguments(name, raw_arguments)
         if outcome.ok and isinstance(normalized, dict):
             result = outcome.output.get("result") if isinstance(outcome.output.get("result"), dict) else {}
             if name == "run_python" and result.get("status") == "OK":
@@ -5305,7 +5305,7 @@ class AgentOrchestrator:
             # P12 (e04 "95%"): the library's own figures (interval level, minimum samples) may be named in a plan
             state.context_numbers.extend(released_numbers(outcome.output.get("result")))
         if name in RESEARCH_RUN_TOOLS:
-            self._track_research_run(state, name, self._normalized_arguments(raw_arguments), outcome)
+            self._track_research_run(state, name, self._tool_arguments(name, raw_arguments), outcome)
         if name in CACHEABLE_TOOLS and outcome.ok:
             # M47: the ledger records what the catalog showed in every run (the data record carries it on); the
             # cache and the guard stay with the catalog protocol
@@ -5318,16 +5318,16 @@ class AgentOrchestrator:
                                           self.wall_clock().isoformat(timespec="seconds"))
             if self.catalog_protocol:
                 state.catalog.cache[cache_key(name, arguments)] = outcome.output
-        self._track_choices(state, name, self._normalized_arguments(raw_arguments), outcome)
+        self._track_choices(state, name, self._tool_arguments(name, raw_arguments), outcome)
         self._track_plan_guard(state, name, outcome)
-        self._track_analysis(state, name, outcome, self._normalized_arguments(raw_arguments))
-        self._track_sources(state, name, self._normalized_arguments(raw_arguments), outcome)
+        self._track_analysis(state, name, outcome, self._tool_arguments(name, raw_arguments))
+        self._track_sources(state, name, self._tool_arguments(name, raw_arguments), outcome)
         self._track_dataneed(state, name, self._tool_arguments(name, raw_arguments), outcome)
         if self.value_references:
-            self._track_references(state, name, outcome, self._normalized_arguments(raw_arguments))
+            self._track_references(state, name, outcome, self._tool_arguments(name, raw_arguments))
         self._track_artifacts(state, name, outcome)
         if self.result_store is not None:
-            self._track_results(state, name, outcome, self._normalized_arguments(raw_arguments))
+            self._track_results(state, name, outcome, self._tool_arguments(name, raw_arguments))
         result_hash = stable_hash(outcome.output)
         count = count + 1 if last_result in (None, result_hash) else 1
         state.call_history[key] = (count, result_hash)

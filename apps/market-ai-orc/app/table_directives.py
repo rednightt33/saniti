@@ -17,8 +17,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .value_refs import (FORMATS, UNRESOLVED, ReferenceError_, ReferenceSources, TableRows, _number, display_format,
-                         format_value)
+from .value_refs import (AMBIGUOUS_COLUMN, FORMATS, UNRESOLVED, ReferenceError_, ReferenceSources, TableRows, _number,
+                         column_named, display_format, format_value)
 
 TABLE_RE = re.compile(r"\{\{\s*table\b(?P<body>(?:[^{}]|\{[^{}]*\})*)\}\}", re.IGNORECASE)
 CELL_RE = re.compile(r"\{\s*(?P<column>[^{}|]+?)\s*(?:\|\s*(?P<fmt>[a-z]+)\s*(?::\s*(?P<places>\d))?)?\s*\}")
@@ -211,6 +211,21 @@ def build(directive: Directive, sources: ReferenceSources, layout: dict[str, Any
     rows, row_count, positional = _table(sources, directive.ref)
     present = list(dict.fromkeys(c for row in rows[:50] for c in row if c != "_row"))
     listed = ", ".join(present[:30]) or "none"
+
+    def resolved(name: str, refusal: str) -> str:
+        # M305: a name that differs from one released column only in case is that column; several such are refused
+        found, several = column_named(name, present)
+        if several:
+            raise DirectiveError(f"Table {directive.ref}: "
+                                 + AMBIGUOUS_COLUMN.format(column=name, matches=" and ".join(several)) + ".")
+        if found is None:
+            raise DirectiveError(refusal.format(ref=directive.ref, column=name, columns=listed))
+        return found
+
+    for column in directive.columns:
+        column.cells = [(resolved(name, NO_COLUMN), fmt, places) for name, fmt, places in column.cells]
+    if directive.sort is not None:
+        directive.sort = resolved(directive.sort, NO_SORT)
     for column in directive.columns:
         for name, fmt, _ in column.cells:
             if name not in present:

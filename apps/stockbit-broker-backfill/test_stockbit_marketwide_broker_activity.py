@@ -41,7 +41,7 @@ class AuthenticationStopTests(unittest.TestCase):
                 expected_brokers=0,
                 database_url_env="DATABASE_URL",
                 schema="public",
-                table="IDX_Broker_Summary",
+                table="broker_summary_scratch",  # the production table is refused (EXEC-LOADER-M217)
                 log_table="stockbit_broker_summary_load_log",
                 daily_output_dir=Path(directory),
                 no_daily_export=True,
@@ -56,7 +56,7 @@ class AuthenticationStopTests(unittest.TestCase):
             connection = FakeConnection()
             target = MODULE.TargetTable(
                 schema="public",
-                table="IDX_Broker_Summary",
+                table="broker_summary_scratch",
                 columns={key: key for key in MODULE.CANONICAL_KEYS},
                 data_types={key: "text" for key in MODULE.CANONICAL_KEYS},
                 generated=frozenset(),
@@ -90,3 +90,17 @@ class AuthenticationStopTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RetiredProductionWriteTests(unittest.TestCase):
+    def test_writing_the_production_table_is_refused_with_the_new_loader_named(self):
+        """EXEC-LOADER-M217: this loader writes no frequency, so it no longer writes IDX_Broker_Summary."""
+        import io
+        from contextlib import redirect_stderr
+        from unittest import mock
+
+        stderr = io.StringIO()
+        with mock.patch.object(sys, "argv", ["loader", "--from-date", "2026-10-01", "--to-date", "2026-10-01"]), \
+                redirect_stderr(stderr):
+            self.assertEqual(MODULE.main(), 2)
+        self.assertIn("stockbit-updater", stderr.getvalue())

@@ -31,7 +31,9 @@ HEADING_RE = re.compile(r"^\s*#{1,6}\s*(.+?)\s*$")
 class NewsClient:
     def __init__(self, base_url: str, api_key: str, timeout_seconds: float = ASK_SECONDS,
                  transport: httpx.BaseTransport | None = None) -> None:
-        self.client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds, transport=transport,
+        from .wake import transport as waking  # EXEC-U4: a sleeping web governor is woken by the request
+        self.client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds,
+                                   transport=waking("web governor", transport),
                                    headers={"Authorization": f"Bearer {api_key}"})
 
     def ask(self, request_id: str, question: str, as_of: str | None) -> dict[str, Any]:

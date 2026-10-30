@@ -542,10 +542,17 @@ class ToolRegistry:
         return ", ".join(f"{k} {n} bytes" for n, k in sizes)
 
     def arguments_of(self, name: str, parsed: Any) -> Any:
-        """The arguments a tool validates, for a caller that inspects them before the call (an envelope taken out
-        exactly as execute does), so a guard never reads a different object than the tool receives."""
+        """The arguments a tool validates, for a caller that inspects them before or after the call (an envelope taken
+        out and text values decoded exactly as execute does), so a guard never reads a different object than the tool
+        receives. M304 (edge_f9a9164a): `complete` sent as the text "true" ran the code with complete=true, but the
+        backend's own check read the raw text and did not follow with complete_analysis. Works on a copy."""
         spec = self._tools.get(name)
-        return self._unwrap(spec, parsed)[0] if spec is not None else parsed
+        if spec is None:
+            return parsed
+        unwrapped = self._unwrap(spec, copy.deepcopy(parsed))[0]
+        if isinstance(unwrapped, dict):
+            decode_text_values(self._schemas.get(name) or {}, unwrapped)
+        return unwrapped
 
     @staticmethod
     def _unwrap(spec: ToolSpec, parsed: Any) -> tuple[Any, dict[str, Any] | None]:

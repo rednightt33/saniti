@@ -189,6 +189,20 @@ class TelegramMonitorTests(unittest.TestCase):
         self.assertIn("Corporate action: baru 3, berubah 1", text)
         self.assertIn("27 Oct 2026 12:42 WIB", text)
 
+    def test_an_incomplete_broker_date_is_named_with_its_remark(self):
+        """EXEC-LOADER-M217: a date the database remarked INCOMPLETE is listed under the round; the load stands."""
+        value = StockbitUpdateSummary(
+            execution_id="x", mode="APPLY", status="SUCCESS",
+            started_at=datetime(2026, 10, 29, 10, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 10, 29, 10, 30, tzinfo=timezone.utc), token_expires_at=None,
+            broker_dates=("2026-10-28", "2026-10-29"), broker_rows=48000, features={}, index_result={}, events={},
+            verify={}, last_error=None,
+            incomplete=(("2026-10-29", "Muatan tidak lengkap: broker 40 (biasanya 89)."),),
+        )
+        text = build_stockbit_messages(value)[0]
+        self.assertIn("⚠️ 2026-10-29: Muatan tidak lengkap: broker 40 (biasanya 89).", text)
+        self.assertNotIn("2026-10-28: Muatan", text)
+
     def test_stockbit_update_failure_names_the_error(self):
         value = StockbitUpdateSummary(
             execution_id="x", mode="APPLY", status="FAILED",

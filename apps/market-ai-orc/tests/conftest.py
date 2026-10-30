@@ -91,3 +91,12 @@ def _fresh_estimate_cache():
     ESTIMATES.enabled = True
     yield
     ESTIMATES._entries.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_wake_pauses(monkeypatch):
+    """EXEC-U4: a test service that refuses a connection is not waited for between wake probes (tests/test_wake.py
+    checks the waits themselves)."""
+    from app import wake
+
+    monkeypatch.setattr(wake, "pause", lambda seconds: None)

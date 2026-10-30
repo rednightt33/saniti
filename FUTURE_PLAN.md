@@ -787,6 +787,84 @@ Urutan yang disarankan: U1 → M215 usulan A → U4.
   2026-10-25 sejalan dengan job (10:00 1,86 GB; 18:00 1,48 GB saat putaran stockbit-updater) dan turun kembali dalam
   satu jam. Batas memori sudah memotong biaya cache halaman; menjadwalkan job berdekatan tidak diperlukan sekarang.
 
+## U1 dan U4 — tinjauan ulang dan rencana implementasi (2026-10-29; U4 SELESAI 2026-10-29 lewat EXEC-GO-1029, U1 DITUNDA)
+
+Keputusan user 2026-10-29: "Oke, U4 masukkan exec. U1 ditunda dulu aja."
+
+User 2026-10-29: "U1 dan U4, coba ditinjau, inspect database, dan come up with implementation plan." Belum disetujui;
+tidak ada yang dijalankan. Semua angka dibaca 2026-10-29 dari Railway, log dan kode (read-only).
+
+**Keadaan sekarang (terverifikasi):**
+- Sandbox diam terus 28–29 Okt (tidak ada analisis sampai ±17:30): log `sandbox_memory` tiap 3 jam menunjukkan satu
+  proses `uvicorn` 440 MB dengan `duckdb`, `pyarrow`, `pandas`, `numpy` termuat; cgroup 460 MB. Metrik per menit Railway
+  0,515–0,519 GB sepanjang 12:09–17:09. Rata-rata 7 hari 0,63 GB (`railway metrics --memory --raw`). Sesudah restart
+  proses utama 154–187 MB (log 2026-10-26).
+- Hanya orc yang memanggil sandbox, lewat jaringan privat (`PY_SANDBOX_URL` internal). orc tidak memanggilnya berkala:
+  sapuan orc hanya ke Postgres (`app/conversations.py`:699-717), `runtime_recovery` hanya saat run butuh
+  (`app/runtime_recovery.py`:39-57). Governor dan audit-store hanya menerima panggilan dari sandbox.
+- Sandbox tidak mengirim lalu lintas keluar saat diam: janitor dan antrean audit membaca SQLite lokal; audit hanya
+  mengirim bila ada item (`app/audit.py`:285-298, `app/service.py`:1126-1131). Jadi sandbox bisa tidur.
+- Sleep Railway sudah terbukti di proyek ini: `telegram-monitor` (`sleepApplication: true`) berhenti 5–10 menit setelah
+  aktivitas terakhir dan **dibangunkan lewat jaringan privat** oleh `/notify` dari layanan lain (deployment `26ebe202`,
+  27–29 Okt: 14 kali bangun, `Starting Container` → `server_started` 0,2–9 detik).
+- Permintaan pertama saat bangun bisa gagal: `stockbit-updater` 27 Okt 14:53:47 `telegram_notify_failed URLError`,
+  percobaan kedua 14:53:51 berhasil (`apps/stockbit-updater/updater.py`:103-117 mencoba ulang 4×). Klien sandbox di orc
+  tidak mencoba ulang (`app/tools/analysis.py`:612-621, 640-648), begitu juga klien web-governor
+  (`app/tools/web_research.py`:82-89).
+- Batas waktu eksekusi sandbox 120 s (`PY_SANDBOX_MAX_RUNTIME_SECONDS`, `app/config.py`:227), jauh di bawah 5 menit
+  tanpa lalu lintas yang memicu tidur; session hangat ditutup sesudah 15 menit diam (`app/sessions.py`:513), jadi tidur
+  memotong session hangat lebih awal (data tetap di volume; output dipulihkan lewat `carried_restored`).
+- Catatan ukur: metrik **per jam** Railway meneruskan nilai terakhir sesudah wadah berhenti (`stockbit-updater` tampak
+  0,26 GB per jam, padahal per menit 0 GB). Ukuran biaya memakai data per menit.
+
+**Kelas masalah:** layanan yang hanya dipakai sesekali membayar memori penuh sepanjang hari; dan pemanggil layanan yang
+bisa tidur harus tahan terhadap permintaan pertama yang gagal saat bangun. Berlaku untuk sandbox, web-governor, dan
+layanan baru nanti (worker backtest/screener, sumber makro).
+
+### U4 — sandbox tidur saat diam (disarankan lebih dulu)
+
+1. **orc: penjaga bangun bersama** (`app/wake.py`, lapisan kontrak antarlayanan). Sebelum panggilan ke layanan yang bisa
+   tidur, bila kontak sukses terakhir lebih lama dari ambang (default 240 s, di bawah 5 menit minimum Railway), orc
+   memanggil `GET /ready` (aman diulang) dengan jeda 1, 2, 4, 8, 8 s sampai maksimal 30 s; langkah progres memakai
+   `PROGRESS_SERVICES_WAIT` yang sudah ada. POST (buka session, jalankan kode) tidak pernah diulang, jadi tidak ada
+   eksekusi ganda. Bila anggaran habis: galat alat `SERVICE_WAKING` dengan pesan yang menyebut layanan dan langkah
+   berikutnya. Log `downstream_wake` (layanan, percobaan, detik). Daftar layanan yang dijaga diambil dari konfigurasi
+   klien (sandbox dan web-governor), bukan diketik di tempat lain.
+2. Tes orc: koneksi ditolak 2× lalu siap → panggilan jalan; 502 lalu siap; anggaran habis → `SERVICE_WAKING`; kontak
+   baru saja → tidak ada `/ready` tambahan (jalur hangat tanpa tambahan waktu). Tes juga untuk web-governor (kasus kedua
+   dari mekanisme yang sama). Kasus yang tidak berlaku: POST yang gagal di tengah tidak diulang.
+3. Deploy orc sampai SUCCESS, lalu `sleepApplication: true` untuk `market-python-sandbox` di `.railway/railway.ts`
+   (`railway config plan/apply`, lalu `railway config pull --force`), RAILWAY_CHANGELOG.
+4. Cek live tanpa biaya model: tunggu ≥ 10 menit diam → status deployment `SLEEPING` dan `Stopping Container` di log;
+   job `orc-test-runner` memanggil `/ready` sandbox lewat jaringan privat dan mencatat waktu bangun serta kegagalan
+   pertama. Satu pertanyaan EDGE berbayar kecil hanya dengan izin user.
+5. Tahap 2 (opsional, mekanisme sama): `market-web-governor` (0,13 GB; janitor SQLite lokal, `app/store.py`:362-367).
+- Tidak dicakup: `market-audit-store` (membaca Postgres tiap `outbox_poll_seconds`, tidak akan tidur tanpa ganti cara
+  kerja) dan `pgweb` (memegang koneksi database, alat dev 43 MB).
+- Biaya bagi user: pertanyaan pertama sesudah ±10 menit diam menunggu bangun ±2–10 detik; pertanyaan lanjutan sesudah
+  jeda itu kehilangan session hangat (data dimuat ulang dari volume).
+- Penghematan perkiraan (harga RAM ±USD 10 per GB per bulan): sandbox ±0,52 GB × ±90% waktu diam ≈ USD 4–5/bulan;
+  web-governor ≈ USD 1/bulan. Kembali: `sleepApplication: false`.
+
+### U1 — kerja data proses utama di proses pembantu
+
+1. `app/data_helper.py`: satu proses anak `spawn` (tidak mewarisi memori induk) yang menjalankan fungsi dari daftar
+   izin; menerima path dan dict kecil, mengembalikan dict kecil (data besar lewat berkas, bukan pipa); keluar sendiri
+   sesudah diam 60 s (`PY_SANDBOX_DATA_HELPER_IDLE_SECONDS`), sehingga memorinya kembali ke OS.
+2. Jalur yang dipindah (dibaca dari kode 2026-10-29): `carried.py`:81-85, `dataneed_service.py`:1470-1510,
+   `service.py`:839-890, `sessions.py`:1477-1680, `stored_tables.py`, `outputs.py`:24 (impor pyarrow di tingkat modul
+   dijadikan malas), `research_findings.py`:92-95, `research_validation.py`:65-240, `event_study_validation.py`:127-133,
+   `backtest_validation.py`:88-91.
+3. Penjaga turunan, bukan daftar: tes menjalankan endpoint suite lalu memeriksa `duckdb`, `pandas`, `pyarrow` tidak ada
+   di `sys.modules` proses induk; jalur baru yang mengimpornya di induk langsung gagal. Live: `sandbox_memory.main_imports`
+   tanpa ketiganya dan proses utama diam ±155–190 MB.
+- Biaya: ±0,3–0,5 s pada panggilan pertama sesudah diam (spawn dan impor; diukur saat dibangun). Risiko sedang-tinggi:
+  sepuluh modul, termasuk validasi angka; suite sandbox lengkap dan pertanyaan golden wajib.
+- Penghematan: ±0,29 GB ≈ USD 3/bulan bila sandbox selalu menyala; **sesudah U4 hanya ≈ USD 0,3/bulan** di pemakaian dev
+  sekarang, karena sandbox lebih sering tidur dan bangun dengan proses segar.
+- Saran: jalankan U4 dulu; U1 ditinjau ulang sesudah sebulan U4 dengan data per menit (berapa jam sandbox bangun), atau
+  saat pemakaian banyak pengguna membuat sandbox jarang tidur.
+
 ## AI: pakai nilai tersimpan Feature 04 sebelum menghitung ulang (usulan 2026-10-25, menunggu keputusan)
 
 Temuan (EXEC-TERMINAL-API, `verification/terminal_api/INDICATOR_ALIGNMENT.md`): system prompt orc menulis "TA-Lib first
@@ -934,7 +1012,7 @@ Target ukur: chart tampil < 1 s sesudah halaman terbuka pada koneksi biasa; kunj
    tidak terpasang; sebelum memilih aturan, ukur dulu berapa pasangan dalam jendela ±N hari.
 2. **Loader (M242):** `stockbit_events.py` menyimpan NULL bila `formatted` sumber "-"; 0 dengan tampilan "0" tetap 0.
    Muat ulang lewat ronde event berikutnya; deskripsi `value_idr` menyebut harga perkiraan (`is_estimated_price`).
-3. **Standar (Part A butir 28, 29):** tabel multi-sumber wajib punya penanda baris utama; angka "tidak ada" wajib NULL
+3. **Standar (Part A butir baru, nomor sesudah 28):** tabel multi-sumber wajib punya penanda baris utama; angka "tidak ada" wajib NULL
    menurut penanda sumber.
 - Verifikasi: hitung ulang jendela 19–23 Okt BUY dari `is_primary_report` = Rp12.414.182.494.587; 0 baris `formatted`
   "-" yang bernilai 0; satu pertanyaan live sejenis `edge_8233fa7f` tanpa langkah buang kembar.
@@ -953,7 +1031,7 @@ ditambah. Panggilan 1, 5, 10 tanpa cache sama sekali (USD 0,0090 + 0,0137 + 0,02
    catatan giliran 9.466 (±16 rb token) ikut di 10 panggilan (±16% input), padahal giliran NEW_TOPIC dan 0 dari 12 output
    lama dibaca (`conversation_reuse_summary released_outputs_read=[]`). Usulan: giliran baru menerima indeks singkat
    (nama dan satu baris per tabel) dan membuka rincian lewat alat yang ada (`load_output`).
-3. **Iterasi tambahan:** dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
+3. **Iterasi tambahan** (petunjuk error tanggal: EXEC-C3, SELESAI 2026-10-29, sandbox `b02a5e72`): dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
    (M241). Usulan: petunjuk error terarah seperti `IN_PERIOD_HINT` (`apps/market-python-sandbox/app/sessions.py`) untuk
    galat kunci merge bertipe object, yang menyebut `saniti.join` (AS_OF) atau `pd.to_datetime`.
 
@@ -1117,3 +1195,23 @@ memblokir deploy Phase 1 ke dev.
 - **S5 Cache review saved item di edge-bff** dikunci (definisi, versi) dan tidak berubah saat advance; aman di Phase 1, perlu
   diperiksa saat file opsional ada.
 - **S6 `verification/backtest/e2e_dev.py`** belum diperiksa untuk kebocoran kredensial lewat pesan error Playwright (M293).
+
+## Run lambat `edge_f9a9164a` (2026-10-29, usulan menunggu keputusan)
+
+Bukti (log orc, read-only): 240 s total, 228 s di panggilan model (95%); data dan sandbox ±8 s. Dua panggilan memakan
+187 s: iterasi 1 57 s (2.620 token penalaran, token pertama 28 s, 68.675 token input tanpa cache) dan iterasi 3 130 s
+(6.209 token penalaran dari 7.493 output). Semua panggilan di Relace, 48–58 token/s pada panggilan panjang (run
+`edge_8233fa7f` di Cohere: 77 token/s).
+1. **Kecepatan penyedia (dugaan, satu run):** gabung dengan cek biaya C1 di atas: dari log orc beberapa hari, per
+   penyedia × model, median `output_tokens_per_second` dan porsi cache 0. Perubahan preferensi penyedia perlu persetujuan.
+2. **Penalaran pada aturan format:** penalaran iterasi 3 banyak membahas aturan satuan, rujukan nilai dan apakah tanggal
+   boleh diketik, lalu kode ditulis dua kali (draf di penalaran, lalu argumen). Usulan ukur dulu: hitung porsi penalaran
+   yang menyebut aturan format di 20 run terakhir sebelum mengubah prompt.
+   **Diukur 2026-10-29** (user: "silakan dilakukan pengecekan dulu"; `verification/reasoning_format_share/`): 26 run,
+   156 panggilan, 166.581 token penalaran (2026-10-25..10-29). Aturan format ±18,6%: menulis draf rujukan `{{…}}` 6,5%,
+   menimbang aturan 12,1% (bagian jawaban 30%, satuan/persen 27%, rujukan/angka diketik 24%, gerbang 13%, instruksi
+   tabel 6%). Panggilan jawaban akhir 36%, panggilan lain 15%. Rata-rata ±1.200 token per run (±20 s pada 55 token/s).
+   Klasifikasi kata kunci, kira-kira batas bawah. Kesimpulan: nyata tetapi bukan penyebab utama run lambat; sisanya
+   keputusan analisis (periode, tabel, metode). Bila dikerjakan, sasaran pertama: satuan/persen yang bisa diturunkan
+   backend dari katalog (model menimbang "apakah ini sudah persen?").
+3. Cacat kecil di run yang sama: ERRORS M304 (complete otomatis) dan M305 (tabel ditolak karena huruf besar-kecil).

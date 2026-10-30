@@ -27,6 +27,8 @@ the model typed right after such a reference ("{{x|dec:2}} pp") is read as the d
 from __future__ import annotations
 
 import contextvars
+import json
+import logging
 
 import math
 import re
@@ -84,6 +86,22 @@ class MissingField(ReferenceError_):
     def __init__(self, message: str, name: str) -> None:
         super().__init__(message)
         self.name = name
+
+
+def column_named(name: str, names: Any) -> tuple[str | None, list[str]]:
+    """M305 (edge_f9a9164a: a table instruction wrote `broker` for the released column `Broker` and was refused, so the
+    answer went out without its table): the column a reference or table instruction names, exact first, else the one
+    column equal to it when case is ignored. Returns (column, []) when found, (None, candidates) when several columns
+    differ from the name only in case (the refusal lists them), and (None, []) when none matches. Derived from the
+    released columns, so every table and every source's naming (`Investor Type`, `net`) is covered without a list."""
+    names = [str(n) for n in names]
+    if name in names:
+        return name, []
+    folded = [n for n in names if n.casefold() == name.casefold()]
+    return (folded[0], []) if len(folded) == 1 else (None, folded)
+
+
+AMBIGUOUS_COLUMN = "column {column} matches {matches}, which differ only in upper and lower case; write one exactly"
 
 
 TABLE_FETCH_ROWS = 200  # rows per page read from the sandbox (its get_session_output maximum)
@@ -546,6 +564,10 @@ def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
             items = items.all()  # M44: the selector searches the complete table, not the last page read
         if not isinstance(items, list):
             raise ReferenceError_(f"'{path}': {walked} is not a list of rows")
+        found, several = column_named(column, dict.fromkeys(c for r in items[:50] if isinstance(r, dict) for c in r))
+        if several:
+            raise ReferenceError_(f"'{path}': " + AMBIGUOUS_COLUMN.format(column=column, matches=" and ".join(several)))
+        column = found or column
         for row in items:
             if isinstance(row, dict) and str(row.get(column)) == wanted:
                 return row, f"{walked}[{column}={wanted}]"
@@ -567,6 +589,11 @@ def _step(value: Any, part: str, walked: str, path: str) -> tuple[Any, str]:
         raise ReferenceError_(f"'{path}': write a row selector with its column, for example {example}"
                               + (f" (identifying columns: {', '.join(keys)})" if keys else ""))
     if isinstance(value, dict):
+        found, several = column_named(part, value)
+        if several:
+            raise ReferenceError_(f"'{path}': {walked}: " + AMBIGUOUS_COLUMN.format(column=part,
+                                                                                    matches=" and ".join(several)))
+        part = found or part
         if part not in value:
             raise MissingField(f"'{path}': {walked} has no field {part!r}; its fields: "
                                f"{', '.join(list(value)[:15])}", part)
@@ -728,6 +755,32 @@ def scale_changed(fmt: str | None, unit: str | None) -> bool:
     return (fmt == "pct" and unit == "PERCENT") or (fmt in ("pctv", "pp") and unit == "FRACTION")
 
 
+RUPIAH_SCALES = ((1e12, "triliun"), (1e9, "miliar"), (1e6, "juta"))
+SCALED_SIGNIFICANT = 3  # EXEC-M179: a scaled amount never shows fewer significant digits than this
+
+
+def _scaled_rupiah(amount: float, places: int | None) -> str | None:
+    """EXEC-M179 (user 2026-10-17 "Ok M179 masukan exec", go 2026-10-29; A/B E2: `rp:0` showed Rp 1,51 triliun as "Rp 2
+    triliun"): an amount shown in triliun, miliar or juta keeps at least three significant digits; the decimals asked
+    are used when they are more. 1,51 triliun with rp:0 -> "1,51 triliun"; 209,74 miliar -> "210 miliar"; an amount
+    that rounds up to 1.000 of its unit moves to the next unit (999,6 miliar -> "1,00 triliun"). None below a juta."""
+    asked = 2 if places is None else places
+    for index, (factor, unit) in enumerate(RUPIAH_SCALES):
+        if amount < factor:
+            continue
+        shown = amount / factor
+        digits = len(str(int(shown)))
+        used = max(asked, SCALED_SIGNIFICANT - digits)
+        if round(shown, used) >= 1000 and index > 0:
+            bigger, name = RUPIAH_SCALES[index - 1]
+            shown, used, unit = amount / bigger, max(asked, SCALED_SIGNIFICANT - 1), name
+        if used > asked and places is not None:
+            logging.getLogger(__name__).info(json.dumps({"event": "ai_reference_precision_raised", "format": "rp",
+                                                         "asked": places, "shown": used, "unit": unit}))
+        return _grouped(shown, used) + f" {unit}"
+    return None
+
+
 def format_value(value: float, fmt: str | None = None, places: int | None = None, unit: str | None = None) -> str:
     """The value in Indonesian notation; every output reads back through provenance.parse_numbers. With a known unit
     (P23) the percent formats scale by it: FRACTION x 100, PERCENT as it is."""
@@ -756,11 +809,11 @@ def format_value(value: float, fmt: str | None = None, places: int | None = None
     if fmt == "x":
         return _grouped(value, 2 if places is None else places) + " kali"
     if fmt == "rp":
-        for factor, unit in ((1e12, "triliun"), (1e9, "miliar"), (1e6, "juta")):
-            if abs(value) >= factor:
-                return ("Rp " if value >= 0 else f"{MINUS}Rp ") + _grouped(abs(value) / factor,
-                                                                          2 if places is None else places) + f" {unit}"
-        return ("Rp " if value >= 0 else f"{MINUS}Rp ") + _grouped(abs(value), 0 if places is None else places)
+        sign = "Rp " if value >= 0 else f"{MINUS}Rp "
+        scaled = _scaled_rupiah(abs(value), places)
+        if scaled is not None:
+            return sign + scaled
+        return sign + _grouped(abs(value), 0 if places is None else places)
     # auto
     if places is not None:
         return _grouped(value, places)

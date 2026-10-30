@@ -465,3 +465,37 @@ def test_an_integer_in_a_year_or_id_column_is_a_label_not_a_grouped_quantity() -
                  "{{out.o1.rows.0.harga_awal}} {{out.o1.rows.0.jumlah_tahun}} {{out.o1.rows.0.tahun|int}}", refs)
     assert out.problems == []
     assert out.text == "2019 2021 1234 2.019 2.019 2.019"  # an explicit format still decides
+
+
+def test_a_selector_or_field_named_in_other_case_reads_the_released_column() -> None:
+    """M305: `[broker=HD]` and `.NET` read the released `Broker` and `net` when exactly one column matches without
+    case. Two columns that differ only in case are refused, naming
+    both, so the model can write one exactly."""
+    refs = ReferenceSources()
+    refs.add("out", "out_b", {"rows": [{"Broker": "HD", "net": 203.5}, {"Broker": "XL", "net": 66.6}]},
+             "CALCULATION_VERIFIED")
+    for path in ("out.out_b.rows[broker=HD].NET", "out.out_b.rows[Broker=HD].net"):
+        assert refs.resolve(path)[0] == 203.5
+    refs.add("out", "out_c", {"rows": [{"Net": 1.0, "net": 2.0}]}, "CALCULATION_VERIFIED")
+    with pytest.raises(ReferenceError_, match="matches Net and net"):
+        refs.resolve("out.out_c.rows.0.NET")
+
+
+@pytest.mark.parametrize("value, places, shown", [
+    (1.51e12, 0, "Rp 1,51 triliun"),      # A/B E2 arm A showed "Rp 2 triliun"
+    (209.74e9, 0, "Rp 210 miliar"),
+    (5.16e9, 0, "Rp 5,16 miliar"),
+    (2.5e6, 0, "Rp 2,50 juta"),           # the same rule in the smallest scaled unit
+    (999.6e9, 0, "Rp 1,00 triliun"),      # never "Rp 1.000 miliar"
+    (-1.51e12, 0, "−Rp 1,51 triliun"),
+    (203.37e9, 1, "Rp 203,4 miliar"),     # more decimals asked than needed: used as asked
+    (1.51e12, 3, "Rp 1,510 triliun"),
+    (12_345, None, "Rp 12.345"),          # below a juta nothing is scaled, nothing changes
+])
+def test_a_scaled_rupiah_amount_keeps_three_significant_digits(value: float, places: int | None, shown: str) -> None:
+    """EXEC-M179: a scaled amount keeps at least three significant digits whatever rp:N the model asked, and what is
+    shown reads back as the same amount within its precision (provenance.parse_numbers)."""
+    text = format_value(value, "rp", places)
+    assert text == shown
+    readings = parse_numbers(text)[0].candidates
+    assert any(abs(reading - value) <= 0.005 * abs(value) for reading, _ in readings)

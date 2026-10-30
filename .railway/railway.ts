@@ -63,7 +63,8 @@ export default defineRailway(() => {
     healthcheck: "/ready",
     healthcheckTimeout: 300,
     replicas: { "sfo": 1 },
-    deploy: { restartPolicyType: "ALWAYS" },
+    // EXEC-U4 (go 2026-10-29): sleeps when idle; orc wakes it (apps/market-ai-orc/app/wake.py)
+    deploy: { restartPolicyType: "ALWAYS", sleepApplication: true },
     volumeMounts: { "/data": marketPythonSandboxData },
     env: { AUDIT_STORE_SANDBOX_KEY: preserve(), AUDIT_STORE_URL: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_AUDIT_STORE_ENABLED: preserve(), PY_SANDBOX_BUNDLE_MAX_ROWS: preserve(), PY_SANDBOX_BUNDLE_RETENTION_HOURS: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_EXPLORE_TESTS_ENABLED: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_MEMORY_MB: preserve(), PY_SANDBOX_MAX_SESSIONS: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), PY_SANDBOX_MODULES_AUDIT_ENABLED: preserve(), PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED: preserve(), PY_SANDBOX_OPEN_WAIT_SECONDS: preserve(), PY_SANDBOX_OUTPUT_SESSIONS: preserve(), PY_SANDBOX_RESEARCH_FINDINGS_ENABLED: preserve(), PY_SANDBOX_RESEARCH_MIN_ANGLES: preserve(), PY_SANDBOX_RESULT_RETENTION_HOURS: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
   });

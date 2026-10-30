@@ -1,0 +1,35 @@
+runs 26 calls 156 reasoning chars 630371 format chars 113676 share 18.0%
+  edge_57f53c9e41b0f82c2e021618b37b0922 calls= 1 chars=   175 format=0%
+  edge_8b46b6840702c2f127270e6571b9bf27 calls= 1 chars=   381 format=0%
+  edge_143ce3863351b8eef5efbfad137b2e28 calls= 3 chars=  2069 format=5%
+  edge_d75c40fdbd876f516abba83ab6948502 calls= 3 chars= 25319 format=7%
+  edge_4500f3c28c2d6cb3216bc98c08ca4cc2 calls= 6 chars= 50908 format=12%
+  edge_04f42c64e9a827125e4b1a192a9a0b5a calls=17 chars= 43156 format=13%
+  edge_cd23a9cd9f7ccdfd18d965b91c6797fb calls= 7 chars= 61672 format=13%
+  edge_bda59854c7d5d740297cabed45b23169 calls= 7 chars= 30397 format=13%
+  edge_8233fa7f6e2386bc368387b700838f1f calls=10 chars= 47548 format=15%
+  edge_f57927c9160dd31b370258661ffcaf2e calls=10 chars= 63523 format=16%
+  edge_73a5939398ca90d19abeaab81fed95d9 calls= 9 chars= 58994 format=16%
+  edge_9a4a1da696b3f8287dab3b4123543613 calls= 3 chars= 17426 format=19%
+  edge_22690d0f83043851841c6527d26581b5 calls= 8 chars= 19712 format=20%
+  ma-event-insider-l3-20261026a-a_bbca_div calls= 4 chars= 16680 format=20%
+  edge_da886dcaaf8c528cb8ebe04b9ae1a710 calls= 8 chars= 10893 format=21%
+  ma-event-insider-l3-20261026a-b_spma_ins calls= 5 chars= 16597 format=23%
+  ma-event-insider-l3-20261026b-a2_bbca_di calls= 5 chars= 16097 format=23%
+  edge_f9a9164ada799bb67bb9fae523d2bdf2 calls= 5 chars= 45245 format=25%
+  edge_2499fc1540c4a93b10983387fabc677b calls= 7 chars=  8654 format=26%
+  edge_11ac4c21e852bbf383c0ffb59f1a5507 calls= 9 chars= 28746 format=26%
+  edge_5a2c8e54498a952757fec6928882899c calls= 2 chars=  7395 format=27%
+  edge_b1ce5472cb9b73610a3088ea1f31820d calls= 5 chars= 21185 format=27%
+  edge_2c13049339ca8276796a45de31975908 calls= 6 chars= 13908 format=29%
+  edge_9380a451acec664e5deec51aae974ba3 calls=10 chars= 17748 format=32%
+  edge_5ccd207acdea6615abd43611814476a3 calls= 2 chars=  4328 format=37%
+  edge_600dc0bf78da971f3be274bc414d2372 calls= 3 chars=  1615 format=40%
+last call: chars 88278 format 35.7%
+other calls: chars 542093 format 15.2%
+calls with reasoning_tokens: 156; reasoning tokens 166581; drafting refs 10785 (6.5%); deliberating rules 20201 (12.1%)
+  answer sections: 30% of rule-deliberation chars
+  units/percent: 27% of rule-deliberation chars
+  refs/address/typed: 24% of rule-deliberation chars
+  gates/refusals: 13% of rule-deliberation chars
+  table instruction: 6% of rule-deliberation chars

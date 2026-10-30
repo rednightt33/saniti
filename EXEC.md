@@ -253,24 +253,6 @@ User 2026-10-17: "Oke, untuk M181, masukkan exec, jangan eksekusi dulu."
 - Uji: penyedia tiruan yang diam dipotong di N; penyedia yang lambat tetapi terus mengalir tidak dipotong; pencarian
   endpoint mengembalikan nama penyedia untuk id dari Responses API.
 
-### EXEC-M179: angka berskala tidak kehilangan digit pentingnya (disetujui 2026-10-17, belum dieksekusi)
-
-User 2026-10-17: "Ok M179 masukan exec". Persetujuan ini untuk masuk EXEC; eksekusi menunggu go.
-- Akar (terverifikasi, kode): `value_refs.format_value` format `rp` membagi angka ke triliun, miliar atau juta lalu
-  memakai jumlah desimal yang diminta rujukan; `rp:0` menampilkan 1,51 triliun sebagai "Rp 2 triliun" (A/B E2 lengan
-  A, ERRORS M179).
-- Kelas: setiap angka berskala (rupiah, nanti volume dan seri makro atau lintas aset berskala) yang presisinya dipilih
-  model, di teks dan tabel.
-- Rancangan (lapisan backend, penjamin kebenaran angka): angka yang diskalakan selalu tampil dengan minimal tiga digit
-  penting; desimal yang diminta model dipakai bila lebih banyak. Contoh: 1,51 triliun → "Rp 1,51 triliun"; 209,74
-  miliar dengan `rp:0` → "Rp 210 miliar"; 5,16 miliar dengan `rp:0` → "Rp 5,16 miliar". Angka tanpa skala tidak
-  berubah. Bila tampilan berubah dari permintaan, dicatat di log (`ai_reference_precision_raised`).
-- Tidak tercakup: format persen atau desimal biasa dengan desimal sedikit (mis. 0,4% dengan `pct:0` menjadi "0%").
-  Pertanyaan untuk user saat go: aturan yang sama diterapkan juga ke format itu?
-- Uji: kasus di atas, angka negatif, batas skala (999,6 miliar → "Rp 1,00 triliun" bukan "Rp 1.000 miliar"),
-  pemeriksaan bahwa setiap tampilan dibaca balik sama oleh `provenance.parse_numbers`; snapshot prompt bila teks
-  format di prompt berubah.
-
 ### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; go 2026-10-15; selesai kecuali cek berbayar)
 
 **Hasil (2026-10-15).** Fase 1 EDGE `e3ccf5d` (edge-bff `0eb6c761`); Fase 2 `c997c4d` + `bb2430d` (sandbox `b1f26312`,
@@ -7579,72 +7561,6 @@ data yang baru dihitung dengan formula yang berbeda dengan data sebelumnya. Go."
   (riwayat tidak berubah), 2026 hanya baris baru (F02/F05 7.802, F03/F06 117). INDEX broker sampai 2026-10-23.
 - T: laporan sub-agent menyusul.
 
-### EXEC-LOADER-M217: loader Stockbit berfrekuensi di Git dan penjaga di database (diusulkan 2026-10-25, BELUM dijalankan)
-
-**Kata-kata user (2026-10-25):** "Oke, untuk proposal solusi M217, masukkan kan, ke exec jangan eksekusi dulu."
-Status: tercatat sebagai rencana. Eksekusi baru dimulai setelah user memberi go dan menjawab pertanyaan terbuka di bawah.
-
-**Akar masalah (terverifikasi, ERRORS M217):**
-- `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py` `CANONICAL_KEYS` (baris 42-46) tidak memuat
-  `buy_freq`/`sell_freq`. `replace_date` (526) menghapus seluruh tanggal lalu menulis hanya kolom itu.
-- Data 2026-09-01…10-23 memuat frekuensi di 100 % baris tanpa baris `stockbit_broker_summary_load_log`, jadi
-  dimuat program di luar Git.
-- Staging `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi tidak ada cadangan frekuensi.
-
-**Kelas:** sumber data yang dimuat kode di luar repo dan tanpa log muat per tanggal. Tidak bisa diperiksa, diulang,
-atau dilindungi. Berlaku untuk setiap loader lokal (Stockbit sekarang; cross-asset dan makro nanti).
-
-**Usulan (lapisan yang memiliki mekanismenya):**
-- L1. **Loader di Git.** Program yang dipakai user untuk 2026-09-01…10-23 masuk ke `apps/stockbit-broker-backfill/`.
-  - Menulis semua kolom tabel, termasuk `buy_freq`/`sell_freq`.
-  - Token tetap dari `STOCKBIT_TOKEN`, `--token-stdin` atau prompt, tidak pernah ke Git.
-  - Satu loader saja; jalur tulis loader lama yang tanpa frekuensi dihapus atau dialihkan ke loader ini.
-- L2. **Penjaga di database** (lapisan backend, bukan aturan di loader saja).
-  - Loader menulis satu tanggal ke staging. Fungsi `apply_broker_summary_date(date)` menukar isinya ke
-    `IDX_Broker_Summary` dalam satu transaksi, hanya bila:
-    - semua kolom wajib terisi;
-    - cakupan frekuensi tidak lebih rendah dari isi lama tanggal itu, dihitung per kelompok simbol, karena
-      warrant/right lama memang ada yang tanpa frekuensi (cek sub-agent C1);
-    - jumlah broker dan baris tidak turun tajam dari isi lama.
-  - Bila gagal, fungsi menolak dengan pesan yang menyebut tanggal, kolom dan cara memperbaikinya (AGENTS Gates and
-    evidence: aturan terlihat, cara lolos, contoh benar/salah, pesan tolak).
-  - Batas "turun tajam" diturunkan dari data tanggal-tanggal sebelumnya, bukan angka tetap.
-- L3. **Log muat wajib.** Fungsi L2 menulis baris `stockbit_broker_summary_load_log`: jumlah baris, cakupan
-  frekuensi, sha256 respons, versi loader.
-  - Log 2026-09-01…10-23 diisi dari data yang ada, ditandai `source = unlogged loader`, tanpa mengubah data.
-- L4. **`UPDATE_TABLE.md` bagian 2** diperbarui ke loader baru; larangan sementara dicabut setelah L1-L2 berjalan.
-
-**Cakupan:**
-- Tercakup: tanggal baru, koreksi tanggal lama, pemuatan ulang tidak sengaja dengan loader tanpa frekuensi (ditolak
-  oleh L2), dan audit per tanggal (L3).
-- Tidak tercakup:
-  - kebenaran angka Stockbit sendiri (tetap dicek dengan rekonsiliasi Feature);
-  - penulisan langsung ke `IDX_Broker_Summary` yang melewati fungsi L2. Ditutup dengan mencabut hak INSERT/DELETE
-    langsung dari login loader, setelah login itu dicek.
-
-**Risiko dan biaya:**
-- Staging menambah satu tanggal (±27 rb baris, beberapa MB) sementara.
-- Loader user perlu diubah sedikit agar menulis ke staging.
-- Migrasi baru: tabel staging, fungsi, hak akses; Table_Catalog, Column_Catalog, DATABASE_SCHEMA, DATABASE_CHANGELOG.
-
-**Verifikasi:**
-- Tes loader: tanpa token berhenti; 401/403 berhenti; frekuensi ikut ditulis.
-- Tes fungsi L2 di transaksi rollback, untuk tiga kasus:
-  - (a) satu tanggal lama dimuat ulang dengan isi sama: diterima, data tidak berubah;
-  - (b) tanggal yang sama tanpa frekuensi: ditolak dengan pesan yang benar;
-  - (c) tanggal dengan broker hilang: ditolak.
-- Live: satu tanggal baru dimuat lewat jalur baru, lalu `UPDATE_TABLE.md` dijalankan untuk tanggal itu dan semua cek
-  0 selisih.
-- Kasus lain yang memakai pola sama: loader harga lokal, dan sumber makro/cross-asset nanti.
-- Kasus yang tidak cocok: data yang datang dari service Railway terjadwal dengan log sendiri (`idx-price-cron`).
-  Pola log sudah ada di sana; yang dipakai cukup penjaga L2-nya.
-- Sifat: permanen.
-
-**Pertanyaan terbuka untuk user:**
-1. Loader yang dipakai untuk 2026-09-01…10-23: skrip apa dan di mana? Boleh dimasukkan ke Git (tanpa token)?
-2. Apakah loader itu juga menulis ke CSV harian lokal seperti loader lama?
-3. Login database apa yang dipakai loader (untuk L2, mencabut tulis langsung)?
-
 ### EXEC-M216: sambungan "per tanggal saja" (Langkah B, dengan katalog Langkah A di dalamnya) (disetujui 2026-10-25)
 
 **Kata-kata user (2026-10-25):** "dari langkah A dan langkah B, mana yang bisa solve the problem entirely dengan risiko
@@ -9020,3 +8936,22 @@ storage. Inspect kenapa bisa lama, sebetulnya ini hanya proses penjndahan data s
   - Target: `state.json` <= 10 menit sesudah mulai (perkiraan 4-6 menit, INFERENCE, diukur di dev).
   - Waktu: build dan tes setelah "go"; deploy dev di luar jendela B6 lalu satu run manual terukur; run terjadwal
     berikutnya sebagai bukti kedua.
+
+## EXEC-GO-1029 — go user untuk butir EXEC yang disetujui (2026-10-29)
+
+User 2026-10-29: "Oke, U4 masukkan exec. U1 ditunda dulu aja. Sekarang untuk approve exec, feel free to inspect database
+dan arsitektur beserta kode. Setiap keputusan yang diambil tidak boleh berdasarkan memori. Semua harus berdasarkan kode
+dan inspeksi. Setelah done jalankan 3 testing Go"
+
+Cakupan go (daftar "disetujui, menunggu go" yang dilaporkan 2026-10-29): EXEC-M304-M305, EXEC-LOADER-M217, EXEC-C3,
+EXEC-M179, EXEC-U4. Pertanyaan yang belum dijawab user diambil sesempit rencana yang disetujui:
+- EXEC-M179: hanya angka berskala (rupiah triliun/miliar/juta); format persen dan desimal biasa tidak diubah.
+- EXEC-U4: sleep hanya untuk `market-python-sandbox`; web-governor tetap menyala (penjaga bangun di orc dipasang untuk
+  kedua klien, tanpa mengubah web-governor).
+Tidak termasuk: U1 (ditunda), EXEC-MCAP (sesi lain), PENDING-M204 P6–P8 (ditahan user). Sesudah selesai: tiga uji live.
+
+**Status EXEC-GO-1029: selesai 2026-10-29.** Bagian EXEC-M304-M305, EXEC-C3, EXEC-M179, EXEC-LOADER-M217 dan EXEC-U4
+dihapus dari file ini (aturan AGENTS); hasil, bukti dan tes ada di ERRORS M304, M305, M179 (tabel), M217 (dan Part A
+butir 28), RAILWAY_CHANGELOG dan DATABASE_CHANGELOG 2026-10-29. Tiga uji live (`edge_6f8de485…`, `edge_dd6cf882…`,
+`edge_deb3fc4d…`) dan temuan baru M306 di ERRORS. Kode: `943f312` (orc), `1a52498` (sandbox), `3bed26b` (M217,
+telegram-monitor), migrasi `20261029_001/002/003`.

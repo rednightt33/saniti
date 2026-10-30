@@ -188,3 +188,27 @@ def test_the_prompt_and_the_tools_describe_the_merged_steps_only_with_the_switch
     assert MERGED_APPROVAL in data_need_specs(Client(), timeout_seconds=1, max_result_bytes=1000,
                                               merged_steps=True)[0].description
     assert NEED  # the fake flow's need id is what the backend passes to prepare_data_bundle
+
+
+def test_complete_sent_as_text_true_still_releases_the_results() -> None:
+    """M304 (edge_f9a9164a): the registry decoded complete="true" and ran the code with complete=true, but the backend's
+    own check read the raw text and the model had to call complete_analysis itself. Both read one decoded object now."""
+    tools = MergedTools([completed()])
+    script = [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1"),
+              call("run_python", {"session_id": SESSION, "complete": "true"}, "c2"),
+              final_response(answer("BBCA naik lebih tinggi dari BBRI."))]
+    result, scripted = run(script, tools)
+    assert result.status == "COMPLETED"
+    assert tools.calls[-2:] == ["run_python", "complete_analysis"]
+    assert [m["tool"] for m in outputs(scripted)[1]["merged_steps"]] == ["complete_analysis"]
+
+
+def test_complete_sent_as_text_false_keeps_the_session_open() -> None:
+    tools = MergedTools([completed()])
+    script = [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1"),
+              call("run_python", {"session_id": SESSION, "complete": "false"}, "c2"),
+              call("complete_analysis", {"session_id": SESSION}, "c3"),
+              final_response(answer("BBCA naik lebih tinggi dari BBRI."))]
+    result, _ = run(script, tools)
+    assert result.status == "COMPLETED" and tools.calls.count("complete_analysis") == 1
+    assert tools.calls[-1] == "complete_analysis"

@@ -317,3 +317,27 @@ def test_an_instruction_inside_a_markdown_table_is_taken_out_and_typed_rows_line
     lines = [line for line in cleaned.splitlines() if line.startswith("|")]
     assert lines[0].count("|") == 3 and not any(line.strip() in ("|", "| |") for line in cleaned.splitlines())
     assert "Menampilkan 2 dari 4 baris" in cleaned  # the system's own line under the cut table
+
+
+BROKERS = [{"Broker": "HD", "net": 203.5, "Investor Type": "Foreign"},
+           {"Broker": "XL", "net": 66.6, "Investor Type": "Domestic"},
+           {"Broker": "ZP", "net": -111.2, "Investor Type": "Foreign"}]
+
+
+def test_a_column_named_in_other_case_is_the_released_column() -> None:
+    """M305 (edge_f9a9164a): `broker` for the released column `Broker` was refused and the answer lost its table. A
+    name that matches one released column when case is ignored is that column; the cells cite the column's own name.
+    The same mechanism covers a source name with spaces (`investor type` for `Investor Type`) and the sort column."""
+    _, state = tracked(BROKERS, units={})
+    expansion, text = shown("{{table out.o1; Broker = broker; Net = NET|dec:1; Tipe = investor type; sort -Net}}",
+                            state)
+    assert expansion.problems == []
+    assert text.splitlines()[2:5] == ["| HD | 203,5 | Foreign |", "| XL | 66,6 | Domestic |", "| ZP | \u2212111,2 | Foreign |"]
+    cells = td.expand("{{table out.o1; Broker = broker}}", state.ref_sources).text
+    assert ".Broker}}" in cells and ".broker}}" not in cells
+
+
+def test_columns_that_differ_only_in_case_are_refused_with_both_named() -> None:
+    _, state = tracked([{"Net": 1.0, "net": 2.0}, {"Net": 3.0, "net": 4.0}], units={})
+    expansion, _ = shown("{{table out.o1; Nilai = NET}}", state)
+    assert expansion.problems and "column NET matches Net and net" in expansion.problems[0]
