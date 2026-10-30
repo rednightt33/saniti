@@ -961,9 +961,13 @@ Keputusan 2026-10-31 lanjutan (kata user): "FL36 OK", "FL 37 OK", "FL 38 OK", "F
 "hari rolling" = candle di chart mingguan/bulanan: "2-3 OK"; rilis: "4 sekaligus" (39 indikator sekaligus setelah
 storage).
 
-Pertanyaan terbuka: label panel Bandar Terminal (6/10%, Top 3); arti "bandar" per indikator dan satu default N; nama
-seragam per keluarga indikator yang hanya beda dasar/filter (permintaan user: "kalau bisa namanya kita samakan saja tuh,
-kita buat mirip-mirip").
+Keputusan 2026-10-31 lanjutan (kata user): "bandar" = N broker dengan net beli (Rp) terbesar dalam jendela indikator,
+dihitung ulang tiap hari, default N = 3 untuk semua ("Usul saya: satu default untuk semua, yaitu Top 3 ... OK"); nama
+pola "Keluarga · pembeda" ("Indikator yang hanya beda dasar atau filter, tapi namanya jauh berbeda OK"); panel Bandar
+Terminal ikut 6/10% dan Top 3 ("3. OK"). User: "Jangan go dulu."
+
+Pertanyaan terbuka: histori percentile FL21/FL37 (250 vs 252); FL07 sama dengan FL03 (Buy) bila investor = Semua
+(terpisah atau digabung); susunan menu Flow (subgrup per keluarga).
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
