@@ -27,12 +27,22 @@ def test_on_a_desktop_the_session_bar_is_gone_and_its_buttons_sit_in_the_rail(fi
         rail = box(page, '.conversation-panel')
         # MONITOR-REVAMP (AI_revamp.html .nav-acts): an open desktop sidebar carries Details and Share beside its menu
         # button and bookmarks from the conversation's row; the folded rail keeps Bookmark
-        for name in ('Bookmark', 'Public sharing unavailable') if width <= 1050 else ('Public sharing unavailable',):
+        for name in ('Bookmark', 'Share latest answer') if width <= 1050 else ('Share latest answer',):
             button = page.get_by_role('button', name=name, exact=True)
             assert button.is_visible()
             b = button.bounding_box()
             assert rail['x'] <= b['x'] and b['x'] + b['width'] <= rail['x'] + rail['width'] + 1, (width, name)
-        assert page.get_by_role('button', name='Public sharing unavailable', exact=True).is_disabled()
+        # MONITOR-REVAMP (user 2026-10-30): the sidebar's Share opens the Share menu of the latest answer
+        page.get_by_role('button', name='Share latest answer', exact=True).click()
+        menu = page.locator('.conversation-panel .edge-share-menu')
+        menu.wait_for()
+        assert menu.get_by_role('menuitem').all_inner_texts() == ['PDF (document)', 'PNG (image)', 'Word (document)']
+        m = menu.bounding_box()
+        assert m['x'] >= 0 and m['x'] + m['width'] <= width, (width, m)
+        assert page.evaluate('([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".edge-share-menu"))',
+                             [m['x'] + m['width'] / 2, m['y'] + m['height'] - 8])  # not clipped by the sidebar
+        page.get_by_role('button', name='Share latest answer', exact=True).click()
+        menu.wait_for(state='detached')
         if width <= 1050:
             page.get_by_role('button', name='Bookmark', exact=True).click()
             page.wait_for_function("() => document.querySelector('[aria-label=Bookmark]').getAttribute('aria-pressed') === 'true'")

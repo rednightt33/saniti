@@ -229,6 +229,9 @@ The page is edited as one HTML file and its API wiring is not locked to the view
   components mapped onto this page's markup in the last block of `index.html`'s style ("MONITOR-REVAMP"). A browser
   with no saved theme starts light (`edge-auth-monitor-theme`; the Screener reads the same key and default). The phone
   layout (max-width 720px) keeps its own arrangement and takes the colours and type.
+- Conversation list (MONITOR-REVAMP, user 2026-10-30): a Branch row sits under its parent conversation with the
+  branch icon (`kind`/`parent_conversation_id` of the list API); the sidebar's Share ("Share latest answer") opens the
+  Share menu of the conversation's latest answer; ⌘K/Ctrl+K focuses "Search conversations".
 
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.

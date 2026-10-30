@@ -111,7 +111,7 @@ window.EdgeLabels = {
     // EXEC-CHOICES: the "Response choices" panel
     nextAction:"Your next step", choicesTitle:"Response choices", planChoicesTitle:"Plan approval",
     choiceDraft:"Fill in the message box first", choiceWrite:"Write",
-    tableExpand:"Enlarge table", tableTitle:"Table", tableRows:"{n} rows", tableMoreRows:"Show {n} more rows", tableFewerRows:"Hide rows", historyJump:"Go to message", railDetails:"Show Details", railHideDetails:"Hide Details", railBookmark:"Bookmark", railShare:"Public sharing unavailable", accountSettings:"Settings",
+    tableExpand:"Enlarge table", tableTitle:"Table", tableRows:"{n} rows", tableMoreRows:"Show {n} more rows", tableFewerRows:"Hide rows", historyJump:"Go to message", railDetails:"Show Details", railHideDetails:"Hide Details", railBookmark:"Bookmark", railShare:"Share latest answer", accountSettings:"Settings",
     choiceChosen:"Chosen · reply sent", choiceChosenDraft:"Chosen · write in the message box",
     writeOther:"Write another answer", writeOtherHint:"Write your answer in the message box", exploreNote:"Includes news research",
     // EXEC-SHARE-UI (user 2026-10-19): the share button of an answer and its card

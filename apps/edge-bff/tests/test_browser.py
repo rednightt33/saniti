@@ -115,7 +115,7 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
         page.locator('.edge-model-trigger:not([disabled])').wait_for()
         assert page.locator('.edge-model-trigger').inner_text().split()[:3]==['DeepSeek','V4.1','Flash']
         assert page.locator('.edge-model-trigger img.edge-model-logo').get_attribute('src')=='/model-logos/deepseek-color.svg'
-        assert page.get_by_role('button',name='Public sharing unavailable').is_disabled()
+        assert page.get_by_role('button',name='Share latest answer').is_enabled()  # MONITOR-REVAMP: the sidebar's Share
         page.get_by_role('button',name='Pin',exact=True).click()
         page.get_by_role('button',name='Pinned',exact=True).wait_for()
         bookmark_open_conversation(page)

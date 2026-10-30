@@ -8994,3 +8994,22 @@ Isi (front-end edge-bff saja; API, `edge-client.js` dan perilaku tetap):
   267 lulus, 3 gagal = baseline `main` sebelum revamp (`test_ui_1015c` judul pendek di 1440, `test_composer_layout`
   mobile ×2, gejala sama).
 - Infra: hanya edge-bff (static + build Screener); hasil deploy di `RAILWAY_CHANGELOG.md`.
+
+Lanjutan 2026-10-30 (cek live dibanding `AI_revamp.html`, read-only; user: "ada fitur branch chat di panel kiri yg
+sepertinya belum aktif, cek yg lain"; pilihan user "1 2 4"). Front-end edge-bff saja; API dan query BFF tetap:
+- 1, Branch di daftar percakapan: API daftar sudah mengirim `kind` dan `parent_conversation_id`; `edge-client.js`
+  `conversations()` kini menyimpannya. Baris BRANCH tampil tepat di bawah percakapan induknya (grup induk), menjorok
+  16 px dengan garis penghubung dan ikon branch (prototipe `.conv.child`); branch dari branch ikut induknya; branch yang
+  induknya tidak ada di daftar (tersembunyi atau tersaring) tetap baris biasa di grupnya sendiri, dengan ikon.
+- 2, Bar "Branched from …": selebar kolom baca (maks 768 px; sebelumnya ±950 px live) dan berada paling atas percakapan
+  branch, di atas giliran yang dilanjutkan (prototipe `.lineage`). Side chat tidak berubah.
+- 4, tiga hal kecil: tombol Share di header panel kiri (dan di rail saat dilipat atau di HP) membuka menu Share
+  jawaban terakhir yang selesai (PDF/PNG/Word, sama dengan Share di jawaban), bernama "Share latest answer" agar tidak
+  bentrok dengan Share jawaban; nonaktif bila belum ada jawaban. ⌘K/Ctrl+K memfokuskan "Search conversations" bila
+  kotak itu tampil (selain itu tetap "Coming soon" pasar). Teks Details kosong: "Open or start a conversation to see
+  its outline, sources and run details."
+- Tidak dikerjakan (tidak dipilih): status di daftar percakapan (butuh perubahan query BFF).
+- Tes: tes Share sidebar (menu terbuka, tidak terpotong), tes branch (bar di atas, selebar kolom, baris anak dengan ikon
+  di bawah induk, ⌘K) ditambahkan; tes yang mengharapkan "Public sharing unavailable" nonaktif disesuaikan. Suite edge-bff:
+  269 lulus, 1 gagal = baseline (`test_ui_1015c` judul pendek di 1440; dua tes `test_composer_layout` mobile baseline kali
+  ini lulus).

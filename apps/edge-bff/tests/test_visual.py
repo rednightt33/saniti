@@ -414,7 +414,8 @@ def test_submit_error_keyboard_disabled_controls_and_resizing(dummy_orc, browser
     assert len(orc.calls) == 1
     assert attempts[0]['message'] == orc.calls[0][2]['message']
     assert not page.locator('.mode-anchor').count()  # EXEC-SHARE-UI: the Research Mode menu is removed
-    for label in ('Data scope', 'Attachments are not available yet', 'Public sharing unavailable', 'Support unavailable', 'Notifications unavailable'):
+    assert page.get_by_role('button', name='Share latest answer', exact=True).is_enabled()  # MONITOR-REVAMP: the sidebar's Share
+    for label in ('Data scope', 'Attachments are not available yet', 'Support unavailable', 'Notifications unavailable'):
         assert page.get_by_role('button', name=label, exact=True).is_disabled()
     page.get_by_role('button', name='Account menu', exact=True).click()
     composer.click()

@@ -10376,6 +10376,10 @@ html .app .conversation-panel .conversation-bookmark{width:22px;height:22px;bord
 html .app .conversation-panel .conversation .conversation-bookmark:hover:not(:disabled){background:var(--border);color:var(--text);}
 html .app .conversation-panel .conversation-bookmark.active{color:var(--text);}
 html .app .conversation-panel .conversation .conversation-bookmark>.icon{width:16px;height:16px;}
+/* MONITOR-REVAMP (user 2026-10-30, AI_revamp.html .conv.child): a branch nests under its parent with a connector and the branch icon */
+html .app .conversation-panel .conversation.child{position:relative;width:auto;margin-left:var(--s-8);}
+html .app .conversation-panel .conversation.child::before{content:"";position:absolute;left:-8px;top:0;bottom:50%;width:8px;border-left:1px solid var(--border-2);border-bottom:1px solid var(--border-2);border-bottom-left-radius:var(--r-sm);pointer-events:none;}
+html .app .conversation-panel .conversation>span strong>.icon{display:inline-block;width:12px;height:12px;margin-right:var(--s-2);vertical-align:-2px;flex:none;}
 html .app .conversation-panel .conversation-empty{padding:var(--s-6);text-align:left;font-size:var(--t-ctl);color:var(--text-3);}
 html .app .conversation-panel .sidebar-foot{border-top:1px solid var(--border);color:var(--text-3);font-size:var(--t-meta);}
 html .app .conversation-panel .sidebar-foot .status-dot{width:7px;height:7px;background:var(--text-3);box-shadow:none;animation:none;}
@@ -10794,6 +10798,10 @@ html .app .monitor-layout .edge-branch-divider:before,html .app .monitor-layout 
 html .app .monitor-layout .edge-branch-divider>.icon{width:16px;height:16px;flex:none;color:var(--green);}
 html .app .monitor-layout .edge-branch-divider button{display:inline;padding:0;border:0;background:none;color:var(--green);font:600 var(--t-body)/inherit var(--sans);cursor:pointer;}
 html .app .monitor-layout .edge-branch-divider button:hover{text-decoration:underline;}
+/* MONITOR-REVAMP (user 2026-10-30): the lineage bar is as wide as the reading column */
+html .app .monitor-layout .research-workspace .edge-branch-divider{box-sizing:border-box;width:100%;max-width:var(--conversation-max-width);margin-left:auto;margin-right:auto;}
+/* MONITOR-REVAMP (AI_revamp.html .dt-b .note.pad): the Details text without a run is a quiet note at the top */
+html .app .monitor-layout .details-panel .details-empty{display:block;min-height:0;padding:calc(var(--s-6) + var(--s-3)) var(--s-6);text-align:left;color:var(--text-3);font-size:var(--t-ctl);line-height:var(--lh-tight);}
 html .app .monitor-layout .research-empty{color:var(--text-2);font-size:var(--t-body);}
 html .app .monitor-layout .research-empty strong{font-size:var(--t-stat);font-weight:600;color:var(--text);}
 html .app .monitor-layout .research-empty p{color:var(--text-2);font-size:var(--t-body);line-height:var(--lh-read);}
@@ -10807,6 +10815,7 @@ html .app .monitor-layout .edge-share-menu .edge-menu-title{padding:var(--s-3) v
 html .app .monitor-layout .edge-share-menu button{display:flex;align-items:center;gap:var(--s-4);width:100%;height:auto;min-height:0;padding:7px var(--s-4);border:0;border-radius:var(--r-sm);background:none;color:var(--text);font:400 var(--t-body)/var(--lh-tight) var(--sans);text-align:left;box-shadow:none;}
 html .app .monitor-layout .edge-share-menu button:hover,html .app .monitor-layout .edge-share-menu button:focus-visible{background:var(--hover);}
 html .app .monitor-layout .edge-share-menu button .icon{width:16px;height:16px;}
+html .app .conversation-panel .edge-share-anchor>.clipboard-status{position:absolute;top:calc(100% + 6px);left:0;z-index:60;white-space:nowrap;}
 .edge-selection-menu{min-width:220px;padding:6px;border:1px solid #eaeaea;border-radius:10px;background:#fff;box-shadow:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);font:400 12px/1.35 Inter,"Segoe UI",system-ui,sans-serif;color:#171717;}
 html.dark .edge-selection-menu{border-color:#262626;background:#111;color:#ededed;box-shadow:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;}
 .edge-selection-menu button{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;color:inherit;font:inherit;}
@@ -11235,7 +11244,9 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
     },[marketSoon]);
     onLifecycle(viewRecord, "effect0", () => { const onKey = (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        showMarketSoon();
+        // MONITOR-REVAMP (user 2026-10-30, AI_revamp.html): on the Monitor page ⌘K goes to "Search conversations"
+        const search = document.querySelector(".conversation-panel .search input");
+        if (search && search.offsetParent) { search.focus(); search.select(); } else showMarketSoon();
     } }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, []);
     return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""}` },
         element("header", { className: "topbar", inert: mobilePanelOpen },
@@ -11481,6 +11492,8 @@ function Monitor({ go }) {
     const selected = items.find(item => item.id === selectedId);
     const run = selected?.runs.find(item => item.id === selectedRunId) ?? latestRun(selected);
     const runNumber = run && selected ? selected.runs.findIndex(item => item.id === run.id) + 1 : 0;
+    // MONITOR-REVAMP (user 2026-10-30): the sidebar's Share shares the conversation's latest answer
+    const shareRun = selected?.runs.findLast(item => item.status === "completed" && !item.stopped && item.raw);
     const executionRun = items.flatMap(c=>c.runs).findLast(item => ["submitted", "running"].includes(item.status));
     const active = Boolean(executionRun);
 
@@ -11553,7 +11566,7 @@ function Monitor({ go }) {
     // closing the side chat refreshes the answers' side-chat links (how many questions each holds)
     const closeSide=async()=>{setSidePanel(null);const id=selectedId;if(!id?.startsWith("conv_"))return;try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?{...x,sideChats:loaded.sideChats}:x));}catch{/* the links refresh on the next load */}};
     // a branch shows the turns it continues; a side chat (its frame) only the answer it asks about. The divider names
-    // where the continued turns come from and sits before the conversation's own first question
+    // where the continued turns come from and heads the conversation
     // EXEC-UI-1025 (user 2026-10-24: a side chat opens empty, "seperti how Claude works"): the side chat shows only its
     // own questions; the answer it is about stays its context (Orc reads it) and is named above them
     const shownMessages=conversation=>{const asked=conversation.messages.filter(m=>m.role==="user");
@@ -11565,7 +11578,8 @@ function Monitor({ go }) {
         link.side?element("span",null,text):element(fragment,null,element(Icon,{name:"fork"}),element("span",null,element("button",{type:"button",onClick:()=>selectConversation(from.conversationId)},text),conversation.kind==="SIDE"?null:ui.branchedNote)));};
     const withDivider=(conversation,nodes)=>{const divider=branchDivider(conversation);if(!divider)return nodes;
       if(link.side&&!nodes.length)return [divider,element("p",{key:"edge-side-empty",className:"edge-side-empty"},edgeUi().sideEmpty)];
-      const at=shownMessages(conversation).findIndex(m=>!m.inherited);return [...nodes.slice(0,at<0?nodes.length:at),divider,...nodes.slice(at<0?nodes.length:at)];};
+      // MONITOR-REVAMP (user 2026-10-30, AI_revamp.html lineage): the bar heads the branch, above the turns it continues
+      return [divider,...nodes];};
     viewRecord.refs.askHandler=detail=>{const run=items.find(x=>x.id===selectedId)?.runs.find(r=>r.id===detail?.request_id);if(run)askRun(run,detail);};
     if(!viewRecord.refs.askInstalled){viewRecord.refs.askInstalled=true;
       window.addEventListener("edge-ask",event=>viewRecord.refs.askHandler?.(event.detail));}
@@ -11703,13 +11717,13 @@ function Monitor({ go }) {
                     // button; the rail under "+" keeps them when the sidebar is folded, and on a phone
                     !collapsed && !narrow && element("span", { className: "edge-nav-acts" },
                         element(IconButton, { icon: "panel", selected: detailsOpen, title: detailsOpen ? edgeUi().railHideDetails : edgeUi().railDetails, onClick: () => setDetailsOpen(!detailsOpen) }),
-                        selected && element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare }))),
+                        selected && (shareRun ? element(ShareAction, { key: shareRun.id, run: shareRun, iconTitle: edgeUi().railShare }) : element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare })))),
                 element(Button, { kind: "primary", icon: "plus", ariaLabel:"New Chat", onClick: newConversation }, collapsed && !(narrow && historyOpen) ? undefined : "New Chat"),
                 // EXEC-UI-1015C (desktop): Details, bookmark and share sit in the rail under menu and "+"
                 (collapsed || narrow) && element("div", { className: "edge-rail-actions" },
                     element(IconButton, { icon: "sliders", selected: narrow ? mobileDetailsOpen : detailsOpen, title: (narrow ? mobileDetailsOpen : detailsOpen) ? edgeUi().railHideDetails : edgeUi().railDetails, onClick: () => { if (narrow) { setHistoryOpen(false); setDetailsOpen(true); setMobileDetailsOpen(!mobileDetailsOpen); } else setDetailsOpen(!detailsOpen); } }),
                     element(IconButton, { icon: "bookmark", selected: selected?.bookmarked, disabled: !selected || selected.id.startsWith("draft:"), onClick: () => toggleBookmark(), title: edgeUi().railBookmark }),
-                    element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare })),
+                    shareRun ? element(ShareAction, { key: shareRun.id, run: shareRun, iconTitle: edgeUi().railShare }) : element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare })),
                 (!collapsed || (narrow && historyOpen)) && element(Search, { placeholder: "Search conversations", value: query, onChange: setQuery, conversation: true }),
                 " ",
                 (!collapsed || (narrow && historyOpen)) && element("div", { className: "mini-tabs" },
@@ -11823,7 +11837,7 @@ function Monitor({ go }) {
                 // MONITOR-REVAMP (AI_revamp.html): Pinned responses belong to the Flow tab (Outline there); Sources shows its parts only
                 detailsTab === "Flow" && element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:jumpToRun }),
                 detailsTab === "Flow" && pinsOpen && flowOpen && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
-                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run,act}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "No research run selected."))),
+                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run,act}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "Open or start a conversation to see its outline, sources and run details."))),
             // EXEC-ASK-BRANCH: the side chat of one answer: the same EDGE, showing only that conversation (Q2: it is not
             // in the conversation list; the answer links to it)
             sidePanel && element("aside",{className:"edge-side-chat","aria-label":edgeUi().askAbout},
@@ -11834,21 +11848,30 @@ function Monitor({ go }) {
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
 function ConversationHistoryList({ items, selectedId, select, toggleBookmark, requestHide }) {
-    return element(fragment, null, ["Today", "Yesterday", "Previous 7 Days", "Older"].map(group => { const conversations = items.filter(item => conversationGroup(item.updatedAt) === group); return conversations.length ? element("div", { className: "conversation-group", key: group },
-        element("span", null, group),
-        conversations.map(item => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+    // MONITOR-REVAMP (user 2026-10-30, AI_revamp.html renderNav): a branch sits under the conversation it continues, in
+    // that conversation's group, with the branch icon; a branch whose parent is not in the list stays in its own group
+    const shown = new Set(items.map(item => item.id));
+    const nested = item => item.kind === "BRANCH" && item.parent?.conversationId && item.parent.conversationId !== item.id && shown.has(item.parent.conversationId);
+    const row = (item, child) => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}${child ? " child" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
                 event.preventDefault();
                 select(item.id);
             } } },
             element("i", { className: `conversation-state ${itemRun?.status ?? "draft"}` }),
             element("span", null,
-                element("strong", null, item.title),
+                element("strong", null, item.kind === "BRANCH" && element(Icon, { name: "branch", size: 12 }), item.title),
                 element("small", null, item.messages.findLast(message => message.role === "user")?.content ?? item.lastMessage)),
             element("span", { className: `conversation-actions${item.bookmarked ? " keep" : ""}` },
             element("button", { className: `conversation-bookmark ${item.bookmarked ? "active" : ""}`, "aria-label": `${item.bookmarked ? "Remove" : "Add"} bookmark`, "aria-pressed":Boolean(item.bookmarked), onClick: event => { event.stopPropagation(); toggleBookmark(item.id); } },
                 element(Icon, { name: "bookmark" })),
             element("button", { className: "conversation-bookmark conversation-delete", "aria-label": `Delete ${item.title}`, title: "Delete conversation", disabled: ["submitted", "running", "streaming"].includes(itemRun?.status) || item.id.startsWith("draft:"), onClick: event => { event.stopPropagation(); requestHide?.(item); } },
-                element(Icon, { name: "trash" })))); })) : null; }));
+                element(Icon, { name: "trash" })))); };
+    // a branch of a branch follows its own parent; each conversation shows once
+    const withChildren = (item, child, seen) => { if (seen.has(item.id)) return []; seen.add(item.id);
+        return [row(item, child), ...items.filter(other => nested(other) && other.parent.conversationId === item.id).flatMap(other => withChildren(other, true, seen))]; };
+    const seen = new Set();
+    return element(fragment, null, ["Today", "Yesterday", "Previous 7 Days", "Older"].map(group => { const conversations = items.filter(item => !nested(item) && conversationGroup(item.updatedAt) === group); return conversations.length ? element("div", { className: "conversation-group", key: group },
+        element("span", null, group),
+        conversations.flatMap(item => withChildren(item, false, seen))) : null; }));
 }
 
 function formatMessageJakarta(iso) {
@@ -12391,18 +12414,23 @@ const EdgeShare = (() => {
   };
   return {card, pdf, png, docx};
 })();
-function ShareAction({run}) {
+// MONITOR-REVAMP (user 2026-10-30, AI_revamp.html navShare): with an icon title, the same menu opens from an icon
+// button (the sidebar's Share, for the conversation's latest answer)
+function ShareAction({run,iconTitle}) {
  const view=currentView,ui=edgeUi();
  const open=initialValue(view,"shareOpen",()=>false),setOpen=next=>updateValue(view,"shareOpen",next);
  const status=initialValue(view,"shareStatus",()=>""),setStatus=next=>updateValue(view,"shareStatus",next);
+ // the sidebar clips what overflows it, so the icon button's menu is placed on the page under the button
+ const at=initialValue(view,"shareAt",()=>null),setAt=next=>updateValue(view,"shareAt",next);
  const pick=async kind=>{setOpen(false);
   if(kind==="pdf"){EdgeShare.pdf(run);return;}
   setStatus(kind==="docx"?ui.shareWordPreparing:ui.sharePreparing);
   try{await (kind==="docx"?EdgeShare.docx(run):EdgeShare.png(run));setStatus("");}
   catch(error){setStatus(kind==="docx"?ui.shareWordFailed:ui.shareFailed);}};
  return element("span",{className:"edge-share-anchor"},
-  element("button",{className:"result-action",type:"button","aria-haspopup":"menu","aria-expanded":Boolean(open),onClick:()=>setOpen(!open)},element(Icon,{name:"share"}),ui.share),
-  open&&element("div",{className:"edge-share-menu",role:"menu","aria-label":ui.share},
+  iconTitle?element("button",{className:`icon-btn ${open?"selected":""}`,type:"button",title:iconTitle,"aria-label":iconTitle,"aria-haspopup":"menu","aria-expanded":Boolean(open),onClick:event=>{const r=event.currentTarget.getBoundingClientRect();setAt({top:r.bottom+6,left:Math.max(8,Math.min(r.left,innerWidth-236))});setOpen(!open);}},element(Icon,{name:"share"}))
+   :element("button",{className:"result-action",type:"button","aria-haspopup":"menu","aria-expanded":Boolean(open),onClick:()=>setOpen(!open)},element(Icon,{name:"share"}),ui.share),
+  open&&element("div",{className:"edge-share-menu",role:"menu","aria-label":ui.share,style:iconTitle&&at?{position:"fixed",top:at.top+"px",left:at.left+"px"}:undefined},
    element("div",{className:"edge-menu-title","aria-hidden":"true"},ui.shareTitle),
    element("button",{type:"button",role:"menuitem",onClick:()=>pick("pdf")},element(Icon,{name:"download"}),ui.sharePdf),
    element("button",{type:"button",role:"menuitem",onClick:()=>pick("png")},element(Icon,{name:"download"}),ui.sharePng),
