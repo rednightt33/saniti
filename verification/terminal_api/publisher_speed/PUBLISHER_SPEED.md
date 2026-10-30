@@ -293,3 +293,43 @@ not slept.
 - **Next evidence:** the 19:00 WIB run (12:00 UTC tick). It has new prices, so it measures the write path, deletes
   what it replaced after the 600 s wait (`replaced_wait`, `replaced`), and runs the full cleanup with its per-folder
   `listed` lines. The probe is then run again.
+
+### 7.7 The 19:00 WIB run of 2026-10-30 (SCHED `8d4e509c`, log `dev_run_20261030_1900.jsonl`)
+
+**The write path, first dev measurement (new prices through 2026-10-30):** 1,655 files, 27.68 MB, `state.json` at
+12:02:09 UTC, 127.7 s after the start (16 threads). The same work took 3,314.5 s on 2026-10-29.
+
+| Step | Seconds |
+|---|---|
+| plan (baseline listings, 845 manifests in 21.8 s, stamps) | 24.8 |
+| files (827 price files) | 18.5 |
+| packs (827) | 23.0 |
+| xsection (`price` rebuilt, 1,333,203 rows) | 38.9 |
+| manifests | 20.4 |
+| refs | 1.7 |
+| `state.json` | 0.4 |
+
+**The deletion and the full cleanup:**
+
+| Time (UTC) | Event |
+|---|---|
+| 12:02:19 | `replaced_wait` 1,655 objects, 600 s |
+| 12:12:19-12:20:44 | after the wait (`still_current`, then the first delete batch of 1,000 keys): three `bucket_retry` `ReadTimeoutError`, then `replaced_failed` `ReadTimeoutError` |
+| 12:20:44-12:21:10 | the full cleanup's listing: every folder answered. `manifest/` 845 keys 5 pages 2.8 s; `state.json`; `ref/` 6 keys; `xsection/` 3 keys; `events/` 842 keys 5 pages 2.9 s; `pack/` 2,851 keys 15 pages 7.7 s; `broker/` 7,091 keys 36 pages 21.4 s; `price/` 8,699 keys 44 pages 25.1 s. Slowest page 1.3 s; no `list_page_slow` |
+| 12:23:21-12:25:40 | after the listing (no read is left in this step, only the delete batches): two `bucket_retry` `ReadTimeoutError`, then `gc_failed` step `sweep` `TimeoutError` at the 300 s bound |
+| 12:34:36 | check tick: `published` true |
+
+**Read-only probe after the run (`garbage_probe_20261030_1900.json`):**
+- 0 named objects missing, so no reader lost a file;
+- 3,383 objects named by no publication (32.5 MB), against 2,256 in the morning;
+- of today's 1,655 replaced objects, all 827 price files and the xsection file remain, and 528 of the 827 packs are
+  gone. The batches go in sorted order, packs first. So the first delete batch was carried out in part while its
+  answer never came.
+
+**What this changes (ERRORS M301):**
+- **The listing is not what hangs.** Every folder listed in seconds from the publisher's container.
+- **Verified:** what hangs is the request that deletes (`DeleteObjects`, up to 1,000 keys). Its answer does not come
+  within the 30 s read timeout, while the bucket deletes part of the batch.
+- **Inference:** the earlier `gc_failed` runs (2026-10-29 12:13 and 15:23, 2026-10-30 00:36) ended the same way. The
+  old code logged neither its listing pages nor its delete batches, so their step is not known.
+- **SUSPECTED, not verified:** the bucket's time per deleted key makes a 1,000-key batch longer than 30 s.

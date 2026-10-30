@@ -5310,3 +5310,14 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   turns the running rings in 0.15 s; no page error. The running card itself was not shown live (it needs a question
   sent); it is covered by the edge-bff suite (268 passed, 2 failed = baseline).
 - **Rollback:** redeploy edge-bff `20fb04fa` (commit `b3d55ad`).
+- **The 19:00 WIB run on `8d4e509c` (12:00 UTC tick, no deploy):**
+  - It published 1,655 files (27.68 MB) with `state.json` 127.7 s after the start, the first dev measurement of the
+    parallel write path.
+  - After the 600 s wait, the deletion of the 1,655 replaced objects ended `replaced_failed` `ReadTimeoutError`.
+  - The full cleanup listed every folder in 0.2-25 s (slowest page 1.3 s), then ended `gc_failed` step `sweep` at 300 s,
+    while deleting.
+  - The 12:30 UTC check tick read `published` true.
+  - The `broker_behind` alert was sent (broker 3 sessions behind; its first try failed with `URLError`, the second
+    passed).
+  - Probe: 0 named objects missing, 3,383 unused (ERRORS M301, corrected root cause: the delete request, not the
+    listing).
