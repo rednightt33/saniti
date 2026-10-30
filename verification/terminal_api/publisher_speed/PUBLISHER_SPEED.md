@@ -171,7 +171,7 @@ The deploys are listed in RAILWAY_CHANGELOG 2026-10-29. The run's own log is `de
   `state.json` is the same code, so the `done` line's phases stay comparable.
 - **Same failure as section 6:** the whole-bucket listing hung again from the publisher's container (M301).
 
-## 7. Deleting what a run replaced, after the switch (user 2026-10-29: "Ok setuju"; not yet deployed)
+## 7. Deleting what a run replaced, after the switch (user 2026-10-29: "Ok setuju"; deployed on dev 2026-10-30)
 
 The user's idea (2026-10-29): "ketika file di storage sudah fully updated, maka langsung di-switch aja storage akan
 langsung menggunakan file baru dan proses penghapusan file lama langsung dijalankan". The refined proposal was
@@ -276,6 +276,20 @@ not slept.
     key again. Scheduled runs never overlap, because Railway does not start a cron tick while a run goes on; manual
     runs follow M229, away from the run times.
   - a `url_ttl_seconds` raised above about 500 s. `TERMINAL_DELETE_AFTER_SECONDS` must then be raised with it.
-- **Deploy (dev, after the 07:30 WIB run of 2026-10-30 is checked):** CLI upload of the publisher (M229 option A),
-  one measured run, then the checks of section 6: terminal-api `present`, Backtest E2E, the Screener, and a count of
-  objects no publication names (`garbage_probe.py`, read-only).
+### 7.6 Dev deploy (2026-10-30, PR rednightt33/saniti#47, RAILWAY_CHANGELOG)
+
+- **Upload** (M229 option A, from 01:46 UTC): `be0d8c21` started 16 minutes after the 08:30 WIB check tick, so it only
+  checked (`dev_run_20261030_0146_check_only.jsonl`; ERRORS M229). RUN `f3e3a64c` at 01:57 UTC published
+  (`dev_run_20261030_0157.jsonl`); SCHED `8d4e509c` carries the schedule.
+- **The run:** 845 manifests in 32.9 s, 0 files, xsection 38.4 s, `state.json` 86.3 s after the start. `replaced`
+  `objects` 0, so no wait; the new `listed` lines for `xsection/` (0.3 s) and `ref/` (0.4 s). A manual run has no full
+  cleanup.
+- **Checks:**
+  - terminal-api `present`: VERDICT PASS;
+  - Backtest E2E single: passed;
+  - Screener: the four screens' rows are identical to 2026-10-29 (the first try met ERRORS M307, fixed);
+  - `garbage_probe.py` (`garbage_probe_20261030.json`): 2,256 objects, 13.7 MB, named by no publication (1,654 price,
+    602 pack, written 2026-10-25 to 2026-10-28).
+- **Next evidence:** the 19:00 WIB run (12:00 UTC tick). It has new prices, so it measures the write path, deletes
+  what it replaced after the 600 s wait (`replaced_wait`, `replaced`), and runs the full cleanup with its per-folder
+  `listed` lines. The probe is then run again.

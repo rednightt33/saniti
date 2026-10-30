@@ -2000,6 +2000,11 @@ change yet.
 - **Solution:** prosedur run manual: kosongkan `cronSchedule`, `railway up`, pasang lagi `cronSchedule` setelah run
   (docstring `apps/terminal-publisher/publisher.py`).
 - **Status:** RESOLVED (prosedur).
+- **Tambahan 2026-10-30:** run manual yang mulai paling lama 20 menit sesudah tick cron yang bukan jam run (tick cek:
+  07:00, 08:00, 08:30, 19:30 WIB, cron `0,30 0,1,12 * * *`) dianggap tick itu oleh `should_run`: hanya `skipped` dan
+  `check`, tanpa publikasi (sesuai rancangan T7). Deployment `be0d8c21` (01:46 UTC, 16 menit sesudah tick 08:30 WIB)
+  hanya mengecek; upload ulang `f3e3a64c` pukul 01:57 UTC menerbitkan. Mulailah run manual lebih dari 20 menit sesudah
+  setiap tick.
 - **Lesson:** perilaku platform diverifikasi dengan log deployment, bukan dengan status SUCCESS.
 
 ### EXEC-TERMINAL-API T1, T2, T6 — selesai (2026-10-25)
@@ -4261,8 +4266,12 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **The 07:30 WIB run of 2026-10-30 (`1e251c3a`, PUBLISHER_SPEED.md section 6.1):** published 91.5 s after its start
   (no data file had changed, so the write path is still unmeasured); its cleanup hung again (three
   `ReadTimeoutError`, `gc_failed` 9 minutes after the publication); the check ticks found the publications.
-- **Status:** speed FIXED on dev (the write path is measured by the 19:00 WIB run); cleanup listing OPEN (part 2 in
-  code, deployed after the 07:30 WIB check of 2026-10-30).
+- **Part 2 deployed on dev 2026-10-30** (PR rednightt33/saniti#47, publisher RUN `f3e3a64c`, SCHED `8d4e509c`;
+  RAILWAY_CHANGELOG): the manual run published 86.3 s after its start, replaced nothing (`replaced` 0, so no wait) and
+  logged the new per-folder `listed` lines; terminal-api `present`, Backtest E2E and the Screener check passed. 2,256
+  objects (13.7 MB, written 2026-10-25 to 2026-10-28) are named by no publication (`garbage_probe.py`).
+- **Status:** speed FIXED on dev (the write path is measured by the 19:00 WIB run); cleanup listing OPEN until the
+  19:00 WIB run of 2026-10-30 shows its deletion after the wait and its per-folder full cleanup.
 - **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
   before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path. A run deletes what it
   replaced itself, by name; a whole-store listing is only a safety net, never the normal path.
@@ -4369,6 +4378,22 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **Verified cause:** belum diperiksa. Log hanya menyimpan nama galat, bukan ruas yang gagal validasi. Cek yang
   memastikan: log ruas dan tipe galat Pydantic (tanpa isi) di jalur saran lanjutan, lalu bandingkan dengan skemanya.
 - **Status:** OPEN. Jawaban utama tidak terpengaruh.
+
+### M307 — Screener live check: a second check answered 409 `SCREEN_REPLACED` for three of four screens (2026-10-30)
+
+- **Symptom:** `verification/screener/live_check_dev.py` after the publisher deploy of 2026-10-30: `rsi14_lt_30`,
+  `close_gt_sma20` and `macd_hist_gt_0` answered 409 `SCREEN_REPLACED` in about 0.25 s; `adx14_gt_25` answered 200.
+- **Verified cause (code):** the script sent every check under one fixed page order, `client_order {page:
+  'live-check', seq: 1..4}`. edge-bff keeps the latest seq per (owner, page) while it runs and answers 409 at once to a
+  lower one (`apps/edge-bff/app/screener.py` `latest`: `if seq < pages.get(page, seq)`). The check of 2026-10-29 had
+  left seq 4, so today's seq 1-3 were refused before they reached the worker. The worker and the publication were not
+  involved.
+- **Class:** any check or client that reuses a page-order key across runs against a long-lived process (the Screener's
+  run and preview lanes, the Backtest's signals preview).
+- **Solution:** each check uses its own page, `live-check-<unix time>` (`live_check_dev.py`). Re-run: four screens 200,
+  rows identical to 2026-10-29 (155, 88, 249, 442).
+- **Status:** FIXED.
+- **Lesson for new data:** a check tool must not share state keys across runs with the service it checks.
 
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 

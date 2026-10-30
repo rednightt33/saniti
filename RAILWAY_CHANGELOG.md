@@ -5222,3 +5222,48 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
 - **Wake evidence before the change:** telegram-monitor (sleeping since 2026-10-27) woke 14 times on private-network
   `/notify` in 0.2-9 s; the first request while asleep failed once (`telegram_notify_failed URLError`, retry passed).
 - **Rollback:** `sleepApplication: false` (plan/apply); orc `WakeTransport` is harmless with an awake service.
+
+## 2026-10-30 — terminal-publisher `f3e3a64c` / `8d4e509c`: the run deletes what it replaced; daily bounded full cleanup (EXEC-PUBLISHER-SPEED, go lanjutan; PR #47)
+
+- **Before the change:** the 07:30 WIB run on `1e251c3a` published 91.5 s after its start (0 files: no new data); its
+  cleanup listing hung again (`gc_failed` `ReadTimeoutError` at 00:42:46 UTC). The 07:00, 08:00 and 08:30 WIB check
+  ticks read `published` true (`verification/terminal_api/publisher_speed/dev_run_20261030_0730.jsonl`).
+- **terminal-publisher**, M229 option A, after the B6 window (from 01:46 UTC):
+  1. `cronSchedule` set to null (`serviceInstanceUpdate`, read back `None`).
+  2. CLI upload of `git archive 32ef4d7 apps/terminal-publisher` (the merge of PR rednightt33/saniti#47; tree
+     `c779474ad1a3a69ae52384fa726f24d5af264864`, `publisher.py` sha256 `ea9736484746230b...`) as `be0d8c21`. It started
+     at 01:46:58 UTC, 16 minutes after the 08:30 WIB check tick, so `should_run` treated it as that tick: `skipped` and
+     `check` only, no publication (by design; ERRORS M229 updated).
+  3. The same tree again at 01:57 UTC, more than 20 minutes after every tick, as RUN `f3e3a64c-b001-42f1-a3da-31ca9d578696`.
+  4. `cronSchedule` set to `0,30 0,1,12 * * *` (read back; `nextCronRunAt` 2026-10-30 12:00 UTC).
+  5. SCHED upload of the same tree, `8d4e509c-a023-4048-af8e-89e7acbda41c`, SUCCESS 02:07 UTC; with the cron set it built
+     and did not run (no log).
+
+  No variable changed: `TERMINAL_DELETE_AFTER_SECONDS` (600) and `TERMINAL_SWEEP_WIB` (19:00) take their defaults.
+- **The run `f3e3a64c` (`railway logs --json`):**
+
+  | Step | Result |
+  |---|---|
+  | 845 manifests read, 16 threads | 32.9 s (four `bucket_retry` `ClientError`, each passed) |
+  | Plan | 0 files (prices through 2026-10-29, broker through 2026-10-27) |
+  | xsection (same bytes) | 38.4 s |
+  | refs | 3.1 s |
+  | `state.json` | 01:58:55.44 UTC, `done` 86.3 s after the start |
+  | Deletion | `replaced` `objects` 0: nothing replaced, so no wait |
+  | Listings | new `listed` lines: `xsection/` 2 keys, 1 page, 0.3 s; `ref/` 6 keys, 1 page, 0.4 s |
+
+  A manual run has no full cleanup (`sweep_due`). The first run with a full cleanup and a deletion after the wait is
+  the 19:00 WIB run (12:00 UTC tick).
+- **Verified:**
+  - `verification/screener/jobs/run_terminal_check.sh present` VERDICT PASS (`finished_at` 01:58:55, both xsection
+    files granted, downloaded and checked; VAR_REMOVED; `verification/screener/jobs/terminal_check_pub_delete_20261030.log`);
+  - `verification/backtest/e2e_dev.py --skip-page --only single` passed (single and repeat FINISHED, no failed check);
+  - `verification/screener/live_check_dev.py`: the worker serves the 01:58:55 publication, and the four screens' rows
+    are identical to the check of 2026-10-29 (155, 88, 249, 442 matches). The first try answered 409
+    `SCREEN_REPLACED` for three screens: the script reused yesterday's page order (ERRORS M307, fixed). A second try was
+    cut off by the sandbox proxy (`IncompleteRead`); the third passed.
+  - `verification/terminal_api/publisher_speed/garbage_probe.py` (read-only): 19,759 objects, 756.1 MB; 2,256 objects
+    (13.7 MB: 1,654 price, 602 pack, written 2026-10-25 to 2026-10-28) are named by no current manifest or index. These
+    are older leftovers, for the 19:00 WIB full cleanup.
+- **IaC:** `railway config plan`: "Your Railway configuration is already up to date."
+- **Rollback:** CLI upload of the `apps/terminal-publisher` tree of `c2544ff` (M229 option A).
