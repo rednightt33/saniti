@@ -4,7 +4,7 @@ import { brokerData, panelStart, PANEL_YEARS } from '../../src/data/worker';
 import { monthGrid } from '../../src/ui/calendar';
 import { sessionsBetween } from '../../src/app/rangeSelect';
 import { orderedKeys } from '../../src/ui/reorder';
-import { niceTicks } from '../../src/app/broker';
+import { bandarVerdict, BANDAR_LEVELS, BANDAR_TOP, niceTicks } from '../../src/app/broker';
 import { brokerEnd } from '../../src/app/context';
 
 const doc = (d: string[]) => ({ columns:['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl'], d, b:d.map(() => 'YP'),
@@ -98,5 +98,19 @@ describe('Flow indicators raw rows (EXEC-TERMINAL-FLOW-IND, worker.ts flowRowsOf
     const dates = ['2026-10-19', '2026-10-20', '2026-10-27'];
     const b = brokerData([doc(dates)], dates, { starts:[0, 2], of:[0, 0, 1], ends:['2026-10-20', '2026-10-27'] } as any);
     expect(b.flow.N).toBe(2); expect([...b.flow.t]).toEqual([0, 0, 1]);
+  });
+});
+
+describe('Bandar panel verdict (EXEC-TERMINAL-FLOW-IND, user 2026-10-30: 6/10%, Top 3)', () => {
+  it('reads its levels and Top N from Bandar Balance · % (FL24)', () => {
+    expect(BANDAR_LEVELS).toEqual([6, 10]);
+    expect(BANDAR_TOP).toBe(3);
+  });
+  it('Neutral below 6%, Acc / Dist from 6%, Big from 10%, a level itself included', () => {
+    expect(bandarVerdict(0.0599)).toEqual(['Neutral', 'neu']);
+    expect(bandarVerdict(0.06)).toEqual(['Acc', 'acc']);
+    expect(bandarVerdict(-0.07)).toEqual(['Dist', 'dist']);
+    expect(bandarVerdict(0.1)).toEqual(['Big Acc', 'acc']);
+    expect(bandarVerdict(-0.25)).toEqual(['Big Dist', 'dist']);
   });
 });

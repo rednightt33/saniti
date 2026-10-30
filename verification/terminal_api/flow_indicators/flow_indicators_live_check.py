@@ -95,7 +95,10 @@ try:
               for (const id of ids) { const s = performance.now(); I.add(id); out[id] = { ms: Math.round(performance.now() - s) } }
               const total = Math.round(performance.now() - t0);
               const vals = I.values();
-              return { total, ids, timing: out, values: vals };
+              // the legend at rest (the last candle): a value, or the reason it is empty
+              const legend = [...document.querySelectorAll('.ind-row')].filter(r => /^FL/.test(r.dataset.def || ''))
+                .map(r => [r.dataset.def, r.querySelector('b').innerText.trim()]);
+              return { total, ids, timing: out, values: vals, legend };
             }""")
             # the calculation alone, per indicator at its defaults (the drawing excluded)
             report.setdefault('compute_ms', {})[tk] = page.evaluate("""() => {
@@ -107,7 +110,7 @@ try:
               return out;
             }""")
             report['tickers'][tk] = {'total_ms': res['total'], 'slowest': sorted(res['timing'].items(), key=lambda x: -x[1]['ms'])[:5],
-                                     'n': len(res['ids'])}
+                                     'n': len(res['ids']), 'legend': res['legend']}
             json.dump(res['values'], open(out / f'flow_values_{tk}.json', 'w'))
             page.screenshot(path=str(out / f'flow_all_{tk}.png'))
         # menu subgroups and one dialog

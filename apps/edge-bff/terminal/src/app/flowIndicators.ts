@@ -17,6 +17,13 @@ const EMPTY = (N: number): FlowRows => ({ n:0, N, t:new Int32Array(0), b:new Uin
   bv:new Float64Array(0), sv:new Float64Array(0), bl:new Float64Array(0), sl:new Float64Array(0), bf:new Float64Array(0), sf:new Float64Array(0),
   brokers:[], has:new Uint8Array(N) });
 const SLOTS = ['b1', 'b2', 'b3', 'b4', 'b5'];
+/* the rows carry transaction counts (files published before EXEC-TERMINAL-FLOW-IND S2 have none) */
+const counts = new WeakMap<FlowRows, boolean>();
+const hasCounts = (R: FlowRows) => {
+  let v = counts.get(R);
+  if (v === undefined) { v = false; for (let k = 0; k < R.n; k++) if (!Number.isNaN(R.bf[k])) { v = true; break } counts.set(R, v) }
+  return v;
+};
 const NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 
 /** the number shown in the legend and on the axis, from the indicator's unit */
@@ -35,7 +42,7 @@ export function flowFormat(unit: string): { fmt: (v: number) => string; minMove:
 
 export function initFlowIndicators(ctx: Ctx) {
   const { M, dates, closes, idxByTime } = ctx;
-  const tf = M.tf || 'D', word = tf === 'W' ? 'weeks' : tf === 'M' ? 'months' : 'days', letter = tf;
+  const tf = M.tf || 'D', word = tf === 'W' ? 'weeks' : tf === 'M' ? 'months' : 'days', letter = tf, one = word.slice(0, -1);
   /* insider rows and the broker classification arrive with the events and reference files */
   let insider: InsiderRow[] = [], classification: Record<string, string> = {};
   M.loadInsider?.().then(rows => {
@@ -106,12 +113,26 @@ export function initFlowIndicators(ctx: Ctx) {
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
-        const o: any = computeFlow(r.id, context(), q);
+        const c = context(), o: any = computeFlow(r.id, c, q);
+        /* an indicator that reads broker rows is null on every candle without them; one with a value there (prices,
+           insider events) gets no broker-data note */
+        o._brokerBased = !Object.values(o).some((a: any) => Array.isArray(a) && a.some((v, t) => v !== null && !c.rows.has[t]));
         if (r.id !== 'FL23') return o;
-        const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
+        const codes = Object.keys(o).filter(k => k !== 'total' && !k.startsWith('_')), slots: any = { _labels:codes, _brokerBased:o._brokerBased };
         codes.forEach((c, j) => { slots[SLOTS[j]] = o[c] });
         if (o.total) slots.total = o.total;
         return slots;
+      },
+      /* the legend's text where the value is empty: why, when the reason is the data (plan S4: a message, not a zero) */
+      note:(i: number, raw: any) => {
+        const R = ctx.flowRows;
+        if (raw && raw._brokerBased === false) return '';
+        if (!R) return 'Loading broker data';
+        if (!R.n) return 'No broker data for this ticker';
+        if (i > ctx.brokerEnd) return 'No broker data yet';
+        if (!R.has[i]) return `No broker data on this ${one}`;
+        if (r.needs_frequency && !hasCounts(R)) return 'Needs the transaction counts';
+        return '';
       },
       validate:(p: any) => {
         if (p.scope === 'selected' && !(Array.isArray(p.brokers) && p.brokers.length)) return 'Choose at least one broker.';

@@ -379,9 +379,10 @@ export function initIndicators(ctx: Ctx) {
         const prev = inst.disp[pt.o.k][i - 1];
         const c = pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
-        const txt = overlay ? (ret ? ((v / closes[0] - 1) * 100).toFixed(2) + '%' : NF.format(v)) : inst.def.format(v);
+        const txt = overlay && pt.kind !== 'marker' ? (ret ? ((v / closes[0] - 1) * 100).toFixed(2) + '%' : NF.format(v)) : inst.def.format(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
+      if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
       b.style.color = '';
     } else if(inst.def.lines) {
       b.innerHTML = (inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;');

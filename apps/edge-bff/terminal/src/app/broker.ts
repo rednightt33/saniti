@@ -4,6 +4,22 @@ import type { Ctx } from './context';
 import { $, keyOf, nfCompact, pct, row, spin, store } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
 import { aggregate, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
+import { atLeast } from '../calc/flow';
+import FLOW_REG from '../data/flowRegistry.json';
+
+/* EXEC-TERMINAL-FLOW-IND (user 2026-10-30: "Kita pakai B dulu ya which B: pakai batas Screener (6/10%), default Top 3"),
+   live: the Bandar panel's verdict is the agreed bandar balance, Bandar Balance · % (FL24); its levels and Top N are read
+   from FL24's defaults in flowRegistry.json, so the panel and the indicator never disagree */
+const FL24 = (FLOW_REG as any).indicators.find((i: any) => i.id === 'FL24');
+const FL24_DEF = (k: string) => FL24.params.find((q: any) => q.key === k).default;
+export const BANDAR_LEVELS = String(FL24_DEF('levels')).split(/[,;\s]+/).map(Number).filter(x => x > 0).sort((a, b) => a - b);
+export const BANDAR_TOP = Number(FL24_DEF('top'));
+/** the agreed verdict of a bandar balance r (a share of the traded value, 0.07 = 7%) */
+export function bandarVerdict(r: number): [string, string] {
+  const a = Math.abs(r) * 100, [acc, big] = BANDAR_LEVELS;
+  if(!atLeast(a, acc)) return ['Neutral', 'neu'];
+  return [`${atLeast(a, big) ? 'Big ' : ''}${r > 0 ? 'Acc' : 'Dist'}`, r > 0 ? 'acc' : 'dist'];
+}
 
 /** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
 export function niceTicks(lo: number, hi: number): number[] {
@@ -21,7 +37,7 @@ export function initBroker(ctx: Ctx) {
   // panel state kept across redraws (declared before the first draw below can run)
   const live = M.mode === 'live';
   const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', bdN:5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
+  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
   const invSel = new Set<string>();                                 // brokers drawn in Broker inventory (max INV_MAX)
   const INV_MAX = 5, INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
   /* EXEC-TERMINAL-POPOUT: the panel and its windows share the inventory brokers and the highlighted broker; a change
@@ -179,6 +195,7 @@ export function initBroker(ctx: Ctx) {
   const sgn = v => (v<0?'-':'+') + cv(v);
   const bkTag = (b) => `<span class="bk ${bkCat(b)}"><i></i>${b}</span>`;
   const verdict = r => {
+    if(live) return bandarVerdict(r);                                  // the agreed levels (FL24); the fixture keeps the reference's
     const a = Math.abs(r); if(a < .03) return ['Neutral','neu'];
     const size = a < .06 ? 'Small' : a < .12 ? 'Normal' : 'Big';
     return [`${size} ${r>0?'Acc':'Dist'}`, r>0?'acc':'dist'];
@@ -502,6 +519,7 @@ export function initBroker(ctx: Ctx) {
   segWire('bsMode','mode', v => { RS.mode = v; renderBS() });
   if($('accSide')) segWire('accSide','side', v => { RS.accSide = v; renderAcc() });   // live: the Board choice took its place
   segWire('bdTop','n', v => { RS.bdN = +v; renderBD() });
+  if(live) $('bdTop').querySelectorAll('button').forEach(b => b.classList.toggle('active', +b.dataset.n === RS.bdN));
   renderAll();
   }
   renderWhenReady();

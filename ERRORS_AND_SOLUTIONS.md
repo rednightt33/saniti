@@ -4428,6 +4428,69 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **Lesson:** setiap rotasi rahasia diikuti deploy ulang semua konsumennya. Kegagalan konfigurasi tidak boleh tampil
   sebagai data tidak ditemukan.
 
+### M309 — Flow indicators: a one-candle lot sum carried the rounding of the broker's running total (2026-10-30)
+
+- **Symptom:** the oracle comparison of EXEC-TERMINAL-FLOW-IND
+  (`verification/terminal_api/flow_indicators/oracle_compare.ts`, 319,000 values) found 9 differences on 4 cases.
+  - BBCA FL01, Top-1 net seller: 0.26 lot per transaction read as 0.25999999046.
+  - GOTO FL06: relative 4e-8.
+  - GOTO FL17 VWAP: 50.0000008 against 50.
+- **Verified cause (code and data):**
+  - `calc/flow.ts` sums a window as two lookups in per-broker prefix sums, `P[t+1] - P[a]`. The difference carries
+    the rounding of the cumulative total, about 1e-16 of it, not of the window. A broker's running total of about 1e8
+    lots therefore leaves about 1e-8 lot in a one-candle sum.
+  - Lots are not whole numbers. In a 2% sample of Feature 05, 27,091 of 939,107 rows have lots × 100 that are not
+    integers: odd lots, and lots adjusted for corporate actions, such as BRPT 2016 at 40654.706814. Rupiah values had
+    0 non-integers in the same sample.
+- **Class:** any prefix-sum (cumulative) store of a measure with fractions, or of whole numbers past 2^53. This covers
+  every Flow measure the Screener and the Backtest will read from the same module, and macro or cross-asset series
+  with decimals.
+- **Solution:**
+  - At build time each measure checks its own cells. When they are not all integers, or their total passes 2^53, it
+    keeps a second, compensated array (TwoSum running error), and a window sum is exact before its final rounding.
+  - Whole-number measures below 2^53 keep one array.
+  - The test "a one-candle sum stays exact after a large running total with fractions" uses 123456789.37 lots per
+    candle, then 0.26.
+- **Status:** FIXED on the branch (commit `ed1d205b`). Re-run: 0 differences.
+- **Lesson for new data:** a measure's integrality is a property of the data, not of its unit name. Derive it from the
+  cells, never from the column, and keep cumulative stores exact for the measures that are not whole.
+
+### M310 — Flow indicators: a figure equal to the user's threshold failed ">=" or "<=" (2026-10-30)
+
+- **Symptom:** DAYA FL27 (Silent Accumulation) on 2025-10-02 gave 0 in the Terminal and 1 in the oracle.
+- **Verified cause:**
+  - The close went from 1000 to 1030, a move of exactly 3%. In floating point, `100 * |1030/1000 - 1|` is
+    3.0000000000000027, so "move <= 3" failed. The oracle computes in exact fractions.
+  - The same comparison of a computed float with a decimal threshold exists in FL09 (five thresholds) and FL29.
+- **Class:** any decision that compares a figure computed from exact data with a threshold the user types in decimal:
+  Flow flags, Screener conditions, Backtest entry and exit rules.
+- **Solution:** `atLeast`, `atMost` and `above` in `calc/flow.ts`.
+  - A difference below 1e-12 of the larger magnitude counts as equality, so ">=" and "<=" hold and ">" does not.
+  - A threshold of 0 stays exact.
+  - They are used by FL09, FL27 and FL29, with tests on cases other than DAYA.
+- **Status:** FIXED on the branch (commit `ed1d205b`).
+- **Lesson:** a threshold decision needs a stated equality tolerance. The Screener and the Backtest should take the
+  same helpers when they read this module.
+
+### M311 — Terminal Broker panel: the second render stopped at "Cannot read properties of null (reading 'closest')" (2026-10-30)
+
+- **Symptom:** the Flow live check (TLKM, WIFI, panel open) logged two page errors. The stack ran through
+  `setBrokerPanelData`, then `renderData`.
+- **Verified cause (code):**
+  - Live, `renderData` replaced the Top brokers Buy/Sell switch with the Board choice. It looked up
+    `$('accSide').closest('.rp-ctl')` on every render (`apps/edge-bff/terminal/src/app/broker.ts`, EXEC-TERMINAL-TOPSPLIT
+    of 2026-10-28).
+  - The panel renders twice: once for the recent years, then for the full two years (EXEC-TERMINAL-PANELS B1). On the
+    second render `#accSide` no longer existed, so that render stopped part-way.
+  - It is reachable on main for every user who has the panel open while the data loads. It predates the Flow work.
+- **Class:** one-time DOM changes placed inside a render function that runs more than once. The Broker inventory
+  filters of the same panel already used the safe pattern (insert once, then rewire).
+- **Solution:** the switch is replaced only when it is still there. The Board choice is then rewired, with the user's
+  choice kept. Re-run of the live check: 0 page errors.
+- **Status:** FIXED on the branch (commit `ed1d205b`), not yet deployed.
+- **Lesson:** a render function must be safe to run again. A one-time change of the page belongs behind an existence
+  check.
+
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
 Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate

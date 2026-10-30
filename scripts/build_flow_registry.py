@@ -158,7 +158,7 @@ def build():
     # a tip in the reader's language: the spec's definition (FL01-FL23), the Screener sheet's meaning (FL24-FL39)
     tips = {}
     for r in wb['Indicator_SPECS_reviewed'].iter_rows(min_row=2, values_only=True):
-        tips.setdefault(r[0], r[11])
+        tips.setdefault(r[0], r[10])
     for r in wb['Indikator_baru_dari_Screener'].iter_rows(min_row=2, values_only=True):
         if r[0]:
             tips[r[0]] = r[4]

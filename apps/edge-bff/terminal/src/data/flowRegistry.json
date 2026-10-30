@@ -27,7 +27,7 @@
     "buy",
     "sell"
    ],
-   "tip": "BuyShares / BuyFreq [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Rata-rata jumlah saham pada setiap transaksi beli broker.",
    "params": [
     {
      "key": "scope",
@@ -164,7 +164,7 @@
     "buy",
     "sell"
    ],
-   "tip": "BuyValue / BuyFreq",
+   "tip": "Nilai Rupiah rata-rata satu transaksi beli.",
    "params": [
     {
      "key": "scope",
@@ -301,7 +301,7 @@
     "buy",
     "sell"
    ],
-   "tip": "BuyShares_b / SUM(BuyShares_all_brokers) [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Proporsi seluruh buy volume yang berasal dari broker tertentu. ATAU top N broker",
    "params": [
     {
      "key": "scope",
@@ -438,7 +438,7 @@
     "buy",
     "sell"
    ],
-   "tip": "BuyFreq_b / SUM(BuyFreq_all_brokers)",
+   "tip": "Proporsi seluruh buy transaction count yang berasal dari broker tertentu. ATAU top N broker",
    "params": [
     {
      "key": "scope",
@@ -575,7 +575,7 @@
     "buy",
     "sell"
    ],
-   "tip": "BuyVolumeShare / BuyFrequencyShare",
+   "tip": "Rasio antara porsi volume broker dan porsi frequency broker.",
    "params": [
     {
      "key": "scope",
@@ -718,7 +718,7 @@
    "outputs": [
     "ratio"
    ],
-   "tip": "AvgBuyShares / AvgSellShares [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Perbandingan average buy ticket dengan average sell ticket.",
    "params": [
     {
      "key": "scope",
@@ -840,7 +840,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "BuyShares_b / MarketVolume [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Porsi pembelian broker terhadap total market volume saham.",
    "params": [
     {
      "key": "scope",
@@ -972,7 +972,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "PercentileRank(AvgBuyShares_t within HistoricalWindow) [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Posisi average ticket hari ini dibanding distribusi historis saham/broker yang sama.",
    "params": [
     {
      "key": "scope",
@@ -1128,7 +1128,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "No single fixed formula. Use conjunction/score from Average Transaction Size Percentile, Buy Size Ratio, Buy Participation Rate, Net Flow / Turnover Ratio; optional Frequency Imbalance. Thresholds must be parameterized/backtested.",
+   "tip": "Composite flag for unusually large-ticket, materially participating, directionally positive broker/cohort buying.",
    "params": [
     {
      "key": "scope",
@@ -1303,7 +1303,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "(BuyFreq_G - SellFreq_G) / (BuyFreq_G + SellFreq_G); NULL if denominator = 0",
+   "tip": "Directional balance of buy execution count versus sell execution count for the selected broker/cohort.",
    "params": [
     {
      "key": "scope",
@@ -1442,7 +1442,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "NetBuyValue / TotalTradedValue",
+   "tip": "Net purchasing dibanding total traded value/turnover saham.",
    "params": [
     {
      "key": "scope",
@@ -1595,7 +1595,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Count(NetBuy_t > 0 in N days) / N",
+   "tip": "Persentase hari dalam rolling window ketika broker/cohort menjadi net buyer.",
    "params": [
     {
      "key": "scope",
@@ -1715,7 +1715,7 @@
     "buy",
     "sell"
    ],
-   "tip": "HHI_buy = SUM(s_b,buy^2), where s_b,buy = BuyShares_b / TotalBuyShares [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Konsentrasi buy volume di antara seluruh broker pembeli.",
    "params": [
     {
      "key": "boards",
@@ -1789,7 +1789,7 @@
    "outputs": [
     "asym"
    ],
-   "tip": "HHI_buy - HHI_sell",
+   "tip": "Perbedaan concentration buy versus sell.",
    "params": [
     {
      "key": "boards",
@@ -1866,7 +1866,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "SUM(BuyShares of Top-N brokers) / TotalBuyShares [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Persentase gross buy flow yang dikuasai Top-N buyer brokers.",
    "params": [
     {
      "key": "boards",
@@ -1928,7 +1928,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "SUM(PositiveNetBuy of Top-N) / SUM(PositiveNetBuy of all positive net buyers)",
+   "tip": "Proporsi positive net-buy flow yang datang dari Top-N net buyers.",
    "params": [
     {
      "key": "boards",
@@ -1990,7 +1990,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "SUM(BuyValue_G over trailing N days) / SUM(BuyShares_G over trailing N days) [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Harga rata-rata seluruh pembelian cohort selama trailing N trading days.",
    "params": [
     {
      "key": "scope",
@@ -2105,7 +2105,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "SUM(BuyValue_G from T0 to t) / SUM(BuyShares_G from T0 to t) [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Rata-rata purchase price frozen cohort sejak accumulation episode dimulai.",
    "params": [
     {
      "key": "scope",
@@ -2218,7 +2218,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "When net add > 0: Cost_t = Cost_(t-1) + NetAdd_t * BuyVWAP_t. When reducing inventory: remove quantity at prior average cost. AvgCost_t = Cost_t / Q_t.",
+   "tip": "Estimated weighted-average cost dari modeled remaining inventory.",
    "params": [
     {
      "key": "scope",
@@ -2347,7 +2347,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "(Close / ImpliedAvgCost) - 1",
+   "tip": "Persentase jarak close terhadap modeled inventory average cost.",
    "params": [
     {
      "key": "scope",
@@ -2483,7 +2483,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "PercentileRank(NetFlowTurnover_t within prior HistoricalWindow)",
+   "tip": "Posisi Net Flow / Turnover hari ini dibanding distribusi historis saham yang sama.",
    "params": [
     {
      "key": "scope",
@@ -2618,7 +2618,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Count(NetBuy_b,t > 0) / Count(ActiveBroker_b,t)",
+   "tip": "Persentase active brokers yang menjadi net buyer pada suatu tanggal.",
    "params": [
     {
      "key": "boards",
@@ -2672,7 +2672,7 @@
     "lines",
     "total"
    ],
-   "tip": "Q_t = Q_(t-1) + BuyShares_G,t - SellShares_G,t; starting Q_T0 assumed from chosen model [ditampilkan dalam lot; F15: tetap LOT]",
+   "tip": "Model estimate posisi net cohort sejak anchor.",
    "params": [
     {
      "key": "brokers",
