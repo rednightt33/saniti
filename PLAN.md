@@ -20,6 +20,27 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## PUBLISHER-CLEANUP-MANUAL — bersih-bersih lengkap manual dan diagnosis listing (EXEC-PUBLISHER-SPEED, M301)
+
+**Persetujuan masuk rencana, 2026-10-30 (kata user):** "Ok, masukan ke plan ya", atas opsi: "Saya bisa menjalankan
+bersih-bersih lengkap secara manual sekarang. Ini akan menghapus 2.256 file lama itu, dan pagi ini juga kita tahu folder
+mana yang macet. Tapi ini menghapus file dan perlu mengubah satu variabel di Railway untuk sementara, jadi saya butuh
+"go" dari Anda dulu." Ini persetujuan rencana, belum "go" eksekusi.
+
+- **Isi:** satu run publisher mode `cleanup` di dev (tanpa database, tanpa publikasi): `TERMINAL_PUBLISH_MODE=cleanup`
+  sementara di service terminal-publisher, upload M229 opsi A (cron kosong; mulai lebih dari 20 menit setelah setiap
+  tick), lalu variabel dihapus dan cron `0,30 0,1,12 * * *` dipasang lagi.
+- **Yang dihapus:** hanya objek yang tidak disebut manifest atau indeks `state.json` mana pun dan lebih tua dari run
+  terakhir yang selesai, minimal 1 jam sesudahnya (aturan `collect_garbage` di luar run). Per 2026-10-30 02:15 UTC:
+  2.256 objek, 13,7 MB (`garbage_probe_20261030.json`).
+- **Tujuan:** log `listed` per folder dan `list_page_slow` menunjukkan folder dan halaman yang macet dari kontainer
+  publisher (penyebab M301 masih dugaan).
+- **Cek sesudahnya:** `garbage_probe.py` (sisa objek tak terpakai mendekati 0), terminal-api `present`, Backtest E2E,
+  Screener live check; catat RAILWAY_CHANGELOG dan M301.
+- **Pertanyaan terbuka:** kapan dijalankan. Run 19:00 WIB 2026-10-30 sudah menjalankan listing lengkap yang sama secara
+  otomatis (dibatasi 300 s). Bila run itu berhasil menghapus sisa objek, butir ini tidak perlu dijalankan dan dihapus
+  dari sini. Bila listing macet lagi, run manual ini menjadi langkah diagnosis berikutnya.
+
 ## Anggaran reasoning dan penyajian — persetujuan target, audit dahulu
 
 **Persetujuan target, 2026-10-19 (kata user):** "Saya setuju terkait reasoning 48, penyajian 48k"
