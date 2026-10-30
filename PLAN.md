@@ -944,9 +944,14 @@ Transaction": "yes"; indikator preset Screener di chart: "ini tidak usah."; tuju
 data dari pg ke storage, maka we might as well pindahkan data yang nantinya engine screener hanya perlu build the
 formula, karna data sudah ada."
 
-Pertanyaan terbuka: definisi breadth (FL22 vs Screener `breadth`); nama sama di Terminal dan Screener; data tambahan
-untuk Screener (klasifikasi broker `IDX_Broker_Profile.broker_classification` di `ref/brokers`; file lintas saham
-`broker_window`); metrik Screener mana yang ikut (sheet `Indikator_baru_dari_Screener`, FL24-FL35, usulan).
+Keputusan 2026-10-31 lanjutan (kata user): breadth "Kita pakai D10" (satu definisi untuk Terminal dan Screener);
+klasifikasi broker ke storage "Ok, tapi nanti harus dibuat opsi juga buat user mereka mau manually edit mana broker
+institusi/ mana broker retail. Tapi ini nanti saja saat pembangunan screener."; file lintas saham Screener "nanti saja ...
+This is for later setelah fase terminal done."; nama "Samakan"; varian Screener "lebih baik dibuat baru, dengan nama
+indikator dipisahkan". Usulan FL24-FL39 (dari metrik Screener) di Excel untuk direview user.
+
+Pertanyaan terbuka: batas label Bandar Balance FL24 (Screener 6/10% vs panel Terminal 3/6/12%) dan Top N default (3 vs
+5); review FL24-FL39.
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
