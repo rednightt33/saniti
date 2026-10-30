@@ -30,3 +30,28 @@ run harian), SQL lewat pgweb (role read-only). Tidak ada yang ditulis.
 - Candle TradingView yang tersedia untuk saham sama skala: 825 pada 09-17 dan 823 pada 09-18.
 - Temuan sampingan: PBSA 2026-10-08, TradingView sekarang memberi close seperempat dari nilai tersimpan (rasio 4,
   hari lain 2). Dicatat sebagai M313; tidak disentuh rencana ini.
+
+## Ganti 1 Sep–terbaru dengan TradingView sekarang? (2026-10-30, `ohlcv_scan.py`)
+
+- 837 saham selain enam di atas, 2026-08-03..10-30: 50.333 hari-saham dibandingkan pada open, high, low, close dan
+  volume. Hanya 1 nilai berbeda: volume GOTO 2026-10-12, tersimpan 28.057.826.200 dan TradingView 28.057.826.000.
+  TradingView tidak punya hari lain yang tidak ada di database, kecuali 09-17/18.
+- Enam saham, seluruh riwayat tersimpan: rasio tersimpan ÷ TradingView tetap dari baris pertama sampai sehari sebelum
+  ex-date. Rinciannya:
+  - AHAP 1,219401 (2018-01-03..2026-10-08);
+  - BUVA 1,130269 (2018-01-02..2026-10-13);
+  - ENRG 1,354234 (2018-01-02..2026-10-02);
+  - FORU 19,504203 (2018-01-02..2026-09-21);
+  - PBSA 2 (2018-01-24..2026-10-13, kecuali 10-08 = M313);
+  - VKTR 1,33192 (2023-06-19..2026-10-06).
+
+  Sesudah ex-date, rasionya 1. Jadi mengganti hanya mulai 1 Sep memindahkan patahan skala ke 1 Sep.
+
+## Rumus sama dengan baris tersimpan? (2026-10-30)
+
+- `f01_repro.py`: SELECT di dalam `refresh_feature_01_stock_daily` live untuk 60 saham. Hasilnya 89.369 baris, 27
+  kolom, 0 beda.
+- `f04_repro.py`: `features/feature04/engine.py` dengan TA-Lib 0.6.8 dan numpy 2.3.5 untuk 30 saham, 48.212 baris,
+  2.458.812 nilai.
+  - Indikator, swing dan `close`: 0 beda di atas 1e-10.
+  - 52 flag candle lama berbeda (M314), semuanya ≤ 2026-06-10.

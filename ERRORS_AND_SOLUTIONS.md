@@ -4611,6 +4611,30 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
 - **Lesson:** sumber eksternal bukan kebenaran mutlak untuk tanggal yang sudah tersimpan. Perbedaan dicatat dan
   diputuskan, tidak ditimpa.
 
+### M314 — Feature 04: 52 flag pola candle lama berbeda dari hasil mesin sekarang (2026-10-30)
+
+- **Symptom:** pemeriksaan "rumus sama" PRICE-GAP-0917 (`verification/price_gap_0917/f04_repro.py`, read-only).
+  `features/feature04/engine.py` dengan pustaka terkunci dijalankan untuk 30 saham (48.212 baris, 2.458.812 nilai).
+  Semua indikator, swing dan `close` sama dengan yang tersimpan, tetapi 52 flag pola candle berbeda: `cdl_doji` 41,
+  `cdl_marubozu` 6, `cdl_harami` 2, `cdl_dragonfly_doji` 2, `cdl_harami_cross` 1. Terjadi pada BMAS 22, AHAP 17,
+  BUVA 6, OMRE 5 dan IMAS 2, semuanya bertanggal ≤ 2026-06-10.
+- **Verified cause:**
+  - Sejak 2026-10-12, mesin menilai setiap candle pada jendela tetap 15 bar (`engine.py`
+    `_calculate_canonical_pattern`; DATABASE_CHANGELOG "State v3 also removed TA-Lib candlestick dependence on an
+    unrelated old prefix"). `calculation_version` tidak diubah.
+  - Baris yang ditulis sebelumnya memakai fungsi vektor TA-Lib atas seluruh array. Total berjalan floating point-nya
+    bisa membalik candle yang tepat di ambang.
+  - Baris 2026-06-11..10-30 pada sampel identik.
+- **Class:** perubahan jalur hitung tanpa menaikkan versi membuat baris lama dan baris baru di satu kolom tidak
+  sepenuhnya setara. Ini berlaku untuk setiap Feature yang dihitung ulang sebagian (perbaikan, isi celah,
+  checkpoint).
+- **Solution:** belum ada; data tidak diubah. PRICE-GAP-0917 S3 hanya menulis baris mulai 2026-09-17 dan melaporkan
+  perbedaan ini tanpa menulisnya. Bila ingin seragam: hitung ulang kolom `cdl_*` baris lama dengan mesin sekarang
+  (butuh go user).
+- **Status:** OPEN.
+- **Lesson:** perubahan cara hitung yang bisa mengubah hasil di baris mana pun diberi versi baru, atau seluruh kolom
+  dihitung ulang saat itu juga.
+
 ### EXEC-TERMINAL-FLOW-IND — selesai (2026-10-30)
 
 **Go user.** Kata user: "Alright, please proceed." (rencana S1–S8), lalu "Oke, jalan kan.". Keputusan yang diterapkan:

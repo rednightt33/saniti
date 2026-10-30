@@ -38,6 +38,13 @@ bertanya apakah Feature 05 dan 06 perlu dihitung ulang dan berapa saham yang bed
 "kenaikan harga tersebut bukan disebabkan oleh aksi korporasi ... hanya karena swing atau kenaikan harga biasa saja."
 Jawaban dan buktinya: "Pemeriksaan lanjutan" di bawah.
 
+**Arahan user, 2026-10-30 (bukan go eksekusi):** "Kalau di replace dari awal september sampai latest, dengan data
+tradingview sekarang? berlaku di price idx juga table. apakah masalah? Also untuk fitur2 1 dan 4 tidak perlu pakai tool
+existing. inikan ad hoc, jadi bisa dijalankan manual dulu, but pls ensure bahwa kolomnya menggunakan rumus2 yang
+digunakan baris sebelumnya jadi konsisten." Jawabannya ada di "Ganti 1 Sep–terbaru" dan "Rumus sama" di bawah. Langkah
+diubah menjadi skrip ad hoc (S0–S7), sehingga perubahan kode P0 (a), (b) dan (d) versi sebelumnya tidak diperlukan untuk
+run ini.
+
 **Pemetaan** (diperiksa 2026-10-30, read-only: kode `main` `7af79430`, katalog dan data live lewat pgweb):
 
 | Sumber | Bukti |
@@ -123,7 +130,7 @@ Jawaban dan buktinya: "Pemeriksaan lanjutan" di bawah.
     berbeda, tetapi kode tidak menjaminnya.
   - Indikator rekursif (EMA 200, RSI, ATR, ADX, SMI, swing) memerlukan keadaan hitungan pada 09-16. Tanpa checkpoint
     tersimpan, keadaan itu hanya bisa didapat dengan membaca riwayat dari awal di memori. Membaca tidak menulis apa pun.
-  - Maka P0 (d) di bawah: opsi `--write-from`.
+  - Maka skrip manual S3 di bawah: dihitung di memori, hanya baris mulai 09-17 yang ditulis.
 - **Skala harga** (`verification/price_gap_0917/README.md`, `scale_scan.py`; TradingView lewat klien `price_update.py`
   sendiri, SQL lewat pgweb):
   - 843 saham diperiksa. 815 sama skala pada 09-16, 09-21 dan setiap hari tersimpan 09-01..10-30. 22 saham tidak punya
@@ -139,72 +146,125 @@ Jawaban dan buktinya: "Pemeriksaan lanjutan" di bawah.
   - Candle TradingView tersedia untuk saham sama skala: 825 pada 09-17, 823 pada 09-18 (sebagian kecil saham memang
     tidak punya candle hari itu, seperti di log harian `Monitoring_Price_ALL`).
   - Temuan sampingan: PBSA 2026-10-08 (M313), di luar celah.
+- **Ganti 1 Sep–terbaru dengan TradingView sekarang** (read-only; `ohlcv_scan`, semua kolom OHLCV, 2026-08-03..10-30;
+  untuk enam saham seluruh riwayat):
+  - **837 saham lain:** 50.333 hari-saham dibandingkan, dan hanya 1 nilai berbeda: volume GOTO 2026-10-12 (tersimpan
+    28.057.826.200, TradingView 28.057.826.000). TradingView tidak punya hari lain yang kita tidak punya, selain 09-17/18
+    (825 dan 823 saham). Mengganti tidak mengubah angka apa pun, tetapi menambah kerja:
+    - `price_update.py` meng-upsert setiap baris tanpa syarat (`bulk_upsert_prices`, `ingestion_time` baru);
+    - trigger Feature 01 mengantre setiap baris yang di-upsert (`enqueue_feature_01_price_row` tanpa cek perubahan),
+      sehingga ±36.000 baris Feature 01 dihitung ulang dengan hasil yang sama;
+    - semua file harga storage diterbitkan ulang.
+
+    Trigger Feature 04 hanya mengantre bila nilai berubah, jadi yang terkena hanya GOTO.
+  - **6 saham:** seluruh riwayat tersimpannya, sejak baris pertama (2018, atau 2023 untuk VKTR), memakai harga asli.
+    Rasionya tetap sampai sehari sebelum ex-date:
+    - AHAP 2.066 hari;
+    - BUVA 1.579 hari;
+    - ENRG 2.107 hari;
+    - FORU 1.750 hari;
+    - PBSA 1.829 hari (ditambah M313);
+    - VKTR 775 hari.
+
+    Mengganti mulai 1 Sep tidak menghilangkan patahan skala. Patahannya hanya pindah ke 29 Agu → 1 Sep (FORU ÷19,5).
+    Patahan hilang hanya bila seluruh riwayat diganti, yaitu perbaikan D22 (FUTURE_PLAN E2), dengan konsekuensi:
+    - semua baris Feature 01/04 enam saham itu sejak 2018 berubah;
+    - harga grafik sebelum ex-date tidak lagi sama dengan harga transaksi (nilai broker Feature 05 tetap dalam rupiah
+      asli).
+- **Rumus sama dengan baris sebelumnya** (read-only, dihitung ulang dari harga tersimpan lalu dibandingkan dengan baris
+  tersimpan):
+  - **Feature 01:** SELECT di dalam `refresh_feature_01_stock_daily` live dijalankan lewat pgweb untuk 60 saham (enam
+    saham di atas, BBCA, TLKM, GOTO, BBRI, WIFI, dan 49 acak). Hasilnya 89.369 baris, 27 kolom, **0 beda**, tanpa
+    baris lebih atau kurang.
+  - **Feature 04:** `features/feature04/engine.py` (VERSION = `calculation_version` semua baris live) dengan pustaka
+    terkunci (TA-Lib 0.6.8, numpy 2.3.5) untuk 30 saham, 48.212 baris, 2.458.812 nilai:
+    - semua indikator, kolom swing dan `close`: **0 beda** di atas 1e-10 (488 nilai berbeda hanya di digit terakhir
+      floating point);
+    - **52 flag pola candle berbeda** (`cdl_doji` 41, `cdl_marubozu` 6, `cdl_harami` 2, `cdl_dragonfly_doji` 2,
+      `cdl_harami_cross` 1) pada BMAS, AHAP, BUVA, OMRE dan IMAS. Semuanya bertanggal ≤ 2026-06-10, dicatat sebagai
+      M314. Penyebab: sejak 2026-10-12 pola dihitung pada jendela tetap 15 bar (DATABASE_CHANGELOG, "State v3 also
+      removed TA-Lib candlestick dependence on an unrelated old prefix"). Baris lama ditulis dengan jalur seluruh array,
+      yang bisa membalik candle yang tepat di ambang. Worker harian memakai mesin sekarang. Baris 2026-06-11..10-30
+      sampel ini identik.
 
 **Risiko yang sudah terlihat**
 - **R1, skala harga (D22).** TradingView mengirim candle saham yang disesuaikan split (dan sebagian rights issue),
   sedangkan riwayat tersimpan memakai harga asli. Diukur: 6 saham beda skala (lihat di atas).
-- **R2, Feature 04.** Lihat butir 3 (D26) dan pemeriksaan lanjutan. Alat perbaikannya berhenti di IHSG (D27).
-  `backfill.py --tickers` menerima 1–10 ticker per run; `--all-source-tickers` serial dan bisa dilanjutkan.
-- **R3, TradingView.** Perlu memastikan TradingView masih mengirim candle 32 sesi ke belakang (`--request-bars 40`).
-  Dibuktikan dengan dry-run.
+- **R2, Feature 04.** Lihat butir 3 (D26) dan pemeriksaan lanjutan. Jalur normal dan alat yang ada tidak bisa
+  dipakai (worker menolak suffix 32 sesi; D27). Karena itu dipakai skrip manual S3.
+- **R3, TradingView.** Sudah dibuktikan 2026-10-30: TradingView masih mengirim candle 09-17/18 (825 dan 823 saham
+  sama skala).
 
-**Usulan langkah** (P0 kode dan tes, tanpa data; P1–P7 butuh go)
-- **P0. Perbaikan umum, dengan tes.**
-  - (a) `price_update.py`, untuk target lama (sebelum sesi tersimpan terakhir): rasio close tersimpan ÷ TradingView
-    pada sesi tersimpan terdekat sebelum dan sesudah target.
-    - Kedua rasio = 1: candle ditulis apa adanya.
-    - Usulan (pertanyaan 1): kedua rasio sama tetapi ≠ 1, dan OHLC × rasio tidak punya desimal lebih banyak dari harga
-      tersimpan saham itu (IDX: rupiah bulat). Candle ditulis dalam skala tersimpan: OHLC × rasio, volume ÷ rasio
-      dibulatkan ke lembar. Rasionya dicatat di log run.
-    - Selain itu (rasio beda, tetangga tidak ada di TradingView, atau presisi gagal): dilewati dan dicatat
-      `SCALE_MISMATCH`.
-    - Aturannya diturunkan dari data, bukan daftar saham. Opsi `--tickers` ditambahkan untuk mengulang.
-  - (b) D27: `backfill.py` dan `bootstrap_states.py` melewati indeks lewat `public.is_universe_index()`. Diperlukan
-    untuk (d) dengan `--all-source-tickers`.
-  - (c) `recovery_window.py`: sesi yang punya candle indeks final tetapi kekurangan saham diperiksa ulang. Ini mencegah
-    celah serupa terulang.
-  - (d) `backfill.py --write-from DATE` (syarat user):
-    - riwayat dibaca dan dihitung di memori;
-    - baris sebelum `DATE` dibandingkan dengan yang tersimpan. Bila ada yang berbeda, ticker itu berhenti tanpa menulis
-      apa pun dan dilaporkan;
-    - hanya baris pada atau sesudah `DATE` yang di-upsert.
-
-    Berlaku juga untuk perbaikan lama lain di luar jendela 5 sesi worker.
-- **P1. Dry-run** dua tanggal (`--mode manual --target-date 2026-09-17` / `09-18 --request-bars 40 --dry-run`): jumlah
-  baris, daftar `SCALE_MISMATCH`, contoh nilai. Hasilnya dilaporkan ke user.
-- **P2. Tulis harga.** Worker Feature 04 dijeda sesuai runbook, lalu run manual dua tanggal. Dibaca balik: jumlah per
-  tanggal ±827, dan close contoh = TradingView.
-- **P3. Feature 01** lewat antrean otomatis. Cek: antrean habis, +2 baris per saham, contoh kolom per kelompok di atas
-  sama dengan hitung ulang mandiri.
-- **P4. Feature 04.**
-  1. `backfill.py --all-source-tickers --write-from 2026-09-17` (dry-run dulu, lalu tulis).
-  2. `bootstrap_states.py` (dry-run, lalu tulis, `--require-stored-match`). Ini menulis checkpoint terbaru saja.
-  3. Worker dilanjutkan.
+**Langkah** (ad hoc atas arahan user; semua butuh go. Skrip di `verification/price_gap_0917/`, dijalankan dari
+kontainer ini dengan kredensial yang dibaca dari Railway ke memori saja. Di luar jendela B6.)
+- **S0. Persiapan, tanpa menulis.**
+  - Skrip dan tesnya dibuat.
+  - Snapshot hash baris Feature 01 dan Feature 04 sebelum 2026-09-17 per saham, sebagai pembanding sesudah run.
+  - Dry-run harga: TradingView lewat klien `price_update.py` (`adjustment: splits`), 40 bar. Hasilnya: jumlah baris per
+    tanggal, enam saham beserta rasio dan nilai hasil skala, dan saham yang dilewati. Laporan ke user sebelum S1.
+- **S1. Harga.**
+  1. Worker Feature 04 dijeda (Railway, sesuai README worker).
+  2. Satu transaksi per tanggal:
+     - saham sama skala ditulis apa adanya;
+     - enam saham mengikuti jawaban pertanyaan 1. Untuk B, aturannya: rasio sesi tersimpan terdekat sebelum dan sesudah
+       sama, OHLC × rasio rupiah bulat, volume ÷ rasio dibulatkan ke lembar. Bila gagal, saham dilewati dan dilaporkan.
+  3. Kolom sama dengan `price_update.py` (`PRICE_COLUMNS`, `is_final`, `finalized_at`, `market_close_at`,
+     `ingestion_time`). `source` tetap `TradingView`; rasio dicatat di DATABASE_CHANGELOG.
+  4. Dibaca balik.
+- **S2. Feature 01 (manual).**
+  - `SELECT refresh_feature_01_stock_daily('2026-09-17', ARRAY[…])` per kelompok saham. Ini fungsi live yang sama
+    dengan yang menulis semua baris lama, dan hanya menulis mulai 09-17.
+  - Antrean yang dibuat trigger tetap diproses worker Feature 01 dengan fungsi yang sama, jadi hasilnya identik.
+  - Cek:
+    - hash baris sebelum 09-17 sama dengan snapshot S0;
+    - baris mulai 09-17 sama dengan SELECT read-only fungsi itu;
+    - +2 baris per saham.
+- **S3. Feature 04 (manual)**, per saham, memakai modul worker sendiri (`engine.py`, `incremental.py`,
+  `worker.upsert_columns`, `replace_checkpoints`) dengan pustaka terkunci (`features/feature04/requirements.txt`) dan
+  VERSION yang sama:
+  1. Seluruh riwayat dihitung di memori. Hitungan berantai (`calculate_incremental` dari awal) harus sama dengan
+     referensi penuh (`engine.calculate`).
+  2. Baris sebelum 09-17 dibandingkan dengan yang tersimpan:
+     - beda indikator, swing atau `close`: saham itu berhenti, tidak ada yang ditulis, dan dilaporkan;
+     - beda flag candle jalur lama (M314): dilaporkan saja, tidak ditulis.
+  3. Hanya baris mulai 09-17 yang ditulis.
+  4. Checkpoint 7 sesi terakhir dari run yang sama ditulis.
+  5. Antrean di-set DONE dengan pagar generasi yang sama dengan worker (`worker.py:651-660`). `Feature04_Column_Status`
+     SUCCESS dan satu baris `Feature04_Calculation_Log` bertanda manual.
+  6. Worker dilanjutkan.
 
   Cek:
-  - 0 baris Feature 04 sebelum 09-17 yang `calculated_at`-nya berubah;
+  - 0 baris sebelum 09-17 yang berubah (hash S0);
   - 0 `REPAIR_REQUIRED`;
   - checkpoint lengkap;
-  - sampel paritas.
-- **P5. Storage.** Run `daily` publisher (terjadwal 19:00 / 07:30 WIB, atau run manual M229 di luar jendela B6). Cek:
-  file harga = SQL (rows, sum close), xsection baru.
-- **P6. Pembaca.** Terminal (candle 09-17/18, contoh Flow), Screener live, Backtest E2E.
-- **P7. Catatan.** DATABASE_CHANGELOG (sumber dan verifikasi data), ERRORS M238/D26/D27 → FIXED, RAILWAY_CHANGELOG.
+  - run harian berikutnya selesai lewat jalur normal.
+- **S4. Storage.** Run `daily` publisher (terjadwal 19:00 / 07:30 WIB, atau run manual M229). Cek: file harga = SQL,
+  xsection baru.
+- **S5. Pembaca.** Terminal (candle 09-17/18, contoh Flow), Screener live, Backtest E2E, cache hasil sandbox AI.
+- **S6. Catatan.**
+  - DATABASE_CHANGELOG (sumber, rasio enam saham, verifikasi);
+  - ERRORS M238 → FIXED, M314;
+  - RAILWAY_CHANGELOG (jeda dan lanjut worker).
+- **S7, terpisah (pertanyaan 2).** P0 (c): `recovery_window.py` memeriksa ulang sesi yang punya candle indeks final
+  tetapi kekurangan saham, supaya celah serupa tidak terulang. Perubahan kode dengan tes.
 
 **Rollback**
 - Hapus baris dua tanggal untuk ticker yang ditulis. Trigger Feature 04 ikut mengantre.
 - Trigger Feature 01 hanya INSERT/UPDATE, jadi baris Feature 01 dua tanggal itu dihapus eksplisit, lalu
   `refresh_feature_01_stock_daily(09-17)`.
-- Rebuild Feature 04 per ticker seperti P4.
+- Feature 04 per saham dihitung ulang seperti S3 (baris mulai 09-17 dan checkpoint).
 - Storage terbit ulang sendiri lewat stamp.
 
-**Pertanyaan untuk user** (diperbarui 2026-10-30 sesudah pemeriksaan lanjutan)
+**Pertanyaan untuk user** (diperbarui 2026-10-30 sesudah arahan ad hoc)
 1. Enam saham beda skala (AHAP, BUVA, ENRG, FORU, PBSA, VKTR):
-   - (B) dikembalikan ke skala tersimpan dengan rasio tetangga, dengan syarat di P0 (a) (usulan; bukti: rasio konstan
-     dan hasilnya rupiah bulat);
+   - (B) dikembalikan ke skala tersimpan dengan rasio tetangga, dengan syarat di S1 (usulan; bukti: rasio konstan sejak
+     2018 dan hasilnya rupiah bulat);
    - (A) tidak ditulis dan dilaporkan;
-   - (C) ditulis apa adanya.
-2. P0 (c) ikut dikerjakan? P0 (b) dan (d) diperlukan untuk syarat user.
+   - (C) ditulis apa adanya;
+   - (D) seluruh riwayat enam saham diganti dengan TradingView (perbaikan D22 / E2). Feature 01/04 enam saham itu
+     dihitung ulang sejak 2018 (pengecualian dari syarat "hanya sesudah 16 Sep"). Mengganti hanya mulai 1 Sep tidak
+     disarankan, karena patahan pindah ke 1 Sep.
+2. S7 (pencegah celah serupa) ikut dikerjakan, atau nanti?
 3. Waktu eksekusi.
 
 ## PUBLISHER-CLEANUP-MANUAL — bersih-bersih lengkap manual dan diagnosis listing (EXEC-PUBLISHER-SPEED, M301)
