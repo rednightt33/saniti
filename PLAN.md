@@ -939,8 +939,14 @@ need"; Default Display "abaikan kata default ini."; koreksi rujukan #10->#9, #11
 - 12 baris spec butuh frekuensi (FL01, FL02, FL04-FL06, FL08-FL10). Frekuensi ada di Feature 05 (sampel read-only
   BBCA/GOTO/WIFI 2016-2026 terisi 100%), tetapi `apps/terminal-publisher/publisher.py` `BROKER_SQL` tidak mengirimnya.
 
-Pertanyaan terbuka: ranking FL18-FL20 (spec #24 beku satu episode vs B4 ulang tiap hari); nama FL01 "Average Lot per
-Transaction"; definisi breadth berbeda dengan Screener `breadth` (net nol tidak dihitung).
+Keputusan 2026-10-31 (kata user): FL18-FL20 "yes pakai kelompok broker tetap untuk ketiganya."; nama FL01 "Average Lot per
+Transaction": "yes"; indikator preset Screener di chart: "ini tidak usah."; tujuan (kata user): "karena ini fase pemindahan
+data dari pg ke storage, maka we might as well pindahkan data yang nantinya engine screener hanya perlu build the
+formula, karna data sudah ada."
+
+Pertanyaan terbuka: definisi breadth (FL22 vs Screener `breadth`); nama sama di Terminal dan Screener; data tambahan
+untuk Screener (klasifikasi broker `IDX_Broker_Profile.broker_classification` di `ref/brokers`; file lintas saham
+`broker_window`); metrik Screener mana yang ikut (sheet `Indikator_baru_dari_Screener`, FL24-FL35, usulan).
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
