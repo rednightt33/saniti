@@ -924,21 +924,23 @@ Isi:
 
 ## TERMINAL-FLOW-IND — indikator Flow baru dari `indicator_specs.xlsx` (disetujui masuk rencana 2026-10-30, belum "go")
 
-Sumber: lampiran user `indicator_specs.xlsx` (sheet `Indicator_Spec_REVIEWED`, 30 indikator broker). Jawaban
-2026-10-30 (kata user): "benar ini masuk ke indikator \"Flow\""; #25/#30: "OK pakai yang sudah ada di terminal saja.
-Jadikan indikator flow yang bisa ditambahkan."; Default Display: "abaikan kata default ini."; koreksi rujukan
-"#10->#9 benar", "#11→#1/#2 benar", "#19→#18 benar", "#26→#27 benar"; #13: "Lembar, bisa paramter opsi beli dan jual";
-rolling: "Ok rolling" (jumlah N hari dibagi jumlah N hari); urutan: "B dulu" (storage dulu, lalu semua indikator).
+Sumber: lampiran user `indicator_specs.xlsx` (30 indikator broker); versi final `flow_indicator_parameters_final.xlsx`
+(sheet `Indicator_SPECS_reviewed`, `Parameter_Terminal`, `Keputusan`, `Screener_ke_Chart`). Keputusan 2026-10-30 (kata
+user): grup Flow ("benar ini masuk ke indikator \"Flow\""); A1 "Terminal dulu"; A2 "Jadikan 1 saja, di storage saat ini
+sudah ada broker, tinggal di tambahkan kan?" (frekuensi masuk file broker yang ada; pembaca membaca per nama kolom,
+`backtest/src/core/datafile.ts` `brokerRows`, `terminal/src/data/worker.ts`); urutan "B dulu" (storage dulu); B3 "Yes
+agree" (Top-N menurut net beli Rp); B4 "Hitung hulang tiap hari"; B5 "Yes agree" (default Top-5); C6 "Go with B"
+(pasangan beli/jual = satu indikator dengan Side Buy/Sell/Both); D7 "OK"; D8 "OK"; D9 "Ya"; D10 "Ok make sense (punya
+transaksi beli atau jual pada hari itu)"; D11 "Ya"; D12 "ya"; E13 "OK"; E14 "OK"; F15 "tetap LOT"; nama baru #11/#13/#14
+("Nama indikator pakai nama baru diatas"); #25 "B alright" (Show cohort total di Broker Inventory); anchor default "no
+need"; Default Display "abaikan kata default ini."; koreksi rujukan #10->#9, #11->#1/#2, #19->#18, #26->#27 "benar".
 
-- 29 indikator di grup Flow Terminal (#25 dan #30 menjadi satu: panel Broker inventory sebagai indikator Flow).
-- Parameter yang bisa diubah user per indikator: lampiran balik `flow_indicator_parameters.xlsx` (sheet
-  `Parameter_Terminal`; DECIDED / PROPOSED per baris).
-- 12 indikator butuh frekuensi transaksi (#1-4, #6, #8-11, #13-15). Frekuensi ada di Feature 05 (sampel read-only
-  BBCA/GOTO/WIFI 2016-2026 terisi 100%), tetapi `apps/terminal-publisher/publisher.py` `BROKER_SQL` tidak
-  mengirimnya; file broker dibaca Terminal, Backtest dan Screener.
+- 23 indikator Flow (FL01-FL23) dari 30 baris spec; 193 parameter di sheet `Parameter_Terminal`.
+- 12 baris spec butuh frekuensi (FL01, FL02, FL04-FL06, FL08-FL10). Frekuensi ada di Feature 05 (sampel read-only
+  BBCA/GOTO/WIFI 2016-2026 terisi 100%), tetapi `apps/terminal-publisher/publisher.py` `BROKER_SQL` tidak mengirimnya.
 
-Pertanyaan terbuka: dasar dan cara ranking Top-N (usulan: net beli Rp, diulang tiap hari; beku sejak anchor untuk
-#24/#26/#27); turnover #16; validitas inventori #26/#27; #17 hari tanpa transaksi; #29 broker aktif; ambang #14.
+Pertanyaan terbuka: ranking FL18-FL20 (spec #24 beku satu episode vs B4 ulang tiap hari); nama FL01 "Average Lot per
+Transaction"; definisi breadth berbeda dengan Screener `breadth` (net nol tidak dihitung).
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
