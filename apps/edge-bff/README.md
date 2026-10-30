@@ -232,6 +232,9 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 - Conversation list (MONITOR-REVAMP, user 2026-10-30): a Branch row sits under its parent conversation with the
   branch icon (`kind`/`parent_conversation_id` of the list API); the sidebar's Share ("Share latest answer") opens the
   Share menu of the conversation's latest answer; ⌘K/Ctrl+K focuses "Search conversations".
+- Answer (user 2026-10-30): dates in every answer read "19 October 2026" (code, links and times as written); the
+  suggestions fold per kind ("Suggested next questions", "Insight ideas", "Further research"), closed at first; a
+  running ring turns once in 0.15 s like the Terminal's.
 
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.

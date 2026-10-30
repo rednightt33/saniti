@@ -168,9 +168,9 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
         stop = page.get_by_role('button', name='Stop', exact=True)  # EXEC-X 2026-10-09: the stop button
         stop.wait_for()
         assert stop.is_enabled() and not page.get_by_role('button', name='Send', exact=True).count()
-        assert page.locator('.edge-response-dots i').count() == 3
-        assert page.locator('.edge-response-dots i').first.evaluate('(node) => getComputedStyle(node).animationName') == 'edge-response-pulse'
-        animation = page.locator('.edge-response-dots i').first
+        # user 2026-10-30 ("buat sama dengan terminal speednya"): the Terminal's ring, one turn in 0.15 s
+        animation = page.locator('.edge-inline-progress .edge-run-ring')
+        assert animation.evaluate('(node) => [getComputedStyle(node).animationName, getComputedStyle(node).animationDuration]') == ['edge-flow-rotate', '0.15s']
         first_time = animation.evaluate('(node) => node.getAnimations()[0].currentTime')
         page.wait_for_timeout(150)
         assert animation.evaluate('(node) => node.getAnimations()[0].currentTime') > first_time
@@ -188,7 +188,7 @@ def test_loading_animation_refresh_and_completed_answer(dummy_orc, browser_page)
         saved(page)
         assert page.get_by_placeholder('Ask a research question…').input_value() == 'Keep this draft while the answer arrives'
         assert len(orc.calls) == 1  # refreshing the browser never re-executes AI
-        assert not page.locator('.edge-response-dots').count()
+        assert not page.locator('.edge-run-ring').count()
         assert page.locator('article.result').evaluate('(node) => getComputedStyle(node).animationName') == 'edge-ai-arrival'
         page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
         # MONITOR-REVAMP (user 2026-10-29): the page starts light; the dark theme is one press away
@@ -214,12 +214,21 @@ def test_follow_up_questions_and_insight_ideas_are_clicked_as_the_next_message(d
     sign_in(page, origin)
     submit(page, 'Dummy follow ups')
     saved(page)
-    # MONITOR-REVAMP (user 2026-10-29, AI_revamp.html .fups): one open list under "Suggested next questions", each
-    # suggestion marked with its kind and not bold
-    assert page.locator('.edge-fup-title').inner_text() == 'Suggested next questions'
+    # user 2026-10-30 ("bisa collapse dan expand each"): one folded section per kind, closed at first, drawn like
+    # Assumptions; a suggestion is not bold
+    groups = page.locator('article.result').last.locator('.edge-next details.edge-fup-group')
+    summaries = groups.locator('summary').all_inner_texts()
+    assert summaries[0].startswith('Suggested next questions (') and any(s.startswith('Insight ideas (') for s in summaries), summaries
+    assert groups.evaluate_all('nodes => nodes.every(n => !n.open)')
     question = page.get_by_role('button', name='Bulan apa jual asing BBRI paling besar?', exact=True)
-    assert question.is_visible() and question.locator('.edge-badge').inner_text() == 'Insight idea'
-    assert page.locator('.edge-fup .edge-badge', has_text='Follow-up').count() >= 1
+    assert question.is_hidden()
+    insight = groups.filter(has=page.locator('summary', has_text='Insight ideas'))
+    insight.locator('summary').click()
+    assert question.is_visible() and not question.locator('.edge-badge').count()
+    assert groups.first.locator('.edge-fup').first.is_hidden()  # each opens on its own
+    if page.locator('.edge-discs details.edge-notes:not(.edge-fup-group)').count():  # drawn like Assumptions
+        style = lambda sel: page.locator(sel).first.evaluate('n => [getComputedStyle(n).fontSize, getComputedStyle(n).color]')
+        assert style('.edge-next details > summary') == style('.edge-discs details.edge-notes:not(.edge-fup-group) > summary')
     assert question.locator('.edge-fup-label').evaluate('n => getComputedStyle(n).fontWeight') == '400'
     capture(page, 'follow-ups')
     question.click()

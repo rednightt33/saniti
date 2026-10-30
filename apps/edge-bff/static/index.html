@@ -9471,14 +9471,9 @@ html:not(.dark):has(.monitor-layout), .app:not(.dark):has(.monitor-layout) {
 .monitor-layout .user-message .message-attachments span {color:#24364B; border-color:#CBD6E3;}
 .monitor-layout .result {background:transparent; animation:edge-ai-arrival .3s ease-out both;}
 .monitor-layout .edge-inline-progress {display:flex;align-items:center;gap:8px;margin:0 0 15px;min-height:35px;color:var(--muted-foreground);font-size:11px;}
-.edge-response-dots {display:inline-flex;align-items:center;gap:4px;}
-.edge-response-dots i {width:4px;height:4px;border-radius:50%;background:currentColor;animation:edge-response-pulse 1.2s infinite;}
-.edge-response-dots i:nth-child(2) {animation-delay:.15s;}
-.edge-response-dots i:nth-child(3) {animation-delay:.3s;}
-@keyframes edge-response-pulse {0%,80%,100% {opacity:.35;}40% {opacity:1;}}
 @keyframes edge-user-send {from {opacity:0;transform:translateY(6px);}to {opacity:1;transform:translateY(0);}}
 @keyframes edge-ai-arrival {from {opacity:0;}to {opacity:1;}}
-@media(prefers-reduced-motion:reduce) {.monitor-layout .user-message,.monitor-layout .result,.edge-response-dots i {animation:none;}}
+@media(prefers-reduced-motion:reduce) {.monitor-layout .user-message,.monitor-layout .result {animation:none;}}
 
 
 /* Sign-in focus and centered action; light-theme user message. */
@@ -10581,6 +10576,7 @@ html .app .monitor-layout .result .edge-pause-line b{font-weight:600;}
 html .app .monitor-layout .result .edge-next{margin-top:var(--s-3);}
 html .app .monitor-layout .result .edge-fup-title{display:block;font-size:var(--t-meta);font-weight:500;color:var(--text-3);text-transform:none;letter-spacing:normal;}
 html .app .monitor-layout .result .edge-fups{display:grid;gap:var(--s-3);margin:var(--s-3) 0 var(--s-6);}
+html .app .monitor-layout .result .edge-discs>details.edge-fup-group>.edge-fups{margin:0;}
 html .app .monitor-layout .result .edge-fup{display:flex;align-items:center;justify-content:flex-start;gap:var(--s-5);width:100%;min-height:0;padding:var(--s-4) var(--s-5);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);text-align:left;font:400 var(--t-body)/var(--lh-read) var(--sans);box-shadow:none;cursor:pointer;}
 html .app .monitor-layout .result .edge-fup:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow);}
 html .app .monitor-layout .result .edge-fup:disabled{cursor:not-allowed;opacity:.45;}
@@ -10779,11 +10775,17 @@ html .app .monitor-layout .edge-run-step-mark{display:grid;place-items:center;fl
 html .app .monitor-layout .edge-run-step.done .edge-run-step-mark{background:var(--green-bg);color:var(--green);}
 html .app .monitor-layout .edge-run-step.done .edge-run-step-mark .icon{width:11px;height:11px;stroke-width:2.2;}
 html .app .monitor-layout .edge-run-step.warn .edge-run-step-mark{background:var(--amber-bg);color:var(--amber);}
-html .app .monitor-layout .edge-run-step.now .edge-run-step-mark{border:2px solid var(--border-2);border-top-color:var(--text);animation:edge-flow-rotate .8s linear infinite;}
+html .app .monitor-layout .edge-run-step.now .edge-run-step-mark{border:2px solid var(--border-2);border-top-color:var(--text);animation:edge-flow-rotate .15s linear infinite;}
 html .app .monitor-layout .edge-run-step em{font-style:normal;color:var(--amber);}
 html .app .monitor-layout .edge-run-step time{margin-left:auto;font-size:var(--t-meta);color:var(--text-3);}
 html .app .monitor-layout .edge-run-note{margin:var(--s-6) 0 0;font-size:var(--t-ctl);line-height:var(--lh-tight);color:var(--text-3);}
-@media (prefers-reduced-motion:reduce){html .app .monitor-layout .edge-run-step.now .edge-run-step-mark{animation:none;}}
+/* user 2026-10-30 ("buat sama dengan terminal speednya"): every running ring turns once in 0.15 s like the Terminal's
+   (.ml-spin, EXEC-TERMINAL-SPEED), 1.6 s when the user asks for less motion; the line above the steps goes once Orc's
+   steps show, so the card says "Running" once (AI_revamp.html running card) */
+html .app .monitor-layout .edge-run-ring{display:block;flex:none;width:14px;height:14px;box-sizing:border-box;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:edge-flow-rotate .15s linear infinite;}
+html .app .monitor-layout .edge-flow-spinner{animation-duration:.15s;}
+html .app .monitor-layout .edge-run-card:has(.edge-run-progress)>.edge-inline-progress{display:none;}
+@media (prefers-reduced-motion:reduce){html .app .monitor-layout :is(.edge-run-ring,.edge-flow-spinner,.edge-run-step.now .edge-run-step-mark){animation-duration:1.6s;}}
 html .app .monitor-layout .run-inline-state{display:flex;gap:var(--s-5);align-items:flex-start;justify-content:flex-start;flex-wrap:wrap;margin:0;padding:var(--s-6);border:0 solid var(--border);border-radius:var(--r-lg);background:var(--surface-2);color:var(--text);font-size:var(--t-body);line-height:var(--lh-read);}
 html .app .monitor-layout .run-inline-state.failed{background:var(--red-bg);}
 html .app .monitor-layout .run-inline-state>div:first-child{flex:1 1 260px;display:block;}
@@ -12088,7 +12090,8 @@ function RunStatus({ run, stopping, expanded, toggle, retry, retryNow, changeMod
     // MONITOR-REVAMP (AI_revamp.html running card): the running answer is a card like an answer
     if (active) return element("div", { className: "edge-inline-progress-wrap edge-run-card" },
         element("div", { className: "edge-inline-progress", role: "status", "aria-live": "polite" },
-        element("span", { className: "edge-response-dots", "aria-hidden": "true" }, element("i"), element("i"), element("i")),
+        // user 2026-10-30 ("buat sama dengan terminal speednya"): the Terminal's ring, one turn in 0.15 s
+        element("span", { className: "edge-run-ring", "aria-hidden": "true" }),
         element("span", null, stopping ? edgeUi().stoppingHint : run.status === "streaming" ? "Streaming research result…" : run.steps.find(step => step.status === "running")?.label ?? "Submitted")),
         run.status === "running" && !stopping && element(RunProgress, { key: run.id, run }));
     // EXEC-Y Fase 1 (S1): an answer stopped by the user offers its question back to edit and resend
@@ -12671,9 +12674,10 @@ function mdList(lines, start, ctx) {
 function touchKeyboard() {
   return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
 }
-// EXEC-FASTLANE V5 (user 2026-10-14: "7 Oktober 2026"; a month "September 2024"; a year "2020", not "2.020"): dates in
-// a fast-lane answer are written out in Indonesian; code, links and times are left as they are
-const FAST_MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+// EXEC-FASTLANE V5 (user 2026-10-14; a month "September 2024"; a year "2020", not "2.020"): dates in an answer are
+// written out; code, links and times are left as they are. User 2026-10-30 ("format date ... DD MMMM YYYY", chose
+// "19 October 2026"): every answer, whatever its lane, with the month in English like the rest of the page
+const FAST_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const FAST_DAY = /(?<![\w/.:-])(\d{4})-(\d{2})-(\d{2})(?![\w/-]|:\d)/g;
 const FAST_MONTH = /(?<![\w/.:-])(\d{4})-(\d{2})(?![\w/-]|:\d)/g;
 function fastDatePart(part) {
@@ -12692,7 +12696,7 @@ function fastYearCell(cell) {
   return m && +(m[2] + m[3]) >= 1900 && +(m[2] + m[3]) <= 2100 ? `${m[1] ?? ""}${m[2]}${m[3]}${m[4] ?? ""}` : cell;
 }
 function renderMarkdown(text, ctx = {}) {
-  if (ctx.fast && !ctx.datesDone) { text = fastDates(text); ctx = {...ctx, datesDone:true}; }
+  if (!ctx.datesDone) { text = fastDates(text); ctx = {...ctx, datesDone:true}; }
   const lines = String(text ?? "").replace(/\r\n?/g, "\n").split("\n"), blocks = [];
   let index = 0;
   while (index < lines.length) {
@@ -12725,7 +12729,7 @@ function renderMarkdown(text, ctx = {}) {
       const rows = [];
       index += 2;
       while (index < lines.length && lines[index].includes("|") && lines[index].trim()) rows.push(mdCells(lines[index++]));
-      if (ctx.fast) head.forEach((name, column) => { if (FAST_YEAR_HEAD.test(name.replace(/[*_`]/g, "").trim())) rows.forEach(row => { if (column < row.length) row[column] = fastYearCell(row[column]); }); });
+      head.forEach((name, column) => { if (FAST_YEAR_HEAD.test(name.replace(/[*_`]/g, "").trim())) rows.forEach(row => { if (column < row.length) row[column] = fastYearCell(row[column]); }); });
       // a column's alignment as written; otherwise one alignment per column (Fase 5 QA 2026-10-09: "211" right and
       // "Rp 83,27 triliun" left in one column): figures right when every cell of the column is one, words left
       const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
@@ -12898,8 +12902,8 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
       showAll ? ui.tableFewerRows : ui.tableMoreRows.replace("{n}", hidden)));
 }
 
-function Markdown({text, claims, className = "", fast = false, tables = null, attach = null, figures = null, conversationId = null}) {
-  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast, tables, attach, conversationId, usedTables:[],
+function Markdown({text, claims, className = "", tables = null, attach = null, figures = null, conversationId = null}) {
+  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, tables, attach, conversationId, usedTables:[],
     figures:Array.isArray(figures) && figures.length ? {list:figures, next:0} : null}));
 }
 
@@ -12909,7 +12913,7 @@ function DataValue({value, depth = 0}) {
   if (empty(value)) return element("span", {className:"edge-muted"}, "—");
   if (typeof value === "string") {
     const href = /^https?:\/\//.test(value) ? Edge.safeUrl(value) : null;
-    return href ? element("a", {href, target:"_blank", rel:"noopener noreferrer"}, value) : element("span", {className:"edge-text"}, valueText(value));
+    return href ? element("a", {href, target:"_blank", rel:"noopener noreferrer"}, value) : element("span", {className:"edge-text"}, fastDates(valueText(value)));
   }
   if (typeof value !== "object") return element("span", null, valueText(value));
   if (Array.isArray(value)) {
@@ -13005,21 +13009,24 @@ function PauseCard({pause, enabled, act, scope}) {
     choices:(()=>{const first=pause.choices.findIndex(choice=>!edgeChoiceDraft(choice.action));
       return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()}));  // the first choice sent at once leads
 }
-// MONITOR-REVAMP (AI_revamp.html followUps): every suggestion in one list, an icon and a pill naming its kind
+// MONITOR-REVAMP (AI_revamp.html followUps): the icon of each kind of suggestion
 const EDGE_FOLLOW_KIND = {FOLLOW_UP:["reply","",""], INSIGHT_IDEA:["bulb","info",""], DATA_TEST:["flask","warning",""]};
 function FollowUps({groups, enabled, act, scope}) {
-  const ui=edgeUi(), kinds={FOLLOW_UP:ui.followUpKind, INSIGHT_IDEA:ui.insightIdeaKind, DATA_TEST:ui.dataTestKind};
-  return element("div",{className:"content-block edge-next"},element("div",{className:"edge-eyebrow edge-fup-title"},ui.suggestedNext),
-    element("div",{className:"edge-fups",role:"group","aria-label":ui.suggestedNext},groups.flatMap(group=>group.choices.map(choice=>{
-      const [icon,tone]=EDGE_FOLLOW_KIND[group.key]||EDGE_FOLLOW_KIND.FOLLOW_UP, id=scope+":"+choice.key, chosen=edgeChosen.get(scope)===id;
-      return element("button",{key:choice.key,type:"button",className:`edge-fup${chosen?" sent":""}`,disabled:!enabled,"aria-pressed":chosen,"aria-label":choice.label,
-          title:enabled?undefined:ui.choicesDisabled,onClick:()=>{edgeChosen.set(scope,id);act(choice.action);}},
-        element(Icon,{name:icon}),element("span",{className:"edge-fup-label"},choice.label),
-        element("span",{className:`edge-badge ${tone||"neutral"}`},kinds[group.key]||group.label));}))));
+  // user 2026-10-30 ("suggested next question dan insight idea bisa disamakan? bisa collapse dan expand each"): one
+  // folded section per kind, closed at first, drawn like Assumptions and Limitations; a click still sends the words
+  const ui=edgeUi(), titles={FOLLOW_UP:ui.suggestedNext, INSIGHT_IDEA:ui.insightIdeas, DATA_TEST:ui.dataTest};
+  return element("div",{className:"content-block edge-next edge-discs"},groups.map(group=>{const title=titles[group.key]||group.label;
+    return element("details",{key:group.key,className:"edge-more edge-notes edge-fup-group","data-kind":group.key},
+      element("summary",null,`${title} (${group.choices.length})`),
+      element("div",{className:"edge-fups",role:"group","aria-label":title},group.choices.map(choice=>{
+        const [icon]=EDGE_FOLLOW_KIND[group.key]||EDGE_FOLLOW_KIND.FOLLOW_UP, id=scope+":"+choice.key, chosen=edgeChosen.get(scope)===id;
+        return element("button",{key:choice.key,type:"button",className:`edge-fup${chosen?" sent":""}`,disabled:!enabled,"aria-pressed":chosen,"aria-label":choice.label,
+            title:enabled?undefined:ui.choicesDisabled,onClick:()=>{edgeChosen.set(scope,id);act(choice.action);}},
+          element(Icon,{name:icon}),element("span",{className:"edge-fup-label"},choice.label));})));}));
 }
 function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conversationId,carry=null}) {
- const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims), fast=v.meta.lane==="fast";
- const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fast?fastDates(x):x,{claims}):DataValue({value:x}))));
+ const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims);
+ const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fastDates(x),{claims}):DataValue({value:x}))));
  // EXEC-STYLE S3: assumptions and limitations sit folded under the answer, with their count
  const list=part=>element("details",{key:part.label,className:"edge-more edge-notes","data-section":part.label===edgeUi().limitations?"LIMITATIONS":"ASSUMPTIONS"},element("summary",null,`${part.label} (${part.items.length})`),items(part.items));
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
@@ -13034,7 +13041,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conve
   v.evidence&&element("div",{className:"edge-tags edge-evidence-line"},element("span",{className:"edge-evidence-text",title:v.evidence.code},v.evidence.label),v.evidence.positive&&element("svg",{className:"edge-evidence-check",width:12,height:12,viewBox:"0 0 16 16","aria-hidden":"true"},element("circle",{cx:"8",cy:"8",r:"8",fill:"#087f5b"}),element("path",{d:"M4.6 8.3l2.2 2.2 4.6-4.8",fill:"none",stroke:"#ffffff",strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round"}))),
   v.attached.length>0&&element("div",{className:"edge-attached-line"},element(Icon,{name:"attach",size:13}),
     element("span",null,edgeUi().attachedPrefix+": "+v.attached.join("; "))),
-  v.answer&&element("div",{className:"content-block edge-answer","data-section":"ANSWER"},element(Markdown,{text:v.answer,claims,fast,
+  v.answer&&element("div",{className:"content-block edge-answer","data-section":"ANSWER"},element(Markdown,{text:v.answer,claims,
     tables:run.raw?.answer_tables,attach:act?(selection=>act({type:"attach",selection})):null,figures:run.raw?.answer_figures,
     conversationId:conversationId&&!String(conversationId).startsWith("draft:")?conversationId:null})),
   v.reproduced.map((line,index)=>element("div",{key:`reproduced-${index}`,className:"edge-reproduced"},element(Icon,{name:"check",size:13}),element("span",null,line))),
@@ -13046,12 +13053,11 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conve
     title:edgeUi().planChoicesTitle,choices:v.plan.choices,prompt:v.plan.confirmation&&element("p",{className:"edge-choices-prompt"},v.plan.confirmation)}),notes}),
   v.findings&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.findings.label," ",element("span",{className:"edge-muted edge-count"},`(${v.findings.items.length})`)),
     v.findings.items.map(finding=>element(FindingCard,{key:finding.key,finding,claims}))),
-  // MONITOR-REVAMP (AI_revamp.html .fups): the suggestions are one list under "Suggested next questions", each marked
-  // with its kind; a click sends its words, as before (EXEC-Y Fase 2)
+  // the suggestions, one folded section per kind (user 2026-10-30); a click sends its words, as before (EXEC-Y Fase 2)
   v.next&&element(FollowUps,{groups:v.next,enabled,act,scope:run.id+":next"}),
   // MONITOR-REVAMP (AI_revamp.html .discs): Assumptions, Limitations and Methodology fold the same way, in that order
   (v.lists.length>0||v.methodology)&&element("div",{className:"content-block edge-discs"},v.lists.map(list),
-    v.methodology&&element("details",{className:"edge-more edge-notes edge-methodology"},element("summary",null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims,fast}))),
+    v.methodology&&element("details",{className:"edge-more edge-notes edge-methodology"},element("summary",null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims}))),
   element(ResponseActions,{run,togglePin,artifacts:v.artifacts,carry}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}

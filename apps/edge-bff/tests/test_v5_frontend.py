@@ -1,4 +1,4 @@
-"""EXEC-FASTLANE V5 (user 2026-10-14): dates in a fast-lane answer read "7 Oktober 2026", a month "September 2024"
+"""EXEC-FASTLANE V5 (user 2026-10-14; every lane and English months since 2026-10-30): dates in an answer read "7 October 2026", a month "September 2024"
 and a year "2020"; a pinned response opened on a phone closes Details
 first; a question sent while reading higher up scrolls down to it. The phone model menu (a bottom sheet in V5) became
 a panel above the composer in EXEC-UI-1015 U5: tests/test_ui_1015.py."""
@@ -23,7 +23,8 @@ FIXTURES['v5_fast_dates'] = dated('fast')
 FIXTURES['v5_standard_dates'] = dated('standard')
 
 
-def test_dates_in_a_fast_lane_answer_are_written_out_and_the_standard_lane_is_unchanged(fixture_server, browser_page):
+def test_dates_in_every_answer_are_written_out_in_english(fixture_server, browser_page):
+    # user 2026-10-30 ("format date ... DD MMMM YYYY", chose "19 October 2026"): every lane, months in English
     origin, _ = fixture_server
     page = browser_page
     sign_in(page, origin)
@@ -32,18 +33,18 @@ def test_dates_in_a_fast_lane_answer_are_written_out_and_the_standard_lane_is_un
     # MONITOR-REVAMP (AI_revamp.html .discs): Assumptions, Limitations and Methodology fold; they are opened to read them
     article(page).locator('.edge-discs details').evaluate_all('nodes => nodes.forEach(node => { node.open = true; })')
     text = article(page).inner_text()
-    assert 'Periode 7 Oktober 2026 sampai September 2024' in text
+    assert 'Periode 7 October 2026 sampai September 2024' in text
     assert '2026-10-07T10:00' in text and '2024-01-02' in text  # a time and code keep their text
     cells = article(page).locator('.edge-answer table.data-table tbody tr').first.locator('td').all_inner_texts()
     assert cells[:2] == ['2020', 'September 2024']
-    assert '31 Agustus 2026' in text and '2 Januari 2026' in text  # assumptions and methodology too
+    assert '31 August 2026' in text and '2 January 2026' in text  # assumptions and methodology too
     header = article(page).locator('.edge-answer th').nth(1).locator('button')
     header.click()  # a written-out month still sorts as a date: descending puts October first
-    assert article(page).locator('.edge-answer tbody tr').first.locator('td').nth(1).inner_text() == 'Oktober 2024'
+    assert article(page).locator('.edge-answer tbody tr').first.locator('td').nth(1).inner_text() == 'October 2024'
     submit(page, 'fx:v5_standard_dates')
     saved(page, 2)
     standard = article(page).inner_text()
-    assert 'Periode 2026-10-07 sampai 2024-09' in standard and '2.020' in standard
+    assert 'Periode 7 October 2026 sampai September 2024' in standard and '2.020' not in standard  # the standard lane too
 
 
 def test_a_pinned_response_opened_on_a_phone_closes_details_and_shows_the_response(dummy_orc, browser_page):

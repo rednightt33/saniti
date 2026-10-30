@@ -123,8 +123,7 @@ def test_progress_sits_under_the_question_follows_to_the_bottom_and_has_no_lane_
         submit(page, 'untuk menjalankan pertanyaan tersebut, boleh describe dimana proses terlama terjadi?')
         page.locator('.edge-run-progress').wait_for(timeout=10000)
         gap = page.evaluate("""() => { const w = document.querySelector('.edge-inline-progress-wrap');
-            const f = w.previousElementSibling; return w.querySelector('.edge-inline-progress span:last-child')
-              .getBoundingClientRect().top - f.querySelector('.user-sent-at').getBoundingClientRect().bottom; }""")
+            const f = w.previousElementSibling; return w.getBoundingClientRect().top - f.querySelector('.user-sent-at').getBoundingClientRect().bottom; }""")
         # MONITOR-REVAMP (AI_revamp.html running card): the running answer is a card right under the question
         assert gap <= 40, gap
         assert 'Standard' not in page.locator('.edge-run-card').first.inner_text()

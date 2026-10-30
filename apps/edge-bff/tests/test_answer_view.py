@@ -383,7 +383,7 @@ def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, 
     assert sources.get_by_text('Net beli broker asing', exact=True).is_visible()
     assert sources.locator('.edge-source-ref').first.inner_text() == 'out.1'
     table = sources.locator('.edge-source').first.inner_text()
-    assert 'Rows\n12' in table and 'Columns\n3' in table and 'Data as of\n2026-10-15' in table and '{n}' not in table
+    assert 'Rows\n12' in table and 'Columns\n3' in table and 'Data as of\n15 October 2026' in table and '{n}' not in table
     assert 'older' not in sources.inner_text() and 'ringkasan' not in sources.inner_text()
     assert 'DATA_COVERAGE_VERIFIED' not in sources.inner_text() and 'Net beli harian per broker asing.' in table
     folded = sources.locator('details.edge-source-fold').filter(has=page.locator('summary', has_text='Figure references'))
@@ -417,6 +417,13 @@ def test_a_running_answer_shows_its_steps_from_orc(fixture_server, browser_page)
         progress = page.locator('.edge-run-progress')
         progress.wait_for(timeout=10000)
         assert progress.locator('.edge-run-progress-time').inner_text() == '42s'
+        # user 2026-10-30: the card says "Running" once, and its ring turns like the Terminal's (0.15 s; 1.6 s with less motion)
+        assert page.locator('.edge-run-card .edge-inline-progress').is_hidden()
+        ring = progress.locator('.edge-run-step.now .edge-run-step-mark')
+        assert ring.evaluate('n => getComputedStyle(n).animationDuration') == '0.15s'
+        page.emulate_media(reduced_motion='reduce')
+        assert ring.evaluate('n => getComputedStyle(n).animationDuration') == '1.6s'
+        page.emulate_media(reduced_motion='no-preference')
         # MONITOR-REVAMP (AI_revamp.html running card): the finished steps are listed, then the step running now
         assert progress.locator('.edge-run-step.now').inner_text() == 'Kode analisis\u2026'
         done = progress.locator('.edge-run-step.done')

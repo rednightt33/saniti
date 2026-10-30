@@ -9015,3 +9015,18 @@ sepertinya belum aktif, cek yg lain"; pilihan user "1 2 4"). Front-end edge-bff 
   ini lulus).
 - Deploy: edge-bff `e9e2794b` (`b92c7c2`) dan `20fb04fa` (`b3d55ad`, jarak 16 px di bawah bar lineage dari cek live)
   SUCCESS; cek live read-only di `RAILWAY_CHANGELOG.md`.
+
+Lanjutan 2026-10-30 siang (screenshot HP user). Front-end edge-bff saja:
+- Tanggal (user: "format date yang ada di format sebagai DD MMMM YYYY"; pilih "19 October 2026"): tanggal di semua jawaban
+  (bukan hanya lane fast, keputusan V5 diganti) ditulis "19 October 2026", bulan "October 2024", tahun di kolom Tahun
+  "2020"; di teks, tabel, Assumptions/Limitations/Methodology dan nilai data (Sources "Data as of"). Kode, link dan jam
+  tetap; tabel tetap terurut sebagai tanggal.
+- Saran (user: "suggested next question dan insight idea bisa disamakan? bisa collapse dan expand each"; pilih
+  dipisah dan terlipat, tertutup di awal): "Suggested next questions (n)", "Insight ideas (n)", "Further research (n)"
+  jadi bagian terlipat sendiri-sendiri, tampilannya sama dengan Assumptions/Limitations; pill jenis dihapus (judul
+  bagian sudah menyebut jenisnya); klik tetap mengirim kata-katanya.
+- Kartu running (user: "berapa kecepatan putaran ... buat sama dengan terminal speednya"): tiga titik (siklus 1,2 s)
+  diganti cincin Terminal; cincin langkah (0,8 s) dan cincin Details Flow (1 s) jadi 0,15 s per putaran seperti
+  `.ml-spin` Terminal; dengan "kurangi gerakan" 1,6 s. Baris "AI request running" disembunyikan begitu langkah Orc
+  tampil, sehingga kartu menyebut "Running" sekali (prototipe). Tumpang-tindih yang terlihat di screenshot ternyata
+  coretan pena: reproduksi HP 390 px menunjukkan kotak bersebelahan, tidak bertumpuk.
