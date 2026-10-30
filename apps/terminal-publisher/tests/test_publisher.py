@@ -129,11 +129,12 @@ class FakeConn:
         if sql.startswith('SELECT count(*), min(trade_date)'):
             t, lo, hi = params
             r = [x for x in self.brokers if x[0] == t and lo <= x[1] <= hi]
-            return [(len(r), min(x[1] for x in r), max(x[1] for x in r), sum(x[5] + x[6] for x in r))]
+            return [(len(r), min(x[1] for x in r), max(x[1] for x in r), sum(x[5] + x[6] for x in r),
+                     sum((x[10] or 0) + (x[11] or 0) for x in r))]
         if 'min(trade_date)' in sql:
             return [(min(r[1] for r in self.brokers),)]
         if 'IDX_Broker_Profile' in sql:
-            return [('AK', 'UBS', 'Foreign'), ('YP', 'Mirae', 'Domestic')]
+            return [('AK', 'UBS', 'Foreign', 'Institutional-heavy'), ('YP', 'Mirae', 'Domestic', 'Retail-heavy')]
         if 'min(date)' in sql:
             return [(min(r[1] for r in self.prices),)]
         if 'max(date)' in sql:
@@ -148,8 +149,9 @@ class FakeConn:
 PRICES = [('BBCA', '2025-12-30', 100.0, 110.0, 95.0, 105.0, 1000.0),
           ('BBCA', '2026-01-02', 105.0, 106.0, 101.0, 102.0, 900.0),
           ('IHSG', '2026-01-02', 7000.0, 7100.0, 6950.0, 7050.0, None)]
-BROKERS = [('BBCA', '2026-01-02', 'AK', 'Foreign', 'Regular', 500.0, 0.0, 5.0, 0.0, False),
-           ('BBCA', '2026-01-02', 'YP', 'Domestic', 'Regular', 0.0, 500.0, 0.0, 4.5, True)]
+# ticker, date, broker, investor, board, buy and sell value, buy and sell lots, source_balance_gap, buy and sell transactions
+BROKERS = [('BBCA', '2026-01-02', 'AK', 'Foreign', 'Regular', 500.0, 0.0, 5.0, 0.0, False, 3, 0),
+           ('BBCA', '2026-01-02', 'YP', 'Domestic', 'Regular', 0.0, 500.0, 0.0, 4.5, True, 0, 2)]
 # the 17 display columns, then source_payload and the two closes of EVENTS_SQL
 EVENTS = [('BBCA', '2026-03-10', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
            None, None, 250.0, None, None, None, {'dividend_value': '250', 'dividend_currency': 'CURRENCY_IDR', 'dividend_cumdate': '2026-03-09', 'dividend_exdate': '2026-03-10', 'dividend_recdate': '2026-03-11', 'dividend_paydate': ''}, 10000.0, None),
@@ -210,6 +212,35 @@ def test_broker_file_keeps_decimal_lots_investor_type_and_gaps():
     assert doc['gap'] == [['2026-01-02', 'Regular']]
 
 
+def test_broker_files_carry_the_transaction_counts_after_the_eight_columns():
+    # EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): bf, sf after d..sl, integers, None when the source has none
+    conn = FakeConn(PRICES, BROKERS + [('BBCA', '2021-03-01', 'YU', 'Domestic', 'Nego', 5.0, 1.0, 0.5, 0.1, False, None, None)], UNIVERSE)
+    _, _, bucket = run('backfill', conn=conn)
+    doc = doc_of(bucket, 'BBCA', 'broker', 2026)
+    assert doc['columns'] == ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'bf', 'sf']
+    assert (doc['bf'], doc['sf']) == ([3, 0], [0, 2]) and all(type(v) is int for v in doc['bf'] + doc['sf'])
+    assert doc['units']['bf'] == 'buy transactions' and doc['gap'] == [['2026-01-02', 'Regular']]
+    old = doc_of(bucket, 'BBCA', 'broker', 2021)
+    assert (old['bf'], old['sf']) == ([None], [None])
+    m = bucket.get_json('manifest/BBCA.json')
+    arch = json.loads(gzip.decompress(bucket.objects[m['packs']['broker-archive']['key'][3:]]))
+    assert arch['columns'][-2:] == ['bf', 'sf'] and arch['bf'] == [None]
+
+
+def test_ref_brokers_carries_the_classification():
+    _, _, bucket = run('backfill')
+    doc = bucket.get_json('ref/brokers.json.gz')
+    assert doc['columns'] == ['code', 'name', 'type', 'classification']
+    assert doc['classification'] == ['Institutional-heavy', 'Retail-heavy']
+
+
+def test_verify_compares_the_transaction_counts():
+    _, conn, bucket = run('backfill')
+    assert pub.verify(conn, bucket) == 0
+    conn.brokers = [r[:10] + (r[10] + 1, r[11]) if r[1] == '2026-01-02' and r[2] == 'AK' else r for r in conn.brokers]
+    assert pub.verify(conn, bucket) == 1
+
+
 def test_index_price_file_keeps_null_volume():
     _, _, bucket = run('backfill')
     assert doc_of(bucket, 'IHSG', 'price', 2026)['v'] == [None]
@@ -225,7 +256,7 @@ def test_daily_after_backfill_writes_nothing_when_nothing_changed():
 def test_daily_republishes_only_the_changed_price_year_and_new_broker_dates():
     _, conn, bucket = run('backfill')
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
-    conn.brokers = BROKERS + [('BBCA', '2026-01-05', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False)]
+    conn.brokers = BROKERS + [('BBCA', '2026-01-05', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False, 1, 0)]
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     p2.run('daily')
     assert p2.written == 4  # price/BBCA/2026, broker/BBCA/2026, BBCA's price pack, the xsection price; 2025, IHSG untouched
@@ -248,7 +279,7 @@ def test_verify_detects_a_changed_object():
 def test_price_and_broker_are_published_from_their_own_first_year():
     # T8 (user 2026-10-26): broker no longer keeps the 5-year window; each dataset starts at its first stored year
     prices = PRICES + [('BBCA', '2019-06-03', 50.0, 51.0, 49.0, 50.5, 10.0)]
-    brokers = BROKERS + [('BBCA', '2020-06-03', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False)]
+    brokers = BROKERS + [('BBCA', '2020-06-03', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False, 1, 0)]
     p, _, bucket = run('backfill', conn=FakeConn(prices, brokers, UNIVERSE))
     assert (p.price_first_year, p.broker_first_year) == (2019, 2020)
     assert key_of(bucket, 'BBCA', 'price', 2019) in bucket.objects and key_of(bucket, 'BBCA', 'broker', 2020) in bucket.objects
@@ -327,7 +358,7 @@ def test_a_new_events_format_republishes_every_events_file_once():
 
 
 def test_broker_is_published_from_its_first_stored_year():
-    conn = FakeConn(PRICES, BROKERS + [('BBCA', '2016-01-04', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False)],
+    conn = FakeConn(PRICES, BROKERS + [('BBCA', '2016-01-04', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False, 1, 0)],
                     UNIVERSE)
     _, _, bucket = run('backfill', conn)
     assert key_of(bucket, 'BBCA', 'broker', 2016) in bucket.objects
@@ -437,7 +468,7 @@ def test_packs_hold_every_price_year_and_the_broker_years_before_the_last_two():
 
 def test_an_old_broker_year_rebuilds_the_archive_and_daily_leaves_it_otherwise():
     _, conn, bucket = run('backfill')
-    conn.brokers = BROKERS + [('BBCA', '2022-03-01', 'YU', 'Domestic', 'Regular', 5.0, 1.0, 0.5, 0.1, False)]
+    conn.brokers = BROKERS + [('BBCA', '2022-03-01', 'YU', 'Domestic', 'Regular', 5.0, 1.0, 0.5, 0.1, False, 1, 0)]
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     p2.run('broker-range', '2022-01-01', '2022-12-31')
     m = bucket.get_json('manifest/BBCA.json')
@@ -751,7 +782,7 @@ def test_a_changed_file_is_a_new_object_and_the_bytes_the_old_manifest_names_sta
     at(bucket, conn, 'backfill', 0)
     old = {k: bucket.objects[k] for k in named(bucket) | indexed(bucket)}     # the manifests' and the index's objects
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
-    conn.brokers = BROKERS + [('BBCA', '2026-01-05', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False)]
+    conn.brokers = BROKERS + [('BBCA', '2026-01-05', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False, 1, 0)]
     conn.events = EVENTS + [('BBCA', '2026-06-01', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND') + (None,) * 9 +
                             (5.0, None, None, None, {}, None, None)]
     seen = during_wait(bucket)
@@ -1079,9 +1110,12 @@ def test_every_bucket_call_is_asked_again_after_a_canceled_answer(monkeypatch):
 # ---- EXEC-MU-RUNTIME T5: reference files under content keys, listed in state.json `refs` ----------------------------
 FIXED_REFS = {f'ref/{n}.json.gz' for n in pub.REF_NAMES}
 # sha256 of the JSON inside ref/tickers.json.gz and ref/brokers.json.gz as the publisher before T5 (3f5156c) wrote them
-# for this file's fixture: the fixed-key copies must stay byte for byte what the deployed readers already read
+# for this file's fixture: the fixed-key copies must stay byte for byte what the deployed readers already read.
+# ref/brokers changed on purpose with EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): the added `classification` column
+# (before: a4075aee964c309e...); every reader takes its columns by name (backtest-worker terminal.ts reference,
+# terminal live.ts), so the pin now holds the new bytes.
 BEFORE_T5_RAW_SHA256 = {'tickers': '9c49504a1d4896d948dc24ba00dfc4c3a10060782496fdb8691a0085ac1e4ef0',
-                        'brokers': 'a4075aee964c309ecf8cb5575d7b128baee86a8e51fa8a778e05ba72267c4597'}
+                        'brokers': '3b54f0d4cc28389f05abfaeefdd10dc05de0bf01211298542292edb277840afc'}
 
 
 def refs(bucket):
@@ -1459,7 +1493,7 @@ def many(n=24):
     """A universe of n stocks with two price years each, and broker rows: enough puts to overlap."""
     tickers = [f'T{i:02d}' for i in range(n)]
     prices = [(t, d, 10.0, 11.0, 9.0, 10.0 + i, 100.0) for i, t in enumerate(tickers) for d in ('2025-12-30', '2026-01-02')]
-    brokers = [(t, '2026-01-02', 'AK', 'Foreign', 'Regular', 5.0, 0.0, 0.05, 0.0, False) for t in tickers]
+    brokers = [(t, '2026-01-02', 'AK', 'Foreign', 'Regular', 5.0, 0.0, 0.05, 0.0, False, 1, 0) for t in tickers]
     universe = [(t, f'Company {t}', 'stock', 'Finance', 'Banks') for t in tickers]
     return FakeConn(prices, brokers, universe, events=[], actions=[])
 

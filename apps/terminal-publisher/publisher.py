@@ -40,11 +40,12 @@ Price and broker are published from their first stored year (broker: T8, user 20
 
 Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M250):
   price/{ticker}/{year}.<sha>.json.gz    columns d,o,h,l,c,v (v null for an index without volume)
-  broker/{ticker}/{year}.<sha>.json.gz   columns d,b,i,m,bv,sv,bl,sl; gap = [[date, board], ...] (ERRORS M157)
+  broker/{ticker}/{year}.<sha>.json.gz   columns d,b,i,m,bv,sv,bl,sl,bf,sf (bf, sf: buy and sell transactions,
+                                   EXEC-TERMINAL-FLOW-IND); gap = [[date, board], ...] (ERRORS M157)
   events/{ticker}/all.<sha>.json.gz      corporate actions and insider transactions of idx_event_annotation, all dates
                                    (one file per ticker, file id "all"); republished when the ticker's rows change
   manifest/{ticker}.json           per dataset: data_through and, per year, key, sha256, bytes, rows, first, last, stamp
-  ref/tickers.json.gz, ref/brokers.json.gz, state.json
+  ref/tickers.json.gz, ref/brokers.json.gz (code, name, type, classification), state.json
   logo/{ticker}.png|svg            the ticker's logo: Stockbit's PNG, else TradingView's SVG (scanner `logoid`)
   ref/logos.json.gz                columns ticker, file, sha256, source, fetched_at (tickers without a logo are absent)
   ref/{name}.<sha16>.json.gz       EXEC-MU-RUNTIME T5 (user chose option A, 2026-10-28): the same bytes as each fixed-key
@@ -94,8 +95,10 @@ PREFIX = 'v1'
 PRICE_SQL = ('SELECT date::text, open::float8, high::float8, low::float8, close::float8, volume::float8 '
              'FROM public."Price_Stock_Indonesia_IDX" '
              "WHERE ticker = %s AND timeframe = 'Daily' AND is_final AND date BETWEEN %s AND %s ORDER BY date")
+# EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): buy_freq and sell_freq (transactions; NULL only for symbols that are not
+# four letters, which are not published: DATABASE_CHANGELOG 2026-10-22, sample check 2026-10-30) after source_balance_gap
 BROKER_SQL = ('SELECT trade_date::text, broker, investor_type, market_board, buy_value::float8, sell_value::float8, '
-              'buy_lots::float8, sell_lots::float8, source_balance_gap '
+              'buy_lots::float8, sell_lots::float8, source_balance_gap, buy_freq, sell_freq '
               'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" '
               'WHERE ticker = %s AND trade_date BETWEEN %s AND %s '
               'ORDER BY trade_date, broker, investor_type, market_board')
@@ -132,6 +135,8 @@ EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(in
 # EXEC-TERMINAL-FRESH (user 2026-10-27): final daily price sessions that have no broker data yet
 BEHIND_SQL = ('SELECT count(DISTINCT date) FROM public."Price_Stock_Indonesia_IDX" '
               "WHERE timeframe = 'Daily' AND is_final AND date > %s")
+BROKERS_SQL = ('SELECT broker_code, broker_name, broker_type, broker_classification FROM public."IDX_Broker_Profile" '
+               'ORDER BY 1')
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry" FROM public."IDX_Stock_Universe" '
                 "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
 
@@ -327,14 +332,25 @@ def price_doc(ticker, year, rows):
             'columns': ['d', 'o', 'h', 'l', 'c', 'v'], **columnar(rows, ['d', 'o', 'h', 'l', 'c', 'v'])}
 
 
+BROKER_COLUMNS = ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'bf', 'sf']
+
+
+def freq(v):
+    """A transaction count as an integer (Feature 05 stores bigint), or None when the source has none."""
+    return None if v is None else int(v)
+
+
 def broker_doc(ticker, year, rows):
-    data = [r[:8] for r in rows]
+    # EXEC-TERMINAL-FLOW-IND: bf and sf (buy and sell transactions) follow the eight columns the readers already take;
+    # every reader takes its columns by name (backtest core datafile.ts cols, terminal worker.ts brokerData), so the
+    # added columns change nothing for them
+    data = [(*r[:8], freq(r[9]), freq(r[10])) for r in rows]
     gaps = sorted({(r[0], r[3]) for r in rows if r[8]})
     return {'schema_version': SCHEMA_VERSION, 'dataset': 'broker', 'ticker': ticker, 'year': year,
-            'units': {'bv': 'IDR', 'sv': 'IDR', 'bl': 'lots (100 shares; odd lots as fractions)', 'sl': 'lots'},
+            'units': {'bv': 'IDR', 'sv': 'IDR', 'bl': 'lots (100 shares; odd lots as fractions)', 'sl': 'lots',
+                      'bf': 'buy transactions', 'sf': 'sell transactions'},
             'investor_type': 'source investor identity (Foreign/Domestic), not broker domicile',
-            'columns': ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl'],
-            **columnar(data, ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl']), 'gap': [list(g) for g in gaps]}
+            'columns': BROKER_COLUMNS, **columnar(data, BROKER_COLUMNS), 'gap': [list(g) for g in gaps]}
 
 
 def _val(payload, key):
@@ -946,11 +962,13 @@ class Publisher:
         # Values are stored as the table has them: 'Undefined' (no classification) is the readers' to set apart.
         names = ['ticker', 'name', 'type', 'sector', 'industry']
         tickers = {'schema_version': SCHEMA_VERSION, 'columns': names, **columnar(universe, names)}
-        brokers = self.conn.execute('SELECT broker_code, broker_name, broker_type FROM public."IDX_Broker_Profile" '
-                                    'ORDER BY 1').fetchall()
-        brokers_doc = {'schema_version': SCHEMA_VERSION, 'columns': ['code', 'name', 'type'],
+        # EXEC-TERMINAL-FLOW-IND (user 2026-10-30): the observed usage profile (Institutional-heavy, Retail-heavy, Mixed,
+        # Niche; DATABASE_CATALOG) for the Institutional vs Retail Net indicator; readers take columns by name
+        brokers = self.conn.execute(BROKERS_SQL).fetchall()
+        brokers_doc = {'schema_version': SCHEMA_VERSION, 'columns': ['code', 'name', 'type', 'classification'],
                        'type_means': 'broker domicile (label only; the Foreign figures use investor type)',
-                       **columnar(brokers, ['code', 'name', 'type'])}
+                       'classification_means': 'observed usage profile of IDX_Broker_Profile (current, applied to every date)',
+                       **columnar(brokers, ['code', 'name', 'type', 'classification'])}
         for name, doc in (('tickers', tickers), ('brokers', brokers_doc)):
             body, _ = encode(doc)
             self.bucket.put(ref_key(name), body, 'application/gzip')
@@ -1415,6 +1433,11 @@ class Publisher:
         return out
 
 
+BROKER_VERIFY_SQL = ('SELECT count(*), min(trade_date)::text, max(trade_date)::text, sum(buy_value)::float8 + '
+                     'sum(sell_value)::float8, (coalesce(sum(buy_freq), 0) + coalesce(sum(sell_freq), 0))::bigint '
+                     'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE ticker=%s AND trade_date BETWEEN %s AND %s')
+
+
 def verify(conn, bucket):
     """Every published file against SQL: rows, first/last date and column sums."""
     first_year, last_year = window()
@@ -1450,12 +1473,12 @@ def verify(conn, bucket):
                         'AND date BETWEEN %s AND %s', (ticker, lo, hi)).fetchone()
                     got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['c']))
                 else:
-                    sql_row = conn.execute(
-                        'SELECT count(*), min(trade_date)::text, max(trade_date)::text, sum(buy_value)::float8 + '
-                        'sum(sell_value)::float8 FROM public."Feature_05_Foreign_Domestic_Broker_Detail" '
-                        'WHERE ticker=%s AND trade_date BETWEEN %s AND %s', (ticker, lo, hi)).fetchone()
-                    got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['bv']) + sum(doc['sv']))
-                same = got[:3] == tuple(sql_row[:3]) and abs(got[3] - sql_row[3]) <= max(1.0, abs(sql_row[3]) * 1e-9)
+                    # EXEC-TERMINAL-FLOW-IND: the transaction counts too (a file without bf/sf counts as missing them)
+                    sql_row = conn.execute(BROKER_VERIFY_SQL, (ticker, lo, hi)).fetchone()
+                    got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['bv']) + sum(doc['sv']),
+                           sum(v or 0 for v in doc.get('bf', [])) + sum(v or 0 for v in doc.get('sf', [])))
+                same = got[:3] == tuple(sql_row[:3]) and abs(got[3] - sql_row[3]) <= max(1.0, abs(sql_row[3]) * 1e-9) \
+                    and (len(got) < 5 or got[4] == sql_row[4])
                 checked += 1
                 if not same:
                     bad += 1
