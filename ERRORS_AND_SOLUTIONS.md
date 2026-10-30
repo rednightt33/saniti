@@ -4395,6 +4395,39 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 - **Status:** FIXED.
 - **Lesson for new data:** a check tool must not share state keys across runs with the service it checks.
 
+### M308 — Pencarian web selalu gagal: web-governor memakai kunci OpenRouter lama dari deploy 2026-10-18 (2026-10-30)
+
+- **Symptom:** `edge_28475c2616e5ada3765e431f7ff29c9b` (2026-10-30 07:12) meminta agenda ekonomi/moneter minggu depan
+  dari web. Dua `research_web` dijawab `NOT_FOUND` dengan peringatan `SEARCH_FAILED` dalam 0,11 dan 0,23 detik, dengan
+  biaya 0. Penalaran model menyebut `PROVIDER_REJECTED`, dan jawabannya LIMITATION. Log web-governor 7 hari berisi
+  hanya lima panggilan `/v1/orc/web` (juga `edge_04f42c64…`, 2026-10-25), dan kelimanya gagal dengan cara yang sama.
+- **Verified:**
+  - `SEARCH_FAILED` berisi kode `ProviderError`. `PROVIDER_REJECTED` dipakai untuk HTTP 4xx selain 429 dan tidak
+    dicoba ulang (`apps/market-web-governor/app/provider.py:386-390`, `orc_web.py:697`).
+  - Payload yang sama, dikirim dengan kode main dan variabel Railway saat ini (`railway run`), dijawab HTTP 200 dengan
+    sumber. Ini berlaku untuk pencarian tanpa domain dan dengan domain resmi.
+  - Kode yang berjalan sama dengan main: deploy aktif `46bd709d` (2026-10-18, commit `2c093df`), dan
+    `git diff 2c093df origin/main -- apps/market-web-governor` kosong.
+  - `OPENROUTER_API_KEY` web-governor adalah referensi `${{market-ai-orc.OPENROUTER_API_KEY}}`, yang dinilai saat
+    deploy.
+  - Kunci orc saat ini adalah kunci baru: pemakaian seumur hidup USD 1,63, batas USD 10, kedaluwarsa 2026-11-22. Kunci
+    pada 2026-10-15 sudah memakai USD 41 dari batas USD 41–42 (M160).
+- **Suspected (keyakinan tinggi):** kontainer web-governor masih memegang kunci lama yang sudah habis batasnya
+  (HTTP 402) atau dicabut, karena kunci orc diganti sesudah 2026-10-18 tanpa deploy ulang web-governor. Kode status
+  persisnya tidak dicatat di log. Cek yang memastikan: deploy ulang web-governor, lalu satu pencarian berhasil.
+- **Class:** variabel referensi Railway dinilai saat deploy. Mengganti rahasia di layanan sumber membuat setiap layanan
+  yang mereferensikannya basi sampai di-deploy ulang. Daftar saat ini, dari variabel unrendered:
+  - `market-ai-orc.OPENROUTER_API_KEY` dipakai web-governor;
+  - `telegram-monitor.TELEGRAM_NOTIFY_SECRET` dipakai tujuh job/cron;
+  - `market-ai-orc.MARKET_AI_ORC_API_KEY` dipakai edge-bff dan orc-test-runner;
+  - kunci governor dan sandbox dipakai orc.
+
+  Kegagalan ini juga tersembunyi, karena penolakan akun dilaporkan sebagai `NOT_FOUND` ("tidak ditemukan"), dan
+  `/ready` web-governor tidak memeriksa kunci.
+- **Status:** OPEN. Usulan perbaikan menunggu keputusan user.
+- **Lesson:** setiap rotasi rahasia diikuti deploy ulang semua konsumennya. Kegagalan konfigurasi tidak boleh tampil
+  sebagai data tidak ditemukan.
+
 ### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
 
 Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate
