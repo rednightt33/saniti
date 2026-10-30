@@ -1215,3 +1215,65 @@ Bukti (log orc, read-only): 240 s total, 228 s di panggilan model (95%); data da
    keputusan analisis (periode, tabel, metode). Bila dikerjakan, sasaran pertama: satuan/persen yang bisa diturunkan
    backend dari katalog (model menimbang "apakah ini sudah persen?").
 3. Cacat kecil di run yang sama: ERRORS M304 (complete otomatis) dan M305 (tabel ditolak karena huruf besar-kecil).
+
+## Indikator broker × Feature: pemetaan spesifikasi Excel ke Feature 02/03/05/06 (usulan 2026-10-30, menunggu keputusan)
+
+User 2026-10-30: "kita mau buat feature baru dari idx_broker_summary dengan detail spt excel terlampir. bole ensure
+tidak ada duplication dan proposed kira2 kolom apa yang perlu ditambah, untuk melengkapi feature 2,3,5 dan 6. goalnya
+adalh nanti kita mau tambahkan indikator untuk ini di terminal + feature untuk mempermudah AI untuk look up. jadi
+indikator X feature." Lampiran: `indicator_specs.xlsx`, sheet `Indicator_Spec_REVIEWED`, 30 indikator.
+
+**Dasar.** Pemetaan dibuat dari skema dan kode (`DATABASE_SCHEMA.md` F02/F03/F05/F06, migrasi `20260913_009`,
+`20261022_003`, `20261022_004`, `apps/edge-bff/terminal/src/data/brokerAgg.ts`). Data live **belum** dibaca: dari sesi
+ini `PG_WEB_URL` menunjuk ke `postgres.railway.internal` (tidak bisa dijangkau) dan sandi halaman pgweb tidak tersedia.
+Cek live di bawah wajib sebelum eksekusi.
+
+**Prinsip umum (kelas masalah: rasio tidak bisa dijumlah).** Semua indikator di Excel berbentuk rasio atas cakupan
+yang dipilih user (broker tunggal, kelompok broker, Top-N, papan, tipe investor, jendela). Rasio yang disimpan pada
+satu cakupan tidak bisa dijumlahkan ke cakupan lain. Jadi: simpan **komponen yang bisa dijumlah** (value, lots, freq)
+di tingkat paling rinci, simpan rasio hanya untuk cakupan baku (per broker × tipe investor × papan; per saham × papan),
+dan hitung cakupan lain (kelompok broker, "All") saat dibaca, di terminal (pola `brokerAgg.aggregate`) dan di AI
+(jumlahkan komponen F05 lalu bagi).
+
+**Duplikasi yang sudah ada (tidak dibuat ulang):**
+- #29 Broker Buy Breadth = `Feature_03.net_buy_broker_ratio` (persis).
+- #22 Top-N Net Buy Concentration untuk N=3 = `Feature_03.top3_buyer_share` (berbasis value).
+- #17 Buy Persistence = `Feature_02.buy_days_20d/60d`, `buy_day_ratio_20d/60d` (per broker) dan
+  `Feature_06.foreign_buy_days_5d..40d` (asing).
+- #15 Frequency Imbalance untuk kelompok tipe investor = `Feature_06.foreign/domestic_freq_imbalance_1d/20d`
+  (skala 100, bukan pecahan).
+- #16 Net Flow / Turnover untuk asing = `Feature_06.foreign_net_turnover_ratio_1d/5d/20d` (penyebut nilai sisi beli);
+  domestik = minus asing selama `source_balance_gap` false (M157).
+- #1–#4, #11 untuk kelompok tipe investor = `Feature_06.*_avg_buy/sell_lots|value_per_freq_1d`,
+  `*_buy_sell_ticket_ratio_1d`.
+- #23/#24 VWAP beli dan #25/#30 inventory per broker: sudah di terminal (jendela Broker summary: harga rata-rata beli
+  per rentang; panel Broker inventory: net kumulatif dari awal rentang, filter tipe investor dan papan).
+
+**Duplikasi di dalam Excel:** #5 ≡ #12 bila MarketVolume = jumlah lot beli semua broker pada papan yang sama (tiap
+transaksi punya satu pembeli); #25 ≡ #30 (kelompok vs satu broker, rumus sama); #23 dan #24 satu rumus dengan jangkar
+berbeda; #13 = persentil dari #1; #20 = #18 − #19; #14 komposit dari #9, #12, #13, #16 (bukan kolom).
+
+**Celah yang perlu kolom baru (usulan):**
+- Tingkat saham × papan (F03 dan F03_INDEX): `total_buy_lots`, `total_sell_lots`, `total_buy_freq`,
+  `total_sell_freq` (penyebut #5–#10, #12), `buyer_hhi_lots`, `seller_hhi_lots` (#18, #19; berbeda dari
+  `broker_concentration_hhi` yang memakai |net|), `top3_gross_buy_lots_share` (#21). INDEX: HHI tetap NULL (kebijakan
+  yang ada).
+- Tingkat broker × tipe investor × papan (Feature baru, sumber F05 karena hanya F05 membawa `buy_freq`/`sell_freq`):
+  `avg_buy_lots_per_freq_1d`, `avg_sell_lots_per_freq_1d`, `avg_buy_value_per_freq_1d`, `avg_sell_value_per_freq_1d`
+  (#1–#4), `buy_lots_share_1d`, `sell_lots_share_1d`, `buy_freq_share_1d`, `sell_freq_share_1d` (#5–#8),
+  `buy_size_ratio_1d`, `sell_size_ratio_1d` (#9, #10), `buy_sell_ticket_ratio_1d` (#11), `net_turnover_ratio_1d/5d/20d`
+  (#16), `buy_vwap_5d/20d/60d` (#23 rolling), persentil 252 sesi `avg_buy_lots_per_freq_percentile_252d` (#13) dan
+  `net_turnover_ratio_percentile_252d` (#28).
+- F06: `foreign_net_turnover_ratio_percentile_20d_base252d` (#28 untuk asing) dan
+  `foreign_avg_buy_lots_per_freq_percentile_252d` (#13 untuk asing).
+- Tidak disimpan: #14 (komposit, ambang harus parameter/backtest), #20 (selisih dua kolom), #24 anchored VWAP,
+  #26 biaya rata-rata inventory dan #27 (bergantung T0 dan cakupan; hitung saat dibaca).
+
+**Cek live sebelum eksekusi (pgweb read-only):** cakupan `buy_freq`/`sell_freq` NULL per tahun di
+`IDX_Broker_Summary` dan F05 (loader di Git tidak menulisnya, `UPDATE_TABLE.md`); apakah Σ`buy_freq` = Σ`sell_freq`
+per saham × tanggal × papan (seperti identitas value M154) dan per tahun (M157); Σ lot beli vs volume harga F01;
+lot pecahan (odd lot); persentase baris dengan freq = 0 tetapi lot > 0.
+
+**Keputusan terbuka:** (1) Feature baru di tingkat broker vs menambah kolom ke F02; (2) #26/#27 disimpan dengan T0
+awal histori atau hanya dihitung saat dibaca; (3) nilai N untuk Top-N selain 3 dan basis lot vs value; (4) papan
+"All" tetap tidak disimpan (keputusan F06) dan dihitung dari komponen.
