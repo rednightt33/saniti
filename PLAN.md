@@ -37,9 +37,10 @@ mana yang macet. Tapi ini menghapus file dan perlu mengubah satu variabel di Rai
   publisher (penyebab M301 masih dugaan).
 - **Cek sesudahnya:** `garbage_probe.py` (sisa objek tak terpakai mendekati 0), terminal-api `present`, Backtest E2E,
   Screener live check; catat RAILWAY_CHANGELOG dan M301.
-- **Pertanyaan terbuka:** kapan dijalankan. Run 19:00 WIB 2026-10-30 sudah menjalankan listing lengkap yang sama secara
-  otomatis (dibatasi 300 s). Bila run itu berhasil menghapus sisa objek, butir ini tidak perlu dijalankan dan dihapus
-  dari sini. Bila listing macet lagi, run manual ini menjadi langkah diagnosis berikutnya.
+- **Pertanyaan terbuka:** kapan dijalankan.
+- **Hasil run 19:00 WIB 2026-10-30 (M301):** listing lengkap berhasil dalam beberapa detik per folder, jadi diagnosis
+  listing tidak diperlukan lagi. Yang macet adalah permintaan hapus (batch 1.000 kunci). Run manual ini akan macet di
+  tempat yang sama, jadi baru berguna sesudah perbaikan hapus per batch kecil (usulan di M301, menunggu "go").
 
 ## Anggaran reasoning dan penyajian — persetujuan target, audit dahulu
 

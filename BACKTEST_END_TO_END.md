@@ -346,6 +346,7 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   | daily, 2026-10-29 15:21 UTC (manual, 16 threads) | 86.3 s to `state.json`; cleanup after it `gc_failed` at 15:32 | 0 files (nothing changed), manifests read in 34.8 s |
   | daily, 2026-10-30 00:32 UTC (07:30 WIB) | 91.5 s to `state.json`; cleanup after it `gc_failed` at 00:42 | 0 files (no new data) |
   | daily, 2026-10-30 01:57 UTC (manual, `delete_replaced`) | 86.3 s to `state.json`; `replaced` 0, no wait, no full cleanup (manual) | 0 files |
+  | daily, 2026-10-30 12:00 UTC (19:00 WIB) | 127.7 s to `state.json`; deletion after the wait `replaced_failed` and full cleanup `gc_failed` (the delete request times out, ERRORS M301) | 1,655 files, 27.68 MB, 827 tickers |
 
   INFERENCE: the bucket holds about 0.7 GB.
 
