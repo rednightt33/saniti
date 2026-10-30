@@ -38,13 +38,24 @@ export function initPicker(ctx: Ctx) {
   };
   const hideInfo = () => { tip.hidden = true };
   list.addEventListener('pointerover', (e: any) => { const el = e.target.closest('.ind-info'); el ? showInfo(el) : hideInfo() });
-  const pick = (e: any) => {
+  /* keyboard (front-end audit I7): Enter in the search adds the first match, the arrows walk the list, and an item added
+     from the keyboard keeps the focus after the list is redrawn */
+  const items = () => [...list.querySelectorAll('.ind-item')] as HTMLElement[];
+  const refocus = (name: string) => { const el = items().find(x => x.dataset.ind === name); el && el.focus() };
+  const pick = (e: any, viaKey = false) => {
     const it = e.target.closest('.ind-item'); if(!it || e.target.closest('.ind-info')) return;
     if(it.classList.contains('restore')) volCtl.setRemoved(false);
-    else if(Ind.byName[it.dataset.ind]){ Ind.add(Ind.byName[it.dataset.ind]); render() }
+    else if(Ind.byName[it.dataset.ind]){ Ind.add(Ind.byName[it.dataset.ind]); render(); if(viaKey) refocus(it.dataset.ind) }
   };
   list.addEventListener('click', pick);
-  list.addEventListener('keydown', (e: any) => { if((e.key==='Enter' || e.key===' ') && e.target.closest('.ind-item')){ e.preventDefault(); pick(e) } });
+  list.addEventListener('keydown', (e: any) => {
+    if((e.key==='Enter' || e.key===' ') && e.target.closest('.ind-item')){ e.preventDefault(); pick(e, true); return }
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const all = items(), k = all.indexOf(e.target.closest('.ind-item')); if(k < 0) return;
+      e.preventDefault();
+      if(e.key === 'ArrowUp' && k === 0) q.focus(); else all[Math.max(0, Math.min(all.length - 1, k + (e.key === 'ArrowDown' ? 1 : -1)))].focus();
+    }
+  });
   volCtl.onChange = () => { if(!pop.hidden) render() };
   Ind.onChange = () => { if(!pop.hidden) render() };
   list.addEventListener('pointerleave', hideInfo); list.addEventListener('scroll', hideInfo, {passive:true});
@@ -72,6 +83,11 @@ export function initPicker(ctx: Ctx) {
   btn.addEventListener('click', (e: Event) => { e.stopPropagation(); open(pop.hidden) });
   $('indClose').addEventListener('click', () => open(false));
   q.addEventListener('input', render);
+  q.addEventListener('keydown', (e: KeyboardEvent) => {
+    const first = items().find(x => x.classList.contains('act') || x.classList.contains('restore'));
+    if(e.key === 'ArrowDown' && items()[0]) { e.preventDefault(); items()[0].focus() }
+    else if(e.key === 'Enter' && first) { e.preventDefault(); pick({ target:first }, false); q.focus() }
+  });
   document.addEventListener('pointerdown', e => { if(!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) open(false) });
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && !pop.hidden){ open(false); btn.focus() } });
   addEventListener('resize', () => { if(!pop.hidden) place() });

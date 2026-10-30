@@ -1015,3 +1015,18 @@ html.fit .ind-row .ind-k{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .idlg-flow .idlg-row:has(input[type=date]){flex-wrap:wrap;row-gap:8px}
   .idlg-flow .idlg-row:has(input[type=date]) .idlg-ctl{margin-left:auto}
 }
+/* - interaction audit (I1, I6): the row's buttons sit right after its name, ahead of the values, and show on hover (or
+     while the indicator is hidden), so they never move with the hovered values; a value that changed width under a
+     resting pointer moved them away and back every frame (the legend flickered) */
+html.fit .ind-row .ind-k{order:0}
+html.fit .ind-row .ind-eye{order:1}
+html.fit .ind-row > b{order:2}
+html.fit .ind-row:not(:hover):not(:focus-within) .ind-eye:not([aria-pressed="false"]){display:none}
+/* - the chart pick's hint wraps inside the chart and carries a Cancel button (I2, I4: a touch screen has no Esc) */
+.rs-hint{display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);box-sizing:border-box;white-space:normal;text-align:center}
+.rs-cancel{pointer-events:auto;flex:none;height:22px;padding:0 10px;border:1px solid rgba(255,255,255,.45);border-radius:5px;background:transparent;color:#fff;font:500 11.5px var(--sans);cursor:pointer}
+.rs-cancel:hover{background:rgba(255,255,255,.14)}
+@media (hover:none){html.fit .ind-row .ind-eye{display:grid!important;opacity:1}}   /* a touch screen has no hover: the buttons stay */
+/* - phone (audit V5): the centre column's single track is as wide as the screen; it took the toolbar's width (432 px on
+     a 390 px phone), so the chart and its right axis ran 42 px past the edge */
+html.fit .main-col{grid-template-columns:minmax(0,1fr)}

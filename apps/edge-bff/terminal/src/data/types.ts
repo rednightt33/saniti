@@ -4,7 +4,8 @@ import type { FlowRows } from '../calc/flow';
 
 export interface Bar { time: string; open: number; high: number; low: number; close: number }
 export interface Point { time: string; value: number }
-export interface VolumePoint extends Point { color: string }
+/** `none`: the source has no volume for the candle (an index); `value` is then 0 for the histogram only */
+export interface VolumePoint extends Point { color: string; none?: boolean }
 
 /** [ticker, name, sector, last price] — the reference's INSTRUMENTS row (the price only seeds the fixture) */
 export type Instrument = [string, string, string, number];

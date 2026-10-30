@@ -363,10 +363,18 @@ export function initIndicators(ctx: Ctx) {
   // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
   ctx.refreshFlowIndicators = () => list.forEach(inst => { if(inst.def === flowDef || inst.def === flowLineDef || inst.def.flow) recompute(inst) });
   /* EXEC-TERMINAL-FLOW-IND: an anchor on the first visible candle (FL18-FL20) and Broker Inventory (FL23) follow the view */
-  let viewRaf = 0;
+  /* at most one recompute per 120 ms while the view moves (and one after it stops), and only when the first visible candle
+     changed: one per frame made pan and zoom stutter with several of them (front-end audit I12) */
+  let viewTimer: any = 0, viewLast = 0;
+  const firstVisibleIdx = () => { const r = chart.timeScale().getVisibleLogicalRange(); return r ? Math.max(0, Math.min(N - 1, Math.ceil(r.from))) : 0 };
+  const followView = () => {
+    viewTimer = 0; viewLast = performance.now();
+    const fv = firstVisibleIdx();
+    list.forEach(inst => { if(inst.def.viewBound && (inst.def.id === 'FL23' || inst.params.anchor === 'view') && inst.viewAt !== fv) { inst.viewAt = fv; recompute(inst) } });
+  };
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-    if(viewRaf || !list.some(inst => inst.def.viewBound)) return;
-    viewRaf = requestAnimationFrame(() => { viewRaf = 0; list.forEach(inst => { if(inst.def.viewBound && (inst.def.id === 'FL23' || inst.params.anchor === 'view')) recompute(inst) }) });
+    if(viewTimer || !list.some(inst => inst.def.viewBound)) return;
+    viewTimer = setTimeout(followView, Math.max(0, 120 - (performance.now() - viewLast)));
   });
 
   function paintRow(inst, i = ctx.lastTipIdx) {
@@ -419,9 +427,11 @@ export function initIndicators(ctx: Ctx) {
     placeRow(inst);
   }
   const nextBase = () => PALETTE[list.length % 6];
+  const byHid = hid => list.find(i => i.hid === hid);
   function add(defId, saved?) {
     const def = defOf(defId); if(!def) return null;
     const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true };
+    inst.hid = inst.uid;
     if(def.multi) { inst.base = (saved && saved.base) || nextBase(); inst.style = merge(regStyle(def, inst.base), saved && saved.style) }
     else inst.style = { ...defaults(def.style, saved && saved.style), ...(def.style.some(f => f.key === 'color' && f.def !== undefined) ? {} : { color:(saved && saved.style && saved.style.color) || PALETTE[list.length % PALETTE.length] }) };
     if(def.validate && def.validate(inst.params)) inst.params = defaults(def.inputs);     // a saved set that breaks a rule falls back to defaults
@@ -462,7 +472,7 @@ export function initIndicators(ctx: Ctx) {
     const live = needsRecompute => { if(!needsRecompute) return refresh(inst); if(check()) recompute(inst) };
     const row = (label, ctl, hint?, cls = '') => { const l = document.createElement('label'); l.className = 'idlg-row' + cls; const s = document.createElement('span'); s.textContent = label; if(hint) s.title = hint; l.append(s, ctl); return l };
     const numInput = (f, store_, recomputes, isInt) => {
-      const inp: any = document.createElement('input'); inp.type = 'number'; inp.className = 'idlg-in'; inp.min = f.min; inp.max = f.max; inp.step = isInt ? 1 : f.step; inp.value = store_[f.key];
+      const inp: any = document.createElement('input'); inp.type = 'number'; inp.className = 'idlg-in'; inp.min = f.min; inp.max = f.max; inp.title = `From ${f.min} to ${f.max}`; inp.step = isInt ? 1 : f.step; inp.value = store_[f.key];
       const okv = v => Number.isFinite(v) && (!isInt || Number.isInteger(v)) && v >= f.min && v <= f.max;
       inp.oninput = () => { const v = inp.valueAsNumber; inp.classList.toggle('bad', !okv(v)); if(okv(v)) { store_[f.key] = v; live(recomputes) } };
       inp.onchange = () => { let v = inp.valueAsNumber; if(!Number.isFinite(v)) v = f.def; v = Math.min(f.max, Math.max(f.min, isInt ? Math.round(v) : v)); inp.value = v; inp.classList.remove('bad'); store_[f.key] = v; live(recomputes) };
@@ -497,7 +507,11 @@ export function initIndicators(ctx: Ctx) {
       if(f.kind === 'select') {
         const s = document.createElement('select'); s.className = 'idlg-in';
         f.options.forEach(o => s.add(new Option(f.labels ? f.labels[o] ?? String(o) : String(o), String(o), false, String(store_[f.key]) === String(o))));
-        s.onchange = () => { store_[f.key] = typeof f.options[0] === 'number' ? +s.value : s.value; live(recomputes) };
+        s.onchange = () => {
+          store_[f.key] = typeof f.options[0] === 'number' ? +s.value : s.value; live(recomputes);
+          if(recomputes && def.inputs.some(x => x.when)) { paint(); (body.querySelector(`select[data-key="${f.key}"]`) as any)?.focus() }   // fields shown by this choice
+        };
+        s.dataset.key = f.key;
         return row(f.label, s, f.hint);
       }
       if(f.kind === 'multi') {
@@ -514,7 +528,12 @@ export function initIndicators(ctx: Ctx) {
         const state = new Set<string>(f.resolve(store_[f.key]));
         makeFilter(host, { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:f.max,
           getOptions:() => allBrokers().map(b => ({ id:b, label:b })), state,
-          summary:s => s.size === 0 ? 'None' : s.size <= 3 ? [...s].sort().join(', ') : `${s.size} selected`,
+          summary:s => {
+            /* a default given as a rule (a classification, the largest net buyers) is named as such (audit I8) */
+            const tok = typeof store_[f.key] === 'string' && f.tokenLabel ? f.tokenLabel(store_[f.key]) : '';
+            if(tok) return s.size ? `${tok} (${s.size})` : `${tok} (not loaded)`;
+            return s.size === 0 ? 'None' : s.size <= 3 ? [...s].sort().join(', ') : `${s.size} selected`;
+          },
           onChange:() => { store_[f.key] = [...state].sort(); live(recomputes) } });
         return row(f.label, host, f.hint);
       }
@@ -525,7 +544,12 @@ export function initIndicators(ctx: Ctx) {
         inp.title = 'Empty: the first visible candle'; inp.setAttribute('aria-label', f.label);
         inp.onchange = () => { store_[f.key] = inp.value || 'view'; live(recomputes) };
         const pick = document.createElement('button'); pick.type = 'button'; pick.className = 'idlg-btn'; pick.textContent = 'On chart';
-        pick.onclick = () => { back.hidden = true; ctx.selectRangeOnChart(from => { store_[f.key] = from; back.hidden = false; live(recomputes); paint() }) };
+        pick.onclick = () => {
+          back.hidden = true;
+          const back_ = (sel: string) => { back.hidden = false; (body.querySelector(sel) as any)?.focus() };
+          ctx.selectRangeOnChart(from => { store_[f.key] = from; live(recomputes); paint(); back_(`input[aria-label="${f.label}"]`) },
+            () => back_(`input[aria-label="${f.label}"] + .idlg-btn`));
+        };
         box.append(inp, pick);
         return row(f.label, box, f.hint);
       }
@@ -573,7 +597,7 @@ export function initIndicators(ctx: Ctx) {
       closeCpop();
       back.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
       body.innerHTML = '';
-      if(tab === 'Inputs') def.inputs.forEach(f => body.appendChild(field(f, inst.params, true)));
+      if(tab === 'Inputs') def.inputs.forEach(f => { if(!f.when || f.when(inst.params)) body.appendChild(field(f, inst.params, true)) });
       else if(def.multi) styleMulti();
       else def.style.forEach(f => body.appendChild(field(f, inst.style, false)));
       check();
@@ -588,13 +612,15 @@ export function initIndicators(ctx: Ctx) {
            saya tweak"): Ok with changed inputs or style is one step of the chart's undo timeline (Ctrl/Cmd+Z, redo Ctrl+Y) */
         const after = JSON.stringify({ p:inst.params, s:inst.style });
         if(after !== snap) {
-          const set = (json: string) => { if(!list.includes(inst)) return; const o = JSON.parse(json); inst.params = o.p; inst.style = o.s; recompute(inst); save() };
+          const hid = inst.hid;
+          const set = (json: string) => { const cur = byHid(hid); if(!cur) return; const o = JSON.parse(json); cur.params = o.p; cur.style = o.s; recompute(cur); save() };
           Hist.push({ undo:() => set(snap), redo:() => set(after) });
         }
       }
-      back.hidden = true; document.removeEventListener('keydown', onKey, true); openFor = null; inst.row.querySelector('[data-act="cfg"]').focus();
+      back.hidden = true; document.removeEventListener('keydown', onKey, true); openFor = null; inst.row.querySelector('[data-act="cfg"]').focus({ focusVisible:false } as any);
     };
     const onKey = (e: any) => {
+      if(back.hidden) return;                                            // stepped aside for a pick on the chart: its keys are the chart's
       if(cpop && e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); const o = cpop.owner; closeCpop(); o.focus(); return }
       if(document.querySelector('.cs-pop:not([hidden]), .idlg .fl-pop:not([hidden])')) return;      // a dropdown list is open: it handles Esc itself
       if(e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(false) }
@@ -620,7 +646,7 @@ export function initIndicators(ctx: Ctx) {
     };
     document.addEventListener('keydown', onKey, true);
     openFor = inst; back.hidden = false; paint();
-    (body.querySelector('input:not([type=checkbox]),select') || back.querySelector('.idlg-btn.pri')).focus();
+    ([...body.querySelectorAll('input:not([type=checkbox]),select,.fl-btn')].find((x: any) => x.offsetParent) as any || back.querySelector('.idlg-btn.pri')).focus();
   }
 
   /* ---- wiring ---- */
@@ -629,26 +655,32 @@ export function initIndicators(ctx: Ctx) {
   Ind.countOf = id => list.filter(i => i.def.id === id).length;
   Ind.count = () => list.length;
   /* undo / redo: an indicator comes back with the same inputs, style and visibility */
-  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base }));
-  const revive = snap => { const inst = add(snap.def, JSON.parse(JSON.stringify(snap))); save(); Ind.onChange && Ind.onChange(); return inst };
-  const drop = inst => { if(inst && list.includes(inst)) remove(inst) };
+  /* every step names its indicator by a history id that a revived indicator keeps (front-end audit I3: a step holding the
+     object lost it after remove + undo, and a redo then added a second copy) */
+  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid }));
+  const revive = snap => {
+    if(byHid(snap.hid)) return byHid(snap.hid);                       // already there: never a second copy
+    const inst = add(snap.def, JSON.parse(JSON.stringify(snap))); if(inst) inst.hid = snap.hid;
+    save(); Ind.onChange && Ind.onChange(); return inst;
+  };
+  const drop = hid => { const inst = byHid(hid); if(inst) remove(inst) };
   function userAdd(id) {
-    const ref = { inst:add(id) }; if(!ref.inst) return null;
-    const snap = snapOf(ref.inst);
-    Hist.push({ undo:() => drop(ref.inst), redo:() => { ref.inst = revive(snap) } });
-    return ref.inst;
+    const inst = add(id); if(!inst) return null;
+    const snap = snapOf(inst);
+    Hist.push({ undo:() => drop(snap.hid), redo:() => revive(snap) });
+    return inst;
   }
   function userRemove(inst) {
-    const ref = { inst }, snap = snapOf(inst);
+    const snap = snapOf(inst);
     remove(inst);
-    Hist.push({ undo:() => { ref.inst = revive(snap) }, redo:() => drop(ref.inst) });
+    Hist.push({ undo:() => revive(snap), redo:() => drop(snap.hid) });
   }
   Ind.add = id => userAdd(id);
   Ind.removeAll = () => {
     if(!list.length) return;
-    const refs = list.map(inst => ({ inst, snap:snapOf(inst) }));
+    const snaps = list.map(snapOf);
     [...list].forEach(remove);
-    Hist.push({ undo:() => refs.forEach(r => { r.inst = revive(r.snap) }), redo:() => refs.forEach(r => drop(r.inst)) });
+    Hist.push({ undo:() => snaps.forEach(revive), redo:() => snaps.forEach(s => drop(s.hid)) });
   };
 
   /* saved lists from before the registry used 'ma' / 'ema' (one MA indicator with a type switch) */

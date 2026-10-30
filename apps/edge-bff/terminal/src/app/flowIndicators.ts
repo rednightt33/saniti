@@ -53,7 +53,21 @@ export function initFlowIndicators(ctx: Ctx) {
   let classState: 'loading' | 'ready' | 'missing' = M.brokerClass ? 'loading' : 'missing';
   M.brokerClass?.then(c => { classification = c; classState = Object.keys(c).length ? 'ready' : 'missing'; ctx.refreshFlowIndicators?.() },
     () => { classState = 'missing'; ctx.refreshFlowIndicators?.() });
-  const volume = M.volume.map(v => v.value ?? null);
+  // a candle without volume in the source is null here, never the histogram's 0 (an index: FL28 read "Rp 0", audit 2026-10-30)
+  const volume = M.volume.map(v => v.none ? null : v.value ?? null), noVolume = volume.every(v => v === null);
+  /* an indicator that does not read broker rows (prices, insider events): derived once by computing it with no broker rows
+     on prices and volumes of 1, not listed */
+  const ones = dates.map(() => 1), probe: FlowContext = { rows:EMPTY(dates.length), dates, close:ones, volume:ones, insider:[], classification:{} };
+  const brokerFree = new Map<string, boolean>();
+  const isBrokerFree = (r: FlowRegIndicator) => {
+    let v = brokerFree.get(r.id);
+    if (v === undefined) {
+      const p = Object.fromEntries(r.params.filter(q => q.default !== undefined).map(q => [q.key, q.default]));
+      v = Object.values(computeFlow(r.id, probe, p)).some((a: any) => Array.isArray(a) && a.some(x => x !== null));
+      brokerFree.set(r.id, v);
+    }
+    return v;
+  };
   let cached: { rows: FlowRows; ins: InsiderRow[]; cls: Record<string, string>; c: FlowContext } | null = null;
   const context = (): FlowContext => {
     const rows = ctx.flowRows || EMPTY(ctx.N);
@@ -71,6 +85,7 @@ export function initFlowIndicators(ctx: Ctx) {
     Array.isArray(v) ? v : typeof v === 'string' && v.startsWith('class:') ? classBrokers(context(), v.slice(6))
       : v === 'top3_net_buy_20' ? defaultInventoryBrokers(context().rows) : [];
 
+  const tokenLabel = (v: string) => v.startsWith('class:') ? v.slice(6) : v === 'top3_net_buy_20' ? 'Top 3 net buyers, last 20' : v;
   const relabel = (s: string) => s.replace(/\bdays\b/, word).replace(/\bSessions\b/, tf === 'D' ? 'Sessions' : word[0].toUpperCase() + word.slice(1));
   const scopeText = (p: any) => p.scope === 'all' ? 'All brokers' : p.scope === 'selected'
     ? (Array.isArray(p.brokers) && p.brokers.length ? (p.brokers.length <= 3 ? p.brokers.join(', ') : `${p.brokers.length} brokers`) : 'no broker')
@@ -91,15 +106,20 @@ export function initFlowIndicators(ctx: Ctx) {
     };
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
       guides:levels, fill:null, tip:r.tip, info:r.tip + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
+    /* a field that only applies to one broker scope is shown only with it (audit I8: "Brokers: None" beside Top-N) */
+    const hasScope = r.params.some(q => q.key === 'scope');
+    const topnOnly = hasScope ? { when:(p: any) => (p.scope ?? 'topn') === 'topn' } : {};
     const inputs = r.params.filter(q => q.key !== 'levels').map(q => {
-      const base: any = { key:q.key, label:relabel(q.label), hint:q.status === 'PROPOSED' ? 'Proposed default' : undefined };
+      const base: any = { key:q.key, label:relabel(q.label), hint:q.status === 'PROPOSED' ? 'Proposed default' : undefined,
+        ...(['top', 'rank', 'ranking'].includes(q.key) ? topnOnly : {}) };
       switch (q.kind) {
         case 'select': return { ...base, kind:'select', options:q.options!.map(o => o[0]), labels:Object.fromEntries(q.options!.map(o => [o[0], o[1]])), def:q.default };
         case 'multi': {
           const isBoard = q.key === 'boards', all = isBoard ? ctx.BOARDS : ctx.INVESTORS;
           return { ...base, kind:'multi', def:q.default, options:() => all, all:() => all.map(x => x.id), title:isBoard ? 'Board' : 'Investor' };
         }
-        case 'brokers': return { ...base, kind:'brokers', def:q.default, max:q.max ?? undefined, resolve:brokersOf };
+        case 'brokers': return { ...base, kind:'brokers', def:q.default, max:q.max ?? undefined, resolve:brokersOf, tokenLabel,
+          ...(hasScope ? { when:(p: any) => p.scope === 'selected' } : {}) };
         case 'int': return { ...base, kind:'int', min:q.min ?? 1, max:q.max ?? 5000, def:q.default };
         case 'num': return { ...base, kind:'num', min:q.min ?? -1e12, max:q.max ?? 1e12, step:'any', def:q.default };
         case 'bool': return { ...base, kind:'bool', def:!!q.default };
@@ -117,12 +137,9 @@ export function initFlowIndicators(ctx: Ctx) {
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
-        const c = context(), o: any = computeFlow(r.id, c, q);
-        /* an indicator that reads broker rows is null on every candle without them; one with a value there (prices,
-           insider events) gets no broker-data note */
-        o._brokerBased = !Object.values(o).some((a: any) => Array.isArray(a) && a.some((v, t) => v !== null && !c.rows.has[t]));
+        const o: any = computeFlow(r.id, context(), q);
         if (r.id !== 'FL23') return o;
-        const codes = Object.keys(o).filter(k => k !== 'total' && !k.startsWith('_')), slots: any = { _labels:codes, _brokerBased:o._brokerBased };
+        const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
         codes.forEach((c, j) => { slots[SLOTS[j]] = o[c] });
         if (o.total) slots.total = o.total;
         return slots;
@@ -130,7 +147,7 @@ export function initFlowIndicators(ctx: Ctx) {
       /* the legend's text where the value is empty: why, when the reason is the data (plan S4: a message, not a zero) */
       note:(i: number, raw: any, p: any) => {
         const R = ctx.flowRows;
-        if (raw && raw._brokerBased === false) return '';
+        if (isBrokerFree(r)) return noVolume ? 'No volume for this ticker' : '';
         /* a list given as a classification (FL34) waits for the reference file's classes */
         const usesClass = p && Object.values(p).some(v => typeof v === 'string' && v.startsWith('class:'));
         if (usesClass && classState !== 'ready') return classState === 'loading' ? 'Loading the broker classification' : 'No broker classification published yet';

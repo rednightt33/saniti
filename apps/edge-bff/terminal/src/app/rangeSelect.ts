@@ -22,11 +22,15 @@ export function initRangeSelect(ctx: Ctx) {
   const wrap = $('chart').parentElement as HTMLElement;
   let active: (() => void) | null = null;
 
-  ctx.selectRangeOnChart = (done: (from: string, to: string) => void) => {
+  ctx.selectRangeOnChart = (done: (from: string, to: string) => void, cancelled?: () => void) => {
     active?.();
     const layer = document.createElement('div'); layer.className = 'rs-layer';
     const band = document.createElement('div'); band.className = 'rs-band'; band.hidden = true;
+    /* the hint carries a Cancel button: a touch screen has no Esc (front-end audit 2026-10-30, I4) */
     const hint = document.createElement('div'); hint.className = 'rs-hint';
+    const say = document.createElement('span'), cancel = document.createElement('button');
+    cancel.type = 'button'; cancel.className = 'rs-cancel'; cancel.textContent = 'Cancel'; cancel.title = 'Cancel (Esc)';
+    hint.append(say, cancel);
     layer.append(band, hint); wrap.appendChild(layer); wrap.classList.add('rs-on');
     // a deep copy: applyOptions merges into the chart's own option objects, so a reference would turn off too
     const opts: any = chart.options(), keep = JSON.parse(JSON.stringify({ handleScroll:opts.handleScroll, handleScale:opts.handleScale }));
@@ -42,8 +46,8 @@ export function initRangeSelect(ctx: Ctx) {
     /* EXEC-TERMINAL-PANELS-2 (user 2026-10-27: "tinggal click sekali dan click sekali lagi pada tanggal yang sama"): a
        drag picks its sessions at once; a click without a drag sets the first day, the next click the last day (the
        same day gives a one-day period). The band follows the pointer between the two clicks. */
-    const HINT = 'Drag, or click the first and the last day (twice the same day for one day) · Esc to cancel';
-    hint.textContent = HINT;
+    const HINT = 'Drag, or click the first and the last day (twice the same day for one day)';
+    say.textContent = HINT;
     let x0: number | null = null, pressed = false, firstClick = false;
     const sessions = (a: number, b: number) => sessionsBetween(ctx.dates, logical(Math.min(a, b)) ?? NaN, logical(Math.max(a, b)) ?? NaN);
     // EXEC-TERMINAL-WM: a weekly or monthly candle's period runs to its last session
@@ -56,10 +60,10 @@ export function initRangeSelect(ctx: Ctx) {
       const a = xa != null ? xa - w / 2 : Math.min(x0!, x1), b = xb != null ? xb + w / 2 : Math.max(x0!, x1);
       band.hidden = false; band.style.left = left() + a + 'px'; band.style.width = Math.max(1, b - a) + 'px';
       const e = s ? endOf(s[1]) : '';
-      hint.textContent = s ? (s[0] === e ? longDay(s[0]) : `${longDay(s[0])} – ${longDay(e)}`) + (firstClick ? ' · click the last day' : '') : HINT;
+      say.textContent = s ? (s[0] === e ? longDay(s[0]) : `${longDay(s[0])} – ${longDay(e)}`) + (firstClick ? ' · click the last day' : '') : HINT;
     };
     const down = (e: PointerEvent) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || (e.target as HTMLElement).closest('.rs-cancel')) return;
       e.preventDefault(); layer.setPointerCapture(e.pointerId); pressed = true;
       if (!firstClick) { x0 = xOf(e); paint(x0) }
     };
@@ -80,17 +84,21 @@ export function initRangeSelect(ctx: Ctx) {
       const x1 = xOf(e);
       if (!firstClick && Math.abs(x1 - x0) < 3) { firstClick = true; paint(x1); return }   // the first click: wait for the second
       const s = sessions(x0, x1);
-      stop(); if (s) done(s[0], endOf(s[1]));
+      stop(!!s); if (s) done(s[0], endOf(s[1]));
     };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') stop() };
-    function stop() {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); stop() } };
+    /* a pick that ends without a range (Esc, Cancel, a cancelled pointer, another pick) tells its caller, so a dialog that
+       stepped aside comes back (front-end audit I2) */
+    function stop(picked = false) {
       layer.remove(); wrap.classList.remove('rs-on'); document.removeEventListener('keydown', key);
       cross(null); chart.applyOptions({ ...keep, ...keepXh } as any); active = null;
+      if (!picked) cancelled?.();
     }
+    cancel.addEventListener('click', () => stop());
     layer.addEventListener('pointerdown', down); layer.addEventListener('pointermove', move);
     layer.addEventListener('pointerleave', () => cross(null));
-    layer.addEventListener('pointerup', up); layer.addEventListener('pointercancel', stop);
+    layer.addEventListener('pointerup', up); layer.addEventListener('pointercancel', () => stop());
     document.addEventListener('keydown', key);
-    active = stop;
+    active = () => stop();
   };
 }

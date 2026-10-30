@@ -125,7 +125,7 @@ export interface Ctx {
   /* EXEC-TERMINAL-FLOW-IND, live: the raw broker rows on the candles (worker.ts flowRowsOf), for the Flow indicators */
   flowRows?: FlowRows;
   /* EXEC-TERMINAL-PANELS: drag a period on the main chart (rangeSelect.ts) */
-  selectRangeOnChart: (done: (from: string, to: string) => void) => void;
+  selectRangeOnChart: (done: (from: string, to: string) => void, cancelled?: () => void) => void;
   crosshairAt: (i: number | null) => void;           // flow.ts: both charts' crosshair on session i
   /* EXEC-TERMINAL-FRESH: the last session with broker data (N - 1 when none is missing); later sessions are no data */
   brokerEnd: number;

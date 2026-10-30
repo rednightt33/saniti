@@ -237,7 +237,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
   // EXEC-TERMINAL-WM: the chart's candles (daily, or built from the daily sessions); `ends` = each candle's last session
   const sessions = rows.map(r => r.d), groups = buckets(sessions, tf), candles = aggregateRows(rows, tf), ends = groups.ends;
   const ohlc: Bar[] = candles.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
-  const volume: VolumePoint[] = candles.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)' }));
+  const volume: VolumePoint[] = candles.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)', ...(r.v == null ? { none:true } : {}) }));
   const lineData: Point[] = ohlc.map(b => ({ time:b.time, value:b.close }));
   const dates = ohlc.map(b => b.time), N = dates.length;
 
