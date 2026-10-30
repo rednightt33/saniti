@@ -950,8 +950,12 @@ institusi/ mana broker retail. Tapi ini nanti saja saat pembangunan screener."; 
 This is for later setelah fase terminal done."; nama "Samakan"; varian Screener "lebih baik dibuat baru, dengan nama
 indikator dipisahkan". Usulan FL24-FL39 (dari metrik Screener) di Excel untuk direview user.
 
-Pertanyaan terbuka: batas label Bandar Balance FL24 (Screener 6/10% vs panel Terminal 3/6/12%) dan Top N default (3 vs
-5); review FL24-FL39.
+Keputusan 2026-10-31 lanjutan (kata user): Bandar "Kita pakai B dulu ya which B: pakai batas Screener (6/10%), default
+Top 3." (berlaku untuk FL24, panel Bandar Terminal `broker.ts` verdict, dan Screener); "Semua indikator F24-35 OK kecuali:"
+FL25, FL33, FL34.
+
+Pertanyaan terbuka: FL25 dipertahankan atau tidak; FL33 cukup dengan Recent sessions = 1; FL34 kelompok institusi/ritel
+dipilih user; FL36-FL39 belum direview.
 
 ## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
 
