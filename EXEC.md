@@ -9013,3 +9013,5 @@ sepertinya belum aktif, cek yg lain"; pilihan user "1 2 4"). Front-end edge-bff 
   di bawah induk, ⌘K) ditambahkan; tes yang mengharapkan "Public sharing unavailable" nonaktif disesuaikan. Suite edge-bff:
   269 lulus, 1 gagal = baseline (`test_ui_1015c` judul pendek di 1440; dua tes `test_composer_layout` mobile baseline kali
   ini lulus).
+- Deploy: edge-bff `e9e2794b` (`b92c7c2`) dan `20fb04fa` (`b3d55ad`, jarak 16 px di bawah bar lineage dari cek live)
+  SUCCESS; cek live read-only di `RAILWAY_CHANGELOG.md`.

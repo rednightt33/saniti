@@ -5281,3 +5281,18 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   opens in a browser without a page error and starts light. Signed-in screens were checked on the static preview and
   the edge-bff suite before the push (267 passed, 3 failed = the `main` baseline), not live (no credentials used).
 - **Rollback:** redeploy edge-bff `074b2cc9` (commit `85f1e6c`).
+
+## 2026-10-30 — edge-bff `e9e2794b`, `20fb04fa` (EXEC-MONITOR-REVAMP lanjutan "1 2 4": Branch nesting, lineage bar, sidebar Share, ⌘K)
+
+- **Commits:** `b92c7c2` on `main` → edge-bff deployment `e9e2794b` SUCCESS (05:24:58 created, SUCCESS by 05:25:35
+  UTC); `b3d55ad` (16 px under the lineage bar) → `20fb04fa` SUCCESS (05:29:50 created, SUCCESS by 05:30:26 UTC).
+  Front end only (static page, `edge-client.js` list mapping, labels); no variable, no other service.
+- **Before the push:** no `edge_` run in flight (market-ai-orc log: last `POST /v1/agent/run` was `edge_deb3fc4d…` on
+  2026-10-29 19:29 UTC, saved; later entries only reads; checked 05:24 UTC).
+- **Checks (live, read-only; signed in with the Railway-held login in memory, no question sent, no bookmark, pin,
+  delete or share file):** `/monitor`, `edge-client.js` and `edge-labels.js` byte-identical to `b3d55ad`; 55
+  conversations, the 2 Branch rows sit under their parent with the branch icon (16 px indent); the lineage bar heads the
+  branch, 768 px wide like the first turn, 16 px above it; "Share latest answer" is enabled and opens PDF/PNG/Word;
+  Ctrl+K focuses "Search conversations"; the Details text without a run is the prototype's; light and dark; no page
+  error (the only HTTP ≥400 is the 401 session probe before signing in).
+- **Rollback:** redeploy edge-bff `56c765d0` (commit `71f31c6`).
