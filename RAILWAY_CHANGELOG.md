@@ -5296,3 +5296,17 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   Ctrl+K focuses "Search conversations"; the Details text without a run is the prototype's; light and dark; no page
   error (the only HTTP ≥400 is the 401 session probe before signing in).
 - **Rollback:** redeploy edge-bff `56c765d0` (commit `71f31c6`).
+
+## 2026-10-30 — edge-bff `b5e5e8ac` (Monitor: Terminal-speed running ring, dates "19 October 2026", suggestions folded)
+
+- **Commit:** `c65be8a` on `main` (rebased onto `4f7bdaf`, ERRORS M308 from another session; no overlap) → edge-bff
+  deployment `b5e5e8ac` SUCCESS (07:34:17 created, SUCCESS by 07:34:55 UTC). Front end only; no variable, no other
+  service.
+- **Before the push:** no `edge_` run in flight (market-ai-orc log: last run `edge_28475c26…` completed 07:12:56 UTC;
+  checked 07:33 UTC).
+- **Checks (live, read-only; login from Railway in memory, no question sent):** `/monitor` byte-identical to `c65be8a`;
+  on a 390 px phone, the user's IHSG conversation shows its table dates as "19 October 2026" (0 ISO dates left in the
+  answers), "Suggested next questions (5)" and "Insight ideas (3)" folded and closed, no kind pill; the served style
+  turns the running rings in 0.15 s; no page error. The running card itself was not shown live (it needs a question
+  sent); it is covered by the edge-bff suite (268 passed, 2 failed = baseline).
+- **Rollback:** redeploy edge-bff `20fb04fa` (commit `b3d55ad`).

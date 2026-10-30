@@ -9030,3 +9030,5 @@ Lanjutan 2026-10-30 siang (screenshot HP user). Front-end edge-bff saja:
   `.ml-spin` Terminal; dengan "kurangi gerakan" 1,6 s. Baris "AI request running" disembunyikan begitu langkah Orc
   tampil, sehingga kartu menyebut "Running" sekali (prototipe). Tumpang-tindih yang terlihat di screenshot ternyata
   coretan pena: reproduksi HP 390 px menunjukkan kotak bersebelahan, tidak bertumpuk.
+- Tes: suite edge-bff 268 lulus, 2 gagal = baseline. Deploy edge-bff `b5e5e8ac` (`c65be8a`) SUCCESS; cek live di
+  `RAILWAY_CHANGELOG.md`.
