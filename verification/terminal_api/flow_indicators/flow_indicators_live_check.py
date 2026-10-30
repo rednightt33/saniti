@@ -121,6 +121,7 @@ try:
         page.screenshot(path=str(out / 'menu_bandar.png'))
         page.keyboard.press('Escape')
         J("window.marketLabIndicators.removeAll()"); J("window.marketLabIndicators.add('FL01')"); page.wait_for_timeout(500)
+        page.hover('.ind-row[data-def="FL01"]')   # the row's buttons show on hover (front-end audit I1)
         page.click('.ind-row[data-def="FL01"] [data-act="cfg"]'); page.wait_for_timeout(300)
         report['dialog_FL01'] = J("[...document.querySelectorAll('.idlg-body .idlg-row')].map(r => r.innerText.replace(/\\s+/g, ' ').trim())")
         page.screenshot(path=str(out / 'dialog_FL01.png'))

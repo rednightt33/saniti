@@ -472,7 +472,8 @@ export function initIndicators(ctx: Ctx) {
     const live = needsRecompute => { if(!needsRecompute) return refresh(inst); if(check()) recompute(inst) };
     const row = (label, ctl, hint?, cls = '') => { const l = document.createElement('label'); l.className = 'idlg-row' + cls; const s = document.createElement('span'); s.textContent = label; if(hint) s.title = hint; l.append(s, ctl); return l };
     const numInput = (f, store_, recomputes, isInt) => {
-      const inp: any = document.createElement('input'); inp.type = 'number'; inp.className = 'idlg-in'; inp.min = f.min; inp.max = f.max; inp.title = `From ${f.min} to ${f.max}`; inp.step = isInt ? 1 : f.step; inp.value = store_[f.key];
+      const inp: any = document.createElement('input'); inp.type = 'number'; inp.className = 'idlg-in'; inp.min = f.min; inp.max = f.max; inp.step = isInt ? 1 : f.step; inp.value = store_[f.key];
+      if(def.flow) inp.title = `From ${f.min} to ${f.max}`;              // the range (audit I16), Flow only: the fixture's dialogs stay 1:1
       const okv = v => Number.isFinite(v) && (!isInt || Number.isInteger(v)) && v >= f.min && v <= f.max;
       inp.oninput = () => { const v = inp.valueAsNumber; inp.classList.toggle('bad', !okv(v)); if(okv(v)) { store_[f.key] = v; live(recomputes) } };
       inp.onchange = () => { let v = inp.valueAsNumber; if(!Number.isFinite(v)) v = f.def; v = Math.min(f.max, Math.max(f.min, isInt ? Math.round(v) : v)); inp.value = v; inp.classList.remove('bad'); store_[f.key] = v; live(recomputes) };
@@ -511,7 +512,7 @@ export function initIndicators(ctx: Ctx) {
           store_[f.key] = typeof f.options[0] === 'number' ? +s.value : s.value; live(recomputes);
           if(recomputes && def.inputs.some(x => x.when)) { paint(); (body.querySelector(`select[data-key="${f.key}"]`) as any)?.focus() }   // fields shown by this choice
         };
-        s.dataset.key = f.key;
+        if(def.flow) s.dataset.key = f.key;
         return row(f.label, s, f.hint);
       }
       if(f.kind === 'multi') {
