@@ -36,6 +36,7 @@ for k, (at, s) in unused.items():
     f = k.split('/')[0]; n, b = by.get(f, (0, 0)); by[f] = (n + 1, b + s)
 old = [at for at, _ in unused.values()]
 print(json.dumps({'objects': len(objs), 'bytes_mb': round(total / 1e6, 1), 'named_by_current_publication': len(named),
+                  'named_but_missing': len(named - set(objs)),
                   'unused_objects': len(unused), 'unused_mb': round(sum(s for _, s in unused.values()) / 1e6, 1),
                   'unused_by_family': {f: {'objects': n, 'mb': round(b / 1e6, 1)} for f, (n, b) in sorted(by.items())},
                   'unused_oldest': min(old).isoformat() if old else None, 'unused_newest': max(old).isoformat() if old else None,

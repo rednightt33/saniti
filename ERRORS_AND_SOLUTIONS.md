@@ -4270,8 +4270,27 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
   RAILWAY_CHANGELOG): the manual run published 86.3 s after its start, replaced nothing (`replaced` 0, so no wait) and
   logged the new per-folder `listed` lines; terminal-api `present`, Backtest E2E and the Screener check passed. 2,256
   objects (13.7 MB, written 2026-10-25 to 2026-10-28) are named by no publication (`garbage_probe.py`).
-- **Status:** speed FIXED on dev (the write path is measured by the 19:00 WIB run); cleanup listing OPEN until the
-  19:00 WIB run of 2026-10-30 shows its deletion after the wait and its per-folder full cleanup.
+- **The 19:00 WIB run of 2026-10-30 (SCHED `8d4e509c`, PUBLISHER_SPEED.md section 7.7):**
+  - The write path was measured: 1,655 files, 27.68 MB, `state.json` 127.7 s after the start (3,314.5 s on 2026-10-29).
+  - The deletion after the wait ended `replaced_failed` `ReadTimeoutError` after three retries.
+  - The full cleanup listed every folder in seconds (20,000+ keys, slowest page 1.3 s), then ended `gc_failed` step
+    `sweep` at its 300 s bound, while deleting.
+  - Read-only probe: 0 named objects missing; 528 of the 827 replaced packs gone, while every replaced price file and
+    the xsection file remain (the batches go sorted, packs first).
+- **Root cause, corrected (verified, logs and probe):** the listing does not hang. What hangs is the multi-object
+  delete request (`Bucket.delete`, `DeleteObjects`, 1,000 keys a batch). The bucket carries out part of the batch, but
+  its answer does not come within the client's 30 s read timeout, and the retries fail the same way. The "listing
+  hangs" reading above was SUSPECTED and is refuted; the old cleanup logged neither listing pages nor delete batches.
+  SUSPECTED, not verified: the bucket's time per deleted key makes a 1,000-key batch take longer than 30 s.
+- **Class (corrected):** any bulk request whose server time grows with its size, sent in one piece under a fixed
+  timeout. Here that is the deletes of every content-keyed family; the same holds for any future bulk copy or delete.
+- **Proposed fix (needs go):**
+  - `Bucket.delete` sends small batches (for example 50 keys), a few in parallel, and logs each batch's keys and
+    seconds.
+  - A batch that times out is asked again (deleting a missing key is harmless). The size is checked on dev with one
+    measured batch.
+- **Status:** speed FIXED on dev. Deletion OPEN: no failure for readers (0 named objects missing), and 3,383 unused
+  objects (32.5 MB) wait for the fix.
 - **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
   before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path. A run deletes what it
   replaced itself, by name; a whole-store listing is only a safety net, never the normal path.
