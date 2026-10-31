@@ -55,3 +55,13 @@ run harian), SQL lewat pgweb (role read-only). Tidak ada yang ditulis.
   2.458.812 nilai.
   - Indikator, swing dan `close`: 0 beda di atas 1e-10.
   - 52 flag candle lama berbeda (M314), semuanya ≤ 2026-06-10.
+
+## Seluruh riwayat semua saham vs TradingView (2026-10-31, `full_scan.py`)
+
+- 844 saham, 1.331.073 baris tersimpan. Setiap baris ada di TradingView.
+- 829 saham: close sama di setiap hari sejak 2018. Riwayat bulk load sebelum 2026-09-12 sudah disesuaikan, misalnya
+  AGRO 2020-12-02 close 591,928975.
+- 6 saham (AHAP, BUVA, ENRG, FORU, PBSA, VKTR): rasio tetap dari baris pertama sampai sehari sebelum ex-date.
+- 9 saham: selisih ≤ 0,0004 % hanya pada 2020-12-02. Ada 24 hari-saham dengan close atau volume berbeda pada tanggal
+  itu, ditambah volume GOTO 2026-10-12 (200 lembar).
+- Hari di TradingView yang tidak ada di database: hanya 2026-09-17 (830 saham) dan 2026-09-18 (829 saham).
