@@ -196,11 +196,9 @@ def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browse
         frame_width = short.evaluate('f => f.getBoundingClientRect().width')
         natural = short.locator('table').evaluate("t => { const w = t.style.width; t.style.width = 'max-content'; "
                                                   "const n = t.getBoundingClientRect().width; t.style.width = w; return n; }")
-        # MONITOR-REVAMP (user 2026-10-29, AI_revamp.html .tblscroll): at least as wide as its content, and on a wide
-        # screen the whole framed box
-        assert table_width >= natural - 1 and table_width <= frame_width, (width, table_width, natural)
-        if width > 720:
-            assert frame_width - table_width <= 3, (table_width, frame_width)
+        # user 2026-10-31 ("jarak antara kolom ke kolom tidak even"; chose "Selebar isi"): as wide as its content,
+        # never stretched over the box, so every gap between columns is the same
+        assert natural - 1 <= table_width <= natural + 1 and table_width <= frame_width, (width, table_width, natural)
         cells = page.locator('article.result').nth(1).locator('tbody tr').first.locator('td')
         one_line = cells.nth(0).evaluate('td => parseFloat(getComputedStyle(td).lineHeight)')
         for column in (0, 1, 3):  # code, date, amount: one line each
@@ -296,10 +294,11 @@ def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertic
             shadows = tables.nth(table).evaluate("""t => [...t.querySelectorAll('th,td')].map(c => {
                 const s = getComputedStyle(c); return [s.boxShadow, s.borderLeftWidth, s.borderRightWidth]; })""")
             assert all(box == 'none' and left == '0px' and right == '0px' for box, left, right in shadows), shadows[:3]
-        # MONITOR-REVAMP (AI_revamp.html .tblscroll): the table fills its framed box, as wide as the answer
+        # user 2026-10-31 (chose "Selebar isi"): a table is as wide as its content, not stretched over its box
         for table in range(3):
-            fill = tables.nth(table).evaluate("t => t.parentElement.clientWidth - t.getBoundingClientRect().width")
-            assert fill <= 1 or width <= 720, (width, table, fill)
+            stretch = tables.nth(table).evaluate("t => { const w = t.getBoundingClientRect().width, s = t.style.width; t.style.width = 'max-content'; "
+                                                 "const n = t.getBoundingClientRect().width; t.style.width = s; return w - n; }")
+            assert stretch <= 1, (width, table, stretch)  # wider than a phone it scrolls sideways
         # the phone's sticky first cell takes its row's hover colour (the row reads as one band)
         row = tables.nth(1).locator('tbody tr').first
         row.locator('td').nth(1).hover()

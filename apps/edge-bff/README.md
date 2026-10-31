@@ -244,7 +244,8 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 - Tables (EXEC-TABLE-CLAUDE, user 2026-10-31: "duplikat saja pakai contoh dari Claude"): an answer table reads like a
   Claude table: no frame or grey header band, a semibold header over one stronger line, hairlines between rows, each
   title and cell left-aligned and in the middle of its row, numbers included (TABLE-ALIGN-A, user 2026-10-31: the
-  alignment of the table before MONITOR-REVAMP, E13), the sort arrow faint after the title without taking width,
+  alignment of the table before MONITOR-REVAMP, E13), the table as wide as its content so every gap between columns
+  is the same, one line above the titles as strong as the one under them, the sort arrow faint after the title,
   and the table's edges on the answer text's. A title over 14 characters wraps there and is never squeezed narrower.
   A wrapped number title shows its arrow only on hover, focus or when sorted. Response history and Pinned responses
   share one type (title 12 px medium in two 17 px lines, status 10.5 px); a history dot takes `Edge.statusTone`. The
