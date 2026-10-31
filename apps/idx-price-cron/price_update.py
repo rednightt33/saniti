@@ -302,7 +302,11 @@ def request_symbol(
     bars_requested: int,
     timeout: float,
     query_date: date,
+    *,
+    resolution: str = "1D",
 ) -> list[dict]:
+    """The series' bars at `resolution` (TradingView: "1D", or minutes such as "5", "15", "60", "240" for the intraday
+    loader, EXEC-INTRADAY-IDX); each row carries its Asia/Jakarta date and source_bar_time."""
     alias = f"symbol_{symbol.ordinal}_{random.randrange(1_000_000)}"
     series_id = f"s{symbol.ordinal}"
     definition = "=" + json.dumps(
@@ -317,7 +321,7 @@ def request_symbol(
     ws.send(
         frame(
             "create_series",
-            [chart_session, series_id, series_id, alias, "1D", bars_requested],
+            [chart_session, series_id, series_id, alias, resolution, bars_requested],
         )
     )
 

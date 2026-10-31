@@ -9363,3 +9363,145 @@ mana yang macet. Tapi ini menghapus file dan perlu mengubah satu variabel di Rai
 - **Hasil run 19:00 WIB 2026-10-30 (M301):** listing lengkap berhasil dalam beberapa detik per folder, jadi diagnosis
   listing tidak diperlukan lagi. Yang macet adalah permintaan hapus (batch 1.000 kunci). Run manual ini akan macet di
   tempat yang sama, jadi baru berguna sesudah perbaikan hapus per batch kecil (usulan di M301, menunggu "go").
+
+## EXEC-INTRADAY-IDX — ingestion harga saham dan IHSG 5 menit, 15 menit, 1 jam dan 4 jam ke tabel baru (go 2026-10-31; Feature dan rak nanti)
+
+**Go user, 2026-10-31**, jawaban atas pertanyaan terbuka: "1A 2OK 3semua 4 no, ini ingestion saja ke table baru seharusnya
+tidak berpengaruh. INi masih ingestion, belum proses pemindahan data ke rak." Bersama "Sekarang proses penarikan data
+dulu saja. Feature bisa nanti", ini dibaca sebagai go untuk ingestion sekarang, paralel dengan EXEC-PRICE-GAP-0917.
+- **1A:** kedalaman yang tersedia di TradingView, lalu dikumpulkan ke depan setiap hari. 4 jam dipotong mulai
+  2020-01-01 (kata user "dari 2020").
+- **2:** sekali sesudah bursa tutup.
+- **3:** 5 menit disimpan semua.
+- **4:** tidak menunggu EXEC-PRICE-GAP-0917. Tabel baru tanpa trigger ke Feature, dan belum ada publikasi ke rak.
+
+Lingkup:
+- tabel baru beserta katalog (`Table_Catalog`, `Column_Catalog`) dan log muat;
+- loader di `apps/idx-price-cron` (klien TradingView yang sama);
+- penarikan riwayat sekali;
+- cron harian baru sesudah cron harga harian.
+
+Belum termasuk: Feature 01/04 intraday, rak/Terminal, onboarding AI, notifikasi Telegram.
+
+
+**Permintaan user, 2026-10-31:** "saya mau buat separete table, yang isinya adalah harga2 saham untuk timeframe 5, 15,
+1 jam dan 4 jam. beserta feature calculation untuk 4 timeframee tersebut. ini table terpisah adari price_stockIDX.
+Boleh bantu design bagusnya gimana/ apakah kita pisah saja feature 1 dan 4 serta table price_stock_IDX? nanti ini akan
+kita display juga di timeframe." Ini permintaan desain, belum persetujuan rencana.
+
+**Keputusan user, 2026-10-31 (persetujuan rencana, belum go eksekusi):** "kecuali timeframe 5 menit, semua timeframe
+kita tarik saja dari 2020. Sekarang proses penarikan data dulu saja. Feature bisa nanti. IHSG juga. 5. B tetap tampil
+dengna label harian. Anything else?"
+- Lingkup sekarang: harga 5 menit, 15 menit, 1 jam dan 4 jam untuk saham dan IHSG. Feature 01/04 intraday nanti.
+- 15 menit, 1 jam dan 4 jam diminta sejak 2020; 5 menit sejauh yang tersedia.
+- Terminal: panel Flow dan Bandar tetap tampil di timeframe intraday dengan label "harian" (keputusan 5 B).
+
+**Batas sumber yang memengaruhi "sejak 2020"** (2026-10-31, `verification/intraday_design/intraday_more.py`):
+`request_more_data` tidak memberi bar lebih tua. BBCA 15 menit berhenti di 2025-11-03 (5.289 bar), tetap sama sesudah
+empat permintaan tambahan. Akses TradingView tanpa akun (`unauthorized_user_token`) dibatasi sekitar 5.000 bar per
+seri.
+- 4 jam sejak 2020: tersedia.
+- 1 jam: hanya sejak 2023-01.
+- 15 menit: hanya sejak 2025-11.
+- 5 menit: hanya sejak 2026-07.
+
+Untuk 1 jam dan 15 menit sejak 2020 dibutuhkan sumber lain atau akun dengan batas bar lebih besar (lihat pertanyaan
+terbuka).
+
+**Bukti (2026-10-31, read-only, `verification/intraday_design/`; TradingView lewat klien `price_update.py`,
+`adjustment: splits`):**
+
+- **Kedalaman per permintaan** (sekitar 5.000 bar):
+
+  | Timeframe | Riwayat tersedia | Bar per hari |
+  |---|---|---|
+  | 5 menit | 2026-07-13, ±78 sesi | 67 |
+  | 15 menit | 2025-11-03 | 23 |
+  | 1 jam | 2023-01-02 | 6–7 |
+  | 4 jam | 2016-01-04 (BBCA), 2020-12-30 (WIFI) | 2 (09:00, 13:00) |
+
+  Artinya:
+  - riwayat 5 menit yang lebih tua dari ±3,5 bulan tidak bisa diambil lagi;
+  - hari yang terlewat lebih lama dari itu hilang untuk 5 menit.
+- **Bentuk bar:**
+  - waktu bar = waktu buka di Asia/Jakarta;
+  - ada jeda istirahat (sesi 2 mulai 13:30, Jumat 14:00);
+  - ada bar sesudah penutupan 16:00–16:10 (5 menit).
+- **Konsistensi antar-timeframe dan dengan candle harian** (BBCA, WIFI, GOTO, 23–29 Okt):
+  - 5 menit, 15 menit, 1 jam dan 4 jam memberi jumlah per hari yang identik (satu aliran data);
+  - close, high dan low sama dengan candle harian;
+  - volume intraday 94,9–99,9 % dari volume harian;
+  - open kadang beda (lelang pra-pembukaan).
+
+  Harian tidak boleh diturunkan dari intraday, dan identitas ini dicatat di katalog (Part A 15a).
+
+**Usulan desain**
+
+1. **Tabel harian tidak diubah.** `Price_Stock_Indonesia_IDX`, Feature 01 dan Feature 04 sudah dipakai AI, Screener,
+   Backtest dan Terminal, dengan indeks dan aturan Governor yang terukur untuk harian. Intraday dibuat sebagai keluarga
+   tabel terpisah.
+2. **Harga: satu tabel `price_stock_idx_intraday`** (nama snake_case, Part A 20).
+   - **Kunci:** `(ticker, timeframe, bar_time)`.
+   - **Kolom:**
+     - `timeframe` dari daftar tetap `CHECK ('5m','15m','1h','4h')` (A4);
+     - `bar_time timestamptz` = waktu buka bar (A5);
+     - `session_date date` = tanggal bursa;
+     - `open`, `high`, `low`, `close`, `volume` (lembar), numeric;
+     - `is_final`, yaitu bar sudah tutup;
+     - `source`, `tradingview_symbol`, `query_date`, `ingestion_time` (`statement_timestamp()`);
+     - penyesuaian harga dinyatakan "split-adjusted versi TradingView" (A14).
+   - **Partisi:** per timeframe (LIST). Untuk 5 menit ditambah per bulan (RANGE `session_date`), supaya ukuran dan
+     retensinya bisa diatur.
+   - **Perkiraan ukuran** untuk 844 saham, dihitung dari bar per hari × ±245 hari, belum diukur di database:
+
+     | Timeframe | Baris per tahun |
+     |---|---|
+     | 5 menit | ±14 juta |
+     | 15 menit | ±4,8 juta |
+     | 1 jam | ±1,3 juta |
+     | 4 jam | ±0,4 juta |
+
+     Ukuran disk diukur dari sampel sebelum dibuat (A25).
+   - **Satu tabel dengan kolom timeframe, bukan empat tabel:** satu loader, satu aturan kualitas, satu katalog. Partisi
+     tetap memisahkan ukuran dan indeksnya.
+3. **Pengambilan: tiap timeframe ditarik langsung dari TradingView**, bukan dibentuk dari 5 menit.
+   - Alasan: riwayat 15 menit, 1 jam dan 4 jam jauh lebih dalam, dan pembagian bar (misalnya 4 jam pada 09:00 dan
+     13:00) sama persis dengan yang dilihat pengguna di TradingView.
+   - Cek silang harian: jumlah 5 menit = 15 menit = 1 jam = 4 jam per sesi.
+   - Cron sesudah penutupan, dengan tumpang tindih beberapa bar, sehingga koreksi dan penyesuaian ulang terlihat.
+   - Baris kualitas per sesi (A28): jumlah saham ber-bar, bar per saham dibanding sesi normal, dan rasio volume
+     terhadap harian.
+4. **Feature 04 intraday: tabel terpisah `feature_04_technical_indicator_intraday`, mesin yang sama.**
+   - Rumusnya dihitung per bar: SMA, EMA, RSI, MACD, ATR, Bollinger, ADX, pola candle, SMI, swing. `engine.py` yang sama
+     dengan VERSION yang sama, jadi konsisten dengan harian.
+   - Worker incremental-nya dipakai ulang: titik simpan per `(ticker, timeframe)`, jendela koreksi dalam bar.
+   - Tidak dicampur ke tabel harian karena ±20 juta baris per tahun akan mengubah perilaku indeks dan aturan baca harian.
+     Tabel harian memang sudah punya kolom `timeframe`, tetapi semua pembacanya mengandaikan harian.
+5. **Feature 01 intraday: definisi baru, bukan salinan.**
+   - Feature 01 harian memakai jendela 1/5/20/60 hari dan volatilitas tahunan √252.
+   - Untuk intraday, jendela dalam bar, dan faktor tahunan diturunkan dari jumlah bar per tahun di kalender.
+   - Volume intraday punya pola jam (ramai di awal dan akhir sesi), jadi pembanding volume yang benar adalah rata-rata
+     bar yang sama pada N sesi sebelumnya, bukan N bar terakhir.
+   - Usulan: Feature 04 intraday dulu; Feature 01 intraday menyusul sesudah kolomnya disepakati.
+6. **Penyesuaian aksi korporasi (D22, S8).**
+   - Riwayat 5 menit hanya ±3,5 bulan di TradingView, jadi sesudah split atau rights riwayat lama tidak bisa ditarik
+     ulang.
+   - Untuk intraday, cara yang berlaku umum: ukur rasio tersimpan ÷ TradingView pada bar yang tumpang tindih, lalu
+     skalakan riwayat tersimpan (cara yang sama dengan PBSA 2026-10-08).
+   - Mekanisme ini sebaiknya satu untuk harian dan intraday (S8).
+7. **Terminal.**
+   - Pilihan timeframe di chart dengan dataset publisher per timeframe (per saham per bulan untuk 5 menit).
+   - Indikator chart dihitung di halaman seperti sekarang (modul calc). Feature 04 intraday untuk AI, Screener dan
+     Backtest.
+   - Data broker (Feature 05) hanya harian, jadi panel Flow dan Bandar tetap harian. Pada timeframe intraday keduanya
+     disembunyikan atau diberi tanda "harian".
+8. **AI (nanti, `NEW_TABLE_ONBOARDING_PLAN.md`).** Tabel 5 menit cepat menyentuh batas Governor (400 hari, 2 juta
+   baris). Rute AI sebaiknya default ke 1 jam atau 4 jam, atau ringkasan per sesi.
+
+**Pertanyaan terbuka (sisa)**
+1. 1 jam dan 15 menit sejak 2020: (A) terima kedalaman yang tersedia lalu kumpulkan ke depan setiap hari (usulan);
+   (B) akun TradingView dengan batas bar lebih besar (perlu akun user, syarat pemakaian, dan batas yang diukur);
+   (C) cari sumber lain (riset dulu).
+2. Frekuensi: sekali sesudah penutupan (usulan) atau selama jam bursa.
+3. Retensi 5 menit: simpan semua (perkiraan ±2 GB per tahun) atau bergulir.
+4. Urutan: dikerjakan sesudah EXEC-PRICE-GAP-0917 selesai (usulan).
