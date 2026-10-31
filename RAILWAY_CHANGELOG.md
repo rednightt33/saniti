@@ -5422,3 +5422,10 @@ B6 window:
 - Live read-back (signed in as `edge`, no AI call): `GET /api/v1/conversations` returns `last_state`/`last_run_status`
   on all 56 rows (48 FINISHED/COMPLETED, 3 NEEDS_CLARIFICATION, 1 LIMITED, 1 FINISHED/FAILED, 1 FAILED, 2 without a
   question); the served `edge-client.js` holds `statusTone` and `/monitor` the M317 CSS.
+
+## 2026-10-31 — edge-bff: answer tables in Claude's table style (EXEC-TABLE-CLAUDE)
+
+- User go "Ok" (2026-10-31) to push to `main`. `main` `84d0c69a`; edge-bff deployment `d50747b9-6888-4f6e-8549-734c8072f181`
+  SUCCESS (14:24 UTC). No variable, migration or other service changed.
+- Live check (signed in as `edge`, no AI call): `/monitor` holds the EXEC-TABLE-CLAUDE CSS; a saved 10-row answer table
+  renders with right-aligned number titles over their values, no header band and hairline rows at 1440 px.
