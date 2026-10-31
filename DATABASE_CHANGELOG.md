@@ -1,5 +1,70 @@
 # Database changelog
 
+## 2026-10-31 — EXEC-INTRADAY-IDX: intraday bars of IDX stocks and IHSG (5m, 15m, 1h, 4h), new tables
+
+User go 2026-10-31: "1A 2OK 3semua 4 no, ini ingestion saja ke table baru seharusnya tidak berpengaruh"; "Lanjut 1-4"
+(EXEC.md EXEC-INTRADAY-IDX).
+
+- **Migrations** (`migration_job.py`, DRYRUN then APPLY, read back):
+  - `20261031_001_price_stock_idx_intraday.sql` (sha256 `9aa44310…`): `price_stock_idx_intraday`, partitioned by
+    timeframe, key (ticker, timeframe, bar_time), OHLC check; `price_stock_idx_intraday_quality`;
+    `remark_intraday_sessions`; catalog rows; `pgweb_reader` grants. The first rehearsal caught `round(double, int)`.
+  - `20261031_002` (`98351d0c…`): the quality baseline counts sessions that did not fail.
+  - `20261031_003` (`d0c5365f…`):
+    - expected stocks from the daily table;
+    - `BEFORE_DEPTH` before the derived depth start;
+    - Friday class;
+    - IHSG bar check;
+    - catalog text on the pre-opening auction and the volume share.
+- **Source and load:** TradingView websocket, unauthenticated, `apps/idx-price-cron/intraday_update.py --mode
+  backfill` on orc-test-runner, 2026-10-31 12:46-13:09 UTC. 845 symbols per timeframe, 0 fetch errors, 0 bars refused
+  by the OHLC check, 0 series re-adjusted:
+
+  | Timeframe | Bars | Size | Depth from the source (liquid stocks) |
+  |---|---|---|---|
+  | 4h | 2,189,886 | 315 MB | from 2020-01-02 (cut by `--since`) |
+  | 1h | 4,532,657 | 647 MB | 2023-01-02 |
+  | 15m | 4,335,986 | 691 MB | 2025-11-03 |
+  | 5m | 4,296,151 | 610 MB | 2026-07-06 |
+
+  Illiquid stocks reach further back: the limit is bars, not dates. Total 15,354,680 rows, about 2.3 GB.
+- **Quality after 003:** `INCOMPLETE` 16 (4h), 13 (1h), 11 (15m), 5 (5m) sessions, the same source-gap dates in every
+  timeframe plus the IHSG gaps (ERRORS M315).
+- **Verification:** two read-only reviews (integrity, calendar, and the daily cross-check: close 99.95 % equal outside
+  corporate-action scale and closing-auction ticks; auction change on 2024-12-09). Evidence in
+  `verification/intraday_design/`.
+- **Daily load:** cron `idx-intraday-cron` from 2026-11-02 (RAILWAY_CHANGELOG).
+- Not exposed to the AI, not published to the rack, no Feature table.
+
+## 2026-10-31 — EXEC-PRICE-GAP-0917: prices of 2026-09-17/18, six stocks on TradingView's scale, Feature 01/04
+
+User go 2026-10-31: "1. Go 2. S7 go", "Lanjut 1-4, dan jalankan harga 17-18 Sep sekarang"; PBSA 2026-10-08 "Harga
+asli ÷ 2 (Recommended)" (EXEC.md EXEC-PRICE-GAP-0917).
+
+- **Prices** (`Price_Stock_Indonesia_IDX`; source TradingView, `adjustment: splits`; jobs on orc-test-runner):
+  - **2026-09-17 and 2026-09-18:** `price_update.py --mode manual` (Monitoring_Price_ALL MANUAL, Telegram accepted).
+    832 and 830 symbols; 13 and 15 stocks had no candle (no trade).
+  - **AHAP, BUVA, ENRG, FORU, PBSA, VKTR:** every stored row replaced with TradingView's candle of the same date, after
+    a per-stock check (one constant ratio up to the ex-date, 1 after): 2,084 + 1,594 + 2,129 + 1,781 + 1,848 + 795
+    rows. The old ratios, from which the original prices follow, were 1.219401, 1.130269, 1.354234, 19.504203, 2 and
+    1.33192. PBSA 2026-10-08 = the stored candle ÷ 2 (ERRORS M313). Read back in the same transaction: every row
+    equal to the written values.
+- **Feature 01:** recomputed by `feature-01-worker` from its queue (the same live `refresh_feature_01_stock_daily`):
+  2 new rows per stock, rows from 2026-09-17, and the six stocks in full.
+- **Feature 04:** `feature-04-worker` stopped (deployment `bfbe6389`), then `verification/price_gap_0917/jobs/f04_job.py`
+  with the worker's own code:
+  - 844 queue rows DONE (18 after a corrected rerun, ERRORS M316);
+  - rows from 2026-09-17, the six in full;
+  - checkpoints rebuilt; the worker redeployed (`7ffb6596`).
+
+  Read back: rows 2026-09-17 = 831, 2026-09-18 = 829, and an independent recompute of 30 stocks differs only in the 29
+  old candlestick flags of M314.
+- **Formula consistency before the run** (read-only):
+  - Feature 01: the function's SELECT reproduced 1,305,848 stored rows of 826 stocks, 0 differences.
+  - Feature 04: engine reproduced 30 stocks except old candlestick flags (M314); rebuilt checkpoints identical to the
+    stored ones (BBCA, TLKM).
+- Evidence: `verification/price_gap_0917/` (scans, scripts, jobs).
+
 ## 2026-10-16 — Tool_Catalog round Y (EXEC-1018B Fase 2, E1, E6, E9)
 
 User: "1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK … Jalankan." (EXEC-1018B, 2026-10-16).

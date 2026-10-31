@@ -1,5 +1,36 @@
 # Railway changelog
 
+## 2026-10-31 — EXEC-PRICE-GAP-0917 and EXEC-INTRADAY-IDX: Feature 04 worker pause, price crons (S7), idx-intraday-cron
+
+User go 2026-10-31 (EXEC.md EXEC-PRICE-GAP-0917, EXEC-INTRADAY-IDX).
+
+- **feature-04-worker:** stopped with `deploymentStop` on `bfbe6389` at 13:12 UTC ("Stopping Container") for the
+  manual Feature 04 run. Redeployed as `7ffb6596` at 13:24 UTC, SUCCESS; log `feature04_worker_started`. The queue
+  was all DONE when it restarted.
+- **idx-price-cron and idx-price-recovery-cron** redeployed from GitHub `main` `2389bcb3` (S7: the session audit after
+  `price_update.py --mode recovery`; `request_symbol` resolution keyword; `intraday_update.py`), `c65a64a7` and
+  `cc2f45af`, SUCCESS.
+  - Live start commands read with GraphQL: `python price_update.py --mode daily` and
+    `python price_update.py --mode recovery`. The recovery one differs from the README of the time, which said
+    `recovery_window.py` (see the 2026-10-13 note). No start command or schedule was changed.
+- **idx-intraday-cron (new, `13374aa0-d50d-42fd-a3d7-ce1e6080d7f3`):** created with GraphQL `serviceCreate` (no
+  source).
+  - Settings: start `python intraday_update.py --mode daily`, cron `30 10 * * 1-5` (17:30 WIB, Mon-Fri), restart
+    `NEVER`, `DATABASE_URL=${{Postgres.DATABASE_URL}}` (reference).
+  - `serviceConnect` to GitHub is refused for the project token, so the code goes by CLI upload of
+    `git archive HEAD apps/idx-price-cron` (`railway up --path-as-root`).
+  - The first upload failed to build with `rootDirectory` `/apps/idx-price-cron` (M316); with the root cleared, upload
+    `7310f242` SUCCESS. `railway config apply` (the file's `idx-intraday-cron` block) redeployed it as `926d1561`,
+    SUCCESS, with no run. `nextCronRunAt` 2026-11-02 10:30 UTC. `railway config plan`: "already up to date".
+  - A code change in `apps/idx-price-cron` needs a new upload to this service.
+- **orc-test-runner jobs** (`scripts/onboarding/run_job.sh`; DATABASE_URL and, for the price runs, the
+  `telegram-monitor` notify references set for the run and removed after, VAR_REMOVED each time):
+  - price dry runs and writes;
+  - Feature 04 dry run and writes;
+  - recovery plan checks;
+  - intraday migrations 001-003;
+  - intraday backfills.
+
 ## 2026-10-19 — Temporary branch deployment for the ORC budget A/B (dev)
 
 User: "kita jalankan A/B dulu ya 3 questions each" (then: 24k as now; temporary deploy approved, EDGE history reads
