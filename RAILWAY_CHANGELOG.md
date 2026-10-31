@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-10-31 — EXEC-INTRADAY-FEATURES: intraday feature step in idx-intraday-cron; soft dialog border (edge-bff)
+
+User go 2026-10-31 (EXEC.md EXEC-INTRADAY-FEATURES).
+
+- **idx-intraday-cron:**
+  - The new image is `apps/idx-price-cron/Dockerfile.intraday`: TA-Lib 0.6.8, numpy 2.3.5, the three
+    `features/feature04` engine files, and a build step that loads the engine. It is uploaded with
+    `apps/idx-price-cron/deploy_intraday.sh`, whose tree holds `apps/idx-price-cron` and `features/feature04`.
+  - Upload `1459008b` SUCCESS (`main` `75176fcc`); the build log printed the engine VERSION.
+  - Variables `TELEGRAM_NOTIFY_URL` and `TELEGRAM_NOTIFY_SECRET` were set as references to `telegram-monitor` (the
+    price cron's values, never printed; `--skip-deploys`), then redeployed as `701b30ac` SUCCESS.
+  - `.railway/railway.ts` lists the two variables. `railway config plan`: no change for the service; the only line
+    was the transient `orc-test-runner.DATABASE_URL` of the running job, not applied.
+  - Start command and schedule unchanged; the first run with features is 2026-11-02 10:30 UTC.
+- **idx-price-cron and idx-price-recovery-cron** rebuilt from `75176fcc` as `afa51033` and `cede90f9`, SUCCESS. Their
+  import check also covers `intraday_features.py`, which imports TA-Lib only when it computes.
+- **edge-bff** `cd0d2bdf` (`main` `5858885b`) SUCCESS: the soft selected state in the indicator settings dialogs; the
+  live stylesheet carries the new rule.
+- **orc-test-runner jobs** (`scripts/onboarding/run_job.sh`; DATABASE_URL set for the run and VAR_REMOVED each time):
+  - migration 004 DRYRUN and APPLY;
+  - backfill rehearsal (4 series; the first try failed at the engine lookup, M316 item 6);
+  - full backfill;
+  - Database_Table_Status / DATABASE_SCHEMA.md refresh;
+  - the Feature catalog audit.
+
 ## 2026-10-31 — EXEC-PRICE-GAP-0917 and EXEC-INTRADAY-IDX: Feature 04 worker pause, price crons (S7), idx-intraday-cron
 
 User go 2026-10-31 (EXEC.md EXEC-PRICE-GAP-0917, EXEC-INTRADAY-IDX).

@@ -80,3 +80,27 @@ TELEGRAM_NOTIFY_SECRET=<shared Railway secret>
 The script must exit after each run so Railway can start the next cron execution.
 The entrypoint flushes its logs and then terminates the process explicitly, preventing a completed run from remaining `Active` because a dependency left an idle background resource open.
 `NEEDS_REVIEW` is a completed cron outcome recorded in `Monitoring_Price_ALL`, so it exits with code `0`; only an actual `FAILED` run exits non-zero.
+
+## Intraday bars and features (`idx-intraday-cron`)
+
+EXEC-INTRADAY-IDX and EXEC-INTRADAY-FEATURES (user go 2026-10-31).
+- **Schedule:** `intraday_update.py --mode daily` runs Mon-Fri at 10:30 UTC (17:30 WIB).
+- **Bars:** it loads the 5m, 15m, 1h and 4h bars of the stocks and IHSG into `price_stock_idx_intraday`. Each series
+  gets the sessions since its newest stored bar plus 3 sessions to recheck; only completed sessions are written. In the
+  same statement it queues the first changed bar of every stock series in `intraday_feature_queue`.
+- **Features:** `intraday_features.run_queue` then computes Feature 01 (`refresh_feature_01_stock_intraday`) and
+  Feature 04 (the unchanged `features/feature04` engine, from the state of each series) into
+  `Feature_01_Stock_Intraday` and `Feature_04_Technical_Indicator_Intraday`. A failed item stays FAILED and is retried
+  by the next run.
+- **Notices:** a load error, a series whose scale changed (`SCALE_CHANGED`, needs a re-pull) or a failed feature item
+  writes one NEEDS_REVIEW row to `Monitoring_Price_ALL` and sends the Telegram notice; a clean run sends nothing.
+- **Manual runs:**
+  - `--skip-features` loads only;
+  - `python intraday_features.py --mode queue` works the queue;
+  - `--mode backfill` recalculates whole series.
+- **Image and deploy:**
+  - the image is `Dockerfile.intraday` (TA-Lib and the three engine files);
+  - the service is a CLI upload, `bash apps/idx-price-cron/deploy_intraday.sh` from the repository root;
+  - the price crons keep `Dockerfile`; `intraday_features.py` imports TA-Lib only when it computes, so their build
+    check (M318) passes without it.
+- **Variables:** `DATABASE_URL`, `TELEGRAM_NOTIFY_URL`, `TELEGRAM_NOTIFY_SECRET` (references, as above).

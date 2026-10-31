@@ -9372,6 +9372,21 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
 4. **S4:** deploy `idx-intraday-cron`, lalu run 2026-11-02 dipantau.
 5. **S5, catatan:** ERRORS, changelog, `DATABASE_SCHEMA.md`. Tabel belum dibuka ke AI (onboarding terpisah).
 
+**Hasil 2026-10-31 (bukti: `verification/intraday_features/README.md`):**
+- **S1:** migrasi 004 DRYRUN lalu APPLY, dibaca kembali.
+- **S2:**
+  - kode dan 31 tes cron lulus;
+  - image `idx-intraday-cron` `701b30ac` SUCCESS, dengan TA-Lib, mesin Feature 04, dan referensi Telegram.
+- **S3:**
+  - backfill 15:42-16:13 UTC: 4 timeframe × 844 deret, 15.334.463 baris per tabel, 0 gagal;
+  - reproduksi independen 20 deret PASS;
+  - audit katalog PASS;
+  - ukuran 4,3 + 5,1 GB, database 53 GB.
+- **S5:** changelog, ERRORS (M316 butir 6-7), `DATABASE_SCHEMA.md` (103 tabel).
+- **Masih terbuka:**
+  - **S4:** run harian pertama 2026-11-02 17:30 WIB (jalur bertahap, waktu, antrean) diperiksa sesudah run;
+  - **B dan C** menunggu S4.
+
 ### B. Storage: hanya bagian yang berubah (semua dataset kecuali broker summary; sesudah A)
 
 **Fakta (kode `apps/terminal-publisher/publisher.py`, run `9abbf6ae` 2026-10-31):**

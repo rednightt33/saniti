@@ -1,0 +1,6 @@
+PASS BBCA 1h {'bars': 6153, 'f01_rows': 6153, 'bars_per_year': [1766, 1766], 'f01_bad': [], 'f04_rows': 6153, 'f04_bad': []}
+PASS PBSA 1h {'bars': 5962, 'f01_rows': 5962, 'bars_per_year': [1766, 1766], 'f01_bad': [], 'f04_rows': 5962, 'f04_bad': []}
+PASS GOTO 1h {'bars': 6140, 'f01_rows': 6140, 'bars_per_year': [1766, 1766], 'f01_bad': [], 'f04_rows': 6140, 'f04_bad': []}
+PASS ABDA 1h {'bars': 1197, 'f01_rows': 1197, 'bars_per_year': [1766, 1766], 'f01_bad': [], 'f04_rows': 1197, 'f04_bad': []}
+PASS BUVA 1h {'bars': 5199, 'f01_rows': 5199, 'bars_per_year': [1766, 1766], 'f01_bad': [], 'f04_rows': 5199, 'f04_bad': []}
+VERDICT PASS samples=5 failed=0

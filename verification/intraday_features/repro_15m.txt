@@ -1,0 +1,6 @@
+PASS BBCA 15m {'bars': 5289, 'f01_rows': 5289, 'bars_per_year': [5652, 5652], 'f01_bad': [], 'f04_rows': 5289, 'f04_bad': []}
+PASS PBSA 15m {'bars': 5154, 'f01_rows': 5154, 'bars_per_year': [5652, 5652], 'f01_bad': [], 'f04_rows': 5154, 'f04_bad': []}
+PASS GOTO 15m {'bars': 5288, 'f01_rows': 5288, 'bars_per_year': [5652, 5652], 'f01_bad': [], 'f04_rows': 5288, 'f04_bad': []}
+PASS TFCO 15m {'bars': 2349, 'f01_rows': 2349, 'bars_per_year': [5652, 5652], 'f01_bad': [], 'f04_rows': 2349, 'f04_bad': []}
+PASS AALI 15m {'bars': 5288, 'f01_rows': 5288, 'bars_per_year': [5652, 5652], 'f01_bad': [], 'f04_rows': 5288, 'f04_bad': []}
+VERDICT PASS samples=5 failed=0

@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-31T14:05:55+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-31T16:14:51+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -33,8 +33,8 @@ Generated from PostgreSQL schema `public` at `2026-10-31T14:05:55+00:00`.
 | `Analysis_Step_Log` | System | Appended for each analysis step; large raw results and secrets are never stored. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Created only after catalog, row, byte and query-plan validation; expires within the configured short retention window. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Backend submits idempotently by request/job label; isolated worker leases and completes or fails the job. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-31 13:31:25.793376+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-31 14:05:55+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-31 15:38:18.214620+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-31 16:14:51+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Equity_Market_Schedule` | Reference | Edit when the official market clock or correction policy changes. | — | `2026-10-20 14:07:00+00:00` | Baseline only | Equity market timezone, close, finality delay and correction-session policy. |
 | `Feature04_Calculation_Log` | System | One terminal attempt row per claim, including partial and superseded results. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
 | `Feature04_Calculation_Queue` | System | Final source changes coalesce the earliest dirty date per ticker and invalidate dependent checkpoints. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
@@ -44,19 +44,29 @@ Generated from PostgreSQL schema `public` at `2026-10-31T14:05:55+00:00`.
 | `Feature04_Retry_Request` | System | telegram-trigger stores the acknowledgement message ID; the worker records terminal status and telegram-monitor edits the same message. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited owner Telegram failure-only retry request with editable acknowledgement and bounded five-session replay. |
 | `Feature_01_Stock_Daily` | Feature | Explicit refresh routine after validated source changes; automatic price-cron integration is not active. | `2026-10-30` | `2026-10-31 13:49:33.107089+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. Universe-classified indices are not included: their rows are in Feature_01_Stock_Daily_INDEX (EXEC-M219). |
 | `Feature_01_Stock_Daily_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Daily per-ticker price, return, volatility, volume, and drawdown features. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_01_Stock_Intraday` | Feature | From the first changed bar of each queued (ticker, timeframe) to the end of the series, after each daily load (idx-intraday-cron); history once by the backfill job. | — | `2026-10-31 16:14:51+00:00` | Baseline only | Feature 01 per intraday bar of the IDX stocks: returns, realized volatility, volume and price positioning over 1, 5, 20 and 60 bars of the row timeframe (5m, 15m, 1h, 4h), the formulas of Feature_01_Stock_Daily with one period = one bar; volatility annualised with sqrt(bars_per_year). No IHSG. Session completeness: join price_stock_idx_intraday_quality. |
+| `Feature_01_Stock_Intraday_15m` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
+| `Feature_01_Stock_Intraday_1h` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
+| `Feature_01_Stock_Intraday_4h` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
+| `Feature_01_Stock_Intraday_5m` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
 | `Feature_02_Broker_Rolling` | Feature | Validated full v2 backfill. No automatic Feature 02 worker is deployed; rebuild affected tickers after Broker Summary changes. | `2026-10-27` | `2026-10-27 12:02:34.114389+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_02_Broker_Rolling_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_03_Stock_Broker_Daily` | Feature | Full v2 rebuild after Feature 02 Investor-Type cutover. Refresh affected date/tickers after valid Feature 02 refresh; no automatic Feature 03 worker is deployed. | `2026-10-27` | `2026-10-27 12:02:46.615627+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
 | `Feature_03_Stock_Broker_Daily_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_04_Technical_Indicator` | Feature | Committed final source changes recalculate only the affected suffix from a compatible prior checkpoint. | `2026-10-30` | `2026-10-31 13:24:22.523306+00:00` | Derived from price rows; changes queued and tracked per ticker | Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. |
 | `Feature_04_Technical_Indicator_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_04_Technical_Indicator_Intraday` | Feature | New bars from the stored state of each queued series after each daily load; a change at or before the last calculated bar recalculates the whole series; history once by the backfill job (full calculation). | — | `2026-10-31 16:14:51+00:00` | Baseline only | Feature 04 per intraday bar of the IDX stocks: the technical indicators, TA-Lib candlestick codes and SMI swing state of Feature_04_Technical_Indicator computed by the same engine (features/feature04/engine.py, incremental.py) with one period = one bar of the row timeframe (5m, 15m, 1h, 4h). No IHSG. calculation_version per series in feature04_intraday_state. |
+| `Feature_04_Technical_Indicator_Intraday_15m` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
+| `Feature_04_Technical_Indicator_Intraday_1h` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
+| `Feature_04_Technical_Indicator_Intraday_4h` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
+| `Feature_04_Technical_Indicator_Intraday_5m` | Unclassified | Unknown | — | `2026-10-31 16:14:51+00:00` | Baseline only | No description has been recorded. |
 | `Feature_05_Foreign_Domestic_Broker_Detail` | Feature | refresh_feature_05(date range, tickers) after the IDX_Broker_Summary load for the same dates (the load carries buy_freq and sell_freq) | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. |
 | `Feature_05_Foreign_Domestic_Broker_Detail_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_06_Foreign_Domestic` | Feature | refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. |
 | `Feature_06_Foreign_Domestic_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_Calculation_Log` | System | The Feature 01 worker records one completed result for every claim, including retries and expired leases. | `2026-10-30` | `2026-10-31 13:49:33.114721+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
 | `Feature_Calculation_Queue` | System | A price-row trigger transactionally creates/reopens work; a separate worker claims, calculates, retries, and completes it. | `2026-10-30` | `2026-10-31 13:49:33.058313+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
-| `Feature_Catalog` | Reference | Updated by a forward-only migration after a Feature definition or physical schema change. | — | `2026-10-27 12:41:59.931723+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
+| `Feature_Catalog` | Reference | Updated by a forward-only migration after a Feature definition or physical schema change. | — | `2026-10-31 15:38:18.230632+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | Updated by forward-only migration when a safe Feature relationship is validated. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
 | `Feature_Status` | System | Price enqueue and worker transitions reconcile the per-ticker summary; SUCCESS follows validated completion only. | `2026-10-30` | `2026-10-31 13:49:33.058313+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Feature_Vocabulary` | Reference | Explicit schema/semantic release synchronization, never daily price computation. Frontend API and AI onboarding remain separate. | — | `2026-10-25 15:52:57+00:00` | Baseline only | Reviewed frontend names, formulas, units, definitions and interpretations for physical stock and INDEX Feature01/02/03/05/06 columns; Feature04 excluded. |
@@ -77,7 +87,7 @@ Generated from PostgreSQL schema `public` at `2026-10-31T14:05:55+00:00`.
 | `Price_Fixed_Income` | Source | Market-specific daily and recovery jobs re-query the latest completed session; only exact final candles are material-upserted. | `2026-10-30` | `2026-10-30 23:00:21.435889+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Market-aware daily/recovery jobs material-upsert exact final candles; recovery re-verifies configured recent sessions. | `2026-10-30` | `2026-10-31 13:18:16.109189+00:00` | Latest date derived; future changes tracked automatically | Final daily Indonesian equity OHLCV observations with market-close finality evidence. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. |
 | `Reference_History_Capture_Log` | System | Inserted by every capture and correction; a failed trigger capture writes status FAILED with its error and leaves the reference load unaffected. | — | `2026-10-23 14:44:34.457389+00:00` | Tracked automatically | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-31 13:31:25.793111+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-31 15:38:18.189271+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Written when an authorized Telegram command is received. | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | telegram-monitor inserts or reclaims a delivery identity, then records sent or edited Telegram message IDs and failures. | — | `2026-10-31 13:25:16.311632+00:00` | Tracked automatically | Outbound Telegram delivery and edit ledger for execution-level price results and logical Feature04 market/date or retry results. |
 | `Tool_Catalog` | Reference | Updated with backend/worker releases; runtime configuration is the enforcement authority. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
@@ -85,10 +95,12 @@ Generated from PostgreSQL schema `public` at `2026-10-31T14:05:55+00:00`.
 | `Universe_Fixed_income` | Reference | Universe rows supply every source symbol and unit; the loader contains no ticker roster. | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income series with explicit source symbol, unit and market-country membership. |
 | `broker_summary_date_quality` | System | Recomputed by the IDX_Broker_Summary statement triggers for every inserted, updated or deleted date; filled for history by the backfill job of 2026-10-29. | `2026-10-27` | `2026-10-29 19:22:23+00:00` | Baseline only | Completeness of each IDX_Broker_Summary trade date after every write: brokers, stocks and frequency share of the stock rows against the 20 earlier dates whose check passed, and whether the non-stock symbols vanished; status COMPLETE, INCOMPLETE or UNCHECKED with a plain Indonesian remark. Row counts are recorded, not checked (they move with activity). Loads are never refused. |
 | `feature04_backfill_log` | Monitoring | Manual serial runner; completed output and audit committed together; failed ticker rolls back. | `2026-10-23` | `2026-10-23 16:21:35.766900+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
+| `feature04_intraday_state` | System | Replaced after every calculation of the series. | — | `2026-10-31 16:14:51+00:00` | Baseline only | Incremental Feature 04 state after the last calculated bar of each intraday series (ticker, timeframe): bars counted, last bar_time, engine state and calculation_version. |
 | `idx_event_annotation` | Transactional | Rebuilt by refresh_idx_event_annotation() at the end of every Stockbit event load (stockbit-updater round or apps/stockbit-event-annotation job), in the same transaction. | — | `2026-10-25 18:14:05+00:00` | Baseline only | Corporate actions (type, dates and terms: cum, ex, record and pay dates, period start and end, amount per share, currency, old:new ratio) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI) of IDX stocks; the annotation source of EDGE price charts and the event table the AI reads. |
 | `idx_event_annotation_terms_map` | Reference | Changed by migration when Stockbit adds an action type or key; read on every refresh_idx_event_annotation(). | — | `2026-10-26 08:58:47+00:00` | Baseline only | Which Stockbit corporate action payload key fills which term column of idx_event_annotation (amount_per_share, currency, ratio_old, ratio_new), per action type. |
 | `idx_stockbit_backfill_status` | System | Written by the date-first backfill between 2026-10-11 and 2026-10-15; every date completed; no job writes it now. | `2026-10-09` | `2026-10-12 02:33:20+00:00` | Baseline only | Per-date control of the date-first Stockbit Broker Summary backfill of 2016-2026 (the user's importer, before the ticker-first import of stockbit_full_broker_import_status): state, filter and request counts, rows written, attempts, error. |
 | `idx_stockbit_value_corrections` | System | Inserted once per correction the user approves; 10 rows written 2026-10-15. | `2017-02-07` | `2026-10-20 14:07:00+00:00` | Baseline only | Audit of user-approved corrections to Stockbit Broker Summary values: per trade date, ticker and investor type the summary row before and after, the per-broker patches, the raw source rows and the reason. Holds the BHIT negative-value correction (USER_APPROVED_ABS_BHIT_20261016: negative raw trade values made positive per user instruction; not independently source-verified). |
+| `intraday_feature_queue` | System | Written with the bars (earliest changed bar kept); worked by the feature step of idx-intraday-cron; a FAILED item is retried by the next run. | — | `2026-10-31 16:14:51+00:00` | Baseline only | Intraday feature work: per (ticker, timeframe) the first bar the loader changed since the last calculation, with status PENDING, DONE or FAILED, attempts and the last error. |
 | `price_stock_idx_intraday` | Transactional | Daily after the IDX close plus finality delay (cron idx-intraday-cron), upsert on the key; history once by --mode backfill. A changed bar is updated in place; ingestion_time moves only for a changed or new bar. | — | `2026-10-31 14:05:55+00:00` | Baseline only | Intraday OHLCV bars of the IDX stocks and IHSG at 5m, 15m, 1h and 4h (TradingView). Stocks split-adjusted as TradingView gives them at load time, IHSG unadjusted (column adjustment). Since 2024-12-09 the bars leave out the pre-opening auction, so the first open, the high or low and the session volume can differ from the daily candle (volume median 99.8 %, as low as 68 % on extreme days; before that date equal in 96 % of sessions); the last close equals the daily close apart from closing-auction ticks: never derive the daily candle from these bars or the reverse. Depth from the source: 5m from 2026-07-13, 15m from 2025-11-03, 1h from 2023-01-02, 4h from 2020-01-01, then collected every day. Partitioned by timeframe. |
 | `price_stock_idx_intraday_15m` | Unclassified | Unknown | — | `2026-10-31 14:05:55+00:00` | Baseline only | No description has been recorded. |
 | `price_stock_idx_intraday_1h` | Unclassified | Unknown | — | `2026-10-31 14:05:55+00:00` | Baseline only | No description has been recorded. |
@@ -1793,6 +1805,276 @@ Dedicated index output. Daily per-ticker price, return, volatility, volume, and 
 | `Feature_01_Stock_Daily_INDEX_date_idx` | `CREATE INDEX "Feature_01_Stock_Daily_INDEX_date_idx" ON public."Feature_01_Stock_Daily_INDEX" USING btree (date)` |
 | `Feature_01_Stock_Daily_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Daily_INDEX_pkey" ON public."Feature_01_Stock_Daily_INDEX" USING btree (ticker, date)` |
 
+## Feature_01_Stock_Intraday
+
+Feature 01 per intraday bar of the IDX stocks: returns, realized volatility, volume and price positioning over 1, 5, 20 and 60 bars of the row timeframe (5m, 15m, 1h, 4h), the formulas of Feature_01_Stock_Daily with one period = one bar; volatility annualised with sqrt(bars_per_year). No IHSG. Session completeness: join price_stock_idx_intraday_quality.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | Exact IDX stock ticker of the bar (never the universe index). |
+| `timeframe` | `text` | No | — | Bar length of the row: 5m, 15m, 1h or 4h. |
+| `bar_time` | `timestamp with time zone` | No | — | Open time of the bar (timestamptz) as TradingView gives it. |
+| `session_date` | `date` | No | — | IDX trading date of the bar in Asia/Jakarta. |
+| `close` | `numeric` | No | — | Per bar of the row's timeframe (one period = one bar). Closing price for the ticker in the bar. |
+| `volume` | `numeric` | Yes | — | Per bar of the row's timeframe (one period = one bar). Trading volume reported for the ticker in the bar. |
+| `close_1bar_ago` | `numeric` | Yes | — | Per bar of the row's timeframe (one period = one bar). Closing price one prior bar earlier for the same ticker. |
+| `close_5bar_ago` | `numeric` | Yes | — | Per bar of the row's timeframe (one period = one bar). Closing price five prior bars earlier for the same ticker. |
+| `close_20bar_ago` | `numeric` | Yes | — | Per bar of the row's timeframe (one period = one bar). Closing price twenty prior bars earlier for the same ticker. |
+| `close_60bar_ago` | `numeric` | Yes | — | Per bar of the row's timeframe (one period = one bar). Closing price sixty prior bars earlier for the same ticker. |
+| `return_1bar_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage price return between the current close and the close one bar earlier for the same ticker. |
+| `return_5bar_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage price return between the current close and the close five bars earlier for the same ticker. |
+| `return_20bar_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage price return between the current close and the close twenty bars earlier for the same ticker. |
+| `return_60bar_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage price return between the current close and the close sixty bars earlier for the same ticker. |
+| `abs_return_1bar_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Absolute magnitude of the one-trading-bar percentage return, without direction. |
+| `volatility_5bar_ann_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Annualized sample standard deviation of the latest five valid bar decimal returns for the ticker, expressed as percent. |
+| `volatility_20bar_ann_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Annualized sample standard deviation of the latest twenty valid bar decimal returns for the ticker, expressed as percent. |
+| `volatility_60bar_ann_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Annualized sample standard deviation of the latest sixty valid bar decimal returns for the ticker, expressed as percent. |
+| `volatility_5bar_change_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage change in annualized five-return volatility versus its value five bars earlier. |
+| `volatility_20bar_change_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage change in annualized twenty-return volatility versus its value twenty bars earlier. |
+| `volatility_60bar_change_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage change in annualized sixty-return volatility versus its value sixty bars earlier. |
+| `volume_avg_20bar` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Average source trading volume over the latest twenty bars for the ticker. |
+| `volume_std_20bar` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Sample standard deviation of source trading volume over the latest twenty bars for the ticker. |
+| `volume_ratio_20bar` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Current trading volume divided by the average volume of the latest twenty bars. |
+| `volume_zscore_20bar` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Current trading-volume deviation from its latest twenty-bar average, measured in sample standard deviations. |
+| `high_20bar` | `numeric` | Yes | — | Per bar of the row's timeframe (one period = one bar). Highest closing price among the latest twenty bars for the ticker. |
+| `high_60bar` | `numeric` | Yes | — | Per bar of the row's timeframe (one period = one bar). Highest closing price among the latest sixty bars for the ticker. |
+| `drawdown_20bar_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage position of the current close below the highest close in the latest twenty bars. |
+| `drawdown_60bar_pct` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Percentage position of the current close below the highest close in the latest sixty bars. |
+| `bars_per_year` | `integer` | No | — | Bars per year used to annualise the volatility columns of the row. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Time of the calculation that wrote the row. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_01_Stock_Intraday_bars_per_year_check` | Check | `CHECK (bars_per_year > 0)` |
+| `Feature_01_Stock_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_01_Stock_Intraday_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Intraday_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Intraday_pkey" ON ONLY public."Feature_01_Stock_Intraday" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_01_Stock_Intraday_15m
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_1bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_5bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_20bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_60bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_5bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `abs_return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_avg_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_std_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_ratio_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_zscore_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `high_20bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `high_60bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `drawdown_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `drawdown_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `bars_per_year` | `integer` | No | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_01_Stock_Intraday_bars_per_year_check` | Check | `CHECK (bars_per_year > 0)` |
+| `Feature_01_Stock_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_01_Stock_Intraday_15m_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Intraday_15m_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Intraday_15m_pkey" ON public."Feature_01_Stock_Intraday_15m" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_01_Stock_Intraday_1h
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_1bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_5bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_20bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_60bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_5bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `abs_return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_avg_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_std_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_ratio_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_zscore_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `high_20bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `high_60bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `drawdown_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `drawdown_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `bars_per_year` | `integer` | No | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_01_Stock_Intraday_bars_per_year_check` | Check | `CHECK (bars_per_year > 0)` |
+| `Feature_01_Stock_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_01_Stock_Intraday_1h_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Intraday_1h_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Intraday_1h_pkey" ON public."Feature_01_Stock_Intraday_1h" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_01_Stock_Intraday_4h
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_1bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_5bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_20bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_60bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_5bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `abs_return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_avg_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_std_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_ratio_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_zscore_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `high_20bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `high_60bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `drawdown_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `drawdown_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `bars_per_year` | `integer` | No | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_01_Stock_Intraday_bars_per_year_check` | Check | `CHECK (bars_per_year > 0)` |
+| `Feature_01_Stock_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_01_Stock_Intraday_4h_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Intraday_4h_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Intraday_4h_pkey" ON public."Feature_01_Stock_Intraday_4h" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_01_Stock_Intraday_5m
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_1bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_5bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_20bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `close_60bar_ago` | `numeric` | Yes | — | No column description has been recorded. |
+| `return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_5bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `return_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `abs_return_1bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_ann_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_5bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_20bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volatility_60bar_change_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_avg_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_std_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_ratio_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `volume_zscore_20bar` | `double precision` | Yes | — | No column description has been recorded. |
+| `high_20bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `high_60bar` | `numeric` | Yes | — | No column description has been recorded. |
+| `drawdown_20bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `drawdown_60bar_pct` | `double precision` | Yes | — | No column description has been recorded. |
+| `bars_per_year` | `integer` | No | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_01_Stock_Intraday_bars_per_year_check` | Check | `CHECK (bars_per_year > 0)` |
+| `Feature_01_Stock_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_01_Stock_Intraday_5m_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Intraday_5m_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Intraday_5m_pkey" ON public."Feature_01_Stock_Intraday_5m" USING btree (ticker, timeframe, bar_time)` |
+
 ## Feature_02_Broker_Rolling
 
 Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata.
@@ -2254,6 +2536,396 @@ Dedicated index output. Cross-asset Daily close and technical indicators calcula
 |---|---|
 | `Feature_04_Technical_Indicator_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_INDEX_pkey" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (ticker, trade_date, timeframe, asset_type)` |
 | `Feature_04_Technical_Indicator_INDEX_trade_date_idx` | `CREATE INDEX "Feature_04_Technical_Indicator_INDEX_trade_date_idx" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (trade_date)` |
+
+## Feature_04_Technical_Indicator_Intraday
+
+Feature 04 per intraday bar of the IDX stocks: the technical indicators, TA-Lib candlestick codes and SMI swing state of Feature_04_Technical_Indicator computed by the same engine (features/feature04/engine.py, incremental.py) with one period = one bar of the row timeframe (5m, 15m, 1h, 4h). No IHSG. calculation_version per series in feature04_intraday_state.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | Exact IDX stock ticker of the bar (never the universe index). |
+| `timeframe` | `text` | No | — | Bar length of the row: 5m, 15m, 1h or 4h. |
+| `bar_time` | `timestamp with time zone` | No | — | Open time of the bar (timestamptz) as TradingView gives it. |
+| `session_date` | `date` | No | — | IDX trading date of the bar in Asia/Jakarta. |
+| `close` | `double precision` | No | — | Per bar of the row's timeframe (one period = one bar). intraday closing price copied from the matching universe-classified price source row. |
+| `sma_20` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Unweighted mean of 20 observed closes. |
+| `sma_50` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Unweighted mean of 50 observed closes. |
+| `ema_12` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Fast exponentially weighted close; alpha=2/13. |
+| `ema_26` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Slow exponentially weighted close; alpha=2/27. |
+| `rsi_14` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. |
+| `macd` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Difference of the stored fast and slow EMA price baselines. |
+| `macd_signal` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Nine-period EMA of valid MACD line observations. |
+| `macd_histogram` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Difference between MACD line and its nine-period signal. |
+| `atr_14` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Wilder average of 14 true ranges using prior observed close. |
+| `bb_upper_20` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Upper 20-period Bollinger band, population standard deviation multiplier 2. |
+| `bb_middle_20` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Middle 20-period Bollinger band, identical to SMA20. |
+| `bb_lower_20` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Lower 20-period Bollinger band, population standard deviation multiplier 2. |
+| `cdl_piercing` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib piercing pattern recognition code from historical OHLC. |
+| `cdl_morning_star` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib morning star pattern recognition code from historical OHLC. |
+| `cdl_morning_doji_star` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib morning doji star pattern recognition code from historical OHLC. |
+| `cdl_engulfing` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib engulfing pattern recognition code from historical OHLC. |
+| `cdl_3_white_soldiers` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. |
+| `cdl_hammer` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib hammer pattern recognition code from historical OHLC. |
+| `cdl_inverted_hammer` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib inverted hammer pattern recognition code from historical OHLC. |
+| `cdl_3_inside` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib 3 inside pattern recognition code from historical OHLC. |
+| `cdl_3_outside` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib 3 outside pattern recognition code from historical OHLC. |
+| `cdl_harami` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib harami pattern recognition code from historical OHLC. |
+| `cdl_harami_cross` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib harami cross pattern recognition code from historical OHLC. |
+| `cdl_dark_cloud_cover` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. |
+| `cdl_evening_star` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib evening star pattern recognition code from historical OHLC. |
+| `cdl_evening_doji_star` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib evening doji star pattern recognition code from historical OHLC. |
+| `cdl_3_black_crows` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib 3 black crows pattern recognition code from historical OHLC. |
+| `cdl_shooting_star` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib shooting star pattern recognition code from historical OHLC. |
+| `cdl_hanging_man` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib hanging man pattern recognition code from historical OHLC. |
+| `cdl_doji` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib doji pattern recognition code from historical OHLC. |
+| `cdl_dragonfly_doji` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. |
+| `cdl_gravestone_doji` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib gravestone doji pattern recognition code from historical OHLC. |
+| `cdl_marubozu` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib marubozu pattern recognition code from historical OHLC. |
+| `cdl_kicking` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib kicking pattern recognition code from historical OHLC. |
+| `cdl_rise_fall_3_methods` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. |
+| `cdl_mat_hold` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib mat hold pattern recognition code from historical OHLC. |
+| `cdl_hikkake` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Native TA-Lib hikkake pattern recognition code from historical OHLC. |
+| `adx_14` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Wilder average directional index measuring trend strength on a 0–100 scale. |
+| `ema_50` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Fifty-observation exponentially weighted close; alpha=2/51. |
+| `ema_200` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Two-hundred-observation exponentially weighted close; alpha=2/201. |
+| `inside_bar` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Strict current-candle range containment within the previous valid observed candle. |
+| `smi` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. |
+| `tracking_high` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). High-search state after all current-bar Pine blocks execute. |
+| `tracking_low` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Low-search state after all current-bar Pine blocks execute. |
+| `temp_high` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Provisional highest high in the current active SMI-above-40 tracking interval. |
+| `temp_high_bar` | `integer` | Yes | — | Per bar of the row's timeframe (one period = one bar). Zero-based source observation index of the currently tracked temporary high. |
+| `temp_low` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Provisional lowest low in the current active SMI-below-minus-40 tracking interval. |
+| `temp_low_bar` | `integer` | Yes | — | Per bar of the row's timeframe (one period = one bar). Zero-based source observation index of the currently tracked temporary low. |
+| `last_swing_high` | `double precision` | Yes | — | Per bar of the row's timeframe (one period = one bar). Latest swing-high price available after its SMI-downcross confirmation, carried forward. |
+| `break_swing_high` | `smallint` | Yes | — | Per bar of the row's timeframe (one period = one bar). Integer event flag for the supplied Pine close/last-swing-high crossover. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Time of the calculation that wrote the row. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_04_Technical_Indicator_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_04_Technical_Indicator_Intraday_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_Intraday_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_Intraday_pkey" ON ONLY public."Feature_04_Technical_Indicator_Intraday" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_04_Technical_Indicator_Intraday_15m
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `double precision` | No | — | No column description has been recorded. |
+| `sma_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `sma_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_12` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_26` | `double precision` | Yes | — | No column description has been recorded. |
+| `rsi_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_signal` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_histogram` | `double precision` | Yes | — | No column description has been recorded. |
+| `atr_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_upper_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_middle_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_lower_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `cdl_piercing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_engulfing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_white_soldiers` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_inverted_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_inside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_outside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami_cross` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dark_cloud_cover` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_black_crows` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_shooting_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hanging_man` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dragonfly_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_gravestone_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_marubozu` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_kicking` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_rise_fall_3_methods` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_mat_hold` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hikkake` | `smallint` | Yes | — | No column description has been recorded. |
+| `adx_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_200` | `double precision` | Yes | — | No column description has been recorded. |
+| `inside_bar` | `smallint` | Yes | — | No column description has been recorded. |
+| `smi` | `double precision` | Yes | — | No column description has been recorded. |
+| `tracking_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `tracking_low` | `smallint` | Yes | — | No column description has been recorded. |
+| `temp_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_high_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `temp_low` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_low_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `last_swing_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `break_swing_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_04_Technical_Indicator_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_04_Technical_Indicator_Intraday_15m_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_Intraday_15m_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_Intraday_15m_pkey" ON public."Feature_04_Technical_Indicator_Intraday_15m" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_04_Technical_Indicator_Intraday_1h
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `double precision` | No | — | No column description has been recorded. |
+| `sma_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `sma_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_12` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_26` | `double precision` | Yes | — | No column description has been recorded. |
+| `rsi_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_signal` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_histogram` | `double precision` | Yes | — | No column description has been recorded. |
+| `atr_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_upper_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_middle_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_lower_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `cdl_piercing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_engulfing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_white_soldiers` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_inverted_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_inside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_outside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami_cross` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dark_cloud_cover` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_black_crows` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_shooting_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hanging_man` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dragonfly_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_gravestone_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_marubozu` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_kicking` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_rise_fall_3_methods` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_mat_hold` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hikkake` | `smallint` | Yes | — | No column description has been recorded. |
+| `adx_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_200` | `double precision` | Yes | — | No column description has been recorded. |
+| `inside_bar` | `smallint` | Yes | — | No column description has been recorded. |
+| `smi` | `double precision` | Yes | — | No column description has been recorded. |
+| `tracking_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `tracking_low` | `smallint` | Yes | — | No column description has been recorded. |
+| `temp_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_high_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `temp_low` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_low_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `last_swing_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `break_swing_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_04_Technical_Indicator_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_04_Technical_Indicator_Intraday_1h_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_Intraday_1h_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_Intraday_1h_pkey" ON public."Feature_04_Technical_Indicator_Intraday_1h" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_04_Technical_Indicator_Intraday_4h
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `double precision` | No | — | No column description has been recorded. |
+| `sma_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `sma_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_12` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_26` | `double precision` | Yes | — | No column description has been recorded. |
+| `rsi_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_signal` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_histogram` | `double precision` | Yes | — | No column description has been recorded. |
+| `atr_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_upper_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_middle_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_lower_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `cdl_piercing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_engulfing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_white_soldiers` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_inverted_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_inside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_outside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami_cross` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dark_cloud_cover` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_black_crows` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_shooting_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hanging_man` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dragonfly_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_gravestone_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_marubozu` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_kicking` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_rise_fall_3_methods` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_mat_hold` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hikkake` | `smallint` | Yes | — | No column description has been recorded. |
+| `adx_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_200` | `double precision` | Yes | — | No column description has been recorded. |
+| `inside_bar` | `smallint` | Yes | — | No column description has been recorded. |
+| `smi` | `double precision` | Yes | — | No column description has been recorded. |
+| `tracking_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `tracking_low` | `smallint` | Yes | — | No column description has been recorded. |
+| `temp_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_high_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `temp_low` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_low_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `last_swing_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `break_swing_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_04_Technical_Indicator_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_04_Technical_Indicator_Intraday_4h_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_Intraday_4h_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_Intraday_4h_pkey" ON public."Feature_04_Technical_Indicator_Intraday_4h" USING btree (ticker, timeframe, bar_time)` |
+
+## Feature_04_Technical_Indicator_Intraday_5m
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `close` | `double precision` | No | — | No column description has been recorded. |
+| `sma_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `sma_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_12` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_26` | `double precision` | Yes | — | No column description has been recorded. |
+| `rsi_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_signal` | `double precision` | Yes | — | No column description has been recorded. |
+| `macd_histogram` | `double precision` | Yes | — | No column description has been recorded. |
+| `atr_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_upper_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_middle_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `bb_lower_20` | `double precision` | Yes | — | No column description has been recorded. |
+| `cdl_piercing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_morning_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_engulfing` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_white_soldiers` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_inverted_hammer` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_inside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_outside` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_harami_cross` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dark_cloud_cover` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_evening_doji_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_3_black_crows` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_shooting_star` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hanging_man` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_dragonfly_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_gravestone_doji` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_marubozu` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_kicking` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_rise_fall_3_methods` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_mat_hold` | `smallint` | Yes | — | No column description has been recorded. |
+| `cdl_hikkake` | `smallint` | Yes | — | No column description has been recorded. |
+| `adx_14` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_50` | `double precision` | Yes | — | No column description has been recorded. |
+| `ema_200` | `double precision` | Yes | — | No column description has been recorded. |
+| `inside_bar` | `smallint` | Yes | — | No column description has been recorded. |
+| `smi` | `double precision` | Yes | — | No column description has been recorded. |
+| `tracking_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `tracking_low` | `smallint` | Yes | — | No column description has been recorded. |
+| `temp_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_high_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `temp_low` | `double precision` | Yes | — | No column description has been recorded. |
+| `temp_low_bar` | `integer` | Yes | — | No column description has been recorded. |
+| `last_swing_high` | `double precision` | Yes | — | No column description has been recorded. |
+| `break_swing_high` | `smallint` | Yes | — | No column description has been recorded. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_04_Technical_Indicator_Intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `Feature_04_Technical_Indicator_Intraday_5m_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_Intraday_5m_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_Intraday_5m_pkey" ON public."Feature_04_Technical_Indicator_Intraday_5m" USING btree (ticker, timeframe, bar_time)` |
 
 ## Feature_05_Foreign_Domestic_Broker_Detail
 
@@ -3958,6 +4630,36 @@ Atomic Feature04 per-run/ticker historical calculation audit and resumable extra
 |---|---|
 | `feature04_backfill_log_pkey` | `CREATE UNIQUE INDEX feature04_backfill_log_pkey ON public.feature04_backfill_log USING btree (run_id, ticker)` |
 
+## feature04_intraday_state
+
+Incremental Feature 04 state after the last calculated bar of each intraday series (ticker, timeframe): bars counted, last bar_time, engine state and calculation_version.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | IDX stock ticker of the series. |
+| `timeframe` | `text` | No | — | Bar length of the series. |
+| `last_bar_time` | `timestamp with time zone` | No | — | bar_time of the last bar the state includes. |
+| `bars` | `integer` | No | — | Bars of the series the state includes (the next bar has this zero-based index). |
+| `state` | `jsonb` | No | — | features/feature04/incremental.py state after the last bar (JSON). |
+| `calculation_version` | `text` | No | — | engine.VERSION the state and the rows of the series were calculated with. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Time the state was written. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `feature04_intraday_state_bars_check` | Check | `CHECK (bars > 0)` |
+| `feature04_intraday_state_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `feature04_intraday_state_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `feature04_intraday_state_pkey` | `CREATE UNIQUE INDEX feature04_intraday_state_pkey ON public.feature04_intraday_state USING btree (ticker, timeframe)` |
+
 ## idx_event_annotation
 
 Corporate actions (type, dates and terms: cum, ex, record and pay dates, period start and end, amount per share, currency, old:new ratio) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI) of IDX stocks; the annotation source of EDGE price charts and the event table the AI reads.
@@ -4123,6 +4825,38 @@ Audit of user-approved corrections to Stockbit Broker Summary values: per trade 
 | Name | Definition |
 |---|---|
 | `idx_stockbit_value_corrections_pkey` | `CREATE UNIQUE INDEX idx_stockbit_value_corrections_pkey ON public.idx_stockbit_value_corrections USING btree (trade_date, ticker, investor_type)` |
+
+## intraday_feature_queue
+
+Intraday feature work: per (ticker, timeframe) the first bar the loader changed since the last calculation, with status PENDING, DONE or FAILED, attempts and the last error.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | IDX stock ticker of the series to calculate. |
+| `timeframe` | `text` | No | — | Bar length of the series to calculate. |
+| `dirty_from` | `timestamp with time zone` | No | — | Earliest bar_time the loader wrote or changed since the last calculation. |
+| `status` | `text` | No | `'PENDING'::text` | PENDING, DONE or FAILED. |
+| `attempts` | `integer` | No | `0` | Calculations tried since the item was last enqueued. |
+| `last_error` | `text` | Yes | — | Class and message of the last failure. |
+| `enqueued_at` | `timestamp with time zone` | No | `statement_timestamp()` | Time of the last enqueue. |
+| `done_at` | `timestamp with time zone` | Yes | — | Time the last calculation finished. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `intraday_feature_queue_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'DONE'::text, 'FAILED'::text]))` |
+| `intraday_feature_queue_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `intraday_feature_queue_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `intraday_feature_queue_open` | `CREATE INDEX intraday_feature_queue_open ON public.intraday_feature_queue USING btree (timeframe, ticker) WHERE (status <> 'DONE'::text)` |
+| `intraday_feature_queue_pkey` | `CREATE UNIQUE INDEX intraday_feature_queue_pkey ON public.intraday_feature_queue USING btree (ticker, timeframe)` |
 
 ## price_stock_idx_intraday
 

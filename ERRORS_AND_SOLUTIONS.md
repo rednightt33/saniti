@@ -4709,9 +4709,17 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
      ditulis, dan baris lama dibandingkan lewat referensi; 18 saham dijalankan ulang dan lulus.
   5. **`idx-intraday-cron` dibuat dengan `rootDirectory` `/apps/idx-price-cron`:** unggahan CLI `--path-as-root` gagal
      build. Root dikosongkan seperti `terminal-publisher`; `serviceConnect` ke GitHub ditolak untuk token proyek.
+  6. **`intraday_features.load_engine` (EXEC-INTRADAY-FEATURES) mencari `here.parents[1]`:** di folder dangkal
+     (`/job` di runner, `/app` di image) indeks itu tidak ada, jadi gladi backfill 4 deret berhenti sebelum menulis
+     apa pun. Penyebabnya, tes lokal berjalan di folder yang dalam. Kini semua folder induk dicari, dan diuji di
+     folder dangkal; build image intraday memuat mesinnya.
+  7. **`timeout 120 railway config plan` gagal dengan "requires Railway CLI 5.42.1":** pemeriksa versi IaC membaca
+     `$_`, yaitu program terakhir yang dijalankan (`timeout`), bukan `railway` 5.71.0. Perintah ini dijalankan tanpa
+     pembungkus.
 - **Status:** FIXED.
 - **Lesson:**
   - argumen posisi pada skrip yang menulis file diperiksa sebelum dijalankan;
+  - jalur file dan modul diuji di folder sedangkal tempat ia akan berjalan (container), bukan hanya di repo;
   - pengaman yang menolak itu benar, dan cakupannya disamakan dengan apa yang benar-benar ditulis.
 
 ### M317 — EDGE Monitor: titik status abu-abu dan jarak tidak rata di HP (2026-10-31)
