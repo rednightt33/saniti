@@ -62,7 +62,8 @@ def part_a():
 def segments(stored, tv):
     """[(first, last, ratio, days)] of stored close / TradingView close over the stored dates, in date order."""
     segs = []
-    for d in sorted(stored):
+    # the missing sessions part A has just written take TradingView's scale (ratio 1); they are not stored history
+    for d in sorted(x for x in stored if x not in GAP):
         r = round(float(stored[d]) / float(tv[d]['close']), 6)
         if segs and segs[-1][2] == r:
             segs[-1][1] = d; segs[-1][3] += 1
@@ -153,7 +154,8 @@ def part_b(conn):
 
 def main():
     out('OUT', 'job_started', dry_run=DRY, dates=P['dates'], six=P['six'])
-    part_a()
+    if not P.get('skip_part_a'):
+        part_a()
     with psycopg.connect(os.environ['DATABASE_URL']) as conn:
         conn.autocommit = True
         # the price jobs' own lock: no daily or recovery run writes prices while this runs

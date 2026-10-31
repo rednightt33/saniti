@@ -1,0 +1,7 @@
+Starting Container
+MIG APPLY 20261031_003_intraday_quality_depth_weekday.sql sha256=d0c5365f33e970dc05fa7a1887d0dcf275013b0ea108498f3a330b3da2cf88ca
+OUT {"q": "status", "ms": 7, "part": 0, "rows": [["15m", "BEFORE_DEPTH", 1407], ["15m", "COMPLETE", 217], ["15m", "INCOMPLETE", 11], ["15m", "UNCHECKED", 10], ["1h", "BEFORE_DEPTH", 735], ["1h", "COMPLETE", 887]]}
+OUT {"q": "status", "ms": 7, "part": 1, "rows": [["1h", "INCOMPLETE", 13], ["1h", "UNCHECKED", 10], ["4h", "COMPLETE", 1619], ["4h", "INCOMPLETE", 16], ["4h", "UNCHECKED", 10], ["5m", "BEFORE_DEPTH", 1562]]}
+OUT {"q": "status", "ms": 7, "part": 2, "rows": [["5m", "COMPLETE", 68], ["5m", "INCOMPLETE", 5], ["5m", "UNCHECKED", 10]]}
+OUT {"q": "depth", "ms": 5, "part": 0, "rows": [["15m", "2025-11-03"], ["1h", "2023-01-02"], ["4h", "2020-01-02"], ["5m", "2026-07-06"]]}
+JOB_DONE MIGRATION APPLY

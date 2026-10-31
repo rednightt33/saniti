@@ -13,7 +13,10 @@ Per queue item, claimed with `worker.claim_one` while the worker service is stop
      checkpoints (lookback + 2), queue DONE, monitoring, finalize_runs.
 Formula, libraries and VERSION are the worker's (features/feature04, requirements pinned like the worker image).
 
-params.json: {"write_from": "2026-09-17", "full_tickers": [...], "processes": 4, "dry_run": bool, "sample": [...]}
+params.json: {"write_from": "2026-09-17", "full_tickers": [...], "processes": 4, "dry_run": bool, "sample": [...],
+              "retry_failed": bool}
+The chain and the reference are compared on the rows written (2026-10-31 first run: a few low-priced stocks differ on
+rsi_14 far back, about float accumulation over years; those rows are not written).
 Dry run: no claim and no write; computes the sample against the stored rows. Ends with JOB_DONE.
 """
 from __future__ import annotations
@@ -63,7 +66,7 @@ def retention(conn) -> int:
     return int(row['correction_lookback_sessions']) + 2
 
 
-def compute(conn, asset, ticker):
+def compute(conn, asset, ticker, check_from=None):
     history = W.load_history(conn, asset, ticker)
     keep = retention(conn)
     rows, outcomes, state, checkpoints = calculate_incremental(history, checkpoint_limit=keep)
@@ -79,10 +82,12 @@ def compute(conn, asset, ticker):
     for a, b in zip(rows, ref):
         if a['trade_date'] != b['trade_date']:
             raise Check('chain and reference dates differ')
+        if check_from is not None and a['trade_date'] < check_from:
+            continue   # not written; old rows are compared with the stored ones through the reference (compare_old)
         for c in FEATURE_COLUMNS:
             if not same(a[c], b[c]):
                 raise Check(f'chain differs from reference {a["trade_date"]} {c}')
-    return history, rows, outcomes, state, list(checkpoints), keep
+    return history, rows, ref, outcomes, state, list(checkpoints), keep
 
 
 def compare_old(conn, asset, ticker, rows):
@@ -111,12 +116,13 @@ def compare_old(conn, asset, ticker, rows):
 
 
 def handle(job) -> str:
+    full = job.ticker in FULL
     with W.connect() as rc:
-        history, rows, outcomes, state, checkpoints, keep = compute(rc, job.asset_type, job.ticker)
-        full = job.ticker in FULL
+        history, rows, ref, outcomes, state, checkpoints, keep = compute(
+            rc, job.asset_type, job.ticker, None if full else WRITE_FROM)
         candle = 0
         if not full:
-            strict, candle, examples = compare_old(rc, job.asset_type, job.ticker, rows)
+            strict, candle, examples = compare_old(rc, job.asset_type, job.ticker, ref)
             if strict:
                 raise Check(f'{strict} stored values before {WRITE_FROM} differ: {examples}')
     write = rows if full else [r for r in rows if r['trade_date'] >= WRITE_FROM]
@@ -189,8 +195,9 @@ def dry_run() -> None:
         t = time.monotonic()
         try:
             with W.connect() as rc:
-                history, rows, outcomes, state, checkpoints, keep = compute(rc, 'equity', ticker)
-                strict, candle, examples = compare_old(rc, 'equity', ticker, rows)
+                history, rows, ref, outcomes, state, checkpoints, keep = compute(
+                    rc, 'equity', ticker, None if ticker in FULL else WRITE_FROM)
+                strict, candle, examples = compare_old(rc, 'equity', ticker, ref)
             out('OUT', 'dry_run', ticker=ticker, rows=len(rows), strict=strict, old_candle_diffs=candle, examples=examples,
                 checkpoints=[s['last_date'] for s in checkpoints], seconds=round(time.monotonic() - t, 2))
         except Exception as error:
@@ -202,6 +209,14 @@ def main() -> None:
     if P['dry_run']:
         dry_run()
         return
+    if P.get('retry_failed'):
+        # queue rows this job stopped earlier (terminal_failure MANUAL_CHECK_FAILED) are opened again for this run
+        with W.connect() as c:
+            n = c.execute(
+                'UPDATE public."Feature04_Calculation_Queue" SET status=%s,source_attempt_count=0,'
+                'next_attempt_at=CURRENT_TIMESTAMP,last_error_code=NULL,last_error=NULL,updated_at=CURRENT_TIMESTAMP '
+                'WHERE status=%s AND last_error_code=%s', ('PENDING', 'FAILED', 'MANUAL_CHECK_FAILED')).rowcount
+        out('OUT', 'retry_failed', reopened=n)
     with W.connect() as c:
         busy = c.execute('''SELECT count(*) AS n FROM public."Feature04_Calculation_Queue"
                             WHERE status='PROCESSING' AND claim_expires_at > CURRENT_TIMESTAMP''').fetchone()['n']
