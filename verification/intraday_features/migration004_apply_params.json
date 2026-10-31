@@ -1,0 +1,28 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261031_004_intraday_features.sql"
+ ],
+ "probes": [
+  [
+   "tables",
+   null,
+   "SELECT c.relname, c.relkind, (SELECT count(*) FROM pg_inherits i WHERE i.inhparent=c.oid) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('Feature_01_Stock_Intraday','Feature_04_Technical_Indicator_Intraday','feature04_intraday_state','intraday_feature_queue') ORDER BY 1"
+  ],
+  [
+   "catalog",
+   null,
+   "SELECT 'feature', feature_table, count(*) FROM public.\"Feature_Catalog\" WHERE is_active AND feature_table LIKE '%Intraday' GROUP BY 2 UNION ALL SELECT 'column', table_name, count(*) FROM public.\"Column_Catalog\" WHERE table_name IN ('Feature_01_Stock_Intraday','Feature_04_Technical_Indicator_Intraday','feature04_intraday_state','intraday_feature_queue') GROUP BY 2 UNION ALL SELECT 'table', table_name, 1 FROM public.\"Table_Catalog\" WHERE table_name IN ('Feature_01_Stock_Intraday','Feature_04_Technical_Indicator_Intraday','feature04_intraday_state','intraday_feature_queue') UNION ALL SELECT 'relationship', left_feature_table||'>'||right_feature_table, 1 FROM public.\"Feature_Relationship_Catalog\" WHERE left_feature_table LIKE '%Intraday'"
+  ],
+  [
+   "function",
+   null,
+   "SELECT p.oid::regprocedure FROM pg_proc p WHERE proname='refresh_feature_01_stock_intraday'"
+  ],
+  [
+   "trigger",
+   null,
+   "SELECT tgrelid::regclass, tgname FROM pg_trigger WHERE tgname='stock_feature_index_guard' AND tgrelid::regclass::text LIKE '%Intraday%' ORDER BY 1"
+  ]
+ ]
+}

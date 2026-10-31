@@ -1,0 +1,63 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261031_004_intraday_features.sql"
+ ],
+ "probes": [
+  [
+   "bars_per_year",
+   null,
+   "SELECT timeframe, round(252*avg(index_bars))::int, count(*) FROM public.price_stock_idx_intraday_quality WHERE status='COMPLETE' AND index_bars>0 GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "f01_1h_full",
+   null,
+   "SELECT public.refresh_feature_01_stock_intraday('1h', ARRAY['BBCA','PBSA','AALI','IHSG'])"
+  ],
+  [
+   "f01_1h_rows",
+   null,
+   "SELECT ticker, count(*), min(bar_time), max(bar_time), max(bars_per_year), count(volatility_60bar_change_pct), count(volume_zscore_20bar) FROM public.\"Feature_01_Stock_Intraday\" GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "f01_sum_before",
+   null,
+   "SELECT count(*), md5(string_agg(concat_ws('|',ticker,bar_time,close_1bar_ago,return_5bar_pct,volatility_20bar_ann_pct,volatility_60bar_change_pct,volume_zscore_20bar,drawdown_60bar_pct,bars_per_year),',' ORDER BY ticker,bar_time)) FROM public.\"Feature_01_Stock_Intraday\" WHERE timeframe='1h' AND bar_time >= timestamptz '2026-10-01 00:00+07'"
+  ],
+  [
+   "f01_1h_from",
+   null,
+   "SELECT public.refresh_feature_01_stock_intraday('1h', ARRAY['BBCA','PBSA','AALI'], timestamptz '2026-10-01 00:00+07')"
+  ],
+  [
+   "f01_sum_after",
+   null,
+   "SELECT count(*), md5(string_agg(concat_ws('|',ticker,bar_time,close_1bar_ago,return_5bar_pct,volatility_20bar_ann_pct,volatility_60bar_change_pct,volume_zscore_20bar,drawdown_60bar_pct,bars_per_year),',' ORDER BY ticker,bar_time)) FROM public.\"Feature_01_Stock_Intraday\" WHERE timeframe='1h' AND bar_time >= timestamptz '2026-10-01 00:00+07'"
+  ],
+  [
+   "f01_sample",
+   null,
+   "SELECT ticker, bar_time, close, close_1bar_ago, return_1bar_pct, volatility_20bar_ann_pct, volume_ratio_20bar, high_60bar, drawdown_60bar_pct FROM public.\"Feature_01_Stock_Intraday\" WHERE ticker='BBCA' ORDER BY bar_time DESC LIMIT 3"
+  ],
+  [
+   "f01_5m_50_timing",
+   null,
+   "SELECT public.refresh_feature_01_stock_intraday('5m', (SELECT array_agg(ticker) FROM (SELECT DISTINCT ticker FROM public.price_stock_idx_intraday_5m ORDER BY 1 LIMIT 50) x))"
+  ],
+  [
+   "guard_ihsg",
+   null,
+   "INSERT INTO public.\"Feature_04_Technical_Indicator_Intraday\"(ticker,timeframe,bar_time,session_date,close) VALUES ('IHSG','1h',now(),current_date,1) RETURNING ticker"
+  ],
+  [
+   "catalog",
+   null,
+   "SELECT feature_table, count(*), count(*) FILTER (WHERE semantic_review_status='CALCULATION_VERIFIED') FROM public.\"Feature_Catalog\" WHERE feature_table LIKE '%Intraday' GROUP BY 1"
+  ],
+  [
+   "partitions",
+   null,
+   "SELECT inhparent::regclass, count(*) FROM pg_inherits WHERE inhparent::regclass::text LIKE '%Intraday%' GROUP BY 1"
+  ]
+ ]
+}

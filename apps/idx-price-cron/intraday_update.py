@@ -43,6 +43,7 @@ CHUNK_SYMBOLS = 40
 COLUMNS = ("ticker", "timeframe", "bar_time", "session_date", "open", "high", "low", "close", "volume",
            "adjustment", "tradingview_symbol", "source", "query_date")
 TABLE = 'public.price_stock_idx_intraday'
+QUEUE = "public.intraday_feature_queue"
 LOCK_KEY = "saniti.idx-intraday-cron"
 
 
@@ -58,6 +59,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--since", type=date.fromisoformat, default=date(2020, 1, 1))
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--skip-features", action="store_true",
+                        help="load the bars only; the queue waits for the next run (intraday_features.py --mode queue)")
     args = parser.parse_args()
     args.timeframes = [t.strip() for t in args.timeframes.split(",") if t.strip()]
     if not args.timeframes or any(t not in TIMEFRAMES for t in args.timeframes):
@@ -146,14 +149,29 @@ def write_rows(conn: psycopg.Connection, rows: list[dict]) -> int:
         with conn.cursor().copy(f"COPY intraday_stage ({cols}) FROM STDIN") as copy:
             for row in rows:
                 copy.write_row(tuple(row[c] for c in COLUMNS))
-        return conn.execute(
-            f"""INSERT INTO {TABLE} AS t ({cols}, ingestion_time)
-                SELECT {cols}, statement_timestamp() FROM intraday_stage
-                ON CONFLICT (ticker, timeframe, bar_time) DO UPDATE SET {changed},
-                    ingestion_time = EXCLUDED.ingestion_time
-                WHERE ({", ".join("t." + c for c in compared)}) IS DISTINCT FROM
-                      ({", ".join("EXCLUDED." + c for c in compared)})"""
-        ).rowcount
+        # EXEC-INTRADAY-FEATURES: the bars that were inserted or changed come back, and the first one of every
+        # (ticker, timeframe) is queued for the features in the same transaction (an index has no stock features: D4)
+        n = conn.execute(
+            f"""WITH written AS (
+                    INSERT INTO {TABLE} AS t ({cols}, ingestion_time)
+                    SELECT {cols}, statement_timestamp() FROM intraday_stage
+                    ON CONFLICT (ticker, timeframe, bar_time) DO UPDATE SET {changed},
+                        ingestion_time = EXCLUDED.ingestion_time
+                    WHERE ({", ".join("t." + c for c in compared)}) IS DISTINCT FROM
+                          ({", ".join("EXCLUDED." + c for c in compared)})
+                    RETURNING t.ticker, t.timeframe, t.bar_time),
+                queued AS (
+                    INSERT INTO {QUEUE} AS q (ticker, timeframe, dirty_from)
+                    SELECT ticker, timeframe, min(bar_time) FROM written
+                     WHERE NOT public.is_universe_index(ticker) GROUP BY ticker, timeframe
+                    ON CONFLICT (ticker, timeframe) DO UPDATE SET
+                        dirty_from = CASE WHEN q.status = 'DONE' THEN EXCLUDED.dirty_from
+                                          ELSE least(q.dirty_from, EXCLUDED.dirty_from) END,
+                        attempts = CASE WHEN q.status = 'DONE' THEN 0 ELSE q.attempts END,
+                        status = 'PENDING', enqueued_at = statement_timestamp())
+                SELECT count(*) FROM written"""
+        ).fetchone()[0]
+        return n
 
 
 def sessions_behind(conn, universe, timeframe: str, latest: date) -> dict[str, int | None]:
@@ -255,10 +273,40 @@ def main() -> int:
         emit("run_started", mode=args.mode, timeframes=args.timeframes, symbols=len(universe), latest_session=latest,
              since=args.since, dry_run=args.dry_run)
         fetcher = Fetcher(query_date)
+        problems = []
         for timeframe in args.timeframes:
-            emit("timeframe_done", **load_timeframe(conn, fetcher, universe, timeframe, args, latest, query_date))
-    emit("run_completed")
+            stats = load_timeframe(conn, fetcher, universe, timeframe, args, latest, query_date)
+            emit("timeframe_done", **stats)
+            if stats["scale_changed"]:
+                problems.append(f"{timeframe}: skala berubah (perlu tarik ulang riwayat): "
+                                + ", ".join(t for t, _, _ in stats["scale_changed"][:20]))
+            if stats["errors"]:
+                problems.append(f"{timeframe}: {len(stats['errors'])} saham gagal ditarik")
+        if not args.dry_run and not args.skip_features:
+            import intraday_features  # noqa: PLC0415 - TA-Lib lives only in the intraday image (M318 build check)
+            features = intraday_features.run_queue(conn, args.timeframes)
+            if features["failed"]:
+                problems.append(f"fitur intraday gagal untuk {len(features['failed'])} deret, dicoba lagi run "
+                                "berikutnya: " + ", ".join(f"{t} {tf}" for t, tf, _ in features["failed"][:20]))
+        if problems and not args.dry_run:
+            report_problems(conn, universe, latest, now, problems)
+    emit("run_completed", problems=len(problems))
     return 0
+
+
+def report_problems(conn, universe, latest: date, now: datetime, problems: list[str]) -> None:
+    """One NEEDS_REVIEW monitoring row and its Telegram notice when the load or the features need attention (the
+    price cron's channel, price_update.monitoring_records); a clean run sends nothing."""
+    import uuid  # noqa: PLC0415
+    execution_id = str(uuid.uuid4())
+    stocks = [s for s in universe if s.asset_type != "index"]
+    records = pu.monitoring_records(
+        stocks, [], [], "RECOVERY", latest, now, datetime.now(timezone.utc), execution_id, "SCHEDULED", now,
+        forced_status="NEEDS_REVIEW", forced_error=("INTRADAY: " + "; ".join(problems))[:1900])
+    try:
+        pu.commit_monitoring_and_notify(conn, records, execution_id)
+    except Exception as exc:  # noqa: BLE001 - a notice that fails must not undo the bars or the features
+        emit("problem_report_failed", error=f"{type(exc).__name__}: {exc}"[:300], problems=problems)
 
 
 if __name__ == "__main__":

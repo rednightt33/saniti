@@ -1,0 +1,2 @@
+OUT {"event": "job_started", "cpu": 48, "workers": 8, "timeframes": ["4h", "1h", "15m", "5m"], "tickers": []}
+Starting Container

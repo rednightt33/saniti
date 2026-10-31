@@ -1,0 +1,15 @@
+Starting Container
+MIG DRYRUN 20261031_004_intraday_features.sql sha256=2c092f85225ceef7b25edf9dadece5f6a628ac865a31e9369fd969442a847579
+MIG DRYRUN_BODY_OK 20261031_004_intraday_features.sql
+OUT {"q": "bars_per_year", "ms": 11, "part": 0, "rows": [["15m", 5652, 217], ["1h", 1766, 887], ["4h", 504, 1619], ["5m", 16017, 68]]}
+OUT {"q": "f01_1h_full", "ms": 836, "part": 0, "rows": [[18252]]}
+OUT {"q": "f01_1h_rows", "ms": 7, "part": 0, "rows": [["AALI", 6137, "2023-01-02 02:00:00+00:00", "2026-10-30 09:00:00+00:00", 1766, 6017, 6118], ["BBCA", 6153, "2023-01-02 02:00:00+00:00", "2026-10-30 09:00:00+00:00", 1766, 6033, 6134], ["PBSA", 5962, "2023-01-02 02:00:00+00:00", "2026-10-30 09:00:00+00:00", 1766, 5842, 5943]]}
+OUT {"q": "f01_sum_before", "ms": 3, "part": 0, "rows": [[447, "a1482a56672c57cb7aa3a95f21ffe37b"]]}
+OUT {"q": "f01_1h_from", "ms": 39, "part": 0, "rows": [[447]]}
+OUT {"q": "f01_sum_after", "ms": 2, "part": 0, "rows": [[447, "a1482a56672c57cb7aa3a95f21ffe37b"]]}
+OUT {"q": "f01_sample", "ms": 5, "part": 0, "rows": [["BBCA", "2026-10-30 09:00:00+00:00", "4980.00000000", "4980.00000000", 0.0, 62.828907107854825, 0.9170772049945262, "5275.00000000", -5.592417061611377], ["BBCA", "2026-10-30 08:00:00+00:00", "4980.00000000", "4960.00000000", 0.40322580645162365, 62.83054928442146, 0.8295889439347119, "5275.00000000", -5.592417061611377], ["BBCA", "2026-10-30 07:00:00+00:00", "4960.00000000", "4980.00000000", -0.40160642570281624, 63.69322927573749, 0.7355251658419545, "5275.00000000", -5.9715639810426495]]}
+OUT {"q": "f01_5m_50_timing", "ms": 11140, "part": 0, "rows": [[251567]]}
+ERR {"q": "guard_ihsg", "error": "CheckViolation: IHSG is a universe index: its rows belong to Feature_04_Technical_Indicator_Intraday_1h_INDEX, not to Feature_04_Technical_Indicator_Intraday_1h\nCONTEXT:  PL/pgSQL function validate_stock_feature_identity() line 4 at RAISE"}
+OUT {"q": "catalog", "ms": 2, "part": 0, "rows": [["Feature_01_Stock_Intraday", 31, 31], ["Feature_04_Technical_Indicator_Intraday", 56, 56]]}
+OUT {"q": "partitions", "ms": 2, "part": 0, "rows": [["\"Feature_01_Stock_Intraday\"", 4], ["\"Feature_01_Stock_Intraday_pkey\"", 4], ["\"Feature_04_Technical_Indicator_Intraday\"", 4], ["\"Feature_04_Technical_Indicator_Intraday_pkey\"", 4]]}
+JOB_DONE MIGRATION DRYRUN

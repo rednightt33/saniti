@@ -1,0 +1,20 @@
+# idx-intraday-cron (EXEC-INTRADAY-FEATURES): the loader plus the intraday Feature 01/04 step. Build context = a tree
+# with apps/idx-price-cron and features/feature04 (deploy_intraday.sh); the price crons keep ./Dockerfile.
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY apps/idx-price-cron/requirements.txt apps/idx-price-cron/requirements-intraday.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-intraday.txt
+
+COPY apps/idx-price-cron/*.py ./
+# the Feature 04 engine of the daily worker, unchanged (the same three files as apps/feature-04-worker/Dockerfile)
+COPY features/feature04/engine.py features/feature04/swing.py features/feature04/incremental.py ./features/feature04/
+# M318: the build fails when a module is missing or does not import, and when the engine cannot be loaded
+RUN for f in *.py; do case "$f" in test_*) ;; *) python -c "import ${f%.py}" || exit 1;; esac; done \
+ && python -c "import intraday_features as f; e, _ = f.load_engine(); print('feature04 engine', e.VERSION)"
+
+CMD ["python", "intraday_update.py", "--mode", "daily"]

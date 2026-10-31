@@ -1,0 +1,10 @@
+Starting Container
+OUT {"event": "job_started", "cpu": 48, "workers": 4, "timeframes": ["4h"], "tickers": ["BBCA", "PBSA", "AALI", "GOTO"]}
+2026-10-31T15:41:23.362439684Z [INFO]  event="backfill_f01" timeframe="4h" tickers=4 rows=11519 seconds=8.1
+2026-10-31T15:41:24.522747623Z [INFO]  event="backfill_f04_progress" timeframe="4h" series=1 of=4 rows=2174 seconds=9.2
+2026-10-31T15:41:24.657854811Z [INFO]  event="backfill_f04_progress" timeframe="4h" series=2 of=4 rows=4941 seconds=9.4
+2026-10-31T15:41:24.772184964Z [INFO]  event="backfill_f04_progress" timeframe="4h" series=3 of=4 rows=8231 seconds=9.5
+2026-10-31T15:41:24.872251859Z [INFO]  event="backfill_f04_progress" timeframe="4h" series=4 of=4 rows=11519 seconds=9.6
+2026-10-31T15:41:25.388831419Z [INFO]  event="backfill_timeframe_done" timeframe="4h" series=4 f01_rows=11519 f04_rows=11519 failures=0 seconds=9.7
+VERDICT {"failures": 0}
+JOB_DONE
