@@ -217,13 +217,13 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         assert 'lane' not in orc.calls[-1][2] and not page.locator('.edge-model-lanes').count()  # no lane_selection
         # EXEC-UI-1015E (user 2026-10-15, "ini nama mode saja langsung"): the model's name, its id in the tooltip
         # MONITOR-REVAMP (AI_revamp.html .metarow): the level as Orc names it, in small letters
-        assert 'GLM 5.3 Flash · max' in page.locator('.edge-run-model').first.inner_text()
+        assert 'GLM 5.3 Flash · Max' in page.locator('.edge-run-model').first.inner_text()
         assert page.locator('.edge-run-model-name').first.get_attribute('title') == 'z-ai/glm-5.3-flash'
         # EXEC-UI-1013B (gambar 2): the model's logo left of its name in the answer's header
         header_logo = page.locator('.edge-run-model').first.locator('.edge-model-logo')
         assert header_logo.count() == 1 and header_logo.is_visible()
         page.reload();ready=page.locator('.edge-model-trigger:not([disabled])');ready.wait_for()
-        assert 'GLM 5.3 Flash' in ready.inner_text() and 'max' in ready.inner_text()
+        assert 'GLM 5.3 Flash' in ready.inner_text() and 'Max' in ready.inner_text()
         assert errors==[],errors
         browser.close()
 
