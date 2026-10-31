@@ -10880,6 +10880,42 @@ html .app .monitor-layout .edge-side-head .icon-btn:hover{background:var(--hover
   html .app .monitor-layout .composer>textarea{min-height:24px;max-height:120px;padding:6px 2px 4px;font-size:14px;line-height:1.5;}
   html .app .monitor-layout .composer .edge-send{width:36px;height:36px;border-radius:999px;}
 }
+/* =====================================================================================================================
+   M317 (user 2026-10-31, phone screenshots A-E). Look only; the dot's colour comes from Edge.statusTone.
+   ===================================================================================================================== */
+/* A, D: one colour per run state on every status dot (list and session bar); none is grey. Yellow is the Design Spec's
+   badge amber (AI_revamp.html .dot.paused); a conversation without a question is a blue ring */
+html .app .conversation-panel .conversation-state.edge-tone-positive,html .app .workspace-tools .edge-tone-positive{background:var(--green);}
+html .app .conversation-panel .conversation-state.edge-tone-negative,html .app .workspace-tools .edge-tone-negative{background:var(--red);}
+html .app .conversation-panel .conversation-state.edge-tone-warning,html .app .workspace-tools .edge-tone-warning{background:var(--b-amber);}
+html .app .conversation-panel .conversation-state.edge-tone-info,html .app .workspace-tools .edge-tone-info{background:var(--blue);}
+html .app .conversation-panel .conversation-state.edge-tone-new,html .app .workspace-tools .edge-tone-new{background:transparent;box-shadow:inset 0 0 0 1.5px var(--blue);}
+html .app .workspace-tools :is(.live-dot,.pulse){flex:none;width:8px;height:8px;border-radius:50%;}
+/* B: the reasoning level reads as its label ("High"), in the message box too; the answer head keeps one 8 px rhythm:
+   title to metadata, between wrapped metadata lines and to the evidence line, every metadata item one 20 px line */
+html .app .monitor-layout .composer .edge-model-trigger .edge-model-level{text-transform:none;}
+html .app .monitor-layout .result>.result-metadata{row-gap:var(--s-4);margin-top:var(--s-4);}
+html .app .monitor-layout .result>.result-metadata>span{min-height:20px;line-height:20px;}
+html .app .monitor-layout .result>.result-metadata .edge-run-model-level{color:var(--text-3);font-weight:400;white-space:pre;}
+html .app .monitor-layout .result .result-metadata .edge-cost-badge{line-height:18px;padding-block:0;}
+html .app .monitor-layout .result>.edge-evidence-line{margin-top:var(--s-4);min-height:20px;}
+/* C: the suggestion folds and the Assumptions/Limitations/Methodology folds read as one list: the same 12 px between
+   every folded title */
+html .app .monitor-layout .result>.content-block.edge-next.edge-discs+.content-block.edge-discs{margin-top:var(--s-6);}
+/* E: a folded list's bullets sit under the fold's triangle and its text under the fold's title, inside the card */
+html .app .monitor-layout .result .edge-discs>details.edge-notes>ul.edge-list{padding-left:12px;list-style-position:outside;}
+html .app .monitor-layout .result .edge-discs>details.edge-notes>ul.edge-list>li{padding-left:0;}
+@media (max-width:720px){
+  /* C: on a phone the action row wraps, so every button keeps the same gap (Branch is not pushed to the right) */
+  html .app .monitor-layout .result-actions .edge-branch-action{margin-left:0;}
+  /* D: one session row: Details, bookmark and share on the left, the run's state on the right; the words "Research
+     session" are left out for the room */
+  html .app .monitor-layout .workspace-tools{flex-wrap:nowrap;gap:8px;}
+  html .app .monitor-layout .workspace-tools>div:last-child{order:1;flex:none;flex-wrap:nowrap;}
+  html .app .monitor-layout .workspace-tools>div:first-child{order:2;flex:0 1 auto;min-width:0;margin-left:auto;flex-wrap:nowrap;gap:6px;}
+  html .app .monitor-layout .workspace-tools .edge-session-label{display:none;}
+  html .app .monitor-layout .workspace-tools>div:first-child .pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+}
 </style>
 </head>
 <body><div id="root"></div>
@@ -11750,8 +11786,10 @@ function Monitor({ go }) {
             element("section", { className: "research-workspace",inert:narrow&&(historyOpen||mobileDetailsOpen) },
                 element("div", { className: "workspace-tools" },
                     element("div", null,
-                        element("span", { className: active ? "pulse" : "live-dot" }),
-                        " Research session ",
+                        // M317 (user 2026-10-31): the dot takes the run's colour; on a phone the label is dropped and the
+                        // state sits at the right of the Details row (CSS "M317")
+                        element("span", { className: `${active ? "pulse" : "live-dot"} edge-tone-${run ? Edge.statusTone(run.status, run.domainStatus, run.paused, run.stopped) : "new"}` }),
+                        element("span", { className: "edge-session-label" }, " Research session "),
                         element(Pill, null, run ? `Run ${runNumber} · ${Edge.statusLabel(run.status, run.domainStatus, run.paused)}` : "Draft")),
                     element("div", null,
                         (!detailsOpen || narrow) && element(Button, { kind: "ghost", icon: "sliders", ariaLabel:"Show Details", onClick: () => {setHistoryOpen(false);setDetailsOpen(true);setMobileDetailsOpen(true);} }, "Details"),
@@ -11854,11 +11892,13 @@ function ConversationHistoryList({ items, selectedId, select, toggleBookmark, re
     // that conversation's group, with the branch icon; a branch whose parent is not in the list stays in its own group
     const shown = new Set(items.map(item => item.id));
     const nested = item => item.kind === "BRANCH" && item.parent?.conversationId && item.parent.conversationId !== item.id && shown.has(item.parent.conversationId);
-    const row = (item, child) => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}${child ? " child" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+    const row = (item, child) => { const itemRun = latestRun(item), last = itemRun ?? item.lastRun; return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}${child ? " child" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
                 event.preventDefault();
                 select(item.id);
             } } },
-            element("i", { className: `conversation-state ${itemRun?.status ?? "draft"}` }),
+            // M317 (user 2026-10-31): the dot's colour is the state of the latest question (Edge.statusTone), also for a
+            // conversation not opened yet (the list API's last_state/last_run_status); never grey
+            element("i", { className: `conversation-state ${itemRun?.status ?? "draft"} edge-tone-${last ? Edge.statusTone(last.status, last.domainStatus, last.paused, last.stopped) : "new"}` }),
             element("span", null,
                 element("strong", null, item.kind === "BRANCH" && element(Icon, { name: "branch", size: 12 }), item.title),
                 element("small", null, item.messages.findLast(message => message.role === "user")?.content ?? item.lastMessage)),
@@ -13036,7 +13076,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conve
   // MONITOR-REVAMP (AI_revamp.html .kick): the status of any other answer is a pill after "EDGE"
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),element("span",null,edgeUi().answerKicker),v.status.code!=="COMPLETED"&&element("span",{className:`edge-badge ${v.status.tone}`},element("i",{className:"edge-badge-dot","aria-hidden":"true"}),v.status.label)),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+v.meta.reasoningLevel:null)),v.meta.tokens!==undefined&&element("span",{className:"edge-tokens"},"Tokens ",element("b",null,edgeTokens(v.meta.tokens))),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost)),v.meta.duration&&element("span",{className:"edge-duration",title:"Processing time"},element("svg",{className:"icon",width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},element("circle",{cx:"12",cy:"12",r:"9"}),element("path",{d:"M12 7v5l3 2"})),element("b",null,v.meta.duration))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?element("span",{className:"edge-run-model-level"}," \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel)):null)),v.meta.tokens!==undefined&&element("span",{className:"edge-tokens"},"Tokens ",element("b",null,edgeTokens(v.meta.tokens))),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost)),v.meta.duration&&element("span",{className:"edge-duration",title:"Processing time"},element("svg",{className:"icon",width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},element("circle",{cx:"12",cy:"12",r:"9"}),element("path",{d:"M12 7v5l3 2"})),element("b",null,v.meta.duration))),
   // MONITOR-REVAMP (AI_revamp.html .evline): the evidence label as text, a positive one followed by its green check
   v.evidence&&element("div",{className:"edge-tags edge-evidence-line"},element("span",{className:"edge-evidence-text",title:v.evidence.code},v.evidence.label),v.evidence.positive&&element("svg",{className:"edge-evidence-check",width:12,height:12,viewBox:"0 0 16 16","aria-hidden":"true"},element("circle",{cx:"8",cy:"8",r:"8",fill:"#087f5b"}),element("path",{d:"M4.6 8.3l2.2 2.2 4.6-4.8",fill:"none",stroke:"#ffffff",strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round"}))),
   v.attached.length>0&&element("div",{className:"edge-attached-line"},element(Icon,{name:"attach",size:13}),

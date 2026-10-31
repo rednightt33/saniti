@@ -196,7 +196,7 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         page.get_by_role('button',name='Sign In',exact=True).click()
         composer=page.get_by_placeholder('Ask a research question…');composer.wait_for()
         trigger=page.locator('.edge-model-trigger:not([disabled])');trigger.wait_for()
-        assert 'high' in trigger.inner_text()  # MONITOR-REVAMP (AI_revamp.html): the level in small letters
+        assert 'High' in trigger.inner_text()  # M317 (user 2026-10-31): the level as its label, capital first letter
         trigger.click()
         options=page.locator('.edge-model-option')
         assert options.count()==4

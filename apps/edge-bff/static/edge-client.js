@@ -24,6 +24,15 @@
   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
   const statusLabel = (status, domain, pause) => ['submitted','running','streaming'].includes(status) ? 'Running' : status === 'failed' && !domain ? 'Failed'
     : pause && domain === 'LIMITED' ? 'Paused' : DOMAIN[domain] || (status ? status[0].toUpperCase() + status.slice(1) : '—');
+  // M317 (user 2026-10-31: "hijau kalau dia sukses. Merah kalau dia gagal, kuning kalau butuh konfirmasi ... Tidak boleh
+  // ada yang warnanya abu-abu"): the one colour of a run's state, for every status dot (conversation list, session bar).
+  // info running; negative failed; warning an answer that waits for the user or is not whole (approval, a reply,
+  // paused, limited, stopped); positive completed; new a conversation without a question yet. Every state has a colour.
+  const statusTone = (status, domain, pause, stopped) => ['submitted','running','streaming'].includes(status) ? 'info'
+    : status === 'failed' || domain === 'FAILED' ? 'negative'
+    : status === 'completed' ? (pause || stopped || (domain && domain !== 'COMPLETED') ? 'warning' : 'positive') : 'new';
+  // the list API's last question state (edge_bff.jobs) in the page's run words, so statusTone reads both alike
+  const LIFECYCLE = {QUEUED:'running',RUNNING:'running',RECOVERING:'running',FINISHED:'completed',FAILED:'failed',INTERRUPTED:'failed'};
   // M153 (EXEC-UI-1013B): on iPhone the stream of a run died while the app was in the background and no error event
   // followed (iOS 18), so the page waited for the answer until a refresh. The stream now sends a ping every few
   // seconds; a stream silent for STALE_MS is replaced (with one status read), and so is the stream when the page
@@ -63,6 +72,7 @@
     do { const page = await api('/conversations?limit=100&offset=' + offset); result.push(...page.items); offset = page.next_offset; } while (offset !== null);
     // MONITOR-REVAMP (user 2026-10-30): the list keeps a branch's kind and parent so it nests under that conversation
     return result.map(ui => ({id:ui.conversation_id,title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,lastMessage:ui.last_message||null,
+      lastRun:ui.last_state?{status:LIFECYCLE[ui.last_state]||null,domainStatus:ui.last_run_status||null}:null,
       kind:ui.kind||'MAIN',parent:ui.parent_conversation_id?{conversationId:ui.parent_conversation_id,requestId:ui.parent_request_id}:null,messages:[],runs:[]}));
   }
   // EXEC-UI-1012 C: the first question's answer is headed by the short title Orc's first-message router wrote
@@ -120,7 +130,7 @@
     .catch(() => { models.failed = true; }));
   const settle = promise => Promise.race([promise, new Promise(resolve => setTimeout(resolve, 3000))]);
   window.Edge = {
-    api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,shortTitle,
+    api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,statusTone,shortTitle,
     get auth() { return auth; },
     async session() { try { auth = await api('/auth/session'); } catch { auth = null; } if (auth) await settle(loadModels()); return auth; },
     async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); await settle(loadModels()); dispatchEvent(new Event('edge-auth')); return auth; },

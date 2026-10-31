@@ -9505,3 +9505,27 @@ terbuka).
 2. Frekuensi: sekali sesudah penutupan (usulan) atau selama jam bursa.
 3. Retensi 5 menit: simpan semua (perkiraan ±2 GB per tahun) atau bergulir.
 4. Urutan: dikerjakan sesudah EXEC-PRICE-GAP-0917 selesai (usulan).
+
+## EXEC-M317 — Monitor HP: warna status, kepala jawaban, lipatan, baris sesi, bullet (2026-10-31)
+
+Permintaan user 2026-10-31 (lima screenshot HP A–E, acuan `AI_revamp.html`): "harusnya saya buletin instead of warnanya
+abu-abu, dia harusnya warna hijau kalau dia sukses. Merah kalau dia gagal, kuning kalau butuh konfirmasi, dan lain
+sebagainya. Tidak boleh ada yang warnanya abu-abu. B, high-nya harusnya hurufnya besar hanya, kemudian perhatikan
+spacing-nya. Sepertinya tidak even. Bagian title. Kalau yang bagian isi sudah oke. Juga spacing tidak rapi, D saya minta
+untuk yang saya buletin dipindah ke bagian kotak. Lihat bagian E, bulletnya terlalu ke kiri."
+
+Isi (edge-bff; detail dan akar masalah di `ERRORS_AND_SOLUTIONS.md` M317):
+- A, D: satu fungsi warna `Edge.statusTone` (`static/edge-client.js`) untuk setiap titik status: hijau selesai, kuning
+  menunggu user atau tidak utuh (persetujuan, jawaban user, dijeda, LIMITED, dihentikan), merah gagal, biru berjalan,
+  cincin biru bila belum ada pertanyaan. API daftar percakapan menambah `last_state` dan `last_run_status` pertanyaan
+  terakhir (`app/store.py`, tanpa migrasi; kolom sudah ada di `edge_bff.jobs`).
+- B: tingkat penalaran memakai labelnya ("High") di kepala jawaban dan kotak pesan; kepala jawaban satu ritme 8 px
+  (judul→metadata, antarbaris metadata, metadata→evidence), tiap item metadata satu baris 20 px. Menggantikan jarak
+  10 px EXEC 2026-10-20.
+- C: lipatan saran dan Assumptions/Limitations/Methodology berjarak sama (12 px); di HP Branch tidak lagi didorong ke
+  kanan.
+- D: di HP baris sesi satu baris: Details, bookmark, share di kiri, titik berwarna + "Run n · status" di kanan; kata
+  "Research session" tidak tampil (tidak muat).
+- E: bullet lipatan di bawah segitiga lipatan, teksnya sejajar judul lipatan, di dalam kartu.
+- Tes: `tests/test_ui_1031.py` (baru), `tests/test_edge.py` (field daftar). Pratinjau: mock mengirim field yang sama.
+- Belum dideploy: perubahan ada di branch `claude/pensive-allen-0q2cn9`; deploy edge-bff terjadi saat masuk `main`.
