@@ -5434,3 +5434,8 @@ B6 window:
   SUCCESS (14:24 UTC). No variable, migration or other service changed.
 - Live check (signed in as `edge`, no AI call): `/monitor` holds the EXEC-TABLE-CLAUDE CSS; a saved 10-row answer table
   renders with right-aligned number titles over their values, no header band and hairline rows at 1440 px.
+
+## 2026-10-31 — edge-bff: wrapped-title arrow, Response history type, no Draft label
+
+- User go "ok" (2026-10-31). `main` `e407352e`; edge-bff deployment `bd8f81ca-165d-4e87-918e-d62011d9c8ef` SUCCESS
+  (14:38 UTC). No variable, migration or other service changed. Live `/monitor` holds the new CSS and markup.
