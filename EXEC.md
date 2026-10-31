@@ -9532,3 +9532,21 @@ Isi (edge-bff; detail dan akar masalah di `ERRORS_AND_SOLUTIONS.md` M317):
   Tes edge-bff (Postgres 16 lokal, Chromium): semua lulus kecuali `test_ui_1015c` judul pendek di 1440, yang juga gagal
   di `main` sebelum perubahan ini (baseline, dicatat di EXEC-MONITOR-REVAMP). Backtest/Screener/Terminal tidak diuji ulang
   (tidak tersentuh).
+
+## EXEC-TABLE-CLAUDE — tabel jawaban mengikuti gaya tabel Claude (2026-10-31)
+
+Permintaan user 2026-10-31 (dua screenshot tabel desktop): "untuk table saat ini masih acak-acakan. Boleh nggak
+dirapikan pakai standar kamu aja? Claude kan sering respon menggunakan table. Nah, untuk alignment dan lain sebagainya
+kita duplikat saja pakai contoh dari Claude."
+
+Isi (CSS edge-bff saja, blok "EXEC-TABLE-CLAUDE" di akhir style `static/index.html`; sortir, lipat baris, unduh dan
+perbesar tetap):
+- Tanpa bingkai dan tanpa pita abu-abu di header; header semibold seukuran sel, satu garis lebih tegas di bawahnya;
+  baris dipisah garis tipis; tepi kiri dan kanan tabel sejajar teks jawaban.
+- Judul mengikuti perataan kolomnya: kolom angka rata kanan sampai judulnya (sebelumnya judul rata kiri di atas angka
+  rata kanan). Menggantikan E13 (user 2026-10-16, "Nama kolom rata kiri") untuk kolom angka; judul tetap di tengah
+  vertikal.
+- Panah sortir tidak memakan lebar (di samping judul, samar sampai di-hover atau aktif), jadi tidak menggeser judul.
+- Judul > 14 karakter tetap terbungkus di 14ch dan kolomnya tidak menyempit di bawah itu (HP: tabel digeser samping).
+- Tes: `tests/test_ui_1015c.py` E13 menerima judul kolom angka rata kanan. Tes tampilan edge-bff: semua lulus kecuali
+  `test_ui_1015c` judul pendek di 1440 (baseline `main`, sudah gagal sebelumnya).

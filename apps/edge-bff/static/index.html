@@ -10916,6 +10916,37 @@ html .app .monitor-layout .result .edge-discs>details.edge-notes>ul.edge-list>li
   html .app .monitor-layout .workspace-tools .edge-session-label{display:none;}
   html .app .monitor-layout .workspace-tools>div:first-child .pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 }
+/* =====================================================================================================================
+   EXEC-TABLE-CLAUDE (user 2026-10-31: "untuk table saat ini masih acak-acakan ... dirapikan pakai standar kamu aja ...
+   untuk alignment dan lain sebagainya kita duplikat saja pakai contoh dari Claude"). An answer table reads like a
+   Claude table: no frame and no grey header band; a semibold header in the cells' size over one stronger line; rows
+   apart by a hairline; each title takes its column's alignment (numbers right, text left), so a title's edge is the
+   numbers' edge; the sort arrow takes no width (beside the title, faint until hovered or sorted); the table's left
+   and right edges are the answer text's. Sorting, folding, download and enlarge stay as they were.
+   ===================================================================================================================== */
+html .app .monitor-layout .result .edge-md-table-frame>.edge-md-table{border:0;border-radius:0;background:transparent;}
+html .app .monitor-layout .result .edge-md-table .data-table,html .app .monitor-layout .result .edge-md-table .data-table td{background:transparent;}
+html .app .monitor-layout .result .edge-md-table .data-table th,html.dark .app .monitor-layout .result .edge-md-table .data-table th:first-child{height:auto;background:var(--surface);border-bottom:1px solid var(--border-2);font-size:12.04px;font-weight:600;color:var(--text);vertical-align:middle;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort{min-height:0;padding:8px 12px;line-height:19.5px;text-align:left;}
+html .app .monitor-layout .result .edge-md-table .data-table th.num .edge-sort{text-align:right;}
+html .app .monitor-layout .result .edge-md-table .data-table :is(th,td):first-child,html .app .monitor-layout .result .edge-md-table .data-table th:first-child .edge-sort{padding-left:0;}
+html .app .monitor-layout .result .edge-md-table .data-table :is(th,td):last-child,html .app .monitor-layout .result .edge-md-table .data-table th:last-child .edge-sort{padding-right:0;}
+html .app .monitor-layout .result .edge-md-table .data-table th:first-child,html .app .monitor-layout .result .edge-md-table .data-table td:first-child{padding-left:0;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-label{position:relative;display:inline-block;text-align:inherit;}
+/* a long title wraps at 14 characters (EXEC-UI-1019B) and its column never squeezes it narrower; a phone scrolls sideways */
+html .app .monitor-layout .result .edge-md-table .data-table th.edge-title-long .edge-sort-label{width:max-content;max-width:14ch;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-icon{position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:3px;opacity:.5;}
+html .app .monitor-layout .result .edge-md-table .data-table th.num .edge-sort-icon{left:auto;right:100%;margin:0 3px 0 0;}
+html .app .monitor-layout .result .edge-md-table .data-table :is(th.sorted,th:hover,th:focus-within) .edge-sort-icon{opacity:1;}
+html .app .monitor-layout .result .edge-md-table .data-table td{border-bottom:1px solid var(--border);vertical-align:top;}
+html .app .monitor-layout .result .edge-md-table .data-table tbody tr:last-child td{border-bottom:1px solid var(--border);}
+html .app .monitor-layout .result .edge-md-table .data-table tbody tr:hover td,html.dark .app .monitor-layout .result .edge-md-table .data-table tbody tr:hover td{background:transparent;}
+html.dark .app .monitor-layout .result .edge-md-table .data-table td:first-child{background:var(--surface);}
+@media (max-width:720px){
+  html .app .monitor-layout .result .edge-md-table .data-table td,html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort{padding-block:6px;}
+  /* the sticky first column (EXEC-UI-1015D) keeps the card's colour under the columns that scroll past it */
+  html .app .monitor-layout .result .edge-md-table .data-table :is(th,td):first-child{background:var(--surface);}
+}
 </style>
 </head>
 <body><div id="root"></div>

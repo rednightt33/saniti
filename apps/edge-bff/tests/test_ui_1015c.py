@@ -278,7 +278,9 @@ def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertic
             cells = tables.nth(table).evaluate("""t => [...t.rows].flatMap(r => [...r.cells].map(c => {
                 const inner = c.querySelector('.edge-sort') || c; return [c.tagName, c.classList.contains('num'),
                 getComputedStyle(c).textAlign, getComputedStyle(inner).textAlign, getComputedStyle(c).verticalAlign]; }))""")
-            assert all((align == 'right' if num and tag == 'TD' else inner in ('left', 'start'))
+            # EXEC-TABLE-CLAUDE (user 2026-10-31, "alignment ... duplikat saja pakai contoh dari Claude"): a number
+            # column's title is right-aligned like its values
+            assert all((align == 'right' if num and tag == 'TD' else inner == 'right' if num else inner in ('left', 'start'))
                        and valign == ('middle' if tag == 'TH' else 'top') for tag, num, align, inner, valign in cells), (width, table, cells[:6])
         title = tables.nth(1).locator('th').nth(2)
         lines = title.locator('.edge-sort-label').evaluate(TEXT_LINES)

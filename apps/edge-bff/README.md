@@ -241,6 +241,10 @@ The page is edited as one HTML file and its API wiring is not locked to the view
   list API adds the latest question's `last_state` and `last_run_status` (`edge_bff.jobs`) so a conversation not opened
   yet is coloured too. The answer head keeps one 8 px rhythm and shows the level as its label ("High"); on a phone the
   session row holds Details, bookmark, share and the run's state, and the action row keeps one gap.
+- Tables (EXEC-TABLE-CLAUDE, user 2026-10-31: "duplikat saja pakai contoh dari Claude"): an answer table reads like a
+  Claude table: no frame or grey header band, a semibold header over one stronger line, hairlines between rows, each
+  title aligned like its column (numbers right, text left), the sort arrow faint beside the title without taking width,
+  and the table's edges on the answer text's. A title over 14 characters wraps there and is never squeezed narrower.
 
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.
