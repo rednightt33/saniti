@@ -215,6 +215,10 @@ BUCKET_THREADS = 16
 # (botocore's default was 60 s with 5 attempts: one hung listing page held the cleanup for about 6 minutes, twice, in
 # the run of 2026-10-29). The timeout is per socket operation, not per request, so a large upload is not cut.
 BUCKET_CONNECT_SECONDS, BUCKET_READ_SECONDS, BUCKET_ATTEMPTS = 10, 30, 3
+# ERRORS M301: the bucket carried out part of a 1,000-key multi-object delete but did not answer it within
+# BUCKET_READ_SECONDS, three times (runs of 2026-10-30). Bucket.delete sends DELETE_BATCH_KEYS keys a request,
+# DELETE_THREADS requests at a time; the first measured run on dev checks the size (EXEC-PRICE-GAP-0917).
+DELETE_BATCH_KEYS, DELETE_THREADS = 50, 4
 # check_publication: a tick this many minutes after a run time checks that run time's publication (cron_for)
 CHECK_AFTER_MINUTES = 30
 # a daily run still going after this many minutes sends the `slow` alert once (TERMINAL_RUN_ALERT_MINUTES)
@@ -645,14 +649,30 @@ class Bucket:
                 return out
 
     def delete(self, keys):
-        """Delete keys (without the prefix), 1000 per request; returns the keys the bucket did not delete."""
-        failed = []
-        for i in range(0, len(keys), 1000):
-            batch = keys[i:i + 1000]
-            answer = retried(lambda: self.s3.delete_objects(Bucket=self.name, Delete={
-                'Objects': [{'Key': f'{PREFIX}/{k}'} for k in batch], 'Quiet': True}))
-            failed += [e['Key'][len(PREFIX) + 1:] for e in answer.get('Errors', [])]
-        return failed
+        """Delete keys (without the prefix) in batches of DELETE_BATCH_KEYS, DELETE_THREADS batches at a time (ERRORS
+        M301: one 1,000-key request did not answer within BUCKET_READ_SECONDS, three times). A batch is asked again on
+        a transient error (deleting a key already gone is harmless) and logged with its size and seconds. Returns the
+        keys the bucket did not delete: the ones it reported, and every key of a batch that still failed."""
+        batches = [keys[i:i + DELETE_BATCH_KEYS] for i in range(0, len(keys), DELETE_BATCH_KEYS)]
+
+        def one(n, batch):
+            asked = time.monotonic()
+            try:
+                answer = retried(lambda: self.s3.delete_objects(Bucket=self.name, Delete={
+                    'Objects': [{'Key': f'{PREFIX}/{k}'} for k in batch], 'Quiet': True}), what=f'delete batch {n}')
+            except Exception as e:  # noqa: BLE001 - the batch stays for the next cleanup; the class only, no detail
+                log('delete_batch_failed', batch=n, keys=len(batch), first=batch[0], error=type(e).__name__,
+                    seconds=round(time.monotonic() - asked, 1))
+                return list(batch)
+            failed = [e['Key'][len(PREFIX) + 1:] for e in answer.get('Errors', [])]
+            log('delete_batch', batch=n, keys=len(batch), first=batch[0], last=batch[-1], not_deleted=len(failed),
+                seconds=round(time.monotonic() - asked, 1))
+            return failed
+
+        if not batches:
+            return []
+        with ThreadPoolExecutor(max_workers=min(DELETE_THREADS, len(batches))) as pool:
+            return [k for failed in pool.map(lambda nb: one(*nb), enumerate(batches)) for k in failed]
 
     def get_raw(self, key):
         try:

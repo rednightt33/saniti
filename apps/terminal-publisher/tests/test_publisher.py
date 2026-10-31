@@ -2031,3 +2031,56 @@ def test_a_publisher_used_again_after_a_failed_run_deletes_nothing_a_manifest_st
     bucket.put = put
     p.run('logos')
     assert keep <= set(bucket.objects) and not set(p.replaced) & keep
+
+
+# ---- ERRORS M301 / EXEC-PRICE-GAP-0917: deletes go in small batches, a failing batch does not stop the others ---------
+class BatchS3:
+    """delete_objects records each request's keys; `refuse` maps a key to the error code its whole request raises, and
+    `report` lists keys the bucket answers as not deleted."""
+    def __init__(self, refuse=None, report=()):
+        self.requests, self.refuse, self.report, self.lock = [], refuse or {}, set(report), pub.threading.Lock()
+
+    def delete_objects(self, Bucket, Delete):
+        keys = [o['Key'] for o in Delete['Objects']]
+        with self.lock:
+            self.requests.append(keys)
+        for k in keys:
+            if k in self.refuse:
+                raise client_error(self.refuse[k])
+        return {'Errors': [{'Key': k} for k in keys if k in self.report]}
+
+
+def batch_bucket(s3):
+    b = pub.Bucket.__new__(pub.Bucket)
+    b.name, b.s3 = 'bucket', s3
+    return b
+
+
+def test_delete_sends_batches_of_the_batch_size_and_returns_what_the_bucket_did_not_delete(capsys):
+    keys = [f'price/T{i:03}/2026.0123456789abcdef.json.gz' for i in range(2 * pub.DELETE_BATCH_KEYS + 7)]
+    s3 = BatchS3(report=['v1/' + keys[5]])
+    assert batch_bucket(s3).delete(keys) == [keys[5]]
+    assert sorted(len(r) for r in s3.requests) == [7, pub.DELETE_BATCH_KEYS, pub.DELETE_BATCH_KEYS]
+    assert sorted(k for r in s3.requests for k in r) == sorted('v1/' + k for k in keys)
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if '"delete_batch"' in line]
+    assert len(lines) == 3 and sum(line['keys'] for line in lines) == len(keys) and all('seconds' in line for line in lines)
+
+
+def test_a_batch_that_keeps_failing_is_returned_and_the_other_batches_are_still_deleted(monkeypatch, capsys):
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    keys = [f'pack/T{i:03}/price.0123456789abcdef.json.gz' for i in range(pub.DELETE_BATCH_KEYS + 3)]
+    bad = keys[pub.DELETE_BATCH_KEYS + 1]
+    s3 = BatchS3(refuse={'v1/' + bad: 'RequestTimeout'})
+    assert batch_bucket(s3).delete(keys) == keys[pub.DELETE_BATCH_KEYS:]
+    # the failing batch was asked again after each retry delay; the full batch was asked once and deleted
+    assert sum(1 for r in s3.requests if 'v1/' + bad in r) == len(pub.BUCKET_RETRY_DELAYS) + 1
+    assert sum(1 for r in s3.requests if len(r) == pub.DELETE_BATCH_KEYS) == 1
+    failed = [json.loads(line) for line in capsys.readouterr().out.splitlines() if '"delete_batch_failed"' in line]
+    assert len(failed) == 1 and failed[0]['keys'] == 3 and failed[0]['error'] == 'ClientError'
+
+
+def test_a_refused_batch_is_returned_without_retries_and_no_keys_send_no_request():
+    keys = ['price/BBCA/2026.0123456789abcdef.json.gz']
+    s3 = BatchS3(refuse={'v1/' + keys[0]: 'AccessDenied'})
+    assert batch_bucket(s3).delete(keys) == keys and len(s3.requests) == 1
+    assert batch_bucket(s3).delete([]) == [] and len(s3.requests) == 1
