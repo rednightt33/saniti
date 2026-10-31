@@ -104,6 +104,16 @@ export default defineRailway(() => {
     deploy: { cronSchedule: "0,30 0,1,12 * * *", restartPolicyType: "NEVER" },
     env: { TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_PUBLISHER_DATABASE_URL: preserve(), TERMINAL_PUBLISHER_DB_PASSWORD: preserve(), TERMINAL_PUBLISH_MODE: preserve(), TERMINAL_RUN_TIMES_WIB: preserve(), TERMINAL_YEARS: preserve() },
   });
+  // EXEC-INTRADAY-IDX (user go 2026-10-31): intraday bars 5m/15m/1h/4h after the close, Mon-Fri 17:30 WIB. Deployed by
+  // CLI upload of apps/idx-price-cron (`railway up --path-as-root`), not GitHub-connected (the project token may not
+  // connect a repo), so a code change needs a new upload.
+  const idxIntradayCron = service("idx-intraday-cron", {
+    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    start: "python intraday_update.py --mode daily",
+    replicas: { "sfo": 1 },
+    deploy: { cronSchedule: "30 10 * * 1-5", restartPolicyType: "NEVER" },
+    env: { DATABASE_URL: preserve() },
+  });
   const telegramTrigger = service("telegram-trigger", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-trigger" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/telegram-trigger/**"] },
@@ -246,6 +256,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, terminalPublisher, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, terminalApi, feature04Worker, Postgres, stockbitUpdater, backtestWorker, screenerWorker, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, stockbitUpdaterVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, terminalDisplay, marketAiAuditArtifacts],
+    resources: [idxIntradayCron, orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, terminalPublisher, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, terminalApi, feature04Worker, Postgres, stockbitUpdater, backtestWorker, screenerWorker, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, stockbitUpdaterVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, terminalDisplay, marketAiAuditArtifacts],
   });
 });
