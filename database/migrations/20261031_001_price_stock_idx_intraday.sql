@@ -100,11 +100,11 @@ BEGIN
         agg AS (SELECT session_date,
                        count(*) FILTER (WHERE NOT is_index) AS stocks,
                        coalesce(sum(n) FILTER (WHERE NOT is_index), 0) AS stock_bars,
-                       coalesce(percentile_cont(0.5) WITHIN GROUP (ORDER BY n) FILTER (WHERE NOT is_index), 0) AS median_bars,
+                       coalesce(percentile_cont(0.5) WITHIN GROUP (ORDER BY n) FILTER (WHERE NOT is_index), 0)::numeric AS median_bars,
                        coalesce(sum(n) FILTER (WHERE is_index), 0) AS index_bars
                   FROM per GROUP BY session_date)
         SELECT d.session_date, coalesce(a.stocks, 0)::int AS stocks, coalesce(a.stock_bars, 0)::int AS stock_bars,
-               coalesce(a.median_bars, 0) AS median_bars, coalesce(a.index_bars, 0)::int AS index_bars
+               coalesce(a.median_bars, 0)::numeric AS median_bars, coalesce(a.index_bars, 0)::int AS index_bars
           FROM (SELECT session_date FROM cal UNION SELECT session_date FROM agg) d
           LEFT JOIN agg a USING (session_date)
          ORDER BY d.session_date

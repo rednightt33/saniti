@@ -1,0 +1,8 @@
+Starting Container
+MIG APPLY 20261031_001_price_stock_idx_intraday.sql sha256=9aa443107f508929bcf3df397783f311e55a13da35cba48d3b5513f1a4bac2ee
+OUT {"q": "catalog", "ms": 2, "part": 0, "rows": [["price_stock_idx_intraday", "Transactional", "DATA_DATE", 14], ["price_stock_idx_intraday_quality", "System", "NOT_APPLICABLE", 12]]}
+OUT {"q": "partitions", "ms": 1, "part": 0, "rows": [["price_stock_idx_intraday_5m"], ["price_stock_idx_intraday_15m"], ["price_stock_idx_intraday_1h"], ["price_stock_idx_intraday_4h"]]}
+OUT {"q": "empty", "ms": 2, "part": 0, "rows": [[0]]}
+OUT {"q": "quality_empty", "ms": 1, "part": 0, "rows": [[0]]}
+OUT {"q": "grants", "ms": 2, "part": 0, "rows": [[true, true]]}
+JOB_DONE MIGRATION APPLY
