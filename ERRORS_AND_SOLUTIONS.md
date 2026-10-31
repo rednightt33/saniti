@@ -4736,7 +4736,7 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
   memetakan status pengiriman + status Orc + jeda/stop ke satu warna: hijau, kuning, merah, biru, cincin biru (tidak ada
   abu-abu); dipakai daftar dan baris sesi. CSS M317 di akhir `index.html` untuk B–E. Tes `tests/test_ui_1031.py`,
   `tests/test_edge.py`; tes level di `tests/test_browser.py` mengikuti "High".
-- **Status:** FIXED di branch `claude/pensive-allen-0q2cn9`; belum dideploy (live menunggu masuk `main`).
+- **Status:** FIXED; live sejak edge-bff `0d8bde43` (`main` `59f82dd`, 2026-10-31), API daftar dicek live.
 - **Lesson:** setiap status yang tampil di daftar dikirim oleh API daftar; jangan bergantung pada detail yang baru
   dimuat saat baris dibuka.
 

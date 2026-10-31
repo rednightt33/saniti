@@ -5395,3 +5395,11 @@ B6 window:
   - screener-worker `be75d1c6` SUCCESS (`start`, `swap` on the 14:13:43 publication).
   - Before it: Backtest E2E (`e2e_dev.py --skip-page --only single`) single and repeat FINISHED with no failed check, and
     `verification/screener/live_check_dev.py` 4 screens 200.
+
+## 2026-10-31 — edge-bff: M317 Monitor status colours and phone layout (EXEC-M317)
+
+- `main` `59f82dd`; edge-bff deployment `0d8bde43-f22c-4f63-9722-1efa86ebdf7f` SUCCESS (13:58 UTC push). No variable,
+  migration or other service changed.
+- Live read-back (signed in as `edge`, no AI call): `GET /api/v1/conversations` returns `last_state`/`last_run_status`
+  on all 56 rows (48 FINISHED/COMPLETED, 3 NEEDS_CLARIFICATION, 1 LIMITED, 1 FINISHED/FAILED, 1 FAILED, 2 without a
+  question); the served `edge-client.js` holds `statusTone` and `/monitor` the M317 CSS.

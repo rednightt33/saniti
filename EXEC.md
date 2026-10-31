@@ -9528,4 +9528,7 @@ Isi (edge-bff; detail dan akar masalah di `ERRORS_AND_SOLUTIONS.md` M317):
   "Research session" tidak tampil (tidak muat).
 - E: bullet lipatan di bawah segitiga lipatan, teksnya sejajar judul lipatan, di dalam kartu.
 - Tes: `tests/test_ui_1031.py` (baru), `tests/test_edge.py` (field daftar). Pratinjau: mock mengirim field yang sama.
-- Belum dideploy: perubahan ada di branch `claude/pensive-allen-0q2cn9`; deploy edge-bff terjadi saat masuk `main`.
+- Deploy: user "Push to main" (2026-10-31); `main` `59f82dd`, edge-bff `0d8bde43` SUCCESS, dicek live (`RAILWAY_CHANGELOG.md`).
+  Tes edge-bff (Postgres 16 lokal, Chromium): semua lulus kecuali `test_ui_1015c` judul pendek di 1440, yang juga gagal
+  di `main` sebelum perubahan ini (baseline, dicatat di EXEC-MONITOR-REVAMP). Backtest/Screener/Terminal tidak diuji ulang
+  (tidak tersentuh).
