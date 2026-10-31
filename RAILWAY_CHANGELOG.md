@@ -23,6 +23,11 @@ User go 2026-10-31 (EXEC.md EXEC-PRICE-GAP-0917, EXEC-INTRADAY-IDX).
     `7310f242` SUCCESS. `railway config apply` (the file's `idx-intraday-cron` block) redeployed it as `926d1561`,
     SUCCESS, with no run. `nextCronRunAt` 2026-11-02 10:30 UTC. `railway config plan`: "already up to date".
   - A code change in `apps/idx-price-cron` needs a new upload to this service.
+  - **M318 (14:26 UTC):** the image lacked `intraday_update.py` (the Dockerfile copied two files by name; a cron
+    deploy reaches SUCCESS without running its start command). Dockerfile now `COPY *.py ./` plus a build step that
+    imports every non-test module (`main` `06e7c835`). Upload `3ef3364b-9ae7-43b2-bdef-65b4929dba84` SUCCESS; its
+    build log shows `[5/6] COPY *.py ./` and `[6/6] RUN for f in *.py ...` passing. The push rebuilt
+    `idx-price-cron` `e9d8b351` and `idx-price-recovery-cron` `752d2cd9`, SUCCESS (no run). No setting changed.
 - **terminal-publisher** (M301 delete fix, `main` `790a2656`, `publisher.py` sha256 `594cf8300e0911bd…`), M229 option A:
   1. `cronSchedule` null (read back).
   2. CLI upload of `git archive HEAD apps/terminal-publisher` as RUN `9abbf6ae-11ce-4438-8191-c89139e00bf8`, 13:52 UTC
