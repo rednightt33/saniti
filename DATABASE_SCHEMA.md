@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-29T19:22:23+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-31T14:05:55+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -33,8 +33,8 @@ Generated from PostgreSQL schema `public` at `2026-10-29T19:22:23+00:00`.
 | `Analysis_Step_Log` | System | Appended for each analysis step; large raw results and secrets are never stored. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Created only after catalog, row, byte and query-plan validation; expires within the configured short retention window. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Backend submits idempotently by request/job label; isolated worker leases and completes or fails the job. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-29 18:55:56.281034+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-29 19:22:23+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-31 13:31:25.793376+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-31 14:05:55+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Equity_Market_Schedule` | Reference | Edit when the official market clock or correction policy changes. | — | `2026-10-20 14:07:00+00:00` | Baseline only | Equity market timezone, close, finality delay and correction-session policy. |
 | `Feature04_Calculation_Log` | System | One terminal attempt row per claim, including partial and superseded results. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
 | `Feature04_Calculation_Queue` | System | Final source changes coalesce the earliest dirty date per ticker and invalidate dependent checkpoints. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
@@ -42,23 +42,23 @@ Generated from PostgreSQL schema `public` at `2026-10-29T19:22:23+00:00`.
 | `Feature04_Column_Status` | System | Worker advances only validated output bundles; expected NULL remains SUCCESS. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
 | `Feature04_Notification_Outbox` | System | Worker inserts after terminal run; dispatcher retries independently of calculations. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
 | `Feature04_Retry_Request` | System | telegram-trigger stores the acknowledgement message ID; the worker records terminal status and telegram-monitor edits the same message. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited owner Telegram failure-only retry request with editable acknowledgement and bounded five-session replay. |
-| `Feature_01_Stock_Daily` | Feature | Explicit refresh routine after validated source changes; automatic price-cron integration is not active. | `2026-10-29` | `2026-10-29 10:08:02.873800+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. Universe-classified indices are not included: their rows are in Feature_01_Stock_Daily_INDEX (EXEC-M219). |
+| `Feature_01_Stock_Daily` | Feature | Explicit refresh routine after validated source changes; automatic price-cron integration is not active. | `2026-10-30` | `2026-10-31 13:49:33.107089+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. Universe-classified indices are not included: their rows are in Feature_01_Stock_Daily_INDEX (EXEC-M219). |
 | `Feature_01_Stock_Daily_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Daily per-ticker price, return, volatility, volume, and drawdown features. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_02_Broker_Rolling` | Feature | Validated full v2 backfill. No automatic Feature 02 worker is deployed; rebuild affected tickers after Broker Summary changes. | `2026-10-27` | `2026-10-27 12:02:34.114389+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_02_Broker_Rolling_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_03_Stock_Broker_Daily` | Feature | Full v2 rebuild after Feature 02 Investor-Type cutover. Refresh affected date/tickers after valid Feature 02 refresh; no automatic Feature 03 worker is deployed. | `2026-10-27` | `2026-10-27 12:02:46.615627+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
 | `Feature_03_Stock_Broker_Daily_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
-| `Feature_04_Technical_Indicator` | Feature | Committed final source changes recalculate only the affected suffix from a compatible prior checkpoint. | `2026-10-29` | `2026-10-29 11:01:03.296310+00:00` | Derived from price rows; changes queued and tracked per ticker | Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. |
+| `Feature_04_Technical_Indicator` | Feature | Committed final source changes recalculate only the affected suffix from a compatible prior checkpoint. | `2026-10-30` | `2026-10-31 13:24:22.523306+00:00` | Derived from price rows; changes queued and tracked per ticker | Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. |
 | `Feature_04_Technical_Indicator_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_05_Foreign_Domestic_Broker_Detail` | Feature | refresh_feature_05(date range, tickers) after the IDX_Broker_Summary load for the same dates (the load carries buy_freq and sell_freq) | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. |
 | `Feature_05_Foreign_Domestic_Broker_Detail_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
 | `Feature_06_Foreign_Domestic` | Feature | refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. |
 | `Feature_06_Foreign_Domestic_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
-| `Feature_Calculation_Log` | System | The Feature 01 worker records one completed result for every claim, including retries and expired leases. | `2026-10-29` | `2026-10-29 10:08:02.884748+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | A price-row trigger transactionally creates/reopens work; a separate worker claims, calculates, retries, and completes it. | `2026-10-29` | `2026-10-29 10:08:02.791129+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Calculation_Log` | System | The Feature 01 worker records one completed result for every claim, including retries and expired leases. | `2026-10-30` | `2026-10-31 13:49:33.114721+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | A price-row trigger transactionally creates/reopens work; a separate worker claims, calculates, retries, and completes it. | `2026-10-30` | `2026-10-31 13:49:33.058313+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | Updated by a forward-only migration after a Feature definition or physical schema change. | — | `2026-10-27 12:41:59.931723+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | Updated by forward-only migration when a safe Feature relationship is validated. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | Price enqueue and worker transitions reconcile the per-ticker summary; SUCCESS follows validated completion only. | `2026-10-29` | `2026-10-29 10:08:02.791129+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | Price enqueue and worker transitions reconcile the per-ticker summary; SUCCESS follows validated completion only. | `2026-10-30` | `2026-10-31 13:49:33.058313+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Feature_Vocabulary` | Reference | Explicit schema/semantic release synchronization, never daily price computation. Frontend API and AI onboarding remain separate. | — | `2026-10-25 15:52:57+00:00` | Baseline only | Reviewed frontend names, formulas, units, definitions and interpretations for physical stock and INDEX Feature01/02/03/05/06 columns; Feature04 excluded. |
 | `Fixed_Income_Market_Schedule` | Reference | Edit a market row when its official session clock or provider daily-bar label convention changes; cron UTC schedules are maintained in Railway. | — | `2026-10-12 02:33:20+00:00` | Baseline only | Fixed-income market close/finality policy and verified provider timezone, session and observation-date mapping. |
 | `Golden_Analysis_Test` | System | Definitions are added or versioned by forward-only migrations; material expectations are never overwritten. | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
@@ -71,15 +71,15 @@ Generated from PostgreSQL schema `public` at `2026-10-29T19:22:23+00:00`.
 | `IDX_Stock_Universe_History` | Reference | Appended by the capture after every write statement on IDX_Stock_Universe (a change supersedes the open version and records the new one; a missing key is only counted) and by public.correct_stock_universe_history for documented corrections. Rows are never deleted. | — | `2026-10-23 14:44:34.455689+00:00` | Tracked automatically | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
 | `Monitoring_Feature04` | Monitoring | Price writer opens/seals automatic runs; worker finalizes; monitor records price delivery. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 automatic/retry batch summary and notification ordering gate. |
 | `Monitoring_Feature04_Ticker` | Monitoring | Trigger records required generation; worker records terminal result. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and outcome of a Feature04 execution. |
-| `Monitoring_Fixed_Income` | Monitoring | One row is inserted after every market-specific daily/recovery attempt. | `2026-10-29` | `2026-10-29 11:00:58.977206+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
-| `Monitoring_Price_ALL` | System | Written after each DAILY or RECOVERY price execution. | `2026-10-29` | `2026-10-29 10:02:50.584330+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Monitoring_Fixed_Income` | Monitoring | One row is inserted after every market-specific daily/recovery attempt. | `2026-10-30` | `2026-10-31 11:00:38.063864+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
+| `Monitoring_Price_ALL` | System | Written after each DAILY or RECOVERY price execution. | `2026-10-30` | `2026-10-31 13:15:33.115554+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Monitoring_Stockbit_Update` | Monitoring | Inserted RUNNING when a round starts and finished once per round (each deploy of stockbit-updater). | `2026-10-27` | `2026-10-25 18:14:05+00:00` | Baseline only | One row per round of the stockbit-updater service: mode, status, token expiry, Broker Summary dates and rows loaded, Feature 02/03/05/06 and INDEX refresh results, Stockbit corporate action and insider reload, error. |
-| `Price_Fixed_Income` | Source | Market-specific daily and recovery jobs re-query the latest completed session; only exact final candles are material-upserted. | `2026-10-29` | `2026-10-29 11:00:58.922922+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Market-aware daily/recovery jobs material-upsert exact final candles; recovery re-verifies configured recent sessions. | `2026-10-29` | `2026-10-29 10:05:24.123329+00:00` | Latest date derived; future changes tracked automatically | Final daily Indonesian equity OHLCV observations with market-close finality evidence. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. |
+| `Price_Fixed_Income` | Source | Market-specific daily and recovery jobs re-query the latest completed session; only exact final candles are material-upserted. | `2026-10-30` | `2026-10-30 23:00:21.435889+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Market-aware daily/recovery jobs material-upsert exact final candles; recovery re-verifies configured recent sessions. | `2026-10-30` | `2026-10-31 13:18:16.109189+00:00` | Latest date derived; future changes tracked automatically | Final daily Indonesian equity OHLCV observations with market-close finality evidence. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. |
 | `Reference_History_Capture_Log` | System | Inserted by every capture and correction; a failed trigger capture writes status FAILED with its error and leaves the reference load unaffected. | — | `2026-10-23 14:44:34.457389+00:00` | Tracked automatically | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-29 18:55:56.276281+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-31 13:31:25.793111+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Written when an authorized Telegram command is received. | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | telegram-monitor inserts or reclaims a delivery identity, then records sent or edited Telegram message IDs and failures. | — | `2026-10-29 12:59:59.331452+00:00` | Tracked automatically | Outbound Telegram delivery and edit ledger for execution-level price results and logical Feature04 market/date or retry results. |
+| `Telegram_Notification_Log` | System | telegram-monitor inserts or reclaims a delivery identity, then records sent or edited Telegram message IDs and failures. | — | `2026-10-31 13:25:16.311632+00:00` | Tracked automatically | Outbound Telegram delivery and edit ledger for execution-level price results and logical Feature04 market/date or retry results. |
 | `Tool_Catalog` | Reference | Updated with backend/worker releases; runtime configuration is the enforcement authority. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Updated when equity descriptions or classifications change. | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `Universe_Fixed_income` | Reference | Universe rows supply every source symbol and unit; the loader contains no ticker roster. | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income series with explicit source symbol, unit and market-country membership. |
@@ -89,6 +89,12 @@ Generated from PostgreSQL schema `public` at `2026-10-29T19:22:23+00:00`.
 | `idx_event_annotation_terms_map` | Reference | Changed by migration when Stockbit adds an action type or key; read on every refresh_idx_event_annotation(). | — | `2026-10-26 08:58:47+00:00` | Baseline only | Which Stockbit corporate action payload key fills which term column of idx_event_annotation (amount_per_share, currency, ratio_old, ratio_new), per action type. |
 | `idx_stockbit_backfill_status` | System | Written by the date-first backfill between 2026-10-11 and 2026-10-15; every date completed; no job writes it now. | `2026-10-09` | `2026-10-12 02:33:20+00:00` | Baseline only | Per-date control of the date-first Stockbit Broker Summary backfill of 2016-2026 (the user's importer, before the ticker-first import of stockbit_full_broker_import_status): state, filter and request counts, rows written, attempts, error. |
 | `idx_stockbit_value_corrections` | System | Inserted once per correction the user approves; 10 rows written 2026-10-15. | `2017-02-07` | `2026-10-20 14:07:00+00:00` | Baseline only | Audit of user-approved corrections to Stockbit Broker Summary values: per trade date, ticker and investor type the summary row before and after, the per-broker patches, the raw source rows and the reason. Holds the BHIT negative-value correction (USER_APPROVED_ABS_BHIT_20261016: negative raw trade values made positive per user instruction; not independently source-verified). |
+| `price_stock_idx_intraday` | Transactional | Daily after the IDX close plus finality delay (cron idx-intraday-cron), upsert on the key; history once by --mode backfill. A changed bar is updated in place; ingestion_time moves only for a changed or new bar. | — | `2026-10-31 14:05:55+00:00` | Baseline only | Intraday OHLCV bars of the IDX stocks and IHSG at 5m, 15m, 1h and 4h (TradingView). Stocks split-adjusted as TradingView gives them at load time, IHSG unadjusted (column adjustment). Since 2024-12-09 the bars leave out the pre-opening auction, so the first open, the high or low and the session volume can differ from the daily candle (volume median 99.8 %, as low as 68 % on extreme days; before that date equal in 96 % of sessions); the last close equals the daily close apart from closing-auction ticks: never derive the daily candle from these bars or the reverse. Depth from the source: 5m from 2026-07-13, 15m from 2025-11-03, 1h from 2023-01-02, 4h from 2020-01-01, then collected every day. Partitioned by timeframe. |
+| `price_stock_idx_intraday_15m` | Unclassified | Unknown | — | `2026-10-31 14:05:55+00:00` | Baseline only | No description has been recorded. |
+| `price_stock_idx_intraday_1h` | Unclassified | Unknown | — | `2026-10-31 14:05:55+00:00` | Baseline only | No description has been recorded. |
+| `price_stock_idx_intraday_4h` | Unclassified | Unknown | — | `2026-10-31 14:05:55+00:00` | Baseline only | No description has been recorded. |
+| `price_stock_idx_intraday_5m` | Unclassified | Unknown | — | `2026-10-31 14:05:55+00:00` | Baseline only | No description has been recorded. |
+| `price_stock_idx_intraday_quality` | System | Recomputed by remark_intraday_sessions(timeframe, from, to) for the sessions every load wrote; the sessions are the dates of the universe index daily candles, so a session without bars is flagged too. | — | `2026-10-31 14:05:55+00:00` | Baseline only | Completeness of each timeframe and session of price_stock_idx_intraday after every write. Stocks with bars against the daily table's stocks with a final candle and volume > 0 that date (short by more than max(5, 2 %) fails); median bars per stock and IHSG bars against the 20 earlier sessions of the same day class (Friday or not) whose check did not fail. Sessions before the timeframe's depth start (derived: the latest first session among stocks whose intraday history is cut by the source) are BEFORE_DEPTH. Status COMPLETE, INCOMPLETE, UNCHECKED or BEFORE_DEPTH with a plain Indonesian remark. Loads are never refused. |
 | `stockbit_broker_summary_load_log` | System | Updated by each broker-summary load attempt. | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
 | `stockbit_corporate_action` | Transactional | Ad hoc on user request: full pull of every type and year, reconciled (new inserted, changed updated, absent marked source_removed_at); UPDATE_TABLE.md. | — | `2026-10-25 18:14:05+00:00` | Baseline only | Stockbit corporate actions of IDX listed securities: dividend, stock split, reverse split, bonus share, rights issue, warrant (structured warrants on their underlying ticker), tender offer, RUPS and public expose. Typed key dates plus the verbatim Stockbit row. |
 | `stockbit_full_broker_import_status` | System | Written fetching, completed or failed by each import of a date. | `2026-10-27` | `2026-10-25 15:52:57+00:00` | Baseline only | Per-date control of the ticker-first Broker Summary import (the user's importer, then stockbit-updater): manifest hash of the symbol list, state, expected and completed symbols, rows, anomaly symbols, heartbeat, error. |
@@ -4117,6 +4123,237 @@ Audit of user-approved corrections to Stockbit Broker Summary values: per trade 
 | Name | Definition |
 |---|---|
 | `idx_stockbit_value_corrections_pkey` | `CREATE UNIQUE INDEX idx_stockbit_value_corrections_pkey ON public.idx_stockbit_value_corrections USING btree (trade_date, ticker, investor_type)` |
+
+## price_stock_idx_intraday
+
+Intraday OHLCV bars of the IDX stocks and IHSG at 5m, 15m, 1h and 4h (TradingView). Stocks split-adjusted as TradingView gives them at load time, IHSG unadjusted (column adjustment). Since 2024-12-09 the bars leave out the pre-opening auction, so the first open, the high or low and the session volume can differ from the daily candle (volume median 99.8 %, as low as 68 % on extreme days; before that date equal in 96 % of sessions); the last close equals the daily close apart from closing-auction ticks: never derive the daily candle from these bars or the reverse. Depth from the source: 5m from 2026-07-13, 15m from 2025-11-03, 1h from 2023-01-02, 4h from 2020-01-01, then collected every day. Partitioned by timeframe.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `character varying` | No | — | IDX_Stock_Universe ticker (upper case), the same code as Price_Stock_Indonesia_IDX; IHSG for the index. |
+| `timeframe` | `text` | No | — | Bar length: 5m, 15m, 1h or 4h. |
+| `bar_time` | `timestamp with time zone` | No | — | Open time of the bar as TradingView gives it (timestamptz; the exchange time zone is Asia/Jakarta). 4h bars open at 09:00 and 13:00; 5m bars include the post-trading minutes 16:00-16:10. |
+| `session_date` | `date` | No | — | IDX trading date of the bar in Asia/Jakarta. |
+| `open` | `numeric` | No | — | First price of the bar. |
+| `high` | `numeric` | No | — | Highest price of the bar. |
+| `low` | `numeric` | No | — | Lowest price of the bar. |
+| `close` | `numeric` | No | — | Last price of the bar; the last bar of a session closes at the daily close. |
+| `volume` | `numeric` | Yes | — | Shares traded in the bar (split-adjusted with the price for stocks). Since 2024-12-09 a session leaves out the pre-opening auction: median 99.8 % of the daily volume, as low as 68 % on extreme days; before that date it equals the daily volume in 96 % of sessions. |
+| `adjustment` | `text` | No | — | Price adjustment TradingView applied: splits for stocks, none for the index. |
+| `tradingview_symbol` | `character varying` | No | — | TradingView symbol used (IDX_Stock_Universe mapping, e.g. IDX:COMPOSITE for IHSG). |
+| `source` | `character varying` | No | `'TradingView'::character varying` | Source system: TradingView. |
+| `query_date` | `date` | No | — | Asia/Jakarta date of the request that wrote the bar. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | Database statement time of the write that created or last changed the bar. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `price_stock_idx_intraday_adjustment_check` | Check | `CHECK (adjustment = ANY (ARRAY['splits'::text, 'none'::text]))` |
+| `price_stock_idx_intraday_ohlc` | Check | `CHECK (low <= open AND open <= high AND low <= close AND close <= high AND low >= 0::numeric AND (volume IS NULL OR volume >= 0::numeric))` |
+| `price_stock_idx_intraday_ticker_upper` | Check | `CHECK (ticker::text = upper(btrim(ticker::text)))` |
+| `price_stock_idx_intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `price_stock_idx_intraday_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `price_stock_idx_intraday_pkey` | `CREATE UNIQUE INDEX price_stock_idx_intraday_pkey ON ONLY public.price_stock_idx_intraday USING btree (ticker, timeframe, bar_time)` |
+
+## price_stock_idx_intraday_15m
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `character varying` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `open` | `numeric` | No | — | No column description has been recorded. |
+| `high` | `numeric` | No | — | No column description has been recorded. |
+| `low` | `numeric` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `adjustment` | `text` | No | — | No column description has been recorded. |
+| `tradingview_symbol` | `character varying` | No | — | No column description has been recorded. |
+| `source` | `character varying` | No | `'TradingView'::character varying` | No column description has been recorded. |
+| `query_date` | `date` | No | — | No column description has been recorded. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `price_stock_idx_intraday_adjustment_check` | Check | `CHECK (adjustment = ANY (ARRAY['splits'::text, 'none'::text]))` |
+| `price_stock_idx_intraday_ohlc` | Check | `CHECK (low <= open AND open <= high AND low <= close AND close <= high AND low >= 0::numeric AND (volume IS NULL OR volume >= 0::numeric))` |
+| `price_stock_idx_intraday_ticker_upper` | Check | `CHECK (ticker::text = upper(btrim(ticker::text)))` |
+| `price_stock_idx_intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `price_stock_idx_intraday_15m_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `price_stock_idx_intraday_15m_pkey` | `CREATE UNIQUE INDEX price_stock_idx_intraday_15m_pkey ON public.price_stock_idx_intraday_15m USING btree (ticker, timeframe, bar_time)` |
+
+## price_stock_idx_intraday_1h
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `character varying` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `open` | `numeric` | No | — | No column description has been recorded. |
+| `high` | `numeric` | No | — | No column description has been recorded. |
+| `low` | `numeric` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `adjustment` | `text` | No | — | No column description has been recorded. |
+| `tradingview_symbol` | `character varying` | No | — | No column description has been recorded. |
+| `source` | `character varying` | No | `'TradingView'::character varying` | No column description has been recorded. |
+| `query_date` | `date` | No | — | No column description has been recorded. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `price_stock_idx_intraday_adjustment_check` | Check | `CHECK (adjustment = ANY (ARRAY['splits'::text, 'none'::text]))` |
+| `price_stock_idx_intraday_ohlc` | Check | `CHECK (low <= open AND open <= high AND low <= close AND close <= high AND low >= 0::numeric AND (volume IS NULL OR volume >= 0::numeric))` |
+| `price_stock_idx_intraday_ticker_upper` | Check | `CHECK (ticker::text = upper(btrim(ticker::text)))` |
+| `price_stock_idx_intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `price_stock_idx_intraday_1h_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `price_stock_idx_intraday_1h_pkey` | `CREATE UNIQUE INDEX price_stock_idx_intraday_1h_pkey ON public.price_stock_idx_intraday_1h USING btree (ticker, timeframe, bar_time)` |
+
+## price_stock_idx_intraday_4h
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `character varying` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `open` | `numeric` | No | — | No column description has been recorded. |
+| `high` | `numeric` | No | — | No column description has been recorded. |
+| `low` | `numeric` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `adjustment` | `text` | No | — | No column description has been recorded. |
+| `tradingview_symbol` | `character varying` | No | — | No column description has been recorded. |
+| `source` | `character varying` | No | `'TradingView'::character varying` | No column description has been recorded. |
+| `query_date` | `date` | No | — | No column description has been recorded. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `price_stock_idx_intraday_adjustment_check` | Check | `CHECK (adjustment = ANY (ARRAY['splits'::text, 'none'::text]))` |
+| `price_stock_idx_intraday_ohlc` | Check | `CHECK (low <= open AND open <= high AND low <= close AND close <= high AND low >= 0::numeric AND (volume IS NULL OR volume >= 0::numeric))` |
+| `price_stock_idx_intraday_ticker_upper` | Check | `CHECK (ticker::text = upper(btrim(ticker::text)))` |
+| `price_stock_idx_intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `price_stock_idx_intraday_4h_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `price_stock_idx_intraday_4h_pkey` | `CREATE UNIQUE INDEX price_stock_idx_intraday_4h_pkey ON public.price_stock_idx_intraday_4h USING btree (ticker, timeframe, bar_time)` |
+
+## price_stock_idx_intraday_5m
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `character varying` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `bar_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `session_date` | `date` | No | — | No column description has been recorded. |
+| `open` | `numeric` | No | — | No column description has been recorded. |
+| `high` | `numeric` | No | — | No column description has been recorded. |
+| `low` | `numeric` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `adjustment` | `text` | No | — | No column description has been recorded. |
+| `tradingview_symbol` | `character varying` | No | — | No column description has been recorded. |
+| `source` | `character varying` | No | `'TradingView'::character varying` | No column description has been recorded. |
+| `query_date` | `date` | No | — | No column description has been recorded. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `price_stock_idx_intraday_adjustment_check` | Check | `CHECK (adjustment = ANY (ARRAY['splits'::text, 'none'::text]))` |
+| `price_stock_idx_intraday_ohlc` | Check | `CHECK (low <= open AND open <= high AND low <= close AND close <= high AND low >= 0::numeric AND (volume IS NULL OR volume >= 0::numeric))` |
+| `price_stock_idx_intraday_ticker_upper` | Check | `CHECK (ticker::text = upper(btrim(ticker::text)))` |
+| `price_stock_idx_intraday_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `price_stock_idx_intraday_5m_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, bar_time)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `price_stock_idx_intraday_5m_pkey` | `CREATE UNIQUE INDEX price_stock_idx_intraday_5m_pkey ON public.price_stock_idx_intraday_5m USING btree (ticker, timeframe, bar_time)` |
+
+## price_stock_idx_intraday_quality
+
+Completeness of each timeframe and session of price_stock_idx_intraday after every write. Stocks with bars against the daily table's stocks with a final candle and volume > 0 that date (short by more than max(5, 2 %) fails); median bars per stock and IHSG bars against the 20 earlier sessions of the same day class (Friday or not) whose check did not fail. Sessions before the timeframe's depth start (derived: the latest first session among stocks whose intraday history is cut by the source) are BEFORE_DEPTH. Status COMPLETE, INCOMPLETE, UNCHECKED or BEFORE_DEPTH with a plain Indonesian remark. Loads are never refused.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `timeframe` | `text` | No | — | Bar length of the checked session. |
+| `session_date` | `date` | No | — | Checked IDX trading date. |
+| `stocks` | `integer` | No | — | Stocks (not the index) with at least one bar in the session. |
+| `stock_bars` | `integer` | No | — | Bars of those stocks in the session. |
+| `median_bars_per_stock` | `numeric` | No | — | Median bars per stock with bars (illiquid stocks have fewer). |
+| `index_bars` | `integer` | No | — | Bars of the universe index (IHSG) in the session. |
+| `status` | `text` | No | — | COMPLETE, INCOMPLETE (a check failed), UNCHECKED (no daily candles on the date, or fewer than 5 earlier sessions of the same day class) or BEFORE_DEPTH (before the source depth of the timeframe: only part of the stocks can have bars). |
+| `findings` | `jsonb` | No | `'[]'::jsonb` | JSON array of the failed checks: check, value, usual (the baseline median). |
+| `baseline` | `jsonb` | Yes | — | JSON: number of earlier sessions used and their medians. |
+| `remark` | `text` | Yes | — | Plain Indonesian remark: what is missing and how to fix it; for UNCHECKED, why it is not compared. |
+| `checked_at` | `timestamp with time zone` | No | `statement_timestamp()` | Time of the last recomputation. |
+| `checked_by` | `text` | Yes | — | application_name of the session that wrote the bars (the loader). |
+| `expected_stocks` | `integer` | Yes | — | Stocks with a final daily candle and volume > 0 in Price_Stock_Indonesia_IDX on the session date: the stocks expected to have bars. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `price_stock_idx_intraday_quality_status_check` | Check | `CHECK (status = ANY (ARRAY['COMPLETE'::text, 'INCOMPLETE'::text, 'UNCHECKED'::text, 'BEFORE_DEPTH'::text]))` |
+| `price_stock_idx_intraday_quality_timeframe_check` | Check | `CHECK (timeframe = ANY (ARRAY['5m'::text, '15m'::text, '1h'::text, '4h'::text]))` |
+| `price_stock_idx_intraday_quality_pkey` | Primary key | `PRIMARY KEY (timeframe, session_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `price_stock_idx_intraday_quality_pkey` | `CREATE UNIQUE INDEX price_stock_idx_intraday_quality_pkey ON public.price_stock_idx_intraday_quality USING btree (timeframe, session_date)` |
 
 ## stockbit_broker_summary_load_log
 
