@@ -9573,3 +9573,5 @@ sebelum EXEC-TABLE-CLAUDE `84d0c69^`, C sekarang); user memilih "Alignment A, ga
   di atas latar abu-abu). Kini 24 px terakhir area percakapan (HP 8 px) memudar ke latar halaman; ruang itu ada di
   bawah jawaban terakhir (padding 40 px; HP 8 px), jadi jawaban yang dibaca sampai habis tidak ikut pudar. Tes baru di
   `tests/test_ui_1031.py`.
+- Tes: suite edge-bff 275 lulus, 1 gagal = baseline. Deploy edge-bff `cff201ce` (`33fbc99`) SUCCESS; cek live di
+  `RAILWAY_CHANGELOG.md`.

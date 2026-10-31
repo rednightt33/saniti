@@ -5439,3 +5439,15 @@ B6 window:
 
 - User go "ok" (2026-10-31). `main` `e407352e`; edge-bff deployment `bd8f81ca-165d-4e87-918e-d62011d9c8ef` SUCCESS
   (14:38 UTC). No variable, migration or other service changed. Live `/monitor` holds the new CSS and markup.
+
+## 2026-10-31 — edge-bff `cff201ce` (TABLE-ALIGN-A: pre-revamp table alignment in the Claude look; fade above the message box)
+
+- **Commit:** `33fbc99` on `main` → edge-bff deployment `cff201ce` SUCCESS (15:02:38 created, SUCCESS by 15:03:10 UTC).
+  Front end only (static page CSS); no variable, no other service.
+- **Before the push:** no `edge_` run in flight (market-ai-orc log: last run `edge_30b99459…` completed 2026-10-30
+  07:52 UTC; checked 15:02 UTC).
+- **Checks (live, read-only; login from Railway in memory, no question sent):** `/monitor` byte-identical to `33fbc99`;
+  in the broker conversation every table title and cell is left/middle; the conversation's scroll carries the 24 px
+  fade and a row under the message box fades out without a hard edge; no page error. edge-bff suite before the push:
+  275 passed, 1 failed = baseline (`test_ui_1015c` short title at 1440).
+- **Rollback:** redeploy edge-bff `bd8f81ca` (commit `e407352`).
