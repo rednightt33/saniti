@@ -9219,3 +9219,28 @@ perbesar tetap):
 - Judul > 14 karakter tetap terbungkus di 14ch dan kolomnya tidak menyempit di bawah itu (HP: tabel digeser samping).
 - Tes: `tests/test_ui_1015c.py` E13 menerima judul kolom angka rata kanan. Tes tampilan edge-bff: semua lulus kecuali
   `test_ui_1015c` judul pendek di 1440 (baseline `main`, sudah gagal sebelumnya).
+
+Lanjutan 2026-10-31 (user: "Sembunyikan panah di judul panjang"; "Minta tolong untuk response history hurufnya boleh
+dirapihkan lagi? Kemudian hapus huruf draft"):
+- Panah sortir pada judul kolom angka yang terbungkus hanya tampil saat di-hover, difokus, atau kolom itu diurutkan.
+- Response history dan Pinned responses satu tipografi: judul 12 px medium, dua baris setinggi 17 px; jarak 4 px; baris
+  status 10,5 px warna redup, satu baris. Tanda centang/titik sejajar baris pertama judul. Titik history memakai
+  `Edge.statusTone` (sama dengan daftar percakapan: kuning menunggu persetujuan, tanpa abu-abu).
+- "Draft" dihapus dari halaman kosong dan dari baris sesi HP (sebelum ada pertanyaan baris itu tidak menampilkan status).
+- Tes: `tests/test_ui_1031.py` (tanpa Draft, tipografi dan warna history). Suite edge-bff: 169 lulus, 1 gagal =
+  baseline `test_ui_1015c` judul pendek di 1440.
+
+Lanjutan 2026-10-31 sore (TABLE-ALIGN-A; user, dua screenshot desktop: "table saat ini dari sisi alignment ... tidak sama
+dari sisi bagaimana table sebelumnya di display ... ambil kode atau logic bagaimana table sebelumnya"; "garis pembatas
+ini seperti dihilangkan saja"). Tabel yang sama dirender dari tiga versi (A sebelum MONITOR-REVAMP `71f31c6^`, B
+sebelum EXEC-TABLE-CLAUDE `84d0c69^`, C sekarang); user memilih "Alignment A, gaya C" dan "Pudar halus":
+- Tabel: aturan E13 versi A dipakai lagi (user 2026-10-16, "Nama kolom rata kiri dan center, isi juga rata kiri"): semua
+  judul dan sel rata kiri dan di tengah vertikal, angka juga (tetap satu baris, angka tabular); panah sortir di kanan
+  judul. Gaya EXEC-TABLE-CLAUDE (tanpa bingkai dan pita header, garis tipis antarbaris) dan bungkus judul 14 karakter
+  tetap. Blok CSS "TABLE-ALIGN-A" di akhir style; tes E13 `test_ui_1015c` kembali ke semua kiri/tengah.
+- Garis di atas kotak pesan: bukan elemen garis, tetapi potongan lurus area percakapan (kartu jawaban putih terpotong
+  di atas latar abu-abu). Kini 24 px terakhir area percakapan (HP 8 px) memudar ke latar halaman; ruang itu ada di
+  bawah jawaban terakhir (padding 40 px; HP 8 px), jadi jawaban yang dibaca sampai habis tidak ikut pudar. Tes baru di
+  `tests/test_ui_1031.py`.
+- Tes: suite edge-bff 275 lulus, 1 gagal = baseline. Deploy edge-bff `cff201ce` (`33fbc99`) SUCCESS; cek live di
+  `RAILWAY_CHANGELOG.md`.

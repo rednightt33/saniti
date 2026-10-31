@@ -243,8 +243,13 @@ The page is edited as one HTML file and its API wiring is not locked to the view
   session row holds Details, bookmark, share and the run's state, and the action row keeps one gap.
 - Tables (EXEC-TABLE-CLAUDE, user 2026-10-31: "duplikat saja pakai contoh dari Claude"): an answer table reads like a
   Claude table: no frame or grey header band, a semibold header over one stronger line, hairlines between rows, each
-  title aligned like its column (numbers right, text left), the sort arrow faint beside the title without taking width,
+  title and cell left-aligned and in the middle of its row, numbers included (TABLE-ALIGN-A, user 2026-10-31: the
+  alignment of the table before MONITOR-REVAMP, E13), the sort arrow faint after the title without taking width,
   and the table's edges on the answer text's. A title over 14 characters wraps there and is never squeezed narrower.
+  A wrapped number title shows its arrow only on hover, focus or when sorted. Response history and Pinned responses
+  share one type (title 12 px medium in two 17 px lines, status 10.5 px); a history dot takes `Edge.statusTone`. The
+  page shows no "Draft" label before the first question. The conversation's last pixels fade into the page above the
+  message box (24 px; phone 8 px), inside the space below the last answer, so no hard edge reads as a dividing line.
 
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.
