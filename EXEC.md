@@ -9245,6 +9245,18 @@ sebelum EXEC-TABLE-CLAUDE `84d0c69^`, C sekarang); user memilih "Alignment A, ga
 - Tes: suite edge-bff 275 lulus, 1 gagal = baseline. Deploy edge-bff `cff201ce` (`33fbc99`) SUCCESS; cek live di
   `RAILWAY_CHANGELOG.md`.
 
+Lanjutan 2026-10-31 malam (user, screenshot: "jarak antara kolom ke kolom tidak even sama seperti sebelumnya"; "table
+dibuat juga border di atasnya"). Diukur pada tabel user: versi A selebar isinya (470 dari 732 px), sekarang ditarik
+selebar kartu (734 px) sehingga sisa ruang dibagi tidak rata (23 px untuk Saham, 87 px untuk Tanggal beli). User memilih
+"Selebar isi, rata kiri" dan border atas "Sama dengan garis bawah judul":
+- Tabel selebar isinya (seperti sebelum MONITOR-REVAMP): tiap kolom = judul+panah atau isi terlebar + padding yang sama;
+  tabel yang lebih lebar dari kartu tetap membungkus kolom teks panjangnya (28 karakter) dan di HP digeser samping.
+- Panah sortir kini di dalam lebar judul (sebelumnya tidak memakan lebar dan masuk ke jarak kolom berikutnya).
+- Satu garis di atas baris judul, setegas garis di bawahnya.
+- Tes: dua tes revamp yang mengharuskan tabel memenuhi kotaknya diganti (selebar isi); tes baru di `tests/test_ui_1031.py`.
+- Catatan: screenshot user masih menunjukkan angka rata kanan; live sudah memuat TABLE-ALIGN-A, jadi tab itu belum dimuat
+  ulang sesudah deploy `cff201ce`.
+
 ## EXEC-INTRADAY-FEATURES — Feature 01/04 intraday, alur harian, storage hanya bagian yang berubah, tampilan 5M/15M/1H/4H (go 2026-10-31)
 
 **Permintaan user, 2026-10-31:** "Oke, sekarang masuk ke tahap fitur 1 dan 4, silakan dibuat. Dan diatur workflow

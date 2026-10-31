@@ -152,3 +152,27 @@ def test_the_conversation_fades_above_the_message_box_and_an_answer_read_to_its_
         last = page.locator('article.result').last.bounding_box()
         view = scroll.bounding_box()
         assert last['y'] + last['height'] <= view['y'] + view['height'] - fade + 1, (width, last, view)
+
+
+def test_a_table_is_as_wide_as_its_content_with_even_gaps_and_a_line_above_its_titles(fixture_server, browser_page):
+    """User 2026-10-31 (screenshot): "jarak antara kolom ke kolom tidak even sama seperti sebelumnya" (the table was
+    stretched over the card and the spare width went to the wide columns) and "tambah border" above the titles."""
+    origin, _ = fixture_server
+    page = browser_page
+    page.set_viewport_size({'width': 1440, 'height': 900})
+    sign_in(page, origin)
+    submit(page, 'fx:table_align')
+    saved(page)
+    for table in page.locator('article.result').last.locator('.edge-md-table').all():
+        spare = table.evaluate("""f => { const t = f.querySelector('table');
+            const width = e => { const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect().width; };
+            // a long text column wraps within 28 characters (EXEC-UI-1015D), its lines ragged: it is left out
+            return [...t.querySelectorAll('thead th')].map((th, i) => t.querySelector(`tbody tr td:nth-child(${i + 1})`).classList.contains('edge-col-text') ? null : th.getBoundingClientRect().width - Math.max(
+                (th.querySelector('.edge-sort-label') || th).getBoundingClientRect().width,
+                ...[...t.querySelectorAll(`tbody tr td:nth-child(${i + 1})`)].map(width))); }""")
+        inner = [s for s in spare[1:-1] if s is not None]  # the first and last columns have no outer padding
+        assert inner and max(inner) - min(inner) <= 3, spare
+        assert table.evaluate("f => f.querySelector('table').getBoundingClientRect().width <= f.getBoundingClientRect().width + 1")
+        top, bottom = table.locator('thead th').first.evaluate(
+            "th => [getComputedStyle(th).borderTopWidth + ' ' + getComputedStyle(th).borderTopColor, getComputedStyle(th).borderBottomWidth + ' ' + getComputedStyle(th).borderBottomColor]")
+        assert top == bottom and top.startswith('1px'), (top, bottom)

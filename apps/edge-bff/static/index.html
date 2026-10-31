@@ -10967,10 +10967,19 @@ html.dark .app .monitor-layout .result .edge-md-table .data-table td:first-child
 /* TABLE-ALIGN-A (user 2026-10-31: "ambil kode atau logic bagaimana table sebelumnya di display"; chose the alignment of
    the table before MONITOR-REVAMP with the EXEC-TABLE-CLAUDE look): E13 again (user 2026-10-16, "Nama kolom rata kiri
    dan center, isi juga rata kiri") - every title and cell left-aligned and vertically centred, numbers included (still
-   tabular figures, on one line); the sort arrow follows every title on its right */
+   tabular figures, on one line); the sort arrow follows every title on its right (below: inside the title's width) */
 html .app .monitor-layout .result .edge-md-table .data-table :is(th,td,.num){text-align:left;vertical-align:middle;}
 html .app .monitor-layout .result .edge-md-table .data-table th:is(.num,:not(.num)) .edge-sort{text-align:left;}
-html .app .monitor-layout .result .edge-md-table .data-table th.num .edge-sort-icon{left:100%;right:auto;margin:0 0 0 3px;}
+/* user 2026-10-31 ("jarak antara kolom ke kolom tidak even sama seperti sebelumnya"; chose "Selebar isi, rata kiri"):
+   as before MONITOR-REVAMP, a table is as wide as its content (each column its widest title or value plus the same
+   padding), not stretched over the card, so every gap between columns is the same; a table wider than the card still
+   wraps its text columns and scrolls sideways on a phone. "tambah border": one line above the titles, as strong as the
+   one under them */
+html .app .monitor-layout .result .edge-md-table .data-table{width:auto;}
+html .app .monitor-layout .result .edge-md-table .data-table thead th{border-top:1px solid var(--border-2);}
+/* the arrow sits after the title inside its width (it no longer reaches into the next column's gap), so a column is
+   its widest title-with-arrow or value plus the same padding */
+html .app .monitor-layout .result .edge-md-table .data-table th :is(.edge-sort-icon) {position:static;transform:none;vertical-align:middle;margin:0 0 0 3px;}
 /* user 2026-10-31 (screenshot, "garis pembatas ... dihilangkan"): the conversation no longer ends in a hard edge above
    the message box; its last pixels fade into the page, inside the space below the last answer, so an answer read to
    its end is never faded */
