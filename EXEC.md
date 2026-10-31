@@ -9560,3 +9560,16 @@ dirapihkan lagi? Kemudian hapus huruf draft"):
 - "Draft" dihapus dari halaman kosong dan dari baris sesi HP (sebelum ada pertanyaan baris itu tidak menampilkan status).
 - Tes: `tests/test_ui_1031.py` (tanpa Draft, tipografi dan warna history). Suite edge-bff: 169 lulus, 1 gagal =
   baseline `test_ui_1015c` judul pendek di 1440.
+
+Lanjutan 2026-10-31 sore (TABLE-ALIGN-A; user, dua screenshot desktop: "table saat ini dari sisi alignment ... tidak sama
+dari sisi bagaimana table sebelumnya di display ... ambil kode atau logic bagaimana table sebelumnya"; "garis pembatas
+ini seperti dihilangkan saja"). Tabel yang sama dirender dari tiga versi (A sebelum MONITOR-REVAMP `71f31c6^`, B
+sebelum EXEC-TABLE-CLAUDE `84d0c69^`, C sekarang); user memilih "Alignment A, gaya C" dan "Pudar halus":
+- Tabel: aturan E13 versi A dipakai lagi (user 2026-10-16, "Nama kolom rata kiri dan center, isi juga rata kiri"): semua
+  judul dan sel rata kiri dan di tengah vertikal, angka juga (tetap satu baris, angka tabular); panah sortir di kanan
+  judul. Gaya EXEC-TABLE-CLAUDE (tanpa bingkai dan pita header, garis tipis antarbaris) dan bungkus judul 14 karakter
+  tetap. Blok CSS "TABLE-ALIGN-A" di akhir style; tes E13 `test_ui_1015c` kembali ke semua kiri/tengah.
+- Garis di atas kotak pesan: bukan elemen garis, tetapi potongan lurus area percakapan (kartu jawaban putih terpotong
+  di atas latar abu-abu). Kini 24 px terakhir area percakapan (HP 8 px) memudar ke latar halaman; ruang itu ada di
+  bawah jawaban terakhir (padding 40 px; HP 8 px), jadi jawaban yang dibaca sampai habis tidak ikut pudar. Tes baru di
+  `tests/test_ui_1031.py`.

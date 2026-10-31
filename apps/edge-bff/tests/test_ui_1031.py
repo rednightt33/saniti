@@ -130,3 +130,25 @@ def test_no_draft_label_and_history_shares_the_list_colours(fixture_server, brow
       return {size: t.fontSize, weight: t.fontWeight, line: t.lineHeight, dot: d && d.className}; }""")
     assert got['size'] == '12px' and got['weight'] == '500' and got['line'] == '17px', got
     assert got['dot'] and 'warning' in got['dot'], got
+
+
+def test_the_conversation_fades_above_the_message_box_and_an_answer_read_to_its_end_is_not_faded(fixture_server, browser_page):
+    """User 2026-10-31 (screenshot, "garis pembatas ... dihilangkan"): the conversation ended in a hard edge above the
+    message box, an answer card cut across like a dividing line; its last pixels now fade into the page, inside the
+    space under the last answer."""
+    origin, _ = fixture_server
+    page = browser_page
+    page.set_viewport_size({'width': 1440, 'height': 800})
+    sign_in(page, origin)
+    submit(page, 'fx:table_align')
+    saved(page)
+    for width, fade in ((1440, 24), (390, 8)):
+        page.set_viewport_size({'width': width, 'height': 800})
+        page.wait_for_timeout(300)
+        scroll = page.locator('.research-scroll')
+        assert f'calc(100% - {fade}px)' in scroll.evaluate('s => getComputedStyle(s).maskImage || getComputedStyle(s).webkitMaskImage')
+        scroll.evaluate('s => s.scrollTo({top: s.scrollHeight, behavior: "instant"})')
+        page.wait_for_timeout(300)
+        last = page.locator('article.result').last.bounding_box()
+        view = scroll.bounding_box()
+        assert last['y'] + last['height'] <= view['y'] + view['height'] - fade + 1, (width, last, view)

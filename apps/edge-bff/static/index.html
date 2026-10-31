@@ -10964,6 +10964,18 @@ html.dark .app .monitor-layout .result .edge-md-table .data-table td:first-child
   /* the sticky first column (EXEC-UI-1015D) keeps the card's colour under the columns that scroll past it */
   html .app .monitor-layout .result .edge-md-table .data-table :is(th,td):first-child{background:var(--surface);}
 }
+/* TABLE-ALIGN-A (user 2026-10-31: "ambil kode atau logic bagaimana table sebelumnya di display"; chose the alignment of
+   the table before MONITOR-REVAMP with the EXEC-TABLE-CLAUDE look): E13 again (user 2026-10-16, "Nama kolom rata kiri
+   dan center, isi juga rata kiri") - every title and cell left-aligned and vertically centred, numbers included (still
+   tabular figures, on one line); the sort arrow follows every title on its right */
+html .app .monitor-layout .result .edge-md-table .data-table :is(th,td,.num){text-align:left;vertical-align:middle;}
+html .app .monitor-layout .result .edge-md-table .data-table th:is(.num,:not(.num)) .edge-sort{text-align:left;}
+html .app .monitor-layout .result .edge-md-table .data-table th.num .edge-sort-icon{left:100%;right:auto;margin:0 0 0 3px;}
+/* user 2026-10-31 (screenshot, "garis pembatas ... dihilangkan"): the conversation no longer ends in a hard edge above
+   the message box; its last pixels fade into the page, inside the space below the last answer, so an answer read to
+   its end is never faded */
+html .app .monitor-layout .research-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 24px),transparent);}
+@media (max-width:720px){html .app .monitor-layout .research-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent);}}
 </style>
 </head>
 <body><div id="root"></div>
