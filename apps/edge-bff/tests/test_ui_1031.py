@@ -111,3 +111,22 @@ def test_the_suggestion_folds_and_the_notes_share_one_gap(fixture_server, browse
     gaps = article(page).evaluate("""a => { const s = [...a.querySelectorAll('.edge-discs>details>summary')].map(n => n.getBoundingClientRect());
       return s.slice(1).map((x, i) => Math.round(x.top - s[i].bottom)); }""")
     assert len(gaps) >= 2 and max(gaps) - min(gaps) <= 1, gaps
+
+
+def test_no_draft_label_and_history_shares_the_list_colours(fixture_server, browser_page):
+    """User 2026-10-31 ("hapus huruf draft"; "response history hurufnya boleh dirapihkan"): the empty page and the phone's
+    session row show no "Draft"; a Response history line takes the list's colour and the Pinned title's type."""
+    origin, orc = fixture_server
+    page = browser_page
+    page.set_viewport_size(PHONE)
+    sign_in(page, origin)
+    assert 'Draft' not in page.locator('.research-workspace').inner_text()
+    page.set_viewport_size({'width': 1440, 'height': 900})
+    submit(page, 'fx:plan_v1')
+    saved(page)
+    item = page.locator('.edge-flow-accordion>summary').first
+    item.wait_for()
+    got = item.evaluate("""s => { const t = getComputedStyle(s.querySelector('strong')), d = s.querySelector('.edge-history-dot');
+      return {size: t.fontSize, weight: t.fontWeight, line: t.lineHeight, dot: d && d.className}; }""")
+    assert got['size'] == '12px' and got['weight'] == '500' and got['line'] == '17px', got
+    assert got['dot'] and 'warning' in got['dot'], got

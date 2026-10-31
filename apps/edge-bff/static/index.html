@@ -10914,8 +10914,22 @@ html .app .monitor-layout .result .edge-discs>details.edge-notes>ul.edge-list>li
   html .app .monitor-layout .workspace-tools>div:last-child{order:1;flex:none;flex-wrap:nowrap;}
   html .app .monitor-layout .workspace-tools>div:first-child{order:2;flex:0 1 auto;min-width:0;margin-left:auto;flex-wrap:nowrap;gap:6px;}
   html .app .monitor-layout .workspace-tools .edge-session-label{display:none;}
+  /* before the first question the row shows no state (no "Draft", user 2026-10-31) */
+  html .app .monitor-layout .workspace-tools .live-dot.edge-tone-new{display:none;}
   html .app .monitor-layout .workspace-tools>div:first-child .pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 }
+/* user 2026-10-31 ("response history hurufnya boleh dirapihkan lagi"): Response history and Pinned responses share one
+   type: the title 12 px medium in two lines of 17 px, then a 4 px gap and the status line 10.5 px in the quiet colour;
+   the mark sits on the title's first line */
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary{align-items:start;}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary strong,html .app .monitor-layout .details-panel .edge-pin-title{font-size:var(--t-body);font-weight:500;line-height:17px;color:var(--text);letter-spacing:0;}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary small{margin-top:var(--s-2);font-size:var(--t-meta);font-weight:400;line-height:14px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary>:is(.edge-okmark,.edge-history-dot){margin-top:-1px;}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary>.edge-history-dot{margin:5px 6px 0;}
+html .app .monitor-layout .details-panel .edge-history-dot.warning{background:var(--b-amber);}
+html .app .monitor-layout .details-panel .edge-history-dot.positive{background:var(--green);}
+html .app .monitor-layout .details-panel .edge-history-dot.new{background:transparent;box-shadow:inset 0 0 0 1.5px var(--blue);}
+html .app .monitor-layout .details-panel .edge-flow-accordion>summary>.edge-disclosure-chevron{margin-top:2px;}
 /* =====================================================================================================================
    EXEC-TABLE-CLAUDE (user 2026-10-31: "untuk table saat ini masih acak-acakan ... dirapikan pakai standar kamu aja ...
    untuk alignment dan lain sebagainya kita duplikat saja pakai contoh dari Claude"). An answer table reads like a
@@ -10938,6 +10952,9 @@ html .app .monitor-layout .result .edge-md-table .data-table th.edge-title-long 
 html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-icon{position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:3px;opacity:.5;}
 html .app .monitor-layout .result .edge-md-table .data-table th.num .edge-sort-icon{left:auto;right:100%;margin:0 3px 0 0;}
 html .app .monitor-layout .result .edge-md-table .data-table :is(th.sorted,th:hover,th:focus-within) .edge-sort-icon{opacity:1;}
+/* user 2026-10-31 ("Sembunyikan panah di judul panjang"): a wrapped number title's arrow would stand apart from its
+   text, so it shows only on hover, focus or when that column is sorted */
+html .app .monitor-layout .result .edge-md-table .data-table th.num.edge-title-long:not(.sorted):not(:hover):not(:focus-within) .edge-sort-icon{opacity:0;}
 html .app .monitor-layout .result .edge-md-table .data-table td{border-bottom:1px solid var(--border);vertical-align:top;}
 html .app .monitor-layout .result .edge-md-table .data-table tbody tr:last-child td{border-bottom:1px solid var(--border);}
 html .app .monitor-layout .result .edge-md-table .data-table tbody tr:hover td,html.dark .app .monitor-layout .result .edge-md-table .data-table tbody tr:hover td{background:transparent;}
@@ -11821,7 +11838,8 @@ function Monitor({ go }) {
                         // state sits at the right of the Details row (CSS "M317")
                         element("span", { className: `${active ? "pulse" : "live-dot"} edge-tone-${run ? Edge.statusTone(run.status, run.domainStatus, run.paused, run.stopped) : "new"}` }),
                         element("span", { className: "edge-session-label" }, " Research session "),
-                        element(Pill, null, run ? `Run ${runNumber} · ${Edge.statusLabel(run.status, run.domainStatus, run.paused)}` : "Draft")),
+                        // user 2026-10-31 ("hapus huruf draft"): no "Draft" label before the first question
+                        run && element(Pill, null, `Run ${runNumber} · ${Edge.statusLabel(run.status, run.domainStatus, run.paused)}`)),
                     element("div", null,
                         (!detailsOpen || narrow) && element(Button, { kind: "ghost", icon: "sliders", ariaLabel:"Show Details", onClick: () => {setHistoryOpen(false);setDetailsOpen(true);setMobileDetailsOpen(true);} }, "Details"),
                         element("span", { className: "share-anchor conversation-bookmark-anchor" },
@@ -11833,7 +11851,7 @@ function Monitor({ go }) {
                         element(Icon, { name: "spark" })),
                     element("strong", null, "Start a research session"),
                     element("p", null, "Ask a research question to create a conversation. No thread is created until you submit."),
-                    element(Pill, null, "Draft")) : withDivider(selected, shownMessages(selected).map(message => { const messageRun = selected.runs.find(item => item.id === message.runId); return element("div", { className: `research-exchange ${messageRun?.id === run?.id ? "selected-run" : ""}${message.inherited ? " inherited" : ""}`, key: message.id, id: messageRun ? `edge-exchange-${messageRun.id}` : undefined },
+                    /* user 2026-10-31 ("hapus huruf draft"): the empty page shows no "Draft" label */ null) : withDivider(selected, shownMessages(selected).map(message => { const messageRun = selected.runs.find(item => item.id === message.runId); return element("div", { className: `research-exchange ${messageRun?.id === run?.id ? "selected-run" : ""}${message.inherited ? " inherited" : ""}`, key: message.id, id: messageRun ? `edge-exchange-${messageRun.id}` : undefined },
                     element("div", { className: "user-message" },
                         element("span", { className: "message-label" },
                             "You"),
@@ -12213,11 +12231,11 @@ const runDuration=run=>{if(run.status==="running"||run.status==="submitted")retu
     const start=Date.parse(run.createdAt),end=Date.parse(run.completedAt);return Number.isFinite(start)&&Number.isFinite(end)&&end>=start?EdgeView.durationText(end-start):null;};
 // MONITOR-REVAMP (AI_revamp.html .hist): a response is a raised card: a green check when it completed (a coloured dot
 // otherwise), its title in two lines, then its status, time and processing time
-const EDGE_HISTORY_DOT = {running:"info", submitted:"info", streaming:"info", failed:"negative", cancelled:"neutral"};
 function ResponseFlowItem({run,initiallyOpen=false,jump}) {
     const view=currentView,expanded=initialValue(view,"expanded",()=>initiallyOpen);
     const label=Edge.statusLabel(run.status,run.domainStatus,run.paused),done=run.status==="completed"&&!run.paused&&!["AWAITING_CONFIRMATION","NEEDS_CLARIFICATION","FAILED","LIMITED"].includes(run.domainStatus);
-    const tone=done?"positive":EDGE_HISTORY_DOT[run.status]||(run.domainStatus==="FAILED"?"negative":"warning");
+    // M317: the same colour as the conversation list and the session row (Edge.statusTone); never grey
+    const tone=Edge.statusTone(run.status,run.domainStatus,run.paused,run.stopped);
     return element("details",{id:`edge-history-${run.id}`,className:"edge-flow-accordion",open:expanded,onToggle:event=>updateValue(view,"expanded",event.currentTarget.open)},
         element("summary",null,
             done?element("b",{className:"edge-okmark",role:"img","aria-label":label},element("svg",{viewBox:"0 0 24 24","aria-hidden":"true"},element("path",{d:"m5 12 4.5 4.5L19 7"})))

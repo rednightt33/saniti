@@ -9550,3 +9550,13 @@ perbesar tetap):
 - Judul > 14 karakter tetap terbungkus di 14ch dan kolomnya tidak menyempit di bawah itu (HP: tabel digeser samping).
 - Tes: `tests/test_ui_1015c.py` E13 menerima judul kolom angka rata kanan. Tes tampilan edge-bff: semua lulus kecuali
   `test_ui_1015c` judul pendek di 1440 (baseline `main`, sudah gagal sebelumnya).
+
+Lanjutan 2026-10-31 (user: "Sembunyikan panah di judul panjang"; "Minta tolong untuk response history hurufnya boleh
+dirapihkan lagi? Kemudian hapus huruf draft"):
+- Panah sortir pada judul kolom angka yang terbungkus hanya tampil saat di-hover, difokus, atau kolom itu diurutkan.
+- Response history dan Pinned responses satu tipografi: judul 12 px medium, dua baris setinggi 17 px; jarak 4 px; baris
+  status 10,5 px warna redup, satu baris. Tanda centang/titik sejajar baris pertama judul. Titik history memakai
+  `Edge.statusTone` (sama dengan daftar percakapan: kuning menunggu persetujuan, tanpa abu-abu).
+- "Draft" dihapus dari halaman kosong dan dari baris sesi HP (sebelum ada pertanyaan baris itu tidak menampilkan status).
+- Tes: `tests/test_ui_1031.py` (tanpa Draft, tipografi dan warna history). Suite edge-bff: 169 lulus, 1 gagal =
+  baseline `test_ui_1015c` judul pendek di 1440.

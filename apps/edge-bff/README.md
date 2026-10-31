@@ -245,6 +245,9 @@ The page is edited as one HTML file and its API wiring is not locked to the view
   Claude table: no frame or grey header band, a semibold header over one stronger line, hairlines between rows, each
   title aligned like its column (numbers right, text left), the sort arrow faint beside the title without taking width,
   and the table's edges on the answer text's. A title over 14 characters wraps there and is never squeezed narrower.
+  A wrapped number title shows its arrow only on hover, focus or when sorted. Response history and Pinned responses
+  share one type (title 12 px medium in two 17 px lines, status 10.5 px); a history dot takes `Edge.statusTone`. The
+  page shows no "Draft" label before the first question.
 
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.
