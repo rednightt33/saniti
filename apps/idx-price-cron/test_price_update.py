@@ -26,7 +26,9 @@ from price_update import (
     run_entrypoint,
 )
 from unittest.mock import patch
-from recovery_window import correction_target_dates
+from recovery_window import (
+    calendar_window, correction_target_dates, index_calendar, recovery_targets, short_sessions,
+)
 
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -46,6 +48,52 @@ class PriceUpdateTests(unittest.TestCase):
         self.assertEqual(
             correction_target_dates(observed, date(2026, 9, 11), 5), observed
         )
+
+    def test_a_calendar_session_without_any_stored_row_is_a_recovery_target(self):
+        # ERRORS M238: 2026-09-17/18 had no stored row, so the stored-dates window never named them
+        calendar = [date(2026, 9, d) for d in (11, 14, 15, 16, 17, 18)]
+        observed = [date(2026, 9, d) for d in (10, 11, 14, 15, 16)]
+        window = calendar_window(calendar, date(2026, 9, 18), 5)
+        self.assertEqual(window, [date(2026, 9, d) for d in (14, 15, 16, 17, 18)])
+        self.assertEqual(
+            recovery_targets(observed, calendar, date(2026, 9, 18), 5),
+            [date(2026, 9, d) for d in (10, 11, 14, 15, 16, 17, 18)],
+        )
+
+    def test_short_sessions_are_the_old_ones_below_the_share_of_the_median(self):
+        calendar = [date(2026, 9, d) for d in (1, 2, 3, 4, 7, 8, 9, 10)]
+        counts = {day: 830 for day in calendar}
+        counts[date(2026, 9, 2)] = 0          # a wholly missing session
+        counts[date(2026, 9, 3)] = 400        # half missing
+        counts[date(2026, 9, 4)] = 815        # a normal day without some illiquid stocks
+        counts[date(2026, 9, 9)] = 0          # missing but inside the correction window: the recovery writes it
+        window = {date(2026, 9, 9), date(2026, 9, 10)}
+        self.assertEqual(
+            short_sessions(calendar, counts, window),
+            [(date(2026, 9, 2), 0, 830), (date(2026, 9, 3), 400, 830)],
+        )
+        self.assertEqual(short_sessions([], counts, window), [])
+
+    def test_index_calendar_takes_the_first_index_that_answers_up_to_the_latest_session(self):
+        first, second, third = symbol(1, "IHSG", "index"), symbol(2, "LQ45", "index"), symbol(3, "IDX30", "index")
+
+        def fetch(sym, bars):
+            if sym is first:
+                raise TimeoutError("no answer")
+            if sym is third:   # answers, but only with a candle after the latest completed session
+                return [{"date": date(2026, 9, 21)}]
+            return [{"date": date(2026, 9, d)} for d in (16, 17, 18, 21)]
+
+        with redirect_stderr(io.StringIO()), patch("builtins.print"):
+            self.assertEqual(
+                index_calendar([first, second], date(2026, 9, 18), 10, fetch),
+                [date(2026, 9, 16), date(2026, 9, 17), date(2026, 9, 18)],
+            )
+            self.assertEqual(index_calendar([first], date(2026, 9, 18), 10, fetch), [])
+            self.assertEqual(
+                index_calendar([third, second], date(2026, 9, 18), 10, fetch),
+                [date(2026, 9, 16), date(2026, 9, 17), date(2026, 9, 18)],
+            )
 
     def test_feature04_monitoring_is_bound_to_price_transaction(self):
         calls = []

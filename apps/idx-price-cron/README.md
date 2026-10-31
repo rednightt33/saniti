@@ -18,6 +18,14 @@ Railway evaluates cron schedules in UTC.
   `Equity_Market_Schedule` and re-queries the full universe for each of the latest five
   observed sessions, oldest first. A latest completed candidate absent from storage is also
   checked so a missing new session can be created.
+- Since EXEC-PRICE-GAP-0917 S7 (ERRORS M238) the recovery also reads the trading calendar from
+  TradingView's daily candles of the universe's index symbols (the stored dates are the fallback):
+  every calendar session inside the correction window is re-queried, so a session with no stored
+  row at all is filled. An older session of the last 60 calendar sessions whose stored stock count
+  is below 90 % of the median is not written (a back-dated insert needs the Feature 04 repair,
+  ERRORS D26) but reported once as a `RECOVERY` / `NEEDS_REVIEW` row (`SHORT_SESSION: ...`) in
+  `Monitoring_Price_ALL`, with its Telegram notice. `python recovery_window.py --plan-only` prints
+  the plan without running or reporting anything.
 
 ## Candle-date and duplicate safety
 
