@@ -4778,6 +4778,30 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 
 **Dibiarkan sesuai usulan karena tidak material:** selisih ≤ 0,0004 % pada 2020-12-02 dan volume GOTO 2026-10-12.
 
+### EXEC-TERMINAL-SOFTSEL — selesai (2026-10-31)
+
+**Permintaan user (EXEC-INTRADAY-FEATURES, go 2026-10-31):** "selected state bisa dirubah bordernya tidak setebal
+sekarang. Dibuat soft saja", dengan screenshot dialog Broker Buy Breadth; ditambah "Excel finalnya juga".
+
+**Border:**
+- **Sebelumnya:** kontrol terpilih di dialog setting indikator (input, select, multi-select, tombol warna) memakai
+  garis hitam 1 px ditambah bayangan dalam 1 px #171717, jadi tampak 2 px hitam
+  (`apps/edge-bff/terminal/src/styles/terminal.css`).
+- **Sekarang:** garis abu-abu tipis (#b5b5b5) ditambah cincin samar 3 px. Kotak centang dan toggle mengikuti; isian
+  yang salah tetap merah, dengan cincin merah samar.
+- **Cek:** screenshot dialog RSI dengan isian terfokus; vitest 756 lulus.
+- **Deploy:** edge-bff `cd0d2bdf` (`main` `5858885b`) SUCCESS; CSS live memuat aturan baru.
+- **Catatan:** state terfokus kini sengaja berbeda dari halaman referensi 1:1.
+
+**Excel:** `verification/terminal_api/flow_indicators/FLOW_INDICATORS_FINAL.xlsx`, dibuat ulang dengan
+`build_final_workbook.py`. Isinya:
+- spreadsheet yang disepakati 2026-10-30, tanpa perubahan;
+- Rumus_Kode, dari `FORMULAS.md`;
+- Perubahan: 12 perubahan sesudah 30 Okt; tidak ada rumus angka yang berubah;
+- Versi: sha256 sumber dan cek registry = spreadsheet.
+
+`FORMULAS.md` tidak lagi menyebut celah 17–18 Sep sebagai terbuka.
+
 ### M318 — Image `idx-intraday-cron` tidak berisi `intraday_update.py` (2026-10-31)
 
 - **Symptom:** ditemukan saat menyusun rencana fitur intraday (sebelum run terjadwal pertama, Senin 2026-11-02 10:30

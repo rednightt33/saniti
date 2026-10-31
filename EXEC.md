@@ -9244,3 +9244,155 @@ sebelum EXEC-TABLE-CLAUDE `84d0c69^`, C sekarang); user memilih "Alignment A, ga
   `tests/test_ui_1031.py`.
 - Tes: suite edge-bff 275 lulus, 1 gagal = baseline. Deploy edge-bff `cff201ce` (`33fbc99`) SUCCESS; cek live di
   `RAILWAY_CHANGELOG.md`.
+
+## EXEC-INTRADAY-FEATURES — Feature 01/04 intraday, alur harian, storage hanya bagian yang berubah, tampilan 5M/15M/1H/4H (go 2026-10-31)
+
+**Permintaan user, 2026-10-31:** "Oke, sekarang masuk ke tahap fitur 1 dan 4, silakan dibuat. Dan diatur workflow
+penarikan data intraday serta perhitungan fitur 1 dan 4 intraday. Setelah ini selesai, kita mulai pindahkan data
+intraday ini ke storage. Dan mulai juga di display data 5, 15 menit, 1 jam, dan 4 jam. Buat implementation plan-nya."
+
+**Keputusan user, 2026-10-31:** "D1 - A / D2 - A / D3 - W1 / D4 OK":
+- **D1 = A:** fitur disimpan untuk 4 timeframe dengan riwayat penuh;
+- **D2 = a:** rumus Feature 01 sama per bar;
+- **D3 = W1:** langkah fitur di `idx-intraday-cron`;
+- **D4:** rekomendasi diterima, fitur intraday IHSG nanti.
+
+**Go user, 2026-10-31 (kata user):** "Oke, sekarang buat implementation plan. By the way, kalau dipindahin ke storage,
+tidak perlu seluruh historical. Karena mungkin data-data di sebelumnya sudah final. Yang berubah mungkin 1-4 hari
+terakhir saja. Ini berlaku untuk semuanya ya, bukan hanya data intraday. Ya, mungkin exception adalah data broker
+summary, karena kita tidak tarik setiap hari. [...] Go"
+
+Dalam pesan yang sama, dua permintaan kecil dikerjakan langsung (selesai 2026-10-31, `ERRORS_AND_SOLUTIONS.md`
+EXEC-TERMINAL-SOFTSEL):
+- border state terpilih di dialog setting indikator dibuat lembut;
+- Excel final indikator Flow dikirim (`verification/terminal_api/flow_indicators/FLOW_INDICATORS_FINAL.xlsx`).
+
+Urutan: A dulu dan dicek live; B dan C sesudahnya. Laporan rencana B dan C dikirim ke user sebelum kode B menyentuh
+pembaca.
+
+### Fakta yang diperiksa (rencana) (live dan kode, 2026-10-31)
+
+- **Harga intraday:** 15.354.680 bar; partisi 5m 610 MB, 15m 691 MB, 1h 647 MB, 4h 315 MB; baris rata-rata 113 B
+  (pgweb `pg_total_relation_size`, `pg_column_size` sampel).
+- **Pertumbuhan:** Oktober 2026 per sesi kira-kira 5m 37 rb, 15m 15,6 rb, 1h 5,3 rb, 4h 1,6 rb baris, jadi
+  ±14,6 juta bar per tahun. 5m menyumbang ±62 %.
+- **Feature 04 harian** (`Feature_04_Technical_Indicator`):
+  - 57 kolom (31 integer, 20 double);
+  - baris nyata 394 B, tetapi heap 2.479 MB untuk 1,39 juta baris (±1.790 B/baris);
+  - selisihnya ruang kosong bekas tulis ulang (±1,9 GB; terpisah dari rencana ini);
+  - kunci `(ticker, trade_date, timeframe)` dengan `CHECK (timeframe='Daily')`
+    (`database/migrations/20261011_001_create_feature04_technical_indicator.sql:67,69`), jadi bar intraday tidak muat
+    di tabel itu.
+- **Feature 01 harian:**
+  - baris nyata 261 B;
+  - jendela 1/5/20/60 sesi;
+  - volatilitas tahunan memakai √252
+    (`database/migrations/20260912_001_create_feature_01_stock_daily.sql:230-236`).
+- **Engine Feature 04** (`features/feature04/engine.py`, `incremental.py`) bekerja per bar dan tidak tahu "hari".
+  Worker-nya mengunci `'Daily'` di sekitar 20 query (`apps/feature-04-worker/worker.py:112-538`).
+- **Pembaca nilai fitur tersimpan:** hanya jalur AI (`market-ai-orc` preview, `market-ai-backend`, sandbox,
+  `ai-data-coverage`). Terminal, Screener dan Backtest menghitung indikator di browser dari harga; tes Screener mengimpor
+  `engine.py` sebagai acuan. Jadi tampilan intraday hanya butuh **harga** di storage, sama seperti harian.
+- **IHSG** tidak masuk tabel fitur saham. Keputusan user EXEC-M219: "IHSG sudah punya table sendiri". Pengecualiannya
+  memakai `is_universe_index()` (`database/migrations/20261025_011_exclude_index_from_stock_features.sql`).
+- **Storage:** gzip JSON berkolom kira-kira 7–13 B per bar saham dan 17–21 B per bar IHSG (sampel BBCA, PBSA, IHSG
+  Agu–Okt 2026). Seluruh riwayat ±150 MB, tambahan ±130 MB per tahun.
+- **terminal-api `/bundle`** hanya menerima `price|broker|events` (`apps/terminal-api/app/main.py:85`).
+- **Terminal:**
+  - `Timeframe = 'D'|'W'|'M'` (`apps/edge-bff/terminal/src/data/timeframe.ts:9`);
+  - tombolnya dibuat di `src/main.ts:38-41`;
+  - `src/app/chart.ts:255` sudah punya jumlah bar awal untuk 5M/15M/1H/4H;
+  - lightweight-charts 5.2.1 menaruh bar berurutan, jadi jeda siang dan malam tidak menjadi lubang.
+- **Volume Postgres:** database 44 GB; volume ±49 dari 75 GB.
+
+### Perkiraan ukuran fitur intraday di PostgreSQL
+
+Dihitung dari lebar baris nyata ditambah indeks kunci: Feature 01 ±330 B per bar; Feature 04 ±360 B per bar setelah
+kode pola memakai smallint dan versi kalkulasi pindah ke log run. Rumus double tetap sama dengan harian.
+
+| Pilihan D1 | Sekarang | Tambahan per tahun | Volume terpakai setelah backfill |
+|---|---|---|---|
+| A: 4 timeframe, riwayat penuh | ±10,6 GB | ±10 GB | ±60 GB dari 75 GB (penuh ±1,5 tahun) |
+| B: 15m/1h/4h penuh, 5m hanya 60 sesi terakhir | ±9,1 GB | ±3,8 GB | ±58 GB (penuh ±4,5 tahun) |
+| C: hanya 1h/4h | ±4,6 GB | ±1,2 GB | ±54 GB |
+
+Harga 5m tetap disimpan semuanya (keputusan 3 EXEC-INTRADAY-IDX). Untuk 5m, Terminal tetap bisa menghitung indikator
+di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk AI.
+
+### A. Feature 01 dan Feature 04 intraday (dieksekusi)
+
+**Pemeriksaan tambahan sebelum kode (2026-10-31):**
+- **Mesin Feature 04 menolak bar intraday.** `features/feature04/engine.py` dan `incremental.py` hanya menerima
+  `timeframe='Daily'`, tanggal (bukan timestamp) dan hari kerja (`engine.py:120-126,186-191`, `incremental.py:368-371`).
+  Kode itu juga dipakai worker harian, jadi tidak diubah (W1).
+- **Jalan keluarnya: adaptor.** Adaptor intraday memberi tiap bar sebuah "tanggal" urut buatan (hari kerja ke-n sejak
+  1970-01-05, n = posisi bar dalam deretnya). Hasilnya dipetakan kembali ke `bar_time`.
+  - Rumusnya tetap sama persis, karena mesin hanya memakai urutan, bukan isi tanggal.
+  - Uji lokal BBCA 5m (5.031 bar) dan 1h (6.153 bar): hitung penuh = hitung bertahap di setiap kolom (0 beda > 1e-9,
+    beda relatif terbesar 1,2e-15).
+  - Waktu hitung: penuh 0,5 s, bertahap 3 s per ±5.000 bar.
+  - Jadi backfill memakai hitung penuh, run harian memakai hitung bertahap dari state tersimpan, dan deret yang
+    berubah di belakang (koreksi, skala) dihitung penuh lagi.
+- **Faktor tahunan Feature 01** diturunkan dari data: `bars_per_year` = 252 × rata-rata bar IHSG per sesi `COMPLETE`
+  timeframe itu (tabel kualitas; 5m 65 Senin–Kamis dan 53 Jumat, 15m 23/19, 1h 7/6, 4h 2). Nilai yang dipakai
+  disimpan di setiap baris.
+- **Status sesi dibaca lewat join** ke `price_stock_idx_intraday_quality` pada `(timeframe, session_date)`, tidak
+  disalin; status bisa berubah saat kualitas dihitung ulang.
+- **Kolom yang tidak disimpan per baris:**
+  - sector dan industry (ambil dari universe bila perlu);
+  - `asset_type` (selalu saham);
+  - `calculation_version` (di state per deret).
+
+**Langkah**
+1. **S1, migrasi `20261031_004`:**
+   - tabel `Feature_01_Stock_Intraday` dan `Feature_04_Technical_Indicator_Intraday` (partisi per timeframe; kunci
+     `(ticker, timeframe, bar_time)`; kode pola smallint; guard IHSG yang sama dengan harian);
+   - `intraday_feature_queue`, `feature04_intraday_state`, fungsi `refresh_feature_01_stock_intraday`;
+   - katalog Table, Column, Feature dan Relationship.
+2. **S2, kode:**
+   - `apps/idx-price-cron/intraday_features.py`: antrean, Feature 01 lewat fungsi SQL, Feature 04 lewat mesin yang
+     sama;
+   - loader menulis antrean di transaksi yang sama dengan barnya;
+   - image intraday dengan TA-Lib dan `features/feature04`;
+   - tes.
+3. **S3, backfill** semua deret (4h → 1h → 15m → 5m) dan reproduksi independen pada saham likuid, tidak likuid, yang
+   pernah berubah skala, dan sesi sebelum 2024-12-09.
+4. **S4:** deploy `idx-intraday-cron`, lalu run 2026-11-02 dipantau.
+5. **S5, catatan:** ERRORS, changelog, `DATABASE_SCHEMA.md`. Tabel belum dibuka ke AI (onboarding terpisah).
+
+### B. Storage: hanya bagian yang berubah (semua dataset kecuali broker summary; sesudah A)
+
+**Fakta (kode `apps/terminal-publisher/publisher.py`, run `9abbf6ae` 2026-10-31):**
+- File tahunan per ticker sudah hanya ditulis ulang bila stempelnya berubah.
+- Dua berkas tetap membawa seluruh riwayat setiap hari:
+  - `pack/{ticker}/price` (semua tahun dalam satu file; dibangun ulang begitu satu harga ticker berubah,
+    `publisher.py:895-897`);
+  - `xsection/price` (riwayat harian semua ticker dalam satu file untuk Screener).
+- Satu hari bursa = 1.709 objek, 28,1 MB.
+
+**Rancangan:**
+- Setiap dataset dipecah menjadi **arsip** (periode tertutup, ditulis ulang hanya bila stempelnya berubah: koreksi,
+  penyesuaian split, isi celah) dan **periode berjalan** (satu-satunya yang ditulis ulang pada hari biasa).
+- Panjang periode diturunkan dari ukuran: tahun bila satu tahun deret itu kecil (harian, 4h, 1h), bulan bila tidak
+  (5m, 15m). Batasnya dari byte per bar yang diukur, tidak ditulis per dataset.
+- **Per dataset:**
+  - harga harian: arsip tahun tertutup + file tahun berjalan (sudah ada);
+  - `xsection/price`: arsip + tahun berjalan;
+  - harga intraday: per ticker × timeframe;
+  - events: tetap per ticker, karena sudah hanya berubah bila barisnya berubah;
+  - broker summary: tetap seperti sekarang (ditarik ad hoc, `broker-range`).
+- **Pembaca:** Terminal, Backtest dan Screener mengambil arsip + periode berjalan.
+- **Bukti:**
+  - `verify` storage = SQL;
+  - Terminal 1:1, Backtest E2E, Screener live;
+  - jumlah objek dan byte per run harian sebelum dan sesudah.
+
+### C. Terminal 5M/15M/1H/4H (sesudah B untuk data intraday)
+
+Seperti rencana R5:
+- tombol timeframe;
+- sumbu waktu WIB tanpa lubang jeda;
+- indikator per bar dengan `bars_per_year` dari manifest;
+- Flow dan Bandar tetap harian dengan label "harian";
+- catatan kedalaman data;
+- tes 1:1 dan live.
