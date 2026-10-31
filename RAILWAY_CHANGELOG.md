@@ -23,6 +23,25 @@ User go 2026-10-31 (EXEC.md EXEC-PRICE-GAP-0917, EXEC-INTRADAY-IDX).
     `7310f242` SUCCESS. `railway config apply` (the file's `idx-intraday-cron` block) redeployed it as `926d1561`,
     SUCCESS, with no run. `nextCronRunAt` 2026-11-02 10:30 UTC. `railway config plan`: "already up to date".
   - A code change in `apps/idx-price-cron` needs a new upload to this service.
+- **terminal-publisher** (M301 delete fix, `main` `790a2656`, `publisher.py` sha256 `594cf8300e0911bd…`), M229 option A:
+  1. `cronSchedule` null (read back).
+  2. CLI upload of `git archive HEAD apps/terminal-publisher` as RUN `9abbf6ae-11ce-4438-8191-c89139e00bf8`, 13:52 UTC
+     (22 minutes after the 12:30 tick). The run:
+     - `plan` 876 files;
+     - `done` 120.2 s after the start: 1,709 objects written, 28.1 MB, 834 tickers;
+     - `state.json` 13:54:37 UTC;
+     - after the 600 s wait, `replaced` 1,709 deleted and 0 not deleted in 35 `delete_batch` requests (50 keys each,
+       slowest 8.7 s), 61.8 s. Before the fix, every deletion ended `replaced_failed` or `gc_failed`.
+  3. `cronSchedule` `0,30 0,1,12 * * *` (read back; next 2026-11-01 00:00 UTC).
+  4. SCHED upload of the same tree, `ef4cc7e6-fb9c-469a-8ebe-7aa91156eb90`, SUCCESS; it built and did not run.
+
+  Checks:
+  - `verification/screener/jobs/run_terminal_check.sh present`: VERDICT PASS.
+  - Backtest `e2e_dev.py --skip-page --only single`: no failed check.
+  - Screener `live_check_dev.py`: four runs 200, serving the 13:54:37 publication.
+  - Storage = SQL on 2026-09-16/17/18 and 10-08 for BUVA, PBSA, FORU and BBCA.
+  - `garbage_probe.py`: named but missing 0; 10,699 unused objects (671.4 MB, written 2026-10-25..29) left for the
+    cleanup run.
 - **orc-test-runner jobs** (`scripts/onboarding/run_job.sh`; DATABASE_URL and, for the price runs, the
   `telegram-monitor` notify references set for the run and removed after, VAR_REMOVED each time):
   - price dry runs and writes;
