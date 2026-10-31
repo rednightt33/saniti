@@ -4740,6 +4740,29 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
 - **Lesson:** setiap status yang tampil di daftar dikirim oleh API daftar; jangan bergantung pada detail yang baru
   dimuat saat baris dibuka.
 
+### M318 — Image `idx-intraday-cron` tidak berisi `intraday_update.py` (2026-10-31)
+
+- **Symptom:** ditemukan saat menyusun rencana fitur intraday (sebelum run terjadwal pertama, Senin 2026-11-02 10:30
+  UTC). Belum ada run yang gagal dan tidak ada data yang tertulis salah.
+- **Verified cause:** `apps/idx-price-cron/Dockerfile` hanya menyalin `price_update.py` dan `recovery_window.py`;
+  `idx-intraday-cron` dibangun dari folder yang sama (unggahan CLI `railway up --path-as-root`, pohon `git archive`
+  yang sama) dengan start command `python intraday_update.py --mode daily`, jadi file itu tidak ada di image. Deploy
+  `7310f242`/`926d1561` tetap `SUCCESS` karena deploy layanan cron tidak menjalankan start command-nya. Backfill
+  berjalan lewat `orc-test-runner`, bukan image ini, jadi cacatnya tidak terlihat.
+- **Class:** layanan cron/job yang image-nya menyebut file satu per satu: file baru yang dipanggil start command atau
+  di-import modul lain bisa tertinggal, dan `SUCCESS` deploy tidak membuktikannya. Berlaku untuk setiap folder yang
+  dipakai lebih dari satu layanan (`apps/idx-price-cron` dipakai tiga cron, `apps/fixed-income-price-cron` empat).
+  Pemeriksaan 2026-10-31 atas semua layanan di `.railway/railway.ts`: skrip start setiap layanan lain sudah tersalin.
+- **Solution:** Dockerfile menyalin semua modul (`COPY *.py ./`) dan build gagal bila ada modul (selain `test_*`)
+  yang tidak bisa di-import (impor tidak butuh variabel; diuji lokal, juga dengan modul rusak yang membuat build
+  gagal). `idx-intraday-cron` diunggah ulang; `idx-price-cron` dan `idx-price-recovery-cron` ikut build ulang dari
+  push `main`.
+- **Status:** FIXED di kode; status deploy dicatat di `RAILWAY_CHANGELOG.md` 2026-10-31.
+- **Lesson:**
+  - layanan baru dari folder yang sudah ada: periksa Dockerfile menyalin skrip start-nya, jangan mengandalkan
+    `SUCCESS` deploy;
+  - untuk cron, bukti jalan adalah log build (langkah COPY dan cek impor) atau run pertama, bukan status deploy.
+
 ### EXEC-TERMINAL-FLOW-IND — selesai (2026-10-30)
 
 **Go user.** Kata user: "Alright, please proceed." (rencana S1–S8), lalu "Oke, jalan kan.". Keputusan yang diterapkan:
