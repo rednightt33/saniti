@@ -27,8 +27,9 @@ from price_update import (
 )
 from unittest.mock import patch
 from recovery_window import (
-    calendar_window, correction_target_dates, index_calendar, recovery_targets, short_sessions,
+    calendar_window, correction_target_dates, index_calendar, recovery_targets, refill_sessions, short_sessions,
 )
+import price_update
 
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -73,6 +74,29 @@ class PriceUpdateTests(unittest.TestCase):
             [(date(2026, 9, 2), 0, 830), (date(2026, 9, 3), 400, 830)],
         )
         self.assertEqual(short_sessions([], counts, window), [])
+
+    def test_the_audit_refills_short_window_sessions_except_the_latest(self):
+        calendar = [date(2026, 9, d) for d in (1, 2, 3, 4, 7, 8, 9, 10)]
+        counts = {day: 830 for day in calendar}
+        counts[date(2026, 9, 2)] = 0      # old: reported, not refilled
+        counts[date(2026, 9, 8)] = 0      # inside the window: refilled
+        counts[date(2026, 9, 10)] = 100   # the latest session: the recovery run itself takes it
+        window = set(calendar_window(calendar, date(2026, 9, 10), 3))
+        self.assertEqual(refill_sessions(calendar, counts, window, date(2026, 9, 10)), [date(2026, 9, 8)])
+
+    def test_the_session_audit_follows_only_a_scheduled_recovery(self):
+        calls = []
+        cases = [(["price_update.py", "--mode", "recovery"], 1),
+                 (["price_update.py", "--mode", "recovery", "--target-date", "2026-09-17"], 0),
+                 (["price_update.py", "--mode", "recovery", "--dry-run"], 0),
+                 (["price_update.py", "--mode", "daily"], 0)]
+        for argv, expected in cases:
+            calls.clear()
+            with patch("sys.argv", argv), patch.object(price_update, "main", return_value=0), \
+                    patch.dict(os.environ, {"DATABASE_URL": "postgresql://x"}), \
+                    patch("recovery_window.audit_sessions", side_effect=lambda url: calls.append(url) or 0):
+                self.assertEqual(price_update.main_with_session_audit(), 0)
+            self.assertEqual(len(calls), expected, argv)
 
     def test_index_calendar_takes_the_first_index_that_answers_up_to_the_latest_session(self):
         first, second, third = symbol(1, "IHSG", "index"), symbol(2, "LQ45", "index"), symbol(3, "IDX30", "index")

@@ -9,23 +9,25 @@ Railway evaluates cron schedules in UTC.
 | Railway service | UTC schedule | Jakarta time | Start command | Purpose |
 | --- | --- | --- | --- | --- |
 | `idx-price-cron` | `0 10 * * *` | 17:00 daily | `python price_update.py --mode daily` | Query the full live ticker universe for today's candle. |
-| `idx-price-recovery-cron` | `0 23 * * *` | 06:00 the following day | `python recovery_window.py` | Reverify the configured recent completed sessions for the full live universe. |
+| `idx-price-recovery-cron` | `0 23 * * *` | 06:00 the following day | `python price_update.py --mode recovery` | Recover the latest completed session's missing symbols, then the session audit (S7). |
 
 `Run now` follows the selected service's explicit role:
 
 - On `idx-price-cron`, it queries every current `IDX_Stock_Universe."Ticker"` for today's date.
-- On `idx-price-recovery-cron`, it reads `correction_lookback_sessions` from
-  `Equity_Market_Schedule` and re-queries the full universe for each of the latest five
-  observed sessions, oldest first. A latest completed candidate absent from storage is also
-  checked so a missing new session can be created.
-- Since EXEC-PRICE-GAP-0917 S7 (ERRORS M238) the recovery also reads the trading calendar from
-  TradingView's daily candles of the universe's index symbols (the stored dates are the fallback):
-  every calendar session inside the correction window is re-queried, so a session with no stored
-  row at all is filled. An older session of the last 60 calendar sessions whose stored stock count
-  is below 90 % of the median is not written (a back-dated insert needs the Feature 04 repair,
+- On `idx-price-recovery-cron` (live start command `python price_update.py --mode recovery`, read
+  from Railway 2026-10-31; it was `recovery_window.py` until a change outside any task around
+  2026-10-13), it re-queries the symbols missing from the latest completed session's DAILY run, or
+  every absent symbol when that run left no monitoring row.
+- Then the session audit (`recovery_window.audit_sessions`, EXEC-PRICE-GAP-0917 S7, ERRORS M238)
+  reads the trading calendar from TradingView's daily candles of the universe's index symbols (the
+  stored dates are the fallback). A session of the correction window (`correction_lookback_sessions`)
+  whose stored stock count is below 90 % of the median gets the same recovery for its missing
+  symbols, so a session with no stored row at all is filled. An older session of the last 60
+  calendar sessions that is short is not written (a back-dated insert needs the Feature 04 repair,
   ERRORS D26) but reported once as a `RECOVERY` / `NEEDS_REVIEW` row (`SHORT_SESSION: ...`) in
-  `Monitoring_Price_ALL`, with its Telegram notice. `python recovery_window.py --plan-only` prints
-  the plan without running or reporting anything.
+  `Monitoring_Price_ALL`, with its Telegram notice.
+- `python recovery_window.py` (manual) re-queries the full universe for every session of the
+  window; `--plan-only` prints the plan and the audit without running or reporting anything.
 
 ## Candle-date and duplicate safety
 

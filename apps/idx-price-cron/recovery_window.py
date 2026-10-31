@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Reverify the latest completed IDX sessions, oldest first, and report older sessions short of stocks.
+"""Reverify the latest completed IDX sessions, oldest first, and report older sessions short of stocks; and the
+session audit (`audit_sessions`) that the scheduled recovery runs after `price_update.py --mode recovery`.
 
 ERRORS M238: 2026-09-17 and 2026-09-18 were never refilled because the window was read from the dates already stored,
 so a session without a single stored row never became a target. The sessions now come from TradingView's own daily
@@ -90,6 +91,15 @@ def short_sessions(
     ]
 
 
+def refill_sessions(
+    calendar: list[date], counts: dict[date, int], window: set[date], latest: date,
+    ratio: float = SHORT_SESSION_RATIO,
+) -> list[date]:
+    """Short calendar sessions inside the correction window other than `latest` (the recovery run itself takes the
+    latest session): the audit recovers their missing stocks."""
+    return [day for day, _, _ in short_sessions(calendar, counts, set(), ratio) if day in window and day != latest]
+
+
 def tradingview_bars(symbol, bars: int) -> list[dict]:
     ws = open_socket(30.0, False)
     try:
@@ -162,7 +172,8 @@ def load_plan(database_url: str, fetch=tradingview_bars) -> dict:
     return {
         "targets": targets, "lookback": lookback, "calendar": calendar, "calendar_source": source,
         "short": [item for item in short if item[0] not in reported], "already_reported": sorted(reported),
-        "universe": universe,
+        "universe": universe, "latest": latest,
+        "refill": refill_sessions(calendar, counts, set(window), latest),
     }
 
 
@@ -186,6 +197,33 @@ def report_short_sessions(database_url: str, plan: dict) -> None:
             commit_monitoring_and_notify(connection, records, execution_id)
 
 
+def audit_sessions(database_url: str) -> int:
+    """S7, run after the scheduled `price_update.py --mode recovery` (the live recovery start command since
+    2026-10-13, which recovers the latest session only): a short session inside the correction window gets the same
+    recovery for its missing stocks; an older short session is reported once. Returns 1 when a recovery run failed."""
+    plan = load_plan(database_url)
+    print(json.dumps({
+        "event": "session_audit", "calendar_source": plan["calendar_source"], "calendar_sessions": len(plan["calendar"]),
+        "refill": plan["refill"], "short_sessions": plan["short"], "short_already_reported": plan["already_reported"],
+    }, default=str), flush=True)
+    script = Path(__file__).with_name("price_update.py")
+    failed = []
+    for target in plan["refill"]:
+        result = subprocess.run(
+            [sys.executable, str(script), "--mode", "recovery", "--target-date", target.isoformat(),
+             "--request-bars", str(max(plan["lookback"] + 2, 7))],
+            check=False,
+        )
+        if result.returncode:
+            failed.append(target.isoformat())
+    if plan["short"]:
+        report_short_sessions(database_url, plan)
+    if failed:
+        print(f"IDX session audit recovery failed for sessions: {', '.join(failed)}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main() -> int:
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
@@ -196,6 +234,7 @@ def main() -> int:
         "calendar_sessions": len(plan["calendar"]),
         "calendar_first": plan["calendar"][0] if plan["calendar"] else None,
         "short_sessions": plan["short"], "short_already_reported": plan["already_reported"],
+        "audit_refill": plan["refill"], "latest": plan["latest"],
     }, default=str), flush=True)
     if "--plan-only" in sys.argv[1:]:   # read-only check: no price run, no report
         return 0

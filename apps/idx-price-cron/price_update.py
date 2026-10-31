@@ -1200,5 +1200,18 @@ def run_entrypoint(main_fn=main, exit_fn=os._exit) -> None:
         exit_fn(exit_code)
 
 
+def main_with_session_audit() -> int:
+    """The scheduled recovery (`--mode recovery` without --target-date) is followed by the session audit of
+    recovery_window.audit_sessions (EXEC-PRICE-GAP-0917 S7, ERRORS M238): short sessions of the correction window are
+    recovered, older ones reported once. A run with --target-date (the audit's own runs) or --dry-run has no audit."""
+    code = main()
+    args = parse_args()
+    if (resolve_mode(args.mode, datetime.now(timezone.utc).astimezone(JAKARTA)) == "recovery"
+            and args.target_date is None and not args.dry_run):
+        from recovery_window import audit_sessions
+        code = max(code, audit_sessions(os.environ["DATABASE_URL"]))
+    return code
+
+
 if __name__ == "__main__":
-    run_entrypoint()
+    run_entrypoint(main_with_session_audit)
