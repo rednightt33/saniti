@@ -25,7 +25,9 @@
   const json = (body, status = 200) => Promise.resolve(new Response(JSON.stringify(body), {status, headers:{'Content-Type':'application/json'}}));
   const meta = c => ({conversation_id:c.id, title:c.title, bookmarked:ui[c.id].bookmarked, created_at:c.turns[0].created_at,
     updated_at:c.turns.at(-1).completed_at, pinned_request_ids:ui[c.id].pinned, kind:c.kind || 'MAIN',
-    parent_conversation_id:c.parent || null, parent_request_id:c.parentRequest || null});
+    parent_conversation_id:c.parent || null, parent_request_id:c.parentRequest || null,
+    // M317: the latest question's delivery state and Orc status, as edge_bff.jobs gives them to the list
+    last_message:c.turns.at(-1).user_message, last_state:'FINISHED', last_run_status:c.turns.at(-1).run_status});
   const canned = (text, request_id) => ({request_id, status:'COMPLETED', execution:{model:'pratinjau-statis'},
     response:{response_type:'ANSWER', answer:text, clarification_question:null, assumptions:[], limitations:[], research_plan:null}});
   // EXEC-ASK-BRANCH / EXEC-CHAT-URL: a Branch and a side chat of the answer edge_v1b, held in every window of the preview

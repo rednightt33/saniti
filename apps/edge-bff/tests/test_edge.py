@@ -261,8 +261,12 @@ def test_a_deleted_conversation_is_hidden_from_the_list_only(settings,store):
         id=c.post('/api/v1/runs',headers=h,json={'message':'First question','submission_key':'a'}).json()['request_id']
         asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
         conv=c.get('/api/v1/runs/'+id).json()['conversation_id']
-        assert c.get('/api/v1/conversations').json()['items'][0]['last_message']=='First question'
+        item=c.get('/api/v1/conversations').json()['items'][0]
+        assert item['last_message']=='First question'
+        # M317 (user 2026-10-31): the list carries the latest question's state, so its dot is coloured before it is opened
+        assert (item['last_state'],item['last_run_status'])==('FINISHED','COMPLETED')
         c.post('/api/v1/runs',headers=h,json={'message':'Follow-up','conversation_id':conv,'submission_key':'b'})
+        assert c.get('/api/v1/conversations').json()['items'][0]['last_state']=='QUEUED'  # the newest question, not the first
         assert c.delete('/api/v1/conversations/'+conv,headers=h).status_code==409  # its answer is still coming
         asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
         assert c.get('/api/v1/conversations').json()['items'][0]['last_message']=='Follow-up'

@@ -4708,6 +4708,38 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
   - argumen posisi pada skrip yang menulis file diperiksa sebelum dijalankan;
   - pengaman yang menolak itu benar, dan cakupannya disamakan dengan apa yang benar-benar ditulis.
 
+### M317 — EDGE Monitor: titik status abu-abu dan jarak tidak rata di HP (2026-10-31)
+
+- **Symptom:** screenshot HP user (A–E, 2026-10-31). A: titik status di daftar percakapan abu-abu, padahal jawabannya
+  selesai. B: tingkat penalaran tertulis "high" dan jarak antarbaris kepala jawaban tidak sama. C: jarak antarlipatan
+  dan antartombol tidak sama. D: status "Research session · Run n" memakan satu baris sendiri di atas Details. E: bullet
+  Assumptions menggantung di tepi kartu.
+- **Verified cause:**
+  - A: `GET /api/v1/conversations` tidak mengirim status pertanyaan terakhir (live 2026-10-31: 56 baris tanpa field
+    status; `app/store.py` `list_conversations` hanya `last_message`). Halaman mewarnai titik dari `runs` percakapan,
+    yang hanya terisi setelah percakapan dibuka; selain itu kelasnya `draft`, abu-abu (`index.html`
+    `ConversationHistoryList`). Untuk percakapan yang sudah dibuka pun warnanya hanya membaca status pengiriman, bukan
+    status Orc (rencana menunggu persetujuan tetap hijau).
+  - B: CSS MONITOR-REVAMP memaksa `text-transform:lowercase` pada tingkat di kotak pesan, dan kepala jawaban menulis
+    kode mentah (`v.meta.reasoningLevel`). Badge biaya lebih tinggi dari item lain, jadi baris metadata yang terbungkus
+    berbeda tinggi; jarak judul→metadata dan metadata→evidence 10 px sedangkan antarbaris 4 px.
+  - C: blok lipatan saran dan blok Assumptions masing-masing `content-block` (jarak 24 px) sedangkan lipatan di dalam
+    blok 12 px; Branch memakai `margin-left:auto`, jadi saat baris tombol terbungkus di HP jaraknya melebar.
+  - D: di ≤720 px `.workspace-tools` membungkus dua kelompoknya menjadi dua baris.
+  - E: aturan `details.edge-notes>:not(summary){padding:0}` lebih spesifik daripada indentasi `.edge-list`, jadi bullet
+    (posisi luar) jatuh di luar kolom teks.
+- **Class:** status yang hanya dihitung di browser dari data yang dimuat belakangan tidak bisa mewarnai daftar yang
+  datanya belum dimuat. Ini berlaku untuk setiap ringkasan per baris (daftar percakapan, riwayat backtest, item
+  screener): ringkasan harus datang dari API daftar itu sendiri, dan satu fungsi warna dipakai semua penampil status.
+- **Solution:** API daftar menambah `last_state` dan `last_run_status` pertanyaan terakhir (kolom `edge_bff.jobs`
+  yang sudah ada, satu LATERAL menggantikan subquery yang sama; tanpa migrasi, tanpa indeks baru). `Edge.statusTone`
+  memetakan status pengiriman + status Orc + jeda/stop ke satu warna: hijau, kuning, merah, biru, cincin biru (tidak ada
+  abu-abu); dipakai daftar dan baris sesi. CSS M317 di akhir `index.html` untuk B–E. Tes `tests/test_ui_1031.py`,
+  `tests/test_edge.py`; tes level di `tests/test_browser.py` mengikuti "High".
+- **Status:** FIXED; live sejak edge-bff `0d8bde43` (`main` `59f82dd`, 2026-10-31), API daftar dicek live.
+- **Lesson:** setiap status yang tampil di daftar dikirim oleh API daftar; jangan bergantung pada detail yang baru
+  dimuat saat baris dibuka.
+
 ### EXEC-TERMINAL-FLOW-IND — selesai (2026-10-30)
 
 **Go user.** Kata user: "Alright, please proceed." (rencana S1–S8), lalu "Oke, jalan kan.". Keputusan yang diterapkan:

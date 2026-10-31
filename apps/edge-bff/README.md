@@ -235,6 +235,12 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 - Answer (user 2026-10-30): dates in every answer read "19 October 2026" (code, links and times as written); the
   suggestions fold per kind ("Suggested next questions", "Insight ideas", "Further research"), closed at first; a
   running ring turns once in 0.15 s like the Terminal's.
+- Status colours (M317, user 2026-10-31): every status dot (conversation list, the phone's session row) has the colour
+  of its run's state from `Edge.statusTone`: green completed, yellow waiting for the user or not whole (approval, a
+  reply, paused, limited, stopped), red failed, blue running, a blue ring before the first question; none is grey. The
+  list API adds the latest question's `last_state` and `last_run_status` (`edge_bff.jobs`) so a conversation not opened
+  yet is coloured too. The answer head keeps one 8 px rhythm and shows the level as its label ("High"); on a phone the
+  session row holds Details, bookmark, share and the run's state, and the action row keeps one gap.
 
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.

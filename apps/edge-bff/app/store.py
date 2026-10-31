@@ -244,12 +244,13 @@ class Store:
 
     def list_conversations(self, owner, query='', bookmarked=False, offset=0, limit=30):
         """The visible conversations (EXEC-DELETE: a hidden one is left out), each with its latest question for the
-        list's second line (EXEC-UI-1012 B1)."""
+        list's second line (EXEC-UI-1012 B1), and that question's delivery state and Orc status, so the list's status
+        dot is coloured for a conversation this page has not opened yet (user 2026-10-31, M317)."""
         with self.connect() as c:
-            return c.execute('''SELECT u.*, (SELECT j.input->>'message' FROM edge_bff.jobs j
-                    WHERE j.owner_key=u.owner_key AND j.conversation_id=u.conversation_id
-                    ORDER BY j.created_at DESC LIMIT 1) AS last_message
-                FROM edge_bff.conversation_ui u WHERE u.owner_key=%s AND u.hidden_at IS NULL AND u.kind<>'SIDE'
+            return c.execute('''SELECT u.*, l.message AS last_message, l.state AS last_state, l.run_status AS last_run_status
+                FROM edge_bff.conversation_ui u LEFT JOIN LATERAL (SELECT j.input->>'message' AS message, j.state, j.run_status
+                    FROM edge_bff.jobs j WHERE j.owner_key=u.owner_key AND j.conversation_id=u.conversation_id
+                    ORDER BY j.created_at DESC LIMIT 1) l ON true WHERE u.owner_key=%s AND u.hidden_at IS NULL AND u.kind<>'SIDE'
                 AND (u.title ILIKE %s OR EXISTS (SELECT 1 FROM edge_bff.jobs q WHERE q.owner_key=u.owner_key
                      AND q.conversation_id=u.conversation_id AND q.input->>'message' ILIKE %s))
                 AND (NOT %s OR u.bookmarked) ORDER BY u.updated_at DESC,u.conversation_id
