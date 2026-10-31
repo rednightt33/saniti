@@ -11,7 +11,7 @@
 # while an orc-test-runner suite runs (until its log prints OTR {"event": "done"}).
 # Railway IDs: PROJECT_CONTEXT.md. A job prints OUT/ERR/VERDICT lines and ends with JOB_DONE.
 # Optional environment (EXEC-PRICE-GAP-0917): RUN_JOB_POLL_ROUNDS (20 s each, default 90) and RUN_JOB_LOG_LINES
-# (default 5000) for long jobs; RUN_JOB_EXTRA_VARS, space-separated NAME=reference pairs (Railway references such as
+# (default and most 5000: `railway logs` refuses more with "Error in limit - Invalid input") for long jobs; RUN_JOB_EXTRA_VARS, space-separated NAME=reference pairs (Railway references such as
 # ${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}, never values) set like DATABASE_URL for the run and removed afterwards.
 set -u
 [ $# -ge 3 ] || { echo "usage: $0 <job.py> <params.json> <log> [extras...]"; exit 2; }
@@ -65,7 +65,7 @@ echo "JOB ${id:-NOT_STARTED}"
 [ -n "${id:-}" ] || exit 4
 for _ in $(seq 1 "${RUN_JOB_POLL_ROUNDS:-90}"); do
   sleep 20
-  timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines "${RUN_JOB_LOG_LINES:-5000}" > "$LOG" 2>&1
+  timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines "$(( ${RUN_JOB_LOG_LINES:-5000} > 5000 ? 5000 : ${RUN_JOB_LOG_LINES:-5000} ))" > "$LOG" 2>&1
   grep -q "JOB_DONE\|Traceback" "$LOG" && break
 done
 grep -c "^OUT \|\"OUT " "$LOG"; grep "ERR \|VERDICT\|Traceback\|JOB_DONE\|MIG \|READBACK" "$LOG" | cut -c1-400
