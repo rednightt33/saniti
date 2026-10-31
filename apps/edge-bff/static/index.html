@@ -10979,7 +10979,8 @@ html .app .monitor-layout .result .edge-md-table .data-table{width:auto;}
 html .app .monitor-layout .result .edge-md-table .data-table thead th{border-top:1px solid var(--border-2);}
 /* the arrow sits after the title inside its width (it no longer reaches into the next column's gap), so a column is
    its widest title-with-arrow or value plus the same padding */
-html .app .monitor-layout .result .edge-md-table .data-table th :is(.edge-sort-icon) {position:static;transform:none;vertical-align:middle;margin:0 0 0 3px;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-label{display:inline-flex;align-items:center;vertical-align:middle;}
+html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-icon{position:static;transform:none;flex:none;margin:0 0 0 3px;}
 /* user 2026-10-31 (screenshot, "garis pembatas ... dihilangkan"): the conversation no longer ends in a hard edge above
    the message box; its last pixels fade into the page, inside the space below the last answer, so an answer read to
    its end is never faded */

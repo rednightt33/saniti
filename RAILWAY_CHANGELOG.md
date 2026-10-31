@@ -5489,3 +5489,14 @@ B6 window:
   fade and a row under the message box fades out without a hard edge; no page error. edge-bff suite before the push:
   275 passed, 1 failed = baseline (`test_ui_1015c` short title at 1440).
 - **Rollback:** redeploy edge-bff `bd8f81ca` (commit `e407352`).
+
+## 2026-10-31 — edge-bff `f0a9c361`, `b5a7cb78` (tables as wide as their content with even gaps, a line above the titles)
+
+- **Commits:** `2722070` → edge-bff `f0a9c361` SUCCESS (15:40:49 created, SUCCESS by 15:41:21 UTC); `13860c4` (a wrapped
+  title keeps its arrow beside it) → `b5a7cb78` SUCCESS (15:50:52 created, SUCCESS by 15:51:40 UTC). Front end only.
+- **Before the pushes:** no `edge_` run in flight (last run completed 2026-10-30 07:52 UTC; checked 15:40 and 15:50 UTC).
+- **Checks (live, read-only; login from Railway in memory, no question sent):** `/monitor` byte-identical to `13860c4`;
+  an answer table is 458 px in a 576 px box (as wide as its content), every inner gap 24 px (outer columns 12 px), one
+  1 px line above the titles, every title and cell left/middle, the long title "Volatilitas tahunan" wraps and sits in
+  the middle with the others; no page error. edge-bff suite before the push: 277 passed.
+- **Rollback:** redeploy edge-bff `cff201ce` (commit `33fbc99`).

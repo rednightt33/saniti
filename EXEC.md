@@ -9256,6 +9256,9 @@ selebar kartu (734 px) sehingga sisa ruang dibagi tidak rata (23 px untuk Saham,
 - Tes: dua tes revamp yang mengharuskan tabel memenuhi kotaknya diganti (selebar isi); tes baru di `tests/test_ui_1031.py`.
 - Catatan: screenshot user masih menunjukkan angka rata kanan; live sudah memuat TABLE-ALIGN-A, jadi tab itu belum dimuat
   ulang sesudah deploy `cff201ce`.
+- Lanjutan dari cek live: judul angka panjang ("Volatilitas tahunan") terdorong ke atas karena panah tersembunyinya jatuh
+  ke baris kedua; judul kini satu baris flex (teks membungkus di 14 karakter, panah di kanan, sejajar tengah). Suite
+  edge-bff 277 lulus.
 
 ## EXEC-INTRADAY-FEATURES — Feature 01/04 intraday, alur harian, storage hanya bagian yang berubah, tampilan 5M/15M/1H/4H (go 2026-10-31)
 
