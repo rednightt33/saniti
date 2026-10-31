@@ -10,6 +10,9 @@
 # Manual rule (ERRORS M210, user 2026-10-23): a new deployment replaces the one running, so never start a job here
 # while an orc-test-runner suite runs (until its log prints OTR {"event": "done"}).
 # Railway IDs: PROJECT_CONTEXT.md. A job prints OUT/ERR/VERDICT lines and ends with JOB_DONE.
+# Optional environment (EXEC-PRICE-GAP-0917): RUN_JOB_POLL_ROUNDS (20 s each, default 90) and RUN_JOB_LOG_LINES
+# (default 5000) for long jobs; RUN_JOB_EXTRA_VARS, space-separated NAME=reference pairs (Railway references such as
+# ${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}, never values) set like DATABASE_URL for the run and removed afterwards.
 set -u
 [ $# -ge 3 ] || { echo "usage: $0 <job.py> <params.json> <log> [extras...]"; exit 2; }
 JOB=$1; PARAMS=$2; LOG=$3; shift 3
@@ -24,11 +27,13 @@ for extra in "$@"; do
   [ "$(basename "$extra")" = requirements.txt ] && DOCKERFILE="$HERE/Dockerfile.l2"
 done
 cp "$DOCKERFILE" "$STAGE/Dockerfile"
+EXTRA=${RUN_JOB_EXTRA_VARS:-}
+NAMES="DATABASE_URL"; for pair in $EXTRA; do NAMES="$NAMES ${pair%%=*}"; done
 cleanup() {
   for _ in 1 2 3; do
-    timeout 60 railway variable delete DATABASE_URL -p $P -e $E -s $S >/dev/null 2>&1
+    for name in $NAMES; do timeout 60 railway variable delete "$name" -p $P -e $E -s $S >/dev/null 2>&1; done
     timeout 60 railway variable list -p $P -e $E -s $S --json 2>/dev/null \
-      | python3 -c "import sys,json;sys.exit(0 if 'DATABASE_URL' not in json.load(sys.stdin) else 1)" \
+      | python3 -c "import sys,json;v=json.load(sys.stdin);sys.exit(0 if not set(sys.argv[1:]) & set(v) else 1)" $NAMES \
       && { echo VAR_REMOVED; rm -rf "$STAGE"; return; }
   done
   echo VAR_STILL_PRESENT; rm -rf "$STAGE"
@@ -51,13 +56,16 @@ fi
 trap cleanup EXIT
 timeout 60 railway variable set 'DATABASE_URL=${{Postgres.DATABASE_URL}}' -p $P -e $E -s $S --skip-deploys >/dev/null 2>&1 \
   || { echo SET_FAILED; exit 3; }
+for pair in $EXTRA; do
+  timeout 60 railway variable set "$pair" -p $P -e $E -s $S --skip-deploys >/dev/null 2>&1 || { echo SET_FAILED; exit 3; }
+done
 id=$(timeout 300 railway up "$STAGE" --path-as-root -p $P --service orc-test-runner --environment dev --detach 2>&1 \
   | grep -oE "id=[0-9a-f-]+" | cut -d= -f2)
 echo "JOB ${id:-NOT_STARTED}"
 [ -n "${id:-}" ] || exit 4
-for _ in $(seq 1 90); do
+for _ in $(seq 1 "${RUN_JOB_POLL_ROUNDS:-90}"); do
   sleep 20
-  timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines 5000 > "$LOG" 2>&1
+  timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines "${RUN_JOB_LOG_LINES:-5000}" > "$LOG" 2>&1
   grep -q "JOB_DONE\|Traceback" "$LOG" && break
 done
 grep -c "^OUT \|\"OUT " "$LOG"; grep "ERR \|VERDICT\|Traceback\|JOB_DONE\|MIG \|READBACK" "$LOG" | cut -c1-400

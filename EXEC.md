@@ -9052,6 +9052,11 @@ Yang dicakup go ini:
 - Bersih-bersih storage dari bagian PUBLISHER-CLEANUP-MANUAL (dipindah ke sini).
 - S7.
 
+Jawaban user 2026-10-31 untuk PBSA 2026-10-08 (M313): "Harga asli ÷ 2 (Recommended)". Candle hari itu diisi
+400 / 402,5 / 385 / 390 dengan volume 1.381.000, yaitu harga tersimpan dikonversi dengan rasio split PBSA sendiri, bukan
+angka TradingView 195. Di skrip, aturan ini umum: hari dengan rasio yang menyimpang dari rasio utama saham diisi dari
+harga tersimpan yang dikonversi dengan rasio utama, lalu dilaporkan.
+
 Selisih ≤ 0,0004 % pada 2020-12-02 dan volume GOTO 2026-10-12 dibiarkan, sesuai usulan karena tidak dijawab dan tidak
 material.
 
