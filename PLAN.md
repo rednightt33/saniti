@@ -1044,7 +1044,7 @@ Coba saja di explore pakai benchmark yang best practice."
 data intraday serta perhitungan fitur 1 dan 4 intraday. Setelah ini selesai, kita mulai pindahkan data intraday ini ke
 storage. Dan mulai juga di display data 5, 15 menit, 1 jam, dan 4 jam. Buat implementation plan-nya."
 
-Persetujuan ini untuk pekerjaannya dan rencananya. Eksekusi mulai setelah user menjawab D1–D4 dan memberi "go"; lalu
+Persetujuan ini untuk pekerjaannya dan rencananya. D1–D4 dijawab 2026-10-31 (di bawah). Eksekusi mulai setelah "go"; lalu
 butir ini pindah ke `EXEC.md`. Lanjutan EXEC-INTRADAY-IDX (bar 5m/15m/1h/4h di `price_stock_idx_intraday`).
 
 ### Fakta yang diperiksa (live dan kode, 2026-10-31)
@@ -1183,7 +1183,17 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
 7. **S6:** Terminal.
 8. **S7:** dokumen (`ERRORS_AND_SOLUTIONS.md`, changelog, `DATABASE_SCHEMA.md`, katalog, `README`) dan dua reviewer.
 
-### Keputusan terbuka
+### Keputusan user, 2026-10-31
+
+Kata user: "D1 - A / D2 - A / D3 - W1 / D4 OK". Artinya:
+- **D1:** A. Keempat timeframe dengan riwayat penuh (±10,6 GB sekarang, ±10 GB per tahun). Volume Postgres perlu
+  diperbesar dalam ±1,5 tahun; dipantau di setiap run.
+- **D2:** (a). Rumus Feature 01 sama per bar, tanpa kolom slot jam.
+- **D3:** W1. Langkah fitur di `idx-intraday-cron`.
+- **D4:** rekomendasi diterima. Fitur intraday IHSG nanti; Terminal menghitung indikator IHSG di browser.
+- **Belum "go".** User menanyakan alur penarikan, perhitungan dan pemindahan ke storage (dijawab 2026-10-31).
+
+### Pilihan yang ditawarkan (riwayat)
 
 - **D1. Penyimpanan fitur di PostgreSQL:** A, B (rekomendasi) atau C (tabel di atas).
 - **D2. Rasio volume Feature 01 intraday:**

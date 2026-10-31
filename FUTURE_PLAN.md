@@ -1134,6 +1134,15 @@ dikosongkan dengan alasan, sahamnya ditandai).
      `REPAIR_REQUIRED` per saham tanpa perbaikan manual, dan alat perbaikan manual itu sekarang berhenti di IHSG (E4).
    - Rollback: belum ada; ditetapkan di rencana eksekusi D22 sebelum "go" (usulan: simpan salinan baris harga lama per
      saham sebelum ditimpa).
+   - Usulan S8 dari EXEC-PRICE-GAP-0917 (2026-10-31; tidak disetujui, user: "S7 saja"):
+     - run harga harian membandingkan bar tumpang tindih dengan yang tersimpan;
+     - rasio tetap ≠ 1 di semua bar → saham diantre untuk tarik ulang penuh, lalu Feature 01/04 dihitung ulang penuh
+       (Feature 04 butuh jalur hitung ulang penuh per saham, D26);
+     - satu bar yang beda dilaporkan, tidak ditulis (M313);
+     - `ADJUSTED_HISTORY_BOUNDARY` dibaca dari data.
+     Sampai itu ada, aksi berikutnya (MGLV 2026-11-02, PPGL dan CBRE 2026-11-03, BMAS 2026-11-24, PRDA 2026-12-18)
+     ditangani manual dengan prosedur `verification/price_gap_0917/` (S0–S6) per saham. Loader intraday sudah menolak
+     seri yang skalanya berubah (`SCALE_CHANGED`) dan melaporkannya.
 3. **E3 — Kembalikan `Sector` dan `Industry` di `Universe_Equity_Description` (ERRORS D23).**
    - Apa: tukar isi dua kolom itu dalam satu transaksi, lalu verifikasi terhadap `IDX_Stock_Universe`; deskripsi dua
      kolom itu di `Column_Catalog` diperiksa ikut (AGENTS.md, Metadata).

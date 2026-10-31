@@ -4309,8 +4309,14 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
     seconds.
   - A batch that times out is asked again (deleting a missing key is harmless). The size is checked on dev with one
     measured batch.
-- **Status:** speed FIXED on dev. Deletion OPEN: no failure for readers (0 named objects missing), and 3,383 unused
-  objects (32.5 MB) wait for the fix.
+- **Status:** FIXED on dev (speed and deletion).
+  - **Fix:** `Bucket.delete` sends batches of 50 keys, 4 in parallel, and logs each batch (`main` `790a2656`, user go
+    2026-10-31 EXEC-PRICE-GAP-0917).
+  - **Manual run:** RUN `9abbf6ae`, 2026-10-31 13:54 UTC. It deleted the 1,709 objects it replaced in 35 batches
+    (slowest 8.7 s), with 0 not deleted.
+  - **Cleanup run:** mode `cleanup`, `67ceb5b3`, 14:57–15:03 UTC. It deleted 10,699 unused objects (671.4 MB) in 214
+    batches, with 0 not deleted.
+  - **Afterwards:** `garbage_probe.py` shows unused 0 and named-but-missing 0; terminal-api `present` check PASS.
 - **Lesson for new data:** a new dataset adds objects to the listing and manifests to the planning; measure both on dev
   before onboarding (NEW_TABLE_ONBOARDING_PLAN), and keep housekeeping off the publish path. A run deletes what it
   replaced itself, by name; a whole-store listing is only a safety net, never the normal path.
@@ -4739,6 +4745,38 @@ Each finding was reproduced again after its fix. Tools are in `verification/term
 - **Status:** FIXED; live sejak edge-bff `0d8bde43` (`main` `59f82dd`, 2026-10-31), API daftar dicek live.
 - **Lesson:** setiap status yang tampil di daftar dikirim oleh API daftar; jangan bergantung pada detail yang baru
   dimuat saat baris dibuka.
+
+### EXEC-PRICE-GAP-0917 — selesai (2026-10-31)
+
+**Go user:**
+- "1. Go 2. S7 go";
+- storage di-update manual dan sekalian dibersihkan ("Ya, kerjakan");
+- "S7 saja";
+- PBSA "Harga asli ÷ 2".
+
+**Hasil (detail di `DATABASE_CHANGELOG.md` dan `RAILWAY_CHANGELOG.md` 2026-10-31):**
+- **Harga:** 2026-09-17 berisi 832 simbol dan 09-18 berisi 830 simbol, lewat `price_update.py --mode manual`. Enam saham
+  (AHAP, BUVA, ENRG, FORU, PBSA, VKTR) diganti ke skala TradingView sekarang, 10.229 baris. PBSA 2026-10-08 = 390
+  (M313). Status D22: instance ini selesai, kelasnya tetap OPEN.
+- **Feature 01:**
+  - antrean DONE (41.153);
+  - cek ulang penuh 844 saham, 1.332.733 baris, 0 beda;
+  - baris sebelum 09-17 tidak berubah kecuali enam saham.
+- **Feature 04:**
+  - 844 saham DONE lewat `verification/price_gap_0917/jobs/f04_job.py`;
+  - worker dijalankan lagi (`7ffb6596`);
+  - cek ulang 30 saham hanya menyisakan flag lama M314.
+- **Storage:**
+  - publikasi manual `9abbf6ae`;
+  - bersih-bersih `67ceb5b3`: 10.699 objek, 671,4 MB;
+  - sisa objek tak terpakai 0;
+  - pembaca lulus (terminal-api, Backtest E2E, Screener, storage = SQL untuk 4 saham).
+- **S7:** sesi yang kekurangan saham dicek sesudah run recovery (`recovery_window.audit_sessions`).
+
+**Ke `FUTURE_PLAN.md` E2:** usulan S8 (deteksi otomatis riwayat yang disesuaikan ulang), yang tidak disetujui ("S7
+saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
+
+**Dibiarkan sesuai usulan karena tidak material:** selisih ≤ 0,0004 % pada 2020-12-02 dan volume GOTO 2026-10-12.
 
 ### M318 — Image `idx-intraday-cron` tidak berisi `intraday_update.py` (2026-10-31)
 

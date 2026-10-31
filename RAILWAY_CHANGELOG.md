@@ -47,6 +47,19 @@ User go 2026-10-31 (EXEC.md EXEC-PRICE-GAP-0917, EXEC-INTRADAY-IDX).
   - Storage = SQL on 2026-09-16/17/18 and 10-08 for BUVA, PBSA, FORU and BBCA.
   - `garbage_probe.py`: named but missing 0; 10,699 unused objects (671.4 MB, written 2026-10-25..29) left for the
     cleanup run.
+- **terminal-publisher cleanup** (approved in EXEC-PRICE-GAP-0917, M229 option A), after the 1-hour grace of the
+  13:54:37 publication:
+  1. `cronSchedule` null (read back) and `TERMINAL_PUBLISH_MODE=cleanup` (`--skip-deploys`).
+  2. Upload of the same tree as RUN `67ceb5b3-734f-4344-9773-3ed5e758aead`, 14:57 UTC. Log `gc`:
+     - deleted 10,699, not deleted 0, 671.4 MB;
+     - 27,360 objects listed;
+     - 214 `delete_batch`, 318.5 s.
+  3. `TERMINAL_PUBLISH_MODE=daily` (read back), `cronSchedule` `0,30 0,1,12 * * *` (read back; next 2026-11-01 00:00
+     UTC).
+  4. SCHED upload `1736025b-f768-426d-8d26-bc392510b021`, SUCCESS; it built and did not run.
+
+  Checks: `garbage_probe.py` reports unused 0 and named but missing 0, with 17,503 objects (869.4 MB);
+  `run_terminal_check.sh present` VERDICT PASS, VAR_REMOVED.
 - **orc-test-runner jobs** (`scripts/onboarding/run_job.sh`; DATABASE_URL and, for the price runs, the
   `telegram-monitor` notify references set for the run and removed after, VAR_REMOVED each time):
   - price dry runs and writes;
