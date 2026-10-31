@@ -1,0 +1,1060 @@
+{
+ "status": 200,
+ "ms": 306,
+ "versions": {
+  "screener_engine": "76789745e7ad2770",
+  "registry": "b6a8dc0ba206ed65",
+  "screener_registry": "638ee5ea6bbf05b5",
+  "price_data": "b1a5ae55d085e02d6cbd0dc54689581e0d637d10ab5900692d25868bc37d65fb",
+  "flow_data": null
+ },
+ "data": {
+  "evaluation_date": "2026-10-30",
+  "price_through": "2026-10-30",
+  "flow_through": null,
+  "broker_behind_sessions": 3,
+  "published_at": "2026-10-31T13:54:37.186334+00:00",
+  "refresh": "ready"
+ },
+ "indicators": [
+  {
+   "id": "I01",
+   "key": "sma",
+   "name": "Simple Moving Average",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I02",
+   "key": "ema",
+   "name": "Exponential Moving Average",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I03",
+   "key": "wma",
+   "name": "Weighted Moving Average",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I04",
+   "key": "hma",
+   "name": "Hull Moving Average",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I05",
+   "key": "kama",
+   "name": "Kaufman Adaptive Moving Average",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I06",
+   "key": "macd",
+   "name": "MACD",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I07",
+   "key": "adx",
+   "name": "Average Directional Index",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I08",
+   "key": "aroon",
+   "name": "Aroon Indicator",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I09",
+   "key": "supertrend",
+   "name": "Supertrend",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I10",
+   "key": "donchian",
+   "name": "Donchian Channels",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I11",
+   "key": "keltner",
+   "name": "Keltner Channels",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I12",
+   "key": "psar",
+   "name": "Parabolic SAR",
+   "category": "Trend",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I13",
+   "key": "rsi",
+   "name": "Relative Strength Index",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I14",
+   "key": "stoch_rsi",
+   "name": "Stochastic RSI",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I15",
+   "key": "stochastic",
+   "name": "Stochastic Oscillator",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I16",
+   "key": "williams_r",
+   "name": "Williams %R",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I17",
+   "key": "roc",
+   "name": "Rate of Change",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I18",
+   "key": "momentum",
+   "name": "Momentum",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I19",
+   "key": "cci",
+   "name": "Commodity Channel Index",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I20",
+   "key": "cmo",
+   "name": "Chande Momentum Oscillator",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I21",
+   "key": "tsi",
+   "name": "True Strength Index",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I22",
+   "key": "trix",
+   "name": "TRIX",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I23",
+   "key": "ultimate_osc",
+   "name": "Ultimate Oscillator",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I24",
+   "key": "awesome_osc",
+   "name": "Awesome Oscillator",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I25",
+   "key": "ppo",
+   "name": "Percentage Price Oscillator",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I26",
+   "key": "bop",
+   "name": "Balance of Power",
+   "category": "Momentum",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I27",
+   "key": "bollinger",
+   "name": "Bollinger Bands",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I28",
+   "key": "bollinger_pctb",
+   "name": "Bollinger %B",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I29",
+   "key": "bollinger_width",
+   "name": "Bollinger Bandwidth",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I30",
+   "key": "atr",
+   "name": "Average True Range",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I31",
+   "key": "natr",
+   "name": "Normalized ATR",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I32",
+   "key": "stddev",
+   "name": "Standard Deviation",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I33",
+   "key": "hist_vol",
+   "name": "Historical Volatility",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I34",
+   "key": "adr",
+   "name": "Average Daily Range",
+   "category": "Volatility",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I35",
+   "key": "volume_sma",
+   "name": "Volume SMA",
+   "category": "Volume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I36",
+   "key": "volume_ema",
+   "name": "Volume EMA",
+   "category": "Volume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I37",
+   "key": "rvol",
+   "name": "Relative Volume",
+   "category": "Volume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I38",
+   "key": "pvo",
+   "name": "Percentage Volume Oscillator",
+   "category": "Volume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I39",
+   "key": "volume_roc",
+   "name": "Volume Rate of Change",
+   "category": "Volume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I40",
+   "key": "obv",
+   "name": "On-Balance Volume",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I41",
+   "key": "pvt",
+   "name": "Price Volume Trend",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I42",
+   "key": "vwma",
+   "name": "Volume Weighted Moving Average",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I43",
+   "key": "vwap",
+   "name": "Volume Weighted Average Price",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I44",
+   "key": "adl",
+   "name": "Accumulation/Distribution Line",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I45",
+   "key": "cmf",
+   "name": "Chaikin Money Flow",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I46",
+   "key": "chaikin_osc",
+   "name": "Chaikin Oscillator",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I47",
+   "key": "mfi",
+   "name": "Money Flow Index",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I48",
+   "key": "force_index",
+   "name": "Elder's Force Index",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I49",
+   "key": "eom",
+   "name": "Ease of Movement",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I50",
+   "key": "nvi",
+   "name": "Negative Volume Index",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I51",
+   "key": "pvi",
+   "name": "Positive Volume Index",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I52",
+   "key": "kvo",
+   "name": "Klinger Volume Oscillator",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  },
+  {
+   "id": "I53",
+   "key": "market_fi",
+   "name": "Market Facilitation Index",
+   "category": "PriceVolume",
+   "availability": null,
+   "reason": null
+  }
+ ],
+ "metrics": [
+  {
+   "id": "hi52",
+   "group": "Technical",
+   "kind": "transform",
+   "label": "Distance from 52W high",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "lo52",
+   "group": "Technical",
+   "kind": "transform",
+   "label": "Distance from 52W low",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "rs",
+   "group": "Technical",
+   "kind": "transform",
+   "label": "Relative strength vs IHSG",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "vol_ratio",
+   "group": "Technical",
+   "kind": "transform",
+   "label": "Volume vs prior 20-session average",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "return_rank",
+   "group": "Technical",
+   "kind": "xsection",
+   "label": "RS rank (percentile)",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "breakout",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "Breakout above prior N-session high",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "breakdown",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "Breakdown below prior N-session low",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "volspike",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "Volume spike",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "macross",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "SMA golden cross",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "macd_divergence",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "MACD bullish divergence",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "squeeze",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "Bollinger squeeze",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "stoch_cross_in_zone",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "Stochastic %K crosses above %D below the zone",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "new_high",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "New N-session high of a line",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "silent",
+   "group": "Flow",
+   "kind": "pattern",
+   "label": "Silent accumulation",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "ichimoku_above",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "Close above the Ichimoku cloud",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Ichimoku is not among the 53 indicators yet: it comes with a later release of the indicator list."
+  },
+  {
+   "id": "ichimoku_tk_cross",
+   "group": "Technical",
+   "kind": "pattern",
+   "label": "Tenkan crosses above Kijun",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Ichimoku is not among the 53 indicators yet: it comes with a later release of the indicator list."
+  },
+  {
+   "id": "last",
+   "group": "Universe",
+   "kind": "universe",
+   "label": "Last close",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "chg_1d_pct",
+   "group": "Universe",
+   "kind": "universe",
+   "label": "1-day change",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "adv20_idr",
+   "group": "Flow",
+   "kind": "universe",
+   "label": "Average daily value (20 sessions)",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "bars",
+   "group": "Universe",
+   "kind": "universe",
+   "label": "History length",
+   "availability": "AVAILABLE",
+   "reason": null
+  },
+  {
+   "id": "index_membership",
+   "group": "Universe",
+   "kind": "universe",
+   "label": "Index membership (LQ45, IDX30, IDX80, ISSI)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No index constituent data exists yet. It needs data that this publication does not carry."
+  },
+  {
+   "id": "listing_board",
+   "group": "Universe",
+   "kind": "universe",
+   "label": "Listing board (Main, Development)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No listing-board data exists yet. It needs data that this publication does not carry."
+  },
+  {
+   "id": "special_notation",
+   "group": "Universe",
+   "kind": "universe",
+   "label": "Special notation / FCA",
+   "availability": "REQUIRES_DATA",
+   "reason": "No special-notation data exists yet. It needs data that this publication does not carry."
+  },
+  {
+   "id": "fnet",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Foreign net value",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "fpct",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Foreign net intensity",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "fpart",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Foreign participation",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "fstreak",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Foreign net streak",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "fsurprise",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Foreign flow surprise",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "broker",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Broker net (chosen broker)",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "topacc",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Top-N broker net accumulation",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "buy_intensity",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Buy intensity (top-N net buyers)",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "bandar",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Bandar balance (top-N)",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "net_buy_hhi",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Net-buy concentration (HHI)",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "conc_gap",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Buy-vs-sell concentration gap",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "breadth",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Broker breadth",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "bavg",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Top-buyer cost distance",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "dominant_persistence",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Dominant-buyer persistence",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "acc_days",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Accumulation-day ratio",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "freq",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Trade-count spike",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "trade_size_change",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Average trade size change",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "crossing_share",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Crossing share (Nego + Tunai)",
+   "availability": "REQUIRES_DATA",
+   "reason": "Flow metrics arrive with Phase 2 (all trading boards by default). It needs data that this publication does not carry."
+  },
+  {
+   "id": "inst_retail",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Institutional vs retail broker net",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  },
+  {
+   "id": "insider_net",
+   "group": "Flow",
+   "kind": "flow",
+   "label": "Insider and major-holder net change",
+   "availability": "REQUIRES_DECISION",
+   "reason": "Not in the first set of flow metrics: it comes in a later part of Phase 2."
+  }
+ ],
+ "fundamentals": [
+  {
+   "id": "cap",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Market cap",
+   "availability": "REQUIRES_DATA",
+   "reason": "Market cap waits for its shares-outstanding data (planned, not yet approved) and a decision on its size buckets. It needs data that this publication does not carry."
+  },
+  {
+   "id": "pe",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "P/E",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "pb",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "P/B",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "peg",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "PEG",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "evEbitda",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "EV/EBITDA",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "divYield",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Dividend yield",
+   "availability": "REQUIRES_DATA",
+   "reason": "Dividends come with Phase 2, after validation against an independent sample and the adjustment-basis rule. It needs data that this publication does not carry."
+  },
+  {
+   "id": "payout",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Payout ratio",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "divYears",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Years of dividends",
+   "availability": "REQUIRES_DATA",
+   "reason": "Dividends come with Phase 2, after validation. It needs data that this publication does not carry."
+  },
+  {
+   "id": "roe",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "ROE",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "roa",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "ROA",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "roic",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "ROIC",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "netMargin",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Net margin",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "grossMargin",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Gross margin",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "revG",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Revenue growth YoY",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "epsG",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "EPS growth YoY",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "epsGq",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "EPS growth, latest quarter YoY",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "epsG3y",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "EPS CAGR 3Y",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "der",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Debt / equity",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "curr",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Current ratio",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "intCov",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Interest coverage",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "fcfYield",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "FCF yield",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "piotroski",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Piotroski F-score (0-9)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "altman",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Altman Z-score",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "grahamRatio",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Price / Graham number",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "magicRank",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Magic Formula rank",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "freeFloat",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Free float",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "foreignOwn",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Foreign ownership",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "nim",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "NIM (banks)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "npl",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "Gross NPL (banks)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "car",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "CAR (banks)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "casa",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "CASA (banks)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  },
+  {
+   "id": "ldr",
+   "group": "Fundamental",
+   "kind": "universe",
+   "label": "LDR (banks)",
+   "availability": "REQUIRES_DATA",
+   "reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own. It needs data that this publication does not carry."
+  }
+ ],
+ "keys": [
+  "data",
+  "fundamentals",
+  "groupings",
+  "indicators",
+  "limits",
+  "metrics",
+  "periods",
+  "presets",
+  "versions"
+ ]
+}

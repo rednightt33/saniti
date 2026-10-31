@@ -6,11 +6,16 @@ is generated from it (`scripts/build_flow_registry.py --check`). This script cop
 - Rumus_Kode: the exact formula of every indicator and the shared conventions, read from FORMULAS.md (what
   `apps/edge-bff/terminal/src/calc/flow.ts` computes);
 - Perubahan: what changed after the spreadsheet was agreed (reviews and decisions of 2026-10-30 and 2026-10-31);
-- Versi: the sources, their sha256 and the registry check.
+- Versi: the sources, their sha256 and the registry check;
+- Semua_Indikator (2026-10-31, user: "versi finalnya yang ada FL01 sampai latest termasuk indikator di screener"): one
+  row per indicator the code offers: the Terminal's Flow indicators (flowRegistry.json), the 53 technical indicators of
+  the Terminal, the Backtest and the Screener (indRegistry.json, backtest-registry.json, INDICATOR_SPEC.md), and the
+  Screener's other metrics (screener-metrics.json), with the Screener's live availability (catalog_dump_dev.py output).
 
-  python3 verification/terminal_api/flow_indicators/build_final_workbook.py <out.xlsx>
+  python3 verification/terminal_api/flow_indicators/build_final_workbook.py <out.xlsx> [<screener catalog.json>]
 """
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -26,6 +31,15 @@ SPEC = HERE / 'FLOW_INDICATORS_SPEC.xlsx'
 FORMULAS = HERE / 'FORMULAS.md'
 REGISTRY = ROOT / 'apps/edge-bff/terminal/src/data/flowRegistry.json'
 FLOW_TS = ROOT / 'apps/edge-bff/terminal/src/calc/flow.ts'
+IND_REG = ROOT / 'apps/edge-bff/terminal/src/data/indRegistry.json'
+BT_REG = ROOT / 'apps/edge-bff/backtest/src/core/backtest-registry.json'
+SC_REG = ROOT / 'apps/edge-bff/screener/src/core/screener-registry.json'
+SC_METRICS = ROOT / 'apps/edge-bff/screener/src/core/screener-metrics.json'
+IND_SPEC = ROOT / 'verification/terminal_api/INDICATOR_SPEC.md'
+STATUS = {'AVAILABLE': 'Tersedia', 'REQUIRES_DATA': 'Belum: datanya belum ada',
+          'REQUIRES_DECISION': 'Belum: menunggu keputusan / tahap berikut', None: 'Tersedia'}
+KIND = {'transform': 'Screener · transform', 'xsection': 'Screener · peringkat', 'pattern': 'Screener · pola',
+        'universe': 'Screener · atribut', 'flow': 'Screener · flow'}
 
 CHANGES = [
     ('2026-10-30', 'Semua (pemanggil Screener/Backtest)', 'Parameter yang tidak dikirim memakai default di registry, '
@@ -75,6 +89,97 @@ def formulas():
     return conv, rows
 
 
+def params_text(params, label='label', default='default', key='key'):
+    out = []
+    for q in params or []:
+        if q.get('kind') in ('button', 'fixed'):
+            continue
+        d = q.get(default, q.get('def'))
+        if isinstance(d, list):
+            d = ', '.join(map(str, d)) or 'semua'
+        out.append(f"{q.get(label) or q.get(key) or q.get('k')} ({d})")
+    return '; '.join(out)
+
+
+def fl_equivalents():
+    """Screener metric id -> Terminal FL id, from the agreed spreadsheet (Indikator_baru_dari_Screener and
+    Screener_ke_Chart 'Sudah ada / sama dengan')."""
+    wb = openpyxl.load_workbook(SPEC, read_only=True)
+    eq = {}
+    for r in list(wb['Indikator_baru_dari_Screener'].iter_rows(values_only=True))[1:]:
+        if r[0] and r[2]:
+            eq[str(r[2])] = str(r[0])
+    for r in list(wb['Screener_ke_Chart'].iter_rows(values_only=True))[1:]:
+        m = re.search(r'FL\d\d', str(r[5] or ''))
+        if r[0] and m and str(r[0]) not in eq:
+            eq[str(r[0])] = m.group(0)
+    return eq
+
+
+def all_indicators(catalog):
+    """Rows of the Semua_Indikator sheet (see the module docstring)."""
+    reg = json.loads(REGISTRY.read_text())['indicators']
+    conv, frows = formulas()
+    formula = {r[0]: r[3].replace('`', '') for r in frows}
+    eq = fl_equivalents()
+    live = {m['id']: m for m in (catalog or {}).get('metrics', []) + (catalog or {}).get('fundamentals', [])}
+    live_ind = {i['id'] for i in (catalog or {}).get('indicators', [])}
+    metrics = json.loads(SC_METRICS.read_text())['metrics']
+    by_fl = {}
+    for sid, fl in eq.items():
+        by_fl.setdefault(fl, []).append(sid)
+    # cautions and worked examples of the Flow indicators, from the agreed spreadsheet
+    wb = openpyxl.load_workbook(SPEC, read_only=True)
+    spec_rows = list(wb['Indicator_SPECS_reviewed'].iter_rows(values_only=True))
+    head = spec_rows[0]
+    example, useful = {}, {}
+    for r in spec_rows[1:]:      # one row per spec item; an FL id may gather two (its Buy and its Sell side)
+        for store, col in ((example, 'Example Illustration'), (useful, 'Why It Is Useful / Why Formula Works')):
+            v = r[head.index(col)]
+            if r[0] and v and v not in store.setdefault(r[0], []):
+                store[r[0]].append(v)
+    example = {k: ' / '.join(v) for k, v in example.items()}
+    useful = {k: ' '.join(v) for k, v in useful.items()}
+    caution = {str(r[0]): r[6] for r in list(wb['Indikator_baru_dari_Screener'].iter_rows(values_only=True))[1:] if r[0]}
+    rows = []
+    for i in reg:
+        sids = by_fl.get(i['id'], [])
+        status = '; '.join(f"{sid}: {STATUS.get(live.get(sid, {}).get('availability'), 'tidak ada di katalog')}" for sid in sids)
+        rows.append([i['id'], i['name'], 'Flow (Terminal)', i['family'], 'Ya', 'Belum', status or 'Tidak ada',
+                     ', '.join(sids), formula.get(i['id'], ''), ' '.join(x for x in (i.get('tip'), useful.get(i['id'])) if x),
+                     caution.get(i['id']) or '', example.get(i['id']) or '',
+                     params_text(i.get('params')), f"{', '.join(i.get('outputs') or [])} [{i.get('unit') or ''}]",
+                     'apps/edge-bff/terminal/src/data/flowRegistry.json; FORMULAS.md'])
+    spec = {}
+    for line in IND_SPEC.read_text().splitlines():
+        c = [x.strip() for x in line.strip().strip('|').split('|')]
+        if len(c) >= 7 and re.match(r'^I\d\d$', c[0]):
+            spec[c[0]] = c
+    bt = {x['id']: x for x in json.loads(BT_REG.read_text())['indicators']}
+    sc = {x['id']: x for x in json.loads(SC_REG.read_text())['indicators']}
+    for t in json.loads(IND_REG.read_text()):
+        sp = spec.get(t['id'], [''] * 12)
+        outs = ', '.join(o.get('label') or o.get('k') for o in t.get('outs') or [])
+        rows.append([t['id'], t['name'], 'Teknikal (Terminal, Backtest, Screener)', t['cat'], 'Ya',
+                     'Ya' if bt.get(t['id'], {}).get('available_for_backtest') else 'Tidak',
+                     'Tersedia' if (not catalog or t['id'] in live_ind) else 'Tidak ada', '',
+                     sp[5].replace('`', ''), (t.get('tip') or '') + (' ' + t['info'] if t.get('info') else ''),
+                     sp[11] if len(sp) > 11 else '', t.get('display') or '',
+                     params_text(t.get('params'), label='label', default='def', key='k'),
+                     f"{outs} [{t.get('unit') or ''}]", 'indRegistry.json; INDICATOR_SPEC.md; screener-registry.json: '
+                     + (sc.get(t['id'], {}).get('description') or '')])
+    for m in metrics:
+        st = live.get(m['id'], {})
+        kind = 'Screener · fundamental' if m['group'] == 'Fundamental' else KIND.get(m['kind'], 'Screener')
+        fl = eq.get(m['id'], '')
+        rows.append([m['id'], m['label'], kind, m['group'], f'Ya ({fl})' if fl else 'Tidak', 'Tidak',
+                     STATUS.get(st.get('availability'), 'tidak ada di katalog') if catalog else '',
+                     fl, m.get('formula') or '', m.get('interpretation') or '', m.get('misuse') or '', '',
+                     params_text(m.get('params')), m.get('unit') or '',
+                     'screener-metrics.json' + (f"; status: {st.get('reason')}" if st.get('reason') else '')])
+    return rows
+
+
 def style_head(ws, widths):
     for cell in ws[1]:
         cell.font = Font(bold=True, color='FFFFFF')
@@ -87,7 +192,7 @@ def style_head(ws, widths):
     ws.freeze_panes = 'A2'
 
 
-def main(out):
+def main(out, catalog_path=None):
     check = subprocess.run([sys.executable, str(ROOT / 'scripts/build_flow_registry.py'), '--check'],
                            capture_output=True, text=True)
     if check.returncode:
@@ -96,6 +201,17 @@ def main(out):
     if len(rows) != 39:
         raise SystemExit(f'FORMULAS.md has {len(rows)} indicator rows, expected FL01-FL39')
     wb = openpyxl.load_workbook(SPEC)
+    catalog = json.loads(Path(catalog_path).read_text()) if catalog_path else None
+    rows_all = all_indicators(catalog)
+    ws = wb.create_sheet('Semua_Indikator', 0)
+    ws.append(['ID', 'Nama', 'Jenis', 'Kelompok', 'Di Terminal', 'Di Backtest',
+               'Di Screener (live ' + ((catalog or {}).get('data') or {}).get('published_at', 'tanpa katalog live')[:10] + ')',
+               'Setara (Terminal FL / Screener id)', 'Rumus', 'Arti / cara membaca', 'Hati-hati',
+               'Contoh / tampilan', 'Parameter (default)', 'Output [satuan]', 'Sumber di kode'])
+    for r in rows_all:
+        ws.append(r)
+    style_head(ws, [9, 34, 26, 18, 11, 11, 30, 18, 70, 60, 50, 50, 50, 22, 40])
+    ws.auto_filter.ref = ws.dimensions
 
     ws = wb.create_sheet('Rumus_Kode', 0)
     ws.append(['Id', 'Nama', 'Output', 'Rumus (seperti dihitung di Terminal)'])
@@ -125,13 +241,19 @@ def main(out):
         ('Kode hitung', f'{FLOW_TS.relative_to(ROOT)} sha256 {sha(FLOW_TS)}'),
         ('Registry Terminal', f'{REGISTRY.relative_to(ROOT)} sha256 {sha(REGISTRY)}'),
         ('Cek registry = spreadsheet', (check.stdout or 'ok').strip()),
-        ('Isi', 'Rumus_Kode, Perubahan dan Versi ditambahkan; sheet lain adalah spreadsheet yang disepakati 2026-10-30.'),
+        ('Isi', 'Semua_Indikator, Rumus_Kode, Perubahan dan Versi ditambahkan; sheet lain adalah spreadsheet yang '
+                'disepakati 2026-10-30.'),
+        ('Semua_Indikator', f'{len(rows_all)} baris: Flow Terminal, 53 teknikal, metrik Screener; status Screener dari '
+                            'katalog live' if catalog else 'tanpa katalog live'),
+        ('Indikator teknikal', f'{IND_REG.relative_to(ROOT)} sha256 {sha(IND_REG)}'),
+        ('Metrik Screener', f'{SC_METRICS.relative_to(ROOT)} sha256 {sha(SC_METRICS)}'),
     ]:
         ws.append([k, v])
     style_head(ws, [34, 110])
     wb.save(out)
-    print(f'{out}: {len(rows)} indicators, {len(conv)} conventions, {len(CHANGES)} changes')
+    print(f'{out}: {len(rows_all)} rows in Semua_Indikator, {len(rows)} Flow formulas, {len(conv)} conventions, '
+          f'{len(CHANGES)} changes')
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
