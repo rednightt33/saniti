@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kartu Indikator — Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>/*__SPEC_CSS__*/</style>
+<style>
+/* page layout (outside the spec layers, so it wins without !important) */
+body{background:var(--bg)}
+.top{position:sticky;top:0;z-index:var(--z-sticky);height:var(--h-top);display:flex;align-items:center;gap:var(--s-6);padding:0 var(--s-9);
+  background:var(--surface);border-bottom:1px solid var(--border)}
+.top strong{font-size:var(--fs-lg)}
+.top .grow{flex:1}
+.wrap{max-width:1240px;margin:0 auto;padding:var(--s-10) var(--s-9) 64px;display:grid;gap:var(--s-10)}
+.intro{display:grid;gap:var(--s-4);max-width:860px}
+.intro p{color:var(--text-2);line-height:1.6}
+.intro ol{margin:0;padding-left:18px;color:var(--text-2);line-height:1.7}
+.sec-h{display:flex;align-items:baseline;gap:var(--s-6);flex-wrap:wrap;margin-bottom:var(--s-6)}
+.sec-h h2{font-size:var(--fs-2xl)}
+.toolbar{display:flex;align-items:center;gap:var(--s-6);flex-wrap:wrap;margin-bottom:var(--s-6)}
+
+/* picker (TradingView-like dialog, shown inline for the review) */
+.picker{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-2xl);box-shadow:var(--shadow-lg);overflow:hidden;
+  display:grid;grid-template-rows:auto auto 1fr;height:640px;position:relative}
+.pk-head{display:flex;align-items:center;padding:var(--s-8) var(--s-9) var(--s-4)}
+.pk-head h3{font-size:var(--fs-2xl);font-weight:var(--fw-bold);flex:1}
+.pk-search{margin:0 var(--s-9) var(--s-6);position:relative}
+.pk-search input{width:100%;height:40px;padding-left:38px;font-size:var(--fs-lg);border-radius:var(--r-lg)}
+.pk-search svg{position:absolute;left:12px;top:11px;color:var(--text-3)}
+.pk-body{display:grid;grid-template-columns:220px 1fr;min-height:0;border-top:1px solid var(--border)}
+.pk-nav{overflow:auto;padding:var(--s-4) var(--s-4) var(--s-8);border-right:1px solid var(--border)}
+.pk-nav .menu-title{padding-top:var(--s-6)}
+.pk-nav button{width:100%;justify-content:flex-start;height:34px;border:0;background:none;box-shadow:none;padding:0 var(--s-5);
+  border-radius:var(--r-md);font-weight:var(--fw-medium);color:var(--text-2);gap:var(--s-4)}
+.pk-nav button:hover{background:var(--hover);color:var(--text);box-shadow:none}
+.pk-nav button.on{background:var(--sel);color:var(--text)}
+.pk-nav .cnt{margin-left:auto;font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-regular)}
+.pk-list{overflow:auto;min-height:0}
+.pk-row{display:grid;grid-template-columns:30px minmax(0,1fr) 150px 70px 70px 34px;align-items:center;gap:var(--s-3);
+  height:40px;padding:0 var(--s-6) 0 var(--s-5);cursor:pointer;font-size:var(--fs-base)}
+.pk-row:hover{background:var(--surface-2)}
+.pk-row.hd{position:sticky;top:0;z-index:1;background:var(--surface);height:34px;cursor:default;font-size:var(--fs-2xs);font-weight:var(--fw-semibold);
+  color:var(--text-3);text-transform:uppercase;letter-spacing:var(--ls-caps);border-bottom:1px solid var(--border)}
+.pk-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.pk-row .nm small{margin-left:6px;font-size:var(--fs-2xs)}
+.pk-row .gr,.pk-row .pl,.pk-row .un{font-size:var(--fs-12);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.star{width:26px;height:26px;padding:0;border:0;background:none;box-shadow:none;color:var(--text-3);border-radius:var(--r-sm)}
+.star:hover{background:var(--hover);box-shadow:none}
+.star.on{color:var(--amber)}
+.info{width:26px;height:26px;padding:0;border:1px solid var(--border);border-radius:50%;background:var(--surface);box-shadow:none;
+  font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--text-3)}
+.info:hover{border-color:var(--text);color:var(--text);box-shadow:none}
+.pk-detail{position:absolute;top:0;right:0;bottom:0;width:min(470px,100%);background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:var(--shadow-lg);transform:translateX(105%);transition:transform .18s ease;display:flex;flex-direction:column;z-index:3}
+.pk-detail.open{transform:none}
+.pk-detail-h{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-6) var(--s-6) var(--s-6) var(--s-8);border-bottom:1px solid var(--border)}
+.pk-detail-h .grow{font-size:var(--fs-12);color:var(--text-3)}
+.pk-detail-b{overflow:auto;padding:var(--s-8)}
+.pk-detail-b .ic{border:0;padding:0;box-shadow:none}
+.empty-row{padding:var(--s-11);text-align:center;color:var(--text-3)}
+
+/* tooltip */
+.tipcard{position:fixed;z-index:var(--z-toast);width:300px;padding:var(--s-6) var(--s-7);background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-lg);font-size:var(--fs-12);line-height:1.5;color:var(--text-2);pointer-events:none}
+.tipcard b{display:block;color:var(--text);font-size:var(--fs-base);margin-bottom:2px}
+.tipcard .eq{margin-top:var(--s-4);padding-top:var(--s-4);border-top:1px solid var(--border)}
+.tipcard .hint{margin-top:var(--s-4);color:var(--text-3);font-size:var(--fs-xs)}
+
+/* gallery of the five options */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:var(--s-9);align-items:start}
+.opt{display:grid;gap:var(--s-5)}
+.opt-h{display:flex;align-items:center;gap:var(--s-4)}
+.opt-h .badge{width:26px;height:26px;border-radius:var(--r-sm);display:grid;place-items:center;background:var(--text);color:var(--surface);
+  font-weight:var(--fw-bold);font-size:var(--fs-12)}
+.opt-h strong{font-size:var(--fs-lg)}
+.opt-d{font-size:var(--fs-12);color:var(--text-3);line-height:1.5}
+
+/* card shared */
+.ic{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-8);display:grid;gap:var(--s-6);min-width:0}
+.ic-h{display:grid;gap:2px}
+.ic-h .row{justify-content:space-between}
+.ic-h h3{font-size:var(--fs-lg)}
+.ic-h p{color:var(--text-2);font-size:var(--fs-md);line-height:1.5}
+.code-id{font:var(--fw-semibold) var(--fs-2xs) var(--sans);color:var(--text-3);border:1px solid var(--border);border-radius:var(--r-xs);padding:1px 5px}
+.ex{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-6) var(--s-7);display:grid;gap:var(--s-5)}
+.ex-h{font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-semibold);text-transform:uppercase;letter-spacing:var(--ls-caps)}
+.big{display:flex;align-items:center;gap:var(--s-5)}
+.big b{font-size:28px;font-weight:var(--fw-bold);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.eqn{display:grid;grid-template-columns:repeat(5,auto);justify-content:start;align-items:end;column-gap:var(--s-4);row-gap:2px;font-variant-numeric:tabular-nums}
+.eqn .t{font-size:var(--fs-lg);font-weight:var(--fw-semibold);color:var(--text)}
+.eqn .o{font-size:var(--fs-lg);color:var(--text-3)}
+.eqn .l{font-size:var(--fs-2xs);color:var(--text-3);line-height:1.25;max-width:108px}
+.pos{color:var(--green)} .neg{color:var(--red)}
+.zone{display:grid;gap:4px}
+.zone-bar{position:relative;height:10px;border-radius:var(--r-pill);overflow:hidden;display:grid;grid-template-columns:20% 10% 40% 10% 20%}
+.zone-bar span:nth-child(1){background:var(--red);opacity:.85}
+.zone-bar span:nth-child(2){background:var(--red);opacity:.35}
+.zone-bar span:nth-child(3){background:var(--border-2)}
+.zone-bar span:nth-child(4){background:var(--up);opacity:.35}
+.zone-bar span:nth-child(5){background:var(--up);opacity:.85}
+.zone-mk{position:absolute;top:-4px;width:3px;height:18px;border-radius:2px;background:var(--text);box-shadow:0 0 0 2px var(--surface);transform:translateX(-50%)}
+.zone-wrap{position:relative;padding-top:4px}
+.zone-lb{display:grid;grid-template-columns:20% 10% 40% 10% 20%;font-size:var(--fs-2xs);color:var(--text-3);text-align:center}
+.zone-ax{display:flex;justify-content:space-between;font-size:var(--fs-2xs);color:var(--text-3)}
+.small-note{font-size:var(--fs-xs);color:var(--text-3);line-height:1.5}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:var(--s-6);counter-reset:s}
+.steps li{display:grid;grid-template-columns:24px 1fr;gap:var(--s-5);counter-increment:s}
+.steps li::before{content:counter(s);width:22px;height:22px;border-radius:50%;background:var(--sel);color:var(--text);display:grid;place-items:center;
+  font-size:var(--fs-xs);font-weight:var(--fw-bold)}
+.steps li b{display:block;color:var(--text);font-size:var(--fs-md)}
+.steps li p{font-size:var(--fs-12);color:var(--text-2);line-height:1.5}
+.mini{width:100%;font-size:var(--fs-12)}
+.mini th{height:28px;padding:0 6px;font-size:var(--fs-2xs)}
+.mini td{height:30px;padding:0 6px}
+.mini tr.sum td{font-weight:var(--fw-semibold);color:var(--text);background:var(--surface-2)}
+.mini .bk{font-weight:var(--fw-semibold)}
+.mini .bn{display:block;font-size:var(--fs-2xs);color:var(--text-3);font-weight:var(--fw-regular);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.chart svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:var(--s-6);flex-wrap:wrap;font-size:var(--fs-xs);color:var(--text-3)}
+.legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.bul{margin:0;padding-left:16px;font-size:var(--fs-12);color:var(--text-2);line-height:1.55;display:grid;gap:4px}
+.calc{display:grid;gap:var(--s-5)}
+.calc .field input[type=range]{width:100%}
+.calc .fr{display:flex;justify-content:space-between;align-items:baseline}
+.calc .fr b{font-variant-numeric:tabular-nums;color:var(--text)}
+.contrib{display:grid;gap:4px}
+.contrib .cr{display:grid;grid-template-columns:120px 1fr 64px;align-items:center;gap:var(--s-4);font-size:var(--fs-xs);color:var(--text-2)}
+.contrib .tr{height:8px;background:var(--surface-2);border-radius:var(--r-pill);position:relative;overflow:hidden}
+.contrib .tr span{position:absolute;top:0;bottom:0;border-radius:var(--r-pill)}
+.contrib .mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--border-2)}
+.tabpane{display:none;gap:var(--s-5)} .tabpane.on{display:grid}
+.ztbl td,.ztbl th{height:30px;font-size:var(--fs-12)}
+.mini td.l,.mini th.l{text-align:left}
+@media (max-width:860px){
+  .pk-body{grid-template-columns:1fr}
+  .pk-nav{display:flex;gap:4px;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:var(--s-4)}
+  .pk-nav .menu-title{display:none}
+  .pk-nav button{width:auto;flex:0 0 auto;white-space:nowrap}
+  .pk-nav .cnt{display:none}
+  .pk-row{grid-template-columns:30px minmax(0,1fr) 34px}
+  .pk-row .gr,.pk-row .pl,.pk-row .un{display:none}
+  .picker{height:auto;min-height:560px;grid-template-rows:auto auto auto}
+  .pk-list{max-height:420px}
+  .wrap{padding:var(--s-8) var(--s-8) 48px}
+  .gallery{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <strong>EDGE · Kartu indikator</strong><span class="pill">Review desain</span>
+  <span class="grow"></span>
+  <button class="btn sm" id="theme" type="button">Mode gelap</button>
+</div>
+<main class="wrap">
+  <section class="intro">
+    <span class="eyebrow">Untuk dipilih</span>
+    <h1>Menu indikator dan 5 pilihan kartu</h1>
+    <p>Bagian atas meniru menu indikator yang Anda kirim. Arahkan kursor ke nama indikator untuk melihat <b>tooltip</b>,
+      lalu klik <b>ⓘ</b> untuk membuka <b>kartu</b>-nya. Ganti desain kartu dengan tombol A–E. Bagian bawah menampilkan
+      kelima kartu berdampingan supaya mudah dibandingkan.</p>
+    <ol>
+      <li><b>A Ringkas</b>: satu layar kecil, angka hasil dan rumusnya dengan angka sungguhan.</li>
+      <li><b>B Langkah demi langkah</b>: urutan hitung dari data broker sampai vonis.</li>
+      <li><b>C Grafik</b>: indikator digambar di bawah harga, dengan titik penting diberi penjelasan.</li>
+      <li><b>D Kalkulator</b>: geser angkanya dan lihat bagaimana hasil berubah.</li>
+      <li><b>E Lengkap</b>: tab Ringkasan, Contoh, Rumus, Parameter, Hati-hati.</li>
+    </ol>
+    <p class="note">Contoh memakai data nyata: FL24 Bandar Balance · % untuk BBCA, 10 sesi sampai 27 Okt 2026 (data broker
+      terakhir). Angkanya sama dengan oracle independen dan dengan Terminal. Di Terminal nanti, contoh dihitung dari saham dan
+      tanggal yang sedang dibuka, untuk setiap indikator. Di mockup ini, indikator lain hanya menampilkan penjelasan singkatnya.</p>
+  </section>
+
+  <section>
+    <div class="toolbar">
+      <span class="eyebrow">Desain kartu di menu</span>
+      <div class="seg" id="variantSeg">
+        <button type="button" data-v="A" class="on">A Ringkas</button><button type="button" data-v="B">B Langkah</button>
+        <button type="button" data-v="C">C Grafik</button><button type="button" data-v="D">D Kalkulator</button>
+        <button type="button" data-v="E">E Lengkap</button>
+      </div>
+      <button class="btn sm" type="button" id="openFl24">Buka kartu FL24</button>
+    </div>
+    <div class="picker" id="picker" role="dialog" aria-label="Indicators">
+      <div class="pk-head"><h3>Indicators</h3><button class="iconbtn" type="button" aria-label="Close">✕</button></div>
+      <div class="pk-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search (nama, kode, kelompok)" autocomplete="off">
+      </div>
+      <div class="pk-body">
+        <nav class="pk-nav" id="nav"></nav>
+        <div class="pk-list" id="list"></div>
+      </div>
+      <aside class="pk-detail" id="detail" aria-label="Kartu indikator">
+        <div class="pk-detail-h"><span class="grow" id="detailVar"></span>
+          <button class="btn sm primary" type="button" id="addBtn">Tambah ke chart</button>
+          <button class="iconbtn sm" type="button" id="closeDetail" aria-label="Tutup kartu">✕</button></div>
+        <div class="pk-detail-b" id="detailBody"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>Lima pilihan kartu</h2><span class="note">Isi sama, cara penyajian berbeda. Semua angka dari BBCA, 14–27 Okt 2026.</span></div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <section class="card"><div class="card-h"><h3>Catatan untuk keputusan</h3></div><div class="card-b">
+    <ul class="bul">
+      <li>Tooltip (saat kursor di nama indikator) selalu berbentuk ringkas seperti A; pilihan A–E menentukan kartu yang terbuka saat ⓘ diklik.</li>
+      <li>Pilihan bisa digabung, misalnya kartu A di tooltip dan E saat ⓘ diklik, atau E dengan tab "Contoh" berisi grafik C.</li>
+      <li>Untuk setiap indikator, kartu membutuhkan langkah hitung yang ditulis sekali per indikator dan diisi angka saham yang sedang dibuka. Teks penjelasan, rumus dan parameter sudah ada di registry dan Excel final.</li>
+    </ul>
+  </div></section>
+</main>
+<div class="tipcard" id="tip" hidden></div>
+
+<script>
+const ITEMS = "__ITEMS__";
+const TECH_GROUPS = "__TECH_GROUPS__";
+const FLOW_GROUPS = "__FLOW_GROUPS__";
+const EX = "__EXAMPLE__";
+
+/* ---- formatting (Indonesian) ---- */
+const nf = (d) => new Intl.NumberFormat('id-ID', { minimumFractionDigits: d, maximumFractionDigits: d });
+const T = (x, d = 2) => (x < 0 ? '−' : '') + 'Rp' + nf(d).format(Math.abs(x) / 1e12) + ' T';
+const Ts = (x, d = 2) => (x > 0 ? '+' : x < 0 ? '−' : '') + nf(d).format(Math.abs(x) / 1e12) + ' T';
+const P = (x, d = 1) => (x < 0 ? '−' : x > 0 ? '+' : '') + nf(d).format(Math.abs(x)) + '%';
+const MON = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const D = (s) => { const [y, m, d] = s.split('-').map(Number); return `${d} ${MON[m - 1]} ${y}` };
+const Dd = (s) => { const [, m, d] = s.split('-').map(Number); return `${d} ${MON[m - 1]}` };
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const VERDICT = [[10, 'Big Acc', 'Akumulasi besar', 'pos'], [6, 'Acc', 'Akumulasi', 'pos'], [-6, 'Neutral', 'Netral', ''],
+                 [-10, 'Dist', 'Distribusi', 'neg'], [-Infinity, 'Big Dist', 'Distribusi besar', 'neg']];
+function verdict(v) {
+  if (v >= 10) return VERDICT[0]; if (v >= 6) return VERDICT[1]; if (v > -6) return VERDICT[2]; if (v > -10) return VERDICT[3];
+  return VERDICT[4];
+}
+const pill = (v) => { const x = verdict(v); return `<span class="pill ${x[3] ? (x[3] === 'pos' ? 'pos' : 'neg') : ''}"><span class="dot"></span>${x[1]}</span>` };
+const value = (nb, ns, tbv) => 100 * (nb + ns) / tbv;
+const zonePos = (v) => { const c = Math.max(-20, Math.min(20, v)); return (c + 20) / 40 * 100 };
+function zone(v) {
+  return `<div class="zone"><div class="zone-wrap"><div class="zone-bar"><span></span><span></span><span></span><span></span><span></span></div>
+    <i class="zone-mk" style="left:${zonePos(v)}%"></i></div>
+    <div class="zone-lb"><span>Big Dist</span><span>Dist</span><span>Neutral</span><span>Acc</span><span>Big Acc</span></div>
+    <div class="zone-ax"><span>−20</span><span>−10</span><span>−6</span><span>0</span><span>+6</span><span>+10</span><span>+20</span></div></div>`;
+}
+const header = (sub) => `<div class="ic-h"><div class="row"><span class="eyebrow">Flow · ${esc(EX.family)}</span><span class="code-id">${EX.id}</span></div>
+  <h3>${esc(EX.name)}</h3>${sub ? `<p>${esc(EX.tip)}</p>` : ''}</div>`;
+const exampleHead = () => `<div class="ex-h">Contoh · ${EX.ticker} · ${EX.window} sesi (${Dd(EX.from)}–${D(EX.to)}) · Top ${EX.top}</div>`;
+function equation(nb = EX.nb, ns = EX.ns, tbv = EX.tbv) {
+  return `<div class="eqn"><span class="o">(</span><span class="t pos">${Ts(nb)}</span><span class="o">+</span><span class="t neg">${Ts(ns)}</span><span class="o">) ÷ ${nf(2).format(tbv / 1e12)} T × 100</span>
+    <span></span><span class="l">net beli ${EX.top} pembeli terbesar</span><span></span><span class="l">net jual ${EX.top} penjual terbesar</span><span class="l">÷ total nilai beli semua broker</span></div>`;
+}
+const brokerRows = (list) => list.map(b => `<tr><td class="l"><span class="bk">${b.code}</span><span class="bn">${esc(b.name)}</span></td>
+  <td>${nf(2).format(b.bv / 1e12)}</td><td>${nf(2).format(b.sv / 1e12)}</td><td class="${b.net > 0 ? 'pos' : 'neg'}">${Ts(b.net)}</td></tr>`).join('');
+function brokerTable() {
+  return `<table class="mini"><thead><tr><th class="l">Broker</th><th>Beli</th><th>Jual</th><th>Net</th></tr></thead><tbody>
+    ${brokerRows(EX.buyers)}<tr class="sum"><td class="l">Pembeli bandar (NB)</td><td></td><td></td><td class="pos">${Ts(EX.nb)}</td></tr>
+    ${brokerRows(EX.sellers)}<tr class="sum"><td class="l">Penjual bandar (NS)</td><td></td><td></td><td class="neg">${Ts(EX.ns)}</td></tr>
+    </tbody></table><p class="small-note">Rp triliun, jumlah ${EX.window} sesi, semua papan (Regular, Nego, Tunai), asing dan domestik.</p>`;
+}
+const readText = (v) => {
+  const x = verdict(v), near = Math.abs(Math.abs(v) - 6) < 1 && Math.abs(v) < 6;
+  return `${P(v)} berada di zona <b>${x[1]}</b> (${x[2].toLowerCase()})${near ? `, dekat batas ${v < 0 ? 'Dist (−6)' : 'Acc (+6)'}` : ''}.`;
+};
+
+/* ---- A: compact ---- */
+function cardA() {
+  return `<div class="ic">${header(true)}<div class="ex">${exampleHead()}
+      <div class="big"><b class="${EX.value < 0 ? 'neg' : 'pos'}">${P(EX.value)}</b>${pill(EX.value)}</div>${equation()}${zone(EX.value)}</div>
+    <p class="small-note">Batas 6 dan 10 adalah heuristik yang belum divalidasi; saham tidak likuid cenderung punya nilai lebih ekstrem.</p></div>`;
+}
+
+/* ---- B: steps ---- */
+function cardB() {
+  return `<div class="ic">${header(true)}<ol class="steps">
+    <li><div><b>Ambil ${EX.window} sesi terakhir</b><p>${D(EX.from)} sampai ${D(EX.to)}, 10 hari bursa yang punya data broker. Semua papan, asing dan domestik.</p></div></li>
+    <li><div><b>Hitung net setiap broker</b><p>Net = nilai beli − nilai jual selama ${EX.window} sesi. Ambil ${EX.top} net beli terbesar dan ${EX.top} net jual terbesar.</p>${brokerTable()}</div></li>
+    <li><div><b>Bandingkan dengan seluruh transaksi</b><p>Total nilai beli semua broker dalam ${EX.window} sesi: <b>${T(EX.tbv)}</b>.</p></div></li>
+    <li><div><b>Hitung nilainya</b>${equation()}<p>= <b class="${EX.value < 0 ? 'neg' : 'pos'}">${P(EX.value, 2)}</b></p></div></li>
+    <li><div><b>Baca hasilnya</b><p>${readText(EX.value)} Artinya, ${EX.top} penjual terbesar melepas lebih banyak daripada yang dikumpulkan ${EX.top} pembeli terbesar, selisihnya setara ${nf(1).format(Math.abs(EX.value))}% dari seluruh nilai beli.</p>${zone(EX.value)}</div></li>
+  </ol></div>`;
+}
+
+/* ---- C: chart ---- */
+function chartSvg(w = 420) {
+  const s = EX.series, n = s.length, padL = 34, padR = 36, top1 = 18, h1 = 64, gap = 18, top2 = top1 + h1 + gap, h2 = 120, H = top2 + h2 + 22;
+  const x = (i) => padL + i * (w - padL - padR) / (n - 1);
+  const cl = s.map(p => p.close), cmin = Math.min(...cl), cmax = Math.max(...cl);
+  const yc = (v) => top1 + h1 - (v - cmin) / (cmax - cmin || 1) * h1;
+  const vmin = Math.min(-15, ...s.map(p => p.value)), vmax = Math.max(15, ...s.map(p => p.value));
+  const yv = (v) => top2 + (vmax - v) / (vmax - vmin) * h2;
+  const band = (a, b, col, op) => `<rect x="${padL}" width="${w - padL - padR}" y="${yv(b)}" height="${yv(a) - yv(b)}" fill="${col}" opacity="${op}"/>`;
+  const line = (val, dash) => `<line x1="${padL}" x2="${w - padR}" y1="${yv(val)}" y2="${yv(val)}" stroke="var(--border-2)" ${dash ? 'stroke-dasharray="3 3"' : ''}/>
+    <text x="${w - padR + 4}" y="${yv(val) + 3}" font-size="9" fill="var(--text-3)">${val > 0 ? '+' : ''}${val}</text>`;
+  const path = (arr, f) => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${f(v).toFixed(1)}`).join('');
+  const lo = s.reduce((a, p, i) => p.value < s[a].value ? i : a, 0), last = n - 1;
+  const hi = s.reduce((a, p, i) => p.value > s[a].value ? i : a, 0);
+  const dot = (i, lab, anchor, above) => `<circle cx="${x(i)}" cy="${yv(s[i].value)}" r="3.5" fill="var(--text)"/>
+    <text x="${x(i) + (anchor === 'end' ? -6 : 6)}" y="${yv(s[i].value) + (above ? -8 : 14)}" font-size="10" font-weight="600" fill="var(--text)" text-anchor="${anchor}" paint-order="stroke" stroke="var(--surface)" stroke-width="3">${lab}</text>`;
+  return `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="Harga BBCA dan Bandar Balance">
+    <text x="${padL}" y="10" font-size="9" fill="var(--text-3)">Close BBCA</text>
+    <text x="${w - padR + 4}" y="${yc(cmax) + 3}" font-size="9" fill="var(--text-3)">${nf(0).format(cmax)}</text>
+    <text x="${w - padR + 4}" y="${yc(cmin) + 3}" font-size="9" fill="var(--text-3)">${nf(0).format(cmin)}</text>
+    <path d="${path(cl, yc)}" fill="none" stroke="var(--c1)" stroke-width="1.6"/>
+    ${band(10, vmax, 'var(--up)', .16)}${band(6, 10, 'var(--up)', .08)}${band(-10, -6, 'var(--down)', .08)}${band(vmin, -10, 'var(--down)', .16)}
+    ${line(10, true)}${line(6, true)}${line(0, false)}${line(-6, true)}${line(-10, true)}
+    <text x="${padL}" y="${top2 - 4}" font-size="9" fill="var(--text-3)">Bandar Balance · % (10 sesi, Top 3)</text>
+    <path d="${path(s.map(p => p.value), yv)}" fill="none" stroke="var(--c2)" stroke-width="1.8"/>
+    ${dot(hi, P(s[hi].value), 'start', true)}${dot(lo, P(s[lo].value), 'start', false)}${dot(last, P(s[last].value), 'end', true)}
+    <text x="${padL}" y="${H - 6}" font-size="9" fill="var(--text-3)">${Dd(s[0].date)}</text>
+    <text x="${w - padR}" y="${H - 6}" font-size="9" fill="var(--text-3)" text-anchor="end">${Dd(s[last].date)}</text>
+  </svg>`;
+}
+function cardC() {
+  const s = EX.series, lo = s.reduce((a, p) => p.value < a.value ? p : a, s[0]), hi = s.reduce((a, p) => p.value > a.value ? p : a, s[0]);
+  return `<div class="ic">${header(true)}<div class="chart">${chartSvg()}</div>
+    <div class="legend"><span><i style="background:var(--c1)"></i>Harga close</span><span><i style="background:var(--c2)"></i>Bandar Balance</span>
+      <span><i style="background:var(--up);opacity:.5"></i>Zona Acc (≥ +6)</span><span><i style="background:var(--down);opacity:.5"></i>Zona Dist (≤ −6)</span></div>
+    <ul class="bul">
+      <li><b>${Dd(hi.date)}</b>: tertinggi ${P(hi.value)} (${verdict(hi.value)[1]}${Math.abs(hi.value) < 6 && hi.value > 5 ? ', dekat batas Acc' : ''}): pembeli besar sedikit lebih kuat dari penjual besar.</li>
+      <li><b>${Dd(lo.date)}</b>: terendah ${P(lo.value)} (${verdict(lo.value)[1]}). ${EX.top} penjual terbesar melepas jauh lebih banyak dari ${EX.top} pembeli terbesar, dan harga ikut turun.</li>
+      <li><b>${Dd(EX.to)}</b>: ${P(EX.value)}, kembali ke zona Neutral tetapi masih negatif.</li>
+      <li>Setiap titik memakai ${EX.window} sesi yang berakhir di tanggal itu; kelompok ${EX.top} pembeli dan penjual dihitung ulang setiap hari.</li>
+    </ul></div>`;
+}
+
+/* ---- D: calculator ---- */
+function cardD(uid) {
+  const f = (k, label, v, min, max, help) => `<label class="field"><span class="fr">${label}<b id="${uid}-${k}-v"></b></span>
+    <input type="range" id="${uid}-${k}" min="${min}" max="${max}" step="0.01" value="${(v / 1e12).toFixed(2)}"><small>${help}</small></label>`;
+  return `<div class="ic calc" data-calc="${uid}">${header(true)}
+    <div class="ex">${exampleHead()}<div class="big"><b id="${uid}-out"></b><span id="${uid}-pill"></span></div><div id="${uid}-eq"></div><div id="${uid}-zone"></div></div>
+    ${f('nb', `Net beli ${EX.top} pembeli terbesar`, EX.nb, 0, 8, `BBCA: ${EX.buyers.map(b => b.code).join(', ')} = ${Ts(EX.nb)}`)}
+    ${f('ns', `Net jual ${EX.top} penjual terbesar`, EX.ns, -8, 0, `BBCA: ${EX.sellers.map(b => b.code).join(', ')} = ${Ts(EX.ns)}`)}
+    ${f('tbv', 'Total nilai beli semua broker', EX.tbv, 5, 60, `BBCA ${EX.window} sesi = ${T(EX.tbv)}; makin besar, makin kecil pengaruh bandar`)}
+    <div class="contrib" id="${uid}-contrib"></div>
+    <div class="row"><button class="btn sm" type="button" data-reset="${uid}">Kembali ke BBCA</button><span class="small-note" id="${uid}-sens"></span></div></div>`;
+}
+function wireCalc(root) {
+  root.querySelectorAll('[data-calc]').forEach(el => {
+    const uid = el.dataset.calc, g = (k) => el.querySelector(`#${uid}-${k}`);
+    const upd = () => {
+      const nb = +g('nb').value * 1e12, ns = +g('ns').value * 1e12, tbv = +g('tbv').value * 1e12, v = value(nb, ns, tbv);
+      g('nb-v').textContent = Ts(nb); g('ns-v').textContent = Ts(ns); g('tbv-v').textContent = T(tbv);
+      const out = g('out'); out.textContent = P(v); out.className = v < 0 ? 'neg' : 'pos';
+      g('pill').innerHTML = pill(v); g('eq').innerHTML = equation(nb, ns, tbv); g('zone').innerHTML = zone(v);
+      const cb = (lab, x, cls) => `<div class="cr"><span>${lab}</span><span class="tr"><i class="mid"></i><span class="${cls}" style="${x >= 0 ? `left:50%;width:${Math.min(50, x * 2.5)}%;background:var(--up)` : `right:50%;width:${Math.min(50, -x * 2.5)}%;background:var(--down)`}"></span></span><b class="num ${cls}">${P(x)}</b></div>`;
+      g('contrib').innerHTML = `<span class="ex-h">Sumbangan ke hasil</span>${cb('Pembeli bandar', 100 * nb / tbv, 'pos')}${cb('Penjual bandar', 100 * ns / tbv, 'neg')}${cb('Hasil', v, v < 0 ? 'neg' : 'pos')}`;
+      g('sens').textContent = `Tiap Rp1 T net beli tambahan menaikkan hasil ${nf(2).format(100e12 / tbv)} poin.`;
+    };
+    el.querySelectorAll('input[type=range]').forEach(i => i.addEventListener('input', upd));
+    el.querySelector(`[data-reset="${uid}"]`).addEventListener('click', () => {
+      g('nb').value = (EX.nb / 1e12).toFixed(2); g('ns').value = (EX.ns / 1e12).toFixed(2); g('tbv').value = (EX.tbv / 1e12).toFixed(2); upd();
+    });
+    upd();
+  });
+}
+
+/* ---- E: tabbed full card ---- */
+function paramRows() {
+  const val = (p) => Array.isArray(p.default) ? (p.default.length ? p.default.join(', ') : 'semua') : p.default;
+  const rng = (p) => p.options ? p.options.join(', ') : (p.min !== undefined ? `${p.min}${p.max !== undefined ? '–' + p.max : '+'}` : '');
+  return EX.params.filter(p => !['button', 'fixed'].includes(p.kind)).map(p =>
+    `<tr><td class="l">${esc(p.label)}</td><td>${esc(val(p))}</td><td class="muted">${esc(rng(p))}</td></tr>`).join('');
+}
+function cardE(uid) {
+  const tabs = ['Ringkasan', 'Contoh', 'Rumus', 'Parameter', 'Hati-hati'];
+  return `<div class="ic" data-tabs="${uid}">${header(true)}
+    <div class="tabs" role="tablist">${tabs.map((t, i) => `<button type="button" role="tab" data-t="${i}" class="${i ? '' : 'on'}">${t}</button>`).join('')}</div>
+    <div class="tabpane on" data-p="0">
+      <div class="big"><b class="${EX.value < 0 ? 'neg' : 'pos'}">${P(EX.value)}</b>${pill(EX.value)}<span class="note">${EX.ticker}, ${Dd(EX.from)}–${D(EX.to)}</span></div>
+      <p class="small-note" style="color:var(--text-2)">Membaca akumulasi atau distribusi oleh broker terbesar ("bandar"): positif berarti pembeli besar lebih kuat, negatif berarti penjual besar lebih kuat.</p>${zone(EX.value)}
+      <table class="mini ztbl"><thead><tr><th class="l">Nilai</th><th class="l">Label</th><th class="l">Arti</th></tr></thead><tbody>
+        <tr><td class="l">≥ +10</td><td class="l">Big Acc</td><td class="l">akumulasi besar oleh bandar</td></tr>
+        <tr><td class="l">+6 s.d. +10</td><td class="l">Acc</td><td class="l">akumulasi</td></tr>
+        <tr><td class="l">−6 s.d. +6</td><td class="l">Neutral</td><td class="l">bandar beli dan jual seimbang</td></tr>
+        <tr><td class="l">−10 s.d. −6</td><td class="l">Dist</td><td class="l">distribusi</td></tr>
+        <tr><td class="l">≤ −10</td><td class="l">Big Dist</td><td class="l">distribusi besar</td></tr></tbody></table></div>
+    <div class="tabpane" data-p="1">${exampleHead()}${brokerTable()}${equation()}<p class="small-note" style="color:var(--text-2)">${readText(EX.value)}</p></div>
+    <div class="tabpane" data-p="2">
+      <div class="ex"><b style="font-size:var(--fs-lg)">Nilai = 100 × (NB + NS) ÷ TBV</b>
+        <ul class="bul"><li><b>NB</b>: jumlah net (beli − jual) dari N broker dengan net beli terbesar dalam jendela.</li>
+          <li><b>NS</b>: jumlah net dari N broker dengan net jual terbesar (angkanya negatif).</li>
+          <li><b>TBV</b>: total nilai beli semua broker dalam jendela, dengan filter papan dan jenis investor yang sama.</li>
+          <li>Kelompok N dihitung ulang di setiap candle; candle tanpa data broker dibiarkan kosong, tidak dianggap 0.</li></ul></div>
+      <p class="small-note">Rumus di kode: <code>${esc(EX.formula_id)}</code> (FORMULAS.md, FL24).</p></div>
+    <div class="tabpane" data-p="3"><table class="mini"><thead><tr><th class="l">Parameter</th><th>Default</th><th>Pilihan / rentang</th></tr></thead><tbody>${paramRows()}</tbody></table>
+      <p class="small-note">Garis acuan 6 dan 10 juga dipakai panel Bandar di Terminal dan Screener.</p></div>
+    <div class="tabpane" data-p="4"><ul class="bul">
+      <li>Batas 6 dan 10 adalah heuristik prototipe yang belum divalidasi dengan data historis.</li>
+      <li>Saham tidak likuid cenderung punya nilai lebih ekstrem karena sedikit broker menguasai transaksi.</li>
+      <li>Transaksi blok di papan Nego ikut dihitung dan bisa terbaca sebagai akumulasi.</li>
+      <li>Data broker terakhir: ${D(EX.to)}. Candle sesudahnya kosong sampai data broker berikutnya dimuat.</li></ul></div>
+  </div>`;
+}
+function wireTabs(root) {
+  root.querySelectorAll('[data-tabs]').forEach(el => el.querySelectorAll('[role=tab]').forEach(b => b.addEventListener('click', () => {
+    el.querySelectorAll('[role=tab]').forEach(x => x.classList.toggle('on', x === b));
+    el.querySelectorAll('.tabpane').forEach(p => p.classList.toggle('on', p.dataset.p === b.dataset.t));
+  })));
+}
+const CARDS = { A: cardA, B: cardB, C: cardC, D: cardD, E: cardE };
+const NAMES = { A: 'Ringkas', B: 'Langkah demi langkah', C: 'Grafik', D: 'Kalkulator', E: 'Lengkap bertab' };
+const DESC = {
+  A: 'Muat sebagai tooltip atau kartu kecil. Hasil, vonis, rumus dengan angka sungguhan, dan posisi di zona.',
+  B: 'Seperti jawaban "bagaimana indikator ini dihitung": setiap angka ditelusuri dari data broker sampai vonis.',
+  C: 'Indikator digambar di bawah harga dengan zona dan titik penting, untuk melihat perilakunya dari waktu ke waktu.',
+  D: 'Angka penyusun bisa digeser; terlihat langsung bagian mana yang menggerakkan hasil.',
+  E: 'Satu kartu dengan semua isi (ringkasan, contoh, rumus, parameter, hati-hati), dibuka per tab.',
+};
+
+/* ---- generic card for indicators without a worked example in this mockup ---- */
+function genericCard(it) {
+  return `<div class="ic"><div class="ic-h"><div class="row"><span class="eyebrow">${it.kind} · ${esc(it.group)}</span><span class="code-id">${it.id}</span></div>
+    <h3>${esc(it.name)}</h3><p>${esc(it.tip || '')}</p></div>
+    <div class="ex"><div class="ex-h">Contoh</div><p class="small-note">Di Terminal, contoh untuk ${esc(it.name)} dihitung dari saham dan tanggal yang sedang dibuka, dengan bentuk kartu yang dipilih. Mockup ini hanya membawa contoh lengkap untuk FL24.</p></div></div>`;
+}
+
+/* ---- picker ---- */
+let variant = 'A', group = 'fav', query = '';
+const favs = new Set(['FL24', 'FL22', 'FL11', 'I13', 'I06']);
+const nav = document.getElementById('nav'), list = document.getElementById('list'), tip = document.getElementById('tip');
+function navHtml() {
+  const count = (f) => ITEMS.filter(f).length;
+  const b = (id, label, n) => `<button type="button" data-g="${esc(id)}" class="${group === id ? 'on' : ''}">${label}<span class="cnt">${n}</span></button>`;
+  return `<div class="menu-title">Personal</div>${b('fav', '★ Favorites', favs.size)}${b('all', 'All', ITEMS.length)}
+    <div class="menu-title">Technical</div>${TECH_GROUPS.map(g => b('t:' + g, g, count(i => i.kind === 'Technical' && i.group === g))).join('')}
+    <div class="menu-title">Flow</div>${FLOW_GROUPS.map(g => b('f:' + g, g, count(i => i.kind === 'Flow' && i.group === g))).join('')}`;
+}
+function visible() {
+  const q = query.trim().toLowerCase();
+  return ITEMS.filter(i => {
+    if (q) return `${i.name} ${i.id} ${i.group} ${i.kind}`.toLowerCase().includes(q);
+    if (group === 'fav') return favs.has(i.id);
+    if (group === 'all') return true;
+    const [k, g] = [group.slice(0, 1), group.slice(2)];
+    return (k === 't' ? i.kind === 'Technical' : i.kind === 'Flow') && i.group === g;
+  });
+}
+function render() {
+  nav.innerHTML = navHtml();
+  const rows = visible();
+  list.innerHTML = `<div class="pk-row hd"><span></span><span>Name</span><span>Group</span><span>Place</span><span>Unit</span><span></span></div>` +
+    (rows.length ? rows.map(i => `<div class="pk-row" data-id="${i.id}"><button class="star ${favs.has(i.id) ? 'on' : ''}" type="button" data-star="${i.id}" aria-label="Favorit">${favs.has(i.id) ? '★' : '☆'}</button>
+      <span class="nm">${esc(i.name)}<small class="muted">${i.id}</small></span><span class="gr">${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}</span>
+      <span class="pl">${i.place}</span><span class="un">${esc(i.unit)}</span><button class="info" type="button" data-info="${i.id}" aria-label="Kartu ${esc(i.name)}">i</button></div>`).join('')
+      : `<div class="empty-row">Tidak ada indikator yang cocok.</div>`);
+}
+function tipHtml(it) {
+  if (it.id !== 'FL24') return `<b>${esc(it.name)}</b>${esc(it.tip || '')}<div class="hint">Klik ⓘ untuk kartu dan contoh.</div>`;
+  return `<b>${esc(it.name)}</b>${esc(it.tip)}<div class="eq">${EX.ticker} ${Dd(EX.to)}: <b style="display:inline" class="${EX.value < 0 ? 'neg' : 'pos'}">${P(EX.value)}</b> ${pill(EX.value)}<br>
+    (${nf(2).format(EX.nb / 1e12)} T − ${nf(2).format(-EX.ns / 1e12)} T) ÷ ${nf(2).format(EX.tbv / 1e12)} T × 100</div><div class="hint">Klik ⓘ untuk kartu lengkap.</div>`;
+}
+nav.addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (!b) return; group = b.dataset.g; query = ''; document.getElementById('q').value = ''; render() });
+document.getElementById('q').addEventListener('input', e => { query = e.target.value; render() });
+list.addEventListener('click', e => {
+  const s = e.target.closest('[data-star]'); if (s) { const id = s.dataset.star; favs.has(id) ? favs.delete(id) : favs.add(id); render(); return }
+  const inf = e.target.closest('[data-info]'); if (inf) { openDetail(inf.dataset.info); return }
+  const r = e.target.closest('.pk-row[data-id]'); if (r) toast(`${ITEMS.find(i => i.id === r.dataset.id).name} ditambahkan ke chart (demo)`);
+});
+list.addEventListener('pointerover', e => {
+  const r = e.target.closest('.pk-row[data-id]'); if (!r || e.target.closest('.star')) { tip.hidden = true; return }
+  const it = ITEMS.find(i => i.id === r.dataset.id); tip.innerHTML = tipHtml(it); tip.hidden = false;
+  const rr = r.querySelector('.nm').getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  let l = rr.left + 40; if (l + w > innerWidth - 8) l = innerWidth - w - 8;
+  let t = rr.bottom + 6; if (t + h > innerHeight - 8) t = rr.top - h - 6;
+  tip.style.left = l + 'px'; tip.style.top = Math.max(8, t) + 'px';
+});
+list.addEventListener('pointerleave', () => { tip.hidden = true });
+const detail = document.getElementById('detail'), dBody = document.getElementById('detailBody');
+let openId = null;
+function openDetail(id) {
+  openId = id; tip.hidden = true;
+  const it = ITEMS.find(i => i.id === id);
+  dBody.innerHTML = id === 'FL24' ? CARDS[variant]('pk') : genericCard(it);
+  document.getElementById('detailVar').textContent = `Kartu ${variant} · ${NAMES[variant]}`;
+  wireCalc(dBody); wireTabs(dBody); detail.classList.add('open');
+}
+document.getElementById('closeDetail').addEventListener('click', () => { detail.classList.remove('open'); openId = null });
+document.getElementById('addBtn').addEventListener('click', () => openId && toast(`${ITEMS.find(i => i.id === openId).name} ditambahkan ke chart (demo)`));
+document.getElementById('openFl24').addEventListener('click', () => { group = 'f:' + EX.family; query = ''; render(); openDetail('FL24') });
+document.getElementById('variantSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]'); if (!b) return; variant = b.dataset.v;
+  document.querySelectorAll('#variantSeg button').forEach(x => x.classList.toggle('on', x === b));
+  if (openId) openDetail(openId);
+});
+function toast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800);
+}
+
+/* ---- gallery ---- */
+const gal = document.getElementById('gallery');
+gal.innerHTML = Object.keys(CARDS).map(k => `<div class="opt"><div class="opt-h"><span class="badge">${k}</span><strong>${NAMES[k]}</strong></div>
+  <p class="opt-d">${DESC[k]}</p>${CARDS[k]('g' + k)}</div>`).join('');
+wireCalc(gal); wireTabs(gal);
+
+/* ---- theme ---- */
+document.getElementById('theme').addEventListener('click', e => {
+  const dark = document.documentElement.classList.toggle('dark');
+  e.target.textContent = dark ? 'Mode terang' : 'Mode gelap';
+});
+render();
+</script>
+</body>
+</html>

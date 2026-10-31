@@ -1,0 +1,294 @@
+{
+ "id": "FL24",
+ "name": "Bandar Balance \u00b7 %",
+ "family": "Bandar Balance",
+ "unit": "%",
+ "tip": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual, dibanding seluruh nilai transaksi.",
+ "params": [
+  {
+   "key": "top",
+   "label": "Top N",
+   "status": "DECIDED",
+   "kind": "int",
+   "default": 3,
+   "min": 1,
+   "max": 20
+  },
+  {
+   "key": "boards",
+   "label": "Market board",
+   "status": "DECIDED",
+   "kind": "multi",
+   "options": [
+    "Regular",
+    "Nego",
+    "Cash"
+   ],
+   "default": [
+    "Regular",
+    "Nego",
+    "Cash"
+   ]
+  },
+  {
+   "key": "investors",
+   "label": "Investor type",
+   "status": "DECIDED",
+   "kind": "multi",
+   "options": [
+    "Foreign",
+    "Domestic"
+   ],
+   "default": [
+    "Foreign",
+    "Domestic"
+   ]
+  },
+  {
+   "key": "window",
+   "label": "Rolling days",
+   "status": "DECIDED",
+   "kind": "int",
+   "default": 10,
+   "min": 1,
+   "max": 250
+  },
+  {
+   "key": "levels",
+   "label": "Reference lines",
+   "status": "DECIDED",
+   "kind": "levels",
+   "default": "6, 10, -6, -10"
+  }
+ ],
+ "formula_id": "100 (NB + NS) / TBV(filter)",
+ "meaning": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual, dibanding seluruh nilai transaksi.",
+ "use": "Membaca akumulasi atau distribusi oleh \"bandar\". Screener: >= 10 Big Acc, >= 6 Acc, <= -6 Dist, <= -10 Big Dist.",
+ "caution": "Angkanya sama dengan vonis panel Bandar Terminal (total beli = nilai transaksi), tetapi batas label berbeda: panel 3/6/12%, Screener 6/10%.",
+ "screener_misuse": "Thresholds are a prototype heuristic with no validation; larger for illiquid stocks; a Nego block counts as accumulation.",
+ "ticker": "BBCA",
+ "window": 10,
+ "top": 3,
+ "from": "2026-10-14",
+ "to": "2026-10-27",
+ "value": -5.622112182963225,
+ "nb": 2834628703000.0,
+ "ns": -4411001926500.0,
+ "tbv": 28038807697166.0,
+ "buyers": [
+  {
+   "code": "SQ",
+   "net": 1076410974500.0,
+   "bv": 1631586719330.0,
+   "sv": 555175744830.0,
+   "name": "BCA Sekuritas",
+   "type": "Domestic",
+   "cls": "Mixed"
+  },
+  {
+   "code": "XL",
+   "net": 986122231500.0,
+   "bv": 1873287410500.0,
+   "sv": 887165179000.0,
+   "name": "Stockbit Sekuritas Digital",
+   "type": "Domestic",
+   "cls": "Retail-heavy"
+  },
+  {
+   "code": "YU",
+   "net": 772095497000.0,
+   "bv": 3176072514714.0,
+   "sv": 2403977017714.0,
+   "name": "CGS International Sekuritas Indonesia",
+   "type": "Foreign",
+   "cls": "Retail-heavy"
+  }
+ ],
+ "sellers": [
+  {
+   "code": "AK",
+   "net": -1597625540500.0,
+   "bv": 2552589255245.0,
+   "sv": 4150214795745.0,
+   "name": "UBS Sekuritas Indonesia",
+   "type": "Foreign",
+   "cls": "Institutional-heavy"
+  },
+  {
+   "code": "CC",
+   "net": -1464568094500.0,
+   "bv": 3040085700650.0,
+   "sv": 4504653795150.0,
+   "name": "Mandiri Sekuritas",
+   "type": "Domestic",
+   "cls": "Mixed"
+  },
+  {
+   "code": "ZP",
+   "net": -1348808291500.0,
+   "bv": 3000914489417.0,
+   "sv": 4349722780917.0,
+   "name": "Maybank Sekuritas Indonesia",
+   "type": "Foreign",
+   "cls": "Retail-heavy"
+  }
+ ],
+ "series": [
+  {
+   "date": "2026-09-15",
+   "value": -1.3418501532811518,
+   "close": 6400
+  },
+  {
+   "date": "2026-09-16",
+   "value": -2.9000295393113817,
+   "close": 6325
+  },
+  {
+   "date": "2026-09-17",
+   "value": -3.6017712778832505,
+   "close": 6350
+  },
+  {
+   "date": "2026-09-18",
+   "value": -5.179120936290747,
+   "close": 6300
+  },
+  {
+   "date": "2026-09-21",
+   "value": -5.565562373640127,
+   "close": 6225
+  },
+  {
+   "date": "2026-09-22",
+   "value": -7.660732273020406,
+   "close": 6200
+  },
+  {
+   "date": "2026-09-23",
+   "value": -3.7358221636503015,
+   "close": 6300
+  },
+  {
+   "date": "2026-09-24",
+   "value": -3.9260027393771946,
+   "close": 6225
+  },
+  {
+   "date": "2026-09-25",
+   "value": -1.379342070081862,
+   "close": 6250
+  },
+  {
+   "date": "2026-09-28",
+   "value": -1.9970675296332632,
+   "close": 6225
+  },
+  {
+   "date": "2026-09-29",
+   "value": -0.7897908927897653,
+   "close": 6150
+  },
+  {
+   "date": "2026-09-30",
+   "value": -4.161631917252196,
+   "close": 6075
+  },
+  {
+   "date": "2026-10-01",
+   "value": -5.377412136282893,
+   "close": 6000
+  },
+  {
+   "date": "2026-10-02",
+   "value": -0.932113176599272,
+   "close": 6100
+  },
+  {
+   "date": "2026-10-05",
+   "value": 1.3548075536323039,
+   "close": 6175
+  },
+  {
+   "date": "2026-10-06",
+   "value": 5.632406307027534,
+   "close": 6100
+  },
+  {
+   "date": "2026-10-07",
+   "value": 0.8977619475507966,
+   "close": 6050
+  },
+  {
+   "date": "2026-10-08",
+   "value": -0.18408411423415866,
+   "close": 6000
+  },
+  {
+   "date": "2026-10-09",
+   "value": 1.6724374430842122,
+   "close": 6050
+  },
+  {
+   "date": "2026-10-12",
+   "value": 2.6553260037894706,
+   "close": 5950
+  },
+  {
+   "date": "2026-10-13",
+   "value": 2.053080896503563,
+   "close": 5950
+  },
+  {
+   "date": "2026-10-14",
+   "value": 0.04467879963197743,
+   "close": 6125
+  },
+  {
+   "date": "2026-10-15",
+   "value": 2.0294912398482787,
+   "close": 6075
+  },
+  {
+   "date": "2026-10-16",
+   "value": -12.142597063206964,
+   "close": 5175
+  },
+  {
+   "date": "2026-10-19",
+   "value": -14.40343020827915,
+   "close": 4820
+  },
+  {
+   "date": "2026-10-20",
+   "value": -11.933669375948794,
+   "close": 5200
+  },
+  {
+   "date": "2026-10-21",
+   "value": -9.284328530332195,
+   "close": 5275
+  },
+  {
+   "date": "2026-10-22",
+   "value": -7.196360922564723,
+   "close": 5175
+  },
+  {
+   "date": "2026-10-23",
+   "value": -4.920267881408981,
+   "close": 5025
+  },
+  {
+   "date": "2026-10-26",
+   "value": -5.47269791712021,
+   "close": 4940
+  },
+  {
+   "date": "2026-10-27",
+   "value": -5.622112182963225,
+   "close": 4900
+  }
+ ],
+ "provenance": "Feature_05_Foreign_Domestic_Broker_Detail (BBCA, 40 tanggal broker terakhir s.d. 2026-10-27) dan Price_Stock_Indonesia_IDX, dibaca read-only lewat pgweb 2026-10-31; nilai FL24 sama dengan oracle independen verification/terminal_api/flow_indicators/oracle/out/BBCA.json (-5,6221 pada 2026-10-27)."
+}

@@ -1037,3 +1037,21 @@ Coba saja di explore pakai benchmark yang best practice."
 - **Pertanyaan yang dulu terbuka (RT1-RT15, `RUNTIME.md` §12; kini mengikuti rekomendasi lewat opsi A):** yang terpenting RT1 pool bersama, bukan salinan per
   user; RT2 "go" Tahap 0 + 1 bersama Screener; RT3 target waktu; RT14 service menyala terus saat peluncuran (tidur di luar
   08:10-22:10 WIB hanya hemat ±USD 8,6/bulan, user pertama menunggu 14-27 s, dan kode harus diubah dulu).
+
+## TERMINAL-IND-CARDS — menu indikator seperti TradingView, tooltip, dan kartu "cara kerja" dengan contoh (permintaan 2026-10-31; menunggu pilihan desain)
+
+**Kata user, 2026-10-31:** "Kemudian saya mau ketika di bagian terminal kita klik indikator, maka bisa dibuat seperti
+screenshot terlampir. Dan juga ditambahkan semacam tooltip. Intinya adalah cards ya, atau ilustrasi how that indicator
+works. Mungkin boleh kasih satu HTML dulu agar saya review. Bagian cards-nya akan seperti apa terlihatnya. Lebih kurang
+yang harus ada di cards sama seperti pertanyaan-pertanyaan yang kamu jawab kalau saya bertanya bagaimana sebuah indikator
+bekerja. Jadi harus ada contoh. Bagaimana setiap angka di indikator tersebut drive. Coba kasih saya 5 contoh dalam satu
+HTML buat saya pilih. Pakai design spec terlampir."
+
+- **Review:** `verification/terminal_api/indicator_cards/indicator_cards_review.html`, dibuat dengan `build_review.py`
+  dari registry Terminal (92 indikator) dan design spec user (`edge-design-spec.css`). Isinya: menu bergaya
+  TradingView, tooltip saat hover, dan kartu A Ringkas, B Langkah, C Grafik, D Kalkulator, E Lengkap bertab.
+- **Contoh nyata:** FL24 BBCA 14–27 Okt 2026 = −5,62%, sama dengan oracle independen (`fl24_bbca_example.json`).
+- **Terbuka:**
+  - pilihan desain (satu atau gabungan);
+  - lalu rencana eksekusi: langkah hitung "explain" per indikator yang memakai saham dan tanggal yang sedang dibuka,
+    untuk 53 indikator teknikal dan 39 Flow.
