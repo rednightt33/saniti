@@ -75,5 +75,12 @@ Sizes:
 7. **AI exposure:** none. Only `pgweb_reader` holds SELECT; AI onboarding is a separate step
    (`NEW_TABLE_ONBOARDING_PLAN.md`).
 
+8. **Daily path on the live database, rolled back** (`jobs/daily_path_job.py`, `daily_path.log`, BBCA 1h):
+   - **A, a changed bar plus a new bar:** 2 bars written; the queue starts at the changed bar; full path, 6,154 rows.
+   - **B, a new bar only:** 1 bar written; the queue starts after the last calculated bar; chained path, 1 row.
+   - In both, the new bar's Feature 04 equals a full calculation (every column), Feature 01 is written, and the queue
+     item is DONE.
+   - Both rolled back: afterwards the state is 6,153 bars, F04 6,153 rows, queue empty.
+
 Still open: the daily chained path runs live for the first time on 2026-11-02 (idx-intraday-cron, 17:30 WIB); its
 items and timing are checked after the run.

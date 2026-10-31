@@ -1,0 +1,15 @@
+Starting Container
+OUT {"event": "A_changed_and_new_write", "written": 2, "expected": 2, "queue": ["2026-10-30 09:00:00+00:00", "PENDING"], "expected_from": "2026-10-30 09:00:00+00:00", "state_before": ["2026-10-30 09:00:00+00:00", 6153]}
+2026-10-31T16:20:57.153445846Z [INFO]  event="intraday_features_timeframe" timeframe="1h" items=1 seconds=1.9
+2026-10-31T16:20:57.153453593Z [INFO]  event="intraday_features_done" items=1 done=1 failed=[] full=1 f01_rows=2 f04_rows=6154 seconds=1.9 failed_count=0
+OUT {"event": "A_changed_and_new_queue", "summary": {"items": 1, "done": 1, "full": 1, "f01_rows": 2, "f04_rows": 6154, "seconds": 1.9}, "failed": [], "state_after": ["2026-10-30 10:00:00+00:00", 6154], "queue_after": ["DONE", 1, null]}
+OUT {"event": "B_new_only_write", "written": 1, "expected": 1, "queue": ["2026-10-30 10:00:00+00:00", "PENDING"], "expected_from": "2026-10-30 10:00:00+00:00", "state_before": ["2026-10-30 09:00:00+00:00", 6153]}
+2026-10-31T16:20:57.806041714Z [INFO]  event="intraday_features_timeframe" timeframe="1h" items=1 seconds=0.1
+2026-10-31T16:20:57.806045829Z [INFO]  event="intraday_features_done" items=1 done=1 failed=[] full=0 f01_rows=1 f04_rows=1 seconds=0.1 failed_count=0
+OUT {"event": "B_new_only_queue", "summary": {"items": 1, "done": 1, "full": 0, "f01_rows": 1, "f04_rows": 1, "seconds": 0.1}, "failed": [], "state_after": ["2026-10-30 10:00:00+00:00", 6154], "queue_after": ["DONE", 1, null]}
+OUT {"event": "A_changed_and_new_new_bar", "f04_columns_differ": [], "f01": ["4980.00000000", 0.0, 1766]}
+OUT {"event": "A_changed_and_new_rolled_back"}
+OUT {"event": "B_new_only_new_bar", "f04_columns_differ": [], "f01": ["4980.00000000", 0.0, 1766]}
+OUT {"event": "B_new_only_rolled_back"}
+VERDICT {"A": true, "B": true}
+JOB_DONE
