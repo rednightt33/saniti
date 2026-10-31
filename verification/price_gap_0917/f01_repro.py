@@ -1,5 +1,5 @@
-"""Read-only: the SELECT inside the live refresh_feature_01_stock_daily, run through pgweb for a sample of stocks,
-against every stored Feature_01_Stock_Daily row of those stocks. Nothing is written."""
+"""Read-only: the SELECT inside the live refresh_feature_01_stock_daily, run through pgweb for a sample of stocks
+(or every stock with --all), against every stored Feature_01_Stock_Daily row of those stocks. Nothing is written."""
 import json, random, re, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'terminal_api'))
@@ -20,9 +20,9 @@ def run(tickers):
       from calc c full join (select * from "Feature_01_Stock_Daily" where ticker = any({arr})) s using (ticker, date)'''
     sqltext = sqltext.replace('c.ticker is', 'c.date is').replace('s.ticker is', 's.close is')
     return pgq.q(sqltext)
-allt = [x[0] for x in pgq.q('select distinct ticker from "Feature_01_Stock_Daily" where date = \'2026-10-30\'')['rows']]
+allt = [x[0] for x in pgq.q('select distinct ticker from "Feature_01_Stock_Daily"' + ('' if '--all' in sys.argv[1:] else ' where date = \'2026-10-30\''))['rows']]
 fixed = ['AHAP','BUVA','ENRG','FORU','PBSA','VKTR','BBCA','TLKM','GOTO','BBRI','WIFI']
-sample = fixed + random.Random(20261030).sample(sorted(set(allt) - set(fixed)), 49)
+sample = sorted(allt) if '--all' in sys.argv[1:] else fixed + random.Random(20261030).sample(sorted(set(allt) - set(fixed)), 49)
 out = {'only_calc': 0, 'only_stored': 0, 'both': 0, 'differ': 0}
 for i in range(0, len(sample), 10):
     r = run(sample[i:i + 10])
