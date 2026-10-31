@@ -675,13 +675,15 @@ body{font-variant-numeric:tabular-nums}
 .idlg-btn.pri:hover{background:#000}
 .idlg :focus-visible{outline:1px solid var(--text-3);outline-offset:2px}
 .idlg .idlg-in:focus-visible{outline:none}
-/* settings dialog: the selected (focused / open) control gets a bold black border — no floating shadow */
+/* settings dialog: the selected (focused / open) control gets a soft border, one thin grey line and a light ring, no
+   floating shadow (user 2026-10-31: "selected state bisa dirubah bordernya tidak setebal sekarang. Dibuat soft saja";
+   it was a 2 px black border) */
 .idlg .idlg-in:focus,.idlg .idlg-in:focus-visible,.idlg select.idlg-in:focus,.idlg select.idlg-in.cs-open,
 .idlg .idlg-fl .fl-btn:focus,.idlg .idlg-fl .fl-btn:focus-visible,.idlg .idlg-fl .fl-btn[aria-expanded="true"],
-.idlg .idlg-cbtn:focus-visible,.idlg .idlg-cbtn.open{outline:none;border-color:#171717;box-shadow:inset 0 0 0 1px #171717}
-.idlg .idlg-in.bad:focus{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
-.idlg .idlg-cb:focus-visible{outline:2px solid #171717;outline-offset:2px}
-.idlg .toggle:has(input:focus-visible) .track{box-shadow:none;outline:2px solid #171717;outline-offset:2px}
+.idlg .idlg-cbtn:focus-visible,.idlg .idlg-cbtn.open{outline:none;border-color:#b5b5b5;box-shadow:0 0 0 3px rgba(0,0,0,.05)}
+.idlg .idlg-in.bad:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(214,40,57,.1)}
+.idlg .idlg-cb:focus-visible{outline:1px solid #b5b5b5;outline-offset:2px}
+.idlg .toggle:has(input:focus-visible) .track{outline:none;box-shadow:0 0 0 3px rgba(0,0,0,.08)}
 .dr-mi kbd{margin-left:auto;font:500 12px var(--sans);color:var(--text-3)}
 .dr-mi[aria-checked="true"] kbd{color:#a1a1a1}
 .chart-wrap.cur-live.cur-cross:not(.dr-tool):not(.dr-grab) #chart *{cursor:crosshair!important}
