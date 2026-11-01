@@ -9934,6 +9934,20 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-FAVICON-BOLD — favicon dengan E tebal (go 2026-11-01, Opsi A)
+
+**Kata user, 2026-11-01:** "saat ini logo di Edge, favicon-nya looks so different than attached logo. E-nya seperti tidak
+bold. Bisa sesuaikan dengan SVG terlampir untuk favicon." Atas pilihan Opsi A (E tebal khusus favicon) / B (sama persis
+dengan logo): "A".
+
+- **Dicek:** favicon lama sudah sama dengan logo terlampir (`edge-logo.svg`): tinggi E 39,3% dari lingkaran, garis
+  horizontal 6,7%, batang tegak 8,0%. E tampak tipis karena di tab 16 px setiap garisnya sekitar 1 px.
+- **Dibuat:**
+  - `static/favicon.svg`: E 47% dari lingkaran, garis 6 unit pada koordinat genap, jadi tepat piksel penuh di 32 px.
+  - `static/favicon-32.png` dirender dari SVG itu.
+  - Logo (`edge-logo.svg`) dan `apple-touch-icon.png` (180 px) tidak berubah.
+- **Perbandingan:** `verification/terminal_api/favicon_compare_2026-11-01.png`.
+
 ## EXEC-BANDAR-MERGE — Bandar detector masuk ke Top brokers, opsi 10 "Tarik tambang" (go 2026-11-01)
 
 **Kata user, 2026-11-01:**
