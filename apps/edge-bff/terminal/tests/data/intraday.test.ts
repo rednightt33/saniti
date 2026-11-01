@@ -103,3 +103,42 @@ describe('broker net summed over days on intraday candles (M325)', () => {
     expect(sumOverDays([1, 2, 3], null)).toEqual([1, 3, 6]);
   });
 });
+
+// EXEC-UI-AUDIT-FIX F7 (ERRORS M326): saving a set shown on coarser candles keeps the stored time of every untouched point
+import { shownTimes, storedTimes } from '../../src/app/drawings';
+describe('drawings keep their stored times when saved on coarser candles (F7)', () => {
+  const t1025 = toChart('2026-10-28T10:25'), t0900 = toChart('2026-10-28T09:00'), t1100 = toChart('2026-10-28T11:00');
+  const stored = JSON.stringify([{ id:'a', kind:'trend', points:[{ time:t1025, price:1 }, { time:t1100, price:2 }] }]);
+  const keys = ['2026-10-28T09:00', '2026-10-28T10:00', '2026-10-28T11:00'];      // 1H candles
+  const shown = onIntradayCandles(stored, keys);
+  it('the shown set sits on the 1H candles', () => {
+    expect(JSON.parse(shown)[0].points.map((p: any) => p.time)).toEqual([toChart('2026-10-28T10:00'), t1100]);
+  });
+  it('saving it unchanged writes the stored 10:25 back', () => {
+    const memo = shownTimes(stored, shown);
+    expect(JSON.parse(storedTimes(shown, memo))[0].points[0].time).toBe(t1025);
+  });
+  it('a point the user moved keeps its new time; a new drawing is saved as drawn', () => {
+    const memo = shownTimes(stored, shown), doc = JSON.parse(shown);
+    doc[0].points[0].time = t0900;
+    doc.push({ id:'b', kind:'hline', points:[{ time:t1100, price:3 }] });
+    const saved = JSON.parse(storedTimes(JSON.stringify(doc), memo));
+    expect(saved[0].points[0].time).toBe(t0900);
+    expect(saved[1].points[0].time).toBe(t1100);
+  });
+  it('a removed drawing does not shift the others (points are keyed by drawing id)', () => {
+    const two = JSON.stringify([{ id:'x', points:[{ time:t1025, price:1 }] }, { id:'y', points:[{ time:t1025, price:2 }] }]);
+    const memo = shownTimes(two, onIntradayCandles(two, keys)), doc = JSON.parse(onIntradayCandles(two, keys)).slice(1);
+    expect(JSON.parse(storedTimes(JSON.stringify(doc), memo))[0]).toEqual({ id:'y', points:[{ time:t1025, price:2 }] });
+  });
+});
+
+// EXEC-UI-AUDIT-FIX F8: the thin line at each session's open sits on the first candle of every new date
+import { sessionStarts } from '../../src/app/chart';
+describe('session start lines (F8)', () => {
+  it('marks the first candle of each date after the first', () => {
+    expect(sessionStarts(['2026-10-29T15:00', '2026-10-29T15:30', '2026-10-30T09:00', '2026-10-30T13:30', '2026-11-02T09:00']))
+      .toEqual([2, 4]);
+    expect(sessionStarts([])).toEqual([]);
+  });
+});

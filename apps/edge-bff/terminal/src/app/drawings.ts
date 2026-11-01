@@ -55,6 +55,36 @@ export function onIntradayCandles(json: string, keys: string[]): string {
   return JSON.stringify(doc);
 }
 
+/** EXEC-UI-AUDIT-FIX F7 (user 2026-11-01: "Ok with you advice nomor 1"; ERRORS M326): a set shown on coarser candles
+    (onCandles, onIntradayCandles) has its points moved onto them; saving it as shown wrote those moved times back, so
+    editing one drawing on 1H moved every 5M drawing to the 1H candle's open. `shownTimes` remembers each moved point by
+    its drawing's id and its place in the drawing, with the time shown and the stored one; `storedTimes` puts the stored
+    time back on every point still at its shown time, so only what the user moved changes. */
+type TimeMemo = Map<string, { shown: string; stored: any }>;
+function eachPoint(doc: unknown, fn: (point: any, key: string) => void) {
+  if (!Array.isArray(doc)) return;
+  const walk = (v: any, id: string, path: string): void => {
+    if (Array.isArray(v)) { v.forEach((x, i) => walk(x, id, `${path}/${i}`)); return }
+    if (!v || typeof v !== 'object') return;
+    if ('time' in v && 'price' in v) fn(v, `${id}${path}`);
+    for (const [k, x] of Object.entries(v)) if (k !== 'time') walk(x, id, `${path}/${k}`);
+  };
+  doc.forEach((d: any, i) => walk(d, d && typeof d === 'object' && 'id' in d ? String(d.id) : `#${i}`, ''));
+}
+export function shownTimes(stored: string, shown: string): TimeMemo {
+  const memo: TimeMemo = new Map(), before = new Map<string, any>();
+  try { eachPoint(JSON.parse(stored), (p, k) => before.set(k, p.time)) } catch { return memo }
+  try { eachPoint(JSON.parse(shown), (p, k) => { const t = JSON.stringify(p.time); if (before.has(k) && JSON.stringify(before.get(k)) !== t) memo.set(k, { shown:t, stored:before.get(k) }) }) } catch { /* nothing moved */ }
+  return memo;
+}
+export function storedTimes(json: string, memo: TimeMemo): string {
+  if (!memo.size) return json;
+  let doc: unknown;
+  try { doc = JSON.parse(json) } catch { return json }
+  eachPoint(doc, (p, k) => { const m = memo.get(k); if (m && JSON.stringify(p.time) === m.shown) p.time = m.stored });
+  return JSON.stringify(doc);
+}
+
 export function initDrawings(ctx: Ctx) {
   const { chart, candle, container, SYMBOL, dates, Hist, volCtl, Ind } = ctx;
   const LibAny = Lib as any;
@@ -65,13 +95,16 @@ export function initDrawings(ctx: Ctx) {
   /* EXEC-INTRADAY-FEATURES C7.2 A (user 2026-11-01): the intraday timeframes keep one set of drawings of their own; the
      daily set is not shown on them */
   const intraday = !!ctx.M.intraday;
+  const memos = new Map<string, TimeMemo>();                // F7: per saved set, the points this timeframe moved
   const repo = {
     key: (symbol: string) => `ml.drawings.${symbol}${intraday ? '.intraday' : ''}`,
     load: (symbol: string) => {
       const json = store.get(repo.key(symbol)) || '[]';
-      return Promise.resolve(intraday ? onIntradayCandles(json, dates) : tf !== 'D' && barOf ? onCandles(json, barOf, lastSession) : json);
+      const shown = intraday ? onIntradayCandles(json, dates) : tf !== 'D' && barOf ? onCandles(json, barOf, lastSession) : json;
+      memos.set(symbol, shownTimes(json, shown));
+      return Promise.resolve(shown);
     },
-    save: (symbol: string, json: string) => { store.set(repo.key(symbol), json); return Promise.resolve() }
+    save: (symbol: string, json: string) => { store.set(repo.key(symbol), storedTimes(json, memos.get(symbol) || new Map())); return Promise.resolve() }
   };
 
   const prefs = { magnet: store.get('ml.draw.magnet') === '1' };

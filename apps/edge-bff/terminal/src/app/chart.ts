@@ -263,6 +263,7 @@ export function initChart(ctx: Ctx) {
   // the reference's bar counts of its intraday buttons (5M 170, 15M 252, 1H 430, 4H 560), and its time on the axis
   const firstBars = ({ D:252, W:104, M:120, '5M':170, '15M':252, '1H':430, '4H':560 } as Record<string, number>)[(ctx.M.tf || 'D').toUpperCase()] || 252;
   if (ctx.M.intraday) chart.applyOptions({ timeScale:{ timeVisible:true, secondsVisible:false } });
+  if (ctx.M.intraday) intradayMarks(ctx, chart, [candle, mainLine], dates, container);
   chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
   ctx.resetRange = () => chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
 
@@ -277,4 +278,49 @@ export function initChart(ctx: Ctx) {
     const step = Math.sign(d) * Math.max(1, (r.to - r.from) * .08);
     ts.setVisibleLogicalRange({ from:r.from + step, to:r.to + step });
   }, { capture:true, passive:false });
+}
+
+/* EXEC-UI-AUDIT-FIX F8 (user 2026-11-01; plan EXEC-INTRADAY-FEATURES C3, "garis tipis di awal setiap sesi" and "Catatan di
+   chart"): on an intraday chart a thin line at the open of every session (the candle whose key starts a new date: the
+   candles are packed without the lunch break and the night, so this is where a day begins), and a note with the
+   timeframe's history start and its last bar (the candle keys are the exchange's clock, WIB). */
+const SESSION_GAP_PX = 24;
+const sessionStarts = (keys: string[]) => keys.map((k, i) => i > 0 && k.slice(0, 10) !== keys[i - 1].slice(0, 10) ? i : -1).filter(i => i >= 0);
+export { sessionStarts };
+function intradayMarks(ctx: Ctx, chart: any, series: any[], keys: string[], container: HTMLElement) {
+  const starts = sessionStarts(keys);
+  class SessionLines {
+    chart: any = null; req: any = null;
+    view = { zOrder:() => 'bottom', renderer:() => ({ draw:() => {}, drawBackground:(t: any) => this.paint(t) }) };
+    attached(p: any) { this.chart = p.chart; this.req = p.requestUpdate }
+    detached() { this.chart = null }
+    updateAllViews() {}
+    paneViews() { return [this.view] }
+    paint(target: any) {
+      if (!this.chart) return;
+      const ts = this.chart.timeScale(), r = ts.getVisibleLogicalRange(); if (!r) return;
+      const spacing = ts.options().barSpacing, half = spacing / 2;
+      const shown = starts.filter(i => i >= r.from - 1 && i <= r.to + 1);
+      // lines closer than SESSION_GAP_PX on screen (1H and 4H zoomed out: a line every 2-5 candles) would hide the candles;
+      // they come back when the chart is zoomed in
+      if (shown.length > 1 && (shown[shown.length - 1] - shown[0]) / (shown.length - 1) * spacing < SESSION_GAP_PX) return;
+      target.useBitmapCoordinateSpace(({ context:c, bitmapSize, horizontalPixelRatio:hx }: any) => {
+        c.fillStyle = 'rgba(100,116,139,.22)';
+        const w = Math.max(1, Math.round(hx));
+        for (const i of shown) {
+          const x = ts.logicalToCoordinate(i as any); if (x === null) continue;
+          c.fillRect(Math.round((x - half) * hx), 0, w, bitmapSize.height);
+        }
+      });
+    }
+  }
+  series.forEach(s => s.attachPrimitive(new SessionLines()));
+  if (!keys.length) return;
+  const day = (k: string) => new Date(k.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' });
+  const tf = String(ctx.M.tf || '').toUpperCase(), last = keys[keys.length - 1];
+  const note = document.createElement('div');
+  note.className = 'tf-note';
+  note.textContent = `${tf} history from ${day(keys[0])} · Data through ${day(last)} ${last.slice(11, 16)} WIB`;
+  note.title = 'Intraday bars are updated once a day, after the market closes';
+  container.parentElement?.appendChild(note);
 }

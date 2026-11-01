@@ -9891,3 +9891,5 @@ HTML buat saya pilih. Pakai design spec terlampir."
   C3. User bisa membatalkan.)
 - Belum diputuskan: M322 (pembungkus runner menulis tanda selesai) menunggu go; dua baris yield 26 Okt dibiarkan sampai
   laporan Sabtu (saran, tanpa tindakan).
+- **Hasil 2026-11-01:** F3, F7, F8 dibangun, dites (774 lulus) dan dicek di halaman (ERRORS M326); juga cacat lama grid
+  ponsel (grafik di kolom 44 px). Deploy: RAILWAY_CHANGELOG.

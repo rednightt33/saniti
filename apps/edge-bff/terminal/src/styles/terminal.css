@@ -1037,3 +1037,24 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 
 /* EXEC-INTRADAY-FEATURES C4: the broker figures on an intraday chart are daily */
 .flow-daily{font-size:11px;font-weight:600;color:var(--text-2,#666);background:var(--hover,#f1f5f9);border-radius:4px;padding:1px 6px}
+
+/* EXEC-UI-AUDIT-FIX F3 (user 2026-11-01: "Ok with you advice nomor 1"; ERRORS M326): on a narrow screen the toolbar
+   stays one row of fixed height that scrolls sideways, so every control can be reached; the reference's wrap made a
+   second row the 46 px grid row clipped (the timeframe buttons, chart style, Indicators, Events, search) */
+@media(max-width:900px){
+  /* one column for the chart: `.workspace.has-right.left-collapsed` (two columns, 1100 px rule) outranked the one-column
+     rule, so the chart sat in the 44 px rail column and spilled over it (seen while checking F3) */
+  .workspace,.workspace.left-collapsed,.workspace.has-right,.workspace.has-right.left-collapsed{grid-template-columns:minmax(0,1fr)}
+  /* the column keeps the screen's width: a toolbar wider than the screen scrolls inside it, it does not widen the chart */
+  .main-col{grid-template-columns:minmax(0,1fr)}
+  .main-col .tvbar{min-width:0;max-width:100%;height:46px;min-height:46px;flex-wrap:nowrap;align-items:center;overflow-x:auto;overflow-y:hidden;
+    padding:0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .main-col .tvbar::-webkit-scrollbar{display:none}
+  .main-col .tvbar > *{flex:0 0 auto}
+}
+
+/* EXEC-UI-AUDIT-FIX F8: the intraday note (history start, last bar), top right of the plot (clear of the legend, the
+   axes and the drawing tools) */
+.tf-note{position:absolute;top:6px;right:calc(var(--ax-r, 0px) + 12px);z-index:3;font-size:11px;color:#7b8798;
+  pointer-events:none;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap}
+@media(max-width:900px){.tf-note{top:auto;bottom:40px;right:8px;font-size:10px}}

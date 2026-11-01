@@ -5080,9 +5080,19 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Verifikasi:** halaman lokal, BBCA 5M, 1H dan D: rentang utama = Flow pada tampilan awal, sesudah roda di Flow,
   sesudah zoom dalam dan roda lagi (mis. 5M [4864,6; 5034] keduanya); 0 galat halaman; sumbu Flow berformat Rupiah dan
   menampilkan jam (tangkapan `scratchpad/bfull/align-BBCA-5m.png`, `align-BBCA-1h.png`). Tes 769 lulus.
-- **Belum ditangani (dilaporkan ke user):** F3 toolbar terpotong di layar ponsel 390 px, F7 gambar intraday tersimpan
-  ulang ke awal candle timeframe yang lebih kasar saat diedit di sana, F8 dua butir rencana C3 belum dibangun.
-- **Status:** FIXED untuk F1, F2, F4, F5, F6 (deploy edge-bff, RAILWAY_CHANGELOG 2026-11-01).
+- **F3, F7, F8 (go user 2026-11-01, "Ok with you advice nomor 1", EXEC-UI-AUDIT-FIX):**
+  - F3: di ≤ 900 px toolbar satu baris 46 px yang bisa digeser (`styles/terminal.css`). Saat dicek ditemukan cacat lama:
+    `.workspace.has-right.left-collapsed` (aturan 1100 px, dua kolom) mengalahkan aturan satu kolom, sehingga grafik
+    duduk di kolom rel 44 px dan meluber; sekarang satu kolom selebar layar. Dicek 390 px: kolom 390, grafik 390,
+    semua tombol toolbar bisa diklik sesudah digeser, tanpa scroll halaman ke samping; 1280 dan 1600 px tidak berubah.
+  - F7: `app/drawings.ts` `shownTimes`/`storedTimes`: titik yang dipindah ke candle timeframe ini diingat per id gambar
+    dan tempatnya; saat menyimpan, titik yang masih di waktu tampilnya kembali ke waktu tersimpannya (juga W/M). Tes:
+    simpan tanpa ubah mengembalikan 10:25, titik yang digeser user tetap, gambar dihapus tidak menggeser yang lain.
+  - F8: garis tipis di candle pertama setiap tanggal (`app/chart.ts` `sessionStarts`, primitive di seri candle dan
+    garis), hanya bila jarak antar sesi di layar ≥ 24 px (1H/4H yang di-zoom keluar tidak tertutup garis); catatan
+    "<TF> history from <tanggal> · Data through <tanggal jam> WIB" di kanan atas grafik dari kunci candle. Dicek 5M,
+    15M, 1H.
+- **Status:** FIXED untuk F1–F8 (deploy edge-bff, RAILWAY_CHANGELOG 2026-11-01).
 - **Lesson:** setiap grafik yang disinkronkan harus berakhir di bar terakhir grafik pemimpin; uji sinkronisasi di
   timeframe terkecil dengan data pengikut tertinggal beberapa sesi.
 
