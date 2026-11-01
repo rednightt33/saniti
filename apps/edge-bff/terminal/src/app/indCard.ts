@@ -103,8 +103,10 @@ function chartSvg(ctx: Ctx, item: MenuItem, series: Record<string, any[]>, outs:
   let hiK = -1, loK = -1;
   m?.v.forEach((v, k) => { if (!isNum(v)) return; if (hiK < 0 || v > (m.v[hiK] as number)) hiK = k; if (loK < 0 || v < (m.v[loK] as number)) loK = k });
   const last = idx.length - 1;
+  /* a label under a point near the band's foot would cover the dates: it goes above the point there */
+  const labelY = (py: number, below: boolean) => below && py + 14 > H - 16 ? py - 7 : !below && py - 7 < 10 ? py + 14 : py + (below ? 14 : -7);
   const dot = (k: number, lab: string, below: boolean) => !m || !isNum(m.v[k]) ? '' :
-    `<circle cx="${x(k)}" cy="${yv(m.v[k] as number)}" r="3.4" fill="var(--text)"/><text x="${Math.min(W - padR - 2, Math.max(padL + 2, x(k)))}" y="${yv(m.v[k] as number) + (below ? 14 : -7)}" font-size="10" font-weight="600" fill="var(--text)" text-anchor="${k > idx.length * .7 ? 'end' : 'start'}" paint-order="stroke" stroke="var(--surface)" stroke-width="3">${esc(lab)}</text>`;
+    `<circle cx="${x(k)}" cy="${yv(m.v[k] as number)}" r="3.4" fill="var(--text)"/><text x="${Math.min(W - padR - 2, Math.max(padL + 2, x(k)))}" y="${labelY(yv(m.v[k] as number), below)}" font-size="10" font-weight="600" fill="var(--text)" text-anchor="${k > idx.length * .7 ? 'end' : 'start'}" paint-order="stroke" stroke="var(--surface)" stroke-width="3">${esc(lab)}</text>`;
   const axis = (f: (y: number) => number, v: number, txt: string) => `<line x1="${padL}" x2="${W - padR}" y1="${f(v)}" y2="${f(v)}" stroke="var(--border-2)" stroke-dasharray="3 3"/><text x="${W - padR + 4}" y="${f(v) + 3}" font-size="9" fill="var(--text-3)">${esc(txt)}</text>`;
   const cl = close.filter(isNum) as number[];
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(item.name)} dan harga ${esc(ctx.SYMBOL)}">

@@ -434,7 +434,7 @@ export function initIndicators(ctx: Ctx) {
     r.innerHTML = '<span class="ind-k"></span><b></b>'
       + `<button class="ind-eye" type="button" data-act="eye" aria-pressed="true" data-label="Hide" aria-label="Show or hide">${EYE}</button>`
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
-      + (ctx.M.mode === 'live' && inst.def.compute ? `<button class="ind-eye ind-info" type="button" data-act="info" data-label="How it works" aria-label="How it works">${INFO}</button>` : '')
+      + (ctx.M.mode === 'live' && inst.def.compute ? `<button class="ind-eye ind-how" type="button" data-act="info" data-label="How it works" aria-label="How it works">${INFO}</button>` : '')
       + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`;
     r.addEventListener('click', (e: any) => {
       const a = e.target.closest('[data-act]'); if(!a) return;
