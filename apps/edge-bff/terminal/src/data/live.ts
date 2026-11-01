@@ -1,7 +1,7 @@
 /* Live data: the pre-published files of the rack (bucket terminal-display) reached through EDGE's /api/terminal
    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
    Everything is mapped into the reference page's own shapes (types.ts). */
-import type { Bar, Combo, CompareSpec, InsiderTx, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
+import type { Bar, CarryPoint, Combo, CompareSpec, InsiderTx, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
 import { barRows, brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
 import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
 import { aggregateRows, alignCandles, buckets, candleOf, dayOfCandles, dayOfKey, isIntraday, type Timeframe } from './timeframe';
@@ -82,7 +82,7 @@ async function session(): Promise<string> {
 }
 
 /* EXEC-TERMINAL-UI-1026 U6: one call gives every file of the displayed ticker (terminal-api /bundle) */
-type Dataset = 'price' | 'broker' | 'events';
+type Dataset = 'price' | 'broker' | 'events' | 'yield';
 /* EXEC-TERMINAL-SPEED step 2: with packs the price is one file and the broker the archive plus the last two years (5
    objects instead of 21); each file carries its sha256, the key of the browser cache */
 async function bundle(ticker: string, datasets: Dataset[], csrf: string, timeframe?: string) {
@@ -98,7 +98,17 @@ async function bundle(ticker: string, datasets: Dataset[], csrf: string, timefra
   const intraday: FileRef[] | undefined = day ? (day.files || []).map((f: any) => ({ url:f.url, sha:f.sha256, bytes:f.bytes, name:`intraday/${f.part}` })) : undefined;
   const meta = day ? { barsPerYear:day.bars_per_year ?? undefined, first:day.first ?? undefined, last:day.last ?? undefined } : undefined;
   return { price:refs('price'), broker:refs('broker'), events:refs('events'), through, intraday, offset:day?.utc_offset_seconds ?? 0, meta,
-           timeframes:(answer.timeframes || {}) as Record<string, { first?: string; last?: string; rows?: number; bars_per_year?: number }> };
+           timeframes:(answer.timeframes || {}) as Record<string, { first?: string; last?: string; rows?: number; bars_per_year?: number }>,
+           // EXEC-FI-TERMINAL: a government bond: its yield files beside its price files, and what it is
+           yieldFiles:refs('yield'), kind:(answer.kind || 'equity') as string, instrument:answer.instrument as any };
+}
+
+/* EXEC-FI-TERMINAL (user go 2026-11-01): a bond's files as a price job reads them: the chosen metric's files (the yield by
+   default, or the bond's price) in the place of the price files; a bond has no broker or events files */
+async function bondBundle(ticker: string, metric: 'yield' | 'price', csrf: string) {
+  const f = await bundle(ticker, ['yield', 'price'], csrf);
+  return { ...f, price:metric === 'yield' ? f.yieldFiles : f.price, broker:[], events:[], intraday:undefined,
+           through:{ price:undefined, broker:undefined } };
 }
 
 /* U7: the files are downloaded, inflated and parsed by one Web Worker (worker.ts); its answers arrive in stages.
@@ -213,6 +223,28 @@ function alignTo(dates: string[], rows: { d: string; c: number }[], ends: string
   return out;
 }
 
+/* EXEC-FI-TERMINAL (user 2026-11-01, "nomor 3 juga pakai your advice"): a bond on a stock chart. A candle takes the bond's
+   value of its own session (daily: the same date; weekly or monthly: any date in the candle); a session the bond did not
+   trade (another market's holiday) carries its last value for at most `maxCarry` sessions, faded and marked with the
+   date it comes from; a longer gap breaks the line (a point without a value). Before the bond's first value: nothing. */
+export const CARRY_SESSIONS = 3;
+export function alignCarry(dates: string[], rows: { d: string; c: number }[], ends: string[] = dates, maxCarry = CARRY_SESSIONS,
+                           faded = 'rgba(100,116,139,.55)'): CarryPoint[] {
+  const out: CarryPoint[] = [], coarse = ends !== dates;
+  let k = 0, last: number | null = null, lastDate = '', carried = 0;
+  dates.forEach((t, i) => {
+    const prevEnd = i ? ends[i - 1] : '';
+    while (k < rows.length && rows[k].d <= ends[i]) { last = rows[k].c; lastDate = rows[k].d; k++ }
+    if (last === null) return;
+    const own = lastDate === ends[i] || (coarse && lastDate > prevEnd);
+    carried = own ? 0 : carried + 1;
+    if (own) out.push({ time:t, value:last });
+    else if (carried <= maxCarry) out.push({ time:t, value:last, color:faded, customValues:{ carriedFrom:lastDate } });
+    else out.push({ time:t });                                 // a gap longer than the carry: the line breaks
+  });
+  return out;
+}
+
 /* EXEC-INTRADAY-FEATURES C3: another ticker's bars on the chart's candles by key; a candle it did not trade repeats its
    last close; candles before its first bar are left out */
 function alignBars(keys: string[], rows: PriceRow[]): Bar[] {
@@ -230,7 +262,7 @@ function alignBars(keys: string[], rows: PriceRow[]): Bar[] {
 /* U5 (user 2026-10-26: "automatically load chart dan panel bawah.. lalu panel kiri dan kanan akan load kalau user
    buka/expand the panel"): the page draws as soon as the price is read; the broker data (Flow, Broker activity) and
    the events follow through `later`, IHSG (Statistics, Relative performance) only when that panel asks for it. */
-export async function liveData(stored: string | null, tf: Timeframe = 'D'): Promise<MarketData> {
+export async function liveData(stored: string | null, tf: Timeframe = 'D', bondMetric: 'yield' | 'price' = 'yield'): Promise<MarketData> {
   const csrf = await session();
   mark('session');
   /* EXEC-MU-RUNTIME T5/T7: a reference file the publication's refs index names comes with its sha256 and size, and is
@@ -246,17 +278,29 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
   brokerRefP.catch(() => {});
   const guess = stored || 'MAPI';
   const want = isIntraday(tf) ? tf : undefined;                // EXEC-INTRADAY-FEATURES C3
-  const guessP = bundle(guess, ['price', 'broker', 'events'], csrf, want);
+  /* EXEC-FI-TERMINAL: the government bonds (ref/fixed_income), a group of their own in the search; the remembered
+     ticker's first answer also asks for a bond's yield files, so a bond needs no second /bundle (a stock has none) */
+  const bondsP = reference('fixed_income').catch(() => []) as Promise<any[]>;
+  const guessP = bundle(guess, ['price', 'broker', 'events', 'yield'], csrf, want);
   guessP.catch(() => {});
   const tickers = await tickersP as { ticker: string; name: string; type: string; sector: string | null }[];
-  const known = new Set(tickers.map(t => t.ticker));
-  const instruments: Instrument[] = tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0]);
+  const bonds = await bondsP;
+  const bondOf = new Map(bonds.map((b: any) => [b.ticker as string, b]));
+  const known = new Set([...tickers.map(t => t.ticker), ...bondOf.keys()]);
+  const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0] as Instrument),
+    ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0] as Instrument)];
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
-  const files = SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf, want);
-  // a ticker without the asked intraday timeframe shows its daily chart and says so (`note`)
+  const bond = bondOf.get(SYMBOL);
+  const metric = bondMetric;                                  // a bond's metric (main.ts: remembered as ml.fi.metric)
+  const asBond = (f: Awaited<ReturnType<typeof bundle>>) => ({ ...f, price:metric === 'yield' ? f.yieldFiles : f.price, broker:[], events:[],
+    intraday:undefined, through:{ price:undefined, broker:undefined } });
+  const first = SYMBOL === guess ? await guessP : await bundle(SYMBOL, bond ? ['yield', 'price'] : ['price', 'broker', 'events'], csrf, want);
+  const files = bond ? asBond(first) : first;
+  // a ticker without the asked intraday timeframe shows its daily chart and says so (`note`; a bond has none)
   const intraday = !!want && !!files.intraday?.length;
   if (want && !intraday) tf = 'D';
-  const job = await load(SYMBOL, ['price', 'broker', 'events'], csrf, tf, undefined, files, intraday ? want : undefined);
+  const job = bond ? checked(files, () => bondBundle(SYMBOL, metric, csrf), tf)
+    : await load(SYMBOL, ['price', 'broker', 'events'], csrf, tf, undefined, files, intraday ? want : undefined);
 
   mark('ticker list and bundle');
   const rows = await job.price;                            // daily sessions
@@ -310,9 +354,18 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
   const broker = brokerOf(job.broker), brokerAll = brokerOf(job.brokerAll);
   broker.catch(() => {}); brokerAll.catch(() => {});
 
-  const catalog = COMPARE.filter(c => known.has(c.symbol));
+  /* EXEC-FI-TERMINAL: the bonds' yields as compare series on a daily, weekly or monthly chart (a bond has no intraday) */
+  const BOND_COLORS = ['#b45309', '#0e7490', '#7c2d12', '#4d7c0f', '#9d174d', '#1e40af'];
+  const catalog: CompareSpec[] = [...COMPARE.filter(c => known.has(c.symbol)),
+    ...(intraday ? [] : bonds.filter((b: any) => b.ticker !== SYMBOL).map((b: any, k: number) =>
+      ({ id:`fi-${String(b.ticker).toLowerCase()}`, symbol:b.ticker, name:`${b.name || b.ticker} · yield`, color:BOND_COLORS[k % BOND_COLORS.length], bond:true })))];
   const loadCompare = async (id: string) => {
     const spec = catalog.find(c => c.id === id); if (!spec) return [];
+    if (spec.bond) {                                           // the bond's yield file alone (one pack)
+      const f = await bundle(spec.symbol, ['yield'], csrf), yf = { ...f, price:f.yieldFiles, broker:[], events:[], intraday:undefined };
+      const yieldRows = await checked(yf, async () => { const g = await bundle(spec.symbol, ['yield'], csrf); return { ...g, price:g.yieldFiles, broker:[], events:[], intraday:undefined } }, 'D').price;
+      return alignCarry(dates, yieldRows, ends) as any;
+    }
     const series = spec.symbol === 'IHSG' ? await ihsgRows() : intraday ? await barsOf(spec.symbol) : spec.symbol === SYMBOL ? rows : await prices(spec.symbol, csrf);
     return alignTo(dates, series, intraday ? dates : ends);
   };
@@ -373,6 +426,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
     ...(want && !intraday ? { note:`No ${want.toUpperCase()} data is published for ${SYMBOL}; showing the daily chart.` } : {}),
     ...(intraday && dayOf ? { intraday:{ dayOf, days:sessions, daily:rows, barsPerYear:files.meta?.barsPerYear, first:files.meta?.first, last:files.meta?.last } } : {}),
     loadEvents,
+    ...(bond ? { fixedIncome:{ metric, name:bond.name || SYMBOL, country:bond.country || '',
+                               units:{ yield:bond.yield_unit ?? undefined, price:bond.price_unit ?? undefined } }, later:undefined } : {}),
     // the Bandar panel is shown on the agreed definition (EXEC-TERMINAL-FLOW-IND, user 2026-10-30: "Sekarang.");
     // the broker-action gauge has no approved formula yet
     hide: { brokerGauge:true, bandar:false }

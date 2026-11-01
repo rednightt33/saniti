@@ -5,6 +5,9 @@ import type { Timeframe } from './timeframe';
 
 export interface Bar { time: string; open: number; high: number; low: number; close: number }
 export interface Point { time: string; value: number }
+/** EXEC-FI-TERMINAL: a compare point a bond did not trade on: its last value carried (faded, `carriedFrom` its date),
+    or a gap (no value: the line breaks) */
+export interface CarryPoint { time: string; value?: number; color?: string; customValues?: { carriedFrom: string } }
 /** `none`: the source has no volume for the candle (an index); `value` is then 0 for the histogram only */
 export interface VolumePoint extends Point { color: string; none?: boolean }
 
@@ -12,7 +15,7 @@ export interface VolumePoint extends Point { color: string; none?: boolean }
 export type Instrument = [string, string, string, number];
 
 /** one compare series of the Add Series panel */
-export interface CompareSpec { id: string; symbol: string; name: string; color: string }
+export interface CompareSpec { id: string; symbol: string; name: string; color: string; bond?: boolean }
 
 /** one broker × investor type × board with its daily net value per session of the chart */
 export interface Combo { broker: string; investor: string; board: string; gross: number; tilt: number; net: Float64Array }
@@ -87,6 +90,10 @@ export interface MarketData {
       candle shows (timeframe.ts dayOfCandles), the timeframe's bars per year and its first and last bar */
   intraday?: { dayOf: Int32Array; days: string[]; daily: { d: string; o: number; h: number; l: number; c: number; v: number | null }[];
     barsPerYear?: number; first?: string; last?: string };
+  /** EXEC-FI-TERMINAL (user go 2026-11-01): the chart is a government bond: the metric drawn (yield by default, or its
+      price), its units (`PCTDY`: a US bill's price is a discount quote) and where it is from; no broker, events or
+      intraday data */
+  fixedIncome?: { metric: 'yield' | 'price'; name: string; country: string; units: { yield?: string; price?: string } };
   /** what the live page cannot show yet (approved formulas pending); the fixture shows everything */
   hide: { brokerGauge: boolean; bandar: boolean };
 }

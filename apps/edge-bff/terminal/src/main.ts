@@ -61,6 +61,29 @@ function timeframeButtons(): Timeframe {
   return tf;
 }
 
+/* EXEC-FI-TERMINAL (user go 2026-11-01, Opsi A; "nomor 2 pakai your advice"): a government bond's page. Its yield by
+   default with a Price button (the Price | Return pair becomes Yield | Price: a bond's "return" in % of a yield would
+   mislead), the unit beside the symbol (a US bill's price is a discount quote, value_unit PCTDY), and no Flow Timeline,
+   broker panel or events (a bond has none). The intraday buttons stay off: no intraday file is published for a bond. */
+function bondPage(M: MarketData) {
+  const fi = M.fixedIncome!;
+  document.body.classList.add('fi-mode');
+  $('workspace').classList.remove('has-right');
+  const group = $('modeGroup');
+  const title = (m: string) => m === 'yield' ? 'Yield to maturity, % (Statistics in basis points)'
+    : fi.units.price === 'PCTDY' ? 'Price as quoted: a discount quote (US bill)' : 'Price, % of par';
+  group.setAttribute('aria-label', 'Bond value');
+  group.innerHTML = (['yield', 'price'] as const).map(m => `<button type="button" data-fi="${m}" class="${m === fi.metric ? 'active' : ''}" `
+    + `aria-pressed="${m === fi.metric}" title="${title(m)}">${m === 'yield' ? 'Yield' : 'Price'}</button>`).join('');
+  group.addEventListener('click', (e: any) => {
+    const b = e.target.closest('button'); if (!b) return;
+    e.stopImmediatePropagation();                           // the chart's Price | Return handler is not for a bond
+    if (b.dataset.fi !== fi.metric) { store.set('ml.fi.metric', b.dataset.fi); location.reload() }
+  }, true);
+  const unit = fi.metric === 'yield' ? 'Yield, %' : fi.units.price === 'PCTDY' ? 'Discount quote' : 'Price, % of par';
+  $('symText').insertAdjacentHTML('afterend', `<span class="fi-unit" title="${title(fi.metric)} · ${fi.name}${fi.country ? ', ' + fi.country : ''}">${unit}</span>`);
+}
+
 function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   const container = $('chart');
   if (!container) return null;
@@ -80,6 +103,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
     if (inp.k === 'annualization_periods') inp.def = periodsPerYear(M.tf, M.intraday?.barsPerYear);
 
   setLogos(M.logos);                                       // live only: the fixture has no logos (1:1 check)
+  if (M.fixedIncome) bondPage(M);
   initChart(ctx);
   initStats(ctx);
   initVolume(ctx);
@@ -164,7 +188,7 @@ function boot() {
   ($('chart')?.parentElement || document.body).appendChild(loading);
   mark('page script');
   const tf = timeframeButtons();
-  liveData(stored, tf).then(M => {
+  liveData(stored, tf, store.get('ml.fi.metric') === 'price' ? 'price' : 'yield').then(M => {
     loading.remove();
     if (M.timeframes) {
       /* the buttons: every intraday timeframe seen so far (remembered for the next load), the ticker's own enabled and

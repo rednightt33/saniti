@@ -89,9 +89,25 @@ export function initStats(ctx: Ctx) {
     small('dist', `${word[0].toUpperCase() + word.slice(1)} returns`); small('vol', `20-${word} annualized`); small('vdist', bar ? 'Volume / 20-bar average' : `Volume / 20${short} average`);
     const wd = document.querySelector('#seasToggle [data-mode="weekday"]') as HTMLElement | null; if(wd) wd.hidden = true;
   }
-  const dayRet = new Float64Array(N);                 // simple daily return
+  /* EXEC-FI-TERMINAL (user go 2026-11-01, Opsi A "Statistics dalam bps"): a bond's yield moves in basis points (1 bp =
+     0.01 percentage point): its changes, seasonality, change from peak and volatility read in bp; a bond's price keeps
+     returns in %. Relative performance vs IHSG and the volume distribution do not apply to a bond and are hidden. */
+  const FI = ctx.M.fixedIncome, BPS = FI?.metric === 'yield';
+  const bp = (v: number, d = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)} bp`;
+  const chg = (v: number, d = 2) => BPS ? bp(v, Math.min(d, 1)) : pct(v, d);
+  if(FI) ['rel', 'vdist'].forEach(k => { const el = document.querySelector(`#statsPanel .st[data-sec="${k}"]`) as HTMLElement | null; if(el) el.hidden = true });
+  if(BPS){
+    const head = (sec: string, title: string, small: string) => { const h = document.querySelector(`#statsPanel .st[data-sec="${sec}"] .st-head`); if(!h) return; (h.querySelector('span') as HTMLElement).textContent = title; (h.querySelector('small') as HTMLElement).textContent = small };
+    head('dist', 'Change distribution', `${U.one[0].toUpperCase() + U.one.slice(1)} change, bp`);
+    head('seas', 'Seasonality', 'Avg change, bp'); head('dd', 'Change from peak', 'From running peak, bp');
+    head('vol', 'Realized volatility', `20-${U.one} annualized, bp`);
+  }
+  const dayRet = new Float64Array(N);                 // simple daily return (a yield: its change in percentage points)
   const logRet = new Float64Array(N);
-  for(let i=1;i<N;i++){ dayRet[i] = closes[i]/closes[i-1]-1; logRet[i] = Math.log(closes[i]/closes[i-1]); }
+  for(let i=1;i<N;i++){
+    dayRet[i] = BPS ? closes[i]-closes[i-1] : closes[i]/closes[i-1]-1;
+    logRet[i] = BPS ? closes[i]-closes[i-1] : Math.log(closes[i]/closes[i-1]);
+  }
   const vol20 = new Float64Array(N).fill(NaN);        // 20-session annualized realized vol, %
   for(let i=20;i<N;i++){
     let m=0; for(let k=i-19;k<=i;k++) m+=logRet[k]; m/=20;
@@ -196,7 +212,7 @@ export function initStats(ctx: Ctx) {
       const buckets: number[][] = Array.from({length:12},()=>[]);
       byMonth.forEach(m => {
         if(m.last < a || m.last > b || m.first-1 < 0) return;
-        buckets[+dates[m.last].slice(5,7)-1].push(closes[m.last]/closes[m.first-1]-1);
+        buckets[+dates[m.last].slice(5,7)-1].push(BPS ? closes[m.last]-closes[m.first-1] : closes[m.last]/closes[m.first-1]-1);
       });
       const names = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
       rows = buckets.map((x,i)=>({k:names[i], v:x.length ? avgOf(x)*100 : null, n:x.length, unit:'monthly observations'}));
@@ -208,9 +224,9 @@ export function initStats(ctx: Ctx) {
     }
     const mx = Math.max(.05, ...rows.map(r=>Math.abs(r.v||0)));
     el.innerHTML = rows.map(r => {
-      if(r.v === null) return `<div class="sz-row" data-tip="${r.k}|no data in range"><span class="k">${r.k}</span><div class="sz-track"></div><span class="sz-v">+0.0%</span></div>`;
+      if(r.v === null) return `<div class="sz-row" data-tip="${r.k}|no data in range"><span class="k">${r.k}</span><div class="sz-track"></div><span class="sz-v">${BPS ? '0.0 bp' : '+0.0%'}</span></div>`;
       const w = Math.abs(r.v)/mx*50, left = r.v>=0 ? 50 : 50-w, c = r.v>=0 ? 'var(--up)' : 'var(--down)';
-      return `<div class="sz-row" data-tip="${r.k}|avg ${pct(r.v,2)} · ${r.n} ${r.unit}"><span class="k">${r.k}</span><div class="sz-track"><div class="sz-bar" style="left:${left}%;width:${w}%;background:${c}"></div></div><span class="sz-v ${cls(r.v)}">${pct(r.v,1)}</span></div>`;
+      return `<div class="sz-row" data-tip="${r.k}|avg ${chg(r.v,2)} · ${r.n} ${r.unit}"><span class="k">${r.k}</span><div class="sz-track"><div class="sz-bar" style="left:${left}%;width:${w}%;background:${c}"></div></div><span class="sz-v ${cls(r.v)}">${chg(r.v,1)}</span></div>`;
     }).join('');
   };
   $('seasToggle').onclick = (e: any) => {
@@ -231,12 +247,13 @@ export function initStats(ctx: Ctx) {
     /* 1 · Return distribution */
     const rets: number[] = []; for(let i=Math.max(1,a);i<=b;i++) rets.push(dayRet[i]*100);
     if(rets.length >= 3){
-      const h = histogram(rets, 10, () => 'rgba(23,52,140,.9)', v=>pct(v,2), U.many, {v:rets.at(-1)!, label:'Current'});
+      const word = BPS ? 'change' : 'return';
+      const h = histogram(rets, 10, () => 'rgba(23,52,140,.9)', v=>chg(v,2), U.many, {v:rets.at(-1)!, label:'Current'});
       $('distChart').innerHTML = h.svg;
-      $('distAxis').innerHTML = axisLabels(h.lo, h.hi, v=>pct(v,1), 0, {lo:h.clipLo, hi:h.clipHi});
-      $('distStats').innerHTML = row('Mean', pct(avgOf(rets)), cls(avgOf(rets)), 'Average session return in the visible range')
-        + row('Median', pct(median(rets)), cls(median(rets)), 'Middle session return; less affected by outliers')
-        + row(`Positive ${U.many}`, (rets.filter(x=>x>0).length/rets.length*100).toFixed(1)+'%', '', `Share of ${U.many} that closed up`)
+      $('distAxis').innerHTML = axisLabels(h.lo, h.hi, v=>chg(v,1), 0, {lo:h.clipLo, hi:h.clipHi});
+      $('distStats').innerHTML = row('Mean', chg(avgOf(rets)), cls(avgOf(rets)), `Average session ${word} in the visible range`)
+        + row('Median', chg(median(rets)), cls(median(rets)), `Middle session ${word}; less affected by outliers`)
+        + row(BPS ? `${U.many[0].toUpperCase() + U.many.slice(1)} up` : `Positive ${U.many}`, (rets.filter(x=>x>0).length/rets.length*100).toFixed(1)+'%', '', BPS ? `Share of ${U.many} the yield rose` : `Share of ${U.many} that closed up`)
         + row('Observations', rets.length, '', 'Number of sessions counted');
     } else { $('distChart').innerHTML = ''; $('distAxis').innerHTML = ''; $('distStats').innerHTML = empty('Not enough sessions in range') }
 
@@ -245,24 +262,25 @@ export function initStats(ctx: Ctx) {
 
     /* 3 · Drawdown (from running peak, measured inside the visible window) */
     const dd: number[] = []; let peak = -Infinity;
-    for(let i=a;i<=b;i++){ peak = Math.max(peak, closes[i]); dd.push((closes[i]/peak-1)*100) }
+    for(let i=a;i<=b;i++){ peak = Math.max(peak, closes[i]); dd.push(BPS ? (closes[i]-peak)*100 : (closes[i]/peak-1)*100) }
     const ddMin = Math.min(...dd, -.01);
     lineChart($('ddChart'), { series:[{vals:dd,color:'#f23645'}], idx:dd.map((_,k)=>a+k), lo:ddMin, hi:0, ticks:[0, ddMin/2, ddMin], zero:0,
-      area:areaPath(dd, ddMin, 0, 'rgba(242,54,69,.14)'), fmtY:(v: number)=>v===0?'0%':v.toFixed(1)+'%', tipFn:(k: number)=>`${pct(dd[k])} from peak` });
-    $('ddStats').innerHTML = row('Current drawdown', pct(dd.at(-1)!), cls(dd.at(-1)!), 'Latest close vs the running peak')
-      + row('Maximum drawdown', pct(Math.min(...dd)), 'down', 'Deepest peak-to-trough fall in the visible range') + row('Period', 'Visible range', '', 'Drawdown is measured inside the visible window');
+      area:areaPath(dd, ddMin, 0, 'rgba(242,54,69,.14)'), fmtY:(v: number)=>v===0?(BPS?'0 bp':'0%'):BPS?v.toFixed(0)+' bp':v.toFixed(1)+'%', tipFn:(k: number)=>`${chg(dd[k])} from peak` });
+    $('ddStats').innerHTML = row(BPS ? 'Current from peak' : 'Current drawdown', chg(dd.at(-1)!), cls(dd.at(-1)!), 'Latest close vs the running peak')
+      + row(BPS ? 'Largest fall from peak' : 'Maximum drawdown', chg(Math.min(...dd)), 'down', 'Deepest peak-to-trough fall in the visible range') + row('Period', 'Visible range', '', `${BPS ? 'The change from peak' : 'Drawdown'} is measured inside the visible window`);
 
     /* 4 · Realized volatility */
     const vv: number[] = [], vi: number[] = []; for(let i=a;i<=b;i++) if(Number.isFinite(vol20[i])){ vv.push(vol20[i]); vi.push(i) }
     if(vv.length >= 3){
       const lo = Math.min(...vv), hi = Math.max(...vv), dp = hi-lo>5 ? 0 : 1;
-      lineChart($('volChart'), { series:[{vals:vv,color:'#0070f3'}], idx:vi, lo, hi, ticks:[hi,(hi+lo)/2,lo], fmtY:(v: number)=>v.toFixed(dp)+'%', tipFn:(k: number)=>`${vv[k].toFixed(1)}% annualized` });
-      $('volStats').innerHTML = row('Current', vv.at(-1)!.toFixed(1)+'%', '', 'Latest 20-session annualized volatility') + row('Median', median(vv).toFixed(1)+'%', '', 'Middle volatility reading in the visible range')
-        + row('Range', `${lo.toFixed(1)}%–${hi.toFixed(1)}%`, '', 'Lowest to highest reading in the visible range');
+      const u = BPS ? ' bp' : '%', vd = BPS ? 0 : 1;
+      lineChart($('volChart'), { series:[{vals:vv,color:'#0070f3'}], idx:vi, lo, hi, ticks:[hi,(hi+lo)/2,lo], fmtY:(v: number)=>v.toFixed(BPS ? 0 : dp)+u, tipFn:(k: number)=>`${vv[k].toFixed(vd)}${u} annualized` });
+      $('volStats').innerHTML = row('Current', vv.at(-1)!.toFixed(vd)+u, '', `Latest 20-session annualized volatility${BPS ? ' of the yield, in bp' : ''}`) + row('Median', median(vv).toFixed(vd)+u, '', 'Middle volatility reading in the visible range')
+        + row('Range', `${lo.toFixed(vd)}${u}–${hi.toFixed(vd)}${u}`, '', 'Lowest to highest reading in the visible range');
     } else { $('volChart').innerHTML = ''; $('volStats').innerHTML = empty('Not enough sessions in range') }
 
-    /* 5 · Relative performance vs IHSG (both rebased to the first visible session) */
-    if(!ihsgSeries.length){
+    /* 5 · Relative performance vs IHSG (both rebased to the first visible session); not for a bond (hidden) */
+    if(FI){ /* hidden */ } else if(!ihsgSeries.length){
       if(ctx.M.loadIhsg && !ihsgAsked){
         ihsgAsked = true;
         ctx.M.loadIhsg().then(sr => { ihsgSeries = sr; scheduleStats() }, () => { ihsgFailed = true; scheduleStats() });

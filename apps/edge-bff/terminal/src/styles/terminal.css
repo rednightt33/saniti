@@ -1058,3 +1058,11 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .tf-note{position:absolute;top:6px;right:calc(var(--ax-r, 0px) + 12px);z-index:3;font-size:11px;color:#7b8798;
   pointer-events:none;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap}
 @media(max-width:900px){.tf-note{top:auto;bottom:40px;right:8px;font-size:10px}}
+
+/* EXEC-FI-TERMINAL (user go 2026-11-01): a government bond's page: no Flow Timeline, broker panel or events */
+.fi-mode .main-col{grid-template-rows:46px minmax(240px,1fr) 0px !important}
+.fi-mode .main-col > .bottom,.fi-mode .side.right,.fi-mode #evBtn{display:none !important}
+.fi-unit{margin-left:6px;padding:1px 7px;border-radius:999px;background:#eef2f7;color:#475569;font-size:11px;font-weight:600;white-space:nowrap}
+/* EXEC-FI-TERMINAL: a bond compare chip's value under the crosshair; "carried from" in the faded colour of its line */
+.series-val{margin-left:4px;font-size:11px;font-weight:500;color:#475569;font-variant-numeric:tabular-nums}
+.series-val.carried{color:#94a3b8;font-style:italic}

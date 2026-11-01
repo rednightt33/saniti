@@ -14,11 +14,12 @@ export function initPicker(ctx: Ctx) {
     g[2].push(r.name);
   });
   (INDICATORS.find(g => g[3] === 'Volume') || [, , []] as any)[2].unshift('Volume');         // the base volume histogram (restore after removing it)
-  INDICATORS.push(['Flow', '#12a594', ['Net Buy Flow', 'Net Buy Flow (Line)'], 'Flow']);
+  const bond = !!ctx.M.fixedIncome;                        // EXEC-FI-TERMINAL: a bond has no broker data, no Flow group
+  if(!bond) INDICATORS.push(['Flow', '#12a594', ['Net Buy Flow', 'Net Buy Flow (Line)'], 'Flow']);
   const SEARCH: Record<string, string> = Object.fromEntries(IND_REG.map((r: any) => [r.name, `${r.name} ${r.short} ${r.key}`.toLowerCase()]));
   /* EXEC-TERMINAL-FLOW-IND (user 2026-10-30: the Flow group in subgroups per family, "3. OK"), live: one subgroup per family
      of flowRegistry.json, in its order; the fixture keeps the reference's list (1:1 check) */
-  if(ctx.M.mode === 'live') FLOW_REG.families.forEach(f => {
+  if(ctx.M.mode === 'live' && !bond) FLOW_REG.families.forEach(f => {
     const items = FLOW_REG.indicators.filter(r => r.family === f);
     if(!items.length) return;
     INDICATORS.push([`Flow · ${f}`, '#12a594', items.map(r => r.name), 'Flow']);
