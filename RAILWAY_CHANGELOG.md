@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-01 — edge-bff: bolder favicon E (EXEC-FAVICON-BOLD, user option A)
+
+- `main` `be131b22`: edge-bff `8661376d` SUCCESS.
+- `/favicon.svg` and `/favicon-32.png` served live (200, image/svg+xml and image/png), byte-equal to the repository
+  (sha256 checked).
+- The browser keeps the old icon up to a day (Cache-Control max-age 86400).
+- No variable changed.
+
 ## 2026-11-01 — edge-bff: Bandar detector inside Top brokers; picked broker joins Broker Inventory (EXEC-BANDAR-MERGE, EXEC-INV-SYNC)
 
 - `main` `b97f2034`: edge-bff `bfca85d1` SUCCESS. The live Terminal serves `index-BwguznpO.js`, equal to a local build.
