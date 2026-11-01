@@ -1,0 +1,11 @@
+Starting Container
+MIG APPLY 20261101_001_intraday_publish.sql sha256=d4e40f39371f446f12dff1bd061ab34b8ff796c3f0b284a1abc6eb6e81b25ed4
+OUT {"q": "bars_per_year_shared", "ms": 4, "part": 0, "rows": [["15m", 5652], ["1h", 1766], ["4h", 504], ["5m", 16017]]}
+OUT {"q": "reader_bars", "ms": 2, "part": 0, "rows": [[6153, "2023-01-02 02:00:00+00:00", "2026-10-30 09:00:00+00:00"]]}
+OUT {"q": "reader_tf", "ms": 3, "part": 0, "rows": [["15m", 5652], ["1h", 1766], ["4h", 504], ["5m", 16017]]}
+OUT {"q": "reader_tz", "ms": 0, "part": 0, "rows": [["Asia/Jakarta"]]}
+OUT {"q": "reader_changes", "ms": 0, "part": 0, "rows": []}
+OUT {"q": "catalog", "ms": 1, "part": 0, "rows": [[1, 4, ["refresh_feature_01_stock_intraday(text,text[],timestamptz)", "intraday_bars_per_year(text)"]]]}
+OUT {"q": "function_def", "ms": 2, "part": 0, "rows": [[true, true]]}
+OUT {"q": "grants", "ms": 1, "part": 0, "rows": [[true, true, true]]}
+JOB_DONE MIGRATION APPLY

@@ -1,0 +1,8 @@
+2026-11-01T08:21:48.757004451Z [INFO]  event="planning" step="manifests read" tickers=845 seconds=30 threads=16
+2026-11-01T08:21:48.757007261Z [INFO]  event="plan" mode="intraday" files=0 window=[2021,2026] price_first_year=2018 broker_first_year=2016 data_through={"price":"2026-10-30","broker":"2026-10-27","events":"2026-10-27 14:52:25.727874+00"}
+2026-11-01T08:21:48.757009801Z [INFO]  event="planning" step="intraday" series=20 full=true timeframes={"15m":{"bars_per_year":5652,"period":"month"},"1h":{"bars_per_year":1766,"period":"year"},"4h":{"bars_per_year":504,"period":"year"},"5m":{"bars_per_year":16017,"period":"month"}} without_bars_per_year=[] seen_before=null
+2026-11-01T08:21:49.482190958Z [INFO]  event="intraday" series=20 changed=20 written=40 mb=1
+2026-11-01T08:21:52.776650152Z [INFO]  event="listed" prefix="ref/" pages=1 keys=6 seconds=0.2 slowest_page_seconds=0.2
+2026-11-01T08:21:53.271628923Z [INFO]  event="refs" names=["brokers","logos","tickers"] uploaded=[] failed=[]
+2026-11-01T08:21:53.833704927Z [INFO]  event="done" mode="intraday" files_planned=0 files_written=40 mb=1.02 tickers=5 seconds=36.7 broker_behind_sessions=3 xsection=["actions","price"] xsection_failed=[] refs=["brokers","logos","tickers"] refs_failed=[] phases={"plan":30.8,"files":0,"packs":0,"intraday":1.6,"xsection":1,"manifests":0.6,"refs":2.2,"state":0.5} threads=16
+2026-11-01T08:21:53.833708307Z [INFO]  event="replaced" objects=0

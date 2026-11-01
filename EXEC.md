@@ -9634,6 +9634,11 @@ adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher han
 - Perubahan kecil loader (catatan perubahan, C7.4 A) ikut di-deploy hari ini dan dicek bersama S4 pada run
   2026-11-02.
 - Deploy bertahap, di luar jendela B6.
+- **Runner, 2026-11-01 (kata user): "A".**
+  - Konteks: orc-test-runner terkunci oleh deployment `d4395569` milik sesi EXEC-INSIDER-COUNT. Job itu sudah selesai
+    (hasilnya dipakai di commit `4ce773ef` pukul 08:13 UTC), tetapi tidak mencetak `JOB_DONE`.
+  - Keputusan: user mengizinkan pengaman `run_job.sh` (ERRORS M227) dilewati sekali, hanya untuk migrasi
+    `20261101_001`.
 
 ## EXEC-INSIDER-COUNT — insider IDX + KSEI tanpa hitungan ganda (keputusan 2026-11-01, menunggu go)
 
