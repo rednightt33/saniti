@@ -166,7 +166,8 @@ export function initFlowIndicators(ctx: Ctx) {
          explainer, null = no value at t. The parameters the settings dialog does not show (levels) take their defaults. */
       explain:(p: any, t: number, out?: string) => {
         const ex = FLOW_EXPLAIN[r.id]; if (!ex) return undefined;
-        const q = { ...flowDefaults(r.id), ...p };
+        // as computeFlow: a parameter left undefined takes its default
+        const q: any = { ...flowDefaults(r.id), ...Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== undefined)) };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
         const d = DAY ? DAY.dayOf[t] : t;

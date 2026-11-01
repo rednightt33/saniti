@@ -221,6 +221,16 @@ function rsiAt(x: number[], n: number, i: number) {
   return { g, l, g0, l0, seed:i === n };
 }
 
+/** TA-Lib WMA's weighted sum Σ (weight × x) at candle i of the run: its running sums, as calc/indicators.ts kWma, so
+    that Σwx ÷ Σw gives the chart's double (a direct sum can differ in the last digits on decimal prices) */
+function wmaSum(x: number[], n: number, i: number) {
+  if (n === 1) return x[i];
+  let pSub = 0, pSum = 0, tv = 0, tr = 0, k = 0;
+  for (; k < n - 1; k++) { pSub += x[k]; pSum += x[k] * (k + 1) }
+  for (; k < i; k++) { pSub += x[k]; pSub -= tv; pSum += x[k] * n; tv = x[tr++]; pSum -= pSub }
+  return pSum + x[i] * n;
+}
+
 /** the fast %K of x[k] in the min/max of `lo`/`hi` over the last m values (TA-Lib STOCHF: 0 on a zero range) */
 function fastK(x: number[], hi: number[], lo: number[], m: number, k: number) {
   let h = hi[k - m + 1], l = lo[k - m + 1];
@@ -262,9 +272,9 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
   /* I03 WMA: Σ (weight × src) / Σ weight, weights 1..n with the newest n (TA-Lib WMA) */
   wma: (B, p, t, output) => {
     const c = ctxOf('wma', B, p, t, output, srcNeed); if (!c) return null;
-    const n = c.P.length, i = c.i, a = i - n + 1, den = (n * (n + 1)) / 2, x = c.src;
-    let SW = 0; const rows: string[][] = [];
-    for (let k = a; k <= i; k++) { const w = k - a + 1; SW += x[k] * w; rows.push([c.date(k), n2(x[k]), String(w), n2(x[k] * w)]) }
+    const n = c.P.length, i = c.i, a = i - n + 1, den = (n * (n + 1)) / 2, x = c.src, SW = wmaSum(x, n, i);
+    const rows: string[][] = [];
+    for (let k = a; k <= i; k++) { const w = k - a + 1; rows.push([c.date(k), n2(x[k]), String(w), n2(x[k] * w)]) }
     return done(c, 'Σwx ÷ Σw', [term('Σwx', `Jumlah bobot × ${srcName(c.P)} ${n} candle`, SW), term('Σw', `Jumlah bobot 1 sampai ${n}`, den, 'count')],
       v => (v['Σw'] ? v['Σwx'] / v['Σw'] : null), [
         { title:`Ambil ${n} candle terakhir`, text:`${c.date(a)} sampai ${c.date(i)}. Candle terbaru berbobot ${n}, sebelumnya ${n - 1}, dan seterusnya sampai 1 untuk candle terlama.`,

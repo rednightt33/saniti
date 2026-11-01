@@ -161,9 +161,11 @@ export function renderCard(host: HTMLElement, ctx: Ctx, item: MenuItem, src: Car
     return `<div class="icd-ex-h"><button type="button" class="icd-nav" data-nav="-1" aria-label="Candle sebelumnya">‹</button>
       <span>Contoh · ${esc(ctx.SYMBOL)} · ${esc(e?.span ? `${dayText(e.span.from)}–${dayText(e.span.to)}` : dayText(ctx.dates[st.t]))} · ${esc(title)}</span>
       <button type="button" class="icd-nav" data-nav="1" aria-label="Candle berikutnya">›</button></div>
-      ${outs.length > 1 ? `<label class="icd-out">Output <select data-out>${outs.map(k => `<option value="${esc(k)}"${k === st.output ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></label>` : ''}`;
+      ${outs.length > 1 ? `<label class="icd-out">Output <select data-out>${outs.map(k => `<option value="${esc(k)}"${k === st.output ? ' selected' : ''}>${esc(outLabel(k))}</option>`).join('')}</select></label>` : ''}`;
   }
   const valueAt = () => series[st.output]?.[st.t];
+  /* an output's name: Broker Inventory's lines are slots b1..b5 on the chart, named by their broker codes (_labels) */
+  const outLabel = (k: string) => /^b\d$/.test(k) && Array.isArray(series._labels) ? series._labels[+k[1] - 1] || k : k === 'total' ? 'Total' : k;
 
   function calcPane(e: Explanation | null | undefined) {
     const v = valueAt();
