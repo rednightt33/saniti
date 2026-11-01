@@ -21,6 +21,20 @@ export function bandarVerdict(r: number): [string, string] {
   return [`${atLeast(a, big) ? 'Big ' : ''}${r > 0 ? 'Acc' : 'Dist'}`, r > 0 ? 'acc' : 'dist'];
 }
 
+/** EXEC-BANDAR-MERGE (user 2026-11-01: "Pakai opsi 10 ya Tarik tambang"): the Bandar detector's sums inside Top brokers.
+    `list`: each broker's buy and sell value over the period (one board filter, all investors); the N largest net buyers
+    and the N largest net sellers (ties by code A-Z), their sums, the net, the ratio to the period's total buy value and
+    the FL24 verdict. Ratio 0 and Neutral when nothing was bought. */
+export function bandarBalance(list: { b: string; bv: number; sv: number }[], n: number) {
+  const nets = list.map(o => ({ b:o.b, n:o.bv - o.sv }));
+  const byCode = (x: { b: string }, y: { b: string }) => x.b < y.b ? -1 : x.b > y.b ? 1 : 0;
+  const buyers = nets.filter(x => x.n > 0).sort((x, y) => y.n - x.n || byCode(x, y)).slice(0, n);
+  const sellers = nets.filter(x => x.n < 0).sort((x, y) => x.n - y.n || byCode(x, y)).slice(0, n);
+  const buy = buyers.reduce((t, x) => t + x.n, 0), sell = -sellers.reduce((t, x) => t + x.n, 0);
+  const total = list.reduce((t, o) => t + o.bv, 0), ratio = total > 0 ? (buy - sell) / total : 0;
+  return { buyers:buyers.map(x => x.b), sellers:sellers.map(x => x.b), buy, sell, net:buy - sell, total, ratio, verdict:bandarVerdict(ratio) };
+}
+
 /** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
 export function niceTicks(lo: number, hi: number): number[] {
   const span = (hi - lo) || 1, raw = span / 6, mag = 10 ** Math.floor(Math.log10(raw));
@@ -40,7 +54,8 @@ export function initBroker(ctx: Ctx) {
   // panel state kept across redraws (declared before the first draw below can run)
   const live = M.mode === 'live';
   const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
+  const topKept = Number(store.get('ml.acc.top'));
+  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
   if(live){
     $('bdTop').querySelectorAll('button').forEach((b: any) => b.classList.toggle('active', +b.dataset.n === RS.bdN));
     $('bdHint').textContent = `Top ${RS.bdN}`;
@@ -61,7 +76,7 @@ export function initBroker(ctx: Ctx) {
     top.forEach(o => invSel.add(o.b)); RS.broker = top.length ? top[0].b : brokerCodes()[0] ?? null;
   };
   ctx.brokerShared = { invSel, max:INV_MAX, colors:INV_COLORS, changed, ensureDefaults, brokers:brokerCodes,
-    pick(b){ RS.broker = b; if(!invSel.has(b)){ if(invSel.size >= INV_MAX) invSel.delete(invSel.values().next().value!); invSel.add(b) } changed() },
+    pick(b){ RS.broker = b; if(!invSel.has(b)){ if(invSel.size >= INV_MAX) invSel.delete(invSel.values().next().value!); invSel.add(b) } changed(); ctx.Ind?.brokerPicked?.(b) },
     listen:fn => { listeners.push(fn) }, ready:() => ready, selected:() => RS.broker };
   let applyChartRange = (_f: string, _t: string) => {};
   /* EXEC-TERMINAL-BS-SIDE (user 2026-10-28: "Bisa nggak dibuatkan shortcut seperti alt apa kek? ... tombol select on
@@ -334,20 +349,36 @@ export function initBroker(ctx: Ctx) {
     const board = RS.accBoard, part = inv => new Map(bkAggRange(accRange.bf, accRange.bt, inv, board).map(o => [o.b, netOf(o)]));
     const fm = part('Foreign'), dm = part('Domestic');
     const all = bkAggRange(accRange.bf, accRange.bt, 'All', board).map(o => ({ b:o.b, net:netOf(o), lot:netLotOf(o), f:fm.get(o.b) || 0, d:dm.get(o.b) || 0 }));
-    const buy = all.filter(x => x.net > 0).sort((a,b) => b.net-a.net).slice(0,8);
-    const sell = all.filter(x => x.net < 0).sort((a,b) => a.net-b.net).slice(0,8);
+    /* EXEC-BANDAR-MERGE: the Top N balance of the same period and board (the Bandar detector's sums and verdict); the
+       table shows at least N rows, its Top N shaded */
+    const N = RS.accN, bal = bandarBalance(bkAggRange(accRange.bf, accRange.bt, 'All', board), N);
+    const rows = Math.max(8, N), byCode = (a, b) => a.b < b.b ? -1 : a.b > b.b ? 1 : 0;
+    const buy = all.filter(x => x.net > 0).sort((a,b) => b.net-a.net || byCode(a, b)).slice(0,rows);
+    const sell = all.filter(x => x.net < 0).sort((a,b) => a.net-b.net || byCode(a, b)).slice(0,rows);
     const mx = Math.max(1, ...buy.map(x => x.net), ...sell.map(x => -x.net));
     const cell = (x, side) => x ? `<span class="pa-b" data-b="${x.b}" data-tip="${x.b}|${accRange.text()}${board === 'All' ? '' : ' ' + board} net ${sgn(x.net)} · ${sgn(x.lot)} lot · Domestic ${sgn(x.d)} · Foreign ${sgn(x.f)}">${bkTag(x.b)}</span>` : '<span class="pa-b"></span>';
     const val = (x, side) => `<span class="v ${side==='buy'?'up':'down'}">${x ? sgn(x.net) : ''}</span>`;
     const bar = (x, side) => `<div class="trk ${side}">${x ? splitFill(Math.abs(x.net)/mx*100, x.f, x.d, side) : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
-    $('accBody').innerHTML = n ? `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
+    const [vt, vc] = bal.verdict, big = /^Big /.test(vt) ? ' big' : '';
+    const share = bal.buy + bal.sell ? bal.buy / (bal.buy + bal.sell) * 100 : 50;
+    const ratio = (bal.ratio > 0 ? '+' : bal.ratio < 0 ? '−' : '') + Math.abs(bal.ratio * 100).toFixed(2) + '%';
+    const why = `Bandar balance · Top ${N}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
+      + ` = (${cv(bal.buy)} − ${cv(bal.sell)}) ÷ ${cv(bal.total)} = ${ratio}. Acc from 6%, Big Acc from 10%; Dist and Big Dist the same below zero.`;
+    const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
+        `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
+      + `<span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span><span class="tag ${vc}${big}" data-tip="${why}">${vt}</span></div>`
+      + `<div class="acc-tug" data-tip="Top ${N}|Net buy ${cv(bal.buy)} · Net sell ${cv(bal.sell)}">`
+      + `<i class="b" style="width:${share.toFixed(1)}%">${bal.buy ? cv(bal.buy) : ''}</i><i class="s" style="width:${(100 - share).toFixed(1)}%">${bal.sell ? cv(bal.sell) : ''}</i></div>`
+      + `<div class="acc-net">Net ${sgn(bal.net)} · ${ratio} of total buy</div>`;
+    $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
-        return `<div class="pa-row">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
+        return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
         + `<div class="acc-leg">${SPLIT_LEGEND}</div>`
       : `<div class="rp-empty">Tidak ada data</div>`;
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
-    $('accHint').textContent = `${accRange.text()} · net`;
+    $('accBody').querySelectorAll('#accTop button').forEach(btn => btn.onclick = () => { RS.accN = +btn.dataset.n; store.set('ml.acc.top', String(RS.accN)); renderAcc() });
+    $('accHint').textContent = `${accRange.text()} · net · ${vt}`;
   }
   function renderAcc(){
     if(live) return renderAccPaired();

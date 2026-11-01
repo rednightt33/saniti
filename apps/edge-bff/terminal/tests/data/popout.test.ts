@@ -111,3 +111,16 @@ describe('splitParts', () => {
     expect(splitFill(50, 30, 10, 'buy')).toBe('<div class="fill split" style="width:50.0%"><i class="d" style="width:25.0%"></i><i class="f" style="width:75.0%"></i></div>');
   });
 });
+
+// EXEC-INV-SYNC (user 2026-11-01): a broker picked in the panel joins Broker Inventory by the panel's own rule
+import { withPicked } from '../../src/data/brokerAgg';
+describe('withPicked: Broker Inventory takes the picked broker', () => {
+  it('adds a new broker at the end; past the maximum the oldest leaves', () => {
+    expect(withPicked(['DX', 'AK', 'YU'], 'KZ', 5)).toEqual(['DX', 'AK', 'YU', 'KZ']);
+    expect(withPicked(['A1', 'A2', 'A3', 'A4', 'A5'], 'KZ', 5)).toEqual(['A2', 'A3', 'A4', 'A5', 'KZ']);
+  });
+  it('a broker already drawn changes nothing (the same list back)', () => {
+    const list = ['DX', 'KZ'];
+    expect(withPicked(list, 'KZ', 5)).toBe(list);
+  });
+});

@@ -4,7 +4,7 @@ import { brokerData } from '../../src/data/worker';
 import { monthGrid } from '../../src/ui/calendar';
 import { sessionsBetween } from '../../src/app/rangeSelect';
 import { orderedKeys } from '../../src/ui/reorder';
-import { bandarVerdict, BANDAR_LEVELS, BANDAR_TOP, niceTicks } from '../../src/app/broker';
+import { bandarBalance, bandarVerdict, BANDAR_LEVELS, BANDAR_TOP, niceTicks } from '../../src/app/broker';
 import { brokerEnd } from '../../src/app/context';
 
 const doc = (d: string[]) => ({ columns:['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl'], d, b:d.map(() => 'YP'),
@@ -107,5 +107,34 @@ describe('Bandar panel verdict (EXEC-TERMINAL-FLOW-IND, user 2026-10-30: 6/10%, 
     expect(bandarVerdict(-0.07)).toEqual(['Dist', 'dist']);
     expect(bandarVerdict(0.1)).toEqual(['Big Acc', 'acc']);
     expect(bandarVerdict(-0.25)).toEqual(['Big Dist', 'dist']);
+  });
+});
+
+// EXEC-BANDAR-MERGE (user 2026-11-01: "Pakai opsi 10 ya Tarik tambang"): the Bandar detector's sums and verdict in Top brokers
+describe('bandarBalance: the Top N balance of Top brokers', () => {
+  const list = [
+    { b:'AA', bv:500, sv:100 },   // +400
+    { b:'BB', bv:300, sv:100 },   // +200
+    { b:'CC', bv:300, sv:100 },   // +200 (tie with BB: code order)
+    { b:'DD', bv:100, sv:400 },   // -300
+    { b:'EE', bv:0, sv:100 },     // -100
+    { b:'FF', bv:800, sv:800 },   // 0: neither side
+  ];
+  it('the N largest net buyers and sellers, their sums, the net and the ratio to the total buy value', () => {
+    const r = bandarBalance(list, 2);
+    expect([r.buyers, r.sellers]).toEqual([['AA', 'BB'], ['DD', 'EE']]);
+    expect([r.buy, r.sell, r.net, r.total]).toEqual([600, 400, 200, 2000]);
+    expect(r.ratio).toBeCloseTo(0.1);
+    expect(r.verdict).toEqual(['Big Acc', 'acc']);
+  });
+  it('N larger than the brokers on a side takes them all; the verdict follows FL24 levels', () => {
+    const r = bandarBalance(list, 10);
+    expect([r.buy, r.sell]).toEqual([800, 400]);
+    expect(r.verdict).toEqual(bandarVerdict(400 / 2000));
+    expect(bandarBalance([{ b:'AA', bv:100, sv:1000 }, { b:'BB', bv:1000, sv:100 }, { b:'CC', bv:5000, sv:5000 }], 1).verdict).toEqual(['Neutral', 'neu']);
+  });
+  it('a period with no buying is Neutral at 0, never a division by zero', () => {
+    const r = bandarBalance([{ b:'AA', bv:0, sv:50 }], 3);
+    expect([r.ratio, r.verdict[0], r.sell]).toEqual([0, 'Neutral', 50]);
   });
 });

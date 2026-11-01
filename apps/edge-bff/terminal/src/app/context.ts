@@ -80,6 +80,8 @@ export interface IndSurface {
   onChange: (() => void) | null;
   /** EXEC-IND-CARDS: an indicator as the chart has it, for its card */
   cardSource?: (id: string, uid?: number) => { def: any; params: Record<string, any>; onChart: boolean; outs: any[] } | null;
+  /** EXEC-INV-SYNC: a broker picked in the right panel (Broker Inventory indicators take it) */
+  brokerPicked?: (code: string) => void;
 }
 
 export interface HistEntry { undo(): void; redo(): void }

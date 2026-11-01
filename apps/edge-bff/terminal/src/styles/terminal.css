@@ -1291,3 +1291,17 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .im-rz-c:hover,.im-rz-c:focus-visible{background-color:var(--hover);outline:none}
 @media(max-width:700px){.im-seg button{padding:0 var(--s-3)}.im-rz{display:none}}
 .im-row.hd *,.im-badge{letter-spacing:var(--ls-caps)}
+
+/* EXEC-BANDAR-MERGE (user 2026-11-01: "Pakai opsi 10 ya Tarik tambang ... pastikan saja bahwa font size dan lain-lain tidak
+   jomplang"): the Top N balance in Top brokers, on the panel's own sizes (seg and tag as Broker summary, 11.5 px figures,
+   10.5 px inside the bar as the spec's badge size); the Top N rows shaded */
+.acc-bal{gap:8px}
+.acc-bal .acc-ratio{margin-left:auto;font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums;cursor:help}
+.acc-bal .tag{cursor:help}
+.tag.big.acc{background:#089981;color:#fff}.tag.big.dist{background:#f23645;color:#fff}
+.acc-tug{display:flex;height:16px;border-radius:4px;overflow:hidden;background:#f0f0f0;margin:0 0 4px}
+.acc-tug i{display:flex;align-items:center;min-width:0;overflow:hidden;font-style:normal;font-size:10.5px;font-weight:500;color:#fff;padding:0 5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.acc-tug i.b{background:#089981}.acc-tug i.s{background:#f23645;justify-content:flex-end}
+.acc-tug i[style*="width:0"]{padding:0}
+.acc-net{font-size:11px;color:var(--text-2);margin:0 0 8px;font-variant-numeric:tabular-nums}
+.pa-row.in-top{background:linear-gradient(90deg,rgba(8,153,129,.07),transparent 42%,transparent 58%,rgba(242,54,69,.07))}

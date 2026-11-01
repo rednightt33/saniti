@@ -16,6 +16,7 @@ import { $, nfCompact, rupiah, store } from './context';
 import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
+import { withPicked } from '../data/brokerAgg';
 import { fits, inputsOf, needsOf, splitSaved, withParked, type Input } from '../data/inputs';
 
 export function initIndicators(ctx: Ctx) {
@@ -282,6 +283,9 @@ export function initIndicators(ctx: Ctx) {
     const shift = a => { const o = new Array(N2).fill(null); if(a) a.forEach((v, i) => { const j = i + off; if(v !== null && j >= 0 && j < N2) o[j] = v }); return o };
     inst.disp = {}; (inst.outs || r.outs).forEach(o => { inst.disp[o.k] = shift(inst.raw[o.k]) });
     if(inst.raw._labels) inst.parts.forEach((pt, j) => { if(pt.o.k !== 'total') pt.o = { ...pt.o, label:inst.raw._labels[j] || `Broker ${j + 1}` } });   // FL23: the brokers' codes
+    /* EXEC-INV-SYNC (user 2026-11-01: "Ditambahin juga ... nama brokernya di sebelah kanannya ... KZ - 234.1K"): a line whose
+       name comes from the data (Broker Inventory's brokers) names itself beside its value on the axis */
+    if(inst.raw._labels) inst.parts.forEach(pt => { if(pt.series && pt.kind !== 'marker') pt.series.applyOptions({ title:pt.o.k === 'total' ? 'Total' : pt.o.label || '' }) });
     const breaks = new Set((inst.raw._breaks || []).map(i => i + off));         // calculation restarts here: never draw a line into this bar
     const dir = inst.disp.direction, bandsOff = 'bands_mode' in p && p.bands_mode === 'None', T = i => ohlc[i].time;
     const shown = pt => inst.on && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
@@ -712,6 +716,19 @@ export function initIndicators(ctx: Ctx) {
     Hist.push({ undo:() => revive(snap), redo:() => drop(snap.hid) });
   }
   Ind.add = id => userAdd(id);
+  /* EXEC-INV-SYNC (user 2026-11-01): a broker picked in the right panel joins every Broker Inventory (FL23) on the chart, by
+     the panel's own rule (withPicked: already there, nothing; else added, the oldest leaving past the maximum) */
+  Ind.brokerPicked = (code: string) => {
+    let any = false;
+    list.filter(inst => inst.def.id === 'FL23').forEach(inst => {
+      const inp = inst.def.inputs.find(f => f.key === 'brokers'); if(!inp) return;
+      const now = inp.resolve ? inp.resolve(inst.params.brokers) : inst.params.brokers;
+      const next = withPicked(Array.isArray(now) ? now : [], code, inp.max ?? 5);
+      if(next === now) return;
+      inst.params = { ...inst.params, brokers:next }; recompute(inst); any = true;
+    });
+    if(any) { save(); Ind.onChange && Ind.onChange() }
+  };
   Ind.removeAll = () => {
     if(!list.length) return;
     const snaps = list.map(snapOf);

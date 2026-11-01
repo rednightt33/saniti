@@ -109,3 +109,13 @@ export const splitFill = (width: number, foreign: number, domestic: number, side
   `<div class="fill split" style="width:${width.toFixed(1)}%">${splitParts(foreign, domestic, side)
     .map(p => `<i class="${p.k === 'F' ? 'f' : 'd'}" style="width:${(p.share * 100).toFixed(1)}%"></i>`).join('')}</div>`;
 export const SPLIT_LEGEND = '<span class="split-leg"><span><i class="d"></i>Domestic</span><span><i class="f"></i>Foreign</span></span>';
+
+/** EXEC-INV-SYNC (user 2026-11-01: "user ngeklik di panel broker, let's say dia klik KZ ... otomatis broker inventory juga
+    display broker inventory untuk broker tersebut"): a broker list after a broker is picked, by the panel's own rule (the
+    Broker inventory panel, broker.ts pick): a broker already in it changes nothing; otherwise it is added at the end and
+    the oldest leaves when the list is past `max`. The same array back when nothing changes. */
+export function withPicked(list: string[], code: string, max: number): string[] {
+  if (list.includes(code)) return list;
+  const out = [...list, code];
+  return out.length > max ? out.slice(out.length - max) : out;
+}

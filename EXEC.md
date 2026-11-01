@@ -9934,6 +9934,54 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-BANDAR-MERGE — Bandar detector masuk ke Top brokers, opsi 10 "Tarik tambang" (go 2026-11-01)
+
+**Kata user, 2026-11-01:**
+- "Berarti panel ini sebenarnya bisa kita gabungkan dengan panel top [brokers] dong";
+- "di panel top brokers kita tambahkan opsi top 3, top 5, top 10. Beserta verdiknya";
+- "Kita kirimkan saya 10 opsi dalam satu HTML" (`verification/terminal_api/bandar_merge/bandar_merge_options.html`);
+- "Pakai opsi 10 ya Tarik tambang Note dari saya, pastikan saja bahwa font size dan lain-lain tidak jomplang dengan yang
+  lain. Ensure design spec di take into account."
+
+**Yang dibangun:**
+- Panel Top brokers di bagian atas:
+  - pilihan Top 3 / Top 5 / Top 10 (bawaan Top 3 sesuai FL24, pilihan user diingat di `ml.acc.top`);
+  - rasio dan vonis FL24;
+  - satu batang yang dibagi antara beli bersih Top N dan jual bersih Top N;
+  - satu baris "Net … of total buy".
+- Baris Top N di tabel diberi warna tipis. Tabel menampilkan minimal N baris.
+- Bandar detector disembunyikan (`hide.bandar`).
+- Rumus satu fungsi teruji (`app/broker.ts` `bandarBalance`), memakai batas FL24.
+- Ukuran mengikuti panel dan Design Spec (sama dengan `edge-design-spec.css` yang dilampirkan):
+  - seg dan tag sama seperti Broker summary;
+  - angka 11.5 px;
+  - teks di dalam batang 10.5 px (ukuran badge spec).
+
+**Keputusan kecil yang saya ambil (dilaporkan ke user, belum dijawab):**
+- Vonis mengikuti periode dan filter papan Top brokers (Opsi A), dengan periode bawaan Top brokers tetap 5D.
+
+**Bukti:** `merged_live_check.py` (build lokal di atas data live). Untuk BBRI 5D, Top 3/5/10 memberi vonis dan rasio yang
+sama dengan Bandar detector lama: Big Acc +15.07%, Big Acc +11.08%, Acc +6.10%.
+
+## EXEC-INV-SYNC — broker yang diklik masuk ke indikator Broker Inventory; kode broker di label sumbu (go 2026-11-01)
+
+**Kata user, 2026-11-01:**
+- "Ketika broker inventory di show as an indicator, dan user ngeklik di panel broker, let's say dia klik KZ gitu ya, satu
+  broker. Maka bisa nggak otomatis broker inventory juga display broker inventory untuk broker tersebut?";
+- "Ditambahin juga broker nama brokernya deh di sebelah kanannya. Misalkan KZ kemudian baru lot";
+- "KZ - 234.1K".
+
+**Yang dibangun:**
+- Broker yang dipilih di panel kanan (klik di panel mana pun atau jendela pop-out) masuk ke setiap Broker Inventory (FL23)
+  di chart, dengan aturan panel Broker inventory sendiri (`data/brokerAgg.ts` `withPicked`):
+  - broker yang sudah ada tidak berubah;
+  - broker baru ditambahkan, dan yang paling lama keluar bila lewat 5.
+- Setiap garis yang namanya berasal dari data menulis namanya di samping label nilainya di sumbu kanan, misalnya
+  "KZ 234.1K" (judul seri lightweight-charts).
+
+**Bukti:** pada BBRI dengan FL23 bawaan (NI, CC, OD), klik AK di Broker summary menghasilkan FL23 = NI, CC, OD, AK.
+Label sumbu "NI 6.6M · OD 4.5M · CC 3.9M · AK −11.7M".
+
 ## EXEC-FLOW-AUDIT-HTML — satu HTML "How it works" untuk 39 indikator Flow (2026-11-01)
 
 **Kata user, 2026-11-01:** "Ada indikator flow, kemudian ada how it works. Itu HTML akan menjadi source bagaimana saya

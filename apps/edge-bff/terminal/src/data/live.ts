@@ -430,8 +430,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
     loadEvents,
     ...(bond ? { fixedIncome:{ metric, name:bond.name || SYMBOL, country:bond.country || '',
                                units:{ yield:bond.yield_unit ?? undefined, price:bond.price_unit ?? undefined } }, later:undefined } : {}),
-    // the Bandar panel is shown on the agreed definition (EXEC-TERMINAL-FLOW-IND, user 2026-10-30: "Sekarang.");
-    // the broker-action gauge has no approved formula yet
-    hide: { brokerGauge:true, bandar:false }
+    // the broker-action gauge has no approved formula yet; the Bandar detector's sums and verdict live in Top brokers
+    // (EXEC-BANDAR-MERGE, user 2026-11-01: "Pakai opsi 10 ya Tarik tambang")
+    hide: { brokerGauge:true, bandar:true }
   };
 }
