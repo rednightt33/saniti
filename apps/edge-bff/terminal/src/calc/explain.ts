@@ -35,7 +35,8 @@ export type FlowExplainer = (c: FlowContext, p: FlowParams, t: number, output?: 
 export type TechExplainer = (B: Bars, p: Params, t: number, output?: string) => Explanation | null;
 
 /* ---- numbers as the card writes them (Indonesian, as the approved mockup) ---- */
-const nf = (d: number) => new Intl.NumberFormat('id-ID', { minimumFractionDigits:d, maximumFractionDigits:d });
+const NF = new Map<number, Intl.NumberFormat>();          // one formatter per decimals (building one costs ~20 µs)
+const nf = (d: number) => { let f = NF.get(d); if (!f) NF.set(d, f = new Intl.NumberFormat('id-ID', { minimumFractionDigits:d, maximumFractionDigits:d })); return f };
 const sign = (v: number) => (v < 0 ? '−' : '');
 export const fmt = {
   num: (v: number | null, d = 2) => v === null || !isFinite(v) ? '–' : sign(v) + nf(d).format(Math.abs(v)),
@@ -75,10 +76,12 @@ export function windowSums(R: FlowRows, a: number, t: number, boards: string[] |
 export function topBy(list: BrokerSums[], n: number, score: (s: BrokerSums) => number): BrokerSums[] {
   return list.filter(s => score(s) > 0).sort((x, y) => score(y) - score(x) || (x.code < y.code ? -1 : 1)).slice(0, n);
 }
-export const filterOf = (p: FlowParams, key: 'boards' | 'investors') => Array.isArray(p[key]) && p[key].length ? p[key] as string[] : null;
+/** the board or investor filter as calc/flow.ts grid reads it: left out = all; a list (even an empty one: no row) as given */
+export const filterOf = (p: FlowParams, key: 'boards' | 'investors') => Array.isArray(p[key]) ? p[key] as string[] : null;
 export const filterText = (p: FlowParams) => {
   const b = filterOf(p, 'boards'), i = filterOf(p, 'investors');
-  return `${!b || b.length === BOARDS.length ? 'semua papan' : 'papan ' + b.join(', ')}, ${!i || i.length === INVESTORS.length ? 'asing dan domestik' : i.join(', ')}`;
+  const list = (x: string[] | null, all: number, every: string) => !x || x.length === all ? every : x.length ? x.join(', ') : 'tidak ada';
+  return `${b && b.length && b.length < BOARDS.length ? 'papan ' : ''}${list(b, BOARDS.length, 'semua papan')}, ${list(i, INVESTORS.length, 'asing dan domestik')}`;
 };
 export const spanOf = (c: FlowContext, a: number, t: number) => ({ from:c.dates[a], to:c.dates[t], candles:t - a + 1 });
 export const levelsOf = (p: FlowParams) => String(p.levels ?? '').split(/[,;\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);

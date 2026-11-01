@@ -60,6 +60,38 @@ function bvByCandle(R: FlowRows, boards: readonly string[] | null): Float64Array
   return out;
 }
 
+/* ---- shared ---- */
+const div = (a: number, b: number): Num => b !== 0 && Number.isFinite(a) && Number.isFinite(b) ? a / b : null;
+const pc = (v: number | null, d = 2) => v === null ? '–' : `${fmt.num(v, d)}%`;                 // a share, no sign
+const lot = (v: number) => `${fmt.num(v, Number.isInteger(v) ? 0 : 2)} lot`;
+const px = (v: number | null) => v === null ? '–' : `Rp ${fmt.num(v)}`;                         // a price per share
+const cnt = (v: number) => fmt.num(v, 0);
+const lastData = (R: FlowRows) => { for (let t = R.N - 1; t >= 0; t--) if (R.has[t]) return t; return -1 };
+/** a short table of xs, formatting only the rows it shows (a chart has thousands of candles): 'first' the first rows
+    then '…', 'last' '…' then the last n, 'ends' the first and last n with '…' between */
+function tableOf<T>(head: string[], xs: T[], f: (x: T) => string[], show: 'first' | 'last' | 'ends' = 'first', n = 10, note?: string) {
+  const g = ['…', ...Array(head.length - 1).fill('')];
+  const rows = show === 'first' ? (xs.length <= n ? xs.map(f) : [...xs.slice(0, n - 1).map(f), g])
+    : show === 'last' ? (xs.length <= n ? xs.map(f) : [g, ...xs.slice(-n).map(f)])
+    : xs.length <= 2 * n + 1 ? xs.map(f) : [...xs.slice(0, n).map(f), g, ...xs.slice(-n).map(f)];
+  return note === undefined ? { head, rows } : { head, rows, note };
+}
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+/** a number after an operator: a negative one in parentheses ("+ (−Rp 2 M)") */
+const par = (v: number, f: (x: number) => string) => v < 0 ? `(${f(v)})` : f(v);
+/** the candles a..t as text */
+const span = (c: FlowContext, a: number, t: number) => a === t ? c.dates[t] : `${c.dates[a]} sampai ${c.dates[t]}`;
+/** where v sits against the reference lines (explain.ts againstLevels, with the lines' own decimals: 2,5 stays 2,5) */
+function against(v: number, levels: number[]): string {
+  const up = [...levels].sort((x, y) => x - y), over = up.filter(l => v >= l), under = up.filter(l => v < l), f = (l: number) => fmt.num(l, Number.isInteger(l) ? 0 : 2);
+  if (!over.length) return `di bawah garis acuan${up.length > 1 ? ' terendah' : ''} (${f(up[0])})`;
+  if (!under.length) return `di atas garis acuan${up.length > 1 ? ' tertinggi' : ''} (${f(up[up.length - 1])})`;
+  return `di antara garis acuan ${f(over[over.length - 1])} dan ${f(under[0])}`;
+}
+const readLevels = (p: FlowParams, v: number | null, shown: string): Step[] => {
+  const lv = levelsOf(p);
+  return v !== null && lv.length ? [{ title:'Baca hasilnya', text:`${shown} berada ${against(v, lv)}.` }] : [];
+};
 /* ---- cohorts (calc/flow.ts cohort, topBrokers: score > 0, ties by broker code) ---- */
 const net = (s: BrokerSums) => s.bv - s.sv;
 const SCORE: Record<string, (s: BrokerSums) => number> = { net_buy:net, gross_buy:s => s.bv, net_sell:s => s.sv - s.bv, gross_buy_lots:s => s.bl };
@@ -80,37 +112,14 @@ function cohortText(p: FlowParams, C: BS[] | null): string {
   if ((p.scope ?? 'topn') === 'selected') { const b = Array.isArray(p.brokers) ? p.brokers : []; return b.length ? `broker pilihan ${b.join(', ')}` : 'broker pilihan (belum ada)' }
   return `${intOf(p.top, 3)} broker dengan ${RANK[p.rank] || 'net beli'} terbesar`;
 }
+/** a Top-N cohort with fewer members than N: only brokers with a positive score are taken */
+const shortOf = (p: FlowParams, C: BS[] | null) => C !== null && (p.scope ?? 'topn') === 'topn' && C.length < intOf(p.top, 3)
+  ? (C.length ? ` Hanya ${C.length} broker yang nilainya positif.` : ' Tidak ada broker yang nilainya positif, jadi kelompoknya kosong (jumlahnya 0).') : '';
 const cohortStep = (p: FlowParams, C: BS[] | null, a: number, t: number, c: FlowContext): Step => C === null
   ? { title:'Kelompok broker', text:'Semua broker dihitung.' }
-  : { title:'Kelompok broker', text:`${cap(cohortText(p, C))}, dari ${c.dates[a]} sampai ${c.dates[t]}${(p.scope ?? 'topn') === 'topn' ? ' (dihitung ulang di setiap candle; hanya broker dengan nilai positif)' : ''}.${C.length ? '' : ' Tidak ada broker yang memenuhi, jadi kelompoknya kosong (jumlahnya 0).'}`,
-      ...(C.length ? { table:{ head:['Broker', 'Beli', 'Jual', 'Net'], rows:clip(C.map(brokerRow)) } } : {}) };
+  : { title:'Kelompok broker', text:`${cap(cohortText(p, C))}, ${span(c, a, t)}${(p.scope ?? 'topn') === 'topn' ? ' (dihitung ulang di setiap candle)' : ''}.${shortOf(p, C)}`,
+      ...(C.length ? { table:tableOf(['Broker', 'Beli', 'Jual', 'Net'], C, brokerRow) } : {}) };
 
-/* ---- shared ---- */
-const div = (a: number, b: number): Num => b !== 0 && Number.isFinite(a) && Number.isFinite(b) ? a / b : null;
-const pc = (v: number | null, d = 2) => v === null ? '–' : `${fmt.num(v, d)}%`;                 // a share, no sign
-const lot = (v: number) => `${fmt.num(v, Number.isInteger(v) ? 0 : 2)} lot`;
-const px = (v: number | null) => v === null ? '–' : `Rp ${fmt.num(v)}`;                         // a price per share
-const cnt = (v: number) => fmt.num(v, 0);
-const lastData = (R: FlowRows) => { for (let t = R.N - 1; t >= 0; t--) if (R.has[t]) return t; return -1 };
-const gap = (rows: string[][]) => ['…', ...Array(Math.max(0, (rows[0]?.length ?? 1) - 1)).fill('')];
-/** a long list: the first rows, then '…' */
-const clip = (rows: string[][], max = 10) => rows.length <= max ? rows : [...rows.slice(0, max - 1), gap(rows)];
-/** a long run of candles: the first and last n, '…' between */
-const ends = (rows: string[][], n = 4) => rows.length <= 2 * n + 1 ? rows : [...rows.slice(0, n), gap(rows), ...rows.slice(-n)];
-/** the last n rows, '…' before */
-const tail = (rows: string[][], n = 8) => rows.length <= n ? rows : [gap(rows), ...rows.slice(-n)];
-const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
-/** where v sits against the reference lines (explain.ts againstLevels, with the lines' own decimals: 2,5 stays 2,5) */
-function against(v: number, levels: number[]): string {
-  const up = [...levels].sort((x, y) => x - y), over = up.filter(l => v >= l), under = up.filter(l => v < l), f = (l: number) => fmt.num(l, Number.isInteger(l) ? 0 : 2);
-  if (!over.length) return `di bawah garis acuan${up.length > 1 ? ' terendah' : ''} (${f(up[0])})`;
-  if (!under.length) return `di atas garis acuan${up.length > 1 ? ' tertinggi' : ''} (${f(up[up.length - 1])})`;
-  return `di antara garis acuan ${f(over[over.length - 1])} dan ${f(under[0])}`;
-}
-const readLevels = (p: FlowParams, v: number | null, shown: string): Step[] => {
-  const lv = levelsOf(p);
-  return v !== null && lv.length ? [{ title:'Baca hasilnya', text:`${shown} berada ${against(v, lv)}.` }] : [];
-};
 /** calc/flow.ts anchorAt: the first candle on or after the anchor date; not a date: the first candle */
 function anchorOf(c: FlowContext, anchor: any): number {
   const d = typeof anchor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? anchor : c.dates[0];
@@ -171,7 +180,7 @@ const EX: Record<string, FlowExplainer> = {
     const C = !topn ? cohortOf(X, p, a, a) : last < a ? [] : topBy(X.list(a, last, p.rank === 'gross_buy_lots' ? ['bv', 'sv', 'bl'] : ['bv', 'sv']), intOf(p.top, 3), scoreOf(p)) as BS[];
     const cc = (m: Col, k: number) => C ? C.reduce((s, x) => s + X.b(m, x.i, k, k), 0) : X.all(m, k, k);
     let Q = 0, K = 0;
-    const hist: string[][] = [];
+    const hist: { k: number; q: number; price: number | null; Q: number; K: number }[] = [];
     for (let k = a; k <= t; k++) {
       if (!R.has[k]) continue;
       const bl = cc('bl', k), sl = cc('sl', k), bv = cc('bv', k), q = bl - sl;
@@ -179,7 +188,7 @@ const EX: Record<string, FlowExplainer> = {
       if (q > 0) { price = bv / bl; K = Q <= 0 ? Math.max(Q + q, 0) * price : K + q * price }
       else if (q < 0 && Q > 0) K = K * Math.max(Q + q, 0) / Q;
       Q += q;
-      hist.push([c.dates[k], lot(q), price === null ? '–' : px(price / 100), lot(Q), fmt.idr(K)]);
+      hist.push({ k, q, price, Q, K });
     }
     if (!(Q > 0)) return null;
     const IC = K / (100 * Q);
@@ -192,11 +201,11 @@ const EX: Record<string, FlowExplainer> = {
       terms:[{ key:'C', label:'Harga penutupan', value:close, unit:'price' }, { key:'IC', label:'Perkiraan harga pokok kelompok', value:IC, unit:'price' }], combine,
       steps:[
         { title:'Mulai dari tanggal awal', text:`Dihitung mulai ${c.dates[a]}, ${filterText(p)}. Persediaan (Q, lot) dan biaya (K, Rupiah) mulai dari 0.` },
-        { title:'Kelompok broker tetap', text:`${who}.`,
-          ...(C && C.length ? { table:{ head:['Broker', 'Beli', 'Jual', 'Net'], rows:clip((topn ? C : X.list(a, t).filter(s => C.some(x => x.i === s.i))).map(brokerRow)),
-            note:`Beli, jual dan net dari ${c.dates[a]} sampai ${c.dates[topn ? last : t]}.` } } : {}) },
+        { title:'Kelompok broker tetap', text:`${who}.${shortOf(p, C)}`,
+          ...(C && C.length ? { table:tableOf(['Broker', 'Beli', 'Jual', 'Net'], topn ? C : X.list(a, t).filter(s => C.some(x => x.i === s.i)), brokerRow, 'first', 10,
+            `Beli, jual dan net dari ${c.dates[a]} sampai ${c.dates[topn ? last : t]}.`) } : {}) },
         { title:'Persediaan dan biaya setiap candle', text:`Setiap candle: q = lot beli − lot jual kelompok. Bila q > 0, Q bertambah q lot dengan harga beli candle itu (nilai beli ÷ lot beli), dan bila Q sebelumnya 0 atau kurang biayanya dimulai lagi. Bila q < 0, K turun sebanding dengan lot yang keluar. Sampai ${c.dates[t]}: Q = ${lot(Q)}, K = ${fmt.idr(K)}.`,
-          table:{ head:['Tanggal', 'q', 'Harga beli', 'Q', 'K'], rows:tail(hist, 6) } },
+          table:tableOf(['Tanggal', 'q', 'Harga beli', 'Q', 'K'], hist, h => [c.dates[h.k], lot(h.q), h.price === null ? '–' : px(h.price / 100), lot(h.Q), fmt.idr(h.K)], 'last', 6) },
         { title:'Harga pokok (Implied Cost)', text:`IC = K ÷ (100 × Q) = ${fmt.idr(K)} ÷ (100 × ${lot(Q)}) = ${px(IC)} per saham.` },
         { title:'Hitung jaraknya', text:`100 × (${px(close)} ÷ ${px(IC)} − 1) = ${fmt.pct(value)}: harga penutupan ${value >= 0 ? 'di atas' : 'di bawah'} harga pokok kelompok.` },
         ...readLevels(p, value, fmt.pct(value)),
@@ -221,9 +230,9 @@ const EX: Record<string, FlowExplainer> = {
     const now = at(t)!, value = pctCombine({ LT:r.lt, EQ:r.eq, n:r.n });
     return {
       output:'value', value, expr:'100 × (LT + 0,5 × EQ) ÷ n', span:spanOf(c, Math.max(0, t - bsl - W + 1), t),
-      terms:pctTerms(r, 'Arus bersih ÷ nilai transaksi di candle ini (x)', 'pct'), combine:pctCombine,
+      terms:pctTerms(r, `Net kelompok ÷ nilai beli ${W === 1 ? 'di candle ini' : `${W} candle`} (x)`, 'pct'), combine:pctCombine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[now.a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, now.a, t)}, ${filterText(p)}.` },
         cohortStep(p, now.C, now.a, t, c),
         { title:'Hitung x (Net Flow / Turnover)', text:`Net kelompok = ${fmt.idr(now.BV)} − ${fmt.idr(now.SV)} = ${fmt.idr(now.BV - now.SV)}. Nilai beli semua broker (papan terpilih, asing dan domestik) = ${fmt.idr(now.TBV)}. x = 100 × net ÷ nilai beli = ${fmt.pct(r.x)}.` },
         ...pctSteps(c, t, bsl, r, v => fmt.pct(v), value),
@@ -240,14 +249,14 @@ const EX: Record<string, FlowExplainer> = {
     const P = act.filter(s => net(s) > 0).length, A = act.length;
     if (!A) return null;
     const combine = (v: Record<string, number>) => v.A ? 100 * v.P / v.A : null, value = combine({ P, A });
-    const rows = [...act].sort((x, y) => net(y) - net(x) || (x.code < y.code ? -1 : 1)).map(brokerRow);
+    const ranked = [...act].sort((x, y) => net(y) - net(x) || (x.code < y.code ? -1 : 1));
     return {
       output:'value', value, expr:'100 × P ÷ A', span:spanOf(c, a, t),
       terms:[{ key:'P', label:'Broker aktif yang net beli', value:P, unit:'count' }, { key:'A', label:'Broker aktif (ada beli atau jual)', value:A, unit:'count' }], combine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         { title:'Net setiap broker aktif', text:`Broker aktif: ada nilai beli atau jual dalam jendela (${cnt(A)} broker). Net = beli − jual; ${cnt(P)} broker net beli (P).`,
-          table:{ head:['Broker', 'Beli', 'Jual', 'Net'], rows:ends(rows, 5), note:'Urut dari net terbesar.' } },
+          table:tableOf(['Broker', 'Beli', 'Jual', 'Net'], ranked, brokerRow, 'ends', 5, 'Urut dari net terbesar.') },
         { title:'Hitung nilainya', text:`100 × ${cnt(P)} ÷ ${cnt(A)} = ${pc(value)} broker aktif menjadi pembeli bersih.` },
       ],
     };
@@ -266,13 +275,13 @@ const EX: Record<string, FlowExplainer> = {
     const value = p.unit === 'value', daily = p.view === 'daily', X = cellsOf(R, s, t, p.boards ?? null, p.investors ?? null);
     const f = (v: number) => value ? fmt.idr(v) : lot(v), what = value ? 'nilai (Rupiah)' : 'lot';
     const lineOf = (code: string) => {
-      const b = R.brokers.indexOf(code), rows: string[][] = [];
+      const b = R.brokers.indexOf(code), rows: { k: number; B: number; S: number; d: number; acc: number }[] = [];
       let acc = 0, prev = 0, B = 0, S = 0;
       for (let k = s; k <= t; k++) {
         if (!R.has[k]) continue;
         B = b < 0 ? 0 : X.b(value ? 'bv' : 'bl', b, k, k); S = b < 0 ? 0 : X.b(value ? 'sv' : 'sl', b, k, k);
         const d = B - S; prev = acc; acc += d;
-        rows.push([c.dates[k], f(B), f(S), f(d), f(acc)]);
+        rows.push({ k, B, S, d, acc });
       }
       return { code, B, S, prev, v:daily ? B - S : acc, rows };
     };
@@ -287,8 +296,8 @@ const EX: Record<string, FlowExplainer> = {
         steps:[
           { title:'Broker dan titik awal', text:where },
           { title:`${daily ? 'Net' : 'Posisi'} setiap broker di ${c.dates[t]}`, text:daily ? 'Net = beli − jual di candle ini.' : 'Posisi = jumlah (beli − jual) setiap candle sejak titik awal.',
-            table:{ head:['Broker', daily ? 'Net' : 'Posisi'], rows:lines.map(l => [l.code, f(l.v)]) } },
-          { title:'Jumlahkan', text:`${lines.map(l => f(l.v)).join(' + ')} = ${f(total)}.` },
+            table:tableOf(['Broker', daily ? 'Net' : 'Posisi'], lines, l => [l.code, f(l.v)]) },
+          { title:'Jumlahkan', text:`${lines.map((l, j) => j ? par(l.v, f) : f(l.v)).join(' + ')} = ${f(total)}.` },
         ],
       };
     }
@@ -300,7 +309,7 @@ const EX: Record<string, FlowExplainer> = {
       steps:[
         { title:'Broker dan titik awal', text:`${code}. ${where}${R.brokers.includes(code!) ? '' : ` ${code} tidak punya transaksi di data ini, jadi garisnya 0.`}` },
         { title:'Beli dan jual setiap candle', text:`Setiap candle yang punya data: beli − jual ${code}; posisi menjumlahkannya sejak ${c.dates[s]}.`,
-          table:{ head:['Tanggal', 'Beli', 'Jual', 'Net', 'Posisi'], rows:tail(L.rows, 8) } },
+          table:tableOf(['Tanggal', 'Beli', 'Jual', 'Net', 'Posisi'], L.rows, r => [c.dates[r.k], f(r.B), f(r.S), f(r.d), f(r.acc)], 'last', 8) },
         { title:'Hitung nilainya', text:daily ? `${f(L.B)} − ${f(L.S)} = ${f(L.v)}.` : `${f(L.prev)} + (${f(L.B)} − ${f(L.S)}) = ${f(L.v)}.` },
       ],
     };
@@ -318,10 +327,10 @@ const EX: Record<string, FlowExplainer> = {
       output:'value', value, expr:'NB + NS', span:spanOf(c, a, t),
       terms:[{ key:'NB', label:`Net beli ${N} pembeli terbesar`, value:NB, unit:'idr' }, { key:'NS', label:`Net jual ${N} penjual terbesar`, value:NS, unit:'idr' }], combine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         { title:'Hitung net setiap broker', text:`Net = nilai beli − nilai jual selama jendela. Ambil ${N} net beli terbesar (NB) dan ${N} net jual terbesar (NS).`,
           table:{ head:['Broker', 'Beli', 'Jual', 'Net'], rows:[...buyers.map(brokerRow), ['NB', '', '', fmt.idr(NB)], ...sellers.map(brokerRow), ['NS', '', '', fmt.idr(NS)]] } },
-        { title:'Hitung nilainya', text:`${fmt.idr(NB)} + ${fmt.idr(NS)} = ${fmt.idr(value)}: ${value > 0 ? 'pembeli besar lebih kuat dari penjual besar' : value < 0 ? 'penjual besar lebih kuat dari pembeli besar' : 'pembeli dan penjual besar seimbang'}.` },
+        { title:'Hitung nilainya', text:`${fmt.idr(NB)} + ${par(NS, fmt.idr)} = ${fmt.idr(value)}: ${value > 0 ? 'pembeli besar lebih kuat dari penjual besar' : value < 0 ? 'penjual besar lebih kuat dari pembeli besar' : 'pembeli dan penjual besar seimbang'}.` },
       ],
     };
   },
@@ -350,7 +359,7 @@ const EX: Record<string, FlowExplainer> = {
       const s = v.NET > 0 ? (v.S > 0 ? v.S + 1 : 1) : v.NET < 0 ? (v.S < 0 ? v.S - 1 : -1) : 0;
       return Math.max(-v.L, Math.min(v.L, s));
     };
-    const value = combine({ S, NET, L }), rows = [...run].reverse().map(r => [c.dates[r.k], fmt.idr(r.n), r.n > 0 ? 'net beli' : 'net jual']);
+    const value = combine({ S, NET, L });
     const raw = NET > 0 ? (S > 0 ? S + 1 : 1) : NET < 0 ? (S < 0 ? S - 1 : -1) : 0;
     const rule = NET > 0 ? (S > 0 ? `NET > 0 dan S > 0: S + 1 = ${cnt(raw)}` : 'NET > 0 dan S tidak positif: mulai dari 1')
       : NET < 0 ? (S < 0 ? `NET < 0 dan S < 0: S − 1 = ${cnt(raw)}` : 'NET < 0 dan S tidak negatif: mulai dari −1') : 'NET = 0 (tidak ada transaksi kelompok dengan filter ini): 0';
@@ -360,12 +369,12 @@ const EX: Record<string, FlowExplainer> = {
       terms:[{ key:'S', label:'Streak di candle sebelumnya', value:S, unit:'count' }, { key:'NET', label:'Net kelompok di candle ini', value:NET, unit:'idr' },
         { key:'L', label:'Batas hitungan (limit)', value:L, unit:'count' }], combine,
       steps:[
-        { title:'Kelompok dan filter', text:`${cap(cohortText(p, now.C))}${topn ? `, dipilih ulang di setiap candle dari ${L} candle terakhir` : ''}, ${filterText(p)}. Batas hitungan ±${L} candle.` },
-        ...(now.C && now.C.length ? [cohortStep(p, now.C, topn ? flowWindow(R, t, L)! : t, t, c)] : []),
+        { title:'Kelompok dan filter', text:`${cap(cohortText(p, now.C))}${topn ? `, dipilih ulang di setiap candle dari ${L} candle terakhir (${span(c, flowWindow(R, t, L)!, t)})` : ''}, ${filterText(p)}. Batas hitungan ±${L} candle.${shortOf(p, now.C)}`,
+          ...(now.C && now.C.length ? { table:tableOf(['Broker', 'Beli', 'Jual', 'Net'], now.C, brokerRow, 'first', 10, topn ? `Beli, jual dan net ${span(c, flowWindow(R, t, L)!, t)}.` : `Beli, jual dan net ${c.dates[t]}.`) } : {}) },
         { title:`Net di ${c.dates[t]}`, text:`NET = nilai beli − nilai jual kelompok di candle ini = ${fmt.idr(now.BV)} − ${fmt.idr(now.SV)} = ${fmt.idr(NET)}.` },
         { title:'Streak sebelumnya', text:S ? `${cnt(Math.abs(S))} candle berturut-turut ${S > 0 ? 'net beli' : 'net jual'} sampai ${c.dates[t - 1]}${Math.abs(S) === L ? ' (sudah di batas)' : ''}, jadi S = ${cnt(S)}.`
             : t > 0 && valid(t - 1) ? `Net di ${c.dates[t - 1]} = 0, jadi S = 0.` : `Candle sebelumnya tidak punya data${topn ? ' atau jendela Top-N belum penuh' : ''}; hitungan mulai lagi dari S = 0.`,
-          ...(rows.length ? { table:{ head:['Tanggal', 'Net', 'Arah'], rows:tail(rows, 8) } } : {}) },
+          ...(run.length ? { table:tableOf(['Tanggal', 'Net', 'Arah'], [...run].reverse(), r => [c.dates[r.k], fmt.idr(r.n), r.n > 0 ? 'net beli' : 'net jual'], 'last', 8) } : {}) },
         { title:'Hitung streak', text:`${rule}${raw !== value ? `, dibatasi menjadi ${cnt(value)}` : ''}. Streak di ${c.dates[t]} = ${cnt(value)}.` },
       ],
     };
@@ -399,11 +408,11 @@ const EX: Record<string, FlowExplainer> = {
   FL28: (c, p, t) => {
     const n = intOf(p.window, 20);
     if (t < n - 1 || t >= c.rows.N) return null;
-    let S = 0; const rows: string[][] = [];
+    let S = 0;
     for (let k = t - n + 1; k <= t; k++) {
       const cl = c.close[k], v = c.volume[k];
       if (cl === null || v === null) return null;
-      S += cl * v; rows.push([c.dates[k], px(cl), cnt(v), fmt.idr(cl * v)]);
+      S += cl * v;
     }
     const combine = (v: Record<string, number>) => v.n ? v.S / v.n : null, value = combine({ S, n });
     return {
@@ -411,7 +420,7 @@ const EX: Record<string, FlowExplainer> = {
       terms:[{ key:'S', label:`Jumlah nilai transaksi ${n} sesi`, value:S, unit:'idr' }, { key:'n', label:'Jumlah sesi', value:n, unit:'count' }], combine,
       steps:[
         { title:`Ambil ${n} sesi`, text:`${c.dates[t - n + 1]} sampai ${c.dates[t]}; nilai transaksi setiap sesi = close × volume.`,
-          table:{ head:['Tanggal', 'Close', 'Volume', 'Nilai'], rows:ends(rows) } },
+          table:tableOf(['Tanggal', 'Close', 'Volume', 'Nilai'], Array.from({ length:n }, (_, j) => t - n + 1 + j), k => [c.dates[k], px(c.close[k]), cnt(c.volume[k]!), fmt.idr(c.close[k]! * c.volume[k]!)], 'ends', 4) },
         { title:'Jumlahkan', text:`S = ${fmt.idr(S)}.` },
         { title:'Bagi dengan jumlah sesi', text:`${fmt.idr(S)} ÷ ${n} = ${fmt.idr(value)} per sesi.` },
       ],
@@ -423,23 +432,24 @@ const EX: Record<string, FlowExplainer> = {
   FL29: (c, p, t) => {
     const R = c.rows, N = intOf(p.top, 3), D = intOf(p.window, 20), th = Number(p.threshold) || 0, a = flowWindow(R, t, D);
     if (a === null) return null;
-    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), rows: string[][] = [];
+    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), rows: { k: number; nb: number | null; bal: number | null; up: boolean }[] = [];
     let K = 0;
     for (let k = a; k <= t; k++) {
-      if (!R.has[k]) { rows.push([c.dates[k], '–', '–', 'tidak (tanpa data)']); continue }
+      if (!R.has[k]) { rows.push({ k, nb:null, bal:null, up:false }); continue }
       const L = X.list(k, k), nb = topBy(L, N, net).reduce((x, s) => x + net(s), 0), ns = topBy(L, N, s => -net(s)).reduce((x, s) => x + net(s), 0);
       const v = div(nb + ns, X.all('bv', k, k)), bal = v === null ? null : 100 * v, up = bal !== null && above(bal, th);
       if (up) K++;
-      rows.push([c.dates[k], fmt.idr(nb + ns), bal === null ? '–' : fmt.pct(bal), up ? 'ya' : 'tidak']);
+      rows.push({ k, nb:nb + ns, bal, up });
     }
     const combine = (v: Record<string, number>) => v.D ? 100 * v.K / v.D : null, value = combine({ K, D });
     return {
       output:'value', value, expr:'100 × K ÷ D', span:spanOf(c, a, t),
       terms:[{ key:'K', label:`Candle dengan balance di atas ${fmt.num(th)}%`, value:K, unit:'count' }, { key:'D', label:'Jumlah candle (days)', value:D, unit:'count' }], combine,
       steps:[
-        { title:`Ambil ${D} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${D} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         { title:'Balance setiap candle', text:`Setiap candle dihitung sendiri: 100 × (NB + NS) ÷ nilai beli semua broker di candle itu, dengan ${N} net pembeli dan ${N} net penjual terbesar candle itu. Candle tanpa data broker dihitung tidak di atas.`,
-          table:{ head:['Tanggal', 'NB + NS', 'Balance', `Di atas ${fmt.num(th)}%`], rows:ends(rows, 5) } },
+          table:tableOf(['Tanggal', 'NB + NS', 'Balance', `Di atas ${fmt.num(th)}%`], rows,
+            r => [c.dates[r.k], r.nb === null ? '–' : fmt.idr(r.nb), r.bal === null ? '–' : fmt.pct(r.bal), r.nb === null ? 'tidak (tanpa data)' : r.up ? 'ya' : 'tidak'], 'ends', 5) },
         { title:'Hitung harinya', text:`${cnt(K)} dari ${D} candle punya balance di atas ${fmt.num(th)}% (K).` },
         { title:'Hitung nilainya', text:`100 × ${cnt(K)} ÷ ${D} = ${pc(value)}.` },
       ],
@@ -484,7 +494,7 @@ const EX: Record<string, FlowExplainer> = {
       steps:[
         { title:`Ambil ${w} candle`, text:`${c.dates[t - w + 1]} sampai ${c.dates[t]}: transaksi orang dalam (insider) yang tanggalnya jatuh di candle-candle ini.` },
         ins.length ? { title:'Transaksi orang dalam', text:`${cnt(ins.length)} transaksi: beli ${fmt.idr(B)} (B), jual ${fmt.idr(S)} (S).`,
-            table:{ head:['Tanggal', 'Aksi', 'Nilai'], rows:clip([...ins].sort((x, y) => x.t - y.t).map(r => [c.dates[r.t], r.value >= 0 ? 'Beli' : 'Jual', fmt.idr(Math.abs(r.value))])) } }
+            table:tableOf(['Tanggal', 'Aksi', 'Nilai'], [...ins].sort((x, y) => x.t - y.t), r => [c.dates[r.t], r.value >= 0 ? 'Beli' : 'Jual', fmt.idr(Math.abs(r.value))]) }
           : { title:'Transaksi orang dalam', text:'Tidak ada transaksi orang dalam di jendela ini, jadi nilainya 0.' },
         { title:'Hitung nilainya', text:`${fmt.idr(B)} − ${fmt.idr(S)} = ${fmt.idr(value)}${value > 0 ? ': orang dalam lebih banyak membeli' : value < 0 ? ': orang dalam lebih banyak menjual' : ''}.` },
       ],
@@ -500,8 +510,6 @@ const EX: Record<string, FlowExplainer> = {
     const F = X.all('bf', t, t), FB = X.all('bf', a, t - 1);
     const combine = (v: Record<string, number>) => div(v.F, v.FB / v.n), value = combine({ F, FB, n:bsl });
     if (value === null) return null;
-    const rows: string[][] = [];
-    for (let k = a; k < t; k++) rows.push([c.dates[k], R.has[k] ? cnt(X.all('bf', k, k)) : '0 (tanpa data)']);
     return {
       output:'value', value, expr:'F ÷ (FB ÷ n)', span:spanOf(c, a, t),
       terms:[{ key:'F', label:'Transaksi beli di candle ini', value:F, unit:'count' }, { key:'FB', label:`Jumlah transaksi beli ${bsl} candle sebelumnya`, value:FB, unit:'count' },
@@ -510,7 +518,7 @@ const EX: Record<string, FlowExplainer> = {
         { title:'Ambil candle', text:`${c.dates[t]} dan ${bsl} candle sebelumnya (${c.dates[a]} sampai ${c.dates[t - 1]}), ${filterText(p)}. Jumlah transaksi beli (frekuensi) semua broker.` },
         { title:'Transaksi beli hari ini', text:`F = ${cnt(F)} transaksi beli di ${c.dates[t]}.` },
         { title:'Rata-rata pembanding', text:`FB = ${cnt(FB)}; rata-rata = ${cnt(FB)} ÷ ${bsl} = ${fmt.num(FB / bsl)}. Candle tanpa data broker menambah 0 dan pembaginya tetap ${bsl}.`,
-          table:{ head:['Tanggal', 'Transaksi beli'], rows:ends(rows) } },
+          table:tableOf(['Tanggal', 'Transaksi beli'], Array.from({ length:bsl }, (_, j) => a + j), k => [c.dates[k], R.has[k] ? cnt(X.all('bf', k, k)) : '0 (tanpa data)'], 'ends', 4) },
         { title:'Hitung lonjakannya', text:`${cnt(F)} ÷ ${fmt.num(FB / bsl)} = ${fmt.num(value)}×.` },
         ...readLevels(p, value, `${fmt.num(value)}×`),
       ],
@@ -564,11 +572,11 @@ const EX: Record<string, FlowExplainer> = {
       terms:[{ key:'NI', label:'Net broker institusi', value:NI, unit:'idr' }, { key:'NR', label:'Net broker ritel', value:NR, unit:'idr' },
         { key:'TBV', label:'Total nilai beli semua broker', value:TBV, unit:'idr' }], combine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         { title:'Daftar broker', text:`Institusi (${src(p.inst, 'Institutional-heavy')}): ${names(inst)}. Ritel (${src(p.retail, 'Retail-heavy')}): ${names(retail)}.` },
         { title:'Net setiap kelompok', text:`Net = nilai beli − nilai jual selama jendela. Net terbesar: institusi ${big(I)}; ritel ${big(Rt)}. Total nilai beli semua broker (TBV) = ${fmt.idr(TBV)}.`,
           table:{ head:['Kelompok', 'Beli', 'Jual', 'Net'], rows:[['Institusi', fmt.idr(sum(I, 'bv')), fmt.idr(sum(I, 'sv')), fmt.idr(NI)], ['Ritel', fmt.idr(sum(Rt, 'bv')), fmt.idr(sum(Rt, 'sv')), fmt.idr(NR)]] } },
-        { title:'Hitung nilainya', text:`100 × (${fmt.idr(NI)} − ${fmt.idr(NR)}) ÷ ${fmt.idr(TBV)} = ${fmt.pct(value)}: ${value > 0 ? 'institusi lebih dominan' : value < 0 ? 'ritel lebih dominan' : 'seimbang'}.` },
+        { title:'Hitung nilainya', text:`100 × (${fmt.idr(NI)} − ${par(NR, fmt.idr)}) ÷ ${fmt.idr(TBV)} = ${fmt.pct(value)}: ${value > 0 ? 'institusi lebih dominan' : value < 0 ? 'ritel lebih dominan' : 'seimbang'}.` },
       ],
     };
   },
@@ -579,21 +587,22 @@ const EX: Record<string, FlowExplainer> = {
     if (a === null) return null;
     const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), L = X.list(a, t), top3 = topBy(L, 3, net) as BS[], b = top3[0];
     if (!b) return null;
-    let K = 0; const rows: string[][] = [];
+    let K = 0; const rows: { k: number; n: number }[] = [];
     for (let k = a; k <= t; k++) {
       const n = X.b('bv', b.i, k, k) - X.b('sv', b.i, k, k);
       if (n > 0) K++;
-      rows.push([c.dates[k], R.has[k] ? fmt.idr(n) : '– (tanpa data)', n > 0 ? 'ya' : 'tidak']);
+      rows.push({ k, n });
     }
     const combine = (v: Record<string, number>) => v.D ? 100 * v.K / v.D : null, value = combine({ K, D });
     return {
       output:'value', value, expr:'100 × K ÷ D', span:spanOf(c, a, t),
       terms:[{ key:'K', label:`Candle ${b.code} net beli`, value:K, unit:'count' }, { key:'D', label:'Jumlah candle (days)', value:D, unit:'count' }], combine,
       steps:[
-        { title:`Ambil ${D} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${D} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         { title:'Pembeli terbesar', text:`Broker dengan net beli terbesar selama jendela: ${b.code} (${fmt.idr(net(b))}). Ia tetap dipakai untuk seluruh jendela ini.`,
-          table:{ head:['Broker', 'Beli', 'Jual', 'Net'], rows:top3.map(brokerRow) } },
-        { title:`Net ${b.code} setiap candle`, text:'Candle tanpa data dihitung bukan candle beli.', table:{ head:['Tanggal', 'Net', 'Net beli'], rows:ends(rows, 5) } },
+          table:tableOf(['Broker', 'Beli', 'Jual', 'Net'], top3, brokerRow) },
+        { title:`Net ${b.code} setiap candle`, text:'Candle tanpa data dihitung bukan candle beli.',
+          table:tableOf(['Tanggal', 'Net', 'Net beli'], rows, r => [c.dates[r.k], R.has[r.k] ? fmt.idr(r.n) : '– (tanpa data)', r.n > 0 ? 'ya' : 'tidak'], 'ends', 5) },
         { title:'Hitung nilainya', text:`${b.code} net beli di ${cnt(K)} dari ${D} candle: 100 × ${cnt(K)} ÷ ${D} = ${pc(value)}.` },
       ],
     };
@@ -612,7 +621,7 @@ const EX: Record<string, FlowExplainer> = {
       terms:[{ key:'BV', label:'Nilai beli kelompok', value:BV, unit:'idr' }, { key:'SV', label:'Nilai jual kelompok', value:SV, unit:'idr' },
         { key:'TBV', label:'Nilai transaksi semua broker (papan terpilih)', value:TBV, unit:'idr' }], combine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         cohortStep(p, C, a, t, c),
         { title:'Nilai kelompok dan pasar', text:`Kelompok: beli ${fmt.idr(BV)}, jual ${fmt.idr(SV)}. Nilai transaksi semua broker di papan terpilih, asing dan domestik (TBV) = ${fmt.idr(TBV)}; setiap transaksi punya satu sisi beli dan satu sisi jual, jadi pembaginya 2 × TBV.` },
         { title:'Hitung nilainya', text:`100 × (${fmt.idr(BV)} + ${fmt.idr(SV)}) ÷ (2 × ${fmt.idr(TBV)}) = ${pc(value)}.` },
@@ -637,7 +646,7 @@ const EX: Record<string, FlowExplainer> = {
       output:'value', value, expr:'100 × (LT + 0,5 × EQ) ÷ n', span:spanOf(c, Math.max(0, t - bsl - W + 1), t),
       terms:pctTerms(r, `Net kelompok ${W} candle (x)`, 'idr'), combine:pctCombine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[now.a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, now.a, t)}, ${filterText(p)}.` },
         cohortStep(p, now.C, now.a, t, c),
         { title:'Hitung x (net Rupiah)', text:`x = nilai beli − nilai jual kelompok = ${fmt.idr(now.BV)} − ${fmt.idr(now.SV)} = ${fmt.idr(r.x)}.` },
         ...pctSteps(c, t, bsl, r, v => fmt.idr(v), value),
@@ -662,7 +671,6 @@ const EX: Record<string, FlowExplainer> = {
       const xs = keys.map(k => v[k]).filter(x => x > 0), r = v.LAIN > 0 ? v.LAIN : 0, T = xs.reduce((s, x) => s + x, 0) + r;
       return T ? (xs.reduce((s, x) => s + x * x, 0) + (v.H_LAIN ?? 0) * r * r) / (T * T) : null;
     };
-    const rows = ranked.map(s => [s.code, fmt.idr(net(s)), pc(100 * net(s) / all), fmt.num((net(s) / all) ** 2, 4)]);
     return {
       output:'value', value,
       expr:`(${[...keys.map(k => `(${k})²`), ...(rest.length ? ['H_LAIN × (LAIN)²'] : [])].join(' + ')}) ÷ (${[...keys, ...(rest.length ? ['LAIN'] : [])].join(' + ')})²`,
@@ -671,9 +679,9 @@ const EX: Record<string, FlowExplainer> = {
         ...(rest.length ? [{ key:'LAIN', label:`Net beli ${rest.length} broker lain`, value:LAIN, unit:'idr' as Term['unit'] },
           { key:'H_LAIN', label:`Keterpusatan (HHI) di antara ${rest.length} broker lain`, value:H, unit:'num' as Term['unit'] }] : [])], combine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         { title:'Net beli positif', text:`Net = nilai beli − nilai jual; hanya broker dengan net positif (${cnt(pos.length)} broker, jumlah ${fmt.idr(all)}). Bagian = net ÷ jumlah itu.`,
-          table:{ head:['Broker', 'Net', 'Bagian', 'Bagian²'], rows:clip(rows) } },
+          table:tableOf(['Broker', 'Net', 'Bagian', 'Bagian²'], ranked, s => [s.code, fmt.idr(net(s)), pc(100 * net(s) / all), fmt.num((net(s) / all) ** 2, 4)]) },
         { title:'Hitung nilainya', text:`Jumlah kuadrat bagian semua broker = ${fmt.num(value, 4)} (0 = tersebar, 1 = satu broker saja).` },
       ],
     };
@@ -691,10 +699,10 @@ const EX: Record<string, FlowExplainer> = {
       output:'value', value, expr:'100 × (C ÷ VW − 1)', span:spanOf(c, a, t),
       terms:[{ key:'C', label:'Harga penutupan', value:close, unit:'price' }, { key:'VW', label:`Harga rata-rata beli kelompok ${W} candle (VWAP)`, value:VW, unit:'price' }], combine,
       steps:[
-        { title:`Ambil ${W} candle`, text:`${c.dates[a]} sampai ${c.dates[t]}, ${filterText(p)}.` },
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         C === null ? { title:'Kelompok broker', text:'Semua broker dihitung.' }
-          : { title:'Kelompok broker', text:`${cap(cohortText(p, C))}${(p.scope ?? 'topn') === 'topn' ? ' (dihitung ulang di setiap candle)' : ''}.`,
-              table:{ head:['Broker', 'Beli', 'Lot beli', 'Net'], rows:clip(C.map(s => [s.code, fmt.idr(s.bv), lot(s.bl), fmt.idr(net(s))])) } },
+          : { title:'Kelompok broker', text:`${cap(cohortText(p, C))}${(p.scope ?? 'topn') === 'topn' ? ' (dihitung ulang di setiap candle)' : ''}.${shortOf(p, C)}`,
+              table:tableOf(['Broker', 'Beli', 'Lot beli', 'Net'], C, s => [s.code, fmt.idr(s.bv), lot(s.bl), fmt.idr(net(s))]) },
         { title:'Harga rata-rata beli (VWAP)', text:`VW = nilai beli ÷ (100 × lot beli) = ${fmt.idr(BV)} ÷ (100 × ${lot(BL)}) = ${px(VW)} per saham.` },
         { title:'Hitung jaraknya', text:`100 × (${px(close)} ÷ ${px(VW)} − 1) = ${fmt.pct(value)}: harga ${value >= 0 ? 'di atas' : 'di bawah'} harga rata-rata beli kelompok.` },
         ...readLevels(p, value, fmt.pct(value)),

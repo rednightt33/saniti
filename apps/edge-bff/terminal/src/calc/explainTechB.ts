@@ -59,9 +59,12 @@ const fx = (v: number) => {
 const lbl = (s: string) => SOURCES[s] || s;
 const range = (a: number, b: number) => Array.from({ length:Math.max(0, b - a + 1) }, (_, k) => a + k);
 const sumOf = (xs: number[]) => xs.reduce((a, v) => a + v, 0);
-const short = (rows: string[][]) => rows.length > 12 ? [...rows.slice(0, 5), rows[0].map((_, j) => j ? '' : '…'), ...rows.slice(-5)] : rows;
-const table = (B: Bars, idx: number[], head: string[], cells: (i: number, k: number) => string[]) =>
-  ({ head:['Tanggal', ...head], rows:short(idx.map((i, k) => [dateOf(B, i), ...cells(i, k)])) });
+/** a table of the candles idx (a long one shows the first 5, '…' and the last 5; only the shown rows are formatted) */
+function table(B: Bars, idx: number[], head: string[], cells: (i: number, k: number) => string[]) {
+  const row = (k: number) => [dateOf(B, idx[k]), ...cells(idx[k], k)], n = idx.length;
+  const rows = n > 12 ? [...range(0, 4).map(row), ['…', ...head.map(() => '')], ...range(n - 5, n - 1).map(row)] : range(0, n - 1).map(row);
+  return { head:['Tanggal', ...head], rows };
+}
 const windowSpan = (B: Bars, a: number, t: number) => ({ from:dateOf(B, a), to:dateOf(B, t), candles:t - a + 1 });
 const prevOf = (S: Series, t: number, s0: number) => t - 1 >= s0 && isN(S[t - 1]) ? S[t - 1] as number : null;
 const chain = (B: Bars, s0: number) => `Nilainya berantai sejak candle pertama data (${dateOf(B, s0)}): setiap candle memperbarui nilai sebelumnya, jadi seluruh riwayat ikut terbawa.`;
@@ -125,7 +128,7 @@ const mfmOf = (B: Bars, i: number) => B.H[i] === B.L[i] ? 0 : ((B.C[i] - B.L[i])
 function bandsAt(B: Bars, a: At, t: number) {
   const { p, s0, s } = a, n: number = p.length, k: number = p.std_dev, type = String(p.basis_ma_type);
   const kind = ['EMA', 'WMA', 'RMA', 'VWMA'].includes(type) ? type : 'SMA';
-  const bb = F.bollinger(B, p), SD = F.stddev(B, { length:n, source:s, stdev_method:'population' }).stddev[t] as number;
+  const bb = a.out.basis ? a.out : F.bollinger(B, p), SD = F.stddev(B, { length:n, source:s, stdev_method:'population' }).stddev[t] as number;
   const i0 = t - n + 1, idx = range(i0, t), X = (i: number) => sourceAt(B, s, i) as number, xs = idx.map(X), x = X(t);
   const mean = sumOf(xs) / n, SS = sumOf(xs.map(v => (v - mean) ** 2));
   let basis: Last, text: string;
@@ -157,7 +160,7 @@ function bandsAt(B: Bars, a: At, t: number) {
   }
   const steps: Step[] = [
     { title:`Ambil ${n} candle terakhir`, text:`${dateOf(B, i0)} sampai ${dateOf(B, t)}, nilai ${lbl(s)} setiap candle (x).`,
-      table:table(B, idx, [lbl(s), '(x − x̄)²'], (_, j) => [px(xs[j]), px((xs[j] - mean) ** 2)]) },
+      table:table(B, idx, [lbl(s)], (_, j) => [px(xs[j])]) },
     { title:`Basis (${kind} ${n})`, text },
   ];
   const sdStep: Step = { title:'Simpangan baku (SD)', text:`Rata-rata jendela x̄ = ${px(mean)}; jumlah (x − x̄)² = ${px(SS)}. SD = √(${px(SS)} ÷ ${n}) = ${px(SD)} (simpangan baku populasi, dibagi n${kind === 'SMA' ? '' : '; tetap terhadap rata-rata sederhana x̄, seperti TA-Lib'}).` };

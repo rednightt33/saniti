@@ -458,7 +458,7 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
     const up = c.o === 'upper', sign = up ? '+' : '−', bv = basis[i] as number;
     return done(c, `Basis ${sign} m × ${RK}`, [term('Basis', `${expo ? 'EMA' : 'SMA'} ${n} ${srcName(P)}`, bv), term('m', 'Pengali (m)', P.multiplier, 'num'), term(RK, rLabel, R)],
       v => (up ? v.Basis + v.m * v[RK] : v.Basis - v.m * v[RK]), [
-        { title:'Garis tengah', text:expo ? emaLine(c, `EMA ${n}`, basis, x, n).replace('nilai sebelumnya + α × (harga − nilai sebelumnya)', 'α × harga + (1 − α) × nilai sebelumnya') : `SMA ${n} ${srcName(P)} = ${n2(bv)}.` },
+        { title:'Garis tengah', text:expo ? emaLine(c, `EMA ${n}`, basis, x, n) : `SMA ${n} ${srcName(P)} = ${n2(bv)}.` },
         { title:style === 'TR' ? 'True range' : style === 'HL_RANGE' ? 'Rentang rata-rata' : `ATR ${P.atr_length}`, text:rText },
         { title:up ? 'Pita atas' : 'Pita bawah', text:`${n2(bv)} ${sign} ${fmt.num(P.multiplier)} × ${n2(R)} = ${n2(c.v)}.` },
       ]);

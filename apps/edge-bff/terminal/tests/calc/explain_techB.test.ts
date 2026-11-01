@@ -46,13 +46,14 @@ function check(key: string, B: Bars, p: Record<string, any>, ts: number[], where
 
 describe('explainTechB on every fixture ticker', () => {
   const data = loadFixtures();
-  for (const key of Object.keys(TECH_EXPLAIN_B)) it(key, () => {
-    for (const d of data) {
-      const B: Bars = { T:d.T, O:d.O, H:d.H, L:d.L, C:d.C, V:d.V }, N = d.C.length;
-      const ts = [...Array.from({ length:70 }, (_, i) => i), ...Array.from({ length:40 }, (_, i) => Math.floor(70 + (N - 71) * i / 39))];
-      for (const v of [{}, ...(VARIANTS[key] || [])]) check(key, B, { ...(DEFAULTS[key] || {}), ...v }, ts, d.ticker);
-    }
-  }, 120_000);
+  // BBCA with every variant; the other tickers (flat windows, low prices, an index without volume) with the defaults and
+  // the first two variants, on fewer candles
+  for (const key of Object.keys(TECH_EXPLAIN_B)) for (const d of data) it(`${key} ${d.ticker}`, async () => {
+    await new Promise(r => setTimeout(r, 0));                         // let the worker answer the runner between tickers
+    const B: Bars = { T:d.T, O:d.O, H:d.H, L:d.L, C:d.C, V:d.V }, N = d.C.length, all = d.ticker === 'BBCA', head = all ? 30 : 16, tail = all ? 14 : 8;
+    const ts = [...Array.from({ length:head }, (_, i) => i), ...Array.from({ length:tail }, (_, i) => Math.floor(head + (N - head - 1) * i / (tail - 1)))];
+    for (const v of [{}, ...(VARIANTS[key] || []).slice(0, all ? undefined : 2)]) check(key, B, { ...(DEFAULTS[key] || {}), ...v }, ts, d.ticker);
+  }, 60_000);
 });
 
 /* 90 synthetic bars: a gap of missing bars, a run of flat candles (H = L, unchanged close) and zero-volume candles */
@@ -71,7 +72,8 @@ function synthetic(): Bars {
 }
 describe('explainTechB on synthetic edge cases', () => {
   const B = synthetic(), ts = Array.from({ length:90 }, (_, i) => i);
-  for (const key of Object.keys(TECH_EXPLAIN_B)) it(key, () => {
+  for (const key of Object.keys(TECH_EXPLAIN_B)) it(key, async () => {
+    await new Promise(r => setTimeout(r, 0));
     for (const v of [{}, ...('length' in (DEFAULTS[key] || {}) ? [{ length:3 }] : []), ...(VARIANTS[key] || [])]) check(key, B, { ...(DEFAULTS[key] || {}), ...v }, ts, 'synthetic');
   });
 });

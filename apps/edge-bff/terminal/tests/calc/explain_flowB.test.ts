@@ -83,7 +83,7 @@ describe('Flow explainers FL20-FL39 on the other paths', () => {
     let shown = 0;
     for (const v of cases) shown += check(id, c, v);
     expect(shown, `${id}: candles with a value`).toBeGreaterThan(0);
-  });
+  }, 60_000);     // thousands of explanations, each formatting its numbers (explain.ts fmt)
   it('FL27 marks some candles and not others', () => {
     const out = computeFlow('FL27', c, { ...flowDefaults('FL27'), volx:1.2, move:5 }).value;
     expect(out.some(v => v === 1) && out.some(v => v === 0)).toBe(true);

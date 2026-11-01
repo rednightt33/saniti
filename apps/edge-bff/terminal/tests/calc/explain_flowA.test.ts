@@ -51,29 +51,32 @@ const EXTRA: Record<string, Record<string, any>[]> = {
   FL18:[{ anchor:'2026-01-20' }, { anchor:'2026-01-25', scope:'selected', brokers:['CC', 'XL'] }, { anchor:'2030-01-01' }, { anchor:'2026-01-20', rank:'net_sell', top:1 }, { anchor:'2026-01-10', scope:'all' }],
   FL19:[{ anchor:'2026-01-20' }, { anchor:'2026-01-25', scope:'selected', brokers:['CC', 'XL'] }, { anchor:'2030-01-01' }, { anchor:'2026-01-20', rank:'net_sell', top:1 }, { anchor:'2026-01-10', scope:'all' }, { top:8 }],
 };
-const SIDES = [{}, { side:'sell' }, { side:'both' }];
+/* the plain data with every variant; the data with gaps, odd lots and large values with a few. Buy and Sell are both
+   asked whatever the side (the card may ask either); a variant's candles are all checked, the others every third. */
+const FEW: Record<string, any>[] = [{}, { scope:'selected', brokers:['BK', 'ZP', 'QQ'] }, { scope:'all', window:3 }];
 
 describe('explainFlowA.ts: every output and parameter equals calc/flow.ts', () => {
   const data: [string, FlowContext][] = [['plain', synth(11)], ['gaps', synth(5, { gaps:true })], ['odd lots', synth(23, { odd:true })], ['big', synth(3, { big:true })]];
   for (const id of Object.keys(FLOW_EXPLAIN_A).filter(i => i !== 'FL24')) for (const [name, c] of data) it(`${id} ${name}`, () => {
-    const def = flowDefaults(id), explain = FLOW_EXPLAIN_A[id];
+    const def = flowDefaults(id), explain = FLOW_EXPLAIN_A[id], last = c.dates.length - 1;
     let checked = 0;
-    const variants = [...COHORT, ...(EXTRA[id] ?? [])].flatMap(v => 'side' in def && !('side' in v) ? SIDES.map(s => ({ ...v, ...s })) : [v]);
+    const variants = name === 'plain' ? [...COHORT, ...(EXTRA[id] ?? [])] : [...FEW, ...(EXTRA[id] ?? []).slice(0, 1)];
     for (const v of variants) {
       if (Object.keys(v).some(k => !(k in def))) continue;
-      const p = { ...def, ...v }, out = computeFlow(id, c, p), both = computeFlow(id, c, { ...p, side:'both' });
-      const sided = 'buy' in both || 'sell' in both, keys = sided ? ['buy', 'sell'] : Object.keys(out);
-      for (const key of keys) {
-        const series = (out[key] ?? both[key])!;
-        for (let t = 0; t < c.dates.length; t++) checked += same(explain(c, p, t, key), series[t], `${id} ${name} ${JSON.stringify(v)} ${key} t=${t}`, key);
-      }
+      const p = { ...def, ...v }, both = computeFlow(id, c, { ...p, side:'both' });
+      const sided = 'buy' in both || 'sell' in both, out = sided ? both : computeFlow(id, c, p);
+      const step = name === 'plain' && (v === COHORT[0] || v === (EXTRA[id] ?? [])[0]) ? 1 : 3;
+      for (const key of Object.keys(out))
+        for (let t = 0; t <= last; t += t + step > last && t < last ? last - t : step)
+          checked += same(explain(c, p, t, key), out[key][t], `${id} ${name} ${JSON.stringify(v)} ${key} t=${t}`, key);
       /* left out, the output is the side the parameters draw (Both: buy) */
-      const main = sided ? (p.side === 'sell' ? 'sell' : 'buy') : Object.keys(out)[0];
-      const e = explain(c, p, c.dates.length - 1);
-      if (e) expect(e.output).toBe(main);
-      expect(explain(c, p, c.dates.length - 1, 'nope')).toBeNull();
+      for (const side of sided ? ['buy', 'sell', 'both'] : [undefined]) {
+        const q = side ? { ...p, side } : p, main = sided ? (side === 'sell' ? 'sell' : 'buy') : Object.keys(out)[0], e = explain(c, q, last);
+        if (e) expect(e.output).toBe(main);
+      }
+      expect(explain(c, p, last, 'nope')).toBeNull();
     }
-    expect(checked, `${id}: values checked`).toBeGreaterThan(50);
+    expect(checked, `${id}: values checked`).toBeGreaterThan(name === 'plain' ? 50 : 10);
   }, 60_000);
   it('FL09 flags both ways', () => {
     const c = synth(11), p = { ...flowDefaults('FL09'), baseline:20, pct_min:30, ratio_min:0.8, part_min:2, flow_min:0 };

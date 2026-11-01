@@ -40,7 +40,10 @@ function sameAsChart(e: Explanation | null, chart: number | null, where: string)
 }
 
 /* parameter sets besides the defaults: every explainer is tried with them where the indicator has the parameter */
-const FLOW_VARIANTS: Record<string, any>[] = [{}, { window:3 }, { top:1 }, { investors:['Foreign'] }, { boards:['Regular'] }, { window:20, top:5 }];
+/* an empty board list means no row (calc/flow.ts grid), never all; a baseline of 20 lets a percentile have values on the 60
+   synthetic candles (the default 250 is longer) */
+const FLOW_VARIANTS: Record<string, any>[] = [{}, { window:3 }, { top:1 }, { investors:['Foreign'] }, { boards:['Regular'] }, { window:20, top:5 },
+  { boards:[] }, { baseline:20 }];
 
 describe('Flow explainers equal calc/flow.ts', () => {
   const c = syntheticFlow();
