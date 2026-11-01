@@ -1259,3 +1259,16 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
    - Baris 8 dan `Indikator_baru` H3 masih Top 5 (sekarang Top 3).
 5. **Celah harga 17–18 September 2026 (M238).** Setiap jendela Flow yang melintasinya mundur dua sesi. Perbaikannya
    pengisian harga F3, yang ditunda user ("nanti saja").
+
+## VOLUME-80 — volume Postgres 80% sesudah backfill intraday (temuan 2026-11-01, menunggu keputusan user)
+
+- **Fakta (Railway GraphQL `volumes` dan `metrics`, 2026-11-01 06:00 UTC):**
+  - `postgres-volume` terpakai 59.971 dari 75.000 MB (80%, ambang alert 80%); database 53 GB.
+  - Disk naik 47,1 → 60,0 GB pada 2026-10-31: 12:00–13:00 UTC bar intraday plus perbaikan harga, Feature 01 dan
+    Feature 04; 15:00–16:00 UTC backfill fitur intraday.
+- **Pertumbuhan:** perkiraan ±12 GB per tahun (bar intraday ±2,3 GB, fitur intraday ±10 GB; keputusan D1 = A). Sisa
+  15 GB cukup untuk sekitar satu tahun.
+- **Pilihan:**
+  - perbesar volume (`allowOnlineResize` sudah aktif);
+  - retensi fitur 5m/15m;
+  - merapikan ruang kosong Feature 04 harian (±1,9 GB, `VACUUM FULL` mengunci tabel).
