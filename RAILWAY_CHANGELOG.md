@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-01 — edge-bff: the chart waits only for what it draws; bond flags and market labels (ERRORS M333)
+
+- `main` `ab746d6a`: edge-bff `98009cf7` SUCCESS. The live Terminal serves `index-Cj9xoTvc.js`, equal to a local build.
+- Live checks: search shows flags and "Indonesia / United States · Fixed income"; `bond_indicators_live_check.py`
+  passes; `bond_timing_check.py` with 200 ms added latency, chart drawn from an empty cache: ID10Y 2.28 s, ID03MY 1.50 s,
+  US10Y 1.34 s, ID05Y 2.01 s; from the cache about 0.75 s.
+- No variable changed.
+
 ## 2026-11-01 — edge-bff: indicators only where the ticker has their data (ERRORS M332)
 
 - `main` `d23c727f`: edge-bff `33c8e0e7` SUCCESS; screener-worker `e1d1f809` SKIPPED. The live Terminal serves

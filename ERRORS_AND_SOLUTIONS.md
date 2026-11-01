@@ -5345,6 +5345,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     | ID03MY, cache kosong | 2,81 s | 1,57 s |
     | US10Y, cache kosong | 1,38 s | 1,53 s (tanpa jawaban lambat di kedua kali) |
     | Dari cache | sekitar 0,75 s | sekitar 0,75 s |
+- **Live (edge-bff `98009cf7`, `ab746d6a`):** pencarian, bendera, dan `bond_indicators_live_check.py` lulus. Dengan jeda
+  200 ms dan cache kosong, chart tergambar dalam: ID10Y 2,28 s, ID03MY 1,50 s, US10Y 1,34 s, ID05Y 2,01 s.
 - **Status:** FIXED untuk penyebab 1–2. Penyebab 3–5 OPEN, menunggu keputusan user (FUTURE_PLAN FI-SPEED).
 - **Lesson:** untuk setiap tahap sebelum chart tergambar, tanyakan apakah chart memakai hasilnya. Kalau tidak, jangan
   ditunggu. Ukur juga dengan jeda jaringan setara lokasi user, bukan hanya dari server uji.
