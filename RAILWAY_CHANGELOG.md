@@ -12,6 +12,8 @@
   fixed-income-price-recovery-cron's variables for the run and removed after it (VAR_REMOVED).
 - edge-bff: `main` 1e833d77 (EXEC-BROKER-FULL) deployment 5c68922d SUCCESS 11:28 UTC; `main` 7e2dccc8 (ERRORS M325)
   deployment d1c37e55 SUCCESS 11:32 UTC. The Docker build compiles the Terminal from `apps/edge-bff/terminal`.
+- edge-bff: `main` e7676bde (ERRORS M326) deployment 6e8ba7d3 SUCCESS 11:47 UTC; the live page serves
+  `index-DJ36Bxst.js`, the same file a local build of that commit gives.
 
 ## 2026-11-01 — EXEC-FI-DATE: fixed-income crons with the date rule PROVIDER_SESSION_START (ERRORS M323)
 
