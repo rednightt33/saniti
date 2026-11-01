@@ -9825,6 +9825,22 @@ database ... price dan yield itu tidak semuanya tanggalnya ada ... Siapkan mitig
     dengan aturan dibawa ≤ 3 hari bursa.
   - S4: cek halaman = storage = SQL, deploy, catatan (ERRORS, changelog, FRONTEND_HANDOFF, katalog).
 - **Urutan:** sesudah perbaikan audit F3/F7/F8, sebelum TERMINAL-IND-CARDS.
+- **Pengecualian B6, 2026-11-01 (kata user):** "Ok jalankan" atas tawaran memulai S0-S4 sebelum 13:20 UTC (jendela B6
+  12:00-13:20 UTC; publikasi 19:00 WIB malam itu sudah selesai). Berlaku sekali untuk eksekusi ini.
+- **Hasil 2026-11-01:**
+  - S0: migrasi `20261101_003` DRYRUN `030579f4`, APPLY `a5b758f5`; izin baca terbaca benar untuk ketiga role
+    (DATABASE_CHANGELOG).
+  - S1: publisher mode `fixed_income` `8cada0af`: 24 obligasi, 552 file, 2,51 MB, `ref/fixed_income`. Verify
+    `7395c990`: 552 file, 0 beda. Jadwal harian dikembalikan (`18203000`, cron dibaca ulang, jalan berikutnya
+    2026-11-02 00:00 UTC).
+  - S2: terminal-api `70358a20`, lalu `db6c4678` (batas dataset diturunkan dari daftarnya, ERRORS M327).
+  - S3: halaman obligasi dan obligasi sebagai pembanding. Saat dicek ternyata pembanding harus lewat "Add asset" (tombol
+    + di mode live), bukan panel "Add Series"; aturan dibawa ≤ 3 sesi bursa dipindah ke sana (ERRORS M327). Gerbang
+    edge-bff juga menolak `reference/fixed_income` dan sudah diperbaiki.
+  - S4: halaman = storage = SQL. ID10Y yield 2.682 sesi, harga 2.585, US01MY "Discount quote" 2.739. Di grafik BBCA,
+    ID10Y 2.125 sesi sendiri / 5 dibawa / 0 celah, US10Y 2.091 / 39 / 0. edge-bff `51dee307` (`main` `c4aa6e26`)
+    SUCCESS, file halaman live = build lokal. RAILWAY_CHANGELOG, FRONTEND_HANDOFF (bagian Government bonds).
+  - Tidak dicakup: obligasi sebagai aset hanya yield (harga obligasi ada di halaman obligasinya).
 
 ## EXEC-IND-CARDS — menu indikator, tooltip, dan kartu "cara kerja" di Terminal (go 2026-11-01)
 

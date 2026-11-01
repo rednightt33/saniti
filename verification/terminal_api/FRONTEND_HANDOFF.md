@@ -150,3 +150,25 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 - The broker figures stay daily (user 2026-11-01, "Opsi 1"):
   - an earlier day shows its figure on all its candles;
   - the latest day shows its own figure only on its last candle (`timeframe.ts` `dayOfCandles`).
+
+## Government bonds (EXEC-FI-TERMINAL S0-S4, 2026-11-01)
+
+- `GET /reference/fixed_income`: every bond with `ticker, name, country, yield_unit, price_unit, yield_first,
+  yield_last, price_first, price_last`. Through EDGE, `reference/<name>` is forwarded for any name of the reference
+  shape; terminal-api owns the list and answers `404 unknown_reference` for others (ERRORS M327).
+- `POST /bundle` takes the dataset `yield` beside `price`, `broker` and `events`; `datasets` holds at most every
+  dataset once (4). A bond's answer says `kind: "fixed_income"` and `instrument: {name, country, units: {yield,
+  price}}`; a share says `kind: "equity"`. A bond has `yield` and `price` files (packs `yield` and `price`), no broker
+  or events files, no intraday.
+- File columns are the price files' `d, o, h, l, c, v` (`v` always null). The yield is in percent; the price unit is
+  `PCTPAR` (percent of par) or, for US bills, `PCTDY` (a discount quote, labelled "Discount quote"). Yield and price
+  each keep their own dates: a missing date is not filled.
+- Storage like the IDX prices: per bond per year with a source stamp; a daily run rewrites only the years whose stamp
+  changed (the current year, or an older year after a correction).
+- The Terminal:
+  - a bond page: yield by default, a Yield | Price switch (`ml.fi.metric`), D/W/M only, no Flow, broker or events
+    panels, Statistics in basis points for the yield.
+  - a bond added to a share's chart through Add asset: its yield on the chart's candles. A session the bond did not
+    trade carries its last value for at most 3 bourse sessions, faded and marked "carried from <date>"; a longer gap
+    breaks the line. The legend shows the change in basis points; Return mode does not rebase a yield; no Flow
+    Timeline (`timeframe.ts` `alignCandlesCarry`, `app/assets.ts`).

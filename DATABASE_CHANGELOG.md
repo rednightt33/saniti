@@ -1,5 +1,16 @@
 # Database changelog
 
+## 2026-11-01 — EXEC-FI-TERMINAL S0: the terminal reader may read the fixed-income tables
+
+- Migration `20261101_003_terminal_reader_fixed_income.sql` (sha256 3856491a…e583) on orc-test-runner: DRYRUN
+  `030579f4`, APPLY `a5b758f5` (`JOB_DONE MIGRATION APPLY`). `GRANT SELECT` on `Price_Fixed_Income` and
+  `Universe_Fixed_income` to `terminal_market_reader` (before: false for that role, `terminal_publisher_login` and
+  `terminal_api_login`, read 2026-11-01).
+- Read back in the APPLY job: `has_table_privilege` true on both tables for all three roles. Log:
+  `verification/fi_terminal/migration/apply.log`. No table, column or row changed; no catalog row changed.
+- Reader check: the publisher's `fixed_income` run read both tables (24 bonds, 552 files) and its verify found 0
+  mismatches against SQL (RAILWAY_CHANGELOG 2026-11-01, EXEC-FI-TERMINAL).
+
 ## 2026-11-01 — EXEC-FI-DATE: fixed-income date rule PROVIDER_SESSION_START (ERRORS M323); correction dry run (M324)
 
 - Migration `20261101_002_fixed_income_session_start.sql` (sha256 cf3a5308…), DRYRUN then APPLY on orc-test-runner:

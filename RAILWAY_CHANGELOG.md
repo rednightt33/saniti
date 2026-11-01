@@ -1,5 +1,28 @@
 # Railway changelog
 
+## 2026-11-01 — EXEC-FI-TERMINAL S0-S4: bonds in the Terminal (terminal-api, terminal-publisher, edge-bff)
+
+User go 2026-11-01 (EXEC.md EXEC-FI-TERMINAL), with the one-time B6 exception "Ok jalankan".
+
+- orc-test-runner: migration `20261101_003` DRYRUN `030579f4`, APPLY `a5b758f5` (DATABASE_CHANGELOG).
+- terminal-api (CLI upload of `apps/terminal-api`):
+  - `70358a20` SUCCESS 13:12 UTC: `/bundle` serves the `yield` dataset and says `kind` and `instrument`; the reference
+    list includes `fixed_income`.
+  - `db6c4678` SUCCESS 14:01 UTC (`2b2d516f`, ERRORS M327): the `datasets` bound is the number of datasets (4), not a
+    fixed 3.
+- terminal-publisher (M229 option A: cron cleared and read back, CLI upload of HEAD, variables with `--skip-deploys`):
+
+  | Step | Deployment | Mode, tickers | Result |
+  |---|---|---|---|
+  | 1 | `8cada0af` 13:13 UTC | `fixed_income`, every bond | 24 bonds, 552 files, 2.51 MB; refs brokers, fixed_income, logos, tickers |
+  | 2 | `7395c990` 13:23 UTC | verify, the 24 bonds | 552 files, 0 mismatches (`verify_done` 13:30 UTC) |
+  | 3 | `18203000` SCHED 13:39 UTC | daily | `TERMINAL_PUBLISH_MODE=daily`, `TERMINAL_TICKERS` deleted, cron `0,30 0,1,12 * * *` read back (next 2026-11-02 00:00 UTC); no run (no log) |
+
+- edge-bff: `main` `c4aa6e26` deployment `51dee307` SUCCESS 14:06 UTC (bond page, bonds through Add asset, gateway
+  reference names, ERRORS M327). The live page serves `index-UcqDUzeW.js` and `style-B6CGZ_wD.css`, the same files a
+  local build of that commit gives. No other service watches the changed paths.
+- No variable other than the publisher's mode and ticker list changed; nothing else was redeployed.
+
 ## 2026-11-01 — EXEC-FI-DATE A/B, EXEC-BROKER-FULL, ERRORS M325: fixed-income crons, telegram-monitor, edge-bff
 
 - `main` fe6f1603 (watch patterns): fixed-income-price-cron 5a0f5e90, fixed-income-price-recovery-cron 8d949d07,

@@ -66,6 +66,11 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
                                    an ordinary day only the current period is written again. Listed in the manifest's
                                    `intraday` {tf: {files: {archive, current}, first, last, rows, bars_per_year,
                                    timezone, utc_offset_seconds, period, current}}
+  yield/{bond}/{year}.<sha>.json.gz, price/{bond}/{year}.<sha>.json.gz, pack/{bond}/yield|price.<sha>.json.gz
+                                   EXEC-FI-TERMINAL (user 2026-11-01): a government bond's yield and price rows of
+                                   Price_Fixed_Income, columns d,o,h,l,c,v (v null), each on its own dates; its manifest
+                                   says kind fixed_income and the instrument (name, country, units per metric)
+  ref/fixed_income.json.gz         every bond: ticker, name, country, units and first/last date per metric
   xsection/{name}.<sha16>.json.gz  cross-sectional files for the screener-worker (EXEC-SCREENER, P1 a, user
                                    2026-10-28): `price` (every published ticker's final daily rows from its first year,
                                    one columnar file; each ticker's slice equals its price pack) and `actions` (the

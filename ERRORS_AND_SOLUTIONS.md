@@ -3157,6 +3157,9 @@ change yet.
   ponsel: panel riwayat yang dibuka sebelum daftar percakapan selesai dimuat tertutup lagi oleh render daftar (cek: rekam
   urutan `aria-expanded` panel dan selesainya `/conversations` pada kegagalan).
 - **Status:** OPEN; tidak diubah dalam EXEC-BACKTEST-LOAD.
+- **Bukti tambahan 2026-11-01 (EXEC-FI-TERMINAL):** `test_submit_history_and_fixed_headers[mobile]` gagal 1–2 dari 4
+  percobaan di `origin/main` `d7f5fb63` tanpa perubahan apa pun; kali ini `div.research-loading` menutupi klik daftar
+  percakapan (Playwright: "subtree intercepts pointer events"). Masih OPEN.
 
 ### M255 — Donchian `price > upper` is never true in the Backtest's indicator condition (2026-10-27)
 
@@ -5095,6 +5098,63 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED untuk F1–F8 (deploy edge-bff, RAILWAY_CHANGELOG 2026-11-01).
 - **Lesson:** setiap grafik yang disinkronkan harus berakhir di bar terakhir grafik pemimpin; uji sinkronisasi di
   timeframe terkecil dengan data pengikut tertinggal beberapa sesi.
+
+### M327 — Terminal tidak mengenali obligasi: gerbang menolak `reference/fixed_income`, batas 3 dataset di terminal-api, pembanding di panel yang tidak terjangkau (2026-11-01)
+
+- **Ditemukan oleh:** cek halaman lokal EXEC-FI-TERMINAL S4 dengan data dev (gerbang lokal ke terminal-api dev), sebelum
+  edge-bff di-deploy. Belum ada user yang melihatnya.
+- **Symptom:**
+  - halaman ID10Y menggambar data seperti saham (`fixedIncome` kosong, close terakhir 1235, mulai 2018); 0 obligasi di
+    pencarian dan di pilihan pembanding;
+  - sesudah perbaikan pertama: `POST /bundle` pertama dijawab 400 dan halaman berhenti tanpa grafik;
+  - obligasi tidak bisa dipasang sebagai pembanding di grafik saham.
+- **Verified cause (tiga lapis):**
+  1. `apps/edge-bff/app/main.py` `TERMINAL_ROUTES` menulis nama referensi satu per satu (`tickers|brokers|logos`).
+     `reference/fixed_income` dijawab 404 oleh gerbang tanpa sampai ke terminal-api; `live.ts` membaca daftar obligasi
+     kosong (`.catch(() => [])`). Bukti: respons halaman hanya `reference/tickers`, `brokers`, `logos`; sesudah
+     perbaikan `HTTP 200 /api/terminal/v1/reference/fixed_income`.
+  2. `apps/terminal-api/app/main.py` `BundleRequest.datasets`: `yield` ditambahkan ke daftar, `max_length=3` tidak ikut.
+     Permintaan pertama halaman meminta 4 dataset (ticker yang diingat bisa obligasi) dan ditolak: `"List should have at
+     most 3 items after validation, not 4"`. Jalur cadangan untuk terminal-api lama lalu meminta tanpa `yield`, jadi
+     obligasi tidak punya file yield.
+  3. Pembanding obligasi (aturan dibawa ≤ 3 sesi) dibangun di panel "Add Series" referensi (`app/chart.ts`). Di mode
+     live tombol + dipakai "Add asset" (`app/assets.ts`, `stopImmediatePropagation`), jadi panel itu tidak pernah
+     terbuka. Bukti: 0 pilihan `fi-*` di `#addSeriesSelect`; tombol + membuka pencarian ticker.
+- **Class:** daftar yang disalin ke lapis lain (nama referensi di gerbang, jumlah dataset di validasi permintaan) basi
+  saat pemiliknya menambah isi. Ini juga akan kena file referensi dan dataset lintas aset atau makro berikutnya. Jalur
+  cadangan yang menangkap setiap 400 menyembunyikan penolakan kontrak. Fitur yang diuji lewat jalur fixture bisa tidak
+  terjangkau di mode live.
+- **Solution (di lapis pemilik, permanen):**
+  - gerbang: `reference/<nama>` hanya dicek bentuknya (bentuk `REF_NAME` terminal-api). Daftar nama dan 404
+    `unknown_reference` milik terminal-api. Rute masuk, sandi dan admin tetap tertutup. Tes
+    `test_gateway_leaves_the_reference_names_to_terminal_api`.
+  - terminal-api: batas `datasets` = jumlah isi `BUNDLE_DATASET` (`get_args`), bukan angka tetap. Tes: 4 dataset
+    diterima untuk obligasi dan saham, 5 (dengan duplikat) ditolak.
+  - Terminal `data/live.ts`: obligasi yang jawaban pertamanya tidak memuat file metrik terpilih meminta dua datasetnya
+    sekali lagi, tidak digambar kosong. Tes `download.test.ts` dengan terminal-api berbatas 3: gagal tanpa perbaikan,
+    lulus dengannya.
+  - pembanding lewat "Add asset":
+    - `data/timeframe.ts` `alignCandlesCarry`: nilai sesi sendiri; sesi tanpa nilai membawa nilai terakhir paling lama
+      3 sesi bursa, ditandai tanggal asalnya; lebih lama = celah, garis putus, tidak diisi. Candle W/M dengan sesi
+      sendiri dihitung dari sesi sendiri saja.
+    - `data/live.ts` `loadAsset`: file yield saja (satu pack).
+    - `app/assets.ts`: label "· Yield", perubahan dalam bp, tidak di-rebase di mode Return, titik dibawa pudar, tanpa
+      Flow Timeline; di grafik intraday tertulis "Daily, weekly or monthly chart only".
+    - Kode pembanding obligasi di panel referensi dihapus.
+- **Tidak dicakup:** obligasi sebagai aset hanya menampilkan yield; harganya ada di halaman obligasi sendiri. Jalur
+  cadangan 400 tetap ada untuk terminal-api lama.
+- **Verifikasi (halaman lokal, terminal-api dev `db6c4678`):**
+  - halaman ID10Y: yield 2.682 sesi 2016-01-04 sampai 2026-10-30, terakhir 7,643; harga 2.585 sesi dari 2016-04-26,
+    terakhir 92,4. US01MY "Discount quote": 2.739 sesi, terakhir 99,6744. Semua sama dengan SQL `Price_Fixed_Income`
+    (jumlah, tanggal pertama dan terakhir, close terakhir);
+  - BBCA dengan ID10Y dan US10Y sebagai aset: ID10Y 2.125 sesi sendiri, 5 dibawa, 0 celah; US10Y 2.091, 39, 0. Sama
+    dengan SQL per sesi BBCA sejak 2018-01-02;
+  - legenda "Indonesia 10 Year Government Bonds · Yield 7.643% ±0.0 bp"; 0 panel Flow untuk obligasi; 0 galat halaman;
+  - 9 `POST /bundle` semuanya 200, termasuk permintaan pertama dengan 4 dataset;
+  - tes: Terminal 788, terminal-api 58, edge-bff 277 lulus. Satu gagal adalah M254, yang juga gagal di `origin/main`.
+- **Status:** FIXED (terminal-api `db6c4678`; edge-bff, RAILWAY_CHANGELOG 2026-11-01).
+- **Lesson:** satu daftar punya satu pemilik; lapis lain memeriksa bentuk, tidak menyalin isi. Cek halaman lewat jalur
+  yang dipakai user di mode live, bukan fixture.
 
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
