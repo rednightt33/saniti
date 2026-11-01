@@ -9,6 +9,7 @@ import type { Ctx } from './context';
 import { $, store } from './context';
 import { draggable, fitInView, shiftOf } from './draggable';
 import { FLOW_REG } from './flowIndicators';
+import { ALL_INPUTS, fits, inputsOf, needsOf, type Input } from '../data/inputs';
 
 export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string }
 
@@ -18,16 +19,18 @@ const FAV_KEY = 'ml.ind.favs', KIND_KEY = 'ml.ind.kind', SIZE_KEY = 'ml.ind.box'
 /** where a Flow indicator is drawn (flowRegistry `place`): its own pane, the price axis, or a mark under the candles */
 export const flowPlace = (place: string) => place === 'pane' ? 'Panel' : 'Overlay';
 
-/** the menu's rows from the registries: the technical indicators by category, the base volume histogram, and (not on a
-    bond's page: no broker data) the Flow indicators by family, in the registries' order */
-export function menuItems(indReg: any[], flowReg: { families: string[]; indicators: any[] }, withFlow: boolean): MenuItem[] {
+/** the menu's rows from the registries: the technical indicators by category, the base volume histogram, and the Flow
+    indicators by family, in the registries' order */
+/** the menu's rows for a ticker with the inputs `have` (ERRORS M332: an indicator the ticker cannot feed is not offered,
+    data/inputs.ts; a bond: no Flow, no volume) */
+export function menuItems(indReg: any[], flowReg: { families: string[]; indicators: any[] }, have: ReadonlySet<Input> = ALL_INPUTS): MenuItem[] {
   const group = (cat: string) => cat === 'PriceVolume' ? 'Price & Volume' : cat.replace(/([a-z])([A-Z])/g, '$1 & $2');
-  const out: MenuItem[] = indReg.map(r => ({ id:r.id, name:r.name, group:group(r.cat), kind:'Technical', place:r.zone === 'overlay' ? 'Overlay' : 'Panel',
+  const out: MenuItem[] = indReg.filter(r => fits(needsOf({ reg:r }), have)).map(r => ({ id:r.id, name:r.name, group:group(r.cat), kind:'Technical', place:r.zone === 'overlay' ? 'Overlay' : 'Panel',
     unit:r.unit || '', tip:r.tip || '' }));
   const vol = out.findIndex(i => i.group === 'Volume');
-  out.splice(vol < 0 ? out.length : vol, 0, { id:'VOL', name:'Volume', group:'Volume', kind:'Base', place:'Panel', unit:'shares',
+  if (have.has('V')) out.splice(vol < 0 ? out.length : vol, 0, { id:'VOL', name:'Volume', group:'Volume', kind:'Base', place:'Panel', unit:'shares',
     tip:'Batang volume transaksi harian di bagian bawah chart harga.' });
-  if (withFlow) for (const f of flowReg.families) for (const r of flowReg.indicators.filter(x => x.family === f))
+  if (have.has('flow')) for (const f of flowReg.families) for (const r of flowReg.indicators.filter(x => x.family === f))
     out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '' });
   return out;
 }
@@ -66,7 +69,7 @@ function visibleAll(items: MenuItem[], group: string, query: string, favs: Set<s
 
 export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
   const { IND_REG, Ind, volCtl } = ctx;
-  const items = menuItems(IND_REG as any[], FLOW_REG as any, !ctx.M.fixedIncome);
+  const items = menuItems(IND_REG as any[], FLOW_REG as any, inputsOf(ctx.M));
   const groupsOf = (kind: 'Technical' | 'Flow') => [...new Set(items.filter(i => kind === 'Flow' ? i.kind === 'Flow' : i.kind !== 'Flow').map(i => i.group))];
   let favs = new Set<string>();
   try { favs = new Set(JSON.parse(store.get(FAV_KEY) || '[]')) } catch { /* none saved */ }

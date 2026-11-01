@@ -545,7 +545,7 @@ export function initDrawings(ctx: Ctx) {
     m.onclick = () => { into.hidden = true; run() }; into.appendChild(m);
   }
   function openCtx(x: number, y: number) {
-    const sel = dm.selection().length, all = dm.drawings().length, n = sel || all, ind = (volCtl.removed ? 0 : 1) + Ind.count();
+    const sel = dm.selection().length, all = dm.drawings().length, n = sel || all, ind = (volCtl.removed || volCtl.absent ? 0 : 1) + Ind.count();
     menuEl.innerHTML = '';
     ctxItem(iconReset, 'Reset chart view', 'Alt + R', true, resetView);
     menuEl.appendChild(Object.assign(document.createElement('i'), { className:'dr-msep' }));

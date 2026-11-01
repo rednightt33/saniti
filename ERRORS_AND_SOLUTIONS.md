@@ -5245,6 +5245,56 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED (edge-bff `360d20a7`, `1b657d59`).
 - **Lesson:** sebelum memakai nama class baru, cari dulu apakah nama itu sudah dipakai di CSS.
 
+### M332 — Chart obligasi menampilkan indikator Flow dan volume yang datanya tidak ada (2026-11-01)
+
+- **Ditemukan oleh:** user (screenshot US10Y, 2026-11-01): legenda menampilkan "Net Buy Persistence … Loading broker
+  data", "Volume 0", "Block Money Candidate … Loading broker data", "Silent Accumulation No volume for this ticker",
+  serta baris "Net Rp 0 · Cumulative Rp 0". Kata user: "Kalau seandainya kita buka chart obligasi, ya simply harusnya
+  tampilannya adalah hanya chart aja. Tanpa indikator lain-lain. Kecuali memang indikator tersebut berkaitan dengan
+  indikator technical."
+- **Verified cause:**
+  - Daftar indikator tersimpan (`ml.ind.v1`) satu untuk semua ticker. `app/indicators.ts` menggambar setiap entri di
+    ticker mana pun tanpa mengecek apakah ticker punya data yang dibaca indikator itu.
+  - Menu sudah menyembunyikan grup Flow untuk obligasi (`!ctx.M.fixedIncome`), tetapi itu hanya mencegah penambahan
+    baru. Yang sudah tersimpan tetap digambar.
+  - Obligasi tidak punya file broker (`liveData`, `later: undefined`), jadi indikator Flow menunggu selamanya
+    ("Loading broker data").
+  - File obligasi tidak punya volume (publisher `fi_doc`: v selalu null), jadi histogram volume menulis 0.
+  - Baris "Net / Cumulative" Flow Timeline (`#flowTip`, `app/flow.ts`) tetap ditulis saat crosshair bergerak.
+- **Class:** indikator dan readout digambar tanpa mengecek apakah ticker punya data masukannya. Selain obligasi, ini
+  juga mengenai indeks yang sumbernya tanpa volume (`VolumePoint.none`) dan data macro/lintas aset yang akan datang.
+- **Solution (front-end, lapisan data Terminal):** `src/data/inputs.ts` menurunkan masukan yang dimiliki ticker dari
+  data yang dimuat:
+  - harga O/H/L/C;
+  - V, bila ada volume di minimal satu candle;
+  - flow, bila file broker dan events diminta untuk ticker itu.
+
+  Kebutuhan tiap indikator diturunkan dari definisinya: huruf `req` di `indRegistry.json`, flow untuk indikator Flow
+  dan dua garis broker. Tidak ada daftar ticker atau jenis aset di kode. Yang memakai aturan itu:
+  - **Legenda dan chart:** hanya indikator yang datanya lengkap yang digambar. Sisanya disimpan (parked) di posisinya
+    dalam daftar, lalu kembali di ticker berikutnya yang punya datanya.
+  - **Histogram volume:** tidak digambar tanpa volume. Pilihan user "hapus" atau "sembunyikan" volume tetap tersimpan.
+  - **Menu Indicators:** hanya menawarkan yang bisa digambar.
+  - **Readout Flow:** tidak ditulis di ticker tanpa file broker.
+- **Mencakup:** obligasi (US/ID), indeks tanpa volume, dan dataset baru apa pun yang tidak punya volume atau broker.
+  **Tidak mencakup:** indikator Flow yang hanya membaca harga/volume (misalnya Silent Accumulation) pada ticker yang
+  punya volume tetapi tanpa file broker. Aturannya memperlakukan seluruh grup Flow sebagai butuh file broker; saat ini
+  setiap ticker yang punya volume juga punya file broker.
+- **Verifikasi:**
+  - vitest 1.479 lulus, termasuk `tests/data/inputs.test.ts` (saham, obligasi, indeks tanpa volume, fixture; urutan
+    daftar yang diparkir) dan uji menu obligasi (34 indikator harga tetap, 19 indikator volume dan Flow hilang).
+  - `verification/terminal_api/bond_indicators_live_check.py` di dev dengan daftar tersimpan FL24, SMA, OBV, RSI dan
+    Net Buy Flow:
+    - US10Y menggambar SMA dan RSI saja: tanpa baris Volume, tanpa "Loading broker data", tanpa readout Flow, dan menu
+      tanpa Flow/volume;
+    - daftar tersimpan tetap lima entri dengan urutan sama;
+    - BBCA menggambar kelimanya lagi beserta volume.
+  - Cek ini dijalankan dengan build lokal sebelum deploy dan dengan halaman live sesudah deploy.
+- **Status:** FIXED.
+- **Lesson:** setiap elemen chart yang membaca data tertentu harus mengecek bahwa ticker punya data itu, dan
+  kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
+  dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan

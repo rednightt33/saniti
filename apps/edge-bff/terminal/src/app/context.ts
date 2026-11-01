@@ -57,6 +57,8 @@ export interface ActiveSeries extends CompareSpec { series: LWC.ISeriesApi<'Line
 
 export interface VolCtl {
   removed: boolean; on: boolean;
+  /** ERRORS M332: the ticker has no volume, so the histogram and its row are not drawn (not the user's removal) */
+  absent?: boolean;
   apply: () => void; setRemoved: (r: boolean) => void; onChange: (() => void) | null; relabel?: () => void;
 }
 

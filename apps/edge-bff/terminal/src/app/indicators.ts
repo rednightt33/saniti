@@ -16,6 +16,7 @@ import { $, nfCompact, rupiah, store } from './context';
 import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
+import { fits, inputsOf, needsOf, splitSaved, withParked, type Input } from '../data/inputs';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
@@ -156,7 +157,7 @@ export function initIndicators(ctx: Ctx) {
     return out;
   }
   const flowDef = {
-    id:'netflow', name:'Net Buy Flow', pane:'sub',
+    id:'netflow', name:'Net Buy Flow', pane:'sub', needs:['flow'] as Input[],
     tip:'Total nilai beli bersih (beli − jual) broker yang dipilih, dijumlah bergulir beberapa hari.',
     inputs: [
       { key:'brokers',   label:'Brokers',       kind:'multi', def:null, options:() => allBrokers().map(b => ({ id:b, label:b })), all:() => allBrokers(), title:'Broker', searchable:true, grid:true, mono:true },
@@ -189,7 +190,7 @@ export function initIndicators(ctx: Ctx) {
     });
   }
   const flowLineDef = {
-    id:'netbuyline', name:'Net Buy Flow (Line)', lines:true,
+    id:'netbuyline', name:'Net Buy Flow (Line)', lines:true, needs:['flow'] as Input[],
     tip:'Garis beli bersih per broker di chart harga (sumbu kanan), kumulatif atau bergulir.',
     inputs: [
       { key:'brokers',   label:'Brokers (max 5)', kind:'multi', def:['DX', 'AK', 'YU'], max:5, options:() => allBrokers().map(b => ({ id:b, label:b })), all:() => allBrokers(), title:'Broker', searchable:true, grid:true, mono:true },
@@ -215,12 +216,17 @@ export function initIndicators(ctx: Ctx) {
   /* ---- instances ---- */
   const KEY = 'ml.ind.v1', list = [];
   let uid = 0;
+  /* ERRORS M332 (user 2026-11-01, US10Y): an indicator is drawn only on a ticker with every input it reads (data/inputs.ts);
+     the saved entries this ticker cannot feed stay in the saved list at their places (`parked`) for the next ticker */
+  const HAVE = inputsOf(ctx.M);
+  const usable = (id: string) => { const d = defOf(id); return !!d && fits(needsOf(d), HAVE) };
+  let parked: { at: number; o: any }[] = [];
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;
   const INFO = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.4v.1"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
-  const save = () => store.set(KEY, JSON.stringify(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base }))));
+  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base })), parked)));
   const defaults = (fields, over?) => Object.fromEntries(fields.filter(f => f.kind !== 'fixed' && f.kind !== 'button' && (f.kind !== 'color' || f.def !== undefined)).map(f => [f.key, over && over[f.key] !== undefined ? over[f.key] : f.def]));
 
   /* an indicator that is not a price overlay lives in its own pane under the candles */
@@ -451,7 +457,7 @@ export function initIndicators(ctx: Ctx) {
   const nextBase = () => PALETTE[list.length % 6];
   const byHid = hid => list.find(i => i.hid === hid);
   function add(defId, saved?) {
-    const def = defOf(defId); if(!def) return null;
+    const def = defOf(defId); if(!def || !usable(defId)) return null;
     const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true };
     inst.hid = inst.uid;
     if(def.multi) { inst.base = (saved && saved.base) || nextBase(); inst.style = merge(regStyle(def, inst.base), saved && saved.style) }
@@ -720,14 +726,22 @@ export function initIndicators(ctx: Ctx) {
     return { def:key, on:o.on, params:{ length:o.params && o.params.length, source:String(o.params && o.params.source || 'close').toLowerCase() },
       style:{ out:{ [key]:{ color:st.color, width:st.width } }, offset:o.params && o.params.offset || 0 } };
   };
-  try { JSON.parse(store.get(KEY) || '[]').map(migrate).forEach(o => add(o.def, o)) } catch(e) {}
+  /* a saved list's entries: those this ticker can draw, the others parked (an unknown id is dropped, as before) */
+  const restore = (saved: any[]) => {
+    const known = saved.map(migrate).filter(o => defOf(o.def));
+    const s = splitSaved(known, o => usable(o.def));
+    parked = s.parked; s.drawn.forEach(o => add(o.def, o));
+  };
+  try { restore(JSON.parse(store.get(KEY) || '[]')) } catch(e) {}
   save();
   const Indicators = {
     defs: DEFS,
     list: () => list.map(i => ({ uid:i.uid, def:i.def.id, params:{ ...i.params }, values:i.disp || i.vals })),
     export: () => JSON.stringify(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on }))),
-    import: json => { [...list].forEach(remove); JSON.parse(json).map(migrate).forEach(o => add(o.def, o)); save() },
+    import: json => { [...list].forEach(remove); restore(JSON.parse(json)); save() },
     add, count: () => list.length,
+    /* M332: the saved entries kept for another ticker, and whether this ticker can draw an indicator */
+    parked: () => parked.map(p => p.o.def), usable,
     /* EXEC-TERMINAL-FLOW-IND: for the live check and the reviewers (verification/terminal_api/flow_indicators) */
     removeAll: () => [...list].forEach(remove),
     flowIds: () => DEFS.filter(d => d.flow).map(d => d.id),

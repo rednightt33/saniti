@@ -2,16 +2,19 @@
    and the one undo / redo timeline for drawings and indicators (lines 1686-1701). */
 import type { Ctx, HistEntry } from './context';
 import { $, store } from './context';
+import { inputsOf } from '../data/inputs';
 
 export function initVolume(ctx: Ctx) {
-  const volCtl = ctx.volCtl = { removed: store.get('ml.vol.removed') === '1', on: store.get('ml.vol.on') !== '0', apply:null as any, setRemoved:null as any, onChange:null as (() => void) | null, relabel:undefined as (() => void) | undefined };
+  /* ERRORS M332: a ticker without volume (a bond; an index whose source has none) draws no histogram and no "Volume 0"
+     row; the user's own removed / hidden choice is kept for the next ticker */
+  const volCtl = ctx.volCtl = { removed: store.get('ml.vol.removed') === '1', on: store.get('ml.vol.on') !== '0', absent: !inputsOf(ctx.M).has('V'), apply:null as any, setRemoved:null as any, onChange:null as (() => void) | null, relabel:undefined as (() => void) | undefined };
   {
     const eye = $('volEye'), row = $('indRow'), x = $('volX');
     volCtl.apply = () => {
-      const show = volCtl.on && !volCtl.removed;
+      const show = volCtl.on && !volCtl.removed && !volCtl.absent;
       ctx.volumeSeries.applyOptions({ visible:show });
       eye.setAttribute('aria-pressed', String(volCtl.on)); eye.dataset.label = volCtl.on ? 'Hide' : 'Show'; eye.setAttribute('aria-label', (volCtl.on ? 'Hide' : 'Show') + ' Volume');
-      row.classList.toggle('off', !volCtl.on); row.style.display = volCtl.removed ? 'none' : '';
+      row.classList.toggle('off', !volCtl.on); row.style.display = volCtl.removed || volCtl.absent ? 'none' : '';
     };
     volCtl.setRemoved = (r: boolean) => {
       volCtl.removed = r; if(!r) volCtl.on = true;

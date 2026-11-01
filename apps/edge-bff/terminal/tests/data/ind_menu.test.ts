@@ -5,7 +5,7 @@ import IND from '../../src/data/indRegistry.json';
 import FLOW from '../../src/data/flowRegistry.json';
 
 describe('indicator menu rows', () => {
-  const all = menuItems(IND as any[], FLOW as any, true);
+  const all = menuItems(IND as any[], FLOW as any);
   it('lists every technical and Flow indicator once, plus the base volume', () => {
     expect(all.length).toBe((IND as any[]).length + (FLOW as any).indicators.length + 1);
     expect(new Set(all.map(i => i.id)).size).toBe(all.length);
@@ -16,8 +16,13 @@ describe('indicator menu rows', () => {
     expect(all.find(i => i.id === 'FL17')?.place).toBe('Overlay');
     expect(all.find(i => i.id === 'FL27')?.place).toBe('Overlay');
   });
-  it('a bond page has no Flow rows (no broker data)', () => {
-    expect(menuItems(IND as any[], FLOW as any, false).some(i => i.kind === 'Flow')).toBe(false);
+  it('a bond page (prices, no volume, no broker files) has no Flow rows, no volume and no volume indicator (M332)', () => {
+    const bond = menuItems(IND as any[], FLOW as any, new Set(['O', 'H', 'L', 'C'] as const));
+    expect(bond.some(i => i.kind === 'Flow' || i.id === 'VOL')).toBe(false);
+    const withVolume = (IND as any[]).filter(r => /V/.test(r.req)).map(r => r.id);
+    expect(withVolume.length).toBeGreaterThan(0);
+    expect(bond.filter(i => withVolume.includes(i.id))).toEqual([]);
+    expect(bond.length).toBe((IND as any[]).length - withVolume.length);       // every price-only indicator stays
   });
   it('groups, favorites and search', () => {
     expect(visibleItems(all, 'f:Bandar Balance', '', new Set()).every(i => i.group === 'Bandar Balance' && i.kind === 'Flow')).toBe(true);
@@ -33,7 +38,7 @@ import { ofKind, unitText, visibleItems as visible2, menuItems as items2 } from 
 import IREG from '../../src/data/indRegistry.json';
 import FREG from '../../src/data/flowRegistry.json';
 describe('group-type filter and unit text', () => {
-  const all = items2(IREG as any[], FREG as any, true);
+  const all = items2(IREG as any[], FREG as any);
   it('Technical keeps the technical rows and the volume, Flow the Flow rows, in a group, a search and favorites', () => {
     expect(visible2(all, 'all', '', new Set(), 'Flow').every(i => i.kind === 'Flow')).toBe(true);
     expect(visible2(all, 'all', '', new Set(), 'Technical').some(i => i.kind === 'Base')).toBe(true);

@@ -3,6 +3,7 @@
      { broker, investor:'Foreign'|'Domestic', board:'Regular'|'Nego'|'Cash', net: Float64Array(N) }
    Fixture: the reference's synthetic series. Live: the published broker files (bv − sv per session); sessions before
    the first broker date have no rows and count as 0, as in the reference's setBroksumRows. */
+import { inputsOf } from '../data/inputs';
 import { UNIT } from '../data/timeframe';
 import { anchorTimeScale } from '../data/chartTime';
 import type { Ctx, FilterApi } from './context';
@@ -244,10 +245,12 @@ export function initFlow(ctx: Ctx) {
   const dmyCache = new Map<number, string>();
   const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
   ctx.tipHooks = [];                                       // crosshair listeners (indicator legend values)
+  const noFlow = !inputsOf(ctx.M).has('flow');
   const showTip = (i: number) => {
     ctx.lastTipIdx = i;
     ctx.tipHooks.forEach(fn => fn(i));
     const vb = $('volVal'); if(vb){ vb.textContent = nfCompact.format(volume[i].value); vb.className = ohlc[i].close >= ohlc[i].open ? 'up' : 'down' }
+    if(noFlow){ $('flowTip').hidden = true; return }       // ERRORS M332: a ticker without broker files (a bond) has no Flow readout
     if(i > ctx.brokerEnd){                                   // EXEC-TERMINAL-FRESH: no broker data yet on this session
       badgeVals.clear(); cumBadge.applyOptions({ axisLabelVisible:false }); netBadge.applyOptions({ axisLabelVisible:false });
       $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; <span class="flow-nodata-tip">No broker data yet (through ${brokerThroughText()})</span>`;
