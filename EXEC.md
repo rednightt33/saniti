@@ -9665,8 +9665,10 @@ adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher han
 - **Masih terbuka:**
   - S4: run harian pertama 2026-11-02 (fitur intraday dan catatan perubahan), lalu run publisher 19:00 WIB yang
     menerbitkan intraday hanya dari catatan itu;
-  - B untuk dataset lama (pack harga harian, `xsection/price`) tetap rencana terpisah;
-  - `DATABASE_SCHEMA.md` diperbarui begitu runner bebas (sedang dipakai sesi lain).
+  - B untuk dataset lama (pack harga harian, `xsection/price`) tetap rencana terpisah.
+- **`DATABASE_SCHEMA.md`:** diperbarui oleh job `3041459e` (104 tabel, baris `Database_Table_Status` untuk
+  `intraday_publish_change`).
+
 
 ## EXEC-INSIDER-COUNT — insider IDX + KSEI tanpa hitungan ganda (keputusan 2026-11-01, menunggu go)
 
