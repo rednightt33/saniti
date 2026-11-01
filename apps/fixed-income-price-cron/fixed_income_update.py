@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import os
 import random
 import socket
@@ -32,7 +33,7 @@ from websocket import WebSocketTimeoutException, create_connection
 WS_URL = "wss://data.tradingview.com/socket.io/websocket"
 ORIGIN = "https://www.tradingview.com"
 TIMEFRAME = "1D"
-DATE_MAPPING_VERSION = "verified-provider-session-label-v4"
+DATE_MAPPING_VERSION = "provider-session-start-v5"
 PRICE_TABLE = 'public."Price_Fixed_Income"'
 UNIVERSE_TABLE = 'public."Universe_Fixed_income"'
 SCHEDULE_TABLE = 'public."Fixed_Income_Market_Schedule"'
@@ -241,12 +242,26 @@ def latest_completed_session(schedule: MarketSchedule, now: datetime) -> date:
 
 
 def resolve_bar_date(
-    timestamp: int, provider_timezone: str, source_date_mapping: str
+    timestamp: int, provider_timezone: str, source_date_mapping: str,
+    provider_session: str | None = None,
 ) -> date:
     try:
-        ZoneInfo(provider_timezone)
+        zone = ZoneInfo(provider_timezone)
     except Exception as exc:
         raise ValueError(f"TradingView returned invalid timezone {provider_timezone!r}") from exc
+    if source_date_mapping == "PROVIDER_SESSION_START":
+        # EXEC-FI-DATE (ERRORS M323, user go 2026-11-01): a daily bar is labelled with the START of its session in the
+        # provider's zone (provider_session 'HHMM-HHMM', e.g. US 1900-1730: 19:00 New York the evening before, which is
+        # 23:00 UTC in EDT but 00:00 UTC of the trading day in EST). A label at or after the session start opens the
+        # next day's session; weekends roll forward. Read in the provider's zone, so daylight saving cannot shift it.
+        if not provider_session or not re.fullmatch(r"[0-9]{4}-[0-9]{4}", provider_session):
+            raise ValueError(f"PROVIDER_SESSION_START needs the provider session, got {provider_session!r}")
+        local = datetime.fromtimestamp(timestamp, timezone.utc).astimezone(zone)
+        start = int(provider_session[:2]) * 60 + int(provider_session[2:4])
+        session_date = local.date() + timedelta(days=1) if local.hour * 60 + local.minute >= start else local.date()
+        while session_date.weekday() >= 5:
+            session_date += timedelta(days=1)
+        return session_date
     # TradingView's fixed-income 1D protocol uses the UTC calendar component as
     # its raw chart label. Markets encode that label differently, so the mapping
     # is stored with the market schedule instead of being selected by ticker.
@@ -352,7 +367,7 @@ def request_series(
     for timestamp in sorted(received):
         values = received[timestamp]
         candle_date = resolve_bar_date(
-            timestamp, provider_timezone, source_date_mapping
+            timestamp, provider_timezone, source_date_mapping, provider_session
         )
         rows.append(
             {
@@ -377,6 +392,7 @@ def request_series(
                 "finalized_at": finalized_at,
             }
         )
+    check_unique_dates(rows, series.tradingview_symbol)
     if rows:
         print(json.dumps({
             "event": "source_session_verified", "symbol": series.tradingview_symbol,
@@ -387,6 +403,18 @@ def request_series(
             "date_mapping_version": DATE_MAPPING_VERSION,
         }), flush=True)
     return rows, provider_timezone
+
+
+def check_unique_dates(rows: list[dict], symbol: str) -> None:
+    """EXEC-FI-DATE (ERRORS M323): two source bars on one date mean the date rule no longer fits the provider's labels
+    (it happened on every daylight-saving switch under NEXT_BUSINESS_DAY). The series is refused, so the run reports it
+    instead of writing a bar under another day's date."""
+    seen: dict[date, int] = {}
+    for row in rows:
+        seen[row["date"]] = seen.get(row["date"], 0) + 1
+    clashes = sorted(d.isoformat() for d, n in seen.items() if n > 1)
+    if clashes:
+        raise RuntimeError(f"SOURCE_DATE_COLLISION: {symbol} has two bars on {', '.join(clashes[:5])}")
 
 
 def candle_for_target(rows: list[dict], target_date: date) -> dict | None:

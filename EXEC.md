@@ -9720,3 +9720,28 @@ Rencana (di mana logika berubah):
 Pertanyaan terbuka:
 - Q1: bila user tidak menyebut arti, AI menjawab dengan (b), lalu (a) di sampingnya (saran), atau bertanya balik?
 - Q2: penanda di chart Terminal: hanya baris `counted` (saran), atau semua dengan label sumber?
+
+## EXEC-FI-DATE — aturan tanggal fixed income (M323) dan koreksi data (M324) (go 2026-11-01)
+
+**Go user, 2026-11-01 (kata user):** "Ok untuk koreksi 323 324.. apakah ini permanen untuk kedepannya tidak akan ada lagi
+masalah serupa?" (atas temuan `verification/fixed_income_audit/REPORT.md`).
+- **M323:**
+  - nilai aturan baru `PROVIDER_SESSION_START` di `Fixed_Income_Market_Schedule.source_date_mapping`: tanggal bar dibaca
+    dari labelnya dalam zona sumber terhadap jam mulai sesi (`provider_session`), sehingga tidak terpengaruh DST;
+  - loader menolak menulis dan memberi peringatan bila dua bar jatuh di tanggal yang sama;
+  - tes memakai label asli di kedua sisi DST;
+  - deploy sebelum 2026-11-02 23:00 UTC.
+- **M324:**
+  - koreksi dari tarikan ulang sumber lewat upsert loader;
+  - daftar perubahan (dry-run) dikirim ke user sebelum ditulis, sesuai janji 2026-11-01.
+
+## EXEC-BROKER-FULL — panel broker kanan membaca seluruh riwayat (keputusan 2026-11-01)
+
+**Kata user, 2026-11-01:** "No, kita pindahkan langsung saja ke storage. Masukan exec." Ini jawaban atas pilihan "dimuat
+saat dibutuhkan" atau "selalu seluruh riwayat" untuk panel kanan.
+- Data broker sudah ada di storage sejak 2016 (Flow Timeline membaca semuanya).
+- Batas 2 tahun panel kanan (keputusan B1 2026-10-26, `PANEL_YEARS` di `apps/edge-bff/terminal/src/data/worker.ts:86`)
+  diganti: Broker summary, Top brokers dan Broker inventory membaca seluruh riwayat.
+- Risiko yang sudah disampaikan: memori browser kira-kira 6 → 30 MB untuk saham tersibuk (BBCA ±223 ribu baris), dan
+  panel lebih lambat di perangkat lemah. Diukur saat eksekusi.
+- **Terbuka:** konfirmasi go eksekusi.

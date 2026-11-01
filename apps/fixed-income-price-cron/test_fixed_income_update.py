@@ -347,3 +347,41 @@ def test_tls_cannot_be_disabled(monkeypatch):
     monkeypatch.setenv("TRADINGVIEW_VERIFY_TLS", "false")
     with pytest.raises(RuntimeError, match="must remain enabled"):
         module.open_socket(1, False)
+
+
+# EXEC-FI-DATE (ERRORS M323, user go 2026-11-01): the session-start rule on the labels TradingView actually gives
+# (verification/fixed_income_audit/REPORT.md), on both sides of the daylight-saving switches and around holidays.
+@pytest.mark.parametrize("raw,session,expected", [
+    (datetime(2025, 10, 30, 23, tzinfo=timezone.utc), "1900-1730", date(2025, 10, 31)),   # US EDT: 19:00 NY Thu -> Fri
+    (datetime(2025, 11, 3, 0, tzinfo=timezone.utc), "1900-1730", date(2025, 11, 3)),      # US EST: 19:00 NY Sun -> Mon
+    (datetime(2026, 3, 6, 0, tzinfo=timezone.utc), "1900-1730", date(2026, 3, 6)),        # US EST Fri
+    (datetime(2026, 3, 8, 23, tzinfo=timezone.utc), "1900-1730", date(2026, 3, 9)),       # US EDT Sun -> Mon
+    (datetime(2016, 1, 15, 0, tzinfo=timezone.utc), "1900-1730", date(2016, 1, 15)),      # Fri before the MLK holiday
+    (datetime(2016, 1, 19, 0, tzinfo=timezone.utc), "1900-1730", date(2016, 1, 19)),      # Tue after it
+    (datetime(2016, 3, 6, 22, tzinfo=timezone.utc), "1700-1700", date(2016, 3, 7)),       # ID EST Sun 17:00 NY -> Mon
+    (datetime(2016, 7, 3, 21, tzinfo=timezone.utc), "1700-1700", date(2016, 7, 4)),       # ID EDT Sun -> Mon
+    (datetime(2026, 10, 29, 21, tzinfo=timezone.utc), "1700-1700", date(2026, 10, 30)),   # ID Thu evening -> Fri
+])
+def test_session_start_rule_reads_the_label_in_the_provider_zone(raw, session, expected):
+    assert module.resolve_bar_date(int(raw.timestamp()), "America/New_York", "PROVIDER_SESSION_START", session) == expected
+
+
+def test_session_start_rule_gives_one_date_per_bar_across_the_march_switch():
+    labels = [datetime(2026, 3, 5, 0, tzinfo=timezone.utc), datetime(2026, 3, 6, 0, tzinfo=timezone.utc),
+              datetime(2026, 3, 8, 23, tzinfo=timezone.utc), datetime(2026, 3, 9, 23, tzinfo=timezone.utc)]
+    dates = [module.resolve_bar_date(int(t.timestamp()), "America/New_York", "PROVIDER_SESSION_START", "1900-1730") for t in labels]
+    assert dates == [date(2026, 3, 5), date(2026, 3, 6), date(2026, 3, 9), date(2026, 3, 10)]
+    old = [module.resolve_bar_date(int(t.timestamp()), "America/New_York", "NEXT_BUSINESS_DAY") for t in labels]
+    assert old.count(date(2026, 3, 9)) == 2                                           # the collision M323 found
+
+
+def test_session_start_rule_needs_the_session():
+    with pytest.raises(ValueError, match="needs the provider session"):
+        module.resolve_bar_date(0, "America/New_York", "PROVIDER_SESSION_START", None)
+
+
+def test_two_bars_on_one_date_refuse_the_series():
+    rows = [{"date": date(2026, 3, 9)}, {"date": date(2026, 3, 9)}]
+    with pytest.raises(RuntimeError, match="SOURCE_DATE_COLLISION"):
+        module.check_unique_dates(rows, "TVC:US10Y")
+    module.check_unique_dates([{"date": date(2026, 3, 9)}, {"date": date(2026, 3, 10)}], "TVC:US10Y")

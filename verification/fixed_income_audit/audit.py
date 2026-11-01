@@ -32,18 +32,9 @@ OUT = Path(__file__).resolve().parent / 'out'
 
 
 def session_date(label, provider_tz, provider_session):
-    """The trading date a daily bar belongs to, from its raw label (the session's start in the provider's zone,
-    Fixed_Income_Market_Schedule.provider_session 'HHMM-HHMM'): a label at or after the session start opens the next
-    day's session; weekends roll forward. Independent of daylight saving (US labels are 19:00 New York: 23:00 UTC in
-    EDT, 00:00 UTC of the trading day in EST)."""
-    from datetime import timedelta
-    from zoneinfo import ZoneInfo
-    local = label.astimezone(ZoneInfo(provider_tz))
-    start = int(provider_session[:2]) * 60 + int(provider_session[2:4])
-    d = local.date() + timedelta(days=1) if local.hour * 60 + local.minute >= start else local.date()
-    while d.weekday() >= 5:
-        d += timedelta(days=1)
-    return d
+    """The trading date of a daily bar from its raw label: the ingest's own rule (EXEC-FI-DATE, ERRORS M323), one
+    definition for the loader and this audit."""
+    return f.resolve_bar_date(int(label.timestamp()), provider_tz, 'PROVIDER_SESSION_START', provider_session)
 OUT.mkdir(exist_ok=True)
 
 
