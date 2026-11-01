@@ -3,6 +3,7 @@ import type { Ctx } from './context';
 import { $ } from './context';
 import { FLOW_REG } from './flowIndicators';
 import { initIndMenu, type MenuItem } from './indMenu';
+import { renderCard } from './indCard';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 /* EXEC-IND-CARDS IC1: the card's first content, from the registries: what the indicator is, its parameters with the
@@ -23,7 +24,17 @@ function showCard(detail: HTMLElement, body: HTMLElement, item: MenuItem, indReg
 export function initPicker(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
   // EXEC-IND-CARDS IC1: the live page's menu (indMenu.ts); the fixture keeps the reference's popover below (1:1 check)
-  if(ctx.M.mode === 'live'){ const m = initIndMenu(ctx, item => showCard(m.detail, m.detailBody, item, IND_REG as any[])); return }
+  /* EXEC-IND-CARDS IC2: the info button opens the indicator's card (tabs Kalkulator, Grafik, Langkah) on the ticker and the
+     date the chart shows; the base volume histogram keeps the short card */
+  if(ctx.M.mode === 'live'){
+    const m = initIndMenu(ctx, item => {
+      const key = item.kind === 'Technical' ? (IND_REG as any[]).find(r => r.id === item.id)?.key : item.id;
+      const src = key && Ind.cardSource ? Ind.cardSource(key) : null;
+      if(src) { renderCard(m.detailBody, ctx, item, src); m.detail.hidden = false }
+      else showCard(m.detail, m.detailBody, item, IND_REG as any[]);
+    });
+    return;
+  }
   /* groups come from the registry categories (01_INDICATORS column B); Flow is our own group */
   const GROUP_COLORS = ['#0070f3', '#7928ca', '#f5a623', '#089981', '#d6409f', '#12a594'];
   const INDICATORS: [string, string, string[], string][] = [];

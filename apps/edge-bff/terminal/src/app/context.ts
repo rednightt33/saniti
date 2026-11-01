@@ -63,6 +63,8 @@ export interface IndSurface {
   byName: Record<string, string>; tips: Record<string, string>;
   countOf: (id: string) => number; count: () => number; add: (id: string) => unknown; removeAll: () => void;
   onChange: (() => void) | null;
+  /** EXEC-IND-CARDS: an indicator as the chart has it, for its card */
+  cardSource?: (id: string, uid?: number) => { def: any; params: Record<string, any>; onChart: boolean; outs: any[] } | null;
 }
 
 export interface HistEntry { undo(): void; redo(): void }

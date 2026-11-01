@@ -14,6 +14,9 @@ export interface MenuItem { id: string; name: string; group: string; kind: 'Tech
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 const FAV_KEY = 'ml.ind.favs';
 
+/** where a Flow indicator is drawn (flowRegistry `place`): its own pane, the price axis, or a mark under the candles */
+export const flowPlace = (place: string) => place === 'pane' ? 'Panel' : 'Overlay';
+
 /** the menu's rows from the registries: the technical indicators by category, the base volume histogram, and (not on a
     bond's page: no broker data) the Flow indicators by family, in the registries' order */
 export function menuItems(indReg: any[], flowReg: { families: string[]; indicators: any[] }, withFlow: boolean): MenuItem[] {
@@ -24,7 +27,7 @@ export function menuItems(indReg: any[], flowReg: { families: string[]; indicato
   out.splice(vol < 0 ? out.length : vol, 0, { id:'VOL', name:'Volume', group:'Volume', kind:'Base', place:'Panel', unit:'shares',
     tip:'Batang volume transaksi harian di bagian bawah chart harga.' });
   if (withFlow) for (const f of flowReg.families) for (const r of flowReg.indicators.filter(x => x.family === f))
-    out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:r.place === 'overlay' ? 'Overlay' : 'Panel', unit:r.unit || '', tip:r.tip || '' });
+    out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '' });
   return out;
 }
 

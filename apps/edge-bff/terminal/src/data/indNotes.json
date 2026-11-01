@@ -1,0 +1,681 @@
+{
+ "generated_by": "scripts/build_indicator_notes.py",
+ "common_technical": "Inputs are final daily bars of one ticker in ascending date order (no gaps filled, no zero-filled prehistory). EMA-type averages are seeded with the SMA of their first n valid values; RMA uses alpha 1/n with the same seed. A value is null until its window is full; a zero denominator gives null unless the convention says otherwise. Calculations use the full stored history (price files from 2018) so recursive values match Feature 04.",
+ "technical": {
+  "I01": {
+   "formula": "SMA(src,n)=SUM(src,n)/n",
+   "outputs": "sma",
+   "inputs": "C",
+   "notes": [],
+   "engine": "FEATURE_04",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I02": {
+   "formula": "EMA[t]=EMA[t-1]+2/(n+1)*(src[t]-EMA[t-1]); seed=SMA of first n",
+   "outputs": "ema",
+   "inputs": "C",
+   "notes": [],
+   "engine": "FEATURE_04",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I03": {
+   "formula": "WMA=SUM((n-i)*src[t-i], i=0..n-1)/(n(n+1)/2)",
+   "outputs": "wma",
+   "inputs": "C",
+   "notes": [
+    "HTML engine equals TA-Lib."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I04": {
+   "formula": "HMA=WMA(2*WMA(src,floor(n/2))-WMA(src,n), floor(sqrt(n))); each length at least 1",
+   "outputs": "hma",
+   "inputs": "C",
+   "notes": [
+    "No TA-Lib function; lengths are floored."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I05": {
+   "formula": "ER=ABS(src[t]-src[t-n])/SUM(ABS(src[j]-src[j-1]),n); SC=(ER*(2/(fast+1)-2/(slow+1))+2/(slow+1))^2; KAMA[t]=KAMA[t-1]+SC*(src[t]-KAMA[t-1]); first KAMA seeded with src[n-1]",
+   "outputs": "kama",
+   "inputs": "C",
+   "notes": [
+    "Equals TA-Lib KAMA at fast=2, slow=30 (TA-Lib fixes them; other values follow the same formula)."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I06": {
+   "formula": "macd=EMA(src,fast)-EMA(src,slow); signal=EMA(macd,signal) seeded with the mean of its first valid values; histogram=macd-signal",
+   "outputs": "macd, signal, histogram",
+   "inputs": "C",
+   "notes": [
+    "Built from two SMA-seeded EMAs as Feature 04 does; TA-Lib MACD seeds differently."
+   ],
+   "engine": "FEATURE_04",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I07": {
+   "formula": "+DM/-DM and TR per Wilder; +DI/-DI=100*WilderSum(DM)/WilderSum(TR); DX=100*|+DI--DI|/(+DI+-DI); ADX=Wilder average of DX",
+   "outputs": "adx, plus_di, minus_di",
+   "inputs": "HLC",
+   "notes": [
+    "TA-Lib Wilder-sum seeding (the HTML RMA seed differed in the first ~120 bars)."
+   ],
+   "engine": "FEATURE_04",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I08": {
+   "formula": "AroonUp=100*(n-bars since highest high in the last n+1 bars)/n; AroonDown likewise with the lowest low; ties take the most recent bar",
+   "outputs": "aroon_up, aroon_down",
+   "inputs": "HL",
+   "notes": [
+    "HTML engine equals TA-Lib."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I09": {
+   "formula": "basic bands=HL2±factor*ATR(atr_length) (ATR as I30); final upper band keeps the lower of basic and previous unless the previous close was above it (lower band mirrored); direction flips when close crosses the active band",
+   "outputs": "supertrend, direction",
+   "inputs": "HLC",
+   "notes": [
+    "Uses the TA-Lib ATR of I30."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I10": {
+   "formula": "upper=MAX(H,n); lower=MIN(L,n); basis=(upper+lower)/2",
+   "outputs": "upper, basis, lower",
+   "inputs": "HL",
+   "notes": [
+    "HTML engine equals TA-Lib."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I11": {
+   "formula": "basis=EMA (or SMA) of src; range=ATR(atr_length) (I30), or TR, or RMA(H-L,length); upper/lower=basis±mult*range",
+   "outputs": "upper, basis, lower",
+   "inputs": "HLC",
+   "notes": [
+    "ATR follows I30 (TA-Lib)."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I12": {
+   "formula": "Wilder SAR with TA-Lib initialisation (initial direction from the -DM/+DM of the first two bars) and the clamp to the two previous bars; AF starts at start, grows by increment on a new extreme, capped at maximum",
+   "outputs": "sar, direction",
+   "inputs": "HL",
+   "notes": [
+    "Chosen over the HTML/TradingView initialisation (no seeding rule in Wilder); values differed up to 19%."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I13": {
+   "formula": "Wilder RSI: avg gain/loss RMA of the changes; RSI=100-100/(1+gain/loss); 0 when gain and loss are both 0",
+   "outputs": "rsi",
+   "inputs": "C",
+   "notes": [
+    "Flat window gives 0 (TA-Lib), not null."
+   ],
+   "engine": "FEATURE_04",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I14": {
+   "formula": "fastK=100*(RSI-MIN(RSI,m))/(MAX(RSI,m)-MIN(RSI,m)) (0 on a zero range, TA-Lib); K=SMA(fastK,smooth_k); D=SMA(K,smooth_d)",
+   "outputs": "k, d",
+   "inputs": "C",
+   "notes": [
+    "K is smoothed as on charting platforms; TA-Lib STOCHRSI fast %K alone is unsmoothed: do not use it as K."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I15": {
+   "formula": "rawK=100*(C-MIN(L,k))/(MAX(H,k)-MIN(L,k)) (0 on a zero range); K=SMA(rawK,smooth_k); D=SMA(K,d)",
+   "outputs": "k, d",
+   "inputs": "HLC",
+   "notes": [
+    "This is the slow stochastic; CALC_035/036 describe the fast one."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I16": {
+   "formula": "%R=-100*(MAX(H,n)-src)/(MAX(H,n)-MIN(L,n))",
+   "outputs": "williams_r",
+   "inputs": "HLC",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I17": {
+   "formula": "ROC=100*(src[t]/src[t-n]-1)",
+   "outputs": "roc",
+   "inputs": "C",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I18": {
+   "formula": "MOM=src[t]-src[t-n]",
+   "outputs": "momentum",
+   "inputs": "C",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I19": {
+   "formula": "TP=(H+L+C)/3; CCI=(TP-SMA(TP,n))/(constant*mean absolute deviation of TP from SMA(TP,n))",
+   "outputs": "cci",
+   "inputs": "HLC",
+   "notes": [
+    "TA-Lib fixes constant 0.015."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I20": {
+   "formula": "CMO=100*(SUM(gain,n)-SUM(loss,n))/(SUM(gain,n)+SUM(loss,n)) with plain n-bar sums",
+   "outputs": "cmo",
+   "inputs": "C",
+   "notes": [
+    "Chande (1994) plain sums, as TradingView and pandas-ta. Do NOT use talib.CMO (Wilder-smoothed); TA-Lib 0.6.8 has no CMOU."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I21": {
+   "formula": "TSI=100*EMA(EMA(Δsrc,long),short)/EMA(EMA(|Δsrc|,long),short); signal=EMA(TSI,signal)",
+   "outputs": "tsi, signal",
+   "inputs": "C",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I22": {
+   "formula": "e3=EMA(EMA(EMA(src,n),n),n); TRIX=100*(e3[t]/e3[t-1]-1)",
+   "outputs": "trix",
+   "inputs": "C",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I23": {
+   "formula": "BP=C-MIN(L,Cprev); TR=MAX(H,Cprev)-MIN(L,Cprev); avg_x=SUM(BP,x)/SUM(TR,x); UO=100*(w1*avg7+w2*avg14+w3*avg28)/(w1+w2+w3)",
+   "outputs": "uo",
+   "inputs": "HLC",
+   "notes": [
+    "TA-Lib fixes weights 4/2/1."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I24": {
+   "formula": "AO=SMA(HL2,fast)-SMA(HL2,slow)",
+   "outputs": "ao",
+   "inputs": "HL",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I25": {
+   "formula": "PPO=100*(EMA(src,fast)-EMA(src,slow))/EMA(src,slow); signal=EMA(PPO,signal); histogram=PPO-signal",
+   "outputs": "ppo, signal, histogram",
+   "inputs": "C",
+   "notes": [
+    "TA-Lib PPO defaults to SMA (matype 0): pass matype=1."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I26": {
+   "formula": "BOP=(C-O)/(H-L); 0 when H=L (TA-Lib)",
+   "outputs": "bop",
+   "inputs": "OHLC",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I27": {
+   "formula": "basis=SMA(src,n); upper/lower=basis±k*population stdev(src,n)",
+   "outputs": "upper, basis, lower",
+   "inputs": "C",
+   "notes": [],
+   "engine": "FEATURE_04",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I28": {
+   "formula": "%B=(src-lower)/(upper-lower), bands as I27",
+   "outputs": "percent_b",
+   "inputs": "C",
+   "notes": [
+    "Ratio 0..1."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I29": {
+   "formula": "BBW=100*(upper-lower)/basis, bands as I27",
+   "outputs": "bandwidth",
+   "inputs": "C",
+   "notes": [
+    "Percent: 100 x CALC_051."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I30": {
+   "formula": "TR=MAX(H-L,|H-Cprev|,|L-Cprev|) from the second bar; ATR=Wilder average seeded with the mean of the first n TR",
+   "outputs": "atr",
+   "inputs": "HLC",
+   "notes": [
+    "The first bar has no TR (TA-Lib); the HTML used H-L there and differed up to 8.5% in the first year."
+   ],
+   "engine": "FEATURE_04",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I31": {
+   "formula": "NATR=100*ATR/C, ATR as I30",
+   "outputs": "natr",
+   "inputs": "HLC",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I32": {
+   "formula": "SD=sqrt(SUM((src-SMA(src,n))^2,n)/n)",
+   "outputs": "stddev",
+   "inputs": "C",
+   "notes": [
+    "Population form."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I33": {
+   "formula": "r=ln(src[t]/src[t-1]); HV=population stdev(r,n)*sqrt(252)*100",
+   "outputs": "historical_volatility",
+   "inputs": "C",
+   "notes": [
+    "Population stdev as the HTML engine; CALC_044 uses the sample form."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I34": {
+   "formula": "ADR=SMA(H-L,n)",
+   "outputs": "adr",
+   "inputs": "HL",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I35": {
+   "formula": "SMA(V,n)",
+   "outputs": "volume_sma",
+   "inputs": "V",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I36": {
+   "formula": "EMA(V,n), SMA seed",
+   "outputs": "volume_ema",
+   "inputs": "V",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I37": {
+   "formula": "RVOL=V[t]/SMA(V,n) with the window including t",
+   "outputs": "rvol",
+   "inputs": "V",
+   "notes": [
+    "User 2026-10-25: includes the current bar (as Feature_01.volume_ratio_20d); CALC_062 excludes it."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I38": {
+   "formula": "PVO=100*(EMA(V,fast)-EMA(V,slow))/EMA(V,slow); signal=EMA(PVO,signal); histogram=PVO-signal",
+   "outputs": "pvo, signal, histogram",
+   "inputs": "V",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I39": {
+   "formula": "VROC=100*(V[t]/V[t-n]-1); null if V[t-n]=0",
+   "outputs": "volume_roc",
+   "inputs": "V",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I40": {
+   "formula": "OBV[0]=V[0]; OBV[t]=OBV[t-1]+SIGN(C[t]-C[t-1])*V[t]",
+   "outputs": "obv",
+   "inputs": "CV",
+   "notes": [
+    "Seeded with the first bar volume (TA-Lib); the HTML started at 0 (constant offset)."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I41": {
+   "formula": "PVT[t]=PVT[t-1]+V[t]*(C[t]-C[t-1])/C[t-1]; PVT[0]=0",
+   "outputs": "pvt",
+   "inputs": "CV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I42": {
+   "formula": "VWMA=SUM(src*V,n)/SUM(V,n)",
+   "outputs": "vwma",
+   "inputs": "CV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I43": {
+   "formula": "Within each anchor period (Session=one daily bar, Week, Month, Quarter, Year, Decade, Century): VWAP=SUM(src*V)/SUM(V) from the period start; bands ± k*volume-weighted stdev or ± k percent",
+   "outputs": "vwap, upper1, lower1",
+   "inputs": "HLCV",
+   "notes": [
+    "On daily bars it is not an intraday session VWAP."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I44": {
+   "formula": "MFM=((C-L)-(H-C))/(H-L) (0 when H=L); ADL[t]=ADL[t-1]+MFM*V",
+   "outputs": "adl",
+   "inputs": "HLCV",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I45": {
+   "formula": "CMF=SUM(MFM*V,n)/SUM(V,n)",
+   "outputs": "cmf",
+   "inputs": "HLCV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I46": {
+   "formula": "CHO=EMA(ADL,fast)-EMA(ADL,slow) with TA-Lib ADOSC seeding",
+   "outputs": "chaikin_osc",
+   "inputs": "HLCV",
+   "notes": [
+    "TA-Lib seeds its EMAs differently from the SMA seed; equal after warm-up."
+   ],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I47": {
+   "formula": "TP=(H+L+C)/3; flows=TP*V split by the sign of ΔTP; MFI=100*pos/(pos+neg)",
+   "outputs": "mfi",
+   "inputs": "HLCV",
+   "notes": [],
+   "engine": "TA_LIB",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I48": {
+   "formula": "EFI=EMA((C[t]-C[t-1])*V[t], n)",
+   "outputs": "force_index",
+   "inputs": "CV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I49": {
+   "formula": "raw=(HL2[t]-HL2[t-1])*(H-L)/V*scale (null if V=0); EOM=SMA(raw,n)",
+   "outputs": "eom",
+   "inputs": "HLV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I50": {
+   "formula": "NVI[t]=NVI[t-1]*C[t]/C[t-1] if V[t]<V[t-1] else NVI[t-1]",
+   "outputs": "nvi",
+   "inputs": "CV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I51": {
+   "formula": "PVI[t]=PVI[t-1]*C[t]/C[t-1] if V[t]>V[t-1] else PVI[t-1]",
+   "outputs": "pvi",
+   "inputs": "CV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I52": {
+   "formula": "trend=sign(Δ(H+L+C)) (unchanged keeps the previous); dm=H-L; cm accumulates dm while the trend holds; VF=V*|2*(dm/cm-1)|*trend*100; KVO=EMA(VF,fast)-EMA(VF,slow); signal=EMA(KVO,signal)",
+   "outputs": "kvo, signal",
+   "inputs": "HLCV",
+   "notes": [],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  },
+  "I53": {
+   "formula": "MarketFI=(H-L)/V*scale (null if V=0)",
+   "outputs": "market_fi",
+   "inputs": "HLV",
+   "notes": [
+    "Williams; not the Money Flow Index."
+   ],
+   "engine": "HTML",
+   "source": "verification/terminal_api/INDICATOR_SPEC.md"
+  }
+ },
+ "flow": {
+  "FL01": {
+   "formula": "Buy BL(C)/BF(C); Sell SL(C)/SF(C) (lots per transaction)",
+   "outputs": "buy, sell",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL02": {
+   "formula": "Buy BV(C)/BF(C); Sell SV(C)/SF(C) (IDR per transaction)",
+   "outputs": "buy, sell",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL03": {
+   "formula": "Buy 100 BL(C)/BL(A); Sell 100 SL(C)/SL(A); A with the same filter",
+   "outputs": "buy, sell",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL04": {
+   "formula": "Buy 100 BF(C)/BF(A); Sell 100 SF(C)/SF(A); A with the same filter",
+   "outputs": "buy, sell",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL05": {
+   "formula": "Buy (BL(C)/BL(A)) / (BF(C)/BF(A)); Sell with SL, SF; A same filter",
+   "outputs": "buy, sell",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL06": {
+   "formula": "(BL(C)/BF(C)) / (SL(C)/SF(C))",
+   "outputs": "ratio",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL07": {
+   "formula": "100 BL(C) / BL(A); A: board filter, all investors (default) or board and investor filter",
+   "outputs": "share",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL08": {
+   "formula": "percentile (baseline) of x = BL(C)/BF(C) (Side Buy) or SL(C)/SF(C) (Sell), window W",
+   "outputs": "pct",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL09": {
+   "formula": "1 when all hold, else 0 (null when one input is null): FL08 Buy (same cohort, filter, W, baseline) >= pct threshold; FL05 Buy >= ratio threshold; FL07 >= participation threshold; FL11 > net-flow threshold; and, if chosen, FL10 >= imbalance threshold. Drawn as a mark under the candle where 1. Inside FL09, FL07 and FL11 always use the board-only denominator (FL09 has no denominator option)",
+   "outputs": "flag",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL10": {
+   "formula": "(BF(C)-SF(C)) / (BF(C)+SF(C))",
+   "outputs": "imbalance",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL11": {
+   "formula": "100 (BV(C)-SV(C)) / TBV; TBV per the denominator option",
+   "outputs": "ratio",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL12": {
+   "formula": "100 x (candles k in the window with BV_k(C)-SV_k(C) > 0) / W; C ranked over the window; a candle without a row of C is not a buy candle",
+   "outputs": "persistence",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL13": {
+   "formula": "Buy Σ_b (BL(b)/BL(A))^2; Sell with SL; A with the filter",
+   "outputs": "buy, sell",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL14": {
+   "formula": "FL13 Buy − FL13 Sell",
+   "outputs": "asym",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL15": {
+   "formula": "100 x (sum of the N largest BL(b)) / BL(A)",
+   "outputs": "share",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL16": {
+   "formula": "n_b = BV(b)-SV(b); 100 x (sum of the N largest positive n_b) / (sum of all positive n_b)",
+   "outputs": "share",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL17": {
+   "formula": "BV(C) / (100 BL(C)) (IDR per share), on the price axis",
+   "outputs": "vwap",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL18": {
+   "formula": "frozen C; sums from the anchor to t: BV(C) / (100 BL(C)); null before the anchor",
+   "outputs": "vwap",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL19": {
+   "formula": "frozen C, from the anchor, Q, K start at 0; per candle q = BL_k(C)-SL_k(C): if q > 0: if Q <= 0 then K = max(Q+q,0) x BV_k(C)/BL_k(C) else K += q x BV_k(C)/BL_k(C); if q < 0 and Q > 0: K = K x max(Q+q,0)/Q; then Q += q. Output K/(100 Q) when Q > 0, else null (user 2026-10-30, \"1 pakai A\": the rule for an inventory at or below 0, which the spreadsheet leaves open)",
+   "outputs": "cost",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL20": {
+   "formula": "100 (close / FL19 - 1)",
+   "outputs": "dist",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL21": {
+   "formula": "percentile (baseline 250) of FL11 (same cohort, filter, W, denominator)",
+   "outputs": "pct",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL22": {
+   "formula": "n_b = BV(b)-SV(b) over the window with the filter; active = brokers with any bv or sv > 0 in it; 100 x (active with n_b > 0) / active",
+   "outputs": "breadth",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL23": {
+   "formula": "per chosen broker (and, when \"Show cohort total\", their sum): from the start candle, Lot: cumulative Σ(bl-sl), Value: cumulative Σ(bv-sv); Daily: the candle's own bl-sl or bv-sv; null before the start. At most 5 brokers are drawn (more are ignored); a code without rows in the data draws 0",
+   "outputs": "one line per broker, total",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL24": {
+   "formula": "100 (NB + NS) / TBV(filter); NB = sum of BV-SV of the N bandar buyers, NS = sum of BV-SV (negative) of the N bandar sellers, over the window; TBV(filter) = BV(A) with the filter; reference lines 6, 10, -6, -10",
+   "outputs": "balance",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL25": {
+   "formula": "NB + NS (IDR)",
+   "outputs": "net",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL26": {
+   "formula": "per candle net n_k = BV_k(C)-SV_k(C) (C ranked over the last limit candles); s_t = s_{t-1}+1 if n_t > 0 and s_{t-1} > 0, 1 if n_t > 0 otherwise; s_{t-1}-1 if n_t < 0 and s_{t-1} < 0, -1 if n_t < 0 otherwise; 0 on a candle with data where n_t = 0 (no row of the cohort or the filter); null on a candle without data, after which the count starts again; capped at ±limit",
+   "outputs": "streak",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL27": {
+   "formula": "1 when SMA(volume,recent)_t / SMA(volume,baseline)_{t-recent} >= volume x and 100 |close_t/close_{t-recent} - 1| <= max move; drawn as a mark under the candle",
+   "outputs": "flag",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL28": {
+   "formula": "SMA(close x volume, sessions) (IDR)",
+   "outputs": "adv",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL29": {
+   "formula": "100 x (candles in the last days whose own one-candle FL24 (N, filter) is above the threshold) / days; a candle without broker data in the window counts as not above",
+   "outputs": "ratio",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL30": {
+   "formula": "100 BV(Nego+Cash) / BV(all boards), investor filter on both",
+   "outputs": "share",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL31": {
+   "formula": "sum of insider BUY value minus SELL value with d in the window's candles (IDR); 0 when none",
+   "outputs": "net",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL32": {
+   "formula": "BF_t(A) / mean(BF_k(A), k = t-baseline .. t-1); filter; null without the full baseline; a candle without broker data inside the baseline adds 0 to the mean (divisor stays baseline)",
+   "outputs": "spike",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL33": {
+   "formula": "100 ((BV/BF over the last recent candles) / (BV/BF over the baseline candles before them) - 1), A, filter",
+   "outputs": "change",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL34": {
+   "formula": "100 (BV-SV of the institutional brokers − BV-SV of the retail brokers) / BV(A), filter; defaults: Institutional-heavy and Retail-heavy of ref/brokers; a broker in both lists is refused",
+   "outputs": "ratio",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL35": {
+   "formula": "the broker with the largest positive BV-SV over the window (frozen for that window); 100 x (candles in the window where its BV_k-SV_k > 0) / days; a candle without data counts as not a buy candle; null when no broker has a positive net in the window",
+   "outputs": "persistence",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL36": {
+   "formula": "100 (BV(C)+SV(C)) / (2 TBV)",
+   "outputs": "share",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL37": {
+   "formula": "percentile (baseline 250) of BV(C)-SV(C) over the net window",
+   "outputs": "pct",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL38": {
+   "formula": "n_b = BV(b)-SV(b), positive only: Σ (n_b / Σ positive n)^2",
+   "outputs": "hhi",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL39": {
+   "formula": "100 (close / FL17 - 1) with FL39's cohort, filter and window",
+   "outputs": "dist",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  }
+ }
+}

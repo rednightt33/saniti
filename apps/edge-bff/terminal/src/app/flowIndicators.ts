@@ -4,7 +4,8 @@
    scripts/build_flow_registry.py); the numbers come from calc/flow.ts on the raw broker rows the worker sends
    (ctx.flowRows). Rules of the spreadsheet that need the chart: the default anchor and Broker Inventory's start are the
    first visible candle; "days" are the chart's candles (user 2026-10-30: "2-3 OK"). */
-import { classBrokers, computeFlow, defaultInventoryBrokers, type FlowContext, type FlowRows, type InsiderRow } from '../calc/flow';
+import { classBrokers, computeFlow, defaultInventoryBrokers, flowDefaults, type FlowContext, type FlowRows, type InsiderRow } from '../calc/flow';
+import { FLOW_EXPLAIN } from '../calc/explainIndex';
 import REG from '../data/flowRegistry.json';
 import type { Ctx } from './context';
 import { nfCompact, rupiah } from './context';
@@ -160,6 +161,16 @@ export function initFlowIndicators(ctx: Ctx) {
         codes.forEach((c, j) => { slots[SLOTS[j]] = o[c] });
         if (o.total) slots.total = o.total;
         return slots;
+      },
+      /* EXEC-IND-CARDS: how the value at candle t is made (the card), on the session the candle shows; undefined = no
+         explainer, null = no value at t. The parameters the settings dialog does not show (levels) take their defaults. */
+      explain:(p: any, t: number, out?: string) => {
+        const ex = FLOW_EXPLAIN[r.id]; if (!ex) return undefined;
+        const q = { ...flowDefaults(r.id), ...p };
+        if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
+        if (r.id === 'FL23') q.start = firstVisible();
+        const d = DAY ? DAY.dayOf[t] : t;
+        return d < 0 ? null : ex(context(), q, d, out);
       },
       /* the legend's text where the value is empty: why, when the reason is the data (plan S4: a message, not a zero) */
       note:(i: number, raw: any, p: any) => {

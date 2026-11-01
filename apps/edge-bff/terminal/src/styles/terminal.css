@@ -1117,3 +1117,62 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ic-params td{padding:6px 0;border-bottom:1px solid var(--border);color:var(--text)}
 .ic-params td:last-child{text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums}
 @media(max-width:700px){.im-body{grid-template-columns:1fr}.im-nav{display:flex;gap:4px;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:6px}.im-title{display:none}.im-nav button{width:auto;white-space:nowrap}.im-row{grid-template-columns:34px minmax(0,1fr) 34px}.im-row .gr,.im-row .pl,.im-row .un,.im-row.hd span:nth-child(n+3):nth-child(-n+5){display:none}}
+
+/* EXEC-IND-CARDS IC2 (user go 2026-11-01; mockup indicator_cards_review.html): the indicator card, tabs Kalkulator, Grafik,
+   Langkah; in the menu's side panel and on its own from an indicator's legend row */
+.icd{display:grid;gap:12px;color:var(--text)}
+.icd-h h4{margin:4px 0 6px;font-size:17px;font-weight:700}
+.icd-h p{margin:0;font-size:13px;line-height:1.55;color:var(--text-2)}
+.icd-eyebrow{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3)}
+.icd-code{margin-left:auto;font-size:11px;color:var(--text-2);letter-spacing:0;font-variant-numeric:tabular-nums}
+.icd-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border)}
+.icd-tabs button{appearance:none;border:0;background:none;padding:8px 12px;font:inherit;font-size:13px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
+.icd-tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--text)}
+.icd-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.icd-pane{display:grid;gap:10px}
+.icd-pane[hidden]{display:none}
+.icd-box{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--soft)}
+.icd-ex-h{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.icd-ex-h span{flex:1;min-width:0}
+.icd-nav{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--text-2);width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1}
+.icd-nav:hover{background:var(--hover);color:var(--text)}
+.icd-out{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3)}
+.icd-out select{font:inherit;font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
+.icd-big{display:flex;align-items:baseline;gap:10px}
+.icd-big b{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.icd-delta{font-size:12px;color:var(--text-3)}
+.icd-expr{font-size:12.5px;line-height:1.5;color:var(--text-2);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.icd-sub{margin-top:4px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3)}
+.icd-field{display:grid;gap:4px;font-size:12.5px}
+.icd-fr{display:flex;align-items:baseline;gap:6px;color:var(--text-2)}
+.icd-fr code{font-size:11px;color:var(--text-3)}
+.icd-fr b{margin-left:auto;color:var(--text);font-variant-numeric:tabular-nums}
+.icd-field input[type=range]{width:100%;accent-color:var(--text)}
+.icd-params{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.icd-param{display:grid;gap:3px;font-size:12px;color:var(--text-2)}
+.icd-param input{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);width:100%;box-sizing:border-box}
+.icd-row{display:flex;gap:8px;align-items:center}
+.icd-btn{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer}
+.icd-btn:hover{background:var(--hover)}
+.icd-note{margin:0;font-size:12px;line-height:1.5;color:var(--text-3)}
+.icd-chart svg{width:100%;height:auto;display:block}
+.icd-bul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:12.5px;line-height:1.5;color:var(--text-2)}
+.icd-steps{margin:0;padding-left:20px;display:grid;gap:12px}
+.icd-steps li{font-size:13px;color:var(--text)}
+.icd-steps p{margin:3px 0 6px;font-size:12.5px;line-height:1.55;color:var(--text-2)}
+.icd-tbl{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.icd-tbl th{font-weight:600;color:var(--text-3);text-align:right;padding:5px 6px;border-bottom:1px solid var(--border)}
+.icd-tbl td{text-align:right;padding:5px 6px;border-bottom:1px solid var(--border);color:var(--text)}
+.icd-tbl .l{text-align:left}
+.icd-tbl .muted{color:var(--text-3)}
+.icd-notes{display:grid;gap:8px;padding-top:6px;border-top:1px solid var(--border)}
+.icd-notes h5{margin:6px 0 0;font-size:12px;font-weight:700;color:var(--text)}
+.icd-formula{padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--soft);font-size:12.5px;line-height:1.5;overflow-wrap:anywhere}
+.icd-back{position:fixed;inset:0;z-index:95;display:grid;place-items:center;background:rgba(15,23,42,.18);padding:12px}
+.icd-back[hidden]{display:none}
+.icd-dlg{width:min(520px,100%);max-height:min(88vh,860px);display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 50px -20px rgba(0,0,0,.35)}
+.icd-dlg-h{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 18px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-3)}
+.icd-dlg-h span{flex:1}
+.icd-x{appearance:none;border:0;background:none;font-size:20px;line-height:1;color:var(--text-3);cursor:pointer;width:30px;height:30px;border-radius:6px}
+.icd-x:hover{background:var(--hover);color:var(--text)}
+.icd-dlg-b{overflow:auto;padding:16px 18px}

@@ -5,8 +5,10 @@
      2. Flow indicators (Net Buy Flow, Net Buy Flow (Line)): hand-written schema (inputs[], style[], compute, title).
    Backend: window.marketLabIndicators.export() / import() carry the saved list as JSON.
    Ported line for line; closure values the reference reassigns are read from ctx. */
-import { F } from '../calc/indicators';
+import { DEFAULTS, F } from '../calc/indicators';
+import { TECH_EXPLAIN } from '../calc/explainIndex';
 import { initFlowIndicators } from './flowIndicators';
+import { itemOfDef, openCardDialog } from './indCard';
 import type { Ctx } from './context';
 import { $, nfCompact, rupiah, store } from './context';
 import { keyedMarkers } from '../data/chartTime';
@@ -66,6 +68,14 @@ export function initIndicators(ctx: Ctx) {
       pane:r.zone === 'panel' ? 'sub' : r.zone,              // 'overlay' (candle pane, price axis) | 'volume' (volume axis) | 'sub' (own pane)
       format:u.fmt, minMove:u.minMove,
       compute:p => DAY && dailyOnly(r) ? onTheCandles(F[r.key](DAILY_BARS, p)) : F[r.key](BARS, p),
+      /* EXEC-IND-CARDS: how the value at candle t is made (the card); undefined = no explainer, null = no value at t. A
+         daily-only indicator on an intraday chart explains the session the candle shows. */
+      explain:(p, t, out) => {
+        const ex = TECH_EXPLAIN[r.key], q = { ...(DEFAULTS[r.key] || {}), ...p };
+        if(!ex) return undefined;
+        if(DAY && dailyOnly(r)) { const d = DAY.dayOf[t]; return d < 0 ? null : ex(DAILY_BARS, q, d, out) }
+        return ex(BARS, q, t, out);
+      },
       validate:p => {                                          // "fast < (middle <) slow", "short < long" — derived from the parameter names
         for(const keys of ORDER_KEYS){
           const have = keys.filter(k => k in p);
@@ -204,6 +214,7 @@ export function initIndicators(ctx: Ctx) {
   let uid = 0;
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;
+  const INFO = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.4v.1"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
   const save = () => store.set(KEY, JSON.stringify(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base }))));
@@ -420,11 +431,13 @@ export function initIndicators(ctx: Ctx) {
     r.innerHTML = '<span class="ind-k"></span><b></b>'
       + `<button class="ind-eye" type="button" data-act="eye" aria-pressed="true" data-label="Hide" aria-label="Show or hide">${EYE}</button>`
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
+      + (ctx.M.mode === 'live' && inst.def.compute ? `<button class="ind-eye ind-info" type="button" data-act="info" data-label="How it works" aria-label="How it works">${INFO}</button>` : '')
       + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`;
     r.addEventListener('click', (e: any) => {
       const a = e.target.closest('[data-act]'); if(!a) return;
       if(a.dataset.act === 'eye') { inst.on = !inst.on; refresh(inst); save() }
       else if(a.dataset.act === 'cfg') openSettings(inst)
+      else if(a.dataset.act === 'info') openCardDialog(ctx, itemOfDef(inst.def), Ind.cardSource(inst.def.id, inst.uid))      // EXEC-IND-CARDS IC2
       else userRemove(inst);
     });
     if(inst.def.pane === 'sub') { r.classList.add('in-pane'); stage.appendChild(r) } else legend.appendChild(r);
@@ -660,6 +673,12 @@ export function initIndicators(ctx: Ctx) {
   displayHooks.push(() => list.forEach(refresh));
   tipHooks.push(i => list.forEach(inst => paintRow(inst, i)));
   Ind.countOf = id => list.filter(i => i.def.id === id).length;
+  /* EXEC-IND-CARDS: the card reads the indicator as the chart has it (its first instance's parameters, else the defaults) */
+  Ind.cardSource = (id, uid?) => {
+    const def = defOf(id); if(!def) return null;
+    const inst = list.find(i => i.uid === uid) || list.find(i => i.def.id === id);
+    return { def, params:inst ? { ...inst.params } : defaults(def.inputs), onChart:!!inst, outs:inst?.outs || def.reg?.outs || [] };
+  };
   Ind.count = () => list.length;
   /* undo / redo: an indicator comes back with the same inputs, style and visibility */
   /* every step names its indicator by a history id that a revived indicator keeps (front-end audit I3: a step holding the

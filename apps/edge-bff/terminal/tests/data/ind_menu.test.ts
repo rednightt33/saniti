@@ -12,6 +12,9 @@ describe('indicator menu rows', () => {
     expect(all.find(i => i.id === 'VOL')).toMatchObject({ kind:'Base', group:'Volume' });
     expect(all.find(i => i.id === 'FL24')).toMatchObject({ kind:'Flow', group:'Bandar Balance', place:'Panel', unit:'%' });
     expect(all.find(i => i.id === 'I01')).toMatchObject({ kind:'Technical', group:'Trend', place:'Overlay' });
+    // EXEC-IND-CARDS IC2: a Flow line on the price axis (FL17 Buy VWAP) and a mark under the candles (FL27) sit on the price chart
+    expect(all.find(i => i.id === 'FL17')?.place).toBe('Overlay');
+    expect(all.find(i => i.id === 'FL27')?.place).toBe('Overlay');
   });
   it('a bond page has no Flow rows (no broker data)', () => {
     expect(menuItems(IND as any[], FLOW as any, false).some(i => i.kind === 'Flow')).toBe(false);
