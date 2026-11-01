@@ -10,7 +10,8 @@
 - Jobs on orc-test-runner (`scripts/onboarding/run_job.sh`): recovery `--dry-run` for ID and US; one manual consensus
   check per market with `TELEGRAM_NOTIFY_URL`/`TELEGRAM_NOTIFY_SECRET` set as references to
   fixed-income-price-recovery-cron's variables for the run and removed after it (VAR_REMOVED).
-- edge-bff: `main` 1e833d77 (EXEC-BROKER-FULL) deployment 5c68922d SUCCESS 11:28 UTC; `main` 7e2dccc8 (M325) below.
+- edge-bff: `main` 1e833d77 (EXEC-BROKER-FULL) deployment 5c68922d SUCCESS 11:28 UTC; `main` 7e2dccc8 (ERRORS M325)
+  deployment d1c37e55 SUCCESS 11:32 UTC. The Docker build compiles the Terminal from `apps/edge-bff/terminal`.
 
 ## 2026-11-01 — EXEC-FI-DATE: fixed-income crons with the date rule PROVIDER_SESSION_START (ERRORS M323)
 
