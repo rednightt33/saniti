@@ -172,3 +172,15 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
     trade carries its last value for at most 3 bourse sessions, faded and marked "carried from <date>"; a longer gap
     breaks the line. The legend shows the change in basis points; Return mode does not rebase a yield; no Flow
     Timeline (`timeframe.ts` `alignCandlesCarry`, `app/assets.ts`).
+
+## Indicator cards and drawings (EXEC-IND-CARDS IC2-IC5, EXEC-DRAW-ALL-TF, 2026-11-01)
+
+- The card of an indicator (`app/indCard.ts`): tabs Kalkulator, Grafik, Langkah, from the menu's info button and the
+  legend's (i) button. Its numbers come from the indicator's definition: `def.compute(params)` (the chart's series) and
+  `def.explain(params, t, output)` (`calc/explain*.ts`; `null` = no value at t, `undefined` = no explainer). An
+  explanation has `expr`, `terms` (keys, values, units), `combine(terms)`, `steps` (text and tables) and `span`. Its
+  value equals the chart's (`tests/calc/explain.test.ts`).
+- Formula text: `data/indNotes.json` (`scripts/build_indicator_notes.py`, from the T1 spec and FORMULAS.md).
+- Drawings: one set per ticker (`ml.drawings.<ticker>`, Flow Timeline `ml.drawings.flow.<ticker>`) for every timeframe.
+  Each point keeps its own time (a date from D/W/M, an intraday chart time from 5M-4H) and each timeframe shows it on its
+  candle (`onDailyCandles`, `onIntradayCandles`); saving keeps the stored time of every point the user did not move.

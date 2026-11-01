@@ -5195,6 +5195,42 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** setiap parameter yang tampil ke user harus dibaca oleh perhitungan; buktikan dengan tes, bukan dengan
   membaca registry.
 
+### M329 — screener-worker menolak start sejak 08:47 UTC: registry tidak dibangun ulang sesudah `indicators.ts` berubah (2026-11-01)
+
+- **Ditemukan oleh:** push `main` EXEC-IND-CARDS (`a7bc97a7`) memicu deploy screener-worker `6892b885`, yang FAILED.
+- **Symptom:** deploy screener-worker gagal healthcheck `/ready`. Lognya berulang `startup_check_failed`:
+  "backtest-registry.json has registry_version b6a8dc0ba206ed65, its sources hash to 514dc3df60a25aff" dan
+  "calc/indicators.ts (calc) has sha256 88977c1b…, screener-registry.json was built from 0169f943…". Deploy `a55fb87d`
+  pukul 08:47 (`792513ed`) juga FAILED dan tidak tercatat. Railway tetap menjalankan `be75d1c6` (30 Okt), jadi Screener
+  tetap jalan dengan versi lama.
+- **Verified cause:** `4418a19f` (EXEC-INTRADAY-FEATURES C1-C4) mengubah `apps/edge-bff/terminal/src/calc/indicators.ts`
+  (`periodKey` membaca tanggal dari kunci intraday). `backtest-registry.json` dan `screener-registry.json` dibangun dari
+  file itu, tetapi tidak dibangun ulang. Pemeriksaan start screener-worker menolak registry yang tidak cocok dengan
+  sumbernya. Deploy pagi itu tidak ditunggu sampai SUCCESS.
+- **Class:** file turunan (registry, dokumen, snapshot) yang dibangun dari kode bersama menjadi basi saat kodenya
+  berubah. Ini juga berlaku untuk layanan lain yang memantau path yang sama (watch pattern `/apps/edge-bff/terminal/src/calc/**`).
+- **Solution:**
+  - registry dibangun ulang dengan skripnya sendiri (`npm run registry` di `apps/backtest-worker` dan
+    `apps/edge-bff/screener`). Hanya versi dan hash sumber yang berubah (53 `formula_version`), tidak ada parameter atau
+    kontrak yang berubah. `7fc03d54`: screener-worker `6f2fe57a` SUCCESS, log `start`, `swap`, `refresh`;
+  - `scripts/tests/test_registries_current.py`: kedua `--check` gagal bila registry tidak cocok dengan sumbernya;
+  - backtest-worker tidak perlu diunggah ulang. Perubahan `4418a19f` hanya berlaku untuk kunci intraday, dan untuk bar
+    harian hasilnya sama.
+- **Status:** FIXED.
+- **Lesson:** setiap push yang menyentuh path pantauan sebuah layanan menunggu deploy layanan itu sampai SUCCESS, bukan
+  hanya layanan yang dituju. Bangun ulang file turunan dalam commit yang sama dengan sumbernya.
+
+### M330 — Menu indikator menulis "Panel" untuk indikator Flow di sumbu harga (2026-11-01)
+
+- **Symptom:** di menu IC1, FL09, FL17, FL18, FL19 dan FL27 tertulis "Panel", padahal digambar di grafik harga.
+- **Verified cause:** `apps/edge-bff/terminal/src/app/indMenu.ts` membandingkan `place === 'overlay'`. `flowRegistry.json`
+  memakai `pane`, `price` dan `marker`, jadi nilai `overlay` tidak pernah cocok. Ditemukan oleh typecheck saat kartu IC2
+  dibangun.
+- **Solution:** `flowPlace` (pane = Panel, selain itu Overlay) dipakai menu dan kartu. Tes di `tests/data/ind_menu.test.ts`
+  (FL17, FL27).
+- **Status:** FIXED (edge-bff `891d3bbc`).
+- **Lesson:** bandingkan nilai dengan himpunan nilai yang ada di registry, bukan dengan nama yang diduga.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan

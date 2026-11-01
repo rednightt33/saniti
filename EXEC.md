@@ -9618,6 +9618,7 @@ adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher han
 **Keputusan user, 2026-11-01 (kata user):** "Opsi 1, 4A, 2A dan 3A ok".
 - **C7.1 = Opsi 1** (dengan A untuk hari terbaru): C4 di atas sudah ditulis ulang.
 - **C7.2 = A:** gambar di timeframe intraday disimpan sebagai satu set terpisah; gambar harian tidak tampil di intraday.
+  Diganti 2026-11-01 oleh EXEC-DRAW-ALL-TF (user: "Ok C"): satu set untuk semua timeframe.
 - **C7.3 = A:** I34 Average Daily Range di intraday dihitung dari bar harian, lalu digambar dengan aturan yang sama
   dengan Flow (hari sebelumnya di candle hari itu, hari terbaru sesudah tutup).
 - **C7.4 = A:** loader menulis catatan perubahan per (saham, timeframe), termasuk IHSG, dalam statement yang sama;
@@ -9910,6 +9911,11 @@ main once done." Lalu atas pilihan Opsi C/B: "Ok C".
   di candle pertama hari itu di intraday. Aturan F7 tetap: titik yang tidak digeser user disimpan dengan waktu aslinya.
   Set intraday lama digabung sekali ke set utama.
 - **Dampak yang sudah disampaikan:** garis pendek dari 5M terlihat sangat pendek di grafik harian.
+- **Hasil 2026-11-01:** `app/drawings.ts`: satu kunci `ml.drawings.<ticker>`, `onDailyCandles` (titik intraday ke
+  candle sesinya), `onIntradayCandles` (titik harian ke candle pertama harinya, atau 09:00 bila hari itu tidak punya
+  candle intraday), `mergeSets` (set `.intraday` lama digabung sekali, lalu dihapus). Tes `tests/data/drawings_all_tf.test.ts`.
+  Dicek di halaman (BBCA) pada D, 1H, W, 5M lalu D lagi: kedua garis tampil di semua timeframe, waktu tersimpan tidak
+  berubah, 0 galat. edge-bff `891d3bbc` SUCCESS.
 
 ## EXEC-M322 — pembungkus runner menulis tanda selesai (go 2026-11-01)
 
@@ -9919,6 +9925,22 @@ pembungkus menulis tanda selesai sesudah `job.py` keluar, sehingga tidak bergant
   `scripts/onboarding/runner_guard.sh` untuk `run_job.sh` dan `run_terminal_check.sh`; tes 20 lulus; dua job uji live
   (`2ed7b085`, `2b8c31b1`) tanpa `JOB_DONE` dianggap selesai (ERRORS M322 FIXED, RAILWAY_CHANGELOG).
 - **Terbuka (FUTURE_PLAN):** restart `ON_FAILURE` 10 kali di runner menjalankan ulang job sekali jalan yang gagal.
+
+- **Hasil 2026-11-01 (IC1-IC5):**
+  - IC1 (sebelumnya): menu indikator, tooltip, favorit.
+  - IC2: kartu tiga tab (Kalkulator, Grafik, Langkah), dibuka dari tombol info di menu dan tombol (i) baru di legenda
+    indikator; `app/indCard.ts`. Rumus dan catatan spesifikasi dari `data/indNotes.json`, dibangun oleh
+    `scripts/build_indicator_notes.py` dari `scripts/terminal_indicator_spec.py` dan `FORMULAS.md` (tes drift). Catatan
+    "Hati-hati" diturunkan dari parameter tiap indikator. Angka ditulis dalam satu gaya (Indonesia) dari satuannya.
+  - IC3/IC4: langkah hitung untuk 39 Flow dan 53 teknikal (`calc/explain*.ts`), ditulis empat agen paralel per bagian.
+    Setiap output dan candle diuji sama dengan chart (`tests/calc/explain.test.ts` 96 tes, ditambah tes per bagian).
+    Total tes Terminal 1.465 lulus.
+  - IC5: cek halaman dengan data dev BBCA di D, 1H dan W. 233-234 perbandingan angka kartu dengan chart per timeframe,
+    0 beda, 0 galat. Lebar ponsel 390 px: kartu 366 px, tanpa geser ke samping. Terminal tidak punya mode gelap, jadi cek
+    mode gelap tidak berlaku. edge-bff `891d3bbc`, lalu `144e9d22`; file halaman live sama dengan build lokal.
+  - Ditemukan sambil jalan: ERRORS M328 (parameter RVOL yang tidak dibaca, OPEN), M329 (registry screener basi sejak pagi,
+    FIXED), M330 (label Panel/Overlay di menu, FIXED).
+  - Teks rumus dan catatan spesifikasi teknikal mengikuti sumbernya (bahasa Inggris).
 
 ## EXEC-UI-AUDIT-FIX — temuan audit tampilan F3, F7, F8 (go 2026-11-01)
 

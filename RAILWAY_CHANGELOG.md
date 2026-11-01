@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-01 — EXEC-IND-CARDS IC2-IC5, EXEC-DRAW-ALL-TF: edge-bff; screener-worker recovered (ERRORS M329)
+
+- `main` `a7bc97a7`: edge-bff `891d3bbc` SUCCESS 15:16 UTC (indicator cards, drawings for every timeframe). The same push
+  started screener-worker `6892b885` (watch pattern `/apps/edge-bff/terminal/src/calc/**`): FAILED, healthcheck `/ready`,
+  log `startup_check_failed` (registries built from an older `calc/indicators.ts`). The earlier screener-worker deploy
+  `a55fb87d` (08:47 UTC, `792513ed`) had failed the same way; `be75d1c6` (2026-10-30) kept serving.
+- `main` `7fc03d54` (registries rebuilt, versions and source hashes only): edge-bff `144e9d22` SUCCESS, screener-worker
+  `6f2fe57a` SUCCESS 15:26 UTC, log `start`, `terminal_file` ×2, `swap`, `refresh`. The live Terminal serves
+  `index-2B2fjbGc.js` and `style-B6XdXpP5.css`, equal to a local build of `7fc03d54`.
+- backtest-worker not re-uploaded (`e3c07b59`, 2026-10-29, consistent with its own registry; the `indicators.ts` change
+  affects intraday keys only).
+- No variable changed.
+
 ## 2026-11-01 — ERRORS M322: runner jobs end with the wrapper's JOB_EXIT (orc-test-runner)
 
 User go 2026-11-01 ("Go", EXEC.md EXEC-M322).
