@@ -5295,6 +5295,60 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M333 — Chart obligasi lambat muncul: chart menunggu data yang tidak ia gambar (2026-11-01)
+
+- **Ditemukan oleh:** user (2026-11-01): "untuk load data obligasi kayaknya lama banget deh. Padahal data ini kan cuma
+  dua komponen, yang pertama adalah statistik, kedua adalah chart".
+- **Diukur:** `verification/terminal_api/bond_timing_check.py` di dev, dengan dan tanpa jeda jaringan 200 ms (perkiraan
+  Jakarta ke region us-west), ditambah `curl` langsung ke bucket.
+- **Verified cause (kode dan pengukuran):**
+  1. Chart menunggu daftar logo (`live.ts`: `logos:await logosP`), padahal chart tidak memakai logo.
+     - ID03MY dari cache: harga terbaca pada 0,46 s, tetapi chart baru tergambar pada 1,06 s karena jawaban
+       `/reference/logos` datang pada 1,0 s.
+  2. Pada kunjungan pertama, unduhan harga menunggu unduhan daftar ticker selesai, bukan berjalan bersamaan.
+     - ID10Y: jawaban /bundle sudah ada pada 0,96 s, tetapi unduhan file yield baru mulai pada 3,2 s.
+     - Penyebabnya: daftar ticker (14 KB) baru selesai pada 3,05 s.
+- **Juga terukur, belum diperbaiki (lapisan server; usulan di FUTURE_PLAN FI-SPEED):**
+  3. terminal-api (sfo) membaca `state.json` dari bucket `terminal-display` (sin, Singapura) paling lama setiap 60 detik
+     di jalur permintaan. Manifest tiap ticker dibaca sekali per publikasi.
+     - Permintaan yang kebetulan memicu pembacaan itu menunggu sekitar 0,6–1 s.
+     - Contoh: `/reference` pertama sesudah jeda 755 ms, lalu berikutnya sekitar 130 ms. `/bundle` ID05Y 690 ms,
+       sedangkan ticker lain 140 ms.
+     - Untuk user yang membuka Terminal sesekali, ini hampir selalu terjadi.
+  4. Bucket menjawab file kecil (19–34 KB) dengan waktu tunggu awal sekitar 0,55 s, diukur dari sandbox di AS. Dari
+     Jakarta ke bucket Singapura belum diukur.
+  5. Ganti ticker berarti halaman dimuat ulang: sekitar 0,5 s tetap dengan jeda 200 ms.
+- **Class:** jalur kritis halaman (sampai chart tergambar) menunggu data yang tidak dipakainya, atau menunggu secara
+  berurutan padahal bisa bersamaan. Ini berlaku untuk setiap ticker (saham, indeks, obligasi) dan setiap dataset
+  referensi baru.
+- **Solution (front-end, `data/live.ts`):**
+  - Unduhan file ticker mulai begitu /bundle menjawab. Obligasi dikenali dari jawabannya sendiri (`kind`, atau adanya
+    file yield), sehingga unduhan berjalan bersamaan dengan daftar ticker.
+  - Daftar logo tidak lagi ditunggu. Logo dipasang saat tiba (`onLogos`: pill simbol, badge Flow).
+- **Sekaligus (permintaan user di pesan yang sama):**
+  - Pencarian tidak lagi menulis "IDX · Equity" untuk semua baris. Pasarnya diambil dari data:
+    - saham: "IDX · Equity";
+    - indeks: "IDX · Index";
+    - obligasi: "Fixed income", dengan negaranya di baris atas.
+  - Obligasi menampilkan bendera negaranya (`app/flags.ts`; negara dari `ref/fixed_income`) di pencarian, pill
+    simbol, dan badge.
+- **Verifikasi:**
+  - vitest 1.482 lulus. Tiga tes baru gagal di kode lama dan lulus di kode baru:
+    - unduhan berjalan saat daftar ticker ditahan;
+    - chart tergambar saat daftar logo ditahan;
+    - label pasar dan negara.
+  - Waktu sampai chart tergambar dengan jeda 200 ms, build baru di atas data live (satu kali ukur per kasus):
+
+    | Ticker | Sebelum | Sesudah |
+    |---|---|---|
+    | ID10Y, cache kosong | 3,37 s | 2,25 s |
+    | ID03MY, cache kosong | 2,81 s | 1,57 s |
+    | US10Y, cache kosong | 1,38 s | 1,53 s (tanpa jawaban lambat di kedua kali) |
+    | Dari cache | sekitar 0,75 s | sekitar 0,75 s |
+- **Status:** FIXED untuk penyebab 1–2. Penyebab 3–5 OPEN, menunggu keputusan user (FUTURE_PLAN FI-SPEED).
+- **Lesson:** untuk setiap tahap sebelum chart tergambar, tanyakan apakah chart memakai hasilnya. Kalau tidak, jangan
+  ditunggu. Ukur juga dengan jeda jaringan setara lokasi user, bukan hanya dari server uji.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan

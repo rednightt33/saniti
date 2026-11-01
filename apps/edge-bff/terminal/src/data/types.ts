@@ -12,8 +12,10 @@ export interface AssetBar extends Bar { carriedFrom?: string; gap?: boolean }
 /** `none`: the source has no volume for the candle (an index); `value` is then 0 for the histogram only */
 export interface VolumePoint extends Point { color: string; none?: boolean }
 
-/** [ticker, name, sector, last price] — the reference's INSTRUMENTS row (the price only seeds the fixture) */
-export type Instrument = [string, string, string, number];
+/** [ticker, name, sector, last price, where] — the reference's INSTRUMENTS row (the price only seeds the fixture);
+    `where` (live): the market it trades in ("IDX · Equity", "Fixed income") and a bond's country, for the search */
+export interface InstrumentPlace { market: string; place?: string }
+export type Instrument = [string, string, string, number, InstrumentPlace?];
 
 /** one compare series of the Add Series panel */
 export interface CompareSpec { id: string; symbol: string; name: string; color: string }
@@ -71,6 +73,10 @@ export interface MarketData {
   loadEvents(): Promise<MarketEvent[]>;
   /** live: ticker → logo version for /logo/{ticker}?v=…; absent in the fixture (the reference has no logos) */
   logos?: Record<string, string>;
+  /** live (ERRORS M333): the same list, arriving after the chart (the chart does not wait for it) */
+  logosLater?: Promise<Record<string, string>>;
+  /** live: a government bond's country (ref/fixed_income), for its flag */
+  countries?: Record<string, string>;
   /** live (EXEC-TERMINAL-WM): the timeframe of the candles, each candle's last session date and the candle that holds
       a date (drawings, G1); absent in the fixture (daily) */
   tf?: Timeframe;

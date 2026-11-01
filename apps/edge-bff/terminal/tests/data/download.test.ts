@@ -136,8 +136,8 @@ const BROKERS = { columns:['code', 'name', 'type'], code:['AK'], name:['UBS'], t
 /* EDGE and terminal-api as the page sees them: `bundles[k]` answers the k-th /bundle of a ticker (the last one again
    when they run out) as {dataset: [file]}; `refs` the /reference answers (with or without sha256 and bytes) */
 async function edge(opts: { bundles: Record<string, Record<string, Uint8Array | { body: Uint8Array; announced: Uint8Array }>>[]; refs?: Record<string, { body: Uint8Array; announced?: Uint8Array | null }[]>;
-                            maxDatasets?: number }) {
-  const files: Record<string, Uint8Array> = {}, seen = { bundle:0, bundleOf:{} as Record<string, number>, reference:{} as Record<string, number> };
+                            maxDatasets?: number; hold?: Record<string, Promise<void>> }) {
+  const files: Record<string, Uint8Array> = {}, seen = { bundle:0, bundleOf:{} as Record<string, number>, reference:{} as Record<string, number>, fetched:[] as string[] };
   const tickers = await gz(TICKERS), brokers = await gz(BROKERS), logos = await gz({ columns:['ticker', 'sha256'], ticker:[], sha256:[] });
   const refs = opts.refs || {};
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
@@ -167,7 +167,13 @@ async function edge(opts: { bundles: Record<string, Record<string, Uint8Array | 
       }
       return Response.json({ ticker:body.ticker, datasets });
     }
-    if (files[url]) return new Response(files[url].slice());
+    if (files[url]) {
+      seen.fetched.push(url);
+      // `hold`: a reference file's download that answers only when the test releases it (a slow storage answer)
+      const held = Object.entries(opts.hold || {}).find(([name]) => url.startsWith(`https://bucket.test/ref/${name}/`));
+      if (held) await held[1];
+      return new Response(files[url].slice());
+    }
     return new Response('', { status:404 });
   });
   return seen;
@@ -204,6 +210,36 @@ describe('live.ts: bonds (EXEC-FI-TERMINAL)', () => {
     const M = await liveData('ID10Y', 'D', 'price');
     expect(M.ohlc.map(b => b.close)).toEqual([98, 97.5, 97]);
     expect(seen.bundleOf.ID10Y).toBe(1);
+  });
+});
+
+/* ERRORS M333 (user 2026-11-01: "load data obligasi kayaknya lama banget"): the chart waits only for what it draws */
+describe('live.ts: the chart waits only for what it draws (M333)', () => {
+  it('the remembered ticker\'s files download while the ticker list is still downloading', async () => {
+    let release!: () => void; const gate = new Promise<void>(r => { release = r });
+    const seen = await edge({ bundles:[{ MAPI:{ price:await gz(priceDoc([800, 810, 820])) } }], hold:{ tickers:gate } });
+    const page = liveData('MAPI');
+    await vi.waitFor(() => expect(seen.fetched.some(u => u.startsWith('https://bucket.test/MAPI/price/'))).toBe(true));
+    release();
+    expect((await page).ohlc.map(b => b.close)).toEqual([800, 810, 820]);
+  });
+  it('the chart is drawn without the logo list; the list arrives after it', async () => {
+    let release!: () => void; const gate = new Promise<void>(r => { release = r });
+    await edge({ bundles:[{ MAPI:{ price:await gz(priceDoc([800, 810, 820])) } }], hold:{ logos:gate } });
+    const M = await liveData('MAPI');                        // resolves while the logo list is held
+    expect(M.ohlc.length).toBe(3);
+    let logos: unknown = null; M.logosLater!.then(l => { logos = l });
+    await Promise.resolve(); expect(logos).toBe(null);
+    release(); expect(await M.logosLater).toEqual({});
+  });
+  it('the search names each instrument\'s market from its data; a bond its country (user 2026-11-01)', async () => {
+    const bonds = [{ body:await gz({ columns:['ticker', 'name', 'country'], ticker:['ID10Y', 'US10Y'], name:['Indonesia 10Y', 'United States 10Y'], country:['Indonesia', 'United States'] }), announced:null }];
+    await edge({ bundles:[{ MAPI:{ price:await gz(priceDoc([800, 810, 820])) } }], refs:{ fixed_income:bonds } });
+    const M = await liveData('MAPI');
+    const where = Object.fromEntries(M.instruments.map(r => [r[0], r[4]]));
+    expect(where).toEqual({ MAPI:{ market:'IDX · Equity' }, IHSG:{ market:'IDX · Index' },
+      ID10Y:{ market:'Fixed income', place:'Indonesia' }, US10Y:{ market:'Fixed income', place:'United States' } });
+    expect(M.countries).toEqual({ ID10Y:'Indonesia', US10Y:'United States' });
   });
 });
 

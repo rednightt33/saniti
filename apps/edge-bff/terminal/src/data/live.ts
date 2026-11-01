@@ -263,27 +263,45 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   const guessP = bundle(guess, ['price', 'broker', 'events', 'yield'], csrf, want)
     .catch((e: any) => e?.status === 400 ? bundle(guess, ['price', 'broker', 'events'], csrf, want) : Promise.reject(e));
   guessP.catch(() => {});
+  const metric = bondMetric;                                  // a bond's metric (main.ts: remembered as ml.fi.metric)
+  type Answer = Awaited<ReturnType<typeof bundle>>;
+  const asBond = (f: Answer) => ({ ...f, price:metric === 'yield' ? f.yieldFiles : f.price, broker:[], events:[],
+    intraday:undefined, through:{ price:undefined, broker:undefined } });
+  /* a ticker's /bundle answer → its files and the started job (downloads begin in the worker at once) */
+  const prepare = async (sym: string, first: Answer, isBond: boolean) => {
+    /* M327: a bond's first answer without the chosen metric's files (the stock-only fallback above) is not read as an
+       empty chart: the bond's own two datasets are asked for once more */
+    const files = !isBond ? first : (metric === 'yield' ? first.yieldFiles : first.price).length ? asBond(first)
+      : await bondBundle(sym, metric, csrf);
+    // a ticker without the asked intraday timeframe shows its daily chart and says so (`note`; a bond has none)
+    const intraday = !!want && !!files.intraday?.length;
+    const tfx: Timeframe = want && !intraday ? 'D' : tf;
+    const job = isBond ? checked(files, () => bondBundle(sym, metric, csrf), tfx)
+      : await load(sym, ['price', 'broker', 'events'], csrf, tfx, undefined, files, intraday ? want : undefined);
+    return { files, intraday, tf:tfx, job };
+  };
+  /* ERRORS M333: the remembered ticker's files start downloading as soon as its /bundle answers, beside the ticker list
+     (a 200 answer means the ticker is published, and it says whether it is a bond); before, the download
+     waited for the ticker list's own download (up to ~2 s on a first visit) */
+  const isBondAnswer = (f: Answer) => f.kind === 'fixed_income' || f.yieldFiles.length > 0;   // only a bond has yield files
+  const early = guessP.then(f => prepare(guess, f, isBondAnswer(f)));
+  early.catch(() => {});
   const tickers = await tickersP as { ticker: string; name: string; type: string; sector: string | null }[];
   const bonds = await bondsP;
   const bondOf = new Map(bonds.map((b: any) => [b.ticker as string, b]));
   const known = new Set([...tickers.map(t => t.ticker), ...bondOf.keys()]);
-  const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0] as Instrument),
-    ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0] as Instrument)];
+  /* the search's right column: the market each instrument trades in, from its own data (the ticker list's `type`, a bond
+     from ref/fixed_income); a bond's upper line names its country (user 2026-11-01: "ini obligasi, tapi kenapa IDX equity?") */
+  const typeWord = (t: string) => t === 'stock' ? 'Equity' : t ? t[0].toUpperCase() + t.slice(1) : 'Equity';
+  const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0,
+      { market:`IDX · ${typeWord(t.type)}` }] as Instrument),
+    ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined }] as Instrument)];
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
   const bond = bondOf.get(SYMBOL);
-  const metric = bondMetric;                                  // a bond's metric (main.ts: remembered as ml.fi.metric)
-  const asBond = (f: Awaited<ReturnType<typeof bundle>>) => ({ ...f, price:metric === 'yield' ? f.yieldFiles : f.price, broker:[], events:[],
-    intraday:undefined, through:{ price:undefined, broker:undefined } });
-  const first = SYMBOL === guess ? await guessP : await bundle(SYMBOL, bond ? ['yield', 'price'] : ['price', 'broker', 'events'], csrf, want);
-  /* M327: a bond's first answer without the chosen metric's files (the stock-only fallback above) is not read as an
-     empty chart: the bond's own two datasets are asked for once more */
-  const files = !bond ? first : (metric === 'yield' ? first.yieldFiles : first.price).length ? asBond(first)
-    : await bondBundle(SYMBOL, metric, csrf);
-  // a ticker without the asked intraday timeframe shows its daily chart and says so (`note`; a bond has none)
-  const intraday = !!want && !!files.intraday?.length;
-  if (want && !intraday) tf = 'D';
-  const job = bond ? checked(files, () => bondBundle(SYMBOL, metric, csrf), tf)
-    : await load(SYMBOL, ['price', 'broker', 'events'], csrf, tf, undefined, files, intraday ? want : undefined);
+  const ready = SYMBOL === guess && (await guessP.then(f => isBondAnswer(f) === !!bond, () => false)) ? await early
+    : await prepare(SYMBOL, await bundle(SYMBOL, bond ? ['yield', 'price'] : ['price', 'broker', 'events'], csrf, want), !!bond);
+  const { files, intraday, job } = ready;
+  tf = ready.tf;
 
   mark('ticker list and bundle');
   const rows = await job.price;                            // daily sessions
@@ -394,7 +412,9 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   const brokerClass = brokerRefP.then((rows: any[]) => Object.fromEntries(rows.filter(r => typeof r.classification === 'string').map(r => [r.code, r.classification])), () => ({}));
 
   return {
-    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logos:await logosP,
+    /* ERRORS M333: the logo list arrives after the chart (main.ts setLogos); a bond shows its country's flag */
+    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logosLater:logosP,
+    countries:Object.fromEntries(bonds.filter((b: any) => b.country).map((b: any) => [b.ticker, b.country])),
     loadInsider, brokerClass,
     loadAsset, loadAssetFlow, isBond:(t: string) => bondOf.has(t),
     combos:[], flowSource:'real', flowFrom:N,

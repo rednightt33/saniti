@@ -1,6 +1,7 @@
 /* Shared state of the terminal page. The reference page (03-terminal-right-panel.html) keeps it in one closure; here it
    is one object every section module receives, with the same names. Values that the reference reassigns
    (displayMode, chartStyle, axisLabel, onDisplayMode, COMBOS, lastTipIdx …) live on it so every module sees the change. */
+import { flagOf } from './flags';
 import type { FlowRows } from '../calc/flow';
 import type * as LWC from 'lightweight-charts';
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, Point, VolumePoint } from '../data/types';
@@ -38,19 +39,30 @@ export const row = (l: string, v: string | number, c='', tip='') => `<div class=
 export const empty = (msg: string) => `<div class="st-row"><span>${msg}</span></div>`;
 /* EXEC-TERMINAL-SPIN: the loading ring, ui/spin.ts (one for every rack page since EXEC-BACKTEST-SPIN) */
 export { spin } from '../ui/spin';
-/* EXEC-TERMINAL-LOGO: a ticker's logo, or its monogram (first two letters) when it has none or the image fails */
-let LOGOS: Record<string, string> | null = null;
+/* EXEC-TERMINAL-LOGO: a ticker's logo, or its monogram (first two letters) when it has none or the image fails.
+   ERRORS M333: the logo list arrives after the chart (the chart does not wait for it); what shows a logo when the page
+   starts redraws it through onLogos. A government bond shows its country's flag (app/flags.ts, setCountries). */
+let LOGOS: Record<string, string> | null = null, COUNTRY: Record<string, string> = {}, errorHook = false;
+const logoWaiters: (() => void)[] = [];
+/** run `fn` now and again when the logo list arrives (a part drawn before the list) */
+export const onLogos = (fn: () => void) => { logoWaiters.push(fn); fn() };
+/** ticker → country of the government bonds (ref/fixed_income) */
+export const setCountries = (c: Record<string, string> | undefined) => { COUNTRY = c || {} };
 export const setLogos = (logos: Record<string, string> | undefined) => {
   LOGOS = logos || null;
-  if (LOGOS) document.addEventListener('error', (e: Event) => {
+  if (LOGOS) logoWaiters.forEach(fn => fn());
+  if (!LOGOS || errorHook) return;
+  errorHook = true;
+  document.addEventListener('error', (e: Event) => {
     const img = e.target as HTMLElement;
     if (img instanceof HTMLImageElement && img.classList.contains('tk-logo')) img.replaceWith(Object.assign(document.createElement('span'),
       { className:'tk-mono ' + [...img.classList].filter(c => c !== 'tk-logo').join(' '), textContent:img.dataset.t!.slice(0, 2) }));
   }, true);
 };
-export const hasLogos = () => !!LOGOS;
+export const hasLogos = () => !!LOGOS || Object.keys(COUNTRY).length > 0;
 export const logoHtml = (ticker: string, cls = '') => LOGOS && LOGOS[ticker]
   ? `<img class="tk-logo ${cls}" src="/api/terminal/v1/logo/${ticker}?v=${LOGOS[ticker]}" alt="" data-t="${ticker}" loading="lazy" decoding="async">`
+  : flagOf(COUNTRY[ticker]) ? `<span class="tk-flag ${cls}" title="${COUNTRY[ticker]}">${flagOf(COUNTRY[ticker])}</span>`
   : `<span class="tk-mono ${cls}">${ticker.slice(0, 2)}</span>`;
 
 export interface ActiveSeries extends CompareSpec { series: LWC.ISeriesApi<'Line'>; visible: boolean }

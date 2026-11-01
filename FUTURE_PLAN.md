@@ -235,7 +235,20 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
   menganggur) dan pool koneksi database (dipinjam, lalu dikembalikan di akhir permintaan).
 - **Keputusan user yang masih terbuka:** tambahan biaya server dan perubahan arsitektur untuk no. 3–4.
 
-## 3. Usulan dan keputusan yang masih terbuka (dikumpulkan dari dokumen rencana lama, audit 2026-10-06)
+## FI-SPEED — Terminal: sisa waktu muat di sisi server (usulan 2026-11-01, menunggu keputusan user)
+
+User 2026-11-01: "untuk load data obligasi kayaknya lama banget deh ... Coba cek deh, kenapa bisa selama ini ya?". Dua
+penyebab di halaman sudah diperbaiki (ERRORS M333). Penyebab berikut terukur tetapi butuh keputusan karena menyentuh
+server, region, atau biaya:
+
+| # | Penyebab terukur | Usulan | Hemat | Biaya / risiko |
+|---|---|---|---|---|
+| S1 | terminal-api (sfo) membaca `state.json` dari bucket Singapura di jalur permintaan, paling lama setiap 60 detik: permintaan yang memicunya menunggu sekitar 0,6–1 s | Pembacaan pindah ke latar belakang. Permintaan memakai salinan terakhir, dibaca ulang sebelum kedaluwarsa | Sampai 1 s per kunjungan sesudah jeda | Sekitar 2.900 GET kecil per hari (2 proses × 1 per menit) |
+| S2 | Manifest tiap ticker dibaca dari bucket sekali per publikasi: ticker yang belum dibuka sejak publikasi terakhir menunggu sekitar 0,6 s | Sesudah publikasi baru, terminal-api memuat semua manifest di latar belakang | Sekitar 0,6 s untuk ticker pertama kali dibuka | Sekitar 870 GET per publikasi per proses |
+| S3 | Bucket menjawab file kecil dengan waktu tunggu awal sekitar 0,55 s (diukur dari AS; dari Jakarta belum diukur) | (a) ukur dulu dari lokasi user dengan `?perf=1`; (b) file kecil (di bawah ~64 KB) dikirim langsung di jawaban /bundle | Satu putaran ke bucket per file | Mengubah kontrak /bundle (terminal-api, edge-bff, halaman) |
+| S4 | Ganti ticker = halaman dimuat ulang (sekitar 0,5 s tetap dengan jeda 200 ms) | Ganti ticker tanpa muat ulang | Sekitar 0,5 s per ganti | Perubahan besar: setiap bagian Terminal membaca datanya sekali saat dimuat |
+| S5 | terminal-api dan Postgres di sfo, bucket di sin | Satu region untuk keduanya | Paling besar | Keputusan infrastruktur |
+
 
 ### 3a. Usulan yang belum disetujui
 

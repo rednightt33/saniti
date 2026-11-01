@@ -10,7 +10,7 @@ import { fixtureData } from './data/fixture';
 import { liveData, TerminalError } from './data/live';
 import type { MarketData, Point } from './data/types';
 import type { Ctx } from './app/context';
-import { $, brokerEnd, setLogos, spin, store } from './app/context';
+import { $, brokerEnd, setCountries, setLogos, spin, store } from './app/context';
 import { mark } from './app/perf';
 import { initChart } from './app/chart';
 import { initStats } from './app/stats';
@@ -103,6 +103,8 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
     if (inp.k === 'annualization_periods') inp.def = periodsPerYear(M.tf, M.intraday?.barsPerYear);
 
   setLogos(M.logos);                                       // live only: the fixture has no logos (1:1 check)
+  setCountries(M.countries);                               // a bond's flag (user 2026-11-01)
+  M.logosLater?.then(setLogos, () => {});                  // ERRORS M333: after the chart, not before it
   if (M.fixedIncome) bondPage(M);
   initChart(ctx);
   initStats(ctx);

@@ -13,7 +13,7 @@
                   locked to the chart's time range, crosshair and axis widths; its drawings are kept under its ticker */
 import type { Ctx, FilterApi } from './context';
 import { draggable } from './draggable';
-import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, rupiah, spin, store } from './context';
+import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, onLogos, rupiah, spin, store } from './context';
 import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
 import type { AssetBar, Bar, Combo, Instrument } from '../data/types';
 import { UNIT } from '../data/timeframe';
@@ -345,7 +345,8 @@ export function initAssets(ctx: Ctx) {
   new ResizeObserver(() => requestAnimationFrame(fitPanes)).observe(mainCol);
   /* the chart's own Flow Timeline names its ticker too, so every Flow Timeline says whose flow it is */
   const mainBadge = document.createElement('span');
-  mainBadge.className = 'af-badge main'; mainBadge.innerHTML = `${hasLogos() ? logoHtml(SYMBOL, 'tk-sm') : ''}<b>${SYMBOL}</b>`;
+  mainBadge.className = 'af-badge main';
+  onLogos(() => { mainBadge.innerHTML = `${hasLogos() ? logoHtml(SYMBOL, 'tk-sm') : ''}<b>${SYMBOL}</b>` });   // ERRORS M333
   mainBadge.title = `${nameOf(SYMBOL)} (the chart's ticker; the right panel is its broker activity)`;
   const syncMainBadge = () => { const t = document.querySelector('#flowHead .flow-title') as HTMLElement; if (panes().length) t.appendChild(mainBadge); else mainBadge.remove() };
 

@@ -2,12 +2,13 @@
    Choosing a ticker stores it and reloads, as in the reference; the list is the instrument master (live: the
    published ticker reference with its sector). */
 import type { Ctx } from './context';
-import { $, hasLogos, logoHtml, store } from './context';
+import { $, hasLogos, logoHtml, onLogos, store } from './context';
 
 export function initSearch(ctx: Ctx) {
   const { SYMBOL, INSTRUMENTS } = ctx;
   $('symText').textContent = SYMBOL;
-  if(hasLogos()) $('symText').insertAdjacentHTML('beforebegin', logoHtml(SYMBOL, 'tk-pill'));   // EXEC-TERMINAL-LOGO
+  /* EXEC-TERMINAL-LOGO; ERRORS M333: drawn again when the logo list arrives after the chart */
+  onLogos(() => { document.querySelector('#symbolPill .tk-pill')?.remove(); if(hasLogos()) $('symText').insertAdjacentHTML('beforebegin', logoHtml(SYMBOL, 'tk-pill')) });
   document.title = `${SYMBOL} · Market Lab`;
   const ICON = '<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2L17 17"/></svg>';
   let layer = null, opener = null;
@@ -30,7 +31,7 @@ export function initSearch(ctx: Ctx) {
     document.body.appendChild(layer);
     const input = layer.querySelector('input'), results = layer.querySelector('.gp-results'), toggle = layer.querySelector('.gp-toggle');
     const esc = t => t.replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
-    const matches = () => { const n = query.trim().toLowerCase(); return INSTRUMENTS.filter(r => `${r[0]} ${r[1]} ${r[2]}`.toLowerCase().includes(n)) };
+    const matches = () => { const n = query.trim().toLowerCase(); return INSTRUMENTS.filter(r => `${r[0]} ${r[1]} ${r[2]} ${r[4]?.market || ''} ${r[4]?.place || ''}`.toLowerCase().includes(n)) };
     let shown = [];
     const tagOf = use.tag || (t => t === SYMBOL ? 'Current' : '');
     if(use.label) layer.querySelector('.gp-dialog').setAttribute('aria-label', use.label);
@@ -43,7 +44,7 @@ export function initSearch(ctx: Ctx) {
         return `<button type="button" class="gp-row${i === active ? ' is-active' : ''}" role="option" aria-selected="${i === active}" data-i="${i}">
             ${hasLogos() ? `<span class="gp-avatar has-logo">${logoHtml(r[0])}</span>` : `<span class="gp-avatar">${r[0].slice(0, 2)}</span>`}
             <span class="gp-meta"><span class="gp-ticker">${r[0]}${tagOf(r[0]) ? `<span class="gp-cur">${tagOf(r[0])}</span>` : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
-            <span class="gp-rightmeta">${grouped ? '' : `<span class="gp-sector">${esc(r[2])}</span>`}<span class="gp-market">IDX · Equity</span></span></button>` };
+            <span class="gp-rightmeta">${grouped && !r[4]?.place ? '' : `<span class="gp-sector">${esc(r[4]?.place || r[2])}</span>`}<span class="gp-market">${esc(r[4]?.market || 'IDX · Equity')}</span></span></button>` };
       results.innerHTML = !shown.length ? '<p class="gp-empty">No instruments found</p>'
         : grouped ? groups.map(([sec, rows]) => `<div class="gp-group">${esc(sec)}</div>` + rows.map(row).join('')).join('') : found.map(row).join('');
       layer.querySelector('.gp-label').textContent = query ? 'Results' : use.label || 'Available instruments';
