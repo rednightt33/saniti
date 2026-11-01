@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-11-01 — edge-bff: indicators only where the ticker has their data (ERRORS M332)
+
+- `main` `d23c727f`: edge-bff `33c8e0e7` SUCCESS; screener-worker `e1d1f809` SKIPPED. The live Terminal serves
+  `index-D3nCYKdI.js`, equal to a local build; `verification/terminal_api/bond_indicators_live_check.py` passes on the live
+  page (US10Y: SMA and RSI only; BBCA: all five back). No variable changed.
+
 ## 2026-11-01 — edge-bff: legend How it works button (ERRORS M331)
 
 - `main` `1b657d59`: edge-bff `360d20a7` SUCCESS 16:26 UTC; screener-worker `e7e92113` SKIPPED. The live Terminal serves

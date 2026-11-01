@@ -5289,8 +5289,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
       tanpa Flow/volume;
     - daftar tersimpan tetap lima entri dengan urutan sama;
     - BBCA menggambar kelimanya lagi beserta volume.
-  - Cek ini dijalankan dengan build lokal sebelum deploy dan dengan halaman live sesudah deploy.
-- **Status:** FIXED.
+  - Cek ini dijalankan dengan build lokal sebelum deploy dan dengan halaman live sesudah deploy (keduanya lulus).
+- **Status:** FIXED (edge-bff `33c8e0e7`, `d23c727f`).
 - **Lesson:** setiap elemen chart yang membaca data tertentu harus mengecek bahwa ticker punya data itu, dan
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
