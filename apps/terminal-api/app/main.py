@@ -15,7 +15,7 @@ import json
 import re
 import time
 from contextlib import asynccontextmanager
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -79,13 +79,18 @@ class FilesRequest(Strict):
         return self
 
 
+BUNDLE_DATASET = Literal['price', 'broker', 'events', 'yield']
+
+
 class BundleRequest(Strict):
     """EXEC-TERMINAL-UI-1026 U6 (user 2026-10-26: "Satu panggilan API per saham ... sesuai dengan ticker yang di display"):
     every published file of the chosen datasets of one ticker in one answer."""
     ticker: str = Field(pattern=TICKER.pattern)
-    # EXEC-FI-TERMINAL (user go 2026-11-01): `yield`, a government bond's yield rows (its `price` is the bond price)
-    datasets: list[Literal['price', 'broker', 'events', 'yield']] = Field(default=['price', 'broker', 'events'], min_length=1,
-                                                                 max_length=3)
+    # EXEC-FI-TERMINAL (user go 2026-11-01): `yield`, a government bond's yield rows (its `price` is the bond price). The
+    # list is at most every dataset once (the answer reads each once): the bound is derived from BUNDLE_DATASET, so a new
+    # dataset needs no second edit (M327: a fixed 3 refused the page's 4-dataset request)
+    datasets: list[BUNDLE_DATASET] = Field(default=['price', 'broker', 'events'], min_length=1,
+                                           max_length=len(get_args(BUNDLE_DATASET)))
     # EXEC-TERMINAL-SPEED: the packs instead of yearly files where the manifest has them (price: one file for every
     # year; broker: the archive pack plus the last two yearly files)
     packs: bool = False

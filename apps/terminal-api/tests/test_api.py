@@ -489,6 +489,15 @@ def test_bundle_gives_a_bonds_yield_and_price_packs_and_says_it_is_a_bond(env):
     plain = client.post(f'{API}/bundle', json={'ticker': 'ID10Y', 'datasets': ['yield']}).json()
     assert [f['year'] for f in plain['datasets']['yield']['files']] == [2026]
     assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price']}).json()['kind'] == 'equity'
+    # M327: the page's first request asks for every dataset at once (a remembered ticker may be a bond); the bound is the
+    # number of datasets, not a fixed 3
+    every = ['price', 'broker', 'events', 'yield']
+    for ticker in ('ID10Y', 'BBCA'):
+        r = client.post(f'{API}/bundle', json={'ticker': ticker, 'datasets': every, 'packs': True})
+        assert r.status_code == 200, (ticker, r.text)
+    assert 'yield' in client.post(f'{API}/bundle', json={'ticker': 'ID10Y', 'datasets': every, 'packs': True}).json()['datasets']
+    r = client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': every + ['price']})
+    assert r.status_code == 400 and r.json()['fields'][0]['field'] == 'datasets'
 
 
 PROXY_KEY = 'p' * 40
