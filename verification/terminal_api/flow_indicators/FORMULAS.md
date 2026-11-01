@@ -72,7 +72,7 @@ draws the Buy and the Sell line in one panel.
 | FL06 | Transaction Size · Buy/Sell Ratio | ratio | `(BL(C)/BF(C)) / (SL(C)/SF(C))` |
 | FL07 | Share · Market Volume | share | `100 BL(C) / BL(A)`; `A`: board filter, all investors (default) or board and investor filter |
 | FL08 | Transaction Size · Percentile | pct | percentile (baseline) of `x = BL(C)/BF(C)` (Side Buy) or `SL(C)/SF(C)` (Sell), window `W` |
-| FL09 | Block Money Candidate | flag | 1 when all hold, else 0 (null when one input is null): FL08 Buy (same cohort, filter, `W`, baseline) >= pct threshold; FL05 Buy >= ratio threshold; FL07 >= participation threshold; FL11 > net-flow threshold; and, if chosen, FL10 >= imbalance threshold. Drawn as a mark under the candle where 1 |
+| FL09 | Block Money Candidate | flag | 1 when all hold, else 0 (null when one input is null): FL08 Buy (same cohort, filter, `W`, baseline) >= pct threshold; FL05 Buy >= ratio threshold; FL07 >= participation threshold; FL11 > net-flow threshold; and, if chosen, FL10 >= imbalance threshold. Drawn as a mark under the candle where 1. Inside FL09, FL07 and FL11 always use the board-only denominator (FL09 has no denominator option) |
 | FL10 | Transactions · Buy/Sell Imbalance | imbalance | `(BF(C)-SF(C)) / (BF(C)+SF(C))` |
 | FL11 | Net Flow / Turnover Ratio | ratio | `100 (BV(C)-SV(C)) / TBV`; `TBV` per the denominator option |
 | FL12 | Net Buy Persistence · Cohort | persistence | `100 x` (candles `k` in the window with `BV_k(C)-SV_k(C) > 0`) / `W`; `C` ranked over the window; a candle without a row of `C` is not a buy candle |
@@ -86,19 +86,19 @@ draws the Buy and the Sell line in one panel.
 | FL20 | Implied Cost · Distance % | dist | `100 (close / FL19 - 1)` |
 | FL21 | Net Flow Percentile · vs Turnover | pct | percentile (baseline 250) of FL11 (same cohort, filter, `W`, denominator) |
 | FL22 | Broker Buy Breadth | breadth | `n_b = BV(b)-SV(b)` over the window with the filter; active = brokers with any `bv` or `sv` > 0 in it; `100 x` (active with `n_b > 0`) / active |
-| FL23 | Broker Inventory | one line per broker, total | per chosen broker (and, when "Show cohort total", their sum): from the start candle, Lot: cumulative `Σ(bl-sl)`, Value: cumulative `Σ(bv-sv)`; Daily: the candle's own `bl-sl` or `bv-sv`; null before the start |
+| FL23 | Broker Inventory | one line per broker, total | per chosen broker (and, when "Show cohort total", their sum): from the start candle, Lot: cumulative `Σ(bl-sl)`, Value: cumulative `Σ(bv-sv)`; Daily: the candle's own `bl-sl` or `bv-sv`; null before the start. At most 5 brokers are drawn (more are ignored); a code without rows in the data draws 0 |
 | FL24 | Bandar Balance · % | balance | `100 (NB + NS) / TBV(filter)`; `NB` = sum of `BV-SV` of the N bandar buyers, `NS` = sum of `BV-SV` (negative) of the N bandar sellers, over the window; `TBV(filter) = BV(A)` with the filter; reference lines 6, 10, -6, -10 |
 | FL25 | Bandar Balance · Rupiah | net | `NB + NS` (IDR) |
 | FL26 | Net Flow Streak | streak | per candle net `n_k = BV_k(C)-SV_k(C)` (`C` ranked over the last `limit` candles); `s_t = s_{t-1}+1` if `n_t > 0` and `s_{t-1} > 0`, `1` if `n_t > 0` otherwise; `s_{t-1}-1` if `n_t < 0` and `s_{t-1} < 0`, `-1` if `n_t < 0` otherwise; 0 on a candle with data where `n_t = 0` (no row of the cohort or the filter); null on a candle without data, after which the count starts again; capped at `±limit` |
 | FL27 | Silent Accumulation | flag | 1 when `SMA(volume,recent)_t / SMA(volume,baseline)_{t-recent} >= volume x` and `100 |close_t/close_{t-recent} - 1| <= max move`; drawn as a mark under the candle |
 | FL28 | Average Daily Value | adv | `SMA(close x volume, sessions)` (IDR) |
-| FL29 | Bandar Balance · Accumulation Days | ratio | `100 x` (candles in the last `days` whose own one-candle FL24 (N, filter) is above the threshold) / `days` |
+| FL29 | Bandar Balance · Accumulation Days | ratio | `100 x` (candles in the last `days` whose own one-candle FL24 (N, filter) is above the threshold) / `days`; a candle without broker data in the window counts as not above |
 | FL30 | Crossing Share | share | `100 BV(Nego+Cash) / BV(all boards)`, investor filter on both |
 | FL31 | Insider Net Change | net | sum of insider BUY `value` minus SELL `value` with `d` in the window's candles (IDR); 0 when none |
-| FL32 | Transactions · Spike | spike | `BF_t(A) / mean(BF_k(A), k = t-baseline .. t-1)`; filter; null without the full baseline |
+| FL32 | Transactions · Spike | spike | `BF_t(A) / mean(BF_k(A), k = t-baseline .. t-1)`; filter; null without the full baseline; a candle without broker data inside the baseline adds 0 to the mean (divisor stays `baseline`) |
 | FL33 | Transaction Size · Change % | change | `100 ((BV/BF over the last recent candles) / (BV/BF over the baseline candles before them) - 1)`, `A`, filter |
 | FL34 | Institutional vs Retail Net | ratio | `100 (BV-SV of the institutional brokers − BV-SV of the retail brokers) / BV(A)`, filter; defaults: Institutional-heavy and Retail-heavy of `ref/brokers`; a broker in both lists is refused |
-| FL35 | Net Buy Persistence · Top Buyer | persistence | the broker with the largest positive `BV-SV` over the window (frozen for that window); `100 x` (candles in the window where its `BV_k-SV_k > 0`) / `days` |
+| FL35 | Net Buy Persistence · Top Buyer | persistence | the broker with the largest positive `BV-SV` over the window (frozen for that window); `100 x` (candles in the window where its `BV_k-SV_k > 0`) / `days`; a candle without data counts as not a buy candle; null when no broker has a positive net in the window |
 | FL36 | Share · Market Value (Buy + Sell) | share | `100 (BV(C)+SV(C)) / (2 TBV)` |
 | FL37 | Net Flow Percentile · Rupiah | pct | percentile (baseline 250) of `BV(C)-SV(C)` over the net window |
 | FL38 | Concentration HHI · Net Buy | hhi | `n_b = BV(b)-SV(b)`, positive only: `Σ (n_b / Σ positive n)^2` |

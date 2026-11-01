@@ -64,6 +64,10 @@ CHANGES = [
     ('2026-10-30', 'FL14', 'Empat desimal seperti FL13.', 'Reviewer B, B5.', 'Tampilan saja.'),
     ('2026-10-30', 'FL01-FL23, FL34', 'Tooltip dalam bahasa Indonesia sederhana; FL34 memberi tahu bila klasifikasi '
      'belum dimuat; dialog Flow dirapikan.', 'Audit front end (V3, V4, V7, V8, V9).', 'Tampilan saja.'),
+    ('2026-11-01', 'FL01-FL39', 'Sheet Inspeksi_Kode: setiap FL dibaca di calc/flow.ts dan dibandingkan dengan FORMULAS.md, '
+     'registry dan sheet Indikator_baru. Rumus cocok semua; default FL25 (Top N), FL36 dan FL37 (cakupan) berbeda antara '
+     'sheet Indikator_baru dan kode.', 'User: "untuk setiap indikator boleh dilakukan inspeksi kode terlebih dahulu".',
+     'Belum ada perubahan angka; FL36/FL37 menunggu keputusan.'),
     ('2026-11-01', 'FL01-FL39', 'Indicator_SPECS_reviewed dan Indikator_baru_dari_Screener dilengkapi sampai FL39; '
      'baris tambahan berlatar kuning, isinya dari registry, FORMULAS.md, metrik Screener dan contoh nyata oracle (BBCA).',
      'User: "Lengkapi list indicators FL only di sheet ini mengikuti format sheet tsb".', 'Dokumentasi saja.'),
@@ -335,6 +339,13 @@ def main(out, catalog_path=None):
         raise SystemExit(f'FORMULAS.md has {len(rows)} indicator rows, expected FL01-FL39')
     wb = openpyxl.load_workbook(SPEC)
     n_fl = complete_fl_sheets(wb)
+    insp = HERE / 'code_inspection_20261101.json'
+    if insp.exists():                      # user 2026-11-01: inspect every Flow indicator in code before the audit
+        ws = wb.create_sheet('Inspeksi_Kode', 0)
+        ws.append(['Id', 'Nama', 'Kode (file:baris)', 'Temuan', 'Perlu diperbaiki / diputuskan'])
+        for r in json.loads(insp.read_text()):
+            ws.append(r)
+        style_head(ws, [8, 32, 46, 90, 46])
     catalog = json.loads(Path(catalog_path).read_text()) if catalog_path else None
     rows_all = all_indicators(catalog)
     ws = wb.create_sheet('Semua_Indikator', 0)

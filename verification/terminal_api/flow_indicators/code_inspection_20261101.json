@@ -1,0 +1,275 @@
+[
+ [
+  "FL01",
+  "Transaction Size · Lot",
+  "calc/flow.ts:360, sizeLot:266",
+  "Cocok. Kosong bila ada baris kelompok tanpa frekuensi.",
+  "-"
+ ],
+ [
+  "FL02",
+  "Transaction Size · Value",
+  "calc/flow.ts:361",
+  "Cocok. Kosong bila ada baris kelompok tanpa frekuensi.",
+  "-"
+ ],
+ [
+  "FL03",
+  "Share · Volume",
+  "calc/flow.ts:365",
+  "Cocok; tidak butuh frekuensi.",
+  "-"
+ ],
+ [
+  "FL04",
+  "Share · Transactions",
+  "calc/flow.ts:369",
+  "Cocok. Kosong bila ada baris broker mana pun (penyebut) tanpa frekuensi.",
+  "-"
+ ],
+ [
+  "FL05",
+  "Transaction Size · vs Market",
+  "calc/flow.ts:373, sizeVsMarket:270",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL06",
+  "Transaction Size · Buy/Sell Ratio",
+  "calc/flow.ts:374",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL07",
+  "Share · Market Volume",
+  "calc/flow.ts:382, marketShare:279",
+  "Cocok. Penyebut default: lot beli semua broker dengan filter papan saja (semua investor).",
+  "-"
+ ],
+ [
+  "FL08",
+  "Transaction Size · Percentile",
+  "calc/flow.ts:383, sizeLot:266, percentile:247",
+  "Cocok. Persentil mid-rank atas 250 nilai sebelum hari itu (hari itu tidak ikut).",
+  "-"
+ ],
+ [
+  "FL09",
+  "Block Money Candidate",
+  "calc/flow.ts:384, sizeLot:266, sizeVsMarket:270, marketShare:279, flowTurnover:283, imbalance:287",
+  "Cocok. FL07 dan FL11 di dalam FL09 selalu memakai penyebut papan saja (FL09 tidak punya pilihan penyebut). Syarat arus bersih memakai \">\" (lebih besar), syarat lain \">=\".",
+  "Belum tertulis di FORMULAS.md: penyebut papan saja di dalam FL09."
+ ],
+ [
+  "FL10",
+  "Transactions · Buy/Sell Imbalance",
+  "calc/flow.ts:395, imbalance:287",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL11",
+  "Net Flow / Turnover Ratio",
+  "calc/flow.ts:396, flowTurnover:283",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL12",
+  "Net Buy Persistence · Cohort",
+  "calc/flow.ts:397, cohort:208",
+  "Cocok. Kelompok Top-N diambil dari net beli terbesar di jendela yang sama, jadi kelompok ini cenderung banyak hari belinya; hari tanpa data dihitung bukan hari beli.",
+  "Perlu disebut di kartu: kelompok dipilih dari jendela yang sama."
+ ],
+ [
+  "FL13",
+  "Concentration HHI · Gross",
+  "calc/flow.ts:401, hhi:291",
+  "Cocok. Semua broker (bukan kelompok), dengan filter.",
+  "-"
+ ],
+ [
+  "FL14",
+  "Concentration HHI · Buy − Sell",
+  "calc/flow.ts:402, hhi:291",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL15",
+  "Concentration Top-N · Gross Buy",
+  "calc/flow.ts:403",
+  "Cocok. N broker teratas diurutkan menurut lot beli (bukan Rupiah).",
+  "-"
+ ],
+ [
+  "FL16",
+  "Concentration Top-N · Net Buy",
+  "calc/flow.ts:407",
+  "Cocok. Kosong bila tidak ada broker dengan net beli positif.",
+  "-"
+ ],
+ [
+  "FL17",
+  "Buy VWAP · Rolling",
+  "calc/flow.ts:417, rollingVwap:310",
+  "Cocok. Default 20 hari.",
+  "-"
+ ],
+ [
+  "FL18",
+  "Buy VWAP · Anchored",
+  "calc/flow.ts:418, anchoredVwap:327",
+  "Cocok. Kelompok dibekukan dari tanggal awal sampai data terakhir (melihat hari sesudah t).",
+  "Untuk Backtest/Screener: kelompok beku melihat masa depan (sudah tercatat, A8)."
+ ],
+ [
+  "FL19",
+  "Implied Cost · Anchored",
+  "calc/flow.ts:419, impliedCost:332",
+  "Cocok, termasuk aturan inventori <= 0 (\"1 pakai A\").",
+  "-"
+ ],
+ [
+  "FL20",
+  "Implied Cost · Distance %",
+  "calc/flow.ts:420, impliedCost:332",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL21",
+  "Net Flow Percentile · vs Turnover",
+  "calc/flow.ts:421, flowTurnover:283, percentile:247",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL22",
+  "Broker Buy Breadth",
+  "calc/flow.ts:422",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL23",
+  "Broker Inventory",
+  "calc/flow.ts:430, defaultInventoryBrokers:348",
+  "Cocok, dengan dua aturan yang belum tertulis: paling banyak 5 broker (sisanya diabaikan), dan kode broker yang tidak ada di data menjadi garis 0.",
+  "Belum tertulis di FORMULAS.md: batas 5 broker."
+ ],
+ [
+  "FL24",
+  "Bandar Balance · %",
+  "calc/flow.ts:446, bandar:300, balancePct:306",
+  "Cocok. Penyebut: nilai beli semua broker dengan filter papan dan investor.",
+  "Teks \"Hati-hati\" lama di spreadsheet masih menyebut panel 3/6/12%; kode memakai 6/10 untuk panel dan indikator."
+ ],
+ [
+  "FL25",
+  "Bandar Balance · Rupiah",
+  "calc/flow.ts:447, bandar:300",
+  "Rumus cocok. Default Top N = 3 (Parameter_Terminal, keputusan \"Top 3 untuk semua\"), sedangkan sheet Indikator_baru_dari_Screener menulis 5.",
+  "SELISIH DEFAULT (dokumen lama)."
+ ],
+ [
+  "FL26",
+  "Net Flow Streak",
+  "calc/flow.ts:451, cohort:208",
+  "Cocok. Cakupan default semua broker, investor asing, batas 60.",
+  "-"
+ ],
+ [
+  "FL27",
+  "Silent Accumulation",
+  "calc/flow.ts:466",
+  "Cocok. Memakai harga dan volume harian, bukan data broker.",
+  "-"
+ ],
+ [
+  "FL28",
+  "Average Daily Value",
+  "calc/flow.ts:476",
+  "Cocok.",
+  "-"
+ ],
+ [
+  "FL29",
+  "Bandar Balance · Accumulation Days",
+  "calc/flow.ts:485, bandar:300",
+  "Cocok. Hari tanpa data broker di dalam jendela dihitung bukan hari akumulasi, penyebut tetap D.",
+  "Perlu disebut: hari tanpa data menurunkan nilai."
+ ],
+ [
+  "FL30",
+  "Crossing Share",
+  "calc/flow.ts:490",
+  "Cocok. Pilihan papan tidak berlaku (selalu Nego + Tunai dibanding semua papan).",
+  "-"
+ ],
+ [
+  "FL31",
+  "Insider Net Change",
+  "calc/flow.ts:494",
+  "Cocok. Jendela dihitung atas candle harga, bukan data broker; 0 bila tidak ada transaksi insider.",
+  "-"
+ ],
+ [
+  "FL32",
+  "Transactions · Spike",
+  "calc/flow.ts:501",
+  "Cocok. Candle tanpa data broker di dalam baseline dihitung 0 di rata-rata (penyebut tetap baseline), jadi lonjakan bisa terbaca lebih besar.",
+  "Perlu disebut di kartu."
+ ],
+ [
+  "FL33",
+  "Transaction Size · Change %",
+  "calc/flow.ts:508",
+  "Cocok. Kosong bila ada baris tanpa frekuensi di jendela.",
+  "-"
+ ],
+ [
+  "FL34",
+  "Institutional vs Retail Net",
+  "calc/flow.ts:516",
+  "Cocok. Bila broker ada di kedua daftar, atau daftar klasifikasi belum ada, seluruh garis kosong (tidak ada pesan penolakan).",
+  "-"
+ ],
+ [
+  "FL35",
+  "Net Buy Persistence · Top Buyer",
+  "calc/flow.ts:527",
+  "Cocok. Kosong bila tidak ada broker dengan net beli positif di jendela; hari tanpa data dihitung bukan hari beli.",
+  "-"
+ ],
+ [
+  "FL36",
+  "Share · Market Value (Buy + Sell)",
+  "calc/flow.ts:535, cohort:208",
+  "Rumus cocok. Default cakupan = Top-N cohort (3 broker net beli terbesar di antara transaksi asing), bukan seluruh asing; sheet Indikator_baru_dari_Screener dan Screener fpart (\"Foreign participation\") memaksudkan semua broker.",
+  "SELISIH DEFAULT: perlu keputusan."
+ ],
+ [
+  "FL37",
+  "Net Flow Percentile · Rupiah",
+  "calc/flow.ts:539, cohort:208, percentile:247",
+  "Rumus cocok. Default cakupan = Top-N cohort, sedangkan sheet Indikator_baru_dari_Screener dan Screener fsurprise (\"Foreign flow surprise\") memaksudkan semua broker.",
+  "SELISIH DEFAULT: perlu keputusan."
+ ],
+ [
+  "FL38",
+  "Concentration HHI · Net Buy",
+  "calc/flow.ts:544",
+  "Cocok. Kosong bila tidak ada net beli positif.",
+  "-"
+ ],
+ [
+  "FL39",
+  "Buy VWAP · Rolling · Distance %",
+  "calc/flow.ts:553, rollingVwap:310",
+  "Cocok. Default 10 hari, papan Regular (FL17 default 20 hari, semua papan).",
+  "-"
+ ]
+]

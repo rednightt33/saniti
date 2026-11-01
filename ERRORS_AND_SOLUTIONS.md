@@ -4786,6 +4786,30 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 
 **Dibiarkan sesuai usulan karena tidak material:** selisih ≤ 0,0004 % pada 2020-12-02 dan volume GOTO 2026-10-12.
 
+### M320 — Default FL36/FL37 (dan FL25) berbeda antara dua sheet spec Flow (2026-11-01)
+
+- **Ditemukan oleh:** inspeksi kode semua FL atas permintaan user 2026-11-01 ("untuk setiap indikator boleh dilakukan
+  inspeksi kode terlebih dahulu ... saya akan melakukan audit"); laporan di
+  `verification/terminal_api/flow_indicators/CODE_INSPECTION_20261101.md`.
+- **Verified:**
+  - Rumus FL01–FL39 di `apps/edge-bff/terminal/src/calc/flow.ts:359-553` cocok dengan `FORMULAS.md`.
+  - Default diambil dari registry (`flowRegistry.json`, dibangun dari sheet `Parameter_Terminal`). Untuk tiga indikator,
+    sheet `Indikator_baru_dari_Screener` menulis nilai lain:
+    - FL25 Top N: registry 3 (keputusan "Default Top 3 untuk semua", 2026-10-30), sheet 5;
+    - FL36 cakupan: registry Top-N cohort (3 broker net beli terbesar di antara transaksi asing), sheet "Semua broker";
+    - FL37 cakupan: sama dengan FL36.
+  - Akibatnya FL36 dan FL37 pada default tidak sama dengan metrik Screener `fpart` ("Foreign participation") dan
+    `fsurprise` ("Foreign flow surprise"), yang memaksudkan seluruh asing.
+- **Class:** satu keputusan ditulis di dua sheet, dan hanya satu sheet yang dibaca kode. Berlaku untuk setiap parameter
+  yang muncul di `Parameter_Terminal` dan juga di sheet ringkasan lain.
+- **Solution:**
+  - Aturan yang belum tertulis di `FORMULAS.md` sudah ditambahkan (FL09, FL23, FL29, FL32, FL35); tidak ada angka yang
+    berubah.
+  - Default FL36/FL37 menunggu keputusan user: semua broker (sesuai maksud Screener), atau tetap Top-N.
+  - FL25 mengikuti keputusan Top 3; teks sheet lama tidak diubah.
+- **Status:** OPEN (FL36/FL37).
+- **Lesson:** sebelum audit, bandingkan default setiap sheet dengan registry yang dibaca kode.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan
