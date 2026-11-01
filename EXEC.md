@@ -9417,7 +9417,7 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
   - Terminal 1:1, Backtest E2E, Screener live;
   - jumlah objek dan byte per run harian sebelum dan sesudah.
 
-### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; C7.1 sebagian dijawab, C7.1-C7.4 masih terbuka)
+### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; C7 diputuskan 2026-11-01; menunggu S4 dan go)
 
 **Permintaan user, 2026-11-01:** "Also generate plan juga untuk masukan data 5 15 1 jam dan 4 jam ke FE."
 
@@ -9536,17 +9536,21 @@ makro dengan kalender lain. Perbaikannya di lapisan data (kunci waktu + peta ses
 - **Indikator teknikal:** dihitung per bar dengan kode yang sama.
   - I33: `annualization_periods` = `bars_per_year` dari manifest.
   - I43 VWAP: anchor `Session` direset di setiap sesi (peta sesi).
-  - I34: lihat pertanyaan C7.3.
+  - I34: dihitung dari bar harian, digambar seperti Flow (C7.3 A).
 - **Statistics:** periode per tahun = `bars_per_year`. Relative performance memakai IHSG intraday timeframe yang sama.
 - **Seri pembanding dan aset tambahan:** intraday saham lain di timeframe yang sama, disejajarkan per waktu bar. Bar
   yang tidak ada mengulang close terakhir, seperti sekarang.
 
 **C4. Flow, Bandar dan Broker di intraday (keputusan 5 B: label "harian")**
 - **Dihitung di grid sesi harian:** kode dan parameternya sama, jadi angkanya persis sama dengan chart D.
-- **Lalu digambar di candle intraday (usulan C7.1 A):**
-  - nilai hari d tampil mulai bar terakhir sesi d dan ditahan sampai bar terakhir sesi berikutnya, karena nilai
-    harian baru diketahui sesudah bursa tutup (tidak ada intipan ke depan);
-  - histogram net: satu batang per sesi di bar terakhirnya, sehingga total rentang yang terlihat tetap jumlah per hari.
+- **Lalu digambar di candle intraday (keputusan user 2026-11-01, C7.1 Opsi 1, A untuk hari terbaru):**
+  - **hari sebelumnya:** nilai harian hari itu tampil di semua candle hari itu sendiri;
+  - **hari terbaru (sesi terakhir di chart):**
+    - nilai hari itu baru tampil di bar terakhirnya (sesudah tutup);
+    - bar sebelumnya menahan nilai hari sebelumnya;
+    - tanpa data broker hari itu, tampil arsiran "belum ada data broker" seperti di chart D (EXEC-TERMINAL-FRESH);
+  - Flow tetap sejajar candle per candle dengan chart harga, jadi zoom dan geser bersama;
+  - total rentang yang terlihat menghitung setiap hari sekali (dihitung di grid harian), bukan per candle.
 - **Label "harian"** di kepala Flow Timeline, legend indikator FL, panel Bandar dan Broker activity.
 - **Kalender rentang broker:** rentangnya tetap tanggal; digambar di intraday dari bar pertama tanggal awal sampai bar
   terakhir tanggal akhir.
@@ -9610,3 +9614,14 @@ adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher han
   - Penskalaan sesudah split mengubah riwayat lama, jadi jendela tetap "4 hari terakhir" akan melewatkannya.
   - Menunggu konfirmasi.
 - **C7.2 dan C7.3:** belum dijawab.
+
+**Keputusan user, 2026-11-01 (kata user):** "Opsi 1, 4A, 2A dan 3A ok".
+- **C7.1 = Opsi 1** (dengan A untuk hari terbaru): C4 di atas sudah ditulis ulang.
+- **C7.2 = A:** gambar di timeframe intraday disimpan sebagai satu set terpisah; gambar harian tidak tampil di intraday.
+- **C7.3 = A:** I34 Average Daily Range di intraday dihitung dari bar harian, lalu digambar dengan aturan yang sama
+  dengan Flow (hari sebelumnya di candle hari itu, hari terbaru sesudah tutup).
+- **C7.4 = A:** loader menulis catatan perubahan per (saham, timeframe), termasuk IHSG, dalam statement yang sama;
+  publisher hanya menerbitkan bagian yang berubah.
+- **Belum dimulai:** eksekusi menunggu
+  - pengecekan S4 (run 2026-11-02);
+  - konfirmasi "go" dari user, seperti disampaikan ke user 2026-11-01.
