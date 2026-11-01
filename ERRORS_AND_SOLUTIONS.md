@@ -4469,7 +4469,31 @@ claim that the global audit passed. Evidence: verification/ihsg_price_history/ap
 
   Kegagalan ini juga tersembunyi, karena penolakan akun dilaporkan sebagai `NOT_FOUND` ("tidak ditemukan"), dan
   `/ready` web-governor tidak memeriksa kunci.
-- **Status:** OPEN. Usulan perbaikan menunggu keputusan user.
+- **Dugaan terbukti (2026-11-01):** deploy baru web-governor `439f6771` mencatat `web_provider_credit state=OK
+  status_code=200` (sisa USD 7,78) saat start. Uji `ma-m308-20261101a` (orc-test-runner deployment `9d631204`)
+  mendapat `web_orc_answered status=OK`: 9 sumber, 14 item, 16,8 detik, tanpa peringatan. Jawabannya COMPLETED dalam
+  38 detik dengan biaya USD 0,0036 dan mengutip bi.go.id.
+- **Solution (EXEC-M308, go user 2026-11-01 "Okay, jalankan perbaikan 1-4 ya.. Test 1 pertanyaan.", commit `604d4c7`,
+  main `d53c691`):**
+  1. web-governor di-deploy ulang (dari push), jadi rujukan dibaca ulang.
+  2. `provider.py`:
+     - 401/402 diberi kode `PROVIDER_ACCOUNT_BLOCKED`;
+     - setiap penolakan dicatat sebagai `web_provider_refused` (kode HTTP dan pesan OpenRouter, kunci dihapus);
+     - `KeyMonitor` mengecek `GET /key` saat start dan tiap `WEB_PROVIDER_KEY_CHECK_SECONDS` (900), lalu mencatat
+       `web_provider_credit`, `web_provider_key_invalid` atau `web_provider_key_unknown`.
+  3. `/v1/orc/web` dan `/v1/fact` menjawab `UNAVAILABLE` bila tidak satu pun pencarian berjalan (`search_unavailable`).
+     Peringatan `SEARCH_FAILED` kini menyebut kode HTTP. orc memberi tahu model lewat catatan hasil `research_web` dan
+     `find_web_fact`, dan memberi user kalimat "pencarian web sedang tidak bisa dipakai" (`user_texts`).
+  4. `scripts/railway_reference_consumers.py` membaca konsumen setiap rujukan dari proyek live (58 rujukan
+     lintas-layanan pada 2026-11-01) dan men-deploy ulang mereka dengan `--redeploy`. Aturannya ada di AGENTS, bagian
+     Security.
+- **Tes:**
+  - web-governor `tests/test_provider_refusal.py` (12), suite 154 lulus;
+  - orc `test_web_fact_tool.py::test_a_lookup_that_could_not_search_is_told_apart_from_not_found`, suite 1.741 lulus
+    (336 dilewati tanpa Postgres lokal).
+- **Tidak tercakup:** `/v1/ask` (berita) tetap memakai statusnya sendiri. Log penolakan dan cek kunci (lapis provider)
+  tetap berlaku untuknya.
+- **Status:** FIXED (deployed dev; web-governor `439f6771`, orc `d539b798`, SUCCESS).
 - **Lesson:** setiap rotasi rahasia diikuti deploy ulang semua konsumennya. Kegagalan konfigurasi tidak boleh tampil
   sebagai data tidak ditemukan.
 

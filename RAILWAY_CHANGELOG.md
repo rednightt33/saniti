@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-11-01 — EXEC-M308: market-web-governor redeployed with the current OpenRouter key; orc web statuses
+
+- **Why:** web-governor's `OPENROUTER_API_KEY` is the reference `${{market-ai-orc.OPENROUTER_API_KEY}}`, resolved at
+  deploy. Deployment `46bd709d` (2026-10-18) kept the key of that day after orc's key was replaced, so every web search
+  was refused (ERRORS M308).
+- **Deploys** (from main `d53c691`, commit `604d4c7`):
+
+  | Service | Deployment | Status |
+  |---|---|---|
+  | market-web-governor | `439f6771` | SUCCESS |
+  | market-ai-orc | `d539b798` | SUCCESS |
+
+  At start, web-governor logged `web_provider_credit state=OK status_code=200`.
+- **New variables:** none. The defaults are `WEB_PROVIDER_KEY_CHECK_SECONDS=900` and `WEB_PROVIDER_KEY_LOW_USD=2`; both
+  are in the code, not set on Railway (`AI_MODELS.md` regenerated).
+- **Live check:** orc-test-runner deployment `9d631204` (`railway up`, suite `ma-m308-20261101a`, one question):
+  - turn COMPLETED in 38.3 s, cost USD 0.0036;
+  - web-governor `web_orc_answered status=OK`: 9 sources, 14 items, 16.8 s, no warnings.
+- **Process:** `scripts/railway_reference_consumers.py` lists the consumers of a referenced variable from the live project
+  (names and references only). AGENTS Security now requires redeploying them after a source change.
+
 ## 2026-11-01 — postgres-volume 75 → 100 GB (VOLUME-80)
 
 User 2026-11-01: "Kemudian oke, coba kita expand dulu ke 100 giga."
