@@ -2406,6 +2406,23 @@ change yet.
   - Job `a0464497`: 17 baris berulang di satu sumber dalam jendela itu adalah transaksi berbeda (harga dan
     `shares_after` berbeda), bukan ganda.
   - Seluruh tabel saat ini: 1.240 kunci kembar (2.515 baris) dari 104.037 baris insider.
+  - **Koreksi 2026-11-01 (job `twinjob3`, orc-test-runner):** hitungan di atas hanya memasangkan baris bertanggal sama.
+    KSEI memakai tanggal laporan (contoh: SRTG IDX 21-10, KSEI 23-10; SPMA IDX 23-10, KSEI 26-10, nilai hampir sama).
+    - Pasangan lintas sumber (ticker, nama, `shares_change` sama), dikelompokkan menurut selisih hari:
+      | Selisih (hari) | Pasangan |
+      |---|---|
+      | 0 | 1.277 |
+      | 1–3 | 1.760 |
+      | 4–10 | 1.240 |
+      | -3 sampai -1 | 182 |
+      | 11–30 | 1.219 |
+      | lebih dari 30 | 4.298 |
+
+      Pasangan di atas 30 hari kemungkinan kebetulan jumlah sama, bukan kembar.
+    - Jendela 19–23 Okt BUY dengan toleransi 10 hari: 15 dari 161 baris IDX dan 17 dari 215 baris KSEI punya pasangan.
+      Jadi angka "372" terlalu tinggi, dan jumlah sebenarnya bergantung pada aturan pasangan yang belum diputuskan.
+    - Tidak setiap transaksi ada di kedua sumber: hanya 3.884 dari 22.440 baris IDX (17%) punya pasangan KSEI dalam 10
+      hari. KSEI berisi 81.597 baris (pemegang ≥5%), IDX 22.440 (orang dalam).
   - Katalog AI masih menulis "one row per event". `value_idr` dan `shares_change` masih boleh `SUM`, termasuk
     `cross_entity_aggregation` SUM.
 - **Class:** tabel yang menggabungkan fakta yang sama dari beberapa sumber laporan tanpa penanda baris utama; setiap
