@@ -4926,6 +4926,55 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (perbaikan permanen belum disetujui).
 - **Lesson:** penanda selesai sebaiknya ditulis oleh pembungkus, bukan diandalkan dari setiap job.
 
+
+### M323 — Aturan tanggal loader fixed income AS salah saat EST (mulai 2026-11-01)
+
+- **Ditemukan oleh:** audit data fixed income 2026-11-01 (`verification/fixed_income_audit/REPORT.md`).
+- **Verified cause** (`apps/fixed-income-price-cron/fixed_income_update.py` `resolve_bar_date`):
+  - Tanggal bar = tanggal kalender UTC dari label + 1 hari kerja (`NEXT_BUSINESS_DAY`, jadwal 2026-10-20).
+  - Label TradingView adalah awal sesi di New York (`provider_session` 1900-1730 untuk AS): 23:00 UTC hari sebelumnya
+    saat EDT, tetapi 00:00 UTC hari perdagangan itu sendiri saat EST.
+  - Saat EST, aturan "+1" menggeser setiap bar satu hari kerja. Pada pergantian Maret 2026, dua bar bertabrakan di
+    tanggal yang sama.
+  - Bukti: US10Y Senin 2025-11-03 berlabel 00:00 UTC; database (dimuat 2026-10-11 lewat jalur lain) benar 4,108.
+    Aturan loader akan menulisnya sebagai 2025-11-04. Bar dengan tanggal berbeda per seri AS: 343-1.715.
+  - Indonesia tidak terdampak: sesi mulai 17:00 New York, jadi label selalu jatuh di hari UTC sebelumnya.
+- **Dampak bila tidak diperbaiki:**
+  - EST mulai 2026-11-01. Run AS 2026-11-02 23:00 UTC tidak akan menemukan bar target.
+  - Mulai run 2026-11-03, setiap bar AS ditulis satu hari kerja terlambat.
+- **Class:** aturan tanggal yang dibakukan per pasar dalam waktu UTC, padahal sumber memberi label dalam zona waktu
+  dengan pergantian musim. Berlaku untuk setiap sumber dengan label lokal, termasuk data lintas aset dan makro nanti.
+- **Solution (usulan, menunggu go):**
+  - tanggal dibaca dari label dalam zona sumber terhadap `provider_session` jadwal pasar (seperti `session_date` di
+    `audit.py`), bukan dari kalender UTC;
+  - tes di sekitar pergantian DST dan hari libur;
+  - deploy sebelum 2026-11-02 23:00 UTC.
+- **Status:** OPEN.
+- **Lesson:** aturan tanggal dari label sumber harus diverifikasi di kedua sisi pergantian DST, bukan hanya pada
+  data terbaru.
+
+### M324 — Data fixed income: Okt 2026 bergeser/hilang, revisi sumber, US10Y yield 2016/2018/2021 (2026-11-01)
+
+- **Ditemukan oleh:** audit yang sama (48 seri dibandingkan dengan tarikan ulang sumber, tanggal sesi).
+- **Verified:**
+  1. Indonesia 2026-10-05 s.d. 10-09, semua seri: setiap tanggal berisi bar sesi sebelumnya (ditulis 2026-10-12 dengan
+     aturan lama `CURRENT_OR_PREVIOUS_BUSINESS_DAY`).
+  2. Tanggal hilang: 2026-10-12 di 22 seri Indonesia, dan 2026-10-21 di 26 seri AS.
+  3. Revisi sumber sesudah jendela recovery (5 sesi): beberapa seri tenor pendek Indonesia 10-26 s.d. 10-28. Contoh:
+     ID01MY yield 10-26 database 6,454, sumber 6,354.
+  4. US10Y yield tahun 2016, 2018 dan 2021: 610 close berbeda 0,2 bp (median) sampai 1,8 bp, ditambah 5 baris di hari
+     libur AS yang tidak ada di sumber. Seri AS lain sama persis.
+- **Not a defect:** tanggal yang hanya ada di harga atau hanya di yield adalah kalender sumber sendiri; database sama
+  dengan sumber (REPORT.md).
+- **Class:** baris yang ditulis sebelum aturan tanggal final dan revisi sumber di luar jendela koreksi tidak pernah
+  diperiksa ulang terhadap sumber.
+- **Solution (usulan, menunggu go):**
+  - koreksi sekali dari tarikan ulang sumber dengan aturan tanggal M323, lewat upsert loader sendiri;
+  - dry-run daftar perubahan lebih dulu;
+  - audit ini dijadikan pemeriksaan berkala.
+- **Status:** OPEN.
+- **Lesson:** setelah aturan tanggal sumber berubah, bandingkan seluruh riwayat dengan sumber sekali.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan

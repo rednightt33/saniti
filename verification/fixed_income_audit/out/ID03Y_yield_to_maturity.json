@@ -1,0 +1,146 @@
+{
+ "country": "Indonesia",
+ "ticker": "ID03Y",
+ "symbol": "TVC:ID03Y",
+ "metric": "yield_to_maturity",
+ "unit": "percent",
+ "provider_tz": "America/New_York",
+ "db_rows": 2686,
+ "db_first": "2016-01-04",
+ "db_last": "2026-10-30",
+ "source_rows": 5000,
+ "source_first": "2006-08-28",
+ "source_last": "2026-10-30",
+ "matched_dates": 2686,
+ "value_mismatch": 5,
+ "close_mismatch": 5,
+ "mismatch_samples": [
+  {
+   "date": "2026-10-05",
+   "db": [
+    6.923,
+    6.923,
+    6.923,
+    6.923
+   ],
+   "source": [
+    7.071,
+    7.071,
+    6.924,
+    6.924
+   ]
+  },
+  {
+   "date": "2026-10-06",
+   "db": [
+    6.922,
+    6.922,
+    6.88,
+    6.88
+   ],
+   "source": [
+    6.923,
+    6.923,
+    6.923,
+    6.923
+   ]
+  },
+  {
+   "date": "2026-10-07",
+   "db": [
+    6.877,
+    6.877,
+    6.877,
+    6.877
+   ],
+   "source": [
+    6.922,
+    6.922,
+    6.88,
+    6.88
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "db": [
+    6.876,
+    6.876,
+    6.876,
+    6.876
+   ],
+   "source": [
+    6.877,
+    6.877,
+    6.877,
+    6.877
+   ]
+  },
+  {
+   "date": "2026-10-09",
+   "db": [
+    6.874,
+    6.874,
+    6.874,
+    6.874
+   ],
+   "source": [
+    6.876,
+    6.876,
+    6.876,
+    6.876
+   ]
+  }
+ ],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 0,
+ "v4_date_collisions": 0,
+ "source_only_in_range": 2,
+ "source_only_samples": [
+  "2026-10-12",
+  "2026-10-26"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 554,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  4,
+  "2016-07-08"
+ ],
+ "largest_moves": [
+  [
+   2.6659999999999995,
+   "2024-04-15",
+   6.354,
+   9.02
+  ],
+  [
+   2.3439999999999994,
+   "2024-04-16",
+   9.02,
+   6.676
+  ],
+  [
+   1.7850000000000001,
+   "2026-03-25",
+   6.517,
+   4.732
+  ],
+  [
+   1.487,
+   "2026-03-30",
+   5.139,
+   6.626
+  ],
+  [
+   0.8828000000000005,
+   "2018-06-28",
+   7.106,
+   7.9888
+  ]
+ ]
+}

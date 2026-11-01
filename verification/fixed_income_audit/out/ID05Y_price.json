@@ -1,0 +1,145 @@
+{
+ "country": "Indonesia",
+ "ticker": "ID05Y",
+ "symbol": "TVC:ID05",
+ "metric": "price",
+ "unit": "PCTPAR",
+ "provider_tz": "America/New_York",
+ "db_rows": 2584,
+ "db_first": "2016-04-26",
+ "db_last": "2026-10-30",
+ "source_rows": 2585,
+ "source_first": "2016-04-26",
+ "source_last": "2026-10-30",
+ "matched_dates": 2584,
+ "value_mismatch": 5,
+ "close_mismatch": 4,
+ "mismatch_samples": [
+  {
+   "date": "2026-10-05",
+   "db": [
+    95.5,
+    95.55,
+    95.25,
+    95.55
+   ],
+   "source": [
+    95.5,
+    95.5,
+    95.5,
+    95.5
+   ]
+  },
+  {
+   "date": "2026-10-06",
+   "db": [
+    95.55,
+    95.55,
+    95.5,
+    95.5
+   ],
+   "source": [
+    95.5,
+    95.55,
+    95.25,
+    95.55
+   ]
+  },
+  {
+   "date": "2026-10-07",
+   "db": [
+    95.5,
+    95.55,
+    95.5,
+    95.55
+   ],
+   "source": [
+    95.55,
+    95.55,
+    95.5,
+    95.5
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "db": [
+    95.55,
+    95.75,
+    95.55,
+    95.65
+   ],
+   "source": [
+    95.5,
+    95.55,
+    95.5,
+    95.55
+   ]
+  },
+  {
+   "date": "2026-10-09",
+   "db": [
+    95.65,
+    95.65,
+    95.65,
+    95.65
+   ],
+   "source": [
+    95.55,
+    95.75,
+    95.55,
+    95.65
+   ]
+  }
+ ],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 0,
+ "v4_date_collisions": 0,
+ "source_only_in_range": 1,
+ "source_only_samples": [
+  "2026-10-12"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 317,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  10,
+  "2019-01-04"
+ ],
+ "largest_moves": [
+  [
+   9.268,
+   "2019-01-09",
+   92.0,
+   101.268
+  ],
+  [
+   6.002399999999994,
+   "2020-01-07",
+   106.3,
+   100.2976
+  ],
+  [
+   5.5789999999999935,
+   "2018-01-09",
+   105.0,
+   99.421
+  ],
+  [
+   3.674999999999997,
+   "2017-01-05",
+   102.3,
+   98.625
+  ],
+  [
+   3.3230000000000075,
+   "2021-01-07",
+   104.65,
+   101.327
+  ]
+ ]
+}

@@ -1,0 +1,145 @@
+{
+ "country": "Indonesia",
+ "ticker": "ID05Y",
+ "symbol": "TVC:ID05Y",
+ "metric": "yield_to_maturity",
+ "unit": "percent",
+ "provider_tz": "America/New_York",
+ "db_rows": 2679,
+ "db_first": "2016-01-04",
+ "db_last": "2026-10-30",
+ "source_rows": 5000,
+ "source_first": "2006-07-17",
+ "source_last": "2026-10-30",
+ "matched_dates": 2679,
+ "value_mismatch": 5,
+ "close_mismatch": 4,
+ "mismatch_samples": [
+  {
+   "date": "2026-10-05",
+   "db": [
+    7.073,
+    7.142,
+    7.059,
+    7.059
+   ],
+   "source": [
+    7.072,
+    7.072,
+    7.072,
+    7.072
+   ]
+  },
+  {
+   "date": "2026-10-06",
+   "db": [
+    7.06,
+    7.074,
+    7.06,
+    7.074
+   ],
+   "source": [
+    7.073,
+    7.142,
+    7.059,
+    7.059
+   ]
+  },
+  {
+   "date": "2026-10-07",
+   "db": [
+    7.075,
+    7.075,
+    7.062,
+    7.062
+   ],
+   "source": [
+    7.06,
+    7.074,
+    7.06,
+    7.074
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "db": [
+    7.062,
+    7.062,
+    7.007,
+    7.035
+   ],
+   "source": [
+    7.075,
+    7.075,
+    7.062,
+    7.062
+   ]
+  },
+  {
+   "date": "2026-10-09",
+   "db": [
+    7.035,
+    7.035,
+    7.035,
+    7.035
+   ],
+   "source": [
+    7.062,
+    7.062,
+    7.007,
+    7.035
+   ]
+  }
+ ],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 0,
+ "v4_date_collisions": 0,
+ "source_only_in_range": 1,
+ "source_only_samples": [
+  "2026-10-12"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 189,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  8,
+  "2018-06-20"
+ ],
+ "largest_moves": [
+  [
+   0.7105999999999995,
+   "2016-12-07",
+   7.9826,
+   7.272
+  ],
+  [
+   0.5665000000000004,
+   "2016-11-11",
+   7.0961,
+   7.6626
+  ],
+  [
+   0.4630000000000001,
+   "2023-01-03",
+   6.199,
+   6.662
+  ],
+  [
+   0.4584999999999999,
+   "2018-04-26",
+   6.2336,
+   6.6921
+  ],
+  [
+   0.4574999999999996,
+   "2018-04-27",
+   6.6921,
+   6.2346
+  ]
+ ]
+}

@@ -1,0 +1,115 @@
+{
+ "country": "Indonesia",
+ "ticker": "ID10Y",
+ "symbol": "TVC:ID10",
+ "metric": "price",
+ "unit": "PCTPAR",
+ "provider_tz": "America/New_York",
+ "db_rows": 2584,
+ "db_first": "2016-04-26",
+ "db_last": "2026-10-30",
+ "source_rows": 2585,
+ "source_first": "2016-04-26",
+ "source_last": "2026-10-30",
+ "matched_dates": 2584,
+ "value_mismatch": 3,
+ "close_mismatch": 1,
+ "mismatch_samples": [
+  {
+   "date": "2026-10-05",
+   "db": [
+    95.45,
+    95.45,
+    95.45,
+    95.45
+   ],
+   "source": [
+    95.5,
+    95.5,
+    95.3,
+    95.45
+   ]
+  },
+  {
+   "date": "2026-10-07",
+   "db": [
+    95.45,
+    95.45,
+    95.0,
+    95.0
+   ],
+   "source": [
+    95.45,
+    95.45,
+    95.45,
+    95.45
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "db": [
+    95.0,
+    95.0,
+    95.0,
+    95.0
+   ],
+   "source": [
+    95.45,
+    95.45,
+    95.0,
+    95.0
+   ]
+  }
+ ],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 0,
+ "v4_date_collisions": 0,
+ "source_only_in_range": 1,
+ "source_only_samples": [
+  "2026-10-12"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 286,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  10,
+  "2017-04-03"
+ ],
+ "largest_moves": [
+  [
+   14.515,
+   "2019-01-09",
+   87.6,
+   102.115
+  ],
+  [
+   8.769499999999994,
+   "2020-01-07",
+   107.821,
+   99.0515
+  ],
+  [
+   7.984999999999999,
+   "2017-01-05",
+   102.885,
+   94.9
+  ],
+  [
+   4.760000000000005,
+   "2018-01-11",
+   105.0,
+   100.24
+  ],
+  [
+   3.966000000000008,
+   "2023-01-02",
+   96.267,
+   100.233
+  ]
+ ]
+}

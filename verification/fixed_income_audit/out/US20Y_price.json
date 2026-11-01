@@ -1,0 +1,69 @@
+{
+ "country": "United States",
+ "ticker": "US20Y",
+ "symbol": "TVC:US20",
+ "metric": "price",
+ "unit": "PCTPAR",
+ "provider_tz": "America/New_York",
+ "db_rows": 1635,
+ "db_first": "2020-05-21",
+ "db_last": "2026-10-30",
+ "source_rows": 1636,
+ "source_first": "2020-05-21",
+ "source_last": "2026-10-30",
+ "matched_dates": 1635,
+ "value_mismatch": 0,
+ "close_mismatch": 0,
+ "mismatch_samples": [],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 523,
+ "v4_date_collisions": 6,
+ "source_only_in_range": 1,
+ "source_only_samples": [
+  "2026-10-21"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 3,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  3,
+  "2021-08-23"
+ ],
+ "largest_moves": [
+  [
+   13.249975000000006,
+   "2022-05-19",
+   87.015625,
+   100.2656
+  ],
+  [
+   8.234350000000006,
+   "2021-08-19",
+   107.5156,
+   99.28125
+  ],
+  [
+   8.093739999999997,
+   "2022-11-17",
+   90.54688,
+   98.64062
+  ],
+  [
+   7.703100000000006,
+   "2021-02-18",
+   91.6094,
+   99.3125
+  ],
+  [
+   7.21875,
+   "2024-08-22",
+   105.9375,
+   98.71875
+  ]
+ ]
+}

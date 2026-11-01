@@ -1,0 +1,70 @@
+{
+ "country": "Indonesia",
+ "ticker": "ID25Y",
+ "symbol": "TVC:ID25",
+ "metric": "price",
+ "unit": "PCTPAR",
+ "provider_tz": "America/New_York",
+ "db_rows": 2566,
+ "db_first": "2016-04-26",
+ "db_last": "2026-10-30",
+ "source_rows": 2568,
+ "source_first": "2016-04-26",
+ "source_last": "2026-10-30",
+ "matched_dates": 2566,
+ "value_mismatch": 0,
+ "close_mismatch": 0,
+ "mismatch_samples": [],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 0,
+ "v4_date_collisions": 0,
+ "source_only_in_range": 2,
+ "source_only_samples": [
+  "2026-10-12",
+  "2026-10-26"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 818,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  35,
+  "2025-06-26"
+ ],
+ "largest_moves": [
+  [
+   41.25,
+   "2017-01-05",
+   118.75,
+   77.5
+  ],
+  [
+   22.957000000000008,
+   "2019-01-10",
+   76.85,
+   99.807
+  ],
+  [
+   13.673000000000002,
+   "2022-10-07",
+   112.262,
+   98.589
+  ],
+  [
+   7.25,
+   "2018-05-21",
+   88.0,
+   80.75
+  ],
+  [
+   6.400000000000006,
+   "2018-09-13",
+   78.0,
+   71.6
+  ]
+ ]
+}

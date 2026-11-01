@@ -1,0 +1,145 @@
+{
+ "country": "Indonesia",
+ "ticker": "ID20Y",
+ "symbol": "TVC:ID20Y",
+ "metric": "yield_to_maturity",
+ "unit": "percent",
+ "provider_tz": "America/New_York",
+ "db_rows": 2677,
+ "db_first": "2016-01-04",
+ "db_last": "2026-10-30",
+ "source_rows": 4648,
+ "source_first": "2006-05-18",
+ "source_last": "2026-10-30",
+ "matched_dates": 2677,
+ "value_mismatch": 5,
+ "close_mismatch": 3,
+ "mismatch_samples": [
+  {
+   "date": "2026-10-05",
+   "db": [
+    7.197,
+    7.202,
+    7.192,
+    7.202
+   ],
+   "source": [
+    7.222,
+    7.222,
+    7.187,
+    7.197
+   ]
+  },
+  {
+   "date": "2026-10-06",
+   "db": [
+    7.202,
+    7.202,
+    7.202,
+    7.202
+   ],
+   "source": [
+    7.197,
+    7.202,
+    7.192,
+    7.202
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "db": [
+    7.202,
+    7.212,
+    7.202,
+    7.212
+   ],
+   "source": [
+    7.202,
+    7.202,
+    7.202,
+    7.202
+   ]
+  },
+  {
+   "date": "2026-10-09",
+   "db": [
+    7.212,
+    7.212,
+    7.212,
+    7.212
+   ],
+   "source": [
+    7.202,
+    7.212,
+    7.202,
+    7.212
+   ]
+  },
+  {
+   "date": "2026-10-27",
+   "db": [
+    7.397,
+    7.397,
+    7.397,
+    7.397
+   ],
+   "source": [
+    7.397,
+    7.602,
+    7.397,
+    7.602
+   ]
+  }
+ ],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 0,
+ "v4_date_collisions": 0,
+ "source_only_in_range": 1,
+ "source_only_samples": [
+  "2026-10-12"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 290,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  9,
+  "2026-04-09"
+ ],
+ "largest_moves": [
+  [
+   0.5070000000000006,
+   "2026-06-10",
+   6.887,
+   7.394
+  ],
+  [
+   0.45730000000000004,
+   "2016-06-29",
+   8.1517,
+   7.6944
+  ],
+  [
+   0.4250000000000007,
+   "2026-06-17",
+   7.501,
+   7.076
+  ],
+  [
+   0.34469999999999956,
+   "2016-12-07",
+   8.3371,
+   7.9924
+  ],
+  [
+   0.32200000000000006,
+   "2020-03-05",
+   7.451,
+   7.129
+  ]
+ ]
+}

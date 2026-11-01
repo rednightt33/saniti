@@ -1,0 +1,69 @@
+{
+ "country": "United States",
+ "ticker": "US05Y",
+ "symbol": "TVC:US05Y",
+ "metric": "yield_to_maturity",
+ "unit": "percent",
+ "provider_tz": "America/New_York",
+ "db_rows": 2751,
+ "db_first": "2016-01-01",
+ "db_last": "2026-10-30",
+ "source_rows": 4783,
+ "source_first": "2006-08-15",
+ "source_last": "2026-10-30",
+ "matched_dates": 2751,
+ "value_mismatch": 0,
+ "close_mismatch": 0,
+ "mismatch_samples": [],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 1621,
+ "v4_date_collisions": 13,
+ "source_only_in_range": 1,
+ "source_only_samples": [
+  "2026-10-21"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 35,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  3,
+  "2021-08-19"
+ ],
+ "largest_moves": [
+  [
+   0.30799999999999983,
+   "2022-11-10",
+   4.244,
+   3.936
+  ],
+  [
+   0.28800000000000026,
+   "2023-03-13",
+   3.97,
+   3.682
+  ],
+  [
+   0.2849999999999997,
+   "2023-03-15",
+   3.848,
+   3.563
+  ],
+  [
+   0.25100000000000033,
+   "2023-12-13",
+   4.227,
+   3.976
+  ],
+  [
+   0.25,
+   "2020-03-17",
+   0.497,
+   0.747
+  ]
+ ]
+}

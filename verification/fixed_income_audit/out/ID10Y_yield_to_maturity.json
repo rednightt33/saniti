@@ -1,0 +1,130 @@
+{
+ "country": "Indonesia",
+ "ticker": "ID10Y",
+ "symbol": "TVC:ID10Y",
+ "metric": "yield_to_maturity",
+ "unit": "percent",
+ "provider_tz": "America/New_York",
+ "db_rows": 2681,
+ "db_first": "2016-01-04",
+ "db_last": "2026-10-30",
+ "source_rows": 5000,
+ "source_first": "2006-07-21",
+ "source_last": "2026-10-30",
+ "matched_dates": 2681,
+ "value_mismatch": 4,
+ "close_mismatch": 3,
+ "mismatch_samples": [
+  {
+   "date": "2026-10-05",
+   "db": [
+    7.167,
+    7.167,
+    7.167,
+    7.167
+   ],
+   "source": [
+    7.16,
+    7.19,
+    7.16,
+    7.167
+   ]
+  },
+  {
+   "date": "2026-10-06",
+   "db": [
+    7.168,
+    7.168,
+    7.168,
+    7.168
+   ],
+   "source": [
+    7.167,
+    7.167,
+    7.167,
+    7.167
+   ]
+  },
+  {
+   "date": "2026-10-07",
+   "db": [
+    7.168,
+    7.236,
+    7.168,
+    7.236
+   ],
+   "source": [
+    7.168,
+    7.168,
+    7.168,
+    7.168
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "db": [
+    7.237,
+    7.237,
+    7.237,
+    7.237
+   ],
+   "source": [
+    7.168,
+    7.236,
+    7.168,
+    7.236
+   ]
+  }
+ ],
+ "db_only": 0,
+ "db_only_samples": [],
+ "db_only_flat": 0,
+ "v4_dates_differing_from_session_dates": 0,
+ "v4_date_collisions": 0,
+ "source_only_in_range": 1,
+ "source_only_samples": [
+  "2026-10-12"
+ ],
+ "source_after_db_last": [],
+ "flat_bars": 188,
+ "weekend_rows": [],
+ "bad_ohlc": [],
+ "non_final": 0,
+ "other_timeframes": [],
+ "longest_unchanged_close_run": [
+  8,
+  "2018-06-20"
+ ],
+ "largest_moves": [
+  [
+   0.4588000000000001,
+   "2018-01-30",
+   6.1002,
+   6.559
+  ],
+  [
+   0.4109999999999996,
+   "2026-06-08",
+   6.902,
+   7.313
+  ],
+  [
+   0.40830000000000055,
+   "2016-08-25",
+   6.6572,
+   7.0655
+  ],
+  [
+   0.3680000000000003,
+   "2020-03-27",
+   8.275,
+   7.907
+  ],
+  [
+   0.3635999999999999,
+   "2018-01-31",
+   6.559,
+   6.1954
+  ]
+ ]
+}

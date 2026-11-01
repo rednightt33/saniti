@@ -1075,3 +1075,24 @@ HTML buat saya pilih. Pakai design spec terlampir."
 - **Terbuka:**
   - lalu rencana eksekusi: langkah hitung "explain" per indikator yang memakai saham dan tanggal yang sedang dibuka,
     untuk 53 indikator teknikal dan 39 Flow.
+
+## FI-TERMINAL — fixed income (yield dan harga) di Terminal (keputusan 2026-11-01; menunggu audit dan rencana eksekusi)
+
+**Kata user, 2026-11-01:** "Also, bisa prepare data di fixed_income price untuk dimasukan juga ke terminal?", lalu "Opsi A
+... terkait dengan data yield, dan harga, data ini sudah ready di database, bisa dilakukan audit dulu, to ensure data
+quality-nya benar, dan bisa dilakukan sampling, gunakan script yang digunakan untuk ingest baik price dan yield ke
+database ... price dan yield itu tidak semuanya tanggalnya ada ... Siapkan mitigasinya apabila this is the case."
+
+- **Opsi A (disetujui):**
+  - obligasi menjadi simbol sendiri di pencarian (grup Fixed income);
+  - yield sebagai default, dengan tombol harga;
+  - panel Flow, Broker, Bandar dan Events disembunyikan;
+  - Statistics dalam bps;
+  - obligasi juga bisa ditambahkan sebagai pembanding di chart saham.
+- **Seri:** semua 24 obligasi (ID 11, AS 13), yield dan harga. Ini default karena user menyebut keduanya; belum
+  dikonfirmasi eksplisit.
+- **Audit 2026-11-01:** `verification/fixed_income_audit/REPORT.md`. Temuan ERRORS M323 (aturan tanggal AS saat EST)
+  dan M324 (koreksi data); mitigasi tanggal harga-only/yield-only ada di laporan.
+- **Terbuka:**
+  - go untuk perbaikan M323 dan koreksi M324;
+  - rencana eksekusi Terminal: publisher dataset fixed income, terminal-api, Terminal.
