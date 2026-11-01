@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Indicator picker and five indicator-card designs for the user's review (request 2026-10-31: the Terminal's indicator
+"""Indicator picker, tooltip and indicator card for the user's review (request 2026-10-31: the Terminal's indicator
 menu like TradingView's "Indicators, metrics, and strategies", a tooltip, and cards that explain how an indicator works
-with an example of how every number is derived; "kasih saya 5 contoh dalam satu HTML buat saya pilih", with the
-attached design spec).
+with an example of how every number is derived, with the attached design spec). User decisions 2026-11-01: one card
+with tabs Kalkulator, Grafik, Langkah; tooltip "1A"; "2b 3a" (formula, parameters and cautions as a short note under
+Langkah; this mockup is reviewed before the Terminal build); content follows how the Terminal computes and shows the
+indicator, not the Screener.
 
 Nothing is typed here about which indicators exist: the list comes from the Terminal's registries
 (apps/edge-bff/terminal/src/data/indRegistry.json and flowRegistry.json). The worked example is FL24 Bandar Balance · %
@@ -42,6 +44,10 @@ def main(out):
         if i['kind'] == 'Technical' and i['group'] not in tech:
             tech.append(i['group'])
     ex = json.loads((HERE / 'fl24_bbca_example.json').read_text())
+    # The card explains how the Terminal computes and shows the indicator (user 2026-11-01: "Jangan sangkut-pautkan
+    # dengan screener dulu"), so the example's Screener-facing text fields are not embedded.
+    for k in ('use', 'caution', 'screener_misuse', 'meaning'):
+        ex.pop(k, None)
     html = (HERE / 'review_template.html').read_text()
     html = (html.replace('/*__SPEC_CSS__*/', css)
                 .replace('"__ITEMS__"', json.dumps(items, ensure_ascii=False))

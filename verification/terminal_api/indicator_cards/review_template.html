@@ -70,7 +70,9 @@ body{background:var(--bg)}
 .tipcard .hint{margin-top:var(--s-4);color:var(--text-3);font-size:var(--fs-xs)}
 
 /* gallery of the five options */
-.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:var(--s-9);align-items:start}
+.solo{max-width:520px}
+.notes{display:grid;gap:var(--s-5);border-top:1px solid var(--border);padding-top:var(--s-6)}
+.notes h4{margin:0;font-size:var(--fs-md);font-weight:var(--fw-semibold)}
 .opt{display:grid;gap:var(--s-5)}
 .opt-h{display:flex;align-items:center;gap:var(--s-4)}
 .opt-h .badge{width:26px;height:26px;border-radius:var(--r-sm);display:grid;place-items:center;background:var(--text);color:var(--surface);
@@ -145,7 +147,6 @@ body{background:var(--bg)}
   .picker{height:auto;min-height:560px;grid-template-rows:auto auto auto}
   .pk-list{max-height:420px}
   .wrap{padding:var(--s-8) var(--s-8) 48px}
-  .gallery{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -157,32 +158,27 @@ body{background:var(--bg)}
 </div>
 <main class="wrap">
   <section class="intro">
-    <span class="eyebrow">Untuk dipilih</span>
-    <h1>Menu indikator dan 5 pilihan kartu</h1>
-    <p>Bagian atas meniru menu indikator yang Anda kirim. Arahkan kursor ke nama indikator untuk melihat <b>tooltip</b>,
-      lalu klik <b>ⓘ</b> untuk membuka <b>kartu</b>-nya. Ganti desain kartu dengan tombol A–E. Bagian bawah menampilkan
-      kelima kartu berdampingan supaya mudah dibandingkan.</p>
+    <span class="eyebrow">Untuk direview</span>
+    <h1>Menu indikator dan kartu indikator</h1>
+    <p>Keputusan Anda: satu kartu dengan tiga tab, <b>Kalkulator</b>, <b>Grafik</b>, lalu <b>Langkah</b> (1 Nov 2026).
+      Tooltip saat kursor di nama indikator tetap ringkas ("1A"). Rumus, parameter dan hal yang perlu diwaspadai menjadi
+      catatan singkat di bawah tab Langkah ("2b").</p>
     <ol>
-      <li><b>A Ringkas</b>: satu layar kecil, angka hasil dan rumusnya dengan angka sungguhan.</li>
-      <li><b>B Langkah demi langkah</b>: urutan hitung dari data broker sampai vonis.</li>
-      <li><b>C Grafik</b>: indikator digambar di bawah harga, dengan titik penting diberi penjelasan.</li>
-      <li><b>D Kalkulator</b>: geser angkanya dan lihat bagaimana hasil berubah.</li>
-      <li><b>E Lengkap</b>: tab Ringkasan, Contoh, Rumus, Parameter, Hati-hati.</li>
+      <li><b>Kalkulator</b>: angka penyusun bisa digeser; terlihat bagian mana yang menggerakkan hasil.</li>
+      <li><b>Grafik</b>: indikator digambar di bawah harga seperti di Terminal, dengan garis acuan dan titik penting.</li>
+      <li><b>Langkah</b>: urutan hitung dari data broker sampai label, lalu rumus, parameter dan hal yang perlu diwaspadai.</li>
     </ol>
-    <p class="note">Contoh memakai data nyata: FL24 Bandar Balance · % untuk BBCA, 10 sesi sampai 27 Okt 2026 (data broker
-      terakhir). Angkanya sama dengan oracle independen dan dengan Terminal. Di Terminal nanti, contoh dihitung dari saham dan
-      tanggal yang sedang dibuka, untuk setiap indikator. Di mockup ini, indikator lain hanya menampilkan penjelasan singkatnya.</p>
+    <p class="note">Semua isi mengikuti cara Terminal menghitung dan menampilkan (<code>calc/flow.ts</code> dan registry Terminal).
+      Contoh memakai data nyata: FL24 Bandar Balance · % untuk BBCA, 10 sesi sampai 27 Okt 2026, sama dengan Terminal.
+      Di Terminal nanti, contoh dihitung dari saham dan tanggal yang sedang dibuka. Di mockup ini, indikator lain hanya
+      menampilkan penjelasan singkatnya.</p>
   </section>
 
   <section>
     <div class="toolbar">
-      <span class="eyebrow">Desain kartu di menu</span>
-      <div class="seg" id="variantSeg">
-        <button type="button" data-v="A" class="on">A Ringkas</button><button type="button" data-v="B">B Langkah</button>
-        <button type="button" data-v="C">C Grafik</button><button type="button" data-v="D">D Kalkulator</button>
-        <button type="button" data-v="E">E Lengkap</button>
-      </div>
+      <span class="eyebrow">Menu indikator</span>
       <button class="btn sm" type="button" id="openFl24">Buka kartu FL24</button>
+      <span class="note">Arahkan kursor ke nama indikator untuk tooltip; klik <b>i</b> untuk kartu.</span>
     </div>
     <div class="picker" id="picker" role="dialog" aria-label="Indicators">
       <div class="pk-head"><h3>Indicators</h3><button class="iconbtn" type="button" aria-label="Close">✕</button></div>
@@ -195,7 +191,7 @@ body{background:var(--bg)}
         <div class="pk-list" id="list"></div>
       </div>
       <aside class="pk-detail" id="detail" aria-label="Kartu indikator">
-        <div class="pk-detail-h"><span class="grow" id="detailVar"></span>
+        <div class="pk-detail-h"><span class="grow">Kartu indikator</span>
           <button class="btn sm primary" type="button" id="addBtn">Tambah ke chart</button>
           <button class="iconbtn sm" type="button" id="closeDetail" aria-label="Tutup kartu">✕</button></div>
         <div class="pk-detail-b" id="detailBody"></div>
@@ -204,17 +200,9 @@ body{background:var(--bg)}
   </section>
 
   <section>
-    <div class="sec-h"><h2>Lima pilihan kartu</h2><span class="note">Isi sama, cara penyajian berbeda. Semua angka dari BBCA, 14–27 Okt 2026.</span></div>
-    <div class="gallery" id="gallery"></div>
+    <div class="sec-h"><h2>Kartu FL24</h2><span class="note">Kartu yang sama dengan yang terbuka di menu, ditampilkan penuh.</span></div>
+    <div class="solo" id="solo"></div>
   </section>
-
-  <section class="card"><div class="card-h"><h3>Catatan untuk keputusan</h3></div><div class="card-b">
-    <ul class="bul">
-      <li>Tooltip (saat kursor di nama indikator) selalu berbentuk ringkas seperti A; pilihan A–E menentukan kartu yang terbuka saat ⓘ diklik.</li>
-      <li>Pilihan bisa digabung, misalnya kartu A di tooltip dan E saat ⓘ diklik, atau E dengan tab "Contoh" berisi grafik C.</li>
-      <li>Untuk setiap indikator, kartu membutuhkan langkah hitung yang ditulis sekali per indikator dan diisi angka saham yang sedang dibuka. Teks penjelasan, rumus dan parameter sudah ada di registry dan Excel final.</li>
-    </ul>
-  </div></section>
 </main>
 <div class="tipcard" id="tip" hidden></div>
 
@@ -268,22 +256,15 @@ const readText = (v) => {
   return `${P(v)} berada di zona <b>${x[1]}</b> (${x[2].toLowerCase()})${near ? `, dekat batas ${v < 0 ? 'Dist (−6)' : 'Acc (+6)'}` : ''}.`;
 };
 
-/* ---- A: compact ---- */
-function cardA() {
-  return `<div class="ic">${header(true)}<div class="ex">${exampleHead()}
-      <div class="big"><b class="${EX.value < 0 ? 'neg' : 'pos'}">${P(EX.value)}</b>${pill(EX.value)}</div>${equation()}${zone(EX.value)}</div>
-    <p class="small-note">Batas 6 dan 10 adalah heuristik yang belum divalidasi; saham tidak likuid cenderung punya nilai lebih ekstrem.</p></div>`;
-}
-
 /* ---- B: steps ---- */
-function cardB() {
-  return `<div class="ic">${header(true)}<ol class="steps">
+function stepsBody() {
+  return `<ol class="steps">
     <li><div><b>Ambil ${EX.window} sesi terakhir</b><p>${D(EX.from)} sampai ${D(EX.to)}, 10 hari bursa yang punya data broker. Semua papan, asing dan domestik.</p></div></li>
     <li><div><b>Hitung net setiap broker</b><p>Net = nilai beli − nilai jual selama ${EX.window} sesi. Ambil ${EX.top} net beli terbesar dan ${EX.top} net jual terbesar.</p>${brokerTable()}</div></li>
     <li><div><b>Bandingkan dengan seluruh transaksi</b><p>Total nilai beli semua broker dalam ${EX.window} sesi: <b>${T(EX.tbv)}</b>.</p></div></li>
     <li><div><b>Hitung nilainya</b>${equation()}<p>= <b class="${EX.value < 0 ? 'neg' : 'pos'}">${P(EX.value, 2)}</b></p></div></li>
     <li><div><b>Baca hasilnya</b><p>${readText(EX.value)} Artinya, ${EX.top} penjual terbesar melepas lebih banyak daripada yang dikumpulkan ${EX.top} pembeli terbesar, selisihnya setara ${nf(1).format(Math.abs(EX.value))}% dari seluruh nilai beli.</p>${zone(EX.value)}</div></li>
-  </ol></div>`;
+  </ol>`;
 }
 
 /* ---- C: chart ---- */
@@ -301,7 +282,7 @@ function chartSvg(w = 420) {
   const lo = s.reduce((a, p, i) => p.value < s[a].value ? i : a, 0), last = n - 1;
   const hi = s.reduce((a, p, i) => p.value > s[a].value ? i : a, 0);
   const dot = (i, lab, anchor, above) => `<circle cx="${x(i)}" cy="${yv(s[i].value)}" r="3.5" fill="var(--text)"/>
-    <text x="${x(i) + (anchor === 'end' ? -6 : 6)}" y="${yv(s[i].value) + (above ? -8 : 14)}" font-size="10" font-weight="600" fill="var(--text)" text-anchor="${anchor}" paint-order="stroke" stroke="var(--surface)" stroke-width="3">${lab}</text>`;
+    <text x="${x(i) + (anchor === 'end' ? -6 : 6)}" y="${yv(s[i].value) + (typeof above === 'number' ? above : above ? -8 : 14)}" font-size="10" font-weight="600" fill="var(--text)" text-anchor="${anchor}" paint-order="stroke" stroke="var(--surface)" stroke-width="3">${lab}</text>`;
   return `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="Harga BBCA dan Bandar Balance">
     <text x="${padL}" y="10" font-size="9" fill="var(--text-3)">Close BBCA</text>
     <text x="${w - padR + 4}" y="${yc(cmax) + 3}" font-size="9" fill="var(--text-3)">${nf(0).format(cmax)}</text>
@@ -311,14 +292,14 @@ function chartSvg(w = 420) {
     ${line(10, true)}${line(6, true)}${line(0, false)}${line(-6, true)}${line(-10, true)}
     <text x="${padL}" y="${top2 - 4}" font-size="9" fill="var(--text-3)">Bandar Balance · % (10 sesi, Top 3)</text>
     <path d="${path(s.map(p => p.value), yv)}" fill="none" stroke="var(--c2)" stroke-width="1.8"/>
-    ${dot(hi, P(s[hi].value), 'start', true)}${dot(lo, P(s[lo].value), 'start', false)}${dot(last, P(s[last].value), 'end', true)}
+    ${dot(hi, P(s[hi].value), 'start', true)}${dot(lo, P(s[lo].value), 'end', 4)}${dot(last, P(s[last].value), 'end', true)}
     <text x="${padL}" y="${H - 6}" font-size="9" fill="var(--text-3)">${Dd(s[0].date)}</text>
     <text x="${w - padR}" y="${H - 6}" font-size="9" fill="var(--text-3)" text-anchor="end">${Dd(s[last].date)}</text>
   </svg>`;
 }
-function cardC() {
+function chartBody() {
   const s = EX.series, lo = s.reduce((a, p) => p.value < a.value ? p : a, s[0]), hi = s.reduce((a, p) => p.value > a.value ? p : a, s[0]);
-  return `<div class="ic">${header(true)}<div class="chart">${chartSvg()}</div>
+  return `<div class="chart">${chartSvg()}</div>
     <div class="legend"><span><i style="background:var(--c1)"></i>Harga close</span><span><i style="background:var(--c2)"></i>Bandar Balance</span>
       <span><i style="background:var(--up);opacity:.5"></i>Zona Acc (≥ +6)</span><span><i style="background:var(--down);opacity:.5"></i>Zona Dist (≤ −6)</span></div>
     <ul class="bul">
@@ -326,14 +307,14 @@ function cardC() {
       <li><b>${Dd(lo.date)}</b>: terendah ${P(lo.value)} (${verdict(lo.value)[1]}). ${EX.top} penjual terbesar melepas jauh lebih banyak dari ${EX.top} pembeli terbesar, dan harga ikut turun.</li>
       <li><b>${Dd(EX.to)}</b>: ${P(EX.value)}, kembali ke zona Neutral tetapi masih negatif.</li>
       <li>Setiap titik memakai ${EX.window} sesi yang berakhir di tanggal itu; kelompok ${EX.top} pembeli dan penjual dihitung ulang setiap hari.</li>
-    </ul></div>`;
+    </ul>`;
 }
 
 /* ---- D: calculator ---- */
-function cardD(uid) {
+function calcBody(uid) {
   const f = (k, label, v, min, max, help) => `<label class="field"><span class="fr">${label}<b id="${uid}-${k}-v"></b></span>
     <input type="range" id="${uid}-${k}" min="${min}" max="${max}" step="0.01" value="${(v / 1e12).toFixed(2)}"><small>${help}</small></label>`;
-  return `<div class="ic calc" data-calc="${uid}">${header(true)}
+  return `<div class="calc" data-calc="${uid}">
     <div class="ex">${exampleHead()}<div class="big"><b id="${uid}-out"></b><span id="${uid}-pill"></span></div><div id="${uid}-eq"></div><div id="${uid}-zone"></div></div>
     ${f('nb', `Net beli ${EX.top} pembeli terbesar`, EX.nb, 0, 8, `BBCA: ${EX.buyers.map(b => b.code).join(', ')} = ${Ts(EX.nb)}`)}
     ${f('ns', `Net jual ${EX.top} penjual terbesar`, EX.ns, -8, 0, `BBCA: ${EX.sellers.map(b => b.code).join(', ')} = ${Ts(EX.ns)}`)}
@@ -361,41 +342,39 @@ function wireCalc(root) {
   });
 }
 
-/* ---- E: tabbed full card ---- */
+/* ---- the card: one header, tabs Kalkulator, Grafik, Langkah (user 2026-11-01) ---- */
 function paramRows() {
   const val = (p) => Array.isArray(p.default) ? (p.default.length ? p.default.join(', ') : 'semua') : p.default;
-  const rng = (p) => p.options ? p.options.join(', ') : (p.min !== undefined ? `${p.min}${p.max !== undefined ? '–' + p.max : '+'}` : '');
+  const rng = (p) => p.options ? p.options.map(o => Array.isArray(o) ? o[1] : o).join(', ') : (p.min !== undefined ? `${p.min}${p.max !== undefined ? '–' + p.max : '+'}` : '');
   return EX.params.filter(p => !['button', 'fixed'].includes(p.kind)).map(p =>
     `<tr><td class="l">${esc(p.label)}</td><td>${esc(val(p))}</td><td class="muted">${esc(rng(p))}</td></tr>`).join('');
 }
-function cardE(uid) {
-  const tabs = ['Ringkasan', 'Contoh', 'Rumus', 'Parameter', 'Hati-hati'];
-  return `<div class="ic" data-tabs="${uid}">${header(true)}
-    <div class="tabs" role="tablist">${tabs.map((t, i) => `<button type="button" role="tab" data-t="${i}" class="${i ? '' : 'on'}">${t}</button>`).join('')}</div>
-    <div class="tabpane on" data-p="0">
-      <div class="big"><b class="${EX.value < 0 ? 'neg' : 'pos'}">${P(EX.value)}</b>${pill(EX.value)}<span class="note">${EX.ticker}, ${Dd(EX.from)}–${D(EX.to)}</span></div>
-      <p class="small-note" style="color:var(--text-2)">Membaca akumulasi atau distribusi oleh broker terbesar ("bandar"): positif berarti pembeli besar lebih kuat, negatif berarti penjual besar lebih kuat.</p>${zone(EX.value)}
-      <table class="mini ztbl"><thead><tr><th class="l">Nilai</th><th class="l">Label</th><th class="l">Arti</th></tr></thead><tbody>
-        <tr><td class="l">≥ +10</td><td class="l">Big Acc</td><td class="l">akumulasi besar oleh bandar</td></tr>
-        <tr><td class="l">+6 s.d. +10</td><td class="l">Acc</td><td class="l">akumulasi</td></tr>
-        <tr><td class="l">−6 s.d. +6</td><td class="l">Neutral</td><td class="l">bandar beli dan jual seimbang</td></tr>
-        <tr><td class="l">−10 s.d. −6</td><td class="l">Dist</td><td class="l">distribusi</td></tr>
-        <tr><td class="l">≤ −10</td><td class="l">Big Dist</td><td class="l">distribusi besar</td></tr></tbody></table></div>
-    <div class="tabpane" data-p="1">${exampleHead()}${brokerTable()}${equation()}<p class="small-note" style="color:var(--text-2)">${readText(EX.value)}</p></div>
-    <div class="tabpane" data-p="2">
-      <div class="ex"><b style="font-size:var(--fs-lg)">Nilai = 100 × (NB + NS) ÷ TBV</b>
-        <ul class="bul"><li><b>NB</b>: jumlah net (beli − jual) dari N broker dengan net beli terbesar dalam jendela.</li>
-          <li><b>NS</b>: jumlah net dari N broker dengan net jual terbesar (angkanya negatif).</li>
-          <li><b>TBV</b>: total nilai beli semua broker dalam jendela, dengan filter papan dan jenis investor yang sama.</li>
-          <li>Kelompok N dihitung ulang di setiap candle; candle tanpa data broker dibiarkan kosong, tidak dianggap 0.</li></ul></div>
-      <p class="small-note">Rumus di kode: <code>${esc(EX.formula_id)}</code> (FORMULAS.md, FL24).</p></div>
-    <div class="tabpane" data-p="3"><table class="mini"><thead><tr><th class="l">Parameter</th><th>Default</th><th>Pilihan / rentang</th></tr></thead><tbody>${paramRows()}</tbody></table>
-      <p class="small-note">Garis acuan 6 dan 10 juga dipakai panel Bandar di Terminal dan Screener.</p></div>
-    <div class="tabpane" data-p="4"><ul class="bul">
-      <li>Batas 6 dan 10 adalah heuristik prototipe yang belum divalidasi dengan data historis.</li>
+function notes() {
+  return `<div class="notes">
+    <h4>Rumus (seperti dihitung Terminal)</h4>
+    <div class="ex"><b style="font-size:var(--fs-lg)">Nilai = 100 × (NB + NS) ÷ TBV</b>
+      <ul class="bul"><li><b>NB</b>: jumlah net (beli − jual) dari N broker dengan net beli terbesar dalam jendela.</li>
+        <li><b>NS</b>: jumlah net dari N broker dengan net jual terbesar (angkanya negatif).</li>
+        <li><b>TBV</b>: total nilai beli semua broker dalam jendela, dengan filter papan dan jenis investor yang sama.</li>
+        <li>Kelompok N dihitung ulang di setiap candle; candle tanpa data broker kosong, tidak dianggap 0.</li></ul>
+      <p class="small-note">Kode: <code>calc/flow.ts</code> FL24 (<code>balancePct</code>, <code>bandar</code>).</p></div>
+    <h4>Parameter (default Terminal)</h4>
+    <table class="mini"><thead><tr><th class="l">Parameter</th><th>Default</th><th>Pilihan / rentang</th></tr></thead><tbody>${paramRows()}</tbody></table>
+    <p class="small-note">Tampil di panel sendiri di bawah chart, garis, satuan %, dengan garis acuan 6, 10, −6 dan −10. Label Bandar di panel memakai batas yang sama.</p>
+    <h4>Hati-hati</h4>
+    <ul class="bul">
+      <li>Batas 6 dan 10 adalah heuristik yang belum divalidasi dengan data historis.</li>
       <li>Saham tidak likuid cenderung punya nilai lebih ekstrem karena sedikit broker menguasai transaksi.</li>
       <li>Transaksi blok di papan Nego ikut dihitung dan bisa terbaca sebagai akumulasi.</li>
-      <li>Data broker terakhir: ${D(EX.to)}. Candle sesudahnya kosong sampai data broker berikutnya dimuat.</li></ul></div>
+      <li>Data broker terakhir: ${D(EX.to)}. Candle sesudahnya kosong sampai data broker berikutnya dimuat.</li></ul></div>`;
+}
+function card(uid) {
+  const tabs = ['Kalkulator', 'Grafik', 'Langkah'];
+  return `<div class="ic" data-tabs="${uid}">${header(true)}
+    <div class="tabs" role="tablist">${tabs.map((t, i) => `<button type="button" role="tab" data-t="${i}" class="${i ? '' : 'on'}">${t}</button>`).join('')}</div>
+    <div class="tabpane on" data-p="0">${calcBody(uid)}</div>
+    <div class="tabpane" data-p="1">${chartBody()}</div>
+    <div class="tabpane" data-p="2">${exampleHead()}${stepsBody()}${notes()}</div>
   </div>`;
 }
 function wireTabs(root) {
@@ -404,25 +383,16 @@ function wireTabs(root) {
     el.querySelectorAll('.tabpane').forEach(p => p.classList.toggle('on', p.dataset.p === b.dataset.t));
   })));
 }
-const CARDS = { A: cardA, B: cardB, C: cardC, D: cardD, E: cardE };
-const NAMES = { A: 'Ringkas', B: 'Langkah demi langkah', C: 'Grafik', D: 'Kalkulator', E: 'Lengkap bertab' };
-const DESC = {
-  A: 'Muat sebagai tooltip atau kartu kecil. Hasil, vonis, rumus dengan angka sungguhan, dan posisi di zona.',
-  B: 'Seperti jawaban "bagaimana indikator ini dihitung": setiap angka ditelusuri dari data broker sampai vonis.',
-  C: 'Indikator digambar di bawah harga dengan zona dan titik penting, untuk melihat perilakunya dari waktu ke waktu.',
-  D: 'Angka penyusun bisa digeser; terlihat langsung bagian mana yang menggerakkan hasil.',
-  E: 'Satu kartu dengan semua isi (ringkasan, contoh, rumus, parameter, hati-hati), dibuka per tab.',
-};
 
 /* ---- generic card for indicators without a worked example in this mockup ---- */
 function genericCard(it) {
   return `<div class="ic"><div class="ic-h"><div class="row"><span class="eyebrow">${it.kind} · ${esc(it.group)}</span><span class="code-id">${it.id}</span></div>
     <h3>${esc(it.name)}</h3><p>${esc(it.tip || '')}</p></div>
-    <div class="ex"><div class="ex-h">Contoh</div><p class="small-note">Di Terminal, contoh untuk ${esc(it.name)} dihitung dari saham dan tanggal yang sedang dibuka, dengan bentuk kartu yang dipilih. Mockup ini hanya membawa contoh lengkap untuk FL24.</p></div></div>`;
+    <div class="ex"><div class="ex-h">Contoh</div><p class="small-note">Di Terminal, contoh untuk ${esc(it.name)} dihitung dari saham dan tanggal yang sedang dibuka, dengan kartu bertab yang sama. Mockup ini hanya membawa contoh lengkap untuk FL24.</p></div></div>`;
 }
 
 /* ---- picker ---- */
-let variant = 'A', group = 'fav', query = '';
+let group = 'fav', query = '';
 const favs = new Set(['FL24', 'FL22', 'FL11', 'I13', 'I06']);
 const nav = document.getElementById('nav'), list = document.getElementById('list'), tip = document.getElementById('tip');
 function navHtml() {
@@ -477,27 +447,20 @@ let openId = null;
 function openDetail(id) {
   openId = id; tip.hidden = true;
   const it = ITEMS.find(i => i.id === id);
-  dBody.innerHTML = id === 'FL24' ? CARDS[variant]('pk') : genericCard(it);
-  document.getElementById('detailVar').textContent = `Kartu ${variant} · ${NAMES[variant]}`;
+  dBody.innerHTML = id === 'FL24' ? card('pk') : genericCard(it);
   wireCalc(dBody); wireTabs(dBody); detail.classList.add('open');
 }
 document.getElementById('closeDetail').addEventListener('click', () => { detail.classList.remove('open'); openId = null });
 document.getElementById('addBtn').addEventListener('click', () => openId && toast(`${ITEMS.find(i => i.id === openId).name} ditambahkan ke chart (demo)`));
 document.getElementById('openFl24').addEventListener('click', () => { group = 'f:' + EX.family; query = ''; render(); openDetail('FL24') });
-document.getElementById('variantSeg').addEventListener('click', e => {
-  const b = e.target.closest('[data-v]'); if (!b) return; variant = b.dataset.v;
-  document.querySelectorAll('#variantSeg button').forEach(x => x.classList.toggle('on', x === b));
-  if (openId) openDetail(openId);
-});
 function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800);
 }
 
-/* ---- gallery ---- */
-const gal = document.getElementById('gallery');
-gal.innerHTML = Object.keys(CARDS).map(k => `<div class="opt"><div class="opt-h"><span class="badge">${k}</span><strong>${NAMES[k]}</strong></div>
-  <p class="opt-d">${DESC[k]}</p>${CARDS[k]('g' + k)}</div>`).join('');
-wireCalc(gal); wireTabs(gal);
+/* ---- the card on its own ---- */
+const solo = document.getElementById('solo');
+solo.innerHTML = card('main');
+wireCalc(solo); wireTabs(solo);
 
 /* ---- theme ---- */
 document.getElementById('theme').addEventListener('click', e => {

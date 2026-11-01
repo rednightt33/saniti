@@ -1038,7 +1038,7 @@ Coba saja di explore pakai benchmark yang best practice."
   user; RT2 "go" Tahap 0 + 1 bersama Screener; RT3 target waktu; RT14 service menyala terus saat peluncuran (tidur di luar
   08:10-22:10 WIB hanya hemat ±USD 8,6/bulan, user pertama menunggu 14-27 s, dan kode harus diubah dulu).
 
-## TERMINAL-IND-CARDS — menu indikator seperti TradingView, tooltip, dan kartu "cara kerja" dengan contoh (permintaan 2026-10-31; menunggu pilihan desain)
+## TERMINAL-IND-CARDS — menu indikator seperti TradingView, tooltip, dan kartu "cara kerja" dengan contoh (permintaan 2026-10-31; menunggu review mockup bertab)
 
 **Kata user, 2026-10-31:** "Kemudian saya mau ketika di bagian terminal kita klik indikator, maka bisa dibuat seperti
 screenshot terlampir. Dan juga ditambahkan semacam tooltip. Intinya adalah cards ya, atau ilustrasi how that indicator
@@ -1059,9 +1059,16 @@ HTML buat saya pilih. Pakai design spec terlampir."
   - Isi kartu dan tooltip diambil dari `calc/flow.ts` (sebagaimana ditulis `FORMULAS.md`) dan dari registry Terminal.
   - Kartu tidak merujuk ke Screener.
   - Inspeksi kode semua FL: `verification/terminal_api/flow_indicators/CODE_INSPECTION_20261101.md`.
+- **Tooltip, 2026-11-01 (kata user):** "1A". Tooltip saat hover tetap ringkas seperti desain A (definisi, hasil,
+  rumus dengan angka).
+- **Catatan dan urutan kerja, 2026-11-01 (kata user):** "2b 3a".
+  - 2b: rumus, parameter (default Terminal) dan hal yang perlu diwaspadai tampil sebagai catatan singkat di bawah tab
+    Langkah.
+  - 3a: mockup diperbarui dulu untuk direview, baru dibangun di Terminal.
+  - Mockup baru: satu kartu bertab Kalkulator, Grafik, Langkah, juga ditampilkan sendiri; galeri lima desain dihapus.
+    Data contoh tidak lagi memuat teks Screener. Dicek dengan playwright (desktop 1366, ponsel 390, mode gelap): tanpa
+    error, tanpa scroll ke samping.
 - **Terbuka:**
-  - tooltip saat hover: diputuskan 2026-11-01 "1A", tetap ringkas seperti desain A (definisi, hasil, rumus dengan angka);
-  - apakah rumus, parameter dan hati-hati tetap tampil;
-  - mockup diperbarui dulu atau langsung ke Terminal;
+  - persetujuan user atas mockup bertab;
   - lalu rencana eksekusi: langkah hitung "explain" per indikator yang memakai saham dan tanggal yang sedang dibuka,
     untuk 53 indikator teknikal dan 39 Flow.
