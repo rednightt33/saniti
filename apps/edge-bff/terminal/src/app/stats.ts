@@ -84,8 +84,9 @@ export function initStats(ctx: Ctx) {
   const TF = ctx.M.tf || 'D', U = UNIT[TF], PER = periodsPerYear(TF, ctx.M.intraday?.barsPerYear);   // intraday: the manifest's bars per year
   if(TF !== 'D'){
     const small = (sec: string, text: string) => { const el = document.querySelector(`#statsPanel .st[data-sec="${sec}"] .st-head small`); if(el) el.textContent = text };
-    const short = TF === 'W' ? 'W' : 'M', word = TF === 'W' ? 'week' : 'month';
-    small('dist', `${word[0].toUpperCase() + word.slice(1)} returns`); small('vol', `20-${word} annualized`); small('vdist', `Volume / 20${short} average`);
+    // EXEC-INTRADAY-FEATURES C3: an intraday candle is a bar of its timeframe ("20-bar annualized", "Volume / 20 bars")
+    const bar = !!ctx.M.intraday, short = TF === 'W' ? 'W' : 'M', word = bar ? 'bar' : TF === 'W' ? 'week' : 'month';
+    small('dist', `${word[0].toUpperCase() + word.slice(1)} returns`); small('vol', `20-${word} annualized`); small('vdist', bar ? 'Volume / 20-bar average' : `Volume / 20${short} average`);
     const wd = document.querySelector('#seasToggle [data-mode="weekday"]') as HTMLElement | null; if(wd) wd.hidden = true;
   }
   const dayRet = new Float64Array(N);                 // simple daily return

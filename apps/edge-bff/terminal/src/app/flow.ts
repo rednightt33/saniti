@@ -183,6 +183,8 @@ export function initFlow(ctx: Ctx) {
     const E = ctx.brokerEnd;
     flowBars.setData(ohlc.map((b,i)=> i > E ? { time:b.time } : { time:b.time, value:Math.round(flowNet[i]), color: flowNet[i]>=0 ? 'rgba(8,153,129,.9)' : 'rgba(242,54,69,.9)' }));
     computeCum();
+    pushRange(chart, flowChart);                           // new data never moves the shared range: the main chart leads
+    requestAnimationFrame(() => pushRange(chart, flowChart));   // also after the Flow chart re-anchors on its new data
     schedulePlace();
     flowSummary();
     const note = $('flowNote');
@@ -245,7 +247,15 @@ export function initFlow(ctx: Ctx) {
     rangeLock = true; try{ to.timeScale().setVisibleLogicalRange(r) } finally { rangeLock = false }
   };
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => pushRange(chart,flowChart));
-  flowChart.timeScale().subscribeVisibleLogicalRangeChange(() => pushRange(flowChart,chart));
+  /* EXEC-INTRADAY-FEATURES (2026-11-01): the Flow chart moves the main chart only while the pointer is on it (a drag, a
+     wheel, a touch there), as an asset's Flow pane does (assets.ts). Its own re-anchoring when its data is set (its bars
+     end at the broker data's last session, the sessions after it are whitespace) pushed its range back onto the main
+     chart and hid the sessions after the broker data: the last two sessions on 5M-1H, the right margin on D. */
+  let flowOver = false;
+  const flowEl = $('flowChart') as HTMLElement;
+  flowEl.addEventListener('pointerenter', () => { flowOver = true });
+  flowEl.addEventListener('pointerleave', () => { flowOver = false; pushRange(chart, flowChart) });
+  flowChart.timeScale().subscribeVisibleLogicalRangeChange(() => { if(flowOver) pushRange(flowChart,chart) });
 
   // Same left/right axis widths in both charts => identical plot area => bars sit exactly under their candles.
   const axisW = ctx.axisWidths = { left:112, right:0 };   // 112 = toolbar (41) + breathing room before the price labels
