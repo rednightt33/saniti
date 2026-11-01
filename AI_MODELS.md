@@ -133,6 +133,8 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `WEB_ORC_RESEARCH_SECONDS` | `120` |
 | `WEB_ORC_SLOT` | `0` |
 | `WEB_PROVIDER` | `"openrouter"` |
+| `WEB_PROVIDER_KEY_CHECK_SECONDS` | `900` |
+| `WEB_PROVIDER_KEY_LOW_USD` | `2` |
 | `WEB_SLOT_<n>_ENABLED` | `(tidak ada)` |
 | `WEB_SLOT_<n>_ENGINE` | `(tidak ada)` |
 | `WEB_SLOT_<n>_LABEL` | `(tidak ada)` |

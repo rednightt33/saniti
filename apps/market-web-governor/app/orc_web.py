@@ -39,7 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import sources as S
 from .config import Settings
 from .fact import verified
-from .provider import OpenRouterProvider, ProviderError, _extract_output
+from .provider import OpenRouterProvider, ProviderError, _extract_output, search_failure, search_unavailable
 
 SHAPES = ("FACT", "NUMBER", "EVENT", "SERIES", "LIST")
 QUICK_RESULTS = 5
@@ -517,6 +517,8 @@ class OrcWebService:
                              "message": f"{envelope['bad_dates']} dates were not dates and were left empty"})
         incomplete = any(w["code"] in INCOMPLETE for w in warnings)
         status = "NOT_FOUND" if not reading["items"] else ("PARTIAL" if incomplete or reading["short"] else "OK")
+        if not reading["items"] and search_unavailable(warnings, usage["search_calls"]):
+            status = "UNAVAILABLE"  # M308: no search could run; the web was not searched, so nothing is "not found"
         result = mark_conflicts({
             "status": status, "result_id": result_id, "need": request.need, "purpose": request.purpose,
             "depth": reading["depth"], "escalated": reading["escalated"], "escalation": reading["escalation"],
@@ -694,7 +696,9 @@ class OrcWebService:
             try:
                 annotations = future.result()
             except (ProviderError, ValueError) as exc:
-                warnings.append({"code": "SEARCH_FAILED", "message": getattr(exc, "code", type(exc).__name__)})
+                failure = search_failure(exc)
+                if failure not in warnings:
+                    warnings.append(failure)
                 continue
             for annotation in annotations:
                 url = annotation.get("url")

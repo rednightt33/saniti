@@ -74,3 +74,14 @@ def test_settings() -> None:
     settings = make_settings(AI_ENABLE_WEB_FACT="true", WEB_GOVERNOR_URL="http://web", WEB_GOVERNOR_API_KEY="k" * 40)
     assert settings.ai_enable_web_fact and settings.web_governor_url == "http://web"
     assert "k" * 40 not in repr(settings)
+
+
+def test_a_lookup_that_could_not_search_is_told_apart_from_not_found() -> None:
+    """M308: UNAVAILABLE (no search could run, e.g. a stale key) is not NOT_FOUND, for both web lookups, and the
+    reader gets plain words for it."""
+    from app import user_texts
+    from app.tools.web_research import NOTE
+
+    for note in (model_view({"status": "UNAVAILABLE"})["note"], NOTE):
+        assert "UNAVAILABLE" in note and "cannot be searched right now" in note
+    assert user_texts.words("UNAVAILABLE") == "pencarian web sedang tidak bisa dipakai"

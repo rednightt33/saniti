@@ -48,7 +48,10 @@ DATABASE_SENTENCE = (" An attribute the database's reference tables hold (sector
 NOTE = ("Web facts: state them as web facts with their source. A conflict of kind DIFFERENT_PERIOD, "
         "DIFFERENT_DEFINITION, DIFFERENT_UNIT or DIFFERENT_RELEASE is not a disagreement: give each value with its "
         "period, definition or release. REAL: say which version was preferred and why, or that the sources disagree "
-        "(CONFLICTING). PARTIAL or NOT_FOUND: say what was not found; never fill it in from memory.")
+        "(CONFLICTING). PARTIAL or NOT_FOUND: say what was not found; never fill it in from memory. UNAVAILABLE: no "
+        "search could run (the web service was refused or down; the warning names the cause), so nothing was "
+        "searched: say the web cannot be searched right now, never that the information was not found, and do not "
+        "call this tool again in this turn.")
 MAX_SUBJECTS = 30
 MAX_SECONDS = 150.0
 MIN_SECONDS = 20.0

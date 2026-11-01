@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import random
+import threading
 import re
 import time
 from dataclasses import dataclass, field
@@ -16,6 +18,13 @@ from .models import EvidenceCriterion, SourcePolicy, WebNeedSpec
 
 
 ADAPTER_VERSION = "openrouter-responses-v2"
+# M308: 401 (key unknown or revoked) and 402 (key limit or credit spent) refuse the account, not the request; every
+# call fails the same way until the key is fixed, so they are told apart from a refused request
+ACCOUNT_STATUS_CODES = frozenset({401, 402})
+# codes meaning no call reached a search: the web is unavailable, not empty (orc_web, fact)
+UNAVAILABLE_CODES = frozenset({"PROVIDER_ACCOUNT_BLOCKED", "PROVIDER_RATE_LIMITED", "PROVIDER_TIMEOUT",
+                               "PROVIDER_UNREACHABLE", "PROVIDER_REJECTED"})
+logger = logging.getLogger("market_web_governor")
 
 
 class ProviderError(RuntimeError):
@@ -385,15 +394,105 @@ class OpenRouterProvider:
                         raise ProviderError("PROVIDER_INVALID_RESPONSE", "OpenRouter returned a non-object response")
                     return body
                 retriable = response.status_code == 429 or response.status_code >= 500
-                code = "PROVIDER_RATE_LIMITED" if response.status_code == 429 else "PROVIDER_REJECTED"
+                code = ("PROVIDER_RATE_LIMITED" if response.status_code == 429
+                        else "PROVIDER_ACCOUNT_BLOCKED" if response.status_code in ACCOUNT_STATUS_CODES
+                        else "PROVIDER_REJECTED")
                 last_error = ProviderError(code, f"OpenRouter returned HTTP {response.status_code}",
                                            status_code=response.status_code, retriable=retriable)
+                logger.info(json.dumps({"event": "web_provider_refused", "code": code,
+                                        "status_code": response.status_code, "retriable": retriable,
+                                        "reason": _refusal_reason(response, self.settings.openrouter_api_key)}))
                 if not retriable:
                     raise last_error
             if attempt + 1 < self.settings.openrouter_max_retries:
                 time.sleep(min(0.25 * (2**attempt) + random.random() * 0.1, 1.0))
         assert last_error is not None
         raise last_error
+
+
+    def key_status(self) -> tuple[int | None, dict[str, Any] | None]:
+        """M308: the key's own record (GET /key, no credit used): (HTTP status, data); (None, None) when unreachable."""
+        try:
+            response = self.client.get(f"{self.settings.openrouter_base_url}/key", timeout=15.0,
+                                       headers={"Authorization": f"Bearer {self.settings.openrouter_api_key}"})
+        except httpx.HTTPError:
+            return None, None
+        try:
+            data = response.json().get("data") if response.status_code == 200 else None
+        except (ValueError, AttributeError):
+            data = None
+        return response.status_code, data if isinstance(data, dict) else None
+
+
+class KeyMonitor:
+    """M308: checks the OpenRouter key at start and every interval_seconds in a daemon thread. A key the service
+    reads from another service's variable is fixed at deploy time, so a key replaced at its source keeps failing here
+    until a redeploy; the check logs web_provider_key_invalid (401/402 or nothing left) the moment it starts, before a
+    reader meets it, and web_provider_credit otherwise."""
+
+    def __init__(self, provider: OpenRouterProvider, interval_seconds: int, low_usd: float) -> None:
+        self.provider = provider
+        self.interval_seconds = interval_seconds
+        self.low_usd = low_usd
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self._run, name="provider-key", daemon=True)
+
+    def start(self) -> None:
+        if self.interval_seconds > 0:
+            self.thread.start()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    def check(self) -> str:
+        status, data = self.provider.key_status()
+        remaining = (data or {}).get("limit_remaining")
+        fields = {"status_code": status, "limit": (data or {}).get("limit"), "limit_remaining": remaining,
+                  "expires_at": (data or {}).get("expires_at")}
+        if status is None or (status != 200 and status not in ACCOUNT_STATUS_CODES):
+            state = "UNKNOWN"
+        elif status in ACCOUNT_STATUS_CODES or (isinstance(remaining, (int, float)) and remaining <= 0):
+            state = "INVALID"
+        else:
+            state = "LOW" if isinstance(remaining, (int, float)) and remaining < self.low_usd else "OK"
+        event = {"INVALID": "web_provider_key_invalid", "UNKNOWN": "web_provider_key_unknown"}.get(
+            state, "web_provider_credit")
+        logger.info(json.dumps({"event": event, "state": state, **fields}))
+        return state
+
+    def _run(self) -> None:
+        while not self.stop_event.is_set():
+            try:
+                self.check()
+            except Exception as exc:  # noqa: BLE001 - monitoring never stops the service
+                logger.info(json.dumps({"event": "web_provider_key_unknown", "error": type(exc).__name__}))
+            self.stop_event.wait(self.interval_seconds)
+
+
+def search_unavailable(warnings: list[dict[str, Any]], search_calls: int) -> bool:
+    """M308: no search answered and at least one failed on the provider: the web could not be searched, which is not
+    the same as a search that found nothing."""
+    return search_calls == 0 and any(w.get("code") == "SEARCH_FAILED"
+                                     and str(w.get("message") or "").split(" ")[0] in UNAVAILABLE_CODES
+                                     for w in warnings)
+
+
+def search_failure(exc: Exception) -> dict[str, str]:
+    """The SEARCH_FAILED warning of one search: the provider code and its HTTP status when there is one."""
+    code = getattr(exc, "code", type(exc).__name__)
+    status = getattr(exc, "status_code", None)
+    return {"code": "SEARCH_FAILED", "message": f"{code} HTTP {status}" if status else code}
+
+
+def _refusal_reason(response: Any, secret: str | None) -> str:
+    """OpenRouter's own error message (at most 200 characters, the key removed), or empty."""
+    try:
+        body = response.json()
+        message = (body.get("error") or {}).get("message") if isinstance(body, dict) else None
+    except (ValueError, AttributeError):
+        message = None
+    text = str(message or "")[:200]
+    return text.replace(secret, "<key>") if secret else text
 
 
 class _DeadlineExceeded(Exception):

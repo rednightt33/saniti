@@ -61,6 +61,7 @@ def settings_for(tmp_path, **extra):
         "WEB_SLOT_3_ENABLED": "false",
         "WEB_SLOT_2_REASONING_EFFORT": "low",
         "WEB_MAX_RESULTS_PER_SEARCH": "30",
+        "WEB_PROVIDER_KEY_CHECK_SECONDS": "0",
     }
     env.update(extra)
     return Settings.from_env(env)

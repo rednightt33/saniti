@@ -29,13 +29,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import sources as S
 from .config import Settings
-from .provider import OpenRouterProvider, ProviderError, _extract_output
+from .provider import OpenRouterProvider, ProviderError, _extract_output, search_failure, search_unavailable
 
 DEADLINE_SECONDS = 30.0
 RESULTS_PER_SEARCH = 5
 EXCERPT_CHARACTERS = 1500
 TTL_DAYS = 30
-STATUSES = ("CONFIRMED", "CONFLICTING", "PARTIAL", "NOT_FOUND")
+STATUSES = ("CONFIRMED", "CONFLICTING", "PARTIAL", "NOT_FOUND", "UNAVAILABLE")
 OFFICIAL_SEARCH_DOMAINS = S.BUILT_IN_PRIMARY
 
 EXTRACT_SCHEMA: dict[str, Any] = {
@@ -219,6 +219,8 @@ class FactService:
                 status, value, versions = decide(entries, sources, request.attribute)
         elif sources:
             timed_out = True
+        if not sources and search_unavailable(warnings, usage["search_calls"]):
+            status = "UNAVAILABLE"  # M308: no search could run
         if timed_out and status == "NOT_FOUND" and sources:
             status = "PARTIAL"
             warnings.append({"code": "FACT_DEADLINE", "message": f"stopped at {self.deadline_seconds:.0f} s"})
@@ -290,7 +292,9 @@ class FactService:
             try:
                 results.append(future.result())
             except (ProviderError, ValueError) as exc:
-                warnings.append({"code": "SEARCH_FAILED", "message": type(exc).__name__})
+                failure = search_failure(exc)
+                if failure not in warnings:
+                    warnings.append(failure)
         return results, bool(pending)
 
     @staticmethod

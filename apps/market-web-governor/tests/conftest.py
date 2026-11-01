@@ -24,6 +24,7 @@ def make_settings(path: str) -> Settings:
         "WEB_OPENROUTER_MODEL": "test/model",
         "WEB_MAX_CRITERIA": "6",
         "WEB_MAX_SEARCHES": "6",
+        "WEB_PROVIDER_KEY_CHECK_SECONDS": "0",
     })
 
 

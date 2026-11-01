@@ -18,7 +18,7 @@ from .fetcher import DocumentFetcher
 from .governor import GovernorValidationError, WebGovernor
 from .models import CreateWebNeedRequest, ExecuteWebNeedRequest, FastSearchRequest, FetchRequest
 from .orc_web import OrcWebRequest, OrcWebService, PostgresOrcStore
-from .provider import OpenRouterProvider
+from .provider import KeyMonitor, OpenRouterProvider
 from .store import EvidenceJanitor, IdempotencyConflict, SqliteStore, StoreUnavailable
 
 
@@ -63,7 +63,10 @@ def create_app(
     async def lifespan(_: FastAPI):
         janitor = EvidenceJanitor(store, settings.retention_hours, settings.cleanup_interval_seconds)
         janitor.start()
+        key_monitor = KeyMonitor(provider, settings.key_check_seconds, settings.key_low_usd)
+        key_monitor.start()
         yield
+        key_monitor.stop()
         janitor.stop()
         for resource in (provider, fetcher, ask_service, fact_service, orc_web_service):
             close = getattr(resource, "close", None)
