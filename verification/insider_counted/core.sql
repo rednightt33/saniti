@@ -59,8 +59,12 @@ BEGIN
           array_agg(x.insider_key ORDER BY x.transaction_date, x.insider_key)
             FILTER (WHERE x.insider_key IS NOT NULL) AS covered,
           bool_or(x.shares_change = s.shares_change AND s.transaction_date - x.transaction_date BETWEEN -3 AND window_days) AS exact,
-          coalesce(sum(x.shares_change) FILTER (WHERE s.transaction_date - x.transaction_date BETWEEN 0 AND window_days), 0)
-            = s.shares_change AS aggregated
+          -- KSEI's daily change equal to the sum of the holder's IDX reports in the days before it; a zero change
+          -- (rights, splits) or no IDX report in that span is not an aggregate
+          s.shares_change <> 0
+            AND count(*) FILTER (WHERE s.transaction_date - x.transaction_date BETWEEN 0 AND window_days) > 0
+            AND sum(x.shares_change) FILTER (WHERE s.transaction_date - x.transaction_date BETWEEN 0 AND window_days)
+                = s.shares_change AS aggregated
    FROM s LEFT JOIN idx x ON x.ticker = s.ticker AND x.holder_folded = s.holder_folded
                           AND abs(s.transaction_date - x.transaction_date) <= window_days
    WHERE s.data_origin = 'KSEI'
