@@ -9773,3 +9773,121 @@ saat dibutuhkan" atau "selalu seluruh riwayat" untuk panel kanan.
   - Diukur lokal (grafik D BBCA, bundle repo vs bundle baru, Chromium, `Performance.getMetrics` sesudah GC): memori JS
     halaman 19,2–19,3 MB → 38,8–41,1 MB; seluruh riwayat broker masuk 6,7–7,2 dtk → 7,3–8,3 dtk; kalender periode
     2024–2026 → 2016–2026; Broker summary periode bawaan sama; tanpa galat halaman.
+
+## EXEC-FI-TERMINAL — fixed income (yield dan harga) di Terminal (go 2026-11-01)
+
+**Kata user, 2026-11-01:** "Ok with above recommendation, nomor 2 pakai your advice, nomor 3 juga pakai your advice."
+lalu "Yang perlu di note adalah konsep load data dari PG ke storage, tidak usah semua data di load, hanya dara 3-4 hari
+terakhir saja. Samakan logicnya dengan price IDX." dan "jalankan TERMINAL-IND-CARDS as well" (go untuk keduanya).
+- **Keputusan:**
+  - cakupan: semua 24 obligasi (ID 11, AS 13), yield dan harga (dikonfirmasi);
+  - "harga" T-bill AS (`value_unit` PCTDY: US01MY, US02MY, US03MY, US04MY, US06MY, US01Y) ditampilkan dengan label
+    "Discount quote";
+  - sebagai pembanding di grafik saham, nilai terakhir dibawa maksimal 3 hari bursa dan ditandai "dibawa"; celah lebih
+    panjang memutus garis, tidak diisi;
+  - Opsi A (PLAN FI-TERMINAL, 2026-11-01): simbol sendiri di pencarian (grup Fixed income), yield default dengan tombol
+    harga, panel Flow/Broker/Bandar/Events disembunyikan, Statistics dalam bps, bisa jadi pembanding di grafik saham.
+- **Riwayat keputusan (dipindah dari PLAN FI-TERMINAL):**
+
+**Kata user, 2026-11-01:** "Also, bisa prepare data di fixed_income price untuk dimasukan juga ke terminal?", lalu "Opsi A
+... terkait dengan data yield, dan harga, data ini sudah ready di database, bisa dilakukan audit dulu, to ensure data
+quality-nya benar, dan bisa dilakukan sampling, gunakan script yang digunakan untuk ingest baik price dan yield ke
+database ... price dan yield itu tidak semuanya tanggalnya ada ... Siapkan mitigasinya apabila this is the case."
+
+- **Opsi A (disetujui):**
+  - obligasi menjadi simbol sendiri di pencarian (grup Fixed income);
+  - yield sebagai default, dengan tombol harga;
+  - panel Flow, Broker, Bandar dan Events disembunyikan;
+  - Statistics dalam bps;
+  - obligasi juga bisa ditambahkan sebagai pembanding di chart saham.
+- **Seri:** semua 24 obligasi (ID 11, AS 13), yield dan harga. Ini default karena user menyebut keduanya; belum
+  dikonfirmasi eksplisit.
+- **Audit 2026-11-01:** `verification/fixed_income_audit/REPORT.md`. Temuan ERRORS M323 (aturan tanggal AS saat EST)
+  dan M324 (koreksi data); mitigasi tanggal harga-only/yield-only ada di laporan.
+- **Terbuka:**
+  - go untuk perbaikan M323 dan koreksi M324;
+  - rencana eksekusi Terminal: publisher dataset fixed income, terminal-api, Terminal.
+
+- **Storage seperti harga IDX** (`apps/terminal-publisher/publisher.py` `PRICE_STAMPS_SQL`, `changed_prices`): file per
+  obligasi per tahun dengan cap sumber (jumlah baris, tanggal terakhir, waktu masuk terakhir, jumlah close, per metrik).
+  Setiap run membaca cap saja dan menulis ulang hanya tahun yang cap-nya berubah: hari biasa hanya tahun berjalan (yang
+  memuat hari-hari terakhir); tahun lama hanya bila ada koreksi (recovery A atau koreksi manual). Pack per obligasi
+  (semua tahun, satu unduhan) dibangun ulang hanya untuk obligasi yang tersentuh. Tanggal kosong tidak diisi; yield dan
+  harga masing-masing dengan tanggalnya sendiri.
+- **Rencana eksekusi:**
+  - S0: migrasi GRANT SELECT `Price_Fixed_Income`, `Universe_Fixed_income` ke `terminal_market_reader` (sekarang False
+    untuk publisher dan terminal-api, dibaca 2026-11-01); DRYRUN lalu APPLY lewat runner; katalog.
+  - S1 publisher: dataset `fixed_income` (file per obligasi-tahun, pack, manifest, daftar referensi obligasi dengan nama,
+    negara, satuan per metrik, rentang), mode daily/backfill/verify, tes, deploy, backfill sekali, verify 0 beda.
+  - S2 terminal-api: `/bundle` dan daftar simbol menyajikan obligasi; tes; deploy.
+  - S3 Terminal: grup Fixed income di pencarian; halaman obligasi D/W/M (tombol intraday mati), yield default + tombol
+    Price (label "Discount quote" untuk PCTDY), panel saham disembunyikan, Statistics bps; pembanding di grafik saham
+    dengan aturan dibawa ≤ 3 hari bursa.
+  - S4: cek halaman = storage = SQL, deploy, catatan (ERRORS, changelog, FRONTEND_HANDOFF, katalog).
+- **Urutan:** sesudah perbaikan audit F3/F7/F8, sebelum TERMINAL-IND-CARDS.
+
+## EXEC-IND-CARDS — menu indikator, tooltip, dan kartu "cara kerja" di Terminal (go 2026-11-01)
+
+**Kata user, 2026-11-01:** "jalankan TERMINAL-IND-CARDS as well." Desain yang disetujui ada di PLAN TERMINAL-IND-CARDS
+(dipindah ke sini): satu kartu dengan tab Kalkulator, Grafik, Langkah ("Saya minta opsi pertama adalah kalkulator, kedua
+adalah grafik, ketiga adalah langkah"); tooltip "1A"; "2b 3a"; bintang favorit diperbesar; isi mengikuti cara Terminal
+menghitung (`calc/flow.ts`, `calc/indicators.ts`, registry), tanpa Screener. Mockup:
+`verification/terminal_api/indicator_cards/indicator_cards_review.html`.
+- **Riwayat keputusan (dipindah dari PLAN TERMINAL-IND-CARDS):**
+
+**Kata user, 2026-10-31:** "Kemudian saya mau ketika di bagian terminal kita klik indikator, maka bisa dibuat seperti
+screenshot terlampir. Dan juga ditambahkan semacam tooltip. Intinya adalah cards ya, atau ilustrasi how that indicator
+works. Mungkin boleh kasih satu HTML dulu agar saya review. Bagian cards-nya akan seperti apa terlihatnya. Lebih kurang
+yang harus ada di cards sama seperti pertanyaan-pertanyaan yang kamu jawab kalau saya bertanya bagaimana sebuah indikator
+bekerja. Jadi harus ada contoh. Bagaimana setiap angka di indikator tersebut drive. Coba kasih saya 5 contoh dalam satu
+HTML buat saya pilih. Pakai design spec terlampir."
+
+- **Review:** `verification/terminal_api/indicator_cards/indicator_cards_review.html`, dibuat dengan `build_review.py`
+  dari registry Terminal (92 indikator) dan design spec user (`edge-design-spec.css`). Isinya: menu bergaya
+  TradingView, tooltip saat hover, dan kartu A Ringkas, B Langkah, C Grafik, D Kalkulator, E Lengkap bertab.
+- **Contoh nyata:** FL24 BBCA 14–27 Okt 2026 = −5,62%, sama dengan oracle independen (`fl24_bbca_example.json`).
+- **Keputusan desain, 2026-11-01 (kata user):** "Saya minta opsi pertama adalah kalkulator, kedua adalah grafik,
+  ketiga adalah langkah. Ini dibuat jadi satu card saja dengan tab untuk ketiganya."
+  - Satu kartu, tiga tab berurutan: Kalkulator (D), Grafik (C), Langkah (B).
+- **Acuan isi kartu, 2026-11-01 (kata user):** "samakan dengan bagaimana formula dihitung di terminal. Jangan
+  sangkut-pautkan dengan screener dulu. Fokus ke bagaimana formula tersebut dihitung. Dan di display di terminal."
+  - Isi kartu dan tooltip diambil dari `calc/flow.ts` (sebagaimana ditulis `FORMULAS.md`) dan dari registry Terminal.
+  - Kartu tidak merujuk ke Screener.
+  - Inspeksi kode semua FL: `verification/terminal_api/flow_indicators/CODE_INSPECTION_20261101.md`.
+- **Tooltip, 2026-11-01 (kata user):** "1A". Tooltip saat hover tetap ringkas seperti desain A (definisi, hasil,
+  rumus dengan angka).
+- **Catatan dan urutan kerja, 2026-11-01 (kata user):** "2b 3a".
+  - 2b: rumus, parameter (default Terminal) dan hal yang perlu diwaspadai tampil sebagai catatan singkat di bawah tab
+    Langkah.
+  - 3a: mockup diperbarui dulu untuk direview, baru dibangun di Terminal.
+  - Mockup baru: satu kartu bertab Kalkulator, Grafik, Langkah, juga ditampilkan sendiri; galeri lima desain dihapus.
+    Data contoh tidak lagi memuat teks Screener. Dicek dengan playwright (desktop 1366, ponsel 390, mode gelap): tanpa
+    error, tanpa scroll ke samping.
+- **Review mockup, 2026-11-01 (kata user):** "bagian star dibuat lebih besar spt SS terlampir. The rest sudah OK".
+  - Bintang favorit di menu diperbesar (20 px dalam tombol 30 px, abu-abu; terisi oranye). Dicek dengan playwright
+    di desktop dan ponsel.
+  - Bagian lain mockup disetujui.
+- **Terbuka:**
+  - lalu rencana eksekusi: langkah hitung "explain" per indikator yang memakai saham dan tanggal yang sedang dibuka,
+    untuk 53 indikator teknikal dan 39 Flow.
+
+- **Rencana eksekusi (bertahap, setiap tahap di-deploy):**
+  - IC1: menu indikator seperti mockup (grup, cari, favorit bintang, label Overlay/Panel) menggantikan picker sekarang;
+    tooltip 1A saat hover (definisi, nilai sekarang, rumus dengan angka).
+  - IC2: kartu tiga tab dibuka dari menu dan dari legenda indikator; catatan rumus, parameter (default Terminal) dan hal
+    yang perlu diwaspadai di bawah Langkah.
+  - IC3: langkah hitung untuk 39 indikator Flow dari `calc/flow.ts`, dengan saham dan tanggal yang sedang dibuka; tes
+    bahwa angka kartu = angka indikator di grafik.
+  - IC4: langkah hitung untuk 53 indikator teknikal dari `calc/indicators.ts`, dengan tes yang sama.
+  - IC5: cek halaman (desktop, ponsel, mode gelap), deploy, catatan.
+
+## EXEC-UI-AUDIT-FIX — temuan audit tampilan F3, F7, F8 (go 2026-11-01)
+
+**Kata user, 2026-11-01:** "Ok with you advice nomor 1" atas F3, F7, F8 (ERRORS M326).
+- F3: di layar sempit toolbar tetap satu baris yang bisa digeser ke samping (semua tombol terjangkau).
+- F7: menyimpan gambar intraday di timeframe kasar tidak menggeser titik yang tidak diubah user (waktu aslinya dipakai).
+- F8: dua butir C3 yang terlewat dibangun: garis tipis di awal setiap sesi intraday, dan catatan di grafik "Riwayat 5M
+  mulai …" / "Data sampai … WIB". (F8 tidak diberi saran sebelumnya; dibaca sebagai bangun, karena sudah disetujui di
+  C3. User bisa membatalkan.)
+- Belum diputuskan: M322 (pembungkus runner menulis tanda selesai) menunggu go; dua baris yield 26 Okt dibiarkan sampai
+  laporan Sabtu (saran, tanpa tindakan).
