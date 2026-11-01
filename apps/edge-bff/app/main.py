@@ -32,7 +32,10 @@ SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 # routes the page may reach through this gateway (sign-in, password and admin routes stay on terminal-api only)
 TERMINAL_APP = STATIC / 'terminal-app'
 TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|woff2|svg|png)')
-TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/(?:tickers|brokers|logos)|history/(?:price|broker)'
+# reference/<name>: the gateway checks only the name's shape (terminal-api's REF_NAME); terminal-api owns the list of
+# reference files and answers 404 unknown_reference for any other name, so a new reference file (fixed_income,
+# EXEC-FI-TERMINAL, M327) needs no change here
+TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/[a-z0-9][a-z0-9_-]{0,31}|history/(?:price|broker)'
                                       r'|logo/[A-Z0-9]{1,12}'),   # logo: EXEC-TERMINAL-LOGO
                    'POST': re.compile(r'files|bundle')}   # bundle: every file of one ticker in one call (EXEC-TERMINAL-UI-1026 U6)
 # The terminal page has no inline script; it downloads its files from the private bucket by presigned URL (virtual-host

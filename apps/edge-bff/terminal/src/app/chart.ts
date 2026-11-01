@@ -1,6 +1,6 @@
 /* Main price chart, compare series and the toolbar groups (reference lines 1137-1384). */
 import type { Ctx } from './context';
-import { $, hasLogos, keyOf, logoHtml } from './context';
+import { $, hasLogos, logoHtml } from './context';
 import type { Point } from '../data/types';
 
 export function initChart(ctx: Ctx) {
@@ -87,12 +87,7 @@ export function initChart(ctx: Ctx) {
   ctx.chartStyle = 'candle';
   ctx.displayMode = 'price';
 
-  /* EXEC-FI-TERMINAL: a bond compare series is its yield, in % on a scale of its own (beside a share price it would be a
-     flat line on the right axis), never rebased to a "return" */
-  const bondSpec = (id: string) => ctx.catalog.find(item => item.id === id && item.bond);
-  const bondFormat = { type:'custom' as const, formatter:(v: number) => v.toFixed(3) + '%', minMove:.001 };
   function dataFor(id: string) {
-    if (bondSpec(id)) return ctx.rawSeries[id];
     return ctx.displayMode === 'return' ? asReturn(ctx.rawSeries[id]) : ctx.rawSeries[id];
   }
 
@@ -125,27 +120,11 @@ export function initChart(ctx: Ctx) {
   }
   ctx.updateMainDisplay = updateMainDisplay;
 
-  /* EXEC-FI-TERMINAL: under the crosshair a bond chip reads its yield of that candle, and "carried from <date>" when the
-     bond did not trade that session (the faded part of its line) */
-  const bondAt = new Map<string, Map<string, any>>();
-  const shortDay = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' });
-  chart.subscribeCrosshairMove((p: any) => {
-    for (const [id, item] of active) {
-      if (!item.bond) continue;
-      const el = document.querySelector(`[data-bond-val="${id}"]`) as HTMLElement | null; if (!el) continue;
-      let at = bondAt.get(id);
-      if (!at) { at = new Map((ctx.rawSeries[id] || []).map((pt: any) => [String(pt.time), pt])); bondAt.set(id, at) }
-      const pt = p && p.time !== undefined ? at.get(keyOf(p.time) || '') : null;
-      el.textContent = pt && Number.isFinite(pt.value) ? ` ${pt.value.toFixed(3)}%` + (pt.customValues?.carriedFrom ? ` · carried from ${shortDay(pt.customValues.carriedFrom)}` : '') : '';
-      el.classList.toggle('carried', !!pt?.customValues?.carriedFrom);
-    }
-  });
-
   function refreshSeries(id: string) {
     const item = active.get(id);
     if (!item) return;
     item.series.setData(dataFor(id));
-    item.series.applyOptions(bondSpec(id) ? { title:item.symbol + ' yield', priceFormat:bondFormat } : {
+    item.series.applyOptions({
       title:item.symbol + (ctx.displayMode === 'return' ? ' return' : ''),
       priceFormat:ctx.formatMode()
     });
@@ -160,8 +139,8 @@ export function initChart(ctx: Ctx) {
       return;
     }
     const series = chart.addSeries(L.LineSeries, {
-      title:spec.symbol + (spec.bond ? ' yield' : ctx.displayMode === 'return' ? ' return' : ''),
-      priceScaleId:spec.bond ? `bond-${spec.id}` : 'right',
+      title:spec.symbol + (ctx.displayMode === 'return' ? ' return' : ''),
+      priceScaleId:'right',
       color:spec.color,
       lineWidth:2,
       priceFormat:ctx.formatMode(),
@@ -170,8 +149,7 @@ export function initChart(ctx: Ctx) {
     });
     active.set(id, { ...spec, series, visible:true });
     refreshSeries(id);
-    if (spec.bond) chart.priceScale(`bond-${spec.id}`).applyOptions({ scaleMargins:{ top:.12, bottom:.25 } });
-    else chart.priceScale('right').applyOptions({ visible:true, autoScale:true });
+    chart.priceScale('right').applyOptions({ visible:true, autoScale:true });
     renderSeriesUi();
   }
 
@@ -217,7 +195,6 @@ export function initChart(ctx: Ctx) {
     tabs.innerHTML = Array.from(active.values()).map(item =>
       '<button class="series-chip ' + (item.visible ? '' : 'off') + '" data-toggle-series="' + item.id + '" style="--series-color:' + item.color + '">' +
       '<span class="series-dot"></span>' + (hasLogos() ? logoHtml(item.symbol, 'tk-sm') : '') + '<span class="series-symbol">' + item.symbol + '</span>' +
-      (item.bond ? '<span class="series-val" data-bond-val="' + item.id + '"></span>' : '') +
       '<span class="chip-x" data-remove-series="' + item.id + '">×</span></button>'
     ).join('');
     $('seriesCount').textContent = active.size + ' active';

@@ -14,7 +14,7 @@
 import type { Ctx, FilterApi } from './context';
 import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, rupiah, spin, store } from './context';
 import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
-import type { Bar, Combo, Instrument } from '../data/types';
+import type { AssetBar, Bar, Combo, Instrument } from '../data/types';
 import { UNIT } from '../data/timeframe';
 import { anchorTimeScale } from '../data/chartTime';
 
@@ -54,8 +54,20 @@ export function legendPct(bars: Bar[], at: number, source: AssetSource, ret: boo
   const p = bars[at - 1]; if (!p) return null;
   const pv = sourceOf(p, source); return pv ? (v / pv - 1) * 100 : null;
 }
+/** EXEC-FI-TERMINAL: a bond's legend figure (its yield): the change in basis points from its previous candle with a
+    value (a gap candle has none), or in Return mode from its first candle; a percent of a yield would mean nothing */
+export function legendBp(bars: AssetBar[], at: number, source: AssetSource, ret: boolean): number | null {
+  const b = bars[at]; if (!b || b.gap) return null;
+  const v = sourceOf(b, source);
+  if (ret) { const first = bars.find(x => !x.gap); return first ? (v - sourceOf(first, source)) * 100 : null }
+  let k = at - 1; while (k >= 0 && bars[k].gap) k--;
+  return k < 0 ? null : (v - sourceOf(bars[k], source)) * 100;
+}
 const KEY = 'ml.assets.v1', DEF_KEY = 'ml.assets.defaults';
 const fmtPct = (v: number | null) => v === null || !Number.isFinite(v) ? '' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
+const fmtBp = (v: number | null) => v === null || !Number.isFinite(v) ? '' : (Math.abs(v) < .05 ? '±' : v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' bp';
+const shortDay = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', timeZone:'UTC' });
+const CARRIED = 'rgba(100,116,139,.55)';                 // a bond value carried onto a session it did not trade (faded)
 const esc = (t: string) => String(t).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]!));
 const rgba = (hex: string, a: number) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})` };
 
@@ -68,8 +80,9 @@ interface FlowPane {
   over: boolean;                                         // the pointer is on the pane (only then it moves the chart: EXEC-TERMINAL-LAG)
   through?: string; noData: HTMLElement; placeNoData: () => void;
 }
-interface Asset { ticker: string; name: string; opts: AssetOpts; bars: Bar[]; at: Map<string, number>; series: any; row: HTMLElement;
-  state: 'loading' | 'ready' | 'failed'; pane: FlowPane | null }
+interface Asset { ticker: string; name: string; opts: AssetOpts; bars: AssetBar[]; at: Map<string, number>; series: any; row: HTMLElement;
+  state: 'loading' | 'ready' | 'failed'; pane: FlowPane | null;
+  bond: boolean }                                        // EXEC-FI-TERMINAL: a government bond: its yield, no Flow Timeline
 
 export function initAssets(ctx: Ctx) {
   if (ctx.M.mode !== 'live' || !ctx.M.loadAsset) return;
@@ -120,14 +133,18 @@ export function initAssets(ctx: Ctx) {
   }
   function paintRow(a: Asset, i = ctx.lastTipIdx) {
     const r = a.row;
-    (r.querySelector('.as-name') as HTMLElement).textContent = `${a.name} · IDX`;
+    (r.querySelector('.as-name') as HTMLElement).textContent = `${a.name} · ${a.bond ? 'Yield' : 'IDX'}`;
     (r.querySelector('.as-name') as HTMLElement).title = a.ticker;
     const b = r.querySelector('.as-chg') as HTMLElement;
+    const at = barAt(a, Math.min(i, N - 1)), bar = a.bars[at];
     if (a.state === 'loading') b.innerHTML = spin('Loading');
-    else if (a.state === 'failed') b.textContent = 'Could not be loaded';
-    else b.textContent = fmtPct(legendPct(a.bars, barAt(a, Math.min(i, N - 1)), a.opts.source, ret()));
-    b.style.color = a.state === 'ready' ? a.opts.color : '';
-    b.title = ret() ? 'Return from the first candle' : 'Change from the previous candle';
+    else if (a.state === 'failed') b.textContent = a.bond && ctx.M.intraday ? 'Daily, weekly or monthly chart only' : 'Could not be loaded';
+    else if (a.bond) b.textContent = bar && !bar.gap ? `${sourceOf(bar, a.opts.source).toFixed(3)}% ${fmtBp(legendBp(a.bars, at, a.opts.source, ret()))}`
+      + (bar.carriedFrom ? ` · carried from ${shortDay(bar.carriedFrom)}` : '') : bar?.gap ? 'No value (market closed)' : '';
+    else b.textContent = fmtPct(legendPct(a.bars, at, a.opts.source, ret()));
+    b.style.color = a.state === 'ready' ? (bar?.carriedFrom ? '#64748b' : a.opts.color) : '';
+    b.title = a.bond ? (ret() ? 'Yield, and its change from the first candle in basis points' : 'Yield, and its change from the previous candle in basis points')
+      : ret() ? 'Return from the first candle' : 'Change from the previous candle';
     r.classList.toggle('off', !a.opts.visible);
     const eye = r.querySelector('[data-act="eye"]') as HTMLElement;
     eye.setAttribute('aria-pressed', String(a.opts.visible)); eye.dataset.label = a.opts.visible ? 'Hide' : 'Show';
@@ -135,14 +152,19 @@ export function initAssets(ctx: Ctx) {
 
   /* ---- the series on the chart ---- */
   const scaleId = (a: Asset) => a.opts.scale === 'own' ? `asset-${a.ticker}` : a.opts.scale;
-  const priceFormat = (a: Asset): any => ret() ? ctx.formatMode()
-    : a.opts.minTick === 'default' ? { type:'price', precision:2, minMove:.01 }
+  // a bond's yield keeps its own figures in Return mode (a yield is not rebased to a return)
+  const priceFormat = (a: Asset): any => ret() && !a.bond ? ctx.formatMode()
+    : a.opts.minTick === 'default' ? (a.bond ? { type:'price', precision:3, minMove:.001 } : { type:'price', precision:2, minMove:.01 })
     : { type:'price', precision:Math.max(0, -Math.log10(+a.opts.minTick)), minMove:+a.opts.minTick };
   function dataOf(a: Asset) {
-    const o = a.opts, r = ret(), base = a.bars.length ? (o.style === 'bars' || o.style === 'candles' ? a.bars[0].close : sourceOf(a.bars[0], o.source)) : 1;
+    const o = a.opts, r = ret() && !a.bond, base = a.bars.length ? (o.style === 'bars' || o.style === 'candles' ? a.bars[0].close : sourceOf(a.bars[0], o.source)) : 1;
     const v = (x: number) => r ? +((x / base - 1) * 100).toFixed(4) : x;
-    if (o.style === 'bars' || o.style === 'candles') return a.bars.map(b => ({ time:b.time, open:v(b.open), high:v(b.high), low:v(b.low), close:v(b.close) }));
-    return a.bars.map(b => ({ time:b.time, value:v(sourceOf(b, o.source)) }));
+    /* EXEC-FI-TERMINAL: a carried bond value is drawn faded; a gap candle is a point without a value (the line breaks) */
+    const faded = (b: AssetBar) => !b.carriedFrom ? {} : o.style === 'area' ? { lineColor:CARRIED }
+      : o.style === 'candles' ? { color:CARRIED, borderColor:CARRIED, wickColor:CARRIED } : { color:CARRIED };
+    if (o.style === 'bars' || o.style === 'candles') return a.bars.map(b => b.gap ? { time:b.time }
+      : { time:b.time, open:v(b.open), high:v(b.high), low:v(b.low), close:v(b.close), ...faded(b) });
+    return a.bars.map(b => b.gap ? { time:b.time } : { time:b.time, value:v(sourceOf(b, o.source)), ...faded(b) });
   }
   function apply(a: Asset) {
     if (a.series) { try { chart.removeSeries(a.series) } catch (_) {} a.series = null }
@@ -170,7 +192,9 @@ export function initAssets(ctx: Ctx) {
     const opts: AssetOpts = { ...defaultOpts(slot, others), ...savedDefaults(), ...(saved || {}) };
     if (!saved && used.has(opts.color)) opts.color = ASSET_COLORS.find(c => !used.has(c)) || opts.color;
     if (!saved && opts.scale === 'right' && others.some(o => o.scale === 'right')) opts.scale = 'own';
-    const a: Asset = { ticker, name:nameOf(ticker), opts, bars:[], at:new Map(), series:null, row:null as any, state:'loading', pane:null };
+    const bond = !!ctx.M.isBond?.(ticker);
+    if (bond) opts.flow = false;                           // a bond has no broker data: no Flow Timeline
+    const a: Asset = { ticker, name:nameOf(ticker), opts, bars:[], at:new Map(), series:null, row:null as any, state:'loading', pane:null, bond };
     a.row = buildRow(a);
     assets.splice(Math.min(slot, assets.length), 0, a);
     rows.replaceChildren(...assets.map(x => x.row));
@@ -203,7 +227,7 @@ export function initAssets(ctx: Ctx) {
         <div class="idlg-tabs" role="tablist">${['Inputs', 'Style', 'Visibility'].map(t => `<button type="button" role="tab" data-tab="${t}">${t}</button>`).join('')}</div>
         <div class="idlg-body"></div>
         <div class="idlg-foot"><select class="idlg-in sm as-defaults" aria-label="Defaults"><option value="" selected disabled>Defaults</option><option value="reset">Reset settings</option><option value="save">Save as default</option></select><span class="sp"></span><button class="idlg-btn" type="button" data-act="cancel">Cancel</button><button class="idlg-btn pri" type="button" data-act="ok">Ok</button></div></div>`;
-    back.querySelector('h2').textContent = `${a.name} · IDX`;
+    back.querySelector('h2').textContent = `${a.name} · ${a.bond ? 'Yield' : 'IDX'}`;
     const body = back.querySelector('.idlg-body'), dlg = back.querySelector('.idlg');
     const o = a.opts;
     const live = () => apply(a);
@@ -263,7 +287,7 @@ export function initAssets(ctx: Ctx) {
         body.appendChild(row('Override min tick', sel(TICKS, o.minTick, v => { o.minTick = v as AssetOpts['minTick']; live() })));
       } else {
         body.appendChild(row('Show on the chart', toggle(o.visible, v => { o.visible = v; live() })));
-        body.appendChild(row('Flow Timeline below the chart', toggle(o.flow, v => { o.flow = v; live() })));
+        if (!a.bond) body.appendChild(row('Flow Timeline below the chart', toggle(o.flow, v => { o.flow = v; live() })));
       }
     }
     const close = (keep: boolean) => {

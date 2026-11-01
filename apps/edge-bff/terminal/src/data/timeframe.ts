@@ -4,7 +4,7 @@
    the Monday), a month is a calendar month. The candle carries the date of its first session (`starts`) and of its last
    one (`ends`); the running week or month is shown as it stands (K1). */
 import type { PriceRow } from './worker';
-import type { Bar } from './types';
+import type { AssetBar, Bar } from './types';
 
 /* EXEC-INTRADAY-FEATURES C3 (user 2026-11-01): intraday timeframes are the manifest's ('5m', '15m', '1h', '4h' today),
    never a list here: any `<number><m|h>` is one, and the page offers those the ticker's /bundle answer lists. */
@@ -99,6 +99,36 @@ export function alignCandles(sessions: string[], groups: { starts: string[]; of:
     else out.push({ time, open:bar.o, high:bar.h, low:bar.l, close:bar.c });
   });
   return out;
+}
+
+/* EXEC-FI-TERMINAL (user 2026-11-01, "nomor 3 juga pakai your advice"): another market's series on the chart's candles (a
+   bond added to a stock chart). A session the series has a row for takes it; a session it has none for (its market was
+   closed) carries its last close for at most `maxCarry` sessions in a row, marked with the date it comes from; a longer
+   run has no value (a gap candle: the line breaks, nothing is filled). A row on a date the chart has no session for (the
+   bourse was closed) becomes the last close. A weekly or monthly candle with any own session is the series' own (open,
+   high, low and close of those sessions only: a carried value is no trade of that week); with carried sessions only it
+   is carried; with neither it is a gap. Before the first row: nothing. */
+export const CARRY_SESSIONS = 3;
+export function alignCandlesCarry(sessions: string[], groups: { starts: string[]; of: number[] }, rows: PriceRow[],
+                                  maxCarry = CARRY_SESSIONS): AssetBar[] {
+  // per candle: the series' own rows of its sessions, and the last value carried onto one of them
+  const candles: { time: string; own: PriceRow[]; carried: { c: number; from: string } | null }[] = [];
+  let k = 0, last: PriceRow | null = null, run = 0;
+  sessions.forEach((d, i) => {
+    let own: PriceRow | null = null;
+    while (k < rows.length && rows[k].d <= d) { last = rows[k]; if (rows[k].d === d) own = rows[k]; k++ }
+    if (!last) return;
+    run = own ? 0 : run + 1;
+    const time = groups.starts[groups.of[i]];
+    let cur = candles[candles.length - 1];
+    if (!cur || cur.time !== time) { cur = { time, own:[], carried:null }; candles.push(cur) }
+    if (own) cur.own.push(own);
+    else if (run <= maxCarry) cur.carried = { c:last.c, from:last.d };
+  });
+  return candles.map(({ time, own, carried }) => own.length
+    ? { time, open:own[0].o, high:Math.max(...own.map(r => r.h)), low:Math.min(...own.map(r => r.l)), close:own[own.length - 1].c }
+    : carried ? { time, open:carried.c, high:carried.c, low:carried.c, close:carried.c, carriedFrom:carried.from }
+    : { time, open:NaN, high:NaN, low:NaN, close:NaN, gap:true });
 }
 
 /* EXEC-INTRADAY-FEATURES C4 (user 2026-11-01: "Sabtu kita pakai A, namun ini hanya berlaku intraday literally di hari

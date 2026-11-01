@@ -38,6 +38,8 @@ class FakeTerminal:
                                    'headers': dict(headers or {})})
         if url.endswith('/files'):
             return httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'files per hour'})
+        if url.endswith('/reference/secrets'):
+            return httpx.Response(404, json={'error': 'unknown_reference', 'message': 'Reference files: brokers, logos, tickers.'})
         if '/logo/' in url:
             return httpx.Response(200, content=b'<svg/>', headers={'content-type': 'image/svg+xml', 'cache-control': 'private, max-age=604800',
                                                                    'etag': '"abc"', 'content-security-policy': "default-src 'none'; sandbox", 'x-other': '1'})
@@ -96,9 +98,22 @@ def test_gateway_forwards_only_the_data_routes(gateway):
     assert c.get('/api/terminal/v1/history/price?ticker=BBCA&from=2019-01-01&to=2019-02-01').status_code == 200
     assert FakeTerminal.calls[-1]['params'] == {'ticker': 'BBCA', 'from': '2019-01-01', 'to': '2019-02-01'}
     n = len(FakeTerminal.calls)
-    for path in ('admin/subscribers', 'auth/session', 'manifest/bbca', 'manifest/../admin', 'reference/secrets'):
+    for path in ('admin/subscribers', 'auth/session', 'manifest/bbca', 'manifest/../admin', 'reference/../admin',
+                 'reference/Tickers', 'reference/' + 'x' * 33):
         assert c.get(f'/api/terminal/v1/{path}').status_code == 404, path
     assert len(FakeTerminal.calls) == n
+
+
+def test_gateway_leaves_the_reference_names_to_terminal_api(gateway):
+    """M327: a reference file the publisher adds (fixed_income) reaches terminal-api without a gateway change; terminal-api
+    owns the list and its 404 for an unknown name passes through."""
+    c = gateway
+    login(c)
+    for name in ('tickers', 'brokers', 'logos', 'fixed_income'):
+        assert c.get(f'/api/terminal/v1/reference/{name}').status_code == 200, name
+        assert FakeTerminal.calls[-1]['url'].endswith(f'/api/terminal/v1/reference/{name}')
+    r = c.get('/api/terminal/v1/reference/secrets')
+    assert r.status_code == 404 and r.json()['error'] == 'unknown_reference'
 
 
 def test_gateway_off_when_not_configured(settings, store):

@@ -135,7 +135,8 @@ const TICKERS = { columns:['ticker', 'name', 'type', 'sector'], ticker:['MAPI', 
 const BROKERS = { columns:['code', 'name', 'type'], code:['AK'], name:['UBS'], type:['Foreign'] };
 /* EDGE and terminal-api as the page sees them: `bundles[k]` answers the k-th /bundle of a ticker (the last one again
    when they run out) as {dataset: [file]}; `refs` the /reference answers (with or without sha256 and bytes) */
-async function edge(opts: { bundles: Record<string, Record<string, Uint8Array | { body: Uint8Array; announced: Uint8Array }>>[]; refs?: Record<string, { body: Uint8Array; announced?: Uint8Array | null }[]> }) {
+async function edge(opts: { bundles: Record<string, Record<string, Uint8Array | { body: Uint8Array; announced: Uint8Array }>>[]; refs?: Record<string, { body: Uint8Array; announced?: Uint8Array | null }[]>;
+                            maxDatasets?: number }) {
   const files: Record<string, Uint8Array> = {}, seen = { bundle:0, bundleOf:{} as Record<string, number>, reference:{} as Record<string, number> };
   const tickers = await gz(TICKERS), brokers = await gz(BROKERS), logos = await gz({ columns:['ticker', 'sha256'], ticker:[], sha256:[] });
   const refs = opts.refs || {};
@@ -151,6 +152,9 @@ async function edge(opts: { bundles: Record<string, Record<string, Uint8Array | 
     }
     if (url === '/api/terminal/v1/bundle') {
       const body = JSON.parse(String(init!.body));
+      // a terminal-api whose dataset list is shorter than the page's request refuses it (M327: a fixed cap of 3)
+      if (opts.maxDatasets && body.datasets.length > opts.maxDatasets)
+        return Response.json({ error:'invalid_request', fields:[{ field:'datasets', problem:'too many' }] }, { status:400 });
       seen.bundle++; const k = seen.bundleOf[body.ticker] = (seen.bundleOf[body.ticker] || 0) + 1;
       const plan = opts.bundles[Math.min(k, opts.bundles.length) - 1][body.ticker] || {};
       const datasets: Record<string, unknown> = {};
@@ -168,6 +172,40 @@ async function edge(opts: { bundles: Record<string, Record<string, Uint8Array | 
   });
   return seen;
 }
+
+/* M327 (EXEC-FI-TERMINAL): a remembered bond's first request asks for every dataset; an answer without the chosen
+   metric's files (a terminal-api that refused the request, then the stock-only fallback) is never drawn as an empty chart */
+describe('live.ts: bonds (EXEC-FI-TERMINAL)', () => {
+  const bonds = async () => [{ body:await gz({ columns:['ticker', 'name', 'country'], ticker:['ID10Y'], name:['Indonesia 10Y'], country:['Indonesia'] }), announced:null }];
+  const yieldDoc = { ...priceDoc([6.1, 6.2, 6.3]), ticker:'ID10Y' }, bondPrice = { ...priceDoc([98, 97.5, 97]), ticker:'ID10Y' };
+  it('one /bundle when the first answer carries the yield files', async () => {
+    const seen = await edge({ bundles:[{ ID10Y:{ yield:await gz(yieldDoc), price:await gz(bondPrice) } }], refs:{ fixed_income:await bonds() } });
+    const M = await liveData('ID10Y');
+    expect(M.ohlc.map(b => b.close)).toEqual([6.1, 6.2, 6.3]);
+    expect(seen.bundleOf.ID10Y).toBe(1);
+  });
+  it('a refused first request: the fallback answer has no yield, so the bond asks for its own datasets once more', async () => {
+    const seen = await edge({ bundles:[{ ID10Y:{ yield:await gz(yieldDoc), price:await gz(bondPrice) } }], refs:{ fixed_income:await bonds() }, maxDatasets:3 });
+    const M = await liveData('ID10Y');
+    expect(M.ohlc.map(b => b.close)).toEqual([6.1, 6.2, 6.3]);
+    expect(seen.bundleOf.ID10Y).toBe(2);                    // the stock-only fallback, then yield and price
+  });
+  it('a bond added to a stock chart: its yield on the stock sessions, a session it did not trade carried and marked', async () => {
+    const twoDays = { ...yieldDoc, d:['2026-10-01', '2026-10-03'], o:[6.1, 6.3], h:[6.1, 6.3], l:[6.1, 6.3], c:[6.1, 6.3], v:[null, null] };
+    const seen = await edge({ bundles:[{ MAPI:{ price:await gz(priceDoc([800, 810, 820])) }, ID10Y:{ yield:await gz(twoDays) } }], refs:{ fixed_income:await bonds() } });
+    const M = await liveData('MAPI');
+    expect([M.isBond!('ID10Y'), M.isBond!('MAPI')]).toEqual([true, false]);
+    const bars = await M.loadAsset!('ID10Y');
+    expect(bars.map(b => [b.time, b.close, b.carriedFrom ?? null])).toEqual([['2026-10-01', 6.1, null], ['2026-10-02', 6.1, '2026-10-01'], ['2026-10-03', 6.3, null]]);
+    expect(seen.bundleOf.ID10Y).toBe(1);                    // the yield dataset alone
+  });
+  it('the price metric reads the bond price from the same first answer', async () => {
+    const seen = await edge({ bundles:[{ ID10Y:{ yield:await gz(yieldDoc), price:await gz(bondPrice) } }], refs:{ fixed_income:await bonds() } });
+    const M = await liveData('ID10Y', 'D', 'price');
+    expect(M.ohlc.map(b => b.close)).toEqual([98, 97.5, 97]);
+    expect(seen.bundleOf.ID10Y).toBe(1);
+  });
+});
 
 describe('live.ts: a failed check asks one new /bundle, then shows the plain message', () => {
   it('correct files draw (one /bundle)', async () => {

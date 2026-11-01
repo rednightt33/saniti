@@ -5,9 +5,10 @@ import type { Timeframe } from './timeframe';
 
 export interface Bar { time: string; open: number; high: number; low: number; close: number }
 export interface Point { time: string; value: number }
-/** EXEC-FI-TERMINAL: a compare point a bond did not trade on: its last value carried (faded, `carriedFrom` its date),
-    or a gap (no value: the line breaks) */
-export interface CarryPoint { time: string; value?: number; color?: string; customValues?: { carriedFrom: string } }
+/** EXEC-FI-TERMINAL: a candle of an added asset. A bond on a stock chart may carry its last close onto a session it did
+    not trade (`carriedFrom`: the date the value comes from) or have no value on a candle (`gap`: the line breaks there;
+    its numbers are NaN) */
+export interface AssetBar extends Bar { carriedFrom?: string; gap?: boolean }
 /** `none`: the source has no volume for the candle (an index); `value` is then 0 for the histogram only */
 export interface VolumePoint extends Point { color: string; none?: boolean }
 
@@ -15,7 +16,7 @@ export interface VolumePoint extends Point { color: string; none?: boolean }
 export type Instrument = [string, string, string, number];
 
 /** one compare series of the Add Series panel */
-export interface CompareSpec { id: string; symbol: string; name: string; color: string; bond?: boolean }
+export interface CompareSpec { id: string; symbol: string; name: string; color: string }
 
 /** one broker × investor type × board with its daily net value per session of the chart */
 export interface Combo { broker: string; investor: string; board: string; gross: number; tilt: number; net: Float64Array }
@@ -80,7 +81,9 @@ export interface MarketData {
   through?: { price?: string; broker?: string };
   /** live (EXEC-TERMINAL-ASSETS): an added asset's candles on the chart's candles, and its Flow Timeline data; absent in
       the fixture (its Add Series panel stays the reference's) */
-  loadAsset?(ticker: string): Promise<Bar[]>;
+  loadAsset?(ticker: string): Promise<AssetBar[]>;
+  /** EXEC-FI-TERMINAL: a government bond (ref/fixed_income): as an added asset its yield, without a Flow Timeline */
+  isBond?(ticker: string): boolean;
   loadAssetFlow?(ticker: string): Promise<AssetFlow>;
   /** live (EXEC-INTRADAY-FEATURES C3): the intraday timeframes the ticker has (its /bundle answer) */
   timeframes?: string[];

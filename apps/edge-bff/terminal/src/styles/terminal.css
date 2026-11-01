@@ -1063,9 +1063,6 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fi-mode .main-col{grid-template-rows:46px minmax(240px,1fr) 0px !important}
 .fi-mode .main-col > .bottom,.fi-mode .side.right,.fi-mode #evBtn{display:none !important}
 .fi-unit{margin-left:6px;padding:1px 7px;border-radius:999px;background:#eef2f7;color:#475569;font-size:11px;font-weight:600;white-space:nowrap}
-/* EXEC-FI-TERMINAL: a bond compare chip's value under the crosshair; "carried from" in the faded colour of its line */
-.series-val{margin-left:4px;font-size:11px;font-weight:500;color:#475569;font-variant-numeric:tabular-nums}
-.series-val.carried{color:#94a3b8;font-style:italic}
 
 /* EXEC-IND-CARDS IC1 (user go 2026-11-01; mockup indicator_cards_review.html): the indicator menu */
 .im{position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(15,23,42,.18)}
