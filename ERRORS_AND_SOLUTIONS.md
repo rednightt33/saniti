@@ -5233,6 +5233,18 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED (edge-bff `891d3bbc`).
 - **Lesson:** bandingkan nilai dengan himpunan nilai yang ada di registry, bukan dengan nama yang diduga.
 
+### M331 — Tombol "How it works" di legenda indikator tampil dengan kotak di sampingnya (2026-11-01)
+
+- **Ditemukan oleh:** user (screenshot, 2026-11-01: "Itu ada semacam kotak di samping tanda seru buletan").
+- **Verified cause:** tombol baru di legenda (`app/indicators.ts`) memakai class `ind-info`. Nama itu sudah dipakai ikon
+  "!" picker lama (`app/picker.ts:98`), dengan lingkaran 13 px berbingkai abu (`styles/terminal.css:449`). Tombol baru
+  mewarisi bingkai itu di samping ikonnya.
+- **Class:** nama class CSS yang dipakai ulang untuk komponen lain membawa gaya yang tidak dimaksud.
+- **Solution:** class tombol diganti `ind-how`. Dicek di halaman: tanpa bingkai, tampil sama dengan ikon mata dan roda
+  gigi. Label titik terendah di grafik kartu juga tidak lagi menimpa tanggal.
+- **Status:** FIXED (edge-bff `360d20a7`, `1b657d59`).
+- **Lesson:** sebelum memakai nama class baru, cari dulu apakah nama itu sudah dipakai di CSS.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan

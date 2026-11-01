@@ -9934,6 +9934,20 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-FLOW-AUDIT-HTML — satu HTML "How it works" untuk 39 indikator Flow (2026-11-01)
+
+**Kata user, 2026-11-01:** "Ada indikator flow, kemudian ada how it works. Itu HTML akan menjadi source bagaimana saya
+mengaudit indikator-indikator kita. Konfirmasi". Atas pertanyaan balik: "benar" dan "1 file HTML saja untuk 39 indikator
+flow".
+- **Hasil 2026-11-01:** `verification/terminal_api/indicator_cards/flow_audit/flow_indicators_audit_BBCA.html`.
+  - Isinya 39 kartu yang dirender oleh Terminal sendiri (`renderCard`), dengan ketiga bagian terbuka: Kalkulator,
+    Grafik, Langkah, lalu rumus, parameter dan "Hati-hati". Data BBCA harian, parameter default, data broker terakhir
+    2026-10-27. FL23 punya tiga output.
+  - Dibuat dengan `collect_cards.py` (halaman lokal, data dev) lalu `build_html.py` (CSS kartu dari `terminal.css`, daftar
+    isi, asal angka). Kode commit `1b657d59`.
+  - Dibuka di browser: 39 bagian, 41 grafik, tidak ada "Tidak ada nilai", tanpa galat, tanpa geser ke samping.
+- Bug tombol (i) dari screenshot yang sama: ERRORS M331, FIXED.
+
 ## EXEC-DRAW-ALL-TF — satu set gambar untuk semua timeframe (go 2026-11-01, menggantikan C7.2 A)
 
 **Kata user, 2026-11-01:** "Sebelum deploy ke main, juga lakukan pengecekan saat ini kalau kita menggambar di time frame

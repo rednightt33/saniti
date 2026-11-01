@@ -1,5 +1,10 @@
 # Railway changelog
 
+## 2026-11-01 — edge-bff: legend How it works button (ERRORS M331)
+
+- `main` `1b657d59`: edge-bff `360d20a7` SUCCESS 16:26 UTC; screener-worker `e7e92113` SKIPPED. The live Terminal serves
+  `index-SATRCHZ5.js` and `style-ssdB5zpW.css`, equal to a local build. No variable changed.
+
 ## 2026-11-01 — edge-bff: indicator menu badges, group-type filter, resizable box (EXEC-SPEC-IND)
 
 - `main` `a45c6719`: edge-bff `db55ccd8` SUCCESS 16:11 UTC; screener-worker `cb62a615` SKIPPED (no watched path). The live

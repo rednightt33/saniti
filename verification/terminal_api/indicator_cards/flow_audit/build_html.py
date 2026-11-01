@@ -67,6 +67,7 @@ Angka kartu dihitung oleh kode yang sama dengan chart dan dites sama dengan char
 {body}
 </main></body></html>
 """
+    page = '\n'.join(line.rstrip() for line in page.splitlines()) + '\n'   # no trailing spaces (git diff --check)
     Path(out).write_text(page)
     print(f'{out}: {len(cards)} indicators, {len(page):,} bytes')
 
