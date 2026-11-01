@@ -281,7 +281,9 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   /* EXEC-FI-TERMINAL: the government bonds (ref/fixed_income), a group of their own in the search; the remembered
      ticker's first answer also asks for a bond's yield files, so a bond needs no second /bundle (a stock has none) */
   const bondsP = reference('fixed_income').catch(() => []) as Promise<any[]>;
-  const guessP = bundle(guess, ['price', 'broker', 'events', 'yield'], csrf, want);
+  // a terminal-api from before the bonds refuses `yield` (400): the stock datasets alone, as before
+  const guessP = bundle(guess, ['price', 'broker', 'events', 'yield'], csrf, want)
+    .catch((e: any) => e?.status === 400 ? bundle(guess, ['price', 'broker', 'events'], csrf, want) : Promise.reject(e));
   guessP.catch(() => {});
   const tickers = await tickersP as { ticker: string; name: string; type: string; sector: string | null }[];
   const bonds = await bondsP;
