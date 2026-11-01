@@ -43,7 +43,8 @@ API = '/api/terminal/v1'
 MAX_YEARS_PER_CALL = 6
 MAX_PRICE_HISTORY_DAYS = 3660
 MAX_BROKER_HISTORY_DAYS = 366
-REF_FILES = {'tickers': 'v1/ref/tickers.json.gz', 'brokers': 'v1/ref/brokers.json.gz', 'logos': 'v1/ref/logos.json.gz'}
+REF_FILES = {'tickers': 'v1/ref/tickers.json.gz', 'brokers': 'v1/ref/brokers.json.gz', 'logos': 'v1/ref/logos.json.gz',
+             'fixed_income': 'v1/ref/fixed_income.json.gz'}
 LOGO_CACHE_SECONDS = 7 * 24 * 3600
 ACCESS_LOG_DAYS = 90            # EXEC-TERMINAL-SPEED (user 2026-10-26): audit rows are kept 90 days
 PRUNE_EVERY_SECONDS = 6 * 3600
@@ -82,7 +83,8 @@ class BundleRequest(Strict):
     """EXEC-TERMINAL-UI-1026 U6 (user 2026-10-26: "Satu panggilan API per saham ... sesuai dengan ticker yang di display"):
     every published file of the chosen datasets of one ticker in one answer."""
     ticker: str = Field(pattern=TICKER.pattern)
-    datasets: list[Literal['price', 'broker', 'events']] = Field(default=['price', 'broker', 'events'], min_length=1,
+    # EXEC-FI-TERMINAL (user go 2026-11-01): `yield`, a government bond's yield rows (its `price` is the bond price)
+    datasets: list[Literal['price', 'broker', 'events', 'yield']] = Field(default=['price', 'broker', 'events'], min_length=1,
                                                                  max_length=3)
     # EXEC-TERMINAL-SPEED: the packs instead of yearly files where the manifest has them (price: one file for every
     # year; broker: the archive pack plus the last two yearly files)
@@ -529,8 +531,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         for name in dict.fromkeys(body.datasets):
             published = m.get('datasets', {}).get(name, {}).get('files', {})
             ids = ['all'] if name == 'events' else sorted((y for y in published if y.isdigit()), key=int)
-            if name == 'price' and 'price' in packs:
-                chosen.append(('price', 'price', packs['price']))
+            if name in ('price', 'yield') and name in packs:
+                chosen.append((name, name, packs[name]))
                 continue
             if name == 'broker' and 'broker-archive' in packs:
                 last = packs['broker-archive'].get('years', [0, 0])[1]
@@ -558,8 +560,10 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                                       'utc_offset_seconds', 'period', 'current')}}
         # every intraday timeframe of the ticker, so a page knows which it can offer before asking for one
         timeframes = {tf: {k: s.get(k) for k in ('first', 'last', 'rows', 'bars_per_year')} for tf, s in intraday.items()}
+        # EXEC-FI-TERMINAL: a government bond's manifest says so (`kind` fixed_income, `instrument` name, country, units)
         return {'ticker': body.ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'),
-                'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out, 'timeframes': timeframes}
+                'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out, 'timeframes': timeframes,
+                'kind': m.get('kind', 'equity'), 'instrument': m.get('instrument')}
 
     @app.post(f'{API}/xsection')
     def xsection(body: XsectionRequest, request: Request, caller=Depends(xsection_caller)):

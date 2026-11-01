@@ -19,6 +19,8 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   intraday      every ticker's intraday files (EXEC-INTRADAY-FEATURES C1; initial load, TERMINAL_TICKERS to limit it);
                 `daily` and `backfill` publish them too: daily only the series of intraday_publish_change rows written
                 since its last run (C7.4 A), backfill every series.
+  fixed_income  every bond's files (EXEC-FI-TERMINAL; initial load): `daily` publishes the bond years whose stamp changed
+                and `backfill` every year, as for the prices.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
 `price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward.
@@ -184,6 +186,28 @@ BROKERS_SQL = ('SELECT broker_code, broker_name, broker_type, broker_classificat
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry" FROM public."IDX_Stock_Universe" '
                 "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
 
+# ---- EXEC-FI-TERMINAL (user go 2026-11-01: "Samakan logicnya dengan price IDX") ----------------------------------------
+# The government bonds of Universe_Fixed_income, each with two datasets on their own dates: `yield` (metric
+# yield_to_maturity) and `price` (metric price; the US bills' "price" is a discount quote, value_unit PCTDY). Like the IDX
+# prices: one file per bond, dataset and year, re-written only when its source stamp (rows, last date, last ingestion,
+# sum of closes) changes, so an ordinary day writes the current year; a pack per dataset (every year) for the chart.
+FI_DATASETS = {'yield': 'yield_to_maturity', 'price': 'price'}            # dataset -> metric_type
+FI_JOIN = ('FROM public."Price_Fixed_Income" p JOIN public."Universe_Fixed_income" u '
+           'ON u.tradingview_symbol = p.tradingview_symbol AND u.metric_type = p.metric_type '
+           "WHERE p.\"Timeframe\" = '1D' AND p.is_final")
+FI_UNIVERSE_SQL = ('SELECT ticker, min(instrument_name), min(country), '
+                   "max(value_unit) FILTER (WHERE metric_type = 'yield_to_maturity'), "
+                   "max(value_unit) FILTER (WHERE metric_type = 'price') "
+                   'FROM public."Universe_Fixed_income" GROUP BY ticker ORDER BY ticker')
+FI_STAMPS_SQL = ('SELECT u.ticker, p.metric_type, extract(year FROM p.date)::int, count(*), max(p.date)::text, '
+                 "coalesce(max(p.ingestion_time)::text, ''), sum(p.close)::text " + FI_JOIN + ' GROUP BY 1, 2, 3')
+FI_SQL = ('SELECT p.date::text, p.open::float8, p.high::float8, p.low::float8, p.close::float8, NULL::float8 ' + FI_JOIN +
+          ' AND u.ticker = %s AND p.metric_type = %s AND p.date BETWEEN %s AND %s ORDER BY p.date')
+FI_VERIFY_SQL = ('SELECT count(*), min(p.date)::text, max(p.date)::text, sum(p.close)::float8 ' + FI_JOIN +
+                 ' AND u.ticker = %s AND p.metric_type = %s AND p.date BETWEEN %s AND %s')
+FI_COLUMNS = ['ticker', 'name', 'country', 'yield_unit', 'price_unit', 'yield_first', 'yield_last', 'price_first',
+              'price_last']
+
 # ---- EXEC-SCREENER (P1 a, user 2026-10-28): cross-sectional files -------------------------------------------------
 # PRICE_SQL without the ticker filter and the ORDER BY: one sequential scan of the final daily rows instead of one
 # index walk per ticker; the rows are grouped and ordered here. Bounded by the published years, as the price packs are.
@@ -224,7 +248,7 @@ REF_KEY = indexed_key('ref')
 SHA256 = re.compile(r'[0-9a-f]{64}')
 # The reference files the publisher writes under fixed keys, the ones terminal-api main.py REF_FILES serves (a test keeps
 # the two equal). Each is also stored under its content key and listed in state.json `refs` (index_refs).
-REF_NAMES = ('tickers', 'brokers', 'logos')
+REF_NAMES = ('tickers', 'brokers', 'logos', 'fixed_income')
 
 
 def ref_key(name):
@@ -269,7 +293,7 @@ CHECK_AFTER_MINUTES = 30
 RUN_ALERT_MINUTES = 30
 HEALTH_SOURCE = 'Terminal_Publisher_Health'
 # the step a failed put belongs to, by its key's first part (a failed run's alert names it)
-PUT_STEPS = {'price': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'intraday': 'intraday', 'xsection': 'xsection',
+PUT_STEPS = {'price': 'files', 'yield': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'intraday': 'intraday', 'xsection': 'xsection',
              'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs'}
 # cleanup_baseline gives up after this long and the run publishes without a cleanup (one hung listing page must not
 # hold the publication; the two listings take about 2 s on dev)
@@ -378,6 +402,13 @@ def named_keys(manifest):
 def price_doc(ticker, year, rows):
     return {'schema_version': SCHEMA_VERSION, 'dataset': 'price', 'ticker': ticker, 'year': year,
             'units': {'o': 'IDR per share (index points for an index)', 'v': 'shares'},
+            'columns': ['d', 'o', 'h', 'l', 'c', 'v'], **columnar(rows, ['d', 'o', 'h', 'l', 'c', 'v'])}
+
+
+def fi_doc(ticker, dataset, year, rows, unit):
+    """EXEC-FI-TERMINAL: one bond's yield or price rows, in the price files' shape (v is always null: no volume)."""
+    return {'schema_version': SCHEMA_VERSION, 'dataset': dataset, 'ticker': ticker, 'year': year,
+            'units': {'o': unit or '', 'v': 'none (no volume)'},
             'columns': ['d', 'o', 'h', 'l', 'c', 'v'], **columnar(rows, ['d', 'o', 'h', 'l', 'c', 'v'])}
 
 
@@ -1262,6 +1293,12 @@ class Publisher:
         self.step('plan')
         universe = self.universe()
         kind = {t: typ for t, _, typ, *_ in universe}
+        # EXEC-FI-TERMINAL: the bonds, in the modes that publish them (daily: the changed years; backfill and
+        # fixed_income: every year); their manifests are read with the stocks' (the cleanup's baseline names them)
+        # (every mode rewrites the bond list, as it rewrites the ticker and broker lists)
+        fi_all = self.fi_universe()
+        fi_stamps = self.fi_stamps() if fi_all else {}
+        fi = fi_all if mode in ('daily', 'backfill', 'fixed_income') else []
         through = self.data_through()
         self.resolve_price_first_year()
         state = self.bucket.get_json('state.json') or {}
@@ -1270,9 +1307,9 @@ class Publisher:
         previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
         # the full cleanup after state.json needs what the bucket held before this run wrote anything (collect_garbage)
         before = self.cleanup_baseline() if sweep else None
-        if mode in ('daily', 'backfill', 'packs', 'events', 'intraday'):   # the modes that read (nearly) every manifest
+        if mode in ('daily', 'backfill', 'packs', 'events', 'intraday', 'fixed_income'):   # the modes that read every manifest
             loaded = time.monotonic()
-            self.load_manifests(kind)
+            self.load_manifests([*kind, *(t for t, *_ in fi)])
             log('planning', step='manifests read', tickers=len(kind), seconds=round(time.monotonic() - loaded, 1),
                 threads=self.threads)
         if before is not None:
@@ -1294,7 +1331,7 @@ class Publisher:
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
-        elif mode in ('logos', 'packs', 'intraday'):
+        elif mode in ('logos', 'packs', 'intraday', 'fixed_income'):
             todo = []
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ == 'stock']
@@ -1303,7 +1340,8 @@ class Publisher:
                     for y in range(max(lo, self.broker_first_year), hi + 1)]
         else:
             raise SystemExit(f'unknown mode {mode}')
-        log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year],
+        fi_todo = self.changed_fixed_income(fi, fi_stamps, force=mode in ('backfill', 'fixed_income')) if fi else []
+        log('plan', mode=mode, files=len(todo), fi_files=len(fi_todo), window=[self.first_year, self.last_year],
             price_first_year=self.price_first_year, broker_first_year=self.broker_first_year, data_through=through)
         self.step('files')
         touched = set()
@@ -1312,9 +1350,16 @@ class Publisher:
             touched.add(ticker)
             if n % 500 == 0:
                 log('progress', done=n, of=len(todo), written=self.written, mb=round(self.bytes / 1e6, 1))
+        units = {t: {'yield': yu, 'price': pu} for t, _, _, yu, pu in fi}
+        fi_touched = set()
+        for dataset, ticker, year, stamp in fi_todo:
+            self.publish_fi(dataset, ticker, year, stamp, units[ticker][dataset])
+            fi_touched.add(ticker)
         # packs: every ticker in mode packs (or a ticker without them yet), else the tickers whose files changed
         self.step('packs')
-        pack_tickers = list(kind) if mode in ('packs', 'backfill') else sorted({t for _, t, _ in self.changed})
+        for ticker in sorted(fi_touched):
+            self.publish_fi_packs(ticker, units[ticker], force=mode in ('backfill', 'fixed_income'))
+        pack_tickers = list(kind) if mode in ('packs', 'backfill') else sorted({t for _, t, _ in self.changed if t in kind})
         for n, ticker in enumerate(pack_tickers, 1):
             self.publish_packs(ticker, kind.get(ticker), force=mode == 'backfill')
             touched.add(ticker)
@@ -1357,9 +1402,13 @@ class Publisher:
             if self.manifest(ticker)['datasets'].get('events', {}).get('files'):
                 datasets['events'] = through['events']
             self.save_manifest(ticker, datasets)
+        meta = {row[0]: row for row in fi}
+        for ticker in sorted(fi_touched):
+            self.save_fi_manifest(ticker, meta[ticker], fi_stamps)
         self.uploads.wait()
         self.step('refs')
         self.publish_refs(universe)
+        self.publish_fi_ref(fi_all, fi_stamps)                 # the bond list (empty when the table has none)
         if mode == 'logos' or (mode == 'daily' and self.logos_stale()):
             self.publish_logos(universe)
         # EXEC-MU-RUNTIME T5: the reference files' content-keyed copies, after their fixed-key copies and before the
@@ -1381,7 +1430,8 @@ class Publisher:
             'finished_at': self.finished_at}).encode(), 'application/json')
         self.step('cleanup')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
-            tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind,
+            tickers=len(touched), fixed_income=len(fi_touched), seconds=round(time.monotonic() - started, 1),
+            broker_behind_sessions=self.broker_behind,
             xsection=sorted(self.xsection), xsection_failed=self.xsection_failed, refs=sorted(self.refs),
             refs_failed=self.refs_failed, phases=self.phases, threads=self.threads)
         # EXEC-PUBLISHER-SPEED (user 2026-10-29, "Ok setuju"): the objects this publication stopped naming go once no
@@ -1620,6 +1670,97 @@ class Publisher:
                 out.append(('price', ticker, year, stamp))
         return out
 
+    # ---- fixed income (EXEC-FI-TERMINAL, user go 2026-11-01) ---------------------------------------------------------
+    def fi_universe(self):
+        """-> [(ticker, name, country, yield unit, price unit)] of Universe_Fixed_income."""
+        return self.conn.execute(FI_UNIVERSE_SQL).fetchall()
+
+    def fi_stamps(self):
+        """-> {(dataset, ticker, year): (stamp, rows, last date)} of the final daily bond rows."""
+        out = {}
+        metric = {m: d for d, m in FI_DATASETS.items()}
+        for ticker, metric_type, year, count, last, ingested, total in self.conn.execute(FI_STAMPS_SQL).fetchall():
+            if metric_type in metric:
+                out[(metric[metric_type], ticker, int(year))] = (f'rows={count};last={last};ing={ingested};sum={total}',
+                                                                 int(count), last)
+        return out
+
+    def changed_fixed_income(self, fi, stamps, force=False):
+        """The bond years whose stamp differs from the manifest (every year with `force`), and the years a manifest
+        names that the table no longer has (published again: an empty year is removed). -> [(dataset, ticker, year,
+        stamp)]"""
+        out = []
+        for ticker, *_ in fi:
+            files_of = lambda d: self.manifest(ticker)['datasets'].get(d, {}).get('files', {})
+            for (dataset, t, year), (stamp, _, _) in sorted(stamps.items()):
+                if t == ticker and (force or files_of(dataset).get(str(year), {}).get('stamp') != stamp):
+                    out.append((dataset, ticker, year, stamp))
+            for dataset in FI_DATASETS:
+                out += [(dataset, ticker, int(y), None) for y in files_of(dataset)
+                        if y.isdigit() and (dataset, ticker, int(y)) not in stamps]
+        return out
+
+    def publish_fi(self, dataset, ticker, year, stamp, unit):
+        """One bond-year file of `dataset` (the yield or price rows of that year), as `publish` writes a price year."""
+        rows = self.conn.execute(FI_SQL, (ticker, FI_DATASETS[dataset], f'{year}-01-01', f'{year}-12-31')).fetchall()
+        files = self.manifest(ticker)['datasets'].setdefault(dataset, {'files': {}})['files']
+        if not rows:
+            if files.pop(str(year), None):
+                self.changed.add((dataset, ticker, year))
+            return None
+        body, sha = encode(fi_doc(ticker, dataset, year, rows, unit))
+        key, uploaded = self.store(files.get(str(year), {}), dataset, ticker, year, body, sha)
+        if uploaded:
+            self.changed.add((dataset, ticker, year))
+        files[str(year)] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
+                            'first': rows[0][0], 'last': rows[-1][0], 'stamp': stamp or f'rows={len(rows)};last={rows[-1][0]}'}
+        return rows[-1][0]
+
+    def publish_fi_packs(self, ticker, units, force=False):
+        """A bond's pack per dataset (every year in one file), when a year of it changed or it is missing."""
+        packs = self.manifest(ticker).get('packs', {})
+        mine = {d for d, t, _ in self.changed if t == ticker}
+        for dataset, metric in FI_DATASETS.items():
+            if force or dataset not in packs or dataset in mine:
+                rows = self.conn.execute(FI_SQL, (ticker, metric, '1900-01-01', '9999-12-31')).fetchall()
+                doc = {**fi_doc(ticker, dataset, None, rows, units.get(dataset)), 'dataset': f'{dataset}-pack'}
+                self.put_pack(ticker, dataset, doc, rows)
+
+    def save_fi_manifest(self, ticker, meta, stamps):
+        """A bond's manifest: its datasets with their own first year and last date (save_manifest would drop the years
+        before the stocks' first price year), and `instrument` (name, country, units) for the page."""
+        m = self.manifest(ticker)
+        m['kind'] = 'fixed_income'
+        _, name, country, yield_unit, price_unit = meta
+        m['instrument'] = {'name': name, 'country': country, 'units': {'yield': yield_unit, 'price': price_unit}}
+        for dataset in FI_DATASETS:
+            ds = m['datasets'].setdefault(dataset, {'files': {}})
+            mine = [(y, v) for (d, t, y), v in stamps.items() if d == dataset and t == ticker]
+            ds['first_year'] = min((y for y, _ in mine), default=None)
+            ds['data_through'] = max((v[2] for _, v in mine), default=None)
+        m['generated_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
+        self.uploads.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
+
+    def publish_fi_ref(self, fi, stamps):
+        """ref/fixed_income: every bond with its name, country, units and the first and last date of each dataset."""
+        span = {}
+        for (dataset, ticker, _), (_, _, last) in stamps.items():
+            span.setdefault((dataset, ticker), []).append(last)
+        firsts = {}
+        for (dataset, ticker, year) in stamps:
+            firsts[(dataset, ticker)] = min(firsts.get((dataset, ticker), year), year)
+        rows = []
+        for ticker, name, country, yield_unit, price_unit in fi:
+            first = lambda d: self.manifest(ticker)['datasets'].get(d, {}).get('files', {}).get(str(firsts.get((d, ticker))), {}).get('first')
+            last = lambda d: max(span.get((d, ticker), []), default=None)
+            rows.append((ticker, name, country, yield_unit, price_unit, first('yield'), last('yield'), first('price'), last('price')))
+        doc = {'schema_version': SCHEMA_VERSION, 'columns': FI_COLUMNS,
+               'means': 'government bonds: yield (percent) and price on their own dates; a US bill price is a discount quote',
+               **columnar(rows, FI_COLUMNS)}
+        body, _ = encode(doc)
+        self.bucket.put(ref_key('fixed_income'), body, 'application/gzip')
+        self.ref_written['fixed_income'] = body
+
 
 BROKER_VERIFY_SQL = ('SELECT count(*), min(trade_date)::text, max(trade_date)::text, sum(buy_value)::float8 + '
                      'sum(sell_value)::float8, (coalesce(sum(buy_freq), 0) + coalesce(sum(sell_freq), 0))::bigint '
@@ -1676,6 +1817,8 @@ def verify(conn, bucket, only=None):
                     log('verify_mismatch', ticker=ticker, dataset=dataset, year=year, file=got, sql=sql_row)
         i_checked, i_bad = verify_intraday(conn, bucket, ticker, m)
         checked, bad = checked + i_checked, bad + i_bad
+    f_checked, f_bad = verify_fixed_income(conn, bucket, only)
+    checked, bad = checked + f_checked, bad + f_bad
     if only:
         log('verify_done', files=checked, mismatches=bad, tickers=sorted(only))
         return bad
@@ -1684,6 +1827,35 @@ def verify(conn, bucket, only=None):
     checked, bad = checked + x_checked + r_checked, bad + x_bad + r_bad
     log('verify_done', files=checked, mismatches=bad, window=[first_year, last_year])
     return bad
+
+
+def verify_fixed_income(conn, bucket, only=None):
+    """EXEC-FI-TERMINAL: each bond's files and packs against SQL (rows, first and last date, sum of closes)."""
+    checked = bad = 0
+    for ticker, *_ in conn.execute(FI_UNIVERSE_SQL).fetchall():
+        if only and ticker not in only:
+            continue
+        m = bucket.get_json(f'manifest/{ticker}.json')
+        if not m or m.get('kind') != 'fixed_income':
+            log('verify_missing_manifest', ticker=ticker, kind='fixed_income')
+            bad += 1
+            continue
+        parts = [(d, y, f, f'{y}-01-01', f'{y}-12-31') for d, ds in m['datasets'].items() for y, f in ds['files'].items()]
+        parts += [(d, 'pack', m.get('packs', {}).get(d), '1900-01-01', '9999-12-31') for d in FI_DATASETS]
+        for dataset, year, f, lo, hi in parts:
+            body = bucket.get_raw(f['key'][len(PREFIX) + 1:]) if f else None
+            if body is None or hashlib.sha256(body).hexdigest() != f['sha256']:
+                bad += 1
+                log('verify_bad_object', ticker=ticker, dataset=dataset, year=year)
+                continue
+            doc = json.loads(gzip.decompress(body))
+            sql_row = conn.execute(FI_VERIFY_SQL, (ticker, FI_DATASETS[dataset], lo, hi)).fetchone()
+            got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['c']))
+            checked += 1
+            if got[:3] != tuple(sql_row[:3]) or abs(got[3] - sql_row[3]) > max(1e-6, abs(sql_row[3]) * 1e-9):
+                bad += 1
+                log('verify_mismatch', ticker=ticker, dataset=dataset, year=year, file=got, sql=sql_row)
+    return checked, bad
 
 
 def verify_intraday(conn, bucket, ticker, m):

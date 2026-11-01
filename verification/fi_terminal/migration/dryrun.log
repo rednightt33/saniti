@@ -1,0 +1,7 @@
+Starting Container
+MIG DRYRUN 20261101_003_terminal_reader_fixed_income.sql sha256=3856491a2c212c052f883ff9ef1047d28819d515a7769f73e28a50c0f6a8e583
+MIG DRYRUN_BODY_OK 20261101_003_terminal_reader_fixed_income.sql
+OUT {"q": "grant_terminal_market_reader", "ms": 2, "part": 0, "rows": [[true, true]]}
+OUT {"q": "grant_terminal_publisher_login", "ms": 2, "part": 0, "rows": [[true, true]]}
+OUT {"q": "grant_terminal_api_login", "ms": 2, "part": 0, "rows": [[true, true]]}
+JOB_DONE MIGRATION DRYRUN

@@ -1,0 +1,23 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261101_003_terminal_reader_fixed_income.sql"
+ ],
+ "probes": [
+  [
+   "grant_terminal_market_reader",
+   null,
+   "SELECT has_table_privilege('terminal_market_reader', 'public.\"Price_Fixed_Income\"', 'SELECT'), has_table_privilege('terminal_market_reader', 'public.\"Universe_Fixed_income\"', 'SELECT')"
+  ],
+  [
+   "grant_terminal_publisher_login",
+   null,
+   "SELECT has_table_privilege('terminal_publisher_login', 'public.\"Price_Fixed_Income\"', 'SELECT'), has_table_privilege('terminal_publisher_login', 'public.\"Universe_Fixed_income\"', 'SELECT')"
+  ],
+  [
+   "grant_terminal_api_login",
+   null,
+   "SELECT has_table_privilege('terminal_api_login', 'public.\"Price_Fixed_Income\"', 'SELECT'), has_table_privilege('terminal_api_login', 'public.\"Universe_Fixed_income\"', 'SELECT')"
+  ]
+ ]
+}

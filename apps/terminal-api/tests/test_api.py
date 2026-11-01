@@ -175,6 +175,8 @@ class FakeBucket:
             'broker': {'data_through': '2026-08-31', 'files': broker}}}}
 
     def manifest(self, ticker):
+        if ticker in self.manifests and ticker != 'BBCA':           # EXEC-FI-TERMINAL: a bond's manifest
+            return self.manifests[ticker]
         m = self.manifests.get('BBCA') if ticker == 'BBCA' else None
         if ticker.startswith('T') and ticker[1:].isdigit():  # T1..T999: tickers for the quota tests
             m = self.manifests['BBCA']
@@ -463,6 +465,30 @@ def test_bundle_adds_the_intraday_files_of_the_asked_timeframe_and_lists_every_t
     assert none['datasets']['intraday']['files'] == [] and none['datasets']['intraday']['rows'] is None
     assert 'intraday' not in client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price']}).json()['datasets']
     assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'timeframe': '5x'}).status_code == 400
+
+
+def test_bundle_gives_a_bonds_yield_and_price_packs_and_says_it_is_a_bond(env):
+    """EXEC-FI-TERMINAL (user go 2026-11-01): a government bond's manifest (kind fixed_income) answers its yield and
+    price packs, counted as any ticker's files; the answer carries the kind and the instrument for the page."""
+    client, store, bucket = env
+    sign_in(client)
+    pack = lambda d, n: {'key': f'v1/pack/ID10Y/{d}.json.gz', 'sha256': n * 64, 'bytes': 30_000, 'rows': 2700}
+    yearly = {'2026': {'key': 'v1/yield/ID10Y/2026.json.gz', 'sha256': 'f' * 64, 'bytes': 3000, 'rows': 210}}
+    bucket.manifests['ID10Y'] = {'kind': 'fixed_income', 'packs': {'yield': pack('yield', 'd'), 'price': pack('price', 'e')},
+                                 'instrument': {'name': 'Indonesia 10Y', 'country': 'Indonesia',
+                                                'units': {'yield': 'percent', 'price': 'PCTPAR'}},
+                                 'datasets': {'yield': {'data_through': '2026-10-30', 'files': yearly},
+                                              'price': {'data_through': '2026-10-30', 'files': {}}}}
+    r = client.post(f'{API}/bundle', json={'ticker': 'ID10Y', 'datasets': ['yield', 'price'], 'packs': True})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b['kind'] == 'fixed_income' and b['instrument']['units']['price'] == 'PCTPAR'
+    assert [f.get('pack') for f in b['datasets']['yield']['files']] == ['yield']
+    assert [f.get('pack') for f in b['datasets']['price']['files']] == ['price']
+    assert store.access[-1]['files'] == 2
+    plain = client.post(f'{API}/bundle', json={'ticker': 'ID10Y', 'datasets': ['yield']}).json()
+    assert [f['year'] for f in plain['datasets']['yield']['files']] == [2026]
+    assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price']}).json()['kind'] == 'equity'
 
 
 PROXY_KEY = 'p' * 40
@@ -1001,7 +1027,7 @@ def test_state_lists_refs_and_reference_presigns_only_indexed_keys():
         assert store.access[-1]['key'] == f'v1/ref/{name}.json.gz' and store.access[-1]['bytes'] == 0
     assert 'v1/ref/sectors.4444' in client.get(f'{API}/reference/sectors', headers=GATEWAY).json()['url']
     r = client.get(f'{API}/reference/manifest', headers=GATEWAY)
-    assert r.status_code == 404 and r.json()['message'] == 'Reference files: brokers, logos, sectors, tickers.'
+    assert r.status_code == 404 and r.json()['message'] == 'Reference files: brokers, fixed_income, logos, sectors, tickers.'
     rows = len(store.access)
     del state['refs']                                                             # a publication before the index
     old, _ = gateway_client(s3_bucket(state))

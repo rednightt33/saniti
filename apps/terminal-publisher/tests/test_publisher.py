@@ -56,8 +56,10 @@ class Result(list):
 class FakeConn:
     """Answers the publisher's statements from small in-memory tables."""
     def __init__(self, prices, brokers, universe, events=None, actions=None, intraday=None, timeframes=None,
-                 changes=None, now=None):
+                 changes=None, now=None, fixed=None, fixed_universe=None):
         self.prices, self.brokers, self.universe = prices, brokers, universe
+        # EXEC-FI-TERMINAL: bond rows (ticker, metric_type, date, o, h, l, c, ingested) and Universe_Fixed_income
+        self.fixed, self.fixed_universe = list(fixed or []), list(fixed_universe or [])
         self.events = list(EVENTS if events is None else events)
         self.actions = list(ACTIONS if actions is None else actions)
         # EXEC-INTRADAY-FEATURES C1: bars (ticker, tf, bar_time, o, h, l, c, v), timeframes (tf, bars_per_year),
@@ -89,7 +91,23 @@ class FakeConn:
     def _bars(self, t, tf, lo=pub.EPOCH, hi=pub.END_OF_TIME):
         return sorted(b for b in self.intraday if b[0] == t and b[1] == tf and lo <= b[2] < hi)
 
+    def _fi(self, ticker, metric, lo, hi):
+        return sorted(r for r in self.fixed if r[0] == ticker and r[1] == metric and lo <= r[2] <= hi)
+
     def _rows(self, sql, params):
+        if sql == pub.FI_UNIVERSE_SQL:
+            return self.fixed_universe
+        if sql == pub.FI_STAMPS_SQL:
+            out = {}
+            for t, metric, d, _o, _h, _l, c, ing in self.fixed:
+                out.setdefault((t, metric, int(d[:4])), []).append((d, c, ing))
+            return [(t, m, y, len(v), max(x[0] for x in v), max(x[2] for x in v), str(sum(x[1] for x in v)))
+                    for (t, m, y), v in out.items()]
+        if sql == pub.FI_SQL:
+            return [(r[2], *r[3:7], None) for r in self._fi(*params)]
+        if sql == pub.FI_VERIFY_SQL:
+            r = self._fi(*params)
+            return [(len(r), r[0][2] if r else None, r[-1][2] if r else None, float(sum(x[6] for x in r)))]
         if sql == pub.INTRADAY_TIMEFRAMES_SQL:
             return sorted(self.timeframes)
         if sql == pub.MARKET_TZ_SQL:
@@ -1240,7 +1258,8 @@ def test_fixed_key_reference_files_are_written_byte_identical_to_before(mode, ar
     p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get())
     p.run(mode, *args)
     fixed = [k for k in bucket.puts if k in FIXED_REFS]
-    assert fixed == ['ref/tickers.json.gz', 'ref/brokers.json.gz'] + (['ref/logos.json.gz'] if logos else [])
+    # EXEC-FI-TERMINAL: the bond list after the ticker and broker lists (empty here: the fixture has no bond)
+    assert fixed == ['ref/tickers.json.gz', 'ref/brokers.json.gz', 'ref/fixed_income.json.gz'] + (['ref/logos.json.gz'] if logos else [])
     for name, sha in BEFORE_T5_RAW_SHA256.items():
         body = bucket.objects[f'ref/{name}.json.gz']
         raw = gzip.decompress(body)
@@ -1282,7 +1301,7 @@ def test_a_refs_entry_that_is_not_a_content_keyed_reference_object_is_neither_ca
            'short': {**good, 'key': f'v1/ref/short.{"0" * 16}.json.gz'}, 'odd': {**good, 'bytes': True},
            'upper': {**good, 'sha256': good['sha256'].upper()},
            'xs': {**good, 'key': f'v1/xsection/xs.{good["sha256"][:16]}.json.gz'}}       # another family's object
-    assert sorted(pub.ref_entries(raw)) == ['brokers', 'tickers']
+    assert sorted(pub.ref_entries(raw)) == ['brokers', 'fixed_income', 'tickers']   # the well-formed entries of the run
     state = bucket.get_json('state.json')
     state['refs'] = raw
     bucket.put('state.json', json.dumps(state).encode(), 'application/json')
@@ -1351,7 +1370,7 @@ def test_ref_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_refs_
     p = pub.Publisher(conn, bucket, today=TODAY, clock=lambda: bucket.clock)
     assert p.collect_garbage() == 1 and bucket.deleted == [stale]
     gc = events(capsys, 'gc')[0]
-    assert gc['refs_named'] == 2 and gc['kept_newer_than_last_run'] == 1
+    assert gc['refs_named'] == len(pub.REF_NAMES) - 1 and gc['kept_newer_than_last_run'] == 1   # every list but logos
     # a state.json without `refs` (the publisher before T5, or a rollback to it) names no reference file: no
     # content-keyed reference object is deleted until an index names one again
     state = bucket.get_json('state.json')
@@ -1419,10 +1438,10 @@ def test_verify_checks_the_refs_index():
     bucket = FakeBucket()
     at(bucket, conn, 'backfill', 0)
     at(bucket, conn, 'logos', 1)
-    assert pub.verify(conn, bucket) == 0 and pub.verify_refs(bucket) == (3, 0)
+    assert pub.verify(conn, bucket) == 0 and pub.verify_refs(bucket) == (len(pub.REF_NAMES), 0)
     fixed = bucket.objects['ref/brokers.json.gz']
     bucket.objects['ref/brokers.json.gz'] = pub.encode({'columns': ['code'], 'code': []})[0]
-    assert pub.verify_refs(bucket) == (3, 1)                               # the content copy is not the fixed copy
+    assert pub.verify_refs(bucket) == (len(pub.REF_NAMES), 1)              # the content copy is not the fixed copy
     bucket.objects['ref/brokers.json.gz'] = fixed
     key = refs(bucket)['tickers']['key'][3:]
     good = bucket.objects[key]
@@ -1435,7 +1454,7 @@ def test_verify_checks_the_refs_index():
                                 'bytes': len(body), 'rows': 2}
     bucket.objects[state['refs']['brokers']['key'][3:]] = body
     bucket.objects['state.json'] = json.dumps(state).encode()
-    assert pub.verify_refs(bucket) == (3, 1)
+    assert pub.verify_refs(bucket) == (len(pub.REF_NAMES), 1)
 
 
 def test_the_real_bucket_client_puts_and_lists_the_reference_copies_as_the_s3_api_expects():
@@ -2229,3 +2248,90 @@ def test_verify_finds_an_intraday_file_unlike_sql(monkeypatch):
     _, _, bucket = run('intraday', conn=intraday_conn())
     changed = INTRADAY[:2] + [bar('BBCA', '5m', 2026, 10, 30, 16, 0, 150.0)] + INTRADAY[3:]
     assert pub.verify(intraday_conn(changed), bucket, ['BBCA']) == 1
+
+
+# ---- EXEC-FI-TERMINAL (user go 2026-11-01: "Samakan logicnya dengan price IDX") --------------------------------------
+FIXED = [('ID10Y', 'yield_to_maturity', '2025-12-30', 6.1, 6.2, 6.0, 6.15, 'i1'),
+         ('ID10Y', 'yield_to_maturity', '2026-10-29', 7.1, 7.2, 7.0, 7.15, 'i1'),
+         ('ID10Y', 'price', '2026-10-28', 95.0, 95.5, 94.9, 95.2, 'i1'),     # a price date the yield lacks: own dates
+         ('US01MY', 'price', '2026-10-29', 4.0, 4.1, 3.9, 4.05, 'i1'),
+         ('US01MY', 'yield_to_maturity', '2026-10-29', 4.1, 4.2, 4.0, 4.15, 'i1')]
+FIXED_UNIVERSE = [('ID10Y', 'Indonesia 10Y', 'Indonesia', 'percent', 'PCTPAR'),
+                  ('US01MY', 'US 1M bill', 'United States', 'percent', 'PCTDY')]
+
+
+def fi_conn(fixed=FIXED):
+    return FakeConn(PRICES, BROKERS, UNIVERSE, fixed=fixed, fixed_universe=FIXED_UNIVERSE)
+
+
+def test_backfill_publishes_each_bond_dataset_year_with_its_own_dates_and_a_pack():
+    _, _, bucket = run('backfill', conn=fi_conn())
+    m = bucket.get_json('manifest/ID10Y.json')
+    assert m['kind'] == 'fixed_income' and m['instrument']['units'] == {'yield': 'percent', 'price': 'PCTPAR'}
+    assert sorted(m['datasets']['yield']['files']) == ['2025', '2026'] and sorted(m['datasets']['price']['files']) == ['2026']
+    assert m['datasets']['yield']['first_year'] == 2025 and m['datasets']['yield']['data_through'] == '2026-10-29'
+    assert m['datasets']['price']['data_through'] == '2026-10-28'
+    y = doc_of(bucket, 'ID10Y', 'yield', 2026)
+    assert (y['d'], y['c'], y['v']) == (['2026-10-29'], [7.15], [None]) and y['units']['o'] == 'percent'
+    assert doc_of(bucket, 'ID10Y', 'price', 2026)['d'] == ['2026-10-28']          # no invented yield date
+    pack = bucket.get_json(m['packs']['yield']['key'][3:])
+    assert pack['dataset'] == 'yield-pack' and pack['d'] == ['2025-12-30', '2026-10-29']
+    assert bucket.get_json('manifest/US01MY.json')['instrument']['units']['price'] == 'PCTDY'
+    ref = bucket.get_json('ref/fixed_income.json.gz')
+    assert ref['columns'] == pub.FI_COLUMNS and ref['ticker'] == ['ID10Y', 'US01MY']
+    assert (ref['yield_first'][0], ref['yield_last'][0], ref['price_first'][0]) == ('2025-12-30', '2026-10-29', '2026-10-28')
+    # the bonds are not stocks: no broker file, no xsection row, not in ref/tickers
+    assert not any(k.startswith('broker/ID10Y') for k in bucket.objects)
+    assert 'ID10Y' not in bucket.get_json('ref/tickers.json.gz')['ticker']
+
+
+def test_daily_writes_nothing_for_unchanged_bonds_and_only_the_changed_year_otherwise():
+    _, conn, bucket = run('backfill', conn=fi_conn())
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    assert p2.written == 0
+    # a new session: the current year's yield file and the yield pack, nothing else (2025 and the price untouched)
+    conn.fixed = FIXED + [('ID10Y', 'yield_to_maturity', '2026-10-30', 7.15, 7.3, 7.1, 7.25, 'i2')]
+    p3 = pub.Publisher(conn, bucket, today=TODAY)
+    p3.run('daily')
+    assert p3.changed == {('yield', 'ID10Y', 2026), ('pack', 'ID10Y', 'yield')}
+    assert p3.written == 2
+    assert bucket.get_json('manifest/ID10Y.json')['datasets']['yield']['data_through'] == '2026-10-30'
+
+
+def test_daily_republishes_an_old_bond_year_a_correction_changed():
+    _, conn, bucket = run('backfill', conn=fi_conn())
+    conn.fixed = [r[:6] + (6.16, 'i3') if r[2] == '2025-12-30' else r for r in FIXED]   # recovery wrote a revised close
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    assert p2.changed == {('yield', 'ID10Y', 2025), ('pack', 'ID10Y', 'yield')}
+    assert doc_of(bucket, 'ID10Y', 'yield', 2025)['c'] == [6.16]
+
+
+def test_a_bond_year_gone_from_the_table_leaves_the_manifest():
+    _, conn, bucket = run('backfill', conn=fi_conn())
+    conn.fixed = [r for r in FIXED if r[2] != '2025-12-30']
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert sorted(bucket.get_json('manifest/ID10Y.json')['datasets']['yield']['files']) == ['2026']
+
+
+def test_fixed_income_mode_publishes_only_the_bonds_and_verify_checks_them():
+    conn, bucket = fi_conn(), FakeBucket()
+    p = pub.Publisher(conn, bucket, today=TODAY)
+    p.run('fixed_income')
+    assert bucket.get_json('manifest/ID10Y.json') and bucket.get_json('manifest/BBCA.json') is None
+    _, conn2, bucket2 = run('backfill', conn=fi_conn())
+    assert pub.verify(conn2, bucket2) == 0
+    conn2.fixed = [r[:6] + (7.5, 'i9') if r[2] == '2026-10-29' and r[0] == 'ID10Y' and r[1] == 'yield_to_maturity' else r
+                   for r in FIXED]
+    assert pub.verify(conn2, bucket2) == 2                              # the 2026 yield file and the yield pack
+
+
+def test_the_cleanup_keeps_the_bond_files():
+    _, conn, bucket = run('backfill', conn=fi_conn())
+    named = pub.named_keys(bucket.get_json('manifest/ID10Y.json'))
+    assert named and all(k in bucket.objects for k in named)
+    bucket.clock += dt.timedelta(days=2)
+    p = pub.Publisher(conn, bucket, today=TODAY, clock=lambda: bucket.clock + dt.timedelta(days=1))
+    p.collect_garbage()
+    assert all(k in bucket.objects for k in named)
