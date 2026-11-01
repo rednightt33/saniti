@@ -9417,7 +9417,7 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
   - Terminal 1:1, Backtest E2E, Screener live;
   - jumlah objek dan byte per run harian sebelum dan sesudah.
 
-### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; C7 diputuskan dan go 2026-11-01; dieksekusi)
+### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; C1–C4 live 2026-11-01; S4 dan B dataset lama terbuka)
 
 **Permintaan user, 2026-11-01:** "Also generate plan juga untuk masukan data 5 15 1 jam dan 4 jam ke FE."
 
@@ -9639,6 +9639,34 @@ adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher han
     (hasilnya dipakai di commit `4ce773ef` pukul 08:13 UTC), tetapi tidak mencetak `JOB_DONE`.
   - Keputusan: user mengizinkan pengaman `run_job.sh` (ERRORS M227) dilewati sekali, hanya untuk migrasi
     `20261101_001`.
+
+**Hasil C1–C4, 2026-11-01** (bukti: `verification/intraday_publish/`, DATABASE_CHANGELOG, RAILWAY_CHANGELOG):
+- **C1 publisher:**
+  - migrasi `20261101_001` diterapkan; output Feature 01 tidak berubah (md5 sama);
+  - loader menulis `intraday_publish_change` (berlaku mulai run 2026-11-02);
+  - semua data intraday dipindahkan ke storage: 3.380 deret, 6.706 file, 125,4 MB, 310 detik;
+  - `verify` 31 saham (743 file) dan 5 saham uji (123 file): 0 selisih;
+  - run harian 19:00 WIB hanya menerbitkan deret yang berubah;
+  - Postgres di-restart terencana sesudahnya (3,83 GB, 12 detik).
+- **C2 terminal-api** `4d70428b`: `/bundle` menerima `timeframe` dan mengembalikan daftar timeframe saham itu.
+- **C3–C4 Terminal**, edge-bff `3d62030a`:
+  - tombol 5M 15M 1H 4H D W M dari manifest;
+  - jam WIB di sumbu;
+  - Flow, Bandar dan Broker harian dengan label "Daily" (Opsi 1: hari sebelumnya di candle hari itu, hari terbaru
+    sesudah tutup);
+  - set gambar intraday terpisah (2A);
+  - ADR dari bar harian (3A); VWAP direset per sesi; HV dengan `bars_per_year` manifest.
+- **Uji:**
+  - publisher 133, terminal-api 57, Terminal 766, loader dan telegram-monitor lulus;
+  - live BBCA, IHSG, TGUK di semua timeframe tanpa error halaman;
+  - nilai ADR dan FL24 di 1H sama dengan nilai harian per hari (FL24 27 Okt −5,6221, sama dengan oracle).
+- **Ditemukan dan diperbaiki saat uji live:** chart Flow menggeser chart utama sehingga sesi sesudah data broker
+  tersembunyi (ERRORS M321).
+- **Masih terbuka:**
+  - S4: run harian pertama 2026-11-02 (fitur intraday dan catatan perubahan), lalu run publisher 19:00 WIB yang
+    menerbitkan intraday hanya dari catatan itu;
+  - B untuk dataset lama (pack harga harian, `xsection/price`) tetap rencana terpisah;
+  - `DATABASE_SCHEMA.md` diperbarui begitu runner bebas (sedang dipakai sesi lain).
 
 ## EXEC-INSIDER-COUNT — insider IDX + KSEI tanpa hitungan ganda (keputusan 2026-11-01, menunggu go)
 

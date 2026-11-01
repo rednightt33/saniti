@@ -4880,6 +4880,52 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED (dokumen mengikuti Terminal).
 - **Lesson:** sebelum audit, bandingkan default setiap sheet dengan registry yang dibaca kode.
 
+
+### M321 — Chart Flow menggeser chart utama: sesi sesudah data broker tersembunyi (2026-11-01)
+
+- **Ditemukan oleh:** uji live intraday EXEC-INTRADAY-FEATURES C3 (BBCA, `verification/terminal_api/intraday_live_check.py`).
+- **Symptom:**
+  - Data broker tersedia sampai 27 Okt. Chart utama 5M, 15M dan 1H berhenti di 28 Okt, padahal file intraday berisi bar
+    sampai 30 Okt (dicek lewat `/bundle` dan isi file).
+  - Label harga terakhir menunjukkan bar yang terlihat terakhir (5.075 = 28 Okt 11:00 di 1H), bukan close 30 Okt.
+  - Di chart D, ruang 3 bar di kanan hilang.
+- **Verified cause** (`apps/edge-bff/terminal/src/app/flow.ts`, sinkronisasi dua arah):
+  - Chart Flow berisi bar sampai sesi data broker terakhir; sesi sesudahnya kosong (whitespace).
+  - Saat datanya dipasang, chart Flow menata ulang rentangnya sendiri ke bar data terakhir + `rightOffset`, lalu menyalin
+    rentang itu ke chart utama.
+  - Selisih yang teramati = jumlah bar sesudah 27 Okt dikurangi 3: 1H 17 bar, 4H 3 bar, D 0 bar. Karena itu di chart D
+    gejalanya hampir tidak terlihat.
+- **Class:** chart pengikut (Flow, nanti panel lain) yang datanya berakhir lebih awal dari chart utama. Berlaku untuk
+  setiap timeframe, dan untuk data lain yang tertinggal dari harga.
+- **Solution:**
+  - Chart Flow menggerakkan chart utama hanya ketika pointer berada di atasnya (geser, roda, sentuh), sama seperti panel
+    Flow aset tambahan (`assets.ts`).
+  - Sesudah datanya dipasang, rentang chart utama disalin kembali ke chart Flow.
+  - edge-bff `3d62030a`.
+  - Uji ulang: semua timeframe berakhir di 30 Okt, sesi tanpa data broker diarsir, tanpa error halaman (BBCA, IHSG,
+    TGUK).
+- **Status:** FIXED.
+- **Lesson:** sinkronisasi dua arah antar-chart harus punya satu pemimpin. Chart yang datanya bisa lebih pendek hanya
+  boleh memimpin saat pengguna berinteraksi dengannya.
+
+### M322 — Runner job terkunci oleh job yang selesai tanpa `JOB_DONE` (2026-11-01)
+
+- **Symptom:** `scripts/onboarding/run_job.sh` menolak dengan `RUNNER_BUSY d4395569` lebih dari 20 menit.
+- **Verified cause:**
+  - Job `matchjob` sesi EXEC-INSIDER-COUNT (deployment `d4395569`, 07:55 UTC) sudah selesai; hasilnya dipakai di commit
+    `4ce773ef` pukul 08:13 UTC.
+  - Script job itu tidak mencetak `JOB_DONE`, padahal pengaman M227 hanya membaca penanda itu.
+- **Class:** setiap job runner yang tidak mencetak penanda selesai mengunci runner untuk semua sesi lain sampai job
+  berikutnya dimulai.
+- **Solution:**
+  - Sekali ini pengaman dilewati dengan izin user ("A", EXEC-INTRADAY-FEATURES) untuk migrasi `20261101_001`.
+  - Belum ada perbaikan permanen. Usulan, menunggu persetujuan:
+    - `run_job.sh` menambahkan `JOB_DONE` sendiri sesudah `job.py` keluar (pembungkus di Dockerfile runner), sehingga
+      penanda tidak bergantung pada isi job;
+    - atau pengaman memeriksa apakah container job sudah berhenti.
+- **Status:** OPEN (perbaikan permanen belum disetujui).
+- **Lesson:** penanda selesai sebaiknya ditulis oleh pembungkus, bukan diandalkan dari setiap job.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan

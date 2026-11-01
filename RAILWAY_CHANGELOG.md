@@ -1,5 +1,43 @@
 # Railway changelog
 
+## 2026-11-01 — EXEC-INTRADAY-FEATURES C1-C4: intraday files, terminal-api, idx-intraday-cron, edge-bff; planned Postgres restart
+
+User decisions 2026-11-01 (EXEC.md EXEC-INTRADAY-FEATURES C7, go "Kenapa kita nggak langsung deploy saja?", runner "A").
+
+- **orc-test-runner:** migration `20261101_001` DRYRUN `4bb5fb50` and APPLY `614ce03a` (DATABASE_CHANGELOG).
+  - The runner guard (`run_job.sh`, ERRORS M227) was skipped once, with the user's "A".
+  - Reason: deployment `d4395569` of the EXEC-INSIDER-COUNT session had finished (its output is in commit `4ce773ef`,
+    08:13 UTC) without printing `JOB_DONE` (ERRORS M322).
+- **terminal-publisher** (CLI upload of `apps/terminal-publisher`, M229 option A), cron cleared and read back first:
+
+  | Step | Deployment | Mode, tickers | Result |
+  |---|---|---|---|
+  | 1 | `c05291b5` 08:21 UTC | intraday, BBCA, IHSG, PBSA, GOTO, AALI | 20 series, 40 files, 1.02 MB, 36.7 s |
+  | 2 | `29a42171` | verify, the same 5 | 123 files, 0 mismatches |
+  | 3 | `bdcf84e8` | intraday, the same 5 (`TERMINAL_TICKERS` was not deleted: `railway variable delete` has no `--skip-deploys`; set to empty instead) | 0 files written |
+  | 4 | `e9255933` 08:35 UTC | intraday, every ticker | 3,380 series, 6,706 files, 125.4 MB, 310 s, `state.json` `intraday_change_seen` set |
+  | 5 | `9184f629` | verify, IHSG and 30 random tickers (fixed seed) | 743 files, 0 mismatches |
+  | 6 | `2a5a61d4` SCHED | daily | `TERMINAL_PUBLISH_MODE=daily`, `TERMINAL_TICKERS` deleted, cron `0,30 0,1,12 * * *` read back (next 12:00 UTC); no run (no log) |
+
+- **terminal-api** `4d70428b` SUCCESS (CLI upload): `/bundle` takes `timeframe` and lists the ticker's `timeframes`.
+- **idx-intraday-cron** `76bf510a` SUCCESS (`apps/idx-price-cron/deploy_intraday.sh`, HEAD `4418a19f`):
+  - the loader writes `intraday_publish_change`;
+  - cron `30 10 * * 1-5` kept (read back, next run 2026-11-02 10:30 UTC).
+- **edge-bff:**
+  - `915840ca` SUCCESS 08:47 UTC (main `792513ed`): the Terminal's intraday timeframes.
+  - `3d62030a` SUCCESS 08:58 UTC (main `30f8c6f4`): the Flow chart follows the main chart (ERRORS M321), intraday
+    Statistics labels. `/terminal-app/` serves `index-nuk_nQdK.js`, the local build that passed the live checks.
+- **telegram-monitor:** auto-deploy `cdb91e35` SUCCESS 08:47 UTC (stage `intraday`, "menulis harga intraday").
+  - The later pushes were SKIPPED for idx-price-cron, idx-price-recovery-cron and telegram-monitor (no file of their
+    watch paths changed).
+- **Postgres** planned restart (AGENTS, ERRORS M319) after the full intraday read:
+  - `scripts/restart_postgres.py --apply`: memory 3.83 GB, no cron due, outside B6, no active statement;
+  - deployment `1804dfff` restarted, start time 06:12:05 → 08:47:15 UTC, 12 s, edge-bff `/ready` 200.
+- **IaC:** `railway config plan` shows only `orc-test-runner.DATABASE_URL`, a transient variable another session's job
+  set (run_job.sh removes it after its job); not applied. The cron and variable changes above were restored, so
+  `.railway/railway.ts` is unchanged (`railway config pull` now asks for `--variables=managed` and rewrites the file
+  without its comments; the pulled file was not kept).
+
 ## 2026-11-01 — EXEC-M308: market-web-governor redeployed with the current OpenRouter key; orc web statuses
 
 - **Why:** web-governor's `OPENROUTER_API_KEY` is the reference `${{market-ai-orc.OPENROUTER_API_KEY}}`, resolved at
