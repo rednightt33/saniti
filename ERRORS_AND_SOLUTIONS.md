@@ -4939,7 +4939,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - `run_migration.sh` (screener) ikut mewajibkan `runner_guard.sh` sudah di-commit.
 - **Temuan saat memeriksa:** runner memakai restart `ON_FAILURE` dengan 10 percobaan. Job sekali jalan yang gagal
   dijalankan ulang sampai 10 kali, termasuk job migrasi. Dulu Traceback dihitung "selesai", jadi job baru bisa mengganti
-  job yang sedang diulang. Kebijakan restart tidak diubah; perlu keputusan user (FUTURE_PLAN).
+  job yang sedang diulang.
+  - Diputuskan user 2026-11-01 ("OK"): restart policy NEVER (EXEC-M322). Job uji gagal `f8ceee96` start sekali dan
+    runner langsung bebas.
 - **Verifikasi:**
   - tes `scripts/tests/test_run_job_guard.py`: 20 lulus (log, pembungkus dengan kode 0/1/3, `runner_free` dengan Railway
     tiruan, kedua skrip memakai pengecekan bersama);

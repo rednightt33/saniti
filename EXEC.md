@@ -9898,6 +9898,28 @@ HTML buat saya pilih. Pakai design spec terlampir."
   - IC4: langkah hitung untuk 53 indikator teknikal dari `calc/indicators.ts`, dengan tes yang sama.
   - IC5: cek halaman (desktop, ponsel, mode gelap), deploy, catatan.
 
+## EXEC-SPEC-IND — tampilan indikator mengikuti EDGE Design Spec v1.2, popup bisa digeser (2026-11-01)
+
+**Kata user, 2026-11-01:** "Also untuk kejelasan indikator seharusnya appear seperti screenshot terlampir. Minta tlg yang
+appear juga font size dll di standardize dmengiktui design specs terlampir" dan "Also pop up box indicator harus bisa di
+hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-type-A2.css` dan
+`edge-design-spec_css_type_A2.html` (Design Spec v1.2). Screenshot yang disebut tidak ikut terlampir (ditanyakan balik).
+- **Aturan yang dipakai (spec bagian 6, Format angka):** en-US (koma ribuan, titik desimal), minus U+2212; harga 0
+  desimal; perubahan bertanda 2 desimal; nilai transaksi Rp + B/T, tanpa "M"; rasio + ×; indikator 1 desimal;
+  parameter di kurung, "RSI (14)". Tipografi: skala `--fs-*`, berat, radius, tinggi kontrol dari spec.
+- **Hasil 2026-11-01:**
+  - `data/specFormat.ts`: satu aturan angka untuk legenda, sumbu panel indikator, dan kartu. Kartu tidak lagi memakai
+    format Indonesia ("5.509,00", "M").
+  - Judul legenda "SMA (20, close)", "RSI (14, close) 36.4", "Bandar Balance · % (10D)".
+  - CSS: token spec di `:root`. Legenda 12 px; menu, dialog pengaturan, dan kartu memakai judul 15/600, field 32 px,
+    tab spec, tabel 12.5 px.
+  - `app/draggable.ts`: kartu, menu indikator, dan dialog pengaturan (indikator dan aset) digeser lewat header-nya. Minimal
+    80 px header tetap di layar; posisinya ditarik kembali ke layar saat dibuka lagi atau saat jendela mengecil.
+  - Cek halaman (BBCA): legenda dan kartu sesuai aturan. Ketiga popup bergeser dan tetap terbuka. Di lebar 390 px kartu
+    berada di dalam layar. 0 galat. Tes 1.470.
+  - edge-bff `21487670`, screener-worker `92431180` SUCCESS (`ff76fe17`); file halaman live sama dengan build lokal.
+- **Terbuka:** screenshot yang dimaksud user untuk bentuk indikator.
+
 ## EXEC-DRAW-ALL-TF — satu set gambar untuk semua timeframe (go 2026-11-01, menggantikan C7.2 A)
 
 **Kata user, 2026-11-01:** "Sebelum deploy ke main, juga lakukan pengecekan saat ini kalau kita menggambar di time frame
@@ -9924,7 +9946,12 @@ pembungkus menulis tanda selesai sesudah `job.py` keluar, sehingga tidak bergant
 - **Hasil 2026-11-01:** pembungkus `JOB_EXIT <kode>` di kedua Dockerfile runner; pengecekan bersama
   `scripts/onboarding/runner_guard.sh` untuk `run_job.sh` dan `run_terminal_check.sh`; tes 20 lulus; dua job uji live
   (`2ed7b085`, `2b8c31b1`) tanpa `JOB_DONE` dianggap selesai (ERRORS M322 FIXED, RAILWAY_CHANGELOG).
-- **Terbuka (FUTURE_PLAN):** restart `ON_FAILURE` 10 kali di runner menjalankan ulang job sekali jalan yang gagal.
+- **Restart runner, kata user 2026-11-01:** "Runner: job yang gagal dijalankan ulang sampai 10 kali. Usul saya: matikan
+  pengulangan itu (`NEVER`). Setuju? OK".
+  - Hasil: `restartPolicyType` orc-test-runner = NEVER, dibaca ulang, dideklarasikan di `.railway/railway.ts`;
+    `railway config plan` menyatakan up to date. Pengecekan runner menganggap `JOB_EXIT` dengan kode apa pun sebagai
+    selesai.
+  - Job uji gagal `f8ceee96` (`probe_fail_job.py`, keluar 3): satu kali start, `JOB_EXIT 3`, runner langsung bebas.
 
 - **Hasil 2026-11-01 (IC1-IC5):**
   - IC1 (sebelumnya): menu indikator, tooltip, favorit.

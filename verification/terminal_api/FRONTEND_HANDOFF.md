@@ -184,3 +184,11 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 - Drawings: one set per ticker (`ml.drawings.<ticker>`, Flow Timeline `ml.drawings.flow.<ticker>`) for every timeframe.
   Each point keeps its own time (a date from D/W/M, an intraday chart time from 5M-4H) and each timeframe shows it on its
   candle (`onDailyCandles`, `onIntradayCandles`); saving keeps the stored time of every point the user did not move.
+
+## EDGE Design Spec v1.2 for indicators; movable popups (2026-11-01)
+
+- Numbers wherever an indicator appears follow `data/specFormat.ts` (spec section 6): en-US, minus U+2212, indicator 1
+  decimal, Rp B/T, ratio ×, change sign + 2 decimals; titles carry their parameters in parentheses ("RSI (14, close)").
+- The spec's type scale and control sizes are tokens in `styles/terminal.css` (`--fs-*`, `--h-*`, `--r-*`).
+- `app/draggable.ts`: the indicator card, the indicator menu and the settings dialogs move by their header and are kept
+  on screen (`fitInView` when shown again, and on resize).

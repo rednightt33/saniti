@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-11-01 — orc-test-runner restart policy NEVER; EDGE Design Spec v1.2 for indicators (edge-bff, screener-worker)
+
+- **orc-test-runner** (user 2026-11-01 "OK", EXEC-M322): `serviceInstanceUpdate restartPolicyType: NEVER`, read back
+  (was ON_FAILURE, 10 retries). `.railway/railway.ts` declares it (edited by hand: `railway config pull` rewrites the file
+  without its comments); `railway config plan`: "already up to date". The CLI's IaC check reads the program from `$_`,
+  so `railway config plan` must not be wrapped in `timeout` (it then reports the CLI as too old).
+- Probe job `f8ceee96` (`verification/m322_runner/probe_fail_job.py`, exit 3): one container start, `JOB_EXIT 3`,
+  deployment SUCCESS, runner free for the next job; `DATABASE_URL` removed (`VAR_REMOVED`).
+- `main` `ff76fe17`: edge-bff `21487670` and screener-worker `92431180` SUCCESS 15:59 UTC (screener log `start`,
+  `swap`, `refresh`). The live Terminal serves `index-Bu33CGio.js` and `style-BAA8nZi-.css`, equal to a local build.
+
 ## 2026-11-01 — EXEC-IND-CARDS IC2-IC5, EXEC-DRAW-ALL-TF: edge-bff; screener-worker recovered (ERRORS M329)
 
 - `main` `a7bc97a7`: edge-bff `891d3bbc` SUCCESS 15:16 UTC (indicator cards, drawings for every timeframe). The same push
