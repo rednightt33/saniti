@@ -4999,10 +4999,24 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - DRYRUN 2026-11-01 10:54 UTC: 153 baris ditulis (97 dikoreksi, 56 ditambah), 0 dihapus; US10Y yield dibiarkan (sumber
     memberi dua versi riwayat 2016-2024 bergantian, setiap bar tersimpan sama dengan salah satunya), 3 tanggal 2019/2020
     tidak stabil. Daftar: `verification/fixed_income_audit/CORRECTION_LIST.md`, log `correct_dryrun.log`.
-  - APPLY menunggu user melihat daftar.
-  - Usulan permanen (menunggu go): recovery memilih tanggal dari bar sumber terakhir per seri (bukan dari isi tabel),
-    dan pemeriksaan konsensus mingguan dengan peringatan Telegram.
-- **Status:** IN PROGRESS (dry-run selesai, APPLY menunggu user).
+  - APPLY (OK user 2026-11-01, "1. OK"), dibatasi ke daftar yang disetujui (`approved`, 153 kunci) dengan penjaga ukuran:
+    - percobaan pertama 11:14 UTC ditolak penjaganya sendiri tanpa menulis: ketiga tarikan US10Y yield kali itu memberi
+      riwayat 2016/2018/2021 versi lain (719 baris, 5 hapus) di luar daftar (`correct_apply_refused.log`);
+    - percobaan kedua 11:17 UTC: 152 baris ditulis dan terverifikasi, 0 dihapus (`correct_apply.log`); dibaca balik lewat
+      pgweb, 152 sama dengan daftar. ID20Y yield 2026-10-27 tidak ditulis karena sumber sudah kembali ke nilai tersimpan.
+      Satu revisi baru sumber di luar daftar (ID20Y price 2026-10-27) tidak ditulis.
+  - Usulan A (go "2. Usulan A OK"): `--mode recovery` menulis bar sumber `correction_lookback_sessions` sesi terakhir per
+    seri yang hilang atau berbeda; `recovery_window.py` dihapus. Dry-run live 11:21 UTC: ID 88 baris jendela, 1 berbeda
+    (ID20Y price 10-27); US 104, 0 berbeda (`recovery_dryrun.log`).
+  - Usulan B (go "3. Usual B", dibaca: melapor saja): `consensus_check.py`, sesudah recovery pada hari Sabtu waktu pasar
+    atau `--mode consensus`; laporan ke Telegram (`Fixed_Income_Consensus_Check`). Run manual 11:25 UTC
+    (`consensus_manual.log`), keduanya diterima telegram-monitor: ID 1 revised (ID20Y price 10-27), 2 extra (ID03Y yield
+    dan ID30Y yield 2026-10-26: ada di 3 tarikan saat APPLY 11:17, tidak ada di 3 tarikan 11:25, jadi sumbernya sendiri
+    berubah); US 3 unstable (US10Y yield 2019-11-28 s.d. 2020-12-25, hari libur AS).
+  - Deploy 4 layanan fixed income dan telegram-monitor (`main` fe6f1603), SUCCESS 11:23 UTC.
+- **Status:** FIXED untuk kelas "hari terlewat tidak terisi" (recovery dari tanggal sumber) dan koreksi sekali. Terbuka:
+  revisi sumber lebih tua dari jendela 5 sesi dan sumber yang berubah-ubah (US10Y yield, ID 2026-10-26) hanya dilaporkan
+  mingguan; koreksinya keputusan user. Cek: run recovery ID 2026-11-02 11:00 UTC menulis ID20Y price 10-27.
 - **Lesson:** setelah aturan tanggal sumber berubah, bandingkan seluruh riwayat dengan sumber sekali. Tanggal yang harus
   diperiksa ulang diambil dari sumber per seri, bukan dari tabel tujuan.
 

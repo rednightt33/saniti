@@ -9752,7 +9752,10 @@ masalah serupa?" (atas temuan `verification/fixed_income_audit/REPORT.md`).
   - **(3) Usulan B, pemeriksaan konsensus mingguan:** seluruh riwayat dibandingkan dengan 3 tarikan sumber seminggu
     sekali; hasilnya dilaporkan ke Telegram; tidak menulis.
   - **(4)** lihat EXEC-BROKER-FULL.
-- **Terbuka:** cek run AS 2026-11-02 23:00 UTC.
+- **Hasil (1)–(3), 2026-11-01:** koreksi 152 dari 153 baris (penjaga menolak percobaan pertama, ERRORS M324); A dan B
+  di-deploy (fe6f1603, SUCCESS 11:23 UTC), dry-run recovery dan cek konsensus manual lulus; rincian di ERRORS M324.
+- **Terbuka:** cek run AS 2026-11-02 23:00 UTC (EST pertama); run recovery ID 2026-11-02 11:00 UTC menulis ID20Y price
+  10-27; laporan mingguan pertama Sabtu 2026-11-07 (ID 18:00 WIB) dan Minggu 2026-11-08 07:00 WIB (US).
 
 ## EXEC-BROKER-FULL — panel broker kanan membaca seluruh riwayat (keputusan 2026-11-01)
 

@@ -11,6 +11,12 @@
 - `Price_Fixed_Income` correction (M324), DRYRUN only so far (`verification/fixed_income_audit/correct_job.py`, three
   source pulls per series with the ingest client): 153 rows to write (97 corrected, 56 added), 0 to delete; US10Y yield
   history left as stored. Nothing written; APPLY waits for the user's look at `CORRECTION_LIST.md`.
+- APPLY 2026-11-01 (user "1. OK"), limited to the approved list (153 keys) with a size guard:
+  - 11:14 UTC refused by its guard, nothing written: three pulls of TVC:US10Y yield all returned the source's other
+    2016/2018/2021 history (719 upserts, 5 deletes outside the list);
+  - 11:17 UTC job `a8296963`: 152 rows written and verified, 0 deleted, one transaction under the markets' run locks;
+    read back through pgweb, all 152 equal the list. ID20Y yield 2026-10-27 not written (the source is back to the
+    stored bar). Feature 04 is enqueued by the table's own trigger for the changed price rows.
 
 ## 2026-11-01 — EXEC-INTRADAY-FEATURES C1: intraday change record, shared bars per year, intraday files in the rack
 

@@ -1,0 +1,12 @@
+Starting Container
+OUT ID {"event": "consensus_series", "series": "ID03Y/yield_to_maturity", "extra": 1, "samples": {"extra": ["2026-10-26"]}}
+OUT ID {"event": "consensus_series", "series": "ID20Y/price", "revised": 1, "samples": {"revised": ["2026-10-27"]}}
+OUT ID {"event": "consensus_series", "series": "ID30Y/yield_to_maturity", "extra": 1, "samples": {"extra": ["2026-10-26"]}}
+OUT ID {"event": "consensus_report", "execution_id": "fi-consensus-manual-ID-2026-11-01-1125", "market": "ID", "series": 22, "revised": 1, "missing": 0, "extra": 2, "unstable": 0, "items": [{"series": "ID03Y/yield_to_maturity", "kind": "extra", "count": 1, "first": "2026-10-26", "last": "2026-10-26"}, {"series": "ID20Y/price", "kind": "revised", "count": 1, "first": "2026-10-27", "last": "2026-10-27"}, {"series": "ID30Y/yield_to_maturity", "kind": "extra", "count": 1, "first": "2026-10-26", "last": "2026-10-26"}], "more_items": 0, "failed_series": [], "pulls": 3, "minutes": 1, "run_time": "2026-11-01 18:25"}
+OUT ID {"event": "telegram_notify_accepted", "attempt": 1}
+OUT {"market": "ID", "exit": 0, "stderr_tail": ""}
+OUT US {"event": "consensus_series", "series": "US10Y/yield_to_maturity", "unstable": 3, "samples": {"unstable": ["2019-11-28", "2020-11-11", "2020-12-25"]}}
+OUT US {"event": "consensus_report", "execution_id": "fi-consensus-manual-US-2026-11-01-1126", "market": "US", "series": 26, "revised": 0, "missing": 0, "extra": 0, "unstable": 3, "items": [{"series": "US10Y/yield_to_maturity", "kind": "unstable", "count": 3, "first": "2019-11-28", "last": "2020-12-25"}], "more_items": 0, "failed_series": [], "pulls": 3, "minutes": 1, "run_time": "2026-11-01 18:26"}
+OUT US {"event": "telegram_notify_accepted", "attempt": 1}
+OUT {"market": "US", "exit": 0, "stderr_tail": ""}
+JOB_DONE CONSENSUS

@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-11-01 — EXEC-FI-DATE A/B, EXEC-BROKER-FULL, ERRORS M325: fixed-income crons, telegram-monitor, edge-bff
+
+- `main` fe6f1603 (watch patterns): fixed-income-price-cron 5a0f5e90, fixed-income-price-recovery-cron 8d949d07,
+  fixed-income-price-us-cron cdaf8ea2, fixed-income-price-us-recovery-cron 0a37e10b, telegram-monitor 679634b7; all
+  SUCCESS 11:23 UTC. The image build imports `fixed_income_update` and `consensus_check` (M318 class). No variable,
+  schedule or start command changed: the recovery roles keep `--mode recovery`, which now re-checks the source's last
+  sessions per series and, on the market's local Saturday, runs the weekly consensus check.
+- Jobs on orc-test-runner (`scripts/onboarding/run_job.sh`): recovery `--dry-run` for ID and US; one manual consensus
+  check per market with `TELEGRAM_NOTIFY_URL`/`TELEGRAM_NOTIFY_SECRET` set as references to
+  fixed-income-price-recovery-cron's variables for the run and removed after it (VAR_REMOVED).
+- edge-bff: `main` 1e833d77 (EXEC-BROKER-FULL) deployment 5c68922d SUCCESS 11:28 UTC; `main` 7e2dccc8 (M325) below.
+
 ## 2026-11-01 — EXEC-FI-DATE: fixed-income crons with the date rule PROVIDER_SESSION_START (ERRORS M323)
 
 - Push 4e554c26 (`apps/fixed-income-price-cron`, watch pattern) redeployed the four services; all SUCCESS at
