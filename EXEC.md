@@ -9982,6 +9982,8 @@ sama dengan Bandar detector lama: Big Acc +15.07%, Big Acc +11.08%, Acc +6.10%.
 **Bukti:** pada BBRI dengan FL23 bawaan (NI, CC, OD), klik AK di Broker summary menghasilkan FL23 = NI, CC, OD, AK.
 Label sumbu "NI 6.6M · OD 4.5M · CC 3.9M · AK −11.7M".
 
+**Live (kedua EXEC di atas):** edge-bff `bfca85d1` SUCCESS (`b97f2034`); `merged_live_check.py` lulus di halaman live.
+
 ## EXEC-FLOW-AUDIT-HTML — satu HTML "How it works" untuk 39 indikator Flow (2026-11-01)
 
 **Kata user, 2026-11-01:** "Ada indikator flow, kemudian ada how it works. Itu HTML akan menjadi source bagaimana saya

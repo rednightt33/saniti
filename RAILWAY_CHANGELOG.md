@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-11-01 — edge-bff: Bandar detector inside Top brokers; picked broker joins Broker Inventory (EXEC-BANDAR-MERGE, EXEC-INV-SYNC)
+
+- `main` `b97f2034`: edge-bff `bfca85d1` SUCCESS. The live Terminal serves `index-BwguznpO.js`, equal to a local build.
+- `verification/terminal_api/bandar_merge/merged_live_check.py` passes on the live page.
+- `bond_indicators_live_check.py` still passes.
+- No variable changed.
+
 ## 2026-11-01 — edge-bff: the chart waits only for what it draws; bond flags and market labels (ERRORS M333)
 
 - `main` `ab746d6a`: edge-bff `98009cf7` SUCCESS. The live Terminal serves `index-Cj9xoTvc.js`, equal to a local build.
