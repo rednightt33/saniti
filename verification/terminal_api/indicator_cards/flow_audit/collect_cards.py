@@ -73,7 +73,7 @@ try:
         page.wait_for_timeout(3000)
         out['cards'] = page.evaluate("""() => { const c = window.__ctx, K = window.__card; c.lastTipIdx = c.N - 1;
           const defs = window.marketLabIndicators.defs.filter(d => d.flow && /^FL\\d\\d$/.test(d.id)).sort((a, b) => a.id < b.id ? -1 : 1);
-          const res = [];
+          const res = [], rows = [];
           for (const d of defs) {
             const item = K.itemOfDef(d), src = c.Ind.cardSource(d.id), host = document.createElement('div');
             document.body.appendChild(host); K.renderCard(host, c, item, src);
@@ -87,11 +87,24 @@ try:
               cl.querySelectorAll('input').forEach(i => { i.setAttribute('disabled', ''); i.setAttribute('value', i.value) });
               if (k !== null) cl.querySelector('.icd-h h4').insertAdjacentHTML('beforeend', ` <span class="aud-out">output: ${label}</span>`);
               parts.push(cl.outerHTML);
+              /* the same card as data, for the Excel (user 2026-11-01: "Excelnya mana?"): the explainer the card shows, and
+                 what the card writes (value, filled formula, parameters, cautions), on the same candle */
+              const series = d.compute(src.params) || {}, out = k ?? Object.keys(series).find(x => !x.startsWith('_') && Array.isArray(series[x]));
+              let t = c.N - 1; while (t >= 0 && !(typeof series[out]?.[t] === 'number' && isFinite(series[out][t]))) t--;
+              const e = t >= 0 && d.explain ? d.explain(src.params, t, out) : null, a = Math.max(0, t - 79);
+              const txt = sel => [...host.querySelectorAll(sel)].map(x => x.innerText.trim());
+              rows.push({ id:d.id, name:d.name, family:item.group, unit:item.unit, output:label ?? out, date:c.dates[t], value:series[out]?.[t] ?? null,
+                big:host.querySelector('[data-big]')?.textContent, filled:host.querySelector('[data-expr]')?.textContent,
+                expr:e?.expr, span:e?.span || null, terms:(e?.terms || []).map(x => [x.key, x.label, x.value, x.unit]),
+                steps:(e?.steps || []).map(st => ({ title:st.title, text:st.text, table:st.table || null })),
+                params:[...host.querySelectorAll('[data-pane="2"] .icd-notes table tbody tr')].map(r => [...r.cells].map(x => x.innerText.trim())),
+                formula:host.querySelector('.icd-formula')?.innerText.trim(), cautions:txt('[data-pane="2"] .icd-notes ul li'),
+                chart:Array.from({ length:t - a + 1 }, (_, j) => [c.dates[a + j], series[out]?.[a + j] ?? null, c.ohlc[a + j]?.close ?? null]) });
             }
             host.remove();
             res.push({ id:d.id, name:d.name, family:item.group, html:parts.join('') });
           }
-          return { cards:res, ticker:c.SYMBOL, last:c.dates[c.N - 1], broker:c.dates[c.brokerEnd] };
+          return { cards:res, rows, ticker:c.SYMBOL, last:c.dates[c.N - 1], broker:c.dates[c.brokerEnd] };
         }""")
         out['errors'] = errors
         json.dump(out, open(os.environ['AUDIT_OUT'], 'w'), default=str); print('{"saved": true}'); sys.stdout.flush()

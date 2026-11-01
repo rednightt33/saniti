@@ -9946,6 +9946,10 @@ flow".
   - Dibuat dengan `collect_cards.py` (halaman lokal, data dev) lalu `build_html.py` (CSS kartu dari `terminal.css`, daftar
     isi, asal angka). Kode commit `1b657d59`.
   - Dibuka di browser: 39 bagian, 41 grafik, tidak ada "Tidak ada nilai", tanpa galat, tanpa geser ke samping.
+- **Excel, kata user 2026-11-01:** "Excelnya mana?" (pesan sebelumnya "XOP … template S" ternyata meminta Excel juga).
+  - `flow_indicators_audit_BBCA.xlsx` (`build_xlsx.py`, gaya `FLOW_INDICATORS_FINAL.xlsx`) dibuat dari pengambilan yang
+    sama dengan HTML (`collect_cards.py` kini juga menyimpan data kartu). Sheet: Info, Ringkasan (41 output), Istilah,
+    Langkah, Tabel_Langkah, Parameter, Hati_hati, Grafik_Data (80 candle per output).
 - Bug tombol (i) dari screenshot yang sama: ERRORS M331, FIXED.
 
 ## EXEC-DRAW-ALL-TF — satu set gambar untuk semua timeframe (go 2026-11-01, menggantikan C7.2 A)
