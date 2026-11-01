@@ -235,7 +235,20 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
   menganggur) dan pool koneksi database (dipinjam, lalu dikembalikan di akhir permintaan).
 - **Keputusan user yang masih terbuka:** tambahan biaya server dan perubahan arsitektur untuk no. 3–4.
 
-## FI-SPEED — Terminal: sisa waktu muat di sisi server (usulan 2026-11-01, menunggu keputusan user)
+## BANDAR-MERGE — Bandar detector digabung ke Top brokers (usulan 2026-11-01, menunggu pilihan user)
+
+User 2026-11-01: "Berarti panel ini sebenarnya bisa kita gabungkan dengan panel top [brokers] dong ... di panel top brokers kita
+tambahkan opsi top 3, top 5, top 10. Beserta verdiknya"; lalu "Kita kirimkan saya 10 opsi dalam satu HTML".
+
+- Halaman pilihan: `verification/terminal_api/bandar_merge/bandar_merge_options.html`, berisi 10 opsi dengan angka
+  live (Railway dev, data broker sampai 27 Okt 2026).
+- Data dibaca dengan `collect_panels.py`; halaman dibuat dengan `build_options.py`.
+- Keputusan terbuka:
+  1. opsi tampilan mana (1–10);
+  2. vonis mengikuti filter papan panel (A) atau selalu semua papan seperti FL24 (B);
+  3. periode bawaan 5 hari atau 1 hari.
+
+ (usulan 2026-11-01, menunggu keputusan user)
 
 User 2026-11-01: "untuk load data obligasi kayaknya lama banget deh ... Coba cek deh, kenapa bisa selama ini ya?". Dua
 penyebab di halaman sudah diperbaiki (ERRORS M333). Penyebab berikut terukur tetapi butuh keputusan karena menyentuh
