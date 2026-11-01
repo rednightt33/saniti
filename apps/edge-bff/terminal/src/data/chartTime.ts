@@ -32,5 +32,21 @@ export function keyedCharts<T extends { createChart: (...a: any[]) => any }>(L: 
   return { ...L, createChart:(...a: any[]) => keyedChart(L.createChart(...a)) };
 }
 
+/** ERRORS M326 (UI audit 2026-11-01): a chart that follows the main chart's time range (the Flow Timeline, an asset's
+    Flow pane) ends its time scale where the main chart ends. lightweight-charts limits how far right a chart scrolls from
+    its last bar that has a value (whitespace after it does not count), so a follower whose data stops earlier (broker
+    data behind the prices: three sessions are about 195 candles on 5M) cannot take the main chart's range: it sits off
+    the candles, and with the pointer on it pushes its clipped range back onto the main chart. An invisible series with a
+    value on every candle gives the follower the same last bar. It sits on the follower's main price scale (`scale`, the
+    one lightweight-charts positions a crosshair set from code against: with no value in the visible range it throws
+    "Value is null") and adds nothing to that scale's range (autoscaleInfoProvider null); it draws nothing. Add it after
+    the chart's own series: a price scale takes its number format from its first series. */
+export function anchorTimeScale(L: any, chart: any, times: any[], scale = 'right') {
+  const s = chart.addSeries(L.LineSeries, { priceScaleId:scale, lineVisible:false, pointMarkersVisible:false,
+    crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false, autoscaleInfoProvider:() => null });
+  s.setData(times.map(time => ({ time, value:0 })));
+  return s;
+}
+
 /** series markers with candle keys */
 export const keyedMarkers = (markers: any[]) => markers.map(point);

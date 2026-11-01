@@ -16,6 +16,7 @@ import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, rupiah, spin, store } fro
 import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
 import type { Bar, Combo, Instrument } from '../data/types';
 import { UNIT } from '../data/timeframe';
+import { anchorTimeScale } from '../data/chartTime';
 
 export const MAX_ASSETS = 2;
 export const ASSET_COLORS = ['#2962ff', '#f57c00'];
@@ -346,7 +347,7 @@ export function initAssets(ctx: Ctx) {
     el.innerHTML = `<div class="flow-grip af-grip" role="separator" aria-orientation="horizontal" tabindex="0"
         aria-label="Resize the ${a.ticker} Flow Timeline (drag, or arrow up/down; double-click to reset)"><i></i></div>
       <div class="flow-head af-head">
-        <div class="flow-title"><strong>Flow Timeline</strong><span class="af-badge"></span></div>
+        <div class="flow-title"><strong>Flow Timeline</strong><span class="af-badge"></span>${DAY_OF ? '<span class="flow-daily" title="Broker data is daily: each day’s figure is shown on that day’s candles">Daily</span>' : ''}</div>
         <div class="flow-summary"></div>
         <span class="flow-note" hidden></span>
         <div class="flow-filters"><div class="fl"></div><div class="fl"></div><div class="fl"></div><button class="fl-reset" type="button" hidden>Reset</button></div>
@@ -369,11 +370,13 @@ export function initAssets(ctx: Ctx) {
       kineticScroll:{ mouse:true, touch:true },
       localization:{ locale:'en-US' }
     } as any);
+    if (DAY_OF) fc.applyOptions({ timeScale:{ timeVisible:true, secondsVisible:false } });
     const axisText = (v: number, n = 10) => rupiah(v).padStart(n, ' ');
     const bars = fc.addSeries(L.HistogramSeries, { priceScaleId:'right', priceLineVisible:false, lastValueVisible:false,
       priceFormat:{ type:'custom', formatter:(v: number) => axisText(v, 8), minMove:1 } });
     const cum = fc.addSeries(L.LineSeries, { priceScaleId:'left', color:'#171717', lineWidth:2, priceLineVisible:false, lastValueVisible:false,
       crosshairMarkerRadius:3, priceFormat:{ type:'custom', formatter:(v: number) => axisText(v), minMove:1 } });
+    anchorTimeScale(L, fc, ctx.ohlc.map(b => b.time));    // ERRORS M326, after the series: the scales keep their formats
     const pane: FlowPane = {
       el, chart:fc, bars, cum,
       netBadge:bars.createPriceLine({ price:0, lineVisible:false, axisLabelVisible:false, axisLabelColor:'#089981', axisLabelTextColor:'#ffffff', title:'' }),

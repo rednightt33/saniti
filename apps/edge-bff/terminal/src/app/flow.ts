@@ -4,6 +4,7 @@
    Fixture: the reference's synthetic series. Live: the published broker files (bv − sv per session); sessions before
    the first broker date have no rows and count as 0, as in the reference's setBroksumRows. */
 import { UNIT } from '../data/timeframe';
+import { anchorTimeScale } from '../data/chartTime';
 import type { Ctx, FilterApi } from './context';
 import { $, cls, keyOf, nfCompact, rupiah, spin, store } from './context';
 
@@ -79,6 +80,8 @@ export function initFlow(ctx: Ctx) {
     kineticScroll:{ mouse:true, touch:true },
     localization:{ locale:'en-US' }
   } as any);
+  // ERRORS M326 (F5): an intraday Flow axis reads the candles' time like the main chart's, not the same day repeated
+  if(ctx.M.intraday) flowChart.applyOptions({ timeScale:{ timeVisible:true, secondsVisible:false } });
   // axis text is padded to a fixed length with figure spaces so every axis label / badge box has the same width
   const axisText = (v: number, n=10) => rupiah(v).padStart(n, ' ');
   // the top BAND px of the plot is reserved for the legend: scale margin keeps data below it, and tick labels that would land inside it are blanked
@@ -97,6 +100,8 @@ export function initFlow(ctx: Ctx) {
     priceScaleId:'left', color:'#171717', lineWidth:2, priceLineVisible:false, lastValueVisible:false,
     crosshairMarkerRadius:3, priceFormat:{ type:'custom', formatter:(v: number)=>axisTextFor(()=>flowCum, v), minMove:1 }
   });
+  // ERRORS M326: the same last bar as the main chart; added after the series, so the scales keep their formats
+  anchorTimeScale(L, flowChart, ohlc.map(b => b.time));
   let flowNet = new Float64Array(N), flowCumArr = new Float64Array(N);
   const fitTopMargin = () => {
     const h = $('flowChart').clientHeight; if(!h) return;

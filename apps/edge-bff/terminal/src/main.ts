@@ -166,9 +166,14 @@ function boot() {
   const tf = timeframeButtons();
   liveData(stored, tf).then(M => {
     loading.remove();
-    if (M.timeframes) {                                     // the ticker's timeframes: the buttons, and the next load's
-      store.set('ml.tfs', JSON.stringify(M.timeframes));
-      paintTimeframes(M.tf || 'D', M.timeframes, M.timeframes);
+    if (M.timeframes) {
+      /* the buttons: every intraday timeframe seen so far (remembered for the next load), the ticker's own enabled and
+         the others off with their tooltip (ERRORS M326 F4: the same list was passed twice, so none was ever off) */
+      let seen: string[] = [];
+      try { seen = JSON.parse(store.get('ml.tfs') || '[]') } catch (_) {}
+      const offered = [...new Set([...(Array.isArray(seen) ? seen : []), ...M.timeframes].filter(t => typeof t === 'string' && isIntraday(t)))];
+      store.set('ml.tfs', JSON.stringify(offered));
+      paintTimeframes(M.tf || 'D', offered, M.timeframes);
     }
     const ctx = start(M, {}); mark('chart drawn');
     if (M.note) { const n = notice(M.note); setTimeout(() => n.remove(), 6000) }

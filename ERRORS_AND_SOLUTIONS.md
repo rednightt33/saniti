@@ -5046,6 +5046,46 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** setiap fungsi yang menjumlah lintas candle harus memakai peta hari bila grafiknya intraday; cari semua
   penjumlahan atas data harian saat menambah timeframe baru.
 
+### M326 — Flow Timeline bergeser dari grafik utama di 5M dan menarik grafik utama mundur; tombol timeframe, sumbu dan tag Daily (2026-11-01)
+
+- **Ditemukan oleh:** audit tampilan Terminal intraday (agen Sonnet, 2026-11-01, temuan F1, F2, F4, F5, F6),
+  diverifikasi ulang dari kode dan halaman.
+- **Symptom:**
+  - F1: BBCA 5M tampilan awal, Flow Timeline ±27 candle (+124 px) di kiri candle grafik utama; di 1H terjadi saat zoom
+    dekat candle terbaru.
+  - F2: pointer di Flow (atau panel Flow aset) plus satu putaran roda menarik grafik utama mundur dan menyembunyikan
+    ±39 candle terbaru (kelas M321 lagi).
+  - F4: timeframe yang tidak dimiliki ticker dihapus, bukan dimatikan dengan tooltip seperti rencana C3.
+  - F5: sumbu waktu Flow di intraday mengulang tanggal ("28 28 28 29").
+  - F6: panel Flow aset tanpa tag "Daily" di intraday.
+- **Verified cause:**
+  - F1/F2: lightweight-charts membatasi geser ke kanan dari bar terakhir yang punya nilai (whitespace tidak dihitung).
+    Bar terakhir Flow = data broker terakhir (27 Okt), tiga sesi = ±195 candle 5M sebelum candle terakhir grafik utama,
+    jadi Flow tidak bisa memegang rentang grafik utama (`pushRange` tidak memeriksa hasilnya), dan dengan pointer di
+    Flow rentang yang terpotong didorong balik (`app/flow.ts` `flowOver`, `app/assets.ts` `syncRange`). Bukti: HEAD tanpa
+    perbaikan, BBCA 5M: utama [4865,2; 5034], Flow [4840; 5008,8]; sesudah roda di Flow utama [4828,8; 5016,4].
+  - F4: `main.ts` memanggil `paintTimeframes(tf, M.timeframes, M.timeframes)`, daftar yang ditawarkan sama dengan
+    yang dimiliki, sehingga cabang "off" tidak pernah jalan.
+  - F5: grafik Flow dan panel aset dibuat dengan `timeVisible:false`; grafik utama menyalakannya di intraday.
+  - F6: tag hanya dipasang di header Flow utama.
+- **Class:** grafik pengikut yang datanya berhenti lebih awal dari grafik utama (broker di belakang harga; nanti seri
+  makro/lintas aset yang terbit terlambat) tidak bisa memegang rentang bersama; makin kecil candle, makin besar selisihnya.
+- **Solution:**
+  - `data/chartTime.ts` `anchorTimeScale`: seri tak terlihat dengan nilai di setiap candle pada skala harga utama
+    pengikut (tanpa ikut autoscale, ditambahkan sesudah seri pengikut agar format skala tetap), dipakai Flow Timeline dan
+    panel Flow aset. Bar terakhir pengikut = grafik utama. Seri itu juga mencegah "Value is null" dari library saat
+    crosshair dipasang dari kode di rentang tanpa data broker (terlihat di uji pertama dengan seri di skala tersendiri).
+  - F4: tombol = semua timeframe intraday yang pernah terlihat (disimpan `ml.tfs`), yang tidak dimiliki ticker mati
+    dengan tooltip. F5: `timeVisible` di intraday untuk Flow dan panel aset. F6: tag Daily di panel aset.
+- **Verifikasi:** halaman lokal, BBCA 5M, 1H dan D: rentang utama = Flow pada tampilan awal, sesudah roda di Flow,
+  sesudah zoom dalam dan roda lagi (mis. 5M [4864,6; 5034] keduanya); 0 galat halaman; sumbu Flow berformat Rupiah dan
+  menampilkan jam (tangkapan `scratchpad/bfull/align-BBCA-5m.png`, `align-BBCA-1h.png`). Tes 769 lulus.
+- **Belum ditangani (dilaporkan ke user):** F3 toolbar terpotong di layar ponsel 390 px, F7 gambar intraday tersimpan
+  ulang ke awal candle timeframe yang lebih kasar saat diedit di sana, F8 dua butir rencana C3 belum dibangun.
+- **Status:** FIXED untuk F1, F2, F4, F5, F6 (deploy edge-bff, RAILWAY_CHANGELOG 2026-11-01).
+- **Lesson:** setiap grafik yang disinkronkan harus berakhir di bar terakhir grafik pemimpin; uji sinkronisasi di
+  timeframe terkecil dengan data pengikut tertinggal beberapa sesi.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan
