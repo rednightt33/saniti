@@ -4805,9 +4805,12 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:**
   - Aturan yang belum tertulis di `FORMULAS.md` sudah ditambahkan (FL09, FL23, FL29, FL32, FL35); tidak ada angka yang
     berubah.
-  - Default FL36/FL37 menunggu keputusan user: semua broker (sesuai maksud Screener), atau tetap Top-N.
-  - FL25 mengikuti keputusan Top 3; teks sheet lama tidak diubah.
-- **Status:** OPEN (FL36/FL37).
+  - Keputusan user 2026-11-01: "samakan dengan bagaimana formula dihitung di terminal. Jangan sangkut-pautkan dengan
+    screener dulu. Fokus ke bagaimana formula tersebut dihitung. Dan di display di terminal."
+  - Terminal menjadi satu-satunya acuan: FL36/FL37 tetap Top-N dan FL25 tetap Top 3, tanpa perubahan kode.
+  - Di `FLOW_INDICATORS_FINAL.xlsx`, kedua sheet FL diisi dari Terminal (rumus dari kode, default dan tampilan dari
+    registry, contoh = Terminal) dan teks Screener dikosongkan.
+- **Status:** FIXED (dokumen mengikuti Terminal).
 - **Lesson:** sebelum audit, bandingkan default setiap sheet dengan registry yang dibaca kode.
 
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)

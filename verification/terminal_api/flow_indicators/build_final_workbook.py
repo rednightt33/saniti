@@ -64,6 +64,10 @@ CHANGES = [
     ('2026-10-30', 'FL14', 'Empat desimal seperti FL13.', 'Reviewer B, B5.', 'Tampilan saja.'),
     ('2026-10-30', 'FL01-FL23, FL34', 'Tooltip dalam bahasa Indonesia sederhana; FL34 memberi tahu bila klasifikasi '
      'belum dimuat; dialog Flow dirapikan.', 'Audit front end (V3, V4, V7, V8, V9).', 'Tampilan saja.'),
+    ('2026-11-01', 'FL01-FL39', 'Kedua sheet FL memakai Terminal sebagai satu-satunya acuan: rumus dari kode, default dan '
+     'tampilan dari registry Terminal, contoh dari oracle (= Terminal); kolom dan teks Screener dikosongkan. FL36/FL37 tetap '
+     'Top-N seperti di Terminal.', 'User: "samakan dengan bagaimana formula dihitung di terminal. Jangan sangkut-pautkan '
+     'dengan screener dulu."', 'Dokumentasi saja; Terminal tidak berubah.'),
     ('2026-11-01', 'FL01-FL39', 'Sheet Inspeksi_Kode: setiap FL dibaca di calc/flow.ts dan dibandingkan dengan FORMULAS.md, '
      'registry dan sheet Indikator_baru. Rumus cocok semua; default FL25 (Top N), FL36 dan FL37 (cakupan) berbeda antara '
      'sheet Indikator_baru dan kode.', 'User: "untuk setiap indikator boleh dilakukan inspeksi kode terlebih dahulu".',
@@ -218,60 +222,36 @@ def oracle_examples():
     return out
 
 
+PLACE = {'pane': 'Panel sendiri di bawah chart', 'price': 'Garis di atas chart harga (sumbu harga)',
+         'marker': 'Tanda di bawah candle saat nilainya 1'}
+SIDE_OUT = {('buy', 'sell'): 'Buy, Sell atau keduanya (pilihan Side)'}
+
+
+def terminal_display(i):
+    """How the Terminal draws the indicator, read from its registry entry (apps/edge-bff/terminal/src/app/flowIndicators.ts
+    turns place, plot and levels into the chart series)."""
+    pr = {q['key']: q for q in i['params']}
+    kind = 'tanda' if i['place'] == 'marker' else ('histogram' if pr.get('plot', {}).get('default') == 'hist' else 'garis')
+    alt = ' (bisa diganti garis/histogram)' if 'plot' in pr else ''
+    outs = SIDE_OUT.get(tuple(i['outputs']), ', '.join(i['outputs']))
+    lv = str(pr.get('levels', {}).get('default') or '').strip()
+    guides = f"; garis acuan {lv}" if lv else ('; garis acuan bisa diisi' if 'levels' in pr else '')
+    return f"{PLACE[i['place']]}; {kind}{alt}; output: {outs}; satuan {i['unit']}{guides}"
+
+
 def complete_fl_sheets(wb):
-    """User 2026-11-01: "Lengkapi list indicators FL only di sheet ini mengikuti format sheet tsb" (Indicator_SPECS_reviewed
-    and Indikator_baru_dari_Screener). Each sheet gets every FL id the Terminal has, in its own columns; added rows are
-    filled from the code (registry, FORMULAS.md, Screener metrics, the oracle) and shaded."""
+    """User 2026-11-01: "Lengkapi list indicators FL only di sheet ini mengikuti format sheet tsb", then "samakan dengan
+    bagaimana formula dihitung di terminal. Jangan sangkut-pautkan dengan screener dulu. Fokus ke bagaimana formula
+    tersebut dihitung. Dan di display di terminal." Both FL sheets hold FL01-FL39 in their own columns; every formula,
+    default, display and example comes from the Terminal (calc/flow.ts as FORMULAS.md states it, flowRegistry.json, the
+    oracle that equals the Terminal); no Screener field is used. Rows not in the 2026-10-30 sheet are shaded."""
     reg = json.loads(REGISTRY.read_text())['indicators']
+    by_id = {i['id']: i for i in reg}
     _, frows = formulas()
     formula = {r[0]: r[3].replace('`', '') for r in frows}
-    eq = fl_equivalents()
-    by_fl = {}
-    for sid, fl in eq.items():
-        by_fl.setdefault(fl, []).append(sid)
-    metrics = {m['id']: m for m in json.loads(SC_METRICS.read_text())['metrics']}
-    chart = {str(r[0]): r for r in list(wb['Screener_ke_Chart'].iter_rows(values_only=True))[1:] if r[0]}
     examples = oracle_examples()
-    stamp = 'Ditambahkan 2026-11-01 dari kode (flowRegistry.json, FORMULAS.md); tidak ada di sheet ini pada spec 30 Okt'
-
-    ws = wb['Indicator_SPECS_reviewed']
-    rows = list(ws.iter_rows(values_only=True))
-    head, have = rows[0], {r[0] for r in rows[1:] if r[0]}
-    spec_def, spec_use = {}, {}
-    for r in rows[1:]:
-        for store, col in ((spec_def, 'Definition'), (spec_use, 'Why It Is Useful / Why Formula Works')):
-            v = r[head.index(col)]
-            if r[0] and v and v not in store.setdefault(r[0], []):
-                store[r[0]].append(v)
-    new = ws.max_row
-    for i in reg:
-        if i['id'] in have:
-            continue
-        sids = by_fl.get(i['id'], [])
-        sc = metrics.get(sids[0]) if sids else None
-        ch = chart.get(sids[0]) if sids else None
-        shape = (ch[6] if ch and ch[6] not in (None, '-') else ('Separate panel' if i.get('place') != 'overlay' else 'Main candlestick overlay'))
-        vals = {
-            '# (Terminal)': i['id'], 'Spec #': '-', 'Terminal indicator (final)': i['name'], 'Indicator': i['name'],
-            'Chart Display (Reviewed)': shape, 'Chart Parameters (Reviewed)': params_text(i.get('params')),
-            'Screener Parameters (PROPOSED)': (f"{sids[0]}: " + params_text(sc.get('params'))) if sc else '-',
-            'Review / Correction': stamp, 'Category': i['family'],
-            'Recommended Chart Type': 'Histogram' if 'histogram' in str(shape).lower() else 'Line chart',
-            'Definition': i.get('tip') or '', 'Formula / Calculation': formula.get(i['id'], ''),
-            'Why It Is Useful / Why Formula Works': (sc or {}).get('interpretation') or '',
-            'Example Illustration': examples.get(i['id'], '-'),
-            'Original Placement': 'Screener (' + ', '.join(sids) + ')' if sids else '-',
-            'Display Guidance': f"{'Panel sendiri' if i.get('place') != 'overlay' else 'Overlay di chart harga'}, satuan {i.get('unit') or '-'}",
-            'Status / Evidence': 'LIVE di Terminal; sama dengan oracle independen (EXEC-TERMINAL-FLOW-IND S5)',
-            'Default Display': '-',
-        }
-        ws.append([vals.get(h, '') for h in head])
-    for row in ws.iter_rows(min_row=new + 1, max_row=ws.max_row):
-        for cell in row:
-            cell.fill = ADDED
-            cell.alignment = Alignment(wrap_text=True, vertical='top')
-
-    by_id = {i['id']: i for i in reg}
+    insp = {r[0]: r for r in json.loads((HERE / 'code_inspection_20261101.json').read_text())}
+    no_sc = lambda t: ' '.join(x for x in re.split(r'(?<=[.!?])\s+', str(t or '')) if 'creener' not in x).strip()
 
     def sources(fid, seen=()):
         """The data an FL formula reads: its own terms plus those of every FL it refers to (FL09 = FL05 + FL07 + ...)."""
@@ -289,31 +269,78 @@ def complete_fl_sheets(wb):
                 out += sources(ref, seen + (fid,))
         return list(dict.fromkeys(out)) or ['broker']
 
+    # ---- Indicator_SPECS_reviewed: every row's Terminal fields replaced, missing ids added ----
+    ws = wb['Indicator_SPECS_reviewed']
+    rows = list(ws.iter_rows(values_only=True))
+    head, old_ids = rows[0], {r[0] for r in rows[1:] if r[0]}
+    col = {h: n for n, h in enumerate(head)}
+    spec_use, spec_def = {}, {}
+    for r in rows[1:]:
+        for store, c in ((spec_use, 'Why It Is Useful / Why Formula Works'), (spec_def, 'Definition')):
+            v = r[col[c]]
+            if r[0] and v and v not in store.setdefault(r[0], []):
+                store[r[0]].append(v)
+
+    def terminal_fields(i, base):
+        v = dict(base)
+        v.update({
+            '# (Terminal)': i['id'], 'Terminal indicator (final)': i['name'], 'Category': i['family'],
+            'Chart Display (Reviewed)': PLACE[i['place']], 'Chart Parameters (Reviewed)': params_text(i.get('params')),
+            'Screener Parameters (PROPOSED)': '-',
+            'Recommended Chart Type': terminal_display(i).split('; ')[1].capitalize(),
+            'Formula / Calculation': formula.get(i['id'], ''), 'Display Guidance': terminal_display(i),
+            'Status / Evidence': 'Kode Terminal: ' + insp[i['id']][2] + '. ' + insp[i['id']][3],
+        })
+        for k, x in list(v.items()):         # no Screener reference in a Terminal row (user 2026-11-01)
+            if k in head and x and 'creener' in str(x):
+                v[k] = no_sc(x) or '-'
+        ex = examples.get(i['id'])
+        if ex:
+            v['Example Illustration'] = (f"{base['Example Illustration']} / " if base.get('Example Illustration') else '') + ex
+        return v
+
+    out_rows = []
+    for r in rows[1:]:
+        base = dict(zip(head, r))
+        if base.get('# (Terminal)') in by_id:
+            out_rows.append((False, terminal_fields(by_id[base['# (Terminal)']], base)))
+    for i in reg:
+        if i['id'] not in old_ids:
+            base = {h: '' for h in head}
+            base.update({'Spec #': '-', 'Indicator': i['name'], 'Definition': i.get('tip') or '',
+                         'Why It Is Useful / Why Formula Works': '', 'Original Placement': '-', 'Default Display': '-',
+                         'Review / Correction': 'Ditambahkan 2026-11-01 dari kode Terminal; tidak ada di sheet ini pada spec 30 Okt'})
+            out_rows.append((True, terminal_fields(i, base)))
+    ws.delete_rows(2, ws.max_row)
+    for added, v in out_rows:
+        ws.append([v.get(h, '') for h in head])
+        for cell in ws[ws.max_row]:
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
+            if added:
+                cell.fill = ADDED
+
+    # ---- Indikator_baru_dari_Screener: the same sheet, every FL, Terminal fields only ----
     ws = wb['Indikator_baru_dari_Screener']
     rows = list(ws.iter_rows(values_only=True))
-    head, have = rows[0], {r[0] for r in rows[1:] if r[0]}
-    added = []
-    for i in reg:
-        if i['id'] in have:
-            continue
-        sids = by_fl.get(i['id'], [])
-        sc = metrics.get(sids[0]) if sids else None
-        f = formula.get(i['id'], '')
-        data = ' + '.join(sources(i['id']))
-        added.append([i['id'], i['name'], ', '.join(sids) or '-', f, ' '.join(spec_def.get(i['id'], [])) or i.get('tip') or '',
-                      ' '.join(spec_use.get(i['id'], [])), (sc or {}).get('misuse') or '-', params_text(i.get('params')),
-                      data, 'Ya'])
-    keep = [list(r) for r in rows[1:]]
-    order = {i['id']: n for n, i in enumerate(reg)}
-    allrows = sorted(keep + added, key=lambda r: order.get(r[0], 999))
+    head, old = rows[0], {r[0]: dict(zip(rows[0], r)) for r in rows[1:] if r[0]}
     ws.delete_rows(2, ws.max_row)
-    added_ids = {r[0] for r in added}
-    for r in allrows:
-        ws.append(r)
-        if r[0] in added_ids:
-            for cell in ws[ws.max_row]:
+    for i in reg:
+        o = old.get(i['id'], {})
+        caution = no_sc(o.get('Hati-hati')) if o else ''
+        if i['id'] == 'FL24':      # the old text named panel levels 3/6/12; the Terminal panel and indicator use 6 and 10
+            caution = 'Label Bandar di panel dan garis acuan indikator memakai 6 dan 10 (Acc/Dist, Big Acc/Big Dist).'
+        note = insp[i['id']][3]
+        v = {'Usulan id': i['id'], 'Nama (usulan, sama di Terminal dan Screener)': i['name'], 'Screener id': '-',
+             'Rumus': formula.get(i['id'], ''), 'Maksud': i.get('tip') or '',
+             'Kegunaan': no_sc(o.get('Kegunaan')) if o else ' '.join(spec_use.get(i['id'], [])),
+             'Hati-hati': ' '.join(x for x in (caution, '' if note.startswith('Cocok.') and len(note) < 8 else note) if x) or '-',
+             'Parameter (default)': params_text(i.get('params')) + ' | Tampilan: ' + terminal_display(i),
+             'Data': ' + '.join(sources(i['id'])), 'Data sudah di storage?': 'Ya'}
+        ws.append([v.get(h, '') for h in head])
+        for cell in ws[ws.max_row]:
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
+            if i['id'] not in old:
                 cell.fill = ADDED
-                cell.alignment = Alignment(wrap_text=True, vertical='top')
     return len(reg)
 
 

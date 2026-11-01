@@ -164,15 +164,15 @@
   "FL24",
   "Bandar Balance · %",
   "calc/flow.ts:446, bandar:300, balancePct:306",
-  "Cocok. Penyebut: nilai beli semua broker dengan filter papan dan investor.",
-  "Teks \"Hati-hati\" lama di spreadsheet masih menyebut panel 3/6/12%; kode memakai 6/10 untuk panel dan indikator."
+  "Cocok. Penyebut: nilai beli semua broker dengan filter papan dan investor. Garis acuan 6, 10, -6, -10; label Bandar Acc/Dist memakai 6 dan 10.",
+  "-"
  ],
  [
   "FL25",
   "Bandar Balance · Rupiah",
   "calc/flow.ts:447, bandar:300",
-  "Rumus cocok. Default Top N = 3 (Parameter_Terminal, keputusan \"Top 3 untuk semua\"), sedangkan sheet Indikator_baru_dari_Screener menulis 5.",
-  "SELISIH DEFAULT (dokumen lama)."
+  "Cocok. Default Top N = 3 (keputusan \"Default Top 3 untuk semua\", 2026-10-30).",
+  "-"
  ],
  [
   "FL26",
@@ -248,15 +248,15 @@
   "FL36",
   "Share · Market Value (Buy + Sell)",
   "calc/flow.ts:535, cohort:208",
-  "Rumus cocok. Default cakupan = Top-N cohort (3 broker net beli terbesar di antara transaksi asing), bukan seluruh asing; sheet Indikator_baru_dari_Screener dan Screener fpart (\"Foreign participation\") memaksudkan semua broker.",
-  "SELISIH DEFAULT: perlu keputusan."
+  "Cocok. Default cakupan Top-N cohort: 3 broker net beli terbesar di antara transaksi yang lolos filter investor (default asing), jendela 20; penyebut 2 x nilai beli semua broker dengan filter papan saja.",
+  "Keputusan user 2026-11-01: ikuti Terminal (Top-N tetap)."
  ],
  [
   "FL37",
   "Net Flow Percentile · Rupiah",
   "calc/flow.ts:539, cohort:208, percentile:247",
-  "Rumus cocok. Default cakupan = Top-N cohort, sedangkan sheet Indikator_baru_dari_Screener dan Screener fsurprise (\"Foreign flow surprise\") memaksudkan semua broker.",
-  "SELISIH DEFAULT: perlu keputusan."
+  "Cocok. Default cakupan Top-N cohort (3 broker, investor asing), net Rupiah 20 hari, persentil atas 250 nilai sebelumnya.",
+  "Keputusan user 2026-11-01: ikuti Terminal (Top-N tetap)."
  ],
  [
   "FL38",

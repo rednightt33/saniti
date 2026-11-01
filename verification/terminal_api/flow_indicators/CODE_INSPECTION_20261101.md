@@ -31,8 +31,8 @@ Read: `apps/edge-bff/terminal/src/calc/flow.ts` (main `35596f3f`), compared with
 | FL21 | Net Flow Percentile · vs Turnover | `calc/flow.ts:421, flowTurnover:283, percentile:247` | Cocok. | - |
 | FL22 | Broker Buy Breadth | `calc/flow.ts:422` | Cocok. | - |
 | FL23 | Broker Inventory | `calc/flow.ts:430, defaultInventoryBrokers:348` | Cocok, dengan dua aturan yang belum tertulis: paling banyak 5 broker (sisanya diabaikan), dan kode broker yang tidak ada di data menjadi garis 0. | Belum tertulis di FORMULAS.md: batas 5 broker. |
-| FL24 | Bandar Balance · % | `calc/flow.ts:446, bandar:300, balancePct:306` | Cocok. Penyebut: nilai beli semua broker dengan filter papan dan investor. | Teks "Hati-hati" lama di spreadsheet masih menyebut panel 3/6/12%; kode memakai 6/10 untuk panel dan indikator. |
-| FL25 | Bandar Balance · Rupiah | `calc/flow.ts:447, bandar:300` | Rumus cocok. Default Top N = 3 (Parameter_Terminal, keputusan "Top 3 untuk semua"), sedangkan sheet Indikator_baru_dari_Screener menulis 5. | SELISIH DEFAULT (dokumen lama). |
+| FL24 | Bandar Balance · % | `calc/flow.ts:446, bandar:300, balancePct:306` | Cocok. Penyebut: nilai beli semua broker dengan filter papan dan investor. Garis acuan 6, 10, -6, -10; label Bandar Acc/Dist memakai 6 dan 10. | - |
+| FL25 | Bandar Balance · Rupiah | `calc/flow.ts:447, bandar:300` | Cocok. Default Top N = 3 (keputusan "Default Top 3 untuk semua", 2026-10-30). | - |
 | FL26 | Net Flow Streak | `calc/flow.ts:451, cohort:208` | Cocok. Cakupan default semua broker, investor asing, batas 60. | - |
 | FL27 | Silent Accumulation | `calc/flow.ts:466` | Cocok. Memakai harga dan volume harian, bukan data broker. | - |
 | FL28 | Average Daily Value | `calc/flow.ts:476` | Cocok. | - |
@@ -43,7 +43,9 @@ Read: `apps/edge-bff/terminal/src/calc/flow.ts` (main `35596f3f`), compared with
 | FL33 | Transaction Size · Change % | `calc/flow.ts:508` | Cocok. Kosong bila ada baris tanpa frekuensi di jendela. | - |
 | FL34 | Institutional vs Retail Net | `calc/flow.ts:516` | Cocok. Bila broker ada di kedua daftar, atau daftar klasifikasi belum ada, seluruh garis kosong (tidak ada pesan penolakan). | - |
 | FL35 | Net Buy Persistence · Top Buyer | `calc/flow.ts:527` | Cocok. Kosong bila tidak ada broker dengan net beli positif di jendela; hari tanpa data dihitung bukan hari beli. | - |
-| FL36 | Share · Market Value (Buy + Sell) | `calc/flow.ts:535, cohort:208` | Rumus cocok. Default cakupan = Top-N cohort (3 broker net beli terbesar di antara transaksi asing), bukan seluruh asing; sheet Indikator_baru_dari_Screener dan Screener fpart ("Foreign participation") memaksudkan semua broker. | SELISIH DEFAULT: perlu keputusan. |
-| FL37 | Net Flow Percentile · Rupiah | `calc/flow.ts:539, cohort:208, percentile:247` | Rumus cocok. Default cakupan = Top-N cohort, sedangkan sheet Indikator_baru_dari_Screener dan Screener fsurprise ("Foreign flow surprise") memaksudkan semua broker. | SELISIH DEFAULT: perlu keputusan. |
+| FL36 | Share · Market Value (Buy + Sell) | `calc/flow.ts:535, cohort:208` | Cocok. Default cakupan Top-N cohort: 3 broker net beli terbesar di antara transaksi yang lolos filter investor (default asing), jendela 20; penyebut 2 x nilai beli semua broker dengan filter papan saja. | Keputusan user 2026-11-01: ikuti Terminal (Top-N tetap). |
+| FL37 | Net Flow Percentile · Rupiah | `calc/flow.ts:539, cohort:208, percentile:247` | Cocok. Default cakupan Top-N cohort (3 broker, investor asing), net Rupiah 20 hari, persentil atas 250 nilai sebelumnya. | Keputusan user 2026-11-01: ikuti Terminal (Top-N tetap). |
 | FL38 | Concentration HHI · Net Buy | `calc/flow.ts:544` | Cocok. Kosong bila tidak ada net beli positif. | - |
 | FL39 | Buy VWAP · Rolling · Distance % | `calc/flow.ts:553, rollingVwap:310` | Cocok. Default 10 hari, papan Regular (FL17 default 20 hari, semua papan). | - |
+
+User 2026-11-01: "samakan dengan bagaimana formula dihitung di terminal. Jangan sangkut-pautkan dengan screener dulu." The Terminal is the reference; no default changes.

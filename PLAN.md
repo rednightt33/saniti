@@ -1054,6 +1054,11 @@ HTML buat saya pilih. Pakai design spec terlampir."
 - **Keputusan desain, 2026-11-01 (kata user):** "Saya minta opsi pertama adalah kalkulator, kedua adalah grafik,
   ketiga adalah langkah. Ini dibuat jadi satu card saja dengan tab untuk ketiganya."
   - Satu kartu, tiga tab berurutan: Kalkulator (D), Grafik (C), Langkah (B).
+- **Acuan isi kartu, 2026-11-01 (kata user):** "samakan dengan bagaimana formula dihitung di terminal. Jangan
+  sangkut-pautkan dengan screener dulu. Fokus ke bagaimana formula tersebut dihitung. Dan di display di terminal."
+  - Isi kartu dan tooltip diambil dari `calc/flow.ts` (sebagaimana ditulis `FORMULAS.md`) dan dari registry Terminal.
+  - Kartu tidak merujuk ke Screener.
+  - Inspeksi kode semua FL: `verification/terminal_api/flow_indicators/CODE_INSPECTION_20261101.md`.
 - **Terbuka:**
   - tooltip saat hover: diputuskan 2026-11-01 "1A", tetap ringkas seperti desain A (definisi, hasil, rumus dengan angka);
   - apakah rumus, parameter dan hati-hati tetap tampil;
