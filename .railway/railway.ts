@@ -24,6 +24,8 @@ export default defineRailway(() => {
   const marketAiAuditArtifacts = bucket("market-ai-audit-artifacts", { region: "sjc" });
   const orcTestRunner = service("orc-test-runner", {
     replicas: { "sfo": 1 },
+    // ERRORS M322 / FUTURE_PLAN RUNNER-RETRY (user 2026-11-01: "OK"): a failed one-shot job is not started again
+    deploy: { restartPolicyType: "NEVER" },
     env: { MARKET_AI_ORC_API_KEY: preserve() },
   });
   const marketSqlGovernor = service("market-sql-governor", {

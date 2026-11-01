@@ -16,6 +16,7 @@ import type { FlowContext, FlowParams, FlowRows } from './flow';
 import { BOARDS, INVESTORS } from './flow';
 import type { Bars, Params } from './indicators';
 import { isN } from './indicators';
+import * as spec from '../data/specFormat';
 
 export type Unit = 'idr' | 'price' | 'pct' | 'lot' | 'count' | 'num';
 export interface Term { key: string; label: string; value: number; unit: Unit }
@@ -34,20 +35,14 @@ export interface Explanation {
 export type FlowExplainer = (c: FlowContext, p: FlowParams, t: number, output?: string) => Explanation | null;
 export type TechExplainer = (B: Bars, p: Params, t: number, output?: string) => Explanation | null;
 
-/* ---- numbers as the card writes them (Indonesian, as the approved mockup) ---- */
-const NF = new Map<number, Intl.NumberFormat>();          // one formatter per decimals (building one costs ~20 µs)
-const nf = (d: number) => { let f = NF.get(d); if (!f) NF.set(d, f = new Intl.NumberFormat('id-ID', { minimumFractionDigits:d, maximumFractionDigits:d })); return f };
-const sign = (v: number) => (v < 0 ? '−' : '');
+/* ---- numbers as the card writes them: EDGE Design Spec v1.2 section 6 (user 2026-11-01; data/specFormat.ts): en-US,
+   minus U+2212, a whole number (an IDX price, a count) without decimals, rupiah with B (miliar) / T (triliun) ---- */
 export const fmt = {
-  num: (v: number | null, d = 2) => v === null || !isFinite(v) ? '–' : sign(v) + nf(d).format(Math.abs(v)),
-  pct: (v: number | null, d = 2) => v === null || !isFinite(v) ? '–' : (v > 0 ? '+' : sign(v)) + nf(d).format(Math.abs(v)) + '%',
-  /** Rupiah with its size word: T (triliun), M (miliar), jt (juta) */
-  idr: (v: number | null) => {
-    if (v === null || !isFinite(v)) return '–';
-    const a = Math.abs(v), [d, u] = a >= 1e12 ? [1e12, ' T'] : a >= 1e9 ? [1e9, ' M'] : a >= 1e6 ? [1e6, ' jt'] : [1, ''];
-    return `${sign(v)}Rp ${nf(d === 1 ? 0 : 2).format(a / d)}${u}`;
-  },
-  of: (v: number, u: Unit) => u === 'idr' ? fmt.idr(v) : u === 'pct' ? fmt.pct(v) : u === 'count' || u === 'lot' ? fmt.num(v, 0) : fmt.num(v, u === 'price' ? 2 : 4),
+  num: (v: number | null, d?: number) => v === null || !isFinite(v) ? '–' : spec.num(v, d ?? (Number.isInteger(v) ? 0 : 2)),
+  pct: (v: number | null, d = 2) => spec.change(v, d),
+  idr: (v: number | null) => spec.idr(v),
+  of: (v: number, u: Unit) => u === 'idr' ? spec.idr(v) : u === 'pct' ? spec.change(v) : u === 'count' || u === 'lot' ? spec.num(v, 0)
+    : u === 'price' ? spec.num(v, Number.isInteger(v) ? 0 : 2) : spec.smart(v, 2),
 };
 
 /* ---- broker rows over a window (the same rules as calc/flow.ts: FORMULAS.md section 2) ---- */

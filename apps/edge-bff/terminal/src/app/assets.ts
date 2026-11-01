@@ -12,6 +12,7 @@
      Flow pane    one per asset (Visibility → Flow Timeline): net bars and the cumulative line on the chart's sessions,
                   locked to the chart's time range, crosshair and axis widths; its drawings are kept under its ticker */
 import type { Ctx, FilterApi } from './context';
+import { draggable } from './draggable';
 import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, rupiah, spin, store } from './context';
 import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
 import type { AssetBar, Bar, Combo, Instrument } from '../data/types';
@@ -227,6 +228,7 @@ export function initAssets(ctx: Ctx) {
         <div class="idlg-tabs" role="tablist">${['Inputs', 'Style', 'Visibility'].map(t => `<button type="button" role="tab" data-tab="${t}">${t}</button>`).join('')}</div>
         <div class="idlg-body"></div>
         <div class="idlg-foot"><select class="idlg-in sm as-defaults" aria-label="Defaults"><option value="" selected disabled>Defaults</option><option value="reset">Reset settings</option><option value="save">Save as default</option></select><span class="sp"></span><button class="idlg-btn" type="button" data-act="cancel">Cancel</button><button class="idlg-btn pri" type="button" data-act="ok">Ok</button></div></div>`;
+    draggable(back.querySelector('.idlg'), back.querySelector('.idlg-head'));   // user 2026-11-01: moved by its header
     back.querySelector('h2').textContent = `${a.name} · ${a.bond ? 'Yield' : 'IDX'}`;
     const body = back.querySelector('.idlg-body'), dlg = back.querySelector('.idlg');
     const o = a.opts;

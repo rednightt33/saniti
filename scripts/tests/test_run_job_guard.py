@@ -1,7 +1,8 @@
 """ERRORS M322 (user go 2026-11-01): a runner job is finished by the wrapper's marker, not by what the job prints.
 
 The Dockerfiles' wrapper prints JOB_EXIT <exit code> after job.py and keeps the exit code (the runner restarts a failed
-job, ON_FAILURE); run_job.sh's guard reads the log of the latest container start. No Railway call is made here."""
+job, ON_FAILURE until 2026-11-01, now NEVER); run_job.sh's guard reads the log of the latest container start. No Railway
+call is made here."""
 import json
 import os
 import subprocess
@@ -22,13 +23,15 @@ def is_finished(log: str) -> bool:
 @pytest.mark.parametrize('log, done', [
     ('Starting Container\nOUT {"q": 1}\nJOB_EXIT 0\n', True),                      # a job that never prints JOB_DONE
     ('Starting Container\nOUT {"q": 1}\n', False),                                  # still running
-    ('Starting Container\nTraceback (most recent call last):\nJOB_EXIT 1\n', False),  # failed: Railway starts it again
-    ('Starting Container\nJOB_EXIT 1\nStarting Container\nOUT {"q": 1}\n', False),  # the restart is running
+    ('Starting Container\nTraceback (most recent call last):\nJOB_EXIT 1\n', True),   # failed: restart policy NEVER, finished
+    ('Starting Container\nJOB_EXIT 1\nStarting Container\nOUT {"q": 1}\n', False),  # a later start (by hand) is running
     ('Starting Container\nJOB_EXIT 1\nStarting Container\nJOB_EXIT 0\n', True),     # the restart succeeded
     ('Starting Container\nMIG APPLY x\nJOB_DONE MIGRATION APPLY\n', True),          # a job from before the wrapper
     ('OTR {"event": "done"}\n', True),                                              # an orc-test-runner suite
     ('OUT 1\nJOB_EXIT 0\n', True),                                                  # no start line: the whole log
-    ('Starting Container\nJOB_EXIT 10\n', False),                                   # exit 10 is not exit 0
+    ('Starting Container\nJOB_EXIT 10\n', True),                                    # any exit code ends the job
+    ('Starting Container\nTraceback (most recent call last):\n', True),             # a job from before the wrapper that failed
+    ('Starting Container\nOUT JOB_EXIT 0 later\n', False),                          # the marker is a whole line's end
 ])
 def test_guard_reads_the_latest_start(log, done):
     assert is_finished(log) is done

@@ -7,6 +7,7 @@
    registries (indRegistry.json, flowRegistry.json). */
 import type { Ctx } from './context';
 import { $, store } from './context';
+import { draggable, fitInView } from './draggable';
 import { FLOW_REG } from './flowIndicators';
 
 export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string }
@@ -63,6 +64,7 @@ export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
       <aside class="im-detail" aria-label="Indicator card" hidden><div class="im-detail-h"><span class="grow">Indicator card</span>
         <button type="button" class="im-dx" aria-label="Close the card">×</button></div><div class="im-detail-b"></div></aside>
     </div>`;
+  draggable(dlg.querySelector('.im-box'), dlg.querySelector('.im-head'));      // user 2026-11-01: moved by its header
   document.body.appendChild(dlg);
   const nav = dlg.querySelector('.im-nav') as HTMLElement, list = dlg.querySelector('.im-list') as HTMLElement;
   const search = dlg.querySelector('#imSearch') as HTMLInputElement, detail = dlg.querySelector('.im-detail') as HTMLElement;
@@ -108,7 +110,7 @@ export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
   const hideTip = () => { tip.hidden = true };
   const open = (o: boolean) => {
     dlg.hidden = !o; btn.setAttribute('aria-expanded', String(o)); hideTip();
-    if (o) { query = ''; search.value = ''; render(); search.focus() } else { detail.hidden = true; btn.focus() }
+    if (o) { query = ''; search.value = ''; render(); fitInView(dlg.querySelector('.im-box')); search.focus() } else { detail.hidden = true; btn.focus() }
   };
 
   btn.addEventListener('click', (e: Event) => { e.stopImmediatePropagation(); open(dlg.hidden) }, true);

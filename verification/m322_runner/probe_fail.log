@@ -1,0 +1,3 @@
+Starting Container
+OUT {"q": "runner_never_probe", "note": "exits with 3 on purpose"}
+JOB_EXIT 3

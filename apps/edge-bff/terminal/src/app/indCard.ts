@@ -16,6 +16,8 @@ import { fmt, type Explanation, type Term } from '../calc/explain';
 import type { Ctx } from './context';
 import { flowPlace, type MenuItem } from './indMenu';
 import { FLOW_REG } from './flowIndicators';
+import { draggable, fitInView } from './draggable';
+import * as spec from '../data/specFormat';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 const dayText = (d: string) => { const t = new Date(d.slice(0, 10) + 'T00:00:00Z'); return isNaN(+t) ? d : t.toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric', timeZone:'UTC' }) + (d.length > 10 ? ' ' + d.slice(11, 16) : '') };
@@ -43,16 +45,10 @@ function outputsOf(src: CardSource, out: Record<string, any>): string[] {
 }
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-/** the card writes every number in one style (Indonesian, as the approved mockup), chosen from the indicator's unit as
-    the chart's formatter is (app/indicators.ts unitFormat, app/flowIndicators.ts flowFormat) */
+/** the card writes every number by the EDGE Design Spec v1.2 rules (data/specFormat.ts, user 2026-11-01), chosen from the
+    indicator's unit as the legend and the pane axis are */
 export function cardFormat(unit: string): (v: number) => string {
-  const u = unit || '';
-  if (/^%$|percent/.test(u)) return v => fmt.num(v, 2) + '%';
-  if (/^IDR$/.test(u)) return v => fmt.idr(v);
-  if (/IDR\/tx/.test(u)) return v => fmt.idr(v);
-  if (/^(flag|days|0-1)$/.test(u)) return v => fmt.num(v, Number.isInteger(v) ? 0 : 2);
-  if (/volume|^lot\|IDR$/.test(u)) return v => fmt.num(v, 0);
-  return v => fmt.num(v, Math.abs(v) < 1 && v !== 0 ? 4 : 2);
+  return spec.byUnit(unit);
 }
 
 /* ---- the cautions that follow from the indicator's parameters and the chart (not typed per indicator) ---- */
@@ -270,11 +266,13 @@ export function openCardDialog(ctx: Ctx, item: MenuItem, src: CardSource) {
     dialog.className = 'icd-back'; dialog.hidden = true;
     dialog.innerHTML = `<div class="icd-dlg" role="dialog" aria-modal="true" aria-label="Indicator card"><div class="icd-dlg-h"><span>Indicator card</span><button type="button" class="icd-x" aria-label="Close the card">×</button></div><div class="icd-dlg-b"></div></div>`;
     document.body.appendChild(dialog);
+    draggable(dialog.querySelector('.icd-dlg'), dialog.querySelector('.icd-dlg-h'));   // user 2026-11-01: moved by its header
     const close = () => { dialog!.hidden = true };
     dialog.addEventListener('click', e => { if (e.target === dialog || (e.target as HTMLElement).closest('.icd-x')) close() });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && dialog && !dialog.hidden) { e.stopPropagation(); close() } }, true);
   }
   renderCard(dialog.querySelector('.icd-dlg-b') as HTMLElement, ctx, item, src);
   dialog.hidden = false;
+  fitInView(dialog.querySelector('.icd-dlg'));
   (dialog.querySelector('[data-tab="0"]') as HTMLElement)?.focus();
 }

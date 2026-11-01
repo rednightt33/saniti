@@ -10,6 +10,8 @@ import { TECH_EXPLAIN } from '../calc/explainIndex';
 import { initFlowIndicators } from './flowIndicators';
 import { itemOfDef, openCardDialog } from './indCard';
 import type { Ctx } from './context';
+import { draggable } from './draggable';
+import * as spec from '../data/specFormat';
 import { $, nfCompact, rupiah, store } from './context';
 import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
@@ -35,12 +37,13 @@ export function initIndicators(ctx: Ctx) {
   const onTheCandles = o => { const out = {}; for(const k of Object.keys(o)) out[k] = Array.isArray(o[k]) ? onCandles(o[k], DAY.dayOf) : o[k]; return out };
   const smart = v => { const a = Math.abs(v); return a === 0 ? '0' : a < .01 ? v.toExponential(2) : a < 1e4 ? v.toFixed(2) : nfCompact.format(v) };
   /* number format follows the workbook's Y-axis unit, so a new unit only needs a rule here */
+  /* EDGE Design Spec v1.2 section 6 (user 2026-11-01): indicator 1 decimal, en-US, minus U+2212 (data/specFormat.ts) */
   const unitFormat = unit =>
-    /formula_defined|per_volume/.test(unit) ? { fmt:smart, minMove:1e-8 } :
-    /volume/.test(unit) ? { fmt:v => nfCompact.format(v), minMove:1 } :
-    /^percent|percent_or|or_percent/.test(unit) ? { fmt:v => v.toFixed(2) + '%', minMove:.01 } :
-    /^ratio/.test(unit) ? { fmt:v => v.toFixed(3), minMove:.001 } :
-    { fmt:v => NF.format(v), minMove:.01 };
+    /formula_defined|per_volume/.test(unit) ? { fmt:v => spec.smart(v, 2), minMove:1e-8 } :
+    /volume/.test(unit) ? { fmt:spec.compact, minMove:1 } :
+    /^percent|percent_or|or_percent/.test(unit) ? { fmt:spec.pctLevel, minMove:.01 } :
+    /^ratio/.test(unit) ? { fmt:v => spec.smart(v, 2), minMove:.001 } :
+    { fmt:spec.indicator, minMove:.01 };
   /* An anchored average needs several bars per period. Bars per anchor period are derived from the bar spacing,
      so on daily bars "Session" (= one bar) is replaced as default by the first period that holds >= 10 bars (Month). */
   const BAR_DAYS = (() => { const g = []; for(let i = 1; i < Math.min(60, ohlc.length); i++) g.push((Date.parse(ohlc[i].time) - Date.parse(ohlc[i - 1].time)) / 864e5); g.sort((a, b) => a - b); return g[g.length >> 1] || 1 })();
@@ -83,7 +86,7 @@ export function initIndicators(ctx: Ctx) {
         }
         return '';
       },
-      title:p => [r.short, ...r.params.filter(q => q.type !== 'fixed' && q.type !== 'boolean').map(q => p[q.k])].join(' ')
+      title:p => spec.titled(r.short, r.params.filter(q => q.type !== 'fixed' && q.type !== 'boolean').map(q => p[q.k]))   // "RSI (14, close)" (Design Spec v1.2)
     };
   }
   /* default look per output, from its renderer / visual role / colour rule */
@@ -407,7 +410,7 @@ export function initIndicators(ctx: Ctx) {
         const prev = inst.disp[pt.o.k][i - 1];
         const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
-        const txt = overlay && pt.kind !== 'marker' ? (ret ? ((v / closes[0] - 1) * 100).toFixed(2) + '%' : NF.format(v)) : inst.def.format(v);   // a mark reads Yes/No
+        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : spec.indicator(v)) : inst.def.format(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
@@ -484,6 +487,7 @@ export function initIndicators(ctx: Ctx) {
         <div class="idlg-body"></div>
         <div class="idlg-err" role="alert" hidden></div>
         <div class="idlg-foot"><button class="idlg-btn" type="button" data-act="reset">Reset</button><span class="sp"></span><button class="idlg-btn" type="button" data-act="cancel">Cancel</button><button class="idlg-btn pri" type="button" data-act="ok">Ok</button></div></div>`;
+    draggable(back.querySelector('.idlg'), back.querySelector('.idlg-head'));   // user 2026-11-01: moved by its header
     back.querySelector('h2').textContent = def.name;
     const body = back.querySelector('.idlg-body'), errBox = back.querySelector('.idlg-err'), dlg = back.querySelector('.idlg');
     dlg.classList.toggle('idlg-flow', !!def.flow);

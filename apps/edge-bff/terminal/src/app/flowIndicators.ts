@@ -9,6 +9,7 @@ import { FLOW_EXPLAIN } from '../calc/explainIndex';
 import REG from '../data/flowRegistry.json';
 import type { Ctx } from './context';
 import { nfCompact, rupiah } from './context';
+import * as spec from '../data/specFormat';
 import { INV_COLORS } from './broker';
 import { markerOnCandles, onCandles } from '../data/timeframe';
 
@@ -31,15 +32,16 @@ const NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFra
 
 /** the number shown in the legend and on the axis, from the indicator's unit */
 export function flowFormat(unit: string): { fmt: (v: number) => string; minMove: number } {
+  /* EDGE Design Spec v1.2 section 6 (user 2026-11-01): data/specFormat.ts; a flag still reads Yes/No */
   switch (unit) {
-    case 'IDR/tx': case 'IDR': return { fmt:v => rupiah(v), minMove:1 };
-    case 'lot|IDR': return { fmt:v => nfCompact.format(v), minMove:1 };
-    case '%': return { fmt:v => v.toFixed(2) + '%', minMove:.01 };
-    case 'x': return { fmt:v => v.toFixed(3) + 'x', minMove:.001 };
-    case '0-1': case '-1..1': case 'diff': return { fmt:v => v.toFixed(4), minMove:.0001 };   // diff: HHI buy - sell (Reviewer B, B5)
-    case 'days': return { fmt:v => String(Math.round(v)), minMove:1 };
+    case 'IDR/tx': case 'IDR': return { fmt:spec.idr, minMove:1 };
+    case 'lot|IDR': return { fmt:spec.compact, minMove:1 };
+    case '%': return { fmt:spec.pctLevel, minMove:.01 };
+    case 'x': return { fmt:spec.ratio, minMove:.001 };
+    case '0-1': case '-1..1': case 'diff': return { fmt:v => spec.smart(v, 2), minMove:.0001 };   // diff: HHI buy - sell (Reviewer B, B5)
+    case 'days': return { fmt:v => spec.num(Math.round(v), 0), minMove:1 };
     case 'flag': return { fmt:v => v ? 'Yes' : 'No', minMove:1 };
-    default: return { fmt:v => NF2.format(v), minMove:.01 };      // lot/tx, 0-100, price
+    default: return { fmt:spec.indicator, minMove:.01 };      // lot/tx, 0-100, price
   }
 }
 
@@ -194,6 +196,7 @@ export function initFlowIndicators(ctx: Ctx) {
         if (r.id === 'FL23' && Array.isArray(p.brokers) && (p.brokers.length < 1 || p.brokers.length > 5)) return 'Choose 1 to 5 brokers.';
         return '';
       },
+      /* Design Spec v1.2: the parameters in parentheses, "Bandar Balance · % (Top 3, 10D)" */
       title:(p: any) => {
         const parts = [relabel(r.name)];
         if (DAY) parts.push('Daily');
@@ -201,7 +204,7 @@ export function initFlowIndicators(ctx: Ctx) {
         if (p.side && p.side !== 'buy') parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
         const f = filterText(p); if (f) parts.push(f);
         if (p.window) parts.push(`${p.window}${letter}`);
-        return parts.join(' · ');
+        return spec.titled(parts[0], parts.slice(1));
       },
     };
   });

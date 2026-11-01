@@ -3,18 +3,16 @@
 # functions only.
 #
 # A new deployment replaces the one running, so a job starts only when the latest deployment has finished:
-#   - its log, from its latest container start, holds JOB_EXIT 0. The Dockerfiles' wrapper prints JOB_EXIT <exit code>
-#     after every job, whatever the job prints (M322, user go 2026-11-01). Railway prints "Starting Container" at each
-#     start, and the runner restarts a failed job (restart policy ON_FAILURE, 10 retries).
-#   - or, for a job started before the wrapper, JOB_DONE or an orc-test-runner suite's OTR "done";
+#   - its log, from its latest container start, holds JOB_EXIT <code>, which the Dockerfiles' wrapper prints after every
+#     job whatever the job prints (M322, user go 2026-11-01). Since 2026-11-01 the runner never restarts a job (restart
+#     policy NEVER, user "OK"), so a failed job (JOB_EXIT non-zero) has finished too;
+#   - or, for a job started before the wrapper, JOB_DONE, a Traceback or an orc-test-runner suite's OTR "done";
 #   - or its deployment ended (FAILED, CRASHED, REMOVED, SKIPPED).
-# A failed job (JOB_EXIT non-zero, a Traceback) counts as running: Railway starts it again until it succeeds or its
-# deployment ends.
 
 # the log lines from the latest "Starting Container" on (the whole log when there is none)
 last_start() { awk '/Starting Container/{n=0; delete l} {l[++n]=$0} END{for(i=1;i<=n;i++) print l[i]}'; }
 # stdin is a job's log: has its latest start finished?
-finished() { last_start | grep -q 'JOB_EXIT 0$\|JOB_DONE\|OTR {"event": "done"'; }
+finished() { last_start | grep -q 'JOB_EXIT [0-9]*$\|JOB_DONE\|Traceback\|OTR {"event": "done"'; }
 # a job log file has an end line (the poll's stop condition: success or failure)
 ended() { grep -q 'JOB_EXIT\|JOB_DONE\|Traceback' "$1"; }
 
@@ -31,7 +29,7 @@ runner_free() {
     FAILED|CRASHED|REMOVED|SKIPPED) return 0 ;;
     SUCCESS)
       timeout 60 railway logs "$last_id" -p "$1" -s "$3" -e "$2" --deployment --lines 5000 2>&1 | finished && return 0
-      echo "RUNNER_BUSY $last_id: its job has not finished; wait for JOB_EXIT 0 (ERRORS M210/M227/M322)"; return 5 ;;
+      echo "RUNNER_BUSY $last_id: its job has not finished; wait for JOB_EXIT (ERRORS M210/M227/M322)"; return 5 ;;
     *) echo "RUNNER_BUSY $last_id ($last_status): wait until it finishes (ERRORS M210/M227)"; return 5 ;;
   esac
 }

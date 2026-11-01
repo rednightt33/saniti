@@ -8,12 +8,16 @@ import IND from '../../src/data/indRegistry.json';
 import FLOW from '../../src/data/flowRegistry.json';
 
 describe('indicator card', () => {
-  it('writes numbers in one style chosen from the unit', () => {
-    expect(cardFormat('%')(-5.6221)).toBe('−5,62%');
-    expect(cardFormat('percent_signed')(12.5)).toBe('12,50%');
-    expect(cardFormat('IDR')(2.83e12)).toBe('Rp 2,83 T');
-    expect(cardFormat('price')(5509)).toBe('5.509,00');
-    expect(cardFormat('ratio')(0.12345)).toBe('0,1235');
+  it('writes numbers by the EDGE Design Spec v1.2 rules, chosen from the unit', () => {
+    expect(cardFormat('%')(-5.6221)).toBe('−5.6%');                 // indicator: 1 decimal, minus U+2212
+    expect(cardFormat('percent_signed')(12.5)).toBe('12.5%');
+    expect(cardFormat('IDR')(2.83e12)).toBe('Rp 2.8T');             // B = miliar, T = triliun, never "M"
+    expect(cardFormat('IDR')(555.18e9)).toBe('Rp 555.2B');
+    expect(cardFormat('price')(5509)).toBe('5,509');                 // a whole value: no decimals
+    expect(cardFormat('price')(5509.04)).toBe('5,509.0');
+    expect(cardFormat('ratio')(0.0423)).toBe('0.0423×');             // a small value keeps three significant digits
+    expect(cardFormat('x')(4)).toBe('4.00×');
+    expect(cardFormat('index_0_100')(48.21)).toBe('48.2');           // "RSI 48.2"
     expect(cardFormat('flag')(1)).toBe('1');
   });
   it('fills the formula line by whole terms (a term n never matches inside another word)', () => {
