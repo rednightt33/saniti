@@ -9764,3 +9764,9 @@ saat dibutuhkan" atau "selalu seluruh riwayat" untuk panel kanan.
 - Risiko yang sudah disampaikan: memori browser kira-kira 6 → 30 MB untuk saham tersibuk (BBCA ±223 ribu baris), dan
   panel lebih lambat di perangkat lemah. Diukur saat eksekusi.
 - **Go user, 2026-11-01:** "4. Go … Above 4 masukan exec. Go."
+- **Hasil 2026-11-01:**
+  - `apps/edge-bff/terminal/src/data/worker.ts` `brokerData`: semua tanggal broker dari file (PANEL_YEARS dan panelStart
+    dihapus); teks panel tidak lagi menyebut "two years" (`app/broker.ts`); tes `tests/data/panels.test.ts` (765 lulus).
+  - Diukur lokal (grafik D BBCA, bundle repo vs bundle baru, Chromium, `Performance.getMetrics` sesudah GC): memori JS
+    halaman 19,2–19,3 MB → 38,8–41,1 MB; seluruh riwayat broker masuk 6,7–7,2 dtk → 7,3–8,3 dtk; kalender periode
+    2024–2026 → 2016–2026; Broker summary periode bawaan sama; tanpa galat halaman.

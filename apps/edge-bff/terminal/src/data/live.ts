@@ -297,7 +297,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
     return dates.map((t, i) => aligned[i - (N - aligned.length)] ?? { time:t, value:first });
   };
 
-  /* broker files: Flow Timeline (net per broker × investor type × board) and Broker activity (the last two years, worker.ts PANEL_YEARS) */
+  /* broker files: Flow Timeline (net per broker × investor type × board) and Broker activity (every broker date, EXEC-BROKER-FULL) */
   const brokerOf = async (stage: Promise<BrokerAnswer>) => {
     const b = onTheCandles(await stage);
     const brokerTypes = new Map((await brokerRefP.catch(() => [])).map((r: any) => [r.code, r.type] as [string, string]));

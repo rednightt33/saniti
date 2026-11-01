@@ -1,6 +1,6 @@
 // EXEC-TERMINAL-PANELS (user 2026-10-26): broker panel window, range calendar, chart range and panel order.
 import { describe, expect, it } from 'vitest';
-import { brokerData, panelStart, PANEL_YEARS } from '../../src/data/worker';
+import { brokerData } from '../../src/data/worker';
 import { monthGrid } from '../../src/ui/calendar';
 import { sessionsBetween } from '../../src/app/rangeSelect';
 import { orderedKeys } from '../../src/ui/reorder';
@@ -10,20 +10,15 @@ import { brokerEnd } from '../../src/app/context';
 const doc = (d: string[]) => ({ columns:['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl'], d, b:d.map(() => 'YP'),
   i:d.map(() => 'Domestic'), m:d.map(() => 'RG'), bv:d.map(() => 10), sv:d.map(() => 4), bl:d.map(() => 1), sl:d.map(() => 1) });
 
-describe('Broker activity window (B1, two years)', () => {
-  it('starts PANEL_YEARS years before the latest broker date', () => {
-    expect(PANEL_YEARS).toBe(2);
-    expect(panelStart('2026-10-23')).toBe('2024-10-23');
-    expect(panelStart('2028-02-29')).toBe('2026-02-29');            // compared as text: 2026-03-01 is inside
-  });
-  it('keeps the broker dates after the start, from every file, not the last 30', () => {
+describe('Broker activity reads the whole history (EXEC-BROKER-FULL, user 2026-11-01)', () => {
+  it('keeps every broker date of every file, oldest first, not the last two years', () => {
     const old = ['2016-01-04', '2024-10-22', '2024-10-23'], recent = Array.from({ length:60 }, (_, k) => new Date(Date.UTC(2025, 0, 10 + k)).toISOString().slice(0, 10));
     const last = ['2026-10-23'];
-    const b = brokerData([doc(old), doc(recent), doc(last)], []);
-    expect(b.dates[0]).toBe('2025-01-10');
-    expect(b.dates.includes('2024-10-23')).toBe(false);              // the start day itself is out (strictly after)
+    const b = brokerData([doc(recent), doc(last), doc(old)], []);
+    expect(b.dates[0]).toBe('2016-01-04');
+    expect(b.dates.includes('2024-10-23')).toBe(true);
     expect(b.dates.at(-1)).toBe('2026-10-23');
-    expect(b.dates.length).toBeGreaterThan(30);
+    expect(b.dates).toHaveLength(64);
     expect(b.rows[0][0]).toEqual(['YP', 'Domestic', 'Regular', 10, 4, 1, 1]);
   });
 });

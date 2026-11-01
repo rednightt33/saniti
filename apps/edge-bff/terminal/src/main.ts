@@ -114,12 +114,12 @@ function later(ctx: Ctx, M: MarketData) {
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
     ctx.flowRows = b.flow;                                 // EXEC-TERMINAL-FLOW-IND: read by the Flow indicators on setFlowData
-    ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo); ctx.setBrokerPanelData(b.broker); mark('flow: last two years');
+    ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo); ctx.setBrokerPanelData(b.broker); mark('flow: recent years');
     M.later!.brokerAll.then(all => {
       ctx.flowRows = all.flow;
       ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo); mark('flow: every year');
       (window as any).__flowAll = true;                    // the whole broker history is in (live checks wait for it)
-      if (all.broker.dates.length > b.broker.dates.length) ctx.setBrokerPanelData(all.broker);   // B1: the full two years
+      if (all.broker.dates.length > b.broker.dates.length) ctx.setBrokerPanelData(all.broker);   // EXEC-BROKER-FULL: the whole history
     }, failed);
   }, () => { ctx.setFlowData([], ctx.N); failed() });
 }

@@ -105,6 +105,9 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 - (EXEC-TERMINAL-1026B) The worker answers the broker in two stages: the last two years (`broker`), then the whole
   history (`brokerAll`); the Flow Timeline shows "Loading earlier broker data…" in between. Before any data the page
   shows "Loading <ticker>…" with the side panels already in their state. Line tools add "Ray".
+- (EXEC-BROKER-FULL, user 2026-11-01) Broker activity (Broker summary, Top brokers, Broker inventory, the range
+  calendar) reads every broker date of the files: the recent years first, then the whole history (`brokerAll`), like
+  the Flow Timeline. The two-year limit of EXEC-TERMINAL-PANELS B1 is gone.
 
 - (EXEC-TERMINAL-LOGO) `GET /logo/{ticker}` returns the ticker's logo (PNG or SVG; cached a week, ask with `?v=<sha256
   prefix>` from `reference/logos`, columns ticker, file, sha256, source, fetched_at); 404 `no_logo` → show a monogram.

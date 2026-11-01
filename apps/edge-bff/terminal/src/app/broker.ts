@@ -112,7 +112,7 @@ export function initBroker(ctx: Ctx) {
     if(!ready || rendered || ws.classList.contains('right-collapsed')) return;
     rendered = true; renderData();
   }
-  /* EXEC-TERMINAL-PANELS B1: the panel gets the recent broker years first and the full two years after them; a second
+  /* EXEC-TERMINAL-PANELS B1, EXEC-BROKER-FULL: the panel gets the recent broker years first and the whole history after them; a second
      answer redraws it with the user's choices (periods by date, filters, picked brokers) kept */
   ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()) };
   if(M.later){
@@ -247,11 +247,11 @@ export function initBroker(ctx: Ctx) {
     const setIdx = (f, t, msg = '') => { st.bf = f; st.bt = t; st.bn = 'custom'; note(msg); render(); onChange() };
     /* a period chosen by date (calendar or chart): clipped to the panel's broker dates, with a note when it was */
     const setDates = (fd, td) => {
-      if(td < bkDates[0] || fd > bkDates[last]) { note(`${longDay(fd)} – ${longDay(td)} is outside the panels' two years (${longDay(bkDates[0])} – ${longDay(bkDates[last])}); nothing changed.`); return }
+      if(td < bkDates[0] || fd > bkDates[last]) { note(`${longDay(fd)} – ${longDay(td)} is outside the broker data (${longDay(bkDates[0])} – ${longDay(bkDates[last])}); nothing changed.`); return }
       const f = idxOnOrAfter(fd), t = idxOnOrBefore(td);
       // no session inside the chosen days (a weekend or a holiday): the last session before them, with a note
       if(f > t) return setIdx(t, t, `No trading session in ${fd === td ? longDay(fd) : `${longDay(fd)} – ${longDay(td)}`}; showing ${longDay(bkDates[t])}.`);
-      setIdx(f, t, fd < bkDates[0] ? `Starts ${longDay(bkDates[0])}: the panels cover the last two years.` : '');
+      setIdx(f, t, fd < bkDates[0] ? `Starts ${longDay(bkDates[0])}: the broker data starts there.` : '');
     };
     root.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
       if(live && b.dataset.n === 'custom'){
@@ -321,7 +321,7 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-TERMINAL-TOPSPLIT (user 2026-10-28: "di bagian top broker bisa ditambahkan filter lagi untuk boards", 2026-10-29
      "All boards", "pakai versi ini saja, tapi di balik ya, yang tebal = domestic"), live: a Board choice (All boards by
      default) where the fixture has its Buy/Sell switch, and each bar split into Domestic (solid) and Foreign (faded) */
-  /* renderData runs again when the full two years arrive: the switch is replaced once (like the inventory filters
+  /* renderData runs again when the whole history arrives: the switch is replaced once (like the inventory filters
      below), then rewired with the user's choice kept (a second replace found no #accSide and stopped the render,
      2026-10-30) */
   if(live){
@@ -414,7 +414,7 @@ export function initBroker(ctx: Ctx) {
     $('invLegend').innerHTML = chips(); wireChips();
     invOnCross = null;
     if(!picks.length){ $('invBody').innerHTML = `<div class="rp-empty">Pilih 1–${INV_MAX} broker untuk melihat pergerakannya.</div>`; return }
-    if(none){ $('invBody').innerHTML = `<div class="rp-empty">The chart shows ${longDay(va)} – ${longDay(vb)}; broker data covers ${longDay(bkDates[0])} – ${longDay(bkDates[BK_DAYS-1])} (the last two years).</div>`; return }
+    if(none){ $('invBody').innerHTML = `<div class="rp-empty">The chart shows ${longDay(va)} – ${longDay(vb)}; broker data covers ${longDay(bkDates[0])} – ${longDay(bkDates[BK_DAYS-1])}.</div>`; return }
     if(n < 2){ $('invBody').innerHTML = `<div class="rp-empty">Zoom the chart out to at least 2 sessions with broker data.</div>`; return }
     const W = 272, H = 120;
     const flat = all.flatMap(s => s.map(p => p.cum)), lo = Math.min(0, ...flat), hi = Math.max(0, ...flat), sp = (hi-lo) || 1;
