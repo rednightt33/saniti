@@ -60,7 +60,8 @@ git diff --quiet HEAD -- "$MIG" && git ls-files --error-unmatch "$MIG" >/dev/nul
   || { echo "MIGRATION_NOT_COMMITTED"; exit 6; }
 # what else runs on dev or judges it is the committed version too: an edited params file reaches the database as SQL
 JOBFILES=$(printf '%s\n' "$PARAMS" "$HERE/migration${ID}_dryrun.params.json" "$HERE/check_migration_log.py" \
-  "$HERE/run_migration.sh" scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py scripts/onboarding/Dockerfile \
+  "$HERE/run_migration.sh" scripts/onboarding/run_job.sh scripts/onboarding/runner_guard.sh scripts/onboarding/migration_job.py \
+  scripts/onboarding/Dockerfile \
   | sort -u)
 UNCOMMITTED=$(for f in $JOBFILES; do git diff --quiet HEAD -- "$f" && git ls-files --error-unmatch "$f" >/dev/null 2>&1 \
   || echo "$f"; done)

@@ -33,20 +33,9 @@ cleanup() {
   done
   echo VAR_STILL_PRESENT; rm -rf "$STAGE"
 }
-latest=$(timeout 60 railway deployment list -p $P -e $E -s $S --json 2>/dev/null \
-  | python3 -c "import sys,json;d=json.load(sys.stdin);print(d[0]['id'],d[0]['status']) if d else print('none none')" 2>/dev/null)
-[ -n "$latest" ] || { echo "DEPLOYMENT_LIST_FAILED"; rm -rf "$STAGE"; exit 5; }
-set -- $latest; LAST_ID=$1; LAST_STATUS=$2
-if [ "$LAST_ID" != none ]; then
-  case "$LAST_STATUS" in
-    SUCCESS|FAILED|CRASHED|REMOVED|SKIPPED)
-      if [ "$LAST_STATUS" = SUCCESS ] && ! timeout 60 railway logs "$LAST_ID" -p $P -s $S -e $E --deployment --lines 5000 2>&1 \
-           | grep -q 'JOB_DONE\|OTR {"event": "done"\|Traceback'; then
-        echo "RUNNER_BUSY $LAST_ID: its job has not finished; wait for JOB_DONE (ERRORS M210/M227)"; rm -rf "$STAGE"; exit 5
-      fi ;;
-    *) echo "RUNNER_BUSY $LAST_ID ($LAST_STATUS): wait until it finishes (ERRORS M210/M227)"; rm -rf "$STAGE"; exit 5 ;;
-  esac
-fi
+# ERRORS M210/M227/M322: the runner's one free check (scripts/onboarding/runner_guard.sh)
+. "$ROOT/scripts/onboarding/runner_guard.sh"
+runner_free $P $E $S || { rm -rf "$STAGE"; exit 5; }
 trap cleanup EXIT
 timeout 60 railway variable set 'TERMINAL_PROXY_KEY=${{terminal-api.TERMINAL_PROXY_KEY}}' -p $P -e $E -s $S --skip-deploys \
   >/dev/null 2>&1 || { echo SET_FAILED; exit 3; }
@@ -57,6 +46,6 @@ echo "JOB ${id:-NOT_STARTED}"
 for _ in $(seq 1 45); do
   sleep 20
   timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines 2000 > "$LOG" 2>&1
-  grep -q "JOB_DONE\|Traceback" "$LOG" && break
+  ended "$LOG" && break
 done
-grep "^OUT \|^ERR \|VERDICT\|Traceback\|JOB_DONE" "$LOG" | cut -c1-400
+grep "^OUT \|^ERR \|VERDICT\|Traceback\|JOB_DONE\|JOB_EXIT" "$LOG" | cut -c1-400

@@ -9897,6 +9897,15 @@ HTML buat saya pilih. Pakai design spec terlampir."
   - IC4: langkah hitung untuk 53 indikator teknikal dari `calc/indicators.ts`, dengan tes yang sama.
   - IC5: cek halaman (desktop, ponsel, mode gelap), deploy, catatan.
 
+## EXEC-M322 — pembungkus runner menulis tanda selesai (go 2026-11-01)
+
+**Kata user, 2026-11-01:** "Go", jawaban atas "Masih menunggu dari Anda: go untuk M322" (usulan di ERRORS M322:
+pembungkus menulis tanda selesai sesudah `job.py` keluar, sehingga tidak bergantung pada isi job).
+- **Hasil 2026-11-01:** pembungkus `JOB_EXIT <kode>` di kedua Dockerfile runner; pengecekan bersama
+  `scripts/onboarding/runner_guard.sh` untuk `run_job.sh` dan `run_terminal_check.sh`; tes 20 lulus; dua job uji live
+  (`2ed7b085`, `2b8c31b1`) tanpa `JOB_DONE` dianggap selesai (ERRORS M322 FIXED, RAILWAY_CHANGELOG).
+- **Terbuka (FUTURE_PLAN):** restart `ON_FAILURE` 10 kali di runner menjalankan ulang job sekali jalan yang gagal.
+
 ## EXEC-UI-AUDIT-FIX — temuan audit tampilan F3, F7, F8 (go 2026-11-01)
 
 **Kata user, 2026-11-01:** "Ok with you advice nomor 1" atas F3, F7, F8 (ERRORS M326).

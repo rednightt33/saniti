@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-01 — ERRORS M322: runner jobs end with the wrapper's JOB_EXIT (orc-test-runner)
+
+User go 2026-11-01 ("Go", EXEC.md EXEC-M322).
+- No service setting changed: the runner Dockerfile is uploaded with each job (`scripts/onboarding/run_job.sh`), so the
+  wrapper takes effect from the next job. Restart policy read 2026-11-01: `ON_FAILURE`, 10 retries, no start command
+  (unchanged).
+- Probe jobs on orc-test-runner, `verification/m322_runner/probe_job.py` (prints no `JOB_DONE`): `2ed7b085` and
+  `2b8c31b1` SUCCESS, each log `OUT …`, `JOB_EXIT 0`; the shared guard read `2ed7b085` as finished and started the
+  second; `DATABASE_URL` set as the reference for each run and removed (`VAR_REMOVED`).
+
 ## 2026-11-01 — EXEC-FI-TERMINAL S0-S4: bonds in the Terminal (terminal-api, terminal-publisher, edge-bff)
 
 User go 2026-11-01 (EXEC.md EXEC-FI-TERMINAL), with the one-time B6 exception "Ok jalankan".

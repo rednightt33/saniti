@@ -9,7 +9,8 @@
 # prints VAR_REMOVED or VAR_STILL_PRESENT. Run from the repository root with a Railway token for the project.
 # Manual rule (ERRORS M210, user 2026-10-23): a new deployment replaces the one running, so never start a job here
 # while an orc-test-runner suite runs (until its log prints OTR {"event": "done"}).
-# Railway IDs: PROJECT_CONTEXT.md. A job prints OUT/ERR/VERDICT lines and ends with JOB_DONE.
+# Railway IDs: PROJECT_CONTEXT.md. A job prints OUT/ERR/VERDICT lines (JOB_DONE when it wants to say so); the
+# Dockerfile's wrapper prints JOB_EXIT <exit code> after every job (ERRORS M322).
 # Optional environment (EXEC-PRICE-GAP-0917): RUN_JOB_POLL_ROUNDS (20 s each, default 90) and RUN_JOB_LOG_LINES
 # (default and most 5000: `railway logs` refuses more with "Error in limit - Invalid input") for long jobs; RUN_JOB_EXTRA_VARS, space-separated NAME=reference pairs (Railway references such as
 # ${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}, never values) set like DATABASE_URL for the run and removed afterwards.
@@ -38,21 +39,10 @@ cleanup() {
   done
   echo VAR_STILL_PRESENT; rm -rf "$STAGE"
 }
-# ERRORS M227 (2026-10-25): M210 was a manual rule and a job still replaced another session's job 14 s after it started.
-# The runner is checked here: the latest deployment must be finished (its log ends with JOB_DONE, OTR "done" or a
-# Traceback) before a new one is started.
-latest=$(timeout 60 railway deployment list -p $P -e $E -s $S --json 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print(d[0]['id'],d[0]['status']) if d else print('none none')")
-set -- $latest "$@"; LAST_ID=$1; LAST_STATUS=$2; shift 2
-if [ "$LAST_ID" != none ]; then
-  case "$LAST_STATUS" in
-    SUCCESS|FAILED|CRASHED|REMOVED|SKIPPED)
-      if [ "$LAST_STATUS" = SUCCESS ] && ! timeout 60 railway logs "$LAST_ID" -p $P -s $S -e $E --deployment --lines 5000 2>&1 \
-           | grep -q 'JOB_DONE\|OTR {"event": "done"\|Traceback'; then
-        echo "RUNNER_BUSY $LAST_ID: its job has not finished; wait for JOB_DONE (ERRORS M210/M227)"; rm -rf "$STAGE"; exit 5
-      fi ;;
-    *) echo "RUNNER_BUSY $LAST_ID ($LAST_STATUS): wait until it finishes (ERRORS M210/M227)"; rm -rf "$STAGE"; exit 5 ;;
-  esac
-fi
+# ERRORS M210/M227/M322: the runner must be free (its latest job finished) before a new job starts; the one check is
+# runner_guard.sh, shared with every script that starts a runner job.
+. "$HERE/runner_guard.sh"
+runner_free $P $E $S || { rm -rf "$STAGE"; exit 5; }
 trap cleanup EXIT
 timeout 60 railway variable set 'DATABASE_URL=${{Postgres.DATABASE_URL}}' -p $P -e $E -s $S --skip-deploys >/dev/null 2>&1 \
   || { echo SET_FAILED; exit 3; }
@@ -66,6 +56,6 @@ echo "JOB ${id:-NOT_STARTED}"
 for _ in $(seq 1 "${RUN_JOB_POLL_ROUNDS:-90}"); do
   sleep 20
   timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines "$(( ${RUN_JOB_LOG_LINES:-5000} > 5000 ? 5000 : ${RUN_JOB_LOG_LINES:-5000} ))" > "$LOG" 2>&1
-  grep -q "JOB_DONE\|Traceback" "$LOG" && break
+  ended "$LOG" && break
 done
-grep -c "^OUT \|\"OUT " "$LOG"; grep "ERR \|VERDICT\|Traceback\|JOB_DONE\|MIG \|READBACK" "$LOG" | cut -c1-400
+grep -c "^OUT \|\"OUT " "$LOG"; grep "ERR \|VERDICT\|Traceback\|JOB_DONE\|JOB_EXIT\|MIG \|READBACK" "$LOG" | cut -c1-400

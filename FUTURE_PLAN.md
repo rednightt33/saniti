@@ -81,6 +81,17 @@ Setiap perubahan data atau skema mengikuti AGENTS.md (migrasi baru, baca balik, 
 
 ## 1. Antrean perbaikan dekat
 
+### RUNNER-RETRY — job runner yang gagal dijalankan ulang sampai 10 kali (temuan 2026-11-01, ERRORS M322, menunggu keputusan)
+
+- **Fakta (dibaca 2026-11-01):** orc-test-runner memakai restart `ON_FAILURE` dengan 10 percobaan. Job sekali jalan
+  yang keluar dengan kode bukan 0 dijalankan ulang otomatis, termasuk job migrasi dan job tulis data.
+- **Risiko:** job tulis yang gagal di tengah jalan dijalankan lagi tanpa ada yang membaca kegagalannya dulu. Migrasi
+  aman karena satu transaksi dan berhenti di cek awal, tetapi job lain (backfill, koreksi) belum tentu aman diulang.
+- **Usulan:** restart policy runner `NEVER`, karena setiap job dijalankan manual dan hasilnya dibaca dulu. Pengecekan
+  runner M322 sudah menghitung deployment yang berakhir sebagai selesai, jadi tidak ada yang terkunci. Perlu persetujuan
+  user (perubahan pengaturan Railway).
+
+
 **Riwayat, sudah dieksekusi.** M68, S28 dan R-STORE dikerjakan di round 2026-10-03 (`ROUND_PLAN_2026-10-03.md` Fase A dan C, live di dev). Teks di bawah disimpan sebagai riwayat desain.
 
 ### M68 — catatan untuk AI kehilangan nilai saringan (HIGH ALERT, disetujui masuk rencana 2026-10-03)

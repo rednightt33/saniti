@@ -4926,8 +4926,28 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     - `run_job.sh` menambahkan `JOB_DONE` sendiri sesudah `job.py` keluar (pembungkus di Dockerfile runner), sehingga
       penanda tidak bergantung pada isi job;
     - atau pengaman memeriksa apakah container job sudah berhenti.
-- **Status:** OPEN (perbaikan permanen belum disetujui).
-- **Lesson:** penanda selesai sebaiknya ditulis oleh pembungkus, bukan diandalkan dari setiap job.
+- **Status:** FIXED 2026-11-01 (go user "Go", EXEC-M322).
+- **Perbaikan permanen (lapis pembungkus):**
+  - `scripts/onboarding/Dockerfile` dan `Dockerfile.l2`: pembungkus mencetak `JOB_EXIT <kode keluar>` sesudah `job.py`
+    selesai, apa pun isi job. Kode keluar dipertahankan, jadi kebijakan restart runner tidak berubah.
+  - `scripts/onboarding/runner_guard.sh` (baru): satu-satunya pengecekan "runner bebas", dipakai `run_job.sh` dan
+    `verification/screener/jobs/run_terminal_check.sh`. Skrip kedua sebelumnya punya salinan pengecekan lama sendiri,
+    jadi kelas masalah yang sama.
+  - Selesai = log sejak "Starting Container" terakhir memuat `JOB_EXIT 0`, atau `JOB_DONE`/OTR "done" untuk job lama,
+    atau deployment berakhir. Job yang gagal (`JOB_EXIT` bukan 0, Traceback) dihitung masih berjalan, karena Railway
+    menjalankannya lagi.
+  - `run_migration.sh` (screener) ikut mewajibkan `runner_guard.sh` sudah di-commit.
+- **Temuan saat memeriksa:** runner memakai restart `ON_FAILURE` dengan 10 percobaan. Job sekali jalan yang gagal
+  dijalankan ulang sampai 10 kali, termasuk job migrasi. Dulu Traceback dihitung "selesai", jadi job baru bisa mengganti
+  job yang sedang diulang. Kebijakan restart tidak diubah; perlu keputusan user (FUTURE_PLAN).
+- **Verifikasi:**
+  - tes `scripts/tests/test_run_job_guard.py`: 20 lulus (log, pembungkus dengan kode 0/1/3, `runner_free` dengan Railway
+    tiruan, kedua skrip memakai pengecekan bersama);
+  - live: job uji tanpa `JOB_DONE` (`verification/m322_runner/probe_job.py`) `2ed7b085` dan `2b8c31b1` mencetak
+    `JOB_EXIT 0`. Pengecekan menganggap `2ed7b085` selesai, dan job kedua bisa dimulai. `DATABASE_URL` terhapus
+    (`VAR_REMOVED`).
+- **Lesson:** penanda selesai sebaiknya ditulis oleh pembungkus, bukan diandalkan dari setiap job. Pengecekan yang sama
+  di dua skrip harus satu file.
 
 
 ### M323 — Aturan tanggal loader fixed income AS salah saat EST (mulai 2026-11-01)
