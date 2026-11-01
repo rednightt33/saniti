@@ -64,6 +64,9 @@ CHANGES = [
     ('2026-10-30', 'FL14', 'Empat desimal seperti FL13.', 'Reviewer B, B5.', 'Tampilan saja.'),
     ('2026-10-30', 'FL01-FL23, FL34', 'Tooltip dalam bahasa Indonesia sederhana; FL34 memberi tahu bila klasifikasi '
      'belum dimuat; dialog Flow dirapikan.', 'Audit front end (V3, V4, V7, V8, V9).', 'Tampilan saja.'),
+    ('2026-11-01', 'FL01-FL39', 'Indicator_SPECS_reviewed dan Indikator_baru_dari_Screener dilengkapi sampai FL39; '
+     'baris tambahan berlatar kuning, isinya dari registry, FORMULAS.md, metrik Screener dan contoh nyata oracle (BBCA).',
+     'User: "Lengkapi list indicators FL only di sheet ini mengikuti format sheet tsb".', 'Dokumentasi saja.'),
     ('2026-10-31', 'Semua dialog indikator', 'Kontrol yang dipilih memakai garis abu-abu tipis dan cincin samar, bukan '
      'garis hitam 2 px.', 'User: "selected state bisa dirubah bordernya tidak setebal sekarang. Dibuat soft saja".',
      'Tampilan saja.'),
@@ -180,6 +183,136 @@ def all_indicators(catalog):
     return rows
 
 
+ORACLE = HERE / 'oracle/out/BBCA.json'
+ADDED = PatternFill('solid', fgColor='FFF4D6')
+
+
+def idn(v):
+    """A number the Indonesian way (thousands '.', decimals ',', two decimals unless whole)."""
+    if v is None:
+        return 'kosong'
+    t = f'{v:,.0f}' if float(v).is_integer() else f'{v:,.2f}'
+    return t.replace(',', '#').replace('.', ',').replace('#', '.')
+
+
+def oracle_examples():
+    """FL id -> 'BBCA <date> (parameter default): out = value; ...' from the independent oracle's default case."""
+    if not ORACLE.exists():
+        return {}
+    out = {}
+    for c in json.loads(ORACLE.read_text())['cases']:
+        if c.get('case') != 'default':
+            continue
+        parts, day = [], None
+        for name, series in c['outputs'].items():
+            last = next(((d, v) for d, v in reversed(series) if v is not None), None)
+            if last:
+                day = day or last[0]
+                parts.append(f'{name} = {idn(last[1])}')
+        if parts:
+            out[c['id']] = f'CONTOH NYATA: BBCA {day} (parameter default, oracle independen = Terminal): ' + '; '.join(parts)
+    return out
+
+
+def complete_fl_sheets(wb):
+    """User 2026-11-01: "Lengkapi list indicators FL only di sheet ini mengikuti format sheet tsb" (Indicator_SPECS_reviewed
+    and Indikator_baru_dari_Screener). Each sheet gets every FL id the Terminal has, in its own columns; added rows are
+    filled from the code (registry, FORMULAS.md, Screener metrics, the oracle) and shaded."""
+    reg = json.loads(REGISTRY.read_text())['indicators']
+    _, frows = formulas()
+    formula = {r[0]: r[3].replace('`', '') for r in frows}
+    eq = fl_equivalents()
+    by_fl = {}
+    for sid, fl in eq.items():
+        by_fl.setdefault(fl, []).append(sid)
+    metrics = {m['id']: m for m in json.loads(SC_METRICS.read_text())['metrics']}
+    chart = {str(r[0]): r for r in list(wb['Screener_ke_Chart'].iter_rows(values_only=True))[1:] if r[0]}
+    examples = oracle_examples()
+    stamp = 'Ditambahkan 2026-11-01 dari kode (flowRegistry.json, FORMULAS.md); tidak ada di sheet ini pada spec 30 Okt'
+
+    ws = wb['Indicator_SPECS_reviewed']
+    rows = list(ws.iter_rows(values_only=True))
+    head, have = rows[0], {r[0] for r in rows[1:] if r[0]}
+    spec_def, spec_use = {}, {}
+    for r in rows[1:]:
+        for store, col in ((spec_def, 'Definition'), (spec_use, 'Why It Is Useful / Why Formula Works')):
+            v = r[head.index(col)]
+            if r[0] and v and v not in store.setdefault(r[0], []):
+                store[r[0]].append(v)
+    new = ws.max_row
+    for i in reg:
+        if i['id'] in have:
+            continue
+        sids = by_fl.get(i['id'], [])
+        sc = metrics.get(sids[0]) if sids else None
+        ch = chart.get(sids[0]) if sids else None
+        shape = (ch[6] if ch and ch[6] not in (None, '-') else ('Separate panel' if i.get('place') != 'overlay' else 'Main candlestick overlay'))
+        vals = {
+            '# (Terminal)': i['id'], 'Spec #': '-', 'Terminal indicator (final)': i['name'], 'Indicator': i['name'],
+            'Chart Display (Reviewed)': shape, 'Chart Parameters (Reviewed)': params_text(i.get('params')),
+            'Screener Parameters (PROPOSED)': (f"{sids[0]}: " + params_text(sc.get('params'))) if sc else '-',
+            'Review / Correction': stamp, 'Category': i['family'],
+            'Recommended Chart Type': 'Histogram' if 'histogram' in str(shape).lower() else 'Line chart',
+            'Definition': i.get('tip') or '', 'Formula / Calculation': formula.get(i['id'], ''),
+            'Why It Is Useful / Why Formula Works': (sc or {}).get('interpretation') or '',
+            'Example Illustration': examples.get(i['id'], '-'),
+            'Original Placement': 'Screener (' + ', '.join(sids) + ')' if sids else '-',
+            'Display Guidance': f"{'Panel sendiri' if i.get('place') != 'overlay' else 'Overlay di chart harga'}, satuan {i.get('unit') or '-'}",
+            'Status / Evidence': 'LIVE di Terminal; sama dengan oracle independen (EXEC-TERMINAL-FLOW-IND S5)',
+            'Default Display': '-',
+        }
+        ws.append([vals.get(h, '') for h in head])
+    for row in ws.iter_rows(min_row=new + 1, max_row=ws.max_row):
+        for cell in row:
+            cell.fill = ADDED
+            cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+    by_id = {i['id']: i for i in reg}
+
+    def sources(fid, seen=()):
+        """The data an FL formula reads: its own terms plus those of every FL it refers to (FL09 = FL05 + FL07 + ...)."""
+        f, out = formula.get(fid, ''), []
+        if any(k in f for k in ('BV', 'SV', 'BL', 'SL', 'BF', 'SF', 'bv', 'sv', 'bl', 'sl')):
+            out.append('broker')
+        if str(by_id.get(fid, {}).get('needs_frequency')) == 'True':
+            out.append('frekuensi')
+        if 'close' in f or 'volume' in f.lower():
+            out.append('harga')
+        if 'insider' in f.lower():
+            out.append('events (insider)')
+        for ref in re.findall(r'FL\d\d', f):
+            if ref != fid and ref not in seen:
+                out += sources(ref, seen + (fid,))
+        return list(dict.fromkeys(out)) or ['broker']
+
+    ws = wb['Indikator_baru_dari_Screener']
+    rows = list(ws.iter_rows(values_only=True))
+    head, have = rows[0], {r[0] for r in rows[1:] if r[0]}
+    added = []
+    for i in reg:
+        if i['id'] in have:
+            continue
+        sids = by_fl.get(i['id'], [])
+        sc = metrics.get(sids[0]) if sids else None
+        f = formula.get(i['id'], '')
+        data = ' + '.join(sources(i['id']))
+        added.append([i['id'], i['name'], ', '.join(sids) or '-', f, ' '.join(spec_def.get(i['id'], [])) or i.get('tip') or '',
+                      ' '.join(spec_use.get(i['id'], [])), (sc or {}).get('misuse') or '-', params_text(i.get('params')),
+                      data, 'Ya'])
+    keep = [list(r) for r in rows[1:]]
+    order = {i['id']: n for n, i in enumerate(reg)}
+    allrows = sorted(keep + added, key=lambda r: order.get(r[0], 999))
+    ws.delete_rows(2, ws.max_row)
+    added_ids = {r[0] for r in added}
+    for r in allrows:
+        ws.append(r)
+        if r[0] in added_ids:
+            for cell in ws[ws.max_row]:
+                cell.fill = ADDED
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+    return len(reg)
+
+
 def style_head(ws, widths):
     for cell in ws[1]:
         cell.font = Font(bold=True, color='FFFFFF')
@@ -201,6 +334,7 @@ def main(out, catalog_path=None):
     if len(rows) != 39:
         raise SystemExit(f'FORMULAS.md has {len(rows)} indicator rows, expected FL01-FL39')
     wb = openpyxl.load_workbook(SPEC)
+    n_fl = complete_fl_sheets(wb)
     catalog = json.loads(Path(catalog_path).read_text()) if catalog_path else None
     rows_all = all_indicators(catalog)
     ws = wb.create_sheet('Semua_Indikator', 0)
@@ -245,6 +379,8 @@ def main(out, catalog_path=None):
                 'disepakati 2026-10-30.'),
         ('Semua_Indikator', f'{len(rows_all)} baris: Flow Terminal, 53 teknikal, metrik Screener; status Screener dari '
                             'katalog live' if catalog else 'tanpa katalog live'),
+        ('Indicator_SPECS_reviewed, Indikator_baru_dari_Screener', f'lengkap FL01-FL{n_fl:02d} (user 2026-11-01); baris '
+                                                                    'berlatar kuning diisi dari kode dan oracle'),
         ('Indikator teknikal', f'{IND_REG.relative_to(ROOT)} sha256 {sha(IND_REG)}'),
         ('Metrik Screener', f'{SC_METRICS.relative_to(ROOT)} sha256 {sha(SC_METRICS)}'),
     ]:
