@@ -81,3 +81,25 @@ describe('intraday drawings (C7.2 A) and VWAP', () => {
     expect(line[1]).toBeCloseTo(15);
   });
 });
+
+// ERRORS M325 (audit 2026-11-01): Net Buy Flow and Net Buy Flow (Line) on an intraday chart count each day once
+import { sumOverDays } from '../../src/app/flow';
+describe('broker net summed over days on intraday candles (M325)', () => {
+  // three days of three candles; the latest day (2) shows the previous day's net until its last candle (Opsi 1)
+  const dayOf = Int32Array.from([0, 0, 0, 1, 1, 1, 1, 1, 2]), daily = [10, 20, 40];
+  const net = Array.from(dayOf, d => daily[d]);
+  it('cumulative adds each day once, on the first candle that shows it', () => {
+    expect(sumOverDays(net, null, dayOf)).toEqual([10, 10, 10, 30, 30, 30, 30, 30, 70]);
+  });
+  it('rolling counts days, not candles, and starts once it has enough days', () => {
+    expect(sumOverDays(net, 2, dayOf)).toEqual([null, null, null, 30, 30, 30, 30, 30, 60]);
+    expect(sumOverDays(net, 1, dayOf)).toEqual([10, 10, 10, 20, 20, 20, 20, 20, 40]);
+  });
+  it('a candle that shows no day gets null and does not break the run', () => {
+    expect(sumOverDays([0, 5, 5, 7], null, Int32Array.from([-1, 0, 0, 1]))).toEqual([null, 5, 5, 12]);
+  });
+  it('D, W and M (no day map) sum over candles as before', () => {
+    expect(sumOverDays([1, 2, 3, 4], 2)).toEqual([null, 3, 5, 7]);
+    expect(sumOverDays([1, 2, 3], null)).toEqual([1, 3, 6]);
+  });
+});

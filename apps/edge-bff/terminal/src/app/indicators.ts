@@ -11,6 +11,7 @@ import type { Ctx } from './context';
 import { $, nfCompact, rupiah, store } from './context';
 import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
+import { sumOverDays } from './flow';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
@@ -137,8 +138,7 @@ export function initIndicators(ctx: Ctx) {
   function netBuyFlow(p) {
     const br = p.brokers ? new Set(p.brokers) : null, bd = new Set(p.boards), iv = new Set(p.investors), net = new Float64Array(N);
     ctx.COMBOS.forEach(c => { if((br && !br.has(c.broker)) || !bd.has(c.board) || !iv.has(c.investor)) return; for(let i = 0; i < N; i++) net[i] += c.net[i] });
-    const out = new Array(N).fill(null); let sum = 0;
-    for(let i = 0; i < N; i++) { sum += net[i]; if(i >= p.length) sum -= net[i - p.length]; if(i >= p.length - 1) out[i] = sum }
+    const out = sumOverDays(net, p.length, DAY?.dayOf);             // ERRORS M325: intraday, each day once
     for(let i = ctx.brokerEnd + 1; i < N; i++) out[i] = null;      // EXEC-TERMINAL-FRESH: no broker data yet, not zero
     return out;
   }
@@ -170,11 +170,7 @@ export function initIndicators(ctx: Ctx) {
     return p.brokers.map(code => {
       const net = new Float64Array(N);
       ctx.COMBOS.forEach(c => { if(c.broker !== code || !bd.has(c.board) || !iv.has(c.investor)) return; for(let i = 0; i < N; i++) net[i] += c.net[i] });
-      const vals = new Array(N).fill(null); let sum = 0;
-      for(let i = 0; i < N; i++) {
-        sum += net[i];
-        if(p.mode === 'Rolling') { if(i >= p.length) sum -= net[i - p.length]; if(i >= p.length - 1) vals[i] = sum } else vals[i] = sum;
-      }
+      const vals = sumOverDays(net, p.mode === 'Rolling' ? p.length : null, DAY?.dayOf);   // ERRORS M325
       for(let i = ctx.brokerEnd + 1; i < N; i++) vals[i] = null;   // EXEC-TERMINAL-FRESH
       return { id:code, vals };
     });

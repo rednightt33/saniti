@@ -30,6 +30,23 @@ export function countedCandles(a: number, b: number, dayOf?: Int32Array): number
   return out;
 }
 
+/** a rolling (`length` days) or cumulative (`length` null) sum of a broker net on the candles. Intraday (`dayOf`, ERRORS
+    M325, audit 2026-11-01): every candle of a day carries that day's net, so the sum runs over the days the candles show,
+    each day once (added on the first candle that shows it), and a candle gets the sum as of the day it shows; a candle
+    showing no day gets null. D/W/M: one candle is one period, so the sum runs over candles. */
+export function sumOverDays(net: ArrayLike<number>, length: number | null, dayOf?: Int32Array): (number | null)[] {
+  const out: (number | null)[] = new Array(net.length).fill(null), days: number[] = [];
+  let sum = 0;
+  for(let i = 0; i < net.length; i++){
+    if(dayOf && dayOf[i] < 0) continue;
+    if(dayOf && i > 0 && dayOf[i] === dayOf[i - 1]){ if(length === null || days.length >= length) out[i] = sum; continue }
+    days.push(net[i]); sum += net[i];
+    if(length !== null && days.length > length) sum -= days[days.length - 1 - length];
+    if(length === null || days.length >= length) out[i] = sum;
+  }
+  return out;
+}
+
 export function initFlow(ctx: Ctx) {
   const { L, chart, ohlc, volume, dates, N, idxByTime, closes } = ctx;
   const BOARDS = ctx.BOARDS = [{id:'Regular',label:'Regular'},{id:'Nego',label:'Nego'},{id:'Cash',label:'Cash (Tunai)'}];

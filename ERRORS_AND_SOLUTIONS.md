@@ -5006,6 +5006,32 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** setelah aturan tanggal sumber berubah, bandingkan seluruh riwayat dengan sumber sekali. Tanggal yang harus
   diperiksa ulang diambil dari sumber per seri, bukan dari tabel tujuan.
 
+### M325 — Net Buy Flow dan Net Buy Flow (Line) menghitung satu hari berkali-kali di grafik intraday (2026-11-01)
+
+- **Ditemukan oleh:** audit data Terminal intraday (agen Sonnet, 2026-11-01, laporan
+  `scratchpad/audit-data/REPORT.md`, temuan F1), diverifikasi ulang dari kode dan halaman.
+- **Symptom:** BBCA 15m, Net Buy Flow 5 hari: halaman −4.830,6 M pada 20 Okt (5 × −966,1 M hari itu), seharusnya
+  −3.779,8 M (Feature 05, asing, 14–20 Okt); 21 Okt tanda terbalik (+2.356,1 M, seharusnya −3.525,2 M); nilai berubah di
+  dalam satu hari.
+- **Verified cause:** `apps/edge-bff/terminal/src/app/indicators.ts` `netBuyFlow` dan `brokerLines` menjumlah bergulir
+  atau kumulatif per candle. Di grafik intraday setiap candle sudah membawa net harian (keputusan Opsi 1,
+  `dayOfCandles`), jadi "5 hari" menjadi 5 candle dan kumulatif menghitung satu hari sekitar 2× (4h) sampai 65× (5m).
+  Flow Timeline (`countedCandles`, `cumulativeFrom`), FL01–FL39 (`toCandles`) dan ADR sudah menghitung per hari; dua
+  indikator lama ini terlewat saat C4.
+- **Class:** jumlah bergulir atau kumulatif atas data harian yang ditempel di candle intraday; berlaku untuk setiap
+  angka harian (broker, nanti makro/lintas aset) yang dijumlah di grafik dengan candle lebih kecil dari satu hari.
+- **Solution:** `app/flow.ts` `sumOverDays(net, length, dayOf)`: di intraday menjumlah per hari yang ditunjukkan candle,
+  setiap hari sekali; D/W/M tetap per candle. Dipakai kedua indikator. Tes `tests/data/intraday.test.ts` (769 lulus).
+- **Verifikasi:** halaman lokal dengan bundle baru, BBCA 15m, Net Buy Flow 5 hari: satu nilai per hari, sama dengan
+  SQL pada 20/21/22/23/26/27 Okt (−3.779,8; −3.525,2; −4.435,9; −2.873,4; −2.122,0; −1.215,6 M); bundle lama memberi
+  nilai bergeser per candle.
+- **Terkait (bukan cacat Terminal):** temuan F2, hari yang punya data harian dan broker tetapi tanpa candle intraday
+  (571 hari-ticker sejak 2025-11-03, misalnya ASII 2026-03-02) tidak masuk jumlah Flow intraday: celah sumber intraday
+  yang sudah tercatat 2026-10-31.
+- **Status:** FIXED (deploy edge-bff, lihat RAILWAY_CHANGELOG 2026-11-01).
+- **Lesson:** setiap fungsi yang menjumlah lintas candle harus memakai peta hari bila grafiknya intraday; cari semua
+  penjumlahan atas data harian saat menambah timeframe baru.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan
