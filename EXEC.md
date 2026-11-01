@@ -9625,3 +9625,54 @@ adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher han
 - **Belum dimulai:** eksekusi menunggu
   - pengecekan S4 (run 2026-11-02);
   - konfirmasi "go" dari user, seperti disampaikan ke user 2026-11-01.
+
+## EXEC-INSIDER-COUNT — insider IDX + KSEI tanpa hitungan ganda (keputusan 2026-11-01, menunggu go)
+
+Keputusan user 2026-11-01 (ERRORS M241, M242): "1 setuju / 2 a dan B OK / 3 OK / 4 OK".
+- **1. Aturan:** data insider yang dihitung = semua laporan IDX + laporan KSEI dari pemegang yang tidak punya laporan
+  IDX untuk saham yang sama dalam ±5 hari. Hanya untuk insider; aksi korporasi tidak tersentuh. Tidak ada baris yang
+  dihapus.
+  - Bukti (job orc-test-runner `matchjob`, 2 tahun, 23.578 baris KSEI): 2.115 sama persis, 839 gabungan beberapa
+    laporan IDX, 1.986 pemegang yang sama ada di IDX tetapi angkanya tidak cocok (nilai perkiraan ±Rp837 triliun),
+    19.304 tanpa IDX (dihitung).
+- **2. Arti "insider":** (a) orang dalam (direktur, komisaris, pengendali) dan (b) semua yang wajib lapor (termasuk
+  pemegang ≥5%) sama-sama didukung.
+- **3.** Harga dan nilai yang tidak diketahui (Stockbit `formatted` "-") disimpan NULL, bukan 0.
+- **4.** Pengaman otomatis: hitungan dan jumlah di tabel bertanda memakai baris yang dihitung saja; aturannya diturunkan
+  dari katalog.
+
+Rencana (di mana logika berubah):
+1. **Ingestion raw tetap.** `stockbit_insider_transaction` tetap menyimpan setiap laporan apa adanya. Loader
+   (`stockbit_events.py`) hanya mengubah 0-bertampilan-"-" menjadi NULL (butir 3).
+2. **Pembentukan tabel event** (`refresh_idx_event_annotation()`, migrasi baru), yang sudah membangun ulang tabel di
+   setiap muat:
+   - menambah `counted` (boolean) dan `count_reason` (IDX, KSEI_ONLY, KSEI_EXACT_IDX, KSEI_AGGREGATED_IDX,
+     KSEI_HOLDER_IN_IDX);
+   - menambah `report_group_key` untuk pasangan yang ditemukan;
+   - menurunkan NULL untuk "-" dari `source_payload`, sehingga riwayat ikut benar tanpa muat ulang;
+   - batas hari menjadi satu konstanta, dicek di uji migrasi.
+3. **Katalog:** `AI_table_catalog`/`AI_column_catalog`, Table_Catalog dan Column_Catalog:
+   - teks "one row per event" diganti dengan arti IDX dan KSEI;
+   - harga KSEI disebut perkiraan;
+   - kolom baru dijelaskan;
+   - jumlah atau hitungan hanya atas `counted`;
+   - arti (a)/(b) dijelaskan (peran dari `holder_role`, yang sering kosong).
+4. **Pengaman (butir 4)** di lapis yang membaca tabel untuk AI: SQL Governor (data need dan `query_metric`) membaca
+   penanda "kolom baris-dihitung" dari katalog dan menerapkannya pada agregasi. Bentuk metadata dan titik pemasangan
+   dipastikan dari kode Governor sebelum eksekusi.
+5. **Pembaca lain dengan masalah yang sama:**
+   - Terminal: publisher menjumlahkan `value_idr` per ticker (`apps/terminal-publisher/publisher.py`:1486), dan
+     indikator insider flow menjumlahkan nilai per candle (`apps/edge-bff/terminal/src/calc/flow.ts`:496). Keduanya
+     memakai baris `counted` saja.
+   - EDGE dan Terminal: penanda di chart.
+6. **Fast-lane reading** baru untuk "insider" (arti a/b) di `FASTLANE_DEFAULTS`, dengan catatan keputusan dan tesnya.
+7. **Part A** butir baru: tabel multi-sumber wajib punya penanda baris yang dihitung beserta alasannya.
+8. **Verifikasi:**
+   - hitung ulang jendela 19–23 Okt BUY, dan pastikan yang `counted` tidak punya pasangan;
+   - tidak ada lagi 0-bertampilan-"-";
+   - satu pertanyaan live sejenis `edge_8233fa7f`/`edge_dd6cf882`;
+   - Terminal: total insider per ticker sama dengan SQL atas `counted`.
+
+Pertanyaan terbuka:
+- Q1: bila user tidak menyebut arti, AI menjawab dengan (b), lalu (a) di sampingnya (saran), atau bertanya balik?
+- Q2: penanda di chart Terminal: hanya baris `counted` (saran), atau semua dengan label sumber?
