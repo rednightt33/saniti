@@ -47,7 +47,7 @@ BEGIN
    shares_change, pct_after, pct_change, pct_quality_flag, price, is_estimated_price, value_idr, data_origin,
    source_payload, source_endpoint, source_fetched_at, counted, count_reason, covered_by_event_keys)
  WITH s AS (
-   SELECT i.*, lower(btrim(i.holder_name)) AS holder_folded,
+   SELECT i.*, nullif(lower(regexp_replace(btrim(i.holder_name), '\s+', ' ', 'g')), '') AS holder_folded,  -- case and spaces
           -- M242: "-" is Stockbit's mark for an unknown amount; a real 0 stays 0
           CASE WHEN i.source_payload -> 'price' ->> 'formatted' = '-' THEN NULL ELSE i.price END AS price_known,
           CASE WHEN i.source_payload -> 'value' ->> 'formatted' = '-' THEN NULL ELSE i.value_idr END AS value_known
@@ -58,7 +58,7 @@ BEGIN
    SELECT s.insider_key,
           array_agg(x.insider_key ORDER BY x.transaction_date, x.insider_key)
             FILTER (WHERE x.insider_key IS NOT NULL) AS covered,
-          bool_or(x.shares_change = s.shares_change AND s.transaction_date - x.transaction_date BETWEEN -3 AND window_days) AS exact,
+          bool_or(x.shares_change = s.shares_change) AS exact,
           -- KSEI's daily change equal to the sum of the holder's IDX reports in the days before it; a zero change
           -- (rights, splits) or no IDX report in that span is not an aggregate
           s.shares_change <> 0
@@ -76,7 +76,9 @@ BEGIN
         s.is_estimated_price, s.value_known, s.data_origin, s.source_payload, '/insider/company/majorholder',
         s.last_seen_at,
         s.data_origin <> 'KSEI' OR k.covered IS NULL,
-        CASE WHEN s.data_origin <> 'KSEI' THEN s.data_origin
+        -- an origin other than IDX and KSEI is counted under its own reason instead of failing the load
+        CASE WHEN s.data_origin = 'IDX' THEN 'IDX'
+             WHEN s.data_origin <> 'KSEI' THEN 'OTHER_ORIGIN'
              WHEN k.covered IS NULL THEN 'KSEI_ONLY'
              WHEN k.exact THEN 'KSEI_EXACT_IDX'
              WHEN k.aggregated THEN 'KSEI_AGGREGATED_IDX'
@@ -91,7 +93,9 @@ SELECT public.refresh_idx_event_annotation();
 
 ALTER TABLE public.idx_event_annotation
   ALTER COLUMN counted SET NOT NULL,
+  ALTER COLUMN count_reason SET NOT NULL,
   ADD CONSTRAINT idx_event_annotation_count_reason_check CHECK (count_reason = ANY (ARRAY['CORPORATE_ACTION', 'IDX',
-    'KSEI_ONLY', 'KSEI_EXACT_IDX', 'KSEI_AGGREGATED_IDX', 'KSEI_HOLDER_IN_IDX'])),
-  ADD CONSTRAINT idx_event_annotation_counted_check CHECK (counted = (count_reason IN ('CORPORATE_ACTION', 'IDX', 'KSEI_ONLY'))),
+    'OTHER_ORIGIN', 'KSEI_ONLY', 'KSEI_EXACT_IDX', 'KSEI_AGGREGATED_IDX', 'KSEI_HOLDER_IN_IDX'])),
+  ADD CONSTRAINT idx_event_annotation_counted_check CHECK (counted = (count_reason IN ('CORPORATE_ACTION', 'IDX',
+    'OTHER_ORIGIN', 'KSEI_ONLY'))),
   ADD CONSTRAINT idx_event_annotation_covered_check CHECK ((count_reason LIKE 'KSEI\_%IDX') = (covered_by_event_keys IS NOT NULL));

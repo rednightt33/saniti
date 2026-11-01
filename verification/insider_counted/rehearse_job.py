@@ -32,6 +32,26 @@ Q = {
  "invariant_covered_complete": f"""SELECT count(*) bad FROM {H} k WHERE k.data_origin='KSEI' AND NOT k.counted AND
    (SELECT count(*) FROM {H} i WHERE i.data_origin='IDX' AND i.ticker=k.ticker AND i.hf=k.hf AND i.d BETWEEN k.d - 5 AND k.d + 5)
    <> cardinality(k.covered)""",
+ "invariant_labels": f"""SELECT count(*) FILTER (WHERE k.count_reason='KSEI_EXACT_IDX' AND NOT ex) exact_wrong,
+     count(*) FILTER (WHERE k.count_reason<>'KSEI_EXACT_IDX' AND k.count_reason LIKE 'KSEI%IDX' AND ex) exact_missed,
+     count(*) FILTER (WHERE k.count_reason='KSEI_AGGREGATED_IDX' AND NOT ag) aggregated_wrong,
+     count(*) FILTER (WHERE k.count_reason='KSEI_HOLDER_IN_IDX' AND (ex OR ag)) holder_wrong
+   FROM {H} k CROSS JOIN LATERAL (SELECT
+     EXISTS (SELECT 1 FROM {H} i WHERE i.data_origin='IDX' AND i.ticker=k.ticker AND i.hf=k.hf AND i.d BETWEEN k.d-5 AND k.d+5 AND i.s=k.s) ex,
+     k.s <> 0 AND (SELECT sum(i.s) FROM {H} i WHERE i.data_origin='IDX' AND i.ticker=k.ticker AND i.hf=k.hf AND i.d BETWEEN k.d-5 AND k.d) = k.s ag) m
+   WHERE k.data_origin='KSEI' AND NOT k.counted""",
+ "other_origin": f"SELECT count(*) n FROM {NEW} WHERE count_reason='OTHER_ORIGIN'",
+ "loose_name_twins_counted": f"""SELECT count(*) n, sum(v.value_idr) value FROM {H} k JOIN {NEW} v USING (event_key)
+   WHERE k.data_origin='KSEI' AND k.counted AND k.hf_loose <> '' AND EXISTS (SELECT 1 FROM {H} i WHERE i.data_origin='IDX'
+     AND i.ticker=k.ticker AND i.hf_loose=k.hf_loose AND i.d BETWEEN k.d-5 AND k.d+5)""",
+ "loose_name_examples": f"""SELECT k.ticker, k.d, v.holder_name ksei_name, (SELECT string_agg(DISTINCT x.holder_name, ' | ') FROM {NEW} x
+     JOIN {H} i USING (event_key) WHERE i.data_origin='IDX' AND i.ticker=k.ticker AND i.hf_loose=k.hf_loose AND i.d BETWEEN k.d-5 AND k.d+5) idx_names
+   FROM {H} k JOIN {NEW} v USING (event_key) WHERE k.data_origin='KSEI' AND k.counted AND k.hf_loose <> '' AND EXISTS (SELECT 1 FROM {H} i
+     WHERE i.data_origin='IDX' AND i.ticker=k.ticker AND i.hf_loose=k.hf_loose AND i.d BETWEEN k.d-5 AND k.d+5) ORDER BY k.d DESC LIMIT 8""",
+ "counted_value_null_by_reason": f"""SELECT count_reason, count(*) n, count(*) FILTER (WHERE value_idr IS NULL) value_null FROM {NEW}
+   WHERE event_family='INSIDER' GROUP BY 1 ORDER BY 1""",
+ "top_holder_in_idx_value_window": f"""SELECT ticker, holder_name, annotation_date, shares_change, value_idr FROM {NEW} WHERE {W}
+   AND count_reason='KSEI_HOLDER_IN_IDX' ORDER BY value_idr DESC NULLS LAST LIMIT 8""",
  "reason_last_2y_ksei": f"""SELECT count_reason, count(*) n FROM {NEW} WHERE data_origin='KSEI' AND annotation_date >= '2024-11-01' GROUP BY 1 ORDER BY 1""",
  "ksei_null_holder": f"SELECT count(*) n, count(*) FILTER (WHERE counted) counted FROM {NEW} WHERE data_origin='KSEI' AND holder_name IS NULL",
 }
@@ -78,9 +98,13 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as c:
     started = time.monotonic()
     c.execute(core)
     print("OUT " + json.dumps({"q": "core_ran", "seconds": round(time.monotonic() - started, 1)}), flush=True)
-    c.execute("""CREATE TEMP TABLE h AS SELECT event_key, data_origin, ticker, lower(btrim(holder_name)) hf, annotation_date d,
-        counted, covered_by_event_keys covered FROM pg_temp.idx_event_annotation WHERE event_family = 'INSIDER'""")
+    # the helper fold is written another way (split on spaces and join), so a fold mistake in core.sql shows up
+    c.execute("""CREATE TEMP TABLE h AS SELECT event_key, data_origin, ticker,
+        nullif(array_to_string(array_remove(regexp_split_to_array(lower(holder_name), '[[:space:]]+'), ''), ' '), '') hf,
+        regexp_replace(lower(holder_name), '[^a-z0-9]', '', 'g') hf_loose, annotation_date d, shares_change s,
+        count_reason, counted, covered_by_event_keys covered FROM pg_temp.idx_event_annotation WHERE event_family = 'INSIDER'""")
     c.execute("CREATE INDEX ON pg_temp.h (ticker, hf, d) WHERE data_origin = 'IDX'")
+    c.execute("CREATE INDEX ON pg_temp.h (ticker, hf_loose, d) WHERE data_origin = 'IDX'")
     c.execute("CREATE INDEX ON pg_temp.h (event_key)")
     c.execute("ANALYZE pg_temp.h")
     for name, sql in {**Q, **EXTRA}.items():
