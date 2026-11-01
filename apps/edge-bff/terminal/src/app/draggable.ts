@@ -8,6 +8,7 @@ export function draggable(box: HTMLElement | null, handle: HTMLElement | null): 
   let x = 0, y = 0;
   /* the place kept from an earlier drag, pulled back on screen (the window was narrowed, a phone turned): the same limits */
   const fit = () => {
+    [x, y] = shiftOf(box);
     if (!x && !y) return;
     const r = box.getBoundingClientRect(); if (!r.width) return;            // hidden: fitted when shown
     const left = r.left - x, top = r.top - y;
@@ -23,6 +24,7 @@ export function draggable(box: HTMLElement | null, handle: HTMLElement | null): 
   handle.addEventListener('pointerdown', (e: PointerEvent) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('button, input, select, textarea, a, [role="tab"]')) return;
     e.preventDefault();
+    [x, y] = shiftOf(box);                                   // a resize may have moved it
     const r = box.getBoundingClientRect(), left = r.left - x, top = r.top - y, sx = e.clientX - x, sy = e.clientY - y;
     handle.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent) => {
@@ -39,3 +41,9 @@ export function draggable(box: HTMLElement | null, handle: HTMLElement | null): 
 
 /** a box made draggable: bring it back on screen when it is shown again (call after unhiding it) */
 export const fitInView = (box: HTMLElement | null) => { (box as any)?.fitInView?.() };
+
+/** the box's shift (its `translate`): the browser writes "75px 0px" back as "75px", so a missing y is 0 */
+export function shiftOf(box: HTMLElement): [number, number] {
+  const [a, b] = (box.style.translate || '').split(/\s+/).map(v => parseFloat(v));
+  return [Number.isFinite(a) ? a : 0, Number.isFinite(b) ? b : 0];
+}

@@ -27,3 +27,26 @@ describe('indicator menu rows', () => {
     expect(visibleItems(all, 'all', '', new Set()).length).toBe(all.length);
   });
 });
+
+// user 2026-11-01: a filter by group type (Technical, with the base volume, or Flow) narrows every view; units read as text
+import { ofKind, unitText, visibleItems as visible2, menuItems as items2 } from '../../src/app/indMenu';
+import IREG from '../../src/data/indRegistry.json';
+import FREG from '../../src/data/flowRegistry.json';
+describe('group-type filter and unit text', () => {
+  const all = items2(IREG as any[], FREG as any, true);
+  it('Technical keeps the technical rows and the volume, Flow the Flow rows, in a group, a search and favorites', () => {
+    expect(visible2(all, 'all', '', new Set(), 'Flow').every(i => i.kind === 'Flow')).toBe(true);
+    expect(visible2(all, 'all', '', new Set(), 'Technical').some(i => i.kind === 'Base')).toBe(true);
+    expect(visible2(all, 'all', 'balance', new Set(), 'Technical').filter(i => i.kind === 'Flow')).toEqual([]);
+    expect(visible2(all, 'fav', '', new Set(['FL24', 'I13']), 'Flow').map(i => i.id)).toEqual(['FL24']);
+    expect(visible2(all, 'all', '', new Set(), 'all').length).toBe(all.length);
+    expect(ofKind(all.find(i => i.id === 'VOL')!, 'Flow')).toBe(false);
+  });
+  it('writes a unit as text', () => {
+    expect([unitText('0-100'), unitText('lot|IDR'), unitText('-1..1'), unitText('%')]).toEqual(['0–100', 'lot / IDR', '−1 to 1', '%']);
+    // every registry unit reads as words, never a code with underscores
+    const units = [...new Set(all.map(i => i.unit))];
+    expect(units.map(unitText).filter(u => /_/.test(u))).toEqual([]);
+    expect([unitText('index_0_100'), unitText('percent_signed'), unitText('price_difference_nonnegative')]).toEqual(['0–100', '%', 'price change']);
+  });
+});

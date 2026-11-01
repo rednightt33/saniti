@@ -1259,3 +1259,31 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .icd-dlg{border-radius:var(--r-2xl);box-shadow:var(--shadow-lg)}
 .icd-dlg-h{font-size:var(--fs-12)}
 .icd-x{width:var(--h-md);height:var(--h-md);border-radius:var(--r-md)}
+
+/* User 2026-11-01 (screenshot of the indicator menu): group types as badges, a group-type filter, the box resized by its
+   right edge, bottom edge and corner (double-click the corner: fill the window), the group list resized by its divider,
+   and one letter spacing for every text in the box (0 for text, the spec's caps spacing for uppercase labels) */
+.im-box,.im-box *,.im-tip,.im-tip *{letter-spacing:0}
+.im-row.hd,.im-badge,.im-detail .icd-eyebrow,.im-detail .icd-sub,.im-detail .icd-notes h5{letter-spacing:var(--ls-caps)}
+.im-row .un{font-variant-numeric:normal}
+.im-title{padding:12px 6px 6px;line-height:1;overflow:visible}
+.im-badge{display:inline-flex;align-items:center;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);background:var(--sel);color:var(--text-2);font-size:var(--fs-2xs);font-weight:var(--fw-semibold);text-transform:uppercase}
+.im-search{display:flex;align-items:center;gap:var(--s-4)}
+.im-search input{flex:1;min-width:0}
+.im-seg{display:inline-flex;flex:0 0 auto;border:1px solid var(--border);border-radius:var(--r-md);padding:2px;gap:2px;background:var(--surface)}
+.im-seg button{height:26px;padding:0 var(--s-5);border:0;border-radius:var(--r-sm);background:none;font-size:var(--fs-md);font-weight:var(--fw-medium);color:var(--text-2);white-space:nowrap}
+.im-seg button:hover{color:var(--text)}
+.im-seg button[aria-pressed="true"]{background:var(--sel);color:var(--text)}
+.im-body{grid-template-columns:var(--im-nav,210px) 6px minmax(0,1fr)}
+.im-nav{border-right:0}
+.im-split{cursor:col-resize;border-left:1px solid var(--border);touch-action:none}
+.im-split:hover,.im-split:focus-visible{background:var(--hover);outline:none}
+.im-box{max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
+.im-rz{position:absolute;z-index:4;touch-action:none}
+.im-rz-r{top:12px;right:-3px;bottom:12px;width:7px;cursor:ew-resize}
+.im-rz-b{left:12px;right:12px;bottom:-3px;height:7px;cursor:ns-resize}
+.im-rz-c{right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;border-bottom-right-radius:var(--r-2xl);
+  background:linear-gradient(135deg,transparent 0 55%,var(--border-2) 55% 62%,transparent 62% 72%,var(--border-2) 72% 79%,transparent 79%)}
+.im-rz-c:hover,.im-rz-c:focus-visible{background-color:var(--hover);outline:none}
+@media(max-width:700px){.im-seg button{padding:0 var(--s-3)}.im-rz{display:none}}
+.im-row.hd *,.im-badge{letter-spacing:var(--ls-caps)}

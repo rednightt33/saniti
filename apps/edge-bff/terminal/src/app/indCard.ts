@@ -14,7 +14,7 @@
 import NOTES from '../data/indNotes.json';
 import { fmt, type Explanation, type Term } from '../calc/explain';
 import type { Ctx } from './context';
-import { flowPlace, type MenuItem } from './indMenu';
+import { flowPlace, unitText, type MenuItem } from './indMenu';
 import { FLOW_REG } from './flowIndicators';
 import { draggable, fitInView } from './draggable';
 import * as spec from '../data/specFormat';
@@ -202,7 +202,7 @@ export function renderCard(host: HTMLElement, ctx: Ctx, item: MenuItem, src: Car
       <div class="icd-notes"><h5>Rumus (seperti dihitung Terminal)</h5>
         <div class="icd-formula">${esc(notes?.formula || 'Tidak ada rumus di spesifikasi.')}</div>
         <h5>Parameter (default Terminal)</h5>${params}
-        <p class="icd-note">Tampil ${item.place === 'Overlay' ? 'di atas grafik harga' : 'di panel sendiri di bawah grafik'}${item.unit ? `, satuan ${esc(item.unit)}` : ''}${src.onChart ? '; parameter "Dipakai" adalah milik indikator di chart' : ''}.</p>
+        <p class="icd-note">Tampil ${item.place === 'Overlay' ? 'di atas grafik harga' : 'di panel sendiri di bawah grafik'}${item.unit ? `, satuan ${esc(unitText(item.unit))}` : ''}${src.onChart ? '; parameter "Dipakai" adalah milik indikator di chart' : ''}.</p>
         ${warn.length ? `<h5>Hati-hati</h5><ul class="icd-bul">${warn.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
         <p class="icd-note">Kode: <code>${item.kind === 'Flow' ? 'calc/flow.ts' : 'calc/indicators.ts'}</code> ${esc(item.kind === 'Flow' ? item.id : def.id)}; sumber rumus: ${esc(notes?.source || '–')}.</p></div>`;
   }
