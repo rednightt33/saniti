@@ -7,6 +7,8 @@
   e04ef6f6, fixed-income-price-us-recovery-cron 2d48b547. No variable, schedule or start command changed.
 - Migration 20261101_002 and the correction dry run ran as jobs on orc-test-runner (`scripts/onboarding/run_job.sh`);
   `DATABASE_URL` set for the job and removed after it (VAR_REMOVED).
+- Push 3e00b555 (README only) rebuilt the same four services from the same code; all SUCCESS: a3121125, 6544b618,
+  c44a7ae6, 371c66e7.
 - Open: the first US run in EST, 2026-11-02 23:00 UTC.
 
 ## 2026-11-01 — EXEC-INTRADAY-FEATURES C1-C4: intraday files, terminal-api, idx-intraday-cron, edge-bff; planned Postgres restart
