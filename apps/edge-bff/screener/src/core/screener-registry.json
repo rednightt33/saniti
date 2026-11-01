@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "638ee5ea6bbf05b5",
-  "registry_version": "b6a8dc0ba206ed65",
+  "screener_registry_version": "e27eddeea6094ee4",
+  "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
     {
       "role": "base",
       "file": "apps/edge-bff/backtest/src/core/backtest-registry.json",
-      "sha256": "5c711c6bf664cf404147788a822b3c545f0d12935c816421d5c7b69def13e371"
+      "sha256": "8bf2d7597bc87d4e9ddd8f2394d0943abe1b9a6a1a35d3e1ad11f2448054d035"
     },
     {
       "role": "terminal",
@@ -17,7 +17,7 @@
     {
       "role": "calc",
       "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
-      "sha256": "0169f94359abd5bc3b13a70daaf66f6e6da0823c4f4ad46c3309ae9386ceec01"
+      "sha256": "88977c1b8d0f399d9bd2b08d6a9c42d427cd450ed18c831f0fffad8b9aec3da5"
     },
     {
       "role": "overlay",
@@ -69,7 +69,7 @@
       "name": "Simple Moving Average",
       "category": "Trend",
       "short": "SMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -271,7 +271,7 @@
       "name": "Exponential Moving Average",
       "category": "Trend",
       "short": "EMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -491,7 +491,7 @@
       "name": "Weighted Moving Average",
       "category": "Trend",
       "short": "WMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -651,7 +651,7 @@
       "name": "Hull Moving Average",
       "category": "Trend",
       "short": "HMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -811,7 +811,7 @@
       "name": "Kaufman Adaptive Moving Average",
       "category": "Trend",
       "short": "KAMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -997,7 +997,7 @@
       "name": "MACD",
       "category": "Trend",
       "short": "MACD",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "fast_length",
@@ -1328,7 +1328,7 @@
       "name": "Average Directional Index",
       "category": "Trend",
       "short": "DMI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "di_length",
@@ -1505,7 +1505,7 @@
       "name": "Aroon Indicator",
       "category": "Trend",
       "short": "Aroon",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -1633,7 +1633,7 @@
       "name": "Supertrend",
       "category": "Trend",
       "short": "Supertrend",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "atr_length",
@@ -1780,7 +1780,7 @@
       "name": "Donchian Channels",
       "category": "Trend",
       "short": "DC",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -1948,7 +1948,7 @@
       "name": "Keltner Channels",
       "category": "Trend",
       "short": "KC",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -2364,7 +2364,7 @@
       "name": "Parabolic SAR",
       "category": "Trend",
       "short": "SAR",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "start",
@@ -2514,7 +2514,7 @@
       "name": "Relative Strength Index",
       "category": "Momentum",
       "short": "RSI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -2660,7 +2660,7 @@
       "name": "Stochastic RSI",
       "category": "Momentum",
       "short": "Stoch RSI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "rsi_length",
@@ -2912,7 +2912,7 @@
       "name": "Stochastic Oscillator",
       "category": "Momentum",
       "short": "Stoch",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "k_length",
@@ -3070,7 +3070,7 @@
       "name": "Williams %R",
       "category": "Momentum",
       "short": "%R",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -3213,7 +3213,7 @@
       "name": "Rate of Change",
       "category": "Momentum",
       "short": "ROC",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -3376,7 +3376,7 @@
       "name": "Momentum",
       "category": "Momentum",
       "short": "Mom",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -3510,7 +3510,7 @@
       "name": "Commodity Channel Index",
       "category": "Momentum",
       "short": "CCI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -3622,7 +3622,7 @@
       "name": "Chande Momentum Oscillator",
       "category": "Momentum",
       "short": "CMO",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -3757,7 +3757,7 @@
       "name": "True Strength Index",
       "category": "Momentum",
       "short": "TSI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "long_length",
@@ -3988,7 +3988,7 @@
       "name": "TRIX",
       "category": "Momentum",
       "short": "TRIX",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -4122,7 +4122,7 @@
       "name": "Ultimate Oscillator",
       "category": "Momentum",
       "short": "UO",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "fast_length",
@@ -4272,7 +4272,7 @@
       "name": "Awesome Oscillator",
       "category": "Momentum",
       "short": "AO",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "fast_length",
@@ -4371,7 +4371,7 @@
       "name": "Percentage Price Oscillator",
       "category": "Momentum",
       "short": "PPO",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "fast_length",
@@ -4674,7 +4674,7 @@
       "name": "Balance of Power",
       "category": "Momentum",
       "short": "BOP",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -4754,7 +4754,7 @@
       "name": "Bollinger Bands",
       "category": "Volatility",
       "short": "BB",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -5152,7 +5152,7 @@
       "name": "Bollinger %B",
       "category": "Volatility",
       "short": "%B",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -5353,7 +5353,7 @@
       "name": "Bollinger Bandwidth",
       "category": "Volatility",
       "short": "BBW",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -5555,7 +5555,7 @@
       "name": "Average True Range",
       "category": "Volatility",
       "short": "ATR",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -5691,7 +5691,7 @@
       "name": "Normalized ATR",
       "category": "Volatility",
       "short": "NATR",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -5832,7 +5832,7 @@
       "name": "Standard Deviation",
       "category": "Volatility",
       "short": "StdDev",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -6009,7 +6009,7 @@
       "name": "Historical Volatility",
       "category": "Volatility",
       "short": "HV",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -6190,7 +6190,7 @@
       "name": "Average Daily Range",
       "category": "Volatility",
       "short": "ADR",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -6281,7 +6281,7 @@
       "name": "Volume SMA",
       "category": "Volume",
       "short": "Vol SMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -6385,7 +6385,7 @@
       "name": "Volume EMA",
       "category": "Volume",
       "short": "Vol EMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -6480,7 +6480,7 @@
       "name": "Relative Volume",
       "category": "Volume",
       "short": "RVOL",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -6590,7 +6590,7 @@
       "name": "Percentage Volume Oscillator",
       "category": "Volume",
       "short": "PVO",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "fast_length",
@@ -6768,7 +6768,7 @@
       "name": "Volume Rate of Change",
       "category": "Volume",
       "short": "VROC",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -6854,7 +6854,7 @@
       "name": "On-Balance Volume",
       "category": "PriceVolume",
       "short": "OBV",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -6958,7 +6958,7 @@
       "name": "Price Volume Trend",
       "category": "PriceVolume",
       "short": "PVT",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7062,7 +7062,7 @@
       "name": "Volume Weighted Moving Average",
       "category": "PriceVolume",
       "short": "VWMA",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -7230,7 +7230,7 @@
       "name": "Volume Weighted Average Price",
       "category": "PriceVolume",
       "short": "VWAP",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "anchor",
@@ -7712,7 +7712,7 @@
       "name": "Accumulation/Distribution Line",
       "category": "PriceVolume",
       "short": "ADL",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [],
       "start_params": {},
       "default_offered": true,
@@ -7818,7 +7818,7 @@
       "name": "Chaikin Money Flow",
       "category": "PriceVolume",
       "short": "CMF",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -7907,7 +7907,7 @@
       "name": "Chaikin Oscillator",
       "category": "PriceVolume",
       "short": "Chaikin Osc",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "fast_length",
@@ -8008,7 +8008,7 @@
       "name": "Money Flow Index",
       "category": "PriceVolume",
       "short": "MFI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -8097,7 +8097,7 @@
       "name": "Elder's Force Index",
       "category": "PriceVolume",
       "short": "EFI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -8183,7 +8183,7 @@
       "name": "Ease of Movement",
       "category": "PriceVolume",
       "short": "EOM",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "length",
@@ -8288,7 +8288,7 @@
       "name": "Negative Volume Index",
       "category": "PriceVolume",
       "short": "NVI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "initial_value",
@@ -8406,7 +8406,7 @@
       "name": "Positive Volume Index",
       "category": "PriceVolume",
       "short": "PVI",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "initial_value",
@@ -8524,7 +8524,7 @@
       "name": "Klinger Volume Oscillator",
       "category": "PriceVolume",
       "short": "KVO",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "fast_length",
@@ -8682,7 +8682,7 @@
       "name": "Market Facilitation Index",
       "category": "PriceVolume",
       "short": "MFI (BW)",
-      "formula_version": "b6a8dc0ba206ed65",
+      "formula_version": "514dc3df60a25aff",
       "params": [
         {
           "key": "volume_scale",
