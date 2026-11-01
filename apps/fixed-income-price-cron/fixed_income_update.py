@@ -98,6 +98,8 @@ class FetchOutcome:
     row: dict | None
     available_dates: tuple[date, ...]
     error: str | None
+    # recovery only: the series' last correction_lookback_sessions source bars up to the target (recovery_window_rows)
+    window_rows: tuple[dict, ...] = ()
 
 
 def session_id(prefix: str) -> str:
@@ -424,6 +426,65 @@ def candle_for_target(rows: list[dict], target_date: date) -> dict | None:
     return validate_price_row(matching[-1])
 
 
+def recovery_window_rows(
+    rows: list[dict], target_date: date, sessions: int, close_for
+) -> tuple[list[dict], list[str]]:
+    """EXEC-FI-DATE A (ERRORS M324, user go 2026-11-01): the dates a recovery re-checks come from the SOURCE, per
+    series: its last `sessions` bars up to the target session (`correction_lookback_sessions` of the market schedule),
+    never from what the table already holds. A date the table lacks (a run that never happened, one series late on a day
+    the others have) or a bar the source revised is written through the same material UPSERT; a date older than the
+    window is reported by the weekly consensus check. Returns validated copies with their own market_close_at, and the
+    dates of bars that failed validation (left out, the target is not blocked by an older bad bar)."""
+    if sessions < 1:
+        return [], []
+    window: list[dict] = []
+    rejected: list[str] = []
+    for source_row in [row for row in rows if row["date"] <= target_date][-sessions:]:
+        row = dict(source_row)
+        row["market_close_at"] = close_for(row["date"])
+        try:
+            window.append(validate_price_row(row))
+        except ValueError:
+            rejected.append(row["date"].isoformat())
+    return window, rejected
+
+
+def describe_repairs(connection: psycopg.Connection, rows: list[dict]) -> list[dict]:
+    """The window rows that differ from the table (missing date, or open/high/low/close not equal), read before the
+    UPSERT, for the run log. A row equal to the table is not listed."""
+    if not rows:
+        return []
+    stored = {
+        (symbol, metric, day): tuple(Decimal(str(value)) for value in values)
+        for symbol, metric, day, *values in connection.execute(
+            f"""
+            SELECT p.tradingview_symbol,p.metric_type,p.date,p.open,p.high,p.low,p.close
+            FROM {PRICE_TABLE} p
+            JOIN unnest(%s::text[],%s::text[],%s::date[]) AS k(symbol,metric,day)
+              ON p.tradingview_symbol=k.symbol AND p.metric_type=k.metric AND p.date=k.day
+            WHERE p."Timeframe"=%s
+            """,
+            (
+                [row["tradingview_symbol"] for row in rows],
+                [row["metric_type"] for row in rows],
+                [row["date"] for row in rows],
+                TIMEFRAME,
+            ),
+        ).fetchall()
+    }
+    repairs: list[dict] = []
+    for row in rows:
+        before = stored.get((row["tradingview_symbol"], row["metric_type"], row["date"]))
+        after = tuple(Decimal(str(row[field])) for field in ("open", "high", "low", "close"))
+        if before is None or before != after:
+            repairs.append({
+                "series": f"{row['ticker']}/{row['metric_type']}",
+                "date": row["date"].isoformat(),
+                "kind": "missing" if before is None else "revised",
+            })
+    return repairs
+
+
 def read_schedule(connection: psycopg.Connection, market_code: str) -> MarketSchedule:
     row = connection.execute(
         f"""
@@ -504,6 +565,8 @@ def fetch_worker(
     disable_proxy: bool,
     expected_timezone: str | None = None,
     expected_session: str | None = None,
+    window_sessions: int = 0,
+    close_for=None,
 ) -> list[FetchOutcome]:
     outcomes: list[FetchOutcome] = []
     ws = None
@@ -528,6 +591,11 @@ def fetch_worker(
                 expected_session,
             )
             dates = tuple(sorted({row["date"] for row in rows}))
+            window, rejected = recovery_window_rows(rows, target_date, window_sessions, close_for)
+            if rejected:
+                with PRINT_LOCK:
+                    print(json.dumps({"event": "recovery_window_bar_rejected", "symbol": item.tradingview_symbol,
+                                      "metric_type": item.metric_type, "dates": rejected}), flush=True)
             row = candle_for_target(rows, target_date)
             outcomes.append(
                 FetchOutcome(
@@ -535,6 +603,7 @@ def fetch_worker(
                     row,
                     dates,
                     None if row else f"No final 1D candle for {target_date.isoformat()}",
+                    tuple(window),
                 )
             )
         except Exception as exc:
@@ -579,6 +648,8 @@ def fetch_all(
     args: argparse.Namespace,
     expected_timezone: str | None = None,
     expected_session: str | None = None,
+    window_sessions: int = 0,
+    close_for=None,
 ) -> list[FetchOutcome]:
     chunks = partition(universe, args.workers)
     outcomes: list[FetchOutcome] = []
@@ -599,6 +670,8 @@ def fetch_all(
                 args.no_proxy,
                 expected_timezone,
                 expected_session,
+                window_sessions,
+                close_for,
             )
             for worker_id, chunk in enumerate(chunks, start=1)
         ]
@@ -753,15 +826,19 @@ def write_monitoring(
     return status
 
 
-def notify_telegram_monitor(execution_id: str, *, opener=urlopen, sleep_fn=time.sleep) -> bool:
+def notify_telegram_monitor(
+    execution_id: str, *, source_table: str = "Monitoring_Fixed_Income", details: dict | None = None,
+    opener=urlopen, sleep_fn=time.sleep,
+) -> bool:
     notify_url = os.environ.get("TELEGRAM_NOTIFY_URL", "").strip()
     notify_secret = os.environ.get("TELEGRAM_NOTIFY_SECRET", "").strip()
     if not notify_url or not notify_secret:
         print(json.dumps({"event": "telegram_notify_skipped", "reason": "not_configured"}))
         return False
-    payload = json.dumps(
-        {"source_table": "Monitoring_Fixed_Income", "execution_id": execution_id}
-    ).encode()
+    body = {"source_table": source_table, "execution_id": execution_id}
+    if details is not None:
+        body["details"] = details              # the weekly consensus report (consensus_check.py), checked by the monitor
+    payload = json.dumps(body).encode()
     attempts = max(1, int(os.environ.get("TELEGRAM_NOTIFY_ATTEMPTS", "4")))
     timeout = max(1.0, float(os.environ.get("TELEGRAM_NOTIFY_TIMEOUT", "20")))
     last_error = "unknown"
@@ -815,7 +892,7 @@ def try_acquire_run_lock(connection: psycopg.Connection, market_code: str) -> bo
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--market", required=True)
-    parser.add_argument("--mode", choices=("daily", "recovery", "manual"), required=True)
+    parser.add_argument("--mode", choices=("daily", "recovery", "manual", "consensus"), required=True)
     parser.add_argument("--target-date", type=date.fromisoformat)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--request-bars", type=int, default=7)
@@ -836,10 +913,32 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """The run, then (EXEC-FI-DATE B) the weekly consensus check: on demand with --mode consensus, and after the
+    recovery run on the market's local Saturday. The check only reports; its failure does not change the run's exit."""
     args = parse_args()
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise SystemExit("DATABASE_URL is required")
+    import consensus_check
+
+    loader = sys.modules[__name__]
+    if args.mode == "consensus":
+        consensus_check.run(loader, database_url, args.market, manual=True)
+        return 0
+    code = load(args, database_url)
+    if args.mode == "recovery" and not args.dry_run:
+        try:
+            with psycopg.connect(database_url) as connection:
+                zone = read_schedule(connection, args.market).timezone
+            if consensus_check.due(zone, datetime.now(timezone.utc)):
+                consensus_check.run(loader, database_url, args.market, manual=False)
+        except Exception as exc:
+            print(json.dumps({"event": "consensus_failed", "error": f"{type(exc).__name__}: {exc}"[:500]}), flush=True)
+    return code
+
+
+def load(args: argparse.Namespace, database_url: str) -> int:
+    """One daily, recovery or manual run of a market."""
     now = datetime.now(timezone.utc)
     started_at = now
     execution_id = str(uuid.uuid4())
@@ -897,6 +996,10 @@ def main() -> int:
             notify_telegram_monitor(execution_id)
             return 0 if status == "SKIPPED" else 1
 
+        # EXEC-FI-DATE A: a recovery run re-checks the source's last correction_lookback_sessions bars of every series
+        window_sessions = schedule.correction_lookback_sessions if args.mode == "recovery" else 0
+        if window_sessions:
+            args.request_bars = max(args.request_bars, window_sessions + 3)
         finalized_at = datetime.now(timezone.utc)
         outcomes = fetch_all(
             universe,
@@ -908,8 +1011,16 @@ def main() -> int:
             args,
             schedule.provider_timezone_name,
             schedule.provider_session,
+            window_sessions,
+            lambda day: market_close_at(schedule, day),
         )
         rows = [item.row for item in outcomes if item.row is not None]
+        repair_rows = [row for item in outcomes for row in item.window_rows if row["date"] != target_date]
+        repairs = describe_repairs(connection, repair_rows) if window_sessions else []
+        if window_sessions:
+            print(json.dumps({"event": "recovery_window", "sessions": window_sessions,
+                              "window_rows": len(repair_rows), "differing": len(repairs),
+                              "repairs": repairs[:40], "dry_run": bool(args.dry_run)}), flush=True)
         if args.dry_run:
             available_date_counts: dict[str, int] = {}
             for item in outcomes:
@@ -938,6 +1049,13 @@ def main() -> int:
             if item.available_dates and max(item.available_dates) < target_date
         ]
         if not rows and len(prior_only) >= max(1, int(len(outcomes) * 0.90)):
+            repaired, repair_error = 0, ""
+            if repairs:
+                try:
+                    _, repaired = bulk_upsert_prices(connection, repair_rows)
+                except Exception as exc:                 # reported on the SKIPPED row, never silently lost
+                    connection.rollback()
+                    repair_error = f"; recovery window write failed: {type(exc).__name__}: {exc}"[:1000]
             status = write_monitoring(
                 connection,
                 execution_id=execution_id,
@@ -951,11 +1069,13 @@ def main() -> int:
                 universe=universe,
                 outcomes=outcomes,
                 verified=0,
-                changed=0,
+                changed=repaired,
                 forced_status="SKIPPED",
                 forced_error=(
                     "NO_CURRENT_CANDLE: no source bar resolved to the target session; "
                     f"no row was written for {target_date.isoformat()}"
+                    + (f"; recovery window: {repaired} earlier rows written" if repaired else "")
+                    + repair_error
                 ),
             )
             notify_telegram_monitor(execution_id)
@@ -963,7 +1083,10 @@ def main() -> int:
             return 0
 
         try:
-            verified, changed = bulk_upsert_prices(connection, rows)
+            # target rows and the recovery window's earlier rows in one UPSERT; updated_series stays the count of series
+            # verified on the target session (bulk_upsert_prices raises when any written row does not read back)
+            _, changed = bulk_upsert_prices(connection, rows + repair_rows)
+            verified = len(rows)
             status = write_monitoring(
                 connection,
                 execution_id=execution_id,
@@ -1010,6 +1133,7 @@ def main() -> int:
                     "target_date": target_date.isoformat(),
                     "verified_final_series": verified,
                     "changed_series": changed,
+                    "recovery_window_repairs": len(repairs),
                     "missing_series": len(outcomes) - verified,
                     "status": status,
                 }

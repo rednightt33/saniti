@@ -16,11 +16,6 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
-RECOVERY_PATH = Path(__file__).with_name("recovery_window.py")
-RECOVERY_SPEC = importlib.util.spec_from_file_location("fixed_recovery_window", RECOVERY_PATH)
-recovery_module = importlib.util.module_from_spec(RECOVERY_SPEC)
-assert RECOVERY_SPEC.loader is not None
-RECOVERY_SPEC.loader.exec_module(recovery_module)
 
 
 def schedule(
@@ -31,20 +26,6 @@ def schedule(
     mapping="CURRENT_OR_PREVIOUS_BUSINESS_DAY",
 ):
     return module.MarketSchedule(code, "Indonesia", zone, close, delay, mapping, True, 5)
-
-
-def test_recovery_window_includes_unobserved_latest_candidate():
-    observed = [date(2026, 9, day) for day in (7, 8, 9, 10, 11)]
-    assert recovery_module.correction_target_dates(
-        observed, date(2026, 9, 14), 5
-    ) == [*observed[1:], date(2026, 9, 14)]
-
-
-def test_recovery_window_includes_both_missing_recent_sessions():
-    observed = [date(2026, 10, day) for day in (5, 6, 7, 8, 9)]
-    assert recovery_module.correction_target_dates(observed, date(2026, 10, 13), 5) == [
-        date(2026, 10, day) for day in (7, 8, 9, 12, 13)
-    ]
 
 
 @pytest.mark.parametrize("raw,expected", [
@@ -385,3 +366,86 @@ def test_two_bars_on_one_date_refuse_the_series():
     with pytest.raises(RuntimeError, match="SOURCE_DATE_COLLISION"):
         module.check_unique_dates(rows, "TVC:US10Y")
     module.check_unique_dates([{"date": date(2026, 3, 9)}, {"date": date(2026, 3, 10)}], "TVC:US10Y")
+
+
+# EXEC-FI-DATE A (ERRORS M324, user go 2026-11-01): recovery dates come from the source's own bars, per series.
+def bar(day, close=6.5, ticker="ID01Y", metric="yield_to_maturity"):
+    return {"Country": "Indonesia", "instrument_name": "ID 1Y", "ticker": ticker, "tradingview_symbol": f"TVC:{ticker}",
+            "date": day, "open": close, "high": round(close + 0.1, 4), "low": round(close - 0.1, 4), "close": close, "volume": None,
+            "source": "TradingView", "query_date": date(2026, 10, 30), "metric_type": metric, "value_unit": "percent",
+            "Timeframe": "1D", "source_bar_time": datetime(2026, 10, 1, tzinfo=timezone.utc),
+            "market_close_at": "target close", "is_final": True, "finalized_at": datetime(2026, 10, 30, tzinfo=timezone.utc)}
+
+
+def test_recovery_window_takes_the_source_s_last_sessions_up_to_the_target():
+    days = [date(2026, 10, d) for d in (20, 21, 22, 23, 26, 27, 28)]        # the source's own calendar
+    rows = [bar(d) for d in days] + [bar(date(2026, 10, 29))]                # 10-29: after the target, not final
+    window, rejected = module.recovery_window_rows(rows, date(2026, 10, 28), 5, lambda d: f"close {d}")
+    assert [r["date"] for r in window] == days[-5:]
+    assert window[0]["market_close_at"] == "close 2026-10-22"                 # each row its own session close
+    assert rows[2]["market_close_at"] == "target close"                       # the source rows are not changed
+    assert rejected == []
+
+
+def test_recovery_window_reaches_a_date_the_other_series_have_but_this_one_lacks():
+    # ID 2026-10-26: 8 series had no bar at the daily run while 14 had one; the next recovery must still write it.
+    # Dates come from this series' source bars, not from the dates the table holds for the market.
+    rows = [bar(date(2026, 10, d)) for d in (23, 26, 27, 28, 29)]
+    window, _ = module.recovery_window_rows(rows, date(2026, 10, 29), 5, lambda d: d)
+    assert date(2026, 10, 26) in [r["date"] for r in window]
+
+
+def test_recovery_window_skips_an_invalid_older_bar_without_blocking_the_rest():
+    broken = bar(date(2026, 10, 27)); broken["close"] = 9.0                  # close above high
+    rows = [bar(date(2026, 10, 26)), broken, bar(date(2026, 10, 28))]
+    window, rejected = module.recovery_window_rows(rows, date(2026, 10, 28), 5, lambda d: d)
+    assert [r["date"] for r in window] == [date(2026, 10, 26), date(2026, 10, 28)]
+    assert rejected == ["2026-10-27"]
+
+
+def test_daily_runs_have_no_recovery_window():
+    assert module.recovery_window_rows([bar(date(2026, 10, 28))], date(2026, 10, 28), 0, lambda d: d) == ([], [])
+
+
+class RepairConnection:
+    def __init__(self, stored):
+        self.stored = stored
+        self.params = None
+
+    def execute(self, _query, params):
+        self.params = params
+        return self
+
+    def fetchall(self):
+        return self.stored
+
+
+def test_describe_repairs_lists_missing_and_revised_rows_only():
+    same, revised, missing = bar(date(2026, 10, 26), 6.454), bar(date(2026, 10, 27), 6.354), bar(date(2026, 10, 28))
+    for row in (same, revised, missing):
+        module.validate_price_row(row)
+    connection = RepairConnection([
+        ("TVC:ID01Y", "yield_to_maturity", date(2026, 10, 26), Decimal("6.454"), Decimal("6.554"), Decimal("6.354"), Decimal("6.4540")),
+        ("TVC:ID01Y", "yield_to_maturity", date(2026, 10, 27), Decimal("6.454"), Decimal("6.554"), Decimal("6.354"), Decimal("6.454")),
+    ])
+    assert module.describe_repairs(connection, [same, revised, missing]) == [
+        {"series": "ID01Y/yield_to_maturity", "date": "2026-10-27", "kind": "revised"},
+        {"series": "ID01Y/yield_to_maturity", "date": "2026-10-28", "kind": "missing"},
+    ]
+    assert connection.params[3] == "1D"
+    assert module.describe_repairs(connection, []) == []
+
+
+def test_fetch_worker_carries_the_window_with_the_target_row(monkeypatch):
+    rows = [bar(date(2026, 10, d)) for d in (26, 27, 28)]
+    monkeypatch.setattr(module, "open_socket", lambda *_a: object())
+    monkeypatch.setattr(module, "start_chart_session", lambda _ws: "cs")
+    monkeypatch.setattr(module, "request_series", lambda *_a, **_k: ([dict(r) for r in rows], "America/New_York"))
+    series = module.Series(1, "Indonesia", "ID 1Y", "ID01Y", "TVC:ID01Y", "yield_to_maturity", "percent")
+    common = (date(2026, 10, 28), date(2026, 10, 30), "close", datetime(2026, 10, 30, tzinfo=timezone.utc),
+              "PROVIDER_SESSION_START", 8, 5, 0, True, "America/New_York", "1700-1700")
+    [outcome] = module.fetch_worker(1, [series], *common, 5, lambda d: d)
+    assert outcome.row["date"] == date(2026, 10, 28)
+    assert [r["date"] for r in outcome.window_rows] == [date(2026, 10, d) for d in (26, 27, 28)]
+    [daily] = module.fetch_worker(1, [series], *common)
+    assert daily.window_rows == ()

@@ -8,7 +8,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY fixed_income_update.py .
-COPY recovery_window.py .
+COPY fixed_income_update.py consensus_check.py ./
+# ERRORS M318: a cron deploy reaches SUCCESS without running its start command, so a missing module is caught here
+RUN python -c "import fixed_income_update, consensus_check"
 
 CMD ["python", "fixed_income_update.py", "--market", "indonesia", "--mode", "daily"]

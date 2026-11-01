@@ -32,7 +32,12 @@ FRESHNESS_SOURCE = "Terminal_Broker_Freshness"
 # from the service holding TELEGRAM_NOTIFY_SECRET, and are accepted only in the fixed shapes parse_publisher_health
 # checks: enumerations, timestamps, numbers and file names, never free text.
 HEALTH_SOURCE = "Terminal_Publisher_Health"
-SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE}
+# EXEC-FI-DATE B (user go 2026-11-01, ERRORS M324): the weekly fixed-income consensus check
+# (apps/fixed-income-price-cron/consensus_check.py) reports what only it measured, fresh source pulls, in a fixed shape
+# that parse_consensus_report checks: counts, series codes, dates and an error class, never free text.
+CONSENSUS_SOURCE = "Fixed_Income_Consensus_Check"
+SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE,
+                                                CONSENSUS_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -328,6 +333,108 @@ def build_publisher_message(health: PublisherHealth) -> str:
     files = ", ".join(HEALTH_FILES.get(f, f) for f in health.files) or "-"
     return (f"⚠️ Terminal publisher: {run} terbit tanpa file {files}\n"
             "File itu tetap versi sebelumnya; lihat log terminal-publisher di Railway.")
+
+
+CONSENSUS_ID = re.compile(r"^fi-consensus-(manual-)?([A-Z]{2,8})-\d{4}-\d{2}-\d{2}-\d{4}$")
+CONSENSUS_KINDS = {
+    "revised": "nilai beda dari sumber",
+    "missing": "tanggal tidak ada di database",
+    "extra": "tanggal tidak ada di sumber",
+    "unstable": "sumber berubah-ubah antar tarikan",
+}
+SERIES_CODE = re.compile(r"^[A-Z0-9]{2,16}/[a-z_]{1,32}$")
+
+
+@dataclass(frozen=True)
+class ConsensusReport:
+    execution_id: str
+    manual: bool
+    market: str
+    run_time: datetime
+    pulls: int
+    minutes: int
+    series: int | None
+    counts: dict
+    items: tuple
+    more_items: int
+    failed: tuple
+    error: str | None
+
+
+def parse_consensus_report(execution_id: str, details: object) -> ConsensusReport:
+    """The weekly consensus check's report, checked field by field; anything else is a ValueError (400)."""
+    match = CONSENSUS_ID.fullmatch(execution_id)
+    if not match or not isinstance(details, dict) or details.get("market") != match.group(2):
+        raise ValueError("invalid consensus report")
+    whole = lambda v, top: not isinstance(v, bool) and isinstance(v, int) and 0 <= v <= top
+    try:
+        run_time = datetime.strptime(str(details.get("run_time")), "%Y-%m-%d %H:%M").replace(tzinfo=JAKARTA_TZ)
+    except ValueError:
+        raise ValueError("invalid consensus report time") from None
+    error = details.get("error")
+    if error is not None and not (isinstance(error, str) and ERROR_CLASS.fullmatch(error)):
+        raise ValueError("invalid consensus report detail")
+    if not whole(details.get("pulls"), 10) or not whole(details.get("minutes"), 10_000):
+        raise ValueError("invalid consensus report detail")
+    counts, items, failed, series, more = {}, [], [], None, 0
+    if error is None:
+        series, more = details.get("series"), details.get("more_items", 0)
+        counts = {kind: details.get(kind) for kind in CONSENSUS_KINDS}
+        if not whole(series, 10_000) or not whole(more, 10_000) or not all(whole(v, 1_000_000) for v in counts.values()):
+            raise ValueError("invalid consensus report detail")
+        raw_items, failed = details.get("items", []), details.get("failed_series", [])
+        if not isinstance(raw_items, list) or len(raw_items) > 25 or not isinstance(failed, list) or len(failed) > 20:
+            raise ValueError("invalid consensus report detail")
+        for item in raw_items:
+            try:
+                ok = (isinstance(item, dict) and set(item) == {"series", "kind", "count", "first", "last"}
+                      and SERIES_CODE.fullmatch(str(item["series"])) and item["kind"] in CONSENSUS_KINDS
+                      and whole(item["count"], 1_000_000))
+                first, last = date.fromisoformat(str(item["first"])), date.fromisoformat(str(item["last"]))
+            except (TypeError, ValueError):
+                ok = False
+            if not ok:
+                raise ValueError("invalid consensus report item")
+            items.append((item["series"], item["kind"], item["count"], first, last))
+        if not all(isinstance(name, str) and SERIES_CODE.fullmatch(name) for name in failed):
+            raise ValueError("invalid consensus report detail")
+    allowed = {"market", "run_time", "pulls", "minutes", "error", "series", "more_items", "items", "failed_series",
+               *CONSENSUS_KINDS}
+    if set(details) - allowed:
+        raise ValueError("invalid consensus report detail")
+    return ConsensusReport(execution_id, bool(match.group(1)), match.group(2), run_time, details["pulls"],
+                           details["minutes"], series, counts, tuple(items), more, tuple(failed), error)
+
+
+def build_consensus_message(report: ConsensusReport) -> str:
+    when = report.run_time.strftime("%a %d %b %Y %H:%M WIB")
+    name = lambda code: code.replace("/yield_to_maturity", " yield").replace("/", " ")
+    day = lambda d: d.strftime("%d %b %Y")
+    head = f"Cek konsensus fixed income {'(manual)' if report.manual else 'mingguan'} — {report.market}, {when}"
+    if report.error:
+        return (f"❌ {head}\nGagal: {report.error}. Tidak ada data yang ditulis.\n"
+                "Lihat log layanan fixed income recovery di Railway.")
+    action = sum(report.counts[k] for k in ("revised", "missing", "extra"))
+    lines = [f"{'⚠️' if action or report.failed else '✅'} {head}",
+             f"{report.series} seri dibandingkan dengan {report.pulls} tarikan ulang TradingView ({report.minutes} menit). "
+             "Tidak ada data yang ditulis."]
+    if action:
+        lines.append("Perlu keputusan: " + ", ".join(
+            f"{report.counts[k]} {CONSENSUS_KINDS[k]}" for k in ("revised", "missing", "extra") if report.counts[k]))
+    if report.counts.get("unstable"):
+        lines.append(f"Info: {report.counts['unstable']} tanggal {CONSENSUS_KINDS['unstable']}; data tersimpan dibiarkan.")
+    if not action and not report.counts.get("unstable") and not report.failed:
+        lines.append("Semua seri sama dengan sumber.")
+    for series, kind, count, first, last in report.items:
+        span = day(first) if first == last else f"{day(first)} – {day(last)}"
+        lines.append(f"• {name(series)}: {count} {CONSENSUS_KINDS[kind]} ({span})")
+    if report.more_items:
+        lines.append(f"… dan {report.more_items} baris lain di log.")
+    if report.failed:
+        lines.append("Gagal ditarik: " + ", ".join(name(code) for code in report.failed))
+    if action:
+        lines.append("Koreksi hanya dengan persetujuan Anda (ERRORS M324).")
+    return "\n".join(lines)[:MAX_TELEGRAM_TEXT]
 
 
 def fetch_broker_freshness(connection: psycopg.Connection, execution_id: str) -> BrokerFreshnessSummary:
@@ -822,6 +929,8 @@ class TelegramMonitor:
         if not EXECUTION_ID_PATTERN.fullmatch(execution_id):
             raise ValueError("invalid execution_id")
         health = parse_publisher_health(execution_id, details) if source_table == HEALTH_SOURCE else None
+        if source_table == CONSENSUS_SOURCE:
+            health = parse_consensus_report(execution_id, details)
 
         with psycopg.connect(self.database_url) as connection:
             if health is not None:
@@ -870,6 +979,8 @@ class TelegramMonitor:
                     message_ids.append(self.send_message(self.token, self.chat_id, build_freshness_message(summary)))
                 elif isinstance(summary, PublisherHealth):
                     message_ids.append(self.send_message(self.token, self.chat_id, build_publisher_message(summary)))
+                elif isinstance(summary, ConsensusReport):       # every weekly report is sent, a clean one included
+                    message_ids.append(self.send_message(self.token, self.chat_id, build_consensus_message(summary)))
                 elif isinstance(summary, StockbitUpdateSummary):
                     # every round is reported, success included (EXEC-STOCKBIT-UPDATER, decision K5)
                     for message in build_stockbit_messages(summary):

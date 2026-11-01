@@ -9741,8 +9741,18 @@ masalah serupa?" (atas temuan `verification/fixed_income_audit/REPORT.md`).
   - M324 DRYRUN (`correct_job.py`, 3 tarikan): 153 baris (97 koreksi Indonesia 2026-10-05..09 dan 10-26..28; 56 tambah:
     ID 10-12 di 22 seri, ID 10-26 di 8 seri, AS 10-21 di 26 seri), 0 hapus. Daftar dikirim ke user
     (`CORRECTION_LIST.md`).
-  - **Terbuka:** OK user untuk APPLY; go untuk usulan permanen (recovery dari tanggal sumber per seri, cek konsensus
-    mingguan); cek run AS 2026-11-02 23:00 UTC.
+- **Go user, 2026-11-01 (kata user):** "1. OK 2. Usulan A OK 3. Usual B 4. Go … Above 4 masukan exec. Go." atas empat
+  pertanyaan: (1) tulis 153 baris koreksi, (2) usulan A, (3) usulan B "melapor saja atau menulis otomatis" (dibaca
+  sebagai usulan B dengan saran saya: melapor saja, tidak menulis), (4) EXEC-BROKER-FULL.
+  - **(1) APPLY koreksi M324:** `correct_job.py` APPLY, dengan penjaga: berhenti tanpa menulis bila tarikan baru memberi
+    lebih dari 153 baris atau ada yang dihapus; lalu DRYRUN ulang harus 0 perubahan.
+  - **(2) Usulan A, recovery dari tanggal sumber per seri:** layanan recovery membandingkan bar sumber sesi-sesi
+    terakhir (`correction_lookback_sessions` dari jadwal) per seri dengan tabel, mengisi tanggal yang hilang dan
+    mengoreksi yang berbeda; tanggal diturunkan dari sumber, bukan dari isi tabel.
+  - **(3) Usulan B, pemeriksaan konsensus mingguan:** seluruh riwayat dibandingkan dengan 3 tarikan sumber seminggu
+    sekali; hasilnya dilaporkan ke Telegram; tidak menulis.
+  - **(4)** lihat EXEC-BROKER-FULL.
+- **Terbuka:** cek run AS 2026-11-02 23:00 UTC.
 
 ## EXEC-BROKER-FULL — panel broker kanan membaca seluruh riwayat (keputusan 2026-11-01)
 
@@ -9753,4 +9763,4 @@ saat dibutuhkan" atau "selalu seluruh riwayat" untuk panel kanan.
   diganti: Broker summary, Top brokers dan Broker inventory membaca seluruh riwayat.
 - Risiko yang sudah disampaikan: memori browser kira-kira 6 → 30 MB untuk saham tersibuk (BBCA ±223 ribu baris), dan
   panel lebih lambat di perangkat lemah. Diukur saat eksekusi.
-- **Terbuka:** konfirmasi go eksekusi.
+- **Go user, 2026-11-01:** "4. Go … Above 4 masukan exec. Go."

@@ -35,6 +35,13 @@ stage, error class, minutes, last publication time, file names; never free text)
 `terminal-publish-YYYY-MM-DD-HHMM` (`-slow`, `-partial`; `manual-` for a manual run) keeps it to one message per run
 time and kind; a failed run and its missing publication share one id, so only the first is sent.
 
+`Fixed_Income_Consensus_Check` (EXEC-FI-DATE B, user go 2026-11-01, ERRORS M324) is the weekly fixed-income consensus
+check (`apps/fixed-income-price-cron/consensus_check.py`): every series compared with three fresh source pulls, report
+only. Its counts come in the request's `details`, and `parse_consensus_report` accepts them only in fixed shapes
+(market, counts per kind, series codes, dates, error class; never free text). The `execution_id`
+`fi-consensus-[manual-]MARKET-YYYY-MM-DD-HHMM` keeps it to one message per run; every report is sent, a clean one
+included.
+
 ## Required Railway variables
 
 - `DATABASE_URL`

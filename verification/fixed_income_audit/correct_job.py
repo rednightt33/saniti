@@ -9,7 +9,8 @@ of Universe_Fixed_income, inside [the series' first stored date, the market's la
   - a stored 1D row on a date the source does not have (inside the source's range) is deleted.
 Nothing else is touched (rows equal to the source keep their ingestion_time). The changes come from the comparison,
 no date is listed by hand. DRYRUN reports and writes nothing; APPLY does it in one transaction and reads back.
-params.json: {"mode": "DRYRUN"|"APPLY"}. Prints OUT lines, then JOB_DONE. No secret is printed.
+params.json: {"mode": "DRYRUN"|"APPLY", "pulls": 3, "max_upserts": n, "max_deletes": n,
+"approved": [[ticker, metric, date], ...]}. Prints OUT lines, then JOB_DONE. No secret is printed.
 """
 import json, os, time
 from datetime import datetime, timezone
@@ -87,6 +88,25 @@ with psycopg.connect(os.environ['DATABASE_URL']) as conn:
             print('OUT ' + json.dumps(r), flush=True)
     print('OUT ' + json.dumps({'mode': mode, 'series': len(report), 'upserts': len(upserts), 'deletes': len(deletes),
                                'unchanged_series': sum(1 for r in report if not (r.get('changed') or r.get('missing') or r.get('deleted')))}), flush=True)
+    # Only the rows of the list the user approved (CORRECTION_LIST.md, params "approved": [[ticker, metric, date], ...]).
+    # 2026-11-01 11:14 UTC: three pulls of TVC:US10Y yield all returned the source's OTHER 2016/2018/2021 history (the dry
+    # run's pulls had included the stored one), so an unrestricted APPLY would have rewritten 719 rows and deleted 5.
+    if params.get('approved') is not None:
+        ok = {(t, m, d) for t, m, d in params['approved']}
+        key = lambda t, m, d: (t, m, str(d))
+        kept = [r for r in upserts if key(r['ticker'], r['metric_type'], r['date']) in ok]
+        tick = {s.tradingview_symbol: s.ticker for mk in markets for s in f.read_universe(conn, f.read_schedule(conn, mk))}
+        kept_del = [x for x in deletes if key(tick.get(x[0], x[0]), x[2], x[1]) in ok]
+        print('OUT ' + json.dumps({'approved_keys': len(ok), 'upserts_in_list': len(kept), 'upserts_outside_list': len(upserts) - len(kept),
+                                   'deletes_in_list': len(kept_del), 'deletes_outside_list': len(deletes) - len(kept_del)}), flush=True)
+        upserts, deletes = kept, kept_del
+    # APPLY guard (user OK 2026-11-01 on the 153-row dry-run list): a fresh pull that finds more rows or any delete
+    # stops without writing.
+    max_up = params.get('max_upserts'); max_del = params.get('max_deletes')
+    if mode == 'APPLY' and ((max_up is not None and len(upserts) > int(max_up)) or (max_del is not None and len(deletes) > int(max_del))):
+        print('OUT ' + json.dumps({'applied': False, 'reason': 'over the approved dry-run size', 'upserts': len(upserts),
+                                   'deletes': len(deletes), 'max_upserts': max_up, 'max_deletes': max_del}), flush=True)
+        mode = 'REFUSED'
     if mode == 'APPLY' and (upserts or deletes):
         # the cron's own per-market run lock: no daily or recovery run writes the table at the same time
         for market in markets:

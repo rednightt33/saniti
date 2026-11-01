@@ -20,6 +20,8 @@ from telegram_monitor import (
     build_freshness_message,
     build_publisher_message,
     parse_publisher_health,
+    build_consensus_message,
+    parse_consensus_report,
 )
 
 
@@ -321,6 +323,60 @@ class PublisherHealthTests(unittest.TestCase):
             tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
         self.assertEqual(len(sent), 1)
         self.assertIn("gagal", sent[0])
+
+
+class ConsensusReportTests(unittest.TestCase):
+    """EXEC-FI-DATE B (user go 2026-11-01, ERRORS M324): the weekly fixed-income consensus check, fixed shapes only."""
+
+    RUN = "fi-consensus-US-2026-11-08-0000"
+
+    def details(self, **over):
+        return {"market": "US", "series": 26, "revised": 719, "missing": 1, "extra": 5, "unstable": 3,
+                "items": [{"series": "US10Y/yield_to_maturity", "kind": "revised", "count": 719,
+                           "first": "2016-01-04", "last": "2021-12-31"},
+                          {"series": "US02Y/price", "kind": "missing", "count": 1, "first": "2026-10-21",
+                           "last": "2026-10-21"}],
+                "more_items": 0, "failed_series": [], "pulls": 3, "minutes": 9, "run_time": "2026-11-08 07:00", **over}
+
+    def test_report_reads_in_plain_words(self):
+        text = build_consensus_message(parse_consensus_report(self.RUN, self.details()))
+        self.assertIn("⚠️ Cek konsensus fixed income mingguan — US, Sun 08 Nov 2026 07:00 WIB", text)
+        self.assertIn("26 seri dibandingkan dengan 3 tarikan ulang TradingView (9 menit). Tidak ada data yang ditulis.", text)
+        self.assertIn("Perlu keputusan: 719 nilai beda dari sumber, 1 tanggal tidak ada di database, 5 tanggal tidak ada di sumber", text)
+        self.assertIn("• US10Y yield: 719 nilai beda dari sumber (04 Jan 2016 – 31 Dec 2021)", text)
+        self.assertIn("• US02Y price: 1 tanggal tidak ada di database (21 Oct 2026)", text)
+        self.assertIn("persetujuan Anda", text)
+        clean = build_consensus_message(parse_consensus_report(
+            "fi-consensus-manual-ID-2026-11-01-1130",
+            self.details(market="ID", revised=0, missing=0, extra=0, unstable=0, items=[], run_time="2026-11-01 18:30")))
+        self.assertIn("✅ Cek konsensus fixed income (manual) — ID", clean)
+        self.assertIn("Semua seri sama dengan sumber.", clean)
+        failed = build_consensus_message(parse_consensus_report(
+            self.RUN, {"market": "US", "error": "ConnectionError", "pulls": 3, "minutes": 0, "run_time": "2026-11-08 07:00"}))
+        self.assertIn("❌", failed)
+        self.assertIn("Gagal: ConnectionError. Tidak ada data yang ditulis.", failed)
+
+    def test_anything_but_the_fixed_shapes_is_refused(self):
+        item = lambda **o: [{"series": "US02Y/price", "kind": "missing", "count": 1, "first": "2026-10-21",
+                             "last": "2026-10-21", **o}]
+        bad = [
+            ("fi-consensus-ID-2026-11-08-0000", self.details()),           # market differs from the id
+            ("consensus-US-2026-11-08", self.details()),
+            (self.RUN, self.details(error="OSError: password=x")),
+            (self.RUN, self.details(extra_field="x")),
+            (self.RUN, self.details(revised=-1)),
+            (self.RUN, self.details(series=True)),
+            (self.RUN, self.details(items=item(series="../etc"))),
+            (self.RUN, self.details(items=item(kind="deleted"))),
+            (self.RUN, self.details(items=item(first="yesterday"))),
+            (self.RUN, self.details(items=item(note="x"))),
+            (self.RUN, self.details(failed_series=["drop table"])),
+            (self.RUN, self.details(run_time="Sunday")),
+            (self.RUN, "report"),
+        ]
+        for execution_id, details in bad:
+            with self.assertRaises(ValueError, msg=(execution_id, details)):
+                parse_consensus_report(execution_id, details)
 
 
 if __name__ == "__main__":

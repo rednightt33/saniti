@@ -28,11 +28,17 @@ python fixed_income_update.py --market US --mode daily
 python fixed_income_update.py --market US --mode recovery
 ```
 
-The recovery roles re-run only the latest completed session, one hour after the daily role. `recovery_window.py`
-(re-verify the latest `correction_lookback_sessions` stored sessions plus newer missing candidates, oldest first)
-exists but no service runs it. Neither path refills a date older than the latest stored one, or a single series missing
-on a date the other series have (ERRORS M324). The material UPSERT predicate avoids writes when the final payload is
-identical, so an idempotent recovery does not enqueue Feature04.
+The recovery roles re-check the target session and, per series, the source's own last
+`correction_lookback_sessions` bars up to it (EXEC-FI-DATE A, user go 2026-11-01, ERRORS M324): a date the table lacks
+(a run that never happened, one series late on a day the others have) or a bar the source revised is written through
+the same material UPSERT. The dates come from the source bars, never from what the table already holds; the run log
+lists them (`recovery_window`). The material UPSERT predicate avoids writes when the final payload is identical, so an
+idempotent recovery does not enqueue Feature04. `recovery_window.py` (dates from the table) was removed.
+
+Weekly consensus check (EXEC-FI-DATE B, user go 2026-11-01, report only): after the recovery run on the market's local
+Saturday, `consensus_check.py` compares every stored series with three fresh source pulls (in rounds, so a series'
+pulls lie minutes apart) and sends the counts to Telegram (`Fixed_Income_Consensus_Check`). Nothing is written; a
+correction stays the user's decision. On demand: `python fixed_income_update.py --market ID --mode consensus`.
 
 ## Final-candle contract
 
