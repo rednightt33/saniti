@@ -4786,6 +4786,37 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 
 **Dibiarkan sesuai usulan karena tidak material:** selisih ≤ 0,0004 % pada 2020-12-02 dan volume GOTO 2026-10-12.
 
+### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
+
+- **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan
+  lonjakan harga sebelumnya. Cek apakah ini terjadi."
+- **Verified (Railway `metrics`, per jam):**
+  - Memori Postgres datar 3,9–4,0 GB dari 2026-10-31 13:00 sampai 2026-11-01 03:00 UTC (sekitar 15 jam), dengan CPU
+    0,01, jadi Postgres tidak sedang bekerja. Lalu turun sendiri ke 0,6 GB pada 05:00.
+  - Mekanismenya sama dengan 2026-10-22 (RAILWAY_CHANGELOG): page cache Linux dari tulis besar (backfill intraday dan
+    fitur) dihitung sebagai memori.
+  - Batas 4 GB dari 2026-10-22 (`limitOverride.memoryBytes` 4000000000) masih aktif dan memotongnya. Waktu itu tanpa
+    batas, memori tertahan 6–13 GB.
+  - Tambahan sekitar 50 GB-jam, satu kali.
+  - Layanan lain tidak menunjukkan pola ini.
+  - Tidak terverifikasi: `screener-worker` naik 0,55 → 0,82 GB sesudah publikasi 2026-10-31 13:54 dan tetap di situ,
+    masih di bawah batasnya 2,75 GB. Dugaan: heap V8 belum mengecil sesudah snapshot baru, belum dicek.
+- **Resize volume 75 → 100 GB (06:10 UTC) me-restart Postgres:**
+  - restart pukul 06:12:05;
+  - koneksi terbuka diputus (`AdminShutdown` di terminal-api, dua retry 500 di screener-worker);
+  - pulih dalam kira-kira 1 menit (edge-bff `/ready` 200, katalog Screener 200).
+  - Catatan 2026-10-22 menyebut resize tanpa restart, jadi anggapan itu salah untuk kasus ini.
+- **Class:**
+  - **Memori:** setiap tulis besar ke Postgres (backfill, hitung ulang penuh) menyisakan cache yang ditagih sebagai
+    memori sampai dibebaskan. Batas memori Postgres adalah satu-satunya pengaman.
+  - **Resize:** resize volume diperlakukan sebagai perubahan yang bisa me-restart database.
+- **Solution:** belum ada perubahan.
+  - Usulan (keputusan user): turunkan batas memori Postgres, atau jadwalkan job besar dengan restart terencana
+    sesudahnya.
+  - Resize berikutnya dijalankan di luar jam pakai dan diumumkan sebagai jeda singkat.
+- **Status:** OPEN (biaya memori); restart sudah pulih.
+- **Lesson:** sesudah backfill besar, periksa memori Postgres per jam. Sebelum resize, anggap Postgres bisa restart.
+
 ### EXEC-TERMINAL-SOFTSEL — selesai (2026-10-31)
 
 **Permintaan user (EXEC-INTRADAY-FEATURES, go 2026-10-31):** "selected state bisa dirubah bordernya tidak setebal

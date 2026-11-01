@@ -8,6 +8,11 @@ User 2026-11-01: "Kemudian oke, coba kita expand dulu ke 100 giga."
   after the 2026-10-31 intraday backfills.
 - **Change:** `.railway/railway.ts` `sizeMB: 100000`. `railway config plan` showed only "Resize volume postgres-volume from
   75000MB to 100000MB"; `railway config apply` at 06:10 UTC (`allowOnlineResize`, no restart).
+- **Correction (ERRORS M319):** the resize restarted Postgres.
+  - `pg_postmaster_start_time` is 2026-11-01 06:12:05 UTC; open connections were cut with `AdminShutdown`.
+  - terminal-api logged one; screener-worker logged two `terminal_retry` status 500 at 06:12.
+  - All back by 06:24: edge-bff `/ready` 200, the Screener catalog 200, pgweb reads.
+  - The 2026-10-22 resize had reported no restart.
 - **Read back:**
   - GraphQL `sizeMB` 100000, `currentSizeMB` 59,971, `state` READY (60 % used);
   - Postgres answers (`pg_is_in_recovery` false, database 53 GB);
