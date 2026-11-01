@@ -9918,7 +9918,21 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - Cek halaman (BBCA): legenda dan kartu sesuai aturan. Ketiga popup bergeser dan tetap terbuka. Di lebar 390 px kartu
     berada di dalam layar. 0 galat. Tes 1.470.
   - edge-bff `21487670`, screener-worker `92431180` SUCCESS (`ff76fe17`); file halaman live sama dengan build lokal.
-- **Terbuka:** screenshot yang dimaksud user untuk bentuk indikator.
+- **Screenshot menu indikator, kata user 2026-11-01:** "di pojok kanan tembok terakhir bisa ditambahin opsi kalau kita
+  klik mungkin bisa memperbesar tembok"; atas pertanyaan balik: "kasih badge saja", "Opsi A"; lalu "di kotak indikator
+  semua text jarak antar huruf dibuat standardized, termasuk yang saya screenshot terlampir" dan "tambahkan opsi untuk
+  filter by indicator group type".
+  - Hasil 2026-11-01 (`app/indMenu.ts`, `styles/terminal.css`):
+    - Personal, Technical dan Flow sebagai badge (tidak terpotong);
+    - filter tipe grup (All types, Technical, Flow) untuk semua tampilan termasuk pencarian, disimpan `ml.ind.kind`;
+    - Opsi A: ukuran kotak diubah lewat tepi kanan, tepi bawah dan sudut. Tepi kiri dan atas tetap di tempatnya. Klik
+      dua kali sudut memenuhi jendela, klik dua kali lagi kembali. Panel grup diubah lebarnya lewat pembatas (140–360
+      px, juga panah kiri/kanan). Semua ukuran disimpan;
+    - jarak huruf 0 untuk semua teks di kotak, jarak spec (.05em) untuk label huruf kapital;
+    - satuan dibaca sebagai kata ("0–100", "lot / IDR", "price change"; tes: tidak ada satuan bergaris bawah).
+  - Cek halaman (BBCA): badge utuh, filter Flow 39 baris tanpa teknikal; resize tepi, sudut dan pembatas sesuai; geser
+    header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
+    SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
 ## EXEC-DRAW-ALL-TF — satu set gambar untuk semua timeframe (go 2026-11-01, menggantikan C7.2 A)
 

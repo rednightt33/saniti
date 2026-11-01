@@ -1,5 +1,10 @@
 # Railway changelog
 
+## 2026-11-01 — edge-bff: indicator menu badges, group-type filter, resizable box (EXEC-SPEC-IND)
+
+- `main` `a45c6719`: edge-bff `db55ccd8` SUCCESS 16:11 UTC; screener-worker `cb62a615` SKIPPED (no watched path). The live
+  Terminal serves `index-C1kewg94.js` and `style-ssdB5zpW.css`, equal to a local build. No variable changed.
+
 ## 2026-11-01 — orc-test-runner restart policy NEVER; EDGE Design Spec v1.2 for indicators (edge-bff, screener-worker)
 
 - **orc-test-runner** (user 2026-11-01 "OK", EXEC-M322): `serviceInstanceUpdate restartPolicyType: NEVER`, read back
