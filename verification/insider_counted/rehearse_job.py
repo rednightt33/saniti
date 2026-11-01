@@ -13,8 +13,10 @@ assert not re.search(r"public\.idx_event_annotation\b(?!_)", core) and "public.r
 
 OLD, NEW = "public.idx_event_annotation", "pg_temp.idx_event_annotation"
 W = "annotation_date BETWEEN '2026-10-19' AND '2026-10-23' AND event_family = 'INSIDER' AND action = 'BUY'"
-NEAR = """EXISTS (SELECT 1 FROM {t} i WHERE i.event_family='INSIDER' AND i.data_origin='IDX' AND i.ticker=k.ticker
-          AND lower(btrim(i.holder_name)) = lower(btrim(k.holder_name)) AND abs(i.annotation_date - k.annotation_date) <= 5)"""
+# the invariants are written apart from core.sql, on an indexed helper copy (H) of the new insider rows
+H = "pg_temp.h"
+NEAR = """EXISTS (SELECT 1 FROM pg_temp.h i WHERE i.data_origin='IDX' AND i.ticker=k.ticker AND i.hf=k.hf
+          AND i.d BETWEEN k.d - 5 AND k.d + 5)"""
 Q = {
  "rows": f"""SELECT (SELECT count(*) FROM {OLD}) old_rows, (SELECT count(*) FROM {NEW}) new_rows,
    (SELECT count(*) FROM {OLD} o WHERE NOT EXISTS (SELECT 1 FROM {NEW} n WHERE n.event_key=o.event_key)) only_old,
@@ -22,15 +24,15 @@ Q = {
  "reason_by_origin": f"""SELECT event_family, data_origin, count_reason, counted, count(*) n FROM {NEW} GROUP BY 1,2,3,4 ORDER BY 1,2,3""",
  "invariant_idx_and_ca_counted": f"""SELECT count(*) FILTER (WHERE data_origin='IDX' AND NOT counted) idx_not_counted,
    count(*) FILTER (WHERE event_family='CORPORATE_ACTION' AND (NOT counted OR count_reason<>'CORPORATE_ACTION')) ca_wrong FROM {NEW}""",
- "invariant_ksei_counted_has_no_idx": f"""SELECT count(*) bad FROM {NEW} k WHERE k.data_origin='KSEI' AND k.counted AND {NEAR.format(t=NEW)}""",
- "invariant_ksei_uncounted_has_idx": f"""SELECT count(*) bad FROM {NEW} k WHERE k.data_origin='KSEI' AND NOT k.counted AND NOT {NEAR.format(t=NEW)}""",
- "invariant_covered_keys_valid": f"""SELECT count(*) bad FROM {NEW} k, unnest(k.covered_by_event_keys) c(key)
-   WHERE NOT EXISTS (SELECT 1 FROM {NEW} i WHERE i.event_key=c.key AND i.data_origin='IDX' AND i.ticker=k.ticker
-     AND lower(btrim(i.holder_name))=lower(btrim(k.holder_name)) AND abs(i.annotation_date-k.annotation_date)<=5)""",
- "invariant_covered_complete": f"""SELECT count(*) bad FROM {NEW} k WHERE k.data_origin='KSEI' AND NOT k.counted AND
-   (SELECT count(*) FROM {NEW} i WHERE i.event_family='INSIDER' AND i.data_origin='IDX' AND i.ticker=k.ticker
-     AND lower(btrim(i.holder_name))=lower(btrim(k.holder_name)) AND abs(i.annotation_date-k.annotation_date)<=5)
-   <> cardinality(k.covered_by_event_keys)""",
+ "invariant_ksei_counted_has_no_idx": f"""SELECT count(*) bad FROM {H} k WHERE k.data_origin='KSEI' AND k.counted AND {NEAR}""",
+ "invariant_ksei_uncounted_has_idx": f"""SELECT count(*) bad FROM {H} k WHERE k.data_origin='KSEI' AND NOT k.counted AND NOT {NEAR}""",
+ "invariant_covered_keys_valid": f"""SELECT count(*) bad FROM {H} k, unnest(k.covered) c(key)
+   WHERE NOT EXISTS (SELECT 1 FROM {H} i WHERE i.event_key=c.key AND i.data_origin='IDX' AND i.ticker=k.ticker
+     AND i.hf=k.hf AND abs(i.d-k.d)<=5)""",
+ "invariant_covered_complete": f"""SELECT count(*) bad FROM {H} k WHERE k.data_origin='KSEI' AND NOT k.counted AND
+   (SELECT count(*) FROM {H} i WHERE i.data_origin='IDX' AND i.ticker=k.ticker AND i.hf=k.hf AND i.d BETWEEN k.d - 5 AND k.d + 5)
+   <> cardinality(k.covered)""",
+ "reason_last_2y_ksei": f"""SELECT count_reason, count(*) n FROM {NEW} WHERE data_origin='KSEI' AND annotation_date >= '2024-11-01' GROUP BY 1 ORDER BY 1""",
  "ksei_null_holder": f"SELECT count(*) n, count(*) FILTER (WHERE counted) counted FROM {NEW} WHERE data_origin='KSEI' AND holder_name IS NULL",
 }
 COLS = None
@@ -76,6 +78,11 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as c:
     started = time.monotonic()
     c.execute(core)
     print("OUT " + json.dumps({"q": "core_ran", "seconds": round(time.monotonic() - started, 1)}), flush=True)
+    c.execute("""CREATE TEMP TABLE h AS SELECT event_key, data_origin, ticker, lower(btrim(holder_name)) hf, annotation_date d,
+        counted, covered_by_event_keys covered FROM pg_temp.idx_event_annotation WHERE event_family = 'INSIDER'""")
+    c.execute("CREATE INDEX ON pg_temp.h (ticker, hf, d) WHERE data_origin = 'IDX'")
+    c.execute("CREATE INDEX ON pg_temp.h (event_key)")
+    c.execute("ANALYZE pg_temp.h")
     for name, sql in {**Q, **EXTRA}.items():
         try:
             print("OUT " + json.dumps({"q": name, "rows": c.execute(sql).fetchall()}, default=str, ensure_ascii=False), flush=True)

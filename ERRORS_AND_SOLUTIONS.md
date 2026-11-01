@@ -1969,6 +1969,16 @@ change yet.
   Diuji pada deployment nyata: `d7df1139` (selesai) lolos, `b9950dba` (belum selesai) akan ditolak.
 - **Status:** RESOLVED (guard di kode); job READ sesi lain perlu dijalankan ulang oleh sesi itu.
 - **Lesson:** aturan yang melindungi pekerjaan orang lain harus dijaga oleh kode, bukan ingatan.
+- **Kejadian lagi (2026-11-01, celah yang tersisa):**
+  - Job gladi EXEC-INSIDER-COUNT `8043754d` (dibuat 08:19:15) diganti oleh job MIGRATION APPLY sesi lain `614ce03a`
+    (08:19:20). Yang kedua lolos pengecekan karena memeriksa sebelum deployment pertama terdaftar.
+  - `8043754d` berakhir REMOVED tanpa `JOB_DONE`, sesudah invarian pertama. Gladi baca-saja itu dijalankan ulang;
+    tidak ada data yang berubah.
+  - **Cause (verified, urutan waktu deployment):** pengecekan `RUNNER_BUSY` hanya melihat keadaan sesaat
+    (check-then-act). Dua sesi yang mulai dalam beberapa detik sama-sama lolos.
+  - **Usulan (belum dikerjakan):** kunci yang diambil sebelum `railway up` dan dilepas sesudah `JOB_DONE`, misalnya
+    advisory lock atau baris kunci di Postgres, dengan batas waktu.
+  - **Status bagian ini:** OPEN.
 
 ### M228 — Tampilan TS awal bergeser satu bar dari referensi pada 1600 px (2026-10-25)
 
