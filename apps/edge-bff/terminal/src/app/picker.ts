@@ -2,9 +2,28 @@
 import type { Ctx } from './context';
 import { $ } from './context';
 import { FLOW_REG } from './flowIndicators';
+import { initIndMenu, type MenuItem } from './indMenu';
+
+const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
+/* EXEC-IND-CARDS IC1: the card's first content, from the registries: what the indicator is, its parameters with the
+   Terminal's defaults, and how it is shown (the Kalkulator, Grafik and Langkah tabs with the open ticker's numbers follow
+   in IC2-IC4) */
+function showCard(detail: HTMLElement, body: HTMLElement, item: MenuItem, indReg: any[]) {
+  const tech = indReg.find(r => r.id === item.id), flow = (FLOW_REG.indicators as any[]).find(r => r.id === item.id);
+  const params: [string, string][] = tech ? (tech.params || []).map((p: any) => [p.label, Array.isArray(p.def) ? p.def.join(', ') : String(p.def ?? '')])
+    : flow ? (flow.params || []).map((p: any) => [p.label, Array.isArray(p.default) ? (p.default.length ? p.default.join(', ') : 'all') : String(p.default ?? '')]) : [];
+  const what = tech?.info || item.tip, shown = tech?.display || (item.place === 'Overlay' ? 'On the price chart' : 'In a pane below the chart');
+  body.innerHTML = `<div class="ic"><div class="ic-eyebrow">${esc(item.kind === 'Flow' ? 'Flow' : 'Technical')} · ${esc(item.group)}<span class="ic-code">${esc(item.kind === 'Base' ? '' : item.id)}</span></div>
+    <h4>${esc(item.name)}</h4><p>${esc(what)}</p>
+    ${params.length ? `<div class="ic-sub">Parameters (Terminal defaults)</div><table class="ic-params">${params.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>` : ''}
+    <div class="ic-sub">Shown as</div><p>${esc(shown)}${item.unit ? ` · unit: ${esc(item.unit)}` : ''}</p></div>`;
+  detail.hidden = false;
+}
 
 export function initPicker(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
+  // EXEC-IND-CARDS IC1: the live page's menu (indMenu.ts); the fixture keeps the reference's popover below (1:1 check)
+  if(ctx.M.mode === 'live'){ const m = initIndMenu(ctx, item => showCard(m.detail, m.detailBody, item, IND_REG as any[])); return }
   /* groups come from the registry categories (01_INDICATORS column B); Flow is our own group */
   const GROUP_COLORS = ['#0070f3', '#7928ca', '#f5a623', '#089981', '#d6409f', '#12a594'];
   const INDICATORS: [string, string, string[], string][] = [];
@@ -17,14 +36,7 @@ export function initPicker(ctx: Ctx) {
   const bond = !!ctx.M.fixedIncome;                        // EXEC-FI-TERMINAL: a bond has no broker data, no Flow group
   if(!bond) INDICATORS.push(['Flow', '#12a594', ['Net Buy Flow', 'Net Buy Flow (Line)'], 'Flow']);
   const SEARCH: Record<string, string> = Object.fromEntries(IND_REG.map((r: any) => [r.name, `${r.name} ${r.short} ${r.key}`.toLowerCase()]));
-  /* EXEC-TERMINAL-FLOW-IND (user 2026-10-30: the Flow group in subgroups per family, "3. OK"), live: one subgroup per family
-     of flowRegistry.json, in its order; the fixture keeps the reference's list (1:1 check) */
-  if(ctx.M.mode === 'live' && !bond) FLOW_REG.families.forEach(f => {
-    const items = FLOW_REG.indicators.filter(r => r.family === f);
-    if(!items.length) return;
-    INDICATORS.push([`Flow · ${f}`, '#12a594', items.map(r => r.name), 'Flow']);
-    items.forEach(r => { SEARCH[r.name] = `${r.name} ${r.id} ${f} flow`.toLowerCase() });
-  });
+  /* (the Flow families of EXEC-TERMINAL-FLOW-IND are listed by the live menu, indMenu.ts) */
   Ind.tips.Volume = 'Batang volume transaksi harian di bagian bawah chart harga.';
   const isActive = (x: string) => x === 'Volume' && !volCtl.removed;      // volume histogram is drawn unless removed with the X
   const btn = $('indBtn'), pop = $('indPop'), list = $('indList'), q = $('indSearch');
