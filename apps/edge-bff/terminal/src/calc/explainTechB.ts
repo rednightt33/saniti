@@ -56,6 +56,11 @@ const fx = (v: number) => {
   const a = Math.abs(v);
   return fmt.num(v, a === 0 || a >= 100 ? 2 : Math.max(2, Math.min(12, 3 - Math.floor(Math.log10(a)))));
 };
+/** a percent inside a formula (no '+' sign, unlike fmt.pct) */
+const pc = (v: number, d = 4) => `${fmt.num(v, d)}%`;
+/** "a + b" / "a − b" with the sign of b folded in (never "+ −" or "− −") */
+const plus = (a: string, b: number, f: (v: number) => string) => b < 0 ? `${a} − ${f(-b)}` : `${a} + ${f(b)}`;
+const minus = (a: string, b: number, f: (v: number) => string) => b < 0 ? `${a} + ${f(-b)}` : `${a} − ${f(b)}`;
 const lbl = (s: string) => SOURCES[s] || s;
 const range = (a: number, b: number) => Array.from({ length:Math.max(0, b - a + 1) }, (_, k) => a + k);
 const sumOf = (xs: number[]) => xs.reduce((a, v) => a + v, 0);
@@ -111,7 +116,7 @@ function ewmLast(E: string, X: string, prev: number, x: number, a: number, aLabe
 function kEmaText(B: Bars, S: Series, t: number, s0: number, n: number, name: string, xName: string, x: number, f: (v: number) => string) {
   const prev = prevOf(S, t, s0), a = 2 / (n + 1);
   return prev === null ? `${name} dimulai di candle ini: rata-rata ${n} nilai pertama = ${f(S[t] as number)}.`
-    : `${name} = ${name}₋₁ + α × (${xName} − ${name}₋₁) = ${f(prev)} + ${fx(a)} × (${f(x)} − ${f(prev)}) = ${f(S[t] as number)} (α = 2 ÷ (${n} + 1), ${name}₋₁ dari ${dateOf(B, t - 1)}).`;
+    : `${name} = ${name}₋₁ + α × (${xName} − ${name}₋₁) = ${f(prev)} + ${fx(a)} × (${minus(f(x), prev, f)}) = ${f(S[t] as number)} (α = 2 ÷ (${n} + 1), ${name}₋₁ dari ${dateOf(B, t - 1)}).`;
 }
 /** one line on a reference-engine EMA series S at index k of a run (prev at k-1) */
 function ewmText(S: Series, k: number, n: number, name: string, xName: string, x: number, f: (v: number) => string) {
@@ -152,7 +157,7 @@ function bandsAt(B: Bars, a: At, t: number) {
       text = `${kind} dimulai di candle ini dengan rata-rata ${n} nilai pertama: ${px(sumOf(xs))} ÷ ${n} = ${px(sumOf(xs) / n)}.`;
     } else if (kind === 'EMA') {
       basis = kEmaLast('EMA', 'src', prev, x, n, [`EMA candle sebelumnya (${dateOf(B, t - 1)})`, `${lbl(s)} candle ini`], 'price');
-      text = `EMA₋₁ = ${px(prev)}; ${px(prev)} + ${fx(2 / (n + 1))} × (${px(x)} − ${px(prev)}) = ${px(bb.basis[t] as number)}. ${chain(B, s0)}`;
+      text = `EMA₋₁ = ${px(prev)}; ${px(prev)} + ${fx(2 / (n + 1))} × (${minus(px(x), prev, px)}) = ${px(bb.basis[t] as number)}. ${chain(B, s0)}`;
     } else {
       basis = ewmLast('RMA', 'src', prev, x, 1 / n, `Bobot α = 1 ÷ ${n}`, [`RMA candle sebelumnya (${dateOf(B, t - 1)})`, `${lbl(s)} candle ini`], 'price');
       text = `RMA₋₁ = ${px(prev)}; ${fx(1 / n)} × ${px(x)} + ${fx(1 - 1 / n)} × ${px(prev)} = ${px(bb.basis[t] as number)}. ${chain(B, s0)}`;
@@ -165,7 +170,8 @@ function bandsAt(B: Bars, a: At, t: number) {
   ];
   const sdStep: Step = { title:'Simpangan baku (SD)', text:`Rata-rata jendela x̄ = ${px(mean)}; jumlah (x − x̄)² = ${px(SS)}. SD = √(${px(SS)} ÷ ${n}) = ${px(SD)} (simpangan baku populasi, dibagi n${kind === 'SMA' ? '' : '; tetap terhadap rata-rata sederhana x̄, seperti TA-Lib'}).` };
   const span = kind === 'EMA' || kind === 'RMA' ? undefined : windowSpan(B, i0, t);
-  return { n, k, s, kind, x, SD, basis, steps, sdStep, span, bb };
+  const chained = basis.expr !== 'SUM ÷ n' && (kind === 'EMA' || kind === 'RMA');   // basis from its previous value, not the window
+  return { n, k, s, kind, x, SD, basis, steps, sdStep, span, bb, chained };
 }
 function bandLast(r: ReturnType<typeof bandsAt>, t: number, up: boolean): Last {
   return { expr:up ? 'basis + k × SD' : 'basis − k × SD', combine:up ? v => v.basis + v.SD * v.k : v => v.basis - v.SD * v.k,
@@ -202,7 +208,7 @@ function atrAt(B: Bars, n: number, type: string, t: number, s0: number): { last:
   if (kind === 'EMA') {
     const last = kEmaLast('ATR', 'TR', prev, TR, n, [`ATR candle sebelumnya (${dateOf(B, t - 1)})`, 'True range candle ini'], 'price');
     return { last, steps:[trStep, { title:'ATR sebelumnya', text:`ATR₋₁ = ${px(prev)}. ${chain(B, s0)}` },
-      { title:'Haluskan (EMA)', text:`${px(prev)} + ${fx(2 / (n + 1))} × (${px(TR)} − ${px(prev)}) = ${px(S[t] as number)}.` }] };
+      { title:'Haluskan (EMA)', text:`${px(prev)} + ${fx(2 / (n + 1))} × (${minus(px(TR), prev, px)}) = ${px(S[t] as number)}.` }] };
   }
   const last: Last = { expr:'(ATR₋₁ × (n − 1) + TR) ÷ n', combine:v => v.n ? (v['ATR₋₁'] * (v.n - 1) + v.TR) / v.n : null,
     terms:[{ key:'ATR₋₁', label:`ATR candle sebelumnya (${dateOf(B, t - 1)})`, value:prev, unit:'price' }, { key:'TR', label:'True range candle ini', value:TR, unit:'price' }, nTerm(n)] };
@@ -232,7 +238,7 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
   bollinger: (B, p0, t, output) => {
     const a = at('bollinger', srcNeed, B, p0, t, output); if (!a) return null;
     const r = bandsAt(B, a, t);
-    if (a.o === 'basis') return done('basis', r.basis, [...r.steps, { title:'Hasil', text:`Basis = ${px(r.bb.basis[t] as number)}.` }], r.span);
+    if (a.o === 'basis') return done('basis', r.basis, [...(r.chained ? r.steps.slice(1) : r.steps), { title:'Hasil', text:`Basis = ${px(r.bb.basis[t] as number)}.` }], r.span);
     const up = a.o === 'upper';
     return done(a.o, bandLast(r, t, up), [...r.steps, r.sdStep, bandStep(r, t, up)], r.span);
   },
@@ -336,7 +342,7 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
     return done(a.o, kEmaLast('EMA', 'V', prev, V, n, [`EMA volume candle sebelumnya (${dateOf(B, t - 1)})`, 'Volume candle ini'], 'count'), [
       { title:'Volume candle ini', text:`V = ${vol(V)}.` },
       { title:'EMA sebelumnya', text:`EMA₋₁ = ${fmt.num(prev)}. ${chain(B, a.s0)}` },
-      { title:'Perbarui', text:`EMA₋₁ + α × (V − EMA₋₁) = ${fmt.num(prev)} + ${fx(2 / (n + 1))} × (${vol(V)} − ${fmt.num(prev)}) = ${fmt.num(S[t] as number)} (α = 2 ÷ (${n} + 1)).` }]);
+      { title:'Perbarui', text:`EMA₋₁ + α × (V − EMA₋₁) = ${fmt.num(prev)} + ${fx(2 / (n + 1))} × (${minus(vol(V), prev, fmt.num)}) = ${fmt.num(S[t] as number)} (α = 2 ÷ (${n} + 1)).` }]);
   },
   /* I37 Relative volume = V ÷ SMA(V, n), the window including this candle */
   rvol: (B, p0, t, output) => {
@@ -356,7 +362,7 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
     const { p, out, s0 } = a, f: number = p.fast_length, sl: number = p.slow_length, m: number = p.signal_length, V = B.V[t];
     const EFs = F.volume_ema(B, { length:f }).volume_ema, ESs = F.volume_ema(B, { length:sl }).volume_ema, EF = EFs[t] as number, ES = ESs[t] as number;
     const PVO = out.pvo[t] as number, pvoStep: Step = { title:'Dua EMA volume', text:`${kEmaText(B, EFs, t, s0, f, `EMA${f}`, 'V', V, fmt.num)} ${kEmaText(B, ESs, t, s0, sl, `EMA${sl}`, 'V', V, fmt.num)} ${chain(B, s0)}` };
-    const pvoText = `(${fmt.num(EF)} − ${fmt.num(ES)}) ÷ ${fmt.num(ES)} × 100 = ${fmt.pct(PVO)}.`;
+    const pvoText = `(${minus(fmt.num(EF), ES, fmt.num)}) ÷ ${fmt.num(ES)} × 100 = ${fmt.pct(PVO)}.`;
     if (a.o === 'pvo') {
       const last: Last = { expr:'(EF − ES) ÷ ES × 100', combine:v => Math.abs(v.ES) < 1e-14 ? 0 : ((v.EF - v.ES) / v.ES) * 100,
         terms:[{ key:'EF', label:`EMA volume ${f} (cepat)`, value:EF, unit:'count' }, { key:'ES', label:`EMA volume ${sl} (lambat)`, value:ES, unit:'count' }] };
@@ -364,8 +370,8 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
     }
     const SIG = out.signal[t] as number, prev = prevOf(out.signal, t, s0);
     const sigStep: Step = prev === null
-      ? { title:'Garis sinyal', text:`Sinyal dimulai di candle ini: rata-rata ${m} PVO pertama = ${fmt.pct(SIG, 4)}.`, table:table(B, range(t - m + 1, t), ['PVO'], i => [fmt.pct(out.pvo[i] as number, 4)]) }
-      : { title:'Garis sinyal', text:`Sinyal = SIG₋₁ + α × (PVO − SIG₋₁) = ${fmt.pct(prev, 4)} + ${fx(2 / (m + 1))} × (${fmt.pct(PVO, 4)} − ${fmt.pct(prev, 4)}) = ${fmt.pct(SIG, 4)} (EMA ${m}). ${chain(B, s0)}` };
+      ? { title:'Garis sinyal', text:`Sinyal dimulai di candle ini: rata-rata ${m} PVO pertama = ${pc(SIG)}.`, table:table(B, range(t - m + 1, t), ['PVO'], i => [pc(out.pvo[i] as number)]) }
+      : { title:'Garis sinyal', text:`Sinyal = SIG₋₁ + α × (PVO − SIG₋₁) = ${pc(prev)} + ${fx(2 / (m + 1))} × (${minus(pc(PVO), prev, pc)}) = ${pc(SIG)} (EMA ${m} dari PVO, SIG₋₁ dari ${dateOf(B, t - 1)}).` };
     const steps = [pvoStep, { title:'PVO candle ini', text:pvoText }, sigStep];
     if (a.o === 'signal') {
       const last = prev === null ? sumLast(sumOf(range(t - m + 1, t).map(i => out.pvo[i] as number)), m, `Jumlah ${m} PVO pertama`, 'pct')
@@ -373,7 +379,7 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
       return done('signal', last, steps);
     }
     const last: Last = { expr:'PVO − SIG', combine:v => v.PVO - v.SIG, terms:[{ key:'PVO', label:'PVO candle ini', value:PVO, unit:'pct' }, { key:'SIG', label:'Garis sinyal', value:SIG, unit:'pct' }] };
-    return done(a.o, last, [...steps, { title:'Histogram', text:`${fmt.pct(PVO, 4)} − ${fmt.pct(SIG, 4)} = ${fmt.pct(PVO - SIG, 4)}.` }]);
+    return done(a.o, last, [...steps, { title:'Histogram', text:`PVO − sinyal = ${minus(pc(PVO), SIG, pc)} = ${pc(PVO - SIG)}.` }]);
   },
   /* I39 Volume ROC = (V ÷ V n candle lalu − 1) × 100 (null when that volume is 0) */
   volume_roc: (B, p0, t, output) => {
@@ -414,7 +420,7 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
     return done(a.o, last, [
       { title:'Kontribusi candle ini', text:`V × (C − C₋₁) ÷ C₋₁ = ${vol(V)} × (${px(C)} − ${px(Cp)}) ÷ ${px(Cp)} = ${fmt.num(d)} (volume dikali return close ${fmt.pct(Cp ? 100 * (C - Cp) / Cp : 0)}).` },
       { title:'PVT sebelumnya', text:`PVT₋₁ = ${fmt.num(prev)}. PVT dimulai dari 0 di ${dateOf(B, a.s0)}. ${chain(B, a.s0)}` },
-      { title:'Perbarui', text:`${fmt.num(prev)} + ${fmt.num(d)} = ${fmt.num(prev + d)}.` },
+      { title:'Perbarui', text:`${plus(fmt.num(prev), d, fmt.num)} = ${fmt.num(prev + d)}.` },
     ]);
   },
   /* I42 VWMA = SUM(src × V, n) ÷ SUM(V, n) (calc/indicators.ts vwmaOf: two reference sma() sums) */
@@ -473,7 +479,7 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
       { title:'Posisi close dalam candle', text:`MFM = ((C − L) − (H − C)) ÷ (H − L) = ((${px(C)} − ${px(L)}) − (${px(H)} − ${px(C)})) ÷ (${px(H)} − ${px(L)}) = ${fx(MFM)}. +1 = close di high, −1 = close di low${H - L > 0 ? '' : '; H = L, jadi 0'}.` },
       { title:'Money flow volume', text:`MFM × V = ${fx(MFM)} × ${vol(V)} = ${fmt.num(MFM * V)}.` },
       { title:first ? 'Nilai awal' : 'A/D sebelumnya', text:first ? `A/D dimulai dari 0 di candle pertama data (${dateOf(B, t)}).` : `ADL₋₁ = ${fmt.num(prev)}. A/D dimulai dari 0 di ${dateOf(B, a.s0)}. ${chain(B, a.s0)}` },
-      { title:'Perbarui', text:`${fmt.num(prev)} + ${fmt.num(MFM * V)} = ${fmt.num(prev + MFM * V)}.` },
+      { title:'Perbarui', text:`${plus(fmt.num(prev), MFM * V, fmt.num)} = ${fmt.num(prev + MFM * V)}.` },
     ]);
   },
   /* I45 Chaikin Money Flow = SUM(MFM × V, n) ÷ SUM(V, n) (calc/indicators.ts cmf: two reference sma() sums) */
@@ -502,7 +508,7 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
       { title:'Garis A/D candle ini', text:`A/D = ${fmt.num(ad)} (A/D₋₁ + MFM × V, seperti indikator A/D Line).` },
       t === s0 ? { title:'Nilai awal', text:`Kedua EMA dimulai dari A/D candle pertama data (${dateOf(B, s0)}), seperti TA-Lib ADOSC.` }
         : { title:'Perbarui kedua EMA', text:`EF = ${fx(fk)} × ${fmt.num(ad)} + ${fx(f1)} × ${fmt.num(fp)} = ${fmt.num(fe)} (α = 2 ÷ (${f} + 1)). ES = ${fx(sk)} × ${fmt.num(ad)} + ${fx(s1)} × ${fmt.num(sp)} = ${fmt.num(se)} (α = 2 ÷ (${sl} + 1)). Keduanya dimulai dari A/D candle pertama data (${dateOf(B, s0)}), seperti TA-Lib ADOSC; seluruh riwayat ikut terbawa.` },
-      { title:'Selisih', text:`${fmt.num(fe)} − ${fmt.num(se)} = ${fmt.num(fe - se)}.` },
+      { title:'Selisih', text:`EF − ES = ${minus(fmt.num(fe), se, fmt.num)} = ${fmt.num(fe - se)}.` },
     ]);
   },
   /* I47 MFI = 100 × PF ÷ (PF + NF) over n candles, flows TP × V split by the sign of ΔTP (TA-Lib MFI; 0 when PF + NF < 1) */
@@ -562,11 +568,11 @@ export const TECH_EXPLAIN_B: Record<string, TechExplainer> = {
     const a = at('kvo', () => 'HLCV', B, p0, t, output); if (!a) return null;
     const { p, out, s0 } = a, f: number = p.fast_length, sl: number = p.slow_length, m: number = p.signal_length, k = t - s0;
     const K = kvoForce(B, s0, t), EFs = ema(K.vf, f), ESs = ema(K.vf, sl), EF = EFs[k] as number, ES = ESs[k] as number, VF = K.vf[k] as number;
-    const vfStep: Step = { title:'Volume force candle ini', text:`Tren = ${K.tr > 0 ? '+1 (H + L + C naik)' : K.tr < 0 ? '−1 (H + L + C turun)' : '0'}${K.tr === K.trendPrev ? ', sama dengan candle sebelumnya' : ', berganti'}. dm = H − L = ${px(K.dm)}; cm = ${px(K.cm)} (${K.tr === K.trendPrev ? 'cm₋₁ + dm' : 'dm₋₁ + dm, tren berganti'}). VF = V × |2 × (dm ÷ cm − 1)| × tren × 100 = ${fmt.num(VF, 0)}.` };
+    const vfStep: Step = { title:'Volume force candle ini', text:`Tren = ${K.tr > 0 ? '+1 (H + L + C naik)' : K.tr < 0 ? '−1 (H + L + C turun)' : '0'}${k === 1 ? '' : K.tr === K.trendPrev ? ', sama dengan candle sebelumnya' : ', berganti'}. dm = H − L = ${px(K.dm)}; cm = ${px(K.cm)} (${k === 1 ? 'candle pertama: cm = dm' : K.tr === K.trendPrev ? 'cm₋₁ + dm' : 'dm₋₁ + dm, tren berganti'}). VF = V × |2 × (dm ÷ cm − 1)| × tren × 100 = ${fmt.num(VF, 0)}.` };
     const emaStep: Step = { title:'Dua EMA volume force', text:`${ewmText(EFs, k, f, 'EF', 'VF', VF, fmt.num)} ${ewmText(ESs, k, sl, 'ES', 'VF', VF, fmt.num)} ${chain(B, s0)}` };
     if (a.o === 'kvo') return done('kvo', { expr:'EF − ES', combine:v => v.EF - v.ES,
       terms:[{ key:'EF', label:`EMA ${f} volume force (cepat)`, value:EF, unit:'num' }, { key:'ES', label:`EMA ${sl} volume force (lambat)`, value:ES, unit:'num' }] },
-      [vfStep, emaStep, { title:'Selisih', text:`${fmt.num(EF)} − ${fmt.num(ES)} = ${fmt.num(EF - ES)}.` }]);
+      [vfStep, emaStep, { title:'Selisih', text:`EF − ES = ${minus(fmt.num(EF), ES, fmt.num)} = ${fmt.num(EF - ES)}.` }]);
     const KVO = out.kvo[t] as number, SIG = out.signal[t] as number, prev = prevOf(out.signal, t, s0), al = 2 / (m + 1);
     if (prev === null) {
       const idx = range(t - m + 1, t), SUM = sumOf(idx.map(i => out.kvo[i] as number));

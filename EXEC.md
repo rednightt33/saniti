@@ -9897,6 +9897,20 @@ HTML buat saya pilih. Pakai design spec terlampir."
   - IC4: langkah hitung untuk 53 indikator teknikal dari `calc/indicators.ts`, dengan tes yang sama.
   - IC5: cek halaman (desktop, ponsel, mode gelap), deploy, catatan.
 
+## EXEC-DRAW-ALL-TF — satu set gambar untuk semua timeframe (go 2026-11-01, menggantikan C7.2 A)
+
+**Kata user, 2026-11-01:** "Sebelum deploy ke main, juga lakukan pengecekan saat ini kalau kita menggambar di time frame
+lain, gambar tersebut tidak terbawa ke time frame lainnya. Bereskan ini juga, beserta dengan item di atas dan push ke
+main once done." Lalu atas pilihan Opsi C/B: "Ok C".
+- **Dicek di kode:** `apps/edge-bff/terminal/src/app/drawings.ts:94-101` menyimpan dua set per ticker: D/W/M
+  (`ml.drawings.<ticker>`) dan 5M/15M/1H/4H (`ml.drawings.<ticker>.intraday`), sesuai keputusan C7.2 A
+  (EXEC-INTRADAY-FEATURES). Gambar Flow Timeline memakai penyimpan yang sama (`flow.<ticker>`).
+- **Keputusan (Opsi C):** satu set untuk semua timeframe, seperti TradingView. Setiap titik menyimpan waktunya sendiri
+  dan tampil di candle timeframe yang memuatnya. Titik intraday tampil di candle sesinya di D/W/M; titik harian tampil
+  di candle pertama hari itu di intraday. Aturan F7 tetap: titik yang tidak digeser user disimpan dengan waktu aslinya.
+  Set intraday lama digabung sekali ke set utama.
+- **Dampak yang sudah disampaikan:** garis pendek dari 5M terlihat sangat pendek di grafik harian.
+
 ## EXEC-M322 — pembungkus runner menulis tanda selesai (go 2026-11-01)
 
 **Kata user, 2026-11-01:** "Go", jawaban atas "Masih menunggu dari Anda: go untuk M322" (usulan di ERRORS M322:

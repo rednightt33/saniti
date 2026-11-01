@@ -16,6 +16,7 @@ type V = Record<string, number>;
 type Combine = (v: V) => number | null;
 interface Ctx {
   key: string; P: Params; o: string; v: number;
+  out: Record<string, Series>;        // the chart's outputs on S (index i = the value at t)
   i: number;                          // t inside the run (the run starts at candle t − i)
   S: Bars;                            // the run's candles up to t
   src: number[];                      // the source price of S (P.source; close when the indicator has none)
@@ -29,22 +30,26 @@ const truthy = (v: unknown) => v === true || v === 'true' || v === 1 || v === '1
 const isZero = (v: number) => -1e-14 < v && v < 1e-14;                     // TA-Lib TA_IS_ZERO (calc/indicators.ts)
 const GUIDES: Record<string, number[]> = Object.fromEntries((IND as any[]).map(r => [r.key, (r.guides || []).filter((g: any) => Number.isFinite(g))]));
 
-/** the chart's value of `key` at t (null when the chart has none), the parameters as the chart reads them, the run */
+/** the chart's value of `key` at t (null when the chart has none), the parameters as the chart reads them, the run.
+    The value is F[key] on the run's candles up to t: every indicator here reads only candles up to t and restarts at
+    the run's first candle (calc/indicators.ts def), so it is the same double as F[key] on all candles at t. */
 function ctxOf(key: string, B: Bars, p: Params, t: number, output: string | undefined, need: (P: Params) => string): Ctx | null {
-  const out = F[key](B, p), outs = Object.keys(out).filter(k => !k.startsWith('_')), o = output ?? outs[0];
-  const v = outs.includes(o) ? out[o][t] : null;
-  if (!isN(v)) return null;
+  if (!(t >= 0 && t < B.C.length)) return null;
   const P: Params = { ...DEFAULTS[key], ...p };
   for (const [k, x] of Object.entries(P)) {
     if (LENGTH_KEYS.test(k)) P[k] = Math.floor(Number(x));
     else if (typeof DEFAULTS[key][k] === 'number') P[k] = Number(x);
   }
-  const cols = (['O', 'H', 'L', 'C', 'V'] as const).filter(f => need(P).includes(f));
-  let s = t; while (s > 0 && cols.every(f => isN(B[f][s - 1]))) s--;
+  const cols = (['O', 'H', 'L', 'C', 'V'] as const).filter(f => need(P).includes(f)), ok = (k: number) => cols.every(f => isN(B[f][k]));
+  if (!ok(t)) return null;
+  let s = t; while (s > 0 && ok(s - 1)) s--;
   const cut = (a: any) => (a ? a.slice(s, t + 1) : []) as number[];
   const S: Bars = { O:cut(B.O), H:cut(B.H), L:cut(B.L), C:cut(B.C), V:cut(B.V), T:B.T ? B.T.slice(s, t + 1) : undefined };
+  const out = F[key](S, p), outs = Object.keys(out).filter(k => !k.startsWith('_')), o = output ?? outs[0], i = t - s;
+  const v = outs.includes(o) ? out[o][i] : null;
+  if (!isN(v)) return null;
   const sn = String(P.source || 'close');
-  return { key, P, o, v, i:t - s, S, src:S.C.map((_, k) => sourceAt(S, sn, k)), date:k => dateOf(B, s + k) };
+  return { key, P, o, v, i, S, out, src:S.C.map((_, k) => sourceAt(S, sn, k)), date:k => dateOf(B, s + k) };
 }
 
 const short = (rows: string[][]) => rows.length > 12 ? [...rows.slice(0, 5), rows[0].map((_, j) => (j ? '' : '…')), ...rows.slice(-5)] : rows;
@@ -56,6 +61,8 @@ const srcLabel = (P: Params) => `Harga ${srcName(P)}`;
 const n2 = (v: number) => fmt.num(v);
 const n4 = (v: number) => fmt.num(v, 4);
 const pc2 = (v: number) => fmt.pct(v);
+/** a number as an operand: a negative one in parentheses (5 − (−3), not 5 − −3) */
+const pr = (v: number, f: (v: number) => string = n2) => (v < 0 ? `(${f(v)})` : f(v));
 const term = (key: string, label: string, value: number, unit: Unit = 'price'): Term => ({ key, label, value, unit });
 const safe = (f: Combine): Combine => v => { const x = f(v); return isN(x) ? x : null };
 
@@ -86,11 +93,11 @@ function meanOf(vals: number[], key: string, label: (j: number) => string, unit:
 /** TA-Lib EMA of any series (F.ema reads the series as the close; a gap restarts it, as calc/indicators.ts runs) */
 const taEma = (x: Series, n: number) => F.ema({ O:x, H:x, L:x, C:x, V:x }, { length:n, source:'close' }).ema;
 
-/** one update of a TA-Lib EMA (y of x, length n) at candle i of the run, as a sentence */
-function emaLine(c: Ctx, name: string, y: Series, x: Series, n: number, fv = n2) {
+/** one update of an EMA (y of x, length n) at candle i of the run, as a sentence; xWord names x */
+function emaLine(c: Ctx, name: string, y: Series, x: Series, n: number, fv = n2, xWord = 'harga') {
   const i = c.i;
   if (!isN(y[i - 1])) return `${name} = ${fv(y[i])}: nilai pertamanya, rata-rata sederhana ${n} nilai pertama.`;
-  return `${name} = ${fv(y[i - 1])} + ${n4(2 / (n + 1))} × (${fv(x[i])} − ${fv(y[i - 1])}) = ${fv(y[i])} (nilai sebelumnya + α × (harga − nilai sebelumnya), α = 2 ÷ (${n} + 1)); seri ini diperbarui setiap candle sejak seed, rata-rata ${n} nilai pertama.`;
+  return `${name} = ${name} sebelumnya + α × (${xWord} − ${name} sebelumnya) = ${fv(y[i - 1])} + ${n4(2 / (n + 1))} × (${fv(x[i])} − ${pr(y[i - 1], fv)}) = ${fv(y[i])}, dengan α = 2 ÷ (${n} + 1). Seri ini diperbarui setiap candle sejak seed, rata-rata sederhana ${n} nilai pertama.`;
 }
 
 /* an exponential average at candle i: the seed (mean of the first n inputs) or the update from the previous value */
@@ -120,12 +127,11 @@ function avgExplain(a: Avg): Explanation {
   const combine: Combine = talib ? v => (v[a.xKey] - v[P]) * v['α'] + v[P] : v => v['α'] * v[a.xKey] + (1 - v['α']) * v[P];
   return done(c, talib ? `${P} + α × (${a.xKey} − ${P})` : `α × ${a.xKey} + (1 − α) × ${P}`,
     [term(P, `${a.name} candle sebelumnya (${c.date(j)})`, prev, a.u), term('α', `Bobot α = 2 ÷ (${n} + 1)`, al, 'num'), term(a.xKey, `${a.xName} ${c.date(i)}`, X, a.u)], combine, [
-      ...(a.before || []),
-      { title:`${a.xName} candle ini`, text:`${c.date(i)}: ${a.xKey} = ${fv(X)}.` },
+      ...(a.before?.length ? a.before : [{ title:`${a.xName} candle ini`, text:`${c.date(i)}: ${a.xKey} = ${fv(X)}.` }]),
       { title:`${a.name} candle sebelumnya`, text:`${P} (${c.date(j)}) = ${fv(prev)}. Seri ini dimulai di ${c.date(seed)} dari seed (rata-rata sederhana ${n} nilai pertama), lalu diperbarui setiap candle sepanjang riwayat; karena itu nilai-nilai lama tetap ikut memengaruhi.`,
         table:{ head:['Tanggal', a.xName, a.name], rows } },
       { title:'Bobot α', text:`α = 2 ÷ (${n} + 1) = ${n4(al)}: candle terbaru mendapat bobot ${fmt.num(100 * al, 1)}%, ${P} sisanya.` },
-      { title:`Hitung ${a.name}`, text:(talib ? `${fv(prev)} + ${n4(al)} × (${fv(X)} − ${fv(prev)})` : `${n4(al)} × ${fv(X)} + (1 − ${n4(al)}) × ${fv(prev)}`) + ` = ${fv(c.v)}.` },
+      { title:`Hitung ${a.name}`, text:(talib ? `${fv(prev)} + ${n4(al)} × (${fv(X)} − ${pr(prev, fv)})` : `${n4(al)} × ${pr(X, fv)} + (1 − ${n4(al)}) × ${pr(prev, fv)}`) + ` = ${fv(c.v)}.` },
     ], undefined, fv);
 }
 
@@ -172,7 +178,7 @@ function stAt(S: Bars, P: Params, i: number) {
     if (prevSt === null) { d = 1; how = 'first' }
     else if (prevSt === fu) { d = C[k] > nfu ? 1 : -1; how = 'down' }
     else { d = C[k] < nfl ? -1 : 1; how = 'up' }
-    if (k === i) r = { a, atrPrev:atr[k - 1], mid, bu, bl, fl, fu, nfl, nfu, how, d, cPrev:C[k - 1], c:C[k] };
+    if (k === i) r = { a, atrPrev:atr[k - 1], tr:k ? Math.max(H[k] - L[k], Math.abs(C[k - 1] - H[k]), Math.abs(C[k - 1] - L[k])) : null, mid, bu, bl, fl, fu, nfl, nfu, how, d, cPrev:C[k - 1], c:C[k] };
     fl = nfl; fu = nfu; prevSt = d === 1 ? fl : fu;
   }
   return r;
@@ -266,7 +272,7 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
   ema: (B, p, t, output) => {
     const c = ctxOf('ema', B, p, t, output, srcNeed); if (!c) return null;
     const n = c.P.length;
-    return avgExplain({ c, x:c.src, y:F.ema(c.S, c.P).ema, n, form:'talib', name:`EMA ${n}`, key:'EMA', xName:srcLabel(c.P), xKey:'src', u:'price', fv:n2 });
+    return avgExplain({ c, x:c.src, y:c.out.ema, n, form:'talib', name:`EMA ${n}`, key:'EMA', xName:srcLabel(c.P), xKey:'src', u:'price', fv:n2 });
   },
 
   /* I03 WMA: Σ (weight × src) / Σ weight, weights 1..n with the newest n (TA-Lib WMA) */
@@ -309,7 +315,7 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
     for (let k = i - n; k <= i; k++) { const d = k > i - n ? Math.abs(x[k] - x[k - 1]) : null; if (d !== null) path += d; rows.push([c.date(k), n2(x[k]), d === null ? '' : n2(d)]) }
     const er = path <= roc || isZero(path) ? 1.0 : Math.abs(roc / path);
     const cMax = 2.0 / (sl + 1.0), cDiff = 2.0 / (fl + 1.0) - cMax, sc0 = (er * cDiff) + cMax, SC = sc0 * sc0;
-    const y = F.kama(c.S, c.P).kama, first = !isN(y[i - 1]), prev = first ? x[i - 1] : (y[i - 1] as number), n6 = (v: number) => fmt.num(v, 6);
+    const y = c.out.kama, first = !isN(y[i - 1]), prev = first ? x[i - 1] : (y[i - 1] as number), n6 = (v: number) => fmt.num(v, 6);
     return done(c, 'KAMA₋₁ + SC × (src − KAMA₋₁)',
       [term('KAMA₋₁', first ? `Nilai awal: ${srcName(c.P)} ${c.date(i - 1)}` : `KAMA ${c.date(i - 1)}`, prev), term('SC', 'Konstanta penghalus (SC)', SC, 'num'), term('src', `${srcLabel(c.P)} ${c.date(i)}`, x[i])],
       v => (v.src - v['KAMA₋₁']) * v.SC + v['KAMA₋₁'], [
@@ -326,20 +332,20 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
   /* I06 MACD: EMA(fast) − EMA(slow); signal = TA-Lib EMA of MACD (seed = mean of its first values); histogram (F.macd) */
   macd: (B, p, t, output) => {
     const c = ctxOf('macd', B, p, t, output, srcNeed); if (!c) return null;
-    const { fast_length:f, slow_length:s, signal_length:m } = c.P, i = c.i, r = F.macd(c.S, c.P);
+    const { fast_length:f, slow_length:s, signal_length:m } = c.P, i = c.i, r = c.out;
     const ef = F.ema(c.S, { length:f, source:c.P.source }).ema, es = F.ema(c.S, { length:s, source:c.P.source }).ema;
-    const macdStep: Step = { title:'MACD candle ini', text:`MACD = EMA ${f} − EMA ${s} dari ${srcName(c.P)} = ${n2(ef[i])} − ${n2(es[i])} = ${n2(r.macd[i])}.` };
+    const macdStep: Step = { title:'MACD candle ini', text:`MACD = EMA ${f} − EMA ${s} dari ${srcName(c.P)} = ${n2(ef[i])} − ${pr(es[i])} = ${n2(r.macd[i])}.` };
     if (c.o === 'signal') return avgExplain({ c, x:r.macd, y:r.signal, n:m, form:'talib', name:`Signal ${m}`, key:'SIG', xName:'MACD', xKey:'MACD', u:'price', fv:n2, before:[macdStep] });
     if (c.o === 'histogram') return done(c, 'MACD − SIG', [term('MACD', `MACD ${c.date(i)}`, r.macd[i]), term('SIG', `Signal ${m} ${c.date(i)}`, r.signal[i])], v => v.MACD - v.SIG, [
       macdStep,
-      { title:`Signal ${m}`, text:emaLine(c, `Signal ${m}`, r.signal, r.macd, m) },
-      { title:'Histogram', text:`MACD − Signal = ${n2(r.macd[i])} − ${n2(r.signal[i])} = ${n2(c.v)}.` },
+      { title:`Signal ${m}`, text:emaLine(c, `Signal ${m}`, r.signal, r.macd, m, n2, 'MACD') },
+      { title:'Histogram', text:`MACD − Signal = ${n2(r.macd[i])} − ${pr(r.signal[i])} = ${n2(c.v)}.` },
     ]);
     return done(c, 'EMAfast − EMAslow', [term('EMAfast', `EMA ${f} ${srcName(c.P)} (cepat)`, ef[i]), term('EMAslow', `EMA ${s} ${srcName(c.P)} (lambat)`, es[i])], v => v.EMAfast - v.EMAslow, [
       { title:`${srcLabel(c.P)} candle ini`, text:`${c.date(i)}: ${n2(c.src[i])}.` },
       { title:`EMA ${f} (cepat)`, text:emaLine(c, `EMA ${f}`, ef, c.src, f) },
       { title:`EMA ${s} (lambat)`, text:emaLine(c, `EMA ${s}`, es, c.src, s) },
-      { title:'Hitung MACD', text:`${n2(ef[i])} − ${n2(es[i])} = ${n2(c.v)}.` },
+      { title:'Hitung MACD', text:`${n2(ef[i])} − ${pr(es[i])} = ${n2(c.v)}.` },
     ]);
   },
 
@@ -398,15 +404,19 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
   supertrend: (B, p, t, output) => {
     const c = ctxOf('supertrend', B, p, t, output, () => 'HLC'); if (!c) return null;
     const P = c.P, i = c.i, r = stAt(c.S, P, i), m = P.factor, mm = fmt.num(m);
-    const lowerText = r.fl === null ? 'sama dengan pita bawah dasar (candle pertama)' : r.cPrev < r.fl ? `sama dengan pita bawah dasar, karena close sebelumnya ${n2(r.cPrev)} di bawah pita bawah sebelumnya ${n2(r.fl)}` : `yang lebih tinggi dari pita bawah dasar dan pita bawah sebelumnya (${n2(r.fl)})`;
-    const upperText = r.fu === null ? 'sama dengan pita atas dasar (candle pertama)' : r.cPrev > r.fu ? `sama dengan pita atas dasar, karena close sebelumnya ${n2(r.cPrev)} di atas pita atas sebelumnya ${n2(r.fu)}` : `yang lebih rendah dari pita atas dasar dan pita atas sebelumnya (${n2(r.fu)})`;
+    const lowerText = r.fl === null ? `Pita bawah akhir = pita bawah dasar (candle pertama Supertrend) = ${n2(r.nfl)}`
+      : r.cPrev < r.fl ? `Pita bawah akhir = pita bawah dasar = ${n2(r.nfl)}, karena close sebelumnya ${n2(r.cPrev)} di bawah pita bawah sebelumnya ${n2(r.fl)}`
+      : `Pita bawah akhir = max(pita bawah dasar, pita bawah sebelumnya) = max(${n2(r.bl)}, ${n2(r.fl)}) = ${n2(r.nfl)}`;
+    const upperText = r.fu === null ? `Pita atas akhir = pita atas dasar (candle pertama Supertrend) = ${n2(r.nfu)}`
+      : r.cPrev > r.fu ? `Pita atas akhir = pita atas dasar = ${n2(r.nfu)}, karena close sebelumnya ${n2(r.cPrev)} di atas pita atas sebelumnya ${n2(r.fu)}`
+      : `Pita atas akhir = min(pita atas dasar, pita atas sebelumnya) = min(${n2(r.bu)}, ${n2(r.fu)}) = ${n2(r.nfu)}`;
     const dirText = r.how === 'first' ? 'Candle pertama Supertrend: arah awal naik (1).'
       : r.how === 'down' ? `Sebelumnya tren turun (garis di pita atas). Close ${n2(r.c)} ${r.c > r.nfu ? '>' : '≤'} pita atas ${n2(r.nfu)}: ${r.d === 1 ? 'berbalik naik (1)' : 'tetap turun (−1)'}.`
       : `Sebelumnya tren naik (garis di pita bawah). Close ${n2(r.c)} ${r.c < r.nfl ? '<' : '≥'} pita bawah ${n2(r.nfl)}: ${r.d === -1 ? 'berbalik turun (−1)' : 'tetap naik (1)'}.`;
     const steps: Step[] = [
-      { title:`ATR ${P.atr_length}`, text:isN(r.atrPrev) ? `ATR = (ATR₋₁ × (${P.atr_length} − 1) + TR) ÷ ${P.atr_length} = ${n2(r.a)} (rata-rata Wilder, seperti indikator ATR, berjalan sepanjang riwayat; ATR₋₁ = ${n2(r.atrPrev)}).` : `ATR pertama = rata-rata ${P.atr_length} true range pertama = ${n2(r.a)}.` },
+      { title:`ATR ${P.atr_length}`, text:isN(r.atrPrev) ? `ATR = (ATR₋₁ × (${P.atr_length} − 1) + TR) ÷ ${P.atr_length} = (${n2(r.atrPrev)} × ${P.atr_length - 1} + ${n2(r.tr)}) ÷ ${P.atr_length} = ${n2(r.a)}; TR = max(H − L, |C₋₁ − H|, |C₋₁ − L|). Rata-rata Wilder seperti indikator ATR, berjalan sepanjang riwayat.` : `ATR pertama = rata-rata ${P.atr_length} true range pertama = ${n2(r.a)}.` },
       { title:'Pita dasar', text:`HL2 = (High + Low) ÷ 2 = ${n2(r.mid)}. Pita atas dasar = HL2 + ${mm} × ATR = ${n2(r.bu)}; pita bawah dasar = HL2 − ${mm} × ATR = ${n2(r.bl)}.` },
-      { title:'Pita akhir', text:`Pita bawah akhir ${lowerText}: ${n2(r.nfl)}. Pita atas akhir ${upperText}: ${n2(r.nfu)}.` },
+      { title:'Pita akhir', text:`${lowerText}. ${upperText}.` },
       { title:'Arah', text:dirText },
     ];
     if (c.o === 'direction') {
@@ -498,8 +508,8 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
     }
     if (i === 1) {
       const K = up ? 'L₋₁' : 'H₋₁';
-      return done(c, K, [term(K, `${up ? 'Low' : 'High'} ${c.date(0)}`, up ? L[0] : H[0])], v => v[K], [before, check,
-        { title:'SAR pertama', text:`SAR pertama = ${up ? 'Low' : 'High'} candle pertama = ${n2(c.v)}.` }]);
+      return done(c, K, [term(K, `${up ? 'Low' : 'High'} ${c.date(0)}`, up ? L[0] : H[0])], v => v[K], [before,
+        { title:'SAR pertama', text:`SAR pertama = ${up ? 'Low' : 'High'} candle pertama = ${n2(c.v)}.` }, check]);
     }
     const q = R[i - 1], w = up ? 'Low' : 'High', cl = up ? 'L' : 'H';
     const lim = q.pIdx === q.k ? [term(cl + '₋₁', `${w} ${c.date(q.k)}`, up ? q.nL : q.nH)] : [term(cl + '₋₂', `${w} ${c.date(q.pIdx)}`, up ? q.pL : q.pH), term(cl + '₋₁', `${w} ${c.date(q.k)}`, up ? q.nL : q.nH)];
@@ -666,11 +676,11 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
     const smooth: Step = { title:'Penghalusan ganda', text:`Perubahan ${srcName(P)} dihaluskan dua kali: EMA ${lo}, lalu EMA ${sh} dari hasilnya (DS); ukurannya |perubahan| dihaluskan sama (DA). Setiap EMA dimulai dari rata-rata sederhana nilai pertamanya dan berjalan sepanjang riwayat.`,
       table:{ head:['', 'Perubahan', '|Perubahan|'], rows:[[`Candle ${c.date(i)}`, n2(pc[i]), n2(apc[i])], [`EMA ${lo}`, n2(e1[i]), n2(a1[i])], [`EMA ${sh} (DS, DA)`, n2(ds[i]), n2(da[i])]] } };
     if (c.o === 'signal') return avgExplain({ c, x:tsi, y:refEma(tsi, m), n:m, form:'ref', name:`Signal ${m}`, key:'SIG', xName:'TSI', xKey:'TSI', u:'num', fv:n2,
-      before:[smooth, { title:'TSI candle ini', text:`TSI = 100 × DS ÷ DA = 100 × ${n2(ds[i])} ÷ ${n2(da[i])} = ${n2(tsi[i])}.` }] });
+      before:[smooth, { title:'TSI candle ini', text:`TSI = 100 × DS ÷ DA = 100 × ${pr(ds[i])} ÷ ${n2(da[i])} = ${n2(tsi[i])}.` }] });
     return done(c, '100 × DS ÷ DA', [term('DS', 'Perubahan yang dihaluskan dua kali', ds[i]), term('DA', '|Perubahan| yang dihaluskan dua kali', da[i])],
       v => (v.DA !== 0 ? 100 * (v.DS / v.DA) : null), [
         smooth,
-        { title:'Hitung TSI', text:`100 × ${n2(ds[i])} ÷ ${n2(da[i])} = ${n2(c.v)}.` },
+        { title:'Hitung TSI', text:`100 × ${pr(ds[i])} ÷ ${n2(da[i])} = ${n2(c.v)}.` },
       ]);
   },
 
@@ -719,14 +729,14 @@ export const TECH_EXPLAIN_A: Record<string, TechExplainer> = {
   /* I25 PPO: 100 (EMA fast − EMA slow) / EMA slow (0 when EMA slow is 0); signal = TA-Lib EMA of PPO; histogram */
   ppo: (B, p, t, output) => {
     const c = ctxOf('ppo', B, p, t, output, srcNeed); if (!c) return null;
-    const { fast_length:f, slow_length:s, signal_length:m } = c.P, i = c.i, r = F.ppo(c.S, c.P);
+    const { fast_length:f, slow_length:s, signal_length:m } = c.P, i = c.i, r = c.out;
     const ef = F.ema(c.S, { length:f, source:c.P.source }).ema, es = F.ema(c.S, { length:s, source:c.P.source }).ema;
     const ppoStep: Step = { title:'PPO candle ini', text:`PPO = (EMA ${f} − EMA ${s}) ÷ EMA ${s} × 100 = (${n2(ef[i])} − ${n2(es[i])}) ÷ ${n2(es[i])} × 100 = ${pc2(r.ppo[i])}.` };
     if (c.o === 'signal') return avgExplain({ c, x:r.ppo, y:r.signal, n:m, form:'talib', name:`Signal ${m}`, key:'SIG', xName:'PPO', xKey:'PPO', u:'pct', fv:pc2, before:[ppoStep] });
     if (c.o === 'histogram') return done(c, 'PPO − SIG', [term('PPO', `PPO ${c.date(i)}`, r.ppo[i], 'pct'), term('SIG', `Signal ${m} ${c.date(i)}`, r.signal[i], 'pct')], v => v.PPO - v.SIG, [
       ppoStep,
-      { title:`Signal ${m}`, text:emaLine(c, `Signal ${m}`, r.signal, r.ppo, m, pc2) },
-      { title:'Histogram', text:`PPO − Signal = ${pc2(r.ppo[i])} − ${pc2(r.signal[i])} = ${pc2(c.v)}.` },
+      { title:`Signal ${m}`, text:emaLine(c, `Signal ${m}`, r.signal, r.ppo, m, pc2, 'PPO') },
+      { title:'Histogram', text:`PPO − Signal = ${pc2(r.ppo[i])} − ${pr(r.signal[i], pc2)} = ${pc2(c.v)}.` },
     ], undefined, pc2);
     return done(c, '(EMAfast − EMAslow) ÷ EMAslow × 100', [term('EMAfast', `EMA ${f} ${srcName(c.P)} (cepat)`, ef[i]), term('EMAslow', `EMA ${s} ${srcName(c.P)} (lambat)`, es[i])],
       v => (isZero(v.EMAslow) ? 0.0 : ((v.EMAfast - v.EMAslow) / v.EMAslow) * 100.0), [

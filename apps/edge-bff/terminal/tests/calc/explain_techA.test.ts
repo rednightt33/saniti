@@ -54,25 +54,25 @@ function check(key: string, B: Bars, p: Record<string, any>, ts: number[], where
     }
 }
 const sample = (N: number) => Array.from({ length:N }, (_, t) => t).filter(t => t < 70 || t % STRIDE === 0 || t >= N - 3);
-const SLOW = 120_000;                                                // ms per indicator (every ticker, every output)
+const SLOW = 60_000;                                                 // ms per indicator and ticker
 
+const fx = loadFixtures(), KEYS = Object.keys(TECH_EXPLAIN_A).filter(k => k !== 'sma');
 describe('I02-I26 explainers on every fixture ticker', () => {
-  const fx = loadFixtures();
-  for (const key of Object.keys(TECH_EXPLAIN_A).filter(k => k !== 'sma')) it(key, () => {
-    for (const d of fx) {
-      const B: Bars = { T:d.T, O:d.O, H:d.H, L:d.L, C:d.C, V:d.V };
-      check(key, B, { ...DEFAULTS[key] }, sample(d.C.length), d.ticker);
-      if (['BBCA', 'CLAY', 'IHSG'].includes(d.ticker)) for (const v of VARIANTS[key] || []) check(key, B, { ...DEFAULTS[key], ...v }, sample(d.C.length), d.ticker);
-    }
-  }, SLOW);
+  for (const d of fx) describe(d.ticker, () => {
+    const B: Bars = { T:d.T, O:d.O, H:d.H, L:d.L, C:d.C, V:d.V }, ts = sample(d.C.length);
+    for (const key of KEYS) it(key, () => {
+      check(key, B, { ...DEFAULTS[key] }, ts, d.ticker);
+      if (['BBCA', 'CLAY', 'IHSG'].includes(d.ticker)) for (const v of VARIANTS[key] || []) check(key, B, { ...DEFAULTS[key], ...v }, ts, d.ticker);
+    }, SLOW);
+  });
 });
 
 describe('I02-I26 explainers restart after a candle with a missing input', () => {
-  const d = loadFixtures().find((x: any) => x.ticker === 'BBCA');
+  const d = fx.find((x: any) => x.ticker === 'BBCA');
   const gap = (a: any[], at: number[]) => a.map((v, i) => (at.includes(i) ? null : v));
   const B: Bars = { T:d.T, O:gap(d.O, [905]), H:gap(d.H, [700, 1201]), L:gap(d.L, [1200, 1201, 1202]), C:gap(d.C, [300, 1500]), V:d.V };
   const ts = [300, 700, 905, 1200, 1500].flatMap(g => Array.from({ length:64 }, (_, k) => g - 3 + k));
-  for (const key of Object.keys(TECH_EXPLAIN_A).filter(k => k !== 'sma')) it(key, () => {
+  for (const key of KEYS) it(key, () => {
     check(key, B, { ...DEFAULTS[key] }, ts, 'gaps');
     for (const v of (VARIANTS[key] || []).slice(0, 2)) check(key, B, { ...DEFAULTS[key], ...v }, ts, 'gaps');
   }, SLOW);

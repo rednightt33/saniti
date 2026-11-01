@@ -10,7 +10,8 @@ export const $ = (id: string): any => document.getElementById(id);
 
 export const store = {
   get(k: string): string | null { try{ return localStorage.getItem(k) }catch(e){ return null } },
-  set(k: string, v: string) { try{ localStorage.setItem(k,v) }catch(e){} }
+  set(k: string, v: string) { try{ localStorage.setItem(k,v) }catch(e){} },
+  remove(k: string) { try{ localStorage.removeItem(k) }catch(e){} }
 };
 
 export const nfCompact = new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});

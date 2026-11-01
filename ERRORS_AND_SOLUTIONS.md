@@ -5176,6 +5176,25 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** satu daftar punya satu pemilik; lapis lain memeriksa bentuk, tidak menyalin isi. Cek halaman lewat jalur
   yang dipakai user di mode live, bukan fixture.
 
+### M328 — Pengaturan RVOL (I37) menampilkan dua parameter yang tidak dibaca perhitungan (2026-11-01)
+
+- **Ditemukan oleh:** agen yang menulis langkah hitung kartu indikator (EXEC-IND-CARDS IC4), dicek ulang dari kode.
+- **Symptom:** dialog pengaturan RVOL dan tabel parameter kartunya menampilkan `include_current_bar` (default false,
+  petunjuk "Reference mean uses only prior bars if false") dan `reference_method` (`rolling_sma`). Mengubah keduanya
+  tidak mengubah angka.
+- **Verified cause:** `apps/edge-bff/terminal/src/calc/indicators.ts:484` selalu menghitung `V / SMA(V, n)` dengan bar
+  itu sendiri di dalam jendela (keputusan user 2026-10-25, INDICATOR_SPEC I37). `src/data/indRegistry.json` (I37) tetap
+  memuat kedua parameter, dengan default yang berlawanan dengan keputusan itu.
+- **Class:** parameter di registry yang tidak dibaca fungsi hitungnya. Pengaturan dan kartu lalu menjelaskan perhitungan
+  yang lain dari angka di chart. Ini bisa terjadi di indikator mana pun yang registry-nya dibuat dari workbook,
+  terpisah dari kode hitung.
+- **Usulan (belum dikerjakan, perlu keputusan user):**
+  - registry I37 tidak menawarkan kedua parameter itu (sesuai keputusan 2026-10-25);
+  - tes yang memeriksa setiap parameter registry benar-benar mengubah hasil hitung, untuk ke-53 indikator teknikal.
+- **Status:** OPEN.
+- **Lesson:** setiap parameter yang tampil ke user harus dibaca oleh perhitungan; buktikan dengan tes, bukan dengan
+  membaca registry.
+
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 
 - **Symptom:** user 2026-11-01: "saya ingat bahwa ada data yang di tahan di RAM / memory. Ini jg sempat menyebabkan

@@ -32,6 +32,39 @@ export function onCandles(json: string, barOf: (d: string) => string | null, las
   return JSON.stringify(doc);
 }
 
+/** EXEC-DRAW-ALL-TF (user 2026-11-01, "Ok C": one set of drawings for every timeframe, as TradingView): the set on a
+    daily, weekly or monthly chart. A point drawn on an intraday chart (its time a number, data/chartTime.ts) sits on the
+    candle of its session; on weekly or monthly candles every point sits on the candle that holds its date (onCandles).
+    A point after the last session keeps its date. */
+export function onDailyCandles(json: string, barOf: ((d: string) => string | null) | undefined, lastSession: string, coarse: boolean): string {
+  let doc: unknown;
+  try { doc = JSON.parse(json) } catch { return json }
+  const walk = (v: any): void => {
+    if (Array.isArray(v)) { v.forEach(walk); return }
+    if (!v || typeof v !== 'object') return;
+    if ('time' in v && 'price' in v && typeof v.time === 'number') {
+      const d = fromChart(v.time).slice(0, 10);
+      v.time = (d <= lastSession && barOf && barOf(d)) || d;
+    }
+    Object.values(v).forEach(walk);
+  };
+  walk(doc);
+  const out = JSON.stringify(doc);
+  return coarse && barOf ? onCandles(out, barOf, lastSession) : out;
+}
+
+/** EXEC-DRAW-ALL-TF: the drawings of the two sets kept before (daily, and intraday `.intraday`), one set: every drawing
+    once by its id (the first set's when both have it) */
+export function mergeSets(first: string, second: string): string {
+  let a: any[] = [], b: any[] = [];
+  try { a = JSON.parse(first || '[]') } catch { /* keep the other */ }
+  try { b = JSON.parse(second || '[]') } catch { /* keep the first */ }
+  if (!Array.isArray(a)) a = [];
+  if (!Array.isArray(b)) b = [];
+  const ids = new Set(a.map(d => d && d.id).filter(Boolean));
+  return JSON.stringify([...a, ...b.filter(d => !(d && d.id && ids.has(d.id)))]);
+}
+
 /** EXEC-INTRADAY-FEATURES C7.2 A: the intraday set on this timeframe's candles: a point (its time as the chart gives it,
     data/chartTime.ts) sits on the candle that holds its time, the last one opened at or before it; a point after the
     last candle (drawn into the future) or before the first keeps its time. */
@@ -41,7 +74,16 @@ export function onIntradayCandles(json: string, keys: string[]): string {
   const walk = (v: any): void => {
     if (Array.isArray(v)) { v.forEach(walk); return }
     if (!v || typeof v !== 'object') return;
-    if ('time' in v && 'price' in v && typeof v.time === 'number' && keys.length) {
+    /* EXEC-DRAW-ALL-TF: a point drawn on a daily, weekly or monthly chart (a date) sits on the first candle of its day,
+       or at the session's open (09:00 WIB) when the intraday history has no candle that day */
+    const date = typeof v?.time === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.time) ? v.time
+      : v?.time && typeof v.time === 'object' && 'year' in v.time ? `${v.time.year}-${String(v.time.month).padStart(2, '0')}-${String(v.time.day).padStart(2, '0')}` : null;
+    if (date && 'price' in v) {
+      let lo = 0, hi = keys.length;                                // the first key on or after the day
+      while (lo < hi) { const m = (lo + hi) >> 1; if (keys[m] < date) lo = m + 1; else hi = m }
+      v.time = toChart(lo < keys.length && keys[lo].startsWith(date) ? keys[lo] : `${date}T09:00`);
+    }
+    else if ('time' in v && 'price' in v && typeof v.time === 'number' && keys.length) {
       const k = fromChart(v.time);
       if (k >= keys[0] && k <= keys[keys.length - 1]) {
         let lo = 0, hi = keys.length - 1;                          // the last key at or before k
@@ -92,15 +134,18 @@ export function initDrawings(ctx: Ctx) {
 
   /* ---- persistence adapter (backend: replace the bodies with fetch calls) ---- */
   const tf = ctx.M.tf || 'D', barOf = ctx.M.barOf, lastSession = (ctx.endDates || dates)[dates.length - 1];
-  /* EXEC-INTRADAY-FEATURES C7.2 A (user 2026-11-01): the intraday timeframes keep one set of drawings of their own; the
-     daily set is not shown on them */
+  /* EXEC-DRAW-ALL-TF (user 2026-11-01, "Ok C", replacing C7.2 A): one set of drawings per ticker (and per Flow Timeline)
+     for every timeframe; each point keeps its own time and is shown on this timeframe's candle that holds it. The
+     intraday set kept apart before (`.intraday`) is merged into it once. */
   const intraday = !!ctx.M.intraday;
   const memos = new Map<string, TimeMemo>();                // F7: per saved set, the points this timeframe moved
   const repo = {
-    key: (symbol: string) => `ml.drawings.${symbol}${intraday ? '.intraday' : ''}`,
+    key: (symbol: string) => `ml.drawings.${symbol}`,
     load: (symbol: string) => {
+      const legacy = store.get(`${repo.key(symbol)}.intraday`);
+      if (legacy !== null) { store.set(repo.key(symbol), mergeSets(store.get(repo.key(symbol)) || '[]', legacy)); store.remove(`${repo.key(symbol)}.intraday`) }
       const json = store.get(repo.key(symbol)) || '[]';
-      const shown = intraday ? onIntradayCandles(json, dates) : tf !== 'D' && barOf ? onCandles(json, barOf, lastSession) : json;
+      const shown = intraday ? onIntradayCandles(json, dates) : onDailyCandles(json, barOf, lastSession, tf !== 'D');
       memos.set(symbol, shownTimes(json, shown));
       return Promise.resolve(shown);
     },
