@@ -1,18 +1,15 @@
 {
-  "prefix": "ma-event-insider-l3-20261026b",
-  "workers": 1,
-  "audit_wait_seconds": 0,
-  "items": [
-    {
-      "id": "a2_bbca_dividend_terms_analysis",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high",
-      "lane": "fast",
-      "expect": "EXEC-M223 L3 rerun through ANALYSIS (the first run was routed to FACT, which reads no warehouse data): amount_per_share, cum_date, record_date, pay_date of BBCA's latest dividend equal SQL",
-      "turns": [
-        "Berapa dividen tunai terakhir BBCA per lembar, dan kapan cum date, recording date dan tanggal pembayarannya?"
-      ],
-      "analysis_path": "ANALYSIS"
-    }
-  ]
+ "prefix": "ma-m308-20261101a",
+ "workers": 1,
+ "audit_wait_seconds": 0,
+ "items": [
+  {
+   "id": "w1_agenda_web",
+   "model": "deepseek/deepseek-v4.1-flash",
+   "reasoning_level": "high",
+   "lane": "fast",
+   "message": "Cari dari web: agenda ekonomi dan moneter Indonesia minggu depan (rilis data, rapat BI, data inflasi). Sebutkan tanggal dan sumbernya.",
+   "expect": "EXEC-M308 live check (web-governor 439f6771, orc d539b798): research_web returns sources, not SEARCH_FAILED"
+  }
+ ]
 }
