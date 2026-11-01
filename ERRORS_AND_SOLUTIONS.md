@@ -4810,11 +4810,20 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - **Memori:** setiap tulis besar ke Postgres (backfill, hitung ulang penuh) menyisakan cache yang ditagih sebagai
     memori sampai dibebaskan. Batas memori Postgres adalah satu-satunya pengaman.
   - **Resize:** resize volume diperlakukan sebagai perubahan yang bisa me-restart database.
-- **Solution:** belum ada perubahan.
-  - Usulan (keputusan user): turunkan batas memori Postgres, atau jadwalkan job besar dengan restart terencana
-    sesudahnya.
-  - Resize berikutnya dijalankan di luar jam pakai dan diumumkan sebagai jeda singkat.
-- **Status:** OPEN (biaya memori); restart sudah pulih.
+- **Solution:** keputusan user 2026-11-01: "Restart terencana Postgres sesudah setiap backfill besar. Memori langsung
+  bersih, dengan jeda sekitar satu menit."
+  - `scripts/restart_postgres.py` me-restart hanya bila semua syarat ini terpenuhi:
+    - memori Postgres per jam di atas 1,5 GB (diturunkan dari metrik Railway; biasanya 0,3–0,6 GB);
+    - tidak ada cron yang jatuh dalam 45 menit (jadwal dibaca dari Railway, tidak ditulis di kode);
+    - di luar jendela B6;
+    - tidak ada query klien yang sedang berjalan.
+  - Sesudah restart, script menunggu Postgres hidup dengan waktu start baru, lalu mengecek edge-bff `/ready`.
+  - Aturannya di AGENTS.md ("Postgres memory after large writes").
+  - Resize volume juga diperlakukan sebagai jeda singkat dan dijalankan di luar jam pakai.
+- **Cek 2026-11-01 06:26 UTC:** REFUSED karena memori 0,70 GB, tidak ada yang perlu dibebaskan; tidak ada cron dalam
+  ±45 menit; 0 query aktif.
+- **Belum diuji live:** mutasi `deploymentRestart`; restart pertama terjadi sesudah backfill besar berikutnya.
+- **Status:** FIXED sebagai prosedur; restart pertama lewat script menunggu backfill besar berikutnya.
 - **Lesson:** sesudah backfill besar, periksa memori Postgres per jam. Sebelum resize, anggap Postgres bisa restart.
 
 ### EXEC-TERMINAL-SOFTSEL — selesai (2026-10-31)

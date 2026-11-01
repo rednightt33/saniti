@@ -136,6 +136,16 @@ reads this table.
 
 Never commit secret values, database URLs, passwords, private keys, Railway tokens, Stockbit JWTs, or GitHub PATs. For a secret change, record only the variable name, Railway scope, action, and verification status. Redact secrets from logs and terminal output.
 
+## Postgres memory after large writes
+
+User decision 2026-11-01 (ERRORS M319): "Restart terencana Postgres sesudah setiap backfill besar. Memori langsung
+bersih, dengan jeda sekitar satu menit." After a backfill, a full recalculation or any job that writes millions of
+rows, and after its reader checks, run `python3 scripts/restart_postgres.py` (check), then with `--apply`.
+- The script restarts only when Postgres memory is above 1.5 GB, no cron is due within 45 minutes, the time is
+  outside the B6 windows, and no client statement is running.
+- It waits for Postgres and edge-bff `/ready`.
+- Record the restart in `RAILWAY_CHANGELOG.md`.
+
 ## History rules
 
 - Never edit an old migration after it has been applied. Add a new migration.
