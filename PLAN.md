@@ -1038,7 +1038,7 @@ Coba saja di explore pakai benchmark yang best practice."
   user; RT2 "go" Tahap 0 + 1 bersama Screener; RT3 target waktu; RT14 service menyala terus saat peluncuran (tidur di luar
   08:10-22:10 WIB hanya hemat ±USD 8,6/bulan, user pertama menunggu 14-27 s, dan kode harus diubah dulu).
 
-## TERMINAL-IND-CARDS — menu indikator seperti TradingView, tooltip, dan kartu "cara kerja" dengan contoh (permintaan 2026-10-31; menunggu review mockup bertab)
+## TERMINAL-IND-CARDS — menu indikator seperti TradingView, tooltip, dan kartu "cara kerja" dengan contoh (permintaan 2026-10-31; mockup disetujui 2026-11-01, menunggu rencana eksekusi)
 
 **Kata user, 2026-10-31:** "Kemudian saya mau ketika di bagian terminal kita klik indikator, maka bisa dibuat seperti
 screenshot terlampir. Dan juga ditambahkan semacam tooltip. Intinya adalah cards ya, atau ilustrasi how that indicator
@@ -1068,7 +1068,10 @@ HTML buat saya pilih. Pakai design spec terlampir."
   - Mockup baru: satu kartu bertab Kalkulator, Grafik, Langkah, juga ditampilkan sendiri; galeri lima desain dihapus.
     Data contoh tidak lagi memuat teks Screener. Dicek dengan playwright (desktop 1366, ponsel 390, mode gelap): tanpa
     error, tanpa scroll ke samping.
+- **Review mockup, 2026-11-01 (kata user):** "bagian star dibuat lebih besar spt SS terlampir. The rest sudah OK".
+  - Bintang favorit di menu diperbesar (20 px dalam tombol 30 px, abu-abu; terisi oranye). Dicek dengan playwright
+    di desktop dan ponsel.
+  - Bagian lain mockup disetujui.
 - **Terbuka:**
-  - persetujuan user atas mockup bertab;
   - lalu rencana eksekusi: langkah hitung "explain" per indikator yang memakai saham dan tanggal yang sedang dibuka,
     untuk 53 indikator teknikal dan 39 Flow.

@@ -9417,12 +9417,180 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
   - Terminal 1:1, Backtest E2E, Screener live;
   - jumlah objek dan byte per run harian sebelum dan sesudah.
 
-### C. Terminal 5M/15M/1H/4H (sesudah B untuk data intraday)
+### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; menunggu jawaban user atas pertanyaan C7)
 
-Seperti rencana R5:
-- tombol timeframe;
-- sumbu waktu WIB tanpa lubang jeda;
-- indikator per bar dengan `bars_per_year` dari manifest;
-- Flow dan Bandar tetap harian dengan label "harian";
-- catatan kedalaman data;
-- tes 1:1 dan live.
+**Permintaan user, 2026-11-01:** "Also generate plan juga untuk masukan data 5 15 1 jam dan 4 jam ke FE."
+
+Rencana ini mencakup bagian intraday dari B (file baru langsung dibuat dalam bentuk arsip + periode berjalan) dan C.
+Bagian B untuk dataset lama (pack harga harian, `xsection/price`) tetap rencana terpisah.
+
+**Fakta yang diperiksa (kode dan data live, 2026-11-01)**
+
+- **Kedalaman data (pgweb):**
+
+  | Timeframe | BBCA: bar, mulai | IHSG: bar | Isi partisi (perkiraan) | `bars_per_year` |
+  |---|---|---|---|---|
+  | 5m | 5.031, 2026-07-13 | 5.236 | 4,07 juta | 16.017 |
+  | 15m | 5.289, 2025-11-03 | 5.332 | 4,34 juta | 5.652 |
+  | 1h | 6.153, 2023-01-02 | 6.364 | 4,53 juta | 1.766 |
+  | 4h | 3.290, 2020-01-02 | 3.285 | 2,19 juta | 504 |
+
+  - Bar terakhir 2026-10-30. 832 saham punya bar 4h dalam 10 hari terakhir.
+  - `bar_time` adalah waktu buka bar (timestamptz; 02:00 UTC = 09:00 WIB); hanya bar `is_final` yang diterbitkan.
+  - `bars_per_year` diturunkan di `refresh_feature_01_stock_intraday` dari tabel kualitas
+    (`database/migrations/20261031_004_intraday_features.sql:173`).
+- **Jadwal:**
+  - `idx-intraday-cron` 10:30 UTC (17:30 WIB) Senin–Jumat;
+  - `terminal-publisher` 07:30 dan 19:00 WIB (`.railway/railway.ts:104,116`; `apps/terminal-publisher/publisher.py:23`);
+  - jadi intraday hari X masuk rak pukul 19:00 WIB hari X, asal cron intraday selesai sebelumnya (diukur di S4).
+- **Rak dan API sekarang:**
+  - publisher hanya menerbitkan harga harian, broker dan events (`PRICE_SQL`, `publisher.py:95-97`);
+  - terminal-api `/bundle` hanya menerima `price|broker|events` (`apps/terminal-api/app/main.py:81-88`);
+  - edge-bff meneruskan POST `files|bundle` (`apps/edge-bff/app/main.py:37`).
+- **Kuota pelanggan:** 60 file per jam dan 300 MB per 24 jam (`database/migrations/20261025_100_create_terminal_schema.sql:80,83`).
+  Membuka satu saham sekarang memakai ±5 file (`apps/edge-bff/terminal/src/data/live.ts:88-89`).
+- **Terminal:**
+  - semua waktu memakai tanggal `YYYY-MM-DD` (`data/types.ts:4-5`);
+  - timeframe hanya `D|W|M` (`data/timeframe.ts:9`); tombolnya memuat ulang halaman (`main.ts:38-48`);
+  - W dan M dibentuk dari harian: banyak sesi menjadi satu candle. Intraday kebalikannya: satu sesi menjadi banyak
+    candle. Semua bagian yang memetakan tanggal ke candle (`candleOf`, `buckets`, `alignCandles`, `barOf`) menganggap
+    satu candle berisi minimal satu sesi:
+    - Flow Timeline dan indikator Flow (`calc/flow.ts:53-62`, `data/worker.ts:154`);
+    - penanda events (`data/live.ts:298`);
+    - gambar (drawings) (`app/drawings.ts:40-45`);
+    - seri pembanding dan aset tambahan (`data/live.ts:267-281`);
+    - Statistics (`app/stats.ts:84`) dan jendela popout (`app/popout.ts:71`);
+  - sumbu waktu tidak menampilkan jam (`app/chart.ts:36`, `timeVisible:false`); daftar jumlah bar untuk 5M/15M/1H/4H
+    masih ada (`app/chart.ts:255`), tetapi tombolnya tidak ada.
+- **Indikator:** 53 indikator teknikal dihitung di browser dari harga. Tiga di antaranya bergantung pada timeframe
+  (`data/indRegistry.json`):
+  - I33 Historical Volatility: `annualization_periods` 252 (`main.ts:64-65` sudah menggantinya per timeframe);
+  - I43 VWAP: anchor `Session`, harus direset per sesi;
+  - I34 Average Daily Range: butuh bar harian (pilihan hanya `1D`).
+- **Broker:** indikator Flow (39 FL), panel Bandar dan Broker activity memakai data harian. Keputusan user 5 B
+  (2026-10-31): tetap tampil di intraday dengan label "harian".
+- **Memori Postgres (M319):** membaca seluruh 15 juta bar intraday di setiap run publisher (±2,3 GB partisi harga)
+  akan mengisi page cache yang ditagih sebagai memori.
+
+**Kelas masalah:** pembaca yang memberi kunci waktu berupa tanggal dan menganggap "satu candle ≥ satu sesi" akan salah
+untuk deret waktu yang lebih halus. Ini berlaku untuk saham intraday sekarang, dan nanti untuk data lintas aset atau
+makro dengan kalender lain. Perbaikannya di lapisan data (kunci waktu + peta sesi), bukan tambalan per panel.
+
+**C1. Publisher: file intraday (bagian intraday dari B)**
+- **Dataset `intraday` per saham × timeframe.**
+  - Kolom: `t` (detik epoch UTC, waktu buka bar), `o`, `h`, `l`, `c`, `v`.
+  - Meta: `timeframe`, `bars_per_year`, `utc_offset_seconds` (dari zona bursa Asia/Jakarta), bar pertama dan
+    terakhir.
+- **Diturunkan, tidak ditulis di kode:**
+  - daftar timeframe dibaca dari data;
+  - `bars_per_year` dari satu fungsi SQL yang dipakai bersama oleh Feature 01 intraday dan publisher, supaya
+    keduanya tidak bisa berbeda (migrasi baru; fungsi Feature 01 memanggilnya).
+- **Arsip + periode berjalan.**
+  - Panjang periode diturunkan dari byte per bar yang diukur: bulan untuk 5m dan 15m, tahun untuk 1h dan 4h (seperti
+    B).
+  - Arsip (semua periode tertutup dalam satu pack) ditulis ulang hanya bila periode tertutup berubah, misalnya koreksi
+    atau penskalaan sesudah split.
+- **Tanda perubahan tanpa membaca seluruh tabel.**
+  - Loader sudah tahu bar pertama yang berubah per (saham, timeframe) dalam statement yang sama
+    (`apps/idx-price-cron/intraday_update.py:164-171`).
+  - Antrean fitur tidak bisa dipakai, karena melewatkan IHSG (`intraday_update.py:166`).
+  - Usulan: statement yang sama juga menulis catatan kecil "yang berubah" untuk publisher, termasuk IHSG. Publisher
+    menerbitkan ulang mulai periode bar itu, lalu menyimpan penanda sampai mana ia sudah membaca.
+  - Bukti: `EXPLAIN (ANALYZE, BUFFERS)` menunjukkan publisher hanya membaca deret yang berubah.
+- **Manifest:** `datasets.intraday.{timeframe}` berisi file, `data_through` (bar terakhir), bar pertama (kedalaman)
+  dan `bars_per_year`.
+- **`verify`:** isi storage = SQL (jumlah bar semua saham, dan nilai 20 deret sampel).
+- **Ukuran:** 7–13 B per bar saham → BBCA 4 timeframe ±0,2 MB. Seluruh rak ±150 MB, tambah ±130 MB per tahun.
+
+**C2. terminal-api**
+- `/bundle` menerima `timeframe` opsional, dicek terhadap manifest saham itu (bukan daftar di kode).
+- Jawabannya: file arsip + periode berjalan untuk timeframe itu, di samping harga harian, broker dan events.
+- Kuota dan audit sama (satu baris audit). Route edge-bff tidak berubah.
+- Satu chart intraday memakai ±7 file (±5 sekarang + 2), jadi ±8 saham per jam masih di bawah 60 file. Kuota tidak
+  diubah.
+
+**C3. Terminal: kunci waktu dan peta sesi (perbaikan umum)**
+- **Kunci waktu dan peta sesi:**
+  - candle intraday memakai kunci waktu angka (detik epoch digeser ke WIB untuk tampilan); D, W dan M tetap tanggal;
+  - setiap candle membawa tanggal sesinya. Satu fungsi peta sesi menggantikan anggapan "satu candle ≥ satu sesi"
+    di semua bagian yang disebut di atas.
+- **Tombol** 5M 15M 1H 4H D W M:
+  - hanya timeframe yang ada di manifest saham itu yang aktif;
+  - pindah timeframe tetap memuat ulang halaman (file dari cache browser).
+- **Sumbu waktu:**
+  - jam tampil dalam WIB;
+  - bar berurutan tanpa lubang untuk istirahat siang dan malam;
+  - garis tipis di awal setiap sesi.
+- **Tampilan awal:** jumlah bar dari daftar yang sudah ada (`app/chart.ts:255`):
+
+  | Timeframe | Bar | Kira-kira |
+  |---|---|---|
+  | 5M | 170 | 2,5 sesi |
+  | 15M | 252 | 11 sesi |
+  | 1H | 430 | 3 bulan (±66 sesi) |
+  | 4H | 560 | 1 tahun |
+
+- **Catatan di chart:**
+  - kedalaman, misalnya "Riwayat 5M mulai 13 Jul 2026" (dari manifest);
+  - data terakhir, misalnya "Data sampai 30 Okt 2026 16:10 WIB" (intraday diperbarui sekali sesudah bursa tutup).
+- **Indikator teknikal:** dihitung per bar dengan kode yang sama.
+  - I33: `annualization_periods` = `bars_per_year` dari manifest.
+  - I43 VWAP: anchor `Session` direset di setiap sesi (peta sesi).
+  - I34: lihat pertanyaan C7.3.
+- **Statistics:** periode per tahun = `bars_per_year`. Relative performance memakai IHSG intraday timeframe yang sama.
+- **Seri pembanding dan aset tambahan:** intraday saham lain di timeframe yang sama, disejajarkan per waktu bar. Bar
+  yang tidak ada mengulang close terakhir, seperti sekarang.
+
+**C4. Flow, Bandar dan Broker di intraday (keputusan 5 B: label "harian")**
+- **Dihitung di grid sesi harian:** kode dan parameternya sama, jadi angkanya persis sama dengan chart D.
+- **Lalu digambar di candle intraday (usulan C7.1 A):**
+  - nilai hari d tampil mulai bar terakhir sesi d dan ditahan sampai bar terakhir sesi berikutnya, karena nilai
+    harian baru diketahui sesudah bursa tutup (tidak ada intipan ke depan);
+  - histogram net: satu batang per sesi di bar terakhirnya, sehingga total rentang yang terlihat tetap jumlah per hari.
+- **Label "harian"** di kepala Flow Timeline, legend indikator FL, panel Bandar dan Broker activity.
+- **Kalender rentang broker:** rentangnya tetap tanggal; digambar di intraday dari bar pertama tanggal awal sampai bar
+  terakhir tanggal akhir.
+
+**C5. Pengujian**
+- **Publisher:**
+  - tes bentuk dokumen, pembagian periode, dan tanda perubahan → file;
+  - `verify` storage = SQL.
+- **terminal-api:** tes `timeframe` (ada, tidak ada, salah) dan kuota.
+- **Terminal (vitest):**
+  - peta sesi dan penanda events;
+  - Flow tanpa intipan: nilai di bar b = nilai harian sesi terakhir yang sudah tutup pada atau sebelum b;
+  - VWAP reset per sesi; I33 dengan `bars_per_year`;
+  - D/W/M tidak berubah (cek 1:1 halaman referensi tetap PASS).
+- **Live (playwright):**
+  - BBCA, saham tidak likuid, IHSG, dan saham dengan riwayat 5m pendek;
+  - tiap timeframe, mode gelap dan ponsel;
+  - tanpa error konsol; waktu muat dengan `?perf=1`.
+- **Cek silang:** close bar 1h terakhir sebuah sesi = close harian sesi itu (identitas di Part A 15a).
+
+**C6. Urutan dan deploy (di luar jendela B6)**
+1. S4: periksa run 2026-11-02; ukur lama cron intraday; pastikan selesai sebelum publisher 19:00 WIB.
+2. C1:
+   - publisher, dengan migrasi catatan perubahan dan fungsi `bars_per_year` bersama;
+   - deploy;
+   - satu run manual untuk menerbitkan semua intraday (±15 juta bar, ±150 MB);
+   - `verify`;
+   - `scripts/restart_postgres.py` (bacaan besar, M319).
+3. C2: terminal-api, lalu deploy.
+4. C3–C4: Terminal, lalu deploy edge-bff.
+5. Catatan: ERRORS, changelog, dokumen terminal-api. Backtest, Screener dan AI tidak disentuh.
+
+**C7. Pertanyaan terbuka (dikirim ke user 2026-11-01)**
+1. **Flow dan Bandar di intraday:**
+   - (A, usulan) nilai harian ditahan dari tutup sesi sampai tutup sesi berikutnya, histogram di bar terakhir sesi;
+   - (B) nilai harian di semua bar sesi yang sama (terlihat seperti mengintip ke depan);
+   - (C) disembunyikan (menyimpang dari keputusan 5 B).
+2. **Gambar (drawings) di intraday:**
+   - (A, usulan) satu set terpisah untuk timeframe intraday; gambar harian tidak tampil di intraday;
+   - (B) gambar harian ikut tampil di intraday (dipetakan ke bar sesinya), gambar intraday disimpan terpisah;
+   - (C) satu set untuk semua timeframe.
+3. **I34 Average Daily Range di intraday:**
+   - (A, usulan) dihitung dari bar harian lalu ditahan seperti Flow;
+   - (B) disembunyikan di intraday.
+4. **Tanda perubahan untuk publisher:**
+   - (A, usulan) loader menulis catatan kecil per (saham, timeframe);
+   - (B) stempel atas seluruh tabel di setiap run: lebih sederhana, tetapi membaca ±2,3 GB per run (M319).
