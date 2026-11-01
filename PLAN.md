@@ -1051,7 +1051,12 @@ HTML buat saya pilih. Pakai design spec terlampir."
   dari registry Terminal (92 indikator) dan design spec user (`edge-design-spec.css`). Isinya: menu bergaya
   TradingView, tooltip saat hover, dan kartu A Ringkas, B Langkah, C Grafik, D Kalkulator, E Lengkap bertab.
 - **Contoh nyata:** FL24 BBCA 14–27 Okt 2026 = −5,62%, sama dengan oracle independen (`fl24_bbca_example.json`).
+- **Keputusan desain, 2026-11-01 (kata user):** "Saya minta opsi pertama adalah kalkulator, kedua adalah grafik,
+  ketiga adalah langkah. Ini dibuat jadi satu card saja dengan tab untuk ketiganya."
+  - Satu kartu, tiga tab berurutan: Kalkulator (D), Grafik (C), Langkah (B).
 - **Terbuka:**
-  - pilihan desain (satu atau gabungan);
+  - tooltip saat hover (usulan: tetap ringkas seperti A);
+  - apakah rumus, parameter dan hati-hati tetap tampil;
+  - mockup diperbarui dulu atau langsung ke Terminal;
   - lalu rencana eksekusi: langkah hitung "explain" per indikator yang memakai saham dan tanggal yang sedang dibuka,
     untuk 53 indikator teknikal dan 39 Flow.
