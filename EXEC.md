@@ -9417,7 +9417,7 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
   - Terminal 1:1, Backtest E2E, Screener live;
   - jumlah objek dan byte per run harian sebelum dan sesudah.
 
-### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; C7 diputuskan 2026-11-01; menunggu S4 dan go)
+### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; C7 diputuskan dan go 2026-11-01; dieksekusi)
 
 **Permintaan user, 2026-11-01:** "Also generate plan juga untuk masukan data 5 15 1 jam dan 4 jam ke FE."
 
@@ -9625,3 +9625,12 @@ adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher han
 - **Belum dimulai:** eksekusi menunggu
   - pengecekan S4 (run 2026-11-02);
   - konfirmasi "go" dari user, seperti disampaikan ke user 2026-11-01.
+
+**Go user, 2026-11-01 (kata user):** "Maksudnya gimana? Kenapa kita nggak langsung deploy saja? Chart terminal 5, 15,
+1 jam, dan 4 jam sekarang terminal. Agar terdisplay di terminal. Kenapa kita harus menunggu setelah pengecekan besok?"
+- Dibaca sebagai go untuk C1–C4 sekarang, tanpa menunggu S4. Alasannya:
+  - tampilan hanya butuh data yang sudah ada (sampai 2026-10-30, hari bursa terakhir);
+  - hari ini Minggu, jadi tidak ada run cron intraday.
+- Perubahan kecil loader (catatan perubahan, C7.4 A) ikut di-deploy hari ini dan dicek bersama S4 pada run
+  2026-11-02.
+- Deploy bertahap, di luar jendela B6.

@@ -1,6 +1,7 @@
 /* The data the terminal draws, in the reference page's own shapes (03-terminal-right-panel.html). Two sources fill it:
    fixture.ts (the reference's synthetic generator, for the 1:1 check) and live.ts (the published files of the rack). */
 import type { FlowRows } from '../calc/flow';
+import type { Timeframe } from './timeframe';
 
 export interface Bar { time: string; open: number; high: number; low: number; close: number }
 export interface Point { time: string; value: number }
@@ -68,7 +69,7 @@ export interface MarketData {
   logos?: Record<string, string>;
   /** live (EXEC-TERMINAL-WM): the timeframe of the candles, each candle's last session date and the candle that holds
       a date (drawings, G1); absent in the fixture (daily) */
-  tf?: 'D' | 'W' | 'M';
+  tf?: Timeframe;
   endDates?: string[];
   barOf?(date: string): string | null;
   /** live (EXEC-TERMINAL-FRESH): each dataset's last date from the manifest; sessions after `broker` have no broker
@@ -78,6 +79,14 @@ export interface MarketData {
       the fixture (its Add Series panel stays the reference's) */
   loadAsset?(ticker: string): Promise<Bar[]>;
   loadAssetFlow?(ticker: string): Promise<AssetFlow>;
+  /** live (EXEC-INTRADAY-FEATURES C3): the intraday timeframes the ticker has (its /bundle answer) */
+  timeframes?: string[];
+  /** live: why the chart is not the timeframe asked (the ticker lacks it) */
+  note?: string;
+  /** live, on an intraday chart (C3-C4): the daily sessions behind the daily figures, their price rows, the session each
+      candle shows (timeframe.ts dayOfCandles), the timeframe's bars per year and its first and last bar */
+  intraday?: { dayOf: Int32Array; days: string[]; daily: { d: string; o: number; h: number; l: number; c: number; v: number | null }[];
+    barsPerYear?: number; first?: string; last?: string };
   /** what the live page cannot show yet (approved formulas pending); the fixture shows everything */
   hide: { brokerGauge: boolean; bandar: boolean };
 }

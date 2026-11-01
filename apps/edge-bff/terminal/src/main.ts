@@ -29,16 +29,29 @@ import { initReorder } from './ui/reorder';
 import { initFullscreen } from './ui/fullscreen';
 import { initPopout } from './app/popout';
 import { initAssets } from './app/assets';
-import { asTimeframe, PERIODS_PER_YEAR, type Timeframe } from './data/timeframe';
+import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
+import { keyedCharts } from './data/chartTime';
 
 /* EXEC-TERMINAL-WM (user 2026-10-27: "time frame ditambah weekly dan monthly"), live: D, W and M. The page's sections
    take the candles once when they start, so another timeframe is remembered and the page loads again (its files come
    from the browser cache); the same button again brings back the first view of the timeframe. */
 let liveCtx: Ctx | null = null;
+/* EXEC-INTRADAY-FEATURES C3 (user 2026-11-01): the intraday timeframes before D, W and M, those the ticker's /bundle
+   answer lists (remembered for the next load, so the buttons are there before the data); one the ticker lacks is off */
+const intradayOrder = (tfs: string[]) => tfs.filter(isIntraday).sort((a, b) => (parseInt(a) * (a.endsWith('h') ? 60 : 1)) - (parseInt(b) * (b.endsWith('h') ? 60 : 1)));
+function paintTimeframes(tf: Timeframe, offered: string[], have?: string[]) {
+  const group = $('timeframeGroup') as HTMLElement;
+  group.innerHTML = [...intradayOrder(offered), 'D', 'W', 'M'].map(t => {
+    const off = !!have && isIntraday(t) && !have.includes(t);
+    const title = off ? `${tfTitle(t as Timeframe)}: not published for this ticker` : tfTitle(t as Timeframe);
+    return `<button type="button" data-timeframe="${t}" title="${title}" aria-label="${title}" aria-pressed="${t === tf}" class="${t === tf ? 'active' : ''}"${off ? ' disabled' : ''}>${tfLabel(t as Timeframe)}</button>`;
+  }).join('');
+}
 function timeframeButtons(): Timeframe {
   const tf = asTimeframe(store.get('ml.tf')), group = $('timeframeGroup') as HTMLElement;
-  const label: Record<Timeframe, string> = { D:'Daily', W:'Weekly', M:'Monthly' };
-  group.innerHTML = (['D', 'W', 'M'] as Timeframe[]).map(t => `<button type="button" data-timeframe="${t}" title="${label[t]}" aria-label="${label[t]}" aria-pressed="${t === tf}" class="${t === tf ? 'active' : ''}">${t}</button>`).join('');
+  let offered: string[] = [];
+  try { offered = JSON.parse(store.get('ml.tfs') || '[]') } catch {}
+  paintTimeframes(tf, isIntraday(tf) && !offered.includes(tf) ? [...offered, tf] : offered);
   group.addEventListener('click', (e: any) => {
     const b = e.target.closest('button'); if (!b) return;
     e.stopImmediatePropagation();                           // the reference's handler only zooms
@@ -53,16 +66,18 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   if (!container) return null;
   const ohlc = M.ohlc;
   const ctx = {
-    M, L, SYMBOL:M.symbol, INSTRUMENTS:M.instruments, container,
+    M, L:M.intraday ? keyedCharts(L) : L, SYMBOL:M.symbol, INSTRUMENTS:M.instruments, container,
     dates:ohlc.map(b => b.time), ohlc, volume:M.volume, lineData:M.lineData,
     closes:ohlc.map(b => b.close), N:ohlc.length, idxByTime:new Map(ohlc.map((b, i) => [b.time, i])),
     active:new Map(), catalog:M.catalog, rawSeries, IND_REG
   } as unknown as Ctx;
-  ctx.brokerEnd = brokerEnd(ctx.dates, M.through?.broker);
   ctx.endDates = M.endDates || ctx.dates;
-  // EXEC-TERMINAL-WM: an annualising input's default follows the candles (registry: "252 only proposed for daily")
+  // an intraday candle has broker data when its session has (its key is later than the date)
+  ctx.brokerEnd = brokerEnd(M.intraday ? ctx.endDates : ctx.dates, M.through?.broker);
+  // EXEC-TERMINAL-WM: an annualising input's default follows the candles (registry: "252 only proposed for daily");
+  // an intraday timeframe's bars per year come from its manifest (EXEC-INTRADAY-FEATURES C3)
   if (M.tf && M.tf !== 'D') for (const ind of IND_REG as any[]) for (const inp of ind.params || [])
-    if (inp.k === 'annualization_periods') inp.def = PERIODS_PER_YEAR[M.tf];
+    if (inp.k === 'annualization_periods') inp.def = periodsPerYear(M.tf, M.intraday?.barsPerYear);
 
   setLogos(M.logos);                                       // live only: the fixture has no logos (1:1 check)
   initChart(ctx);
@@ -85,6 +100,9 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   if (M.mode === 'live') initAssets(ctx);                  // EXEC-TERMINAL-ASSETS: added assets and their Flow Timelines
   if (M.mode === 'live') document.querySelector('#symbolPill .exchange')?.remove();   // EXEC-TERMINAL-FULL-2: no "IDX" label
   if (M.mode === 'live') liveCtx = ctx;                     // the timeframe buttons reset the view through it
+  // EXEC-INTRADAY-FEATURES C4 (user 2026-11-01): on an intraday chart Broker activity and the Bandar detector are daily
+  if (M.intraday) document.querySelector('#brokerPanel .side-title strong')?.insertAdjacentHTML('afterend',
+    '<span class="flow-daily" title="Broker data is daily: each day’s figures, shown on that day’s candles">Daily</span>');
   return ctx;
 }
 
@@ -146,7 +164,16 @@ function boot() {
   ($('chart')?.parentElement || document.body).appendChild(loading);
   mark('page script');
   const tf = timeframeButtons();
-  liveData(stored, tf).then(M => { loading.remove(); const ctx = start(M, {}); mark('chart drawn'); if (ctx) later(ctx, M) }, e => { loading.remove();
+  liveData(stored, tf).then(M => {
+    loading.remove();
+    if (M.timeframes) {                                     // the ticker's timeframes: the buttons, and the next load's
+      store.set('ml.tfs', JSON.stringify(M.timeframes));
+      paintTimeframes(M.tf || 'D', M.timeframes, M.timeframes);
+    }
+    const ctx = start(M, {}); mark('chart drawn');
+    if (M.note) { const n = notice(M.note); setTimeout(() => n.remove(), 6000) }
+    if (ctx) later(ctx, M);
+  }, e => { loading.remove();
     fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.') });
 }
 

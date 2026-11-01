@@ -1,0 +1,20 @@
+{
+ "mode": "DRYRUN",
+ "migrations": ["20261101_001_intraday_publish.sql"],
+ "probes": [
+  ["bars_per_year_shared", null, "SELECT timeframe, public.intraday_bars_per_year(timeframe) FROM (SELECT DISTINCT timeframe FROM public.price_stock_idx_intraday_quality) t ORDER BY 1"],
+  ["f01_sum_before", null, "SELECT count(*), md5(string_agg(concat_ws('|',ticker,bar_time,close_1bar_ago,return_5bar_pct,volatility_20bar_ann_pct,volatility_60bar_change_pct,volume_zscore_20bar,drawdown_60bar_pct,bars_per_year),',' ORDER BY ticker,bar_time)) FROM public.\"Feature_01_Stock_Intraday\" WHERE timeframe='1h' AND ticker IN ('BBCA','PBSA','AALI') AND bar_time >= timestamptz '2026-10-01 00:00+07'"],
+  ["f01_1h_from", null, "SELECT public.refresh_feature_01_stock_intraday('1h', ARRAY['BBCA','PBSA','AALI'], timestamptz '2026-10-01 00:00+07')"],
+  ["f01_sum_after", null, "SELECT count(*), md5(string_agg(concat_ws('|',ticker,bar_time,close_1bar_ago,return_5bar_pct,volatility_20bar_ann_pct,volatility_60bar_change_pct,volume_zscore_20bar,drawdown_60bar_pct,bars_per_year),',' ORDER BY ticker,bar_time)) FROM public.\"Feature_01_Stock_Intraday\" WHERE timeframe='1h' AND ticker IN ('BBCA','PBSA','AALI') AND bar_time >= timestamptz '2026-10-01 00:00+07'"],
+  ["change_insert", null, "INSERT INTO public.intraday_publish_change (ticker, timeframe, changed_from) VALUES ('IHSG', '5m', timestamptz '2026-10-30 09:00+07') RETURNING ticker, timeframe, changed_from, changed_at"],
+  ["change_merge", null, "INSERT INTO public.intraday_publish_change AS p (ticker, timeframe, changed_from) VALUES ('IHSG', '5m', timestamptz '2026-10-30 15:00+07') ON CONFLICT (ticker, timeframe) DO UPDATE SET changed_from = CASE WHEN p.changed_at >= statement_timestamp() - interval '14 days' THEN least(p.changed_from, EXCLUDED.changed_from) ELSE EXCLUDED.changed_from END, changed_at = statement_timestamp() RETURNING changed_from"],
+  ["reader_bars", "terminal_market_reader", "SELECT count(*), min(bar_time), max(bar_time) FROM public.price_stock_idx_intraday WHERE ticker = 'BBCA' AND timeframe = '1h'"],
+  ["reader_last", "terminal_market_reader", "SELECT max(bar_time) FROM public.price_stock_idx_intraday WHERE ticker = 'BBCA' AND timeframe = '5m'"],
+  ["reader_tf", "terminal_market_reader", "SELECT timeframe, public.intraday_bars_per_year(timeframe) FROM (SELECT DISTINCT timeframe FROM public.price_stock_idx_intraday_quality) t ORDER BY 1"],
+  ["reader_tz", "terminal_market_reader", "SELECT timezone_name FROM public.\"Equity_Market_Schedule\" WHERE market_code = 'IDX'"],
+  ["reader_changes", "terminal_market_reader", "SELECT ticker, timeframe, changed_from FROM public.intraday_publish_change WHERE changed_at > now() - interval '1 day'"],
+  ["explain_series", null, "EXPLAIN (ANALYZE, BUFFERS) SELECT extract(epoch FROM bar_time)::bigint, open::float8, high::float8, low::float8, close::float8, volume::float8 FROM public.price_stock_idx_intraday WHERE ticker = 'BBCA' AND timeframe = '5m' AND bar_time >= timestamptz '2026-10-01 00:00+07' AND bar_time < timestamptz '9999-01-01' ORDER BY bar_time"],
+  ["explain_last", null, "EXPLAIN (ANALYZE, BUFFERS) SELECT max(bar_time) FROM public.price_stock_idx_intraday WHERE ticker = 'BBCA' AND timeframe = '5m'"],
+  ["catalog", null, "SELECT (SELECT count(*) FROM public.\"Table_Catalog\" WHERE table_name = 'intraday_publish_change'), (SELECT count(*) FROM public.\"Column_Catalog\" WHERE table_name = 'intraday_publish_change'), (SELECT related_functions FROM public.\"Table_Catalog\" WHERE table_name = 'Feature_01_Stock_Intraday')"]
+ ]
+}

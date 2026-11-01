@@ -160,6 +160,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:1px solid 
 .timeframes button,.tool-btn,.segmented button,.series-chip,.icon-btn{border-radius:6px;color:var(--text-2);font-weight:500;height:30px}
 .timeframes button:hover,.tool-btn:hover,.segmented button:hover,.series-chip:hover,.icon-btn:hover{background:var(--hover);color:var(--text)}
 .timeframes button.active,.tool-btn.active,.segmented button.active{background:var(--sel);color:var(--text);font-weight:600}
+/* EXEC-INTRADAY-FEATURES C3: an intraday timeframe the ticker does not have */
+.timeframes button:disabled{opacity:.35;cursor:not-allowed;background:none}
 .add-series-btn{border-radius:6px;height:30px;width:30px;font-size:18px;color:var(--text-2);border-color:var(--border);background:var(--surface)}
 .add-series-btn:hover{background:var(--hover);color:var(--text)}
 .series-chip{border-color:var(--border);background:var(--surface);color:var(--text)}
@@ -1032,3 +1034,6 @@ html.fit .ind-row:not(:hover):not(:focus-within) .ind-eye:not([aria-pressed="fal
 /* - phone (audit V5): the centre column's single track is as wide as the screen; it took the toolbar's width (432 px on
      a 390 px phone), so the chart and its right axis ran 42 px past the edge */
 html.fit .main-col{grid-template-columns:minmax(0,1fr)}
+
+/* EXEC-INTRADAY-FEATURES C4: the broker figures on an intraday chart are daily */
+.flow-daily{font-size:11px;font-weight:600;color:var(--text-2,#666);background:var(--hover,#f1f5f9);border-radius:4px;padding:1px 6px}

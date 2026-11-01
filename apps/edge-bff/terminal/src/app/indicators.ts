@@ -9,6 +9,8 @@ import { F } from '../calc/indicators';
 import { initFlowIndicators } from './flowIndicators';
 import type { Ctx } from './context';
 import { $, nfCompact, rupiah, store } from './context';
+import { keyedMarkers } from '../data/chartTime';
+import { onCandles } from '../data/timeframe';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
@@ -20,6 +22,14 @@ export function initIndicators(ctx: Ctx) {
 
   /* ---- registry indicators ---- */
   const BARS = { O:ohlc.map(b => b.open), H:ohlc.map(b => b.high), L:ohlc.map(b => b.low), C:ohlc.map(b => b.close), V:volume.map(v => v.value), T:ohlc.map(b => b.time) };
+  /* EXEC-INTRADAY-FEATURES C4 (user 2026-11-01, "3A"): an indicator the registry defines on daily bars only (its
+     `timeframe` input offers just 1D, e.g. Average Daily Range) is computed on the daily sessions on an intraday chart and
+     drawn like the Flow: an earlier day's value on its candles, the latest day's from its last candle */
+  const DAY = ctx.M.intraday;
+  const DAILY_BARS = DAY && { O:DAY.daily.map(r => r.o), H:DAY.daily.map(r => r.h), L:DAY.daily.map(r => r.l), C:DAY.daily.map(r => r.c),
+    V:DAY.daily.map(r => r.v ?? 0), T:DAY.days };
+  const dailyOnly = r => (r.params || []).some(q => q.k === 'timeframe' && Array.isArray(q.opts) && q.opts.length === 1 && q.opts[0] === '1D');
+  const onTheCandles = o => { const out = {}; for(const k of Object.keys(o)) out[k] = Array.isArray(o[k]) ? onCandles(o[k], DAY.dayOf) : o[k]; return out };
   const smart = v => { const a = Math.abs(v); return a === 0 ? '0' : a < .01 ? v.toExponential(2) : a < 1e4 ? v.toFixed(2) : nfCompact.format(v) };
   /* number format follows the workbook's Y-axis unit, so a new unit only needs a rule here */
   const unitFormat = unit =>
@@ -54,7 +64,7 @@ export function initIndicators(ctx: Ctx) {
       id:r.key, name:r.name, reg:r, multi:true, inputs, style:[], fill:fill && fill.length === 2 ? fill : null,
       pane:r.zone === 'panel' ? 'sub' : r.zone,              // 'overlay' (candle pane, price axis) | 'volume' (volume axis) | 'sub' (own pane)
       format:u.fmt, minMove:u.minMove,
-      compute:p => F[r.key](BARS, p),
+      compute:p => DAY && dailyOnly(r) ? onTheCandles(F[r.key](DAILY_BARS, p)) : F[r.key](BARS, p),
       validate:p => {                                          // "fast < (middle <) slow", "short < long" — derived from the parameter names
         for(const keys of ORDER_KEYS){
           const have = keys.filter(k => k in p);
@@ -266,7 +276,7 @@ export function initIndicators(ctx: Ctx) {
         const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
         if(pt.plugin && pt.host !== host) { pt.plugin.detach(); pt.plugin = null }
         if(!pt.plugin) { pt.plugin = L.createSeriesMarkers(host, []); pt.host = host }
-        pt.plugin.setMarkers(vis ? a.flatMap((v, i) => v === 1 ? [{ time:T(i), position:'belowBar', color:c1, shape:'arrowUp', size:1 }] : []) : []);
+        pt.plugin.setMarkers(keyedMarkers(vis ? a.flatMap((v, i) => v === 1 ? [{ time:T(i), position:'belowBar', color:c1, shape:'arrowUp', size:1 }] : []) : []));
         return;
       }
       if(pt.kind === 'hist') {

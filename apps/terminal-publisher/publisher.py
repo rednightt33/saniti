@@ -16,6 +16,9 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   events        only the event files of tickers whose idx_event_annotation rows changed.
   logos         every ticker's logo (EXEC-TERMINAL-LOGO); `daily` also refreshes them when the index is > 7 days old.
   packs         every ticker's packs (EXEC-TERMINAL-SPEED); the other modes keep the packs of the tickers they touch.
+  intraday      every ticker's intraday files (EXEC-INTRADAY-FEATURES C1; initial load, TERMINAL_TICKERS to limit it);
+                `daily` and `backfill` publish them too: daily only the series of intraday_publish_change rows written
+                since its last run (C7.4 A), backfill every series.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
 `price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward.
@@ -54,6 +57,13 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
                                    still written, unchanged, for the readers that open them by name
   pack/{ticker}/price.<sha>.json.gz      every price year in one file (the chart's only download)
   pack/{ticker}/broker-archive.<sha>.json.gz   broker rows of every year before the last two (the last two stay yearly)
+  intraday/{ticker}/{tf}-archive.<sha>.json.gz, intraday/{ticker}/{tf}-<period>.<sha>.json.gz
+                                   EXEC-INTRADAY-FEATURES C1 (user 2026-11-01): the bars of price_stock_idx_intraday per
+                                   ticker and timeframe, columns t (bar open, epoch seconds UTC),o,h,l,c,v; the current
+                                   period (a month or a year, intraday_period) and one archive of every bar before it. On
+                                   an ordinary day only the current period is written again. Listed in the manifest's
+                                   `intraday` {tf: {files: {archive, current}, first, last, rows, bars_per_year,
+                                   timezone, utc_offset_seconds, period, current}}
   xsection/{name}.<sha16>.json.gz  cross-sectional files for the screener-worker (EXEC-SCREENER, P1 a, user
                                    2026-10-28): `price` (every published ticker's final daily rows from its first year,
                                    one columnar file; each ticker's slice equals its price pack) and `actions` (the
@@ -87,6 +97,8 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+
+from zoneinfo import ZoneInfo
 
 import psycopg
 
@@ -135,6 +147,38 @@ EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(in
 # EXEC-TERMINAL-FRESH (user 2026-10-27): final daily price sessions that have no broker data yet
 BEHIND_SQL = ('SELECT count(DISTINCT date) FROM public."Price_Stock_Indonesia_IDX" '
               "WHERE timeframe = 'Daily' AND is_final AND date > %s")
+# ---- EXEC-INTRADAY-FEATURES C1 (user 2026-11-01): intraday bars (migration 20261101_001) --------------------------
+# the timeframes are those the quality table holds, each with the one bars-per-year definition Feature 01 also uses
+INTRADAY_TIMEFRAMES_SQL = ('SELECT timeframe, public.intraday_bars_per_year(timeframe) FROM '
+                           '(SELECT DISTINCT timeframe FROM public.price_stock_idx_intraday_quality) t ORDER BY 1')
+MARKET_TZ_SQL = 'SELECT timezone_name FROM public."Equity_Market_Schedule" WHERE market_code = %s'
+MARKET_CODE = 'IDX'
+# one primary-key walk per series (ticker, timeframe, bar_time)
+INTRADAY_LAST_SQL = 'SELECT max(bar_time) FROM public.price_stock_idx_intraday WHERE ticker = %s AND timeframe = %s'
+INTRADAY_SQL = ('SELECT extract(epoch FROM bar_time)::bigint, open::float8, high::float8, low::float8, close::float8, '
+                'volume::float8 FROM public.price_stock_idx_intraday WHERE ticker = %s AND timeframe = %s '
+                'AND bar_time >= %s AND bar_time < %s ORDER BY bar_time')
+INTRADAY_VERIFY_SQL = ('SELECT count(*), min(extract(epoch FROM bar_time))::bigint, max(extract(epoch FROM bar_time))::bigint, '
+                       'coalesce(sum(close), 0)::float8 FROM public.price_stock_idx_intraday WHERE ticker = %s '
+                       'AND timeframe = %s AND bar_time >= %s AND bar_time < %s')
+# C7.4 A: the series the loader wrote since the last run (changed_from: their first written bar)
+INTRADAY_CHANGES_SQL = ('SELECT ticker, timeframe, changed_from, changed_at FROM public.intraday_publish_change '
+                        'WHERE changed_at > %s')
+DB_NOW_SQL = 'SELECT statement_timestamp()'
+INTRADAY_COLUMNS = ['t', 'o', 'h', 'l', 'c', 'v']
+# a change record is read again for this long after the last run saw it (a loader statement that committed after the
+# publisher read the table carries an earlier changed_at); republishing unchanged bars uploads nothing (content keys)
+INTRADAY_CHANGE_OVERLAP = dt.timedelta(hours=6)
+# the loader keeps the earliest changed bar for PUBLISH_MERGE_DAYS (14, intraday_update.py); a daily run whose last
+# intraday run is older than this republishes every series instead of trusting the record
+INTRADAY_FULL_AFTER_DAYS = 7
+# the current period is a month when a year of the timeframe's bars would pass INTRADAY_CURRENT_MAX_BYTES, else a year:
+# 5m (16,017 bars a year) and 15m (5,652) by month, 1h (1,766) and 4h (504) by year (bars_per_year on dev 2026-11-01).
+# INTRADAY_BYTES_PER_BAR: gzip bytes per stock bar measured 7-13 on BBCA and PBSA (EXEC-INTRADAY-FEATURES, 2026-10-31)
+INTRADAY_BYTES_PER_BAR = 12
+INTRADAY_CURRENT_MAX_BYTES = 50_000
+EPOCH = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+END_OF_TIME = dt.datetime(9999, 1, 1, tzinfo=dt.timezone.utc)
 BROKERS_SQL = ('SELECT broker_code, broker_name, broker_type, broker_classification FROM public."IDX_Broker_Profile" '
                'ORDER BY 1')
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry" FROM public."IDX_Stock_Universe" '
@@ -225,7 +269,7 @@ CHECK_AFTER_MINUTES = 30
 RUN_ALERT_MINUTES = 30
 HEALTH_SOURCE = 'Terminal_Publisher_Health'
 # the step a failed put belongs to, by its key's first part (a failed run's alert names it)
-PUT_STEPS = {'price': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'xsection': 'xsection',
+PUT_STEPS = {'price': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'intraday': 'intraday', 'xsection': 'xsection',
              'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs'}
 # cleanup_baseline gives up after this long and the run publishes without a cleanup (one hung listing page must not
 # hold the publication; the two listings take about 2 s on dev)
@@ -324,9 +368,10 @@ def content_key(family, ticker, name, sha):
 
 
 def named_keys(manifest):
-    """Every object key (without v1/) a manifest names: its dataset files and its packs."""
+    """Every object key (without v1/) a manifest names: its dataset files, its packs and its intraday files."""
     entries = [f for ds in (manifest or {}).get('datasets', {}).values() for f in ds.get('files', {}).values()]
     entries += list((manifest or {}).get('packs', {}).values())
+    entries += [f for series in (manifest or {}).get('intraday', {}).values() for f in series.get('files', {}).values()]
     return {e['key'][len(PREFIX) + 1:] for e in entries if str(e.get('key', '')).startswith(f'{PREFIX}/')}
 
 
@@ -481,6 +526,26 @@ def stream_rows(conn, sql, params, size=10_000):
 def price_pack_doc(ticker, rows):
     """pack/{ticker}/price: every published price year of the ticker in one file (EXEC-TERMINAL-SPEED)."""
     return {**price_doc(ticker, None, rows), 'dataset': 'price-pack'}
+
+
+def intraday_period(bars_per_year):
+    """'month' or 'year': the length of the current period of a timeframe (INTRADAY_CURRENT_MAX_BYTES)."""
+    return 'month' if bars_per_year * INTRADAY_BYTES_PER_BAR > INTRADAY_CURRENT_MAX_BYTES else 'year'
+
+
+def period_start(at, period, tz):
+    """The period that holds the instant `at` in the exchange's zone -> (its id '2026-11' or '2026', its start)."""
+    local = at.astimezone(tz)
+    if period == 'month':
+        return f'{local.year:04d}-{local.month:02d}', dt.datetime(local.year, local.month, 1, tzinfo=tz)
+    return f'{local.year:04d}', dt.datetime(local.year, 1, 1, tzinfo=tz)
+
+
+def intraday_doc(ticker, timeframe, part, rows):
+    return {'schema_version': SCHEMA_VERSION, 'dataset': 'intraday', 'ticker': ticker, 'timeframe': timeframe,
+            'part': part, 'units': {'t': 'bar open time, seconds since 1970-01-01 UTC',
+                                    'o': 'IDR per share (index points for an index)', 'v': 'shares'},
+            'columns': INTRADAY_COLUMNS, **columnar(rows, INTRADAY_COLUMNS)}
 
 
 # ---- cross-sectional files (EXEC-SCREENER) --------------------------------------------------------------------------
@@ -781,6 +846,8 @@ class Publisher:
         self.loaded_named = {}                              # ticker -> the keys its manifest named when it was read
         self.replaced = None                                # the keys this run's publication stopped naming (run())
         self.finished_at = None                             # this run's state.json finished_at (still_current)
+        self.intraday_seen = None                           # the newest change record this run published (state.json)
+        self.market_tz = None                               # the exchange's zone (intraday periods and offsets)
 
     def step(self, name):
         """Enter step `name`; the time since the previous step is booked on that one (the done line's phases)."""
@@ -904,6 +971,93 @@ class Publisher:
             rows = self.conn.execute(BROKER_SQL, (ticker, f'{self.broker_first_year}-01-01', f'{hi}-12-31')).fetchall() if hi >= self.broker_first_year else []
             doc = {**broker_doc(ticker, None, rows), 'dataset': 'broker-archive', 'years': span}
             self.put_pack(ticker, 'broker-archive', doc, rows, {'years': span})
+
+    # ---- intraday files (EXEC-INTRADAY-FEATURES C1, user 2026-11-01) ------------------------------------------------
+    def intraday_plan(self, mode, kind, state, only=None):
+        """-> (series to publish [(ticker, timeframe, first changed bar or None for the whole series)], timeframes
+        {tf: {bars_per_year, period}}, the change time this run publishes up to). backfill and intraday: every series
+        (intraday: `only` tickers, which publishes nothing up to a time). daily: the series of intraday_publish_change
+        rows written since the last run saw one, read again for INTRADAY_CHANGE_OVERLAP; every series when the last
+        run is older than INTRADAY_FULL_AFTER_DAYS or never ran. Other modes: none."""
+        previous = state.get('intraday_change_seen')
+        previous = dt.datetime.fromisoformat(previous) if previous else None
+        if mode not in ('daily', 'backfill', 'intraday'):
+            return [], {}, previous
+        timeframes, unknown = {}, []
+        for tf, per_year in self.conn.execute(INTRADAY_TIMEFRAMES_SQL).fetchall():
+            if per_year:
+                timeframes[tf] = {'bars_per_year': int(per_year), 'period': intraday_period(int(per_year))}
+            else:
+                unknown.append(tf)                       # no COMPLETE session yet: no bars per year, not published
+        zone = self.conn.execute(MARKET_TZ_SQL, (MARKET_CODE,)).fetchone()
+        self.market_tz = ZoneInfo(zone[0]) if zone else None
+        if not timeframes or self.market_tz is None:
+            log('intraday_skipped', reason='no timeframe with bars per year' if self.market_tz else 'no market time zone',
+                without_bars_per_year=unknown)
+            return [], {}, previous
+        now = self.conn.execute(DB_NOW_SQL).fetchone()[0]
+        full = mode in ('backfill', 'intraday') or previous is None or now - previous > dt.timedelta(days=INTRADAY_FULL_AFTER_DAYS)
+        if full:
+            tickers = [t for t in (only or kind) if t in kind] if mode == 'intraday' else list(kind)
+            todo = [(t, tf, None) for t in tickers for tf in timeframes]
+            seen = previous if (mode == 'intraday' and only) else now
+        else:
+            rows = self.conn.execute(INTRADAY_CHANGES_SQL, (previous - INTRADAY_CHANGE_OVERLAP,)).fetchall()
+            todo = sorted((t, tf, changed) for t, tf, changed, _ in rows if t in kind and tf in timeframes)
+            seen = max([previous] + [at for *_, at in rows])
+        log('planning', step='intraday', series=len(todo), full=full, timeframes=timeframes,
+            without_bars_per_year=unknown, seen_before=previous.isoformat() if previous else None)
+        return todo, timeframes, seen
+
+    def publish_intraday(self, ticker, tf, meta, changed_from):
+        """One series: its current period file and, when needed, its archive (every bar before the current period):
+        the whole series (changed_from None), a change before the current period, a new period, or no archive yet.
+        -> True when the manifest's entry changed."""
+        m = self.manifest(ticker)
+        series = m.setdefault('intraday', {})
+        was = json.dumps(series.get(tf), sort_keys=True)
+        last = self.conn.execute(INTRADAY_LAST_SQL, (ticker, tf)).fetchone()[0]
+        if last is None:
+            gone = series.pop(tf, None) is not None
+            if not series:
+                m.pop('intraday', None)
+            if gone:
+                self.changed.add(('intraday', ticker, tf))
+            return gone
+        cur_id, cur_start = period_start(last, meta['period'], self.market_tz)
+        files = dict((series.get(tf) or {}).get('files', {}))
+        iso = lambda t: dt.datetime.fromtimestamp(t, dt.timezone.utc).isoformat()
+
+        def put(part, name, lo, hi, previous):
+            rows = self.conn.execute(INTRADAY_SQL, (ticker, tf, lo, hi)).fetchall()
+            if not rows:
+                if files.pop(part, None) is not None:
+                    self.changed.add(('intraday', ticker, tf))
+                return
+            body, sha = encode(intraday_doc(ticker, tf, name, rows))
+            key, uploaded = self.store(previous, 'intraday', ticker, f'{tf}-{name}', body, sha)
+            if uploaded:
+                self.changed.add(('intraday', ticker, tf))
+            files[part] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
+                           'first': iso(rows[0][0]), 'last': iso(rows[-1][0]), 'from': lo.isoformat(),
+                           'to': None if hi == END_OF_TIME else hi.isoformat()}
+
+        put('current', cur_id, cur_start, END_OF_TIME, files.get('current', {}))
+        archive = files.get('archive')
+        if (changed_from is None or archive is None or archive.get('to') != cur_start.isoformat()
+                or changed_from < cur_start):
+            put('archive', 'archive', EPOCH, cur_start, archive or {})
+        if not files:
+            series.pop(tf, None)
+        else:
+            parts = [files[p] for p in ('archive', 'current') if p in files]
+            series[tf] = {'files': files, 'period': meta['period'], 'current': cur_id,
+                          'bars_per_year': meta['bars_per_year'], 'timezone': str(self.market_tz),
+                          'utc_offset_seconds': int(last.astimezone(self.market_tz).utcoffset().total_seconds()),
+                          'first': parts[0]['first'], 'last': parts[-1]['last'], 'rows': sum(p['rows'] for p in parts)}
+        if not series:
+            m.pop('intraday', None)
+        return json.dumps(series.get(tf), sort_keys=True) != was
 
     # ---- cross-sectional files (EXEC-SCREENER, P1 a, user 2026-10-28; report 6.5) ------------------------------------
     def xsection_price(self, kind, touched):
@@ -1116,7 +1270,7 @@ class Publisher:
         previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
         # the full cleanup after state.json needs what the bucket held before this run wrote anything (collect_garbage)
         before = self.cleanup_baseline() if sweep else None
-        if mode in ('daily', 'backfill', 'packs', 'events'):          # the modes that read (nearly) every manifest
+        if mode in ('daily', 'backfill', 'packs', 'events', 'intraday'):   # the modes that read (nearly) every manifest
             loaded = time.monotonic()
             self.load_manifests(kind)
             log('planning', step='manifests read', tickers=len(kind), seconds=round(time.monotonic() - loaded, 1),
@@ -1140,7 +1294,7 @@ class Publisher:
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
-        elif mode in ('logos', 'packs'):
+        elif mode in ('logos', 'packs', 'intraday'):
             todo = []
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ == 'stock']
@@ -1166,6 +1320,18 @@ class Publisher:
             touched.add(ticker)
             if n % 200 == 0:
                 log('progress', step='packs', done=n, of=len(pack_tickers), written=self.written, mb=round(self.bytes / 1e6, 1))
+        # EXEC-INTRADAY-FEATURES C1: the intraday files after the packs, before the manifests that name them
+        self.step('intraday')
+        series, timeframes, self.intraday_seen = self.intraday_plan(mode, kind, state, only)
+        changed_series = 0
+        for n, (ticker, tf, changed_from) in enumerate(series, 1):
+            if self.publish_intraday(ticker, tf, timeframes[tf], changed_from):
+                touched.add(ticker)
+                changed_series += 1
+            if n % 500 == 0:
+                log('progress', step='intraday', done=n, of=len(series), written=self.written, mb=round(self.bytes / 1e6, 1))
+        if series:
+            log('intraday', series=len(series), changed=changed_series, written=self.written, mb=round(self.bytes / 1e6, 1))
         # EXEC-SCREENER: the xsection files after the files and packs (a pack the price file finds stale is republished
         # here, so its manifest is saved below) and before state.json, which indexes them. A file whose rebuild fails
         # keeps its previous entry; the Terminal's and the Backtest's publication goes on.
@@ -1210,7 +1376,9 @@ class Publisher:
             'broker_behind_sessions': self.broker_behind,
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
-            'refs': self.refs, 'finished_at': self.finished_at}).encode(), 'application/json')
+            'refs': self.refs,
+            'intraday_change_seen': self.intraday_seen.isoformat() if self.intraday_seen else state.get('intraday_change_seen'),
+            'finished_at': self.finished_at}).encode(), 'application/json')
         self.step('cleanup')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind,
@@ -1458,13 +1626,16 @@ BROKER_VERIFY_SQL = ('SELECT count(*), min(trade_date)::text, max(trade_date)::t
                      'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE ticker=%s AND trade_date BETWEEN %s AND %s')
 
 
-def verify(conn, bucket):
-    """Every published file against SQL: rows, first/last date and column sums."""
+def verify(conn, bucket, only=None):
+    """Every published file against SQL: rows, first/last date and column sums (`only`: those tickers, without the
+    cross-sectional and reference files)."""
     first_year, last_year = window()
     universe = conn.execute(UNIVERSE_SQL).fetchall()
     checked = bad = 0
     pack_sha = {}                                           # ticker -> its price pack's sha256 (verify_xsection)
     for ticker, _, typ, *_ in universe:
+        if only and ticker not in only:
+            continue
         m = bucket.get_json(f'manifest/{ticker}.json')
         if not m:
             log('verify_missing_manifest', ticker=ticker)
@@ -1503,11 +1674,40 @@ def verify(conn, bucket):
                 if not same:
                     bad += 1
                     log('verify_mismatch', ticker=ticker, dataset=dataset, year=year, file=got, sql=sql_row)
+        i_checked, i_bad = verify_intraday(conn, bucket, ticker, m)
+        checked, bad = checked + i_checked, bad + i_bad
+    if only:
+        log('verify_done', files=checked, mismatches=bad, tickers=sorted(only))
+        return bad
     x_checked, x_bad = verify_xsection(conn, bucket, {t: typ for t, _, typ, *_ in universe}, pack_sha)
     r_checked, r_bad = verify_refs(bucket)
     checked, bad = checked + x_checked + r_checked, bad + x_bad + r_bad
     log('verify_done', files=checked, mismatches=bad, window=[first_year, last_year])
     return bad
+
+
+def verify_intraday(conn, bucket, ticker, m):
+    """EXEC-INTRADAY-FEATURES C1: each intraday file of a manifest: its bytes as named, and its rows, first and last bar
+    and sum of closes equal to SQL over the file's bounds (from, to). -> (files checked, mismatches)."""
+    checked = bad = 0
+    for tf, series in sorted(m.get('intraday', {}).items()):
+        for part, f in sorted(series.get('files', {}).items()):
+            checked += 1
+            body = bucket.get_raw(f['key'][len(PREFIX) + 1:])
+            if body is None or hashlib.sha256(body).hexdigest() != f['sha256']:
+                bad += 1
+                log('verify_bad_object', ticker=ticker, dataset='intraday', timeframe=tf, part=part)
+                continue
+            doc = json.loads(gzip.decompress(body))
+            lo = dt.datetime.fromisoformat(f['from']) if f.get('from') else EPOCH
+            hi = dt.datetime.fromisoformat(f['to']) if f.get('to') else END_OF_TIME
+            n, first, last, total = conn.execute(INTRADAY_VERIFY_SQL, (ticker, tf, lo, hi)).fetchone()
+            got = (len(doc['t']), doc['t'][0] if doc['t'] else None, doc['t'][-1] if doc['t'] else None, sum(doc['c']))
+            if got[:3] != (n, first, last) or abs(got[3] - total) > max(1.0, abs(total) * 1e-9) or len(doc['t']) != f['rows']:
+                bad += 1
+                log('verify_mismatch', ticker=ticker, dataset='intraday', timeframe=tf, part=part, file=got,
+                    sql=(n, first, last, total))
+    return checked, bad
 
 
 def verify_refs(bucket):
@@ -1759,9 +1959,9 @@ def main(argv):
     try:
         with psycopg.connect(os.environ['TERMINAL_PUBLISHER_DATABASE_URL'], autocommit=True) as conn:
             bucket = Bucket()
-            if mode == 'verify':
-                return 1 if verify(conn, bucket) else 0
             only = [t.strip().upper() for t in os.environ.get('TERMINAL_TICKERS', '').split(',') if t.strip()] or None
+            if mode == 'verify':
+                return 1 if verify(conn, bucket, only) else 0
             pub = Publisher(conn, bucket)
             if mode == 'daily':
                 minutes = int(os.environ.get('TERMINAL_RUN_ALERT_MINUTES') or RUN_ALERT_MINUTES)

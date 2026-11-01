@@ -259,8 +259,10 @@ export function initChart(ctx: Ctx) {
 
 
   updateMainDisplay();
-  // EXEC-TERMINAL-WM: about a year of daily candles, two years of weekly, ten years of monthly
-  const firstBars = ({ D:252, W:104, M:120 } as Record<string, number>)[ctx.M.tf || 'D'];
+  // EXEC-TERMINAL-WM: about a year of daily candles, two years of weekly, ten years of monthly; EXEC-INTRADAY-FEATURES C3:
+  // the reference's bar counts of its intraday buttons (5M 170, 15M 252, 1H 430, 4H 560), and its time on the axis
+  const firstBars = ({ D:252, W:104, M:120, '5M':170, '15M':252, '1H':430, '4H':560 } as Record<string, number>)[(ctx.M.tf || 'D').toUpperCase()] || 252;
+  if (ctx.M.intraday) chart.applyOptions({ timeScale:{ timeVisible:true, secondsVisible:false } });
   chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
   ctx.resetRange = () => chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
 

@@ -1,5 +1,5 @@
 /* LEFT PANEL — Statistics (visible-range, collapsible, accordion), reference lines 1400-1655. */
-import { PERIODS_PER_YEAR, UNIT } from '../data/timeframe';
+import { periodsPerYear, UNIT } from '../data/timeframe';
 import type { Ctx } from './context';
 import { $, avgOf, cls, empty, median, pct, row, spin, store } from './context';
 
@@ -81,7 +81,7 @@ export function initStats(ctx: Ctx) {
   /* ---- series derived once over the full history ---- */
   /* EXEC-TERMINAL-WM: weekly and monthly candles annualise with 52 and 12 periods and say weeks / months; the weekday
      seasonality has no meaning there and is switched off; daily (and the fixture) keep the reference's words */
-  const TF = ctx.M.tf || 'D', U = UNIT[TF], PER = PERIODS_PER_YEAR[TF];
+  const TF = ctx.M.tf || 'D', U = UNIT[TF], PER = periodsPerYear(TF, ctx.M.intraday?.barsPerYear);   // intraday: the manifest's bars per year
   if(TF !== 'D'){
     const small = (sec: string, text: string) => { const el = document.querySelector(`#statsPanel .st[data-sec="${sec}"] .st-head small`); if(el) el.textContent = text };
     const short = TF === 'W' ? 'W' : 'M', word = TF === 'W' ? 'week' : 'month';
@@ -144,8 +144,8 @@ export function initStats(ctx: Ctx) {
     const pts = data.map((v,i)=>`${(i/n*SW).toFixed(1)},${(SH-4-(v-lo)/span*(SH-8)).toFixed(1)}`);
     return `<polygon points="0,${SH-4-(0-lo)/span*(SH-8)} ${pts.join(' ')} ${SW},${SH-4-(0-lo)/span*(SH-8)}" fill="${fill}"/>`;
   };
-  const fmtDay = (i: number) => new Date(dates[i]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'});
-  const fmtTick = (i: number, long: boolean) => { const d = new Date(dates[i]+'T00:00:00Z');
+  const fmtDay = (i: number) => new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit',timeZone:'UTC'});
+  const fmtTick = (i: number, long: boolean) => { const d = new Date(dates[i].slice(0,10)+'T00:00:00Z');
     return long ? d.toLocaleDateString('en-US',{month:'short',year:'2-digit',timeZone:'UTC'}).replace(' ', " '")
                 : d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}) };
   const yPct = (v: number, lo: number, hi: number) => (SH-4-(v-lo)/((hi-lo)||1)*(SH-8))/SH*100;
@@ -201,7 +201,7 @@ export function initStats(ctx: Ctx) {
       rows = buckets.map((x,i)=>({k:names[i], v:x.length ? avgOf(x)*100 : null, n:x.length, unit:'monthly observations'}));
     } else {
       const buckets: number[][] = [[],[],[],[],[]];
-      for(let i=Math.max(1,a);i<=b;i++){ const d = new Date(dates[i]+'T00:00:00Z').getUTCDay(); if(d>=1&&d<=5) buckets[d-1].push(dayRet[i]) }
+      for(let i=Math.max(1,a);i<=b;i++){ const d = new Date(dates[i].slice(0,10)+'T00:00:00Z').getUTCDay(); if(d>=1&&d<=5) buckets[d-1].push(dayRet[i]) }
       const names = ['MON','TUE','WED','THU','FRI'];
       rows = buckets.map((x,i)=>({k:names[i], v:x.length ? avgOf(x)*100 : null, n:x.length, unit:'sessions'}));
     }
@@ -219,7 +219,7 @@ export function initStats(ctx: Ctx) {
     const [a,b] = visRange(); renderSeasonality(a,b);
   };
 
-  const shortDate = (d: string) => new Date(d+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
+  const shortDate = (d: string) => new Date(d.slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
   const renderStats = () => {
     if(ws.classList.contains('left-collapsed')) return;
     const [a,b] = visRange();

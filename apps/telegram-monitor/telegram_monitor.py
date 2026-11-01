@@ -263,7 +263,7 @@ class PublisherHealth:
 HEALTH_ID = re.compile(r"^terminal-publish-(manual-)?\d{4}-\d{2}-\d{2}-\d{4}(-slow|-partial)?$")
 HEALTH_STAGES = {
     "connect": "koneksi database", "start": "persiapan", "plan": "perencanaan", "files": "menulis file data",
-    "packs": "menulis paket harga", "xsection": "file Screener", "manifests": "menulis daftar isi",
+    "packs": "menulis paket harga", "intraday": "menulis harga intraday", "xsection": "file Screener", "manifests": "menulis daftar isi",
     "refs": "file referensi", "state": "menulis state.json", "cleanup": "bersih-bersih",
 }
 HEALTH_FILES = {
