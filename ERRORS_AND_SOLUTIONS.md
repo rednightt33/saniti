@@ -2392,6 +2392,22 @@ change yet.
   - Jendela 19–23 Okt, aksi BUY: 272 kunci, jumlah semua baris Rp16.485.000.975.587, sesudah kembar lintas sumber
     diambil sekali Rp12.414.182.494.587 (3 kunci). WIFI SINERGI GRAHA KAPITAL 2026-10-19 Rp4,06 triliun ada di IDX dan
     KSEI.
+- **Kejadian kedua (2026-11-01, run `edge_dd6cf8828a6c54d53f3aed3c6d82e17b`, uji live 2026-10-29):**
+  - Pertanyaan: return saham yang dibeli insider 19–23 Okt.
+  - AI meminta kolom `action, price, value_idr, holder_name, holder_role, shares_change, pct_after` tanpa
+    `data_origin` (log orc deployment `89084f73`, iterasi 5). Karena itu kembarnya tidak terlihat.
+  - Jawabannya menyebut 376 transaksi dan kolom "Transaksi" per saham (`n_events`).
+  - Job read-only `8468806c` (orc-test-runner, 2026-11-01):
+    - jendela itu berisi 376 baris (IDX 161, KSEI 215) dan 355 kunci;
+    - 4 kunci ada di kedua sumber, jadi 372 transaksi bila kembar dihitung sekali;
+    - hitungan berlebih: ENRG 9→8, GULA 2→1, UVCR 2→1, WIFI 3→2;
+    - pada ENRG, baris KSEI ber-`price` 0 dan `value_idr` 0, sedangkan baris IDX Rp135,4 miliar (M242);
+    - return per saham tidak terpengaruh, karena harga awalnya diambil dari close tanggal beli pertama.
+  - Job `a0464497`: 17 baris berulang di satu sumber dalam jendela itu adalah transaksi berbeda (harga dan
+    `shares_after` berbeda), bukan ganda.
+  - Seluruh tabel saat ini: 1.240 kunci kembar (2.515 baris) dari 104.037 baris insider.
+  - Katalog AI masih menulis "one row per event". `value_idr` dan `shares_change` masih boleh `SUM`, termasuk
+    `cross_entity_aggregation` SUM.
 - **Class:** tabel yang menggabungkan fakta yang sama dari beberapa sumber laporan tanpa penanda baris utama; setiap
   jumlah, hitung atau peringkat terlalu besar. Berlaku juga untuk data makro dan lintas aset yang direncanakan (CPI
   dari BPS dan vendor, kurs JISDOR dan vendor, harga obligasi dari beberapa feed).
