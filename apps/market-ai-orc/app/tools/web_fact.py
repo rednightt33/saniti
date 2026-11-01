@@ -64,7 +64,9 @@ def model_view(result: dict[str, Any]) -> dict[str, Any]:
                      for v in (result.get("versions") or [])[:4]],
         "sources_read": len(result.get("sources") or []),
         "note": ("Cite this as a web source with its domains. CONFLICTING: state every version. PARTIAL or "
-                 "NOT_FOUND: say the fact is not confirmed; do not fill it in from memory."),
+                 "NOT_FOUND: say the fact is not confirmed; do not fill it in from memory. UNAVAILABLE: no search "
+                 "could run, so nothing was searched: say the web cannot be searched right now, not that the fact "
+                 "was not found."),
     }
 
 

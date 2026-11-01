@@ -148,6 +148,8 @@ class Settings:
     slots: tuple[ModelSlot, ...] = ()
     default_slot: int = 1
     fetch_timeout_seconds: int = 20
+    key_check_seconds: int = 900  # M308: how often the OpenRouter key is checked (0 = never)
+    key_low_usd: int = 2  # M308: below this many USD left the check logs the state LOW
     fetch_max_bytes: int = 5_000_000
     fetch_max_redirects: int = 3
     fetch_max_pdf_pages: int = 60
@@ -249,6 +251,8 @@ class Settings:
             slots=_slots(env, model, max_output_tokens, engine),
             default_slot=_integer(env, "WEB_DEFAULT_SLOT", 1, maximum=MODEL_SLOT_COUNT),
             fetch_timeout_seconds=_integer(env, "WEB_FETCH_TIMEOUT_SECONDS", 20, maximum=60),
+            key_check_seconds=_integer(env, "WEB_PROVIDER_KEY_CHECK_SECONDS", 900, minimum=0, maximum=86400),
+            key_low_usd=_integer(env, "WEB_PROVIDER_KEY_LOW_USD", 2, minimum=0, maximum=1000),
             fetch_max_bytes=_integer(env, "WEB_FETCH_MAX_BYTES", 5_000_000, minimum=10_000, maximum=20_000_000),
             fetch_max_redirects=_integer(env, "WEB_FETCH_MAX_REDIRECTS", 3, minimum=0, maximum=5),
             fetch_max_pdf_pages=_integer(env, "WEB_FETCH_MAX_PDF_PAGES", 60, maximum=300),

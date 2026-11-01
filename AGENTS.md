@@ -136,6 +136,8 @@ reads this table.
 
 Never commit secret values, database URLs, passwords, private keys, Railway tokens, Stockbit JWTs, or GitHub PATs. For a secret change, record only the variable name, Railway scope, action, and verification status. Redact secrets from logs and terminal output.
 
+Railway resolves a reference variable (`${{service.NAME}}`) when the referencing service is deployed. After a secret or any referenced variable changes at its source, list its consumers with `python3 scripts/railway_reference_consumers.py <service>.<NAME>` and redeploy each of them (`--redeploy`, with the user's approval for the change); a consumer left undeployed keeps the old value (ERRORS M308: web search refused for 13 days on the OpenRouter key of an older deploy). The script reads the consumers from the live project and prints names and references only.
+
 ## Postgres memory after large writes
 
 User decision 2026-11-01 (ERRORS M319): "Restart terencana Postgres sesudah setiap backfill besar. Memori langsung

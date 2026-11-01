@@ -45,6 +45,7 @@ WORDS = {
     "FACT": "data pasar", "WEB": "sumber web",
     # the outcome of a web lookup (research_web, find_web_fact)
     "OK": "ditemukan", "PARTIAL": "sebagian", "NOT_FOUND": "tidak ditemukan",
+    "UNAVAILABLE": "pencarian web sedang tidak bisa dipakai",
     "BUDGET_EXHAUSTED": "batas biaya habis", "CONFIRMED": "terkonfirmasi", "CONFLICTING": "sumbernya berbeda",
     # EXEC-FRICTION (M142): why a step or a draft was refused (execution.hurdles)
     "RELATIONSHIP_KEY_MISMATCH": "kunci penggabungan tabel tidak sesuai",
