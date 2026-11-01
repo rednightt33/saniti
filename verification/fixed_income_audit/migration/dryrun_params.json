@@ -1,0 +1,6 @@
+{"mode": "DRYRUN", "migrations": ["20261101_002_fixed_income_session_start.sql"],
+ "probes": [
+  ["schedule", null, "SELECT market_code, source_date_mapping, provider_timezone_name, provider_session FROM public.\"Fixed_Income_Market_Schedule\" ORDER BY 1"],
+  ["check", null, "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'Fixed_Income_Market_Schedule_source_date_mapping_check'"],
+  ["catalog", null, "SELECT left(definition, 80) FROM public.\"Column_Catalog\" WHERE table_name = 'Fixed_Income_Market_Schedule' AND column_name = 'source_date_mapping'"]
+ ]}

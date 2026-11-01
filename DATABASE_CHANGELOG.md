@@ -1,5 +1,17 @@
 # Database changelog
 
+## 2026-11-01 — EXEC-FI-DATE: fixed-income date rule PROVIDER_SESSION_START (ERRORS M323); correction dry run (M324)
+
+- Migration `20261101_002_fixed_income_session_start.sql` (sha256 cf3a5308…), DRYRUN then APPLY on orc-test-runner:
+  - guard: every enabled market has `provider_session` and `provider_timezone_name`;
+  - `Fixed_Income_Market_Schedule.source_date_mapping` CHECK accepts `PROVIDER_SESSION_START`; ID and US set to it;
+  - column comment and `Column_Catalog` row updated.
+  - Read back: ID `PROVIDER_SESSION_START` America/New_York 1700-1700; US `PROVIDER_SESSION_START` America/New_York
+    1900-1730. Logs: `verification/fixed_income_audit/migration/`.
+- `Price_Fixed_Income` correction (M324), DRYRUN only so far (`verification/fixed_income_audit/correct_job.py`, three
+  source pulls per series with the ingest client): 153 rows to write (97 corrected, 56 added), 0 to delete; US10Y yield
+  history left as stored. Nothing written; APPLY waits for the user's look at `CORRECTION_LIST.md`.
+
 ## 2026-11-01 — EXEC-INTRADAY-FEATURES C1: intraday change record, shared bars per year, intraday files in the rack
 
 User decisions 2026-11-01 (EXEC.md EXEC-INTRADAY-FEATURES C7): "Opsi 1, 4A, 2A dan 3A ok"; go "Kenapa kita nggak

@@ -4944,12 +4944,19 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - Mulai run 2026-11-03, setiap bar AS ditulis satu hari kerja terlambat.
 - **Class:** aturan tanggal yang dibakukan per pasar dalam waktu UTC, padahal sumber memberi label dalam zona waktu
   dengan pergantian musim. Berlaku untuk setiap sumber dengan label lokal, termasuk data lintas aset dan makro nanti.
-- **Solution (usulan, menunggu go):**
-  - tanggal dibaca dari label dalam zona sumber terhadap `provider_session` jadwal pasar (seperti `session_date` di
-    `audit.py`), bukan dari kalender UTC;
-  - tes di sekitar pergantian DST dan hari libur;
-  - deploy sebelum 2026-11-02 23:00 UTC.
-- **Status:** OPEN.
+- **Solution (go user 2026-11-01, EXEC-FI-DATE):**
+  - aturan baru `PROVIDER_SESSION_START` (`resolve_bar_date`, `DATE_MAPPING_VERSION` `provider-session-start-v5`):
+    label dibaca dalam zona sumber terhadap jam mulai `provider_session` jadwal pasar; label pada/sesudah jam mulai
+    milik sesi hari berikutnya, akhir pekan maju ke Senin. Tidak ada tanggal DST yang ditulis di kode: zona waktu dan
+    jam sesi diambil dari jadwal dan basis data zona waktu;
+  - `check_unique_dates` menolak seri bila dua bar jatuh di satu tanggal (`SOURCE_DATE_COLLISION`), jadi perubahan
+    label sumber berhenti dengan galat, tidak ditulis diam-diam;
+  - tes dengan label asli di kedua sisi DST (43 tes lulus);
+  - migrasi `20261101_002_fixed_income_session_start.sql` (DRYRUN lalu APPLY, sha256 cf3a5308…): CHECK menerima nilai
+    baru, ID dan US memakai `PROVIDER_SESSION_START`, dibaca balik;
+  - deploy 2026-11-01 10:42 UTC, keempat layanan SUCCESS (fixed-income-price-cron 2380bba7, -recovery-cron 08f878ad,
+    -us-cron e04ef6f6, -us-recovery-cron 2d48b547).
+- **Status:** FIXED (deployed dan dimigrasi 2026-11-01). Cek terbuka: run AS pertama dalam EST, 2026-11-02 23:00 UTC.
 - **Lesson:** aturan tanggal dari label sumber harus diverifikasi di kedua sisi pergantian DST, bukan hanya pada
   data terbaru.
 
@@ -4968,12 +4975,36 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   dengan sumber (REPORT.md).
 - **Class:** baris yang ditulis sebelum aturan tanggal final dan revisi sumber di luar jendela koreksi tidak pernah
   diperiksa ulang terhadap sumber.
-- **Solution (usulan, menunggu go):**
-  - koreksi sekali dari tarikan ulang sumber dengan aturan tanggal M323, lewat upsert loader sendiri;
-  - dry-run daftar perubahan lebih dulu;
-  - audit ini dijadikan pemeriksaan berkala.
-- **Status:** OPEN.
-- **Lesson:** setelah aturan tanggal sumber berubah, bandingkan seluruh riwayat dengan sumber sekali.
+- **Verified 2026-11-01 — kenapa hari yang hilang tidak pernah terisi sendiri** (`Monitoring_Fixed_Income`, `.railway/railway.ts`):
+  1. Layanan recovery menjalankan `fixed_income_update.py --mode recovery` (`.railway/railway.ts:53` dan `:148`), yang
+     hanya mengulang sesi terakhir satu jam kemudian. `recovery_window.py` (5 sesi) tidak dipakai layanan mana pun.
+     Bukti: setiap baris RECOVERY punya tanggal target sama dengan DAILY hari itu; ID 2026-10-26 PARTIAL (8 seri
+     kosong: ID01Y, ID03Y, ID25Y, ID30Y harga dan yield) tidak pernah dicoba lagi.
+  2. Andai dipakai, `recovery_window.correction_target_dates` hanya menambah tanggal hilang yang lebih baru dari tanggal
+     tersimpan terakhir, dan `load_targets` membaca tanggal per pasar (harga saja), bukan per seri. Lubang di tengah
+     atau lubang satu seri tidak pernah terlihat.
+  3. ID 2026-10-12 s.d. 10-20: DAILY dan RECOVERY SKIPPED `NO_CURRENT_CANDLE` selama transisi aturan tanggal; 10-13
+     s.d. 10-20 terisi kemudian, 10-12 tidak.
+  4. AS 2026-10-21: tidak ada run sama sekali (DAILY 10-20 23:00 lalu langsung DAILY 10-22 23:09). Penyebab belum
+     diverifikasi (dugaan: cron tidak terpicu); cek: riwayat cron/deployment `fixed-income-price-us-cron` sekitar
+     2026-10-21 23:00 UTC.
+- **Class:** pemulihan memilih tanggal dari isi tabel sendiri, bukan dari kalender sumber per seri; satu run yang
+  terlewat atau satu seri yang terlambat jadi lubang permanen. Berlaku untuk setiap loader harian dengan pola
+  daily+recovery, termasuk data lintas aset dan makro nanti.
+- **Solution (go user 2026-11-01, EXEC-FI-DATE):**
+  - koreksi sekali dari tarikan ulang sumber dengan aturan tanggal M323, lewat `validate_price_row` dan
+    `bulk_upsert_prices` loader sendiri (`verification/fixed_income_audit/correct_job.py`);
+  - tiga tarikan per seri: bar tersimpan yang sama dengan salah satu versi sumber dibiarkan; koreksi atau tambah hanya
+    bila ketiga tarikan sepakat; hapus hanya tanggal yang tidak ada di tarikan mana pun;
+  - DRYRUN 2026-11-01 10:54 UTC: 153 baris ditulis (97 dikoreksi, 56 ditambah), 0 dihapus; US10Y yield dibiarkan (sumber
+    memberi dua versi riwayat 2016-2024 bergantian, setiap bar tersimpan sama dengan salah satunya), 3 tanggal 2019/2020
+    tidak stabil. Daftar: `verification/fixed_income_audit/CORRECTION_LIST.md`, log `correct_dryrun.log`.
+  - APPLY menunggu user melihat daftar.
+  - Usulan permanen (menunggu go): recovery memilih tanggal dari bar sumber terakhir per seri (bukan dari isi tabel),
+    dan pemeriksaan konsensus mingguan dengan peringatan Telegram.
+- **Status:** IN PROGRESS (dry-run selesai, APPLY menunggu user).
+- **Lesson:** setelah aturan tanggal sumber berubah, bandingkan seluruh riwayat dengan sumber sekali. Tanggal yang harus
+  diperiksa ulang diambil dari sumber per seri, bukan dari tabel tujuan.
 
 ### M319 — Memori Postgres tertahan lagi sesudah tulis besar; resize volume me-restart Postgres (2026-11-01)
 

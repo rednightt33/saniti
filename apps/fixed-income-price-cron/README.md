@@ -19,30 +19,32 @@ standard time and two hours after it during daylight time.
 | `fixed-income-price-us-cron` | `0 23 * * *` | US final close, 06:00 WIB. |
 | `fixed-income-price-us-recovery-cron` | `0 0 * * *` | US full latest-session verification/correction, 07:00 WIB. |
 
-Start commands are explicit:
+Start commands are explicit (live, `.railway/railway.ts`, read 2026-11-01):
 
 ```text
 python fixed_income_update.py --market ID --mode daily
-python recovery_window.py --market ID
+python fixed_income_update.py --market ID --mode recovery
 python fixed_income_update.py --market US --mode daily
-python recovery_window.py --market US
+python fixed_income_update.py --market US --mode recovery
 ```
 
-Both recovery roles read `correction_lookback_sessions` from the market schedule and query
-the complete market universe for each of the latest five observed completed sessions,
-oldest first. An absent latest completed candidate is checked as well. This allows a
-corrected final candle to replace an earlier value. The material UPSERT predicate avoids
-writes when the final payload is identical, so an idempotent recovery does not enqueue
-Feature04.
+The recovery roles re-run only the latest completed session, one hour after the daily role. `recovery_window.py`
+(re-verify the latest `correction_lookback_sessions` stored sessions plus newer missing candidates, oldest first)
+exists but no service runs it. Neither path refills a date older than the latest stored one, or a single series missing
+on a date the other series have (ERRORS M324). The material UPSERT predicate avoids writes when the final payload is
+identical, so an idempotent recovery does not enqueue Feature04.
 
 ## Final-candle contract
 
-- The loader validates the provider-resolved timezone and starts from the UTC calendar
-  component that TradingView's fixed-income `1D` protocol returns as its raw chart label.
-- `Fixed_Income_Market_Schedule.source_date_mapping` defines the provider convention for
-  each market. Indonesia maps weekend labels to the preceding business day; the US maps
-  each raw label to the next business day. The worker does not select this behavior by
-  ticker or country.
+- The loader validates the provider-resolved timezone. TradingView labels a fixed-income `1D` bar with its session
+  start in the provider's zone (`provider_timezone_name`, America/New_York for both markets).
+- `Fixed_Income_Market_Schedule.source_date_mapping` defines the provider convention for each market. Both ID and US
+  use `PROVIDER_SESSION_START` (ERRORS M323, migration `20261101_002`): the label is read in the provider's zone
+  against the session start (`provider_session`, ID 1700-1700, US 1900-1730); a label at or after the start belongs to
+  the next day's session, a weekend date moves on to Monday. No daylight-saving date is written in code. The worker
+  does not select this behavior by ticker or country.
+- Two source bars on one date stop the series with `SOURCE_DATE_COLLISION` (nothing written), so a change in the
+  source's labels shows up as an error instead of shifted rows.
 - The original timestamp remains in `source_bar_time`, and only a candle that resolves to
   the exact target business date can be accepted.
 - `market_close_at` is calculated from the selected market row and observation date.

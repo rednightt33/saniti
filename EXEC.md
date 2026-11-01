@@ -9734,6 +9734,15 @@ masalah serupa?" (atas temuan `verification/fixed_income_audit/REPORT.md`).
 - **M324:**
   - koreksi dari tarikan ulang sumber lewat upsert loader;
   - daftar perubahan (dry-run) dikirim ke user sebelum ditulis, sesuai janji 2026-11-01.
+- **Hasil 2026-11-01:**
+  - M323: kode di-push 4e554c26, empat layanan fixed income SUCCESS 10:42 UTC (2380bba7, 08f878ad, e04ef6f6,
+    2d48b547); migrasi `20261101_002` DRYRUN lalu APPLY, dibaca balik (ID dan US `PROVIDER_SESSION_START`). Log:
+    `verification/fixed_income_audit/migration/`.
+  - M324 DRYRUN (`correct_job.py`, 3 tarikan): 153 baris (97 koreksi Indonesia 2026-10-05..09 dan 10-26..28; 56 tambah:
+    ID 10-12 di 22 seri, ID 10-26 di 8 seri, AS 10-21 di 26 seri), 0 hapus. Daftar dikirim ke user
+    (`CORRECTION_LIST.md`).
+  - **Terbuka:** OK user untuk APPLY; go untuk usulan permanen (recovery dari tanggal sumber per seri, cek konsensus
+    mingguan); cek run AS 2026-11-02 23:00 UTC.
 
 ## EXEC-BROKER-FULL — panel broker kanan membaca seluruh riwayat (keputusan 2026-11-01)
 

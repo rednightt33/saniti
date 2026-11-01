@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-11-01 — EXEC-FI-DATE: fixed-income crons with the date rule PROVIDER_SESSION_START (ERRORS M323)
+
+- Push 4e554c26 (`apps/fixed-income-price-cron`, watch pattern) redeployed the four services; all SUCCESS at
+  10:42 UTC: fixed-income-price-cron 2380bba7, fixed-income-price-recovery-cron 08f878ad, fixed-income-price-us-cron
+  e04ef6f6, fixed-income-price-us-recovery-cron 2d48b547. No variable, schedule or start command changed.
+- Migration 20261101_002 and the correction dry run ran as jobs on orc-test-runner (`scripts/onboarding/run_job.sh`);
+  `DATABASE_URL` set for the job and removed after it (VAR_REMOVED).
+- Open: the first US run in EST, 2026-11-02 23:00 UTC.
+
 ## 2026-11-01 — EXEC-INTRADAY-FEATURES C1-C4: intraday files, terminal-api, idx-intraday-cron, edge-bff; planned Postgres restart
 
 User decisions 2026-11-01 (EXEC.md EXEC-INTRADAY-FEATURES C7, go "Kenapa kita nggak langsung deploy saja?", runner "A").

@@ -1,0 +1,6 @@
+Starting Container
+MIG APPLY 20261101_002_fixed_income_session_start.sql sha256=cf3a5308ea3c994d5d12e5cb95eee29b023fe826b89905140ba22f8d9588bd7d
+OUT {"q": "schedule", "ms": 2, "part": 0, "rows": [["ID", "PROVIDER_SESSION_START", "America/New_York", "1700-1700"], ["US", "PROVIDER_SESSION_START", "America/New_York", "1900-1730"]]}
+OUT {"q": "check", "ms": 2, "part": 0, "rows": [["CHECK ((source_date_mapping = ANY (ARRAY['CURRENT_OR_PREVIOUS_BUSINESS_DAY'::text, 'NEXT_BUSINESS_DAY'::text, 'PROVIDER_SESSION_START'::text])))"]]}
+OUT {"q": "catalog", "ms": 2, "part": 0, "rows": [["Rule mapping a TradingView daily-bar label to the market observation date: PROVI"]]}
+JOB_DONE MIGRATION APPLY
