@@ -1260,7 +1260,7 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
 5. **Celah harga 17–18 September 2026 (M238).** Setiap jendela Flow yang melintasinya mundur dua sesi. Perbaikannya
    pengisian harga F3, yang ditunda user ("nanti saja").
 
-## VOLUME-80 — volume Postgres 80% sesudah backfill intraday (temuan 2026-11-01, menunggu keputusan user)
+## VOLUME-80 — volume Postgres 80% sesudah backfill intraday (temuan 2026-11-01; volume diperbesar ke 100 GB 2026-11-01, RAILWAY_CHANGELOG)
 
 - **Fakta (Railway GraphQL `volumes` dan `metrics`, 2026-11-01 06:00 UTC):**
   - `postgres-volume` terpakai 59.971 dari 75.000 MB (80%, ambang alert 80%); database 53 GB.
@@ -1272,3 +1272,6 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
   - perbesar volume (`allowOnlineResize` sudah aktif);
   - retensi fitur 5m/15m;
   - merapikan ruang kosong Feature 04 harian (±1,9 GB, `VACUUM FULL` mengunci tabel).
+- **Keputusan user 2026-11-01:** "coba kita expand dulu ke 100 giga".
+  - Dikerjakan 06:10 UTC: 60% terpakai, sisa sekitar 40 GB, cukup untuk sekitar 3 tahun pada laju sekarang.
+  - Retensi dan merapikan ruang kosong tetap usulan.

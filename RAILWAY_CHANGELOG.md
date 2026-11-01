@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-01 — postgres-volume 75 → 100 GB (VOLUME-80)
+
+User 2026-11-01: "Kemudian oke, coba kita expand dulu ke 100 giga."
+
+- **Before:** `postgres-volume` (`3cd12381-…`, Postgres data, sfo) at 59,971 of 75,000 MB (80 %, the usage alert threshold)
+  after the 2026-10-31 intraday backfills.
+- **Change:** `.railway/railway.ts` `sizeMB: 100000`. `railway config plan` showed only "Resize volume postgres-volume from
+  75000MB to 100000MB"; `railway config apply` at 06:10 UTC (`allowOnlineResize`, no restart).
+- **Read back:**
+  - GraphQL `sizeMB` 100000, `currentSizeMB` 59,971, `state` READY (60 % used);
+  - Postgres answers (`pg_is_in_recovery` false, database 53 GB);
+  - `railway config plan`: "already up to date".
+
 ## 2026-10-31 — EXEC-INTRADAY-FEATURES: intraday feature step in idx-intraday-cron; soft dialog border (edge-bff)
 
 User go 2026-10-31 (EXEC.md EXEC-INTRADAY-FEATURES).
