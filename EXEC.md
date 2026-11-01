@@ -9417,7 +9417,7 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
   - Terminal 1:1, Backtest E2E, Screener live;
   - jumlah objek dan byte per run harian sebelum dan sesudah.
 
-### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; menunggu jawaban user atas pertanyaan C7)
+### C. Data 5M/15M/1H/4H ke Terminal (rencana rinci 2026-11-01; C7.1 sebagian dijawab, C7.1-C7.4 masih terbuka)
 
 **Permintaan user, 2026-11-01:** "Also generate plan juga untuk masukan data 5 15 1 jam dan 4 jam ke FE."
 
@@ -9594,3 +9594,19 @@ makro dengan kalender lain. Perbaikannya di lapisan data (kunci waktu + peta ses
 4. **Tanda perubahan untuk publisher:**
    - (A, usulan) loader menulis catatan kecil per (saham, timeframe);
    - (B) stempel atas seluruh tabel di setiap run: lebih sederhana, tetapi membaca ±2,3 GB per run (M319).
+
+**Jawaban user, 2026-11-01 (kata user):** "Sabtu kita pakai A, namun ini hanya berlaku intraday literally di hari
+terbaru. Kalau di hari sebelumnya, maka flow dan bandar harus di-show, tapi menggunakan time frame daily. Nomor 4 itu
+maksudnya seperti apa ya? Ini ngomong bicara bagaimana publisher memindahkan data dari Postgres ke storage. Artinya
+adalah ada beberapa data di historical yang tidak dirubah. Artinya publisher hanya memindahkan data mungkin 3 hari atau
+4 hari terakhir saja. Benar?"
+- **C7.1:** A hanya untuk hari terbaru; hari sebelumnya memakai nilai harian. Masih terbuka: arti "menggunakan time
+  frame daily", yaitu (1) nilai harian di candle intraday hari itu sendiri, atau (2) panel Flow dan Bandar dengan sumbu
+  harian sendiri (ditanyakan balik 2026-11-01).
+- **C7.4:** dijelaskan ke user.
+  - Dua pilihan sama-sama hanya menerbitkan bagian yang berubah. Bedanya cara mengetahui bagian itu.
+  - Biasanya yang berubah memang hari-hari terakhir, karena loader membaca ulang 3 sesi terakhir dan hanya menulis bar
+    yang nilainya berbeda (`apps/idx-price-cron/intraday_update.py:41,153-161`).
+  - Penskalaan sesudah split mengubah riwayat lama, jadi jendela tetap "4 hari terakhir" akan melewatkannya.
+  - Menunggu konfirmasi.
+- **C7.2 dan C7.3:** belum dijawab.
