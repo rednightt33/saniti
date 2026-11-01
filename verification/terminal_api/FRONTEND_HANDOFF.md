@@ -27,7 +27,7 @@ updated, `scripts/terminal_bucket_cors.py`). Every POST must carry the page's `O
 | `GET /reference/tickers`, `GET /reference/brokers` | — | `{url, expires_in_seconds}` of a gzip JSON list |
 | `GET /manifest/{ticker}` | — | window (first/last year), per dataset `data_through` and per year `bytes, rows, first, last, sha256` |
 | `POST /files` | `{ticker, dataset: "price"|"broker", years: [≤ 6]}` or `{ticker, dataset: "events"}` (one file, no years) | `files: [{year, url, sha256, bytes, rows}]`, `expires_in_seconds: 120` |
-| `POST /bundle` | `{ticker, datasets?: ["price","broker","events"], packs?: bool}` (default all three, packs false) | manifest window plus per dataset `{data_through, first_year, files: [{year, url, sha256, bytes, rows, pack?}]}`, every published file; with `packs: true` the price is one file (`pack: "price"`, every year) and the broker the archive pack (`pack: "broker-archive"`) plus the yearly files after it, where the ticker has them (section 10); one audit row per call with `file_count` (quotas sum it); a dataset the ticker lacks answers `files: []` (section 9) |
+| `POST /bundle` | `{ticker, datasets?: ["price","broker","events"], packs?: bool, timeframe?: "5m"\|"15m"\|"1h"\|"4h"}` (default all three, packs false; timeframe: EXEC-INTRADAY-FEATURES C2, any `<n>m`/`<n>h` the manifest has) | manifest window plus per dataset `{data_through, first_year, files: [{year, url, sha256, bytes, rows, pack?}]}`, every published file; with `packs: true` the price is one file (`pack: "price"`, every year) and the broker the archive pack (`pack: "broker-archive"`) plus the yearly files after it, where the ticker has them (section 10); one audit row per call with `file_count` (quotas sum it); a dataset the ticker lacks answers `files: []` (section 9) |
 | `GET /history/price` | `ticker, from, to` (≤ 3,660 days, only before the window) | columnar `d,o,h,l,c,v` |
 | `GET /history/broker` | `ticker, from, to` (≤ 366 days, only before the window), optional `brokers` (≤ 20), `investor_type`, `market_board` | columnar `d,b,i,m,bv,sv,bl,sl,gap` |
 
@@ -132,3 +132,18 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 - Each right-panel section (Broker summary, Top brokers, Broker inventory) has a ⤢ button that opens it as a window
   over the page (`src/ui/floatwin.ts`, `src/app/popout.ts`, sums in `src/data/brokerAgg.ts`; FRONTEND_ARCHITECTURE.md
   section 14). Windows are client-side only: they read the same broker files as the panel, no new API call.
+
+## Intraday timeframes (EXEC-INTRADAY-FEATURES C1-C4, 2026-11-01)
+
+- Every `/bundle` answer carries `timeframes`: `{tf: {first, last, rows, bars_per_year}}` from the manifest's
+  `intraday`; a page offers those timeframes only.
+- With `timeframe`, `datasets.intraday` = `{timeframe, files: [{part: "archive"|"current", url, sha256, bytes, rows}],
+  first, last, rows, bars_per_year, timezone, utc_offset_seconds, period, current}`. The files count with the bundle
+  (quota and one audit row). A timeframe the ticker lacks answers `files: []`.
+- File columns: `t` (bar open, UTC epoch seconds), `o`, `h`, `l`, `c`, `v`. The archive holds every bar before the
+  current period, the current file the period (a month for 5m and 15m, a year for 1h and 4h).
+- The Terminal keys a bar by its open time on the exchange clock, `YYYY-MM-DDTHH:MM`
+  (`apps/edge-bff/terminal/src/data/timeframe.ts` `barKey`); its first ten characters are its session date.
+- The broker figures stay daily (user 2026-11-01, "Opsi 1"):
+  - an earlier day shows its figure on all its candles;
+  - the latest day shows its own figure only on its last candle (`timeframe.ts` `dayOfCandles`).
