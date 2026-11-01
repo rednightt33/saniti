@@ -13,7 +13,7 @@
                   locked to the chart's time range, crosshair and axis widths; its drawings are kept under its ticker */
 import type { Ctx, FilterApi } from './context';
 import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, rupiah, spin, store } from './context';
-import { cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
+import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
 import type { Bar, Combo, Instrument } from '../data/types';
 import { UNIT } from '../data/timeframe';
 
@@ -304,7 +304,9 @@ export function initAssets(ctx: Ctx) {
 
   /* ---- Flow Timeline of an asset ---- */
   const mainCol = document.querySelector('.main-col') as HTMLElement;
-  const U = UNIT[ctx.M.tf || 'D'];
+  // EXEC-INTRADAY-FEATURES C4: broker figures stay daily on an intraday chart (a day counts once in a sum)
+  const DAY_OF = ctx.M.intraday?.dayOf;
+  const U = UNIT[DAY_OF ? 'D' : ctx.M.tf || 'D'];
   const panes = () => assets.map(a => a.pane).filter(Boolean) as FlowPane[];
   /* a pane's crosshair on session i (none while it has no broker data: a series of empty points has no value to sit on) */
   const crossAt = (q: FlowPane, i: number | undefined) => i === undefined || !q.combos.length ? q.chart.clearCrosshairPosition()
@@ -517,7 +519,7 @@ export function initAssets(ctx: Ctx) {
     const failed = () => { if (!p.alive) return; p.state = 'failed'; say('Broker data could not be loaded. Remove the asset and add it again to retry.') };
     ctx.M.loadAssetFlow!(a.ticker).then(f => {
       if (!p.alive) return;
-      p.end = brokerEnd(dates, f.through); p.through = f.through;
+      p.end = brokerEnd(ctx.endDates && DAY_OF ? ctx.endDates : dates, f.through); p.through = f.through;
       f.recent.then(r => { set(r, true); f.all.then(all => set(all, false), failed) }, failed);
     }, failed);
   }
@@ -538,15 +540,16 @@ export function initAssets(ctx: Ctx) {
   }
   function computeCum(p: FlowPane) {
     const start = cumFrom === 'view' ? visibleRange()[0] : 0, E = p.end;
-    p.cumArr = cumulativeFrom(p.net, start);
+    p.cumArr = cumulativeFrom(p.net, start, DAY_OF);
     p.cum.setData(ctx.ohlc.map((b, i) => i > E || i < start || i < p.from ? { time:b.time } : { time:b.time, value:Math.round(p.cumArr[i]) }));
     p.cum.applyOptions({ visible:cumOn() });
     p.chart.applyOptions({ leftPriceScale:{ textColor:cumOn() ? '#666666' : 'rgba(0,0,0,0)' } } as any);
   }
   function paneSummary(p: FlowPane) {
     const [a0, b0] = visibleRange(), b = Math.min(b0, p.end), from = Math.max(a0, p.from);
-    let total = 0; for (let i = from; i <= b; i++) total += p.net[i];
-    const last = p.end >= 0 && p.end >= p.from ? p.net[p.end] : 0, avg = total / (b - from + 1 > 0 ? b - from + 1 : 1);
+    const counted = countedCandles(from, b, DAY_OF);
+    let total = 0; for (const i of counted) total += p.net[i];
+    const last = p.end >= 0 && p.end >= p.from ? p.net[p.end] : 0, avg = total / (counted.length || 1);
     const tone = (v: number) => v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
     const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}</span><span class="flow-stat-val ${tone(v)}">${p.state === 'loading' || !p.combos.length ? '–' : rupiah(v)}</span></div>`;
     (p.el.querySelector('.flow-summary') as HTMLElement).innerHTML = stat(`Latest ${U.one} net`, last) + stat('Period net total', total) + stat(`Avg ${U.adj} net`, avg);

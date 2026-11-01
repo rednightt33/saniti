@@ -1,0 +1,20 @@
+Starting Container
+OUT {"q": "explain_series", "ms": 4, "part": 0, "rows": [["Index Scan using price_stock_idx_intraday_5m_pkey on price_stock_idx_intraday_5m price_stock_idx_intraday  (cost=0.43..1839.12 rows=1019 width=56) (actual time=0.103..0.949 rows=1409.00 loops=1)"], ["  Index Cond: (((ticker)::text = 'BBCA'::text) AND (timeframe = '5m'::text) AND (bar_time >= '2026-09-30 17:00:00+00'::timestamp with time zone) AND (bar_time < '9999-01-01 00:00:00+00'::timestamp with time zone))"], ["  Index Searches: 1"], ["  Buffers: shared hit=3 read=26"], ["Planning:"], ["  Buffers: shared hit=29 read=4"]]}
+MIG DRYRUN 20261101_001_intraday_publish.sql sha256=d4e40f39371f446f12dff1bd061ab34b8ff796c3f0b284a1abc6eb6e81b25ed4
+MIG DRYRUN_BODY_OK 20261101_001_intraday_publish.sql
+OUT {"q": "bars_per_year_shared", "ms": 25, "part": 0, "rows": [["15m", 5652], ["1h", 1766], ["4h", 504], ["5m", 16017]]}
+OUT {"q": "f01_sum_before", "ms": 22, "part": 0, "rows": [[447, "a1482a56672c57cb7aa3a95f21ffe37b"]]}
+OUT {"q": "f01_1h_from", "ms": 77, "part": 0, "rows": [[447]]}
+OUT {"q": "f01_sum_after", "ms": 2, "part": 0, "rows": [[447, "a1482a56672c57cb7aa3a95f21ffe37b"]]}
+OUT {"q": "change_insert", "ms": 1, "part": 0, "rows": [["IHSG", "5m", "2026-10-30 02:00:00+00:00", "2026-11-01 08:18:46.085718+00:00"]]}
+OUT {"q": "change_merge", "ms": 2, "part": 0, "rows": [["2026-10-30 02:00:00+00:00"]]}
+OUT {"q": "reader_bars", "ms": 2, "part": 0, "rows": [[6153, "2023-01-02 02:00:00+00:00", "2026-10-30 09:00:00+00:00"]]}
+OUT {"q": "reader_last", "ms": 2, "part": 0, "rows": [["2026-10-30 09:10:00+00:00"]]}
+OUT {"q": "reader_tf", "ms": 3, "part": 0, "rows": [["15m", 5652], ["1h", 1766], ["4h", 504], ["5m", 16017]]}
+OUT {"q": "reader_tz", "ms": 1, "part": 0, "rows": [["Asia/Jakarta"]]}
+OUT {"q": "reader_changes", "ms": 1, "part": 0, "rows": [["IHSG", "5m", "2026-10-30 02:00:00+00:00"]]}
+OUT {"q": "explain_series", "ms": 4, "part": 1, "rows": [["Planning Time: 0.983 ms"], ["Execution Time: 1.010 ms"]]}
+OUT {"q": "explain_last", "ms": 1, "part": 0, "rows": [["Result  (cost=0.56..0.57 rows=1 width=8) (actual time=0.036..0.036 rows=1.00 loops=1)"], ["  Buffers: shared hit=4"], ["  InitPlan 1"], ["    ->  Limit  (cost=0.43..0.56 rows=1 width=8) (actual time=0.034..0.034 rows=1.00 loops=1)"], ["          Buffers: shared hit=4"], ["          ->  Index Only Scan Backward using price_stock_idx_intraday_5m_pkey on price_stock_idx_intraday_5m price_stock_idx_intraday  (cost=0.43..657.56 rows=5272 width=8) (actual time=0.033..0.033 rows=1.00 loops=1)"]]}
+OUT {"q": "explain_last", "ms": 1, "part": 1, "rows": [["                Index Cond: ((ticker = 'BBCA'::text) AND (timeframe = '5m'::text))"], ["                Heap Fetches: 0"], ["                Index Searches: 1"], ["                Buffers: shared hit=4"], ["Planning Time: 0.148 ms"], ["Execution Time: 0.046 ms"]]}
+OUT {"q": "catalog", "ms": 4, "part": 0, "rows": [[1, 4, ["refresh_feature_01_stock_intraday(text,text[],timestamptz)", "intraday_bars_per_year(text)"]]]}
+JOB_DONE MIGRATION DRYRUN

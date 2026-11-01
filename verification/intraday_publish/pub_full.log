@@ -1,0 +1,14 @@
+2026-11-01T08:35:14.347998737Z [INFO]  event="planning" step="manifests read" tickers=845 seconds=21.7 threads=16
+2026-11-01T08:35:14.348001917Z [INFO]  event="plan" mode="intraday" files=0 window=[2021,2026] price_first_year=2018 broker_first_year=2016 data_through={"price":"2026-10-30","broker":"2026-10-27","events":"2026-10-27 14:52:25.727874+00"}
+2026-11-01T08:35:14.348004927Z [INFO]  event="planning" step="intraday" series=3380 full=true timeframes={"15m":{"bars_per_year":5652,"period":"month"},"1h":{"bars_per_year":1766,"period":"year"},"4h":{"bars_per_year":504,"period":"year"},"5m":{"bars_per_year":16017,"period":"month"}} without_bars_per_year=[] seen_before=null
+2026-11-01T08:35:54.458289688Z [INFO]  event="progress" step="intraday" done=500 of=3380 written=982 mb=18.6
+2026-11-01T08:36:34.953147527Z [INFO]  event="progress" step="intraday" done=1000 of=3380 written=1982 mb=37.2
+2026-11-01T08:37:15.285510645Z [INFO]  event="progress" step="intraday" done=1500 of=3380 written=2964 mb=56
+2026-11-01T08:37:55.372035844Z [INFO]  event="progress" step="intraday" done=2000 of=3380 written=3960 mb=74.4
+2026-11-01T08:38:35.454621407Z [INFO]  event="progress" step="intraday" done=2500 of=3380 written=4952 mb=93
+2026-11-01T08:39:15.368228902Z [INFO]  event="progress" step="intraday" done=3000 of=3380 written=5948 mb=111.4
+2026-11-01T08:39:45.590151731Z [INFO]  event="intraday" series=3380 changed=3360 written=6706 mb=125.4
+2026-11-01T08:40:05.794094703Z [INFO]  event="listed" prefix="ref/" pages=1 keys=6 seconds=0.2 slowest_page_seconds=0.2
+2026-11-01T08:40:05.794100463Z [INFO]  event="refs" names=["brokers","logos","tickers"] uploaded=[] failed=[]
+2026-11-01T08:40:05.794105642Z [INFO]  event="done" mode="intraday" files_planned=0 files_written=6706 mb=125.43 tickers=840 seconds=310.1 broker_behind_sessions=3 xsection=["actions","price"] xsection_failed=[] refs=["brokers","logos","tickers"] refs_failed=[] phases={"plan":22.4,"files":0,"packs":0,"intraday":264,"xsection":0.4,"manifests":21.4,"refs":1.5,"state":0.4} threads=16
+2026-11-01T08:40:05.794112192Z [INFO]  event="replaced" objects=0

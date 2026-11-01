@@ -60,7 +60,8 @@ export function initRangeSelect(ctx: Ctx) {
       const a = xa != null ? xa - w / 2 : Math.min(x0!, x1), b = xb != null ? xb + w / 2 : Math.max(x0!, x1);
       band.hidden = false; band.style.left = left() + a + 'px'; band.style.width = Math.max(1, b - a) + 'px';
       const e = s ? endOf(s[1]) : '';
-      say.textContent = s ? (s[0] === e ? longDay(s[0]) : `${longDay(s[0])} – ${longDay(e)}`) + (firstClick ? ' · click the last day' : '') : HINT;
+      const d0 = s ? s[0].slice(0, 10) : '';                  // an intraday candle's session: its key's date
+      say.textContent = s ? (d0 === e ? longDay(d0) : `${longDay(d0)} – ${longDay(e)}`) + (firstClick ? ' · click the last day' : '') : HINT;
     };
     const down = (e: PointerEvent) => {
       if (e.button !== 0 || (e.target as HTMLElement).closest('.rs-cancel')) return;
@@ -84,7 +85,7 @@ export function initRangeSelect(ctx: Ctx) {
       const x1 = xOf(e);
       if (!firstClick && Math.abs(x1 - x0) < 3) { firstClick = true; paint(x1); return }   // the first click: wait for the second
       const s = sessions(x0, x1);
-      stop(!!s); if (s) done(s[0], endOf(s[1]));
+      stop(!!s); if (s) done(s[0].slice(0, 10), endOf(s[1]));
     };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); stop() } };
     /* a pick that ends without a range (Esc, Cancel, a cancelled pointer, another pick) tells its caller, so a dialog that

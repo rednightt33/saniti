@@ -5,7 +5,7 @@
    120 s). The shapes match what live.ts built before on the main thread. */
 import type { BrokerRow } from './types';
 import { boardIndex, investorIndex, type FlowRows } from '../calc/flow';
-import { buckets, type Buckets, type Timeframe } from './timeframe';
+import { barKey, buckets, type Buckets, type Timeframe } from './timeframe';
 import { fileCache, readVerified, type FileRef } from './rack';
 
 /** one file to read: its presigned URL and, from /bundle, the sha256 (the browser cache key) and size of its bytes
@@ -13,13 +13,15 @@ import { fileCache, readVerified, type FileRef } from './rack';
 export type { FileRef } from './rack';
 /** `dates` (EXEC-TERMINAL-ASSETS): the daily sessions of the chart's own ticker; with it the broker files of another ticker
     (an added asset's Flow Timeline) are put on those sessions, and its price is not read */
-export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[]; tf?: Timeframe; dates?: string[] }
+export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[]; tf?: Timeframe; dates?: string[];
+  /** EXEC-INTRADAY-FEATURES C3: the intraday files of the chart's timeframe and the exchange's offset from UTC (seconds) */
+  intraday?: FileRef[]; offset?: number }
 /** EXEC-TERMINAL-SPEED step 1: what each download cost, for ?perf=1 */
 export interface FileStat { name: string; ms: number; bytes: number; cached: boolean }
 export interface PriceRow { d: string; o: number; h: number; l: number; c: number; v: number | null }
 export interface WorkerCombo { broker: string; investor: string; board: string; gross: number; net: Float64Array }
 export type WorkerAnswer =
-  | { id: number; type: 'price'; rows: PriceRow[] }
+  | { id: number; type: 'price'; rows: PriceRow[]; bars?: PriceRow[] }
   | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; flowTo: number; dates: string[]; rows: BrokerRow[][]; flow: FlowRows }
   | { id: number; type: 'events'; rows: Record<string, unknown>[] }
   | { id: number; type: 'stats'; files: FileStat[] }
@@ -59,6 +61,19 @@ export function priceRows(docs: Columnar[]): PriceRow[] {
     const { d, o, h, l, c, v } = doc;
     for (let k = 0; k < d.length; k++) {
       if ([o[k], h[k], l[k], c[k]].every(Number.isFinite)) out.push({ d:d[k], o:o[k], h:h[k], l:l[k], c:c[k], v:v ? v[k] : null });
+    }
+  }
+  return out.sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0);
+}
+
+/* EXEC-INTRADAY-FEATURES C3: intraday bars (columns t,o,h,l,c,v; t the bar's open in UTC seconds) as price rows keyed by
+   their open time on the exchange's clock (timeframe.ts barKey); the archive and the current period do not overlap */
+export function barRows(docs: Columnar[], offset: number): PriceRow[] {
+  const out: PriceRow[] = [];
+  for (const doc of docs) {
+    const { t, o, h, l, c, v } = doc;
+    for (let k = 0; k < t.length; k++) {
+      if ([o[k], h[k], l[k], c[k]].every(Number.isFinite)) out.push({ d:barKey(t[k], offset), o:o[k], h:h[k], l:l[k], c:c[k], v:v ? v[k] : null });
     }
   }
   return out.sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0);
@@ -135,7 +150,7 @@ export const rowsOf = (doc: Columnar) => {
 const scope = globalThis as any;
 if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.WorkerGlobalScope) {
   scope.onmessage = async (e: MessageEvent<WorkerJob>) => {
-    const { id, price, broker, events, tf, dates:onto } = e.data;
+    const { id, price, broker, events, tf, dates:onto, intraday, offset } = e.data;
     const post = (answer: WorkerAnswer, transfer: Transferable[] = []) => scope.postMessage(answer, transfer);
     const fail = (err: any) => post({ id, type:'error', message:err?.message || 'The terminal could not read its data.', status:err?.status || 0,
       ...(typeof err?.code === 'string' ? { code:err.code } : {}), ...(typeof err?.detail === 'string' ? { detail:err.detail } : {}) });
@@ -148,10 +163,17 @@ if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.Wor
     const recentDocs = Promise.all(recent.map(download));
     const eventDocs = Promise.all(events.map(download));
     recentDocs.catch(() => {}); eventDocs.catch(() => {});      // read below, after the price; no unhandled rejection
-    let rows: PriceRow[];
-    try { rows = priceRows(await Promise.all(price.map(download))) } catch (err) { return fail(err) }
-    post({ id, type:'price', rows });
-    const dates = onto || rows.map(r => r.d), groups = tf && tf !== 'D' ? buckets(dates, tf) : null;
+    let rows: PriceRow[], bars: PriceRow[] | undefined;
+    try {
+      const barDocs = intraday?.length ? Promise.all(intraday.map(download)) : null;
+      barDocs?.catch(() => {});
+      rows = priceRows(await Promise.all(price.map(download)));
+      if (barDocs) bars = barRows(await barDocs, offset || 0);
+    } catch (err) { return fail(err) }
+    post({ id, type:'price', rows, ...(bars ? { bars } : {}) });
+    // the broker data goes on the daily sessions; weekly and monthly candles group them (an intraday chart maps the daily
+    // figures onto its candles on the page, timeframe.ts dayOfCandles)
+    const dates = onto || rows.map(r => r.d), groups = tf === 'W' || tf === 'M' ? buckets(dates, tf) : null;
     let latest: Columnar[];
     try {
       latest = await recentDocs;

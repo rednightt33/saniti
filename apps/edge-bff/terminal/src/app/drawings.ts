@@ -9,6 +9,7 @@
 import * as Lib from 'lightweight-charts-drawing';
 import type { Ctx } from './context';
 import { store } from './context';
+import { fromChart, toChart } from '../data/chartTime';
 
 /** EXEC-TERMINAL-WM G1 (user 2026-10-27): one set of drawings for every timeframe; on weekly or monthly candles each point
     sits on the candle that holds its date. Points after the last session (drawn into the future) keep their time. */
@@ -31,6 +32,29 @@ export function onCandles(json: string, barOf: (d: string) => string | null, las
   return JSON.stringify(doc);
 }
 
+/** EXEC-INTRADAY-FEATURES C7.2 A: the intraday set on this timeframe's candles: a point (its time as the chart gives it,
+    data/chartTime.ts) sits on the candle that holds its time, the last one opened at or before it; a point after the
+    last candle (drawn into the future) or before the first keeps its time. */
+export function onIntradayCandles(json: string, keys: string[]): string {
+  let doc: unknown;
+  try { doc = JSON.parse(json) } catch { return json }
+  const walk = (v: any): void => {
+    if (Array.isArray(v)) { v.forEach(walk); return }
+    if (!v || typeof v !== 'object') return;
+    if ('time' in v && 'price' in v && typeof v.time === 'number' && keys.length) {
+      const k = fromChart(v.time);
+      if (k >= keys[0] && k <= keys[keys.length - 1]) {
+        let lo = 0, hi = keys.length - 1;                          // the last key at or before k
+        while (lo < hi) { const m = (lo + hi + 1) >> 1; if (keys[m] <= k) lo = m; else hi = m - 1 }
+        v.time = toChart(keys[lo]);
+      }
+    }
+    Object.values(v).forEach(walk);
+  };
+  walk(doc);
+  return JSON.stringify(doc);
+}
+
 export function initDrawings(ctx: Ctx) {
   const { chart, candle, container, SYMBOL, dates, Hist, volCtl, Ind } = ctx;
   const LibAny = Lib as any;
@@ -38,11 +62,14 @@ export function initDrawings(ctx: Ctx) {
 
   /* ---- persistence adapter (backend: replace the bodies with fetch calls) ---- */
   const tf = ctx.M.tf || 'D', barOf = ctx.M.barOf, lastSession = (ctx.endDates || dates)[dates.length - 1];
+  /* EXEC-INTRADAY-FEATURES C7.2 A (user 2026-11-01): the intraday timeframes keep one set of drawings of their own; the
+     daily set is not shown on them */
+  const intraday = !!ctx.M.intraday;
   const repo = {
-    key: (symbol: string) => `ml.drawings.${symbol}`,
+    key: (symbol: string) => `ml.drawings.${symbol}${intraday ? '.intraday' : ''}`,
     load: (symbol: string) => {
       const json = store.get(repo.key(symbol)) || '[]';
-      return Promise.resolve(tf !== 'D' && barOf ? onCandles(json, barOf, lastSession) : json);
+      return Promise.resolve(intraday ? onIntradayCandles(json, dates) : tf !== 'D' && barOf ? onCandles(json, barOf, lastSession) : json);
     },
     save: (symbol: string, json: string) => { store.set(repo.key(symbol), json); return Promise.resolve() }
   };

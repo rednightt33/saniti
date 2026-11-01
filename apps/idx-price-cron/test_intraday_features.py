@@ -86,6 +86,26 @@ class QueueTests(unittest.TestCase):
         self.assertIn("NOT public.is_universe_index(ticker)", src)
         self.assertIn("least(q.dirty_from, EXCLUDED.dirty_from)", src)
 
+    def test_the_loader_records_the_change_for_the_publisher_in_the_same_statement(self):
+        """EXEC-INTRADAY-FEATURES C7.4 A: every written series (IHSG too) with its first written bar; an old record is
+        replaced, a recent one keeps the earliest bar; the publisher falls back to a full run well inside the window."""
+        src = Path(intraday_update.__file__).read_text()
+        stmt = src[src.index("published AS ("):src.index("SELECT count(*) FROM written")]
+        self.assertIn("SELECT ticker, timeframe, min(bar_time) FROM written GROUP BY ticker, timeframe", stmt)
+        self.assertNotIn("is_universe_index", stmt)
+        self.assertIn("least(p.changed_from, EXCLUDED.changed_from)", stmt)
+        self.assertIn("ELSE EXCLUDED.changed_from END", stmt)
+        sql = (ROOT / "database/migrations/20261101_001_intraday_publish.sql").read_text()
+        self.assertIn("CREATE TABLE IF NOT EXISTS public.intraday_publish_change", sql)
+        publisher = (ROOT / "apps/terminal-publisher/publisher.py").read_text()
+        days = int(re.search(r"INTRADAY_FULL_AFTER_DAYS = (\d+)", publisher).group(1))
+        self.assertLess(days * 2, intraday_update.PUBLISH_MERGE_DAYS + 1)
+
+    def test_the_feature_function_reads_the_shared_bars_per_year(self):
+        sql = (ROOT / "database/migrations/20261101_001_intraday_publish.sql").read_text()
+        self.assertIn("v_bars_per_year := public.intraday_bars_per_year(p_timeframe);", sql)
+        self.assertNotIn("INTO v_bars_per_year", sql)
+
     def test_the_migration_refuses_an_index_and_never_stores_the_daily_identity(self):
         sql = MIGRATION.read_text()
         self.assertEqual(sql.count("EXECUTE FUNCTION public.validate_stock_feature_identity()"), 2)

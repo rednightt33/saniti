@@ -55,10 +55,17 @@ class Result(list):
 
 class FakeConn:
     """Answers the publisher's statements from small in-memory tables."""
-    def __init__(self, prices, brokers, universe, events=None, actions=None):
+    def __init__(self, prices, brokers, universe, events=None, actions=None, intraday=None, timeframes=None,
+                 changes=None, now=None):
         self.prices, self.brokers, self.universe = prices, brokers, universe
         self.events = list(EVENTS if events is None else events)
         self.actions = list(ACTIONS if actions is None else actions)
+        # EXEC-INTRADAY-FEATURES C1: bars (ticker, tf, bar_time, o, h, l, c, v), timeframes (tf, bars_per_year),
+        # change records (ticker, tf, changed_from, changed_at) and the database clock
+        self.intraday = list(intraday or [])
+        self.timeframes = list(timeframes or [])
+        self.changes = list(changes or [])
+        self.now = now or dt.datetime(2026, 11, 2, 12, 0, tzinfo=dt.timezone.utc)
         self.statements = []
 
     def execute(self, sql, params=()):
@@ -79,7 +86,27 @@ class FakeConn:
                 return iter(conn.execute(sql, params))
         return Cursor()
 
+    def _bars(self, t, tf, lo=pub.EPOCH, hi=pub.END_OF_TIME):
+        return sorted(b for b in self.intraday if b[0] == t and b[1] == tf and lo <= b[2] < hi)
+
     def _rows(self, sql, params):
+        if sql == pub.INTRADAY_TIMEFRAMES_SQL:
+            return sorted(self.timeframes)
+        if sql == pub.MARKET_TZ_SQL:
+            return [('Asia/Jakarta',)] if params == ('IDX',) else []
+        if sql == pub.DB_NOW_SQL:
+            return [(self.now,)]
+        if sql == pub.INTRADAY_LAST_SQL:
+            bars = self._bars(*params)
+            return [(bars[-1][2] if bars else None,)]
+        if sql == pub.INTRADAY_SQL:
+            return [(int(b[2].timestamp()), *b[3:]) for b in self._bars(*params)]
+        if sql == pub.INTRADAY_VERIFY_SQL:
+            bars = self._bars(*params)
+            return [(len(bars), int(bars[0][2].timestamp()) if bars else None, int(bars[-1][2].timestamp()) if bars else None,
+                     float(sum(b[6] for b in bars)))]
+        if sql == pub.INTRADAY_CHANGES_SQL:
+            return [c for c in self.changes if c[3] > params[0]]
         if sql == pub.XSECTION_PRICE_SQL:
             lo, hi = params
             # date-major, newest first, as no ORDER BY promises nothing: the publisher groups and orders the rows itself
@@ -1579,7 +1606,7 @@ def test_the_cleanup_comes_after_state_json_so_a_slow_or_failed_listing_never_ho
     assert names.index('done') < names.index('replaced') < names.index('gc_failed')
     assert 'price/IHSG/2019.json.gz' in bucket.objects and bucket.modified['state.json'] == bucket.clock
     done = [e for e in out if e['event'] == 'done'][0]
-    assert set(done['phases']) == {'plan', 'files', 'packs', 'xsection', 'manifests', 'refs', 'state'}
+    assert set(done['phases']) == {'plan', 'files', 'packs', 'intraday', 'xsection', 'manifests', 'refs', 'state'}
 
 
 def test_after_the_run_a_ticker_whose_manifest_a_run_that_did_not_finish_wrote_keeps_its_objects(capsys):
@@ -2084,3 +2111,121 @@ def test_a_refused_batch_is_returned_without_retries_and_no_keys_send_no_request
     s3 = BatchS3(refuse={'v1/' + keys[0]: 'AccessDenied'})
     assert batch_bucket(s3).delete(keys) == keys and len(s3.requests) == 1
     assert batch_bucket(s3).delete([]) == [] and len(s3.requests) == 1
+
+
+# ---- EXEC-INTRADAY-FEATURES C1 (user 2026-11-01): intraday files ----------------------------------------------------
+JKT = dt.timezone(dt.timedelta(hours=7))
+
+
+def bar(t, tf, y, mo, d, h, mi, c):
+    """An intraday bar opened at the WIB time given: open c, high c+1, low c-1, close c, volume 100."""
+    return (t, tf, dt.datetime(y, mo, d, h, mi, tzinfo=JKT).astimezone(dt.timezone.utc), c, c + 1, c - 1, c, 100.0)
+
+
+INTRADAY = [bar('BBCA', '5m', 2026, 9, 30, 9, 0, 100.0), bar('BBCA', '5m', 2026, 10, 30, 15, 55, 101.0),
+            bar('BBCA', '5m', 2026, 10, 30, 16, 0, 102.0), bar('BBCA', '1h', 2025, 12, 30, 9, 0, 90.0),
+            bar('BBCA', '1h', 2026, 10, 30, 15, 0, 101.0), bar('IHSG', '5m', 2026, 10, 30, 16, 0, 7000.0)]
+# 15m has no COMPLETE session yet (no bars per year): it is not published
+TIMEFRAMES = [('5m', 16017), ('1h', 1766), ('15m', None)]
+NOW = dt.datetime(2026, 11, 1, 8, 0, tzinfo=dt.timezone.utc)
+
+
+def intraday_conn(bars=None, changes=None, now=NOW):
+    return FakeConn(PRICES, BROKERS, UNIVERSE, intraday=list(INTRADAY if bars is None else bars), timeframes=TIMEFRAMES,
+                    changes=changes, now=now)
+
+
+def intraday_keys(bucket, ticker='BBCA'):
+    m = bucket.get_json(f'manifest/{ticker}.json')
+    return {tf: {part: f['key'][len(pub.PREFIX) + 1:] for part, f in s['files'].items()} for tf, s in m.get('intraday', {}).items()}
+
+
+def test_the_period_is_derived_from_bars_per_year():
+    assert pub.intraday_period(16017) == 'month' and pub.intraday_period(5652) == 'month'
+    assert pub.intraday_period(1766) == 'year' and pub.intraday_period(504) == 'year'
+    at = dt.datetime(2026, 10, 31, 18, 0, tzinfo=dt.timezone.utc)                 # 1 Nov 01:00 WIB
+    assert pub.period_start(at, 'month', JKT)[0] == '2026-11'
+    assert pub.period_start(at, 'year', JKT) == ('2026', dt.datetime(2026, 1, 1, tzinfo=JKT))
+
+
+def test_the_intraday_mode_publishes_an_archive_and_the_current_period_of_every_series(monkeypatch):
+    monkeypatch.setattr(pub, 'wait', lambda s: None)
+    p, conn, bucket = run('intraday', conn=intraday_conn())
+    m = bucket.get_json('manifest/BBCA.json')
+    assert set(m['intraday']) == {'5m', '1h'}                                    # 15m: no bars per year
+    five = m['intraday']['5m']
+    assert (five['period'], five['current'], five['bars_per_year'], five['rows']) == ('month', '2026-10', 16017, 3)
+    assert (five['timezone'], five['utc_offset_seconds']) == ('Asia/Jakarta', 25200)
+    assert five['files']['archive']['rows'] == 1 and five['files']['current']['rows'] == 2
+    assert five['files']['current']['from'] == '2026-10-01T00:00:00+07:00' and five['files']['current']['to'] is None
+    assert five['last'] == INTRADAY[2][2].isoformat() and five['first'] == INTRADAY[0][2].isoformat()
+    one = m['intraday']['1h']
+    assert (one['period'], one['current']) == ('year', '2026') and one['files']['archive']['rows'] == 1
+    doc = bucket.get_json(intraday_keys(bucket)['5m']['current'])
+    assert doc['columns'] == ['t', 'o', 'h', 'l', 'c', 'v'] and doc['t'] == [int(b[2].timestamp()) for b in INTRADAY[1:3]]
+    assert doc['c'] == [101.0, 102.0] and doc['part'] == '2026-10'
+    assert set(bucket.get_json('manifest/IHSG.json')['intraday']['5m']['files']) == {'current'}
+    keys = pub.named_keys(m)                                                    # the cleanup sees them as named
+    assert all(k in keys for k in intraday_keys(bucket)['5m'].values())
+    assert bucket.get_json('state.json')['intraday_change_seen'] == NOW.isoformat()
+    assert pub.verify(conn, bucket, ['BBCA', 'IHSG']) == 0
+
+
+def test_a_daily_run_republishes_only_the_changed_series_and_a_new_period_moves_the_old_one_to_the_archive(monkeypatch):
+    monkeypatch.setattr(pub, 'wait', lambda s: None)
+    _, _, bucket = run('intraday', conn=intraday_conn())
+    before = intraday_keys(bucket)
+    new = bar('BBCA', '5m', 2026, 11, 2, 9, 0, 103.0)
+    later = NOW + dt.timedelta(days=1, hours=3)
+    conn = intraday_conn(INTRADAY + [new], changes=[('BBCA', '5m', new[2], later - dt.timedelta(hours=1))], now=later)
+    puts = len(bucket.puts)
+    p, _, bucket = run('daily', conn=conn, bucket=bucket)
+    written = [k for k in bucket.puts[puts:] if k.startswith('intraday/')]
+    assert sorted(k.split('/')[2].split('.')[0] for k in written) == ['5m-2026-11', '5m-archive']
+    five = bucket.get_json('manifest/BBCA.json')['intraday']['5m']
+    assert five['current'] == '2026-11' and five['files']['archive']['rows'] == 3 and five['files']['current']['rows'] == 1
+    assert intraday_keys(bucket)['1h'] == before['1h']                          # untouched series keep their files
+    assert before['5m']['current'] in p.replaced and before['5m']['archive'] in p.replaced
+    assert bucket.get_json('state.json')['intraday_change_seen'] == (later - dt.timedelta(hours=1)).isoformat()
+
+
+def test_a_correction_before_the_current_period_rebuilds_the_archive_and_a_same_period_change_does_not(monkeypatch):
+    monkeypatch.setattr(pub, 'wait', lambda s: None)
+    _, _, bucket = run('intraday', conn=intraday_conn())
+    later = NOW + dt.timedelta(hours=12)
+    fixed = [bar('BBCA', '5m', 2026, 9, 30, 9, 0, 99.0)] + INTRADAY[1:]
+    conn = intraday_conn(fixed, changes=[('BBCA', '5m', fixed[0][2], later)], now=later)
+    run('daily', conn=conn, bucket=bucket)
+    assert bucket.get_json(intraday_keys(bucket)['5m']['archive'])['c'] == [99.0]
+    same = intraday_conn(fixed[:2] + [bar('BBCA', '5m', 2026, 10, 30, 16, 0, 104.0)] + fixed[3:],
+                         changes=[('BBCA', '5m', INTRADAY[2][2], later + dt.timedelta(hours=12))], now=later + dt.timedelta(hours=13))
+    puts = len(bucket.puts)
+    run('daily', conn=same, bucket=bucket)
+    assert [k.split('/')[2].split('.')[0] for k in bucket.puts[puts:] if k.startswith('intraday/')] == ['5m-2026-10']
+
+
+def test_a_daily_run_without_a_recent_intraday_publication_republishes_every_series(monkeypatch):
+    monkeypatch.setattr(pub, 'wait', lambda s: None)
+    p, _, bucket = run('daily', conn=intraday_conn())                           # never published: every series
+    assert set(bucket.get_json('manifest/BBCA.json')['intraday']) == {'5m', '1h'}
+    stale = NOW + dt.timedelta(days=pub.INTRADAY_FULL_AFTER_DAYS + 1)
+    conn = intraday_conn(changes=[], now=stale)
+    plan, _, seen = pub.Publisher(conn, bucket, today=TODAY).intraday_plan('daily', {'BBCA': 'stock', 'IHSG': 'index'},
+                                                                         bucket.get_json('state.json'))
+    assert len(plan) == 4 and all(c is None for *_, c in plan) and seen == stale
+
+
+def test_a_limited_intraday_run_publishes_those_tickers_and_does_not_move_the_change_mark(monkeypatch):
+    monkeypatch.setattr(pub, 'wait', lambda s: None)
+    conn = intraday_conn()
+    bucket = FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('intraday', only=['IHSG'])
+    assert 'intraday' in bucket.get_json('manifest/IHSG.json') and bucket.get_json('manifest/BBCA.json') is None
+    assert bucket.get_json('state.json')['intraday_change_seen'] is None
+
+
+def test_verify_finds_an_intraday_file_unlike_sql(monkeypatch):
+    monkeypatch.setattr(pub, 'wait', lambda s: None)
+    _, _, bucket = run('intraday', conn=intraday_conn())
+    changed = INTRADAY[:2] + [bar('BBCA', '5m', 2026, 10, 30, 16, 0, 150.0)] + INTRADAY[3:]
+    assert pub.verify(intraday_conn(changed), bucket, ['BBCA']) == 1

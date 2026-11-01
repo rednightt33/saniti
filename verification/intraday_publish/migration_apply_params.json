@@ -1,0 +1,48 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261101_001_intraday_publish.sql"
+ ],
+ "probes": [
+  [
+   "bars_per_year_shared",
+   null,
+   "SELECT timeframe, public.intraday_bars_per_year(timeframe) FROM (SELECT DISTINCT timeframe FROM public.price_stock_idx_intraday_quality) t ORDER BY 1"
+  ],
+  [
+   "reader_bars",
+   "terminal_market_reader",
+   "SELECT count(*), min(bar_time), max(bar_time) FROM public.price_stock_idx_intraday WHERE ticker = 'BBCA' AND timeframe = '1h'"
+  ],
+  [
+   "reader_tf",
+   "terminal_market_reader",
+   "SELECT timeframe, public.intraday_bars_per_year(timeframe) FROM (SELECT DISTINCT timeframe FROM public.price_stock_idx_intraday_quality) t ORDER BY 1"
+  ],
+  [
+   "reader_tz",
+   "terminal_market_reader",
+   "SELECT timezone_name FROM public.\"Equity_Market_Schedule\" WHERE market_code = 'IDX'"
+  ],
+  [
+   "reader_changes",
+   "terminal_market_reader",
+   "SELECT ticker, timeframe, changed_from FROM public.intraday_publish_change WHERE changed_at > now() - interval '1 day'"
+  ],
+  [
+   "catalog",
+   null,
+   "SELECT (SELECT count(*) FROM public.\"Table_Catalog\" WHERE table_name = 'intraday_publish_change'), (SELECT count(*) FROM public.\"Column_Catalog\" WHERE table_name = 'intraday_publish_change'), (SELECT related_functions FROM public.\"Table_Catalog\" WHERE table_name = 'Feature_01_Stock_Intraday')"
+  ],
+  [
+   "function_def",
+   null,
+   "SELECT position('public.intraday_bars_per_year(p_timeframe)' in prosrc) > 0, position('INTO v_bars_per_year' in prosrc) = 0 FROM pg_proc WHERE proname = 'refresh_feature_01_stock_intraday'"
+  ],
+  [
+   "grants",
+   null,
+   "SELECT has_table_privilege('terminal_market_reader','public.price_stock_idx_intraday','SELECT'), has_table_privilege('terminal_market_reader','public.intraday_publish_change','SELECT'), has_function_privilege('terminal_market_reader','public.intraday_bars_per_year(text)','EXECUTE')"
+  ]
+ ]
+}

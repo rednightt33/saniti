@@ -588,8 +588,10 @@ function bands(B: Seg, p: Params) {                                     // TA-Li
     lower:basis.map((v, i) => isN(v) && isN(sd[i]) ? v - dev(i) : null),
   };
 }
-function periodKey(anchor: string, d: string): string {                // VWAP anchor bucket for a 'YYYY-MM-DD' bar
-  const y = +d.slice(0, 4), m = +d.slice(5, 7);
+function periodKey(anchor: string, key: string): string {              // VWAP anchor bucket for a 'YYYY-MM-DD' bar
+  // EXEC-INTRADAY-FEATURES C3: an intraday bar's key is 'YYYY-MM-DDTHH:MM'; its session is the date part, so "Session"
+  // resets the sums each trading day and the longer anchors read the same date
+  const d = key.slice(0, 10), y = +d.slice(0, 4), m = +d.slice(5, 7);
   switch(anchor){
     case 'Week': { const t = Date.parse(d + 'T00:00:00Z'), wd = (new Date(t).getUTCDay() + 6) % 7; return 'W' + (t - wd * 864e5) }
     case 'Month': return d.slice(0, 7);

@@ -9,6 +9,7 @@ import REG from '../data/flowRegistry.json';
 import type { Ctx } from './context';
 import { nfCompact, rupiah } from './context';
 import { INV_COLORS } from './broker';
+import { markerOnCandles, onCandles } from '../data/timeframe';
 
 export interface FlowRegParam { key: string; label: string; kind: string; status: string; default?: any; options?: any[]; min?: number | null; max?: number | null; text?: string }
 export interface FlowRegIndicator { id: string; name: string; family: string; place: 'pane' | 'price' | 'marker'; unit: string; needs_frequency: boolean; outputs: string[]; tip: string; params: FlowRegParam[] }
@@ -42,19 +43,24 @@ export function flowFormat(unit: string): { fmt: (v: number) => string; minMove:
 }
 
 export function initFlowIndicators(ctx: Ctx) {
-  const { M, dates, closes, idxByTime } = ctx;
-  const tf = M.tf || 'D', word = tf === 'W' ? 'weeks' : tf === 'M' ? 'months' : 'days', letter = tf, one = word.slice(0, -1);
+  const { M, idxByTime } = ctx;
+  /* EXEC-INTRADAY-FEATURES C4 (user 2026-11-01, "Opsi 1"): on an intraday chart the Flow indicators are computed on the
+     daily sessions, as on the daily chart, and drawn on the candles that show each session (timeframe.ts dayOfCandles) */
+  const DAY = M.intraday;
+  const dates = DAY ? DAY.days : ctx.dates, closes = DAY ? DAY.daily.map(r => r.c) : ctx.closes;
+  const tf = DAY ? 'D' : M.tf || 'D', word = tf === 'W' ? 'weeks' : tf === 'M' ? 'months' : 'days', letter = tf, one = word.slice(0, -1);
+  const firstOn = (d: string) => { let lo = 0, hi = dates.length; while (lo < hi) { const m = (lo + hi) >> 1; if (dates[m] < d) lo = m + 1; else hi = m } return lo < dates.length ? lo : undefined };
   /* insider rows and the broker classification arrive with the events and reference files */
   let insider: InsiderRow[] = [], classification: Record<string, string> = {};
   M.loadInsider?.().then(rows => {
-    insider = rows.flatMap(r => { const time = M.barOf ? M.barOf(r.d) : r.d, t = time == null ? undefined : idxByTime.get(time); return t === undefined ? [] : [{ t, value:r.value }] });
+    insider = rows.flatMap(r => { const time = DAY ? null : M.barOf ? M.barOf(r.d) : r.d, t = DAY ? firstOn(r.d) : time == null ? undefined : idxByTime.get(time); return t === undefined ? [] : [{ t, value:r.value }] });
     ctx.refreshFlowIndicators?.();
   }, () => {});
   let classState: 'loading' | 'ready' | 'missing' = M.brokerClass ? 'loading' : 'missing';
   M.brokerClass?.then(c => { classification = c; classState = Object.keys(c).length ? 'ready' : 'missing'; ctx.refreshFlowIndicators?.() },
     () => { classState = 'missing'; ctx.refreshFlowIndicators?.() });
   // a candle without volume in the source is null here, never the histogram's 0 (an index: FL28 read "Rp 0", audit 2026-10-30)
-  const volume = M.volume.map(v => v.none ? null : v.value ?? null), noVolume = volume.every(v => v === null);
+  const volume = DAY ? DAY.daily.map(r => r.v ?? null) : M.volume.map(v => v.none ? null : v.value ?? null), noVolume = volume.every(v => v === null);
   /* an indicator that does not read broker rows (prices, insider events): derived once by computing it with no broker rows
      on prices and volumes of 1, not listed */
   const ones = dates.map(() => 1), probe: FlowContext = { rows:EMPTY(dates.length), dates, close:ones, volume:ones, insider:[], classification:{} };
@@ -70,15 +76,22 @@ export function initFlowIndicators(ctx: Ctx) {
   };
   let cached: { rows: FlowRows; ins: InsiderRow[]; cls: Record<string, string>; c: FlowContext } | null = null;
   const context = (): FlowContext => {
-    const rows = ctx.flowRows || EMPTY(ctx.N);
+    const rows = ctx.flowRows || EMPTY(dates.length);
     if (!cached || cached.rows !== rows || cached.ins !== insider || cached.cls !== classification)
       cached = { rows, ins:insider, cls:classification, c:{ rows, dates, close:closes, volume, insider, classification } };
     return cached.c;
   };
   /* the first visible candle's date (the default anchor and Broker Inventory's start) */
   const firstVisible = () => {
-    const r = ctx.chart.timeScale().getVisibleLogicalRange();
-    return dates[Math.max(0, Math.min(dates.length - 1, r ? Math.ceil(r.from) : 0))];
+    const r = ctx.chart.timeScale().getVisibleLogicalRange(), cd = ctx.dates;
+    return cd[Math.max(0, Math.min(cd.length - 1, r ? Math.ceil(r.from) : 0))].slice(0, 10);    // a candle's session date
+  };
+  /* the daily outputs on the candles: a value on every candle of its day, a marker once */
+  const toCandles = (o: any, marker: boolean) => {
+    if (!DAY) return o;
+    const out: any = {};
+    for (const k of Object.keys(o)) out[k] = Array.isArray(o[k]) ? (marker ? markerOnCandles : onCandles)(o[k], DAY.dayOf) : o[k];
+    return out;
   };
   /** a token default (`class:...`, `top3_net_buy_20`) as broker codes, for the settings dialog */
   const brokersOf = (v: any): string[] =>
@@ -141,7 +154,7 @@ export function initFlowIndicators(ctx: Ctx) {
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
-        const o: any = computeFlow(r.id, context(), q);
+        const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
         if (r.id !== 'FL23') return o;
         const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
         codes.forEach((c, j) => { slots[SLOTS[j]] = o[c] });
@@ -158,7 +171,8 @@ export function initFlowIndicators(ctx: Ctx) {
         if (!R) return 'Loading broker data';
         if (!R.n) return 'No broker data for this ticker';
         if (i > ctx.brokerEnd) return 'No broker data yet';
-        if (!R.has[i]) return `No broker data on this ${one}`;
+        const di = DAY ? DAY.dayOf[i] : i;
+        if (di < 0 || !R.has[di]) return `No broker data on this ${one}`;
         if (r.needs_frequency && !hasCounts(R)) return 'Needs the transaction counts';
         return '';
       },
@@ -170,6 +184,7 @@ export function initFlowIndicators(ctx: Ctx) {
       },
       title:(p: any) => {
         const parts = [relabel(r.name)];
+        if (DAY) parts.push('Daily');
         if (p.scope) parts.push(scopeText(p));
         if (p.side && p.side !== 'buy') parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
         const f = filterText(p); if (f) parts.push(f);

@@ -87,6 +87,9 @@ class BundleRequest(Strict):
     # EXEC-TERMINAL-SPEED: the packs instead of yearly files where the manifest has them (price: one file for every
     # year; broker: the archive pack plus the last two yearly files)
     packs: bool = False
+    # EXEC-INTRADAY-FEATURES C2 (user 2026-11-01): the intraday files of one timeframe as well (its archive and its
+    # current period, manifest `intraday`); which timeframes exist is the manifest's, never a list here
+    timeframe: str | None = Field(default=None, pattern=r'^[0-9]{1,3}[mh]$')
 
 
 class XsectionRequest(Strict):
@@ -534,6 +537,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                 chosen.append(('broker', 'broker-archive', packs['broker-archive']))    # older years first, then yearly
                 ids = [y for y in ids if int(y) > last]
             chosen += [(name, None if i == 'all' else int(i), published[i]) for i in ids if i in published]
+        intraday = m.get('intraday') or {}
+        series = intraday.get(body.timeframe) if body.timeframe else None
+        if series:
+            chosen += [('intraday', part, series['files'][part]) for part in ('archive', 'current')
+                       if part in series.get('files', {})]
         ttl = grant(request, caller, body.ticker, chosen, one_row=True) if chosen else 0
         out = {}
         for name in dict.fromkeys(body.datasets):
@@ -541,8 +549,17 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             out[name] = {'data_through': ds.get('data_through'), 'first_year': ds.get('first_year'),
                          'files': [{**file_answer(None if isinstance(y, str) else y, f, ttl), **({'pack': y} if isinstance(y, str) else {})}
                                    for n, y, f in chosen if n == name]}
+        if body.timeframe:
+            # the asked timeframe: its files (archive first, then the current period) and how to read them; no files
+            # when the ticker has none of it
+            out['intraday'] = {'timeframe': body.timeframe, 'files': [
+                {**file_answer(None, f, ttl), 'part': part} for n, part, f in chosen if n == 'intraday'],
+                **{k: (series or {}).get(k) for k in ('first', 'last', 'rows', 'bars_per_year', 'timezone',
+                                                      'utc_offset_seconds', 'period', 'current')}}
+        # every intraday timeframe of the ticker, so a page knows which it can offer before asking for one
+        timeframes = {tf: {k: s.get(k) for k in ('first', 'last', 'rows', 'bars_per_year')} for tf, s in intraday.items()}
         return {'ticker': body.ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'),
-                'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out}
+                'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out, 'timeframes': timeframes}
 
     @app.post(f'{API}/xsection')
     def xsection(body: XsectionRequest, request: Request, caller=Depends(xsection_caller)):

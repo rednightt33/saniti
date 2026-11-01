@@ -4,6 +4,7 @@
 import type { FlowRows } from '../calc/flow';
 import type * as LWC from 'lightweight-charts';
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, Point, VolumePoint } from '../data/types';
+import { fromChart } from '../data/chartTime';
 
 export const $ = (id: string): any => document.getElementById(id);
 
@@ -15,6 +16,7 @@ export const store = {
 export const nfCompact = new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
 export const rupiah = (n: number) => (n<0?'-':'')+'Rp '+nfCompact.format(Math.abs(n));
 export const keyOf = (t: any): string | null => typeof t === 'string' ? t
+  : typeof t === 'number' ? fromChart(t)                    // an intraday candle (data/chartTime.ts)
   : (t && typeof t === 'object' ? `${t.year}-${String(t.month).padStart(2,'0')}-${String(t.day).padStart(2,'0')}` : null);
 
 /** EXEC-TERMINAL-FRESH (user 2026-10-27): the last session on or before the broker data's last date; every session

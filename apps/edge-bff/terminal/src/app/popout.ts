@@ -55,7 +55,7 @@ export function initPopout(ctx: Ctx) {
   const visibleSpan = (): [number, number] | null => {
     const r = ctx.chart.timeScale().getVisibleLogicalRange();
     const a = r ? Math.max(0, Math.ceil(r.from)) : 0, b = r ? Math.min(ctx.N - 1, Math.floor(r.to)) : ctx.N - 1;
-    return a > b ? null : sessionSpan(B().dates, ctx.dates[a], ctx.endDates[b]);
+    return a > b ? null : sessionSpan(B().dates, ctx.dates[a].slice(0, 10), ctx.endDates[b]);
   };
   const resolve = (p: Period): [number, number] | null => {
     const d = B().dates, last = d.length - 1;
@@ -68,7 +68,8 @@ export function initPopout(ctx: Ctx) {
     const d = B().dates;
     return f === t ? longDay(d[f]) : `${longDay(d[f])} – ${longDay(d[t])} · ${t - f + 1} sessions`;
   };
-  const tf = ctx.M.tf && ctx.M.tf !== 'D' ? ` · ${ctx.M.tf === 'W' ? 'weekly' : 'monthly'} chart` : '';
+  // EXEC-INTRADAY-FEATURES C4: on an intraday chart the broker figures stay daily
+  const tf = ctx.M.intraday ? ` · daily figures, ${ctx.M.tf!.toUpperCase()} chart` : ctx.M.tf && ctx.M.tf !== 'D' ? ` · ${ctx.M.tf === 'W' ? 'weekly' : 'monthly'} chart` : '';
   const bkTag = (b: string) => `<span class="bk ${B().category(b)}"><i></i>${b}</span>`;
   const periodCtl = (k: Key) => seg('p', state[k].p.n, [['1', '1D'], ['5', '5D'], ['20', '20D'], ['view', 'Chart'], ['custom', 'Custom']], 'Period');
   /** no data yet, an index without broker data, or no session in the period: the message, else null */
@@ -240,7 +241,7 @@ export function initPopout(ctx: Ctx) {
       if (i === null) { xh.setAttribute('visibility', 'hidden'); paintLegend(null); return }
       xh.setAttribute('x1', x(i).toFixed(1)); xh.setAttribute('x2', x(i).toFixed(1)); xh.setAttribute('visibility', 'visible'); paintLegend(i);
     };
-    invCross = day => { const k = day ? d.indexOf(day) : -1; show(k >= span[0] && k <= span[1] ? k - span[0] : null) };
+    invCross = day => { const k = day ? d.indexOf(day.slice(0, 10)) : -1; show(k >= span[0] && k <= span[1] ? k - span[0] : null) };
     svgEl.addEventListener('pointermove', e => {
       const rc = svgEl.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.round((e.clientX - rc.left - AX) / pw * (n - 1))));
       const day = d[span[0] + i], ci = ctx.idxByTime.get(ctx.M.barOf ? ctx.M.barOf(day) ?? day : day);

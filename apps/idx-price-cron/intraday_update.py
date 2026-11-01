@@ -44,6 +44,8 @@ COLUMNS = ("ticker", "timeframe", "bar_time", "session_date", "open", "high", "l
            "adjustment", "tradingview_symbol", "source", "query_date")
 TABLE = 'public.price_stock_idx_intraday'
 QUEUE = "public.intraday_feature_queue"
+PUBLISH_CHANGE = "public.intraday_publish_change"   # terminal-publisher reads it (migration 20261101_001)
+PUBLISH_MERGE_DAYS = 14
 LOCK_KEY = "saniti.idx-intraday-cron"
 
 
@@ -168,7 +170,18 @@ def write_rows(conn: psycopg.Connection, rows: list[dict]) -> int:
                         dirty_from = CASE WHEN q.status = 'DONE' THEN EXCLUDED.dirty_from
                                           ELSE least(q.dirty_from, EXCLUDED.dirty_from) END,
                         attempts = CASE WHEN q.status = 'DONE' THEN 0 ELSE q.attempts END,
-                        status = 'PENDING', enqueued_at = statement_timestamp())
+                        status = 'PENDING', enqueued_at = statement_timestamp()),
+                published AS (
+                    -- EXEC-INTRADAY-FEATURES C7.4 A (user 2026-11-01): the publisher's change record, IHSG included;
+                    -- the earliest bar written within PUBLISH_MERGE_DAYS is kept (the publisher runs twice a day and
+                    -- republishes everything when its last run is older than half that window)
+                    INSERT INTO {PUBLISH_CHANGE} AS p (ticker, timeframe, changed_from)
+                    SELECT ticker, timeframe, min(bar_time) FROM written GROUP BY ticker, timeframe
+                    ON CONFLICT (ticker, timeframe) DO UPDATE SET
+                        changed_from = CASE WHEN p.changed_at >= statement_timestamp() - interval '{PUBLISH_MERGE_DAYS} days'
+                                            THEN least(p.changed_from, EXCLUDED.changed_from)
+                                            ELSE EXCLUDED.changed_from END,
+                        changed_at = statement_timestamp())
                 SELECT count(*) FROM written"""
         ).fetchone()[0]
         return n

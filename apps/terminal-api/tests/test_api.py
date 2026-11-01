@@ -439,6 +439,32 @@ def test_bundle_packs_give_one_price_file_and_the_broker_archive_before_the_last
     assert len(plain['price']['files']) == 6
 
 
+def test_bundle_adds_the_intraday_files_of_the_asked_timeframe_and_lists_every_timeframe(env):
+    """EXEC-INTRADAY-FEATURES C2: the archive and the current period of one timeframe, counted with the bundle; the
+    timeframes the manifest has are listed on every answer; a timeframe the ticker lacks gives no files."""
+    client, store, bucket = env
+    sign_in(client)
+    files = {'archive': {'key': 'v1/intraday/BBCA/5m-archive.json.gz', 'sha256': 'a' * 64, 'bytes': 40_000, 'rows': 3600},
+             'current': {'key': 'v1/intraday/BBCA/5m-2026-10.json.gz', 'sha256': 'b' * 64, 'bytes': 9_000, 'rows': 1400}}
+    bucket.manifests['BBCA']['intraday'] = {
+        '5m': {'files': files, 'first': '2026-07-13T02:00:00+00:00', 'last': '2026-10-30T09:10:00+00:00', 'rows': 5000,
+               'bars_per_year': 16017, 'timezone': 'Asia/Jakarta', 'utc_offset_seconds': 25200, 'period': 'month',
+               'current': '2026-10'},
+        '4h': {'files': {}, 'first': '2020-01-02T02:00:00+00:00', 'last': '2026-10-30T06:00:00+00:00', 'rows': 3290,
+               'bars_per_year': 504}}
+    r = client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price'], 'timeframe': '5m'})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert [(f['part'], f['rows']) for f in b['datasets']['intraday']['files']] == [('archive', 3600), ('current', 1400)]
+    assert b['datasets']['intraday']['bars_per_year'] == 16017 and b['datasets']['intraday']['utc_offset_seconds'] == 25200
+    assert set(b['timeframes']) == {'5m', '4h'} and b['timeframes']['4h']['bars_per_year'] == 504
+    assert store.access[-1]['files'] == 8 and store.access[-1]['bytes'] == 6 * 2000 + 49_000   # six price years + two
+    none = client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price'], 'timeframe': '15m'}).json()
+    assert none['datasets']['intraday']['files'] == [] and none['datasets']['intraday']['rows'] is None
+    assert 'intraday' not in client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price']}).json()['datasets']
+    assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'timeframe': '5x'}).status_code == 400
+
+
 PROXY_KEY = 'p' * 40
 
 

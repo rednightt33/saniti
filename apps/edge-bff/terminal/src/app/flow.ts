@@ -12,11 +12,21 @@ import { $, cls, keyOf, nfCompact, rupiah, spin, store } from './context';
 export const FLOW_CUMULATIVE_FROM: 'view' | 'history' = 'view';
 
 /** the running sum of `net` from session `start` (0 before it, so the first value is that session's net); NaN before
-    `start` (EXEC-TERMINAL-CUM) */
-export function cumulativeFrom(net: ArrayLike<number>, start: number): Float64Array<ArrayBuffer> {
+    `start` (EXEC-TERMINAL-CUM). EXEC-INTRADAY-FEATURES C4: with `dayOf` (an intraday chart, every candle of a day showing
+    that day's net) a day is added once, on the first candle that shows it. */
+export function cumulativeFrom(net: ArrayLike<number>, start: number, dayOf?: Int32Array): Float64Array<ArrayBuffer> {
   const out = new Float64Array(net.length).fill(NaN);
   let run = 0;
-  for(let i = Math.max(0, start); i < net.length; i++){ run += net[i]; out[i] = run }
+  const s0 = Math.max(0, start);
+  for(let i = s0; i < net.length; i++){ if(!dayOf || i === s0 || dayOf[i] !== dayOf[i - 1]) run += net[i]; out[i] = run }
+  return out;
+}
+
+/** the candles of [a, b] that count in a sum over the range: all of them, or (intraday, `dayOf`) the first candle in the
+    range of each day */
+export function countedCandles(a: number, b: number, dayOf?: Int32Array): number[] {
+  const out: number[] = [];
+  for(let i = a; i <= b; i++) if(!dayOf || i === a || dayOf[i] !== dayOf[i - 1]) out.push(i);
   return out;
 }
 
@@ -92,15 +102,20 @@ export function initFlow(ctx: Ctx) {
     const r = chart.timeScale().getVisibleLogicalRange();
     return r ? [Math.max(0, Math.ceil(r.from)), Math.min(N-1, Math.floor(r.to))] : [0, N-1];
   };
-  // EXEC-TERMINAL-WM: the labels follow the candles (day / week / month); daily keeps the reference's words
-  const U = UNIT[ctx.M.tf || 'D'], LATEST = `Latest ${U.one} net`, AVG = `Avg ${U.adj} net`;
+  // EXEC-TERMINAL-WM: the labels follow the candles (day / week / month); daily keeps the reference's words.
+  // EXEC-INTRADAY-FEATURES C4 (user 2026-11-01, "Opsi 1"): on an intraday chart the Flow stays daily
+  const DAY_OF = ctx.M.intraday?.dayOf;
+  const U = UNIT[DAY_OF ? 'D' : ctx.M.tf || 'D'], LATEST = `Latest ${U.one} net`, AVG = `Avg ${U.adj} net`;
+  const DAILY_NOTE = DAY_OF ? ' On this intraday chart the figures are daily: an earlier day shows its own on all its candles; the latest day shows its own from its last candle (a day’s figure exists after the close).' : '';
   const FLOW_INFO: Record<string, string> = {
-    [LATEST]: ctx.M.tf && ctx.M.tf !== 'D'
+    [LATEST]: ctx.M.tf && ctx.M.tf !== 'D' && !DAY_OF
       ? `Net value (buy − sell) of the latest ${U.one} with broker data (its sessions summed), for the selected brokers, boards and investor type.`
       : 'Net value (buy − sell) on the latest session, for the selected brokers, boards and investor type.',
     'Period net total': `Sum of the ${U.adj} net value (buy − sell) over the ${U.many} visible on the chart, for the selected filters.`,
     [AVG]: `Period net total divided by the number of visible ${U.many} that have broker data.`
   };
+  if(DAY_OF) for(const k of Object.keys(FLOW_INFO)) FLOW_INFO[k] += DAILY_NOTE;
+  if(DAY_OF) $('flowHead')?.querySelector('.flow-title')?.insertAdjacentHTML('beforeend', '<span class="flow-daily" title="Broker data is daily: each day’s figure is shown on that day’s candles">Daily</span>');
   const info = (l: string) => `<span class="flow-info" tabindex="0" role="img" aria-label="${FLOW_INFO[l]}" data-tip="${l}|${FLOW_INFO[l]}"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.6v4.2"/><circle cx="8" cy="11.2" r=".5"/></svg></span>`;
   const LIVE = ctx.M.mode === 'live';                      // the fixture keeps the reference's whole-series figures (1:1 check)
   const flowSummary = () => {
@@ -108,8 +123,10 @@ export function initFlow(ctx: Ctx) {
        day is the last session with broker rows (the newest price session may not have them yet) and carries its date;
        a negative figure is red with its minus, zero is neutral */
     const [a, b0] = LIVE ? visible() : [0, N-1], b = LIVE ? Math.min(b0, flowTo, ctx.brokerEnd) : b0, from = Math.max(a, flowFrom);
-    let total = 0; for(let i=from;i<=b;i++) total += flowNet[i];
-    const lastI = LIVE ? Math.min(flowTo, ctx.brokerEnd) : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
+    // intraday: a day counts once (its net is on each of its candles)
+    const counted = countedCandles(from, b, DAY_OF);
+    let total = 0; for(const i of counted) total += flowNet[i];
+    const lastI = LIVE ? Math.min(flowTo, ctx.brokerEnd) : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(counted.length || 1);
     const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
     // EXEC-TERMINAL-NODAY (user 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline"): no date beside the label
     const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
@@ -186,7 +203,7 @@ export function initFlow(ctx: Ctx) {
   const cumFrom = LIVE && FLOW_CUMULATIVE_FROM === 'view' && new URLSearchParams(location.search).get('cum') !== 'history' ? 'view' : 'history';
   function computeCum() {
     const start = cumFrom === 'view' ? visible()[0] : 0, E = ctx.brokerEnd;
-    flowCumArr = cumulativeFrom(flowNet, start);
+    flowCumArr = cumulativeFrom(flowNet, start, DAY_OF);
     flowCum.setData(ohlc.map((b,i)=> i > E || i < start ? { time:b.time } : { time:b.time, value:Math.round(flowCumArr[i]) }));
   }
   if(cumFrom === 'view') document.querySelector('.pill-toggle')?.setAttribute('title', 'Cumulative from the first candle visible on the chart (show or hide)');
@@ -201,7 +218,7 @@ export function initFlow(ctx: Ctx) {
   let cumOn = store.get('ml.flow.cum') !== '0';
   // EXEC-TERMINAL-LAG: formatted once per session (toLocaleDateString on every crosshair move cost ~0.5 s per drag)
   const dmyCache = new Map<number, string>();
-  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
+  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
   ctx.tipHooks = [];                                       // crosshair listeners (indicator legend values)
   const showTip = (i: number) => {
     ctx.lastTipIdx = i;

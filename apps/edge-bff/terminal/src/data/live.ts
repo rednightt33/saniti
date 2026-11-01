@@ -2,9 +2,9 @@
    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
    Everything is mapped into the reference page's own shapes (types.ts). */
 import type { Bar, Combo, CompareSpec, InsiderTx, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
-import { brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
+import { barRows, brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
 import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
-import { aggregateRows, alignCandles, buckets, candleOf, type Timeframe } from './timeframe';
+import { aggregateRows, alignCandles, buckets, candleOf, dayOfCandles, dayOfKey, isIntraday, type Timeframe } from './timeframe';
 import { fileStats, mark } from '../app/perf';
 
 const API = '/api/terminal/v1';
@@ -85,35 +85,44 @@ async function session(): Promise<string> {
 type Dataset = 'price' | 'broker' | 'events';
 /* EXEC-TERMINAL-SPEED step 2: with packs the price is one file and the broker the archive plus the last two years (5
    objects instead of 21); each file carries its sha256, the key of the browser cache */
-async function bundle(ticker: string, datasets: Dataset[], csrf: string) {
-  const answer = await api('/bundle', csrf, { ticker, datasets, packs:true });
+async function bundle(ticker: string, datasets: Dataset[], csrf: string, timeframe?: string) {
+  const answer = await api('/bundle', csrf, { ticker, datasets, packs:true, ...(timeframe ? { timeframe } : {}) });
   // EXEC-MU-RUNTIME T7: each file with the sha256 and size /bundle announces; the worker draws only bytes that match both
   const refs = (name: Dataset): FileRef[] => (answer.datasets?.[name]?.files || []).map((f: any) =>
     ({ url:f.url, sha:f.sha256, bytes:f.bytes, name:`${name}/${f.pack || f.year || 'all'}` }));
   // EXEC-TERMINAL-FRESH: each dataset's own last date (a session after the broker's has no broker data yet, not zero)
   const through = { price:answer.datasets?.price?.data_through ?? undefined, broker:answer.datasets?.broker?.data_through ?? undefined };
-  return { price:refs('price'), broker:refs('broker'), events:refs('events'), through };
+  /* EXEC-INTRADAY-FEATURES C3: the asked timeframe's files (archive, then the current period) and how to read them; the
+     timeframes the ticker has, for the buttons */
+  const day = answer.datasets?.intraday;
+  const intraday: FileRef[] | undefined = day ? (day.files || []).map((f: any) => ({ url:f.url, sha:f.sha256, bytes:f.bytes, name:`intraday/${f.part}` })) : undefined;
+  const meta = day ? { barsPerYear:day.bars_per_year ?? undefined, first:day.first ?? undefined, last:day.last ?? undefined } : undefined;
+  return { price:refs('price'), broker:refs('broker'), events:refs('events'), through, intraday, offset:day?.utc_offset_seconds ?? 0, meta,
+           timeframes:(answer.timeframes || {}) as Record<string, { first?: string; last?: string; rows?: number; bars_per_year?: number }> };
 }
 
 /* U7: the files are downloaded, inflated and parsed by one Web Worker (worker.ts); its answers arrive in stages.
    Without Worker support the same functions run here. */
 type BrokerAnswer = Omit<Extract<WorkerAnswer, { type:'broker' | 'brokerAll' }>, 'id' | 'type'>;
 /* broker: the recent years (F5), brokerAll: the whole history, read after them */
-interface Job { price: Promise<PriceRow[]>; broker: Promise<BrokerAnswer>; brokerAll: Promise<BrokerAnswer>; events: Promise<Record<string, unknown>[]> }
+interface Job { price: Promise<PriceRow[]>; bars: Promise<PriceRow[] | undefined>; broker: Promise<BrokerAnswer>; brokerAll: Promise<BrokerAnswer>; events: Promise<Record<string, unknown>[]> }
 let worker: Worker | null = null, jobs = 0;
 const waiting = new Map<number, Record<string, [(v: any) => void, (e: any) => void]>>();
-function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, tf: Timeframe = 'D', onto?: string[]): Job {
+function run(files: Files, tf: Timeframe = 'D', onto?: string[]): Job {
   const stage = <T>() => { let ok!: (v: T) => void, no!: (e: any) => void; const p = new Promise<T>((a, b) => { ok = a; no = b }); p.catch(() => {}); return { p, ok, no } };
-  const price = stage<PriceRow[]>(), broker = stage<any>(), brokerAll = stage<any>(), events = stage<Record<string, unknown>[]>();
+  const price = stage<PriceRow[]>(), bars = stage<PriceRow[] | undefined>(), broker = stage<any>(), brokerAll = stage<any>(), events = stage<Record<string, unknown>[]>();
+  const job = { price:price.p, bars:bars.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
+  const groups = (ds: string[]) => tf === 'W' || tf === 'M' ? buckets(ds, tf) : null;
   if (typeof Worker === 'undefined') {
     (async () => {
       const brokerDocs = Promise.all(files.broker.map(download)), eventDocs = Promise.all(files.events.map(download));
       brokerDocs.catch(() => {}); eventDocs.catch(() => {});      // read below, after the price; no unhandled rejection (as worker.ts)
       const rows = priceRows(await Promise.all(files.price.map(download))); price.ok(rows);
-      const ds = onto || rows.map(r => r.d), all = brokerData(await brokerDocs, ds, tf === 'D' ? null : buckets(ds, tf)); broker.ok(all); brokerAll.ok(all);
+      bars.ok(files.intraday?.length ? barRows(await Promise.all(files.intraday.map(download)), files.offset || 0) : undefined);
+      const ds = onto || rows.map(r => r.d), all = brokerData(await brokerDocs, ds, groups(ds)); broker.ok(all); brokerAll.ok(all);
       events.ok((await eventDocs).flatMap(rowsOf));
-    })().catch(e => [price, broker, brokerAll, events].forEach(s => s.no(e)));
-    return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
+    })().catch(e => [price, bars, broker, brokerAll, events].forEach(s => s.no(e)));
+    return job;
   }
   if (!worker) {
     worker = new Worker(new URL('./worker.ts', import.meta.url));
@@ -125,14 +134,15 @@ function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, 
         const err = new TerminalError(data.message, data.status, data.code, data.detail);
         Object.values(w).forEach(([, no]) => no(err)); waiting.delete(id); return;
       }
+      if (type === 'price' && w.bars) { w.bars[0](data.bars); delete w.bars }
       w[type][0](type === 'price' ? data.rows : type === 'events' ? data.rows : data);
       delete w[type]; if (!Object.keys(w).length) waiting.delete(id);
     };
   }
   const id = ++jobs;
-  waiting.set(id, { price:[price.ok, price.no], broker:[broker.ok, broker.no], brokerAll:[brokerAll.ok, brokerAll.no], events:[events.ok, events.no] });
-  worker.postMessage({ id, ...files, tf, dates:onto });
-  return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
+  waiting.set(id, { price:[price.ok, price.no], bars:[bars.ok, bars.no], broker:[broker.ok, broker.no], brokerAll:[brokerAll.ok, brokerAll.no], events:[events.ok, events.no] });
+  worker.postMessage({ id, price:files.price, broker:files.broker, events:files.events, intraday:files.intraday, offset:files.offset, tf, dates:onto });
+  return job;
 }
 
 /* EXEC-MU-RUNTIME T7: a job whose files fail their check (DATA_INTEGRITY: bytes unlike the sha256 and size /bundle
@@ -140,7 +150,7 @@ function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, 
    M250), so a mismatch is a stale answer or a damaged transfer, which the new answer and download mend; the stages still
    waiting (every stage the failure ended) take the new job's answers. A failure of the second job, or any other error,
    reaches the page as it is, a failed check with the plain INTEGRITY_MESSAGE. */
-type Files = { price: FileRef[]; broker: FileRef[]; events: FileRef[] };
+type Files = { price: FileRef[]; broker: FileRef[]; events: FileRef[]; intraday?: FileRef[]; offset?: number };
 /* a failed check as the page shows it (TerminalError, INTEGRITY_MESSAGE); its detail goes to the console once */
 const logged = new WeakSet<object>();
 function integrityFailure(e: any) {
@@ -167,12 +177,12 @@ function checked(files: Files, again: () => Promise<Files>, tf: Timeframe = 'D',
     p.catch(() => {});
     return p;
   };
-  return { price:stage('price'), broker:stage('broker'), brokerAll:stage('brokerAll'), events:stage('events') };
+  return { price:stage('price'), bars:stage('bars'), broker:stage('broker'), brokerAll:stage('brokerAll'), events:stage('events') };
 }
 
 /* one ticker's datasets, checked (one new /bundle on a failed check) */
-async function load(ticker: string, datasets: Dataset[], csrf: string, tf: Timeframe = 'D', onto?: string[], first?: Files) {
-  const again = () => bundle(ticker, datasets, csrf);
+async function load(ticker: string, datasets: Dataset[], csrf: string, tf: Timeframe = 'D', onto?: string[], first?: Files, timeframe?: string) {
+  const again = () => bundle(ticker, datasets, csrf, timeframe);
   return checked(first || await again(), again, tf, onto);
 }
 
@@ -203,6 +213,20 @@ function alignTo(dates: string[], rows: { d: string; c: number }[], ends: string
   return out;
 }
 
+/* EXEC-INTRADAY-FEATURES C3: another ticker's bars on the chart's candles by key; a candle it did not trade repeats its
+   last close; candles before its first bar are left out */
+function alignBars(keys: string[], rows: PriceRow[]): Bar[] {
+  const at = new Map(rows.map(r => [r.d, r])), out: Bar[] = [];
+  let last: number | null = null, k = 0;
+  while (k < rows.length && rows[k].d < keys[0]) last = rows[k++].c;
+  for (const t of keys) {
+    const r = at.get(t);
+    if (r) { out.push({ time:t, open:r.o, high:r.h, low:r.l, close:r.c }); last = r.c }
+    else if (last !== null) out.push({ time:t, open:last, high:last, low:last, close:last });
+  }
+  return out;
+}
+
 /* U5 (user 2026-10-26: "automatically load chart dan panel bawah.. lalu panel kiri dan kanan akan load kalau user
    buka/expand the panel"): the page draws as soon as the price is read; the broker data (Flow, Broker activity) and
    the events follow through `later`, IHSG (Statistics, Relative performance) only when that panel asks for it. */
@@ -221,38 +245,61 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
   const logosP = reference('logos').then(rows => Object.fromEntries(rows.map((r: any) => [r.ticker, String(r.sha256).slice(0, 12)])), () => ({}));
   brokerRefP.catch(() => {});
   const guess = stored || 'MAPI';
-  const guessP = bundle(guess, ['price', 'broker', 'events'], csrf);
+  const want = isIntraday(tf) ? tf : undefined;                // EXEC-INTRADAY-FEATURES C3
+  const guessP = bundle(guess, ['price', 'broker', 'events'], csrf, want);
   guessP.catch(() => {});
   const tickers = await tickersP as { ticker: string; name: string; type: string; sector: string | null }[];
   const known = new Set(tickers.map(t => t.ticker));
   const instruments: Instrument[] = tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0]);
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
-  const files = SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf);
-  const job = await load(SYMBOL, ['price', 'broker', 'events'], csrf, tf, undefined, files);
+  const files = SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf, want);
+  // a ticker without the asked intraday timeframe shows its daily chart and says so (`note`)
+  const intraday = !!want && !!files.intraday?.length;
+  if (want && !intraday) tf = 'D';
+  const job = await load(SYMBOL, ['price', 'broker', 'events'], csrf, tf, undefined, files, intraday ? want : undefined);
 
   mark('ticker list and bundle');
   const rows = await job.price;                            // daily sessions
+  const bars = intraday ? (await job.bars) || [] : null;   // the intraday candles, keyed by their open time (WIB)
   mark('price read');
-  if (!rows.length) throw new TerminalError(`No price data is published for ${SYMBOL}.`);
-  // EXEC-TERMINAL-WM: the chart's candles (daily, or built from the daily sessions); `ends` = each candle's last session
-  const sessions = rows.map(r => r.d), groups = buckets(sessions, tf), candles = aggregateRows(rows, tf), ends = groups.ends;
+  if (!rows.length && !bars?.length) throw new TerminalError(`No price data is published for ${SYMBOL}.`);
+  /* EXEC-TERMINAL-WM: the chart's candles (daily, or built from the daily sessions); `ends` = each candle's last session.
+     EXEC-INTRADAY-FEATURES C3: an intraday candle's session is its key's date; `dayOf` = the daily session each candle
+     shows for the daily figures (Flow, Bandar, Broker, a daily-only indicator; C4, timeframe.ts dayOfCandles) */
+  const sessions = rows.map(r => r.d), groups = buckets(sessions, intraday ? 'D' : tf);
+  const candles = bars || aggregateRows(rows, tf), ends = bars ? bars.map(b => dayOfKey(b.d)) : groups.ends;
+  const dayOf = bars ? dayOfCandles(bars.map(b => b.d), sessions) : undefined;
   const ohlc: Bar[] = candles.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
   const volume: VolumePoint[] = candles.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)', ...(r.v == null ? { none:true } : {}) }));
   const lineData: Point[] = ohlc.map(b => ({ time:b.time, value:b.close }));
   const dates = ohlc.map(b => b.time), N = dates.length;
+  /* intraday: another ticker's bars of the same timeframe (IHSG, a compare series, an added asset) */
+  const barsOf = async (ticker: string) => ticker === SYMBOL && bars ? bars
+    : (await (await load(ticker, ['price'], csrf, 'D', undefined, undefined, want)).bars) || [];
+  /* the candle a date falls on: intraday, the first candle of the first session on or after it */
+  const firstCandleOn = (d: string) => { let lo = 0, hi = N; while (lo < hi) { const m = (lo + hi) >> 1; if (ends[m] < d) lo = m + 1; else hi = m } return lo };
+  const barOf = (d: string) => intraday ? (N ? dates[Math.min(firstCandleOn(d), N - 1)] : null) : candleOf(d, groups, sessions);
+  /* the daily figures on the candles: a session's values on the candles that show it (dayOf), its broker rows' first and
+     last session as candle indices */
+  const onTheCandles = <T extends { combos: any[]; flowFrom: number; flowTo: number }>(b: T): T => {
+    if (!dayOf) return b;
+    let from = N, to = -1;
+    dayOf.forEach((d, i) => { if (d >= 0 && d >= b.flowFrom && d <= b.flowTo) { if (i < from) from = i; to = i } });
+    return { ...b, flowFrom:from, flowTo:to, combos:b.combos.map(c => ({ ...c, net:Float64Array.from(dayOf, d => d >= 0 ? c.net[d] || 0 : 0) })) };
+  };
 
   /* IHSG for Statistics → Relative performance; sessions before its first close take its first close */
   let ihsgP: Promise<{ d: string; c: number }[]> | null = null;
-  const ihsgRows = () => ihsgP ||= SYMBOL === 'IHSG' ? Promise.resolve(rows) : prices('IHSG', csrf);
+  const ihsgRows = () => ihsgP ||= intraday ? barsOf('IHSG') : SYMBOL === 'IHSG' ? Promise.resolve(rows) : prices('IHSG', csrf);
   const loadIhsg = async (): Promise<Point[]> => {
-    const aligned = alignTo(dates, await ihsgRows(), ends);
+    const aligned = alignTo(dates, await ihsgRows(), intraday ? dates : ends);
     const first = aligned.length ? aligned[0].value : NaN;
     return dates.map((t, i) => aligned[i - (N - aligned.length)] ?? { time:t, value:first });
   };
 
   /* broker files: Flow Timeline (net per broker × investor type × board) and Broker activity (the last two years, worker.ts PANEL_YEARS) */
   const brokerOf = async (stage: Promise<BrokerAnswer>) => {
-    const b = await stage;
+    const b = onTheCandles(await stage);
     const brokerTypes = new Map((await brokerRefP.catch(() => [])).map((r: any) => [r.code, r.type] as [string, string]));
     return {
       combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom, flowTo:b.flowTo, flow:b.flow,
@@ -266,8 +313,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
   const catalog = COMPARE.filter(c => known.has(c.symbol));
   const loadCompare = async (id: string) => {
     const spec = catalog.find(c => c.id === id); if (!spec) return [];
-    const series = spec.symbol === 'IHSG' ? await ihsgRows() : spec.symbol === SYMBOL ? rows : await prices(spec.symbol, csrf);
-    return alignTo(dates, series, ends);
+    const series = spec.symbol === 'IHSG' ? await ihsgRows() : intraday ? await barsOf(spec.symbol) : spec.symbol === SYMBOL ? rows : await prices(spec.symbol, csrf);
+    return alignTo(dates, series, intraday ? dates : ends);
   };
 
   /* EXEC-TERMINAL-ASSETS (user 2026-10-28: "ketika kita add asset, maka yang keluar adalah search box exactly sama seperti
@@ -276,14 +323,15 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
      puts them there, `dates`); the right panel stays the chart's own ticker */
   const loadAsset = async (ticker: string): Promise<Bar[]> => {
     if (!known.has(ticker)) return [];
+    if (intraday) return alignBars(dates, await barsOf(ticker));
     const daily = ticker === SYMBOL ? rows : await prices(ticker, csrf);
     return alignCandles(sessions, groups, daily);
   };
   const loadAssetFlow = async (ticker: string) => {
     const files = await bundle(ticker, ['broker'], csrf);
-    const asset = await load(ticker, ['broker'], csrf, tf, sessions, files);   // a broker-only answer: no price or events files
+    const asset = await load(ticker, ['broker'], csrf, intraday ? 'D' : tf, sessions, files);   // a broker-only answer: no price or events files
     const part = async (stage: Promise<BrokerAnswer>) => {
-      const b = await stage;
+      const b = onTheCandles(await stage);
       return { combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom, flowTo:b.flowTo };
     };
     const recent = part(asset.broker), all = part(asset.brokerAll);
@@ -293,9 +341,9 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
 
   const loadEvents = async (): Promise<MarketEvent[]> => (await job.events).flatMap((r: any, k) => {
     const type = r.family === 'CORPORATE_ACTION' ? EVENT_TYPE[r.type] : undefined;
-    if (!type || r.d < sessions[0]) return [];
+    if (!type || r.d < (intraday ? ends[0] : sessions[0])) return [];
     // the marker sits on the candle that holds the first session on or after the date
-    const at = candleOf(r.d, groups, sessions) ?? undefined;
+    const at = barOf(r.d) ?? undefined;
     /* T9 (user 2026-10-26): the published detail rows; a value the source leaves blank shows "Unavailable" */
     const rows: [string, string][] = Array.isArray(r.detail)
       ? r.detail.map(([label, value, kind]: [string, unknown, string]) => [label, detailText(value, kind)] as [string, string])
@@ -317,8 +365,13 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
     combos:[], flowSource:'real', flowFrom:N,
     broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
     later: { broker, brokerAll },
-    tf, endDates:ends, barOf:(d: string) => candleOf(d, groups, sessions),
+    tf, endDates:ends, barOf,
     through: files.through,
+    // EXEC-INTRADAY-FEATURES C3-C4: the timeframes the ticker has, and on an intraday chart the daily sessions behind
+    // the daily figures, the session each candle shows (dayOf) and the timeframe's bars per year
+    timeframes:Object.keys(files.timeframes || {}),
+    ...(want && !intraday ? { note:`No ${want.toUpperCase()} data is published for ${SYMBOL}; showing the daily chart.` } : {}),
+    ...(intraday && dayOf ? { intraday:{ dayOf, days:sessions, daily:rows, barsPerYear:files.meta?.barsPerYear, first:files.meta?.first, last:files.meta?.last } } : {}),
     loadEvents,
     // the Bandar panel is shown on the agreed definition (EXEC-TERMINAL-FLOW-IND, user 2026-10-30: "Sekarang.");
     // the broker-action gauge has no approved formula yet
