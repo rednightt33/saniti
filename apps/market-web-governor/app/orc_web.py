@@ -43,6 +43,7 @@ from .provider import OpenRouterProvider, ProviderError, _extract_output, search
 
 SHAPES = ("FACT", "NUMBER", "EVENT", "SERIES", "LIST")
 QUICK_RESULTS = 5
+MIN_SEVERAL_ITEMS = 2  # EXEC-WEB-LIST: fewer items than this answers a need for several only partly
 RESEARCH_RESULTS = 8
 QUICK_EXCERPT = 1500
 RESEARCH_EXCERPT = 3000
@@ -64,6 +65,9 @@ class OrcWebRequest(BaseModel):
     subjects: list[str] = Field(default_factory=list, max_length=50)
     as_of: date | None = None
     refresh: bool = False
+    # EXEC-WEB-LIST (user 2026-11-02): the caller expects several items of the shape (every decision, all dates since a
+    # year); one item found is then short and is researched wider. False keeps a single found item final.
+    several: bool = False
 
 
 # ----------------------------------------------------------------------------------------------- extraction form
@@ -261,7 +265,8 @@ def cache_key(request: OrcWebRequest) -> str:
     norm = lambda text: " ".join(re.sub(r"[^0-9a-z]+", " ", text.lower()).split())  # noqa: E731
     subjects = "|".join(sorted(norm(s) for s in request.subjects))
     month = (request.as_of or date.today()).isoformat()[:7]
-    text = f"{norm(request.need)}|{request.purpose}|{request.expected_shape or ''}|{subjects}|{month}"
+    text = f"{norm(request.need)}|{request.purpose}|{request.expected_shape or ''}|{subjects}|{month}" \
+        + ("|several" if request.several else "")
     return hashlib.sha256(text.encode()).hexdigest()
 
 
@@ -588,6 +593,10 @@ class OrcWebService:
             return "FEW_PERIODS"
         if request.expected_shape == "LIST" and not any(i["shape"] == "LIST" for i in items):
             return "NO_LIST"
+        # EXEC-WEB-LIST: the caller asked for several items (request edge_026b…: one BI-Rate event for "every hike
+        # since 2021"); a single item, or a reading that says the sources cover only part, is researched wider
+        if request.several and (len(items) < MIN_SEVERAL_ITEMS or reading["needs_research"]):
+            return "FEW_ITEMS"
         if reading["needs_research"] and request.expected_shape in ("SERIES", "LIST", None):
             return "MODEL_ASKED"
         return None
@@ -721,6 +730,9 @@ class OrcWebService:
         purpose = ("Purpose: values to cite in an answer." if request.purpose == "CITE"
                    else "Purpose: context for a market-data analysis.")
         shape = f"Expected shape: {request.expected_shape}.\n" if request.expected_shape else ""
+        if request.several:  # EXEC-WEB-LIST
+            shape += ("Several items expected: return every item the sources state for the need (each event, date or "
+                      "value its own item), not only the latest one.\n")
         as_of = (request.as_of or date.today()).isoformat()
         return self._call({
             "model": self._model(), "instructions": EXTRACT_INSTRUCTIONS, "store": False,

@@ -309,6 +309,29 @@ def test_a_found_number_is_not_researched_on_the_model_word_alone(tmp_path) -> N
     assert result["escalation"] == "MODEL_ASKED" and len(provider.search_payloads()) > 2
 
 
+def test_several_events_with_one_found_are_researched_wider(tmp_path) -> None:
+    """EXEC-WEB-LIST (request edge_026b…, 2026-11-02): "every BI-Rate hike since 2021" asked as EVENT came back with one
+    event and stopped at QUICK. With several the single event is short (FEW_ITEMS) and the search widens; the reading
+    is told to return every item."""
+    bi = item("EVENT", 2, "Januari-Desember 2024 mencapai US$264,70 miliar",
+              event={"announced": "2021-11-01", "effective": None, "ended": None, "status": "COMPLETED", "stages": []})
+    provider = Provider(readings=[reading([bi])])
+    result = OrcWebService(settings_with(tmp_path), provider).answer(
+        request("tanggal kenaikan BI-Rate sejak 2021", expected_shape="EVENT", several=True))
+    assert result["escalation"] == "FEW_ITEMS" and len(provider.search_payloads()) > 2
+    assert "Several items expected" in json.dumps(provider.reading_payloads()[0])
+    # the same single event without several stays final at QUICK, as before (the smoke run's latest BI-Rate)
+    provider = Provider(readings=[reading([bi])])
+    result = OrcWebService(settings_with(tmp_path), provider).answer(
+        request("tanggal kenaikan BI-Rate terakhir", expected_shape="EVENT"))
+    assert result["depth"] == "QUICK" and result["escalation"] is None and len(provider.search_payloads()) == 2
+    assert "Several items expected" not in json.dumps(provider.reading_payloads()[0])
+
+
+def test_several_is_part_of_the_cache_key() -> None:
+    assert cache_key(request("x y z", several=True)) != cache_key(request("x y z"))
+
+
 def test_a_good_quick_reading_does_not_escalate(tmp_path) -> None:
     provider = Provider(readings=[SERIES_3])
     result = OrcWebService(settings_with(tmp_path), provider).answer(request(expected_shape="SERIES"))
