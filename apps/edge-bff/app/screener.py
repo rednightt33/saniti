@@ -31,6 +31,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from . import wake
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
                        dumps, error_of, loads, preview_order)
 
@@ -230,8 +231,10 @@ class ScreenerWorker:
         self.client = client      # made on first use, on the loop that uses it
 
     def connection(self):
+        # EXEC-U4-WORKERS: the worker may sleep when idle; the first call wakes it (app/wake.py)
         return httpx.AsyncClient(base_url=self.settings.screener_worker_url, timeout=CONTROL_TIMEOUT,
-                                 follow_redirects=False, trust_env=False)
+                                 follow_redirects=False, trust_env=False,
+                                 transport=wake.async_transport('screener-worker'))
 
     async def call(self, method, path, body=None, timeout=None, key=True, owner=None, relay=False, fresh=False):
         """One call whose answer is the worker's (an Answer): its 504 TIMEOUT is WorkerTimeout, its 503

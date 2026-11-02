@@ -9934,6 +9934,45 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-U4-WORKERS — screener-worker dan backtest-worker tidur saat tidak dipakai (go 2026-11-02)
+
+**Kata user, 2026-11-02:** "Jalankan U4 sekarang. Sudah ada implementation plan? Kalau belum siapkan dulu." Sebelumnya
+diusulkan: screener-worker dan backtest-worker diizinkan tidur saat tidak dipakai (U4 FUTURE_PLAN; EXEC-U4 2026-10-29
+hanya sandbox). Rencana untuk dua worker ini belum ada; disusun di bawah dari kode.
+
+**Kenapa sekarang tidak bisa tidur (dicek di kode):**
+- Railway menidurkan service yang 10 menit tanpa lalu lintas keluar.
+- `screener-worker` membaca `/state` terminal-api setiap 60 detik (`src/refresh.ts` `POLL_MS`, `start()`), jadi tidak
+  pernah sepi. Memorinya 0,5-0,8 GB sepanjang hari (sekitar USD 6/bulan).
+- `backtest-worker` tidak punya timer: katalog dicek hanya saat diminta (`src/catalog.ts` `checkMs`). Ia bisa tidur
+  begitu diizinkan.
+- Pemanggil satu-satunya edge-bff (`app/screener.py` `ScreenerWorker`, `app/backtest.py` `WorkerClient`). Panggilan ke
+  service yang tidur gagal di koneksi pertama (bukti telegram-monitor 2026-10-27; orc memakai `app/wake.py` untuk
+  sandbox).
+
+**Langkah:**
+1. **edge-bff `app/wake.py`** (port aturan orc EXEC-U4, sync dan async):
+   - Koneksi ditolak berarti permintaan belum sampai ke service. Edge-bff lalu memanggil `GET /health` (tanpa kunci,
+     dijawab dari memori di kedua worker) sampai ada jawaban, maksimal sekitar 23 detik, lalu mengirim ulang sekali.
+   - Jawaban apa pun dari worker dikembalikan apa adanya, jadi tidak ada permintaan yang terkirim dua kali.
+   - Dipasang di client screener dan di kedua client backtest (loop dan relay). Log `downstream_wake`.
+2. **screener-worker** tetap memeriksa `/state` setiap 60 detik selama ada pemakaian, lalu berhenti sesudah
+   `SCREENER_IDLE_POLL_S` (bawaan 300 detik) tanpa permintaan berkunci. Permintaan pertama sesudahnya memicu pemeriksaan
+   lagi. Sesudah bangun dari tidur, proses mulai dari awal dan langsung memuat publikasi terbaru (`start()`).
+   Selama memuat, worker menjawab 503 `SCREENER_NOT_READY` yang sudah ditangani edge-bff dan halaman.
+3. **backtest-worker:** tidak ada perubahan kode.
+4. **Railway:** `sleepApplication: true` untuk kedua worker (`.railway/railway.ts`, `railway config plan`/`apply`).
+5. **Verifikasi live:**
+   - kedua worker `SLEEPING` sesudah diam;
+   - screen dan preview backtest pertama sesudah tidur tetap berhasil, waktu bangun diukur (`downstream_wake`);
+   - memori kembali ke 0 saat tidur.
+6. **Catatan:** RAILWAY_CHANGELOG, FUTURE_PLAN U4, AI dokumentasi bila terdampak.
+
+**Dampak ke user:** screen atau backtest pertama sesudah worker tidur menunggu beberapa detik (bangun dan memuat data;
+screener memuat sekitar 12 MB data harga, terukur 1,1 detik unduh dan 1,7 detik decode pada refresh 09:12 UTC).
+**Rollback:** `sleepApplication: false` untuk worker itu (plan/apply). Penjaga bangun di edge-bff tidak merugikan service
+yang menyala.
+
 ## EXEC-AUDIT-REDEPLOY — deploy ulang market-audit-store (M308; sandbox tidak bisa tidur) (go 2026-11-02)
 
 **Kata user, 2026-11-02:** "Cek juga sandbox memorynya. Stuck di 1 GB padahal tidak di pakai." Atas usulan deploy ulang

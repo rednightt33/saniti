@@ -193,6 +193,7 @@ export interface AppOptions {
   engine?: Engine;                       // tests
   metrics?: MetricsCatalog; presets?: PresetDefinition[];
   pollMs?: number;
+  idlePollS?: number;                    // EXEC-U4-WORKERS: overrides SCREENER_IDLE_POLL_S (tests)
   now?: () => number;
 }
 export interface WorkerApp {
@@ -433,6 +434,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       return sendJson(res, 503, { ready: false, retry_after_seconds: LOADING_RETRY_SECONDS, error: { code: 'SCREENER_NOT_READY', message: 'No snapshot is loaded yet.' } }, { 'retry-after': String(LOADING_RETRY_SECONDS) });
     }
     if (!sameKey(req.headers[WORKER_KEY_HEADER], key)) throw new HttpError(401, 'UNAUTHORIZED');
+    refresher.touch();                                         // EXEC-U4-WORKERS: in use, the /state poll runs
     const owner = ownerOf(req), deadlineAt = arrived + L.deadline_ms;
     if (path === '/v1/catalog') { allow('GET'); if (!current) throw notReady(); return sendDoc(req, res, current.catalog) }
     if (path === '/v1/universe') { allow('GET'); if (!current) throw notReady(); return sendDoc(req, res, current.universe) }
@@ -573,7 +575,8 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   });
   server.keepAliveTimeout = 5000;
 
-  const refresher = new Refresher({ api, client, host, limits: L, fileOrigin: cfg.terminal.fileOrigin, pollMs: opts.pollMs });
+  const refresher = new Refresher({ api, client, host, limits: L, fileOrigin: cfg.terminal.fileOrigin, pollMs: opts.pollMs,
+                                   idleMs: (opts.idlePollS ?? cfg.idlePollS ?? 0) * 1000 });
   return {
     server, pool, refresher, results, budget,
     state: () => ({ current, previous, outcome }),

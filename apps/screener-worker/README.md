@@ -131,8 +131,9 @@ replica from measured runs (exponential average, alpha 0.2). Pre-warmed series c
 ## Configuration
 
 Every limit has no default: the process logs `config_invalid` naming the variable (never its value) and exits.
-`src/config.ts` (`loadConfig`) is the source of this table: it reads exactly these 30 names, and every one is required
-except `PORT` (default 8080) and `SCREENER_CACHE_DIR` (optional; with it `SCREENER_CACHE_DIR_BYTES` is required). The
+`src/config.ts` (`loadConfig`) is the source of this table: it reads exactly these 31 names, and every one is required
+except `PORT` (default 8080), `SCREENER_IDLE_POLL_S` (default 300) and `SCREENER_CACHE_DIR` (optional; with it
+`SCREENER_CACHE_DIR_BYTES` is required). The
 proposed dev values are **LOCAL and provisional**: measured in the build sandbox, not on Railway
 (`verification/screener/BENCHMARK_LOCAL.md` section 8, 2026-10-29), unless the row names another source. The Phase 17
 benchmark on the dev service (report 11b; DEPLOY_RUNBOOK step 11) replaces every one of them. The whole set passes
@@ -140,36 +141,37 @@ benchmark on the dev service (report 11b; DEPLOY_RUNBOOK step 11) replaces every
 
 | Variable | Read and checked (`src/config.ts`) | Meaning | Proposed dev value (LOCAL, provisional) |
 |---|---|---|---|
-| `PORT` | :84-85, 1-65535, default 8080 (`DEFAULT_PORT`, :53) | HTTP port | not set: 8080, the port the private URL names |
-| `SCREENER_WORKER_KEY` | :86-87, at least 32 characters (contract.ts `WORKER_KEY_MIN_LENGTH`) | shared secret with edge-bff (`x-screener-worker-key`) | secret: 64 hex generated on Railway, never printed; edge-bff reads it by reference |
-| `TERMINAL_URL` | :88-92, an http(s) origin, no path, user name or password | terminal-api origin on the private network | `http://terminal-api.railway.internal:8080` |
-| `TERMINAL_PROXY_KEY` | :93-94, at least 32 characters | the key the worker sends terminal-api as `x-terminal-proxy-key` (`/state`, `/xsection`, `/manifest`, `/reference`) | a reference, never a value: `${{terminal-api.TERMINAL_SERVICE_KEY_SCREENER_WORKER}}`, the worker's own service account (EXEC-MU-RUNTIME T1; `/xsection` admits it, terminal-api `main.py` `xsection_caller`), once terminal-api holds it; until then the gateway key `${{terminal-api.TERMINAL_PROXY_KEY}}` (TEMPORARY) |
-| `SCREENER_FILE_ORIGIN` | :95-96, `scheme://host[:port]` (terminal.ts `fileOriginOf`) | the bucket origin every presigned URL must have | the value of backtest-worker's `BACKTEST_FILE_ORIGIN`, copied without printing it |
-| `SCREENER_THREADS` | :126, at least 1 | K compute threads (plus one builder thread during a refresh) | 2 (K = 2 on a 4-vCPU replica; K = 4 failed the 1.5 x rule; re-measure on the service's vCPU) |
-| `SCREENER_THREAD_HEAP_MB` | :126, at least 64 | each compute and builder thread's V8 old-generation limit (MB); a thread that needs more stops alone (`500 OUT_OF_MEMORY`, restarted) | 512 (every thread stayed at or under 354 MB with a 384 MB limit) |
-| `SCREENER_CACHE_BYTES` | :126, at least 0 | series LRUs plus result cache, split K + 1 (`cacheShare`, :130) | 268435456 (256 MiB: 89,478,485 B per share at K = 2) |
-| `SCREENER_CACHE_DIR` | :97, optional | file cache by sha256 on the container's disk (no volume); must be writable by uid 1000 (image `USER node`) | `/tmp/screener-cache` |
-| `SCREENER_CACHE_DIR_BYTES` | :121, at least 1, required only with `SCREENER_CACHE_DIR` | the disk cache's budget | 48000000 (not measured: 2 x `SCREENER_MAX_REFRESH_BYTES`, the files of two publications at their caps; a cold refresh downloaded 11,772,808 B) |
-| `SCREENER_DOWNLOAD_CONCURRENCY` | :122, at least 1 | HTTP requests in flight to terminal-api and the bucket (the 845 `/manifest` reads) | 16 (backtest-worker README's value; the local benchmark ran 8) |
-| `SCREENER_DOWNLOAD_RETRIES` | :122, at least 0 | retries of a network error or a 5xx; also the quick retries of a skewed `/xsection` | 3 (backtest-worker's; the benchmark ran 2) |
-| `SCREENER_RETRY_BASE_MS` | :123, at least 0 | backoff base: retry k waits base x 2^k | 500 (backtest-worker's; the benchmark ran 200) |
-| `SCREENER_HTTP_TIMEOUT_MS` | :123, at least 1 | longest one HTTP request may take, body included | 60000 (backtest-worker's and the benchmark's) |
-| `SCREENER_MAX_CPU_MS` | :99, at least 1 | per-request compute budget (`422 LIMIT_EXCEEDED compute_budget`) | 4500 (20000 / 4.36, the worst measured under-prediction of the cost model, BENCHMARK_LOCAL.md section 7) |
-| `SCREENER_CAP_BUDGET_MS` | :100, at least 1; :117-118 refuses a value whose caps refuse a registry default | the length caps (`registry.ts capOf`) | 4500, equal to `SCREENER_MAX_CPU_MS` (caps 1261 -> 567) |
-| `SCREENER_DEADLINE_MS` | :101, at least 1 | request deadline, queue included (`504 TIMEOUT`) | 20000; edge-bff's `SCREENER_TIMEOUT_SECONDS` = this / 1000 = 20 |
-| `SCREENER_MAX_CONDITIONS` | :102, at least 1 | enabled conditions per definition | 20 |
-| `SCREENER_MAX_METRIC_FILTERS` | :103, at least 0 | universe metric filters per definition | 8 |
-| `SCREENER_WITHIN_MAX` | :104, at least 1 | longest `within`; tails are this + 1 bars (`metrics.ts tailLength`) | 130 |
-| `SCREENER_MAX_COUNTS` | :105, at least 1 | definitions per counts request (at least edge-bff's `SCREEN_LIMIT`, 50) | 50 |
-| `SCREENER_MAX_RESPONSE_BYTES` | :106, at least 1 | JSON bytes of one answer | 4194304 (an answer inside the limits reaches about 2.8 MB; report 8.9 had 2097152) |
-| `SCREENER_QUEUE` | :107, at least 0 | users' requests waiting for a thread on this replica (`409 BUSY`); the system lane is not counted | 4 (2 x K) |
-| `SCREENER_OWNER_INFLIGHT` | :108, at least 1 | running requests per owner tag (the owner's lane) | 1 (K - 1: light owners' p95 x 1.6 with a heavy owner, x 32-41 with 2; report's provisional 2) |
-| `SCREENER_OWNER_CPU_MS` | :109, at least 1; :119 at least `SCREENER_MAX_CPU_MS` | P33: thread ms per owner tag per minute (`422 LIMIT_EXCEEDED owner_cpu_budget` with the wait) | 30000 |
-| `SCREENER_PREVIOUS_GRACE_S` | :110, at least 0 | seconds the previous snapshot serves requests pinned to it | 600 (report 06d / 8.9 provisional; not measured) |
-| `SCREENER_MAX_FILE_BYTES` | :111, at least 1 | gzip bytes of one xsection file, checked on the index before any grant | 24000000 (2 x 11,758,823 B measured locally; re-derive from the dev publisher run, DEPLOY_RUNBOOK step 6) |
-| `SCREENER_MAX_INFLATED_BYTES` | :112, at least 1 | bytes one file may inflate to (`TerminalClient maxFileBytes`) | 150000000 (2 x 74,272,854 B) |
-| `SCREENER_MAX_REFRESH_BYTES` | :113, at least 1 | gzip bytes one refresh may download in total | 24000000 (2 x 11,772,808 B) |
-| `SCREENER_MAX_REQUEST_BYTES` | :114, at least 1 | bytes of one request body (`413 REQUEST_TOO_LARGE`, limit `request_bytes`) | 131072 (edge-bff's own body cap, `app/screener.py REQUEST_BYTES`) |
+| `PORT` | :89-90, 1-65535, default 8080 (`DEFAULT_PORT`, :57) | HTTP port | not set: 8080, the port the private URL names |
+| `SCREENER_WORKER_KEY` | :91-92, at least 32 characters (contract.ts `WORKER_KEY_MIN_LENGTH`) | shared secret with edge-bff (`x-screener-worker-key`) | secret: 64 hex generated on Railway, never printed; edge-bff reads it by reference |
+| `TERMINAL_URL` | :93-97, an http(s) origin, no path, user name or password | terminal-api origin on the private network | `http://terminal-api.railway.internal:8080` |
+| `TERMINAL_PROXY_KEY` | :98-99, at least 32 characters | the key the worker sends terminal-api as `x-terminal-proxy-key` (`/state`, `/xsection`, `/manifest`, `/reference`) | a reference, never a value: `${{terminal-api.TERMINAL_SERVICE_KEY_SCREENER_WORKER}}`, the worker's own service account (EXEC-MU-RUNTIME T1; `/xsection` admits it, terminal-api `main.py` `xsection_caller`), once terminal-api holds it; until then the gateway key `${{terminal-api.TERMINAL_PROXY_KEY}}` (TEMPORARY) |
+| `SCREENER_FILE_ORIGIN` | :100-101, `scheme://host[:port]` (terminal.ts `fileOriginOf`) | the bucket origin every presigned URL must have | the value of backtest-worker's `BACKTEST_FILE_ORIGIN`, copied without printing it |
+| `SCREENER_THREADS` | :131, at least 1 | K compute threads (plus one builder thread during a refresh) | 2 (K = 2 on a 4-vCPU replica; K = 4 failed the 1.5 x rule; re-measure on the service's vCPU) |
+| `SCREENER_THREAD_HEAP_MB` | :131, at least 64 | each compute and builder thread's V8 old-generation limit (MB); a thread that needs more stops alone (`500 OUT_OF_MEMORY`, restarted) | 512 (every thread stayed at or under 354 MB with a 384 MB limit) |
+| `SCREENER_CACHE_BYTES` | :131, at least 0 | series LRUs plus result cache, split K + 1 (`cacheShare`, :130) | 268435456 (256 MiB: 89,478,485 B per share at K = 2) |
+| `SCREENER_CACHE_DIR` | :102, optional | file cache by sha256 on the container's disk (no volume); must be writable by uid 1000 (image `USER node`) | `/tmp/screener-cache` |
+| `SCREENER_CACHE_DIR_BYTES` | :126, at least 1, required only with `SCREENER_CACHE_DIR` | the disk cache's budget | 48000000 (not measured: 2 x `SCREENER_MAX_REFRESH_BYTES`, the files of two publications at their caps; a cold refresh downloaded 11,772,808 B) |
+| `SCREENER_DOWNLOAD_CONCURRENCY` | :127, at least 1 | HTTP requests in flight to terminal-api and the bucket (the 845 `/manifest` reads) | 16 (backtest-worker README's value; the local benchmark ran 8) |
+| `SCREENER_DOWNLOAD_RETRIES` | :127, at least 0 | retries of a network error or a 5xx; also the quick retries of a skewed `/xsection` | 3 (backtest-worker's; the benchmark ran 2) |
+| `SCREENER_RETRY_BASE_MS` | :128, at least 0 | backoff base: retry k waits base x 2^k | 500 (backtest-worker's; the benchmark ran 200) |
+| `SCREENER_HTTP_TIMEOUT_MS` | :128, at least 1 | longest one HTTP request may take, body included | 60000 (backtest-worker's and the benchmark's) |
+| `SCREENER_MAX_CPU_MS` | :104, at least 1 | per-request compute budget (`422 LIMIT_EXCEEDED compute_budget`) | 4500 (20000 / 4.36, the worst measured under-prediction of the cost model, BENCHMARK_LOCAL.md section 7) |
+| `SCREENER_CAP_BUDGET_MS` | :105, at least 1; :122-118 refuses a value whose caps refuse a registry default | the length caps (`registry.ts capOf`) | 4500, equal to `SCREENER_MAX_CPU_MS` (caps 1261 -> 567) |
+| `SCREENER_DEADLINE_MS` | :106, at least 1 | request deadline, queue included (`504 TIMEOUT`) | 20000; edge-bff's `SCREENER_TIMEOUT_SECONDS` = this / 1000 = 20 |
+| `SCREENER_MAX_CONDITIONS` | :107, at least 1 | enabled conditions per definition | 20 |
+| `SCREENER_MAX_METRIC_FILTERS` | :108, at least 0 | universe metric filters per definition | 8 |
+| `SCREENER_WITHIN_MAX` | :109, at least 1 | longest `within`; tails are this + 1 bars (`metrics.ts tailLength`) | 130 |
+| `SCREENER_MAX_COUNTS` | :110, at least 1 | definitions per counts request (at least edge-bff's `SCREEN_LIMIT`, 50) | 50 |
+| `SCREENER_MAX_RESPONSE_BYTES` | :111, at least 1 | JSON bytes of one answer | 4194304 (an answer inside the limits reaches about 2.8 MB; report 8.9 had 2097152) |
+| `SCREENER_QUEUE` | :112, at least 0 | users' requests waiting for a thread on this replica (`409 BUSY`); the system lane is not counted | 4 (2 x K) |
+| `SCREENER_OWNER_INFLIGHT` | :113, at least 1 | running requests per owner tag (the owner's lane) | 1 (K - 1: light owners' p95 x 1.6 with a heavy owner, x 32-41 with 2; report's provisional 2) |
+| `SCREENER_OWNER_CPU_MS` | :114, at least 1; :124 at least `SCREENER_MAX_CPU_MS` | P33: thread ms per owner tag per minute (`422 LIMIT_EXCEEDED owner_cpu_budget` with the wait) | 30000 |
+| `SCREENER_PREVIOUS_GRACE_S` | :115, at least 0 | seconds the previous snapshot serves requests pinned to it | 600 (report 06d / 8.9 provisional; not measured) |
+| `SCREENER_IDLE_POLL_S` | :132, at least 0, default 300 | EXEC-U4-WORKERS: with a snapshot loaded, seconds without a keyed request after which the `/state` poll pauses, so the worker sends nothing and Railway can put it to sleep; the next keyed request resumes it (`refresh.ts Refresher.touch`); 0 never pauses | not set: 300 (Railway sleeps a service about 10 minutes after its last outbound traffic) |
+| `SCREENER_MAX_FILE_BYTES` | :116, at least 1 | gzip bytes of one xsection file, checked on the index before any grant | 24000000 (2 x 11,758,823 B measured locally; re-derive from the dev publisher run, DEPLOY_RUNBOOK step 6) |
+| `SCREENER_MAX_INFLATED_BYTES` | :117, at least 1 | bytes one file may inflate to (`TerminalClient maxFileBytes`) | 150000000 (2 x 74,272,854 B) |
+| `SCREENER_MAX_REFRESH_BYTES` | :118, at least 1 | gzip bytes one refresh may download in total | 24000000 (2 x 11,772,808 B) |
+| `SCREENER_MAX_REQUEST_BYTES` | :119, at least 1 | bytes of one request body (`413 REQUEST_TOO_LARGE`, limit `request_bytes`) | 131072 (edge-bff's own body cap, `app/screener.py REQUEST_BYTES`) |
 | memory limit (Railway, not a variable) | `.railway/railway.ts` `limitOverride.containers.memoryBytes` | the replica's memory | 2.75 GB (2750000000) at K = 2: 1.5 x the 1.81 GB measured with 512 MiB of caches full and the previous snapshot in its grace (256 MiB leaves more margin); the report's 2 GB start value has no margin |
 
 Added to the report's 6.17 list, each because a component needs a value and limits have no default: the four

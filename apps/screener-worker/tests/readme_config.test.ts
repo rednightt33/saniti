@@ -131,11 +131,11 @@ test('the table check fails on each kind of drift (a row missing, a wrong line, 
     // the runbook's own defect: the directory without its budget (config.ts requires SCREENER_CACHE_DIR_BYTES with it)
     [mutate(lineOf('SCREENER_CACHE_DIR_BYTES') + '\n', ''), /do not pass loadConfig: SCREENER_CACHE_DIR_BYTES is required/],
     [mutate(lineOf('SCREENER_OWNER_CPU_MS') + '\n', ''), /SCREENER_OWNER_CPU_MS: loadConfig reads it, the table has no row/],
-    [mutate(lineOf('SCREENER_OWNER_CPU_MS'), lineOf('SCREENER_OWNER_CPU_MS').replace('| :109,', '| :110,')), /SCREENER_OWNER_CPU_MS: config\.ts:110 does not read it/],
+    [mutate(lineOf('SCREENER_OWNER_CPU_MS'), lineOf('SCREENER_OWNER_CPU_MS').replace('| :114,', '| :115,')), /SCREENER_OWNER_CPU_MS: config\.ts:115 does not read it/],
     [mutate(lineOf('SCREENER_THREAD_HEAP_MB'), lineOf('SCREENER_THREAD_HEAP_MB').replace('at least 64', 'at least 32')), /SCREENER_THREAD_HEAP_MB: the table states the minimum 32, config\.ts checks at least 64/],
     [mutate(lineOf('SCREENER_OWNER_CPU_MS'), lineOf('SCREENER_OWNER_CPU_MS').replace('| 30000 |', '| 1000 |')), /do not pass loadConfig: SCREENER_OWNER_CPU_MS must be at least SCREENER_MAX_CPU_MS/],
-    [mutate(lineOf('SCREENER_CACHE_DIR'), lineOf('SCREENER_CACHE_DIR').replace(':97, optional', ':97')), /SCREENER_CACHE_DIR: the table says required, loadConfig starts without it/],
-    [mutate('reads exactly these 30 names', 'reads exactly these 29 names'), /the prose says 29 names, the table has 30/],
+    [mutate(lineOf('SCREENER_CACHE_DIR'), lineOf('SCREENER_CACHE_DIR').replace(':102, optional', ':102')), /SCREENER_CACHE_DIR: the table says required, loadConfig starts without it/],
+    [mutate('reads exactly these 31 names', 'reads exactly these 30 names'), /the prose says 30 names, the table has 31/],
     [mutate('28 of the 29 set names are required', '29 of the 29 set names are required'), /the prose says 29 of 29 set names are required; the table gives 28 of 29/],
   ];
   for (const [text, want] of cases) {

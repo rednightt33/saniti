@@ -26,6 +26,7 @@ from psycopg.types.json import Jsonb
 
 from .client import public_data
 from .store import StoreError
+from . import wake
 
 logger = logging.getLogger('edge_bff.backtest')
 # The service's uvicorn configures only its own loggers (uvicorn, uvicorn.error, uvicorn.access) and nothing here sets
@@ -411,8 +412,10 @@ class WorkerClient:
 
     def __init__(self, settings, client=None, relay=None):
         self.settings = settings
+        # EXEC-U4-WORKERS: the worker may sleep when idle; the first call wakes it (app/wake.py)
         self.client = client or httpx.Client(base_url=settings.backtest_worker_url, timeout=CONTROL_TIMEOUT,
-                                             follow_redirects=False, trust_env=False)
+                                             follow_redirects=False, trust_env=False,
+                                             transport=wake.transport('backtest-worker'))
         self.relay = relay      # httpx.AsyncClient of the relayed calls, made on first use (main.py terminal_http)
 
     def _headers(self):
@@ -458,7 +461,8 @@ class WorkerClient:
         """call() awaited on the event loop (the relayed calls of the routes)."""
         if self.relay is None:
             self.relay = httpx.AsyncClient(base_url=self.settings.backtest_worker_url, timeout=CONTROL_TIMEOUT,
-                                           follow_redirects=False, trust_env=False)
+                                           follow_redirects=False, trust_env=False,
+                                           transport=wake.async_transport('backtest-worker'))
         try:
             response = await self.relay.request(method, path, json=body, timeout=timeout or CONTROL_TIMEOUT,
                                                 headers=self._headers())

@@ -38,6 +38,10 @@
    SCREENER_OWNER_CPU_MS         P33 (user 2026-10-28, built in Phase 1): thread milliseconds one owner tag may use per
                                  minute on this replica; a request that would pass it is refused with its wait
    SCREENER_PREVIOUS_GRACE_S     seconds the previous snapshot keeps serving requests pinned to it after a swap
+   SCREENER_IDLE_POLL_S          optional (default 300; 0 = never pause): EXEC-U4-WORKERS, user go 2026-11-02. With a
+                                 snapshot loaded, the /state poll pauses after this many seconds without a keyed
+                                 request, so the service sends nothing and Railway can put it to sleep; the next keyed
+                                 request resumes it (refresh.ts Refresher.touch)
    SCREENER_MAX_FILE_BYTES       gzip bytes of one xsection file (checked on the index before any grant)
    SCREENER_MAX_INFLATED_BYTES   bytes one file may inflate to (TerminalClient maxFileBytes, inflateVerified)
    SCREENER_MAX_REFRESH_BYTES    gzip bytes one refresh may download in total
@@ -66,6 +70,7 @@ export interface Config {
   cacheBytes: number;
   terminal: TerminalOptions;          // the backtest worker's client options (maxFileBytes = SCREENER_MAX_INFLATED_BYTES)
   limits: Limits;
+  idlePollS: number;                  // EXEC-U4-WORKERS: SCREENER_IDLE_POLL_S
 }
 
 type Env = Record<string, string | undefined>;
@@ -123,7 +128,8 @@ export function loadConfig(env: Env = process.env): Config {
     retryBaseMs: whole('SCREENER_RETRY_BASE_MS', 0), timeoutMs: whole('SCREENER_HTTP_TIMEOUT_MS', 1),
     fileOrigin, maxFileBytes: limits.max_inflated_bytes,
   };
-  return { port, workerKey, threads: whole('SCREENER_THREADS', 1), threadHeapMb: whole('SCREENER_THREAD_HEAP_MB', 64), cacheBytes: whole('SCREENER_CACHE_BYTES', 0), terminal, limits };
+  return { port, workerKey, threads: whole('SCREENER_THREADS', 1), threadHeapMb: whole('SCREENER_THREAD_HEAP_MB', 64), cacheBytes: whole('SCREENER_CACHE_BYTES', 0), terminal, limits,
+           idlePollS: whole('SCREENER_IDLE_POLL_S', 0, 300) };
 }
 
 /** The share of SCREENER_CACHE_BYTES each cache gets (header: K + 1 equal shares). */

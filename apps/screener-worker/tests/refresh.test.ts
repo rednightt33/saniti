@@ -228,3 +228,43 @@ test('versions: a run pinned to the previous snapshot is served in the grace win
   const preview = await call(port, 'POST', '/v1/preview', { schema_version: 1, client_order: { page: 'p', seq: 6 }, data_version: vA, definition: RSI, ticker: 'T001' }, auth(OWNER_A));
   assert.equal(preview.status, 409); assert.equal(preview.body.error.code, 'DATA_VERSION_CHANGED');
 });
+
+/* EXEC-U4-WORKERS (user go 2026-11-02: "Jalankan U4 sekarang"): with a snapshot held, the /state poll pauses after
+   SCREENER_IDLE_POLL_S without a keyed request (so Railway can put the worker to sleep) and the next keyed request
+   resumes it with one poll; with no snapshot it never pauses. */
+test('idle: the /state poll pauses without keyed requests and the next keyed request resumes it', async () => {
+  const fake = await startFakeTerminal({ key: PROXY, publication: pubOf('2026-10-27T13:03:23Z') });
+  const app = createApp(configFor(fake.url, { SCREENER_THREADS: '1' }), { pollMs: 3_600_000, idlePollS: 0.05 });
+  const port = await app.listen(0, '127.0.0.1');
+  open.push({ app, fake });
+  const states = () => fake.requests.filter((r: any) => r.path === '/api/terminal/v1/state').length;
+  await app.refresher.tick();
+  const v = app.state().current!.price_data;
+  await sleep(80);                                            // idle longer than 50 ms
+  fake.publish(pubOf('2026-10-28T13:03:23Z', universe(6, 301)));
+  const before = states();
+  await app.refresher.tick();
+  assert.equal(states(), before, 'paused: no /state read, nothing sent');
+  assert.equal(app.state().current!.price_data, v);
+  assert.ok(logs.events('refresh_poll_paused').length >= 1);
+  const r = await call(port, 'GET', '/v1/catalog', undefined, auth());   // a keyed request: in use again
+  assert.equal(r.status, 200);
+  for (let k = 0; k < 100 && app.state().current!.price_data === v; k++) await sleep(20);
+  assert.notEqual(app.state().current!.price_data, v, 'resumed: the newer publication is loaded');
+  assert.ok(logs.events('refresh_poll_resumed').length >= 1);
+  assert.ok(states() > before);
+});
+
+test('idle: with no snapshot loaded the poll never pauses', async () => {
+  const fake = await startFakeTerminal({ key: PROXY, publication: pubOf('2026-10-27T13:03:23Z', universe(6, 300), { files: { price: { sha256: 'f'.repeat(64) } } }) });
+  const app = createApp(configFor(fake.url, { SCREENER_THREADS: '1' }), { pollMs: 3_600_000, idlePollS: 0.01 });
+  await app.listen(0, '127.0.0.1');
+  open.push({ app, fake });
+  const states = () => fake.requests.filter((r: any) => r.path === '/api/terminal/v1/state').length;
+  await app.refresher.tick();
+  await sleep(40);
+  const before = states();
+  await app.refresher.tick();
+  assert.equal(app.state().current, null);
+  assert.equal(states(), before + 1, 'still polling: no snapshot to serve');
+});

@@ -30,6 +30,13 @@
       /manifest (its rows = the sum of its yearly files' rows, its last date = their newest last), then the pre-warm,
       the digest, the install on every compute thread, the presets and the documents, and the swap, all-or-nothing:
       any failure keeps the previous snapshot serving, logs REFRESH_FAILED with the reason, and is retried (rule 1).
+   EXEC-U4-WORKERS (user go 2026-11-02: "Jalankan U4 sekarang"): with a snapshot loaded, rule 1's poll pauses once no
+   keyed request came for idleMs (SCREENER_IDLE_POLL_S): a poll is outbound traffic, and Railway puts a service to sleep
+   only after minutes without any, so the poll alone kept the worker awake all day. The next keyed request (touch)
+   resumes it at once with one poll; a worker woken from sleep starts afresh and loads the newest publication (start).
+   While paused, a publication made meanwhile is seen on that first request, which is served from the snapshot held (the
+   DATA_VERSION_PENDING rule of `latest` still applies to a page pinned to a newer version). With no snapshot loaded the
+   poll never pauses. Logs refresh_poll_paused and refresh_poll_resumed.
    Logs: refresh {data_version, published_at, files, bytes, granted, cached, grant_ms, download_ms, decode_ms,
    check_ms, defaults_ms, install_ms, presets_ms, orphans, snapshot_digest, rss} (6.16); REFRESH_FAILED adds the
    failure, integrity_failures (DATA_INTEGRITY failures since the start), keeping_previous and retry_in_ms. */
@@ -202,10 +209,13 @@ export class Refresher {
   private timer: NodeJS.Timeout | null = null; private soon: NodeJS.Timeout | null = null;
   private checking: Promise<PublicationState | null> | null = null;
   pollMs: number;
+  idleMs: number;
+  private lastUse = performance.now(); private paused = false;
   integrityFailures = 0;
 
-  constructor(o: { api: TerminalApi; client: TerminalClient; host: RefreshHost; limits: Limits; fileOrigin: string; pollMs?: number }) {
+  constructor(o: { api: TerminalApi; client: TerminalClient; host: RefreshHost; limits: Limits; fileOrigin: string; pollMs?: number; idleMs?: number }) {
     this.api = o.api; this.client = o.client; this.host = o.host; this.limits = o.limits; this.pollMs = o.pollMs ?? POLL_MS;
+    this.idleMs = o.idleMs ?? 0;
     const f = fileOriginOf(o.fileOrigin);
     if (!f) throw new Error('Refresher: fileOrigin must be an origin pattern.');
     this.fileOrigin = f;
@@ -222,8 +232,20 @@ export class Refresher {
     this.soon = setTimeout(() => { this.soon = null; this.tick() }, ms);
     this.soon.unref?.();
   }
+  /** EXEC-U4-WORKERS: a keyed request came; a paused poll resumes with one poll at once */
+  touch(): void {
+    this.lastUse = performance.now();
+    if (!this.paused) return;
+    this.paused = false;
+    log('info', 'refresh_poll_resumed', {});
+    void this.tick();
+  }
   /** One poll (never two at once). Resolves when it is done. */
   async tick(): Promise<void> {
+    if (this.idleMs > 0 && this.host.held() && performance.now() - this.lastUse > this.idleMs) {
+      if (!this.paused) { this.paused = true; log('info', 'refresh_poll_paused', { idle_s: Math.round(this.idleMs / 1000) }) }
+      return;
+    }
     if (this.running) return;
     this.running = true;
     try { await this.refresh() }
