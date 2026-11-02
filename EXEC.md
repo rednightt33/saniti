@@ -10111,6 +10111,21 @@ dengan logo): "A".
   - Logo (`edge-logo.svg`) dan `apple-touch-icon.png` (180 px) tidak berubah.
 - **Perbandingan:** `verification/terminal_api/favicon_compare_2026-11-01.png`.
 
+## EXEC-FAVICON-SQUARE — favicon logo kotak gradasi (go 2026-11-02, menggantikan EXEC-FAVICON-BOLD)
+
+**Kata user, 2026-11-02:** "Also update favicon dengan logo terlampir" (lampiran: PNG 1080×1080, kotak gelap bergradasi
+abu-abu ke kanan bawah, E putih di tengah).
+
+- **Dibuat:**
+  - `static/favicon.svg`: vektor dari lampiran. Latar gradasi linear + radial, E putih dengan koordinat lampiran
+    (x 409–670, y 345–735 dari 1080). Selisih render 1080 px terhadap lampiran RMSE 2,8%. Tanpa varian mode gelap,
+    karena latarnya sendiri gelap.
+  - `static/favicon-32.png` dan `static/apple-touch-icon.png` (180 px): diperkecil langsung dari PNG lampiran.
+  - `edge-logo.svg` (logo kartu bagikan) tidak berubah.
+- **Catatan:** E lampiran lebih kecil (tinggi 36% dari kotak) daripada E tebal EXEC-FAVICON-BOLD (47%), jadi di tab
+  16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
+- **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
+
 ## EXEC-BANDAR-MERGE — Bandar detector masuk ke Top brokers, opsi 10 "Tarik tambang" (go 2026-11-01)
 
 **Kata user, 2026-11-01:**

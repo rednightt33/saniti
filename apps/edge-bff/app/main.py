@@ -341,6 +341,8 @@ def create_app(settings=None, store=None, orc=None):
     # home screen. Public like the page itself, so the login screen shows it too.
     # EXEC-UI-1019B (user 2026-10-19: "Favicon dan PNG dan PDF. Sudah bagus"): the round "E" mark and the EDGE logo of
     # the shared card
+    # User 2026-11-02 ("update favicon dengan logo terlampir"): the three tab and home-screen icons are the square
+    # dark-gradient "E" the user sent; edge-logo.svg (the shared card) is unchanged
     @app.get('/favicon.svg')
     @app.get('/favicon-32.png')
     @app.get('/apple-touch-icon.png')
