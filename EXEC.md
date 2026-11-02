@@ -9934,6 +9934,29 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-BROKER-1102 — putaran stockbit-updater: broker summary, Feature 02/03/05/06, INDEX, event, lalu Terminal (go 2026-11-02)
+
+**Kata user, 2026-11-02:** "Kamu sudah tahu cara update data broker summary? Coba baca codenya. Kita akan update beserta
+feature terkait data broksum, update terminal as well." User memberi token Stockbit (JWT, berlaku sampai 2026-11-03 03:27
+UTC). Token tidak ditulis ke Git, log atau tabel.
+
+- **Cara (UPDATE_TABLE.md Bagian 0):**
+  - ganti `STOCKBIT_TOKEN` di service `stockbit-updater` (lewat stdin);
+  - Railway men-deploy ulang build yang sama (`168cfa9e`, kode 2026-10-27) dan menjalankan satu putaran APPLY:
+    - broker summary untuk tanggal yang belum ada;
+    - F05 → F02 → F03, F05 → F06, dan INDEX;
+    - muat ulang event;
+    - status tabel, baris monitoring, dan Telegram.
+  - Lalu publisher Terminal dijalankan supaya data broker baru masuk storage.
+- **Kondisi sebelum (dibaca 2026-11-02 07:40 UTC):**
+  - `IDX_Broker_Summary` dan F05 sampai 2026-10-27; harga sampai 2026-10-30. Tanggal yang diharapkan dimuat:
+    2026-10-28, 10-29, 10-30.
+  - Putaran terakhir `51a399f1` SUCCESS (2026-10-27, 25 menit).
+  - `broker_summary_date_quality` menandai tanggal sejak 09-01 INCOMPLETE karena simbol non-saham tidak dimuat (M218,
+    OPEN, menunggu keputusan user). Putaran ini tidak mengubah itu.
+- **Kode yang tidak ikut:** perubahan updater 2026-10-29 (Telegram menyebut tanggal INCOMPLETE, `3bed26b2`) belum
+  di-deploy ke service. Putaran ini memakai build 2026-10-27, cara baku tanpa deploy kode.
+
 ## EXEC-FAVICON-BOLD — favicon dengan E tebal (go 2026-11-01, Opsi A)
 
 **Kata user, 2026-11-01:** "saat ini logo di Edge, favicon-nya looks so different than attached logo. E-nya seperti tidak
