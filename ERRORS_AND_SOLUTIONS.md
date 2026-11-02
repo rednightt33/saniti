@@ -5295,6 +5295,39 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M334 — Arsip audit EDGE AI gagal ditulis sejak ≥ 2026-10-29; sandbox tidak bisa tidur (2026-11-02)
+
+- **Ditemukan oleh:** user (2026-11-02): "Cek juga sandbox memorynya. Stuck di 1 GB padahal tidak di pakai."
+- **Verified:**
+  - `market-python-sandbox` (`sleepApplication` true) tidak tidur sejak 2026-11-01 06:00 UTC.
+  - Lognya mencoba ulang unggahan audit setiap 1-3 menit (`sandbox_audit_retry`, `upload HTTP 403`). Lalu lintas keluar
+    itu mencegah Railway menidurkannya.
+  - `market-audit-store` gagal di setiap penulisan ke bucket `market-ai-audit-artifacts` (566 `audit_outbox_failed`
+    `ClientError` dalam 5 hari log, 0 berhasil). Deploy yang berjalan dari 2026-10-18 (`776f4e5a`).
+  - Kredensial bucket dibaca lewat referensi `${{market-ai-audit-artifacts.*}}`. Kredensial yang terdaftar sekarang lolos
+    `head_bucket`/`list`.
+  - Sesudah `railway redeploy` (EXEC-AUDIT-REDEPLOY, `8dbea9a9`, 08:41 UTC):
+    - `audit_outbox_ingested` dan `audit_artifact_verified` muncul untuk pertama kalinya dalam 5 hari (08:45-08:47 UTC),
+      dengan run COMPLETE;
+    - sisa kegagalan berupa `QueryCanceled` (batas 15 detik) saat Postgres sibuk dengan putaran broker
+      (EXEC-BROKER-1102).
+- **Root cause:** proses audit-store berjalan dengan kredensial bucket dari deploy 2026-10-18. Kredensial bucket berubah
+  sesudahnya (waktunya tidak tercatat), dan referensi baru dibaca saat service di-deploy ulang. Kelas yang sama dengan M308.
+- **Class:**
+  - Rahasia yang dibagikan lewat referensi menjadi basi di pemakai yang tidak di-deploy ulang.
+  - Kegagalan arsip audit tidak memicu peringatan apa pun, sehingga 5 hari tidak terlihat.
+  - Percobaan ulang yang tak berujung juga mematikan fitur sleep.
+- **Solution:** deploy ulang `market-audit-store` (satu-satunya pemakai referensi bucket itu, dibaca dari project live).
+  Antrean di kedua sisi dicoba ulang dengan jeda makin panjang (audit-store maksimal 1 jam per item; sandbox 12
+  percobaan).
+  - **Usulan (perlu go):** peringatan Telegram bila antrean audit gagal lebih dari 1 jam.
+  - **Usulan (perlu go):** setiap penggantian kredensial dibarengi `scripts/railway_reference_consumers.py --redeploy`.
+- **Dampak:** run EDGE AI sejak sekitar 2026-10-29 tidak terarsip sampai antrean terkirim. Item sandbox yang sudah 12 kali
+  gagal berstatus INCOMPLETE dan tidak dicoba lagi. Memori sandbox sekitar 1 GB tertagih terus (≈ USD 0,33/hari).
+- **Status:** FIX IN PROGRESS. Penulisan ke bucket pulih (terverifikasi); menunggu antrean habis dan sandbox tidur lagi.
+- **Lesson:** sesudah kredensial bersama berubah, deploy ulang semua pemakainya. Setiap antrean yang mencoba ulang perlu
+  peringatan bila gagal lama.
+
 ### M333 — Chart obligasi lambat muncul: chart menunggu data yang tidak ia gambar (2026-11-01)
 
 - **Ditemukan oleh:** user (2026-11-01): "untuk load data obligasi kayaknya lama banget deh. Padahal data ini kan cuma
