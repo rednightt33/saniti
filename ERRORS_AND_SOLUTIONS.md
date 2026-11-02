@@ -5295,6 +5295,56 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M337 — Feature 01/04 IHSG tertinggal sampai ada putaran Stockbit (2026-11-02)
+
+- **Ditemukan oleh:** pengecekan kesegaran data atas permintaan user (2026-11-02). Job read-only `33e3ba76` dan
+  `8473d715` membaca: harga IHSG 2026-11-02, sedangkan `Feature_01_Stock_Daily_INDEX` dan
+  `Feature_04_Technical_Indicator_INDEX` masih 2026-10-30.
+- **Verified cause (kode):** fitur INDEX hanya dihitung oleh `stockbit-updater`. Langkah `index` di
+  `apps/stockbit-updater/updater.py:156` jalan bila `refresh.index_needed` (`refresh.py:149-154`): ada tanggal broker
+  baru, atau harga IHSG lebih baru dari Feature 01 INDEX. Service itu tidak terjadwal; satu putaran jalan per deploy,
+  biasanya saat user memberi token Stockbit. Putaran 2026-11-02 pagi (07:41–09:02 UTC) selesai sebelum harga IHSG hari
+  itu masuk (10:00 UTC), jadi fitur IHSG tertinggal satu sesi sampai putaran berikutnya.
+- **Solution (sementara):** putaran Stockbit berikutnya (token user 2026-11-02, deploy `97a79807`, `index_done`
+  16:36 UTC) membawa Feature 01–06 INDEX ke 2026-11-02.
+- **Usulan (belum disetujui):** Feature 01/04 INDEX ikut dihitung setiap kali harga harian IHSG masuk (jalur harga
+  harian), tidak bergantung pada token Stockbit. Feature 02/03/05/06 INDEX tetap mengikuti data broker.
+- **Status:** OPEN (kelas masalah). Data saat ini segar.
+- **Class:** fitur turunan yang dihitung oleh service lain daripada pemasok datanya, sehingga kesegarannya mengikuti
+  jadwal service itu.
+- **Lesson:** setiap tabel fitur punya pemicu dari data sumbernya sendiri; kalau fitur dihitung di tempat lain, catat
+  jadwal pemicunya dan cek kesegarannya terhadap sumber.
+
+### M336 — Feature 04 obligasi tertahan `REPAIR_REQUIRED` sejak koreksi harga M324 (2026-11-02)
+
+- **Ditemukan oleh:** pertanyaan user (2026-11-02): "update fitur 4, sepertinya obligasi belum terupdate ya".
+- **Verified (job read-only `c0908d89`):**
+  - Feature 04 obligasi Indonesia (11 seri) di 2026-10-30, harga 2026-11-02.
+  - Antrean 24 obligasi `FAILED` `REPAIR_REQUIRED`: "No compatible checkpoint immediately before 2026-10-05" (AS:
+    2026-10-21).
+  - `Monitoring_Feature04` hari itu FAILED untuk semua obligasi (harian 10:03 UTC, recovery 11:03 UTC). Saham DONE.
+- **Root cause:** koreksi M324 (EXEC-FI-DATE, 2026-11-01) menulis ulang harga obligasi mulai 2026-10-05 (ID; antrean AS
+  menandai 2026-10-21, sumber perubahan AS tidak dicek terpisah). Pemicu antrean menandai tanggal itu kotor. Worker menyimpan titik simpan hanya
+  lookback + 2 sesi dan menolak suffix lebih dari 5 sesi (`apps/feature-04-worker/worker.py`
+  `load_checkpoint_and_suffix`), jadi koreksi yang lebih tua dari titik simpan selalu berhenti di `REPAIR_REQUIRED`.
+  Alat yang ada tidak menutupnya: `bootstrap_states.py` hanya membangun titik simpan terbaru, `features/feature04/backfill.py`
+  hanya untuk saham dan menulis seluruh riwayat. M324 tidak mencatat dampaknya ke Feature 04.
+- **Solution (EXEC-F04-BONDS, go user 2026-11-02):** `verification/feature04_bonds/repair_job.py`.
+  - Per obligasi: hitung penuh di memori dengan mesin ter-deploy; setiap baris tersimpan sebelum tanggal kotor harus
+    sama persis (dry `c7e584ec`: 24 dari 24 sama, sekitar 1.000–2.760 baris per seri). Hanya baris sejak tanggal kotor
+    yang ditulis: ID 21 baris (ID01Y, ID25Y 16), AS 8; 0 dihapus.
+  - Titik simpan terbaru dibangun ulang (7 per obligasi). Antrean ditutup lalu diantrekan ulang lewat
+    `enqueue_feature04_group`, dan worker menyelesaikan sesi terakhir.
+  - Write pertama `020c14c8` gagal: job mengisi NULL ke `dirty_from_date` (NOT NULL), dan setiap transaksi obligasi
+    dibatalkan. Write kedua `d6165d66` berhasil.
+  - **Verified (`def3015f`):** antrean 24 DONE; 1.224 status kolom SUCCESS, 0 FAILED; Feature 04 = tanggal harga
+    terakhir (ID 2026-11-02, AS 2026-10-30); jumlah baris sejak 2026-10-01 sama dengan jumlah hari harga.
+- **Status:** FIXED untuk data. Kelasnya OPEN: koreksi harga yang lebih tua dari titik simpan tetap memerlukan job ini.
+- **Class:** koreksi data sumber yang lebih tua dari jendela inkremental fitur turunan.
+- **Lesson:** setiap koreksi data harga (backfill, koreksi tanggal) mencantumkan dampaknya ke fitur turunan di rencana
+  yang sama, dan menjalankan perbaikan fiturnya. Fitur bertahap dengan titik simpan terbatas tidak bisa menyerap
+  koreksi lama sendiri.
+
 ### M335 — Feature 01 intraday: satu deret memakai dua konstanta tahunan (`bars_per_year`) (2026-11-02)
 
 - **Ditemukan oleh:** pemeriksaan S4 (EXEC-INTRADAY-FEATURES), reproduksi independen `repro.py` BBCA:5m dan GOTO:15m:

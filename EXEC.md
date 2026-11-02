@@ -10126,6 +10126,56 @@ abu-abu ke kanan bawah, E putih di tengah).
   16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
 - **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
 
+## EXEC-F04-BONDS — Feature 04 obligasi tertahan sejak koreksi M324; restart Postgres sesudah putaran broker (go 2026-11-02)
+
+**Kata user, 2026-11-02:**
+- "Yaudah, titik ulang resmi aja, tapi I'm sure tidak ada indikator yang dihitung manual dari 2016. Untuk fitur 4, fix
+  income. Setelah broker summary done, restore Postgres, and then lanjutkan fitur 4 untuk fix income. Sekarang
+  implementasi, masukkan exec dan go."
+- Sebelumnya: "Hitung aja dari tanggal 29 Oktober yang tertinggal. ... Hitung aja manual, insert manual bisa nggak?";
+  jawaban: koreksi M324 mengubah harga obligasi Indonesia sejak 2026-10-05, jadi hitung ulang dari tanggal itu.
+
+**Temuan (job read-only `c0908d89`, 2026-11-02):**
+- Feature 04 obligasi Indonesia (11 seri) berhenti di 2026-10-30, padahal harga sudah sampai 2026-11-02. Obligasi AS
+  (13 seri) sama tanggalnya dengan harga (2026-10-30).
+- Antrean F04: 24 obligasi `FAILED` `REPAIR_REQUIRED` "No compatible checkpoint immediately before 2026-10-05".
+  `Monitoring_Feature04`: run harian 17.03 WIB dan recovery 18.03 WIB FAILED untuk semua obligasi. Saham 844 DONE.
+- **Sebab:** koreksi M324 (EXEC-FI-DATE, 2026-11-01) menulis ulang harga obligasi mulai 2026-10-05. Worker hanya
+  menyimpan titik simpan sekitar 7 sesi terakhir dan menolak mengejar lebih dari 5 sesi (`worker.py`
+  `load_checkpoint_and_suffix`). Alat yang ada tidak cocok: `bootstrap_states.py` hanya membangun titik simpan terbaru
+  (antrean tetap meminta 2026-10-05), dan `features/feature04/backfill.py` hanya untuk saham dan menulis seluruh
+  riwayat.
+
+**Rencana (per obligasi, 24 seri):**
+1. Tunggu putaran broker (`stockbit-updater` `97a79807`) selesai.
+2. Restart Postgres dengan `scripts/restart_postgres.py` (cek, lalu `--apply`), aturan M319.
+3. Job sekali jalan di `orc-test-runner` dengan kode worker dan mesin yang ter-deploy (`worker.py`, `engine.py`,
+   `incremental.py`). Untuk setiap obligasi:
+   - riwayat harga final dibaca di memori (rumus berantai butuh riwayat penuh), lalu dihitung dengan `engine.calculate`;
+   - **pembuktian:** setiap baris tersimpan sebelum tanggal kotor obligasi itu (`dirty_from_date` antrean, 2026-10-05)
+     harus sama persis dengan hitungan; bila ada yang berbeda, obligasi itu tidak ditulis dan dilaporkan;
+   - **tulis hanya mulai tanggal kotor:** baris Feature 04 obligasi ≥ tanggal itu di-upsert, dan baris pada tanggal
+     yang tidak ada lagi di harga dihapus (`upsert_columns`, `delete_missing_outputs`). Tidak ada baris sebelum
+     2026-10-05 yang ditulis;
+   - titik simpan terbaru dibangun ulang (`build_recent_checkpoints`, `replace_checkpoints`, retensi = lookback + 2);
+   - antrean obligasi itu ditutup DONE pada generasinya, lalu diantrekan ulang lewat jalur resmi
+     `enqueue_feature04_group` dengan tanggal harga terakhir. Worker menghitung sesi terakhir dari titik simpan,
+     memastikan hasil inkremental sama dengan hitungan penuh, dan mengubah status kolom menjadi SUCCESS.
+   Dry run dulu (tanpa tulis), lalu tulis.
+4. Verifikasi: obligasi Indonesia sampai 2026-11-02, antrean 24 DONE, status kolom tanpa FAILED. Catat di
+   `ERRORS_AND_SOLUTIONS.md` (tambahan M324), `DATABASE_CHANGELOG.md`, `RAILWAY_CHANGELOG.md`.
+
+**Tidak disentuh:** data harga, Feature 04 saham, baris obligasi sebelum 2026-10-05.
+
+**Hasil (2026-11-02, selesai):**
+- Putaran broker `6461d855` SUCCESS 16:51 UTC. Restart Postgres 16:52 UTC: 12 detik, EDGE `/ready` 200.
+- Dry `c7e584ec`: 24/24 obligasi, semua baris sebelum tanggal kotor sama persis. Tanggal kotor: ID 2026-10-05
+  (ID01Y, ID25Y 2026-10-12), AS 2026-10-21; tidak ada baris yang ditulis sebelum tanggal itu.
+- Write `d6165d66` (write pertama `020c14c8` dibatalkan per transaksi): ID 21 baris (16 untuk ID01Y/ID25Y), AS 8; 0
+  dihapus; 7 titik simpan per obligasi.
+- Dibaca ulang `def3015f`: antrean 24 DONE, status kolom 1.224 SUCCESS, Feature 04 ID 2026-11-02 dan AS 2026-10-30
+  (sama dengan harga). ERRORS M336, DATABASE_CHANGELOG, RAILWAY_CHANGELOG.
+
 ## EXEC-BANDAR-MERGE — Bandar detector masuk ke Top brokers, opsi 10 "Tarik tambang" (go 2026-11-01)
 
 **Kata user, 2026-11-01:**

@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-02 — stockbit-updater token, Postgres restart, Feature 04 bonds jobs, EDGE favicon
+
+- `stockbit-updater`: variable `STOCKBIT_TOKEN` set (stdin, user token valid to 2026-11-03 15:38 UTC). Deployment
+  `97a79807` SUCCESS ran one APPLY round `6461d855`, SUCCESS 15:40–16:51 UTC (DATABASE_CHANGELOG).
+- Postgres: planned restart `scripts/restart_postgres.py --apply` (M319) at 16:52 UTC after the broker round: memory
+  3.97 GB, no refusal, 0 active statements; deployment `1804dfff` restarted, start time 13:50:06 → 16:52:33 UTC, 12 s,
+  edge-bff `/ready` 200.
+- `orc-test-runner` jobs (each with `DATABASE_URL` as a reference, removed afterwards: `VAR_REMOVED`): read-only
+  freshness check `33e3ba76` (with `TERMINAL_BUCKET_*` references from terminal-publisher; the wrapper was stopped
+  before its cleanup, the six variables were deleted by hand and the list read back), IHSG check `8473d715`, bond
+  check `c0908d89`, EXEC-F04-BONDS dry `c7e584ec`, write `020c14c8` (rolled back), write `d6165d66`, check `def3015f`.
+- `main` `9637efdd`: edge-bff `a789952c` SUCCESS; the live `/favicon.svg` and `/apple-touch-icon.png` equal the commit
+  (EXEC-FAVICON-SQUARE).
+
 ## 2026-11-02 — planned Postgres restart after the day's large writes (EXEC-BROKER-1102, ERRORS M319)
 
 - `scripts/restart_postgres.py` 13:49 UTC: READY (hourly memory 3.75 GB, no cron due within 45 minutes, outside B6,

@@ -1,5 +1,25 @@
 # Database changelog
 
+## 2026-11-02 — Feature 04 obligasi pulih dari koreksi M324 (EXEC-F04-BONDS, ERRORS M336)
+
+- **Job:** `verification/feature04_bonds/repair_job.py` di `orc-test-runner` (dry `c7e584ec`, write `d6165d66`), dengan
+  worker dan mesin ter-deploy (`feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`, state `feature04-state-v3`).
+- **Ditulis:** `Feature_04_Technical_Indicator` `asset_type='bonds'` hanya sejak tanggal kotor tiap obligasi:
+  9 seri ID sejak 2026-10-05 (21 baris), ID01Y dan ID25Y sejak 2026-10-12 (16), 13 seri AS sejak 2026-10-21 (8); 0
+  baris dihapus. Baris sebelum tanggal itu tidak ditulis; seluruhnya sama persis dengan hitungan penuh (dry run).
+  `Feature04_Calculation_State` 7 titik simpan per obligasi.
+- **Status:** `Feature04_Calculation_Queue` 24 obligasi diantrekan ulang lewat `enqueue_feature04_group` dan
+  diselesaikan worker. Dibaca ulang (`def3015f`): 24 DONE, `Feature04_Column_Status` obligasi 1.224 SUCCESS, Feature 04 =
+  harga terakhir (ID 2026-11-02, AS 2026-10-30).
+
+## 2026-11-02 — Broker summary 2026-11-02, Feature 02/03/05/06, INDEX, events (token user kedua hari itu)
+
+- **Sumber:** Stockbit, token user (tidak disimpan), `stockbit-updater` deploy `97a79807`, putaran APPLY `6461d855`
+  SUCCESS 15:40–16:51 UTC.
+- **`IDX_Broker_Summary` 2026-11-02:** 23.459 baris, 866 saham aktif, 0 anomali (`date_committed`).
+- **Fitur:** F05 23.459 baris; F02 23.459 dan F03 992 (866 ticker); F06 992. INDEX Feature 01–06 sampai 2026-11-02
+  (`index_done`; F01/F04 INDEX tertinggal sebelumnya, ERRORS M337). Event dimuat ulang.
+
 ## 2026-11-02 — Broker summary 2026-10-28…10-30, Feature 02/03/05/06, INDEX, events (EXEC-BROKER-1102)
 
 - **Sumber:** Stockbit, token user (tidak disimpan), service `stockbit-updater` deploy `d4f728eb`, putaran APPLY
