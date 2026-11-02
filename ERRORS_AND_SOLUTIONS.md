@@ -5295,6 +5295,32 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M339 — Daftar tanggal dari web berhenti di satu item, dan model mengira tanggal web tidak boleh dipakai (2026-11-02)
+
+- **Ditemukan oleh:** user (2026-11-02, request `edge_026b017160b2cbd520668e0ce9ef0c36`): "kenapa dia gak pakai
+  webgovt?"
+- **Verified (log orc + web governor):** model memanggil `research_web` sekali: "daftar tanggal keputusan BI menaikkan
+  BI Rate sejak Nov 2021", EVENT, CITE. Jawabannya OK dengan 1 item (2021-11-01, bukan kenaikan), QUICK, tanpa eskalasi,
+  11 panggilan tersisa. Model menyerah dan menjawab LIMITATION. Level berpikir low.
+- **Root cause (kode):**
+  - `orc_web.py` `_short` tidak meneliti lebih jauh bila EVENT/FACT/NUMBER sudah ditemukan. Ini sengaja, sejak smoke
+    run 2026-10-05.
+  - orc tidak punya cara menyatakan "beberapa item".
+  - Model membaca "a web number is never an input of a calculation" sebagai larangan memakai tanggal web, padahal
+    aturannya membolehkan tanggal peristiwa menentukan periode.
+- **Solution (EXEC-WEB-LIST, go user 2026-11-02):**
+  - **B:** web governor `several` (`f201aa40`, `7d28572a` SUCCESS). Dengan several, kurang dari 2 item atau
+    `needs_research` memicu eskalasi (FEW_ITEMS). Tanpa several perilaku tetap.
+  - **A:** orc `research_web` argumen `several`, coba lagi bila hasil tidak menutup kebutuhan, dan tanggal peristiwa
+    boleh menjadi tanggal studi peristiwa. Hal yang sama ada di `OUTSIDE_DATA_RESEARCH_RULE` (`fcd3ec0d`, `45870cbb`
+    SUCCESS; snapshot prompt v021).
+  - Tool_Catalog research_web v5 (migrasi `20261102_001`).
+  - Suite web governor 156 lulus dan orc 2.094 lulus.
+- **Status:** DEPLOYED; uji live di bawah.
+- **Class:** permintaan daftar yang dijawab sebagai satu item, dan model menyerah setelah satu panggilan.
+- **Lesson:** setiap alat pencari harus bisa diberi tahu berapa banyak item yang dicari, dan pemanggilnya mencoba lagi
+  bila hasilnya tidak menutup kebutuhan.
+
 ### M338 — Percakapan lanjutan memakai data lama diam-diam padahal tabel sudah punya data lebih baru (2026-11-02)
 
 - **Ditemukan oleh:** user (2026-11-02, request `edge_581a81b7…`): "kenapa direquest ini dia gak nemu ya".

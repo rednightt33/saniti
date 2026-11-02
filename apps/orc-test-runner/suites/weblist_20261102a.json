@@ -1,0 +1,4 @@
+{"prefix": "ma-wl-20261102a", "workers": 2, "audit_wait_seconds": 0, "items": [
+ {"id": "bi_hikes_event_study", "model": "deepseek/deepseek-v4.1-flash", "reasoning_level": "low", "expect": "EXEC-WEB-LIST test 1: research_web asked for several BI-Rate hike dates (several true, or SERIES/LIST); more than one hike date found (2022-08 onwards); the dates are used as event dates for bank-stock returns; reasoning low as in edge_026b", "turns": ["Bagaimana pergerakan return saham bank di sekitar tanggal-tanggal kenaikan suku bunga acuan Bank Indonesia (BI Rate) sejak 2022? Pakai tanggal keputusan kenaikannya, bukan yield obligasi."]},
+ {"id": "bi_latest", "model": "deepseek/deepseek-v4.1-flash", "reasoning_level": "low", "expect": "EXEC-WEB-LIST test 2: the latest BI Rate is one value with its date, several false, no escalation into history", "turns": ["Berapa BI Rate terbaru?"]}
+]}
