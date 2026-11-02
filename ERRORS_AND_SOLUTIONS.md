@@ -5338,7 +5338,17 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   sudah sampai 2026-11-02. Model membaca tanggal itu dari ringkasan cakupan katalog (`AI_data_coverage`, cron 00:30 dan
   10:30 UTC), yang tertinggal dari pemuatan broker manual 15:40–16:51 UTC. Usulan: catatan aturan tanggal menyebut
   tanggal terbaru yang dibaca langsung (`ai_preview_table_rows`) untuk tabel yang dipakai percakapan.
-- **Status:** FIXED (perilaku inti), dengan satu temuan OPEN di atas.
+- **Temuan di atas diperbaiki (`main` `2dee5c6`, orc `c791c1f9` SUCCESS):** di percakapan bertanggal data, tanggal
+  terbaru tiap tabel dibaca langsung dari tabelnya saat catatan dibuat (`newest_table_dates`), ditulis di catatan, dan
+  dipakai ulang oleh gerbang. Suite orc 2.093 lulus.
+  - Uji live `4cb3176e` (suite `datadate_20261102c`): percakapan dikunci ke data 15–17 Okt.
+  - "Bandingkan dengan data terbaru" dan "3 hari bursa terakhir" memakai data sampai 2026-11-02 (bukan 30 Okt), dan
+    kalimat pertama menyebut kedua tanggal.
+  - Angka dicocokkan dengan query langsung ke `IDX_Broker_Summary`, semuanya sama:
+    - 15–17 Okt: XL 239,09, CC 159,28, YP 146,23 miliar;
+    - 3 sesi terakhir: XL 69,00, AK 50,74, LG 46,64;
+    - 2 sesi terakhir: AK 67,89, BK 48,94, LG 46,70.
+- **Status:** FIXED.
 - **Sisa:** `check_research_feasibility` (riset multi-angle) belum memeriksa tanggal terbaru.
 - **Class:** data yang dikunci untuk konsistensi dipakai diam-diam setelah sumbernya bertambah.
 - **Lesson:** setiap kunci data (tanggal, snapshot, cache) yang bisa tertinggal dari sumber harus diperiksa terhadap
