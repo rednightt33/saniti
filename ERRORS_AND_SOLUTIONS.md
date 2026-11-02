@@ -5295,6 +5295,38 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M338 — Percakapan lanjutan memakai data lama diam-diam padahal tabel sudah punya data lebih baru (2026-11-02)
+
+- **Ditemukan oleh:** user (2026-11-02, request `edge_581a81b7…`): "kenapa direquest ini dia gak nemu ya".
+- **Verified (log orc + database):**
+  - Percakapan `conv_5a33a8…` mulai 07:25 UTC dengan data broker sampai 2026-10-27 (broker 28–30 Okt dimuat 07:41–09:02
+    UTC). 19 hasil tersimpan semuanya `data_as_of` 2026-10-27.
+  - Pertanyaan candle pukul 16:56 UTC (router: NEW_TOPIC) memakai LATEST, dan sandbox memotongnya ke 2026-10-27
+    ("LATEST bound to 2026-10-27"). Hasilnya 0 piercing dan 1 bullish engulfing, padahal pada 2026-11-02 ada 83
+    bullish engulfing dan 6 piercing.
+  - Asumsi di jawaban AI salah: "27 Oktober 2026, tanggal bursa terakhir yang tersedia di data harga dan indikator".
+    Kalimat tanggal dari backend ada, tetapi di Batasan.
+- **Root cause (kode):**
+  - Tanggal kunci R-STORE (C2e, keputusan user 4) satu untuk seluruh percakapan (`data_record.data_as_of`). Dipasang
+    tiap run (`orchestrator.py`), dikirim ke sandbox (`pinned_body`), dan sandbox memotong LATEST ke tanggal itu
+    (`data_need.py:1313`).
+  - Kode tidak pernah memeriksa apakah tabel yang diminta sudah punya data lebih baru, dan model tidak diberi tahu.
+    Model hanya bisa membuka kunci (NEWEST) "when the user asks for newer data".
+  - User juga menunjukkan bahwa membedakan per tabel tidak cukup: tabel yang sama bisa sudah punya data baru.
+- **Solution (EXEC-DATA-DATE, go user 2026-11-02, `main` `f83399d`, orc `e34a79ef` SUCCESS):**
+  - Gerbang `DATA_DATE_CHOICE_REQUIRED` (`tools/analysis.py` `data_date_choice`). Di run yang terkunci, data need
+    dengan rentang LATEST dan `data_as_of_policy` kosong ditolak bila tabelnya sudah punya data lebih baru. Tanggal
+    terbaru dibaca dari `ai_preview_table_rows`, sekali per tabel per run.
+  - Model memilih NEWEST atau CONVERSATION, atau bertanya ke user (keputusan user: opsi a). Aturan dan contohnya ada di
+    catatan percakapan (`data_record.DATA_DATE_RULE`).
+  - Kalimat tanggal data dari backend menjadi kalimat pertama jawaban (`user_texts.DATA_DATE_*`).
+  - Tes unit `tests/test_data_date_choice.py` (10). Suite orc penuh 2.090 lulus.
+- **Status:** DEPLOYED; uji live: lihat di bawah.
+- **Sisa:** `check_research_feasibility` (riset multi-angle) belum memeriksa tanggal terbaru.
+- **Class:** data yang dikunci untuk konsistensi dipakai diam-diam setelah sumbernya bertambah.
+- **Lesson:** setiap kunci data (tanggal, snapshot, cache) yang bisa tertinggal dari sumber harus diperiksa terhadap
+  sumbernya, dan pilihannya diperlihatkan ke model dan ke user, bukan diterapkan diam-diam.
+
 ### M337 — Feature 01/04 IHSG tertinggal sampai ada putaran Stockbit (2026-11-02)
 
 - **Ditemukan oleh:** pengecekan kesegaran data atas permintaan user (2026-11-02). Job read-only `33e3ba76` dan
