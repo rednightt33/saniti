@@ -202,6 +202,8 @@ export default defineRailway(() => {
     build: { buildEnvironment: "V3", builder: "RAILPACK" },
     replicas: { "sfo": 1 },
     env: { BACKTEST_CACHE_BYTES: preserve(), BACKTEST_CACHE_DIR: preserve(), BACKTEST_CACHE_DIR_BYTES: preserve(), BACKTEST_DOWNLOAD_CONCURRENCY: preserve(), BACKTEST_DOWNLOAD_RETRIES: preserve(), BACKTEST_FILE_ORIGIN: preserve(), BACKTEST_FLOW_ENABLED: preserve(), BACKTEST_HTTP_TIMEOUT_MS: preserve(), BACKTEST_MAX_BROKER_ROWS: preserve(), BACKTEST_MAX_CONDITIONS: preserve(), BACKTEST_MAX_DOWNLOAD_BYTES: preserve(), BACKTEST_MAX_FILE_BYTES: preserve(), BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_RETRY_BASE_MS: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
+    // EXEC-U4-WORKERS (go 2026-11-02): sleeps when idle; edge-bff wakes it (apps/edge-bff/app/wake.py)
+    deploy: { sleepApplication: true },
   });
   // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): built from GitHub main with the repository root as context
   const screenerWorker = service("screener-worker", {
@@ -214,7 +216,9 @@ export default defineRailway(() => {
     healthcheck: "/ready",
     healthcheckTimeout: 300,
     replicas: { "sfo": 1 },
-    deploy: { restartPolicyType: "ALWAYS", limitOverride: { containers: { memoryBytes: 2750000000 } } },
+    // EXEC-U4-WORKERS (go 2026-11-02): sleeps when idle; the /state poll pauses after SCREENER_IDLE_POLL_S and edge-bff
+    // wakes it (apps/edge-bff/app/wake.py)
+    deploy: { restartPolicyType: "ALWAYS", limitOverride: { containers: { memoryBytes: 2750000000 } }, sleepApplication: true },
     env: { SCREENER_CACHE_BYTES: preserve(), SCREENER_CACHE_DIR: preserve(), SCREENER_CACHE_DIR_BYTES: preserve(), SCREENER_CAP_BUDGET_MS: preserve(), SCREENER_DEADLINE_MS: preserve(), SCREENER_DOWNLOAD_CONCURRENCY: preserve(), SCREENER_DOWNLOAD_RETRIES: preserve(), SCREENER_FILE_ORIGIN: preserve(), SCREENER_HTTP_TIMEOUT_MS: preserve(), SCREENER_MAX_CONDITIONS: preserve(), SCREENER_MAX_COUNTS: preserve(), SCREENER_MAX_CPU_MS: preserve(), SCREENER_MAX_FILE_BYTES: preserve(), SCREENER_MAX_INFLATED_BYTES: preserve(), SCREENER_MAX_METRIC_FILTERS: preserve(), SCREENER_MAX_REFRESH_BYTES: preserve(), SCREENER_MAX_REQUEST_BYTES: preserve(), SCREENER_MAX_RESPONSE_BYTES: preserve(), SCREENER_OWNER_CPU_MS: preserve(), SCREENER_OWNER_INFLIGHT: preserve(), SCREENER_PREVIOUS_GRACE_S: preserve(), SCREENER_QUEUE: preserve(), SCREENER_RETRY_BASE_MS: preserve(), SCREENER_THREADS: preserve(), SCREENER_THREAD_HEAP_MB: preserve(), SCREENER_WITHIN_MAX: preserve(), SCREENER_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
   });
   const edgeBff = service("edge-bff", {

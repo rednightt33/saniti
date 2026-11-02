@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-11-02 — screener-worker and backtest-worker sleep when idle (EXEC-U4-WORKERS, user "Jalankan U4 sekarang")
+
+- `main` `75d3813a`: edge-bff `2159f2ff` SUCCESS (wake guard `app/wake.py`), screener-worker `909b5212` SUCCESS (the
+  `/state` poll pauses after `SCREENER_IDLE_POLL_S`, default 300 s).
+- `.railway/railway.ts`: `deploy.sleepApplication: true` for screener-worker and backtest-worker; `railway config plan`
+  "2 to change" (null → true), `railway config apply --yes`, plan afterwards up to date.
+  Deployments screener-worker `28495b02` and backtest-worker `ee70ef24` SUCCESS 09:53 UTC.
+- Live check of sleep and wake: pending (EXEC.md EXEC-U4-WORKERS).
+
 ## 2026-11-02 — stockbit-updater round, terminal-publisher manual run, market-audit-store redeploy (EXEC-BROKER-1102, EXEC-AUDIT-REDEPLOY)
 
 - **stockbit-updater:**
