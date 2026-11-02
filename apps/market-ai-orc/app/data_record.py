@@ -761,12 +761,30 @@ def support_line(o: dict[str, Any]) -> str:
             + " (after that the export rebuilds it from the stored code)")
 
 
+# EXEC-DATA-DATE (user 2026-11-02): the rule the model reads before it writes a data need in a conversation that has a
+# data date (gate DATA_DATE_CHOICE_REQUIRED, tools/analysis.py data_date_choice: the refusal, how to pass, examples)
+DATA_DATE_RULE = (
+    "Data date of this conversation: its earlier answers used data up to {date}. A data need whose time range ends "
+    "LATEST ends there unless data_as_of_policy is NEWEST. When a table already has newer data, a data need with "
+    "data_as_of_policy null is refused with DATA_DATE_CHOICE_REQUIRED, naming both dates. Choose NEWEST for a new "
+    "question or one asking for the last, latest or newest data (\"saham mana yang diakumulasi 3 hari terakhir?\"); "
+    "CONVERSATION when the message builds on an earlier answer: recompute, narrow, explain or compare it (\"hitung "
+    "ulang tabel tadi, hanya board reguler\"); when the message does not show which one is meant, ask the user "
+    "(CLARIFICATION, the two dates as two options). Never call {date} the last available date: newer data may exist.")
+
+
+def data_date_line(record: dict[str, Any]) -> list[str]:
+    """EXEC-DATA-DATE: DATA_DATE_RULE when the conversation has a data date, else nothing."""
+    date = data_as_of(record)
+    return [DATA_DATE_RULE.format(date=date)] if date else []
+
+
 def full_note(record: dict[str, Any]) -> str:
     """EXEC-C items 5 and 10: the record as one prompt note that is never cut. Tables, column details, needs,
     outputs, research angles, earlier answers, findings and the routing of earlier messages always appear in full;
     the reference sections (column details beyond COLUMNS_NOTE_CHARS, category values, relationships, coverage beyond
     REFERENCE_NOTE_CHARS) are summarized with a pointer to their full text."""
-    lines = [FULL_NOTE_HEADER, "Tables (columns used; columns read from the catalog):"]
+    lines = [FULL_NOTE_HEADER, *data_date_line(record), "Tables (columns used; columns read from the catalog):"]
     for name, table in sorted(record["tables"].items()):
         extra = sorted(set(table["read"]) - set(table["used"]))
         keys = ", ".join(f"{k}={table[k]}" for k in ("entity_column", "time_column") if table.get(k))
@@ -850,7 +868,7 @@ def full_note(record: dict[str, Any]) -> str:
 def note(record: dict[str, Any]) -> str:
     """The record as one prompt note, newest first, within MAX_NOTE_CHARS: tables and their columns always come
     first; needs, outputs and research angles are listed while they fit."""
-    lines = [NOTE_HEADER, "Tables (columns used; columns read from the catalog):"]
+    lines = [NOTE_HEADER, *data_date_line(record), "Tables (columns used; columns read from the catalog):"]
     for name, table in sorted(record["tables"].items()):
         extra = sorted(set(table["read"]) - set(table["used"]))
         keys = ", ".join(f"{k}={table[k]}" for k in ("entity_column", "time_column") if table.get(k))

@@ -88,6 +88,11 @@ def build_default_registry(
         if preview_enabled:
             registry.register(preview_spec(catalog_reader, timeout_seconds=catalog_timeout_seconds))
         registry.windowed_columns = _windowed_columns(catalog_reader)  # EXEC-M209 step 3
+        # EXEC-DATA-DATE: a pinned conversation learns when a table already has newer data
+        from .analysis import set_newest_date_reader
+        from .preview import newest_date
+
+        set_newest_date_reader(lambda table: newest_date(catalog_reader, table))
     if governor_client is not None:
         # Model-written data requests are a rollback path only: the approved spec is compiled by the backend.
         if request_data_enabled:

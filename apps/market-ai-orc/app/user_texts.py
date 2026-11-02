@@ -573,3 +573,13 @@ OWN_TEST_LINE = ("Sebagian uji statistik di jawaban ini dihitung AI dengan koden
 # again with the same approved data need; the file's definition sheet says so (the file follows the answer's language)
 INPUTS_REBUILT_FIELD = "Data input"
 INPUTS_REBUILT = "ditarik ulang dari sumber pada {date} dengan permintaan data yang sama (data asli sudah tidak disimpan)"
+
+# R-STORE (C2e, user decision 4) and EXEC-DATA-DATE (user 2026-11-02): the answer's data date, written by the backend as
+# the answer's first line (never left to the model)
+DATA_DATE_CHANGED_LINE = ("Data jawaban ini sampai {new}; jawaban sebelumnya di percakapan ini memakai data sampai "
+                          "{old}, jadi angkanya bisa berbeda.")
+DATA_DATE_PINNED_LINE = ("Angka ini memakai data sampai {date}, sama dengan jawaban sebelumnya di percakapan ini. "
+                         "Minta \"pakai data terbaru\" untuk menghitung ulang dengan data terbaru.")
+DATA_DATE_KEPT_LINE = ("Angka ini memakai data sampai {date}, sama dengan jawaban sebelumnya di percakapan ini; data "
+                       "terbaru sudah ada sampai {newest}. Minta \"pakai data terbaru\" untuk menghitung ulang dengan "
+                       "data itu.")

@@ -25,7 +25,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model, model_validator
 
 from ..research_plan import guard_research_submission
-from .analysis import SandboxClient, current_run_context, pinned_body, take_data_date_policy
+from .analysis import SandboxClient, current_run_context, data_date_choice, pinned_body, take_data_date_policy
 from .registry import ToolError, ToolSpec
 
 SPEC_VERSION = "data_need_spec/v1"
@@ -417,7 +417,10 @@ def submit_data_need(client: SandboxClient,
         raise ToolError("No user request is available to anchor the data need's reference date.")
     payload = arguments.model_dump(mode="json")
     payload.pop("attach_to_session_id", None)  # PLAN 14: read by the orchestrator's next step, not by the validator
-    take_data_date_policy(payload)
+    policy = take_data_date_policy(payload)
+    choice = data_date_choice(payload, policy)  # EXEC-DATA-DATE: never old data in silence
+    if choice is not None:
+        return choice
     governance = payload.pop("research_governance")
     if arguments.mode == "RESEARCH":
         # The research execution guard: arguments are validated, nothing has reached the sandbox yet. Without a

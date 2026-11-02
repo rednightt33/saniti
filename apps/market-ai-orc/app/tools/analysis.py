@@ -22,9 +22,9 @@ from __future__ import annotations
 import contextvars
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -81,6 +81,14 @@ class DataDate:
 
     as_of: str | None
     newest: bool = False
+    # EXEC-DATA-DATE (user 2026-11-02): the model chose the conversation's date while newer data existed (CONVERSATION
+    # after DATA_DATE_CHOICE_REQUIRED), and the newest date seen per table this run (read once, kept for the run)
+    kept: bool = False
+    newest_seen: dict[str, str | None] = field(default_factory=dict)
+
+    def newer(self) -> dict[str, str]:
+        """The tables read this run whose newest date is after the conversation's data date."""
+        return {t: d for t, d in sorted(self.newest_seen.items()) if d and self.as_of and d > self.as_of}
 
 
 current_data_date: contextvars.ContextVar[DataDate | None] = contextvars.ContextVar("current_data_date",
@@ -95,12 +103,71 @@ def pinned_body(body: dict[str, Any]) -> dict[str, Any]:
     return body
 
 
-def take_data_date_policy(payload: dict[str, Any]) -> None:
-    """R-STORE: data_as_of_policy is not part of the spec the sandbox validates; NEWEST lifts the run's pin."""
-    if payload.pop("data_as_of_policy", None) == "NEWEST":
-        data_date = current_data_date.get()
-        if data_date is not None:
+def take_data_date_policy(payload: dict[str, Any]) -> str | None:
+    """R-STORE: data_as_of_policy is not part of the spec the sandbox validates; NEWEST lifts the run's pin. Returns the
+    policy the model chose (None when it left it empty), so the caller can ask for a choice (data_date_choice)."""
+    policy = payload.pop("data_as_of_policy", None)
+    data_date = current_data_date.get()
+    if data_date is not None:
+        if policy == "NEWEST":
             data_date.newest = True
+        elif policy == "CONVERSATION":
+            data_date.kept = True
+    return policy
+
+
+# EXEC-DATA-DATE (user 2026-11-02, "Yang jadi masalah adalah kalau table yang sama digunakan tapi table tersebut sudah
+# ada data terbaru"): the newest date of a catalog table, read from public.ai_preview_table_rows (tools/preview.py
+# newest_date); set by build_registry when the catalog reader exists. None: no check (the pin applies as before).
+_newest_date_reader: Callable[[str], str | None] | None = None
+
+
+def set_newest_date_reader(reader: Callable[[str], str | None] | None) -> None:
+    global _newest_date_reader
+    _newest_date_reader = reader
+
+
+DATA_DATE_CHOICE_MESSAGE = (
+    "This conversation's earlier answers used data up to {as_of}, and a range ending LATEST would end there; but {tables} "
+    "already {verb} newer data (up to {newest}). Choose and resubmit the same spec with data_as_of_policy set: NEWEST "
+    "when the user's message is a new question or asks for the last, latest or newest data (the answer then states "
+    "both dates); CONVERSATION when it builds on an earlier answer of this conversation (recompute, narrow, explain or "
+    "compare that result), so its figures stay comparable. When the message does not show which one the user means, "
+    "do not resubmit: answer CLARIFICATION with one short question and two options (the data up to {as_of}, as the "
+    "earlier answers, or the newest data up to {newest}). Example: \"saham mana yang diakumulasi 3 hari terakhir?\" "
+    "-> NEWEST; \"hitung ulang tabel tadi, hanya board reguler\" -> CONVERSATION; leaving data_as_of_policy null "
+    "while newer data exists is refused again.")
+
+
+def data_date_choice(spec: dict[str, Any], policy: str | None) -> dict[str, Any] | None:
+    """EXEC-DATA-DATE: a refusal (DATA_DATE_CHOICE_REQUIRED) when this run is pinned to the conversation's data date, the
+    spec has a range ending LATEST, data_as_of_policy is empty and one of those tables already has newer data; the
+    model then chooses NEWEST or CONVERSATION, or asks the user. None in every other case (no silent old data, no
+    question when nothing is newer)."""
+    data_date = current_data_date.get()
+    reader = _newest_date_reader
+    if data_date is None or not data_date.as_of or data_date.newest or policy == "NEWEST" or reader is None:
+        return None
+    tables = sorted({str(request.get("source_table")) for request in spec.get("data_requests") or []
+                     if isinstance(request, dict) and request.get("source_table")
+                     and any(isinstance(r, dict) and r.get("end") == "LATEST" for r in request.get("time_ranges") or [])})
+    for table in tables:
+        if table not in data_date.newest_seen:
+            try:
+                data_date.newest_seen[table] = reader(table)
+            except Exception:  # an unreadable table keeps the pin as before; the check never blocks a run
+                data_date.newest_seen[table] = None
+    newer = {t: d for t, d in data_date.newer().items() if t in tables}
+    if not newer or policy is not None:  # CONVERSATION: the model chose; the answer's first line names both dates
+        return None
+    newest = max(newer.values())
+    message = DATA_DATE_CHOICE_MESSAGE.format(as_of=data_date.as_of, tables=", ".join(newer), newest=newest,
+                                              verb="has" if len(newer) == 1 else "have")
+    return {"status": "REVISION_REQUIRED",
+            "issues": [{"data_request_id": None, "code": "DATA_DATE_CHOICE_REQUIRED", "field_path": "data_as_of_policy",
+                        "rejected_value": None, "message": message, "conversation_data_date": data_date.as_of,
+                        "newest_data_date": newer}],
+            "warnings": [], "next_action": "SET_DATA_AS_OF_POLICY_OR_ASK_USER"}
 
 
 # Conversation reuse (AI_ENABLE_CONVERSATION_REUSE): the key of the current SERVER conversation, derived by the

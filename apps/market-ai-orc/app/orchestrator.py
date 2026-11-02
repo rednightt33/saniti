@@ -50,7 +50,8 @@ from . import stop
 from . import user_texts as texts
 from . import follow_ups
 from .user_texts import (  # M125: every line the backend writes for the user
-    ANALYSIS_PATH_LINE, ANGLE_FINDINGS_NOTICE, DATANEED_GATE_NOTICE, DATANEED_PROVENANCE_NOTICE, DATANEED_ROUTING_NOTICE,
+    ANALYSIS_PATH_LINE, ANGLE_FINDINGS_NOTICE, DATA_DATE_CHANGED_LINE, DATA_DATE_KEPT_LINE, DATA_DATE_PINNED_LINE,
+    DATANEED_GATE_NOTICE, DATANEED_PROVENANCE_NOTICE, DATANEED_ROUTING_NOTICE,
     DERIVED_FREQUENCY_LINE, FINDINGS_NOTICE, GATE_NOTICE, METHODOLOGY_MISSING_LINE, METHODOLOGY_WITHHELD_LINE,
     PIT_FALLBACK_LINE, PLAN_FINDINGS_NOTICE, PLAN_NOT_EXECUTED_LINE, PLAN_NOT_FEASIBLE_NOTICE, PLAN_PROVENANCE_NOTICE,
     PLAN_VERSION_NOTICE, PROVENANCE_NOTICE, ROUTING_NOTICE, WARNING_LINES)
@@ -2565,11 +2566,6 @@ def previous_weekday(day: Any) -> str:
     return previous.isoformat()
 
 
-# R-STORE (C2e, user decision 4): the backend's own lines about an answer's data date
-DATA_DATE_CHANGED_LINE = ("Data jawaban ini sampai {new}; jawaban sebelumnya di percakapan ini memakai data sampai "
-                          "{old}, jadi angkanya bisa berbeda.")
-DATA_DATE_PINNED_LINE = ("Angka ini memakai data sampai {date}, sama dengan jawaban sebelumnya di percakapan ini. "
-                         "Minta \"pakai data terbaru\" untuk menghitung ulang dengan data terbaru.")
 # M69 tahap 1 (golden g6_revise 2026-10-02: the user's "within 10 days" became 5 days in the follow-up suggestion)
 PLAN_HORIZON_INSTRUCTION = (
     "The user stated the outcome horizon ({stated}); {plan_items} use {used} periods instead. The horizon is the "
@@ -3933,8 +3929,11 @@ class AgentOrchestrator:
         produced = sorted({str(o["lineage"]["data_as_of"]) for o in state.store_outputs
                            if isinstance(o.get("lineage"), dict) and o["lineage"].get("data_as_of")})
         earlier, line = state.data_date.as_of, None
+        newer = state.data_date.newer()  # EXEC-DATA-DATE: the tables read this run that already had newer data
         if produced and earlier and produced[-1] != earlier:
             line = DATA_DATE_CHANGED_LINE.format(new=produced[-1], old=earlier)
+        elif produced and earlier and not state.data_date.newest and newer:
+            line = DATA_DATE_KEPT_LINE.format(date=earlier, newest=max(newer.values()))
         elif produced and earlier and not state.data_date.newest \
                 and state.reference_date is not None and earlier < previous_weekday(state.reference_date):
             line = DATA_DATE_PINNED_LINE.format(date=earlier)
@@ -3948,10 +3947,11 @@ class AgentOrchestrator:
                                response_type=response.response_type, answer=response.answer,
                                data_as_of=produced[-1] if produced else None)
             result = result.model_copy(update={"data_record": records.public(state.data_record)})
+        # EXEC-DATA-DATE (user 2026-11-02): the data date is the answer's first line, not a limitation at its end
         if line and response is not None and response.response_type in ("ANSWER", "LIMITATION") \
-                and line not in response.limitations:
+                and line not in (response.answer or ""):
             result = result.model_copy(update={"response": response.model_copy(update={
-                "limitations": [*response.limitations, line]})})
+                "answer": line + ("\n\n" + response.answer if response.answer else "")})})
         return result
 
     def _restorer(self, request: AgentRunRequest) -> Callable[..., list[dict[str, Any]]] | None:

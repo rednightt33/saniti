@@ -10126,6 +10126,54 @@ abu-abu ke kanan bawah, E putih di tengah).
   16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
 - **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
 
+## EXEC-DATA-DATE — data lama tidak pernah dipakai diam-diam dalam percakapan lanjutan (go 2026-11-02)
+
+**Kata user, 2026-11-02:**
+- Request `edge_581a81b7…`: "kenapa direquest ini dia gak nemu ya, coba baca lognya".
+- Atas usulan A: "Yang jadi masalah adalah kalau table yang sama digunakan tapi table tersebut sudah ada data
+  terbaru ... Solusi kamu tidak akan solve this situation."
+- Atas usulan C (a: tanya dulu bila maksud tidak jelas): "Ya udah, oke. Inspect database. Ensure bahwa setiap
+  keputusan yang diambil berdasarkan inspeksi code rather than just memory. Setelah itu buat implementation plan.
+  Langsung eksekusi, jalankan 3 tes. To ensure that this works. Lalu lihat apakah ada side effect."
+
+**Temuan (kode + database, 2026-11-02):**
+- Percakapan `conv_5a33a8…` mulai 07:25 UTC dengan data broker sampai 2026-10-27 (broker 28–30 Okt baru dimuat
+  07:41–09:02 UTC). 19 hasil tersimpan semuanya `data_as_of` 2026-10-27.
+- Tanggal kunci = tanggal data terbaru dari hasil sebelumnya, satu untuk seluruh percakapan (`data_record.data_as_of`,
+  `data_record.py:376`). Kunci dipasang tiap run (`orchestrator.py:3233-3234`) dan dikirim ke sandbox
+  (`tools/analysis.py` `pinned_body`). Sandbox memotong rentang LATEST ke tanggal itu (`data_need.py:1313`). Kunci
+  hanya dibuka bila model mengirim `data_as_of_policy` NEWEST, dan instruksinya: "only when the user asks for newer
+  data" (`tools/data_need.py:285-288`).
+- Kode tidak pernah memeriksa apakah tabel yang diminta sudah punya data lebih baru dari tanggal kunci. Model tidak
+  diberi tahu, jadi menulis "27 Oktober ... tanggal bursa terakhir yang tersedia".
+- Kalimat tanggal data dari backend (`DATA_DATE_PINNED_LINE`) masuk ke Batasan (`orchestrator.py:3952-3954`), bukan
+  awal jawaban.
+- Sumber tanggal terbaru yang benar: `public.ai_preview_table_rows` (orc sudah boleh EXECUTE; urutan tanggal DESC per
+  tabel, sudah diukur). `AI_data_coverage` tidak dipakai: cron 00:30 dan 10:30 UTC, tertinggal dari pemuatan broker.
+
+**Rencana (orc saja, tanpa saklar, migrasi, atau variabel Railway):**
+1. **Jaminan di kode:** saat `submit_data_need_spec` atau `check_data_feasibility` dikirim di run yang terkunci (tanggal
+   kunci ada, belum NEWEST) dengan rentang berakhir LATEST, orc membaca tanggal terbaru tiap tabel rentang itu lewat
+   `ai_preview_table_rows`. Bila ada yang lebih baru dari tanggal kunci dan `data_as_of_policy` tidak diisi, permintaan
+   ditolak dengan `DATA_DATE_CHOICE_REQUIRED`, yang menyebut kedua tanggal dan cara lolosnya.
+2. **Penilaian di model** (pesan tolak + deskripsi field, aturan gerbang EXEC-FASTLANE-LEN a–d):
+   - NEWEST bila pertanyaan baru atau menyebut terakhir/terbaru;
+   - CONVERSATION bila membangun hasil sebelumnya;
+   - bila tidak jelas, CLARIFICATION dengan dua pilihan (user: opsi a).
+3. **Tanggal di kalimat pertama:** kalimat tanggal data dari backend dipindah dari Batasan ke awal jawaban. Bila tanggal
+   terbaru diketahui, kalimatnya juga menyebutnya. Teks ada di `user_texts.py`.
+4. **Tes unit:** tolak bila ada data lebih baru; tidak tolak bila tidak ada, bila policy diisi, bila tanpa kunci, atau
+   bila rentang tanggalnya eksplisit. Kalimat tanggal di awal jawaban. Tes lama `test_result_store` disesuaikan.
+5. **3 tes live** (runner, percakapan baru yang dikunci ke tanggal lama lewat pertanyaan bertanggal eksplisit):
+   - lanjutan "hitung ulang yang tadi": tanggal lama tetap, tanpa tanya;
+   - pertanyaan baru "data terakhir": data terbaru;
+   - pertanyaan ambigu: model bertanya balik.
+6. **Efek samping yang dicek:** suite orc penuh, `AI_TOOLS.md` / `AI_ROUTER.md` / prompt snapshot (drift), waktu dan
+   biaya run, jumlah penolakan gerbang.
+
+**Di luar cakupan:** `check_research_feasibility` (riset multi-angle) belum memeriksa tanggal terbaru, dan dicatat
+sebagai sisa.
+
 ## EXEC-F04-BONDS — Feature 04 obligasi tertahan sejak koreksi M324; restart Postgres sesudah putaran broker (go 2026-11-02)
 
 **Kata user, 2026-11-02:**

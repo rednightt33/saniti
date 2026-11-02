@@ -39,7 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..lanes import is_fast
 from .registry import ToolError, ToolSpec
-from .analysis import current_conversation_key, current_run_context, take_data_date_policy
+from .analysis import current_conversation_key, current_run_context, data_date_choice, take_data_date_policy
 from .request_data import current_request_id
 
 NEED_ID_PATTERN = r"^need_[0-9a-f]{24}$"
@@ -904,7 +904,10 @@ def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseMod
     if context is None:
         raise ToolError("No user request is available to anchor the data need's reference date.")
     spec = arguments.model_dump(mode="json")
-    take_data_date_policy(spec)  # R-STORE: not part of the spec the sandbox validates
+    policy = take_data_date_policy(spec)  # R-STORE: not part of the spec the sandbox validates
+    choice = data_date_choice(spec, policy)  # EXEC-DATA-DATE: never old data in silence
+    if choice is not None:
+        return {**choice, "draft_id": None}
     body = {"request_id": client._request_id(), "reference_time": context.reference_time.isoformat(),
             "timezone": context.timezone, "spec": spec}
     checked = client.check_data_need(body)

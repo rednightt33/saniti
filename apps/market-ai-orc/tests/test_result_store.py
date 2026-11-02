@@ -229,14 +229,16 @@ def test_a_changed_data_date_is_stated_by_the_backend() -> None:
     from app.orchestrator import DATA_DATE_CHANGED_LINE
 
     result = _run_with(_record_with("2026-09-25"), "2026-10-02")
-    assert DATA_DATE_CHANGED_LINE.format(new="2026-10-02", old="2026-09-25") in result.response.limitations
+    # EXEC-DATA-DATE: the data date is the answer's first line, not a limitation
+    assert result.response.answer.startswith(DATA_DATE_CHANGED_LINE.format(new="2026-10-02", old="2026-09-25"))
+    assert not any("Data jawaban ini" in line for line in result.response.limitations)
 
 
 def test_an_old_kept_data_date_offers_a_recomputation_and_the_answer_is_noted() -> None:
     from app.orchestrator import DATA_DATE_PINNED_LINE
 
     result = _run_with(_record_with("2020-01-02"), "2020-01-02")
-    assert DATA_DATE_PINNED_LINE.format(date="2020-01-02") in result.response.limitations
+    assert result.response.answer.startswith(DATA_DATE_PINNED_LINE.format(date="2020-01-02") + "\n\nReturn YTD BBCA")
     [noted] = result.data_record["answers"]
     assert noted["request_id"] == "dn" and noted["question"] == "Berapa return YTD BBCA?"
     assert noted["summary"].startswith("Return YTD BBCA") and noted["data_as_of"] == "2020-01-02"

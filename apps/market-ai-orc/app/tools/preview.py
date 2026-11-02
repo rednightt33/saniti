@@ -131,6 +131,24 @@ class PreviewTool:
         return result
 
 
+def newest_date(reader: CatalogReader, table: str) -> str | None:
+    """EXEC-DATA-DATE: the newest date of one approved table, from the first row of public.ai_preview_table_rows (its
+    first ORDER BY column is the table's date, descending). None for a table without a date or outside the list."""
+    order = ORDERING.get(table)
+    if order is None or not order[0].split(",")[0].strip().endswith(" DESC"):
+        return None
+    column = order[0].split(",")[0].strip()[: -len(" DESC")].strip().strip('"')
+    with reader.read_only() as run:
+        rows = run(PREVIEW_SQL, (table,))
+    payload = load_exact(rows[0]["payload"]) if rows and rows[0].get("payload") else None
+    if not isinstance(payload, dict) or payload.get("table_name") != table or payload.get("order_by") != order[0]:
+        return None
+    records = payload.get("rows") or []
+    first = records[0] if records and isinstance(records[0], dict) else None
+    value = first.get(column) if first else None
+    return str(value)[:10] if value else None
+
+
 def preview_spec(reader: CatalogReader, *, timeout_seconds: float) -> ToolSpec:
     return ToolSpec(
         name="preview_table_rows", effect="FETCHES_DATA",
