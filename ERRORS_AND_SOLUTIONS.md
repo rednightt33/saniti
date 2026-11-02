@@ -5316,7 +5316,17 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     SUCCESS; snapshot prompt v021).
   - Tool_Catalog research_web v5 (migrasi `20261102_001`).
   - Suite web governor 156 lulus dan orc 2.094 lulus.
-- **Status:** DEPLOYED; uji live di bawah.
+- **Uji live (runner `3b526ef9`, suite `weblist_20261102a`, DeepSeek V4.1 Flash low seperti request user):**
+  - **Daftar kenaikan BI Rate + return saham bank:** web governor `several`: QUICK → RESEARCH (`FEW_ITEMS`), 20 sumber,
+    11 item, status PARTIAL. Model memakai 9 tanggal kenaikan (Agustus 2022–Juni 2026) sebagai tanggal peristiwa untuk
+    48 saham bank (return −5…+5 sesi). LULUS untuk kasus `edge_026b…`.
+  - **"BI Rate terbaru":** tetap QUICK, tanpa eskalasi, satu nilai (5,75%) dengan tanggalnya. LULUS.
+- **Temuan (OPEN):** jawaban tes 2 menyebut kenaikan 2026 (22 Apr, 20 Mei, 9 Jun, 18 Jun), tetapi daftar tes 1 untuk 2026
+  hanya memuat 9 Jun.
+  - Hasil web berstatus PARTIAL, tetapi jawaban tes 1 tidak menyebut bahwa daftarnya mungkin tidak lengkap.
+  - Kebenaran tanggal 2026 belum diverifikasi ke sumber resmi.
+  - Usulan: status PARTIAL dari `research_web` wajib disebut di Batasan, atau model mencari ulang per tahun.
+- **Status:** FIXED untuk eskalasi dan pemakaian tanggal; kelengkapan daftar OPEN.
 - **Class:** permintaan daftar yang dijawab sebagai satu item, dan model menyerah setelah satu panggilan.
 - **Lesson:** setiap alat pencari harus bisa diberi tahu berapa banyak item yang dicari, dan pemanggilnya mencoba lagi
   bila hasilnya tidak menutup kebutuhan.
