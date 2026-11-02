@@ -5321,7 +5321,24 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     catatan percakapan (`data_record.DATA_DATE_RULE`).
   - Kalimat tanggal data dari backend menjadi kalimat pertama jawaban (`user_texts.DATA_DATE_*`).
   - Tes unit `tests/test_data_date_choice.py` (10). Suite orc penuh 2.090 lulus.
-- **Status:** DEPLOYED; uji live: lihat di bawah.
+- **Uji live (runner `a8636a56` suite `datadate_20261102a`, `6451c736` suite `datadate_20261102b`, DeepSeek V4.1
+  Flash high):**
+  - **Lanjutan** ("hitung ulang tabel tadi, hanya board reguler"): tetap 2026-10-27 tanpa bertanya; kalimat pertama
+    menyebut tanggal datanya. LULUS.
+  - **Ambigu** ("Kalau dihitung 5 hari terakhir?" sesudah pertanyaan bertanggal 27 Okt): model bertanya balik dengan
+    dua tanggal; balasan "pakai data terbaru" lalu memakai 2026-11-02, dan kalimat pertama menyebut kedua tanggal.
+    LULUS.
+    - Percobaan pertama ("Bagaimana dengan TLKM?") tidak ambigu, karena giliran pertama menyebut "sampai 27 Oktober
+      2026". Model membaca aturan dan memilih periode yang dinyatakan user.
+  - **Pertanyaan baru, data terakhir:** model memilih NEWEST (2026-11-02); kalimat pertama menyebut kedua tanggal.
+    LULUS.
+  - Gerbang `DATA_DATE_CHOICE_REQUIRED` tidak perlu menolak dalam uji ini, karena model sudah memilih dari aturan di
+    catatan. Penolakannya dikunci oleh tes unit.
+- **Temuan saat uji (OPEN, usulan menunggu user):** pertanyaan balik menyebut "data terbaru 30 Oktober", padahal broker
+  sudah sampai 2026-11-02. Model membaca tanggal itu dari ringkasan cakupan katalog (`AI_data_coverage`, cron 00:30 dan
+  10:30 UTC), yang tertinggal dari pemuatan broker manual 15:40–16:51 UTC. Usulan: catatan aturan tanggal menyebut
+  tanggal terbaru yang dibaca langsung (`ai_preview_table_rows`) untuk tabel yang dipakai percakapan.
+- **Status:** FIXED (perilaku inti), dengan satu temuan OPEN di atas.
 - **Sisa:** `check_research_feasibility` (riset multi-angle) belum memeriksa tanggal terbaru.
 - **Class:** data yang dikunci untuk konsistensi dipakai diam-diam setelah sumbernya bertambah.
 - **Lesson:** setiap kunci data (tanggal, snapshot, cache) yang bisa tertinggal dari sumber harus diperiksa terhadap

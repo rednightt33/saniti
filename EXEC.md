@@ -10174,6 +10174,18 @@ abu-abu ke kanan bawah, E putih di tengah).
 **Di luar cakupan:** `check_research_feasibility` (riset multi-angle) belum memeriksa tanggal terbaru, dan dicatat
 sebagai sisa.
 
+**Hasil (2026-11-02):**
+- Rencana diubah sesudah inspeksi: deskripsi field `data_as_of_policy` tidak diubah, karena mengubahnya memerlukan
+  migrasi `Tool_Catalog` baru (`scripts/generate_tool_catalog_migration.py`). Aturan untuk model dipindah ke catatan
+  percakapan (`data_record.DATA_DATE_RULE`), yang hanya muncul bila percakapan punya tanggal data.
+- `main` `f83399d`, orc `e34a79ef` SUCCESS, log start bersih. Suite orc 2.090 lulus (10 tes baru).
+- Uji live: 3 skenario lulus (ERRORS M338: rincian, satu temuan OPEN tentang tanggal katalog yang tertinggal).
+- Efek samping yang dicek:
+  - `AI_TOOLS.md`, `AI_MODELS.md`, `AI_ROUTER.md` dan snapshot prompt tidak berubah (tes drift lulus);
+  - waktu per giliran 11–131 detik, biaya per giliran sekitar USD 0,01–0,05;
+  - satu `follow_ups_failed` (ValidationError balasan model saran lanjutan) pada satu giliran; giliran lain dengan
+    kalimat tanggal di awal tidak gagal, jadi tidak terkait.
+
 ## EXEC-F04-BONDS — Feature 04 obligasi tertahan sejak koreksi M324; restart Postgres sesudah putaran broker (go 2026-11-02)
 
 **Kata user, 2026-11-02:**

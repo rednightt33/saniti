@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-11-02 — orc: EXEC-DATA-DATE (ERRORS M338)
+
+- `main` `f83399df`: market-ai-orc `e34a79ef` SUCCESS (log start bersih). No variable changed.
+- `orc-test-runner` suites `datadate_20261102a` (`a8636a56`, 4 turns) and `datadate_20261102b` (`6451c736`, 3 turns):
+  all turns HTTP 200. An earlier read-only job of mine (`69aae416`) had printed `JOB_EXIT 0` and its container started
+  again with no output, so `runner_guard` reported it busy; it was replaced knowingly.
+
 ## 2026-11-02 — stockbit-updater token, Postgres restart, Feature 04 bonds jobs, EDGE favicon
 
 - `stockbit-updater`: variable `STOCKBIT_TOKEN` set (stdin, user token valid to 2026-11-03 15:38 UTC). Deployment
