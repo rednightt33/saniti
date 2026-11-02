@@ -9934,6 +9934,24 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-AUDIT-REDEPLOY — deploy ulang market-audit-store (M308; sandbox tidak bisa tidur) (go 2026-11-02)
+
+**Kata user, 2026-11-02:** "Cek juga sandbox memorynya. Stuck di 1 GB padahal tidak di pakai." Atas usulan deploy ulang
+`market-audit-store`: "Ok jalankan".
+
+- **Dicek (metrik dan log Railway):**
+  - `market-python-sandbox` (`sleepApplication` true) tidak tidur sejak 2026-11-01 06:00 UTC (memori datar 0,36 GB, lalu
+    sekitar 1,05 GB sesudah sesi pagi ini).
+  - Lognya mencoba ulang unggahan audit setiap 1-3 menit (`sandbox_audit_retry`, `AuditUnavailable: upload HTTP 403`).
+    Lalu lintas keluar itu mencegah sleep.
+  - `market-audit-store` gagal di setiap penulisan ke bucket sejak setidaknya 2026-10-29 (566 `audit_outbox_failed`
+    `ClientError` dalam 5 hari, tanpa satu pun yang berhasil).
+  - Deploy yang berjalan dari 2026-10-18 (`776f4e5a`). Kredensial bucket dibaca lewat referensi
+    `${{market-ai-audit-artifacts.*}}`, dan kredensial yang terdaftar sekarang lolos `head_bucket`/`list` (read-only).
+- **Dugaan (dicek dengan deploy ulang):** proses yang berjalan memakai kredensial bucket lama (kelas M308).
+- **Tindakan:** `railway redeploy` `market-audit-store`, satu-satunya pemakai referensi bucket itu (dibaca dari project
+  live).
+
 ## EXEC-BROKER-1102 — putaran stockbit-updater: broker summary, Feature 02/03/05/06, INDEX, event, lalu Terminal (go 2026-11-02)
 
 **Kata user, 2026-11-02:** "Kamu sudah tahu cara update data broker summary? Coba baca codenya. Kita akan update beserta
