@@ -1,0 +1,44 @@
+{
+ "started_at": "2026-11-02T10:06:27Z",
+ "backtest_catalog": {
+  "status": 200,
+  "seconds": 3.01,
+  "bytes": 125575,
+  "error": null
+ },
+ "screener_run": {
+  "tries": [
+   {
+    "status": 503,
+    "seconds": 2.38,
+    "code": "SCREENER_NOT_READY",
+    "rows": null
+   },
+   {
+    "status": 503,
+    "seconds": 0.23,
+    "code": "SCREENER_NOT_READY",
+    "rows": null
+   },
+   {
+    "status": 503,
+    "seconds": 0.3,
+    "code": "SCREENER_NOT_READY",
+    "rows": null
+   },
+   {
+    "status": 503,
+    "seconds": 0.24,
+    "code": "SCREENER_NOT_READY",
+    "rows": null
+   },
+   {
+    "status": 200,
+    "seconds": 0.25,
+    "code": null,
+    "rows": 207
+   }
+  ],
+  "total_seconds": 11.41
+ }
+}

@@ -18,6 +18,14 @@ import time
 import httpx
 
 logger = logging.getLogger(__name__)
+# uvicorn sets up only its own loggers, so an INFO line here found no handler and was dropped (logging.lastResort writes
+# WARNING and up): the downstream_wake lines never reached the log (EXEC-U4-WORKERS live check 2026-11-02). The rule of
+# app/backtest.py: a handler to stderr when none is set up at import; a logging set-up made before is left alone.
+if not logger.hasHandlers():
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
 
 # Wake-ups seen on telegram-monitor: 0.2-9 s from Starting Container to the server answering; the waits add up to 23 s.
 DELAYS = (1.0, 2.0, 4.0, 8.0, 8.0)

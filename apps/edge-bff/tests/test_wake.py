@@ -101,3 +101,23 @@ def test_the_edge_bff_clients_use_the_wake_transport():
                         screener_worker_url='http://screener-worker.railway.internal:8080')
     assert isinstance(WorkerClient(s).client._transport, wake.WakeTransport)
     assert isinstance(ScreenerWorker(s).connection()._transport, wake.AsyncWakeTransport)
+
+
+def test_the_wake_line_reaches_the_log_without_any_logging_setup():
+    """uvicorn sets up only its own loggers: without its own handler an INFO line of app.wake was dropped (live check
+    2026-11-02, no downstream_wake line after a real wake). A fresh interpreter, as the service starts, must print it."""
+    import subprocess, sys
+    code = ("import httpx\nfrom app import wake\n"
+            "class S(httpx.BaseTransport):\n"
+            "    steps=[httpx.ConnectError('x'), 200, 200]\n"
+            "    def handle_request(self, r):\n"
+            "        s=self.steps.pop(0)\n"
+            "        if isinstance(s, Exception): raise s\n"
+            "        return httpx.Response(s, request=r)\n"
+            "c=httpx.Client(base_url='http://w', transport=wake.WakeTransport(S(), 'w', delays=(0,), sleep=lambda s: None))\n"
+            "c.get('/v1/catalog')\n")
+    from pathlib import Path
+    run = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=60,
+                         cwd=Path(__file__).resolve().parents[1])
+    assert run.returncode == 0, run.stderr
+    assert '"event": "downstream_wake"' in run.stderr and '"outcome": "WOKEN"' in run.stderr
