@@ -5295,6 +5295,36 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M335 — Feature 01 intraday: satu deret memakai dua konstanta tahunan (`bars_per_year`) (2026-11-02)
+
+- **Ditemukan oleh:** pemeriksaan S4 (EXEC-INTRADAY-FEATURES), reproduksi independen `repro.py` BBCA:5m dan GOTO:15m:
+  kolom `volatility_*_ann_pct` beda di 67 dan 22-23 baris, yaitu tepat bar sesi 2026-11-02.
+- **Verified (pgweb):**
+  - BBCA 5m: baris 2026-07-13…10-30 `bars_per_year` 16.017 (backfill 2026-10-31), baris 2026-11-02 16.022.
+  - GOTO 15m: 5.652 lalu 5.653. ABDA 4h: 504 di semua baris (tidak berubah).
+  - Fungsi `intraday_bars_per_year` sekarang: 5m 16.022, 15m 5.653, 1h 1.766, 4h 504.
+  - Dengan konstanta per baris, semua kolom F01 dan F04 tepat (PASS).
+- **Root cause:** `bars_per_year` = 252 × rata-rata bar IHSG per sesi `COMPLETE`
+  (`database/migrations/20261101_001_intraday_publish.sql:15`), jadi bergeser setiap ada sesi baru. Run harian
+  menghitung ulang hanya bar yang berubah (`refresh_feature_01_stock_intraday(..., p_from)`) dengan nilai hari itu;
+  baris lama tetap memakai nilai saat ditulis. Rencana memang menyimpan nilai per baris (EXEC-INTRADAY-FEATURES A:
+  "Nilai yang dipakai disimpan di setiap baris"), tetapi tidak memutuskan apakah satu deret boleh berisi beberapa nilai.
+- **Class:** konstanta yang diturunkan dari data hidup, dipakai oleh hitungan bertahap. Deret yang sama lalu berisi
+  angka dengan dasar berbeda menurut kapan ditulis. Kena: volatilitas F01 intraday di empat timeframe, dan
+  `volatility_*_change_pct` (perubahan semu sebesar √(16.022/16.017) − 1 ≈ 0,016 % di bar pertama sesudah pergeseran).
+  Tidak kena: F01 harian (252 tetap), F04 (tidak memakai `bars_per_year`). Publisher memakai nilai hari ini di
+  manifest, jadi Terminal konsisten dengan baris terbaru, bukan dengan baris lama.
+- **Dampak:** sangat kecil (≈ 0,016 % untuk 5m, ≈ 0,009 % untuk 15m). Tidak ada angka salah terhadap konstanta yang
+  tercatat di barisnya.
+- **Usulan (perlu keputusan user):**
+  - A — konstanta dibekukan per timeframe (dihitung sekali, disimpan, diubah hanya dengan hitung ulang penuh yang
+    disetujui); paling konsisten, sama seperti 252 di harian.
+  - B — tetap bergeser, tetapi seluruh deret dihitung ulang setiap kali nilainya berubah (±15 juta baris per hari).
+  - C — terima campuran, dicatat sebagai sifat data; pemeriksa memakai nilai per baris (sudah).
+- **Status:** OPEN, menunggu keputusan user. Pemeriksa `repro.py` sudah memakai nilai per baris.
+- **Lesson:** setiap konstanta turunan yang dipakai hitungan bertahap harus punya aturan tertulis: beku atau hitung
+  ulang penuh saat berubah.
+
 ### M334 — Arsip audit EDGE AI gagal ditulis sejak ≥ 2026-10-29; sandbox tidak bisa tidur (2026-11-02)
 
 - **Ditemukan oleh:** user (2026-11-02): "Cek juga sandbox memorynya. Stuck di 1 GB padahal tidak di pakai."

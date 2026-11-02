@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-11-02 — idx-intraday-cron: first daily run with the feature step checked (EXEC-INTRADAY-FEATURES S4)
+
+- Deployment `76bf510a`, cron 10:30 UTC: run 10:32:58-10:44:22 UTC, four timeframes, `intraday_features_done`
+  3,320/3,320, 0 failed, `run_completed problems=0`. Database checks and reproduction in EXEC.md. No configuration
+  changed.
+
 ## 2026-11-02 — audit queue alarm: Telegram variables on the three audit services (EXEC-M334-ALERT, user "OK A Jalankan")
 
 - `TELEGRAM_NOTIFY_URL` (`http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify`) and `TELEGRAM_NOTIFY_SECRET`

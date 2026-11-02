@@ -1,0 +1,41 @@
+== bars_session (19502 ms)
+timeframe | bars | tickers | stock_bars | first | last
+15m | 16254 | 831 | 16231 | 2026-11-02T02:00:00Z | 2026-11-02T09:00:00Z
+1h | 5509 | 831 | 5502 | 2026-11-02T02:00:00Z | 2026-11-02T09:00:00Z
+4h | 1655 | 831 | 1653 | 2026-11-02T02:00:00Z | 2026-11-02T06:00:00Z
+5m | 38501 | 831 | 38436 | 2026-11-02T02:00:00Z | 2026-11-02T09:10:00Z
+(4 rows, 19502 ms)
+== queue (266 ms)
+timeframe | status | n | last_done | max_attempts
+15m | DONE | 830 | 2026-11-02T10:43:21.314876Z | 1
+1h | DONE | 830 | 2026-11-02T10:43:53.931202Z | 1
+4h | DONE | 830 | 2026-11-02T10:44:17.886803Z | 1
+5m | DONE | 830 | 2026-11-02T10:42:20.915495Z | 1
+(4 rows, 266 ms)
+== state_vs_traded (1516 ms)
+timeframe | traded | state_on_day | no_state
+15m | 830 | 830 | 0
+1h | 830 | 830 | 0
+4h | 830 | 830 | 0
+5m | 830 | 830 | 0
+(4 rows, 1516 ms)
+== rows_session (30201 ms)
+ERROR: {"error":"pq: canceling statement due to statement timeout","status":400}
+== rows_total (30332 ms)
+ERROR: {"error":"pq: canceling statement due to statement timeout","status":400}
+== rows_session (per partition, bar_time in the WIB session)
+4h 1653/1653/1653, 1h 5502/5502/5502, 15m 16231/16231/16231, 5m 38436/38436/38436 (bars/f01/f04)
+== rows_total (per partition)
+['4h', 2188254, '8644ms', 2188254, '8500ms', 2188254, '3530ms']
+['1h', 4531795, '17224ms', 4531795, '1873ms', 4531795, '5666ms']
+['15m', 4346885, '16887ms', 4346885, '2764ms', 'ERR {"error":"pq: canceling statement due to statement timeout","status":400}', '31168ms']
+['5m', 4329351, '16231ms', 4329351, '2868ms', 4329351, '8955ms']
+15m f04 retry {"error":"pq: canceling statement due to statement timeout","status":400} 31858 ms
+ D 1141987 4354 ms
+D J 896436 349 ms
+J P 945663 260 ms
+P U 1098805 334 ms
+U ~ 0 217 ms
+15m f04 total (5 ticker ranges) 4082891
+U..  263994 305 ms
+15m f04 total = 1141987+896436+945663+1098805+263994 = 4346885 (collation note: < '~' matched nothing, so the last range was taken without an upper bound)

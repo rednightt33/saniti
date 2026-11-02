@@ -116,11 +116,13 @@ def check(ticker, tf):
     if [r[0] for r in s01] != times:
         bad01.append('bar_time set differs')
     else:
-        bpy = s01[0][1]
-        out['bars_per_year'] = [bpy, bpy_now[0][0]]
-        exp = f01_expected(close, volume, bpy)
+        # each row is checked with the bars_per_year stored on it (EXEC-INTRADAY-FEATURES: "Nilai yang dipakai disimpan
+        # di setiap baris"); a daily run writes its bars with the value of that day, so one series can hold several
+        stored = sorted({r[1] for r in s01})
+        out['bars_per_year'] = {'stored': stored, 'now': bpy_now[0][0]}
+        exp = {bpy: f01_expected(close, volume, bpy) for bpy in stored}
         for j, col in enumerate(F01_COLS):
-            n = sum(not close_enough(num(r[j + 2]), exp[col][i]) for i, r in enumerate(s01))
+            n = sum(not close_enough(num(r[j + 2]), exp[r[1]][col][i]) for i, r in enumerate(s01))
             if n:
                 bad01.append(f'{col}: {n}')
     out['f01_bad'] = bad01

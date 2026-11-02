@@ -1,0 +1,4 @@
+PASS BBCA 5m {'bars': 5098, 'f01_rows': 5098, 'bars_per_year': {'stored': [16017, 16022], 'now': 16022}, 'f01_bad': [], 'f04_rows': 5098, 'f04_bad': []}
+PASS GOTO 15m {'bars': 5311, 'f01_rows': 5311, 'bars_per_year': {'stored': [5652, 5653], 'now': 5653}, 'f01_bad': [], 'f04_rows': 5311, 'f04_bad': []}
+PASS ABDA 4h {'bars': 766, 'f01_rows': 766, 'bars_per_year': {'stored': [504], 'now': 504}, 'f01_bad': [], 'f04_rows': 766, 'f04_bad': []}
+VERDICT PASS samples=3 failed=0

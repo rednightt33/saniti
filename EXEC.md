@@ -9387,8 +9387,26 @@ di browser di setiap pilihan. Yang hilang di B dan C hanya nilai tersimpan untuk
   - ukuran 4,3 + 5,1 GB, database 53 GB.
 - **S5:** changelog, ERRORS (M316 butir 6-7), `DATABASE_SCHEMA.md` (103 tabel).
 - **Masih terbuka:**
-  - **S4:** run harian pertama 2026-11-02 17:30 WIB (jalur bertahap, waktu, antrean) diperiksa sesudah run;
+  - ~~**S4:** run harian pertama 2026-11-02 17:30 WIB~~ SELESAI, lihat di bawah;
   - **B dan C** menunggu S4.
+
+**S4 — run harian pertama 2026-11-02 (diperiksa 11:31 UTC; `verification/intraday_features/s4_check.py`,
+`s4_check_2026-11-02.log`, `repro_s4_2026-11-02.txt`):**
+- `idx-intraday-cron` deployment `76bf510a` (image 2026-11-01, HEAD `4418a19f`), run 10:32:58-10:44:22 UTC
+  (11,4 menit, jadi selesai 17:44 WIB, sebelum publisher 19:00 WIB):
+  - `timeframe_done`: 5m 38.505 baris ditulis (101,6 s), 15m 16.256 (119,5 s), 1h 5.513 (168,3 s), 4h 1.655 (85,7 s);
+    0 error, 0 skala berubah, 0 bar direvisi;
+  - `intraday_features_done`: 3.320 item, 3.320 selesai, 0 gagal, 10 dihitung penuh, F01 96.841 dan F04 117.019 baris,
+    175,8 s; `run_completed problems=0`.
+- Database (pgweb, read-only):
+  - sesi 2026-11-02 ada di keempat timeframe, 831 ticker (830 saham + IHSG), bar 09:00-16:10 WIB;
+  - `intraday_feature_queue`: 4 × 830 DONE, 0 PENDING/FAILED, attempts 1;
+  - `feature04_intraday_state`: 830 dari 830 saham yang diperdagangkan punya `last_bar_time` di 2026-11-02, per timeframe;
+  - baris sesi itu sama persis: bar saham = F01 = F04 (5m 38.436, 15m 16.231, 1h 5.502, 4h 1.653);
+  - total sama persis: 5m 4.329.351, 15m 4.346.885, 1h 4.531.795, 4h 2.188.254 (bar saham = F01 = F04).
+- Reproduksi independen BBCA:5m, GOTO:15m, ABDA:4h: PASS, setiap kolom F01 dan F04, sesudah pemeriksa memakai
+  `bars_per_year` yang tersimpan di setiap baris. Run pertama pemeriksa FAIL di kolom volatilitas pada baris hari ini
+  saja, karena konstanta deret itu sekarang dua (ERRORS M335, perlu keputusan user).
 
 ### B. Storage: hanya bagian yang berubah (semua dataset kecuali broker summary; sesudah A)
 
