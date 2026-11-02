@@ -10124,3 +10124,69 @@ bernomor lolos; anggota yang hilang ditutup intervalnya, tidak dihapus. `Ticker`
 
 **Status:** belum ada migrasi, data atau deploy. Langkah berikut setelah go: migrasi + katalog (Table_Catalog,
 Column_Catalog), uji di Postgres lokal, muatan pertama, langkah di `stockbit-updater`, ringkasan Telegram.
+
+**Keputusan user, 2026-11-02 (lanjutan):** "Struktur tabel terpisah + view"; daftar non-indeks (status bursa, syariah,
+kebijakan broker, CALL WARRANT) "tidak usah"; "Skip saja yang needs review" (ABX, AKSELERASI-SYARIAH, IDXCMDTY20 tidak
+disimpan); yang disimpan 33 indeks dan 33 grup KONGLO (daftar dikirim ke user sebelum eksekusi). "susun implementation
+plan dulu, check PG. inspect database dan infra. Ensure setiap keputusan yang diambil berdasarkan code."
+
+### Inspeksi live dan kode (2026-11-02, read-only)
+
+- Akses: Railway CLI dengan `RAILWAY_TOKEN` sesi (ID proyek/env dari `PROJECT_CONTEXT.md`); database lewat pgweb
+  (role `pgweb`, `default_transaction_read_only = on`). Koneksi TCP langsung ke Postgres timeout dari container ini
+  (egress HTTPS saja, sama seperti RAILWAY_CHANGELOG 2026-10-13).
+- `IDX_Stock_Universe`: 845 baris (844 `stock`, 1 `index` = IHSG). IHSG versi Stockbit 962 ticker; 122 ticker anggota
+  indeks dan 24 anggota grup tidak ada di universe; tiga ticker universe (XCID, XCIS, XSPI) tidak ada di IHSG. Jadi
+  `Ticker` tidak dikunci ke universe; selisih universe dicatat sebagai temuan terpisah (di luar rencana ini).
+- Nama: belum ada objek bernama `Stock_Catalog*`. Akhiran `_Catalog` di database ini dipakai tabel metadata
+  (`Table_Catalog`, `Column_Catalog`, `Feature_Catalog`, `Tool_Catalog`, `AI_*_catalog`); untuk menghindari salah baca
+  nama diusulkan `Stock_List*` (keputusan D1).
+- `scripts/sync_database_catalog.py` mewajibkan setiap tabel publik terdaftar di `Table_Catalog` (kecuali
+  `Database_Table_Status`, `Table_Catalog`, `Column_Catalog`); view didaftarkan sendiri seperti `20261020_001`.
+- Riwayat point-in-time: pola `20260927_006` (`valid_from`/`valid_to`, `recorded_from`/`recorded_to`, `pit_valid_*`
+  generated dari tanggal WIB berikutnya, `SAME_DAY_REVISION`/`CHANGE_CAPTURED`).
+- `stockbit-updater` (`apps/stockbit-updater/updater.py`): satu putaran per deploy; langkah dicatat per kolom `jsonb`
+  di `Monitoring_Stockbit_Update` (kunci `execution_id`) lewat `record()`; pengecualian apa pun membuat putaran FAILED
+  dan langkah sesudahnya dilewati; mode VERIFY hanya Broker Summary. Fetcher `stockbit_ihsg_daily.StockbitFetcher`
+  (dipakai Broker Summary) bisa dipakai ulang. `deploy.sh` mengunggah folder bertahap; setiap deploy menjalankan satu
+  putaran dengan `STOCKBIT_TOKEN` yang tersimpan.
+- `telegram-monitor` membaca kolom `Monitoring_Stockbit_Update` secara eksplisit
+  (`fetch_stockbit_update_summary`); kolom baru perlu perubahan di sana (service GitHub, watch path sendiri).
+- Migrasi diterapkan lewat job `orc-test-runner` (DRYRUN lalu APPLY, `DATABASE_URL` hanya selama job), hash dicatat di
+  `database/migrations/APPLIED.sha256`.
+
+### Rencana implementasi (menunggu go)
+
+1. **Migrasi `20261102_001_stock_list.sql`** (satu transaksi, cek objek belum ada):
+   - `Stock_List` (66 baris disemai: 33 indeks + 33 grup; `list_key` mis. `INDEX:554`, `KONGLO:13`; jenis, id dan
+     kode Stockbit, nama, definisi, `semantic_review_status`, `is_enabled`, `first_seen_at`/`last_seen_at`);
+   - `Stock_List_Member` (keanggotaan berjalan, kunci `list_key, Ticker`);
+   - `Stock_List_Member_History` (interval point-in-time, pola `20260927_006`);
+   - `Stock_List_Load_Log` (satu baris per putaran: status, jumlah, masuk/keluar, daftar baru di Stockbit, galat);
+   - view `Stock_List_By_Ticker` (per ticker: grup, indeks, `in_universe`);
+   - fungsi `apply_stock_list_snapshot(...)`: menerima snapshot satu putaran yang sudah lolos cek, menulis keanggotaan,
+     menutup interval anggota yang keluar, membuka yang masuk, mencatat log; putaran tanpa perubahan = NO_CHANGE;
+   - kolom `stock_lists jsonb` di `Monitoring_Stockbit_Update`;
+   - `Table_Catalog`/`Column_Catalog` untuk semua objek baru, `related_functions`; tidak ada akses AI (D: "tarik
+     dulu"), tidak ada indeks besar (tabel kecil: ±4.200 keanggotaan).
+2. **Kode `apps/stockbit-updater/stock_lists.py`** + langkah di `updater.py` sesudah event reload, hanya mode APPLY:
+   - membaca daftar yang `is_enabled` dari `Stock_List`; mengambil semua halaman grup dan setiap daftar indeks;
+   - putaran menulis hanya bila semua daftar terbaca, tidak ada yang kosong, dan 17 indeks bernomor cocok jumlahnya;
+     selain itu tidak menulis apa pun dan mencatat galatnya;
+   - grup/indeks baru di Stockbit hanya dilaporkan, tidak ditambahkan (whitelist);
+   - tes di Postgres lokal (`test_stock_lists.py`): putaran pertama, ulang tanpa perubahan, masuk/keluar, revisi hari
+     sama, data tak lengkap tanpa tulis, jumlah indeks tak cocok, daftar baru dilaporkan.
+3. **`telegram-monitor`**: satu baris ringkasan (jumlah daftar, anggota masuk/keluar per daftar yang berubah) + tes.
+4. **Terapkan migrasi**: DRYRUN (rollback) lalu APPLY di `orc-test-runner`; baca ulang; `APPLIED.sha256`,
+   `DATABASE_SCHEMA.md`, `DATABASE_CHANGELOG.md`.
+5. **Deploy**: `telegram-monitor` (push `main`), lalu `stockbit-updater` dengan `deploy.sh` (deploy = satu putaran).
+   Putaran pertama penuh berjalan dengan token Stockbit baru dari user.
+6. **Verifikasi live** (pgweb): 66 daftar, keanggotaan = jumlah dari Stockbit, riwayat FIRST_CAPTURE, view, pesan
+   Telegram; catat `RAILWAY_CHANGELOG.md`, `UPDATE_TABLE.md` bagian 0, README updater.
+
+### Keputusan yang dibutuhkan
+
+- D1 nama `Stock_List*` (bukan `Stock_Catalog*`).
+- D2 bila langkah daftar gagal: putaran FAILED (pola sekarang) atau SUCCESS dengan peringatan.
+- D3 daftar 66 dan definisinya disemai di migrasi (metadata, tanpa keanggotaan; repo publik) atau ditulis putaran pertama.
+- D4 putaran pertama: saat user mengganti token berikutnya (deploy kode bersamaan) atau segera dengan token yang ada.
