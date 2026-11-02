@@ -10015,6 +10015,14 @@ flow".
     sama dengan HTML (`collect_cards.py` kini juga menyimpan data kartu). Sheet: Info, Ringkasan (41 output), Istilah,
     Langkah, Tabel_Langkah, Parameter, Hati_hati, Grafik_Data (80 candle per output).
 - Bug tombol (i) dari screenshot yang sama: ERRORS M331, FIXED.
+- **Excel Flow versi Terminal, kata user 2026-11-02:** "FLOW_INDICATORS_FINAL.xlsx yang ini saja, tapi hanya indikator
+  flow. Versi final sesuai dengan yang ada di terminal". Hasilnya
+  `verification/terminal_api/flow_indicators/FLOW_INDICATORS_TERMINAL.xlsx` (`build_terminal_workbook.py`), berisi FL01-FL39
+  saja.
+  - **Sumber (diperiksa 2026-11-02):** registry Terminal, `FORMULAS.md` (= `calc/flow.ts`), dan kartu Terminal
+    (`cards_BBCA_1b657d59.json`). Ketiganya tidak berubah sejak `1b657d59`, dan cek registry lulus.
+  - **Sheet:** Info, Ringkasan, Rumus, Parameter, Hati_hati, Contoh_BBCA, Inspeksi_Kode, Keputusan, Perubahan (termasuk
+    perubahan 2026-11-01).
 
 ## EXEC-DRAW-ALL-TF — satu set gambar untuk semua timeframe (go 2026-11-01, menggantikan C7.2 A)
 
