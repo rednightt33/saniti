@@ -186,14 +186,25 @@ held objects are reported as `REFERENCED_BY_UNEXPIRED_RUN` or `HELD`.
 | `AUDIT_RETENTION_STANDARD_DAYS` / `AUDIT_RETENTION_PINNED_DAYS` | no | 90 / 365 | Retention classes. |
 | `AUDIT_OUTBOX_ENABLED`, `AUDIT_OUTBOX_POLL_SECONDS`, `AUDIT_OUTBOX_BATCH`, `AUDIT_OUTBOX_MAX_ATTEMPTS` | no | true, 10, 20, 12 | The market-ai-orc outbox consumer. |
 | `AUDIT_REEVALUATE_HOURS` | no | 48 | How long `INCOMPLETE` runs are re-evaluated. |
+| `TELEGRAM_NOTIFY_URL`, `TELEGRAM_NOTIFY_SECRET`, `AUDIT_QUEUE_ALARM_MINUTES` | no | —, —, 60 | The queue alarm below; references to telegram-monitor. Without them the alarm only logs. |
+
+**Queue alarm** (EXEC-M334-ALERT, user go 2026-11-02; ERRORS M334). `app/queue_alarm.py`, the same file in
+market-python-sandbox and market-sql-governor (their tests check the copies match), runs after every pass of each audit
+queue and sends telegram-monitor `Audit_Queue_Health`:
+- `stuck`: the oldest waiting item has waited longer than `AUDIT_QUEUE_ALARM_MINUTES`;
+- `gave_up`: an item stopped retrying (its archive is lost);
+- `recovered`: an item that had waited longer than the limit is archived and none waits longer any more.
+Each is one message per service per UTC day; a healthy queue sends nothing, so a service that may sleep stays quiet.
+Only counts, minutes and an error class leave the service. Log lines: `audit_queue_alarm`, `audit_queue_alarm_failed`,
+`audit_queue_alarm_not_configured`.
 
 Producer flags (all default `false`):
 
 | Service | Flags and variables |
 |---|---|
 | market-ai-orc | `AI_AUDIT_STORE_ENABLED`, `AI_AUDIT_STORE_REQUIRED`, `AUDIT_OUTBOX_DATABASE_URL` (the `market_ai_orc` login). |
-| market-python-sandbox | `PY_SANDBOX_AUDIT_STORE_ENABLED`, `AUDIT_STORE_URL`, `AUDIT_STORE_SANDBOX_KEY`, `PY_SANDBOX_AUDIT_SPOOL_MAX_BYTES`, `PY_SANDBOX_AUDIT_POLL_SECONDS`, `PY_SANDBOX_AUDIT_MAX_ATTEMPTS`, `PY_SANDBOX_AUDIT_TIMEOUT_SECONDS`. |
-| market-sql-governor | `SQL_GOVERNOR_AUDIT_STORE_ENABLED`, `AUDIT_STORE_URL`, `AUDIT_STORE_GOVERNOR_KEY`, `SQL_GOVERNOR_AUDIT_POLL_SECONDS`, `SQL_GOVERNOR_AUDIT_MAX_ATTEMPTS`, `SQL_GOVERNOR_AUDIT_TIMEOUT_SECONDS`. |
+| market-python-sandbox | `PY_SANDBOX_AUDIT_STORE_ENABLED`, `AUDIT_STORE_URL`, `AUDIT_STORE_SANDBOX_KEY`, `PY_SANDBOX_AUDIT_SPOOL_MAX_BYTES`, `PY_SANDBOX_AUDIT_POLL_SECONDS`, `PY_SANDBOX_AUDIT_MAX_ATTEMPTS`, `PY_SANDBOX_AUDIT_TIMEOUT_SECONDS`; the queue alarm's `TELEGRAM_NOTIFY_URL`, `TELEGRAM_NOTIFY_SECRET`, `AUDIT_QUEUE_ALARM_MINUTES`. |
+| market-sql-governor | `SQL_GOVERNOR_AUDIT_STORE_ENABLED`, `AUDIT_STORE_URL`, `AUDIT_STORE_GOVERNOR_KEY`, `SQL_GOVERNOR_AUDIT_POLL_SECONDS`, `SQL_GOVERNOR_AUDIT_MAX_ATTEMPTS`, `SQL_GOVERNOR_AUDIT_TIMEOUT_SECONDS`; the queue alarm's `TELEGRAM_NOTIFY_URL`, `TELEGRAM_NOTIFY_SECRET`, `AUDIT_QUEUE_ALARM_MINUTES`. |
 
 The Audit Store variables are validated, and required, only while the producer's flag is on.
 

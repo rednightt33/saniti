@@ -168,3 +168,55 @@ def test_audit_settings_are_required_only_while_on(tmp_path: Path) -> None:
                                     AUDIT_STORE_URL="http://market-audit-store.railway.internal:8080",
                                     AUDIT_STORE_GOVERNOR_KEY="g" * 40))
     assert on.audit_store_enabled and "g" * 40 not in repr(on)
+
+
+def test_the_queue_alarm_sees_a_stuck_marker_and_its_recovery(tmp_path: Path) -> None:
+    """EXEC-M334-ALERT (user go 2026-11-02: "OK A, Jalankan"; ERRORS M334): the archiver tells its alarm what the
+    bucket queue holds after each pass (app/queue_alarm.py has the rules)."""
+    import os
+    import time as clock
+
+    from app.queue_alarm import QueueAlarm
+
+    posted: list[dict] = []
+    alarm = QueueAlarm("sql-governor", "http://monitor/notify", "s" * 32, post=lambda u, s, p: posted.append(p) or "sent")
+    store, fake = LocalStore(str(tmp_path)), FakeAuditStore(down=True)
+    dataset(store)
+    enqueue(store, DATASET, "req-1")
+    two_hours_ago = clock.time() - 7200
+    os.utime(tmp_path / PREFIX / f"{DATASET}.json", (two_hours_ago, two_hours_ago))
+    client = AuditClient("https://audit.test", "g" * 40, transport=httpx.MockTransport(fake))
+    worker = DatasetArchiver(store, client, interval_seconds=1, max_attempts=5, alarm=alarm)
+    worker.drain()
+    [stuck] = posted
+    assert stuck["details"]["status"] == "stuck" and stuck["details"]["waiting"] == 1
+    assert stuck["details"]["oldest_minutes"] >= 119 and stuck["details"]["error"] == "AuditUnavailable"
+    fake.down = False
+    worker.not_before.clear()
+    assert worker.drain()["archived"] == 1
+    assert [p["details"]["status"] for p in posted] == ["stuck", "recovered"]
+    assert posted[1]["details"]["waiting"] == 0
+
+
+def test_an_unreadable_queue_counts_as_stuck_from_its_first_failed_listing(tmp_path: Path) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    from app.queue_alarm import QueueAlarm
+
+    posted: list[dict] = []
+    alarm = QueueAlarm("sql-governor", "http://monitor/notify", "s" * 32, post=lambda u, s, p: posted.append(p) or "sent")
+    store = LocalStore(str(tmp_path))
+    worker = archiver(store, FakeAuditStore())
+    worker.alarm = alarm
+
+    def broken(prefix):
+        raise OSError("bucket unreachable")
+    real, store.list_keys = store.list_keys, broken
+    worker.drain()
+    assert posted == []                                  # just started failing: under the limit
+    worker.list_failing_since = datetime.now(timezone.utc) - timedelta(minutes=61)
+    worker.drain()
+    assert posted[0]["details"]["status"] == "stuck" and posted[0]["details"]["waiting"] is None
+    store.list_keys = real
+    worker.drain()
+    assert [p["details"]["status"] for p in posted] == ["stuck", "recovered"]

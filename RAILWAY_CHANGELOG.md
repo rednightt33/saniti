@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-02 — audit queue alarm: Telegram variables on the three audit services (EXEC-M334-ALERT, user "OK A Jalankan")
+
+- `TELEGRAM_NOTIFY_URL` (`http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify`) and `TELEGRAM_NOTIFY_SECRET`
+  (`${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}`) set on market-audit-store, market-python-sandbox and
+  market-sql-governor (dev, `--skip-deploys`); read back unrendered as references. No value was printed.
+- `.railway/railway.ts` env lists updated; `railway config plan` up to date.
+- Deploys: with the code push of the same day (see EXEC.md EXEC-M334-ALERT for the deployment ids).
+
 ## 2026-11-02 — screener-worker and backtest-worker sleep when idle (EXEC-U4-WORKERS, user "Jalankan U4 sekarang")
 
 - `main` `75d3813a`: edge-bff `2159f2ff` SUCCESS (wake guard `app/wake.py`), screener-worker `909b5212` SUCCESS (the

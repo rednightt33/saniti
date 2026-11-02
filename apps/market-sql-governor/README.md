@@ -514,6 +514,10 @@ the raw Parquet as `RAW_INPUT_PARQUET` and `manifest.json` as `EXTRACTION_MANIFE
     `COMPLETE`.
 - **Idempotent.** Retries repeat nothing: runs are keyed by request id, objects by content address, and links and
   events by their keys.
+- **Queue alarm** (EXEC-M334-ALERT, ERRORS M334). After each pass `app/queue_alarm.py` sends a Telegram message through
+  telegram-monitor when a marker has waited longer than `AUDIT_QUEUE_ALARM_MINUTES` (60, from the marker's time in the
+  bucket), when the outbox itself cannot be listed for that long, when a marker moves to `audit-outbox-failed/`, and
+  on the recovery; one of each per day. Rules in market-audit-store's README.
 - **No bucket sharing.** The Governor pushes the bytes it already holds to single-object upload URLs. The audit store
   never gets access to the dataset bucket, and the Governor never gets audit-bucket credentials.
 - **Retention unchanged.** The janitor only touches `datasets/`, so working datasets keep their retention (about

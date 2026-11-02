@@ -22,6 +22,8 @@ from telegram_monitor import (
     parse_publisher_health,
     build_consensus_message,
     parse_consensus_report,
+    build_audit_queue_message,
+    parse_audit_queue,
 )
 
 
@@ -378,6 +380,83 @@ class ConsensusReportTests(unittest.TestCase):
             with self.assertRaises(ValueError, msg=(execution_id, details)):
                 parse_consensus_report(execution_id, details)
 
+
+
+class AuditQueueHealthTests(unittest.TestCase):
+    """EXEC-M334-ALERT (user go 2026-11-02: "OK A, Jalankan"; ERRORS M334): the audit queues' alarm, fixed shapes only."""
+
+    STUCK = "audit-queue-audit-store-stuck-2026-11-02"
+
+    def details(self, **overrides):
+        values = {"service": "audit-store", "status": "stuck", "waiting": 566, "oldest_minutes": 7260, "gave_up": 0,
+                  "error": "ClientError", "limit_minutes": 60}
+        values.update(overrides)
+        return values
+
+    def test_each_kind_reads_in_plain_words_with_the_service_to_check(self):
+        stuck = build_audit_queue_message(parse_audit_queue(self.STUCK, self.details()))
+        self.assertIn("macet", stuck)
+        self.assertIn("566 item menunggu", stuck)
+        self.assertIn("121 jam 0 menit", stuck)
+        self.assertIn("ClientError", stuck)
+        self.assertIn("market-audit-store", stuck)
+        self.assertIn("M334", stuck)
+        gave_up = build_audit_queue_message(parse_audit_queue(
+            "audit-queue-sandbox-gaveup-2026-11-02",
+            self.details(service="sandbox", status="gave_up", gave_up=3, oldest_minutes=None, error="AuditUnavailable")))
+        self.assertIn("3 item berhenti dicoba", gave_up)
+        self.assertIn("market-python-sandbox", gave_up)
+        unread = build_audit_queue_message(parse_audit_queue(
+            "audit-queue-sql-governor-stuck-2026-11-02", self.details(service="sql-governor", waiting=None)))
+        self.assertIn("jumlahnya tidak terbaca", unread)
+        recovered = build_audit_queue_message(parse_audit_queue(
+            "audit-queue-audit-store-recovered-2026-11-02", self.details(status="recovered", waiting=0,
+                                                                         oldest_minutes=None, error=None)))
+        self.assertIn("pulih", recovered)
+        self.assertIn("tidak ada yang masih menunggu", recovered)
+
+    def test_anything_but_the_fixed_shapes_is_refused(self):
+        for execution_id, details in (
+            (self.STUCK, self.details(service="sandbox")),                          # service differs from the id
+            (self.STUCK, self.details(status="recovered")),                         # status differs from the id
+            ("audit-queue-orc-stuck-2026-11-02", self.details(service="orc")),      # not an audit queue
+            (self.STUCK, self.details(error="ClientError: An error occurred (403) bucket x")),   # free text
+            (self.STUCK, self.details(waiting=-1)),
+            (self.STUCK, self.details(oldest_minutes=None)),                        # stuck needs its age
+            ("audit-queue-audit-store-gaveup-2026-11-02", self.details(status="gave_up", gave_up=0)),
+            (self.STUCK, self.details(note="hello")),                               # unknown field
+            (self.STUCK, None),
+        ):
+            with self.subTest(execution_id=execution_id, details=details):
+                with self.assertRaises(ValueError):
+                    parse_audit_queue(execution_id, details)
+
+    def test_the_monitor_sends_it_once_per_id(self):
+        import telegram_monitor as tm
+        sent, claims = [], {}
+
+        class Conn:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def claim(connection, source, execution_id):
+            if (source, execution_id) in claims:
+                return "duplicate", claims[(source, execution_id)]
+            claims[(source, execution_id)] = len(claims) + 1
+            return "claimed", claims[(source, execution_id)]
+
+        monitor = TelegramMonitor.__new__(TelegramMonitor)
+        monitor.database_url, monitor.token, monitor.chat_id = "postgresql://unused", "t", "c"
+        monitor.send_message = lambda token, chat, text, *a: sent.append(text) or len(sent)
+        saved = tm.psycopg.connect, tm.claim_delivery, tm.mark_sent
+        tm.psycopg.connect = lambda *a, **k: Conn()
+        tm.claim_delivery, tm.mark_sent = claim, lambda c, log_id, ids: None
+        try:
+            self.assertEqual(monitor.notify(tm.AUDIT_QUEUE_SOURCE, self.STUCK, self.details())[0], "sent")
+            self.assertEqual(monitor.notify(tm.AUDIT_QUEUE_SOURCE, self.STUCK, self.details())[0], "duplicate")
+        finally:
+            tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
+        self.assertEqual(len(sent), 1)
 
 if __name__ == "__main__":
     unittest.main()

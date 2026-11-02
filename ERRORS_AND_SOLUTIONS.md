@@ -5328,7 +5328,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - Penulisan ke bucket pulih (`audit_outbox_ingested`, 59 `audit_artifact_verified`).
   - Antrean sandbox terkirim (`sandbox_audit_archived` COMPLETE, 0 gagal sesudah 08:47 UTC).
   - Sandbox `SLEEPING` sekitar 09:15 UTC, sekitar 10 menit sesudah arsip terakhir (09:05).
-  - Usulan peringatan Telegram dan aturan redeploy masih perlu go.
+  - Peringatan Telegram: dibangun 2026-11-02 (EXEC-M334-ALERT, user "OK A Jalankan"): ketiga antrean audit
+    melapor ke telegram-monitor bila macet lebih dari 1 jam, bila item berhenti dicoba, dan saat pulih.
+  - Aturan redeploy sesudah kunci bersama berganti masih perlu go.
 - **Lesson:** sesudah kredensial bersama berubah, deploy ulang semua pemakainya. Setiap antrean yang mencoba ulang perlu
   peringatan bila gagal lama.
 

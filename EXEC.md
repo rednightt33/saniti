@@ -9934,10 +9934,11 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
-## EXEC-M334-ALERT — peringatan Telegram bila arsip audit gagal lama (go 2026-11-02, desain menunggu pilihan)
+## EXEC-M334-ALERT — peringatan Telegram bila arsip audit gagal lama (go 2026-11-02, opsi A)
 
 **Kata user, 2026-11-02:** atas usulan M334 "peringatan Telegram bila antrean audit gagal lebih dari 1 jam": "M334 OK,
-ini penting. Buat alertnya. Hanya berlaku kalau keynya beda?"
+ini penting. Buat alertnya. Hanya berlaku kalau keynya beda?" Atas pilihan opsi A/B/C dan batas 1 jam: "OK A
+Jalankan".
 
 **Dicek di kode (2026-11-02):** ada tiga antrean arsip audit yang mencoba ulang tanpa peringatan:
 - `ai_audit.ingest_outbox` (PostgreSQL), diisi market-ai-orc dan dikerjakan market-audit-store
@@ -9949,8 +9950,25 @@ Ketiganya hanya menulis log. Tidak satu pun dari tiga service itu punya `TELEGRA
 (nama variabel dibaca dari Railway dev); pengirim peringatan yang ada adalah telegram-monitor `/notify`
 (dipakai terminal-publisher).
 
-**Pertanyaan terbuka:** cakupan dan tempat pemeriksaan (opsi A tiga antrean, B hanya audit-store, C semua antrean
-coba-ulang di sistem). Eksekusi mulai sesudah pilihan user.
+**Keputusan:** opsi A (ketiga antrean audit), batas 1 jam (usulan yang disetujui dengan "OK A").
+
+**Dibangun:**
+- `app/queue_alarm.py`, file yang sama di ketiga service (tes memeriksa ketiganya identik). Dipanggil sesudah setiap
+  putaran antrean dengan isi antrean itu sendiri:
+  - `stuck`: item tertua menunggu lebih dari `AUDIT_QUEUE_ALARM_MINUTES` (60);
+  - `gave_up`: item berhenti dicoba (arsipnya hilang);
+  - `recovered`: item yang menunggu lebih dari batas tersimpan, dan tidak ada lagi yang menunggu selama itu.
+  - Masing-masing satu pesan per service per hari (UTC). Antrean sehat tidak mengirim apa pun, jadi service yang boleh
+    tidur tetap bisa tidur. Hanya jumlah, menit dan nama kelas galat yang keluar.
+- Sumber antrean: audit-store dari `ai_audit.ingest_outbox` (`created_at`); sandbox dari SQLite `items`
+  (`created_at`); governor dari waktu penanda di bucket, dan daftar penanda yang tidak bisa dibaca dihitung macet sejak
+  kegagalan pertama.
+- telegram-monitor: sumber `Audit_Queue_Health`, `parse_audit_queue` (bentuk tetap), pesan bahasa Indonesia yang
+  menyebut service dan arah perbaikan (ERRORS M334).
+- Railway dev: `TELEGRAM_NOTIFY_URL` dan `TELEGRAM_NOTIFY_SECRET` sebagai referensi ke telegram-monitor di
+  market-audit-store, market-python-sandbox, market-sql-governor (`--skip-deploys`, dibaca balik unrendered).
+- **Batas yang diketahui:** sandbox yang sedang tidur tidak memeriksa antreannya; alarmnya baru jalan saat sandbox
+  dipakai lagi. Penyebab bersama (audit-store, bucket) tetap terlihat dari audit-store dan governor.
 
 ## EXEC-U4-WORKERS — screener-worker dan backtest-worker tidur saat tidak dipakai (go 2026-11-02)
 

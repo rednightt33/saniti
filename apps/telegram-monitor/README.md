@@ -42,6 +42,13 @@ only. Its counts come in the request's `details`, and `parse_consensus_report` a
 `fi-consensus-[manual-]MARKET-YYYY-MM-DD-HHMM` keeps it to one message per run; every report is sent, a clean one
 included.
 
+`Audit_Queue_Health` (EXEC-M334-ALERT, user go 2026-11-02, ERRORS M334) is asked by the three audit archive queues
+(market-audit-store, market-python-sandbox, market-sql-governor; their `app/queue_alarm.py`): a queue stuck longer than
+its limit, items that stopped retrying, and the recovery. Only they see their queues, so the facts come in the request's
+`details`, and `parse_audit_queue` accepts them only in fixed shapes (service, status, counts, minutes, error class;
+never free text). The `execution_id` `audit-queue-<service>-<stuck|gaveup|recovered>-YYYY-MM-DD` keeps it to one
+message per service, kind and day.
+
 ## Required Railway variables
 
 - `DATABASE_URL`

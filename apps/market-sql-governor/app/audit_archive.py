@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .audit_client import AuditClient, AuditRejected, AuditUnavailable
+from .queue_alarm import QueueAlarm
 from .store import ObjectStore
 
 logger = logging.getLogger("market_sql_governor")
@@ -52,13 +53,17 @@ def enqueue(store: ObjectStore, dataset_id: str, request_id: str) -> None:
 
 class DatasetArchiver(threading.Thread):
     def __init__(self, store: ObjectStore, client: AuditClient, *, interval_seconds: int = 30,
-                 max_attempts: int = 12) -> None:
+                 max_attempts: int = 12, alarm: QueueAlarm | None = None) -> None:
         super().__init__(name="audit-archiver", daemon=True)
         self.store, self.client = store, client
         self.interval_seconds, self.max_attempts = interval_seconds, max_attempts
         self.attempts: dict[str, int] = {}
         self.not_before: dict[str, float] = {}
         self.stopped = threading.Event()
+        # EXEC-M334-ALERT: Telegram when this queue is stuck past the limit, gives an item up, or recovers
+        self.alarm = alarm or QueueAlarm.from_env("sql-governor")
+        self.list_failing_since: datetime | None = None
+        self._pass: dict[str, Any] = {}
 
     def run(self) -> None:
         while not self.stopped.is_set():
@@ -70,17 +75,40 @@ class DatasetArchiver(threading.Thread):
 
     def drain(self) -> dict[str, int]:
         counts = {"archived": 0, "retry": 0, "incomplete": 0}
+        self._pass = {"gave_up": 0, "error": None, "recovered_minutes": None}
         try:
-            keys = [key for key, _ in self.store.list_keys(PREFIX)]
+            markers = {key: modified for key, modified in self.store.list_keys(PREFIX) if MARKER.fullmatch(key)}
         except Exception as exc:  # noqa: BLE001 - storage unreachable: next interval
             _log("sql_governor_audit_drain_failed", error=type(exc).__name__)
+            # the queue itself cannot be read: it counts as stuck since the first failed listing
+            self.list_failing_since = self.list_failing_since or datetime.now(timezone.utc)
+            self._observe(oldest=self.list_failing_since, waiting=None, error=type(exc).__name__)
             return counts
-        for key in sorted(keys):
+        if self.list_failing_since is not None:          # the queue is readable again: the listing outage recovered
+            self._pass["recovered_minutes"] = int((datetime.now(timezone.utc) - self.list_failing_since)
+                                                  .total_seconds() // 60)
+            self.list_failing_since = None
+        for key in sorted(markers):
             match = MARKER.fullmatch(key)
-            if match is None or self.not_before.get(key, 0) > time.monotonic():
+            if self.not_before.get(key, 0) > time.monotonic():
                 continue
-            counts[self.archive_one(key, match.group(1))] += 1
+            outcome = self.archive_one(key, match.group(1))
+            counts[outcome] += 1
+            if outcome == "retry":
+                continue
+            queued = markers.pop(key)                    # archived or given up: no longer waiting
+            if outcome == "archived":                    # how long it had waited (the recovery rule)
+                waited = int((datetime.now(timezone.utc) - queued).total_seconds() // 60)
+                self._pass["recovered_minutes"] = max(waited, self._pass.get("recovered_minutes") or 0)
+        self._observe(oldest=min(markers.values(), default=None), waiting=len(markers), error=self._pass["error"])
         return counts
+
+    def _observe(self, *, oldest: datetime | None, waiting: int | None, error: str | None) -> None:
+        try:
+            self.alarm.observe(oldest=oldest, waiting=waiting, gave_up=self._pass.get("gave_up", 0),
+                               recovered_minutes=self._pass.get("recovered_minutes"), error=error)
+        except Exception as exc:  # noqa: BLE001 - the alarm never stops the queue
+            _log("sql_governor_audit_alarm_error", error=type(exc).__name__)
 
     def archive_one(self, key: str, dataset_id: str) -> str:
         marker: dict[str, Any] = {}
@@ -119,6 +147,7 @@ class DatasetArchiver(threading.Thread):
     def _retry(self, key: str, marker: dict[str, Any], exc: Exception) -> str:
         attempts = self.attempts.get(key, 0) + 1
         self.attempts[key] = attempts
+        self._pass["error"] = type(exc).__name__
         if attempts >= self.max_attempts:
             return self._give_up(key, marker, None, f"{type(exc).__name__} after {attempts} attempts")
         self.not_before[key] = time.monotonic() + min(3600, 30 * 2 ** attempts)
@@ -150,6 +179,8 @@ class DatasetArchiver(threading.Thread):
         except Exception:  # noqa: BLE001 - keep the marker; it will be retried
             pass
         self.attempts.pop(key, None)
+        self._pass["gave_up"] = self._pass.get("gave_up", 0) + 1
+        self._pass["error"] = self._pass.get("error") or reason.split(":", 1)[0].split(" ", 1)[0]
         _log("sql_governor_audit_archive_incomplete", marker=key, status="INCOMPLETE", reason=reason)
         return "incomplete"
 

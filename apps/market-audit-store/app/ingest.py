@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from .models import FORBIDDEN_KEYS, RunRegistration, forbidden_key
+from .queue_alarm import QueueAlarm, error_class
 from .service import AuditError, AuditService, canonical, log_event
 
 SCHEMA = "saniti.audit.run_finished/v1"
@@ -39,11 +40,14 @@ def _strip_reasoning(value: Any) -> Any:
 
 
 class OutboxConsumer:
-    def __init__(self, service: AuditService) -> None:
+    def __init__(self, service: AuditService, alarm: QueueAlarm | None = None) -> None:
         self.service = service
         self.settings = service.settings
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # EXEC-M334-ALERT: Telegram when this queue is stuck past the limit, gives an item up, or recovers
+        self.alarm = alarm or QueueAlarm.from_env("audit-store")
+        self._pass: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ loop
 
@@ -61,12 +65,14 @@ class OutboxConsumer:
             try:
                 self.drain()
                 self.service.reevaluate_incomplete()
+                self.alarm.observe(**self.queue_state())     # never raises; a database error is the loop's
             except Exception as exc:  # noqa: BLE001 - the loop must survive a database outage
                 log_event("audit_outbox_loop_error", error=type(exc).__name__, message=str(exc)[:300])
             self._stop.wait(self.settings.outbox_poll_seconds)
 
     def drain(self) -> dict[str, int]:
         counts = {"complete": 0, "retry": 0, "incomplete": 0}
+        self._pass = {"gave_up": 0, "error": None, "recovered_minutes": None}
         while True:
             outcome = self.process_one()
             if outcome is None:
@@ -78,7 +84,8 @@ class OutboxConsumer:
     def process_one(self) -> str | None:
         with self.service.tx() as c:
             row = c.execute(
-                """SELECT outbox_id, source, idempotency_key, request_id, kind, payload, attempts
+                """SELECT outbox_id, source, idempotency_key, request_id, kind, payload, attempts,
+                          floor(extract(epoch FROM CURRENT_TIMESTAMP - created_at) / 60)::int AS waited_minutes
                    FROM ai_audit.ingest_outbox
                    WHERE status IN ('PENDING', 'FAILED_RETRYABLE') AND next_attempt_at <= CURRENT_TIMESTAMP
                    ORDER BY next_attempt_at, outbox_id LIMIT 1 FOR UPDATE SKIP LOCKED""").fetchone()
@@ -98,12 +105,31 @@ class OutboxConsumer:
                            datetime.now(timezone.utc) + timedelta(seconds=delay), row["outbox_id"]))
                 log_event("audit_outbox_failed", outbox_id=row["outbox_id"], request_id=row["request_id"],
                           attempts=attempts, final=final, error=type(exc).__name__)
+                self._pass["error"] = type(exc).__name__
+                if final:
+                    self._pass["gave_up"] = self._pass.get("gave_up", 0) + 1
                 return "incomplete" if final else "retry"
             c.execute("""UPDATE ai_audit.ingest_outbox SET status = 'COMPLETE', attempts = %s, last_error = NULL,
                                 processed_at = CURRENT_TIMESTAMP WHERE outbox_id = %s""", (attempts, row["outbox_id"]))
             log_event("audit_outbox_ingested", outbox_id=row["outbox_id"], request_id=row["request_id"],
                       attempts=attempts)
+            waited = row.get("waited_minutes")
+            if waited is not None:
+                self._pass["recovered_minutes"] = max(int(waited), self._pass.get("recovered_minutes") or 0)
             return "complete"
+
+    def queue_state(self) -> dict[str, Any]:
+        """What the alarm needs after a pass: the rows still waiting, the oldest one's queue time and the last error
+        (this pass's, else the newest one recorded on a waiting row)."""
+        with self.service.tx() as c:
+            row = c.execute(
+                """SELECT count(*) AS waiting, min(created_at) AS oldest,
+                          (SELECT last_error FROM ai_audit.ingest_outbox
+                           WHERE status = 'FAILED_RETRYABLE' ORDER BY next_attempt_at DESC LIMIT 1) AS last_error
+                   FROM ai_audit.ingest_outbox WHERE status IN ('PENDING', 'FAILED_RETRYABLE')""").fetchone()
+        return {"oldest": row["oldest"], "waiting": int(row["waiting"]), "gave_up": self._pass.get("gave_up", 0),
+                "recovered_minutes": self._pass.get("recovered_minutes"),
+                "error": self._pass.get("error") or error_class(row["last_error"])}
 
     def ingest(self, row: dict[str, Any]) -> str:
         """RUN_FINISHED -> run, events, TOOL_TRACE, FINAL_RESPONSE, expectations, finalization. Returns run_id."""

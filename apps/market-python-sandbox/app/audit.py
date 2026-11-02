@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit_client import AuditClient, AuditRejected, AuditUnavailable
+from .queue_alarm import QueueAlarm
 
 logger = logging.getLogger("market_python_sandbox")
 
@@ -67,6 +68,15 @@ CREATE INDEX IF NOT EXISTS items_due ON items (status, next_attempt_at);
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_time(text: Any) -> datetime | None:
+    """created_at as utc_now() wrote it (ISO 8601 with its offset); anything unreadable is None."""
+    try:
+        value = datetime.fromisoformat(str(text).replace("Z", "+00:00")) if text else None
+    except ValueError:
+        return None
+    return value if value is None or value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _log(event: str, **fields: Any) -> None:
@@ -159,6 +169,10 @@ class AuditOutbox:
                            "deployment_id": os.environ.get("RAILWAY_DEPLOYMENT_ID")}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # EXEC-M334-ALERT: Telegram when this queue is stuck past the limit, gives an item up, or recovers. Nothing is
+        # sent while the queue is healthy, so the service can still sleep.
+        self.alarm = QueueAlarm.from_env("sandbox")
+        self._pass: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ producers (harness, after the fact)
 
@@ -289,14 +303,29 @@ class AuditOutbox:
 
     def drain(self) -> dict[str, int]:
         counts = {"complete": 0, "retry": 0, "incomplete": 0}
+        self._pass = {"gave_up": 0, "error": None, "recovered_minutes": None}
         while True:
             with self._lock:
                 row = self._db.execute("""SELECT * FROM items WHERE status IN ('PENDING', 'FAILED_RETRYABLE')
                                           AND next_attempt_at <= ? ORDER BY item_id LIMIT 1""",
                                        (time.time(),)).fetchone()
             if row is None:
-                return counts
+                break
             counts[self._process(dict(row))] += 1
+        try:
+            self.alarm.observe(**self.queue_state())
+        except Exception as exc:  # noqa: BLE001 - the alarm never stops the queue
+            _log("sandbox_audit_alarm_error", error=type(exc).__name__)
+        return counts
+
+    def queue_state(self) -> dict[str, Any]:
+        """What the alarm needs after a pass: the items still waiting and the oldest one's queue time."""
+        with self._lock:
+            row = self._db.execute("""SELECT count(*) AS waiting, min(created_at) AS oldest FROM items
+                                      WHERE status IN ('PENDING', 'FAILED_RETRYABLE')""").fetchone()
+        return {"oldest": _parse_time(row["oldest"]), "waiting": int(row["waiting"]),
+                "gave_up": self._pass.get("gave_up", 0), "recovered_minutes": self._pass.get("recovered_minutes"),
+                "error": self._pass.get("error")}
 
     def status(self) -> dict[str, int]:
         with self._lock:
@@ -340,10 +369,16 @@ class AuditOutbox:
             self.client.append_events(run_id, [event])
             final = "INCOMPLETE" if payload.get("omitted") else "COMPLETE"
             self._finish(item, final, attempts, None)
+            created = _parse_time(item.get("created_at"))
+            if created is not None:                      # archived: how long it had waited (the recovery rule)
+                waited = int((datetime.now(timezone.utc) - created).total_seconds() // 60)
+                self._pass["recovered_minutes"] = max(waited, self._pass.get("recovered_minutes") or 0)
             return "incomplete" if final == "INCOMPLETE" else "complete"
         except (AuditUnavailable, OSError, TimeoutError) as exc:
+            self._pass["error"] = type(exc).__name__
             if attempts >= self.settings.audit_max_attempts:
                 self._finish(item, "INCOMPLETE", attempts, f"{type(exc).__name__}: {exc}")
+                self._pass["gave_up"] = self._pass.get("gave_up", 0) + 1
                 return "incomplete"
             with self._lock:
                 self._db.execute("""UPDATE items SET status = 'FAILED_RETRYABLE', attempts = ?, last_error = ?,
@@ -355,6 +390,8 @@ class AuditOutbox:
             return "retry"
         except (AuditRejected, ValueError, KeyError) as exc:
             self._finish(item, "INCOMPLETE", attempts, f"{type(exc).__name__}: {exc}")
+            self._pass["error"] = type(exc).__name__
+            self._pass["gave_up"] = self._pass.get("gave_up", 0) + 1
             return "incomplete"
 
     def _finish(self, item: dict[str, Any], status: str, attempts: int, error: str | None) -> None:

@@ -36,8 +36,13 @@ HEALTH_SOURCE = "Terminal_Publisher_Health"
 # (apps/fixed-income-price-cron/consensus_check.py) reports what only it measured, fresh source pulls, in a fixed shape
 # that parse_consensus_report checks: counts, series codes, dates and an error class, never free text.
 CONSENSUS_SOURCE = "Fixed_Income_Consensus_Check"
+# EXEC-M334-ALERT (user go 2026-11-02: "OK A, Jalankan"; ERRORS M334): the three audit archive queues (market-audit-store,
+# market-python-sandbox, market-sql-governor, each app/queue_alarm.py) report a queue stuck past the limit, items that
+# stopped retrying, and the recovery. Only they see their queues, so the facts come with the request, accepted only in
+# the fixed shapes parse_audit_queue checks: an enumeration, counts, minutes and an error class, never free text.
+AUDIT_QUEUE_SOURCE = "Audit_Queue_Health"
 SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE,
-                                                CONSENSUS_SOURCE}
+                                                CONSENSUS_SOURCE, AUDIT_QUEUE_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -435,6 +440,66 @@ def build_consensus_message(report: ConsensusReport) -> str:
     if action:
         lines.append("Koreksi hanya dengan persetujuan Anda (ERRORS M324).")
     return "\n".join(lines)[:MAX_TELEGRAM_TEXT]
+
+
+AUDIT_QUEUE_ID = re.compile(r"^audit-queue-(audit-store|sandbox|sql-governor)-(stuck|gaveup|recovered)-\d{4}-\d{2}-\d{2}$")
+AUDIT_QUEUES = {
+    "audit-store": ("jejak setiap jawaban EDGE AI", "market-audit-store"),
+    "sandbox": ("kode dan hasil analisis Python EDGE AI", "market-python-sandbox"),
+    "sql-governor": ("data yang diambil EDGE AI dari database", "market-sql-governor"),
+}
+
+
+@dataclass(frozen=True)
+class AuditQueueHealth:
+    execution_id: str
+    service: str
+    status: str
+    waiting: int | None
+    oldest_minutes: int | None
+    gave_up: int
+    error: str | None
+    limit_minutes: int
+
+
+def parse_audit_queue(execution_id: str, details: object) -> AuditQueueHealth:
+    """An audit queue's alarm, checked field by field; anything else is a ValueError (400)."""
+    match = AUDIT_QUEUE_ID.fullmatch(execution_id)
+    if not match or not isinstance(details, dict) or set(details) - {"service", "status", "waiting", "oldest_minutes",
+                                                                      "gave_up", "error", "limit_minutes"}:
+        raise ValueError("invalid audit queue alarm")
+    service, status = details.get("service"), details.get("status")
+    if service != match.group(1) or status not in ("stuck", "gave_up", "recovered") or status.replace("_", "") != match.group(2):
+        raise ValueError("invalid audit queue alarm")
+    whole = lambda v, top: not isinstance(v, bool) and isinstance(v, int) and 0 <= v <= top
+    waiting, oldest, gave_up = details.get("waiting"), details.get("oldest_minutes"), details.get("gave_up", 0)
+    error, limit = details.get("error"), details.get("limit_minutes")
+    if ((waiting is not None and not whole(waiting, 10_000_000)) or (oldest is not None and not whole(oldest, 10_000_000))
+            or not whole(gave_up, 10_000_000) or not whole(limit, 10_080)
+            or (error is not None and not (isinstance(error, str) and ERROR_CLASS.fullmatch(error)))):
+        raise ValueError("invalid audit queue alarm detail")
+    if (status == "stuck" and oldest is None) or (status == "gave_up" and gave_up < 1):
+        raise ValueError("invalid audit queue alarm detail")
+    return AuditQueueHealth(execution_id, service, status, waiting, oldest, gave_up, error, limit)
+
+
+def build_audit_queue_message(alarm: AuditQueueHealth) -> str:
+    what, service = AUDIT_QUEUES[alarm.service]
+    age = lambda m: f"{m // 60} jam {m % 60} menit" if m >= 60 else f"{m} menit"
+    waiting = "jumlahnya tidak terbaca" if alarm.waiting is None else f"{alarm.waiting} item"
+    if alarm.status == "stuck":
+        return (f"❌ Arsip audit macet: {what}\n"
+                f"{waiting} menunggu; yang tertua sudah {age(alarm.oldest_minutes)} "
+                f"(batas {age(alarm.limit_minutes)}). Galat terakhir: {alarm.error or '-'}.\n"
+                "Arsipnya belum hilang dan terus dicoba ulang. Cek log "
+                f"{service} di Railway. Bila sebuah kunci baru diganti, deploy ulang semua pemakainya (ERRORS M334).")
+    if alarm.status == "gave_up":
+        return (f"⚠️ Arsip audit: {alarm.gave_up} item berhenti dicoba ({what})\n"
+                f"Galat: {alarm.error or '-'}. Arsip item itu tidak tersimpan; rinciannya di log {service} "
+                "dan di run audit-nya. Pesan ini paling banyak sekali sehari.")
+    return (f"✅ Arsip audit pulih: {what}\n"
+            f"Item yang tertahan lebih dari {age(alarm.limit_minutes)} sudah tersimpan; "
+            f"{'tidak ada' if not alarm.waiting else waiting} yang masih menunggu.")
 
 
 def fetch_broker_freshness(connection: psycopg.Connection, execution_id: str) -> BrokerFreshnessSummary:
@@ -931,6 +996,8 @@ class TelegramMonitor:
         health = parse_publisher_health(execution_id, details) if source_table == HEALTH_SOURCE else None
         if source_table == CONSENSUS_SOURCE:
             health = parse_consensus_report(execution_id, details)
+        if source_table == AUDIT_QUEUE_SOURCE:
+            health = parse_audit_queue(execution_id, details)
 
         with psycopg.connect(self.database_url) as connection:
             if health is not None:
@@ -979,6 +1046,8 @@ class TelegramMonitor:
                     message_ids.append(self.send_message(self.token, self.chat_id, build_freshness_message(summary)))
                 elif isinstance(summary, PublisherHealth):
                     message_ids.append(self.send_message(self.token, self.chat_id, build_publisher_message(summary)))
+                elif isinstance(summary, AuditQueueHealth):
+                    message_ids.append(self.send_message(self.token, self.chat_id, build_audit_queue_message(summary)))
                 elif isinstance(summary, ConsensusReport):       # every weekly report is sent, a clean one included
                     message_ids.append(self.send_message(self.token, self.chat_id, build_consensus_message(summary)))
                 elif isinstance(summary, StockbitUpdateSummary):

@@ -302,6 +302,40 @@ def test_a_malformed_row_is_incomplete_and_a_transient_failure_is_retried(client
     assert consumer.drain() == {"complete": 1, "retry": 0, "incomplete": 0}
 
 
+def test_the_queue_alarm_sees_a_stuck_row_a_given_up_row_and_the_recovery(client, clean, monkeypatch) -> None:
+    """EXEC-M334-ALERT (user go 2026-11-02: "OK A, Jalankan"; ERRORS M334): after each pass the consumer tells its alarm
+    what ai_audit.ingest_outbox holds (app/queue_alarm.py has the rules)."""
+    from app.queue_alarm import QueueAlarm
+
+    posted: list[dict] = []
+    consumer = client.app.state.consumer
+    consumer.alarm = QueueAlarm("audit-store", "http://monitor/notify", "s" * 32,
+                                post=lambda u, s, p: posted.append(p) or "sent")
+    orc_insert(clean, "req-stuck")
+    with psycopg.connect(clean["admin"]) as c:
+        c.execute("UPDATE ai_audit.ingest_outbox SET created_at = now() - interval '2 hours'")
+    original = consumer.service.store_own
+
+    def down(payload, media):
+        raise OSError("bucket refused the credentials")
+    monkeypatch.setattr(consumer.service, "store_own", down)
+    consumer.drain()
+    consumer.alarm.observe(**consumer.queue_state())
+    [stuck] = posted
+    assert stuck["details"]["status"] == "stuck" and stuck["details"]["waiting"] == 1
+    assert stuck["details"]["oldest_minutes"] >= 119 and stuck["details"]["error"] == "OSError"
+    with psycopg.connect(clean["orc"]) as c:            # a row that can never be ingested gives up at once
+        c.execute("""INSERT INTO ai_audit.ingest_outbox (source, idempotency_key, request_id, kind, payload)
+                     VALUES ('market-ai-orc', 'bad', 'req-bad', 'RUN_FINISHED', '{"schema": "other"}')""")
+    monkeypatch.setattr(consumer.service, "store_own", original)
+    with psycopg.connect(clean["admin"]) as c:
+        c.execute("UPDATE ai_audit.ingest_outbox SET next_attempt_at = now()")
+    assert consumer.drain() == {"complete": 1, "retry": 0, "incomplete": 1}
+    consumer.alarm.observe(**consumer.queue_state())
+    assert [p["details"]["status"] for p in posted] == ["stuck", "gave_up", "recovered"]
+    assert posted[1]["details"]["gave_up"] == 1 and posted[2]["details"]["waiting"] == 0
+
+
 # ---------------------------------------------------------------------------------------- joins and replay
 
 def test_conversation_run_execution_code_runtime_and_output_join(client, clean) -> None:

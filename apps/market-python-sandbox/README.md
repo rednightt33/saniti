@@ -1426,6 +1426,10 @@ Delivery:
 - **Drain.** A background thread drains due items idempotently. Statuses: `PENDING`, `FAILED_RETRYABLE` (backoff),
   `COMPLETE`, and `INCOMPLETE` after `PY_SANDBOX_AUDIT_MAX_ATTEMPTS`.
 - **Failure handling.** An enqueue or archive failure is logged and never fails an execution or a completion.
+- **Queue alarm** (EXEC-M334-ALERT, ERRORS M334). After each pass `app/queue_alarm.py` sends a Telegram message through
+  telegram-monitor when an item has waited longer than `AUDIT_QUEUE_ALARM_MINUTES` (60), when an item stops retrying,
+  and on the recovery; one of each per day, nothing while the queue is healthy, so the service can still sleep. Rules
+  in market-audit-store's README.
 
 Boundaries:
 
