@@ -10085,3 +10085,42 @@ pembungkus menulis tanda selesai sesudah `job.py` keluar, sehingga tidak bergant
   laporan Sabtu (saran, tanpa tindakan).
 - **Hasil 2026-11-01:** F3, F7, F8 dibangun, dites (774 lulus) dan dicek di halaman (ERRORS M326); juga cacat lama grid
   ponsel (grafik di kolom 44 px). Deploy: RAILWAY_CHANGELOG.
+
+## EXEC-STOCK-CATALOG — grup saham (konglomerasi) dan daftar Indeks Stockbit per saham, diperbarui harian (rencana, 2026-11-02)
+
+**Permintaan user, 2026-11-02:** "https://stockbit.com/stock-group --> kita mau ambil each ticker for every group ...
+https://stockbit.com/catalog/indeks --> sama seperti point 1"; sesudah sampel dicek: "Sudah benar, sekarang cek
+Universe Stock. We'll need to add another column/ maybe table untuk saham. Setiap hari table ini harus di update.
+Boleh design dan propose? Also, untuk tarik data ini apakah kamu butuh bearer?"
+
+**Keputusan user, 2026-11-02:**
+- Riwayat: interval point-in-time ("yes masukan exec").
+- Runner: langkah di service `stockbit-updater` ("yes masukan exec").
+- AI: "tarik dulu + buat definisi for each board. Misal konglo, harus ada 3-5 kalimat what this is" (data ditarik
+  dan definisi dibuat dulu; pendaftaran untuk AI menunggu tinjauan).
+- Belum diputuskan (dikirim sebagai Excel contoh `stockbit_catalog_tables_sample.xlsx`, tidak di Git): struktur
+  tabel terpisah + view (usulan) atau kolom di `IDX_Stock_Universe`, dan apakah daftar non-indeks ikut disimpan.
+
+**Fakta yang diperiksa (read-only, 2026-11-02 11:04 WIB):**
+- Sumber (dari kode halaman Stockbit; semua butuh Bearer, tanpa token 401):
+  - grup: `GET /emitten/catalog?catalog_type=CATALOG_TYPE_KONGLO&page=n` (2 halaman, 33 grup), anggota
+    `GET /order-trade/market-mover?catalog_type=CATALOG_TYPE_KONGLO&mover_type=MOVER_TYPE_CATALOG&catalog_id=..&limit=100&page=n`;
+  - Indeks: `GET /emitten/sectors/88/subsectors` (49 daftar = 49 chip halaman; "53 Instruments" di halaman adalah
+    jumlah simbol indeks, 8 di antaranya tanpa chip), anggota `GET /emitten/v3/sector/88/subsector/{id}/company`.
+- Isi: 33 grup, 339 keanggotaan; 49 daftar, 5.767 keanggotaan; 18 indeks bernomor cocok jumlahnya (LQ45 = 45, ...);
+  tidak ada daftar kosong. Daftar Indeks memuat 36 indeks, 7 status bursa (FCA, FCA Out, NOTASI-KHUSUS, Suspended,
+  Unsuspended, UMA, HSC), 3 daftar syariah, 2 kebijakan broker Stockbit (Day Trade, Trading Limit) dan CALL WARRANT;
+  sebagian anggota bukan saham (waran, ETF, right, sukuk PBS).
+- Token Stockbit berlaku 24 jam, jadi pembaruan harian butuh token baru tiap hari (sama dengan Broker Summary).
+- Klien Python bawaan ditolak 403 oleh Stockbit; penarikan memakai curl apa adanya (cara sampel), tanpa menyamar
+  sebagai browser (penyamaran ditolak pengaman sesi). Token tidak pernah ditulis ke file, log atau Git.
+
+**Usulan desain (menunggu go struktur):** `Stock_Catalog` (daftar, jenis, definisi, `semantic_review_status`),
+`Stock_Catalog_Membership` (keanggotaan berjalan), `Stock_Catalog_Membership_History` (interval point-in-time, pola
+`IDX_Stock_Universe_History`), `Stock_Catalog_Load_Log` (satu baris per putaran) dan view
+`IDX_Stock_Universe_Catalogs` (per ticker). Putaran hanya menulis bila semua daftar terbaca lengkap dan cek indeks
+bernomor lolos; anggota yang hilang ditutup intervalnya, tidak dihapus. `Ticker` tidak dikunci ke
+`IDX_Stock_Universe` (waran, ETF, sukuk).
+
+**Status:** belum ada migrasi, data atau deploy. Langkah berikut setelah go: migrasi + katalog (Table_Catalog,
+Column_Catalog), uji di Postgres lokal, muatan pertama, langkah di `stockbit-updater`, ringkasan Telegram.
