@@ -1,5 +1,42 @@
 # Database changelog
 
+## 2026-11-02 — Broker summary 2026-10-28…10-30, Feature 02/03/05/06, INDEX, events (EXEC-BROKER-1102)
+
+- **Sumber:** Stockbit, token user (tidak disimpan), service `stockbit-updater` deploy `d4f728eb`, putaran APPLY
+  `f2eed7db` SUCCESS 07:41:09–09:02:41 UTC (`Monitoring_Stockbit_Update`).
+- **`IDX_Broker_Summary`:** dibaca ulang; frekuensi terisi di semua baris; 89 broker per tanggal.
+
+  | Tanggal | Baris | Saham aktif | Tanpa frekuensi |
+  |---|---|---|---|
+  | 2026-10-28 | 23,261 | 863 | 0 |
+  | 2026-10-29 | 23,031 | 864 | 0 |
+  | 2026-10-30 | 23,089 | 862 | 0 |
+
+  - `broker_summary_date_quality`: ketiganya INCOMPLETE dengan alasan yang sama seperti semua tanggal sejak 09-01, yaitu
+    simbol non-saham tidak dimuat (M218, OPEN).
+- **Feature (dibaca ulang, semua sampai 2026-10-30):**
+
+  | Tabel | Baris tanggal baru | Keterangan |
+  |---|---|---|
+  | F05 | 69,381 | = sumber |
+  | F02 | 23,261 / 23,031 / 23,089 per tanggal | = sumber; 878 ticker, 1.550 s |
+  | F03 | 2,934 | |
+  | F06 | 2,934 | 878 ticker |
+
+  `refresh_plan` (DIFF semua tanggal) 368 s.
+- **INDEX (IHSG):** incremental 547 s. Feature 1-6 terbaru 2026-10-30. Baris baru: F02 dan F05 INDEX 591, F03 dan F06
+  INDEX 9.
+- **Event:** run `sbev-20261102T084812Z-7eed75`.
+
+  | Tabel | Ditarik | Baru | Berubah | Dihapus |
+  |---|---|---|---|---|
+  | Corporate action | 19,288 | 28 | 4,633 | 6 |
+  | Insider | 104,398 | 362 | 26 | 1 |
+
+  `idx_event_annotation` 123,686 baris.
+- **Biaya terukur:** 50 menit pertama sekitar USD 0,06 (Postgres CPU 18 vCPU-menit, memori sekitar 4 GB). Memori Postgres
+  naik dari 0,6 ke 4 GB (cache halaman, M319); restart terencana dijadwalkan sesudah rangkaian cron hari ini.
+
 ## 2026-11-01 — EXEC-FI-TERMINAL S0: the terminal reader may read the fixed-income tables
 
 - Migration `20261101_003_terminal_reader_fixed_income.sql` (sha256 3856491a…e583) on orc-test-runner: DRYRUN

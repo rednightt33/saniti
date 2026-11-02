@@ -5324,7 +5324,11 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - **Usulan (perlu go):** setiap penggantian kredensial dibarengi `scripts/railway_reference_consumers.py --redeploy`.
 - **Dampak:** run EDGE AI sejak sekitar 2026-10-29 tidak terarsip sampai antrean terkirim. Item sandbox yang sudah 12 kali
   gagal berstatus INCOMPLETE dan tidak dicoba lagi. Memori sandbox sekitar 1 GB tertagih terus (≈ USD 0,33/hari).
-- **Status:** FIX IN PROGRESS. Penulisan ke bucket pulih (terverifikasi); menunggu antrean habis dan sandbox tidur lagi.
+- **Status:** FIXED 2026-11-02.
+  - Penulisan ke bucket pulih (`audit_outbox_ingested`, 59 `audit_artifact_verified`).
+  - Antrean sandbox terkirim (`sandbox_audit_archived` COMPLETE, 0 gagal sesudah 08:47 UTC).
+  - Sandbox `SLEEPING` sekitar 09:15 UTC, sekitar 10 menit sesudah arsip terakhir (09:05).
+  - Usulan peringatan Telegram dan aturan redeploy masih perlu go.
 - **Lesson:** sesudah kredensial bersama berubah, deploy ulang semua pemakainya. Setiap antrean yang mencoba ulang perlu
   peringatan bila gagal lama.
 

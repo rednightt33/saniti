@@ -1,5 +1,29 @@
 # Railway changelog
 
+## 2026-11-02 — stockbit-updater round, terminal-publisher manual run, market-audit-store redeploy (EXEC-BROKER-1102, EXEC-AUDIT-REDEPLOY)
+
+- **stockbit-updater:**
+  - Variable `STOCKBIT_TOKEN` (dev, `railway variable set --stdin`; value never written, expiry 2026-11-03 03:27 UTC).
+  - The change redeployed build `168cfa9e`'s code as `d4f728eb`, which ran round `f2eed7db` SUCCESS 07:41-09:02 UTC
+    (DATABASE_CHANGELOG).
+  - The updater code of 2026-10-29 (`3bed26b2`) is still not deployed.
+- **market-audit-store** (user "Ok jalankan"):
+  - `railway redeploy` → `8dbea9a9` SUCCESS 08:41 UTC. The running deployment was `776f4e5a` of 2026-10-18, with stale
+    bucket credentials (ERRORS M334).
+  - Afterwards `audit_outbox_ingested` and `audit_artifact_verified` (first since >= 2026-10-29), and
+    `sandbox_audit_archived` COMPLETE.
+  - market-python-sandbox `SLEEPING` from about 09:15 UTC.
+- **terminal-publisher**, M229 option A:
+  1. `cronSchedule` null (read back).
+  2. Upload of `git archive HEAD apps/terminal-publisher` (`publisher.py` sha256 `9f301d9ff506f03b…`) as RUN `09ea6d3b`,
+     09:05-09:21 UTC:
+     - plan 1,677 files; 966 written, 59.39 MB, 844 tickers, 282.9 s;
+     - `broker_behind_sessions` 0 (broker through 2026-10-30, events through 2026-11-02 09:01 UTC);
+     - `replaced` 966 deleted, 0 not deleted.
+  3. `cronSchedule` `0,30 0,1,12 * * *` (read back; next 12:00 UTC).
+  4. SCHED upload of the same tree `f8eec97b` SUCCESS; it built and did not run.
+- No other variable changed.
+
 ## 2026-11-01 — edge-bff: bolder favicon E (EXEC-FAVICON-BOLD, user option A)
 
 - `main` `be131b22`: edge-bff `8661376d` SUCCESS.
