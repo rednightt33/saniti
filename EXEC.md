@@ -10175,6 +10175,10 @@ abu-abu ke kanan bawah, E putih di tengah).
   dihapus; 7 titik simpan per obligasi.
 - Dibaca ulang `def3015f`: antrean 24 DONE, status kolom 1.224 SUCCESS, Feature 04 ID 2026-11-02 dan AS 2026-10-30
   (sama dengan harga). ERRORS M336, DATABASE_CHANGELOG, RAILWAY_CHANGELOG.
+- Cek atas permintaan user ("mesti ensure ya tidak di ulang dari awal ... cek ensure hasil benar"),
+  `verification/feature04_bonds/verify_job.py`: baris yang ditulis hanya sejak tanggal kotor (0 baris lebih tua; baris
+  lama tetap `calculated_at` 2026-10-11…10-20); seluruh baris = hitungan penuh mesin (0 beda); inkremental = penuh (0);
+  hitung ulang independen numpy 11 indikator pada baris yang ditulis: 4.232 nilai, 0 beda.
 
 ## EXEC-BANDAR-MERGE — Bandar detector masuk ke Top brokers, opsi 10 "Tarik tambang" (go 2026-11-01)
 

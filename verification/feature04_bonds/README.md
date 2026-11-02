@@ -19,3 +19,13 @@ Per bond whose queue row is `FAILED` with a `dirty_from_date`:
 
 Runs 2026-11-02 (`orc-test-runner` deployments): dry `c7e584ec`; write `020c14c8` rolled back per bond (the job set the NOT NULL
 `dirty_from_date` to NULL, nothing written); write `d6165d66` (24 bonds); read-only check `def3015f`.
+
+## Check after the repair (`verify_job.py`, read-only, runner `run_job.sh` with `bootstrap_states.py` as an extra)
+
+User 2026-11-02: "mesti ensure ya tidak di ulang dari awal ... cek ensure hasil benar". Result for all 24 bonds:
+- rows written by the repair (`calculated_at` on 2026-11-02): only from each dirty date (ID 2026-10-05, ID01Y/ID25Y
+  2026-10-12, US 2026-10-21); 0 rows before it; every older row keeps its `calculated_at` of 2026-10-11…10-20;
+- every stored row and column equals a full calculation by the deployed engine: 0 mismatches;
+- incremental from the checkpoints equals full for the last sessions (`validate_recent`): 0 drift;
+- independent plain-numpy recomputation (close, SMA20/50, EMA12/26, RSI14 Wilder, Bollinger 20/2, MACD 12/26/9) of the
+  written rows: 4,232 values, 0 mismatches (tolerance 1e-7).
