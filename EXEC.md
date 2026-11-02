@@ -9970,6 +9970,13 @@ Ketiganya hanya menulis log. Tidak satu pun dari tiga service itu punya `TELEGRA
 - **Batas yang diketahui:** sandbox yang sedang tidur tidak memeriksa antreannya; alarmnya baru jalan saat sandbox
   dipakai lagi. Penyebab bersama (audit-store, bucket) tetap terlihat dari audit-store dan governor.
 
+**Hasil 2026-11-02:**
+- `d3b25021`: telegram-monitor `4def5812`, market-audit-store `6943376d`, market-python-sandbox `0508487b`,
+  market-sql-governor `38864a37`, semuanya SUCCESS 10:30 UTC.
+- Bukti live dari kejadian nyata: sandbox yang baru menyala menyimpan 24 item arsip sisa M334 (10:30:00-10:30:47 UTC,
+  attempts 9 dan 11). Lalu `audit_queue_alarm` `recovered` `answer="sent"` (10:30:48), dan telegram-monitor mencatat
+  `POST /notify` 200 (10:30:49). Satu pesan "Arsip audit pulih" terkirim ke Telegram.
+
 ## EXEC-U4-WORKERS — screener-worker dan backtest-worker tidur saat tidak dipakai (go 2026-11-02)
 
 **Kata user, 2026-11-02:** "Jalankan U4 sekarang. Sudah ada implementation plan? Kalau belum siapkan dulu." Sebelumnya

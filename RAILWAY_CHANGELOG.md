@@ -6,7 +6,8 @@
   (`${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}`) set on market-audit-store, market-python-sandbox and
   market-sql-governor (dev, `--skip-deploys`); read back unrendered as references. No value was printed.
 - `.railway/railway.ts` env lists updated; `railway config plan` up to date.
-- Deploys: with the code push of the same day (see EXEC.md EXEC-M334-ALERT for the deployment ids).
+- Deploys of `d3b25021`: telegram-monitor `4def5812`, market-audit-store `6943376d`, market-python-sandbox `0508487b`,
+  market-sql-governor `38864a37`, all SUCCESS 10:30 UTC. First live alarm: sandbox `recovered` sent 10:30:48 UTC.
 
 ## 2026-11-02 — screener-worker and backtest-worker sleep when idle (EXEC-U4-WORKERS, user "Jalankan U4 sekarang")
 

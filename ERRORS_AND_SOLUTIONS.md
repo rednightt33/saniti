@@ -5328,6 +5328,10 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - Penulisan ke bucket pulih (`audit_outbox_ingested`, 59 `audit_artifact_verified`).
   - Antrean sandbox terkirim (`sandbox_audit_archived` COMPLETE, 0 gagal sesudah 08:47 UTC).
   - Sandbox `SLEEPING` sekitar 09:15 UTC, sekitar 10 menit sesudah arsip terakhir (09:05).
+  - **Koreksi 2026-11-02 10:30 UTC:** catatan "antrean sandbox terkirim" di atas tidak lengkap. Masih ada 24 item
+    sandbox yang menunggu coba-ulang dengan jeda 1 jam, dan sandbox tidur sebelum gilirannya. Item itu baru tersimpan
+    saat sandbox dinyalakan ulang dengan alarm (10:30 UTC, attempts 9-11, semuanya COMPLETE), dan alarm `recovered`
+    terkirim. Pelajaran: "0 gagal sesudah jam X" belum berarti antrean kosong; hitung item yang masih menunggu.
   - Peringatan Telegram: dibangun 2026-11-02 (EXEC-M334-ALERT, user "OK A Jalankan"): ketiga antrean audit
     melapor ke telegram-monitor bila macet lebih dari 1 jam, bila item berhenti dicoba, dan saat pulih.
   - Aturan redeploy sesudah kunci bersama berganti masih perlu go.
