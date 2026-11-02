@@ -10126,6 +10126,51 @@ abu-abu ke kanan bawah, E putih di tengah).
   16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
 - **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
 
+## EXEC-WEB-LIST — daftar peristiwa dari web dicari sampai lengkap, dan tanggalnya boleh dipakai sebagai periode (go 2026-11-02)
+
+**Kata user, 2026-11-02:**
+- Request `edge_026b017160b2cbd520668e0ce9ef0c36`: "cek untuk ini, kenapa dia gak pakai webgovt?"
+- Atas usulan A (panduan untuk model) dan B (eskalasi di web governor): "Oke, siapkan untuk A dan B dulu. Cek kode
+  buat implementation plan. Lalu jalankan satu atau dua tes. Go. Ensure bahwa setiap keputusan yang diambil
+  berdasarkan inspeksi code rather than just from memory."
+
+**Temuan (log + kode, 2026-11-02):**
+- Model memanggil `research_web` sekali: need "daftar tanggal keputusan BI menaikkan BI Rate sejak Nov 2021",
+  `expected_shape: EVENT`, `purpose: CITE`. Web governor menjawab OK dengan 1 item (2021-11-01, bukan kenaikan),
+  `depth: QUICK`, tanpa eskalasi, 11 panggilan tersisa. Model lalu menyerah dan menjawab LIMITATION. Level berpikir run
+  ini low.
+- Web governor sengaja tidak meneliti lebih jauh bila EVENT/FACT/NUMBER sudah ditemukan (`orc_web.py` `_short`,
+  576-593). Dasarnya smoke run 2026-10-05: "BI-Rate terbaru" melebar menjadi 24 item riwayat dalam 104 detik.
+  `needs_research` dari ekstraktor hanya dipakai untuk SERIES/LIST/null.
+- Aturan prompt sudah membolehkan tanggal peristiwa dari web menentukan periode analisis (`OUTSIDE_DATA_RESEARCH_RULE`,
+  `orchestrator.py`), tetapi model membacanya sebagai "data web tidak boleh dipakai sama sekali".
+- `research_web` tercatat di `Tool_Catalog` (generator `scripts/generate_tool_catalog_migration.py`, terakhir v4).
+  Perubahan deskripsi atau argumen memerlukan round migrasi baru.
+
+**Rencana:**
+- **B (market-web-governor):**
+  - `OrcWebRequest.several` (bool, default false: perilaku lama tetap);
+  - `_short`: bila `several` dan item < 2, atau ekstraktor `needs_research`, maka eskalasi (FEW_ITEMS);
+  - ekstraktor diberi tahu "several items expected: return every one the sources state";
+  - `several` masuk kunci cache.
+  - Kebutuhan tunggal ("BI Rate terbaru") tidak berubah.
+- **A (market-ai-orc):**
+  - `research_web` argumen `several` dan deskripsi:
+    - daftar peristiwa bertanggal: EVENT/SERIES dengan `several` true;
+    - hasil yang tidak menutup kebutuhan dicoba lagi dengan need yang lebih tajam atau bentuk lain sebelum menyatakan
+      tidak tersedia;
+    - tanggal peristiwa boleh menjadi periode analisis atau tanggal studi peristiwa;
+    - angka web tetap tidak boleh menjadi input hitungan.
+  - Kalimat yang sama di `OUTSIDE_DATA_RESEARCH_RULE`, dengan snapshot prompt dicatat.
+- **Katalog:** round migrasi `Tool_Catalog` (`research_web` v5), DRYRUN lalu APPLY lewat
+  `scripts/onboarding/migration_job.py`, `APPLIED.sha256`, `DATABASE_CHANGELOG.md`.
+- **Urutan deploy:** web governor dulu (menerima field baru, bawaan false), lalu orc.
+- **Tes:** suite web governor dan orc. Uji live:
+  1. pertanyaan daftar tanggal kenaikan BI Rate dan return saham bank di sekitarnya: daftar tanggal lebih dari 1, dan
+     tanggal dipakai sebagai periode;
+  2. "BI Rate terbaru berapa?": tetap satu nilai, tanpa melebar.
+- **Tidak disentuh:** aturan "angka web bukan input hitungan", model, dan variabel Railway.
+
 ## EXEC-DATA-DATE — data lama tidak pernah dipakai diam-diam dalam percakapan lanjutan (go 2026-11-02)
 
 **Kata user, 2026-11-02:**

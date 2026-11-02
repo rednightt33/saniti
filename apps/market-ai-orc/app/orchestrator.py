@@ -1292,7 +1292,7 @@ OUTSIDE_DATA_RESEARCH_RULE = (
     "Information the catalog does not contain (for example macro data, news\nor group membership) "
     "is looked up with research_web, for\ncontext or when the database lacks it, and is shown as a web fact; for\n"
     "market data the database wins. Cite web values by their references; an\nevent date may set an analysis "
-    "period, but a web number is never an input\nof a calculation." + STORED_FEATURE_SENTENCE)
+    "period or the dates of an event study, but a\nweb number is never an input of a calculation." + STORED_FEATURE_SENTENCE)
 OUTSIDE_DATA_REFERENCE_RULE = ("\nAn attribute the reference tables hold (a sector, an industry, a company\n"
                                "profile) is read with lookup_reference, never from the web.")
 METRIC_PATH_RULE = ("When query_metric is offered, an official metric of the metric catalog over periods is\n"

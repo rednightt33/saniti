@@ -666,8 +666,21 @@ ROUNDS = {
                     "(ONE_SIDE_NOT_UNIQUE, sandbox and SQL Governor)."],
         "limits": {},
     },
+    "round_af": {
+        "target": ROOT / "database/migrations/20261102_001_round_af_tool_catalog.sql",
+        "versions": {"research_web": ("v4", "v5")},
+        "contracts": {"research_web": ("input_schema", "several")},
+        "title": "several web items and event-study dates",
+        "header": "EXEC.md EXEC-WEB-LIST (user \"Oke, siapkan untuk A dan B dulu ... Go.\", 2026-11-02)",
+        "design": "EXEC.md EXEC-WEB-LIST; ERRORS_AND_SOLUTIONS.md M339",
+        "limits_design": "EXEC.md EXEC-WEB-LIST",
+        "summary": ["research_web takes several (several items of one shape: every decision, all dates since a year;",
+                    "one item found is then too few and the web governor searches wider) and says an event date may",
+                    "set the dates of an event study, and a result that does not cover the need is asked again."],
+        "limits": {},
+    },
 }
-NEWEST = "round_ae"
+NEWEST = "round_af"
 
 
 def _tools_doc():

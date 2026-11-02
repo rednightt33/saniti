@@ -41,6 +41,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v018 | 2026-10-21 | [rules-1021-in-period-emit-json-units](history/v018-2026-10-21-rules-1021-in-period-emit-json-units/system_prompt.md) | 41,837 | `5a5788480a39` | `ef9b0ecbca7d` | user 2026-10-21: "Masukan exec dan eksekusi. #7 — satuan pada emit_json, #6 — in_period (masker baris)" |
 | v019 | 2026-10-25 | [onboard-idx-event-annotation](history/v019-2026-10-25-onboard-idx-event-annotation/system_prompt.md) | 41,818 | `4a8c4462abb8` | `ef9b0ecbca7d` | User 2026-10-25: 'go for this as well Service stockbit-updater dan onboarding hanya table idx_event_annotation' (EXEC-GO-1025) |
 | v020 | 2026-10-25 | [v020-2026-10-25-window-basis](history/v020-2026-10-25-window-basis/system_prompt.md) | 42,329 | `b0852ffac87c` | `ef9b0ecbca7d` | User 2026-10-23 (EXEC-M209): Feature 1-6 'bisa sebisa mungkin digunakan, tapi tidak wajib, hanya sifatnya adalah supplementary' and the data 'harus di-disclose ... hari di mana saham tersebut bertransaksi'; go 2026-10-25 EXEC-GO-1025: 'Okay, yang menunggu GO silahkan di jalankan' (item 6, EXEC-M209 steps 1, 2 and 5) |
+| v021 | 2026-11-02 | [web-list](history/v021-2026-11-02-web-list/system_prompt.md) | 42,360 | `c3c246278723` | `ef9b0ecbca7d` | user 2026-11-02: "Oke, siapkan untuk A dan B dulu ... Go." (EXEC-WEB-LIST) |
 
 ## Changes
 
@@ -120,6 +121,10 @@ data-need step 3: in_period is a row mask (frame[in_period(frame, request)]), no
 
 OUTSIDE_DATA_RESEARCH_RULE no longer gives events and ownership as examples of information outside the catalog: corporate actions and insider ownership movements are in idx_event_annotation Fast lane prefix: [29,461 chars](history/v019-2026-10-25-onboard-idx-event-annotation/fast_prompt.md), sha256 `1aba1fee9acb`.
 
-### v020 window-basis (2026-10-25)
+### v020 v020-2026-10-25-window-basis (2026-10-25)
 
 Stored-value rule covers windowed sums, counts, z-scores and percentiles read when their COLUMNS window is the user's, with a right and a wrong example; fast-lane rule 8 names flows and counts Fast lane prefix: [29,972 chars](history/v020-2026-10-25-window-basis/fast_prompt.md), sha256 `4467aea92ba6`.
+
+### v021 web-list (2026-11-02)
+
+OUTSIDE_DATA_RESEARCH_RULE: an event date from the web may set the dates of an event study Fast lane prefix: [30,003 chars](history/v021-2026-11-02-web-list/fast_prompt.md), sha256 `4d0aff61e96e`.

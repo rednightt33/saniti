@@ -16,7 +16,7 @@ import time
 from typing import Any, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .registry import ToolError, ToolSpec
 from .request_data import current_request_id, current_run_deadline, current_turn_id
@@ -30,7 +30,11 @@ DESCRIPTION = (
     "false conflicts (different periods, definitions, units or releases) and, for a real conflict, the version it "
     "prefers (chosen_by_ai) with every version kept. Never use it for prices, yields, volumes, flows, indicators or any figure the "
     "database holds; a web number describes and is never an input of a calculation, while an event date may set an "
-    "analysis period. A run has a limited web budget: ask for what the answer needs.")
+    "analysis period or the dates of an event study (for example every BI-Rate hike date, to study bank returns around "
+    "them). Several items of one shape (every decision since a year, all dates of a policy) are one call with several "
+    "true: EVENT for dated events, SERIES when each date has a value. When a result does not cover the need (fewer "
+    "items than asked, another period or subject), call again with a sharper need, several or another shape before "
+    "you say the information is unavailable. A run has a limited web budget: ask for what the answer needs.")
 # added only when value references are on (a description never promises what the run cannot do; P31)
 # M126 (user decision 2026-10-08, choice C): a statement is cited by a link, never inserted as the source's own words
 # User decision B 2026-10-09 ("semua link web hilang pindah ke source"): no web link in the answer text; the source of
@@ -72,6 +76,17 @@ class ResearchWebArguments(BaseModel):
         description="The shape the answer should have, or null when not known.")
     subjects: list[str] = Field(max_length=MAX_SUBJECTS, description=(
         "Companies or entities the same need is asked about, one lookup each; empty for one need."))
+    several: bool = Field(description=(  # EXEC-WEB-LIST (user 2026-11-02)
+        "True when the need asks for several items of the shape (every decision, all dates since a year); one item "
+        "found is then too few and the web governor searches wider. False for one value, one event or the latest "
+        "value only."))
+
+    @model_validator(mode="before")
+    @classmethod
+    def _several_absent_is_false(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "several" not in data:
+            return {**data, "several": False}
+        return data
 
 
 class WebResearchClient:
@@ -141,7 +156,7 @@ def web_research_spec(client: WebResearchClient, *, value_references: bool = Fal
         request_id = current_request_id.get() or "unknown"
         body = {"request_id": request_id[:200], "budget_key": (current_turn_id.get() or request_id)[:200],
                 "need": arguments.need, "purpose": arguments.purpose, "expected_shape": arguments.expected_shape,
-                "subjects": [s.strip() for s in arguments.subjects if s.strip()]}
+                "subjects": [s.strip() for s in arguments.subjects if s.strip()], "several": arguments.several}
         return model_view(client.research(body, wait_seconds()))
 
     description = DESCRIPTION + (REFERENCE_SENTENCE if value_references else "") \

@@ -118,7 +118,9 @@ ADDED = {
     "is looked up with research_web, for context or when the database lacks it, and is shown as a web fact;",
     "for market data the database wins.",
     "Cite web values by their references;",
-    "an event date may set an analysis period, but a web number is never an input of a calculation.",
+    # EXEC-WEB-LIST (user 2026-11-02): an event date from the web may set the dates of an event study
+    "an event date may set an analysis period or the dates of an event study, but a web number is never an input of "
+    "a calculation.",
     # EXEC-P2 P2e: in words, so the prompt gains no digit (it is a number source)
     "Keep the final answer focused and proportional to the user's question: the answer within about two and a half "
     "thousand characters and a table in it within ten rows unless the user asks for more (the full table stays in its "
