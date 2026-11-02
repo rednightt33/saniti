@@ -9934,6 +9934,24 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-M334-ALERT — peringatan Telegram bila arsip audit gagal lama (go 2026-11-02, desain menunggu pilihan)
+
+**Kata user, 2026-11-02:** atas usulan M334 "peringatan Telegram bila antrean audit gagal lebih dari 1 jam": "M334 OK,
+ini penting. Buat alertnya. Hanya berlaku kalau keynya beda?"
+
+**Dicek di kode (2026-11-02):** ada tiga antrean arsip audit yang mencoba ulang tanpa peringatan:
+- `ai_audit.ingest_outbox` (PostgreSQL), diisi market-ai-orc dan dikerjakan market-audit-store
+  (`apps/market-audit-store/app/ingest.py` `process_one`: FAILED_RETRYABLE, jeda maksimal 1 jam, INCOMPLETE sesudah
+  batas percobaan);
+- antrean SQLite di market-python-sandbox (`app/audit.py`, 12 percobaan lalu INCOMPLETE);
+- penanda `audit-outbox/` di bucket market-sql-governor (`app/audit_archive.py`, pindah ke `audit-outbox-failed/`).
+Ketiganya hanya menulis log. Tidak satu pun dari tiga service itu punya `TELEGRAM_NOTIFY_URL`/`TELEGRAM_NOTIFY_SECRET`
+(nama variabel dibaca dari Railway dev); pengirim peringatan yang ada adalah telegram-monitor `/notify`
+(dipakai terminal-publisher).
+
+**Pertanyaan terbuka:** cakupan dan tempat pemeriksaan (opsi A tiga antrean, B hanya audit-store, C semua antrean
+coba-ulang di sistem). Eksekusi mulai sesudah pilihan user.
+
 ## EXEC-U4-WORKERS — screener-worker dan backtest-worker tidur saat tidak dipakai (go 2026-11-02)
 
 **Kata user, 2026-11-02:** "Jalankan U4 sekarang. Sudah ada implementation plan? Kalau belum siapkan dulu." Sebelumnya
