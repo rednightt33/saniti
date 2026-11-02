@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-02 — planned Postgres restart after the day's large writes (EXEC-BROKER-1102, ERRORS M319)
+
+- `scripts/restart_postgres.py` 13:49 UTC: READY (hourly memory 3.75 GB, no cron due within 45 minutes, outside B6,
+  0 active statements); `--apply`: deployment `1804dfff`, server start 2026-11-01 08:47 → 2026-11-02 13:50:06 UTC,
+  14 s, edge-bff `/ready` 200.
+- Memory per minute (Railway metrics): 3.56 GB until 13:49, 0.09 GB at 13:50, 0.10 GB at 13:53.
+- Note: the script's own memory reading is the hourly sample, so it still showed 3.6-3.7 GB in the minutes after.
+
 ## 2026-11-02 — idx-intraday-cron: first daily run with the feature step checked (EXEC-INTRADAY-FEATURES S4)
 
 - Deployment `76bf510a`, cron 10:30 UTC: run 10:32:58-10:44:22 UTC, four timeframes, `intraday_features_done`
