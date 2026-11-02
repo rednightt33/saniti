@@ -155,3 +155,37 @@ def test_the_note_carries_the_data_date_rule_only_when_the_conversation_has_a_da
     for note in (records.full_note(record), records.note(record)):
         assert "Data date of this conversation: its earlier answers used data up to 2026-10-27" in note
         assert "DATA_DATE_CHOICE_REQUIRED" in note and "Never call 2026-10-27 the last available date" in note
+
+
+def test_the_note_names_the_newest_dates_read_from_the_tables_not_the_catalog_summary() -> None:
+    from app import data_record as records
+    from app.tools.analysis import newest_table_dates
+
+    record = records.empty()
+    records.add_output(record, "earlier", alias="o1", output_id="out_" + "4" * 24, session_id="sess_" + "1" * 24,
+                       name="top", columns=["ticker"], row_count=2, lineage={"data_as_of": "2026-10-17"})
+    record["tables"] = {"IDX_Broker_Summary": {"used": [], "read": []}, "IDX_Stock_Universe": {"used": [], "read": []}}
+    analysis.set_newest_date_reader(lambda t: {"IDX_Broker_Summary": "2026-11-02"}.get(t))
+    try:
+        newest = newest_table_dates(record)
+    finally:
+        analysis.set_newest_date_reader(None)
+    assert newest == {"IDX_Broker_Summary": "2026-11-02", "IDX_Stock_Universe": None}
+    note = records.full_note(record, newest)
+    assert "Newest data now" in note and "IDX_Broker_Summary up to 2026-11-02" in note
+    assert "IDX_Stock_Universe up to" not in note
+    same = records.full_note(record, {"IDX_Broker_Summary": "2026-10-17"})
+    assert "No table of this conversation has data newer than 2026-10-17 now." in same
+    assert "Newest data now" not in records.full_note(record)  # no reader: the rule only, as before
+
+
+def test_the_dates_read_for_the_note_are_reused_by_the_gate() -> None:
+    reads: list[str] = []
+    analysis.set_newest_date_reader(lambda t: reads.append(t) or "2026-11-02")
+    token = current_data_date.set(DataDate("2026-10-17", newest_seen={"IDX_Broker_Summary": "2026-11-02"}))
+    try:
+        refused = data_date_choice(spec(), None)
+    finally:
+        current_data_date.reset(token)
+        analysis.set_newest_date_reader(None)
+    assert refused is not None and reads == []  # read once at the start of the run, not again

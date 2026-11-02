@@ -127,6 +127,21 @@ def set_newest_date_reader(reader: Callable[[str], str | None] | None) -> None:
     _newest_date_reader = reader
 
 
+def newest_table_dates(record: dict[str, Any]) -> dict[str, str | None]:
+    """EXEC-DATA-DATE: the newest date of each table a conversation's data record names (None when unreadable or the
+    table has no date); nothing without a reader. Read once at the start of a run and reused by data_date_choice."""
+    reader = _newest_date_reader
+    if reader is None:
+        return {}
+    dates: dict[str, str | None] = {}
+    for table in sorted((record.get("tables") or {}).keys()):
+        try:
+            dates[table] = reader(table)
+        except Exception:  # an unreadable table is left out; the gate reads it again when a data need names it
+            continue
+    return dates
+
+
 DATA_DATE_CHOICE_MESSAGE = (
     "This conversation's earlier answers used data up to {as_of}, and a range ending LATEST would end there; but {tables} "
     "already {verb} newer data (up to {newest}). Choose and resubmit the same spec with data_as_of_policy set: NEWEST "

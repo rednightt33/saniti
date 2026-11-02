@@ -67,7 +67,8 @@ from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analy
 from .value_refs import (PERCENT_FORMATS, pp_as_percent, FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
                          TableRows, format_value, menu_address, registered_links_only, render, safe_link)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
-from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
+from .tools.analysis import (DataDate, current_conversation_key, current_data_date, current_run_context, newest_table_dates,
+                             run_context)
 from .tools.data_need import declares_findings
 from .tools.envelope import envelope
 from .tools.registry import strict_parameters_schema
@@ -2781,6 +2782,7 @@ class RunState:
     tool_markup_retries: int = 0  # M146: turns that wrote a tool call as text, asked again with the same tools
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
+    newest_dates: dict[str, Any] = field(default_factory=dict)  # EXEC-DATA-DATE: newest date per table read this run
     research_attempted: bool = False
     # AI_ENABLE_ANALYSIS_PATH: the data-need mode the caller fixed for this request, and the refusals it caused
     forced_path: str | None = None
@@ -3227,7 +3229,8 @@ class AgentOrchestrator:
         research = current_research_context.set(state.research)
         restorer = current_carried_restorer.set(self._restorer(request))
         # R-STORE (C2e, user decision 4): a conversation keeps its data date unless this run asks for newer data
-        state.data_date = DataDate(records.data_as_of(state.data_record)) if self.result_store is not None else None
+        state.data_date = DataDate(records.data_as_of(state.data_record), newest_seen=dict(state.newest_dates)) \
+            if self.result_store is not None else None
         state.reference_date = moment.astimezone(ZoneInfo(self.settings.analysis_timezone)).date()
         data_date = current_data_date.set(state.data_date)
         # D2: what get_session_output (and the phase D tools) may open of this conversation's kept results
@@ -3463,7 +3466,12 @@ class AgentOrchestrator:
             return  # O5 item 1: a record holding only the conversation's facts is offered too
         records.seed_ledger(state.data_record, state.catalog)
         # EXEC-C items 5 and 10: with the run memory the note is never cut and carries the column details read
-        note = records.full_note(state.data_record) if self.run_memory is not None else records.note(state.data_record)
+        # EXEC-DATA-DATE (user 2026-11-02): a conversation with a data date reads the newest date of its tables at once,
+        # so the model names the real dates (the catalog's coverage summary lags behind manual loads)
+        if self.result_store is not None and records.data_as_of(state.data_record):
+            state.newest_dates = newest_table_dates(state.data_record)
+        note = records.full_note(state.data_record, state.newest_dates) if self.run_memory is not None \
+            else records.note(state.data_record, state.newest_dates)
         state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
         log_event("data_record_offered", request_id=state.request_id, tables=len(state.data_record["tables"]),
                   needs=len(state.data_record["needs"]), outputs=len(state.data_record["outputs"]),
