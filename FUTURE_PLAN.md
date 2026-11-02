@@ -802,6 +802,8 @@ Urutan yang disarankan: U1 → M215 usulan A → U4.
 
 Keputusan user 2026-10-29: "Oke, U4 masukkan exec. U1 ditunda dulu aja."
 
+**U4 diperluas 2026-11-02 (EXEC-U4-WORKERS, "Jalankan U4 sekarang"): SELESAI.** screener-worker dan backtest-worker kini tidur saat tidak dipakai dan dibangunkan oleh edge-bff (`app/wake.py`); hasil di EXEC.md.
+
 User 2026-10-29: "U1 dan U4, coba ditinjau, inspect database, dan come up with implementation plan." Belum disetujui;
 tidak ada yang dijalankan. Semua angka dibaca 2026-10-29 dari Railway, log dan kode (read-only).
 

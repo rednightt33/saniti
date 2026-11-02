@@ -7,7 +7,9 @@
 - `.railway/railway.ts`: `deploy.sleepApplication: true` for screener-worker and backtest-worker; `railway config plan`
   "2 to change" (null → true), `railway config apply --yes`, plan afterwards up to date.
   Deployments screener-worker `28495b02` and backtest-worker `ee70ef24` SUCCESS 09:53 UTC.
-- Live check of sleep and wake: pending (EXEC.md EXEC-U4-WORKERS).
+- Live check: backtest-worker `SLEEPING` 10:01 UTC, screener-worker 10:06 UTC; woken through EDGE (backtest catalog
+  3.0 s, first screen 11.4 s). edge-bff `f3f420d5` SUCCESS (`0cdc376f`, the `downstream_wake` lines reach the log);
+  second sleep 10:20 UTC and wake 10:24 UTC: `downstream_wake` WOKEN after 1 attempt (1 s) on both workers.
 
 ## 2026-11-02 — stockbit-updater round, terminal-publisher manual run, market-audit-store redeploy (EXEC-BROKER-1102, EXEC-AUDIT-REDEPLOY)
 

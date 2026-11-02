@@ -9991,6 +9991,22 @@ screener memuat sekitar 12 MB data harga, terukur 1,1 detik unduh dan 1,7 detik 
 **Rollback:** `sleepApplication: false` untuk worker itu (plan/apply). Penjaga bangun di edge-bff tidak merugikan service
 yang menyala.
 
+**Hasil 2026-11-02 (SELESAI):**
+- Kode `75d3813a`: edge-bff `2159f2ff`, screener-worker `909b5212` SUCCESS. `sleepApplication: true` lewat
+  `railway config apply` (`11e6699b`); deployment screener-worker `28495b02` dan backtest-worker `ee70ef24` SUCCESS 09:53 UTC.
+- Screener berhenti memeriksa `/state` 09:57 UTC (`refresh_poll_paused`). Backtest-worker `SLEEPING` 10:01 UTC,
+  screener-worker `SLEEPING` 10:06 UTC.
+- Bangun lewat EDGE (`verification/wake_check_dev.py`, read-only):
+  - 10:06 UTC: katalog backtest 3,0 detik; screen pertama 11,4 detik (503 `SCREENER_NOT_READY` selama memuat, lalu 200
+    dengan 207 saham). `verification/u4_wake_2026-11-02/`.
+  - Cacat ditemukan: baris `downstream_wake` tidak tercetak (logger `app.wake` tanpa handler di bawah uvicorn). Diperbaiki
+    `0cdc376f` (edge-bff `f3f420d5` SUCCESS), dengan tes yang gagal tanpa perbaikan.
+  - Kedua worker `SLEEPING` lagi 10:20 UTC. 10:24 UTC: katalog backtest 2,9 detik, screen pertama 13,5 detik.
+    Log edge-bff: `downstream_wake` `screener-worker` `WOKEN` attempts 1, 1 detik (POST /v1/run) dan `backtest-worker`
+    `WOKEN` attempts 1, 1 detik (GET /v1/catalog). Jadi koneksi pertama memang ditolak dan penjaga bangun yang
+    menyelamatkan permintaan itu. `verification/u4_wake_2026-11-02_second/`.
+- Railway menandai baris itu `[ERRO]` karena ditulis ke stderr; isinya INFO.
+
 ## EXEC-AUDIT-REDEPLOY — deploy ulang market-audit-store (M308; sandbox tidak bisa tidur) (go 2026-11-02)
 
 **Kata user, 2026-11-02:** "Cek juga sandbox memorynya. Stuck di 1 GB padahal tidak di pakai." Atas usulan deploy ulang
