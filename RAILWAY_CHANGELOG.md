@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-11-03 — stockbit-updater round with a new token (EXEC-BROKER-1103)
+
+- User: "jalankan broker dan event" (token given in chat), then on the B6 question "Sekarang lah." (a B6 exception
+  for this round only; terminal-publisher was not running).
+- `STOCKBIT_TOKEN` (dev, `railway variable set --stdin`; value never printed or written; expiry 2026-11-04 10:53 UTC;
+  the temporary file was deleted). `UPDATER_MODE` APPLY.
+- Deployment `25210647` SUCCESS 12:31:54 UTC; round `c990db81` started 12:32:09 UTC, `broker_plan` dates
+  ["2026-11-03"], 906 symbols. Result: below.
+
 ## 2026-11-03 — orc-test-runner cleared; grant migrations; terminal-publisher EXEC-IHSG-FLOW again (ERRORS M341, M343)
 
 - User: "ok jalankan perbaikan".
