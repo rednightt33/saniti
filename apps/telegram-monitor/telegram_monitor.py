@@ -41,8 +41,13 @@ CONSENSUS_SOURCE = "Fixed_Income_Consensus_Check"
 # stopped retrying, and the recovery. Only they see their queues, so the facts come with the request, accepted only in
 # the fixed shapes parse_audit_queue checks: an enumeration, counts, minutes and an error class, never free text.
 AUDIT_QUEUE_SOURCE = "Audit_Queue_Health"
+# EXEC-PG-RESTART-CRON (user go 2026-11-03: "Go langkah 1–9, tafsiran toggle benar, setuju"): postgres-memory-cron
+# (scripts/restart_postgres.py --cron) reports a manual request, a restart started, succeeded, failed or refused, and a
+# check run. Only it knows these facts, so they come with the request, accepted only in the fixed shapes
+# parse_postgres_restart checks: enumerations, numbers, times and reason codes, never free text.
+POSTGRES_RESTART_SOURCE = "Postgres_Restart"
 SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE,
-                                                CONSENSUS_SOURCE, AUDIT_QUEUE_SOURCE}
+                                                CONSENSUS_SOURCE, AUDIT_QUEUE_SOURCE, POSTGRES_RESTART_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -500,6 +505,100 @@ def build_audit_queue_message(alarm: AuditQueueHealth) -> str:
     return (f"✅ Arsip audit pulih: {what}\n"
             f"Item yang tertahan lebih dari {age(alarm.limit_minutes)} sudah tersimpan; "
             f"{'tidak ada' if not alarm.waiting else waiting} yang masih menunggu.")
+
+
+POSTGRES_RESTART_ID = re.compile(
+    r"^pg-restart-(scheduled|manual-telegram|manual-railway)-\d{8}T\d{4}-(manual|started|success|failed|refused|check)$")
+POSTGRES_RESTART_KINDS = {
+    "scheduled": "terjadwal",
+    "manual-telegram": "manual dari tombol Telegram",
+    "manual-railway": "manual dari dashboard Railway",
+}
+POSTGRES_RESTART_REASONS = {
+    "cron_due": "ada cron lain dalam 45 menit",
+    "b6_window": "di dalam jendela B6 (07.00-08.45 dan 19.00-20.20 WIB)",
+    "active_statements": "ada query yang sedang berjalan",
+    "user_runs": "ada pertanyaan user yang sedang berjalan di EDGE",
+    "runs_unreadable": "pertanyaan user yang berjalan tidak bisa dibaca",
+    "memory_low": "memori rendah, tidak ada yang perlu dibersihkan",
+    "auto_off": "restart otomatis sedang OFF",
+    "postgres_not_back": "Postgres tidak hidup kembali dalam 10 menit",
+    "edge_not_ready": "EDGE belum siap sesudah restart",
+}
+POSTGRES_RESTART_FIELDS = {"kind", "event", "mode", "auto", "times_wib", "memory_gb", "waited_minutes", "would_restart",
+                           "reasons", "seconds", "edge_ready", "memory_after_gb"}
+TIMES_WIB = re.compile(r"^([01]\d|2[0-3]):[0-5]\d(,([01]\d|2[0-3]):[0-5]\d){0,7}$")
+
+
+@dataclass(frozen=True)
+class PostgresRestart:
+    execution_id: str
+    kind: str
+    event: str
+    mode: str
+    auto: bool
+    times_wib: str
+    memory_gb: float | None
+    waited_minutes: int
+    would_restart: bool | None
+    reasons: tuple[str, ...]
+    seconds: int | None
+    edge_ready: int | None
+    memory_after_gb: float | None
+
+
+def parse_postgres_restart(execution_id: str, details: object) -> PostgresRestart:
+    """A postgres-memory-cron report, checked field by field; anything else is a ValueError (400)."""
+    match = POSTGRES_RESTART_ID.fullmatch(execution_id)
+    if not match or not isinstance(details, dict) or set(details) - POSTGRES_RESTART_FIELDS:
+        raise ValueError("invalid postgres restart report")
+    kind, event = match.group(1), match.group(2)
+    if details.get("kind") != kind or details.get("event") != event or details.get("mode") not in ("check", "apply"):
+        raise ValueError("invalid postgres restart report")
+    whole = lambda v, top: not isinstance(v, bool) and isinstance(v, int) and 0 <= v <= top
+    gb = lambda v: v is None or (not isinstance(v, bool) and isinstance(v, (int, float)) and 0 <= v <= 64)
+    reasons = details.get("reasons", [])
+    auto, would = details.get("auto"), details.get("would_restart")
+    seconds, ready, waited = details.get("seconds"), details.get("edge_ready"), details.get("waited_minutes", 0)
+    if (not isinstance(auto, bool) or not TIMES_WIB.fullmatch(str(details.get("times_wib", "")))
+            or not gb(details.get("memory_gb")) or not gb(details.get("memory_after_gb"))
+            or not whole(waited, 1440) or (would is not None and not isinstance(would, bool))
+            or not isinstance(reasons, list) or any(r not in POSTGRES_RESTART_REASONS for r in reasons)
+            or (seconds is not None and not whole(seconds, 3600))
+            or (ready is not None and not whole(ready, 599))):
+        raise ValueError("invalid postgres restart detail")
+    if (event in ("refused", "failed") and not reasons) or (event == "check" and would is None):
+        raise ValueError("invalid postgres restart detail")
+    return PostgresRestart(execution_id, kind, event, details["mode"], auto, details["times_wib"],
+                           details.get("memory_gb"), waited, would, tuple(reasons), seconds, ready,
+                           details.get("memory_after_gb"))
+
+
+def build_postgres_restart_message(report: PostgresRestart) -> str:
+    gb = lambda v: "tidak terbaca" if v is None else f"{v:.2f} GB"
+    kind = POSTGRES_RESTART_KINDS[report.kind]
+    why = "; ".join(POSTGRES_RESTART_REASONS[r] for r in report.reasons)
+    auto = f"Restart otomatis {'ON' if report.auto else 'OFF'}, jam {report.times_wib.replace(',', ' dan ')} WIB."
+    wait = f" Sudah menunggu {report.waited_minutes} menit." if report.waited_minutes else ""
+    if report.event == "manual":
+        return (f"🔔 Permintaan restart Postgres diterima ({kind}).\n"
+                f"Memori sekarang {gb(report.memory_gb)}. Pengaman dicek dulu; hasilnya menyusul.\n{auto}")
+    if report.event == "started":
+        return (f"⏳ Restart Postgres dimulai ({kind}).\n"
+                f"Memori sebelum restart {gb(report.memory_gb)}. Database mati sekitar 12 detik.{wait}")
+    if report.event == "success":
+        return (f"✅ Restart Postgres sukses ({kind}).\n"
+                f"Database kembali dalam {report.seconds} detik, EDGE siap. Memori {gb(report.memory_gb)} → "
+                f"{gb(report.memory_after_gb)}.\n{auto}")
+    if report.event == "failed":
+        return (f"❌ Restart Postgres bermasalah ({kind}): {why}.\n"
+                "Cek Railway (Postgres dan edge-bff) sekarang; lihat log postgres-memory-cron.")
+    if report.event == "refused":
+        return (f"⚠️ Restart Postgres tidak dijalankan ({kind}): {why}.{wait}\n"
+                "Database tidak disentuh. Coba lagi nanti, atau tunggu jadwal berikutnya.\n" + auto)
+    verdict = "akan dijalankan" if report.would_restart else f"tidak akan dijalankan ({why})"
+    return (f"🧪 Uji restart Postgres ({kind}, mode check, tanpa restart): restart {verdict}.\n"
+            f"Memori {gb(report.memory_gb)}.{wait}\n{auto}")
 
 
 def fetch_broker_freshness(connection: psycopg.Connection, execution_id: str) -> BrokerFreshnessSummary:
@@ -998,6 +1097,8 @@ class TelegramMonitor:
             health = parse_consensus_report(execution_id, details)
         if source_table == AUDIT_QUEUE_SOURCE:
             health = parse_audit_queue(execution_id, details)
+        if source_table == POSTGRES_RESTART_SOURCE:
+            health = parse_postgres_restart(execution_id, details)
 
         with psycopg.connect(self.database_url) as connection:
             if health is not None:
@@ -1048,6 +1149,9 @@ class TelegramMonitor:
                     message_ids.append(self.send_message(self.token, self.chat_id, build_publisher_message(summary)))
                 elif isinstance(summary, AuditQueueHealth):
                     message_ids.append(self.send_message(self.token, self.chat_id, build_audit_queue_message(summary)))
+                elif isinstance(summary, PostgresRestart):        # every report is sent, a success included
+                    message_ids.append(self.send_message(self.token, self.chat_id,
+                                                         build_postgres_restart_message(summary)))
                 elif isinstance(summary, ConsensusReport):       # every weekly report is sent, a clean one included
                     message_ids.append(self.send_message(self.token, self.chat_id, build_consensus_message(summary)))
                 elif isinstance(summary, StockbitUpdateSummary):

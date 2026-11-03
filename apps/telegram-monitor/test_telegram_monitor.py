@@ -458,5 +458,89 @@ class AuditQueueHealthTests(unittest.TestCase):
             tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
         self.assertEqual(len(sent), 1)
 
+class PostgresRestartTests(unittest.TestCase):
+    """EXEC-PG-RESTART-CRON (user go 2026-11-03): postgres-memory-cron's reports, fixed shapes only."""
+
+    def report(self, kind="scheduled", event="success", **overrides):
+        values = {"kind": kind, "event": event, "mode": "apply", "auto": True, "times_wib": "09:45,20:45",
+                  "memory_gb": 3.9, "waited_minutes": 0, "seconds": 14, "edge_ready": 200, "memory_after_gb": 0.12}
+        values.update(overrides)
+        return f"pg-restart-{kind}-20261103T1345-{event}", values
+
+    def message(self, kind="scheduled", event="success", **overrides):
+        import telegram_monitor as tm
+        return tm.build_postgres_restart_message(tm.parse_postgres_restart(*self.report(kind, event, **overrides)))
+
+    def test_each_event_reads_in_plain_words(self):
+        success = self.message()
+        self.assertIn("✅ Restart Postgres sukses (terjadwal)", success)
+        self.assertIn("14 detik", success)
+        self.assertIn("3.90 GB → 0.12 GB", success)
+        self.assertIn("Restart otomatis ON, jam 09:45 dan 20:45 WIB", success)
+        manual = self.message("manual-telegram", "manual", seconds=None, edge_ready=None, memory_after_gb=None)
+        self.assertIn("🔔 Permintaan restart Postgres diterima (manual dari tombol Telegram)", manual)
+        started = self.message("manual-railway", "started", waited_minutes=10)
+        self.assertIn("⏳ Restart Postgres dimulai (manual dari dashboard Railway)", started)
+        self.assertIn("Sudah menunggu 10 menit", started)
+        refused = self.message("manual-telegram", "refused", reasons=["cron_due", "user_runs"], auto=False)
+        self.assertIn("⚠️ Restart Postgres tidak dijalankan", refused)
+        self.assertIn("ada cron lain dalam 45 menit; ada pertanyaan user yang sedang berjalan di EDGE", refused)
+        self.assertIn("Restart otomatis OFF", refused)
+        failed = self.message(event="failed", reasons=["postgres_not_back"])
+        self.assertIn("❌", failed)
+        self.assertIn("tidak hidup kembali", failed)
+        check = self.message(event="check", mode="check", would_restart=False, reasons=["memory_low"])
+        self.assertIn("🧪 Uji restart Postgres", check)
+        self.assertIn("tidak akan dijalankan (memori rendah", check)
+
+    def test_anything_but_the_fixed_shapes_is_refused(self):
+        import telegram_monitor as tm
+        bad = [
+            self.report(kind="scheduled", event="success", kind_="x"),                 # unknown field
+            self.report(event="refused"),                                             # refused needs a reason
+            self.report(event="check", mode="check"),                                 # check needs would_restart
+            self.report(reasons=["rm -rf"]),                                          # free text as a reason
+            self.report(times_wib="9:45; drop"),
+            self.report(memory_gb=-1),
+            self.report(seconds=True),
+            self.report(mode="force"),
+            ("pg-restart-other-20261103T1345-success", self.report()[1]),            # unknown kind
+            (self.report()[0], dict(self.report()[1], event="started")),             # event differs from the id
+            (self.report()[0], None),
+        ]
+        for execution_id, details in bad:
+            with self.subTest(execution_id=execution_id, details=details):
+                with self.assertRaises(ValueError):
+                    tm.parse_postgres_restart(execution_id, details)
+
+    def test_the_monitor_sends_it_once_per_id(self):
+        import telegram_monitor as tm
+        sent, claims = [], {}
+
+        class Conn:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def claim(connection, source, execution_id):
+            if (source, execution_id) in claims:
+                return "duplicate", claims[(source, execution_id)]
+            claims[(source, execution_id)] = len(claims) + 1
+            return "claimed", claims[(source, execution_id)]
+
+        monitor = TelegramMonitor.__new__(TelegramMonitor)
+        monitor.database_url, monitor.token, monitor.chat_id = "postgresql://unused", "t", "c"
+        monitor.send_message = lambda token, chat, text, *a: sent.append(text) or len(sent)
+        saved = tm.psycopg.connect, tm.claim_delivery, tm.mark_sent
+        tm.psycopg.connect = lambda *a, **k: Conn()
+        tm.claim_delivery, tm.mark_sent = claim, lambda c, log_id, ids: None
+        try:
+            self.assertEqual(monitor.notify(tm.POSTGRES_RESTART_SOURCE, *self.report())[0], "sent")
+            self.assertEqual(monitor.notify(tm.POSTGRES_RESTART_SOURCE, *self.report())[0], "duplicate")
+        finally:
+            tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
+        self.assertEqual(len(sent), 1)
+        self.assertIn("sukses", sent[0])
+
+
 if __name__ == "__main__":
     unittest.main()

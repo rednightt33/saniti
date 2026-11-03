@@ -128,7 +128,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 60,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS", sleepApplication: true },
-    env: { COMMAND_COOLDOWN_SECONDS: preserve(), DATABASE_URL: preserve(), RAILWAY_DAILY_SERVICE_INSTANCE_ID: preserve(), RAILWAY_PROJECT_TOKEN: preserve(), RAILWAY_RECOVERY_SERVICE_INSTANCE_ID: preserve(), TELEGRAM_ALLOWED_CHAT_ID: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_WEBHOOK_SECRET: preserve() },
+    env: { COMMAND_COOLDOWN_SECONDS: preserve(), DATABASE_URL: preserve(), RAILWAY_DAILY_SERVICE_INSTANCE_ID: preserve(), RAILWAY_PG_RESTART_SERVICE_ID: preserve(), RAILWAY_PG_RESTART_SERVICE_INSTANCE_ID: preserve(), RAILWAY_PROJECT_TOKEN: preserve(), RAILWAY_RECOVERY_SERVICE_INSTANCE_ID: preserve(), TELEGRAM_ALLOWED_CHAT_ID: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_WEBHOOK_SECRET: preserve() },
   });
   const webGovernorTestRunner = service("web-governor-test-runner", {
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
@@ -265,7 +265,18 @@ export default defineRailway(() => {
     env: { DATABASE_URL: preserve() },
   });
 
+  // EXEC-PG-RESTART-CRON (user go 2026-11-03: "Go langkah 1–9, tafsiran toggle benar, setuju"): restarts Postgres at
+  // PG_RESTART_TIMES_WIB to free the page cache billed as memory (scripts/restart_postgres.py --cron). Deployed by CLI
+  // upload (apps/postgres-memory-cron/deploy.sh), not GitHub-connected. cronSchedule = cron_for(PG_RESTART_TIMES_WIB);
+  // change both together with scripts/set_postgres_restart_times.py. Manual run: Telegram "Restart Postgres" (Run Now).
+  const postgresMemoryCron = service("postgres-memory-cron", {
+    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    replicas: { "sfo": 1 },
+    deploy: { cronSchedule: "45 2,13 * * *", restartPolicyType: "NEVER" },
+    env: { DATABASE_URL: preserve(), PG_RESTART_MODE: preserve(), PG_RESTART_TIMES_WIB: preserve(), RAILWAY_RESTART_TOKEN: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
+  });
+
   return project("lucid-patience", {
-    resources: [idxIntradayCron, orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, terminalPublisher, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, terminalApi, feature04Worker, Postgres, stockbitUpdater, backtestWorker, screenerWorker, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, stockbitUpdaterVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, terminalDisplay, marketAiAuditArtifacts],
+    resources: [idxIntradayCron, orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, terminalPublisher, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, terminalApi, feature04Worker, Postgres, stockbitUpdater, backtestWorker, screenerWorker, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresMemoryCron, postgresVolumeThQL, postgresVolume, stockbitUpdaterVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, terminalDisplay, marketAiAuditArtifacts],
   });
 });

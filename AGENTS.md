@@ -157,10 +157,27 @@ Why it matters:
   plan), then the same with `--apply` (Postgres restarts, about 12 seconds; the limit, start time and edge-bff `/ready`
   are read back). Only with the user's approval; record it in `RAILWAY_CHANGELOG.md` and `EXEC.md`.
 
-Planned, not built yet (EXEC-PG-RESTART-CRON in `EXEC.md`, awaiting the user's go): a `postgres-memory-cron` service
-that restarts Postgres at the times in `PG_RESTART_TIMES_WIB` (09:45 and 20:45 WIB), a Telegram button for a manual
-restart and for turning the automatic restart on or off, and Telegram messages when a restart is requested, starts,
-succeeds, fails or is refused. Until that section is recorded as done, none of it exists: use the manual steps below.
+Automatic restart (EXEC-PG-RESTART-CRON, user go 2026-11-03: "Go langkah 1–9, tafsiran toggle benar, setuju"):
+- Service `postgres-memory-cron` runs `scripts/restart_postgres.py --cron` at the times in its variable
+  `PG_RESTART_TIMES_WIB` (09:45 and 20:45 WIB); its cronSchedule is `cron_for` of those times (`45 2,13 * * *` UTC).
+- A scheduled run restarts only when the automatic restart is ON and memory is at least 0.8 GB. Below that, or OFF, it
+  does nothing and sends nothing.
+- The user's Telegram bot (`/start`) has "🔄 Restart Postgres" (a manual restart now: Railway Run Now of the cron
+  service) and "🧠 Postgres restart: status / auto ON-OFF". A manual run ignores the memory threshold and the switch.
+- Every run keeps the guards: no cron of another service within 45 minutes, outside B6 (07:00-08:45 and 19:00-20:20
+  WIB), no running statement and no active user run (M340); it waits up to 60 minutes for the last two.
+- Telegram messages (telegram-monitor source `Postgres_Restart`): 🔔 manual request, ⏳ started, ✅ success, ❌ failed,
+  ⚠️ refused with the reason, 🧪 check (mode check only).
+- `PG_RESTART_MODE`: `check` decides and reports without restarting; `apply` restarts. `PG_RESTART_AUTO=false` turns
+  the scheduled restart off whatever Telegram says.
+- To change the times: `python3 scripts/set_postgres_restart_times.py --wib HH:MM,HH:MM` (check: refuses a time near
+  another cron or in B6), then `--apply` with the user's approval. It sets the variable and the cronSchedule together
+  and uploads a new deployment (ERRORS M229). Never edit only one of them.
+- The code is uploaded with `apps/postgres-memory-cron/deploy.sh` (not GitHub-connected); its token is the variable
+  `RAILWAY_RESTART_TOKEN` (a project token of its own; revoke it in Project Settings → Tokens to stop everything).
+- The scheduled restart covers the daily crons. An **ad hoc** large update (below) still needs the steps below right
+  after it: do not wait for the next scheduled time.
+- Details: `apps/postgres-memory-cron/README.md`.
 
 A large update is any one of these, scheduled or **ad hoc**. When in doubt, treat the work as one.
 - a Stockbit broker or event round (`stockbit-updater`, `UPDATE_TABLE.md`);
@@ -172,9 +189,10 @@ A large update is any one of these, scheduled or **ad hoc**. When in doubt, trea
 - any job that reads or writes millions of rows.
 
 After a large update and its reader checks:
-1. Run `python3 scripts/restart_postgres.py` (check), then the same command with `--apply`.
+1. Run `python3 scripts/restart_postgres.py` (check), then the same command with `--apply` (or ask the user to press
+   "🔄 Restart Postgres" in Telegram).
    - The script restarts only when all of these hold: Postgres memory is at least 0.8 GB, no cron is due within 45
-     minutes, the time is outside the B6 windows, and no client statement is running.
+     minutes, the time is outside the B6 windows, no client statement is running, and no user run is active (M340).
    - It waits for Postgres and edge-bff `/ready`; Postgres is unavailable for about 12 seconds.
    - A refusal names its reason. Wait and run it again later; do not skip it.
 2. A job started with `scripts/onboarding/run_job.sh` does step 1 itself when its `params.json` has

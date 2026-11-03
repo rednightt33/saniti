@@ -201,8 +201,10 @@ punya papan Nego. Pembuktian dijalankan dalam transaksi yang di-rollback, jadi t
 
 **Restart Postgres (EXEC-PG-MEMORY, `AGENTS.md` "Postgres memory after large updates"):** pekerjaan ini adalah update
 besar. Sesudah pemeriksaan hasilnya:
-1. jalankan `python3 scripts/restart_postgres.py` (cek), lalu dengan `--apply`;
-2. bila ditolak (cron dekat, jendela B6, query berjalan), ulangi nanti;
+1. jalankan `python3 scripts/restart_postgres.py` (cek), lalu dengan `--apply`; atau minta user menekan tombol Telegram
+   "🔄 Restart Postgres" (layanan `postgres-memory-cron`, pengaman yang sama, laporannya di Telegram);
+2. bila ditolak (cron dekat, jendela B6, query atau run user berjalan), ulangi nanti; restart terjadwal 09:45 dan 20:45
+   WIB tetap berjalan sendiri bila memori masih di atas 0,8 GB;
 3. catat di `RAILWAY_CHANGELOG.md`.
 
 
@@ -303,8 +305,10 @@ tabel. Sheet: tabel, definisi kolom (dari `Column_Catalog`), ringkasan per jenis
 
 **Restart Postgres (EXEC-PG-MEMORY, `AGENTS.md` "Postgres memory after large updates"):** pekerjaan ini adalah update
 besar. Sesudah pemeriksaan hasilnya:
-1. jalankan `python3 scripts/restart_postgres.py` (cek), lalu dengan `--apply`;
-2. bila ditolak (cron dekat, jendela B6, query berjalan), ulangi nanti;
+1. jalankan `python3 scripts/restart_postgres.py` (cek), lalu dengan `--apply`; atau minta user menekan tombol Telegram
+   "🔄 Restart Postgres" (layanan `postgres-memory-cron`, pengaman yang sama, laporannya di Telegram);
+2. bila ditolak (cron dekat, jendela B6, query atau run user berjalan), ulangi nanti; restart terjadwal 09:45 dan 20:45
+   WIB tetap berjalan sendiri bila memori masih di atas 0,8 GB;
 3. catat di `RAILWAY_CHANGELOG.md`.
 
 

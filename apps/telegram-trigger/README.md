@@ -14,6 +14,14 @@ Commands:
   ticker; a column button expands to the mandatory dependency bundle. Healthy work and
   expected warmup/formula NULLs cannot be retried through this menu.
 
+- `/restart_postgres` or **Restart Postgres** invokes `postgres-memory-cron` (EXEC-PG-RESTART-CRON): a manual
+  Postgres restart behind that service's guards; its result comes from telegram-monitor. The button is answered "not
+  configured" until `RAILWAY_PG_RESTART_SERVICE_INSTANCE_ID` is set.
+- **Postgres restart: status / auto ON-OFF** (`/pg_restart_status`, `/pg_auto_on`, `/pg_auto_off`) shows the switch,
+  the schedule, Postgres's start time and the last reports, and turns the automatic restart on or off. A switch is a
+  `PG_AUTO_ON`/`PG_AUTO_OFF` row in `Telegram_Command_Log` (target `postgres-memory-cron:auto`, so it never blocks a
+  restart through the cooldown); it never restarts anything itself.
+
 Security and duplicate handling:
 
 - Only `TELEGRAM_ALLOWED_CHAT_ID` is accepted.
@@ -41,6 +49,7 @@ Required Railway variables:
 - `RAILWAY_PROJECT_TOKEN`
 - `RAILWAY_DAILY_SERVICE_INSTANCE_ID`
 - `RAILWAY_RECOVERY_SERVICE_INSTANCE_ID`
+- `RAILWAY_PG_RESTART_SERVICE_INSTANCE_ID`, `RAILWAY_PG_RESTART_SERVICE_ID` (optional; the Postgres restart controls)
 - `COMMAND_COOLDOWN_SECONDS` (optional; defaults to 900)
 
 `RAILWAY_PROJECT_TOKEN`, the bot token, and webhook secret must remain Railway secrets.

@@ -8,8 +8,10 @@ from telegram_trigger import (
     TelegramTrigger,
     extract_incoming_command,
     extract_feature04_action,
+    extract_pg_action,
     menu_markup,
     trigger_railway_run,
+    wib_times,
 )
 
 
@@ -52,7 +54,7 @@ class TelegramTriggerTests(unittest.TestCase):
 
     def test_menu_contains_only_allowlisted_commands(self):
         callbacks = [row[0]["callback_data"] for row in menu_markup()["inline_keyboard"]]
-        self.assertEqual(callbacks, ["run_price", "run_recovery", "f04:status"])
+        self.assertEqual(callbacks, ["run_price", "run_recovery", "f04:status", "restart_postgres", "pg:status"])
 
     def test_extracts_feature04_column_retry(self):
         action = extract_feature04_action({
@@ -200,6 +202,78 @@ class TelegramTriggerTests(unittest.TestCase):
         )
         self.assertEqual(result, "triggered")
         self.assertEqual(finishes, [("db", 9, "TRIGGERED", None)])
+
+
+class PostgresRestartControlTests(unittest.TestCase):
+    """EXEC-PG-RESTART-CRON (user go 2026-11-03): restart button, auto ON/OFF switch and status."""
+
+    def service(self, events, commands=None):
+        return TelegramTrigger(
+            "db", "bot", "123", "railway-token",
+            commands if commands is not None else {
+                "RESTART_POSTGRES": CommandSpec("RESTART_POSTGRES", "postgres-memory-cron", "pg-instance",
+                                                "Restart Postgres")},
+            claim=lambda *args: ("claimed", 5),
+            finish=lambda *args: events.append(("finish", args[2])),
+            railway_trigger=lambda token, instance: events.append(("run", instance)) or True,
+            messenger=lambda token, chat, text, markup=None: events.append(("msg", text)) or 1,
+            callback_answer=lambda *args: None,
+            pg_status=lambda db, cron: events.append(("status", cron)) or ("status text", {}),
+            pg_switch=lambda db, update_id, chat, command: events.append(("switch", command)),
+            pg_cron=lambda: "45 2,13 * * *",
+        )
+
+    def test_restart_button_runs_only_the_cron_service(self):
+        events = []
+        result = self.service(events).handle_update(
+            {"update_id": 7, "callback_query": {"id": "cb", "data": "restart_postgres",
+                                                "message": {"chat": {"id": 123}}}})
+        self.assertEqual(result, "triggered")
+        self.assertIn(("run", "pg-instance"), events)
+        self.assertIn(("finish", "TRIGGERED"), events)
+
+    def test_typed_restart_command_is_recognised(self):
+        command = extract_incoming_command(
+            {"update_id": 8, "message": {"chat": {"id": 123}, "text": "/restart_postgres"}})
+        self.assertEqual(command.command, "RESTART_POSTGRES")
+
+    def test_restart_without_the_cron_wired_is_not_configured(self):
+        events = []
+        result = self.service(events, commands={}).handle_update(
+            {"update_id": 9, "message": {"chat": {"id": 123}, "text": "/restart_postgres"}})
+        self.assertEqual(result, "not_configured")
+        self.assertFalse([e for e in events if e[0] == "run"])
+
+    def test_switch_records_the_command_and_replies_with_status(self):
+        events = []
+        result = self.service(events).handle_update(
+            {"update_id": 10, "callback_query": {"id": "cb", "data": "pg:off", "message": {"chat": {"id": 123}}}})
+        self.assertEqual(result, "pg_switch")
+        self.assertEqual(events[0], ("switch", "PG_AUTO_OFF"))
+        self.assertIn(("status", "45 2,13 * * *"), events)
+        self.assertFalse([e for e in events if e[0] == "run"])     # a switch never restarts
+
+    def test_status_and_typed_switches(self):
+        self.assertEqual(extract_pg_action({"update_id": 1, "message": {"chat": {"id": 1}, "text": "/pg_auto_on"}})[2],
+                         "pg:on")
+        self.assertEqual(extract_pg_action(
+            {"update_id": 1, "message": {"chat": {"id": 1}, "text": "/pg_restart_status"}})[2], "pg:status")
+        self.assertIsNone(extract_pg_action({"update_id": 1, "callback_query": {"data": "pg:drop",
+                                                                                  "message": {"chat": {"id": 1}}}}))
+        events = []
+        self.assertEqual(self.service(events).handle_update(
+            {"update_id": 11, "message": {"chat": {"id": 123}, "text": "/pg_restart_status"}}), "pg_status")
+        self.assertFalse([e for e in events if e[0] == "switch"])
+
+    def test_other_chats_cannot_switch(self):
+        events = []
+        self.assertEqual(self.service(events).handle_update(
+            {"update_id": 12, "message": {"chat": {"id": 999}, "text": "/pg_auto_off"}}), "unauthorized")
+        self.assertEqual(events, [])
+
+    def test_cron_reads_as_wib_times(self):
+        self.assertEqual(wib_times("45 2,13 * * *"), "09:45 dan 20:45 WIB")
+        self.assertEqual(wib_times(None), "tidak terbaca")
 
 
 if __name__ == "__main__":

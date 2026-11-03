@@ -49,6 +49,12 @@ its limit, items that stopped retrying, and the recovery. Only they see their qu
 never free text). The `execution_id` `audit-queue-<service>-<stuck|gaveup|recovered>-YYYY-MM-DD` keeps it to one
 message per service, kind and day.
 
+`Postgres_Restart` (EXEC-PG-RESTART-CRON, user go 2026-11-03) is asked by `postgres-memory-cron`
+(`scripts/restart_postgres.py --cron`): a manual request, a restart started, succeeded, failed or refused, and a check
+run. `parse_postgres_restart` accepts only fixed shapes (kind, event, mode, switch, times, memory, seconds, HTTP code,
+reason codes; never free text). The `execution_id` `pg-restart-<kind>-YYYYMMDDTHHMM-<event>` keeps it to one message per
+run and event; every report is sent, a success included.
+
 ## Required Railway variables
 
 - `DATABASE_URL`

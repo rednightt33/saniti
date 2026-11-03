@@ -10132,7 +10132,7 @@ abu-abu ke kanan bawah, E putih di tengah).
   16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
 - **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
 
-## EXEC-PG-RESTART-CRON — restart Postgres otomatis sesudah rangkaian cron sore (rencana, menunggu go)
+## EXEC-PG-RESTART-CRON — restart Postgres otomatis pagi dan sore, tombol manual dan pesan Telegram (go 2026-11-03)
 
 **Kata user, 2026-11-03:** "Coba jalankan C ya... Cek infra kita dulu dan buat implementation plan. PLan should be
 derived from code checking instead of memory." (C = restart otomatis sesudah cron terjadwal, dari analisis biaya memori
@@ -10249,10 +10249,9 @@ documented di GIt agar AI agent bisa baca / understand the rule. Edit implementa
   hapus tombol dari telegram-trigger.
 - Ditolak: membunuh Postgres dari dalam (`COPY ... TO PROGRAM`), karena kasar, perlu superuser, dan memakai jalur crash.
 
-**Pertanyaan terbuka:**
-1. Go untuk langkah 1–9 (termasuk migrasi grant 2 kolom dan perubahan telegram-trigger dan telegram-monitor)?
-2. "Toggle manual" ditafsirkan sebagai dua hal: tombol restart sekarang dan tombol auto ON/OFF. Benar?
-3. Restart manual tetap ditolak di jendela B6 dan 45 menit sebelum atau sesudah cron lain. Setuju?
+**Go (user, 2026-11-03):** "Go langkah 1–9, tafsiran toggle benar, setuju" (jawaban atas: go langkah 1–9 termasuk
+migrasi grant dan perubahan telegram-trigger/monitor; toggle = tombol restart sekarang dan tombol auto ON/OFF; restart
+manual tetap ditolak di B6 dan 45 menit dari cron lain).
 
 ## EXEC-PG-MEMORY — batas memori Postgres 1 GB dan restart sesudah setiap update besar (go 2026-11-03)
 
