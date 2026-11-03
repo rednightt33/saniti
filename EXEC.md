@@ -10132,6 +10132,16 @@ abu-abu ke kanan bawah, E putih di tengah).
   16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
 - **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
 
+**Lanjutan 2026-11-03.** Kata user (screenshot tab dengan "E" bulat): "favicon belum terupdate sesuai logo terakhir.
+Cek", lalu "Buat Enya lebih besar, khusus di favicon".
+- Cek live: `/favicon.svg`, `/favicon-32.png` dan `/apple-touch-icon.png` sudah sama dengan repo (sha256) dan sudah
+  logo kotak. Penyebabnya browser: favicon disimpan per URL, dan file di-cache sehari (`max-age=86400`).
+- Perubahan: link ikon di `static/index.html`, `backtest/index.html` dan `screener/index.html` diberi versi `?v=20261103`;
+  E di `favicon.svg` diperbesar 1,6 kali dari tengahnya; `favicon-32.png` dirender dari SVG itu.
+  `apple-touch-icon.png` dan `edge-logo.svg` tidak berubah.
+- Bukti: `main` `b612cc79`, edge-bff `d327c0a0` SUCCESS; live `/` memuat `favicon.svg?v=20261103` dan SVG live memuat
+  `scale(1.6)`. Tes `test_the_favicon_is_public` lulus (Postgres sekali pakai).
+
 ## EXEC-PG-RESTART-CRON — restart Postgres otomatis pagi dan sore, tombol manual dan pesan Telegram (go 2026-11-03)
 
 **Kata user, 2026-11-03:** "Coba jalankan C ya... Cek infra kita dulu dan buat implementation plan. PLan should be
