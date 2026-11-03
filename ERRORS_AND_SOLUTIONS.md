@@ -5310,6 +5310,29 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M341 — `railway config pull --force` menulis ulang seluruh `.railway/railway.ts`; job runner selesai tetapi tercatat sibuk (2026-11-03)
+
+- **Ditemukan oleh:** agent saat EXEC-PG-RESTART-CRON.
+- **Verified:**
+  - `railway config pull --force --variables=managed` (CLI 5.71.0) mengganti seluruh file: komentar keputusan user
+    hilang (mis. alasan batas memori Postgres), nama sumber GitHub bergeser (`saniti` → `saniti2`), dan `fn()` menulis
+    `.railway/functions/db-ops-runner.ts`. Tanpa `--variables` perintah itu gagal ("Pass --variables=managed or
+    --variables=unmanaged").
+  - Deployment orc-test-runner `324542c0` (job baca agent 02:53 UTC) mencetak `JOB_EXIT 0`, lalu log mencatat
+    "Starting Container" tanpa output. `runner_guard.sh` membaca dari start terakhir, jadi runner terus tampak sibuk.
+    Pola yang sama pernah terlihat 2026-11-02 (`69aae416`).
+- **Root cause:** (1) pull membuat file dari state live dan tidak menggabungkan dengan file yang ada; (2) penyebab
+  container mulai ulang sesudah job selesai belum diketahui (restart policy NEVER; Postgres di-restart 02:56 UTC).
+- **Solution:**
+  - (1) Untuk layanan baru: tulis blok layanannya sendiri di `railway.ts` (contoh: `postgres-memory-cron`), lalu
+    `railway config plan` harus up to date. Hasil pull hanya dipakai sebagai bahan, jangan di-commit utuh.
+  - (2) Penghapusan deployment runner itu (`railway down`) ditolak pengaman sesi agent, jadi migrasi
+    `20261103_001` menunggu keputusan user.
+- **Status:** (1) FIXED dengan cara kerja. (2) OPEN: perlu izin user untuk mengosongkan runner, atau perbaikan
+  `runner_guard`.
+- **Lesson:** perintah yang menulis ulang file konfigurasi dari state live tidak boleh di-commit tanpa melihat diff;
+  komentar keputusan user adalah bagian dari konfigurasi.
+
 ### M340 — Deploy orc saat pertanyaan user berjalan: run terputus, EDGE "Recovering delivery", Stop menggantung (2026-11-02)
 
 - **Ditemukan oleh:** user (screenshot 2026-11-03 01.54–02.00 WIB): Run 8 "Recovering delivery", lalu "Stopping —

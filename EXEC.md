@@ -10253,6 +10253,23 @@ documented di GIt agar AI agent bisa baca / understand the rule. Edit implementa
 migrasi grant dan perubahan telegram-trigger/monitor; toggle = tombol restart sekarang dan tombol auto ON/OFF; restart
 manual tetap ditolak di B6 dan 45 menit dari cron lain).
 
+**Hasil (2026-11-03, sebagian; mode masih `check`):**
+- Kode: `scripts/restart_postgres.py` (`--cron`), `scripts/set_postgres_restart_times.py`, telegram-monitor sumber
+  `Postgres_Restart`, telegram-trigger tombol "🔄 Restart Postgres" dan "🧠 Postgres restart: status / auto ON-OFF",
+  `apps/postgres-memory-cron/`. Tes: script 59 lulus (16 baru), monitor 26, trigger 18.
+- Railway: layanan `postgres-memory-cron` (`fc204c61`), cron `45 2,13 * * *`, deployment `9f223cdf` SUCCESS;
+  telegram-trigger `74004948` dan telegram-monitor `c6391668` SUCCESS (`main` `18c5c6cd`). Rincian: RAILWAY_CHANGELOG.
+- Uji 03:48 UTC (Run Now, mode check): `manual-railway`, akan restart (semua pengaman lolos), memori 0,10 GB; pesan
+  Telegram 🔔 dan 🧪 terkirim (333, 334).
+- `set_postgres_restart_times.py`: 09:45,20:45 lolos dan plan up to date; 09:30,17:00 ditolak (bentrok dengan 4 cron).
+- Dokumentasi: `AGENTS.md` "Postgres memory after large updates", `UPDATE_TABLE.md` §6 dan B7, README tiga layanan.
+- Belum:
+  - migrasi grant `20261103_001` (runner tampak sibuk, ERRORS M341);
+  - tombol Telegram ditekan user (restart sekarang dan auto OFF/ON);
+  - run terjadwal pertama (20:45 WIB) dalam mode check;
+  - lalu `PG_RESTART_MODE=apply` dan restart sungguhan pertama.
+
+
 ## EXEC-PG-MEMORY — batas memori Postgres 1 GB dan restart sesudah setiap update besar (go 2026-11-03)
 
 **Kata user, 2026-11-03:** "Jalankan 1 dan 2. No 1 harus well documented to ensure bahwa ketika ada update besar yang

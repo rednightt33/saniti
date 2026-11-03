@@ -1,5 +1,29 @@
 # Railway changelog
 
+## 2026-11-03 — postgres-memory-cron: scheduled and Telegram Postgres restart (EXEC-PG-RESTART-CRON)
+
+- User go 2026-11-03: "Go langkah 1–9, tafsiran toggle benar, setuju".
+- **New service `postgres-memory-cron`** (`fc204c61-b525-4697-a549-669420b24d5d`, instance `436d0cba`): created with
+  `railway add`; region sfo, builder DOCKERFILE, restart `NEVER`, cron `45 2,13 * * *` (09:45 and 20:45 WIB) through
+  `.railway/railway.ts` (`railway config apply`; plan up to date). Code uploaded with
+  `apps/postgres-memory-cron/deploy.sh`: deployment `9f223cdf` SUCCESS; the cron stayed `45 2,13 * * *`.
+  - Variables (names): `DATABASE_URL` (`${{Postgres.DATABASE_URL}}`), `TELEGRAM_NOTIFY_URL`
+    (`http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify`), `TELEGRAM_NOTIFY_SECRET` (reference to
+    telegram-monitor), `PG_RESTART_TIMES_WIB=09:45,20:45`, `PG_RESTART_MODE=check`, `RAILWAY_RESTART_TOKEN` (a new
+    project token the user made for this service; set by stdin, never printed; checked: project lucid-patience,
+    environment dev).
+- **telegram-trigger**: `RAILWAY_PG_RESTART_SERVICE_INSTANCE_ID` (`436d0cba…`) and `RAILWAY_PG_RESTART_SERVICE_ID`
+  (`fc204c61…`) set with `--skip-deploys`, then `main` `18c5c6cd`: telegram-trigger `74004948` and telegram-monitor
+  `c6391668` SUCCESS.
+- **Check:** Run Now of postgres-memory-cron at 03:48 UTC (mode check): log `kind manual-railway, action check,
+  would_restart true, memory 0.10 GB`; Telegram `pg-restart-manual-railway-20261103T0348-manual` and `-check` SENT
+  (messages 333, 334). No restart.
+- `railway config pull --force` rewrote the whole file (comments lost, sources renamed), so the pulled file was
+  discarded and the service block written by hand; `railway config plan` up to date.
+- Not done: migration `20261103_001_pgweb_read_edge_jobs.sql`. orc-test-runner reported busy (deployment `324542c0`,
+  my 02:53 read job: `JOB_EXIT 0`, then a container start with no output); removing that deployment was refused by the
+  session's safety check, so it waits for the user.
+
 ## 2026-11-03 — Postgres memory limit back to 4 GB (EXEC-PG-MEMORY)
 
 - User: "Pake 1 gb likely Setiap query akan timeout. Kembalikan ke 4GB ya sekarang tapi keep existing path ...".
