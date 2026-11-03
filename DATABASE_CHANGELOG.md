@@ -1,5 +1,20 @@
 # Database changelog
 
+## 2026-11-03 — Stockbit round c990db81: broker 2026-11-03, Features, INDEX, events (EXEC-BROKER-1103)
+
+- User: "jalankan broker dan event", then "Sekarang lah." (B6 exception). stockbit-updater deployment `25210647`,
+  round `c990db81` APPLY SUCCESS 12:32-13:35 UTC (token expiry 2026-11-04 10:53 UTC, value never stored).
+- Broker: `IDX_Broker_Summary` 2026-11-03: 23,244 rows, 863 symbols, 89 brokers, `buy_freq` filled on every row.
+  `broker_summary_date_quality` INCOMPLETE for 2026-10-30, 11-02 and 11-03: no non-stock symbols (warrants/rights), the
+  importer loads stocks only (ERRORS M218, user decision open).
+- Features: F05 23,244 rows, F02 23,244 rows, F03 and F06 994 rows on 2026-11-03 (863 tickers; 1,686.6 s).
+- INDEX (IHSG): incremental from 2026-11-03, overlap 2026-10-27…10-31 validated (52,863 comparisons); F02 201, F03 3,
+  F05 201, F06 3 rows written, 0 deleted; F01-F06 INDEX newest 2026-11-03.
+- Events (`sbev-20261103T132104Z-e0774f`): corporate action pulled 19,308 (7 new, 4,597 changed, 0 removed); insider
+  pulled 104,676 (253 new, 434 changed, 3 removed = `source_removed_at`); `idx_event_annotation` 123,984 rows.
+- Read back from Postgres (pgweb) 13:36 UTC. Postgres restart refused at 13:38 UTC (postgres-memory-cron due 13:45 UTC);
+  done after the margin (RAILWAY_CHANGELOG).
+
 ## 2026-11-03 — Read grants: publisher on the INDEX broker table, pgweb on EDGE job states (EXEC-IHSG-FLOW, EXEC-PG-RESTART-CRON)
 
 - User: "ok jalankan perbaikan" (2026-11-03), after ERRORS M343.

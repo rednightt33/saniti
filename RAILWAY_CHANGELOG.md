@@ -7,7 +7,9 @@
 - `STOCKBIT_TOKEN` (dev, `railway variable set --stdin`; value never printed or written; expiry 2026-11-04 10:53 UTC;
   the temporary file was deleted). `UPDATER_MODE` APPLY.
 - Deployment `25210647` SUCCESS 12:31:54 UTC; round `c990db81` started 12:32:09 UTC, `broker_plan` dates
-  ["2026-11-03"], 906 symbols. Result: below.
+  ["2026-11-03"], 906 symbols. Result: round SUCCESS 13:35:45 UTC, steps broker, features, index, events,
+  table_status (DATABASE_CHANGELOG 2026-11-03). Postgres memory 3.99 GB; restart refused 13:38 UTC
+  (postgres-memory-cron due 13:45 UTC), to be run after 14:30 UTC.
 
 ## 2026-11-03 — orc-test-runner cleared; grant migrations; terminal-publisher EXEC-IHSG-FLOW again (ERRORS M341, M343)
 
