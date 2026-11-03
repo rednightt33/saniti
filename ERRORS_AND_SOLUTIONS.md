@@ -5310,6 +5310,29 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M345 — "BUY" KSEI yang bukan pembelian: laporan posisi awal ≥5% dan pindah akun; laporan KSEI yang menggabungkan transaksi IDX (2026-11-03)
+
+- **Ditemukan oleh:** agent, saat menyiapkan data beli insider asing 28 Okt-3 Nov untuk publikasi eksternal (user).
+- **Verified (pgweb, 2026-11-03):**
+  - Laporan posisi awal: KSEI mencatat `action_type` BUY dengan `shares_before` 0 saat pemegang melewati 5%. ENRG
+    2026-10-28 CGS International Securities HK 0 → 2.077.576.100 saham (Rp1,77 triliun perkiraan), volume pasar hari
+    itu 149.000.700; MMIX 2026-10-30 Bank of China (HK) 0 → 480.000.000, volume 13.455.800.
+  - Pindah akun: BSML 2026-10-30 Goldfive SELL -611.596.100 dan BUY +611.596.100 di hari yang sama (juga 11-02
+    ±15.856.100).
+  - Agregasi: KSEI melaporkan gabungan beberapa transaksi IDX sebagai satu baris; posisi akhirnya (`shares_after`) sama
+    persis (CYBR 29 Okt = dua transaksi IDX 27 Okt; PEGE 2 Nov = delapan transaksi IDX 29 Okt). Aturan pasangan M241
+    (jumlah saham sama) tidak menangkapnya.
+  - Pada data itu: 97 baris → 94 unik; 4 baris "BUY" bukan pembelian bernilai Rp2,45 triliun dari total Rp2,91 triliun.
+- **Root cause:** sumber KSEI adalah perubahan posisi pemegang ≥5%, bukan daftar transaksi; Stockbit memberinya
+  `action_type` BUY/SELL. Tabel dan katalog tidak menandai laporan posisi awal, pindah akun, atau baris gabungan.
+- **Solution (dipakai untuk ekspor ini, belum di tabel):** pasangan IDX-KSEI lewat ticker + `holder_id` + `shares_after`
+  sama dalam jendela -10…+3 hari; baris KSEI dengan `shares_before` 0 dan pasangan jual-beli hari yang sama
+  dikecualikan; baris dengan saham > volume harian ditandai "perlu verifikasi". Usulan untuk tabel dan katalog AI:
+  bersama M241/M242 di FUTURE_PLAN (menunggu keputusan user).
+- **Status:** OPEN.
+- **Lesson:** data "perubahan posisi" berbeda dengan data "transaksi"; sebelum menjumlahkan, pisahkan laporan posisi
+  awal, perpindahan, dan laporan gabungan.
+
 ### M344 — Semua tombol Run Now Telegram gagal: token Railway telegram-trigger tidak berlaku (2026-11-03)
 
 - **Ditemukan oleh:** user, menekan "🔄 Restart Postgres" dua kali (13:57 UTC); keduanya `FAILED`.
