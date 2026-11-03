@@ -1301,6 +1301,10 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
 - **Ditambahkan atas permintaan user 2026-11-03** ("masukan Cr3 - 3/k_net dan CR3- 3/k_gross ke dalam MD + HHI top 3 net
   dan HHI top 3 sell"): `M-CR3X-NET`, `M-CR3X-GROSS`, `M-HHI3-NETBUY`, `M-HHI3-NETSELL`. Tafsir AI atas "HHI top 3":
   porsi 3 teratas dari HHI sisi pembeli atau penjual net; hasil ujinya jenuh dan sangat berkorelasi dengan CR3.
+- **Ditambahkan 2026-11-03:** entri `M-NET-INTENSITY` (intensitas net beli) dan bagian "Penjelasan dan contoh (untuk
+  pembaca)" di setiap entri, atas permintaan user: "Tolong setiap metode dijelaskan dengan contoh. Walk through the
+  readers agar mereka paham dan mengerti indikator tersebut bicara soal apa." `M-FF-INC` dan `M-FF-HEAVY` sudah ada
+  sejak penyimpanan pertama; yang ditambahkan adalah penjelasan dan contohnya.
 - **Belum dibangun, belum disetujui sebagai pekerjaan.** Skema tabel kamus belum dirancang; tidak ada migrasi.
   Daya prediksi ("pre-rally") belum diuji.
 
@@ -1312,5 +1316,5 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
 5. Kandidat `M-HHI` (HHI fitur) dan `M-TOP3-SHARE-TREND`: dibuang, diganti, atau dipertahankan (empat entri `M-CR3X-*` dan
    `M-HHI3-*` sudah masuk).
 6. Uji peristiwa (forward return bersyarat) sebelum kata "pre-rally" dipakai.
-7. `M-CR3X-NET`: peringkat di dalam kelompok jumlah broker (usulan), angka gerbang (10), dan pasangan intensitas net beli.
+7. `M-CR3X-NET`: peringkat di dalam kelompok jumlah broker (usulan), angka gerbang (10), dan pasangan `M-NET-INTENSITY` (sudah masuk kamus).
 8. Tafsir "HHI top 3" di `M-HHI3-*` sudah sesuai maksud user atau perlu dikoreksi.

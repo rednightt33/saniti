@@ -40,13 +40,86 @@ itu belum dirancang; jangan membuat migrasi dari dokumen ini tanpa go dari user 
    langsung: sebut perkiraan dan minta izin sebelum menjalankannya (cache memori Postgres ikut ditagih; `AGENTS.md`,
    Postgres memory). Perhitungan yang rumit dilakukan di sandbox dari hasil query yang sudah difilter, jangan menarik
    jutaan baris sekaligus.
+9. **Setiap entri dijelaskan dengan contoh untuk pembaca.** Permintaan user 2026-11-03: "Tolong setiap metode dijelaskan
+   dengan contoh. Walk through the readers agar mereka paham dan mengerti indikator tersebut bicara soal apa."
+   Setiap entri dimulai dengan bagian "Penjelasan dan contoh (untuk pembaca)" (intinya, langkah, contoh kecil yang bisa
+   dihitung dengan kalkulator, contoh nyata BBCA, cara membaca, dan apa yang tidak dijawab), baru diikuti "Rincian
+   teknis". Angka contoh nyata dihitung dari data pada 2026-11-03 dan ditandai **[T]**; angka contoh kecil adalah
+   karangan untuk menjelaskan rumus.
 
 Kolom penanda status pada tiap entri: **[T]** terverifikasi di data atau katalog pada 2026-11-03, **[D]** dugaan atau
 usulan yang belum diverifikasi.
 
 ---
 
+## Istilah yang dipakai di dokumen ini
+
+| Istilah | Arti |
+|---|---|
+| Broker | Perusahaan sekuritas yang mengeksekusi transaksi (kode dua huruf, misalnya BK, ZP). **Kode broker bukan identitas investor:** satu broker melayani banyak klien, domestik maupun asing |
+| Beli bruto / jual bruto | Total nilai yang dibeli / dijual, tanpa saling dikurangkan |
+| Net | Beli dikurangi jual. Positif = net beli, negatif = net jual |
+| Pembeli net / penjual net | Broker yang net-nya positif / negatif pada jendela yang dihitung |
+| k | Jumlah broker di sisi yang dihitung. `k_net` = jumlah pembeli net; `k_gross` = jumlah broker yang punya beli bruto |
+| Sesi dan jendela | Sesi = hari bursa saham itu. Jendela = rentang sesi yang dihitung (bawaan 5 sesi, kira-kira satu minggu) |
+| Board | Regular (pasar utama), Nego (negosiasi), Tunai. Tidak pernah dijumlah |
+| Investor Type | Domestic atau Foreign: jenis investor pada transaksi, bukan jenis broker |
+| Persentil | Posisi dalam urutan. Persentil 90 berarti lebih tinggi dari 90% pembandingnya |
+| z-score | Berapa simpangan baku sebuah nilai berada di atas rata-rata pembandingnya. z = 2 berarti sekitar 2 simpangan baku di atas |
+| Pembanding jenis A / B | A = riwayat saham itu sendiri. B = saham lain pada tanggal yang sama |
+| Miliar, triliun | Dalam percakapan "M" berarti miliar dan "T" triliun. Di dokumen ini ditulis lengkap, dalam Rupiah |
+
+---
+
 ## M-FF-INC — Peningkatan foreign flow (5 sesi)
+
+### Penjelasan dan contoh (untuk pembaca)
+
+**Intinya:** apakah dalam 5 sesi terakhir investor asing membeli *lebih banyak* daripada 5 sesi sebelumnya, dengan
+memperhitungkan seberapa ramai saham itu? Ukurannya bukan berapa Rupiah, tetapi berapa **persen dari transaksi saham
+itu** yang berupa net beli asing.
+
+**Langkahnya**
+1. Hitung rasio net asing: (beli asing − jual asing) ÷ total nilai transaksi, selama 5 sesi. Contoh: asing net beli
+   Rp50 miliar dari transaksi Rp1.000 miliar = **5%**.
+2. Hitung rasio yang sama untuk 5 sesi tepat sebelumnya (tidak tumpang tindih).
+3. Peningkatan Δ = rasio sekarang − rasio sebelumnya, dalam poin persentase.
+4. Syarat lolos: Δ > 0 **dan** net asing 5 sesi sekarang > 0.
+5. Urutkan saham dari Δ terbesar.
+
+**Contoh kecil (angka karangan)**
+
+| Saham | Rasio 5 sesi lalu | Rasio sekarang | Δ | Lolos? |
+|---|---:|---:|---:|---|
+| X | −2% | +6% | +8 poin | Ya: asing net beli dan lebih banyak dari sebelumnya |
+| Y | −10% | −2% | +8 poin | Tidak: Δ sama, tetapi asing masih net jual |
+| Z | +12% | +13% | +1 poin | Lolos, tetapi naiknya kecil, peringkatnya rendah |
+
+**Contoh nyata: BBCA** **[T]**
+
+| Jendela | Net asing | Rasio |
+|---|---:|---:|
+| 5 sesi yang berakhir 26 Okt 2026 | −Rp2.145,5 miliar | −15,70% |
+| 5 sesi yang berakhir 2 Nov 2026 (27 Okt – 2 Nov) | +Rp489,4 miliar | +5,57% |
+| **Δ** | | **+21,27 poin** |
+
+- BBCA lolos: asing net beli dan jauh lebih baik daripada sebelumnya. Di antara 379 saham net beli asing, Δ BBCA ada di
+  **persentil 90,2**.
+- **Δ besar di sini terutama karena periode sebelumnya sangat negatif.** BBCA "pulih dari jual besar", bukan "beli
+  besar": net belinya sekarang hanya 5,6% dari transaksi.
+- Net beli itu pun berasal dari satu hari: 28 Okt +Rp1.174,7 miliar, sedangkan empat hari lain net jual (−59,7;
+  −503,5; −6,0; −116,1 miliar).
+- **Syarat Δ > 0 saja tidak memilah:** 297 dari 379 saham net beli punya Δ > 0 (median Δ 3,9 poin; P90 20,5). Karena itu
+  hasilnya harus diurutkan, bukan hanya disaring.
+
+**Cara membaca:** makin besar Δ, makin kuat perubahan arus asing dibanding minggu sebelumnya. Baca bersama level
+(rasio sekarang): Δ +21 dari rasio −15,7% berbeda dari Δ +21 dari rasio +10%.
+
+**Yang tidak dijawab:** apakah net beli itu *besar* untuk saham ini (lihat `M-FF-HEAVY`); apakah harga akan naik
+(belum diuji); dan Δ bergantung pada pembandingnya (periode sebelumnya yang sangat buruk membuat Δ tampak besar).
+
+### Rincian teknis
+
 
 **Pertanyaan yang dijawab:** saham mana yang aliran net beli asingnya naik dalam 5 sesi terakhir dibanding 5 sesi
 sebelumnya?
@@ -75,6 +148,50 @@ sebelumnya?
 - **Belum diuji:** apakah Δ > 0 mendahului kenaikan harga.
 
 ## M-FF-HEAVY — Akumulasi heavy (net beli asing besar terhadap riwayat sendiri)
+
+### Penjelasan dan contoh (untuk pembaca)
+
+**Intinya:** apakah net beli asing 5 sesi terakhir **luar biasa besar untuk saham ini sendiri**? Nilai Rupiah mentah
+menyesatkan: Rp500 miliar itu biasa untuk BBCA tetapi luar biasa untuk saham kecil. Jadi nilai sekarang dibandingkan
+dengan **252 nilai net-5-sesi sebelumnya milik saham yang sama** (kira-kira setahun). Hari ini tidak ikut dihitung.
+
+**Dua ukuran "seberapa luar biasa"**
+- **Persentil:** persentil 91 berarti net beli sekarang lebih besar dari 91% nilai riwayatnya.
+- **z-score:** berapa simpangan baku di atas rata-rata riwayatnya; z ≥ 2 umumnya dianggap tidak biasa.
+
+**Contoh kecil (angka karangan)** Saham A: net asing 5 sesi sekarang **+Rp360 miliar**. Dari 252 nilai riwayatnya,
+rata-ratanya Rp50 miliar, simpangan bakunya Rp120 miliar, dan 230 nilai lebih kecil dari 360.
+- Persentil = 230 ÷ 252 = **91,3**.
+- z-score = (360 − 50) ÷ 120 = **2,58**.
+
+Syarat tambahan agar bukan lonjakan satu hari: net beli di minimal 3 dari 5 sesi.
+- Saham A: net beli di 4 dari 5 sesi, **lolos**.
+- Saham B: angkanya sama (+Rp360 miliar), tetapi semuanya dari satu hari (transaksi blok), net beli di 1 dari 5 sesi,
+  **ditolak**.
+
+**Contoh nyata: BBCA, 5 sesi berakhir 2 Nov 2026** **[T]**
+
+| Ukuran | BBCA | Ambang | Lolos? |
+|---|---:|---:|---|
+| Net asing 5 sesi | +Rp489,4 miliar | > 0 | Ya |
+| Persentil 252 sesi | 84,1 | ≥ 90 | **Tidak** |
+| z-score 252 sesi | 0,71 | ≥ 2 | **Tidak** |
+| Sesi net beli dari 5 | 1 | ≥ 3 | **Tidak** |
+
+Net beli BBCA positif dan naik (lolos `M-FF-INC`), tetapi **tidak heavy**: hanya lebih besar dari 84% riwayatnya sendiri
+dan berasal dari satu hari saja. Ini contoh bahwa kedua entri menjawab pertanyaan yang berbeda.
+
+**Gambaran seluruh pasar (2 Nov 2026, Regular):** dari 858 saham, 379 net beli; 75 punya persentil ≥ 90 (sekitar 84
+saham akan lolos hanya karena peluang), 18 punya z ≥ 2. Dari 75 saham itu, 65 juga punya Δ > 0 (`M-FF-INC`).
+
+**Cara membaca:** persentil tinggi berarti besar dibanding kebiasaan sendiri, bukan dibanding saham lain. Persentil 90
+meloloskan "10% teratas", bukan "luar biasa"; untuk yang benar-benar tidak biasa pakai persentil 95 atau z ≥ 2.
+
+**Yang tidak dijawab:** apakah net beli itu akan berlanjut atau diikuti kenaikan harga (belum diuji); jendela yang
+tumpang tindih membuat nilai hari-hari berurutan tidak independen.
+
+### Rincian teknis
+
 
 **Pertanyaan yang dijawab:** saham mana yang net beli asing 5 sesinya luar biasa besar dibanding kebiasaan saham itu?
 
@@ -107,6 +224,46 @@ teratas", bukan "luar biasa". P95 atau z ≥ 2 lebih tepat bila yang dimaksud be
 - **Belum diuji:** apakah akumulasi heavy mendahului kenaikan harga.
 
 ## M-TOPN-RATIO — Rasio top N pembeli dibagi top N penjual
+
+### Penjelasan dan contoh (untuk pembaca)
+
+**Intinya:** dalam 5 sesi, apakah segelintir broker membeli **jauh lebih banyak** daripada segelintir broker terbesar
+yang menjual? Ini mengukur ketimpangan pihak-pihak terbesar di dua sisi, bukan total aliran.
+
+**Langkahnya**
+1. Per broker, jumlahkan net (beli − jual) selama 5 sesi.
+2. B = jumlah net N pembeli net terbesar. S = jumlah (nilai positif dari) net N penjual net terbesar. N = 3 sebagai
+   contoh.
+3. Rasio = B ÷ S. Pendampingnya, imbalance = (B − S) ÷ (B + S), selalu antara −1 dan +1.
+
+**Contoh kecil (angka karangan, miliar Rp)**
+
+| | B (3 pembeli: 40, 30, 20) | S | Rasio B/S | Imbalance |
+|---|---:|---|---:|---:|
+| Penjual terbesar tersebar | 90 | 60 (25, 20, 15) | 1,50 | 0,20 |
+| Penjual terbesar sangat kecil | 90 | 5 (3, 1, 1) | 18,0 | 0,89 |
+
+Rasio meloncat dari 1,5 ke 18 hanya karena penyebutnya kecil. Imbalance tetap di bawah 1 dan lebih mudah dibaca.
+
+**Contoh nyata: BBCA, 5 sesi (27 Okt – 2 Nov 2026), Regular** **[T]**
+
+| Cakupan | Top 3 beli | Top 3 jual | Rasio | Imbalance |
+|---|---:|---:|---:|---:|
+| Semua investor | Rp1.149,0 miliar | Rp1.008,8 miliar | 1,14 | 0,07 |
+| Hanya asing | Rp1.228,2 miliar | Rp727,7 miliar | 1,69 | 0,26 |
+
+- Semua investor: hampir seimbang. Pembeli dan penjual terbesar sama-sama besar.
+- Hanya asing: pembeli terbesar sekitar 1,7 kali penjual terbesar, jadi lebih timpang.
+- Net asing totalnya Rp489,4 miliar, sama dengan `foreign_net_5d` di `Feature_06`, sehingga hitungannya konsisten.
+
+**Cara membaca:** rasio > 1 (imbalance > 0) berarti pembeli terbesar lebih besar dari penjual terbesar. Untuk semua
+investor, total net beli sama dengan total net jual, sehingga ukuran ini mengukur **konsentrasi**, bukan arah total.
+
+**Yang tidak dijawab:** pada cakupan hanya-asing, 75% saham punya kurang dari 3 broker di salah satu sisi sehingga
+top 3 tidak terdefinisi (lihat gerbang di Rincian teknis). Daya prediksi belum diuji.
+
+### Rincian teknis
+
 
 **Pertanyaan yang dijawab:** apakah beli dikuasai segelintir broker sementara jual tersebar (timpang), atau sebaliknya?
 Ini mengukur **konsentrasi**, bukan arah total: untuk semua investor, jumlah net semua broker pasti nol (84 broker BBCA
@@ -154,6 +311,40 @@ Ini mengukur **konsentrasi**, bukan arah total: untuk semua investor, jumlah net
 
 ## M-CR3X-NET — Konsentrasi pembeli net (atau penjual net): CR3 − 3/k_net
 
+### Penjelasan dan contoh (untuk pembaca)
+
+**Intinya:** dari seluruh net beli, berapa yang dipegang 3 pembeli terbesar, **dibandingkan dengan yang akan mereka
+pegang jika semua pembeli berbagi rata**? Angka tinggi berarti pembelian bersih terpusat di sedikit broker.
+
+**Mengapa dikurangi 3/k?** Makin banyak pembeli, makin kecil bagian 3 teratas secara otomatis. Membandingkan CR3 mentah
+antar saham tidak adil.
+
+| | Pembeli net (k) | Bagian merata 3/k | CR3 (nyata) | CR3 − 3/k |
+|---|---:|---:|---:|---:|
+| Saham X | 10 | 30,0% | 40% | **0,10** (hanya sedikit di atas merata) |
+| Saham Y | 40 | 7,5% | 40% | **0,325** (jauh di atas merata) |
+
+CR3 sama-sama 40%, tetapi pada Y tiga pembeli itu jauh lebih menonjol di antara 40 pembeli.
+
+**Contoh nyata: BBCA, 5 sesi (27 Okt – 2 Nov 2026), Regular, semua investor** **[T]**
+- 40 pembeli net membeli net total Rp1.623,1 miliar. Tiga terbesar: BK 498,2 + ZP 412,4 + YU 238,4 = **Rp1.149,0
+  miliar**.
+- CR3 = 1.149,0 ÷ 1.623,1 = 70,8%. Bagian merata = 3 ÷ 40 = 7,5%. Hasil = **0,633** (63,3 poin; 9,4 kali bagian
+  merata).
+- Pembeli ke-4 sampai ke-6 (AZ, AG, DX) hanya Rp58–92 miliar, jauh di bawah tiga teratas.
+- Di antara 716 saham, BBCA persentil 70,5; di antara saham dengan jumlah pembeli mirip (28–62 pembeli net), persentil
+  87,3.
+
+**Cara membaca:** skala 0 (rata) sampai 1 − 3/k (maksimum; k = 40 → 0,925; k = 10 → 0,70). Makin tinggi, makin
+terkonsentrasi. BBCA 0,633 adalah sekitar 68% dari maksimum untuk k = 40.
+
+**Yang tidak dijawab:** **arah.** Sisi jual BBCA juga terkonsentrasi (0,553). Tidak membedakan satu broker dominan dari
+tiga yang setara (pakai share top 1). Dan konsentrasi tinggi dengan intensitas net rendah, seperti BBCA (lihat
+`M-NET-INTENSITY`), belum tentu akumulasi besar.
+
+### Rincian teknis
+
+
 **Ditambahkan atas permintaan user 2026-11-03:** "masukan Cr3 - 3/k_net dan CR3- 3/k_gross ke dalam MD".
 
 **Pertanyaan yang dijawab:** seberapa terpusat net beli (atau net jual) di sedikit broker, setelah memperhitungkan
@@ -193,14 +384,51 @@ jumlah brokernya?
   3/40 = 0,075, hasil **0,633** (63,3 poin; 9,4 kali bagian merata). Persentil 70,5 di 716 saham; 87,3 di kelompok k
   28–62 (126 saham; median kelompok 0,515, P90 0,647). Riwayat sendiri (hitungan 2026-11-03, `Feature_02`, 252 sesi):
   median 0,531, rentang 0,257–0,838, persentil 65,5. Sisi jual: k = 44, hasil 0,553.
-- **Pasangan yang disarankan AI (belum diputuskan):** intensitas net beli = Σ net beli ÷ Σ nilai beli bruto (median
-  0,30; korelasi dengan konsentrasi 0,16–0,26). BBCA: 18,5% (persentil 20,5), artinya konsentrasi tinggi tetapi porsi net
-  kecil.
+- **Pasangan:** lihat `M-NET-INTENSITY` (entri sendiri, ditambahkan atas permintaan user 2026-11-03). BBCA:
+  intensitas 18,5% (persentil 20,5), jadi konsentrasi tinggi tetapi porsi net kecil.
 
 **Keterbatasan:** satu jendela; kestabilan peringkat dan daya prediksi belum diuji; hanya melihat 3 broker teratas, jadi
 tidak membedakan satu broker dominan dari tiga yang setara (pakai share top 1).
 
 ## M-CR3X-GROSS — Konsentrasi beli bruto: CR3_gross − 3/k_gross
+
+### Penjelasan dan contoh (untuk pembaca)
+
+**Intinya:** bukan "siapa yang menumpuk posisi", tetapi **"siapa yang paling aktif membeli"**. Ukurannya memakai total
+nilai beli setiap broker tanpa dikurangi penjualannya, lalu mengambil bagian tiga terbesar, dikurangi bagian merata
+(3/k_gross).
+
+**Mengapa dua ukuran (net dan gross)?** Broker yang membeli Rp300 miliar dan menjual Rp280 miliar tetap sangat aktif
+(masuk tiga besar gross) tetapi nyaris tidak menumpuk apa pun (net hanya +Rp20 miliar).
+
+**Contoh kecil (angka karangan, total beli saham = Rp1.000 miliar)**
+
+| Broker | Beli | Jual | Net |
+|---|---:|---:|---:|
+| M1 | 300 | 280 | +20 |
+| M2 | 250 | 260 | −10 |
+| M3 | 200 | 190 | +10 |
+
+Tiga broker ini memegang 75% dari seluruh pembelian (gross), tetapi net mereka hanya +Rp20 miliar. Gross tinggi, net
+hampir nol: aktif, bukan menumpuk.
+
+**Contoh nyata: BBCA, 5 sesi, Regular, semua investor** **[T]**
+- Tiga pembeli bruto terbesar: BK Rp1.171,6; ZP Rp1.130,5; AK Rp890,8 miliar = **Rp3.192,8 miliar** dari total beli
+  Rp8.783,4 miliar = **36,4%**. Ada 83 broker yang membeli, bagian merata 3/83 = 3,6%. Hasil = **0,327**.
+- Persentil gross BBCA hanya **6,7** di antara 716 saham (versi net: 70,5): beli bruto BBCA tersebar dibanding saham
+  lain, sementara beli bersihnya terkonsentrasi.
+- Dari Rp3.192,8 miliar yang dibeli tiga broker itu, net hanya Rp765,4 miliar (24,0%). **AK ada di tiga besar gross,
+  tetapi net jual Rp145,2 miliar.**
+
+**Cara membaca:** nilai tinggi = pembelian didominasi sedikit broker besar. Bandingkan dengan versi net: net tinggi dan
+gross rendah = beli bersih terpusat di tengah banyak peserta; keduanya tinggi = pusat pembelian dan aktivitas ada di
+broker yang sama.
+
+**Yang tidak dijawab:** gross lebih terpengaruh ukuran saham (korelasi −0,30) dan jumlah broker (−0,40) daripada net,
+jadi harus diperingkat di dalam kelompok yang sebanding.
+
+### Rincian teknis
+
 
 **Ditambahkan atas permintaan user 2026-11-03** (kalimat yang sama dengan M-CR3X-NET).
 
@@ -229,7 +457,104 @@ tidak membedakan satu broker dominan dari tiga yang setara (pakai share top 1).
 - Dari Rp3.192,8 miliar yang dibeli tiga broker itu, net hanya Rp765,4 miliar (24,0%); AK net jual Rp145,2 miliar.
 - Ide belum diuji: net ÷ bruto dari 3 pembeli teratas sebagai ukuran keyakinan.
 
+## M-NET-INTENSITY — Intensitas net beli
+
+**Ditambahkan atas permintaan user 2026-11-03** (user menandai istilah ini dan meminta penjelasannya).
+
+### Penjelasan dan contoh (untuk pembaca)
+
+**Intinya:** dari setiap Rp100 yang dibeli di saham ini, **berapa yang benar-benar "bersih"**, yaitu tidak dibatalkan oleh
+penjualan broker yang sama? Intensitas rendah berarti banyak pembelian dan penjualan bolak-balik di broker yang sama;
+tinggi berarti pembelian cenderung searah.
+
+**Langkahnya**
+1. Per broker, jumlahkan net selama 5 sesi (beli − jual, kedua Investor Type dijumlah).
+2. Jumlahkan net semua broker yang net-nya **positif** (total net beli).
+3. Bagi dengan total nilai beli bruto semua broker.
+
+Hasilnya sama dengan **1 − (volume yang dibeli sekaligus dijual oleh broker yang sama ÷ total beli)**.
+
+**Contoh kecil (angka karangan, miliar Rp)** Dua saham dengan total beli sama, Rp190 miliar:
+
+| Saham | Broker (beli / jual) | Total net beli | Intensitas |
+|---|---|---:|---:|
+| P (bolak-balik) | A 100/90, B 50/60, C 40/0, D 0/40 | 10 (A) + 40 (C) = **50** | 50 ÷ 190 = **26,3%** |
+| Q (searah) | E 100/0, F 90/0, G 0/100, H 0/90 | 100 + 90 = **190** | 190 ÷ 190 = **100%** |
+
+Pada P, Rp140 miliar (73,7%) dibeli oleh broker yang juga menjual, jadi saling menghapus. Pada Q, tidak ada yang
+saling menghapus.
+
+**Contoh nyata: BBCA, 5 sesi (27 Okt – 2 Nov 2026), Regular, semua investor** **[T]**
+- Total net beli 40 pembeli net: **Rp1.623,1 miliar**. Total nilai beli bruto semua broker: **Rp8.783,4 miliar**.
+- Intensitas = 1.623,1 ÷ 8.783,4 = **18,5%**. Artinya 81,5% dari nilai beli BBCA dibatalkan oleh penjualan broker yang
+  sama.
+- Di antara 716 saham, BBCA persentil **20,5** (rendah). Pembanding: ARKO 45,9% (persentil 79,3), BMRI 30,9% (persentil
+  51,8).
+- Sebaran 716 saham: median 30,3%, P10 12,7%, P90 56,7%.
+
+**Cara membaca:** makin tinggi, makin sedikit pembelian yang "dibatalkan" oleh penjualan broker yang sama. BBCA memiliki
+konsentrasi pembeli yang tinggi (`M-CR3X-NET` 0,633) tetapi intensitas rendah: sedikit broker memegang net beli, namun
+net beli itu kecil dibanding total aktivitas.
+
+**Yang tidak dijawab:**
+- **Arah.** Untuk semua investor, total net beli sama dengan total net jual, jadi intensitas hanya mengukur seberapa
+  "bersih" aliran, bukan apakah harga akan naik.
+- **Level broker, bukan investor.** Dua klien dari broker yang sama, satu asing membeli dan satu domestik menjual,
+  saling menghapus pada ukuran ini.
+- Satu jendela; kestabilan dan daya prediksi belum diuji.
+
+### Rincian teknis
+
+- **Rumus:** intensitas = Σ net beli (broker net positif) ÷ Σ beli bruto semua broker; jendela 5 sesi; Regular; semua
+  investor. **Gerbang:** sama dengan `M-CR3X-NET` (minimal 10 pembeli net).
+- **Sumber:** `IDX_Broker_Summary` (`"Buy Value"`, `"Sell Value"`), dihitung di sandbox (prinsip 8). **[T]**
+- **Bukti (716 saham, 5 sesi 27 Okt – 2 Nov 2026):** P10 / P50 / P90 = 0,127 / 0,303 / 0,567; bin terpadat 18,7%;
+  korelasi peringkat dengan jumlah pembeli net −0,31 dan dengan ukuran saham −0,07; dengan konsentrasi: CR3 0,26,
+  share top 1 0,19, CR3 − 3/k 0,16. Jadi intensitas hampir independen dari konsentrasi dan memberi informasi lain.
+  **[T]**
+- **Pembanding:** peringkat persentil antar saham pada tanggal yang sama; sebaiknya di dalam kelompok jumlah broker
+  yang mirip (lihat `M-CR3X-NET`). Riwayat sendiri belum dihitung.
+- **Gunakan bersama:** `M-CR3X-NET` (konsentrasi) dan `M-FF-HEAVY` (arah asing). Konsentrasi saja tidak cukup, karena
+  broker yang saling menghapus tetap bisa tampak terkonsentrasi.
+
+---
+
 ## M-HHI3-NETBUY dan M-HHI3-NETSELL — Porsi 3 teratas dari HHI sisi pembeli net / penjual net
+
+### Penjelasan dan contoh (untuk pembaca)
+
+**Intinya:** HHI adalah satu angka yang menggambarkan seberapa terpusat sebuah sisi: bobot tiap broker dikuadratkan lalu
+dijumlah, sehingga broker besar sangat berpengaruh. Ukuran ini menjawab: **dari angka HHI sisi pembeli (atau penjual),
+berapa persen berasal dari tiga broker terbesar?**
+
+**Langkahnya**
+1. Bobot tiap pembeli net = net-nya ÷ jumlah net semua pembeli net.
+2. HHI sisi = jumlah semua bobot yang dikuadratkan.
+3. Ukuran = jumlah kuadrat bobot 3 terbesar ÷ HHI sisi.
+
+**Contoh kecil (angka karangan, 10 pembeli, tiga teratas memegang 60% dari net beli)**
+
+| Susunan | Bobot tiga teratas | HHI sisi | Ukuran | Share broker terbesar |
+|---|---|---:|---:|---:|
+| Tiga setara | 20%, 20%, 20% | 0,143 | **0,840** | 20% |
+| Satu paus | 40%, 10%, 10% | 0,203 | **0,887** | 40% |
+
+Susunannya sangat berbeda (broker terbesar 20% lawan 40%), tetapi ukurannya hanya 0,840 lawan 0,887. Ukuran ini
+cepat mendekati 1 dan kurang peka. Share broker terbesar membedakannya jelas (20% lawan 40%).
+
+**Contoh nyata: BBCA, 5 sesi, Regular, semua investor** **[T]**
+- Sisi beli (40 pembeli net): bobot BK 0,307, ZP 0,254, YU 0,147. Jumlah kuadratnya 0,1804, dari HHI sisi beli 0,1896.
+  Ukuran = 0,1804 ÷ 0,1896 = **0,951**.
+- Sisi jual (44 penjual net): **0,919**.
+
+**Cara membaca:** mendekati 1 berarti hampir seluruh konsentrasi sisi itu berasal dari tiga broker teratas. Karena
+hampir separuh saham bernilai di atas 0,95, angka ini kurang berguna untuk memilah saham.
+
+**Yang tidak dijawab:** arah (sisi beli dan sisi jual dihitung terpisah), dan daya prediksi (belum diuji).
+Rekomendasi AI: jangan dipakai sebagai penyaring tunggal.
+
+### Rincian teknis
+
 
 **Ditambahkan atas permintaan user 2026-11-03:** "HHI top 3 net dan HHI top 3 sell". **Tafsir AI** (dari diskusi
 "top 3 HHI net share out of total HHI"): bila salah, user mengoreksi.
@@ -275,7 +600,7 @@ tidak membedakan satu broker dominan dari tiga yang setara (pakai share top 1).
 |---|---|---|
 | "Saham yang foreign flow-nya naik 5 hari" | M-FF-INC | Usulan |
 | "Saham dengan akumulasi heavy" | M-FF-HEAVY, atau M-FF-HEAVY **dan** M-TOPN-RATIO | Terbuka: satu daftar atau dua |
-| "Pembelian terkonsentrasi di sedikit broker" (screener) | M-CR3X-NET (peringkat dalam kelompok jumlah broker); M-CR3X-GROSS sebagai konteks aktivitas; pasangan intensitas net beli | Usulan; M-HHI3-* tidak disarankan sebagai penyaring tunggal |
+| "Pembelian terkonsentrasi di sedikit broker" (screener) | M-CR3X-NET (peringkat dalam kelompok jumlah broker); M-CR3X-GROSS sebagai konteks aktivitas; pasangan M-NET-INTENSITY | Usulan; M-HHI3-* tidak disarankan sebagai penyaring tunggal |
 | "Indikator pre-rally" | Menunggu uji peristiwa | Belum ada |
 
 ## Kandidat entri dari riset 2026-11-03 (belum diminta masuk kamus)
