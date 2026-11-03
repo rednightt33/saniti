@@ -138,15 +138,49 @@ Never commit secret values, database URLs, passwords, private keys, Railway toke
 
 Railway resolves a reference variable (`${{service.NAME}}`) when the referencing service is deployed. After a secret or any referenced variable changes at its source, list its consumers with `python3 scripts/railway_reference_consumers.py <service>.<NAME>` and redeploy each of them (`--redeploy`, with the user's approval for the change); a consumer left undeployed keeps the old value (ERRORS M308: web search refused for 13 days on the OpenRouter key of an older deploy). The script reads the consumers from the live project and prints names and references only.
 
-## Postgres memory after large writes
+## Postgres memory after large updates
 
-User decision 2026-11-01 (ERRORS M319): "Restart terencana Postgres sesudah setiap backfill besar. Memori langsung
-bersih, dengan jeda sekitar satu menit." After a backfill, a full recalculation or any job that writes millions of
-rows, and after its reader checks, run `python3 scripts/restart_postgres.py` (check), then with `--apply`.
-- The script restarts only when Postgres memory is above 1.5 GB, no cron is due within 45 minutes, the time is
-  outside the B6 windows, and no client statement is running.
-- It waits for Postgres and edge-bff `/ready`.
-- Record the restart in `RAILWAY_CHANGELOG.md`.
+User decisions: 2026-11-01 (ERRORS M319): "Restart terencana Postgres sesudah setiap backfill besar. Memori langsung
+bersih, dengan jeda sekitar satu menit." 2026-11-03 (EXEC-PG-MEMORY): "Jalankan 1 dan 2. No 1 harus well documented to
+ensure bahwa ketika ada update besar yang sifatnya ad hoc, maka AI agent aware akan hal ini. Untuk nomor 2, kita coba
+turunkan menjadi 1 giga."
+
+Why it matters:
+- Railway bills the Postgres container's memory, and that includes the Linux page cache a large read or write leaves
+  behind.
+- The cache stays for hours after the work ends (it held 4 GB for 3 hours on 2026-11-02).
+- The container limit is 1 GB (`.railway/railway.ts`, `Postgres.deploy.limitOverride`). Postgres itself uses about
+  0.1–0.3 GB at rest (`shared_buffers` 128 MB); the rest is cache.
+
+A large update is any one of these, scheduled or **ad hoc**. When in doubt, treat the work as one.
+- a Stockbit broker or event round (`stockbit-updater`, `UPDATE_TABLE.md`);
+- a backfill or a full recalculation of a Feature or `_INDEX` table;
+- a Feature repair job (for example `verification/feature04_bonds/repair_job.py`);
+- a price refill or a price correction (`idx-price-cron` manual, fixed-income correction);
+- a manual or backfill run of `terminal-publisher`;
+- a migration that rewrites or copies a large table, or builds an index on one;
+- any job that reads or writes millions of rows.
+
+After a large update and its reader checks:
+1. Run `python3 scripts/restart_postgres.py` (check), then the same command with `--apply`.
+   - The script restarts only when all of these hold: Postgres memory is at least 0.8 GB, no cron is due within 45
+     minutes, the time is outside the B6 windows, and no client statement is running.
+   - It waits for Postgres and edge-bff `/ready`; Postgres is unavailable for about 12 seconds.
+   - A refusal names its reason. Wait and run it again later; do not skip it.
+2. A job started with `scripts/onboarding/run_job.sh` does step 1 itself when its `params.json` has
+   `"large_write": true`. Every other job prints a `POSTGRES_MEMORY_CHECK` line at its end: when that line says
+   `READY`, run step 1.
+3. Record the restart in `RAILWAY_CHANGELOG.md`.
+
+Before a deploy of `market-ai-orc` or a Postgres restart, check that no user run is active (`edge_bff.jobs` QUEUED,
+RUNNING or RECOVERING; `AI_conversation_turn` RUNNING); wait until none is (ERRORS M340).
+
+Heavy jobs raise `work_mem` to 64 MB and backfills raise `maintenance_work_mem` to 256 MB per connection. Under the
+1 GB limit, run them one at a time. If Postgres is killed for memory (a restart nobody started, `pg_postmaster_start_time`
+newer than expected, connections dropped during a heavy job):
+- stop the job;
+- record it in `ERRORS_AND_SOLUTIONS.md`;
+- ask the user before raising the limit again (the way back is `memoryBytes` 4000000000).
 
 ## History rules
 

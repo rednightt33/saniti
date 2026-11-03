@@ -11,6 +11,9 @@
 # while an orc-test-runner suite runs (until its log prints OTR {"event": "done"}).
 # Railway IDs: PROJECT_CONTEXT.md. A job prints OUT/ERR/VERDICT lines (JOB_DONE when it wants to say so); the
 # Dockerfile's wrapper prints JOB_EXIT <exit code> after every job (ERRORS M322).
+# A job that writes a lot (AGENTS.md "Postgres memory after large updates") puts "large_write": true in its params.json:
+# the script then restarts Postgres afterwards through scripts/restart_postgres.py --apply (all its guards apply); every
+# other job ends with a POSTGRES_MEMORY_CHECK line (EXEC-PG-MEMORY).
 # Optional environment (EXEC-PRICE-GAP-0917): RUN_JOB_POLL_ROUNDS (20 s each, default 90) and RUN_JOB_LOG_LINES
 # (default and most 5000: `railway logs` refuses more with "Error in limit - Invalid input") for long jobs; RUN_JOB_EXTRA_VARS, space-separated NAME=reference pairs (Railway references such as
 # ${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}, never values) set like DATABASE_URL for the run and removed afterwards.
@@ -59,3 +62,11 @@ for _ in $(seq 1 "${RUN_JOB_POLL_ROUNDS:-90}"); do
   ended "$LOG" && break
 done
 grep -c "^OUT \|\"OUT " "$LOG"; grep "ERR \|VERDICT\|Traceback\|JOB_DONE\|JOB_EXIT\|MIG \|READBACK" "$LOG" | cut -c1-400
+# EXEC-PG-MEMORY (user 2026-11-03, AGENTS.md "Postgres memory after large updates"): a job whose params.json says
+# "large_write": true restarts Postgres afterwards through scripts/restart_postgres.py --apply (every guard of that
+# script applies: memory, crons, B6, running statements); every other job prints the memory check, so the agent sees it
+if grep -q '"large_write": *true' "$STAGE/params.json" 2>/dev/null; then
+  echo "POSTGRES_RESTART (large_write)"; python3 "$HERE/../restart_postgres.py" --apply 2>&1 | tail -2
+else
+  echo "POSTGRES_MEMORY_CHECK"; python3 "$HERE/../restart_postgres.py" 2>&1 | tail -1
+fi

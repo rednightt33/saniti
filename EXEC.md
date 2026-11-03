@@ -10132,6 +10132,57 @@ abu-abu ke kanan bawah, E putih di tengah).
   16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
 - **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
 
+## EXEC-PG-MEMORY — batas memori Postgres 1 GB dan restart sesudah setiap update besar (go 2026-11-03)
+
+**Kata user, 2026-11-03:** "Jalankan 1 dan 2. No 1 harus well documented to ensure bahwa ketika ada update besar yang
+sifatnya ad hoc, maka AI agent aware akan hal ini. Untuk nomor 2, kita coba turunkan menjadi 1 giga. Cek infrastruktur,
+cek database, jalankan, buat implementation plan, and ensure bahwa setiap keputusan diambil berdasarkan inspeksi code
+rather than just from memory." (1 = restart otomatis sesudah pekerjaan besar; 2 = turunkan batas memori.)
+
+**Inspeksi (2026-11-03):**
+- **Batas memori:** `.railway/railway.ts` `Postgres.deploy.limitOverride.containers.memoryBytes = 4000000000` (user
+  2026-10-22), diterapkan lewat `railway config apply`.
+- **Pemakaian 24 jam (metrik Railway):** diam 0,1–0,6 GB (0,1 GB sesudah restart). Tertahan 3,5–4,0 GB setelah
+  putaran broker dan rangkaian cron sore; memori USD 0,54/hari, 38,7 GB-jam.
+- **Postgres 18.6:**
+  - `shared_buffers` 128 MB, `work_mem` 4 MB, `maintenance_work_mem` 64 MB, `max_connections` 500, 4 koneksi klien;
+  - job berat menaikkan `work_mem` ke 64 MB (stockbit-updater `refresh.py:167`, feature-05-06-job, backfill) dan
+    `maintenance_work_mem` ke 256 MB (backfill Feature 02).
+  - Memori anonim yang nyata jauh di bawah 1 GB saat diam. Risiko OOM ada pada job berat paralel.
+- **`scripts/restart_postgres.py`:**
+  - me-restart hanya bila memori ≥ `--min-gb` 1,5, tidak ada cron dalam 45 menit, di luar B6, dan tanpa query klien;
+  - dengan batas 1 GB ambang 1,5 tidak pernah tercapai, jadi ambangnya harus turun.
+- **Dokumentasi:** `AGENTS.md` sudah punya aturan M319, tetapi `UPDATE_TABLE.md` (broker, event) dan
+  `scripts/onboarding/run_job.sh` tidak menyebut restart.
+
+**Rencana:**
+1. **Batas 1 GB.**
+   - `railway.ts` `memoryBytes` 1000000000; `railway config plan` (satu perubahan), lalu `apply`.
+   - Penerapan hanya ketika `restart_postgres.py` check tidak menolak (cron, B6, query berjalan).
+   - Verifikasi: batas terbaca dari Railway, waktu start Postgres, edge-bff `/ready`.
+   - Uji beban: satu query baca berat (`work_mem` 64 MB, paralel) lalu cek Postgres tidak restart sendiri
+     (`pg_postmaster_start_time`) dan memori ≤ 1 GB.
+   - Jalan balik: `memoryBytes` 4000000000.
+2. **Restart sesudah update besar.**
+   - `restart_postgres.py --min-gb` bawaan 0,8 (cache maksimal sekitar 1 GB).
+   - `run_job.sh`: params `"large_write": true` menjalankan restart (dengan semua pengaman) sesudah job. Job lain
+     mencetak hasil cek memori, supaya agent selalu melihatnya.
+   - `AGENTS.md`: bagian update besar dengan daftar pemicu (putaran Stockbit, backfill, hitung ulang, perbaikan
+     Feature, migrasi yang menulis ulang tabel, isi ulang harga, publikasi manual, build index).
+   - `UPDATE_TABLE.md`: langkah restart di §6 dan B7.
+   - Cron terjadwal (harga harian, publisher) tidak diberi restart otomatis: dengan batas 1 GB cache-nya paling banyak
+     sekitar 1 GB, dan restart otomatis di Railway memerlukan token proyek di sebuah service (keputusan keamanan
+     terpisah).
+
+**Hasil (2026-11-03):** batas 1 GB aktif (Postgres `a473bfb9` SUCCESS, `serviceInstanceLimits` 1000000000).
+- Uji beban: Postgres tidak restart, memori tertahan 1,00 GB. Query besar setahun penuh 192–336 detik; query pola AI
+  0,1 detik; harga setahun 3,3 detik.
+- Dokumentasi: `AGENTS.md` "Postgres memory after large updates", `UPDATE_TABLE.md` §6 dan B7, kepala
+  `run_job.sh`.
+- Kode: `restart_postgres.py` (ambang 0,8 GB, memori per 5 menit) dan `run_job.sh` (`large_write`).
+- Catatan: RAILWAY_CHANGELOG 2026-11-03.
+- Belum terukur: waktu query besar yang sama di bawah batas 4 GB (tidak ada pembanding yang diukur sebelumnya).
+
 ## EXEC-WEB-LIST — daftar peristiwa dari web dicari sampai lengkap, dan tanggalnya boleh dipakai sebagai periode (go 2026-11-02)
 
 **Kata user, 2026-11-02:**

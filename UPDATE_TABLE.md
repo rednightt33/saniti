@@ -199,6 +199,13 @@ punya papan Nego. Pembuktian dijalankan dalam transaksi yang di-rollback, jadi t
 
 ## 6. Sesudah refresh
 
+**Restart Postgres (EXEC-PG-MEMORY, `AGENTS.md` "Postgres memory after large updates"):** pekerjaan ini adalah update
+besar. Sesudah pemeriksaan hasilnya:
+1. jalankan `python3 scripts/restart_postgres.py` (cek), lalu dengan `--apply`;
+2. bila ditolak (cron dekat, jendela B6, query berjalan), ulangi nanti;
+3. catat di `RAILWAY_CHANGELOG.md`.
+
+
 1. Baca ulang tanggal terbaru setiap tabel (F02, F03, F05, F06, dan keempat tabel INDEX broker) dan ukuran database.
 2. Pastikan `AI_data_coverage` sudah memuat tanggal terbaru setelah cron berikutnya.
 3. Cek kode broker baru terhadap `IDX_Broker_Profile` (bagian 1).
@@ -293,6 +300,13 @@ python apps/stockbit-event-annotation/build_excel.py --log /tmp/export.log --out
 tabel. Sheet: tabel, definisi kolom (dari `Column_Catalog`), ringkasan per jenis dan flag.
 
 ## B7. Sesudah menjalankan
+
+**Restart Postgres (EXEC-PG-MEMORY, `AGENTS.md` "Postgres memory after large updates"):** pekerjaan ini adalah update
+besar. Sesudah pemeriksaan hasilnya:
+1. jalankan `python3 scripts/restart_postgres.py` (cek), lalu dengan `--apply`;
+2. bila ditolak (cron dekat, jendela B6, query berjalan), ulangi nanti;
+3. catat di `RAILWAY_CHANGELOG.md`.
+
 
 1. Catat di `DATABASE_CHANGELOG.md`: run id, mode, angka `reconcile_*`, rentang tanggal, ID deploy.
 2. Catat di `RAILWAY_CHANGELOG.md`: deploy di `orc-test-runner`, `TOKEN_REMOVED` dan `VAR_REMOVED`.

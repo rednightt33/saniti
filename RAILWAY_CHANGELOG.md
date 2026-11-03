@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-11-03 — Postgres memory limit 1 GB (EXEC-PG-MEMORY)
+
+- **Before:** 02:17 UTC `scripts/restart_postgres.py` check READY (no cron within 45 min, 0 statements); 0 EDGE jobs
+  and 0 orc turns active.
+- **Change:** `.railway/railway.ts` `Postgres.deploy.limitOverride.containers.memoryBytes` 4000000000 → 1000000000.
+  - `railway config plan`: one change.
+  - `railway config apply --yes`: Postgres deployment `a473bfb9` SUCCESS. Postgres start 2026-11-02 16:52:33 →
+    2026-11-03 02:19:00 UTC; edge-bff `/ready` 200.
+  - `serviceInstanceLimits` reads `memoryBytes` 1000000000; `railway config plan` up to date.
+- **Load test (read-only jobs, `work_mem` 64 MB, 2 parallel workers, two queries at once):** Postgres did not restart;
+  memory held at 1.00 GB.
+  - broker summary 2025, every symbol × broker: 336 s;
+  - Feature 05 2025 sorted: 192 s;
+  - price 1 year, every ticker: 3.3 s;
+  - BBRI broker 5 days (the AI's usual shape): 0.1 s.
+- `scripts/restart_postgres.py`: memory read as the newest 5-minute value (the hourly average still showed 2.6 GB
+  after the change); `--min-gb` 0.8.
+- `scripts/onboarding/run_job.sh`: `"large_write": true` restarts Postgres after the job; every other job prints
+  `POSTGRES_MEMORY_CHECK`.
+- **Way back:** `memoryBytes` 4000000000, then `railway config apply`.
+
 ## 2026-11-02 — orc: EXEC-DATA-DATE (ERRORS M338)
 
 - `main` `f83399df`: market-ai-orc `e34a79ef` SUCCESS (log start bersih). No variable changed.

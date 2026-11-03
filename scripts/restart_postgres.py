@@ -5,8 +5,8 @@ sesudah setiap backfill besar. Memori langsung bersih, dengan jeda sekitar satu 
 A large write leaves Linux page cache that Railway bills as Postgres memory until it is reclaimed (up to the 4 GB limit,
 for hours). A restart frees it at once, at the cost of about one minute without the database. This script restarts
 only when it is worth it and safe:
-  1. memory: the newest hourly Postgres memory (Railway metrics) is above --min-gb (default 1.5; the usual level is
-     0.3-0.6 GB). Below it there is nothing to free, so no restart;
+  1. memory: the newest 5-minute Postgres memory (Railway metrics) is above --min-gb (default 0.8 under the 1 GB limit of
+     EXEC-PG-MEMORY; the usual level is 0.1-0.6 GB). Below it there is nothing to free, so no restart;
   2. no cron is due: every service's cron schedule is read from Railway (not listed here) and no run may start within
      --margin minutes (default 45) of now; the user's B6 windows (00:00-01:45 and 12:00-13:20 UTC) are refused too;
   3. no client is working: no `active` statement in pg_stat_activity other than this check (through pgweb, read-only);
@@ -78,8 +78,10 @@ def checks(args):
     out = {'now': now.isoformat(), 'refusals': []}
     # 1. memory
     m = gql('query($p:String!,$e:String!,$s:String!,$d:DateTime!){metrics(projectId:$p,environmentId:$e,serviceId:$s,'
-            'startDate:$d,measurements:[MEMORY_USAGE_GB],sampleRateSeconds:3600){values{ts value}}}',
-            {'p': PID, 'e': ENV, 's': services['Postgres'], 'd': (now - timedelta(hours=3)).isoformat()})
+            'startDate:$d,measurements:[MEMORY_USAGE_GB],sampleRateSeconds:300){values{ts value}}}',
+            {'p': PID, 'e': ENV, 's': services['Postgres'], 'd': (now - timedelta(minutes=30)).isoformat()})
+    # EXEC-PG-MEMORY (2026-11-03): the newest 5-minute value; an hourly average still showed 2.6 GB right after the limit
+    # fell to 1 GB
     vals = [v for x in m['metrics'] for v in x['values']]
     mem = max(vals, key=lambda v: v['ts'])['value'] if vals else None
     out['postgres_memory_gb'] = mem
@@ -141,7 +143,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--apply', action='store_true')
     p.add_argument('--force', action='store_true', help='skip the memory and client checks (never the cron check)')
-    p.add_argument('--min-gb', type=float, default=1.5)
+    # EXEC-PG-MEMORY (user 2026-11-03): the memory limit is 1 GB, so the page cache tops out near 1 GB; 0.8 GB is
+    # "filled by a large job" (idle is 0.1-0.6 GB)
+    p.add_argument('--min-gb', type=float, default=0.8)
     p.add_argument('--margin', type=int, default=45)
     args = p.parse_args()
     out, services = checks(args)
