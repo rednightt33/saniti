@@ -4981,7 +4981,12 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     baru, ID dan US memakai `PROVIDER_SESSION_START`, dibaca balik;
   - deploy 2026-11-01 10:42 UTC, keempat layanan SUCCESS (fixed-income-price-cron 2380bba7, -recovery-cron 08f878ad,
     -us-cron e04ef6f6, -us-recovery-cron 2d48b547).
-- **Status:** FIXED (deployed dan dimigrasi 2026-11-01). Cek terbuka: run AS pertama dalam EST, 2026-11-02 23:00 UTC.
+- **Status:** FIXED (deployed dan dimigrasi 2026-11-01). Cek run AS pertama dalam EST: LULUS (2026-11-03).
+  - DAILY US `271f3dc8` (2026-11-02 23:01 UTC) dan RECOVERY US `02411f73` (2026-11-03 00:01 UTC): SUCCESS, 26/26 seri
+    pada target 2026-11-02, 0 hilang (Monitoring_Fixed_Income).
+  - Log: setiap seri `source_session_verified` dengan `PROVIDER_SESSION_START`, sesi 1900-1730 America/New_York, bar
+    sumber 2026-11-02T00:00Z dipetakan ke 2026-11-02; tidak ada `SOURCE_DATE_COLLISION`.
+  - Recovery US: `recovery_window` 5 sesi, 104 baris, 0 berbeda.
 - **Lesson:** aturan tanggal dari label sumber harus diverifikasi di kedua sisi pergantian DST, bukan hanya pada
   data terbaru.
 
@@ -5042,6 +5047,16 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED untuk kelas "hari terlewat tidak terisi" (recovery dari tanggal sumber) dan koreksi sekali. Terbuka:
   revisi sumber lebih tua dari jendela 5 sesi dan sumber yang berubah-ubah (US10Y yield, ID 2026-10-26) hanya dilaporkan
   mingguan; koreksinya keputusan user. Cek: run recovery ID 2026-11-02 11:00 UTC menulis ID20Y price 10-27.
+  - **Hasil cek (2026-11-03):** recovery ID `f99ec7e5` (2026-11-02 11:03 UTC) SUCCESS, `recovery_window` 88 baris,
+    1 berbeda. Yang ditulis adalah ID20Y **yield** 2026-10-27, dari 7,397 menjadi 7,602 (ditulis 11:03:16), bukan
+    harganya. Harga 10-27 tetap 95,25 dan pada run itu sudah sama dengan sumber.
+  - Sumber untuk tanggal ini berganti-ganti antara dua versi:
+    - 1 Nov: harga beda, yield sama;
+    - 2 Nov: harga sama, yield beda;
+    - `CORRECTION_LIST.md:105`: yield 7,397/7,602 bergantian antar tarikan.
+  - Pasangan tersimpan sekarang konsisten: harga 95,25 ↔ yield 7,602. Harga turun dari 97,25 (10-26) dan yield naik
+    dari 7,397, lalu 10-28 96,25 ↔ 7,499. Nilai lama 7,397 sama dengan yield 10-26, jadi itu salinan basi.
+  - Mulai run 2026-11-03, tanggal 10-27 keluar dari jendela 5 sesi, jadi tidak ditulis bolak-balik lagi.
 - **Lesson:** setelah aturan tanggal sumber berubah, bandingkan seluruh riwayat dengan sumber sekali. Tanggal yang harus
   diperiksa ulang diambil dari sumber per seri, bukan dari tabel tujuan.
 

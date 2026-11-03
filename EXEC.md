@@ -9742,6 +9742,12 @@ Pertanyaan terbuka:
 
 ## EXEC-FI-DATE — aturan tanggal fixed income (M323) dan koreksi data (M324) (go 2026-11-01)
 
+**Cek 2026-11-03 (run AS pertama dalam EST dan recovery ID):** LULUS.
+- US DAILY `271f3dc8` dan RECOVERY `02411f73`: SUCCESS, 26/26 seri pada 2026-11-02, tanpa `SOURCE_DATE_COLLISION`;
+  `recovery_window` US 0 berbeda.
+- Recovery ID 2026-11-02 11:03 UTC: memperbaiki ID20Y yield 10-27 (7,397 → 7,602), bukan harga yang diperkirakan.
+  Sumbernya berganti-ganti untuk tanggal itu; pasangan tersimpan sekarang konsisten. Rincian di ERRORS M323 dan M324.
+
 **Go user, 2026-11-01 (kata user):** "Ok untuk koreksi 323 324.. apakah ini permanen untuk kedepannya tidak akan ada lagi
 masalah serupa?" (atas temuan `verification/fixed_income_audit/REPORT.md`).
 - **M323:**
