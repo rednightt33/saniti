@@ -1288,3 +1288,23 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
 - **Keputusan user 2026-11-01:** "coba kita expand dulu ke 100 giga".
   - Dikerjakan 06:10 UTC: 60% terpakai, sisa sekitar 40 GB, cukup untuk sekitar 3 tahun pada laju sekarang.
   - Retensi dan merapikan ruang kosong tetap usulan.
+
+## Kamus metodologi discovery: akumulasi dan indikator pre-rally (usulan user 2026-11-03, menunggu keputusan)
+
+Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](METHODOLOGY_DICTIONARY.md). Ringkasan:
+
+- **Kata user 2026-11-03:** "ini adalah metodologi discovery, dimana kalau ada yang tanya accumulation atau indicator
+  pre-rally, then we'll have this disctionary combinations. save ya untuk nanti kita masukan ke database."
+- **Tersimpan sebagai entri:** `M-FF-INC` (peningkatan foreign flow 5 sesi), `M-FF-HEAVY` (akumulasi heavy terhadap
+  riwayat sendiri), `M-TOPN-RATIO` (rasio top N pembeli ÷ top N penjual). Kandidat dari riset HHI dan tren share top 3
+  buyer dicatat terpisah di dokumen itu.
+- **Belum dibangun, belum disetujui sebagai pekerjaan.** Skema tabel kamus belum dirancang; tidak ada migrasi.
+  Daya prediksi ("pre-rally") belum diuji.
+
+**Keputusan user yang masih terbuka:**
+1. Akumulasi heavy: ukuran A saja (`M-FF-HEAVY`), B saja (`M-TOPN-RATIO`), atau keduanya; satu daftar atau dua.
+2. Ambang "heavy": persentil 90 (bawaan EDGE, ±75 saham pada 2026-11-02), persentil 95, atau z-score ≥ 2 (±18 saham).
+3. `M-TOPN-RATIO`: cakupan semua investor atau hanya asing; nilai N (usulan 3); rasio mentah atau imbalance.
+4. Query lintas saham ke `Feature_02` (±15 GB) untuk riwayat 252 sesi: perkiraan ukuran dan izin sebelum dijalankan.
+5. Apakah kandidat `M-HHI` dan `M-TOP3-SHARE-TREND` masuk kamus.
+6. Uji peristiwa (forward return bersyarat) sebelum kata "pre-rally" dipakai.
