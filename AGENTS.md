@@ -157,6 +157,11 @@ Why it matters:
   plan), then the same with `--apply` (Postgres restarts, about 12 seconds; the limit, start time and edge-bff `/ready`
   are read back). Only with the user's approval; record it in `RAILWAY_CHANGELOG.md` and `EXEC.md`.
 
+Planned, not built yet (EXEC-PG-RESTART-CRON in `EXEC.md`, awaiting the user's go): a `postgres-memory-cron` service
+that restarts Postgres at the times in `PG_RESTART_TIMES_WIB` (09:45 and 20:45 WIB), a Telegram button for a manual
+restart and for turning the automatic restart on or off, and Telegram messages when a restart is requested, starts,
+succeeds, fails or is refused. Until that section is recorded as done, none of it exists: use the manual steps below.
+
 A large update is any one of these, scheduled or **ad hoc**. When in doubt, treat the work as one.
 - a Stockbit broker or event round (`stockbit-updater`, `UPDATE_TABLE.md`);
 - a backfill or a full recalculation of a Feature or `_INDEX` table;

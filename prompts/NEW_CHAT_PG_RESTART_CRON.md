@@ -11,7 +11,9 @@ EXEC-PG-MEMORY, ERRORS_AND_SOLUTIONS.md M229, M319 dan M340, RAILWAY_CHANGELOG.m
 scripts/restart_postgres.py, scripts/set_postgres_memory.py, apps/terminal-publisher/publisher.py (run_times, cron_for,
 should_run) dan apps/stockbit-updater/deploy.sh.
 
-Go untuk EXEC-PG-RESTART-CRON langkah 1–7, termasuk migrasi grant kecil untuk pgweb. Jam restart:
+Go untuk EXEC-PG-RESTART-CRON langkah 1–9, termasuk migrasi grant kecil untuk pgweb, tombol Telegram (restart
+sekarang dan auto ON/OFF) di telegram-trigger, dan pesan Telegram (manual, dimulai, sukses, gagal, ditolak) di
+telegram-monitor. Jam restart:
 PG_RESTART_TIMES_WIB=09:45,20:45 (bisa saya ubah nanti). Token Railway baru terlampir: pakai hanya sebagai variabel
 RAILWAY_RESTART_TOKEN di layanan postgres-memory-cron (set lewat stdin), jangan dicetak, jangan di-commit, dan hapus
 file sementaranya.
@@ -37,6 +39,17 @@ Baca AGENTS.md bagian "Postgres memory after large updates" dan EXEC.md bagian E
 Postgres otomatis menjadi <JAM WIB, mis. 09:30,21:00> dengan scripts/set_postgres_restart_times.py: jalankan dulu tanpa
 --apply dan tunjukkan hasilnya ke saya (bentrok dengan cron lain atau B6?), baru --apply setelah saya setuju. Catat di
 RAILWAY_CHANGELOG.md dan EXEC.md dengan kata-kata saya.
+```
+
+## B2. Restart manual atau matikan restart otomatis
+
+Tanpa chat: buka bot Telegram, ketik `/start`, lalu tekan "🔄 Restart Postgres" atau tombol "Auto restart: ON/OFF".
+Lewat chat:
+
+```
+Baca AGENTS.md bagian "Postgres memory after large updates" dan EXEC.md bagian EXEC-PG-RESTART-CRON. Saya mau
+<restart Postgres sekarang | matikan restart otomatis | nyalakan lagi restart otomatis>. Cek dulu run user aktif,
+cron terdekat dan jendela B6, tunjukkan hasilnya, lalu jalankan setelah saya setuju. Catat di RAILWAY_CHANGELOG.md.
 ```
 
 ## C. Tanya jawab (tanpa mengubah apa pun)

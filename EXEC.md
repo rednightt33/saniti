@@ -10173,43 +10173,86 @@ instead of memory." Token baru diberikan sebagai file (tidak disimpan di Git).
 - Jam usulan aman terhadap cron live (± 45 menit) dan B6: 09:45 WIB (02:45 UTC; publisher terakhir 01:30, berikutnya
   10:00) dan 20:45 WIB (13:45 UTC; publisher terakhir 12:30, B6 selesai 13:20, berikutnya 23:00). Cron: `45 2,13 * * *`.
 
-**Rencana:**
-1. `scripts/restart_postgres.py` (tetap dipakai manual):
+**Kata user, 2026-11-03 (tambahan):** "Butuh toggle manual untuk restart juga. Kemudian notifikasi di telegram restart
+dimulai, restart sukses, dan restart manual. Kalau restart manual ya buat di cron saja ya? Needs to ensure ini juga well
+documented di GIt agar AI agent bisa baca / understand the rule. Edit implementation plan dan jalankan checking."
+
+**Inspeksi tambahan 2 (kode dan data live, 2026-11-03):**
+- `apps/telegram-trigger/telegram_trigger.py` sudah menjalankan cron Railway "Run Now" dari tombol Telegram:
+  `deploymentInstanceExecutionCreate(serviceInstanceId)` (baris 24-28, `trigger_railway_run` 300-345), daftar perintah
+  tetap di `main()` (`CommandSpec`, 591-604), satu chat yang diizinkan, secret webhook, dedup per `telegram_update_id` dan
+  cooldown per layanan (`claim_command`, 348-397) di `public."Telegram_Command_Log"`. Layanan ini sudah memegang token
+  proyek (`RAILWAY_PROJECT_TOKEN`, README). Terakhir dipakai 2026-09-11 (RUN_RECOVERY TRIGGERED).
+- `Telegram_Command_Log.command` teks bebas (hanya tidak kosong), `status` RECEIVED/TRIGGERED/BLOCKED/FAILED: perintah
+  baru tidak perlu migrasi.
+- `apps/telegram-monitor/telegram_monitor.py` `/notify`: sumber hanya dari `SUPPORTED_SOURCES` (25-45); fakta yang hanya
+  diketahui pengirim diterima dalam bentuk tetap yang diperiksa per field (pola `parse_audit_queue`, 465-483, dan
+  `build_audit_queue_message`, 486-502); dedup lewat `Telegram_Notification_Log` UNIQUE (source_table,
+  source_execution_id, notification_type) (`claim_delivery`, 846-866).
+
+**Rencana (direvisi 2026-11-03):**
+1. `scripts/restart_postgres.py` (satu jalur untuk terjadwal, manual dan agent):
    - baca DB lewat `DATABASE_URL` (transaksi read-only) bila ada, selain itu pgweb;
-   - cek M340 masuk kode (query di atas); run aktif = penolakan lunak;
-   - layanan sendiri dikecualikan dari cek cron (`RAILWAY_SERVICE_NAME`);
-   - `--wait-minutes N`: penolakan lunak (query, run user) dicoba lagi tiap 5 menit sampai N; penolakan keras (cron
-     lain, B6) langsung berhenti;
-   - `--times-wib` / `PG_RESTART_TIMES_WIB`: tick cron yang bukan jam terdaftar (± 20 menit) keluar tanpa kerja (pola
-     `should_run` publisher);
-   - `/ready` edge-bff lewat `EDGE_BFF_URL` (alamat privat) bila ada; token `RAILWAY_RESTART_TOKEN`, cadangan
-     `RAILWAY_TOKEN`; Telegram (`TELEGRAM_NOTIFY_URL`/`SECRET`) hanya bila restart gagal atau EDGE tidak siap;
-   - satu baris JSON hasil per run (`PG_RESTART` …) untuk log;
-   - tes unit: cron_for, tick bukan jam terdaftar, pengecualian diri, tunggu-ulang, cek M340.
-2. Migrasi kecil: `GRANT USAGE ON SCHEMA edge_bff TO pgweb; GRANT SELECT (state, updated_at) ON edge_bff.jobs TO pgweb`
-   (hanya dua kolom), supaya cek manual juga bisa membaca job EDGE. `DATABASE_SCHEMA.md` dan `DATABASE_CHANGELOG.md`.
-3. `apps/postgres-memory-cron/`: Dockerfile (Python slim, hanya `psycopg`), `deploy.sh` (unggah CLI seperti
-   stockbit-updater; push ke `main` tidak memicu apa pun), README.
-4. `scripts/set_postgres_restart_times.py --wib 09:45,20:45 [--apply]`: cek tiap jam terhadap cron live ± 45 menit dan
-   B6 (fungsi `restart_postgres`), hitung cron (`cron_for`), set `PG_RESTART_TIMES_WIB`, ubah cronSchedule lewat
-   `.railway/railway.ts` (plan harus tepat satu perubahan), upload baru (M229), baca balik cron dan variabel.
-5. Layanan baru `postgres-memory-cron` (dev): `PG_RESTART_TIMES_WIB=09:45,20:45`, cron `45 2,13 * * *`, restart
+   - cek M340 di kode: `edge_bff.jobs.state` QUEUED/RUNNING/RECOVERING, `"AI_conversation_turn".status = 'RUNNING'`
+     (< 2 jam) = penolakan lunak;
+   - jenis run:
+     - `SCHEDULED`: tick dalam 20 menit sesudah jam di `PG_RESTART_TIMES_WIB`; hanya bila auto ON dan memori ≥ 0,8 GB;
+     - `MANUAL_TELEGRAM`: ada baris `Telegram_Command_Log` `RESTART_POSTGRES` TRIGGERED untuk layanan ini < 15 menit;
+     - `MANUAL_RAILWAY`: Run Now dari dashboard (bukan dekat jam terdaftar dan tanpa baris Telegram);
+     - tick lain (perkalian menit × jam cron) keluar tanpa kerja (pola `should_run` publisher);
+   - manual mengabaikan ambang memori dan status auto, tetapi tetap tunduk pada pengaman keras (cron lain ± 45 menit,
+     B6) dan lunak (query, run user);
+   - layanan sendiri dikecualikan dari cek cron (`RAILWAY_SERVICE_NAME`); `--wait-minutes 60` untuk penolakan lunak;
+   - status auto: baris terakhir `PG_AUTO_ON`/`PG_AUTO_OFF` di `Telegram_Command_Log` (bawaan ON); variabel
+     `PG_RESTART_AUTO=false` mematikan paksa;
+   - `/ready` lewat `EDGE_BFF_URL`; token `RAILWAY_RESTART_TOKEN`, cadangan `RAILWAY_TOKEN`; satu baris JSON
+     `PG_RESTART` per run;
+   - tes unit untuk setiap jenis run, auto on/off, pengecualian diri, tunggu-ulang, M340.
+2. Telegram (sumber baru `Postgres_Restart` di telegram-monitor, bentuk tetap seperti `parse_audit_queue`):
+   - pesan: `manual` (permintaan manual diterima: dari mana, memori), `started` (restart dimulai: jenis run, memori),
+     `success` (sukses: lama mati, memori sesudah, EDGE siap), `failed` (Postgres tidak kembali atau EDGE tidak siap),
+     `refused` (ditolak/ditunda dengan alasan; untuk manual selalu, untuk terjadwal hanya bila ditolak karena run user
+     sesudah 60 menit);
+   - terjadwal yang dilewati karena memori rendah atau auto OFF: tanpa pesan (hanya log);
+   - `execution_id` = id run + jenis pesan (dedup di `Telegram_Notification_Log`); tes monitor.
+3. telegram-trigger:
+   - tombol menu "🔄 Restart Postgres" dan `/restart_postgres` → Run Now `postgres-memory-cron` (CommandSpec baru,
+     `RAILWAY_PG_RESTART_SERVICE_INSTANCE_ID`, cooldown yang sama);
+   - tombol "Auto restart: ON/OFF" (`/pg_auto_on`, `/pg_auto_off`, `/pg_restart_status`): mencatat baris di
+     `Telegram_Command_Log` dan membalas status sekarang (auto, jam, restart terakhir); tidak melewati cooldown Run Now;
+   - tes trigger.
+4. Migrasi kecil: `GRANT USAGE ON SCHEMA edge_bff TO pgweb; GRANT SELECT (state, updated_at) ON edge_bff.jobs TO pgweb`,
+   supaya cek manual dari sesi agent juga membaca job EDGE. `DATABASE_SCHEMA.md` dan `DATABASE_CHANGELOG.md`.
+5. `apps/postgres-memory-cron/`: Dockerfile (Python slim, hanya `psycopg`), `deploy.sh` (unggah CLI seperti
+   stockbit-updater; push ke `main` tidak memicu restart), README (aturan lengkap).
+6. `scripts/set_postgres_restart_times.py --wib 09:45,20:45 [--apply]`: cek tiap jam terhadap cron live ± 45 menit dan
+   B6, hitung cron (`cron_for`), set `PG_RESTART_TIMES_WIB`, cronSchedule lewat `.railway/railway.ts` (plan tepat satu
+   perubahan), upload baru (M229), baca balik.
+7. Layanan baru `postgres-memory-cron` (dev): `PG_RESTART_TIMES_WIB=09:45,20:45`, cron `45 2,13 * * *`, restart
    `NEVER`, tanpa domain. Variabel (nama saja): `DATABASE_URL` (`${{Postgres.DATABASE_URL}}`), `RAILWAY_RESTART_TOKEN`
    (token baru lewat stdin), `EDGE_BFF_URL`, `TELEGRAM_NOTIFY_URL`/`TELEGRAM_NOTIFY_SECRET` (referensi),
-   `PG_RESTART_MODE` (`check` lalu `apply`). Perintah: `--wait-minutes 60`; restart hanya bila memori ≥ 0,8 GB.
-6. Uji:
-   - lokal: tes unit, `--check` dari sesi agent;
-   - layanan: run terjadwal pertama dengan `PG_RESTART_MODE=check` (tanpa restart), baca log; lalu `apply`;
-   - verifikasi run apply pertama: memori turun, `pg_postmaster_start_time` berubah, EDGE `/ready` 200, tanpa job EDGE
-     yang terputus.
-7. Catatan: `railway config pull --force` + plan up to date, `RAILWAY_CHANGELOG.md`, `AGENTS.md` (restart terjadwal
-   otomatis dan cara mengubah jam; update besar ad hoc tetap manual), `UPDATE_TABLE.md` bila relevan, hasil di bagian ini.
-- Jalan balik: kosongkan cronSchedule atau hapus layanan, lalu cabut token di Project Settings → Tokens.
+   `PG_RESTART_MODE` (`check` lalu `apply`). Di telegram-trigger: `RAILWAY_PG_RESTART_SERVICE_INSTANCE_ID`.
+8. Uji:
+   - lokal: tes unit ketiga layanan dan script;
+   - layanan: run terjadwal pertama dengan `PG_RESTART_MODE=check` (tanpa restart, pesan Telegram "check");
+   - satu restart manual dari tombol Telegram pada jam aman: pesan manual → dimulai → sukses; memori turun,
+     `pg_postmaster_start_time` berubah, EDGE `/ready` 200;
+   - toggle OFF lalu ON dari Telegram, cek statusnya terbaca di run berikutnya;
+   - lalu `PG_RESTART_MODE=apply`.
+9. Dokumentasi untuk agent (tugas yang sama):
+   - `AGENTS.md` "Postgres memory after large updates": restart terjadwal otomatis, jam dan cara mengubahnya, toggle,
+     restart manual (Telegram atau `restart_postgres.py`), pesan Telegram, apa yang tetap manual (update besar ad hoc);
+   - README `apps/postgres-memory-cron`, `apps/telegram-trigger` dan `apps/telegram-monitor`;
+   - `UPDATE_TABLE.md` §6/B7 merujuk ke tombol manual; `RAILWAY_CHANGELOG.md`; `ERRORS_AND_SOLUTIONS.md` bila ada temuan;
+   - `railway config pull --force` + plan up to date.
+- Jalan balik: toggle OFF (cepat), kosongkan cronSchedule atau hapus layanan, cabut token di Project Settings → Tokens,
+  hapus tombol dari telegram-trigger.
 - Ditolak: membunuh Postgres dari dalam (`COPY ... TO PROGRAM`), karena kasar, perlu superuser, dan memakai jalur crash.
 
 **Pertanyaan terbuka:**
-1. Go untuk eksekusi (langkah 1–7), termasuk migrasi grant kecil di langkah 2?
-2. Restart sekitar 12 detik pukul 09:45 dan 20:45 WIB (dilewati bila ada run user): diterima?
+1. Go untuk langkah 1–9 (termasuk migrasi grant 2 kolom dan perubahan telegram-trigger dan telegram-monitor)?
+2. "Toggle manual" ditafsirkan sebagai dua hal: tombol restart sekarang dan tombol auto ON/OFF. Benar?
+3. Restart manual tetap ditolak di jendela B6 dan 45 menit sebelum atau sesudah cron lain. Setuju?
 
 ## EXEC-PG-MEMORY — batas memori Postgres 1 GB dan restart sesudah setiap update besar (go 2026-11-03)
 
