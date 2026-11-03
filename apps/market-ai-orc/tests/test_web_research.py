@@ -212,6 +212,24 @@ def test_the_system_names_the_web_lookups_of_the_run() -> None:
     assert C.describe_web_research([]) is None
 
 
+def test_a_partial_web_lookup_is_a_limitation_written_by_the_backend() -> None:
+    """EXEC-WEB-LIST (user 2026-11-03): live test 1 of 2026-11-02 listed BI-Rate hikes from a PARTIAL lookup without
+    saying the list might be short."""
+    from app.user_texts import WEB_PARTIAL_LINE
+
+    orc, state, _ = tracked()
+    final = FinalResponse(response_type="ANSWER", answer="Ekspor naik.", clarification_question=None,
+                          assumptions=[], limitations=[])
+    assert WEB_PARTIAL_LINE not in orc._with_ai_choices(state, final).limitations  # OK lookup: no line
+    state.web_research[0]["status"] = "PARTIAL"
+    out = orc._with_ai_choices(state, final)
+    assert out.limitations.count(WEB_PARTIAL_LINE) == 1
+    assert orc._with_ai_choices(state, out).limitations.count(WEB_PARTIAL_LINE) == 1  # never twice
+    asked = FinalResponse(response_type="CLARIFICATION", answer="", clarification_question="Yang mana?",
+                          assumptions=[], limitations=[])
+    assert orc._with_ai_choices(state, asked).limitations == []
+
+
 # ------------------------------------------------------------------------------------------------- database first
 
 TABLES = [{"table": "IDX_Stock_Universe", "description": "Listed stocks.", "entity_column": "Ticker",

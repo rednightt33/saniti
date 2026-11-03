@@ -583,3 +583,10 @@ DATA_DATE_PINNED_LINE = ("Angka ini memakai data sampai {date}, sama dengan jawa
 DATA_DATE_KEPT_LINE = ("Angka ini memakai data sampai {date}, sama dengan jawaban sebelumnya di percakapan ini; data "
                        "terbaru sudah ada sampai {newest}. Minta \"pakai data terbaru\" untuk menghitung ulang dengan "
                        "data itu.")
+
+# EXEC-WEB-LIST (user 2026-11-03, "Oke, jalankan perbaikannya"): a web lookup the web governor itself rated incomplete is
+# named among the answer's limitations by the backend (test 1 of 2026-11-02 listed 9 BI-Rate hikes from a PARTIAL lookup
+# without saying the list might be short)
+WEB_PARTIAL_LINE = ("Sebagian informasi dari web di jawaban ini belum lengkap menurut pencariannya sendiri (misalnya "
+                    "daftar tanggal atau peristiwa yang bisa kurang); hasil yang memakainya bisa berubah bila "
+                    "informasinya dilengkapi.")

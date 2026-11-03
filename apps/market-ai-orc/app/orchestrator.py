@@ -50,7 +50,7 @@ from . import stop
 from . import user_texts as texts
 from . import follow_ups
 from .user_texts import (  # M125: every line the backend writes for the user
-    ANALYSIS_PATH_LINE, ANGLE_FINDINGS_NOTICE, DATA_DATE_CHANGED_LINE, DATA_DATE_KEPT_LINE, DATA_DATE_PINNED_LINE,
+    ANALYSIS_PATH_LINE, ANGLE_FINDINGS_NOTICE, WEB_PARTIAL_LINE, DATA_DATE_CHANGED_LINE, DATA_DATE_KEPT_LINE, DATA_DATE_PINNED_LINE,
     DATANEED_GATE_NOTICE, DATANEED_PROVENANCE_NOTICE, DATANEED_ROUTING_NOTICE,
     DERIVED_FREQUENCY_LINE, FINDINGS_NOTICE, GATE_NOTICE, METHODOLOGY_MISSING_LINE, METHODOLOGY_WITHHELD_LINE,
     PIT_FALLBACK_LINE, PLAN_FINDINGS_NOTICE, PLAN_NOT_EXECUTED_LINE, PLAN_NOT_FEASIBLE_NOTICE, PLAN_PROVENANCE_NOTICE,
@@ -4881,6 +4881,10 @@ class AgentOrchestrator:
         """S4 (K6): the AI's own choices, written by the system as the first assumption (never by the model)."""
         if final.response_type == "CLARIFICATION":
             return final
+        # EXEC-WEB-LIST: a web lookup the web governor rated PARTIAL is a limitation of the answer, written by the backend
+        if any(lookup.get("status") == "PARTIAL" for lookup in state.web_research) \
+                and WEB_PARTIAL_LINE not in final.limitations:
+            final = final.model_copy(update={"limitations": [*final.limitations, WEB_PARTIAL_LINE]})
         lines = [line for line in (ai_choices.describe(state.ai_choices),
                                    ai_choices.describe_web_used(state.ai_choices),
                                    ai_choices.describe_web(state.web_facts),
