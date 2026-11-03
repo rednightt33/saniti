@@ -5310,6 +5310,25 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M343 — Publisher gagal 2026-11-03 19:00 WIB: peran pembacanya tidak boleh membaca tabel broker `_INDEX` (2026-11-03)
+
+- **Ditemukan oleh:** agent, saat cek sesudah restart sesi (log terminal-publisher 12:01:25 UTC:
+  `event="failed" error="InsufficientPrivilege" stage="plan"`; pesan kegagalan terkirim ke Telegram).
+- **Verified:** deployment `5e0ac80c` (EXEC-IHSG-FLOW) menambah `data_through()` yang membaca
+  `Feature_05_Foreign_Domestic_Broker_Detail_INDEX`. Login publisher `terminal_publisher_login` membaca lewat
+  `terminal_market_reader`, yang hanya diberi izin tabel saham (migrasi `20261025_100`, `20261101_003`).
+- **Root cause:** agent mengubah sumber yang dibaca publisher tanpa mengecek izin peran pembacanya. Tes publisher memakai
+  koneksi palsu tanpa izin, dan tidak ada run uji dengan peran sebenarnya sebelum run terjadwal.
+- **Solution:**
+  - 12:2x UTC: publisher dikembalikan ke versi sebelumnya (`git archive 17bd090b`, sha256 `9f301d9ff506f03b…`,
+    deployment `7831d814` SUCCESS, cron tetap). Run 00:30 UTC (07:30 WIB) menerbitkan ketertinggalan.
+  - Migrasi `20261103_002_terminal_reader_broker_index.sql` (SELECT ke `terminal_market_reader`) ditulis; belum
+    diterapkan karena orc-test-runner tampak sibuk (M341). Sesudah diterapkan dan dicek dengan peran itu, publisher
+    EXEC-IHSG-FLOW di-upload ulang.
+- **Status:** MITIGATED (publikasi berikutnya aman); OPEN untuk grant dan publikasi broker IHSG.
+- **Lesson:** setiap tabel baru yang dibaca sebuah service harus dicek izinnya dengan peran service itu sendiri
+  (`SET ROLE`) sebelum deploy, termasuk service yang hanya membaca.
+
 ### M342 — Data broker IHSG tidak pernah terbit ke Terminal; indikator Flow berbasis lot tampil untuk indeks (2026-11-03)
 
 - **Ditemukan oleh:** user (screenshot Terminal IHSG: "IHSG · no broker data", Flow Timeline "No flow matches"):
@@ -5324,8 +5343,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution (EXEC-IHSG-FLOW, `main` `ee882e48`):** publisher membaca tabel `_INDEX` untuk indeks dengan tanggalnya
   sendiri (`broker_index_through`); Terminal menyembunyikan 17 indikator Flow berbasis lot atau harga per saham pada
   indeks (input `single`), panel broker hanya Rupiah, FL28 dari nilai beli broker.
-- **Status:** FIXED di kode dan ter-deploy (publisher `5e0ac80c`, edge-bff `4526c841`); file broker IHSG terbit pada run
-  harian 2026-11-03 12:00 UTC (diverifikasi di EXEC-IHSG-FLOW).
+- **Status:** OPEN. Terminal (edge-bff `4526c841`) sudah live; publisher `5e0ac80c` gagal di run 12:00 UTC (M343) dan
+  dikembalikan, jadi file broker IHSG belum terbit.
 - **Lesson:** setiap ticker non-saham (indeks, nanti makro atau lintas aset) perlu dicek: dari tabel mana datanya
   diterbitkan, dan indikator mana yang masih bermakna untuk agregat.
 

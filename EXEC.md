@@ -10203,7 +10203,9 @@ Cek", lalu "Buat Enya lebih besar, khusus di favicon".
 - Deploy: `main` `ee882e48`; edge-bff `4526c841`, screener-worker `09b1c31c`, terminal-publisher `5e0ac80c` SUCCESS.
 - Perubahan dari rencana: langkah 2 (`broker-range` manual) diganti run harian pertama yang menerbitkan semua tahun
   indeks, karena mengosongkan cron publisher untuk run langsung ditolak pengaman sesi. Hasilnya terbit 12:00 UTC.
-- Belum: verifikasi file broker IHSG terhadap SQL dan tampilan Terminal sesudah run 12:00 UTC (pengingat 12:25 UTC).
+- Run 12:00 UTC GAGAL (`InsufficientPrivilege`, ERRORS M343): peran `terminal_market_reader` tidak boleh membaca
+  tabel `_INDEX`. Publisher dikembalikan ke versi sebelumnya (`7831d814`); pengingat 12:25 UTC dihapus.
+- Belum: migrasi `20261103_002` (grant), cek dengan peran itu, upload ulang publisher EXEC-IHSG-FLOW, lalu verifikasi.
 - Catatan: ERRORS M342, RAILWAY_CHANGELOG 2026-11-03, `BACKTEST_END_TO_END.md` (sumber broker indeks), kepala
   `publisher.py`.
 

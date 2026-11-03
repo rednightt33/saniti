@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-11-03 — terminal-publisher rollback after the failed 12:00 UTC run (ERRORS M343)
+
+- 12:01:25 UTC: daily run of `5e0ac80c` failed at plan, `InsufficientPrivilege` (the INDEX broker table is not
+  readable by `terminal_market_reader`); failure message sent to Telegram.
+- Rollback: upload of `git archive 17bd090b apps/terminal-publisher` (`publisher.py` sha256 `9f301d9ff506f03b…`, the
+  version of the 2026-11-02 run), deployment `7831d814` SUCCESS; `cronSchedule` `0,30 0,1,12 * * *` (read back). Next
+  run 00:30 UTC.
+- No variable changed.
+
 ## 2026-11-03 — EXEC-IHSG-FLOW: publisher reads the INDEX broker table; Terminal index rules
 
 - User go 2026-11-03: "Go". Before the push: 0 orc turns running.
