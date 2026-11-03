@@ -152,15 +152,137 @@ Ini mengukur **konsentrasi**, bukan arah total: untuk semua investor, jumlah net
 
 ---
 
+## M-CR3X-NET — Konsentrasi pembeli net (atau penjual net): CR3 − 3/k_net
+
+**Ditambahkan atas permintaan user 2026-11-03:** "masukan Cr3 - 3/k_net dan CR3- 3/k_gross ke dalam MD".
+
+**Pertanyaan yang dijawab:** seberapa terpusat net beli (atau net jual) di sedikit broker, setelah memperhitungkan
+jumlah brokernya?
+
+| Langkah | Definisi |
+|---|---|
+| Net per broker | (beli − jual) per broker selama jendela (bawaan 5 sesi); kedua Investor Type dijumlah dulu |
+| Sisi | Pembeli net (net > 0) atau penjual net (\|net\| untuk net < 0); parameter `sisi` |
+| k_net | Jumlah broker di sisi itu |
+| CR3 | Jumlah 3 terbesar ÷ jumlah seluruh sisi itu |
+| **Ukuran** | **CR3 − 3 ÷ k_net** |
+
+- **Skala:** 0 (semua sama rata) sampai 1 − 3/k_net; tidak pernah negatif. Batas atas bergantung k (k = 40: 0,925;
+  k = 10: 0,70). Makin tinggi, makin terkonsentrasi.
+- **Bukan arah:** untuk semua investor total net beli selalu sama dengan total net jual. Nilai tinggi hanya berarti
+  terpusat; sisi jual BBCA juga terkonsentrasi.
+- **Parameter:** N = 3 (usulan), jendela 5 sesi, sisi beli atau jual, cakupan semua investor atau hanya asing.
+- **Gerbang:** minimal 10 broker di sisi itu (**pilihan AI, bukan dari data; keputusan terbuka**). Pada jendela uji
+  lolos 716 dari 872 simbol (sisi jual: 715).
+- **Pembanding:** peringkat persentil antar saham pada tanggal yang sama; **usulan, belum diputuskan:** peringkat di dalam
+  kelompok saham dengan jumlah broker yang mirip (lima kelompok sama besar; pada jendela uji 10–13, 14–17, 18–21,
+  22–27, 28–62 pembeli net); riwayat sendiri 252 sesi (menunggu izin menarik data).
+- **Sumber:** `IDX_Broker_Summary`, dihitung di sandbox (prinsip 8).
+
+**Bukti (uji 2026-11-03; 716 saham, 5 sesi 27 Okt – 2 Nov, Regular, semua investor)** **[T]**
+- Sebaran P10 / P50 / P90 = 0,40 / 0,56 / 0,72; bin terpadat 16,5% (10 bin sama lebar antara P1 dan P99).
+- Korelasi peringkat dengan k_net: **−0,24** (CR3 mentah: −0,60). Dengan jumlah broker yang membeli (bruto): −0,03;
+  dengan semua broker aktif: −0,02. Peringkat di dalam kelompok k: **−0,01**.
+- Varian yang lebih buruk: baseline dengan k_gross atau k_active (−0,42 dan −0,46 terhadap k_net); versi
+  dinormalisasi (CR3 − 3/k) ÷ (1 − 3/k) (−0,51). Sisa korelasi −0,24 belum diketahui penyebabnya (dugaan: baseline
+  merata kurang cocok untuk pembeli nyata yang miring, atau struktur nyata).
+- Sisi jual: P10 / P50 / P90 = 0,37 / 0,52 / 0,68, korelasi k −0,30. Korelasi peringkat sisi beli vs sisi jual
+  **−0,05**: hampir independen.
+- Keluarga konsentrasi pada dasarnya satu faktor: CR3, share top 1, dan CR3 − 3/k saling berkorelasi 0,83–0,93.
+- **Contoh BBCA** (5 sesi): k = 40, CR3 = 1.149,0 ÷ 1.623,1 = 0,708 (BK 498,2; ZP 412,4; YU 238,4 miliar), baseline
+  3/40 = 0,075, hasil **0,633** (63,3 poin; 9,4 kali bagian merata). Persentil 70,5 di 716 saham; 87,3 di kelompok k
+  28–62 (126 saham; median kelompok 0,515, P90 0,647). Riwayat sendiri (hitungan 2026-11-03, `Feature_02`, 252 sesi):
+  median 0,531, rentang 0,257–0,838, persentil 65,5. Sisi jual: k = 44, hasil 0,553.
+- **Pasangan yang disarankan AI (belum diputuskan):** intensitas net beli = Σ net beli ÷ Σ nilai beli bruto (median
+  0,30; korelasi dengan konsentrasi 0,16–0,26). BBCA: 18,5% (persentil 20,5), artinya konsentrasi tinggi tetapi porsi net
+  kecil.
+
+**Keterbatasan:** satu jendela; kestabilan peringkat dan daya prediksi belum diuji; hanya melihat 3 broker teratas, jadi
+tidak membedakan satu broker dominan dari tiga yang setara (pakai share top 1).
+
+## M-CR3X-GROSS — Konsentrasi beli bruto: CR3_gross − 3/k_gross
+
+**Ditambahkan atas permintaan user 2026-11-03** (kalimat yang sama dengan M-CR3X-NET).
+
+**Pertanyaan yang dijawab:** seberapa terpusat **aktivitas** beli di sedikit broker (bukan posisi bersih)?
+
+| Langkah | Definisi |
+|---|---|
+| Beli bruto per broker | Jumlah `Buy Value` per broker selama jendela, Investor Type dijumlah |
+| k_gross | Jumlah broker dengan beli bruto > 0 |
+| CR3_gross | Beli bruto 3 broker terbesar ÷ total beli bruto |
+| **Ukuran** | **CR3_gross − 3 ÷ k_gross** |
+
+- **Beda dengan net:** broker yang beli dan jual sama besar tetap masuk tiga besar. Gross mencerminkan siapa yang paling
+  aktif, bukan siapa yang menumpuk posisi.
+- **Gerbang:** sama dengan M-CR3X-NET (minimal 10 pembeli net) agar universe saham sama.
+- **Pembanding:** wajib peringkat di dalam kelompok jumlah broker dan ukuran/likuiditas (lihat bukti).
+
+**Bukti (uji 2026-11-03; sama dengan M-CR3X-NET)** **[T]**
+- Sebaran P10 / P50 / P90 = 0,35 / 0,49 / 0,63; bin terpadat 17,0%.
+- Korelasi peringkat dengan k_gross **−0,40** dan dengan ukuran (log nilai beli bruto) **−0,30**; versi net: −0,24 dan
+  0,09. Jadi gross lebih terpengaruh jumlah broker dan likuiditas.
+- Korelasi dengan versi net: **0,45** (bukan duplikat); dengan share broker terbesar (top 1 gross): 0,87.
+- **Contoh BBCA** (5 sesi): 3 pembeli bruto terbesar BK 1.171,6; ZP 1.130,5; AK 890,8 = Rp3.192,8 miliar dari
+  Rp8.783,4 miliar = 36,4%; k_gross = 83; baseline 3,6%; hasil **0,327**. Persentil **6,7** di 716 saham dan 14,4 di
+  kelompok k_gross 48–83 (139 saham). Versi net BBCA persentil 70,5.
+- Dari Rp3.192,8 miliar yang dibeli tiga broker itu, net hanya Rp765,4 miliar (24,0%); AK net jual Rp145,2 miliar.
+- Ide belum diuji: net ÷ bruto dari 3 pembeli teratas sebagai ukuran keyakinan.
+
+## M-HHI3-NETBUY dan M-HHI3-NETSELL — Porsi 3 teratas dari HHI sisi pembeli net / penjual net
+
+**Ditambahkan atas permintaan user 2026-11-03:** "HHI top 3 net dan HHI top 3 sell". **Tafsir AI** (dari diskusi
+"top 3 HHI net share out of total HHI"): bila salah, user mengoreksi.
+
+| Langkah | Definisi |
+|---|---|
+| Bobot | w_i = net_i ÷ jumlah net sisi itu (hanya pembeli net untuk `NETBUY`, hanya penjual net untuk `NETSELL`) |
+| HHI sisi | H = Σ w_i² atas semua broker di sisi itu |
+| **Ukuran** | **Σ w_i² (3 terbesar) ÷ H** |
+
+- **Bukan** HHI yang dihitung dari tiga broker saja, dan **bukan** `broker_concentration_hhi` di `Feature_03` (itu
+  memakai \|net\| gabungan pembeli dan penjual).
+- **Rentang:** sekitar 3/k (semua sama besar) sampai 1.
+- **Gerbang:** minimal 10 broker di sisi itu.
+
+**Bukti dan peringatan (uji 2026-11-03; 5 sesi, Regular, semua investor)** **[T]**
+
+| | Sisi beli (716 saham) | Sisi jual (715 saham) |
+|---|---|---|
+| P10 / P50 / P90 | 0,77 / 0,94 / 1,00 | 0,74 / 0,92 / 0,99 |
+| Bin terpadat (10 bin, P1–P99) | **42,2%** | **35,7%** |
+| Saham > 0,95 | 46,9% | 39,0% |
+| Saham > 0,90 | 65,6% | 57,1% |
+| Korelasi peringkat dengan CR3 | 0,95 | 0,95 |
+| Korelasi peringkat dengan share top 1 | 0,92 | 0,92 |
+| Korelasi peringkat dengan k | −0,45 | −0,47 |
+
+- **Jenuh mendekati 1** dan sangat berkorelasi dengan CR3 dan share top 1, jadi sebagai penyaring antar saham
+  daya pilahnya rendah. **Rekomendasi AI: jangan dipakai sebagai penyaring tunggal;** dicatat di kamus atas keputusan
+  user.
+- **Satu-satunya nilai tambah:** membedakan satu broker dominan dari tiga yang setara pada CR3 yang sama. Dari 68 saham
+  ber-CR3 0,60–0,65: ARKO (broker terbesar 23%) = 0,78; BMRI (broker terbesar 46%) = 0,95. Share top 1 menangkap hal
+  yang sama dengan lebih sederhana.
+- Sisi beli dan sisi jual hampir independen (korelasi −0,06).
+- **Contoh BBCA** (5 sesi): sisi beli **0,951** (k = 40): bobot BK 0,307, ZP 0,254, YU 0,147, Σ w² = 0,1804 dari H =
+  0,1896. Sisi jual **0,919** (k = 44).
+
+---
+
 ## Kombinasi (kerangka, belum diputuskan)
 
 | Pertanyaan user | Kombinasi usulan | Status |
 |---|---|---|
 | "Saham yang foreign flow-nya naik 5 hari" | M-FF-INC | Usulan |
 | "Saham dengan akumulasi heavy" | M-FF-HEAVY, atau M-FF-HEAVY **dan** M-TOPN-RATIO | Terbuka: satu daftar atau dua |
+| "Pembelian terkonsentrasi di sedikit broker" (screener) | M-CR3X-NET (peringkat dalam kelompok jumlah broker); M-CR3X-GROSS sebagai konteks aktivitas; pasangan intensitas net beli | Usulan; M-HHI3-* tidak disarankan sebagai penyaring tunggal |
 | "Indikator pre-rally" | Menunggu uji peristiwa | Belum ada |
 
 ## Kandidat entri dari riset 2026-11-03 (belum diminta masuk kamus)
+
+**Pembaruan 2026-11-03:** entri `M-CR3X-NET`, `M-CR3X-GROSS`, `M-HHI3-NETBUY` dan `M-HHI3-NETSELL` sudah masuk
+kamus atas permintaan user. Kandidat di bawah (`M-HHI` fitur, `M-TOP3-SHARE-TREND`) masih menunggu keputusan
+(dibuang, diganti, atau dipertahankan).
 
 Riset atas "bagaimana HHI" dan "share top 3 net/gross buyer naik atau turun". Dicatat agar tidak hilang; user yang
 memutuskan masuk kamus atau tidak.

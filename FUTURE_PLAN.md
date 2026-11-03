@@ -1298,6 +1298,9 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
 - **Tersimpan sebagai entri:** `M-FF-INC` (peningkatan foreign flow 5 sesi), `M-FF-HEAVY` (akumulasi heavy terhadap
   riwayat sendiri), `M-TOPN-RATIO` (rasio top N pembeli ÷ top N penjual). Kandidat dari riset HHI dan tren share top 3
   buyer dicatat terpisah di dokumen itu.
+- **Ditambahkan atas permintaan user 2026-11-03** ("masukan Cr3 - 3/k_net dan CR3- 3/k_gross ke dalam MD + HHI top 3 net
+  dan HHI top 3 sell"): `M-CR3X-NET`, `M-CR3X-GROSS`, `M-HHI3-NETBUY`, `M-HHI3-NETSELL`. Tafsir AI atas "HHI top 3":
+  porsi 3 teratas dari HHI sisi pembeli atau penjual net; hasil ujinya jenuh dan sangat berkorelasi dengan CR3.
 - **Belum dibangun, belum disetujui sebagai pekerjaan.** Skema tabel kamus belum dirancang; tidak ada migrasi.
   Daya prediksi ("pre-rally") belum diuji.
 
@@ -1306,5 +1309,8 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
 2. Ambang "heavy": persentil 90 (bawaan EDGE, ±75 saham pada 2026-11-02), persentil 95, atau z-score ≥ 2 (±18 saham).
 3. `M-TOPN-RATIO`: cakupan semua investor atau hanya asing; nilai N (usulan 3); rasio mentah atau imbalance.
 4. Query lintas saham ke `Feature_02` (±15 GB) untuk riwayat 252 sesi: perkiraan ukuran dan izin sebelum dijalankan.
-5. Apakah kandidat `M-HHI` dan `M-TOP3-SHARE-TREND` masuk kamus.
+5. Kandidat `M-HHI` (HHI fitur) dan `M-TOP3-SHARE-TREND`: dibuang, diganti, atau dipertahankan (empat entri `M-CR3X-*` dan
+   `M-HHI3-*` sudah masuk).
 6. Uji peristiwa (forward return bersyarat) sebelum kata "pre-rally" dipakai.
+7. `M-CR3X-NET`: peringkat di dalam kelompok jumlah broker (usulan), angka gerbang (10), dan pasangan intensitas net beli.
+8. Tafsir "HHI top 3" di `M-HHI3-*` sudah sesuai maksud user atau perlu dikoreksi.
