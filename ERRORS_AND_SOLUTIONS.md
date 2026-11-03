@@ -5295,6 +5295,28 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M340 — Deploy orc saat pertanyaan user berjalan: run terputus, EDGE "Recovering delivery", Stop menggantung (2026-11-02)
+
+- **Ditemukan oleh:** user (screenshot 2026-11-03 01.54–02.00 WIB): Run 8 "Recovering delivery", lalu "Stopping —
+  waiting for the current step to finish". User mengirim ulang pertanyaan yang sama (Run 9).
+- **Verified (log orc + Railway):**
+  - Deploy orc `45870cbb` (EXEC-WEB-LIST A, push oleh agent) dibuat 18:54:26 UTC, tepat saat pertanyaan user dimulai
+    (01.54 WIB). Proses orc baru mulai 18:55:17 UTC, dan proses lama yang menjalankan Run 8 berhenti.
+  - Tombol Stop (`edge_7331ce34…`) tiga kali mendapat `NOT_RUNNING` dari orc (18:56:51–55). Sweep restart orc menandai
+    1 giliran terputus pada 18:58:22.
+  - Run 9 (`edge_a694dfcb…`) berjalan normal 18:59–19:03 UTC.
+- **Root cause:** deploy orc memutus run yang sedang berjalan (satu proses, tanpa pengurasan). Agent tidak memeriksa
+  run aktif sebelum push ke `main`.
+- **Solution:** sejak 2026-11-03 agent memeriksa run aktif sebelum setiap deploy orc (`edge_bff.jobs` QUEUED/RUNNING/
+  RECOVERING dan `AI_conversation_turn` RUNNING, read-only), dan menunda deploy bila ada.
+- **Belum dikerjakan (usulan):**
+  - pengurasan di orc: deploy menunggu run aktif selesai, atau run dilanjutkan sesudah restart;
+  - EDGE: tampilan "Stopping…" berakhir bila orc menjawab NOT_RUNNING. Log edge-bff jendela itu tidak lagi terbaca,
+    jadi jalur stop V5 (C) belum terverifikasi untuk kasus ini.
+- **Status:** OPEN (pencegahan manual berlaku).
+- **Class:** perubahan infrastruktur yang memutus pekerjaan user yang sedang berjalan.
+- **Lesson:** sebelum deploy service yang menjalankan pekerjaan user, periksa pekerjaan aktif dan tunda bila ada.
+
 ### M339 — Daftar tanggal dari web berhenti di satu item, dan model mengira tanggal web tidak boleh dipakai (2026-11-02)
 
 - **Ditemukan oleh:** user (2026-11-02, request `edge_026b017160b2cbd520668e0ce9ef0c36`): "kenapa dia gak pakai
@@ -5326,7 +5348,11 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - Hasil web berstatus PARTIAL, tetapi jawaban tes 1 tidak menyebut bahwa daftarnya mungkin tidak lengkap.
   - Kebenaran tanggal 2026 belum diverifikasi ke sumber resmi.
   - Usulan: status PARTIAL dari `research_web` wajib disebut di Batasan, atau model mencari ulang per tahun.
-- **Status:** FIXED untuk eskalasi dan pemakaian tanggal; kelengkapan daftar OPEN.
+- **Temuan di atas diperbaiki (user 2026-11-03, "Oke, jalankan perbaikannya"; `main` `f6105c16`, orc `db2ef338` SUCCESS):**
+  hasil `research_web` berstatus PARTIAL membuat backend menambahkan `user_texts.WEB_PARTIAL_LINE` ke Batasan (sekali
+  per jawaban, tidak untuk CLARIFICATION). Tanpa perubahan deskripsi alat atau katalog. Suite orc 2.095 lulus. Sebelum
+  deploy dicek tidak ada run aktif (0 job EDGE, 0 giliran orc; M340).
+- **Status:** FIXED.
 - **Class:** permintaan daftar yang dijawab sebagai satu item, dan model menyerah setelah satu panggilan.
 - **Lesson:** setiap alat pencari harus bisa diberi tahu berapa banyak item yang dicari, dan pemanggilnya mencoba lagi
   bila hasilnya tidak menutup kebutuhan.
