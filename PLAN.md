@@ -20,43 +20,6 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
-## IHSG: data broker dan Flow di Terminal — disetujui arahnya, rencana eksekusi belum
-
-**Kata user, 2026-11-03:** "kenapa data ihsg tidak ada di frontend?" (screenshot: IHSG · no broker data). Atas usulan
-publikasi broker IHSG dan pilihan (a) tampilkan rata-rata harga apa adanya / (b) sembunyikan: "B - lalu coba review
-juga dari sisi indikator flow. Mana yang useless kalau data yang kita show = IHSG".
-
-**Temuan (kode dan data live, 2026-11-03):**
-- Harga IHSG lengkap di Postgres dan storage sampai 2026-11-02. Celah di grafik adalah lompatan harga nyata (15 Okt
-  tutup 5.863,78, 16 Okt buka 5.393,92).
-- Agregat broker IHSG ada di `Feature_05_Foreign_Domestic_Broker_Detail_INDEX` (kolom identik dengan tabel saham,
-  sejak 2016-01-04, frekuensi terisi). Publisher hanya membaca tabel saham (`apps/terminal-publisher/publisher.py`
-  `BROKER_SQL`, 119-123), jadi Terminal menulis "no broker data" (`terminal/src/app/broker.ts`:184).
-- Harga IHSG tidak punya volume (`Price_Stock_Indonesia_IDX.volume` NULL).
-- Lot antar saham tidak sebanding (2 Nov: GOTO 43,1 juta lot = Rp104 miliar; BUMI 38,2 juta lot = Rp482 miliar).
-  Ukuran berbasis lot pada agregat pasar didominasi saham murah.
-
-**Rencana (detail menunggu rencana eksekusi):**
-1. Publisher: ticker berjenis `index` membaca `Feature_05_..._INDEX` (data dan cap perubahan); publikasi broker IHSG
-   2016-2026 sekali (update besar, lalu restart Postgres).
-2. Terminal untuk indeks (keputusan b): rata-rata harga beli/jual broker disembunyikan, Broker inventory memakai Value.
-3. Indikator Flow untuk indeks, dari review rumus `terminal/src/calc/flow.ts`:
-   - tidak bermakna (sembunyikan): FL17, FL18, FL19, FL20, FL39 (harga rata-rata Rupiah per saham dibanding level
-     indeks), FL27 dan FL28 (butuh volume harga, IHSG tidak punya), FL31 (insider per emiten), FL09 (sinyal blok per
-     saham dari ukuran lot);
-   - menyesatkan karena lot (sembunyikan atau paksa versi Value): FL01, FL03, FL05, FL06, FL07, FL08, FL13, FL14,
-     FL15, mode Lot di FL23;
-   - bermakna (tetap): FL02, FL04, FL10, FL11, FL12, FL16, FL21, FL22, FL26, FL30, FL32, FL33, FL34, FL35, FL36,
-     FL37, FL38, FL23 mode Value;
-   - bermakna dengan tafsiran lain (tetap, keterangan khusus indeks): FL24, FL25, FL29 ("bandar" = broker penggerak
-     pasar, bukan bandar satu saham).
-4. Tes publisher dan Terminal; cek angka IHSG di halaman sama dengan database.
-
-**Pertanyaan terbuka:**
-1. Indikator "menyesatkan karena lot": disembunyikan, atau diganti versi nilai Rupiah bila ada?
-2. FL28 (rata-rata nilai transaksi harian) untuk IHSG: dihitung dari nilai transaksi broker (bermakna), atau
-   disembunyikan?
-
 ## Anggaran reasoning dan penyajian — persetujuan target, audit dahulu
 
 **Persetujuan target, 2026-10-19 (kata user):** "Saya setuju terkait reasoning 48, penyajian 48k"

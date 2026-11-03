@@ -10142,6 +10142,91 @@ Cek", lalu "Buat Enya lebih besar, khusus di favicon".
 - Bukti: `main` `b612cc79`, edge-bff `d327c0a0` SUCCESS; live `/` memuat `favicon.svg?v=20261103` dan SVG live memuat
   `scale(1.6)`. Tes `test_the_favicon_is_public` lulus (Postgres sekali pakai).
 
+## EXEC-IHSG-FLOW — data broker IHSG di Terminal dan indikator Flow untuk indeks (rencana, menunggu go)
+
+**Kata user, 2026-11-03:**
+- "kenapa data ihsg tidak ada di frontend?" (screenshot: IHSG · no broker data);
+- atas pilihan (a) tampilkan rata-rata harga / (b) sembunyikan: "B - lalu coba review juga dari sisi indikator flow.
+  Mana yang useless kalau data yang kita show = IHSG";
+- atas pertanyaan terbuka: "Sembunyikan. FL28 tetap hitung" (indikator berbasis lot disembunyikan; FL28 dihitung).
+
+**Temuan:** lihat butir PLAN yang dipindah ke sini (di bawah), ditambah inspeksi kode 2026-11-03:
+- publisher membatasi broker ke `typ == 'stock'` di `apps/terminal-publisher/publisher.py`: backfill 1327, daily 1336,
+  broker-range 1342-1344, pack broker-archive 999 (`if typ != 'stock': return`), manifest 1405. `BROKER_SQL` (119-123),
+  `resolve_price_first_year` (1271-1275), `data_through` (1280-1281), deteksi daily (1333-1336) dan `BROKER_VERIFY_SQL`
+  (1770-1772) hanya membaca `Feature_05_Foreign_Domestic_Broker_Detail`.
+- `Feature_05_..._INDEX` kolomnya identik; menurut Table_Catalog diisi lewat bootstrap tervalidasi, "automatic daily
+  routing is not enabled" (diperbarui saat tabel INDEX di-refresh, `UPDATE_TABLE.md`).
+- Terminal: menu indikator memfilter dengan `inputsOf` / `needsOf` (`terminal/src/data/inputs.ts`:23-47,
+  `app/indMenu.ts`:26-36); obligasi sudah memakai pola "tanpa Flow" (`app/picker.ts`:47, `app/assets.ts`:197). Kolom
+  Avg di Broker summary: `app/broker.ts`:312-315. FL28: `calc/flow.ts`:476-483 (close × volume harga).
+- Screener menulis indeks "no data" sendiri (`screener/src/universe-ui.ts`:61, 82); backtest membaca file broker per
+  ticker (`BACKTEST_END_TO_END.md`:23-28, 90). Keduanya dicek tidak berubah perilaku untuk saham.
+
+**Rencana eksekusi:**
+1. Publisher (baca `BACKTEST_END_TO_END.md` dan `apps/edge-bff/backtest/CONTRACT.md` dulu):
+   - satu pemetaan tabel broker per jenis ticker: `stock` → tabel saham, `index` → `_INDEX`; dipakai `publish`, pack
+     broker-archive, deteksi daily (query kedua ke `_INDEX` sejak `broker_index_through` di `state.json`), manifest
+     (`broker` dengan `data_through` milik tabelnya) dan `verify`;
+   - `broker_first_year` tetap dari tabel saham (IHSG mulai 2016 juga);
+   - tes publisher: IHSG mendapat file broker dari `_INDEX`, saham tidak berubah, daily mendeteksi tanggal `_INDEX`
+     baru.
+2. Publikasi sekali: `broker-range` IHSG 2016-2026 (sekitar 0,5 juta baris), lalu `verify` IHSG terhadap SQL. Update
+   besar: restart Postgres sesudahnya (`restart_postgres.py` atau tombol Telegram).
+3. Terminal untuk ticker berjenis `index` (dari `ref/tickers`, `type`):
+   - input baru `index` di `inputsOf`; `flowRegistry.json` memberi tanda `index: false` pada FL01, FL03, FL05, FL06,
+     FL07, FL08, FL09, FL13, FL14, FL15, FL17, FL18, FL19, FL20, FL27, FL31, FL39; `menuItems` menyembunyikannya, dan
+     indikator tersimpan dari layout lama untuk IHSG tidak dipasang ulang;
+   - FL23 Broker Inventory dan panel Broker inventory: hanya Value (tombol Lot disembunyikan);
+   - Broker summary: kolom Avg disembunyikan, tooltip tanpa harga rata-rata;
+   - FL28: untuk indeks dihitung dari total nilai beli broker per hari (semua board); saham tetap close × volume;
+   - FL24, FL25, FL29: keterangan khusus indeks ("broker penggerak arus bersih pasar, bukan bandar satu saham");
+   - tes Terminal (registry, menu, FL28 indeks) dan build bundle Terminal.
+4. Verifikasi live (sesudah deploy, cek tidak ada run user aktif): halaman IHSG menampilkan broker, Flow Timeline
+   terisi, indikator tersembunyi tidak ada di menu, angka net asing satu tanggal sama dengan
+   `Feature_06_Foreign_Domestic_INDEX`.
+5. Catatan: `ERRORS_AND_SOLUTIONS.md` (entri baru: data broker indeks tidak dipublikasikan), `RAILWAY_CHANGELOG.md`,
+   `BACKTEST_END_TO_END.md` (sumber broker indeks), README publisher, hasil di bagian ini.
+- Jalan balik: revert commit publisher dan Terminal; file broker IHSG di bucket dihapus lewat run berikutnya
+  (manifest tanpa `broker`, cleanup).
+
+**Pertanyaan terbuka:** go untuk langkah 1-5?
+
+### Butir PLAN asal (dipindah 2026-11-03)
+
+
+**Kata user, 2026-11-03:** "kenapa data ihsg tidak ada di frontend?" (screenshot: IHSG · no broker data). Atas usulan
+publikasi broker IHSG dan pilihan (a) tampilkan rata-rata harga apa adanya / (b) sembunyikan: "B - lalu coba review
+juga dari sisi indikator flow. Mana yang useless kalau data yang kita show = IHSG".
+
+**Temuan (kode dan data live, 2026-11-03):**
+- Harga IHSG lengkap di Postgres dan storage sampai 2026-11-02. Celah di grafik adalah lompatan harga nyata (15 Okt
+  tutup 5.863,78, 16 Okt buka 5.393,92).
+- Agregat broker IHSG ada di `Feature_05_Foreign_Domestic_Broker_Detail_INDEX` (kolom identik dengan tabel saham,
+  sejak 2016-01-04, frekuensi terisi). Publisher hanya membaca tabel saham (`apps/terminal-publisher/publisher.py`
+  `BROKER_SQL`, 119-123), jadi Terminal menulis "no broker data" (`terminal/src/app/broker.ts`:184).
+- Harga IHSG tidak punya volume (`Price_Stock_Indonesia_IDX.volume` NULL).
+- Lot antar saham tidak sebanding (2 Nov: GOTO 43,1 juta lot = Rp104 miliar; BUMI 38,2 juta lot = Rp482 miliar).
+  Ukuran berbasis lot pada agregat pasar didominasi saham murah.
+
+**Rencana (detail menunggu rencana eksekusi):**
+1. Publisher: ticker berjenis `index` membaca `Feature_05_..._INDEX` (data dan cap perubahan); publikasi broker IHSG
+   2016-2026 sekali (update besar, lalu restart Postgres).
+2. Terminal untuk indeks (keputusan b): rata-rata harga beli/jual broker disembunyikan, Broker inventory memakai Value.
+3. Indikator Flow untuk indeks, dari review rumus `terminal/src/calc/flow.ts`:
+   - tidak bermakna (sembunyikan): FL17, FL18, FL19, FL20, FL39 (harga rata-rata Rupiah per saham dibanding level
+     indeks), FL27 dan FL28 (butuh volume harga, IHSG tidak punya), FL31 (insider per emiten), FL09 (sinyal blok per
+     saham dari ukuran lot);
+   - menyesatkan karena lot (sembunyikan atau paksa versi Value): FL01, FL03, FL05, FL06, FL07, FL08, FL13, FL14,
+     FL15, mode Lot di FL23;
+   - bermakna (tetap): FL02, FL04, FL10, FL11, FL12, FL16, FL21, FL22, FL26, FL30, FL32, FL33, FL34, FL35, FL36,
+     FL37, FL38, FL23 mode Value;
+   - bermakna dengan tafsiran lain (tetap, keterangan khusus indeks): FL24, FL25, FL29 ("bandar" = broker penggerak
+     pasar, bukan bandar satu saham).
+4. Tes publisher dan Terminal; cek angka IHSG di halaman sama dengan database.
+
+**Pertanyaan terbuka (dijawab 2026-11-03: "Sembunyikan. FL28 tetap hitung"):** lot disembunyikan; FL28 dihitung.
+
 ## EXEC-PG-RESTART-CRON — restart Postgres otomatis pagi dan sore, tombol manual dan pesan Telegram (go 2026-11-03)
 
 **Kata user, 2026-11-03:** "Coba jalankan C ya... Cek infra kita dulu dan buat implementation plan. PLan should be
