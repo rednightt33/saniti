@@ -10138,6 +10138,10 @@ abu-abu ke kanan bawah, E putih di tengah).
 derived from code checking instead of memory." (C = restart otomatis sesudah cron terjadwal, dari analisis biaya memori
 Postgres.) Eksekusi menunggu go atas pertanyaan terbuka di bawah.
 
+**Kata user, 2026-11-03 (jawaban pertanyaan terbuka):** "Siapkan pakai token baru. Pagi dan sore, buat jamnya bisa
+variable yang bisa di atur di cron ya. Cek infra dan buat implementation plan. Plan harus generate dari code reading ya
+instead of memory." Token baru diberikan sebagai file (tidak disimpan di Git).
+
 **Inspeksi live (2026-11-03, read-only):**
 - Cron (Railway `serviceInstance.cronSchedule`, UTC): idx-price-cron dan fixed-income-price-cron `0 10`, fixed-income
   recovery `0 11`, idx-intraday-cron `30 10 * * 1-5`, ai-data-coverage `30 0,10`, terminal-publisher `0,30 0,1,12`,
@@ -10155,35 +10159,57 @@ Postgres.) Eksekusi menunggu go atas pertanyaan terbuka di bawah.
 - Dokumentasi Railway: cron UTC, interval minimal 5 menit, run berikutnya dilewati bila run sebelumnya belum selesai,
   layanan harus keluar sendiri. Token proyek hanya untuk satu environment; Railway tidak punya token dengan izin sempit.
 
+**Inspeksi tambahan (2026-11-03):**
+- Token baru (nilai tidak dicetak): `projectToken` → proyek `8aef1702…` (lucid-patience), environment dev `4d3e5af2…`;
+  bisa membaca proyek (30 layanan) dan `serviceInstance`. Izin `deploymentRestart` baru teruji saat run pertama.
+- Pola jam lewat variabel sudah ada: terminal-publisher `TERMINAL_RUN_TIMES_WIB=07:30,19:00` dengan cron
+  `cron_for(times)` (`apps/terminal-publisher/publisher.py`:1961-1986, `should_run` 2103-2117): cron Railway adalah
+  perkalian menit × jam UTC dari daftar WIB, tick yang bukan jam terdaftar keluar tanpa kerja.
+- ERRORS M229: layanan ber-`cronSchedule` tidak berjalan saat deploy, dan `railway redeploy` memakai cron dan variabel
+  snapshot lama. Perubahan jam berarti variabel + cronSchedule + upload baru (`railway up`).
+- Cek M340: `edge_bff.jobs.state` IN (QUEUED, RUNNING, RECOVERING) dan `"AI_conversation_turn".status = 'RUNNING'`
+  (dibuat < 2 jam). Peran `pgweb` ditolak untuk schema `edge_bff` ("permission denied for schema edge_bff"), jadi jalur
+  manual belum bisa memeriksa job EDGE; `DATABASE_URL` di layanan cron bisa.
+- Jam usulan aman terhadap cron live (± 45 menit) dan B6: 09:45 WIB (02:45 UTC; publisher terakhir 01:30, berikutnya
+  10:00) dan 20:45 WIB (13:45 UTC; publisher terakhir 12:30, B6 selesai 13:20, berikutnya 23:00). Cron: `45 2,13 * * *`.
+
 **Rencana:**
 1. `scripts/restart_postgres.py` (tetap dipakai manual):
-   - baca DB lewat `DATABASE_URL` (sesi read-only) bila ada, selain itu pgweb seperti sekarang;
-   - cek M340 masuk kode: `edge_bff.jobs` QUEUED/RUNNING/RECOVERING dan `AI_conversation_turn` RUNNING menolak restart;
+   - baca DB lewat `DATABASE_URL` (transaksi read-only) bila ada, selain itu pgweb;
+   - cek M340 masuk kode (query di atas); run aktif = penolakan lunak;
    - layanan sendiri dikecualikan dari cek cron (`RAILWAY_SERVICE_NAME`);
-   - `--wait-minutes N`: penolakan lunak (query atau run user berjalan) dicoba lagi tiap 5 menit sampai N menit; penolakan
-     keras (cron, B6) tidak;
-   - `/ready` edge-bff lewat `EDGE_BFF_URL` (alamat privat) bila ada;
-   - token dari `RAILWAY_RESTART_TOKEN`, cadangannya `RAILWAY_TOKEN`;
-   - Telegram (`TELEGRAM_NOTIFY_URL`/`SECRET`, pola cron lain) hanya bila restart gagal atau EDGE tidak siap;
-   - tes unit untuk cek-cek baru.
-2. `apps/postgres-memory-cron/`: Dockerfile (Python slim, hanya `psycopg`), `deploy.sh` (unggah CLI seperti
-   stockbit-updater, jadi push ke `main` tidak memicu restart), README.
-3. Layanan baru `postgres-memory-cron` (dev): jadwal `45 13 * * *` (20:45 WIB; 75 menit sesudah publisher 12:30, sesudah
-   B6 13:20, 9 jam sebelum cron 23:00), restart `NEVER`, tanpa domain. Variabel (nama saja): `DATABASE_URL`
-   (`${{Postgres.DATABASE_URL}}`), `RAILWAY_RESTART_TOKEN` (stdin), `EDGE_BFF_URL`, `TELEGRAM_NOTIFY_URL`/`SECRET`
-   (referensi). Perintah: `--apply --wait-minutes 60`; restart hanya bila memori ≥ 0,8 GB.
-4. Uji: run pertama dengan `--check` (tanpa restart) dari jadwal sebenarnya, baca log; lalu `--apply`. Verifikasi
-   memori turun, waktu start Postgres berubah, EDGE `/ready` 200.
-5. Catatan: `railway config pull --force` + plan up to date, `RAILWAY_CHANGELOG.md`, `AGENTS.md` (cron sore otomatis;
-   update besar ad hoc tetap manual), hasil di bagian ini.
-- Jalan balik: hapus jadwal cron atau layanannya, cabut token.
+   - `--wait-minutes N`: penolakan lunak (query, run user) dicoba lagi tiap 5 menit sampai N; penolakan keras (cron
+     lain, B6) langsung berhenti;
+   - `--times-wib` / `PG_RESTART_TIMES_WIB`: tick cron yang bukan jam terdaftar (± 20 menit) keluar tanpa kerja (pola
+     `should_run` publisher);
+   - `/ready` edge-bff lewat `EDGE_BFF_URL` (alamat privat) bila ada; token `RAILWAY_RESTART_TOKEN`, cadangan
+     `RAILWAY_TOKEN`; Telegram (`TELEGRAM_NOTIFY_URL`/`SECRET`) hanya bila restart gagal atau EDGE tidak siap;
+   - satu baris JSON hasil per run (`PG_RESTART` …) untuk log;
+   - tes unit: cron_for, tick bukan jam terdaftar, pengecualian diri, tunggu-ulang, cek M340.
+2. Migrasi kecil: `GRANT USAGE ON SCHEMA edge_bff TO pgweb; GRANT SELECT (state, updated_at) ON edge_bff.jobs TO pgweb`
+   (hanya dua kolom), supaya cek manual juga bisa membaca job EDGE. `DATABASE_SCHEMA.md` dan `DATABASE_CHANGELOG.md`.
+3. `apps/postgres-memory-cron/`: Dockerfile (Python slim, hanya `psycopg`), `deploy.sh` (unggah CLI seperti
+   stockbit-updater; push ke `main` tidak memicu apa pun), README.
+4. `scripts/set_postgres_restart_times.py --wib 09:45,20:45 [--apply]`: cek tiap jam terhadap cron live ± 45 menit dan
+   B6 (fungsi `restart_postgres`), hitung cron (`cron_for`), set `PG_RESTART_TIMES_WIB`, ubah cronSchedule lewat
+   `.railway/railway.ts` (plan harus tepat satu perubahan), upload baru (M229), baca balik cron dan variabel.
+5. Layanan baru `postgres-memory-cron` (dev): `PG_RESTART_TIMES_WIB=09:45,20:45`, cron `45 2,13 * * *`, restart
+   `NEVER`, tanpa domain. Variabel (nama saja): `DATABASE_URL` (`${{Postgres.DATABASE_URL}}`), `RAILWAY_RESTART_TOKEN`
+   (token baru lewat stdin), `EDGE_BFF_URL`, `TELEGRAM_NOTIFY_URL`/`TELEGRAM_NOTIFY_SECRET` (referensi),
+   `PG_RESTART_MODE` (`check` lalu `apply`). Perintah: `--wait-minutes 60`; restart hanya bila memori ≥ 0,8 GB.
+6. Uji:
+   - lokal: tes unit, `--check` dari sesi agent;
+   - layanan: run terjadwal pertama dengan `PG_RESTART_MODE=check` (tanpa restart), baca log; lalu `apply`;
+   - verifikasi run apply pertama: memori turun, `pg_postmaster_start_time` berubah, EDGE `/ready` 200, tanpa job EDGE
+     yang terputus.
+7. Catatan: `railway config pull --force` + plan up to date, `RAILWAY_CHANGELOG.md`, `AGENTS.md` (restart terjadwal
+   otomatis dan cara mengubah jam; update besar ad hoc tetap manual), `UPDATE_TABLE.md` bila relevan, hasil di bagian ini.
+- Jalan balik: kosongkan cronSchedule atau hapus layanan, lalu cabut token di Project Settings → Tokens.
 - Ditolak: membunuh Postgres dari dalam (`COPY ... TO PROGRAM`), karena kasar, perlu superuser, dan memakai jalur crash.
 
 **Pertanyaan terbuka:**
-1. Token: token proyek baru khusus layanan ini (dibuat user di Project Settings → Tokens, env dev), atau token yang
-   dipakai agent sekarang?
-2. Restart pagi `45 2 * * *` (09:45 WIB, jam bursa) juga, atau sore saja?
-3. Satu restart sekitar 12 detik pukul 20:45 WIB setiap hari: diterima?
+1. Go untuk eksekusi (langkah 1–7), termasuk migrasi grant kecil di langkah 2?
+2. Restart sekitar 12 detik pukul 09:45 dan 20:45 WIB (dilewati bila ada run user): diterima?
 
 ## EXEC-PG-MEMORY — batas memori Postgres 1 GB dan restart sesudah setiap update besar (go 2026-11-03)
 
