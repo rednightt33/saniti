@@ -10205,7 +10205,9 @@ Cek", lalu "Buat Enya lebih besar, khusus di favicon".
   indeks, karena mengosongkan cron publisher untuk run langsung ditolak pengaman sesi. Hasilnya terbit 12:00 UTC.
 - Run 12:00 UTC GAGAL (`InsufficientPrivilege`, ERRORS M343): peran `terminal_market_reader` tidak boleh membaca
   tabel `_INDEX`. Publisher dikembalikan ke versi sebelumnya (`7831d814`); pengingat 12:25 UTC dihapus.
-- Belum: migrasi `20261103_002` (grant), cek dengan peran itu, upload ulang publisher EXEC-IHSG-FLOW, lalu verifikasi.
+- Perbaikan (user: "ok jalankan perbaikan"): runner dikosongkan, migrasi `20261103_001` dan `20261103_002` diterapkan
+  dan diuji dengan perannya, publisher EXEC-IHSG-FLOW di-upload ulang (`f9e2ce43` SUCCESS).
+- Belum: verifikasi run 2026-11-04 00:30 UTC (pengingat 00:50 UTC).
 - Catatan: ERRORS M342, RAILWAY_CHANGELOG 2026-11-03, `BACKTEST_END_TO_END.md` (sumber broker indeks), kepala
   `publisher.py`.
 

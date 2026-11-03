@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-03 — orc-test-runner cleared; grant migrations; terminal-publisher EXEC-IHSG-FLOW again (ERRORS M341, M343)
+
+- User: "ok jalankan perbaikan".
+- orc-test-runner: `railway down` of `324542c0` (my 02:53 UTC read job, finished `JOB_EXIT 0`, then a start with no
+  output) → REMOVED; then the grant migrations (DATABASE_CHANGELOG 2026-11-03), `VAR_REMOVED`.
+- terminal-publisher: upload of `git archive HEAD apps/terminal-publisher` (sha256 `67abdf37…`), deployment `f9e2ce43`
+  SUCCESS; `cronSchedule` `0,30 0,1,12 * * *` (read back); did not run on deploy. Next run 00:30 UTC.
+
 ## 2026-11-03 — terminal-publisher rollback after the failed 12:00 UTC run (ERRORS M343)
 
 - 12:01:25 UTC: daily run of `5e0ac80c` failed at plan, `InsufficientPrivilege` (the INDEX broker table is not

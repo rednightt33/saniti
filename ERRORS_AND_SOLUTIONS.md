@@ -5325,7 +5325,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - Migrasi `20261103_002_terminal_reader_broker_index.sql` (SELECT ke `terminal_market_reader`) ditulis; belum
     diterapkan karena orc-test-runner tampak sibuk (M341). Sesudah diterapkan dan dicek dengan peran itu, publisher
     EXEC-IHSG-FLOW di-upload ulang.
-- **Status:** MITIGATED (publikasi berikutnya aman); OPEN untuk grant dan publikasi broker IHSG.
+- **Status:** FIXED 2026-11-03 (user: "ok jalankan perbaikan"): migrasi `20261103_002` diterapkan, peran
+  `terminal_market_reader` terbukti membaca tabel `_INDEX` (probe), publisher EXEC-IHSG-FLOW di-upload ulang
+  (`f9e2ce43` SUCCESS, sha256 `67abdf37…`, cron tetap). Run pertama: 2026-11-04 00:30 UTC.
 - **Lesson:** setiap tabel baru yang dibaca sebuah service harus dicek izinnya dengan peran service itu sendiri
   (`SET ROLE`) sebelum deploy, termasuk service yang hanya membaca.
 
@@ -5366,8 +5368,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     `railway config plan` harus up to date. Hasil pull hanya dipakai sebagai bahan, jangan di-commit utuh.
   - (2) Penghapusan deployment runner itu (`railway down`) ditolak pengaman sesi agent, jadi migrasi
     `20261103_001` menunggu keputusan user.
-- **Status:** (1) FIXED dengan cara kerja. (2) OPEN: perlu izin user untuk mengosongkan runner, atau perbaikan
-  `runner_guard`.
+- **Status:** (1) FIXED dengan cara kerja. (2) Runner dikosongkan 2026-11-03 12:26 UTC atas izin user ("ok jalankan
+  perbaikan"; `railway down`, `324542c0` REMOVED). Penyebab container mulai ulang tetap OPEN.
 - **Lesson:** perintah yang menulis ulang file konfigurasi dari state live tidak boleh di-commit tanpa melihat diff;
   komentar keputusan user adalah bagian dari konfigurasi.
 
