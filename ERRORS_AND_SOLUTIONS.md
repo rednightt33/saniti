@@ -5345,8 +5345,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution (EXEC-IHSG-FLOW, `main` `ee882e48`):** publisher membaca tabel `_INDEX` untuk indeks dengan tanggalnya
   sendiri (`broker_index_through`); Terminal menyembunyikan 17 indikator Flow berbasis lot atau harga per saham pada
   indeks (input `single`), panel broker hanya Rupiah, FL28 dari nilai beli broker.
-- **Status:** OPEN. Terminal (edge-bff `4526c841`) sudah live; publisher `5e0ac80c` gagal di run 12:00 UTC (M343) dan
-  dikembalikan, jadi file broker IHSG belum terbit.
+- **Status:** FIXED 2026-11-03 13:55 UTC: run manual publisher `f9e2ce43` menerbitkan broker IHSG 2016-2026; setiap file
+  tahun sama dengan SQL tabel `_INDEX` (0 selisih), manifest IHSG `broker` 2026-11-03 (RAILWAY_CHANGELOG).
 - **Lesson:** setiap ticker non-saham (indeks, nanti makro atau lintas aset) perlu dicek: dari tabel mana datanya
   diterbitkan, dan indikator mana yang masih bermakna untuk agregat.
 

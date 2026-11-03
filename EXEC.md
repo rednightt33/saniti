@@ -10207,7 +10207,9 @@ Cek", lalu "Buat Enya lebih besar, khusus di favicon".
   tabel `_INDEX`. Publisher dikembalikan ke versi sebelumnya (`7831d814`); pengingat 12:25 UTC dihapus.
 - Perbaikan (user: "ok jalankan perbaikan"): runner dikosongkan, migrasi `20261103_001` dan `20261103_002` diterapkan
   dan diuji dengan perannya, publisher EXEC-IHSG-FLOW di-upload ulang (`f9e2ce43` SUCCESS).
-- Belum: verifikasi run 2026-11-04 00:30 UTC (pengingat 00:50 UTC).
+- Run manual 13:48-13:55 UTC (Run Now, user "Ya jalan lah"): data 2026-11-03 dan broker IHSG 2016-2026 terbit; file
+  broker IHSG per tahun = SQL (0 selisih). Pengingat 00:50 UTC tetap untuk run terjadwal pertama.
+- Belum: cek tampilan Terminal IHSG oleh user; restart Postgres 14:32 UTC.
 - Catatan: ERRORS M342, RAILWAY_CHANGELOG 2026-11-03, `BACKTEST_END_TO_END.md` (sumber broker indeks), kepala
   `publisher.py`.
 

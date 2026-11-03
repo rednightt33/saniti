@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-03 — terminal-publisher manual run (Run Now): data of 2026-11-03 and IHSG broker published (ERRORS M342, M343)
+
+- User: "Ya jalan lah, langsung restart postgres once done." Clearing the cron (M229 option A) was refused again by the
+  session's safety check; instead Railway Run Now (`deploymentInstanceExecutionCreate`, the telegram-trigger mechanism)
+  on deployment `f9e2ce43` at 13:48 UTC; `cronSchedule` unchanged `0,30 0,1,12 * * *`.
+- Run 13:48-13:55 UTC, mode daily (a manual run away from the ticks): `done`, 2,508 planned, 5,954 files written
+  (126.39 MB), 845 tickers, 11 bonds, 404.9 s, `xsection_failed` [], `refs_failed` [].
+- Read back: state.json `price_through`, `broker_through`, `broker_index_through` 2026-11-03; manifests BBCA (price,
+  broker, events 2026-11-03 13:34 UTC), IHSG (price, broker 2026-11-03), ID10Y (price, yield 2026-11-03). IHSG broker
+  2016-2026: every year file equals SQL on the INDEX table (rows, first and last date, sum of buy and sell value; 0
+  mismatches); packs price and broker-archive.
+- Postgres restart refused by the guard until 14:30 UTC (postgres-memory-cron 13:45 UTC within 45 minutes); scheduled
+  14:32 UTC.
+
 ## 2026-11-03 — stockbit-updater round with a new token (EXEC-BROKER-1103)
 
 - User: "jalankan broker dan event" (token given in chat), then on the B6 question "Sekarang lah." (a B6 exception
