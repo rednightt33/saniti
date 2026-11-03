@@ -16,6 +16,20 @@ import { markerOnCandles, onCandles } from '../data/timeframe';
 export interface FlowRegParam { key: string; label: string; kind: string; status: string; default?: any; options?: any[]; min?: number | null; max?: number | null; text?: string }
 export interface FlowRegIndicator { id: string; name: string; family: string; place: 'pane' | 'price' | 'marker'; unit: string; needs_frequency: boolean; outputs: string[]; tip: string; params: FlowRegParam[] }
 export const FLOW_REG = REG as unknown as { families: string[]; indicators: FlowRegIndicator[] };
+/* EXEC-IHSG-FLOW (user go 2026-11-03: "Sembunyikan. FL28 tetap hitung"): the Flow indicators that read one security's
+   lots or its Rupiah-per-share average price. On an index (the market aggregate of every stock) they are hidden
+   (data/inputs.ts 'single'): lots of different stocks do not add up (2 Nov: GOTO 43.1 M lots = Rp104 bn, BUMI 38.2 M lots
+   = Rp482 bn), a Rupiah-per-share VWAP is not the index level, an index has no volume and no insider. Review in EXEC.md. */
+export const SINGLE_SECURITY = new Set(['FL01', 'FL03', 'FL05', 'FL06', 'FL07', 'FL08', 'FL09', 'FL13', 'FL14', 'FL15',
+  'FL17', 'FL18', 'FL19', 'FL20', 'FL27', 'FL31', 'FL39']);
+/** on an index: what the indicator means there (the "bandar" ones: the brokers that drive the market's net flow) */
+const INDEX_NOTE: Record<string, string> = {
+  FL24:' Pada indeks (IHSG): broker penggerak arus bersih seluruh pasar, bukan bandar satu saham.',
+  FL25:' Pada indeks (IHSG): broker penggerak arus bersih seluruh pasar, bukan bandar satu saham.',
+  FL29:' Pada indeks (IHSG): broker penggerak arus bersih seluruh pasar, bukan bandar satu saham.',
+  FL23:' Pada indeks (IHSG) hanya dalam Rupiah: lot berbagai saham tidak bisa dijumlahkan.',
+  FL28:' Pada indeks (IHSG): jumlah nilai beli semua broker per hari, karena indeks tidak punya volume.',
+};
 
 const EMPTY = (N: number): FlowRows => ({ n:0, N, t:new Int32Array(0), b:new Uint16Array(0), inv:new Uint8Array(0), brd:new Uint8Array(0),
   bv:new Float64Array(0), sv:new Float64Array(0), bl:new Float64Array(0), sl:new Float64Array(0), bf:new Float64Array(0), sf:new Float64Array(0),
@@ -81,7 +95,7 @@ export function initFlowIndicators(ctx: Ctx) {
   const context = (): FlowContext => {
     const rows = ctx.flowRows || EMPTY(dates.length);
     if (!cached || cached.rows !== rows || cached.ins !== insider || cached.cls !== classification)
-      cached = { rows, ins:insider, cls:classification, c:{ rows, dates, close:closes, volume, insider, classification } };
+      cached = { rows, ins:insider, cls:classification, c:{ rows, dates, close:closes, volume, insider, classification, index:!!ctx.M.index } };
     return cached.c;
   };
   /* the first visible candle's date (the default anchor and Broker Inventory's start) */
@@ -124,12 +138,14 @@ export function initFlowIndicators(ctx: Ctx) {
         { k:'total', label:'Total', r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:'#171717' }];
       return r.outputs.map(k => ({ k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'' }));
     };
+    const note = ctx.M.index ? INDEX_NOTE[r.id] || '' : '';
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
-      guides:levels, levelsParam:!!byKey.levels, fill:null, tip:r.tip, info:r.tip + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
+      guides:levels, levelsParam:!!byKey.levels, fill:null, tip:r.tip + note, info:r.tip + note + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
     /* a field that only applies to one broker scope is shown only with it (audit I8: "Brokers: None" beside Top-N) */
     const hasScope = r.params.some(q => q.key === 'scope');
     const topnOnly = hasScope ? { when:(p: any) => (p.scope ?? 'topn') === 'topn' } : {};
-    const inputs = r.params.filter(q => q.key !== 'levels').map(q => {
+    const indexValueOnly = !!ctx.M.index && r.id === 'FL23';    // EXEC-IHSG-FLOW: an index's inventory in Rupiah only
+    const inputs = r.params.filter(q => q.key !== 'levels' && !(indexValueOnly && q.key === 'unit')).map(q => {
       const base: any = { key:q.key, label:relabel(q.label), hint:q.status === 'PROPOSED' ? 'Proposed default' : undefined,
         ...(['top', 'rank', 'ranking'].includes(q.key) ? topnOnly : {}) };
       switch (q.kind) {
@@ -150,13 +166,14 @@ export function initFlowIndicators(ctx: Ctx) {
     });
     const viewBound = r.params.some(q => q.kind === 'date') || r.id === 'FL23';
     return {
-      id:r.id, name:r.name, reg, multi:true, flow:true, viewBound, inputs, style:[], fill:null,
+      id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, inputs, style:[], fill:null,
       pane:r.place === 'pane' ? 'sub' : 'overlay', format:F.fmt, minMove:F.minMove,
       outsOf:(p: any) => outs(p.plot === 'hist' ? 'histogram' : p.plot === 'line' ? 'line' : plotDefault),
       compute:(p: any) => {
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
+        if (indexValueOnly) q.unit = 'value';
         const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
         if (r.id !== 'FL23') return o;
         const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
@@ -172,6 +189,7 @@ export function initFlowIndicators(ctx: Ctx) {
         const q: any = { ...flowDefaults(r.id), ...Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== undefined)) };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
+        if (indexValueOnly) q.unit = 'value';
         const d = DAY ? DAY.dayOf[t] : t;
         return d < 0 ? null : ex(context(), q, d, out);
       },

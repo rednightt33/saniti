@@ -8,7 +8,7 @@
 import type { Ctx } from './context';
 import { $, store } from './context';
 import { draggable, fitInView, shiftOf } from './draggable';
-import { FLOW_REG } from './flowIndicators';
+import { FLOW_REG, SINGLE_SECURITY } from './flowIndicators';
 import { ALL_INPUTS, fits, inputsOf, needsOf, type Input } from '../data/inputs';
 
 export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string }
@@ -31,7 +31,7 @@ export function menuItems(indReg: any[], flowReg: { families: string[]; indicato
   if (have.has('V')) out.splice(vol < 0 ? out.length : vol, 0, { id:'VOL', name:'Volume', group:'Volume', kind:'Base', place:'Panel', unit:'shares',
     tip:'Batang volume transaksi harian di bagian bawah chart harga.' });
   if (have.has('flow')) for (const f of flowReg.families) for (const r of flowReg.indicators.filter(x => x.family === f))
-    out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '' });
+    if (fits(needsOf({ flow:true, single:SINGLE_SECURITY.has(r.id) }), have)) out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '' });
   return out;
 }
 

@@ -116,11 +116,22 @@ PRICE_SQL = ('SELECT date::text, open::float8, high::float8, low::float8, close:
              "WHERE ticker = %s AND timeframe = 'Daily' AND is_final AND date BETWEEN %s AND %s ORDER BY date")
 # EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): buy_freq and sell_freq (transactions; NULL only for symbols that are not
 # four letters, which are not published: DATABASE_CHANGELOG 2026-10-22, sample check 2026-10-30) after source_balance_gap
-BROKER_SQL = ('SELECT trade_date::text, broker, investor_type, market_board, buy_value::float8, sell_value::float8, '
-              'buy_lots::float8, sell_lots::float8, source_balance_gap, buy_freq, sell_freq '
-              'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" '
-              'WHERE ticker = %s AND trade_date BETWEEN %s AND %s '
-              'ORDER BY trade_date, broker, investor_type, market_board')
+# EXEC-IHSG-FLOW (user go 2026-11-03): an index's broker rows are the market aggregate of its own table, the same
+# columns (Feature_05_..._INDEX: every declared source symbol summed per broker, investor type and board; filled when
+# the INDEX tables are refreshed, UPDATE_TABLE.md, not by the daily routing). A stock reads Feature 05 as before.
+BROKER_TABLES = {'stock': 'Feature_05_Foreign_Domestic_Broker_Detail',
+                 'index': 'Feature_05_Foreign_Domestic_Broker_Detail_INDEX'}
+
+
+def broker_sql(typ='stock'):
+    return ('SELECT trade_date::text, broker, investor_type, market_board, buy_value::float8, sell_value::float8, '
+            'buy_lots::float8, sell_lots::float8, source_balance_gap, buy_freq, sell_freq '
+            f'FROM public."{BROKER_TABLES[typ]}" '
+            'WHERE ticker = %s AND trade_date BETWEEN %s AND %s '
+            'ORDER BY trade_date, broker, investor_type, market_board')
+
+
+BROKER_SQL = broker_sql('stock')
 PRICE_STAMPS_SQL = ('SELECT ticker, extract(year FROM date)::int, count(*), max(date)::text, '
                     "coalesce(max(ingestion_time)::text, ''), sum(close)::text "
                     'FROM public."Price_Stock_Indonesia_IDX" '
@@ -959,11 +970,15 @@ class Publisher:
             rows = event_rows(self.conn.execute(EVENTS_SQL, (ticker,)).fetchall())
         else:
             lo, hi = f'{year}-01-01', f'{year}-12-31'
-            rows = self.conn.execute(PRICE_SQL if dataset == 'price' else BROKER_SQL, (ticker, lo, hi)).fetchall()
-        files = self.manifest(ticker)['datasets'].setdefault(dataset, {'files': {}})['files']
+            rows = self.conn.execute(PRICE_SQL if dataset == 'price' else broker_sql(self.kind_of(ticker)),
+                                     (ticker, lo, hi)).fetchall()
+        datasets = self.manifest(ticker)['datasets']
+        files = datasets.setdefault(dataset, {'files': {}})['files']
         if not rows:
             if files.pop(str(year), None):
                 self.changed.add((dataset, ticker, year))
+            if not files and set(datasets[dataset]) == {'files'}:
+                del datasets[dataset]             # EXEC-IHSG-FLOW: no empty dataset for a ticker without rows (an index)
             return None
         doc = (price_doc(ticker, year, rows) if dataset == 'price' else broker_doc(ticker, year, rows)
                if dataset == 'broker' else events_doc(ticker, rows))
@@ -998,13 +1013,13 @@ class Publisher:
         if force or 'price' not in packs or any(d == 'price' for d, _ in mine):
             rows = self.conn.execute(PRICE_SQL, (ticker, f'{self.price_first_year}-01-01', f'{self.last_year}-12-31')).fetchall()
             self.put_pack(ticker, 'price', price_pack_doc(ticker, rows), rows)
-        if typ != 'stock':
+        if typ not in BROKER_TABLES:
             return
         hi = self.last_year - 2                                   # the last two years stay yearly files
         span = [self.broker_first_year, hi]
         current = packs.get('broker-archive', {})
         if force or not current or current.get('years') != span or any(d == 'broker' and isinstance(y, int) and y <= hi for d, y in mine):
-            rows = self.conn.execute(BROKER_SQL, (ticker, f'{self.broker_first_year}-01-01', f'{hi}-12-31')).fetchall() if hi >= self.broker_first_year else []
+            rows = self.conn.execute(broker_sql(typ), (ticker, f'{self.broker_first_year}-01-01', f'{hi}-12-31')).fetchall() if hi >= self.broker_first_year else []
             doc = {**broker_doc(ticker, None, rows), 'dataset': 'broker-archive', 'years': span}
             self.put_pack(ticker, 'broker-archive', doc, rows, {'years': span})
 
@@ -1273,7 +1288,13 @@ class Publisher:
         broker = self.conn.execute('SELECT max(trade_date)::text FROM '
                                    'public."Feature_05_Foreign_Domestic_Broker_Detail"').fetchone()[0]
         events = self.conn.execute('SELECT max(ingestion_time)::text FROM public.idx_event_annotation').fetchone()[0]
-        return {'price': price, 'broker': broker, 'events': events}
+        broker_index = self.conn.execute('SELECT max(trade_date)::text FROM '
+                                         f'public."{BROKER_TABLES["index"]}"').fetchone()[0]
+        return {'price': price, 'broker': broker, 'events': events, 'broker_index': broker_index}
+
+    def kind_of(self, ticker):
+        """stock or index (the run's universe); a ticker outside it reads as a stock, as before EXEC-IHSG-FLOW."""
+        return (getattr(self, 'kinds', None) or {}).get(ticker, 'stock')
 
     # ---- modes -----------------------------------------------------------------------------------------------
     def run(self, mode, start_from=None, end_to=None, only=None, sweep=None):
@@ -1298,6 +1319,7 @@ class Publisher:
         self.step('plan')
         universe = self.universe()
         kind = {t: typ for t, _, typ, *_ in universe}
+        self.kinds = kind
         # EXEC-FI-TERMINAL: the bonds, in the modes that publish them (daily: the changed years; backfill and
         # fixed_income: every year); their manifests are read with the stocks' (the cleanup's baseline names them)
         # (every mode rewrites the bond list, as it rewrites the ticker and broker lists)
@@ -1324,7 +1346,7 @@ class Publisher:
         years = range(self.broker_first_year, self.last_year + 1)
         if mode == 'backfill':
             todo = [('price', t, y, None) for t in kind for y in range(self.price_first_year, self.last_year + 1)]
-            todo += [('broker', t, y, None) for t, typ in kind.items() if typ == 'stock' for y in years]
+            todo += [('broker', t, y, None) for t, typ in kind.items() if typ in BROKER_TABLES for y in years]
             todo += self.changed_events(kind, force=True)
         elif mode == 'daily':
             todo = self.changed_prices(kind) + self.changed_events(kind)
@@ -1334,14 +1356,24 @@ class Publisher:
                     'SELECT DISTINCT ticker, extract(year FROM trade_date)::int FROM '
                     'public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE trade_date > %s', (since,)).fetchall()
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.broker_first_year]
+            # EXEC-IHSG-FLOW: an index's broker table moves on its own date (state.json broker_index_through); the first
+            # daily run after the change (no date yet) publishes every year of every index, the later ones the new dates
+            since_index = state.get('broker_index_through')
+            if not since_index and through['broker_index']:
+                todo += [('broker', t, y, None) for t, typ in kind.items() if typ == 'index' for y in years]
+            elif since_index and through['broker_index'] and through['broker_index'] > since_index:
+                new = self.conn.execute(
+                    'SELECT DISTINCT ticker, extract(year FROM trade_date)::int FROM '
+                    f'public."{BROKER_TABLES["index"]}" WHERE trade_date > %s', (since_index,)).fetchall()
+                todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'index' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
         elif mode in ('logos', 'packs', 'intraday', 'fixed_income'):
             todo = []
         elif mode == 'broker-range':
-            tickers = only or [t for t, typ in kind.items() if typ == 'stock']
+            tickers = only or [t for t, typ in kind.items() if typ in BROKER_TABLES]
             lo, hi = int(start_from[:4]), int(end_to[:4])
-            todo = [('broker', t, y, None) for t in tickers if kind.get(t) == 'stock'
+            todo = [('broker', t, y, None) for t in tickers if kind.get(t) in BROKER_TABLES
                     for y in range(max(lo, self.broker_first_year), hi + 1)]
         else:
             raise SystemExit(f'unknown mode {mode}')
@@ -1404,6 +1436,8 @@ class Publisher:
             datasets = {'price': through['price']}
             if kind.get(ticker) == 'stock':
                 datasets['broker'] = through['broker']
+            elif kind.get(ticker) == 'index' and self.manifest(ticker)['datasets'].get('broker', {}).get('files'):
+                datasets['broker'] = through['broker_index']        # EXEC-IHSG-FLOW: the INDEX table's own date
             if self.manifest(ticker)['datasets'].get('events', {}).get('files'):
                 datasets['events'] = through['events']
             self.save_manifest(ticker, datasets)
@@ -1423,10 +1457,15 @@ class Publisher:
         self.uploads.wait()
         self.step('state')
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
+        # EXEC-IHSG-FLOW: the index broker table's date, apart from broker_through (the stocks' Feature 05 date that
+        # terminal-api /state and the backtest's catalog.flow.data_through read, CONTRACT.md); not served by terminal-api
+        broker_index_through = (through['broker_index'] if mode in ('backfill', 'daily', 'broker-range')
+                                else state.get('broker_index_through'))
         self.broker_behind = self.conn.execute(BEHIND_SQL, (through['broker'],)).fetchone()[0] if through['broker'] else None
         self.finished_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.bucket.put('state.json', json.dumps({
             'schema_version': SCHEMA_VERSION, 'price_through': through['price'], 'broker_through': broker_through,
+            'broker_index_through': broker_index_through,
             'broker_behind_sessions': self.broker_behind,
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
@@ -1767,9 +1806,13 @@ class Publisher:
         self.ref_written['fixed_income'] = body
 
 
-BROKER_VERIFY_SQL = ('SELECT count(*), min(trade_date)::text, max(trade_date)::text, sum(buy_value)::float8 + '
-                     'sum(sell_value)::float8, (coalesce(sum(buy_freq), 0) + coalesce(sum(sell_freq), 0))::bigint '
-                     'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE ticker=%s AND trade_date BETWEEN %s AND %s')
+def broker_verify_sql(typ='stock'):
+    return ('SELECT count(*), min(trade_date)::text, max(trade_date)::text, sum(buy_value)::float8 + '
+            'sum(sell_value)::float8, (coalesce(sum(buy_freq), 0) + coalesce(sum(sell_freq), 0))::bigint '
+            f'FROM public."{BROKER_TABLES[typ]}" WHERE ticker=%s AND trade_date BETWEEN %s AND %s')
+
+
+BROKER_VERIFY_SQL = broker_verify_sql('stock')
 
 
 def verify(conn, bucket, only=None):
@@ -1811,7 +1854,7 @@ def verify(conn, bucket, only=None):
                     got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['c']))
                 else:
                     # EXEC-TERMINAL-FLOW-IND: the transaction counts too (a file without bf/sf counts as missing them)
-                    sql_row = conn.execute(BROKER_VERIFY_SQL, (ticker, lo, hi)).fetchone()
+                    sql_row = conn.execute(broker_verify_sql(typ if typ in BROKER_TABLES else 'stock'), (ticker, lo, hi)).fetchone()
                     got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['bv']) + sum(doc['sv']),
                            sum(v or 0 for v in doc.get('bf', [])) + sum(v or 0 for v in doc.get('sf', [])))
                 same = got[:3] == tuple(sql_row[:3]) and abs(got[3] - sql_row[3]) <= max(1.0, abs(sql_row[3]) * 1e-9) \

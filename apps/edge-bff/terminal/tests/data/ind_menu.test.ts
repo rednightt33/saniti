@@ -24,6 +24,15 @@ describe('indicator menu rows', () => {
     expect(bond.filter(i => withVolume.includes(i.id))).toEqual([]);
     expect(bond.length).toBe((IND as any[]).length - withVolume.length);       // every price-only indicator stays
   });
+  it('EXEC-IHSG-FLOW: an index page hides the Flow indicators built on lots or a per-share price, keeps the rest', () => {
+    const idx = menuItems(IND as any[], FLOW as any, new Set(['O', 'H', 'L', 'C', 'flow'] as const));
+    const flow = idx.filter(i => i.kind === 'Flow').map(i => i.id);
+    for (const id of ['FL01', 'FL03', 'FL05', 'FL06', 'FL07', 'FL08', 'FL09', 'FL13', 'FL14', 'FL15', 'FL17', 'FL18', 'FL19',
+      'FL20', 'FL27', 'FL31', 'FL39']) expect(flow).not.toContain(id);
+    for (const id of ['FL02', 'FL04', 'FL10', 'FL11', 'FL12', 'FL16', 'FL21', 'FL22', 'FL23', 'FL24', 'FL25', 'FL26', 'FL28',
+      'FL29', 'FL30', 'FL32', 'FL33', 'FL34', 'FL35', 'FL36', 'FL37', 'FL38']) expect(flow).toContain(id);
+    expect(flow.length).toBe((FLOW as any).indicators.length - 17);
+  });
   it('groups, favorites and search', () => {
     expect(visibleItems(all, 'f:Bandar Balance', '', new Set()).every(i => i.group === 'Bandar Balance' && i.kind === 'Flow')).toBe(true);
     expect(visibleItems(all, 't:Volume', '', new Set())[0].id).toBe('VOL');

@@ -32,7 +32,7 @@ describe('production bundle', () => {
     const html = await readFile(join(DIST, 'index.html'), 'utf8');
     const main = await readFile(fileURLToPath(new URL('../../app/main.py', import.meta.url)), 'utf8');
     for (const [href, type] of [['/favicon.svg', 'image/svg+xml'], ['/favicon-32.png', 'image/png']]) {
-      expect(html).toContain(`<link rel="icon" href="${href}" type="${type}"`);
+      expect(html).toMatch(new RegExp(`<link rel="icon" href="${href.replace(/[.+]/g, '\\$&')}(\\?v=\\d{8})?" type="${type.replace(/[.+]/g, '\\$&')}"`));   // the version: EXEC-FAVICON-SQUARE 2026-11-03
       expect(main).toContain(`@app.get('${href}')`);
       await readFile(fileURLToPath(new URL(`../../static${href}`, import.meta.url)));
     }

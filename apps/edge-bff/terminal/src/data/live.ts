@@ -298,6 +298,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
     ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined }] as Instrument)];
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
   const bond = bondOf.get(SYMBOL);
+  const isIndex = tickers.some(t => t.ticker === SYMBOL && t.type === 'index');     // EXEC-IHSG-FLOW
   const ready = SYMBOL === guess && (await guessP.then(f => isBondAnswer(f) === !!bond, () => false)) ? await early
     : await prepare(SYMBOL, await bundle(SYMBOL, bond ? ['yield', 'price'] : ['price', 'broker', 'events'], csrf, want), !!bond);
   const { files, intraday, job } = ready;
@@ -428,6 +429,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
     ...(want && !intraday ? { note:`No ${want.toUpperCase()} data is published for ${SYMBOL}; showing the daily chart.` } : {}),
     ...(intraday && dayOf ? { intraday:{ dayOf, days:sessions, daily:rows, barsPerYear:files.meta?.barsPerYear, first:files.meta?.first, last:files.meta?.last } } : {}),
     loadEvents,
+    ...(isIndex ? { index:true as const } : {}),
     ...(bond ? { fixedIncome:{ metric, name:bond.name || SYMBOL, country:bond.country || '',
                                units:{ yield:bond.yield_unit ?? undefined, price:bond.price_unit ?? undefined } }, later:undefined } : {}),
     // the broker-action gauge has no approved formula yet; the Bandar detector's sums and verdict live in Top brokers

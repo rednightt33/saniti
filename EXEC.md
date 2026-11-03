@@ -10142,7 +10142,7 @@ Cek", lalu "Buat Enya lebih besar, khusus di favicon".
 - Bukti: `main` `b612cc79`, edge-bff `d327c0a0` SUCCESS; live `/` memuat `favicon.svg?v=20261103` dan SVG live memuat
   `scale(1.6)`. Tes `test_the_favicon_is_public` lulus (Postgres sekali pakai).
 
-## EXEC-IHSG-FLOW — data broker IHSG di Terminal dan indikator Flow untuk indeks (rencana, menunggu go)
+## EXEC-IHSG-FLOW — data broker IHSG di Terminal dan indikator Flow untuk indeks (go 2026-11-03)
 
 **Kata user, 2026-11-03:**
 - "kenapa data ihsg tidak ada di frontend?" (screenshot: IHSG · no broker data);
@@ -10190,7 +10190,7 @@ Cek", lalu "Buat Enya lebih besar, khusus di favicon".
 - Jalan balik: revert commit publisher dan Terminal; file broker IHSG di bucket dihapus lewat run berikutnya
   (manifest tanpa `broker`, cleanup).
 
-**Pertanyaan terbuka:** go untuk langkah 1-5?
+**Go (user, 2026-11-03):** "Go" (langkah 1-5).
 
 ### Butir PLAN asal (dipindah 2026-11-03)
 

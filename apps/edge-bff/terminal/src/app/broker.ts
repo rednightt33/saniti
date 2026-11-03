@@ -55,7 +55,10 @@ export function initBroker(ctx: Ctx) {
   const live = M.mode === 'live';
   const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
   const topKept = Number(store.get('ml.acc.top'));
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
+  /* EXEC-IHSG-FLOW (user 2026-11-03: "B", "Sembunyikan"): an index's broker rows are the market aggregate, so its panels
+     show Rupiah only: no Lot and no Avg in Broker summary, Broker inventory in Value without the Lot button */
+  const IDX = !!M.index;
+  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:IDX ? 'value' : 'lot', invInv:'All', invBoard:'All' };
   if(live){
     $('bdTop').querySelectorAll('button').forEach((b: any) => b.classList.toggle('active', +b.dataset.n === RS.bdN));
     $('bdHint').textContent = `Top ${RS.bdN}`;
@@ -310,9 +313,9 @@ export function initBroker(ctx: Ctx) {
       const val = gross ? (side==='b'?o.bv:o.sv) : Math.abs(netOf(o));
       const lot = gross ? (side==='b'?o.bl:o.sl) : Math.abs(netLotOf(o));
       const avg = lot ? Math.round(val/(lot*100)) : 0;
-      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${cv(o.bv)} · Sell ${cv(o.sv)} · Net ${sgn(netOf(o))}"><td>${bkTag(o.b)}</td><td>${cv(lot)}</td><td class="${side==='b'?'up':'down'}">${cv(val)}</td><td>${avg.toLocaleString('en-US')}</td></tr>`;
-    }).join('') || `<tr><td colspan="4" class="rp-empty">Tidak ada data</td></tr>`;
-    const head = `<thead><tr><th>Broker</th><th>Lot</th><th>Value</th><th>Avg</th></tr></thead>`;
+      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${cv(o.bv)} · Sell ${cv(o.sv)} · Net ${sgn(netOf(o))}"><td>${bkTag(o.b)}</td>${IDX ? '' : `<td>${cv(lot)}</td>`}<td class="${side==='b'?'up':'down'}">${cv(val)}</td>${IDX ? '' : `<td>${avg.toLocaleString('en-US')}</td>`}</tr>`;
+    }).join('') || `<tr><td colspan="${IDX ? 2 : 4}" class="rp-empty">Tidak ada data</td></tr>`;
+    const head = IDX ? `<thead><tr><th>Broker</th><th>Value</th></tr></thead>` : `<thead><tr><th>Broker</th><th>Lot</th><th>Value</th><th>Avg</th></tr></thead>`;
     const can = Math.max(buyers.length, sellers.length) > 5;
     $('bsBody').innerHTML = (M.hide.brokerGauge ? '' : `
       <div class="rp-gauge"><div class="rp-gauge-top"><span>Broker action</span><span class="tag ${gc}">${gt}</span></div>
@@ -509,6 +512,7 @@ export function initBroker(ctx: Ctx) {
           <line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#d4d4d4" stroke-dasharray="3 3"/>${lines}${hits}</svg></div>
       <div class="axis"><span class="l">${bkDates[invRange.bf].slice(5)}</span><span class="r">${bkDates[invRange.bt].slice(5)}</span></div>`;
   }
+  if (IDX) $('invUnit').querySelectorAll('button').forEach((b: any) => { b.classList.toggle('active', b.dataset.unit === 'value'); b.hidden = b.dataset.unit === 'lot' });
   $('invUnit').querySelectorAll('button').forEach(b => b.onclick = () => {
     RS.invUnit = b.dataset.unit; $('invUnit').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); renderInv();
   });

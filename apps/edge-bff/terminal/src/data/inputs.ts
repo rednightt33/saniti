@@ -9,18 +9,22 @@
    without a change here:
      O H L C  the candles' prices (every published price row has the four);
      V        a volume on at least one candle (a bond's files carry none: publisher fi_doc, v is always null);
-     flow     the ticker's broker and events files (live: the page asks for them, M.later; a bond has none).
+     flow     the ticker's broker and events files (live: the page asks for them, M.later; a bond has none);
+     single   the broker rows are one security's (EXEC-IHSG-FLOW, user go 2026-11-03: "Sembunyikan"): an index's rows are
+              the market aggregate, where lots of different stocks do not add up and a Rupiah-per-share price is not
+              its level, so the Flow indicators built on lots or average prices need it (app/flowIndicators.ts
+              SINGLE_SECURITY).
    An indicator's needs come from its definition: the registry's `req` letters (indRegistry.json), Flow for the Flow
    indicators and the broker lines. An indicator the ticker cannot feed is kept in the saved list (parked), not
    deleted: it comes back on the next ticker that has its data. */
 import type { MarketData } from './types';
 
-export type Input = 'O' | 'H' | 'L' | 'C' | 'V' | 'flow';
+export type Input = 'O' | 'H' | 'L' | 'C' | 'V' | 'flow' | 'single';
 /** every input (a ticker with all of them: a stock with broker files) */
-export const ALL_INPUTS: ReadonlySet<Input> = new Set<Input>(['O', 'H', 'L', 'C', 'V', 'flow']);
+export const ALL_INPUTS: ReadonlySet<Input> = new Set<Input>(['O', 'H', 'L', 'C', 'V', 'flow', 'single']);
 
 /** the inputs the loaded ticker has */
-export function inputsOf(M: Pick<MarketData, 'mode' | 'ohlc' | 'volume' | 'later'>): Set<Input> {
+export function inputsOf(M: Pick<MarketData, 'mode' | 'ohlc' | 'volume' | 'later' | 'index'>): Set<Input> {
   const have = new Set<Input>();
   const ok = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
   if (M.ohlc.some(b => ok(b.open))) have.add('O');
@@ -29,15 +33,16 @@ export function inputsOf(M: Pick<MarketData, 'mode' | 'ohlc' | 'volume' | 'later
   if (M.ohlc.some(b => ok(b.close))) have.add('C');
   if (M.volume.some(v => !v.none && ok(v.value))) have.add('V');
   if (M.mode !== 'live' || M.later) have.add('flow');     // the reference fixture carries its own broker data
+  if (!M.index) have.add('single');
   return have;
 }
 
 /** what an indicator definition reads: `needs` when it says so, Flow for a Flow indicator, else its registry letters
     ("HLCV": high, low, close, volume); a definition that names nothing reads the close */
-export function needsOf(def: { needs?: Input[]; flow?: boolean; reg?: { req?: string } } | null | undefined): Input[] {
+export function needsOf(def: { needs?: Input[]; flow?: boolean; single?: boolean; reg?: { req?: string } } | null | undefined): Input[] {
   if (!def) return [];
   if (def.needs) return def.needs;
-  if (def.flow) return ['flow'];
+  if (def.flow) return def.single ? ['flow', 'single'] : ['flow'];
   const req = String(def.reg?.req || 'C').toUpperCase();
   return [...new Set([...req].filter((c): c is Input => 'OHLCV'.includes(c)))];
 }

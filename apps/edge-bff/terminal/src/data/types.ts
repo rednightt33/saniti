@@ -103,6 +103,9 @@ export interface MarketData {
       price), its units (`PCTDY`: a US bill's price is a discount quote) and where it is from; no broker, events or
       intraday data */
   fixedIncome?: { metric: 'yield' | 'price'; name: string; country: string; units: { yield?: string; price?: string } };
+  /** EXEC-IHSG-FLOW (user go 2026-11-03): the ticker is an index (ref/tickers type 'index'): its broker rows are the market
+      aggregate, so lots and average prices are not one security's (data/inputs.ts 'single') */
+  index?: true;
   /** what the live page cannot show yet (approved formulas pending); the fixture shows everything */
   hide: { brokerGauge: boolean; bandar: boolean };
 }

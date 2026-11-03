@@ -56,8 +56,10 @@ class Result(list):
 class FakeConn:
     """Answers the publisher's statements from small in-memory tables."""
     def __init__(self, prices, brokers, universe, events=None, actions=None, intraday=None, timeframes=None,
-                 changes=None, now=None, fixed=None, fixed_universe=None):
+                 changes=None, now=None, fixed=None, fixed_universe=None, index_brokers=None):
         self.prices, self.brokers, self.universe = prices, brokers, universe
+        # EXEC-IHSG-FLOW: rows of Feature_05_..._INDEX (an index's market aggregate), the same shape as `brokers`
+        self.index_brokers = list(index_brokers or [])
         # EXEC-FI-TERMINAL: bond rows (ticker, metric_type, date, o, h, l, c, ingested) and Universe_Fixed_income
         self.fixed, self.fixed_universe = list(fixed or []), list(fixed_universe or [])
         self.events = list(EVENTS if events is None else events)
@@ -95,6 +97,12 @@ class FakeConn:
         return sorted(r for r in self.fixed if r[0] == ticker and r[1] == metric and lo <= r[2] <= hi)
 
     def _rows(self, sql, params):
+        if pub.BROKER_TABLES['index'] in sql:             # the INDEX table: the same statements on its own rows
+            saved, self.brokers = self.brokers, self.index_brokers
+            try:
+                return self._rows(sql.replace(pub.BROKER_TABLES['index'], pub.BROKER_TABLES['stock']), params)
+            finally:
+                self.brokers = saved
         if sql == pub.FI_UNIVERSE_SQL:
             return self.fixed_universe
         if sql == pub.FI_STAMPS_SQL:
@@ -185,7 +193,7 @@ class FakeConn:
         if 'max(date)' in sql:
             return [(max(r[1] for r in self.prices),)]
         if 'max(trade_date)' in sql:
-            return [(max(r[1] for r in self.brokers),)]
+            return [(max((r[1] for r in self.brokers), default=None),)]
         if 'DISTINCT ticker' in sql:
             return sorted({(r[0], int(r[1][:4])) for r in self.brokers if r[1] > params[0]})
         raise AssertionError(sql)
@@ -2335,3 +2343,58 @@ def test_the_cleanup_keeps_the_bond_files():
     p = pub.Publisher(conn, bucket, today=TODAY, clock=lambda: bucket.clock + dt.timedelta(days=1))
     p.collect_garbage()
     assert all(k in bucket.objects for k in named)
+
+
+# EXEC-IHSG-FLOW (user go 2026-11-03): an index's broker files come from Feature_05_..._INDEX, with its own date
+INDEX_BROKERS = [('IHSG', '2026-01-02', 'AK', 'Foreign', 'Regular', 900.0, 100.0, 9.0, 1.0, False, 30, 4),
+                 ('IHSG', '2026-01-02', 'YP', 'Domestic', 'Nego', 50.0, 850.0, 0.5, 8.5, False, 2, 25)]
+
+
+def test_index_broker_files_come_from_the_index_table():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE, index_brokers=INDEX_BROKERS)
+    _, _, bucket = run('backfill', conn)
+    doc = doc_of(bucket, 'IHSG', 'broker', 2026)
+    assert doc['b'] == ['AK', 'YP'] and doc['bv'] == [900.0, 50.0] and doc['bf'] == [30, 2]
+    m = bucket.get_json('manifest/IHSG.json')
+    assert m['datasets']['broker']['data_through'] == '2026-01-02'
+    assert doc_of(bucket, 'BBCA', 'broker', 2026)['bv'] == [500.0, 0.0]          # a stock still reads Feature 05
+    assert any(pub.BROKER_TABLES['index'] in s for s in conn.statements)
+    state = json.loads(bucket.objects['state.json'])
+    assert state['broker_through'] == '2026-01-02' and state['broker_index_through'] == '2026-01-02'
+    assert pub.verify(conn, bucket, ['IHSG']) == 0                              # checked against the INDEX table
+
+
+def test_daily_picks_up_a_new_index_date_on_its_own():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE, index_brokers=INDEX_BROKERS)
+    _, _, bucket = run('backfill', conn)
+    conn.index_brokers.append(('IHSG', '2026-01-05', 'AK', 'Foreign', 'Regular', 70.0, 0.0, 0.7, 0.0, False, 3, 0))
+    p2, _, _ = run('daily', conn, bucket)
+    assert doc_of(bucket, 'IHSG', 'broker', 2026)['d'][-1] == '2026-01-05'
+    assert bucket.get_json('manifest/IHSG.json')['datasets']['broker']['data_through'] == '2026-01-05'
+    assert json.loads(bucket.objects['state.json'])['broker_through'] == '2026-01-02'   # the stocks' date is unchanged
+
+
+def test_an_index_without_index_rows_has_no_broker_dataset():
+    _, _, bucket = run('backfill', FakeConn(PRICES, BROKERS, UNIVERSE))
+    assert 'broker' not in bucket.get_json('manifest/IHSG.json')['datasets']
+
+
+def test_broker_range_includes_the_index():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE, index_brokers=INDEX_BROKERS)
+    _, _, bucket = run('backfill', FakeConn(PRICES, BROKERS, UNIVERSE))
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('broker-range', '2026-01-01', '2026-12-31', ['IHSG'])
+    assert doc_of(bucket, 'IHSG', 'broker', 2026)['b'] == ['AK', 'YP']
+
+
+def test_the_first_daily_run_after_the_change_publishes_every_index_year():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE, index_brokers=INDEX_BROKERS + [
+        ('IHSG', '2025-06-02', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False, 1, 0)])
+    _, _, bucket = run('backfill', FakeConn(PRICES, BROKERS, UNIVERSE))          # a bucket from before EXEC-IHSG-FLOW
+    state = json.loads(bucket.objects['state.json'])
+    state.pop('broker_index_through', None)
+    bucket.objects['state.json'] = json.dumps(state).encode()
+    run('daily', conn, bucket)
+    assert doc_of(bucket, 'IHSG', 'broker', 2026)['b'] == ['AK', 'YP']
+    assert doc_of(bucket, 'IHSG', 'broker', 2025)['d'] == ['2025-06-02']
+    assert json.loads(bucket.objects['state.json'])['broker_index_through'] == '2026-01-02'

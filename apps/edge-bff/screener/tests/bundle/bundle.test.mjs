@@ -48,7 +48,7 @@ describe('production bundle', () => {
   });
   it('links the EDGE icons that edge-bff serves', async () => {
     const html = await readFile(join(DIST, 'index.html'), 'utf8');
-    for (const [href, type] of [['/favicon.svg', 'image/svg+xml'], ['/favicon-32.png', 'image/png']]) expect(html).toContain(`<link rel="icon" href="${href}" type="${type}"`);
+    for (const [href, type] of [['/favicon.svg', 'image/svg+xml'], ['/favicon-32.png', 'image/png']]) expect(html).toMatch(new RegExp(`<link rel="icon" href="${href.replace(/[.+]/g, '\\$&')}(\\?v=\\d{8})?" type="${type.replace(/[.+]/g, '\\$&')}"`));   // the version: EXEC-FAVICON-SQUARE 2026-11-03
   });
   it.each([...FORMULA, ...FIXTURE_MARKERS])('has no trace of %s', async (_, re) => {
     expect(re.test(await text(DIST))).toBe(false);

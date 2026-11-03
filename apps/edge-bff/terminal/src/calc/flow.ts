@@ -43,6 +43,7 @@ export interface FlowContext {
   volume: Series;
   insider: InsiderRow[];
   classification: Record<string, string>;  // broker code -> Institutional-heavy | Retail-heavy | Mixed | Niche
+  index?: boolean;          // EXEC-IHSG-FLOW: the rows are an index's market aggregate (FL28 reads them, not the volume)
 }
 
 const BOARD_INDEX: Record<string, number> = { Regular:0, Nego:1, Cash:2, Tunai:2 };
@@ -475,6 +476,17 @@ export const FLOW: Record<string, Fn> = {
   },
   FL28:(c, p) => {
     const n = int(p.window, 20), out = series(c.rows.N);
+    /* EXEC-IHSG-FLOW (user 2026-11-03: "FL28 tetap hitung"): an index has no volume; its traded value is the buy value
+       of every broker that day (every board and investor: each trade has one buyer) */
+    if (c.index) {
+      const g = grid(c.rows, null, null);
+      for (let t = n - 1; t < c.rows.N; t++) {
+        let s = 0, ok = true;
+        for (let k = t - n + 1; k <= t; k++) { if (!c.rows.has[k]) { ok = false; break } s += aw(g, 'bv', k, k) }
+        if (ok) out[t] = s / n;
+      }
+      return { value:out };
+    }
     for (let t = n - 1; t < c.rows.N; t++) {
       let s = 0, ok = true;
       for (let k = t - n + 1; k <= t; k++) { const cl = c.close[k], v = c.volume[k]; if (cl === null || v === null) { ok = false; break } s += cl * v }
