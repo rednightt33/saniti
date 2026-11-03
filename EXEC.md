@@ -10132,6 +10132,59 @@ abu-abu ke kanan bawah, E putih di tengah).
   16 px garisnya sekitar 1 px lagi. Varian E tebal dengan latar yang sama bisa dibuat bila user minta.
 - **Tes:** `tests/test_ui_1015c.py` + `tests/test_ui_1019b.py` 16 lulus (Postgres lokal sementara, Chromium bawaan).
 
+## EXEC-PG-RESTART-CRON — restart Postgres otomatis sesudah rangkaian cron sore (rencana, menunggu go)
+
+**Kata user, 2026-11-03:** "Coba jalankan C ya... Cek infra kita dulu dan buat implementation plan. PLan should be
+derived from code checking instead of memory." (C = restart otomatis sesudah cron terjadwal, dari analisis biaya memori
+Postgres.) Eksekusi menunggu go atas pertanyaan terbuka di bawah.
+
+**Inspeksi live (2026-11-03, read-only):**
+- Cron (Railway `serviceInstance.cronSchedule`, UTC): idx-price-cron dan fixed-income-price-cron `0 10`, fixed-income
+  recovery `0 11`, idx-intraday-cron `30 10 * * 1-5`, ai-data-coverage `30 0,10`, terminal-publisher `0,30 0,1,12`,
+  idx-price-recovery dan fixed-income-us `0 23`, fixed-income-us-recovery `0 0`. Feature 01/04 worker selalu hidup dan
+  dipicu oleh harga.
+- Selesai (tabel monitoring, 8 hari): harga harian 10:01–10:07, Feature 04 harian 10:02–10:11, fixed income ID sampai
+  11:03. Rangkaian sore terakhir adalah publisher 12:30.
+- Memori Postgres (metrik 15 menit, 72 jam): sesudah rangkaian sore 2–4 GB. Pada 31/10 tertahan 3,9–4,0 GB dari 13:45
+  sampai 03:00 hari berikutnya (sekitar 13 jam, sekitar 48 GB-jam, sekitar USD 0,66). Pagi (publisher 00:00–01:30) naik
+  1–3,5 GB dan biasanya turun di bawah 0,8 GB sebelum 02:30.
+- `scripts/restart_postgres.py`: membaca DB lewat pgweb dan Railway CLI (tidak ada di container cron); cek run user M340
+  tidak ada di kode (hanya di `AGENTS.md`); cek cron akan menolak dirinya sendiri (jadwalnya ikut terbaca).
+- Precedent layanan: `stockbit-updater` dan `idx-intraday-cron` dibuat dengan CLI dan diunggah (`railway up`), tanpa
+  GitHub (token proyek tidak bisa menghubungkan repo).
+- Dokumentasi Railway: cron UTC, interval minimal 5 menit, run berikutnya dilewati bila run sebelumnya belum selesai,
+  layanan harus keluar sendiri. Token proyek hanya untuk satu environment; Railway tidak punya token dengan izin sempit.
+
+**Rencana:**
+1. `scripts/restart_postgres.py` (tetap dipakai manual):
+   - baca DB lewat `DATABASE_URL` (sesi read-only) bila ada, selain itu pgweb seperti sekarang;
+   - cek M340 masuk kode: `edge_bff.jobs` QUEUED/RUNNING/RECOVERING dan `AI_conversation_turn` RUNNING menolak restart;
+   - layanan sendiri dikecualikan dari cek cron (`RAILWAY_SERVICE_NAME`);
+   - `--wait-minutes N`: penolakan lunak (query atau run user berjalan) dicoba lagi tiap 5 menit sampai N menit; penolakan
+     keras (cron, B6) tidak;
+   - `/ready` edge-bff lewat `EDGE_BFF_URL` (alamat privat) bila ada;
+   - token dari `RAILWAY_RESTART_TOKEN`, cadangannya `RAILWAY_TOKEN`;
+   - Telegram (`TELEGRAM_NOTIFY_URL`/`SECRET`, pola cron lain) hanya bila restart gagal atau EDGE tidak siap;
+   - tes unit untuk cek-cek baru.
+2. `apps/postgres-memory-cron/`: Dockerfile (Python slim, hanya `psycopg`), `deploy.sh` (unggah CLI seperti
+   stockbit-updater, jadi push ke `main` tidak memicu restart), README.
+3. Layanan baru `postgres-memory-cron` (dev): jadwal `45 13 * * *` (20:45 WIB; 75 menit sesudah publisher 12:30, sesudah
+   B6 13:20, 9 jam sebelum cron 23:00), restart `NEVER`, tanpa domain. Variabel (nama saja): `DATABASE_URL`
+   (`${{Postgres.DATABASE_URL}}`), `RAILWAY_RESTART_TOKEN` (stdin), `EDGE_BFF_URL`, `TELEGRAM_NOTIFY_URL`/`SECRET`
+   (referensi). Perintah: `--apply --wait-minutes 60`; restart hanya bila memori ≥ 0,8 GB.
+4. Uji: run pertama dengan `--check` (tanpa restart) dari jadwal sebenarnya, baca log; lalu `--apply`. Verifikasi
+   memori turun, waktu start Postgres berubah, EDGE `/ready` 200.
+5. Catatan: `railway config pull --force` + plan up to date, `RAILWAY_CHANGELOG.md`, `AGENTS.md` (cron sore otomatis;
+   update besar ad hoc tetap manual), hasil di bagian ini.
+- Jalan balik: hapus jadwal cron atau layanannya, cabut token.
+- Ditolak: membunuh Postgres dari dalam (`COPY ... TO PROGRAM`), karena kasar, perlu superuser, dan memakai jalur crash.
+
+**Pertanyaan terbuka:**
+1. Token: token proyek baru khusus layanan ini (dibuat user di Project Settings → Tokens, env dev), atau token yang
+   dipakai agent sekarang?
+2. Restart pagi `45 2 * * *` (09:45 WIB, jam bursa) juga, atau sore saja?
+3. Satu restart sekitar 12 detik pukul 20:45 WIB setiap hari: diterima?
+
 ## EXEC-PG-MEMORY — batas memori Postgres 1 GB dan restart sesudah setiap update besar (go 2026-11-03)
 
 **Kata user, 2026-11-03:** "Jalankan 1 dan 2. No 1 harus well documented to ensure bahwa ketika ada update besar yang
