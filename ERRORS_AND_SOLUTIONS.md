@@ -5310,6 +5310,21 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M344 — Semua tombol Run Now Telegram gagal: token Railway telegram-trigger tidak berlaku (2026-11-03)
+
+- **Ditemukan oleh:** user, menekan "🔄 Restart Postgres" dua kali (13:57 UTC); keduanya `FAILED`.
+- **Verified:** `Telegram_Command_Log.last_error` "Railway API error: Not Authorized" pada
+  `deploymentInstanceExecutionCreate`; token `RAILWAY_PROJECT_TOKEN` telegram-trigger (36 karakter) dijawab
+  `projectToken` "Project Token not found". Tombol Run Now terakhir sukses 2026-09-11 (RUN_RECOVERY). Run IDX Price dan
+  Recovery memakai token yang sama, jadi ikut rusak.
+- **Root cause:** token proyek telegram-trigger sudah dicabut atau dihapus; tidak ada cek yang memberi tahu.
+- **Solution:** isi `RAILWAY_PROJECT_TOKEN` telegram-trigger dengan token yang berlaku, misalnya referensi
+  `${{postgres-memory-cron.RAILWAY_RESTART_TOKEN}}` (satu token untuk semua tombol), lalu deploy. Agent tidak boleh menulis
+  secret itu (pengaman sesi); langkahnya untuk user.
+- **Status:** OPEN (menunggu user).
+- **Lesson:** fitur yang memakai token pihak luar perlu cek berkala bahwa tokennya masih berlaku, bukan baru ketahuan
+  saat tombol ditekan.
+
 ### M343 — Publisher gagal 2026-11-03 19:00 WIB: peran pembacanya tidak boleh membaca tabel broker `_INDEX` (2026-11-03)
 
 - **Ditemukan oleh:** agent, saat cek sesudah restart sesi (log terminal-publisher 12:01:25 UTC:

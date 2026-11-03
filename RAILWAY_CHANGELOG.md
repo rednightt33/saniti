@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-03 — postgres-memory-cron in apply mode; first real restart; telegram-trigger token dead (ERRORS M344)
+
+- User: "Ribet amat, restart sekarang. Aktifkan fitur restart postgres via TG."
+- postgres-memory-cron: `PG_RESTART_MODE=apply` (`--skip-deploys`), upload `7379fd0e` SUCCESS (the 13:46 UTC scheduled
+  check had reported correctly).
+- The user's two Telegram restarts (13:57:43 and 13:57:50 UTC) FAILED in telegram-trigger: Railway "Not Authorized" on
+  `deploymentInstanceExecutionCreate`; its `RAILWAY_PROJECT_TOKEN` answers "Project Token not found" (ERRORS M344).
+- Restart by Run Now of postgres-memory-cron (my token) 13:59:22 UTC: `restarted`, 10 s, Postgres start 02:56:35 →
+  13:59:33 UTC, memory 3.67 → 0.09 GB, edge-bff `/ready` 200, Telegram reports sent. This is the restart after round
+  c990db81 and the publisher run.
+- Pointing telegram-trigger's `RAILWAY_PROJECT_TOKEN` at `${{postgres-memory-cron.RAILWAY_RESTART_TOKEN}}` was refused by
+  the session's safety check (secret write): left to the user.
+
 ## 2026-11-03 — terminal-publisher manual run (Run Now): data of 2026-11-03 and IHSG broker published (ERRORS M342, M343)
 
 - User: "Ya jalan lah, langsung restart postgres once done." Clearing the cron (M229 option A) was refused again by the

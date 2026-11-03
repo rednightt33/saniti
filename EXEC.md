@@ -10379,11 +10379,12 @@ manual tetap ditolak di B6 dan 45 menit dari cron lain).
   Telegram 🔔 dan 🧪 terkirim (333, 334).
 - `set_postgres_restart_times.py`: 09:45,20:45 lolos dan plan up to date; 09:30,17:00 ditolak (bentrok dengan 4 cron).
 - Dokumentasi: `AGENTS.md` "Postgres memory after large updates", `UPDATE_TABLE.md` §6 dan B7, README tiga layanan.
-- Belum:
-  - migrasi grant `20261103_001` (runner tampak sibuk, ERRORS M341);
-  - tombol Telegram ditekan user (restart sekarang dan auto OFF/ON);
-  - run terjadwal pertama (20:45 WIB) dalam mode check;
-  - lalu `PG_RESTART_MODE=apply` dan restart sungguhan pertama.
+- Sesudahnya (2026-11-03):
+  - migrasi grant `20261103_001` diterapkan (DATABASE_CHANGELOG);
+  - run terjadwal 13:46 UTC (mode check) melapor benar ke Telegram;
+  - `PG_RESTART_MODE=apply` (`7379fd0e`), user: "Aktifkan fitur restart postgres via TG"; restart sungguhan pertama
+    13:59 UTC (Run Now): 10 detik, memori 3,67 → 0,09 GB, EDGE 200;
+  - tombol Telegram user gagal: token telegram-trigger mati (ERRORS M344); menunggu user mengganti token.
 
 
 ## EXEC-PG-MEMORY — batas memori Postgres 1 GB dan restart sesudah setiap update besar (go 2026-11-03)
