@@ -46,6 +46,20 @@ itu belum dirancang; jangan membuat migrasi dari dokumen ini tanpa go dari user 
    dihitung dengan kalkulator, contoh nyata BBCA, cara membaca, dan apa yang tidak dijawab), baru diikuti "Rincian
    teknis". Angka contoh nyata dihitung dari data pada 2026-11-03 dan ditandai **[T]**; angka contoh kecil adalah
    karangan untuk menjelaskan rumus.
+10. **Setiap metrik dilaporkan dengan dua persentil.** Permintaan user 2026-11-03: "Kalau bisa semua metric dikasih
+    persentil sebagai perbandingan juga." Setiap contoh nyata memuat tabel "Posisi sebagai persentil" dengan dua
+    pembanding: **(B) saham lain** pada tanggal yang sama (persentil peringkat di antara saham yang lolos gerbang metrik
+    itu) dan **(A) riwayat saham itu sendiri** (midrank terhadap 252 nilai jendela 5 sesi sebelumnya; hari ini tidak
+    ikut). Persentil tinggi berarti tinggi pada pembanding itu, bukan "baik". Untuk ukuran yang sudah berupa persentil
+    riwayat (persentil 252 sesi, z-score), pembanding A adalah ukuran itu sendiri.
+11. **Koreksi jendela per saham (2026-11-03).** Angka lintas saham yang pertama ditulis di dokumen ini memakai 5
+    tanggal bursa yang sama (27 Okt – 2 Nov). Sebanyak 36 dari 872 simbol tidak bertransaksi di kelima tanggal itu
+    (contoh ARKO: tidak bertransaksi 28 Okt), sehingga jendelanya kurang dari 5 sesi dan melanggar prinsip 3. Dihitung
+    ulang dengan 5 sesi masing-masing saham (16 tanggal bursa, 12 Okt – 2 Nov): simbol lolos gerbang 719 (sebelumnya 716);
+    sebaran berubah paling banyak 0,002; persentil BBCA dan BMRI berubah paling banyak 0,6 poin; angka ARKO berubah
+    cukup besar (CR3 − 3/k 0,465 menjadi 0,446; intensitas 45,9% menjadi 33,1%). Angka BBCA dan BMRI, persentil, serta
+    contoh di bagian "Penjelasan dan contoh" sudah memakai hitungan baru. **Tabel korelasi dan sebaran di "Rincian
+    teknis" belum diulang satu per satu** dan tetap berasal dari 5 tanggal bersama.
 
 Kolom penanda status pada tiap entri: **[T]** terverifikasi di data atau katalog pada 2026-11-03, **[D]** dugaan atau
 usulan yang belum diverifikasi.
@@ -64,7 +78,7 @@ usulan yang belum diverifikasi.
 | Sesi dan jendela | Sesi = hari bursa saham itu. Jendela = rentang sesi yang dihitung (bawaan 5 sesi, kira-kira satu minggu) |
 | Board | Regular (pasar utama), Nego (negosiasi), Tunai. Tidak pernah dijumlah |
 | Investor Type | Domestic atau Foreign: jenis investor pada transaksi, bukan jenis broker |
-| Persentil | Posisi dalam urutan. Persentil 90 berarti lebih tinggi dari 90% pembandingnya |
+| Persentil | Posisi dalam urutan. Persentil 90 berarti lebih tinggi dari 90% pembandingnya. Dua jenis dipakai: terhadap saham lain (B) dan terhadap riwayat sendiri (A) |
 | z-score | Berapa simpangan baku sebuah nilai berada di atas rata-rata pembandingnya. z = 2 berarti sekitar 2 simpangan baku di atas |
 | Pembanding jenis A / B | A = riwayat saham itu sendiri. B = saham lain pada tanggal yang sama |
 | Miliar, triliun | Dalam percakapan "M" berarti miliar dan "T" triliun. Di dokumen ini ditulis lengkap, dalam Rupiah |
@@ -111,6 +125,15 @@ itu** yang berupa net beli asing.
   −503,5; −6,0; −116,1 miliar).
 - **Syarat Δ > 0 saja tidak memilah:** 297 dari 379 saham net beli punya Δ > 0 (median Δ 3,9 poin; P90 20,5). Karena itu
   hasilnya harus diurutkan, bukan hanya disaring.
+
+**Posisi BBCA sebagai persentil** **[T]**
+
+| Ukuran | Nilai | Terhadap saham lain (B) | Terhadap riwayat sendiri (A) |
+|---|---:|---|---|
+| Rasio net asing 5 sesi | +5,57% | persentil 80,1 (858 saham) | persentil 75,4 |
+| Δ (peningkatan) | +21,27 poin | persentil 90,2 (di antara 379 saham net beli) | persentil 83,7 |
+
+Δ BBCA lebih menonjol dibanding saham lain (90,2) daripada dibanding kebiasaan BBCA sendiri (83,7).
 
 **Cara membaca:** makin besar Δ, makin kuat perubahan arus asing dibanding minggu sebelumnya. Baca bersama level
 (rasio sekarang): Δ +21 dari rasio −15,7% berbeda dari Δ +21 dari rasio +10%.
@@ -184,6 +207,18 @@ dan berasal dari satu hari saja. Ini contoh bahwa kedua entri menjawab pertanyaa
 **Gambaran seluruh pasar (2 Nov 2026, Regular):** dari 858 saham, 379 net beli; 75 punya persentil ≥ 90 (sekitar 84
 saham akan lolos hanya karena peluang), 18 punya z ≥ 2. Dari 75 saham itu, 65 juga punya Δ > 0 (`M-FF-INC`).
 
+**Posisi BBCA sebagai persentil** **[T]**
+
+| Ukuran | Nilai | Terhadap saham lain (B) | Terhadap riwayat sendiri (A) |
+|---|---:|---|---|
+| Persentil 252 sesi (ukuran heavy) | 84,1 | persentil 86,5 (dari 842 saham) | ukuran itu sendiri |
+| z-score 252 sesi | 0,71 | persentil 90,4 | ukuran itu sendiri |
+| Rasio net asing 5 sesi | +5,57% | persentil 80,1 (858 saham) | persentil 75,4 |
+
+Dibanding riwayat BBCA sendiri, net belinya hanya persentil 84,1 dan z-scorenya 0,71 (tidak luar biasa). Dibanding saham
+lain pada hari yang sama, z-score 0,71 berada di persentil 90,4, sejalan dengan fakta bahwa hanya 379 dari 858 saham
+net beli asing pada tanggal itu.
+
 **Cara membaca:** persentil tinggi berarti besar dibanding kebiasaan sendiri, bukan dibanding saham lain. Persentil 90
 meloloskan "10% teratas", bukan "luar biasa"; untuk yang benar-benar tidak biasa pakai persentil 95 atau z ≥ 2.
 
@@ -255,6 +290,16 @@ Rasio meloncat dari 1,5 ke 18 hanya karena penyebutnya kecil. Imbalance tetap di
 - Semua investor: hampir seimbang. Pembeli dan penjual terbesar sama-sama besar.
 - Hanya asing: pembeli terbesar sekitar 1,7 kali penjual terbesar, jadi lebih timpang.
 - Net asing totalnya Rp489,4 miliar, sama dengan `foreign_net_5d` di `Feature_06`, sehingga hitungannya konsisten.
+
+**Posisi BBCA sebagai persentil** (imbalance; rasio B/S memberi persentil yang sama karena urutannya sama) **[T]**
+
+| Cakupan | Imbalance | Terhadap saham lain (B) | Terhadap riwayat sendiri (A) |
+|---|---:|---|---|
+| Semua investor | 0,065 | persentil 62,9 (847 saham lolos gerbang) | persentil 67,1 |
+| Hanya asing | 0,256 | persentil 63,7 (201 saham lolos gerbang) | persentil 87,7 |
+
+Dibanding saham lain, ketimpangan BBCA sedang (sekitar persentil 63). Pada hanya-asing, ketimpangan itu tinggi dibanding
+riwayat BBCA sendiri (persentil 87,7).
 
 **Cara membaca:** rasio > 1 (imbalance > 0) berarti pembeli terbesar lebih besar dari penjual terbesar. Untuk semua
 investor, total net beli sama dengan total net jual, sehingga ukuran ini mengukur **konsentrasi**, bukan arah total.
@@ -332,8 +377,16 @@ CR3 sama-sama 40%, tetapi pada Y tiga pembeli itu jauh lebih menonjol di antara 
 - CR3 = 1.149,0 ÷ 1.623,1 = 70,8%. Bagian merata = 3 ÷ 40 = 7,5%. Hasil = **0,633** (63,3 poin; 9,4 kali bagian
   merata).
 - Pembeli ke-4 sampai ke-6 (AZ, AG, DX) hanya Rp58–92 miliar, jauh di bawah tiga teratas.
-- Di antara 716 saham, BBCA persentil 70,5; di antara saham dengan jumlah pembeli mirip (28–62 pembeli net), persentil
-  87,3.
+
+**Posisi BBCA sebagai persentil** **[T]**
+
+| Sisi | CR3 − 3/k | Terhadap saham lain (B) | Terhadap riwayat sendiri (A) |
+|---|---:|---|---|
+| Pembeli net | 0,633 | persentil 70,4 (719 saham); persentil 86,7 di kelompok 28–62 pembeli net (128 saham) | persentil 65,5 |
+| Penjual net | 0,553 | persentil 58,7 (715 saham) | persentil 35,3 |
+
+Pembeli BBCA lebih terkonsentrasi daripada kebanyakan saham, dan lebih lagi dibanding saham dengan jumlah pembeli
+sejenis (86,7). Dibanding kebiasaan BBCA sendiri hanya sedikit di atas tengah (65,5).
 
 **Cara membaca:** skala 0 (rata) sampai 1 − 3/k (maksimum; k = 40 → 0,925; k = 10 → 0,70). Makin tinggi, makin
 terkonsentrasi. BBCA 0,633 adalah sekitar 68% dari maksimum untuk k = 40.
@@ -364,7 +417,7 @@ jumlah brokernya?
   terpusat; sisi jual BBCA juga terkonsentrasi.
 - **Parameter:** N = 3 (usulan), jendela 5 sesi, sisi beli atau jual, cakupan semua investor atau hanya asing.
 - **Gerbang:** minimal 10 broker di sisi itu (**pilihan AI, bukan dari data; keputusan terbuka**). Pada jendela uji
-  lolos 716 dari 872 simbol (sisi jual: 715).
+  lolos 719 dari 874 simbol (sisi jual: 715); hitungan pertama pada 5 tanggal bersama: 716 dari 872.
 - **Pembanding:** peringkat persentil antar saham pada tanggal yang sama; **usulan, belum diputuskan:** peringkat di dalam
   kelompok saham dengan jumlah broker yang mirip (lima kelompok sama besar; pada jendela uji 10–13, 14–17, 18–21,
   22–27, 28–62 pembeli net); riwayat sendiri 252 sesi (menunggu izin menarik data).
@@ -381,11 +434,11 @@ jumlah brokernya?
   **−0,05**: hampir independen.
 - Keluarga konsentrasi pada dasarnya satu faktor: CR3, share top 1, dan CR3 − 3/k saling berkorelasi 0,83–0,93.
 - **Contoh BBCA** (5 sesi): k = 40, CR3 = 1.149,0 ÷ 1.623,1 = 0,708 (BK 498,2; ZP 412,4; YU 238,4 miliar), baseline
-  3/40 = 0,075, hasil **0,633** (63,3 poin; 9,4 kali bagian merata). Persentil 70,5 di 716 saham; 87,3 di kelompok k
-  28–62 (126 saham; median kelompok 0,515, P90 0,647). Riwayat sendiri (hitungan 2026-11-03, `Feature_02`, 252 sesi):
+  3/40 = 0,075, hasil **0,633** (63,3 poin; 9,4 kali bagian merata). Persentil 70,4 di 719 saham; 86,7 di kelompok k
+  28–62 (128 saham). Riwayat sendiri (hitungan 2026-11-03, `Feature_02`, 252 sesi):
   median 0,531, rentang 0,257–0,838, persentil 65,5. Sisi jual: k = 44, hasil 0,553.
 - **Pasangan:** lihat `M-NET-INTENSITY` (entri sendiri, ditambahkan atas permintaan user 2026-11-03). BBCA:
-  intensitas 18,5% (persentil 20,5), jadi konsentrasi tinggi tetapi porsi net kecil.
+  intensitas 18,5% (persentil 20,7), jadi konsentrasi tinggi tetapi porsi net kecil.
 
 **Keterbatasan:** satu jendela; kestabilan peringkat dan daya prediksi belum diuji; hanya melihat 3 broker teratas, jadi
 tidak membedakan satu broker dominan dari tiga yang setara (pakai share top 1).
@@ -415,10 +468,19 @@ hampir nol: aktif, bukan menumpuk.
 **Contoh nyata: BBCA, 5 sesi, Regular, semua investor** **[T]**
 - Tiga pembeli bruto terbesar: BK Rp1.171,6; ZP Rp1.130,5; AK Rp890,8 miliar = **Rp3.192,8 miliar** dari total beli
   Rp8.783,4 miliar = **36,4%**. Ada 83 broker yang membeli, bagian merata 3/83 = 3,6%. Hasil = **0,327**.
-- Persentil gross BBCA hanya **6,7** di antara 716 saham (versi net: 70,5): beli bruto BBCA tersebar dibanding saham
+- Persentil gross BBCA hanya **6,7** di antara 719 saham (versi net: 70,4): beli bruto BBCA tersebar dibanding saham
   lain, sementara beli bersihnya terkonsentrasi.
 - Dari Rp3.192,8 miliar yang dibeli tiga broker itu, net hanya Rp765,4 miliar (24,0%). **AK ada di tiga besar gross,
   tetapi net jual Rp145,2 miliar.**
+
+**Posisi BBCA sebagai persentil** **[T]**
+
+| Ukuran | Nilai | Terhadap saham lain (B) | Terhadap riwayat sendiri (A) |
+|---|---:|---|---|
+| CR3_gross − 3/k_gross | 0,327 | persentil 6,7 (719 saham); persentil 13,9 di kelompok 47–83 broker pembeli (144 saham) | persentil 25,8 |
+
+Beli bruto BBCA sangat tersebar dibanding saham lain (persentil 6,7), sedangkan beli bersihnya terkonsentrasi
+(persentil 70,4). Dibanding riwayat BBCA sendiri, gross-nya rendah (25,8).
 
 **Cara membaca:** nilai tinggi = pembelian didominasi sedikit broker besar. Bandingkan dengan versi net: net tinggi dan
 gross rendah = beli bersih terpusat di tengah banyak peserta; keduanya tinggi = pusat pembelian dan aktivitas ada di
@@ -452,8 +514,8 @@ jadi harus diperingkat di dalam kelompok yang sebanding.
   0,09. Jadi gross lebih terpengaruh jumlah broker dan likuiditas.
 - Korelasi dengan versi net: **0,45** (bukan duplikat); dengan share broker terbesar (top 1 gross): 0,87.
 - **Contoh BBCA** (5 sesi): 3 pembeli bruto terbesar BK 1.171,6; ZP 1.130,5; AK 890,8 = Rp3.192,8 miliar dari
-  Rp8.783,4 miliar = 36,4%; k_gross = 83; baseline 3,6%; hasil **0,327**. Persentil **6,7** di 716 saham dan 14,4 di
-  kelompok k_gross 48–83 (139 saham). Versi net BBCA persentil 70,5.
+  Rp8.783,4 miliar = 36,4%; k_gross = 83; baseline 3,6%; hasil **0,327**. Persentil **6,7** di 719 saham dan 13,9 di
+  kelompok k_gross 47–83 (144 saham). Versi net BBCA persentil 70,4.
 - Dari Rp3.192,8 miliar yang dibeli tiga broker itu, net hanya Rp765,4 miliar (24,0%); AK net jual Rp145,2 miliar.
 - Ide belum diuji: net ÷ bruto dari 3 pembeli teratas sebagai ukuran keyakinan.
 
@@ -484,13 +546,55 @@ Hasilnya sama dengan **1 − (volume yang dibeli sekaligus dijual oleh broker ya
 Pada P, Rp140 miliar (73,7%) dibeli oleh broker yang juga menjual, jadi saling menghapus. Pada Q, tidak ada yang
 saling menghapus.
 
-**Contoh nyata: BBCA, 5 sesi (27 Okt – 2 Nov 2026), Regular, semua investor** **[T]**
-- Total net beli 40 pembeli net: **Rp1.623,1 miliar**. Total nilai beli bruto semua broker: **Rp8.783,4 miliar**.
-- Intensitas = 1.623,1 ÷ 8.783,4 = **18,5%**. Artinya 81,5% dari nilai beli BBCA dibatalkan oleh penjualan broker yang
-  sama.
-- Di antara 716 saham, BBCA persentil **20,5** (rendah). Pembanding: ARKO 45,9% (persentil 79,3), BMRI 30,9% (persentil
-  51,8).
-- Sebaran 716 saham: median 30,3%, P10 12,7%, P90 56,7%.
+**Contoh nyata: tiga ticker, masing-masing 5 sesi terakhirnya, Regular, semua investor** **[T]**
+
+Langkah satu per satu (miliar Rp):
+
+| Langkah | BBCA (27 Okt – 2 Nov) | BMRI (27 Okt – 2 Nov) | ARKO (26 Okt – 2 Nov; tidak bertransaksi 28 Okt) |
+|---|---:|---:|---:|
+| 1. Total beli bruto semua broker | 8.783,4 | 3.803,0 | 71,3 |
+| 2. Jumlah pembeli net (k) | 40 | 62 | 24 |
+| 3. Total net beli (jumlah net broker yang positif) | 1.623,1 | 1.176,1 | 23,6 |
+| **4. Intensitas = (3) ÷ (1)** | **18,5%** | **30,9%** | **33,1%** |
+| Volume saling-hapus = (1) − (3) | 7.160,3 (81,5%) | 2.626,8 (69,1%) | 47,7 (66,9%) |
+
+Posisi sebagai persentil:
+
+| Pembanding | BBCA | BMRI | ARKO |
+|---|---:|---:|---:|
+| Saham lain (B), 719 saham | 20,7 | 51,9 | 57,6 |
+| Saham lain dengan jumlah pembeli net mirip (B) | 29,7 (kelompok 28–62) | 69,5 (kelompok 28–62) | 67,3 (kelompok 22–27) |
+| Riwayat sendiri (A) | 6,3 | 71,4 | 42,5 |
+
+Sebaran 719 saham: median 30,2%, P10 12,8%, P90 56,7%.
+
+**Di tingkat broker: seberapa banyak beli yang dibatalkan oleh jual sendiri**
+
+| Ticker | Broker | Beli | Jual | Net | % beli yang dibatalkan jual sendiri |
+|---|---|---:|---:|---:|---:|
+| BBCA | BK | 1.171,6 | 673,4 | +498,2 | 57% |
+| BBCA | ZP | 1.130,5 | 718,1 | +412,4 | 64% |
+| BBCA | YU | 839,3 | 600,9 | +238,4 | 72% |
+| BMRI | CC | 886,1 | 345,0 | +541,1 | 39% |
+| BMRI | YU | 244,1 | 145,1 | +99,0 | 59% |
+| BMRI | XL | 346,0 | 261,5 | +84,5 | 76% |
+| ARKO | IF | 6,7 | 0,0 | +6,7 | 1% |
+| ARKO | CC | 10,1 | 6,2 | +3,8 | 62% |
+| ARKO | AK | 9,0 | 6,1 | +2,9 | 67% |
+
+(Tiga pembeli net terbesar tiap ticker.)
+
+**Membaca ketiganya**
+- **BBCA 18,5%:** bahkan tiga pembeli net terbesarnya membatalkan 57–72% pembeliannya dengan penjualan sendiri. Di
+  persentil 6,3 terhadap riwayat BBCA sendiri, minggu ini pembelian BBCA sangat bolak-balik untuk ukuran BBCA.
+  Contoh ekstrem: AK membeli Rp890,8 miliar dan menjual Rp1.036,0 miliar, jadi seluruh pembeliannya dibatalkan
+  (net jual Rp145,2 miliar).
+- **BMRI 30,9%:** tengah terhadap saham lain (51,9), cukup tinggi terhadap riwayatnya (71,4). Pembeli net terbesarnya,
+  CC, membeli Rp886,1 miliar tetapi hanya 39% yang dibatalkan.
+- **ARKO 33,1%:** tengah terhadap saham lain (57,6). Pembeli terbesarnya, IF, membeli Rp6,7 miliar tanpa menjual
+  sedikit pun: murni searah. Total net beli ARKO hanya Rp23,6 miliar.
+- **Intensitas adalah proporsi, bukan jumlah.** Intensitas ARKO (33,1%) lebih tinggi dari BBCA (18,5%), tetapi net beli
+  BBCA Rp1.623,1 miliar, sekitar 69 kali lipat net beli ARKO. Baca selalu bersama ukuran nilai dan konsentrasi.
 
 **Cara membaca:** makin tinggi, makin sedikit pembelian yang "dibatalkan" oleh penjualan broker yang sama. BBCA memiliki
 konsentrasi pembeli yang tinggi (`M-CR3X-NET` 0,633) tetapi intensitas rendah: sedikit broker memegang net beli, namun
@@ -508,7 +612,7 @@ net beli itu kecil dibanding total aktivitas.
 - **Rumus:** intensitas = Σ net beli (broker net positif) ÷ Σ beli bruto semua broker; jendela 5 sesi; Regular; semua
   investor. **Gerbang:** sama dengan `M-CR3X-NET` (minimal 10 pembeli net).
 - **Sumber:** `IDX_Broker_Summary` (`"Buy Value"`, `"Sell Value"`), dihitung di sandbox (prinsip 8). **[T]**
-- **Bukti (716 saham, 5 sesi 27 Okt – 2 Nov 2026):** P10 / P50 / P90 = 0,127 / 0,303 / 0,567; bin terpadat 18,7%;
+- **Bukti (719 saham, 5 sesi masing-masing saham; korelasi di bawah dihitung pada 716 saham, 5 tanggal bersama):** P10 / P50 / P90 = 0,128 / 0,302 / 0,567; bin terpadat 18,7%;
   korelasi peringkat dengan jumlah pembeli net −0,31 dan dengan ukuran saham −0,07; dengan konsentrasi: CR3 0,26,
   share top 1 0,19, CR3 − 3/k 0,16. Jadi intensitas hampir independen dari konsentrasi dan memberi informasi lain.
   **[T]**
@@ -546,6 +650,16 @@ cepat mendekati 1 dan kurang peka. Share broker terbesar membedakannya jelas (20
 - Sisi beli (40 pembeli net): bobot BK 0,307, ZP 0,254, YU 0,147. Jumlah kuadratnya 0,1804, dari HHI sisi beli 0,1896.
   Ukuran = 0,1804 ÷ 0,1896 = **0,951**.
 - Sisi jual (44 penjual net): **0,919**.
+
+**Posisi BBCA sebagai persentil** **[T]**
+
+| Sisi | Ukuran | Terhadap saham lain (B) | Terhadap riwayat sendiri (A) |
+|---|---:|---|---|
+| Pembeli net | 0,951 | persentil 53,8 (719 saham) | persentil 66,3 |
+| Penjual net | 0,919 | persentil 49,2 (715 saham) | persentil 44,8 |
+
+Walaupun nilai mentahnya terlihat sangat tinggi (0,951), BBCA hanya di tengah (persentil 54) di antara saham lain. Itu
+tanda ukuran ini jenuh: hampir semua saham bernilai tinggi.
 
 **Cara membaca:** mendekati 1 berarti hampir seluruh konsentrasi sisi itu berasal dari tiga broker teratas. Karena
 hampir separuh saham bernilai di atas 0,95, angka ini kurang berguna untuk memilah saham.
@@ -586,7 +700,7 @@ Rekomendasi AI: jangan dipakai sebagai penyaring tunggal.
   daya pilahnya rendah. **Rekomendasi AI: jangan dipakai sebagai penyaring tunggal;** dicatat di kamus atas keputusan
   user.
 - **Satu-satunya nilai tambah:** membedakan satu broker dominan dari tiga yang setara pada CR3 yang sama. Dari 68 saham
-  ber-CR3 0,60–0,65: ARKO (broker terbesar 23%) = 0,78; BMRI (broker terbesar 46%) = 0,95. Share top 1 menangkap hal
+  ber-CR3 0,60–0,65 (hitungan ulang per saham): SMDM (broker terbesar 25%) = 0,79; BMRI (broker terbesar 46%) = 0,95. Share top 1 menangkap hal
   yang sama dengan lebih sederhana.
 - Sisi beli dan sisi jual hampir independen (korelasi −0,06).
 - **Contoh BBCA** (5 sesi): sisi beli **0,951** (k = 40): bobot BK 0,307, ZP 0,254, YU 0,147, Σ w² = 0,1804 dari H =

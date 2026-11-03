@@ -1305,6 +1305,10 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   pembaca)" di setiap entri, atas permintaan user: "Tolong setiap metode dijelaskan dengan contoh. Walk through the
   readers agar mereka paham dan mengerti indikator tersebut bicara soal apa." `M-FF-INC` dan `M-FF-HEAVY` sudah ada
   sejak penyimpanan pertama; yang ditambahkan adalah penjelasan dan contohnya.
+- **Ditambahkan 2026-11-03 (permintaan user: "Kalau bisa semua metric dikasih persentil sebagai perbandingan juga"):**
+  tabel "Posisi sebagai persentil" (saham lain dan riwayat sendiri) di setiap entri, walkthrough intensitas dengan tiga
+  ticker, dan **koreksi jendela per saham**: angka lintas saham awal memakai 5 tanggal bursa bersama; 36 dari 872 simbol
+  tidak bertransaksi di kelima tanggal (prinsip 11 di dokumen kamus). Tabel korelasi di "Rincian teknis" belum diulang.
 - **Belum dibangun, belum disetujui sebagai pekerjaan.** Skema tabel kamus belum dirancang; tidak ada migrasi.
   Daya prediksi ("pre-rally") belum diuji.
 
