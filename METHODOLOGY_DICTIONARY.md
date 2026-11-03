@@ -26,6 +26,20 @@ itu belum dirancang; jangan membuat migrasi dari dokumen ini tanpa go dari user 
    sebagian kebetulan: persentil 90 meloloskan sekitar 10% saham hanya karena peluang.
 7. **Daya prediksi belum diuji.** Kata "indikator pre-rally" baru boleh dipakai setelah ada uji peristiwa (forward
    return bersyarat) yang disetujui user. Sampai itu, entri hanya menjelaskan *keadaan* data.
+8. **Hitung sendiri dari data mentah; tabel Feature hanya jalan pintas dan pembanding.** Keputusan user 2026-11-03:
+   "ini tidak perlu rely on feature only ya.. Ini bisa buat our own calculation dan jalankan di your own sandbox. Data
+   raw sudah ada IDX_Broker_Summary". Sumber utama setiap entri adalah `IDX_Broker_Summary` (45,07 juta baris, 10 GB;
+   Regular ±23 ribu baris per tanggal untuk ±858 saham), ditarik per tanggal lewat pgweb hanya-baca (batas 30 detik per
+   query) dan dihitung di sandbox. Hasil uji 2026-11-03: **[T]**
+   - 5 tanggal Regular, semua saham = 116.183 baris, 29 MB, 3,9 detik total;
+   - net asing 5 sesi hitungan sendiri cocok dengan `Feature_06.foreign_net_5d` pada 784 dari 784 saham yang
+     bertransaksi di kelima tanggal (selisih maksimum 0,00 Rp);
+   - contoh BBCA (top 3 beli/jual) sama dengan hitungan tangan sebelumnya.
+   Yang tidak terbatas lagi oleh Feature: top N penjual, sisi gross, nilai N, cakupan investor type, dan pemilihan
+   universe saham. Riwayat panjang (252 sesi × ±858 saham ≈ 6 juta baris Regular, ±1,4 GB terbaca) belum diukur
+   langsung: sebut perkiraan dan minta izin sebelum menjalankannya (cache memori Postgres ikut ditagih; `AGENTS.md`,
+   Postgres memory). Perhitungan yang rumit dilakukan di sandbox dari hasil query yang sudah difilter, jangan menarik
+   jutaan baris sekaligus.
 
 Kolom penanda status pada tiap entri: **[T]** terverifikasi di data atau katalog pada 2026-11-03, **[D]** dugaan atau
 usulan yang belum diverifikasi.
@@ -120,12 +134,20 @@ Ini mengukur **konsentrasi**, bukan arah total: untuk semua investor, jumlah net
   | Hanya asing | 1.228,2 (BK, ZP, YU) | 727,7 (CC, KZ, RX) | 1,69 | 0,26 |
 
   Jumlah net asing 489,4 miliar sama dengan `foreign_net_5d` di `Feature_06`.
-- **Sumber:** `Feature_02_Broker_Rolling.net_value_5d` (net per broker, investor type, dan board selama 5 sesi). **[T]**
-  `Feature_03_Stock_Broker_Daily` hanya punya `top3_buyer_net_value` dan `top3_buyer_share` untuk **1 hari**, serta
-  penjual hanya top 1 (`top_seller_net_value`); **tidak ada top 3 penjual**, jadi sisi jual harus dihitung. **[T]**
-- **Biaya:** `Feature_02` ±15 GB. Satu saham satu tahun memakai indeks primary key (EXPLAIN 2026-11-03). Lintas ±858
-  saham × 252 tanggal belum diukur dan berarti puluhan juta baris: jalankan `EXPLAIN`, sebut perkiraan ukuran, dan minta
-  izin sebelum memulai (cache memori Postgres ikut ditagih; `AGENTS.md`, Postgres memory). **[D]**
+- **Sumber:** `IDX_Broker_Summary` (`"Date"`, `"Symbol"`, `"Broker"`, `"Investor Type"`, `"Market Board"`, `"Buy Value"`,
+  `"Sell Value"`), dihitung sendiri di sandbox (prinsip 8): jumlahkan net per broker (dan per investor type bila cakupan
+  asing) selama jendela, lalu ambil N terbesar tiap sisi. **[T]** `Feature_02.net_value_5d` adalah jalan pintas yang
+  sama hasilnya; `Feature_03` hanya punya `top3_buyer_net_value` dan `top3_buyer_share` untuk 1 hari dan penjual hanya
+  top 1, tanpa top 3 penjual. **[T]**
+- **Gerbang wajib (temuan 2026-11-03, 5 sesi 27 Okt – 2 Nov, Regular):** top N hanya terdefinisi bila ada ≥ N broker
+  net beli **dan** ≥ N broker net jual. **[T]**
+  - Semua investor: 845 dari 872 saham memenuhi; imbalance ≥ 0,5 hanya 0,4% saham (P90 0,213). Median imbalance 0,016.
+  - Hanya asing: 75% dari 797 saham punya < N=3 broker di salah satu sisi; imbalance jenuh di ±1 pada 31% saham
+    (112 tanpa penjual net, 124 tanpa pembeli net). Dengan gerbang tersisa 199 saham; imbalance ≥ 0,5 masih 23,6%
+    karena aktivitas asing terkonsentrasi di sedikit broker. Jadi cakupan hanya-asing butuh gerbang dan pembanding
+    riwayat sendiri; angka mentahnya banyak mencerminkan struktur broker asing, bukan sinyal.
+- **Biaya:** satu jendela 5 sesi lintas saham ±116 ribu baris, ±4 detik (terukur). Riwayat 252 sesi untuk persentil
+  ±6 juta baris: lihat prinsip 8, perlu izin. **[D]**
 - **Belum diuji:** apakah rasio timpang mendahului kenaikan harga.
 
 ---
