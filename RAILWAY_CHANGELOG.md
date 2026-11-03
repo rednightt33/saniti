@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-03 — Postgres memory limit back to 4 GB (EXEC-PG-MEMORY)
+
+- User: "Pake 1 gb likely Setiap query akan timeout. Kembalikan ke 4GB ya sekarang tapi keep existing path ...".
+- **Before:** no cron within 45 min, 0 statements, 0 EDGE jobs, 0 orc turns active.
+- **Change:** `python3 scripts/set_postgres_memory.py --gb 4 --apply` (new script): `memoryBytes` 1000000000 →
+  4000000000; plan showed exactly that change.
+  - Postgres deployment `36fc3a8a` SUCCESS; start 02:19:00 → 02:56:35 UTC; edge-bff `/ready` 200.
+  - `serviceInstanceLimits` reads 4000000000; `railway config plan` up to date.
+- Future changes: the same script with `--gb N` (`AGENTS.md` "Postgres memory after large updates").
+
 ## 2026-11-03 — Postgres memory limit 1 GB (EXEC-PG-MEMORY)
 
 - **Before:** 02:17 UTC `scripts/restart_postgres.py` check READY (no cron within 45 min, 0 statements); 0 EDGE jobs

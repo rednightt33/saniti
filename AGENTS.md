@@ -143,14 +143,19 @@ Railway resolves a reference variable (`${{service.NAME}}`) when the referencing
 User decisions: 2026-11-01 (ERRORS M319): "Restart terencana Postgres sesudah setiap backfill besar. Memori langsung
 bersih, dengan jeda sekitar satu menit." 2026-11-03 (EXEC-PG-MEMORY): "Jalankan 1 dan 2. No 1 harus well documented to
 ensure bahwa ketika ada update besar yang sifatnya ad hoc, maka AI agent aware akan hal ini. Untuk nomor 2, kita coba
-turunkan menjadi 1 giga."
+turunkan menjadi 1 giga." The same day, after the 1 GB test: "Pake 1 gb likely Setiap query akan timeout. Kembalikan ke
+4GB ya sekarang tapi keep existing path in case kita mau adjust memory Postgres in the future supaya lebih gampang."
 
 Why it matters:
 - Railway bills the Postgres container's memory, and that includes the Linux page cache a large read or write leaves
   behind.
 - The cache stays for hours after the work ends (it held 4 GB for 3 hours on 2026-11-02).
-- The container limit is 1 GB (`.railway/railway.ts`, `Postgres.deploy.limitOverride`). Postgres itself uses about
-  0.1–0.3 GB at rest (`shared_buffers` 128 MB); the rest is cache.
+- The container limit is 4 GB (`.railway/railway.ts`, `Postgres.deploy.limitOverride`; 1 GB was tried on 2026-11-03 and
+  made year-wide queries take 3–6 minutes). Postgres itself uses about 0.1–0.3 GB at rest (`shared_buffers` 128 MB);
+  the rest is cache.
+- To change the limit, run `python3 scripts/set_postgres_memory.py --gb N` (check: guards, the `railway.ts` edit, the
+  plan), then the same with `--apply` (Postgres restarts, about 12 seconds; the limit, start time and edge-bff `/ready`
+  are read back). Only with the user's approval; record it in `RAILWAY_CHANGELOG.md` and `EXEC.md`.
 
 A large update is any one of these, scheduled or **ad hoc**. When in doubt, treat the work as one.
 - a Stockbit broker or event round (`stockbit-updater`, `UPDATE_TABLE.md`);
@@ -175,12 +180,12 @@ After a large update and its reader checks:
 Before a deploy of `market-ai-orc` or a Postgres restart, check that no user run is active (`edge_bff.jobs` QUEUED,
 RUNNING or RECOVERING; `AI_conversation_turn` RUNNING); wait until none is (ERRORS M340).
 
-Heavy jobs raise `work_mem` to 64 MB and backfills raise `maintenance_work_mem` to 256 MB per connection. Under the
-1 GB limit, run them one at a time. If Postgres is killed for memory (a restart nobody started, `pg_postmaster_start_time`
+Heavy jobs raise `work_mem` to 64 MB and backfills raise `maintenance_work_mem` to 256 MB per connection. Run them one
+at a time; below 4 GB this is required. If Postgres is killed for memory (a restart nobody started, `pg_postmaster_start_time`
 newer than expected, connections dropped during a heavy job):
 - stop the job;
 - record it in `ERRORS_AND_SOLUTIONS.md`;
-- ask the user before raising the limit again (the way back is `memoryBytes` 4000000000).
+- ask the user before changing the limit (`scripts/set_postgres_memory.py`).
 
 ## History rules
 

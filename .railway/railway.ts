@@ -10,9 +10,9 @@ export default defineRailway(() => {
   Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
   // 2026-10-22 (user: "Jumlah RAM maksimal adalah 4 GB"): a memory limit makes the kernel reclaim page cache, which
   // otherwise stayed at 6-13 GB while Postgres was idle and is billed as memory (RAILWAY_CHANGELOG.md 2026-10-22)
-  // 2026-11-03 (EXEC-PG-MEMORY, user: "Untuk nomor 2, kita coba turunkan menjadi 1 giga"): 1 GB. Postgres uses about
-  // 0.1-0.3 GB at rest (shared_buffers 128 MB); the rest was page cache billed as memory. Way back: 4000000000.
-  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 1000000000 } } };
+  // 2026-11-03 (EXEC-PG-MEMORY): 1 GB tried ("kita coba turunkan menjadi 1 giga"), then back to 4 GB the same day
+  // ("Pake 1 gb likely Setiap query akan timeout. Kembalikan ke 4GB ya"). Change it with scripts/set_postgres_memory.py.
+  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 4000000000 } } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 100000 });
   const stockbitUpdaterVolume = volume("stockbit-updater-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });

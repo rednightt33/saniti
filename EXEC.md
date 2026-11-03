@@ -10183,6 +10183,15 @@ rather than just from memory." (1 = restart otomatis sesudah pekerjaan besar; 2 
 - Catatan: RAILWAY_CHANGELOG 2026-11-03.
 - Belum terukur: waktu query besar yang sama di bawah batas 4 GB (tidak ada pembanding yang diukur sebelumnya).
 
+**Kembali ke 4 GB (2026-11-03).** Kata user: "Pake 1 gb likely Setiap query akan timeout. Kembalikan ke 4GB ya sekarang
+tapi keep existing path in case kita mau adjust memory Postgres in the future supaya lebih gampang."
+- Jalur baru: `scripts/set_postgres_memory.py --gb N [--apply]` (pengaman `restart_postgres.py`, edit `railway.ts`,
+  `railway config plan` harus tepat satu perubahan, lalu apply dan baca balik).
+- Sebelum: tidak ada cron dalam 45 menit, 0 statement, 0 job EDGE, 0 turn orc berjalan.
+- Hasil: Postgres `36fc3a8a` SUCCESS, `serviceInstanceLimits` 4000000000, start 02:19:00 → 02:56:35 UTC, edge-bff
+  `/ready` 200; `railway config plan` up to date.
+- Tetap berlaku: restart sesudah setiap update besar (`AGENTS.md`), `restart_postgres.py --min-gb` 0,8 (diam 0,1–0,6 GB).
+
 ## EXEC-WEB-LIST — daftar peristiwa dari web dicari sampai lengkap, dan tanggalnya boleh dipakai sebagai periode (go 2026-11-02)
 
 **Kata user, 2026-11-02:**

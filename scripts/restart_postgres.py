@@ -5,8 +5,8 @@ sesudah setiap backfill besar. Memori langsung bersih, dengan jeda sekitar satu 
 A large write leaves Linux page cache that Railway bills as Postgres memory until it is reclaimed (up to the 4 GB limit,
 for hours). A restart frees it at once, at the cost of about one minute without the database. This script restarts
 only when it is worth it and safe:
-  1. memory: the newest 5-minute Postgres memory (Railway metrics) is above --min-gb (default 0.8 under the 1 GB limit of
-     EXEC-PG-MEMORY; the usual level is 0.1-0.6 GB). Below it there is nothing to free, so no restart;
+  1. memory: the newest 5-minute Postgres memory (Railway metrics) is above --min-gb (default 0.8; the usual idle level is
+     0.1-0.6 GB, so more means a job's page cache, under the 4 GB limit of EXEC-PG-MEMORY). Below it there is nothing to free, so no restart;
   2. no cron is due: every service's cron schedule is read from Railway (not listed here) and no run may start within
      --margin minutes (default 45) of now; the user's B6 windows (00:00-01:45 and 12:00-13:20 UTC) are refused too;
   3. no client is working: no `active` statement in pg_stat_activity other than this check (through pgweb, read-only);
@@ -143,8 +143,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--apply', action='store_true')
     p.add_argument('--force', action='store_true', help='skip the memory and client checks (never the cron check)')
-    # EXEC-PG-MEMORY (user 2026-11-03): the memory limit is 1 GB, so the page cache tops out near 1 GB; 0.8 GB is
-    # "filled by a large job" (idle is 0.1-0.6 GB)
+    # EXEC-PG-MEMORY (user 2026-11-03): idle is 0.1-0.6 GB, so 0.8 GB means a large job's page cache is left; the limit
+    # went back to 4 GB the same day and the threshold stays (it still separates idle from cache)
     p.add_argument('--min-gb', type=float, default=0.8)
     p.add_argument('--margin', type=int, default=45)
     args = p.parse_args()
