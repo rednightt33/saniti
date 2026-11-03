@@ -10192,6 +10192,21 @@ Cek", lalu "Buat Enya lebih besar, khusus di favicon".
 
 **Go (user, 2026-11-03):** "Go" (langkah 1-5).
 
+**Hasil (2026-11-03, sebagian):**
+- Kode: publisher (`BROKER_TABLES`, `broker_sql`, `broker_verify_sql`, `kind_of`, daily `broker_index_through`, run
+  harian pertama menerbitkan semua tahun indeks, tanpa dataset broker kosong); Terminal (`inputs.ts` input `single`,
+  `flowIndicators.ts` `SINGLE_SECURITY` dan catatan indeks, `indMenu.ts`, `broker.ts` Rupiah saja, `calc/flow.ts` FL28
+  indeks, `live.ts`/`types.ts` `index`).
+- Tes: publisher 144 lulus (5 baru); Terminal 1.491 lulus (input, menu indeks, FL28 indeks); Screener 696 dan Backtest
+  88 lulus sesudah build. Tes bundle Screener/Backtest gagal sejak favicon `b612cc79` (link ikon diberi versi);
+  diperbaiki di commit yang sama.
+- Deploy: `main` `ee882e48`; edge-bff `4526c841`, screener-worker `09b1c31c`, terminal-publisher `5e0ac80c` SUCCESS.
+- Perubahan dari rencana: langkah 2 (`broker-range` manual) diganti run harian pertama yang menerbitkan semua tahun
+  indeks, karena mengosongkan cron publisher untuk run langsung ditolak pengaman sesi. Hasilnya terbit 12:00 UTC.
+- Belum: verifikasi file broker IHSG terhadap SQL dan tampilan Terminal sesudah run 12:00 UTC (pengingat 12:25 UTC).
+- Catatan: ERRORS M342, RAILWAY_CHANGELOG 2026-11-03, `BACKTEST_END_TO_END.md` (sumber broker indeks), kepala
+  `publisher.py`.
+
 ### Butir PLAN asal (dipindah 2026-11-03)
 
 

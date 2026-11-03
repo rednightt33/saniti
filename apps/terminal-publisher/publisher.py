@@ -13,6 +13,8 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   backfill      every ticker-year of the window (initial load or a schema change).
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
                 refresh_feature_05 of that range (the same arguments).
+  An index (IHSG) reads its broker rows from Feature_05_..._INDEX (EXEC-IHSG-FLOW, BROKER_TABLES); daily follows that
+  table's own date (state.json broker_index_through), and the first daily run without it publishes every index year.
   events        only the event files of tickers whose idx_event_annotation rows changed.
   logos         every ticker's logo (EXEC-TERMINAL-LOGO); `daily` also refreshes them when the index is > 7 days old.
   packs         every ticker's packs (EXEC-TERMINAL-SPEED); the other modes keep the packs of the tickers they touch.

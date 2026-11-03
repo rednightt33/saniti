@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-11-03 — EXEC-IHSG-FLOW: publisher reads the INDEX broker table; Terminal index rules
+
+- User go 2026-11-03: "Go". Before the push: 0 orc turns running.
+- `main` `ee882e48`: edge-bff `4526c841` SUCCESS (live Terminal bundle `assets/index-DsEPFDxh.js` carries the index
+  notes); screener-worker `09b1c31c` SUCCESS (its watch covers `terminal/src/calc/**`; no behaviour change for stocks).
+- terminal-publisher: upload of `git archive HEAD apps/terminal-publisher` (`publisher.py` sha256 `0c14f54187ae573b…`),
+  deployment `5e0ac80c` SUCCESS; `cronSchedule` unchanged `0,30 0,1,12 * * *` (read back); it did not run on deploy
+  (ERRORS M229). Clearing the cron for an immediate run was refused by the session's safety check, so the IHSG broker
+  years are published by the 12:00 UTC daily run (the first daily run without `broker_index_through`).
+- No variable changed.
+
 ## 2026-11-03 — postgres-memory-cron: scheduled and Telegram Postgres restart (EXEC-PG-RESTART-CRON)
 
 - User go 2026-11-03: "Go langkah 1–9, tafsiran toggle benar, setuju".

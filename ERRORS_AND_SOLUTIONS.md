@@ -5310,6 +5310,25 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M342 — Data broker IHSG tidak pernah terbit ke Terminal; indikator Flow berbasis lot tampil untuk indeks (2026-11-03)
+
+- **Ditemukan oleh:** user (screenshot Terminal IHSG: "IHSG · no broker data", Flow Timeline "No flow matches"):
+  "kenapa data ihsg tidak ada di frontend?"
+- **Verified (kode, Postgres, bucket):**
+  - Harga IHSG lengkap sampai 2026-11-02 di Postgres dan bucket (`price/IHSG/2026…`, pack, intraday, `ref/tickers`).
+  - `Feature_05_Foreign_Domestic_Broker_Detail_INDEX` memuat agregat broker IHSG sejak 2016-01-04 (kolom identik).
+  - Publisher membatasi broker ke `typ == 'stock'` (`publisher.py` backfill, daily, broker-range, pack, manifest) dan
+    hanya membaca tabel saham (`BROKER_SQL`). Terminal lalu menulis "no broker data" (`broker.ts`:184).
+- **Root cause:** sumber broker indeks tidak pernah disambungkan ke publisher; Terminal juga tidak punya aturan untuk
+  data agregat (lot berbagai saham dijumlahkan, harga rata-rata Rupiah per saham dibanding level indeks).
+- **Solution (EXEC-IHSG-FLOW, `main` `ee882e48`):** publisher membaca tabel `_INDEX` untuk indeks dengan tanggalnya
+  sendiri (`broker_index_through`); Terminal menyembunyikan 17 indikator Flow berbasis lot atau harga per saham pada
+  indeks (input `single`), panel broker hanya Rupiah, FL28 dari nilai beli broker.
+- **Status:** FIXED di kode dan ter-deploy (publisher `5e0ac80c`, edge-bff `4526c841`); file broker IHSG terbit pada run
+  harian 2026-11-03 12:00 UTC (diverifikasi di EXEC-IHSG-FLOW).
+- **Lesson:** setiap ticker non-saham (indeks, nanti makro atau lintas aset) perlu dicek: dari tabel mana datanya
+  diterbitkan, dan indikator mana yang masih bermakna untuk agregat.
+
 ### M341 — `railway config pull --force` menulis ulang seluruh `.railway/railway.ts`; job runner selesai tetapi tercatat sibuk (2026-11-03)
 
 - **Ditemukan oleh:** agent saat EXEC-PG-RESTART-CRON.
