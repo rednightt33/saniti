@@ -148,8 +148,13 @@ def test_the_favicon_is_public(fixture_server):
             assert int.from_bytes(body[16:20], 'big') == size and int.from_bytes(body[20:24], 'big') == size
     with urllib.request.urlopen(origin + '/monitor') as response:
         page = response.read().decode()
-    for link in ('href="/favicon.svg"', 'href="/favicon-32.png"', 'rel="apple-touch-icon" href="/apple-touch-icon.png"'):
+    # the links carry a version (user 2026-11-03: the tab kept the old round "E"; a browser keeps a favicon by its URL),
+    # and the versioned URL is the same file
+    for link in ('href="/favicon.svg?v=20261103"', 'href="/favicon-32.png?v=20261103"',
+                 'rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261103"'):
         assert link in page
+    with urllib.request.urlopen(origin + '/favicon.svg?v=20261103') as response:
+        assert response.status == 200 and response.headers['Content-Type'].startswith('image/svg+xml')
 
 
 def test_a_provider_outage_shows_the_plain_line_and_a_retry(dummy_orc, browser_page):
