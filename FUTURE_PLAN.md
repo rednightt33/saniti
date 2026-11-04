@@ -1323,3 +1323,17 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
    konsentrasi pembeli berhubungan negatif (belum konklusif). Uji penuh ±850 saham (±6 juta baris, ±1,4 GB) menunggu izin.
 7. `M-CR3X-NET`: peringkat di dalam kelompok jumlah broker (usulan), angka gerbang (10), dan pasangan `M-NET-INTENSITY` (sudah masuk kamus).
 8. Tafsir "HHI top 3" di `M-HHI3-*` sudah sesuai maksud user atau perlu dikoreksi.
+
+## Library screener dan tinjauan indikator Flow (usulan user 2026-11-04, menunggu keputusan)
+
+- **Library screener:** [`SCREENER_LIBRARY.md`](SCREENER_LIBRARY.md). Kata user 2026-11-04: "Goalnya adalah bukan database
+  testing. Ini membuat library of screener, agar potential asset can appear when we applied these filters." dan
+  "Tambahkan dulu ke repo." Keputusan terbuka: tingkat gerbang likuiditas ("Luas" buang 50%, "Likuid" buang 80%), rasio net asing
+  minimum untuk S1, angka gerbang 10 broker, nama dan cakupan S3, ambang bawaan Longgar/Standar/Ketat, aturan S4 (insider),
+  tempat penyimpanan library.
+- **Tinjauan indikator Flow:** [`FLOW_INDICATOR_REVIEW.md`](FLOW_INDICATOR_REVIEW.md). Kata user 2026-11-04: "Goalnya adalah apakah
+  indikator ini perlu di eliminate, perlu di edit metric, visualnya perlu diganti atau tidak." Kartu pertama: FL03 Share ·
+  Volume. Temuan: garis Buy selalu di atas Sell (252 dari 252 sesi, sirkularitas pemilihan cohort), identitas cohort berganti
+  hampir tiap hari, FL07 identik dengan garis Buy FL03 pada bawaan, papan Nego dan Cash menggeser hingga 14,7 poin pada
+  hari tertentu, dan kode "FL03" bentrok dengan FL03 di screener. Keputusan terbuka: pilihan untuk FL03 (pertahankan, edit
+  metrik, ganti visual, gabung, hapus), nasib FL07 dan FL04, bawaan papan, penyatuan penomoran FL.
