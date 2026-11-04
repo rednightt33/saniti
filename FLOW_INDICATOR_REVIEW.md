@@ -18,6 +18,10 @@ item baru dijalankan atas perintah user.
 | # | Indikator | To-do | Kata user | Status |
 |---|---|---|---|---|
 | 1 | FL07 Share · Market Volume | Pensiunkan atau sembunyikan dari menu | "Maaf, maksud saya FL07 yang di sembunyikan. Bukan FL17." (2026-11-04) | To-do, belum dijadwalkan. Kartu di bagian 5b |
+| 2 | FL32 Transactions · Spike | Diedit menjadi "Activity Spike": parameter **Ukuran** (Transaksi, Nilai Rp, Lot) dan parameter **Sisi** (beli dan jual dipisahkan) | "P2 Ok tambahkan"; "P1 Pisahkan"; "better dipisahkan mana yang beli mana yang jual, per parameter" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
+| 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih | "Spike balance OK tambahkan" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
+
+**Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
 **Koreksi 2026-11-04:** sebelumnya item ini sempat tercatat salah untuk FL17 (commit `e8f4f21` dan `af2db50`, termasuk butir
 `FLOW-RM-FL17` di `PLAN.md`). Penyebabnya salah ketik pada permintaan (tertulis FL17, yang dimaksud FL07); FL17 tidak ditinjau dan tetap "Belum ditinjau". Catatan FL17 dan butir
@@ -101,7 +105,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL29 | Bandar Balance · Accumulation Days | Bandar Balance | Panel | % | value | Belum ditinjau |  |  |
 | FL30 | Crossing Share | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL31 | Insider Net Change | Other | Panel | IDR | value | Belum ditinjau |  |  |
-| FL32 | Transactions · Spike | Transactions | Panel | x | value | Belum ditinjau |  |  |
+| FL32 | Transactions · Spike | Transactions | Panel | x | value | To-do: diedit menjadi Activity Spike | P1 dan P2 disetujui (2026-11-04) | Kartu di bagian 5c; hanya sisi beli dan jumlah transaksi saat ini |
 | FL33 | Transaction Size · Change % | Transaction Size | Panel | % | value | Belum ditinjau |  |  |
 | FL34 | Institutional vs Retail Net | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL35 | Net Buy Persistence · Top Buyer | Net Flow | Panel | % | value | Belum ditinjau |  |  |
@@ -308,6 +312,90 @@ uji menu.
 
 Daftar di atas hasil pencarian teks `FL07` di repo (tanpa `node_modules`); referensi yang tidak menyebut kodenya secara harfiah tidak
 terdeteksi. Perilaku penyimpanan indikator dibaca dari `indicators.ts`, belum diuji di browser. Tidak ada kode yang diubah.
+
+## 5c. To-do: Activity Spike (edit FL32) dan Spike Balance (baru)
+
+**Catatan user 2026-11-04 (kata-katanya):** "P2 Ok tambahkan", "P1 Pisahkan", "Spike balance OK tambahkan", lalu "Jadi ini adalah
+indikator2 yang nanti akan ditambahkan/ di edit. Saat ini tolong dimasukan ke flow indicator review." Ini daftar to-do, bukan
+jadwal eksekusi: belum ada tanggal dan belum ada perintah "go".
+
+### 5c.1 Kondisi sekarang: FL32 Transactions · Spike
+
+- Rumus (`FORMULAS.md`): `BF_t(A) / mean(BF_k(A), k = t − baseline .. t − 1)`. `BF` adalah **jumlah transaksi beli** (`buy_freq`),
+  `A` adalah semua broker dengan filter papan dan investor. Satuan "x", bawaan baseline 20 sesi, garis acuan 2,5.
+- Hanya sisi beli, hanya jumlah transaksi (gross, tidak dikurangi transaksi jual), tanpa parameter sisi atau ukuran.
+- Kode: `apps/edge-bff/terminal/src/calc/flow.ts:501`.
+- **Untuk semua investor, jumlah transaksi beli selalu sama dengan transaksi jual** (BBRI 3 Nov: 67.211 lawan 67.211; korelasi
+  lonjakan beli–jual 1,00). Satu sisi baru menjadi masalah bila filter investor atau kelompok dipakai.
+
+### 5c.2 To-do 2: Activity Spike (FL32 diedit)
+
+| Parameter | Isi |
+|---|---|
+| **Ukuran** (baru) | **Transaksi** (jumlah, seperti FL32 sekarang), **Nilai (Rp)**, atau **Lot** |
+| **Sisi** (baru) | **Beli** atau **Jual**, dipisahkan per parameter (bukan dijumlah). Pilihan "Keduanya" (dua garis terpisah) belum diputuskan |
+| Baseline | Sesi sebelum hari ini (bawaan 20; user memakai 5; 1 sampai 250) |
+| Papan, Investor, Garis acuan | Tetap seperti FL32 |
+
+Rumus: `X_t(A) / mean(X_k(A), k = t − baseline .. t − 1)` dengan `X` = `BF` atau `SF` (Transaksi), `BV` atau `SV` (Nilai), `BL` atau `SL`
+(Lot), menurut Ukuran dan Sisi. Kosong bila baseline tidak penuh; aturan data frekuensi (`bf`/`sf`) hanya berlaku untuk Ukuran
+Transaksi.
+
+**Mengapa dua parameter:**
+- *Ukuran:* lonjakan jumlah dan lonjakan nilai berbeda. BBRI 3 Nov, semua investor: jumlah 1,48× tetapi nilai 1,02× (banyak
+  transaksi kecil). Korelasi lonjakan jumlah dan nilai 0,81 pada 252 sesi; 2 dari 10 hari jumlah ≥ 2× nilainya < 1,5×.
+- *Sisi:* sisi jual dan beli bisa bercerita berlawanan.
+
+**Bukti BBRI per 3 Nov 2026, baseline 5 sesi** (data `Feature_05`, semua papan):
+
+| Investor | Transaksi beli | Transaksi jual | Nilai beli | Nilai jual |
+|---|---:|---:|---:|---:|
+| Asing | **0,39×** | **1,85×** | 0,47× | 1,16× |
+| Domestik | 1,80× | 1,22× | 1,38× | 0,90× |
+| Semua | 1,48× | 1,48× | 1,02× | 1,02× |
+
+FL32 sekarang untuk asing hanya menampilkan 0,39× ("sepi"), padahal transaksi jual asing melonjak 1,85×. Selama 252 sesi, lonjakan beli
+dan jual asing hampir tidak berkorelasi (−0,01), dan ada 4 hari ketika hanya sisi jual melonjak (jual ≥ 2,5× dan beli < 1,5×). Pada
+domestik korelasinya 0,79.
+
+**Fakta pelaksanaan (dibaca dari kode, belum diuji di browser):**
+- Pola parameter sisi sudah ada (`sided()` di `flow.ts:241`, dipakai FL01 sampai FL05): sisi beli, sisi jual, atau "both" yang
+  menggambar dua garis terpisah, tidak dijumlah.
+- Indikator tersimpan di browser mengisi parameter yang hilang dengan bawaan registri (`indicators.ts:231`). Bila bawaan baru
+  dibuat `Ukuran = Transaksi` dan `Sisi = Beli`, FL32 yang sudah dipasang tetap berperilaku sama.
+- Registri dihasilkan dari spesifikasi (`build_spec_workbook.py`, lalu `build_flow_registry.py`), jadi perubahan parameter harus lewat
+  generator dan dibangkitkan ulang.
+
+**Pertanyaan terbuka:**
+1. Pilihan "Keduanya" (dua garis terpisah, seperti FL01 sampai FL05) disediakan atau tidak.
+2. Diedit di tempat (kode FL32 dipertahankan, nama diganti "Activity Spike") atau indikator baru dengan kode baru. Usulan: di tempat,
+   agar grafik tersimpan tidak terputus dan penomoran tidak berubah (lihat bagian 6).
+3. Satuan keluaran FL32 sekarang satu garis `value`; pola sisi memakai keluaran `buy` dan `sell`. Perlu diputuskan penanganan gaya
+   garis tersimpan.
+
+### 5c.3 To-do 3: Spike Balance (indikator baru)
+
+- **Isi:** lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih:
+  `(X_t^beli / mean(X^beli)) / (X_t^jual / mean(X^jual))` dengan ukuran dan baseline yang sama. Lebih dari 1: sisi beli relatif lebih
+  menonjol; kurang dari 1: sisi jual.
+- **Hanya bermakna dengan filter.** Untuk semua investor rasionya selalu 1 (jumlah transaksi, nilai, dan lot beli sama dengan jual).
+  Dengan filter asing atau domestik, atau kelompok broker, rasionya informatif.
+- **Contoh BBRI, asing, transaksi, baseline 5:** 3 Nov = 0,39 ÷ 1,85 = **0,21**. Sebaran 252 sesi: P10 0,34, median 1,01, P90 3,05;
+  nilai 3 Nov di persentil 3. Lima sesi terakhir: 27 Okt 1,32; 28 Okt 2,09; 29 Okt 0,56; 30 Okt 0,91; 2 Nov 1,17; 3 Nov 0,21.
+- **Pertanyaan terbuka:** skala (linear dengan garis netral 1, atau logaritmik), garis acuan (usulan 0,5 dan 2), ukuran bawaan,
+  dan apakah cakupan kelompok broker (Top-N) ikut ditawarkan atau hanya filter investor dan papan.
+
+### 5c.4 Diusulkan, belum diputuskan: Participation Shift
+
+FL36 (cakupan semua broker, investor asing) dibandingkan dengan riwayat sendiri (persentil 250 sesi): dua sisi sejak awal. BBRI
+asing, nilai beli + jual 5 sesi: 41,7% per 3 Nov, di persentil 4 terhadap 252 sesi (median 52,9%, P10 45,2%, P90 61,3%). User belum
+memutuskan butir ini.
+
+### 5c.5 Batas
+
+Semua angka dari satu saham (BBRI), satu tanggal untuk nilai terakhir, dan 252 sesi untuk sebaran. Baseline 5 sesi berisik: sesudah
+satu lonjakan, baseline berikutnya ikut terangkat. Tidak ada klaim bahwa lonjakan sisi mana pun memprediksi harga. Tidak ada kode
+yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
