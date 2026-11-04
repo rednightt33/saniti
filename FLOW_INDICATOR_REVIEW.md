@@ -24,7 +24,7 @@ item baru dijalankan atas perintah user.
 | 5 | FL13, FL14, FL38 (keluarga Concentration HHI) | Ditambah pilihan kelompok: **broker terpilih** dan **Top-N cohort dengan N yang bisa dipilih**, **sama seperti FL01** | "untuk HHI tambahkan opsi pilih by broker dan top N cohort yang N nya bisa dipilih seperti FL01 - masukan ke docs" (2026-11-04, dengan tangkapan layar menu: FL13, FL14, FL38) | To-do, belum dijadwalkan. Bagian 5e |
 | 6 | FL15 (gross), FL16 (net), FL13 (HHI gross), FL38 (HHI net) | FL15 dan FL16 tetap **dua indikator** (satu gross, satu net), keduanya diberi parameter **Satuan: Lot atau Rupiah**; FL13 dan FL38 diberi parameter Satuan yang sama | "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya harus bisa cater whether its rupiah dan lot (filterable)"; "Ok masukan ke to do 6 ya"; "Yes, tambahkan juga untuk FL13 dan FL38" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5f |
 | 7 | FL11 Net Flow / Turnover Ratio | **Hapus pilihan Denominator**: satu penyebut tetap, yaitu gross beli semua investor dengan filter papan saja (opsi A) | "Okay pakai A" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5g.1 |
-| 8 | Indikator baru (kode ditetapkan saat dikerjakan) | Sama persis dengan FL11, tetapi penyebutnya **rata-rata nilai transaksi (gross beli) N sesi terakhir**, N bawaan 20 dan bisa diatur | "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm" (2026-11-04) | To-do, bacaan AI **menunggu konfirmasi user**. Bagian 5g.2 |
+| 8 | Indikator baru (kode ditetapkan saat dikerjakan) | Sama persis dengan FL11, tetapi penyebutnya **rata-rata nilai transaksi (gross beli) N sesi terakhir**, N bawaan 20 dan bisa diatur | "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm" (2026-11-04) | To-do; bacaan AI dikonfirmasi user dengan "Ok" (2026-11-04). Bagian 5g.2 |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -589,7 +589,9 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 
 **Kata user 2026-11-04:** "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm."
 
-**Bacaan AI (menunggu konfirmasi user):**
+**Dikonfirmasi user 2026-11-04:** setelah AI menyajikan bacaan di bawah dan tujuh pertanyaan konfirmasi (usulan AI untuk tiap butir tertera), user menjawab "Ok". Jawabannya satu kata dan tidak menyebut butir per butir; **bila ada butir yang dimaksud berbeda, koreksi**. Usulan AI yang berlaku: baseline N sesi sebelum t, `W × rata-rata harian` bila `W > 1`, N 1 sampai 250, nama "Net Flow / Average Turnover" dengan kode ditetapkan saat dikerjakan, null bila sesi sebelumnya kurang dari N.
+
+**Bacaan AI:**
 - Pembilang sama dengan FL11: **net** `BV(C) − SV(C)` kelompok `C` pada jendela `W` (bawaan 1).
 - Penyebut: **rata-rata harian gross beli semua broker (semua investor, papan saja)** selama N sesi terakhir, dikalikan `W` bila `W > 1`. N bawaan 20 dan bisa diatur (parameter `baseline`, seperti FL32 dan FL33).
 - Parameter lain sama dengan FL11 (`scope`, `brokers`, `top`, `rank`, `ranking`, `boards`, `investors`, `window`, `plot`), tanpa `denom`.
@@ -601,7 +603,7 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 - Korelasi kedua versi hanya 0,42. Pada 28 hari dengan nilai transaksi > 1,5 kali rata-rata 20 sesi, rata-rata FL11 23,1% berbanding 51,6% pada versi rata-rata. Variasi penyebut (CV): hari itu 0,55 berbanding rata-rata 20 sesi 0,23.
 - Versi rata-rata bisa melewati 100% pada hari lonjakan (net kelompok lebih besar dari turnover hari rata-rata).
 
-**Pertanyaan konfirmasi:**
+**Pertanyaan konfirmasi (dijawab "Ok" atas usulan AI):**
 1. Baseline N sesi **sebelum** t (tanpa hari ini, seperti baseline FL32 dan FL33) atau **termasuk** hari ini? Usulan AI: sebelum. Selisihnya pada 3 Nov 20,6% berbanding 20,2%.
 2. Bila `W > 1`: pembilang dijumlahkan sepanjang W sesi, penyebut = `W × rata-rata harian N sesi` (asumsi AI).
 3. Penyebut gross beli semua investor, papan saja (konsisten dengan keputusan A).
