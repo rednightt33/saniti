@@ -1319,6 +1319,7 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
 4. Query lintas saham ke `Feature_02` (±15 GB) untuk riwayat 252 sesi: perkiraan ukuran dan izin sebelum dijalankan.
 5. Kandidat `M-HHI` (HHI fitur) dan `M-TOP3-SHARE-TREND`: dibuang, diganti, atau dipertahankan (empat entri `M-CR3X-*` dan
    `M-HHI3-*` sudah masuk).
-6. Uji peristiwa (forward return bersyarat) sebelum kata "pre-rally" dipakai.
+6. Uji peristiwa (forward return bersyarat) sebelum kata "pre-rally" dipakai. Percontohan 30 saham (2026-11-04) sudah ada: intensitas tidak menunjukkan hubungan positif;
+   konsentrasi pembeli berhubungan negatif (belum konklusif). Uji penuh ±850 saham (±6 juta baris, ±1,4 GB) menunggu izin.
 7. `M-CR3X-NET`: peringkat di dalam kelompok jumlah broker (usulan), angka gerbang (10), dan pasangan `M-NET-INTENSITY` (sudah masuk kamus).
 8. Tafsir "HHI top 3" di `M-HHI3-*` sudah sesuai maksud user atau perlu dikoreksi.

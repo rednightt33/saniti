@@ -25,7 +25,8 @@ itu belum dirancang; jangan membuat migrasi dari dokumen ini tanpa go dari user 
 6. **Ini adalah aliran transaksi, bukan perubahan kepemilikan.** Dan memilih puncak dari ratusan saham pasti menangkap
    sebagian kebetulan: persentil 90 meloloskan sekitar 10% saham hanya karena peluang.
 7. **Daya prediksi belum diuji.** Kata "indikator pre-rally" baru boleh dipakai setelah ada uji peristiwa (forward
-   return bersyarat) yang disetujui user. Sampai itu, entri hanya menjelaskan *keadaan* data.
+   return bersyarat) yang disetujui user. Sampai itu, entri hanya menjelaskan *keadaan* data. Percontohan awal (2026-11-04, 30 saham) ada di
+   `M-NET-INTENSITY` dan belum konklusif.
 8. **Hitung sendiri dari data mentah; tabel Feature hanya jalan pintas dan pembanding.** Keputusan user 2026-11-03:
    "ini tidak perlu rely on feature only ya.. Ini bisa buat our own calculation dan jalankan di your own sandbox. Data
    raw sudah ada IDX_Broker_Summary". Sumber utama setiap entri adalah `IDX_Broker_Summary` (45,07 juta baris, 10 GB;
@@ -440,7 +441,8 @@ jumlah brokernya?
 - **Pasangan:** lihat `M-NET-INTENSITY` (entri sendiri, ditambahkan atas permintaan user 2026-11-03). BBCA:
   intensitas 18,5% (persentil 20,7), jadi konsentrasi tinggi tetapi porsi net kecil.
 
-**Keterbatasan:** satu jendela; kestabilan peringkat dan daya prediksi belum diuji; hanya melihat 3 broker teratas, jadi
+**Keterbatasan:** satu jendela; kestabilan peringkat belum diuji; uji awal daya prediksi (percontohan 30 saham, 2026-11-04, di `M-NET-INTENSITY`) menemukan hubungan
+negatif dengan return ke depan, belum konklusif; hanya melihat 3 broker teratas, jadi
 tidak membedakan satu broker dominan dari tiga yang setara (pakai share top 1).
 
 ## M-CR3X-GROSS — Konsentrasi beli bruto: CR3_gross − 3/k_gross
@@ -521,13 +523,34 @@ jadi harus diperingkat di dalam kelompok yang sebanding.
 
 ## M-NET-INTENSITY — Intensitas net beli
 
-**Ditambahkan atas permintaan user 2026-11-03** (user menandai istilah ini dan meminta penjelasannya).
+**Ditambahkan atas permintaan user 2026-11-03** (user menandai istilah ini dan meminta penjelasannya). **Diperbarui 2026-11-04**
+(user: "masukan intensitas ke dalam MD"): rumus ditegaskan, arti "ketegasan arah", contoh satu ticker (BBRI) dengan riwayat,
+dan uji awal hubungan dengan return ke depan.
 
 ### Penjelasan dan contoh (untuk pembaca)
 
 **Intinya:** dari setiap Rp100 yang dibeli di saham ini, **berapa yang benar-benar "bersih"**, yaitu tidak dibatalkan oleh
 penjualan broker yang sama? Intensitas rendah berarti banyak pembelian dan penjualan bolak-balik di broker yang sama;
 tinggi berarti pembelian cenderung searah.
+
+**Rumus (satu baris):**
+
+```
+intensitas = Σ max(beli − jual, 0) per broker  ÷  Σ beli bruto semua broker
+```
+
+Pembilang = hanya net beli dari broker yang net-nya **positif**. Jumlah net *seluruh* broker selalu 0 (untuk semua investor
+setiap pembelian punya penjual), jadi broker yang net-nya negatif harus dihitung 0, bukan dikurangkan.
+
+**Arti: ketegasan arah.** Nama "intensitas" dipakai di dokumen ini; secara teknis ukuran ini adalah **porsi net terhadap beli
+bruto**. Padanan yang lebih lugas: "rasio net beli" atau "kemurnian arah". Kebalikannya (1 − intensitas) adalah "porsi
+bolak-balik": volume yang dibeli sekaligus dijual oleh broker yang sama.
+
+| Bukan | Karena | Diukur oleh |
+|---|---|---|
+| Besarnya uang | Persentase, bukan Rupiah. ARKO (33,1%) lebih tinggi dari BBCA (18,5%), padahal net beli BBCA sekitar 69 kali ARKO | Nilai net beli (Rp) |
+| Arah harga | Total net semua broker selalu nol | Foreign flow, harga |
+| Seberapa terpusat | Tidak melihat siapa yang membeli | `M-CR3X-NET` |
 
 **Langkahnya**
 1. Per broker, jumlahkan net selama 5 sesi (beli − jual, kedua Investor Type dijumlah).
@@ -596,6 +619,58 @@ Sebaran 719 saham: median 30,2%, P10 12,8%, P90 56,7%.
 - **Intensitas adalah proporsi, bukan jumlah.** Intensitas ARKO (33,1%) lebih tinggi dari BBCA (18,5%), tetapi net beli
   BBCA Rp1.623,1 miliar, sekitar 69 kali lipat net beli ARKO. Baca selalu bersama ukuran nilai dan konsentrasi.
 
+**Contoh satu ticker dengan riwayat: BBRI, 5 sesi 28 Okt – 3 Nov 2026, Regular, semua investor** **[T]**
+(data broker summary terakhir 3 Nov; riwayat dari `Feature_02`, jendela terakhir identik dengan `IDX_Broker_Summary`: 18,50%)
+
+Langkah 1: beli dan jual tiap broker (miliar Rp), 83 broker aktif; delapan terbesar menurut nilai beli:
+
+| Broker | Beli | Jual | Net | Beli yang dibatalkan jual sendiri | Masuk pembilang |
+|---|---:|---:|---:|---:|---:|
+| AK | 573,8 | 527,2 | +46,6 | 92% | 46,6 |
+| CC | 413,6 | 343,6 | +70,0 | 83% | 70,0 |
+| ZP | 399,0 | 594,3 | −195,3 | 100% | 0 |
+| XL | 335,7 | 272,1 | +63,6 | 81% | 63,6 |
+| OD | 225,4 | 93,6 | +131,8 | 42% | 131,8 |
+| YP | 174,1 | 135,1 | +39,0 | 78% | 39,0 |
+| SQ | 147,5 | 100,2 | +47,3 | 68% | 47,3 |
+| BK | 125,5 | 116,5 | +9,1 | 93% | 9,1 |
+| 75 broker lain | 1.448,0 | 1.660,1 | −212,1 | | (bagian positifnya) |
+
+- Langkah 2: 61 broker bernet positif; jumlah net mereka = **Rp710,9 miliar** (pembilang).
+- Langkah 3: total beli semua broker = **Rp3.842,6 miliar** (penyebut).
+- Langkah 4: **710,9 ÷ 3.842,6 = 18,5%**. Yang saling hapus: Rp3.131,7 miliar (81,5%).
+
+**Panjang jendela mengubah angka.** Hanya 3 Nov (1 sesi, 76 broker): beli Rp857,7 miliar, net beli Rp358,7 miliar (56 broker),
+intensitas **41,8%**. Dengan 5 sesi menjadi 18,5%, karena broker yang membeli di hari pertama lalu menjual di hari ketiga saling
+menghapus. Bandingkan hanya jendela yang sama panjang (standar: 5 sesi).
+
+**Riwayat BBRI** (300 jendela 5 sesi, 7 Agu 2025 – 3 Nov 2026; dibandingkan dengan 252 jendela sebelumnya):
+
+| Ukuran | Nilai |
+|---|---:|
+| Minggu ini | **18,5%** |
+| Terendah | 12,9% (akhir jendela 31 Agu 2026) |
+| P10 / median / P90 | 17,5% / 26,9% / 38,4% |
+| Tertinggi | 53,3% (1 Des 2025) |
+| **Persentil minggu ini (riwayat sendiri)** | **13,1** |
+
+| Akhir jendela (blok tidak tumpang tindih) | Beli bruto (Rp miliar) | Net beli (Rp miliar) | Intensitas |
+|---|---:|---:|---:|
+| 3 Nov | 3.842,6 | 710,9 | 18,5% |
+| 27 Okt | 5.884,6 | 1.637,6 | 27,8% |
+| 20 Okt | 9.165,8 | 2.839,5 | 31,0% |
+| 13 Okt | 1.934,9 | 404,8 | 20,9% |
+| 6 Okt | 2.372,1 | 659,2 | 27,8% |
+| 29 Sep | 2.088,3 | 433,4 | 20,8% |
+| 22 Sep | 2.848,0 | 528,1 | 18,5% |
+| 15 Sep | 3.346,6 | 594,8 | 17,8% |
+| 8 Sep | 3.050,2 | 936,3 | 30,7% |
+| 1 Sep | 3.904,6 | 866,5 | 22,2% |
+
+- Pekan tertinggi (1 Des 2025): dari Rp6.115,3 miliar yang dibeli, Rp3.260,0 miliar (53,3%) bersih; pembelian jauh lebih searah.
+- Tidak terkait volume: korelasi intensitas dengan total beli bruto 0,01 pada 252 jendela.
+- Minggu ini BBRI lebih bolak-balik dari kebiasaannya (median 26,9%).
+
 **Cara membaca:** makin tinggi, makin sedikit pembelian yang "dibatalkan" oleh penjualan broker yang sama. BBCA memiliki
 konsentrasi pembeli yang tinggi (`M-CR3X-NET` 0,633) tetapi intensitas rendah: sedikit broker memegang net beli, namun
 net beli itu kecil dibanding total aktivitas.
@@ -605,7 +680,8 @@ net beli itu kecil dibanding total aktivitas.
   "bersih" aliran, bukan apakah harga akan naik.
 - **Level broker, bukan investor.** Dua klien dari broker yang sama, satu asing membeli dan satu domestik menjual,
   saling menghapus pada ukuran ini.
-- Satu jendela; kestabilan dan daya prediksi belum diuji.
+- Daya prediksi: uji awal (percontohan 2026-11-04) tidak menemukan hubungan positif dengan return ke depan; lihat "Uji awal"
+  di Rincian teknis. Kestabilan peringkat dari minggu ke minggu untuk lintas saham belum diuji.
 
 ### Rincian teknis
 
@@ -620,6 +696,27 @@ net beli itu kecil dibanding total aktivitas.
   yang mirip (lihat `M-CR3X-NET`). Riwayat sendiri belum dihitung.
 - **Gunakan bersama:** `M-CR3X-NET` (konsentrasi) dan `M-FF-HEAVY` (arah asing). Konsentrasi saja tidak cukup, karena
   broker yang saling menghapus tetap bisa tampak terkonsentrasi.
+
+- **Uji awal hubungan dengan return ke depan (percontohan, 2026-11-04) [T], belum konklusif.**
+  - Desain: 30 saham paling likuid menurut data (dipilih dari likuiditas terkini, jadi ada bias pemilihan), 55 tanggal sinyal
+    mingguan (jendela 5 sesi tidak tumpang tindih, pertengahan Sep 2025 – akhir Okt 2026), sekitar 1.640 observasi.
+    Return dihitung dari penutupan sesi **berikutnya** (data broker baru diketahui setelah penutupan), dikurangi rata-rata 30
+    saham pada tanggal yang sama. Alat ukur: korelasi peringkat (IC) per tanggal dan selisih kuintil teratas lawan terbawah.
+    Beban: 592.753 baris `Feature_02`, 10.286 baris harga.
+  - Intensitas: IC 5 hari +0,040 (t 1,05), 21 hari −0,001 (t −0,01). Kuintil teratas lawan terbawah: 5 hari −0,19% lawan −0,13%
+    (selisih −0,06%, t −0,06); 21 hari −1,93% lawan −0,21% (selisih −1,72%, t −0,46). Versi persentil riwayat sendiri: IC +0,039
+    dan +0,011, selisih kuintil +0,41% (t 0,48) dan +0,14% (t 0,04). Tanda berubah antara paruh waktu pertama dan kedua
+    (IC 5 hari +0,018 lalu +0,062; 21 hari −0,056 lalu +0,061). **Tidak ada kecenderungan positif yang terdeteksi.**
+  - `M-CR3X-NET`: IC 5 hari −0,058 (t −2,04), 21 hari −0,108 (t −1,60); kuintil teratas lawan terbawah −1,84% (t −2,34) dan
+    −6,50% (t −1,73). Kombinasi intensitas dan CR3 − 3/k keduanya tercile teratas (rata-rata 4,5 saham/tanggal): return excess
+    sekitar −2% (5 hari, t −3,34) dan −5,2% (21 hari, t −2,15) dibanding sisanya; negatif di kedua paruh waktu dan stabil
+    ketika satu saham dikeluarkan (−1,4% sampai −2,0%).
+  - Hubungan sejajar (return 5 sesi di jendela yang sama): IC intensitas dengan return −0,10, dengan |return| −0,195; jendela
+    yang bergerak besar cenderung berintensitas rendah. Penjelasan belum diuji.
+  - Batas: 30 saham, 55 tanggal, satu rezim pasar; universe dipilih dari likuiditas terkini (termasuk saham komoditas yang
+    volatil); pembanding rata-rata 30 saham, bukan IHSG; tanpa biaya; uji berganda (hanya kombinasi yang lolos koreksi
+    ketat); t-stat dihitung kasar dan tidak mengoreksi korelasi antar saham; tanpa pemisahan asing/domestik. Uji penuh
+    (±850 saham, universe per tanggal, ±6 juta baris, ±1,4 GB terbaca) menunggu izin user.
 
 ---
 
@@ -714,7 +811,7 @@ Rekomendasi AI: jangan dipakai sebagai penyaring tunggal.
 |---|---|---|
 | "Saham yang foreign flow-nya naik 5 hari" | M-FF-INC | Usulan |
 | "Saham dengan akumulasi heavy" | M-FF-HEAVY, atau M-FF-HEAVY **dan** M-TOPN-RATIO | Terbuka: satu daftar atau dua |
-| "Pembelian terkonsentrasi di sedikit broker" (screener) | M-CR3X-NET (peringkat dalam kelompok jumlah broker); M-CR3X-GROSS sebagai konteks aktivitas; pasangan M-NET-INTENSITY | Usulan; M-HHI3-* tidak disarankan sebagai penyaring tunggal |
+| "Pembelian terkonsentrasi di sedikit broker" (screener) | M-CR3X-NET (peringkat dalam kelompok jumlah broker); M-CR3X-GROSS sebagai konteks aktivitas; pasangan M-NET-INTENSITY | Usulan; M-HHI3-* tidak disarankan sebagai penyaring tunggal; percontohan 2026-11-04: konsentrasi tinggi dan intensitas tinggi berhubungan dengan return excess lebih rendah, belum konklusif |
 | "Indikator pre-rally" | Menunggu uji peristiwa | Belum ada |
 
 ## Kandidat entri dari riset 2026-11-03 (belum diminta masuk kamus)
