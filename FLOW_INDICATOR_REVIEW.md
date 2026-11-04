@@ -22,7 +22,7 @@ item baru dijalankan atas perintah user.
 | 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih; **skala linear dengan garis netral 1** | "Spike balance OK tambahkan"; "3. skala garis netral 1" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5d |
 | 5 | FL13, FL14, FL38 (keluarga Concentration HHI) | Ditambah pilihan kelompok: **broker terpilih** dan **Top-N cohort dengan N yang bisa dipilih**, **sama seperti FL01** | "untuk HHI tambahkan opsi pilih by broker dan top N cohort yang N nya bisa dipilih seperti FL01 - masukan ke docs" (2026-11-04, dengan tangkapan layar menu: FL13, FL14, FL38) | To-do, belum dijadwalkan. Bagian 5e |
-| 6 | FL15 (gross) dan FL16 (net) | Tetap **dua indikator** (satu mengukur gross, satu net), keduanya diberi parameter **Satuan: Lot atau Rupiah** | "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya harus bisa cater whether its rupiah dan lot (filterable)"; "Ok masukan ke to do 6 ya" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5f |
+| 6 | FL15 (gross), FL16 (net), FL13 (HHI gross), FL38 (HHI net) | FL15 dan FL16 tetap **dua indikator** (satu gross, satu net), keduanya diberi parameter **Satuan: Lot atau Rupiah**; FL13 dan FL38 diberi parameter Satuan yang sama | "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya harus bisa cater whether its rupiah dan lot (filterable)"; "Ok masukan ke to do 6 ya"; "Yes, tambahkan juga untuk FL13 dan FL38" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5f |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -502,10 +502,12 @@ Ketiganya tidak punya `scope`, `brokers`, `top`, `rank`, atau `ranking`. Pembent
 
 Satu saham (BBRI), satu tanggal untuk contoh, dan 252 sesi untuk sebaran. Tidak ada klaim bahwa konsentrasi memprediksi harga. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
 
-## 5f. To-do: FL15 dan FL16 tetap dua indikator, keduanya dengan pilihan satuan (Lot atau Rupiah)
+## 5f. To-do: FL15 dan FL16 tetap dua indikator, keduanya dengan pilihan satuan (Lot atau Rupiah); FL13 dan FL38 ikut
 
 **Catatan user 2026-11-04 (kata-katanya):** "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya haeus bisa cater whether its rupiah dan lot (filterable)"; lalu "Ok masukan ke to do 6 ya."
 Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+**Lingkup, dijawab user 2026-11-04:** "Yes, tambahkan juga untuk FL13 dan FL38." Maksudnya (dikonfirmasi user): parameter Satuan yang sama dengan FL15 dan FL16 ditambahkan ke FL13 dan FL38, bukan membuat FL13 dan FL38 memakai satuan yang sama satu sama lain. Sekarang FL13 hanya lot (bruto) dan FL38 hanya Rupiah (net); sesudahnya FL13 bisa dipilih dalam Rupiah dan FL38 dalam lot.
 
 Bacaan AI atas kata-kata itu (belum dikonfirmasi user, "low" dibaca "lot"): dua indikator tetap; parameter baru **Satuan** (Lot, Rupiah) di keduanya;
 filter papan dan investor yang sudah ada tetap.
@@ -520,16 +522,27 @@ filter papan dan investor yang sudah ada tetap.
 | Satuan | **Lot saja** | **Rupiah saja** |
 | Parameter | `boards`, `investors`, `window` (1), `top` (3) | sama |
 
+### 5f.1b FL13 dan FL38 **[T]**
+
+| | FL13 HHI · Gross | FL38 HHI · Net Buy |
+|---|---|---|
+| Dasar | Lot beli (atau jual) bruto semua broker: `Σ (BL(b)/BL(A))²` | Net beli positif `BV(b) − SV(b)`: `Σ (n_b/Σ n positif)²` |
+| Satuan | **Lot saja** | **Rupiah saja** |
+| Parameter | `boards`, `investors`, `side` (Buy), `window` (1) | `boards`, `investors`, `window` (20, PROPOSED) |
+
 ### 5f.2 To-do
 
 - Tambah parameter `Satuan`: Lot atau Rupiah, di FL15 dan FL16.
 - FL15 dengan Rupiah: urut dan jumlahkan `BV` (nilai beli bruto); penyebut total nilai beli semua broker.
 - FL16 dengan Lot: `n_b = BL(b) − SL(b)` yang positif; penyebut jumlah net lot positif.
 - **Bawaan dipertahankan** (FL15 lot, FL16 Rupiah), agar indikator tersimpan pengguna (parameter yang hilang diisi bawaan registry) tidak berubah arti.
+- FL13 dengan Rupiah: porsi `BV(b)/BV(A)` (atau `SV`) bruto; FL38 dengan Lot: `n_b = BL(b) − SL(b)` yang positif. Bawaan dipertahankan (FL13 lot, FL38 Rupiah).
 - Perbedaan yang tetap: FL15 memakai ukuran bruto dan penyebut total beli; FL16 memakai ukuran net dan penyebut jumlah net positif. Dengan satuan yang sama,
   perbedaannya hanya bruto dan net.
 
 ### 5f.3 Bukti pada data (BBRI, 252 sesi, semua investor, semua papan, dihitung 2026-11-04)
+
+FL13 dan FL38 (HHI): FL13 beli, lot vs Rp, selisih mutlak rata-rata / maksimum 0,0001 / 0,0013 (jendela 1) dan 0,0003 / 0,0036 (jendela 20); FL38, Rp vs lot, 0,0003 / 0,0041 (jendela 1) dan 0,0027 / 0,0246 (jendela 20). Pada 3 Nov: FL38 jendela 20 = 0,1328 (Rp) dan 0,1253 (lot). FL15 dan FL16:
 
 | | Jendela 1 hari | Jendela 20 sesi |
 |---|---|---|
@@ -542,7 +555,7 @@ terutama pada konsistensi dan perbandingan yang adil gross lawan net. Pada saham
 
 ### 5f.4 Pertanyaan terbuka (saat to-do ini diambil)
 
-1. **Lingkup:** apakah FL13 dan FL38 (HHI; lot gross dan Rupiah net) ikut diberi parameter Satuan yang sama. Belum dijawab user (lihat juga bagian 5e).
+1. ~~Lingkup: apakah FL13 dan FL38 ikut.~~ **Dijawab user 2026-11-04: ya, ikut.** Tersisa: bagaimana Satuan berinteraksi dengan pilihan kelompok broker yang dicatat di bagian 5e (to-do 5).
 2. Apakah FL01/FL02 juga digabung dengan parameter Satuan (usulan AI, belum diputuskan).
 3. Tanda net lot dan net Rupiah bisa berbeda untuk broker tertentu; apakah net lot memakai tandanya sendiri (usulan AI) atau mengikuti net Rupiah.
 
@@ -608,7 +621,8 @@ Berlaku untuk setiap penjelasan indikator Flow, baik di chat maupun di kartu. Ur
    (korelasi), dan apakah ada sirkularitas karena cohort dipilih dari ukuran yang sama.
 6. **Batas pembuktian**: jumlah saham dan sesi, tidak ada uji return ke depan, apa yang **belum** diperiksa beserta
    cara memeriksanya. Tafsiran diberi label hipotesis; yang terukur diberi label terukur.
-7. **Kaitan dengan to-do** di bagian awal dokumen bila ada, lalu satu tawaran pencatatan.
+7. **Istilah beli dan jual selalu disebut gross atau net.** Setiap kali penjelasan memakai "nilai beli", "beli" atau "jual", tulis apakah itu gross (`BV`, `SV`, `BL`, `SL`: satu sisi, belum dikurangi) atau net (`BV − SV`, `BL − SL`), untuk pembilang maupun penyebut. Catatan user 2026-11-04: "untuk penjelasan selanjutnya harus specify, buy value itu net atau gross."
+8. **Kaitan dengan to-do** di bagian awal dokumen bila ada, lalu satu tawaran pencatatan.
 
 Contoh pertama yang memakai template ini: FL10 pada BBRI (asing, 120 sesi, 8 Mei-3 Nov 2026). Semua broker asing: net beli
 28 sel FL10 positif dan 16 negatif; net jual 0 positif dan 76 negatif. Median FL10 -0,33, korelasi dengan net asing 0,80.
