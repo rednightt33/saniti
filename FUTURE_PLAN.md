@@ -1345,3 +1345,5 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   `FLOW_INDICATOR_REVIEW.md` bagian 5d. Pertanyaan terbuka: cara menentukan kelompok untuk dua periode, bawaan scope, dan parameter Side.
   Juga to-do (2026-11-04): FL13, FL14 dan FL38 (HHI) mendapat pilihan broker terpilih dan Top-N cohort dengan N yang dipilih, sama seperti FL01; lihat
   `FLOW_INDICATOR_REVIEW.md` bagian 5e. Pertanyaan terbuka: arti HHI pada kelompok (di dalam kelompok, sumbangan terhadap HHI total, atau seluruh broker).
+  Juga to-do (2026-11-04): FL15 (gross) dan FL16 (net) tetap dua indikator, keduanya diberi parameter Satuan (Lot atau Rupiah); lihat `FLOW_INDICATOR_REVIEW.md`
+  bagian 5f. Pertanyaan terbuka: apakah FL13 dan FL38 ikut diberi Satuan yang sama.

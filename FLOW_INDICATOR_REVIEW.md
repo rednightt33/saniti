@@ -22,6 +22,7 @@ item baru dijalankan atas perintah user.
 | 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih; **skala linear dengan garis netral 1** | "Spike balance OK tambahkan"; "3. skala garis netral 1" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5d |
 | 5 | FL13, FL14, FL38 (keluarga Concentration HHI) | Ditambah pilihan kelompok: **broker terpilih** dan **Top-N cohort dengan N yang bisa dipilih**, **sama seperti FL01** | "untuk HHI tambahkan opsi pilih by broker dan top N cohort yang N nya bisa dipilih seperti FL01 - masukan ke docs" (2026-11-04, dengan tangkapan layar menu: FL13, FL14, FL38) | To-do, belum dijadwalkan. Bagian 5e |
+| 6 | FL15 (gross) dan FL16 (net) | Tetap **dua indikator** (satu mengukur gross, satu net), keduanya diberi parameter **Satuan: Lot atau Rupiah** | "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya harus bisa cater whether its rupiah dan lot (filterable)"; "Ok masukan ke to do 6 ya" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5f |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -500,6 +501,54 @@ Ketiganya tidak punya `scope`, `brokers`, `top`, `rank`, atau `ranking`. Pembent
 ### 5e.4 Batas
 
 Satu saham (BBRI), satu tanggal untuk contoh, dan 252 sesi untuk sebaran. Tidak ada klaim bahwa konsentrasi memprediksi harga. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
+
+## 5f. To-do: FL15 dan FL16 tetap dua indikator, keduanya dengan pilihan satuan (Lot atau Rupiah)
+
+**Catatan user 2026-11-04 (kata-katanya):** "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya haeus bisa cater whether its rupiah dan lot (filterable)"; lalu "Ok masukan ke to do 6 ya."
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+Bacaan AI atas kata-kata itu (belum dikonfirmasi user, "low" dibaca "lot"): dua indikator tetap; parameter baru **Satuan** (Lot, Rupiah) di keduanya;
+filter papan dan investor yang sudah ada tetap.
+
+### 5f.1 Kondisi sekarang **[T]** (kode dan registry dibaca 2026-11-04)
+
+| | FL15 Concentration Top-N · Gross Buy | FL16 Concentration Top-N · Net Buy |
+|---|---|---|
+| Urutan broker | Lot beli bruto (`topBrokers(..., 'gross_buy_lots')`) | Net beli `BV(b) − SV(b)` (Rp), hanya yang positif |
+| Pembilang | Jumlah N lot beli terbesar | Jumlah N net beli positif terbesar |
+| Penyebut | `BL(A)`, semua lot beli | Jumlah semua net beli positif |
+| Satuan | **Lot saja** | **Rupiah saja** |
+| Parameter | `boards`, `investors`, `window` (1), `top` (3) | sama |
+
+### 5f.2 To-do
+
+- Tambah parameter `Satuan`: Lot atau Rupiah, di FL15 dan FL16.
+- FL15 dengan Rupiah: urut dan jumlahkan `BV` (nilai beli bruto); penyebut total nilai beli semua broker.
+- FL16 dengan Lot: `n_b = BL(b) − SL(b)` yang positif; penyebut jumlah net lot positif.
+- **Bawaan dipertahankan** (FL15 lot, FL16 Rupiah), agar indikator tersimpan pengguna (parameter yang hilang diisi bawaan registry) tidak berubah arti.
+- Perbedaan yang tetap: FL15 memakai ukuran bruto dan penyebut total beli; FL16 memakai ukuran net dan penyebut jumlah net positif. Dengan satuan yang sama,
+  perbedaannya hanya bruto dan net.
+
+### 5f.3 Bukti pada data (BBRI, 252 sesi, semua investor, semua papan, dihitung 2026-11-04)
+
+| | Jendela 1 hari | Jendela 20 sesi |
+|---|---|---|
+| FL15, lot vs Rp: selisih mutlak rata-rata / maksimum (poin) | 0,03 / 0,65 | 0,10 / 0,92 |
+| FL16, Rp vs lot: selisih mutlak rata-rata / maksimum (poin) | 0,07 / 0,83 | 0,57 / 3,97 |
+| Top-3 sama persis | 99% hari | 98% hari |
+
+Pada 3 Nov: FL15 40,8% (lot) dan 40,7% (Rp); FL16 60,5% (Rp) dan 60,7% (lot). Pilihan satuan hampir tidak mengubah hasil pada saham ini; nilainya
+terutama pada konsistensi dan perbandingan yang adil gross lawan net. Pada saham tipis atau berharga sangat bervariasi, selisih bisa lebih besar (belum diukur).
+
+### 5f.4 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Lingkup:** apakah FL13 dan FL38 (HHI; lot gross dan Rupiah net) ikut diberi parameter Satuan yang sama. Belum dijawab user (lihat juga bagian 5e).
+2. Apakah FL01/FL02 juga digabung dengan parameter Satuan (usulan AI, belum diputuskan).
+3. Tanda net lot dan net Rupiah bisa berbeda untuk broker tertentu; apakah net lot memakai tandanya sendiri (usulan AI) atau mengikuti net Rupiah.
+
+### 5f.5 Batas
+
+Satu saham (BBRI). Tidak ada klaim bahwa satuan mana pun lebih prediktif. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
