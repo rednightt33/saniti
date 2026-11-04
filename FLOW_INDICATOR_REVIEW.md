@@ -73,7 +73,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL14 | Concentration HHI · Buy − Sell | Concentration | Panel | diff | asym | Belum ditinjau |  |  |
 | FL15 | Concentration Top-N · Gross Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
 | FL16 | Concentration Top-N · Net Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
-| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
+| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | Diputuskan: hapus (menunggu go) | Hapus, nanti (2026-11-04) | Kartu di bagian 5b; FL39 memakai fungsi hitung yang sama |
 | FL18 | Buy VWAP · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL19 | Implied Cost · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL20 | Implied Cost · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
@@ -218,6 +218,61 @@ sekarang memberi angka yang sebagian besar ditentukan oleh cara memilih cohort.
 - Satu saham (BBRI), satu tahun (2025-08-01 sampai 2026-11-03), bawaan parameter. Temuan lain (F1) bersifat struktural
   dan berlaku pada saham mana pun yang memakai Top-N menurut net beli; F2, F3, F5 angkanya khusus BBRI.
 - Belum diukur: seberapa sering pengguna memakai bawaan Top-3 dan seberapa sering mengganti `scope` ke broker pilihan.
+
+## 5b. Kartu: FL17 Buy VWAP · Rolling (diputuskan user: hapus, nanti)
+
+**Keputusan user 2026-11-04 (kata-katanya):** "Remove FL17 ya nanti, masukin ke FLOW_INDICATOR_REVIEW.md". Artinya FL17 akan
+dihapus, tetapi tidak sekarang. Eksekusi menunggu perintah "go" (`PLAN.md`, butir FLOW-RM-FL17). Alasan penghapusan belum
+disebut user dan tidak ditulis di sini.
+
+### 5b.1 Apa indikator ini
+
+FL17 menggambar **harga rata-rata pembelian** sekelompok broker selama N hari terakhir sebagai garis di sumbu harga.
+- Rumus (`FORMULAS.md`): `BV(C) / (100 × BL(C))`, yaitu total nilai beli bruto kelompok dibagi total saham yang dibeli
+  (lot × 100), dalam Rupiah per saham.
+- Kelompok bawaan: Top-3 net beli, dihitung ulang tiap hari (aturan yang sama dengan FL03).
+- Bawaan: semua papan, semua investor, jendela 20 hari. Tempat: overlay harga. Satuan: harga.
+- Kode: `apps/edge-bff/terminal/src/calc/flow.ts:417` (entri FL17) dan fungsi `rollingVwap` di baris 310.
+
+### 5b.2 Fakta terkait (terverifikasi dengan pencarian di repo, 2026-11-04)
+
+- **FL39** (Buy VWAP · Rolling · Distance %) memakai fungsi `rollingVwap` yang sama (`flow.ts:553`) dan rumusnya tertulis
+  `100 (close / FL17 − 1)`. Fungsi hitung tidak boleh ikut dihapus kecuali FL39 juga dihapus.
+- Registri Flow dihasilkan, bukan ditulis tangan: `flowRegistry.json` dibuat oleh `scripts/build_flow_registry.py` dari
+  `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx`, dan spesifikasi itu dibuat oleh `build_spec_workbook.py`.
+  Penghapusan harus lewat generator lalu dibangkitkan ulang.
+
+### 5b.3 Daftar yang menyentuh FL17 (untuk eksekusi nanti)
+
+| Lokasi | Isi | Tindakan saat eksekusi |
+|---|---|---|
+| `verification/terminal_api/flow_indicators/build_spec_workbook.py` (baris 75, 138, 419) dan `FLOW_INDICATORS_SPEC.xlsx` | Baris spesifikasi FL17; catatan FL39 "Beda dengan FL17" | Hapus baris FL17, perbarui catatan FL39, bangkitkan ulang xlsx |
+| `scripts/build_flow_registry.py` (baris 175) | Teks tip FL17 | Hapus, bangkitkan ulang registri |
+| `apps/edge-bff/terminal/src/data/flowRegistry.json` (baris 1985) | Entri FL17 | Hilang lewat pembangkitan ulang |
+| `apps/edge-bff/terminal/src/data/indNotes.json` (baris 565; baris 676 menyebut FL17 di rumus FL39) | Catatan indikator | Hapus entri FL17; ubah teks rumus FL39 |
+| `apps/edge-bff/terminal/src/calc/flow.ts` (baris 417) | Fungsi hitung FL17 | Hapus entri; **pertahankan `rollingVwap` bila FL39 tetap** |
+| `apps/edge-bff/terminal/src/calc/explainFlowA.ts` (baris 604 sampai 605) | Penjelasan angka FL17 | Hapus |
+| `apps/edge-bff/terminal/tests/calc/flow.test.ts` (baris 124 sampai 126 dan 200) | Uji FL17 (VWAP bergulir; broker terpilih) | Pindahkan ke FL39 atau hapus; uji FL18 dipertahankan |
+| `apps/edge-bff/terminal/tests/data/ind_menu.test.ts` (baris 15) | FL17 dipakai sebagai contoh garis Flow di sumbu harga | Ganti contoh |
+| `verification/terminal_api/flow_indicators/oracle/cases.json` (baris 953, 973, 995) | Tiga kasus oracle FL17 | Hapus atau ganti dengan kasus FL39 |
+| `verification/terminal_api/flow_indicators/FORMULAS.md` (baris 83 dan 105) | Rumus FL17; rumus FL39 menyebut FL17 | Hapus baris FL17; tulis ulang rumus FL39 |
+| `verification/terminal_api/flow_indicators/CODE_INSPECTION_20261101.md` dan `.json`; `indicator_cards/flow_audit/*` | Pencocokan kode dan kartu audit BBCA | Hasil pembangkitan; bangkitkan ulang atau tandai riwayat |
+| `ERRORS_AND_SOLUTIONS.md` (menyebut FL17 pada beberapa entri) | Riwayat | **Jangan dihapus** (aturan repo: entri tidak dihapus) |
+
+### 5b.4 Pertanyaan terbuka
+
+1. **FL39 tetap atau ikut dihapus?** FL39 menampilkan jarak harga terhadap garis yang sama (dalam persen, di panel). Tanpa FL17,
+   FL39 menjadi satu-satunya tampilan VWAP bergulir.
+2. **Kode FL17 dipensiunkan.** Usulan: nomor tidak dipakai ulang dan tidak ada penomoran ulang FL18 sampai FL39, supaya
+   dokumen dan log lama tidak berubah arti (lihat bagian 6 soal bentrokan kode).
+3. **Pengguna yang sudah memasang FL17 di grafik:** belum diperiksa bagaimana indikator tersimpan menangani kode yang
+   hilang (dibuang diam-diam, diberi pesan, atau error).
+4. **"Nanti" kapan:** eksekusi baru berjalan setelah user memberi "go".
+
+### 5b.5 Batas
+
+Daftar di atas hasil pencarian teks `FL17` di repo (tanpa `node_modules`); referensi yang tidak menyebut kodenya secara
+harfiah (misalnya indikator yang disimpan di penyimpanan browser) tidak terdeteksi. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 

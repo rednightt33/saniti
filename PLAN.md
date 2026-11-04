@@ -1041,3 +1041,21 @@ Coba saja di explore pakai benchmark yang best practice."
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
 ## FI-TERMINAL — dipindah ke `EXEC.md` EXEC-FI-TERMINAL (go 2026-11-01; audit dan koreksi data selesai, EXEC-FI-DATE)
+
+## FLOW-RM-FL17 — hapus indikator FL17 Buy VWAP · Rolling dari menu Flow (disetujui masuk rencana 2026-11-04; eksekusi menunggu "go")
+
+**Persetujuan (kata user 2026-11-04):** "Remove FL17 ya nanti, masukin ke FLOW_INDICATOR_REVIEW.md"
+
+Kartu tinjauan dan daftar yang disentuh: `FLOW_INDICATOR_REVIEW.md`, bagian 5b. Ringkas: entri FL17 di generator spesifikasi
+(`build_spec_workbook.py`) dan registri (`build_flow_registry.py`, `flowRegistry.json`), catatan (`indNotes.json`), fungsi
+hitung dan penjelasan (`flow.ts`, `explainFlowA.ts`), uji (`flow.test.ts`, `ind_menu.test.ts`), tiga kasus oracle, dan
+`FORMULAS.md`. Fungsi `rollingVwap` dipakai juga oleh FL39.
+
+**Pertanyaan yang masih terbuka:**
+1. FL39 tetap atau ikut dihapus.
+2. Kode FL17 dipensiunkan tanpa penomoran ulang (usulan).
+3. Perilaku untuk pengguna yang sudah memasang FL17 di grafik.
+4. Kapan "nanti": eksekusi hanya atas perintah "go".
+
+**Bukti selesai (kelak):** menu tidak lagi memuat FL17; uji vitest terminal lulus; kasus oracle diperbarui dan cocok; FL39
+sesuai keputusan; catatan di changelog dan `ERRORS_AND_SOLUTIONS.md`, lalu butir ini dihapus dari dokumen ini.
