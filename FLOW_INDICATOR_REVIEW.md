@@ -432,9 +432,34 @@ dengan jelas di tiap dokumen sistem mana yang dimaksud.
 ### Kartu: FLxx Nama
 - Apa indikatornya (rumus, parameter bawaan, data)
 - Contoh nyata (satu saham, angka)
+- Cara membaca setiap sel (lihat 7.1; wajib bila indikator punya tanda, ambang, atau dibaca bersama arus asing)
 - Temuan (kode F1.., bukti terukur, kriteria C1-C6)
 - Pilihan keputusan (pertahankan / edit metrik / ganti visual / gabung / hapus) beserta dampak
 - Usulan sementara AI
 - Keputusan yang dibutuhkan
 - Batas verifikasi
 ```
+
+### 7.1 Template penjelasan: "Cara membaca setiap sel"
+
+Catatan user 2026-11-04, atas penjelasan FL10: "Cara membaca setiap sel ... Catat template ini kalau menjelaskan ya."
+Berlaku untuk setiap penjelasan indikator Flow, baik di chat maupun di kartu. Urutannya:
+
+1. **Ringkasan**: satu-dua kalimat, apa yang diukur dan apa yang **tidak** diukur (nilai, lot, atau jumlah transaksi).
+   Rumus dengan sumber kodenya (`file:baris`) dan `FORMULAS.md`.
+2. **Arti tiap tanda atau ambang**: positif, negatif, nol, batas atas dan bawah. Bila indikator dibaca bersama ukuran
+   lain, nyatakan hubungan yang pasti secara matematis (identitas) dan pisahkan dari tafsiran.
+3. **Matriks pada data nyata**: kondisi arus (misalnya asing net beli atau net jual) × tanda atau ambang indikator.
+   Sebut saham, investor, papan, jendela, rentang tanggal, jumlah sesi, dan jumlah per sel.
+4. **Tabel "Cara membaca setiap sel"** dengan kolom: kondisi | arti | contoh atau catatan. Satu baris per sel, termasuk
+   sel yang tidak pernah terjadi (tulis bahwa tidak terjadi di sampel). Contoh memakai angka nyata dengan tanggalnya.
+5. **Temuan**: apakah tanda itu informatif (tingkat dasar, median dan sebaran), apakah menduplikasi ukuran lain
+   (korelasi), dan apakah ada sirkularitas karena cohort dipilih dari ukuran yang sama.
+6. **Batas pembuktian**: jumlah saham dan sesi, tidak ada uji return ke depan, apa yang **belum** diperiksa beserta
+   cara memeriksanya. Tafsiran diberi label hipotesis; yang terukur diberi label terukur.
+7. **Kaitan dengan to-do** di bagian awal dokumen bila ada, lalu satu tawaran pencatatan.
+
+Contoh pertama yang memakai template ini: FL10 pada BBRI (asing, 120 sesi, 8 Mei-3 Nov 2026). Semua broker asing: net beli
+28 sel FL10 positif dan 16 negatif; net jual 0 positif dan 76 negatif. Median FL10 -0,33, korelasi dengan net asing 0,80.
+Cohort Top-3 net beli harian: net beli 43 positif dan 1 negatif; net jual 59 positif dan 17 negatif, korelasi 0,38.
+Hal yang belum diperiksa: ulangan hanya papan Regular.
