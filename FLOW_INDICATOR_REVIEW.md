@@ -20,6 +20,7 @@ item baru dijalankan atas perintah user.
 | 1 | FL07 Share · Market Volume | Pensiunkan atau sembunyikan dari menu | "Maaf, maksud saya FL07 yang di sembunyikan. Bukan FL17." (2026-11-04) | To-do, belum dijadwalkan. Kartu di bagian 5b |
 | 2 | FL32 Transactions · Spike | Diedit **di tempat** (kode FL32 dipertahankan) menjadi "Activity Spike": parameter **Ukuran** (Transaksi, Nilai Rp, Lot) dan **Sisi** (Beli, Jual, atau Keduanya sebagai dua garis terpisah) | "P2 Ok tambahkan"; "P1 Pisahkan ... dipisahkan mana yang beli mana yang jual, per parameter"; "1. ya boleh" (pilihan Keduanya); "2. pertahankan di tempat" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih; **skala linear dengan garis netral 1** | "Spike balance OK tambahkan"; "3. skala garis netral 1" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
+| 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5d |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -398,6 +399,59 @@ memutuskan butir ini.
 Semua angka dari satu saham (BBRI), satu tanggal untuk nilai terakhir, dan 252 sesi untuk sebaran. Baseline 5 sesi berisik: sesudah
 satu lonjakan, baseline berikutnya ikut terangkat. Tidak ada klaim bahwa lonjakan sisi mana pun memprediksi harga. Tidak ada kode
 yang diubah.
+
+## 5d. To-do: FL33 mendapat pemilihan kelompok broker (Top-N, broker terpilih)
+
+**Catatan user 2026-11-04 (kata-katanya):** "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01."
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5d.1 Kondisi sekarang **[T]** (kode dan registry dibaca 2026-11-04)
+
+- Rumus (`FORMULAS.md:99`, `flow.ts:508-515`): `100 × ((BV/BF pada 5 candle terakhir) / (BV/BF pada 20 candle sebelumnya) − 1)`,
+  nilai Rupiah per transaksi **beli**, tertimbang (total ÷ total).
+- Parameter di `flowRegistry.json`: `boards`, `investors`, `recent` (5), `baseline` (20), `levels` (0). **Tidak ada** `scope`, `brokers`,
+  `top`, `rank`, atau `ranking`. `grid0` (`flow.ts:231`) hanya membentuk grid dari papan dan investor, lalu `aw(...)` menjumlahkan
+  **semua broker** di grid itu. Dengan investor bawaan, FL33 menggambarkan pasar saham itu secara keseluruhan.
+- Contoh BBRI 3 Nov 2026: semua investor −11,2% (Rp16,54 juta/tx berbanding Rp18,62 juta/tx); investor Foreign −25,8%
+  (Rp29,74 juta/tx berbanding Rp40,07 juta/tx). Sebaran 252 sesi (semua investor): P10 −23%, median −1%, P90 +21%.
+
+### 5d.2 To-do: parameter yang ditambahkan (mengikuti FL01)
+
+| Parameter | Bawaan di FL01 | Catatan untuk FL33 |
+|---|---|---|
+| Broker scope (`scope`) | Top-N cohort; alternatif Selected brokers | Baru di FL33 |
+| Brokers (`brokers`) | kosong | Baru; dipakai bila scope = Selected brokers |
+| Top N (`top`) | 3 (1 sampai 20) | Baru |
+| Rank Top-N by (`rank`) | Net beli (Rp); alternatif beli bruto, net jual | Baru |
+| Top-N ranking (`ranking`) | Dihitung ulang tiap hari | Baru (tetap, tidak bisa diubah) |
+| `boards`, `investors`, `recent`, `baseline`, `levels` | | Tetap seperti sekarang |
+
+### 5d.3 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Bagaimana kelompok ditentukan, karena FL33 membandingkan dua periode** (5 candle terakhir dan 20 sebelumnya): diurutkan
+   sekali pada seluruh jendela 25 candle (kelompok sama di kedua periode), terpisah di tiap periode (kelompok berbeda, sehingga
+   perubahan juga mencerminkan pergantian broker), atau dibekukan di awal. Pilihan ini menentukan arti angkanya dan apakah ada
+   sirkularitas seperti F1 pada FL03.
+2. **Bawaan `scope`.** FL01 hanya menawarkan Top-N cohort dan Selected brokers; tidak ada pilihan "semua broker". Kalau bawaan
+   FL33 menjadi Top-N cohort, indikator FL33 yang sudah tersimpan pengguna (parameter yang hilang diisi bawaan registry) berubah
+   arti dari pasar menjadi Top-3. Pilihannya: bawaan tetap "semua broker" (perlu opsi ketiga), atau bawaan Top-N seperti FL01.
+3. **Sisi.** FL01 punya parameter Side (Buy, Sell, Both), sedangkan FL33 hanya sisi beli. Apakah Side ikut ditambahkan (terkait
+   catatan user "tidak hanya 1 sided"), belum disebut user.
+4. **Pembanding antarwaktu.** Ukuran tetap dalam Rupiah (seperti sekarang). Pada BBRI, FL33 Rp berkorelasi 0,96 dengan perubahan
+   lot/tx dan 0,31 dengan perubahan harga rata-rata (252 sesi, semua investor), jadi pengaruh harga kecil.
+
+### 5d.4 Berkas yang menyebut FL33 (hasil pencarian di repo; ini daftar awal, bukan hitungan dampak)
+
+`apps/edge-bff/terminal/src/calc/flow.ts`, `apps/edge-bff/terminal/src/calc/explainFlowB.ts`, `apps/edge-bff/terminal/src/data/flowRegistry.json`
+(dibangkitkan dari `verification/terminal_api/flow_indicators/build_spec_workbook.py` lewat `scripts/build_flow_registry.py`),
+`apps/edge-bff/terminal/src/data/indNotes.json`, `apps/edge-bff/terminal/tests/calc/explain_flowB.test.ts`,
+`verification/terminal_api/flow_indicators/FORMULAS.md`, `CODE_INSPECTION_20261101.md`, `oracle/cases.json`, dan berkas audit kartu
+indikator di `verification/terminal_api/indicator_cards/`.
+
+### 5d.5 Batas
+
+Angka dari satu saham (BBRI), satu tanggal untuk nilai terakhir, dan 252 sesi untuk sebaran. Belum dicocokkan dengan angka di BFF
+yang hidup. Tidak ada klaim bahwa perubahan ukuran tiket memprediksi harga. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 

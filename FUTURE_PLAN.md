@@ -1341,3 +1341,5 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   sembunyikan"); lihat `FLOW_INDICATOR_REVIEW.md` (Daftar to-do dan bagian 5b). Catatan FL17 sebelumnya dicabut (salah ketik pada permintaan).
   Juga to-do (2026-11-04): FL32 diedit menjadi Activity Spike (parameter ukuran dan sisi) dan indikator baru Spike Balance; lihat
   `FLOW_INDICATOR_REVIEW.md` bagian 5c. Participation Shift diusulkan, belum diputuskan. Keputusan 2026-11-04: pilihan Keduanya disediakan, FL32 diedit di tempat, skala Spike Balance linear dengan garis netral 1.
+  Juga to-do (2026-11-04): FL33 mendapat parameter pemilihan kelompok broker (Top N, broker terpilih, dan sejenisnya, sama seperti FL01); lihat
+  `FLOW_INDICATOR_REVIEW.md` bagian 5d. Pertanyaan terbuka: cara menentukan kelompok untuk dua periode, bawaan scope, dan parameter Side.
