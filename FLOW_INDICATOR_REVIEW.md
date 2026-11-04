@@ -10,6 +10,19 @@ dengan indikator FLOW yang di display di BFF."
 Dokumen ini adalah register tinjauan: untuk tiap indikator Flow ia mencatat apa indikator itu, buktinya pada data nyata,
 dan pilihan keputusan. Keputusan akhir ada di user.
 
+## Daftar to-do (catatan user)
+
+Daftar ini mencatat apa yang ingin user lakukan kelak pada indikator Flow. Ini bukan jadwal dan bukan persetujuan eksekusi; tiap
+item baru dijalankan atas perintah user.
+
+| # | Indikator | To-do | Kata user | Status |
+|---|---|---|---|---|
+| 1 | FL07 Share · Market Volume | Pensiunkan atau sembunyikan dari menu | "Maaf, maksud saya FL07 yang di sembunyikan. Bukan FL17." (2026-11-04) | To-do, belum dijadwalkan. Kartu di bagian 5b |
+
+**Koreksi 2026-11-04:** sebelumnya item ini sempat tercatat salah untuk FL17 (commit `e8f4f21` dan `af2db50`, termasuk butir
+`FLOW-RM-FL17` di `PLAN.md`). Penyebabnya salah ketik pada permintaan (tertulis FL17, yang dimaksud FL07); FL17 tidak ditinjau dan tetap "Belum ditinjau". Catatan FL17 dan butir
+`PLAN.md` itu sudah dicabut di commit koreksi.
+
 ## 1. Di mana indikator Flow berada
 
 | Apa | Lokasi |
@@ -63,7 +76,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL04 | Share · Transactions | Share | Panel | % | buy, sell | Belum ditinjau |  | Saudara FL03 (porsi transaksi); kemungkinan menanggung temuan F1 dan F3 yang sama, belum diukur |
 | FL05 | Transaction Size · vs Market | Transaction Size | Panel | x | buy, sell | Belum ditinjau |  |  |
 | FL06 | Transaction Size · Buy/Sell Ratio | Transaction Size | Panel | x | ratio | Belum ditinjau |  |  |
-| FL07 | Share · Market Volume | Share | Panel | % | value | Belum ditinjau |  | Sama dengan garis Buy FL03 pada pengaturan bawaan (bagian 5, temuan F4) |
+| FL07 | Share · Market Volume | Share | Panel | % | value | To-do: pensiunkan atau sembunyikan | Pensiunkan atau hide (2026-11-04, to-do) | Kartu di bagian 5b. Identik dengan garis Buy FL03 pada bawaan; fungsi hitungnya dipakai FL09 |
 | FL08 | Transaction Size · Percentile | Transaction Size | Panel | 0-100 | value | Belum ditinjau |  |  |
 | FL09 | Block Money Candidate | Other | Penanda di bawah candle | flag | value | Belum ditinjau |  |  |
 | FL10 | Transactions · Buy/Sell Imbalance | Transactions | Panel | -1..1 | value | Belum ditinjau |  |  |
@@ -73,7 +86,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL14 | Concentration HHI · Buy − Sell | Concentration | Panel | diff | asym | Belum ditinjau |  |  |
 | FL15 | Concentration Top-N · Gross Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
 | FL16 | Concentration Top-N · Net Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
-| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | Diputuskan: pensiunkan atau sembunyikan (menunggu pilihan dan go) | Pensiunkan atau hide (2026-11-04) | Kartu di bagian 5b; FL39 memakai fungsi hitung yang sama |
+| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL18 | Buy VWAP · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL19 | Implied Cost · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL20 | Implied Cost · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
@@ -92,7 +105,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL33 | Transaction Size · Change % | Transaction Size | Panel | % | value | Belum ditinjau |  |  |
 | FL34 | Institutional vs Retail Net | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL35 | Net Buy Persistence · Top Buyer | Net Flow | Panel | % | value | Belum ditinjau |  |  |
-| FL36 | Share · Market Value (Buy + Sell) | Share | Panel | % | value | Belum ditinjau |  |  |
+| FL36 | Share · Market Value (Buy + Sell) | Share | Panel | % | value | Belum ditinjau |  | Bawaan Top-N asing, bukan partisipasi asing seluruh broker: BBRI 3 Nov 0,26% lawan 41,49% (pilihan cakupan Semua broker) |
 | FL37 | Net Flow Percentile · Rupiah | Net Flow | Panel | 0-100 | value | Belum ditinjau |  |  |
 | FL38 | Concentration HHI · Net Buy | Concentration | Panel | 0-1 | value | Belum ditinjau |  |  |
 | FL39 | Buy VWAP · Rolling · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
@@ -219,85 +232,82 @@ sekarang memberi angka yang sebagian besar ditentukan oleh cara memilih cohort.
   dan berlaku pada saham mana pun yang memakai Top-N menurut net beli; F2, F3, F5 angkanya khusus BBRI.
 - Belum diukur: seberapa sering pengguna memakai bawaan Top-3 dan seberapa sering mengganti `scope` ke broker pilihan.
 
-## 5b. Kartu: FL17 Buy VWAP · Rolling (diputuskan user: pensiunkan atau sembunyikan, nanti)
+## 5b. Kartu: FL07 Share · Market Volume (to-do: pensiunkan atau sembunyikan)
 
-**Keputusan user 2026-11-04 (kata-katanya):** pertama "Remove FL17 ya nanti, masukin ke FLOW_INDICATOR_REVIEW.md"; lalu
-"Pensiunkan saja, atau hide. Untuk FL17. Masukan ke flow review." Artinya FL17 tidak lagi ditawarkan, dengan dua jalur yang
-diterima user: **pensiunkan** (dikeluarkan sepenuhnya) atau **sembunyikan** (tetap ada di kode tetapi tidak muncul di menu).
-Waktunya "nanti"; eksekusi menunggu perintah "go" (`PLAN.md`, butir FLOW-RM-FL17). Alasan belum disebut user dan tidak
-ditulis di sini.
+**Catatan user 2026-11-04 (kata-katanya):** "Pensiunkan saja, atau hide." lalu "Maaf, maksud saya FL07 yang di sembunyikan. Bukan
+FL17. Ini hanya semacam to do list saja, jadi tolong diupdate di flow indicator review." Jadi ini item to-do, bukan
+jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Alasan belum disebut user dan tidak ditulis di sini.
 
 ### 5b.1 Apa indikator ini
 
-FL17 menggambar **harga rata-rata pembelian** sekelompok broker selama N hari terakhir sebagai garis di sumbu harga.
-- Rumus (`FORMULAS.md`): `BV(C) / (100 × BL(C))`, yaitu total nilai beli bruto kelompok dibagi total saham yang dibeli
-  (lot × 100), dalam Rupiah per saham.
-- Kelompok bawaan: Top-3 net beli, dihitung ulang tiap hari (aturan yang sama dengan FL03).
-- Bawaan: semua papan, semua investor, jendela 20 hari. Tempat: overlay harga. Satuan: harga.
-- Kode: `apps/edge-bff/terminal/src/calc/flow.ts:417` (entri FL17) dan fungsi `rollingVwap` di baris 310.
+FL07 menghitung porsi **lot beli bruto** kelompok broker terhadap volume beli saham.
+- Rumus (`FORMULAS.md`): `100 × BL(C) / BL(A)`. Pembilang sama dengan FL03. Penyebut `A` bawaan: lot beli semua broker dengan
+  **filter papan saja** (semua investor); pilihan `denom = filter` memakai filter papan dan investor.
+- Kelompok bawaan: Top-3 net beli, dihitung ulang tiap hari. Bawaan: semua papan, semua investor, jendela 1. Satu garis (beli).
+- Kode: `apps/edge-bff/terminal/src/calc/flow.ts:382`, fungsi `marketShare` di baris 279.
 
-### 5b.2 Fakta terkait (terverifikasi dengan pembacaan kode dan pencarian di repo, 2026-11-04)
+### 5b.2 Hubungan dengan FL03 (terukur pada BBRI)
 
-- **FL39** (Buy VWAP · Rolling · Distance %) memakai fungsi `rollingVwap` yang sama (`flow.ts:553`) dan rumusnya tertulis
-  `100 (close / FL17 − 1)`. Fungsi hitung tidak boleh ikut dihapus kecuali FL39 juga dihapus.
-- Registri Flow dihasilkan, bukan ditulis tangan: `flowRegistry.json` dibuat oleh `scripts/build_flow_registry.py` dari
-  `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx`, dan spesifikasi itu dibuat oleh `build_spec_workbook.py`.
-- **Belum ada mekanisme "sembunyikan".** Tiap indikator di registri hanya punya kolom `family`, `id`, `name`,
-  `needs_frequency`, `outputs`, `params`, `place`, `tip`, `unit`; tidak ada kolom status. Menu (`indMenu.ts`, `menuItems`) menyusun
-  baris langsung dari registri.
-- **Indikator pengguna disimpan di browser** (kunci `ml.ind.v1`, `indicators.ts:218`). Saat dimuat, entri yang kodenya tidak
-  ada di registri **dibuang diam-diam** (`indicators.ts:746`: "an unknown id is dropped"; `add()` mengembalikan kosong bila
-  definisinya tidak ditemukan).
+- Pada bawaan (investor = semua), FL07 identik dengan garis Buy FL03 (sama persis pada 5 sesi: 26,56; 31,61; 29,17; 43,47; 36,51%).
+- Berbeda bila filter investor dipersempit. BBRI 3 Nov, investor = asing saja: FL03 = **47,85%** (lot beli kelompok dibagi lot beli
+  asing semua broker) dan FL07 bawaan = **8,70%** (dibagi lot beli semua investor).
 
-### 5b.3 Dua jalur
+### 5b.3 Fakta untuk pelaksanaan (terverifikasi dengan pembacaan kode dan pencarian di repo, 2026-11-04)
 
-| | Sembunyikan (hide) | Pensiunkan (retire) |
-|---|---|---|
-| Isi | Definisi dan hitungan FL17 tetap ada; menu tidak menawarkannya | FL17 dikeluarkan dari registri, kode hitung, uji, oracle, dan dokumen |
-| FL17 yang sudah dipasang pengguna | **Tetap tergambar** (definisinya masih ada) | **Hilang diam-diam** saat grafik dimuat |
-| FL39 dan `rollingVwap` | Tidak tersentuh | `rollingVwap` harus dipertahankan; teks rumus FL39 harus ditulis ulang |
-| Perlu dibuat baru | Satu mekanisme: penanda tersembunyi di generator, registri, dan penyaring menu, plus uji | Tidak ada mekanisme baru; perubahan terbatas pada penghapusan (daftar di bawah) |
-| Dapat dibatalkan | Mudah (hapus penandanya) | Perlu memulihkan dari riwayat git |
-| Risiko | Indikator tersembunyi tetap tampil di grafik lama dan tidak bisa ditambah lagi | Kehilangan data pengguna tanpa pemberitahuan |
+- **FL09 (Block Money Candidate) memakai `marketShare`** dengan penyebut papan (`flow.ts:386`). Entri FL07 boleh disembunyikan atau
+  dikeluarkan, tetapi fungsi hitungnya harus tetap ada. Penjelasan angka FL07 juga berbagi pembantu penyebut dengan FL11
+  (`explainFlowA.ts:320`), dan rumus FL09 di dokumen menyebut FL07.
+- **Keputusan lama di spesifikasi:** lembar "Keputusan" (`build_spec_workbook.py:257`): "FL07: Tetap terpisah dari FL03. —
+  2. Tetap pisah dulu". To-do ini meninjau ulang keputusan itu.
+- **Kemampuan yang hilang** bila FL07 tidak ditawarkan: tampilan "porsi kelompok terhadap *seluruh volume saham*" dengan filter
+  investor dipersempit (contoh asing 8,70% di atas). FL03 tidak punya pilihan penyebut. Bisa dipertahankan bila FL03 diberi
+  pilihan penyebut seperti FL07 (jalur gabung).
+- **Belum ada mekanisme "sembunyikan":** tiap indikator di registri hanya punya `family`, `id`, `name`, `needs_frequency`,
+  `outputs`, `params`, `place`, `tip`, `unit`. Registri dihasilkan (`scripts/build_flow_registry.py` dari
+  `FLOW_INDICATORS_SPEC.xlsx`, yang dibuat `build_spec_workbook.py`).
+- **Indikator pengguna disimpan di browser** (`ml.ind.v1`, `indicators.ts:218`). Entri yang kodenya tidak ada di registri
+  **dibuang diam-diam** saat dimuat (`indicators.ts:746`, `add()` mengembalikan kosong bila definisi tidak ditemukan).
 
-**Usulan sementara AI (menunggu pilihan user):** mulai dengan **sembunyikan**, lalu pensiunkan penuh kemudian, setelah ada cara
-memastikan tidak ada grafik tersimpan yang memakainya. Alasannya: satu-satunya jalur yang tidak membuang data pengguna dan
-tidak menyentuh FL39. Syaratnya, mekanisme sembunyikan harus dibuat (belum ada).
+### 5b.4 Pilihan jalur
 
-### 5b.4 Daftar yang menyentuh FL17 (untuk jalur pensiun penuh)
+| | Sembunyikan (hide) | Pensiunkan (retire) | Gabung ke FL03 |
+|---|---|---|---|
+| Isi | Definisi tetap ada; menu tidak menawarkannya | Dikeluarkan dari registri, uji, oracle, dokumen | FL03 diberi pilihan penyebut; FL07 dilebur |
+| FL07 yang sudah dipasang pengguna | Tetap tergambar | Hilang diam-diam saat dimuat | Perlu pemetaan ke FL03 |
+| FL09 dan `marketShare` | Tidak tersentuh | Fungsi dipertahankan | Fungsi dipertahankan |
+| Perlu dibuat baru | Mekanisme sembunyikan (generator, registri, penyaring menu, uji) | Tidak ada | Pilihan penyebut di FL03 |
+| Kemampuan penyebut papan-saja | Hilang dari menu | Hilang | **Tetap ada** |
+
+**Usulan sementara AI (menunggu pilihan user):** sembunyikan dulu (tidak membuang grafik pengguna), dan beri FL03 pilihan penyebut
+hanya bila tampilan "seluruh volume saham" memang masih dibutuhkan.
+
+### 5b.5 Daftar yang menyentuh FL07 (untuk jalur pensiun penuh)
 
 | Lokasi | Isi | Tindakan |
 |---|---|---|
-| `verification/terminal_api/flow_indicators/build_spec_workbook.py` (baris 75, 138, 419) dan `FLOW_INDICATORS_SPEC.xlsx` | Baris spesifikasi FL17; catatan FL39 "Beda dengan FL17" | Hapus baris FL17, perbarui catatan FL39, bangkitkan ulang xlsx |
-| `scripts/build_flow_registry.py` (baris 175) | Teks tip FL17 | Hapus, bangkitkan ulang registri |
-| `apps/edge-bff/terminal/src/data/flowRegistry.json` (baris 1985) | Entri FL17 | Hilang lewat pembangkitan ulang |
-| `apps/edge-bff/terminal/src/data/indNotes.json` (baris 565; baris 676 menyebut FL17 di rumus FL39) | Catatan indikator | Hapus entri FL17; ubah teks rumus FL39 |
-| `apps/edge-bff/terminal/src/calc/flow.ts` (baris 417) | Fungsi hitung FL17 | Hapus entri; **pertahankan `rollingVwap` bila FL39 tetap** |
-| `apps/edge-bff/terminal/src/calc/explainFlowA.ts` (baris 604 sampai 605) | Penjelasan angka FL17 | Hapus |
-| `apps/edge-bff/terminal/tests/calc/flow.test.ts` (baris 124 sampai 126 dan 200) | Uji FL17 (VWAP bergulir; broker terpilih) | Pindahkan ke FL39 atau hapus; uji FL18 dipertahankan |
-| `apps/edge-bff/terminal/tests/data/ind_menu.test.ts` (baris 15) | FL17 dipakai sebagai contoh garis Flow di sumbu harga | Ganti contoh |
-| `verification/terminal_api/flow_indicators/oracle/cases.json` (baris 953, 973, 995) | Tiga kasus oracle FL17 | Hapus atau ganti dengan kasus FL39 |
-| `verification/terminal_api/flow_indicators/FORMULAS.md` (baris 83 dan 105) | Rumus FL17; rumus FL39 menyebut FL17 | Hapus baris FL17; tulis ulang rumus FL39 |
-| `verification/terminal_api/flow_indicators/CODE_INSPECTION_20261101.md` dan `.json`; `indicator_cards/flow_audit/*` | Pencocokan kode dan kartu audit BBCA | Hasil pembangkitan; bangkitkan ulang atau tandai riwayat |
-| `ERRORS_AND_SOLUTIONS.md` (menyebut FL17 pada beberapa entri) | Riwayat | **Jangan dihapus** (aturan repo) |
+| `build_spec_workbook.py` (baris 46, 128, 257, 401) dan `FLOW_INDICATORS_SPEC.xlsx` | Baris spesifikasi FL07; keputusan "tetap pisah"; catatan FL36 yang membandingkan dengan FL07 | Hapus baris FL07, perbarui keputusan dan catatan FL36, bangkitkan ulang |
+| `scripts/build_flow_registry.py` (baris 165), `flowRegistry.json` (baris 834) | Tip dan entri FL07 | Hapus di generator, bangkitkan ulang registri |
+| `indNotes.json` (baris 515; baris 526 menyebut FL07 di rumus FL09) | Catatan indikator | Hapus entri FL07; teks rumus FL09 dijaga |
+| `flow.ts` (baris 382 dan fungsi `marketShare` baris 279) | Entri dan fungsi hitung | Hapus entri; **pertahankan `marketShare`** (dipakai FL09) |
+| `explainFlowA.ts` (baris 320, 362 sampai 363, 411) | Penjelasan angka FL07; pembantu penyebut dibagi dengan FL11; teks FL09 | Hapus penjelasan FL07; pertahankan pembantu |
+| `flow.test.ts` (baris 55 sampai 59), `explain_flowA.test.ts` (baris 45) | Uji FL07 | Pindahkan ke FL09 atau FL03, atau hapus |
+| `oracle/cases.json` (baris 410, 431, 454), `oracle/oracle.py` (baris 414) | Tiga kasus oracle FL07; hitungan FL07 di oracle dipakai untuk FL09 | Hapus kasus; **pertahankan hitungan** untuk FL09 |
+| `FORMULAS.md` (baris 73; baris 75 FL09 menyebut FL07) | Rumus | Hapus baris FL07; jaga rumus FL09 |
+| `CODE_INSPECTION_20261101.md` dan `.json`; `build_final_workbook.py` (baris 257, komentar); `indicator_cards/flow_audit/*` | Pencocokan kode, kartu audit, hasil pembangkitan | Bangkitkan ulang atau tandai riwayat |
 
-Untuk jalur sembunyikan, daftar sentuhnya jauh lebih kecil: generator spesifikasi dan registri (penanda), `indMenu.ts` (penyaring
-menu), uji menu (`ind_menu.test.ts`, contoh FL17), dan satu catatan di `FORMULAS.md`.
+Untuk jalur sembunyikan daftar sentuhnya jauh lebih kecil: generator dan registri (penanda), penyaring menu di `indMenu.ts`, dan
+uji menu.
 
-### 5b.5 Pertanyaan terbuka
+### 5b.6 Pertanyaan terbuka (saat to-do ini diambil)
 
-1. **Sembunyikan atau pensiunkan penuh** (atau sembunyikan dulu, pensiun kemudian seperti usulan)?
-2. **FL39 tetap atau ikut dikeluarkan?** FL39 menampilkan jarak harga terhadap garis yang sama (dalam persen, di panel). Tanpa FL17,
-   FL39 menjadi satu-satunya tampilan VWAP bergulir.
-3. **Kode FL17 tidak dipakai ulang dan tidak ada penomoran ulang FL18 sampai FL39** (usulan, agar dokumen dan log lama tidak
-   berubah arti; lihat bagian 6).
-4. **"Nanti" kapan:** eksekusi baru berjalan setelah user memberi "go".
+1. Sembunyikan, pensiunkan penuh, atau gabung ke FL03?
+2. Bila disembunyikan atau dipensiunkan, apakah tampilan "porsi terhadap seluruh volume saham" masih dibutuhkan (pilihan penyebut di FL03)?
+3. Kode FL07 tidak dipakai ulang dan tanpa penomoran ulang (usulan, lihat bagian 6).
 
-### 5b.6 Batas
+### 5b.7 Batas
 
-Daftar di atas hasil pencarian teks `FL17` di repo (tanpa `node_modules`); referensi yang tidak menyebut kodenya secara
-harfiah tidak terdeteksi. Cara indikator tersimpan menangani kode yang hilang dibaca dari `indicators.ts`, belum diuji di browser.
-Tidak ada kode yang diubah.
+Daftar di atas hasil pencarian teks `FL07` di repo (tanpa `node_modules`); referensi yang tidak menyebut kodenya secara harfiah tidak
+terdeteksi. Perilaku penyimpanan indikator dibaca dari `indicators.ts`, belum diuji di browser. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
