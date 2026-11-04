@@ -23,6 +23,8 @@ item baru dijalankan atas perintah user.
 | 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5d |
 | 5 | FL13, FL14, FL38 (keluarga Concentration HHI) | Ditambah pilihan kelompok: **broker terpilih** dan **Top-N cohort dengan N yang bisa dipilih**, **sama seperti FL01** | "untuk HHI tambahkan opsi pilih by broker dan top N cohort yang N nya bisa dipilih seperti FL01 - masukan ke docs" (2026-11-04, dengan tangkapan layar menu: FL13, FL14, FL38) | To-do, belum dijadwalkan. Bagian 5e |
 | 6 | FL15 (gross), FL16 (net), FL13 (HHI gross), FL38 (HHI net) | FL15 dan FL16 tetap **dua indikator** (satu gross, satu net), keduanya diberi parameter **Satuan: Lot atau Rupiah**; FL13 dan FL38 diberi parameter Satuan yang sama | "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya harus bisa cater whether its rupiah dan lot (filterable)"; "Ok masukan ke to do 6 ya"; "Yes, tambahkan juga untuk FL13 dan FL38" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5f |
+| 7 | FL11 Net Flow / Turnover Ratio | **Hapus pilihan Denominator**: satu penyebut tetap, yaitu gross beli semua investor dengan filter papan saja (opsi A) | "Okay pakai A" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5g.1 |
+| 8 | Indikator baru (kode ditetapkan saat dikerjakan) | Sama persis dengan FL11, tetapi penyebutnya **rata-rata nilai transaksi (gross beli) N sesi terakhir**, N bawaan 20 dan bisa diatur | "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm" (2026-11-04) | To-do, bacaan AI **menunggu konfirmasi user**. Bagian 5g.2 |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -562,6 +564,55 @@ terutama pada konsistensi dan perbandingan yang adil gross lawan net. Pada saham
 ### 5f.5 Batas
 
 Satu saham (BBRI). Tidak ada klaim bahwa satuan mana pun lebih prediktif. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
+
+## 5g. To-do: penyebut FL11 disederhanakan (opsi A) dan indikator baru dengan penyebut rata-rata turnover
+
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5g.1 To-do 7: FL11 hanya satu penyebut (opsi A)
+
+**Keputusan user 2026-11-04:** "Okay pakai A", sesudah AI menyajikan tiga opsi untuk pilihan Denominator FL11: A hapus pilihan, B pertahankan dengan peringatan, C ganti opsi kedua dengan metrik baru.
+
+- **Sekarang [T]:** `denom` = `board` (bawaan, "Board turnover, all investors") atau `filter` ("Board and investor turnover"). Pembilang selalu **net** `BV(C) − SV(C)`. Penyebut
+  `board` = **gross** beli semua broker, hanya filter papan (semua investor); `filter` = gross beli semua broker dengan filter papan dan investor (`flow.ts:280`, `:229`; `FORMULAS.md:62`).
+- **Sesudahnya:** satu penyebut, `BV(A)` gross beli semua investor dengan filter papan saja. Pilihan Denominator hilang dari dialog FL11.
+- **Dasar keputusan (hasil ukur BBRI, 2026-11-04):** dengan investor Foreign dan Domestic kedua opsi identik; dengan investor Foreign saja opsi `filter` memberi nilai di luar ±100% pada 43 dari 252
+  sesi (minimum −778%; 3 Nov −196,0% berbanding −35,5% pada opsi `board`); FL09 dan FL36 sudah memakai penyebut papan-saja yang tetap; tabel fitur menghitung `foreign_net_turnover_ratio` terhadap nilai transaksi total (`DATABASE_SCHEMA.md:3053`).
+- **Berkas yang memuat kata `denom` (daftar awal, sebagian mungkin tidak terkait):** `apps/edge-bff/terminal/src/calc/flow.ts`, `explainFlowA.ts`, `src/data/flowRegistry.json`, `src/data/indNotes.json`,
+  `tests/calc/flow.test.ts`, `tests/calc/explain_flowA.test.ts`, `verification/terminal_api/flow_indicators/FORMULAS.md`, `oracle/oracle.py`, `oracle/cases.json`, `scripts/terminal_indicator_spec.py`, `scripts/build_flow_registry.py`.
+- **Pertanyaan terbuka:**
+  1. **FL07** punya pilihan `denom` yang sama (pada opsi `filter`, FL07 sama dengan FL03). Apakah FL07 ikut disederhanakan, atau diputuskan bersama to-do 1 (menyembunyikan atau memensiunkan FL07).
+  2. **Grafik tersimpan** yang memakai `denom = filter`: perilakunya sesudah opsi dihapus belum diperiksa (indikator tersimpan ada di browser; parameter yang hilang diisi bawaan registry).
+  3. FL21 (persentil FL11, "same denominator") mengikuti perubahan ini.
+
+### 5g.2 To-do 8: indikator baru "net flow terhadap rata-rata turnover"
+
+**Kata user 2026-11-04:** "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm."
+
+**Bacaan AI (menunggu konfirmasi user):**
+- Pembilang sama dengan FL11: **net** `BV(C) − SV(C)` kelompok `C` pada jendela `W` (bawaan 1).
+- Penyebut: **rata-rata harian gross beli semua broker (semua investor, papan saja)** selama N sesi terakhir, dikalikan `W` bila `W > 1`. N bawaan 20 dan bisa diatur (parameter `baseline`, seperti FL32 dan FL33).
+- Parameter lain sama dengan FL11 (`scope`, `brokers`, `top`, `rank`, `ranking`, `boards`, `investors`, `window`, `plot`), tanpa `denom`.
+- Maksudnya: net flow diukur terhadap turnover "normal", bukan turnover hari itu, sehingga hari dengan lonjakan volume tidak mengencerkan nilainya.
+
+**Bukti pada data (BBRI, cohort Top-3 net beli, jendela 1, semua papan, semua investor, 252 sesi, dihitung 2026-11-04):**
+- 3 Nov: net kelompok Rp217,0 miliar; FL11 (penyebut hari itu Rp872,5 miliar) = 24,9%; penyebut rata-rata 20 sesi **sebelumnya** (Rp1.054,9 miliar) = 20,6%; rata-rata 20 sesi **termasuk** hari ini (Rp1.076,6 miliar) = 20,2%.
+- Sebaran 252 sesi: FL11 min 7,5, median 22,7, P90 38,0, maks 56,4; versi rata-rata 20 sesi min 3,7, median 20,6, P90 39,3, **maks 109,6** (16 Okt 2026, saat nilai transaksi hari itu 6,50 kali rata-ratanya).
+- Korelasi kedua versi hanya 0,42. Pada 28 hari dengan nilai transaksi > 1,5 kali rata-rata 20 sesi, rata-rata FL11 23,1% berbanding 51,6% pada versi rata-rata. Variasi penyebut (CV): hari itu 0,55 berbanding rata-rata 20 sesi 0,23.
+- Versi rata-rata bisa melewati 100% pada hari lonjakan (net kelompok lebih besar dari turnover hari rata-rata).
+
+**Pertanyaan konfirmasi:**
+1. Baseline N sesi **sebelum** t (tanpa hari ini, seperti baseline FL32 dan FL33) atau **termasuk** hari ini? Usulan AI: sebelum. Selisihnya pada 3 Nov 20,6% berbanding 20,2%.
+2. Bila `W > 1`: pembilang dijumlahkan sepanjang W sesi, penyebut = `W × rata-rata harian N sesi` (asumsi AI).
+3. Penyebut gross beli semua investor, papan saja (konsisten dengan keputusan A).
+4. Nama dan kode: kode FL40 atau berikutnya, ditetapkan saat dikerjakan. Usulan nama: "Net Flow / Average Turnover".
+5. Kosong (null) bila sesi sebelumnya kurang dari N.
+6. Rentang N yang boleh diatur (usulan 1 sampai 250, seperti `window`).
+7. Sirkularitas kohort bawaan (FL11 positif 252 dari 252 sesi karena kohort dipilih dari net beli) tetap berlaku di indikator baru.
+
+### 5g.3 Batas
+
+Satu saham (BBRI), satu tanggal untuk contoh. Tidak ada klaim bahwa penyebut mana pun lebih prediktif. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 

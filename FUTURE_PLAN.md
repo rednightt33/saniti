@@ -1347,3 +1347,5 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   `FLOW_INDICATOR_REVIEW.md` bagian 5e. Pertanyaan terbuka: arti HHI pada kelompok (di dalam kelompok, sumbangan terhadap HHI total, atau seluruh broker).
   Juga to-do (2026-11-04): FL15 (gross) dan FL16 (net) tetap dua indikator, keduanya diberi parameter Satuan (Lot atau Rupiah); lihat `FLOW_INDICATOR_REVIEW.md`
   bagian 5f. FL13 dan FL38 ikut diberi parameter Satuan yang sama (user 2026-11-04: "Yes, tambahkan juga untuk FL13 dan FL38").
+  Juga (2026-11-04): FL11 hanya satu penyebut, opsi A ("Okay pakai A"), dan indikator baru yang sama dengan FL11 tetapi penyebutnya rata-rata turnover N sesi (bawaan 20, bisa diatur; menunggu konfirmasi); lihat
+  `FLOW_INDICATOR_REVIEW.md` bagian 5g.
