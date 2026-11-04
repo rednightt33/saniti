@@ -1337,5 +1337,5 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   hampir tiap hari, FL07 identik dengan garis Buy FL03 pada bawaan, papan Nego dan Cash menggeser hingga 14,7 poin pada
   hari tertentu, dan kode "FL03" bentrok dengan FL03 di screener. Keputusan terbuka: pilihan untuk FL03 (pertahankan, edit
   metrik, ganti visual, gabung, hapus), nasib FL07 dan FL04, bawaan papan, penyatuan penomoran FL.
-  FL17: diputuskan user 2026-11-04 untuk dihapus nanti ("Remove FL17 ya nanti"); lihat `PLAN.md` FLOW-RM-FL17 dan
-  `FLOW_INDICATOR_REVIEW.md` bagian 5b.
+  FL17: diputuskan user 2026-11-04 untuk dipensiunkan atau disembunyikan nanti ("Pensiunkan saja, atau hide"); lihat
+  `PLAN.md` FLOW-RM-FL17 dan `FLOW_INDICATOR_REVIEW.md` bagian 5b.

@@ -73,7 +73,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL14 | Concentration HHI · Buy − Sell | Concentration | Panel | diff | asym | Belum ditinjau |  |  |
 | FL15 | Concentration Top-N · Gross Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
 | FL16 | Concentration Top-N · Net Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
-| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | Diputuskan: hapus (menunggu go) | Hapus, nanti (2026-11-04) | Kartu di bagian 5b; FL39 memakai fungsi hitung yang sama |
+| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | Diputuskan: pensiunkan atau sembunyikan (menunggu pilihan dan go) | Pensiunkan atau hide (2026-11-04) | Kartu di bagian 5b; FL39 memakai fungsi hitung yang sama |
 | FL18 | Buy VWAP · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL19 | Implied Cost · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL20 | Implied Cost · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
@@ -219,11 +219,13 @@ sekarang memberi angka yang sebagian besar ditentukan oleh cara memilih cohort.
   dan berlaku pada saham mana pun yang memakai Top-N menurut net beli; F2, F3, F5 angkanya khusus BBRI.
 - Belum diukur: seberapa sering pengguna memakai bawaan Top-3 dan seberapa sering mengganti `scope` ke broker pilihan.
 
-## 5b. Kartu: FL17 Buy VWAP · Rolling (diputuskan user: hapus, nanti)
+## 5b. Kartu: FL17 Buy VWAP · Rolling (diputuskan user: pensiunkan atau sembunyikan, nanti)
 
-**Keputusan user 2026-11-04 (kata-katanya):** "Remove FL17 ya nanti, masukin ke FLOW_INDICATOR_REVIEW.md". Artinya FL17 akan
-dihapus, tetapi tidak sekarang. Eksekusi menunggu perintah "go" (`PLAN.md`, butir FLOW-RM-FL17). Alasan penghapusan belum
-disebut user dan tidak ditulis di sini.
+**Keputusan user 2026-11-04 (kata-katanya):** pertama "Remove FL17 ya nanti, masukin ke FLOW_INDICATOR_REVIEW.md"; lalu
+"Pensiunkan saja, atau hide. Untuk FL17. Masukan ke flow review." Artinya FL17 tidak lagi ditawarkan, dengan dua jalur yang
+diterima user: **pensiunkan** (dikeluarkan sepenuhnya) atau **sembunyikan** (tetap ada di kode tetapi tidak muncul di menu).
+Waktunya "nanti"; eksekusi menunggu perintah "go" (`PLAN.md`, butir FLOW-RM-FL17). Alasan belum disebut user dan tidak
+ditulis di sini.
 
 ### 5b.1 Apa indikator ini
 
@@ -234,17 +236,37 @@ FL17 menggambar **harga rata-rata pembelian** sekelompok broker selama N hari te
 - Bawaan: semua papan, semua investor, jendela 20 hari. Tempat: overlay harga. Satuan: harga.
 - Kode: `apps/edge-bff/terminal/src/calc/flow.ts:417` (entri FL17) dan fungsi `rollingVwap` di baris 310.
 
-### 5b.2 Fakta terkait (terverifikasi dengan pencarian di repo, 2026-11-04)
+### 5b.2 Fakta terkait (terverifikasi dengan pembacaan kode dan pencarian di repo, 2026-11-04)
 
 - **FL39** (Buy VWAP · Rolling · Distance %) memakai fungsi `rollingVwap` yang sama (`flow.ts:553`) dan rumusnya tertulis
   `100 (close / FL17 − 1)`. Fungsi hitung tidak boleh ikut dihapus kecuali FL39 juga dihapus.
 - Registri Flow dihasilkan, bukan ditulis tangan: `flowRegistry.json` dibuat oleh `scripts/build_flow_registry.py` dari
   `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx`, dan spesifikasi itu dibuat oleh `build_spec_workbook.py`.
-  Penghapusan harus lewat generator lalu dibangkitkan ulang.
+- **Belum ada mekanisme "sembunyikan".** Tiap indikator di registri hanya punya kolom `family`, `id`, `name`,
+  `needs_frequency`, `outputs`, `params`, `place`, `tip`, `unit`; tidak ada kolom status. Menu (`indMenu.ts`, `menuItems`) menyusun
+  baris langsung dari registri.
+- **Indikator pengguna disimpan di browser** (kunci `ml.ind.v1`, `indicators.ts:218`). Saat dimuat, entri yang kodenya tidak
+  ada di registri **dibuang diam-diam** (`indicators.ts:746`: "an unknown id is dropped"; `add()` mengembalikan kosong bila
+  definisinya tidak ditemukan).
 
-### 5b.3 Daftar yang menyentuh FL17 (untuk eksekusi nanti)
+### 5b.3 Dua jalur
 
-| Lokasi | Isi | Tindakan saat eksekusi |
+| | Sembunyikan (hide) | Pensiunkan (retire) |
+|---|---|---|
+| Isi | Definisi dan hitungan FL17 tetap ada; menu tidak menawarkannya | FL17 dikeluarkan dari registri, kode hitung, uji, oracle, dan dokumen |
+| FL17 yang sudah dipasang pengguna | **Tetap tergambar** (definisinya masih ada) | **Hilang diam-diam** saat grafik dimuat |
+| FL39 dan `rollingVwap` | Tidak tersentuh | `rollingVwap` harus dipertahankan; teks rumus FL39 harus ditulis ulang |
+| Perlu dibuat baru | Satu mekanisme: penanda tersembunyi di generator, registri, dan penyaring menu, plus uji | Tidak ada mekanisme baru; perubahan terbatas pada penghapusan (daftar di bawah) |
+| Dapat dibatalkan | Mudah (hapus penandanya) | Perlu memulihkan dari riwayat git |
+| Risiko | Indikator tersembunyi tetap tampil di grafik lama dan tidak bisa ditambah lagi | Kehilangan data pengguna tanpa pemberitahuan |
+
+**Usulan sementara AI (menunggu pilihan user):** mulai dengan **sembunyikan**, lalu pensiunkan penuh kemudian, setelah ada cara
+memastikan tidak ada grafik tersimpan yang memakainya. Alasannya: satu-satunya jalur yang tidak membuang data pengguna dan
+tidak menyentuh FL39. Syaratnya, mekanisme sembunyikan harus dibuat (belum ada).
+
+### 5b.4 Daftar yang menyentuh FL17 (untuk jalur pensiun penuh)
+
+| Lokasi | Isi | Tindakan |
 |---|---|---|
 | `verification/terminal_api/flow_indicators/build_spec_workbook.py` (baris 75, 138, 419) dan `FLOW_INDICATORS_SPEC.xlsx` | Baris spesifikasi FL17; catatan FL39 "Beda dengan FL17" | Hapus baris FL17, perbarui catatan FL39, bangkitkan ulang xlsx |
 | `scripts/build_flow_registry.py` (baris 175) | Teks tip FL17 | Hapus, bangkitkan ulang registri |
@@ -257,22 +279,25 @@ FL17 menggambar **harga rata-rata pembelian** sekelompok broker selama N hari te
 | `verification/terminal_api/flow_indicators/oracle/cases.json` (baris 953, 973, 995) | Tiga kasus oracle FL17 | Hapus atau ganti dengan kasus FL39 |
 | `verification/terminal_api/flow_indicators/FORMULAS.md` (baris 83 dan 105) | Rumus FL17; rumus FL39 menyebut FL17 | Hapus baris FL17; tulis ulang rumus FL39 |
 | `verification/terminal_api/flow_indicators/CODE_INSPECTION_20261101.md` dan `.json`; `indicator_cards/flow_audit/*` | Pencocokan kode dan kartu audit BBCA | Hasil pembangkitan; bangkitkan ulang atau tandai riwayat |
-| `ERRORS_AND_SOLUTIONS.md` (menyebut FL17 pada beberapa entri) | Riwayat | **Jangan dihapus** (aturan repo: entri tidak dihapus) |
+| `ERRORS_AND_SOLUTIONS.md` (menyebut FL17 pada beberapa entri) | Riwayat | **Jangan dihapus** (aturan repo) |
 
-### 5b.4 Pertanyaan terbuka
+Untuk jalur sembunyikan, daftar sentuhnya jauh lebih kecil: generator spesifikasi dan registri (penanda), `indMenu.ts` (penyaring
+menu), uji menu (`ind_menu.test.ts`, contoh FL17), dan satu catatan di `FORMULAS.md`.
 
-1. **FL39 tetap atau ikut dihapus?** FL39 menampilkan jarak harga terhadap garis yang sama (dalam persen, di panel). Tanpa FL17,
+### 5b.5 Pertanyaan terbuka
+
+1. **Sembunyikan atau pensiunkan penuh** (atau sembunyikan dulu, pensiun kemudian seperti usulan)?
+2. **FL39 tetap atau ikut dikeluarkan?** FL39 menampilkan jarak harga terhadap garis yang sama (dalam persen, di panel). Tanpa FL17,
    FL39 menjadi satu-satunya tampilan VWAP bergulir.
-2. **Kode FL17 dipensiunkan.** Usulan: nomor tidak dipakai ulang dan tidak ada penomoran ulang FL18 sampai FL39, supaya
-   dokumen dan log lama tidak berubah arti (lihat bagian 6 soal bentrokan kode).
-3. **Pengguna yang sudah memasang FL17 di grafik:** belum diperiksa bagaimana indikator tersimpan menangani kode yang
-   hilang (dibuang diam-diam, diberi pesan, atau error).
+3. **Kode FL17 tidak dipakai ulang dan tidak ada penomoran ulang FL18 sampai FL39** (usulan, agar dokumen dan log lama tidak
+   berubah arti; lihat bagian 6).
 4. **"Nanti" kapan:** eksekusi baru berjalan setelah user memberi "go".
 
-### 5b.5 Batas
+### 5b.6 Batas
 
 Daftar di atas hasil pencarian teks `FL17` di repo (tanpa `node_modules`); referensi yang tidak menyebut kodenya secara
-harfiah (misalnya indikator yang disimpan di penyimpanan browser) tidak terdeteksi. Tidak ada kode yang diubah.
+harfiah tidak terdeteksi. Cara indikator tersimpan menangani kode yang hilang dibaca dari `indicators.ts`, belum diuji di browser.
+Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 

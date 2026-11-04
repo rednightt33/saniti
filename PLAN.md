@@ -1042,20 +1042,24 @@ Coba saja di explore pakai benchmark yang best practice."
 
 ## FI-TERMINAL — dipindah ke `EXEC.md` EXEC-FI-TERMINAL (go 2026-11-01; audit dan koreksi data selesai, EXEC-FI-DATE)
 
-## FLOW-RM-FL17 — hapus indikator FL17 Buy VWAP · Rolling dari menu Flow (disetujui masuk rencana 2026-11-04; eksekusi menunggu "go")
+## FLOW-RM-FL17 — pensiunkan atau sembunyikan indikator FL17 Buy VWAP · Rolling dari menu Flow (disetujui masuk rencana 2026-11-04; eksekusi menunggu "go")
 
-**Persetujuan (kata user 2026-11-04):** "Remove FL17 ya nanti, masukin ke FLOW_INDICATOR_REVIEW.md"
+**Persetujuan (kata user 2026-11-04):** "Remove FL17 ya nanti, masukin ke FLOW_INDICATOR_REVIEW.md". Lalu: "Pensiunkan saja,
+atau hide. Untuk FL17. Masukan ke flow review."
 
-Kartu tinjauan dan daftar yang disentuh: `FLOW_INDICATOR_REVIEW.md`, bagian 5b. Ringkas: entri FL17 di generator spesifikasi
-(`build_spec_workbook.py`) dan registri (`build_flow_registry.py`, `flowRegistry.json`), catatan (`indNotes.json`), fungsi
-hitung dan penjelasan (`flow.ts`, `explainFlowA.ts`), uji (`flow.test.ts`, `ind_menu.test.ts`), tiga kasus oracle, dan
-`FORMULAS.md`. Fungsi `rollingVwap` dipakai juga oleh FL39.
+Kartu tinjauan, perbandingan kedua jalur, dan daftar yang disentuh: `FLOW_INDICATOR_REVIEW.md`, bagian 5b. Ringkas:
+- **Sembunyikan:** FL17 tetap di kode, tidak ditawarkan di menu, grafik tersimpan tetap menggambarnya. Mekanismenya belum ada
+  (registri tidak punya kolom status) dan harus dibuat (generator, registri, penyaring menu, uji).
+- **Pensiunkan:** dikeluarkan dari registri, kode, uji, oracle, dan dokumen; FL17 yang tersimpan di grafik pengguna dibuang
+  diam-diam saat dimuat. Fungsi `rollingVwap` dipakai juga oleh FL39.
+- Usulan AI: sembunyikan dulu, pensiunkan penuh kemudian.
 
 **Pertanyaan yang masih terbuka:**
-1. FL39 tetap atau ikut dihapus.
-2. Kode FL17 dipensiunkan tanpa penomoran ulang (usulan).
-3. Perilaku untuk pengguna yang sudah memasang FL17 di grafik.
+1. Sembunyikan, pensiunkan penuh, atau sembunyikan dulu lalu pensiun.
+2. FL39 tetap atau ikut dikeluarkan.
+3. Kode FL17 tidak dipakai ulang dan tanpa penomoran ulang (usulan).
 4. Kapan "nanti": eksekusi hanya atas perintah "go".
 
-**Bukti selesai (kelak):** menu tidak lagi memuat FL17; uji vitest terminal lulus; kasus oracle diperbarui dan cocok; FL39
-sesuai keputusan; catatan di changelog dan `ERRORS_AND_SOLUTIONS.md`, lalu butir ini dihapus dari dokumen ini.
+**Bukti selesai (kelak):** menu tidak lagi menawarkan FL17; uji vitest terminal lulus; grafik tersimpan berperilaku sesuai pilihan
+(tetap tergambar bila disembunyikan); FL39 sesuai keputusan; catatan di changelog dan `ERRORS_AND_SOLUTIONS.md`, lalu butir
+ini dihapus dari dokumen ini.
