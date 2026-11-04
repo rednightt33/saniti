@@ -25,6 +25,7 @@ item baru dijalankan atas perintah user.
 | 6 | FL15 (gross), FL16 (net), FL13 (HHI gross), FL38 (HHI net) | FL15 dan FL16 tetap **dua indikator** (satu gross, satu net), keduanya diberi parameter **Satuan: Lot atau Rupiah**; FL13 dan FL38 diberi parameter Satuan yang sama | "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya harus bisa cater whether its rupiah dan lot (filterable)"; "Ok masukan ke to do 6 ya"; "Yes, tambahkan juga untuk FL13 dan FL38" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5f |
 | 7 | FL11 Net Flow / Turnover Ratio | **Hapus pilihan Denominator**: satu penyebut tetap, yaitu gross beli semua investor dengan filter papan saja (opsi A) | "Okay pakai A" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5g.1 |
 | 8 | Indikator baru (kode ditetapkan saat dikerjakan) | Sama persis dengan FL11, tetapi penyebutnya **rata-rata nilai transaksi (gross beli) N sesi terakhir**, N bawaan 20 dan bisa diatur | "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm" (2026-11-04) | To-do; bacaan AI dikonfirmasi user dengan "Ok" (2026-11-04). Bagian 5g.2 |
+| 9 | FL35 Net Buy Persistence · Top Buyer | **Disembunyikan** dari menu indikator (hide) | "Hide saja FL35, masukan ke review" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5h |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -113,7 +114,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL32 | Transactions · Spike | Transactions | Panel | x | value | To-do: diedit di tempat menjadi Activity Spike | P1 dan P2 disetujui; di tempat; "Keduanya" disediakan (2026-11-04) | Kartu di bagian 5c; hanya sisi beli dan jumlah transaksi saat ini |
 | FL33 | Transaction Size · Change % | Transaction Size | Panel | % | value | Belum ditinjau |  |  |
 | FL34 | Institutional vs Retail Net | Other | Panel | % | value | Belum ditinjau |  |  |
-| FL35 | Net Buy Persistence · Top Buyer | Net Flow | Panel | % | value | Belum ditinjau |  |  |
+| FL35 | Net Buy Persistence · Top Buyer | Net Flow | Panel | % | value | To-do: sembunyikan (hide) | Hide (2026-11-04, to-do) | Kartu di bagian 5h. Hanya satu broker (Top Buyer), menghitung hari bukan besarnya net |
 | FL36 | Share · Market Value (Buy + Sell) | Share | Panel | % | value | Belum ditinjau |  | Bawaan Top-N asing, bukan partisipasi asing seluruh broker: BBRI 3 Nov 0,26% lawan 41,49% (pilihan cakupan Semua broker) |
 | FL37 | Net Flow Percentile · Rupiah | Net Flow | Panel | 0-100 | value | Belum ditinjau |  |  |
 | FL38 | Concentration HHI · Net Buy | Concentration | Panel | 0-1 | value | Belum ditinjau |  |  |
@@ -615,6 +616,41 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 ### 5g.3 Batas
 
 Satu saham (BBRI), satu tanggal untuk contoh. Tidak ada klaim bahwa penyebut mana pun lebih prediktif. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
+
+## 5h. To-do: FL35 disembunyikan (hide)
+
+**Catatan user 2026-11-04 (kata-katanya):** "Hide saja FL35, masukan ke review." Alasan tidak disebut user. "Review" dibaca sebagai dokumen ini.
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5h.1 Apa indikatornya **[T]** (kode `flow.ts:527-534`, `FORMULAS.md:101`, registry)
+
+Broker dengan **net** `BV − SV` kumulatif terbesar dan positif dalam jendela `D` (bawaan 20) dibekukan untuk jendela itu;
+`FL35 = 100 × (sesi dengan net harian > 0) / D`. Parameter hanya `boards`, `investors`, dan `window`; tidak ada scope, Top-N, atau peringkat.
+
+### 5h.2 Bukti dari penjelasan AI 2026-11-04 (BBRI, semua investor, semua papan, jendela 20; bukan alasan user)
+
+- Contoh 3 Nov 2026: top buyer NI, net +Rp980,1 miliar, sesi net beli 13 dari 20, **FL35 = 65%**; dua hari (+Rp499 dan +Rp301 miliar) menyumbang 82% dari net total. Yang dihitung hari, bukan besarnya.
+- Sebaran 252 sesi: minimum 45%, P10 55%, median 75%, maksimum 100%; ≥ 50% pada 115 dari 120 sesi, jadi ambang 50% tidak membedakan.
+- Efek seleksi: rata-rata persistensi pembeli bersih lain (aktif ≥ 5 hari) median 53%; top buyer lebih persisten pada 236 dari 252 sesi.
+- Hubungan dengan arus asing (net asing 20 sesi × FL35 ≥ 75%): net beli 3 tinggi / 32 rendah, net jual 62 / 23; korelasi −0,66 (arah dan sebab belum diuji; pemisahan jenis investor top buyer tidak dihitung).
+- Belum diuji hubungannya dengan return ke depan.
+
+### 5h.3 Fakta untuk pelaksanaan (pencarian di repo, 2026-11-04)
+
+- FL35 **tidak dipakai indikator lain**: fungsi hitungnya (`flow.ts:527`) dan penjelasan angkanya (`explainFlowB.ts:585`) tidak dirujuk oleh FL09, FL11, atau yang lain. Berkas yang menyebut FL35:
+  `build_spec_workbook.py`, `FORMULAS.md`, `CODE_INSPECTION_20261101.md` dan `.json`, `oracle/cases.json`, `flowRegistry.json`, `indNotes.json`, `explainFlowB.ts`, `explain_flowB.test.ts`, kartu audit di `verification/terminal_api/indicator_cards/`, serta `ERRORS_AND_SOLUTIONS.md` dan `FUTURE_PLAN.md` (sebutan di sana tidak diperiksa).
+- **Belum ada mekanisme "sembunyikan"** (lihat 5b.3): registri hanya punya `family`, `id`, `name`, `needs_frequency`, `outputs`, `params`, `place`, `tip`, `unit`. Mekanisme itu dibutuhkan juga oleh to-do 1 (FL07), jadi satu mekanisme bisa melayani keduanya.
+- **Indikator tersimpan pengguna** (`ml.ind.v1`, `indicators.ts:218`): pada jalur hide definisi tetap ada, sehingga grafik yang sudah memasang FL35 tetap tergambar (asumsi dari 5b.4, perilaku persisnya belum diperiksa). Pada jalur pensiun, entri yang kodenya hilang dibuang diam-diam (`indicators.ts:746`).
+
+### 5h.4 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Arti "hide":** disembunyikan dari menu saja, definisi dan hitungan tetap ada (diasumsikan, sama dengan FL07 jalur "sembunyikan"). Bila yang dimaksud dikeluarkan sepenuhnya, daftar sentuhnya jauh lebih besar (lihat 5b.5).
+2. **Pengganti.** Gagasan yang sempat muncul dalam penjelasan (belum diputuskan, belum to-do): FL35 dengan Top-N atau broker terpilih seperti FL01, atau ukuran yang memperhitungkan besarnya net. Dengan hide, gagasan itu tidak dikerjakan kecuali user meminta.
+3. **Urutan.** Mekanisme sembunyikan sama dengan to-do 1; apakah dikerjakan bersama.
+
+### 5h.5 Batas
+
+Satu saham (BBRI), satu tanggal untuk contoh. Angka dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
