@@ -18,8 +18,8 @@ item baru dijalankan atas perintah user.
 | # | Indikator | To-do | Kata user | Status |
 |---|---|---|---|---|
 | 1 | FL07 Share · Market Volume | Pensiunkan atau sembunyikan dari menu | "Maaf, maksud saya FL07 yang di sembunyikan. Bukan FL17." (2026-11-04) | To-do, belum dijadwalkan. Kartu di bagian 5b |
-| 2 | FL32 Transactions · Spike | Diedit menjadi "Activity Spike": parameter **Ukuran** (Transaksi, Nilai Rp, Lot) dan parameter **Sisi** (beli dan jual dipisahkan) | "P2 Ok tambahkan"; "P1 Pisahkan"; "better dipisahkan mana yang beli mana yang jual, per parameter" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
-| 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih | "Spike balance OK tambahkan" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
+| 2 | FL32 Transactions · Spike | Diedit **di tempat** (kode FL32 dipertahankan) menjadi "Activity Spike": parameter **Ukuran** (Transaksi, Nilai Rp, Lot) dan **Sisi** (Beli, Jual, atau Keduanya sebagai dua garis terpisah) | "P2 Ok tambahkan"; "P1 Pisahkan ... dipisahkan mana yang beli mana yang jual, per parameter"; "1. ya boleh" (pilihan Keduanya); "2. pertahankan di tempat" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
+| 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih; **skala linear dengan garis netral 1** | "Spike balance OK tambahkan"; "3. skala garis netral 1" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -105,7 +105,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL29 | Bandar Balance · Accumulation Days | Bandar Balance | Panel | % | value | Belum ditinjau |  |  |
 | FL30 | Crossing Share | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL31 | Insider Net Change | Other | Panel | IDR | value | Belum ditinjau |  |  |
-| FL32 | Transactions · Spike | Transactions | Panel | x | value | To-do: diedit menjadi Activity Spike | P1 dan P2 disetujui (2026-11-04) | Kartu di bagian 5c; hanya sisi beli dan jumlah transaksi saat ini |
+| FL32 | Transactions · Spike | Transactions | Panel | x | value | To-do: diedit di tempat menjadi Activity Spike | P1 dan P2 disetujui; di tempat; "Keduanya" disediakan (2026-11-04) | Kartu di bagian 5c; hanya sisi beli dan jumlah transaksi saat ini |
 | FL33 | Transaction Size · Change % | Transaction Size | Panel | % | value | Belum ditinjau |  |  |
 | FL34 | Institutional vs Retail Net | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL35 | Net Buy Persistence · Top Buyer | Net Flow | Panel | % | value | Belum ditinjau |  |  |
@@ -333,7 +333,7 @@ jadwal eksekusi: belum ada tanggal dan belum ada perintah "go".
 | Parameter | Isi |
 |---|---|
 | **Ukuran** (baru) | **Transaksi** (jumlah, seperti FL32 sekarang), **Nilai (Rp)**, atau **Lot** |
-| **Sisi** (baru) | **Beli** atau **Jual**, dipisahkan per parameter (bukan dijumlah). Pilihan "Keduanya" (dua garis terpisah) belum diputuskan |
+| **Sisi** (baru) | **Beli**, **Jual**, atau **Keduanya**: dipisahkan per parameter, tidak dijumlah. "Keduanya" menggambar dua garis terpisah (diputuskan user 2026-11-04) |
 | Baseline | Sesi sebelum hari ini (bawaan 20; user memakai 5; 1 sampai 250) |
 | Papan, Investor, Garis acuan | Tetap seperti FL32 |
 
@@ -366,12 +366,13 @@ domestik korelasinya 0,79.
 - Registri dihasilkan dari spesifikasi (`build_spec_workbook.py`, lalu `build_flow_registry.py`), jadi perubahan parameter harus lewat
   generator dan dibangkitkan ulang.
 
-**Pertanyaan terbuka:**
-1. Pilihan "Keduanya" (dua garis terpisah, seperti FL01 sampai FL05) disediakan atau tidak.
-2. Diedit di tempat (kode FL32 dipertahankan, nama diganti "Activity Spike") atau indikator baru dengan kode baru. Usulan: di tempat,
-   agar grafik tersimpan tidak terputus dan penomoran tidak berubah (lihat bagian 6).
-3. Satuan keluaran FL32 sekarang satu garis `value`; pola sisi memakai keluaran `buy` dan `sell`. Perlu diputuskan penanganan gaya
-   garis tersimpan.
+**Keputusan user 2026-11-04 (kata-katanya):** "1. ya boleh" (pilihan "Keduanya" disediakan) dan "2. pertahankan di tempat" (FL32 diedit di
+tempat: kode FL32 dipertahankan, nama diganti "Activity Spike", sehingga grafik tersimpan tidak terputus dan penomoran tidak berubah).
+
+**Pertanyaan yang masih terbuka:**
+1. Keluaran FL32 sekarang satu garis `value`; pola sisi memakai keluaran `buy` dan `sell`. Perlu diputuskan penanganan gaya garis
+   tersimpan (warna dan ketebalan) saat keluaran berubah.
+2. Bawaan baseline untuk Activity Spike (FL32 sekarang 20 sesi; user memakai 5).
 
 ### 5c.3 To-do 3: Spike Balance (indikator baru)
 
@@ -382,8 +383,9 @@ domestik korelasinya 0,79.
   Dengan filter asing atau domestik, atau kelompok broker, rasionya informatif.
 - **Contoh BBRI, asing, transaksi, baseline 5:** 3 Nov = 0,39 ÷ 1,85 = **0,21**. Sebaran 252 sesi: P10 0,34, median 1,01, P90 3,05;
   nilai 3 Nov di persentil 3. Lima sesi terakhir: 27 Okt 1,32; 28 Okt 2,09; 29 Okt 0,56; 30 Okt 0,91; 2 Nov 1,17; 3 Nov 0,21.
-- **Pertanyaan terbuka:** skala (linear dengan garis netral 1, atau logaritmik), garis acuan (usulan 0,5 dan 2), ukuran bawaan,
-  dan apakah cakupan kelompok broker (Top-N) ikut ditawarkan atau hanya filter investor dan papan.
+- **Keputusan user 2026-11-04:** "3. skala garis netral 1": skala **linear** dengan garis netral di **1**.
+- **Pertanyaan yang masih terbuka:** garis acuan lain (usulan 0,5 dan 2), ukuran bawaan, dan apakah cakupan kelompok broker (Top-N) ikut
+  ditawarkan atau hanya filter investor dan papan.
 
 ### 5c.4 Diusulkan, belum diputuskan: Participation Shift
 

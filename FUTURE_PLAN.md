@@ -1340,4 +1340,4 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   FL07: dicatat user 2026-11-04 sebagai to-do untuk dipensiunkan atau disembunyikan ("Maaf, maksud saya FL07 yang di
   sembunyikan"); lihat `FLOW_INDICATOR_REVIEW.md` (Daftar to-do dan bagian 5b). Catatan FL17 sebelumnya dicabut (salah ketik pada permintaan).
   Juga to-do (2026-11-04): FL32 diedit menjadi Activity Spike (parameter ukuran dan sisi) dan indikator baru Spike Balance; lihat
-  `FLOW_INDICATOR_REVIEW.md` bagian 5c. Participation Shift diusulkan, belum diputuskan.
+  `FLOW_INDICATOR_REVIEW.md` bagian 5c. Participation Shift diusulkan, belum diputuskan. Keputusan 2026-11-04: pilihan Keduanya disediakan, FL32 diedit di tempat, skala Spike Balance linear dengan garis netral 1.
