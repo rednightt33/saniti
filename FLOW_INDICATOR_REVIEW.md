@@ -21,6 +21,7 @@ item baru dijalankan atas perintah user.
 | 2 | FL32 Transactions · Spike | Diedit **di tempat** (kode FL32 dipertahankan) menjadi "Activity Spike": parameter **Ukuran** (Transaksi, Nilai Rp, Lot) dan **Sisi** (Beli, Jual, atau Keduanya sebagai dua garis terpisah) | "P2 Ok tambahkan"; "P1 Pisahkan ... dipisahkan mana yang beli mana yang jual, per parameter"; "1. ya boleh" (pilihan Keduanya); "2. pertahankan di tempat" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih; **skala linear dengan garis netral 1** | "Spike balance OK tambahkan"; "3. skala garis netral 1" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5d |
+| 5 | FL13, FL14, FL38 (keluarga Concentration HHI) | Ditambah pilihan kelompok: **broker terpilih** dan **Top-N cohort dengan N yang bisa dipilih**, **sama seperti FL01** | "untuk HHI tambahkan opsi pilih by broker dan top N cohort yang N nya bisa dipilih seperti FL01 - masukan ke docs" (2026-11-04, dengan tangkapan layar menu: FL13, FL14, FL38) | To-do, belum dijadwalkan. Bagian 5e |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -452,6 +453,53 @@ indikator di `verification/terminal_api/indicator_cards/`.
 
 Angka dari satu saham (BBRI), satu tanggal untuk nilai terakhir, dan 252 sesi untuk sebaran. Belum dicocokkan dengan angka di BFF
 yang hidup. Tidak ada klaim bahwa perubahan ukuran tiket memprediksi harga. Tidak ada kode yang diubah.
+
+## 5e. To-do: indikator HHI (FL13, FL14, FL38) mendapat pemilihan kelompok broker
+
+**Catatan user 2026-11-04 (kata-katanya):** "untuk HHI tambahkan opsi pilih by broker dan top N cohort yang N nya bisa dipilih seperti FL01 - masukan ke docs."
+Permintaan disertai tangkapan layar menu yang menampilkan tiga indikator HHI: FL13 Concentration HHI · Gross, FL14 Concentration HHI · Buy − Sell,
+dan FL38 Concentration HHI · Net Buy. Tiga indikator itu yang dicatat di sini; **bila user bermaksud lain, koreksi bagian ini**.
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5e.1 Kondisi sekarang **[T]** (registry dan kode dibaca 2026-11-04)
+
+| Indikator | Parameter sekarang | Cara hitung (`flow.ts`, `FORMULAS.md`) |
+|---|---|---|
+| FL13 | `boards`, `investors`, `side` (Buy bawaan), `window` (1) | `Σ_b (BL(b)/BL(A))²` atas lot bruto **semua broker**; sisi jual memakai `SL` |
+| FL14 | `boards`, `investors`, `window` (1), `levels` (0), `plot` (histogram) | FL13 Buy − FL13 Sell |
+| FL38 | `boards`, `investors`, `window` (20, status PROPOSED) | `Σ (n_b / Σ n positif)²` atas net beli positif (Rp) **semua broker** |
+
+Ketiganya tidak punya `scope`, `brokers`, `top`, `rank`, atau `ranking`. Pembentukan data hanya dari papan dan investor (`grid0`, `flow.ts:231`).
+
+### 5e.2 To-do: parameter yang ditambahkan (mengikuti FL01)
+
+| Parameter | Bawaan di FL01 |
+|---|---|
+| Broker scope (`scope`) | Top-N cohort; alternatif Selected brokers |
+| Brokers (`brokers`) | kosong; dipakai bila scope = Selected brokers |
+| Top N (`top`) | 3 (1 sampai 20) |
+| Rank Top-N by (`rank`) | Net beli (Rp); alternatif beli bruto, net jual |
+| Top-N ranking (`ranking`) | Dihitung ulang tiap hari |
+
+### 5e.3 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Apa arti HHI pada sebuah kelompok.** Sekarang HHI dihitung atas **semua** broker. Dengan kelompok ada tiga bacaan yang berbeda angkanya.
+   Contoh BBRI, jendela 20 sesi sampai 3 Nov 2026, FL38, Top-3 NI, CC, OD (net Rp980,1, 851,6, 707,2 miliar; total net beli positif Rp4.337,4 miliar; dihitung dari contoh FL38 yang dihitung 2026-11-04):
+   - (a) HHI **di dalam** kelompok (porsi dibagi jumlah kelompok): 0,339; batas bawah 1/N = 0,333, jadi hampir selalu mendekati batas dan hampir tidak informatif.
+   - (b) **Sumbangan** kelompok terhadap HHI seluruh pasar (Σ porsi² anggota kelompok, penyebut tetap seluruh broker): 0,1162, atau 88% dari HHI total 0,1328 (ini metrik "porsi Top-3 dari HHI" di dokumen metodologi).
+   - (c) HHI seluruh broker, hanya kelompok yang ditandai: sama dengan sekarang.
+   User perlu memilih salah satu; ini menentukan arti seluruh parameter baru.
+2. **Broker terpilih**: apakah penyebut HHI tetap seluruh broker (jadi porsi broker terpilih terhadap pasar), atau hanya broker terpilih.
+3. **Peringkat Top-N** memakai nilai yang sama atau berbeda dengan ukuran HHI-nya (misalnya FL13 menghitung lot bruto, sedangkan peringkat bawaan FL01 net beli Rp).
+   Jika berbeda, ada sirkularitas seperti F1 pada FL03.
+4. **FL14** mewarisi parameter FL13 atau punya sendiri.
+5. **Ditawarkan, belum dijawab user:** FL38 juga diberi parameter sisi (net beli, net jual, keduanya). Penyebabnya: HHI net beli tinggi tidak
+   memberi tahu apakah HHI net jual juga tinggi. Bukti pada BBRI (252 sesi, semua investor): 3 Nov HHI net beli 0,1328 berbanding net jual 0,2217
+   (jendela 20 sesi); keduanya di atas median bersamaan di 45 dari 252 sesi, dan di atas P90 bersamaan 0 sesi. Bukan to-do sampai user memutuskan.
+
+### 5e.4 Batas
+
+Satu saham (BBRI), satu tanggal untuk contoh, dan 252 sesi untuk sebaran. Tidak ada klaim bahwa konsentrasi memprediksi harga. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
