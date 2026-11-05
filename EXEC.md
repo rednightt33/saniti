@@ -11452,3 +11452,40 @@ plan dulu, check PG. inspect database dan infra. Ensure setiap keputusan yang di
 - D2 bila langkah daftar gagal: putaran FAILED (pola sekarang) atau SUCCESS dengan peringatan.
 - D3 daftar 66 dan definisinya disemai di migrasi (metadata, tanpa keanggotaan; repo publik) atau ditulis putaran pertama.
 - D4 putaran pertama: saat user mengganti token berikutnya (deploy kode bersamaan) atau segera dengan token yang ada.
+
+## EXEC-TERMINAL-IND-EDIT — edit indikator Terminal: Flow (FLOW_INDICATOR_REVIEW.md) dan I37, I41 (rencana, belum go, 2026-11-05)
+
+**Permintaan user, 2026-11-05:** "Kita akan edit bunch of termianl indicators" (dengan `INDICATORS_HANDOFF.md`, disusun
+dari `main` `e23899f6`); "Relative volume dihilangkan saja. L41 juga. Sekarang saya akan lampirkan indikator flow yang
+akan dilakukan perubahan. Review dan clarify" (lampiran `FLOW_INDICATOR_REVIEW.md`, branch
+`claude/intelligent-mccarthy-70imcn`, keputusan final di bagian 5t, serah terima di bagian 8).
+
+**Sumber:** `FLOW_INDICATOR_REVIEW.md` (disalin apa adanya dari branch itu ke root) dan
+`verification/terminal_api/flow_indicators/RATIO_SETTINGS_MOCKUP.html`. Hanya dokumen yang dibawa: kode di branch itu
+lebih tua dari `main` (belum memuat EXEC-IHSG-FLOW, `flow.ts`/`indMenu.ts` berbeda), jadi branch itu tidak di-merge.
+Rujukan baris di dokumen dicek ulang terhadap `main` saat dikerjakan.
+
+**Keputusan user, 2026-11-05:**
+- I37 Relative Volume dan I41 Price Volume Trend ("L41", dibaca AI sebagai I41): "1A -> masukan exec" = **disembunyikan
+  dari menu Terminal saja**, dengan mekanisme sembunyikan yang sama dengan FL07, FL35, FL36. ID, rumus, registry,
+  Screener (I37 indikator cepat di `screener/src/builder.ts:87`, `I41.pvt` di `screener-metrics.json`) dan Backtest
+  tidak berubah; screen dan backtest tersimpan tetap jalan. Bacaan AI "L41 = I41" belum dikonfirmasi eksplisit.
+- IHSG (indeks): "Ok, masukan exec" = aturan diturunkan dari kebutuhan data, bukan daftar per indikator: indikator baru
+  yang butuh lot atau harga per lembar tidak tampil di indeks (seperti `SINGLE_SECURITY`,
+  `apps/edge-bff/terminal/src/app/flowIndicators.ts:23`); pilihan Satuan "Lot" tidak ditawarkan di indeks (Rupiah
+  tetap); satu tes mengunci aturan itu untuk semua indikator Flow.
+- Cara eksekusi: "B --> masukan exec, setelah semua addressed" = **semua butir sekaligus**, laporan di akhir.
+- "Jangan go sampai pertanyaan dijawab": eksekusi belum mulai.
+
+**Lingkup:** 19 butir Flow di `FLOW_INDICATOR_REVIEW.md` bagian 8.2 (butir 11 FL25 dibatalkan; 8.6 tidak dikerjakan),
+ditambah sembunyikan I37 dan I41. Kriteria penerimaan: bagian 8.4 dokumen itu, ditambah langkah `INDICATORS_HANDOFF.md`
+(registry Backtest dan Screener dibangun ulang di commit yang sama bila `indRegistry.json` berubah; backtest-worker
+diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):**
+- Q2 Spike Balance: bawaan investor (Foreign, tolak "semua investor", atau biarkan bernilai 1); user meminta penjelasan
+  dulu (ukuran nilai atau lot).
+- Q3 FL14 dengan pemilihan kelompok: bacaan AI (Top-N: pembeli bersih − penjual bersih; broker terpilih: broker yang
+  sama di dua sisi; semua broker: tetap); user meminta penjelasan dulu.
+- Q4 FL32 Activity Spike: nama keluaran (`buy`/`sell` seperti FL01, atau `value` dipertahankan); user meminta
+  penjelasan permintaan perubahan dulu.

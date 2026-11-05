@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock-up Setting Ratio Fleksibel</title>
+<style>
+  :root { color-scheme: light; --ink:#1c1c1e; --mute:#8a8a90; --line:#e4e4e7; --fill:#fff; --bg:#f3f3f5; --ok:#111; --err:#b3261e; --errbg:#fdecea; --warn:#8a5a00; --warnbg:#fff4de; --info:#44546a; --infobg:#eef2f7; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 -apple-system, "Segoe UI", Roboto, Inter, sans-serif; padding:16px; }
+  .banner { max-width:560px; margin:0 auto 12px; font-size:12.5px; color:var(--info); background:var(--infobg); border-radius:8px; padding:8px 12px; }
+  .presets { max-width:560px; margin:0 auto 12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12.5px; color:var(--mute); }
+  .presets button { font:inherit; border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 10px; cursor:pointer; color:var(--ink); }
+  .presets button:hover { border-color:#bbb; }
+  .dlg { max-width:560px; margin:0 auto; background:#fff; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.18); display:flex; flex-direction:column; max-height:calc(100vh - 32px); }
+  .hd { padding:20px 24px 0; }
+  .hd h1 { margin:0; font-size:18px; font-weight:600; display:flex; justify-content:space-between; }
+  .hd .x { color:var(--mute); font-weight:400; font-size:20px; line-height:1; }
+  .hd p { margin:10px 0 0; color:var(--mute); font-size:13px; }
+  .tabs { display:flex; gap:16px; border-bottom:2px solid var(--line); margin-top:12px; }
+  .tab { padding:8px 0; font-weight:600; color:var(--mute); cursor:pointer; margin-bottom:-2px; border-bottom:2px solid transparent; }
+  .tab.on { color:var(--ink); border-bottom-color:var(--ink); }
+  .bd { padding:8px 24px 4px; overflow:auto; }
+  .sec { font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--mute); font-weight:600; margin:18px 0 2px; display:flex; justify-content:space-between; align-items:baseline; }
+  .sec b { color:var(--ink); letter-spacing:0; text-transform:none; font-size:13px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:7px 0; min-height:44px; }
+  .row > label { flex:1 1 auto; }
+  .row .ctl { flex:0 0 52%; position:relative; }
+  .row .ctl.static { color:var(--mute); text-align:right; }
+  select, input[type=number], input[type=text], .ms > button { width:100%; font:inherit; color:var(--ink); background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px 12px; }
+  input[type=number] { text-align:right; }
+  select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23333' stroke-width='1.6'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:30px; }
+  .ms > button { text-align:left; cursor:pointer; position:relative; padding-right:30px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23999' stroke-width='1.6'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; }
+  .ms .pop { display:none; position:absolute; z-index:5; left:0; right:0; top:100%; margin-top:4px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); padding:6px; }
+  .ms.open .pop { display:block; }
+  .pop label { display:flex; gap:8px; align-items:center; padding:6px 8px; border-radius:6px; cursor:pointer; }
+  .pop label:hover { background:var(--bg); }
+  .hint { font-size:12px; color:var(--mute); margin:-2px 0 4px; }
+  .dash { border-bottom:1px dotted var(--mute); }
+  .hidden { display:none !important; }
+  .formula { margin:14px 0 6px; padding:10px 12px; background:var(--bg); border-radius:10px; font-size:13px; }
+  .formula small { display:block; color:var(--mute); font-size:11.5px; margin-bottom:2px; text-transform:uppercase; letter-spacing:.05em; }
+  .msg { margin:8px 0; padding:9px 12px; border-radius:10px; font-size:13px; }
+  .msg.err { background:var(--errbg); color:var(--err); }
+  .msg.warn { background:var(--warnbg); color:var(--warn); }
+  .msg.info { background:var(--infobg); color:var(--info); }
+  .ft { display:flex; justify-content:space-between; padding:14px 24px 20px; border-top:1px solid var(--line); margin-top:8px; }
+  .ft button { font:inherit; font-weight:600; border-radius:10px; padding:10px 20px; cursor:pointer; border:1px solid var(--line); background:#fff; color:var(--ink); }
+  .ft .r { display:flex; gap:10px; }
+  .ft .ok { background:var(--ok); color:#fff; border-color:var(--ok); }
+  .ft .ok[disabled] { opacity:.35; cursor:not-allowed; }
+  .done { max-width:560px; margin:12px auto 0; font-size:12.5px; color:var(--mute); }
+  @media (max-width:520px) { body { padding:8px; } .hd, .bd, .ft { padding-left:16px; padding-right:16px; } .row .ctl { flex-basis:56%; } }
+</style>
+</head>
+<body>
+
+<div class="banner"><b>Mock-up usulan, bukan fitur yang sudah ada.</b> Nama, kode FL, urutan baris, dan daftar pilihan masih contoh. Indikator ini <b>tambahan</b>; FL03, FL04, FL11, dan FL36 tidak diubah. Semua isian bisa dicoba.</div>
+
+<div class="presets">Isi contoh:
+  <button data-p="share">Porsi gross beli Top-3 asing</button>
+  <button data-p="netmkt">Net asing ÷ gross beli pasar</button>
+  <button data-p="netshare">Net beli asing ÷ net beli Top-3</button>
+  <button data-p="bad">Penyebut net semua broker (ditolak)</button>
+</div>
+
+<div class="dlg" role="dialog" aria-label="Flow Ratio">
+  <div class="hd">
+    <h1><span>Flow Ratio · Custom <small style="color:var(--mute);font-weight:400;font-size:12px">(nama sementara)</small></span><span class="x">×</span></h1>
+    <p>Rasio bebas: pembilang dan penyebut masing-masing dipilih ukuran, kelompok, dan pembatasnya.</p>
+    <div class="tabs"><div class="tab on" data-t="in">Inputs</div><div class="tab" data-t="st">Style</div></div>
+  </div>
+
+  <div class="bd" id="tab-in">
+    <div class="sec"><span>Numerator</span><b id="numTitle"></b></div>
+    <div id="num"></div>
+
+    <div class="sec"><span>Denominator</span><b id="denTitle"></b></div>
+    <div id="den"></div>
+
+    <div class="sec"><span>Common</span></div>
+    <div class="row"><label>Unit</label>
+      <div class="ctl"><select id="unit">
+        <option value="rp">Value (Rp)</option>
+        <option value="lot">Volume (lot)</option>
+        <option value="tx">Transactions (count)</option>
+      </select></div></div>
+    <div class="hint" id="unitHint"></div>
+    <div class="row"><label><span class="dash">Rolling days (1 = daily)</span></label>
+      <div class="ctl"><input type="number" id="win" min="1" max="250" value="1"></div></div>
+
+    <div class="formula"><small>Rumus yang terbentuk</small><span id="formula"></span></div>
+    <div id="msgs"></div>
+  </div>
+
+  <div class="bd hidden" id="tab-st">
+    <p class="hint" style="margin-top:16px">Tab Style sama seperti indikator lain (warna garis, tebal, skala). Tidak dirancang di mock-up ini.</p>
+  </div>
+
+  <div class="ft">
+    <button id="reset">Reset</button>
+    <div class="r"><button id="cancel">Cancel</button><button class="ok" id="ok">Ok</button></div>
+  </div>
+</div>
+<div class="done" id="done"></div>
+
+<script>
+const MEASURES = [['gross_buy','Gross buy'],['gross_sell','Gross sell'],['net_buy','Net buy'],['net_sell','Net sell']];
+const SCOPES = [['all','All brokers'],['topn','Top-N cohort'],['selected','Selected brokers']];
+const RANKS = [['net_buy','Net buy (Rp)'],['net_sell','Net sell (Rp)'],['gross_buy','Gross buy (Rp)'],['gross_sell','Gross sell (Rp)']];
+const BOARDS = ['Regular','Nego','Cash'], INVESTORS = ['Foreign','Domestic'];
+const label = (arr,k)=>arr.find(x=>x[0]===k)[1];
+const DEF = () => ({measure:'gross_buy', scope:'all', top:3, rank:'net_buy', brokers:'', boards:[...BOARDS], inv:[...INVESTORS]});
+let S = { num:DEF(), den:DEF(), unit:'rp', win:1 };
+
+function sel(id, opts, val){ return `<select id="${id}">${opts.map(o=>`<option value="${o[0]}" ${o[0]===val?'selected':''}>${o[1]}</option>`).join('')}</select>`; }
+function ms(id, items, vals){
+  const txt = vals.length===items.length ? `All (${items.length})` : vals.join(', ');
+  return `<div class="ms" id="${id}"><button type="button">${txt}</button><div class="pop">${items.map(i=>`<label><input type="checkbox" value="${i}" ${vals.includes(i)?'checked':''}> ${i}</label>`).join('')}</div></div>`;
+}
+function side(p){
+  const s = S[p];
+  return `
+  <div class="row"><label>Measure</label><div class="ctl">${sel(p+'-measure',MEASURES,s.measure)}</div></div>
+  <div class="row"><label>Broker scope</label><div class="ctl">${sel(p+'-scope',SCOPES,s.scope)}</div></div>
+  <div class="row ${s.scope==='topn'?'':'hidden'}"><label>Top N</label><div class="ctl"><input type="number" id="${p}-top" min="1" max="20" value="${s.top}"></div></div>
+  <div class="row ${s.scope==='topn'?'':'hidden'}"><label>Rank Top-N by</label><div class="ctl">${sel(p+'-rank',RANKS,s.rank)}</div></div>
+  <div class="row ${s.scope==='topn'?'':'hidden'}"><label>Top-N ranking</label><div class="ctl static">Recomputed every day</div></div>
+  <div class="row ${s.scope==='selected'?'':'hidden'}"><label>Brokers</label><div class="ctl"><input type="text" id="${p}-brokers" placeholder="mis. AK, BK, ZP" value="${s.brokers}"></div></div>
+  <div class="row"><label>Market board</label><div class="ctl">${ms(p+'-boards',BOARDS,s.boards)}</div></div>
+  <div class="row"><label>Investor type</label><div class="ctl">${ms(p+'-inv',INVESTORS,s.inv)}</div></div>`;
+}
+function describe(p){
+  const s=S[p];
+  const who = s.scope==='all' ? 'semua broker' : s.scope==='topn' ? `Top-${s.top} (peringkat ${label(RANKS,s.rank)}, per hari)` : `broker ${s.brokers.trim()||'(belum diisi)'}`;
+  const inv = s.inv.length===2 ? 'semua investor' : s.inv[0]==='Foreign'?'asing':'domestik';
+  const bd = s.boards.length===3 ? 'semua papan' : 'papan '+s.boards.join('/');
+  return {short:`${label(MEASURES,s.measure)} · ${who}`, full:`<b>${label(MEASURES,s.measure)}</b> ${who}, ${inv}, ${bd}`};
+}
+function validate(){
+  const out=[]; let blocked=false;
+  for (const [p,name] of [['num','Numerator'],['den','Denominator']]) {
+    const s=S[p], net = s.measure.startsWith('net');
+    if (s.scope==='selected' && !s.brokers.trim()) { out.push(['err',`${name} · Brokers kosong. Isi minimal satu kode broker, atau ganti Broker scope.`]); blocked=true; }
+    if (net && s.scope==='all' && s.inv.length===2) { out.push(['err',`${name} · ${label(MEASURES,s.measure)} dengan All brokers dan kedua Investor type selalu 0 (setiap beli punya lawan jual). Pilih Top-N cohort, pilih satu Investor type, atau ganti Measure ke Gross.`]); blocked=true; }
+    if (p==='den' && net && !(s.scope==='topn' && s.rank===s.measure) && !blocked) out.push(['warn',`Denominator · ${label(MEASURES,s.measure)} bisa nol atau berlawanan tanda pada hari tertentu. Hari dengan penyebut ≤ 0 dikosongkan, bukan dihitung.`]);
+  }
+  if (S.unit==='tx') out.push(['info','Unit Transactions membutuhkan jumlah transaksi (buy_freq, sell_freq) di file broker. Satu unit berlaku untuk pembilang dan penyebut.']);
+  return {out, blocked};
+}
+function render(keepFocus){
+  document.getElementById('num').innerHTML = side('num');
+  document.getElementById('den').innerHTML = side('den');
+  document.getElementById('unit').value = S.unit;
+  document.getElementById('win').value = S.win;
+  wire(); update();
+}
+function update(){
+  const n=describe('num'), d=describe('den');
+  document.getElementById('numTitle').textContent = n.short;
+  document.getElementById('denTitle').textContent = d.short;
+  const u = {rp:'Rp',lot:'lot',tx:'transaksi'}[S.unit];
+  document.getElementById('formula').innerHTML = `100 × ${n.full} ÷ ${d.full}<br><span style="color:var(--mute)">satuan ${u}, jendela ${S.win} hari</span>`;
+  document.getElementById('unitHint').textContent = S.unit==='tx' ? '' : '';
+  const v = validate();
+  document.getElementById('msgs').innerHTML = v.out.map(m=>`<div class="msg ${m[0]}">${m[1]}</div>`).join('');
+  document.getElementById('ok').disabled = v.blocked;
+}
+function wire(){
+  for (const p of ['num','den']) {
+    for (const k of ['measure','scope','rank']) document.getElementById(`${p}-${k}`)?.addEventListener('change',e=>{ S[p][k]=e.target.value; render(); });
+    document.getElementById(`${p}-top`)?.addEventListener('input',e=>{ S[p].top=Math.max(1,Math.min(20,+e.target.value||1)); update(); });
+    document.getElementById(`${p}-brokers`)?.addEventListener('input',e=>{ S[p].brokers=e.target.value; update(); });
+    for (const [k,items] of [['boards',BOARDS],['inv',INVESTORS]]) {
+      const box = document.getElementById(`${p}-${k}`), btn = box.querySelector('button');
+      btn.addEventListener('click',e=>{ e.stopPropagation(); document.querySelectorAll('.ms.open').forEach(x=>x!==box&&x.classList.remove('open')); box.classList.toggle('open'); });
+      box.querySelector('.pop').addEventListener('click',e=>e.stopPropagation());
+      box.querySelectorAll('input').forEach(cb=>cb.addEventListener('change',()=>{
+        const v=[...box.querySelectorAll('input:checked')].map(x=>x.value);
+        if(!v.length){ cb.checked=true; return; }
+        S[p][k]=v; const open=true; render(); document.getElementById(`${p}-${k}`).classList.add('open');
+      }));
+    }
+  }
+}
+document.getElementById('unit').addEventListener('change',e=>{S.unit=e.target.value; update();});
+document.getElementById('win').addEventListener('input',e=>{S.win=Math.max(1,Math.min(250,+e.target.value||1)); update();});
+document.addEventListener('click',()=>document.querySelectorAll('.ms.open').forEach(x=>x.classList.remove('open')));
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.getElementById('tab-in').classList.toggle('hidden',t.dataset.t!=='in');
+  document.getElementById('tab-st').classList.toggle('hidden',t.dataset.t!=='st');
+}));
+document.getElementById('reset').onclick=()=>{ S={num:DEF(),den:DEF(),unit:'rp',win:1}; render(); document.getElementById('done').textContent=''; };
+document.getElementById('cancel').onclick=()=>{ document.getElementById('done').textContent='Cancel: tidak ada yang disimpan.'; };
+document.getElementById('ok').onclick=()=>{ document.getElementById('done').textContent='Ok: (mock-up) pengaturan di atas akan dipasang sebagai garis di panel.'; };
+
+const PRESETS = {
+  share:   ()=>({num:{...DEF(),measure:'gross_buy',scope:'topn',top:3,rank:'net_buy',inv:['Foreign']}, den:{...DEF(),measure:'gross_buy',inv:['Foreign']}, unit:'rp', win:1}),
+  netmkt:  ()=>({num:{...DEF(),measure:'net_buy',scope:'all',inv:['Foreign']}, den:{...DEF(),measure:'gross_buy'}, unit:'rp', win:1}),
+  netshare:()=>({num:{...DEF(),measure:'net_buy',scope:'all',inv:['Foreign']}, den:{...DEF(),measure:'net_buy',scope:'topn',top:3,rank:'net_buy'}, unit:'rp', win:1}),
+  bad:     ()=>({num:{...DEF(),measure:'gross_buy',scope:'topn',top:3}, den:{...DEF(),measure:'net_buy',scope:'all'}, unit:'rp', win:1}),
+};
+document.querySelectorAll('.presets button').forEach(b=>b.addEventListener('click',()=>{ S=PRESETS[b.dataset.p](); render(); document.getElementById('done').textContent=''; }));
+S = PRESETS.share(); render();
+</script>
+</body>
+</html>
