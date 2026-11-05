@@ -9958,6 +9958,73 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-TERMINAL-PREFS — pengaturan Terminal ikut akun, bukan browser (rencana diterima 2026-11-05, BELUM dieksekusi)
+
+**Kata user, 2026-11-05:** "Saat ini kan login yang dipakai user adalah satu. Kenapa kalau saya pindah device, bahkan
+favorites pun bisa berbeda. [...] Di PC 2, ketika saya buka, indikator-indikator yang saya put di PC 1 hilang. Kenapa
+ini bisa terjadi?" Lalu: "untuk nomor 2, silahkan cek backend dan propose implementation plan".
+
+**Root cause (kode, 2026-11-05):**
+- Semua pengaturan Terminal ditulis lewat satu pembungkus `store` ke `localStorage` browser
+  (`apps/edge-bff/terminal/src/app/context.ts:12-16`). Satu-satunya pengecualian adalah
+  `ui/fullscreen.ts:27`, yang memanggil `localStorage.removeItem` langsung.
+- edge-bff tidak punya API pengaturan Terminal. Tabel per-owner yang sudah ada hanya `edge_bff.watchlist_items` dan
+  `screener_items` (Screener, `database/migrations/20261028_001_edge_bff_screener.sql`) serta preferensi percakapan AI.
+- Yang hilang saat pindah device:
+  - indikator terpasang `ml.ind.v1` dan favorit `ml.ind.favs`;
+  - gambar per saham (`drawings.ts`);
+  - daftar aset `ml.assets.*`;
+  - filter event `ml.events.v1`;
+  - urutan, lebar dan buka-tutup panel `ml.stats.*`, `ml.broker.*`, `ml.flow.*`;
+  - jendela pop-out `ml.win.*`;
+  - timeframe dan simbol terakhir `ml.tf`, `ml.symbol`.
+
+**Class:** setiap preferensi tampilan per pengguna terikat ke browser, bukan ke akun. Fitur baru yang memakai `store`
+akan punya masalah yang sama. Pengaturan di Backtest/Screener yang memakai `localStorage` juga ikut diperiksa.
+
+**Rancangan (lapisan yang memiliki mekanismenya: data akun di edge-bff + Postgres; browser hanya cache):**
+1. **Tabel** `edge_bff.terminal_prefs`:
+   - kolom `(owner_key, pref_key, value jsonb, revision bigint, updated_at, device_label)`, PK `(owner_key, pref_key)`;
+   - batas ukuran per nilai (mis. 256 KB) dan per owner (mis. 4 MB);
+   - peran `edge_bff_runtime` hanya SELECT/INSERT/UPDATE/DELETE pada tabel itu;
+   - migrasi maju baru, dengan DRYRUN lalu APPLY.
+2. **API edge-bff** (sesi yang sama; tulis dengan CSRF seperti Screener):
+   - `GET /api/v1/terminal/prefs`: semua milik owner;
+   - `PUT /api/v1/terminal/prefs/{key}` dengan `revision` yang diketahui klien. Revision yang lebih lama dijawab 409
+     beserta nilai terbaru, jadi device yang basi tidak menimpa diam-diam.
+   - Kunci diterima hanya bila cocok dengan daftar kunci sinkron dari satu modul bersama (diturunkan dari daftar di
+     Terminal, tidak ditulis dua kali).
+3. **Terminal:** `store` menjadi dua lapis.
+   - Kunci sinkron ditulis ke `localStorage` (cepat, juga saat offline), lalu dikirim ke server dengan jeda sekitar
+     1 detik.
+   - `fullscreen.ts` memakai `store` juga.
+   - Saat halaman dibuka, `GET prefs` dimulai paralel dengan `/bundle` (yang lebih lambat), lalu diterapkan sebelum
+     chart pertama digambar. Kalau server lambat atau gagal, Terminal tetap jalan dengan cache lokal.
+4. **Perpindahan pertama:** kunci yang belum ada di server diunggah dari device yang pertama dibuka. Isi device lain
+   tidak ditimpa diam-diam; ia mengambil nilai server.
+5. **Tes:**
+   - unit store (cache, kirim, 409, offline);
+   - API (owner, CSRF, ukuran, kunci asing ditolak);
+   - E2E dua konteks browser: favorit dan RSI di "PC 1" muncul di "PC 2", dan ubahan "PC 2" kembali ke "PC 1";
+   - dicek juga untuk Backtest/Screener bila memakai `localStorage`.
+6. **Catatan:** `DATABASE_SCHEMA.md`, `DATABASE_CHANGELOG.md`, ERRORS (entri baru), README edge-bff.
+
+**Keputusan user, 2026-11-05:** "Yes, untuk Q1 -Q3, we follow your recommendation. Masukkan exec, jangan eksekusi
+dulu. Sampai kita bisa get across efficiency plan dalam hal pemindahan data Postgres ke storage."
+- Q1: ikut akun = indikator dan setelannya, favorit, gambar, daftar aset, filter event, urutan dan isi panel; tetap
+  per device = lebar/tinggi panel, buka-tutup panel, jendela pop-out, layar penuh.
+- Q2: yang terakhir menang (revision mencegah device basi menimpa diam-diam).
+- Q3: simbol dan timeframe terakhir per device (rekomendasi: tidak disebut ikut akun).
+- **Status:** belum dieksekusi; menunggu rencana efisiensi PUBLISH-FLOW (`PLAN.md`) disepakati.
+
+**Pertanyaan semula (sudah dijawab di atas):**
+- Q1: pengaturan mana yang ikut akun dan mana yang tetap per device?
+  - Usulan ikut akun: indikator dan setelannya, favorit, gambar, daftar aset, filter event, urutan dan isi panel.
+  - Usulan tetap per device: lebar dan tinggi panel, buka-tutup panel, jendela pop-out, layar penuh. Ukuran layar PC
+    dan HP berbeda.
+- Q2: bila dua device mengubah hal yang sama, yang terakhir menang (usulan), atau ditanya?
+- Q3: simbol dan timeframe terakhir ikut akun atau per device?
+
 ## EXEC-M334-ALERT — peringatan Telegram bila arsip audit gagal lama (go 2026-11-02, opsi A)
 
 **Kata user, 2026-11-02:** atas usulan M334 "peringatan Telegram bila antrean audit gagal lebih dari 1 jam": "M334 OK,

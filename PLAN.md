@@ -20,64 +20,61 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
-## TERMINAL-PREFS — pengaturan Terminal ikut akun, bukan browser (rencana diminta 2026-11-05, belum go)
+## PUBLISH-FLOW — publisher berjalan sesudah pengisian tabel selesai, dan efisiensi storage (arah disetujui 2026-11-05)
 
-**Kata user, 2026-11-05:** "Saat ini kan login yang dipakai user adalah satu. Kenapa kalau saya pindah device, bahkan
-favorites pun bisa berbeda. [...] Di PC 2, ketika saya buka, indikator-indikator yang saya put di PC 1 hilang. Kenapa
-ini bisa terjadi?" Lalu: "untuk nomor 2, silahkan cek backend dan propose implementation plan".
+**Kata user, 2026-11-05:** "publisher harus dijalankan setelah proses pengisian table selesai. Jadi jangan ketika cron
+jalan, publisher juga jalan. [...] Ini juga termasuk [...] cron yang memang sifatnya reguler, kemudian cron yang menarik
+data yang gagal. Ini seharusnya tidak merubah bagaimana fitur-fitur lain dihitung. Ini hanya merubah flow bagaimana data
+dipindahkan dari Postgres ke storage." Sebelumnya: "Goalnya adalah efisiensi"; "Kita tidak bicara data broker ya, kita
+hanya bicara data harga."
 
-**Root cause (kode, 2026-11-05):**
-- Semua pengaturan Terminal ditulis lewat satu pembungkus `store` ke `localStorage` browser
-  (`apps/edge-bff/terminal/src/app/context.ts:12-16`). Satu-satunya pengecualian adalah
-  `ui/fullscreen.ts:27`, yang memanggil `localStorage.removeItem` langsung.
-- edge-bff tidak punya API pengaturan Terminal. Tabel per-owner yang sudah ada hanya `edge_bff.watchlist_items` dan
-  `screener_items` (Screener, `database/migrations/20261028_001_edge_bff_screener.sql`) serta preferensi percakapan AI.
-- Yang hilang saat pindah device:
-  - indikator terpasang `ml.ind.v1` dan favorit `ml.ind.favs`;
-  - gambar per saham (`drawings.ts`);
-  - daftar aset `ml.assets.*`;
-  - filter event `ml.events.v1`;
-  - urutan, lebar dan buka-tutup panel `ml.stats.*`, `ml.broker.*`, `ml.flow.*`;
-  - jendela pop-out `ml.win.*`;
-  - timeframe dan simbol terakhir `ml.tf`, `ml.symbol`.
+**Fakta (kode dan live, 2026-11-05):**
+- Publisher dijadwalkan dengan jam, 07:30 dan 19:00 WIB (`apps/terminal-publisher/publisher.py:2148-2170`
+  `should_run`). Tidak ada loader yang memicunya, dan ia tidak menunggu loader mana pun selesai.
+- Publisher tidak membaca Feature 01-04 dan 06. Hanya Feature 05 yang dibaca, untuk broker. Harga dikirim langsung dari
+  `Price_Stock_Indonesia_IDX`, `price_stock_idx_intraday` dan `Price_Fixed_Income`.
+- Loader dan jadwalnya (UTC):
+  - idx-price-cron 10:00, idx-price-recovery-cron 23:00;
+  - idx-intraday-cron 10:30 Senin–Jumat;
+  - fixed-income ID 10:00 dan recovery 11:00; US 23:00 dan recovery 00:00;
+  - stockbit-updater ad hoc.
+- Pola yang sudah ada: loader harga menulis permintaan Feature 04 (`Monitoring_Feature04`) dalam transaksi yang sama
+  dengan data dan monitoringnya (`apps/idx-price-cron/price_update.py:649`, `commit_monitoring_and_notify:733`). Intraday
+  menulis `intraday_publish_change` bersama barnya.
+- **Broker tersimpan dua kali:** `pack/{ticker}/broker-archive` (812 file, 350,8 MB) memuat semua tahun sampai
+  tahun terakhir − 2 (`publisher.py:1020`). File tahunan `broker/{ticker}/{tahun}` tahun 2016-2024 juga tetap ada (5.421
+  file, 363,9 MB). Terminal (`terminal/src/data/live.ts:89`) dan Backtest (`backtest-worker/src/terminal.ts:435`) meminta
+  `packs: true`, jadi hanya membaca pack + 2025 dan 2026 (`terminal-api/app/main.py:542-544`). File tahunan lama hanya
+  terjangkau lewat `/bundle` tanpa packs (bawaan `packs: False`, `main.py:96`) dan mode `verify` publisher.
 
-**Class:** setiap preferensi tampilan per pengguna terikat ke browser, bukan ke akun. Fitur baru yang memakai `store`
-akan punya masalah yang sama. Pengaturan di Backtest/Screener yang memakai `localStorage` juga ikut diperiksa.
+**Rancangan (usulan, dibahas dulu):**
+- **E1. Permintaan publish yang tahan lama.**
+  - Setiap loader menulis satu baris `terminal_publish_request` di transaksi yang sama dengan data dan monitoringnya.
+    Isinya: sumber, `execution_id`, dataset, dan jumlah yang berubah.
+  - Ini berlaku untuk run reguler dan recovery. Recovery yang tidak mengubah apa pun tidak menulis baris.
+  - Karena baris itu ikut commit bersama data, tidak mungkin ada permintaan publish untuk data yang belum selesai ditulis.
+- **E2. Publisher hanya jalan bila ada permintaan dan tidak ada loader yang sedang menulis.**
+  - Setiap loader memegang kunci bersama (`pg_advisory_lock_shared`) selama menulis.
+  - Publisher mengambil kunci eksklusif yang sama dengan `pg_try_advisory_lock`. Bila gagal, berarti masih ada yang
+    menulis, jadi ia menunggu atau mencoba lagi nanti.
+  - Hanya satu publisher berjalan pada satu waktu. Sesudah terbit, permintaan yang sudah dicakup ditandai selesai.
+  - Daftar loader tidak ditulis di publisher: siapa pun yang menulis memegang kunci itu.
+- **E3. Pemicu publisher:** cron cek singkat (mis. setiap 10 menit). Bila tidak ada permintaan, ia keluar dalam
+  hitungan detik. Jadwal tetap 07:30/19:00 diganti; pembersihan penuh harian pindah ke run pertama sesudah 19:00 WIB.
+- **E4. Peringatan:** "missing" diganti "permintaan lebih dari N menit belum terbit", ditambah "loader memegang kunci
+  terlalu lama".
+- **E5. Fitur tidak berubah:** Feature 01-06, antrean Feature 04, dan fitur intraday tetap seperti sekarang.
+- **E6. Broker dua kali (efisiensi storage):**
+  - Berhenti menulis file tahunan broker untuk tahun yang sudah ada di pack arsip.
+  - Hapus 5.421 file lama sesudah `/bundle` tanpa packs dan `verify` disesuaikan.
+  - Dampak: lebih sedikit file untuk ditulis dan dibersihkan. Biaya simpan 0,36 GB sendiri kecil.
+- **E7. Storage B (sudah disetujui di EXEC-INTRADAY-FEATURES B):** `pack/price` dan `xsection/price` dipecah menjadi
+  arsip + periode berjalan, supaya hari biasa hanya menulis bagian yang berubah.
 
-**Rancangan (lapisan yang memiliki mekanismenya: data akun di edge-bff + Postgres; browser hanya cache):**
-1. **Tabel** `edge_bff.terminal_prefs`:
-   - kolom `(owner_key, pref_key, value jsonb, revision bigint, updated_at, device_label)`, PK `(owner_key, pref_key)`;
-   - batas ukuran per nilai (mis. 256 KB) dan per owner (mis. 4 MB);
-   - peran `edge_bff_runtime` hanya SELECT/INSERT/UPDATE/DELETE pada tabel itu;
-   - migrasi maju baru, dengan DRYRUN lalu APPLY.
-2. **API edge-bff** (sesi yang sama; tulis dengan CSRF seperti Screener):
-   - `GET /api/v1/terminal/prefs`: semua milik owner;
-   - `PUT /api/v1/terminal/prefs/{key}` dengan `revision` yang diketahui klien. Revision yang lebih lama dijawab 409
-     beserta nilai terbaru, jadi device yang basi tidak menimpa diam-diam.
-   - Kunci diterima hanya bila cocok dengan daftar kunci sinkron dari satu modul bersama (diturunkan dari daftar di
-     Terminal, tidak ditulis dua kali).
-3. **Terminal:** `store` menjadi dua lapis.
-   - Kunci sinkron ditulis ke `localStorage` (cepat, juga saat offline), lalu dikirim ke server dengan jeda sekitar
-     1 detik.
-   - `fullscreen.ts` memakai `store` juga.
-   - Saat halaman dibuka, `GET prefs` dimulai paralel dengan `/bundle` (yang lebih lambat), lalu diterapkan sebelum
-     chart pertama digambar. Kalau server lambat atau gagal, Terminal tetap jalan dengan cache lokal.
-4. **Perpindahan pertama:** kunci yang belum ada di server diunggah dari device yang pertama dibuka. Isi device lain
-   tidak ditimpa diam-diam; ia mengambil nilai server.
-5. **Tes:**
-   - unit store (cache, kirim, 409, offline);
-   - API (owner, CSRF, ukuran, kunci asing ditolak);
-   - E2E dua konteks browser: favorit dan RSI di "PC 1" muncul di "PC 2", dan ubahan "PC 2" kembali ke "PC 1";
-   - dicek juga untuk Backtest/Screener bila memakai `localStorage`.
-6. **Catatan:** `DATABASE_SCHEMA.md`, `DATABASE_CHANGELOG.md`, ERRORS (entri baru), README edge-bff.
-
-**Pertanyaan terbuka (keputusan user):**
-- Q1: pengaturan mana yang ikut akun dan mana yang tetap per device?
-  - Usulan ikut akun: indikator dan setelannya, favorit, gambar, daftar aset, filter event, urutan dan isi panel.
-  - Usulan tetap per device: lebar dan tinggi panel, buka-tutup panel, jendela pop-out, layar penuh. Ukuran layar PC
-    dan HP berbeda.
-- Q2: bila dua device mengubah hal yang sama, yang terakhir menang (usulan), atau ditanya?
-- Q3: simbol dan timeframe terakhir ikut akun atau per device?
+**Pertanyaan terbuka:**
+- Q-E1: interval cek publisher (usul 10 menit: harga terlihat paling lambat ±10 menit sesudah loader selesai)?
+- Q-E2: putaran broker (stockbit-updater) ikut E1, sehingga run publisher manual (M229) tidak perlu lagi?
+- Q-E3: tetap ada satu run pengaman harian walau tidak ada permintaan?
 
 ## Anggaran reasoning dan penyajian — persetujuan target, audit dahulu
 
