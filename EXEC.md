@@ -11532,6 +11532,8 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
   arah: Sisi Beli = Top-N pembeli menurut total net/gross beli sepanjang jendela, Sisi Jual = Top-N penjual menurut total
   net/gross jual. Pilihan "Net jual" hilang; setting tersimpan yang memakainya kembali ke bawaan.
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** apakah R1 berlaku untuk semua indikator dengan parameter Sisi
-(FL01–FL05, FL08, FL13, FL33, sesuai K1) atau hanya FL08; awal garis indikator persentil pada riwayat pendek (pilihan
-A ketat, B riwayat minimum, C baseline lebih pendek).
+- Awal garis persentil pada riwayat pendek: "abaikan dulu ya" (tidak dikerjakan di eksekusi ini; perilaku tetap: kosong
+  sampai `baseline` nilai sebelumnya ada, `flow.ts:248-261`).
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** cakupan R1 (daftar indikator dengan parameter Sisi dan/atau Rank
+disampaikan ke user 2026-11-05).
