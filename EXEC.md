@@ -10145,6 +10145,9 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - Perkiraan penuh: ±31 ribu permintaan discover + ±100 ribu fetch (46 tanggal × ±365 kode × 6), ±5 jam dengan 6
     worker. Token yang diberikan berlaku sampai 2026-11-05 16:15 UTC (23:15 WIB); token tidak dicatat di Git.
   - Folder PC belum tampil di sesi (`list_computer_folders` kosong tiga kali sesudah user menyambungkan).
+  - **Tempat menjalankan (user 2026-11-05: "A"):** dari sesi cloud sekarang, karena token habis 23:15 WIB dan folder PC
+    belum tersambung (pengganti K1 untuk tarikan ini). Mulai 2026-11-05 09:08 UTC: discover 30.912 permintaan
+    (46 tanggal × 112 broker × 6), lalu fetch, lalu check. Hasil hanya file di sesi; belum ada unggahan sebelum S2.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
