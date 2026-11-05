@@ -11482,10 +11482,16 @@ ditambah sembunyikan I37 dan I41. Kriteria penerimaan: bagian 8.4 dokumen itu, d
 (registry Backtest dan Screener dibangun ulang di commit yang sama bila `indRegistry.json` berubah; backtest-worker
 diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
 
+- Spike Balance: "Q2 A masukan exec" = **bawaan investor Foreign** (untuk semua investor rasio selalu 1). Ukuran bawaan
+  tetap Jumlah transaksi (keputusan A8 di `FLOW_INDICATOR_REVIEW.md` 5t.1).
+- FL32 Activity Spike: "Q4 A masukan exec" = **nama garis `buy` dan `sell`** seperti FL01 (pola `sided()`); warna dan
+  ketebalan FL32 yang tersimpan di browser kembali ke bawaan satu kali, angkanya tidak berubah.
+
 **Pertanyaan terbuka (menunggu jawaban sebelum go):**
-- Q2 Spike Balance: bawaan investor (Foreign, tolak "semua investor", atau biarkan bernilai 1); user meminta penjelasan
-  dulu (ukuran nilai atau lot).
-- Q3 FL14 dengan pemilihan kelompok: bacaan AI (Top-N: pembeli bersih − penjual bersih; broker terpilih: broker yang
-  sama di dua sisi; semua broker: tetap); user meminta penjelasan dulu.
-- Q4 FL32 Activity Spike: nama keluaran (`buy`/`sell` seperti FL01, atau `value` dipertahankan); user meminta
-  penjelasan permintaan perubahan dulu.
+- Q3 FL13/FL14 dengan Top-N dan `window` > 1. Kode sekarang (`apps/edge-bff/terminal/src/calc/flow.ts:292-299`,
+  `hhi()`): lot tiap broker dijumlahkan sepanjang jendela, lalu HHI dihitung sekali dari total itu; pola kelompok yang
+  ada (`cohort()`, `flow.ts:208-221`) memilih Top-N dari net sepanjang jendela, jadi broker dikunci untuk jendela itu.
+  Keputusan FL13 final di dokumen review (5e) sama: "Top-N dari net sepanjang jendela dikunci". Bacaan user 2026-11-05
+  berbeda: "setiap harinya dihitung top 3 HHI buy ... menjumlahkan ... brokernya tidak di lock". Menunggu pilihan user
+  (kunci per jendela, atau Top-N per hari dengan nilai harian dijumlah atau dirata-rata); bila per hari, keputusan FL13
+  ikut berubah.
