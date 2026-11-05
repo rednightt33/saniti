@@ -11659,3 +11659,23 @@ screener-worker untuk commit itu mencapai `SUCCESS` (cek ERRORS M252: merge bisa
   verifikasi oleh lima agen (model Sonnet 5.5, effort high) atas angka dan tampilan di Terminal.
 - (3) "ok": K4 sebagai garis kosong + pesan legend + petunjuk dialog (F3).
 - "Kerjakan tugas ini di sini juga: Fix FL28 explain card on index (IHSG)": dikerjakan, ERRORS M351 (branch).
+
+### Kemajuan eksekusi (branch `claude/practical-thompson-2intee`)
+
+Dimulai 2026-11-05 sesudah semua pertanyaan dijawab (user: "Jangan go sampai pertanyaan dijawab"; jawaban terakhir
+"1A saya izinkan", "2 merge ke main setelah fase verifikasi selesai", "3 ok").
+
+| Butir | Status | Commit |
+|---|---|---|
+| FL28 kartu di indeks (M351) | selesai | `d8ccde4b` |
+| P1.1 daftar sembunyi menu (I37, I41, FL07, FL35, FL36) | selesai | `51043f9b` |
+| K1/K2/R1 sisi memilih kelompok (FL01–FL05, FL08; FL09 tetap) | selesai | `d77bc874` |
+| Label Rank (kelompok A Net/Gross, kelompok B), simpanan basi ke bawaan | selesai | `fa3f3399` |
+| `--check` registry Flow di pytest, tip FL baru wajib (F10) | selesai | `a8d64d5c` |
+| P4 judul tab per halaman | selesai | `3e491a70` |
+| Skala dan format per garis (F2) | sedang | |
+| FL11, FL13/14/38, FL15/16, FL17/39, FL21, FL22, FL27, FL29, FL32, FL33, FL34, FL37 | belum | |
+| Indikator baru FL40+ | belum | |
+| Verifikasi angka dari database | butuh sesi baru: kredensial pgweb environment yang diperbarui user baru terbaca sesi baru (sesi ini 401) | |
+
+Lingkungan uji di sesi ini: Postgres lokal sekali pakai untuk `EDGE_TEST_POSTGRES_URL`; Chromium `/opt/pw-browsers`.
