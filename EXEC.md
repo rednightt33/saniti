@@ -10034,9 +10034,33 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   (daftar simbol Stockbit dengan token putaran berikutnya, atau daftar efek IDX) dan menunjukkannya ke user sebelum
   penarikan.
 
-**Pertanyaan terbuka:**
-- Sesudah celah tertutup: kode bukan 4 huruf ditarik harian oleh siapa? (a) tetap oleh user secara lokal (K1), atau
-  (b) loader Railway diperluas dengan daftar kode dari user.
+**Keputusan lanjutan (user 2026-11-05):** "data di IDX Broker Summary yang seharusnya punya data di API tapi tidak ada di
+table [...] ditarik di komputer saya. Dengan format nanti seperti table yang ada di IDX Broker Summary." dan "Yes, untuk
+nomor B, loader juga perlu diperluas. Tapi nanti saja setelah proses ingestion data selesai."
+- S3 ditarik di komputer user, dalam format `IDX_Broker_Summary`: 15 kolom, kunci
+  (`Date`, `Symbol`, `Broker`, `Investor Type`, `Market Board`). Agent mengunggahnya per tanggal tanpa duplikasi.
+- Loader Railway diperluas untuk kode bukan 4 huruf (opsi b) **sesudah** S3 selesai.
+
+**Tabel yang ikut diperbarui oleh putaran stockbit-updater** (kode dan katalog trigger, 2026-11-05), dan perlakuannya
+sesudah unggahan S3:
+
+| Tabel | Ditulis oleh | Sesudah unggahan S3 |
+|---|---|---|
+| `IDX_Broker_Summary` | `broker_import.py` (INSERT per tanggal) | diunggah |
+| `broker_summary_date_quality` | trigger `idx_broker_summary_remark_*` pada `IDX_Broker_Summary` | otomatis lewat trigger; tanggal yang lengkap bisa berubah dari INCOMPLETE menjadi COMPLETE (M218) |
+| `stockbit_full_broker_import_status` | `broker_import.py` (status per tanggal) | tidak (status loader Railway) |
+| F05, F02, F03, F06 | `refresh.py` (`refresh_feature_05/02/03/06`) | tidak untuk kode non-universe (S2) |
+| `Feature_01..06_INDEX` (IHSG) | `refresh.py` `refresh_index` (`scripts/backfill_index_features.py`) | dihitung ulang untuk tanggal yang berubah |
+| `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` | job event (`apps/stockbit-event-annotation/job.py`) | tidak (tidak terkait broker summary) |
+| `Database_Table_Status` | `refresh_table_status` | diperbarui |
+| `Monitoring_Stockbit_Update` | catatan putaran | tidak (bukan putaran) |
+
+- Storage: file broker IHSG untuk tanggal itu diterbitkan ulang (R2 bila sudah ada, atau `broker-range`).
+- Postgres di-restart sesudahnya (update besar).
+
+**Urutan wajib:** S2 (fitur hanya universe) dipasang **sebelum** unggahan S3. Kalau tidak, putaran broker berikutnya
+mendeteksi tanggal 2026-09-01… berubah (`refresh.py` membandingkan sumber dengan F05 per tanggal) dan menulis kode
+non-universe ke F05/F02/F03/F06, bertentangan dengan keputusan 3A.
 
 ## EXEC-PUBLISH-FLOW — publisher dipicu oleh cron yang selesai, broker tidak disimpan dua kali, storage B (go 2026-11-05)
 
