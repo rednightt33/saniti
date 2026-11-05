@@ -243,6 +243,8 @@ sekarang memberi angka yang sebagian besar ditentukan oleh cara memilih cohort.
 4. Apakah FL04 (porsi transaksi) ikut ditinjau dengan cara yang sama.
 5. Penomoran: satu sistem kode FL untuk terminal dan screener (bagian 6).
 
+**Keputusan user 2026-11-05: "Perhanankan untuk FL03."** FL03 **dipertahankan tanpa perubahan** (bacaan AI: pilihan "pertahankan"; edit metrik (a), (b), (c), ganti visual, gabung, dan hapus tidak diambil). Temuan F1 sampai F7 tetap tercatat sebagai bahan bacaan. Butir yang tidak disinggung jawaban itu dan masih terbuka: (3) apakah FL04 (porsi transaksi) ikut ditinjau; (4) penomoran kode FL yang ganda antara terminal dan screener (bagian 6). Bawaan papan (butir 2) tidak berubah karena FL03 tidak diubah.
+
 ### 5.7 Batas verifikasi
 
 - Dihitung ulang dari `Feature_02_Broker_Rolling` mengikuti `FORMULAS.md`, **belum dibandingkan** dengan angka yang tampil
