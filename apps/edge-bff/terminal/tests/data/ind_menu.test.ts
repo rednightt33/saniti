@@ -1,13 +1,14 @@
 // EXEC-IND-CARDS IC1 (user go 2026-11-01): the indicator menu's rows come from the registries, grouped and searchable
 import { describe, expect, it } from 'vitest';
-import { menuItems, visibleItems } from '../../src/app/indMenu';
+import { MENU_HIDDEN, menuItems, visibleItems } from '../../src/app/indMenu';
+import { SINGLE_SECURITY } from '../../src/app/flowIndicators';
 import IND from '../../src/data/indRegistry.json';
 import FLOW from '../../src/data/flowRegistry.json';
 
 describe('indicator menu rows', () => {
   const all = menuItems(IND as any[], FLOW as any);
-  it('lists every technical and Flow indicator once, plus the base volume', () => {
-    expect(all.length).toBe((IND as any[]).length + (FLOW as any).indicators.length + 1);
+  it('lists every technical and Flow indicator once, plus the base volume, except the hidden ones', () => {
+    expect(all.length).toBe((IND as any[]).length + (FLOW as any).indicators.length + 1 - MENU_HIDDEN.size);
     expect(new Set(all.map(i => i.id)).size).toBe(all.length);
     expect(all.find(i => i.id === 'VOL')).toMatchObject({ kind:'Base', group:'Volume' });
     expect(all.find(i => i.id === 'FL24')).toMatchObject({ kind:'Flow', group:'Bandar Balance', place:'Panel', unit:'%' });
@@ -22,7 +23,8 @@ describe('indicator menu rows', () => {
     const withVolume = (IND as any[]).filter(r => /V/.test(r.req)).map(r => r.id);
     expect(withVolume.length).toBeGreaterThan(0);
     expect(bond.filter(i => withVolume.includes(i.id))).toEqual([]);
-    expect(bond.length).toBe((IND as any[]).length - withVolume.length);       // every price-only indicator stays
+    const hiddenPriceOnly = [...MENU_HIDDEN].filter(id => (IND as any[]).some(r => r.id === id && !withVolume.includes(id))).length;
+    expect(bond.length).toBe((IND as any[]).length - withVolume.length - hiddenPriceOnly);       // every price-only indicator stays
   });
   it('EXEC-IHSG-FLOW: an index page hides the Flow indicators built on lots or a per-share price, keeps the rest', () => {
     const idx = menuItems(IND as any[], FLOW as any, new Set(['O', 'H', 'L', 'C', 'flow'] as const));
@@ -30,8 +32,9 @@ describe('indicator menu rows', () => {
     for (const id of ['FL01', 'FL03', 'FL05', 'FL06', 'FL07', 'FL08', 'FL09', 'FL13', 'FL14', 'FL15', 'FL17', 'FL18', 'FL19',
       'FL20', 'FL27', 'FL31', 'FL39']) expect(flow).not.toContain(id);
     for (const id of ['FL02', 'FL04', 'FL10', 'FL11', 'FL12', 'FL16', 'FL21', 'FL22', 'FL23', 'FL24', 'FL25', 'FL26', 'FL28',
-      'FL29', 'FL30', 'FL32', 'FL33', 'FL34', 'FL35', 'FL36', 'FL37', 'FL38']) expect(flow).toContain(id);
-    expect(flow.length).toBe((FLOW as any).indicators.length - 17);
+      'FL29', 'FL30', 'FL32', 'FL33', 'FL34', 'FL37', 'FL38']) expect(flow).toContain(id);
+    const hiddenFlow = [...MENU_HIDDEN].filter(id => id.startsWith('FL') && !SINGLE_SECURITY.has(id)).length;   // not counted twice
+    expect(flow.length).toBe((FLOW as any).indicators.length - 17 - hiddenFlow);
   });
   it('groups, favorites and search', () => {
     expect(visibleItems(all, 'f:Bandar Balance', '', new Set()).every(i => i.group === 'Bandar Balance' && i.kind === 'Flow')).toBe(true);
@@ -62,5 +65,23 @@ describe('group-type filter and unit text', () => {
     const units = [...new Set(all.map(i => i.unit))];
     expect(units.map(unitText).filter(u => /_/.test(u))).toEqual([]);
     expect([unitText('index_0_100'), unitText('percent_signed'), unitText('price_difference_nonnegative')]).toEqual(['0–100', '%', 'price change']);
+  });
+});
+
+// EXEC-TERMINAL-IND-EDIT (user 2026-11-05): I37, I41 (Terminal menu only) and FL07, FL35, FL36 are not offered anywhere in
+// the menu (groups, search, favorites), while their definitions stay in the registries
+describe('indicators hidden from the menu', () => {
+  const all = menuItems(IND as any[], FLOW as any);
+  it('are the agreed ids and exist in the registries', () => {
+    expect([...MENU_HIDDEN].sort()).toEqual(['FL07', 'FL35', 'FL36', 'I37', 'I41']);
+    for (const id of MENU_HIDDEN) expect([...(IND as any[]), ...(FLOW as any).indicators].some(r => r.id === id), id).toBe(true);
+  });
+  it('appear in no group, search or favorites view', () => {
+    for (const id of MENU_HIDDEN) {
+      expect(all.some(i => i.id === id), id).toBe(false);
+      expect(visibleItems(all, 'all', id.toLowerCase(), new Set()).some(i => i.id === id), `search ${id}`).toBe(false);
+      expect(visibleItems(all, 'fav', '', new Set([id])), `favorite ${id}`).toEqual([]);
+    }
+    expect(visibleItems(all, 'all', 'relative volume', new Set()).map(i => i.id)).toEqual([]);
   });
 });

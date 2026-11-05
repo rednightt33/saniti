@@ -19,19 +19,25 @@ const FAV_KEY = 'ml.ind.favs', KIND_KEY = 'ml.ind.kind', SIZE_KEY = 'ml.ind.box'
 /** where a Flow indicator is drawn (flowRegistry `place`): its own pane, the price axis, or a mark under the candles */
 export const flowPlace = (place: string) => place === 'pane' ? 'Panel' : 'Overlay';
 
+/** EXEC-TERMINAL-IND-EDIT (user 2026-11-05): indicators the menu no longer offers. Their definitions stay (calc, the
+    registries, Backtest and Screener are untouched), so a chart that already has one restores and draws it
+    (indicators.ts restore reads DEFS, not the menu). I37 and I41: "1A" (Terminal menu only); FL07, FL35, FL36: review A1
+    ("hide"; FL07's calculation is still used by FL09). */
+export const MENU_HIDDEN: ReadonlySet<string> = new Set(['I37', 'I41', 'FL07', 'FL35', 'FL36']);
+
 /** the menu's rows from the registries: the technical indicators by category, the base volume histogram, and the Flow
     indicators by family, in the registries' order */
 /** the menu's rows for a ticker with the inputs `have` (ERRORS M332: an indicator the ticker cannot feed is not offered,
     data/inputs.ts; a bond: no Flow, no volume) */
 export function menuItems(indReg: any[], flowReg: { families: string[]; indicators: any[] }, have: ReadonlySet<Input> = ALL_INPUTS): MenuItem[] {
   const group = (cat: string) => cat === 'PriceVolume' ? 'Price & Volume' : cat.replace(/([a-z])([A-Z])/g, '$1 & $2');
-  const out: MenuItem[] = indReg.filter(r => fits(needsOf({ reg:r }), have)).map(r => ({ id:r.id, name:r.name, group:group(r.cat), kind:'Technical', place:r.zone === 'overlay' ? 'Overlay' : 'Panel',
+  const out: MenuItem[] = indReg.filter(r => !MENU_HIDDEN.has(r.id) && fits(needsOf({ reg:r }), have)).map(r => ({ id:r.id, name:r.name, group:group(r.cat), kind:'Technical', place:r.zone === 'overlay' ? 'Overlay' : 'Panel',
     unit:r.unit || '', tip:r.tip || '' }));
   const vol = out.findIndex(i => i.group === 'Volume');
   if (have.has('V')) out.splice(vol < 0 ? out.length : vol, 0, { id:'VOL', name:'Volume', group:'Volume', kind:'Base', place:'Panel', unit:'shares',
     tip:'Batang volume transaksi harian di bagian bawah chart harga.' });
   if (have.has('flow')) for (const f of flowReg.families) for (const r of flowReg.indicators.filter(x => x.family === f))
-    if (fits(needsOf({ flow:true, single:SINGLE_SECURITY.has(r.id) }), have)) out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '' });
+    if (!MENU_HIDDEN.has(r.id) && fits(needsOf({ flow:true, single:SINGLE_SECURITY.has(r.id) }), have)) out.push({ id:r.id, name:r.name, group:f, kind:'Flow', place:flowPlace(r.place), unit:r.unit || '', tip:r.tip || '' });
   return out;
 }
 
@@ -74,7 +80,9 @@ export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
   let favs = new Set<string>();
   try { favs = new Set(JSON.parse(store.get(FAV_KEY) || '[]')) } catch { /* none saved */ }
   const saveFavs = () => store.set(FAV_KEY, JSON.stringify([...favs]));
-  let group = favs.size ? 'fav' : 'all', query = '';
+  // a favourite the menu no longer lists (MENU_HIDDEN, or not available for this ticker) does not count: the menu opens on
+  // All rather than on an empty Favorites view
+  let group = items.some(i => favs.has(i.id)) ? 'fav' : 'all', query = '';
   const hasFlow = items.some(i => i.kind === 'Flow');
   let kind = (store.get(KIND_KEY) as KindFilter) || 'all';
   if (!['all', 'Technical', 'Flow'].includes(kind) || (kind === 'Flow' && !hasFlow)) kind = 'all';
