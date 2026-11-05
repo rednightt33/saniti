@@ -45,8 +45,13 @@ function sameAsChart(e: Explanation | null, chart: number | null, where: string)
 const FLOW_VARIANTS: Record<string, any>[] = [{}, { window:3 }, { top:1 }, { investors:['Foreign'] }, { boards:['Regular'] }, { window:20, top:5 },
   { boards:[] }, { baseline:20 }];
 
-describe('Flow explainers equal calc/flow.ts', () => {
-  const c = syntheticFlow();
+/* EXEC-IHSG-FLOW: on an index (IHSG) the chart may compute differently (calc/flow.ts reads ctx.index, e.g. FL28) and the
+   index has no volume; the card must follow the same branch, so every explainer is also compared on an index context */
+const indexContext = (): FlowContext => { const c = syntheticFlow(); return { ...c, volume:c.dates.map(() => null), index:true } };
+
+for (const [title, make] of [['Flow explainers equal calc/flow.ts', syntheticFlow], ['Flow explainers equal calc/flow.ts on an index', indexContext]] as const)
+describe(title, () => {
+  const c = make();
   for (const [id, explain] of Object.entries(FLOW_EXPLAIN)) it(id, () => {
     const def = flowDefaults(id);
     for (const v of FLOW_VARIANTS) {

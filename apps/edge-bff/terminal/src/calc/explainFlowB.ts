@@ -404,10 +404,27 @@ const EX: Record<string, FlowExplainer> = {
     };
   },
 
-  /* FL28 Average Daily Value: SMA(close x volume, sessions) */
+  /* FL28 Average Daily Value: SMA(close x volume, sessions); on an index (EXEC-IHSG-FLOW, calc/flow.ts FL28) the daily
+     value is the buy value of every broker, board and investor that day (an index has no volume) */
   FL28: (c, p, t) => {
     const n = intOf(p.window, 20);
     if (t < n - 1 || t >= c.rows.N) return null;
+    if (c.index) {
+      const R = c.rows, cells = cellsOf(R, t - n + 1, t, null, null), daily: number[] = [];
+      for (let k = t - n + 1; k <= t; k++) { if (!R.has[k]) return null; daily.push(cells.all('bv', k, k)) }
+      let S = 0; for (const x of daily) S += x;                          // a plain running sum, as the chart adds them
+      const combine = (v: Record<string, number>) => v.n ? v.S / v.n : null, value = combine({ S, n });
+      return {
+        output:'value', value, expr:'S ÷ n', span:spanOf(c, t - n + 1, t),
+        terms:[{ key:'S', label:`Jumlah nilai transaksi ${n} sesi`, value:S, unit:'idr' }, { key:'n', label:'Jumlah sesi', value:n, unit:'count' }], combine,
+        steps:[
+          { title:`Ambil ${n} sesi`, text:`${c.dates[t - n + 1]} sampai ${c.dates[t]}. Indeks tidak punya volume, jadi nilai transaksi setiap sesi = nilai beli semua broker (semua papan dan jenis investor; setiap transaksi punya satu pembeli).`,
+            table:tableOf(['Tanggal', 'Nilai beli semua broker'], daily.map((_, j) => t - n + 1 + j), k => [c.dates[k], fmt.idr(daily[k - (t - n + 1)])], 'ends', 4) },
+          { title:'Jumlahkan', text:`S = ${fmt.idr(S)}.` },
+          { title:'Bagi dengan jumlah sesi', text:`${fmt.idr(S)} ÷ ${n} = ${fmt.idr(value)} per sesi.` },
+        ],
+      };
+    }
     let S = 0;
     for (let k = t - n + 1; k <= t; k++) {
       const cl = c.close[k], v = c.volume[k];

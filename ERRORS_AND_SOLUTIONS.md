@@ -5310,6 +5310,34 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M351 — Kartu penjelasan FL28 kosong di IHSG padahal chart bernilai (2026-11-05)
+
+- **Ditemukan oleh:** pemeriksaan kode untuk EXEC-TERMINAL-IND-EDIT (2026-11-05); user: "Kerjakan tugas ini di sini:
+  Fix FL28 explain card on index (IHSG)".
+- **Verified (kode dan tes):**
+  - Chart FL28 punya cabang indeks (EXEC-IHSG-FLOW, `apps/edge-bff/terminal/src/calc/flow.ts` FL28): indeks tidak punya
+    volume, jadi nilai harian = nilai beli semua broker (semua papan dan jenis investor).
+  - Kartu FL28 (`src/calc/explainFlowB.ts`) hanya menghitung close × volume; pada indeks volume kosong, jadi kartu
+    kosong.
+  - Tes kartu = chart (`tests/calc/explain.test.ts`) hanya memakai konteks saham. Tes baru yang menjalankan semua kartu
+    Flow pada konteks indeks gagal tepat di FL28 ("FL28 {} value t=40: expected null not to be null"); kartu Flow lain
+    lulus.
+- **Root cause:** cabang indeks ditambahkan di hitungan chart tanpa padanan di kartu, dan tidak ada tes kartu pada
+  konteks indeks.
+- **Kelas:** setiap hitungan yang bercabang menurut jenis ticker (`ctx.index` sekarang; makro atau lintas aset kelak)
+  sementara kartunya menghitung ulang sendiri.
+- **Solution (branch `claude/practical-thompson-2intee`):**
+  - Kartu FL28 mengikuti cabang yang sama: tabel nilai beli semua broker per sesi, jumlah, bagi jumlah sesi.
+  - `tests/calc/explain.test.ts` sekarang membandingkan **semua** kartu Flow dengan chart juga pada konteks indeks
+    (volume kosong, `index:true`), jadi cabang indeks baru di indikator mana pun tertangkap.
+  - `tests/calc/fl28_index.test.ts`: angka hitungan tangan (220 dan 160, S = 440) dan teks tanpa "undefined"/"NaN".
+- **Bukti:** Terminal `npm run typecheck` lulus; `npx vitest run` 23 berkas, 1.531 tes lulus (sebelumnya 1.491);
+  `npm run build` lulus; Backtest `npm run typecheck`, `npm run build`, `npm test` 88 tes lulus.
+- **Status:** FIXED di branch; menunggu merge ke `main` dan deploy edge-bff (bersama EXEC-TERMINAL-IND-EDIT setelah fase
+  verifikasi, keputusan user 2026-11-05).
+- **Lesson:** bila hitungan chart diberi cabang untuk jenis ticker baru, tes kartu = chart harus dijalankan pada
+  konteks jenis itu juga; tambahkan konteksnya ke tes bersama, bukan tes per indikator.
+
 ### M350 — Memori Postgres menempel di batas 4 GB sejak 2026-11-05 10:40 UTC (2026-11-05)
 
 - **Symptom:** metrik Railway `MEMORY_USAGE_GB` Postgres (sampel 10 menit): 0,65–0,81 GB sampai 09:20 UTC, 2,93 GB

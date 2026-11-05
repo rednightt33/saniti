@@ -11651,5 +11651,11 @@ screener-worker untuk commit itu mencapai `SUCCESS` (cek ERRORS M252: merge bisa
 8. edge-bff dan screener-worker untuk commit `main` mencapai `SUCCESS`; dicatat di `RAILWAY_CHANGELOG.md`; bagian ini
    dipindah ke `ERRORS_AND_SOLUTIONS.md` dan changelog lalu dihapus dari `EXEC.md`.
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** (1) akses data untuk verifikasi angka (F14); (2) izin merge ke
-`main` dan deploy; (3) K4 dilaksanakan sebagai garis kosong + pesan, bukan blokir dialog (F3).
+**Jawaban user 2026-11-05 atas tiga pertanyaan rencana:**
+- (1) "1A saya izinkan": user mengizinkan akses baca database untuk verifikasi angka di sesi ini.
+- (2) "merge ke main setelah fase verifikasi selesai (kalau belum, silahkan buat list2 yang mesti diverifikasi once
+  done, assign 5 sonnet 5.5 high untuk memastikan kosnsitensi, baik angka dan visual) maksudnya adalah angka hasil
+  kalkulasi yang di display di depan, sudah benar dan tidak mislead." = merge ke `main` hanya sesudah verifikasi;
+  verifikasi oleh lima agen (model Sonnet 5.5, effort high) atas angka dan tampilan di Terminal.
+- (3) "ok": K4 sebagai garis kosong + pesan legend + petunjuk dialog (F3).
+- "Kerjakan tugas ini di sini juga: Fix FL28 explain card on index (IHSG)": dikerjakan, ERRORS M351 (branch).
