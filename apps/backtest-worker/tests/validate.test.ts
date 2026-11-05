@@ -221,7 +221,7 @@ test('a price-action condition holds only what its type reads: no value without 
 /** Thirteen published stocks (S01..S13: test rows), an index and a stock-like row of another type, for the counts. */
 const MANY: References = {
   tickers: [...Array.from({ length: 13 }, (_, k) => ({ ticker: `S${String(k + 1).padStart(2, '0')}`, name: null, type: 'stock', groups: {} })),
-    { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: {} }, { ticker: 'WARR', name: null, type: 'warrant', groups: {} }],
+    { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: {} }, { ticker: 'XETF', name: null, type: 'fund', groups: {} }],
   brokers: REFS.brokers,
 };
 const picked = (n: number) => MANY.tickers.slice(0, n).map(t => t.ticker);
@@ -232,11 +232,13 @@ const portfolioRequest = (tickers: unknown, max_positions = 5): BacktestRequest 
 };
 const previewOf = (tickers: unknown) => ({ ...preview(pageRequest(DEFAULT_ENTRY.map(legacy)).entry), tickers });
 
-test('a portfolio picks 1 to limits.max_portfolio_tickers distinct published stocks: 12 accepted, 13 refused; an index or another type is no stock (PF2)', () => {
+test('a portfolio picks 1 to limits.max_portfolio_tickers distinct published stocks: 12 accepted, 13 refused; an index is not tradable, an ETF is (PF2)', () => {
   assert.equal(MAX_PORTFOLIO_TICKERS, 12);
   assert.deepEqual(checkRequest(portfolioRequest(picked(12)), MANY, CFG).tickers, picked(12));
   assert.deepEqual(checkSignalsRequest(previewOf(picked(12)), MANY, CFG).tickers, picked(12));
   assert.deepEqual(checkRequest(portfolioRequest(['S01']), MANY, CFG).tickers, ['S01'], 'one stock is a portfolio');
+  // EXEC-UNIVERSE-BROKER S1.4: every published type but an index is tradable (an ETF, type fund)
+  assert.deepEqual(checkRequest(portfolioRequest(['S02', 'XETF']), MANY, CFG).tickers, ['S02', 'XETF'], 'an ETF is tradable');
   const refused: [string, unknown, string, string][] = [
     ['13 stocks', picked(13), 'INVALID_PORTFOLIO', ''],
     ['no stock', [], 'INVALID_PORTFOLIO', ''],
@@ -248,7 +250,6 @@ test('a portfolio picks 1 to limits.max_portfolio_tickers distinct published sto
     ['an object in the list', ['S01', { ticker: 'S02' }], 'INVALID_PORTFOLIO', ''],
     ['an unknown ticker', ['S01', 'NOPE'], 'UNKNOWN_TICKER', '[1]'],
     ['the index', ['IHSG'], 'UNKNOWN_TICKER', '[0]'],
-    ['a ticker of another type', ['S02', 'S01', 'WARR'], 'UNKNOWN_TICKER', '[2]'],
     ['an empty ticker', [''], 'UNKNOWN_TICKER', '[0]'],
     ['a ticker in another case', ['s01'], 'UNKNOWN_TICKER', '[0]'],
   ];

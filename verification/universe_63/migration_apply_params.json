@@ -1,0 +1,28 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261105_004_universe_add_63.sql"
+ ],
+ "probes": [
+  [
+   "universe",
+   null,
+   "SELECT \"Security Type\", \"Type Specs\", count(*) FROM public.\"IDX_Stock_Universe\" GROUP BY 1,2 ORDER BY 1,2"
+  ],
+  [
+   "history",
+   null,
+   "SELECT count(*), count(*) FILTER (WHERE valid_to IS NULL), min(valid_basis), max(valid_basis) FROM public.\"IDX_Stock_Universe_History\" WHERE \"Ticker\" IN ('AKKU','XIJI','SUPR','XBGS')"
+  ],
+  [
+   "description",
+   null,
+   "SELECT count(*) FROM public.\"Universe_Equity_Description\""
+  ],
+  [
+   "sample",
+   null,
+   "SELECT \"Ticker\",\"Company Name\",\"Security Type\",\"Type Specs\",\"Is Common Stock\",\"ISIN\",\"Sector\" FROM public.\"IDX_Stock_Universe\" WHERE \"Ticker\" IN ('AKKU','XIJI','XBGS') ORDER BY 1"
+  ]
+ ]
+}

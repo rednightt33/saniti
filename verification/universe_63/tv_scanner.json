@@ -1,0 +1,947 @@
+{
+ "IDX:AKKU": {
+  "name": "AKKU",
+  "description": "PT Anugerah Kagum Karya Utama Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Consumer Services",
+  "industry": "Hotels/Resorts/Cruise lines",
+  "isin": "ID1000099609",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "anugerah-kagum-karya-utama-tbk"
+ },
+ "IDX:ALTO": {
+  "name": "ALTO",
+  "description": "PT Tri Banyan Tirta Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Consumer Non-Durables",
+  "industry": "Beverages: Non-Alcoholic",
+  "isin": "ID1000123805",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "tri-banyan-tirta-tbk"
+ },
+ "IDX:BEBS": {
+  "name": "BEBS",
+  "description": "PT Berkah Beton Sadaya Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Consumer Durables",
+  "industry": "Homebuilding",
+  "isin": "ID1000159601",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "berkah-beton-sadaya"
+ },
+ "IDX:BHAT": {
+  "name": "BHAT",
+  "description": "PT Bhakti Multi Artha Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Commercial Services",
+  "industry": "Miscellaneous Commercial Services",
+  "isin": "ID1000155807",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "bhakti-multi-artha-tbk"
+ },
+ "IDX:CRAB": {
+  "name": "CRAB",
+  "description": "PT Toba Surimi Industries Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Consumer Non-Durables",
+  "industry": "Food: Meat/Fish/Dairy",
+  "isin": "ID1000171408",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "toba-surimi-industries-tbk"
+ },
+ "IDX:EDGE": {
+  "name": "EDGE",
+  "description": "PT Indointernet Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Technology Services",
+  "industry": "Information Technology Services",
+  "isin": "ID1000159403",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "indointernet-tbk"
+ },
+ "IDX:GAMA": {
+  "name": "GAMA",
+  "description": "PT Aksara Global Development Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Finance",
+  "industry": "Real Estate Development",
+  "isin": "ID1000123201",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": ""
+ },
+ "IDX:GTBO": {
+  "name": "GTBO",
+  "description": "PT Garda Tujuh Buana Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Energy Minerals",
+  "industry": "Coal",
+  "isin": "ID1000113004",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "garda-tujuh-buana"
+ },
+ "IDX:HILL": {
+  "name": "HILL",
+  "description": "PT Hillcon Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Non-Energy Minerals",
+  "industry": "Precious Metals",
+  "isin": "ID1000186901",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "hillcon-tbk"
+ },
+ "IDX:IBST": {
+  "name": "IBST",
+  "description": "PT Inti Bangun Sejahtera Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Industrial Services",
+  "industry": "Engineering & Construction",
+  "isin": "ID1000124506",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "inti-bangun-sejahtera-tbk"
+ },
+ "IDX:INDX": {
+  "name": "INDX",
+  "description": "PT Tanah Laut Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Technology Services",
+  "industry": "Internet Software/Services",
+  "isin": "ID1000102007",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "tanah-laut-tbk"
+ },
+ "IDX:PLIN": {
+  "name": "PLIN",
+  "description": "PT Plaza Indonesia Realty Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Finance",
+  "industry": "Real Estate Development",
+  "isin": "ID1000105406",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "plaza-indonesia-realty-tbk"
+ },
+ "IDX:PMMP": {
+  "name": "PMMP",
+  "description": "PT Panca Mitra Multiperdana Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Consumer Non-Durables",
+  "industry": "Food: Meat/Fish/Dairy",
+  "isin": "ID1000158306",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "panca-mitra-multiperdana"
+ },
+ "IDX:RAFI": {
+  "name": "RAFI",
+  "description": "PT Sari Kreasi Boga Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Consumer Services",
+  "industry": "Restaurants",
+  "isin": "ID1000170509",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "sari-kreasi-boga-tbk"
+ },
+ "IDX:SUPR": {
+  "name": "SUPR",
+  "description": "PT Solusi Tunas Pratama Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Industrial Services",
+  "industry": "Engineering & Construction",
+  "isin": "ID1000120702",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "solusi-tunas-pratama-tbk"
+ },
+ "IDX:TAYS": {
+  "name": "TAYS",
+  "description": "PT Jaya Swarasa Agung Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Consumer Non-Durables",
+  "industry": "Food: Specialty/Candy",
+  "isin": "ID1000164601",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "jaya-swarasa-agung-tbk"
+ },
+ "IDX:TRUE": {
+  "name": "TRUE",
+  "description": "PT Triniti Dinamik Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Finance",
+  "industry": "Real Estate Development",
+  "isin": "ID1000160807",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "waran-seri-i-triniti-dinamik-tbk"
+ },
+ "IDX:UNSP": {
+  "name": "UNSP",
+  "description": "PT Bakrie Sumatera Plantations Tbk",
+  "type": "stock",
+  "typespecs": [
+   "common"
+  ],
+  "sector": "Distribution Services",
+  "industry": "Wholesale Distributors",
+  "isin": "ID1000099708",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "pt-bakrie-sumatera-plantations-tbk"
+ },
+ "IDX:XBGS": {
+  "name": "XBGS",
+  "description": "Reksa Dana Syariah Batavia Gold Sharia ETF Exchange Traded Fund Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": null,
+  "industry": null,
+  "isin": "IDN000598604",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": ""
+ },
+ "IDX:XBID": {
+  "name": "XBID",
+  "description": "Batavia IDX30 ETF",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000381100",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "batavia"
+ },
+ "IDX:XBIN": {
+  "name": "XBIN",
+  "description": "Reksa Dana Indeks Bahana ETF Bisnis-27",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000412004",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana-indeks-bahana-etf-bisnis-27"
+ },
+ "IDX:XBLQ": {
+  "name": "XBLQ",
+  "description": "Reksa Dana Batavia Smart Liquid ETF",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000333903",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "batavia"
+ },
+ "IDX:XBSK": {
+  "name": "XBSK",
+  "description": "Reksa Dana Indeks Batavia SRI-KEHATI ETF",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000384500",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "batavia"
+ },
+ "IDX:XCEG": {
+  "name": "XCEG",
+  "description": "Reksa Dana Indeks Capital ETF IDX ESG Leaders",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000483708",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XCLQ": {
+  "name": "XCLQ",
+  "description": "Reksa Dana Indeks Cipta ETF Indek LQ45",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000418902",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XDES": {
+  "name": "XDES",
+  "description": "Reksa Dana Syariah Bri Mi Gold ETF Syariah Exchange Traded Fund Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000597408",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XDIF": {
+  "name": "XDIF",
+  "description": "BRI ETF Indonesia Top 40",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000335908",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "danareksa"
+ },
+ "IDX:XGLD": {
+  "name": "XGLD",
+  "description": "Premier ETF Gold Sharia Indonesia Exchange Traded Fund Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000597200",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIFE": {
+  "name": "XIFE",
+  "description": "Reksa Dana Indeks Premier ETF FTSE Indonesia ESG",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000456902",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIHD": {
+  "name": "XIHD",
+  "description": "Reksa Dana Indeks Premier ETF IDX High Dividend 20",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000372604",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIID": {
+  "name": "XIID",
+  "description": "Reksa Dana Indeks Premier ETF Index IDX30",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000441508",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIIF": {
+  "name": "XIIF",
+  "description": "PREMIER ETF INDONESIA FINANCIAL Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000189701",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIIT": {
+  "name": "XIIT",
+  "description": "Reksa Dana Premier ETF IDX30",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000145307",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIJI": {
+  "name": "XIJI",
+  "description": "Reksa Dana Syariah Premier ETF JII",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000154606",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XILV": {
+  "name": "XILV",
+  "description": "Reksa Dana Indeks Insight ETF FTSE Indonesia Low Volatility Factor Index",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000440104",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "insight"
+ },
+ "IDX:XIML": {
+  "name": "XIML",
+  "description": "Premier ETF MSCI Indonesia Large Cap",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000430006",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIPB": {
+  "name": "XIPB",
+  "description": "Reksa Dana Indeks Premier ETF IDX-Pefindo Prime Bank Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": null,
+  "industry": null,
+  "isin": "IDN000555505",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XIPI": {
+  "name": "XIPI",
+  "description": "Premier ETF Pefindo I-Grade",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000374105",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XISB": {
+  "name": "XISB",
+  "description": "REKSA DANA PREMIER ETF INDONESIA SOVEREIGN BONDS Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000276706",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XISC": {
+  "name": "XISC",
+  "description": "PREMIER ETF INDONESIA STATE-OWNED COMPANIES",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000216207",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XISI": {
+  "name": "XISI",
+  "description": "PREMIER ETF SMINFRA18",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000174000",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XISR": {
+  "name": "XISR",
+  "description": "Premier ETF SRI-KEHATI",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000186400",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "premier-etf"
+ },
+ "IDX:XKGS": {
+  "name": "XKGS",
+  "description": "Reksa Dana Syariah KIM Gold ETF Sharia Exchange Traded Fund Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000598802",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XKID": {
+  "name": "XKID",
+  "description": "Reksa Dana Indeks KISI IDX30 ETF Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000520103",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "kim"
+ },
+ "IDX:XKIV": {
+  "name": "XKIV",
+  "description": "Reksa Dana Indeks Kisi IDX Value30 ETF",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000416609",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "kim"
+ },
+ "IDX:XKMS": {
+  "name": "XKMS",
+  "description": "Reksa Dana Indeks KISI MSCI Indonesia ETF Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000448206",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "kim"
+ },
+ "IDX:XMES": {
+  "name": "XMES",
+  "description": "Reksa Dana Syariah Mandiri ETF Emas Exchange Traded Fund Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000597309",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": ""
+ },
+ "IDX:XMGB": {
+  "name": "XMGB",
+  "description": "Reksa Dana Majoris Government Bonds ETF Indonesia Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000509502",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "pinnacle"
+ },
+ "IDX:XMIG": {
+  "name": "XMIG",
+  "description": "Reksa Dana Indeks Majoris Pefindo I-Grade ETF Indonesia Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000397106",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "majoris"
+ },
+ "IDX:XMLF": {
+  "name": "XMLF",
+  "description": "Reksa Dana Indeks Mandiri ETF LQ45 Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000501004",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XMSK": {
+  "name": "XMSK",
+  "description": "Reksa Dana Indeks Mandiri ETF Sri-Kehati",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000537404",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XPDV": {
+  "name": "XPDV",
+  "description": "Reksa Dana Pinnacle Core High Dividend ETF Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000289808",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "pinnacle"
+ },
+ "IDX:XPFT": {
+  "name": "XPFT",
+  "description": "Reksa Dana Indeks Pinnacle FTSE Indonesia ETF",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000356201",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "pinnacle"
+ },
+ "IDX:XPIN": {
+  "name": "XPIN",
+  "description": "REKSA DANA INDEKS BAHANA ETF PEFINDO I-GRADE Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": null,
+  "industry": null,
+  "isin": "IDN000555802",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XPLQ": {
+  "name": "XPLQ",
+  "description": "Reksa Dana Pinnacle Enhanced Liquid ETF",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000249109",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "pinnacle"
+ },
+ "IDX:XPSG": {
+  "name": "XPSG",
+  "description": "Reksa Dana Pinnacle Indonesia ESG ETF",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000324803",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "pinnacle"
+ },
+ "IDX:XPTD": {
+  "name": "XPTD",
+  "description": "Reksa Dana Indeks Panin ETF IDX30 Dinamis Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000391208",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XRDN": {
+  "name": "XRDN",
+  "description": "Reksa Dana Indo ETF RDN Kas Bertumbuh Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000579703",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XSBC": {
+  "name": "XSBC",
+  "description": "Reksa Dana Indeks Simas ETF IDX30",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000358108",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "sinarmas-multiartha-tbk"
+ },
+ "IDX:XSGO": {
+  "name": "XSGO",
+  "description": "Reksa Dana Syariah Syailendra ETF Sharia Gold Exchange Traded Fund Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000597002",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ },
+ "IDX:XSSI": {
+  "name": "XSSI",
+  "description": "Reksa Dana Syariah Indeks Simas ETF JII",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000408200",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "sinarmas-multiartha-tbk"
+ },
+ "IDX:XSSK": {
+  "name": "XSSK",
+  "description": "Reksa Dana Indeks Sam Etf Sri-Kehati Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000437001",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "sam-co"
+ },
+ "IDX:XTRA": {
+  "name": "XTRA",
+  "description": "Reksa Dana Syariah Trimegah Syariah ETF EMAS Exchange Traded Fund Units",
+  "type": "fund",
+  "typespecs": [
+   "etf"
+  ],
+  "sector": "Miscellaneous",
+  "industry": "Investment Trusts/Mutual Funds",
+  "isin": "IDN000597101",
+  "currency": "IDR",
+  "fundamental_currency_code": "IDR",
+  "exchange": "IDX",
+  "logoid": "reksa-dana"
+ }
+}

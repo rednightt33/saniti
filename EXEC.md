@@ -10156,6 +10156,8 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     pencocokan itu memakai baris universe di kedua sisi.
   - Urutan deploy: S2 baru aktif sesudah 63 kode masuk universe, supaya fitur broker mereka tidak berhenti. Kalau
     terlambat, pemeriksaan perubahan (baris universe) mengisi tanggal yang tertinggal sendiri.
+- **GO S1 (user 2026-11-05: "ok")**, atas pertanyaan "Boleh saya jalankan S1 sekarang? 63 kode masuk universe → harga
+  diisi satu per satu → dukungan ETF di Terminal/Screener → publikasi".
 - **Hasil 2026-11-05 (sesudah go):**
   - Migrasi `20261105_002` (S2) dan `20261105_003` (P2) DRYRUN lalu APPLY, dibaca balik (DATABASE_CHANGELOG).
   - Kode `main` `d89212e5`: idx-price-cron, idx-price-recovery-cron dan telegram-monitor SUCCESS 09:28 UTC (P2 aktif).

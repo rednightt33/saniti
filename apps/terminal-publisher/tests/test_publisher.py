@@ -222,7 +222,7 @@ EVENTS = [('BBCA', '2026-03-10', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None
            'YP', None, 10000.0, 1.25, 0.01, 'OK', 9000.0, False, 90000000.0, 'KSEI', None, None, None),
           ('GONE', '2026-01-02', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
            None, None, 10.0, None, None, None, {}, None, None)]
-UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock', 'Finance', 'Banks'), ('IHSG', 'Composite', 'index', None, None)]
+UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock', 'Finance', 'Banks', 'common'), ('IHSG', 'Composite', 'index', None, None, 'Undefined')]
 # XSECTION_ACTIONS_SQL rows: ticker, ex date, type, ratio_old, ratio_new, amount_per_share, currency, event_key
 ACTIONS = [('BBCA', '2026-03-10', 'DIVIDEND', None, None, 250.0, 'IDR', 'k1'),
            ('BBCA', '2026-10-14', 'STOCK_SPLIT', 1.0, 5.0, None, None, 'k2'),
@@ -386,8 +386,22 @@ def test_daily_republishes_events_only_when_the_ticker_changed():
 def test_ticker_reference_carries_the_sector_and_industry_for_search_and_portfolio_filters():
     _, _, bucket = run('backfill')
     doc = bucket.get_json('ref/tickers.json.gz')
-    assert doc['columns'] == ['ticker', 'name', 'type', 'sector', 'industry']
+    assert doc['columns'] == ['ticker', 'name', 'type', 'sector', 'industry', 'instrument']
     assert doc['sector'] == ['Finance', None] and doc['industry'] == ['Banks', None]
+    assert doc['instrument'] == ['common', 'Undefined']
+
+
+def test_a_fund_is_published_like_a_stock():
+    """EXEC-UNIVERSE-BROKER S1.4: an ETF (Security Type fund) gets price and broker files from Feature 05, as a stock."""
+    universe = UNIVERSE + [('XIJI', 'Premier ETF JII', 'fund', 'Undefined', 'Undefined', 'etf')]
+    prices = PRICES + [(r[0].replace('BBCA', 'XIJI'),) + tuple(r[1:]) for r in PRICES if r[0] == 'BBCA']
+    brokers = BROKERS + [('XIJI',) + tuple(r[1:]) for r in BROKERS if r[0] == 'BBCA']
+    _, _, bucket = run('backfill', FakeConn(prices, brokers, universe))
+    m = bucket.get_json('manifest/XIJI.json')
+    assert set(m['datasets']) >= {'price', 'broker'}
+    assert doc_of(bucket, 'XIJI', 'broker', 2026)['bv'] == doc_of(bucket, 'BBCA', 'broker', 2026)['bv']
+    ref = bucket.get_json('ref/tickers.json.gz')
+    assert ref['type'][ref['ticker'].index('XIJI')] == 'fund' and ref['instrument'][ref['ticker'].index('XIJI')] == 'etf'
 
 
 def test_corporate_action_detail_comes_from_the_payload_and_blank_is_none():
@@ -1177,7 +1191,8 @@ FIXED_REFS = {f'ref/{n}.json.gz' for n in pub.REF_NAMES}
 # ref/brokers changed on purpose with EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): the added `classification` column
 # (before: a4075aee964c309e...); every reader takes its columns by name (backtest-worker terminal.ts reference,
 # terminal live.ts), so the pin now holds the new bytes.
-BEFORE_T5_RAW_SHA256 = {'tickers': '9c49504a1d4896d948dc24ba00dfc4c3a10060782496fdb8691a0085ac1e4ef0',
+# tickers: EXEC-UNIVERSE-BROKER S1.4 (2026-11-05) added the column instrument; the bytes before it were 9c49504a...
+BEFORE_T5_RAW_SHA256 = {'tickers': '176173761088fb67313a286f7e219a28ce67207c7143fad184802af5135796b7',
                         'brokers': '3b54f0d4cc28389f05abfaeefdd10dc05de0bf01211298542292edb277840afc'}
 
 
@@ -1282,7 +1297,7 @@ def test_fixed_key_reference_files_are_written_byte_identical_to_before(mode, ar
         body = bucket.objects[f'ref/{name}.json.gz']
         raw = gzip.decompress(body)
         assert hashlib.sha256(raw).hexdigest() == sha and body == gzip.compress(raw, compresslevel=9, mtime=0)
-    assert bucket.get_json('ref/tickers.json.gz')['columns'] == ['ticker', 'name', 'type', 'sector', 'industry']
+    assert bucket.get_json('ref/tickers.json.gz')['columns'] == ['ticker', 'name', 'type', 'sector', 'industry', 'instrument']
     assert all(bucket.objects[e['key'][3:]] == bucket.objects[f'ref/{n}.json.gz'] for n, e in refs(bucket).items())
 
 
@@ -1558,7 +1573,7 @@ def many(n=24):
     tickers = [f'T{i:02d}' for i in range(n)]
     prices = [(t, d, 10.0, 11.0, 9.0, 10.0 + i, 100.0) for i, t in enumerate(tickers) for d in ('2025-12-30', '2026-01-02')]
     brokers = [(t, '2026-01-02', 'AK', 'Foreign', 'Regular', 5.0, 0.0, 0.05, 0.0, False, 1, 0) for t in tickers]
-    universe = [(t, f'Company {t}', 'stock', 'Finance', 'Banks') for t in tickers]
+    universe = [(t, f'Company {t}', 'stock', 'Finance', 'Banks', 'common') for t in tickers]
     return FakeConn(prices, brokers, universe, events=[], actions=[])
 
 

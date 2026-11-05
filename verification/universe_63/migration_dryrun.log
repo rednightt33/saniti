@@ -1,0 +1,8 @@
+Starting Container
+OUT {"q": "description", "ms": 1, "part": 0, "rows": [[907]]}
+OUT {"q": "sample", "ms": 1, "part": 0, "rows": [["AKKU", "PT Anugerah Kagum Karya Utama Tbk", "stock", "common", "Yes", "ID1000099609", "Undefined"], ["XBGS", "Reksa Dana Syariah Batavia Gold Sharia ETF Exchange Traded Fund Units", "fund", "etf", "No", "IDN000598604", "Undefined"], ["XIJI", "Reksa Dana Syariah Premier ETF JII", "fund", "etf", "No", "IDN000154606", "Undefined"]]}
+JOB_DONE MIGRATION DRYRUN
+MIG DRYRUN 20261105_004_universe_add_63.sql sha256=d61db8f3475b33906f44b5f155a52b4c1d18abd42238d9e34be7600c20ca6164
+MIG DRYRUN_BODY_OK 20261105_004_universe_add_63.sql
+OUT {"q": "universe", "ms": 4, "part": 0, "rows": [["fund", "etf", 45], ["index", "Undefined", 1], ["stock", "common", 862]]}
+OUT {"q": "history", "ms": 1, "part": 0, "rows": [[4, 4, "FIRST_CAPTURE", "FIRST_CAPTURE"]]}

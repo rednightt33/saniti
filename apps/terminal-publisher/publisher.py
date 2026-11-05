@@ -209,8 +209,16 @@ EPOCH = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
 END_OF_TIME = dt.datetime(9999, 1, 1, tzinfo=dt.timezone.utc)
 BROKERS_SQL = ('SELECT broker_code, broker_name, broker_type, broker_classification FROM public."IDX_Broker_Profile" '
                'ORDER BY 1')
-UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry" FROM public."IDX_Stock_Universe" '
-                "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
+# EXEC-UNIVERSE-BROKER S1.4 (user go 2026-11-05): every security of the universe is published, whatever its type
+# (stock, fund = ETF, index). Only an index reads the INDEX broker table (data_kind). instrument (Type Specs) is
+# TradingView's type detail (common, etf): the page's label and a backtest grouping.
+UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry", "Type Specs" '
+                'FROM public."IDX_Stock_Universe" ORDER BY 1')
+
+
+def data_kind(security_type):
+    """The publisher's data kind: 'index' for an index (IHSG), 'stock' for every other security (stock, fund...)."""
+    return 'index' if security_type == 'index' else 'stock'
 
 # ---- EXEC-FI-TERMINAL (user go 2026-11-01: "Samakan logicnya dengan price IDX") ----------------------------------------
 # The government bonds of Universe_Fixed_income, each with two datasets on their own dates: `yield` (metric
@@ -1210,7 +1218,7 @@ class Publisher:
         # every column after ticker, name and type is a classification the backtest offers as a portfolio filter
         # (backtest CONTRACT.md, decision PF6; user 2026-10-27); readers take columns by name, so one can be added.
         # Values are stored as the table has them: 'Undefined' (no classification) is the readers' to set apart.
-        names = ['ticker', 'name', 'type', 'sector', 'industry']
+        names = ['ticker', 'name', 'type', 'sector', 'industry', 'instrument']
         tickers = {'schema_version': SCHEMA_VERSION, 'columns': names, **columnar(universe, names)}
         # EXEC-TERMINAL-FLOW-IND (user 2026-10-30): the observed usage profile (Institutional-heavy, Retail-heavy, Mixed,
         # Niche; DATABASE_CATALOG) for the Institutional vs Retail Net indicator; readers take columns by name
@@ -1343,7 +1351,7 @@ class Publisher:
         started = time.monotonic()
         self.step('plan')
         universe = self.universe()
-        kind = {t: typ for t, _, typ, *_ in universe}
+        kind = {t: data_kind(typ) for t, _, typ, *_ in universe}
         self.kinds = kind
         # EXEC-FI-TERMINAL: the bonds, in the modes that publish them (daily: the changed years; backfill and
         # fixed_income: every year); their manifests are read with the stocks' (the cleanup's baseline names them)
@@ -1879,7 +1887,7 @@ def verify(conn, bucket, only=None):
                     got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['c']))
                 else:
                     # EXEC-TERMINAL-FLOW-IND: the transaction counts too (a file without bf/sf counts as missing them)
-                    sql_row = conn.execute(broker_verify_sql(typ if typ in BROKER_TABLES else 'stock'), (ticker, lo, hi)).fetchone()
+                    sql_row = conn.execute(broker_verify_sql(data_kind(typ)), (ticker, lo, hi)).fetchone()
                     got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(doc['bv']) + sum(doc['sv']),
                            sum(v or 0 for v in doc.get('bf', [])) + sum(v or 0 for v in doc.get('sf', [])))
                 same = got[:3] == tuple(sql_row[:3]) and abs(got[3] - sql_row[3]) <= max(1.0, abs(sql_row[3]) * 1e-9) \

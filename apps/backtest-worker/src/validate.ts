@@ -98,8 +98,10 @@ function entryFields(e: unknown, field: string): void {
 export interface References { tickers: readonly TickerRef[]; brokers: readonly BrokerRef[] }
 
 /* ---- the picked stocks of a portfolio (PF1-PF3, user N 2026-10-27) -------------------------------------------------- */
-/** Every published stock (reference type 'stock'), ticker order. */
-export const stocksOf = (refs: readonly TickerRef[]) => refs.filter(r => r.type === 'stock').map(r => r.ticker).sort(byTicker);
+/** A tradable security: every published type but an index (stock, fund = ETF; EXEC-UNIVERSE-BROKER S1.4, 2026-11-05). */
+export const tradable = (r: TickerRef) => !!r.type && r.type !== 'index';
+/** Every published tradable security (above), ticker order. */
+export const stocksOf = (refs: readonly TickerRef[]) => refs.filter(tradable).map(r => r.ticker).sort(byTicker);
 /** A portfolio's picked stocks (portfolio.tickers, a preview's tickers): 1 to limits.max_portfolio_tickers distinct
     strings (engine.ts portfolioTickers: INVALID_PORTFOLIO at `field`), each a published stock (UNKNOWN_TICKER at
     `field`[i], single.ticker's code and wording: an index is not tradable), checked before any download; in ticker
@@ -107,7 +109,7 @@ export const stocksOf = (refs: readonly TickerRef[]) => refs.filter(r => r.type 
 export function pickedStocks(v: unknown, refs: References, max: number, field: string): string[] {
   const sorted = portfolioTickers(v, max, 'INVALID_PORTFOLIO', field);
   (v as string[]).forEach((t, k) => {
-    if (!refs.tickers.some(x => x.ticker === t && x.type === 'stock')) fail('UNKNOWN_TICKER', `${field}[${k}]`, `${t} is not a published stock.`);
+    if (!refs.tickers.some(x => x.ticker === t && tradable(x))) fail('UNKNOWN_TICKER', `${field}[${k}]`, `${t} is not a published stock.`);
   });
   return sorted;
 }
@@ -199,7 +201,7 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   let broker = false;
   if (q.mode === 'single') {
     const t = q.single!.ticker;
-    if (!refs.tickers.some(x => x.ticker === t && x.type === 'stock')) fail('UNKNOWN_TICKER', 'single.ticker', `${t} is not a published stock.`);
+    if (!refs.tickers.some(x => x.ticker === t && tradable(x))) fail('UNKNOWN_TICKER', 'single.ticker', `${t} is not a published stock.`);
     tickers = [t];
   } else {
     const p = q.portfolio!;

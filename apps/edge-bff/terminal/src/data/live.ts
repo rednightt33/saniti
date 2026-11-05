@@ -286,15 +286,20 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   const isBondAnswer = (f: Answer) => f.kind === 'fixed_income' || f.yieldFiles.length > 0;   // only a bond has yield files
   const early = guessP.then(f => prepare(guess, f, isBondAnswer(f)));
   early.catch(() => {});
-  const tickers = await tickersP as { ticker: string; name: string; type: string; sector: string | null }[];
+  const tickers = await tickersP as { ticker: string; name: string; type: string; sector: string | null; instrument?: string | null }[];
   const bonds = await bondsP;
   const bondOf = new Map(bonds.map((b: any) => [b.ticker as string, b]));
   const known = new Set([...tickers.map(t => t.ticker), ...bondOf.keys()]);
   /* the search's right column: the market each instrument trades in, from its own data (the ticker list's `type`, a bond
      from ref/fixed_income); a bond's upper line names its country (user 2026-11-01: "ini obligasi, tapi kenapa IDX equity?") */
   const typeWord = (t: string) => t === 'stock' ? 'Equity' : t ? t[0].toUpperCase() + t.slice(1) : 'Equity';
-  const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0,
-      { market:`IDX · ${typeWord(t.type)}` }] as Instrument),
+  /* EXEC-UNIVERSE-BROKER S1.4: the ticker list's instrument (TradingView's type detail) names a security that is not a
+     common share, e.g. 'etf' -> ETF; 'common' and 'Undefined' (no detail) keep the type word */
+  const detail = (i?: string | null) => i && i !== 'common' && i !== 'Undefined' ? i.toUpperCase() : '';
+  const sectorOf = (t: typeof tickers[number]) => t.sector && t.sector !== 'Undefined' ? t.sector
+    : detail(t.instrument) || t.sector || (t.type === 'index' ? 'Index' : 'Other');
+  const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, sectorOf(t), 0,
+      { market:`IDX · ${detail(t.instrument) || typeWord(t.type)}` }] as Instrument),
     ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined }] as Instrument)];
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
   const bond = bondOf.get(SYMBOL);

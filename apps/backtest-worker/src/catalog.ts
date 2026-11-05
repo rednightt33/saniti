@@ -12,13 +12,13 @@ import { byTicker } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { brokerDataThrough } from './load.ts';
 import type { Publication, TerminalClient, TickerReference } from './terminal.ts';
-import { stocksOf } from './validate.ts';
+import { stocksOf, tradable } from './validate.ts';
 
 /** The portfolio picker's filters (PF6, 2026-10-27): one per grouping column, in the file's column order; per value the
     number of published stocks that have it, in value order (byTicker), and the stocks without a value (unclassified:
-    terminal.ts classification) counted apart, never as a value. An index is not tradable, so only stocks count. */
+    terminal.ts classification) counted apart, never as a value. An index is not tradable, so only tradable securities count. */
 export function groupingsOf(ref: TickerReference): Grouping[] {
-  const stocks = ref.tickers.filter(r => r.type === 'stock');
+  const stocks = ref.tickers.filter(tradable);
   return ref.groupings.map(key => {
     const counts = new Map<string, number>();
     let unclassified = 0;
