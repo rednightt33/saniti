@@ -1,0 +1,63 @@
+Starting Container
+OUT {"event": "job_started", "version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4", "write_from": "2026-11-05", "full": ["AKKU", "ALTO", "BEBS", "BHAT", "CRAB", "EDGE", "GAMA", "GTBO", "HILL", "IBST", "INDX", "PLIN", "PMMP", "RAFI", "SUPR", "TAYS", "TRUE", "UNSP", "XBGS", "XBID", "XBIN", "XBLQ", "XBSK", "XCEG", "XCLQ", "XDES", "XDIF", "XGLD", "XIFE", "XIHD", "XIID", "XIIF", "XIIT", "XIJI", "XILV", "XIML", "XIPB", "XIPI", "XISB", "XISC", "XISI", "XISR", "XKGS", "XKID", "XKIV", "XKMS", "XMES", "XMGB", "XMIG", "XMLF", "XMSK", "XPDV", "XPFT", "XPIN", "XPLQ", "XPSG", "XPTD", "XRDN", "XSBC", "XSGO", "XSSI", "XSSK", "XTRA"], "dry_run": false}
+OUT {"event": "claim_repair", "tickers": 63, "finite_next_attempt": 55}
+OUT {"event": "queue", "pending": 55}
+OUT {"event": "done", "ticker": "XPIN", "rows": 315, "changed": 315, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XPDV", "rows": 851, "changed": 851, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "PLIN", "rows": 1087, "changed": 1087, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XISC", "rows": 1194, "changed": 1194, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "old_chain_differences", "ticker": "AKKU", "values": 442, "written": "reference"}
+OUT {"event": "done", "ticker": "XPSG", "rows": 408, "changed": 408, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "ALTO", "rows": 1703, "changed": 1703, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "TAYS", "rows": 1076, "changed": 1076, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XRDN", "rows": 90, "changed": 90, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XISI", "rows": 986, "changed": 986, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "AKKU", "rows": 1742, "changed": 1742, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XSGO", "rows": 61, "changed": 61, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XPTD", "rows": 584, "changed": 584, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "BEBS", "rows": 880, "changed": 880, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "GAMA", "rows": 983, "changed": 983, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XBID", "rows": 1207, "changed": 1207, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "TRUE", "rows": 1198, "changed": 1198, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "BHAT", "rows": 1377, "changed": 1377, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XTRA", "rows": 62, "changed": 62, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XBIN", "rows": 959, "changed": 959, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XISR", "rows": 1930, "changed": 1930, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "CRAB", "rows": 972, "changed": 972, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XBGS", "rows": 8, "changed": 8, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XSSI", "rows": 1497, "changed": 1497, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XBLQ", "rows": 487, "changed": 487, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XKIV", "rows": 1169, "changed": 1169, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XMIG", "rows": 959, "changed": 959, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "UNSP", "rows": 2060, "changed": 2060, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XDES", "rows": 62, "changed": 62, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XCEG", "rows": 693, "changed": 693, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XCLQ", "rows": 1264, "changed": 1264, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XGLD", "rows": 62, "changed": 62, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XDIF", "rows": 612, "changed": 612, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XMLF", "rows": 792, "changed": 792, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XPFT", "rows": 358, "changed": 358, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "HILL", "rows": 781, "changed": 781, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIFE", "rows": 1012, "changed": 1012, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "GTBO", "rows": 1461, "changed": 1461, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIIF", "rows": 1572, "changed": 1572, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "IBST", "rows": 784, "changed": 784, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XPLQ", "rows": 600, "changed": 600, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIIT", "rows": 2088, "changed": 2088, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIHD", "rows": 1747, "changed": 1747, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "INDX", "rows": 1990, "changed": 1990, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIJI", "rows": 1917, "changed": 1917, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "PMMP", "rows": 1084, "changed": 1084, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XILV", "rows": 1179, "changed": 1179, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XSBC", "rows": 1117, "changed": 1117, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIML", "rows": 850, "changed": 850, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIPB", "rows": 337, "changed": 337, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XISB", "rows": 105, "changed": 105, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XKGS", "rows": 28, "changed": 28, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XKID", "rows": 443, "changed": 443, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XMES", "rows": 62, "changed": 62, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIPI", "rows": 1469, "changed": 1469, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+JOB_DONE
+OUT {"event": "done", "ticker": "XKMS", "rows": 1346, "changed": 1346, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+VERDICT {"event": "feature04", "queue": {"DONE": 907}, "seconds": 57.3}
+JOB_EXIT 0

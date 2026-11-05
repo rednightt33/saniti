@@ -1,0 +1,15 @@
+Starting Container
+OUT {"event": "queue", "pending": 63}
+OUT {"event": "job_started", "version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4", "write_from": "2026-11-05", "full": ["AKKU", "ALTO", "BEBS", "BHAT", "CRAB", "EDGE", "GAMA", "GTBO", "HILL", "IBST", "INDX", "PLIN", "PMMP", "RAFI", "SUPR", "TAYS", "TRUE", "UNSP", "XBGS", "XBID", "XBIN", "XBLQ", "XBSK", "XCEG", "XCLQ", "XDES", "XDIF", "XGLD", "XIFE", "XIHD", "XIID", "XIIF", "XIIT", "XIJI", "XILV", "XIML", "XIPB", "XIPI", "XISB", "XISC", "XISI", "XISR", "XKGS", "XKID", "XKIV", "XKMS", "XMES", "XMGB", "XMIG", "XMLF", "XMSK", "XPDV", "XPFT", "XPIN", "XPLQ", "XPSG", "XPTD", "XRDN", "XSBC", "XSGO", "XSSI", "XSSK", "XTRA"], "dry_run": false}
+OUT {"event": "reopen_repair", "reopened": 63}
+OUT {"event": "done", "ticker": "SUPR", "rows": 322, "changed": 322, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XMSK", "rows": 444, "changed": 444, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "RAFI", "rows": 773, "changed": 773, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XSSK", "rows": 992, "changed": 992, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XMGB", "rows": 405, "changed": 405, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XBSK", "rows": 1080, "changed": 1080, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "EDGE", "rows": 1121, "changed": 1121, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+OUT {"event": "done", "ticker": "XIID", "rows": 979, "changed": 979, "full": true, "old_candle_diffs": 0, "checkpoints": 7}
+VERDICT {"event": "feature04", "queue": {"FAILED": 55, "DONE": 852}, "seconds": 8.7}
+JOB_DONE
+JOB_EXIT 0

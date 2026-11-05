@@ -1,0 +1,123 @@
+{
+ "mode": "APPLY",
+ "start": "2018-01-02",
+ "end": "2026-11-03",
+ "tickers": [
+  "AKKU",
+  "GAMA",
+  "PLIN",
+  "XBID",
+  "XBIN",
+  "XBSK",
+  "XCLQ",
+  "XIIF",
+  "XIIT",
+  "XIJI",
+  "XISC",
+  "XISI",
+  "XISR",
+  "XKIV",
+  "XMIG",
+  "XMLF",
+  "XPFT",
+  "XPLQ",
+  "XSBC",
+  "XSSK"
+ ],
+ "accepted_missing": {
+  "AKKU": [
+   "2020-02-27"
+  ],
+  "GAMA": [
+   "2020-02-27"
+  ],
+  "PLIN": [
+   "2018-01-04",
+   "2019-01-18"
+  ],
+  "XBID": [
+   "2020-06-04",
+   "2023-06-14"
+  ],
+  "XBIN": [
+   "2023-06-14"
+  ],
+  "XBSK": [
+   "2023-06-14"
+  ],
+  "XCLQ": [
+   "2020-02-27"
+  ],
+  "XIIF": [
+   "2018-01-10"
+  ],
+  "XIIT": [
+   "2018-04-18"
+  ],
+  "XIJI": [
+   "2018-01-11",
+   "2018-01-23",
+   "2018-04-18",
+   "2020-06-04"
+  ],
+  "XISC": [
+   "2018-01-23",
+   "2018-04-18",
+   "2018-09-27"
+  ],
+  "XISI": [
+   "2018-01-23",
+   "2018-04-18"
+  ],
+  "XISR": [
+   "2018-01-11",
+   "2018-04-18",
+   "2018-10-03",
+   "2019-01-03"
+  ],
+  "XKIV": [
+   "2023-06-14"
+  ],
+  "XMIG": [
+   "2023-06-14"
+  ],
+  "XMLF": [
+   "2023-06-14"
+  ],
+  "XPFT": [
+   "2020-02-27"
+  ],
+  "XPLQ": [
+   "2018-01-05"
+  ],
+  "XSBC": [
+   "2022-07-05"
+  ],
+  "XSSK": [
+   "2020-06-04",
+   "2023-06-14"
+  ]
+ },
+ "fingerprints": {
+  "AKKU": "d0a09d317de89aa7f56190681c76743d9c024019019b223e4b71d126c7c99972",
+  "GAMA": "d236acdb55ddf289f046a9f3d6f2b86e717e1d66183afab22ea322bbded2c552",
+  "PLIN": "ea385ad7f8ebdd4c0708f74f10d59f27798944075e77afa764af2ec1167ce177",
+  "XBID": "c4022efe2b5870a65bd4cf9f49a6e1e92dd8656b3c2fdb70f0f854338846ede4",
+  "XBIN": "0eeb550541114d6530ba015d8834d063a792707e37beeef3fca49f598d5e40c4",
+  "XBSK": "5bfd24afa674dc0791b64acf9191403b0664505d094bfe3d4e94483b59e4956a",
+  "XCLQ": "e72beb542a4774e0cd7eb31c0e5702243ed2befb893ce66ea50d75e9dcee3ce8",
+  "XIIF": "0355be2dec8fa23c034c2d84f90c514b20874f526627a101d5b186a3be1cdfac",
+  "XIIT": "ee3d7528733cdc21098f3b14f59937829823be21acbc8866350339abb22a22b5",
+  "XIJI": "30dcde01a6370ae6d67337756236ca0318ff10fba623ed50acf8d327a1756cef",
+  "XISC": "d9f6f0bfc962a15ff9c4de128fea5bd20ba4d6be1f8999836715922cad65fae7",
+  "XISI": "0e0799ab7adc3c795489a26d109cd660de2010edd8d32b9a4a6b044f0de36220",
+  "XISR": "772895de684c7869174971bd9a5efbb54c48817d9459eccabadc3be1a1a2e0d2",
+  "XKIV": "d2bca38bb31fdd58c71156540f55344784604971b8ab7245ad30e4963302a648",
+  "XMIG": "eb51ef68cdbf89e2379c280ec918b3a3d00cd6b716a12d9cc56dbfe707c62f50",
+  "XMLF": "b7425bb4cf928e069d81f35aefad7727c629ccc41228c795ada68d34a831475a",
+  "XPFT": "06a00d4757738772f032a907a94dfcb2d14e12c4e68665c47235bbe22869167b",
+  "XPLQ": "a1ea41549a06eb798b78585e3d95cf0a8fdc91f9e8d870c03fe0be382e6d56bd",
+  "XSBC": "8d0760c5a143a9609095f803ffff86f2b297619f186f3bd5df81f30aa500e111",
+  "XSSK": "e1e7b6ea9c46df93d9ca5d5543b6f6c323157b6f598e385f8432ef439c8aca97"
+ }
+}

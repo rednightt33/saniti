@@ -10190,6 +10190,24 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     Fitur 1 selesai, worker dihentikan selama job.
   - Intraday: run harian menarik seluruh riwayat untuk seri yang belum ada (`intraday_update.py:75-79`), jadi 63 kode
     ikut run 10:30 UTC.
+- **Keputusan bolong sumber (user 2026-11-05: "A"):** 20 kode ditulis tanpa 32 sesi yang punya transaksi Regular di
+  broker summary tetapi tanpa bar TradingView; daftarnya `verification/universe_63/accepted_source_gaps.json`, dicatat di
+  ERRORS dan katalog. Dijalankan lewat `ACCEPTED_MISSING_DATES` per kode (jalur persetujuan user di
+  `backfill_idx_price_ticker.py`).
+- **S1 lanjutan (2026-11-05):**
+  - 20 kode bolong sumber ditulis dengan `ACCEPTED_MISSING_DATES` (32 sesi): preflight 20/20, APPLY 23.977 baris.
+    Harga 63 kode: 57.776 baris (2018-01-02 … 2026-11-05).
+  - Fitur 4: `verification/universe_63/f04_job.py` (job EXEC-PRICE-GAP-0917 dengan dua perubahan):
+    - kode baru menulis riwayat dari hitungan referensi (`engine.calculate`, seperti riwayat saham lain dibangun);
+      rantai inkremental wajib sama dengan referensi pada jendela titik simpan (baris yang dilanjutkan worker). Sebelum
+      jendela itu rantai bisa berbeda (AKKU rsi_14 2022-02-18 rantai 45,81, referensi 0,0, masa datar tanpa transaksi;
+      442 nilai), dilaporkan.
+    - klaim langsung baris `REPAIR_REQUIRED` kode-kode ini (worker tidak pernah mengklaimnya), karena menghentikan
+      feature-04-worker ditolak pengaman sesi; run pertama dengan klaim umum kalah cepat dari worker (55 gagal lagi
+      tanpa menulis apa pun).
+    - Hasil: antrean 907 DONE, 0 status kolom gagal; baris Fitur 4 = baris harga untuk 63 dari 63 kode (57.776).
+  - Fitur 1: antrean worker-nya masih berjalan (±41 ribu baris, ±335 per menit).
+  - Publisher `e78dd177` (kode `fa07b8c3`, semua jenis efek) SUCCESS; backtest-worker `51832073` SUCCESS.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;

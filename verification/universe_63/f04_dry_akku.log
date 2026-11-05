@@ -1,0 +1,5 @@
+OUT {"event": "job_started", "version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4", "write_from": "2026-11-05", "full": ["AKKU", "ALTO", "BEBS", "BHAT", "CRAB", "EDGE", "GAMA", "GTBO", "HILL", "IBST", "INDX", "PLIN", "PMMP", "RAFI", "SUPR", "TAYS", "TRUE", "UNSP", "XBGS", "XBID", "XBIN", "XBLQ", "XBSK", "XCEG", "XCLQ", "XDES", "XDIF", "XGLD", "XIFE", "XIHD", "XIID", "XIIF", "XIIT", "XIJI", "XILV", "XIML", "XIPB", "XIPI", "XISB", "XISC", "XISI", "XISR", "XKGS", "XKID", "XKIV", "XKMS", "XMES", "XMGB", "XMIG", "XMLF", "XMSK", "XPDV", "XPFT", "XPIN", "XPLQ", "XPSG", "XPTD", "XRDN", "XSBC", "XSGO", "XSSI", "XSSK", "XTRA"], "dry_run": true}
+Starting Container
+ERR {"event": "dry_run_failed", "ticker": "AKKU", "error": "Check: chain differs from reference 2022-02-18 rsi_14: chain 45.81139550634077 reference 0.0 (row 882 of 1742, strict from 1735)"}
+JOB_DONE
+JOB_EXIT 0

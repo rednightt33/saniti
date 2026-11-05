@@ -2,7 +2,8 @@
 one code at a time with scripts/backfill_idx_price_ticker.py (its own checks, P3 no-trade rule), on orc-test-runner.
 
 params.json: {"mode": "PREFLIGHT" | "APPLY", "start": "2018-01-02", "end": "2026-11-05",
-              "tickers": [...], "fingerprints": {ticker: sha256} (APPLY), "accepted_extra": {ticker: [dates]} (optional)}
+              "tickers": [...], "fingerprints": {ticker: sha256} (APPLY), "accepted_extra": {ticker: [dates]} (optional),
+              "accepted_missing": {ticker: [dates]} (optional; sessions the user accepted without a bar)}
 PREFLIGHT runs the script read-only per code and prints its history_preflight line. APPLY runs it with ACTION=apply and
 the fingerprint of the reviewed preflight; a code whose source changed since then is refused by the script itself.
 Prints one RESULT line per code and a SUMMARY line."""
@@ -18,7 +19,8 @@ assert mode in ('PREFLIGHT', 'APPLY')
 results = []
 for ticker in p['tickers']:
     env = {**os.environ, 'TICKER': ticker, 'START_DATE': p['start'], 'END_DATE': p['end'],
-           'ACCEPTED_EXTRA_DATES': json.dumps(p.get('accepted_extra', {}).get(ticker, []))}
+           'ACCEPTED_EXTRA_DATES': json.dumps(p.get('accepted_extra', {}).get(ticker, [])),
+           'ACCEPTED_MISSING_DATES': json.dumps(p.get('accepted_missing', {}).get(ticker, []))}
     if mode == 'APPLY':
         env.update(ACTION='apply', EXPECTED_FINGERPRINT=p['fingerprints'][ticker])
     started = time.monotonic()

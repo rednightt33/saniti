@@ -1,0 +1,71 @@
+Starting Container
+OUT {"event": "job_started", "version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4", "write_from": "2026-11-05", "full": ["AKKU", "ALTO", "BEBS", "BHAT", "CRAB", "EDGE", "GAMA", "GTBO", "HILL", "IBST", "INDX", "PLIN", "PMMP", "RAFI", "SUPR", "TAYS", "TRUE", "UNSP", "XBGS", "XBID", "XBIN", "XBLQ", "XBSK", "XCEG", "XCLQ", "XDES", "XDIF", "XGLD", "XIFE", "XIHD", "XIID", "XIIF", "XIIT", "XIJI", "XILV", "XIML", "XIPB", "XIPI", "XISB", "XISC", "XISI", "XISR", "XKGS", "XKID", "XKIV", "XKMS", "XMES", "XMGB", "XMIG", "XMLF", "XMSK", "XPDV", "XPFT", "XPIN", "XPLQ", "XPSG", "XPTD", "XRDN", "XSBC", "XSGO", "XSSI", "XSSK", "XTRA"], "dry_run": false}
+OUT {"event": "claim_repair", "tickers": 63}
+OUT {"event": "queue", "pending": 55}
+Process Process-2:
+Process Process-4:
+Process Process-1:
+Process Process-3:
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/job/job.py", line 222, in loop
+    job = W.claim_repair() if P.get('claim_repair') else W.claim_one()
+          ^^^^^^^^^^^^^^^^
+  File "<string>", line 11, in claim_repair
+  File "/usr/local/lib/python3.12/site-packages/psycopg/cursor.py", line 189, in fetchone
+    record = self._tx.load_row(self._pos, self._make_row)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "psycopg_binary/_psycopg/transform.pyx", line 511, in psycopg_binary._psycopg.Transformer.load_row
+  File "psycopg_binary/types/datetime.pyx", line 796, in psycopg_binary._psycopg.TimestamptzLoader.cload
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.12/site-packages/psycopg/cursor.py", line 189, in fetchone
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+    record = self._tx.load_row(self._pos, self._make_row)
+psycopg.DataError: timestamp too large (after year 10K): 'infinity'
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/psycopg/cursor.py", line 189, in fetchone
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 108, in run
+    record = self._tx.load_row(self._pos, self._make_row)
+    self._target(*self._args, **self._kwargs)
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/job/job.py", line 222, in loop
+    job = W.claim_repair() if P.get('claim_repair') else W.claim_one()
+          ^^^^^^^^^^^^^^^^
+  File "/job/job.py", line 222, in loop
+    job = W.claim_repair() if P.get('claim_repair') else W.claim_one()
+          ^^^^^^^^^^^^^^^^
+  File "<string>", line 11, in claim_repair
+  File "<string>", line 11, in claim_repair
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "psycopg_binary/_psycopg/transform.pyx", line 511, in psycopg_binary._psycopg.Transformer.load_row
+  File "psycopg_binary/_psycopg/transform.pyx", line 511, in psycopg_binary._psycopg.Transformer.load_row
+  File "psycopg_binary/types/datetime.pyx", line 796, in psycopg_binary._psycopg.TimestamptzLoader.cload
+  File "psycopg_binary/types/datetime.pyx", line 796, in psycopg_binary._psycopg.TimestamptzLoader.cload
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+psycopg.DataError: timestamp too large (after year 10K): 'infinity'
+psycopg.DataError: timestamp too large (after year 10K): 'infinity'
+  File "/usr/local/lib/python3.12/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/job/job.py", line 222, in loop
+    job = W.claim_repair() if P.get('claim_repair') else W.claim_one()
+          ^^^^^^^^^^^^^^^^
+  File "<string>", line 11, in claim_repair
+  File "/usr/local/lib/python3.12/site-packages/psycopg/cursor.py", line 189, in fetchone
+    record = self._tx.load_row(self._pos, self._make_row)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "psycopg_binary/_psycopg/transform.pyx", line 511, in psycopg_binary._psycopg.Transformer.load_row
+  File "psycopg_binary/types/datetime.pyx", line 796, in psycopg_binary._psycopg.TimestamptzLoader.cload
+psycopg.DataError: timestamp too large (after year 10K): 'infinity'
+VERDICT {"event": "feature04", "queue": {"FAILED": 55, "DONE": 852}, "seconds": 0.2}
+JOB_DONE
+JOB_EXIT 0
