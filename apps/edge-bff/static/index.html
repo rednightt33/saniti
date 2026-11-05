@@ -8,7 +8,7 @@
    pinch zoom). Other devices keep the plain viewport, so their pinch zoom is untouched. */
 (() => { const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   if (ios) document.querySelector('meta[name="viewport"]').setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1"); })();</script>
-<title>EDGE — Sign In & Monitor</title>
+<title>EDGE</title>
 <link rel="icon" href="/favicon.svg?v=20261103" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png?v=20261103" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261103">
@@ -13241,6 +13241,11 @@ function App() {
         document.documentElement.classList.toggle("dark", theme === "dark");
         document.documentElement.style.colorScheme = theme;
     }, [theme]);
+    // EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the browser tab names the page; the words are in edge-labels.js (pages)
+    onLifecycle(viewRecord, "title", () => {
+        const P = EdgeLabels.pages;
+        document.title = !checked ? P.loading : !authenticated ? P.signIn : path === "/terminal" ? P.terminal : path === "/backtest" ? P.backtest : path === "/screener" ? P.screener : P.monitor;
+    }, [checked, authenticated, path]);
     const go = route => {
         if (!["monitor", "markets", "terminal", "backtest", "screener", "/monitor", "/markets", "/terminal", "/backtest", "/screener", "/login", "/"].includes(route)) return;
         const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["backtest","/backtest"].includes(route) ? "/backtest" : ["screener","/screener"].includes(route) ? "/screener" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";

@@ -138,5 +138,9 @@ window.EdgeLabels = {
   // EDGE backtest (CONTRACT.md section 10): the Backtest tab next to Terminal
   backtest: { nav:"Backtest", frameTitle:"Backtest" },
   // EXEC-SCREENER (report FRONTEND INTEGRATION 9.7): the Screener tab next to Backtest
-  screener: { nav:"Screener", frameTitle:"Stock screener" }
+  screener: { nav:"Screener", frameTitle:"Stock screener" },
+  // EXEC-TERMINAL-IND-EDIT (user 2026-11-05: "apapun tabnya selalu tulisannya Edge, Sign In, and Monitor. Boleh diganti
+  // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
+  pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",
+    backtest:"EDGE — Backtest", screener:"EDGE — Screener" }
 };
