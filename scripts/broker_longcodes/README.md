@@ -37,3 +37,11 @@ repeats, or the two Stockbit sources (broker-first and ticker-first) disagree on
 - 2026-08-31, INET-W2 and PJHB-W: the same keys and the same values, lots and average prices as the table. Only
   `buy_freq`/`sell_freq` differ: the table holds NULL for these codes before 2026-09-01 (the former frequency staging
   table took four-letter codes only), the fetch gives the numbers.
+
+## Upload (stage U6, after S2)
+
+`upload_job.py` runs on orc-test-runner (`scripts/onboarding/run_job.sh`) with the checked `rows/` folder beside it:
+DRYRUN first, then APPLY. A key not in `IDX_Broker_Summary` is inserted, a key there with the same 15 values is dropped,
+a key there with other values is reported and never overwritten; four-letter codes are refused. It holds the broker
+loader's lock (no round writes meanwhile) and the publisher's write lock (EXEC-PUBLISH-FLOW). Tested 2026-11-05 on a
+scratch database: dry run writes nothing; apply 33 inserted, 1 same, 1 different (kept); a second apply 0 inserted.
