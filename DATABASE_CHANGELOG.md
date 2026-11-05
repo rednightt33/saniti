@@ -1,5 +1,15 @@
 # Database changelog
 
+## 2026-11-05 — terminal_publish_signal (EXEC-PUBLISH-FLOW S1)
+
+- Migration `20261105_001_terminal_publish_signal.sql` (sha256 `493b183a…`): DRYRUN, then APPLY 04:55 UTC via
+  orc-test-runner (`verification/publish_flow/migration_apply.log`).
+- Read back:
+  - 9 columns;
+  - `terminal_market_reader` SELECT on the table and on `Monitoring_Stockbit_Update`; an INSERT as that role is refused;
+  - `Table_Catalog` 1 row, `Column_Catalog` 9 rows.
+- Written by telegram-monitor only (role `postgres`); read by terminal-publisher.
+
 ## 2026-11-03 — Stockbit round c990db81: broker 2026-11-03, Features, INDEX, events (EXEC-BROKER-1103)
 
 - User: "jalankan broker dan event", then "Sekarang lah." (B6 exception). stockbit-updater deployment `25210647`,

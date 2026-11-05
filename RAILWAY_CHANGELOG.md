@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-05 — EXEC-PUBLISH-FLOW: publisher started by the loaders' completion (code deployed, trigger token pending)
+
+- `main` `f17e0baf`, all SUCCESS 05:02 UTC:
+  - from GitHub: telegram-monitor `8b3de6ee`, idx-price-cron `fe470d10`, idx-price-recovery-cron `ceef227f`,
+    fixed-income-price-cron `f12743f6`, fixed-income-price-recovery-cron `bdbdcaa7`, fixed-income-price-us-cron
+    `16417dc5`, fixed-income-price-us-recovery-cron `ccd510c9`;
+  - uploads: terminal-publisher `aacce63e` (`git archive HEAD apps/terminal-publisher`, `publisher.py` sha256
+    `9ccd94aa…`; did not run on deploy) and idx-intraday-cron `c239f59f` (`deploy_intraday.sh`).
+- telegram-monitor: `TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID=33466de4-5f96-4a01-bb9c-e851f2be2d3f` (`--skip-deploys`).
+  `PUBLISH_RAILWAY_TOKEN` not set yet (the user creates the project token).
+- terminal-publisher `cronSchedule` unchanged `0,30 0,1,12 * * *` (read back; next 12:00 UTC). It becomes 07:30 WIB only
+  after the trigger is proven live (S4).
+
 ## 2026-11-04/05 — whole project stopped by the workspace usage limit, restored; buckets reopened (ERRORS M346)
 
 - 2026-11-04 13:19–13:20 UTC: every running deployment REMOVED (SIGTERM from Railway, clean shutdowns).

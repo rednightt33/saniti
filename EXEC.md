@@ -10056,6 +10056,37 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
 
 **Fitur tidak berubah:** Feature 01-06, antrean Feature 04, fitur intraday dan jadwalnya tetap.
 
+**Hasil sejauh ini (2026-11-05):**
+- **S0:**
+  - Loader harga, obligasi dan broker sudah memberi tahu telegram-monitor sesudah commit.
+  - Intraday tidak memberi tahu pada run yang bersih (`intraday_update.py:310-322`), jadi ia diberi sinyal sendiri
+    (`Terminal_Publish_Request`).
+  - Putaran broker menulis baris RUNNING di awal (`updater.py:130`). Ada satu baris RUNNING basi dari 2026-10-27; publisher
+    mengabaikan RUNNING yang lebih tua dari 6 jam.
+  - Peran publisher hanya-baca, tetapi advisory lock tetap bisa dipakai (diuji lewat pgweb).
+  - Semua loader dan telegram-monitor terhubung sebagai `postgres`.
+- **S1:** migrasi `20261105_001_terminal_publish_signal.sql`, DRYRUN lalu APPLY 04:55 UTC, sha256 `493b183a…`, dibaca balik:
+  - 9 kolom;
+  - `terminal_market_reader` bisa membaca tetapi tidak bisa menulis;
+  - katalog 1 tabel dan 9 kolom.
+
+  Log: `verification/publish_flow/migration_*.log`.
+- **S1-S3, S5 kode** (`f17e0baf`):
+  - publisher: `RUN_LOCK`, `wait_for_loaders`, run ulang saat ada sinyal baru, pembersihan penuh pada run 07:30, peringatan
+    broker tertinggal mulai 17:00 WIB;
+  - loader harga, obligasi dan intraday memegang `pg_advisory_lock_shared` selama menulis;
+  - telegram-monitor mencatat sinyal dan menekan Run Now; Run Now yang ditolak langsung dikabarkan; alarm publisher
+    `waiting`.
+  - Tes: publisher 151, idx-price-cron 35, fixed income 54, telegram-monitor 32, semuanya lulus.
+- **Deploy (05:02 UTC, semua SUCCESS):**
+  - telegram-monitor, idx-price-cron, idx-price-recovery-cron, dan 4 cron fixed income dari GitHub `f17e0baf`;
+  - terminal-publisher, upload `aacce63e` (`publisher.py` sha256 `9ccd94aa…`);
+  - idx-intraday-cron, upload `c239f59f`.
+  - Jadwal publisher belum diubah (`0,30 0,1,12 * * *`, S4 sesudah pemicu terbukti live).
+- **Variabel:** `TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID` di telegram-monitor (bukan rahasia).
+- **Menunggu user:** `PUBLISH_RAILWAY_TOKEN` (Q-E3, token project khusus). Selama belum ada, sinyal tercatat
+  `NOT_CONFIGURED` dan publisher tetap jalan menurut jadwal lama.
+
 **Rollback:** jadwal 07:30/19:00 dikembalikan, dan pemicu di telegram-monitor dimatikan lewat variabel. Publisher yang
 lama tetap berjalan dengan jadwal jam.
 
