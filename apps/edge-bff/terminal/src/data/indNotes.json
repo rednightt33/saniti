@@ -543,7 +543,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL13": {
-   "formula": "Buy Σ_(b in C) (m(b)/m(A))^2, m = BL (unit Lot) or BV (Rupiah); Sell with SL/SV; A every broker with the filter; C = every broker (default), selected brokers or Top-N ranked over the window (side picks the cohort); the Top-N is ranked in Rupiah (net or gross) whatever the unit: the unit changes the measure, not who is ranked",
+   "formula": "Buy Σ_(b in C) (m(b)/m(A))^2, m = BL (unit Lot) or BV (Rupiah); Sell with SL/SV; A every broker with the filter; C = every broker (default), selected brokers or Top-N ranked over the window (side picks the cohort); the Top-N is ranked in Rupiah (net or gross) whatever the unit: the unit changes the measure, not who is ranked; a cohort with no member (no seller among the top N, no selected broker in the data) has no value, not 0",
    "outputs": "buy, sell",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
@@ -668,7 +668,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL38": {
-   "formula": "n_b = BV(b)-SV(b) (Rupiah) or BL(b)-SL(b) (Lot); Σ_(b in C) (max(n_b,0) / Σ positive n)^2; C = every net buyer (default), selected brokers or Top-N (net buy or gross buy) over the window; the Top-N is ranked in Rupiah (net or gross) whatever the unit: the unit changes the measure, not who is ranked",
+   "formula": "n_b = BV(b)-SV(b) (Rupiah) or BL(b)-SL(b) (Lot); Σ_(b in C) (max(n_b,0) / Σ positive n)^2; C = every net buyer (default), selected brokers or Top-N (net buy or gross buy) over the window; the Top-N is ranked in Rupiah (net or gross) whatever the unit: the unit changes the measure, not who is ranked; a cohort with no member (no seller among the top N, no selected broker in the data) has no value, not 0",
    "outputs": "hhi",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },

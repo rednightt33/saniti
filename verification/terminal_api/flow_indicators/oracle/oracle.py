@@ -520,6 +520,8 @@ def _hhi_side(T, p, side):
         if not tot:
             continue
         C = cohort_of(roll, p)
+        if C is not None and not C:          # no member: no value (FORMULAS.md FL13)
+            continue
         vals = [v[m] for v in roll.values()] if C is None else [roll[b][m] for b in C]
         out[t] = Fraction(sum(x * x for x in vals), tot * tot)
     return out
@@ -973,6 +975,8 @@ def s_fl38(T, p):
         tot = sum(x for x in nets.values() if x > 0)
         if tot:
             C = cohort_of(roll, p)
+            if C is not None and not C:      # no member: no value; a member with net <= 0 adds 0
+                continue
             xs = [x for x in nets.values() if x > 0] if C is None else [max(nets[k], 0) for k in C]
             out[t] = Fraction(sum(x * x for x in xs), tot * tot)
     return {'value': out}

@@ -803,6 +803,7 @@ const EX: Record<string, FlowExplainer> = {
     const all = pos.reduce((x, s) => x + nt(s), 0);
     if (!all) return null;
     const C = cohortOf(X, p, a, t, ['bv', 'sv', 'bl', 'sl']);
+    if (C !== null && !C.length) return null;                                     // no member: no value (calc/flow.ts FL38)
     if (C !== null) {
       const members = C.map(s => ({ s, n:Math.max(nt(s), 0) }));
       const combine = (v: Record<string, number>) => v.ALL ? members.reduce((x, e) => x + (v[e.s.code] / v.ALL) ** 2, 0) : null;

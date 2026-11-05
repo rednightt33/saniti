@@ -669,6 +669,7 @@ export const FLOW: Record<string, Fn> = {
       for (let b = 0; b < g.B; b++) { nets[b] = netOf(g, p, b, a, t); if (nets[b] > 0) all += nets[b] }
       if (!all) return null;
       const C = cohort(g, R, p, a, t);
+      if (C && !C.length) return null;          // no member: no value (as FL13); a member with net <= 0 adds 0
       let s = 0;
       for (const b of C ?? nets.keys()) if (nets[b] > 0) s += (nets[b] / all) ** 2;
       return s;
