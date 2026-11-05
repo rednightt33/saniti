@@ -10074,10 +10074,14 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
         transaksi Regular di broker summary (`price_update.py:492-503`, `:786-798`).
       - `backfill_idx_price_ticker.py:88-93` menolak riwayat yang tanggalnya tidak sama dengan BBCA, jadi sebagian besar
         dari 63 kode akan ditolak.
-      - Usulan (belum diputuskan): (1) kriteria masuk universe = ada transaksi Regular, bukan sekadar ada di broker
-        summary; (2) cron harga membedakan "tidak ada transaksi" (TradingView menjawab tanpa bar, dicek silang dengan
-        broker summary Regular) dari "gagal ambil" (timeout/error), dan hanya yang kedua yang PARTIAL; (3) backfill
-        menerima tanggal tanpa transaksi yang dibuktikan sama. Menunggu keputusan user; tidak ada tulisan.
+      - **Rencana tertunda (PENDING, user 2026-11-05: "Masukkan exec sebagai pending plan dulu deh"; belum disetujui untuk
+        dijalankan, S1 menunggu ini):**
+        - P1: kriteria masuk universe = ada transaksi Regular, bukan sekadar ada di broker summary;
+        - P2: cron harga membedakan "tidak ada transaksi" (TradingView menjawab tanpa bar, dicek silang dengan broker
+          summary Regular) dari "gagal ambil" (timeout/error); hanya yang kedua yang PARTIAL dan beralarm;
+        - P3: backfill menerima tanggal tanpa transaksi yang dibuktikan dengan cara P2.
+      - Urutan kerja sesudah keputusan ini (user 2026-11-05): S3 (broker summary sesudah 2026-08-31) dulu, lalu S2
+        (perubahan cara fitur dihitung). S1 menunggu P1–P3.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
