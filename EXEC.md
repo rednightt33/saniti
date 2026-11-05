@@ -10025,8 +10025,16 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - (f) restart Postgres sesudah update besar.
 - **S4 — catatan:** ERRORS (M218 diperbarui), DATABASE_SCHEMA/CHANGELOG, Table_Catalog, UPDATE_TABLE.md.
 
+**Daftar kode untuk S3 (2026-11-05):**
+- CSV user adalah daftarnya (user: "Tadi saya sudah sampaikan Excel [...] Kode apa lagi yang kamu mau?").
+- Dari 3.058 kode bukan 4 huruf di CSV, 611 diperdagangkan pada Agustus 2026: 598 waran terstruktur, 12 waran,
+  1 lainnya. Ke-611 itulah yang hilang sejak 2026-09-01. 2.447 lainnya berakhir sebelum Agustus 2026 dan sudah lengkap
+  di tabel.
+- Kode yang terbit sesudah 2026-09-01 tidak mungkin ada di CSV, karena dibuat dari isi tabel. Agent mencarinya sendiri
+  (daftar simbol Stockbit dengan token putaran berikutnya, atau daftar efek IDX) dan menunjukkannya ke user sebelum
+  penarikan.
+
 **Pertanyaan terbuka:**
-- Daftar kode bukan 4 huruf yang perlu ditarik (dijanjikan user).
 - Sesudah celah tertutup: kode bukan 4 huruf ditarik harian oleh siapa? (a) tetap oleh user secara lokal (K1), atau
   (b) loader Railway diperluas dengan daftar kode dari user.
 
