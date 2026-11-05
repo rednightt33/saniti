@@ -9958,6 +9958,105 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-PUBLISH-FLOW — publisher dipicu oleh cron yang selesai, broker tidak disimpan dua kali, storage B (rencana diterima 2026-11-05, BELUM dieksekusi)
+
+**Kata user, 2026-11-05:**
+- "publisher harus dijalankan setelah proses pengisian table selesai. Jadi jangan ketika cron jalan, publisher juga
+  jalan. [...] Ini juga termasuk [...] cron yang memang sifatnya reguler, kemudian cron yang menarik data yang gagal. Ini
+  seharusnya tidak merubah bagaimana fitur-fitur lain dihitung. Ini hanya merubah flow bagaimana data dipindahkan dari
+  Postgres ke storage."
+- "Bisa nggak dibuat [...] kalau data di tabel sudah diperbaharui secara fully, maka alert tersebut trigger dan ini
+  menjadi signal buat publisher untuk mulai bekerja. Mungkin sinyalnya bisa dari cron [...] kalau cron selesai, dia
+  trigger ke publisher."
+- Atas Q-E1..Q-E3: "Q-E1 tidak akan ada duplication right? / Q-E2 yes / Q-E3 OK / masukan exec".
+- Sebelumnya: "Masukkan exec, jangan eksekusi dulu. Sampai kita bisa get across efficiency plan".
+
+**Keputusan:**
+- **Q-E1:** satu run pengaman terjadwal 07:30 WIB tetap ada. Ia tidak menulis ulang apa pun yang sudah terbit:
+  - publisher hanya menulis file yang stempel sumbernya berubah (`publisher.py` docstring, mode `daily`);
+  - nama file memakai hash isinya, jadi file yang sama tidak terunggah dua kali;
+  - dua run tidak pernah berjalan bersamaan (langkah S1);
+  - jadi run pengaman hanya menerbitkan sinyal yang terlewat.
+- **Q-E2:** putaran broker (stockbit-updater) ikut memicu publisher. Run publisher manual sesudah update broker (M229)
+  tidak diperlukan lagi.
+- **Q-E3:** token project Railway khusus untuk "Run Now" publisher (variabel baru di telegram-monitor; nilainya tidak
+  pernah ditulis ke Git).
+
+**Fakta (kode dan live, 2026-11-05):**
+- Publisher dijadwalkan dengan jam, 07:30 dan 19:00 WIB (`apps/terminal-publisher/publisher.py:2148-2170`
+  `should_run`). Tidak ada loader yang memicunya, dan ia tidak menunggu loader mana pun selesai.
+- Publisher tidak membaca Feature 01-04 dan 06. Hanya Feature 05 yang dibaca, untuk broker. Harga dikirim langsung dari
+  `Price_Stock_Indonesia_IDX`, `price_stock_idx_intraday` dan `Price_Fixed_Income`.
+- Loader dan jadwalnya (UTC):
+  - idx-price-cron 10:00, idx-price-recovery-cron 23:00;
+  - idx-intraday-cron 10:30 Senin–Jumat;
+  - fixed-income ID 10:00 dan recovery 11:00; US 23:00 dan recovery 00:00;
+  - stockbit-updater ad hoc.
+- Pola yang sudah ada: loader harga menulis permintaan Feature 04 (`Monitoring_Feature04`) dalam transaksi yang sama
+  dengan data dan monitoringnya (`apps/idx-price-cron/price_update.py:649`, `commit_monitoring_and_notify:733`). Intraday
+  menulis `intraday_publish_change` bersama barnya.
+- **Broker tersimpan dua kali:** `pack/{ticker}/broker-archive` (812 file, 350,8 MB) memuat semua tahun sampai
+  tahun terakhir − 2 (`publisher.py:1020`). File tahunan `broker/{ticker}/{tahun}` tahun 2016-2024 juga tetap ada (5.421
+  file, 363,9 MB). Terminal (`terminal/src/data/live.ts:89`) dan Backtest (`backtest-worker/src/terminal.ts:435`) meminta
+  `packs: true`, jadi hanya membaca pack + 2025 dan 2026 (`terminal-api/app/main.py:542-544`). File tahunan lama hanya
+  terjangkau lewat `/bundle` tanpa packs (bawaan `packs: False`, `main.py:96`) dan mode `verify` publisher.
+
+**Fakta tambahan (kode, 2026-11-05):**
+- Setiap loader sudah mengirim sinyal "selesai" ke telegram-monitor sesudah commit:
+  - harga harian dan recovery, juga intraday: `price_update.py:733-741` `commit_monitoring_and_notify`;
+    `intraday_update.py:320`;
+  - fixed income: `fixed_income_update.py:829`;
+  - stockbit-updater: `updater.py`.
+- "Run Now" sebuah cron sudah dipakai tombol Telegram: `telegram_trigger.py:25` (`deploymentInstanceExecutionCreate`,
+  header `Project-Access-Token`).
+- Publisher yang dijalankan di luar tick cron tetap berjalan (`should_run`, `publisher.py:2148-2161`: "away from every
+  tick (a deploy or manual run), goes ahead").
+
+**Langkah (dieksekusi hanya sesudah go user):**
+- **S0 — baca dan ukur:**
+  - status dan jumlah "berubah" yang dikirim tiap sumber (Monitoring_Price_ALL DAILY/RECOVERY, intraday,
+    Monitoring_Fixed_Income ID/US DAILY/RECOVERY, Monitoring_Stockbit_Update);
+  - lama run publisher hari biasa;
+  - uji "Run Now" ke cron publisher dengan token baru, sekali, dengan mode `verify` (tidak menulis).
+- **S1 — publisher satu-per-satu dan tidak kehilangan sinyal:**
+  - kunci Postgres `pg_try_advisory_lock` untuk run publisher;
+  - sinyal yang datang saat publisher berjalan dicatat di tabel kecil `terminal_publish_signal`;
+  - di akhir run, publisher jalan sekali lagi bila ada sinyal sesudah ia mulai;
+  - migrasi maju, grant terbatas, DRYRUN lalu APPLY.
+- **S2 — tidak membaca data setengah jadi:** setiap loader memegang `pg_advisory_lock_shared` selama menulis, dan
+  publisher menunggu kunci eksklusif yang sama (dengan batas waktu dan peringatan). Fitur tidak disentuh.
+- **S3 — pemicu di telegram-monitor:**
+  - setelah memproses sinyal "selesai" dari sumber data harga (DAILY dan RECOVERY), obligasi (ID/US), intraday atau
+    broker, dengan status berhasil atau sebagian dan jumlah berubah > 0;
+  - ia mencatat sinyal dan menekan "Run Now" publisher dengan token baru (Q-E3);
+  - recovery tanpa perubahan tidak memicu.
+- **S4 — jadwal publisher:**
+  - 19:00 WIB dihapus; 07:30 WIB tetap sebagai run pengaman (Q-E1);
+  - pembersihan penuh harian pindah ke run pertama sesudah 19:00 WIB;
+  - `set_publisher_times` / `cron_for` diperbarui bersama variabel `TERMINAL_RUN_TIMES_WIB` (ERRORS M229).
+- **S5 — peringatan:** sinyal selesai tanpa publikasi dalam 30 menit, dan kunci loader tertahan terlalu lama.
+  Sumber baru di telegram-monitor dengan bentuk tetap (pola `Terminal_Publisher_Health`).
+- **S6 — broker tidak disimpan dua kali:**
+  - publisher berhenti menulis file tahunan broker untuk tahun yang ada di pack arsip;
+  - `/bundle` tanpa packs dan mode `verify` membaca pack arsip;
+  - sesudah pembaca terbukti, 5.421 file tahunan 2016-2024 dihapus lewat `collect_garbage`.
+- **S7 — storage B** (disetujui di EXEC-INTRADAY-FEATURES B): `pack/price` dan `xsection/price` menjadi arsip +
+  periode berjalan. Pembaca (Terminal, Backtest, Screener) mengambil keduanya. Rencana rinci pembaca dikirim ke user
+  sebelum kode menyentuh pembaca.
+- **S8 — bukti:**
+  - tes unit (kunci, sinyal saat berjalan, recovery tanpa perubahan, token gagal);
+  - satu hari bursa penuh dipantau: setiap cron selesai, lalu publisher jalan dalam hitungan menit, lalu Terminal
+    menampilkan data hari itu;
+  - jumlah objek dan byte per hari sebelum dan sesudah;
+  - `verify` storage = SQL.
+- **S9 — catatan:** README publisher, telegram-monitor dan loader; RAILWAY_CHANGELOG; DATABASE_SCHEMA/CHANGELOG;
+  ERRORS (entri baru); `.railway/railway.ts`.
+
+**Fitur tidak berubah:** Feature 01-06, antrean Feature 04, fitur intraday dan jadwalnya tetap.
+
+**Rollback:** jadwal 07:30/19:00 dikembalikan, dan pemicu di telegram-monitor dimatikan lewat variabel. Publisher yang
+lama tetap berjalan dengan jadwal jam.
+
 ## EXEC-TERMINAL-PREFS — pengaturan Terminal ikut akun, bukan browser (rencana diterima 2026-11-05, BELUM dieksekusi)
 
 **Kata user, 2026-11-05:** "Saat ini kan login yang dipakai user adalah satu. Kenapa kalau saya pindah device, bahkan

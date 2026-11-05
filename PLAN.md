@@ -20,62 +20,6 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
-## PUBLISH-FLOW — publisher berjalan sesudah pengisian tabel selesai, dan efisiensi storage (arah disetujui 2026-11-05)
-
-**Kata user, 2026-11-05:** "publisher harus dijalankan setelah proses pengisian table selesai. Jadi jangan ketika cron
-jalan, publisher juga jalan. [...] Ini juga termasuk [...] cron yang memang sifatnya reguler, kemudian cron yang menarik
-data yang gagal. Ini seharusnya tidak merubah bagaimana fitur-fitur lain dihitung. Ini hanya merubah flow bagaimana data
-dipindahkan dari Postgres ke storage." Sebelumnya: "Goalnya adalah efisiensi"; "Kita tidak bicara data broker ya, kita
-hanya bicara data harga."
-
-**Fakta (kode dan live, 2026-11-05):**
-- Publisher dijadwalkan dengan jam, 07:30 dan 19:00 WIB (`apps/terminal-publisher/publisher.py:2148-2170`
-  `should_run`). Tidak ada loader yang memicunya, dan ia tidak menunggu loader mana pun selesai.
-- Publisher tidak membaca Feature 01-04 dan 06. Hanya Feature 05 yang dibaca, untuk broker. Harga dikirim langsung dari
-  `Price_Stock_Indonesia_IDX`, `price_stock_idx_intraday` dan `Price_Fixed_Income`.
-- Loader dan jadwalnya (UTC):
-  - idx-price-cron 10:00, idx-price-recovery-cron 23:00;
-  - idx-intraday-cron 10:30 Senin–Jumat;
-  - fixed-income ID 10:00 dan recovery 11:00; US 23:00 dan recovery 00:00;
-  - stockbit-updater ad hoc.
-- Pola yang sudah ada: loader harga menulis permintaan Feature 04 (`Monitoring_Feature04`) dalam transaksi yang sama
-  dengan data dan monitoringnya (`apps/idx-price-cron/price_update.py:649`, `commit_monitoring_and_notify:733`). Intraday
-  menulis `intraday_publish_change` bersama barnya.
-- **Broker tersimpan dua kali:** `pack/{ticker}/broker-archive` (812 file, 350,8 MB) memuat semua tahun sampai
-  tahun terakhir − 2 (`publisher.py:1020`). File tahunan `broker/{ticker}/{tahun}` tahun 2016-2024 juga tetap ada (5.421
-  file, 363,9 MB). Terminal (`terminal/src/data/live.ts:89`) dan Backtest (`backtest-worker/src/terminal.ts:435`) meminta
-  `packs: true`, jadi hanya membaca pack + 2025 dan 2026 (`terminal-api/app/main.py:542-544`). File tahunan lama hanya
-  terjangkau lewat `/bundle` tanpa packs (bawaan `packs: False`, `main.py:96`) dan mode `verify` publisher.
-
-**Rancangan (usulan, dibahas dulu):**
-- **E1. Permintaan publish yang tahan lama.**
-  - Setiap loader menulis satu baris `terminal_publish_request` di transaksi yang sama dengan data dan monitoringnya.
-    Isinya: sumber, `execution_id`, dataset, dan jumlah yang berubah.
-  - Ini berlaku untuk run reguler dan recovery. Recovery yang tidak mengubah apa pun tidak menulis baris.
-  - Karena baris itu ikut commit bersama data, tidak mungkin ada permintaan publish untuk data yang belum selesai ditulis.
-- **E2. Publisher hanya jalan bila ada permintaan dan tidak ada loader yang sedang menulis.**
-  - Setiap loader memegang kunci bersama (`pg_advisory_lock_shared`) selama menulis.
-  - Publisher mengambil kunci eksklusif yang sama dengan `pg_try_advisory_lock`. Bila gagal, berarti masih ada yang
-    menulis, jadi ia menunggu atau mencoba lagi nanti.
-  - Hanya satu publisher berjalan pada satu waktu. Sesudah terbit, permintaan yang sudah dicakup ditandai selesai.
-  - Daftar loader tidak ditulis di publisher: siapa pun yang menulis memegang kunci itu.
-- **E3. Pemicu publisher:** cron cek singkat (mis. setiap 10 menit). Bila tidak ada permintaan, ia keluar dalam
-  hitungan detik. Jadwal tetap 07:30/19:00 diganti; pembersihan penuh harian pindah ke run pertama sesudah 19:00 WIB.
-- **E4. Peringatan:** "missing" diganti "permintaan lebih dari N menit belum terbit", ditambah "loader memegang kunci
-  terlalu lama".
-- **E5. Fitur tidak berubah:** Feature 01-06, antrean Feature 04, dan fitur intraday tetap seperti sekarang.
-- **E6. Broker dua kali (efisiensi storage):**
-  - Berhenti menulis file tahunan broker untuk tahun yang sudah ada di pack arsip.
-  - Hapus 5.421 file lama sesudah `/bundle` tanpa packs dan `verify` disesuaikan.
-  - Dampak: lebih sedikit file untuk ditulis dan dibersihkan. Biaya simpan 0,36 GB sendiri kecil.
-- **E7. Storage B (sudah disetujui di EXEC-INTRADAY-FEATURES B):** `pack/price` dan `xsection/price` dipecah menjadi
-  arsip + periode berjalan, supaya hari biasa hanya menulis bagian yang berubah.
-
-**Pertanyaan terbuka:**
-- Q-E1: interval cek publisher (usul 10 menit: harga terlihat paling lambat ±10 menit sesudah loader selesai)?
-- Q-E2: putaran broker (stockbit-updater) ikut E1, sehingga run publisher manual (M229) tidak perlu lagi?
-- Q-E3: tetap ada satu run pengaman harian walau tidak ada permintaan?
-
 ## Anggaran reasoning dan penyajian — persetujuan target, audit dahulu
 
 **Persetujuan target, 2026-10-19 (kata user):** "Saya setuju terkait reasoning 48, penyajian 48k"
