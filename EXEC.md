@@ -10034,6 +10034,26 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   (daftar simbol Stockbit dengan token putaran berikutnya, atau daftar efek IDX) dan menunjukkannya ke user sebelum
   penarikan.
 
+**Cakupan S3 (user 2026-11-05):** "kita mesti tarik dulu di atas 31 Agustus semua yang tidak ada [...] kalau 2016 sampai
+31 Agustus 2026, tidak ada filter, harusnya semuanya masuk gak sih?" lalu "Oke, itu masukan exec".
+- **Fakta (pgweb, 2026-11-05):**
+  - 2016-01-04 … 2026-08-31: 2.560 hari broker summary; tidak ada hari bursa yang kosong; tidak ada hari tanpa kode
+    bukan 4 huruf.
+  - Median kode bukan 4 huruf per hari naik mulus: 2016: 16, 2020: 52, 2023: 123, 2025: 209, 2026 (s.d. 31 Agu): 437.
+    Sejak 2026-09-01: 0.
+  - Ke-3.283 kode CSV semuanya pernah tercatat. 611 kode bukan 4 huruf terpotong di akhir Agustus (444 tepat
+    2026-08-31).
+  - Dalam umur tiap kode ada ±425 ribu kode-hari, tersimpan ±275 ribu. Selisihnya bisa hari tanpa transaksi atau bolong;
+    belum bisa dibedakan dari database.
+- **Urutan:**
+  1. Tahap 1: semua kode bukan 4 huruf, 2026-09-01 … sekarang. Isinya 611 kode CSV yang aktif di Agustus, ditambah kode
+     yang terbit sejak September (dicari agent, ditunjukkan ke user dulu). Perkiraan ±172 ribu permintaan Stockbit untuk
+     611 kode. Dijalankan di PC user.
+  2. Uji sampel ±20 kode acak sepanjang umurnya. Kalau hari kosong di tabel ternyata ada datanya di Stockbit, tahap 2
+     (semua kode sepanjang umurnya, ±2,55 juta permintaan) diputuskan user.
+  3. Saringan sebelum unggah: kunci belum ada → unggah; kunci ada dan sama → buang; kunci ada dan berbeda → laporkan,
+     tidak ditimpa.
+
 **Keputusan lanjutan (user 2026-11-05):** "data di IDX Broker Summary yang seharusnya punya data di API tapi tidak ada di
 table [...] ditarik di komputer saya. Dengan format nanti seperti table yang ada di IDX Broker Summary." dan "Yes, untuk
 nomor B, loader juga perlu diperluas. Tapi nanti saja setelah proses ingestion data selesai."
