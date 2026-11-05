@@ -860,3 +860,51 @@ Contoh pertama yang memakai template ini: FL10 pada BBRI (asing, 120 sesi, 8 Mei
 28 sel FL10 positif dan 16 negatif; net jual 0 positif dan 76 negatif. Median FL10 -0,33, korelasi dengan net asing 0,80.
 Cohort Top-3 net beli harian: net beli 43 positif dan 1 negatif; net jual 59 positif dan 17 negatif, korelasi 0,38.
 Hal yang belum diperiksa: ulangan hanya papan Regular.
+
+### 7.2 Pedoman: cara menjelaskan cara kerja sebuah indikator (contoh FL29)
+
+**Catatan user 2026-11-05 (kata-katanya):** "Tambahkan catatan di flow indicator review, which is adalah how we should explain how certain indicator works. Bisa menggunakan contoh terlampir yang saya remark. Jadi nanti cara menjelaskan indikator ini akan ada di suatu tempat, digunakan sebagai guideline untuk referensi."
+Contoh yang ditandai user adalah jawaban "Contoh hitungan FL29: BBRI, 3 Nov 2026", yang diminta dengan "Coba kasih contoh hitungannya. Jangan sebut indikator lain." Bagian ini dipakai bila user meminta **contoh hitungan** atau penjelasan "cara kerja"; 7.1 dipakai untuk penjelasan penuh dengan matriks. Bila keduanya diminta, contoh hitungan mendahului matriks.
+
+**Pola (bacaan AI atas contoh yang ditandai user; bila ada butir yang kurang tepat, koreksi di sini):**
+
+1. **Pengaturan konkret dulu:** satu saham, satu tanggal, filter (investor, papan), parameter (N, jendela, ambang), dan definisi istilah (net = gross beli dikurangi gross jual; turnover = gross beli semua broker). Gross atau net selalu disebut (7.1 butir 7).
+2. **Langkah 1: hitung satu hari secara rinci**, dengan nama broker dan angka, sampai hasil hari itu. Sertakan satu hari yang lolos dan satu yang tidak bila indikatornya memakai ambang.
+3. **Langkah 2: ulangi untuk seluruh jendela dalam satu tabel** (tanggal, komponen, hasil harian, penanda).
+4. **Langkah 3: gabungkan menjadi nilai indikator** dengan rumus yang berisi angka sebenarnya.
+5. **Kalau parameter diubah:** tabel kecil yang menunjukkan nilai indikator pada beberapa pengaturan.
+6. **Hal yang terlihat dari contoh:** dua sampai empat pengamatan konkret dari tabel itu (misalnya: yang dihitung jumlah hari, bukan besarnya).
+7. **Aturan gaya:** Bahasa Indonesia sederhana; angka dari data nyata dengan tanggalnya; **tidak menyebut indikator lain** dalam contoh; menyebut bahwa angka dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup; menyebut bahwa tidak ada perubahan di repo bila memang begitu.
+
+**Contoh acuan (FL29, BBRI, 3 Nov 2026; semua investor, semua papan, N = 3, days 20, threshold 0%):**
+
+Langkah 1. 3 Nov: tiga pembeli bersih terbesar OD +111,6, CC +73,2, YP +32,3 (Rp miliar), jumlah +217,0; tiga penjual bersih terbesar YU −125,5, BK −66,3, AK −46,7, jumlah −238,4; turnover Rp872,5 miliar; saldo = (217,0 − 238,4) / 872,5 × 100 = −2,5%, bukan hari akumulasi. 2 Nov: ZP +94,8, BK +35,8, XL +6,3 = +136,9; PD −28,0, MG −23,4, CC −22,9 = −74,3; turnover Rp502,8 miliar; saldo +12,4%, hari akumulasi.
+
+Langkah 2 (Rp miliar; "Ya" bila saldo > 0%):
+
+| Tanggal | Net pembeli | Net penjual | Turnover | Saldo | > 0% ? |
+|---|---:|---:|---:|---:|---|
+| 7 Okt | +107,3 | −55,2 | 363,3 | +14,3% | Ya |
+| 8 Okt | +116,6 | −177,1 | 463,2 | −13,0% | tidak |
+| 9 Okt | +95,2 | −140,9 | 485,5 | −9,4% | tidak |
+| 12 Okt | +134,4 | −69,9 | 495,1 | +13,0% | Ya |
+| 13 Okt | +45,2 | −119,8 | 430,4 | −17,3% | tidak |
+| 14 Okt | +93,6 | −87,7 | 510,8 | +1,2% | Ya |
+| 15 Okt | +109,1 | −48,2 | 350,4 | +17,4% | Ya |
+| 16 Okt | +555,9 | −1.294,1 | 3.296,8 | −22,4% | tidak |
+| 19 Okt | +580,4 | −1.384,1 | 3.413,3 | −23,5% | tidak |
+| 20 Okt | +210,8 | −315,3 | 1.879,9 | −5,6% | tidak |
+| 21 Okt | +311,1 | −216,9 | 1.396,5 | +6,7% | Ya |
+| 22 Okt | +566,5 | −282,6 | 1.514,5 | +18,7% | Ya |
+| 23 Okt | +500,7 | −286,1 | 1.053,7 | +20,4% | Ya |
+| 26 Okt | +330,4 | −121,6 | 729,1 | +28,6% | Ya |
+| 27 Okt | +269,4 | −208,3 | 1.283,4 | +4,8% | Ya |
+| 28 Okt | +182,4 | −125,0 | 927,2 | +6,2% | Ya |
+| 29 Okt | +109,7 | −138,8 | 639,3 | −4,5% | tidak |
+| 30 Okt | +164,9 | −337,5 | 925,4 | −18,7% | tidak |
+| 2 Nov | +136,9 | −74,3 | 502,8 | +12,4% | Ya |
+| 3 Nov | +217,0 | −238,4 | 872,5 | −2,5% | tidak |
+
+Langkah 3. Hari "Ya" 11 dari 20; FL29 = 100 × 11 / 20 = 55%. Bila ambang diubah: 3% memberi 50%, 6% memberi 45%, 10% memberi 35%.
+Hal yang terlihat: yang dihitung jumlah hari, bukan besarnya saldo (+1,2% dihitung sama dengan +28,6%); dua hari berturnover besar (16 dan 19 Okt) sama-sama dihitung satu hari "tidak"; sesi tanpa data dihitung bukan hari akumulasi dengan pembagi tetap 20.
+Catatan lanjutan: pada 3 Nov, jumlah net seluruh 20 sesi −Rp884,3 miliar terhadap turnover Rp21.533,1 miliar (−4,11%) walaupun FL29 55%, karena dua hari besar tadi lebih besar daripada seluruh sebelas hari "Ya" (lihat bagian 5k).
