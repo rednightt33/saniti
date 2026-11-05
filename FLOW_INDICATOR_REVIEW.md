@@ -31,7 +31,7 @@ item baru dijalankan atas perintah user.
 | 12 | FL29 Bandar Balance · Accumulation Days | Ditambah ukuran **seberapa besar** akumulasi, dalam persen atau persentil (sebanding antar saham), di panel yang sama atau sebagai indikator baru yang berpasangan | "mungkin di panel yang sama harus ditambahkan ... akumulasi terjadi 70% of the time. Tapi mesti dikasih tahu juga seberapa besar akumulasinya. Bukan in rupiah, tapi harus in percentage atau percentile. Sehingga angka tersebut bisa comparable across stock. Atau mungkin ya dibuatkan indikator baru lah. Yang bisa di-pair dengan FL29." (2026-11-05) | To-do; ukuran dipilih user: C ("C", 2026-11-05); panel yang sama atau indikator baru, dan persentil, menunggu user. Bagian 5k |
 | 13 | Indikator baru (kode ditetapkan saat dikerjakan), berpasangan dengan FL17 | Harga rata-rata pembelian bergulir dengan **Top-N dipilih per hari** (cara B); indikator **terpisah**, FL17 tidak diubah | "Jadi aja kita tambahkan untuk opsi top N per hari yang nomor B. Ini dijadikan indikator terpisah saja nanti. You can review dan to do" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5l |
 | 14 | Dua indikator baru (kode ditetapkan saat dikerjakan): versi jual dari FL17 dan dari FL18 | **Dua indikator tambahan terpisah** yang menghitung nilai jual dibagi lot jual (harga rata-rata penjualan, gross jual): satu bergulir seperti FL17, satu beranchor seperti FL18 | "Boleh nggak ditambahkan satu indikator yang represent sell atau gross sell? Mirip FL18 juga. Berlaku juga untuk FL17."; "FL17 kan dia menghitung basically beli dibagi lot beli kan. FL18 juga. Yang saya butuhkan adalah dua indikator tambahan jual dan lot jual." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5m |
-| 15 | Indikator baru: Buy VWAP · Anchored · Distance % (sejajar FL20); versi rolling sudah ada sebagai FL39 | Jarak harga penutupan terhadap harga rata-rata pembelian beranchor (FL18) dalam persen; jarak terhadap harga rata-rata pembelian bergulir (FL17) sudah ada di FL39 | "Tolong tambahkan saja by vweb anchor dan by vweb rolling tapi versi percentage distance. seperti FL20. Konfirmasi kalau kamu paham." (2026-11-05; "vweb" dibaca VWAP) | To-do; bacaan AI menunggu konfirmasi user. Bagian 5n |
+| 15 | Indikator baru: Buy VWAP · Anchored · Distance % (sejajar FL20); versi rolling sudah ada sebagai FL39 | Jarak harga penutupan terhadap harga rata-rata pembelian beranchor (FL18) dalam persen; jarak terhadap harga rata-rata pembelian bergulir (FL17) sudah ada di FL39 | "Tolong tambahkan saja by vweb anchor dan by vweb rolling tapi versi percentage distance. seperti FL20. Konfirmasi kalau kamu paham." (2026-11-05; "vweb" dibaca VWAP) | To-do; bacaan AI dikonfirmasi user: hanya versi anchor yang baru, jarak rolling cukup FL39 (2026-11-05). Bagian 5n |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -890,7 +890,9 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 ### 5n.2 Bacaan AI atas permintaan (menunggu konfirmasi user)
 
 1. **Baru:** "Buy VWAP · Anchored · Distance %" = `100 × (close / FL18 − 1)`, dengan kelompok beku, anchor, dan parameter yang sama dengan FL18, garis acuan 0, ditampilkan di panel seperti FL20.
-2. **Rolling:** jarak terhadap FL17 sudah ada sebagai FL39; yang perlu dipastikan apakah FL39 dengan bawaannya (10 sesi, papan Regular) sudah cukup, atau yang dikehendaki adalah versi dengan bawaan FL17 (20 sesi, semua papan).
+2. **Rolling:** jarak terhadap FL17 sudah ada sebagai FL39.
+
+**Dikonfirmasi user 2026-11-05:** "Oh yes, FL39 udah ada ya. Benar, berarti yang sisa yang tinggal anchor aja. FL18 benar nggak?" Jawaban AI: ya, indikator baru berbasis FL18. Jadi yang dikerjakan hanya indikator **anchored**; FL39 dengan bawaannya dianggap cukup untuk sisi rolling.
 
 ### 5n.3 Contoh nilai (BBRI, 3 Nov 2026; penutupan Rp2.660; semua investor; Top-3 menurut net beli)
 
@@ -902,7 +904,7 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 
 ### 5n.4 Pertanyaan terbuka (saat to-do ini diambil)
 
-1. Apakah FL39 (rolling, bawaan 10 sesi dan Regular) sudah memenuhi permintaan "by VWAP rolling", atau perlu versi dengan bawaan FL17.
+1. ~~Apakah FL39 sudah memenuhi permintaan "by VWAP rolling".~~ **Dijawab user 2026-11-05: ya, yang tersisa hanya anchored.**
 2. Nama dan kode indikator baru (anchored), ditetapkan saat dikerjakan.
 3. Apakah versi jarak juga dibutuhkan untuk dua indikator harga rata-rata penjualan (to-do 14).
 4. Status FL19 dan FL20 tidak berubah oleh to-do ini; penilaian kegunaan FL19 tetap terbuka (user belum memilih opsi).
