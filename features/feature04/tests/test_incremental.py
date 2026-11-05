@@ -116,3 +116,43 @@ def test_equity_missing_volume_still_invalid_and_index_mapping_required():
         row.update(security_type="index", tradingview_symbol="IDX:COMPOSITE")
     with pytest.raises(ValueError, match="universe mapping"):
         calculate(source)
+
+
+def _rows(highs, lows, closes):
+    from datetime import date, timedelta
+    day, rows = date(2020, 1, 1), []
+    for high, low, close in zip(highs, lows, closes):
+        while day.weekday() > 4:
+            day += timedelta(days=1)
+        rows.append(dict(ticker="FLAT", date=day, timeframe="Daily", asset_type="equity",
+                         tradingview_symbol="IDX:FLAT", open=float(close), high=float(high), low=float(low),
+                         close=float(close), volume=0))
+        day += timedelta(days=1)
+    return rows
+
+
+def test_long_flat_stretch_matches_talib_zero_tests():
+    """ERRORS M349: after ~460 sessions without a trade avg_gain + avg_loss < 1e-14 and TA-Lib's RSI is 0 (TA_IS_ZERO);
+    the chain kept the last ratio (AKKU rsi_14 2022-02-18: 45.81 against 0.0). Trading resumes afterwards."""
+    trend = bars(300)
+    last = trend[-1]["close"]
+    closes = [row["close"] for row in trend] + [last] * 700 + [row["close"] for row in bars(80)]
+    highs = [row["high"] for row in trend] + [last] * 700 + [row["high"] for row in bars(80)]
+    lows = [row["low"] for row in trend] + [last] * 700 + [row["low"] for row in bars(80)]
+    source = _rows(highs, lows, closes)
+    expected = calculate(source, calculated_at=STAMP)
+    assert any(row["rsi_14"] == 0.0 for row in expected[300:1000])
+    actual, outcomes, _, _ = calculate_incremental(source, calculated_at=STAMP)
+    assert all(value["status"] == "SUCCESS" for value in outcomes.values())
+    assert_feature_rows_equal(actual, expected)
+
+
+def test_tiny_scale_matches_talib_adx_and_bbands_zero_tests():
+    """The same TA-Lib zero tests in ADX (no DX, ADX held) and the BBANDS deviation, on values below 1e-14."""
+    base = bars(120)
+    source = _rows([row["high"] * 1e-16 for row in base], [row["low"] * 1e-16 for row in base],
+                   [row["close"] * 1e-16 for row in base])
+    expected = calculate(source, calculated_at=STAMP)
+    assert expected[-1]["adx_14"] == 0.0 and expected[-1]["bb_upper_20"] == expected[-1]["bb_middle_20"]
+    actual, _, _, _ = calculate_incremental(source, calculated_at=STAMP)
+    assert_feature_rows_equal(actual, expected)

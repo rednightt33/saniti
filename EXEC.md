@@ -10249,6 +10249,11 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     tidak diubah (dikloning untuk IHSG, `20261025_011`). Tes database uji dari migrasi asli
     (`apps/feature-01-worker/test_worker_db.py`, 3 lulus). Migrasi katalog `20261105_005` (DRYRUN/APPLY, dibaca balik).
     Commit `83a35f5d`, feature-01-worker `14c9b639` SUCCESS 15:46 UTC. Sebelum pasang: antrean 102.247 DONE, 0 terbuka.
+  - L4 (ERRORS M349): rantai Fitur 4 memakai uji nol TA-Lib (|v| < 1e-14) di RSI, ADX dan BBANDS
+    (`features/feature04/incremental.py`); 2 tes baru (gagal pada kode lama). Pembandingan hanya-baca seluruh riwayat
+    931 kode (`verification/feature04_m349/`): rantai baru = referensi di semua nilai; rantai lama berbeda di 19 kode
+    (3.519 nilai `rsi_14`); data tersimpan sudah sama dengan referensi, tidak ada yang ditulis ulang. Restart Postgres
+    16:00 UTC. Validator sandbox AI punya uji nol yang sama (`reference.py:96`): diusulkan terpisah.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;

@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-05 — feature-01-worker and feature-04-worker deployed; Postgres restart (EXEC-UNIVERSE-BROKER L3, L4)
+
+- feature-01-worker (`de4e34ee`): GitHub deploy of `83a35f5d` (claims the due items of one ticker together), deployment
+  `14c9b639` SUCCESS 15:46 UTC, log `worker_started`.
+- Postgres restart after the read-only Feature 04 compare (full read of `Feature_04_Technical_Indicator`, job `0f4ce85f`,
+  `"large_write": true`): memory 1.63 GB, deployment `b4e32034`, start 16:00:53 UTC, 11 s, edge-bff `/ready` 200.
+- orc-test-runner guard: `scripts/onboarding/runner_guard.sh` no longer reads a fast job's late "Starting Container"
+  line as a new start (ERRORS M341, `4bee3798`).
+- feature-04-worker: see the next entry line once its deployment reaches SUCCESS.
+
 ## 2026-11-05 — Postgres restarts after the large writes (ERRORS M350)
 
 - 13:47 UTC: scheduled restart (postgres-memory-cron, 20:45 WIB) after the Feature 01 queue emptied; memory 3.99 GB →

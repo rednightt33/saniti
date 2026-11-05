@@ -5359,8 +5359,32 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   (`verification/universe_63/f04_job.py`). Kelas umumnya (rantai berbeda dari referensi pada deret datar) OPEN: perlu
   diputuskan apakah rantai worker harus disamakan dengan referensi.
 - **Status:** FIXED untuk data 63 kode; kelas OPEN.
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER L4, kelas FIXED):**
+  - Verified mekanismenya (TA-Lib 0.6.8, diukur): TA-Lib menganggap |v| < 1e-14 sebagai nol (`TA_IS_ZERO`) di RSI
+    dan ADX, dan v < 1e-14 sebagai nol-atau-negatif pada deviasi BBANDS. Sesudah gerak harga lalu 700 sesi datar,
+    RSI TA-Lib menjadi 0,0 tepat ketika avg_gain + avg_loss < 1e-14 (sesi ke-457, total 9,76e-15); rantai memakai uji
+    nol persis (`incremental.py:204`, juga `:170` BBANDS, `:252-258` ADX) dan tetap memberi rasio terakhir. Rata-ratanya
+    sendiri sama; hanya keluaran (RSI, BBANDS) dan, di ADX, langkah yang dilewati TA-Lib (ADX ditahan) yang berbeda.
+  - Perbaikan (`features/feature04/incremental.py`): satu fungsi `_is_zero` / `TALIB_EPSILON = 1e-14` dipakai RSI,
+    ADX (tanpa DX bila TR atau jumlah DI nol: benih menghitung 0, ADX ditahan) dan deviasi BBANDS (`>= 1e-14`). Struktur
+    state tidak berubah, jadi titik simpan lama tetap dipakai (tanpa ganti `STATE_VERSION`).
+  - Tes: `test_long_flat_stretch_matches_talib_zero_tests` (RSI pada 700 sesi datar, lalu perdagangan lagi) dan
+    `test_tiny_scale_matches_talib_adx_and_bbands_zero_tests` (ADX dan BBANDS pada nilai < 1e-14); keduanya gagal pada
+    kode lama dan lulus sekarang; seluruh tes Feature 04 55 lulus, 11 dilewati (butuh database).
+  - Bukti live, hanya-baca (`verification/feature04_m349/compare_job.py`, job `0f4ce85f`, log `compare.log`): 931 kode,
+    seluruh riwayat: rantai baru = referensi pada **0** nilai berbeda; rantai lama berbeda di 19 kode, 3.519 nilai,
+    semuanya `rsi_14` (AKKU, ANDI, BAPI, BEKS, BNBR, BTEK, CARS, CPRO, DADA, DEWA, DGIK, HADE, IKAI, JGLE, KOTA, MIRA,
+    TAMU, TAXI, VIVA; contoh referensi 0,0); data tersimpan = referensi pada 0 nilai (di luar bendera candlestick,
+    M314). Tidak ada baris yang perlu diperbaiki. Perbedaan "rsi_14 jauh di belakang pada saham murah" yang pada
+    2026-10-31 disebut akumulasi float (EXEC-PRICE-GAP-0917) kemungkinan besar mekanisme yang sama: sekarang rantai
+    tidak berbeda dari referensi di satu nilai pun.
+  - Kelas yang sama di tempat lain, belum diubah: validator sandbox AI
+    (`apps/market-python-sandbox/runtime/reference.py:96`, `rsi_wilder`) memakai `total == 0`; bisa menolak analisis
+    yang memakai TA-Lib atau `rsi_14` Feature 04 pada kode yang lama tidak diperdagangkan. Diusulkan sebagai tugas
+    terpisah (layanan dan gerbang lain). Tidak berlaku untuk SMI (`range_double == 0`): referensinya rumus Pine yang
+    sama di Python, bukan TA-Lib.
 - **Lesson for new data (Part D):** seri yang bisa datar lama (tidak likuid, suspensi) diuji dengan rantai vs referensi
-  sebelum onboarding.
+  sebelum onboarding. Rumus inkremental yang meniru pustaka harus meniru juga uji nolnya (ambang, bukan nol persis).
 
 ### M348 — Bolong sumber harga: transaksi Regular di broker summary tanpa bar TradingView (2026-11-05)
 
