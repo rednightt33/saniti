@@ -10284,6 +10284,21 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     681-682 selisih per seri uji) dan untuk `rsi_14` Fitur 04 pada masa datar.
   - Jawaban: TA-Lib 0.8.1 dipertahankan (tanpa perubahan image, Fitur 4 tidak diubah); usulan penguatan jalur lama
     menunggu user.
+  - **User 2026-11-05: "2 saja. describe what end goals look like seperti apa"** (opsi 2: validator jalur lama diperkuat
+    sekarang). Tujuan akhir:
+    1. Di titik "pembagian dengan nol" menurut uji TA-Lib sendiri, validator menerima setiap jawaban yang dipakai
+       sistem: acuan NumPy (sekarang), TA-Lib 0.8.1 (sandbox) dan TA-Lib 0.6.x (Fitur 4, Terminal). Diukur:
+       RSI dengan rata-rata naik+turun < 1e-14 (0,6: 0; lainnya rasio terakhir); deviasi standar dengan varians
+       < 1e-14 (0,6: 0); korelasi Pearson pada jendela/periode dengan varians nol (TA-Lib: 0; acuan: kosong); return
+       sederhana dengan harga dasar 0 (TA-Lib: 0; acuan: kosong). Di titik lain tetap ketat (rtol 1e-6, atol 1e-8).
+    2. Satu mekanisme untuk semua pemakai nilai acuan (nilai, penyaringan, peringkat, event study, agregat kelompok,
+       korelasi pasangan, hitungan berantai): satu output dinilai ulang dengan nilai acuan versi konvensi lain hanya
+       bila gagal; lolos bila cocok dengan salah satu versi; bukti menyebut versi yang dipakai dan jumlah titiknya.
+    3. Tidak berubah: Fitur 4, versi TA-Lib sandbox, jalur DataNeed, metode tanpa konvensi TA-Lib (z-score CALC_053/054,
+       forward return, period return: tetap kosong pada penyebut nol).
+    4. Bukti: tes dengan TA-Lib 0.8.1 terpasang (analisis talib lolos), nilai gaya Fitur 4 (0) lolos, nilai yang
+       memang salah tetap ditolak; tes penyaringan RSI < 30 pada masa datar; semua tes sandbox lulus; sandbox
+       terpasang SUCCESS; ERRORS M349, README sandbox, changelog.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;

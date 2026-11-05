@@ -5383,6 +5383,27 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     yang memakai TA-Lib atau `rsi_14` Feature 04 pada kode yang lama tidak diperdagangkan. Diusulkan sebagai tugas
     terpisah (layanan dan gerbang lain). Tidak berlaku untuk SMI (`range_double == 0`): referensinya rumus Pine yang
     sama di Python, bukan TA-Lib.
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER L5, validator sandbox):**
+  - Koreksi: sandbox memakai TA-Lib **0.8.1** (`requirements-analysis.txt:12`), yang memakai uji nol persis; acuan
+    validator (`runtime/reference.py`) sama dengan 0.8.1 untuk RSI, SMA, STD, ROCP (0 selisih, diukur). Jadi analisis
+    yang memakai talib di sandbox tidak ditolak karena RSI. Yang ditolak (diukur): korelasi Pearson pada jendela tanpa
+    varians (acuan kosong, TA-Lib kedua versi 0; 681-682 titik per seri uji 700 sesi datar), return sederhana dengan
+    dasar 0 (acuan kosong, TA-Lib 0), dan nilai gaya Fitur 4 / TA-Lib 0.6.x (RSI 0 sesudah ±460 sesi datar).
+  - Jalur yang hidup (DataNeed) tidak menghitung ulang indikator TA-Lib (event study, backtest, mesin riset memakai
+    kolom bundle dan mesin Saniti: `app/dataneed_service.py:1150-1175`), jadi tidak terkena. Validator acuan hanya di
+    jalur lama (`/v1/analyses`, mati di dev).
+  - Class: satu rumus, tiga implementasi (NumPy acuan, TA-Lib 0.8.1, TA-Lib 0.6.x) yang berbeda hanya di pembagian
+    dengan (hampir) nol; berlaku untuk setiap seri yang bisa datar lama (saham tidak likuid, suspensi, seri makro
+    atau imbal hasil yang bisa bernilai 0).
+  - Perbaikan (user "2 saja"): `reference.CONVENTIONS` (`REFERENCE`, `TA_LIB_0_8`, `TA_LIB_0_6`), satu parameter
+    `convention` di RSI, STD, RETURN, korelasi bergulir dan pasangan; `validator.postflight` menilai ulang output
+    yang gagal dengan nilai acuan dua konvensi lain dan meloloskannya bila cocok dengan salah satunya (bukti
+    `output.<name>.convention`). Semua pemakai nilai acuan ikut satu konvensi per output. Tidak berlaku untuk
+    z-score (CALC_053/054), forward/period return, Spearman: tanpa konvensi TA-Lib.
+  - Tes (`apps/market-python-sandbox/tests/test_gate_units.py`, 3 baru, gagal pada kode lama): konvensi = TA-Lib
+    0.8.1 terpasang dan aturan 0.6.x; RSI talib lolos tanpa konvensi lain, RSI gaya Fitur 4 lolos lewat `TA_LIB_0_6`,
+    nilai 50 tetap ditolak; penyaringan RSI < 30 pada masa datar lolos dengan kedua konvensi, baris yang tidak dipilih
+    konvensi mana pun tetap `SELECTION_MISMATCH`. Tidak tercakup: satu output yang mencampur dua konvensi.
 - **Lesson for new data (Part D):** seri yang bisa datar lama (tidak likuid, suspensi) diuji dengan rantai vs referensi
   sebelum onboarding. Rumus inkremental yang meniru pustaka harus meniru juga uji nolnya (ambang, bukan nol persis).
 

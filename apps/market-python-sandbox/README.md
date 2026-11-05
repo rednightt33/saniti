@@ -647,7 +647,16 @@ goes through these steps, all in backend code:
 
    - recomputes every supported calculation with its own reference implementation
      (`runtime/reference.py`, NumPy, not TA-Lib or pandas rolling) on the full input history of
-     each entity. A difference beyond `rtol 1e-6` is `CALCULATION_MISMATCH`. The validator also
+     each entity. A difference beyond `rtol 1e-6` is `CALCULATION_MISMATCH`. At a division by (nearly) zero the
+     libraries in Saniti answer differently (ERRORS M349): TA-Lib 0.8.1 (this sandbox) gives 0 for a Pearson
+     correlation without variance and for a simple return over a zero base, where the reference has no value; TA-Lib
+     0.6.x (Feature 04, the Terminal) also gives RSI 0 once average gain + loss < 1e-14 and a standard deviation 0
+     below a variance of 1e-14. An output that fails is checked again with the reference values of those two
+     conventions (`reference.CONVENTIONS`; values, selections, rankings, event studies, group aggregates and pair
+     correlations all follow the one convention) and passes under any of them; the evidence
+     `output.<name>.convention` names it and how many reference values differ. Every other value is checked as
+     before, and one output follows one convention. A z-score, a forward or period return and a Spearman
+     correlation keep the reference's empty value (no TA-Lib convention). The validator also
      tries to explain the difference: a different parameter (for example "values match
      window = 10"), ignored warm-up, or no per-entity partitioning. For pair correlations it
      tries the other transforms and methods, returns computed only from in-period prices
