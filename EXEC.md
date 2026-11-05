@@ -10168,6 +10168,14 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     (2 baru), P3 1.
   - Belum: S1 (63 kode masuk universe, harga, dukungan ETF), S3 unggah (sesudah tarikan selesai), bukti live P2
     (run 10:00 UTC), unggahan stockbit-updater.
+- **Bukti live P2 (2026-11-05):** run DAILY idx-price-cron 10:00 UTC untuk 2026-11-05: stock **SUCCESS** 829/844
+  terisi, 0 hilang, 15 tanpa transaksi (ADHI, ARKO, BIKE, CSMI, FAPA, IGAR, INPS, IPAC, MPRO, PPGL, PTPP, STTP, TFCO,
+  TMPO, TRUK); index SUCCESS. Sebelumnya setiap hari PARTIAL (ERRORS M347).
+- **Screener ETF (Q-S1a): PENDING** (user 2026-11-05: "Untuk pilihan ETF di screener bisa dipending dulu sampai semuanya
+  beres."). Yang perlu: daftar jenis efek di katalog worker, validasi `security_types` dari jenis yang terbit (bukan
+  daftar tetap), baris universe membawa jenisnya, pilihan "ETF" di panel universe.
+- **S1 urutan tulis (2026-11-05):** migrasi universe sesudah run intraday 10:30 UTC (keduanya membaca universe), lalu
+  riwayat harga dan intraday 63 kode sebelum run harian besok, supaya kode baru tidak mendapat potongan riwayat dulu.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
