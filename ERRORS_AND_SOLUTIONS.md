@@ -5310,6 +5310,36 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M349 — Feature 04: rantai inkremental dan hitungan referensi berbeda di masa datar tanpa transaksi (2026-11-05)
+
+- **Symptom:** job Feature 04 untuk 63 kode baru (EXEC-UNIVERSE-BROKER S1) menolak AKKU: `rsi_14` 2022-02-18 rantai
+  45,81, referensi 0,0 (`verification/universe_63/f04_dry_akku.log`); 442 nilai lama AKKU berbeda.
+- **Verified root cause:** riwayat panjang tanpa transaksi (harga datar). `engine.calculate` (referensi, cara riwayat
+  semua saham lain dibangun) dan `calculate_incremental` (rantai worker) memperlakukan rata-rata naik/turun nol secara
+  berbeda. Di jendela titik simpan (baris yang dilanjutkan worker) keduanya sama.
+- **Class:** dua jalur hitung satu rumus yang berbeda pada data degeneratif (deret datar, volume nol); mengenai setiap
+  saham tidak likuid, ETF, dan seri makro yang datar lama.
+- **Solution:** untuk kode baru riwayat ditulis dari referensi, rantai wajib sama pada jendela titik simpan
+  (`verification/universe_63/f04_job.py`). Kelas umumnya (rantai berbeda dari referensi pada deret datar) OPEN: perlu
+  diputuskan apakah rantai worker harus disamakan dengan referensi.
+- **Status:** FIXED untuk data 63 kode; kelas OPEN.
+- **Lesson for new data (Part D):** seri yang bisa datar lama (tidak likuid, suspensi) diuji dengan rantai vs referensi
+  sebelum onboarding.
+
+### M348 — Bolong sumber harga: transaksi Regular di broker summary tanpa bar TradingView (2026-11-05)
+
+- **Symptom:** preflight riwayat harga 63 kode (EXEC-UNIVERSE-BROKER S1) menemukan 32 sesi di 20 kode (3 saham, 17 ETF)
+  yang punya transaksi Regular (Buy Value > 0) di `IDX_Broker_Summary` tetapi tidak punya bar harian TradingView;
+  tanggal terbanyak 2023-06-14 (7 kode), 2018-04-18 (5 kode), 2020-02-27 (4 kode), 2020-06-04 (3 kode), 2018-01-23 (3 kode). Daftar lengkap `verification/universe_63/accepted_source_gaps.json`.
+- **Verified root cause:** TradingView tidak memuat bar harian sesi itu untuk kode tersebut (provider dijawab, bar tidak
+  ada); broker summary Stockbit memuat transaksinya. Sumber harga kita satu (TradingView), jadi sesi itu tidak bisa diisi.
+- **Class:** sumber harga tunggal dengan bolong per instrumen; berlaku untuk setiap instrumen sepi dan sumber baru.
+- **Solution (user 2026-11-05: "A"):** riwayat ditulis tanpa 32 sesi itu (`ACCEPTED_MISSING_DATES` per kode); bolongnya
+  tercatat di sini dan di file daftar. Sesi tanpa bar dilewati indikator seperti sesi tanpa transaksi.
+- **Status:** ACCEPTED (bolong tetap sampai ada sumber kedua).
+- **Lesson for new data (Part D):** saat onboarding instrumen, bandingkan tanggal bar dengan sumber kedua yang mencatat
+  aktivitas (broker summary); bolong yang tidak terbukti "tanpa transaksi" dicatat dan diputuskan user.
+
 ### M347 — Cron harga harian selalu PARTIAL dan pemulihannya NEEDS_REVIEW: "tidak ada transaksi" dihitung "hilang" (2026-11-05)
 
 - **Symptom:** run DAILY harga 2026-10-27 … 11-04 selalu ⚠️ PARTIAL (13–24 dari 844 saham "No 1D candle", misalnya
