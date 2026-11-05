@@ -457,16 +457,21 @@ User menjawab: "(iv) Top-N per hari, bawaan tetap semua broker, Side ya".
 
 Contoh BBRI 3 Nov 2026 (semua investor, semua papan, N = 3, rank net beli, recent 5, baseline 20):
 
-| Sesi terbaru | Top-3 hari itu | Gross beli (Rp miliar) | Transaksi beli | Gross jual (Rp miliar) | Transaksi jual |
-|---|---|---:|---:|---:|---:|
-| 28 Okt | DX, LG, ZP | 247,0 | 5.560 | 64,6 | 2.362 |
-| 29 Okt | XL, OD, CC | 202,2 | 19.186 | 92,5 | 8.647 |
-| 30 Okt | AK, LG, MG | 270,0 | 6.813 | 105,1 | 5.305 |
-| 2 Nov | ZP, BK, XL | 218,8 | 13.422 | 81,9 | 7.196 |
-| 3 Nov | OD, CC, YP | 317,7 | 16.733 | 100,6 | 7.973 |
-| **Total** | | **1.255,6** | **61.714** | **444,8** | **31.483** |
+| Sesi terbaru | Top-3 hari itu | Gross beli (Rp miliar) | Transaksi beli | **Rp juta per transaksi beli** | Gross jual (Rp miliar) | Transaksi jual | **Rp juta per transaksi jual** |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 28 Okt | DX, LG, ZP | 247,0 | 5.560 | **44,42** | 64,6 | 2.362 | **27,35** |
+| 29 Okt | XL, OD, CC | 202,2 | 19.186 | **10,54** | 92,5 | 8.647 | **10,70** |
+| 30 Okt | AK, LG, MG | 270,0 | 6.813 | **39,63** | 105,1 | 5.305 | **19,81** |
+| 2 Nov | ZP, BK, XL | 218,8 | 13.422 | **16,30** | 81,9 | 7.196 | **11,38** |
+| 3 Nov | OD, CC, YP | 317,7 | 16.733 | **18,98** | 100,6 | 7.973 | **12,62** |
+| **Total (dibagi total, bukan rata-rata harian)** | | **1.255,6** | **61.714** | **20,35** | **444,8** | **31.483** | **14,13** |
 
-Baseline (30 Sep sampai 27 Okt, 20 sesi, Top-3 tiap hari): gross beli Rp6.845,6 miliar dan 393.600 transaksi; gross jual Rp2.323,6 miliar dan 145.334 transaksi.
+Baseline (30 Sep sampai 27 Okt, 20 sesi, Top-3 tiap hari), sisi beli: gross beli (Rp miliar), transaksi beli, Rp juta per transaksi beli per sesi:
+30 Sep KZ,BK,AG 179,9 / 2.698 / 66,68; 1 Okt YU,XL,YP 146,4 / 16.678 / 8,78; 2 Okt CC,BK,XL 178,9 / 17.605 / 10,16; 5 Okt BK,XL,BQ 91,8 / 9.714 / 9,45; 6 Okt BK,YU,LG 137,6 / 4.702 / 29,27;
+7 Okt RX,ZP,AK 167,9 / 4.618 / 36,36; 8 Okt CC,YP,XL 169,3 / 17.549 / 9,65; 9 Okt LG,AZ,BK 107,7 / 2.045 / 52,69; 12 Okt ZP,KZ,DR 160,4 / 5.976 / 26,84; 13 Okt YP,SQ,CC 93,9 / 5.381 / 17,45;
+14 Okt BK,YU,LG 170,8 / 4.161 / 41,05; 15 Okt AK,ZP,CC 234,4 / 7.774 / 30,15; 16 Okt XL,YP,SQ 910,3 / 100.254 / 9,08; 19 Okt CC,BK,XL 907,5 / 63.869 / 14,21; 20 Okt XL,OD,PD 445,4 / 45.763 / 9,73;
+21 Okt OD,BK,NI 454,6 / 14.438 / 31,49; 22 Okt NI,BB,AK 717,0 / 21.619 / 33,16; 23 Okt CC,IF,KZ 606,5 / 18.765 / 32,32; 26 Okt NI,YU,YP 408,4 / 12.781 / 31,95; 27 Okt OD,AK,CC 556,8 / 17.210 / 32,35.
+Total baseline: Rp6.845,6 miliar / 393.600 transaksi = Rp17,39 juta per transaksi (sisi jual: Rp2.323,6 miliar / 145.334 transaksi). Rata-rata sederhana dari angka harian akan memberi 26,64 (baseline) dan 25,97 (terbaru), **bukan** yang dipakai; FL33 memakai total dibagi total.
 Sisi beli: 20,35 / 17,39 jt per transaksi, FL33 = **+17,0%**. Sisi jual: 14,13 / 15,99, FL33 = **−11,6%**. Bawaan semua broker (tanpa kelompok): −11,2% (sisi beli).
 
 **Pertanyaan yang tersisa (bacaan AI di sebelahnya):**
