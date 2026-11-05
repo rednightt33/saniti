@@ -10015,6 +10015,53 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   menambah universe, harga harian dan intraday, F01/F04, logo/event, dan publikasi. Fitur broker tidak dihitung ulang.
   - Urutan: S1 selesai sebelum atau bersamaan dengan S2. Kalau tidak, fitur broker ke-63 kode berhenti diperbarui
     sementara.
+- **S1 — rencana implementasi** (user 2026-11-05: "Ok, sudah bisa dijalankan dulu untuk ini. Siapkan implementation
+  plan." Disusun dari kode dan database, 2026-11-05).
+  - **Fakta:**
+    - `IDX_Stock_Universe` punya 17 kolom, 16 NOT NULL, PK `Ticker`. Isinya `Security Type` stock (844) dan index (1);
+      belum ada ETF.
+    - Konsumen yang menyaring jenis:
+      - publisher `UNIVERSE_SQL` hanya stock dan index (`publisher.py:212-213`), dan broker harian hanya untuk
+        `kind == 'stock'` (`:1383`);
+      - Screener hanya stock (`edge-bff/screener/src/core/contract.ts:161,176`, P15);
+      - label Terminal `typeWord` (`terminal/src/data/live.ts:295`) akan menulis "Etf";
+      - ai-data-coverage hanya stock (`coverage_job.py:54`);
+      - Feature 04 `asset_type` hanya equity/bonds.
+    - Cron harga harian membaca seluruh universe (`price_update.py:383-410`).
+    - Penarikan riwayat harga per ticker: `scripts/backfill_idx_price_ticker.py` (preflight, lalu apply dengan
+      fingerprint). Ia tidak menimpa baris yang ada, dan trigger antrean F01/F04 tetap jalan, jadi F01/F04 dihitung oleh
+      worker yang ada.
+  - **Langkah:**
+    - **S1.0 (hanya baca):** per kode dari TradingView: nama, sektor/industri, ISIN bila ada; kedalaman riwayat harian
+      (jumlah bar, tanggal pertama); ketersediaan intraday; logo; seberapa sering ETF tidak punya bar harian
+      (risiko cron harga PARTIAL).
+    - **S1.1:** migrasi baru menambah 63 baris `IDX_Stock_Universe`:
+      - saham `Security Type` stock;
+      - ETF `Security Type` etf, `Is Common Stock` No;
+      - kolom yang tidak tersedia diisi sesuai pola IHSG ("Not applicable"/"Undefined"), tidak dikarang.
+      - Ditambah pembaruan katalog (definisi nilai `Security Type`). DRYRUN lalu APPLY.
+    - **S1.2:** riwayat harga harian 63 kode lewat `backfill_idx_price_ticker.py` (preflight semua, lalu apply), sebagai
+      job satu per satu. F01/F04 ikut terhitung lewat antrean; jumlah baris F01/F04 = harga diperiksa.
+    - **S1.3:** riwayat intraday (`intraday_update.py --mode backfill --tickers`) dan fitur intraday-nya.
+    - **S1.4, kode:**
+      - publisher menerima etf (universe, broker seperti saham, xsection);
+      - label Terminal "ETF";
+      - Backtest dicek bisa memilih ETF;
+      - Screener sesuai keputusan Q-S1a;
+      - tes, deploy.
+    - **S1.5:** publikasi 63 kode:
+      - `backfill` dengan `TERMINAL_TICKERS`, lalu logo;
+      - `verify` storage = SQL;
+      - Terminal dibuka untuk satu saham dan satu ETF.
+    - **S1.6:** event (aksi korporasi dan insider) ikut otomatis pada putaran broker berikutnya, karena job event
+      membaca universe (butuh token Stockbit).
+    - **S1.7:** restart Postgres sesudah tulisan besar; catatan DATABASE_SCHEMA/CHANGELOG, Table/Column_Catalog, ERRORS,
+      RAILWAY_CHANGELOG.
+  - **Pertanyaan terbuka:**
+    - Q-S1a: ETF tampil di Screener? Screener sekarang hanya saham (P15). Opsi: (a) ya, sebagai jenis "ETF" yang bisa
+      dipilih di filter universe; (b) tidak dulu.
+    - Q-S1b: ETF yang sepi transaksi bisa tidak punya bar harian, sehingga cron harga melapor PARTIAL dan alarm palsu.
+      Penanganannya diputuskan sesudah S1.0 mengukur seberapa sering hal itu terjadi.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
