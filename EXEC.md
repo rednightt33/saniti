@@ -11539,5 +11539,9 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
   Fase Terminal tidak menyentuh keduanya: penanda sembunyikan I37/I41 di lapisan menu Terminal (bukan `indRegistry.json`),
   `indicators.ts` tidak diubah; screener-worker tetap redeploy otomatis karena memantau `terminal/src/calc/**`.
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** cakupan R1 (daftar indikator dengan parameter Sisi dan/atau Rank
-disampaikan ke user 2026-11-05).
+- Cakupan R1: "Ok untuk kelompok A" = R1 berlaku untuk semua indikator dengan parameter Sisi: FL01–FL05, FL08, FL13
+  (Rank lewat to-do 5), FL33 (lewat to-do 4); FL14 mengikuti FL13. Dasar yang disampaikan: contoh ilustrasi (FL03 Jual
+  19,2% sebelum K1 lawan 80,8% sesudah) dan BBRI 3 Nov (FL03 Jual 11,5% lawan 34,0%; FL13 Jual 0,00648 lawan 0,04369).
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** kelompok B (Rank tanpa Sisi: FL06, FL07, FL09–FL12, FL17–FL21,
+FL26, FL36, FL37, FL39), usulan AI: tetap Net buy, Gross buy, Net sell; user meminta penjelasan.
