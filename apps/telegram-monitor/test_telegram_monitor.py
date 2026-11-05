@@ -49,6 +49,23 @@ def summary(**overrides) -> MonitoringSummary:
     return MonitoringSummary(**values)
 
 
+class NoTradeMessageTests(unittest.TestCase):
+    """EXEC-UNIVERSE-BROKER P2: no-trade symbols are named as such, not as missing; a real gap is named first."""
+
+    def test_success_with_no_trade(self):
+        text = build_messages(summary(status="SUCCESS", missing_symbols=0, missing_tickers=(), updated_symbols=828,
+                                      no_trade_tickers=("ADHI", "PTPP")))[0]
+        self.assertIn("✅", text)
+        self.assertIn("0 missing • 2 tanpa transaksi", text)
+        self.assertIn("Tanpa transaksi (bukan error): ADHI, PTPP", text)
+        self.assertNotIn("Missing:", text)
+
+    def test_price_gap_named(self):
+        text = build_messages(summary(status="PARTIAL", missing_symbols=0, missing_tickers=(),
+                                      price_gaps=("BBBB 2026-11-03",)))[0]
+        self.assertIn("Ada transaksi reguler tapi harga tidak ada: BBBB 2026-11-03", text)
+
+
 class TelegramMonitorTests(unittest.TestCase):
     def test_edit_message_uses_original_message_and_retry_markup(self):
         captured = {}

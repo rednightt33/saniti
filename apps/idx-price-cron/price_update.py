@@ -163,6 +163,7 @@ class FetchOutcome:
     row: dict | None
     latest_date: date | None
     error: str | None
+    answered: bool = False   # TradingView answered without a bar on the target date (P2: no trade, not a failure)
 
 
 @dataclass(frozen=True)
@@ -499,6 +500,7 @@ def fetch_worker(
                         None,
                         latest_date,
                         f"No 1D candle for {target_date.isoformat()}",
+                        answered=True,
                     )
                 )
         except Exception as exc:
@@ -580,6 +582,52 @@ def summarize_errors(outcomes: Iterable[FetchOutcome]) -> str | None:
     shown = errors[:5]
     suffix = f"; plus {len(errors) - len(shown)} more" if len(errors) > len(shown) else ""
     return "; ".join(shown)[:3900] + suffix
+
+
+def gap_text(gaps: list[dict]) -> str | None:
+    if not gaps:
+        return None
+    shown = ", ".join(f"{g['ticker']} {g['date']}" for g in gaps[:10])
+    more = f"; plus {len(gaps) - 10} more" if len(gaps) > 10 else ""
+    return f"PRICE_GAP: traded on the Regular board (IDX_Broker_Summary) but no price bar: {shown}{more}"
+
+
+NO_TRADE_LOOKBACK_DAYS = 30
+
+
+def no_trade_contradictions(connection: psycopg.Connection, target_date: date) -> list[dict]:
+    """EXEC-UNIVERSE-BROKER P2: earlier no-trade (date, ticker) pairs that IDX_Broker_Summary, loaded later the same
+    evening, shows traded on the Regular board while the price table still has no row: a real gap. Each pair is
+    reported once (pairs already in an earlier no_trade_contradicted are left out)."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            WITH pairs AS (
+                SELECT DISTINCT m.update_for_date AS d, t.ticker
+                FROM {MONITORING_TABLE} m, jsonb_array_elements_text(m.no_trade_symbol_list) AS t(ticker)
+                WHERE m.update_for_date >= %(target)s::date - {NO_TRADE_LOOKBACK_DAYS} AND m.update_for_date < %(target)s
+            ),
+            reported AS (
+                SELECT (g->>'date')::date AS d, g->>'ticker' AS ticker
+                FROM {MONITORING_TABLE} m, jsonb_array_elements(m.no_trade_contradicted) AS g
+                WHERE m.update_for_date >= %(target)s::date - {NO_TRADE_LOOKBACK_DAYS}
+            )
+            SELECT p.d, p.ticker FROM pairs p
+            WHERE NOT EXISTS (SELECT 1 FROM {PRICE_TABLE} x WHERE x.ticker = p.ticker AND x.date = p.d)
+              AND NOT EXISTS (SELECT 1 FROM reported r WHERE r.d = p.d AND r.ticker = p.ticker)
+              AND EXISTS (SELECT 1 FROM public."IDX_Broker_Summary" b WHERE b."Date" = p.d AND b."Symbol" = p.ticker
+                          AND b."Market Board" = 'Regular' AND b."Buy Value" > 0)
+            ORDER BY 1, 2
+            """,
+            {"target": target_date},
+        )
+        return [{"date": d.isoformat(), "ticker": ticker} for d, ticker in cursor.fetchall()]
+
+
+def price_session_exists(connection: psycopg.Connection, target_date: date) -> bool:
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT EXISTS (SELECT 1 FROM {PRICE_TABLE} WHERE date = %s)", (target_date,))
+        return bool(cursor.fetchone()[0])
 
 
 def bulk_upsert_prices(
@@ -691,14 +739,16 @@ def write_monitoring_rows(
             execution_id, trigger_source, query_time,
             exchange, asset_type, timeframe, run_type,
             expected_symbols, queried_symbols, updated_symbols, missing_symbols,
-            missing_symbol_list, update_for_date, run_time, finished_at,
+            missing_symbol_list, no_trade_symbols, no_trade_symbol_list, no_trade_contradicted,
+            update_for_date, run_time, finished_at,
             attempt_count, status, last_error, updated_at
         )
         VALUES (
             %(execution_id)s, %(trigger_source)s, %(query_time)s,
             %(exchange)s, %(asset_type)s, %(timeframe)s, %(run_type)s,
             %(expected_symbols)s, %(queried_symbols)s, %(updated_symbols)s,
-            %(missing_symbols)s, %(missing_symbol_list)s, %(update_for_date)s,
+            %(missing_symbols)s, %(missing_symbol_list)s, %(no_trade_symbols)s,
+            %(no_trade_symbol_list)s, %(no_trade_contradicted)s, %(update_for_date)s,
             %(run_time)s, %(finished_at)s, %(attempt_count)s, %(status)s,
             %(last_error)s, CURRENT_TIMESTAMP
         )
@@ -709,6 +759,9 @@ def write_monitoring_rows(
             updated_symbols = EXCLUDED.updated_symbols,
             missing_symbols = EXCLUDED.missing_symbols,
             missing_symbol_list = EXCLUDED.missing_symbol_list,
+            no_trade_symbols = EXCLUDED.no_trade_symbols,
+            no_trade_symbol_list = EXCLUDED.no_trade_symbol_list,
+            no_trade_contradicted = EXCLUDED.no_trade_contradicted,
             query_time = EXCLUDED.query_time,
             run_time = EXCLUDED.run_time,
             finished_at = EXCLUDED.finished_at,
@@ -724,6 +777,9 @@ def write_monitoring_rows(
                 {
                     **record,
                     "missing_symbol_list": Jsonb(record["missing_symbol_list"]),
+                    "no_trade_symbols": record.get("no_trade_symbols", 0),
+                    "no_trade_symbol_list": Jsonb(record.get("no_trade_symbol_list", [])),
+                    "no_trade_contradicted": Jsonb(record.get("no_trade_contradicted", [])),
                 }
                 for record in records
             ],
@@ -771,8 +827,18 @@ def monitoring_records(
     query_time: datetime,
     forced_status: str | None = None,
     forced_error: str | None = None,
+    session_exists: bool | None = None,
+    contradicted: list[dict] | None = None,
 ) -> list[dict]:
+    """EXEC-UNIVERSE-BROKER P2: a symbol TradingView answered without a bar on the target date is "no trade", not
+    missing, when the session exists at the provider (another symbol got that date's bar in this run, or the price
+    table already holds the date: session_exists). Only failures (errors, timeouts) are missing and make a run PARTIAL.
+    contradicted: earlier no-trade pairs IDX_Broker_Summary shows traded on the Regular board (a real gap)."""
     universe_groups = group_symbols(universe)
+    if session_exists is None:
+        session_exists = any(outcome.row is not None for outcome in outcomes)
+    contradicted = contradicted or []
+    group_of = {(symbol.ticker): (symbol.exchange, symbol.asset_type) for symbol in universe}
     queried_groups = group_symbols(queried)
     outcome_groups: dict[tuple[str, str], list[FetchOutcome]] = {}
     for outcome in outcomes:
@@ -783,16 +849,19 @@ def monitoring_records(
     for (exchange, asset_type), expected_group in sorted(universe_groups.items()):
         group_outcomes = outcome_groups.get((exchange, asset_type), [])
         updated = [item for item in group_outcomes if item.row is not None]
-        missing = [item for item in group_outcomes if item.row is None]
+        no_trade = [item for item in group_outcomes if item.row is None and item.answered and session_exists]
+        no_trade_ids = {id(item) for item in no_trade}
+        missing = [item for item in group_outcomes if item.row is None and id(item) not in no_trade_ids]
+        gaps = [pair for pair in contradicted if group_of.get(pair["ticker"]) == (exchange, asset_type)]
         queried_count = len(queried_groups.get((exchange, asset_type), []))
 
         if forced_status:
             status = forced_status
         elif not queried_count:
             status = "SKIPPED"
-        elif not missing:
+        elif not missing and not gaps:
             status = "SUCCESS"
-        elif not updated:
+        elif not updated and not no_trade and missing:
             status = "FAILED" if run_type == "DAILY" else "NEEDS_REVIEW"
         else:
             status = "PARTIAL" if run_type == "DAILY" else "NEEDS_REVIEW"
@@ -811,12 +880,15 @@ def monitoring_records(
                 "updated_symbols": len(updated),
                 "missing_symbols": len(missing),
                 "missing_symbol_list": [item.symbol.ticker for item in missing],
+                "no_trade_symbols": len(no_trade),
+                "no_trade_symbol_list": [item.symbol.ticker for item in no_trade],
+                "no_trade_contradicted": gaps,
                 "update_for_date": target_date,
                 "run_time": started_at,
                 "finished_at": finished_at,
                 "attempt_count": 1 if run_type == "DAILY" else 2,
                 "status": status,
-                "last_error": forced_error or summarize_errors(missing),
+                "last_error": forced_error or summarize_errors(missing) or gap_text(gaps),
             }
         )
     return records
@@ -839,7 +911,7 @@ def get_recovery_symbols(
                 ORDER BY run_time DESC
                 LIMIT 1
             )
-            SELECT status, missing_symbol_list
+            SELECT status, missing_symbol_list, no_trade_symbol_list
             FROM {MONITORING_TABLE}
             WHERE execution_id = (SELECT execution_id FROM latest_scheduled_daily)
             """,
@@ -847,15 +919,17 @@ def get_recovery_symbols(
         )
         rows = cursor.fetchall()
 
-        if rows and all(status in {"SUCCESS", "SKIPPED"} for status, _ in rows):
+        if rows and all(status in {"SUCCESS", "SKIPPED"} for status, _, no_trade in rows) and not any(
+            no_trade for _, _, no_trade in rows
+        ):
             return []
 
         if rows:
+            # P2: a no-trade symbol is asked once more by the recovery (a provider bar that came late is caught)
             requested = {
                 str(ticker).strip().upper()
-                for status, tickers in rows
-                if status in {"PARTIAL", "FAILED"}
-                for ticker in (tickers or [])
+                for status, tickers, no_trade in rows
+                for ticker in ((tickers or []) if status in {"PARTIAL", "FAILED"} else []) + list(no_trade or [])
             }
         else:
             # If the DAILY process died before it could write monitoring, every
@@ -1138,6 +1212,8 @@ def main() -> int:
                 return 0
 
         finished_at = datetime.now(timezone.utc)
+        session_exists = bool(rows) or price_session_exists(connection, target_date)
+        contradicted = no_trade_contradictions(connection, target_date) if mode in {"daily", "manual"} else []
         records = monitoring_records(
             universe,
             queried,
@@ -1149,6 +1225,8 @@ def main() -> int:
             execution_id,
             trigger_source,
             query_time,
+            session_exists=session_exists,
+            contradicted=contradicted,
         )
 
         if args.dry_run:

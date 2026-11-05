@@ -407,5 +407,67 @@ class PriceUpdateTests(unittest.TestCase):
         self.assertEqual(records[0]["status"], "SUCCESS")
 
 
+class NoTradeTests(unittest.TestCase):
+    """EXEC-UNIVERSE-BROKER P2 (go 2026-11-05): an answered symbol without a target-date bar is no trade, not missing."""
+
+    def setUp(self):
+        self.universe = [symbol(1, "AAAA"), symbol(2, "BBBB"), symbol(3, "CCCC"), symbol(4, "XIJI", "etf")]
+        self.now = datetime(2026, 11, 4, 10, tzinfo=ZoneInfo("UTC"))
+
+    def records(self, outcomes, run_type="DAILY", queried=None, **kw):
+        return {r["asset_type"]: r for r in monitoring_records(
+            self.universe, queried or self.universe, outcomes, run_type, self.now.date(), self.now, self.now,
+            "execution-p2", "SCHEDULED", self.now, **kw)}
+
+    def test_no_trade_is_success_and_listed(self):
+        u = self.universe
+        out = self.records([
+            FetchOutcome(u[0], {"ticker": "AAAA"}, None, None),
+            FetchOutcome(u[1], None, date(2026, 11, 3), "No 1D candle for 2026-11-04", answered=True),
+            FetchOutcome(u[2], {"ticker": "CCCC"}, None, None),
+            FetchOutcome(u[3], None, date(2026, 10, 30), "No 1D candle for 2026-11-04", answered=True),
+        ])
+        self.assertEqual(out["stock"]["status"], "SUCCESS")
+        self.assertEqual(out["stock"]["missing_symbols"], 0)
+        self.assertEqual(out["stock"]["no_trade_symbol_list"], ["BBBB"])
+        self.assertEqual(out["etf"]["status"], "SUCCESS")       # the session exists (other symbols got the bar)
+        self.assertEqual(out["etf"]["no_trade_symbols"], 1)
+        self.assertIsNone(out["stock"]["last_error"])
+
+    def test_failure_still_partial(self):
+        u = self.universe
+        out = self.records([
+            FetchOutcome(u[0], {"ticker": "AAAA"}, None, None),
+            FetchOutcome(u[1], None, None, "TimeoutError: Timed out after 45s"),
+            FetchOutcome(u[2], None, date(2026, 11, 3), "No 1D candle for 2026-11-04", answered=True),
+        ], queried=u[:3])
+        self.assertEqual(out["stock"]["status"], "PARTIAL")
+        self.assertEqual(out["stock"]["missing_symbol_list"], ["BBBB"])
+        self.assertEqual(out["stock"]["no_trade_symbol_list"], ["CCCC"])
+
+    def test_without_session_an_answer_is_missing(self):
+        u = self.universe
+        out = self.records([FetchOutcome(s, None, date(2026, 11, 3), "No 1D candle", answered=True) for s in u],
+                           session_exists=False)
+        self.assertEqual(out["stock"]["status"], "FAILED")
+        self.assertEqual(out["stock"]["no_trade_symbols"], 0)
+
+    def test_recovery_of_no_trade_is_success(self):
+        u = self.universe
+        out = self.records([FetchOutcome(u[1], None, date(2026, 11, 3), "No 1D candle", answered=True)],
+                           run_type="RECOVERY", queried=[u[1]], session_exists=True)
+        self.assertEqual(out["stock"]["status"], "SUCCESS")
+        self.assertEqual(out["stock"]["no_trade_symbol_list"], ["BBBB"])
+
+    def test_contradicted_pair_raises_partial(self):
+        u = self.universe
+        gaps = [{"date": "2026-11-03", "ticker": "CCCC"}]
+        out = self.records([FetchOutcome(s, {"ticker": s.ticker}, None, None) for s in u], contradicted=gaps)
+        self.assertEqual(out["stock"]["status"], "PARTIAL")
+        self.assertEqual(out["stock"]["no_trade_contradicted"], gaps)
+        self.assertIn("PRICE_GAP", out["stock"]["last_error"])
+        self.assertEqual(out["etf"]["status"], "SUCCESS")
+
+
 if __name__ == "__main__":
     unittest.main()

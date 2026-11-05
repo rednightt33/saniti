@@ -1,0 +1,39 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261105_002_broker_features_universe_only.sql",
+  "20261105_003_price_no_trade.sql"
+ ],
+ "probes": [
+  [
+   "f05_function",
+   null,
+   "SELECT position('IDX_Stock_Universe' in pg_get_functiondef('public.refresh_feature_05(date,date,text[])'::regprocedure)) > 0"
+  ],
+  [
+   "catalog_rules",
+   null,
+   "SELECT table_name, update_rule LIKE '%EXEC-UNIVERSE-BROKER S2%' FROM public.\"Table_Catalog\" WHERE table_name IN ('Feature_05_Foreign_Domestic_Broker_Detail','Feature_02_Broker_Rolling','Feature_03_Stock_Broker_Daily','Feature_06_Foreign_Domestic') ORDER BY 1"
+  ],
+  [
+   "price_columns",
+   null,
+   "SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_schema='public' AND table_name='Monitoring_Price_ALL' AND column_name LIKE 'no_trade%' ORDER BY 1"
+  ],
+  [
+   "price_constraints",
+   null,
+   "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='public.\"Monitoring_Price_ALL\"'::regclass AND conname IN ('Monitoring_Price_ALL_counts_check','Monitoring_Price_ALL_no_trade_list_check') ORDER BY 1"
+  ],
+  [
+   "price_rows_ok",
+   null,
+   "SELECT count(*), count(*) FILTER (WHERE missing_symbols + no_trade_symbols = queried_symbols - updated_symbols) FROM public.\"Monitoring_Price_ALL\""
+  ],
+  [
+   "column_catalog",
+   null,
+   "SELECT count(*) FROM public.\"Column_Catalog\" WHERE table_name='Monitoring_Price_ALL' AND column_name LIKE 'no_trade%'"
+  ]
+ ]
+}

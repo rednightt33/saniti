@@ -5,6 +5,12 @@ What to refresh is derived from the data, not from the dates the loader wrote: e
 IDX_Broker_Summary differ from Feature 05 (rows, buy, sell, lots, known frequency rows and frequency). A manual upload
 (for example the non-four-letter symbols the user loads separately, decision K1) or a correction of an old date is
 picked up the same way. Each step is checked as in the 2026-10-25 runs and stops the refresh when a check fails.
+
+EXEC-UNIVERSE-BROKER S2 (2026-11-05): Feature 05 holds only tickers of IDX_Stock_Universe from now on
+(refresh_feature_05), so every comparison with it uses the universe rows of IDX_Broker_Summary; a ticker added to the
+universe makes its dates differ and is computed by the next refresh. The IHSG INDEX tables sum every symbol, so their
+rebuild is due when the all-symbol totals of a date differ from Feature_05_..._INDEX (index_needed); an upload of
+codes outside the universe changes only that.
 """
 from __future__ import annotations
 
@@ -21,25 +27,41 @@ F03 = 'public."Feature_03_Stock_Broker_Daily"'
 F05 = 'public."Feature_05_Foreign_Domestic_Broker_Detail"'
 F06 = 'public."Feature_06_Foreign_Domestic"'
 SRC = 'public."IDX_Broker_Summary"'
+F05_INDEX = 'public."Feature_05_Foreign_Domestic_Broker_Detail_INDEX"'
+UNIVERSE = '(SELECT "Ticker" FROM public."IDX_Stock_Universe")'
 
+# One pass over the source: the universe totals of each date (compared with Feature 05) and the all-symbol totals
+# (compared with the IHSG INDEX table). Columns: date, Feature 05 differs, source has no universe row, INDEX differs.
 PER_DATE = f"""
-WITH s AS (SELECT "Date" AS d, count(*) n, sum("Buy Value") bv, sum("Sell Value") sv, sum("Buy Lots") bl,
-                  sum("Sell Lots") sl, count(buy_freq) fr, sum(buy_freq) bf, sum(sell_freq) sf
-           FROM {SRC} GROUP BY 1),
+WITH s AS (SELECT "Date" AS d,
+                  count(*) FILTER (WHERE u) n, sum("Buy Value") FILTER (WHERE u) bv, sum("Sell Value") FILTER (WHERE u) sv,
+                  sum("Buy Lots") FILTER (WHERE u) bl, sum("Sell Lots") FILTER (WHERE u) sl,
+                  count(buy_freq) FILTER (WHERE u) fr, sum(buy_freq) FILTER (WHERE u) bf, sum(sell_freq) FILTER (WHERE u) sf,
+                  sum("Buy Value") abv, sum("Sell Value") asv, sum("Buy Lots") abl, sum("Sell Lots") asl,
+                  sum(buy_freq) abf, sum(sell_freq) asf
+           FROM (SELECT b.*, b."Symbol" IN {UNIVERSE} AS u FROM {SRC} b) x GROUP BY 1),
      f AS (SELECT trade_date AS d, count(*) n, sum(buy_value) bv, sum(sell_value) sv, sum(buy_lots) bl,
                   sum(sell_lots) sl, count(buy_freq) fr, sum(buy_freq) bf, sum(sell_freq) sf
-           FROM {F05} GROUP BY 1)
-SELECT coalesce(s.d, f.d), s.d IS NULL
-FROM s FULL JOIN f ON f.d = s.d
-WHERE s.d IS NULL OR f.d IS NULL OR (s.n, s.bv, s.sv, s.bl, s.sl, s.fr, coalesce(s.bf, 0), coalesce(s.sf, 0))
-      IS DISTINCT FROM (f.n, f.bv, f.sv, f.bl, f.sl, f.fr, coalesce(f.bf, 0), coalesce(f.sf, 0))
-ORDER BY 1"""
+           FROM {F05} WHERE ticker IN {UNIVERSE} GROUP BY 1),
+     i AS (SELECT trade_date AS d, sum(buy_value) bv, sum(sell_value) sv, sum(buy_lots) bl, sum(sell_lots) sl,
+                  sum(buy_freq) bf, sum(sell_freq) sf
+           FROM {F05_INDEX} WHERE ticker = 'IHSG' GROUP BY 1),
+     j AS (SELECT coalesce(s.d, f.d, i.d) AS d,
+                  (coalesce(s.n, 0) > 0 OR f.d IS NOT NULL) AND (f.d IS NULL OR coalesce(s.n, 0) = 0
+                   OR (s.n, s.bv, s.sv, s.bl, s.sl, s.fr, coalesce(s.bf, 0), coalesce(s.sf, 0))
+                      IS DISTINCT FROM (f.n, f.bv, f.sv, f.bl, f.sl, f.fr, coalesce(f.bf, 0), coalesce(f.sf, 0))) AS f05,
+                  f.d IS NOT NULL AND coalesce(s.n, 0) = 0 AS source_missing,
+                  (s.abv, s.asv, s.abl, s.asl, coalesce(s.abf, 0), coalesce(s.asf, 0))
+                    IS DISTINCT FROM (i.bv, i.sv, i.bl, i.sl, coalesce(i.bf, 0), coalesce(i.sf, 0)) AS idx
+           FROM s FULL JOIN f ON f.d = s.d FULL JOIN i ON i.d = coalesce(s.d, f.d))
+SELECT d, f05, source_missing, idx FROM j WHERE f05 OR idx ORDER BY 1"""
 
-ROW_DIFF = f"""SELECT (SELECT count(*) FROM {SRC} WHERE "Date" = %(d)s), (SELECT count(*) FROM {F05} WHERE trade_date = %(d)s),
+ROW_DIFF = f"""SELECT (SELECT count(*) FROM {SRC} WHERE "Date" = %(d)s AND "Symbol" IN {UNIVERSE}),
+  (SELECT count(*) FROM {F05} WHERE trade_date = %(d)s AND ticker IN {UNIVERSE}),
   (SELECT count(*) FROM {SRC} b LEFT JOIN {F05} f
      ON f.ticker=b."Symbol" AND f.trade_date=b."Date" AND f.broker=b."Broker" AND f.investor_type=b."Investor Type"
     AND f.market_board=b."Market Board"
-   WHERE b."Date" = %(d)s AND (f.ticker IS NULL OR f.buy_value<>b."Buy Value" OR f.sell_value<>b."Sell Value"
+   WHERE b."Date" = %(d)s AND b."Symbol" IN {UNIVERSE} AND (f.ticker IS NULL OR f.buy_value<>b."Buy Value" OR f.sell_value<>b."Sell Value"
      OR f.buy_lots<>b."Buy Lots" OR f.sell_lots<>b."Sell Lots" OR f.buy_freq IS DISTINCT FROM b.buy_freq
      OR f.sell_freq IS DISTINCT FROM b.sell_freq))"""
 
@@ -79,17 +101,27 @@ def analyze(table: str) -> None:
         c.execute(f'ANALYZE {table}')
 
 
+INDEX_DUE: list[date] = []  # dates whose all-symbol totals differ from the IHSG INDEX table (set by changed_dates)
+
+
+def plan(rows) -> tuple[list[date], list[date]]:
+    """PER_DATE rows -> (dates Feature 05 must refresh, dates the INDEX rebuild must cover)."""
+    orphan = [d for d, _, source_missing, _ in rows if source_missing]
+    if orphan:
+        # a Feature 05 date without any universe source row: never deleted here, the user decides (UPDATE_TABLE.md)
+        raise RefreshFailed(f'Feature 05 holds dates absent from IDX_Broker_Summary: {orphan[:5]}')
+    return [d for d, f05, _, _ in rows if f05], [d for d, _, _, idx in rows if idx]
+
+
 def changed_dates(emit) -> list[date]:
     t0 = time.monotonic()
     with connect() as c:
         c.execute("SET LOCAL statement_timeout = '30min'")
         rows = c.execute(PER_DATE).fetchall()
-    orphan = [d for d, source_missing in rows if source_missing]
-    if orphan:
-        # a Feature 05 date without any source row: never deleted here, the user decides (UPDATE_TABLE.md)
-        raise RefreshFailed(f'Feature 05 holds dates absent from IDX_Broker_Summary: {orphan[:5]}')
-    dates = [d for d, _ in rows]
-    emit('refresh_plan', changed_dates=[str(d) for d in dates], seconds=round(time.monotonic() - t0, 1))
+    dates, index_dates = plan(rows)
+    INDEX_DUE[:] = index_dates
+    emit('refresh_plan', changed_dates=[str(d) for d in dates], index_dates=[str(d) for d in index_dates],
+         seconds=round(time.monotonic() - t0, 1))
     return dates
 
 
@@ -147,7 +179,7 @@ def refresh_broker_features(emit) -> dict:
 
 
 def index_needed(broker_changed: bool) -> bool:
-    if broker_changed:
+    if broker_changed or INDEX_DUE:  # INDEX_DUE: all-symbol totals differ, e.g. an upload of codes outside the universe
         return True
     with connect() as c:  # a newer IHSG price than the INDEX Feature 01 table also needs the INDEX rebuild
         return c.execute("""SELECT (SELECT max(date) FROM public."Price_Stock_Indonesia_IDX" WHERE ticker='IHSG')

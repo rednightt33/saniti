@@ -3,6 +3,11 @@
 
 Defaults to preflight. ACTION=apply additionally requires the preflight fingerprint.
 Existing price rows are never overwritten; standard database enqueue triggers remain on.
+
+EXEC-UNIVERSE-BROKER P3 (user go 2026-11-05): a BBCA session without a provider bar is accepted as "no trade" when
+IDX_Broker_Summary holds that session and shows no Regular-board buy for the ticker (proven_no_trade). A session the
+broker summary shows traded on the Regular board, or a session the broker summary does not hold, is refused unless
+the user lists it in ACCEPTED_MISSING_DATES. Extra provider dates still need ACCEPTED_EXTRA_DATES.
 """
 from __future__ import annotations
 import hashlib
@@ -55,6 +60,17 @@ def fetch_index_ohlc(ws,session,symbol,bars,query_date):
     if not completed:raise TimeoutError('Index OHLC history timeout')
     return [rows[k] for k in sorted(rows)]
 
+def proven_no_trade(db,ticker,dates):
+    """The BBCA sessions of `dates` that IDX_Broker_Summary holds and where the ticker has no Regular-board buy."""
+    if not dates:return set()
+    with db.transaction():
+        db.execute('SET TRANSACTION READ ONLY')
+        rows=db.execute('''SELECT d FROM unnest(%s::date[]) d
+          WHERE EXISTS (SELECT 1 FROM public."IDX_Broker_Summary" b WHERE b."Date"=d)
+            AND NOT EXISTS (SELECT 1 FROM public."IDX_Broker_Summary" b WHERE b."Date"=d AND b."Symbol"=%s
+                            AND b."Market Board"='Regular' AND b."Buy Value">0)''',(list(dates),ticker)).fetchall()
+    return {r[0] for r in rows}
+
 def validate_ohlc(row):
     for k in ('open','high','low','close'):row[k]=price.as_decimal(row[k],k)
     if not row['low']<=row['open']<=row['high'] or not row['low']<=row['close']<=row['high']:raise ValueError('Invalid OHLC')
@@ -87,10 +103,13 @@ def main():
         dates={r['date'] for r in selected}
         if len(dates)!=len(selected):raise ValueError('Duplicate provider dates')
         missing=sorted(baseline-dates);extra=sorted(dates-baseline)
+        no_trade=proven_no_trade(db,ticker,missing)
+        unproven=[d for d in missing if d not in no_trade]
         fingerprint=hashlib.sha256(json.dumps([[str(r[k]) for k in ['date','open','high','low','close','volume','source_bar_time']] for r in selected],separators=(',',':')).encode()).hexdigest()
-        emit('history_preflight',ticker=ticker,provider=symbol.tradingview_symbol,requested_from=start,requested_to=end,provider_bars=len(fetched),selected_rows=len(selected),first=min(dates) if dates else None,last=max(dates) if dates else None,bbca_dates=len(baseline),missing_vs_bbca=missing,extra_vs_bbca=extra,zero_volume_rows=sum(r['volume']==0 for r in selected),missing_volume_rows=sum(r['volume'] is None for r in selected),fingerprint=fingerprint,first_candle=selected[0] if selected else None,last_candle=selected[-1] if selected else None)
+        emit('history_preflight',ticker=ticker,provider=symbol.tradingview_symbol,requested_from=start,requested_to=end,provider_bars=len(fetched),selected_rows=len(selected),first=min(dates) if dates else None,last=max(dates) if dates else None,bbca_dates=len(baseline),missing_vs_bbca=len(missing),missing_no_trade_proven=len(no_trade),missing_unproven=unproven,extra_vs_bbca=extra,zero_volume_rows=sum(r['volume']==0 for r in selected),missing_volume_rows=sum(r['volume'] is None for r in selected),fingerprint=fingerprint,first_candle=selected[0] if selected else None,last_candle=selected[-1] if selected else None)
         allowed_extra={date.fromisoformat(d) for d in json.loads(os.environ.get('ACCEPTED_EXTRA_DATES','[]'))}
-        if missing or set(extra)!=allowed_extra:raise ValueError('Provider date sets differ from the accepted comparison; no write performed')
+        allowed_missing={date.fromisoformat(d) for d in json.loads(os.environ.get('ACCEPTED_MISSING_DATES','[]'))}
+        if set(unproven)-allowed_missing or set(extra)!=allowed_extra:raise ValueError('Provider date sets differ from the accepted comparison (missing sessions not proven no-trade, or extra dates); no write performed')
         if os.environ.get('ACTION','preflight')!='apply':
             emit('preflight_only',database_changes=0);return
         if any(r['volume'] is None for r in selected) and symbol.asset_type!='index':raise ValueError('Missing source volume is permitted only for a universe-classified index')

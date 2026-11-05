@@ -69,27 +69,36 @@ def stage_raw(db,ticker,first,last):
         if not manifest:emit('bounded_source_plan',month=lo,plan=plan)
         # Raw PK rows already have exact symbol/broker/investor/board grain. Window gap is
         # computed before symbol netting, so opposite source gaps cannot cancel invisibly.
-        result=db.execute('''INSERT INTO bulk5
-         WITH r AS (SELECT *,SUM("Buy Value") OVER w<>SUM("Sell Value") OVER w AS gap
+        # The INDEX sums every symbol (bulk5). The same read keeps the universe sums in bulk5_universe: Feature 05
+        # holds only universe tickers from 2026-11-05 (EXEC-UNIVERSE-BROKER S2), so the cross-check below compares
+        # universe rows on both sides (old rows of other codes stay in Feature 05 but are not part of it).
+        db.execute('''CREATE TEMP TABLE IF NOT EXISTS bulk5_universe (trade_date date,broker text,investor_type text,
+          market_board text,bv numeric,sv numeric,bl numeric,sl numeric,gap boolean) ON COMMIT PRESERVE ROWS''')
+        db.execute('''WITH r AS MATERIALIZED (SELECT *,SUM("Buy Value") OVER w<>SUM("Sell Value") OVER w AS gap,
+            "Symbol" IN (SELECT u."Ticker" FROM public."IDX_Stock_Universe" u WHERE u."Security Type"<>'index') AS in_universe
           FROM public."IDX_Broker_Summary" WHERE "Date">=%s AND "Date"<%s
-          WINDOW w AS (PARTITION BY "Date","Symbol","Market Board"))
-         SELECT "Date",%s::text,"Broker"::text,"Market Board"::text,"Investor Type"::text,
-          SUM("Buy Value"),SUM("Sell Value"),SUM("Buy Value"-"Sell Value"),
-          SUM("Buy Lots"),SUM("Sell Lots"),SUM("Buy Lots"-"Sell Lots"),
-          SUM(buy_freq)::bigint,SUM(sell_freq)::bigint,bool_or(gap),statement_timestamp(),
-          COUNT(*),COUNT(buy_freq),COUNT(sell_freq),COUNT(*)-COUNT(buy_freq),COUNT(*)-COUNT(sell_freq)
-         FROM r GROUP BY "Date","Broker","Market Board","Investor Type"''',(lo,hi,ticker))
+          WINDOW w AS (PARTITION BY "Date","Symbol","Market Board")),
+         all_symbols AS (INSERT INTO bulk5
+          SELECT "Date",%s::text,"Broker"::text,"Market Board"::text,"Investor Type"::text,
+           SUM("Buy Value"),SUM("Sell Value"),SUM("Buy Value"-"Sell Value"),
+           SUM("Buy Lots"),SUM("Sell Lots"),SUM("Buy Lots"-"Sell Lots"),
+           SUM(buy_freq)::bigint,SUM(sell_freq)::bigint,bool_or(gap),statement_timestamp(),
+           COUNT(*),COUNT(buy_freq),COUNT(sell_freq),COUNT(*)-COUNT(buy_freq),COUNT(*)-COUNT(sell_freq)
+          FROM r GROUP BY "Date","Broker","Market Board","Investor Type" RETURNING 1)
+         INSERT INTO bulk5_universe SELECT "Date","Broker","Investor Type","Market Board",SUM("Buy Value"),SUM("Sell Value"),
+          SUM("Buy Lots"),SUM("Sell Lots"),bool_or(gap) FROM r WHERE in_universe
+          GROUP BY "Date","Broker","Market Board","Investor Type"''',(lo,hi,ticker))
         # Cross-check canonical monetary context without inheriting its stricter frequency rule.
         mismatch=db.execute('''WITH a AS (SELECT trade_date,broker,investor_type,market_board,
           SUM(buy_value) AS bv,SUM(sell_value) AS sv,SUM(buy_lots) AS bl,SUM(sell_lots) AS sl,bool_or(source_balance_gap) AS gap
           FROM public."Feature_05_Foreign_Domestic_Broker_Detail" f WHERE trade_date>=%s AND trade_date<%s
-          AND NOT EXISTS(SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=f.ticker AND u."Security Type"='index') GROUP BY 1,2,3,4),
-         b AS (SELECT trade_date,broker,investor_type,market_board,buy_value AS bv,sell_value AS sv,buy_lots AS bl,sell_lots AS sl,source_balance_gap AS gap FROM bulk5 WHERE trade_date>=%s AND trade_date<%s)
+          AND f.ticker IN (SELECT u."Ticker" FROM public."IDX_Stock_Universe" u WHERE u."Security Type"<>'index') GROUP BY 1,2,3,4),
+         b AS (SELECT trade_date,broker,investor_type,market_board,bv,sv,bl,sl,gap FROM bulk5_universe WHERE trade_date>=%s AND trade_date<%s)
          SELECT count(*) AS n FROM ((SELECT * FROM a EXCEPT SELECT * FROM b) UNION ALL (SELECT * FROM b EXCEPT SELECT * FROM a))x''',(lo,hi,lo,hi)).fetchone()['n']
         if mismatch:raise RuntimeError(f'Raw/canonical monetary history mismatch {lo}: {mismatch}')
         info=db.execute('SELECT count(*) AS groups,SUM(frequency_source_rows) AS source_rows,SUM(buy_value) AS buy_value,SUM(sell_value) AS sell_value FROM bulk5 WHERE trade_date>=%s AND trade_date<%s',(lo,hi)).fetchone()
         manifest.append(dict(start=lo,end_exclusive=hi,**info))
-        emit('raw_month_staged',start=lo,groups=result.rowcount,source_rows=info['source_rows'],seconds=round(time.monotonic()-begun,2))
+        emit('raw_month_staged',start=lo,groups=info['groups'],source_rows=info['source_rows'],seconds=round(time.monotonic()-begun,2))
     db.execute('ANALYZE bulk5')
     db.execute('CREATE TEMP TABLE index_market_calendar ON COMMIT PRESERVE ROWS AS SELECT DISTINCT trade_date AS date FROM bulk5')
     db.execute('CREATE UNIQUE INDEX ON index_market_calendar(date)')

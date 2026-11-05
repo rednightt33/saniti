@@ -99,6 +99,8 @@ class MonitoringSummary:
     finished_at: datetime
     duration_seconds: float
     last_error: str | None
+    no_trade_tickers: tuple[str, ...] = ()        # EXEC-UNIVERSE-BROKER P2: answered, no bar: no trade, not missing
+    price_gaps: tuple[str, ...] = ()              # earlier no-trade pairs the broker summary shows traded (Regular)
 
 
 @dataclass(frozen=True)
@@ -144,7 +146,7 @@ def fetch_monitoring_summary(
             SELECT exchange, run_type, trigger_source, update_for_date,
                    expected_symbols, queried_symbols, updated_symbols,
                    missing_symbols, missing_symbol_list, status,
-                   run_time, finished_at, last_error
+                   run_time, finished_at, last_error, no_trade_symbol_list, no_trade_contradicted
             FROM {MONITORING_TABLE}
             WHERE execution_id = %s
             ORDER BY exchange, asset_type, timeframe
@@ -164,6 +166,8 @@ def fetch_monitoring_summary(
             if str(ticker).strip()
         }
     )
+    no_trade = sorted({str(t).strip().upper() for row in rows for t in (row[13] or []) if str(t).strip()})
+    gaps = sorted({f"{g.get('ticker')} {g.get('date')}" for row in rows for g in (row[14] or []) if isinstance(g, dict)})
     started_at = min(row[10] for row in rows if row[10] is not None)
     finished_at = max((row[11] or datetime.now(timezone.utc)) for row in rows)
     errors = [str(row[12]).strip() for row in rows if row[12]]
@@ -184,6 +188,8 @@ def fetch_monitoring_summary(
         finished_at=finished_at,
         duration_seconds=max(0.0, (finished_at - started_at).total_seconds()),
         last_error=errors[0] if errors else None,
+        no_trade_tickers=tuple(no_trade),
+        price_gaps=tuple(gaps),
     )
 
 
@@ -870,9 +876,10 @@ def format_header(summary: MonitoringSummary) -> str:
         progress = f"{summary.updated_symbols}/{summary.expected_symbols} updated"
         missing = f"{summary.missing_symbols} missing"
 
+    no_trade = f" • {len(summary.no_trade_tickers)} tanpa transaksi" if summary.no_trade_tickers else ""
     header = (
         f"{emoji} {summary.exchange} {source} {summary.status} • {date_text} • "
-        f"{progress} • {missing} • {duration}"
+        f"{progress} • {missing}{no_trade} • {duration}"
     )
     if summary.status == "SKIPPED" and summary.last_error:
         reason = summary.last_error.split(":", 1)[-1].strip()
@@ -891,6 +898,14 @@ def build_messages(
 ) -> list[str]:
     header = format_header(summary)
     header_with_timing = header + "\n\n" + format_timing(summary)
+    if summary.price_gaps:   # P2: a real gap, found after the broker round; shown before the lists
+        shown = ", ".join(summary.price_gaps[:20])
+        more = f" (+{len(summary.price_gaps) - 20})" if len(summary.price_gaps) > 20 else ""
+        header_with_timing += f"\n\nAda transaksi reguler tapi harga tidak ada: {shown}{more}"
+    if summary.no_trade_tickers:   # P2: no trade that day, not an error
+        shown = ", ".join(summary.no_trade_tickers[:40])
+        more = f" (+{len(summary.no_trade_tickers) - 40})" if len(summary.no_trade_tickers) > 40 else ""
+        header_with_timing += f"\n\nTanpa transaksi (bukan error): {shown}{more}"
     if not summary.missing_tickers:
         return [header_with_timing]
 
