@@ -9958,7 +9958,9 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
-## EXEC-PUBLISH-FLOW — publisher dipicu oleh cron yang selesai, broker tidak disimpan dua kali, storage B (rencana diterima 2026-11-05, BELUM dieksekusi)
+## EXEC-PUBLISH-FLOW — publisher dipicu oleh cron yang selesai, broker tidak disimpan dua kali, storage B (go 2026-11-05)
+
+**Go user, 2026-11-05:** "Q3 per device ok, go EXEC-PUBLISH-FLOW".
 
 **Kata user, 2026-11-05:**
 - "publisher harus dijalankan setelah proses pengisian table selesai. Jadi jangan ketika cron jalan, publisher juga
@@ -10113,8 +10115,7 @@ dulu. Sampai kita bisa get across efficiency plan dalam hal pemindahan data Post
 - Q1: ikut akun = indikator dan setelannya, favorit, gambar, daftar aset, filter event, urutan dan isi panel; tetap
   per device = lebar/tinggi panel, buka-tutup panel, jendela pop-out, layar penuh.
 - Q2: yang terakhir menang (revision mencegah device basi menimpa diam-diam).
-- Q3: pesan sebelumnya tidak memberi rekomendasi untuk Q3. Usulan sekarang: per device (tiap layar membuka saham
-  terakhirnya sendiri). Perlu konfirmasi user sebelum eksekusi.
+- Q3: per device (tiap layar membuka saham terakhirnya sendiri). User 2026-11-05: "Q3 per device ok".
 - **Status:** belum dieksekusi; menunggu rencana efisiensi PUBLISH-FLOW (`PLAN.md`) disepakati.
 
 **Pertanyaan semula (sudah dijawab di atas):**
