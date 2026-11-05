@@ -10271,6 +10271,19 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     sama dengan acuannya. Selisih yang nyata: RSI yang dihitung AI di sandbox untuk kode yang lama tidak diperdagangkan
     berbeda dari `rsi_14` Fitur 04 dan dari Terminal (19 kode, 3.519 nilai, L4).
   - Pertanyaan terbuka ke user: konvensi tunggal mana dan bagaimana sandbox menyamakannya (opsi di laporan 2026-11-05).
+  - **User 2026-11-05:** "Sebenarnya source utama adalah supaya ketika AI menggunakan sandbox, maka tidak ada
+    rejection. Versi mana yang apabila ini dilakukan, maka AI bisa menjalankan tanpa harus kena rejection. Dan tanpa
+    harus merubah fitur 4". Tujuan L5: tidak ada penolakan hitungan karena versi TA-Lib; Fitur 4 tidak diubah.
+  - Inspeksi penolakan (kode): jalur yang hidup (DataNeed, `complete_analysis`) hanya menghitung ulang event study,
+    backtest dan mesin riset dari kolom bundle dengan mesin Saniti sendiri (`app/dataneed_service.py:1150-1175`,
+    `app/event_study_validation.py:1-20`, `app/backtest_validation.py:1-13`: tanggal sinyal backtest milik kode model,
+    tidak dihitung ulang; `runtime/expression.py` hanya lag/rolling_sum/rolling_mean). TA-Lib tidak dipakai di sisi
+    pemeriksa, jadi versi TA-Lib tidak bisa memicu penolakan di jalur ini. Satu-satunya pemeriksa yang menghitung ulang
+    RSI/STD/SMA/ROCP/CORREL adalah `runtime/reference.py` di jalur lama (mati di dev): sama dengan TA-Lib 0.8.1 untuk
+    RSI, SMA, STD, ROCP (0 selisih, diukur), berbeda untuk korelasi bergulir pada jendela datar (acuan NaN, TA-Lib 0:
+    681-682 selisih per seri uji) dan untuk `rsi_14` Fitur 04 pada masa datar.
+  - Jawaban: TA-Lib 0.8.1 dipertahankan (tanpa perubahan image, Fitur 4 tidak diubah); usulan penguatan jalur lama
+    menunggu user.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
