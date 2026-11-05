@@ -40,8 +40,11 @@ PLACE = {'Panel sendiri': 'pane', 'Di atas candle': 'price', 'Tanda di bawah can
 OPTIONS = {
     'Semua broker': ('all', 'All brokers'), 'Broker terpilih': ('selected', 'Selected brokers'),
     'Top-N cohort': ('topn', 'Top-N cohort'),
-    'Net beli (Rp)': ('net_buy', 'Net buy (Rp)'), 'Beli kotor (Rp)': ('gross_buy', 'Gross buy (Rp)'),
-    'Net jual (Rp)': ('net_sell', 'Net sell (Rp)'),
+    # an indicator without a Side: Rank says who (EXEC-TERMINAL-IND-EDIT, user 2026-11-05 "ganti labelnya")
+    'Net beli (Rp)': ('net_buy', 'Top net buyers'), 'Beli kotor (Rp)': ('gross_buy', 'Top gross buyers'),
+    'Net jual (Rp)': ('net_sell', 'Top net sellers'),
+    # an indicator with a Side: Rank is Net or Gross, the Side says buyers or sellers (R1, user 2026-11-05)
+    'Net (Rp)': ('net_buy', 'Net'), 'Kotor (Rp)': ('gross_buy', 'Gross'),
     'Buy': ('buy', 'Buy'), 'Sell': ('sell', 'Sell'), 'Both': ('both', 'Both'),
     'Histogram': ('hist', 'Histogram'), 'Garis': ('line', 'Line'),
     'Volume papan terpilih (semua investor)': ('board', 'Board volume, all investors'),

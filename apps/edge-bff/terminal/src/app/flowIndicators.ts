@@ -121,9 +121,15 @@ export function initFlowIndicators(ctx: Ctx) {
      B2, B3: "Rolling weeks (1 = daily)", "Average Daily Value · 20W") */
   const relabel = (s: string) => s.replace(/\bdays\b/, word).replace(/\bSessions\b/, tf === 'D' ? 'Sessions' : word[0].toUpperCase() + word.slice(1))
     .replace(/\(1 = daily\)/, `(1 = ${per})`).replace(/\bDaily\b/, per[0].toUpperCase() + per.slice(1));
-  const scopeText = (p: any) => p.scope === 'all' ? 'All brokers' : p.scope === 'selected'
-    ? (Array.isArray(p.brokers) && p.brokers.length ? (p.brokers.length <= 3 ? p.brokers.join(', ') : `${p.brokers.length} brokers`) : 'no broker')
-    : `Top ${p.top}${p.rank && p.rank !== 'net_buy' ? (p.rank === 'gross_buy' ? ' gross buy' : ' net sell') : ''}`;
+  /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the cohort in words. With a Side (R1) the Rank is Net or Gross and the side
+     says buyers or sellers ("Top 3 net sellers"); without one the Rank says who ("Top 3 net sellers" = rank Net sell) */
+  const scopeText = (p: any, sided: boolean) => {
+    if (p.scope === 'all') return 'All brokers';
+    if (p.scope === 'selected') return Array.isArray(p.brokers) && p.brokers.length ? (p.brokers.length <= 3 ? p.brokers.join(', ') : `${p.brokers.length} brokers`) : 'no broker';
+    const gross = p.rank === 'gross_buy' || p.rank === 'gross_sell';
+    if (sided) return `Top ${p.top} ${gross ? 'gross' : 'net'} ${p.side === 'sell' ? 'sellers' : p.side === 'both' ? 'buyers & sellers' : 'buyers'}`;
+    return `Top ${p.top} ${p.rank === 'gross_buy' ? 'gross buyers' : p.rank === 'net_sell' ? 'net sellers' : 'net buyers'}`;
+  };
   const filterText = (p: any) => [p.investors && p.investors.length === 1 ? p.investors[0] : '', p.boards && p.boards.length < 3 ? p.boards.join('+') : '']
     .filter(Boolean).join(' · ');
 
@@ -218,8 +224,9 @@ export function initFlowIndicators(ctx: Ctx) {
       title:(p: any) => {
         const parts = [relabel(r.name)];
         if (DAY) parts.push('Daily');
-        if (p.scope) parts.push(scopeText(p));
-        if (p.side && p.side !== 'buy') parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
+        const sided = r.params.some(q => q.key === 'side');
+        if (p.scope) parts.push(scopeText(p, sided));
+        if (p.side && p.side !== 'buy' && !(sided && p.scope === 'topn')) parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
         const f = filterText(p); if (f) parts.push(f);
         if (p.window) parts.push(`${p.window}${letter}`);
         return spec.titled(parts[0], parts.slice(1));

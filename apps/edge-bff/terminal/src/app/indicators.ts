@@ -743,9 +743,17 @@ export function initIndicators(ctx: Ctx) {
     return { def:key, on:o.on, params:{ length:o.params && o.params.length, source:String(o.params && o.params.source || 'close').toLowerCase() },
       style:{ out:{ [key]:{ color:st.color, width:st.width } }, offset:o.params && o.params.offset || 0 } };
   };
+  /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05, R1): a saved choice the settings no longer offer (Rank "Net sell" on an
+     indicator with a Side) goes back to the default, rather than staying as a value the dialog cannot show */
+  const dropStale = o => {
+    const d = defOf(o.def); if(!d || !o.params) return o;
+    const params = { ...o.params };
+    for (const f of d.inputs || []) if(f.kind === 'select' && Array.isArray(f.options) && params[f.key] !== undefined && !f.options.includes(params[f.key])) delete params[f.key];
+    return { ...o, params };
+  };
   /* a saved list's entries: those this ticker can draw, the others parked (an unknown id is dropped, as before) */
   const restore = (saved: any[]) => {
-    const known = saved.map(migrate).filter(o => defOf(o.def));
+    const known = saved.map(migrate).filter(o => defOf(o.def)).map(dropStale);
     const s = splitSaved(known, o => usable(o.def));
     parked = s.parked; s.drawn.forEach(o => add(o.def, o));
   };

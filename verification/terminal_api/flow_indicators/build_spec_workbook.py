@@ -1,4 +1,6 @@
-"""Final Flow indicator workbook (decisions 2026-10-30). Usage: python3 -I build_flow_final.py <user.xlsx> <out.xlsx>"""
+"""Flow indicator spec workbook (decisions 2026-10-30, then 2026-11-05). Usage:
+  python3 -I build_spec_workbook.py user_input_20261030.xlsx FLOW_INDICATORS_SPEC.xlsx
+then python3 scripts/build_flow_registry.py (repository root) writes the Terminal registry from it."""
 import sys
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -140,6 +142,31 @@ FL = [
               ('Jenis investor (Investor type)', 'Pilih banyak', 'Foreign, Domestic', 'Semua', P, ''),
               ('Hari rolling', 'Angka bulat', '2 - 250', '10', P, '')] + REF('0')),
 ]
+# ---- decisions 2026-11-05 (EXEC-TERMINAL-IND-EDIT; FLOW_INDICATOR_REVIEW.md 5t; EXEC.md) applied on top of 2026-10-30 ----
+def set_params(fid, change):
+    """replace indicator fid's parameter list with change(old list)"""
+    k = next(i for i, f in enumerate(FL) if f[0] == fid)
+    FL[k] = (*FL[k][:7], change(list(FL[k][7])))
+
+def swap(label, row):
+    """a change: the parameter with this label becomes row"""
+    return lambda ps: [row if p[0] == label else p for p in ps]
+
+# K1, R1: on an indicator with a Side, Rank is Net or Gross and the Side says who (top buyers for Buy, top sellers for Sell)
+RANK_SIDE = ('Urutkan Top-N berdasarkan', 'Pilihan', 'Net (Rp) / Kotor (Rp)', 'Net (Rp)', D,
+             'R1 (2026-11-05): Buy = Top-N pembeli, Sell = Top-N penjual menurut net atau kotor ("Pakai R1", "Ok untuk kelompok A").')
+for fid in ('FL01', 'FL02', 'FL03', 'FL04', 'FL05', 'FL08'):
+    set_params(fid, swap('Urutkan Top-N berdasarkan', RANK_SIDE))
+
+DEC_20261105 = [
+    (D, 'K1 Sisi (2026-11-05)', 'Satu arti untuk Sisi di FL01-FL05, FL08, FL13, FL14, FL33: Buy = Top-N pembeli, Sell = Top-N penjual.',
+     'C diperluas ke FL01-FL05'),
+    (D, 'R1 Rank (2026-11-05)', 'Rank pada indikator ber-Sisi = Net atau Kotor; pilihan Net jual dihapus (simpanan lama dibaca Net).',
+     'Pakai R1 saja untuk FL08; Ok untuk kelompok A'),
+    (D, 'Kelompok B (2026-11-05)', 'Indikator dengan Rank tanpa Sisi tetap Net beli, Beli kotor, Net jual; label diperjelas.',
+     'Kelompok B tetap, ganti labelnya, masukan exec'),
+]
+
 BY_SPEC = {n: f for f in FL for n in f[2]}
 NEW_NAME = {11: 'Buy/Sell Average Transaction Size Ratio', 13: 'Average Transaction Size Percentile', 14: 'Block Money Candidate'}
 FIX = {10: ('#7', '#9'), 11: ('#7 dan #8', '#1 dan #2'), 19: ('#20', '#18'), 26: ('(#34)', '(#27)')}
@@ -257,7 +284,7 @@ K = [
     (D, 'FL07', 'Tetap terpisah dari FL03.', '2. Tetap pisah dulu'),
     (D, 'Menu', 'Grup Flow dibagi subgrup per keluarga nama.', '3. OK'),
 ]
-for r in K:
+for r in K + DEC_20261105:
     ws.append(list(r))
     for c in ws[ws.max_row]: c.alignment = wrap
     ws.cell(row=ws.max_row, column=1).fill = FILL[r[0]]

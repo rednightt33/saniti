@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "aeba4e6015e56cd5486fe66269d2d3e0addee946691ac29696989ca08cae6b74"
+  "sha256": "f00ab25580d7f1c3dc43efbd2ad780cf4dc8792456843ef727365fa214aa9554"
  },
  "families": [
   "Share",
@@ -70,15 +70,11 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Net"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
-      ],
-      [
-       "net_sell",
-       "Net sell (Rp)"
+       "Gross"
       ]
      ],
      "default": "net_buy"
@@ -207,15 +203,11 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Net"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
-      ],
-      [
-       "net_sell",
-       "Net sell (Rp)"
+       "Gross"
       ]
      ],
      "default": "net_buy"
@@ -344,15 +336,11 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Net"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
-      ],
-      [
-       "net_sell",
-       "Net sell (Rp)"
+       "Gross"
       ]
      ],
      "default": "net_buy"
@@ -481,15 +469,11 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Net"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
-      ],
-      [
-       "net_sell",
-       "Net sell (Rp)"
+       "Gross"
       ]
      ],
      "default": "net_buy"
@@ -618,15 +602,11 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Net"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
-      ],
-      [
-       "net_sell",
-       "Net sell (Rp)"
+       "Gross"
       ]
      ],
      "default": "net_buy"
@@ -761,15 +741,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -883,15 +863,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -1015,15 +995,11 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Net"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
-      ],
-      [
-       "net_sell",
-       "Net sell (Rp)"
+       "Gross"
       ]
      ],
      "default": "net_buy"
@@ -1171,15 +1147,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -1347,15 +1323,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -1490,15 +1466,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -1643,15 +1619,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -2034,15 +2010,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -2149,15 +2125,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -2262,15 +2238,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -2391,15 +2367,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -2531,15 +2507,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -2970,15 +2946,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -3598,15 +3574,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -3716,15 +3692,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -3899,15 +3875,15 @@
      "options": [
       [
        "net_buy",
-       "Net buy (Rp)"
+       "Top net buyers"
       ],
       [
        "gross_buy",
-       "Gross buy (Rp)"
+       "Top gross buyers"
       ],
       [
        "net_sell",
-       "Net sell (Rp)"
+       "Top net sellers"
       ]
      ],
      "default": "net_buy"
