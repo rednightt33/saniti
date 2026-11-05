@@ -1,0 +1,33 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261105_001_terminal_publish_signal.sql"
+ ],
+ "probes": [
+  [
+   "table",
+   null,
+   "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='terminal_publish_signal' ORDER BY ordinal_position"
+  ],
+  [
+   "publisher_reads_signal",
+   "terminal_market_reader",
+   "SELECT count(*) FROM public.terminal_publish_signal"
+  ],
+  [
+   "publisher_reads_stockbit",
+   "terminal_market_reader",
+   "SELECT count(*) FROM public.\"Monitoring_Stockbit_Update\" WHERE status='RUNNING'"
+  ],
+  [
+   "publisher_cannot_write",
+   "terminal_market_reader",
+   "INSERT INTO public.terminal_publish_signal(source, execution_id, changed) VALUES ('X','x',0)"
+  ],
+  [
+   "catalog",
+   null,
+   "SELECT 'table', count(*) FROM public.\"Table_Catalog\" WHERE table_name='terminal_publish_signal' UNION ALL SELECT 'columns', count(*) FROM public.\"Column_Catalog\" WHERE table_name='terminal_publish_signal'"
+  ]
+ ]
+}

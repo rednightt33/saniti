@@ -1,0 +1,11 @@
+Starting Container
+MIG DRYRUN 20261105_001_terminal_publish_signal.sql sha256=493b183aa1dcc2fff78ac2f31ca3358a1c7f0bed82e8fa4c53ac4fb2fec5c356
+MIG DRYRUN_BODY_OK 20261105_001_terminal_publish_signal.sql
+OUT {"q": "table", "ms": 2, "part": 0, "rows": [["signal_id", "bigint"], ["source", "text"], ["execution_id", "text"], ["run_type", "text"], ["changed", "integer"], ["created_at", "timestamp with time zone"]]}
+OUT {"q": "table", "ms": 2, "part": 1, "rows": [["trigger_status", "text"], ["trigger_error", "text"], ["triggered_at", "timestamp with time zone"]]}
+OUT {"q": "publisher_reads_signal", "ms": 1, "part": 0, "rows": [[0]]}
+OUT {"q": "publisher_reads_stockbit", "ms": 0, "part": 0, "rows": [[1]]}
+ERR {"q": "publisher_cannot_write", "error": "InsufficientPrivilege: permission denied for table terminal_publish_signal"}
+OUT {"q": "catalog", "ms": 3, "part": 0, "rows": [["table", 1], ["columns", 9]]}
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
