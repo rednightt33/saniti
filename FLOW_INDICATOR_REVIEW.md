@@ -534,6 +534,8 @@ Ketiganya tidak punya `scope`, `brokers`, `top`, `rank`, atau `ranking`. Pembent
    memberi tahu apakah HHI net jual juga tinggi. Bukti pada BBRI (252 sesi, semua investor): 3 Nov HHI net beli 0,1328 berbanding net jual 0,2217
    (jendela 20 sesi); keduanya di atas median bersamaan di 45 dari 252 sesi, dan di atas P90 bersamaan 0 sesi. Bukan to-do sampai user memutuskan.
 
+**FL13 final (user 2026-11-05):** sesudah contoh final (BBRI 3 Nov 2026, Top-3 OD, CC, YP: porsi² beli 0,02059 + 0,02558 + 0,00380 = **0,04997**, jual 0,00648; HHI semua broker 0,07616 beli dan 0,07088 jual) user menjawab "Okay 1-1 ya. ini FL 13 selesai." Spesifikasi FL13: nilai kelompok = jumlah porsi² anggota kelompok, penyebut porsi seluruh broker hari itu; Top-N menurut `rank` (bawaan net beli seperti FL01); bila `window` > 1, Top-N dari net sepanjang jendela dikunci untuk jendela itu (cara FL17); bawaan `scope` tetap semua broker; broker terpilih memakai penyebut seluruh broker. FL14 dan FL38 dibahas satu per satu sesudahnya.
+
 ### 5e.4 Batas
 
 Satu saham (BBRI), satu tanggal untuk contoh, dan 252 sesi untuk sebaran. Tidak ada klaim bahwa konsentrasi memprediksi harga. Belum dicocokkan dengan angka di BFF yang hidup. Tidak ada kode yang diubah.
