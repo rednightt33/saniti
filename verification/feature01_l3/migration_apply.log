@@ -1,0 +1,7 @@
+MIG APPLY 20261105_005_feature01_queue_per_ticker.sql sha256=9818805ee037f69d0b234a8fa37c64f15633e6cc497a04697349b6e630549321
+OUT {"q": "catalog", "ms": 1, "part": 0, "rows": [["Feature_Calculation_Log", "The Feature 01 worker records one completed result for every claimed queue item, including retries, superseded items and expired leases; a claim of several items of one ticker writes one row per item (rows_refreshed on the first)."], ["Feature_Calculation_Queue", "A price-row trigger transactionally creates/reopens work; a separate worker claims the due items of one ticker together, calculates (one item: its row and the 120 following; several: the whole ticker once), retries, and completes them."]]}
+OUT {"q": "queue", "ms": 78, "part": 0, "rows": [["DONE", 102247, 905, "2026-10-12 04:56:49.159915+00:00", "2026-11-05 12:34:48.854055+00:00"]]}
+OUT {"q": "failed_open", "ms": 11, "part": 0, "rows": []}
+OUT {"q": "status", "ms": 1, "part": 0, "rows": [["SUCCESS", 904]]}
+JOB_EXIT 0
+Starting Container
