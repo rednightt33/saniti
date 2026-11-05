@@ -10227,6 +10227,15 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   broker berikutnya (butuh token Stockbit di Railway; putaran itu juga mengisi broker 2026-11-04 dan seterusnya untuk
   kode 4 huruf); loader harian untuk kode bukan 4 huruf (opsi b; sampai itu bolong mulai 2026-11-04); Screener ETF
   (PENDING); usulan antrean Fitur 1 per kode dan "job dokumen skema = pekerjaan besar" di AGENTS.md (menunggu user).
+- **GO lanjutan (user 2026-11-05):** "1. Loader harian untuk kode di atas 4 huruf (opsi b) ... --> masukan exec 2. Untuk
+  point nomor 4 OK --> masukan exec. Inspect database. Ensure keputusan diambil dari code inspection rather than from
+  memory. Jalankan. Go". Dijalankan:
+  - L1: loader harian `stockbit-updater` ikut memuat kode bukan 4 huruf (opsi b), kode diturunkan dari sumber, bukan daftar
+    tetap; terpasang bersama putaran broker berikutnya (unggahan menjalankan satu putaran, butuh token Stockbit);
+  - L2: job dokumen skema (`sync_database_schema`, `Database_Table_Status`) masuk daftar "pekerjaan besar" AGENTS.md;
+  - L3: antrean Fitur 1 digabung per kode (satu hitung ulang dari tanggal terawal), bukan per baris;
+  - L4 (M349): rantai inkremental Fitur 4 disamakan dengan hitungan referensi pada deret datar.
+  Setiap perubahan berdasar inspeksi kode dan data saat ini, dengan rujukan file:baris.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
