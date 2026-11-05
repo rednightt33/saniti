@@ -53,7 +53,7 @@ OPTIONS = {
     'Turnover papan + jenis investor terpilih': ('filter', 'Board and investor turnover'),
     'Sama dengan hari rolling': ('window', 'Rolling days back'), '1 sesi': ('1', '1 session back'), '5 sesi': ('5', '5 sessions back'),
     '20 sesi': ('20', '20 sessions back'),
-    'Lot': ('lot', 'Lot'), 'Value': ('value', 'Value'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
+    'Lot': ('lot', 'Lot'), 'Value': ('value', 'Value'), 'Rupiah': ('value', 'Rupiah'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
     'Ya': (True, 'Yes'), 'Tidak': (False, 'No'),
 }
 BOARDS, INVESTORS = ['Regular', 'Nego', 'Cash'], ['Foreign', 'Domestic']
@@ -83,6 +83,7 @@ LABELS = {
     'Broker institusi': ('inst', 'Institutional brokers'), 'Broker ritel': ('retail', 'Retail brokers'),
     'Kembalikan ke klasifikasi bawaan': ('reset', 'Back to the default classification'),
     'Garis perubahan: dibanding': ('lag', 'Change line vs'),
+    'Kurangi bagian merata (N/k)': ('even', 'Minus the even share (N/k)'),
 }
 FIXED_TEXT = {'Dihitung ulang tiap hari': 'Recomputed every day',
               'Beku: diurutkan sekali dari tanggal awal sampai hari ini': 'Frozen: ranked once from the anchor to the last day',

@@ -44,6 +44,14 @@ const hasCounts = (R: FlowRows) => {
 };
 const NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 
+/** EXEC-TERMINAL-IND-EDIT (aturan IHSG, user 2026-11-05): the options a select offers; on an index no Lot */
+export const offeredOptions = (q: FlowRegParam, onIndex: boolean) => (q.options || []).filter(o => !(onIndex && o[0] === 'lot'));
+/** on an index a saved or default Lot reads as the select's next option (Rupiah); the parameters are changed in place */
+export function withoutLot(params: FlowRegParam[], p: any, onIndex: boolean) {
+  if (onIndex) for (const f of params) if (f.kind === 'select' && p[f.key] === 'lot') p[f.key] = offeredOptions(f, true)[0]?.[0];
+  return p;
+}
+
 /** the number shown in the legend and on the axis, from the indicator's unit */
 export function flowFormat(unit: string): { fmt: (v: number) => string; minMove: number } {
   /* EDGE Design Spec v1.2 section 6 (user 2026-11-01): data/specFormat.ts; a flag still reads Yes/No */
@@ -137,7 +145,7 @@ export function initFlowIndicators(ctx: Ctx) {
     const F = flowFormat(r.unit), byKey = Object.fromEntries(r.params.map(q => [q.key, q]));
     const levels = String(byKey.levels?.default ?? '').split(/[,;\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);
     const plotDefault = byKey.plot?.default === 'hist' ? 'histogram' : 'line';
-    const outs = (plot: string) => {
+    const outs = (plot: string, p?: any) => {
       const kind = r.place === 'marker' ? 'marker' : plot;
       /* Broker Inventory: the panel's inventory colours, the total in ink (front-end audit 2026-10-30: two orange lines) */
       if (r.id === 'FL23') return [...SLOTS.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:INV_COLORS[j] })),
@@ -145,7 +153,9 @@ export function initFlowIndicators(ctx: Ctx) {
       return r.outputs.map(k => k === 'change'
         /* EXEC-TERMINAL-IND-EDIT (FL34 to-do 17, FL11 U2): the change line is a line on its own scale (left), in points */
         ? { k, label:'Change', r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', scale:'left', fmt:spec.points, minMove:.01 }
-        : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'' });
+        : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
+            /* U3: a share minus the even share reads in points */
+            ...(p && p.even ? { fmt:spec.points, minMove:.01 } : {}) });
     };
     const note = ctx.M.index ? INDEX_NOTE[r.id] || '' : '';
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
@@ -153,12 +163,17 @@ export function initFlowIndicators(ctx: Ctx) {
     /* a field that only applies to one broker scope is shown only with it (audit I8: "Brokers: None" beside Top-N) */
     const hasScope = r.params.some(q => q.key === 'scope');
     const topnOnly = hasScope ? { when:(p: any) => (p.scope ?? 'topn') === 'topn' } : {};
-    const indexValueOnly = !!ctx.M.index && r.id === 'FL23';    // EXEC-IHSG-FLOW: an index's inventory in Rupiah only
-    const inputs = r.params.filter(q => q.key !== 'levels' && !(indexValueOnly && q.key === 'unit')).map(q => {
+    /* EXEC-IHSG-FLOW, EXEC-TERMINAL-IND-EDIT (user 2026-11-05 "Ok, masukan exec"): an index has no lots (lots of different
+       stocks do not add up), so on an index a choice of Lot is not offered and a saved Lot reads as the next choice
+       (Rupiah); a choice left with one option is not shown (FL23's unit). Derived from the options, not listed by id. */
+    const onIndex = !!ctx.M.index;
+    const noLot = (q: any) => withoutLot(r.params, q, onIndex), optionsOf = (q: FlowRegParam) => offeredOptions(q, onIndex);
+    const inputs = r.params.filter(q => q.key !== 'levels' && !(q.kind === 'select' && onIndex && optionsOf(q).length < 2)).map(q => {
       const base: any = { key:q.key, label:relabel(q.label), hint:q.status === 'PROPOSED' ? 'Proposed default' : undefined,
         ...(['top', 'rank', 'ranking'].includes(q.key) ? topnOnly : {}) };
       switch (q.kind) {
-        case 'select': return { ...base, kind:'select', options:q.options!.map(o => o[0]), labels:Object.fromEntries(q.options!.map(o => [o[0], o[1]])), def:q.default };
+        case 'select': { const os = optionsOf(q), def = os.some(o => o[0] === q.default) ? q.default : os[0]?.[0];
+          return { ...base, kind:'select', options:os.map(o => o[0]), labels:Object.fromEntries(os.map(o => [o[0], o[1]])), def } }
         case 'multi': {
           const isBoard = q.key === 'boards', all = isBoard ? ctx.BOARDS : ctx.INVESTORS;
           return { ...base, kind:'multi', def:q.default, options:() => all, all:() => all.map(x => x.id), title:isBoard ? 'Board' : 'Investor' };
@@ -177,12 +192,12 @@ export function initFlowIndicators(ctx: Ctx) {
     return {
       id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, inputs, style:[], fill:null,
       pane:r.place === 'pane' ? 'sub' : 'overlay', format:F.fmt, minMove:F.minMove,
-      outsOf:(p: any) => outs(p.plot === 'hist' ? 'histogram' : p.plot === 'line' ? 'line' : plotDefault),
+      outsOf:(p: any) => outs(p.plot === 'hist' ? 'histogram' : p.plot === 'line' ? 'line' : plotDefault, p),
       compute:(p: any) => {
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
-        if (indexValueOnly) q.unit = 'value';
+        noLot(q);
         const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
         if (r.id !== 'FL23') return o;
         const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
@@ -198,7 +213,7 @@ export function initFlowIndicators(ctx: Ctx) {
         const q: any = { ...flowDefaults(r.id), ...Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== undefined)) };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
-        if (indexValueOnly) q.unit = 'value';
+        noLot(q);
         const d = DAY ? DAY.dayOf[t] : t;
         return d < 0 ? null : ex(context(), q, d, out);
       },

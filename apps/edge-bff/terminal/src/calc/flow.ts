@@ -302,14 +302,25 @@ function imbalance(ctx: FlowContext, p: FlowParams): Series {          // FL10
   const R = ctx.rows, g = grid0(p);
   return each(R, W(p), (a, t) => { const C = cohort(g, R, p, a, t); if (cmiss(g, C, a, t)) return null; const bf = cw(g, C, 'bf', a, t), sf = cw(g, C, 'sf', a, t); return div(bf - sf, bf + sf) });
 }
-function hhi(ctx: FlowContext, p: FlowParams, m: 'bl' | 'sl'): Series {  // FL13
-  const R = ctx.rows, g = grid0(p);
+/** FL13 (EXEC-TERMINAL-IND-EDIT to-do 5, 6; user 2026-11-05 "Okay 1-1 ya. ini FL 13 selesai"): the sum of the squared
+    shares of the cohort's brokers in one side's total (lots, or Rupiah with unit 'value'); the denominator is every broker;
+    all brokers = the HHI of the side. The Top-N is ranked over the window and kept for it (Q3 "A"). */
+function hhi(ctx: FlowContext, p: FlowParams, side: 'buy' | 'sell'): Series {
+  const R = ctx.rows, g = grid0(p), m: Measure = p.unit === 'value' ? (side === 'buy' ? 'bv' : 'sv') : (side === 'buy' ? 'bl' : 'sl');
   return each(R, W(p), (a, t) => {
     const tot = aw(g, m, a, t); if (!tot) return null;
-    let s = 0; for (let b = 0; b < g.B; b++) { const x = bw(g, m, b, a, t) / tot; s += x * x }
+    const C = cohort(g, R, p, a, t);
+    let s = 0;
+    if (C) for (const b of C) { const x = bw(g, m, b, a, t) / tot; s += x * x }
+    else for (let b = 0; b < g.B; b++) { const x = bw(g, m, b, a, t) / tot; s += x * x }
     return s;
   });
 }
+/** each broker's net over a..t in Rupiah or (unit 'lot') in lots, its own sign (to-do 6, A4) */
+const netOf = (g: Grid, p: FlowParams, b: number, a: number, t: number) =>
+  p.unit === 'lot' ? bw(g, 'bl', b, a, t) - bw(g, 'sl', b, a, t) : bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t);
+/** U3 (user 2026-11-05): a Top-N share minus the even share N/k (k brokers on that side; N = the brokers taken), in points */
+const evenShare = (p: FlowParams, taken: number, k: number) => p.even && k ? 100 * taken / k : 0;
 /** bandar: the N largest net buyers and net sellers over a..t; [sum of buyers' net, sum of sellers' net (negative)] */
 function bandar(g: Grid, R: FlowRows, a: number, t: number, n: number): [number, number] {
   const nets = new Float64Array(g.B);                    // each broker's net once, for both sides
@@ -417,20 +428,27 @@ export const FLOW: Record<string, Fn> = {
     const R = c.rows, g = grid0(p), w = W(p, 5);
     return { value:each(R, w, (a, t) => { const C = cohort(g, R, p, a, t); let n = 0; for (let k = a; k <= t; k++) if (cc(g, C, 'bv', k) - cc(g, C, 'sv', k) > 0) n++; return 100 * n / w }) };
   },
-  FL13:(c, p) => sided(p, () => hhi(c, p, 'bl'), () => hhi(c, p, 'sl')),
-  FL14:(c, p) => { const b = hhi(c, p, 'bl'), s = hhi(c, p, 'sl'); return { asym:b.map((x, t) => x === null || s[t] === null ? null : x - s[t]!) } },
+  FL13:(c, p) => mirrored(p, (q, side) => hhi(c, q, side)),
+  /* to-do 5, K2 (user 2026-11-05 "FL14 warisi parameter"; "tiga broker paling atas dikurang tiga broker sisi lainnya"):
+     FL13 Buy of the top buyers minus FL13 Sell of the top sellers */
+  FL14:(c, p) => { const b = hhi(c, sideParams(p, 'buy'), 'buy'), s = hhi(c, sideParams(p, 'sell'), 'sell'); return { asym:b.map((x, t) => x === null || s[t] === null ? null : x - s[t]!) } },
   FL15:(c, p) => {
-    const R = c.rows, g = grid0(p);
-    return { value:each(R, W(p), (a, t) => { const top = topBrokers(g, R, a, t, int(p.top, 3), 'gross_buy_lots'), v = div(top.reduce((s, b) => s + bw(g, 'bl', b, a, t), 0), aw(g, 'bl', a, t)); return v === null ? null : 100 * v }) };
+    const R = c.rows, g = grid0(p), m: Measure = p.unit === 'value' ? 'bv' : 'bl', rank = p.unit === 'value' ? 'gross_buy' : 'gross_buy_lots';
+    return { value:each(R, W(p), (a, t) => {
+      const top = topBrokers(g, R, a, t, int(p.top, 3), rank), v = div(top.reduce((s, b) => s + bw(g, m, b, a, t), 0), aw(g, m, a, t));
+      if (v === null) return null;
+      let k = 0; if (p.even) for (let b = 0; b < g.B; b++) if (bw(g, m, b, a, t) > 0) k++;
+      return 100 * v - evenShare(p, top.length, k);
+    }) };
   },
   FL16:(c, p) => {
     const R = c.rows, g = grid0(p);
     return { value:each(R, W(p), (a, t) => {
       const pos: number[] = [];
-      for (let b = 0; b < g.B; b++) { const n = bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t); if (n > 0) pos.push(n) }
+      for (let b = 0; b < g.B; b++) { const n = netOf(g, p, b, a, t); if (n > 0) pos.push(n) }
       pos.sort((x, y) => y - x);
-      const all = pos.reduce((s, x) => s + x, 0), top = pos.slice(0, int(p.top, 3)).reduce((s, x) => s + x, 0), v = div(top, all);
-      return v === null ? null : 100 * v;
+      const taken = pos.slice(0, int(p.top, 3)), all = pos.reduce((s, x) => s + x, 0), v = div(taken.reduce((s, x) => s + x, 0), all);
+      return v === null ? null : 100 * v - evenShare(p, taken.length, pos.length);
     }) };
   },
   FL17:(c, p) => ({ value:rollingVwap(c, p, 20) }),
@@ -573,13 +591,18 @@ export const FLOW: Record<string, Fn> = {
     const x = each(R, W(p, 20), (a, t) => { const C = cohort(g, R, p, a, t); return cw(g, C, 'bv', a, t) - cw(g, C, 'sv', a, t) });
     return { value:percentile(x, int(p.baseline, 250)) };
   },
+  /* to-do 5, 6 (user 2026-11-05 "Okay. Masukan ke review."): the cohort's squared shares of the net buyers' positive net
+     (Rupiah, or lots with their own sign); a selected broker with net <= 0 adds 0; all brokers = every net buyer */
   FL38:(c, p) => {
     const R = c.rows, g = grid0(p);
     return { value:each(R, W(p, 20), (a, t) => {
-      const pos: number[] = [];
-      for (let b = 0; b < g.B; b++) { const n = bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t); if (n > 0) pos.push(n) }
-      const all = pos.reduce((s, x) => s + x, 0); if (!all) return null;
-      return pos.reduce((s, x) => s + (x / all) ** 2, 0);
+      const nets = new Float64Array(g.B); let all = 0;
+      for (let b = 0; b < g.B; b++) { nets[b] = netOf(g, p, b, a, t); if (nets[b] > 0) all += nets[b] }
+      if (!all) return null;
+      const C = cohort(g, R, p, a, t);
+      let s = 0;
+      for (const b of C ?? nets.keys()) if (nets[b] > 0) s += (nets[b] / all) ** 2;
+      return s;
     }) };
   },
   FL39:(c, p) => ({ value:distance(c.close, rollingVwap(c, p, 10)) }),

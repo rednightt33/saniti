@@ -168,6 +168,23 @@ LAG_FL34 = ('Garis perubahan: dibanding', 'Pilihan', '1 sesi / 5 sesi / 20 sesi'
 set_params('FL11', lambda ps: ps + [LAG_FL11])
 set_params('FL34', lambda ps: ps + [LAG_FL34])
 
+# to-do 5 (user 2026-11-04 "pilih by broker dan top N cohort ... seperti FL01"; 2026-11-05 "Okay 1-1 ya. ini FL 13 selesai",
+# "Ok FL14 warisi parameter", FL38 "Okay. Masukan ke review.") and to-do 6 (Satuan Lot or Rupiah): the HHI indicators get a
+# broker scope, all brokers by default (the value saved charts already show)
+SCOPE_HHI = [('Cakupan broker', 'Pilihan', 'Semua broker / Broker terpilih / Top-N cohort', 'Semua broker', D,
+              'To-do 5 (2026-11-05): bawaan tetap semua broker; broker terpilih memakai penyebut seluruh broker.')] + SCOPE[1:3]
+UNIT = lambda d: [('Satuan', 'Pilihan', 'Lot / Rupiah', d, D, 'To-do 6 (2026-11-04): "harus bisa cater whether its rupiah dan lot"; net lot memakai tandanya sendiri (A4).')]
+EVEN = [('Kurangi bagian merata (N/k)', 'Centang', 'Ya / Tidak', 'Tidak', D,
+         'U3 (2026-11-05): porsi Top-N dikurangi N/k, k = jumlah broker di sisi itu (M-CR3X-NET, M-CR3X-GROSS).')]
+RANK_NETGROSS_BUY = ('Urutkan Top-N berdasarkan', 'Pilihan', 'Net beli (Rp) / Beli kotor (Rp)', 'Net beli (Rp)', D,
+                     'FL38 (2026-11-05): net jual tidak ditawarkan (menghasilkan 0).')
+RANKING = SCOPE[4:5]
+set_params('FL13', lambda ps: SCOPE_HHI + [RANK_SIDE] + RANKING + ps + UNIT('Lot'))
+set_params('FL14', lambda ps: SCOPE_HHI + [RANK_SIDE] + RANKING + ps + UNIT('Lot'))
+set_params('FL38', lambda ps: SCOPE_HHI + [RANK_NETGROSS_BUY] + RANKING + ps + UNIT('Rupiah'))
+set_params('FL15', lambda ps: ps + UNIT('Lot') + EVEN)
+set_params('FL16', lambda ps: ps + UNIT('Rupiah') + EVEN)
+
 DEC_20261105 = [
     (D, 'K1 Sisi (2026-11-05)', 'Satu arti untuk Sisi di FL01-FL05, FL08, FL13, FL14, FL33: Buy = Top-N pembeli, Sell = Top-N penjual.',
      'C diperluas ke FL01-FL05'),
@@ -176,6 +193,10 @@ DEC_20261105 = [
     (D, 'FL11 penyebut (2026-11-04)', 'Satu penyebut: nilai beli kotor semua investor pada papan terpilih.', 'Okay pakai A'),
     (D, 'Garis perubahan (2026-11-05)', 'FL34: batang FL34 + garis perubahan (1/5/20 sesi, poin, sumbu kedua); FL11 sama, termasuk "sama dengan hari rolling".',
      'Tidak usah ada toggle, langsung aja kita display as line chart ...; Ok untuk jarak perubahan; U2 ok exec'),
+    (D, 'HHI kelompok (2026-11-05)', 'FL13, FL14, FL38: pilihan kelompok seperti FL01, nilai = jumlah porsi² anggota, penyebut semua broker; Top-N dikunci per jendela; bawaan semua broker.',
+     'Okay 1-1 ya. ini FL 13 selesai; Ok FL14 warisi parameter; A deh, masukan exec'),
+    (D, 'Satuan (2026-11-04)', 'FL13, FL15, FL16, FL38: Satuan Lot atau Rupiah; bawaan tetap (FL13, FL15 Lot; FL16, FL38 Rupiah).', 'Yes, tambahkan juga untuk FL13 dan FL38'),
+    (D, 'Bagian merata (2026-11-05)', 'FL15, FL16: pilihan porsi Top-N dikurangi N/k.', 'U3 ok exec'),
     (D, 'Kelompok B (2026-11-05)', 'Indikator dengan Rank tanpa Sisi tetap Net beli, Beli kotor, Net jual; label diperjelas.',
      'Kelompok B tetap, ganti labelnya, masukan exec'),
 ]

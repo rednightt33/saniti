@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "385c2dd2fae44467578e2f0f66953958446744e056ae44e6e45a8adccb3f0ab9"
+  "sha256": "431acef296bc1aea4944f269cb321d5d9ae3e29bafd887ca17da48c27531d012"
  },
  "families": [
   "Share",
@@ -1704,6 +1704,68 @@
    "tip": "Seberapa terpusat pembelian (atau penjualan) pada sedikit broker (0-1).",
    "params": [
     {
+     "key": "scope",
+     "label": "Broker scope",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "all",
+       "All brokers"
+      ],
+      [
+       "selected",
+       "Selected brokers"
+      ],
+      [
+       "topn",
+       "Top-N cohort"
+      ]
+     ],
+     "default": "all"
+    },
+    {
+     "key": "brokers",
+     "label": "Brokers",
+     "status": "DECIDED",
+     "kind": "brokers",
+     "default": []
+    },
+    {
+     "key": "top",
+     "label": "Top N",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "rank",
+     "label": "Rank Top-N by",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "net_buy",
+       "Net"
+      ],
+      [
+       "gross_buy",
+       "Gross"
+      ]
+     ],
+     "default": "net_buy"
+    },
+    {
+     "key": "ranking",
+     "label": "Top-N ranking",
+     "status": "DECIDED",
+     "kind": "fixed",
+     "text": "Recomputed every day",
+     "default": "daily"
+    },
+    {
      "key": "boards",
      "label": "Market board",
      "status": "DECIDED",
@@ -1762,6 +1824,23 @@
      "default": 1,
      "min": 1,
      "max": 250
+    },
+    {
+     "key": "unit",
+     "label": "Unit",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "lot",
+       "Lot"
+      ],
+      [
+       "value",
+       "Rupiah"
+      ]
+     ],
+     "default": "lot"
     }
    ]
   },
@@ -1777,6 +1856,68 @@
    ],
    "tip": "Keterpusatan sisi beli dikurangi keterpusatan sisi jual.",
    "params": [
+    {
+     "key": "scope",
+     "label": "Broker scope",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "all",
+       "All brokers"
+      ],
+      [
+       "selected",
+       "Selected brokers"
+      ],
+      [
+       "topn",
+       "Top-N cohort"
+      ]
+     ],
+     "default": "all"
+    },
+    {
+     "key": "brokers",
+     "label": "Brokers",
+     "status": "DECIDED",
+     "kind": "brokers",
+     "default": []
+    },
+    {
+     "key": "top",
+     "label": "Top N",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "rank",
+     "label": "Rank Top-N by",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "net_buy",
+       "Net"
+      ],
+      [
+       "gross_buy",
+       "Gross"
+      ]
+     ],
+     "default": "net_buy"
+    },
+    {
+     "key": "ranking",
+     "label": "Top-N ranking",
+     "status": "DECIDED",
+     "kind": "fixed",
+     "text": "Recomputed every day",
+     "default": "daily"
+    },
     {
      "key": "boards",
      "label": "Market board",
@@ -1839,6 +1980,23 @@
       ]
      ],
      "default": "hist"
+    },
+    {
+     "key": "unit",
+     "label": "Unit",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "lot",
+       "Lot"
+      ],
+      [
+       "value",
+       "Rupiah"
+      ]
+     ],
+     "default": "lot"
     }
    ]
   },
@@ -1901,6 +2059,30 @@
      "default": 3,
      "min": 1,
      "max": 20
+    },
+    {
+     "key": "unit",
+     "label": "Unit",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "lot",
+       "Lot"
+      ],
+      [
+       "value",
+       "Rupiah"
+      ]
+     ],
+     "default": "lot"
+    },
+    {
+     "key": "even",
+     "label": "Minus the even share (N/k)",
+     "status": "DECIDED",
+     "kind": "bool",
+     "default": false
     }
    ]
   },
@@ -1963,6 +2145,30 @@
      "default": 3,
      "min": 1,
      "max": 20
+    },
+    {
+     "key": "unit",
+     "label": "Unit",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "lot",
+       "Lot"
+      ],
+      [
+       "value",
+       "Rupiah"
+      ]
+     ],
+     "default": "value"
+    },
+    {
+     "key": "even",
+     "label": "Minus the even share (N/k)",
+     "status": "DECIDED",
+     "kind": "bool",
+     "default": false
     }
    ]
   },
@@ -3813,6 +4019,68 @@
    "tip": "Apakah pembelian bersih dikuasai sedikit broker.",
    "params": [
     {
+     "key": "scope",
+     "label": "Broker scope",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "all",
+       "All brokers"
+      ],
+      [
+       "selected",
+       "Selected brokers"
+      ],
+      [
+       "topn",
+       "Top-N cohort"
+      ]
+     ],
+     "default": "all"
+    },
+    {
+     "key": "brokers",
+     "label": "Brokers",
+     "status": "DECIDED",
+     "kind": "brokers",
+     "default": []
+    },
+    {
+     "key": "top",
+     "label": "Top N",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "rank",
+     "label": "Rank Top-N by",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "net_buy",
+       "Top net buyers"
+      ],
+      [
+       "gross_buy",
+       "Top gross buyers"
+      ]
+     ],
+     "default": "net_buy"
+    },
+    {
+     "key": "ranking",
+     "label": "Top-N ranking",
+     "status": "DECIDED",
+     "kind": "fixed",
+     "text": "Recomputed every day",
+     "default": "daily"
+    },
+    {
      "key": "boards",
      "label": "Market board",
      "status": "DECIDED",
@@ -3850,6 +4118,23 @@
      "default": 20,
      "min": 1,
      "max": 250
+    },
+    {
+     "key": "unit",
+     "label": "Unit",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "lot",
+       "Lot"
+      ],
+      [
+       "value",
+       "Rupiah"
+      ]
+     ],
+     "default": "value"
     }
    ]
   },

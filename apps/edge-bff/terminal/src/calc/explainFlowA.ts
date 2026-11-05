@@ -215,11 +215,22 @@ function hhiOf(R: FlowRows, bk: Book, m: number) {
     { key:'SR', label:`Jumlah kuadrat porsi ${list.length - top.length} broker lainnya`, value:rest, unit:'num' }];
   return { tot, value:s as Num, list, terms };
 }
+/** to-do 5: the HHI part of a cohort: the members' squared shares of every broker's total (calc/flow.ts hhi); all brokers
+    (ids null) = hhiOf */
+function hhiPart(R: FlowRows, bk: Book, C: Cohort, m: number) {
+  if (!C.ids) return { ...hhiOf(R, bk, m), cohort:false };
+  const tot = bk.all[m], list: { b: number; v: number; x: number }[] = [];
+  if (!tot) return { tot, value:null as Num, list, terms:[] as Term[], cohort:true };
+  let s = 0;
+  for (const b of C.ids) { const v = (bk.per.get(b) ?? ZERO)[m], x = v / tot; s += x * x; list.push({ b, v, x }) }
+  const terms: Term[] = list.map((e, k) => ({ key:`S${k + 1}`, label:`Porsi broker ${R.brokers[e.b]}`, value:e.x, unit:'num' as const }));
+  return { tot, value:s as Num, list, terms, cohort:true };
+}
 const hhiCombine = (v: Record<string, number>) => Object.keys(v).reduce((s, k) => s + (k === 'SR' ? v[k] : v[k] * v[k]), 0);
 const hhiExpr = (terms: Term[]) => terms.map(x => x.key === 'SR' ? 'SR' : `${x.key}²`).join(' + ');
-function hhiTable(R: FlowRows, h: ReturnType<typeof hhiOf>, w: string) {
-  return { head:['Broker', `Lot ${w}`, 'Porsi', 'Porsi²'],
-    rows:headRows(h.list.map(e => [R.brokers[e.b], lot(e.v), share(100 * e.x), fmt.num(e.x * e.x, 4)])) };
+function hhiTable(R: FlowRows, h: ReturnType<typeof hhiOf>, w: string, value = false) {
+  return { head:['Broker', `${value ? 'Nilai' : 'Lot'} ${w}`, 'Porsi', 'Porsi²'],
+    rows:headRows(h.list.map(e => [R.brokers[e.b], value ? fmt.idr(e.v) : lot(e.v), share(100 * e.x), fmt.num(e.x * e.x, 4)])) };
 }
 
 /* ---- the frozen cohort of FL18-FL19 (calc/flow.ts anchorAt, frozen) ---- */
@@ -522,37 +533,45 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
   /* FL13 Concentration HHI · Gross: Σ_b (BL(b) / BL(A))², Sell with SL; A with the filter */
   FL13:(c, p, t, out) => {
     const o = sideOf(p, out); if (!o) return null;
-    const R = c.rows, W = intOf(p.window, 1), a = flowWindow(R, t, W); if (a === null) return null;
-    const f = filterOfP(p), bk = book(R, a, t, f), S = SIDE[o], h = hhiOf(R, bk, S.l), value = h.value;
+    const x = prep(c, p, t, 1); if (!x) return null;
+    const { R, a, f, bk, C } = x, S = SIDE[o], money = p.unit === 'value', m = money ? S.v : S.l, h = hhiPart(R, bk, C, m), value = h.value;
+    const what = money ? `nilai ${S.w}` : `lot ${S.w}`, tot = money ? fmt.idr(h.tot) : `${lot(h.tot)} lot`;
     return {
       output:o, value, expr:h.terms.length ? hhiExpr(h.terms) : 'Σ porsi²', span:spanOf(c, a, t), terms:h.terms, combine:hhiCombine,
       steps:[
         windowStep(c, a, t, f),
-        { title:`Porsi lot ${S.w} setiap broker`, text:`Porsi = lot ${S.w} broker ÷ lot ${S.w} semua broker (${lot(h.tot)} lot).`, ...(h.list.length ? { table:hhiTable(R, h, S.w) } : {}) },
-        { title:'Hitung nilainya', text:value === null ? `Tidak ada lot ${S.w} dalam jendela, jadi tidak ada nilai.`
+        ...(h.cohort ? [cohortStep(R, bk, C, [[money ? `Nilai ${S.w}` : `Lot ${S.w}`, s => money ? fmt.idr(s[m]) : lot(s[m])]])] : []),
+        { title:`Porsi ${what} setiap broker${h.cohort ? ' kelompok' : ''}`, text:`Porsi = ${what} broker ÷ ${what} semua broker (${tot}).`, ...(h.list.length ? { table:hhiTable(R, h, S.w, money) } : {}) },
+        { title:'Hitung nilainya', text:value === null ? `Tidak ada ${what} dalam jendela, jadi tidak ada nilai.`
+          : h.cohort ? `Jumlah porsi² ${h.list.length} broker kelompok = ${fmt.num(value, 4)} (bagian kelompok dari keterpusatan semua broker).`
           : `Jumlah porsi² semua ${h.list.length} broker = ${fmt.num(value, 4)}, setara ${fmt.num(1 / value, 1)} broker berporsi sama (1 = satu broker menguasai semua).` },
       ],
     };
   },
 
-  /* FL14 Concentration HHI · Buy − Sell: FL13 Buy − FL13 Sell */
+  /* FL14 Concentration HHI · Buy − Sell: FL13 Buy of the top buyers − FL13 Sell of the top sellers (to-do 5, K2) */
   FL14:(c, p, t, out) => {
     if (out !== undefined && out !== 'asym') return null;
     const R = c.rows, W = intOf(p.window, 1), a = flowWindow(R, t, W); if (a === null) return null;
-    const f = filterOfP(p), bk = book(R, a, t, f), hb = hhiOf(R, bk, BL), hs = hhiOf(R, bk, SL);
+    const f = filterOfP(p), bk = book(R, a, t, f), money = p.unit === 'value';
+    const Cb = cohortOf(R, sideParams(p, 'buy'), bk), Cs = cohortOf(R, sideParams(p, 'sell'), bk);
+    const hb = hhiPart(R, bk, Cb, money ? BV : BL), hs = hhiPart(R, bk, Cs, money ? SV : SL);
     const combine = (v: Record<string, number>) => v.HB - v.HS;
     const value = hb.value === null || hs.value === null ? null : combine({ HB:hb.value, HS:hs.value });
     const top = (h: ReturnType<typeof hhiOf>) => h.list.slice(0, 3).map(e => `${R.brokers[e.b]} ${share(100 * e.x)}`).join(', ');
+    const w = (side: string) => money ? `nilai ${side}` : `lot ${side}`, who = (h: { cohort: boolean }, k: string) => h.cohort ? `${k} kelompok` : 'semua broker';
     return {
       output:'asym', value, expr:'HB − HS', span:spanOf(c, a, t),
-      terms:[...(hb.value === null ? [] : [{ key:'HB', label:'HHI lot beli', value:hb.value, unit:'num' as const }]),
-             ...(hs.value === null ? [] : [{ key:'HS', label:'HHI lot jual', value:hs.value, unit:'num' as const }])], combine,
+      terms:[...(hb.value === null ? [] : [{ key:'HB', label:`HHI ${w('beli')}`, value:hb.value, unit:'num' as const }]),
+             ...(hs.value === null ? [] : [{ key:'HS', label:`HHI ${w('jual')}`, value:hs.value, unit:'num' as const }])], combine,
       steps:[
         windowStep(c, a, t, f),
-        { title:'Keterpusatan sisi beli (HB)', text:hb.value === null ? 'Tidak ada lot beli dalam jendela.'
-          : `Jumlah porsi² lot beli ${hb.list.length} broker = ${fmt.num(hb.value, 4)}. Terbesar: ${top(hb)}.`, ...(hb.list.length ? { table:hhiTable(R, hb, 'beli') } : {}) },
-        { title:'Keterpusatan sisi jual (HS)', text:hs.value === null ? 'Tidak ada lot jual dalam jendela.'
-          : `Jumlah porsi² lot jual ${hs.list.length} broker = ${fmt.num(hs.value, 4)}. Terbesar: ${top(hs)}.`, ...(hs.list.length ? { table:hhiTable(R, hs, 'jual') } : {}) },
+        ...(hb.cohort ? [cohortStep(R, bk, Cb, [[money ? 'Nilai beli' : 'Lot beli', s => money ? fmt.idr(s[BV]) : lot(s[BL])]], { title:'Kelompok sisi beli' })] : []),
+        { title:'Keterpusatan sisi beli (HB)', text:hb.value === null ? `Tidak ada ${w('beli')} dalam jendela.`
+          : `Jumlah porsi² ${w('beli')} ${who(hb, 'pembeli')} (${hb.list.length} broker) = ${fmt.num(hb.value, 4)}. Terbesar: ${top(hb)}.`, ...(hb.list.length ? { table:hhiTable(R, hb, 'beli', money) } : {}) },
+        ...(hs.cohort ? [cohortStep(R, bk, Cs, [[money ? 'Nilai jual' : 'Lot jual', s => money ? fmt.idr(s[SV]) : lot(s[SL])]], { title:'Kelompok sisi jual' })] : []),
+        { title:'Keterpusatan sisi jual (HS)', text:hs.value === null ? `Tidak ada ${w('jual')} dalam jendela.`
+          : `Jumlah porsi² ${w('jual')} ${who(hs, 'penjual')} (${hs.list.length} broker) = ${fmt.num(hs.value, 4)}. Terbesar: ${top(hs)}.`, ...(hs.list.length ? { table:hhiTable(R, hs, 'jual', money) } : {}) },
         { title:'Hitung nilainya', text:value === null ? 'Salah satu sisi kosong, jadi tidak ada nilai.'
           : `${fmt.num(hb.value, 4)} − ${fmt.num(hs.value, 4)} = ${fmt.num(value, 4)}: ${value > 0 ? 'pembelian lebih terpusat dari penjualan' : value < 0 ? 'penjualan lebih terpusat dari pembelian' : 'sama terpusat'}.` },
         ...levelStep(p, value, v => fmt.num(v, 4)),
@@ -560,44 +579,54 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
     };
   },
 
-  /* FL15 Concentration Top-N · Gross Buy: 100 × (the N largest BL(b)) / BL(A) */
+  /* FL15 Concentration Top-N · Gross Buy: 100 × (the N largest BL(b)) / BL(A), or in Rupiah (to-do 6); U3: minus N/k */
   FL15:(c, p, t, out) => {
     if (out !== undefined && out !== 'value') return null;
     const R = c.rows, W = intOf(p.window, 1), a = flowWindow(R, t, W); if (a === null) return null;
-    const f = filterOfP(p), bk = book(R, a, t, f), N = intOf(p.top, 3), top = topIds(R, bk, N, RANKS.gross_buy_lots.score);
-    const X = top.reduce((s, b) => s + bk.per.get(b)![BL], 0), T = bk.all[BL];
-    const combine = (v: Record<string, number>) => pctOf(div(v.BLN, v.TBL)), value = combine({ BLN:X, TBL:T });
+    const money = p.unit === 'value', m = money ? BV : BL, show = (v: number) => money ? fmt.idr(v) : lot(v), w = money ? 'Nilai beli' : 'Lot beli';
+    const f = filterOfP(p), bk = book(R, a, t, f), N = intOf(p.top, 3), top = topIds(R, bk, N, (money ? RANKS.gross_buy : RANKS.gross_buy_lots).score);
+    const X = top.reduce((s, b) => s + bk.per.get(b)![m], 0), T = bk.all[m];
+    let K = 0; for (const [, v] of bk.per) if (v[m] > 0) K++;
+    const even = !!p.even, combine = (v: Record<string, number>) => { const x = pctOf(div(v.XN, v.TX)); return x === null ? null : x - (even && v.K ? 100 * v.NE / v.K : 0) };
+    const value = combine({ XN:X, TX:T, NE:top.length, K }), raw = pctOf(div(X, T));
     return {
-      output:'value', value, expr:'100 × BLN ÷ TBL', span:spanOf(c, a, t),
-      terms:[{ key:'BLN', label:`Lot beli ${N} pembeli terbesar`, value:X, unit:'lot' }, { key:'TBL', label:'Lot beli semua broker', value:T, unit:'lot' }], combine,
+      output:'value', value, expr:even ? '100 × XN ÷ TX − 100 × NE ÷ K' : '100 × XN ÷ TX', span:spanOf(c, a, t),
+      terms:[{ key:'XN', label:`${w} ${N} pembeli terbesar`, value:X, unit:money ? 'idr' : 'lot' }, { key:'TX', label:`${w} semua broker`, value:T, unit:money ? 'idr' : 'lot' },
+        ...(even ? [{ key:'NE', label:'Broker yang diambil', value:top.length, unit:'count' as const }, { key:'K', label:'Broker yang membeli', value:K, unit:'count' as const }] : [])], combine,
       steps:[
         windowStep(c, a, t, f),
-        { title:`Ambil ${N} pembeli terbesar`, text:`Urutkan broker menurut lot beli selama jendela dan ambil ${N} teratas.${top.length < N ? ` Hanya ${top.length} broker yang membeli.` : ''}`,
-          table:{ head:['Broker', 'Lot beli', 'Porsi'], rows:[...headRows(top.map(b => [R.brokers[b], lot(bk.per.get(b)![BL]), share(pctOf(div(bk.per.get(b)![BL], T)))])), ['BLN', lot(X), share(value)]] } },
-        { title:'Hitung nilainya', text:value === null ? 'Tidak ada lot beli dalam jendela (TBL = 0), jadi tidak ada nilai.'
-          : `100 × ${lot(X)} ÷ ${lot(T)} = ${share(value)} pembelian dikuasai ${top.length} broker.` },
+        { title:`Ambil ${N} pembeli terbesar`, text:`Urutkan broker menurut ${w.toLowerCase()} selama jendela dan ambil ${N} teratas.${top.length < N ? ` Hanya ${top.length} broker yang membeli.` : ''}`,
+          table:{ head:['Broker', w, 'Porsi'], rows:[...headRows(top.map(b => [R.brokers[b], show(bk.per.get(b)![m]), share(pctOf(div(bk.per.get(b)![m], T)))])), ['XN', show(X), share(raw)]] } },
+        { title:'Hitung porsinya', text:raw === null ? `Tidak ada ${w.toLowerCase()} dalam jendela (TX = 0), jadi tidak ada nilai.`
+          : `100 × ${show(X)} ÷ ${show(T)} = ${share(raw)} pembelian dikuasai ${top.length} broker.` },
+        ...(even && raw !== null ? [{ title:'Kurangi bagian merata', text:`${K} broker membeli; bila sama rata, ${top.length} broker memegang 100 × ${top.length} ÷ ${K} = ${share(K ? 100 * top.length / K : 0)}. ${share(raw)} − ${share(K ? 100 * top.length / K : 0)} = ${fmt.num(value, 2)} poin di atas bagian merata.` }] : []),
       ],
     };
   },
 
-  /* FL16 Concentration Top-N · Net Buy: n_b = BV(b) − SV(b); 100 × (the N largest positive n_b) / (all positive n_b) */
+  /* FL16 Concentration Top-N · Net Buy: n_b = BV(b) − SV(b) (or BL − SL, to-do 6); 100 × (the N largest positive n_b) /
+     (all positive n_b); U3: minus N/k */
   FL16:(c, p, t, out) => {
     if (out !== undefined && out !== 'value') return null;
     const R = c.rows, W = intOf(p.window, 1), a = flowWindow(R, t, W); if (a === null) return null;
+    const lots = p.unit === 'lot', show = (v: number) => lots ? lot(v) : fmt.idr(v), w = lots ? 'Net lot beli' : 'Net beli';
     const f = filterOfP(p), bk = book(R, a, t, f), N = intOf(p.top, 3), pos: { b: number; n: number }[] = [];
-    for (const [b, s] of bk.per) { const n = s[BV] - s[SV]; if (n > 0) pos.push({ b, n }) }
+    for (const [b, s] of bk.per) { const n = lots ? s[BL] - s[SL] : s[BV] - s[SV]; if (n > 0) pos.push({ b, n }) }
     pos.sort((x, y) => y.n - x.n || (R.brokers[x.b] < R.brokers[y.b] ? -1 : 1));
-    const NP = pos.reduce((s, e) => s + e.n, 0), NT = pos.slice(0, N).reduce((s, e) => s + e.n, 0);
-    const combine = (v: Record<string, number>) => pctOf(div(v.NT, v.NP)), value = combine({ NT, NP });
+    const taken = pos.slice(0, N), NP = pos.reduce((s, e) => s + e.n, 0), NT = taken.reduce((s, e) => s + e.n, 0), even = !!p.even;
+    const combine = (v: Record<string, number>) => { const x = pctOf(div(v.NT, v.NP)); return x === null ? null : x - (even && v.K ? 100 * v.NE / v.K : 0) };
+    const value = combine({ NT, NP, NE:taken.length, K:pos.length }), raw = pctOf(div(NT, NP));
     return {
-      output:'value', value, expr:'100 × NT ÷ NP', span:spanOf(c, a, t),
-      terms:[{ key:'NT', label:`Net beli ${N} pembeli bersih terbesar`, value:NT, unit:'idr' }, { key:'NP', label:'Net beli semua pembeli bersih', value:NP, unit:'idr' }], combine,
+      output:'value', value, expr:even ? '100 × NT ÷ NP − 100 × NE ÷ K' : '100 × NT ÷ NP', span:spanOf(c, a, t),
+      terms:[{ key:'NT', label:`${w} ${N} pembeli bersih terbesar`, value:NT, unit:lots ? 'lot' : 'idr' }, { key:'NP', label:`${w} semua pembeli bersih`, value:NP, unit:lots ? 'lot' : 'idr' },
+        ...(even ? [{ key:'NE', label:'Broker yang diambil', value:taken.length, unit:'count' as const }, { key:'K', label:'Pembeli bersih', value:pos.length, unit:'count' as const }] : [])], combine,
       steps:[
         windowStep(c, a, t, f),
-        { title:'Net beli setiap broker', text:`Net = nilai beli − nilai jual selama jendela. ${pos.length} broker bernilai positif, jumlahnya NP = ${fmt.idr(NP)}; ambil ${N} terbesar (NT).`,
-          table:{ head:['Broker', 'Net beli', 'Porsi'], rows:[...headRows(pos.slice(0, N).map(e => [R.brokers[e.b], fmt.idr(e.n), share(pctOf(div(e.n, NP)))])), ['NT', fmt.idr(NT), share(value)]] } },
-        { title:'Hitung nilainya', text:value === null ? 'Tidak ada broker dengan net beli positif, jadi tidak ada nilai.'
-          : `100 × ${fmt.idr(NT)} ÷ ${fmt.idr(NP)} = ${share(value)} pembelian bersih berasal dari ${Math.min(N, pos.length)} broker.` },
+        { title:`${w} setiap broker`, text:`Net = ${lots ? 'lot beli − lot jual' : 'nilai beli − nilai jual'} selama jendela. ${pos.length} broker bernilai positif, jumlahnya NP = ${show(NP)}; ambil ${N} terbesar (NT).`,
+          table:{ head:['Broker', w, 'Porsi'], rows:[...headRows(taken.map(e => [R.brokers[e.b], show(e.n), share(pctOf(div(e.n, NP)))])), ['NT', show(NT), share(raw)]] } },
+        { title:'Hitung porsinya', text:raw === null ? 'Tidak ada broker dengan net beli positif, jadi tidak ada nilai.'
+          : `100 × ${show(NT)} ÷ ${show(NP)} = ${share(raw)} pembelian bersih berasal dari ${taken.length} broker.` },
+        ...(even && raw !== null ? [{ title:'Kurangi bagian merata', text:`${pos.length} pembeli bersih; bila sama rata, ${taken.length} broker memegang 100 × ${taken.length} ÷ ${pos.length} = ${share(100 * taken.length / pos.length)}. ${share(raw)} − ${share(100 * taken.length / pos.length)} = ${fmt.num(value, 2)} poin di atas bagian merata.` }] : []),
       ],
     };
   },
@@ -706,7 +735,7 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
 
 /* EXEC-TERMINAL-IND-EDIT K1/R1 (calc/flow.ts sideParams): the Buy line's cohort is the top buyers, the Sell line's the top
    sellers; the card ranks the cohort of the line it explains */
-for (const id of ['FL01', 'FL02', 'FL03', 'FL04', 'FL05', 'FL08']) {
+for (const id of ['FL01', 'FL02', 'FL03', 'FL04', 'FL05', 'FL08', 'FL13']) {
   const f = FLOW_EXPLAIN_A[id];
   FLOW_EXPLAIN_A[id] = (c, p, t, out) => {
     const side = id === 'FL08' ? (p.side === 'sell' ? 'sell' : 'buy') : sideOf(p, out);      // FL08 draws one line, its Side

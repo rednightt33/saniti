@@ -74,7 +74,10 @@ const CASES: Record<string, Record<string, any>[]> = {
   FL35: [{}, { window:3 }, { window:1, investors:['Domestic'] }],
   FL36: [{}, ...COHORT, { window:1, investors:['Foreign', 'Domestic'] }],
   FL37: [{ baseline:10 }, { baseline:25, window:5 }, ...COHORT.map(x => ({ baseline:12, window:3, ...x }))],
-  FL38: [{}, { window:1 }, { window:40 }],
+  FL38: [{}, { window:1 }, { window:40 }, { unit:'lot' }, { unit:'lot', window:5 },
+    // to-do 5: a cohort's part of the net buyers' HHI (Top-N, selected brokers with a seller among them)
+    { scope:'topn', top:3 }, { scope:'topn', top:1, rank:'gross_buy', window:5 }, { scope:'topn', top:20, unit:'lot' },
+    { scope:'selected', brokers:['AK', 'ZP', 'QQ'] }, { scope:'selected', brokers:[] }],
   FL39: [{}, ...COHORT.filter(x => x.scope !== 'all'), { window:1, boards:['Regular', 'Nego', 'Cash'] }],
 };
 

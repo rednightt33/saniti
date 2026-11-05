@@ -240,6 +240,20 @@ describe('Side picks the cohort: top buyers for Buy, top sellers for Sell', () =
     const o = computeFlow('FL03', c, { scope:'selected', brokers:['AA'], side:'both', window:1 });
     near(o.buy[0], 100 * 50 / 120); near(o.sell[0], 100 * 10 / 120);
   });
+  // to-do 5, 6, U3, Q3 (2026-11-05): buy lots AA 50, BB 30, CC 10, DD 30 (120); sell lots AA 10, BB 5, CC 40, DD 65 (120)
+  it('FL13 of a cohort: its members\' squared shares of every broker\'s total; FL14 = top buyers minus top sellers', () => {
+    const b = (50 / 120) ** 2 + (30 / 120) ** 2, s = (65 / 120) ** 2 + (40 / 120) ** 2;
+    near(computeFlow('FL13', c, { scope:'topn', top:2, side:'buy', window:1 }).buy[0], b);
+    near(computeFlow('FL13', c, { scope:'topn', top:2, side:'sell', window:1 }).sell[0], s);
+    near(computeFlow('FL14', c, { scope:'topn', top:2, window:1 }).asym[0], b - s);
+    const all = [50, 30, 10, 30].reduce((x, v) => x + (v / 120) ** 2, 0);
+    near(computeFlow('FL13', c, { side:'buy', window:1 }).buy[0], all);                // the default stays every broker
+  });
+  it('FL38 of a cohort; FL15, FL16 in another unit and minus the even share', () => {
+    near(computeFlow('FL38', c, { scope:'topn', top:1, window:1 }).value[0], (4000 / 6500) ** 2);   // AA's net 4000 of 6500
+    near(computeFlow('FL15', c, { top:2, window:1, even:true }).value[0], 100 * 80 / 120 - 100 * 2 / 4);  // AA + BB (tie BB/DD by code)
+    near(computeFlow('FL16', c, { top:1, window:1, unit:'lot', even:true }).value[0], 100 * 40 / 65 - 100 * 1 / 2);
+  });
   it('FL09 keeps its own rank (no side rule): the size it ranks is still the chosen cohort\'s, net sellers included', () => {
     const p = { ...flowDefaults('FL09'), scope:'topn', top:1, rank:'net_sell', window:1 };
     near(transactionSize(c, p, 'buy')[0], 30 / 1);          // DD, the largest net seller, bought 30 lots in 1 transaction

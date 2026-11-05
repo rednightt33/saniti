@@ -94,8 +94,8 @@ const readLevels = (p: FlowParams, v: number | null, shown: string): Step[] => {
 };
 /* ---- cohorts (calc/flow.ts cohort, topBrokers: score > 0, ties by broker code) ---- */
 const net = (s: BrokerSums) => s.bv - s.sv;
-const SCORE: Record<string, (s: BrokerSums) => number> = { net_buy:net, gross_buy:s => s.bv, net_sell:s => s.sv - s.bv, gross_buy_lots:s => s.bl };
-const RANK: Record<string, string> = { net_buy:'net beli', gross_buy:'nilai beli (gross)', net_sell:'net jual', gross_buy_lots:'lot beli' };
+const SCORE: Record<string, (s: BrokerSums) => number> = { net_buy:net, gross_buy:s => s.bv, net_sell:s => s.sv - s.bv, gross_sell:s => s.sv, gross_buy_lots:s => s.bl };
+const RANK: Record<string, string> = { net_buy:'net beli', gross_buy:'nilai beli (gross)', net_sell:'net jual', gross_sell:'nilai jual (gross)', gross_buy_lots:'lot beli' };
 const scoreOf = (p: FlowParams) => SCORE[p.rank || 'net_buy'] || SCORE.net_buy;
 /** the cohort over a..t: null = every broker; the selected codes in broker order; else the Top-N by the rank */
 function cohortOf(X: Cells, p: FlowParams, a: number, t: number, ms: Col[] = ['bv', 'sv']): BS[] | null {
@@ -676,14 +676,36 @@ const EX: Record<string, FlowExplainer> = {
   FL38: (c, p, t) => {
     const R = c.rows, W = intOf(p.window, 20), a = flowWindow(R, t, W);
     if (a === null) return null;
-    const pos = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null).list(a, t).filter(s => net(s) > 0);    // broker order
-    const all = pos.reduce((x, s) => x + net(s), 0);
+    /* to-do 5, 6: the net in Rupiah or (unit 'lot') in lots, each broker's own sign; a cohort adds only its members */
+    const lots = p.unit === 'lot', nt = (s: BrokerSums) => lots ? s.bl - s.sl : net(s), show = (v: number) => lots ? cnt(v) + ' lot' : fmt.idr(v);
+    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), L = X.list(a, t, ['bv', 'sv', 'bl', 'sl']);
+    const pos = L.filter(s => nt(s) > 0);                                          // broker order
+    const all = pos.reduce((x, s) => x + nt(s), 0);
     if (!all) return null;
-    const value = pos.reduce((x, s) => x + (net(s) / all) ** 2, 0);
+    const C = cohortOf(X, p, a, t, ['bv', 'sv', 'bl', 'sl']);
+    if (C !== null) {
+      const members = C.map(s => ({ s, n:Math.max(nt(s), 0) }));
+      const combine = (v: Record<string, number>) => v.ALL ? members.reduce((x, e) => x + (v[e.s.code] / v.ALL) ** 2, 0) : null;
+      const vals: Record<string, number> = Object.fromEntries([...members.map(e => [e.s.code, e.n]), ['ALL', all]]);
+      let value = 0; for (const e of members) value += (e.n / all) ** 2;
+      return {
+        output:'value', value, expr:`(${members.map(e => `(${e.s.code} ÷ ALL)²`).join(' + ') || '0'})`, span:spanOf(c, a, t),
+        terms:[...members.map(e => ({ key:e.s.code, label:`Net beli positif ${e.s.code}`, value:e.n, unit:(lots ? 'lot' : 'idr') as Term['unit'] })),
+          { key:'ALL', label:`Net beli semua pembeli bersih (${pos.length} broker)`, value:all, unit:(lots ? 'lot' : 'idr') as Term['unit'] }], combine:v => combine({ ...vals, ...v }),
+        steps:[
+          { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
+          cohortStep(p, C, a, t, c),
+          { title:'Bagian setiap anggota', text:`Bagian = net ${lots ? 'lot' : 'beli'} positif anggota ÷ net ${lots ? 'lot' : 'beli'} positif semua pembeli bersih (${show(all)}); anggota dengan net ≤ 0 bernilai 0.`,
+            table:tableOf(['Broker', 'Net', 'Bagian', 'Bagian²'], members, e => [e.s.code, show(nt(e.s)), pc(100 * e.n / all), fmt.num((e.n / all) ** 2, 4)]) },
+          { title:'Hitung nilainya', text:`Jumlah bagian² anggota kelompok = ${fmt.num(value, 4)} (bagian kelompok dari keterpusatan semua pembeli bersih).` },
+        ],
+      };
+    }
+    const value = pos.reduce((x, s) => x + (nt(s) / all) ** 2, 0);
     /* the calculator: the 5 largest net buyers one by one, the others as their total (LAIN) and their own HHI (H_LAIN):
        Σ n² = top² + H_LAIN × LAIN² */
-    const ranked = [...pos].sort((x, y) => net(y) - net(x) || (x.code < y.code ? -1 : 1)), top = ranked.slice(0, 5), rest = ranked.slice(5);
-    const LAIN = rest.reduce((x, s) => x + net(s), 0), H = LAIN ? rest.reduce((x, s) => x + (net(s) / LAIN) ** 2, 0) : 0, keys = top.map(s => s.code);
+    const ranked = [...pos].sort((x, y) => nt(y) - nt(x) || (x.code < y.code ? -1 : 1)), top = ranked.slice(0, 5), rest = ranked.slice(5);
+    const LAIN = rest.reduce((x, s) => x + nt(s), 0), H = LAIN ? rest.reduce((x, s) => x + (nt(s) / LAIN) ** 2, 0) : 0, keys = top.map(s => s.code);
     const combine = (v: Record<string, number>) => {
       const xs = keys.map(k => v[k]).filter(x => x > 0), r = v.LAIN > 0 ? v.LAIN : 0, T = xs.reduce((s, x) => s + x, 0) + r;
       return T ? (xs.reduce((s, x) => s + x * x, 0) + (v.H_LAIN ?? 0) * r * r) / (T * T) : null;
@@ -692,13 +714,13 @@ const EX: Record<string, FlowExplainer> = {
       output:'value', value,
       expr:`(${[...keys.map(k => `(${k})²`), ...(rest.length ? ['H_LAIN × (LAIN)²'] : [])].join(' + ')}) ÷ (${[...keys, ...(rest.length ? ['LAIN'] : [])].join(' + ')})²`,
       span:spanOf(c, a, t),
-      terms:[...top.map(s => ({ key:s.code, label:`Net beli ${s.code}`, value:net(s), unit:'idr' as Term['unit'] })),
-        ...(rest.length ? [{ key:'LAIN', label:`Net beli ${rest.length} broker lain`, value:LAIN, unit:'idr' as Term['unit'] },
+      terms:[...top.map(s => ({ key:s.code, label:`Net ${lots ? 'lot ' : ''}beli ${s.code}`, value:nt(s), unit:(lots ? 'lot' : 'idr') as Term['unit'] })),
+        ...(rest.length ? [{ key:'LAIN', label:`Net ${lots ? 'lot ' : ''}beli ${rest.length} broker lain`, value:LAIN, unit:(lots ? 'lot' : 'idr') as Term['unit'] },
           { key:'H_LAIN', label:`Keterpusatan (HHI) di antara ${rest.length} broker lain`, value:H, unit:'num' as Term['unit'] }] : [])], combine,
       steps:[
         { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
-        { title:'Net beli positif', text:`Net = nilai beli − nilai jual; hanya broker dengan net positif (${cnt(pos.length)} broker, jumlah ${fmt.idr(all)}). Bagian = net ÷ jumlah itu.`,
-          table:tableOf(['Broker', 'Net', 'Bagian', 'Bagian²'], ranked, s => [s.code, fmt.idr(net(s)), pc(100 * net(s) / all), fmt.num((net(s) / all) ** 2, 4)]) },
+        { title:'Net beli positif', text:`Net = ${lots ? 'lot beli − lot jual' : 'nilai beli − nilai jual'}; hanya broker dengan net positif (${cnt(pos.length)} broker, jumlah ${show(all)}). Bagian = net ÷ jumlah itu.`,
+          table:tableOf(['Broker', 'Net', 'Bagian', 'Bagian²'], ranked, s => [s.code, show(nt(s)), pc(100 * nt(s) / all), fmt.num((nt(s) / all) ** 2, 4)]) },
         { title:'Hitung nilainya', text:`Jumlah kuadrat bagian semua broker = ${fmt.num(value, 4)} (0 = tersebar, 1 = satu broker saja).` },
       ],
     };

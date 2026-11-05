@@ -84,10 +84,10 @@ draws the Buy and the Sell line in one panel.
 | FL10 | Transactions · Buy/Sell Imbalance | imbalance | `(BF(C)-SF(C)) / (BF(C)+SF(C))` |
 | FL11 | Net Flow / Turnover Ratio | value, change | `100 (BV(C)-SV(C)) / TBV`, `TBV` = every investor's gross buy on the chosen boards (one denominator, to-do 7); change line (shared conventions) |
 | FL12 | Net Buy Persistence · Cohort | persistence | `100 x` (candles `k` in the window with `BV_k(C)-SV_k(C) > 0`) / `W`; `C` ranked over the window; a candle without a row of `C` is not a buy candle |
-| FL13 | Concentration HHI · Gross | buy, sell | Buy `Σ_b (BL(b)/BL(A))^2`; Sell with `SL`; `A` with the filter |
-| FL14 | Concentration HHI · Buy − Sell | asym | FL13 Buy − FL13 Sell |
-| FL15 | Concentration Top-N · Gross Buy | share | `100 x` (sum of the N largest `BL(b)`) / `BL(A)` |
-| FL16 | Concentration Top-N · Net Buy | share | `n_b = BV(b)-SV(b)`; `100 x` (sum of the N largest positive `n_b`) / (sum of all positive `n_b`) |
+| FL13 | Concentration HHI · Gross | buy, sell | Buy `Σ_(b in C) (m(b)/m(A))^2`, `m` = `BL` (unit Lot) or `BV` (Rupiah); Sell with `SL`/`SV`; `A` every broker with the filter; `C` = every broker (default), selected brokers or Top-N ranked over the window (side picks the cohort) |
+| FL14 | Concentration HHI · Buy − Sell | asym | FL13 Buy of the top buyers − FL13 Sell of the top sellers (same scope, unit, filter, window; K2) |
+| FL15 | Concentration Top-N · Gross Buy | share | `100 x` (sum of the N largest `m(b)`) / `m(A)`, `m` = `BL` (unit Lot) or `BV` (Rupiah); with "minus the even share": `- 100 x N'/k`, `N'` = brokers taken, `k` = brokers with `m(b) > 0` |
+| FL16 | Concentration Top-N · Net Buy | share | `n_b = BV(b)-SV(b)` (Rupiah) or `BL(b)-SL(b)` (Lot, its own sign); `100 x` (sum of the N largest positive `n_b`) / (sum of all positive `n_b`); with "minus the even share": `- 100 x N'/k`, `k` = brokers with `n_b > 0` |
 | FL17 | Buy VWAP · Rolling | vwap | `BV(C) / (100 BL(C))` (IDR per share), on the price axis |
 | FL18 | Buy VWAP · Anchored | vwap | frozen `C`; sums from the anchor to `t`: `BV(C) / (100 BL(C))`; null before the anchor |
 | FL19 | Implied Cost · Anchored | cost | frozen `C`, from the anchor, `Q`, `K` start at 0; per candle `q = BL_k(C)-SL_k(C)`: if `q > 0`: if `Q <= 0` then `K = max(Q+q,0) x BV_k(C)/BL_k(C)` else `K += q x BV_k(C)/BL_k(C)`; if `q < 0` and `Q > 0`: `K = K x max(Q+q,0)/Q`; then `Q += q`. Output `K/(100 Q)` when `Q > 0`, else null (user 2026-10-30, "1 pakai A": the rule for an inventory at or below 0, which the spreadsheet leaves open) |
@@ -109,5 +109,5 @@ draws the Buy and the Sell line in one panel.
 | FL35 | Net Buy Persistence · Top Buyer | persistence | the broker with the largest positive `BV-SV` over the window (frozen for that window); `100 x` (candles in the window where its `BV_k-SV_k > 0`) / `days`; a candle without data counts as not a buy candle; null when no broker has a positive net in the window |
 | FL36 | Share · Market Value (Buy + Sell) | share | `100 (BV(C)+SV(C)) / (2 TBV)` |
 | FL37 | Net Flow Percentile · Rupiah | pct | percentile (baseline 250) of `BV(C)-SV(C)` over the net window |
-| FL38 | Concentration HHI · Net Buy | hhi | `n_b = BV(b)-SV(b)`, positive only: `Σ (n_b / Σ positive n)^2` |
+| FL38 | Concentration HHI · Net Buy | hhi | `n_b = BV(b)-SV(b)` (Rupiah) or `BL(b)-SL(b)` (Lot); `Σ_(b in C) (max(n_b,0) / Σ positive n)^2`; `C` = every net buyer (default), selected brokers or Top-N (net buy or gross buy) over the window |
 | FL39 | Buy VWAP · Rolling · Distance % | dist | `100 (close / FL17 - 1)` with FL39's cohort, filter and window |

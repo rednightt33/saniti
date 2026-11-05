@@ -477,39 +477,63 @@ def s_fl12(T, p):
     return {'value': out}
 
 
-def s_fl13(T, p):
-    w = int(p['window'])
-    buy, sell = [None] * T.n, [None] * T.n
-    for t, roll in rolling(T.agg(*filt(p)), w):
-        if not T.valid(t, w):
-            continue
-        tb = sum(v[BS] for v in roll.values())
-        ts = sum(v[SS] for v in roll.values())
-        if tb:
-            buy[t] = Fraction(sum(v[BS] * v[BS] for v in roll.values()), tb * tb)
-        if ts:
-            sell[t] = Fraction(sum(v[SS] * v[SS] for v in roll.values()), ts * ts)
-    return {'buy': buy, 'sell': sell}
+def cohort_of(roll, p):
+    """FORMULAS.md section 2, cohort over the window: None = every broker"""
+    scope = p.get('scope', 'topn')
+    if scope == 'all':
+        return None
+    if scope == 'selected':
+        return [b for b in (p.get('brokers') or []) if b in roll]
+    return top_n(roll, int(p.get('top', 3)), p.get('rank', 'net_buy'))
 
 
-def s_fl14(T, p):
-    h = s_fl13(T, p)
-    return {'asym': [None if b is None or s is None else b - s for b, s in zip(h['buy'], h['sell'])]}
-
-
-def s_fl15(T, p):
-    w, n_top = int(p['window']), int(p['top'])
+def _hhi_side(T, p, side):
+    """FL13 (to-do 5, 6): Σ over the cohort of (m(b) / m(A))^2, m = lots (shares) or Rupiah of the side"""
+    w, m = int(p['window']), (BV if side == 'buy' else SV) if p.get('unit') == 'value' else (BS if side == 'buy' else SS)
     out = [None] * T.n
     for t, roll in rolling(T.agg(*filt(p)), w):
         if not T.valid(t, w):
             continue
-        vals = [v[BS] for v in roll.values()]
-        out[t] = ratio(100 * sum(heapq.nlargest(n_top, vals)), sum(vals))
+        tot = sum(v[m] for v in roll.values())
+        if not tot:
+            continue
+        C = cohort_of(roll, p)
+        vals = [v[m] for v in roll.values()] if C is None else [roll[b][m] for b in C]
+        out[t] = Fraction(sum(x * x for x in vals), tot * tot)
+    return out
+
+
+def s_fl13(T, p):
+    return {side: _hhi_side(T, side_p(p, side), side) for side in ('buy', 'sell')}
+
+
+def s_fl14(T, p):
+    b, s = _hhi_side(T, side_p(p, 'buy'), 'buy'), _hhi_side(T, side_p(p, 'sell'), 'sell')
+    return {'asym': [None if x is None or y is None else x - y for x, y in zip(b, s)]}
+
+
+def _even(p, taken, k):
+    """U3: the even share 100 N/k (points) when asked"""
+    return Fraction(100 * taken, k) if p.get('even') and k else 0
+
+
+def s_fl15(T, p):
+    w, n_top, m = int(p['window']), int(p['top']), BV if p.get('unit') == 'value' else BS
+    out = [None] * T.n
+    for t, roll in rolling(T.agg(*filt(p)), w):
+        if not T.valid(t, w):
+            continue
+        vals = [v[m] for v in roll.values() if v[m] > 0]
+        top = heapq.nlargest(n_top, vals)
+        r = ratio(100 * sum(top), sum(vals))
+        out[t] = None if r is None else r - _even(p, len(top), len(vals))
     return {'value': out}
 
 
-def _pos_nets(roll):
-    return [v[BV] - v[SV] for v in roll.values() if v[BV] - v[SV] > 0]
+def _pos_nets(roll, p=None):
+    """each broker's positive net, in Rupiah or (unit 'lot', to-do 6) in lots with its own sign"""
+    a, b = (BS, SS) if p and p.get('unit') == 'lot' else (BV, SV)
+    return [v[a] - v[b] for v in roll.values() if v[a] - v[b] > 0]
 
 
 def s_fl16(T, p):
@@ -518,8 +542,10 @@ def s_fl16(T, p):
     for t, roll in rolling(T.agg(*filt(p)), w):
         if not T.valid(t, w):
             continue
-        pos = _pos_nets(roll)
-        out[t] = ratio(100 * sum(heapq.nlargest(n_top, pos)), sum(pos))
+        pos = _pos_nets(roll, p)
+        top = heapq.nlargest(n_top, pos)
+        r = ratio(100 * sum(top), sum(pos))
+        out[t] = None if r is None else r - _even(p, len(top), len(pos))
     return {'value': out}
 
 
@@ -871,10 +897,13 @@ def s_fl38(T, p):
     for t, roll in rolling(T.agg(*filt(p)), w):
         if not T.valid(t, w):
             continue
-        pos = _pos_nets(roll)
-        tot = sum(pos)
+        a, b = (BS, SS) if p.get('unit') == 'lot' else (BV, SV)
+        nets = {k: v[a] - v[b] for k, v in roll.items()}
+        tot = sum(x for x in nets.values() if x > 0)
         if tot:
-            out[t] = Fraction(sum(x * x for x in pos), tot * tot)
+            C = cohort_of(roll, p)
+            xs = [x for x in nets.values() if x > 0] if C is None else [max(nets[k], 0) for k in C]
+            out[t] = Fraction(sum(x * x for x in xs), tot * tot)
     return {'value': out}
 
 

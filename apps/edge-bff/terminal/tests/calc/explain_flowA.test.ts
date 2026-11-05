@@ -48,6 +48,11 @@ const EXTRA: Record<string, Record<string, any>[]> = {
     { baseline:20, pct_min:30, ratio_min:0.8, part_min:2, flow_min:0, use_imb:true, imb_min:0 }, { baseline:20, rank:'gross_buy', pct_min:20, ratio_min:0.5, part_min:1, flow_min:-5 }],
   FL11:[{ lag:'1' }, { lag:'5', window:3 }, { lag:'window', window:4, scope:'all', investors:['Foreign'] }, { denom:'filter' }],   // a saved denom is ignored
   FL12:[{ window:2 }, { window:12, scope:'all' }],
+  // to-do 5, 6, U3 (2026-11-05): HHI of a cohort, Rupiah, the even share
+  FL13:[{ unit:'value' }, { scope:'topn' }, { scope:'topn', unit:'value', rank:'gross_buy', side:'sell', window:3 }, { scope:'topn', top:1, side:'both' }],
+  FL14:[{ unit:'value' }, { scope:'topn' }, { scope:'topn', top:1, rank:'gross_buy', unit:'value' }, { scope:'selected', brokers:['AK', 'BK'] }],
+  FL15:[{ unit:'value' }, { even:true }, { unit:'value', even:true, top:5, window:3 }],
+  FL16:[{ unit:'lot' }, { even:true }, { unit:'lot', even:true, top:1, window:4 }],
   FL18:[{ anchor:'2026-01-20' }, { anchor:'2026-01-25', scope:'selected', brokers:['CC', 'XL'] }, { anchor:'2030-01-01' }, { anchor:'2026-01-20', rank:'net_sell', top:1 }, { anchor:'2026-01-10', scope:'all' }],
   FL19:[{ anchor:'2026-01-20' }, { anchor:'2026-01-25', scope:'selected', brokers:['CC', 'XL'] }, { anchor:'2030-01-01' }, { anchor:'2026-01-20', rank:'net_sell', top:1 }, { anchor:'2026-01-10', scope:'all' }, { top:8 }],
 };
