@@ -27,7 +27,7 @@ item baru dijalankan atas perintah user.
 | 8 | Indikator baru (kode ditetapkan saat dikerjakan) | Sama persis dengan FL11, tetapi penyebutnya **rata-rata nilai transaksi (gross beli) N sesi terakhir**, N bawaan 20 dan bisa diatur | "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm" (2026-11-04) | To-do; bacaan AI dikonfirmasi user dengan "Ok" (2026-11-04). Bagian 5g.2 |
 | 9 | FL35 Net Buy Persistence · Top Buyer | **Disembunyikan** dari menu indikator (hide) | "Hide saja FL35, masukan ke review" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5h |
 | 10 | FL21 Net Flow Percentile · vs Turnover | Ditambah parameter **Ukuran**: gross beli, gross jual, atau net beli (net), yang dipersentilkan terhadap turnover | "Not untuk FL21 yang bisa dimasukkan ke flow indicator review adalah biar ditambahkan filter untuk gross buy. Atau gross sell, dan juga net buy." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5i |
-| 11 | FL25 Bandar Balance · Rupiah | Visual tambahan yang menunjukkan **apa yang mendorong tiap kenaikan dan penurunan** FL25 | "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list." (2026-11-05) | To-do, definisi "didorong oleh apa" menunggu user. Bagian 5j |
+| 11 | FL25 Bandar Balance · Rupiah | Visual tambahan yang menunjukkan **apa yang mendorong tiap kenaikan dan penurunan** FL25 | "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list." (2026-11-05) | **Dibatalkan 2026-11-05:** user memutuskan FL25 dibiarkan apa adanya, tanpa perubahan. Bagian 5j |
 | 12 | FL29 Bandar Balance · Accumulation Days | Ditambah ukuran **seberapa besar** akumulasi, dalam persen atau persentil (sebanding antar saham), di panel yang sama atau sebagai indikator baru yang berpasangan | "mungkin di panel yang sama harus ditambahkan ... akumulasi terjadi 70% of the time. Tapi mesti dikasih tahu juga seberapa besar akumulasinya. Bukan in rupiah, tapi harus in percentage atau percentile. Sehingga angka tersebut bisa comparable across stock. Atau mungkin ya dibuatkan indikator baru lah. Yang bisa di-pair dengan FL29." (2026-11-05) | To-do; ukuran dipilih user: C ("C", 2026-11-05); panel yang sama atau indikator baru, dan persentil, menunggu user. Bagian 5k |
 | 13 | Indikator baru (kode ditetapkan saat dikerjakan), berpasangan dengan FL17 | Harga rata-rata pembelian bergulir dengan **Top-N dipilih per hari** (cara B); indikator **terpisah**, FL17 tidak diubah | "Jadi aja kita tambahkan untuk opsi top N per hari yang nomor B. Ini dijadikan indikator terpisah saja nanti. You can review dan to do" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5l |
 | 14 | Dua indikator baru (kode ditetapkan saat dikerjakan): versi jual dari FL17 dan dari FL18 | **Dua indikator tambahan terpisah** yang menghitung nilai jual dibagi lot jual (harga rata-rata penjualan, gross jual): satu bergulir seperti FL17, satu beranchor seperti FL18 | "Boleh nggak ditambahkan satu indikator yang represent sell atau gross sell? Mirip FL18 juga. Berlaku juga untuk FL17."; "FL17 kan dia menghitung basically beli dibagi lot beli kan. FL18 juga. Yang saya butuhkan adalah dua indikator tambahan jual dan lot jual." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5m |
@@ -113,7 +113,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL22 | Broker Buy Breadth | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL23 | Broker Inventory | Other | Panel | lot|IDR | lines, total | Belum ditinjau |  |  |
 | FL24 | Bandar Balance · % | Bandar Balance | Panel | % | value | Belum ditinjau |  |  |
-| FL25 | Bandar Balance · Rupiah | Bandar Balance | Panel | IDR | value | To-do: visual penyebab kenaikan dan penurunan | Ditambah (2026-11-05, to-do) | Bagian 5j. Hanya satu garis jumlah NB + NS; penyebab perubahan tidak terlihat |
+| FL25 | Bandar Balance · Rupiah | Bandar Balance | Panel | IDR | value | Dibiarkan apa adanya (keputusan user 2026-11-05) | Tidak ada perubahan | Bagian 5j. Satu garis jumlah NB + NS; matriks penyebab naik dan turun ada di 5j.3b sebagai bahan bacaan |
 | FL26 | Net Flow Streak | Net Flow | Panel | days | value | Belum ditinjau |  |  |
 | FL27 | Silent Accumulation | Other | Penanda di bawah candle | flag | value | Belum ditinjau |  |  |
 | FL28 | Average Daily Value | Other | Panel | IDR | value | Belum ditinjau |  |  |
@@ -743,6 +743,8 @@ Satu saham (BBRI), satu tanggal untuk contoh, baseline 250 nilai yang saling tum
 **Catatan user 2026-11-05 (kata-katanya):** "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list."
 Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah. Usul AI sebelumnya, tampilan dua garis (NB dan NS terpisah), **tidak diambil** karena user mempertanyakan gunanya; yang diminta adalah penyebab perubahan.
 
+**Keputusan user 2026-11-05 (membatalkan to-do ini):** "Yes, sudah untuk indikator ini we leave it as is saja, tidak ada perubahan. Move on to next indicator." Jadi **tidak ada perubahan pada FL25** dan to-do 11 tidak dikerjakan. Isi bagian ini dipertahankan sebagai catatan riwayat dan bahan bacaan.
+
 ### 5j.1 Kondisi sekarang **[T]** (`flow.ts:300-305`, `:447-450`, registry)
 
 FL25 = `NB + NS` (Rupiah): `NB` jumlah **net** (`BV − SV`, gross beli dikurangi gross jual) dari N pembeli bersih terbesar, `NS` dari N penjual bersih terbesar (negatif), net dijumlahkan sepanjang `window` (10). Outputnya satu garis (`net`).
@@ -772,6 +774,11 @@ Rp miliar, semua investor:
 - Pada 252 sesi, porsi |kontribusi| rata-rata: hari masuk 39%, hari keluar 38%, pergantian anggota 23% (investor Foreign: 43%, 40%, 16%). Anggota enam broker berganti (minimal satu broker baru) pada 180 dari 252 sesi.
 - Pada 10% perubahan terbesar (26 sesi), komponen terbesar: hari keluar 11, hari masuk 11, pergantian anggota 4 (Foreign: hari keluar 18, hari masuk 6, pergantian anggota 2).
 - Dari penjelasan sebelumnya (jendela 10, N = 3): FL25 turun pada 121 dari 252 sesi; penyebabnya hanya NS memburuk 57, keduanya memburuk 34, hanya NB menyusut 30. Pada 30 Okt dan 2 Nov FL25 naik Rp1.472 miliar dalam dua hari saat NB justru menyusut, sebab hari berpenjualan besar keluar dari jendela.
+
+### 5j.3b Matriks penyebab naik dan turun (bahan bacaan; BBRI, 252 sesi 16 Okt 2025 sampai 3 Nov 2026, jendela 10, N = 3, semua investor, dihitung 2026-11-05)
+
+Perubahan harian FL25 = hari masuk + hari keluar + pergantian anggota (selisih 0,000000). Naik (131 sesi): komponen terbesar hari keluar 61, hari masuk 46, pergantian anggota 24; rata-rata komponen +43,8, +106,6, +7,5 (Rp miliar). Turun (121 sesi): hari masuk 59, hari keluar 37, pergantian anggota 25; rata-rata −116,3, −40,1, +0,8.
+Level FL25: P10 −1.171,1; median −306,0; P90 +473,1. Dari puncak (level kemarin ≥ P90, 25 sesi): turun pada 15 (60%), komponen terbesar hari masuk 9, hari keluar 5, pergantian 1. Dari dasar (≤ P10, 26 sesi): naik pada 13 (50%), komponen terbesar hari keluar 8, hari masuk 3, pergantian 2. Contoh: 28 Jan 2026 FL25 797,9 → 226,6 (−571,2 = masuk −708,4 + keluar −215,7 + pergantian +352,9); 2 Jul 2026 −1.342,4 → −821,3 (+521,1 = masuk +130,7 + keluar +419,0 + pergantian −28,6).
 
 ### 5j.4 Pertanyaan terbuka (saat to-do ini diambil)
 

@@ -1351,7 +1351,7 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   `FLOW_INDICATOR_REVIEW.md` bagian 5g.
   Juga to-do (2026-11-04): FL35 disembunyikan dari menu ("Hide saja FL35, masukan ke review"); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5h.
   Juga to-do (2026-11-05): FL21 diberi parameter ukuran (gross beli, gross jual, net beli); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5i.
-  Juga to-do (2026-11-05): FL25 diberi visual penyebab kenaikan dan penurunan (definisi menunggu user); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5j.
+  FL25 diberi visual penyebab kenaikan dan penurunan: **dibatalkan 2026-11-05**, FL25 dibiarkan apa adanya (user: "we leave it as is saja"); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5j.
   Juga to-do (2026-11-05): FL29 diberi ukuran besarnya akumulasi (persen atau persentil, di panel yang sama atau indikator baru yang berpasangan); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5k.
   Juga to-do (2026-11-05): indikator baru Buy VWAP bergulir dengan Top-N per hari (cara B), terpisah dari FL17; lihat `FLOW_INDICATOR_REVIEW.md` bagian 5l.
   Juga to-do (2026-11-05): harga rata-rata penjualan (gross jual) untuk FL17 dan FL18 (bentuk menunggu user); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5m.
