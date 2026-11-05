@@ -208,7 +208,7 @@ def build():
         ps = params[fid]
         indicators.append({'id': fid, 'name': name, 'family': family, 'place': PLACE[place.split(' (')[0]],
                            'unit': UNIT[unit], 'needs_frequency': freq == 'Ya', 'outputs': outputs(fid, ps),
-                           'tip': PLAIN.get(fid, tips[fid]), 'params': ps})
+                           'tip': PLAIN[fid] if fid in PLAIN else tips[fid], 'params': ps})   # a new id needs one of them
     return {'schema_version': 1, 'generated_by': 'scripts/build_flow_registry.py',
             'source': {'file': str(SPEC.relative_to(ROOT)), 'sha256': hashlib.sha256(SPEC.read_bytes()).hexdigest()},
             'families': FAMILIES, 'indicators': indicators}
