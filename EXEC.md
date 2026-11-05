@@ -11543,5 +11543,15 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
   (Rank lewat to-do 5), FL33 (lewat to-do 4); FL14 mengikuti FL13. Dasar yang disampaikan: contoh ilustrasi (FL03 Jual
   19,2% sebelum K1 lawan 80,8% sesudah) dan BBRI 3 Nov (FL03 Jual 11,5% lawan 34,0%; FL13 Jual 0,00648 lawan 0,04369).
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** kelompok B (Rank tanpa Sisi: FL06, FL07, FL09–FL12, FL17–FL21,
-FL26, FL36, FL37, FL39), usulan AI: tetap Net buy, Gross buy, Net sell; user meminta penjelasan.
+- Kelompok B (Rank tanpa Sisi: FL06, FL07, FL09–FL12, FL17–FL21, FL26, FL36, FL37, FL39): "Kelompok B tetap, ganti
+  labelnya, masukan exec" = pilihan tetap Net buy, Gross buy, Net sell (kunci `net_buy`, `gross_buy`, `net_sell` tidak
+  berubah); hanya label yang diperjelas (usulan: "Top net buyers", "Top gross buyers", "Top net sellers").
+- Judul tab browser (user 2026-11-05, tangkapan layar "EDGE — Sign In & Monitor"): "apapun tabnya selalu tulisannya
+  Edge, Sign In, and Monitor. Boleh diganti misalkan Edge, - terminal, backtest, screener." Sekarang `<title>` statis di
+  `apps/edge-bff/static/index.html:11`; judul per halaman diusulkan di rencana implementasi.
+- User 2026-11-05: "untuk yang di setiap exec approve ... cek lagi infrastruktur arsitektur. Make sure setiap keputusan
+  yang dibuat berdasarkan kode instead of memory. Kemudian setelah itu buat implementation plan, and describe what done
+  looks like."
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** rencana implementasi dan definisi selesai (sedang disusun dari
+pemeriksaan kode).
