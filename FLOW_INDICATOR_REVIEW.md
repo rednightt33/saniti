@@ -33,6 +33,7 @@ item baru dijalankan atas perintah user.
 | 14 | Dua indikator baru (kode ditetapkan saat dikerjakan): versi jual dari FL17 dan dari FL18 | **Dua indikator tambahan terpisah** yang menghitung nilai jual dibagi lot jual (harga rata-rata penjualan, gross jual): satu bergulir seperti FL17, satu beranchor seperti FL18 | "Boleh nggak ditambahkan satu indikator yang represent sell atau gross sell? Mirip FL18 juga. Berlaku juga untuk FL17."; "FL17 kan dia menghitung basically beli dibagi lot beli kan. FL18 juga. Yang saya butuhkan adalah dua indikator tambahan jual dan lot jual." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5m |
 | 15 | Indikator baru: Buy VWAP · Anchored · Distance % (sejajar FL20); versi rolling sudah ada sebagai FL39 | Jarak harga penutupan terhadap harga rata-rata pembelian beranchor (FL18) dalam persen; jarak terhadap harga rata-rata pembelian bergulir (FL17) sudah ada di FL39 | "Tolong tambahkan saja by vweb anchor dan by vweb rolling tapi versi percentage distance. seperti FL20. Konfirmasi kalau kamu paham." (2026-11-05; "vweb" dibaca VWAP) | To-do; bacaan AI dikonfirmasi user: hanya versi anchor yang baru, jarak rolling cukup FL39 (2026-11-05). Bagian 5n |
 | 16 | FL17 dan FL39 | FL17 tetap menghitung harga, FL39 menghitung jarak (%) terhadap FL17, dan jarak itu dihitung dengan **parameter FL17** (bawaan FL39 disamakan: 20 sesi, semua papan, Foreign dan Domestic) | "17 dan 39. Jadikan FL17 menghitung secara price, tapi FL39 menghitung secara distance. Nah, distance ini harus dihitung menggunakan parameter yang ada di FL17." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5o |
+| 17 | FL34 Institutional vs Retail Net | Ditambah ukuran **perubahan** (daily to daily, dan rentang lain): bacaan AI, perubahan nilai FL34 dibanding sesi sebelumnya dan beberapa jarak waktu lain; maksud pastinya menunggu user | "Alright, untuk FL34, to-do list-nya adalah kita perlu tambahkan change. Jadi change daily to daily, dan lain sebagainya. Paham?" (2026-11-05) | To-do; bacaan AI menunggu konfirmasi user. Bagian 5p |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -946,6 +947,42 @@ FL39 = `100 × (close / FL17 − 1)`, dihitung dengan `rollingVwap(c, p, 10)` (`
 ### 5o.4 Batas
 
 Satu saham (BBRI), satu tanggal. Dihitung dari data broker mentah (semua papan) dan harga penutupan tabel harga, belum dicocokkan dengan BFF yang hidup. Tidak ada kode yang diubah.
+
+## 5p. To-do: FL34 diberi ukuran perubahan (daily to daily dan lainnya)
+
+**Catatan user 2026-11-05 (kata-katanya):** "Alright, untuk FL34, to-do list-nya adalah kita perlu tambahkan change. Jadi change daily to daily, dan lain sebagainya. Paham?"
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5p.1 Kondisi sekarang **[T]** (`flow.ts:516-526`, `FORMULAS.md:100`)
+
+`FL34 = 100 × (net institusi − net ritel) / turnover`, dijumlahkan sepanjang `window` (20 sesi); satu garis, tanpa ukuran perubahan. Net adalah gross beli dikurangi gross jual; turnover adalah gross beli semua broker.
+
+### 5p.2 Bacaan AI atas permintaan (belum dikonfirmasi user)
+
+Ukuran **perubahan nilai FL34**: nilai hari ini dikurangi nilai sesi sebelumnya (daily to daily), dalam poin persen, dan ukuran sejenis untuk jarak waktu lain (usulan: 5 sesi dan 20 sesi). "Dan lain sebagainya" belum dirinci user.
+
+### 5p.3 Bukti pada data (BBRI, semua investor, semua papan, `window` 20, dihitung 2026-11-05; klasifikasi broker dari tabel fitur 3 Nov)
+
+| Tanggal | FL34 | Perubahan harian (poin) | Perubahan 5 sesi (poin) |
+|---|---:|---:|---:|
+| 29 Okt | −10,43% | +0,75 | +2,39 |
+| 30 Okt | −8,44% | +1,99 | +4,41 |
+| 2 Nov | −8,67% | −0,23 | +4,03 |
+| 3 Nov | −9,28% | −0,61 | +2,16 |
+
+Sebaran 252 sesi, |perubahan| median: harian 1,37 poin (P10 −3,38, P90 +2,90, rentang −20,0 sampai +8,4), 5 sesi 5,11 poin, 20 sesi 14,29 poin. Tiga perubahan harian terbesar: 22 Okt 2025 (−20,0), 16 Okt 2026 (−18,5), 29 Mei 2026 (−9,7). Karena FL34 adalah jumlah bergulir 20 sesi, perubahan harian sama dengan (hari yang masuk − hari yang keluar) pada pembilang, ditambah efek perubahan turnover.
+
+### 5p.4 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Apa yang diubah:** nilai FL34 itu sendiri (bacaan AI), atau net institusi dan net ritel harian secara terpisah.
+2. **"Dan lain sebagainya":** jarak waktu mana saja (5 sesi, 20 sesi, atau lainnya), dan apakah ada ukuran selain selisih (misalnya persen perubahan).
+3. **Satuan:** poin persentase atau persen perubahan.
+4. **Bentuk:** garis kedua di panel yang sama atau indikator terpisah.
+5. **Kaitan dengan to-do 11** (penyebab perubahan FL25): apakah pemecahan hari masuk dan hari keluar juga diinginkan di sini.
+
+### 5p.5 Batas
+
+Satu saham (BBRI). Klasifikasi broker dibaca dari kolom klasifikasi tabel fitur pada 3 Nov dan dipakai untuk semua tanggal (kesamaannya dengan daftar di terminal belum diperiksa). Dihitung dari data broker mentah (semua papan), belum dicocokkan dengan BFF yang hidup. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
