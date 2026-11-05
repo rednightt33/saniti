@@ -11492,5 +11492,19 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
   sekarang (`flow.ts:208-221`, `:292-299`) dan keputusan FL13 final (review 5e). FL38 sama. Contoh ilustrasi yang
   dibahas: 5 hari, Top-3 dikunci A, D, B, HHI beli 0,1668 (bukan rata-rata HHI harian 0,242).
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** konsistensi yang ditemukan sesudah Q3 (sisi jual kelompok Top-N,
-Top-N Flow Ratio pada jendela > 1, kebutuhan jumlah transaksi per pilihan Ukuran); lihat percakapan 2026-11-05.
+- K2 "setuju": sisi jual FL14 adalah cermin sisi beli menurut `rank` (net beli ↔ net jual, gross beli ↔ gross jual,
+  pilihan skor gross jual ditambahkan; net jual ↔ net beli); broker terpilih memakai broker yang sama di dua sisi.
+- K3 "A": Flow Ratio (to-do 20) dengan Top-N dan `window` > 1 memakai kelompok yang dikunci per jendela (`cohort()`),
+  sama dengan FL13 dan pola FL01/FL11/FL17.
+- K4 "OK": kebutuhan jumlah transaksi diturunkan dari pilihan parameter, bukan per indikator: hanya pilihan Ukuran/Unit
+  "Transaksi" yang ditolak bila data broker tidak punya `bf`/`sf` (sekarang seluruh indikator ditolak,
+  `apps/edge-bff/terminal/src/app/flowIndicators.ts:208`); pesan menyebut letak masalah dan cara lolos (gerbang
+  `AGENTS.md`).
+- Aturan IHSG berlaku untuk setiap pilihan Lot (Satuan, Ukuran FL32 dan Spike Balance, Unit Flow Ratio); garis acuan
+  0,5/1/2 hanya untuk Spike Balance, FL32 tetap 2,5 (asumsi AI yang disampaikan ke user, tidak dibantah).
+- Permintaan user 2026-11-05 (dengan `SCREENER_LIBRARY.md` dan `METHODOLOGY_DICTIONARY.md`): "We'll also need to add
+  another indicator. Lihat screener library ... mana indikator di screener library yang belum ada di indicator flow
+  existing. We'll add those as well on this instance." Pemetaan dan usulan disampaikan ke user; menunggu pilihan.
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** K1 (sisi jual kelompok Top-N pada FL13, FL14, FL33: user
+bertanya apakah opsi C konsisten); daftar indikator baru dari screener library (pilihan user per butir).
