@@ -474,6 +474,8 @@ Baseline (30 Sep sampai 27 Okt, 20 sesi, Top-3 tiap hari), sisi beli: gross beli
 Total baseline: Rp6.845,6 miliar / 393.600 transaksi = Rp17,39 juta per transaksi (sisi jual: Rp2.323,6 miliar / 145.334 transaksi). Rata-rata sederhana dari angka harian akan memberi 26,64 (baseline) dan 25,97 (terbaru), **bukan** yang dipakai; FL33 memakai total dibagi total.
 Sisi beli: 20,35 / 17,39 jt per transaksi, FL33 = **+17,0%**. Sisi jual: 14,13 / 15,99, FL33 = **−11,6%**. Bawaan semua broker (tanpa kelompok): −11,2% (sisi beli).
 
+**Dikonfirmasi lagi 2026-11-05** sesudah user melihat contoh dengan Rupiah per transaksi tiap sesi: "Oke, kita pakai yang IV. Masukkan ke review."
+
 **Pertanyaan yang tersisa (bacaan AI di sebelahnya):**
 1. Pada Side = Jual, kelompok Top-N tetap dipilih menurut `rank` (bawaan net beli, seperti FL01), bukan menurut net jual; user belum menyebut.
 2. Hari dengan pembeli bersih kurang dari N: kelompok memakai yang ada (usulan).
@@ -1134,7 +1136,8 @@ Contoh yang ditandai user adalah jawaban "Contoh hitungan FL29: BBRI, 3 Nov 2026
 4. **Langkah 3: gabungkan menjadi nilai indikator** dengan rumus yang berisi angka sebenarnya.
 5. **Kalau parameter diubah:** tabel kecil yang menunjukkan nilai indikator pada beberapa pengaturan.
 6. **Hal yang terlihat dari contoh:** dua sampai empat pengamatan konkret dari tabel itu (misalnya: yang dihitung jumlah hari, bukan besarnya).
-7. **Aturan gaya:** Bahasa Indonesia sederhana; angka dari data nyata dengan tanggalnya; **tidak menyebut indikator lain** dalam contoh; menyebut bahwa angka dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup; menyebut bahwa tidak ada perubahan di repo bila memang begitu.
+7. **Variabel utama diuraikan asalnya** (catatan user 2026-11-05: "ketika kamu kasih contoh, make sure main variable yang digunakan itu harus di breakdown asalnya dari mana"): setiap angka yang masuk rumus (misalnya Rp per transaksi, porsi, net) ditampilkan dari komponen mentahnya (gross beli, transaksi, lot, broker mana), per sesi atau per broker, dan angka gabungannya dihitung dari komponen itu (total dibagi total, bukan rata-rata angka harian, bila memang begitu rumusnya).
+8. **Aturan gaya:** Bahasa Indonesia sederhana; angka dari data nyata dengan tanggalnya; **tidak menyebut indikator lain** dalam contoh; menyebut bahwa angka dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup; menyebut bahwa tidak ada perubahan di repo bila memang begitu.
 
 **Contoh acuan (FL29, BBRI, 3 Nov 2026; semua investor, semua papan, N = 3, days 20, threshold 0%):**
 
