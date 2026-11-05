@@ -5310,6 +5310,31 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M350 — Memori Postgres menempel di batas 4 GB sejak 2026-11-05 10:40 UTC (2026-11-05)
+
+- **Symptom:** metrik Railway `MEMORY_USAGE_GB` Postgres (sampel 10 menit): 0,65–0,81 GB sampai 09:20 UTC, 2,93 GB
+  09:30 UTC, naik ke 3,99 GB 10:40 UTC dan tetap 3,96–3,99 GB sampai 11:40 UTC; CPU 0,7–0,9 sejak 10:20 UTC. Postgres
+  tidak restart (`pg_postmaster_start_time` 03:53 UTC, start sesudah M346).
+- **Verified (waktu metrik = waktu job di log):**
+  - 09:30 UTC: job dokumen skema (`sync_database_schema`, `Database_Table_Status` membaca tanggal terbaru setiap 105
+    tabel dari basis data 56 GB) berjalan sekitar 09:28 UTC; memori 0,81 → 2,93 GB.
+  - 10:00–10:40 UTC, berjalan bersamaan: cron harga 10:00; riwayat harga 43 kode 10:14; dua recovery `--reverify-all`
+    908 kode; cron intraday 10:30 dengan seluruh riwayat 63 kode; job Fitur 4 (riwayat 63 kode); dan worker Fitur 1
+    yang memproses sekitar 45 ribu baris antrean (±400 baris per menit, satu refresh per baris).
+  - Sesudah 10:40 UTC: cache halaman Linux mencapai batas kontainer dan bertahan, karena worker Fitur 1 terus membaca.
+- **Suspected (belum dicek):** lonjakan 06:40–07:40 UTC (0,32 → 3,3 GB) dari query hanya-baca besar sesi ini (scan
+  `IDX_Broker_Summary` dan Fitur 06 untuk S1B); cek: log query pgweb pada jam itu.
+- **Root cause:** beberapa pekerjaan baca/tulis besar dijalankan bersamaan (AGENTS.md: satu per satu), ditambah job
+  dokumen skema yang juga membaca semua tabel. Isinya cache yang ditagih Railway, bukan memori proses (shared_buffers
+  128 MB); tidak ada OOM.
+- **Class:** cache halaman dari pekerjaan besar (ad hoc atau terjadwal) yang menumpuk sampai batas kontainer dan baru
+  bersih saat restart (M319); berlaku untuk setiap backfill, onboarding data baru dan job yang membaca semua tabel.
+- **Solution:** restart terencana sesudah pekerjaan besar selesai (`scripts/restart_postgres.py`); restart otomatis
+  20:45 WIB menunggu statement yang berjalan sampai 60 menit. Sesudah unggahan broker summary S3 dan hitung ulang IHSG,
+  restart lagi.
+- **Status:** OPEN (menunggu restart).
+- **Lesson:** jalankan pekerjaan besar berurutan; job dokumen skema termasuk "large update" (membaca semua tabel).
+
 ### M349 — Feature 04: rantai inkremental dan hitungan referensi berbeda di masa datar tanpa transaksi (2026-11-05)
 
 - **Symptom:** job Feature 04 untuk 63 kode baru (EXEC-UNIVERSE-BROKER S1) menolak AKKU: `rsi_14` 2022-02-18 rantai
