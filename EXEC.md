@@ -11506,5 +11506,23 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
   another indicator. Lihat screener library ... mana indikator di screener library yang belum ada di indicator flow
   existing. We'll add those as well on this instance." Pemetaan dan usulan disampaikan ke user; menunggu pilihan.
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** K1 (sisi jual kelompok Top-N pada FL13, FL14, FL33: user
-bertanya apakah opsi C konsisten); daftar indikator baru dari screener library (pilihan user per butir).
+- K1 "C diperluas ke FL01–FL05": setiap parameter Sisi memakai satu arti. Sisi Jual memakai kelompok cermin menurut
+  `rank` (bawaan net beli → Top-N **penjual** bersih), sama untuk FL01–FL05, FL13, FL14, FL33 (mengganti bacaan 5d.3
+  butir 1 di review). Bacaan AI: FL08 (punya parameter Sisi) ikut; FL09 hanya membaca sisi Beli (`flow.ts:386`) sehingga
+  tidak berubah; FL06 dan FL10 (tanpa parameter Sisi) tetap.
+- Indikator dari screener library (user 2026-11-05: "U1 ok exec ... U6 ok exec"):
+  - U1 FL37: pilihan ukuran Persentil atau z-score terhadap riwayat sendiri (baseline yang sama, hari ini tidak ikut).
+  - U2 FL11: garis perubahan dengan mekanisme FL34 (to-do 17): batang = nilai, garis = selisih terhadap n sesi
+    sebelumnya, termasuk pilihan n = window (tanpa tumpang tindih; M-FF-INC).
+  - U3 FL15 dan FL16: pilihan "di atas bagian merata" = porsi Top-N − N/k, k = jumlah broker di sisi itu
+    (M-CR3X-NET, M-CR3X-GROSS).
+  - U4 baru, Net Buy Intensity: Σ max(net, 0) per broker ÷ Σ beli bruto semua broker sepanjang jendela (bawaan 5),
+    "+ di dalam indikator ini dibuatkan versi / opsi percentilenya": bacaan AI = pilihan ukuran Nilai (%) atau
+    Persentil terhadap riwayat saham itu sendiri (baseline bawaan 252, hari ini tidak ikut, midrank seperti FL37).
+  - U5 baru, Top-N Buyer/Seller Imbalance: net per broker dijumlah sepanjang jendela, N pembeli dan N penjual
+    terbesar; garis (B−S)/(B+S), pilihan rasio B/S (M-TOPN-RATIO).
+  - U6 FL22: pilihan Jumlah (jumlah broker net beli) selain persen (gerbang G4).
+  - Porsi Top-3 dari HHI (M-HHI3-*) tidak dibuat (disarankan AI, tidak diminta user).
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** konfirmasi bacaan U4 (persentil terhadap riwayat sendiri) dan
+FL08 ikut K1; papan bawaan U4 dan U5 (Regular seperti library atau semua papan seperti Flow lain).
