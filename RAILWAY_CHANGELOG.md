@@ -8,7 +8,8 @@
   `"large_write": true`): memory 1.63 GB, deployment `b4e32034`, start 16:00:53 UTC, 11 s, edge-bff `/ready` 200.
 - orc-test-runner guard: `scripts/onboarding/runner_guard.sh` no longer reads a fast job's late "Starting Container"
   line as a new start (ERRORS M341, `4bee3798`).
-- feature-04-worker: see the next entry line once its deployment reaches SUCCESS.
+- feature-04-worker (`bb1fcecc`): GitHub deploy of `87aba979` (TA-Lib zero tests in the chain, ERRORS M349), deployment
+  `7d94659e` SUCCESS.
 
 ## 2026-11-05 — Postgres restarts after the large writes (ERRORS M350)
 
