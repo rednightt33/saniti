@@ -950,7 +950,7 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 1. ~~Apakah FL39 sudah memenuhi permintaan "by VWAP rolling".~~ **Dijawab user 2026-11-05: ya, yang tersisa hanya anchored.**
 2. Nama dan kode indikator baru (anchored), ditetapkan saat dikerjakan.
 3. Apakah versi jarak juga dibutuhkan untuk dua indikator harga rata-rata penjualan (to-do 14).
-4. Status FL19 dan FL20 tidak berubah oleh to-do ini; penilaian kegunaan FL19 tetap terbuka (user belum memilih opsi).
+4. ~~Penilaian kegunaan FL19.~~ **User 2026-11-05: "Anggap FL19 selesai"** tanpa memilih opsi A (pertahankan, prioritaskan FL18), B (sembunyikan), atau C (pertahankan dengan peringatan). Bacaan AI: **tidak ada perubahan pada FL19 dan FL20** (setara opsi A, dibiarkan apa adanya); koreksi bila yang dimaksud berbeda. Dasar penilaian (BBRI, 25 anchor): selisih FL19 terhadap FL18 median −3,5%; posisi harga di atas atau di bawah garis sama pada 83% pengamatan; FL19 kosong 66% sampai 80% sesi untuk anchor 50 sampai 70 sesi.
 
 ### 5n.5 Batas
 
