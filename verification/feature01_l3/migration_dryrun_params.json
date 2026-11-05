@@ -1,0 +1,10 @@
+{
+ "mode": "DRYRUN",
+ "migrations": ["20261105_005_feature01_queue_per_ticker.sql"],
+ "probes": [
+  ["catalog", null, "SELECT table_name, update_rule FROM public.\"Table_Catalog\" WHERE table_name IN ('Feature_Calculation_Log','Feature_Calculation_Queue') ORDER BY 1"],
+  ["queue", null, "SELECT status, count(*), count(DISTINCT ticker), min(next_attempt_at), max(updated_at) FROM public.\"Feature_Calculation_Queue\" GROUP BY 1 ORDER BY 1"],
+  ["failed_open", null, "SELECT ticker, count(*), max(last_error) FROM public.\"Feature_Calculation_Queue\" WHERE status <> 'DONE' GROUP BY 1 ORDER BY 2 DESC LIMIT 10"],
+  ["status", null, "SELECT status, count(*) FROM public.\"Feature_Status\" GROUP BY 1"]
+ ]
+}

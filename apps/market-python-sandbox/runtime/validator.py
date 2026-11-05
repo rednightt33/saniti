@@ -58,6 +58,14 @@ class Evidence:
         self.items: list[dict[str, Any]] = []
         self.reasons: dict[str, str] = {}
 
+    def extend(self, other: "Evidence") -> None:
+        for item in other.items:
+            detail = {k: v for k, v in item.items() if k not in ("check", "result", "code")}
+            self.add(item["check"], item["result"], item.get("code"), **detail)
+
+    def failed(self) -> bool:
+        return any(item["result"] == "FAIL" for item in self.items)
+
     def add(self, check: str, result: str, code: str | None = None, **detail: Any) -> None:
         item = {"check": check, "result": result, **({"code": code} if code else {}), **detail}
         self.items.append(item)
@@ -429,9 +437,10 @@ def _warmup(analysis_spec: dict[str, Any], manifest: dict[str, Any], frames: dic
 # ---------------------------------------------------------------- reference values
 
 def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dict[str, Any],
-                     period: dict[str, Any] | None = None) -> dict[str, Any]:
+                     period: dict[str, Any] | None = None, convention: str = "REFERENCE") -> dict[str, Any]:
     """Per input: entity, date, and one column per supported calculation (NaN where undefined). GROUP_AGGREGATE and
-    GROUP_CORRELATION values are recalculated per output by the group checks."""
+    GROUP_CORRELATION values are recalculated per output by the group checks. `convention` (reference.CONVENTIONS):
+    the answer at a division by (nearly) zero; chained, CUSTOM, group and event-study values follow it."""
     import numpy as np
     import expression
     import reference
@@ -502,9 +511,9 @@ def reference_frames(spec: dict[str, Any], manifest: dict[str, Any], frames: dic
         y_all = other.to_numpy(dtype=float) if other is not None else None
         for _, index in frame.groupby(entity, sort=False).indices.items():
             y = y_all[index] if y_all is not None else None
-            values[index] = reference.compute(calc["method"], params, x_all[index], y)
+            values[index] = reference.compute(calc["method"], params, x_all[index], y, convention)
         target[calc["output_column"]] = values
-    return {"frames": by_dataset, "unverifiable": unverifiable}
+    return {"frames": by_dataset, "unverifiable": unverifiable, "convention": convention}
 
 
 def _calc_column(spec: dict[str, Any], calc_id: str) -> str:
@@ -1435,7 +1444,8 @@ def _check_group_pairs(output, path, used, spec, manifest, frames, refs, period,
     for calc in used:
         params = {p["name"]: p["value"] for p in calc["params"]}
         expected = {pair: reference.pair_correlation(series[pair[0]], series[pair[1]], params["method"],
-                                                     int(params["min_overlap"])) for pair in overlap}
+                                                     int(params["min_overlap"]),
+                                                     refs.get("convention", "REFERENCE")) for pair in overlap}
         actual: dict[tuple[str, str], float] = {}
         for _, row in table.iterrows():
             pair = tuple(sorted((row[left], row[right])))
@@ -2052,6 +2062,8 @@ def _keys(frame, entity: str, time: str) -> list[dict[str, Any]]:
 
 def postflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, Any],
                request: dict[str, Any]) -> dict[str, Any]:
+    import reference
+
     spec = analysis_spec["spec"]
     evidence, blocking = Evidence(), []
     frames = load_inputs(job_dir, manifest, spec, evidence, blocking)
@@ -2067,10 +2079,32 @@ def postflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, 
     refs = reference_frames(spec, manifest, frames, period)
     warmups = {name: need["minimum_warmup_observations"] for name, need in analysis_spec["required_input"].items()}
     scopes = []
+    variants: dict[str, dict[str, Any]] = {}
     for output in spec["outputs"]:
         path = request["outputs"].get(output["name"])
-        scopes.append(check_output(output, os.path.join(job_dir, path) if path else None, spec, manifest, frames,
-                                   refs, period, expected, evidence, warmups, request.get("research_context")))
+        full_path = os.path.join(job_dir, path) if path else None
+        found = Evidence()
+        scope = check_output(output, full_path, spec, manifest, frames, refs, period, expected, found, warmups,
+                             request.get("research_context"))
+        # ERRORS M349: at a division by (nearly) zero TA-Lib 0.8.1, TA-Lib 0.6.x and this reference answer
+        # differently; a failing output is checked again under the other conventions and passes under any of them
+        if found.failed() and path:
+            for convention in reference.CONVENTIONS[1:]:
+                if convention not in variants:
+                    variants[convention] = reference_frames(spec, manifest, frames, period, convention)
+                points = _convention_points(refs, variants[convention])
+                again = Evidence()
+                again_scope = check_output(output, full_path, spec, manifest, frames, variants[convention], period,
+                                           expected, again, warmups, request.get("research_context"))
+                if not again.failed():
+                    again.add(f"output.{output['name']}.convention", "PASS", convention=convention,
+                              differing_reference_values=points,
+                              detail="Values at a division by (nearly) zero follow " + CONVENTION_TEXT[convention]
+                                     + "; every other value equals the reference.")
+                    found, scope = again, again_scope
+                    break
+        evidence.extend(found)
+        scopes.append(scope)
     status, level = aggregate(spec, evidence, scopes, refs)
     assessment = assess(request.get("research_context") or {}, status, level, scopes)
     for scope in scopes:
@@ -2079,6 +2113,23 @@ def postflight(job_dir: str, analysis_spec: dict[str, Any], manifest: dict[str, 
             "validation_profile": manifest.get("validation_profile") or "Y_ANALYSIS",
             "reasons": evidence.reasons, "evidence": evidence.items, "period": _period_json(period),
             "expected_entities": len(expected), "outputs": scopes, "evidence_assessment": assessment}
+
+
+CONVENTION_TEXT = {"TA_LIB_0_8": "TA-Lib 0.8.1 (0 for a correlation without variance or a return over a zero base)",
+                   "TA_LIB_0_6": "TA-Lib 0.6.x as Feature 04 (also RSI 0 and standard deviation 0 below 1e-14)"}
+
+
+def _convention_points(refs: dict[str, Any], other: dict[str, Any]) -> int:
+    """Reference values (per-entity series) that differ between two conventions; pair correlations are not counted."""
+    import numpy as np
+
+    points = 0
+    for name, frame in refs["frames"].items():
+        alt = other["frames"][name]
+        for column in frame.columns[2:]:
+            a, b = frame[column].to_numpy(dtype=float), alt[column].to_numpy(dtype=float)
+            points += int((~((np.isnan(a) & np.isnan(b)) | (a == b))).sum())
+    return points
 
 
 def aggregate(spec: dict[str, Any], evidence: Evidence, scopes: list[dict[str, Any]], refs: dict[str, Any]

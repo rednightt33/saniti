@@ -156,6 +156,17 @@ def _update_rolling_mean(state: dict, value: float, period: int) -> float | None
     return result
 
 
+# TA-Lib 0.6.4 treats |v| < 1e-14 as zero (TA_IS_ZERO) and v < 1e-14 as zero or negative (TA_IS_ZERO_OR_NEG) in RSI,
+# ADX and the BBANDS deviation; the reference (engine.calculate) is TA-Lib, so the chain must test the same way, not
+# against an exact 0 (ERRORS M349: after a long flat stretch avg_gain + avg_loss decays below 1e-14 and TA-Lib outputs
+# RSI 0 while an exact test kept 45.81). The averages themselves are unchanged, so no state version change is needed.
+TALIB_EPSILON = 1e-14
+
+
+def _is_zero(value: float) -> bool:
+    return -TALIB_EPSILON < value < TALIB_EPSILON
+
+
 def _update_bbands(state: dict, value: float, period: int = 20) -> tuple[float, float, float] | None:
     """Match TA-Lib's rolling mean/variance update order for BBANDS."""
     buffer = deque(state["buffer"])
@@ -167,7 +178,7 @@ def _update_bbands(state: dict, value: float, period: int = 20) -> tuple[float, 
         return None
     middle = state["sum"] / period
     variance = state["sum_squares"] / period - middle * middle
-    deviation = variance ** 0.5 if variance > 0.0 else 0.0
+    deviation = variance ** 0.5 if variance >= TALIB_EPSILON else 0.0
     oldest = buffer.popleft()
     state["sum"] -= oldest
     state["sum_squares"] -= oldest * oldest
@@ -201,7 +212,7 @@ def _update_rsi(state: dict, close: float, period: int = 14) -> float | None:
         state["average_gain"] = (state["average_gain"] * (period - 1) + gain) / period
         state["average_loss"] = (state["average_loss"] * (period - 1) + loss) / period
     total = state["average_gain"] + state["average_loss"]
-    return 100.0 * state["average_gain"] / total if total else 0.0
+    return 0.0 if _is_zero(total) else 100.0 * state["average_gain"] / total
 
 
 def _true_range(high: float, low: float, previous_close: float) -> float:
@@ -249,19 +260,20 @@ def _update_adx(state: dict, high: float, low: float, close: float, period: int 
     state["smoothed_minus_dm"] = (
         state["smoothed_minus_dm"] - state["smoothed_minus_dm"] / period + minus_dm
     )
-    if state["smoothed_tr"]:
+    # TA-Lib: no DX when the smoothed TR or the DI sum is zero; the seed then counts it as 0 and ADX keeps its value
+    dx = None
+    if not _is_zero(state["smoothed_tr"]):
         plus_di = 100.0 * state["smoothed_plus_dm"] / state["smoothed_tr"]
         minus_di = 100.0 * state["smoothed_minus_dm"] / state["smoothed_tr"]
-    else:
-        plus_di = minus_di = 0.0
-    denominator = plus_di + minus_di
-    dx = 100.0 * abs(plus_di - minus_di) / denominator if denominator else 0.0
+        denominator = plus_di + minus_di
+        if not _is_zero(denominator):
+            dx = 100.0 * abs(plus_di - minus_di) / denominator
     if state["value"] is None:
-        state["dx_seed"].append(dx)
+        state["dx_seed"].append(0.0 if dx is None else dx)
         if len(state["dx_seed"]) < period:
             return None
         state["value"] = sum(state["dx_seed"]) / period
-    else:
+    elif dx is not None:
         state["value"] = (state["value"] * (period - 1) + dx) / period
     return state["value"]
 

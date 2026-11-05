@@ -32,6 +32,9 @@ def is_finished(log: str) -> bool:
     ('Starting Container\nJOB_EXIT 10\n', True),                                    # any exit code ends the job
     ('Starting Container\nTraceback (most recent call last):\n', True),             # a job from before the wrapper that failed
     ('Starting Container\nOUT JOB_EXIT 0 later\n', False),                          # the marker is a whole line's end
+    ('Starting Container\nOUT 1\nJOB_EXIT 0\nStarting Container\n', True),          # M341: a fast job's start logged late
+    ('OUT 1\nJOB_EXIT 0\nStarting Container\n', True),                               # the same with no earlier start line
+    ('Starting Container\nJOB_EXIT 0\nStarting Container\nOUT 1\n', False),         # a real later start is running
 ])
 def test_guard_reads_the_latest_start(log, done):
     assert is_finished(log) is done

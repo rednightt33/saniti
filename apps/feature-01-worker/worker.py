@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Continuously refresh Feature 01 for committed price-candle queue items."""
+"""Continuously refresh Feature 01 for committed price-candle queue items.
+
+EXEC-UNIVERSE-BROKER L3 (user go 2026-11-05): a claim takes every due item of one ticker. One item refreshes its own row
+plus the 120 following observations, as before (refresh_feature_01_stock_daily(price_date, ...), migration
+20260912_001 lines 258-263, 326-332). Several items refresh the ticker's whole history once (p_changed_date NULL): the
+function always reads the full history and a row depends on the 120 rows before it, so the result equals the per-item
+runs, and a full-history load is computed once instead of about 100 times (ERRORS M350). Each item is still fenced by
+its own token and source version and gets its own log row."""
 
 from __future__ import annotations
 
@@ -87,8 +94,8 @@ def record_attempt(
     )
 
 
-def claim_one() -> Job | str | None:
-    """Claim a due item, or finalize an exhausted expired claim, in a short transaction."""
+def claim_one() -> list[Job] | str | None:
+    """Claim the due items of one ticker, or finalize an exhausted expired claim, in a short transaction."""
     with connect() as connection, connection.transaction():
         connection.execute("SET LOCAL statement_timeout = '15s'")
         candidate = connection.execute(
@@ -146,8 +153,20 @@ def claim_one() -> Job | str | None:
                 )
                 return "EXHAUSTED"
 
+        # the other due items of the same ticker (an expired claim of another item is left to its own claim)
+        dates = [price_date] + [r["price_date"] for r in connection.execute(
+            """
+            SELECT price_date FROM public."Feature_Calculation_Queue"
+            WHERE feature_table = %s AND ticker = %s AND price_date <> %s
+              AND status IN ('PENDING', 'FAILED') AND next_attempt_at <= CURRENT_TIMESTAMP
+              AND source_attempt_count < %s
+            ORDER BY price_date
+            FOR UPDATE SKIP LOCKED
+            """,
+            (FEATURE_TABLE, ticker, price_date, MAX_SOURCE_ATTEMPTS),
+        ).fetchall()]
         token = uuid.uuid4()
-        claim = connection.execute(
+        claims = connection.execute(
             """
             UPDATE public."Feature_Calculation_Queue"
             SET status = 'PROCESSING', attempt_count = attempt_count + 1,
@@ -156,24 +175,25 @@ def claim_one() -> Job | str | None:
                 claim_expires_at = clock_timestamp() + make_interval(mins => %s),
                 completed_at = NULL,
                 last_error = NULL, updated_at = CURRENT_TIMESTAMP
-            WHERE feature_table = %s AND ticker = %s AND price_date = %s
-            RETURNING claimed_at
+            WHERE feature_table = %s AND ticker = %s AND price_date = ANY(%s)
+            RETURNING price_date, source_ingestion_time, attempt_count, source_attempt_count, claimed_at
             """,
-            (token, LEASE_MINUTES, FEATURE_TABLE, ticker, price_date),
-        ).fetchone()
+            (token, LEASE_MINUTES, FEATURE_TABLE, ticker, dates),
+        ).fetchall()
         connection.execute(
             "SELECT public.refresh_feature_01_control_status(%s, false)",
             (ticker,),
         )
-        return Job(
-            ticker=ticker,
-            price_date=price_date,
-            source_ingestion_time=version,
-            attempt_no=candidate["attempt_count"] + 1,
-            source_attempt_count=candidate["source_attempt_count"] + 1,
-            claim_token=token,
-            started_at=claim["claimed_at"],
-        )
+        return sorted((
+            Job(
+                ticker=ticker,
+                price_date=c["price_date"],
+                source_ingestion_time=c["source_ingestion_time"],
+                attempt_no=c["attempt_count"],
+                source_attempt_count=c["source_attempt_count"],
+                claim_token=token,
+                started_at=c["claimed_at"],
+            ) for c in claims), key=lambda j: j.price_date)
 
 
 def current_claim(connection: psycopg.Connection, job: Job) -> bool:
@@ -194,15 +214,16 @@ def current_claim(connection: psycopg.Connection, job: Job) -> bool:
     )
 
 
-def validate_affected_rows(connection: psycopg.Connection, job: Job, expected: int) -> None:
+def validate_affected_rows(connection: psycopg.Connection, job: Job, expected: int, whole: bool = False) -> None:
+    """The refreshed rows against the source: one item, its row and the 120 following; whole, every row of the ticker."""
     result = connection.execute(
         """
         WITH affected AS (
             SELECT ticker, date, close, volume
             FROM public."Price_Stock_Indonesia_IDX"
-            WHERE ticker = %s AND date >= %s
+            WHERE ticker = %s AND (%s OR date >= %s)
             ORDER BY date
-            LIMIT 121
+            LIMIT CASE WHEN %s THEN NULL ELSE 121 END
         )
         SELECT count(*) AS source_rows,
                count(*) FILTER (
@@ -218,7 +239,7 @@ def validate_affected_rows(connection: psycopg.Connection, job: Job, expected: i
         LEFT JOIN public."Feature_01_Stock_Daily" AS feature
           ON feature.ticker = affected.ticker AND feature.date = affected.date
         """,
-        (job.ticker, job.price_date),
+        (job.ticker, whole, job.price_date, whole),
     ).fetchone()
     if (
         result["source_rows"] < 1
@@ -232,11 +253,15 @@ def validate_affected_rows(connection: psycopg.Connection, job: Job, expected: i
         )
 
 
-def process_one(job: Job) -> str:
-    """Lock the queue key across refresh and completion to fence price re-ingestion."""
+def process_one(jobs: list[Job]) -> str:
+    """Lock the queue keys across refresh and completion to fence price re-ingestion."""
     with connect() as connection, connection.transaction():
         connection.execute("SET LOCAL statement_timeout = '120s'")
-        if not current_claim(connection, job):
+        current = []
+        for job in jobs:   # price_date order (claim_one), the same lock order for every claim
+            if current_claim(connection, job):
+                current.append(job)
+                continue
             record_attempt(
                 connection, ticker=job.ticker, price_date=job.price_date,
                 source_ingestion_time=job.source_ingestion_time,
@@ -244,106 +269,114 @@ def process_one(job: Job) -> str:
                 started_at=job.started_at,
                 detail="Claim or source version changed before refresh",
             )
+        if not current:
             return "SUPERSEDED"
 
+        first, whole = current[0], len(current) > 1
         refreshed = connection.execute(
             "SELECT public.refresh_feature_01_stock_daily(%s, ARRAY[%s]::text[]) AS refreshed_rows",
-            (job.price_date, job.ticker),
+            (None if whole else first.price_date, first.ticker),
         ).fetchone()["refreshed_rows"]
-        validate_affected_rows(connection, job, refreshed)
+        validate_affected_rows(connection, first, refreshed, whole)
         connection.execute(
             """
             UPDATE public."Feature_Calculation_Queue"
             SET status = 'DONE', claimed_at = NULL, claim_token = NULL,
                 claim_expires_at = NULL, completed_at = clock_timestamp(),
                 last_error = NULL, updated_at = CURRENT_TIMESTAMP
-            WHERE feature_table = %s AND ticker = %s AND price_date = %s
+            WHERE feature_table = %s AND ticker = %s AND price_date = ANY(%s)
             """,
-            (FEATURE_TABLE, job.ticker, job.price_date),
+            (FEATURE_TABLE, first.ticker, [j.price_date for j in current]),
         )
-        record_attempt(
-            connection, ticker=job.ticker, price_date=job.price_date,
-            source_ingestion_time=job.source_ingestion_time,
-            attempt_no=job.attempt_no, result="SUCCESS",
-            started_at=job.started_at, rows_refreshed=refreshed,
-            detail="Feature 01 refresh and source coverage validated",
-        )
+        detail = ("Feature 01 refresh and source coverage validated" if not whole else
+                  f"Feature 01 whole-ticker refresh for {len(current)} coalesced items from {first.price_date}; "
+                  "source coverage validated (rows_refreshed on the first item)")
+        for i, job in enumerate(current):
+            record_attempt(
+                connection, ticker=job.ticker, price_date=job.price_date,
+                source_ingestion_time=job.source_ingestion_time,
+                attempt_no=job.attempt_no, result="SUCCESS",
+                started_at=job.started_at, rows_refreshed=refreshed if i == 0 else None,
+                detail=detail,
+            )
         connection.execute(
             "SELECT public.refresh_feature_01_control_status(%s, true)",
-            (job.ticker,),
+            (first.ticker,),
         )
         return "SUCCESS"
 
 
-def fail_one(job: Job, error: Exception) -> str:
+def fail_one(jobs: list[Job], error: Exception) -> str:
     detail = error_detail(error)
     with connect() as connection, connection.transaction():
         connection.execute("SET LOCAL statement_timeout = '15s'")
-        if not current_claim(connection, job):
+        failed = 0
+        for job in jobs:
+            if not current_claim(connection, job):
+                record_attempt(
+                    connection, ticker=job.ticker, price_date=job.price_date,
+                    source_ingestion_time=job.source_ingestion_time,
+                    attempt_no=job.attempt_no, result="SUPERSEDED",
+                    started_at=job.started_at,
+                    detail="Claim changed while handling a failed refresh",
+                )
+                continue
+            if job.source_attempt_count >= MAX_SOURCE_ATTEMPTS:
+                next_attempt_at = None
+            else:
+                next_attempt_at = min(
+                    RETRY_CAP_SECONDS,
+                    RETRY_BASE_SECONDS * (2 ** (job.source_attempt_count - 1)),
+                )
+            connection.execute(
+                """
+                UPDATE public."Feature_Calculation_Queue"
+                SET status = 'FAILED', claimed_at = NULL, claim_token = NULL,
+                    claim_expires_at = NULL, completed_at = NULL,
+                    next_attempt_at = CASE
+                        WHEN %s::integer IS NULL THEN 'infinity'::timestamptz
+                        ELSE clock_timestamp() + (%s::integer * interval '1 second')
+                    END,
+                    last_error = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE feature_table = %s AND ticker = %s AND price_date = %s
+                """,
+                (next_attempt_at, next_attempt_at, detail,
+                 FEATURE_TABLE, job.ticker, job.price_date),
+            )
             record_attempt(
                 connection, ticker=job.ticker, price_date=job.price_date,
                 source_ingestion_time=job.source_ingestion_time,
-                attempt_no=job.attempt_no, result="SUPERSEDED",
-                started_at=job.started_at,
-                detail="Claim changed while handling a failed refresh",
+                attempt_no=job.attempt_no, result="FAILED",
+                started_at=job.started_at, detail=detail,
             )
-            return "SUPERSEDED"
-
-        if job.source_attempt_count >= MAX_SOURCE_ATTEMPTS:
-            next_attempt_at = None
-        else:
-            seconds = min(
-                RETRY_CAP_SECONDS,
-                RETRY_BASE_SECONDS * (2 ** (job.source_attempt_count - 1)),
-            )
-            next_attempt_at = seconds
-        connection.execute(
-            """
-            UPDATE public."Feature_Calculation_Queue"
-            SET status = 'FAILED', claimed_at = NULL, claim_token = NULL,
-                claim_expires_at = NULL, completed_at = NULL,
-                next_attempt_at = CASE
-                    WHEN %s::integer IS NULL THEN 'infinity'::timestamptz
-                    ELSE clock_timestamp() + (%s::integer * interval '1 second')
-                END,
-                last_error = %s,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE feature_table = %s AND ticker = %s AND price_date = %s
-            """,
-            (next_attempt_at, next_attempt_at, detail,
-             FEATURE_TABLE, job.ticker, job.price_date),
-        )
-        record_attempt(
-            connection, ticker=job.ticker, price_date=job.price_date,
-            source_ingestion_time=job.source_ingestion_time,
-            attempt_no=job.attempt_no, result="FAILED",
-            started_at=job.started_at, detail=detail,
-        )
+            failed += 1
         connection.execute(
             "SELECT public.refresh_feature_01_control_status(%s, false)",
-            (job.ticker,),
+            (jobs[0].ticker,),
         )
-        return "FAILED"
+        return "FAILED" if failed else "SUPERSEDED"
 
 
 def run_once() -> str:
-    job = claim_one()
-    if job is None:
+    jobs = claim_one()
+    if jobs is None:
         return "IDLE"
-    if job == "EXHAUSTED":
+    if jobs == "EXHAUSTED":
         emit("claim_exhausted")
         return "EXHAUSTED"
-    emit("claim_started", ticker=job.ticker, price_date=job.price_date,
-         attempt=job.source_attempt_count)
+    first = jobs[0]
+    emit("claim_started", ticker=first.ticker, price_date=first.price_date, items=len(jobs),
+         attempt=first.source_attempt_count)
     try:
-        outcome = process_one(job)
+        outcome = process_one(jobs)
     except Exception as error:
-        outcome = fail_one(job, error)
-        emit("calculation_failed", ticker=job.ticker, price_date=job.price_date,
-             attempt=job.source_attempt_count, error=error_detail(error))
+        outcome = fail_one(jobs, error)
+        emit("calculation_failed", ticker=first.ticker, price_date=first.price_date, items=len(jobs),
+             attempt=first.source_attempt_count, error=error_detail(error))
     else:
-        emit("calculation_completed", ticker=job.ticker,
-             price_date=job.price_date, outcome=outcome)
+        emit("calculation_completed", ticker=first.ticker,
+             price_date=first.price_date, items=len(jobs), outcome=outcome)
     return outcome
 
 

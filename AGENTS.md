@@ -201,7 +201,11 @@ A large update is any one of these, scheduled or **ad hoc**. When in doubt, trea
 - a price refill or a price correction (`idx-price-cron` manual, fixed-income correction);
 - a manual or backfill run of `terminal-publisher`;
 - a migration that rewrites or copies a large table, or builds an index on one;
-- any job that reads or writes millions of rows.
+- any job that reads or writes millions of rows;
+- the schema document and `Database_Table_Status` refresh (`scripts/sync_database_schema.py`, e.g.
+  `verification/database_table_status_20261025/refresh_job.py`): it reads `max(...)` of every table, a full read of the
+  large Feature tables (`sync_database_schema.py:636-700`; 0.81 → 2.93 GB on 2026-11-05, ERRORS M350; user 2026-11-05:
+  "Untuk point nomor 4 OK").
 
 After a large update and its reader checks:
 1. Run `python3 scripts/restart_postgres.py` (check), then the same command with `--apply` (or ask the user to press

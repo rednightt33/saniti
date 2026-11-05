@@ -704,3 +704,131 @@ def test_the_excluding_reference_zscore_equals_a_shifted_window() -> None:
     prior = pd.Series(x).shift(1)
     want = (pd.Series(x) - prior.rolling(window).mean()) / prior.rolling(window).std(ddof=1)
     assert np.allclose(got[window:], want.to_numpy()[window:], equal_nan=True)
+
+
+# ---------------------------------------------------------------- division by (nearly) zero (ERRORS M349, L5)
+
+def _flat_history(level: float = 1000.0) -> np.ndarray:
+    """A price that moves, then does not trade for 600 sessions: RSI's average gain + loss decays below 1e-14
+    after about 460 of them, before the three-month analysis period starts."""
+    rng = np.random.default_rng(5)
+    moving = np.round(level + np.cumsum(rng.normal(0, 12, 60)))
+    return np.concatenate([moving, np.full(600, moving[-1])])
+
+
+def test_conventions_equal_the_installed_talib_and_feature04_rules() -> None:
+    import talib
+
+    assert talib.__ta_version__.startswith(b"0.8.1"), "TA_LIB_0_8 mirrors the sandbox's TA-Lib; re-measure on upgrade"
+    x = _flat_history()
+    y = 500 + np.cumsum(np.random.default_rng(8).normal(0, 5, len(x)))
+    tiny = np.array([5.123456789 + (1e-7 if i % 2 else 0) for i in range(40)])
+    zero_base = np.array([0.0, 0.0, 1.0, 2.0, 0.0, 3.0, 3.0])
+    rsi_params, std_params = {"period": 14}, {"window": 20, "ddof": 0}
+    corr = {"window": 20, "method": "PEARSON"}
+    talib_08 = [
+        ("RSI", rsi_params, "close", talib.RSI(x, 14)),
+        ("ROLLING_STD", std_params, "tiny", talib.STDDEV(tiny, 20, 1)),
+        ("RETURN", {"horizon": 1, "kind": "SIMPLE", "as_percent": False}, "zero_base", talib.ROCP(zero_base, 1)),
+        ("ROLLING_CORRELATION", {**corr, "transform": "NONE"}, "pair", talib.CORREL(x, y, 20)),
+        ("ROLLING_CORRELATION", {**corr, "transform": "SIMPLE_RETURN"}, "pair",
+         talib.CORREL(talib.ROCP(x, 1), talib.ROCP(y, 1), 20)),
+    ]
+    data = {"close": x, "tiny": tiny, "zero_base": zero_base, "pair": x}
+    for method, params, key, expected in talib_08:
+        got = reference.compute(method, params, data[key], y if key == "pair" else None, "TA_LIB_0_8")
+        np.testing.assert_allclose(got, expected, rtol=1e-9, atol=1e-12, equal_nan=True, err_msg=method)
+    # TA-Lib 0.6.x (Feature 04, Terminal): RSI 0 once average gain + loss < 1e-14, standard deviation 0 below 1e-14
+    rsi_08, rsi_06 = (reference.compute("RSI", rsi_params, x, None, c) for c in ("TA_LIB_0_8", "TA_LIB_0_6"))
+    flat = np.isfinite(rsi_08) & (rsi_08 != rsi_06)
+    assert flat.sum() > 50 and (rsi_06[flat] == 0).all() and (rsi_08[flat] > 0).all()
+    assert reference.compute("ROLLING_STD", std_params, tiny, None, "TA_LIB_0_6")[-1] == 0.0
+    # the reference keeps its answer: an undefined correlation and return stay empty
+    assert np.isnan(reference.compute("ROLLING_CORRELATION", {**corr, "transform": "NONE"}, x, y)[-1])
+    assert np.isnan(reference.compute("RETURN", {"horizon": 1, "kind": "SIMPLE", "as_percent": False}, zero_base)[2])
+    # a Spearman correlation and a z-score have no TA-Lib convention: unchanged
+    spearman = {**corr, "method": "SPEARMAN", "transform": "NONE"}
+    assert np.isnan(reference.compute("ROLLING_CORRELATION", spearman, x, y, "TA_LIB_0_6")[-1])
+    assert reference.pair_correlation(np.full(30, 3.0), np.arange(30.0), "PEARSON", 20, "TA_LIB_0_8") == 0.0
+    assert np.isnan(reference.pair_correlation(np.full(30, 3.0), np.arange(30.0), "PEARSON", 20))
+
+
+def _rsi_job(root: Path, selection: list | None = None, period: dict | None = None,
+             output_grain: str = "ENTITY_DATE") -> tuple[Job, pd.DataFrame]:
+    spec = zscore_spec(question="RSI", selection=selection, period=period, output_grain=output_grain)
+    spec["calculations"] = [{"id": "rsi", "method": "RSI", "dataset": "prices", "columns": ["close"],
+                             "params": [{"name": "period", "value": 14, "provenance": "USER_EXPLICIT"}],
+                             "output_column": "rsi_14", "provenance": "USER_EXPLICIT"}]
+    spec["outputs"][0]["calculations"] = ["rsi"]
+    if selection:
+        spec["outputs"][0]["selection"] = selection
+    dates = pd.bdate_range(end=REF, periods=660)
+    rng = np.random.default_rng(2)
+    frames = [pd.DataFrame({"ticker": "FLAT", "date": dates.date, "close": _flat_history()})]
+    for ticker in ("AAAA", "BBBB", "CCCC"):
+        frames.append(pd.DataFrame({"ticker": ticker, "date": dates.date,
+                                    "close": 1000 + np.cumsum(rng.normal(0, 15, len(dates)))}))
+    frame = pd.concat(frames, ignore_index=True)
+    frame["volume"] = 1000.0
+    job = Job(root, spec, [("prices", [{"data": frame, "requested_from": str(dates[0].date()),
+                                        "requested_to": str(REF)}])])
+    return job, frame
+
+
+def _talib_rsi(frame: pd.DataFrame, feature04: bool) -> pd.DataFrame:
+    """RSI as an analysis computes it with the sandbox's talib, or as Feature 04 stores it (0 on the flat stretch)."""
+    import talib
+
+    rows = []
+    for ticker, part in frame.sort_values(["ticker", "date"]).groupby("ticker"):
+        close = part["close"].to_numpy(dtype=float)
+        values = talib.RSI(close, 14)
+        if feature04:
+            values = reference.compute("RSI", {"period": 14}, close, None, "TA_LIB_0_6")
+        rows.append(part[["ticker", "date"]].assign(rsi_14=values))
+    out = pd.concat(rows, ignore_index=True)
+    out["date"] = pd.to_datetime(out["date"])
+    return out
+
+
+def test_rsi_of_a_long_flat_stretch_passes_under_either_talib(sandbox_root) -> None:
+    job, frame = _rsi_job(sandbox_root)
+    period_rows = lambda f: f[f["date"] >= pd.Timestamp("2026-06-24")]  # noqa: E731
+    sandbox = job.postflight({"zscores": period_rows(_talib_rsi(frame, feature04=False))})
+    assert sandbox["validation_status"] == "PASS"
+    assert not any(e["check"].endswith(".convention") for e in sandbox["evidence"])     # the reference itself
+    job2, _ = _rsi_job(sandbox_root / "f04")
+    stored = period_rows(_talib_rsi(frame, feature04=True))
+    assert (stored.loc[stored.ticker == "FLAT", "rsi_14"] == 0).all()
+    feature04 = job2.postflight({"zscores": stored})
+    assert (feature04["validation_status"], feature04["validation_level"]) == ("PASS", "CALCULATION_VERIFIED")
+    note = next(e for e in feature04["evidence"] if e["check"] == "output.zscores.convention")
+    assert note["convention"] == "TA_LIB_0_6" and note["differing_reference_values"] > 0
+    # a value that no convention gives is still refused, and the evidence names the reference's answer
+    wrong = stored.copy()
+    wrong.loc[wrong.ticker == "FLAT", "rsi_14"] = 50.0
+    job3, _ = _rsi_job(sandbox_root / "wrong")
+    refused = job3.postflight({"zscores": wrong})
+    assert refused["validation_status"] == "FAILED" and "CALCULATION_MISMATCH" in refused["reasons"]
+
+
+def test_rsi_screen_on_a_flat_stretch_passes_under_either_talib(sandbox_root) -> None:
+    screen = [{"calculation": "rsi", "op": "<", "value": 30, "provenance": "USER_EXPLICIT"}]
+    latest = {"mode": "LATEST", "provenance": "USER_EXPLICIT"}
+
+    def chosen(feature04: bool, frame: pd.DataFrame) -> pd.DataFrame:
+        last = _talib_rsi(frame, feature04).sort_values("date").groupby("ticker").tail(1)
+        return last[last["rsi_14"] < 30]
+
+    job, frame = _rsi_job(sandbox_root, screen, latest, "ENTITY")
+    with_feature04 = chosen(True, frame)
+    assert "FLAT" in set(with_feature04.ticker) and "FLAT" not in set(chosen(False, frame).ticker)
+    assert job.postflight({"zscores": chosen(False, frame)})["validation_status"] == "PASS"
+    job2, _ = _rsi_job(sandbox_root / "f04", screen, latest, "ENTITY")
+    assert job2.postflight({"zscores": with_feature04})["validation_status"] == "PASS"
+    # selecting a row that neither convention selects is still a selection mismatch
+    last = _talib_rsi(frame, False).sort_values("date").groupby("ticker").tail(1)
+    job3, _ = _rsi_job(sandbox_root / "wrong", screen, latest, "ENTITY")
+    refused = job3.postflight({"zscores": last})
+    if len(last) != len(chosen(False, frame)):
+        assert refused["validation_status"] == "FAILED" and "SELECTION_MISMATCH" in refused["reasons"]

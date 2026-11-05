@@ -1778,7 +1778,11 @@ change yet.
   dibangun dari sumber yang sama.
 - **Solution:** belum ada; perlu keputusan user (muat ulang simbol non-saham untuk 09-01…, atau catat batas cakupan
   di katalog dan Feature_Vocabulary INDEX).
-- **Status:** OPEN.
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER S3):** penyebab terverifikasi: loader Railway memilih simbol 4 huruf saja
+  (`apps/stockbit-updater/broker_import.py:98-109`, keputusan K1). 646 kode bukan 4 huruf untuk 2026-09-01 … 11-03
+  dimuat (73.938 baris, DATABASE_CHANGELOG), agregat IHSG dihitung ulang (46/46 tanggal sama dengan sumber); kualitas
+  tanggal COMPLETE. Sesudah 2026-11-03 kode bukan 4 huruf bolong lagi sampai loader diperluas (opsi b).
+- **Status:** PARTIAL (2026-09-01 … 11-03 FIXED; loader harian untuk kode bukan 4 huruf belum).
 - **Lesson:** loader harus mencatat cakupan simbol per tanggal di log muatnya (M217 L3), supaya perubahan cakupan
   terlihat sebelum Feature dihitung.
 
@@ -5360,8 +5364,15 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** restart terencana sesudah pekerjaan besar selesai (`scripts/restart_postgres.py`); restart otomatis
   20:45 WIB menunggu statement yang berjalan sampai 60 menit. Sesudah unggahan broker summary S3 dan hitung ulang IHSG,
   restart lagi.
-- **Status:** OPEN (menunggu restart).
+- **Status:** FIXED: restart otomatis 13:47 UTC (memori 0,10 GB sesudahnya); restart lagi oleh job IHSG 14:44 UTC.
 - **Lesson:** jalankan pekerjaan besar berurutan; job dokumen skema termasuk "large update" (membaca semua tabel).
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER L2, L3):** L2: job dokumen skema masuk daftar "large update" AGENTS.md
+  (`47eae988`). L3: worker Fitur 1 mengklaim semua item antrean satu kode sekaligus; beberapa item dihitung ulang satu
+  kali untuk seluruh riwayat kode itu (`refresh_feature_01_stock_daily(NULL, ARRAY[ticker])`), satu item tetap baris
+  itu + 120 sesudahnya. Hasil sama dengan hitung ulang per item (`apps/feature-01-worker/test_worker_db.py`, database
+  uji dari migrasi asli). Commit `83a35f5d`, deployment `14c9b639` SUCCESS 15:46 UTC; migrasi katalog `20261105_005`.
+  Kode baru dengan 900 baris kini satu kali muat riwayat, bukan sekitar 900 kali. Bukti live menunggu antrean
+  berikutnya (cron harga 2026-11-06).
 
 ### M349 — Feature 04: rantai inkremental dan hitungan referensi berbeda di masa datar tanpa transaksi (2026-11-05)
 
@@ -5376,8 +5387,53 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   (`verification/universe_63/f04_job.py`). Kelas umumnya (rantai berbeda dari referensi pada deret datar) OPEN: perlu
   diputuskan apakah rantai worker harus disamakan dengan referensi.
 - **Status:** FIXED untuk data 63 kode; kelas OPEN.
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER L4, kelas FIXED):**
+  - Verified mekanismenya (TA-Lib 0.6.8, diukur): TA-Lib menganggap |v| < 1e-14 sebagai nol (`TA_IS_ZERO`) di RSI
+    dan ADX, dan v < 1e-14 sebagai nol-atau-negatif pada deviasi BBANDS. Sesudah gerak harga lalu 700 sesi datar,
+    RSI TA-Lib menjadi 0,0 tepat ketika avg_gain + avg_loss < 1e-14 (sesi ke-457, total 9,76e-15); rantai memakai uji
+    nol persis (`incremental.py:204`, juga `:170` BBANDS, `:252-258` ADX) dan tetap memberi rasio terakhir. Rata-ratanya
+    sendiri sama; hanya keluaran (RSI, BBANDS) dan, di ADX, langkah yang dilewati TA-Lib (ADX ditahan) yang berbeda.
+  - Perbaikan (`features/feature04/incremental.py`): satu fungsi `_is_zero` / `TALIB_EPSILON = 1e-14` dipakai RSI,
+    ADX (tanpa DX bila TR atau jumlah DI nol: benih menghitung 0, ADX ditahan) dan deviasi BBANDS (`>= 1e-14`). Struktur
+    state tidak berubah, jadi titik simpan lama tetap dipakai (tanpa ganti `STATE_VERSION`).
+  - Tes: `test_long_flat_stretch_matches_talib_zero_tests` (RSI pada 700 sesi datar, lalu perdagangan lagi) dan
+    `test_tiny_scale_matches_talib_adx_and_bbands_zero_tests` (ADX dan BBANDS pada nilai < 1e-14); keduanya gagal pada
+    kode lama dan lulus sekarang; seluruh tes Feature 04 55 lulus, 11 dilewati (butuh database).
+  - Bukti live, hanya-baca (`verification/feature04_m349/compare_job.py`, job `0f4ce85f`, log `compare.log`): 931 kode,
+    seluruh riwayat: rantai baru = referensi pada **0** nilai berbeda; rantai lama berbeda di 19 kode, 3.519 nilai,
+    semuanya `rsi_14` (AKKU, ANDI, BAPI, BEKS, BNBR, BTEK, CARS, CPRO, DADA, DEWA, DGIK, HADE, IKAI, JGLE, KOTA, MIRA,
+    TAMU, TAXI, VIVA; contoh referensi 0,0); data tersimpan = referensi pada 0 nilai (di luar bendera candlestick,
+    M314). Tidak ada baris yang perlu diperbaiki. Perbedaan "rsi_14 jauh di belakang pada saham murah" yang pada
+    2026-10-31 disebut akumulasi float (EXEC-PRICE-GAP-0917) kemungkinan besar mekanisme yang sama: sekarang rantai
+    tidak berbeda dari referensi di satu nilai pun.
+  - Kelas yang sama di tempat lain, belum diubah: validator sandbox AI
+    (`apps/market-python-sandbox/runtime/reference.py:96`, `rsi_wilder`) memakai `total == 0`; bisa menolak analisis
+    yang memakai TA-Lib atau `rsi_14` Feature 04 pada kode yang lama tidak diperdagangkan. Diusulkan sebagai tugas
+    terpisah (layanan dan gerbang lain). Tidak berlaku untuk SMI (`range_double == 0`): referensinya rumus Pine yang
+    sama di Python, bukan TA-Lib.
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER L5, validator sandbox):**
+  - Koreksi: sandbox memakai TA-Lib **0.8.1** (`requirements-analysis.txt:12`), yang memakai uji nol persis; acuan
+    validator (`runtime/reference.py`) sama dengan 0.8.1 untuk RSI, SMA, STD, ROCP (0 selisih, diukur). Jadi analisis
+    yang memakai talib di sandbox tidak ditolak karena RSI. Yang ditolak (diukur): korelasi Pearson pada jendela tanpa
+    varians (acuan kosong, TA-Lib kedua versi 0; 681-682 titik per seri uji 700 sesi datar), return sederhana dengan
+    dasar 0 (acuan kosong, TA-Lib 0), dan nilai gaya Fitur 4 / TA-Lib 0.6.x (RSI 0 sesudah ±460 sesi datar).
+  - Jalur yang hidup (DataNeed) tidak menghitung ulang indikator TA-Lib (event study, backtest, mesin riset memakai
+    kolom bundle dan mesin Saniti: `app/dataneed_service.py:1150-1175`), jadi tidak terkena. Validator acuan hanya di
+    jalur lama (`/v1/analyses`, mati di dev).
+  - Class: satu rumus, tiga implementasi (NumPy acuan, TA-Lib 0.8.1, TA-Lib 0.6.x) yang berbeda hanya di pembagian
+    dengan (hampir) nol; berlaku untuk setiap seri yang bisa datar lama (saham tidak likuid, suspensi, seri makro
+    atau imbal hasil yang bisa bernilai 0).
+  - Perbaikan (user "2 saja"): `reference.CONVENTIONS` (`REFERENCE`, `TA_LIB_0_8`, `TA_LIB_0_6`), satu parameter
+    `convention` di RSI, STD, RETURN, korelasi bergulir dan pasangan; `validator.postflight` menilai ulang output
+    yang gagal dengan nilai acuan dua konvensi lain dan meloloskannya bila cocok dengan salah satunya (bukti
+    `output.<name>.convention`). Semua pemakai nilai acuan ikut satu konvensi per output. Tidak berlaku untuk
+    z-score (CALC_053/054), forward/period return, Spearman: tanpa konvensi TA-Lib.
+  - Tes (`apps/market-python-sandbox/tests/test_gate_units.py`, 3 baru, gagal pada kode lama): konvensi = TA-Lib
+    0.8.1 terpasang dan aturan 0.6.x; RSI talib lolos tanpa konvensi lain, RSI gaya Fitur 4 lolos lewat `TA_LIB_0_6`,
+    nilai 50 tetap ditolak; penyaringan RSI < 30 pada masa datar lolos dengan kedua konvensi, baris yang tidak dipilih
+    konvensi mana pun tetap `SELECTION_MISMATCH`. Tidak tercakup: satu output yang mencampur dua konvensi.
 - **Lesson for new data (Part D):** seri yang bisa datar lama (tidak likuid, suspensi) diuji dengan rantai vs referensi
-  sebelum onboarding.
+  sebelum onboarding. Rumus inkremental yang meniru pustaka harus meniru juga uji nolnya (ambang, bukan nol persis).
 
 ### M348 — Bolong sumber harga: transaksi Regular di broker summary tanpa bar TradingView (2026-11-05)
 
@@ -5548,6 +5604,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     `20261103_001` menunggu keputusan user.
 - **Status:** (1) FIXED dengan cara kerja. (2) Runner dikosongkan 2026-11-03 12:26 UTC atas izin user ("ok jalankan
   perbaikan"; `railway down`, `324542c0` REMOVED). Penyebab container mulai ulang tetap OPEN.
+- **Update 2026-11-05 (root cause (2) verified, FIXED):** bukan restart. Deployment `4bee3798` (migrasi
+  `20261105_005`, selesai dalam kurang dari 1 detik): log JSON Railway mencatat `JOB_EXIT 0` 15:44:59.582294 UTC dan
+  "Starting Container" 15:44:59.591851 UTC, tanpa baris apa pun sesudahnya. Baris start milik job yang sama dicatat
+  sesudah outputnya bila job sangat cepat. Kelas: setiap job runner yang selesai dalam detik pertama tampak sibuk
+  selamanya. Perbaikan di `scripts/onboarding/runner_guard.sh` (`last_start`): "Starting Container" yang menjadi baris
+  terakhir tepat sesudah baris `JOB_EXIT` tidak dihitung sebagai start baru; start sungguhan yang mencetak output tetap
+  dihitung. Tes: `scripts/tests/test_run_job_guard.py` (3 kasus baru, 25 lulus). Runner terbaca bebas lagi tanpa
+  `railway down`.
 - **Lesson:** perintah yang menulis ulang file konfigurasi dari state live tidak boleh di-commit tanpa melihat diff;
   komentar keputusan user adalah bagian dari konfigurasi.
 

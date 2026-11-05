@@ -6,7 +6,7 @@ EXEC-GO-1025). How to run a round and read its result: `UPDATE_TABLE.md` section
 | File | Role |
 |---|---|
 | `updater.py` | One round per deployment: token expiry, broker load, Feature refresh, INDEX, event reload, table status, monitoring row, Telegram |
-| `broker_import.py` | The user's ticker-first Broker Summary importer: missing dates, symbols, six filters per symbol, `buy_freq`/`sell_freq`, per-date control in `stockbit_full_broker_import_status`; VERIFY compares 15 columns both ways |
+| `broker_import.py` | The user's ticker-first Broker Summary importer: missing dates, symbols, six filters per symbol, `buy_freq`/`sell_freq`, per-date control in `stockbit_full_broker_import_status`; VERIFY compares 15 columns both ways. EXEC-UNIVERSE-BROKER L1: the codes that are not four letters are found per date broker-first (`discover_long`, 112 brokers × 6 filters), fetched ticker-first and cross-checked key by key (`cross_check`; a difference stops the date); `BROKER_LONG_CODES=false` loads four-letter symbols only |
 | `refresh.py` | Feature 05 per changed date, 02 and 06 per ticker, 03 per date, checks, INDEX tables when needed |
 | `stockbit_ihsg_daily.py` | The user's IHSG daily helper, unchanged |
 | `test_broker_import.py` | Tests against a local PostgreSQL (`UPDATER_TEST_POSTGRES_URL`) |

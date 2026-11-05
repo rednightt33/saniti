@@ -10219,6 +10219,91 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   R-LQ45X), 18.788 kode-hari, 0 gagal; 73.938 baris siap; 0 duplikat, 0 kolom wajib kosong, 0 selisih antar dua sumber
   Stockbit, 0 ditahan. **GO unggah (user 2026-11-05: "Ok jalankan, kabari kalau sudah beres")**: dry run, unggah, IHSG
   `_INDEX` dihitung ulang, data broker IHSG diterbitkan ulang, restart Postgres.
+- **S3 hasil (2026-11-05):** unggah 73.938 baris (0 baris lama tersentuh), kualitas tanggal COMPLETE 46/46; IHSG `_INDEX`
+  dihitung ulang (46/46 tanggal sama dengan sumber); data broker IHSG diterbitkan ulang (`broker-range` 2026-09-01 …
+  11-03, verify 28 file 0 mismatch); restart Postgres 13:47 dan 14:44 UTC (memori 0,39 GB 14:59 UTC). Token Stockbit
+  dihapus dari sesi.
+- **Sisa EXEC-UNIVERSE-BROKER:** unggah kode stockbit-updater (`refresh.py`, `backfill_index_features.py`) bersama putaran
+  broker berikutnya (butuh token Stockbit di Railway; putaran itu juga mengisi broker 2026-11-04 dan seterusnya untuk
+  kode 4 huruf); loader harian untuk kode bukan 4 huruf (opsi b; sampai itu bolong mulai 2026-11-04); Screener ETF
+  (PENDING); usulan antrean Fitur 1 per kode dan "job dokumen skema = pekerjaan besar" di AGENTS.md (menunggu user).
+- **GO lanjutan (user 2026-11-05):** "1. Loader harian untuk kode di atas 4 huruf (opsi b) ... --> masukan exec 2. Untuk
+  point nomor 4 OK --> masukan exec. Inspect database. Ensure keputusan diambil dari code inspection rather than from
+  memory. Jalankan. Go". Dijalankan:
+  - L1: loader harian `stockbit-updater` ikut memuat kode bukan 4 huruf (opsi b), kode diturunkan dari sumber, bukan daftar
+    tetap; terpasang bersama putaran broker berikutnya (unggahan menjalankan satu putaran, butuh token Stockbit);
+  - L2: job dokumen skema (`sync_database_schema`, `Database_Table_Status`) masuk daftar "pekerjaan besar" AGENTS.md;
+  - L3: antrean Fitur 1 digabung per kode (satu hitung ulang dari tanggal terawal), bukan per baris;
+  - L4 (M349): rantai inkremental Fitur 4 disamakan dengan hitungan referensi pada deret datar.
+  Setiap perubahan berdasar inspeksi kode dan data saat ini, dengan rujukan file:baris.
+- **Hasil L1–L3 (2026-11-05):**
+  - L1: kode `stockbit-updater` (`974593fe`, 19 tes lulus) belum terpasang: layanan ini dipasang lewat unggahan CLI dan
+    unggahan menjalankan satu putaran broker, yang butuh token Stockbit yang valid di Railway. Terpasang bersama
+    putaran berikutnya, sekaligus `refresh.py` S2 dan `backfill_index_features.py`.
+  - L2: `47eae988` (AGENTS.md, ERRORS M350).
+  - L3: satu klaim = semua item antrean satu kode. Satu item: baris itu + 120 sesudahnya (seperti sebelumnya); beberapa
+    item: seluruh riwayat kode itu sekali (`refresh_feature_01_stock_daily(NULL, ARRAY[ticker])`). Rencana awal
+    "hitung ulang dari tanggal terawal" tidak cukup: fungsi SQL dengan tanggal hanya menulis baris itu + 120 sesudahnya
+    (`20260912_001` baris 258-263, 326-332), jadi item yang lebih jauh dari 120 sesi akan terlewat; karena fungsi selalu
+    membaca seluruh riwayat, hitung seluruh kode sekali sama biayanya dan hasilnya sama dengan per item. Fungsi SQL
+    tidak diubah (dikloning untuk IHSG, `20261025_011`). Tes database uji dari migrasi asli
+    (`apps/feature-01-worker/test_worker_db.py`, 3 lulus). Migrasi katalog `20261105_005` (DRYRUN/APPLY, dibaca balik).
+    Commit `83a35f5d`, feature-01-worker `14c9b639` SUCCESS 15:46 UTC. Sebelum pasang: antrean 102.247 DONE, 0 terbuka.
+  - L4 (ERRORS M349): rantai Fitur 4 memakai uji nol TA-Lib (|v| < 1e-14) di RSI, ADX dan BBANDS
+    (`features/feature04/incremental.py`); 2 tes baru (gagal pada kode lama). Pembandingan hanya-baca seluruh riwayat
+    931 kode (`verification/feature04_m349/`): rantai baru = referensi di semua nilai; rantai lama berbeda di 19 kode
+    (3.519 nilai `rsi_14`); data tersimpan sudah sama dengan referensi, tidak ada yang ditulis ulang. Restart Postgres
+    16:00 UTC. Validator sandbox AI punya uji nol yang sama (`reference.py:96`): diusulkan terpisah.
+- **L5 — validator sandbox (user 2026-11-05: "Ok, kerjakan juga validator sandbox-nya. Inspect arsitektur dulu dan
+  define what end goal looks like"). Inspeksi (belum ada perubahan kode):**
+  - TA-Lib di sistem: 0.6.8 (C 0.6.4) di feature-04-worker, cron intraday, dan kernel Terminal
+    (`apps/edge-bff/terminal/src/calc/indicators.ts:10-11,84`); 0.8.1 hanya di sandbox AI
+    (`apps/market-python-sandbox/requirements-analysis.txt:12`), yang bisa di-import kode analisis model.
+  - Diukur (semua fungsi, data normal dan 600 sesi datar, toleransi validator rtol 1e-6 atol 1e-8): dari fungsi yang
+    ada di kedua versi, RSI, CMO, STOCHRSI, PLUS_DI, MINUS_DI berbeda hanya pada masa datar (0.8.1 tidak lagi memakai
+    ambang 1e-14; STDDEV/BBANDS juga, pada varians < 1e-14); APO, PPO, BBANDS hanya karena nilai bawaan parameter
+    berubah (BBANDS 5 → 20 periode, APO/PPO SMA → EMA); dengan parameter eksplisit sama. 0.8.1 menambah 43 fungsi.
+  - Validator acuan (`runtime/reference.py`, dipakai `runtime/validator.py` di postflight `/v1/analyses`) hanya ada di
+    jalur lama (`create_analysis_spec`/`run_python_analysis`), yang mati di dev (`AI_ENABLE_DATANEED` on, AI_TOOLS.md).
+    Acuannya sama dengan TA-Lib 0.8.1 untuk RSI dan STDDEV; korelasi bergulir memberi NaN pada jendela varians nol,
+    TA-Lib (kedua versi) memberi 0.
+  - Koreksi laporan sebelumnya: risiko "validator menolak analisis TA-Lib" tidak terjadi, karena TA-Lib sandbox (0.8.1)
+    sama dengan acuannya. Selisih yang nyata: RSI yang dihitung AI di sandbox untuk kode yang lama tidak diperdagangkan
+    berbeda dari `rsi_14` Fitur 04 dan dari Terminal (19 kode, 3.519 nilai, L4).
+  - Pertanyaan terbuka ke user: konvensi tunggal mana dan bagaimana sandbox menyamakannya (opsi di laporan 2026-11-05).
+  - **User 2026-11-05:** "Sebenarnya source utama adalah supaya ketika AI menggunakan sandbox, maka tidak ada
+    rejection. Versi mana yang apabila ini dilakukan, maka AI bisa menjalankan tanpa harus kena rejection. Dan tanpa
+    harus merubah fitur 4". Tujuan L5: tidak ada penolakan hitungan karena versi TA-Lib; Fitur 4 tidak diubah.
+  - Inspeksi penolakan (kode): jalur yang hidup (DataNeed, `complete_analysis`) hanya menghitung ulang event study,
+    backtest dan mesin riset dari kolom bundle dengan mesin Saniti sendiri (`app/dataneed_service.py:1150-1175`,
+    `app/event_study_validation.py:1-20`, `app/backtest_validation.py:1-13`: tanggal sinyal backtest milik kode model,
+    tidak dihitung ulang; `runtime/expression.py` hanya lag/rolling_sum/rolling_mean). TA-Lib tidak dipakai di sisi
+    pemeriksa, jadi versi TA-Lib tidak bisa memicu penolakan di jalur ini. Satu-satunya pemeriksa yang menghitung ulang
+    RSI/STD/SMA/ROCP/CORREL adalah `runtime/reference.py` di jalur lama (mati di dev): sama dengan TA-Lib 0.8.1 untuk
+    RSI, SMA, STD, ROCP (0 selisih, diukur), berbeda untuk korelasi bergulir pada jendela datar (acuan NaN, TA-Lib 0:
+    681-682 selisih per seri uji) dan untuk `rsi_14` Fitur 04 pada masa datar.
+  - Jawaban: TA-Lib 0.8.1 dipertahankan (tanpa perubahan image, Fitur 4 tidak diubah); usulan penguatan jalur lama
+    menunggu user.
+  - **User 2026-11-05: "2 saja. describe what end goals look like seperti apa"** (opsi 2: validator jalur lama diperkuat
+    sekarang). Tujuan akhir:
+    1. Di titik "pembagian dengan nol" menurut uji TA-Lib sendiri, validator menerima setiap jawaban yang dipakai
+       sistem: acuan NumPy (sekarang), TA-Lib 0.8.1 (sandbox) dan TA-Lib 0.6.x (Fitur 4, Terminal). Diukur:
+       RSI dengan rata-rata naik+turun < 1e-14 (0,6: 0; lainnya rasio terakhir); deviasi standar dengan varians
+       < 1e-14 (0,6: 0); korelasi Pearson pada jendela/periode dengan varians nol (TA-Lib: 0; acuan: kosong); return
+       sederhana dengan harga dasar 0 (TA-Lib: 0; acuan: kosong). Di titik lain tetap ketat (rtol 1e-6, atol 1e-8).
+    2. Satu mekanisme untuk semua pemakai nilai acuan (nilai, penyaringan, peringkat, event study, agregat kelompok,
+       korelasi pasangan, hitungan berantai): satu output dinilai ulang dengan nilai acuan versi konvensi lain hanya
+       bila gagal; lolos bila cocok dengan salah satu versi; bukti menyebut versi yang dipakai dan jumlah titiknya.
+    3. Tidak berubah: Fitur 4, versi TA-Lib sandbox, jalur DataNeed, metode tanpa konvensi TA-Lib (z-score CALC_053/054,
+       forward return, period return: tetap kosong pada penyebut nol).
+    4. Bukti: tes dengan TA-Lib 0.8.1 terpasang (analisis talib lolos), nilai gaya Fitur 4 (0) lolos, nilai yang
+       memang salah tetap ditolak; tes penyaringan RSI < 30 pada masa datar; semua tes sandbox lulus; sandbox
+       terpasang SUCCESS; ERRORS M349, README sandbox, changelog.
+  - **Hasil L5 (2026-11-05):** `apps/market-python-sandbox/runtime/reference.py` (`CONVENTIONS`), `runtime/validator.py`
+    (`postflight` menilai ulang output yang gagal per konvensi), 3 tes baru di `tests/test_gate_units.py` (gagal pada
+    kode lama; 62 tes validator lulus; 230 tes lain gagal sama persis pada kode lama dan baru karena butuh pindah uid
+    untuk isolasi). Commit `a2ec4df0`, market-python-sandbox `6c26f3cb` SUCCESS. Fitur 4 dan TA-Lib sandbox tidak
+    berubah. Tidak tercakup: satu output yang mencampur dua konvensi.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;

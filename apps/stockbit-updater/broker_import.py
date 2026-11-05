@@ -11,8 +11,12 @@ What changed to run on Railway instead of the user's PC:
 - dates are derived from the data: daily price dates newer than the newest Broker Summary date, plus recent price
   dates that have no Broker Summary row at all (a gap), never a date the price table does not hold yet;
 - the symbol list is derived from the database (four-letter symbols of IDX_Stock_Universe, of recent prices and of
-  recent Broker Summary rows), not from SQLite files on the PC; non-four-letter symbols are loaded by the user
-  separately (decision K1) and are never touched here;
+  recent Broker Summary rows), not from SQLite files on the PC;
+- EXEC-UNIVERSE-BROKER L1 (user go 2026-11-05, option b): the codes that are not four letters (warrants, structured
+  warrants, rights) are found per date from Stockbit itself, broker-first (every broker x Domestic/Foreign x
+  Regular/Nego/Tunai, stockbit_ihsg_daily.StockbitFetcher.activity), fetched ticker-first like the others, and the two
+  sources must agree key by key on buy/sell value and frequency, or the date stops (nothing written). The loader owns
+  every symbol of a date it loads. BROKER_LONG_CODES=false returns to four-letter symbols only;
 - raw responses and the fetch checkpoint live on the service volume and are pruned after RAW_RETENTION_DAYS (K3);
 - VERIFY mode fetches one stored date and compares it with the table without writing.
 """
@@ -41,6 +45,8 @@ COLS = ['Date', 'Symbol', 'Broker', 'Investor Type', 'Market Board', 'Buy Value'
         'Buy Lots', 'Sell Lots', 'Net Lots', 'Avg Buy', 'Avg Sell', 'buy_freq', 'sell_freq']
 KEYS = COLS[:5]
 FOUR = '^[A-Z]{4}$'
+FOUR_RE = re.compile(FOUR)
+LONG_CODES = os.environ.get('BROKER_LONG_CODES', 'true').strip().lower() not in ('0', 'false', 'no', 'off')
 GAP_LOOKBACK_DAYS = 30
 MIN_SYMBOLS, MIN_ACTIVE = 500, 100
 STOP = threading.Event()
@@ -64,6 +70,7 @@ class BrokerImport:
         self.cache.commit()
         self.lock = threading.Lock()
         self.fetch = source.StockbitFetcher(token, 45, .25, 1000)
+        self._brokers: list[str] | None = None
 
     def prune_raw(self, days: int) -> None:
         cutoff = time.time() - days * 86400
@@ -230,6 +237,34 @@ class BrokerImport:
             executor.shutdown(wait=True, cancel_futures=True)
         return [cached[s] for s in symbols]
 
+    # ---------------------------------------------------------------- codes that are not four letters (L1)
+    def discover_long(self, day: str) -> tuple[list[str], dict]:
+        """The codes that are not four letters traded on `day`, from every broker's own activity, with each key's buy and
+        sell value and frequency (the cross-check of the ticker-first rows)."""
+        if self._brokers is None:
+            self._brokers = [b['code'] for b in self.fetch.broker_directory()]
+        tasks = [source.FilterTask(day, b, inv, board) for b in self._brokers
+                 for inv in ('DOMESTIC', 'FOREIGN') for board in ('REGULER', 'NEGO', 'TUNAI')]
+        found = {}
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            for result in pool.map(self.fetch.activity, tasks):
+                for r in result.rows:
+                    if not FOUR_RE.match(r[1]):
+                        found[(r[1], r[2], r[3], r[4])] = tuple(Decimal(str(x)) for x in r[5:9])
+        codes = sorted({k[0] for k in found})
+        self.emit('long_codes_found', date=day, codes=len(codes), keys=len(found), requests=len(tasks))
+        return codes, found
+
+    def cross_check(self, day: str, codes: list[str], payloads: list[dict], found: dict) -> None:
+        tick = {}
+        for p in payloads:
+            for r in self.restore(p):
+                tick[(r[1], r[2], r[3], r[4])] = tuple(Decimal(str(x)) for x in (r[5], r[6], r[13], r[14]))
+        differ = [k for k in set(found) | set(tick) if found.get(k) != tick.get(k)]
+        if differ:
+            raise ValueError(f'Long-code sources disagree on {len(differ)} keys for {day}, e.g. {sorted(differ)[:3]}')
+        self.emit('long_codes_checked', date=day, codes=len(codes), keys=len(tick))
+
     # ---------------------------------------------------------------- the user's upload, unchanged in its checks
     def upload_day(self, day: str, symbols: list[str], payloads: list[dict], manifest: str) -> dict:
         rows = [r for p in payloads for r in self.restore(p)]
@@ -257,7 +292,7 @@ class BrokerImport:
                     for row in rows:
                         copy.write_row(row)
             existing = self.pg.execute(sql.SQL('''SELECT {} FROM public."IDX_Broker_Summary"
-                WHERE "Date"=%s AND "Symbol" ~ '^[A-Z]{{4}}$' ''').format(cols), (day,)).fetchall()
+                WHERE "Date"=%s AND ("Symbol" ~ '^[A-Z]{{4}}$' OR %s) ''').format(cols), (day, LONG_CODES)).fetchall()
             if existing:
                 before = self.state / f'before_{day}.json.gz'
                 if not before.exists():
@@ -268,8 +303,8 @@ class BrokerImport:
                 cols, cols, keys, updates, target_values, incoming))
             different = self.pg.execute(sql.SQL('''SELECT count(*) FROM ((SELECT {} FROM stage_full_broker
                 EXCEPT SELECT {} FROM public."IDX_Broker_Summary" WHERE "Date"=%s) UNION ALL
-                (SELECT {} FROM public."IDX_Broker_Summary" WHERE "Date"=%s AND "Symbol" ~ '^[A-Z]{{4}}$'
-                EXCEPT SELECT {} FROM stage_full_broker)) x''').format(cols, cols, cols, cols), (day, day)).fetchone()[0]
+                (SELECT {} FROM public."IDX_Broker_Summary" WHERE "Date"=%s AND ("Symbol" ~ '^[A-Z]{{4}}$' OR %s)
+                EXCEPT SELECT {} FROM stage_full_broker)) x''').format(cols, cols, cols, cols), (day, day, LONG_CODES)).fetchone()[0]
             if different:
                 raise ValueError(f'Full date source/target mismatch: {different}; rolled back')
             self.pg.execute('''INSERT INTO public.stockbit_full_broker_import_status
@@ -280,22 +315,24 @@ class BrokerImport:
                 completed_symbols=excluded.completed_symbols, row_count=excluded.row_count,
                 anomaly_symbols=excluded.anomaly_symbols, heartbeat_at=now(), completed_at=now(), error_message=NULL''',
                 (day, manifest, len(payloads), len(payloads), len(rows), len({i['symbol'] for i in issues})))
-        saved = self.pg.execute('SELECT count(*) FROM public."IDX_Broker_Summary" WHERE "Date"=%s AND "Symbol" ~ %s',
-                                (day, FOUR)).fetchone()[0]
+        saved = self.pg.execute('SELECT count(*) FROM public."IDX_Broker_Summary" WHERE "Date"=%s AND ("Symbol" ~ %s OR %s)',
+                                (day, FOUR, LONG_CODES)).fetchone()[0]
         if saved != len(rows):
             raise ValueError('Post-commit row count changed')
         summary = dict(date=day, rows=len(rows), changed_rows=result.rowcount, active_symbols=len({r[1] for r in rows}),
+                       long_codes=len({r[1] for r in rows if not FOUR_RE.match(r[1])}),
                        anomaly_symbols=len({i['symbol'] for i in issues}))
         self.emit('date_committed', **summary)
         return summary
 
     def compare_day(self, day: str, payloads: list[dict]) -> dict:
-        """VERIFY: the freshly fetched rows against the stored four-letter rows of the date, both ways, no write."""
+        """VERIFY: the freshly fetched rows against the stored rows of the date (four-letter only with BROKER_LONG_CODES off),
+        both ways, no write."""
         fetched = {tuple(r[:5]): r for p in payloads for r in self.restore(p)}
         cols = sql.SQL(',').join(map(sql.Identifier, COLS))
         stored = {}
         for r in self.pg.execute(sql.SQL('''SELECT {} FROM public."IDX_Broker_Summary"
-                WHERE "Date"=%s AND "Symbol" ~ '^[A-Z]{{4}}$' ''').format(cols), (day,)).fetchall():
+                WHERE "Date"=%s AND ("Symbol" ~ '^[A-Z]{{4}}$' OR %s) ''').format(cols), (day, LONG_CODES)).fetchall():
             r = list(r)
             r[0] = str(r[0])
             for i in range(5, 15):
@@ -313,27 +350,38 @@ class BrokerImport:
         self.emit('verify_compare', **result)
         return result
 
+    def fetch_date(self, day: str, symbols: list[str]) -> tuple[list[str], list[dict]]:
+        """The four-letter symbols plus, with BROKER_LONG_CODES, the codes found for `day` (cross-checked)."""
+        codes, found = self.discover_long(day) if LONG_CODES else ([], {})
+        day_symbols = symbols + [c for c in codes if c not in set(symbols)]
+        manifest = hashlib.sha256(json.dumps(day_symbols).encode()).hexdigest()
+        payloads = self.fetch_day(day, day_symbols, manifest)
+        if codes:
+            self.cross_check(day, codes, payloads[len(symbols):], found)
+        return day_symbols, payloads
+
     # ---------------------------------------------------------------- one round
     def run(self, verify_date: str | None = None) -> dict:
         self.check_target()
         symbols = self.symbols()
-        manifest = hashlib.sha256(json.dumps(symbols).encode()).hexdigest()
         if verify_date:
-            payloads = self.fetch_day(verify_date, symbols, manifest)
-            return {'mode': 'VERIFY', 'symbols': len(symbols), 'verify': self.compare_day(verify_date, payloads)}
+            day_symbols, payloads = self.fetch_date(verify_date, symbols)
+            return {'mode': 'VERIFY', 'symbols': len(day_symbols), 'verify': self.compare_day(verify_date, payloads)}
         if not self.pg.execute("SELECT pg_try_advisory_lock(hashtext('stockbit-full-broker-summary-import'))").fetchone()[0]:
             raise RuntimeError('Another full broker-summary importer is active')
         dates = self.pending_dates()
         self.emit('broker_plan', dates=dates, symbols=len(symbols))
         loaded = []
         for day in dates:
+            manifest = hashlib.sha256(json.dumps(symbols).encode()).hexdigest()
             self.pg.execute('''INSERT INTO public.stockbit_full_broker_import_status (trade_date, manifest_hash, state,
                 expected_symbols) VALUES (%s,%s,'fetching',%s) ON CONFLICT (trade_date) DO UPDATE SET
                 manifest_hash=excluded.manifest_hash, state='fetching', expected_symbols=excluded.expected_symbols,
                 heartbeat_at=now(), error_message=NULL''', (day, manifest, len(symbols)))
             try:
-                payloads = self.fetch_day(day, symbols, manifest)
-                loaded.append(self.upload_day(day, symbols, payloads, manifest))
+                day_symbols, payloads = self.fetch_date(day, symbols)
+                manifest = hashlib.sha256(json.dumps(day_symbols).encode()).hexdigest()
+                loaded.append(self.upload_day(day, day_symbols, payloads, manifest))
             except BaseException as exc:
                 self.pg.execute('''UPDATE public.stockbit_full_broker_import_status SET state='failed',
                     error_message=%s, heartbeat_at=now() WHERE trade_date=%s''', (str(exc)[:2000], day))

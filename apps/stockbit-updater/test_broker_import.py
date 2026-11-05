@@ -22,16 +22,40 @@ D1, D2, OLD = TODAY - timedelta(days=3), TODAY - timedelta(days=2), TODAY - time
 VARIANT = {'v': 0}
 
 
+LONG = {'codes': [], 'disagree': False}   # codes not four letters the fake market trades (L1)
+
+
 class FakeFetcher:
     def __init__(self, *a):
         pass
+
+    def broker_directory(self):
+        return [{'code': 'YP'}, {'code': 'CC'}]
+
+    def activity(self, task):
+        """broker-first: YP buys and CC sells each long code on the Regular board, Domestic (as get_json below)."""
+        rows = []
+        if task.board == 'REGULER' and task.investor == 'DOMESTIC':
+            for sym in LONG['codes']:
+                v = '1001' if LONG['disagree'] and task.broker == 'YP' else '1000'
+                if task.broker == 'YP':
+                    rows.append((task.trade_date, sym, 'YP', 'Domestic', 'Regular', v, '0', '3', '0', 0, None))
+                else:
+                    rows.append((task.trade_date, sym, 'CC', 'Domestic', 'Regular', '0', '1000', '0', '3', 0, None))
+        return source.FilterResult(task, rows, 1, 1, 0, 0, 0, 0, '')
 
     def get_json(self, path):
         sym = path.split('/')[2].split('?')[0]
         q = dict(p.split('=') for p in path.split('?')[1].split('&'))
         day, board = q['from'], q['market_board']
         buys, sells = [], []
-        if board.endswith('REGULER') and sym in SYMS[:200]:
+        if board.endswith('REGULER') and q['investor_type'].endswith('DOMESTIC') and sym in LONG['codes']:
+            d = day.replace('-', '')
+            buys = [{'netbs_broker_code': 'YP', 'netbs_stock_code': sym, 'netbs_date': d, 'bval': Decimal(1000),
+                     'blot': Decimal(2), 'netbs_buy_avg_price': Decimal(5), 'freq': Decimal(3)}]
+            sells = [{'netbs_broker_code': 'CC', 'netbs_stock_code': sym, 'netbs_date': d, 'sval': Decimal(1000),
+                      'slot': Decimal(2), 'netbs_sell_avg_price': Decimal(5), 'freq': Decimal(3)}]
+        elif board.endswith('REGULER') and sym in SYMS[:200]:
             v = Decimal(1000 + VARIANT['v'])
             d = day.replace('-', '')
             buys = [{'netbs_broker_code': 'YP', 'netbs_stock_code': sym, 'netbs_date': d, 'bval': v,
@@ -111,3 +135,42 @@ def test_verify_compares_a_stored_date_without_writing(pg):
     assert changed['different'] == 800 and {'Buy Value', 'Sell Value'} & set(changed['examples'][0]['columns'])
     assert pg.execute('''SELECT max("Buy Value") FROM public."IDX_Broker_Summary" WHERE "Date" = %s''',
                       (D2,)).fetchone()[0] == 1000  # VERIFY wrote nothing
+
+
+def test_long_codes_are_found_fetched_checked_and_loaded(pg):
+    """EXEC-UNIVERSE-BROKER L1: a code that is not four letters, found broker-first, is loaded with the stocks."""
+    pg.execute('DELETE FROM public."IDX_Broker_Summary" WHERE "Symbol" = %s', ('AAAA-W',))
+    LONG['codes'] = ['AAAABQCZ6A', 'BBBB-W']
+    try:
+        events = []
+        result = loader(pg, events).run()
+    finally:
+        LONG['codes'] = []
+    assert result['dates'] == [str(D1), str(D2)] and result['rows'] == 2 * (800 + 4)
+    assert all(x['long_codes'] == 2 for x in result['loaded'])
+    stored = pg.execute('''SELECT count(*), count(DISTINCT "Symbol") FROM public."IDX_Broker_Summary"
+        WHERE "Symbol" IN ('AAAABQCZ6A','BBBB-W')''').fetchone()
+    assert stored == (8, 2)
+    assert any(e == 'long_codes_checked' for e, _ in events)
+
+
+def test_sources_that_disagree_stop_the_date(pg):
+    pg.execute('DELETE FROM public."IDX_Broker_Summary" WHERE "Symbol" = %s', ('AAAA-W',))
+    LONG['codes'], LONG['disagree'] = ['AAAABQCZ6A'], True
+    try:
+        with pytest.raises(ValueError, match='disagree'):
+            loader(pg, []).run()
+    finally:
+        LONG['codes'], LONG['disagree'] = [], False
+    assert pg.execute('''SELECT count(*) FROM public."IDX_Broker_Summary" WHERE "Date" = %s''', (D1,)).fetchone()[0] == 0
+
+
+def test_switch_off_keeps_four_letter_symbols_only(pg, monkeypatch):
+    monkeypatch.setattr(bi, 'LONG_CODES', False)
+    LONG['codes'] = ['AAAABQCZ6A']
+    try:
+        result = loader(pg, []).run()
+    finally:
+        LONG['codes'] = []
+    assert result['rows'] == 800   # D2 only (D1 holds the warrant row)
+    assert pg.execute('''SELECT count(*) FROM public."IDX_Broker_Summary" WHERE "Symbol" = 'AAAABQCZ6A' ''').fetchone()[0] == 0

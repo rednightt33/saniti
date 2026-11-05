@@ -1,5 +1,29 @@
 # Railway changelog
 
+## 2026-11-05 — market-python-sandbox: validator accepts both TA-Lib answers at a division by zero (EXEC-UNIVERSE-BROKER L5)
+
+- User: "2 saja" (strengthen the old-path validator now), ERRORS M349.
+- GitHub deploy of `a2ec4df0`, deployment `6c26f3cb` SUCCESS; startup log `sandbox_started` `isolation_enforced=true`,
+  `interrupted_analyses=0` (no user run active before the push: EDGE jobs 0, orc turns 0). TA-Lib stays 0.8.1.
+
+## 2026-11-05 — feature-01-worker and feature-04-worker deployed; Postgres restart (EXEC-UNIVERSE-BROKER L3, L4)
+
+- feature-01-worker (`de4e34ee`): GitHub deploy of `83a35f5d` (claims the due items of one ticker together), deployment
+  `14c9b639` SUCCESS 15:46 UTC, log `worker_started`.
+- Postgres restart after the read-only Feature 04 compare (full read of `Feature_04_Technical_Indicator`, job `0f4ce85f`,
+  `"large_write": true`): memory 1.63 GB, deployment `b4e32034`, start 16:00:53 UTC, 11 s, edge-bff `/ready` 200.
+- orc-test-runner guard: `scripts/onboarding/runner_guard.sh` no longer reads a fast job's late "Starting Container"
+  line as a new start (ERRORS M341, `4bee3798`).
+- feature-04-worker (`bb1fcecc`): GitHub deploy of `87aba979` (TA-Lib zero tests in the chain, ERRORS M349), deployment
+  `7d94659e` SUCCESS.
+
+## 2026-11-05 — Postgres restarts after the large writes (ERRORS M350)
+
+- 13:47 UTC: scheduled restart (postgres-memory-cron, 20:45 WIB) after the Feature 01 queue emptied; memory 3.99 GB →
+  0.10 GB.
+- 14:44 UTC: restart by `run_job.sh` (`"large_write": true`) after the IHSG INDEX rebuild
+  (`verification/universe_broker_s3/index.log`).
+
 ## 2026-11-05 — terminal-publisher uploaded (all security types); 63 codes published (EXEC-UNIVERSE-BROKER S1)
 
 - terminal-publisher CLI upload `e78dd177` (`git archive` of `fa07b8c3`, `publisher.py` sha256 `42f7ff0b…`) SUCCESS
