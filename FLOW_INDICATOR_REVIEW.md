@@ -851,7 +851,7 @@ FL17 dan FL18 menghitung `Σ BV(C) / (100 × Σ BL(C))`: harga rata-rata **gross
 Dua indikator baru, terpisah, masing-masing `Σ SV(C) / (100 × Σ SL(C))` (gross jual, Rp per lembar):
 - **Versi jual dari FL17:** jendela bergulir, kohort dikunci per jendela (cara A), parameter sama dengan FL17 (`scope`, `brokers`, `top`, `rank`, `boards`, `investors`, `window`).
 - **Versi jual dari FL18:** anchor, kohort beku, parameter sama dengan FL18 (termasuk `anchor`).
-Karena `rank` sudah menawarkan net beli, gross beli, dan net jual, **kelompok pembeli bersih maupun penjual bersih sama-sama bisa dipilih** pada kedua indikator baru (bacaan AI; user belum menyebut kelompok yang diinginkan).
+**Dijawab user 2026-11-05:** "Persis seperti FL 17 dan 18." Artinya parameter dan nilai bawaan sama dengan FL17 dan FL18, termasuk `rank` bawaan **net beli** (bacaan AI atas jawaban satu kalimat itu); hanya ukurannya yang diganti menjadi nilai jual dibagi lot jual. Karena `rank` menawarkan net beli, gross beli, dan net jual, kelompok penjual bersih dapat dipilih dengan mengubah `rank`.
 
 ### 5m.3 Bukti pada data (BBRI, semua investor, semua papan, Top-3, dihitung 2026-11-05; penutupan 3 Nov Rp2.660)
 
@@ -864,7 +864,7 @@ Karena `rank` sudah menawarkan net beli, gross beli, dan net jual, **kelompok pe
 
 ### 5m.4 Pertanyaan terbuka (saat to-do ini diambil)
 
-1. **Kelompok untuk sisi jual:** (a) kelompok pembeli bersih, dengan harga rata-rata penjualan mereka sendiri; atau (b) kelompok **penjual bersih** (Top-N net jual), dengan harga rata-rata penjualan mereka. Karena parameter `rank` dipertahankan, keduanya dapat dipilih; bawaan `rank` untuk indikator baru belum ditentukan (net beli seperti FL17 dan FL18, atau net jual).
+1. ~~Kelompok dan bawaan `rank` untuk sisi jual.~~ **Dijawab user 2026-11-05: "Persis seperti FL 17 dan 18"**, jadi bawaan `rank` net beli; kelompok penjual bersih dipilih dengan `rank` net jual.
 2. ~~Bentuk: parameter sisi atau indikator terpisah.~~ **Dijawab user 2026-11-05: dua indikator tambahan terpisah** (jual dan lot jual).
 3. **Nama dan kode** ditetapkan saat dikerjakan.
 4. **Kaitan dengan to-do 13** (Top-N per hari): apakah sisi jual berlaku juga di sana.
