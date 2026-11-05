@@ -10056,6 +10056,29 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
 
 **Fitur tidak berubah:** Feature 01-06, antrean Feature 04, fitur intraday dan jadwalnya tetap.
 
+**Revisi R2 — broker yang diisi ulang atau dikoreksi ikut terbit lewat pemicu (diterima 2026-11-05, BELUM dieksekusi):**
+- **Kata user, 2026-11-05:** "Ok R2 masukan exec, jangan eksekusi dulu".
+- **Root cause (kode):** mode `daily` publisher hanya menerbitkan broker untuk tanggal yang lebih baru dari
+  `broker_through` yang terakhir terbit (`apps/terminal-publisher/publisher.py:1377-1383`; untuk IHSG `:1386-1393`).
+  Putaran broker yang mengisi tanggal lama yang bolong atau mengoreksi data lama tidak terbit lewat mode harian. Selama
+  ini kasus itu memakai mode manual `broker-range`.
+- **Class:** perubahan data di masa lalu tidak terlihat oleh deteksi "tanggal lebih baru". Berlaku untuk Feature 05 saham
+  dan `_INDEX`, dan untuk dataset baru apa pun yang dideteksi dengan tanggal terakhir saja.
+- **Rancangan (lapisan pemilik mekanismenya: fungsi refresh di database, bukan updater):**
+  - Catatan perubahan `broker_publish_change` (ticker, rentang tanggal yang ditulis, waktu), mengikuti pola
+    `intraday_publish_change`.
+  - Catatan itu ditulis oleh fungsi refresh Feature 05 (saham dan `_INDEX`) di statement yang sama dengan barisnya, jadi
+    berlaku untuk putaran broker maupun refresh manual tanpa deploy ulang stockbit-updater. Migrasi baru mengganti
+    fungsi; migrasi lama tidak disunting.
+  - Mode `daily` membaca catatan sejak publikasi terakhir dan menerbitkan ticker-tahun yang tersentuh, termasuk tahun di
+    pack arsip. Tidak memindai seluruh Feature 05 setiap run (pelajaran M319: memori Postgres).
+- **Cakupan:** isi ulang tanggal lama, koreksi, dan tanggal baru (saham dan IHSG). **Tidak dicakup:** perubahan
+  `IDX_Broker_Profile` (nama atau klasifikasi broker), yang terbit lewat `ref/brokers` di setiap run.
+- **Bukti yang direncanakan:**
+  - tes publisher: tanggal lama berubah lalu ticker-tahunnya terbit, baik di arsip maupun tahun berjalan;
+  - DRYRUN migrasi dengan probe;
+  - pada putaran broker berikutnya: catatan terisi, publisher terpicu, `verify` storage = SQL untuk ticker yang tersentuh.
+
 **Revisi R1 — publikasi dulu, fitur kemudian (diterima 2026-11-05, BELUM dieksekusi):**
 - **Kata user:**
   - "Concern saya adalah dari sisi RAM";
