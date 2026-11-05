@@ -11553,5 +11553,103 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
   yang dibuat berdasarkan kode instead of memory. Kemudian setelah itu buat implementation plan, and describe what done
   looks like."
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** rencana implementasi dan definisi selesai (sedang disusun dari
-pemeriksaan kode).
+### Pemeriksaan ulang terhadap kode (2026-11-05, read-only)
+
+Setiap keputusan di atas dicek terhadap `main` `df6016d2`. Temuan yang mengubah cara pelaksanaan (bukan keputusannya):
+
+| # | Fakta di kode | Akibat untuk pelaksanaan |
+|---|---|---|
+| F1 | Output Flow ditulis mati di generator (`scripts/build_flow_registry.py:147-151`); spreadsheet tidak punya kolom output | Output baru (FL11, FL27, FL29, FL32, FL34, indikator baru) ditambah di `outputs()` dan `flowIndicators.ts` `outs()` |
+| F2 | Semua garis satu indikator memakai satu skala harga dan satu format (`terminal/src/app/indicators.ts:252-258`) | Garis perubahan FL34/FL11 di sumbu kedua butuh kemampuan baru: skala dan format per output |
+| F3 | Setting tersimpan yang gagal `validate` direset seluruhnya ke bawaan (`indicators.ts:469`); data broker datang belakangan | Penolakan "Ukuran Transaksi tanpa jumlah transaksi" (K4) tidak boleh di `validate`; dibuat sebagai garis kosong + pesan di legend dan petunjuk di dialog |
+| F4 | Dialog hanya bisa menyembunyikan field, bukan opsi (`indicators.ts:634`); indeks diketahui saat init (`flowIndicators.ts:147`, contoh FL23) | Opsi Lot di indeks disaring saat init (pola FL23), tanpa repaint |
+| F5 | Kunci cache kelompok `top|N|rank` tanpa sisi (`calc/flow.ts:212`); FL09 memakai `sizeLot`/`sizeVsMarket` milik FL01/FL05 dengan rank-nya sendiri (`flow.ts:386`) | Satu penerjemah skor: (Rank Net/Gross, Sisi) → skor internal `net_buy`/`gross_buy`/`net_sell`/`gross_sell` (baru); helper menerima skor jadi; FL09 tetap memberi rank-nya sendiri |
+| F6 | Nilai select tersimpan yang tidak ada di opsi dibiarkan, hitungan jatuh diam-diam ke `net_buy` (`flow.ts:191`); hook migrasi hanya untuk ma/ema (`indicators.ts:740`) | Opsi kelompok A memakai kunci lama (`net_buy` = "Net", `gross_buy` = "Gross"); simpanan `net_sell` di kelompok A dimigrasi eksplisit ke `net_buy` |
+| F7 | Menu dibangun dari satu fungsi `menuItems()` (`terminal/src/app/indMenu.ts:26-37`); indikator tersimpan dipulihkan dari `DEFS`, bukan menu (`indicators.ts:747-752`) | Satu daftar sembunyi (I37, I41, FL07, FL35, FL36) di `menuItems()`; `indRegistry.json`/`indicators.ts` tidak disentuh; chart tersimpan tetap tergambar |
+| F8 | Kartu penjelasan menghitung ulang sendiri dan wajib sama dengan chart (`tests/calc/explain.test.ts`); B menolak output selain `value` (`explainFlowB.ts:719`) | Setiap output baru butuh penjelasan; pembungkus B diperluas |
+| F9 | Tes mengunci tepat FL01–FL39 (`tests/calc/flow.test.ts:21`), daftar FL20–FL39 (`explain_flowB.test.ts:115`), jumlah menu (`ind_menu.test.ts:10,27-35`); oracle `range(1,40)` (`oracle.py:873`) | Daftar diturunkan dari registry (bukan angka 39) agar indikator baru tercakup tanpa ubah tes |
+| F10 | Generator: tip FL baru tanpa baris sheet → KeyError (`build_flow_registry.py` `PLAIN.get(fid, tips[fid])`); `--check` tidak dijalankan tes mana pun | Perbaiki generator; tambahkan `--check` registry Flow ke `scripts/tests/test_registries_current.py` |
+| F11 | Tidak ada CI untuk vitest; build Docker hanya `tsc --noEmit && vite build` | Tes dijalankan dan dikutip manual sebelum push |
+| F12 | `calc/**` dipantau screener-worker (`.railway/railway.ts:211-216`); hanya label `screener_engine` yang berubah, start-up tidak menolak (`apps/screener-worker/src/version.ts:59-73`) | screener-worker ikut redeploy; cache hasil screen dihitung ulang |
+| F13 | Judul tab statis (`static/index.html:11`); tes melarang kata halaman di `index.html` (`tests/test_backtest.py:1446`, `test_screener.py:1248`) | Judul dari `edge-labels.js` (objek baru), di-set di `App()` per rute |
+| F14 | Oracle butuh akses database (pgweb); sesi ini ditolak (401 dan izin dibatasi) | Verifikasi angka contoh BBRI butuh keputusan user (lihat pertanyaan) |
+
+Ditemukan di luar lingkup (tidak dikerjakan di sini): kartu FL28 tidak membaca kasus indeks (`explainFlowB.ts:408-414`);
+FL36–FL39 masih bertanda "Proposed default" (`build_spec_workbook.py:190-193`).
+
+### Rencana implementasi (menunggu go)
+
+Satu eksekusi, satu laporan di akhir (keputusan "B"). Urutan dalam eksekusi:
+
+**Fase 0. Persiapan.** `npm ci` di `apps/edge-bff/terminal`; jalankan `npm run typecheck`, `npm test` sebagai garis
+dasar; catat hasil.
+
+**Fase 1. Mekanisme bersama** (dipakai banyak butir; satu implementasi):
+1. Daftar sembunyi menu (F7): I37, I41, FL07, FL35, FL36; favorit hanya menghitung yang tampil.
+2. Generator registry (F1, F10): output baru, tip, keluarga "Ratio", label kelompok A ("Net", "Gross") dan B ("Top net
+   buyers", "Top gross buyers", "Top net sellers"), opsi baru; `build_spec_workbook.py` → xlsx → registry; `--check`
+   di pytest.
+3. Penerjemah skor dan sisi (F5, K1, K2, R1): skor `gross_sell` baru; kelompok A: Beli = Top-N pembeli, Jual = Top-N
+   penjual menurut Net/Gross; kunci cache memakai skor jadi; FL09 tidak berubah; migrasi simpanan (F6).
+4. Opsi menurut data (F3, F4, K4, aturan IHSG): opsi Lot disaring di indeks; Ukuran Transaksi tanpa jumlah transaksi →
+   garis kosong, pesan legend "Saham ini tidak punya jumlah transaksi. Pilih Ukuran Nilai atau Lot", petunjuk di dialog
+   (empat syarat gerbang `AGENTS.md`).
+5. Dua skala dalam satu panel (F2): skala dan format per output.
+6. Helper hitung: z-score (di samping `percentile`), garis perubahan (selisih n sesi, termasuk n = window), bagian
+   merata N/k, kelompok Top-N per hari, HHI kelompok, satuan Lot/Rupiah.
+
+**Fase 2. Indikator yang ada:**
+
+| Indikator | Perubahan | Sumber keputusan |
+|---|---|---|
+| FL01–FL05, FL08 | Rank Net/Gross, Sisi Jual = penjual | K1, R1 |
+| FL11 | `denom` dihapus (FL07 tetap punya); garis perubahan (U2) | to-do 7, U2 |
+| FL13, FL14, FL38 | Kelompok seperti FL01, Top-N dikunci per jendela, nilai = Σ porsi² anggota, penyebut semua broker; FL14 cermin; FL38 tanpa sisi; Satuan Lot/Rupiah | to-do 5, 6, Q3, K2 |
+| FL15, FL16 | Satuan Lot/Rupiah; "di atas bagian merata" | to-do 6, U3 |
+| FL17, FL39 | Bawaan FL39 = bawaan FL17 (window 20, semua papan) | to-do 16 |
+| FL21 | Ukuran net / gross beli / gross jual | to-do 10 |
+| FL22 | Pilihan Jumlah | U6 |
+| FL27 | Dua pemicu (net, gross; N dan X masing-masing; per hari; ≥ X); output penanda bawaan mati (Style) | to-do 18 |
+| FL29 | Garis kedua: saldo tertimbang turnover C (%) | to-do 12 |
+| FL32 | Activity Spike: Ukuran, Sisi; output `buy`/`sell` | to-do 2, Q4 |
+| FL33 | Kelompok Top-N per hari, Sisi | to-do 4 |
+| FL34 | Batang FL34 + garis perubahan (sumbu kedua), jarak 1/5/20; masing-masing bisa dimatikan (Style) | to-do 17 |
+| FL37 | Persentil atau z-score | U1 |
+| Kelompok B | Label rank baru, kunci tetap | keputusan kelompok B |
+
+**Fase 3. Indikator baru** (kode FL40 dst. diberikan berurutan saat dikerjakan; tidak bentrok dengan kode screener
+FL01–FL20 karena di atas FL39): Spike Balance (bawaan Foreign), Net Flow / Average Turnover, Buy VWAP Rolling Top-N
+harian, Sell VWAP Rolling, Sell VWAP Anchored, Buy VWAP Anchored Distance %, Flow Ratio fleksibel, Net Buy Intensity
+(nilai atau persentil), Top-N Buyer/Seller Imbalance. Aturan IHSG per indikator diturunkan dari kebutuhan lot/harga.
+
+**Fase 4. Judul tab:** `edge-labels.js` objek `pages` (EDGE — Sign In / Monitor / Terminal / Backtest / Screener);
+`App()` men-set `document.title` per rute; `<title>` statis menjadi "EDGE".
+
+**Fase 5. Dokumen dan pengaman:** `FORMULAS.md` → `indNotes.json`; penjelasan kartu A/B; tes (flow, explain, menu,
+card) dengan daftar dari registry; oracle `SERIES` dan kasus baru; `FLOW_INDICATOR_REVIEW.md` status to-do;
+`INDICATORS_HANDOFF.md`; `apps/edge-bff/README.md`; `ERRORS_AND_SOLUTIONS.md`; `RAILWAY_CHANGELOG.md`.
+
+**Fase 6. Rilis:** merge ke `main` (izin user); deploy di luar 00:00–01:45 dan 12:00–13:20 UTC; edge-bff dan
+screener-worker untuk commit itu mencapai `SUCCESS` (cek ERRORS M252: merge bisa SKIPPED); `/ready`, `/terminal-app/`.
+
+### Definisi selesai
+
+1. `npm run typecheck` dan `npm test` di `apps/edge-bff/terminal` lulus; `npm test` di `apps/edge-bff/backtest`;
+   `pytest apps/edge-bff/tests/test_frontend_contract.py test_backtest.py test_screener.py test_share_card.py`;
+   `pytest scripts/tests/test_indicator_notes.py scripts/tests/test_registries_current.py`; `build_flow_registry.py
+   --check`; `npm run tripwire` di `apps/edge-bff/screener` lulus (bukti `indicators.ts`/`indRegistry.json` tidak
+   tersentuh). Keluaran dikutip.
+2. Angka contoh di `FLOW_INDICATOR_REVIEW.md` (BBRI 3 Nov 2026 dan tanggal lain di tiap bagian) dihasilkan kode dari
+   data hidup; oracle cocok (|Δ| ≤ 1e-9·max(1,|a|,|b|)).
+3. Menu: I37, I41, FL07, FL35, FL36 tidak muncul (termasuk cari dan favorit); chart tersimpan yang memakainya tetap
+   tergambar; diperiksa di browser.
+4. Setting tersimpan lama (FL11 `denom`, kelompok A `net_sell`, warna FL32 `value`) dimuat tanpa galat; perilakunya
+   sesuai migrasi yang ditulis.
+5. IHSG: tidak ada opsi Lot dan tidak ada indikator yang butuh lot/harga per lembar.
+6. Judul tab berganti per halaman.
+7. Backtest dan Screener: registry dan hasil tidak berubah (tripwire, `registry:check`).
+8. edge-bff dan screener-worker untuk commit `main` mencapai `SUCCESS`; dicatat di `RAILWAY_CHANGELOG.md`; bagian ini
+   dipindah ke `ERRORS_AND_SOLUTIONS.md` dan changelog lalu dihapus dari `EXEC.md`.
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** (1) akses data untuk verifikasi angka (F14); (2) izin merge ke
+`main` dan deploy; (3) K4 dilaksanakan sebagai garis kosong + pesan, bukan blokir dialog (F3).
