@@ -14,3 +14,11 @@ STEP {"mode": "logos", "tickers": 0}
 2026-11-05T12:41:15.667000311Z [INFO]  event="listed" prefix="ref/" pages=1 keys=8 seconds=0.3 slowest_page_seconds=0.3
 2026-11-05T12:41:15.667006106Z [INFO]  event="refs" names=["brokers","fixed_income","logos","tickers"] uploaded=["logos"] failed=[]
 2026-11-05T12:41:15.667011480Z [INFO]  event="done" mode="logos" files_planned=0 files_written=0 mb=0 tickers=0 fixed_income=0 seconds=88.4 broker_behind_sessions=2 xsection=["actions","price"] xsection_failed=[] refs=["brokers","fixed_income","logos","tickers"] refs_failed=[] phases={"plan":2.5,"files":0,"packs":0,"intraday":0,"xsection":0,"manifests":0,"refs":84.9,"state":0.9} threads=16
+2026-11-05T12:51:22.248854175Z [INFO]  event="delete_batch" batch=0 keys=1 first="ref/logos.630aee90bd89a5af.json.gz" last="ref/logos.630aee90bd89a5af.json.gz" not_deleted=0 seconds=0.3
+2026-11-05T12:51:22.248863159Z [INFO]  event="replaced" objects=1 deleted=1 not_deleted=0 waited=600 seconds=0.3
+STEP_DONE {"mode": "logos", "rc": 0}
+STEP {"mode": "verify", "tickers": 63}
+2026-11-05T13:02:46.159658166Z [INFO]  event="verify_done" files=1352 mismatches=0 tickers=["AKKU","ALTO","BEBS","BHAT","CRAB","EDGE","GAMA","GTBO","HILL","IBST","INDX","PLIN","PMMP","RAFI","SUPR","TAYS","TRUE","UNSP","XBGS","XBID","XBIN","XBLQ","XBSK","XCEG","XCLQ","XDES","XDIF","XGLD","XIFE","XIHD","XIID","XIIF","XIIT","XIJI","XILV","XIML","XIPB","XIPI","XISB","XISC","XISI","XISR","XKGS","XKID","XKIV","XKMS","XMES","XMGB","XMIG","XMLF","XMSK","XPDV","XPFT","XPIN","XPLQ","XPSG","XPTD","XRDN","XSBC","XSGO","XSSI","XSSK","XTRA"]
+STEP_DONE {"mode": "verify", "rc": 0}
+JOB_DONE
+JOB_EXIT 0

@@ -10208,6 +10208,10 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     - Hasil: antrean 907 DONE, 0 status kolom gagal; baris Fitur 4 = baris harga untuk 63 dari 63 kode (57.776).
   - Fitur 1: antrean worker-nya masih berjalan (±41 ribu baris, ±335 per menit).
   - Publisher `e78dd177` (kode `fa07b8c3`, semua jenis efek) SUCCESS; backtest-worker `51832073` SUCCESS.
+- **S1.5 publikasi (2026-11-05):** run publisher terjadwal 12:00 UTC (kode `e78dd177`): `done` 12:08 UTC, 908 ticker
+  (manifest, xsection price 908 ticker, ref tickers dengan kolom instrument). Job `verification/universe_63/publish_job.py`
+  (kode publisher yang sama, variabel lewat referensi): `broker-range` 2016–2026 untuk 63 kode, 441 file (5,8 MB);
+  `logos`; `verify` 63 kode: 1.352 file, **0 mismatch** (13:02 UTC).
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;

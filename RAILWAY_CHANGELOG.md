@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-05 — terminal-publisher uploaded (all security types); 63 codes published (EXEC-UNIVERSE-BROKER S1)
+
+- terminal-publisher CLI upload `e78dd177` (`git archive` of `fa07b8c3`, `publisher.py` sha256 `42f7ff0b…`) SUCCESS
+  10:49 UTC; backtest-worker CLI upload `51832073` SUCCESS 09:55 UTC; edge-bff `962d5ca8` (GitHub) SUCCESS.
+- Scheduled run 12:00 UTC: `done` 12:08 UTC, 908 tickers, 6,056 files (54.2 MB).
+- Job on orc-test-runner (`verification/universe_63/publish_job.py`, references to terminal-publisher's variables, values
+  never printed): `broker-range` 2016-2026 for the 63 codes (441 files), `logos`, `verify` 1,352 files 0 mismatches.
+
 ## 2026-11-05 — EXEC-PUBLISH-FLOW: trigger token set on telegram-monitor
 
 - `PUBLISH_RAILWAY_TOKEN` (project token created by the user; value not stored anywhere in Git) set on telegram-monitor
