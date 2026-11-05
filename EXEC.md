@@ -10128,6 +10128,23 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - Terbuka: (1) ke-63 kode termasuk 13 saham yang hanya di Nego masuk semua (berarti P1 tidak dipakai)? (2) "sekaligus"
     = S1 + P2 + P3 + S2 + S3 dalam satu rangkaian; P2 dan P3 jadi wajib, karena tanpa P2 cron harga beralarm setiap hari
     untuk kode tanpa transaksi dan tanpa P3 skrip riwayat harga menolak sebagian besar kode.
+- **Keputusan alarm (user 2026-11-05): "Opsi A, siapkan skripnya dulu".** P2 disetujui sebagai aturan umum untuk semua
+  kode: alarm hanya untuk gagal ambil (timeout/error); "TradingView menjawab tanpa bar" dicatat tidak ada transaksi;
+  pemeriksaan silang dengan broker summary Regular sesudah putaran broker. Usulan daftar 63 kode tidak dipakai.
+- **S3 skrip (2026-11-05):** `scripts/broker_longcodes/longcode_broker.py` (README di folder yang sama), tanpa akses
+  database, bisa dilanjutkan:
+  - `discover`: broker-first (112 broker × 6 filter per tanggal) menemukan setiap kode bukan 4 huruf yang
+    bertransaksi, termasuk kode baru sesudah CSV;
+  - `fetch`: ticker-first dengan fetch loader sendiri (`broker_import.fetch_symbol_once`), 6 permintaan per kode-hari;
+  - `check`: kunci unik, kolom wajib, tanggal, semua kode-hari terambil, dan kedua sumber Stockbit sama per kunci;
+    hasilnya `rows/<tanggal>.csv.gz` dan `check_report.json`.
+  - Uji (dari sesi cloud lewat proxy): 2026-11-03 punya 365 kode bukan 4 huruf; discover 672 permintaan dalam 85 detik;
+    12 kode-hari cocok dengan sumber broker-first. 2026-08-31 INET-W2 (48 baris) dan PJHB-W (13): kunci, nilai, lot dan
+    harga rata-rata sama dengan tabel; hanya `buy_freq`/`sell_freq` di tabel NULL untuk kode ini sebelum 2026-09-01
+    (staging frekuensi lama hanya 4 huruf), sedangkan Stockbit memberi angkanya.
+  - Perkiraan penuh: ±31 ribu permintaan discover + ±100 ribu fetch (46 tanggal × ±365 kode × 6), ±5 jam dengan 6
+    worker. Token yang diberikan berlaku sampai 2026-11-05 16:15 UTC (23:15 WIB); token tidak dicatat di Git.
+  - Folder PC belum tampil di sesi (`list_computer_folders` kosong tiga kali sesudah user menyambungkan).
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
