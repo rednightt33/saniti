@@ -10148,6 +10148,14 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - **Tempat menjalankan (user 2026-11-05: "A"):** dari sesi cloud sekarang, karena token habis 23:15 WIB dan folder PC
     belum tersambung (pengganti K1 untuk tarikan ini). Mulai 2026-11-05 09:08 UTC: discover 30.912 permintaan
     (46 tanggal × 112 broker × 6), lalu fetch, lalu check. Hasil hanya file di sesi; belum ada unggahan sebelum S2.
+- **GO (user 2026-11-05): "S2 P2 P3 bisa dijalankan." dan "Benar semua 63 kode masuk, termasuk 13 saham Nego? OK".**
+  S2, P2 dan P3 dijalankan (kode, tes, migrasi, deploy); ke-63 kode masuk universe semua (P1 tidak dipakai).
+  - Fakta desain S2 (2026-11-05): agregat IHSG `_INDEX` = total semua simbol `IDX_Broker_Summary` per tanggal (dicek
+    2019-05-02, 2026-08-31, 2026-10-30: nilai, lot dan frekuensi sama). Pembangunan ulang IHSG
+    (`backfill_index_features.stage_raw`) mencocokkan F05 dengan sumber per tanggal × broker × tipe × papan; sesudah S2
+    pencocokan itu memakai baris universe di kedua sisi.
+  - Urutan deploy: S2 baru aktif sesudah 63 kode masuk universe, supaya fitur broker mereka tidak berhenti. Kalau
+    terlambat, pemeriksaan perubahan (baris universe) mengisi tanggal yang tertinggal sendiri.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
