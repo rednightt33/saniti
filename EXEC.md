@@ -10219,6 +10219,14 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   R-LQ45X), 18.788 kode-hari, 0 gagal; 73.938 baris siap; 0 duplikat, 0 kolom wajib kosong, 0 selisih antar dua sumber
   Stockbit, 0 ditahan. **GO unggah (user 2026-11-05: "Ok jalankan, kabari kalau sudah beres")**: dry run, unggah, IHSG
   `_INDEX` dihitung ulang, data broker IHSG diterbitkan ulang, restart Postgres.
+- **S3 hasil (2026-11-05):** unggah 73.938 baris (0 baris lama tersentuh), kualitas tanggal COMPLETE 46/46; IHSG `_INDEX`
+  dihitung ulang (46/46 tanggal sama dengan sumber); data broker IHSG diterbitkan ulang (`broker-range` 2026-09-01 …
+  11-03, verify 28 file 0 mismatch); restart Postgres 13:47 dan 14:44 UTC (memori 0,39 GB 14:59 UTC). Token Stockbit
+  dihapus dari sesi.
+- **Sisa EXEC-UNIVERSE-BROKER:** unggah kode stockbit-updater (`refresh.py`, `backfill_index_features.py`) bersama putaran
+  broker berikutnya (butuh token Stockbit di Railway; putaran itu juga mengisi broker 2026-11-04 dan seterusnya untuk
+  kode 4 huruf); loader harian untuk kode bukan 4 huruf (opsi b; sampai itu bolong mulai 2026-11-04); Screener ETF
+  (PENDING); usulan antrean Fitur 1 per kode dan "job dokumen skema = pekerjaan besar" di AGENTS.md (menunggu user).
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;

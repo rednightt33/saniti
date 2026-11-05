@@ -5,3 +5,11 @@ STEP {"mode": "broker-range", "tickers": 1}
 2026-11-05T14:47:51.517717074Z [INFO]  event="refs" names=["brokers","fixed_income","logos","tickers"] uploaded=[] failed=[]
 2026-11-05T14:47:52.580978356Z [INFO]  event="done" mode="broker-range" files_planned=1 files_written=1 mb=0.87 tickers=1 fixed_income=0 seconds=26.7 broker_behind_sessions=2 xsection=["actions","price"] xsection_failed=[] refs=["brokers","fixed_income","logos","tickers"] refs_failed=[] phases={"plan":5.7,"files":1.5,"packs":0,"intraday":0,"xsection":1.8,"manifests":0.6,"refs":16,"state":1.1} threads=16
 2026-11-05T14:47:52.580987436Z [INFO]  event="replaced_wait" objects=1 seconds=600
+2026-11-05T14:57:59.707191673Z [INFO]  event="delete_batch" batch=0 keys=1 first="broker/IHSG/2026.be967fdf1860d42e071253e61999ac38392e3bbb84a7a09dcc27439c06a01f70.json.gz" last="broker/IHSG/2026.be967fdf1860d42e071253e61999ac38392e3bbb84a7a09dcc27439c06a01f70.json.gz" not_deleted=0 seconds=0.4
+2026-11-05T14:57:59.707197673Z [INFO]  event="replaced" objects=1 deleted=1 not_deleted=0 waited=600 seconds=0.4
+STEP_DONE {"mode": "broker-range", "rc": 0}
+STEP {"mode": "verify", "tickers": 1}
+2026-11-05T14:58:19.703344860Z [INFO]  event="verify_done" files=28 mismatches=0 tickers=["IHSG"]
+STEP_DONE {"mode": "verify", "rc": 0}
+JOB_DONE
+JOB_EXIT 0
