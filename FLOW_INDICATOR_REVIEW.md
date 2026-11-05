@@ -29,6 +29,7 @@ item baru dijalankan atas perintah user.
 | 10 | FL21 Net Flow Percentile · vs Turnover | Ditambah parameter **Ukuran**: gross beli, gross jual, atau net beli (net), yang dipersentilkan terhadap turnover | "Not untuk FL21 yang bisa dimasukkan ke flow indicator review adalah biar ditambahkan filter untuk gross buy. Atau gross sell, dan juga net buy." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5i |
 | 11 | FL25 Bandar Balance · Rupiah | Visual tambahan yang menunjukkan **apa yang mendorong tiap kenaikan dan penurunan** FL25 | "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list." (2026-11-05) | To-do, definisi "didorong oleh apa" menunggu user. Bagian 5j |
 | 12 | FL29 Bandar Balance · Accumulation Days | Ditambah ukuran **seberapa besar** akumulasi, dalam persen atau persentil (sebanding antar saham), di panel yang sama atau sebagai indikator baru yang berpasangan | "mungkin di panel yang sama harus ditambahkan ... akumulasi terjadi 70% of the time. Tapi mesti dikasih tahu juga seberapa besar akumulasinya. Bukan in rupiah, tapi harus in percentage atau percentile. Sehingga angka tersebut bisa comparable across stock. Atau mungkin ya dibuatkan indikator baru lah. Yang bisa di-pair dengan FL29." (2026-11-05) | To-do; ukuran dipilih user: C ("C", 2026-11-05); panel yang sama atau indikator baru, dan persentil, menunggu user. Bagian 5k |
+| 13 | Indikator baru (kode ditetapkan saat dikerjakan), berpasangan dengan FL17 | Harga rata-rata pembelian bergulir dengan **Top-N dipilih per hari** (cara B); indikator **terpisah**, FL17 tidak diubah | "Jadi aja kita tambahkan untuk opsi top N per hari yang nomor B. Ini dijadikan indikator terpisah saja nanti. You can review dan to do" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5l |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -794,6 +795,45 @@ Ukuran yang dipilih (definisi, mengikuti kelompok harian FL29): `C = 100 × Σ_k
 ### 5k.5 Batas
 
 Satu saham (BBRI), satu tanggal untuk contoh. Dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup. Tidak ada klaim bahwa ukuran mana pun prediktif. Tidak ada kode yang diubah.
+
+## 5l. To-do: indikator baru "Buy VWAP · Rolling · Top-N per hari" (cara B), terpisah dari FL17
+
+**Catatan user 2026-11-05 (kata-katanya):** "Jadi aja kita tambahkan untuk opsi top N per hari yang nomor B. Ini dijadikan indikator terpisah saja nanti. You can review dan to do."
+"Nomor B" merujuk pada penjelasan AI atas tiga cara membangun harga rata-rata pembelian bergulir (A: kohort dikunci dari jendela, B: Top-N per hari, C: peringkat dari jendela sebelumnya). FL17 (cara A) tidak diubah, dan cara C belum diminta.
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5l.1 Kondisi sekarang **[T]** (`flow.ts:310-313`, `cohort:208`)
+
+FL17 menentukan Top-N **sekali per hari grafik** dari net beli (`BV − SV`) sepanjang jendela (bawaan 20 sesi), mengunci broker itu untuk jendela tersebut, lalu menjumlahkan **seluruh** gross beli dan lot beli mereka pada semua sesi di jendela:
+`Σ BV(C) / (100 × Σ BL(C))`. Dalam satu jendela, brokernya sama untuk semua sesi; antar hari grafik kohort bisa berganti.
+
+### 5l.2 To-do: definisi cara B (bacaan AI atas kata-kata user, belum dikonfirmasi)
+
+Untuk hari `t` dan jendela `W`: pada **tiap sesi `k`** dalam jendela, ambil Top-N pembeli bersih **sesi itu sendiri** (net `BV − SV` hari itu), jumlahkan gross beli (Rp) dan gross beli (lot) mereka **pada sesi itu**; lalu:
+`nilai_t = Σ_k BV(Top-N_k, k) / (100 × Σ_k BL(Top-N_k, k))`, `k` dari `t − W + 1` sampai `t`.
+Brokernya boleh berbeda tiap sesi dan tidak dikunci. Ukuran di pembilang dan penyebut tetap **gross** beli; peringkat memakai **net** beli harian.
+
+### 5l.3 Bukti pada data (BBRI, 252 sesi, Top-3, jendela 20, semua investor, semua papan, dihitung 2026-11-05)
+
+| | 3 Nov 2026 | Perubahan harian rata-rata | Perubahan harian maksimum |
+|---|---:|---:|---:|
+| A (FL17 sekarang) | Rp2.795 | Rp13,0 | Rp186 |
+| B (Top-N per hari) | Rp2.802 | Rp11,9 | Rp130 |
+| C (peringkat dari jendela sebelumnya; tidak diminta) | Rp2.774 | Rp13,6 | Rp107 |
+
+Korelasi A dengan B 0,999; selisih mutlak rata-rata Rp14 (maksimum Rp103). Kohort A berganti pada 79 dari 252 sesi. Pada saham likuid dengan banyak broker kedua cara hampir sama; pada saham tipis perbedaannya belum diukur.
+
+### 5l.4 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Nama dan kode** indikator baru, ditetapkan saat dikerjakan. Usulan nama: "Buy VWAP · Rolling · Daily Top-N".
+2. **Parameter:** `top` (3), `boards`, `investors`, `window` (usulan 20), peringkat harian menurut net beli. Apakah pilihan peringkat (`rank`) seperti FL17 ikut disediakan.
+3. **Sesi dengan pembeli bersih kurang dari N:** perilaku (memakai yang ada, atau kosong).
+4. **Arti** cara B: "harga beli para pembeli bersih terbesar tiap hari", bukan harga beli sebuah kelompok yang tetap; perlu dijelaskan di tooltip.
+5. **FL17 tetap cara A**; apakah opsi C (peringkat dari jendela sebelumnya) ikut ditambahkan belum diputuskan.
+
+### 5l.5 Batas
+
+Satu saham (BBRI). Dihitung dari data broker mentah (semua papan), belum dicocokkan dengan BFF yang hidup. Tidak ada klaim bahwa cara B lebih prediktif. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
