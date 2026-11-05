@@ -10299,6 +10299,11 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     4. Bukti: tes dengan TA-Lib 0.8.1 terpasang (analisis talib lolos), nilai gaya Fitur 4 (0) lolos, nilai yang
        memang salah tetap ditolak; tes penyaringan RSI < 30 pada masa datar; semua tes sandbox lulus; sandbox
        terpasang SUCCESS; ERRORS M349, README sandbox, changelog.
+  - **Hasil L5 (2026-11-05):** `apps/market-python-sandbox/runtime/reference.py` (`CONVENTIONS`), `runtime/validator.py`
+    (`postflight` menilai ulang output yang gagal per konvensi), 3 tes baru di `tests/test_gate_units.py` (gagal pada
+    kode lama; 62 tes validator lulus; 230 tes lain gagal sama persis pada kode lama dan baru karena butuh pindah uid
+    untuk isolasi). Commit `a2ec4df0`, market-python-sandbox `6c26f3cb` SUCCESS. Fitur 4 dan TA-Lib sandbox tidak
+    berubah. Tidak tercakup: satu output yang mencampur dua konvensi.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
