@@ -35,8 +35,9 @@ item baru dijalankan atas perintah user.
 | 16 | FL17 dan FL39 | FL17 tetap menghitung harga, FL39 menghitung jarak (%) terhadap FL17, dan jarak itu dihitung dengan **parameter FL17** (bawaan FL39 disamakan: 20 sesi, semua papan, Foreign dan Domestic) | "17 dan 39. Jadikan FL17 menghitung secara price, tapi FL39 menghitung secara distance. Nah, distance ini harus dihitung menggunakan parameter yang ada di FL17." (2026-11-05) | To-do; keputusan user 2026-11-05: bawaan FL39 disamakan dengan bawaan FL17 sistem; FL39 tidak mengikuti pengaturan FL17 yang diubah pengguna. Bagian 5o |
 | 17 | FL34 Institutional vs Retail Net | Ditambah ukuran **perubahan** (daily to daily, dan rentang lain): bacaan AI, perubahan nilai FL34 dibanding sesi sebelumnya dan beberapa jarak waktu lain; maksud pastinya menunggu user | "Alright, untuk FL34, to-do list-nya adalah kita perlu tambahkan change. Jadi change daily to daily, dan lain sebagainya. Paham?" (2026-11-05) | To-do; keputusan user 2026-11-05 lengkap: panel gabungan, batang FL34 dan garis perubahan (sumbu kedua) tampil langsung, opsi di settings untuk mematikan garis atau batang, jarak harian/5/20 sesi, poin persentase, tanpa penyebab perubahan. Bagian 5p |
 | 18 | FL27 Silent Accumulation | FL27 tetap as is; ditambah **dua pemicu berbasis broker (net dan gross)** yang menyala sebagai penanda bila rasio nilai 3 pembeli teratas terhadap nilai 3 penjual teratas mencapai 1,5 kali; **opsional, bisa di-toggle on dan off** | "Tambahkan ke FL27 metrik tetap as is, tapi tambahkan metric, it triggers kalau ada akumulasi. Akumulasi: Which is rasio top X broker net ataupun gross di atas 1/X rasio top N sell atau gross sell. Konfirmasi." (2026-11-05) | To-do; definisi dijawab user (rasio nilai N pembeli ÷ N penjual ≥ X = 1,5, N = 3, dua pemicu net dan gross dengan N dan X terpisah, penanda, opsional); butir kecil (cakupan waktu per hari, toggle bawaan mati, ≥ 1,5) disetujui dengan "Ok" (2026-11-05). Bagian 5q |
+| 19 | FL36 Share · Market Value (Buy + Sell) | **Disembunyikan** dari menu indikator (hide); kode, penomoran dan fungsi hitung tidak dihapus (bacaan AI: sama dengan FL07 dan FL35) | "hide saja indikatornya untuk FL36" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5r |
 
-**Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
+**Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4. Catatan 2026-11-05: FL36 diputuskan disembunyikan (to-do 19), jadi Participation Shift (persentil FL36) tidak dikerjakan kecuali user memintanya.
 
 **Koreksi 2026-11-04:** sebelumnya item ini sempat tercatat salah untuk FL17 (commit `e8f4f21` dan `af2db50`, termasuk butir
 `FLOW-RM-FL17` di `PLAN.md`). Penyebabnya salah ketik pada permintaan (tertulis FL17, yang dimaksud FL07); FL17 tidak ditinjau dan tetap "Belum ditinjau". Catatan FL17 dan butir
@@ -124,7 +125,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL33 | Transaction Size · Change % | Transaction Size | Panel | % | value | Belum ditinjau |  |  |
 | FL34 | Institutional vs Retail Net | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL35 | Net Buy Persistence · Top Buyer | Net Flow | Panel | % | value | To-do: sembunyikan (hide) | Hide (2026-11-04, to-do) | Kartu di bagian 5h. Hanya satu broker (Top Buyer), menghitung hari bukan besarnya net |
-| FL36 | Share · Market Value (Buy + Sell) | Share | Panel | % | value | Belum ditinjau |  | Bawaan Top-N asing, bukan partisipasi asing seluruh broker: BBRI 3 Nov 0,26% lawan 41,49% (pilihan cakupan Semua broker) |
+| FL36 | Share · Market Value (Buy + Sell) | Share | Panel | % | value | To-do: disembunyikan (hide) | Disembunyikan (2026-11-05, to-do 19) | Bagian 5r. Bawaan Top-N asing, bukan partisipasi asing seluruh broker: BBRI 3 Nov 0,26% lawan 41,49% (pilihan cakupan Semua broker) |
 | FL37 | Net Flow Percentile · Rupiah | Net Flow | Panel | 0-100 | value | Belum ditinjau |  |  |
 | FL38 | Concentration HHI · Net Buy | Concentration | Panel | 0-1 | value | Belum ditinjau |  |  |
 | FL39 | Buy VWAP · Rolling · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
@@ -1078,6 +1079,28 @@ Jawaban atas daftar pertanyaan AI (nomor sesuai daftar itu; butir 6 sampai 9 dib
 ### 5q.5 Batas
 
 Satu saham (BBRI). Dihitung dari data broker mentah (semua papan), belum dicocokkan dengan BFF yang hidup. Tidak ada klaim bahwa rasio itu memprediksi apa pun. Tidak ada kode yang diubah.
+
+## 5r. To-do: FL36 disembunyikan (hide)
+
+**Catatan user 2026-11-05 (kata-katanya):** "hide saja indikatornya untuk FL36". Alasan tidak disebut user; sebelumnya user membahas arti nilai FL36 dan meminta arti "net" pada FL36 (FL36 sendiri gross, tanpa arah).
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5r.1 Apa indikatornya **[T]** (`flow.ts:535-538`)
+
+`FL36 = 100 × (BV(C) + SV(C)) / (2 × TBV)`: **gross** beli + **gross** jual kelompok `C` (Top-N, broker terpilih, atau semua broker; ikut filter papan dan jenis investor) dibagi dua kali gross beli semua investor (filter papan saja). Tidak ada net; arah beli atau jual tidak terbaca.
+
+### 5r.2 Fakta untuk pelaksanaan (pencarian di repo, 2026-11-05)
+
+- FL36 **tidak dipakai indikator lain**: hanya `flow.ts:535`, penjelasan angka `explainFlowB.ts:611`, `indNotes.json:660`, `explain_flowB.test.ts:75`, `flowRegistry.json`, dan berkas dokumentasi/audit.
+- Mekanisme sembunyikan sama dengan to-do 1 (FL07) dan to-do 9 (FL35): satu mekanisme melayani ketiganya (lihat 5b.3).
+
+### 5r.3 Pertanyaan terbuka
+
+1. **Arti "hide"** dibaca AI sebagai tidak tampil di menu, definisi dan fungsi hitung tetap ada (sama dengan FL07 dan FL35). Menunggu konfirmasi bersama keputusan FL07 (sembunyikan atau pensiunkan penuh).
+2. **Indikator tersimpan pengguna** yang sudah memasang FL36: perilaku pada jalur hide mengikuti 5b.4 (asumsi, belum diperiksa).
+3. **Pengganti.** Tidak ada. Gagasan "net beli asing sebagai porsi" yang sempat dibahas (tiga bacaan penyebut) tidak dicatat sebagai to-do; user belum memilih penyebut.
+
+---
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
