@@ -28,7 +28,7 @@ item baru dijalankan atas perintah user.
 | 9 | FL35 Net Buy Persistence · Top Buyer | **Disembunyikan** dari menu indikator (hide) | "Hide saja FL35, masukan ke review" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5h |
 | 10 | FL21 Net Flow Percentile · vs Turnover | Ditambah parameter **Ukuran**: gross beli, gross jual, atau net beli (net), yang dipersentilkan terhadap turnover | "Not untuk FL21 yang bisa dimasukkan ke flow indicator review adalah biar ditambahkan filter untuk gross buy. Atau gross sell, dan juga net buy." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5i |
 | 11 | FL25 Bandar Balance · Rupiah | Visual tambahan yang menunjukkan **apa yang mendorong tiap kenaikan dan penurunan** FL25 | "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list." (2026-11-05) | To-do, definisi "didorong oleh apa" menunggu user. Bagian 5j |
-| 12 | FL29 Bandar Balance · Accumulation Days | Ditambah ukuran **seberapa besar** akumulasi, dalam persen atau persentil (sebanding antar saham), di panel yang sama atau sebagai indikator baru yang berpasangan | "mungkin di panel yang sama harus ditambahkan ... akumulasi terjadi 70% of the time. Tapi mesti dikasih tahu juga seberapa besar akumulasinya. Bukan in rupiah, tapi harus in percentage atau percentile. Sehingga angka tersebut bisa comparable across stock. Atau mungkin ya dibuatkan indikator baru lah. Yang bisa di-pair dengan FL29." (2026-11-05) | To-do, bentuk dan ukuran menunggu user. Bagian 5k |
+| 12 | FL29 Bandar Balance · Accumulation Days | Ditambah ukuran **seberapa besar** akumulasi, dalam persen atau persentil (sebanding antar saham), di panel yang sama atau sebagai indikator baru yang berpasangan | "mungkin di panel yang sama harus ditambahkan ... akumulasi terjadi 70% of the time. Tapi mesti dikasih tahu juga seberapa besar akumulasinya. Bukan in rupiah, tapi harus in percentage atau percentile. Sehingga angka tersebut bisa comparable across stock. Atau mungkin ya dibuatkan indikator baru lah. Yang bisa di-pair dengan FL29." (2026-11-05) | To-do; ukuran dipilih user: C ("C", 2026-11-05); panel yang sama atau indikator baru, dan persentil, menunggu user. Bagian 5k |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -771,20 +771,24 @@ Ditambahkan satu ukuran **besarnya** akumulasi, dalam persen turnover atau perse
 | C | Saldo tertimbang turnover: jumlah `(NB + NS)` / jumlah gross beli semua broker, dalam `days` sesi | % turnover |
 | D | Persentil A atau C terhadap riwayat saham itu sendiri (baseline, misalnya 250 nilai sebelumnya) | 0-100 |
 
+**Keputusan user 2026-11-05:** sesudah AI membedakan A dan C (A memberi bobot sama tiap hari, C memberi bobot menurut turnover; pada BBRI 3 Nov A +1,34% berbanding C −4,11%) dan menyebut pilihan lain (indikator yang ada dengan jendela 20), user menjawab "C".
+Ukuran yang dipilih (definisi, mengikuti kelompok harian FL29): `C = 100 × Σ_k (NB_k + NS_k) / Σ_k TBV_k` untuk `k` dalam `days` sesi terakhir, dengan `NB_k` net (`BV − SV`) tiga pembeli bersih terbesar sesi `k`, `NS_k` net tiga penjual bersih terbesar sesi `k` (negatif), dan `TBV_k` gross beli semua broker sesi `k`. Tidak memakai `threshold`. Parameter lain mengikuti FL29 (`top`, `boards`, `investors`, `days`).
+
 ### 5k.3 Bukti pada data (BBRI, semua investor, semua papan, N = 3, days 20, threshold 0%, dihitung 2026-11-05)
 
 - 3 Nov 2026: FL29 = 55% (11 dari 20 sesi). A = +1,34% (persentil 76 terhadap 250 nilai sebelumnya). B: rata-rata +13,1% pada 11 hari akumulasi; rata-rata −13,0% pada sembilan hari lain. C = −4,11% (persentil 55).
 - **FL29 yang sama, besar akumulasi berbeda:** FL29 = 55% terjadi pada 30 dari 252 sesi, dengan A dari −1,0% (23 Jan 2026) sampai +6,5% (2 Mar 2026); FL29 = 40% pada 36 sesi dengan A dari −7,5% sampai +0,6%.
 - Korelasi FL29 dengan A 0,94 dan dengan C 0,89 (252 sesi), jadi pada BBRI ukuran besarnya sebagian besar searah dengan jumlah hari; tambahan informasinya terutama pada selisih pada FL29 yang sama.
+- Tanda A dan C berbeda pada 21 dari 252 sesi (korelasi 0,96). Saldo enam broker teratas yang dipilih dari seluruh jendela 20 sesi (FL24 dengan `window` 20): −3,73% pada 3 Nov, korelasi dengan C 0,88, selisih mutlak rata-rata dengan C 2,6 poin.
 - Dengan filter investor Foreign saldo harian tidak terbatas (nilai harian sampai −190%), sehingga A dan C dalam persen menjadi tidak stabil; persentil (D) lebih cocok.
 
 ### 5k.4 Pertanyaan terbuka (saat to-do ini diambil)
 
 1. **Panel yang sama (garis kedua) atau indikator baru yang berpasangan.** Keduanya disebut user; belum dipilih.
-2. **Ukuran mana** (A, B, C, atau D, atau lainnya).
-3. **Persen atau persentil.** Persentil (D) memerlukan baseline; persen (A, C) sudah relatif terhadap turnover tetapi hanya dihitung pada satu saham di sini.
+2. ~~Ukuran mana.~~ **Dipilih user 2026-11-05: C** (saldo tertimbang turnover).
+3. **Persentil D di atas C atau persen saja.** User memilih C (persen turnover); apakah persentilnya ikut ditambahkan agar sebanding antar saham belum dijawab. Persentil memerlukan baseline; C sudah relatif terhadap turnover tetapi hanya dihitung pada satu saham di sini.
 4. **Sebanding antar saham:** saldo dalam persen turnover mungkin sebanding antar saham, tetapi belum diuji; hanya BBRI yang dihitung.
-5. **Kedekatan dengan indikator yang ada:** saldo jendela 20 sesi (FL24 dengan `window` 20) mirip dengan C, tetapi memilih enam broker dari net seluruh jendela, bukan per hari. Apakah itu sudah cukup sebagai pasangan belum diperiksa.
+5. **Kedekatan dengan indikator yang ada:** saldo jendela 20 sesi (FL24 dengan `window` 20) mirip dengan C, tetapi memilih enam broker dari net seluruh jendela, bukan per hari. User memilih C, bukan pemakaian ulang indikator yang ada; apakah keduanya dipertahankan berdampingan belum dibahas.
 6. Perlakuan hari tanpa data broker (sekarang dihitung bukan akumulasi dan pembagi tetap `days`).
 
 ### 5k.5 Batas
