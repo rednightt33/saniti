@@ -11535,5 +11535,9 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
 - Awal garis persentil pada riwayat pendek: "abaikan dulu ya" (tidak dikerjakan di eksekusi ini; perilaku tetap: kosong
   sampai `baseline` nilai sebelumnya ada, `flow.ts:248-261`).
 
+- Screener dan Backtest: "Ok untuk screener dan backtest bisa dijalakan sekaligus setelah fase terminal selesai."
+  Fase Terminal tidak menyentuh keduanya: penanda sembunyikan I37/I41 di lapisan menu Terminal (bukan `indRegistry.json`),
+  `indicators.ts` tidak diubah; screener-worker tetap redeploy otomatis karena memantau `terminal/src/calc/**`.
+
 **Pertanyaan terbuka (menunggu jawaban sebelum go):** cakupan R1 (daftar indikator dengan parameter Sisi dan/atau Rank
 disampaikan ke user 2026-11-05).
