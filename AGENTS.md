@@ -52,6 +52,21 @@ User decisions 2026-10-19 (verbatim in `EXEC.md`, EXEC-FASTLANE-LEN):
   logs and the live data at that moment, not on memory of the conversation; cite the file:line, log or run ID as
   evidence.
 
+## Questions to the user
+
+User decision 2026-11-05: "Tolong update memori. Untuk setiap pertanyaan, harus dikasih konteksnya dulu." Every
+question to the user, including an option list or a clarification, starts with its context, in plain language, before
+the question itself:
+
+1. What the thing is: name the table, feature, code group or step being asked about, and what it does, in words a
+   non-developer understands (not only an internal label such as "Q-S2a" or "S1").
+2. The facts: what the data or code shows now, with the numbers and examples (for example "3.058 kode di atas 4 huruf,
+   seperti waran -W, data fitur sampai 31 Agustus 2026").
+3. Why a decision is needed now and what each answer changes.
+4. Then the options and the question.
+
+A question that only makes sense to someone who has read the earlier turns or EXEC.md is incomplete.
+
 ## Mandatory workflow
 
 1. Confirm the requested scope and exact target names with the user when ambiguous.
