@@ -11524,5 +11524,10 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
   - U6 FL22: pilihan Jumlah (jumlah broker net beli) selain persen (gerbang G4).
   - Porsi Top-3 dari HHI (M-HHI3-*) tidak dibuat (disarankan AI, tidak diminta user).
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** konfirmasi bacaan U4 (persentil terhadap riwayat sendiri) dan
-FL08 ikut K1; papan bawaan U4 dan U5 (Regular seperti library atau semua papan seperti Flow lain).
+- U4: "U4 benar percentiel terhadap ukuranna sendiri - masukan exec" (persentil terhadap riwayat saham itu sendiri).
+- Papan bawaan U4/U5 dan penerjemahan ke Screener ditunda: "kita beresin dulu terminal. once indikator terminal beserta
+  parameter2nya done, baru kita translate it to screener agar tidak double work."
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** arti pilihan `rank` bersama aturan Sisi K1 (pertanyaan user
+tentang FL08); awal garis indikator persentil yang kosong pada riwayat pendek (AMMN, FL08 dan FL37 mulai sekitar
+Jul-Agu 2024).
