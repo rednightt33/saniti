@@ -10056,6 +10056,50 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
 
 **Fitur tidak berubah:** Feature 01-06, antrean Feature 04, fitur intraday dan jadwalnya tetap.
 
+**Revisi R1 — publikasi dulu, fitur kemudian (diterima 2026-11-05, BELUM dieksekusi):**
+- **Kata user:**
+  - "Concern saya adalah dari sisi RAM";
+  - "data publisher harus diterbitkan paling cepat setelah data yang diambil oleh cron masuk. Fitur2 lain bisa
+    belakangan";
+  - konfirmasi "ketika loader selesai ngeload data, maka akan langsung trigger publisher [...] Setelah proses ini
+    selesai, maka fitur-fitur yang melibatkan data harga mulai dihitung. Dan akan available ke AI";
+  - "Ok, masukan exec jangan eksekusi dulu. Usul: kunci yang sama di jalur job manual --> tidak usah dulu".
+- **Root cause (terverifikasi):**
+  - feature-01-worker mengambil antrean `Feature_Calculation_Queue` setiap 5 detik;
+  - feature-04-worker jalan begitu `Monitoring_Feature04.price_notification_sent_at` terisi;
+  - fitur intraday dihitung di proses cron intraday tepat setelah bar ditulis.
+  - Jadi publisher yang dipicu cron akan tumpang tindih dengan fitur. Memori Postgres 2026-11-04: fitur intraday ±3,9 GB
+    (batas 4 GB), fitur harian ±1,1 GB, publisher ±1,4 GB.
+- **Class:** beberapa pekerjaan berat dimulai oleh kejadian yang sama ("data masuk") di satu Postgres tanpa urutan.
+  Berlaku untuk harga harian/recovery, obligasi ID/US, intraday, dan data baru nanti (lintas-aset, makro).
+- **Rancangan:**
+  1. Loader (harga, obligasi, intraday) menulis baris `terminal_publish_signal` di transaksi yang sama dengan datanya.
+     telegram-monitor menekan Run Now dari notifikasi dan mencatat status pemicu, tanpa menulis baris baru untuk loader
+     yang sudah menulisnya.
+  2. Fungsi `public.publication_pending()` menjawab "masih ada sinyal yang belum diterbitkan", dengan batas 45 menit
+     supaya publisher yang rusak tidak menahan fitur selamanya.
+  3. Worker fitur (feature-01-worker, feature-04-worker, langkah fitur di idx-intraday-cron, dan fitur baru nanti)
+     menunggu `publication_pending()` sebelum mengambil pekerjaan baru. Sesudah batas waktu, fitur jalan dan alarm
+     dikirim.
+  4. Publisher melapor "terbit sampai sinyal X" lewat telegram-monitor, yang mengisi `published_at`. Publisher tetap
+     hanya-baca.
+  5. Publisher menunggu loader yang menulis dan fitur yang sudah sedang berjalan (bukan yang baru antre), jadi tidak
+     pernah ada dua pekerjaan berat bersamaan. Cron intraday memegang kunci tulis sampai bar selesai, lalu fiturnya
+     menunggu publikasi.
+  6. Putaran broker tetap: putaran → fitur 02/03/05/06 → publisher, karena file broker dibuat dari Feature 05.
+  7. Data sebagian (PARTIAL): yang lengkap terbit, saham yang gagal tetap memakai file lama, dan cron recovery
+     menyusulkan lalu memicu publikasi lagi. Peringatan baru bila sesudah recovery masih ada saham tertinggal dari hari
+     bursa terakhir.
+- **Tidak dikerjakan (keputusan user):** kunci tulis di jalur job manual (`run_job.sh`).
+- **Risiko dan ongkos:**
+  - fitur 01/04 tersedia untuk AI sekitar 5-10 menit lebih lambat (sepanjang publikasi);
+  - satu migrasi; perubahan di loader, worker fitur, telegram-monitor, publisher; tes; deploy.
+- **Bukti yang direncanakan:**
+  - tes gerbang dan batas waktu;
+  - satu hari bursa: jam cron selesai → publikasi → fitur mulai, dan memori Postgres tanpa tumpang tindih (puncak
+    ≤ 3,9 GB).
+
+
 **Hasil sejauh ini (2026-11-05):**
 - **S0:**
   - Loader harga, obligasi dan broker sudah memberi tahu telegram-monitor sesudah commit.
