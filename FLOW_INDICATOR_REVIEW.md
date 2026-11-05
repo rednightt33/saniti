@@ -529,7 +529,7 @@ Ketiganya tidak punya `scope`, `brokers`, `top`, `rank`, atau `ranking`. Pembent
 2. **Broker terpilih**: apakah penyebut HHI tetap seluruh broker (jadi porsi broker terpilih terhadap pasar), atau hanya broker terpilih.
 3. **Peringkat Top-N** memakai nilai yang sama atau berbeda dengan ukuran HHI-nya (misalnya FL13 menghitung lot bruto, sedangkan peringkat bawaan FL01 net beli Rp).
    Jika berbeda, ada sirkularitas seperti F1 pada FL03.
-4. **FL14** mewarisi parameter FL13 atau punya sendiri.
+4. ~~FL14 mewarisi parameter FL13 atau punya sendiri.~~ **Dijawab user 2026-11-05: "Ok FL14 warisi parameter."** Masih terbuka untuk FL14: kelompok sisi jual, yaitu (A) kelompok pembeli bersih yang sama di dua sisi (BBRI 3 Nov: 0,04997 − 0,00648 = +0,04349) atau (B) Top-N pembeli bersih di sisi beli dan Top-N penjual bersih di sisi jual (0,04997 − 0,04369 = +0,00628); usulan AI: (B), belum dijawab user.
 5. **Ditawarkan, belum dijawab user:** FL38 juga diberi parameter sisi (net beli, net jual, keduanya). Penyebabnya: HHI net beli tinggi tidak
    memberi tahu apakah HHI net jual juga tinggi. Bukti pada BBRI (252 sesi, semua investor): 3 Nov HHI net beli 0,1328 berbanding net jual 0,2217
    (jendela 20 sesi); keduanya di atas median bersamaan di 45 dari 252 sesi, dan di atas P90 bersamaan 0 sesi. Bukan to-do sampai user memutuskan.
