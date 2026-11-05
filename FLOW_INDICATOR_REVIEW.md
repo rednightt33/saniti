@@ -17,7 +17,7 @@ item baru dijalankan atas perintah user.
 
 | # | Indikator | To-do | Kata user | Status |
 |---|---|---|---|---|
-| 1 | FL07 Share · Market Volume | Pensiunkan atau sembunyikan dari menu | "Maaf, maksud saya FL07 yang di sembunyikan. Bukan FL17." (2026-11-04) | To-do, belum dijadwalkan. Kartu di bagian 5b |
+| 1 | FL07 Share · Market Volume | Pensiunkan atau sembunyikan dari menu | "Maaf, maksud saya FL07 yang di sembunyikan. Bukan FL17." (2026-11-04) | To-do; keputusan user 2026-11-05: menu tidak ditampilkan lagi (sembunyikan), kode tidak digeser, komponen yang dipakai fitur lain tetap berfungsi. Kartu di bagian 5b |
 | 2 | FL32 Transactions · Spike | Diedit **di tempat** (kode FL32 dipertahankan) menjadi "Activity Spike": parameter **Ukuran** (Transaksi, Nilai Rp, Lot) dan **Sisi** (Beli, Jual, atau Keduanya sebagai dua garis terpisah) | "P2 Ok tambahkan"; "P1 Pisahkan ... dipisahkan mana yang beli mana yang jual, per parameter"; "1. ya boleh" (pilihan Keduanya); "2. pertahankan di tempat" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih; **skala linear dengan garis netral 1** | "Spike balance OK tambahkan"; "3. skala garis netral 1" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5d |
@@ -319,9 +319,17 @@ uji menu.
 
 ### 5b.6 Pertanyaan terbuka (saat to-do ini diambil)
 
-1. Sembunyikan, pensiunkan penuh, atau gabung ke FL03?
-2. Bila disembunyikan atau dipensiunkan, apakah tampilan "porsi terhadap seluruh volume saham" masih dibutuhkan (pilihan penyebut di FL03)?
-3. Kode FL07 tidak dipakai ulang dan tanpa penomoran ulang (usulan, lihat bagian 6).
+1. ~~Sembunyikan, pensiunkan penuh, atau gabung ke FL03?~~ **Dijawab user 2026-11-05:** "Maksudnya adalah menu tersebut tidak usah visible lagi. Penomoran tidak digeser. Namun fitur-fitur atau AFL lain yang menggunakan komponen dari kode FL07 harus tetap functional as is." Jadi **sembunyikan dari menu** (opsi A di 5b.4); kode FL07 tidak dipakai ulang dan penomoran tidak digeser; FL09 dan pembantu penjelasan yang memakai komponen FL07 tidak boleh berubah perilakunya.
+2. Apakah tampilan "porsi terhadap seluruh volume saham" masih dibutuhkan (pilihan penyebut di FL03)? **Tidak dijawab eksplisit**; karena user memilih sembunyikan saja tanpa menggabung ke FL03, kemampuan itu tidak dipertahankan di menu (bacaan AI).
+3. ~~Kode FL07 tidak dipakai ulang dan tanpa penomoran ulang.~~ **Dijawab user 2026-11-05:** "Penomoran tidak digeser."
+
+### 5b.6b Kriteria penerimaan untuk pelaksanaan (dari jawaban user 2026-11-05)
+
+1. FL07 tidak muncul di menu indikator.
+2. Kode FL07 dan penomoran FL lain tidak berubah.
+3. Fungsi hitung FL07 (`marketShare`, `flow.ts:279`) tetap ada; hasil FL09 (yang memakainya, `flow.ts:386`) dan pembantu penjelasan angka yang berbagi penyebut dengan FL11 (`explainFlowA.ts:320`) tidak berubah.
+4. Indikator FL07 yang sudah dipasang pengguna: perilakunya (tetap tergambar) belum diuji di browser; perlu diperiksa saat pelaksanaan.
+5. Mekanisme sembunyikan yang sama dipakai untuk to-do 9 (FL35).
 
 ### 5b.7 Batas
 
