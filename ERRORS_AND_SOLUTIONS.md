@@ -5314,6 +5314,25 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M352 — FL23 Broker Inventory di IHSG menggambar Lot sesudah aturan "tanpa Lot di indeks" digeneralisasi (2026-11-05, branch)
+
+- **Ditemukan oleh:** agen verifikasi regresi EXEC-TERMINAL-IND-EDIT (sebelum merge ke `main`, tidak pernah rilis).
+- **Verified:** aturan umum baru (`apps/edge-bff/terminal/src/app/flowIndicators.ts`) menyembunyikan select yang tinggal satu
+  pilihan di indeks; parameter `unit` FL23 jadi tidak ada di setting, `computeFlow` mengisi bawaan registry `lot`, dan
+  `withoutLot` hanya mengganti nilai yang tertulis `lot`. Hitungan agen: garis 1.679.543 (lot) lawan 779.192.903.400 (Rp);
+  kartu (yang menggabung bawaan lebih dulu) menampilkan Rupiah, jadi kartu dan chart berbeda. Sebelumnya `main` memaksa
+  `unit='value'` khusus FL23.
+- **Root cause:** aturan "sembunyikan field bila tinggal satu pilihan" membuang nilai parameter, sehingga bawaan registry
+  (yang justru pilihan terlarang) masuk lagi. Akibat ikutan: setting Lot saham yang tersimpan ikut terhapus saat membuka
+  indeks (`dropStale` membandingkan dengan pilihan yang sudah disaring).
+- **Kelas:** pilihan yang dibatasi menurut jenis ticker atau ketersediaan data; parameter yang disembunyikan tetapi tetap
+  dibaca hitungan.
+- **Solution (`59981335`):** select satu pilihan tetap ditampilkan (nilainya selalu ada); `dropStale` memeriksa terhadap
+  semua pilihan definisi (`allOptions`), bukan yang tersaring indeks.
+- **Status:** FIXED di branch; diperiksa ulang oleh agen regresi (putaran 2).
+- **Lesson:** menyaring pilihan menurut data tidak boleh menghapus parameter; aturan yang menurunkan perilaku dari data
+  harus diuji pada indikator yang dulu punya pengecualian khusus (FL23).
+
 ### M351 — Kartu penjelasan FL28 kosong di IHSG padahal chart bernilai (2026-11-05)
 
 - **Ditemukan oleh:** pemeriksaan kode untuk EXEC-TERMINAL-IND-EDIT (2026-11-05); user: "Kerjakan tugas ini di sini:

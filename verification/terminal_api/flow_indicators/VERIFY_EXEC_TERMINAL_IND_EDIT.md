@@ -33,3 +33,15 @@ Rumus: `verification/terminal_api/flow_indicators/FORMULAS.md`. Kode: `apps/edge
 ## C. Belum diuji sama sekali di browser hidup
 
 Perilaku chart user yang tersimpan sebelum rilis (C1), tampilan di ponsel (C2). Diperiksa sesudah deploy, sebelum diklaim selesai.
+
+## Hasil putaran 1 (2026-11-05, lima agen Sonnet 5.5 effort high)
+
+| Agen | Cakupan | Hasil |
+|---|---|---|
+| Angka A | FL01–FL05, FL08, FL11, FL13–FL16, FL21, FL22, FL34, FL37–FL39 | 0 angka salah: hitungan ulang independen 238.560 titik 0 selisih; regresi terhadap `main` 46.080 titik 0 selisih (indikator yang tidak diubah sama; yang diubah sama pada bawaannya) |
+| Angka B | FL27, FL29, FL32, FL33, FL40–FL48 | 0 angka salah; contoh review FL33 Top-3 per hari +17,0% keluar (total ÷ total) |
+| Kartu | teks dan angka kartu "i" | angka kartu = chart ±71.000 perbandingan; beberapa kalimat menyesatkan (diperbaiki) |
+| Tampilan | menu, dialog, chart, IHSG di Chromium dengan data uji | menu, dialog, sumbu kiri poin, pesan K4 dan gerbang FL46 benar; format tidak berganti sesudah pilihan diubah (diperbaiki) |
+| Regresi | setting tersimpan, generator, oracle, Backtest/Screener, diff | spreadsheet → registry 0 selisih; tripwire dan tes Backtest lulus; FL23 di IHSG menggambar Lot (regresi, diperbaiki, ERRORS M352); kasus oracle tanpa bawaan registry (diperbaiki) |
+
+Perbaikan: commit `59981335`. Putaran 2: agen tampilan dan agen regresi memeriksa ulang temuan mereka sendiri.
