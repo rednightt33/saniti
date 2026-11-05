@@ -34,7 +34,7 @@ item baru dijalankan atas perintah user.
 | 15 | Indikator baru: Buy VWAP · Anchored · Distance % (sejajar FL20); versi rolling sudah ada sebagai FL39 | Jarak harga penutupan terhadap harga rata-rata pembelian beranchor (FL18) dalam persen; jarak terhadap harga rata-rata pembelian bergulir (FL17) sudah ada di FL39 | "Tolong tambahkan saja by vweb anchor dan by vweb rolling tapi versi percentage distance. seperti FL20. Konfirmasi kalau kamu paham." (2026-11-05; "vweb" dibaca VWAP) | To-do; bacaan AI dikonfirmasi user: hanya versi anchor yang baru, jarak rolling cukup FL39 (2026-11-05). Bagian 5n |
 | 16 | FL17 dan FL39 | FL17 tetap menghitung harga, FL39 menghitung jarak (%) terhadap FL17, dan jarak itu dihitung dengan **parameter FL17** (bawaan FL39 disamakan: 20 sesi, semua papan, Foreign dan Domestic) | "17 dan 39. Jadikan FL17 menghitung secara price, tapi FL39 menghitung secara distance. Nah, distance ini harus dihitung menggunakan parameter yang ada di FL17." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5o |
 | 17 | FL34 Institutional vs Retail Net | Ditambah ukuran **perubahan** (daily to daily, dan rentang lain): bacaan AI, perubahan nilai FL34 dibanding sesi sebelumnya dan beberapa jarak waktu lain; maksud pastinya menunggu user | "Alright, untuk FL34, to-do list-nya adalah kita perlu tambahkan change. Jadi change daily to daily, dan lain sebagainya. Paham?" (2026-11-05) | To-do; bentuk dijawab user: panel gabungan (2026-11-05); sisanya menunggu user. Bagian 5p |
-| 18 | FL27 Silent Accumulation | FL27 tetap as is; ditambah **pemicu berbasis broker** yang menyala bila ada akumulasi, dengan ukuran rasio top-X pembeli (net atau gross) terhadap top-N penjual (net jual atau gross jual); **definisi pastinya menunggu konfirmasi user** | "Tambahkan ke FL27 metrik tetap as is, tapi tambahkan metric, it triggers kalau ada akumulasi. Akumulasi: Which is rasio top X broker net ataupun gross di atas 1/X rasio top N sell atau gross sell. Konfirmasi." (2026-11-05) | To-do; definisi menunggu user. Bagian 5q |
+| 18 | FL27 Silent Accumulation | FL27 tetap as is; ditambah **dua pemicu berbasis broker (net dan gross)** yang menyala sebagai penanda bila rasio nilai 3 pembeli teratas terhadap nilai 3 penjual teratas mencapai 1,5 kali; **opsional, bisa di-toggle on dan off** | "Tambahkan ke FL27 metrik tetap as is, tapi tambahkan metric, it triggers kalau ada akumulasi. Akumulasi: Which is rasio top X broker net ataupun gross di atas 1/X rasio top N sell atau gross sell. Konfirmasi." (2026-11-05) | To-do; definisi dijawab user (butir 1 sampai 5 dan 10); beberapa butir kecil menunggu user. Bagian 5q |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -994,26 +994,37 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 
 FL27 memakai harga dan volume harian saja (tanpa data broker): penanda 1 bila rata-rata volume `recent` (5) sesi dibagi rata-rata volume `baseline` (20) sesi sebelumnya ≥ `volx` (1,5) **dan** |perubahan penutupan 5 sesi| ≤ `move` (3%). Pada BBRI (252 sesi) penanda 1 muncul pada 10 sesi.
 
-### 5q.2 Yang pasti dari kata-kata user
+### 5q.2 Jawaban user 2026-11-05 atas lima pertanyaan (kata-katanya)
 
-1. Pemicu FL27 yang sudah ada **tidak diubah**.
-2. Ditambahkan satu metrik lagi yang menyala (memicu) bila ada akumulasi, berbasis **broker**: membandingkan rasio sisi beli (top X broker, net beli atau gross beli) dengan rasio sisi jual (top N broker, net jual atau gross jual).
+Jawaban atas daftar pertanyaan AI (nomor sesuai daftar itu; butir 6 sampai 9 dibiarkan kosong oleh user):
+1. "Nilai X pembeli / penjual teratas": rasio = jumlah **nilai** pembeli teratas dibagi jumlah **nilai** penjual teratas.
+2. "Default 1.5 X": pemicu menyala bila rasio mencapai 1,5 kali (bawaan).
+3. "X1.5 - N 3": pengali X = 1,5 dan N = 3 broker (bacaan AI: N = 3 di sisi beli dan sisi jual).
+4. "Dua pemicu terpisah": satu untuk **net** dan satu untuk **gross**.
+5. "Sebagai penanda": keluaran berupa penanda (seperti FL27), terpisah dari pemicu lama.
+10. "Yang mesti dicatat adalah indikator + akumulasi ini optional, which is bisa di toggle on dan off."
 
-### 5q.3 Bagian yang ambigu (pertanyaan terbuka)
+### 5q.3 Definisi yang dicatat (bacaan AI atas jawaban itu; butir kecil yang belum dijawab ditandai)
 
-1. **"Rasio top X broker":** porsi X pembeli teratas terhadap total sisi itu (seperti porsi Top-N pada indikator konsentrasi), atau jumlah nilai X pembeli teratas dibagi jumlah nilai N penjual teratas.
-2. **"Di atas 1/X rasio top N sell":** apakah pengali `1/X` (bila X = 3, sepertiga dari rasio sisi jual), atau pengali `1,X` (misalnya 1,2 atau 1,5 kali), atau ambang tersendiri.
-3. **X dan N** sama atau berbeda (dan bawaan, misalnya 3).
-4. **Net dan gross:** dua pilihan dalam satu parameter, atau dua pemicu terpisah.
-5. **Cakupan waktu:** per hari atau jendela bergulir; dan apakah digabung dengan syarat volume dan harga FL27 (dan) atau berupa penanda tersendiri.
+- **FL27 tetap seperti sekarang** (volume naik dan harga diam, tanpa data broker).
+- **Pemicu net:** `Σ net beli N pembeli bersih teratas ÷ Σ |net jual| N penjual bersih teratas ≥ X` (N = 3, X = 1,5). Net adalah gross beli dikurangi gross jual tiap broker.
+- **Pemicu gross:** `Σ gross beli N pembeli gross teratas ÷ Σ gross jual N penjual gross teratas ≥ X` (N = 3, X = 1,5).
+- Keluaran: dua penanda terpisah di bawah candle, **opsional dan bisa dinyalakan atau dimatikan (toggle)**; penanda FL27 lama tetap.
+- Untuk semua investor, total net beli sama dengan total net jual (dan gross beli sama dengan gross jual), sehingga rasio nilai sama dengan rasio porsi terhadap total sisinya (angka BBRI di bawah memakai kenyataan ini).
 
-### 5q.4 Bukti pada data untuk kalibrasi (BBRI, semua investor, semua papan, X = N = 3, per hari, 252 sesi, dihitung 2026-11-05)
+**Belum dijawab user (pertanyaan terbuka):**
+1. Cakupan waktu: per hari (yang dihitung di 5q.4) atau jendela bergulir.
+2. Keadaan awal toggle: nyala atau mati secara bawaan.
+3. "Mencapai" atau "di atas" 1,5 (bacaan AI: ≥, seperti ambang `volx` FL27).
+4. Bacaan "X1.5 - N 3": X sebagai pengali dan N sebagai jumlah broker; bila sebaliknya, koreksi.
+5. Apakah pemicu net dan gross masing-masing punya N dan X sendiri atau berbagi.
 
-Porsi tiga teratas terhadap total sisinya:
-- 3 Nov 2026: net: pembeli 60,5%, penjual 66,5% (rasio 0,91); gross: pembeli 40,7%, penjual 34,0% (rasio 1,20).
-- Rasio net (pembeli/penjual): median 0,78; P10 0,47; P90 1,78; > 1,0 pada 99 sesi, > 1,2 pada 83, > 1,5 pada 48.
-- Rasio gross: median 0,88; P10 0,62; P90 1,43; > 1,0 pada 103 sesi, > 1,2 pada 61, > 1,5 pada 18.
-- Bila pengalinya benar-benar `1/3`, pemicu menyala pada 251 (net) dan 252 (gross) dari 252 sesi, jadi hampir selalu menyala; pengali `1/X` secara harfiah tampaknya bukan yang dimaksud.
+### 5q.4 Bukti pada data (BBRI, semua investor, semua papan, N = 3, X = 1,5, per hari, 252 sesi, dihitung 2026-11-05)
+
+- 3 Nov 2026: net Rp217,0 miliar ÷ Rp238,4 miliar = **0,91**; gross Rp355,2 miliar ÷ Rp296,9 miliar = **1,20**. Keduanya di bawah 1,5, jadi tidak ada pemicu.
+- Pemicu net (rasio ≥ 1,5): 48 sesi; pemicu gross: 18 sesi; keduanya bersamaan 16 sesi; salah satu 50 dari 252 sesi.
+- Pemicu net terbaru: 22, 23, 26 Okt dan 2 Nov 2026. Pemicu gross terbaru: 15, 22, 23, 26 Okt 2026.
+- Penanda FL27 lama menyala pada 10 sesi; bersamaan dengan pemicu net hanya 1 sesi dan dengan pemicu gross 0 sesi.
 
 ### 5q.5 Batas
 
