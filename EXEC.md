@@ -11673,8 +11673,10 @@ Dimulai 2026-11-05 sesudah semua pertanyaan dijawab (user: "Jangan go sampai per
 | Label Rank (kelompok A Net/Gross, kelompok B), simpanan basi ke bawaan | selesai | `fa3f3399` |
 | `--check` registry Flow di pytest, tip FL baru wajib (F10) | selesai | `a8d64d5c` |
 | P4 judul tab per halaman | selesai | `3e491a70` |
-| Skala dan format per garis (F2) | sedang | |
-| FL11, FL13/14/38, FL15/16, FL17/39, FL21, FL22, FL27, FL29, FL32, FL33, FL34, FL37 | belum | |
+| Skala dan format per garis (F2), garis perubahan FL11 dan FL34, FL11 satu penyebut | selesai | `6e17fabb` |
+| FL13/14/38 kelompok broker, Satuan Lot/Rupiah (FL13/15/16/38), bagian merata FL15/16, tanpa Lot di indeks | selesai | `37ed687e` |
+| FL21 ukuran, FL22 jumlah, FL37 z-score, FL39 bawaan FL17 | selesai | `40c7e949` |
+| FL27 pemicu broker, FL29 garis besaran, FL32 Activity Spike, FL33 Top-N harian + Sisi, K4 per pilihan | selesai | `297eacda` |
 | Indikator baru FL40+ | belum | |
 | Verifikasi angka dari database | butuh sesi baru: kredensial pgweb environment yang diperbarui user baru terbaca sesi baru (sesi ini 401) | |
 
