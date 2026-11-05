@@ -10236,6 +10236,19 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - L3: antrean Fitur 1 digabung per kode (satu hitung ulang dari tanggal terawal), bukan per baris;
   - L4 (M349): rantai inkremental Fitur 4 disamakan dengan hitungan referensi pada deret datar.
   Setiap perubahan berdasar inspeksi kode dan data saat ini, dengan rujukan file:baris.
+- **Hasil L1–L3 (2026-11-05):**
+  - L1: kode `stockbit-updater` (`974593fe`, 19 tes lulus) belum terpasang: layanan ini dipasang lewat unggahan CLI dan
+    unggahan menjalankan satu putaran broker, yang butuh token Stockbit yang valid di Railway. Terpasang bersama
+    putaran berikutnya, sekaligus `refresh.py` S2 dan `backfill_index_features.py`.
+  - L2: `47eae988` (AGENTS.md, ERRORS M350).
+  - L3: satu klaim = semua item antrean satu kode. Satu item: baris itu + 120 sesudahnya (seperti sebelumnya); beberapa
+    item: seluruh riwayat kode itu sekali (`refresh_feature_01_stock_daily(NULL, ARRAY[ticker])`). Rencana awal
+    "hitung ulang dari tanggal terawal" tidak cukup: fungsi SQL dengan tanggal hanya menulis baris itu + 120 sesudahnya
+    (`20260912_001` baris 258-263, 326-332), jadi item yang lebih jauh dari 120 sesi akan terlewat; karena fungsi selalu
+    membaca seluruh riwayat, hitung seluruh kode sekali sama biayanya dan hasilnya sama dengan per item. Fungsi SQL
+    tidak diubah (dikloning untuk IHSG, `20261025_011`). Tes database uji dari migrasi asli
+    (`apps/feature-01-worker/test_worker_db.py`, 3 lulus). Migrasi katalog `20261105_005` (DRYRUN/APPLY, dibaca balik).
+    Commit `83a35f5d`, feature-01-worker `14c9b639` SUCCESS 15:46 UTC. Sebelum pasang: antrean 102.247 DONE, 0 terbuka.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;

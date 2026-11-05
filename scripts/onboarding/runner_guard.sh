@@ -9,8 +9,14 @@
 #   - or, for a job started before the wrapper, JOB_DONE, a Traceback or an orc-test-runner suite's OTR "done";
 #   - or its deployment ended (FAILED, CRASHED, REMOVED, SKIPPED).
 
-# the log lines from the latest "Starting Container" on (the whole log when there is none)
-last_start() { awk '/Starting Container/{n=0; delete l} {l[++n]=$0} END{for(i=1;i<=n;i++) print l[i]}'; }
+# the log lines from the latest "Starting Container" on (the whole log when there is none). A "Starting Container" that
+# is the log's last line right after a JOB_EXIT line is the start of that same job logged late, not a new start: Railway
+# stamps it after the output of a job that ends within its first second (ERRORS M341: 4bee3798, JOB_EXIT 0 at
+# 15:44:59.582294, "Starting Container" at 15:44:59.591851, nothing after it).
+last_start() { awk '{all[++m]=$0}
+  END{if (m > 1 && all[m] ~ /Starting Container/ && all[m-1] ~ /JOB_EXIT [0-9]*$/) m--
+      for(i=1;i<=m;i++){ if (all[i] ~ /Starting Container/) n=0; l[++n]=all[i] }
+      for(i=1;i<=n;i++) print l[i]}'; }
 # stdin is a job's log: has its latest start finished?
 finished() { last_start | grep -q 'JOB_EXIT [0-9]*$\|JOB_DONE\|Traceback\|OTR {"event": "done"'; }
 # a job log file has an end line (the poll's stop condition: success or failure)

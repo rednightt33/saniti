@@ -5338,6 +5338,13 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   restart lagi.
 - **Status:** FIXED: restart otomatis 13:47 UTC (memori 0,10 GB sesudahnya); restart lagi oleh job IHSG 14:44 UTC.
 - **Lesson:** jalankan pekerjaan besar berurutan; job dokumen skema termasuk "large update" (membaca semua tabel).
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER L2, L3):** L2: job dokumen skema masuk daftar "large update" AGENTS.md
+  (`47eae988`). L3: worker Fitur 1 mengklaim semua item antrean satu kode sekaligus; beberapa item dihitung ulang satu
+  kali untuk seluruh riwayat kode itu (`refresh_feature_01_stock_daily(NULL, ARRAY[ticker])`), satu item tetap baris
+  itu + 120 sesudahnya. Hasil sama dengan hitung ulang per item (`apps/feature-01-worker/test_worker_db.py`, database
+  uji dari migrasi asli). Commit `83a35f5d`, deployment `14c9b639` SUCCESS 15:46 UTC; migrasi katalog `20261105_005`.
+  Kode baru dengan 900 baris kini satu kali muat riwayat, bukan sekitar 900 kali. Bukti live menunggu antrean
+  berikutnya (cron harga 2026-11-06).
 
 ### M349 — Feature 04: rantai inkremental dan hitungan referensi berbeda di masa datar tanpa transaksi (2026-11-05)
 
@@ -5524,6 +5531,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     `20261103_001` menunggu keputusan user.
 - **Status:** (1) FIXED dengan cara kerja. (2) Runner dikosongkan 2026-11-03 12:26 UTC atas izin user ("ok jalankan
   perbaikan"; `railway down`, `324542c0` REMOVED). Penyebab container mulai ulang tetap OPEN.
+- **Update 2026-11-05 (root cause (2) verified, FIXED):** bukan restart. Deployment `4bee3798` (migrasi
+  `20261105_005`, selesai dalam kurang dari 1 detik): log JSON Railway mencatat `JOB_EXIT 0` 15:44:59.582294 UTC dan
+  "Starting Container" 15:44:59.591851 UTC, tanpa baris apa pun sesudahnya. Baris start milik job yang sama dicatat
+  sesudah outputnya bila job sangat cepat. Kelas: setiap job runner yang selesai dalam detik pertama tampak sibuk
+  selamanya. Perbaikan di `scripts/onboarding/runner_guard.sh` (`last_start`): "Starting Container" yang menjadi baris
+  terakhir tepat sesudah baris `JOB_EXIT` tidak dihitung sebagai start baru; start sungguhan yang mencetak output tetap
+  dihitung. Tes: `scripts/tests/test_run_job_guard.py` (3 kasus baru, 25 lulus). Runner terbaca bebas lagi tanpa
+  `railway down`.
 - **Lesson:** perintah yang menulis ulang file konfigurasi dari state live tidak boleh di-commit tanpa melihat diff;
   komentar keputusan user adalah bagian dari konfigurasi.
 

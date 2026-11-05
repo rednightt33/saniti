@@ -1,5 +1,24 @@
 # Database changelog
 
+## 2026-11-05 — Feature 01 queue claimed per ticker (EXEC-UNIVERSE-BROKER L3)
+
+- **User:** "Untuk point nomor 4 OK --> masukan exec. Inspect database. Ensure keputusan diambil dari code inspection
+  rather than from memory. Jalankan. Go" (2026-11-05).
+- **Why:** each queue item refreshed its row plus the 120 following and the function reads the whole history
+  (`20260912_001` lines 258-263, 326-332), so a new ticker's 900 rows meant about 900 full-history loads (ERRORS M350).
+- **Code:** `apps/feature-01-worker/worker.py` (commit `83a35f5d`, deployment `14c9b639` SUCCESS 15:46 UTC): one claim
+  takes every due item of one ticker; one item keeps `refresh_feature_01_stock_daily(price_date, ARRAY[ticker])` and the
+  121-row check; several items call `(NULL, ARRAY[ticker])` once and check every row of the ticker; one SUCCESS log per
+  item. The SQL routines are unchanged (the INDEX bootstrap clones the refresh function, `20261025_011`).
+- **Test:** `apps/feature-01-worker/test_worker_db.py` on a scratch database built from the real migrations: 1,200
+  items of 3 tickers in 3 claims, Feature 01 equal to a from-scratch refresh; a two-date correction; the single-item
+  path (121 rows); a re-ingestion during a claim (that item stays PENDING, the others DONE); a failure (all items FAILED,
+  nothing written, then retried).
+- **Migration:** `20261105_005_feature01_queue_per_ticker.sql` (catalog text only: Table_Catalog update_rule of
+  `Feature_Calculation_Queue` and `Feature_Calculation_Log`), DRYRUN and APPLY 2026-11-05 15:44-15:45 UTC, sha256
+  `9818805e…`, read back. Live before the change: queue 102,247 DONE (905 tickers), 0 open; Feature_Status 904 SUCCESS.
+  Logs: `verification/feature01_l3/`.
+
 ## 2026-11-05 — IDX_Broker_Summary: codes not four letters, 2026-09-01 … 11-03; IHSG INDEX rebuilt (EXEC-UNIVERSE-BROKER S3)
 
 - User: "Ok jalankan, kabari kalau sudah beres" (2026-11-05), after the check report.
