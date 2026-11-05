@@ -1358,3 +1358,4 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   Juga to-do (2026-11-05): indikator jarak harga terhadap Buy VWAP beranchor dalam persen (sejajar FL20); jarak rolling sudah ada sebagai FL39 (bacaan menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5n.
   Juga to-do (2026-11-05): FL39 dihitung dengan parameter FL17 (FL17 harga, FL39 jarak); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5o.
   Juga to-do (2026-11-05): FL34 diberi ukuran perubahan (daily to daily dan lainnya; bacaan menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5p.
+  Juga to-do (2026-11-05): FL27 tetap, ditambah pemicu akumulasi berbasis broker (definisi menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5q.
