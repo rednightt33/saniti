@@ -11528,6 +11528,10 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
 - Papan bawaan U4/U5 dan penerjemahan ke Screener ditunda: "kita beresin dulu terminal. once indikator terminal beserta
   parameter2nya done, baru kita translate it to screener agar tidak double work."
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):** arti pilihan `rank` bersama aturan Sisi K1 (pertanyaan user
-tentang FL08); awal garis indikator persentil yang kosong pada riwayat pendek (AMMN, FL08 dan FL37 mulai sekitar
-Jul-Agu 2024).
+- `rank` dan Sisi: "Pakai R1 saja untuk FL08" = pilihan Rank menjadi jenis ukuran (Net atau Gross) dan Sisi menjadi
+  arah: Sisi Beli = Top-N pembeli menurut total net/gross beli sepanjang jendela, Sisi Jual = Top-N penjual menurut total
+  net/gross jual. Pilihan "Net jual" hilang; setting tersimpan yang memakainya kembali ke bawaan.
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** apakah R1 berlaku untuk semua indikator dengan parameter Sisi
+(FL01–FL05, FL08, FL13, FL33, sesuai K1) atau hanya FL08; awal garis indikator persentil pada riwayat pendek (pilihan
+A ketat, B riwayat minimum, C baseline lebih pendek).
