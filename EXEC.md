@@ -10060,8 +10060,24 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - **Pertanyaan terbuka:**
     - Q-S1a: ETF tampil di Screener? Screener sekarang hanya saham (P15). Opsi: (a) ya, sebagai jenis "ETF" yang bisa
       dipilih di filter universe; (b) tidak dulu.
-    - Q-S1b: ETF yang sepi transaksi bisa tidak punya bar harian, sehingga cron harga melapor PARTIAL dan alarm palsu.
-      Penanganannya diputuskan sesudah S1.0 mengukur seberapa sering hal itu terjadi.
+    - Q-S1a: **ya** (user 2026-11-05: "S1A - ya"): ETF tampil di Screener sebagai jenis "ETF" di filter universe.
+    - Q-S1b (user 2026-11-05: "S1B - coba cek aja dulu, beneran gak hiopotesan kamu"): dicek, hipotesis benar dan lebih
+      luas. Bukti hanya-baca (`verification/universe_63/tv_history_probe.py`, `probe.json`; pgweb 2026-11-05):
+      - 18 saham "aktif": hanya 5 (AKKU, CRAB, GTBO, TRUE, UNSP) bertransaksi di pasar Regular sejak 2026-09-01; 13
+        lainnya (ALTO, BEBS, BHAT, EDGE, GAMA, HILL, IBST, INDX, PLIN, PMMP, RAFI, SUPR, TAYS) hanya di Nego dan tidak
+        punya bar TradingView dalam 60 sesi terakhir (bar terakhir 2023-06-27 … 2026-06-29). "Aktif" dari broker summary
+        ikut menghitung saham yang praktis disuspensi.
+      - 45 ETF: 9 tanpa sesi bolong dalam 60 sesi terakhir, 7 bolong 1–10 sesi, 29 bolong lebih dari 10 sesi; 40 dari 45
+        punya sesi bolong sepanjang umurnya.
+      - Universe yang sekarang sudah kena hal yang sama: run DAILY harga 2026-10-27 … 11-04 selalu PARTIAL (13–24 dari 844
+        saham "No 1D candle"; 2026-11-03 karena TimeoutError). Pada 2026-10-29, 17 dari 17 saham tanpa bar tidak punya
+        transaksi Regular di broker summary (`price_update.py:492-503`, `:786-798`).
+      - `backfill_idx_price_ticker.py:88-93` menolak riwayat yang tanggalnya tidak sama dengan BBCA, jadi sebagian besar
+        dari 63 kode akan ditolak.
+      - Usulan (belum diputuskan): (1) kriteria masuk universe = ada transaksi Regular, bukan sekadar ada di broker
+        summary; (2) cron harga membedakan "tidak ada transaksi" (TradingView menjawab tanpa bar, dicek silang dengan
+        broker summary Regular) dari "gagal ambil" (timeout/error), dan hanya yang kedua yang PARTIAL; (3) backfill
+        menerima tanggal tanpa transaksi yang dibuktikan sama. Menunggu keputusan user; tidak ada tulisan.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
