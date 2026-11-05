@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-11-05 — EXEC-PUBLISH-FLOW: trigger token set on telegram-monitor
+
+- `PUBLISH_RAILWAY_TOKEN` (project token created by the user; value not stored anywhere in Git) set on telegram-monitor
+  (dev) with `--skip-deploys`, then `railway redeploy`: deployment `d2c3ee6e` SUCCESS 11:19 UTC.
+- Verified before setting: the token answers `projectToken` for project `8aef1702…` and environment `4d3e5af2…`.
+  `PUBLISH_TRIGGER_ENABLED` is unset (on by default, `telegram_monitor.py:1181`).
+- From now a loader's completion notice inserts a `terminal_publish_signal` row and presses Run Now on
+  terminal-publisher. The fixed `cronSchedule` `0,30 0,1,12 * * *` stays until the trigger is proven live (S4).
+
 ## 2026-11-05 — price no-trade (P2) live; broker Features universe-only (S2) code pushed (EXEC-UNIVERSE-BROKER)
 
 - `main` `d89212e5`, from GitHub, all SUCCESS 09:28 UTC: idx-price-cron `3ff813ed`, idx-price-recovery-cron `862b9a82`,

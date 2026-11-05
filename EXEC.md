@@ -10379,6 +10379,10 @@ non-universe ke F05/F02/F03/F06, bertentangan dengan keputusan 3A.
 
 **Fitur tidak berubah:** Feature 01-06, antrean Feature 04, fitur intraday dan jadwalnya tetap.
 
+**Token trigger (user 2026-11-05: "PUBLISH_RAILWAY_TOKEN terlampir"):** dipasang di telegram-monitor (dev), deployment
+`d2c3ee6e` SUCCESS 11:19 UTC; token diverifikasi untuk proyek dan environment ini. Berikutnya: bukti live pada
+penyelesaian loader berikutnya, lalu S4 (jadwal tetap dihapus).
+
 **Revisi R2 — broker yang diisi ulang atau dikoreksi ikut terbit lewat pemicu (diterima 2026-11-05, BELUM dieksekusi):**
 - **Kata user, 2026-11-05:** "Ok R2 masukan exec, jangan eksekusi dulu".
 - **Root cause (kode):** mode `daily` publisher hanya menerbitkan broker untuk tanggal yang lebih baru dari
