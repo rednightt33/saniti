@@ -10176,6 +10176,20 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   daftar tetap), baris universe membawa jenisnya, pilihan "ETF" di panel universe.
 - **S1 urutan tulis (2026-11-05):** migrasi universe sesudah run intraday 10:30 UTC (keduanya membaca universe), lalu
   riwayat harga dan intraday 63 kode sebelum run harian besok, supaya kode baru tidak mendapat potongan riwayat dulu.
+- **S1 hasil (2026-11-05, user "Okay. Jalankan."):**
+  - S1.1 migrasi `20261105_004` APPLY 10:05 UTC: universe 908 (862 stock, 45 fund/etf, 1 index), riwayat universe
+    tercatat oleh triggernya, `Universe_Equity_Description` 907.
+  - S1.2 preflight 63 kode (2018-01-02 … 2026-11-05): 15 lolos; 28 hanya terhalang 2026-11-04/05 (broker summary belum
+    memuat tanggal itu, jadi "tanpa transaksi" belum bisa dibuktikan); 20 kode punya 32 sesi dengan transaksi Regular di
+    broker summary tetapi tanpa bar TradingView (bolong sumber; menunggu keputusan user).
+  - 43 kode ditulis sampai 2026-11-03 (preflight ulang 43/43, APPLY 33.742 baris, sidik jari dari preflight).
+  - 2026-11-04 dan 11-05 untuk semua kode lewat recovery cron sendiri (`--reverify-all`): SUCCESS, 856/908 dan 860/908
+    terisi, sisanya tanpa transaksi (P2).
+  - Fitur 1: antrean worker-nya berjalan (31.680 baris). Fitur 4: kode baru `REPAIR_REQUIRED` ("No compatible
+    checkpoint"), seperti M336: hitung penuh dengan job worker (`verification/price_gap_0917/jobs/f04_job.py`) sesudah
+    Fitur 1 selesai, worker dihentikan selama job.
+  - Intraday: run harian menarik seluruh riwayat untuk seri yang belum ada (`intraday_update.py:75-79`), jadi 63 kode
+    ikut run 10:30 UTC.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
