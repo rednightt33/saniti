@@ -1,0 +1,50 @@
+Starting Container
+DATE {"mode": "APPLY", "date": "2026-09-14", "staged": 1876, "inserted": 1876, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-01", "staged": 1902, "inserted": 1902, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-02", "staged": 1716, "inserted": 1716, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-03", "staged": 1890, "inserted": 1890, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-04", "staged": 1712, "inserted": 1712, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-07", "staged": 1802, "inserted": 1802, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-08", "staged": 2073, "inserted": 2073, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-09", "staged": 1926, "inserted": 1926, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-10", "staged": 1934, "inserted": 1934, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-11", "staged": 1832, "inserted": 1832, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-25", "staged": 1838, "inserted": 1838, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-15", "staged": 1617, "inserted": 1617, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-16", "staged": 1699, "inserted": 1699, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-17", "staged": 1639, "inserted": 1639, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-18", "staged": 1611, "inserted": 1611, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-21", "staged": 1577, "inserted": 1577, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-22", "staged": 1772, "inserted": 1772, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-23", "staged": 1801, "inserted": 1801, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-24", "staged": 1750, "inserted": 1750, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-28", "staged": 1655, "inserted": 1655, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-29", "staged": 1681, "inserted": 1681, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-09-30", "staged": 1423, "inserted": 1423, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-01", "staged": 1474, "inserted": 1474, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-02", "staged": 1383, "inserted": 1383, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-05", "staged": 1468, "inserted": 1468, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-06", "staged": 1442, "inserted": 1442, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-07", "staged": 1219, "inserted": 1219, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-08", "staged": 1394, "inserted": 1394, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-09", "staged": 1305, "inserted": 1305, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-12", "staged": 1592, "inserted": 1592, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-13", "staged": 1387, "inserted": 1387, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-14", "staged": 1526, "inserted": 1526, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-15", "staged": 1446, "inserted": 1446, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-16", "staged": 1636, "inserted": 1636, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-19", "staged": 1836, "inserted": 1836, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-20", "staged": 1957, "inserted": 1957, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-21", "staged": 1690, "inserted": 1690, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-22", "staged": 1653, "inserted": 1653, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-23", "staged": 1529, "inserted": 1529, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-26", "staged": 1440, "inserted": 1440, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-27", "staged": 1486, "inserted": 1486, "same": 0, "different": 0, "different_examples": []}
+JOB_EXIT 0
+DATE {"mode": "APPLY", "date": "2026-10-28", "staged": 1304, "inserted": 1304, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-29", "staged": 1233, "inserted": 1233, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-10-30", "staged": 1244, "inserted": 1244, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-11-02", "staged": 1286, "inserted": 1286, "same": 0, "different": 0, "different_examples": []}
+DATE {"mode": "APPLY", "date": "2026-11-03", "staged": 1282, "inserted": 1282, "same": 0, "different": 0, "different_examples": []}
+SUMMARY {"mode": "APPLY", "dates": 46, "staged": 73938, "inserted": 73938, "same": 0, "different": 0}
+JOB_DONE APPLY

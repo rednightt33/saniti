@@ -1778,7 +1778,11 @@ change yet.
   dibangun dari sumber yang sama.
 - **Solution:** belum ada; perlu keputusan user (muat ulang simbol non-saham untuk 09-01…, atau catat batas cakupan
   di katalog dan Feature_Vocabulary INDEX).
-- **Status:** OPEN.
+- **Update 2026-11-05 (EXEC-UNIVERSE-BROKER S3):** penyebab terverifikasi: loader Railway memilih simbol 4 huruf saja
+  (`apps/stockbit-updater/broker_import.py:98-109`, keputusan K1). 646 kode bukan 4 huruf untuk 2026-09-01 … 11-03
+  dimuat (73.938 baris, DATABASE_CHANGELOG), agregat IHSG dihitung ulang (46/46 tanggal sama dengan sumber); kualitas
+  tanggal COMPLETE. Sesudah 2026-11-03 kode bukan 4 huruf bolong lagi sampai loader diperluas (opsi b).
+- **Status:** PARTIAL (2026-09-01 … 11-03 FIXED; loader harian untuk kode bukan 4 huruf belum).
 - **Lesson:** loader harus mencatat cakupan simbol per tanggal di log muatnya (M217 L3), supaya perubahan cakupan
   terlihat sebelum Feature dihitung.
 
@@ -5332,7 +5336,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** restart terencana sesudah pekerjaan besar selesai (`scripts/restart_postgres.py`); restart otomatis
   20:45 WIB menunggu statement yang berjalan sampai 60 menit. Sesudah unggahan broker summary S3 dan hitung ulang IHSG,
   restart lagi.
-- **Status:** OPEN (menunggu restart).
+- **Status:** FIXED: restart otomatis 13:47 UTC (memori 0,10 GB sesudahnya); restart lagi oleh job IHSG 14:44 UTC.
 - **Lesson:** jalankan pekerjaan besar berurutan; job dokumen skema termasuk "large update" (membaca semua tabel).
 
 ### M349 — Feature 04: rantai inkremental dan hitungan referensi berbeda di masa datar tanpa transaksi (2026-11-05)

@@ -1,5 +1,21 @@
 # Database changelog
 
+## 2026-11-05 — IDX_Broker_Summary: codes not four letters, 2026-09-01 … 11-03; IHSG INDEX rebuilt (EXEC-UNIVERSE-BROKER S3)
+
+- User: "Ok jalankan, kabari kalau sudah beres" (2026-11-05), after the check report.
+- Source: Stockbit (`scripts/broker_longcodes/longcode_broker.py`, from the cloud session; user choice "A"). Codes found
+  broker-first (112 brokers × 6 filters × 46 dates), rows ticker-first with the loader's own fetch (6 filters per
+  code-day); both sources equal on every key.
+- Check: 46 dates, 646 codes (626 structured warrants, 12 warrants, 7 rights, R-LQ45X), 18,788 code-days, 73,938 rows;
+  0 duplicate keys, 0 empty required columns, 0 differences between the sources, 0 held back.
+- Upload (`scripts/broker_longcodes/upload_job.py`, `verification/universe_broker_s3/upload_*.log`): DRYRUN, then APPLY:
+  73,938 inserted, 0 same, 0 different (no stored row touched); read back 73,938 rows, 646 codes, 46 dates, `buy_freq`
+  on every row. `broker_summary_date_quality` 2026-09-01 … 11-03: COMPLETE on all 46 dates.
+- IHSG INDEX tables rebuilt with stockbit-updater's step (`verification/universe_broker_s3/index_job.py`, S2 universe
+  cross-check): F05/F02 587,012 rows, F03/F06 7,266, F01/F04 2,134; Feature 05 INDEX totals equal the source on 46 of 46
+  dates 2026-09-01 … 11-03 (1,762 s). Postgres restarted by the job afterwards (14:44 UTC).
+- Feature 02/03/05/06 per ticker unchanged: the codes are outside the universe (S2).
+
 ## 2026-11-05 — broker Features universe-only; price no-trade columns (EXEC-UNIVERSE-BROKER S2, P2)
 
 - User go 2026-11-05: "S2 P2 P3 bisa dijalankan." DRYRUN then APPLY via orc-test-runner

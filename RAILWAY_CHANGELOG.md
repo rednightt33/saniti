@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-11-05 — Postgres restarts after the large writes (ERRORS M350)
+
+- 13:47 UTC: scheduled restart (postgres-memory-cron, 20:45 WIB) after the Feature 01 queue emptied; memory 3.99 GB →
+  0.10 GB.
+- 14:44 UTC: restart by `run_job.sh` (`"large_write": true`) after the IHSG INDEX rebuild
+  (`verification/universe_broker_s3/index.log`).
+
 ## 2026-11-05 — terminal-publisher uploaded (all security types); 63 codes published (EXEC-UNIVERSE-BROKER S1)
 
 - terminal-publisher CLI upload `e78dd177` (`git archive` of `fa07b8c3`, `publisher.py` sha256 `42f7ff0b…`) SUCCESS
