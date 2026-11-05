@@ -1108,7 +1108,12 @@ SERIES = {k: v for k, v in ((f'FL{i:02d}', globals().get(f's_fl{i:02d}')) for i 
 
 
 def run_case(T, case, profile, registry):
-    iid, p = case['id'], case['params']
+    # a parameter the case leaves out takes the registry default, as the Terminal's computeFlow does (FORMULAS.md section 2,
+    # Defaults); verification 2026-11-05: cases written before a parameter existed crashed (FL27 n_net) or used another
+    # default than the registry (scope 'topn' against 'all' on FL13/FL14/FL33/FL38, lag 1 against 'window' on FL11)
+    iid = case['id']
+    defaults = {q['key']: q['default'] for q in registry[iid]['params'] if 'default' in q and q['kind'] not in ('button', 'fixed')}
+    p = {**defaults, **case['params']}
     fn = SERIES[iid]
     full = fn(T, p, profile) if iid == 'FL34' else fn(T, p)
     reg_out = registry[iid]['outputs']

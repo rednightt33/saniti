@@ -246,6 +246,9 @@ export function initIndicators(ctx: Ctx) {
     if(inst.watch !== el) { if(inst.ro) inst.ro.disconnect(); inst.ro = new ResizeObserver(() => placeRow(inst)); inst.ro.observe(el); inst.watch = el }
   }
 
+  /* what makes the series: how each output is drawn and, since a choice can change its number format (EXEC-TERMINAL-IND-
+     EDIT: count, z-score, points, ratio), the format's name; a change of either rebuilds the series */
+  const plotKeyOf = outs => outs.map(o => `${o.r}:${o.fk || ''}:${o.scale || ''}`).join();
   /* registry indicators: one chart series per plotted output (state outputs only drive colours) */
   function buildParts(inst, intoPane?: number) {
     const r = inst.def.reg, panel = r.zone === 'panel';
@@ -253,7 +256,7 @@ export function initIndicators(ctx: Ctx) {
     let paneIdx = panel ? (intoPane ?? chart.panes().length) : 0;
     // EXEC-TERMINAL-FLOW-IND: a Flow indicator's outputs depend on its plot choice (histogram or line)
     const outs = inst.outs = inst.def.outsOf ? inst.def.outsOf(inst.params) : r.outs;
-    inst.plotKey = outs.map(o => o.r).join();
+    inst.plotKey = plotKeyOf(outs);
     const opts: any = { priceScaleId:scale, lastValueVisible:panel, priceLineVisible:false, crosshairMarkerVisible:false };
     if(r.zone !== 'overlay') opts.priceFormat = { type:'custom', formatter:inst.def.format, minMove:inst.def.minMove };
     let left = false;
@@ -283,7 +286,7 @@ export function initIndicators(ctx: Ctx) {
     if(panel && left) chart.priceScale('left', paneIdx).applyOptions({ visible:true, scaleMargins:{ top:.2, bottom:.06 } });
     if(panel) { chart.priceScale('right', paneIdx).applyOptions({ scaleMargins:{ top:.2, bottom:.06 } }); layoutPanes() }   // top band is kept free for the legend row
   }
-  const guideLevels = inst => String(inst.style.guides.levels).split(/[,;|\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);
+  const guideLevels = inst => { const lv = String(inst.style.guides.levels).split(/[,;|\s]+/).filter(Boolean).map(Number).filter(Number.isFinite); return inst.def.guidesFor ? inst.def.guidesFor(inst.params, lv) : lv };
   const STATE_COLORS = ['#089981', '#8b5a2b', '#0070f3', '#d6409f'];   // Market Facilitation: green, fade, fake, squat
   function refreshMulti(inst) {
     const r = inst.def.reg, st = inst.style, p = inst.params, N2 = N, off = st.offset | 0, op = (st.opacity ?? 100) / 100;
@@ -395,7 +398,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.def.pane === 'sub') layoutPanes();
   }
   const recompute = inst => {
-    if(inst.def.outsOf && inst.parts && inst.def.outsOf(inst.params).map(o => o.r).join() !== inst.plotKey) rebuildParts(inst);
+    if(inst.def.outsOf && inst.parts && plotKeyOf(inst.def.outsOf(inst.params)) !== inst.plotKey) rebuildParts(inst);
     inst.raw = inst.def.compute(inst.params); refresh(inst);
   };
   // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
@@ -756,7 +759,7 @@ export function initIndicators(ctx: Ctx) {
   const dropStale = o => {
     const d = defOf(o.def); if(!d) return o;
     const params = { ...(o.params || {}) };
-    for (const f of d.inputs || []) if(f.kind === 'select' && Array.isArray(f.options) && params[f.key] !== undefined && !f.options.includes(params[f.key])) delete params[f.key];
+    for (const f of d.inputs || []) { const all = f.allOptions || f.options; if(f.kind === 'select' && Array.isArray(all) && params[f.key] !== undefined && !all.includes(params[f.key])) delete params[f.key] }
     /* an output renamed (FL32 "value" -> "buy"/"sell", Q4 "A"): a saved style of one line no longer drawn goes to the
        indicator's first line when that one has none, so the user's colour and width stay */
     const outs = (d.reg && d.reg.outs || []).map(x => x.k), st = o.style && o.style.out;

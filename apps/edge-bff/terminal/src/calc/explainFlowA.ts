@@ -91,9 +91,9 @@ const ZERO = new Float64Array(K7);
 /* ---- the cohort (FORMULAS.md section 2; calc/flow.ts cohort, topOf) ---- */
 const RANKS: Record<string, { score: (s: Float64Array) => number; text: string; col: string; f: (v: number) => string }> = {
   net_buy:{ score:s => s[BV] - s[SV], text:'net beli (nilai beli − nilai jual)', col:'Net beli', f:v => fmt.idr(v) },
-  gross_buy:{ score:s => s[BV], text:'nilai beli', col:'Nilai beli', f:v => fmt.idr(v) },
+  gross_buy:{ score:s => s[BV], text:'nilai beli bruto (gross, tanpa dikurangi jual)', col:'Nilai beli bruto', f:v => fmt.idr(v) },
   net_sell:{ score:s => s[SV] - s[BV], text:'net jual (nilai jual − nilai beli)', col:'Net jual', f:v => fmt.idr(v) },
-  gross_sell:{ score:s => s[SV], text:'nilai jual', col:'Nilai jual', f:v => fmt.idr(v) },
+  gross_sell:{ score:s => s[SV], text:'nilai jual bruto (gross, tanpa dikurangi beli)', col:'Nilai jual bruto', f:v => fmt.idr(v) },
   gross_buy_lots:{ score:s => s[BL], text:'lot beli', col:'Lot beli', f:v => lot(v) },
 };
 /** the n brokers with the highest positive score over the book, ties by code A-Z */
@@ -156,7 +156,8 @@ function cohortStep(R: FlowRows, bk: Book, C: Cohort, cols0: Cols, o: { rk?: Boo
       : C.want.length ? `Broker pilihan (${C.want.join(', ')}) tidak ada dalam data saham ini: kelompok kosong.` : 'Belum ada broker yang dipilih: kelompok kosong.')
     : `Urutkan broker menurut ${rank.text} selama jendela; ${C.N} teratas yang bernilai positif menjadi kelompok (dihitung ulang di setiap candle).`
       + (n === 0 ? ' Tidak ada broker bernilai positif: kelompok kosong.' : n < C.N ? ` Hanya ${n} broker yang bernilai positif.` : ''));
-  return { title:o.title ?? (C.scope === 'all' ? 'Kelompok: semua broker' : C.scope === 'selected' ? 'Kelompok: broker pilihan' : `Kelompok: ${C.N} broker teratas`),
+  const who = C.rank === 'net_sell' || C.rank === 'gross_sell' ? 'penjual' : 'broker';                  // the Sell side's cohort is sellers
+  return { title:o.title ?? (C.scope === 'all' ? 'Kelompok: semua broker' : C.scope === 'selected' ? 'Kelompok: broker pilihan' : `Kelompok: ${C.N} ${who} teratas`),
     text, table:{ head, rows } };
 }
 const levelStep = (p: FlowParams, v: Num, show: (v: number) => string, note = ''): Step[] => {
@@ -220,7 +221,7 @@ function hhiOf(R: FlowRows, bk: Book, m: number) {
 function hhiPart(R: FlowRows, bk: Book, C: Cohort, m: number) {
   if (!C.ids) return { ...hhiOf(R, bk, m), cohort:false };
   const tot = bk.all[m], list: { b: number; v: number; x: number }[] = [];
-  if (!tot) return { tot, value:null as Num, list, terms:[] as Term[], cohort:true };
+  if (!tot || !C.ids.length) return { tot, value:null as Num, list, terms:[] as Term[], cohort:true };     // no member: no value
   let s = 0;
   for (const b of C.ids) { const v = (bk.per.get(b) ?? ZERO)[m], x = v / tot; s += x * x; list.push({ b, v, x }) }
   const terms: Term[] = list.map((e, k) => ({ key:`S${k + 1}`, label:`Porsi broker ${R.brokers[e.b]}`, value:e.x, unit:'num' as const }));
@@ -493,7 +494,7 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
     return {
       output:'value', value, expr:'100 × (BV − SV) ÷ TBV', span:spanOf(c, a, t),
       terms:[{ key:'BV', label:'Nilai beli kelompok', value:BVc, unit:'idr' }, { key:'SV', label:'Nilai jual kelompok', value:SVc, unit:'idr' },
-             { key:'TBV', label:'Nilai transaksi seluruh pasar', value:T, unit:'idr' }], combine,
+             { key:'TBV', label:'Nilai beli bruto seluruh pasar (semua investor)', value:T, unit:'idr' }], combine,
       steps:[
         windowStep(c, a, t, f),
         cohortStep(R, bk, C, [['Beli', s => fmt.idr(s[BV]), 'gross_buy'], ['Jual', s => fmt.idr(s[SV])], ['Net', s => fmt.idr(s[BV] - s[SV]), 'net_buy']]),
@@ -541,7 +542,7 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
       steps:[
         windowStep(c, a, t, f),
         ...(h.cohort ? [cohortStep(R, bk, C, [[money ? `Nilai ${S.w}` : `Lot ${S.w}`, s => money ? fmt.idr(s[m]) : lot(s[m])]])] : []),
-        { title:`Porsi ${what} setiap broker${h.cohort ? ' kelompok' : ''}`, text:`Porsi = ${what} broker ÷ ${what} semua broker (${tot}).`, ...(h.list.length ? { table:hhiTable(R, h, S.w, money) } : {}) },
+        { title:`Porsi ${what} setiap broker${h.cohort ? ' kelompok' : ''}`, text:`Porsi = ${what} bruto broker ÷ ${what} bruto semua broker (${tot}).${h.cohort && C.scope === 'topn' ? ` Rank (net atau bruto, selalu dalam Rupiah) hanya memilih siapa yang masuk kelompok; yang diukur tetap ${what} bruto.` : ''}`, ...(h.list.length ? { table:hhiTable(R, h, S.w, money) } : {}) },
         { title:'Hitung nilainya', text:value === null ? `Tidak ada ${what} dalam jendela, jadi tidak ada nilai.`
           : h.cohort ? `Jumlah porsi² ${h.list.length} broker kelompok = ${fmt.num(value, 4)} (bagian kelompok dari keterpusatan semua broker).`
           : `Jumlah porsi² semua ${h.list.length} broker = ${fmt.num(value, 4)}, setara ${fmt.num(1 / value, 1)} broker berporsi sama (1 = satu broker menguasai semua).` },
@@ -596,7 +597,7 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
       steps:[
         windowStep(c, a, t, f),
         { title:`Ambil ${N} pembeli terbesar`, text:`Urutkan broker menurut ${w.toLowerCase()} selama jendela dan ambil ${N} teratas.${top.length < N ? ` Hanya ${top.length} broker yang membeli.` : ''}`,
-          table:{ head:['Broker', w, 'Porsi'], rows:[...headRows(top.map(b => [R.brokers[b], show(bk.per.get(b)![m]), share(pctOf(div(bk.per.get(b)![m], T)))])), ['XN', show(X), share(raw)]] } },
+          table:{ head:['Broker', w, 'Porsi'], rows:[...headRows(top.map(b => [R.brokers[b], show(bk.per.get(b)![m]), share(pctOf(div(bk.per.get(b)![m], T)))])), [`Jumlah ${top.length} broker (XN)`, show(X), share(raw)]] } },
         { title:'Hitung porsinya', text:raw === null ? `Tidak ada ${w.toLowerCase()} dalam jendela (TX = 0), jadi tidak ada nilai.`
           : `100 × ${show(X)} ÷ ${show(T)} = ${share(raw)} pembelian dikuasai ${top.length} broker.` },
         ...(even && raw !== null ? [{ title:'Kurangi bagian merata', text:`${K} broker membeli; bila sama rata, ${top.length} broker memegang 100 × ${top.length} ÷ ${K} = ${share(K ? 100 * top.length / K : 0)}. ${share(raw)} − ${share(K ? 100 * top.length / K : 0)} = ${fmt.num(value, 2)} poin di atas bagian merata.` }] : []),

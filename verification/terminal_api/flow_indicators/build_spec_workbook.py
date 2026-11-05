@@ -223,14 +223,15 @@ params_of = lambda fid: list(next(f for f in FL if f[0] == fid)[7])
 INV_FOREIGN = [('Jenis investor (Investor type)', 'Pilih banyak', 'Foreign, Domestic', 'Foreign', D,
                 'Q2 "A" (2026-11-05): untuk semua investor rasio lonjakan selalu 1.')]
 RANK4 = lambda pre: ('%s: urutkan Top-N' % pre, 'Pilihan', 'Net beli (Rp) / Net jual (Rp) / Beli kotor (Rp) / Jual kotor (Rp)', 'Net beli (Rp)', D, 'Mock-up A2.')
-def ratio_side(pre):
+def ratio_side(pre, scope='Semua broker', inv='Semua'):
     return [('%s: ukuran' % pre, 'Pilihan', 'Beli kotor / Jual kotor / Net beli / Net jual', 'Beli kotor', D, 'To-do 20 (mock-up).'),
-            ('%s: cakupan broker' % pre, 'Pilihan', 'Semua broker / Broker terpilih / Top-N cohort', 'Semua broker', D, ''),
+            ('%s: cakupan broker' % pre, 'Pilihan', 'Semua broker / Broker terpilih / Top-N cohort', scope, D,
+             'Bawaan = contoh pertama mock-up "Porsi gross beli Top-3 asing" (sisi sama di kedua sisi selalu 100%, ditolak).' if scope != 'Semua broker' else ''),
             ('%s: broker' % pre, 'Pilih banyak (cari kode)', 'Semua kode broker', 'Kosong', D, 'Dipakai bila cakupan = broker terpilih.'),
             ('%s: Top N' % pre, 'Angka bulat', '1 - 20', '3', D, ''), RANK4(pre),
             ('%s: ranking Top-N' % pre, 'Tetap', 'Dihitung ulang tiap hari', 'Ulang tiap hari', D, 'K3 "A": Top-N dikunci per jendela.'),
             ('%s: papan' % pre, 'Pilih banyak', 'Regular, Nego, Cash (Tunai)', 'Semua', D, ''),
-            ('%s: jenis investor' % pre, 'Pilih banyak', 'Foreign, Domestic', 'Semua', D, '')]
+            ('%s: jenis investor' % pre, 'Pilih banyak', 'Foreign, Domestic', inv, D, '')]
 FL += [
     ('FL40', 'Activity Spike · Balance', [], 'Panel sendiri', 'x', False,
      'To-do 3: lonjakan sisi beli dibagi lonjakan sisi jual; skala linear, garis netral 1, acuan 0,5 dan 2 (A8).',
@@ -247,7 +248,7 @@ FL += [
     ('FL45', 'Buy VWAP · Anchored · Distance %', [], 'Panel sendiri', '%', False, 'To-do 15: 100 x (close / FL18 - 1).',
      params_of('FL18') + REF('0', D)),
     ('FL46', 'Flow Ratio', [], 'Panel sendiri', '%', False, 'To-do 20: rasio bebas (mock-up RATIO_SETTINGS_MOCKUP.html).',
-     ratio_side('Pembilang') + ratio_side('Penyebut') +
+     ratio_side('Pembilang', 'Top-N cohort', 'Foreign') + ratio_side('Penyebut') +
      [('Satuan (kedua sisi)', 'Pilihan', 'Rupiah / Lot / Transaksi', 'Rupiah', D, 'A2: satu satuan untuk kedua sisi.')] + DAYS),
     ('FL47', 'Net Buy Intensity', [], 'Panel sendiri', '%', False, 'U4 (M-NET-INTENSITY): net beli positif / beli kotor; atau persentilnya.',
      FILTER + [('Hari rolling', 'Angka bulat', '1 - 250', '5', D, 'Kamus: 5 sesi.'),

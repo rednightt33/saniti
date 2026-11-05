@@ -543,7 +543,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL13": {
-   "formula": "Buy Σ_(b in C) (m(b)/m(A))^2, m = BL (unit Lot) or BV (Rupiah); Sell with SL/SV; A every broker with the filter; C = every broker (default), selected brokers or Top-N ranked over the window (side picks the cohort)",
+   "formula": "Buy Σ_(b in C) (m(b)/m(A))^2, m = BL (unit Lot) or BV (Rupiah); Sell with SL/SV; A every broker with the filter; C = every broker (default), selected brokers or Top-N ranked over the window (side picks the cohort); the Top-N is ranked in Rupiah (net or gross) whatever the unit: the unit changes the measure, not who is ranked",
    "outputs": "buy, sell",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
@@ -613,7 +613,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL27": {
-   "formula": "1 when SMA(volume,recent)_t / SMA(volume,baseline)_{t-recent} >= volume x and 100 |close_t/close_{t-recent} - 1| <= max move; drawn as a mark under the candle; and two optional marks (to-do 18), each candle alone, every board and investor: net = 1 when Σ n_b of the N largest net buyers / Σ |n_b| of the N largest net sellers >= X; gross = 1 when Σ bv of the N largest gross buyers / Σ sv of the N largest gross sellers >= X (N, X per trigger; null when the sellers' sum is 0)",
+   "formula": "1 when SMA(volume,recent)_t / SMA(volume,baseline)_{t-recent} >= volume x and 100 |close_t/close_{t-recent} - 1| <= max move; drawn as a mark under the candle; and two optional marks (to-do 18), each candle alone, every board and investor: net = 1 when Σ n_b of the N largest net buyers / Σ |n_b| of the N largest net sellers >= X; gross = 1 when Σ bv of the N largest gross buyers / Σ sv of the N largest gross sellers >= X (N, X per trigger; null when the sellers' sum is 0); a side with fewer than N brokers adds the ones it has",
    "outputs": "flag",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
@@ -668,7 +668,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL38": {
-   "formula": "n_b = BV(b)-SV(b) (Rupiah) or BL(b)-SL(b) (Lot); Σ_(b in C) (max(n_b,0) / Σ positive n)^2; C = every net buyer (default), selected brokers or Top-N (net buy or gross buy) over the window",
+   "formula": "n_b = BV(b)-SV(b) (Rupiah) or BL(b)-SL(b) (Lot); Σ_(b in C) (max(n_b,0) / Σ positive n)^2; C = every net buyer (default), selected brokers or Top-N (net buy or gross buy) over the window; the Top-N is ranked in Rupiah (net or gross) whatever the unit: the unit changes the measure, not who is ranked",
    "outputs": "hhi",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
@@ -708,7 +708,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL46": {
-   "formula": "100 N / D; each side: its measure (gross buy BV, gross sell SV, net buy BV-SV, net sell SV-BV) of its cohort (every broker, selected brokers or Top-N ranked over the window by net buy, net sell, gross buy or gross sell) on its own board and investor filter; one unit for both (Rupiah bv/sv, Lot bl/sl, Transactions bf/sf) and one window; null when D <= 0. Refused: a net measure of every broker over both investor types (always 0), selected brokers without a broker",
+   "formula": "100 N / D; each side: its measure (gross buy BV, gross sell SV, net buy BV-SV, net sell SV-BV) of its cohort (every broker, selected brokers or Top-N ranked over the window by net buy, net sell, gross buy or gross sell) on its own board and investor filter; one unit for both (Rupiah bv/sv, Lot bl/sl, Transactions bf/sf) and one window; null when D <= 0. Refused (each with a message naming the side and the fix, and the rule with a right and a wrong example in the dialog): a net measure of every broker over both investor types (always 0); the same numerator and denominator, or gross buy against gross sell of every broker over both investor types on the same boards (always 100); selected brokers without a broker; no investor type or no board. Default: gross buy of the Top-3 (Foreign) over gross buy of every broker (the mock-up's first example)",
    "outputs": "value",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },

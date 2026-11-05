@@ -251,6 +251,11 @@ describe('Side picks the cohort: top buyers for Buy, top sellers for Sell', () =
     near(o.buy[0], 100 * 50 / 120); near(o.sell[0], 100 * 10 / 120);
   });
   // to-do 5, 6, U3, Q3 (2026-11-05): buy lots AA 50, BB 30, CC 10, DD 30 (120); sell lots AA 10, BB 5, CC 40, DD 65 (120)
+  it('FL13/FL14 with no member in the cohort have no value, not 0 (verification 2026-11-05)', () => {
+    expect(computeFlow('FL13', c, { scope:'selected', brokers:['QQ'], side:'buy', window:1 }).buy[0]).toBeNull();
+    const buyersOnly = ctx([r(D[0], 'AA', 500, 100, 5, 1), r(D[0], 'BB', 300, 100, 3, 1)], D);
+    expect(computeFlow('FL14', buyersOnly, { scope:'topn', top:2, window:1 }).asym[0]).toBeNull();     // no net seller
+  });
   it('FL13 of a cohort: its members\' squared shares of every broker\'s total; FL14 = top buyers minus top sellers', () => {
     const b = (50 / 120) ** 2 + (30 / 120) ** 2, s = (65 / 120) ** 2 + (40 / 120) ** 2;
     near(computeFlow('FL13', c, { scope:'topn', top:2, side:'buy', window:1 }).buy[0], b);
@@ -341,12 +346,16 @@ describe('new indicators', () => {
     near(computeFlow('FL43', one, { scope:'selected', brokers:['CC', 'DD'], window:1 }).value[0], (4000 + 6500) / (100 * (40 + 65)));
   });
   it('FL46: 100 x numerator / denominator; null when the denominator is 0 or below; the gates', () => {
-    const p = { ...flowDefaults('FL46'), window:1, num_scope:'selected', num_brokers:['AA'], num_measure:'net_buy', den_scope:'all', den_measure:'gross_buy' };
+    const p = { ...flowDefaults('FL46'), window:1, num_scope:'selected', num_brokers:['AA'], num_measure:'net_buy', num_investors:['Foreign', 'Domestic'], den_scope:'all', den_measure:'gross_buy' };
     near(computeFlow('FL46', one, p).value[0], 100 * 4000 / 12000);
     expect(computeFlow('FL46', one, { ...p, den_scope:'selected', den_brokers:['CC'], den_measure:'net_buy' }).value[0]).toBeNull();   // CC's net is -3000
     expect(ratioRefusal(flowDefaults('FL46'))).toBe('');
-    expect(ratioRefusal({ ...flowDefaults('FL46'), num_measure:'net_buy' })).toMatch(/Numerator: a net measure of all brokers/);
-    expect(ratioRefusal({ ...flowDefaults('FL46'), num_measure:'net_buy', num_investors:['Foreign'] })).toBe('');
+    expect(ratioRefusal({ ...flowDefaults('FL46'), num_measure:'net_buy', num_scope:'all', num_investors:['Foreign', 'Domestic'] })).toMatch(/Numerator: a net measure of all brokers/);
+    // verification 2026-11-05: a ratio that is always 100% is refused too; an empty filter names what to choose
+    expect(ratioRefusal({ ...flowDefaults('FL46'), num_scope:'all', num_investors:['Foreign', 'Domestic'] })).toMatch(/same, so the ratio is always 100%/);
+    expect(ratioRefusal({ ...flowDefaults('FL46'), num_scope:'all', num_investors:['Foreign', 'Domestic'], num_measure:'gross_sell' })).toMatch(/always 100%/);
+    expect(ratioRefusal({ ...flowDefaults('FL46'), den_investors:[] })).toMatch(/Denominator: choose at least one investor type/);
+    expect(ratioRefusal({ ...flowDefaults('FL46'), num_measure:'net_buy', num_scope:'all', num_investors:['Foreign'] })).toBe('');
     expect(ratioRefusal({ ...flowDefaults('FL46'), den_scope:'selected', den_brokers:[] })).toMatch(/Denominator: choose at least one broker/);
   });
   it('FL40: the buy spike over the sell spike; FL41: net over W x the mean turnover of the N candles before', () => {

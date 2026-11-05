@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "2b29a3b8dbee67cd866d9e9c67f48684376f8ef412e1520dcb95f1d345766a3b"
+  "sha256": "7b20d88239e6e821c1c7a4bc07b4108d79757e79e351e42ae899a81243c57bda"
  },
  "families": [
   "Share",
@@ -1553,7 +1553,7 @@
      "options": [
       [
        "window",
-       "Rolling days back"
+       "Same as rolling days (no overlap)"
       ],
       [
        "1",
@@ -5169,7 +5169,7 @@
        "Top-N cohort"
       ]
      ],
-     "default": "all"
+     "default": "topn"
     },
     {
      "key": "num_brokers",
@@ -5246,8 +5246,7 @@
       "Domestic"
      ],
      "default": [
-      "Foreign",
-      "Domestic"
+      "Foreign"
      ]
     },
     {

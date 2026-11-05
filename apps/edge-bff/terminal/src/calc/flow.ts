@@ -357,6 +357,7 @@ function hhi(ctx: FlowContext, p: FlowParams, side: 'buy' | 'sell'): Series {
   return each(R, W(p), (a, t) => {
     const tot = aw(g, m, a, t); if (!tot) return null;
     const C = cohort(g, R, p, a, t);
+    if (C && !C.length) return null;            // no member (no seller among the top N, no selected broker): no value, not 0
     let s = 0;
     if (C) for (const b of C) { const x = bw(g, m, b, a, t) / tot; s += x * x }
     else for (let b = 0; b < g.B; b++) { const x = bw(g, m, b, a, t) / tot; s += x * x }
@@ -696,14 +697,18 @@ export const FLOW: Record<string, Fn> = {
      (Rp) over their bought lots summed over the window; a candle with fewer than N net buyers leaves no value (A6) */
   FL42:(c, p) => {
     const R = c.rows, g = grid0(p), N = int(p.top, 3);
+    /* each candle's own Top-N once (a window of 250 re-ranked every candle 250 times: 2.5 s on 2,500 candles, verification
+       2026-11-05); the window then adds the candles' sums in order */
+    const dv = new Float64Array(R.N), dl = new Float64Array(R.N), short = new Uint8Array(R.N);
+    for (let k = 0; k < R.N; k++) {
+      if (!R.has[k]) continue;
+      const C = topBrokers(g, R, k, k, N, 'net_buy');
+      if (C.length < N) { short[k] = 1; continue }
+      dv[k] = cc(g, C, 'bv', k); dl[k] = cc(g, C, 'bl', k);
+    }
     return { value:each(R, W(p, 20), (a, t) => {
       let V = 0, L = 0;
-      for (let k = a; k <= t; k++) {
-        if (!R.has[k]) continue;
-        const C = topBrokers(g, R, k, k, N, 'net_buy');
-        if (C.length < N) return null;
-        V += cc(g, C, 'bv', k); L += cc(g, C, 'bl', k);
-      }
+      for (let k = a; k <= t; k++) { if (short[k]) return null; V += dv[k]; L += dl[k] }
       return div(V, 100 * L);
     }) };
   },

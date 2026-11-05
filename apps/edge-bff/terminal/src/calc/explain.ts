@@ -75,8 +75,10 @@ export function topBy(list: BrokerSums[], n: number, score: (s: BrokerSums) => n
 export const filterOf = (p: FlowParams, key: 'boards' | 'investors') => Array.isArray(p[key]) ? p[key] as string[] : null;
 export const filterText = (p: FlowParams) => {
   const b = filterOf(p, 'boards'), i = filterOf(p, 'investors');
-  const list = (x: string[] | null, all: number, every: string) => !x || x.length === all ? every : x.length ? x.join(', ') : 'tidak ada';
-  return `${b && b.length && b.length < BOARDS.length ? 'papan ' : ''}${list(b, BOARDS.length, 'semua papan')}, ${list(i, INVESTORS.length, 'asing dan domestik')}`;
+  const list = (x: string[] | null, all: number, every: string, word: (s: string) => string = s => s) => !x || x.length === all ? every : x.length ? x.map(word).join(', ') : 'tidak ada';
+  /* the investor types in the card's language (verification 2026-11-05: "Foreign" in an Indonesian sentence) */
+  const inv = (s: string) => s === 'Foreign' ? 'investor asing' : s === 'Domestic' ? 'investor domestik' : s;
+  return `${b && b.length && b.length < BOARDS.length ? 'papan ' : ''}${list(b, BOARDS.length, 'semua papan')}, ${list(i, INVESTORS.length, 'asing dan domestik', inv)}`;
 };
 export const spanOf = (c: FlowContext, a: number, t: number) => ({ from:c.dates[a], to:c.dates[t], candles:t - a + 1 });
 export const levelsOf = (p: FlowParams) => String(p.levels ?? '').split(/[,;\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);
@@ -109,14 +111,15 @@ export function withChange(base: FlowExplainer, lagOf: (p: FlowParams) => number
     const lag = lagOf(p), e1 = base(c, p, t, 'value'), e0 = t - lag >= 0 ? base(c, p, t - lag, 'value') : null;
     if (!e1 || !e0 || e1.value === null || e0.value === null) return null;
     const combine = (v: Record<string, number>) => v.V1 - v.V0, value = combine({ V1:e1.value, V0:e0.value });
-    const show = (v: number) => fmt.of(v, unit), pts = unit === 'pct' ? ' poin' : '';
+    const show = (v: number) => fmt.of(v, unit), pts = unit === 'pct' ? ' poin' : '', par = (v: number) => v < 0 ? `(${show(v)})` : show(v);
+    const W = intOf(p.window, 1), overlap = lag < W ? ` Kedua nilai memakai jendela ${W} candle, jadi ${W - lag} candle-nya sama (tumpang tindih); pilih jarak sama dengan jendela agar tidak tumpang tindih.` : '';
     return {
       output:'change', value, expr:'V1 − V0', span:{ from:c.dates[t - lag], to:c.dates[t], candles:lag + 1 },
       terms:[{ key:'V1', label:`Nilai ${c.dates[t]}`, value:e1.value, unit }, { key:'V0', label:`Nilai ${c.dates[t - lag]} (${lag} candle sebelumnya)`, value:e0.value, unit }], combine,
       steps:[
-        { title:'Nilai sekarang', text:`Pada ${c.dates[t]} nilainya ${show(e1.value)} (cara hitungnya: kartu garis utama pada tanggal itu).` },
+        { title:'Nilai sekarang', text:`Pada ${c.dates[t]} nilainya ${show(e1.value)}. Rincian komponennya (net, nilai beli bruto) ada di kartu garis utama pada tanggal itu.` },
         { title:`Nilai ${lag} candle sebelumnya`, text:`Pada ${c.dates[t - lag]} nilainya ${show(e0.value)}.` },
-        { title:'Selisihnya', text:`${show(e1.value)} − ${show(e0.value)} = ${spec.num(value, 2)}${pts}.` },
+        { title:'Selisihnya', text:`${show(e1.value)} − ${par(e0.value)} = ${value > 0 ? '+' : ''}${spec.num(value, 2)}${pts}.${overlap}` },
       ],
     };
   };

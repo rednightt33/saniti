@@ -52,7 +52,7 @@ OPTIONS = {
     'Volume papan + jenis investor terpilih': ('filter', 'Board and investor volume'),
     'Turnover papan terpilih (semua investor)': ('board', 'Board turnover, all investors'),
     'Turnover papan + jenis investor terpilih': ('filter', 'Board and investor turnover'),
-    'Sama dengan hari rolling': ('window', 'Rolling days back'), '1 sesi': ('1', '1 session back'), '5 sesi': ('5', '5 sessions back'),
+    'Sama dengan hari rolling': ('window', 'Same as rolling days (no overlap)'), '1 sesi': ('1', '1 session back'), '5 sesi': ('5', '5 sessions back'),
     '20 sesi': ('20', '20 sessions back'),
     'Lot': ('lot', 'Lot'), 'Value': ('value', 'Value'), 'Rupiah': ('value', 'Rupiah'),
     'Net': ('net', 'Net'), 'Beli kotor': ('gross_buy', 'Gross buy'), 'Jual kotor': ('gross_sell', 'Gross sell'),

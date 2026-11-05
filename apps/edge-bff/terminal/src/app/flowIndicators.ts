@@ -39,6 +39,13 @@ const EMPTY = (N: number): FlowRows => ({ n:0, N, t:new Int32Array(0), b:new Uin
 const SLOTS = ['b1', 'b2', 'b3', 'b4', 'b5'];
 /* the rows carry transaction counts (files published before EXEC-TERMINAL-FLOW-IND S2 have none) */
 const counts = new WeakMap<FlowRows, boolean>();
+/* the candles with a broker row that has no transaction counts */
+const missing = new WeakMap<FlowRows, Uint8Array>();
+const missingAt = (R: FlowRows) => {
+  let m = missing.get(R);
+  if (!m) { m = new Uint8Array(R.N); for (let k = 0; k < R.n; k++) if (Number.isNaN(R.bf[k]) || Number.isNaN(R.sf[k])) m[R.t[k]] = 1; missing.set(R, m) }
+  return m;
+};
 const hasCounts = (R: FlowRows) => {
   let v = counts.get(R);
   if (v === undefined) { v = false; for (let k = 0; k < R.n; k++) if (!Number.isNaN(R.bf[k])) { v = true; break } counts.set(R, v) }
@@ -46,16 +53,34 @@ const hasCounts = (R: FlowRows) => {
 };
 const NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 
+/** title(): the selects named elsewhere or not changing the number */
+const TITLE_SKIP = /^(scope|brokers|top|rank|ranking|side|plot|boards|investors|levels|lag|num_.*|den_.*)$/;
+const MEASURE_TEXT: Record<string, string> = { gross_buy:'Gross buy', gross_sell:'Gross sell', net_buy:'Net buy', net_sell:'Net sell' };
+/** one side of FL46 in short: "Gross buy · Top 3 · Foreign" */
+export function ratioSideText(p: any, pre: string): string {
+  const scope = p[pre + 'scope'] ?? 'all', inv = p[pre + 'investors'], brd = p[pre + 'boards'];
+  const who = scope === 'topn' ? `Top ${p[pre + 'top'] ?? 3}` : scope === 'selected' ? ((p[pre + 'brokers'] || []).join(', ') || 'no broker') : 'all';
+  return [MEASURE_TEXT[p[pre + 'measure']] || 'Gross buy', who, Array.isArray(inv) && inv.length === 1 ? inv[0] : '', Array.isArray(brd) && brd.length && brd.length < 3 ? brd.join('+') : '']
+    .filter(Boolean).join(' · ');
+}
 /** FL46 Flow Ratio's gates (to-do 20, user 2026-11-05; AGENTS.md "Gates and evidence": the rule is shown in the dialog,
     the message says where and how to fix it). A net measure of every broker with both investor types is always 0 (each
     buy has a seller); selected brokers need at least one. */
 export function ratioRefusal(p: any): string {
+  const key = (pre: string) => JSON.stringify(['measure', 'scope', 'brokers', 'top', 'rank', 'boards', 'investors'].map(k => p[pre + k]));
+  const allBoth = (pre: string) => (p[pre + 'scope'] ?? 'all') === 'all' && Array.isArray(p[pre + 'investors']) && p[pre + 'investors'].length === 2;
   for (const [pre, side] of [['num_', 'Numerator'], ['den_', 'Denominator']] as const) {
-    const scope = p[pre + 'scope'] ?? 'all', inv = p[pre + 'investors'];
+    const scope = p[pre + 'scope'] ?? 'all', inv = p[pre + 'investors'], brd = p[pre + 'boards'];
+    if (Array.isArray(inv) && !inv.length) return `${side}: choose at least one investor type.`;
+    if (Array.isArray(brd) && !brd.length) return `${side}: choose at least one market board.`;
     if (scope === 'selected' && !(Array.isArray(p[pre + 'brokers']) && p[pre + 'brokers'].length)) return `${side}: choose at least one broker, or another broker scope.`;
-    if (String(p[pre + 'measure']).startsWith('net') && scope === 'all' && (!Array.isArray(inv) || inv.length !== 1))
+    if (String(p[pre + 'measure']).startsWith('net') && allBoth(pre))
       return `${side}: a net measure of all brokers over both investor types is always 0 (every buy has a seller). Choose one investor type, a Top-N cohort or selected brokers.`;
   }
+  if (key('num_') === key('den_')) return 'The numerator and the denominator are the same, so the ratio is always 100%. Change a measure, a broker scope or a filter on one side.';
+  if (allBoth('num_') && allBoth('den_') && JSON.stringify(p.num_boards) === JSON.stringify(p.den_boards)
+    && [p.num_measure, p.den_measure].every(m => m === 'gross_buy' || m === 'gross_sell'))
+    return 'Gross buy and gross sell of all brokers over both investor types are equal (every buy has a seller), so the ratio is always 100%. Narrow one side to a group of brokers or an investor type.';
   return '';
 }
 /** K4: a parameter choice that counts transactions (a measure or unit 'tx') needs the broker files' counts */
@@ -167,17 +192,21 @@ export function initFlowIndicators(ctx: Ctx) {
       if (r.id === 'FL23') return [...SLOTS.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:INV_COLORS[j] })),
         { k:'total', label:'Total', r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:'#171717' }];
       /* to-do 18: FL27's broker triggers are optional marks, off until turned on in the Style tab; to-do 12: FL29's size */
-      const extra: Record<string, any> = { net:{ label:'Net trigger', vis:false }, gross:{ label:'Gross trigger', vis:false }, balance:{ label:'Balance %' } };
+      const extra: Record<string, any> = { net:{ label:'Net trigger', vis:false, color:'#0070f3' }, gross:{ label:'Gross trigger', vis:false, color:'#d6409f' },
+        /* FL29's size (a few %) on its own left scale, beside the days (0-100) on the right, so it does not read flat */
+        balance:{ label:'Balance %', scale:'left', fmt:spec.pctLevel, fk:'pct', minMove:.01, color:'#8b5cf6' } };
       return r.outputs.map(k => extra[k] ? { k, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', ...extra[k] } : k === 'change'
         /* EXEC-TERMINAL-IND-EDIT (FL34 to-do 17, FL11 U2): the change line is a line on its own scale (left), in points */
-        ? { k, label:'Change', r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', scale:'left', fmt:spec.points, minMove:.01 }
+        ? { k, label:'Change', r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', scale:'left', fmt:spec.points, fk:'pt', minMove:.01 }
         : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
             /* U3: a share minus the even share reads in points; U6: a count of brokers; U1: a z-score */
-            ...(p && p.even ? { fmt:spec.points, minMove:.01 } : p && p.measure === 'count' ? { fmt:(v: number) => spec.num(v, 0), minMove:1 }
-              : p && p.stat === 'z' ? { fmt:(v: number) => spec.smart(v, 2), minMove:.01 } : p && p.stat === 'pct' && r.unit === '%' ? { fmt:spec.indicator, minMove:.01 }
-              : p && p.form === 'ratio' ? { fmt:spec.ratio, minMove:.001 } : {}) });
+            ...(p && p.even ? { fmt:spec.points, fk:'pt', minMove:.01 } : p && p.measure === 'count' ? { fmt:(v: number) => spec.num(v, 0), fk:'count', minMove:1 }
+              : p && p.stat === 'z' ? { fmt:(v: number) => spec.smart(v, 2), fk:'z', minMove:.01 } : p && p.stat === 'pct' && r.unit === '%' ? { fmt:spec.indicator, fk:'pctile', minMove:.01 }
+              : p && p.form === 'ratio' ? { fmt:spec.ratio, fk:'ratio', minMove:.001 } : {}) });
     };
-    const note = ctx.M.index ? INDEX_NOTE[r.id] || '' : '';
+    /* on an index: the indicator's own note, else (a Lot choice offered on a stock) that Lot is not offered here */
+    const hasLot = r.params.some(q => q.kind === 'select' && (q.options || []).some(o => o[0] === 'lot'));
+    const note = ctx.M.index ? INDEX_NOTE[r.id] || (hasLot ? ' Pada indeks (IHSG) tanpa pilihan Lot: lot berbagai saham tidak bisa dijumlahkan.' : '') : '';
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
       guides:levels, levelsParam:!!byKey.levels, fill:null, tip:r.tip + note, info:r.tip + note + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
     /* a field that only applies to one broker scope is shown only with it (audit I8: "Brokers: None" beside Top-N); FL46's
@@ -190,15 +219,17 @@ export function initFlowIndicators(ctx: Ctx) {
        (Rupiah); a choice left with one option is not shown (FL23's unit). Derived from the options, not listed by id. */
     const onIndex = !!ctx.M.index;
     const noLot = (q: any) => withoutLot(r.params, q, onIndex), optionsOf = (q: FlowRegParam) => offeredOptions(q, onIndex);
-    const inputs = r.params.filter(q => q.key !== 'levels' && !(q.kind === 'select' && onIndex && optionsOf(q).length < 2)).map(q => {
+    /* a select left with one option on an index is still shown (FL23: Rupiah only) so its value is always set: hiding it
+       let the registry default (Lot) back in (regression found by the 2026-11-05 verification, H1) */
+    const inputs = r.params.filter(q => q.key !== 'levels').map(q => {
       /* the rules a choice meets, shown before the user picks (AGENTS.md "Gates and evidence"): K4's counts, FL46's gates */
-      const rule = q.key.endsWith('_measure') ? 'A net measure of all brokers over both investor types is always 0 and is refused; a day whose denominator is 0 or below has no value.'
+      const rule = q.key.endsWith('_measure') ? 'A net measure of all brokers over both investor types is always 0 and is refused, as is a ratio that is always 100%; a day whose denominator is 0 or below has no value. Right: Net buy of a Top-3 cohort ÷ Gross buy of all brokers. Wrong: Net buy of all brokers (both investor types).'
         : q.kind === 'select' && (q.options || []).some(o => o[0] === 'tx') ? 'Transactions needs the transaction counts in the broker files; Value and Lot do not.' : undefined;
       const base: any = { key:q.key, label:relabel(q.label), hint:[q.status === 'PROPOSED' ? 'Proposed default' : '', rule ?? ''].filter(Boolean).join(' ') || undefined,
         ...(/(^|_)(top|rank|ranking)$/.test(q.key) ? topnOnly(q.key) : {}) };
       switch (q.kind) {
         case 'select': { const os = optionsOf(q), def = os.some(o => o[0] === q.default) ? q.default : os[0]?.[0];
-          return { ...base, kind:'select', options:os.map(o => o[0]), labels:Object.fromEntries(os.map(o => [o[0], o[1]])), def } }
+          return { ...base, kind:'select', options:os.map(o => o[0]), allOptions:(q.options || []).map(o => o[0]), labels:Object.fromEntries(os.map(o => [o[0], o[1]])), def } }
         case 'multi': {
           const isBoard = q.key.endsWith('boards'), all = isBoard ? ctx.BOARDS : ctx.INVESTORS;
           return { ...base, kind:'multi', def:q.default, options:() => all, all:() => all.map(x => x.id), title:isBoard ? 'Board' : 'Investor' };
@@ -257,6 +288,12 @@ export function initFlowIndicators(ctx: Ctx) {
         /* K4 (user 2026-11-05 "3 ok"): a choice that counts transactions needs them; the others draw without them */
         if ((r.needs_frequency || needsCounts(p)) && !hasCounts(R)) return r.needs_frequency ? 'Needs the transaction counts'
           : 'No transaction counts for this ticker: choose Value or Lot';
+        /* some rows in the candles the value reads have no counts (verification 2026-11-05: a silent blank) */
+        if (r.needs_frequency || needsCounts(p)) {
+          const span = Math.max(1, ...['window', 'baseline', 'recent'].map(k => Number(p?.[k]) || 0)) + (Number(p?.recent) || 0), M = missingAt(R);
+          for (let k = Math.max(0, di - span); k <= di; k++) if (M[k]) return needsCounts(p) && !r.needs_frequency
+            ? `Some broker rows from ${dates[k] ?? ''} have no transaction counts: choose Value or Lot` : 'Some broker rows in this window have no transaction counts';
+        }
         return '';
       },
       validate:(p: any) => {
@@ -266,10 +303,19 @@ export function initFlowIndicators(ctx: Ctx) {
         if (r.id === 'FL23' && Array.isArray(p.brokers) && (p.brokers.length < 1 || p.brokers.length > 5)) return 'Choose 1 to 5 brokers.';
         return '';
       },
+      /* a ratio's neutral line is 1, an imbalance's 0 (FL48 "Show as"; verification 2026-11-05): the default guide follows */
+      guidesFor:(p: any, lv: number[]) => p && p.form === 'ratio' && lv.length === 1 && lv[0] === 0 ? [1] : lv,
       /* Design Spec v1.2: the parameters in parentheses, "Bandar Balance · % (Top 3, 10D)" */
       title:(p: any) => {
         const parts = [relabel(r.name)];
         if (DAY) parts.push('Daily');
+        /* FL46: what the ratio is, both sides in short (verification 2026-11-05: "Flow Ratio (1D)" said nothing) */
+        if (r.id === 'FL46') parts.push(`${ratioSideText(p, 'num_')} ÷ ${ratioSideText(p, 'den_')}`);
+        /* a choice that changes what the number is (measure, statistic, unit, form) is named when it is not the default
+           (verification 2026-11-05: FL37 showed a z-score under "Percentile"); derived from the registry's selects */
+        for (const q of r.params) if (q.kind === 'select' && !TITLE_SKIP.test(q.key) && p[q.key] !== undefined && p[q.key] !== q.default)
+          parts.push((q.options || []).find(o => o[0] === p[q.key])?.[1] ?? String(p[q.key]));
+        if (!r.params.some(q => q.key === 'scope') && r.params.some(q => q.key === 'top') && p.top) parts.push(`Top ${p.top}`);
         const sided = r.params.some(q => q.key === 'side');
         if (p.scope) parts.push(scopeText(p, sided));
         if (p.side && p.side !== 'buy' && !(sided && p.scope === 'topn')) parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
