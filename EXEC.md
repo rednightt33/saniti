@@ -9958,6 +9958,78 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     header sesudah resize benar; di 390 px kotak di dalam layar; 0 galat. Tes 1.472 + menu. edge-bff `db55ccd8`
     SUCCESS (`a45c6719`), file live sama dengan build lokal.
 
+## EXEC-UNIVERSE-BROKER — fitur broker hanya untuk universe, 63 kode 4 huruf aktif masuk universe, broker summary yang belum ada dilengkapi (rencana diterima 2026-11-05, BELUM dieksekusi)
+
+**Kata user, 2026-11-05:**
+- "IHSG itu tidak hanya konsis saham-saham yang ada di IDX Stock Universe [...] Tapi untuk fitur, kita tidak perlu
+  menghitung semua yang ada di IDX Broker Summary. Bisa nggak kita rubah untuk fitur-fitur yang dihitung hanya refer ke
+  IDX Stock Universe?";
+- "ticker yang 4 digit harus masuk ke IDX Universe. Tapi ticker yang di atas 4 digit jangan masuk [...] kita perlu fetch
+  baik price [...] Dan kita harus display harganya juga di front end. Beserta detail-detail seperti saham-saham lainnya";
+- "untuk ticker-ticker yang tidak ada di IDX Broker Summary, ini juga perlu kita refetch historically".
+- Atas pertanyaan 1–4: "1A / 2 OK --> cek dulu harganya ada di tradingview gak. / 3 A / 4 Pokoknya semua IDX Broker
+  Summary harus mengcater semua data broker yang saat ini belum ada di API. Tapi ensure no duplication. Kalau heavy,
+  mungkin bisa pakai local saya untuk run the calculation, jadi kita tinggal upload saja nanti datanya."
+
+**Fakta (pgweb read-only, kode, 2026-11-05):**
+- Fitur 02/03/05/06 tidak menyaring ticker:
+  - F05 = semua baris `IDX_Broker_Summary` (`refresh_feature_05`, migrasi `20261022_005`;
+    `apps/stockbit-updater/refresh.py:104-110` menuntut jumlah baris sumber = F05);
+  - F02 per ticker F05 (`refresh.py:114-121`);
+  - F03 dari F02 + `IDX_Broker_Profile` (LEFT JOIN);
+  - F06 dari F05.
+  - Contoh: 2026-08-26 F05 1.350 ticker, 516 di luar `IDX_Stock_Universe`.
+- Agregat IHSG (`Feature_05_..._INDEX`) dijumlahkan langsung dari `IDX_Broker_Summary`, semua simbol
+  (`scripts/backfill_index_features.py:71-81`), jadi tidak bergantung pada F05 per ticker.
+- `IDX_Broker_Summary` 2016-01-04 … 2026-11-03.
+- Kode bukan 4 huruf ada setiap hari sampai 2026-08-31 (±400-480 per hari), lalu **0 sejak 2026-09-01** (46 hari bursa
+  sampai 2026-11-03). Loader Railway hanya menarik kode 4 huruf (`broker_import.py:98-109`). Kode lain dimuat user
+  terpisah (keputusan K1, `broker_import.py:13-14`).
+- CSV user (`broksum_tidak_di_universe.csv`, 3.283 kode):
+  - 225 kode 4 huruf: 161 saham, 64 ETF; tidak satu pun punya harga di database;
+  - 3.058 kode lebih dari 4 huruf.
+- Dari 225 kode 4 huruf: **63 masih aktif** (ada broker summary Okt-Nov 2026): 18 saham + 45 ETF. Semuanya ada di
+  scanner TradingView (18 `stock`, 45 `fund`; cek 2026-11-05).
+  - Saham: AKKU, ALTO, BEBS, BHAT, CRAB, EDGE, GAMA, GTBO, HILL, IBST, INDX, PLIN, PMMP, RAFI, SUPR, TAYS, TRUE, UNSP.
+  - ETF: XBGS, XBID, XBIN, XBLQ, XBSK, XCEG, XCLQ, XDES, XDIF, XGLD, XIFE, XIHD, XIID, XIIF, XIIT, XIJI, XILV, XIML, XIPB, XIPI, XISB, XISC, XISI, XISR, XKGS, XKID, XKIV, XKMS, XMES, XMGB, XMIG, XMLF, XMSK, XPDV, XPFT, XPIN, XPLQ, XPSG, XPTD, XRDN, XSBC, XSGO, XSSI, XSSK, XTRA.
+  - 162 lainnya berhenti 2016-2026 (delisting/berakhir).
+
+**Keputusan:**
+1. **1A:** hanya 63 kode aktif masuk `IDX_Stock_Universe` dan cron harian; kode yang berhenti tidak masuk.
+2. **2:** ETF masuk universe sebagai jenis ETF, sesudah harga di TradingView dicek (sudah: 45/45 ada di scanner;
+   riwayat harga dicek pada S1).
+3. **3A:** baris fitur broker lama untuk kode non-universe dibiarkan; hanya perhitungan baru yang dibatasi ke universe.
+4. **4:** broker summary harus memuat semua data yang ada di API Stockbit tetapi belum ada di tabel, tanpa duplikasi.
+   Bila berat, dijalankan di komputer user lalu diunggah.
+
+**Rancangan (belum dieksekusi):**
+- **S1 — 63 kode masuk universe:**
+  - cek riwayat harga TradingView per kode (jumlah bar, tanggal pertama);
+  - tambah ke `IDX_Stock_Universe` (`Security Type` stock/etf) lewat migrasi;
+  - tarik riwayat harga harian (dan intraday, sesuai kedalaman sumber);
+  - F01/F04, logo, event, publisher, sehingga tampil di Terminal seperti saham lain.
+  - Mengikuti `NEW_TABLE_ONBOARDING_PLAN.md` / Part A untuk ETF bila ada yang berbeda.
+- **S2 — fitur broker hanya untuk universe:**
+  - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
+  - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
+  - agregat IHSG tetap dari semua simbol;
+  - migrasi baru, DRYRUN lalu APPLY.
+- **S3 — broker summary yang belum ada:**
+  - (a) inventaris tanggal × kode yang belum ada: kode bukan 4 huruf 2026-09-01 … sekarang, ditambah tanggal bolong
+    lain bila ditemukan; daftar kode bukan 4 huruf dari user;
+  - (b) perkiraan jumlah permintaan Stockbit (6 per kode per tanggal) dan lamanya;
+  - (c) dijalankan dengan importer user di komputer user bila berat (K1), atau di Railway bila ringan;
+  - (d) unggah per tanggal dengan kunci tabel (Date, Symbol, Broker, Investor Type, Market Board), dibandingkan dua arah
+    seperti importer (tidak ada duplikasi);
+  - (e) agregat IHSG dihitung ulang untuk tanggal yang berubah;
+  - (f) restart Postgres sesudah update besar.
+- **S4 — catatan:** ERRORS (M218 diperbarui), DATABASE_SCHEMA/CHANGELOG, Table_Catalog, UPDATE_TABLE.md.
+
+**Pertanyaan terbuka:**
+- Daftar kode bukan 4 huruf yang perlu ditarik (dijanjikan user).
+- Sesudah celah tertutup: kode bukan 4 huruf ditarik harian oleh siapa? (a) tetap oleh user secara lokal (K1), atau
+  (b) loader Railway diperluas dengan daftar kode dari user.
+
 ## EXEC-PUBLISH-FLOW — publisher dipicu oleh cron yang selesai, broker tidak disimpan dua kali, storage B (go 2026-11-05)
 
 **Go user, 2026-11-05:** "Q3 per device ok, go EXEC-PUBLISH-FLOW".
