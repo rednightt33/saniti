@@ -5310,6 +5310,41 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M346 — Semua layanan EDGE berhenti dan semua bucket menolak akses (2026-11-04 20:19 WIB s.d. 2026-11-05 11:10 WIB)
+
+- **Ditemukan oleh:** user, 2026-11-04 ("cost spike gila-gilaan dalam waktu 24 jam terakhir"), lalu Terminal kosong
+  ("The terminal could not load its data") sesudah layanan menyala lagi.
+- **Verified (Railway API dan log, read-only):**
+  - 2026-11-04 13:19:23–13:20:31 UTC: deployment yang berjalan di setiap layanan project `lucid-patience` berubah
+    menjadi REMOVED dalam satu menit. Log: "sending signal SIGTERM to container" / "Stopping Container". Postgres
+    menutup diri dengan rapi ("checkpoint complete", "database system is shut down"). Tidak ada error, OOM, cron kita,
+    atau skrip repo (tidak ada `deploymentStop`/`deploymentRemove` di `scripts`/`apps`) sebelum itu.
+  - Biaya project ini sendiri tidak melonjak: 24 jam terakhir ±$1, dua hari sebelumnya ±$1,4 dan ±$1,5; jam termahal
+    $0,108 (`usage` per jam, 48 jam). Volume Postgres tetap 60,4 GB.
+  - 2026-11-05 03:53 UTC: semua layanan di-redeploy (bukan oleh agent). market-audit-store gagal (/ready 503, Postgres
+    belum siap), di-redeploy ulang `72344f17` SUCCESS 03:56 UTC.
+  - Keempat bucket (`terminal-display`, `market-ai-audit-artifacts`, `market-sql-datasets`,
+    `market-ai-conversation-outputs`) menolak `list`/`get` dengan kunci yang terpasang (403 AccessDenied), juga di
+    dashboard Railway. terminal-api gagal membaca manifest, screener-worker gagal start (`DATA_UNAVAILABLE`).
+- **Root cause (didukung pola, dikonfirmasi user membuka batas):** batas pemakaian (hard usage limit) workspace
+  tercapai. Railway lalu menghentikan semua layanan dan menangguhkan akses bucket workspace. Sesudah batas dibuka,
+  layanan kembali, tetapi penangguhan bucket di penyedia storage tidak ikut dicabut otomatis (pola yang dilaporkan di
+  forum Railway, Central Station). Sumber lonjakan biaya ada di luar project ini (token project tidak bisa membaca
+  pemakaian workspace); belum diketahui.
+- **Class:** kejadian di tingkat akun/workspace mematikan semua layanan dan storage sekaligus. Bucket bisa tetap
+  tertutup walau layanan sudah menyala, sehingga halaman terlihat hidup tetapi datanya kosong.
+- **Solution:**
+  - user membuka akses bucket (2026-11-05, "Sudah dibuka");
+  - uji baca 04:10 UTC: keempat bucket `list` OK, `v1/state.json` terbaca;
+  - screener-worker di-redeploy `a53c06de` SUCCESS 04:12 UTC;
+  - Terminal live (Playwright): BBRI chart 3,8 s cold / 0,6 s cached, ID10Y 1,8 s / 1,0 s;
+  - EDGE: katalog backtest 200 (2,4 s), screen 200 (268 saham, 15,6 s);
+  - governor tidak lagi `AccessDenied` sesudah 04:10 UTC.
+  - stockbit-updater sengaja tidak dinyalakan (redeploy menjalankan putaran broker; butuh token user).
+- **Status:** FIXED untuk pemulihan. Terbuka: sumber lonjakan biaya di workspace (perlu dashboard Usage user).
+- **Lesson:** sesudah pemulihan dari penghentian di tingkat akun, uji juga storage (baca satu objek dari setiap
+  bucket), bukan hanya status deployment. Layanan bisa SUCCESS sementara bucket masih 403.
+
 ### M345 — "BUY" KSEI yang bukan pembelian: laporan posisi awal ≥5% dan pindah akun; laporan KSEI yang menggabungkan transaksi IDX (2026-11-03)
 
 - **Ditemukan oleh:** agent, saat menyiapkan data beli insider asing 28 Okt-3 Nov untuk publikasi eksternal (user).

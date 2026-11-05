@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-04/05 — whole project stopped by the workspace usage limit, restored; buckets reopened (ERRORS M346)
+
+- 2026-11-04 13:19–13:20 UTC: every running deployment REMOVED (SIGTERM from Railway, clean shutdowns).
+- 2026-11-05 03:53 UTC: every service redeployed (not by the agent). market-audit-store failed (/ready 503 while
+  Postgres started); `railway redeploy` → `72344f17` SUCCESS 03:56 UTC.
+- Buckets 403 AccessDenied until the user reopened them; read test 04:10 UTC OK on all four.
+- screener-worker `railway redeploy` → `a53c06de` SUCCESS 04:12 UTC.
+- stockbit-updater left without a deployment on purpose (a deploy starts a broker round).
+- Checks: Terminal BBRI/ID10Y drawn, backtest catalog 200, screen 200; no variable or configuration changed.
+
 ## 2026-11-03 — postgres-memory-cron in apply mode; first real restart; telegram-trigger token dead (ERRORS M344)
 
 - User: "Ribet amat, restart sekarang. Aktifkan fitur restart postgres via TG."
