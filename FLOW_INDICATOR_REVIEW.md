@@ -32,6 +32,7 @@ item baru dijalankan atas perintah user.
 | 13 | Indikator baru (kode ditetapkan saat dikerjakan), berpasangan dengan FL17 | Harga rata-rata pembelian bergulir dengan **Top-N dipilih per hari** (cara B); indikator **terpisah**, FL17 tidak diubah | "Jadi aja kita tambahkan untuk opsi top N per hari yang nomor B. Ini dijadikan indikator terpisah saja nanti. You can review dan to do" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5l |
 | 14 | Dua indikator baru (kode ditetapkan saat dikerjakan): versi jual dari FL17 dan dari FL18 | **Dua indikator tambahan terpisah** yang menghitung nilai jual dibagi lot jual (harga rata-rata penjualan, gross jual): satu bergulir seperti FL17, satu beranchor seperti FL18 | "Boleh nggak ditambahkan satu indikator yang represent sell atau gross sell? Mirip FL18 juga. Berlaku juga untuk FL17."; "FL17 kan dia menghitung basically beli dibagi lot beli kan. FL18 juga. Yang saya butuhkan adalah dua indikator tambahan jual dan lot jual." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5m |
 | 15 | Indikator baru: Buy VWAP · Anchored · Distance % (sejajar FL20); versi rolling sudah ada sebagai FL39 | Jarak harga penutupan terhadap harga rata-rata pembelian beranchor (FL18) dalam persen; jarak terhadap harga rata-rata pembelian bergulir (FL17) sudah ada di FL39 | "Tolong tambahkan saja by vweb anchor dan by vweb rolling tapi versi percentage distance. seperti FL20. Konfirmasi kalau kamu paham." (2026-11-05; "vweb" dibaca VWAP) | To-do; bacaan AI dikonfirmasi user: hanya versi anchor yang baru, jarak rolling cukup FL39 (2026-11-05). Bagian 5n |
+| 16 | FL17 dan FL39 | FL17 tetap menghitung harga, FL39 menghitung jarak (%) terhadap FL17, dan jarak itu dihitung dengan **parameter FL17** (bawaan FL39 disamakan: 20 sesi, semua papan, Foreign dan Domestic) | "17 dan 39. Jadikan FL17 menghitung secara price, tapi FL39 menghitung secara distance. Nah, distance ini harus dihitung menggunakan parameter yang ada di FL17." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5o |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -912,6 +913,39 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 ### 5n.5 Batas
 
 Satu saham (BBRI), satu tanggal. Dihitung dari data broker mentah (semua papan) dan harga penutupan tabel harga, belum dicocokkan dengan BFF yang hidup. Tidak ada klaim bahwa jarak ke VWAP memprediksi apa pun. Tidak ada kode yang diubah.
+
+## 5o. To-do: FL39 dihitung dengan parameter FL17
+
+**Catatan user 2026-11-05 (kata-katanya):** pertanyaan "FL17 sama FL39, apakah secara parameter di set sama atau beda? Jika beda, kita samakan saja. FL39 disamakan dengan FL37." Setelah AI menunjukkan perbedaannya dan menanyakan apakah yang dimaksud FL17 atau FL37, user menjawab: "17 dan 39. Jadikan FL17 menghitung secara price, tapi FL39 menghitung secara distance. Nah, distance ini harus dihitung menggunakan parameter yang ada di FL17."
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5o.1 Kondisi sekarang **[T]** (registry, `flow.ts:417`, `:553`)
+
+| Parameter | FL17 | FL39 |
+|---|---|---|
+| scope, top, rank, ranking | Top-N, 3, net beli, harian | sama |
+| `boards` | semua papan (DECIDED) | Regular saja (PROPOSED) |
+| `investors` | Foreign dan Domestic (DECIDED) | Foreign dan Domestic (PROPOSED) |
+| `window` | 20 (PROPOSED) | 10 (PROPOSED) |
+| `levels` | tidak ada | 0 (PROPOSED) |
+
+FL39 = `100 × (close / FL17 − 1)`, dihitung dengan `rollingVwap(c, p, 10)` (`flow.ts:553`); FL17 dengan `rollingVwap(c, p, 20)` (`flow.ts:417`). Perbedaannya hanya `window` dan `boards` bawaan.
+
+### 5o.2 To-do
+
+- FL17 tetap menghasilkan **harga** (garis di grafik harga); FL39 tetap menghasilkan **jarak** penutupan terhadap harga itu dalam persen.
+- Jarak FL39 dihitung dengan **parameter FL17**: bawaan FL39 menjadi `window` 20, `boards` semua papan, `investors` Foreign dan Domestic.
+- Dampak pada BBRI 3 Nov 2026 (penutupan Rp2.660, semua investor, Top-3): sekarang FL39 memberi VWAP Rp2.841 dan jarak −6,4%; dengan parameter FL17 menjadi VWAP Rp2.795 dan jarak −4,8%. Perbedaan papan tidak mengubah nilai pada BBRI untuk jendela itu.
+
+### 5o.3 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Bentuk "menggunakan parameter FL17":** bawaan FL39 disamakan dengan FL17 (dua indikator, dua perangkat parameter dengan bawaan yang sama), atau FL39 membaca pengaturan FL17 yang terpasang di grafik sehingga satu perangkat parameter saja yang berlaku. User belum menyebut mana.
+2. Keselarasan dengan to-do 15 (jarak terhadap FL18, yang memakai parameter FL18) dan to-do 14 (versi jual).
+3. `levels` (garis acuan 0) dipertahankan di FL39.
+
+### 5o.4 Batas
+
+Satu saham (BBRI), satu tanggal. Dihitung dari data broker mentah (semua papan) dan harga penutupan tabel harga, belum dicocokkan dengan BFF yang hidup. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 

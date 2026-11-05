@@ -1356,3 +1356,4 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   Juga to-do (2026-11-05): indikator baru Buy VWAP bergulir dengan Top-N per hari (cara B), terpisah dari FL17; lihat `FLOW_INDICATOR_REVIEW.md` bagian 5l.
   Juga to-do (2026-11-05): harga rata-rata penjualan (gross jual) untuk FL17 dan FL18 (bentuk menunggu user); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5m.
   Juga to-do (2026-11-05): indikator jarak harga terhadap Buy VWAP beranchor dalam persen (sejajar FL20); jarak rolling sudah ada sebagai FL39 (bacaan menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5n.
+  Juga to-do (2026-11-05): FL39 dihitung dengan parameter FL17 (FL17 harga, FL39 jarak); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5o.
