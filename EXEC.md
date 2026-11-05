@@ -11762,7 +11762,10 @@ Dimulai 2026-11-05 sesudah semua pertanyaan dijawab (user: "Jangan go sampai per
 | FL13/14/38 kelompok broker, Satuan Lot/Rupiah (FL13/15/16/38), bagian merata FL15/16, tanpa Lot di indeks | selesai | `37ed687e` |
 | FL21 ukuran, FL22 jumlah, FL37 z-score, FL39 bawaan FL17 | selesai | `40c7e949` |
 | FL27 pemicu broker, FL29 garis besaran, FL32 Activity Spike, FL33 Top-N harian + Sisi, K4 per pilihan | selesai | `297eacda` |
-| Indikator baru FL40+ | belum | |
-| Verifikasi angka dari database | butuh sesi baru: kredensial pgweb environment yang diperbarui user baru terbaca sesi baru (sesi ini 401) | |
+| Indikator baru FL40–FL48 | selesai | `07ee6f4d` |
+| Merge `origin/main` ke branch (13 commit pekerjaan lain, tanpa konflik) | selesai | `9f9da9a4` |
+| Verifikasi bagian A (lima agen Sonnet 5.5 high, dua putaran; temuan diperbaiki, ERRORS M352) | selesai | `59981335`, `62eb2120`, `1c258684`; hasil di `VERIFY_EXEC_TERMINAL_IND_EDIT.md` |
+| Verifikasi bagian B (oracle dan angka review pada data hidup) | butuh sesi baru: kredensial pgweb environment yang diperbarui user baru terbaca sesi baru (sesi ini 401) | |
+| Merge ke `main` dan deploy | menunggu bagian B (keputusan user: "merge ke main setelah fase verifikasi selesai") | |
 
 Lingkungan uji di sesi ini: Postgres lokal sekali pakai untuk `EDGE_TEST_POSTGRES_URL`; Chromium `/opt/pw-browsers`.

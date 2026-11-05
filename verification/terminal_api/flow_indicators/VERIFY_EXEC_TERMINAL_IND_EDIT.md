@@ -45,3 +45,17 @@ Perilaku chart user yang tersimpan sebelum rilis (C1), tampilan di ponsel (C2). 
 | Regresi | setting tersimpan, generator, oracle, Backtest/Screener, diff | spreadsheet → registry 0 selisih; tripwire dan tes Backtest lulus; FL23 di IHSG menggambar Lot (regresi, diperbaiki, ERRORS M352); kasus oracle tanpa bawaan registry (diperbaiki) |
 
 Perbaikan: commit `59981335`. Putaran 2: agen tampilan dan agen regresi memeriksa ulang temuan mereka sendiri.
+
+## Hasil putaran 2 (2026-11-05)
+
+| Pemeriksaan ulang | Commit | Hasil |
+|---|---|---|
+| FL23 di IHSG (M352), format berganti tanpa muat ulang, oracle memakai bawaan registry, setting Lot tersimpan setelah membuka IHSG, FL42 cepat (jendela 250: 2.521 ms → 29 ms), gerbang FL46, bawaan 48 indikator lolos validasi | `59981335` | lulus |
+| Kelompok kosong tanpa nilai (FL13, FL14, FL38) di Terminal dan oracle | `62eb2120` | lulus; 126 kasus oracle 40.194 nilai 0 selisih; sapuan 520 kasus 149.031 nilai; kartu 3.188 titik 0 selisih |
+| Tampilan di Chromium: format, FL46 (bawaan, judul, penolakan), judul legend, sumbu kiri FL29, warna FL27, garis acuan rasio FL48 di 1, pesan jumlah transaksi parsial | `59981335` | lulus |
+| Judul legend di IHSG memakai satuan yang benar-benar dihitung (tidak menulis Lot) | `1c258684` | lulus; BBRI tetap Lot setelah mengunjungi IHSG |
+
+Sisa kosmetik yang diketahui: kotak "Reference levels" FL48 di tab Style tetap menulis 0 saat mode rasio menggambar 1;
+nama FL37 tetap "Net Flow Percentile · Rupiah" dengan "(Z-score)" di judul saat mode z-score.
+
+Bagian A selesai. Bagian B (data hidup) dan C (browser hidup) belum.
