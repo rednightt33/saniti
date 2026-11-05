@@ -10215,6 +10215,10 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   (manifest, xsection price 908 ticker, ref tickers dengan kolom instrument). Job `verification/universe_63/publish_job.py`
   (kode publisher yang sama, variabel lewat referensi): `broker-range` 2016–2026 untuk 63 kode, 441 file (5,8 MB);
   `logos`; `verify` 63 kode: 1.352 file, **0 mismatch** (13:02 UTC).
+- **S3 tarik dan periksa selesai (2026-11-05 13:36 UTC):** 46 tanggal, 646 kode (626 waran terstruktur, 12 waran, 7 right,
+  R-LQ45X), 18.788 kode-hari, 0 gagal; 73.938 baris siap; 0 duplikat, 0 kolom wajib kosong, 0 selisih antar dua sumber
+  Stockbit, 0 ditahan. **GO unggah (user 2026-11-05: "Ok jalankan, kabari kalau sudah beres")**: dry run, unggah, IHSG
+  `_INDEX` dihitung ulang, data broker IHSG diterbitkan ulang, restart Postgres.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
