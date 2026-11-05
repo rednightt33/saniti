@@ -43,3 +43,39 @@ class IntradayTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_the_publish_request_names_the_loader_and_what_changed(monkeypatch):
+    """EXEC-PUBLISH-FLOW: a clean intraday run sends its own completion signal (source Terminal_Publish_Request)."""
+    import json as _json
+    import urllib.request as ur
+    import intraday_update as iu
+    sent = []
+
+    class Answer:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b'{"status": "triggered"}'
+
+    monkeypatch.setenv("TELEGRAM_NOTIFY_URL", "http://monitor/notify")
+    monkeypatch.setenv("TELEGRAM_NOTIFY_SECRET", "s" * 32)
+    monkeypatch.setattr(ur, "urlopen", lambda request, timeout: sent.append(request) or Answer())
+    assert iu.request_publication("intraday-2026-11-05-2026-11-05-7", 38505)
+    body = _json.loads(sent[0].data)
+    assert body == {"source_table": "Terminal_Publish_Request", "execution_id": "intraday-2026-11-05-2026-11-05-7",
+                    "details": {"loader": "idx-intraday-cron", "changed": 38505}}
+    monkeypatch.delenv("TELEGRAM_NOTIFY_URL")
+    assert not iu.request_publication("x", 1)
+
+
+def test_the_loaders_hold_and_release_the_publisher_write_lock():
+    import price_update as pu
+    seen = []
+
+    class Conn:
+        def execute(self, sql, params=()):
+            seen.append((sql, params))
+    pu.hold_publish_write_lock(Conn())
+    pu.release_publish_write_lock(Conn())
+    assert seen == [("SELECT pg_advisory_lock_shared(hashtext(%s))", ("terminal_publish_write",)),
+                    ("SELECT pg_advisory_unlock_shared(hashtext(%s))", ("terminal_publish_write",))]

@@ -274,7 +274,8 @@ class PublisherHealthTests(unittest.TestCase):
         partial = build_publisher_message(parse_publisher_health(self.RUN + "-partial", {"status": "partial", "run_time": "2026-10-29 19:00", "manual": False, "files": ["price", "logos"]}))
         self.assertIn("terbit tanpa file harga lintas-saham (Screener), daftar logo", partial)
         manual = build_publisher_message(parse_publisher_health("terminal-publish-manual-2026-10-29-2203", self.details(run_time="2026-10-29 22:03", manual=True)))
-        self.assertIn("run manual Thu 29 Oct 2026 22:03 WIB gagal", manual)
+        # EXEC-PUBLISH-FLOW: a run away from the listed times is started by a loader's signal or by hand
+        self.assertIn("run di luar jadwal (dipicu cron data atau manual) Thu 29 Oct 2026 22:03 WIB gagal", manual)
 
     def test_anything_but_the_fixed_shapes_is_refused(self):
         bad = [
@@ -541,6 +542,120 @@ class PostgresRestartTests(unittest.TestCase):
         self.assertEqual(len(sent), 1)
         self.assertIn("sukses", sent[0])
 
+
+class PublishSignalTests(unittest.TestCase):
+    """EXEC-PUBLISH-FLOW (user go 2026-11-05: "kalau cron selesai, dia trigger ke publisher")."""
+
+    class Conn:
+        def __init__(self, inserted=True, changed_series=0):
+            self.sql, self.inserted, self.changed_series, self.commits = [], inserted, changed_series, 0
+
+        def execute(self, sql, params=()):
+            self.sql.append((sql, params))
+            conn = self
+            class Result:
+                def fetchone(self):
+                    return (7,) if "INSERT INTO" in sql and conn.inserted else None
+            return Result()
+
+        def cursor(self):
+            conn = self
+            class Cursor:
+                def __enter__(self): return self
+                def __exit__(self, *a): return False
+                def execute(self, sql, params=()): conn.sql.append((sql, params))
+                def fetchone(self): return (conn.changed_series,)
+            return Cursor()
+
+        def commit(self): self.commits += 1
+        def rollback(self): pass
+
+    def monitor(self, run_now=None):
+        import os
+        sent = []
+        m = TelegramMonitor.__new__(TelegramMonitor)
+        m.token, m.chat_id = "t", "c"
+        m.send_message = lambda token, chat, text, *a: sent.append(text) or 1
+        m.run_now = run_now or (lambda token, instance: True)
+        os.environ["PUBLISH_RAILWAY_TOKEN"] = "x" * 36
+        os.environ["TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID"] = "33466de4-5f96-4a01-bb9c-e851f2be2d3f"
+        os.environ.pop("PUBLISH_TRIGGER_ENABLED", None)
+        return m, sent
+
+    def tearDown(self):
+        import os
+        for name in ("PUBLISH_RAILWAY_TOKEN", "TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID", "PUBLISH_TRIGGER_ENABLED"):
+            os.environ.pop(name, None)
+
+    def test_a_finished_run_that_changed_data_records_one_signal_and_presses_run_now(self):
+        pressed = []
+        m, sent = self.monitor(lambda token, instance: pressed.append(instance) or True)
+        conn = self.Conn()
+        self.assertEqual(m.request_publication(conn, "Monitoring_Price_ALL", "e1", "DAILY", 845), "triggered")
+        self.assertEqual(pressed, ["33466de4-5f96-4a01-bb9c-e851f2be2d3f"])
+        self.assertIn("TRIGGERED", conn.sql[-1][1])
+        self.assertEqual(sent, [])
+
+    def test_nothing_starts_without_a_change_twice_or_when_switched_off(self):
+        import os
+        pressed = []
+        m, _ = self.monitor(lambda token, instance: pressed.append(1) or True)
+        self.assertEqual(m.request_publication(self.Conn(), "Monitoring_Fixed_Income", "e2", "RECOVERY", 0), "not_needed")
+        self.assertEqual(m.request_publication(self.Conn(inserted=False), "Monitoring_Price_ALL", "e1", "DAILY", 9),
+                         "duplicate")
+        os.environ["PUBLISH_TRIGGER_ENABLED"] = "false"
+        self.assertEqual(m.request_publication(self.Conn(), "Monitoring_Price_ALL", "e3", "DAILY", 9), "disabled")
+        self.assertEqual(pressed, [])
+
+    def test_a_refused_run_now_is_told_at_once_and_a_missing_token_is_recorded(self):
+        import os
+        def refused(token, instance):
+            raise RuntimeError("Railway API refused the Run Now request")
+        m, sent = self.monitor(refused)
+        conn = self.Conn()
+        self.assertEqual(m.request_publication(conn, "Monitoring_Stockbit_Update", "e4", None, 23000), "failed")
+        self.assertIn("RuntimeError", conn.sql[-1][1])
+        self.assertEqual(len(sent), 1)
+        self.assertIn("Pemicu Terminal publisher gagal", sent[0])
+        self.assertNotIn("x" * 36, sent[0])
+        m, sent = self.monitor()
+        os.environ.pop("PUBLISH_RAILWAY_TOKEN")
+        conn = self.Conn()
+        self.assertEqual(m.request_publication(conn, "Monitoring_Price_ALL", "e5", "DAILY", 3), "not_configured")
+        self.assertEqual(sent, [])
+
+    def test_what_changed_comes_from_each_loader_s_own_facts(self):
+        from telegram_monitor import publish_changed
+        price = summary(updated_symbols=844, run_type="RECOVERY")
+        self.assertEqual(publish_changed(self.Conn(), "Monitoring_Price_ALL", "e", price), (844, "RECOVERY"))
+        fi = summary(updated_symbols=26, run_type="RECOVERY")
+        self.assertEqual(publish_changed(self.Conn(changed_series=0), "Monitoring_Fixed_Income",
+                                         "00000000-0000-0000-0000-000000000000", fi), (0, "RECOVERY"))
+        failed = StockbitUpdateSummary("e", "APPLY", "FAILED", datetime(2026, 11, 5, tzinfo=timezone.utc),
+                                       datetime(2026, 11, 5, tzinfo=timezone.utc), None, (), None, {}, {}, {}, {}, "x")
+        self.assertEqual(publish_changed(self.Conn(), "Monitoring_Stockbit_Update", "e", failed), (0, None))
+        done = StockbitUpdateSummary("e", "APPLY", "SUCCESS", datetime(2026, 11, 5, tzinfo=timezone.utc),
+                                     datetime(2026, 11, 5, tzinfo=timezone.utc), None, ("2026-11-04",), 23000, {}, {},
+                                     {}, {}, None)
+        self.assertEqual(publish_changed(self.Conn(), "Monitoring_Stockbit_Update", "e", done), (23000, None))
+
+    def test_the_intraday_request_has_a_fixed_shape(self):
+        from telegram_monitor import parse_publish_request
+        self.assertEqual(parse_publish_request("intraday-1", {"loader": "idx-intraday-cron", "changed": 38505}),
+                         ("idx-intraday-cron", 38505))
+        for details in ({"loader": "idx-intraday-cron"}, {"loader": "Bad Name", "changed": 1},
+                        {"loader": "idx-intraday-cron", "changed": -1}, {"loader": "x", "changed": True},
+                        {"loader": "x", "changed": 1, "note": "free text"}, None):
+            with self.assertRaises(ValueError):
+                parse_publish_request("intraday-1", details)
+
+    def test_the_publisher_waiting_alert_reads_in_plain_words(self):
+        health = parse_publisher_health("terminal-publish-manual-2026-11-05-1702-waiting",
+                                        {"status": "waiting", "run_time": "2026-11-05 17:02", "manual": True,
+                                         "stage": "loaders", "minutes": 45})
+        text = build_publisher_message(health)
+        self.assertIn("menunggu cron data selesai lebih dari 45 menit", text)
+        self.assertIn("dipicu cron data", text)
 
 if __name__ == "__main__":
     unittest.main()

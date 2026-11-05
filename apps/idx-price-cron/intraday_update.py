@@ -287,14 +287,23 @@ def main() -> int:
              since=args.since, dry_run=args.dry_run)
         fetcher = Fetcher(query_date)
         problems = []
+        if not args.dry_run:
+            pu.hold_publish_write_lock(conn)              # EXEC-PUBLISH-FLOW: the publisher waits while the bars are written
+        written = 0
         for timeframe in args.timeframes:
             stats = load_timeframe(conn, fetcher, universe, timeframe, args, latest, query_date)
             emit("timeframe_done", **stats)
+            written += int(stats.get("rows_written") or 0)
             if stats["scale_changed"]:
                 problems.append(f"{timeframe}: skala berubah (perlu tarik ulang riwayat): "
                                 + ", ".join(t for t, _, _ in stats["scale_changed"][:20]))
             if stats["errors"]:
                 problems.append(f"{timeframe}: {len(stats['errors'])} saham gagal ditarik")
+        if not args.dry_run:
+            # the bars are committed (autocommit): the publisher may start; it does not read the intraday features
+            pu.release_publish_write_lock(conn)
+            if written:
+                request_publication(f"intraday-{latest.isoformat()}-{query_date.isoformat()}-{os.getpid()}", written)
         if not args.dry_run and not args.skip_features:
             import intraday_features  # noqa: PLC0415 - TA-Lib lives only in the intraday image (M318 build check)
             features = intraday_features.run_queue(conn, args.timeframes)
@@ -305,6 +314,32 @@ def main() -> int:
             report_problems(conn, universe, latest, now, problems)
     emit("run_completed", problems=len(problems))
     return 0
+
+
+def request_publication(execution_id: str, changed: int) -> bool:
+    """EXEC-PUBLISH-FLOW: tell telegram-monitor (source Terminal_Publish_Request) that the intraday bars are written,
+    so it presses Run Now on terminal-publisher. A clean run sends no Telegram message (EXEC-INTRADAY-IDX), so this is
+    the run's own completion signal. Three tries; a failure is logged only (the 07:30 WIB safety run publishes it)."""
+    url = os.environ.get("TELEGRAM_NOTIFY_URL", "").strip()
+    secret = os.environ.get("TELEGRAM_NOTIFY_SECRET", "").strip()
+    if not url or not secret:
+        emit("publish_request_skipped", reason="not_configured")
+        return False
+    import urllib.request  # noqa: PLC0415
+    body = json.dumps({"source_table": "Terminal_Publish_Request", "execution_id": execution_id,
+                       "details": {"loader": "idx-intraday-cron", "changed": int(changed)}}).encode()
+    for attempt in range(1, 4):
+        try:
+            request = urllib.request.Request(url, data=body, method="POST",
+                                             headers={"Content-Type": "application/json", "X-Notify-Secret": secret})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                emit("publish_requested", status=json.loads(response.read() or b"{}").get("status"), changed=changed,
+                     attempt=attempt)
+                return True
+        except Exception as exc:  # noqa: BLE001 - the URL and the secret are never printed
+            emit("publish_request_failed", attempt=attempt, error=type(exc).__name__)
+            time.sleep(2 ** attempt)
+    return False
 
 
 def report_problems(conn, universe, latest: date, now: datetime, problems: list[str]) -> None:

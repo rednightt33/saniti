@@ -71,6 +71,8 @@ class FakeConn:
         self.changes = list(changes or [])
         self.now = now or dt.datetime(2026, 11, 2, 12, 0, tzinfo=dt.timezone.utc)
         self.statements = []
+        # EXEC-PUBLISH-FLOW: advisory locks held by others (names), RUNNING broker rounds, loader signal times
+        self.held, self.rounds, self.signals = set(), 0, []
 
     def execute(self, sql, params=()):
         self.statements.append(sql)
@@ -97,6 +99,14 @@ class FakeConn:
         return sorted(r for r in self.fixed if r[0] == ticker and r[1] == metric and lo <= r[2] <= hi)
 
     def _rows(self, sql, params):
+        if sql.startswith('SELECT pg_try_advisory_lock('):
+            return [(params[0] not in self.held,)]
+        if sql.startswith('SELECT pg_advisory_unlock('):
+            return [(True,)]
+        if 'Monitoring_Stockbit_Update' in sql:
+            return [(self.rounds,)]
+        if sql.startswith('SELECT max(created_at) FROM ' + pub.SIGNAL_TABLE):
+            return [(max(self.signals, default=None),)]
         if pub.BROKER_TABLES['index'] in sql:             # the INDEX table: the same statements on its own rows
             saved, self.brokers = self.brokers, self.index_brokers
             try:
@@ -1747,7 +1757,8 @@ def test_a_failed_run_reports_its_step_and_error_class_and_still_fails(monkeypat
     assert 'secret detail' not in json.dumps(alert) and '"failed"' in capsys.readouterr().out
     conn._rows = lambda sql, params: (_ for _ in ()).throw(pub.psycopg.OperationalError('password=x'))
     assert pub.main(['publisher.py', 'daily']) == 2                       # a driver error: the class only, exit 2
-    assert alerts[-1]['details']['stage'] == 'plan' and 'password' not in json.dumps(alerts[-1])
+    # EXEC-PUBLISH-FLOW: the first statement is now the run lock, before any step: the stage is 'connect'
+    assert alerts[-1]['details']['stage'] == 'connect' and 'password' not in json.dumps(alerts[-1])
 
 
 def test_a_run_that_publishes_without_an_xsection_file_reports_it_as_partial(monkeypatch, alerts):
@@ -1998,15 +2009,17 @@ def test_a_run_that_replaced_nothing_does_not_wait(capsys):
     assert p.replaced == [] and WAITS == []
 
 
-def test_the_full_cleanup_runs_in_the_scheduled_evening_run_only(monkeypatch):
+def test_the_full_cleanup_runs_in_the_scheduled_morning_run_only(monkeypatch):
+    """EXEC-PUBLISH-FLOW: the 19:00 run is gone (the loaders start the publication); the cleanup runs in the 07:30 WIB
+    safety run, never in a run started by a signal (away from the listed times: manual)."""
     monkeypatch.delenv('TERMINAL_SWEEP_WIB', raising=False)
     utc = lambda h, m: dt.datetime(2026, 10, 29, h, m, tzinfo=dt.timezone.utc)
-    assert pub.sweep_due('daily', False, utc(12, 4))                     # 19:04 WIB
-    assert not pub.sweep_due('daily', False, utc(0, 34))                 # 07:34 WIB
-    assert not pub.sweep_due('daily', True, utc(12, 4))                  # a manual run
-    assert not pub.sweep_due('backfill', False, utc(12, 4))
-    monkeypatch.setenv('TERMINAL_SWEEP_WIB', '07:30')
-    assert pub.sweep_due('daily', False, utc(0, 34)) and not pub.sweep_due('daily', False, utc(12, 4))
+    assert pub.sweep_due('daily', False, utc(0, 34))                     # 07:34 WIB
+    assert not pub.sweep_due('daily', False, utc(12, 4))                 # 19:04 WIB
+    assert not pub.sweep_due('daily', True, utc(0, 34))                  # a run started by a signal or by hand
+    assert not pub.sweep_due('backfill', False, utc(0, 34))
+    monkeypatch.setenv('TERMINAL_SWEEP_WIB', '19:00')
+    assert pub.sweep_due('daily', False, utc(12, 4)) and not pub.sweep_due('daily', False, utc(0, 34))
 
 
 def test_main_passes_the_sweep_to_the_run(monkeypatch):
@@ -2018,6 +2031,74 @@ def test_main_passes_the_sweep_to_the_run(monkeypatch):
     monkeypatch.setattr(pub.Publisher, 'run', lambda self, *a, sweep=None: asked.append(sweep) or run(self, *a, sweep=sweep))
     assert pub.main(['publisher.py', 'backfill']) == 0
     assert asked == [('backfill', True), True]
+
+
+def test_a_daily_run_waits_while_a_loader_writes_and_gives_up_with_an_alert(monkeypatch, alerts, capsys):
+    """EXEC-PUBLISH-FLOW (user 2026-11-05: "publisher harus dijalankan setelah proses pengisian table selesai"): a loader
+    holding the write lock or a RUNNING broker round keeps the run waiting; after the wait it publishes nothing and
+    sends the `waiting` alert (the loader still writing signals again when it ends)."""
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    wire_main(monkeypatch, conn, bucket)
+    conn.held.add(pub.WRITE_LOCK)
+    monkeypatch.setenv('TERMINAL_LOADER_WAIT_MINUTES', '0')
+    assert pub.main(['publisher.py', 'daily']) == 0
+    assert 'state.json' not in bucket.objects
+    assert [a['details']['status'] for a in alerts] == ['waiting'] and alerts[0]['details']['stage'] == 'loaders'
+    assert any(e['event'] == 'gave_up_waiting' and e['busy'] == ['loader'] for e in logged(capsys))
+    conn.held.clear(); conn.rounds = 1
+    assert pub.loaders_writing(conn) == ['broker_round']
+
+
+def test_a_loader_that_ends_while_the_run_waits_lets_it_publish():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    conn.held.add(pub.WRITE_LOCK)
+    slept = []
+    def sleep(seconds):
+        slept.append(seconds); conn.held.clear()          # the loader commits and closes its connection
+    assert pub.wait_for_loaders(conn, 45, sleep=sleep) == [] and slept == [pub.LOADER_POLL_SECONDS]
+
+
+def test_only_one_publisher_runs_at_a_time(monkeypatch, capsys):
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    wire_main(monkeypatch, conn, bucket)
+    conn.held.add(pub.RUN_LOCK)
+    assert pub.main(['publisher.py', 'daily']) == 0
+    assert bucket.puts == [] and any(e.get('reason') == 'another publisher run holds the lock' for e in logged(capsys))
+
+
+def test_a_signal_during_the_run_makes_it_run_once_more_and_nothing_is_written_twice(monkeypatch, capsys):
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    wire_main(monkeypatch, conn, bucket)
+    run, calls = pub.Publisher.run, []
+    def signalled(self, *a, sweep=None):
+        calls.append(sweep)
+        out = run(self, *a, sweep=sweep)
+        if len(calls) == 1:                               # a loader finishes while the first run is going
+            conn.signals.append(dt.datetime.now(dt.timezone.utc))
+        return out
+    monkeypatch.setattr(pub.Publisher, 'run', signalled)
+    assert pub.main(['publisher.py', 'daily']) == 0
+    assert len(calls) == 2 and calls[1] is False          # the second run never sweeps
+    data = [k for k in bucket.puts if k.startswith(('price/', 'broker/', 'pack/'))]
+    assert len(data) == len(set(data))                    # the second run found nothing new to write
+    assert sum(e['event'] == 'run_again' for e in logged(capsys)) == 1
+
+
+def test_an_old_signal_does_not_make_the_run_repeat(monkeypatch):
+    conn, bucket = FakeConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    wire_main(monkeypatch, conn, bucket)
+    conn.signals.append(dt.datetime(2026, 11, 1, tzinfo=dt.timezone.utc))
+    calls = []
+    run = pub.Publisher.run
+    monkeypatch.setattr(pub.Publisher, 'run', lambda self, *a, sweep=None: calls.append(1) or run(self, *a, sweep=sweep))
+    assert pub.main(['publisher.py', 'daily']) == 0 and calls == [1]
+
+
+def test_the_broker_behind_warning_is_due_from_17_wib():
+    utc = lambda h, m: dt.datetime(2026, 11, 5, h, m, tzinfo=dt.timezone.utc)
+    assert not pub.stale_alert_due(utc(0, 34))            # 07:34 WIB, the safety run
+    assert pub.stale_alert_due(utc(10, 5))                # 17:05 WIB, after the price cron
+    assert pub.stale_alert_due(utc(16, 50))               # 23:50 WIB
 
 
 def test_the_cleanup_mode_needs_no_database_and_deletes_only_what_no_publication_names(monkeypatch, capsys):
@@ -2398,3 +2479,15 @@ def test_the_first_daily_run_after_the_change_publishes_every_index_year():
     assert doc_of(bucket, 'IHSG', 'broker', 2026)['b'] == ['AK', 'YP']
     assert doc_of(bucket, 'IHSG', 'broker', 2025)['d'] == ['2025-06-02']
     assert json.loads(bucket.objects['state.json'])['broker_index_through'] == '2026-01-02'
+
+
+def test_the_loaders_hold_the_lock_the_publisher_waits_for():
+    """EXEC-PUBLISH-FLOW: the write lock's name is written in each loader; a rename on one side only would let the
+    publisher read a half-written table."""
+    apps = Path(__file__).resolve().parents[2]
+    for loader in ('idx-price-cron/price_update.py', 'fixed-income-price-cron/fixed_income_update.py'):
+        source = (apps / loader).read_text()
+        assert f'PUBLISH_WRITE_LOCK = "{pub.WRITE_LOCK}"' in source, loader
+        assert 'hold_publish_write_lock(connection)' in source, loader
+    intraday = (apps / 'idx-price-cron/intraday_update.py').read_text()
+    assert 'pu.hold_publish_write_lock(conn)' in intraday and 'pu.release_publish_write_lock(conn)' in intraday

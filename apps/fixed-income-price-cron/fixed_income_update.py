@@ -937,6 +937,23 @@ def main() -> int:
     return code
 
 
+# EXEC-PUBLISH-FLOW (user go 2026-11-05: "publisher harus dijalankan setelah proses pengisian table selesai"): a run that
+# writes holds this advisory lock (shared) on its connection until the connection closes; terminal-publisher waits until
+# no loader holds it (apps/terminal-publisher/publisher.py WRITE_LOCK, the same name). Shared: loaders never wait on each
+# other, only the publisher's exclusive try sees them.
+PUBLISH_WRITE_LOCK = "terminal_publish_write"
+
+
+def hold_publish_write_lock(connection) -> None:
+    """Hold the publisher's write lock (shared) for the rest of this connection."""
+    connection.execute("SELECT pg_advisory_lock_shared(hashtext(%s))", (PUBLISH_WRITE_LOCK,))
+
+
+def release_publish_write_lock(connection) -> None:
+    """Release it before work the publisher does not read (e.g. the intraday feature step)."""
+    connection.execute("SELECT pg_advisory_unlock_shared(hashtext(%s))", (PUBLISH_WRITE_LOCK,))
+
+
 def load(args: argparse.Namespace, database_url: str) -> int:
     """One daily, recovery or manual run of a market."""
     now = datetime.now(timezone.utc)
@@ -946,6 +963,8 @@ def load(args: argparse.Namespace, database_url: str) -> int:
     service_name = os.environ.get("RAILWAY_SERVICE_NAME", "fixed-income-price-cron")
 
     with psycopg.connect(database_url) as connection:
+        if not args.dry_run:
+            hold_publish_write_lock(connection)
         schedule = read_schedule(connection, args.market)
         universe = read_universe(connection, schedule)
         if args.limit:

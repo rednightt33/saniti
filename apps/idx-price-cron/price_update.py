@@ -730,6 +730,23 @@ def write_monitoring_rows(
         )
 
 
+# EXEC-PUBLISH-FLOW (user go 2026-11-05: "publisher harus dijalankan setelah proses pengisian table selesai"): a run that
+# writes holds this advisory lock (shared) on its connection until the connection closes; terminal-publisher waits until
+# no loader holds it (apps/terminal-publisher/publisher.py WRITE_LOCK, the same name). Shared: loaders never wait on each
+# other, only the publisher's exclusive try sees them.
+PUBLISH_WRITE_LOCK = "terminal_publish_write"
+
+
+def hold_publish_write_lock(connection) -> None:
+    """Hold the publisher's write lock (shared) for the rest of this connection."""
+    connection.execute("SELECT pg_advisory_lock_shared(hashtext(%s))", (PUBLISH_WRITE_LOCK,))
+
+
+def release_publish_write_lock(connection) -> None:
+    """Release it before work the publisher does not read (e.g. the intraday feature step)."""
+    connection.execute("SELECT pg_advisory_unlock_shared(hashtext(%s))", (PUBLISH_WRITE_LOCK,))
+
+
 def commit_monitoring_and_notify(
     connection: psycopg.Connection,
     records: list[dict],
@@ -977,6 +994,8 @@ def main() -> int:
     execution_id = str(uuid.uuid4())
 
     with psycopg.connect(database_url) as connection:
+        if not args.dry_run:
+            hold_publish_write_lock(connection)
         schedule = read_market_schedule(connection)
         target_date = args.target_date or latest_completed_session(schedule, now)
         close_at = market_close_at(schedule, target_date)

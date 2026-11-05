@@ -7,8 +7,9 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   daily         price: every ticker-year whose source stamp changed; broker: the ticker-years of trading dates newer
                 than the published data_through. Reference files are refreshed. Run after the price cron. Every mode
                 that publishes deletes, TERMINAL_DELETE_AFTER_SECONDS (600) after its state.json, the files its
-                publication stopped naming (delete_replaced). The daily run at TERMINAL_SWEEP_WIB (19:00) then runs the
-                full cleanup (collect_garbage, ERRORS M250, M301), the safety net for what a crashed or stopped run left.
+                publication stopped naming (delete_replaced). The scheduled run at TERMINAL_SWEEP_WIB (07:30) then runs
+                the full cleanup (collect_garbage, ERRORS M250, M301), the safety net for what a crashed or stopped run
+                left.
   cleanup       the full cleanup alone (no database, no publication).
   backfill      every ticker-year of the window (initial load or a schema change).
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
@@ -27,7 +28,14 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
 The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
 `price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward.
 
-Schedule (T7, user 2026-10-26): TERMINAL_RUN_TIMES_WIB=07:30,19:00 and the service's Railway cronSchedule =
+Start (EXEC-PUBLISH-FLOW, user go 2026-11-05: "kalau cron selesai, dia trigger ke publisher"): a loader that finished
+writing changed data notifies telegram-monitor after its commit; telegram-monitor records public.terminal_publish_signal
+and presses Run Now on this service. A daily run takes RUN_LOCK (one run at a time), waits while a loader still writes
+(WRITE_LOCK, a RUNNING broker round), and runs once more when a newer signal arrived during it. The scheduled run is the
+07:30 WIB safety run; it writes nothing that is already published (only changed stamps are written, under content keys).
+
+Schedule (T7, user 2026-10-26; EXEC-PUBLISH-FLOW S4: 07:30 only once the trigger is proven live):
+TERMINAL_RUN_TIMES_WIB and the service's Railway cronSchedule =
 cron_for(those times) ("0,30 0,1,12 * * *": the run times and, CHECK_AFTER_MINUTES later, the check times). A tick that
 is not a run time does not publish (should_run): it checks that the last run time's publication came out
 (check_publication) and exits. A Railway service with a cronSchedule does not run when deployed: for a manual run clear
@@ -324,8 +332,23 @@ DELETE_AFTER_SECONDS = 600
 MIN_DELETE_AFTER_SECONDS = 300
 # the full cleanup (collect_garbage, the safety net for what a crashed or stopped run left) runs in one daily run a
 # day, the one at TERMINAL_SWEEP_WIB, and is given up after SWEEP_SECONDS
-SWEEP_WIB = '19:00'
+SWEEP_WIB = '07:30'
 SWEEP_SECONDS = 300
+# EXEC-PUBLISH-FLOW (user go 2026-11-05: "publisher harus dijalankan setelah proses pengisian table selesai"): a daily run
+# is started by the loaders' completion signal (telegram-monitor presses Run Now; public.terminal_publish_signal) and
+# by the 07:30 WIB safety run. One run at a time (RUN_LOCK); it waits while a loader still writes: a loader holds
+# pg_advisory_lock_shared(hashtext(WRITE_LOCK)) while it writes (price, fixed income, intraday), and a broker round is
+# RUNNING in Monitoring_Stockbit_Update (a RUNNING row older than ROUND_RUNNING_HOURS is a round that died, ignored).
+# A run that waited LOADER_WAIT_MINUTES gives up with the `waiting` alert: the loader still writing signals again when
+# it ends. A signal that arrives during a run makes it run once more (up to RERUNS times): nothing is written twice,
+# the publisher only writes what changed (stamps) under content keys.
+WRITE_LOCK = 'terminal_publish_write'
+RUN_LOCK = 'terminal_publish_run'
+LOADER_WAIT_MINUTES = 45
+LOADER_POLL_SECONDS = 30
+ROUND_RUNNING_HOURS = 6
+RERUNS = 3
+SIGNAL_TABLE = 'public.terminal_publish_signal'
 # keys per listing page (the server's default is 1,000); every listing logs one line per prefix (`listed`), and a
 # page slower than SLOW_PAGE_SECONDS its own line, so a listing that hangs shows where (ERRORS M301)
 LIST_PAGE_KEYS = 200
@@ -2161,6 +2184,48 @@ def should_run(times, now=None, slack_minutes=20):
     return not any(near(h, m) for h, m in ticks)
 
 
+def loaders_writing(conn):
+    """EXEC-PUBLISH-FLOW: who still writes the tables a publication reads. A loader holds the shared WRITE_LOCK while it
+    writes, so the exclusive try fails ('loader'); a broker round RUNNING within ROUND_RUNNING_HOURS ('broker_round')."""
+    busy = []
+    if conn.execute('SELECT pg_try_advisory_lock(hashtext(%s))', (WRITE_LOCK,)).fetchone()[0]:
+        conn.execute('SELECT pg_advisory_unlock(hashtext(%s))', (WRITE_LOCK,))
+    else:
+        busy.append('loader')
+    rounds = conn.execute('SELECT count(*) FROM public."Monitoring_Stockbit_Update" WHERE status = %s '
+                          'AND started_at > now() - make_interval(hours => %s)', ('RUNNING', ROUND_RUNNING_HOURS)).fetchone()[0]
+    if rounds:
+        busy.append('broker_round')
+    return busy
+
+
+def wait_for_loaders(conn, minutes, sleep=time.sleep, clock=time.monotonic):
+    """Wait while a loader writes; [] when none does, else what still wrote when `minutes` ran out."""
+    deadline = clock() + minutes * 60
+    while True:
+        busy = loaders_writing(conn)
+        if not busy:
+            return []
+        if clock() >= deadline:
+            return busy
+        log('waiting_for_loaders', busy=busy)
+        sleep(LOADER_POLL_SECONDS)
+
+
+def newest_signal(conn):
+    """The time of the newest loader signal (None without one)."""
+    return conn.execute(f'SELECT max(created_at) FROM {SIGNAL_TABLE}').fetchone()[0]
+
+
+def stale_alert_due(now):
+    """The broker-behind warning (EXEC-TERMINAL-FRESH) is due from TERMINAL_STALE_ALERT_FROM_WIB (17:00, the price
+    cron's time) to midnight WIB: with publication started by the loaders there is no fixed 19:00 run any more, and
+    telegram-monitor keeps it to one message a day (execution id terminal-YYYY-MM-DD)."""
+    (h, m), = run_times(os.environ.get('TERMINAL_STALE_ALERT_FROM_WIB') or '17:00')
+    local = now.astimezone(WIB)
+    return local.hour * 60 + local.minute >= h * 60 + m
+
+
 def main(argv):
     mode = (argv[1] if len(argv) > 1 else os.environ.get('TERMINAL_PUBLISH_MODE', 'daily')).strip()
     times = run_times(os.environ.get('TERMINAL_RUN_TIMES_WIB'))
@@ -2184,11 +2249,34 @@ def main(argv):
             only = [t.strip().upper() for t in os.environ.get('TERMINAL_TICKERS', '').split(',') if t.strip()] or None
             if mode == 'verify':
                 return 1 if verify(conn, bucket, only) else 0
+            if mode == 'daily':
+                if not conn.execute('SELECT pg_try_advisory_lock(hashtext(%s))', (RUN_LOCK,)).fetchone()[0]:
+                    log('skipped', reason='another publisher run holds the lock')
+                    return 0
+                wait = int(os.environ.get('TERMINAL_LOADER_WAIT_MINUTES') or LOADER_WAIT_MINUTES)
+                busy = wait_for_loaders(conn, wait)
+                if busy:
+                    log('gave_up_waiting', busy=busy, minutes=wait)
+                    notify_publication('waiting', slot, manual, stage='loaders', minutes=wait)
+                    return 0
             pub = Publisher(conn, bucket)
             if mode == 'daily':
                 minutes = int(os.environ.get('TERMINAL_RUN_ALERT_MINUTES') or RUN_ALERT_MINUTES)
                 watchdog = Watchdog(minutes, lambda: slow_alert(pub, slot, manual, minutes))
-            pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only, sweep=sweep)
+            for attempt in range(RERUNS if mode == 'daily' else 1):
+                began = dt.datetime.now(dt.timezone.utc)
+                if attempt:
+                    pub = Publisher(conn, bucket)
+                pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only,
+                        sweep=sweep and not attempt)
+                if mode != 'daily':
+                    break
+                newer = newest_signal(conn)
+                if newer is None or newer < began:
+                    break
+                log('run_again', reason='a loader signalled during the run', signal_at=newer.isoformat(), attempt=attempt + 1)
+                if wait_for_loaders(conn, int(os.environ.get('TERMINAL_LOADER_WAIT_MINUTES') or LOADER_WAIT_MINUTES)):
+                    break
     except Exception as e:  # noqa: BLE001 - reported, then raised (driver errors: the class only, as before)
         stage = pub.stage if pub else 'connect'
         log('failed', error=type(e).__name__, stage=stage)
@@ -2201,8 +2289,8 @@ def main(argv):
     finally:
         if watchdog:
             watchdog.stop()
-    # the evening run (TERMINAL_STALE_ALERT_WIB, default 19:00) warns when broker data lags the prices
-    if mode == 'daily' and (pub.broker_behind or 0) >= 1 and near_time(run_times(os.environ.get('TERMINAL_STALE_ALERT_WIB', '19:00')), started):
+    # a run from 17:00 WIB (stale_alert_due) warns when broker data lags the prices
+    if mode == 'daily' and (pub.broker_behind or 0) >= 1 and stale_alert_due(started):
         notify_broker_behind(started.astimezone(WIB).date().isoformat())
     # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3); so does a
     # reference file whose content-keyed copy failed (EXEC-MU-RUNTIME T5; its fixed-key copy was written)

@@ -46,8 +46,22 @@ AUDIT_QUEUE_SOURCE = "Audit_Queue_Health"
 # check run. Only it knows these facts, so they come with the request, accepted only in the fixed shapes
 # parse_postgres_restart checks: enumerations, numbers, times and reason codes, never free text.
 POSTGRES_RESTART_SOURCE = "Postgres_Restart"
+# EXEC-PUBLISH-FLOW (user go 2026-11-05: "kalau cron selesai, dia trigger ke publisher"): a loader's completion notice
+# (sent after its commit) records one row in public.terminal_publish_signal and presses Run Now on terminal-publisher.
+# The loaders that already notify (price DAILY/RECOVERY, fixed income, broker round) are read from their monitoring
+# rows; a loader without a monitoring notice on a clean run (idx-intraday-cron) sends Terminal_Publish_Request.
+PUBLISH_REQUEST_SOURCE = "Terminal_Publish_Request"
+PUBLISH_SIGNAL_TABLE = "public.terminal_publish_signal"
+PUBLISH_TRIGGER_SOURCES = PRICE_MONITORING_SOURCES | {STOCKBIT_SOURCE, PUBLISH_REQUEST_SOURCE}
+RAILWAY_API_URL = "https://backboard.railway.com/graphql/v2"
+RUN_NOW_MUTATION = """
+mutation RunCronNow($input: DeploymentInstanceExecutionCreateInput!) {
+  deploymentInstanceExecutionCreate(input: $input)
+}
+"""
 SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE,
-                                                CONSENSUS_SOURCE, AUDIT_QUEUE_SOURCE, POSTGRES_RESTART_SOURCE}
+                                                CONSENSUS_SOURCE, AUDIT_QUEUE_SOURCE, POSTGRES_RESTART_SOURCE,
+                                                PUBLISH_REQUEST_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -275,11 +289,12 @@ class PublisherHealth:
     files: tuple[str, ...]
 
 
-HEALTH_ID = re.compile(r"^terminal-publish-(manual-)?\d{4}-\d{2}-\d{2}-\d{4}(-slow|-partial)?$")
+HEALTH_ID = re.compile(r"^terminal-publish-(manual-)?\d{4}-\d{2}-\d{2}-\d{4}(-slow|-partial|-waiting)?$")
 HEALTH_STAGES = {
     "connect": "koneksi database", "start": "persiapan", "plan": "perencanaan", "files": "menulis file data",
     "packs": "menulis paket harga", "intraday": "menulis harga intraday", "xsection": "file Screener", "manifests": "menulis daftar isi",
     "refs": "file referensi", "state": "menulis state.json", "cleanup": "bersih-bersih",
+    "loaders": "menunggu cron data selesai menulis",
 }
 HEALTH_FILES = {
     "price": "harga lintas-saham (Screener)", "actions": "aksi korporasi lintas-saham (Screener)",
@@ -294,9 +309,9 @@ def parse_publisher_health(execution_id: str, details: object) -> PublisherHealt
     if not HEALTH_ID.fullmatch(execution_id) or not isinstance(details, dict):
         raise ValueError("invalid publisher alert")
     status = details.get("status")
-    suffix = {"slow": "-slow", "partial": "-partial"}.get(status, "")
-    if status not in ("failed", "missing", "slow", "partial") or not execution_id.endswith(suffix) or (
-            not suffix and execution_id.endswith(("-slow", "-partial"))):
+    suffix = {"slow": "-slow", "partial": "-partial", "waiting": "-waiting"}.get(status, "")
+    if status not in ("failed", "missing", "slow", "partial", "waiting") or not execution_id.endswith(suffix) or (
+            not suffix and execution_id.endswith(("-slow", "-partial", "-waiting"))):
         raise ValueError("invalid publisher alert status")
     manual = details.get("manual", False)
     if not isinstance(manual, bool) or manual != ("-manual-" in execution_id):
@@ -325,7 +340,7 @@ def parse_publisher_health(execution_id: str, details: object) -> PublisherHealt
 
 def build_publisher_message(health: PublisherHealth) -> str:
     when = lambda d: d.astimezone(JAKARTA_TZ).strftime("%a %d %b %Y %H:%M WIB") if d else "-"
-    run = f"{'run manual' if health.manual else 'publikasi'} {when(health.run_time)}"
+    run = f"{'run di luar jadwal (dipicu cron data atau manual)' if health.manual else 'publikasi'} {when(health.run_time)}"
     stage = HEALTH_STAGES.get(health.stage or "", "-")
     last = when(health.last_published)
     if health.status == "failed":
@@ -337,6 +352,10 @@ def build_publisher_message(health: PublisherHealth) -> str:
         return (f"❌ Terminal publisher: {run} belum terbit\n"
                 f"Publikasi terakhir: {last}; Terminal, Backtest dan Screener memakai publikasi itu.\n"
                 "Lihat terminal-publisher di Railway: run gagal, terhenti, atau tidak berjalan.")
+    if health.status == "waiting":
+        return (f"⏳ Terminal publisher: {run} menunggu cron data selesai lebih dari {health.minutes} menit\n"
+                "Belum ada yang diterbitkan. Cron yang masih menulis akan memicu publikasi lagi begitu selesai; "
+                f"Terminal, Backtest dan Screener tetap memakai publikasi {last}.")
     if health.status == "slow":
         return (f"⏳ Terminal publisher: {run} masih berjalan setelah {health.minutes} menit\n"
                 f"Tahap: {stage}. Sampai selesai, Terminal, Backtest dan Screener memakai publikasi {last}.")
@@ -599,6 +618,52 @@ def build_postgres_restart_message(report: PostgresRestart) -> str:
     verdict = "akan dijalankan" if report.would_restart else f"tidak akan dijalankan ({why})"
     return (f"🧪 Uji restart Postgres ({kind}, mode check, tanpa restart): restart {verdict}.\n"
             f"Memori {gb(report.memory_gb)}.{wait}\n{auto}")
+
+
+LOADER_NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+
+
+def parse_publish_request(execution_id: str, details: object) -> tuple[str, int]:
+    """Terminal_Publish_Request: (loader, changed) in a fixed shape; anything else is a ValueError (400)."""
+    if not isinstance(details, dict) or set(details) != {"loader", "changed"}:
+        raise ValueError("invalid publish request")
+    loader, changed = details.get("loader"), details.get("changed")
+    if not (isinstance(loader, str) and LOADER_NAME.fullmatch(loader)) or isinstance(changed, bool) or \
+            not isinstance(changed, int) or not 0 <= changed <= 1_000_000_000:
+        raise ValueError("invalid publish request detail")
+    return loader, changed
+
+
+def publish_changed(connection: psycopg.Connection, source_table: str, execution_id: str, summary) -> tuple[int, str | None]:
+    """How much a finished loader run changed, and its run type, from the facts the monitor already reads: a price run's
+    updated symbols, a fixed-income run's changed series (its own column; a recovery that changed nothing is 0), a
+    broker round's rows (a round that did not fail counts at least 1: its events may have changed)."""
+    if source_table == "Monitoring_Fixed_Income":
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT changed_series FROM public."Monitoring_Fixed_Income" WHERE execution_id=%s::uuid',
+                           (execution_id,))
+            row = cursor.fetchone()
+        return int((row or [0])[0] or 0), summary.run_type
+    if source_table == "Monitoring_Price_ALL":
+        return int(summary.updated_symbols or 0), summary.run_type
+    if source_table == STOCKBIT_SOURCE:
+        if summary.status == "FAILED":
+            return 0, None
+        return max(1, int(summary.broker_rows or 0)), None
+    return 0, None
+
+
+def press_run_now(token: str, service_instance_id: str, *, opener=urlopen) -> bool:
+    """Railway Run Now of terminal-publisher's cron service (the mutation telegram-trigger uses)."""
+    payload = json.dumps({"query": RUN_NOW_MUTATION, "variables": {"input": {"serviceInstanceId": service_instance_id}}}).encode()
+    request = Request(RAILWAY_API_URL, data=payload, method="POST",
+                      headers={"Content-Type": "application/json", "Project-Access-Token": token,
+                               "User-Agent": "Saniti-Telegram-Monitor/1.0"})
+    with opener(request, timeout=20) as response:
+        result = json.loads(response.read().decode("utf-8"))
+    if result.get("errors"):
+        raise RuntimeError("Railway API refused the Run Now request")
+    return bool(result.get("data", {}).get("deploymentInstanceExecutionCreate"))
 
 
 def fetch_broker_freshness(connection: psycopg.Connection, execution_id: str) -> BrokerFreshnessSummary:
@@ -1080,12 +1145,64 @@ class TelegramMonitor:
         chat_id: str,
         send_message: Callable[..., int] = send_telegram_message,
         edit_message: Callable[..., int] = edit_telegram_message,
+        run_now: Callable[..., bool] = press_run_now,
     ) -> None:
         self.database_url = database_url
         self.token = token
         self.chat_id = chat_id
         self.send_message = send_message
         self.edit_message = edit_message
+        self.run_now = run_now
+
+    def request_publication(self, connection: psycopg.Connection, source_table: str, execution_id: str,
+                            run_type: str | None, changed: int) -> str:
+        """EXEC-PUBLISH-FLOW: one signal per finished loader run that changed data, then Run Now of terminal-publisher.
+        A run that changed nothing, a signal already recorded (the loader's notice repeated), or the switch
+        PUBLISH_TRIGGER_ENABLED=false starts nothing. Never raises: the loader's own message is not held up by it; a
+        Run Now that fails is told on Telegram at once (the data is in the database; the 07:30 WIB safety run publishes
+        it otherwise)."""
+        if changed <= 0:
+            return "not_needed"
+        if not env_flag("PUBLISH_TRIGGER_ENABLED"):
+            return "disabled"
+        try:
+            row = connection.execute(
+                f"""INSERT INTO {PUBLISH_SIGNAL_TABLE} (source, execution_id, run_type, changed)
+                    VALUES (%s, %s, %s, %s) ON CONFLICT (source, execution_id) DO NOTHING RETURNING signal_id""",
+                (source_table, execution_id, run_type, changed)).fetchone()
+            connection.commit()
+            if row is None:
+                return "duplicate"
+            token = os.environ.get("PUBLISH_RAILWAY_TOKEN", "").strip()
+            instance = os.environ.get("TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID", "").strip()
+            if not token or not instance:
+                status, error = "NOT_CONFIGURED", None
+            else:
+                try:
+                    status, error = ("TRIGGERED" if self.run_now(token, instance) else "FAILED"), None
+                except Exception as exc:  # noqa: BLE001 - the class only; the token is never printed
+                    status, error = "FAILED", type(exc).__name__
+                if status == "FAILED":
+                    error = error or "NotAccepted"
+            connection.execute(
+                f"""UPDATE {PUBLISH_SIGNAL_TABLE} SET trigger_status=%s, trigger_error=%s,
+                    triggered_at=CASE WHEN %s = 'TRIGGERED' THEN CURRENT_TIMESTAMP END WHERE signal_id=%s""",
+                (status, error, status, row[0]))
+            connection.commit()
+            print(json.dumps({"event": "publish_signal", "source": source_table, "execution_id": execution_id,
+                              "changed": changed, "status": status, "error": error}), flush=True)
+            if status == "FAILED":
+                self.send_message(self.token, self.chat_id,
+                                  "⚠️ Pemicu Terminal publisher gagal\n"
+                                  f"Cron data ({source_table}) sudah selesai dan datanya ada di database, tetapi Run Now "
+                                  f"publisher ditolak ({error}). Publikasi menyusul pada run pengaman 07:30 WIB, atau "
+                                  "jalankan publisher manual.")
+            return status.lower()
+        except Exception as exc:  # noqa: BLE001 - never let the trigger break the notification
+            connection.rollback()
+            print(json.dumps({"event": "publish_signal_failed", "source": source_table,
+                              "error": f"{type(exc).__name__}"}), flush=True)
+            return "error"
 
     def notify(self, source_table: str, execution_id: str, details: object = None) -> tuple[str, int]:
         if source_table not in SUPPORTED_SOURCES:
@@ -1099,6 +1216,10 @@ class TelegramMonitor:
             health = parse_audit_queue(execution_id, details)
         if source_table == POSTGRES_RESTART_SOURCE:
             health = parse_postgres_restart(execution_id, details)
+        if source_table == PUBLISH_REQUEST_SOURCE:
+            loader, changed = parse_publish_request(execution_id, details)
+            with psycopg.connect(self.database_url) as connection:
+                return self.request_publication(connection, source_table, execution_id, None, changed), 0
 
         with psycopg.connect(self.database_url) as connection:
             if health is not None:
@@ -1117,6 +1238,9 @@ class TelegramMonitor:
                 summary = fetch_feature04_summary(connection, execution_id)
             if summary is None:
                 raise KeyError("execution_id not found")
+            if source_table in PUBLISH_TRIGGER_SOURCES:
+                changed, run_type = publish_changed(connection, source_table, execution_id, summary)
+                self.request_publication(connection, source_table, execution_id, run_type, changed)
             if isinstance(summary, Feature04Summary):
                 state, log_id, edit_target = claim_feature04_delivery(
                     connection, summary.delivery_key
