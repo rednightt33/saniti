@@ -184,8 +184,18 @@ const SCORE: Record<string, (g: Grid, b: number, a: number, t: number) => number
   net_buy:(g, b, a, t) => bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t),
   gross_buy:(g, b, a, t) => bw(g, 'bv', b, a, t),
   net_sell:(g, b, a, t) => bw(g, 'sv', b, a, t) - bw(g, 'bv', b, a, t),
+  gross_sell:(g, b, a, t) => bw(g, 'sv', b, a, t),
   gross_buy_lots:(g, b, a, t) => bw(g, 'bl', b, a, t),
 };
+/* EXEC-TERMINAL-IND-EDIT K1, K2, R1 (user 2026-11-05: "C diperluas ke FL01–FL05", "Pakai R1", "Ok untuk kelompok A"): on an
+   indicator with a Side (FL01-FL05, FL08, FL13, FL14, FL33) Rank says how brokers are ranked (Net or Gross) and the side
+   says which ones: the Buy line is the top N buyers by net or gross buy, the Sell line the top N sellers by net or gross
+   sell. A saved "net_sell" from before R1 reads as Net. Selected brokers and all brokers are the same on both sides. */
+export const SIDE_RANKS = ['net_buy', 'gross_buy'] as const;
+export function sideParams(p: FlowParams, side: 'buy' | 'sell'): FlowParams {
+  const gross = p.rank === 'gross_buy' || p.rank === 'gross_sell';
+  return { ...p, rank:side === 'buy' ? (gross ? 'gross_buy' : 'net_buy') : (gross ? 'gross_sell' : 'net_sell') };
+}
 /** the top `n` brokers by score over a..t (score > 0; ties by broker code). A selection, not a sort: N is small. */
 function topBrokers(g: Grid, R: FlowRows, a: number, t: number, n: number, basis: string): number[] {
   const f = SCORE[basis] || SCORE.net_buy;
@@ -243,6 +253,9 @@ function sided(p: FlowParams, buy: () => Series, sell: () => Series): FlowOut {
   const side = p.side || 'buy';
   return side === 'both' ? { buy:buy(), sell:sell() } : side === 'sell' ? { sell:sell() } : { buy:buy() };
 }
+/** sided, each line with its own cohort (sideParams): the buyers for Buy, the sellers for Sell */
+const mirrored = (p: FlowParams, one: (q: FlowParams, side: 'buy' | 'sell') => Series): FlowOut =>
+  sided(p, () => one(sideParams(p, 'buy'), 'buy'), () => one(sideParams(p, 'sell'), 'sell'));
 
 /* ---- percentile (mid-rank, prior-only) ---- */
 export function percentile(x: Series, baseline: number): Series {
@@ -358,20 +371,20 @@ const resolveBrokers = (ctx: FlowContext, v: any, fallback: () => string[]): str
   Array.isArray(v) ? v : typeof v === 'string' && v.startsWith('class:') ? classBrokers(ctx, v.slice(6)) : fallback();
 
 export const FLOW: Record<string, Fn> = {
-  FL01:(c, p) => sided(p, () => sizeLot(c, p, 'buy'), () => sizeLot(c, p, 'sell')),
+  FL01:(c, p) => mirrored(p, (q, side) => sizeLot(c, q, side)),
   FL02:(c, p) => {
-    const R = c.rows, g = grid0(p), one = (v: Measure, f: Measure) => each(R, W(p), (a, t) => { const C = cohort(g, R, p, a, t); return cmiss(g, C, a, t) ? null : div(cw(g, C, v, a, t), cw(g, C, f, a, t)) });
-    return sided(p, () => one('bv', 'bf'), () => one('sv', 'sf'));
+    const R = c.rows, g = grid0(p), one = (q: FlowParams, v: Measure, f: Measure) => each(R, W(q), (a, t) => { const C = cohort(g, R, q, a, t); return cmiss(g, C, a, t) ? null : div(cw(g, C, v, a, t), cw(g, C, f, a, t)) });
+    return mirrored(p, (q, side) => side === 'buy' ? one(q, 'bv', 'bf') : one(q, 'sv', 'sf'));
   },
   FL03:(c, p) => {
-    const R = c.rows, g = grid0(p), one = (m: Measure) => each(R, W(p), (a, t) => { const v = div(cw(g, cohort(g, R, p, a, t), m, a, t), aw(g, m, a, t)); return v === null ? null : 100 * v });
-    return sided(p, () => one('bl'), () => one('sl'));
+    const R = c.rows, g = grid0(p), one = (q: FlowParams, m: Measure) => each(R, W(q), (a, t) => { const v = div(cw(g, cohort(g, R, q, a, t), m, a, t), aw(g, m, a, t)); return v === null ? null : 100 * v });
+    return mirrored(p, (q, side) => one(q, side === 'buy' ? 'bl' : 'sl'));
   },
   FL04:(c, p) => {
-    const R = c.rows, g = grid0(p), one = (m: Measure) => each(R, W(p), (a, t) => { const C = cohort(g, R, p, a, t); if (cmiss(g, null, a, t)) return null; const v = div(cw(g, C, m, a, t), aw(g, m, a, t)); return v === null ? null : 100 * v });
-    return sided(p, () => one('bf'), () => one('sf'));
+    const R = c.rows, g = grid0(p), one = (q: FlowParams, m: Measure) => each(R, W(q), (a, t) => { const C = cohort(g, R, q, a, t); if (cmiss(g, null, a, t)) return null; const v = div(cw(g, C, m, a, t), aw(g, m, a, t)); return v === null ? null : 100 * v });
+    return mirrored(p, (q, side) => one(q, side === 'buy' ? 'bf' : 'sf'));
   },
-  FL05:(c, p) => sided(p, () => sizeVsMarket(c, p, 'buy'), () => sizeVsMarket(c, p, 'sell')),
+  FL05:(c, p) => mirrored(p, (q, side) => sizeVsMarket(c, q, side)),
   FL06:(c, p) => {
     const R = c.rows, g = grid0(p);
     return { ratio:each(R, W(p), (a, t) => {
@@ -381,7 +394,7 @@ export const FLOW: Record<string, Fn> = {
     }) };
   },
   FL07:(c, p) => ({ value:marketShare(c, p) }),
-  FL08:(c, p) => ({ value:percentile(sizeLot(c, p, p.side === 'sell' ? 'sell' : 'buy'), int(p.baseline, 250)) }),
+  FL08:(c, p) => { const side = p.side === 'sell' ? 'sell' : 'buy'; return { value:percentile(sizeLot(c, sideParams(p, side), side), int(p.baseline, 250)) } },
   FL09:(c, p) => {
     const pct = percentile(sizeLot(c, p, 'buy'), int(p.baseline, 250)), ratio = sizeVsMarket(c, p, 'buy');
     const part = marketShare(c, { ...p, denom:'board' }), flow = flowTurnover(c, { ...p, denom:'board' }), imb = p.use_imb ? imbalance(c, p) : null;
@@ -566,6 +579,9 @@ export const FLOW: Record<string, Fn> = {
 };
 
 for (const id of Object.keys(FLOW)) { const fn = FLOW[id]; FLOW[id] = (c, p) => { ctxRows = c.rows; return fn(c, p) } }
+/** lots per transaction of p's cohort on one side, the cohort ranked exactly as p says (no side rule): the series FL08 and
+    FL09 rank, read by their cards for the history */
+export function transactionSize(ctx: FlowContext, p: FlowParams, side: 'buy' | 'sell'): Series { ctxRows = ctx.rows; return sizeLot(ctx, p, side) }
 
 /* A parameter the caller leaves out takes the agreed default of the registry (FLOW_INDICATORS_SPEC.xlsx, Parameter_Terminal),
    never a fallback written in a function: FL26 without `scope` read 'all' in one place and 'topn' in another (Reviewer A,

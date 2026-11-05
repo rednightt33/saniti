@@ -3,7 +3,7 @@
 import type { BrokerSums, FlowExplainer, Step, Term } from './explain';
 import { againstLevels, brokerRow, filterOf, filterText, flowWindow, fmt, intOf, levelsOf, spanOf, topBy, windowSums } from './explain';
 import type { FlowContext, FlowParams, FlowRows, Series } from './flow';
-import { above, atLeast, BOARDS, boardIndex, computeFlow, INVESTORS, investorIndex } from './flow';
+import { above, atLeast, BOARDS, boardIndex, INVESTORS, investorIndex, sideParams, transactionSize } from './flow';
 
 /* ==========================================================================
    FL01-FL19: the chart's sums, re-derived from the rows
@@ -93,6 +93,7 @@ const RANKS: Record<string, { score: (s: Float64Array) => number; text: string; 
   net_buy:{ score:s => s[BV] - s[SV], text:'net beli (nilai beli − nilai jual)', col:'Net beli', f:v => fmt.idr(v) },
   gross_buy:{ score:s => s[BV], text:'nilai beli', col:'Nilai beli', f:v => fmt.idr(v) },
   net_sell:{ score:s => s[SV] - s[BV], text:'net jual (nilai jual − nilai beli)', col:'Net jual', f:v => fmt.idr(v) },
+  gross_sell:{ score:s => s[SV], text:'nilai jual', col:'Nilai jual', f:v => fmt.idr(v) },
   gross_buy_lots:{ score:s => s[BL], text:'lot beli', col:'Lot beli', f:v => lot(v) },
 };
 /** the n brokers with the highest positive score over the book, ties by code A-Z */
@@ -379,13 +380,13 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
   },
 
   /* FL08 Transaction Size · Percentile: mid-rank percentile (baseline) of FL01's x = BL(C) / BF(C) (Sell SL / SF).
-     The history is the chart's FL01 series (computeFlow): the value at t is re-derived, the baseline before it is read. */
+     The history is the chart's series (flow.ts transactionSize): the value at t is re-derived, the baseline before it is read. */
   FL08:(c, p, t, out) => {
     if (out !== undefined && out !== 'value') return null;
     const x = prep(c, p, t, 1); if (!x) return null;
     const { R, a, f, bk, C } = x, side = p.side === 'sell' ? 'sell' : 'buy', S = SIDE[side], base = intOf(p.baseline, 250);
     const Lc = cw(bk, C, S.l), Fc = cw(bk, C, S.f), gap = cmiss(bk, C), xt = gap ? null : div(Lc, Fc);
-    const hist = computeFlow('FL01', c, { ...p, side })[side] ?? [], P = pctAt(hist, xt, t, base);
+    const hist = transactionSize(c, p, side), P = pctAt(hist, xt, t, base);
     const value = P.value, from = Math.max(0, t - base);
     const why = xt === null ? (gap ? MISS_TEXT : `Kelompok tidak punya transaksi ${S.w}, jadi ukuran candle ini kosong.`)
       : !P.ready ? `Riwayat belum cukup: perlu ${base} candle sebelum ${c.dates[t]} sejak nilai pertama (${c.dates[P.first]}).`
@@ -415,7 +416,7 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
     const x = prep(c, p, t, 1); if (!x) return null;
     const { R, a, f, bk, C } = x, base = intOf(p.baseline, 250), useImb = !!p.use_imb, d = book(R, a, t, boardOnlyOf(p));
     const BLc = cw(bk, C, BL), BFc = cw(bk, C, BF), SFc = cw(bk, C, SF), BVc = cw(bk, C, BV), SVc = cw(bk, C, SV), gap = cmiss(bk, C);
-    const xt = gap ? null : div(BLc, BFc), P = pctAt(computeFlow('FL01', c, { ...p, side:'buy' }).buy ?? [], xt, t, base);
+    const xt = gap ? null : div(BLc, BFc), P = pctAt(transactionSize(c, p, 'buy'), xt, t, base);
     const vs = div(BLc, bk.all[BL]), fs = div(BFc, bk.all[BF]);
     const ratio = gap || bk.all[MISS] > 0 || vs === null || fs === null ? null : div(vs, fs);
     const part = pctOf(div(BLc, d.all[BL])), flow = pctOf(div(BVc - SVc, d.all[BV])), imb = useImb ? (gap ? null : div(BFc - SFc, BFc + SFc)) : null;
@@ -703,3 +704,12 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
   },
 };
 
+/* EXEC-TERMINAL-IND-EDIT K1/R1 (calc/flow.ts sideParams): the Buy line's cohort is the top buyers, the Sell line's the top
+   sellers; the card ranks the cohort of the line it explains */
+for (const id of ['FL01', 'FL02', 'FL03', 'FL04', 'FL05', 'FL08']) {
+  const f = FLOW_EXPLAIN_A[id];
+  FLOW_EXPLAIN_A[id] = (c, p, t, out) => {
+    const side = id === 'FL08' ? (p.side === 'sell' ? 'sell' : 'buy') : sideOf(p, out);      // FL08 draws one line, its Side
+    return f(c, side ? sideParams(p, side) : p, t, out);
+  };
+}

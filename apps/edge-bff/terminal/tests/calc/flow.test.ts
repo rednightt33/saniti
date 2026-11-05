@@ -1,7 +1,7 @@
 // EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): the Flow indicators against hand-computed values, the spreadsheet's own
 // illustrations (FLOW_INDICATORS_SPEC.xlsx, column "Example Illustration") and the conventions of FORMULAS.md.
 import { describe, expect, it } from 'vitest';
-import { above, atLeast, atMost, computeFlow, defaultInventoryBrokers, flowRows, percentile, type FlowContext } from '../../src/calc/flow';
+import { above, atLeast, atMost, computeFlow, defaultInventoryBrokers, flowDefaults, flowRows, percentile, transactionSize, type FlowContext } from '../../src/calc/flow';
 import REG from '../../src/data/flowRegistry.json';
 
 type Row = { d: string; b: string; i: string; m: string; bv: number; sv: number; bl: number; sl: number; bf?: number | null; sf?: number | null };
@@ -214,5 +214,35 @@ describe('exact sums and thresholds', () => {
     const c = ctx([], dates, { close, volume:[100, 100, 100, 100, 100, 300, 300] });
     expect(computeFlow('FL27', c, { recent:2, baseline:2, volx:3, move:3 }).value[6]).toBe(1);
     expect(computeFlow('FL27', c, { recent:2, baseline:2, volx:3, move:2.9 }).value[6]).toBe(0);
+  });
+});
+
+// EXEC-TERMINAL-IND-EDIT K1/K2/R1 (user 2026-11-05): with a Side, Rank says Net or Gross and the side says who: the Buy line's
+// cohort is the top buyers, the Sell line's the top sellers (the review's illustration: before, the Sell line was the net
+// buyers' own selling). A saved "net_sell" reads as Net.
+describe('Side picks the cohort: top buyers for Buy, top sellers for Sell', () => {
+  // one candle, lots = value / 100 (price 1): AA net +40, BB net +25, CC net -30, DD net -35; total buy 120 = total sell 120
+  const c = ctx([r(D[0], 'AA', 5000, 1000, 50, 10), r(D[0], 'BB', 3000, 500, 30, 5), r(D[0], 'CC', 1000, 4000, 10, 40),
+    r(D[0], 'DD', 3000, 6500, 30, 65)], D);
+  it('FL03 Sell is the top sellers\' share of the sold lots, Buy the top buyers\' share of the bought lots', () => {
+    const o = computeFlow('FL03', c, { scope:'topn', top:2, rank:'net_buy', side:'both', window:1 });
+    near(o.buy[0], 100 * (50 + 30) / 120);                 // AA, BB: the two largest net buyers
+    near(o.sell[0], 100 * (65 + 40) / 120);                // DD, CC: the two largest net sellers (before: AA, BB sold 15)
+  });
+  it('Gross ranks by gross buy for Buy and gross sell for Sell', () => {
+    const o = computeFlow('FL03', c, { scope:'topn', top:1, rank:'gross_buy', side:'both', window:1 });
+    near(o.buy[0], 100 * 50 / 120);                        // AA bought the most lots
+    near(o.sell[0], 100 * 65 / 120);                       // DD sold the most
+  });
+  it('a saved net_sell reads as Net; selected brokers are the same on both sides', () => {
+    expect(computeFlow('FL03', c, { scope:'topn', top:2, rank:'net_sell', side:'both', window:1 }))
+      .toEqual(computeFlow('FL03', c, { scope:'topn', top:2, rank:'net_buy', side:'both', window:1 }));
+    const o = computeFlow('FL03', c, { scope:'selected', brokers:['AA'], side:'both', window:1 });
+    near(o.buy[0], 100 * 50 / 120); near(o.sell[0], 100 * 10 / 120);
+  });
+  it('FL09 keeps its own rank (no side rule): the size it ranks is still the chosen cohort\'s, net sellers included', () => {
+    const p = { ...flowDefaults('FL09'), scope:'topn', top:1, rank:'net_sell', window:1 };
+    near(transactionSize(c, p, 'buy')[0], 30 / 1);          // DD, the largest net seller, bought 30 lots in 1 transaction
+    near(transactionSize(c, { ...p, rank:'net_buy' }, 'buy')[0], 50 / 1);
   });
 });
