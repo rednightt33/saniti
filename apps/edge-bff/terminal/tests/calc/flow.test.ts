@@ -246,3 +246,22 @@ describe('Side picks the cohort: top buyers for Buy, top sellers for Sell', () =
     near(transactionSize(c, { ...p, rank:'net_buy' }, 'buy')[0], 50 / 1);
   });
 });
+
+// EXEC-TERMINAL-IND-EDIT to-do 7, U2, to-do 17 (user 2026-11-04/05): FL11 has one denominator (every investor's gross buy on
+// the chosen boards) and, like FL34, a change line: the value now minus the value `lag` candles back, in points
+describe('FL11 one denominator and the change line', () => {
+  // AA (Foreign) buys 30 sells 10 each day; BB (Domestic) buys 70 sells 90: every investor's gross buy = 100 a day
+  const c = ctx(D.flatMap((d, k) => [r(d, 'AA', 30 + k, 10, 1, 1, 1, 1, 'Foreign'), r(d, 'BB', 70 - k, 90 - k, 1, 1, 1, 1, 'Domestic')]), D);
+  const p = { scope:'all', investors:['Foreign'], window:1 };
+  it('the denominator is every investor\'s gross buy, whatever a saved denom says', () => {
+    const o = computeFlow('FL11', c, { ...p, lag:'1' });
+    near(o.value[0], 100 * 20 / 100); near(o.value[4], 100 * 24 / 100);
+    expect(computeFlow('FL11', c, { ...p, lag:'1', denom:'filter' })).toEqual(o);
+  });
+  it('change = value now minus value lag candles back; "window" = the rolling days', () => {
+    const o = computeFlow('FL11', c, { ...p, lag:'1' });
+    expect(o.change[0]).toBeNull(); near(o.change[1], 1); near(o.change[4], 1);
+    const w = computeFlow('FL11', c, { ...p, window:2, lag:'window' });
+    expect(w.change.slice(0, 3)).toEqual([null, null, null]); near(w.change[3], 100 * (22 + 23) / 200 - 100 * (20 + 21) / 200);   // 22.5% - 20.5% = 2 points
+  });
+});

@@ -46,7 +46,7 @@ const EXTRA: Record<string, Record<string, any>[]> = {
   FL08:[{ baseline:20 }, { baseline:20, side:'sell' }, { baseline:30, window:3, top:1 }, { baseline:20, scope:'selected', brokers:['AK'] }],
   FL09:[{ baseline:20 }, { baseline:20, pct_min:50, ratio_min:0.5, part_min:1, flow_min:-100 }, { baseline:20, pct_min:0, ratio_min:0.01, part_min:0, flow_min:-100, use_imb:true, imb_min:-1 },
     { baseline:20, pct_min:30, ratio_min:0.8, part_min:2, flow_min:0, use_imb:true, imb_min:0 }, { baseline:20, rank:'gross_buy', pct_min:20, ratio_min:0.5, part_min:1, flow_min:-5 }],
-  FL11:[{ denom:'filter' }, { denom:'filter', scope:'all', investors:['Foreign'] }],
+  FL11:[{ lag:'1' }, { lag:'5', window:3 }, { lag:'window', window:4, scope:'all', investors:['Foreign'] }, { denom:'filter' }],   // a saved denom is ignored
   FL12:[{ window:2 }, { window:12, scope:'all' }],
   FL18:[{ anchor:'2026-01-20' }, { anchor:'2026-01-25', scope:'selected', brokers:['CC', 'XL'] }, { anchor:'2030-01-01' }, { anchor:'2026-01-20', rank:'net_sell', top:1 }, { anchor:'2026-01-10', scope:'all' }],
   FL19:[{ anchor:'2026-01-20' }, { anchor:'2026-01-25', scope:'selected', brokers:['CC', 'XL'] }, { anchor:'2030-01-01' }, { anchor:'2026-01-20', rank:'net_sell', top:1 }, { anchor:'2026-01-10', scope:'all' }, { top:8 }],

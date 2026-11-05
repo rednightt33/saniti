@@ -356,6 +356,10 @@ function impliedCost(ctx: FlowContext, p: FlowParams): Series {         // FL19
   }
   return out;
 }
+/* EXEC-TERMINAL-IND-EDIT (user 2026-11-05, FL34 "tambahkan change ... daily to daily"; U2 for FL11): a change line, the
+   value now minus the value `lag` candles earlier, in the indicator's own unit (percentage points for a %) */
+export const lagOf = (p: FlowParams) => p.lag === 'window' ? int(p.window, 1) : int(p.lag, 1);
+export const changeOf = (x: Series, lag: number): Series => x.map((v, t) => t - lag < 0 || v === null || x[t - lag] === null ? null : v - (x[t - lag] as number));
 const distance = (close: Series, ref: Series): Series => ref.map((r, t) => { const c = close[t]; return r === null || c === null || !r ? null : 100 * (c / r - 1) });
 
 /** FL23 default brokers: the three largest net buyers (all boards and investors) over the last 20 candles with data */
@@ -407,7 +411,8 @@ export const FLOW: Record<string, Fn> = {
     }) };
   },
   FL10:(c, p) => ({ value:imbalance(c, p) }),
-  FL11:(c, p) => ({ value:flowTurnover(c, p) }),
+  /* to-do 7 (user 2026-11-04 "Okay pakai A"): one denominator, every investor's gross buy on the chosen boards */
+  FL11:(c, p) => { const v = flowTurnover(c, { ...p, denom:'board' }); return { value:v, change:changeOf(v, lagOf(p)) } },
   FL12:(c, p) => {
     const R = c.rows, g = grid0(p), w = W(p, 5);
     return { value:each(R, w, (a, t) => { const C = cohort(g, R, p, a, t); let n = 0; for (let k = a; k <= t; k++) if (cc(g, C, 'bv', k) - cc(g, C, 'sv', k) > 0) n++; return 100 * n / w }) };
@@ -542,12 +547,14 @@ export const FLOW: Record<string, Fn> = {
     const R = c.rows, g = grid0(p);
     const inst = new Set(resolveBrokers(c, p.inst, () => classBrokers(c, 'Institutional-heavy'))), retail = new Set(resolveBrokers(c, p.retail, () => classBrokers(c, 'Retail-heavy')));
     /* no list (the classification has not arrived) or a broker in both lists: no value, never a 0 */
-    if (!inst.size && !retail.size || [...inst].some(b => retail.has(b))) return { value:series(R.N) };
+    if (!inst.size && !retail.size || [...inst].some(b => retail.has(b))) return { value:series(R.N), change:series(R.N) };
     const idx = (s: Set<string>) => R.brokers.map((b, k) => s.has(b) ? k : -1).filter(k => k >= 0), I = idx(inst), Rt = idx(retail);
-    return { value:each(R, W(p, 20), (a, t) => {
+    const value = each(R, W(p, 20), (a, t) => {
       const net = (C: number[]) => cw(g, C, 'bv', a, t) - cw(g, C, 'sv', a, t), v = div(net(I) - net(Rt), aw(g, 'bv', a, t));
       return v === null ? null : 100 * v;
-    }) };
+    });
+    /* to-do 17 (user 2026-11-05): the bars stay FL34, a line shows its change (1, 5 or 20 sessions back, points) */
+    return { value, change:changeOf(value, lagOf(p)) };
   },
   FL35:(c, p) => {
     const R = c.rows, g = grid0(p), D = W(p, 20);

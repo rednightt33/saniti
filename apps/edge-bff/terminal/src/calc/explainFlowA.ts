@@ -1,9 +1,9 @@
 /* EXEC-IND-CARDS IC3: Flow explainers (calc/explain.ts: the interface, the helpers and the rule that the card's number
    is the chart's number). One file per part so they can be written side by side; explainFlowIndex.ts joins them. */
 import type { BrokerSums, FlowExplainer, Step, Term } from './explain';
-import { againstLevels, brokerRow, filterOf, filterText, flowWindow, fmt, intOf, levelsOf, spanOf, topBy, windowSums } from './explain';
+import { againstLevels, brokerRow, filterOf, filterText, flowWindow, fmt, intOf, levelsOf, spanOf, topBy, windowSums, withChange } from './explain';
 import type { FlowContext, FlowParams, FlowRows, Series } from './flow';
-import { above, atLeast, BOARDS, boardIndex, INVESTORS, investorIndex, sideParams, transactionSize } from './flow';
+import { above, atLeast, BOARDS, boardIndex, INVESTORS, investorIndex, lagOf, sideParams, transactionSize } from './flow';
 
 /* ==========================================================================
    FL01-FL19: the chart's sums, re-derived from the rows
@@ -477,7 +477,7 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
   FL11:(c, p, t, out) => {
     if (out !== undefined && out !== 'value') return null;
     const x = prep(c, p, t, 1); if (!x) return null;
-    const { R, a, f, bk, C } = x, d = denomBook(c, p, x, t), BVc = cw(bk, C, BV), SVc = cw(bk, C, SV), T = d.all[BV];
+    const { R, a, f, bk, C } = x, d = denomBook(c, { ...p, denom:'board' }, x, t), BVc = cw(bk, C, BV), SVc = cw(bk, C, SV), T = d.all[BV];
     const combine = (v: Record<string, number>) => pctOf(div(v.BV - v.SV, v.TBV)), value = combine({ BV:BVc, SV:SVc, TBV:T });
     return {
       output:'value', value, expr:'100 × (BV − SV) ÷ TBV', span:spanOf(c, a, t),
@@ -486,7 +486,7 @@ export const FLOW_EXPLAIN_A: Record<string, FlowExplainer> = {
       steps:[
         windowStep(c, a, t, f),
         cohortStep(R, bk, C, [['Beli', s => fmt.idr(s[BV]), 'gross_buy'], ['Jual', s => fmt.idr(s[SV])], ['Net', s => fmt.idr(s[BV] - s[SV]), 'net_buy']]),
-        { title:'Bandingkan dengan nilai transaksi', text:`Net kelompok BV − SV = ${fmt.idr(BVc - SVc)}; nilai beli semua broker di ${denomText(p)} TBV = ${fmt.idr(T)}.` },
+        { title:'Bandingkan dengan nilai transaksi', text:`Net kelompok BV − SV = ${fmt.idr(BVc - SVc)}; nilai beli semua broker di ${denomText({ denom:'board' })} TBV = ${fmt.idr(T)}.` },
         { title:'Hitung nilainya', text:value === null ? 'Tidak ada transaksi dalam jendela (TBV = 0), jadi tidak ada nilai.'
           : `100 × (${fmt.idr(BVc)} − ${fmt.idr(SVc)}) ÷ ${fmt.idr(T)} = ${fmt.pct(value)}.` },
       ],
@@ -713,3 +713,4 @@ for (const id of ['FL01', 'FL02', 'FL03', 'FL04', 'FL05', 'FL08']) {
     return f(c, side ? sideParams(p, side) : p, t, out);
   };
 }
+FLOW_EXPLAIN_A.FL11 = withChange(FLOW_EXPLAIN_A.FL11, lagOf);

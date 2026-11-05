@@ -256,10 +256,17 @@ export function initIndicators(ctx: Ctx) {
     inst.plotKey = outs.map(o => o.r).join();
     const opts: any = { priceScaleId:scale, lastValueVisible:panel, priceLineVisible:false, crosshairMarkerVisible:false };
     if(r.zone !== 'overlay') opts.priceFormat = { type:'custom', formatter:inst.def.format, minMove:inst.def.minMove };
-    const mk = (type, extra) => { const s = chart.addSeries(type, { ...opts, ...extra }, paneIdx); paneIdx = s.getPane().paneIndex(); return s };
+    let left = false;
+    const mk0 = (type, extra) => { const s = chart.addSeries(type, { ...opts, ...extra }, paneIdx); paneIdx = s.getPane().paneIndex(); return s };
     inst.parts = [];
     outs.forEach(o => {
       if(o.r === 'state') return;
+      /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05, FL34 "sumbu kedua"): an output may have its own number format and, in a
+         pane, its own scale on the left (a change in points beside a level in %) */
+      const own = { ...(o.fmt ? { priceFormat:{ type:'custom', formatter:o.fmt, minMove:o.minMove ?? inst.def.minMove } } : {}),
+        ...(panel && o.scale === 'left' ? { priceScaleId:'left' } : {}) };
+      if(panel && o.scale === 'left') left = true;
+      const mk = (type, extra) => mk0(type, { ...own, ...extra });
       if(o.r === 'marker') inst.parts.push({ o, kind:'marker', series:null, plugin:null });      // marks under the candles
       else if(o.r === 'histogram') inst.parts.push({ o, kind:'hist', series:mk(L.HistogramSeries, { base:0 }) });
       else if(o.r === 'segmented_line') inst.parts.push({ o, kind:'seg', series:mk(L.LineSeries, {}), series2:mk(L.LineSeries, { lastValueVisible:false }) });
@@ -273,6 +280,7 @@ export function initIndicators(ctx: Ctx) {
       return { ...res, priceRange:{ minValue:Math.min(res.priceRange.minValue, ...lv), maxValue:Math.max(res.priceRange.maxValue, ...lv) } };
     } });
     if(inst.def.fill) { const host = inst.parts.find(p => p.o.k === inst.def.fill[0]); if(host){ inst.fillPrim = new BandFill(); host.series.attachPrimitive(inst.fillPrim) } }
+    if(panel && left) chart.priceScale('left', paneIdx).applyOptions({ visible:true, scaleMargins:{ top:.2, bottom:.06 } });
     if(panel) { chart.priceScale('right', paneIdx).applyOptions({ scaleMargins:{ top:.2, bottom:.06 } }); layoutPanes() }   // top band is kept free for the legend row
   }
   const guideLevels = inst => String(inst.style.guides.levels).split(/[,;|\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);
@@ -420,7 +428,7 @@ export function initIndicators(ctx: Ctx) {
         const prev = inst.disp[pt.o.k][i - 1];
         const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
-        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : spec.indicator(v)) : inst.def.format(v);   // a mark reads Yes/No
+        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty

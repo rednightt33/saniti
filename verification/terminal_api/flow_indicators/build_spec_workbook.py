@@ -158,11 +158,24 @@ RANK_SIDE = ('Urutkan Top-N berdasarkan', 'Pilihan', 'Net (Rp) / Kotor (Rp)', 'N
 for fid in ('FL01', 'FL02', 'FL03', 'FL04', 'FL05', 'FL08'):
     set_params(fid, swap('Urutkan Top-N berdasarkan', RANK_SIDE))
 
+# to-do 7 (user 2026-11-04 "Okay pakai A"): FL11 has one denominator, every investor's gross buy on the chosen boards
+set_params('FL11', lambda ps: [p for p in ps if p[0] != 'Penyebut'])
+# U2 and to-do 17 (user 2026-11-05): a change line beside FL11 and FL34 (value now minus value N candles back)
+LAG_FL11 = ('Garis perubahan: dibanding', 'Pilihan', 'Sama dengan hari rolling / 1 sesi / 5 sesi / 20 sesi', 'Sama dengan hari rolling', D,
+            'U2 (2026-11-05): garis perubahan dengan mekanisme FL34; sama dengan hari rolling = dua periode tidak tumpang tindih (M-FF-INC).')
+LAG_FL34 = ('Garis perubahan: dibanding', 'Pilihan', '1 sesi / 5 sesi / 20 sesi', '1 sesi', D,
+            'To-do 17 (2026-11-05): "Ok untuk jarak perubahan"; batang = FL34, garis = perubahan (poin), sumbu kedua.')
+set_params('FL11', lambda ps: ps + [LAG_FL11])
+set_params('FL34', lambda ps: ps + [LAG_FL34])
+
 DEC_20261105 = [
     (D, 'K1 Sisi (2026-11-05)', 'Satu arti untuk Sisi di FL01-FL05, FL08, FL13, FL14, FL33: Buy = Top-N pembeli, Sell = Top-N penjual.',
      'C diperluas ke FL01-FL05'),
     (D, 'R1 Rank (2026-11-05)', 'Rank pada indikator ber-Sisi = Net atau Kotor; pilihan Net jual dihapus (simpanan lama dibaca Net).',
      'Pakai R1 saja untuk FL08; Ok untuk kelompok A'),
+    (D, 'FL11 penyebut (2026-11-04)', 'Satu penyebut: nilai beli kotor semua investor pada papan terpilih.', 'Okay pakai A'),
+    (D, 'Garis perubahan (2026-11-05)', 'FL34: batang FL34 + garis perubahan (1/5/20 sesi, poin, sumbu kedua); FL11 sama, termasuk "sama dengan hari rolling".',
+     'Tidak usah ada toggle, langsung aja kita display as line chart ...; Ok untuk jarak perubahan; U2 ok exec'),
     (D, 'Kelompok B (2026-11-05)', 'Indikator dengan Rank tanpa Sisi tetap Net beli, Beli kotor, Net jual; label diperjelas.',
      'Kelompok B tetap, ganti labelnya, masukan exec'),
 ]

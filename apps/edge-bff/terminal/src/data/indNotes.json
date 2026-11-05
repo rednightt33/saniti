@@ -533,8 +533,8 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL11": {
-   "formula": "100 (BV(C)-SV(C)) / TBV; TBV per the denominator option",
-   "outputs": "ratio",
+   "formula": "100 (BV(C)-SV(C)) / TBV, TBV = every investor's gross buy on the chosen boards (one denominator, to-do 7); change line (shared conventions)",
+   "outputs": "value, change",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL12": {
@@ -648,8 +648,8 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL34": {
-   "formula": "100 (BV-SV of the institutional brokers − BV-SV of the retail brokers) / BV(A), filter; defaults: Institutional-heavy and Retail-heavy of ref/brokers; a broker in both lists is refused",
-   "outputs": "ratio",
+   "formula": "100 (BV-SV of the institutional brokers − BV-SV of the retail brokers) / BV(A), filter; defaults: Institutional-heavy and Retail-heavy of ref/brokers; a broker in both lists is refused; change line (shared conventions)",
+   "outputs": "value, change",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL35": {

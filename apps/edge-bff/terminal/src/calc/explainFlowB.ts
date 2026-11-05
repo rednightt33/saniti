@@ -1,9 +1,9 @@
 /* EXEC-IND-CARDS IC3: Flow explainers (calc/explain.ts: the interface, the helpers and the rule that the card's number
    is the chart's number). One file per part so they can be written side by side; explainFlowIndex.ts joins them. */
 import type { FlowContext, FlowParams, FlowRows, Num } from './flow';
-import { BOARDS, INVESTORS, above, atLeast, atMost, boardIndex, classBrokers, flowDefaults, investorIndex } from './flow';
+import { BOARDS, INVESTORS, above, atLeast, atMost, boardIndex, classBrokers, flowDefaults, investorIndex, lagOf } from './flow';
 import type { BrokerSums, Explanation, FlowExplainer, Step, Term } from './explain';
-import { brokerRow, filterText, flowWindow, fmt, intOf, levelsOf, spanOf, topBy } from './explain';
+import { brokerRow, filterText, flowWindow, fmt, intOf, levelsOf, spanOf, topBy, withChange } from './explain';
 
 /* ---- sums as the chart adds them (calc/flow.ts grid, bw, aw) ----
    The chart adds a broker's rows of one candle in row order (a cell), adds the cells of a window exactly and rounds once,
@@ -734,3 +734,5 @@ const paramsOf = (id: string, p: FlowParams): FlowParams =>
 
 export const FLOW_EXPLAIN_B: Record<string, FlowExplainer> = Object.fromEntries(Object.entries(EX).map(([id, f]) =>
   [id, ((c, p, t, output) => id !== 'FL23' && output !== undefined && output !== 'value' ? null : f(c, paramsOf(id, p), t, output)) as FlowExplainer]));
+/* EXEC-TERMINAL-IND-EDIT to-do 17: FL34's change line (calc/flow.ts changeOf) */
+FLOW_EXPLAIN_B.FL34 = withChange(FLOW_EXPLAIN_B.FL34, p => lagOf(paramsOf('FL34', p)));

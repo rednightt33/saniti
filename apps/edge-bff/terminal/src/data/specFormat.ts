@@ -26,6 +26,8 @@ export const price = (v: number | null | undefined) => num(v, 0);
 export const change = (v: number | null | undefined, d = 2) => !ok(v) ? '–' : (v > 0 ? '+' : '') + num(v, d) + '%';
 /** an indicator level in percent (1 decimal, no sign): "48.2%" */
 export const pctLevel = (v: number | null | undefined) => !ok(v) ? '–' : smart(v, 1) + '%';
+/** a difference of two percentages, in percentage points (EXEC-TERMINAL-IND-EDIT: FL11 and FL34 change lines) */
+export const points = (v: number | null | undefined) => !ok(v) ? '–' : (v > 0 ? '+' : '') + num(v, 2) + ' pt';
 /** Rasio: 2 decimals and × */
 export const ratio = (v: number | null | undefined) => !ok(v) ? '–' : smart(v, 2) + '×';
 /** Nilai transaksi: Rp with B (miliar) or T (triliun), 1 decimal; below 1B the whole rupiah */

@@ -100,3 +100,24 @@ export function sourceAt(B: Bars, s: string, i: number): number | null {
   return isN(v) ? v : null;
 }
 export const dateOf = (B: Bars, i: number) => B.T ? B.T[i] : `candle ${i + 1}`;
+
+/* EXEC-TERMINAL-IND-EDIT: the card of a change line (calc/flow.ts changeOf): the indicator's own card at t and at
+   t - lag, then their difference. Both values are the chart's (each card equals the chart), so the change is too. */
+export function withChange(base: FlowExplainer, lagOf: (p: FlowParams) => number, unit: Unit = 'pct'): FlowExplainer {
+  return (c, p, t, output) => {
+    if (output !== 'change') return base(c, p, t, output);
+    const lag = lagOf(p), e1 = base(c, p, t, 'value'), e0 = t - lag >= 0 ? base(c, p, t - lag, 'value') : null;
+    if (!e1 || !e0 || e1.value === null || e0.value === null) return null;
+    const combine = (v: Record<string, number>) => v.V1 - v.V0, value = combine({ V1:e1.value, V0:e0.value });
+    const show = (v: number) => fmt.of(v, unit), pts = unit === 'pct' ? ' poin' : '';
+    return {
+      output:'change', value, expr:'V1 − V0', span:{ from:c.dates[t - lag], to:c.dates[t], candles:lag + 1 },
+      terms:[{ key:'V1', label:`Nilai ${c.dates[t]}`, value:e1.value, unit }, { key:'V0', label:`Nilai ${c.dates[t - lag]} (${lag} candle sebelumnya)`, value:e0.value, unit }], combine,
+      steps:[
+        { title:'Nilai sekarang', text:`Pada ${c.dates[t]} nilainya ${show(e1.value)} (cara hitungnya: kartu garis utama pada tanggal itu).` },
+        { title:`Nilai ${lag} candle sebelumnya`, text:`Pada ${c.dates[t - lag]} nilainya ${show(e0.value)}.` },
+        { title:'Selisihnya', text:`${show(e1.value)} − ${show(e0.value)} = ${spec.num(value, 2)}${pts}.` },
+      ],
+    };
+  };
+}

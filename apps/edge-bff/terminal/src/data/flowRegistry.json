@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "f00ab25580d7f1c3dc43efbd2ad780cf4dc8792456843ef727365fa214aa9554"
+  "sha256": "385c2dd2fae44467578e2f0f66953958446744e056ae44e6e45a8adccb3f0ab9"
  },
  "families": [
   "Share",
@@ -1417,7 +1417,8 @@
    "unit": "%",
    "needs_frequency": false,
    "outputs": [
-    "value"
+    "value",
+    "change"
    ],
    "tip": "Pembelian bersih broker atau kelompok broker dibanding seluruh nilai transaksi saham.",
    "params": [
@@ -1527,23 +1528,6 @@
      "max": 250
     },
     {
-     "key": "denom",
-     "label": "Denominator",
-     "status": "DECIDED",
-     "kind": "select",
-     "options": [
-      [
-       "board",
-       "Board turnover, all investors"
-      ],
-      [
-       "filter",
-       "Board and investor turnover"
-      ]
-     ],
-     "default": "board"
-    },
-    {
      "key": "plot",
      "label": "Plot",
      "status": "PROPOSED",
@@ -1559,6 +1543,31 @@
       ]
      ],
      "default": "hist"
+    },
+    {
+     "key": "lag",
+     "label": "Change line vs",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "window",
+       "Rolling days back"
+      ],
+      [
+       "1",
+       "1 session back"
+      ],
+      [
+       "5",
+       "5 sessions back"
+      ],
+      [
+       "20",
+       "20 sessions back"
+      ]
+     ],
+     "default": "window"
     }
    ]
   },
@@ -3382,7 +3391,8 @@
    "unit": "%",
    "needs_frequency": false,
    "outputs": [
-    "value"
+    "value",
+    "change"
    ],
    "tip": "Siapa yang dominan: broker institusi atau broker ritel.",
    "params": [
@@ -3461,6 +3471,27 @@
       ]
      ],
      "default": "hist"
+    },
+    {
+     "key": "lag",
+     "label": "Change line vs",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "1",
+       "1 session back"
+      ],
+      [
+       "5",
+       "5 sessions back"
+      ],
+      [
+       "20",
+       "20 sessions back"
+      ]
+     ],
+     "default": "1"
     }
    ]
   },

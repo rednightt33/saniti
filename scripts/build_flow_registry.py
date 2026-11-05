@@ -51,6 +51,8 @@ OPTIONS = {
     'Volume papan + jenis investor terpilih': ('filter', 'Board and investor volume'),
     'Turnover papan terpilih (semua investor)': ('board', 'Board turnover, all investors'),
     'Turnover papan + jenis investor terpilih': ('filter', 'Board and investor turnover'),
+    'Sama dengan hari rolling': ('window', 'Rolling days back'), '1 sesi': ('1', '1 session back'), '5 sesi': ('5', '5 sessions back'),
+    '20 sesi': ('20', '20 sessions back'),
     'Lot': ('lot', 'Lot'), 'Value': ('value', 'Value'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
     'Ya': (True, 'Yes'), 'Tidak': (False, 'No'),
 }
@@ -80,6 +82,7 @@ LABELS = {
     'Ambang Bandar Balance harian (%)': ('threshold', 'Daily balance above (%)'),
     'Broker institusi': ('inst', 'Institutional brokers'), 'Broker ritel': ('retail', 'Retail brokers'),
     'Kembalikan ke klasifikasi bawaan': ('reset', 'Back to the default classification'),
+    'Garis perubahan: dibanding': ('lag', 'Change line vs'),
 }
 FIXED_TEXT = {'Dihitung ulang tiap hari': 'Recomputed every day',
               'Beku: diurutkan sekali dari tanggal awal sampai hari ini': 'Frozen: ranked once from the anchor to the last day',
@@ -151,6 +154,8 @@ def outputs(fid, params):
     side = next((p for p in params if p['key'] == 'side'), None)
     if side and any(o[0] == 'both' for o in side['options']):
         return ['buy', 'sell']
+    if any(p['key'] == 'lag' for p in params):          # a change line beside the value (EXEC-TERMINAL-IND-EDIT)
+        return ['value', 'change']
     return {'FL06': ['ratio'], 'FL14': ['asym'], 'FL23': ['lines', 'total']}.get(fid, ['value'])
 
 

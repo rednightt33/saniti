@@ -237,7 +237,24 @@ def score(v, rank):
         return v[BV]
     if rank == 'net_sell':
         return v[SV] - v[BV]
+    if rank == 'gross_sell':
+        return v[SV]
     raise ValueError(rank)
+
+
+def side_p(p, side):
+    """FORMULAS.md section 2, Side picks the cohort (EXEC-TERMINAL-IND-EDIT K1/R1): Buy = top buyers, Sell = top sellers."""
+    gross = p.get('rank') in ('gross_buy', 'gross_sell')
+    return {**p, 'rank': ('gross_buy' if gross else 'net_buy') if side == 'buy' else ('gross_sell' if gross else 'net_sell')}
+
+
+def change(series, lag):
+    """FORMULAS.md section 2, change line: value_t - value_(t-lag), null when either is null."""
+    return [None if t - lag < 0 or series[t] is None or series[t - lag] is None else series[t] - series[t - lag] for t in range(len(series))]
+
+
+def lag_of(p):
+    return int(p['window']) if p.get('lag') == 'window' else int(p.get('lag', 1))
 
 
 def top_n(roll, n, rank):
@@ -327,22 +344,22 @@ def percentile(series, baseline):
 
 
 # ----------------------------------------------------------------------------------------- formulas
+def sides(T, p, fn):
+    """the Buy line on the top buyers' pass, the Sell line on the top sellers' pass"""
+    w = int(p['window'])
+    return {side: per_t(base_pass(T, side_p(p, side), w), lambda C, SC, SA, SB: fn(SC, SA, side)) for side in ('buy', 'sell')}
+
+
 def s_fl01(T, p):
-    B = base_pass(T, p, int(p['window']))
-    return {'buy': per_t(B, lambda C, SC, SA, SB: lots_per_tx(SC, 'buy')),
-            'sell': per_t(B, lambda C, SC, SA, SB: lots_per_tx(SC, 'sell'))}
+    return sides(T, p, lambda SC, SA, side: lots_per_tx(SC, side))
 
 
 def s_fl02(T, p):
-    B = base_pass(T, p, int(p['window']))
-    return {'buy': per_t(B, lambda C, SC, SA, SB: ratio(SC[BV], freq(SC, BF))),
-            'sell': per_t(B, lambda C, SC, SA, SB: ratio(SC[SV], freq(SC, SF)))}
+    return sides(T, p, lambda SC, SA, side: ratio(SC[BV], freq(SC, BF)) if side == 'buy' else ratio(SC[SV], freq(SC, SF)))
 
 
 def s_fl03(T, p):
-    B = base_pass(T, p, int(p['window']))
-    return {'buy': per_t(B, lambda C, SC, SA, SB: ratio(100 * SC[BS], SA[BS])),
-            'sell': per_t(B, lambda C, SC, SA, SB: ratio(100 * SC[SS], SA[SS]))}
+    return sides(T, p, lambda SC, SA, side: ratio(100 * SC[BS], SA[BS]) if side == 'buy' else ratio(100 * SC[SS], SA[SS]))
 
 
 def _share_f(c, a):
@@ -352,9 +369,7 @@ def _share_f(c, a):
 
 
 def s_fl04(T, p):
-    B = base_pass(T, p, int(p['window']))
-    return {'buy': per_t(B, lambda C, SC, SA, SB: _share_f(freq(SC, BF), freq(SA, BF))),
-            'sell': per_t(B, lambda C, SC, SA, SB: _share_f(freq(SC, SF), freq(SA, SF)))}
+    return sides(T, p, lambda SC, SA, side: _share_f(freq(SC, BF), freq(SA, BF)) if side == 'buy' else _share_f(freq(SC, SF), freq(SA, SF)))
 
 
 def _vs_market(SC, SA, side):
@@ -370,9 +385,7 @@ def _vs_market(SC, SA, side):
 
 
 def s_fl05(T, p):
-    B = base_pass(T, p, int(p['window']))
-    return {'buy': per_t(B, lambda C, SC, SA, SB: _vs_market(SC, SA, 'buy')),
-            'sell': per_t(B, lambda C, SC, SA, SB: _vs_market(SC, SA, 'sell'))}
+    return sides(T, p, lambda SC, SA, side: _vs_market(SC, SA, side))
 
 
 def _bs_ratio(SC):
@@ -394,8 +407,8 @@ def s_fl07(T, p):
 
 
 def s_fl08(T, p):
-    B = base_pass(T, p, int(p['window']))
     side = p.get('side', 'buy')
+    B = base_pass(T, side_p(p, side), int(p['window']))
     x = per_t(B, lambda C, SC, SA, SB: lots_per_tx(SC, side))
     return {'value': percentile(x, int(p['baseline']))}
 
@@ -440,7 +453,8 @@ def _fl11_series(T, p):
 
 
 def s_fl11(T, p):
-    return {'value': _fl11_series(T, p)}
+    v = _fl11_series(T, {**p, 'denom': 'board'})          # one denominator (to-do 7, 2026-11-04)
+    return {'value': v, 'change': change(v, lag_of(p))}
 
 
 def _cohort_net(d, C):
@@ -817,7 +831,7 @@ def s_fl34(T, p, profile):
         ni = sum(v[BV] - v[SV] for b, v in roll.items() if b in inst)
         nr = sum(v[BV] - v[SV] for b, v in roll.items() if b in ret)
         out[t] = ratio(100 * (ni - nr), sum(v[BV] for v in roll.values()))
-    return {'value': out}
+    return {'value': out, 'change': change(out, lag_of(p))}
 
 
 def s_fl35(T, p):

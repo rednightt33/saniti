@@ -34,6 +34,11 @@ Later the Screener and the Backtest use the same module on the same raw data.
     over the indicator's window ending at `t`, with the filter; score = net buy `Σ(bv-sv)` (default), gross buy `Σbv`,
     or net sell `Σ(sv-bv)`. Only brokers with score > 0 are eligible; the N highest are taken (ties: broker code A-Z).
     The cohort is recomputed at every candle ("Hitung ulang tiap hari").
+  - **Side picks the cohort** (EXEC-TERMINAL-IND-EDIT K1, K2, R1; user 2026-11-05): on an indicator with a Side (FL01-FL05,
+    FL08, FL13, FL14, FL33) Rank is Net or Gross and the side says who: the Buy line's Top-N are the top buyers by
+    net buy `Σ(bv-sv)` or gross buy `Σbv`, the Sell line's the top sellers by net sell `Σ(sv-bv)` or gross sell `Σsv`.
+    A saved "net sell" rank reads as Net. Selected brokers and all brokers are the same on both sides. Indicators
+    without a Side keep Rank = net buy, gross buy or net sell (who is ranked).
   - Frozen Top-N (FL18-FL20, user 2026-10-30: "yes pakai kelompok broker tetap untuk ketiganya"): ranked once over the
     candles from the anchor to the last candle with data, then kept for every candle. The ranking sees candles after `t`
     (it is the cohort of the whole period on the chart): a Backtest or a Screener rule must not read it as known at `t`
@@ -43,6 +48,9 @@ Later the Screener and the Backtest use the same module on the same raw data.
 - **Percentile** (mid-rank): `P = 100 x (count(v < x) + 0.5 x count(v = x)) / count`, over the non-null values `v` of
   the same series at the `baseline` candles before `t` (`t` itself excluded). Null when `x` is null, when fewer than
   `baseline` candles precede `t` since the series' first non-null value, or when none of them is non-null.
+- **Change line** (EXEC-TERMINAL-IND-EDIT; FL11, FL34): `change_t = value_t - value_(t-lag)`, in the value's unit
+  (percentage points for a %); `lag` = 1, 5 or 20 candles, or (FL11) the rolling days, so the two periods do not
+  overlap. Null when either value is null.
 - **Default anchor** (FL18-FL20, FL23): the first visible candle; the values follow the chart's view.
 - **Defaults**: a parameter the caller leaves out takes its default in the registry (`flowRegistry.json`, from
   `Parameter_Terminal`), never a fallback inside a formula (`computeFlow`; Reviewer A, A4).
@@ -74,7 +82,7 @@ draws the Buy and the Sell line in one panel.
 | FL08 | Transaction Size · Percentile | pct | percentile (baseline) of `x = BL(C)/BF(C)` (Side Buy) or `SL(C)/SF(C)` (Sell), window `W` |
 | FL09 | Block Money Candidate | flag | 1 when all hold, else 0 (null when one input is null): FL08 Buy (same cohort, filter, `W`, baseline) >= pct threshold; FL05 Buy >= ratio threshold; FL07 >= participation threshold; FL11 > net-flow threshold; and, if chosen, FL10 >= imbalance threshold. Drawn as a mark under the candle where 1. Inside FL09, FL07 and FL11 always use the board-only denominator (FL09 has no denominator option) |
 | FL10 | Transactions · Buy/Sell Imbalance | imbalance | `(BF(C)-SF(C)) / (BF(C)+SF(C))` |
-| FL11 | Net Flow / Turnover Ratio | ratio | `100 (BV(C)-SV(C)) / TBV`; `TBV` per the denominator option |
+| FL11 | Net Flow / Turnover Ratio | value, change | `100 (BV(C)-SV(C)) / TBV`, `TBV` = every investor's gross buy on the chosen boards (one denominator, to-do 7); change line (shared conventions) |
 | FL12 | Net Buy Persistence · Cohort | persistence | `100 x` (candles `k` in the window with `BV_k(C)-SV_k(C) > 0`) / `W`; `C` ranked over the window; a candle without a row of `C` is not a buy candle |
 | FL13 | Concentration HHI · Gross | buy, sell | Buy `Σ_b (BL(b)/BL(A))^2`; Sell with `SL`; `A` with the filter |
 | FL14 | Concentration HHI · Buy − Sell | asym | FL13 Buy − FL13 Sell |
@@ -97,7 +105,7 @@ draws the Buy and the Sell line in one panel.
 | FL31 | Insider Net Change | net | sum of insider BUY `value` minus SELL `value` with `d` in the window's candles (IDR); 0 when none |
 | FL32 | Transactions · Spike | spike | `BF_t(A) / mean(BF_k(A), k = t-baseline .. t-1)`; filter; null without the full baseline; a candle without broker data inside the baseline adds 0 to the mean (divisor stays `baseline`) |
 | FL33 | Transaction Size · Change % | change | `100 ((BV/BF over the last recent candles) / (BV/BF over the baseline candles before them) - 1)`, `A`, filter |
-| FL34 | Institutional vs Retail Net | ratio | `100 (BV-SV of the institutional brokers − BV-SV of the retail brokers) / BV(A)`, filter; defaults: Institutional-heavy and Retail-heavy of `ref/brokers`; a broker in both lists is refused |
+| FL34 | Institutional vs Retail Net | value, change | `100 (BV-SV of the institutional brokers − BV-SV of the retail brokers) / BV(A)`, filter; defaults: Institutional-heavy and Retail-heavy of `ref/brokers`; a broker in both lists is refused; change line (shared conventions) |
 | FL35 | Net Buy Persistence · Top Buyer | persistence | the broker with the largest positive `BV-SV` over the window (frozen for that window); `100 x` (candles in the window where its `BV_k-SV_k > 0`) / `days`; a candle without data counts as not a buy candle; null when no broker has a positive net in the window |
 | FL36 | Share · Market Value (Buy + Sell) | share | `100 (BV(C)+SV(C)) / (2 TBV)` |
 | FL37 | Net Flow Percentile · Rupiah | pct | percentile (baseline 250) of `BV(C)-SV(C)` over the net window |
