@@ -1360,3 +1360,4 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   Juga to-do (2026-11-05): FL34 diberi ukuran perubahan (daily to daily dan lainnya; bacaan menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5p.
   Juga to-do (2026-11-05): FL27 tetap, ditambah pemicu akumulasi berbasis broker (definisi menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5q.
   Juga to-do (2026-11-05): FL36 disembunyikan dari menu ("hide saja indikatornya untuk FL36"); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5r.
+  Juga to-do (2026-11-05): indikator tambahan Flow Ratio fleksibel (pembilang dan penyebut dipilih: ukuran, oleh siapa, pembatas; "Ini indikator tambahan ya, bukan untuk mengganti yang lain-lain"); gambaran dialog di `verification/terminal_api/flow_indicators/RATIO_SETTINGS_MOCKUP.html`; lihat `FLOW_INDICATOR_REVIEW.md` bagian 5s.

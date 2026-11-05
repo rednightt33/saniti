@@ -36,6 +36,7 @@ item baru dijalankan atas perintah user.
 | 17 | FL34 Institutional vs Retail Net | Ditambah ukuran **perubahan** (daily to daily, dan rentang lain): bacaan AI, perubahan nilai FL34 dibanding sesi sebelumnya dan beberapa jarak waktu lain; maksud pastinya menunggu user | "Alright, untuk FL34, to-do list-nya adalah kita perlu tambahkan change. Jadi change daily to daily, dan lain sebagainya. Paham?" (2026-11-05) | To-do; keputusan user 2026-11-05 lengkap: panel gabungan, batang FL34 dan garis perubahan (sumbu kedua) tampil langsung, opsi di settings untuk mematikan garis atau batang, jarak harian/5/20 sesi, poin persentase, tanpa penyebab perubahan. Bagian 5p |
 | 18 | FL27 Silent Accumulation | FL27 tetap as is; ditambah **dua pemicu berbasis broker (net dan gross)** yang menyala sebagai penanda bila rasio nilai 3 pembeli teratas terhadap nilai 3 penjual teratas mencapai 1,5 kali; **opsional, bisa di-toggle on dan off** | "Tambahkan ke FL27 metrik tetap as is, tapi tambahkan metric, it triggers kalau ada akumulasi. Akumulasi: Which is rasio top X broker net ataupun gross di atas 1/X rasio top N sell atau gross sell. Konfirmasi." (2026-11-05) | To-do; definisi dijawab user (rasio nilai N pembeli ÷ N penjual ≥ X = 1,5, N = 3, dua pemicu net dan gross dengan N dan X terpisah, penanda, opsional); butir kecil (cakupan waktu per hari, toggle bawaan mati, ≥ 1,5) disetujui dengan "Ok" (2026-11-05). Bagian 5q |
 | 19 | FL36 Share · Market Value (Buy + Sell) | **Disembunyikan** dari menu indikator (hide); kode, penomoran dan fungsi hitung tidak dihapus (bacaan AI: sama dengan FL07 dan FL35) | "hide saja indikatornya untuk FL36" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5r |
+| 20 | Indikator baru (kode ditetapkan saat dikerjakan): Flow Ratio fleksibel | **Tambahan** (bukan pengganti FL03, FL04, FL11, FL36): rasio `100 × pembilang ÷ penyebut`; masing-masing sisi dipilih **ukuran** (gross beli, gross jual, net beli, net jual), **oleh siapa** (semua broker, Top-N, broker terpilih) dan **pembatas** (jenis investor, papan) | "penyebutnya bisa net buy, foreign buy broker atau buy cohort kemudian pembilangnya bisa total all gross buy all total gross sell atau net buy, net sell bisa lalu kemudian bisa di grup lagi by investor type, by market board dan lain-lain"; "Net by siapa, net sell by siapa ... by all investor type ... by top end ... by broker"; "Ini indikator tambahan ya, bukan untuk mengganti yang lain-lain"; "Ya, you get my point. Masukkan ke plan" (2026-11-05) | To-do; gambaran dialog disetujui user ("you get my point"); butir Unit, filter atau pisah, dan aturan penolakan adalah bacaan AI yang belum dijawab. Bagian 5s |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4. Catatan 2026-11-05: FL36 diputuskan disembunyikan (to-do 19), jadi Participation Shift (persentil FL36) tidak dikerjakan kecuali user memintanya.
 
@@ -1099,6 +1100,64 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 1. **Arti "hide"** dibaca AI sebagai tidak tampil di menu, definisi dan fungsi hitung tetap ada (sama dengan FL07 dan FL35). Menunggu konfirmasi bersama keputusan FL07 (sembunyikan atau pensiunkan penuh).
 2. **Indikator tersimpan pengguna** yang sudah memasang FL36: perilaku pada jalur hide mengikuti 5b.4 (asumsi, belum diperiksa).
 3. **Pengganti.** Tidak ada. Gagasan "net beli asing sebagai porsi" yang sempat dibahas (tiga bacaan penyebut) tidak dicatat sebagai to-do; user belum memilih penyebut.
+
+---
+
+## 5s. To-do: indikator baru Flow Ratio fleksibel (pembilang dan penyebut dipilih pengguna)
+
+**Catatan user 2026-11-05 (kata-katanya):** "bisa nggak propose satu indikator nanti di mana pembilang dan penyebutnya user bisa pilih misalkan penyebutnya bisa net buy, foreign buy broker atau buy cohort kemudian pembilangnya bisa total all gross buy all total gross sell atau net buy, net sell bisa lalu kemudian bisa di grup lagi by investor type, by market board dan lain-lain";
+"penyebut bisa gross by, atau net by, atau net sell, gross sell. Nah, kan mesti ada semacam identifikasinya kan. Net by siapa, net sell by siapa. Nah, ini bisa dipecah jadi beberapa hal. Pertama, by all investor type. Kemudian bisa juga by top end. Kemudian by broker";
+"Ini indikator tambahan ya, bukan untuk mengganti yang lain-lain"; setelah melihat mock-up: "Ya, you get my point. Masukkan ke plan, kemudian persiapan final review."
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5s.1 Definisi yang dibaca AI dan dikonfirmasi gambarannya oleh user **[T bagi kata user, bacaan AI bagi rinciannya]**
+
+`nilai = 100 × Pembilang ÷ Penyebut`. Setiap sisi dipilih terpisah dari tiga bagian:
+
+| Bagian | Pilihan | Asal |
+|---|---|---|
+| Ukuran | gross beli, gross jual, net beli, net jual | kata user |
+| Oleh siapa | semua broker (semua jenis investor), Top-N cohort, broker terpilih | kata user ("by all investor type, by top end, by broker"); label di dialog mengikuti FL01 (`All brokers`, `Top-N cohort`, `Selected brokers`) |
+| Pembatas | jenis investor, papan pasar | kata user ("by investor type, by market board dan lain-lain") |
+
+Jendela (rolling days) satu, berlaku untuk kedua sisi. Gambaran dialog: `verification/terminal_api/flow_indicators/RATIO_SETTINGS_MOCKUP.html` (HTML yang bisa dicoba; nama, kode FL, urutan baris dan daftar pilihan Rank hanyalah contoh).
+
+### 5s.2 Bukti untuk aturan penolakan (data BBRI, dihitung dari `IDX_Broker_Summary`, 2026-11-05, Rp miliar)
+
+| Kasus | Nilai | Sumber |
+|---|---|---|
+| Net semua broker, kedua jenis investor | selalu 0: 3 Nov asing −310,055 + domestik +310,055 | `fl11_frg1d.py` (scratch) |
+| Net asing, semua broker (satu jenis investor) | tidak 0: 3 Nov −310,055; 28 Okt +43,664 | sama |
+| Net beli Top-3 asing (ZP, AK, BK), 28 Okt | +132,802 (positif karena dipilih dari net beli positif) | `fl36_netbuy.py` (scratch) |
+| Jumlah net positif semua sel broker × jenis investor, 28 Okt | 337,432; bagian sel asing 159,014 (47,12%) | sama |
+
+### 5s.3 Bacaan AI, belum dijawab user
+
+1. **Satu Unit untuk kedua sisi** (Rupiah, lot, atau jumlah transaksi); jumlah transaksi membutuhkan `buy_freq`/`sell_freq` yang belum ditulis loader di Git (`AGENTS.md`, `UPDATE_TABLE.md`).
+2. **Pembatas bersifat filter** (satu pilihan = satu garis); memisah per jenis investor atau papan menjadi garis-garis terpisah ditunda.
+3. **Aturan penolakan** (gerbang baru, wajib punya aturan yang terlihat sebelum menulis, cara lolos, satu contoh benar dan satu salah, pesan yang menyebut letak masalah; `AGENTS.md`, Gates and evidence):
+   - ukuran net dengan `All brokers` dan **kedua** jenis investor ditolak (selalu 0), di pembilang maupun penyebut; dengan satu jenis investor boleh (koreksi bacaan AI sebelumnya yang menolak semua `All brokers`);
+   - penyebut net yang bisa ≤ 0 (broker terpilih, atau Top-N yang peringkatnya berbeda dengan ukurannya): hari itu dikosongkan, bukan dihitung; diberi peringatan di dialog;
+   - Selected brokers tanpa broker ditolak.
+
+### 5s.4 Fakta untuk pelaksanaan (pencarian di repo, 2026-11-05)
+
+- Pola pemilihan kelompok sudah ada: `cohort`/`topBrokers` (`flow.ts:189-226`) dan parameter `scope`, `top`, `rank`, `brokers` seperti FL01, FL03, FL04 dan FL36; ukuran dan pembatas memakai `cw`, `aw`, `grid0`, `boardOnly` (`flow.ts:226-231`).
+- Penyebut FL04 memakai filter yang sama dengan pembilang (hanya asing bila filter asing), berbeda dengan FL36 dan FL11 yang penyebutnya semua investor dengan filter papan saja (`flow.ts:283-286`, `369-372`, `535-538`). Indikator ini menaruh pilihan itu di tangan pengguna, jadi pembatas penyebut harus terpisah dari pembatas pembilang.
+- Pola pemilihan kelompok berbagi pekerjaan dengan to-do 4 (FL33), 5 (HHI), 13 (Buy VWAP Top-N per hari) dan 14: sebaiknya satu pembantu bersama, bukan salinan.
+- Kode FL baru ditetapkan saat dikerjakan; hati-hati bentrokan kode dengan screener (bagian 6).
+- Registri, penjelasan angka (`explainFlowA/B.ts`), `indNotes.json`, `FORMULAS.md`, `AI_TOOLS.md` bila relevan, dan uji harus diperbarui bersama.
+
+### 5s.5 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. Butir 5s.3 nomor 1 sampai 3 (Unit, filter atau pisah, aturan penolakan): menunggu jawaban user.
+2. Daftar pilihan Rank Top-N (contoh di mock-up: net beli, net jual, gross beli, gross jual dalam Rupiah): samakan dengan FL01 atau tentukan.
+3. Nama dan kode indikator, serta keluarga di menu (usulan AI: "Share" atau keluarga baru "Ratio").
+4. Apakah Unit transaksi boleh dikombinasikan dengan ukuran net.
+
+### 5s.6 Batas
+
+Satu saham (BBRI) dan dua tanggal (28 Okt, 3 Nov). Mock-up hanya gambaran; tidak ada kode terminal yang diubah.
 
 ---
 
