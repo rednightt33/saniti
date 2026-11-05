@@ -76,6 +76,18 @@ const CASES: Record<string, Record<string, any>[]> = {
   FL35: [{}, { window:3 }, { window:1, investors:['Domestic'] }],
   FL36: [{}, ...COHORT, { window:1, investors:['Foreign', 'Domestic'] }],
   FL37: [{ baseline:10 }, { baseline:25, window:5 }, ...COHORT.map(x => ({ baseline:12, window:3, ...x })), { baseline:10, stat:'z' }, { baseline:25, window:5, stat:'z', scope:'all', investors:['Foreign'] }],
+  // EXEC-TERMINAL-IND-EDIT new indicators (2026-11-05)
+  FL40: [{}, { measure:'value', investors:['Domestic'] }, { measure:'lot', baseline:5, investors:['Foreign', 'Domestic'] }],
+  FL41: [{}, { baseline:5, window:3 }, { scope:'all', investors:['Foreign'], baseline:10 }, ...COHORT.map(x => ({ baseline:8, ...x }))],
+  FL42: [{}, { top:1, window:5 }, { top:5, window:3, boards:['Regular'] }],
+  FL43: [{}, { scope:'selected', brokers:['AK', 'XL'] }, { rank:'gross_buy', top:5, window:5 }, { rank:'net_sell' }, { scope:'all', investors:['Foreign'] }],
+  FL44: [{}, { anchor:'2026-02-20' }, { anchor:'2026-01-20', rank:'net_sell', top:1 }, { scope:'selected', brokers:['CC', 'XL'], anchor:'2026-01-25' }],
+  FL45: [{}, { anchor:'2026-02-20' }, { anchor:'2026-01-20', rank:'gross_buy', top:5 }, { scope:'all', anchor:'2026-01-10' }],
+  FL46: [{}, { num_scope:'topn', num_rank:'gross_buy', num_investors:['Foreign'] }, { num_measure:'net_buy', num_scope:'all', num_investors:['Foreign'], window:5 },
+    { num_measure:'net_buy', num_scope:'topn', den_measure:'net_buy', den_scope:'topn', den_top:5 }, { unit:'lot', num_measure:'gross_sell', den_boards:['Regular'] },
+    { unit:'tx', num_scope:'selected', num_brokers:['AK', 'ZP'] }, { den_measure:'net_sell', den_scope:'topn', den_rank:'net_sell', window:3 }],
+  FL47: [{}, { window:1 }, { window:10, investors:['Foreign'] }, { stat:'pct', baseline:20 }, { stat:'pct', baseline:30, window:3 }],
+  FL48: [{}, { top:1, window:1 }, { form:'ratio' }, { top:10, window:20 }, { investors:['Foreign'], window:10 }],
   FL38: [{}, { window:1 }, { window:40 }, { unit:'lot' }, { unit:'lot', window:5 },
     // to-do 5: a cohort's part of the net buyers' HHI (Top-N, selected brokers with a seller among them)
     { scope:'topn', top:3 }, { scope:'topn', top:1, rank:'gross_buy', window:5 }, { scope:'topn', top:20, unit:'lot' },

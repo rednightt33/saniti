@@ -21,7 +21,9 @@ export const FLOW_REG = REG as unknown as { families: string[]; indicators: Flow
    (data/inputs.ts 'single'): lots of different stocks do not add up (2 Nov: GOTO 43.1 M lots = Rp104 bn, BUMI 38.2 M lots
    = Rp482 bn), a Rupiah-per-share VWAP is not the index level, an index has no volume and no insider. Review in EXEC.md. */
 export const SINGLE_SECURITY = new Set(['FL01', 'FL03', 'FL05', 'FL06', 'FL07', 'FL08', 'FL09', 'FL13', 'FL14', 'FL15',
-  'FL17', 'FL18', 'FL19', 'FL20', 'FL27', 'FL31', 'FL39']);
+  'FL17', 'FL18', 'FL19', 'FL20', 'FL27', 'FL31', 'FL39',
+  /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05 "Ok, masukan exec"): the new ones built on a Rupiah-per-share price */
+  'FL42', 'FL43', 'FL44', 'FL45']);
 /** on an index: what the indicator means there (the "bandar" ones: the brokers that drive the market's net flow) */
 const INDEX_NOTE: Record<string, string> = {
   FL24:' Pada indeks (IHSG): broker penggerak arus bersih seluruh pasar, bukan bandar satu saham.',
@@ -44,6 +46,18 @@ const hasCounts = (R: FlowRows) => {
 };
 const NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 
+/** FL46 Flow Ratio's gates (to-do 20, user 2026-11-05; AGENTS.md "Gates and evidence": the rule is shown in the dialog,
+    the message says where and how to fix it). A net measure of every broker with both investor types is always 0 (each
+    buy has a seller); selected brokers need at least one. */
+export function ratioRefusal(p: any): string {
+  for (const [pre, side] of [['num_', 'Numerator'], ['den_', 'Denominator']] as const) {
+    const scope = p[pre + 'scope'] ?? 'all', inv = p[pre + 'investors'];
+    if (scope === 'selected' && !(Array.isArray(p[pre + 'brokers']) && p[pre + 'brokers'].length)) return `${side}: choose at least one broker, or another broker scope.`;
+    if (String(p[pre + 'measure']).startsWith('net') && scope === 'all' && (!Array.isArray(inv) || inv.length !== 1))
+      return `${side}: a net measure of all brokers over both investor types is always 0 (every buy has a seller). Choose one investor type, a Top-N cohort or selected brokers.`;
+  }
+  return '';
+}
 /** K4: a parameter choice that counts transactions (a measure or unit 'tx') needs the broker files' counts */
 export const needsCounts = (p: any) => !!p && Object.values(p).some(v => v === 'tx');
 /** EXEC-TERMINAL-IND-EDIT (aturan IHSG, user 2026-11-05): the options a select offers; on an index no Lot */
@@ -160,31 +174,37 @@ export function initFlowIndicators(ctx: Ctx) {
         : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
             /* U3: a share minus the even share reads in points; U6: a count of brokers; U1: a z-score */
             ...(p && p.even ? { fmt:spec.points, minMove:.01 } : p && p.measure === 'count' ? { fmt:(v: number) => spec.num(v, 0), minMove:1 }
-              : p && p.stat === 'z' ? { fmt:(v: number) => spec.smart(v, 2), minMove:.01 } : {}) });
+              : p && p.stat === 'z' ? { fmt:(v: number) => spec.smart(v, 2), minMove:.01 } : p && p.stat === 'pct' && r.unit === '%' ? { fmt:spec.indicator, minMove:.01 }
+              : p && p.form === 'ratio' ? { fmt:spec.ratio, minMove:.001 } : {}) });
     };
     const note = ctx.M.index ? INDEX_NOTE[r.id] || '' : '';
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
       guides:levels, levelsParam:!!byKey.levels, fill:null, tip:r.tip + note, info:r.tip + note + (r.needs_frequency ? ' Membutuhkan jumlah transaksi (frekuensi) di file broker.' : ''), flow:true, place:r.place };
-    /* a field that only applies to one broker scope is shown only with it (audit I8: "Brokers: None" beside Top-N) */
-    const hasScope = r.params.some(q => q.key === 'scope');
-    const topnOnly = hasScope ? { when:(p: any) => (p.scope ?? 'topn') === 'topn' } : {};
+    /* a field that only applies to one broker scope is shown only with it (audit I8: "Brokers: None" beside Top-N); FL46's
+       numerator and denominator each have their own scope (num_scope, den_scope) */
+    const scopeKey = (key: string) => { const pre = key.replace(/(brokers|top|rank|ranking)$/, ''); return r.params.some(q => q.key === pre + 'scope') ? pre + 'scope' : null };
+    const scopeDef = (k: string) => r.params.find(q => q.key === k)?.default ?? 'topn';
+    const topnOnly = (key: string) => { const k = scopeKey(key); return k ? { when:(p: any) => (p[k] ?? scopeDef(k)) === 'topn' } : {} };
     /* EXEC-IHSG-FLOW, EXEC-TERMINAL-IND-EDIT (user 2026-11-05 "Ok, masukan exec"): an index has no lots (lots of different
        stocks do not add up), so on an index a choice of Lot is not offered and a saved Lot reads as the next choice
        (Rupiah); a choice left with one option is not shown (FL23's unit). Derived from the options, not listed by id. */
     const onIndex = !!ctx.M.index;
     const noLot = (q: any) => withoutLot(r.params, q, onIndex), optionsOf = (q: FlowRegParam) => offeredOptions(q, onIndex);
     const inputs = r.params.filter(q => q.key !== 'levels' && !(q.kind === 'select' && onIndex && optionsOf(q).length < 2)).map(q => {
-      const base: any = { key:q.key, label:relabel(q.label), hint:q.status === 'PROPOSED' ? 'Proposed default' : undefined,
-        ...(['top', 'rank', 'ranking'].includes(q.key) ? topnOnly : {}) };
+      /* the rules a choice meets, shown before the user picks (AGENTS.md "Gates and evidence"): K4's counts, FL46's gates */
+      const rule = q.key.endsWith('_measure') ? 'A net measure of all brokers over both investor types is always 0 and is refused; a day whose denominator is 0 or below has no value.'
+        : q.kind === 'select' && (q.options || []).some(o => o[0] === 'tx') ? 'Transactions needs the transaction counts in the broker files; Value and Lot do not.' : undefined;
+      const base: any = { key:q.key, label:relabel(q.label), hint:[q.status === 'PROPOSED' ? 'Proposed default' : '', rule ?? ''].filter(Boolean).join(' ') || undefined,
+        ...(/(^|_)(top|rank|ranking)$/.test(q.key) ? topnOnly(q.key) : {}) };
       switch (q.kind) {
         case 'select': { const os = optionsOf(q), def = os.some(o => o[0] === q.default) ? q.default : os[0]?.[0];
           return { ...base, kind:'select', options:os.map(o => o[0]), labels:Object.fromEntries(os.map(o => [o[0], o[1]])), def } }
         case 'multi': {
-          const isBoard = q.key === 'boards', all = isBoard ? ctx.BOARDS : ctx.INVESTORS;
+          const isBoard = q.key.endsWith('boards'), all = isBoard ? ctx.BOARDS : ctx.INVESTORS;
           return { ...base, kind:'multi', def:q.default, options:() => all, all:() => all.map(x => x.id), title:isBoard ? 'Board' : 'Investor' };
         }
-        case 'brokers': return { ...base, kind:'brokers', def:q.default, max:q.max ?? undefined, resolve:brokersOf, tokenLabel,
-          ...(hasScope ? { when:(p: any) => p.scope === 'selected' } : {}) };
+        case 'brokers': { const k = scopeKey(q.key); return { ...base, kind:'brokers', def:q.default, max:q.max ?? undefined, resolve:brokersOf, tokenLabel,
+          ...(k ? { when:(p: any) => p[k] === 'selected' } : {}) } }
         case 'int': return { ...base, kind:'int', min:q.min ?? 1, max:q.max ?? 5000, def:q.default };
         case 'num': return { ...base, kind:'num', min:q.min ?? -1e12, max:q.max ?? 1e12, minExclusive:!!(q as any).min_exclusive, step:'any', def:q.default };
         case 'bool': return { ...base, kind:'bool', def:!!q.default };
@@ -241,6 +261,7 @@ export function initFlowIndicators(ctx: Ctx) {
       },
       validate:(p: any) => {
         if (p.scope === 'selected' && !(Array.isArray(p.brokers) && p.brokers.length)) return 'Choose at least one broker.';
+        if (r.id === 'FL46') { const why = ratioRefusal(p); if (why) return why }
         if (r.id === 'FL34') { const a = new Set(brokersOf(p.inst)); if (brokersOf(p.retail).some(b => a.has(b))) return 'A broker cannot be in both the institutional and the retail list.' }
         if (r.id === 'FL23' && Array.isArray(p.brokers) && (p.brokers.length < 1 || p.brokers.length > 5)) return 'Choose 1 to 5 brokers.';
         return '';

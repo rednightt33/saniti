@@ -299,6 +299,23 @@ export function zscore(x: Series, baseline: number): Series {
 
 /** FL32 Activity Spike: the measure's buy and sell columns */
 const SPIKE: Record<string, [Measure, Measure]> = { tx:['bf', 'sf'], value:['bv', 'sv'], lot:['bl', 'sl'] };
+/** one side's spike: the measure today ÷ its mean over the baseline candles before (FL32, FL40) */
+function spike(c: FlowContext, p: FlowParams, m: Measure): Series {
+  const R = c.rows, g = grid0(p), bsl = int(p.baseline, 20), tx = m === 'bf' || m === 'sf';
+  return each(R, bsl + 1, (a, t) => tx && aw(g, 'miss', a, t) > 0 ? null : div(aw(g, m, t, t), aw(g, m, a, t - 1) / bsl));
+}
+/** FL46's measure of one side's cohort over a..t: gross buy, gross sell, net buy (buy - sell) or net sell, in the unit */
+const UNIT_COLS: Record<string, [Measure, Measure]> = { value:['bv', 'sv'], lot:['bl', 'sl'], tx:['bf', 'sf'] };
+function ratioSide(c: FlowContext, p: FlowParams, pre: string) {
+  const q: FlowParams = { scope:p[pre + 'scope'], brokers:p[pre + 'brokers'], top:p[pre + 'top'], rank:p[pre + 'rank'], boards:p[pre + 'boards'], investors:p[pre + 'investors'] };
+  const g = grid0(q), [b, s] = UNIT_COLS[p.unit] || UNIT_COLS.value, m = p[pre + 'measure'] || 'gross_buy', tx = p.unit === 'tx';
+  return { q, g, at:(a: number, t: number): Num => {
+    const C = cohort(g, c.rows, q, a, t);
+    if (tx && cmiss(g, C, a, t)) return null;
+    const B = cw(g, C, b, a, t), S = cw(g, C, s, a, t);
+    return m === 'gross_buy' ? B : m === 'gross_sell' ? S : m === 'net_buy' ? B - S : S - B;
+  } };
+}
 
 /* ---- the indicators ---- */
 type Fn = (ctx: FlowContext, p: FlowParams) => FlowOut;
@@ -595,14 +612,7 @@ export const FLOW: Record<string, Fn> = {
   },
   /* to-do 2 (user 2026-11-04 "P2 Ok", "P1 Pisahkan", "Keduanya", "pertahankan di tempat"): Activity Spike: the measure
      (transactions, value or lots) of one side today ÷ its mean over the baseline candles before; Both = two lines */
-  FL32:(c, p) => {
-    const R = c.rows, g = grid0(p), bsl = int(p.baseline, 20), mf = SPIKE[p.measure] || SPIKE.tx;
-    const one = (m: Measure) => each(R, bsl + 1, (a, t) => {
-      if (p.measure === 'tx' || !p.measure) { if (aw(g, 'miss', a, t) > 0) return null }
-      return div(aw(g, m, t, t), aw(g, m, a, t - 1) / bsl);
-    });
-    return sided(p, () => one(mf[0]), () => one(mf[1]));
-  },
+  FL32:(c, p) => { const mf = SPIKE[p.measure] || SPIKE.tx; return sided(p, () => spike(c, p, mf[0]), () => spike(c, p, mf[1])) },
   /* to-do 4 (user 2026-11-05 "(iv) Top-N per hari, bawaan tetap semua broker, Side ya"): the cohort of each candle is that
      candle's own Top-N (the side picks buyers or sellers, R1); value and transactions are added over each period */
   FL33:(c, p) => {
@@ -665,6 +675,78 @@ export const FLOW: Record<string, Fn> = {
   },
   /* to-do 16 (user 2026-11-05): FL39 takes FL17's defaults (20 candles, every board) */
   FL39:(c, p) => ({ value:distance(c.close, rollingVwap(c, p, 20)) }),
+
+  /* ---- EXEC-TERMINAL-IND-EDIT new indicators (user 2026-11-04/05; FLOW_INDICATOR_REVIEW.md, SCREENER_LIBRARY.md) ---- */
+  /* FL40 Activity Spike · Balance (to-do 3): the buy side's spike ÷ the sell side's spike, same measure and baseline */
+  FL40:(c, p) => {
+    const mf = SPIKE[p.measure] || SPIKE.tx, b = spike(c, p, mf[0]), s = spike(c, p, mf[1]);
+    return { value:b.map((x, t) => x === null || s[t] === null ? null : div(x, s[t]!)) };
+  },
+  /* FL41 Net Flow / Average Turnover (to-do 8): FL11's net over W × the mean daily turnover (every investor's gross buy,
+     board filter) of the N candles before t; null with fewer than N earlier candles */
+  FL41:(c, p) => {
+    const R = c.rows, g = grid0(p), d = boardOnly(p), n = int(p.baseline, 20);
+    return { value:each(R, W(p), (a, t) => {
+      if (t - n < firstData(R)) return null;
+      const C = cohort(g, R, p, a, t), v = div(cw(g, C, 'bv', a, t) - cw(g, C, 'sv', a, t), (t - a + 1) * aw(d, 'bv', t - n, t - 1) / n);
+      return v === null ? null : 100 * v;
+    }) };
+  },
+  /* FL42 Buy VWAP · Rolling · Daily Top-N (to-do 13, cara B): each candle's own N largest net buyers, their gross buy
+     (Rp) over their bought lots summed over the window; a candle with fewer than N net buyers leaves no value (A6) */
+  FL42:(c, p) => {
+    const R = c.rows, g = grid0(p), N = int(p.top, 3);
+    return { value:each(R, W(p, 20), (a, t) => {
+      let V = 0, L = 0;
+      for (let k = a; k <= t; k++) {
+        if (!R.has[k]) continue;
+        const C = topBrokers(g, R, k, k, N, 'net_buy');
+        if (C.length < N) return null;
+        V += cc(g, C, 'bv', k); L += cc(g, C, 'bl', k);
+      }
+      return div(V, 100 * L);
+    }) };
+  },
+  /* FL43, FL44 (to-do 14, "Persis seperti FL 17 dan 18"): the cohort's gross sell (Rp) over its sold lots */
+  FL43:(c, p) => {
+    const R = c.rows, g = grid0(p);
+    return { value:each(R, W(p, 20), (a, t) => { const C = cohort(g, R, p, a, t); return div(cw(g, C, 'sv', a, t), 100 * cw(g, C, 'sl', a, t)) }) };
+  },
+  FL44:(c, p) => {
+    const R = c.rows, g = grid0(p), a = anchorAt(c, p.anchor), C = frozen(c, p, g, a), out = series(R.N);
+    for (let t = a; t < R.N; t++) if (R.has[t]) out[t] = div(cw(g, C, 'sv', a, t), 100 * cw(g, C, 'sl', a, t));
+    return { value:out };
+  },
+  /* FL45 Buy VWAP · Anchored · Distance % (to-do 15): 100 (close / FL18 - 1) */
+  FL45:(c, p) => ({ value:distance(c.close, anchoredVwap(c, p)) }),
+  /* FL46 Flow Ratio (to-do 20): 100 × numerator ÷ denominator, each its own measure, broker scope and filter; one unit and
+     window; a day whose denominator is 0 or below has no value */
+  FL46:(c, p) => {
+    const R = c.rows, num = ratioSide(c, p, 'num_'), den = ratioSide(c, p, 'den_');
+    return { value:each(R, W(p), (a, t) => { const x = num.at(a, t), y = den.at(a, t); return x === null || y === null || !(y > 0) ? null : 100 * x / y }) };
+  },
+  /* FL47 Net Buy Intensity (U4; M-NET-INTENSITY): 100 × Σ max(net_b, 0) ÷ Σ gross buy over the window, every broker on the
+     filter; or its percentile in the stock's own history */
+  FL47:(c, p) => {
+    const R = c.rows, g = grid0(p);
+    const x = each(R, W(p, 5), (a, t) => {
+      let pos = 0; for (let b = 0; b < g.B; b++) { const n = bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t); if (n > 0) pos += n }
+      const v = div(pos, aw(g, 'bv', a, t)); return v === null ? null : 100 * v;
+    });
+    return { value:p.stat === 'pct' ? percentile(x, int(p.baseline, 252)) : x };
+  },
+  /* FL48 Bandar Balance · Imbalance (U5; M-TOPN-RATIO): each broker's net over the window first, then the N largest net
+     buyers (B) and net sellers (S, |net|): (B - S) / (B + S), or B / S; null unless N on each side */
+  FL48:(c, p) => {
+    const R = c.rows, g = grid0(p), N = int(p.top, 3);
+    return { value:each(R, W(p, 5), (a, t) => {
+      const nets = new Float64Array(g.B); for (let b = 0; b < g.B; b++) nets[b] = bw(g, 'bv', b, a, t) - bw(g, 'sv', b, a, t);
+      const buy = topOf(R, N, b => nets[b]), sell = topOf(R, N, b => -nets[b]);
+      if (buy.length < N || sell.length < N) return null;
+      const B = buy.reduce((x, b) => x + nets[b], 0), S = sell.reduce((x, b) => x - nets[b], 0);
+      return p.form === 'ratio' ? div(B, S) : div(B - S, B + S);
+    }) };
+  },
 };
 
 for (const id of Object.keys(FLOW)) { const fn = FLOW[id]; FLOW[id] = (c, p) => { ctxRows = c.rows; return fn(c, p) } }

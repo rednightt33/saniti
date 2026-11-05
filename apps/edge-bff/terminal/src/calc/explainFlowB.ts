@@ -195,6 +195,38 @@ function triggerCard(c: FlowContext, p: FlowParams, t: number, kind: 'net' | 'gr
   };
 }
 
+/* FL44 Sell VWAP · Anchored (SV ÷ 100 SL) and FL45 Buy VWAP · Anchored · Distance % (100 (close ÷ (BV ÷ 100 BL) − 1)),
+   from the anchor with FL18's frozen cohort (calc/flow.ts frozen, anchoredVwap, distance) */
+function anchoredCard(c: FlowContext, p: FlowParams, t: number, kind: 'sell' | 'distance'): Explanation | null {
+  const R = c.rows, a = anchorOf(c, p.anchor);
+  if (t < a || t >= R.N || !R.has[t]) return null;
+  const last = lastData(R), topn = (p.scope ?? 'topn') === 'topn', X = cellsOf(R, a, Math.max(t, last), p.boards ?? null, p.investors ?? null);
+  const C = !topn ? cohortOf(X, p, a, a) : last < a ? [] : topBy(X.list(a, last, ['bv', 'sv']), intOf(p.top, 3), scoreOf(p)) as BS[];
+  const sum = (m: Col) => C ? C.reduce((s, x) => s + X.b(m, x.i, a, t), 0) : X.all(m, a, t);
+  const sell = kind === 'sell', V = sum(sell ? 'sv' : 'bv'), L = sum(sell ? 'sl' : 'bl'), VW = div(V, 100 * L), close = c.close[t];
+  if (VW === null) return null;
+  const who = C === null ? 'Semua broker' : (C.map(x => x.code).join(', ') || '–');
+  const anchorStep = { title:'Kelompok tetap sejak tanggal awal', text:`Tanggal awal ${c.dates[a]}. ${topn ? `${intOf(p.top, 3)} broker teratas diurutkan sekali dari ${c.dates[a]} sampai ${c.dates[last]}: ` : ''}${who}.` };
+  if (sell) {
+    const combine = (v: Record<string, number>) => div(v.SV, 100 * v.SL);
+    return {
+      output:'value', value:VW, expr:'SV ÷ (100 × SL)', span:spanOf(c, a, t),
+      terms:[{ key:'SV', label:'Nilai jual kelompok sejak tanggal awal', value:V, unit:'idr' }, { key:'SL', label:'Lot jual kelompok', value:L, unit:'lot' }], combine,
+      steps:[anchorStep, { title:'Hitung harganya', text:`${fmt.idr(V)} ÷ (100 × ${cnt(L)} lot) = ${px(VW)} per saham: harga rata-rata penjualan sejak ${c.dates[a]}.` }],
+    };
+  }
+  if (close === null || close === undefined || !VW) return null;
+  const combine = (v: Record<string, number>) => v.VW ? 100 * (v.C / v.VW - 1) : null, value = combine({ C:close, VW });
+  return {
+    output:'value', value, expr:'100 × (C ÷ VW − 1)', span:spanOf(c, a, t),
+    terms:[{ key:'C', label:`Harga penutupan ${c.dates[t]}`, value:close, unit:'price' }, { key:'VW', label:'Harga rata-rata pembelian kelompok sejak tanggal awal', value:VW, unit:'price' }], combine,
+    steps:[anchorStep,
+      { title:'Harga rata-rata pembelian', text:`${fmt.idr(V)} ÷ (100 × ${cnt(L)} lot) = ${px(VW)} per saham.` },
+      { title:'Hitung jaraknya', text:`100 × (${px(close)} ÷ ${px(VW)} − 1) = ${fmt.pct(value)}: harga ${value! >= 0 ? 'di atas' : 'di bawah'} harga rata-rata pembelian.` },
+      ...readLevels(p, value, fmt.pct(value))],
+  };
+}
+
 /* FL20-FL39 except FL24 (see explainFlowA.ts for the reference). Each is called with the parameters as computeFlow reads
    them (the registry defaults under the given values) and answers null where the chart has no value. */
 const EX: Record<string, FlowExplainer> = {
@@ -825,6 +857,200 @@ const EX: Record<string, FlowExplainer> = {
         { title:'Harga rata-rata beli (VWAP)', text:`VW = nilai beli ÷ (100 × lot beli) = ${fmt.idr(BV)} ÷ (100 × ${lot(BL)}) = ${px(VW)} per saham.` },
         { title:'Hitung jaraknya', text:`100 × (${px(close)} ÷ ${px(VW)} − 1) = ${fmt.pct(value)}: harga ${value >= 0 ? 'di atas' : 'di bawah'} harga rata-rata beli kelompok.` },
         ...readLevels(p, value, fmt.pct(value)),
+      ],
+    };
+  },
+
+  /* ---- EXEC-TERMINAL-IND-EDIT new indicators (calc/flow.ts FL40-FL48) ---- */
+  /* FL40 Activity Spike · Balance: the buy side's spike ÷ the sell side's spike (FL32's rule for each) */
+  FL40: (c, p, t) => {
+    const meas = p.measure === 'value' || p.measure === 'lot' ? p.measure : 'tx';
+    const [cb, cs] = ({ tx:['bf', 'sf'], value:['bv', 'sv'], lot:['bl', 'sl'] } as const)[meas] as [Col, Col];
+    const R = c.rows, bsl = intOf(p.baseline, 20), a = flowWindow(R, t, bsl + 1);
+    if (a === null) return null;
+    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null);
+    if (meas === 'tx' && X.all('miss', a, t) > 0) return null;
+    const FB = X.all(cb, t, t), MB = X.all(cb, a, t - 1), FS = X.all(cs, t, t), MS = X.all(cs, a, t - 1);
+    const combine = (v: Record<string, number>) => { const b = div(v.FB, v.MB / v.n), s = div(v.FS, v.MS / v.n); return b === null || s === null ? null : div(b, s) };
+    const value = combine({ FB, MB, FS, MS, n:bsl }); if (value === null) return null;
+    const sb = div(FB, MB / bsl)!, ss = div(FS, MS / bsl)!, w = meas === 'tx' ? 'transaksi' : meas === 'value' ? 'nilai' : 'lot';
+    const show = (v: number) => meas === 'value' ? fmt.idr(v) : fmt.num(v), unit: Term['unit'] = meas === 'value' ? 'idr' : meas === 'lot' ? 'lot' : 'count';
+    return {
+      output:'value', value, expr:'(FB ÷ (MB ÷ n)) ÷ (FS ÷ (MS ÷ n))', span:spanOf(c, a, t),
+      terms:[{ key:'FB', label:`${cap(w)} beli hari ini`, value:FB, unit }, { key:'MB', label:`${cap(w)} beli ${bsl} candle sebelumnya`, value:MB, unit },
+        { key:'FS', label:`${cap(w)} jual hari ini`, value:FS, unit }, { key:'MS', label:`${cap(w)} jual ${bsl} candle sebelumnya`, value:MS, unit },
+        { key:'n', label:'Candle pembanding', value:bsl, unit:'count' }], combine,
+      steps:[
+        { title:'Ambil candle', text:`${c.dates[t]} dan ${bsl} candle sebelumnya (${c.dates[a]} sampai ${c.dates[t - 1]}), ${filterText(p)}.` },
+        { title:'Lonjakan sisi beli', text:`${show(FB)} ÷ (${show(MB)} ÷ ${bsl}) = ${fmt.num(sb)}×.` },
+        { title:'Lonjakan sisi jual', text:`${show(FS)} ÷ (${show(MS)} ÷ ${bsl}) = ${fmt.num(ss)}×.` },
+        { title:'Bandingkan', text:`${fmt.num(sb)} ÷ ${fmt.num(ss)} = ${fmt.num(value)}: ${value > 1 ? 'sisi beli lebih menonjol dari biasanya' : value < 1 ? 'sisi jual lebih menonjol dari biasanya' : 'seimbang'}.` },
+        ...readLevels(p, value, `${fmt.num(value)}×`),
+      ],
+    };
+  },
+
+  /* FL41 Net Flow / Average Turnover: 100 (BV(C) − SV(C)) ÷ (W × mean daily gross buy of every investor, board filter, over
+     the N candles before t) */
+  FL41: (c, p, t) => {
+    const R = c.rows, W = intOf(p.window, 1), n = intOf(p.baseline, 20), a = flowWindow(R, t, W);
+    let first = 0; while (first < R.N && !R.has[first]) first++;
+    if (a === null || t - n < first) return null;
+    const lo = Math.min(a, t - n), X = cellsOf(R, lo, t, p.boards ?? null, p.investors ?? null), D = cellsOf(R, lo, t, p.boards ?? null, null);
+    const C = cohortOf(X, p, a, t), BV = cw(X, C, 'bv', a, t), SV = cw(X, C, 'sv', a, t), T = D.all('bv', t - n, t - 1);
+    const combine = (v: Record<string, number>) => { const d = v.W * v.T / v.n, x = div(v.BV - v.SV, d); return x === null ? null : 100 * x };
+    const value = combine({ BV, SV, T, W, n }); if (value === null) return null;
+    return {
+      output:'value', value, expr:'100 × (BV − SV) ÷ (W × T ÷ n)', span:spanOf(c, lo, t),
+      terms:[{ key:'BV', label:'Nilai beli kelompok', value:BV, unit:'idr' }, { key:'SV', label:'Nilai jual kelompok', value:SV, unit:'idr' },
+        { key:'T', label:`Nilai beli semua investor ${n} candle sebelum ${c.dates[t]}`, value:T, unit:'idr' }, { key:'W', label:'Candle jendela', value:W, unit:'count' },
+        { key:'n', label:'Candle rata-rata', value:n, unit:'count' }], combine,
+      steps:[
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
+        cohortStep(p, C, a, t, c),
+        { title:'Turnover normal', text:`Nilai beli semua broker (papan terpilih, asing dan domestik) ${c.dates[t - n]} sampai ${c.dates[t - 1]}: ${fmt.idr(T)}; rata-rata per candle ${fmt.idr(T / n)}${W > 1 ? `, dikali ${W} candle jendela` : ''}.` },
+        { title:'Hitung nilainya', text:`100 × (${fmt.idr(BV)} − ${fmt.idr(SV)}) ÷ ${fmt.idr(W * T / n)} = ${fmt.pct(value)}.` },
+      ],
+    };
+  },
+
+  /* FL42 Buy VWAP · Rolling · Daily Top-N: each candle's own N largest net buyers; Σ BV ÷ (100 × Σ BL) over the window */
+  FL42: (c, p, t) => {
+    const R = c.rows, W = intOf(p.window, 20), N = intOf(p.top, 3), a = flowWindow(R, t, W);
+    if (a === null) return null;
+    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), days: { k: number; C: BS[]; v: number; l: number }[] = [];
+    let V = 0, L = 0;
+    for (let k = a; k <= t; k++) {
+      if (!R.has[k]) continue;
+      const C = topBy(X.list(k, k, ['bv', 'sv', 'bl']), N, net) as BS[];
+      if (C.length < N) return null;
+      const v = C.reduce((x, m) => x + X.b('bv', m.i, k, k), 0), l = C.reduce((x, m) => x + X.b('bl', m.i, k, k), 0);
+      V += v; L += l; days.push({ k, C, v, l });
+    }
+    const combine = (v: Record<string, number>) => div(v.V, 100 * v.L), value = combine({ V, L }); if (value === null) return null;
+    return {
+      output:'value', value, expr:'V ÷ (100 × L)', span:spanOf(c, a, t),
+      terms:[{ key:'V', label:'Nilai beli pembeli bersih terbesar tiap candle', value:V, unit:'idr' }, { key:'L', label:'Lot beli mereka', value:L, unit:'lot' }], combine,
+      steps:[
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
+        { title:`${N} pembeli bersih terbesar setiap candle`, text:'Pembelinya boleh berbeda setiap candle; nilai beli dan lot beli mereka di candle itu.',
+          table:tableOf(['Tanggal', 'Broker', 'Nilai beli', 'Lot beli'], days, d => [c.dates[d.k], d.C.map(m => m.code).join(', '), fmt.idr(d.v), cnt(d.l)], 'ends', 5) },
+        { title:'Hitung harganya', text:`${fmt.idr(V)} ÷ (100 × ${cnt(L)} lot) = ${px(value)} per saham.` },
+      ],
+    };
+  },
+
+  /* FL43 Sell VWAP · Rolling: SV(C) ÷ (100 × SL(C)), the cohort as FL17's */
+  FL43: (c, p, t) => {
+    const R = c.rows, W = intOf(p.window, 20), a = flowWindow(R, t, W);
+    if (a === null) return null;
+    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), C = cohortOf(X, p, a, t, ['bv', 'sv', 'bl', 'sl']);
+    const SV = cw(X, C, 'sv', a, t), SL = cw(X, C, 'sl', a, t);
+    const combine = (v: Record<string, number>) => div(v.SV, 100 * v.SL), value = combine({ SV, SL }); if (value === null) return null;
+    return {
+      output:'value', value, expr:'SV ÷ (100 × SL)', span:spanOf(c, a, t),
+      terms:[{ key:'SV', label:'Nilai jual kelompok', value:SV, unit:'idr' }, { key:'SL', label:'Lot jual kelompok', value:SL, unit:'lot' }], combine,
+      steps:[
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
+        cohortStep(p, C, a, t, c),
+        { title:'Hitung harganya', text:`${fmt.idr(SV)} ÷ (100 × ${cnt(SL)} lot) = ${px(value)} per saham: harga rata-rata penjualan kelompok.` },
+      ],
+    };
+  },
+
+  /* FL44 Sell VWAP · Anchored and FL45 Buy VWAP · Anchored · Distance %: the frozen cohort from the anchor (FL18's) */
+  FL44: (c, p, t) => anchoredCard(c, p, t, 'sell'),
+  FL45: (c, p, t) => anchoredCard(c, p, t, 'distance'),
+
+  /* FL46 Flow Ratio: 100 × numerator ÷ denominator, each side its own measure, cohort and filter */
+  FL46: (c, p, t) => {
+    const R = c.rows, W = intOf(p.window, 1), a = flowWindow(R, t, W);
+    if (a === null) return null;
+    const cols = ({ value:['bv', 'sv'], lot:['bl', 'sl'], tx:['bf', 'sf'] } as const)[p.unit === 'lot' || p.unit === 'tx' ? p.unit : 'value'];
+    const side = (pre: string) => {
+      const q: FlowParams = { scope:p[pre + 'scope'], brokers:p[pre + 'brokers'], top:p[pre + 'top'], rank:p[pre + 'rank'], boards:p[pre + 'boards'], investors:p[pre + 'investors'] };
+      const X = cellsOf(R, a, t, q.boards ?? null, q.investors ?? null), C = cohortOf(X, q, a, t, ['bv', 'sv', 'bl', 'sl', 'bf', 'sf']);
+      if (p.unit === 'tx' && (C ? C.reduce((x, m) => x + X.b('miss', m.i, a, t), 0) : X.all('miss', a, t)) > 0) return null;
+      const B = cw(X, C, cols[0], a, t), S = cw(X, C, cols[1], a, t), m = p[pre + 'measure'] || 'gross_buy';
+      const v = m === 'gross_buy' ? B : m === 'gross_sell' ? S : m === 'net_buy' ? B - S : S - B;
+      return { q, C, v, m };
+    };
+    const n = side('num_'), d = side('den_');
+    if (!n || !d || !(d.v > 0)) return null;
+    const combine = (v: Record<string, number>) => v.D > 0 ? 100 * v.N / v.D : null, value = combine({ N:n.v, D:d.v });
+    const M: Record<string, string> = { gross_buy:'beli kotor', gross_sell:'jual kotor', net_buy:'net beli', net_sell:'net jual' };
+    const show = (v: number) => p.unit === 'lot' ? `${cnt(v)} lot` : p.unit === 'tx' ? `${cnt(v)} transaksi` : fmt.idr(v);
+    const unit: Term['unit'] = p.unit === 'lot' ? 'lot' : p.unit === 'tx' ? 'count' : 'idr';
+    return {
+      output:'value', value, expr:'100 × N ÷ D', span:spanOf(c, a, t),
+      terms:[{ key:'N', label:`Pembilang: ${M[n.m]} ${cohortText(n.q, n.C)}`, value:n.v, unit }, { key:'D', label:`Penyebut: ${M[d.m]} ${cohortText(d.q, d.C)}`, value:d.v, unit }], combine,
+      steps:[
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}.` },
+        { title:'Pembilang', text:`${cap(M[n.m])} ${cohortText(n.q, n.C)}, ${filterText(n.q)} = ${show(n.v)}.` },
+        { title:'Penyebut', text:`${cap(M[d.m])} ${cohortText(d.q, d.C)}, ${filterText(d.q)} = ${show(d.v)} (hari dengan penyebut 0 atau kurang tidak punya nilai).` },
+        { title:'Hitung nilainya', text:`100 × ${show(n.v)} ÷ ${show(d.v)} = ${fmt.pct(value)}.` },
+      ],
+    };
+  },
+
+  /* FL47 Net Buy Intensity: 100 × Σ max(net_b, 0) ÷ Σ gross buy over the window; or its percentile in the history */
+  FL47: (c, p, t) => {
+    const R = c.rows, W = intOf(p.window, 5), a = flowWindow(R, t, W);
+    if (a === null) return null;
+    const bsl = intOf(p.baseline, 252), pct = p.stat === 'pct', lo = pct ? 0 : a;      // the percentile's start reads the whole history
+    const X = cellsOf(R, lo, t, p.boards ?? null, p.investors ?? null);
+    const at = (k: number) => {
+      const s = flowWindow(R, k, W); if (s === null) return null;
+      const L = X.list(s, k), P = L.reduce((x, b) => x + Math.max(net(b), 0), 0), T = X.all('bv', s, k), v = div(P, T);
+      return v === null ? null : { s, P, T, x:100 * v, L };
+    };
+    const now = at(t); if (!now) return null;
+    if (pct) {
+      if (t - bsl < 0) return null;
+      const r = pctAt(k => at(k)?.x ?? null, k => at(k) !== null, t, bsl); if (!r) return null;      // as calc/flow.ts percentile: from the first value
+      const value = pctCombine({ LT:r.lt, EQ:r.eq, n:r.n });
+      return {
+        output:'value', value, expr:'100 × (LT + 0,5 × EQ) ÷ n', span:spanOf(c, lo, t), terms:pctTerms(r, `Intensitas net beli ${W} candle (x)`, 'pct'), combine:pctCombine,
+        steps:[
+          { title:'Hitung x (intensitas)', text:`Net beli positif semua broker ${fmt.idr(now.P)} ÷ nilai beli ${fmt.idr(now.T)} = ${fmt.pct(now.x)} (${span(c, now.s, t)}, ${filterText(p)}).` },
+          ...pctSteps(c, t, bsl, r, v => fmt.pct(v), value),
+        ],
+      };
+    }
+    const combine = (v: Record<string, number>) => v.T ? 100 * v.P / v.T : null, value = combine({ P:now.P, T:now.T });
+    const pos = now.L.filter(b => net(b) > 0).sort((x, y) => net(y) - net(x) || (x.code < y.code ? -1 : 1));
+    return {
+      output:'value', value, expr:'100 × P ÷ T', span:spanOf(c, a, t),
+      terms:[{ key:'P', label:'Net beli broker yang net-nya positif', value:now.P, unit:'idr' }, { key:'T', label:'Nilai beli semua broker', value:now.T, unit:'idr' }], combine,
+      steps:[
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
+        { title:'Net beli positif', text:`Net = nilai beli − nilai jual per broker; hanya yang positif dijumlah (${cnt(pos.length)} broker): P = ${fmt.idr(now.P)}. Broker yang net-nya negatif dihitung 0.`,
+          table:tableOf(['Broker', 'Beli', 'Jual', 'Net'], pos, brokerRow, 'ends', 5) },
+        { title:'Hitung nilainya', text:`100 × ${fmt.idr(now.P)} ÷ ${fmt.idr(now.T)} = ${pc(value)}: dari setiap Rp100 yang dibeli, sekitar Rp${fmt.num(value!, 0)} bersih; sisanya dibatalkan penjualan broker yang sama.` },
+      ],
+    };
+  },
+
+  /* FL48 Bandar Balance · Imbalance: each broker's net over the window, the N largest net buyers B and net sellers S (|net|):
+     (B − S) ÷ (B + S) or B ÷ S; no value unless N on each side */
+  FL48: (c, p, t) => {
+    const R = c.rows, W = intOf(p.window, 5), N = intOf(p.top, 3), a = flowWindow(R, t, W);
+    if (a === null) return null;
+    const L = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null).list(a, t);
+    const buyers = topBy(L, N, net), sellers = topBy(L, N, s => -net(s));
+    if (buyers.length < N || sellers.length < N) return null;
+    const B = buyers.reduce((x, s) => x + net(s), 0), S = sellers.reduce((x, s) => x - net(s), 0), ratio = p.form === 'ratio';
+    const combine = (v: Record<string, number>) => ratio ? div(v.B, v.S) : div(v.B - v.S, v.B + v.S), value = combine({ B, S });
+    if (value === null) return null;
+    return {
+      output:'value', value, expr:ratio ? 'B ÷ S' : '(B − S) ÷ (B + S)', span:spanOf(c, a, t),
+      terms:[{ key:'B', label:`Net ${N} pembeli bersih terbesar`, value:B, unit:'idr' }, { key:'S', label:`|Net| ${N} penjual bersih terbesar`, value:S, unit:'idr' }], combine,
+      steps:[
+        { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}. Net setiap broker dijumlah sepanjang jendela lebih dulu, baru diambil yang terbesar.` },
+        { title:`${N} pembeli dan ${N} penjual bersih terbesar`, text:`B = ${fmt.idr(B)}; S = ${fmt.idr(S)}.`,
+          table:{ head:['Broker', 'Beli', 'Jual', 'Net'], rows:[...buyers.map(brokerRow), ['B', '', '', fmt.idr(B)], ...sellers.map(brokerRow), ['S', '', '', fmt.idr(-S)]] } },
+        { title:'Hitung nilainya', text:ratio ? `${fmt.idr(B)} ÷ ${fmt.idr(S)} = ${fmt.num(value, 2)}×.` : `(${fmt.idr(B)} − ${fmt.idr(S)}) ÷ (${fmt.idr(B)} + ${fmt.idr(S)}) = ${fmt.num(value, 3)} (−1 = hanya penjual, 1 = hanya pembeli).` },
+        ...readLevels(p, value, fmt.num(value, ratio ? 2 : 3)),
       ],
     };
   },

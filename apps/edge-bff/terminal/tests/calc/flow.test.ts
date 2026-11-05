@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { above, atLeast, atMost, computeFlow, defaultInventoryBrokers, flowDefaults, flowRows, percentile, transactionSize, zscore, type FlowContext } from '../../src/calc/flow';
 import REG from '../../src/data/flowRegistry.json';
+import { ratioRefusal } from '../../src/app/flowIndicators';
 
 type Row = { d: string; b: string; i: string; m: string; bv: number; sv: number; bl: number; sl: number; bf?: number | null; sf?: number | null };
 const r = (d: string, b: string, bv: number, sv: number, bl: number, sl: number, bf: number | null = 1, sf: number | null = 1, i = 'Domestic', m = 'Regular'): Row =>
@@ -16,9 +17,11 @@ const D = ['2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08', '2026-01-09']
 const near = (a: number | null, b: number) => { expect(a).not.toBeNull(); expect(a!).toBeCloseTo(b, 9) };
 
 describe('registry', () => {
-  it('has one function per indicator of the agreed spreadsheet (39), with its outputs', () => {
+  it('has one function per indicator of the agreed spreadsheet, with its outputs', () => {
     const ids = (REG as any).indicators.map((i: any) => i.id);
-    expect(ids).toEqual(Array.from({ length:39 }, (_, k) => `FL${String(k + 1).padStart(2, '0')}`));
+    // EXEC-TERMINAL-IND-EDIT: FL01-FL39 (2026-10-30) and FL40 on (2026-11-05), numbered without gaps
+    expect(ids.length).toBeGreaterThanOrEqual(48);
+    expect(ids).toEqual(Array.from({ length:ids.length }, (_, k) => `FL${String(k + 1).padStart(2, '0')}`));
     const c = ctx([r(D[0], 'AA', 100, 0, 1, 0)], D);
     for (const ind of (REG as any).indicators) {
       const p = Object.fromEntries(ind.params.filter((q: any) => q.default !== undefined).map((q: any) => [q.key, q.default]));
@@ -315,5 +318,42 @@ describe('z-score, broker count, FL21 measure, FL39 defaults', () => {
   it('FL39\'s defaults are FL17\'s', () => {
     const d39 = flowDefaults('FL39'), d17 = flowDefaults('FL17');
     for (const k of ['window', 'boards', 'investors', 'scope', 'top', 'rank']) expect(d39[k], k).toEqual(d17[k]);
+  });
+});
+
+// EXEC-TERMINAL-IND-EDIT new indicators FL40-FL48 (user 2026-11-04/05), against hand-computed values
+describe('new indicators', () => {
+  // AA net +40, BB +25, CC -30, DD -35 (value, price 1 lot = 100); one candle
+  const one = ctx([r(D[0], 'AA', 5000, 1000, 50, 10), r(D[0], 'BB', 3000, 500, 30, 5), r(D[0], 'CC', 1000, 4000, 10, 40), r(D[0], 'DD', 3000, 6500, 30, 65)], D);
+  it('FL48: (B - S) / (B + S) of the N largest net buyers and sellers; B / S; null without N on a side', () => {
+    near(computeFlow('FL48', one, { top:2, window:1 }).value[0], ((4000 + 2500) - (3500 + 3000)) / (6500 + 6500));
+    near(computeFlow('FL48', one, { top:1, window:1, form:'ratio' }).value[0], 4000 / 3500);
+    expect(computeFlow('FL48', one, { top:3, window:1 }).value[0]).toBeNull();          // only 2 net buyers
+  });
+  it('FL47: positive net over gross buy', () => {
+    near(computeFlow('FL47', one, { window:1, stat:'value' }).value[0], 100 * (4000 + 2500) / 12000);
+  });
+  it('FL42: each candle\'s own top N net buyers; a candle with fewer than N leaves no value', () => {
+    near(computeFlow('FL42', one, { top:2, window:1 }).value[0], (5000 + 3000) / (100 * (50 + 30)));
+    expect(computeFlow('FL42', one, { top:3, window:1 }).value[0]).toBeNull();
+  });
+  it('FL43: the cohort\'s gross sell over its sold lots', () => {
+    near(computeFlow('FL43', one, { scope:'selected', brokers:['CC', 'DD'], window:1 }).value[0], (4000 + 6500) / (100 * (40 + 65)));
+  });
+  it('FL46: 100 x numerator / denominator; null when the denominator is 0 or below; the gates', () => {
+    const p = { ...flowDefaults('FL46'), window:1, num_scope:'selected', num_brokers:['AA'], num_measure:'net_buy', den_scope:'all', den_measure:'gross_buy' };
+    near(computeFlow('FL46', one, p).value[0], 100 * 4000 / 12000);
+    expect(computeFlow('FL46', one, { ...p, den_scope:'selected', den_brokers:['CC'], den_measure:'net_buy' }).value[0]).toBeNull();   // CC's net is -3000
+    expect(ratioRefusal(flowDefaults('FL46'))).toBe('');
+    expect(ratioRefusal({ ...flowDefaults('FL46'), num_measure:'net_buy' })).toMatch(/Numerator: a net measure of all brokers/);
+    expect(ratioRefusal({ ...flowDefaults('FL46'), num_measure:'net_buy', num_investors:['Foreign'] })).toBe('');
+    expect(ratioRefusal({ ...flowDefaults('FL46'), den_scope:'selected', den_brokers:[] })).toMatch(/Denominator: choose at least one broker/);
+  });
+  it('FL40: the buy spike over the sell spike; FL41: net over W x the mean turnover of the N candles before', () => {
+    const rows = D.flatMap((d, k) => [r(d, 'AA', 100 * (k + 1), 100, 1, 1, 10 * (k + 1), 10)]);
+    const c = ctx(rows, D);
+    near(computeFlow('FL40', c, { baseline:2, measure:'tx', investors:['Foreign', 'Domestic'] }).value[2], (30 / ((10 + 20) / 2)) / (10 / 10));
+    near(computeFlow('FL41', c, { scope:'all', window:1, baseline:2 }).value[2], 100 * (300 - 100) / ((100 + 200) / 2));
+    expect(computeFlow('FL41', c, { scope:'all', window:1, baseline:2 }).value[1]).toBeNull();   // fewer than 2 candles before
   });
 });

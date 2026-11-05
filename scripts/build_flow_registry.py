@@ -26,12 +26,13 @@ OUT = ROOT / 'apps/edge-bff/terminal/src/data/flowRegistry.json'
 # the menu subgroups (user 2026-10-30: "3. OK"), in menu order; an indicator's family is the part of its name before
 # " · ", the rest go to "Other"
 FAMILIES = ['Share', 'Transaction Size', 'Transactions', 'Concentration', 'Bandar Balance', 'Buy VWAP & Implied Cost',
-            'Net Flow', 'Other']
+            'Net Flow', 'Ratio', 'Other']
 FAMILY_OF = {'Share': 'Share', 'Transaction Size': 'Transaction Size', 'Transactions': 'Transactions', 'Activity Spike': 'Transactions',
              'Concentration HHI': 'Concentration', 'Concentration Top-N': 'Concentration', 'Bandar Balance': 'Bandar Balance',
-             'Buy VWAP': 'Buy VWAP & Implied Cost', 'Implied Cost': 'Buy VWAP & Implied Cost',
+             'Buy VWAP': 'Buy VWAP & Implied Cost', 'Sell VWAP': 'Buy VWAP & Implied Cost', 'Implied Cost': 'Buy VWAP & Implied Cost',
+             'Flow Ratio': 'Ratio',
              'Net Flow Percentile': 'Net Flow', 'Flow Percentile': 'Net Flow', 'Net Buy Persistence': 'Net Flow'}
-NET_FLOW_NAMES = {'Net Flow / Turnover Ratio', 'Net Flow Streak'}
+NET_FLOW_NAMES = {'Net Flow / Turnover Ratio', 'Net Flow Streak', 'Net Flow / Average Turnover', 'Net Buy Intensity'}
 
 # outputs of each place / side
 PLACE = {'Panel sendiri': 'pane', 'Di atas candle': 'price', 'Tanda di bawah candle': 'marker'}
@@ -57,7 +58,9 @@ OPTIONS = {
     'Net': ('net', 'Net'), 'Beli kotor': ('gross_buy', 'Gross buy'), 'Jual kotor': ('gross_sell', 'Gross sell'),
     'Persen broker aktif': ('pct', '% of active brokers'), 'Jumlah broker': ('count', 'Number of brokers'),
     'Persentil': ('pct', 'Percentile'), 'Z-score': ('z', 'Z-score'),
-    'Transaksi': ('tx', 'Transactions'), 'Nilai (Rp)': ('value', 'Value (Rp)'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
+    'Transaksi': ('tx', 'Transactions'), 'Nilai (Rp)': ('value', 'Value (Rp)'),
+    'Net beli': ('net_buy', 'Net buy'), 'Net jual': ('net_sell', 'Net sell'), 'Jual kotor (Rp)': ('gross_sell', 'Top gross sellers'),
+    'Nilai (%)': ('value', 'Value (%)'), 'Imbalance': ('imbalance', 'Imbalance (B − S) ÷ (B + S)'), 'Rasio': ('ratio', 'Ratio B ÷ S'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
     'Ya': (True, 'Yes'), 'Tidak': (False, 'No'),
 }
 BOARDS, INVESTORS = ['Regular', 'Nego', 'Cash'], ['Foreign', 'Domestic']
@@ -90,6 +93,12 @@ LABELS = {
     'Kurangi bagian merata (N/k)': ('even', 'Minus the even share (N/k)'),
     'Ukuran (pembilang)': ('measure', 'Measure'), 'Tampilkan sebagai': ('measure', 'Show as'), 'Ukuran statistik': ('stat', 'Statistic'),
     'Ukuran': ('measure', 'Measure'),
+    'Jendela rata-rata turnover (N sesi)': ('baseline', 'Average turnover over (sessions)'),
+    'Satuan (kedua sisi)': ('unit', 'Unit (both sides)'), 'Hitung sebagai': ('form', 'Show as'),
+    **{f'{pre}: {lab}': (f'{key}_{k}', f'{en}: {e}') for pre, key, en in (('Pembilang', 'num', 'Numerator'), ('Penyebut', 'den', 'Denominator'))
+       for lab, k, e in (('ukuran', 'measure', 'measure'), ('cakupan broker', 'scope', 'broker scope'), ('broker', 'brokers', 'brokers'),
+                         ('Top N', 'top', 'Top N'), ('urutkan Top-N', 'rank', 'rank Top-N by'), ('ranking Top-N', 'ranking', 'Top-N ranking'),
+                         ('papan', 'boards', 'market board'), ('jenis investor', 'investors', 'investor type'))},
     'Pemicu net: N broker': ('n_net', 'Net trigger: N brokers'), 'Pemicu net: rasio X': ('x_net', 'Net trigger: ratio at least'),
     'Pemicu gross: N broker': ('n_gross', 'Gross trigger: N brokers'), 'Pemicu gross: rasio X': ('x_gross', 'Gross trigger: ratio at least'),
 }
@@ -125,11 +134,11 @@ def param(row):
         opts = [OPTIONS[o.strip()] for o in choices.split(' / ')]
         p.update(kind='select', options=[[v, t] for v, t in opts], default=OPTIONS[default][0])
     elif control.startswith('Pilih banyak'):
-        if key == 'boards':
+        if key.endswith('boards'):               # FL46's num_boards and den_boards too
             p.update(kind='multi', options=BOARDS, default=BOARDS if default == 'Semua' else [default])
-        elif key == 'investors':
+        elif key.endswith('investors'):
             p.update(kind='multi', options=INVESTORS, default=INVESTORS if default == 'Semua' else [default])
-        elif key == 'brokers':
+        elif key.endswith('brokers'):
             lo, hi = span(choices)
             p.update(kind='brokers', default='top3_net_buy_20' if default.startswith('3 net buyer') else [],
                      **({'min': lo, 'max': hi} if hi else {}))
@@ -202,6 +211,15 @@ PLAIN = {
     'FL29': 'Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai transaksi (persen).',
     'FL32': 'Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya.',
     'FL33': 'Perubahan nilai rata-rata per transaksi (beli atau jual) beberapa hari terakhir dibanding periode sebelumnya, untuk semua broker atau kelompok broker.',
+    'FL40': 'Lonjakan sisi beli dibagi lonjakan sisi jual hari ini: di atas 1 sisi beli lebih menonjol dari biasanya, di bawah 1 sisi jual. Bermakna dengan filter investor (bawaan asing).',
+    'FL41': 'Pembelian bersih broker atau kelompok broker dibanding nilai transaksi rata-rata (bukan hari itu saja), sehingga hari ramai tidak mengencerkan nilainya.',
+    'FL42': 'Harga rata-rata pembelian para pembeli bersih terbesar setiap hari selama N hari terakhir (pembelinya boleh berganti tiap hari).',
+    'FL43': 'Harga rata-rata penjualan kelompok broker selama N hari terakhir.',
+    'FL44': 'Harga rata-rata penjualan kelompok broker tetap sejak tanggal awal.',
+    'FL45': 'Jarak harga penutupan dari harga rata-rata pembelian kelompok broker sejak tanggal awal, dalam persen.',
+    'FL46': 'Rasio bebas: pembilang dan penyebut dipilih sendiri (beli atau jual, kotor atau net, oleh siapa, papan dan jenis investor).',
+    'FL47': 'Dari setiap Rp100 yang dibeli, berapa yang bersih (tidak dibatalkan penjualan broker yang sama); atau posisinya dibanding riwayat saham itu sendiri.',
+    'FL48': 'Pembeli bersih terbesar dibanding penjual bersih terbesar selama jendela: (B − S) ÷ (B + S) dari -1 sampai 1, atau B ÷ S.',
 }
 
 

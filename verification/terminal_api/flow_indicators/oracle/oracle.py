@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent reference implementation ("oracle") of the broker-flow indicators FL01-FL39.
+"""Independent reference implementation ("oracle") of the broker-flow indicators FL01-FL48 (FL40-FL48: EXEC-TERMINAL-IND-EDIT).
 
 Written only from verification/terminal_api/flow_indicators/FORMULAS.md and the parameter registry
 (apps/edge-bff/terminal/src/data/flowRegistry.json); no TypeScript/JavaScript implementation was read.
@@ -984,7 +984,127 @@ def s_fl39(T, p):
     return {'value': [_dist(T.close[t], vw[t]) for t in range(T.n)]}
 
 
-SERIES = {f'FL{i:02d}': globals()[f's_fl{i:02d}'] for i in range(1, 40)}
+# ---- EXEC-TERMINAL-IND-EDIT new indicators (FORMULAS.md FL40-FL48) ----
+def s_fl40(T, p):
+    sp = s_fl32(T, p)
+    return {'value': [None if b is None or s is None or s == 0 else b / s for b, s in zip(sp['buy'], sp['sell'])]}
+
+
+def s_fl41(T, p):
+    w, n = int(p['window']), int(p['baseline'])
+    B = base_pass(T, p, w)
+    PB = T.prefix(tuple(p.get('boards') or ALL_BOARDS), ALL_INV)
+    out = [None] * T.n
+    for t in range(T.n):
+        if B[t] is None or t - n < T.first:
+            continue
+        C, SC, SA, SB = B[t]
+        out[t] = ratio(100 * (SC[BV] - SC[SV]) * n, w * wsum(PB, t - n, t - 1)[BV])
+    return {'value': out}
+
+
+def s_fl42(T, p):
+    w, n_top = int(p['window']), int(p['top'])
+    days = [None] * T.n
+    for t, roll in rolling(T.agg(*filt(p)), 1):
+        if T.has[t]:
+            C = top_n(roll, n_top, 'net_buy')
+            days[t] = None if len(C) < n_top else (sum(roll[b][BV] for b in C), sum(roll[b][BS] for b in C))
+    out = [None] * T.n
+    for t in range(T.n):
+        if not T.valid(t, w):
+            continue
+        ks = [k for k in range(t - w + 1, t + 1) if T.has[k]]
+        if any(days[k] is None for k in ks):
+            continue
+        out[t] = ratio(sum(days[k][0] for k in ks), sum(days[k][1] for k in ks))    # shares = 100 x lots
+    return {'value': out}
+
+
+def s_fl43(T, p):
+    B = base_pass(T, p, int(p['window']))
+    return {'value': per_t(B, lambda C, SC, SA, SB: ratio(SC[SV], SC[SS]))}
+
+
+def s_fl44(T, p):
+    """FL18's frozen cohort and cumulation, the sell side"""
+    a = _anchor_idx(T, p['anchor'])
+    out = [None] * T.n
+    if a < T.first:
+        return {'value': out}
+    C = _frozen_cohort(T, p, a)
+    agg = T.agg(*filt(p))
+    cum = list(ZERO)
+    for t in range(a, T.n):
+        cum = [x + y for x, y in zip(cum, _cohort_vec(agg[t], C))]
+        if T.has[t]:
+            out[t] = ratio(cum[SV], cum[SS])
+    return {'value': out}
+
+
+def s_fl45(T, p):
+    v = s_fl18(T, p)['value']
+    return {'value': [_dist(T.close[t], v[t]) for t in range(T.n)]}
+
+
+def _ratio_side(T, p, pre, t, w):
+    q = {k[len(pre):]: v for k, v in p.items() if k.startswith(pre)}
+    q.setdefault('scope', 'all')
+    B = base_pass(T, q, w)
+    if B[t] is None:
+        return None
+    C, SC, SA, SB = B[t]
+    unit = p.get('unit', 'value')
+    if unit == 'tx':
+        b, s = freq(SC, BF), freq(SC, SF)
+        if b is None or s is None:
+            return None
+    elif unit == 'lot':
+        b, s = SC[BS], SC[SS]
+    else:
+        b, s = SC[BV], SC[SV]
+    m = q.get('measure', 'gross_buy')
+    return b if m == 'gross_buy' else s if m == 'gross_sell' else b - s if m == 'net_buy' else s - b
+
+
+def s_fl46(T, p):
+    w = int(p['window'])
+    out = [None] * T.n
+    for t in range(T.n):
+        if not T.valid(t, w):
+            continue
+        x, y = _ratio_side(T, p, 'num_', t, w), _ratio_side(T, p, 'den_', t, w)
+        if x is None or y is None or y <= 0:
+            continue
+        out[t] = Fraction(100 * x, y)
+    return {'value': out}
+
+
+def s_fl47(T, p):
+    w = int(p['window'])
+    x = [None] * T.n
+    for t, roll in rolling(T.agg(*filt(p)), w):
+        if T.valid(t, w):
+            x[t] = ratio(100 * sum(max(v[BV] - v[SV], 0) for v in roll.values()), sum(v[BV] for v in roll.values()))
+    return {'value': percentile(x, int(p['baseline'])) if p.get('stat') == 'pct' else x}
+
+
+def s_fl48(T, p):
+    w, n_top = int(p['window']), int(p['top'])
+    out = [None] * T.n
+    for t, roll in rolling(T.agg(*filt(p)), w):
+        if not T.valid(t, w):
+            continue
+        buy, sell = top_n(roll, n_top, 'net_buy'), top_n(roll, n_top, 'net_sell')
+        if len(buy) < n_top or len(sell) < n_top:
+            continue
+        B = sum(roll[b][BV] - roll[b][SV] for b in buy)
+        S = sum(roll[b][SV] - roll[b][BV] for b in sell)
+        out[t] = ratio(B, S) if p.get('form') == 'ratio' else ratio(B - S, B + S)
+    return {'value': out}
+
+
+SERIES = {k: v for k, v in ((f'FL{i:02d}', globals().get(f's_fl{i:02d}')) for i in range(1, 100)) if v}
 
 
 def run_case(T, case, profile, registry):

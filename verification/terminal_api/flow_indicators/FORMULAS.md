@@ -1,4 +1,4 @@
-# Flow indicators FL01-FL39: formulas and conventions (EXEC-TERMINAL-FLOW-IND)
+# Flow indicators FL01-FL48: formulas and conventions (EXEC-TERMINAL-FLOW-IND, EXEC-TERMINAL-IND-EDIT)
 
 The contract is `FLOW_INDICATORS_SPEC.xlsx` (names, parameters, defaults, ranges; user decisions of 2026-10-30, sheet
 `Keputusan`). This file states each formula exactly, with the conventions the spreadsheet leaves to the implementation,
@@ -114,3 +114,12 @@ draws the Buy and the Sell line in one panel.
 | FL37 | Net Flow Percentile · Rupiah | pct | percentile (baseline 250) of `BV(C)-SV(C)` over the net window; or (U1) its z-score in the same history (shared conventions) |
 | FL38 | Concentration HHI · Net Buy | hhi | `n_b = BV(b)-SV(b)` (Rupiah) or `BL(b)-SL(b)` (Lot); `Σ_(b in C) (max(n_b,0) / Σ positive n)^2`; `C` = every net buyer (default), selected brokers or Top-N (net buy or gross buy) over the window |
 | FL39 | Buy VWAP · Rolling · Distance % | dist | `100 (close / FL17 - 1)` with FL39's cohort, filter and window; defaults as FL17 (20 candles, every board; to-do 16) |
+| FL40 | Activity Spike · Balance | value | FL32 Buy spike / FL32 Sell spike, same measure (transactions, value or lots), baseline and filter (default investor Foreign: for all investors it is always 1); reference lines 0.5, 1, 2 |
+| FL41 | Net Flow / Average Turnover | value | `100 (BV(C)-SV(C)) / (W x mean(TBV_k, k = t-N .. t-1))` over the window `W`, `TBV_k` = every investor's gross buy on the chosen boards on candle `k` (0 without data); null when fewer than `N` candles precede `t` since the first data |
+| FL42 | Buy VWAP · Rolling · Daily Top-N | value | `Σ_k BV(C_k, k) / (100 Σ_k BL(C_k, k))` over the window, `C_k` = the N largest net buyers of candle `k` alone (candles without data skipped); null when a candle with data has fewer than N net buyers |
+| FL43 | Sell VWAP · Rolling | value | `SV(C) / (100 SL(C))`, the cohort, filter and window as FL17 |
+| FL44 | Sell VWAP · Anchored | value | frozen `C` as FL18; from the anchor to `t`: `SV(C) / (100 SL(C))`; null before the anchor |
+| FL45 | Buy VWAP · Anchored · Distance % | value | `100 (close / FL18 - 1)` with FL18's anchor, frozen cohort and filter |
+| FL46 | Flow Ratio | value | `100 N / D`; each side: its measure (gross buy `BV`, gross sell `SV`, net buy `BV-SV`, net sell `SV-BV`) of its cohort (every broker, selected brokers or Top-N ranked over the window by net buy, net sell, gross buy or gross sell) on its own board and investor filter; one unit for both (Rupiah `bv/sv`, Lot `bl/sl`, Transactions `bf/sf`) and one window; null when `D <= 0`. Refused: a net measure of every broker over both investor types (always 0), selected brokers without a broker |
+| FL47 | Net Buy Intensity | value | `100 Σ_b max(BV(b)-SV(b), 0) / BV(A)` over the window (default 5), every broker on the filter; or its percentile in the same history (baseline 252) |
+| FL48 | Bandar Balance · Imbalance | value | each broker's net `n_b = BV(b)-SV(b)` over the window first; `B` = Σ of the N largest positive `n_b`, `S` = Σ `|n_b|` of the N largest negative; `(B - S) / (B + S)` or `B / S`; null unless N brokers on each side |

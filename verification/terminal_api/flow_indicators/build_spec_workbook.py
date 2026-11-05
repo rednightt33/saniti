@@ -217,6 +217,48 @@ set_field('FL32', 5, False)          # K4: only the Transaksi measure needs the 
 set_params('FL33', lambda ps: SCOPE_HHI + [RANK_SIDE, ('Ranking Top-N', 'Tetap', 'Dihitung ulang tiap hari', 'Ulang tiap hari', D,
                                                     'To-do 4 (iv): Top-N setiap candle dari candle itu sendiri.')] + ps + SIDE3)
 
+# ---- new indicators (EXEC-TERMINAL-IND-EDIT; codes FL40 on, after the 39 of 2026-10-30, no clash with the Screener's
+# FL01-FL20; FLOW_INDICATOR_REVIEW.md to-do 3, 8, 13, 14, 15, 20 and SCREENER_LIBRARY.md U4, U5) ----
+params_of = lambda fid: list(next(f for f in FL if f[0] == fid)[7])
+INV_FOREIGN = [('Jenis investor (Investor type)', 'Pilih banyak', 'Foreign, Domestic', 'Foreign', D,
+                'Q2 "A" (2026-11-05): untuk semua investor rasio lonjakan selalu 1.')]
+RANK4 = lambda pre: ('%s: urutkan Top-N' % pre, 'Pilihan', 'Net beli (Rp) / Net jual (Rp) / Beli kotor (Rp) / Jual kotor (Rp)', 'Net beli (Rp)', D, 'Mock-up A2.')
+def ratio_side(pre):
+    return [('%s: ukuran' % pre, 'Pilihan', 'Beli kotor / Jual kotor / Net beli / Net jual', 'Beli kotor', D, 'To-do 20 (mock-up).'),
+            ('%s: cakupan broker' % pre, 'Pilihan', 'Semua broker / Broker terpilih / Top-N cohort', 'Semua broker', D, ''),
+            ('%s: broker' % pre, 'Pilih banyak (cari kode)', 'Semua kode broker', 'Kosong', D, 'Dipakai bila cakupan = broker terpilih.'),
+            ('%s: Top N' % pre, 'Angka bulat', '1 - 20', '3', D, ''), RANK4(pre),
+            ('%s: ranking Top-N' % pre, 'Tetap', 'Dihitung ulang tiap hari', 'Ulang tiap hari', D, 'K3 "A": Top-N dikunci per jendela.'),
+            ('%s: papan' % pre, 'Pilih banyak', 'Regular, Nego, Cash (Tunai)', 'Semua', D, ''),
+            ('%s: jenis investor' % pre, 'Pilih banyak', 'Foreign, Domestic', 'Semua', D, '')]
+FL += [
+    ('FL40', 'Activity Spike · Balance', [], 'Panel sendiri', 'x', False,
+     'To-do 3: lonjakan sisi beli dibagi lonjakan sisi jual; skala linear, garis netral 1, acuan 0,5 dan 2 (A8).',
+     [FILTER[0]] + INV_FOREIGN + [('Baseline sessions', 'Angka bulat', '1 - 250', '20', D, ''),
+      ('Ukuran', 'Pilihan', 'Transaksi / Nilai (Rp) / Lot', 'Transaksi', D, 'A8: bawaan Transaksi.')] + REF('0.5, 1, 2', D)),
+    ('FL41', 'Net Flow / Average Turnover', [], 'Panel sendiri', '%', False,
+     'To-do 8: seperti FL11, penyebut W x rata-rata nilai beli harian semua investor N sesi sebelum hari ini.',
+     SCOPE + FILTER + DAYS + [('Jendela rata-rata turnover (N sesi)', 'Angka bulat', '1 - 250', '20', D, 'To-do 8: "avg last 20D or can be adjustable".')] + PLOT),
+    ('FL42', 'Buy VWAP · Rolling · Daily Top-N', [], 'Di atas candle', 'harga', False,
+     'To-do 13 (cara B): Top-N pembeli bersih setiap hari; sesi dengan kurang dari N pembeli bersih: kosong (A6).',
+     [('Top N', 'Angka bulat', '1 - 20', '3', D, '')] + FILTER + [('Hari rolling', 'Angka bulat', '1 - 250', '20', D, '')]),
+    ('FL43', 'Sell VWAP · Rolling', [], 'Di atas candle', 'harga', False, 'To-do 14: persis FL17, nilai jual dibagi lot jual.', params_of('FL17')),
+    ('FL44', 'Sell VWAP · Anchored', [], 'Di atas candle', 'harga', False, 'To-do 14: persis FL18, nilai jual dibagi lot jual.', params_of('FL18')),
+    ('FL45', 'Buy VWAP · Anchored · Distance %', [], 'Panel sendiri', '%', False, 'To-do 15: 100 x (close / FL18 - 1).',
+     params_of('FL18') + REF('0', D)),
+    ('FL46', 'Flow Ratio', [], 'Panel sendiri', '%', False, 'To-do 20: rasio bebas (mock-up RATIO_SETTINGS_MOCKUP.html).',
+     ratio_side('Pembilang') + ratio_side('Penyebut') +
+     [('Satuan (kedua sisi)', 'Pilihan', 'Rupiah / Lot / Transaksi', 'Rupiah', D, 'A2: satu satuan untuk kedua sisi.')] + DAYS),
+    ('FL47', 'Net Buy Intensity', [], 'Panel sendiri', '%', False, 'U4 (M-NET-INTENSITY): net beli positif / beli kotor; atau persentilnya.',
+     FILTER + [('Hari rolling', 'Angka bulat', '1 - 250', '5', D, 'Kamus: 5 sesi.'),
+               ('Ukuran statistik', 'Pilihan', 'Nilai (%) / Persentil', 'Nilai (%)', D, 'U4: "dibuatkan versi / opsi percentilenya".'),
+               ('Jendela histori (baseline)', 'Angka bulat', '20 - 1000 sesi', '252', D, 'U4: persentil terhadap riwayat sendiri.')]),
+    ('FL48', 'Bandar Balance · Imbalance', [], 'Panel sendiri (-1 s/d +1)', '-1 s/d +1', False,
+     'U5 (M-TOPN-RATIO): net per broker dijumlah sepanjang jendela dulu; kosong bila kurang dari N di salah satu sisi.',
+     [('Top N', 'Angka bulat', '1 - 20', '3', D, '')] + FILTER + [('Hari rolling', 'Angka bulat', '1 - 250', '5', D, 'Kamus: 5 sesi.'),
+      ('Hitung sebagai', 'Pilihan', 'Imbalance / Rasio', 'Imbalance', D, 'U5: garis imbalance, pilihan rasio B/S.')] + REF('0', D)),
+]
+
 DEC_20261105 = [
     (D, 'K1 Sisi (2026-11-05)', 'Satu arti untuk Sisi di FL01-FL05, FL08, FL13, FL14, FL33: Buy = Top-N pembeli, Sell = Top-N penjual.',
      'C diperluas ke FL01-FL05'),
@@ -236,6 +278,8 @@ DEC_20261105 = [
     (D, 'FL29 besaran (2026-11-05)', 'Garis kedua: 100 x jumlah (NB + NS) / jumlah nilai beli semua broker selama days.', 'C; Saya setuju harus in percent'),
     (D, 'FL32 Activity Spike (2026-11-04)', 'Ukuran (Transaksi, Nilai, Lot) dan Sisi (Beli, Jual, Keduanya); kode FL32 tetap.', 'P2 Ok tambahkan; P1 Pisahkan; 2. pertahankan di tempat'),
     (D, 'FL33 kelompok (2026-11-05)', 'Kelompok Top-N per hari, bawaan semua broker, parameter Side.', '(iv) Top-N per hari, bawaan tetap semua broker, Side ya'),
+    (D, 'Indikator baru (2026-11-05)', 'FL40 Activity Spike · Balance, FL41 Net Flow / Average Turnover, FL42 Buy VWAP Top-N harian, FL43/FL44 Sell VWAP, FL45 jarak ke Buy VWAP anchored, FL46 Flow Ratio, FL47 Net Buy Intensity, FL48 Bandar Balance · Imbalance.',
+     'Spike balance OK tambahkan; masukan juga ...; Jadi aja kita tambahkan ...; dua indikator tambahan jual dan lot jual; FL18 benar; you get my point; U4 ok exec; U5 ok exec'),
     (D, 'Kelompok B (2026-11-05)', 'Indikator dengan Rank tanpa Sisi tetap Net beli, Beli kotor, Net jual; label diperjelas.',
      'Kelompok B tetap, ganti labelnya, masukan exec'),
 ]

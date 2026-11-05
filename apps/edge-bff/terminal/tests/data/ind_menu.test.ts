@@ -34,7 +34,9 @@ describe('indicator menu rows', () => {
     for (const id of ['FL02', 'FL04', 'FL10', 'FL11', 'FL12', 'FL16', 'FL21', 'FL22', 'FL23', 'FL24', 'FL25', 'FL26', 'FL28',
       'FL29', 'FL30', 'FL32', 'FL33', 'FL34', 'FL37', 'FL38']) expect(flow).toContain(id);
     const hiddenFlow = [...MENU_HIDDEN].filter(id => id.startsWith('FL') && !SINGLE_SECURITY.has(id)).length;   // not counted twice
-    expect(flow.length).toBe((FLOW as any).indicators.length - 17 - hiddenFlow);
+    expect(flow.length).toBe((FLOW as any).indicators.length - SINGLE_SECURITY.size - hiddenFlow);
+    for (const id of ['FL42', 'FL43', 'FL44', 'FL45']) expect(flow).not.toContain(id);      // a price per share (2026-11-05)
+    for (const id of ['FL40', 'FL41', 'FL46', 'FL47', 'FL48']) expect(flow).toContain(id);
   });
   it('groups, favorites and search', () => {
     expect(visibleItems(all, 'f:Bandar Balance', '', new Set()).every(i => i.group === 'Bandar Balance' && i.kind === 'Flow')).toBe(true);
