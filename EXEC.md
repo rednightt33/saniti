@@ -10082,6 +10082,45 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
         - P3: backfill menerima tanggal tanpa transaksi yang dibuktikan dengan cara P2.
       - Urutan kerja sesudah keputusan ini (user 2026-11-05): S3 (broker summary sesudah 2026-08-31) dulu, lalu S2
         (perubahan cara fitur dihitung). S1 menunggu P1–P3.
+- **Fokus sekarang (user 2026-11-05):** "Sekarang kita fokus untuk nge-fetch data di atas 31 Agustus yang bukan 4
+  ticker. Setelah kita fetch, maka kode perubahan bagaimana fitur 1 sampai 6 dihitung, yang mana fitur-fitur ini dihitung
+  hanya untuk saham-saham yang ada di IDX Universe."
+  - **Fakta yang menentukan urutan (2026-11-05):**
+    - F01 dan F04 sudah hanya universe: `Price_Stock_Indonesia_IDX` tidak punya ticker di luar universe (0). Perubahan
+      "hanya universe" menyangkut F02, F03, F05, F06.
+    - `apps/stockbit-updater/refresh.py:4-7, 25-37`: refresh membandingkan total per tanggal semua simbol
+      `IDX_Broker_Summary` dengan F05 dan menghitung ulang setiap tanggal yang berbeda. Kalau data kode bukan 4 huruf
+      diunggah sebelum S2, putaran broker berikutnya otomatis menghitung F05/F02/F03/F06 untuk 611 kode × ±45 hari
+      (cara lama), yang lalu dibuang S2. Jadi: tarik dan periksa dulu di PC, unggah sesudah S2 aktif.
+    - Sesudah S2 pemeriksaan itu memakai baris universe saja (kalau tidak, setiap tanggal selalu "berubah"), dan
+      agregat IHSG (`_INDEX`, semua simbol, `refresh.py:149-155`) diberi pemeriksaan sendiri terhadap semua simbol;
+      kalau tidak, unggahan kode bukan 4 huruf tidak memicu hitung ulang IHSG. Aturan umumnya: pemeriksaan perubahan
+      memakai kumpulan baris yang sama dengan tabel yang diisinya.
+    - Baris fitur broker di luar universe sekarang (F06, sampai 2026-11-03): 287.543 baris untuk 3.058 kode bukan 4
+      huruf (s.d. 2026-08-31); 258.735 baris untuk 225 kode 4 huruf (63 masih diperdagangkan, 162 berakhir 2016–2026).
+    - Importer yang ada (`broker_import.py:118-181`): 6 permintaan per kode per tanggal (Reguler/Nego/Tunai × asing/
+      domestik); jawaban mentah disimpan `.json.gz` sehingga bisa dilanjutkan. `upload_day` menimpa baris yang berbeda
+      (`:267`); unggahan S3 memakai aturan user (tidak menimpa, beda dilaporkan).
+    - Folder PC user belum tersambung ke sesi (`list_computer_folders` kosong).
+  - **Langkah:**
+    1. U1, persiapan PC: user menyambungkan satu folder di PC (Claude desktop → Settings → Claude Code → Remote
+       Control); agent memeriksa Python dan jaringan di sana.
+    2. U2, daftar kode dan tanggal: 611 kode CSV yang aktif di Agustus, ditambah kode yang terbit sejak 2026-09-01
+       (dicari agent dengan token, ditunjukkan ke user dulu); tanggal = hari broker summary 2026-09-01 … tanggal
+       terakhir di tabel.
+    3. U3, uji kecil: 5 kode × 3 tanggal; waktu per permintaan dan batas Stockbit (429) diukur untuk perkiraan lama total.
+    4. U4, tarik penuh di PC dengan cara ambil importer (`fetch_symbol_once`); token hanya di memori; bisa dilanjutkan.
+    5. U5, pemeriksaan di PC: kunci unik (Date, Symbol, Broker, Investor Type, Market Board), kolom wajib tidak kosong,
+       tanggal jawaban = tanggal diminta, tiap kode × tanggal terjawab (jawaban kosong = tidak ada transaksi, dicatat),
+       dibandingkan dengan tabel (kunci ada dan sama → buang; beda → laporan). Hasil ditunjukkan ke user.
+    6. S2 (di bawah), dengan keputusan Q-S2a.
+    7. U6, unggah sesudah S2 aktif, per tanggal, tidak menimpa; IHSG `_INDEX` dihitung ulang untuk tanggal yang berubah;
+       publikasi; restart Postgres.
+    8. Loader diperluas (opsi b) secepatnya; sampai itu kode bukan 4 huruf bolong lagi mulai tanggal sesudah penarikan,
+       ditutup dengan tarikan susulan yang sama.
+  - **Q-S2a (terbuka):** baris fitur broker yang sudah ada untuk kode di luar universe: (a) hapus semua; (b) hapus kode
+    bukan 4 huruf, simpan riwayat kode 4 huruf (termasuk 162 saham yang sudah berakhir, supaya backtest tidak hanya
+    melihat saham yang bertahan); (c) simpan semua, hanya berhenti menghitung yang baru.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
