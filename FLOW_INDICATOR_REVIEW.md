@@ -27,6 +27,7 @@ item baru dijalankan atas perintah user.
 | 8 | Indikator baru (kode ditetapkan saat dikerjakan) | Sama persis dengan FL11, tetapi penyebutnya **rata-rata nilai transaksi (gross beli) N sesi terakhir**, N bawaan 20 dan bisa diatur | "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm" (2026-11-04) | To-do; bacaan AI dikonfirmasi user dengan "Ok" (2026-11-04). Bagian 5g.2 |
 | 9 | FL35 Net Buy Persistence · Top Buyer | **Disembunyikan** dari menu indikator (hide) | "Hide saja FL35, masukan ke review" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5h |
 | 10 | FL21 Net Flow Percentile · vs Turnover | Ditambah parameter **Ukuran**: gross beli, gross jual, atau net beli (net), yang dipersentilkan terhadap turnover | "Not untuk FL21 yang bisa dimasukkan ke flow indicator review adalah biar ditambahkan filter untuk gross buy. Atau gross sell, dan juga net buy." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5i |
+| 11 | FL25 Bandar Balance · Rupiah | Visual tambahan yang menunjukkan **apa yang mendorong tiap kenaikan dan penurunan** FL25 | "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list." (2026-11-05) | To-do, definisi "didorong oleh apa" menunggu user. Bagian 5j |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -105,7 +106,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL22 | Broker Buy Breadth | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL23 | Broker Inventory | Other | Panel | lot|IDR | lines, total | Belum ditinjau |  |  |
 | FL24 | Bandar Balance · % | Bandar Balance | Panel | % | value | Belum ditinjau |  |  |
-| FL25 | Bandar Balance · Rupiah | Bandar Balance | Panel | IDR | value | Belum ditinjau |  |  |
+| FL25 | Bandar Balance · Rupiah | Bandar Balance | Panel | IDR | value | To-do: visual penyebab kenaikan dan penurunan | Ditambah (2026-11-05, to-do) | Bagian 5j. Hanya satu garis jumlah NB + NS; penyebab perubahan tidak terlihat |
 | FL26 | Net Flow Streak | Net Flow | Panel | days | value | Belum ditinjau |  |  |
 | FL27 | Silent Accumulation | Other | Penanda di bawah candle | flag | value | Belum ditinjau |  |  |
 | FL28 | Average Daily Value | Other | Panel | IDR | value | Belum ditinjau |  |  |
@@ -700,6 +701,53 @@ Pada hari yang sama net tampak lemah, gross beli biasa saja, dan gross jual ting
 ### 5i.5 Batas
 
 Satu saham (BBRI), satu tanggal untuk contoh, baseline 250 nilai yang saling tumpang tindih. Tidak ada klaim bahwa ukuran mana pun prediktif. Dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup. Tidak ada kode yang diubah.
+
+## 5j. To-do: FL25 menampilkan apa yang mendorong tiap kenaikan dan penurunan
+
+**Catatan user 2026-11-05 (kata-katanya):** "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list."
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah. Usul AI sebelumnya, tampilan dua garis (NB dan NS terpisah), **tidak diambil** karena user mempertanyakan gunanya; yang diminta adalah penyebab perubahan.
+
+### 5j.1 Kondisi sekarang **[T]** (`flow.ts:300-305`, `:447-450`, registry)
+
+FL25 = `NB + NS` (Rupiah): `NB` jumlah **net** (`BV − SV`, gross beli dikurangi gross jual) dari N pembeli bersih terbesar, `NS` dari N penjual bersih terbesar (negatif), net dijumlahkan sepanjang `window` (10). Outputnya satu garis (`net`).
+Parameter: `top` (3), `boards`, `investors`, `window` (10), `plot`. Perubahan garis tidak menunjukkan penyebabnya.
+
+### 5j.2 Bacaan AI atas "didorong oleh apa" (belum dikonfirmasi user)
+
+Perubahan harian FL25 dapat dipecah **persis** (jumlah komponen sama dengan perubahan, selisih 0,000000 pada 252 sesi) menjadi tiga komponen, dengan `S_t` enam broker (N pembeli dan N penjual) pada hari `t`, `d_(t,b)` net harian broker `b`, `cum_(t,b)` net kumulatif jendela:
+
+`ΔFL25_t = Σ_(b∈S_t) d_(t,b)` **(hari yang masuk jendela)**
+`− Σ_(b∈S_t) d_(t−W,b)` **(hari yang keluar jendela)**
+`+ [Σ_(b∈S_t) cum_(t−1,b) − Σ_(b∈S_(t−1)) cum_(t−1,b)]` **(pergantian anggota enam broker)**
+
+Pemecahan lain yang bisa dipertimbangkan: menurut sisi (perubahan NB dan NS) dan menurut broker (nama broker yang menyumbang).
+
+### 5j.3 Bukti pada data (BBRI, jendela 10, N = 3, semua papan, dihitung 2026-11-05)
+
+Rp miliar, semua investor:
+
+| Tanggal | FL25 | Perubahan | Hari masuk | Hari keluar | Pergantian anggota |
+|---|---:|---:|---:|---:|---:|
+| 29 Okt | −849,8 | −133,6 | −31,6 | −102,0 | 0,0 |
+| 30 Okt | −255,0 | +594,8 | −275,0 | +190,5 | +679,3 |
+| 2 Nov | +622,3 | +877,3 | +78,2 | +574,8 | +224,4 |
+| 3 Nov | +696,1 | +73,8 | +34,7 | −81,2 | +120,3 |
+
+- Pada 252 sesi, porsi |kontribusi| rata-rata: hari masuk 39%, hari keluar 38%, pergantian anggota 23% (investor Foreign: 43%, 40%, 16%). Anggota enam broker berganti (minimal satu broker baru) pada 180 dari 252 sesi.
+- Pada 10% perubahan terbesar (26 sesi), komponen terbesar: hari keluar 11, hari masuk 11, pergantian anggota 4 (Foreign: hari keluar 18, hari masuk 6, pergantian anggota 2).
+- Dari penjelasan sebelumnya (jendela 10, N = 3): FL25 turun pada 121 dari 252 sesi; penyebabnya hanya NS memburuk 57, keduanya memburuk 34, hanya NB menyusut 30. Pada 30 Okt dan 2 Nov FL25 naik Rp1.472 miliar dalam dua hari saat NB justru menyusut, sebab hari berpenjualan besar keluar dari jendela.
+
+### 5j.4 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Apa arti "didorong oleh apa"** bagi user: pemecahan menurut waktu (hari masuk, hari keluar, pergantian anggota), menurut sisi (NB atau NS), menurut broker, atau gabungan. Bacaan di 5j.2 hanya usulan AI.
+2. **Bentuk visual:** batang bertumpuk di bawah garis, keterangan saat kursor diarahkan, atau panel terpisah. Belum dibahas.
+3. **Nama broker** per komponen perlu ditampilkan atau tidak.
+4. **Cakupan:** hanya FL25 (kata user) atau juga FL24 (versi persen) dan indikator sejenis.
+5. **Rolling days** tetap menentukan jendela; pemecahan "hari keluar" bergantung padanya.
+
+### 5j.5 Batas
+
+Satu saham (BBRI), satu tanggal untuk contoh. Pemecahan dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup. Tidak ada klaim bahwa komponen mana pun prediktif. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
