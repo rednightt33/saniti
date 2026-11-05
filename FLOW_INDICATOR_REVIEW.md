@@ -523,12 +523,9 @@ Ketiganya tidak punya `scope`, `brokers`, `top`, `rank`, atau `ranking`. Pembent
 
 ### 5e.3 Pertanyaan terbuka (saat to-do ini diambil)
 
-1. **Apa arti HHI pada sebuah kelompok.** Sekarang HHI dihitung atas **semua** broker. Dengan kelompok ada tiga bacaan yang berbeda angkanya.
-   Contoh BBRI, jendela 20 sesi sampai 3 Nov 2026, FL38, Top-3 NI, CC, OD (net Rp980,1, 851,6, 707,2 miliar; total net beli positif Rp4.337,4 miliar; dihitung dari contoh FL38 yang dihitung 2026-11-04):
-   - (a) HHI **di dalam** kelompok (porsi dibagi jumlah kelompok): 0,339; batas bawah 1/N = 0,333, jadi hampir selalu mendekati batas dan hampir tidak informatif.
-   - (b) **Sumbangan** kelompok terhadap HHI seluruh pasar (Σ porsi² anggota kelompok, penyebut tetap seluruh broker): 0,1162, atau 88% dari HHI total 0,1328 (ini metrik "porsi Top-3 dari HHI" di dokumen metodologi).
-   - (c) HHI seluruh broker, hanya kelompok yang ditandai: sama dengan sekarang.
-   User perlu memilih salah satu; ini menentukan arti seluruh parameter baru.
+1. ~~Apa arti HHI pada sebuah kelompok.~~ **Dijawab user 2026-11-05:** "concentration HHI top N cohort adalah sum HHI dari top N atas broker2 di hari itu. Dalam contoh kamu, seharusnya yang di show adalah value 0,04997." Jadi bacaan (b) ditampilkan sebagai **nilai mentah**, bukan persen terhadap HHI total: `nilai = Σ_{b ∈ kelompok} (ukuran broker b ÷ total ukuran semua broker)²`.
+   Contoh FL13, BBRI 3 Nov 2026 (semua investor, semua papan, window 1, sisi Beli), Top-3 menurut net beli (OD +111,6, CC +73,2, YP +32,3 Rp miliar): lot beli OD 458.508, CC 511.052, YP 196.874 dari total 3.195.143; porsi 14,35%, 15,99%, 6,16%; porsi² 0,02059 + 0,02558 + 0,00380 = **0,04997**. HHI seluruh broker (FL13 sekarang) 0,07616 (73 broker aktif). Dengan N = 1, 2, 3, 5: 0,02059; 0,04618; 0,04997; 0,06354 (naik bila N naik, tidak sebanding antar N). FL38 (5 sesi 28 Okt sampai 3 Nov, porsi terhadap total net beli positif Rp710,9 miliar): Top-3 OD, LG, DX = **0,0619** dari HHI total 0,0939.
+   Menampilkan FL13 total sebagai garis pembanding di panel yang sama: belum diminta user.
 2. **Broker terpilih**: apakah penyebut HHI tetap seluruh broker (jadi porsi broker terpilih terhadap pasar), atau hanya broker terpilih.
 3. **Peringkat Top-N** memakai nilai yang sama atau berbeda dengan ukuran HHI-nya (misalnya FL13 menghitung lot bruto, sedangkan peringkat bawaan FL01 net beli Rp).
    Jika berbeda, ada sirkularitas seperti F1 pada FL03.
