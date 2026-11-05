@@ -306,7 +306,8 @@ export function initFlowIndicators(ctx: Ctx) {
       /* a ratio's neutral line is 1, an imbalance's 0 (FL48 "Show as"; verification 2026-11-05): the default guide follows */
       guidesFor:(p: any, lv: number[]) => p && p.form === 'ratio' && lv.length === 1 && lv[0] === 0 ? [1] : lv,
       /* Design Spec v1.2: the parameters in parentheses, "Bandar Balance · % (Top 3, 10D)" */
-      title:(p: any) => {
+      title:(p0: any) => {
+        const p = noLot({ ...p0 });            // the parameters the calculation uses (on an index a saved Lot reads Rupiah)
         const parts = [relabel(r.name)];
         if (DAY) parts.push('Daily');
         /* FL46: what the ratio is, both sides in short (verification 2026-11-05: "Flow Ratio (1D)" said nothing) */
