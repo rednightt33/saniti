@@ -10014,7 +10014,8 @@ dulu. Sampai kita bisa get across efficiency plan dalam hal pemindahan data Post
 - Q1: ikut akun = indikator dan setelannya, favorit, gambar, daftar aset, filter event, urutan dan isi panel; tetap
   per device = lebar/tinggi panel, buka-tutup panel, jendela pop-out, layar penuh.
 - Q2: yang terakhir menang (revision mencegah device basi menimpa diam-diam).
-- Q3: simbol dan timeframe terakhir per device (rekomendasi: tidak disebut ikut akun).
+- Q3: pesan sebelumnya tidak memberi rekomendasi untuk Q3. Usulan sekarang: per device (tiap layar membuka saham
+  terakhirnya sendiri). Perlu konfirmasi user sebelum eksekusi.
 - **Status:** belum dieksekusi; menunggu rencana efisiensi PUBLISH-FLOW (`PLAN.md`) disepakati.
 
 **Pertanyaan semula (sudah dijawab di atas):**
