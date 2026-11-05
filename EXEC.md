@@ -10009,6 +10009,12 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - tarik riwayat harga harian (dan intraday, sesuai kedalaman sumber);
   - F01/F04, logo, event, publisher, sehingga tampil di Terminal seperti saham lain.
   - Mengikuti `NEW_TABLE_ONBOARDING_PLAN.md` / Part A untuk ETF bila ada yang berbeda.
+- **S1, fakta tambahan (pgweb 2026-11-05):** untuk ke-63 kode, broker summary dan fitur 05/02/03/06 sudah ada
+  (63/63, sampai 2026-11-03); harga, F01 dan F04 belum ada (0/63). Loader broker menarik kode 4 huruf dari broker summary
+  30 hari terakhir (`broker_import.py:98-109`), dan fitur broker dihitung untuk semua kode broker summary. Jadi S1 hanya
+  menambah universe, harga harian dan intraday, F01/F04, logo/event, dan publikasi. Fitur broker tidak dihitung ulang.
+  - Urutan: S1 selesai sebelum atau bersamaan dengan S2. Kalau tidak, fitur broker ke-63 kode berhenti diperbarui
+    sementara.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
