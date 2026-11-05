@@ -20,7 +20,7 @@ item baru dijalankan atas perintah user.
 | 1 | FL07 Share · Market Volume | Pensiunkan atau sembunyikan dari menu | "Maaf, maksud saya FL07 yang di sembunyikan. Bukan FL17." (2026-11-04) | To-do; keputusan user 2026-11-05: menu tidak ditampilkan lagi (sembunyikan), kode tidak digeser, komponen yang dipakai fitur lain tetap berfungsi. Kartu di bagian 5b |
 | 2 | FL32 Transactions · Spike | Diedit **di tempat** (kode FL32 dipertahankan) menjadi "Activity Spike": parameter **Ukuran** (Transaksi, Nilai Rp, Lot) dan **Sisi** (Beli, Jual, atau Keduanya sebagai dua garis terpisah) | "P2 Ok tambahkan"; "P1 Pisahkan ... dipisahkan mana yang beli mana yang jual, per parameter"; "1. ya boleh" (pilihan Keduanya); "2. pertahankan di tempat" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
 | 3 | Indikator baru: Spike Balance | Ditambahkan: lonjakan sisi beli dibagi lonjakan sisi jual untuk investor atau kelompok terpilih; **skala linear dengan garis netral 1** | "Spike balance OK tambahkan"; "3. skala garis netral 1" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5c |
-| 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5d |
+| 4 | FL33 Transaction Size · Change % | Ditambah pemilihan kelompok broker: parameter Top N, broker terpilih, dan sejenisnya, **sama seperti FL01** | "Tambahkan to donya ya buat FL33 tambahkan paramter Top N, broker dll sama seperti FL01" (2026-11-04) | To-do; keputusan user 2026-11-05: Top-N dipilih per hari (iv), bawaan tetap semua broker, parameter Side ditambahkan. Bagian 5d |
 | 5 | FL13, FL14, FL38 (keluarga Concentration HHI) | Ditambah pilihan kelompok: **broker terpilih** dan **Top-N cohort dengan N yang bisa dipilih**, **sama seperti FL01** | "untuk HHI tambahkan opsi pilih by broker dan top N cohort yang N nya bisa dipilih seperti FL01 - masukan ke docs" (2026-11-04, dengan tangkapan layar menu: FL13, FL14, FL38) | To-do, belum dijadwalkan. Bagian 5e |
 | 6 | FL15 (gross), FL16 (net), FL13 (HHI gross), FL38 (HHI net) | FL15 dan FL16 tetap **dua indikator** (satu gross, satu net), keduanya diberi parameter **Satuan: Lot atau Rupiah**; FL13 dan FL38 diberi parameter Satuan yang sama | "Goalnya 2 indikator itu tetap jadikan 2. 1 measure gross 1 measure nett, tapi 2 2nya harus bisa cater whether its rupiah dan lot (filterable)"; "Ok masukan ke to do 6 ya"; "Yes, tambahkan juga untuk FL13 dan FL38" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5f |
 | 7 | FL11 Net Flow / Turnover Ratio | **Hapus pilihan Denominator**: satu penyebut tetap, yaitu gross beli semua investor dengan filter papan saja (opsi A) | "Okay pakai A" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5g.1 |
@@ -448,19 +448,31 @@ Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perinta
 | Top-N ranking (`ranking`) | Dihitung ulang tiap hari | Baru (tetap, tidak bisa diubah) |
 | `boards`, `investors`, `recent`, `baseline`, `levels` | | Tetap seperti sekarang |
 
-### 5d.3 Pertanyaan terbuka (saat to-do ini diambil)
+### 5d.3 Keputusan user 2026-11-05 (jawaban atas tiga pertanyaan)
 
-1. **Bagaimana kelompok ditentukan, karena FL33 membandingkan dua periode** (5 candle terakhir dan 20 sebelumnya): diurutkan
-   sekali pada seluruh jendela 25 candle (kelompok sama di kedua periode), terpisah di tiap periode (kelompok berbeda, sehingga
-   perubahan juga mencerminkan pergantian broker), atau dibekukan di awal. Pilihan ini menentukan arti angkanya dan apakah ada
-   sirkularitas seperti F1 pada FL03.
-2. **Bawaan `scope`.** FL01 hanya menawarkan Top-N cohort dan Selected brokers; tidak ada pilihan "semua broker". Kalau bawaan
-   FL33 menjadi Top-N cohort, indikator FL33 yang sudah tersimpan pengguna (parameter yang hilang diisi bawaan registry) berubah
-   arti dari pasar menjadi Top-3. Pilihannya: bawaan tetap "semua broker" (perlu opsi ketiga), atau bawaan Top-N seperti FL01.
-3. **Sisi.** FL01 punya parameter Side (Buy, Sell, Both), sedangkan FL33 hanya sisi beli. Apakah Side ikut ditambahkan (terkait
-   catatan user "tidak hanya 1 sided"), belum disebut user.
-4. **Pembanding antarwaktu.** Ukuran tetap dalam Rupiah (seperti sekarang). Pada BBRI, FL33 Rp berkorelasi 0,96 dengan perubahan
-   lot/tx dan 0,31 dengan perubahan harga rata-rata (252 sesi, semua investor), jadi pengaruh harga kecil.
+User menjawab: "(iv) Top-N per hari, bawaan tetap semua broker, Side ya".
+1. **Kelompok: cara (iv), Top-N per hari.** Pada tiap sesi dalam periode terbaru (5) dan periode baseline (20), kelompok adalah Top-N hari itu (menurut `rank`, bawaan net beli); gross beli dan transaksi beli kelompok hari itu dijumlahkan sepanjang periode; FL33 membandingkan kedua total (`Σ BV / Σ BF` terbaru terhadap baseline).
+2. **Bawaan `scope` tetap semua broker.** Ditambahkan opsi `All brokers` (FL01 hanya punya Top-N dan Selected brokers), sehingga FL33 yang sudah tersimpan pengguna tidak berubah arti.
+3. **Parameter Side ditambahkan seperti FL01** (Beli, Jual, Keduanya sebagai dua garis terpisah). Sisi jual memakai `SV / SF`.
+
+Contoh BBRI 3 Nov 2026 (semua investor, semua papan, N = 3, rank net beli, recent 5, baseline 20):
+
+| Sesi terbaru | Top-3 hari itu | Gross beli (Rp miliar) | Transaksi beli | Gross jual (Rp miliar) | Transaksi jual |
+|---|---|---:|---:|---:|---:|
+| 28 Okt | DX, LG, ZP | 247,0 | 5.560 | 64,6 | 2.362 |
+| 29 Okt | XL, OD, CC | 202,2 | 19.186 | 92,5 | 8.647 |
+| 30 Okt | AK, LG, MG | 270,0 | 6.813 | 105,1 | 5.305 |
+| 2 Nov | ZP, BK, XL | 218,8 | 13.422 | 81,9 | 7.196 |
+| 3 Nov | OD, CC, YP | 317,7 | 16.733 | 100,6 | 7.973 |
+| **Total** | | **1.255,6** | **61.714** | **444,8** | **31.483** |
+
+Baseline (30 Sep sampai 27 Okt, 20 sesi, Top-3 tiap hari): gross beli Rp6.845,6 miliar dan 393.600 transaksi; gross jual Rp2.323,6 miliar dan 145.334 transaksi.
+Sisi beli: 20,35 / 17,39 jt per transaksi, FL33 = **+17,0%**. Sisi jual: 14,13 / 15,99, FL33 = **−11,6%**. Bawaan semua broker (tanpa kelompok): −11,2% (sisi beli).
+
+**Pertanyaan yang tersisa (bacaan AI di sebelahnya):**
+1. Pada Side = Jual, kelompok Top-N tetap dipilih menurut `rank` (bawaan net beli, seperti FL01), bukan menurut net jual; user belum menyebut.
+2. Hari dengan pembeli bersih kurang dari N: kelompok memakai yang ada (usulan).
+3. Peringkat per hari memakai net hari itu; bila `rank` = net jual, kelompok adalah penjual bersih terbesar hari itu.
 
 ### 5d.4 Berkas yang menyebut FL33 (hasil pencarian di repo; ini daftar awal, bukan hitungan dampak)
 
