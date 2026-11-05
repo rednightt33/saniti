@@ -38,6 +38,8 @@ item baru dijalankan atas perintah user.
 | 19 | FL36 Share · Market Value (Buy + Sell) | **Disembunyikan** dari menu indikator (hide); kode, penomoran dan fungsi hitung tidak dihapus (bacaan AI: sama dengan FL07 dan FL35) | "hide saja indikatornya untuk FL36" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5r |
 | 20 | Indikator baru (kode ditetapkan saat dikerjakan): Flow Ratio fleksibel | **Tambahan** (bukan pengganti FL03, FL04, FL11, FL36): rasio `100 × pembilang ÷ penyebut`; masing-masing sisi dipilih **ukuran** (gross beli, gross jual, net beli, net jual), **oleh siapa** (semua broker, Top-N, broker terpilih) dan **pembatas** (jenis investor, papan) | "penyebutnya bisa net buy, foreign buy broker atau buy cohort kemudian pembilangnya bisa total all gross buy all total gross sell atau net buy, net sell bisa lalu kemudian bisa di grup lagi by investor type, by market board dan lain-lain"; "Net by siapa, net sell by siapa ... by all investor type ... by top end ... by broker"; "Ini indikator tambahan ya, bukan untuk mengganti yang lain-lain"; "Ya, you get my point. Masukkan ke plan" (2026-11-05) | To-do; gambaran dialog disetujui user ("you get my point"); butir Unit, filter atau pisah, dan aturan penolakan adalah bacaan AI yang belum dijawab. Bagian 5s |
 
+**Final review 2026-11-05:** semua "Pertanyaan terbuka" di bagian 5b sampai 5s dianggap dijawab oleh bagian 5t, kecuali yang tertulis dibatalkan. Serah terima ke AI pelaksana ada di bagian 8.
+
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4. Catatan 2026-11-05: FL36 diputuskan disembunyikan (to-do 19), jadi Participation Shift (persentil FL36) tidak dikerjakan kecuali user memintanya.
 
 **Koreksi 2026-11-04:** sebelumnya item ini sempat tercatat salah untuk FL17 (commit `e8f4f21` dan `af2db50`, termasuk butir
@@ -91,45 +93,29 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 
 | Id | Nama | Keluarga | Tempat | Satuan | Output | Status | Keputusan user | Catatan awal |
 |---|---|---|---|---|---|---|---|---|
-| FL01 | Transaction Size · Lot | Transaction Size | Panel | lot/tx | buy, sell | Belum ditinjau |  |  |
-| FL02 | Transaction Size · Value | Transaction Size | Panel | IDR/tx | buy, sell | Belum ditinjau |  |  |
-| FL03 | Share · Volume | Share | Panel | % | buy, sell | Sedang ditinjau |  | SEDANG DITINJAU (kartu di bagian 5) |
-| FL04 | Share · Transactions | Share | Panel | % | buy, sell | Belum ditinjau |  | Saudara FL03 (porsi transaksi); kemungkinan menanggung temuan F1 dan F3 yang sama, belum diukur |
-| FL05 | Transaction Size · vs Market | Transaction Size | Panel | x | buy, sell | Belum ditinjau |  |  |
-| FL06 | Transaction Size · Buy/Sell Ratio | Transaction Size | Panel | x | ratio | Belum ditinjau |  |  |
-| FL07 | Share · Market Volume | Share | Panel | % | value | To-do: pensiunkan atau sembunyikan | Pensiunkan atau hide (2026-11-04, to-do) | Kartu di bagian 5b. Identik dengan garis Buy FL03 pada bawaan; fungsi hitungnya dipakai FL09 |
-| FL08 | Transaction Size · Percentile | Transaction Size | Panel | 0-100 | value | Belum ditinjau |  |  |
-| FL09 | Block Money Candidate | Other | Penanda di bawah candle | flag | value | Belum ditinjau |  |  |
-| FL10 | Transactions · Buy/Sell Imbalance | Transactions | Panel | -1..1 | value | Belum ditinjau |  |  |
-| FL11 | Net Flow / Turnover Ratio | Net Flow | Panel | % | value | Belum ditinjau |  |  |
-| FL12 | Net Buy Persistence · Cohort | Net Flow | Panel | % | value | Belum ditinjau |  |  |
-| FL13 | Concentration HHI · Gross | Concentration | Panel | 0-1 | buy, sell | Belum ditinjau |  |  |
-| FL14 | Concentration HHI · Buy − Sell | Concentration | Panel | diff | asym | Belum ditinjau |  |  |
-| FL15 | Concentration Top-N · Gross Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
-| FL16 | Concentration Top-N · Net Buy | Concentration | Panel | % | value | Belum ditinjau |  |  |
-| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
-| FL18 | Buy VWAP · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
-| FL19 | Implied Cost · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
-| FL20 | Implied Cost · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
+| FL03 | Share · Volume | Share | Panel | % | buy, sell | Dipertahankan (keputusan user 2026-11-05: "Perhanankan untuk FL03") |  | SEDANG DITINJAU (kartu di bagian 5) |
+| FL07 | Share · Market Volume | Share | Panel | % | value | To-do 1: disembunyikan dari menu | Pensiunkan atau hide (2026-11-04, to-do) | Kartu di bagian 5b. Identik dengan garis Buy FL03 pada bawaan; fungsi hitungnya dipakai FL09 |
+| FL11 | Net Flow / Turnover Ratio | Net Flow | Panel | % | value | To-do: lihat daftar to-do di atas |  |  |
+| FL13 | Concentration HHI · Gross | Concentration | Panel | 0-1 | buy, sell | To-do: lihat daftar to-do di atas |  |  |
+| FL14 | Concentration HHI · Buy − Sell | Concentration | Panel | diff | asym | To-do: lihat daftar to-do di atas |  |  |
+| FL15 | Concentration Top-N · Gross Buy | Concentration | Panel | % | value | To-do: lihat daftar to-do di atas |  |  |
+| FL16 | Concentration Top-N · Net Buy | Concentration | Panel | % | value | To-do: lihat daftar to-do di atas |  |  |
+| FL17 | Buy VWAP · Rolling | Buy VWAP & Implied Cost | Overlay harga | price | value | To-do: lihat daftar to-do di atas |  |  |
+| FL18 | Buy VWAP · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | To-do: lihat daftar to-do di atas |  |  |
 | FL21 | Net Flow Percentile · vs Turnover | Net Flow | Panel | 0-100 | value | To-do: ditambah parameter Ukuran (gross beli, gross jual, net) | Ditambah (2026-11-05, to-do) | Bagian 5i. Sekarang hanya net (FL11) terhadap turnover |
-| FL22 | Broker Buy Breadth | Other | Panel | % | value | Belum ditinjau |  |  |
-| FL23 | Broker Inventory | Other | Panel | lot|IDR | lines, total | Belum ditinjau |  |  |
-| FL24 | Bandar Balance · % | Bandar Balance | Panel | % | value | Belum ditinjau |  |  |
 | FL25 | Bandar Balance · Rupiah | Bandar Balance | Panel | IDR | value | Dibiarkan apa adanya (keputusan user 2026-11-05) | Tidak ada perubahan | Bagian 5j. Satu garis jumlah NB + NS; matriks penyebab naik dan turun ada di 5j.3b sebagai bahan bacaan |
-| FL26 | Net Flow Streak | Net Flow | Panel | days | value | Belum ditinjau |  |  |
-| FL27 | Silent Accumulation | Other | Penanda di bawah candle | flag | value | Belum ditinjau |  |  |
-| FL28 | Average Daily Value | Other | Panel | IDR | value | Belum ditinjau |  |  |
+| FL27 | Silent Accumulation | Other | Penanda di bawah candle | flag | value | To-do: lihat daftar to-do di atas |  |  |
 | FL29 | Bandar Balance · Accumulation Days | Bandar Balance | Panel | % | value | To-do: ditambah ukuran besarnya akumulasi | Ditambah (2026-11-05, to-do) | Bagian 5k. Hanya menghitung jumlah hari, bukan besarnya |
-| FL30 | Crossing Share | Other | Panel | % | value | Belum ditinjau |  |  |
-| FL31 | Insider Net Change | Other | Panel | IDR | value | Belum ditinjau |  |  |
 | FL32 | Transactions · Spike | Transactions | Panel | x | value | To-do: diedit di tempat menjadi Activity Spike | P1 dan P2 disetujui; di tempat; "Keduanya" disediakan (2026-11-04) | Kartu di bagian 5c; hanya sisi beli dan jumlah transaksi saat ini |
-| FL33 | Transaction Size · Change % | Transaction Size | Panel | % | value | Belum ditinjau |  |  |
-| FL34 | Institutional vs Retail Net | Other | Panel | % | value | Belum ditinjau |  |  |
+| FL33 | Transaction Size · Change % | Transaction Size | Panel | % | value | To-do: lihat daftar to-do di atas |  |  |
+| FL34 | Institutional vs Retail Net | Other | Panel | % | value | To-do: lihat daftar to-do di atas |  |  |
 | FL35 | Net Buy Persistence · Top Buyer | Net Flow | Panel | % | value | To-do: sembunyikan (hide) | Hide (2026-11-04, to-do) | Kartu di bagian 5h. Hanya satu broker (Top Buyer), menghitung hari bukan besarnya net |
 | FL36 | Share · Market Value (Buy + Sell) | Share | Panel | % | value | To-do: disembunyikan (hide) | Disembunyikan (2026-11-05, to-do 19) | Bagian 5r. Bawaan Top-N asing, bukan partisipasi asing seluruh broker: BBRI 3 Nov 0,26% lawan 41,49% (pilihan cakupan Semua broker) |
-| FL37 | Net Flow Percentile · Rupiah | Net Flow | Panel | 0-100 | value | Belum ditinjau |  |  |
-| FL38 | Concentration HHI · Net Buy | Concentration | Panel | 0-1 | value | Belum ditinjau |  |  |
-| FL39 | Buy VWAP · Rolling · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
+| FL38 | Concentration HHI · Net Buy | Concentration | Panel | 0-1 | value | To-do: lihat daftar to-do di atas |  |  |
+| FL39 | Buy VWAP · Rolling · Distance % | Buy VWAP & Implied Cost | Panel | % | value | To-do: lihat daftar to-do di atas |  |  |
+
+Indikator yang tidak tercantum di tabel ini **tidak ditinjau dan tidak berubah** (keputusan user 2026-11-05: "Yang tidak saya sebut atau saya tidak follow up, maka as is. Di-remove dari review"). Baris yang dikeluarkan: FL01, FL02, FL04, FL05, FL06, FL08, FL09, FL10, FL12, FL19, FL20, FL22, FL23, FL24, FL26, FL28, FL30, FL31, FL37. Uraian historis di kartu 5 sampai 5s tidak dihapus, tetapi tidak menjadi pekerjaan.
+
 
 ## 4. Cara membaca baris di menu indikator (tangkapan layar user 2026-11-04)
 
@@ -1161,6 +1147,33 @@ Satu saham (BBRI) dan dua tanggal (28 Okt, 3 Nov). Mock-up hanya gambaran; tidak
 
 ---
 
+## 5t. Keputusan final review (2026-11-05)
+
+**Kata user (2026-11-05):** "Yang tidak saya sebut atau saya tidak follow up, maka as is. Di-remove dari review. Berarti nomor C di-remove kemudian nomor A, ya udahlah go with usulan. Oke, untuk B juga."
+Prinsip: yang tidak disebut atau tidak ditindaklanjuti **tidak berubah**. Ini bukan perintah eksekusi; eksekusi hanya setelah "go" dan dicatat di `EXEC.md`.
+
+### 5t.1 Butir A (keputusan; "go with usulan")
+
+| # | Butir | Keputusan yang dicatat | Dasar |
+|---|---|---|---|
+| A1 | "Hide" FL07 (to-do 1), FL35 (to-do 9), FL36 (to-do 19) | Hilang dari menu; kode, penomoran, dan fungsi hitung tetap ada; **satu mekanisme sembunyikan** untuk ketiganya | Usulan AI disetujui; selaras dengan kata user soal FL07 (5b.6) |
+| A2 | Flow Ratio fleksibel (to-do 20) | Satu Unit untuk kedua sisi; pembatas bersifat **filter** (satu garis); aturan penolakan di 5s.3 nomor 3 berlaku; pilihan Rank = empat pilihan di mock-up; nama dan kode ditetapkan saat dikerjakan, keluarga di menu "Ratio" (bacaan AI); Unit transaksi boleh dengan ukuran net (bacaan AI, sama dengan mock-up) | Usulan AI disetujui untuk Unit, filter, dan aturan; sisanya mengikuti mock-up yang disetujui user ("you get my point") |
+| A3 | HHI (to-do 5) | Broker terpilih memakai penyebut **seluruh broker**; Top-N menurut `rank`, bawaan net beli seperti FL01; FL38 **tidak** diberi parameter sisi | Dua butir pertama sudah dijawab oleh spesifikasi akhir FL13 dan FL38 yang disetujui user ("Okay 1-1 ya. ini FL 13 selesai", "Okay. Masukan ke review."); tabel final review AI menulis "belum ada usulan" padahal keputusan itu sudah ada; butir FL38 sisi tidak ditindaklanjuti, jadi tidak dikerjakan |
+| A4 | Satuan (to-do 6) | FL01 dan FL02 **tidak** digabung; net lot memakai tandanya sendiri | Usulan AI disetujui |
+| A5 | FL29 (to-do 12) | Hanya ukuran persen (C); persentil tidak ditambahkan; FL24 dan indikator saldo baru dipertahankan berdampingan | Usulan AI disetujui |
+| A6 | Buy VWAP Top-N per hari (to-do 13) dan versi jual (to-do 14) | Sesi dengan pembeli bersih kurang dari N: nilai dikosongkan; opsi C (peringkat dari jendela sebelumnya) tidak ditambahkan; pilihan `rank` tidak ditawarkan (peringkat harian net beli seperti 5l.2); sisi jual tidak berlaku di Top-N per hari | Dua butir pertama usulan AI disetujui; dua butir lain tidak ada usulan dan tidak ditindaklanjuti, jadi tetap seperti yang tertulis |
+| A7 | Versi jarak (%) untuk harga rata-rata penjualan (to-do 14) | Tidak dibuat | Usulan AI disetujui |
+| A8 | Activity Spike dan Spike Balance (to-do 2, 3) | Garis acuan 0,5 dan 2 ditambahkan bersama garis netral 1; Top-N tidak ditawarkan; ukuran bawaan tetap Transaksi seperti FL32 sekarang | Usulan AI disetujui untuk garis acuan dan Top-N; ukuran bawaan tidak ada usulan, jadi tidak berubah |
+
+### 5t.2 Butir B (bacaan AI atas to-do 2, 3, 6, 7, 9, 10, 13, 14, 15 dan butir kecil 5g, 5i, 5o, 5p)
+
+Disetujui semuanya ("Oke, untuk B juga"), sebagaimana tertulis di bagian masing-masing.
+
+### 5t.3 Butir C (dikeluarkan dari review)
+
+FL19 dan FL20, FL25 (selain baris to-do 11 yang tetap tercatat **dibatalkan**), Participation Shift, indikator yang tidak disebut user, serta kartu FL03 sub-butir (tinjauan FL04 dan bentrokan kode FL terminal dan screener di bagian 6): **tidak berubah dan tidak dikerjakan**. Baris to-do 11 tetap tercatat supaya pelaksana tidak menjalankannya.
+
+---
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
 Dua sistem memakai awalan "FL" dengan arti berbeda:
@@ -1275,3 +1288,70 @@ Langkah 2 (Rp miliar; "Ya" bila saldo > 0%):
 Langkah 3. Hari "Ya" 11 dari 20; FL29 = 100 × 11 / 20 = 55%. Bila ambang diubah: 3% memberi 50%, 6% memberi 45%, 10% memberi 35%.
 Hal yang terlihat: yang dihitung jumlah hari, bukan besarnya saldo (+1,2% dihitung sama dengan +28,6%); dua hari berturnover besar (16 dan 19 Okt) sama-sama dihitung satu hari "tidak"; sesi tanpa data dihitung bukan hari akumulasi dengan pembagi tetap 20.
 Catatan lanjutan: pada 3 Nov, jumlah net seluruh 20 sesi −Rp884,3 miliar terhadap turnover Rp21.533,1 miliar (−4,11%) walaupun FL29 55%, karena dua hari besar tadi lebih besar daripada seluruh sebelas hari "Ya" (lihat bagian 5k).
+
+## 8. Serah terima eksekusi
+
+**Status:** disusun 2026-11-05 dari keputusan user di dokumen ini; **belum ada "go"**. Eksekusi baru dimulai setelah user menyatakan "go", dan dicatat satu bagian lengkap di `EXEC.md` pada tugas yang sama (`AGENTS.md`, Plans). Sebelum mulai, bandingkan `PLAN.md` dan `EXEC.md` dengan perilaku yang ada dan laporkan bila ada butir yang sudah disetujui tetapi belum dibangun.
+
+### 8.1 Cara membaca dokumen ini
+
+1. Daftar to-do (atas dokumen) adalah daftar pekerjaan; kolom terakhirnya menunjuk bagian rincian (5b sampai 5s).
+2. **Bagian 5t menang atas bagian lain** bila ada pertanyaan terbuka atau bacaan AI yang bertentangan.
+3. Kata-kata user (dalam tanda kutip) adalah sumber; "bacaan AI" belum tentu benar, tetapi sudah disetujui lewat 5t.
+4. Angka contoh (BBRI, 3 Nov 2026 dan tanggal lain di tiap bagian) dipakai sebagai nilai uji: hasil kode harus menghasilkan angka itu dari `IDX_Broker_Summary`.
+5. Indikator yang tidak ada di daftar to-do **tidak berubah** (5t.3).
+
+### 8.2 Daftar pekerjaan
+
+| # | Indikator | Hasil akhir | Bagian | Ketergantungan |
+|---|---|---|---|---|
+| 1 | FL07 | Hilang dari menu; kode, penomoran, fungsi hitung tetap (dipakai FL09) | 5b, 5b.6b | Mekanisme sembunyikan bersama (A1) |
+| 2 | FL32 | Diedit di tempat menjadi Activity Spike: parameter Ukuran dan Sisi; garis acuan 0,5, 1 (netral), 2 ikut pada Spike Balance | 5c.2 | Butuh `buy_freq`/`sell_freq` untuk Ukuran Transaksi |
+| 3 | Baru: Spike Balance | Lonjakan beli ÷ lonjakan jual, skala linear, garis netral 1, garis acuan 0,5 dan 2 | 5c.3 | Sesudah #2 |
+| 4 | FL33 | Pemilihan kelompok (Top-N per hari, broker terpilih), parameter Side, bawaan tetap semua broker | 5d | Pola kelompok bersama |
+| 5 | FL13, FL14, FL38 | Pemilihan kelompok seperti FL01; nilai kelompok = jumlah porsi²; FL14 warisi parameter FL13; FL38 tanpa parameter sisi | 5e, 5t.1 A3 | Pola kelompok bersama; dikerjakan bersama #6 |
+| 6 | FL15, FL16, FL13, FL38 | Parameter Satuan (Lot atau Rupiah); FL01 dan FL02 tidak digabung; net lot memakai tandanya sendiri | 5f, 5t.1 A4 | Bersama #5 (menyentuh FL13 dan FL38) |
+| 7 | FL11 | Penyebut tetap: gross beli semua investor, filter papan saja; pilihan Denominator dihapus | 5g.1 | Sebelum #8 dan #10; FL07 tidak ikut (di-hide) |
+| 8 | Baru | Seperti FL11, penyebut = rata-rata gross beli N sesi (bawaan 20) | 5g.2 | Sesudah #7 |
+| 9 | FL35 | Hilang dari menu | 5h | Mekanisme sembunyikan bersama |
+| 10 | FL21 | Parameter Ukuran: gross beli, gross jual, net beli | 5i | Sesudah #7 (penyebut sama) |
+| 11 | FL25 | **Dibatalkan, jangan dikerjakan** | 5j | |
+| 12 | FL29 | Garis kedua di panel yang sama: ukuran C (persen turnover); FL24 tidak berubah | 5k, 5t.1 A5 | |
+| 13 | Baru | Buy VWAP bergulir dengan Top-N per hari (cara B), terpisah dari FL17; sesi kurang dari N dikosongkan | 5l, 5t.1 A6 | Pola kelompok bersama |
+| 14 | Dua baru | Harga rata-rata penjualan (gross jual ÷ lot jual): satu bergulir seperti FL17, satu anchor seperti FL18; tanpa versi jarak | 5m, 5t.1 A6, A7 | |
+| 15 | Baru | Buy VWAP Anchored · Distance % (sejajar FL20); jarak rolling tetap FL39 | 5n | Bersama #16 |
+| 16 | FL17, FL39 | FL17 menghitung harga, FL39 jarak %; bawaan FL39 disamakan dengan bawaan FL17 sistem | 5o | Bersama #15 |
+| 17 | FL34 | Panel gabungan: batang FL34 dan garis perubahan (sumbu kedua); jarak harian, 5, atau 20 sesi; poin persentase; garis atau batang bisa dimatikan | 5p | |
+| 18 | FL27 | FL27 tetap; ditambah dua pemicu berbasis broker (net dan gross), N = 3, X = 1,5, opsional dan bawaan mati | 5q | |
+| 19 | FL36 | Hilang dari menu | 5r | Mekanisme sembunyikan bersama |
+| 20 | Baru: Flow Ratio fleksibel | Rasio dengan ukuran, kelompok, dan pembatas untuk pembilang dan penyebut; mock-up `verification/terminal_api/flow_indicators/RATIO_SETTINGS_MOCKUP.html` | 5s, 5t.1 A2 | Pola kelompok bersama; gerbang penolakan baru |
+
+### 8.3 Urutan yang disarankan (bukan keputusan user; urutan dapat diubah saat "go")
+
+| Fase | Isi | Alasan |
+|---|---|---|
+| 1. Mekanisme bersama | Sembunyikan (#1, #9, #19); pembantu pemilihan kelompok (Top-N per hari, broker terpilih, `rank`) untuk #4, #5, #13, #20 | Dipakai banyak butir; satu pembantu, bukan salinan (5s.4) |
+| 2. Perubahan pada indikator yang ada | #7, lalu #10; #16 bersama #15; #5 bersama #6; #4; #12; #17; #18; #2 | #10 dan #8 memakai penyebut FL11 yang diubah #7; #5 dan #6 menyentuh FL13 dan FL38 |
+| 3. Indikator baru | #3 (sesudah #2), #8 (sesudah #7), #13, #14, #15, #20 | Bergantung pada fase 1 dan 2 |
+
+### 8.4 Kriteria penerimaan umum (setiap butir)
+
+1. Hasil tiap perubahan cocok dengan angka contoh di bagiannya (dihitung dari data hidup, bukan dari ingatan), dengan bukti: berkas, baris, atau jalankan uji.
+2. Registri dan sumbernya diperbarui bersama: `src/data/flowRegistry.json` menurut docstring `scripts/build_flow_registry.py` **dibangkitkan dari** `verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx`; periksa dulu apakah mengedit spreadsheet (lewat `build_spec_workbook.py`) lalu membangkitkan ulang registri adalah jalurnya, jangan mengedit JSON saja.
+3. Rumus di `FORMULAS.md`, penjelasan angka (`explainFlowA.ts`, `explainFlowB.ts`), `indNotes.json`, dan uji (`tests/calc/flow.test.ts`, `explain_flowA.test.ts`, `explain_flowB.test.ts`; `oracle/cases.json` bila indikatornya ada di sana) diperbarui; `npm run typecheck` dan `npm test` di `apps/edge-bff/terminal` lolos.
+4. Setiap penolakan baru (terutama #20 dan #7) memenuhi aturan gerbang `AGENTS.md`: aturan yang terlihat sebelum pengguna memilih, cara lolos, satu contoh benar dan satu salah, pesan yang menyebut letak masalah dan cara memperbaikinya.
+5. Indikator tersimpan pengguna (`ml.ind.v1`, `indicators.ts`) yang memakai parameter yang dihapus atau indikator yang disembunyikan diperiksa di browser; perilakunya belum diuji (5b.4, 5g.1).
+6. Catat di `ERRORS_AND_SOLUTIONS.md` dan changelog sesuai `AGENTS.md`; `git diff --check`, commit, push; jangan klaim berhasil sebelum terbaca ulang dari sistem hidup.
+
+### 8.5 Risiko dan asumsi yang belum diuji
+
+| Butir | Catatan |
+|---|---|
+| Data frekuensi | Indikator berbasis jumlah transaksi (#2, #3, #20 dengan Unit transaksi) butuh `buy_freq` dan `sell_freq`; loader di Git belum menulis kolom itu (`AGENTS.md`, `UPDATE_TABLE.md`). Periksa data hidup sebelum klaim. |
+| Satu saham | Semua contoh adalah BBRI; sebaran dan batas belum diuji pada saham lain. |
+| Bacaan AI | Yang ditandai "bacaan AI" sudah disetujui lewat 5t, tetapi bila hasil di layar terasa tidak sesuai kata user, tanyakan ke user, jangan diubah diam-diam. |
+| Kode FL baru | Kode ditetapkan saat dikerjakan; periksa bentrokan dengan kode screener (bagian 6) dan jangan menggeser penomoran yang ada. |
+
+### 8.6 Yang tidak dikerjakan
+
+#11 (FL25, dibatalkan), FL19 dan FL20, Participation Shift, FL01 dan FL02 digabung Satuan, parameter sisi FL38, versi jarak untuk harga rata-rata penjualan, dan semua indikator yang tidak disebut user (5t.3).
