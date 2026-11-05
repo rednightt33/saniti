@@ -10206,7 +10206,10 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
       feature-04-worker ditolak pengaman sesi; run pertama dengan klaim umum kalah cepat dari worker (55 gagal lagi
       tanpa menulis apa pun).
     - Hasil: antrean 907 DONE, 0 status kolom gagal; baris Fitur 4 = baris harga untuk 63 dari 63 kode (57.776).
-  - Fitur 1: antrean worker-nya masih berjalan (±41 ribu baris, ±335 per menit).
+  - Fitur 1: antrean worker-nya habis 13:03 UTC; baris Fitur 1 = baris harga untuk 63 dari 63 kode (57.776),
+    `Feature_Status` semua SUCCESS. Antrean per baris menghitung ulang sampai 120 sesi sesudahnya, jadi riwayat penuh
+    dihitung ±100 kali (2,4 juta baris dihitung per jam; ERRORS M350). Usulan menggabungkan antrean per kode: belum
+    disetujui.
   - Publisher `e78dd177` (kode `fa07b8c3`, semua jenis efek) SUCCESS; backtest-worker `51832073` SUCCESS.
 - **S1.5 publikasi (2026-11-05):** run publisher terjadwal 12:00 UTC (kode `e78dd177`): `done` 12:08 UTC, 908 ticker
   (manifest, xsection price 908 ticker, ref tickers dengan kolom instrument). Job `verification/universe_63/publish_job.py`
