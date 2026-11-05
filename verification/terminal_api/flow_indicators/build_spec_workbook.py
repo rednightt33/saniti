@@ -185,6 +185,20 @@ set_params('FL38', lambda ps: SCOPE_HHI + [RANK_NETGROSS_BUY] + RANKING + ps + U
 set_params('FL15', lambda ps: ps + UNIT('Lot') + EVEN)
 set_params('FL16', lambda ps: ps + UNIT('Rupiah') + EVEN)
 
+# to-do 10 (user 2026-11-05 "ditambahkan filter untuk gross buy. Atau gross sell, dan juga net buy"): FL21's measure; the
+# name no longer says "Net" (5i.4 butir 2, B)
+set_params('FL21', lambda ps: ps + [('Ukuran (pembilang)', 'Pilihan', 'Net / Beli kotor / Jual kotor', 'Net', D,
+                                     'To-do 10 (2026-11-05): penyebut tetap nilai beli semua investor (papan terpilih).')])
+# U6 (user 2026-11-05 "U6 ok exec"): FL22 as the count of net buyers (gerbang G4 screener library)
+set_params('FL22', lambda ps: ps + [('Tampilkan sebagai', 'Pilihan', 'Persen broker aktif / Jumlah broker', 'Persen broker aktif', D, 'U6 (2026-11-05).')])
+# U1 (user 2026-11-05 "U1 ok exec"): FL37 as a percentile or a z-score in the stock's own history (M-FF-HEAVY Ketat)
+set_params('FL37', lambda ps: ps + [('Ukuran statistik', 'Pilihan', 'Persentil / Z-score', 'Persentil', D,
+                                     'U1 (2026-11-05): z = (x - rata-rata) / simpangan baku sampel riwayat, seperti Feature_06.')])
+# to-do 16 (user 2026-11-05 "FL39 menggunakan FL17 default system"): FL39's defaults are FL17's (20 candles, every board)
+set_params('FL39', lambda ps: [((p[0], p[1], p[2], 'Semua', D, 'To-do 16 (2026-11-05): sama dengan FL17.') if p[0] == 'Papan (Market board)'
+                               else (p[0], p[1], p[2], '20', D, 'To-do 16 (2026-11-05): sama dengan FL17.') if p[0] == 'Hari rolling'
+                               else (*p[:4], D, p[5]) if p[0] == 'Jenis investor (Investor type)' else p) for p in ps])
+
 DEC_20261105 = [
     (D, 'K1 Sisi (2026-11-05)', 'Satu arti untuk Sisi di FL01-FL05, FL08, FL13, FL14, FL33: Buy = Top-N pembeli, Sell = Top-N penjual.',
      'C diperluas ke FL01-FL05'),
@@ -197,6 +211,9 @@ DEC_20261105 = [
      'Okay 1-1 ya. ini FL 13 selesai; Ok FL14 warisi parameter; A deh, masukan exec'),
     (D, 'Satuan (2026-11-04)', 'FL13, FL15, FL16, FL38: Satuan Lot atau Rupiah; bawaan tetap (FL13, FL15 Lot; FL16, FL38 Rupiah).', 'Yes, tambahkan juga untuk FL13 dan FL38'),
     (D, 'Bagian merata (2026-11-05)', 'FL15, FL16: pilihan porsi Top-N dikurangi N/k.', 'U3 ok exec'),
+    (D, 'FL21 (2026-11-05)', 'Ukuran net, beli kotor atau jual kotor; nama "Flow Percentile · vs Turnover".', 'Not untuk FL21 ... gross buy. Atau gross sell, dan juga net buy'),
+    (D, 'FL22, FL37 (2026-11-05)', 'FL22 juga sebagai jumlah broker net beli; FL37 persentil atau z-score.', 'U1 ok exec; U6 ok exec'),
+    (D, 'FL39 (2026-11-05)', 'Bawaan FL39 = bawaan FL17 (20 candle, semua papan, asing dan domestik).', 'FL39 menggunakan FL17 default system'),
     (D, 'Kelompok B (2026-11-05)', 'Indikator dengan Rank tanpa Sisi tetap Net beli, Beli kotor, Net jual; label diperjelas.',
      'Kelompok B tetap, ganti labelnya, masukan exec'),
 ]
@@ -484,7 +501,7 @@ for r in NEW:
     ws.append(list(r))
     for c in ws[ws.max_row]: c.alignment = wrap
 RENAME = {
- 'Net Flow Abnormality Percentile': 'Net Flow Percentile · vs Turnover', 'Net Flow Surprise Percentile': 'Net Flow Percentile · Rupiah',
+ 'Net Flow Abnormality Percentile': 'Flow Percentile · vs Turnover', 'Net Flow Surprise Percentile': 'Net Flow Percentile · Rupiah',
  'Participation Rate (Buy + Sell)': 'Share · Market Value (Buy + Sell)', 'Buy Participation Rate': 'Share · Market Volume',
  'Volume Share': 'Share · Volume', 'Frequency Share': 'Share · Transactions',
  'Buyer/Seller HHI': 'Concentration HHI · Gross', 'Net Buyer HHI': 'Concentration HHI · Net Buy', 'HHI Asymmetry': 'Concentration HHI · Buy − Sell',

@@ -51,6 +51,9 @@ Later the Screener and the Backtest use the same module on the same raw data.
 - **Change line** (EXEC-TERMINAL-IND-EDIT; FL11, FL34): `change_t = value_t - value_(t-lag)`, in the value's unit
   (percentage points for a %); `lag` = 1, 5 or 20 candles, or (FL11) the rolling days, so the two periods do not
   overlap. Null when either value is null.
+- **Z-score** (U1, FL37): `z = (x - M) / SD` over the same non-null history as the percentile (the `baseline` candles
+  before `t`, ready under the same rule); `M` its mean, `SD` its sample standard deviation (`n - 1`, as Feature_06
+  `stddev_samp`); null with fewer than 2 values or `SD = 0`.
 - **Default anchor** (FL18-FL20, FL23): the first visible candle; the values follow the chart's view.
 - **Defaults**: a parameter the caller leaves out takes its default in the registry (`flowRegistry.json`, from
   `Parameter_Terminal`), never a fallback inside a formula (`computeFlow`; Reviewer A, A4).
@@ -92,8 +95,8 @@ draws the Buy and the Sell line in one panel.
 | FL18 | Buy VWAP · Anchored | vwap | frozen `C`; sums from the anchor to `t`: `BV(C) / (100 BL(C))`; null before the anchor |
 | FL19 | Implied Cost · Anchored | cost | frozen `C`, from the anchor, `Q`, `K` start at 0; per candle `q = BL_k(C)-SL_k(C)`: if `q > 0`: if `Q <= 0` then `K = max(Q+q,0) x BV_k(C)/BL_k(C)` else `K += q x BV_k(C)/BL_k(C)`; if `q < 0` and `Q > 0`: `K = K x max(Q+q,0)/Q`; then `Q += q`. Output `K/(100 Q)` when `Q > 0`, else null (user 2026-10-30, "1 pakai A": the rule for an inventory at or below 0, which the spreadsheet leaves open) |
 | FL20 | Implied Cost · Distance % | dist | `100 (close / FL19 - 1)` |
-| FL21 | Net Flow Percentile · vs Turnover | pct | percentile (baseline 250) of FL11 (same cohort, filter, `W`, denominator) |
-| FL22 | Broker Buy Breadth | breadth | `n_b = BV(b)-SV(b)` over the window with the filter; active = brokers with any `bv` or `sv` > 0 in it; `100 x` (active with `n_b > 0`) / active |
+| FL21 | Flow Percentile · vs Turnover | pct | percentile (baseline 250) of `x = 100 m(C) / TBV`, `m` = net `BV-SV` (default), gross buy `BV` or gross sell `SV` (to-do 10); `TBV` = every investor's gross buy on the chosen boards |
+| FL22 | Broker Buy Breadth | breadth | `n_b = BV(b)-SV(b)` over the window with the filter; active = brokers with any `bv` or `sv` > 0 in it; `100 x` (active with `n_b > 0`) / active; "Number of brokers" (U6): the count of active brokers with `n_b > 0` |
 | FL23 | Broker Inventory | one line per broker, total | per chosen broker (and, when "Show cohort total", their sum): from the start candle, Lot: cumulative `Σ(bl-sl)`, Value: cumulative `Σ(bv-sv)`; Daily: the candle's own `bl-sl` or `bv-sv`; null before the start. At most 5 brokers are drawn (more are ignored); a code without rows in the data draws 0 |
 | FL24 | Bandar Balance · % | balance | `100 (NB + NS) / TBV(filter)`; `NB` = sum of `BV-SV` of the N bandar buyers, `NS` = sum of `BV-SV` (negative) of the N bandar sellers, over the window; `TBV(filter) = BV(A)` with the filter; reference lines 6, 10, -6, -10 |
 | FL25 | Bandar Balance · Rupiah | net | `NB + NS` (IDR) |
@@ -108,6 +111,6 @@ draws the Buy and the Sell line in one panel.
 | FL34 | Institutional vs Retail Net | value, change | `100 (BV-SV of the institutional brokers − BV-SV of the retail brokers) / BV(A)`, filter; defaults: Institutional-heavy and Retail-heavy of `ref/brokers`; a broker in both lists is refused; change line (shared conventions) |
 | FL35 | Net Buy Persistence · Top Buyer | persistence | the broker with the largest positive `BV-SV` over the window (frozen for that window); `100 x` (candles in the window where its `BV_k-SV_k > 0`) / `days`; a candle without data counts as not a buy candle; null when no broker has a positive net in the window |
 | FL36 | Share · Market Value (Buy + Sell) | share | `100 (BV(C)+SV(C)) / (2 TBV)` |
-| FL37 | Net Flow Percentile · Rupiah | pct | percentile (baseline 250) of `BV(C)-SV(C)` over the net window |
+| FL37 | Net Flow Percentile · Rupiah | pct | percentile (baseline 250) of `BV(C)-SV(C)` over the net window; or (U1) its z-score in the same history (shared conventions) |
 | FL38 | Concentration HHI · Net Buy | hhi | `n_b = BV(b)-SV(b)` (Rupiah) or `BL(b)-SL(b)` (Lot); `Σ_(b in C) (max(n_b,0) / Σ positive n)^2`; `C` = every net buyer (default), selected brokers or Top-N (net buy or gross buy) over the window |
-| FL39 | Buy VWAP · Rolling · Distance % | dist | `100 (close / FL17 - 1)` with FL39's cohort, filter and window |
+| FL39 | Buy VWAP · Rolling · Distance % | dist | `100 (close / FL17 - 1)` with FL39's cohort, filter and window; defaults as FL17 (20 candles, every board; to-do 16) |

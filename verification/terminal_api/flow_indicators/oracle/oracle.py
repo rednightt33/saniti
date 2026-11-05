@@ -16,6 +16,7 @@ Writes  out/<TICKER>.json
 import argparse
 import gzip
 import heapq
+import math
 import json
 import os
 import sys
@@ -318,6 +319,27 @@ def lots_per_tx(v, side):
     if f is None or f == 0:
         return None
     return Fraction(sh, 100 * f)
+
+
+def zscore(series, baseline):
+    """FORMULAS.md section 2, z-score (U1): (x - mean) / sample sd of the non-null values at the baseline candles before t"""
+    n = len(series)
+    first = next((i for i, v in enumerate(series) if v is not None), None)
+    out = [None] * n
+    if first is None:
+        return out
+    for t in range(n):
+        x = series[t]
+        if x is None or t - first < baseline:
+            continue
+        h = [series[k] for k in range(t - baseline, t) if series[k] is not None]
+        if len(h) < 2:
+            continue
+        m = sum(h, Fraction(0)) / len(h)
+        var = sum(((v - m) ** 2 for v in h), Fraction(0)) / (len(h) - 1)
+        if var > 0:
+            out[t] = (x - m) / Fraction(math.sqrt(var))
+    return out
 
 
 def percentile(series, baseline):
@@ -634,7 +656,11 @@ def s_fl20(T, p):
 
 
 def s_fl21(T, p):
-    return {'value': percentile(_fl11_series(T, p), int(p['baseline']))}
+    """to-do 10: x = 100 (net, gross buy or gross sell of C) / TBV (board filter, every investor)"""
+    m = p.get('measure', 'net')
+    B = base_pass(T, p, int(p['window']))
+    x = per_t(B, lambda C, SC, SA, SB: ratio(100 * (SC[BV] if m == 'gross_buy' else SC[SV] if m == 'gross_sell' else SC[BV] - SC[SV]), SB[BV]))
+    return {'value': percentile(x, int(p['baseline']))}
 
 
 def s_fl22(T, p):
@@ -645,7 +671,8 @@ def s_fl22(T, p):
             continue
         active = [v for v in roll.values() if v[BV] > 0 or v[SV] > 0]
         if active:
-            out[t] = Fraction(100 * sum(1 for v in active if v[BV] - v[SV] > 0), len(active))
+            buyers = sum(1 for v in active if v[BV] - v[SV] > 0)
+            out[t] = Fraction(buyers) if p.get('measure') == 'count' else Fraction(100 * buyers, len(active))   # U6
     return {'value': out}
 
 
@@ -888,7 +915,7 @@ def s_fl36(T, p):
 def s_fl37(T, p):
     B = base_pass(T, p, int(p['window']))
     x = per_t(B, lambda C, SC, SA, SB: Fraction(SC[BV] - SC[SV]))
-    return {'value': percentile(x, int(p['baseline']))}
+    return {'value': (zscore if p.get('stat') == 'z' else percentile)(x, int(p['baseline']))}
 
 
 def s_fl38(T, p):

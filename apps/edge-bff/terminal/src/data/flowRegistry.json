@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "431acef296bc1aea4944f269cb321d5d9ae3e29bafd887ca17da48c27531d012"
+  "sha256": "4c4f81b81ea455946fc1f3660a299d5094b2c73f6c383d0a715bd09a53a3f024"
  },
  "families": [
   "Share",
@@ -2667,7 +2667,7 @@
   },
   {
    "id": "FL21",
-   "name": "Net Flow Percentile · vs Turnover",
+   "name": "Flow Percentile · vs Turnover",
    "family": "Net Flow",
    "place": "pane",
    "unit": "0-100",
@@ -2797,6 +2797,27 @@
      "status": "PROPOSED",
      "kind": "levels",
      "default": ""
+    },
+    {
+     "key": "measure",
+     "label": "Measure",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "net",
+       "Net"
+      ],
+      [
+       "gross_buy",
+       "Gross buy"
+      ],
+      [
+       "gross_sell",
+       "Gross sell"
+      ]
+     ],
+     "default": "net"
     }
    ]
   },
@@ -2850,6 +2871,23 @@
      "default": 1,
      "min": 1,
      "max": 250
+    },
+    {
+     "key": "measure",
+     "label": "Show as",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "pct",
+       "% of active brokers"
+      ],
+      [
+       "count",
+       "Number of brokers"
+      ]
+     ],
+     "default": "pct"
     }
    ]
   },
@@ -4003,6 +4041,23 @@
      "status": "PROPOSED",
      "kind": "levels",
      "default": ""
+    },
+    {
+     "key": "stat",
+     "label": "Statistic",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "pct",
+       "Percentile"
+      ],
+      [
+       "z",
+       "Z-score"
+      ]
+     ],
+     "default": "pct"
     }
    ]
   },
@@ -4215,7 +4270,7 @@
     {
      "key": "boards",
      "label": "Market board",
-     "status": "PROPOSED",
+     "status": "DECIDED",
      "kind": "multi",
      "options": [
       "Regular",
@@ -4223,13 +4278,15 @@
       "Cash"
      ],
      "default": [
-      "Regular"
+      "Regular",
+      "Nego",
+      "Cash"
      ]
     },
     {
      "key": "investors",
      "label": "Investor type",
-     "status": "PROPOSED",
+     "status": "DECIDED",
      "kind": "multi",
      "options": [
       "Foreign",
@@ -4243,9 +4300,9 @@
     {
      "key": "window",
      "label": "Rolling days",
-     "status": "PROPOSED",
+     "status": "DECIDED",
      "kind": "int",
-     "default": 10,
+     "default": 20,
      "min": 2,
      "max": 250
     },

@@ -583,12 +583,12 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL21": {
-   "formula": "percentile (baseline 250) of FL11 (same cohort, filter, W, denominator)",
+   "formula": "percentile (baseline 250) of x = 100 m(C) / TBV, m = net BV-SV (default), gross buy BV or gross sell SV (to-do 10); TBV = every investor's gross buy on the chosen boards",
    "outputs": "pct",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL22": {
-   "formula": "n_b = BV(b)-SV(b) over the window with the filter; active = brokers with any bv or sv > 0 in it; 100 x (active with n_b > 0) / active",
+   "formula": "n_b = BV(b)-SV(b) over the window with the filter; active = brokers with any bv or sv > 0 in it; 100 x (active with n_b > 0) / active; \"Number of brokers\" (U6): the count of active brokers with n_b > 0",
    "outputs": "breadth",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
@@ -663,7 +663,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL37": {
-   "formula": "percentile (baseline 250) of BV(C)-SV(C) over the net window",
+   "formula": "percentile (baseline 250) of BV(C)-SV(C) over the net window; or (U1) its z-score in the same history (shared conventions)",
    "outputs": "pct",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
@@ -673,7 +673,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL39": {
-   "formula": "100 (close / FL17 - 1) with FL39's cohort, filter and window",
+   "formula": "100 (close / FL17 - 1) with FL39's cohort, filter and window; defaults as FL17 (20 candles, every board; to-do 16)",
    "outputs": "dist",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   }

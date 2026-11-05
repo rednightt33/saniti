@@ -1,7 +1,7 @@
 // EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): the Flow indicators against hand-computed values, the spreadsheet's own
 // illustrations (FLOW_INDICATORS_SPEC.xlsx, column "Example Illustration") and the conventions of FORMULAS.md.
 import { describe, expect, it } from 'vitest';
-import { above, atLeast, atMost, computeFlow, defaultInventoryBrokers, flowDefaults, flowRows, percentile, transactionSize, type FlowContext } from '../../src/calc/flow';
+import { above, atLeast, atMost, computeFlow, defaultInventoryBrokers, flowDefaults, flowRows, percentile, transactionSize, zscore, type FlowContext } from '../../src/calc/flow';
 import REG from '../../src/data/flowRegistry.json';
 
 type Row = { d: string; b: string; i: string; m: string; bv: number; sv: number; bl: number; sl: number; bf?: number | null; sf?: number | null };
@@ -277,5 +277,36 @@ describe('FL11 one denominator and the change line', () => {
     expect(o.change[0]).toBeNull(); near(o.change[1], 1); near(o.change[4], 1);
     const w = computeFlow('FL11', c, { ...p, window:2, lag:'window' });
     expect(w.change.slice(0, 3)).toEqual([null, null, null]); near(w.change[3], 100 * (22 + 23) / 200 - 100 * (20 + 21) / 200);   // 22.5% - 20.5% = 2 points
+  });
+});
+
+// U1, U6, to-do 10, to-do 16 (user 2026-11-05)
+describe('z-score, broker count, FL21 measure, FL39 defaults', () => {
+  it('z-score: (x - mean) / sample sd of the baseline values before t', () => {
+    const z = zscore([1, 2, 3, 10, null, 4], 3);
+    expect(z[0]).toBeNull(); expect(z[2]).toBeNull();
+    const h = [1, 2, 3], m = 2, sd = Math.sqrt(((1 - m) ** 2 + 0 + (3 - m) ** 2) / 2);
+    near(z[3], (10 - m) / sd);
+    expect(z[4]).toBeNull();                                   // no value at t
+    const m5 = (3 + 10) / 2, sd5 = Math.sqrt(((3 - m5) ** 2 + (10 - m5) ** 2) / 1);   // t = 5: 3, 10 and a null before it
+    near(z[5], (4 - m5) / sd5);
+    expect(zscore([5, 5, 5, 5], 3)[3]).toBeNull();            // no spread
+    expect(h.length).toBe(3);
+  });
+  it('FL22 as a count of net buyers', () => {
+    const c = ctx([r(D[0], 'AA', 5000, 1000, 50, 10), r(D[0], 'BB', 3000, 500, 30, 5), r(D[0], 'CC', 1000, 4000, 10, 40)], D);
+    expect(computeFlow('FL22', c, { window:1, measure:'count' }).value[0]).toBe(2);
+    near(computeFlow('FL22', c, { window:1 }).value[0], 100 * 2 / 3);
+  });
+  it('FL21\'s x: the net, the gross buy or the gross sell over every investor\'s gross buy (its percentile ranks it)', () => {
+    // AA alone, Foreign: buys 10k + d, sells 4k; BB Domestic buys 1k, sells 7k + d. With baseline 2 the third candle
+    // ranks x against the two before it: each measure rises with d, so it is above both (100)
+    const c = ctx(D.flatMap((d, k) => [r(d, 'AA', 10000 + 100 * k, 4000, 1, 1, 1, 1, 'Foreign'), r(d, 'BB', 1000, 7000 + 100 * k, 1, 1, 1, 1, 'Domestic')]), D);
+    for (const measure of ['net', 'gross_buy']) expect(computeFlow('FL21', c, { scope:'selected', brokers:['AA'], window:1, baseline:2, measure }).value[2], measure).toBe(100);
+    expect(computeFlow('FL21', c, { scope:'selected', brokers:['AA'], window:1, baseline:2, measure:'gross_sell' }).value[2]).toBe(0);   // AA's sell share falls: below both
+  });
+  it('FL39\'s defaults are FL17\'s', () => {
+    const d39 = flowDefaults('FL39'), d17 = flowDefaults('FL17');
+    for (const k of ['window', 'boards', 'investors', 'scope', 'top', 'rank']) expect(d39[k], k).toEqual(d17[k]);
   });
 });

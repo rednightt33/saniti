@@ -30,7 +30,7 @@ FAMILIES = ['Share', 'Transaction Size', 'Transactions', 'Concentration', 'Banda
 FAMILY_OF = {'Share': 'Share', 'Transaction Size': 'Transaction Size', 'Transactions': 'Transactions',
              'Concentration HHI': 'Concentration', 'Concentration Top-N': 'Concentration', 'Bandar Balance': 'Bandar Balance',
              'Buy VWAP': 'Buy VWAP & Implied Cost', 'Implied Cost': 'Buy VWAP & Implied Cost',
-             'Net Flow Percentile': 'Net Flow', 'Net Buy Persistence': 'Net Flow'}
+             'Net Flow Percentile': 'Net Flow', 'Flow Percentile': 'Net Flow', 'Net Buy Persistence': 'Net Flow'}
 NET_FLOW_NAMES = {'Net Flow / Turnover Ratio', 'Net Flow Streak'}
 
 # outputs of each place / side
@@ -53,7 +53,10 @@ OPTIONS = {
     'Turnover papan + jenis investor terpilih': ('filter', 'Board and investor turnover'),
     'Sama dengan hari rolling': ('window', 'Rolling days back'), '1 sesi': ('1', '1 session back'), '5 sesi': ('5', '5 sessions back'),
     '20 sesi': ('20', '20 sessions back'),
-    'Lot': ('lot', 'Lot'), 'Value': ('value', 'Value'), 'Rupiah': ('value', 'Rupiah'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
+    'Lot': ('lot', 'Lot'), 'Value': ('value', 'Value'), 'Rupiah': ('value', 'Rupiah'),
+    'Net': ('net', 'Net'), 'Beli kotor': ('gross_buy', 'Gross buy'), 'Jual kotor': ('gross_sell', 'Gross sell'),
+    'Persen broker aktif': ('pct', '% of active brokers'), 'Jumlah broker': ('count', 'Number of brokers'),
+    'Persentil': ('pct', 'Percentile'), 'Z-score': ('z', 'Z-score'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
     'Ya': (True, 'Yes'), 'Tidak': (False, 'No'),
 }
 BOARDS, INVESTORS = ['Regular', 'Nego', 'Cash'], ['Foreign', 'Domestic']
@@ -84,6 +87,7 @@ LABELS = {
     'Kembalikan ke klasifikasi bawaan': ('reset', 'Back to the default classification'),
     'Garis perubahan: dibanding': ('lag', 'Change line vs'),
     'Kurangi bagian merata (N/k)': ('even', 'Minus the even share (N/k)'),
+    'Ukuran (pembilang)': ('measure', 'Measure'), 'Tampilkan sebagai': ('measure', 'Show as'), 'Ukuran statistik': ('stat', 'Statistic'),
 }
 FIXED_TEXT = {'Dihitung ulang tiap hari': 'Recomputed every day',
               'Beku: diurutkan sekali dari tanggal awal sampai hari ini': 'Frozen: ranked once from the anchor to the last day',

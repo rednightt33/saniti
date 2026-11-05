@@ -57,8 +57,9 @@ const c = context();
 const COHORT = [{ scope:'all' }, { scope:'selected', brokers:['BK', 'SQ', 'ZZ'] }, { scope:'topn', top:2, rank:'gross_buy' }, { scope:'topn', rank:'net_sell' }];
 const CASES: Record<string, Record<string, any>[]> = {
   FL20: [{}, { scope:'selected', brokers:['AK', 'XL'] }, { rank:'gross_buy', top:5 }, { rank:'net_sell' }, { anchor:'2026-02-20' }, { anchor:'2026-06-01' }, { boards:['Nego', 'Cash'] }, { boards:[] }],
-  FL21: [{ baseline:10 }, { baseline:30, window:3 }, { baseline:20, window:5, investors:['Domestic'] }, ...COHORT.map(x => ({ baseline:15, ...x }))],
-  FL22: [{}, { window:5 }, { boards:['Cash'] }, { investors:['Domestic'], window:20 }],
+  FL21: [{ baseline:10 }, { baseline:30, window:3 }, { baseline:20, window:5, investors:['Domestic'] }, ...COHORT.map(x => ({ baseline:15, ...x })),
+    { baseline:15, measure:'gross_buy' }, { baseline:15, measure:'gross_sell', scope:'all', investors:['Foreign'] }],
+  FL22: [{}, { window:5 }, { boards:['Cash'] }, { investors:['Domestic'], window:20 }, { measure:'count' }, { measure:'count', window:5 }],
   FL23: [{}, { unit:'value' }, { view:'daily' }, { unit:'value', view:'daily', total:true }, { total:true }, { brokers:['YU', 'QQ', 'AK'], total:true },
     { brokers:'class:Institutional-heavy', unit:'value', total:true }, { start:'2026-03-01', total:true }, { brokers:['AK', 'AK', 'BK'], total:true }, { boards:['Regular'], investors:['Foreign'], total:true }],
   FL25: [{}, { window:1 }, { top:1, window:30 }, { boards:['Nego'] }],
@@ -73,7 +74,7 @@ const CASES: Record<string, Record<string, any>[]> = {
   FL34: [{}, { window:3 }, { inst:['AK', 'BK'], retail:['ZP'] }, { inst:['AK'], retail:[] }, { inst:['AK', 'YU'] }, { retail:'class:Mixed' }, { boards:['Nego', 'Cash'] }],
   FL35: [{}, { window:3 }, { window:1, investors:['Domestic'] }],
   FL36: [{}, ...COHORT, { window:1, investors:['Foreign', 'Domestic'] }],
-  FL37: [{ baseline:10 }, { baseline:25, window:5 }, ...COHORT.map(x => ({ baseline:12, window:3, ...x }))],
+  FL37: [{ baseline:10 }, { baseline:25, window:5 }, ...COHORT.map(x => ({ baseline:12, window:3, ...x })), { baseline:10, stat:'z' }, { baseline:25, window:5, stat:'z', scope:'all', investors:['Foreign'] }],
   FL38: [{}, { window:1 }, { window:40 }, { unit:'lot' }, { unit:'lot', window:5 },
     // to-do 5: a cohort's part of the net buyers' HHI (Top-N, selected brokers with a seller among them)
     { scope:'topn', top:3 }, { scope:'topn', top:1, rank:'gross_buy', window:5 }, { scope:'topn', top:20, unit:'lot' },

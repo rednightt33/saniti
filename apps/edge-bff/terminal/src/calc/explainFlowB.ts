@@ -1,7 +1,7 @@
 /* EXEC-IND-CARDS IC3: Flow explainers (calc/explain.ts: the interface, the helpers and the rule that the card's number
    is the chart's number). One file per part so they can be written side by side; explainFlowIndex.ts joins them. */
 import type { FlowContext, FlowParams, FlowRows, Num } from './flow';
-import { BOARDS, INVESTORS, above, atLeast, atMost, boardIndex, classBrokers, flowDefaults, investorIndex, lagOf } from './flow';
+import { BOARDS, INVESTORS, above, atLeast, atMost, boardIndex, classBrokers, flowDefaults, investorIndex, lagOf, meanSd } from './flow';
 import type { BrokerSums, Explanation, FlowExplainer, Step, Term } from './explain';
 import { brokerRow, filterText, flowWindow, fmt, intOf, levelsOf, spanOf, topBy, withChange } from './explain';
 
@@ -213,14 +213,15 @@ const EX: Record<string, FlowExplainer> = {
     };
   },
 
-  /* FL21 Net Flow Percentile · vs Turnover: percentile (baseline) of FL11 = 100 (BV(C) - SV(C)) / TBV(boards) */
+  /* FL21 Flow Percentile · vs Turnover: percentile (baseline) of x = 100 (BV(C) - SV(C), or BV(C), or SV(C)) / TBV(boards) */
   FL21: (c, p, t) => {
     const R = c.rows, W = intOf(p.window, 1), bsl = intOf(p.baseline, 250);
     if (flowWindow(R, t, W) === null || t - bsl < 0) return null;
     const lo = Math.max(0, t - bsl - W + 1), X = cellsOf(R, lo, t, p.boards ?? null, p.investors ?? null), D = cellsOf(R, lo, t, p.boards ?? null, null);
     const at = (k: number) => {
       const a = flowWindow(R, k, W); if (a === null) return null;
-      const C = cohortOf(X, p, a, k), BV = cw(X, C, 'bv', a, k), SV = cw(X, C, 'sv', a, k), TBV = D.all('bv', a, k), v = div(BV - SV, TBV);
+      const C = cohortOf(X, p, a, k), BV = cw(X, C, 'bv', a, k), SV = cw(X, C, 'sv', a, k), TBV = D.all('bv', a, k);
+      const v = div(p.measure === 'gross_buy' ? BV : p.measure === 'gross_sell' ? SV : BV - SV, TBV);     // to-do 10: the measure
       return v === null ? null : { a, C, BV, SV, TBV, x:100 * v };
     };
     const day = bvByCandle(R, p.boards ?? null);
@@ -234,7 +235,7 @@ const EX: Record<string, FlowExplainer> = {
       steps:[
         { title:`Ambil ${W} candle`, text:`${span(c, now.a, t)}, ${filterText(p)}.` },
         cohortStep(p, now.C, now.a, t, c),
-        { title:'Hitung x (Net Flow / Turnover)', text:`Net kelompok = ${fmt.idr(now.BV)} − ${fmt.idr(now.SV)} = ${fmt.idr(now.BV - now.SV)}. Nilai beli semua broker (papan terpilih, asing dan domestik) = ${fmt.idr(now.TBV)}. x = 100 × net ÷ nilai beli = ${fmt.pct(r.x)}.` },
+        { title:`Hitung x (${p.measure === 'gross_buy' ? 'beli kotor' : p.measure === 'gross_sell' ? 'jual kotor' : 'net'} ÷ nilai beli semua broker)`, text:`${p.measure === 'gross_buy' ? `Beli kotor kelompok = ${fmt.idr(now.BV)}` : p.measure === 'gross_sell' ? `Jual kotor kelompok = ${fmt.idr(now.SV)}` : `Net kelompok = ${fmt.idr(now.BV)} − ${fmt.idr(now.SV)} = ${fmt.idr(now.BV - now.SV)}`}. Nilai beli semua broker (papan terpilih, asing dan domestik) = ${fmt.idr(now.TBV)}. x = ${fmt.pct(now.x)}.` },
         ...pctSteps(c, t, bsl, r, v => fmt.pct(v), value),
         ...readLevels(p, value, fmt.num(value)),
       ],
@@ -248,16 +249,16 @@ const EX: Record<string, FlowExplainer> = {
     const act = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null).list(a, t).filter(s => s.bv > 0 || s.sv > 0);
     const P = act.filter(s => net(s) > 0).length, A = act.length;
     if (!A) return null;
-    const combine = (v: Record<string, number>) => v.A ? 100 * v.P / v.A : null, value = combine({ P, A });
+    const count = p.measure === 'count', combine = (v: Record<string, number>) => count ? v.P : v.A ? 100 * v.P / v.A : null, value = combine({ P, A });
     const ranked = [...act].sort((x, y) => net(y) - net(x) || (x.code < y.code ? -1 : 1));
     return {
-      output:'value', value, expr:'100 × P ÷ A', span:spanOf(c, a, t),
+      output:'value', value, expr:count ? 'P' : '100 × P ÷ A', span:spanOf(c, a, t),
       terms:[{ key:'P', label:'Broker aktif yang net beli', value:P, unit:'count' }, { key:'A', label:'Broker aktif (ada beli atau jual)', value:A, unit:'count' }], combine,
       steps:[
         { title:`Ambil ${W} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
         { title:'Net setiap broker aktif', text:`Broker aktif: ada nilai beli atau jual dalam jendela (${cnt(A)} broker). Net = beli − jual; ${cnt(P)} broker net beli (P).`,
           table:tableOf(['Broker', 'Beli', 'Jual', 'Net'], ranked, brokerRow, 'ends', 5, 'Urut dari net terbesar.') },
-        { title:'Hitung nilainya', text:`100 × ${cnt(P)} ÷ ${cnt(A)} = ${pc(value)} broker aktif menjadi pembeli bersih.` },
+        { title:'Hitung nilainya', text:count ? `${cnt(P)} dari ${cnt(A)} broker aktif menjadi pembeli bersih (U6: jumlah broker).` : `100 × ${cnt(P)} ÷ ${cnt(A)} = ${pc(value)} broker aktif menjadi pembeli bersih.` },
       ],
     };
   },
@@ -658,7 +659,25 @@ const EX: Record<string, FlowExplainer> = {
     };
     const r = pctAt(k => at(k)?.x ?? null, k => flowWindow(R, k, W) !== null, t, bsl);
     if (!r) return null;
-    const now = at(t)!, value = pctCombine({ LT:r.lt, EQ:r.eq, n:r.n });
+    const now = at(t)!;
+    if (p.stat === 'z') {                                   // U1: the z-score of x in its history (calc/flow.ts zscore)
+      const m = meanSd(r.hist); if (!m || !(m.sd > 0)) return null;
+      const combine = (v: Record<string, number>) => v.SD ? (v.x - v.M) / v.SD : null, value = combine({ x:r.x, M:m.mean, SD:m.sd });
+      return {
+        output:'value', value, expr:'(x − M) ÷ SD', span:spanOf(c, Math.max(0, t - bsl - W + 1), t),
+        terms:[{ key:'x', label:`Net kelompok ${W} candle (x)`, value:r.x, unit:'idr' }, { key:'M', label:`Rata-rata x di ${cnt(r.n)} candle riwayat`, value:m.mean, unit:'idr' },
+          { key:'SD', label:'Simpangan baku x di riwayat (sampel, n − 1)', value:m.sd, unit:'idr' }], combine,
+        steps:[
+          { title:`Ambil ${W} candle`, text:`${span(c, now.a, t)}, ${filterText(p)}.` },
+          cohortStep(p, now.C, now.a, t, c),
+          { title:'Hitung x (net Rupiah)', text:`x = nilai beli − nilai jual kelompok = ${fmt.idr(now.BV)} − ${fmt.idr(now.SV)} = ${fmt.idr(r.x)}.` },
+          { title:'Riwayatnya', text:`x di ${bsl} candle sebelumnya (${c.dates[t - bsl]} sampai ${c.dates[t - 1]}; ${c.dates[t]} sendiri tidak ikut): ${cnt(r.n)} nilai, rata-rata M = ${fmt.idr(m.mean)}, simpangan baku SD = ${fmt.idr(m.sd)}.` },
+          { title:'Hitung z-score', text:`(${fmt.idr(r.x)} − ${fmt.idr(m.mean)}) ÷ ${fmt.idr(m.sd)} = ${fmt.num(value, 2)}: x berada ${fmt.num(Math.abs(value!), 2)} simpangan baku ${value! >= 0 ? 'di atas' : 'di bawah'} rata-ratanya.` },
+          ...readLevels(p, value, fmt.num(value, 2)),
+        ],
+      };
+    }
+    const value = pctCombine({ LT:r.lt, EQ:r.eq, n:r.n });
     return {
       output:'value', value, expr:'100 × (LT + 0,5 × EQ) ÷ n', span:spanOf(c, Math.max(0, t - bsl - W + 1), t),
       terms:pctTerms(r, `Net kelompok ${W} candle (x)`, 'idr'), combine:pctCombine,

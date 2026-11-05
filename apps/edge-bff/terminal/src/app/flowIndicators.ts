@@ -154,8 +154,9 @@ export function initFlowIndicators(ctx: Ctx) {
         /* EXEC-TERMINAL-IND-EDIT (FL34 to-do 17, FL11 U2): the change line is a line on its own scale (left), in points */
         ? { k, label:'Change', r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', scale:'left', fmt:spec.points, minMove:.01 }
         : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
-            /* U3: a share minus the even share reads in points */
-            ...(p && p.even ? { fmt:spec.points, minMove:.01 } : {}) });
+            /* U3: a share minus the even share reads in points; U6: a count of brokers; U1: a z-score */
+            ...(p && p.even ? { fmt:spec.points, minMove:.01 } : p && p.measure === 'count' ? { fmt:(v: number) => spec.num(v, 0), minMove:1 }
+              : p && p.stat === 'z' ? { fmt:(v: number) => spec.smart(v, 2), minMove:.01 } : {}) });
     };
     const note = ctx.M.index ? INDEX_NOTE[r.id] || '' : '';
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),

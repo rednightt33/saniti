@@ -273,6 +273,30 @@ export function percentile(x: Series, baseline: number): Series {
   return out;
 }
 
+/** mean and sample standard deviation (n - 1, as Feature_06 stddev_samp) of values in order; shared with the cards */
+export function meanSd(h: number[]): { mean: number; sd: number } | null {
+  if (h.length < 2) return null;
+  let s = 0; for (const v of h) s += v;
+  const mean = s / h.length; let q = 0; for (const v of h) q += (v - mean) ** 2;
+  return { mean, sd:Math.sqrt(q / (h.length - 1)) };
+}
+/* ---- z-score (U1, user 2026-11-05): (x - mean) / sd of the same series' non-null values at the `baseline` candles before
+   t (t excluded), ready as the percentile is; null with fewer than 2 values or no spread ---- */
+export function zscore(x: Series, baseline: number): Series {
+  const out = series(x.length);
+  let first = -1;
+  for (let t = 0; t < x.length; t++) if (x[t] !== null) { first = t; break }
+  if (first < 0) return out;
+  for (let t = 0; t < x.length; t++) {
+    const v = x[t];
+    if (v === null || t - baseline < first) continue;
+    const h: number[] = []; for (let k = t - baseline; k < t; k++) { const w = x[k]; if (w !== null) h.push(w) }
+    const m = meanSd(h);
+    if (m && m.sd > 0) out[t] = (v - m.mean) / m.sd;
+  }
+  return out;
+}
+
 /* ---- the indicators ---- */
 type Fn = (ctx: FlowContext, p: FlowParams) => FlowOut;
 const W = (p: FlowParams, d = 1) => int(p.window, d);
@@ -294,9 +318,12 @@ function marketShare(ctx: FlowContext, p: FlowParams): Series {        // FL07
   const R = ctx.rows, g = grid0(p), d = p.denom === 'filter' ? g : boardOnly(p);
   return each(R, W(p), (a, t) => { const C = cohort(g, R, p, a, t), v = div(cw(g, C, 'bl', a, t), aw(d, 'bl', a, t)); return v === null ? null : 100 * v });
 }
-function flowTurnover(ctx: FlowContext, p: FlowParams): Series {       // FL11
+/** FL11 (and FL21's x): 100 × the cohort's net (or, FL21 to-do 10, its gross buy or gross sell) / TBV */
+function flowTurnover(ctx: FlowContext, p: FlowParams): Series {
   const R = ctx.rows, g = grid0(p), d = p.denom === 'filter' ? g : boardOnly(p);
-  return each(R, W(p), (a, t) => { const C = cohort(g, R, p, a, t), v = div(cw(g, C, 'bv', a, t) - cw(g, C, 'sv', a, t), aw(d, 'bv', a, t)); return v === null ? null : 100 * v });
+  const num = (C: number[] | null, a: number, t: number) => p.measure === 'gross_buy' ? cw(g, C, 'bv', a, t) : p.measure === 'gross_sell' ? cw(g, C, 'sv', a, t)
+    : cw(g, C, 'bv', a, t) - cw(g, C, 'sv', a, t);
+  return each(R, W(p), (a, t) => { const C = cohort(g, R, p, a, t), v = div(num(C, a, t), aw(d, 'bv', a, t)); return v === null ? null : 100 * v });
 }
 function imbalance(ctx: FlowContext, p: FlowParams): Series {          // FL10
   const R = ctx.rows, g = grid0(p);
@@ -412,7 +439,7 @@ export const FLOW: Record<string, Fn> = {
   FL08:(c, p) => { const side = p.side === 'sell' ? 'sell' : 'buy'; return { value:percentile(sizeLot(c, sideParams(p, side), side), int(p.baseline, 250)) } },
   FL09:(c, p) => {
     const pct = percentile(sizeLot(c, p, 'buy'), int(p.baseline, 250)), ratio = sizeVsMarket(c, p, 'buy');
-    const part = marketShare(c, { ...p, denom:'board' }), flow = flowTurnover(c, { ...p, denom:'board' }), imb = p.use_imb ? imbalance(c, p) : null;
+    const part = marketShare(c, { ...p, denom:'board' }), flow = flowTurnover(c, { ...p, denom:'board', measure:'net' }), imb = p.use_imb ? imbalance(c, p) : null;
     return { value:pct.map((x, t) => {
       const ins = [x, ratio[t], part[t], flow[t], ...(imb ? [imb[t]] : [])];
       if (ins.some(v => v === null)) return null;
@@ -423,7 +450,7 @@ export const FLOW: Record<string, Fn> = {
   },
   FL10:(c, p) => ({ value:imbalance(c, p) }),
   /* to-do 7 (user 2026-11-04 "Okay pakai A"): one denominator, every investor's gross buy on the chosen boards */
-  FL11:(c, p) => { const v = flowTurnover(c, { ...p, denom:'board' }); return { value:v, change:changeOf(v, lagOf(p)) } },
+  FL11:(c, p) => { const v = flowTurnover(c, { ...p, denom:'board', measure:'net' }); return { value:v, change:changeOf(v, lagOf(p)) } },
   FL12:(c, p) => {
     const R = c.rows, g = grid0(p), w = W(p, 5);
     return { value:each(R, w, (a, t) => { const C = cohort(g, R, p, a, t); let n = 0; for (let k = a; k <= t; k++) if (cc(g, C, 'bv', k) - cc(g, C, 'sv', k) > 0) n++; return 100 * n / w }) };
@@ -455,13 +482,13 @@ export const FLOW: Record<string, Fn> = {
   FL18:(c, p) => ({ value:anchoredVwap(c, p) }),
   FL19:(c, p) => ({ value:impliedCost(c, p) }),
   FL20:(c, p) => ({ value:distance(c.close, impliedCost(c, p)) }),
-  FL21:(c, p) => ({ value:percentile(flowTurnover(c, p), int(p.baseline, 250)) }),
+  FL21:(c, p) => ({ value:percentile(flowTurnover(c, { ...p, denom:'board' }), int(p.baseline, 250)) }),
   FL22:(c, p) => {
     const R = c.rows, g = grid0(p);
     return { value:each(R, W(p), (a, t) => {
       let active = 0, buyers = 0;
       for (let b = 0; b < g.B; b++) { const bv = bw(g, 'bv', b, a, t), sv = bw(g, 'sv', b, a, t); if (bv > 0 || sv > 0) { active++; if (bv - sv > 0) buyers++ } }
-      return active ? 100 * buyers / active : null;
+      return active ? (p.measure === 'count' ? buyers : 100 * buyers / active) : null;     // U6: the count of net buyers
     }) };
   },
   FL23:(c, p) => {
@@ -589,7 +616,7 @@ export const FLOW: Record<string, Fn> = {
   FL37:(c, p) => {
     const R = c.rows, g = grid0(p);
     const x = each(R, W(p, 20), (a, t) => { const C = cohort(g, R, p, a, t); return cw(g, C, 'bv', a, t) - cw(g, C, 'sv', a, t) });
-    return { value:percentile(x, int(p.baseline, 250)) };
+    return { value:(p.stat === 'z' ? zscore : percentile)(x, int(p.baseline, 250)) };     // U1: percentile or z-score
   },
   /* to-do 5, 6 (user 2026-11-05 "Okay. Masukan ke review."): the cohort's squared shares of the net buyers' positive net
      (Rupiah, or lots with their own sign); a selected broker with net <= 0 adds 0; all brokers = every net buyer */
@@ -605,7 +632,8 @@ export const FLOW: Record<string, Fn> = {
       return s;
     }) };
   },
-  FL39:(c, p) => ({ value:distance(c.close, rollingVwap(c, p, 10)) }),
+  /* to-do 16 (user 2026-11-05): FL39 takes FL17's defaults (20 candles, every board) */
+  FL39:(c, p) => ({ value:distance(c.close, rollingVwap(c, p, 20)) }),
 };
 
 for (const id of Object.keys(FLOW)) { const fn = FLOW[id]; FLOW[id] = (c, p) => { ctxRows = c.rows; return fn(c, p) } }
