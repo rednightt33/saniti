@@ -11487,11 +11487,10 @@ diunggah ulang dengan CLI; deploy hanya diklaim pada `SUCCESS`).
 - FL32 Activity Spike: "Q4 A masukan exec" = **nama garis `buy` dan `sell`** seperti FL01 (pola `sided()`); warna dan
   ketebalan FL32 yang tersimpan di browser kembali ke bawaan satu kali, angkanya tidak berubah.
 
-**Pertanyaan terbuka (menunggu jawaban sebelum go):**
-- Q3 FL13/FL14 dengan Top-N dan `window` > 1. Kode sekarang (`apps/edge-bff/terminal/src/calc/flow.ts:292-299`,
-  `hhi()`): lot tiap broker dijumlahkan sepanjang jendela, lalu HHI dihitung sekali dari total itu; pola kelompok yang
-  ada (`cohort()`, `flow.ts:208-221`) memilih Top-N dari net sepanjang jendela, jadi broker dikunci untuk jendela itu.
-  Keputusan FL13 final di dokumen review (5e) sama: "Top-N dari net sepanjang jendela dikunci". Bacaan user 2026-11-05
-  berbeda: "setiap harinya dihitung top 3 HHI buy ... menjumlahkan ... brokernya tidak di lock". Menunggu pilihan user
-  (kunci per jendela, atau Top-N per hari dengan nilai harian dijumlah atau dirata-rata); bila per hari, keputusan FL13
-  ikut berubah.
+- FL13/FL14 dengan Top-N dan `window` > 1: "A deh, masukan exec" = **Top-N dipilih sekali dari net sepanjang jendela dan
+  dikunci untuk jendela itu; HHI dihitung sekali dari total lot (atau Rupiah) jendela**, seperti `cohort()` dan `hhi()`
+  sekarang (`flow.ts:208-221`, `:292-299`) dan keputusan FL13 final (review 5e). FL38 sama. Contoh ilustrasi yang
+  dibahas: 5 hari, Top-3 dikunci A, D, B, HHI beli 0,1668 (bukan rata-rata HHI harian 0,242).
+
+**Pertanyaan terbuka (menunggu jawaban sebelum go):** konsistensi yang ditemukan sesudah Q3 (sisi jual kelompok Top-N,
+Top-N Flow Ratio pada jendela > 1, kebutuhan jumlah transaksi per pilihan Ukuran); lihat percakapan 2026-11-05.
