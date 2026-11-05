@@ -33,7 +33,7 @@ item baru dijalankan atas perintah user.
 | 14 | Dua indikator baru (kode ditetapkan saat dikerjakan): versi jual dari FL17 dan dari FL18 | **Dua indikator tambahan terpisah** yang menghitung nilai jual dibagi lot jual (harga rata-rata penjualan, gross jual): satu bergulir seperti FL17, satu beranchor seperti FL18 | "Boleh nggak ditambahkan satu indikator yang represent sell atau gross sell? Mirip FL18 juga. Berlaku juga untuk FL17."; "FL17 kan dia menghitung basically beli dibagi lot beli kan. FL18 juga. Yang saya butuhkan adalah dua indikator tambahan jual dan lot jual." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5m |
 | 15 | Indikator baru: Buy VWAP · Anchored · Distance % (sejajar FL20); versi rolling sudah ada sebagai FL39 | Jarak harga penutupan terhadap harga rata-rata pembelian beranchor (FL18) dalam persen; jarak terhadap harga rata-rata pembelian bergulir (FL17) sudah ada di FL39 | "Tolong tambahkan saja by vweb anchor dan by vweb rolling tapi versi percentage distance. seperti FL20. Konfirmasi kalau kamu paham." (2026-11-05; "vweb" dibaca VWAP) | To-do; bacaan AI dikonfirmasi user: hanya versi anchor yang baru, jarak rolling cukup FL39 (2026-11-05). Bagian 5n |
 | 16 | FL17 dan FL39 | FL17 tetap menghitung harga, FL39 menghitung jarak (%) terhadap FL17, dan jarak itu dihitung dengan **parameter FL17** (bawaan FL39 disamakan: 20 sesi, semua papan, Foreign dan Domestic) | "17 dan 39. Jadikan FL17 menghitung secara price, tapi FL39 menghitung secara distance. Nah, distance ini harus dihitung menggunakan parameter yang ada di FL17." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5o |
-| 17 | FL34 Institutional vs Retail Net | Ditambah ukuran **perubahan** (daily to daily, dan rentang lain): bacaan AI, perubahan nilai FL34 dibanding sesi sebelumnya dan beberapa jarak waktu lain; maksud pastinya menunggu user | "Alright, untuk FL34, to-do list-nya adalah kita perlu tambahkan change. Jadi change daily to daily, dan lain sebagainya. Paham?" (2026-11-05) | To-do; bacaan AI menunggu konfirmasi user. Bagian 5p |
+| 17 | FL34 Institutional vs Retail Net | Ditambah ukuran **perubahan** (daily to daily, dan rentang lain): bacaan AI, perubahan nilai FL34 dibanding sesi sebelumnya dan beberapa jarak waktu lain; maksud pastinya menunggu user | "Alright, untuk FL34, to-do list-nya adalah kita perlu tambahkan change. Jadi change daily to daily, dan lain sebagainya. Paham?" (2026-11-05) | To-do; bentuk dijawab user: panel gabungan (2026-11-05); sisanya menunggu user. Bagian 5p |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -977,7 +977,7 @@ Sebaran 252 sesi, |perubahan| median: harian 1,37 poin (P10 −3,38, P90 +2,90, 
 1. **Apa yang diubah:** nilai FL34 itu sendiri (bacaan AI), atau net institusi dan net ritel harian secara terpisah.
 2. **"Dan lain sebagainya":** jarak waktu mana saja (5 sesi, 20 sesi, atau lainnya), dan apakah ada ukuran selain selisih (misalnya persen perubahan).
 3. **Satuan:** poin persentase atau persen perubahan.
-4. **Bentuk:** garis kedua di panel yang sama atau indikator terpisah.
+4. ~~Bentuk: garis kedua di panel yang sama atau indikator terpisah.~~ **Dijawab user 2026-11-05: "Panel gabungan aja"** (ukuran perubahan ditampilkan di panel yang sama dengan FL34; bacaan AI: sebagai garis kedua).
 5. **Kaitan dengan to-do 11** (penyebab perubahan FL25): apakah pemecahan hari masuk dan hari keluar juga diinginkan di sini.
 
 ### 5p.5 Batas
