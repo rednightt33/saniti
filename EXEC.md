@@ -10121,6 +10121,13 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
   - **Q-S2a (terbuka):** baris fitur broker yang sudah ada untuk kode di luar universe: (a) hapus semua; (b) hapus kode
     bukan 4 huruf, simpan riwayat kode 4 huruf (termasuk 162 saham yang sudah berakhir, supaya backtest tidak hanya
     melihat saham yang bertahan); (c) simpan semua, hanya berhenti menghitung yang baru.
+- **Keputusan (user 2026-11-05):** "Ya, itu masukkan aja 63 kode untuk 4 huruf. Jadi, universe akan ditambah 63 kode
+  tersebut, kan? Sehingga untuk fitur fitur-fitur yang berkaitan dengan broker summary, ke depannya 63 tiket itu juga
+  akan dihitung. Jadi, kita mengerjakan sekaligus?" Sebelumnya (user, sama hari): data fitur broker lama disimpan semua,
+  kode di atas 4 huruf ke depan tidak dihitung lagi (Q-S2a = simpan semua).
+  - Terbuka: (1) ke-63 kode termasuk 13 saham yang hanya di Nego masuk semua (berarti P1 tidak dipakai)? (2) "sekaligus"
+    = S1 + P2 + P3 + S2 + S3 dalam satu rangkaian; P2 dan P3 jadi wajib, karena tanpa P2 cron harga beralarm setiap hari
+    untuk kode tanpa transaksi dan tanpa P3 skrip riwayat harga menolak sebagian besar kode.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
