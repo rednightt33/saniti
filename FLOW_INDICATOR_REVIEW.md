@@ -26,6 +26,7 @@ item baru dijalankan atas perintah user.
 | 7 | FL11 Net Flow / Turnover Ratio | **Hapus pilihan Denominator**: satu penyebut tetap, yaitu gross beli semua investor dengan filter papan saja (opsi A) | "Okay pakai A" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5g.1 |
 | 8 | Indikator baru (kode ditetapkan saat dikerjakan) | Sama persis dengan FL11, tetapi penyebutnya **rata-rata nilai transaksi (gross beli) N sesi terakhir**, N bawaan 20 dan bisa diatur | "Kemudian masukan juga untuk ditambahkan indikator yang sama persis tapi turnovernya adalah avg last 20D or can be adjustable. coba confirm" (2026-11-04) | To-do; bacaan AI dikonfirmasi user dengan "Ok" (2026-11-04). Bagian 5g.2 |
 | 9 | FL35 Net Buy Persistence · Top Buyer | **Disembunyikan** dari menu indikator (hide) | "Hide saja FL35, masukan ke review" (2026-11-04) | To-do, belum dijadwalkan. Bagian 5h |
+| 10 | FL21 Net Flow Percentile · vs Turnover | Ditambah parameter **Ukuran**: gross beli, gross jual, atau net beli (net), yang dipersentilkan terhadap turnover | "Not untuk FL21 yang bisa dimasukkan ke flow indicator review adalah biar ditambahkan filter untuk gross buy. Atau gross sell, dan juga net buy." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5i |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -100,7 +101,7 @@ Kolom "Keputusan user" dikosongkan untuk diisi.
 | FL18 | Buy VWAP · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL19 | Implied Cost · Anchored | Buy VWAP & Implied Cost | Overlay harga | price | value | Belum ditinjau |  |  |
 | FL20 | Implied Cost · Distance % | Buy VWAP & Implied Cost | Panel | % | value | Belum ditinjau |  |  |
-| FL21 | Net Flow Percentile · vs Turnover | Net Flow | Panel | 0-100 | value | Belum ditinjau |  |  |
+| FL21 | Net Flow Percentile · vs Turnover | Net Flow | Panel | 0-100 | value | To-do: ditambah parameter Ukuran (gross beli, gross jual, net) | Ditambah (2026-11-05, to-do) | Bagian 5i. Sekarang hanya net (FL11) terhadap turnover |
 | FL22 | Broker Buy Breadth | Other | Panel | % | value | Belum ditinjau |  |  |
 | FL23 | Broker Inventory | Other | Panel | lot|IDR | lines, total | Belum ditinjau |  |  |
 | FL24 | Bandar Balance · % | Bandar Balance | Panel | % | value | Belum ditinjau |  |  |
@@ -651,6 +652,54 @@ Broker dengan **net** `BV − SV` kumulatif terbesar dan positif dalam jendela `
 ### 5h.5 Batas
 
 Satu saham (BBRI), satu tanggal untuk contoh. Angka dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup. Tidak ada kode yang diubah.
+
+## 5i. To-do: FL21 diberi pilihan ukuran (gross beli, gross jual, net)
+
+**Catatan user 2026-11-05 (kata-katanya):** "Not untuk FL21 yang bisa dimasukkan ke flow indicator review adalah biar ditambahkan filter untuk gross buy. Atau gross sell, dan juga net buy."
+Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5i.1 Kondisi sekarang **[T]** (`flow.ts:421`, registry, `FORMULAS.md:87`)
+
+FL21 = persentil (baseline 250, peringkat tengah, hanya nilai sebelumnya) dari FL11 = `100 × (BV(C) − SV(C)) / TBV`. Pembilang selalu **net** kelompok; penyebut `TBV`
+= **gross** beli semua broker (papan saja). Parameter: `scope` (Top-N bawaan), `brokers`, `top`, `rank`, `ranking`, `boards`, `investors`, `window` (1), `baseline` (250), `levels`.
+Tidak ada parameter ukuran.
+
+### 5i.2 To-do
+
+Bacaan AI atas kata-kata user (belum dikonfirmasi): parameter baru **Ukuran** dengan tiga pilihan, penyebut dan persentil tetap:
+
+| Ukuran | Pembilang | Catatan |
+|---|---|---|
+| Net (bawaan; yang user sebut "net buy") | `BV(C) − SV(C)`, **net** | Sama dengan FL21 sekarang; positif = net beli, negatif = net jual |
+| Gross beli | `BV(C)`, **gross** beli kelompok | Porsi beli kelompok terhadap turnover |
+| Gross jual | `SV(C)`, **gross** jual kelompok | Porsi jual kelompok terhadap turnover |
+
+Penyebut tetap `TBV` (gross beli semua broker, papan saja; keputusan opsi A di to-do 7). Persentil (baseline 250) dan parameter lain tidak berubah.
+
+### 5i.3 Bukti pada data (BBRI, 3 Nov 2026, dihitung 2026-11-05)
+
+Kohort Top-3 asing menurut net beli (CC, AK, BK), jendela 5 sesi, semua papan, baseline 250. Gross beli kohort Rp782,9 miliar, gross jual Rp743,6 miliar, net Rp39,2 miliar, turnover 5 sesi Rp3.867,2 miliar.
+
+| Ukuran | Nilai (% turnover) | Median 250 nilai sebelumnya | Persentil |
+|---|---:|---:|---:|
+| Net | 1,01 | 7,83 | **3,2** |
+| Gross beli | 20,24 | 17,74 | **56,4** |
+| Gross jual | 19,23 | 9,68 | **89,2** |
+
+Pada hari yang sama net tampak lemah, gross beli biasa saja, dan gross jual tinggi: tiga ukuran memberi gambaran berbeda. Korelasi persentil 252 sesi: net-gross beli 0,84; net-gross jual 0,41; gross beli-gross jual 0,82.
+
+### 5i.4 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **"net buy" dibaca net bertanda** (sama dengan sekarang). Bila yang dimaksud hanya sisi positif atau cara lain, koreksi.
+2. **Nama.** "Net Flow Percentile · vs Turnover" tidak lagi akurat bila ukuran bisa gross; nama baru ditentukan saat dikerjakan.
+3. **Penyebut untuk gross jual:** gross beli semua broker (untuk semua investor sama dengan total jual semua broker; 3 Nov Rp872,5 miliar kedua sisi).
+4. **Peringkat kohort** (`rank`) tetap terpisah dari ukuran. Kohort bawaan dipilih dari net beli; pada ukuran gross jual kohort itu bisa memiliki gross jual tinggi karena dipilih dari net beli jendela yang sama.
+5. **Gross beli + gross jual** (partisipasi seperti FL36) sebagai pilihan keempat atau indikator tersendiri (usulan Participation Shift di 5c.4, belum diputuskan).
+6. Hubungan dengan to-do 6 (Satuan: lot atau Rupiah; FL21 sekarang hanya Rupiah) dan to-do 8 (penyebut rata-rata turnover).
+
+### 5i.5 Batas
+
+Satu saham (BBRI), satu tanggal untuk contoh, baseline 250 nilai yang saling tumpang tindih. Tidak ada klaim bahwa ukuran mana pun prediktif. Dihitung dari data broker mentah, belum dicocokkan dengan BFF yang hidup. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 

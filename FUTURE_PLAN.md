@@ -1350,3 +1350,4 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
   Juga (2026-11-04): FL11 hanya satu penyebut, opsi A ("Okay pakai A"), dan indikator baru yang sama dengan FL11 tetapi penyebutnya rata-rata turnover N sesi (bawaan 20, bisa diatur; menunggu konfirmasi); lihat
   `FLOW_INDICATOR_REVIEW.md` bagian 5g.
   Juga to-do (2026-11-04): FL35 disembunyikan dari menu ("Hide saja FL35, masukan ke review"); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5h.
+  Juga to-do (2026-11-05): FL21 diberi parameter ukuran (gross beli, gross jual, net beli); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5i.
