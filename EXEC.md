@@ -10254,6 +10254,23 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     931 kode (`verification/feature04_m349/`): rantai baru = referensi di semua nilai; rantai lama berbeda di 19 kode
     (3.519 nilai `rsi_14`); data tersimpan sudah sama dengan referensi, tidak ada yang ditulis ulang. Restart Postgres
     16:00 UTC. Validator sandbox AI punya uji nol yang sama (`reference.py:96`): diusulkan terpisah.
+- **L5 — validator sandbox (user 2026-11-05: "Ok, kerjakan juga validator sandbox-nya. Inspect arsitektur dulu dan
+  define what end goal looks like"). Inspeksi (belum ada perubahan kode):**
+  - TA-Lib di sistem: 0.6.8 (C 0.6.4) di feature-04-worker, cron intraday, dan kernel Terminal
+    (`apps/edge-bff/terminal/src/calc/indicators.ts:10-11,84`); 0.8.1 hanya di sandbox AI
+    (`apps/market-python-sandbox/requirements-analysis.txt:12`), yang bisa di-import kode analisis model.
+  - Diukur (semua fungsi, data normal dan 600 sesi datar, toleransi validator rtol 1e-6 atol 1e-8): dari fungsi yang
+    ada di kedua versi, RSI, CMO, STOCHRSI, PLUS_DI, MINUS_DI berbeda hanya pada masa datar (0.8.1 tidak lagi memakai
+    ambang 1e-14; STDDEV/BBANDS juga, pada varians < 1e-14); APO, PPO, BBANDS hanya karena nilai bawaan parameter
+    berubah (BBANDS 5 → 20 periode, APO/PPO SMA → EMA); dengan parameter eksplisit sama. 0.8.1 menambah 43 fungsi.
+  - Validator acuan (`runtime/reference.py`, dipakai `runtime/validator.py` di postflight `/v1/analyses`) hanya ada di
+    jalur lama (`create_analysis_spec`/`run_python_analysis`), yang mati di dev (`AI_ENABLE_DATANEED` on, AI_TOOLS.md).
+    Acuannya sama dengan TA-Lib 0.8.1 untuk RSI dan STDDEV; korelasi bergulir memberi NaN pada jendela varians nol,
+    TA-Lib (kedua versi) memberi 0.
+  - Koreksi laporan sebelumnya: risiko "validator menolak analisis TA-Lib" tidak terjadi, karena TA-Lib sandbox (0.8.1)
+    sama dengan acuannya. Selisih yang nyata: RSI yang dihitung AI di sandbox untuk kode yang lama tidak diperdagangkan
+    berbeda dari `rsi_14` Fitur 04 dan dari Terminal (19 kode, 3.519 nilai, L4).
+  - Pertanyaan terbuka ke user: konvensi tunggal mana dan bagaimana sandbox menyamakannya (opsi di laporan 2026-11-05).
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
