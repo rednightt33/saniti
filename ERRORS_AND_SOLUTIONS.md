@@ -5310,6 +5310,28 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M347 — Cron harga harian selalu PARTIAL dan pemulihannya NEEDS_REVIEW: "tidak ada transaksi" dihitung "hilang" (2026-11-05)
+
+- **Symptom:** run DAILY harga 2026-10-27 … 11-04 selalu ⚠️ PARTIAL (13–24 dari 844 saham "No 1D candle", misalnya
+  ADHI, PTPP, BIKE) dan RECOVERY sesudahnya selalu ❌ NEEDS_REVIEW (`Monitoring_Price_ALL`, pgweb 2026-11-05).
+- **Verified root cause:** `price_update.py` mencatat "TradingView menjawab tanpa bar di tanggal target" sama dengan gagal
+  ambil (`:492-503` lama, `monitoring_records` `:786-798` lama). Pada 2026-10-29, 17 dari 17 saham tanpa bar tidak
+  punya transaksi Regular di `IDX_Broker_Summary`: alarmnya palsu. Kegagalan sungguhan hanya 2026-11-03 (TimeoutError).
+- **Class:** sumber harian yang tidak membedakan "tidak ada observasi hari itu" dari "gagal ambil": setiap instrumen
+  sepi (saham suspensi, ETF, obligasi, data makro/lintas aset nanti) memicu alarm palsu, dan alarm sungguhan tenggelam.
+- **Solution (EXEC-UNIVERSE-BROKER P2, user "Opsi A" dan go 2026-11-05):**
+  - migrasi `20261105_003`: kolom `no_trade_*`, aturan hitung hilang + tanpa transaksi = ditanya − terisi;
+  - `price_update.py`: dijawab tanpa bar = tanpa transaksi bila sesi itu ada di provider (simbol lain dapat bar, atau
+    tabel harga sudah punya tanggalnya); hanya gagal ambil yang PARTIAL; pemulihan menanyakan kode tanpa transaksi
+    sekali lagi; sesudah putaran broker, pasangan yang ternyata punya transaksi Regular tetapi tanpa harga dilaporkan
+    sekali (`no_trade_contradicted`, PARTIAL);
+  - telegram-monitor menulis "N tanpa transaksi" dan "Ada transaksi reguler tapi harga tidak ada";
+  - `scripts/backfill_idx_price_ticker.py` (P3) menerima sesi BBCA tanpa bar bila broker summary membuktikan tanpa
+    transaksi Regular.
+- **Status:** DEPLOYED 2026-11-05 09:28 UTC (`d89212e5`); bukti live pertama run 10:00 UTC.
+- **Lesson for new data (Part D):** setiap sumber harian mencatat tiga keadaan per instrumen: terisi, tanpa observasi
+  (dibuktikan dari sumber lain atau dari sesi yang ada), dan gagal. Hanya yang ketiga beralarm.
+
 ### M346 — Semua layanan EDGE berhenti dan semua bucket menolak akses (2026-11-04 20:19 WIB s.d. 2026-11-05 11:10 WIB)
 
 - **Ditemukan oleh:** user, 2026-11-04 ("cost spike gila-gilaan dalam waktu 24 jam terakhir"), lalu Terminal kosong

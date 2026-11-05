@@ -1,5 +1,21 @@
 # Database changelog
 
+## 2026-11-05 — broker Features universe-only; price no-trade columns (EXEC-UNIVERSE-BROKER S2, P2)
+
+- User go 2026-11-05: "S2 P2 P3 bisa dijalankan." DRYRUN then APPLY via orc-test-runner
+  (`verification/universe_broker_s2p2/migration_*.log`):
+  - `20261105_002_broker_features_universe_only.sql` (sha256 `59c08dd0…`): `refresh_feature_05` writes and deletes only
+    tickers of `IDX_Stock_Universe`; rows of other codes already stored (F06: 287,543 rows of 3,058 codes not four
+    letters up to 2026-08-31; 258,735 rows of 225 four-letter codes) stay and are no longer refreshed. `Table_Catalog`
+    `update_rule` of F02, F03, F05, F06 extended.
+  - `20261105_003_price_no_trade.sql` (sha256 `9e0a9b36…`): `Monitoring_Price_ALL` `no_trade_symbols`,
+    `no_trade_symbol_list`, `no_trade_contradicted`; count rule `missing_symbols + no_trade_symbols = queried_symbols -
+    updated_symbols`; 3 `Column_Catalog` rows.
+- Read back: the function body reads the universe; 4 catalog rules carry the S2 sentence; 3 columns with defaults;
+  163 of 163 existing monitoring rows satisfy the new count rule.
+- `DATABASE_SCHEMA.md` regenerated (105 tables, `terminal_publish_signal` added; `Database_Table_Status` refreshed,
+  `verification/universe_broker_s2p2/schema_apply.trimmed.log`).
+
 ## 2026-11-05 — terminal_publish_signal (EXEC-PUBLISH-FLOW S1)
 
 - Migration `20261105_001_terminal_publish_signal.sql` (sha256 `493b183a…`): DRYRUN, then APPLY 04:55 UTC via

@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-05 — price no-trade (P2) live; broker Features universe-only (S2) code pushed (EXEC-UNIVERSE-BROKER)
+
+- `main` `d89212e5`, from GitHub, all SUCCESS 09:28 UTC: idx-price-cron `3ff813ed`, idx-price-recovery-cron `862b9a82`,
+  telegram-monitor `63e85970`. Migrations 002 and 003 were applied before the push (DATABASE_CHANGELOG).
+- stockbit-updater (`refresh.py`, `scripts/backfill_index_features.py`, CLI upload) not uploaded yet: a deployment runs a
+  broker round; it goes up with the next round (S2 is already active through `refresh_feature_05`).
+- First live P2 run: idx-price-cron 10:00 UTC.
+
 ## 2026-11-05 — EXEC-PUBLISH-FLOW: publisher started by the loaders' completion (code deployed, trigger token pending)
 
 - `main` `f17e0baf`, all SUCCESS 05:02 UTC:

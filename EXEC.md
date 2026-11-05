@@ -10156,6 +10156,16 @@ hover kiri kanan atas bawah dengan ngeklik header." Lampiran: `edge-design-spec-
     pencocokan itu memakai baris universe di kedua sisi.
   - Urutan deploy: S2 baru aktif sesudah 63 kode masuk universe, supaya fitur broker mereka tidak berhenti. Kalau
     terlambat, pemeriksaan perubahan (baris universe) mengisi tanggal yang tertinggal sendiri.
+- **Hasil 2026-11-05 (sesudah go):**
+  - Migrasi `20261105_002` (S2) dan `20261105_003` (P2) DRYRUN lalu APPLY, dibaca balik (DATABASE_CHANGELOG).
+  - Kode `main` `d89212e5`: idx-price-cron, idx-price-recovery-cron dan telegram-monitor SUCCESS 09:28 UTC (P2 aktif).
+    stockbit-updater (`refresh.py`, `backfill_index_features.py`) belum diunggah: setiap unggahan menjalankan satu
+    putaran broker, jadi ikut putaran berikutnya. S2 sudah berlaku lewat `refresh_feature_05`.
+  - Tes: stockbit-updater 16 (5 baru, database uji), INDEX staging di database uji (IHSG tetap semua simbol, baris lama
+    di luar universe diabaikan, selisih universe tetap menghentikan), idx-price-cron 31 (8 baru), telegram-monitor 34
+    (2 baru), P3 1.
+  - Belum: S1 (63 kode masuk universe, harga, dukungan ETF), S3 unggah (sesudah tarikan selesai), bukti live P2
+    (run 10:00 UTC), unggahan stockbit-updater.
 - **S2 — fitur broker hanya untuk universe:**
   - `refresh_feature_05` (dan turunannya) hanya menulis ticker `IDX_Stock_Universe`;
   - pemeriksaan "sumber = F05" di `refresh.py` disesuaikan ke baris sumber milik universe;
