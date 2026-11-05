@@ -297,6 +297,9 @@ export function zscore(x: Series, baseline: number): Series {
   return out;
 }
 
+/** FL32 Activity Spike: the measure's buy and sell columns */
+const SPIKE: Record<string, [Measure, Measure]> = { tx:['bf', 'sf'], value:['bv', 'sv'], lot:['bl', 'sl'] };
+
 /* ---- the indicators ---- */
 type Fn = (ctx: FlowContext, p: FlowParams) => FlowOut;
 const W = (p: FlowParams, d = 1) => int(p.window, d);
@@ -535,7 +538,20 @@ export const FLOW: Record<string, Fn> = {
       if (s1 === null || s0 === null || c1 === null || c0 === null || !s0 || !c0) continue;
       out[t] = atLeast(s1 / s0, volx) && atMost(100 * Math.abs(c1 / c0 - 1), move) ? 1 : 0;
     }
-    return { value:out };
+    /* to-do 18 (user 2026-11-05): two broker triggers beside it, each candle on its own (every board and investor): net =
+       Σ net of the N largest net buyers ÷ |Σ net of the N largest net sellers| ≥ X; gross = Σ gross buy of the N largest
+       buyers ÷ Σ gross sell of the N largest sellers ≥ X. Optional marks (off by default in the Style tab). */
+    const R = c.rows, g = grid(R, null, null), net = series(R.N), gross = series(R.N);
+    for (let k = 0; k < R.N; k++) {
+      if (!R.has[k]) continue;
+      const nets = Array.from({ length:g.B }, (_, b) => bw(g, 'bv', b, k, k) - bw(g, 'sv', b, k, k));
+      const nb = topOf(R, int(p.n_net, 3), b => nets[b]).reduce((x, b) => x + nets[b], 0), ns = topOf(R, int(p.n_net, 3), b => -nets[b]).reduce((x, b) => x - nets[b], 0);
+      const vn = div(nb, ns); net[k] = vn === null ? null : atLeast(vn, Number(p.x_net)) ? 1 : 0;
+      const gb = topOf(R, int(p.n_gross, 3), b => bw(g, 'bv', b, k, k)).reduce((x, b) => x + bw(g, 'bv', b, k, k), 0);
+      const gs = topOf(R, int(p.n_gross, 3), b => bw(g, 'sv', b, k, k)).reduce((x, b) => x + bw(g, 'sv', b, k, k), 0);
+      const vg = div(gb, gs); gross[k] = vg === null ? null : atLeast(vg, Number(p.x_gross)) ? 1 : 0;
+    }
+    return { value:out, net, gross };
   },
   FL28:(c, p) => {
     const n = int(p.window, 20), out = series(c.rows.N);
@@ -559,8 +575,12 @@ export const FLOW: Record<string, Fn> = {
   },
   FL29:(c, p) => {
     const R = c.rows, g = grid0(p), n = int(p.top, 3), D = W(p, 20), th = Number(p.threshold) || 0;
-    const bal = series(R.N).map((_, k) => { if (!R.has[k]) return null; const [nb, ns] = bandar(g, R, k, k, n), v = div(nb + ns, aw(g, 'bv', k, k)); return v === null ? null : 100 * v });
-    return { value:each(R, D, (a, t) => { let k2 = 0; for (let k = a; k <= t; k++) if (bal[k] !== null && above(bal[k]!, th)) k2++; return 100 * k2 / D }) };
+    const nbs = series(R.N).map((_, k) => { if (!R.has[k]) return null; const [nb, ns] = bandar(g, R, k, k, n); return nb + ns });
+    const bal = nbs.map((x, k) => { if (x === null) return null; const v = div(x, aw(g, 'bv', k, k)); return v === null ? null : 100 * v });
+    /* to-do 12 (user 2026-11-05 "C"): beside the days, the size: 100 × Σ(NB + NS) / Σ TBV over the days, each day's own
+       bandar (a day without broker data adds 0 to both) */
+    const balance = each(R, D, (a, t) => { let s = 0, T = 0; for (let k = a; k <= t; k++) if (nbs[k] !== null) { s += nbs[k]!; T += aw(g, 'bv', k, k) } const v = div(s, T); return v === null ? null : 100 * v });
+    return { value:each(R, D, (a, t) => { let k2 = 0; for (let k = a; k <= t; k++) if (bal[k] !== null && above(bal[k]!, th)) k2++; return 100 * k2 / D }), balance };
   },
   FL30:(c, p) => {
     const R = c.rows, all = grid(R, null, p.investors ?? null), cross = grid(R, ['Nego', 'Cash'], p.investors ?? null);
@@ -573,20 +593,31 @@ export const FLOW: Record<string, Fn> = {
     for (let t = w - 1; t < N; t++) { let s = 0; for (let k = t - w + 1; k <= t; k++) s += per[k]; out[t] = s }
     return { value:out };
   },
+  /* to-do 2 (user 2026-11-04 "P2 Ok", "P1 Pisahkan", "Keduanya", "pertahankan di tempat"): Activity Spike: the measure
+     (transactions, value or lots) of one side today ÷ its mean over the baseline candles before; Both = two lines */
   FL32:(c, p) => {
-    const R = c.rows, g = grid0(p), bsl = int(p.baseline, 20);
-    return { value:each(R, bsl + 1, (a, t) => {
-      if (aw(g, 'miss', a, t) > 0) return null;
-      return div(aw(g, 'bf', t, t), aw(g, 'bf', a, t - 1) / bsl);
-    }) };
+    const R = c.rows, g = grid0(p), bsl = int(p.baseline, 20), mf = SPIKE[p.measure] || SPIKE.tx;
+    const one = (m: Measure) => each(R, bsl + 1, (a, t) => {
+      if (p.measure === 'tx' || !p.measure) { if (aw(g, 'miss', a, t) > 0) return null }
+      return div(aw(g, m, t, t), aw(g, m, a, t - 1) / bsl);
+    });
+    return sided(p, () => one(mf[0]), () => one(mf[1]));
   },
+  /* to-do 4 (user 2026-11-05 "(iv) Top-N per hari, bawaan tetap semua broker, Side ya"): the cohort of each candle is that
+     candle's own Top-N (the side picks buyers or sellers, R1); value and transactions are added over each period */
   FL33:(c, p) => {
     const R = c.rows, g = grid0(p), r = int(p.recent, 5), bsl = int(p.baseline, 20);
-    return { value:each(R, r + bsl, (a, t) => {
-      if (aw(g, 'miss', a, t) > 0) return null;
-      const now = div(aw(g, 'bv', t - r + 1, t), aw(g, 'bf', t - r + 1, t)), before = div(aw(g, 'bv', a, t - r), aw(g, 'bf', a, t - r));
+    const one = (q: FlowParams, v: Measure, f: Measure) => each(R, r + bsl, (a, t) => {
+      let V1 = 0, F1 = 0, V0 = 0, F0 = 0;
+      for (let k = a; k <= t; k++) {
+        const C = cohort(g, R, q, k, k);
+        if (cmiss(g, C, k, k)) return null;
+        if (k > t - r) { V1 += cc(g, C, v, k); F1 += cc(g, C, f, k) } else { V0 += cc(g, C, v, k); F0 += cc(g, C, f, k) }
+      }
+      const now = div(V1, F1), before = div(V0, F0);
       return now === null || before === null || !before ? null : 100 * (now / before - 1);
-    }) };
+    });
+    return mirrored(p, (q, side) => side === 'buy' ? one(q, 'bv', 'bf') : one(q, 'sv', 'sf'));
   },
   FL34:(c, p) => {
     const R = c.rows, g = grid0(p);

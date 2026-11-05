@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "4c4f81b81ea455946fc1f3660a299d5094b2c73f6c383d0a715bd09a53a3f024"
+  "sha256": "fc719532529842d9a4f728c880e528567e22f92962388d3e0177bc470ffa23de"
  },
  "families": [
   "Share",
@@ -3285,9 +3285,11 @@
    "unit": "flag",
    "needs_frequency": false,
    "outputs": [
-    "value"
+    "value",
+    "net",
+    "gross"
    ],
-   "tip": "Volume naik tetapi harga hampir diam.",
+   "tip": "Tanda saat volume naik tetapi harga hampir diam; pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).",
    "params": [
     {
      "key": "recent",
@@ -3324,6 +3326,42 @@
      "default": 3,
      "min": 0,
      "max": 100
+    },
+    {
+     "key": "n_net",
+     "label": "Net trigger: N brokers",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "x_net",
+     "label": "Net trigger: ratio at least",
+     "status": "DECIDED",
+     "kind": "num",
+     "default": 1.5,
+     "min": 0,
+     "min_exclusive": true
+    },
+    {
+     "key": "n_gross",
+     "label": "Gross trigger: N brokers",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "x_gross",
+     "label": "Gross trigger: ratio at least",
+     "status": "DECIDED",
+     "kind": "num",
+     "default": 1.5,
+     "min": 0,
+     "min_exclusive": true
     }
    ]
   },
@@ -3358,9 +3396,10 @@
    "unit": "%",
    "needs_frequency": false,
    "outputs": [
-    "value"
+    "value",
+    "balance"
    ],
-   "tip": "Seberapa sering akumulasi terjadi dalam satu periode.",
+   "tip": "Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai transaksi (persen).",
    "params": [
     {
      "key": "top",
@@ -3500,15 +3539,16 @@
   },
   {
    "id": "FL32",
-   "name": "Transactions · Spike",
+   "name": "Activity Spike",
    "family": "Transactions",
    "place": "pane",
    "unit": "x",
-   "needs_frequency": true,
+   "needs_frequency": false,
    "outputs": [
-    "value"
+    "buy",
+    "sell"
    ],
-   "tip": "Lonjakan aktivitas transaksi.",
+   "tip": "Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya.",
    "params": [
     {
      "key": "boards",
@@ -3555,6 +3595,48 @@
      "status": "DECIDED",
      "kind": "levels",
      "default": "2.5"
+    },
+    {
+     "key": "measure",
+     "label": "Measure",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "tx",
+       "Transactions"
+      ],
+      [
+       "value",
+       "Value (Rp)"
+      ],
+      [
+       "lot",
+       "Lot"
+      ]
+     ],
+     "default": "tx"
+    },
+    {
+     "key": "side",
+     "label": "Side",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "buy",
+       "Buy"
+      ],
+      [
+       "sell",
+       "Sell"
+      ],
+      [
+       "both",
+       "Both"
+      ]
+     ],
+     "default": "buy"
     }
    ]
   },
@@ -3566,10 +3648,73 @@
    "unit": "%",
    "needs_frequency": true,
    "outputs": [
-    "value"
+    "buy",
+    "sell"
    ],
-   "tip": "Apakah ukuran transaksi membesar atau mengecil.",
+   "tip": "Perubahan nilai rata-rata per transaksi (beli atau jual) beberapa hari terakhir dibanding periode sebelumnya, untuk semua broker atau kelompok broker.",
    "params": [
+    {
+     "key": "scope",
+     "label": "Broker scope",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "all",
+       "All brokers"
+      ],
+      [
+       "selected",
+       "Selected brokers"
+      ],
+      [
+       "topn",
+       "Top-N cohort"
+      ]
+     ],
+     "default": "all"
+    },
+    {
+     "key": "brokers",
+     "label": "Brokers",
+     "status": "DECIDED",
+     "kind": "brokers",
+     "default": []
+    },
+    {
+     "key": "top",
+     "label": "Top N",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "rank",
+     "label": "Rank Top-N by",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "net_buy",
+       "Net"
+      ],
+      [
+       "gross_buy",
+       "Gross"
+      ]
+     ],
+     "default": "net_buy"
+    },
+    {
+     "key": "ranking",
+     "label": "Top-N ranking",
+     "status": "DECIDED",
+     "kind": "fixed",
+     "text": "Recomputed every day",
+     "default": "daily"
+    },
     {
      "key": "boards",
      "label": "Market board",
@@ -3624,6 +3769,27 @@
      "status": "DECIDED",
      "kind": "levels",
      "default": "0"
+    },
+    {
+     "key": "side",
+     "label": "Side",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "buy",
+       "Buy"
+      ],
+      [
+       "sell",
+       "Sell"
+      ],
+      [
+       "both",
+       "Both"
+      ]
+     ],
+     "default": "buy"
     }
    ]
   },

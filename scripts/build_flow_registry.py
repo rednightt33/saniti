@@ -27,7 +27,7 @@ OUT = ROOT / 'apps/edge-bff/terminal/src/data/flowRegistry.json'
 # " · ", the rest go to "Other"
 FAMILIES = ['Share', 'Transaction Size', 'Transactions', 'Concentration', 'Bandar Balance', 'Buy VWAP & Implied Cost',
             'Net Flow', 'Other']
-FAMILY_OF = {'Share': 'Share', 'Transaction Size': 'Transaction Size', 'Transactions': 'Transactions',
+FAMILY_OF = {'Share': 'Share', 'Transaction Size': 'Transaction Size', 'Transactions': 'Transactions', 'Activity Spike': 'Transactions',
              'Concentration HHI': 'Concentration', 'Concentration Top-N': 'Concentration', 'Bandar Balance': 'Bandar Balance',
              'Buy VWAP': 'Buy VWAP & Implied Cost', 'Implied Cost': 'Buy VWAP & Implied Cost',
              'Net Flow Percentile': 'Net Flow', 'Flow Percentile': 'Net Flow', 'Net Buy Persistence': 'Net Flow'}
@@ -56,7 +56,8 @@ OPTIONS = {
     'Lot': ('lot', 'Lot'), 'Value': ('value', 'Value'), 'Rupiah': ('value', 'Rupiah'),
     'Net': ('net', 'Net'), 'Beli kotor': ('gross_buy', 'Gross buy'), 'Jual kotor': ('gross_sell', 'Gross sell'),
     'Persen broker aktif': ('pct', '% of active brokers'), 'Jumlah broker': ('count', 'Number of brokers'),
-    'Persentil': ('pct', 'Percentile'), 'Z-score': ('z', 'Z-score'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
+    'Persentil': ('pct', 'Percentile'), 'Z-score': ('z', 'Z-score'),
+    'Transaksi': ('tx', 'Transactions'), 'Nilai (Rp)': ('value', 'Value (Rp)'), 'Kumulatif': ('cum', 'Cumulative'), 'Harian': ('daily', 'Daily'),
     'Ya': (True, 'Yes'), 'Tidak': (False, 'No'),
 }
 BOARDS, INVESTORS = ['Regular', 'Nego', 'Cash'], ['Foreign', 'Domestic']
@@ -88,6 +89,9 @@ LABELS = {
     'Garis perubahan: dibanding': ('lag', 'Change line vs'),
     'Kurangi bagian merata (N/k)': ('even', 'Minus the even share (N/k)'),
     'Ukuran (pembilang)': ('measure', 'Measure'), 'Tampilkan sebagai': ('measure', 'Show as'), 'Ukuran statistik': ('stat', 'Statistic'),
+    'Ukuran': ('measure', 'Measure'),
+    'Pemicu net: N broker': ('n_net', 'Net trigger: N brokers'), 'Pemicu net: rasio X': ('x_net', 'Net trigger: ratio at least'),
+    'Pemicu gross: N broker': ('n_gross', 'Gross trigger: N brokers'), 'Pemicu gross: rasio X': ('x_gross', 'Gross trigger: ratio at least'),
 }
 FIXED_TEXT = {'Dihitung ulang tiap hari': 'Recomputed every day',
               'Beku: diurutkan sekali dari tanggal awal sampai hari ini': 'Frozen: ranked once from the anchor to the last day',
@@ -161,7 +165,8 @@ def outputs(fid, params):
         return ['buy', 'sell']
     if any(p['key'] == 'lag' for p in params):          # a change line beside the value (EXEC-TERMINAL-IND-EDIT)
         return ['value', 'change']
-    return {'FL06': ['ratio'], 'FL14': ['asym'], 'FL23': ['lines', 'total']}.get(fid, ['value'])
+    return {'FL06': ['ratio'], 'FL14': ['asym'], 'FL23': ['lines', 'total'], 'FL27': ['value', 'net', 'gross'],
+            'FL29': ['value', 'balance']}.get(fid, ['value'])
 
 
 # The tooltip in plain Indonesian, like the 53 price indicators' tips. FL24-FL39 take the meaning the Screener sheet
@@ -192,6 +197,11 @@ PLAIN = {
     'FL21': 'Posisi arus bersih dibanding nilai transaksi hari ini terhadap riwayat saham itu sendiri (0-100).',
     'FL22': 'Persentase broker aktif yang menjadi pembeli bersih.',
     'FL23': 'Perkiraan posisi bersih (lot atau Rupiah) tiap broker yang dipilih sejak tanggal awal; bukan kepemilikan sebenarnya.',
+    # EXEC-TERMINAL-IND-EDIT (2026-11-05): indicators whose meaning grew; the Screener sheet's sentence no longer covers it
+    'FL27': 'Tanda saat volume naik tetapi harga hampir diam; pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).',
+    'FL29': 'Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai transaksi (persen).',
+    'FL32': 'Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya.',
+    'FL33': 'Perubahan nilai rata-rata per transaksi (beli atau jual) beberapa hari terakhir dibanding periode sebelumnya, untuk semua broker atau kelompok broker.',
 }
 
 

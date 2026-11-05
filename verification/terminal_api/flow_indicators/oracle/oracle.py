@@ -788,7 +788,21 @@ def s_fl27(T, p):
         vol_ok = Fraction(sr, r) / Fraction(sb, b) >= volx
         move_ok = 100 * abs(Fraction(cl[t]) / cl[t - r] - 1) <= move
         out[t] = Fraction(1 if (vol_ok and move_ok) else 0)
-    return {'value': out}
+    # to-do 18: the broker triggers, each candle alone, every board and investor
+    net, gross = [None] * T.n, [None] * T.n
+    for t, roll in rolling(T.agg(ALL_BOARDS, ALL_INV), 1):
+        if not T.has[t]:
+            continue
+        n1, n2 = int(p['n_net']), int(p['n_gross'])
+        B = sum(roll[k][BV] - roll[k][SV] for k in top_n(roll, n1, 'net_buy'))
+        S = sum(roll[k][SV] - roll[k][BV] for k in top_n(roll, n1, 'net_sell'))
+        r1 = ratio(B, S)
+        net[t] = None if r1 is None else Fraction(1 if r1 >= F(p['x_net']) else 0)
+        GB = sum(roll[k][BV] for k in top_n(roll, n2, 'gross_buy'))
+        GS = sum(roll[k][SV] for k in top_n(roll, n2, 'gross_sell'))
+        r2 = ratio(GB, GS)
+        gross[t] = None if r2 is None else Fraction(1 if r2 >= F(p['x_gross']) else 0)
+    return {'value': out, 'net': net, 'gross': gross}
 
 
 def s_fl28(T, p):
@@ -809,7 +823,18 @@ def s_fl29(T, p):
             continue
         cnt = sum(1 for k in range(t - w + 1, t + 1) if one[k] is not None and one[k] > thr)
         out[t] = Fraction(100 * cnt, w)
-    return {'value': out}
+    # to-do 12: 100 x Σ(NB + NS) / Σ TBV over the days, each day's own bandar; a day without data adds 0
+    n_top, day = int(p['top']), [None] * T.n
+    for t, roll in rolling(T.agg(*filt(p)), 1):
+        if T.has[t]:
+            nb, ns, tbv = _bandar(roll, n_top)
+            day[t] = (nb + ns, tbv)
+    bal = [None] * T.n
+    for t in range(T.n):
+        if T.valid(t, w):
+            xs = [day[k] for k in range(t - w + 1, t + 1) if day[k] is not None]
+            bal[t] = ratio(100 * sum(x[0] for x in xs), sum(x[1] for x in xs))
+    return {'value': out, 'balance': bal}
 
 
 def s_fl30(T, p):
@@ -833,35 +858,54 @@ def s_fl31(T, p):
 
 
 def s_fl32(T, p):
-    b = int(p['baseline'])
+    """to-do 2 Activity Spike: the measure (transactions, value, lots) of one side today / its mean over the baseline"""
+    b, m = int(p['baseline']), p.get('measure', 'tx')
     P = T.prefix(*filt(p))
-    out = [None] * T.n
-    for t in range(T.n):
-        if not T.has[t] or t - b < T.first:
-            continue
-        cur = freq(wsum(P, t, t), BF)
-        base = freq(wsum(P, t - b, t - 1), BF)
-        if cur is None or base is None or base == 0:
-            continue
-        out[t] = Fraction(b * cur, base)
-    return {'value': out}
+    res = {}
+    for side in ('buy', 'sell'):
+        get = (lambda v: freq(v, BF if side == 'buy' else SF)) if m == 'tx' else (lambda v: v[BV if side == 'buy' else SV]) if m == 'value' \
+            else (lambda v: v[BS if side == 'buy' else SS])
+        out = [None] * T.n
+        for t in range(T.n):
+            if not T.has[t] or t - b < T.first:
+                continue
+            cur, base = get(wsum(P, t, t)), get(wsum(P, t - b, t - 1))
+            if cur is None or base is None or base == 0:
+                continue
+            out[t] = Fraction(b * cur, base)
+        res[side] = out
+    return res
 
 
 def s_fl33(T, p):
+    """to-do 4: each candle's own cohort (side picks buyers or sellers), value and transactions added per period"""
     r, b = int(p['recent']), int(p['baseline'])
-    P = T.prefix(*filt(p))
-    out = [None] * T.n
-    for t in range(T.n):
-        if not T.has[t] or t - r - b + 1 < T.first:
-            continue
-        R = wsum(P, t - r + 1, t)
-        S = wsum(P, t - r - b + 1, t - r)
-        ar = ratio(R[BV], freq(R, BF))
-        as_ = ratio(S[BV], freq(S, BF))
-        if ar is None or as_ is None or as_ == 0:
-            continue
-        out[t] = 100 * (ar / as_ - 1)
-    return {'value': out}
+    days = [None] * T.n
+    for t, roll in rolling(T.agg(*filt(p)), 1):
+        days[t] = {k: list(v) for k, v in roll.items()}
+    res = {}
+    for side in ('buy', 'sell'):
+        q, jv, jf = side_p(p, side), (BV if side == 'buy' else SV), (BF if side == 'buy' else SF)
+        per = []
+        for k in range(T.n):
+            roll = days[k] or {}
+            C = cohort_of(roll, q)
+            v = vsum(roll[x] for x in (roll if C is None else C))
+            per.append((v[jv], freq(v, jf)))
+        out = [None] * T.n
+        for t in range(T.n):
+            if not T.has[t] or t - r - b + 1 < T.first:
+                continue
+            rec, base = per[t - r + 1:t + 1], per[t - r - b + 1:t - r + 1]
+            if any(x[1] is None for x in rec + base):
+                continue
+            ar = ratio(sum(x[0] for x in rec), sum(x[1] for x in rec))
+            as_ = ratio(sum(x[0] for x in base), sum(x[1] for x in base))
+            if ar is None or as_ is None or as_ == 0:
+                continue
+            out[t] = 100 * (ar / as_ - 1)
+        res[side] = out
+    return res
 
 
 def broker_list(spec, profile):

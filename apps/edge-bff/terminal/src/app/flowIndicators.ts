@@ -44,11 +44,13 @@ const hasCounts = (R: FlowRows) => {
 };
 const NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 
+/** K4: a parameter choice that counts transactions (a measure or unit 'tx') needs the broker files' counts */
+export const needsCounts = (p: any) => !!p && Object.values(p).some(v => v === 'tx');
 /** EXEC-TERMINAL-IND-EDIT (aturan IHSG, user 2026-11-05): the options a select offers; on an index no Lot */
 export const offeredOptions = (q: FlowRegParam, onIndex: boolean) => (q.options || []).filter(o => !(onIndex && o[0] === 'lot'));
 /** on an index a saved or default Lot reads as the select's next option (Rupiah); the parameters are changed in place */
 export function withoutLot(params: FlowRegParam[], p: any, onIndex: boolean) {
-  if (onIndex) for (const f of params) if (f.kind === 'select' && p[f.key] === 'lot') p[f.key] = offeredOptions(f, true)[0]?.[0];
+  if (onIndex) for (const f of params) if (f.kind === 'select' && p[f.key] === 'lot') { const os = offeredOptions(f, true); p[f.key] = (os.find(o => o[0] === 'value') ?? os[0])?.[0] }
   return p;
 }
 
@@ -150,7 +152,9 @@ export function initFlowIndicators(ctx: Ctx) {
       /* Broker Inventory: the panel's inventory colours, the total in ink (front-end audit 2026-10-30: two orange lines) */
       if (r.id === 'FL23') return [...SLOTS.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:INV_COLORS[j] })),
         { k:'total', label:'Total', r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:'#171717' }];
-      return r.outputs.map(k => k === 'change'
+      /* to-do 18: FL27's broker triggers are optional marks, off until turned on in the Style tab; to-do 12: FL29's size */
+      const extra: Record<string, any> = { net:{ label:'Net trigger', vis:false }, gross:{ label:'Gross trigger', vis:false }, balance:{ label:'Balance %' } };
+      return r.outputs.map(k => extra[k] ? { k, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', ...extra[k] } : k === 'change'
         /* EXEC-TERMINAL-IND-EDIT (FL34 to-do 17, FL11 U2): the change line is a line on its own scale (left), in points */
         ? { k, label:'Change', r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', scale:'left', fmt:spec.points, minMove:.01 }
         : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
@@ -230,7 +234,9 @@ export function initFlowIndicators(ctx: Ctx) {
         if (i > ctx.brokerEnd) return 'No broker data yet';
         const di = DAY ? DAY.dayOf[i] : i;
         if (di < 0 || !R.has[di]) return `No broker data on this ${one}`;
-        if (r.needs_frequency && !hasCounts(R)) return 'Needs the transaction counts';
+        /* K4 (user 2026-11-05 "3 ok"): a choice that counts transactions needs them; the others draw without them */
+        if ((r.needs_frequency || needsCounts(p)) && !hasCounts(R)) return r.needs_frequency ? 'Needs the transaction counts'
+          : 'No transaction counts for this ticker: choose Value or Lot';
         return '';
       },
       validate:(p: any) => {

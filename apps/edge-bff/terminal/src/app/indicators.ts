@@ -754,9 +754,16 @@ export function initIndicators(ctx: Ctx) {
   /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05, R1): a saved choice the settings no longer offer (Rank "Net sell" on an
      indicator with a Side) goes back to the default, rather than staying as a value the dialog cannot show */
   const dropStale = o => {
-    const d = defOf(o.def); if(!d || !o.params) return o;
-    const params = { ...o.params };
+    const d = defOf(o.def); if(!d) return o;
+    const params = { ...(o.params || {}) };
     for (const f of d.inputs || []) if(f.kind === 'select' && Array.isArray(f.options) && params[f.key] !== undefined && !f.options.includes(params[f.key])) delete params[f.key];
+    /* an output renamed (FL32 "value" -> "buy"/"sell", Q4 "A"): a saved style of one line no longer drawn goes to the
+       indicator's first line when that one has none, so the user's colour and width stay */
+    const outs = (d.reg && d.reg.outs || []).map(x => x.k), st = o.style && o.style.out;
+    if(st && outs.length) {
+      const stale = Object.keys(st).filter(k => !outs.includes(k));
+      if(stale.length === 1 && !st[outs[0]]) { const { [stale[0]]:moved, ...rest } = st; o = { ...o, style:{ ...o.style, out:{ ...rest, [outs[0]]:moved } } } }
+    }
     return { ...o, params };
   };
   /* a saved list's entries: those this ticker can draw, the others parked (an unknown id is dropped, as before) */

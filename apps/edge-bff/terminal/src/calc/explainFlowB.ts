@@ -1,7 +1,8 @@
 /* EXEC-IND-CARDS IC3: Flow explainers (calc/explain.ts: the interface, the helpers and the rule that the card's number
    is the chart's number). One file per part so they can be written side by side; explainFlowIndex.ts joins them. */
 import type { FlowContext, FlowParams, FlowRows, Num } from './flow';
-import { BOARDS, INVESTORS, above, atLeast, atMost, boardIndex, classBrokers, flowDefaults, investorIndex, lagOf, meanSd } from './flow';
+import { BOARDS, INVESTORS, above, atLeast, atMost, boardIndex, classBrokers, flowDefaults, investorIndex, lagOf, meanSd, sideParams } from './flow';
+import REG from '../data/flowRegistry.json';
 import type { BrokerSums, Explanation, FlowExplainer, Step, Term } from './explain';
 import { brokerRow, filterText, flowWindow, fmt, intOf, levelsOf, spanOf, topBy, withChange } from './explain';
 
@@ -166,6 +167,32 @@ function pctSteps(c: FlowContext, t: number, bsl: number, r: Pct, f: (v: number)
       table:{ head:['Riwayat', 'x'], rows:[['Terkecil', f(s[0])], ['Tengah (median)', f(med)], ['Terbesar', f(s[s.length - 1])], [`${c.dates[t]} (x)`, f(r.x)]] } },
     { title:'Hitung persentilnya', text:`100 × (${cnt(r.lt)} + 0,5 × ${cnt(r.eq)}) ÷ ${cnt(r.n)} = ${fmt.num(value)}. x di ${c.dates[t]} lebih tinggi dari sekitar ${fmt.num(value, 0)}% riwayatnya.` },
   ];
+}
+
+/* FL27's broker triggers (to-do 18; calc/flow.ts FL27): one candle, every board and investor. net: the N largest net
+   buyers' net ÷ the N largest net sellers' |net| ≥ X; gross: the N largest gross buyers' buy ÷ the N largest gross
+   sellers' sell ≥ X */
+function triggerCard(c: FlowContext, p: FlowParams, t: number, kind: 'net' | 'gross'): Explanation | null {
+  const R = c.rows; if (t < 0 || t >= R.N || !R.has[t]) return null;
+  const N = intOf(kind === 'net' ? p.n_net : p.n_gross, 3), X = Number(kind === 'net' ? p.x_net : p.x_gross);
+  const L = cellsOf(R, t, t, null, null).list(t, t);
+  const buyers = kind === 'net' ? topBy(L, N, net) : topBy(L, N, s => s.bv), sellers = kind === 'net' ? topBy(L, N, s => -net(s)) : topBy(L, N, s => s.sv);
+  const B = buyers.reduce((x, s) => x + (kind === 'net' ? net(s) : s.bv), 0), S = sellers.reduce((x, s) => x - (kind === 'net' ? net(s) : -s.sv), 0);
+  const ratio = div(B, S);
+  if (ratio === null) return null;
+  const combine = (v: Record<string, number>) => { const q = div(v.B, v.S); return q === null ? null : atLeast(q, v.X) ? 1 : 0 }, value = combine({ B, S, X });
+  const w = kind === 'net' ? ['Net beli', 'Net jual'] : ['Beli kotor', 'Jual kotor'];
+  return {
+    output:kind, value, expr:'B ÷ S ≥ X', span:spanOf(c, t, t),
+    terms:[{ key:'B', label:`${w[0]} ${N} pembeli terbesar`, value:B, unit:'idr' }, { key:'S', label:`${w[1]} ${N} penjual terbesar`, value:S, unit:'idr' },
+      { key:'X', label:'Rasio minimal', value:X, unit:'num' }], combine,
+    steps:[
+      { title:'Ambil candle', text:`${c.dates[t]}, semua papan dan jenis investor.` },
+      { title:`${N} pembeli dan ${N} penjual terbesar`, text:kind === 'net' ? 'Net = nilai beli − nilai jual setiap broker.' : 'Beli kotor dan jual kotor setiap broker, tanpa dikurangi.',
+        table:{ head:['Broker', 'Beli', 'Jual', 'Net'], rows:[...buyers.map(brokerRow), ['B', fmt.idr(B), '', ''], ...sellers.map(brokerRow), ['S', '', fmt.idr(S), '']] } },
+      { title:'Bandingkan', text:`${fmt.idr(B)} ÷ ${fmt.idr(S)} = ${fmt.num(ratio, 2)}; ${value ? `mencapai ${fmt.num(X)}: tanda muncul` : `di bawah ${fmt.num(X)}: tidak ada tanda`}.` },
+    ],
+  };
 }
 
 /* FL20-FL39 except FL24 (see explainFlowA.ts for the reference). Each is called with the parameters as computeFlow reads
@@ -383,7 +410,8 @@ const EX: Record<string, FlowExplainer> = {
 
   /* FL27 Silent Accumulation: 1 when SMA(volume, recent) / SMA(volume, baseline before it) >= volume x and the close moved
      at most max move % over the recent candles */
-  FL27: (c, p, t) => {
+  FL27: (c, p, t, output) => {
+    if (output === 'net' || output === 'gross') return triggerCard(c, p, t, output);
     const r = intOf(p.recent, 5), bsl = intOf(p.baseline, 20), volx = Number(p.volx), move = Number(p.move);
     if (t < r + bsl - 1 || t >= c.rows.N) return null;
     const mean = (a: number, b: number) => { let s = 0; for (let k = a; k <= b; k++) { const v = c.volume[k]; if (v === null) return null; s += v } return s / (b - a + 1) };
@@ -447,17 +475,32 @@ const EX: Record<string, FlowExplainer> = {
 
   /* FL29 Bandar Balance · Accumulation Days: 100 x (candles in the window whose own one-candle balance is above the
      threshold) / days */
-  FL29: (c, p, t) => {
+  FL29: (c, p, t, output) => {
     const R = c.rows, N = intOf(p.top, 3), D = intOf(p.window, 20), th = Number(p.threshold) || 0, a = flowWindow(R, t, D);
     if (a === null) return null;
-    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), rows: { k: number; nb: number | null; bal: number | null; up: boolean }[] = [];
-    let K = 0;
+    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), rows: { k: number; nb: number | null; bal: number | null; up: boolean; tbv: number }[] = [];
+    let K = 0, SN = 0, ST = 0;
     for (let k = a; k <= t; k++) {
-      if (!R.has[k]) { rows.push({ k, nb:null, bal:null, up:false }); continue }
+      if (!R.has[k]) { rows.push({ k, nb:null, bal:null, up:false, tbv:0 }); continue }
       const L = X.list(k, k), nb = topBy(L, N, net).reduce((x, s) => x + net(s), 0), ns = topBy(L, N, s => -net(s)).reduce((x, s) => x + net(s), 0);
-      const v = div(nb + ns, X.all('bv', k, k)), bal = v === null ? null : 100 * v, up = bal !== null && above(bal, th);
+      const tbv = X.all('bv', k, k), v = div(nb + ns, tbv), bal = v === null ? null : 100 * v, up = bal !== null && above(bal, th);
       if (up) K++;
-      rows.push({ k, nb:nb + ns, bal, up });
+      SN += nb + ns; ST += tbv;
+      rows.push({ k, nb:nb + ns, bal, up, tbv });
+    }
+    if (output === 'balance') {                              // to-do 12: the size of the accumulation, turnover-weighted
+      const combine = (v: Record<string, number>) => v.T ? 100 * v.S / v.T : null, value = combine({ S:SN, T:ST });
+      if (value === null) return null;
+      return {
+        output:'balance', value, expr:'100 × S ÷ T', span:spanOf(c, a, t),
+        terms:[{ key:'S', label:`Jumlah (NB + NS) ${D} candle`, value:SN, unit:'idr' }, { key:'T', label:`Jumlah nilai beli semua broker ${D} candle`, value:ST, unit:'idr' }], combine,
+        steps:[
+          { title:`Ambil ${D} candle`, text:`${span(c, a, t)}, ${filterText(p)}.` },
+          { title:'NB + NS dan nilai transaksi setiap candle', text:`Setiap candle: net ${N} pembeli terbesar (NB) + net ${N} penjual terbesar (NS) candle itu, dan nilai beli semua broker. Candle tanpa data broker menambah 0.`,
+            table:tableOf(['Tanggal', 'NB + NS', 'Nilai beli'], rows, r => [c.dates[r.k], r.nb === null ? '–' : fmt.idr(r.nb), r.nb === null ? '–' : fmt.idr(r.tbv)], 'ends', 5) },
+          { title:'Jumlahkan, lalu bagi', text:`100 × ${fmt.idr(SN)} ÷ ${fmt.idr(ST)} = ${fmt.pct(value)} (total dibagi total, bukan rata-rata persen harian).` },
+        ],
+      };
     }
     const combine = (v: Record<string, number>) => v.D ? 100 * v.K / v.D : null, value = combine({ K, D });
     return {
@@ -520,50 +563,68 @@ const EX: Record<string, FlowExplainer> = {
   },
 
   /* FL32 Transactions · Spike: BF_t / mean(BF over the baseline candles before t); null when a row lacks counts */
-  FL32: (c, p, t) => {
+  FL32: (c, p, t, output) => {
+    /* to-do 2 Activity Spike (calc/flow.ts FL32): the measure of one side today ÷ its mean over the baseline candles */
+    const side = output === 'sell' || (output === undefined && p.side === 'sell') ? 'sell' : 'buy', meas = p.measure === 'value' || p.measure === 'lot' ? p.measure : 'tx';
+    const col: Col = ({ tx:{ buy:'bf', sell:'sf' }, value:{ buy:'bv', sell:'sv' }, lot:{ buy:'bl', sell:'sl' } } as const)[meas][side];
     const R = c.rows, bsl = intOf(p.baseline, 20), a = flowWindow(R, t, bsl + 1);
     if (a === null) return null;
     const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null);
-    if (X.all('miss', a, t) > 0) return null;
-    const F = X.all('bf', t, t), FB = X.all('bf', a, t - 1);
+    if (meas === 'tx' && X.all('miss', a, t) > 0) return null;
+    const F = X.all(col, t, t), FB = X.all(col, a, t - 1);
     const combine = (v: Record<string, number>) => div(v.F, v.FB / v.n), value = combine({ F, FB, n:bsl });
     if (value === null) return null;
+    const w = `${meas === 'tx' ? 'Transaksi' : meas === 'value' ? 'Nilai' : 'Lot'} ${side === 'buy' ? 'beli' : 'jual'}`;
+    const show = (v: number) => meas === 'value' ? fmt.idr(v) : cnt(v), unit: Term['unit'] = meas === 'value' ? 'idr' : meas === 'lot' ? 'lot' : 'count';
     return {
-      output:'value', value, expr:'F ÷ (FB ÷ n)', span:spanOf(c, a, t),
-      terms:[{ key:'F', label:'Transaksi beli di candle ini', value:F, unit:'count' }, { key:'FB', label:`Jumlah transaksi beli ${bsl} candle sebelumnya`, value:FB, unit:'count' },
+      output:side, value, expr:'F ÷ (FB ÷ n)', span:spanOf(c, a, t),
+      terms:[{ key:'F', label:`${w} di candle ini`, value:F, unit }, { key:'FB', label:`Jumlah ${w.toLowerCase()} ${bsl} candle sebelumnya`, value:FB, unit },
         { key:'n', label:'Candle pembanding (baseline)', value:bsl, unit:'count' }], combine,
       steps:[
-        { title:'Ambil candle', text:`${c.dates[t]} dan ${bsl} candle sebelumnya (${c.dates[a]} sampai ${c.dates[t - 1]}), ${filterText(p)}. Jumlah transaksi beli (frekuensi) semua broker.` },
-        { title:'Transaksi beli hari ini', text:`F = ${cnt(F)} transaksi beli di ${c.dates[t]}.` },
-        { title:'Rata-rata pembanding', text:`FB = ${cnt(FB)}; rata-rata = ${cnt(FB)} ÷ ${bsl} = ${fmt.num(FB / bsl)}. Candle tanpa data broker menambah 0 dan pembaginya tetap ${bsl}.`,
-          table:tableOf(['Tanggal', 'Transaksi beli'], Array.from({ length:bsl }, (_, j) => a + j), k => [c.dates[k], R.has[k] ? cnt(X.all('bf', k, k)) : '0 (tanpa data)'], 'ends', 4) },
-        { title:'Hitung lonjakannya', text:`${cnt(F)} ÷ ${fmt.num(FB / bsl)} = ${fmt.num(value)}×.` },
+        { title:'Ambil candle', text:`${c.dates[t]} dan ${bsl} candle sebelumnya (${c.dates[a]} sampai ${c.dates[t - 1]}), ${filterText(p)}. ${w} semua broker.` },
+        { title:`${w} hari ini`, text:`F = ${show(F)} di ${c.dates[t]}.` },
+        { title:'Rata-rata pembanding', text:`FB = ${show(FB)}; rata-rata = ${show(FB)} ÷ ${bsl} = ${meas === 'value' ? fmt.idr(FB / bsl) : fmt.num(FB / bsl)}. Candle tanpa data broker menambah 0 dan pembaginya tetap ${bsl}.`,
+          table:tableOf(['Tanggal', w], Array.from({ length:bsl }, (_, j) => a + j), k => [c.dates[k], R.has[k] ? show(X.all(col, k, k)) : '0 (tanpa data)'], 'ends', 4) },
+        { title:'Hitung lonjakannya', text:`${show(F)} ÷ ${meas === 'value' ? fmt.idr(FB / bsl) : fmt.num(FB / bsl)} = ${fmt.num(value)}×.` },
         ...readLevels(p, value, `${fmt.num(value)}×`),
       ],
     };
   },
 
   /* FL33 Transaction Size · Change %: 100 ((BV/BF over the recent candles) / (BV/BF over the baseline before them) - 1) */
-  FL33: (c, p, t) => {
+  FL33: (c, p, t, output) => {
+    /* to-do 4 (calc/flow.ts FL33): each candle's own Top-N (the side picks buyers or sellers, R1), value and transactions
+       added over each period, then the change of value per transaction */
+    const side = output === 'sell' || (output === undefined && p.side === 'sell') ? 'sell' : 'buy', q = sideParams(p, side);
+    const vc: Col = side === 'buy' ? 'bv' : 'sv', fc: Col = side === 'buy' ? 'bf' : 'sf', w = side === 'buy' ? 'beli' : 'jual';
     const R = c.rows, r = intOf(p.recent, 5), bsl = intOf(p.baseline, 20), a = flowWindow(R, t, r + bsl);
     if (a === null) return null;
-    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null);
-    if (X.all('miss', a, t) > 0) return null;
-    const BV1 = X.all('bv', t - r + 1, t), BF1 = X.all('bf', t - r + 1, t), BV0 = X.all('bv', a, t - r), BF0 = X.all('bf', a, t - r);
+    const X = cellsOf(R, a, t, p.boards ?? null, p.investors ?? null), days: { k: number; C: BS[] | null; V: number; F: number }[] = [];
+    let BV1 = 0, BF1 = 0, BV0 = 0, BF0 = 0;
+    for (let k = a; k <= t; k++) {
+      const C = cohortOf(X, q, k, k, ['bv', 'sv', 'bf', 'sf']);
+      if ((C ? C.reduce((x, m) => x + X.b('miss', m.i, k, k), 0) : X.all('miss', k, k)) > 0) return null;
+      const V = cw(X, C, vc, k, k), F = cw(X, C, fc, k, k);
+      if (k > t - r) { BV1 += V; BF1 += F } else { BV0 += V; BF0 += F }
+      days.push({ k, C, V, F });
+    }
     const combine = (v: Record<string, number>) => {
       const now = div(v.BV1, v.BF1), before = div(v.BV0, v.BF0);
       return now === null || before === null || !before ? null : 100 * (now / before - 1);
     };
     const value = combine({ BV1, BF1, BV0, BF0 });
     if (value === null) return null;
+    const who = (C: BS[] | null) => C === null ? 'semua' : C.map(m => m.code).join(', ') || '–';
     return {
-      output:'value', value, expr:'100 × ((BV1 ÷ BF1) ÷ (BV0 ÷ BF0) − 1)', span:spanOf(c, a, t),
-      terms:[{ key:'BV1', label:`Nilai beli ${r} candle terakhir`, value:BV1, unit:'idr' }, { key:'BF1', label:`Transaksi beli ${r} candle terakhir`, value:BF1, unit:'count' },
-        { key:'BV0', label:`Nilai beli ${bsl} candle sebelumnya`, value:BV0, unit:'idr' }, { key:'BF0', label:`Transaksi beli ${bsl} candle sebelumnya`, value:BF0, unit:'count' }], combine,
+      output:side, value, expr:'100 × ((BV1 ÷ BF1) ÷ (BV0 ÷ BF0) − 1)', span:spanOf(c, a, t),
+      terms:[{ key:'BV1', label:`Nilai ${w} ${r} candle terakhir`, value:BV1, unit:'idr' }, { key:'BF1', label:`Transaksi ${w} ${r} candle terakhir`, value:BF1, unit:'count' },
+        { key:'BV0', label:`Nilai ${w} ${bsl} candle sebelumnya`, value:BV0, unit:'idr' }, { key:'BF0', label:`Transaksi ${w} ${bsl} candle sebelumnya`, value:BF0, unit:'count' }], combine,
       steps:[
-        { title:'Ambil candle', text:`Terbaru: ${c.dates[t - r + 1]} sampai ${c.dates[t]} (${r} candle). Pembanding: ${c.dates[a]} sampai ${c.dates[t - r]} (${bsl} candle). ${cap(filterText(p))}, semua broker.` },
-        { title:'Ukuran transaksi terbaru', text:`BV1 ÷ BF1 = ${fmt.idr(BV1)} ÷ ${cnt(BF1)} = ${fmt.idr(BV1 / BF1)} per transaksi beli.` },
-        { title:'Ukuran transaksi pembanding', text:`BV0 ÷ BF0 = ${fmt.idr(BV0)} ÷ ${cnt(BF0)} = ${fmt.idr(BV0 / BF0)} per transaksi beli.` },
+        { title:'Ambil candle', text:`Terbaru: ${c.dates[t - r + 1]} sampai ${c.dates[t]} (${r} candle). Pembanding: ${c.dates[a]} sampai ${c.dates[t - r]} (${bsl} candle). ${cap(filterText(p))}.` },
+        { title:'Kelompok setiap candle', text:(p.scope ?? 'topn') === 'topn' ? `Setiap candle: ${intOf(p.top, 3)} ${side === 'buy' ? 'pembeli' : 'penjual'} terbesar candle itu sendiri (${p.rank === 'gross_buy' ? 'kotor' : 'net'}).` : cap(cohortText(q, days[0]?.C ?? null)) + '.',
+          table:tableOf(['Tanggal', 'Broker', `Nilai ${w}`, `Transaksi ${w}`], days, d => [c.dates[d.k], who(d.C), fmt.idr(d.V), cnt(d.F)], 'ends', 5) },
+        { title:'Ukuran transaksi terbaru', text:`BV1 ÷ BF1 = ${fmt.idr(BV1)} ÷ ${cnt(BF1)} = ${fmt.idr(BV1 / BF1)} per transaksi ${w} (total dibagi total).` },
+        { title:'Ukuran transaksi pembanding', text:`BV0 ÷ BF0 = ${fmt.idr(BV0)} ÷ ${cnt(BF0)} = ${fmt.idr(BV0 / BF0)} per transaksi ${w}.` },
         { title:'Hitung perubahannya', text:`100 × (${fmt.idr(BV1 / BF1)} ÷ ${fmt.idr(BV0 / BF0)} − 1) = ${fmt.pct(value)}: transaksi ${value >= 0 ? 'membesar' : 'mengecil'}.` },
         ...readLevels(p, value, fmt.pct(value)),
       ],
@@ -773,7 +834,9 @@ const EX: Record<string, FlowExplainer> = {
 const paramsOf = (id: string, p: FlowParams): FlowParams =>
   ({ ...flowDefaults(id), ...Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== undefined)) });
 
+/** the outputs each indicator draws (flowRegistry.json): a card answers those only */
+const OUTS: Record<string, string[]> = Object.fromEntries((REG as any).indicators.map((r: any) => [r.id, r.outputs]));
 export const FLOW_EXPLAIN_B: Record<string, FlowExplainer> = Object.fromEntries(Object.entries(EX).map(([id, f]) =>
-  [id, ((c, p, t, output) => id !== 'FL23' && output !== undefined && output !== 'value' ? null : f(c, paramsOf(id, p), t, output)) as FlowExplainer]));
+  [id, ((c, p, t, output) => id !== 'FL23' && output !== undefined && !(OUTS[id] || ['value']).includes(output) ? null : f(c, paramsOf(id, p), t, output)) as FlowExplainer]));
 /* EXEC-TERMINAL-IND-EDIT to-do 17: FL34's change line (calc/flow.ts changeOf) */
 FLOW_EXPLAIN_B.FL34 = withChange(FLOW_EXPLAIN_B.FL34, p => lagOf(paramsOf('FL34', p)));

@@ -157,7 +157,14 @@ describe('streaks, persistence, spikes and percentiles', () => {
   });
   it('FL32 today\'s transactions over the mean of the baseline before it', () => {
     const rows = [r(D[0], 'A', 1, 0, 1, 0, 10, 0), r(D[1], 'A', 1, 0, 1, 0, 30, 0), r(D[2], 'A', 1, 0, 1, 0, 60, 0)];
-    near(computeFlow('FL32', ctx(rows, D), { baseline:2 }).value[2], 60 / 20);
+    near(computeFlow('FL32', ctx(rows, D), { baseline:2 }).buy[2], 60 / 20);
+  });
+  it('Activity Spike (to-do 2): value or lots need no counts; sell is its own line; Both draws two', () => {
+    const rows = [r(D[0], 'A', 100, 50, 1, 2, null, null), r(D[1], 'A', 300, 50, 3, 2, null, null), r(D[2], 'A', 800, 200, 8, 4, null, null)];
+    expect(computeFlow('FL32', ctx(rows, D), { baseline:2 }).buy[2]).toBeNull();                 // transactions: no counts
+    near(computeFlow('FL32', ctx(rows, D), { baseline:2, measure:'value' }).buy[2], 800 / 200);
+    const both = computeFlow('FL32', ctx(rows, D), { baseline:2, measure:'lot', side:'both' });
+    near(both.buy[2], 8 / 2); near(both.sell[2], 4 / 2);
   });
   it('the mid-rank percentile uses only earlier values', () => {
     expect(percentile([1, 2, 3, 2], 3)).toEqual([null, null, null, 100 * (1 + 0.5) / 3]);

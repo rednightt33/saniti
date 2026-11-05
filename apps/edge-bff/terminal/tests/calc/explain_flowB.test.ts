@@ -64,13 +64,14 @@ const CASES: Record<string, Record<string, any>[]> = {
     { brokers:'class:Institutional-heavy', unit:'value', total:true }, { start:'2026-03-01', total:true }, { brokers:['AK', 'AK', 'BK'], total:true }, { boards:['Regular'], investors:['Foreign'], total:true }],
   FL25: [{}, { window:1 }, { top:1, window:30 }, { boards:['Nego'] }],
   FL26: [{}, { scope:'topn' }, { scope:'topn', window:3, top:1 }, { scope:'selected', brokers:['CC', 'KZ'] }, { window:2 }, { scope:'all', investors:['Foreign', 'Domestic'], window:4 }],
-  FL27: [{}, { volx:1.2, move:5 }, { recent:3, baseline:8, volx:1, move:1 }],
+  FL27: [{}, { volx:1.2, move:5 }, { recent:3, baseline:8, volx:1, move:1 }, { n_net:1, x_net:0.5, n_gross:5, x_gross:0.8 }, { n_net:20, x_net:3 }],
   FL28: [{}, { window:1 }, { window:7 }],
   FL29: [{}, { window:5, threshold:-5 }, { top:1, threshold:2 }, { window:30, boards:['Regular'] }],
   FL30: [{}, { window:1 }, { investors:['Foreign'] }],
   FL31: [{}, { window:1 }, { window:5 }, { window:60 }],
-  FL32: [{}, { baseline:3 }, { baseline:30, boards:['Regular'] }],
-  FL33: [{}, { recent:1, baseline:4 }, { recent:10, baseline:10, investors:['Foreign'] }],
+  FL32: [{}, { baseline:3 }, { baseline:30, boards:['Regular'] }, { measure:'value', side:'both' }, { measure:'lot', side:'sell', baseline:5 }, { side:'both', investors:['Foreign'] }],
+  FL33: [{}, { recent:1, baseline:4 }, { recent:10, baseline:10, investors:['Foreign'] }, { scope:'topn' }, { scope:'topn', top:1, side:'both', rank:'gross_buy' },
+    { scope:'selected', brokers:['AK', 'ZP'], side:'sell' }, { scope:'topn', side:'sell', recent:2, baseline:6 }],
   FL34: [{}, { window:3 }, { inst:['AK', 'BK'], retail:['ZP'] }, { inst:['AK'], retail:[] }, { inst:['AK', 'YU'] }, { retail:'class:Mixed' }, { boards:['Nego', 'Cash'] }],
   FL35: [{}, { window:3 }, { window:1, investors:['Domestic'] }],
   FL36: [{}, ...COHORT, { window:1, investors:['Foreign', 'Domestic'] }],
@@ -94,7 +95,7 @@ describe('Flow explainers FL20-FL39 on the other paths', () => {
   });
   it('FL32 and FL33 are null where a row lacks the counts', () => {
     const t = 51, e = FLOW_EXPLAIN_B.FL32(c, flowDefaults('FL32'), t);
-    expect(computeFlow('FL32', c, flowDefaults('FL32')).value[t]).toBeNull();
+    expect(computeFlow('FL32', c, flowDefaults('FL32')).buy[t]).toBeNull();      // Activity Spike draws buy/sell (to-do 2)
     expect(e).toBeNull();
   });
   it('FL23 answers the chart slots b1..b5 and total', () => {

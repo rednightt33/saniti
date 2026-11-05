@@ -199,6 +199,24 @@ set_params('FL39', lambda ps: [((p[0], p[1], p[2], 'Semua', D, 'To-do 16 (2026-1
                                else (p[0], p[1], p[2], '20', D, 'To-do 16 (2026-11-05): sama dengan FL17.') if p[0] == 'Hari rolling'
                                else (*p[:4], D, p[5]) if p[0] == 'Jenis investor (Investor type)' else p) for p in ps])
 
+def set_field(fid, idx, value):
+    k = next(i for i, f in enumerate(FL) if f[0] == fid)
+    FL[k] = tuple(value if j == idx else x for j, x in enumerate(FL[k]))
+
+# to-do 18 (user 2026-11-05, "Terpisah", "Ok"): FL27 stays; two optional broker triggers beside it (net and gross, per day,
+# N = 3, X = 1.5 each, off by default in the Style tab)
+set_params('FL27', lambda ps: ps + [
+    ('Pemicu net: N broker', 'Angka bulat', '1 - 20', '3', D, 'To-do 18: N pembeli dan N penjual bersih terbesar.'),
+    ('Pemicu net: rasio X', 'Angka', '> 0', '1.5', D, 'To-do 18: nilai N pembeli ÷ nilai N penjual >= X.'),
+    ('Pemicu gross: N broker', 'Angka bulat', '1 - 20', '3', D, 'To-do 18: N pembeli dan N penjual kotor terbesar.'),
+    ('Pemicu gross: rasio X', 'Angka', '> 0', '1.5', D, 'To-do 18: beli kotor N pembeli ÷ jual kotor N penjual >= X.')])
+# to-do 2 (user 2026-11-04 "P2 Ok tambahkan", "P1 Pisahkan", "1. ya boleh", "2. pertahankan di tempat"): FL32 Activity Spike
+set_params('FL32', lambda ps: ps + [('Ukuran', 'Pilihan', 'Transaksi / Nilai (Rp) / Lot', 'Transaksi', D, 'To-do 2: bawaan tetap jumlah transaksi (A8).')] + SIDE3)
+set_field('FL32', 5, False)          # K4: only the Transaksi measure needs the transaction counts (checked per choice)
+# to-do 4 (user 2026-11-05 "(iv) Top-N per hari, bawaan tetap semua broker, Side ya"): FL33's broker scope and side
+set_params('FL33', lambda ps: SCOPE_HHI + [RANK_SIDE, ('Ranking Top-N', 'Tetap', 'Dihitung ulang tiap hari', 'Ulang tiap hari', D,
+                                                    'To-do 4 (iv): Top-N setiap candle dari candle itu sendiri.')] + ps + SIDE3)
+
 DEC_20261105 = [
     (D, 'K1 Sisi (2026-11-05)', 'Satu arti untuk Sisi di FL01-FL05, FL08, FL13, FL14, FL33: Buy = Top-N pembeli, Sell = Top-N penjual.',
      'C diperluas ke FL01-FL05'),
@@ -214,6 +232,10 @@ DEC_20261105 = [
     (D, 'FL21 (2026-11-05)', 'Ukuran net, beli kotor atau jual kotor; nama "Flow Percentile · vs Turnover".', 'Not untuk FL21 ... gross buy. Atau gross sell, dan juga net buy'),
     (D, 'FL22, FL37 (2026-11-05)', 'FL22 juga sebagai jumlah broker net beli; FL37 persentil atau z-score.', 'U1 ok exec; U6 ok exec'),
     (D, 'FL39 (2026-11-05)', 'Bawaan FL39 = bawaan FL17 (20 candle, semua papan, asing dan domestik).', 'FL39 menggunakan FL17 default system'),
+    (D, 'FL27 pemicu (2026-11-05)', 'Dua penanda opsional: net dan gross, N = 3, X = 1,5 masing-masing, per hari, mati bawaan.', 'Terpisah; Ok'),
+    (D, 'FL29 besaran (2026-11-05)', 'Garis kedua: 100 x jumlah (NB + NS) / jumlah nilai beli semua broker selama days.', 'C; Saya setuju harus in percent'),
+    (D, 'FL32 Activity Spike (2026-11-04)', 'Ukuran (Transaksi, Nilai, Lot) dan Sisi (Beli, Jual, Keduanya); kode FL32 tetap.', 'P2 Ok tambahkan; P1 Pisahkan; 2. pertahankan di tempat'),
+    (D, 'FL33 kelompok (2026-11-05)', 'Kelompok Top-N per hari, bawaan semua broker, parameter Side.', '(iv) Top-N per hari, bawaan tetap semua broker, Side ya'),
     (D, 'Kelompok B (2026-11-05)', 'Indikator dengan Rank tanpa Sisi tetap Net beli, Beli kotor, Net jual; label diperjelas.',
      'Kelompok B tetap, ganti labelnya, masukan exec'),
 ]
@@ -514,7 +536,7 @@ RENAME = {
  'Average Lot per Transaction': 'Transaction Size · Lot', 'Average Value per Transaction': 'Transaction Size · Value',
  'Buy/Sell Average Transaction Size Ratio': 'Transaction Size · Buy/Sell Ratio', 'Average Transaction Size Percentile': 'Transaction Size · Percentile',
  'Average Trade Size Change': 'Transaction Size · Change %', 'Size Ratio': 'Transaction Size · vs Market',
- 'Cohort Frequency Imbalance': 'Transactions · Buy/Sell Imbalance', 'Trade-Count Spike': 'Transactions · Spike',
+ 'Cohort Frequency Imbalance': 'Transactions · Buy/Sell Imbalance', 'Trade-Count Spike': 'Activity Spike',
 }
 ORDER = sorted(RENAME, key=len, reverse=True)
 NAMECOL = {'Indicator_SPECS_reviewed': [3], 'Parameter_Terminal': [2], 'Ringkasan': [2], 'Indikator_baru_dari_Screener': [2]}

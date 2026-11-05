@@ -613,7 +613,7 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL27": {
-   "formula": "1 when SMA(volume,recent)_t / SMA(volume,baseline)_{t-recent} >= volume x and 100 |close_t/close_{t-recent} - 1| <= max move; drawn as a mark under the candle",
+   "formula": "1 when SMA(volume,recent)_t / SMA(volume,baseline)_{t-recent} >= volume x and 100 |close_t/close_{t-recent} - 1| <= max move; drawn as a mark under the candle; and two optional marks (to-do 18), each candle alone, every board and investor: net = 1 when Σ n_b of the N largest net buyers / Σ |n_b| of the N largest net sellers >= X; gross = 1 when Σ bv of the N largest gross buyers / Σ sv of the N largest gross sellers >= X (N, X per trigger; null when the sellers' sum is 0)",
    "outputs": "flag",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
@@ -623,8 +623,8 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL29": {
-   "formula": "100 x (candles in the last days whose own one-candle FL24 (N, filter) is above the threshold) / days; a candle without broker data in the window counts as not above",
-   "outputs": "ratio",
+   "formula": "100 x (candles in the last days whose own one-candle FL24 (N, filter) is above the threshold) / days; a candle without broker data in the window counts as not above; balance (to-do 12) = 100 x Σ_k (NB_k + NS_k) / Σ_k TBV_k over the days, each candle's own bandar, a candle without data adding 0 to both",
+   "outputs": "value, balance",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL30": {
@@ -638,13 +638,13 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL32": {
-   "formula": "BF_t(A) / mean(BF_k(A), k = t-baseline .. t-1); filter; null without the full baseline; a candle without broker data inside the baseline adds 0 to the mean (divisor stays baseline)",
-   "outputs": "spike",
+   "formula": "X_t(A) / mean(X_k(A), k = t-baseline .. t-1), X = transactions BF/SF (default), value BV/SV or lots BL/SL by the measure, Buy or Sell by the side (Both = two lines); filter; null without the full baseline; a candle without broker data inside the baseline adds 0 to the mean (divisor stays baseline); only the transactions measure needs the counts",
+   "outputs": "buy, sell",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL33": {
-   "formula": "100 ((BV/BF over the last recent candles) / (BV/BF over the baseline candles before them) - 1), A, filter",
-   "outputs": "change",
+   "formula": "100 ((ΣV/ΣF over the last recent candles) / (ΣV/ΣF over the baseline candles before them) - 1), V, F = the value and transactions of each candle's own cohort C_k (every broker by default; Top-N of that candle: top buyers for Buy, top sellers for Sell, to-do 4); Buy BV/BF, Sell SV/SF; filter",
+   "outputs": "buy, sell",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL34": {
