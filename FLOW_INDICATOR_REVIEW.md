@@ -974,7 +974,7 @@ Sebaran 252 sesi, |perubahan| median: harian 1,37 poin (P10 −3,38, P90 +2,90, 
 
 ### 5p.4 Pertanyaan terbuka (saat to-do ini diambil)
 
-1. **Apa yang diubah:** nilai FL34 itu sendiri (bacaan AI), atau net institusi dan net ritel harian secara terpisah.
+1. ~~Apa yang diubah.~~ **Dijawab user 2026-11-05:** "Apa yang dirubah? Tidak ada yang dirubah. FL34 tetap as is, tapi ditambahkan toggle atau misalkan line change-nya seperti apa." Jadi FL34 tidak berubah; yang ditambahkan adalah garis perubahan (atau tombol pilihan/toggle) atas nilai FL34. Bentuknya, garis tetap atau toggle, belum dipilih user.
 2. **"Dan lain sebagainya":** jarak waktu mana saja (5 sesi, 20 sesi, atau lainnya), dan apakah ada ukuran selain selisih (misalnya persen perubahan).
 3. **Satuan:** poin persentase atau persen perubahan.
 4. ~~Bentuk: garis kedua di panel yang sama atau indikator terpisah.~~ **Dijawab user 2026-11-05: "Panel gabungan aja"** (ukuran perubahan ditampilkan di panel yang sama dengan FL34; bacaan AI: sebagai garis kedua).
