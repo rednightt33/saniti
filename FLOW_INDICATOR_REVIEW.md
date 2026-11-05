@@ -30,6 +30,7 @@ item baru dijalankan atas perintah user.
 | 11 | FL25 Bandar Balance · Rupiah | Visual tambahan yang menunjukkan **apa yang mendorong tiap kenaikan dan penurunan** FL25 | "Tampilan dua garis buat apa? FL25 sebenarnya yang perlu kita, kalau mau ditambahkan visual, adalah setiap kenaikan dan penurunan ini didorong oleh apa. Mungkin itu bisa dimasukkan ke to-do list." (2026-11-05) | To-do, definisi "didorong oleh apa" menunggu user. Bagian 5j |
 | 12 | FL29 Bandar Balance · Accumulation Days | Ditambah ukuran **seberapa besar** akumulasi, dalam persen atau persentil (sebanding antar saham), di panel yang sama atau sebagai indikator baru yang berpasangan | "mungkin di panel yang sama harus ditambahkan ... akumulasi terjadi 70% of the time. Tapi mesti dikasih tahu juga seberapa besar akumulasinya. Bukan in rupiah, tapi harus in percentage atau percentile. Sehingga angka tersebut bisa comparable across stock. Atau mungkin ya dibuatkan indikator baru lah. Yang bisa di-pair dengan FL29." (2026-11-05) | To-do; ukuran dipilih user: C ("C", 2026-11-05); panel yang sama atau indikator baru, dan persentil, menunggu user. Bagian 5k |
 | 13 | Indikator baru (kode ditetapkan saat dikerjakan), berpasangan dengan FL17 | Harga rata-rata pembelian bergulir dengan **Top-N dipilih per hari** (cara B); indikator **terpisah**, FL17 tidak diubah | "Jadi aja kita tambahkan untuk opsi top N per hari yang nomor B. Ini dijadikan indikator terpisah saja nanti. You can review dan to do" (2026-11-05) | To-do, belum dijadwalkan. Bagian 5l |
+| 14 | FL17 dan FL18 (versi sisi jual) | Ditambah indikator yang menampilkan **harga rata-rata penjualan (gross jual)**, mirip FL18, dan berlaku juga untuk FL17; bentuk (indikator terpisah atau parameter sisi) menunggu user | "Boleh nggak ditambahkan satu indikator yang represent sell atau gross sell? Mirip FL18 juga. Berlaku juga untuk FL17." (2026-11-05) | To-do, belum dijadwalkan. Bagian 5m |
 
 **Diusulkan, belum diputuskan user:** Participation Shift (FL36 dibanding riwayat sendiri), bagian 5c.4.
 
@@ -834,6 +835,40 @@ Korelasi A dengan B 0,999; selisih mutlak rata-rata Rp14 (maksimum Rp103). Kohor
 ### 5l.5 Batas
 
 Satu saham (BBRI). Dihitung dari data broker mentah (semua papan), belum dicocokkan dengan BFF yang hidup. Tidak ada klaim bahwa cara B lebih prediktif. Tidak ada kode yang diubah.
+
+## 5m. To-do: harga rata-rata penjualan (gross jual) untuk FL17 dan FL18
+
+**Catatan user 2026-11-05 (kata-katanya):** "Oke, saya rasa untuk F5 18 sudah benar, tapi ini kan hanya metriknya hanyalah gross beli ya, which is kita menghitung berapa rata-rata harga average beli broker-broker yang akumulasi atau melakukan net buy pada kurun waktu tertentu. Boleh nggak ditambahkan satu indikator yang represent sell atau gross sell? Mirip FL18 juga. Berlaku juga untuk FL17."
+("F5 18" dibaca FL18.) Ini daftar to-do, bukan jadwal eksekusi: belum ada tanggal dan belum ada perintah "go". Kode tidak diubah.
+
+### 5m.1 Kondisi sekarang **[T]** (`flow.ts:310-313`, `:327-331`, `:182-186`, registry)
+
+FL17 dan FL18 menghitung `Σ BV(C) / (100 × Σ BL(C))`: harga rata-rata **gross beli** kelompok, sisi jual tidak masuk. Parameter `rank` sudah menawarkan **net beli, gross beli, dan net jual** (`SCORE`, `flow.ts:182-186`), jadi kelompok Top-N net **jual** sudah bisa dipilih; yang belum ada adalah sisi jual pada ukuran harganya (`Σ SV(C) / (100 × Σ SL(C))`).
+
+### 5m.2 To-do (bacaan AI atas kata-kata user, belum dikonfirmasi)
+
+Indikator harga rata-rata **penjualan** tertimbang lot, `Σ SV(C) / (100 × Σ SL(C))` (gross jual), dalam dua bentuk yang sejajar dengan FL17 (jendela bergulir) dan FL18 (anchor, kohort beku).
+
+### 5m.3 Bukti pada data (BBRI, semua investor, semua papan, Top-3, dihitung 2026-11-05; penutupan 3 Nov Rp2.660)
+
+| Periode | Kelompok | Net (Rp miliar) | Harga rata-rata **beli** | Harga rata-rata **jual** |
+|---|---|---:|---:|---:|
+| Anchor 10 Agu (60 sesi) | Pembeli bersih NI, OD, CC | +1.988,1 | Rp2.947 | Rp3.042 |
+| Anchor 10 Agu (60 sesi) | Penjual bersih ZP, AK, BB | −2.501,4 | Rp3.086 | Rp2.980 |
+| Jendela 20 sesi | Pembeli bersih NI, CC, OD | +2.538,9 | Rp2.795 | Rp2.809 |
+| Jendela 20 sesi | Penjual bersih ZP, AK, KZ | −3.342,5 | Rp2.845 | Rp2.744 |
+
+### 5m.4 Pertanyaan terbuka (saat to-do ini diambil)
+
+1. **Kelompok untuk sisi jual:** (a) kelompok pembeli bersih, dengan harga rata-rata penjualan mereka sendiri; atau (b) kelompok **penjual bersih** (Top-N net jual), dengan harga rata-rata penjualan mereka. Kata-kata user ("akumulasi atau net buy ... represent sell") belum memutuskan; yang disajikan di 5m.3 adalah keduanya.
+2. **Bentuk:** parameter **sisi** (beli, jual, keduanya sebagai dua garis, seperti keputusan Activity Spike) pada FL17 dan FL18, atau indikator terpisah.
+3. **Nama dan kode** ditetapkan saat dikerjakan.
+4. **Kaitan dengan to-do 13** (Top-N per hari): apakah sisi jual berlaku juga di sana.
+5. Perlakuan bila kelompok tidak punya penjualan (penyebut nol): kosong.
+
+### 5m.5 Batas
+
+Satu saham (BBRI), satu tanggal. Dihitung dari data broker mentah (semua papan), belum dicocokkan dengan BFF yang hidup. Tidak ada klaim bahwa harga rata-rata jual memprediksi apa pun. Tidak ada kode yang diubah.
 
 ## 6. Bentrokan kode "FL" antara terminal dan screener
 
