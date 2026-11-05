@@ -215,6 +215,10 @@ and the provisioning script's reach, one Chromium check of the tab, and the scre
 
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
+The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/index.html` sets
+`document.title` from `EdgeLabels.pages` in `static/edge-labels.js` (Sign In, Monitor, Terminal, Backtest, Screener); the
+static `<title>` is only "EDGE". `tests/test_page_titles.py` checks it in a browser.
+
 The page is edited as one HTML file and its API wiring is not locked to the view. Four layers, each with one job:
 
 | Layer | File | Change it when |

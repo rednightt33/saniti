@@ -351,3 +351,27 @@ Tes Terminal yang mengunci apa:
   `FRONTEND_HANDOFF.md`
 - `verification/terminal_api/flow_indicators/FORMULAS.md` (rumus Flow)
 - ERRORS M329 (rilis registry yang lupa dibangun ulang), M349 (Feature 04 di masa harga datar)
+
+---
+
+## 11. Perubahan EXEC-TERMINAL-IND-EDIT (2026-11-05)
+
+Bagian ini menambah, bukan mengganti, isi di atas. Rincian keputusan: `EXEC.md`, EXEC-TERMINAL-IND-EDIT.
+
+- **Menu menyembunyikan indikator lewat satu daftar** `MENU_HIDDEN` (`T/src/app/indMenu.ts`): I37, I41, FL07, FL35, FL36.
+  `indRegistry.json` dan `indicators.ts` tidak disentuh, jadi Backtest dan Screener tidak berubah. Chart tersimpan yang
+  memakainya tetap tergambar (restore membaca definisi, bukan menu).
+- **Flow sekarang FL01–FL48.** FL40–FL48 baru (lihat `FORMULAS.md`). Tes menurunkan daftar id dari registry, bukan angka 39.
+- **Aturan Sisi** (`sideParams`, `T/src/calc/flow.ts`): pada indikator ber-Sisi, Rank = Net atau Gross; Buy = Top-N pembeli,
+  Sell = Top-N penjual. FL09 memakai rank-nya sendiri (`transactionSize`).
+- **Registry Flow dibangkitkan** dari `build_spec_workbook.py` (lapisan "decisions 2026-11-05": `set_params`, `set_field`,
+  baris FL40+) → `FLOW_INDICATORS_SPEC.xlsx` → `scripts/build_flow_registry.py`. `--check` sekarang dijalankan
+  `scripts/tests/test_registries_current.py`. Indikator baru wajib punya tip di `PLAIN` (generator gagal jelas bila tidak).
+- **Tampilan per garis**: output boleh punya skala kiri (`scale:'left'`) dan format sendiri (`fmt`), dipakai garis
+  perubahan FL11/FL34 (poin) dan format yang bergantung pilihan (z-score, jumlah broker, rasio).
+- **Pilihan menurut data**: di indeks (IHSG) pilihan Lot tidak ditawarkan dan simpanan Lot dibaca Rupiah
+  (`offeredOptions`, `withoutLot`, `T/src/app/flowIndicators.ts`); pilihan "Transaksi" tanpa jumlah transaksi memberi garis
+  kosong dengan pesan legend, bukan blokir dialog (validate mereset setting tersimpan, `indicators.ts`).
+- **Setting tersimpan**: pilihan select yang tidak lagi ditawarkan kembali ke bawaan; gaya satu garis yang namanya berubah
+  pindah ke garis pertama (`dropStale`, `indicators.ts`).
+- **Kartu**: `withChange` (`T/src/calc/explain.ts`) untuk garis perubahan; semua kartu Flow juga diuji pada konteks indeks.

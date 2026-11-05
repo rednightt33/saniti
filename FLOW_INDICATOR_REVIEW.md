@@ -10,6 +10,36 @@ dengan indikator FLOW yang di display di BFF."
 Dokumen ini adalah register tinjauan: untuk tiap indikator Flow ia mencatat apa indikator itu, buktinya pada data nyata,
 dan pilihan keputusan. Keputusan akhir ada di user.
 
+## Status pelaksanaan (EXEC-TERMINAL-IND-EDIT, 2026-11-05)
+
+Dikerjakan di branch `claude/practical-thompson-2intee`, belum di `main` (merge sesudah verifikasi, keputusan user 2026-11-05).
+Rincian, keputusan tambahan (K1–K4, R1, Q2–Q4, kelompok B, U1–U6) dan bukti ada di `EXEC.md` bagian EXEC-TERMINAL-IND-EDIT;
+daftar verifikasi di `verification/terminal_api/flow_indicators/VERIFY_EXEC_TERMINAL_IND_EDIT.md`.
+
+| To-do | Hasil di kode | Kode indikator |
+|---|---|---|
+| 1, 9, 19 | Disembunyikan dari menu (definisi tetap) | FL07, FL35, FL36 |
+| 2 | Activity Spike (Ukuran, Sisi) | FL32 |
+| 3 | Activity Spike · Balance (bawaan investor Foreign) | FL40 (baru) |
+| 4 | Kelompok Top-N per hari + Sisi | FL33 |
+| 5, 6 | Kelompok broker HHI (Top-N dikunci per jendela), Satuan Lot/Rupiah | FL13, FL14, FL15, FL16, FL38 |
+| 7 | Satu penyebut | FL11 |
+| 8 | Net Flow / Average Turnover | FL41 (baru) |
+| 10 | Ukuran net / beli kotor / jual kotor; nama "Flow Percentile · vs Turnover" | FL21 |
+| 11 | Dibatalkan | FL25 |
+| 12 | Garis kedua besaran akumulasi (C) | FL29 |
+| 13 | Buy VWAP · Rolling · Daily Top-N | FL42 (baru) |
+| 14 | Sell VWAP · Rolling / Anchored | FL43, FL44 (baru) |
+| 15 | Buy VWAP · Anchored · Distance % | FL45 (baru) |
+| 16 | Bawaan FL39 = bawaan FL17 | FL39 |
+| 17 | Garis perubahan (sumbu kiri, poin) | FL34 (juga FL11, U2) |
+| 18 | Dua pemicu broker opsional | FL27 |
+| 20 | Flow Ratio (keluarga Ratio) dengan gerbang penolakan | FL46 (baru) |
+
+Ditambah dari keputusan lain: aturan Sisi (Sell = Top-N penjual) di FL01–FL05, FL08, FL13, FL14, FL33; label Rank; z-score
+FL37 (U1); bagian merata FL15/FL16 (U3); FL22 jumlah (U6); FL47 Net Buy Intensity dan FL48 Bandar Balance · Imbalance (U4,
+U5); I37 dan I41 disembunyikan dari menu Terminal saja.
+
 ## Daftar to-do (catatan user)
 
 Daftar ini mencatat apa yang ingin user lakukan kelak pada indikator Flow. Ini bukan jadwal dan bukan persetujuan eksekusi; tiap
