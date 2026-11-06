@@ -253,7 +253,7 @@ export function initIndicators(ctx: Ctx) {
   const relayout = () => { if(relayoutAt) return; relayoutAt = requestAnimationFrame(() => { relayoutAt = 0; layoutPanes() }) };
   const setFold = (inst, on: boolean, keep = true) => {
     inst.fold = on; inst.row.classList.toggle('folded', on);
-    const b = inst.row.querySelector('.ind-fold'); if(b) { b.setAttribute('aria-expanded', String(!on)); b.setAttribute('aria-label', `${on ? 'Expand' : 'Collapse'} the ${inst.def.name} pane`); b.dataset.label = on ? 'Expand' : 'Collapse' }
+    const b = inst.foldBtn; if(b) { b.classList.toggle('folded', on); b.setAttribute('aria-expanded', String(!on)); b.setAttribute('aria-label', `${on ? 'Expand' : 'Collapse'} the ${inst.def.name} pane`); b.dataset.label = on ? 'Expand' : 'Collapse' }
     const a = inst.row.querySelector('.ind-actbtn[data-act="fold"]'); if(a) a.textContent = on ? 'Expand' : 'Collapse';
     refresh(inst); layoutPanes(); if(keep) save();
   };
@@ -366,7 +366,7 @@ export function initIndicators(ctx: Ctx) {
        the name keeps its room; they press the row's own buttons */
     const acts = document.createElement('span'); acts.className = 'ind-act';
     /* EXEC-TERMINAL-LAYOUTS: a pane indicator's Collapse joins them there too (on a phone the row keeps one line) */
-    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ['del', 'Remove'], ...(inst.def.pane === 'sub' ? [['fold', inst.fold ? 'Expand' : 'Collapse']] : [])] as [string, string][]) {
+    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ['del', 'Remove']] as [string, string][]) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'ind-actbtn'; b.textContent = label; b.dataset.act = act;
       b.onclick = e => { e.stopPropagation(); (inst.row.querySelector(`:scope > [data-act="${act}"]`) as HTMLElement | null)?.click(); if(act !== 'eye') fltClose() };
       acts.appendChild(b);
@@ -379,7 +379,19 @@ export function initIndicators(ctx: Ctx) {
   function placeRow(inst) {
     if(inst.def.pane !== 'sub' || !inst.series) return;
     const el = inst.series.getPane().getHTMLElement(); if(!el) return;
-    inst.row.style.top = (el.getBoundingClientRect().top - stage.getBoundingClientRect().top + 6) + 'px';
+    const er = el.getBoundingClientRect(), sr = stage.getBoundingClientRect(), top = er.top - sr.top + 6;
+    inst.row.style.top = top + 'px';
+    /* EXEC-TERMINAL-LOOK-3: the row reaches the y-axis, so its filters sit on the right (as the Flow Timeline's); the
+       chevron is centred over the axis */
+    let axis = 60; try { axis = chart.priceScale('right', inst.series.getPane().paneIndex()).width() || 60 } catch(e) { /* default */ }
+    const right = sr.right - er.right;
+    inst.row.style.right = (right + axis + 6) + 'px';
+    if(inst.foldBtn) { inst.foldBtn.style.top = (top - 2) + 'px'; inst.foldBtn.style.right = (right + 3) + 'px' }   // at the axis's right edge, clear of its labels
+    /* the pane's top margin is its row's height (not a fixed 20 %), so the lines, the axis labels and the last-value badge
+       stay under the row and the chevron */
+    const ph = er.height, want = ph > 0 && !inst.fold ? Math.min(0.5, Math.max(0.2, (inst.row.offsetHeight + 22) / ph)) : 0.2;
+    if(Math.abs((inst.topMargin ?? 0.2) - want) > 0.01) { inst.topMargin = want; const k = inst.series.getPane().paneIndex();
+      for(const side of ['right', 'left']) try { chart.priceScale(side, k).applyOptions({ scaleMargins:{ top:want, bottom:.06 } }) } catch(e) { /* no such scale */ } }
     if(inst.row.classList.contains('flt-open')) fltPlace();
     if(inst.watch !== el) { if(inst.ro) inst.ro.disconnect(); inst.ro = new ResizeObserver(() => placeRow(inst)); inst.ro.observe(el); inst.watch = el }
   }
@@ -611,8 +623,15 @@ export function initIndicators(ctx: Ctx) {
     r.innerHTML = '<span class="ind-k"></span><b></b>'
       + `<button class="ind-eye" type="button" data-act="eye" aria-pressed="true" data-label="Hide" aria-label="Show or hide">${EYE}</button>`
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
-      + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`
-      + (inst.def.pane === 'sub' ? `<button class="ind-fold" type="button" data-act="fold" aria-expanded="true" data-label="Collapse" aria-label="Collapse the ${inst.def.name.replace(/"/g, '&quot;')} pane">${CHEV}</button>` : '');
+      + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`;
+    /* EXEC-TERMINAL-LOOK-3 (user 2026-11-06: "collapse panel di bawah, bisa disamakan juga dengan B ... taruh saja di atas
+       y-axis"): the pane's chevron sits on its right, above the y-axis, as the Flow Timeline's does */
+    if(inst.def.pane === 'sub') {
+      const f = inst.foldBtn = document.createElement('button');
+      f.type = 'button'; f.className = 'ind-fold'; f.dataset.def = inst.def.id; f.setAttribute('aria-expanded', 'true'); f.dataset.label = 'Collapse';
+      f.setAttribute('aria-label', `Collapse the ${inst.def.name} pane`); f.innerHTML = CHEV; f.onclick = () => setFold(inst, !inst.fold);
+      stage.appendChild(f);
+    }
     r.addEventListener('click', (e: any) => {
       const a = e.target.closest('[data-act]'); if(!a) return;
       if(a.dataset.act === 'fold') { setFold(inst, !inst.fold); return }
@@ -648,6 +667,7 @@ export function initIndicators(ctx: Ctx) {
     const sub = inst.def.pane === 'sub', pane = sub ? inst.series.getPane() : null;
     if(inst.ro) inst.ro.disconnect();
     if(inst.rowRO) inst.rowRO.disconnect();
+    if(inst.foldBtn) inst.foldBtn.remove();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove();

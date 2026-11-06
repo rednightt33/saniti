@@ -32,7 +32,7 @@ try {
   await addInd(p, 'Broker Inventory', 'FL23'); await p.waitForTimeout(2200);
   R.autosave = { rows:[...layouts.rows.values()].map(r => [r.name, r.summary, r.revision]), btn:await btnText(p) };
   // 3. fold a pane: part of the layout
-  await p.click('.ind-row[data-def="FL23"] .ind-fold'); await p.waitForTimeout(2200);
+  await p.click('.ind-fold[data-def="FL23"]'); await p.waitForTimeout(2200);
   R.fold_saved = JSON.parse([...layouts.rows.values()][0].state['ml.ind.v1']).map(o => o.def + (o.fold ? ':fold' : ''));
   // 4. autosave off: a change shows the unsaved mark; Ctrl+S saves it
   await menu(p); await p.click('.lay-menu .lay-switch'); await p.keyboard.press('Escape');

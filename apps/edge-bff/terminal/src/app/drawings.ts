@@ -250,6 +250,19 @@ export function initDrawings(ctx: Ctx) {
     else if(sel.length) sel.forEach((id: string) => dm.remove(id));
     else { dm.clear(); hosts.forEach(h => h.m.clear()) }
   });
+  /* EXEC-TERMINAL-LOOK-3 (user 2026-11-06: "toggle ... taruh di bawah trash ... pop-up yang kita tambahkan tadi bisa di-hide",
+     "Q1 - A"): hides or shows the filters on every indicator row (names and values stay); kept, and part of a layout */
+  if(ctx.M.mode === 'live') {
+    const FKEY = 'ml.ind.filters';
+    const ft = button('Hide indicator filters', svg('<path d="M7 9h8M19 9h2M7 14h3M14 14h7M7 19h10M21 19h0"/><circle cx="17" cy="9" r="2"/><circle cx="12" cy="14" r="2"/><circle cx="19" cy="19" r="2"/>'), () => setFilters(document.documentElement.classList.contains('ind-filters-off')));
+    const setFilters = (on: boolean, keep = true) => {
+      document.documentElement.classList.toggle('ind-filters-off', !on);
+      ft.classList.toggle('active', !on); ft.setAttribute('aria-pressed', String(!on));
+      ft.dataset.label = on ? 'Hide indicator filters' : 'Show indicator filters'; ft.setAttribute('aria-label', ft.dataset.label);
+      if(keep) store.set(FKEY, on ? '1' : '0');
+    };
+    setFilters(store.get(FKEY) !== '0', false);
+  }
   wrap.appendChild(bar);
 
   function syncTool(kind: string | null) {

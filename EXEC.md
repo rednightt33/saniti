@@ -12290,3 +12290,6 @@ Atas pertanyaan balik: "Q1 - A", "Q2- tidak ada perubahan pada flow ratio sama s
 - Top brokers: keterangan "Dot: broker's own type" dihapus; dua takik penanda tangga disambung garis; rasio pindah ke
   sebelah Top 3/5/10 sebagai badge: hijau pekat bila positif, merah pekat bila negatif, abu-abu bila 0, huruf putih (Q3 A);
   jarak Domestic–Foreign = jarak Foreign–Total.
+- Status 2026-11-06 (branch): dikerjakan. Ruang atas tiap panel bawah kini diturunkan dari tinggi barisnya (garis, label
+  sumbu dan badge nilai tidak tertutup baris yang lebih tinggi). Toggle hanya di mode live (fixture tetap 1:1). Bukti
+  `verification/terminal_api/terminal_look/look_check8.mjs` plus `look_check3/5/6/7` tanpa galat; Terminal 870/870.
