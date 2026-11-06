@@ -6,6 +6,7 @@ import type {
   Availability, CatalogIndicator, CatalogMetric, CatalogOutput, CatalogParam, CatalogResponse, MetricKind, ParamMap,
   ParamValue, TestForm, TestFormSpec, TestKind, TestOp,
 } from './core/contract.ts';
+import { formatOfMetric, formatOfOutput, type ValueFormat } from './format.ts';
 
 /** The prototype's group order (GORD): the 53-indicator catalogue first, then technical, flow and fundamental metrics. */
 export const GORD = ['Trend', 'Momentum', 'Volatility', 'Volume', 'PriceVolume', 'Technical', 'Flow', 'Fundamental'];
@@ -196,3 +197,22 @@ export function paramError(p: EntryParam, v: ParamValue): string | null {
 }
 export const rangeText = (p: CatalogParam) => p.type === 'enum' || p.type === 'boolean' ? ''
   : `${p.min != null ? (p.exclusive_min ? `> ${p.min}` : `≥ ${p.min}`) : ''}${p.min != null && p.max != null ? ', ' : ''}${p.max != null ? `≤ ${p.max}` : ''}`;
+
+/* EXEC-SCREENER-V21 (integration, data audit D-1): how a value of an entry's test is written, from the catalog (the
+   output's unit and display_unit, the test form, a metric's unit), never from the wire's coarse Cell.unit, which says
+   'dimensionless' for a percent distance, ROC, ATR % and historical volatility (core transforms.ts pct_distance). */
+/** The format of the value an option reads (`form` value / value_pct_distance / value_band_position / metric). */
+export function formatOfOpt(e: Entry | undefined, o: Opt | undefined): ValueFormat {
+  if (!e) return formatOfMetric(o?.unit);
+  if (e.kind === 'indicator') {
+    const out = e.indicator?.outputs.find(x => x.key === o?.output) ?? e.indicator?.outputs[0];
+    return formatOfOutput(out?.unit, out?.display_unit, o?.form);
+  }
+  return formatOfMetric(e.metric?.unit ?? o?.unit);
+}
+/** The format of a STATE side: the series the option compares (a price level for a moving average or a band). */
+export function formatOfSide(e: Entry | undefined, o: Opt | undefined): ValueFormat {
+  if (e?.kind !== 'indicator') return formatOfMetric(e?.metric?.unit ?? o?.unit);
+  const out = e.indicator?.outputs.find(x => x.key === o?.output) ?? e.indicator?.outputs[0];
+  return formatOfOutput(out?.unit, out?.display_unit, null);
+}

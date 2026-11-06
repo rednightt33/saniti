@@ -170,17 +170,22 @@ describe('the catalog a user reads is plain words', () => {
     expect(offending([['line refusal', shown(line)], ['bands style refusal', shown(style)]])).toEqual([]);
   });
   it("the page modules' own sentences (tooltips, notes, labels) name no decision, plan, flow or Feature id and no part of the service", () => {
-    // every string and template literal of the page's modules (src/*.ts, src/api/*.ts; not src/core, whose user-visible
-    // words are walked above) that holds a space, so a sentence rather than a key; icons.ts is SVG path data
-    const sources = import.meta.glob(['../../src/*.ts', '../../src/api/*.ts', '!../../src/icons.ts'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    // every string and template literal of the page's modules (src/*.ts, src/api/*.ts and the v21 layout src/layout/*.ts;
+    // not src/core, whose user-visible words are walked above) that holds a space, so a sentence rather than a key;
+    // icons.ts is SVG path data, and so is a literal that is only path data (SVG_PATH below) or the d="..." of an inline
+    // <svg> (layout/filters.ts, header-edit.ts, window.ts)
+    const sources = import.meta.glob(['../../src/*.ts', '../../src/api/*.ts', '../../src/layout/*.ts', '!../../src/icons.ts'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
     expect(Object.keys(sources).length).toBeGreaterThan(15);
+    expect(Object.keys(sources).filter(f => f.includes('/layout/')).length).toBeGreaterThanOrEqual(9);
+    // SVG path data (an ico('m9 6 6 6-6 6') argument, a <path d="..."> written inline): path commands and numbers only
+    const SVG_PATH = /^\s*[MmLlHhVvCcSsQqTtAaZz][\d\s.,+-MmLlHhVvCcSsQqTtAaZz]*$/;
     const NAMED = /\b(?:P|D|M|U|FL)\d+\b|\bF\d\d\b|\bEXEC-[A-Z]|\bTEMPORARY\b|\breplicas?\b|\bregistry\b|\bdata layer\b|\bworker\b|\bsnapshot\b|\bedge-bff\b/;
     const found: string[] = [];
     for (const [file, text] of Object.entries(sources)) {
       const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
       const visit = (n: ts.Node) => {
-        if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) && n.text.includes(' ')) {
-          const m = NAMED.exec(n.text);
+        if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) && n.text.includes(' ') && !SVG_PATH.test(n.text)) {
+          const m = NAMED.exec(n.text.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/\bd="[^"]*"?/g, ' '));   // inline SVG path data is not a sentence
           if (m) found.push(`${file.replace('../../', '')}:${sf.getLineAndCharacterOfPosition(n.getStart()).line + 1}: ${m[0]} in "${n.text.slice(0, 120)}"`);
         }
         ts.forEachChild(n, visit);

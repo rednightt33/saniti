@@ -32,7 +32,11 @@ export class ApiFailure extends Error {
 /** Whether a call failed because its caller aborted it (a newer edit replaced it): nothing to show. */
 export const isAbort = (e: unknown) => (e as { name?: string } | null)?.name === 'AbortError';
 
-export interface CallOpts { signal?: AbortSignal }
+/** signal aborts the call. lane (POST run only; EXEC-SCREENER-V21): 'main' (default) is the table's run on the page's
+    client_order page; 'aux' is the extra columns' request (extra-columns.ts) on a second page id with its own seq, so
+    latest wins (edge-bff keys it by owner, lane and page; the worker's lanes replace only the same page) can never make
+    the table's run answer SCREEN_REPLACED. An implementation without client_order (fixture, smoke) may ignore it. */
+export interface CallOpts { signal?: AbortSignal; lane?: 'main' | 'aux' }
 
 export interface ScreenerApi {
   /** 'live', 'fixture' or 'smoke': the fixture keeps the prototype's sample-data words (texts.ts sourceNote). */

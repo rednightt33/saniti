@@ -11969,3 +11969,74 @@ ya hanya brokers, board dan type yang ada. Coba finalize ya".
 - Clear: garis hilang dan "Choose at least one …"; garis di chart harga: tombol muncul saat baris legend di-hover/disentuh.
 
 **Menunggu:** go user.
+
+## EXEC-SCREENER-V21 — frontend Screener ke desain Type A 3-panel v21 (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "Tugas: pindahkan frontend Screener EDGE ke desain Type A 3-panel v21 dari file:
+edge-screener-typeA-3panel-v21.html ... Implementasikan tampilan dan interaksi screener dari HTML referensi ke frontend
+produksi EDGE, sambil mempertahankan autentikasi, BFF, screener-worker, kontrak API, akurasi angka, dan perilaku
+penyimpanan yang ada. ... Gunakan tepat 5 subagent ... Subagent mode: Opus 5.5 medium." Keputusan produk di pesan yang
+sama: data tetap daily; 5m/15m/1h/4h tidak diaktifkan; timeframe disembunyikan atau "Daily" saja; tanpa Return YTD dari
+jumlah weekday; extra columns hanya bila nilai, unit, parameter, data version, NA reason dan remark corporate-action
+terjaga; edit kondisi tidak langsung mengganti tabel (tabel lama tetap dengan status out-of-date sampai "Screen now");
+desain akhir three-panel v21 dari modul TypeScript produksi. Batasan: tanpa publish, deploy, Railway, database atau
+migration; tanpa perubahan semantik backend tanpa kebutuhan yang dilaporkan; tanpa fixture, `window.__fixture` atau
+inline JavaScript di produksi; CSP, autentikasi, CSRF, session dan validasi input tidak dilemahkan; "jangan commit,
+push, deploy, atau publish sampai ada instruksi eksplisit".
+
+- **Referensi:** upload user (dua salinan identik, sha256 `2cfcbd556501f5be...`), dipecah tanpa diubah di scratchpad
+  sesi (`ref-v21/`): markup, `screener.css` (1.678 baris), `layout.js` (lapisan desain lewat `window.__scr`, 1.377 baris)
+  dan bundle fixture (506 KB). Hanya referensi; tidak masuk build.
+- **Titik awal (`main` `99b27ffd`):** `npm run typecheck` lulus; vitest 26 file, 696 lulus, 1 dilewati.
+- **Pembagian:** fase A subagent 1 (UI dan layout), 2 (akurasi angka, label, unit; matriks), 3 (state, gerbang Screen
+  now, kolom tambahan lewat run pembantu pada `client_order.page` sendiri); fase B integrasi koordinator; fase C
+  subagent 4 (tes, visual, aksesibilitas) dan 5 (QA adversarial independen).
+- **Status fase A-B (2026-11-06):** selesai di working tree, belum di-commit.
+  - Subagent 1: layout 3 panel (`src/layout/`, 9 file), CSS v21, tab builder, jendela Indicators, More filters, pemilih
+    kolom, editor parameter dari header kolom, sumbu dan crosshair Stock vs IHSG; intraday hanya label "Daily".
+  - Subagent 3: gerbang Screen now (`src/run.ts`, `src/screen-gate.ts`), kolom tambahan lewat run pembantu di
+    `client_order.page` kedua dengan `data_version` (`src/extra-columns.ts`), 26 tes baru.
+  - Subagent 2: matriks angka; dua cacat halaman produksi yang sudah ada (ERRORS M355 persen tanpa "%", M356 label
+    saham basi dan "Nd ago"); vonis kolom: YTD dan harga 52W dihapus, Ease of Movement dan Market Facilitation Index
+    diblokir.
+  - Integrasi koordinator: tabel, CSV dan preview mengikuti definisi yang sudah di-screen (bukan editan pending);
+    format angka dari katalog (`entries.ts formatOfOpt`); crosshair menampilkan harga penutupan, bukan return hitungan
+    halaman; tombol "Add indicator"; perbaikan bar out-of-date, footer dan bar Screen now di ponsel.
+  - Bukti: typecheck lulus; vitest 722 lulus, 1 dilewati; tes bundle 23 lulus; nol perubahan di `apps/edge-bff/app`,
+    `apps/screener-worker`, `src/core`, `database`, `.railway`.
+- **Fase C (2026-11-06):**
+  - Subagent 5 (QA independen, `s5_qa.md`): status FAIL dengan 1 High, 4 Medium, 5 Low. Koordinator memperbaiki di
+    `src` (belum di-commit):
+    - H1, klik pertama sesudah mengetik hilang: ERRORS M357 (`src/press.ts`; tombol Screen now diperbarui di tempat);
+    - M1 chip header membuka kondisi lain, dan warna kolom: M358 (`run.ts pageCardOf`);
+    - M2 nama CSV: M358 (`Result.name`);
+    - M3 run berulang tanpa batas: M359 (`run.ts dataChanged`, `versionSeen` sekali per pasangan versi per 60 detik);
+    - M4 baris saham basi: M360;
+    - L2 kunci parameter mentah: M361;
+    - L4 titik "·" di baris data header;
+    - temuan koordinator dari screenshot 390 px: tab kategori preset dan tombol "more presets" terpotong dan tak
+      terjangkau di ponsel (M362).
+  - Dibiarkan terbuka sebagai keputusan pengguna: L1 (edit baru tidak bisa di-screen selama run berjalan, sama dengan
+    referensi), L3 (kolom tambahan tidak masuk CSV), sisa L4 (beda kata dengan referensi), L5 (tanggal header ikut
+    katalog yang telat).
+  - Bukti: skrip repro S5 (`t7`, `t8`, `t9`, `t10`, `t5`) pada build produksi lulus.
+  - Subagent 4 (`s4_tests.md`): tes baru dan smoke/visual ditulis ulang untuk v21; empat temuan diperbaiki koordinator:
+    D1 Retry preview tak bisa diklik (M363), D2 tugas panjang saat tambah kolom dan saat boot (M364), D3 animasi saat
+    "reduce motion" (M365), D4 preview publikasi lain (M366). Satu tes smoke yang memakai angka acak (kadang sama dengan
+    nilai sekarang, atau tanpa hasil) dibuat tetap.
+  - Tes Python edge-bff yang butuh Postgres sekali pakai (33) tidak dijalankan: Postgres tidak mau jalan sebagai root
+    dan folder scratch tidak terbaca user postgres.
+  - Bukti akhir (2026-11-06): typecheck lulus; vitest 31 file, 771 lulus, 1 dilewati; build produksi lulus; tes bundle
+    31 lulus; smoke Chromium lulus dua kali berturut-turut; visual 46 screenshot lulus (termasuk reduce motion);
+    pytest edge-bff 3 lulus, 33 dilewati (butuh Postgres); `git diff --check` bersih; nol perubahan di
+    `apps/edge-bff/app`, `apps/screener-worker`, `src/core`, `database`, `.railway`.
+- **Go commit, push dan PR (2026-11-06):** "Oke, jalankan opsi a: commit, push, dan buka PR". Dikirim dari branch
+  `claude/charming-hamilton-faq25e` lewat pull request ke `main` (rednightt33/saniti#51).
+- **Go merge dan deploy dev (2026-11-06):** "Ok,ago merge" (atas pertanyaan "Kalau Anda setuju di-deploy sekarang, cukup
+  tulis 'go merge'"). Merge PR #51 ke `main` men-deploy edge-bff (sumber GitHub, `watchPatterns` `/apps/edge-bff/**`);
+  screener-worker tidak ikut (kode inti tidak berubah). Bundle live sebelum merge: `assets/index-CvB2JGE9.js`,
+  `assets/style-calwZ5Ae.css`; build lokal commit ini: `assets/index-C3AZxsiJ.js`, `assets/style-Bb_KuIay.css`. Sesudah
+  deploy: cek live dengan data asli (unit dari worker, BFF dan CSP di server), lalu item ini ditutup.
+- **Keputusan terbuka untuk user:** L1 (Screen now saat run berjalan), L3 (kolom tambahan di CSV), L5 (tanggal header
+  telat sampai sekitar 1 menit), beda kata dengan referensi, dan kalimat "Outperformed IHSG by X pts" yang dihitung
+  halaman.

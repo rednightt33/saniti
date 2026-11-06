@@ -9,26 +9,51 @@
 import { CandlestickSeries, ColorType, createChart, createSeriesMarkers, LineSeries, type IChartApi, type SeriesMarker, type Time } from 'lightweight-charts';
 import type { PerfPeriod, PreviewResponse } from './core/contract.ts';
 import { PERF_PERIODS } from './core/contract.ts';
-import { esc, hue, nf, sectorTag, sgn, timeText, tone, valueText } from './format.ts';
+import { esc, fmtValue, hue, nf, sectorTag, sgn, timeText, tone } from './format.ts';
 import { IC, ico } from './icons.ts';
-import { activeCards, ctx, definitionOf, entryOf, presetOf, S, savedOf, ui } from './state.ts';
+import { activeCards, ctx, definitionOf, entryOf, evalDate, presetOf, S, savedOf, ui } from './state.ts';
+import { formatOfOpt } from './entries.ts';
+import { dataChanged, screenedCards, screenedDefinition } from './run.ts';
 import { condText, optOf, shortName } from './forms.ts';
-import { cellRemarkText, methodText, naText, remarkText, remarkTitle, T } from './texts.ts';
+import { cellTitle, dayWord, eventText, methodText, remarkText, remarkTitle, T } from './texts.ts';
 import { colorOf } from './builder.ts';
 import { toast } from './dialogs.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { ApiFailure, isAbort } from './api/types.ts';
 import { savePanel, TERMINAL_SYMBOL } from './storage.ts';
 import { searchMatches } from '../../backtest/src/picked.ts';
+import { perfPlot } from './layout/perf.ts';
+import { layoutHooks } from './layout/prefs.ts';
+import { afterPress } from './press.ts';
+import { sameVersions } from './api/boot-cache.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 let chart: IChartApi | null = null;
+/** what renderDetails last wrote: the panel is written again (and its chart re-created) only when its markup, the theme
+    or the answer changed. A page draw (an edit, a preset: the preview still describes the screened rows) rebuilt the
+    chart each time, which made a full draw cross 50 ms (S4 D2, ERRORS M364), and it also lost what was typed in the
+    ticker lookup. */
+let drawn: { html: string; theme: string; a: PreviewResponse | null } | null = null;
+function dropChart() { if (chart) { chart.remove(); chart = null } drawn = null }
 
 /** the preview of the picked ticker: its answer, or the error of its last ask; ticker and definition it answers */
 const PV: { ticker: string | null; key: string; answer: PreviewResponse | null; error: string | null; ctl: AbortController | null; timer: ReturnType<typeof setTimeout> | undefined } =
   { ticker:null, key:'', answer:null, error:null, ctl:null, timer:undefined };
-const pvKey = (tk: string) => `${tk}|${JSON.stringify(definitionOf())}|${dataVersion()}`;
+/** the definition the preview describes: the one the table's rows answer (run.ts screenedDefinition), never the
+    page's pending edits, so the preview's status and cells agree with the table row (EXEC-SCREENER-V21) */
+const pvDefinition = () => screenedDefinition() ?? definitionOf();
+const pvKey = (tk: string) => `${tk}|${JSON.stringify(pvDefinition())}|${dataVersion()}`;
 const dataVersion = () => ctx.R?.run?.versions.price_data || ctx.catalog?.versions.price_data || '';
+
+/** the versions of the rows the preview describes: the table's run, else the catalog's (a local table) */
+const tableVersions = () => ctx.R?.run?.versions ?? ctx.catalog?.versions ?? null;
+/** The worker is at another publication than the table's rows: the screen runs again and the preview asks after it,
+    once per publication pair (run.ts dataChanged); returns true then. Otherwise the preview says so and waits for
+    Retry (QA M3). */
+function behind(): boolean {
+  if (dataChanged()) { PV.key = ''; return true }
+  PV.answer = null; PV.error = T.dataBehind; return false;
+}
 
 /** ask the preview of the picked ticker (debounced, latest wins); `force` asks again even for the same key */
 export function askPreview(force = false) {
@@ -42,26 +67,32 @@ export function askPreview(force = false) {
   PV.timer = setTimeout(async () => {
     const ctl = new AbortController(); PV.ctl = ctl;
     try {
-      const a = await ctx.api.preview({ schema_version:1, definition:definitionOf(), ticker:tk, data_version:dataVersion() }, { signal:ctl.signal });
+      const a = await ctx.api.preview({ schema_version:1, definition:pvDefinition(), ticker:tk, data_version:dataVersion() }, { signal:ctl.signal });
       if (PV.ctl !== ctl) return;
-      PV.answer = a; PV.ctl = null;
+      PV.ctl = null;
       ui.versionSeen(a.versions);   // 6c.5 item 3: an answer newer than the catalog makes the app ask the catalog again
+      // the preview describes a table row: an answer of another publication than the table's (any version field, not
+      // only price_data) is never shown beside it (S4 D4; the extra columns check the same, extra-columns.ts)
+      if (!sameVersions(a.versions, tableVersions())) { if (behind()) return }
+      else PV.answer = a;
     } catch (e) {
       if (isAbort(e) || PV.ctl !== ctl) return;
       PV.ctl = null;
-      if (e instanceof ApiFailure && e.code === 'DATA_VERSION_CHANGED') { PV.key = ''; ui.schedule(true); return }   // re-run, then ask again
       if (e instanceof ApiFailure && e.code === 'PREVIEW_REPLACED') return;
-      PV.error = e instanceof ApiFailure ? e.message : String(e);
+      if (e instanceof ApiFailure && e.code === 'DATA_VERSION_CHANGED') { if (behind()) return }
+      else PV.error = e instanceof ApiFailure ? e.message : String(e);
     }
     if (S.pick === tk) renderDetails();
   }, 120);
 }
+/** the Retry of a preview that failed: asks it again (askPreview(true)) */
+const pvRetry = `<button type="button" class="link" data-pvretry>${T.retry}</button>`;
 export const previewAnswer = () => PV.answer && PV.ticker === S.pick && PV.key === pvKey(S.pick!) ? PV.answer : null;
 
 export function togglePreview(on: boolean) {
   S.preview = on; savePanel({ preview:on }); ui.renderResults();
   if (on) { renderDetails(); return }
-  if (chart) { chart.remove(); chart = null }
+  dropChart();
   $('dtb').innerHTML = ''; $('dacts').hidden = true;
 }
 export function pickStock(tk: string) {
@@ -87,60 +118,69 @@ function perfCard(tk: string, a: PreviewResponse): string {
   if (from >= 0 && c[from] != null && b[from] != null) {
     const sa: number[] = [], sb: number[] = [];
     for (let i = 0; i <= n; i++) { const x = c[from + i], y = b[from + i]; sa.push(x == null ? sa[sa.length - 1] ?? 100 : x / c[from]! * 100); sb.push(y == null ? sb[sb.length - 1] ?? 100 : y / b[from]! * 100) }
-    lines = plines([{ v:sb, color:'#a1a1a1', dash:'3 3', wd:1.2 }, { v:sa, color:line, wd:1.8 }]);
+    // EXEC-SCREENER-V21: the same two lines with axes (% change, months) and a hover crosshair (layout/perf.ts)
+    lines = perfPlot(plines([{ v:sb, color:'#a1a1a1', dash:'3 3', wd:1.2 }, { v:sa, color:line, wd:1.8 }]), sa, sb, a.bars.d.slice(from, from + n + 1), tk, c.slice(from, from + n + 1), b.slice(from, from + n + 1));
   } else lines = `<p class="note">Not enough history for ${per} (${n} sessions).</p>`;
   const diff = ra != null && rb != null ? ra - rb : null;
   return `<div class="pcard"><div class="pcard-h"><strong>${esc(tk)} vs IHSG</strong>${seg}</div>${lines}
     <div class="legend2"><span><i style="background:${line}"></i>${esc(tk)} <b class="${tone(ra)}">${sgn(ra, 1)}</b></span><span><i style="background:#a1a1a1"></i>IHSG <b class="${tone(rb)}">${sgn(rb, 1)}</b></span></div>
-    <div class="note">${diff == null ? 'No comparison for this period.' : `${diff >= 0 ? 'Outperformed' : 'Underperformed'} IHSG by <b class="${tone(diff)}">${sgn(diff, 1, ' pts')}</b> over ${per} (${n} sessions to ${esc(a.data.evaluation_date)}). Not a screen backtest: the stock is chosen by today's screen.`}</div></div>`;
+    <div class="note">${diff == null ? 'No comparison for this period.' : `${diff >= 0 ? 'Outperformed' : 'Underperformed'} IHSG by <b class="${tone(diff)}">${sgn(diff, 1, ' pts')}</b> over ${per} (${n} of the stock's sessions to ${esc(a.bars.d[N - 1] || a.data.evaluation_date)}). Not a screen backtest: the stock is chosen by today's screen.`}</div></div>`;
 }
 const logoOf = (tk: string) => `<span class="logo" style="--h:${hue(tk)}" aria-hidden="true">${esc(tk.slice(0, 2))}</span>`;
 const closeBtn = (label = 'Close preview') => `<button class="iconbtn sm" data-pv="close" title="${label}" aria-label="${label}">${ico(IC.x, 's')}</button>`;
 const lookup = () => `<label class="searchbox pvlook">${ico(IC.search, 's')}<input id="pvq" placeholder="Look up a ticker" aria-label="Look up a ticker" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="pvsug"></label><div class="suggest" id="pvsug" role="listbox" hidden></div>`;
 
 export function renderDetails() {
-  if (chart) { chart.remove(); chart = null }
-  if (!S.preview) return;
+  if (afterPress('details', renderDetails)) return;   // never under a pressed pointer (press.ts, ERRORS M357)
+  if (!S.preview) { dropChart(); return }
   const tk = S.pick, row = tk ? ctx.R?.rows.find(r => r.ticker === tk) || null : null, urow = tk ? ctx.universe?.rows.find(r => r.ticker === tk) || null : null;
   if (S.dtab === 'method') {
+    dropChart();
     $('dtb').innerHTML = `<div class="preview-head"><div><strong>Method & sources</strong><small>How the screen is computed</small></div>${closeBtn('Close panel')}</div>${tk ? `<button class="link" data-dt="stock" style="justify-self:start">← Back to ${esc(tk)}</button>` : ''}` + renderMethod();
     $('dacts').hidden = true; return;
   }
   if (!tk) {
+    dropChart();
     $('dtb').innerHTML = `<div class="pvtop">${lookup()}</div><div class="preview-head"><div><strong>Preview</strong><small>Stock detail and method</small></div>${closeBtn()}</div><div class="dempty">${ico(IC.chart)}<b style="color:var(--text)">Pick a stock</b>Click a result row — or look up any ticker above — to see its chart, why it passed or failed, and its remarks.</div>`;
     $('dacts').hidden = true; return;
   }
   askPreview();
   const a = previewAnswer(), name = a ? (row?.name ?? urow?.name) : (row?.name ?? urow?.name), sector = row?.sector ?? urow?.sector, industry = row?.industry ?? urow?.industry;
-  const A = activeCards(), last = a ? a.bars.c[a.bars.c.length - 1] : row?.last ?? urow?.last ?? null, d1 = row?.chg_1d_pct ?? urow?.chg_1d_pct ?? null;
+  const A = screenedCards(), last = a ? a.bars.c[a.bars.c.length - 1] : row?.last ?? urow?.last ?? null, d1 = row?.chg_1d_pct ?? urow?.chg_1d_pct ?? null;
+  const lastBar = row?.last_bar_date ?? urow?.last_bar ?? null;
   const remarks = a?.remarks ?? row?.remarks ?? urow?.remarks ?? [];
   const status = !a ? '' : a.status === 'outside_universe' ? '<span class="pill t-neutral">Outside universe</span>'
     : !A.length ? '<span class="pill t-info">In universe</span>'
     : a.status === 'match' ? `<span class="pill t-positive"><i></i>Match ${a.met}/${A.length}</span>`
-    : a.status === 'near' ? `<span class="pill t-warning"><i></i>Near ${a.met}/${A.length}</span>` : `<span class="pill t-negative"><i></i>${a.met}/${A.length}</span>`;
+    : a.status === 'near' ? `<span class="pill t-neutral nearp"><i></i>Near ${a.met}/${A.length}</span>` : `<span class="pill t-negative"><i></i>${a.met}/${A.length}</span>`;
   const head = `<div class="pvtop">${lookup()}</div><div class="preview-head">${logoOf(tk)}<div><strong>${esc(tk)}${sectorTag(sector)}</strong><small>${esc(name || '')}</small></div>${closeBtn()}</div>`;
   const rmk = remarks.length ? `<div class="chips">${remarks.map(r => `<span class="pill t-warning rbadge" title="${esc(remarkTitle(r))}">${ico(IC.warn, 's')}${esc(remarkText(r))}</span>`).join('')}</div>` : '';
   const why = A.length && a ? `<div class="sec-title">Why it ${a.status === 'match' ? 'passed' : 'did not pass'}</div><div class="chk-list">${A.map(c => {
       const x = a.cells.find(y => y.id === c.id), e = entryOf(c), o = e && optOf(e, c), kind = o?.kind || (c.raw as any)?.kind;
-      const txt = !x ? '—' : x.status === 'na' ? 'n/a' : kind === 'event' ? (x.bars_ago == null ? (x.status === 'pass' ? 'yes' : '—') : x.bars_ago === 0 ? 'today' : `${x.bars_ago}d ago`)
-        : kind === 'state' ? (x.status === 'pass' ? 'Yes' : 'No') : valueText(x.value, x.unit ?? o?.unit, o?.form === 'value_pct_distance');
-      const tip = [x?.eval_date ? `Evaluated ${x.eval_date}` : '', x?.event_date ? `Event ${x.event_date}` : '', x?.status === 'na' ? naText(x.reason) : '', x?.remark ? cellRemarkText(x.remark, remarks) : ''].filter(Boolean).join('\n');
+      const txt = !x ? '—' : x.status === 'na' ? 'n/a' : x.status === 'not_evaluated' ? '·' : kind === 'event' ? eventText(x)
+        : kind === 'state' ? (x.status === 'pass' ? 'Yes' : 'No') : fmtValue(x.value, formatOfOpt(e, o));
+      const tip = x ? cellTitle(x, remarks, evalDate()) : '';
       const mark = x?.status === 'pass' ? '<span class="up">✓</span>' : x?.status === 'na' ? '<span class="muted">–</span>' : '<span class="down">✕</span>';
       return `<div title="${esc(tip)}"><i class="cdot" style="background:${colorOf(c)}"></i><span>${esc(condText(e, c))}</span><b>${esc(txt)}${x?.remark ? ` ${ico(IC.warn, 's')}` : ''}</b>${mark}</div>`;
     }).join('')}</div>` : '';
   const facts = `<div class="sec-title">Fundamentals <span class="pill t-neutral" title="${esc(T.noFundamentals)}">no data</span></div><div class="facts">${['Market cap', 'P/E', 'P/B', 'ROE', 'Div. yield', 'EPS growth', 'D/E', 'Piotroski'].map(k => `<div title="${esc(k === 'Market cap' ? T.noCap : k === 'Div. yield' ? 'No data yet: dividends come with Phase 2, after validation.' : T.noFundamentals)}"><span>${k}</span><b class="muted">no data</b></div>`).join('')}</div>`;
   const view = S.pvView === 'perf'
-    ? (a ? perfCard(tk, a) : `<div class="pcard">${PV.error ? `<p class="note down" role="alert">${esc(PV.error)}</p>` : spin(`Loading ${esc(tk)}`)}</div>`)
-    : `<div><div id="dChart" style="position:relative">${a ? '' : `<span class="ml-boot">${PV.error ? `<span class="note down" role="alert">${esc(PV.error)}</span>` : spin(`Loading ${esc(tk)}`)}</span>`}</div><div class="legend" id="dLegend">${a ? legend(a) : ''}</div></div>`;
-  $('dtb').innerHTML = head + `<div class="pquote"><strong>${nf(last)}</strong><span class="${tone(d1)}" style="font-weight:600">${d1 == null ? '' : sgn(d1) + ' today'}</span>${status}</div>
+    ? (a ? perfCard(tk, a) : `<div class="pcard">${PV.error ? `<p class="note down" role="alert">${esc(PV.error)} ${pvRetry}</p>` : spin(`Loading ${esc(tk)}`)}</div>`)
+    : `<div><div id="dChart" style="position:relative">${a ? '' : PV.error ? `<div class="pv-err note down" role="alert">${esc(PV.error)} ${pvRetry}</div>` : `<span class="ml-boot">${spin(`Loading ${esc(tk)}`)}</span>`}</div><div class="legend" id="dLegend">${a ? legend(a) : ''}</div></div>`;
+  const html = head + `<div class="pquote"><strong>${nf(last)}</strong><span class="${tone(d1)}" style="font-weight:600">${d1 == null ? '' : sgn(d1) + ' ' + dayWord(lastBar, evalDate())}</span>${status}</div>
     <div class="note" style="margin-top:-6px">${esc(industry || 'Unclassified')} · <span title="${esc(T.noBoard)}">board: no data</span> · <span title="${esc(T.noIndex)}">indexes: no data</span></div>
     ${rmk}${pvSeg()}${view}${why}${facts}`;
+  const theme = document.documentElement.dataset.theme || '';
+  if (drawn && drawn.html === html && drawn.theme === theme && drawn.a === a && $('dtb').querySelector('.preview-head')) { $('dacts').hidden = false; layoutHooks.afterDetails(); return }
+  dropChart();
+  $('dtb').innerHTML = html; drawn = { html, theme, a };
   $('dacts').hidden = false;
   ($('dSend') as HTMLButtonElement).disabled = true; $('dSend').title = T.sendPhase;
   if (S.pvView !== 'perf' && a) drawChart(a);
+  layoutHooks.afterDetails();
 }
 const legend = (a: PreviewResponse) => {
-  const A = activeCards(), withEv = A.filter(c => a.markers.some(m => m.condition_id === c.id && m.bars.length));
+  const A = screenedCards(), withEv = A.filter(c => a.markers.some(m => m.condition_id === c.id && m.bars.length));
   return withEv.map(c => `<span><i style="background:${colorOf(c)}"></i>${esc(shortName(entryOf(c), c))}</span>`).join('') || '<span class="muted">Arrows mark event conditions (crosses, breakouts, divergences) over 6 months.</span>';
 };
 
@@ -156,7 +196,7 @@ function drawChart(a: PreviewResponse) {
     const i = from + k, o = a.bars.o[i], h = a.bars.h[i], l = a.bars.l[i], c = a.bars.c[i];
     return o == null || h == null || l == null || c == null ? { time:d as Time } : { time:d as Time, open:o, high:h, low:l, close:c };
   }));
-  const A = activeCards(), seen = new Map<string, number>();
+  const A = screenedCards(), seen = new Map<string, number>();
   for (const ov of a.overlays) {
     const c = A.find(x => x.id === ov.condition_id); if (!c) continue;
     const j = seen.get(c.id) ?? 0; seen.set(c.id, j + 1);
@@ -214,6 +254,7 @@ export function bindPreview() {
   dtb.addEventListener('click', e => {
     const t = e.target as HTMLElement, g = t.closest('[data-g]') as HTMLElement | null;
     if (g) { pickStock(g.dataset.g!); return }
+    if (t.closest('[data-pvretry]')) { askPreview(true); renderDetails(); return }
     const b = t.closest('[data-dt],[data-pv],[data-pvv],[data-perf]') as HTMLElement | null; if (!b) return;
     if (b.dataset.perf) { S.perf = b.dataset.perf as typeof S.perf; savePanel({ perf:S.perf }); renderDetails(); return }
     if (b.dataset.pvv) { S.pvView = b.dataset.pvv as typeof S.pvView; savePanel({ pvView:S.pvView }); renderDetails(); (dtb.querySelector(`[data-pvv="${S.pvView}"]`) as HTMLElement | null)?.focus(); return }
@@ -234,8 +275,10 @@ export function bindPreview() {
   });
   $('dCopy').onclick = async () => {
     const tk = S.pick; if (!tk) return;
-    const a = previewAnswer(), A = activeCards(), row = ctx.R?.rows.find(r => r.ticker === tk), last = a ? a.bars.c[a.bars.c.length - 1] : row?.last;
-    const lines = A.map(c => { const x = a?.cells.find(y => y.id === c.id); return `${x?.status === 'pass' ? '✓' : x?.status === 'na' ? '–' : '✕'} ${condText(entryOf(c), c)} → ${x ? (x.status === 'na' ? 'n/a' : valueText(x.value ?? x.lhs, x.unit)) : '—'}` });
+    const a = previewAnswer(), A = screenedCards(), row = ctx.R?.rows.find(r => r.ticker === tk), last = a ? a.bars.c[a.bars.c.length - 1] : row?.last;
+    const lines = A.map(c => { const x = a?.cells.find(y => y.id === c.id), e = entryOf(c), o = e && optOf(e, c), kind = o?.kind || (c.raw as any)?.kind;
+      const v = !x ? '—' : x.status === 'na' ? 'n/a' : kind === 'event' ? eventText(x) : kind === 'state' ? (x.status === 'pass' ? 'yes' : 'no') : fmtValue(x.value, formatOfOpt(e, o));
+      return `${x?.status === 'pass' ? '✓' : x?.status === 'na' ? '–' : '✕'} ${condText(e, c)} → ${v}` });
     const text = `${tk} ${row?.name || ''} · ${nf(last)} · evaluated ${a?.data.evaluation_date || ctx.catalog?.data.evaluation_date || ''}\n${lines.join('\n')}`;
     try { await navigator.clipboard.writeText(text); toast('Summary copied') } catch { toast('Copy blocked by the browser') }
   };
