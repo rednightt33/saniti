@@ -12335,4 +12335,6 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
 - Di-merge 15:16 UTC (`main` `f9871686`); edge-bff `64d65d68` SUCCESS; bundle live sama persis. Cek live dengan login
   lulus: parameter SMA di jendela, Length 0 ditolak, Length 30 + Enter menambah kartu Custom; sel gagal polos dan "No".
 - Temuan di cek live: Enter di kolom bisa menghapus kondisi yang sudah ada (ERRORS M378). Perbaikan di branch: Enter di
-  kolom hanya menambah. Merge menunggu "go merge".
+  kolom hanya menambah.
+  - Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#56; hanya edge-bff. Titik kembali: edge-bff
+    `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` (`f9871686`).
