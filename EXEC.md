@@ -11846,4 +11846,10 @@ broker inventory / kemudian untuk top brokers bisa pakai HTML terlampir dan tamb
    - Di Terminal bagian asing per broker dihitung tepat dari data broker per jenis investor (desain memakai perkiraan
      "≈" dari daftar 10 besar Foreign).
 
-**Menunggu:** jawaban atas pertanyaan letak peta, bahasa label, dan bawaan broker saat chart digeser; lalu go.
+**Jawaban user, 2026-11-06:** "1B 2A 3B":
+- Peta = panel terpisah di panel kanan dengan tombol periode dan Top N sendiri, seperti desain (1B).
+- Label berbahasa Inggris seperti Terminal: Domestic / Foreign, "Foreign × Domestic map" (2A).
+- Broker bawaan FL23 dipilih sekali saat indikator ditambahkan (opsi C pada periode yang terlihat saat itu), lalu tetap
+  sampai user menggantinya; tidak berganti saat chart digeser (3B).
+
+**Menunggu:** go user.
