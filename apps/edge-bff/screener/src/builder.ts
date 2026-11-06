@@ -17,6 +17,7 @@ import { T } from './texts.ts';
 import { ApiFailure } from './api/types.ts';
 import { layoutHooks, wide } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
+import { keepField } from './keep-field.ts';
 import { pageCardOf, screenedCards } from './run.ts';
 
 const $ = (id: string) => document.getElementById(id);
@@ -115,15 +116,17 @@ export function renderConds() {
   if (W) S.bOpen = true;                       // the pane always shows its body on a wide screen (it collapses to a rail)
   const tgl = W ? `<button class="tgl" data-act="btoggle" aria-expanded="true" aria-controls="cardC" title="Collapse the screen builder">`
     : `<button class="tgl ${S.bOpen ? '' : 'closed'}" data-act="btoggle" aria-expanded="${S.bOpen}">`;
-  el.innerHTML = `<div class="builder-h">${tgl}${ico(IC.chev, 's')}Screen builder <small id="bSum">${bSum()}</small></button><span class="sp"></span>
-      <div class="btabs" role="tablist" aria-label="Screen builder sections">${btabsHtml()}</div>
-      ${n > 1 ? `<span class="logic">Match <span class="seg sm" role="radiogroup" aria-label="Match"><button class="${S.logic === 'all' ? 'on' : ''}" data-logic="all" role="radio" aria-checked="${S.logic === 'all'}">All</button><button class="${S.logic === 'any' ? 'on' : ''}" data-logic="any" role="radio" aria-checked="${S.logic === 'any'}">Any</button><button class="${S.logic === 'at_least' ? 'on' : ''}" data-logic="at_least" role="radio" aria-checked="${S.logic === 'at_least'}">At least</button></span>${S.logic === 'at_least' ? `<input class="inp" type="number" min="1" max="${Math.max(1, a)}" step="1" data-s="atLeast" value="${S.atLeast}" aria-label="At least N">` : ''}<span>of ${a} active</span></span>` : ''}
-      ${n ? `<button class="btn sm ghost" data-act="clearconds">Clear</button>` : ''}</div>
-    <div class="bt-view" id="btView" role="tabpanel" aria-label="${btab === 'metrics' ? 'My metrics' : 'Saved screens'}">${btab === 'cond' ? '' : btView()}</div>
-    ${S.bOpen ? `<div class="builder-b" role="tabpanel" aria-label="Conditions">${!ready ? `<div class="sbox">${spin(T.loadingIndicators)}</div>` : `<div class="adder"><button type="button" class="searchbox adder-open" data-act="addwin" aria-haspopup="dialog" title="Add a condition (Alt+A or /)">${ico(IC.search, 's')}<span class="ph">${W ? 'Search indicators to add' : `Add a condition — search ${ctx.catalog!.indicators.length} indicators: “RSI”, “Stochastic”, “VWAP”, “Supertrend”, or “breakout”…`}</span><kbd>/</kbd></button><button type="button" class="bh-add" data-act="addwin" aria-haspopup="dialog" title="Add a condition (Alt+A)" aria-label="Add a condition">${ico(IC.plus)}</button></div>`}
-      ${lim && a > lim.value ? `<div class="note down" role="alert">${esc(lim.rule)}: switch off or remove ${a - lim.value} condition${a - lim.value > 1 ? 's' : ''}.</div>` : ''}
-      ${n ? `<div class="strip" id="condList">${S.cards.map(condRow).join('')}<button class="mc madd" data-act="addwin" aria-haspopup="dialog">${ico(IC.plus)}<span>Add indicator</span></button></div>`
-        : ready ? `<div class="bempty"><span class="muted">No conditions yet. Start from a preset, or open Add a condition:</span><div class="qrail">${quick().map(e => `<button class="btn sm" data-quick="${esc(e.key)}" ${e.available ? '' : `disabled title="${esc(e.reason || '')}"`}>${ico(IC.plus, 's')}${esc(e.short === e.key ? e.label : e.label.length > 18 ? e.short : e.label)}</button>`).join('')}</div></div>` : ''}</div>` : ''}`;
+  keepField(el, () => {   // typed text survives the redraw (keep-field.ts, ERRORS M373)
+    el.innerHTML = `<div class="builder-h">${tgl}${ico(IC.chev, 's')}Screen builder <small id="bSum">${bSum()}</small></button><span class="sp"></span>
+        <div class="btabs" role="tablist" aria-label="Screen builder sections">${btabsHtml()}</div>
+        ${n > 1 ? `<span class="logic">Match <span class="seg sm" role="radiogroup" aria-label="Match"><button class="${S.logic === 'all' ? 'on' : ''}" data-logic="all" role="radio" aria-checked="${S.logic === 'all'}">All</button><button class="${S.logic === 'any' ? 'on' : ''}" data-logic="any" role="radio" aria-checked="${S.logic === 'any'}">Any</button><button class="${S.logic === 'at_least' ? 'on' : ''}" data-logic="at_least" role="radio" aria-checked="${S.logic === 'at_least'}">At least</button></span>${S.logic === 'at_least' ? `<input class="inp" type="number" min="1" max="${Math.max(1, a)}" step="1" data-s="atLeast" value="${S.atLeast}" aria-label="At least N">` : ''}<span>of ${a} active</span></span>` : ''}
+        ${n ? `<button class="btn sm ghost" data-act="clearconds">Clear</button>` : ''}</div>
+      <div class="bt-view" id="btView" role="tabpanel" aria-label="${btab === 'metrics' ? 'My metrics' : 'Saved screens'}">${btab === 'cond' ? '' : btView()}</div>
+      ${S.bOpen ? `<div class="builder-b" role="tabpanel" aria-label="Conditions">${!ready ? `<div class="sbox">${spin(T.loadingIndicators)}</div>` : `<div class="adder"><button type="button" class="searchbox adder-open" data-act="addwin" aria-haspopup="dialog" title="Add a condition (Alt+A or /)">${ico(IC.search, 's')}<span class="ph">${W ? 'Search indicators to add' : `Add a condition — search ${ctx.catalog!.indicators.length} indicators: “RSI”, “Stochastic”, “VWAP”, “Supertrend”, or “breakout”…`}</span><kbd>/</kbd></button><button type="button" class="bh-add" data-act="addwin" aria-haspopup="dialog" title="Add a condition (Alt+A)" aria-label="Add a condition">${ico(IC.plus)}</button></div>`}
+        ${lim && a > lim.value ? `<div class="note down" role="alert">${esc(lim.rule)}: switch off or remove ${a - lim.value} condition${a - lim.value > 1 ? 's' : ''}.</div>` : ''}
+        ${n ? `<div class="strip" id="condList">${S.cards.map(condRow).join('')}<button class="mc madd" data-act="addwin" aria-haspopup="dialog">${ico(IC.plus)}<span>Add indicator</span></button></div>`
+          : ready ? `<div class="bempty"><span class="muted">No conditions yet. Start from a preset, or open Add a condition:</span><div class="qrail">${quick().map(e => `<button class="btn sm" data-quick="${esc(e.key)}" ${e.available ? '' : `disabled title="${esc(e.reason || '')}"`}>${ico(IC.plus, 's')}${esc(e.short === e.key ? e.label : e.label.length > 18 ? e.short : e.label)}</button>`).join('')}</div></div>` : ''}</div>` : ''}`;
+  });
   card.classList.toggle('bt-alt', W && btab !== 'cond');
   const cl = $('condList'); if (cl) cl.scrollLeft = sl;
   layoutHooks.afterConds();

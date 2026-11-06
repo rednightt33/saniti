@@ -37,6 +37,7 @@ import { dataChanged, republished, retry, runHooks, schedule, screenNow, sync, u
 import { bindScreenGate, gateHooks, renderScreen } from './screen-gate.ts';
 import { initLayout } from './layout/index.ts';   // V21 layout (subagent 1)
 import { afterPress, bindPress } from './press.ts';
+import { bindKeepField, keepField } from './keep-field.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 let boot!: BootCache;
@@ -55,7 +56,7 @@ export function renderHeader() {
   const head = `<div><span class="eyebrow">Market intelligence</span><h1>Market Screener</h1>
     <p>Screen<input class="title-in" id="titleIn" value="${esc(S.name)}" size="${Math.max(8, S.name.length)}" maxlength="120" aria-label="Screen name"><span class="pill cat ${p ? 'cat-' + esc(p.category) : 'cat-Saved'} srcpill">${p ? 'Preset · ' + esc(p.category) : S.source ? 'My screen' : 'Custom screen'}${S.dirty ? ' · edited' : ''}</span><span id="dataLine" style="display:contents">${data}</span></p></div>`;
   const ph = $('pageHead');
-  if (headDrawn.head !== head || !ph.querySelector('#titleIn')) { ph.innerHTML = head; headDrawn.head = head }
+  if (headDrawn.head !== head || !ph.querySelector('#titleIn')) keepField(ph, () => { ph.innerHTML = head; headDrawn.head = head });
   // v21 page actions: Screen now (drawn and patched in place by screen-gate.ts renderScreen, never re-created here),
   // then Add indicator (opens the Indicators window), Reset, Save, Export
   const acts = $('pageActs');
@@ -295,6 +296,7 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
 let typingT: ReturnType<typeof setTimeout> | undefined, typingEl: HTMLInputElement | null = null;
 function bind() {
   bindPress(document, window);          // first: its capture listeners run before the page's own (press.ts)
+  bindKeepField(document);              // typed text survives an area redraw (keep-field.ts, ERRORS M373)
   bindScreenGate();
   // Screen now's shortcuts apply a number the user typed and its 350 ms debounce has not applied yet (screen-gate.ts)
   gateHooks.flush = () => { if (typingT === undefined || !typingEl) return; clearTimeout(typingT); typingT = undefined; const t = typingEl; typingEl = null; onUniverseField(t) || onBuilderField(t) };

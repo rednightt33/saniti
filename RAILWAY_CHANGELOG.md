@@ -1,5 +1,66 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `4963b9c2`: Terminal saved layouts, pane collapse, Flow pane filters, QA rounds 1-4 fixes
+
+- **Change:** EXEC-TERMINAL-LOOK-2, EXEC-FLOW-PANE-FILTERS (row filters on every Flow indicator; Top brokers verdict ladder
+  1A; Regular board default 2A), EXEC-TERMINAL-LAYOUTS (saved chart layouts on the EDGE account: `/api/v1/terminal/layouts`,
+  table `edge_bff.terminal_layouts`; collapse of lower-pane indicators), and the fixes of QA rounds 1-4
+  (`verification/terminal_api/qa_20261106/QA_REPORT.md`; ERRORS M371, M372). User: "1 dan 2, jalankan", then "A",
+  "saya izinkan 1".
+- **Database first:** migration `20261106_001` DRYRUN (job `4b4ef869`, 38/38) and APPLY (job `f79b4ca1`, 23/23) on dev
+  between 13:21 and 13:33 UTC through `run_migration.sh` with the session's Railway account token (DATABASE_CHANGELOG.md).
+  `DATABASE_URL` set on orc-test-runner only for each job and removed (read back: absent). Two APPLY attempts stopped
+  before any job ran (connections to backboard.railway.com closed mid-request); a `DATABASE_URL` set by hand for the
+  diagnosis was removed and checked gone.
+- **Before the push:** no user run in flight (`edge_bff.jobs` 0, `AI_conversation_turn` RUNNING 0, 13:35 UTC); after B6
+  (20:20 WIB). `main` had moved twice (PR #51 Screener v21, PR #52 Screener Add a condition): merged into the branch,
+  Terminal 870/870, edge-bff 162/162, Backtest 88/88, tripwire OK against `c4ff8770`. `main` fast-forwarded to
+  `4963b9c2` at 13:36:06 UTC.
+- **edge-bff:** deployment `337b8023` SUCCESS (read through the Railway API). Live: `/ready` 200; the served
+  `assets/index-BfAuN8pc.js` and `assets/style-cyjox1jv.css` are the files of the local build of `4963b9c2`;
+  `/api/v1/terminal/layouts` answers 401 without a session (the route is there). The signed-in page was not opened from
+  the session (no EDGE login here).
+- **screener-worker:** `terminal/src/calc/**` unchanged by this release: no rebuild.
+- **Postgres:** the migration jobs and the look checks read a few thousand rows; not a large update (no restart).
+
+## 2026-11-06 — edge-bff and screener-worker from `main` `c4ff8770`: "Add a condition" window, preview overlays by unit (EXEC-SCREENER-ADD, PR #52)
+
+- **Change:**
+  - Screener page: "Add a condition" is the one way to add a condition (ERRORS M369). The detailed Indicators window
+    is removed.
+  - Contract field `PreviewResponse.overlays[].unit` (additive); screener-worker sends it; the page draws only
+    `price` overlays on the candle axis (M368, user decision "A").
+  - No variable, migration or database change.
+- **Go:** user 2026-11-06 "go merge". PR rednightt33/saniti#52 merged 13:21 UTC (merge commit `c4ff8770`).
+- **Deployments (Railway API, through the session credential for `backboard.railway.com`):**
+  - edge-bff `4f16f07f-0d0e-40d9-bd03-e41d5d9b5f2b` SUCCESS (seen 13:22:56 UTC);
+  - screener-worker `ccb2c727-2e73-484f-8fba-2b514b39c923` SUCCESS, created 13:22:00 UTC (seen 13:23:37 UTC).
+  - Both are on commit `c4ff8770`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-kHd9hlL1.js` and `assets/style-DYQZvLdL.css` are byte-equal to the local
+    build of the same tree (sha256 `448b8946aa4dbdfd…`, `729bc2390eea5e2c…`);
+  - the screener CSP is unchanged (`script-src 'self'`);
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, 2026-11-06 ~13:30 UTC):**
+  - all five doors open "Add a condition": the page's Add indicator, Alt+A, "/", the builder search box and "+";
+  - the "detailed browser" is not offered;
+  - 128 indicators in 8 groups;
+  - timeframe: 5m to 4h greyed with their reason, Daily on, nothing clickable;
+  - adding ADX makes one card and marks the row "on the screen"; the window sends no run; the out-of-date bar shows;
+  - Minervini, then Screen now: 9 matches;
+  - AALI preview: 11 overlays, each carries `unit`:
+    - 9 SMA series are `price` and drawn, within 6,147-8,596 against candles of 5,825-9,900;
+    - conditions g and h (`pct_distance`, 4.9 to 68.2 and −34.7 to 0) are `dimensionless` and not drawn;
+    - the axis runs about 6,000-10,000, no longer 0-12,000;
+  - no CSP violation, no console error.
+- **Found:** the preview's "Look up a ticker" box loses what is typed while a preview answer redraws the panel (ERRORS
+  M373, open; from v21, not from this PR).
+- **Rollback:**
+  - edge-bff `910cef24-cb29-4796-8d24-6a494abc890f` (commit `f82babdc`);
+  - screener-worker `105e9e04-e682-451f-a5d9-6e7f0b052408` (commit `80b77b50`);
+  - or revert merge `c4ff8770` on `main`.
+  - An old worker with the new page draws no overlay (safe); an old page with the new worker ignores the field.
+
 ## 2026-11-06 — edge-bff from `main` `f82babdc`: Screener v21 three-panel page (EXEC-SCREENER-V21, PR #51)
 
 - **Change:** the Screener page (`apps/edge-bff/screener`) in the v21 three-panel layout with the explicit Screen now
@@ -27,29 +88,6 @@
   - Found: the preview chart draws percent overlays on the price axis (ERRORS M368, open; predates v21).
 - **Rollback:** redeploy edge-bff `19f8d01e-f510-4d75-8efb-9a1714d0f7b4` (commit `80b77b50`, the deployment live before the
   merge), or revert merge `f82babdc` on `main`.
-
-## 2026-11-06 — edge-bff from `main` `4963b9c2`: Terminal saved layouts, pane collapse, Flow pane filters, QA rounds 1-4 fixes
-
-- **Change:** EXEC-TERMINAL-LOOK-2, EXEC-FLOW-PANE-FILTERS (row filters on every Flow indicator; Top brokers verdict ladder
-  1A; Regular board default 2A), EXEC-TERMINAL-LAYOUTS (saved chart layouts on the EDGE account: `/api/v1/terminal/layouts`,
-  table `edge_bff.terminal_layouts`; collapse of lower-pane indicators), and the fixes of QA rounds 1-4
-  (`verification/terminal_api/qa_20261106/QA_REPORT.md`; ERRORS M371, M372). User: "1 dan 2, jalankan", then "A",
-  "saya izinkan 1".
-- **Database first:** migration `20261106_001` DRYRUN (job `4b4ef869`, 38/38) and APPLY (job `f79b4ca1`, 23/23) on dev
-  between 13:21 and 13:33 UTC through `run_migration.sh` with the session's Railway account token (DATABASE_CHANGELOG.md).
-  `DATABASE_URL` set on orc-test-runner only for each job and removed (read back: absent). Two APPLY attempts stopped
-  before any job ran (connections to backboard.railway.com closed mid-request); a `DATABASE_URL` set by hand for the
-  diagnosis was removed and checked gone.
-- **Before the push:** no user run in flight (`edge_bff.jobs` 0, `AI_conversation_turn` RUNNING 0, 13:35 UTC); after B6
-  (20:20 WIB). `main` had moved twice (PR #51 Screener v21, PR #52 Screener Add a condition): merged into the branch,
-  Terminal 870/870, edge-bff 162/162, Backtest 88/88, tripwire OK against `c4ff8770`. `main` fast-forwarded to
-  `4963b9c2` at 13:36:06 UTC.
-- **edge-bff:** deployment `337b8023` SUCCESS (read through the Railway API). Live: `/ready` 200; the served
-  `assets/index-BfAuN8pc.js` and `assets/style-cyjox1jv.css` are the files of the local build of `4963b9c2`;
-  `/api/v1/terminal/layouts` answers 401 without a session (the route is there). The signed-in page was not opened from
-  the session (no EDGE login here).
-- **screener-worker:** `terminal/src/calc/**` unchanged by this release: no rebuild.
-- **Postgres:** the migration jobs and the look checks read a few thousand rows; not a large update (no restart).
 
 ## 2026-11-06 — edge-bff (and screener-worker) from `main` `80b77b50`: Terminal look, Broker Inventory panel, Indicators window
 
