@@ -171,6 +171,11 @@ export function initBroker(ctx: Ctx) {
   });
   rpAside.addEventListener('pointerleave', hideStTip);
   $('rightScroll').addEventListener('scroll', hideStTip, {passive:true});
+  /* QA M4 (2026-11-06): a map point's tooltip also on keyboard focus and on a tap (no hover on touch screens) */
+  const tipAt = (el: Element) => { const r = el.getBoundingClientRect(); showStTip(r.right, r.top, tipHtml((el as HTMLElement).dataset.tip as string)) };
+  rpAside.addEventListener('focusin', (e: any) => { const t = e.target.closest?.('.fdm-pt[data-tip]'); if(t) tipAt(t) });
+  rpAside.addEventListener('focusout', (e: any) => { if(e.target.closest?.('.fdm-pt[data-tip]')) hideStTip() });
+  rpAside.addEventListener('click', (e: any) => { const t = e.target.closest?.('.fdm-pt[data-tip]'); if(t) tipAt(t) });
 
   let rpSec = {};
   try{ rpSec = JSON.parse(store.get('ml.broker.sections') || '{}') || {} }catch(e){}
@@ -220,8 +225,9 @@ export function initBroker(ctx: Ctx) {
 
   /* ---- state ---- */
   RS.d = BK_DAYS-1;
-  const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return t.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}) };
-  const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'});
+  const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return t.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep') };
+  // QA (2026-11-06): en-GB writes September "Sept"; the Terminal's other dates use three letters
+  const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).replace('Sept', 'Sep');
   const cv = v => nfCompact.format(Math.abs(v));
   const sgn = v => (v<0?'-':'+') + cv(v);
   const bkTag = (b) => `<span class="bk ${bkCat(b)}"><i></i>${b}</span>`;
@@ -370,7 +376,7 @@ export function initBroker(ctx: Ctx) {
     const bar = (x, side) => `<div class="trk ${side}">${x ? splitFill(Math.abs(x.net)/mx*100, x.f, x.d, side) : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
     const [vt, vc] = bal.verdict, big = /^Big /.test(vt) ? ' big' : '';
-    const ratio = (bal.ratio > 0 ? '+' : bal.ratio < 0 ? '−' : '') + Math.abs(bal.ratio * 100).toFixed(2) + '%';
+    const r2 = +(bal.ratio * 100).toFixed(2), ratio = (r2 > 0 ? '+' : r2 < 0 ? '−' : '') + Math.abs(r2).toFixed(2) + '%';   // QA: never "−0.00%"
     const why = `Bandar balance · Top ${N}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
       + ` = (${cv(bal.buy)} − ${cv(bal.sell)}) ÷ ${cv(bal.total)} = ${ratio}. Acc from 6%, Big Acc from 10%; Dist and Big Dist the same below zero.`;
     /* EXEC-BROKER-INV-PANEL (user 2026-11-06, design top_brokers_panel.html "Dua lajur"): three lanes, Domestic, Foreign and
@@ -387,15 +393,18 @@ export function initBroker(ctx: Ctx) {
     const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
       + `<span class="tag ${vc}${big}" data-tip="${why}">${vt}</span><span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
-      + `<div class="acc-lanes">${lanes}</div>`;
+      /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
+         dots beside the codes are the broker's own type (live: Foreign or local) */
+      + `<div class="acc-lanes"><div class="acc-cap">Investor type of the trades · Top ${N} brokers</div>${lanes}</div>`;
     $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
-        + `<div class="acc-leg">${SPLIT_LEGEND}</div>`
-      : `<div class="rp-empty">Tidak ada data</div>`;
+        + `<div class="acc-leg">${SPLIT_LEGEND}<span class="bk-leg">Dot: broker's own type <span class="bk F"><i></i>Foreign</span><span class="bk L"><i></i>Local</span></span></div>`
+      /* QA M7 (2026-11-06): trades whose every broker nets to 0 (crossing on Nego or Cash) are not "no data" */
+      : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`;
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
     $('accBody').querySelectorAll('#accTop button').forEach(btn => btn.onclick = () => { RS.accN = +btn.dataset.n; store.set('ml.acc.top', String(RS.accN)); renderAcc() });
-    $('accHint').textContent = `${accRange.text()} · net · ${vt}`;
+    $('accHint').textContent = n ? `${accRange.text()} · net · ${vt}` : `${accRange.text()} · net`;
   }
   function renderAcc(){
     if(live) return renderAccPaired();
@@ -578,14 +587,18 @@ export function initBroker(ctx: Ctx) {
   function renderFD(){
     if(!fdSec || fdSec.hidden) return;
     // a period near the first session holds fewer sessions: its label says how many
-    const t = fdRange.bt, custom = fdRange.bn === 'custom', pts: MapPoint[] = [20, 5, 1].map(d => { const f = Math.max(0, t - d + 1); return fdPoint(f, t, `${t - f + 1}D`, !custom && +fdRange.bn === d) });
-    if(custom) pts.push(fdPoint(fdRange.bf, fdRange.bt, `${fdRange.days()}D`, true));
+    /* QA M4 (2026-11-06): one point per distinct period: near the first session the presets collapse, and a custom period
+       equal to a preset marks that preset */
+    const t = fdRange.bt, custom = fdRange.bn === 'custom', spans = new Map<string, [number, number, boolean]>();
+    for (const d of [20, 5, 1]) { const f = Math.max(0, t - d + 1), k = `${f}-${t}`; const was = spans.get(k); spans.set(k, [f, t, (was?.[2] || false) || (!custom && +fdRange.bn === d)]) }
+    if (custom) { const k = `${fdRange.bf}-${fdRange.bt}`, was = spans.get(k); spans.set(k, [fdRange.bf, fdRange.bt, true]); void was }
+    const pts: MapPoint[] = [...spans.values()].sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).map(([f, tt, c]) => fdPoint(f, tt, `${tt - f + 1}D`, c));
     const cur = pts.find(p => p.cur) || pts[1], lim = mapLimit(pts.flatMap(p => [p.x, p.y, p.r]));
     const [vt, vc] = bandarVerdict(cur.r / 100), big = /^Big /.test(vt) ? ' big' : '';
     $('fdTop').innerHTML = [3, 5, 10].map(k => `<button type="button" data-n="${k}" class="${k === RS.fdN ? 'active' : ''}" aria-pressed="${k === RS.fdN}">Top ${k}</button>`).join('');
     $('fdNote').textContent = 'All boards';           // reviewer 1: the map does not follow Top brokers' Board choice
     $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
-    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
+    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty, RS.fdN)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
       + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
     $('fdHint').textContent = fdRange.text();
   }

@@ -209,3 +209,27 @@ Ditemukan agen 4 dan 5.
 - **Pemeriksaan ulang:** QA terarah pada butir-butir itu, ditambah ponsel/tablet.
 
 Tidak ada yang dipublikasikan.
+
+## 6. Perbaikan sesudah laporan (2026-11-06, go user)
+
+Dicek ulang di Chromium dengan snapshot yang sama: `verification/terminal_api/terminal_look/look_check2.mjs` dan
+`look_check3.mjs`, desktop 1440 px dan emulasi iPhone 13.
+
+| Temuan | Perbaikan | Hasil cek ulang |
+|---|---|---|
+| H1, H2 | Di layar ≤ 1024 px kontrol dilipat ke tombol **Filters**. Panelnya terbuka di dalam layar dan memuat Hide, Settings dan Remove. Baris legend dibatasi lebar kolomnya. | Tinggi baris FL12/FL23/FL17 32 px, tepi kanan ≤ 314 px pada layar 390 px; panel 8–382 px; tanpa luapan halaman |
+| H3 | Margin kiri peta 46 | Tidak ada label sumbu yang mulai di x < 0 |
+| M1 | Daftar kosong bukan lagi "tidak valid" (validate), jadi tetap tersimpan; dialog menerimanya | Sesudah reload FL23 tetap `[]` dan menulis "Choose at least one broker"; FL12 tetap scope All |
+| M2 | Dideteksi dari hasil hitungan (semua 0/kosong) saat scope All + kedua investor | Baris menulis "All brokers over both investor types always net to 0: choose Foreign or Domestic, or a Top-N cohort" |
+| M3 | Tag kuadran "· Top N"; sumbu "Foreign/Domestic investors via Top N"; keterangan lajur "Investor type of the trades · Top N brokers"; legenda titik = tipe broker | Teks tampil |
+| M4 | Titik besar digambar lebih dulu, area hit = titik + 3; titik bisa difokus; tooltip saat fokus/ketuk; satu titik per periode berbeda | Hover 5D, 20D, 1D masing-masing memberi tooltipnya; fokus memberi tooltip |
+| M5 | Baris di chart harga bisa difokus (Tab memunculkan kontrol) | Kontrol tampil saat fokus |
+| M6 | File broker gagal: "Broker data could not be loaded: reload the page" | Belum diuji ulang dengan respons 500 |
+| M7 | Papan tanpa net: "No broker has a net buy or sell on this board in this period"; hint tanpa vonis | Tampil di Nego |
+| M8 | Nilai kosong karena riwayat pendek: "Needs N candles of broker history (k so far)" | Belum diuji ulang di halaman |
+| M9 | Pencarian memakai nama pendek, yang tepat lebih dulu | "RSI" → Relative Strength Index |
+| Low | Kotak N kosong kembali ke nilai sebelumnya, nilai diterapkan saat Enter/blur (satu undo); select melepas fokus; "−0.0%" dibuang; "Sep"; tooltip maks. 360 px; kelompok terakhir ditandai di ujung daftar | Tes unit dan cek halaman |
+
+Belum diubah: kontras abu-abu legend (permintaan user "soft grey"); satuan di judul FL23; urutan Tab mata/gear/x; Esc
+pada popover; titik tunggal FL23 di indeks; perilaku lama di luar draft (Return mode, Rp 0 sebelum data broker, panel
+kanan di ponsel).

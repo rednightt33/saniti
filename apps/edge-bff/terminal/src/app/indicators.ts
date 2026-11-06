@@ -233,11 +233,25 @@ export function initIndicators(ctx: Ctx) {
      derived from its inputs). Top N and Rank by show only for a Top-N scope, the broker list only for Selected (the inputs'
      own `when`); a change is the same as in the settings dialog and one undo step. Clear really empties a list: the
      indicator then draws nothing and its row asks for a choice (EXEC-TERMINAL-LOOK-2, 3). */
+  /* QA H1: an open Filters panel closes on a click outside it or on Escape (one document listener for every row) */
+  const fltClose = (keep?: Element | null) => document.querySelectorAll('.ind-row.flt-open').forEach(r => { if(keep && r.contains(keep)) return;
+    r.classList.remove('flt-open'); r.querySelector('.ind-fltbtn')?.setAttribute('aria-expanded', 'false') });
+  document.addEventListener('pointerdown', (e: any) => { if(!e.target.closest?.('.fl-pop')) fltClose(e.target) }, true);
+  document.addEventListener('keydown', (e: any) => { if(e.key !== 'Escape') return; const r = document.activeElement?.closest?.('.ind-row.flt-open');
+    if(r) { fltClose(); (r.querySelector('.ind-fltbtn') as HTMLElement | null)?.focus() } });
   function buildPaneFilters(inst) {
     const keys = inst.def.paneFilters as string[] | undefined;
     if(!keys || !keys.length || !ctx.makeFilter) return;
     const box = document.createElement('span'); box.className = 'ind-flt';
-    inst.row.appendChild(box);
+    /* QA H1/H2 (2026-11-06, user "go with your advice"): on a narrow screen the controls fold behind one "Filters" button
+       and open as a panel under the row, inside the window, instead of wrapping over the panes */
+    const fbtn = document.createElement('button'); fbtn.type = 'button'; fbtn.className = 'ind-fltbtn'; fbtn.textContent = 'Filters';
+    fbtn.setAttribute('aria-expanded', 'false'); fbtn.setAttribute('aria-label', `Filters of ${inst.def.name}`);
+    inst.row.appendChild(fbtn); inst.row.appendChild(box);
+    const place = () => { const r = inst.row.getBoundingClientRect(); box.style.top = Math.max(8, Math.min(r.bottom + 4, innerHeight - box.offsetHeight - 8)) + 'px' };
+    const openBox = (o: boolean) => { inst.row.classList.toggle('flt-open', o); fbtn.setAttribute('aria-expanded', String(o)); if(o) place() };
+    fbtn.onclick = e => { e.stopPropagation(); openBox(!inst.row.classList.contains('flt-open')) };
+    // closing on a click elsewhere and on Escape: one listener for every row (fltClose, below)
     const escH = (t: unknown) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
     const inp = k => inst.def.inputs.find(f => f.key === k);
     const shown = f => !f.when || f.when(inst.params);
@@ -261,7 +275,7 @@ export function initIndicators(ctx: Ctx) {
         const wrap = document.createElement('label'); wrap.className = 'ind-sel';
         wrap.innerHTML = `<span>${k === 'scope' ? 'Broker' : k === 'rank' ? 'Rank by' : escH(f.label)}</span><select aria-label="${escH(f.label)}">${f.options.map(o => `<option value="${escH(o)}">${escH(f.labels?.[o] ?? o)}</option>`).join('')}</select>`;
         const sel = wrap.querySelector('select') as HTMLSelectElement;
-        sel.onchange = () => apply(k, sel.value);
+        sel.onchange = () => { apply(k, sel.value); sel.blur() };      // QA: the chart's keys (Ctrl+Z, Alt+B) work again at once
         ctl(k, wrap, () => { sel.value = String(inst.params[k] ?? f.def) });
         continue;
       }
@@ -269,9 +283,11 @@ export function initIndicators(ctx: Ctx) {
         const wrap = document.createElement('label'); wrap.className = 'ind-num';
         wrap.innerHTML = `<span>${k === 'top' ? 'N' : escH(f.label)}</span><input type="number" inputmode="numeric" min="${f.min}" max="${f.max}" step="1" aria-label="${escH(f.label)}">`;
         const box2 = wrap.querySelector('input') as HTMLInputElement;
-        const commit = () => { const v = Math.round(Number(box2.value)); if(!Number.isFinite(v)) { box2.value = String(inst.params[k] ?? f.def); return }
+        /* QA (2026-11-06): an empty or non-numeric box goes back to the current N (not Top 1); the value is applied on Enter
+           or when the box is left, so arrow steps are one undo step */
+        const commit = () => { const raw = box2.value.trim(), v = Math.round(Number(raw)); if(!raw || !Number.isFinite(v)) { box2.value = String(inst.params[k] ?? f.def); return }
           const c = Math.max(f.min, Math.min(f.max, v)); box2.value = String(c); if(c !== inst.params[k]) apply(k, c) };
-        box2.onchange = commit; box2.onkeydown = e => { if(e.key === 'Enter') { e.preventDefault(); commit(); box2.blur() } };
+        box2.onblur = commit; box2.onkeydown = e => { if(e.key === 'Enter') { e.preventDefault(); commit(); box2.blur() } else if(e.key === 'Escape') { box2.value = String(inst.params[k] ?? f.def); box2.blur() } };
         ctl(k, wrap, () => { if(document.activeElement !== box2) box2.value = String(inst.params[k] ?? f.def) });
         continue;
       }
@@ -296,8 +312,18 @@ export function initIndicators(ctx: Ctx) {
       }
     }
     inst.flt.forEach(f => f.sync && f.sync());
+    /* QA H1 (phone check 2026-11-06): on a narrow screen the row's Hide, Settings and Remove move into the Filters panel, so
+       the name keeps its room; they press the row's own buttons */
+    const acts = document.createElement('span'); acts.className = 'ind-act';
+    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ['del', 'Remove']] as const) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'ind-actbtn'; b.textContent = label;
+      b.onclick = e => { e.stopPropagation(); (inst.row.querySelector(`.ind-eye[data-act="${act}"]`) as HTMLElement | null)?.click(); if(act !== 'eye') fltClose() };
+      acts.appendChild(b);
+    }
+    box.appendChild(acts);
     /* a line on the price chart keeps its legend clean: the controls show while the row is pointed at or tapped */
-    if(inst.def.pane !== 'sub') { box.classList.add('on-hover'); inst.row.addEventListener('click', (e: any) => { if(!e.target.closest('button,select,input,.fl')) inst.row.classList.toggle('flt-open') }) }
+    /* QA M5: the row takes keyboard focus, so Tab reveals its controls (:focus-within) as the pointer does */
+    if(inst.def.pane !== 'sub') { box.classList.add('on-hover'); inst.row.tabIndex = 0; inst.row.setAttribute('aria-label', `${inst.def.name}: Tab to its filters`) }
   }
   function placeRow(inst) {
     if(inst.def.pane !== 'sub' || !inst.series) return;

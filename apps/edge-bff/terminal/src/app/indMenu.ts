@@ -12,7 +12,7 @@ import { draggable, fitInView, shiftOf } from './draggable';
 import { FLOW_REG, SINGLE_SECURITY } from './flowIndicators';
 import { ALL_INPUTS, fits, inputsOf, needsOf, type Input } from '../data/inputs';
 
-export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string }
+export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string; short?: string }
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 const FAV_KEY = 'ml.ind.favs', SIZE_KEY = 'ml.ind.box', NAV_KEY = 'ml.ind.navw';
@@ -33,7 +33,7 @@ export const MENU_HIDDEN: ReadonlySet<string> = new Set(['I37', 'I41', 'FL07', '
 export function menuItems(indReg: any[], flowReg: { families: string[]; indicators: any[] }, have: ReadonlySet<Input> = ALL_INPUTS): MenuItem[] {
   const group = (cat: string) => cat === 'PriceVolume' ? 'Price & Volume' : cat.replace(/([a-z])([A-Z])/g, '$1 & $2');
   const out: MenuItem[] = indReg.filter(r => !MENU_HIDDEN.has(r.id) && fits(needsOf({ reg:r }), have)).map(r => ({ id:r.id, name:r.name, group:group(r.cat), kind:'Technical', place:r.zone === 'overlay' ? 'Overlay' : 'Panel',
-    unit:r.unit || '', tip:r.tip || '' }));
+    unit:r.unit || '', tip:r.tip || '', short:r.short || '' }));
   const vol = out.findIndex(i => i.group === 'Volume');
   if (have.has('V')) out.splice(vol < 0 ? out.length : vol, 0, { id:'VOL', name:'Volume', group:'Volume', kind:'Base', place:'Panel', unit:'shares',
     tip:'Batang volume transaksi harian di bagian bawah chart harga.' });
@@ -67,7 +67,10 @@ export function unitText(u: string): string {
 }
 function visibleAll(items: MenuItem[], group: string, query: string, favs: Set<string>): MenuItem[] {
   const q = query.trim().toLowerCase();
-  if (q) return items.filter(i => `${i.name} ${i.id} ${i.group} ${i.kind}`.toLowerCase().includes(q));
+  // QA M9 (2026-11-06): the short name too ("RSI", "SMA", "ATR"), as the search box's own example reads; an exact short
+  // name or code comes first
+  if (q) return items.filter(i => `${i.name} ${i.id} ${i.short || ''} ${i.group} ${i.kind}`.toLowerCase().includes(q))
+    .sort((a, b) => Number((b.short || '').toLowerCase() === q || b.id.toLowerCase() === q) - Number((a.short || '').toLowerCase() === q || a.id.toLowerCase() === q));
   if (group === 'fav') return items.filter(i => favs.has(i.id));
   if (group === 'all') return items;
   const [k, g] = [group.slice(0, 1), group.slice(2)];
@@ -165,6 +168,10 @@ export function initIndMenu(ctx: Ctx) {
     // a sticky heading reports where it is stuck, so each group's place is read from its first row
     list.querySelectorAll<HTMLElement>('.im-sec').forEach(h => { if (secTop(h) <= top) cur = h.dataset.sec as string });
     if (list.scrollTop < 2 && group === 'all') return;            // "All indicators" stays marked at the top
+    /* QA (2026-11-06): at the end of the list the last short groups never reach the top; the group clicked stays marked,
+       else the last group */
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 2) { const secs = [...list.querySelectorAll<HTMLElement>('.im-sec')].map(h => h.dataset.sec as string);
+      const last = secs[secs.length - 1]; if (secs.indexOf(group) > secs.indexOf(cur)) return; if (last) { mark(last); return } }
     if (cur && cur !== group) mark(cur);
   };
   const scrollToGroup = (g: string) => {

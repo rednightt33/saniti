@@ -24,6 +24,13 @@ export const FLOW_REG = REG as unknown as { families: string[]; indicators: Flow
     (num_, den_), so it gets none and keeps its settings dialog; the others (window, baseline, unit, levels, Side) stay
     in the dialog. */
 export const PANE_FILTER_KEYS = ['scope', 'top', 'rank', 'brokers', 'boards', 'investors'] as const;
+/** QA M2: the whole market's cohort (every broker, both investor types) */
+export const allBrokersBothSides = (p: any) => !!p && p.scope === 'all' && (!Array.isArray(p.investors) || p.investors.length >= 2);
+/** a result with no finite non-zero value in any output series (all 0 or empty) */
+export const carriesNothing = (o: any) => {
+  const series = Object.values(o || {}).filter(Array.isArray) as any[][];
+  return series.length > 0 && series.every(a => a.every(v => v === null || v === undefined || !Number.isFinite(v) || v === 0));
+};
 /** EXEC-TERMINAL-LOOK-2 (3): a list the user emptied (Clear) draws nothing and says what to choose */
 export function emptyChoice(p: any): string {
   if (!p) return '';
@@ -277,6 +284,9 @@ export function initFlowIndicators(ctx: Ctx) {
         if (r.id === 'FL23') q.start = firstVisible();
         noLot(q);
         const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
+        /* QA M2 (2026-11-06, user "go with your advice"): every broker over both investor types nets to 0 (each buy has a
+           seller), so a net reading of that cohort carries no information; read from the result, not a list of indicators */
+        if (ctx.flowRows?.n && allBrokersBothSides(p) && carriesNothing(o)) return { _allZero:true };
         if (r.id !== 'FL23') return o;
         const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
         codes.forEach((c, j) => { slots[SLOTS[j]] = o[c] });
@@ -287,15 +297,20 @@ export function initFlowIndicators(ctx: Ctx) {
       note:(i: number, raw: any, p: any) => {
         const R = ctx.flowRows, empty = emptyChoice(p);
         if (empty) return empty;
+        if (raw?._allZero) return 'All brokers over both investor types always net to 0: choose Foreign or Domestic, or a Top-N cohort';
         if (isBrokerFree(r)) return noVolume ? 'No volume for this ticker' : '';
         /* a list given as a classification (FL34) waits for the reference file's classes */
         const usesClass = p && Object.values(p).some(v => typeof v === 'string' && v.startsWith('class:'));
         if (usesClass && classState !== 'ready') return classState === 'loading' ? 'Loading the broker classification' : 'No broker classification published yet';
-        if (!R) return 'Loading broker data';
+        if (!R) return ctx.brokerFailed ? 'Broker data could not be loaded: reload the page' : 'Loading broker data';
         if (!R.n) return 'No broker data for this ticker';
         if (i > ctx.brokerEnd) return 'No broker data yet';
         const di = DAY ? DAY.dayOf[i] : i;
         if (di < 0 || !R.has[di]) return `No broker data on this ${one}`;
+        /* QA M8 (2026-11-06): a value still empty because the window or baseline reaches before the first broker candle */
+        { const need = Math.max(1, Number(p?.window) || 1) + Math.max(0, Number(p?.baseline) || 0) + Math.max(0, Number(p?.recent) || 0) - 1;
+          let seen = 0; for (let k = 0; k <= di; k++) if (R.has[k]) seen++;
+          if (seen < need) return `Needs ${need} ${one}s of broker history (${seen} so far)` }
         /* K4 (user 2026-11-05 "3 ok"): a choice that counts transactions needs them; the others draw without them */
         if ((r.needs_frequency || needsCounts(p)) && !hasCounts(R)) return r.needs_frequency ? 'Needs the transaction counts'
           : 'No transaction counts for this ticker: choose Value or Lot';
@@ -308,10 +323,10 @@ export function initFlowIndicators(ctx: Ctx) {
         return '';
       },
       validate:(p: any) => {
-        if (p.scope === 'selected' && !(Array.isArray(p.brokers) && p.brokers.length)) return 'Choose at least one broker.';
+        // QA M1 (2026-11-06): an emptied list is a saved state (the row asks for a choice), not an invalid one
         if (r.id === 'FL46') { const why = ratioRefusal(p); if (why) return why }
         if (r.id === 'FL34') { const a = new Set(brokersOf(p.inst)); if (brokersOf(p.retail).some(b => a.has(b))) return 'A broker cannot be in both the institutional and the retail list.' }
-        if (r.id === 'FL23' && Array.isArray(p.brokers) && (p.brokers.length < 1 || p.brokers.length > 5)) return 'Choose 1 to 5 brokers.';
+        if (r.id === 'FL23' && Array.isArray(p.brokers) && p.brokers.length > 5) return 'Choose up to 5 brokers.';
         return '';
       },
       /* a ratio's neutral line is 1, an imbalance's 0 (FL48 "Show as"; verification 2026-11-05): the default guide follows */
