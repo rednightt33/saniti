@@ -1,7 +1,6 @@
 // EXEC-IHSG-FLOW (user 2026-11-03: "FL28 tetap hitung"): on an index FL28 is the buy value of every broker per day
 import { describe, expect, it } from 'vitest';
 import { computeFlow, flowRows } from '../../src/calc/flow';
-import { FLOW_EXPLAIN } from '../../src/calc/explainIndex';
 
 const dates = ['2026-01-02', '2026-01-05', '2026-01-06'];
 const rows = flowRows([
@@ -18,13 +17,5 @@ describe('FL28 Average Daily Value', () => {
   });
   it('a ticker without volume that is not an index still has no value (close x volume)', () => {
     expect(computeFlow('FL28', ctx(false), { window:2 }).value).toEqual([null, null, null]);
-  });
-  it('the card on an index shows the same number as the chart, with the buy value per session', () => {
-    const c = ctx(true), p = { window:2 };
-    expect([0, 1, 2].map(t => FLOW_EXPLAIN.FL28(c, p, t, 'value')?.value ?? null)).toEqual([null, 220, 160]);
-    const e = FLOW_EXPLAIN.FL28(c, p, 1, 'value')!, text = JSON.stringify(e.steps);
-    expect(e.terms.find(x => x.key === 'S')!.value).toBe(440);                     // 100 + 40 on 2 Jan, 300 on 5 Jan
-    expect(text).toContain('nilai beli semua broker');
-    expect(text).not.toMatch(/undefined|NaN/);
   });
 });

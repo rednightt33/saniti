@@ -2,7 +2,8 @@
    verification/terminal_api/indicator_cards/indicator_cards_review.html, approved 2026-11-01 with the bigger star): the
    indicator menu as TradingView's "Indicators, metrics, and strategies": groups on the left (Favorites, All, the
    technical categories, the Flow families), a list with a favourite star, name and code, group, place and unit, a short
-   tooltip on hover (decision "1A"), and the info button that opens the indicator's card (IC2). Live page only; the
+   tooltip on hover (decision "1A"). EXEC-IND-DIALOG (2026-11-06): restyled as the Screener's "Add a condition" window and
+   the card button removed with the cards (EXEC-TERMINAL-LOOK 2B). Live page only; the
    fixture keeps the reference's popover (1:1 check). Nothing is listed by hand: the rows come from the Terminal's
    registries (indRegistry.json, flowRegistry.json). */
 import type { Ctx } from './context';
@@ -14,7 +15,7 @@ import { ALL_INPUTS, fits, inputsOf, needsOf, type Input } from '../data/inputs'
 export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string }
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
-const FAV_KEY = 'ml.ind.favs', KIND_KEY = 'ml.ind.kind', SIZE_KEY = 'ml.ind.box', NAV_KEY = 'ml.ind.navw';
+const FAV_KEY = 'ml.ind.favs', SIZE_KEY = 'ml.ind.box', NAV_KEY = 'ml.ind.navw';
 
 /** where a Flow indicator is drawn (flowRegistry `place`): its own pane, the price axis, or a mark under the candles */
 export const flowPlace = (place: string) => place === 'pane' ? 'Panel' : 'Overlay';
@@ -73,19 +74,41 @@ function visibleAll(items: MenuItem[], group: string, query: string, favs: Set<s
   return items.filter(i => (k === 'f' ? i.kind === 'Flow' : i.kind !== 'Flow') && i.group === g);
 }
 
-export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
+/** a row's grey line: the indicator's default settings from its registry ("Length 20 · Source close"); a select shows its
+    option label, a list of every option "All", a token default its plain words */
+export function defaultsText(id: string, indReg: any[], flowReg: { indicators: any[] }): string {
+  const tech = indReg.find(r => r.id === id);
+  if (tech) return (tech.params || []).filter((q: any) => q.type !== 'fixed').map((q: any) => `${q.label} ${Array.isArray(q.def) ? q.def.join(', ') : q.def}`).join(' · ');
+  const flow = flowReg.indicators.find(r => r.id === id);
+  if (!flow) return '';
+  return (flow.params || []).filter((q: any) => q.kind !== 'fixed' && q.default !== undefined && q.default !== '' && q.default !== '-').map((q: any) => {
+    let v = q.default;
+    if (Array.isArray(v)) v = q.options && v.length === q.options.length ? 'All' : v.join(', ');
+    else if (q.options) { const o = q.options.find((x: any) => Array.isArray(x) ? x[0] === v : x === v); if (Array.isArray(o)) v = o[1] }
+    if (typeof v === 'boolean') v = v ? 'On' : 'Off';
+    if (v === 'top3_net_buy_20') v = 'Top 3 net buyers';
+    if (v === 'auto_c') v = 'Auto (2 net buyers, 1 net seller)';
+    return `${q.label} ${v}`;
+  }).join(' · ');
+}
+
+const STAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.4.9-4.6 4.5 1.1 6.3L12 17.3l-5.7 3 1.1-6.3-4.6-4.5 6.4-.9z"/></svg>';
+const CHECK = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg>';
+
+/* EXEC-IND-DIALOG (user go 2026-11-06: "Klik selalu menambah. Kalau klik kasih semacam notifikasi saja bahwa indikator
+   added"): the Screener's "Add a condition" layout without condition, threshold or card; groups On the chart, Favorites,
+   All indicators, then Technical and Flow; a click on a row or Add always adds and shows "<name> added" */
+export function initIndMenu(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
   const items = menuItems(IND_REG as any[], FLOW_REG as any, inputsOf(ctx.M));
   const groupsOf = (kind: 'Technical' | 'Flow') => [...new Set(items.filter(i => kind === 'Flow' ? i.kind === 'Flow' : i.kind !== 'Flow').map(i => i.group))];
+  const defaults = new Map(items.map(i => [i.id, i.kind === 'Base' ? '' : defaultsText(i.id, IND_REG as any[], FLOW_REG as any)]));
   let favs = new Set<string>();
   try { favs = new Set(JSON.parse(store.get(FAV_KEY) || '[]')) } catch { /* none saved */ }
   const saveFavs = () => store.set(FAV_KEY, JSON.stringify([...favs]));
   // a favourite the menu no longer lists (MENU_HIDDEN, or not available for this ticker) does not count: the menu opens on
   // All rather than on an empty Favorites view
   let group = items.some(i => favs.has(i.id)) ? 'fav' : 'all', query = '';
-  const hasFlow = items.some(i => i.kind === 'Flow');
-  let kind = (store.get(KIND_KEY) as KindFilter) || 'all';
-  if (!['all', 'Technical', 'Flow'].includes(kind) || (kind === 'Flow' && !hasFlow)) kind = 'all';
 
   const btn = $('indBtn'), old = $('indPop');
   old.hidden = true;
@@ -93,79 +116,89 @@ export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
   dlg.className = 'im'; dlg.id = 'indMenu'; dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true');
   dlg.setAttribute('aria-label', 'Indicators'); dlg.hidden = true;
   dlg.innerHTML = `<div class="im-box">
-      <div class="im-head"><h3>Indicators</h3><button type="button" class="im-x" aria-label="Close indicators">×</button></div>
-      <div class="im-search"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg>
-        <input type="search" id="imSearch" placeholder="Search indicators" autocomplete="off" aria-label="Search indicators">
-        <div class="im-seg" role="group" aria-label="Group type">${(['all', 'Technical', 'Flow'] as KindFilter[]).filter(k => k !== 'Flow' || hasFlow).map(k => `<button type="button" data-kind="${k}">${k === 'all' ? 'All types' : k}</button>`).join('')}</div></div>
-      <div class="im-body"><nav class="im-nav" aria-label="Indicator groups"></nav><div class="im-split" role="separator" aria-orientation="vertical" aria-label="Resize the group list" tabindex="0"></div><div class="im-list" role="list"></div></div>
+      <div class="im-head"><div class="t"><h3>Indicators</h3><p>Click a row to add it to the chart. Remove an indicator from its line on the chart. The window stays open until you close it.</p></div>
+        <button type="button" class="im-x" aria-label="Close indicators">×</button></div>
+      <label class="im-search"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg>
+        <input type="search" id="imSearch" placeholder="RSI, MACD, Bandar Balance, Broker Inventory…" autocomplete="off" aria-label="Search indicators"></label>
+      <div class="im-body"><nav class="im-nav" aria-label="Indicator groups"></nav><div class="im-split" role="separator" aria-orientation="vertical" aria-label="Resize the group list" tabindex="0"></div>
+        <div class="im-main"><div class="im-cols" aria-hidden="true"><span></span><span>Indicator</span><span>Place · Unit</span><span></span></div><div class="im-list" role="list"></div></div></div>
+      <div class="im-foot"><span>/ to search · ↑ ↓ to move · Enter to add · Esc to close</span><b class="im-count"></b></div>
+      <div class="im-toast" role="status" aria-live="polite"></div>
       <div class="im-rz im-rz-r" aria-hidden="true"></div><div class="im-rz im-rz-b" aria-hidden="true"></div>
       <div class="im-rz im-rz-c" role="button" tabindex="0" aria-label="Resize the indicators box; double-click to fill the window" title="Drag to resize · double-click to fill the window"></div>
-      <aside class="im-detail" aria-label="Indicator card" hidden><div class="im-detail-h"><span class="grow">Indicator card</span>
-        <button type="button" class="im-dx" aria-label="Close the card">×</button></div><div class="im-detail-b"></div></aside>
     </div>`;
   draggable(dlg.querySelector('.im-box'), dlg.querySelector('.im-head'));      // user 2026-11-01: moved by its header
   document.body.appendChild(dlg);
   const nav = dlg.querySelector('.im-nav') as HTMLElement, list = dlg.querySelector('.im-list') as HTMLElement;
-  const search = dlg.querySelector('#imSearch') as HTMLInputElement, detail = dlg.querySelector('.im-detail') as HTMLElement;
+  const search = dlg.querySelector('#imSearch') as HTMLInputElement, toast = dlg.querySelector('.im-toast') as HTMLElement;
+  const countEl = dlg.querySelector('.im-count') as HTMLElement;
   const tip = document.createElement('div'); tip.className = 'im-tip'; tip.hidden = true; document.body.appendChild(tip);
 
-  const onChart = (i: MenuItem) => i.kind === 'Base' ? !volCtl.removed : Ind.byName[i.name] ? Ind.countOf(Ind.byName[i.name]) : 0;
+  const onChart = (i: MenuItem) => i.kind === 'Base' ? (volCtl.removed ? 0 : 1) : Ind.byName[i.name] ? Ind.countOf(Ind.byName[i.name]) : 0;
+  const view = (g: string, q: string) => g === 'chart' && !q.trim() ? items.filter(i => onChart(i) > 0) : visibleItems(items, g, q, favs);
   const navHtml = () => {
-    const b = (id: string, label: string, n: number) =>
-      `<button type="button" data-g="${esc(id)}" class="${group === id && !query ? 'on' : ''}">${label}<span class="cnt">${n}</span></button>`;
-    const count = (k: string, g: string) => visibleItems(items, `${k}:${g}`, '', favs).length;
-    // user 2026-11-01: the group types as badges (Personal, Technical, Flow); the type filter hides the other type
-    const title = (t: string) => `<div class="im-title"><span class="im-badge">${t}</span></div>`;
-    return `${title('Personal')}${b('fav', '<span class="im-star-ico">★</span> Favorites', visibleItems(items, 'fav', '', favs, kind).length)}${b('all', 'All', visibleItems(items, 'all', '', favs, kind).length)}`
-      + (kind !== 'Flow' ? `${title('Technical')}${groupsOf('Technical').map(g => b(`t:${g}`, esc(g), count('t', g))).join('')}` : '')
-      + (kind !== 'Technical' && groupsOf('Flow').length ? `${title('Flow')}${groupsOf('Flow').map(g => b(`f:${g}`, esc(g), count('f', g))).join('')}` : '');
+    const b = (id: string, label: string, n: number, cls = '', ico = '') =>
+      `<button type="button" data-g="${esc(id)}" class="${cls}${group === id && !query ? ' on' : ''}">${ico}<span class="lab">${label}</span><span class="cnt">${n}</span></button>`;
+    const flow = groupsOf('Flow');
+    return b('chart', 'On the chart', items.reduce((t, i) => t + onChart(i), 0), 'q-on', CHECK)
+      + b('fav', 'Favorites', view('fav', '').length, 'q-my', STAR.replace('<svg ', '<svg class="ico" '))
+      + `<div class="im-sep"></div>${b('all', 'All indicators', items.length)}`
+      + `<div class="im-title">Technical</div>${groupsOf('Technical').map(g => b(`t:${g}`, esc(g), view(`t:${g}`, '').length)).join('')}`
+      + (flow.length ? `<div class="im-title">Flow</div>${flow.map(g => b(`f:${g}`, esc(g), view(`f:${g}`, '').length)).join('')}` : '');
   };
   const render = () => {
-    if ((kind === 'Flow' && group.startsWith('t:')) || (kind === 'Technical' && group.startsWith('f:'))) group = 'all';
-    nav.innerHTML = navHtml();
-    dlg.querySelectorAll<HTMLElement>('[data-kind]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === kind)));
-    const rows = visibleItems(items, group, query, favs, kind);
-    list.innerHTML = `<div class="im-row hd" role="presentation"><span></span><span>Name</span><span>Group</span><span>Place</span><span>Unit</span><span></span></div>`
-      + (rows.length ? rows.map(i => {
-        const n = onChart(i), fav = favs.has(i.id);
-        return `<div class="im-row" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${fav ? '★' : '☆'}</button>`
-          + `<span class="nm">${esc(i.name)}<small>${esc(i.kind === 'Base' ? '' : i.id)}</small>${n ? `<em>${i.kind === 'Base' ? 'On chart' : `${n} on chart`}</em>` : ''}</span>`
-          + `<span class="gr">${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}</span><span class="pl">${esc(i.place)}</span><span class="un">${esc(unitText(i.unit))}</span>`
-          + `<button type="button" class="im-info" data-info="${esc(i.id)}" aria-label="How ${esc(i.name)} works">i</button></div>`;
-      }).join('') : `<div class="im-empty">${group === 'fav' && !query ? 'No favorites yet: star an indicator to keep it here.' : 'No indicators match.'}</div>`);
+    const keep = nav.scrollTop;
+    nav.innerHTML = navHtml(); nav.scrollTop = keep;
+    const rows = view(group, query), wide = group === 'all' || group === 'chart' || group === 'fav' || !!query.trim();
+    list.innerHTML = rows.length ? rows.map(i => {
+      const n = onChart(i), fav = favs.has(i.id), d = defaults.get(i.id) || '';
+      const where = wide ? ` · ${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}` : '';
+      return `<div class="im-row" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
+        + `<div><div class="nm"><span class="nmt">${esc(i.name)}</span>${i.kind === 'Base' ? '' : `<small>${esc(i.id)}</small>`}${n ? `<em>${i.kind === 'Base' ? 'On chart' : `${n} on chart`}</em>` : ''}</div>`
+        + `<div class="pa">${esc(d || (i.kind === 'Base' ? 'Volume bars under the price chart' : 'No settings'))}</div></div>`
+        + `<div class="mt">${esc(i.place)}<span>${esc(unitText(i.unit))}${where}</span></div>`
+        + `<button type="button" class="im-add" data-add="${esc(i.id)}" aria-label="Add ${esc(i.name)}">Add</button></div>`;
+    }).join('') : `<div class="im-empty">${group === 'fav' && !query ? 'No favorites yet: star an indicator to keep it here.' : group === 'chart' && !query ? 'No indicator on the chart yet.' : 'No indicators match.'}</div>`;
+    const n = items.reduce((t, i) => t + onChart(i), 0);
+    countEl.textContent = `${n} indicator${n === 1 ? '' : 's'} on the chart`;
   };
   const byId = (id: string) => items.find(i => i.id === id)!;
+  let toastTimer: any = 0;
+  const note = (text: string) => {
+    toast.textContent = text; toast.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
+  };
   const add = (i: MenuItem) => {
-    if (i.kind === 'Base') { if (volCtl.removed) volCtl.setRemoved(false) }
-    else if (Ind.byName[i.name]) Ind.add(Ind.byName[i.name]);
+    if (i.kind === 'Base') { if (volCtl.removed) volCtl.setRemoved(false); note(volCtl.removed ? `${i.name} could not be added` : `${i.name} is on the chart`) }
+    else if (Ind.byName[i.name]) { const before = Ind.countOf(Ind.byName[i.name]); Ind.add(Ind.byName[i.name]);
+      note(Ind.countOf(Ind.byName[i.name]) > before ? `${i.name} added` : `${i.name} could not be added`) }
     render();
-    (list.querySelector(`.im-row[data-id="${CSS.escape(i.id)}"]`) as HTMLElement | null)?.focus();
+    (list.querySelector(`.im-row[data-id="${CSS.escape(i.id)}"]`) as HTMLElement | null)?.focus({ preventScroll:true });
   };
   const showTip = (row: HTMLElement) => {
     const i = byId(row.dataset.id as string);
-    tip.innerHTML = `<b>${esc(i.name)}</b>${esc(i.tip)}<div class="hint">Click <span class="im-i">i</span> for how it works, with an example.</div>`;
+    if (!i.tip) { hideTip(); return }
+    tip.innerHTML = `<b>${esc(i.name)}</b>${esc(i.tip)}`;
     tip.hidden = false;
-    const r = (row.querySelector('.nm') as HTMLElement).getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
-    let l = r.left + 40; if (l + w > innerWidth - 8) l = innerWidth - w - 8;
+    const r = (row.querySelector('.nmt') as HTMLElement).getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    let l = r.left; if (l + w > innerWidth - 8) l = innerWidth - w - 8;
     let t = r.bottom + 6; if (t + h > innerHeight - 8) t = r.top - h - 6;
     tip.style.left = Math.max(8, l) + 'px'; tip.style.top = Math.max(8, t) + 'px';
   };
   const hideTip = () => { tip.hidden = true };
   const open = (o: boolean) => {
     dlg.hidden = !o; btn.setAttribute('aria-expanded', String(o)); hideTip();
-    if (o) { query = ''; search.value = ''; render(); fitInView(dlg.querySelector('.im-box')); search.focus() } else { detail.hidden = true; btn.focus() }
+    if (o) { query = ''; search.value = ''; render(); fitInView(dlg.querySelector('.im-box')); search.focus() } else btn.focus();
   };
 
   btn.addEventListener('click', (e: Event) => { e.stopImmediatePropagation(); open(dlg.hidden) }, true);
   (dlg.querySelector('.im-x') as HTMLElement).onclick = () => open(false);
-  (dlg.querySelector('.im-dx') as HTMLElement).onclick = () => { detail.hidden = true };
   dlg.addEventListener('pointerdown', (e: any) => { if (e.target === dlg) open(false) });   // the backdrop
   nav.addEventListener('click', (e: any) => {
     const b = e.target.closest('[data-g]'); if (!b) return;
-    group = b.dataset.g; query = ''; search.value = ''; render();
+    group = b.dataset.g; query = ''; search.value = ''; render(); list.scrollTop = 0;
   });
-  search.addEventListener('input', () => { query = search.value; render() });
-  dlg.querySelectorAll<HTMLElement>('[data-kind]').forEach(b => b.onclick = () => { kind = b.dataset.kind as KindFilter; store.set(KIND_KEY, kind); render() });
+  search.addEventListener('input', () => { query = search.value; render(); list.scrollTop = 0 });
   initResize(dlg.querySelector('.im-box') as HTMLElement, dlg.querySelector('.im-body') as HTMLElement);
   search.addEventListener('keydown', (e: KeyboardEvent) => {
     const first = list.querySelector('.im-row[data-id]') as HTMLElement | null;
@@ -175,13 +208,11 @@ export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
   list.addEventListener('click', (e: any) => {
     const s = e.target.closest('[data-star]');
     if (s) { const id = s.dataset.star; favs.has(id) ? favs.delete(id) : favs.add(id); saveFavs(); render(); return }
-    const inf = e.target.closest('[data-info]');
-    if (inf) { hideTip(); openCard(byId(inf.dataset.info)); return }
     const r = e.target.closest('.im-row[data-id]'); if (r) add(byId(r.dataset.id));
   });
   list.addEventListener('keydown', (e: any) => {
     const r = e.target.closest('.im-row[data-id]'); if (!r) return;
-    if (e.key === 'Enter' || e.key === ' ') { if (e.target.closest('button')) return; e.preventDefault(); add(byId(r.dataset.id)) }
+    if (e.key === 'Enter' || e.key === ' ') { if (e.target.closest('button') && e.target.closest('[data-star]')) return; e.preventDefault(); add(byId(r.dataset.id)) }
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const all = [...list.querySelectorAll('.im-row[data-id]')] as HTMLElement[], k = all.indexOf(r);
@@ -189,18 +220,18 @@ export function initIndMenu(ctx: Ctx, openCard: (item: MenuItem) => void) {
     }
   });
   list.addEventListener('pointerover', (e: any) => {
-    const r = e.target.closest('.im-row[data-id]');
-    !r || e.target.closest('.im-star') ? hideTip() : showTip(r);
+    const n = e.target.closest('.im-row[data-id] .nm');
+    n ? showTip(n.closest('.im-row')) : hideTip();
   });
   list.addEventListener('pointerleave', hideTip); list.addEventListener('scroll', hideTip, { passive:true });
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape' || dlg.hidden) return;
-    if (!detail.hidden) { detail.hidden = true; return }
-    open(false);
+    if (dlg.hidden) return;
+    if (e.key === 'Escape') { open(false); return }
+    if (e.key === '/' && document.activeElement !== search && !(e.target as HTMLElement).closest?.('input,textarea,select')) { e.preventDefault(); search.focus() }
   });
   volCtl.onChange = () => { if (!dlg.hidden) render() };
   Ind.onChange = () => { if (!dlg.hidden) render() };
-  return { dlg, detail, detailBody:dlg.querySelector('.im-detail-b') as HTMLElement, items };
+  return { dlg, items };
 }
 
 /* user 2026-11-01 (Opsi A): the box is resized by its right edge, its bottom edge and its bottom-right corner (a

@@ -1,38 +1,13 @@
 /* INDICATORS — picker UI (reference lines 2047-2125). */
 import type { Ctx } from './context';
 import { $ } from './context';
-import { FLOW_REG } from './flowIndicators';
-import { initIndMenu, type MenuItem } from './indMenu';
-import { renderCard } from './indCard';
-
-const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
-/* EXEC-IND-CARDS IC1: the card's first content, from the registries: what the indicator is, its parameters with the
-   Terminal's defaults, and how it is shown (the Kalkulator, Grafik and Langkah tabs with the open ticker's numbers follow
-   in IC2-IC4) */
-function showCard(detail: HTMLElement, body: HTMLElement, item: MenuItem, indReg: any[]) {
-  const tech = indReg.find(r => r.id === item.id), flow = (FLOW_REG.indicators as any[]).find(r => r.id === item.id);
-  const params: [string, string][] = tech ? (tech.params || []).map((p: any) => [p.label, Array.isArray(p.def) ? p.def.join(', ') : String(p.def ?? '')])
-    : flow ? (flow.params || []).map((p: any) => [p.label, Array.isArray(p.default) ? (p.default.length ? p.default.join(', ') : 'all') : String(p.default ?? '')]) : [];
-  const what = tech?.info || item.tip, shown = tech?.display || (item.place === 'Overlay' ? 'On the price chart' : 'In a pane below the chart');
-  body.innerHTML = `<div class="ic"><div class="ic-eyebrow">${esc(item.kind === 'Flow' ? 'Flow' : 'Technical')} · ${esc(item.group)}<span class="ic-code">${esc(item.kind === 'Base' ? '' : item.id)}</span></div>
-    <h4>${esc(item.name)}</h4><p>${esc(what)}</p>
-    ${params.length ? `<div class="ic-sub">Parameters (Terminal defaults)</div><table class="ic-params">${params.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>` : ''}
-    <div class="ic-sub">Shown as</div><p>${esc(shown)}${item.unit ? ` · unit: ${esc(item.unit)}` : ''}</p></div>`;
-  detail.hidden = false;
-}
+import { initIndMenu } from './indMenu';
 
 export function initPicker(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
-  // EXEC-IND-CARDS IC1: the live page's menu (indMenu.ts); the fixture keeps the reference's popover below (1:1 check)
-  /* EXEC-IND-CARDS IC2: the info button opens the indicator's card (tabs Kalkulator, Grafik, Langkah) on the ticker and the
-     date the chart shows; the base volume histogram keeps the short card */
+  // EXEC-IND-DIALOG: the live page's Indicators window (indMenu.ts); the fixture keeps the reference's popover below (1:1 check)
   if(ctx.M.mode === 'live'){
-    const m = initIndMenu(ctx, item => {
-      const key = item.kind === 'Technical' ? (IND_REG as any[]).find(r => r.id === item.id)?.key : item.id;
-      const src = key && Ind.cardSource ? Ind.cardSource(key) : null;
-      if(src) { renderCard(m.detailBody, ctx, item, src); m.detail.hidden = false }
-      else showCard(m.detail, m.detailBody, item, IND_REG as any[]);
-    });
+    initIndMenu(ctx);
     return;
   }
   /* groups come from the registry categories (01_INDICATORS column B); Flow is our own group */
