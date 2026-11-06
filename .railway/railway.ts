@@ -12,7 +12,7 @@ export default defineRailway(() => {
   // otherwise stayed at 6-13 GB while Postgres was idle and is billed as memory (RAILWAY_CHANGELOG.md 2026-10-22)
   // 2026-11-03 (EXEC-PG-MEMORY): 1 GB tried ("kita coba turunkan menjadi 1 giga"), then back to 4 GB the same day
   // ("Pake 1 gb likely Setiap query akan timeout. Kembalikan ke 4GB ya"). Change it with scripts/set_postgres_memory.py.
-  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 4000000000 } } };
+  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 1000000000 } } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 100000 });
   const stockbitUpdaterVolume = volume("stockbit-updater-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });

@@ -165,8 +165,9 @@ Why it matters:
 - Railway bills the Postgres container's memory, and that includes the Linux page cache a large read or write leaves
   behind.
 - The cache stays for hours after the work ends (it held 4 GB for 3 hours on 2026-11-02).
-- The container limit is 4 GB (`.railway/railway.ts`, `Postgres.deploy.limitOverride`; 1 GB was tried on 2026-11-03 and
-  made year-wide queries take 3–6 minutes). Postgres itself uses about 0.1–0.3 GB at rest (`shared_buffers` 128 MB);
+- The container limit is 1 GB since 2026-11-06 (user: "minta tolong untuk memory progress di cap jadi 1 GB.. sekarang
+  4GB"; `.railway/railway.ts`, `Postgres.deploy.limitOverride`). The 1 GB test of 2026-11-03 made year-wide queries take
+  3–6 minutes (AI-shaped queries 0.1 s); 4 GB was used 2026-11-03 to 2026-11-06. Postgres itself uses about 0.1–0.3 GB at rest (`shared_buffers` 128 MB);
   the rest is cache.
 - To change the limit, run `python3 scripts/set_postgres_memory.py --gb N` (check: guards, the `railway.ts` edit, the
   plan), then the same with `--apply` (Postgres restarts, about 12 seconds; the limit, start time and edge-bff `/ready`

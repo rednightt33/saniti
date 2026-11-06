@@ -11136,6 +11136,16 @@ tapi keep existing path in case kita mau adjust memory Postgres in the future su
   `/ready` 200; `railway config plan` up to date.
 - Tetap berlaku: restart sesudah setiap update besar (`AGENTS.md`), `restart_postgres.py --min-gb` 0,8 (diam 0,1–0,6 GB).
 
+**Kembali ke 1 GB (2026-11-06).** Kata user: "minta tolong untuk memory progress di cap jadi 1 GB.. sekarang 4GB.. tidak
+perluy lakukan perubahancode karena jalur sudah sempat dibuat sebelumnya." Sesi agent tidak punya token Railway
+(`set_postgres_memory.py`: `KeyError: 'RAILWAY_TOKEN'`; API Railway "Not Authorized"), jadi user mengubahnya di dashboard
+(pilihan A: "A coba cek ya").
+- Sebelum (04:53 UTC): 0 job EDGE, 0 turn orc, 0 query aktif; di luar B6.
+- Sesudah: Postgres start 2026-11-05 16:00:53 → 2026-11-06 04:55:05 UTC, `shared_buffers` 128MB, edge-bff `/ready` 200.
+  `railway.ts` `memoryBytes` 1000000000 disamakan. Batas belum dibaca balik dari Railway oleh agent (tidak ada akses);
+  user melihatnya di dashboard.
+- Restart ini juga menggantikan restart sesudah bacaan verifikasi EXEC-TERMINAL-IND-EDIT (tombol Telegram gagal, M344).
+
 ## EXEC-WEB-LIST — daftar peristiwa dari web dicari sampai lengkap, dan tanggalnya boleh dipakai sebagai periode (go 2026-11-02)
 
 **Kata user, 2026-11-02:**
