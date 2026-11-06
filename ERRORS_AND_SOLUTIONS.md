@@ -5314,6 +5314,41 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M370 — screener-worker suite red: 52 stale line pointers in SCREENER_ONBOARDING.md (2026-11-06, branch)
+
+- **Found by:** the coordinator, running `apps/screener-worker` `npm test` for EXEC-SCREENER-ADD.
+- **Symptom:** `tests/onboarding_pointers.test.ts` failed: 52 pointers of `SCREENER_ONBOARDING.md` named lines where the
+  cited symbol no longer is (mostly `apps/terminal-publisher/publisher.py`, also `apps/edge-bff/app/main.py`), and one
+  (`main.py:548`) named no single file.
+- **Verified cause:** the publisher and edge-bff changed after the document was written (EXEC-PUBLISH-FLOW,
+  EXEC-UNIVERSE-BROKER `fa07b8c3`) without the pointers being refreshed; the test is not run by CI.
+- **Class:** line pointers in a guide drift whenever the cited files change; any guide that cites `file:line`.
+- **Solution (branch):** every pointer moved to the line where its symbol is defined (script picks the definition among
+  the lines the test names); `main.py:548` spelled `apps/terminal-api/app/main.py:574`. The worker suite passes (67/67).
+- **Status:** FIXED (branch, not merged). Lesson: run the worker suite after changing a cited file; the guide's
+  pointers are tested only there.
+
+### M369 — Screener: "Add indicator" opened the detailed Indicators window instead of the reference's "Add a condition" (2026-11-06, branch)
+
+- **Found by:** the user (screenshots of the reference and of live, 2026-11-06).
+- **Verified cause:** the v21 port left the reference's "Add a condition" window, its condition and threshold picker and
+  its "on the screen" toggle out of subagent 1's brief (`reports/s1_ui.md` §2, "not in my brief"); the page action,
+  Alt+A and the builder kept opening the detailed Indicators window (`browser.ts`). A gap of the port, not a code fault.
+- **Class:** a reference behaviour dropped by how the work was split, without the user deciding it.
+- **Solution (EXEC-SCREENER-ADD, branch):** `src/add-condition.ts` is the one way to add, as the user asked ("cukup ada
+  screenshot B saja, tapi di screenshot B tanpa ada tulisan open in detailed browser"):
+  - every door opens it (page action, Alt+A, "/", the builder's search box and "+", the Add indicator tile, the quick
+    chips, My metrics' Add);
+  - `browser.ts` and `layout/window.ts` and the builder's suggestion list are removed;
+  - rows, groups, conditions, thresholds, defaults, limits and reasons come from the catalog; validation is the card's;
+    "on the screen" compares the wire test;
+  - the timeframe is shown (5m to 4h greyed with their reason, Daily on) and cannot be chosen;
+  - adding never runs (Screen now gate).
+- **Status:** FIXED in code (branch, not deployed). Verified: `tests/page/add-condition.test.ts` (9), the smoke step "Add
+  a condition is the one way to add" (every door, no detailed browser, timeframe, add, remove, Undo, wrong threshold, no
+  run), three full smoke runs, visual 46 shots.
+- **Lesson:** list what a split leaves out of the reference and have the user decide it before the release.
+
 ### M368 — Screener preview chart: percent and index overlays drawn on the price axis, candles squashed (2026-11-06, open)
 
 - **Found by:** the coordinator's signed-in live check after the EXEC-SCREENER-V21 deploy (AALI, preset Minervini).
@@ -5336,8 +5371,12 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     formatOfOpt` / `formatOfSide`), and only a `price` series goes on the candle axis; the others stay in "Why it
     passed".
   Either way, other units could get their own pane later.
-- **Decision:** user 2026-11-06 "A" (the contract fix); plan in `EXEC.md` EXEC-SCREENER-ADD, part 2.
-- **Status:** OPEN (planned, waiting for the go).
+- **Decision:** user 2026-11-06 "A" (the contract fix); "tidak usah digambar di grafik candle, cukup white pass saja".
+- **Solution (EXEC-SCREENER-ADD, branch):** `contract.ts` `PreviewResponse.overlays[].unit` (additive, optional for the
+  page); `apps/screener-worker/src/preview.ts` sends `ResolvedSeries.unit`; `src/preview.ts candleOverlays` keeps
+  `unit === 'price'` only (a series without a unit is not drawn); the fixture carries the core's unit.
+- **Status:** FIXED in code (branch, not deployed). Verified: worker test (RSI not `price`, the SMA crossed `price`),
+  `tests/page/add-condition.test.ts` (the overlay choice). Live check after the deploy: AALI with Minervini.
 
 ### M367 — Screener page without a session: two unhandled promise rejections in the console (2026-11-06, open)
 
@@ -5400,7 +5439,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - `app.ts batch()`: a sequence of refreshes (restoring the last screen, a new publication) draws once, at the widest
     level asked;
   - `preview.ts renderDetails` writes the panel and re-creates its chart only when its markup, the theme or the answer
-    changed (a preset click redrew the unchanged chart: 55 ms in 1 of 3 runs).
+    changed (a preset click redrew the unchanged chart: 55 ms in 1 of 3 runs);
+  - EXEC-SCREENER-ADD: `results.ts` puts the table's scroll back only when it was scrolled (writing a scroll offset of 0
+    laid the new table out at once: the hottest line of the boot profile).
 - **Status:** FIXED in code (branch, not committed, not deployed). Verified: per-action long tasks in the column and
   preset steps are all under 50 ms; two full smoke runs pass ("longest main-thread task of the page: 0 ms" outside the
   fixture's own compute).

@@ -12137,6 +12137,16 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
   - deployment screener-worker dan edge-bff SUCCESS dari API Railway.
 - **Permanen.**
 
+### Status eksekusi (2026-11-06, branch `claude/charming-hamilton-faq25e`, belum di-merge)
+- Bagian 2 (M368): kontrak `overlays[].unit`, worker, fixture, halaman `candleOverlays`; tes worker 67/67.
+- Bagian 1 (M369): `src/add-condition.ts`, semua pintu ke jendela itu, `browser.ts` dan `layout/window.ts` dihapus,
+  daftar saran builder dihapus, CSS, toast Undo.
+- Ikut diperbaiki: rujukan baris `SCREENER_ONBOARDING.md` (M370); tulis-ulang posisi scroll tabel hanya bila tergeser
+  (M364).
+- Bukti: typecheck; vitest 32 file, 780 lulus, 1 dilewati; build dan bundle 31; smoke tiga kali berturut-turut lulus
+  (tugas terpanjang halaman 0 ms); visual 46 screenshot; worker 67/67.
+- Sisa: merge (deploy edge-bff dan screener-worker) menunggu go merge; lalu cek live dengan login.
+
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).
 2. Semua pemeriksaan: typecheck, vitest, tes worker, build dan bundle, smoke, visual.
