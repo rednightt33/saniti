@@ -12146,6 +12146,9 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
 - Bukti: typecheck; vitest 32 file, 780 lulus, 1 dilewati; build dan bundle 31; smoke tiga kali berturut-turut lulus
   (tugas terpanjang halaman 0 ms); visual 46 screenshot; worker 67/67.
 - Sisa: merge (deploy edge-bff dan screener-worker) menunggu go merge; lalu cek live dengan login.
+- Go merge (user 2026-11-06): "go merge". PR rednightt33/saniti#52 di-merge; deploy edge-bff dan screener-worker.
+  Titik kembali: edge-bff `910cef24-cb29-4796-8d24-6a494abc890f` (f82babdc), screener-worker
+  `105e9e04-e682-451f-a5d9-6e7f0b052408` (80b77b50, SLEEPING).
 
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).
