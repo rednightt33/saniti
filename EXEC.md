@@ -11765,7 +11765,8 @@ Dimulai 2026-11-05 sesudah semua pertanyaan dijawab (user: "Jangan go sampai per
 | Indikator baru FL40–FL48 | selesai | `07ee6f4d` |
 | Merge `origin/main` ke branch (13 commit pekerjaan lain, tanpa konflik) | selesai | `9f9da9a4` |
 | Verifikasi bagian A (lima agen Sonnet 5.5 high, dua putaran; temuan diperbaiki, ERRORS M352) | selesai | `59981335`, `62eb2120`, `1c258684`; hasil di `VERIFY_EXEC_TERMINAL_IND_EDIT.md` |
-| Verifikasi bagian B (oracle dan angka review pada data hidup) | butuh sesi baru: kredensial pgweb environment yang diperbarui user baru terbaca sesi baru (sesi ini 401) | |
-| Merge ke `main` dan deploy | menunggu bagian B (keputusan user: "merge ke main setelah fase verifikasi selesai") | |
+| Verifikasi bagian B (oracle dan angka review pada data hidup; user 2026-11-06 "A, jalankan ya") | selesai: oracle 495.572 nilai 0 selisih, angka review 31/31 | `b1ac95a0` |
+| Merge ke `main` dan deploy | `main` `b1ac95a0` (fast-forward); edge-bff melayani versi baru 04:42 UTC 2026-11-06 | RAILWAY_CHANGELOG |
+| Sisa | status deployment screener-worker (dashboard); restart Postgres sesudah bacaan ±1,3 juta baris; cek browser hidup (C1, C2) | |
 
 Lingkungan uji di sesi ini: Postgres lokal sekali pakai untuk `EDGE_TEST_POSTGRES_URL`; Chromium `/opt/pw-browsers`.

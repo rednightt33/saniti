@@ -5329,7 +5329,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   dibaca hitungan.
 - **Solution (`59981335`):** select satu pilihan tetap ditampilkan (nilainya selalu ada); `dropStale` memeriksa terhadap
   semua pilihan definisi (`allOptions`), bukan yang tersaring indeks.
-- **Status:** FIXED di branch; diperiksa ulang oleh agen regresi (putaran 2).
+- **Status:** FIXED sebelum rilis; diperiksa ulang oleh agen regresi (putaran 2); dirilis 2026-11-06 (`main` `b1ac95a0`).
 - **Lesson:** menyaring pilihan menurut data tidak boleh menghapus parameter; aturan yang menurunkan perilaku dari data
   harus diuji pada indikator yang dulu punya pengecualian khusus (FL23).
 
@@ -5356,8 +5356,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - `tests/calc/fl28_index.test.ts`: angka hitungan tangan (220 dan 160, S = 440) dan teks tanpa "undefined"/"NaN".
 - **Bukti:** Terminal `npm run typecheck` lulus; `npx vitest run` 23 berkas, 1.531 tes lulus (sebelumnya 1.491);
   `npm run build` lulus; Backtest `npm run typecheck`, `npm run build`, `npm test` 88 tes lulus.
-- **Status:** FIXED di branch; menunggu merge ke `main` dan deploy edge-bff (bersama EXEC-TERMINAL-IND-EDIT setelah fase
-  verifikasi, keputusan user 2026-11-05).
+- **Status:** FIXED, dirilis 2026-11-06 (`main` `b1ac95a0`, edge-bff melayani versi baru sejak 04:42 UTC).
 - **Lesson:** bila hitungan chart diberi cabang untuk jenis ticker baru, tes kartu = chart harus dijalankan pada
   konteks jenis itu juga; tambahkan konteksnya ke tes bersama, bukan tes per indikator.
 
