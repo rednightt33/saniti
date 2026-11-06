@@ -12050,7 +12050,7 @@ push, deploy, atau publish sampai ada instruksi eksplisit".
   telat sampai sekitar 1 menit), beda kata dengan referensi, dan kalimat "Outperformed IHSG by X pts" yang dihitung
   halaman.
 
-## EXEC-SCREENER-ADD — jendela "Add a condition" dan satuan garis grafik preview (M368 pilihan A) (rencana 2026-11-06, menunggu go)
+## EXEC-SCREENER-ADD — jendela "Add a condition" dan satuan garis grafik preview (M368 pilihan A) (go 2026-11-06)
 
 **Kata user, 2026-11-06:** atas pertanyaan M368 ("(a) perbaikan permanen lewat kontrak dan worker, (b) sementara di
 halaman, atau ditunda"): "A". Lalu, dengan screenshot jendela "Add a condition" dan tombol "+ Add indicator" dari HTML
@@ -12151,5 +12151,15 @@ pass saja. Konfirmasi before proceed."
 - Timeframe di jendela tetap tampil seperti referensi, tetapi tidak bisa diklik.
 - Jendela "Add a condition" menjadi satu-satunya pintu untuk menambah indikator; cara menambah yang sekarang dilepas.
 - Bagian 2: garis non-harga tidak digambar di grafik candle; nilainya cukup di "Why it passed".
-- Rincian yang dikonfirmasi dulu sebelum go: nasib jendela detail "Indicators", kotak cari builder, chip cepat di builder
-  kosong, tombol Add di tab My metrics, dan tampilan 5m/15m/1h/4h (abu-abu, tidak bisa diklik).
+- Konfirmasi (2026-11-06): "So sebenarnya poinnya adalah sekarang kalau mau nambah indikator ada dua screenshot.
+  Screenshot A dan screenshot B. Nah, saya mau cukup ada screenshot B saja, tapi di screenshot B tanpa ada tulisan open in
+  detailed browser. Sudah benar untuk usulan timeframe, saya konfirmasi." (A = jendela detail "Indicators", B = "Add a
+  condition"). Ini juga go eksekusi Bagian 2 lalu Bagian 1.
+  - Hanya jendela B, tanpa tombol "Open the detailed browser"; jendela A dihapus dari halaman.
+  - Semua pintu membuka B: tombol "Add indicator", Alt+A, "/", kotak cari builder, tombol "+", chip cepat di builder
+    kosong (B terbuka dengan pencarian itu), tombol Add di tab My metrics (B terbuka di "My metrics"). Daftar saran kecil
+    di bawah kotak cari dihapus.
+  - Parameter selain default diatur di kartu sesudah ditambahkan (header kolom dan kartu), tidak lagi sebelum menambah.
+  - Timeframe: 5m, 15m, 1h, 4h dan Daily tampil, Daily tersorot, tidak ada yang bisa diklik; 5m-4h abu-abu dengan
+    keterangan "No data yet: intraday bars are not in the market database."; label "Timeframe · Daily" di bar filter
+    tetap.
