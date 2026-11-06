@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `4b606058`: Terminal indicator presets, Indicators window fixes (EXEC-IND-PRESETS)
+
+- **Change:** "Save as preset" from the indicator row and Settings; My presets in the Indicators window (Add, star,
+  Rename / Update from chart / Delete, search); the value right after the title; search box shadow without a blue
+  border; the definition line; Place · Unit removed. Routes `/api/v1/terminal/presets`. User: "Q1 A / Q2 A", then "ok".
+- **Database first:** migration `20261106_002` DRYRUN (job `b3ac99c7`, 39/39) and APPLY (job `122d4b0d`, 23/23) on
+  dev between 15:44 and 15:48 UTC through `run_migration.sh`; one APPLY attempt stopped before any job ran (ERRORS M379).
+  `DATABASE_URL` set on orc-test-runner only for each job and removed (VAR_REMOVED). No variable change.
+- **Before the push:** no user run in flight (0 / 0, 15:48 UTC); after B6 (22:48 WIB); `main` `5a22dcb5` merged into the
+  branch earlier (EXEC.md conflict, both sides kept), so the push was a fast-forward; tripwire OK; Terminal 870/870,
+  edge-bff 333 passed; look checks 3, 5, 6, 7, 8, 9 without errors.
+- **edge-bff:** deployment `33cfef02` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-D_U2OuW2.js` and
+  `assets/style-BzeimiFQ.css` byte-equal to the local build of `4b606058`; `/api/v1/terminal/presets` 401 without a
+  session.
+- **screener-worker:** `terminal/src/calc/**` unchanged: no rebuild. **Postgres:** a new empty table is not a large
+  update: no restart.
+
 ## 2026-11-06 — edge-bff from `main` `f9871686`: Screener parameters in "Add a condition", solid failed cells, event fail "No" (PR #55)
 
 - **Change (ERRORS M376, M377):**

@@ -12362,3 +12362,5 @@ propose." Atas usulan "My presets" dan pertanyaan balik: "Q1 A" (simpan di akun 
   Delete, pencarian, indikator yang sudah tidak ada, parameter usang kembali ke bawaan, ponsel tanpa geser) plus
   `look_check3/5/6/7/8` tanpa galat; Terminal 870/870, edge-bff 333 lulus, tripwire backtest OK.
 - Go rilis 2026-11-06 (user: "ok", 22:4x WIB, sesudah B6): migrasi `20261106_002` DRYRUN lalu APPLY, lalu `main`.
+- **Dirilis 2026-11-06:** migrasi `20261106_002` diterapkan (DRYRUN `b3ac99c7` 39/39, APPLY `122d4b0d` 23/23; satu
+  percobaan APPLY berhenti sebelum jalan, ERRORS M379); `main` `4b606058`, edge-bff `33cfef02` SUCCESS, aset live = build lokal.
