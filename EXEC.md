@@ -12369,6 +12369,7 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
   - Temuan: 2 baris katalog live meluap 10–16 px ("Volume spike", "New N-session high of a line"). Perbaikan umum:
     label mengalah dengan "…" (nama lengkap di tooltip), kotak isian tidak pernah menyusut. Diuji dengan CSS yang
     disuntikkan di halaman live: 0 baris meluap pada 1440 dan 1100. Dikirim di PR lanjutan dalam go yang sama.
+  - PR #58 di-merge 16:39 UTC (`main` `99fe0daa`); edge-bff `9f0322b3` SUCCESS; live: 0 dari 128 baris meluap.
 
 ## EXEC-IND-PRESETS — nilai indikator di kiri, jendela Indicators, preset indikator di akun EDGE (go 2026-11-06)
 

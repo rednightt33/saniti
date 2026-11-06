@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `99fe0daa`: "Add a condition" labels give way before fields (PR #58)
+
+- **Change:** CSS only. A blue box never shrinks its field; when the line is short of room, the label gives way (ellipsis,
+  full name in its title). Also the records of PR #57. No backend, variable, migration or database change.
+- **Go:** within the user's go of 2026-11-06 "Ok, implement versi ini lalu go merge" (a defect of that version, found
+  by its live check). PR rednightt33/saniti#58 merged 16:39 UTC (merge commit `99fe0daa`).
+- **Deployment (Railway API):** edge-bff `9f0322b3-ae5f-4a8e-8471-44291347295a` SUCCESS, created 16:39:03 UTC, commit
+  `99fe0daa`.
+- **edge-bff (verified from the live service):** `index.html`, `assets/index-K21MnYw1.js` and `assets/style-Ck8ppa0U.css`
+  are byte-equal to the local build (sha256 `f321fe190670906a…`, `d2bc1247d964de94…`).
+- **Signed-in check:**
+  - 0 of 128 rows overflow at 1440 and 1100 (before: "Volume spike" 284 > 268 px, "New N-session high of a line" 278 >
+    268 px); Volume spike's labels end in an ellipsis with the full name in the title;
+  - RSI "Customize 3", the panel, Escape and "already on the screen" as in PR #57;
+  - no 5xx response.
+- **Rollback:** redeploy edge-bff `1b3fc3a0-c200-4831-8a4a-815b046ecf43` (commit `e0cfb700`), or revert merge `99fe0daa`.
+
 ## 2026-11-06 — edge-bff from `main` `e0cfb700`: "Add a condition" Customize for more than two blue boxes (PR #57)
 
 - **Change:**
