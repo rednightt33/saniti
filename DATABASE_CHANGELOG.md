@@ -1,6 +1,6 @@
 # Database changelog
 
-## 2026-11-06 — EDGE Terminal saved chart layouts (schema `edge_bff`, EXEC-TERMINAL-LAYOUTS) — file added, NOT applied
+## 2026-11-06 — EDGE Terminal saved chart layouts (schema `edge_bff`, EXEC-TERMINAL-LAYOUTS) — applied on dev
 
 - **User:** "Saya mau ditambahkan opsi di mana layout dari layout ini bisa di-save dan bisa dibuka kapanpun" and, asked
   where layouts live, "di akun edge. Tidak usah mengganti saham." (2026-11-06). Operational schema `edge_bff`, no market
@@ -19,6 +19,18 @@
   the table does not exist and PUBLIC holds no privilege on any edge_bff table. It is applied at the release through
   `verification/screener/jobs/run_migration.sh` (DRYRUN then APPLY), then `database/migrations/APPLIED.sha256` gains it. Until then
   edge-bff answers 503 `LAYOUTS_NOT_READY` on the layout routes and the rest of the Terminal works.
+- **Applied 2026-11-06 (user: "A", then "saya izinkan 1" for the Railway variable writes):** after B6, with no user run in
+  flight (`edge_bff.jobs` 0, `AI_conversation_turn` RUNNING 0, 0 active statements), through
+  `verification/screener/jobs/run_migration.sh` with the session's Railway account token:
+  - DRYRUN job `d19c51a4` (13:21 UTC): judged on an incomplete log read, then on the same job's complete log 38/38 except
+    the PostgreSQL 18 NOT NULL rows (ERRORS M368); the runner and the checker fixed; DRYRUN again, job `4b4ef869`:
+    `VERDICT PASS 38/38`.
+  - APPLY attempts 1 and 2 stopped before any job ran (`SET_FAILED`, then the runner guard's `DEPLOYMENT_LIST_FAILED`:
+    connections to backboard.railway.com closed mid-request); records `migration20261106_001_apply_attempt{1,2}_*.run.txt`.
+    A manual `DATABASE_URL` set for the diagnosis was removed and checked gone.
+  - APPLY job `f79b4ca1`: `VERDICT PASS 23/23`; `DATABASE_URL` removed from orc-test-runner (VAR_REMOVED, read back 0).
+  - Read back through pgweb catalogs: the table and its three indexes; `edge_bff_runtime` SELECT/INSERT/UPDATE/DELETE
+    only; PUBLIC none; pgweb itself cannot read the table (by design). `APPLIED.sha256` gains the file.
 - `scripts/provision_edge_bff_login.py` holds the table to exactly these grants once it exists, and now refuses any
   PUBLIC privilege on an EDGE table (QA round 3, L6; none live).
 
