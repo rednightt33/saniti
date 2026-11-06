@@ -252,9 +252,40 @@ await at('a worker refusal names its card and is not sent again until the card c
   await screen();
   expect(await runs() === n + 1 && /match/.test(await meta()), 'the changed screen did not run');
 });
+await at('Add a condition is the one way to add: every door opens it, no detailed browser, timeframe shown not chosen, add / remove / Undo, a wrong threshold refused, no run', async () => {
+  // EXEC-SCREENER-ADD (user 2026-11-06): "cukup ada screenshot B saja, tapi di screenshot B tanpa ada tulisan open in
+  // detailed browser"; "Time frame tetap di show saja, tapi dibuat unclickable"
+  await fresh(); await ready();
+  const r0 = await runs(), cards = () => page.locator('#condList .mc[data-card]').count();
+  const doors = { 'the page action': () => page.click('#pageActs [data-hd="add"]'), 'Alt+A': () => page.keyboard.press('Alt+a'), '"/"': () => page.keyboard.press('/'), 'the builder search box': () => page.click('.adder .adder-open'), 'the builder +': () => page.click('.adder .bh-add') };
+  for (const [name, open] of Object.entries(doors)) {
+    await page.mouse.click(4, 4); await open(); await page.waitForTimeout(150);
+    expect(await page.locator('.dialog.qwin[aria-label="Add a condition"]').count() === 1, `${name} did not open Add a condition`);
+    await page.keyboard.press('Escape');
+  }
+  await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(150);
+  expect(!(await page.locator('.qwin [data-qbrowse], .dialog.ib').count()) && !/detailed browser/i.test(await text('.dialog.qwin')), 'the detailed browser is still offered');
+  const tf = page.locator('#acl .qrow').first().locator('.tf-add');
+  expect(await tf.locator('button').count() === 0 && (await tf.locator('span.on').innerText()) === 'Daily' && await tf.locator('span.na').count() === 4, 'the timeframe is not shown as 5m-4h greyed and Daily, with nothing to click');
+  const adx = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Average Directional Index$/ }) });
+  await adx.locator('[data-qact]').click(); await page.waitForTimeout(150);
+  expect(await cards() === 1, 'Add did not add a card');
+  expect(/\bisadd\b/.test(await adx.getAttribute('class')) && (await page.locator('#acg [data-ag="__on"] .c').innerText()) === '1', 'the row is not marked as on the screen');
+  await adx.locator('.qnm').click(); await page.waitForTimeout(150);                       // a click on an added row removes it
+  expect(await cards() === 0, 'clicking an added row did not remove it');
+  await page.click('#toast .toast-act'); await page.waitForTimeout(150);                   // Undo
+  expect(await cards() === 1, 'Undo did not bring the condition back');
+  const thr = adx.locator('[data-af="value"]');
+  await thr.fill(''); await thr.dispatchEvent('change'); await page.waitForTimeout(100);
+  await adx.locator('[data-qact]').click(); await page.waitForTimeout(150);
+  expect(/Enter a value/.test(await text('#toast')) && await cards() === 1, 'an empty threshold was not refused with the card\'s message');
+  await page.keyboard.press('Escape');
+  expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
+});
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
   await fresh(); await ready();
-  await page.focus('#adderQ'); await page.keyboard.type('vwap'); await page.keyboard.press('Enter'); await page.waitForTimeout(200);
+  await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', 'vwap'); await page.waitForTimeout(100);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(150); await page.keyboard.press('Escape');
   const card = await openCard(0);
   expect(/VWAP|Volume Weighted/i.test(await card.innerText()), 'the VWAP card was not added: ' + await card.innerText());
   expect(await card.locator('[data-segd]').count() === 0, 'the VWAP card offers a Default chip');
@@ -449,17 +480,28 @@ await at('saved screens: save, list, reload, delete with confirmation', async ()
   await page.click('#cfGo');
   await page.waitForFunction(() => /deleted/.test(document.getElementById('toast').textContent));
 });
-await at('My metric: save from a custom card, add it from the adder', async () => {
+await at('My metric: save from a custom card, add it from Add a condition (My metrics)', async () => {
   await fresh(); await ready();
-  await page.click('[data-quick="I13"]'); await page.waitForTimeout(100);
+  await page.click('[data-quick="I13"]'); await page.waitForTimeout(150);                       // the window, searched for RSI
+  expect(/Relative Strength Index/.test(await page.inputValue('#acq')), 'a quick chip did not open Add a condition searched for it');
+  await page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Relative Strength Index$/ }) }).locator('[data-qact]').click(); await page.waitForTimeout(100);
+  await page.keyboard.press('Escape');
   const card = await openCard(0);
   await card.locator('[data-segc]').click();
   const len = (await openCard(0)).locator('[data-p="length"]'); await len.fill('7'); await len.dispatchEvent('change'); await page.waitForTimeout(100);
   await screen();
   await (await openCard(0)).locator('[data-savem]').click(); await page.fill('#mName', 'Fast RSI'); await page.click('#mGo');
   await page.waitForFunction(() => /saved to My metrics/.test(document.getElementById('toast').textContent));
-  await page.focus('#adderQ');
-  expect(/Fast RSI/.test(await text('#suggest')), 'My metric not offered in the adder');
+  // the card it was saved from has the same test: the metric's row is "on the screen" (one rule for every row)
+  await page.click('#pageActs [data-hd="add"]'); await page.click('#acg [data-ag="My metrics"]'); await page.waitForTimeout(100);
+  const fast = page.locator('#acl .qrow', { hasText:'Fast RSI' });
+  expect(/Fast RSI/.test(await text('#acl')) && /\bisadd\b/.test(await fast.getAttribute('class')), 'My metric not offered, or not shown as on the screen');
+  await page.keyboard.press('Escape');
+  await page.click('#cardC [data-act="clearconds"]'); await page.waitForTimeout(100);
+  await page.click('#pageActs [data-hd="add"]'); await page.click('#acg [data-ag="My metrics"]'); await page.waitForTimeout(100);
+  await fast.locator('[data-qact]').click(); await page.waitForTimeout(100);
+  await page.keyboard.press('Escape');
+  expect(await page.locator('#condList .mc[data-card]').count() === 1 && /Fast RSI/.test(await text('#condList')), 'the My metric was not added as its own condition');
 });
 await at('watchlist through the API, kept after reload', async () => {
   const dot = page.locator('#resPane .watch-dot').first(), tk = await dot.getAttribute('data-watch');
@@ -503,12 +545,13 @@ await at('a run answer newer than the catalog: the catalog is asked again', asyn
   expect(c.catalog >= 2, `catalog not asked again: ${JSON.stringify(c)}`);
   expect(/06:59 WIB/.test(await text('#pageHead')), 'the data line does not show the new publication');
 });
-await at('keyboard: "/" adds from the adder, rows open the preview, Escape closes', async () => {
+await at('keyboard: "/" opens Add a condition, Enter adds, rows open the preview, Escape closes', async () => {
   await fresh(); await ready();
   await page.mouse.click(4, 4); await page.keyboard.press('/');
-  expect(await page.evaluate(() => document.activeElement?.id) === 'adderQ', '"/" does not focus the adder');
-  await page.keyboard.type('rsi'); await page.keyboard.press('Enter'); await idle();
-  expect(await page.locator('#condList .mc[data-card]').count() === 1, 'Enter did not add the first suggestion');
+  expect(await page.evaluate(() => document.activeElement?.id) === 'acq', '"/" does not open Add a condition with the focus in its search');
+  await page.keyboard.type('rsi'); await page.keyboard.press('Enter'); await page.waitForTimeout(150); await page.keyboard.press('Escape');
+  expect(await page.locator('.dialog.qwin').count() === 0, 'Escape did not close Add a condition');
+  expect(await page.locator('#condList .mc[data-card]').count() === 1, 'Enter did not add the first row');
   await page.locator('#resPane tbody tr').first().focus(); await page.keyboard.press('Enter');
   await page.waitForSelector('#preview:not([hidden])');
   await page.mouse.click(4, 4); await page.keyboard.press('Escape');
@@ -529,12 +572,9 @@ await at('markup in names is rendered as text only', async () => {
   await page.fill('#tq', '');
   expect(/<img src=x onerror="window.__xss=4">Golden "Cross"/.test(await page.locator('#cardU').textContent()), 'the preset name is not shown as text in the presets bar');
   await page.click('[data-open="p:golden"]'); await page.waitForTimeout(200);
-  await page.focus('#adderQ'); await page.keyboard.type('strength'); await page.waitForTimeout(150);
-  expect(/<b id="xss2">Relative<\/b>/.test(await page.locator('#suggest').textContent()), 'the indicator name is not shown as text in the adder');
-  await page.click('#suggest [data-add="I13"]'); await page.waitForTimeout(150);
-  await page.click('#cardC [data-act="browse"]'); await page.waitForTimeout(250);
-  const win = await page.locator('[role="dialog"]').last().textContent();
-  expect(/<b id="xss2">/.test(win || ''), 'the indicator name is not shown as text in the Indicators window');
+  await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', 'strength'); await page.waitForTimeout(150);
+  expect(/<b id="xss2">Relative<\/b>/.test(await page.locator('#acl').textContent()), 'the indicator name is not shown as text in Add a condition');
+  await page.locator('#acl .qrow', { hasText:'xss2' }).first().locator('[data-qact]').click(); await page.waitForTimeout(150);
   await page.keyboard.press('Escape');
   await screen();
   if (!await page.locator('#resPane thead').count()) { await page.locator('#resPane button', { hasText:'Match at least 1' }).click(); await page.waitForTimeout(100); if (await pendingShown()) await screen() }
@@ -591,8 +631,13 @@ await at('phone width: no horizontal page scroll', async () => {
   await open({ width:390, height:844 }); await go(); await ready();
   const w = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(w <= 1, `the page scrolls sideways by ${w}px at 390 px`);
-  const browse = await page.evaluate(() => document.querySelector('.adder .xbtn').getBoundingClientRect().right <= document.getElementById('cardC').getBoundingClientRect().right - 1);
-  expect(browse, 'the adder\'s Browse button runs past the builder card at 390 px');
+  const opener = await page.evaluate(() => document.querySelector('.adder .adder-open').getBoundingClientRect().right <= document.getElementById('cardC').getBoundingClientRect().right - 1);
+  expect(opener, 'the builder\'s search box runs past the builder card at 390 px');
+  // Add a condition fills the phone screen and never scrolls sideways
+  await page.click('.adder .adder-open'); await page.waitForTimeout(200);
+  const q = await page.evaluate(() => { const d = document.querySelector('.dialog.qwin'), r = d.getBoundingClientRect(); return { w:r.width, side:d.scrollWidth - d.clientWidth } });
+  expect(q.w >= 389 && q.side <= 1, `Add a condition at 390 px: width ${q.w}, scrolls sideways by ${q.side}px`);
+  await page.keyboard.press('Escape');
   // below 900 px the quick filters open their popover; the sector popover keeps its footer inside its box with the
   // "Unclassified" row (P15)
   await page.click('[data-qf="sector"]');

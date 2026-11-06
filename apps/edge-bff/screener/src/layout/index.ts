@@ -6,14 +6,14 @@
    page's preview path (run lane rules in preview.ts / run.ts).
      panes.ts        pane borders, rails, the folded filter bar
      filters.ts      More filters group list and industry narrowing, Not available yet, popover resize
-     window.ts       the Indicators window (move, resize, maximise)
      table.ts        pinned columns, header drag to reorder, compact density
      columns.ts      the Add column picker (data: extra-columns.ts)
      header-edit.ts  parameters edited from a column header (through builder.ts onBuilderField)
      perf.ts         Stock vs IHSG axes and hover */
 import { S, ui } from '../state.ts';
 import { panelPrefs } from '../storage.ts';
-import { browseAll, toggleRow, renderConds } from '../builder.ts';
+import { toggleRow, renderConds } from '../builder.ts';
+import { openAddCondition } from '../add-condition.ts';
 import { bindUniverseLayout } from '../universe-ui.ts';
 import { dialogOpen } from '../dialogs.ts';
 import { layoutHooks, wide } from './prefs.ts';
@@ -97,9 +97,9 @@ export function initLayout() {
     moveColumn(th, e.key === 'ArrowLeft' ? -1 : 1); ui.renderResults();
     if (key) (document.querySelector(`#resPane thead [data-sort="${CSS.escape(key)}"]`) as HTMLElement | null)?.focus();
   });
-  // Alt+A opens the Indicators window from anywhere (the physical key, so any keyboard layout works)
+  // Alt+A opens Add a condition from anywhere (the physical key, so any keyboard layout works; EXEC-SCREENER-ADD)
   addEventListener('keydown', e => {
-    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyA' && !dialogOpen()) { e.preventDefault(); browseAll() }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyA' && !dialogOpen()) { e.preventDefault(); openAddCondition() }
   });
   // crossing the 900 px line changes the builder (tabs, compact rows) and the filter bar (fold): draw them again
   const mq = matchMedia('(min-width: 901px)');

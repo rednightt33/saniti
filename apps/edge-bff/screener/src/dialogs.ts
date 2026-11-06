@@ -16,6 +16,13 @@ export function toast(m: string) {
   const t = $('toast'); t.textContent = m; t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true }, 2200);
 }
+/** a toast with one action (Undo after a removal, EXEC-SCREENER-ADD); it stays 5 s, the action closes it */
+export function toastAction(m: string, label: string, act: () => void) {
+  const t = $('toast'); clearTimeout(toastT);
+  t.innerHTML = `<span>${esc(m)}</span><button type="button" class="toast-act">${esc(label)}</button>`; t.hidden = false;
+  t.querySelector('button')!.onclick = () => { clearTimeout(toastT); t.hidden = true; act() };
+  toastT = setTimeout(() => { t.hidden = true }, 5000);
+}
 
 let opener: HTMLElement | null = null;
 const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea,[tabindex]:not([tabindex="-1"])';

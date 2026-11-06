@@ -1,23 +1,21 @@
-/* Card 2: the Screen builder (the prototype's renderConds, condRow, drawSuggest, addCond, addMetric, applyField for
-   cards), on the catalog's entries. Kept: the type-ahead adder with "/" and arrow keys, My metrics first, the quick
-   rail, Default / Custom with the changed fields marked, Save as My metric, the operator select, "within N sessions",
+/* Card 2: the Screen builder (the prototype's renderConds, condRow, applyField for cards), on the catalog's entries.
+   Adding goes through one window only, "Add a condition" (add-condition.ts, EXEC-SCREENER-ADD): the search box, "/",
+   "+", the Add indicator tile, the quick rail and My metrics' Add open it. Kept: Default / Custom with the changed fields marked, Save as My metric, the operator select, "within N sessions",
    All / Any / At least n bounded by the active count. Changed (report 9.2): entries, synonyms and defaults come from
    the catalog; invalid input is refused in place with the field and the allowed range, never rounded or ignored;
    `between` with value > value2 is refused; each card shows its pass count from the run ("m of U pass" when exhaustive,
    else "m of n evaluated"). */
-import type { SavedItem } from './core/contract.ts';
 import { esc, nf } from './format.ts';
 import { COLORS, IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, S, ui } from './state.ts';
-import { byGroup, defaultParams, GHEAD, GL, isDefP, matches, optionText, paramError, rangeText, type Entry } from './entries.ts';
-import { cardErrors, cardName, condText, defaultOffered, displayUnit, fromWire, isCustom, newCard, newCardId, optOf, paramSummary, type Card } from './forms.ts';
+import { defaultParams, isDefP, optionText, paramError, rangeText, type Entry } from './entries.ts';
+import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, optOf, paramSummary, type Card } from './forms.ts';
 import { confirmDialog, openSaveMetric, toast } from './dialogs.ts';
-import { openBrowser } from './browser.ts';
+import { MY, openAddCondition } from './add-condition.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { T } from './texts.ts';
 import { ApiFailure } from './api/types.ts';
 import { layoutHooks, wide } from './layout/prefs.ts';
-import type { ParamMap } from './core/contract.ts';
 import { afterPress } from './press.ts';
 import { pageCardOf, screenedCards } from './run.ts';
 
@@ -115,7 +113,6 @@ export function renderConds() {
   const lim = maxConds();
   const ready = !!ctx.catalog, W = wide();
   if (W) S.bOpen = true;                       // the pane always shows its body on a wide screen (it collapses to a rail)
-  const total = ctx.entries.length;
   const tgl = W ? `<button class="tgl" data-act="btoggle" aria-expanded="true" aria-controls="cardC" title="Collapse the screen builder">`
     : `<button class="tgl ${S.bOpen ? '' : 'closed'}" data-act="btoggle" aria-expanded="${S.bOpen}">`;
   el.innerHTML = `<div class="builder-h">${tgl}${ico(IC.chev, 's')}Screen builder <small id="bSum">${bSum()}</small></button><span class="sp"></span>
@@ -123,10 +120,10 @@ export function renderConds() {
       ${n > 1 ? `<span class="logic">Match <span class="seg sm" role="radiogroup" aria-label="Match"><button class="${S.logic === 'all' ? 'on' : ''}" data-logic="all" role="radio" aria-checked="${S.logic === 'all'}">All</button><button class="${S.logic === 'any' ? 'on' : ''}" data-logic="any" role="radio" aria-checked="${S.logic === 'any'}">Any</button><button class="${S.logic === 'at_least' ? 'on' : ''}" data-logic="at_least" role="radio" aria-checked="${S.logic === 'at_least'}">At least</button></span>${S.logic === 'at_least' ? `<input class="inp" type="number" min="1" max="${Math.max(1, a)}" step="1" data-s="atLeast" value="${S.atLeast}" aria-label="At least N">` : ''}<span>of ${a} active</span></span>` : ''}
       ${n ? `<button class="btn sm ghost" data-act="clearconds">Clear</button>` : ''}</div>
     <div class="bt-view" id="btView" role="tabpanel" aria-label="${btab === 'metrics' ? 'My metrics' : 'Saved screens'}">${btab === 'cond' ? '' : btView()}</div>
-    ${S.bOpen ? `<div class="builder-b" role="tabpanel" aria-label="Conditions">${!ready ? `<div class="sbox">${spin(T.loadingIndicators)}</div>` : `<div class="adder"><label class="searchbox">${ico(IC.search, 's')}<input id="adderQ" placeholder="${W ? 'Search indicators to add' : `Add a condition — search ${ctx.catalog!.indicators.length} indicators: “RSI”, “Stochastic”, “VWAP”, “Supertrend”, or “breakout”…`}" title="Add a condition (/)" autocomplete="off" aria-label="Add a condition" role="combobox" aria-expanded="false" aria-controls="suggest" aria-autocomplete="list"><kbd>/</kbd><button class="xbtn" data-act="browse" title="Browse all indicators with details" aria-label="Browse all ${total} indicators with details">${ico(IC.expand, 's')}${W ? `Browse all indicators<span class="bx-n">${total}</span>${ico(IC.chev, 'bx-c')}` : 'Browse'}</button></label><button type="button" class="bh-add" data-act="browse" title="Add indicator (browse all)" aria-label="Add indicator">${ico(IC.plus)}</button><div class="suggest" id="suggest" role="listbox" hidden></div></div>`}
+    ${S.bOpen ? `<div class="builder-b" role="tabpanel" aria-label="Conditions">${!ready ? `<div class="sbox">${spin(T.loadingIndicators)}</div>` : `<div class="adder"><button type="button" class="searchbox adder-open" data-act="addwin" aria-haspopup="dialog" title="Add a condition (Alt+A or /)">${ico(IC.search, 's')}<span class="ph">${W ? 'Search indicators to add' : `Add a condition — search ${ctx.catalog!.indicators.length} indicators: “RSI”, “Stochastic”, “VWAP”, “Supertrend”, or “breakout”…`}</span><kbd>/</kbd></button><button type="button" class="bh-add" data-act="addwin" aria-haspopup="dialog" title="Add a condition (Alt+A)" aria-label="Add a condition">${ico(IC.plus)}</button></div>`}
       ${lim && a > lim.value ? `<div class="note down" role="alert">${esc(lim.rule)}: switch off or remove ${a - lim.value} condition${a - lim.value > 1 ? 's' : ''}.</div>` : ''}
-      ${n ? `<div class="strip" id="condList">${S.cards.map(condRow).join('')}<button class="mc madd" data-act="focusadd">${ico(IC.plus)}<span>Add indicator</span></button></div>`
-        : ready ? `<div class="bempty"><span class="muted">No conditions yet. Start from a preset, search above, or add a first condition:</span><div class="qrail"><button class="btn sm" data-act="browse">${ico(IC.expand, 's')}Browse all</button>${quick().map(e => `<button class="btn sm" data-quick="${esc(e.key)}" ${e.available ? '' : `disabled title="${esc(e.reason || '')}"`}>${ico(IC.plus, 's')}${esc(e.short === e.key ? e.label : e.label.length > 18 ? e.short : e.label)}</button>`).join('')}</div></div>` : ''}</div>` : ''}`;
+      ${n ? `<div class="strip" id="condList">${S.cards.map(condRow).join('')}<button class="mc madd" data-act="addwin" aria-haspopup="dialog">${ico(IC.plus)}<span>Add indicator</span></button></div>`
+        : ready ? `<div class="bempty"><span class="muted">No conditions yet. Start from a preset, or open Add a condition:</span><div class="qrail">${quick().map(e => `<button class="btn sm" data-quick="${esc(e.key)}" ${e.available ? '' : `disabled title="${esc(e.reason || '')}"`}>${ico(IC.plus, 's')}${esc(e.short === e.key ? e.label : e.label.length > 18 ? e.short : e.label)}</button>`).join('')}</div></div>` : ''}</div>` : ''}`;
   card.classList.toggle('bt-alt', W && btab !== 'cond');
   const cl = $('condList'); if (cl) cl.scrollLeft = sl;
   layoutHooks.afterConds();
@@ -166,50 +163,6 @@ export function toggleRow(id: string) {
   renderConds();
   ($('condList')?.querySelector(`[data-card="${CSS.escape(id)}"]`) as HTMLElement | null)?.focus?.();
 }
-const browseAll = (q = '') => { hideSuggest(); openBrowser(q, { addCond, addMetric }) };
-
-/* ---- the type-ahead adder ----------------------------------------------------------------------------------- */
-type Sug = { e: Entry; m?: SavedItem };
-let sugIdx = 0, sugList: Sug[] = [];
-const metricEntry = (m: SavedItem) => { const c = fromWire({ id:'m', enabled:true, test:(m.definition as any).test }, ctx.byKey); return c.entry ? { c, e:ctx.byKey.get(c.entry)! } : null };
-export function drawSuggest(q: string) {
-  const box = $('suggest'), inp = $('adderQ'); if (!box) return;
-  const n = q.trim().toLowerCase();
-  const mine: Sug[] = (ctx.metrics || []).map(m => ({ m, x:metricEntry(m) })).filter(({ m, x }) => x && (!n || (m.name + ' ' + x.e.label + ' ' + x.e.key).toLowerCase().includes(n))).map(({ m, x }) => ({ e:x!.e, m }));
-  sugList = [...mine, ...byGroup(ctx.entries.filter(e => matches(e, n))).map(e => ({ e }))];
-  if (!sugList.length) { box.innerHTML = `<div class="note" style="padding:10px">No indicator matches “${esc(q)}”.</div>`; box.hidden = false; inp?.setAttribute('aria-expanded', 'true'); return }
-  sugIdx = Math.min(sugIdx, sugList.length - 1);
-  let last = '';
-  const emptyMine = !n && !mine.length ? `<div class="hd">My metrics</div><div class="mempty">${ctx.metrics == null ? 'Loading…' : 'None yet. Change a parameter on a condition, then press “Save as My metric” to reuse it here.'}</div>` : '';
-  box.innerHTML = emptyMine + sugList.map(({ e, m }, i) => {
-    const g = m ? 'My metrics' : e.group, hd = g !== last ? `<div class="hd">${esc(GHEAD(g))}</div>` : ''; last = g;
-    if (m) return hd + `<div class="mrow"><button class="${i === sugIdx ? 'act' : ''}" data-addm="${esc(m.item_id)}" role="option" aria-selected="${i === sugIdx}"><span class="tag My">★ Mine</span>${esc(m.name)}<small>${esc(e.label)}</small></button><button class="mdel" data-delm="${esc(m.item_id)}" title="Delete ${esc(m.name)}" aria-label="Delete ${esc(m.name)}">${ico(IC.trash, 's')}</button></div>`;
-    return hd + `<button class="sg1 ${i === sugIdx ? 'act' : ''} ${e.available ? '' : 'na'}" data-add="${esc(e.key)}" role="option" aria-selected="${i === sugIdx}" title="${esc(e.available ? e.desc : `${e.desc}\n${e.reason}`)}"><span class="tag ${esc(e.group)}">${esc(GL(e.group))}</span><span class="nm">${esc(e.label)}</span><small>${e.available ? (e.params.length ? esc(e.params.map(p => optionText(p, p.default)).join(' · ')) : 'fixed') : 'no data'}</small></button>`;
-  }).join('');
-  box.innerHTML += `<button class="sgfoot" data-act="browse">${ico(IC.expand, 's')}Browse all ${ctx.entries.length} indicators with details${n ? ` for “${esc(q.trim())}”` : ''}</button>`;
-  box.hidden = false; inp?.setAttribute('aria-expanded', 'true');
-  box.querySelector('.act')?.scrollIntoView({ block:'nearest' });
-}
-const hideSuggest = () => { const s = $('suggest'); if (s) s.hidden = true; $('adderQ')?.setAttribute('aria-expanded', 'false') };
-
-export function addCond(key: string, params?: ParamMap) {
-  const e = ctx.byKey.get(key); if (!e) return;
-  if (!e.available) { toast(`${e.label}: ${e.reason}`); return }
-  const c = newCard(e, S.cards.map(x => x.id), params ? { params } : {});
-  if (params) openRows.add(c.id);
-  S.cards.push(c); S.bOpen = true; ui.markDirty(); ui.refresh('conds');
-  setTimeout(() => document.querySelector(`[data-card="${c.id}"]`)?.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'nearest' }), 30);
-  toast(`${e.label} added${params ? ' with your settings' : ''}`);
-}
-export function addMetric(itemId: string) {
-  const m = (ctx.metrics || []).find(x => x.item_id === itemId); if (!m) return;
-  const c = fromWire({ id:newCardId(S.cards.map(x => x.id)), enabled:true, test:(m.definition as any).test }, ctx.byKey);
-  if (!c.entry) { toast(`${m.name} cannot be added: its indicator is not in this catalog`); return }
-  c.metric = { item_id:m.item_id, name:m.name, params:{ ...c.params } };
-  S.cards.push(c); S.bOpen = true; ui.markDirty(); ui.refresh('conds');
-  setTimeout(() => document.querySelector(`[data-card="${c.id}"]`)?.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'nearest' }), 30);
-  toast(`${m.name} added`);
-}
 function deleteMetric(itemId: string) {
   const m = (ctx.metrics || []).find(x => x.item_id === itemId); if (!m) return;
   confirmDialog(`Delete ${m.name}?`, 'The metric is removed from your EDGE account. Conditions already using it keep their settings.', 'Delete', async () => {
@@ -237,20 +190,17 @@ export function checkCard(c: Card) {
 export function onBuilderClick(b: HTMLElement): boolean {
   const d = b.dataset;
   if (d.delm) { deleteMetric(d.delm); return true }
-  if (d.addm) { hideSuggest(); const q = $('adderQ') as HTMLInputElement | null; if (q) q.value = ''; addMetric(d.addm); return true }
   if (d.segd) { const c = S.cards.find(x => x.id === d.segd)!; S.open.delete(c.id); const e = entryOf(c); if (e && isCustom(e, c)) resetParams(c); else renderConds(); return true }
   if (d.segc) { S.open.add(d.segc); renderConds(); return true }
   if (d.savem) { const c = S.cards.find(x => x.id === d.savem); if (c) openSaveMetric(c); return true }
-  if (d.add) { hideSuggest(); const q = $('adderQ') as HTMLInputElement | null; if (q) q.value = ''; addCond(d.add); return true }
-  if (d.quick) { addCond(d.quick); return true }
+  if (d.quick) { const e = ctx.byKey.get(d.quick); openAddCondition(e ? e.label : ''); return true }   // the window, searched for it
   if (d.del) { S.cards = S.cards.filter(c => c.id !== d.del); delete S.errors[d.del]; openRows.delete(d.del); ui.markDirty(); ui.refresh('conds'); return true }
   if (d.logic) { S.logic = d.logic as typeof S.logic; ui.markDirty(); ui.refresh('conds'); return true }
   if (d.btab) { setBtab(d.btab as BTab); return true }
-  if (d.addmetric) { btab = 'cond'; addMetric(d.addmetric); return true }
+  if (d.addmetric) { openAddCondition('', MY); return true }                     // the window, on My metrics
   if (d.opensaved) { btab = 'cond'; ui.openSource('s:' + d.opensaved); return true }
   switch (d.act) {
-    case 'focusadd': if (wide()) browseAll(); else ($('adderQ') as HTMLInputElement | null)?.focus(); return true;
-    case 'browse': browseAll(b.classList.contains('bh-add') ? '' : ($('adderQ') as HTMLInputElement | null)?.value || ''); return true;
+    case 'addwin': openAddCondition(); return true;                              // the one way to add (EXEC-SCREENER-ADD)
     case 'btoggle': if (layoutHooks.collapseBuilder()) return true; S.bOpen = !S.bOpen; renderConds(); return true;
     case 'clearconds': S.cards = []; S.errors = {}; openRows.clear(); ui.markDirty(); toast('Conditions cleared'); ui.refresh('conds'); return true;
   }
@@ -300,13 +250,4 @@ export function onBuilderField(el: HTMLInputElement | HTMLSelectElement): boolea
   return true;
 }
 
-/** keyboard of the adder: arrows move, Enter adds, Escape closes (the prototype) */
-export function onAdderKey(e: KeyboardEvent) {
-  const t = e.target as HTMLInputElement;
-  if (t.id !== 'adderQ') return;
-  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && sugList.length) { e.preventDefault(); sugIdx = (sugIdx + (e.key === 'ArrowDown' ? 1 : -1) + sugList.length) % sugList.length; drawSuggest(t.value) }
-  else if (e.key === 'Enter' && sugList[sugIdx]) { e.preventDefault(); hideSuggest(); t.value = ''; const it = sugList[sugIdx]; it.m ? addMetric(it.m.item_id) : addCond(it.e.key) }
-  else if (e.key === 'Escape') { hideSuggest(); t.blur() }
-}
-export const onAdderInput = (q: string) => { sugIdx = 0; drawSuggest(q) };
-export { browseAll, hideSuggest, paramSummary };
+export { paramSummary };
