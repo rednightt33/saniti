@@ -11780,3 +11780,51 @@ Dimulai 2026-11-05 sesudah semua pertanyaan dijawab (user: "Jangan go sampai per
 | Sisa | status deployment screener-worker (dashboard); restart Postgres sesudah bacaan ±1,3 juta baris; cek browser hidup (C1, C2) | |
 
 Lingkungan uji di sesi ini: Postgres lokal sekali pakai untuk `EDGE_TEST_POSTGRES_URL`; Chromium `/opt/pw-browsers`.
+
+## EXEC-TERMINAL-LOOK — legend lebih lega, angka sumbu tanpa ".00", kartu indikator dihapus (disetujui 2026-11-06, menunggu go)
+
+**Kata user, 2026-11-06:** "kasih jarak antar indikator agar tidak terlalu berdempetan, font boleh diganti.. liat
+screenshot B referesnesi non hover state seperti terlampir / untuk C hilangkan .00 decimal harusnya 1,320 / untuk D
+hilangkan semua indikator card yang ada, sudah but retain the tooltip". Atas pertanyaan balik: "1A OK 2B OK masukan exec".
+
+**Kode sekarang (diperiksa 2026-11-06):**
+- Legend: `.ind-row` 11px tanpa jarak antarbaris (`apps/edge-bff/terminal/src/styles/terminal.css:437`).
+- Sumbu harga: `ctx.axisLabel` = `v.toFixed(fi ? 3 : 2)` tanpa pemisah ribuan (`src/app/chart.ts:16`).
+- Kartu: tombol (i) di legend (`src/app/indicators.ts:464`) dan menu (`src/app/indMenu.ts:179`), jendela `indCard.ts`,
+  isi `calc/explain.ts`, `explainFlowA.ts`, `explainFlowB.ts`; baris "Click i for how it works" di tooltip
+  (`indMenu.ts:146`).
+
+**Keputusan:**
+1. **Legend (A/B):** jarak antarbaris lebih lega, font lebih ringan; saat tidak di-hover semua baris abu-abu lembut seperti
+   referensi B, baris yang di-hover menjadi gelap. Nilai, ikon mata, warna naik/turun dan pesan oranye tetap.
+2. **Sumbu harga (C), 1A:** jumlah desimal mengikuti data instrumennya sendiri (diturunkan, bukan daftar): saham tanpa
+   desimal (1,320), IHSG 2 desimal, obligasi 3; selalu dengan pemisah ribuan. Berlaku di sumbu dan label harga terakhir.
+3. **Kartu (D), 2B:** dihapus total, kode dan tesnya (jendela, tombol (i), isi kartu, baris petunjuk di tooltip). Tooltip
+   hover (nama + satu kalimat) tetap. Riwayat kode ada di Git.
+
+**Belum dijalankan:** menunggu go user.
+
+## EXEC-BROKER-INV-PANEL — filter dan titik nol di panel Broker Inventory; ide Top brokers (permintaan 2026-11-06, belum disetujui)
+
+**Kata user, 2026-11-06:**
+- "kemudian saya butuh ide.. untuk bagian top broker saat ini masih kurang jelas.. ... apakah mild accum, heavy accum
+  dst.. lalu accum dari sisi mana domestic atau foreign. boleh kasih saya 10 ops dalam 1 HTML?"
+- "sekarang bagian broker inventory liat screenshot A .. yang saya kotakin juga boleh ditambahkan ke panel broker
+  inventory? Pilihannya brokers, Market Board dan Investor Type saja .. kemudian yang saya kasih panah, bisa tulis saja
+  huruf 0 agar user tahu it begins from 0" (kotak = filter Broker / Board / Investor di header Flow Timeline; panah = sisi
+  kiri panel indikator Broker Inventory, titik awal garis).
+- "kalau kita klik kode broker di broker summary maka akan menambah broker di broker inventory panel kanan, ini bisa
+  berlaku juga di broker inventory panel bawah".
+- "perlu dibuat hierarki untuk broker inventory, dari sisi broker apa yang mau kita show by default. kira2 apa ya?"
+
+**Hasil dan temuan (2026-11-06):**
+- Ide Top brokers: `verification/terminal_api/top_broker_clarity/top_broker_options.html` (10 opsi, angka BBRI dari
+  `Feature_05`, `calc.py`). Contoh: BBRI 20 hari gabungan Neutral −3,7%, padahal Top 3 asing Big Dist −47,2% dan Top 3
+  lokal Big Acc +16,2%.
+- Klik broker → Broker Inventory di chart sudah ada sejak EXEC-INV-SYNC (2026-11-01, `src/app/indicators.ts:732`
+  `Ind.brokerPicked`, dipanggil dari `ctx.brokerShared.pick`). Perlu dicek bersama user apakah gagal di layar user.
+- FL23 sudah punya parameter `brokers`, `boards`, `investors` (`flowRegistry.json`); usulannya menaruhnya sebagai
+  dropdown di header panel, bukan hanya di dialog.
+- Bawaan broker FL23 sekarang: `top3_net_buy_20` (3 pembeli bersih terbesar 20 sesi terakhir).
+
+**Menunggu:** pilihan opsi Top brokers, persetujuan butir filter dan titik nol, hierarki bawaan broker.
