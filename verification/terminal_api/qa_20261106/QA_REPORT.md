@@ -233,3 +233,76 @@ Dicek ulang di Chromium dengan snapshot yang sama: `verification/terminal_api/te
 Belum diubah: kontras abu-abu legend (permintaan user "soft grey"); satuan di judul FL23; urutan Tab mata/gear/x; Esc
 pada popover; titik tunggal FL23 di indeks; perilaku lama di luar draft (Return mode, Rp 0 sebelum data broker, panel
 kanan di ponsel).
+
+## 7. QA putaran 2 — draft `55cba679` (2026-11-06)
+
+Lima subagen Sonnet (high), hanya pemeriksaan. Bukti ada di scratch `qa1r2` … `qa5r2`.
+
+**Status: FAIL.** Tidak ada angka hitungan yang berubah atau salah: matriks putaran 1 diulang (120/126 nilai sama, 6 sisanya
+pembulatan ringkas yang sudah ada). Masih ada dua pesan yang salah (R2-M1, R2-M2), jadi belum lulus.
+
+### Status temuan putaran 1
+- **CLOSED:**
+  - H1 dan H2 (ponsel/tablet), H3 (label sumbu peta).
+  - M1 (pilihan kosong dan reload; dialog menerimanya), M4 (titik peta, tooltip lewat fokus/ketukan), M7 (Nego/Cash),
+    M9 (pencarian; semua 51 nama pendek ketemu lebih dulu).
+  - Kotak N, fokus sesudah select, kelompok terakhir di rail, "−0.0%", lebar tooltip.
+- **PARTIAL:**
+  - M2: catatan muncul di FL11/FL12/FL26, tetapi FL21/FL37 masih menggambar garis datar 50.0 bila baseline lebih pendek
+    dari riwayat.
+  - M3: label benar, tetapi persamaan dan tabel peta belum menyebut Top N, dan legenda titik memakai kata "Local".
+  - M5: baris di chart harga sudah bisa difokus, tetapi tombol mata/gear/x di desktop masih hanya bisa dicapai lewat
+    Shift+Tab.
+  - M6: baris Flow sudah benar, tetapi Flow Timeline masih "Rp 0", catatannya terpotong, dan panel kanan "Loading" terus.
+  - M8: catatan "Needs N" ada tetapi angkanya kurang 1.
+  - "Sep": hanya dua tempat yang diperbaiki.
+
+### Temuan baru dan sisa (digabung)
+**Medium**
+- **R2-M1 — Catatan "always net to 0" salah tempat.** Ditemukan agen 2 dan 4.
+  - Lokasi: `carriesNothing` juga menyala bila semua nilai kosong.
+  - Akibat: muncul di indikator gross, rasio dan konsentrasi (FL13, FL14, FL21 gross, FL33, FL36, FL38) yang kosong hanya
+    karena riwayatnya pendek, termasuk di timeframe bulanan.
+  - Garis datar 50.0 pada FL21/FL37 lolos dari deteksi.
+- **R2-M2 — "Needs N candles" kurang 1.** Ditemukan agen 2 dan 3.
+  - Contoh: FL21 b20 tertulis 20, sebenarnya 21; FL24 W10 tertulis 9, sebenarnya 10.
+  - Akibatnya satu candle kosong tanpa alasan.
+  - FL47 mode Value menulis "Needs 256" padahal cukup 5.
+- **R2-M3 — File broker gagal: sisa halaman belum ikut.** Ditemukan agen 3 dan 4.
+  - Flow Timeline "Rp 0" dan garis 0; catatan terpotong "Reload the p…".
+  - Panel kanan "Loading" terus; header "BBRI · loading".
+- **R2-M4 — Ponsel: catatan dan nilai legend terpotong.** Ditemukan agen 1 dan 5.
+  - Contoh: "All br…", "Cho…", "Nee…", "2…".
+  - Tidak ada `title` dan panel Filters tidak mengulang catatannya.
+- **R2-M5 — Daftar broker dari panel Filters keluar dari bawah layar pendek.** Ditemukan agen 1.
+  - Contoh: 1024×500 dan 667×300.
+- **R2-M6 — Panel Filters dan keyboard/posisi.** Ditemukan agen 4 dan 5.
+  - Tab melewati tombol terakhir membuat panel tetap terbuka di atas tombol baris berikutnya.
+  - Esc tidak menutup panel bila fokus di body.
+  - Posisi panel tidak mengikuti resize.
+  - Panel menutupi tombol Filters baris di bawahnya.
+
+**Low**
+- "Sept" masih ada di chart (tooltip/legend), Flow, kalender, Statistics, aset, pop-out dan header panel kanan.
+- Tanda minus bercampur: hyphen "-" di lajur/tabel, "−" di vonis/peta.
+- Komentar kode peta masih menyebut diagonal.
+- Persamaan/tabel peta "X · Foreign" tanpa "Top N"; legenda titik "Local" seharusnya "Domestic" (sesuai
+  `IDX_Broker_Profile`: Domestic 80, Foreign 32).
+- `aria-label` baris chart harga menggantikan teks baris (nilai tidak terbaca).
+- Esc pada titik peta tidak menyembunyikan tooltip.
+- Esc di popover Brokers memindahkan fokus ke body.
+- Nama kuadran tanpa ambang minimum.
+- Legend melompat ±2 px saat hover di desktop.
+- Satuan (lot/Rp) tidak tertulis; format "T" satu desimal.
+
+**Tidak berubah / sudah ada sebelumnya**
+- Biaya geser chart dengan 6 indikator Flow pada CPU 4x setara versi sebelumnya (p50 ±55 ms di keduanya).
+- Kontras abu-abu legend (keputusan user).
+- Return mode; "Rp 0" sebelum data broker pertama.
+
+### Tes
+- **Terminal:** vitest 864/864 lulus; `tsc` OK.
+- **Screener/Backtest:** tripwire OK; Backtest 88/88 lulus.
+- **Playwright:** ±30 skenario per agen (desktop 1000–1920, iPhone 13, iPad, CPU 4x), tanpa galat konsol.
+- **Tidak diuji:** situs live, perangkat sentuh asli, pembaca layar, obligasi, intraday, kasus baseline 250 pada riwayat
+  > 250 sesi.
