@@ -5558,7 +5558,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** isi `RAILWAY_PROJECT_TOKEN` telegram-trigger dengan token yang berlaku, misalnya referensi
   `${{postgres-memory-cron.RAILWAY_RESTART_TOKEN}}` (satu token untuk semua tombol), lalu deploy. Agent tidak boleh menulis
   secret itu (pengaman sesi); langkahnya untuk user.
-- **Status:** OPEN (menunggu user).
+- **Status:** OPEN (menunggu user). Terulang 2026-11-06 04:47:53 UTC (`Telegram_Command_Log` id 15, restart sesudah
+  verifikasi EXEC-TERMINAL-IND-EDIT): galat yang sama "Not Authorized" pada `deploymentInstanceExecutionCreate`;
+  Postgres tidak di-restart (`pg_postmaster_start_time` tetap 2026-11-05 16:00:53 UTC). Token belum diganti.
 - **Lesson:** fitur yang memakai token pihak luar perlu cek berkala bahwa tokennya masih berlaku, bukan baru ketahuan
   saat tombol ditekan.
 
