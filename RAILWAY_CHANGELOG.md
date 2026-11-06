@@ -1,5 +1,36 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `88683a63`: Screener keeps typed text through an area redraw (ERRORS M373, PR #53)
+
+- **Change:** `apps/edge-bff/screener/src/keep-field.ts`. Every area renderer of the Screener page gives the field being
+  typed in back its unsent text, caret and focus after a redraw. Also the records of the PR #52 deploy. No backend,
+  variable, migration or database change; `screener/src/core` unchanged, so screener-worker was skipped
+  (`b9f2bdee` SKIPPED).
+- **Go:** user 2026-11-06 "ok" to "Ketik 'go merge' kalau PR #53 boleh di-merge".
+  - Before the merge, `main` had moved to `902511d8` (the Terminal release, edge-bff `337b8023`) and the PR conflicted
+    in `ERRORS_AND_SOLUTIONS.md`.
+  - `main` was merged into the branch; the Screener entry was renumbered M373 (M371 and M372 were taken by the Terminal
+    session).
+  - Checks were rerun on the merged tree: typecheck, vitest 780 passed, bundle 31, full smoke, backtest tripwire OK.
+  - PR rednightt33/saniti#53 merged 13:46 UTC (merge commit `88683a63`).
+- **Deployment (Railway API):** edge-bff `01f75fd4-a413-4091-a782-3a84251e39e2` SUCCESS, created 13:46:36 UTC (seen
+  13:47:10 UTC), commit `88683a63`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-BYbeZYfM.js` and `assets/style-DYQZvLdL.css` are byte-equal to the local
+    build of the same tree (sha256 `ccb8210404048ffb…`, `729bc2390eea5e2c…`);
+  - the screener CSP is unchanged (`script-src 'self'`);
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, ~13:50 UTC), the probe that found the defect:**
+  - Minervini, Screen now, then "AALI" typed in "Look up a ticker" at once: the box is still replaced by the preview
+    answer, and it now keeps "AALI", the focus and the suggestions (before: empty, no focus);
+  - the same six seconds later: unchanged;
+  - Enter on another stock (ULTJ) picks it and empties the box;
+  - no CSP violation, no console error.
+- **Found:** Enter on the stock the preview already shows (AALI) leaves the typed text, because the panel does not
+  redraw (ERRORS M374, open, predates this PR).
+- **Rollback:** redeploy edge-bff `337b8023-657b-4335-8e49-90b834840bfe` (commit `4963b9c2`), or revert merge `88683a63`
+  on `main`.
+
 ## 2026-11-06 — edge-bff from `main` `4963b9c2`: Terminal saved layouts, pane collapse, Flow pane filters, QA rounds 1-4 fixes
 
 - **Change:** EXEC-TERMINAL-LOOK-2, EXEC-FLOW-PANE-FILTERS (row filters on every Flow indicator; Top brokers verdict ladder

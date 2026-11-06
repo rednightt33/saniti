@@ -12235,6 +12235,11 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
   - Nomor ERRORS menjadi M373: sesi Terminal memakai M371 dan M372 di `main` lebih dulu.
   - Go merge (user 2026-11-06): "ok", sebagai jawaban atas "Ketik 'go merge' kalau PR #53 boleh di-merge". Hanya
     edge-bff yang dideploy. Titik kembali: edge-bff `337b8023-657b-4335-8e49-90b834840bfe` (`4963b9c2`).
+  - Di-merge 13:46 UTC (`main` `88683a63`); edge-bff `01f75fd4` SUCCESS; bundle live sama persis dengan build lokal.
+  - Cek live dengan login lulus:
+    - "AALI" yang diketik tepat sesudah Screen now tetap ada, beserta fokus dan sarannya;
+    - Enter pada saham lain memilihnya dan mengosongkan kotak.
+  - Temuan kecil: Enter pada saham yang sudah tampil tidak mengosongkan kotak (ERRORS M374, terbuka, perilaku lama).
 
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).

@@ -5314,7 +5314,24 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
-### M373 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed in code)
+### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, open)
+
+- **Found by:** the coordinator's live check of M373 (dev, signed in).
+- **Symptom:** after Screen now the preview shows AALI. Typing "AALI" in "Look up a ticker" and pressing Enter keeps
+  "AALI" in the box. Enter on another stock (ULTJ) picks it and empties the box.
+- **Verified cause (code):**
+  - `pickStock` (`apps/edge-bff/screener/src/preview.ts`) sets the pick and calls `renderDetails`;
+  - the box is emptied only as a side effect of the panel being redrawn;
+  - `renderDetails` skips the redraw when the panel's HTML, theme and answer are unchanged (the `drawn` memo), which is
+    the case when the stock is already shown.
+  - It predates M373: `keep-field.ts` acts only inside a redraw.
+- **Class:** an action that relies on a redraw's side effect (emptying a field) does nothing when the redraw is
+  skipped as unchanged.
+- **Fix (proposed, not made):** `pickStock` empties the lookup and closes its suggestions itself, whatever the redraw
+  does. A smoke step presses Enter on the stock already shown.
+- **Status:** OPEN; minor; awaiting the user's decision.
+
+### M373 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed)
 
 - **Found by:** the coordinator's signed-in live check after PR #52 (dev, Minervini then Screen now).
 - **Symptom:**
@@ -5353,7 +5370,10 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - the step fails without the fix (`{"v":"","act":""}`, the live symptom) and with the Enter rule removed;
   - typecheck; vitest 780 passed, 1 skipped; build and bundle 31; full smoke three runs in a row (longest page task 0 ms);
     visual 46 shots; backtest tripwire OK.
-- **Status:** FIXED in code (branch, not deployed).
+- **Status:** FIXED and deployed (edge-bff `01f75fd4`, `main` `88683a63`, PR #53).
+  - Live, signed in, 2026-11-06: "AALI" typed right after Screen now is kept, with the focus and the suggestions,
+    while the preview answer replaces the box;
+  - Enter on another stock (ULTJ) still picks it and empties the box (`RAILWAY_CHANGELOG.md`).
 - **Lesson:** a page that redraws an area from late answers must keep what the user is doing in it: the pointer
   (press.ts) and the keyboard (keep-field.ts). A new area renderer draws through both.
 
