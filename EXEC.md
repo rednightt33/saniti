@@ -12031,9 +12031,12 @@ push, deploy, atau publish sampai ada instruksi eksplisit".
     pytest edge-bff 3 lulus, 33 dilewati (butuh Postgres); `git diff --check` bersih; nol perubahan di
     `apps/edge-bff/app`, `apps/screener-worker`, `src/core`, `database`, `.railway`.
 - **Go commit, push dan PR (2026-11-06):** "Oke, jalankan opsi a: commit, push, dan buka PR". Dikirim dari branch
-  `claude/charming-hamilton-faq25e` lewat pull request ke `main`. Deploy ke dev menunggu izin terpisah (bukan bagian
-  dari go ini); sesudah deploy: cek live dengan data asli (unit dari worker, BFF dan CSP di server, 33 tes Python yang
-  butuh Postgres), lalu item ini ditutup.
+  `claude/charming-hamilton-faq25e` lewat pull request ke `main` (rednightt33/saniti#51).
+- **Go merge dan deploy dev (2026-11-06):** "Ok,ago merge" (atas pertanyaan "Kalau Anda setuju di-deploy sekarang, cukup
+  tulis 'go merge'"). Merge PR #51 ke `main` men-deploy edge-bff (sumber GitHub, `watchPatterns` `/apps/edge-bff/**`);
+  screener-worker tidak ikut (kode inti tidak berubah). Bundle live sebelum merge: `assets/index-CvB2JGE9.js`,
+  `assets/style-calwZ5Ae.css`; build lokal commit ini: `assets/index-C3AZxsiJ.js`, `assets/style-Bb_KuIay.css`. Sesudah
+  deploy: cek live dengan data asli (unit dari worker, BFF dan CSP di server), lalu item ini ditutup.
 - **Keputusan terbuka untuk user:** L1 (Screen now saat run berjalan), L3 (kolom tambahan di CSV), L5 (tanggal header
   telat sampai sekitar 1 menit), beda kata dengan referensi, dan kalimat "Outperformed IHSG by X pts" yang dihitung
   halaman.
