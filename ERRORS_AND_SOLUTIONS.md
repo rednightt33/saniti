@@ -5314,6 +5314,72 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M378 — Screener "Add a condition": Enter in a field removed a condition already on the screen (2026-11-06, fixed in code)
+
+- **Found by:** the coordinator's live check of PR #55 (dev, signed in).
+- **Symptom:** with the Minervini preset loaded, typing 50 in the SMA row's Length and pressing Enter removed
+  Minervini's "Close above SMA(50)" card (cards 9 → 8), with a "removed" toast.
+- **Verified cause (`apps/edge-bff/screener/src/add-condition.ts` `onKey`):**
+  - Enter in a field applied the field, then toggled the row;
+  - the value just typed made the row the same wire test as a card on the screen;
+  - the row shows "Added" only once the field is applied, so the toggle removed a card the user had not seen marked.
+  - The threshold fields (EXEC-SCREENER-ADD, PR #52) had the same behaviour; the parameters made it easy to hit.
+- **Class:** a key that toggles acts on a state computed from the input of that same key press, which the user never saw.
+- **Solution (branch):**
+  - Enter in a field only adds: when the row is already on the screen, it says "already on the screen with this
+    condition" and changes nothing;
+  - removing stays a click on the row or its Remove button, whose state is visible.
+- **Verified (local):**
+  - the smoke step "Add a condition sets the parameters too" presses Enter again on Length 50: the card stays and the
+    toast says so;
+  - the step fails without the fix ("Simple Moving Average removed");
+  - typecheck; vitest 783 passed, 1 skipped; bundle 31; visual 46 shots; tripwire OK.
+- **Status:** FIXED in code (branch, not deployed).
+
+### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
+
+- **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and
+  Source, Custom).
+- **Verified cause:** the window drew the parameters as grey text (`add-condition.ts paramsText`) by design ("Parameters
+  other than the defaults are set on the card", EXEC-SCREENER-ADD); its threshold column shows only the value fields of
+  the chosen condition, so a condition without a value (Close above SMA) showed "—".
+- **Audit (live dev catalog, 128 entries):**
+  - 82 have parameters (49 indicators, 33 patterns), none editable in the window;
+  - 24 of them have a default condition without a threshold, and 23 of those have another condition with one.
+- **Class:** two places that build the same condition (the window and the card) exposing different parts of it.
+- **Decision:** user 2026-11-06 "ok" to option A (the parameters editable in the window, as on the card).
+- **Solution (branch):**
+  - the window's rule holds the parameters (and the second line's for a two-line condition);
+  - the row shows them as fields on a second line: the catalog's options and limits, the card's check
+    (`entries.ts paramError`, keys `p.<key>` and `p2.<key>` in `ruleErrors`), blue like the threshold;
+  - the card added carries them; "on the screen" compares the wire test, which includes them.
+- **Verified (local):**
+  - `tests/page/add-condition.test.ts` (3 new tests: Length 50 carried and Custom, limits refused, the second line);
+  - the smoke step "Add a condition sets the parameters too": Length 0 refused with the field named, Length 50 + Enter
+    adds a Custom card, a label click adds nothing;
+  - visual shots at 1440 and 1100.
+- **Status:** FIXED and deployed (edge-bff `64d65d68`, `main` `f9871686`, PR #55). Live, signed in, 2026-11-06: SMA offers
+  Length and Source; Length 0 refused; Length 30 + Enter adds a Custom card without a run.
+- **Lesson:** when two places build the same object, derive both from one list (the catalog's parameters) and check
+  they expose the same fields.
+
+### M376 — Screener results: diagonal lines on a failed cell broke the row's hover (2026-11-06, fixed)
+
+- **Found by:** the user (screenshot of a result table with hatched pink cells).
+- **Verified cause:**
+  - the last rule for `.res tbody td.fail` (`src/styles/screener.css`) drew a pink fill plus a `background-image` of red
+    diagonal lines;
+  - the hover changed only `background-color`, so the lines stayed over the hover colour;
+  - two older hatch rules were dead but still in the file.
+- **Class:** a background-image layered over a state colour survives a hover that changes only the colour.
+- **Solution (branch):** a failed cell is a solid pink fill (8 %) and darker on hover (14 %), no `background-image`;
+  the dead rules removed.
+  - Checked on the fixture page in light and dark: `background-image: none` at rest and on hover.
+  - Same change: an event cell that failed with no event in reach reads "No" (user: "Dengan tulisan no"), as a state
+    cell does.
+- **Status:** FIXED and deployed (edge-bff `64d65d68`, PR #55). Live: every failed cell has `background-image: none`
+  and darkens on hover; failed MACD divergence cells read "No".
+
 ### M375 — Screener smoke run: a page task over 50 ms now and then, in a different step each time (2026-11-06, open)
 
 - **Found by:** the coordinator's smoke runs for M374.
@@ -5336,9 +5402,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   The check is a Chromium performance trace of a failing run, to name the task.
 - **Class:** a time budget checked on a shared machine without naming the task, so a slow boot task and a real
   regression look the same.
+- **More evidence (M376/M377 work, 2026-11-06):**
+  - the keyboard step alone, 6 runs before and 6 after the change: no page task over 30 ms;
+  - opening "Add a condition" 24 times with six conditions on the screen: no long task, before or after;
+  - in full runs the tasks over 50 ms were at 0.3–0.4 s after a page opened (51, 58 ms), and one 54 ms in the step that
+    opens the window six times (as on `c4ff8770`).
 - **Status:** OPEN; not fixed in the M374 change (outside its scope).
 
-### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, fixed in code)
+### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, fixed)
 
 - **Found by:** the coordinator's live check of M373 (dev, signed in).
 - **Symptom:** after Screen now the preview shows AALI. Typing "AALI" in "Look up a ticker" and pressing Enter keeps
@@ -5358,7 +5429,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - the smoke step "picking the stock already shown empties the lookup (ERRORS M374)" passes;
   - without the fix it fails with the live symptom (`{"v":"BMRI","sug":true}`);
   - typecheck; vitest 780 passed, 1 skipped; bundle 31; visual 46 shots; backtest tripwire OK.
-- **Status:** FIXED in code (branch, not deployed).
+- **Status:** FIXED and deployed (edge-bff `f111e7d9`, `main` `138bbe6b`, PR #54). Live, signed in, 2026-11-06: with
+  AALI shown, "AALI" + Enter leaves the lookup empty and its suggestions closed; "ULTJ" + Enter picks ULTJ and empties
+  it.
 
 ### M373 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed)
 

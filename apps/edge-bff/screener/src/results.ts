@@ -85,7 +85,9 @@ function cellHtml(r: Row, c: Card): string {
   let txt: string;
   if (x.status === 'na') txt = 'n/a';
   else if (x.status === 'not_evaluated') txt = '·';
-  else if (kind === 'event') txt = eventText(x);
+  // an event that did not happen within reach fails as "No", like a state (user 2026-11-06: "Dengan tulisan no"); one that
+  // happened, but earlier than the window, keeps "N sessions ago"
+  else if (kind === 'event') txt = x.status !== 'pass' && x.bars_ago == null ? 'No' : eventText(x);
   else if (kind === 'state') txt = x.status === 'pass' ? 'Yes' : 'No';
   else txt = fmtValue(x.value, formatOfOpt(e, o));
   const side = formatOfSide(e, o);

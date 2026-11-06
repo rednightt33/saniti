@@ -12243,6 +12243,11 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
     - Keputusan user (2026-11-06): "betulkan skrg go merge". Ini perintah untuk memperbaiki M374 lalu merge dan
       deploy edge-bff.
     - Titik kembali: edge-bff `01f75fd4-a413-4091-a782-3a84251e39e2` (`88683a63`).
+    - Di-merge 14:17 UTC (`main` `138bbe6b`, PR #54); edge-bff `f111e7d9` SUCCESS; bundle live sama persis.
+    - Cek live lulus: Enter pada saham yang sudah tampil (AALI) kini mengosongkan kotak; Enter pada saham lain tetap
+      memilih dan mengosongkan kotak.
+    - Temuan terpisah: smoke sesekali gagal karena tugas halaman di atas 50 ms (ERRORS M375, terbuka, sudah ada sebelum
+      perubahan ini).
 
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).
@@ -12294,6 +12299,45 @@ Atas pertanyaan balik: "Q1 - A", "Q2- tidak ada perubahan pada flow ratio sama s
   sumbu dan badge nilai tidak tertutup baris yang lebih tinggi). Toggle hanya di mode live (fixture tetap 1:1). Bukti
   `verification/terminal_api/terminal_look/look_check8.mjs` plus `look_check3/5/6/7` tanpa galat; Terminal 870/870.
 - **Dirilis 2026-11-06** (user: "gas"): `main` `bb935001`, edge-bff `0718b572` SUCCESS, aset live = build lokal.
+
+## EXEC-SCREENER-ADD-PARAMS — sel gagal tanpa garis miring, parameter di jendela "Add a condition", "No" di kolom peristiwa (2026-11-06)
+
+### Permintaan user (2026-11-06, kata-kata user)
+"Tolong grid line-nya dihapus saja karena ini yang merusak hover state. Jadi hanya merah saja. Dengan tulisan no. Jadi
+tanpa grid line." dan "kalau saya klik add indicator, seperti di screenshot, simple moving average. Seharusnya threshold
+itu bisa diganti. Karena kalau kamu lihat screenshot satunya lagi, simple moving average itu bisa diganti dengan custom
+indicator juga. Seharusnya ini cukup konsisten. ... boleh lakukan audit saja mana indikator yang memang bisa di-custom.
+Sehingga threshold-nya bisa diatur."
+
+### Audit (katalog live dev, 128 indikator)
+- 82 punya parameter yang bisa diubah (49 indikator teknikal, 33 pola); jendela hanya menampilkannya sebagai teks, dan
+  parameter baru bisa diubah di kartu.
+- 58 punya parameter dan kondisi bawaannya punya ambang; 24 punya parameter tetapi kondisi bawaannya tanpa ambang
+  (SMA "Close above SMA" dan sejenisnya); 23 dari 24 itu punya kondisi lain dengan ambang.
+- 43 tanpa parameter dengan ambang (32 fundamental termasuk); 3 tanpa parameter dan tanpa ambang (OBV, PVT, A/D).
+
+### Keputusan user (2026-11-06): "ok"
+Jawaban atas dua pertanyaan: jendela pilihan A (saran: parameter bisa diubah di jendela, seperti kartu) dan kolom
+peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
+
+### Status eksekusi (branch `claude/charming-hamilton-faq25e`, belum di-merge)
+- Sel gagal pink polos, hover pink lebih tua, tanpa garis miring (ERRORS M376).
+- Jendela "Add a condition": parameter tiap indikator di baris kedua, bisa diubah, biru seperti ambang; batas dan
+  pemeriksaan sama dengan kartu (`paramError`); kondisi dua garis menampilkan parameter garis kedua ("2nd"); kartu
+  yang ditambahkan membawa parameternya (Custom) (ERRORS M377).
+- Kolom peristiwa di tabel: gagal tanpa peristiwa dalam jangkauan menulis "No"; peristiwa yang terjadi lebih awal dari
+  jendela tetap "N sessions ago".
+- Bukti: typecheck; vitest 783 lulus, 1 dilewati (3 tes baru); bundle 31; smoke langkah baru "Add a condition sets the
+  parameters too" lulus; visual 46 screenshot (1440 dan 1100); membuka jendela 24 kali tanpa tugas lambat, sama
+  dengan sebelum perubahan; tripwire OK.
+- Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#55; hanya edge-bff yang dideploy. Titik kembali: edge-bff
+  `0718b572-45bf-48d2-bfcb-6daa040fb837` (`bb935001`, rilis Terminal sesi lain, sudah memuat PR #54).
+- Di-merge 15:16 UTC (`main` `f9871686`); edge-bff `64d65d68` SUCCESS; bundle live sama persis. Cek live dengan login
+  lulus: parameter SMA di jendela, Length 0 ditolak, Length 30 + Enter menambah kartu Custom; sel gagal polos dan "No".
+- Temuan di cek live: Enter di kolom bisa menghapus kondisi yang sudah ada (ERRORS M378). Perbaikan di branch: Enter di
+  kolom hanya menambah.
+  - Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#56; hanya edge-bff. Titik kembali: edge-bff
+    `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` (`f9871686`).
 
 ## EXEC-IND-PRESETS — nilai indikator di kiri, jendela Indicators, preset indikator di akun EDGE (go 2026-11-06)
 
