@@ -112,6 +112,9 @@ export interface Ctx {
   catalog: CompareSpec[];
   rawSeries: Record<string, Point[]>;
   axisLabel: (v: number) => string;
+  /** EXEC-TERMINAL-LOOK 2: the price as the axis writes it (thousands, the instrument's decimals) */
+  priceText: (v: number) => string;
+  priceDecimals: number;
   formatMode: () => LWC.PriceFormatCustom;
   updateMainDisplay: () => void;
   onDisplayMode: () => void;

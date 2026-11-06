@@ -2,6 +2,7 @@
 import type { Ctx } from './context';
 import { $, hasLogos, logoHtml } from './context';
 import type { Point } from '../data/types';
+import { barDecimals, priceText } from '../data/priceFormat';
 
 export function initChart(ctx: Ctx) {
   const { L, container, SYMBOL, ohlc, lineData, volume, dates, active } = ctx;
@@ -13,8 +14,12 @@ export function initChart(ctx: Ctx) {
   // Axis / crosshair text of the price pane. Set per series (not chart-wide) so indicator panes keep their own units.
   // EXEC-FI-TERMINAL: a bond's yield or price has three decimals (US yields 4.108; bills' quotes 4.050)
   const fi = !!ctx.M.fixedIncome;
-  ctx.axisLabel = v => ctx.displayMode === 'return' ? v.toFixed(1) + '%' : v.toFixed(fi ? 3 : 2);
-  ctx.formatMode = () => ({ type:'custom', formatter:(v: number) => ctx.axisLabel(v), minMove:ctx.displayMode === 'return' ? .01 : fi ? .001 : .1 });
+  /* EXEC-TERMINAL-LOOK 2 (1A): thousands separators and the decimals the instrument's prices carry (shares 0, an index 2);
+     a bond keeps its three */
+  const PD = ctx.priceDecimals = fi ? 3 : barDecimals(ohlc as any[]);
+  ctx.priceText = v => priceText(v, PD);
+  ctx.axisLabel = v => ctx.displayMode === 'return' ? v.toFixed(1) + '%' : ctx.priceText(v);
+  ctx.formatMode = () => ({ type:'custom', formatter:(v: number) => ctx.axisLabel(v), minMove:ctx.displayMode === 'return' ? .01 : 10 ** -PD });
 
   const chart = ctx.chart = L.createChart(container, {
     autoSize: true,

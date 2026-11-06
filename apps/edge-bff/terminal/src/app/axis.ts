@@ -14,7 +14,7 @@ export function initAxis(ctx: Ctx) {
     void legBottom;
     const near = (a: number, b: number | null | undefined) => b !== null && b !== undefined && Math.abs(a-b) <= Math.max(1e-6, Math.abs(b)*1e-9);
     const label = (v: number) => {
-      const txt = ctx.displayMode === 'return' ? v.toFixed(1) + '%' : v.toFixed(2);
+      const txt = ctx.displayMode === 'return' ? v.toFixed(1) + '%' : ctx.priceText(v);   // EXEC-TERMINAL-LOOK 2: one price format
       if(active.size) return txt;                                   // compare series live on the other scale; leave labels alone
       try{
         const lastV = ctx.displayMode === 'return' ? (closes.at(-1)!/closes[0]-1)*100 : closes.at(-1)!;

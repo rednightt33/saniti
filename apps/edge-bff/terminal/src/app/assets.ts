@@ -16,6 +16,7 @@ import { draggable } from './draggable';
 import { $, brokerEnd, cls, hasLogos, logoHtml, keyOf, onLogos, rupiah, spin, store } from './context';
 import { countedCandles, cumulativeFrom, FLOW_CUMULATIVE_FROM } from './flow';
 import type { AssetBar, Bar, Combo, Instrument } from '../data/types';
+import { barDecimals, priceText } from '../data/priceFormat';
 import { UNIT } from '../data/timeframe';
 import { anchorTimeScale } from '../data/chartTime';
 
@@ -154,8 +155,12 @@ export function initAssets(ctx: Ctx) {
   /* ---- the series on the chart ---- */
   const scaleId = (a: Asset) => a.opts.scale === 'own' ? `asset-${a.ticker}` : a.opts.scale;
   // a bond's yield keeps its own figures in Return mode (a yield is not rebased to a return)
+  /* EXEC-TERMINAL-LOOK 2: an added asset's default ticks follow its own prices, with thousands separators (a share 1,320) */
+  const decOf = new WeakMap<object, number>();
+  const assetDecimals = (a: Asset) => { let d = decOf.get(a.bars); if (d == null) { d = barDecimals(a.bars as any[]); decOf.set(a.bars, d) } return d };
   const priceFormat = (a: Asset): any => ret() && !a.bond ? ctx.formatMode()
-    : a.opts.minTick === 'default' ? (a.bond ? { type:'price', precision:3, minMove:.001 } : { type:'price', precision:2, minMove:.01 })
+    : a.opts.minTick === 'default' ? (a.bond ? { type:'price', precision:3, minMove:.001 }
+      : { type:'custom', minMove:10 ** -assetDecimals(a), formatter:(v: number) => priceText(v, assetDecimals(a)) })
     : { type:'price', precision:Math.max(0, -Math.log10(+a.opts.minTick)), minMove:+a.opts.minTick };
   function dataOf(a: Asset) {
     const o = a.opts, r = ret() && !a.bond, base = a.bars.length ? (o.style === 'bars' || o.style === 'candles' ? a.bars[0].close : sourceOf(a.bars[0], o.source)) : 1;

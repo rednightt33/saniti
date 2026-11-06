@@ -1196,3 +1196,14 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .acc-tug i[style*="width:0"]{padding:0}
 .acc-net{font-size:11px;color:var(--text-2);margin:0 0 8px;font-variant-numeric:tabular-nums}
 .pa-row.in-top{background:linear-gradient(90deg,rgba(8,153,129,.07),transparent 42%,transparent 58%,rgba(242,54,69,.07))}
+
+/* EXEC-TERMINAL-LOOK 1 (user 2026-11-06: "kasih jarak antar indikator agar tidak terlalu berdempetan, font boleh diganti..
+   liat screenshot B referensi non hover state"): legend rows a little larger and further apart; at rest every name is a
+   soft grey (the values keep their colours), the row under the pointer turns dark */
+.chart-legend{gap:6px}
+.ind-row{min-height:22px;font-size:var(--fs-base);line-height:22px}
+.ind-row .ind-k{color:var(--text-3);transition:color .12s}
+.ind-row:hover .ind-k,.ind-row:focus-within .ind-k{color:var(--text)}
+.ind-row b{font-weight:var(--fw-medium)}
+.ind-row b:not(.up):not(.down){color:var(--text-2)}
+.ind-row:hover b:not(.up):not(.down),.ind-row:focus-within b:not(.up):not(.down){color:var(--text)}
