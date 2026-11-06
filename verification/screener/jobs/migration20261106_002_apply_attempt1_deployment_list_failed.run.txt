@@ -1,0 +1,2 @@
+MIGRATION 20261106_002_edge_bff_indicator_presets.sql apply sha256=30ab4b8b7ffe83c793891c09483b0d07ffb9230add14b44e8f4aac5253765e7c commit=254ae0e3594f
+DEPLOYMENT_LIST_FAILED
