@@ -11853,3 +11853,19 @@ broker inventory / kemudian untuk top brokers bisa pakai HTML terlampir dan tamb
   sampai user menggantinya; tidak berganti saat chart digeser (3B).
 
 **Menunggu:** go user.
+
+## EXEC-IND-DIALOG — jendela Indicators bergaya "Add a condition" Screener (permintaan 2026-11-06, belum disetujui)
+
+**Kata user, 2026-11-06:** "Selanjutnya mengenai indicator box, saat ini tampilannya adalah seperti screenshot A bisa
+ganti dengan screenshot B (tanpa open in detailed box), tanpa conditions, tanpa threshold? Terlampir HTML referensi.
+Konfirmasi saja dulu atau kirim ke saya HTMLnya". Referensi: `edge-screener-typeA-3panel-v16.html` (jendela "Add a
+condition" Screener).
+
+**Contoh:** `verification/terminal_api/indicator_dialog/indicator_dialog_mockup.html` (baris dari registry Terminal lewat
+`menuItems`, `dump_menu.ts`; filter menu sama dengan live). Isinya:
+- panel kiri: On the chart, Favorites, All indicators, kelompok Technical dan Flow (dengan jumlah);
+- baris: bintang favorit, nama + kode + "n on chart", baris abu-abu setting bawaan, kolom Place · Unit, tombol Add;
+- tooltip hover nama (satu kalimat) tetap; tanpa tombol detailed browser, kolom Condition, Threshold dan tombol (i);
+- kaki: pintasan keyboard dan jumlah indikator di chart.
+
+**Menunggu:** konfirmasi user atas contoh, lalu go.

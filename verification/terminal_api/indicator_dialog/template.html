@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indicator Dialog Mockup</title>
+<style>
+:root{--bg:#fafafa;--surface:#fff;--surface-2:#f7f7f7;--hover:#f3f3f3;--sel:#efefef;--border:#eaeaea;--border-2:#dcdcdc;
+ --text:#171717;--text-2:#4d4d4d;--text-3:#8f8f8f;--green:#087f5b;--blue:#0070f3;--blue-bg:rgba(0,112,243,.08);--star:#f5a623;
+ --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;--r-sm:4px;--r-md:6px;--r-lg:10px;--r-pill:999px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f0f10;--surface:#18181a;--surface-2:#1e1e21;--hover:#232327;--sel:#2a2a2e;--border:#2a2a2d;--border-2:#3a3a3e;--text:#ededed;--text-2:#c4c4c4;--text-3:#8a8a8a}}
+:root[data-theme="dark"]{--bg:#0f0f10;--surface:#18181a;--surface-2:#1e1e21;--hover:#232327;--sel:#2a2a2e;--border:#2a2a2d;--border-2:#3a3a3e;--text:#ededed;--text-2:#c4c4c4;--text-3:#8a8a8a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.note{max-width:1180px;margin:16px auto 0;padding:0 16px;font-size:12px;color:var(--text-2)}
+.note b{color:var(--text)}
+.stage{display:flex;justify-content:center;padding:16px}
+.win{width:min(1080px,100%);height:min(720px,calc(100vh - 120px));min-height:460px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 12px 40px rgba(0,0,0,.12);overflow:hidden}
+.top{padding:16px 20px 12px}
+.top-r{display:flex;align-items:flex-start;gap:12px}
+.top h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.top p{margin:2px 0 0;font-size:12px;color:var(--text-3)}
+.x{all:unset;margin-left:auto;width:28px;height:28px;display:grid;place-items:center;border-radius:var(--r-md);color:var(--text-2);cursor:pointer;font-size:18px}
+.x:hover{background:var(--hover)}
+.search{display:flex;align-items:center;gap:8px;margin-top:12px;height:38px;padding:0 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.search:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+.search svg{width:15px;height:15px;color:var(--text-3);flex:none}
+.search input{all:unset;flex:1;font-size:13px;color:var(--text)}
+.search input::placeholder{color:var(--text-3)}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:210px minmax(0,1fr);border-top:1px solid var(--border)}
+.rail{display:flex;flex-direction:column;gap:2px;overflow:auto;padding:10px 8px;border-right:1px solid var(--border)}
+.ri{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:6px 10px;border:1px solid transparent;border-radius:var(--r-md);font-size:12.5px;color:var(--text-2);cursor:pointer;line-height:1.25}
+.ri:hover{background:var(--hover);color:var(--text)}
+.ri:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.ri .lab{flex:1;min-width:0}
+.ri .c{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:var(--r-pill);display:inline-grid;place-items:center;background:var(--text);color:var(--surface);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.ri.on{background:var(--surface);border-color:var(--border-2);box-shadow:0 1px 2px rgba(0,0,0,.06);color:var(--text);font-weight:600}
+.ri .ico{width:14px;height:14px;flex:none}
+.ri.q-on .ico{color:var(--green)}.ri.q-on .c{background:var(--green)}
+.ri.q-my .ico{color:var(--star)}
+.sep{height:1px;background:var(--border);margin:6px 4px}
+.rtitle{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);padding:8px 10px 4px}
+.list{display:flex;flex-direction:column;min-height:0}
+.cols,.row{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 88px;align-items:center;column-gap:10px}
+.cols{padding:10px 20px 8px 12px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border)}
+.rows{flex:1;overflow:auto;padding:4px 8px 8px}
+.row{min-height:56px;padding:6px 12px 6px 4px;border-radius:var(--r-md);cursor:pointer;border-bottom:1px solid var(--border)}
+.row:hover,.row:focus-visible{background:var(--surface-2);outline:none}
+.row .nm{font-size:13.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row .nm code{font:500 10.5px var(--sans);color:var(--text-3)}
+.row .pa{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{font-size:12px;color:var(--text-2);line-height:1.3}
+.row .meta span{display:block;font-size:11px;color:var(--text-3)}
+.oc{font-size:10.5px;font-weight:500;color:var(--green);background:rgba(8,153,129,.10);border-radius:var(--r-pill);padding:1px 7px}
+.star{all:unset;width:28px;height:28px;display:grid;place-items:center;border-radius:var(--r-md);cursor:pointer;color:var(--border-2)}
+.star svg{width:16px;height:16px}
+.star.on{color:var(--star)}
+.star:hover{background:var(--hover)}
+.add{all:unset;box-sizing:border-box;height:34px;padding:0 16px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:12.5px;font-weight:500;color:var(--text);cursor:pointer;text-align:center;justify-self:end;width:80px}
+.add:hover{border-color:var(--border-2);background:var(--hover)}
+.tip{position:fixed;z-index:9;max-width:320px;background:var(--text);color:var(--surface);font-size:11.5px;line-height:1.45;padding:7px 9px;border-radius:var(--r-md);pointer-events:none}
+.tip b{display:block;margin-bottom:2px}
+.foot{display:flex;align-items:center;gap:12px;padding:10px 20px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-3)}
+.foot b{margin-left:auto;color:var(--text-2);font-weight:600}
+.empty{padding:40px;text-align:center;color:var(--text-3)}
+@media (max-width:760px){
+  .body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+  .rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:6px 8px}
+  .ri{width:auto;flex:none;min-height:32px;white-space:nowrap}
+  .sep,.rtitle{display:none}
+  .cols,.row{grid-template-columns:28px minmax(0,1fr) 72px}
+  .cols span:nth-child(3),.row .meta{display:none}
+  .foot span{display:none}
+}
+</style>
+</head>
+<body>
+<p class="note"><b>Mockup</b>: the Terminal's Indicators window in the Screener's "Add a condition" layout, without the
+  detailed-browser button, the Condition and Threshold columns, and the (i) card button (cards are removed, EXEC-TERMINAL-LOOK 2B).
+  Rows come from the Terminal registries (same filter as the live menu: hidden I37, I41, FL07, FL35, FL36); the grey line under each
+  name is the indicator's default settings. Click a row or "Add" to add; the star keeps a favourite; hover a name for the one-line tooltip.
+  Nothing in the Terminal is changed yet.</p>
+<div class="stage"><div class="win" role="dialog" aria-label="Indicators">
+  <div class="top">
+    <div class="top-r"><div><h2>Indicators</h2><p>Click a row to add it to the chart. Remove an indicator from its line on the chart. The window stays open until you close it.</p></div>
+      <button class="x" aria-label="Close">×</button></div>
+    <label class="search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
+      <input id="q" placeholder="RSI, MACD, Bandar Balance, Broker Inventory…" autocomplete="off"></label>
+  </div>
+  <div class="body">
+    <nav class="rail" id="rail" aria-label="Groups"></nav>
+    <div class="list">
+      <div class="cols"><span></span><span>Indicator</span><span>Place · Unit</span><span></span></div>
+      <div class="rows" id="rows" role="listbox"></div>
+    </div>
+  </div>
+  <div class="foot"><span>/ to search · ↑ ↓ to move · Enter to add · Esc to close</span><b id="count"></b></div>
+</div></div>
+<div class="tip" id="tip" hidden></div>
+<script>
+const M = __DATA__;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+const items = M.items;
+const onChart = { I01:1, FL19:1, FL23:1, VOL:1 };            // example chart: SMA, Implied Cost, Broker Inventory, Volume
+const favs = new Set(['FL24','FL25','FL29','FL17','FL18','FL19','FL20','FL39','FL22','FL23','FL27','FL28','FL30','FL31','I01']);
+let group = 'all', q = '';
+const STAR = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.8 2.8 5.8 6.4.9-4.6 4.5 1.1 6.3L12 17.3l-5.7 3 1.1-6.3-4.6-4.5 6.4-.9z"/></svg>';
+const CHECK = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 8.5 3 3 7-7"/></svg>';
+const tech = [...new Set(items.filter(i => i.kind !== 'Flow').map(i => i.group))], flow = M.families.filter(f => items.some(i => i.kind === 'Flow' && i.group === f));
+const count = fn => items.filter(fn).length;
+function rail(){
+  const b = (id, lab, n, cls = '', ico = '') => `<button class="ri ${cls}${group === id ? ' on' : ''}" data-g="${id}">${ico}<span class="lab">${esc(lab)}</span><span class="c">${n}</span></button>`;
+  const railEl = document.getElementById('rail'), keep = railEl.scrollTop;
+  railEl.innerHTML =
+    b('chart', 'On the chart', Object.values(onChart).reduce((a, x) => a + x, 0), 'q-on', CHECK)
+    + b('fav', 'Favorites', favs.size, 'q-my', STAR.replace('<svg ', '<svg class="ico" '))
+    + '<div class="sep"></div>' + b('all', 'All indicators', items.length)
+    + '<div class="rtitle">Technical</div>' + tech.map(g => b('t:' + g, g, count(i => i.kind !== 'Flow' && i.group === g))).join('')
+    + '<div class="rtitle">Flow</div>' + flow.map(g => b('f:' + g, g, count(i => i.kind === 'Flow' && i.group === g))).join('');
+  railEl.scrollTop = keep;
+  document.querySelectorAll('.ri').forEach(x => x.onclick = () => { group = x.dataset.g; q = ''; document.getElementById('q').value = ''; render() });
+}
+function visible(){
+  const s = q.trim().toLowerCase();
+  if (s) return items.filter(i => `${i.name} ${i.id} ${i.group} ${i.kind}`.toLowerCase().includes(s));
+  if (group === 'chart') return items.filter(i => onChart[i.id]);
+  if (group === 'fav') return items.filter(i => favs.has(i.id));
+  if (group === 'all') return items;
+  const k = group[0], g = group.slice(2);
+  return items.filter(i => (k === 'f' ? i.kind === 'Flow' : i.kind !== 'Flow') && i.group === g);
+}
+function render(){
+  rail();
+  const v = visible();
+  document.getElementById('rows').innerHTML = v.length ? v.map(i => `<div class="row" tabindex="0" role="option" data-id="${i.id}">
+      <button class="star${favs.has(i.id) ? ' on' : ''}" data-star="${i.id}" aria-label="Favorite">${STAR}</button>
+      <div><div class="nm" data-tipn="${esc(i.name)}" data-tipt="${esc(i.tip)}">${esc(i.name)} <code>${i.id === 'VOL' ? '' : i.id}</code>${onChart[i.id] ? `<span class="oc">${onChart[i.id]} on chart</span>` : ''}</div>
+        <div class="pa">${i.params.length ? i.params.map(p => `${esc(p[0])} ${esc(p[1])}`).join(' · ') : 'No settings'}</div></div>
+      <div class="meta">${esc(i.place)}<span>${esc(i.unit)}${(group === 'all' || q) ? ' · ' + esc(i.kind === 'Flow' ? 'Flow · ' + i.group : i.group) : ''}</span></div>
+      <button class="add" data-add="${i.id}">Add</button></div>`).join('') : '<div class="empty">No indicator matches.</div>';
+  const n = Object.values(onChart).reduce((a, x) => a + x, 0);
+  document.getElementById('count').textContent = `${n} indicator${n === 1 ? '' : 's'} on the chart`;
+  const tip = document.getElementById('tip');
+  document.querySelectorAll('[data-tipn]').forEach(el => { el.onmouseenter = e => { tip.innerHTML = `<b>${el.dataset.tipn}</b>${el.dataset.tipt}`; tip.hidden = false;
+      const r = el.getBoundingClientRect(); tip.style.left = Math.min(r.left, innerWidth - 330) + 'px'; tip.style.top = (r.bottom + 6) + 'px' };
+    el.onmouseleave = () => tip.hidden = true });
+  document.querySelectorAll('[data-star]').forEach(b => b.onclick = e => { e.stopPropagation(); const id = b.dataset.star; favs.has(id) ? favs.delete(id) : favs.add(id); render() });
+  const add = id => { onChart[id] = (onChart[id] || 0) + 1; render() };
+  document.querySelectorAll('.row').forEach(r => { r.onclick = () => add(r.dataset.id); r.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); add(r.dataset.id) }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); (e.key === 'ArrowDown' ? r.nextElementSibling : r.previousElementSibling)?.focus() } } });
+  document.querySelectorAll('[data-add]').forEach(b => b.onclick = e => { e.stopPropagation(); add(b.dataset.add) });
+}
+document.getElementById('q').oninput = e => { q = e.target.value; render() };
+document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement.id !== 'q') { e.preventDefault(); document.getElementById('q').focus() } });
+render();
+</script>
+</body>
+</html>
