@@ -14,6 +14,7 @@ export const IC: Record<string, string> = {
   star:'<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9Z"/>', dup:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/>',
   panel:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>', side:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
   chart:'<path d="M4 19V5M4 19h16M7 15l4-5 3 3 5-7"/>', book:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z"/><path d="M8 7h7"/>',
+  cols:'<path d="M4 5h16v14H4zM10 5v14M16 5v14"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   warn:'<path d="M12 4 2.5 20h19Z"/><path d="M12 10v4M12 17v.5"/>', terminal:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/>',
 };
 /** the condition colours: c1-c6 of the design spec, then extras (the prototype's COLORS) */

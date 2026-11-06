@@ -153,6 +153,14 @@ the bucket (`SCREENER_CSP`: `connect-src 'self'` only): the page reads no rack f
 `/api/v1/screener`. Screens, previews and counts are computed by the private `screener-worker` (Node) from the rack;
 edge-bff relays them, keeps the catalog and the universe per worker state, and stores the saved items and the watchlist.
 
+Layout since EXEC-SCREENER-V21 (2026-11-06; the user's "Type A three-panel v21" design): Screen builder | Results |
+Display chart under the filter + presets bar (`screener/index.html`, `screener/src/layout/`). An edit does not re-run the
+screen: the table stays, marked out of date, until Screen now (`screener/src/run.ts` gate, `screener/src/screen-gate.ts`;
+Alt+S, Ctrl/Cmd+Enter); a saved screen, the boot's last screen, Retry and a publication change run at once. Extra table
+columns (`screener/src/extra-columns.ts`) are asked with an auxiliary POST run on a second `client_order.page`, pinned
+with `data_version` to the table's publication, so it never replaces the table's run. Values are written in the
+catalog's format (`entries.ts formatOfOpt`, `format.ts fmtValue`), never from the wire's coarse `Cell.unit`.
+
 | Method/path (session cookie; PUT, POST and DELETE with Origin + `X-CSRF-Token`) | Result |
 | --- | --- |
 | GET `/api/v1/screener/catalog` | the worker's `CatalogResponse` with edge-bff's own limits added to `limits[]` (`saved_items`, `watchlist`, `saved_definition_bytes`, `request_bytes`, each with its rule and one right and one wrong example; a limit the worker lists is kept as it is); `ETag` = sha256 of the JSON bytes, `If-None-Match` -> 304 |

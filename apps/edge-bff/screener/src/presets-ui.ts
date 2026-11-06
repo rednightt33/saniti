@@ -11,6 +11,7 @@ import { confirmDialog, dialog, closeDialog, newItemId, toast } from './dialogs.
 import { ApiFailure } from './api/types.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { errorText, failureOn, placeText, savedErrorText, T } from './texts.ts';
+import { afterPress } from './press.ts';
 
 const $ = (id: string) => document.getElementById(id);
 const CAT_ORDER = ['Bandarmology', 'Technical', 'Fundamental', 'Combined'];
@@ -64,6 +65,7 @@ function presetsHtml(): string {
 const srcKey = () => S.source?.kind === 'preset' ? 'p:' + S.source.id : S.source?.kind === 'saved' ? 's:' + S.source.item_id : '';
 
 export function renderPresets() {
+  if (afterPress('presets', renderPresets)) return;   // never under a pressed pointer (press.ts, ERRORS M357)
   const el = $('uPresets'); if (!el) return;
   el.innerHTML = presetsHtml(); fitPresets();
   if (S.pcat === 'My screens') askCounts();
@@ -114,7 +116,9 @@ export function openSource(id: string, opts: { partial?: boolean } = {}) {
     loadDefinition(def, p.name, { kind:'preset', id:p.id }, (p as CatalogPreset & { view?: SavedView }).view, true);
     // the prototype's toast names today's matches; the catalog's count is the preset's own (computed per publication)
     const n = p.match_count;
-    toast(opts.partial ? `${p.name} loaded without: ${legNames(p).join(', ')}` : n != null ? `${p.name} · ${nf(n)} match${n === 1 ? '' : 'es'}` : `${p.name} loaded`);
+    // EXEC-SCREENER-V21: a preset waits for Screen now; the toast says so (the count is the catalog's, per publication)
+    const next = ' · press Screen now to show the results';
+    toast(opts.partial ? `${p.name} loaded without: ${legNames(p).join(', ')}${next}` : n != null ? `${p.name} · ${nf(n)} match${n === 1 ? '' : 'es'}${next}` : `${p.name} loaded${next}`);
     return;
   }
   const s = savedOf(id.slice(2)); if (!s) return;
@@ -131,11 +135,13 @@ export function openSource(id: string, opts: { partial?: boolean } = {}) {
     if (c) (c.review ||= []).push(text); else elsewhere.push(text);
   }
   ui.renderConds();
+  ui.screenNow();     // EXEC-SCREENER-V21: opening a saved screen runs it at once (a preset waits for Screen now)
   const n = s.needs_review.length;
   toast(`${s.name} loaded${n ? ` · ${n} field${n > 1 ? 's' : ''} to review${elsewhere.length ? `: ${elsewhere.join('; ')}` : ''}` : ''}`);
 }
 /** Load a definition into the page. `repick`: with the preview open, the preview moves to the first row of the new
-    result when the picked stock is not among its matches (the prototype's repick after openSource). */
+    result when the picked stock is not among its matches (the prototype's repick after openSource). EXEC-SCREENER-V21:
+    loading is an edit (the table stays, marked out of date, until Screen now); openSource runs a saved screen at once. */
 export function loadDefinition(def: Definition, name: string, source: typeof S.source, view?: ScreenItemDefinition['view'], repick = false) {
   const st = stateOfDefinition(def);
   S.universe = st.universe; S.cards = st.cards; S.logic = st.logic; S.atLeast = st.atLeast;

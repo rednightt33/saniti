@@ -411,7 +411,7 @@ Belum siap rilis. Perbaiki High dan Medium dulu (layout dan collapse), lalu QA u
 
 **Kata user:** "1 dan 2, jalankan" — semua temuan High, Medium dan Low diperbaiki, lalu QA singkat area yang diubah.
 Bukti: `verification/terminal_api/terminal_look/look_check6.mjs` (satu cek per temuan; API tiruan dengan kegagalan disuntik)
-plus `look_check3/4/5.mjs` (regresi). ERRORS M355.
+plus `look_check3/4/5.mjs` (regresi). ERRORS M367.
 
 | Temuan | Perbaikan | Bukti (look_check6) |
 |---|---|---|

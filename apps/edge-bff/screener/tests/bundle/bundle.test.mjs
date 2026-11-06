@@ -59,6 +59,52 @@ describe('production bundle', () => {
   });
 });
 
+/* EXEC-SCREENER-V21 (BRIEF_COMMON section 2 and 4): the design reference (three-panel v21) drives its page through
+   global hooks, document-wide MutationObservers and polling intervals on a fixture build; none of that may reach the
+   production page, which runs under the sub-app CSP (script-src 'self': no inline script, no inline handler, no eval). */
+const REFERENCE_HOOKS = [
+  ['a global window.__ hook (the reference window.__scr / __gate, the fixture window.__fixture)', /window\.__|__scr\b|__gate\b|__fixture\b/],
+  ['a MutationObserver (the reference watches the whole document)', /MutationObserver/],
+  ['a polling setInterval', /setInterval/],
+  ['eval or new Function (forbidden by the CSP)', /\beval\(|new Function\b|\bFunction\(\s*["'`]/],
+  ['document.write', /document\.write/],
+];
+describe('production bundle (EXEC-SCREENER-V21)', () => {
+  it.each(REFERENCE_HOOKS)('has no %s', async (_, re) => {
+    const js = (await files(DIST)).filter(f => f.endsWith('.js'));
+    expect(js.length).toBe(1);
+    expect(re.test(await readFile(js[0], 'utf8'))).toBe(false);
+  });
+  it('index.html is CSP-compatible: one external classic script, no inline script, no inline event handler, no javascript: URL', async () => {
+    const html = await readFile(join(DIST, 'index.html'), 'utf8');
+    const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+    expect(scripts.length).toBe(1);
+    expect(scripts[0][1]).toMatch(/^\s*src="\/screener-app\/assets\/[^"]+\.js"\s*$/);
+    expect(scripts[0][2].trim()).toBe('');
+    expect(html).not.toMatch(/\son[a-z]+\s*=/i);
+    expect(html).not.toMatch(/javascript:/i);
+    // the v21 slots the Screen now controls are drawn into, and the page's three panes
+    for (const id of ['pageActs', 'screenBar', 'pendBar', 'cardU', 'cardC', 'cardR', 'preview', 'colPop', 'naPop']) expect(html).toContain(`id="${id}"`);
+  });
+  it('the CSS is one linked file under the base path; no @import of another origin', async () => {
+    const html = await readFile(join(DIST, 'index.html'), 'utf8');
+    expect((html.match(/<link rel="stylesheet"[^>]*href="\/screener-app\/assets\/[^"]+\.css"/g) || []).length).toBe(1);
+    const css = (await files(DIST)).filter(f => f.endsWith('.css'));
+    for (const f of css) expect(await readFile(f, 'utf8')).not.toMatch(/@import\s+url\(\s*["']?https?:/);
+  });
+});
+describe('page sources (EXEC-SCREENER-V21)', () => {
+  it('no window.__ hook, MutationObserver, setInterval, eval or new Function in the page modules', async () => {
+    const src = join(ROOT, 'src'), bad = [];
+    const walk = async dir => { for (const e of await readdir(dir, { withFileTypes:true })) { const p = join(dir, e.name); if (e.isDirectory()) await walk(p); else if (/\.ts$/.test(e.name)) {
+      const body = (await readFile(p, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const [what, re] of REFERENCE_HOOKS) if (re.test(body)) bad.push(`${p}: ${what}`);
+    } } };
+    await walk(src);
+    expect(bad).toEqual([]);
+  });
+});
+
 describe('page sources', () => {
   it('import from the screener core only contract.ts and universe.ts, and no formula module', async () => {
     const src = join(ROOT, 'src'), bad = [];

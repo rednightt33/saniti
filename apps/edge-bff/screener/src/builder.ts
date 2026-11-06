@@ -16,27 +16,46 @@ import { openBrowser } from './browser.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { T } from './texts.ts';
 import { ApiFailure } from './api/types.ts';
+import { layoutHooks, wide } from './layout/prefs.ts';
+import type { ParamMap } from './core/contract.ts';
+import { afterPress } from './press.ts';
+import { pageCardOf, screenedCards } from './run.ts';
 
 const $ = (id: string) => document.getElementById(id);
 const withinMax = () => ctx.catalog?.limits.find(l => l.name === 'within_max')?.value ?? 130;
 const maxConds = () => ctx.catalog?.limits.find(l => l.name === 'max_conditions');
-export const colorOf = (c: Card) => COLORS[Math.max(0, S.cards.indexOf(c)) % COLORS.length];
+/* EXEC-SCREENER-V21 (three-panel v21, reference layout.js 12-21, 162-221, 384-395): on a wide screen the builder is a
+   pane with tabs (Conditions · My metrics · Saved), each condition is a compact row that opens to edit on a click, an
+   "Add indicator" tile and a + button open the indicator window, and the header toggle collapses the pane to a rail. */
+type BTab = 'cond' | 'metrics' | 'saved';
+let btab: BTab = 'cond';
+/** the condition rows opened to edit (wide layout); a row with an error stays open (CSS) */
+const openRows = new Set<string>();
+/** a condition's colour: its place on the page; a card of the screened definition (the table's columns, the preview:
+    run.ts screenedCards) takes the colour of the page card it is (pageCardOf), else its place in that definition.
+    Never by id alone: a preset reuses ids (QA M1, ERRORS M358). */
+export const colorOf = (c: Card) => {
+  let i = S.cards.indexOf(c);
+  if (i < 0) { const p = pageCardOf(c); i = p ? S.cards.indexOf(p) : screenedCards(true).indexOf(c) }
+  return COLORS[Math.max(0, i) % COLORS.length];
+};
 
 /** the card's pass count from the run that answers the current definition (report 9.2, 6.10) */
-function passText(c: Card): { txt: string; title: string } | null {
+function passText(c: Card): { txt: string; title: string; zero: boolean } | null {
   const run = ctx.R?.run; if (!run || ctx.stale || !c.on) return null;
   const s = run.conditions.find(x => x.id === c.id); if (!s) return null;
-  if (s.exhaustive) return { txt:`${nf(s.passed)} of ${nf(run.universe.eligible)} pass`, title:`${nf(s.passed)} of the ${nf(run.universe.eligible)} stocks in the universe pass${s.na ? `; ${nf(s.na)} n/a` : ''}.` };
-  return { txt:`${nf(s.passed)} of ${nf(s.evaluated)} evaluated`, title:'Counted on the tickers that can still match or be near; run exhaustively for the full count.' };
+  if (s.exhaustive) return { txt:`${nf(s.passed)} of ${nf(run.universe.eligible)} pass`, title:`${nf(s.passed)} of the ${nf(run.universe.eligible)} stocks in the universe pass${s.na ? `; ${nf(s.na)} n/a` : ''}.`, zero:s.passed === 0 };
+  return { txt:`${nf(s.passed)} of ${nf(s.evaluated)} evaluated`, title:'Counted on the tickers that can still match or be near; run exhaustively for the full count.', zero:s.passed === 0 };
 }
 
 function condRow(c: Card): string {
   const e = entryOf(c), col = colorOf(c), errs = S.errors[c.id] || {};
   const head = `<div class="mrow"><i class="cdot" style="background:${col}"></i><b data-nm="${c.id}" title="${esc(e?.desc || '')}">${esc(cardName(e, c))}</b><span class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-k="on" ${c.on ? 'checked' : ''} aria-label="Enable condition"><span></span></span><button class="iconbtn sm mx" data-del="${c.id}" title="Remove condition" aria-label="Remove condition">${ico(IC.x, 's')}</button></div>`;
   const review = c.review?.length ? `<span class="pill t-warning" title="${esc(c.review.join('\n'))}">Needs review</span>` : '';
-  const pt = passText(c), pass = `<div class="note cnt" data-pass="${c.id}" ${pt ? `title="${esc(pt.title)}"` : ''}>${pt ? esc(pt.txt) : ''}</div>`
+  const pt = passText(c), pass = `<div class="note cnt" data-pass="${c.id}" ${pt ? `title="${esc(pt.title)}"` : ''} ${pt?.zero ? 'data-z="1"' : ''}>${pt ? esc(pt.txt) : ''}</div>`
     + (ctx.refused?.id === c.id ? `<span class="ferr" role="alert" data-refused="${c.id}">${esc(ctx.refused.message)}</span>` : '');
-  if (!e || c.raw) return `<div class="mc ${c.on ? '' : 'off'}" data-card="${c.id}">${head}<div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${review}${pass}</div>`;
+  const x = openRows.has(c.id) ? 'x' : '', tip = wide() ? ` tabindex="0" role="group" aria-label="${esc(cardName(e, c))}${x ? '' : ', press Enter to edit'}"${x ? '' : ' title="Click to edit"'}` : '';
+  if (!e || c.raw) return `<div class="mc ${c.on ? '' : 'off'} ${x}" data-card="${c.id}"${tip}>${head}<div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${review}${pass}</div>`;
   const o = optOf(e, c), cus = isCustom(e, c) || S.open.has(c.id);
   const u = displayUnit(o?.unit);
   const err = (k: string) => errs[k] ? `<span class="ferr" role="alert">${esc(errs[k])}</span>` : '';
@@ -57,7 +76,7 @@ function condRow(c: Card): string {
     : `<span class="seg sm mseg"><button class="${cus ? '' : 'on'}" data-segd="${c.id}" title="Use the standard parameters (the defaults shown under each field)">Default</button><button class="${cus ? 'on' : ''}" data-segc="${c.id}" title="Set your own parameters">Custom</button></span>`;
   const grid = e.params.length && (cus || twoLines) ? `<div class="pgrid">${e.params.map(p => pf(p)).join('')}${twoLines ? e.params.map(p => pf(p, true)).join('') : ''}</div><div class="mrow"><span class="pbadge my" data-pm="${c.id}" ${c.metric ? '' : 'hidden'}>★ ${esc(c.metric?.name || '')}</span><button class="link" data-savem="${c.id}">${ico(IC.star, 's')}Save as My metric</button></div>` : '';
   const ops = `<select class="sel" data-c="${c.id}" data-k="op" aria-label="Condition">${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === c.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}</select>${err('op')}`;
-  return `<div class="mc ${c.on ? '' : 'off'} ${cus ? 'cus' : ''}" data-card="${c.id}">${head}
+  return `<div class="mc ${c.on ? '' : 'off'} ${cus ? 'cus' : ''} ${x}" data-card="${c.id}"${tip}>${head}
     <div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${review}
     ${mode}${grid}${ops}${vals}${within}${pass}</div>`;
 }
@@ -79,7 +98,7 @@ export const bSum = () => {
   return `${a} active condition${a > 1 ? 's' : ''}${R?.run && !ctx.stale ? ` · ${nf(R.run.match_count)} of ${nf(R.eligible)} pass` : ''}`;
 };
 export function updateCondsLight() {
-  for (const c of S.cards) { const el = document.querySelector(`[data-pass="${c.id}"]`) as HTMLElement | null; if (el) { const t = passText(c); el.textContent = t?.txt || ''; el.title = t?.title || '' } paramUI(c) }
+  for (const c of S.cards) { const el = document.querySelector(`[data-pass="${c.id}"]`) as HTMLElement | null; if (el) { const t = passText(c); el.textContent = t?.txt || ''; el.title = t?.title || ''; t?.zero ? el.dataset.z = '1' : delete el.dataset.z } paramUI(c) }
   const s = $('bSum'); if (s) s.textContent = bSum();
 }
 
@@ -90,19 +109,64 @@ const quick = () => {
   return [...ids, ...(metric ? [metric] : []), ...(bandar ? [bandar] : [])].map(k => ctx.byKey.get(k)!);
 };
 export function renderConds() {
-  const el = $('cardC'); if (!el) return;
+  if (afterPress('conds', renderConds)) return;   // never under a pressed pointer (press.ts, ERRORS M357)
+  const el = $('condHost'), card = $('cardC'); if (!el || !card) return;
   const sl = $('condList')?.scrollLeft || 0, a = activeCards().length, n = S.cards.length;
   const lim = maxConds();
-  const ready = !!ctx.catalog;
-  el.innerHTML = `<div class="builder-h"><button class="tgl ${S.bOpen ? '' : 'closed'}" data-act="btoggle" aria-expanded="${S.bOpen}">${ico(IC.chev, 's')}Screen builder <small id="bSum">${bSum()}</small></button><span class="sp"></span>
+  const ready = !!ctx.catalog, W = wide();
+  if (W) S.bOpen = true;                       // the pane always shows its body on a wide screen (it collapses to a rail)
+  const total = ctx.entries.length;
+  const tgl = W ? `<button class="tgl" data-act="btoggle" aria-expanded="true" aria-controls="cardC" title="Collapse the screen builder">`
+    : `<button class="tgl ${S.bOpen ? '' : 'closed'}" data-act="btoggle" aria-expanded="${S.bOpen}">`;
+  el.innerHTML = `<div class="builder-h">${tgl}${ico(IC.chev, 's')}Screen builder <small id="bSum">${bSum()}</small></button><span class="sp"></span>
+      <div class="btabs" role="tablist" aria-label="Screen builder sections">${btabsHtml()}</div>
       ${n > 1 ? `<span class="logic">Match <span class="seg sm" role="radiogroup" aria-label="Match"><button class="${S.logic === 'all' ? 'on' : ''}" data-logic="all" role="radio" aria-checked="${S.logic === 'all'}">All</button><button class="${S.logic === 'any' ? 'on' : ''}" data-logic="any" role="radio" aria-checked="${S.logic === 'any'}">Any</button><button class="${S.logic === 'at_least' ? 'on' : ''}" data-logic="at_least" role="radio" aria-checked="${S.logic === 'at_least'}">At least</button></span>${S.logic === 'at_least' ? `<input class="inp" type="number" min="1" max="${Math.max(1, a)}" step="1" data-s="atLeast" value="${S.atLeast}" aria-label="At least N">` : ''}<span>of ${a} active</span></span>` : ''}
       ${n ? `<button class="btn sm ghost" data-act="clearconds">Clear</button>` : ''}</div>
-    ${S.bOpen ? `<div class="builder-b">${!ready ? `<div class="sbox">${spin(T.loadingIndicators)}</div>` : `<div class="adder"><label class="searchbox">${ico(IC.search, 's')}<input id="adderQ" placeholder="Add a condition — search ${ctx.catalog!.indicators.length} indicators: “RSI”, “Stochastic”, “VWAP”, “Supertrend”, or “breakout”…" autocomplete="off" aria-label="Add a condition" role="combobox" aria-expanded="false" aria-controls="suggest" aria-autocomplete="list"><kbd>/</kbd><button class="xbtn" data-act="browse" title="Browse all indicators with details" aria-label="Browse all indicators">${ico(IC.expand, 's')}Browse</button></label><div class="suggest" id="suggest" role="listbox" hidden></div></div>`}
+    <div class="bt-view" id="btView" role="tabpanel" aria-label="${btab === 'metrics' ? 'My metrics' : 'Saved screens'}">${btab === 'cond' ? '' : btView()}</div>
+    ${S.bOpen ? `<div class="builder-b" role="tabpanel" aria-label="Conditions">${!ready ? `<div class="sbox">${spin(T.loadingIndicators)}</div>` : `<div class="adder"><label class="searchbox">${ico(IC.search, 's')}<input id="adderQ" placeholder="${W ? 'Search indicators to add' : `Add a condition — search ${ctx.catalog!.indicators.length} indicators: “RSI”, “Stochastic”, “VWAP”, “Supertrend”, or “breakout”…`}" title="Add a condition (/)" autocomplete="off" aria-label="Add a condition" role="combobox" aria-expanded="false" aria-controls="suggest" aria-autocomplete="list"><kbd>/</kbd><button class="xbtn" data-act="browse" title="Browse all indicators with details" aria-label="Browse all ${total} indicators with details">${ico(IC.expand, 's')}${W ? `Browse all indicators<span class="bx-n">${total}</span>${ico(IC.chev, 'bx-c')}` : 'Browse'}</button></label><button type="button" class="bh-add" data-act="browse" title="Add indicator (browse all)" aria-label="Add indicator">${ico(IC.plus)}</button><div class="suggest" id="suggest" role="listbox" hidden></div></div>`}
       ${lim && a > lim.value ? `<div class="note down" role="alert">${esc(lim.rule)}: switch off or remove ${a - lim.value} condition${a - lim.value > 1 ? 's' : ''}.</div>` : ''}
       ${n ? `<div class="strip" id="condList">${S.cards.map(condRow).join('')}<button class="mc madd" data-act="focusadd">${ico(IC.plus)}<span>Add indicator</span></button></div>`
         : ready ? `<div class="bempty"><span class="muted">No conditions yet. Start from a preset, search above, or add a first condition:</span><div class="qrail"><button class="btn sm" data-act="browse">${ico(IC.expand, 's')}Browse all</button>${quick().map(e => `<button class="btn sm" data-quick="${esc(e.key)}" ${e.available ? '' : `disabled title="${esc(e.reason || '')}"`}>${ico(IC.plus, 's')}${esc(e.short === e.key ? e.label : e.label.length > 18 ? e.short : e.label)}</button>`).join('')}</div></div>` : ''}</div>` : ''}`;
+  card.classList.toggle('bt-alt', W && btab !== 'cond');
   const cl = $('condList'); if (cl) cl.scrollLeft = sl;
+  layoutHooks.afterConds();
 }
+
+/* ---- builder tabs: Conditions · My metrics · Saved (reference layout.js 179-221), from the page's own lists ---- */
+const dateText = (iso: string | null | undefined) => { if (!iso) return ''; const d = new Date(iso); return isNaN(+d) ? '' : d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) };
+function btabsHtml(): string {
+  const nc = activeCards().length, nm = ctx.metrics?.length ?? 0, ns = ctx.saved?.length ?? 0;
+  const t = (k: BTab, l: string, n: number) => `<button type="button" role="tab" data-btab="${k}" aria-selected="${btab === k}" tabindex="${btab === k ? 0 : -1}">${l}<span class="n">${n}</span></button>`;
+  return t('cond', 'Conditions', nc) + t('metrics', 'My metrics', nm) + t('saved', 'Saved', ns);
+}
+function btView(): string {
+  if (btab === 'metrics') {
+    const ms = ctx.metrics;
+    if (ms == null) return `<p class="bt-note">${spin('Loading your metrics')}</p>`;
+    return ms.length ? `<p class="bt-note">Indicators saved with your own parameters. Add one as a condition.</p>` + ms.map(m => `<div class="bt-item"><b title="${esc(m.name)}">${esc(m.name)}</b><small>${esc(m.updated_at ? 'Saved ' + dateText(m.updated_at) : 'Saved metric')}</small><button type="button" class="btn sm" data-addmetric="${esc(m.item_id)}" aria-label="Add ${esc(m.name)} as a condition">Add</button></div>`).join('')
+      : `<p class="bt-note">No saved metrics yet. Change a condition's parameters, then use Save as My metric on its card.</p>`;
+  }
+  const sv = ctx.saved, cur = S.source?.kind === 'saved' ? S.source.item_id : null;
+  if (sv == null) return `<p class="bt-note">${spin('Loading your screens')}</p>`;
+  return sv.length ? `<p class="bt-note">Your saved screens. Opening one replaces the current conditions.</p>` + sv.map(x => {
+    const def = (x.definition as { definition?: { conditions?: { enabled?: boolean }[] } }).definition;
+    const k = def?.conditions?.filter(c => c.enabled !== false).length ?? 0, on = x.item_id === cur;
+    return `<div class="bt-item ${on ? 'cur' : ''}"><b title="${esc(x.name)}">${esc(x.name)}</b><small>${k} condition${k === 1 ? '' : 's'}${x.updated_at ? ' · saved ' + esc(dateText(x.updated_at)) : ''}${x.needs_review?.length ? ' · needs review' : ''}</small><button type="button" class="btn sm" data-opensaved="${esc(x.item_id)}" ${on ? 'disabled title="Open now"' : `aria-label="Open ${esc(x.name)}"`}>Open</button></div>`;
+  }).join('') : `<p class="bt-note">No saved screens yet. Build a screen, then use Save screen at the top of the page.</p>`;
+}
+function setBtab(k: BTab) {
+  btab = k; renderConds();
+  ($('cardC')?.querySelector(`[data-btab="${k}"]`) as HTMLElement | null)?.focus();
+  const c = $('cardC'); if (c) c.scrollTop = 0;
+}
+/** a click on a compact condition row (not on one of its controls) opens it to edit, or closes it (wide layout) */
+export function toggleRow(id: string) {
+  if (!S.cards.some(c => c.id === id)) return;
+  openRows.has(id) ? openRows.delete(id) : openRows.add(id);
+  renderConds();
+  ($('condList')?.querySelector(`[data-card="${CSS.escape(id)}"]`) as HTMLElement | null)?.focus?.();
+}
+const browseAll = (q = '') => { hideSuggest(); openBrowser(q, { addCond, addMetric }) };
 
 /* ---- the type-ahead adder ----------------------------------------------------------------------------------- */
 type Sug = { e: Entry; m?: SavedItem };
@@ -128,13 +192,14 @@ export function drawSuggest(q: string) {
 }
 const hideSuggest = () => { const s = $('suggest'); if (s) s.hidden = true; $('adderQ')?.setAttribute('aria-expanded', 'false') };
 
-export function addCond(key: string) {
+export function addCond(key: string, params?: ParamMap) {
   const e = ctx.byKey.get(key); if (!e) return;
   if (!e.available) { toast(`${e.label}: ${e.reason}`); return }
-  const c = newCard(e, S.cards.map(x => x.id));
+  const c = newCard(e, S.cards.map(x => x.id), params ? { params } : {});
+  if (params) openRows.add(c.id);
   S.cards.push(c); S.bOpen = true; ui.markDirty(); ui.refresh('conds');
   setTimeout(() => document.querySelector(`[data-card="${c.id}"]`)?.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'nearest' }), 30);
-  toast(`${e.label} added`);
+  toast(`${e.label} added${params ? ' with your settings' : ''}`);
 }
 export function addMetric(itemId: string) {
   const m = (ctx.metrics || []).find(x => x.item_id === itemId); if (!m) return;
@@ -178,13 +243,16 @@ export function onBuilderClick(b: HTMLElement): boolean {
   if (d.savem) { const c = S.cards.find(x => x.id === d.savem); if (c) openSaveMetric(c); return true }
   if (d.add) { hideSuggest(); const q = $('adderQ') as HTMLInputElement | null; if (q) q.value = ''; addCond(d.add); return true }
   if (d.quick) { addCond(d.quick); return true }
-  if (d.del) { S.cards = S.cards.filter(c => c.id !== d.del); delete S.errors[d.del]; ui.markDirty(); ui.refresh('conds'); return true }
+  if (d.del) { S.cards = S.cards.filter(c => c.id !== d.del); delete S.errors[d.del]; openRows.delete(d.del); ui.markDirty(); ui.refresh('conds'); return true }
   if (d.logic) { S.logic = d.logic as typeof S.logic; ui.markDirty(); ui.refresh('conds'); return true }
+  if (d.btab) { setBtab(d.btab as BTab); return true }
+  if (d.addmetric) { btab = 'cond'; addMetric(d.addmetric); return true }
+  if (d.opensaved) { btab = 'cond'; ui.openSource('s:' + d.opensaved); return true }
   switch (d.act) {
-    case 'focusadd': ($('adderQ') as HTMLInputElement | null)?.focus(); return true;
-    case 'browse': hideSuggest(); openBrowser(($('adderQ') as HTMLInputElement | null)?.value || '', { addCond, addMetric }); return true;
-    case 'btoggle': S.bOpen = !S.bOpen; renderConds(); return true;
-    case 'clearconds': S.cards = []; S.errors = {}; ui.markDirty(); toast('Conditions cleared'); ui.refresh('conds'); return true;
+    case 'focusadd': if (wide()) browseAll(); else ($('adderQ') as HTMLInputElement | null)?.focus(); return true;
+    case 'browse': browseAll(b.classList.contains('bh-add') ? '' : ($('adderQ') as HTMLInputElement | null)?.value || ''); return true;
+    case 'btoggle': if (layoutHooks.collapseBuilder()) return true; S.bOpen = !S.bOpen; renderConds(); return true;
+    case 'clearconds': S.cards = []; S.errors = {}; openRows.clear(); ui.markDirty(); toast('Conditions cleared'); ui.refresh('conds'); return true;
   }
   return false;
 }
@@ -241,4 +309,4 @@ export function onAdderKey(e: KeyboardEvent) {
   else if (e.key === 'Escape') { hideSuggest(); t.blur() }
 }
 export const onAdderInput = (q: string) => { sugIdx = 0; drawSuggest(q) };
-export { hideSuggest, paramSummary };
+export { browseAll, hideSuggest, paramSummary };

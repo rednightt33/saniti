@@ -92,9 +92,11 @@ export function liveApi(opts: { fetchImpl?: typeof fetch } = {}): ScreenerApi {
     return { status:200, etag:tag, body:decode<T>(bytes), bytes };
   }
 
-  // latest wins per page (report 8.1 client_order): one page id per page load, one sequence for run and preview each
-  const page = 'pg_' + newId().slice(0, 32);
-  let runs = 0, previews = 0;
+  // latest wins per page (report 8.1 client_order): one page id per page load, one sequence for run and preview each;
+  // the extra columns' runs (CallOpts lane 'aux') go on a second page id with their own sequence, so they never
+  // replace the table's run nor are replaced by it (edge-bff screener.py latest: slot = (owner, lane, page))
+  const page = 'pg_' + newId().slice(0, 32), auxPage = 'px_' + newId().slice(0, 32);
+  let runs = 0, auxRuns = 0, previews = 0;
 
   return {
     kind:'live',
@@ -102,7 +104,8 @@ export function liveApi(opts: { fetchImpl?: typeof fetch } = {}): ScreenerApi {
     catalog: etag => conditional<CatalogResponse>('/catalog', etag),
     universe: etag => conditional<UniverseResponse>('/universe', etag),
     async run(req, o = {}): Promise<RunAnswer> {
-      const res = await send('POST', '/run', { ...req, schema_version:SCHEMA_VERSION, client_order:{ page, seq:++runs } } satisfies RunRequest, o);
+      const order = o.lane === 'aux' ? { page:auxPage, seq:++auxRuns } : { page, seq:++runs };
+      const res = await send('POST', '/run', { ...req, schema_version:SCHEMA_VERSION, client_order:order } satisfies RunRequest, o);
       const bytes = await bytesOf(res, o);
       return { body:decode(bytes), bytes };
     },

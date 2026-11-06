@@ -598,7 +598,7 @@ Load sequence (`src/app.ts` header `:1-14`; PAGE LOAD SEQUENCE 6c.4; the Termina
 | S3 | after an authenticated answer, the cached catalog, universe and last result are drawn from the browser's file cache when the pointer names them for this login, marked "Updating…" (`src/api/boot-cache.ts`: IndexedDB `terminal-files` through the Terminal's `rack.ts` `fileCache`, keyed by sha256 = the `ETag`; pointer `localStorage` `scr.boot`; a result only at versions equal to the cached catalog's) |
 | S4 | `304` confirms them; `200` replaces them (stored only when the bytes hash to the `ETag`) |
 | S5 | an empty screen needs no run (its rows are the universe after `universe.ts`, the function the worker runs in S0); a remembered screen whose cached result has the current versions needs no run either; otherwise `POST run` |
-| S6-S8 | saved screens and the watchlist fill in when they answer; preview, "Stock vs IHSG", counts and CSV wait until asked; edits are debounced (`src/run.ts`) |
+| S6-S8 | saved screens and the watchlist fill in when they answer; preview, "Stock vs IHSG", counts and CSV wait until asked; since EXEC-SCREENER-V21 an edit marks the table out of date and nothing is sent until Screen now (`src/run.ts`, `src/screen-gate.ts`) |
 
 Tests: `tests/page/page.test.ts` ("boot pointer", "live client", "results sort", "universe view and chips", "remarks"),
 `tests/page/forms.test.ts`, `tests/page/refusals.test.ts` (every refusal worded from the catalog's `limits[]` entry:

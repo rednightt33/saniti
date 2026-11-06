@@ -9,6 +9,8 @@ import type {
   Cell, ConditionDef, ConditionSummary, Definition, MetricRef, PreviewResponse, ResultRow, RowRemark, RunResponse, Side, UniverseRow, Versions,
 } from '../../src/core/contract.ts';
 import { universeView } from '../../src/universe-view.ts';
+import { resolveSeries } from '../../src/core/metrics.ts';
+import { metricSpec } from '../../src/core/catalog.ts';
 
 export type S = (number | null)[];
 export interface Tk {
@@ -94,10 +96,37 @@ const lookback = (refs: any[]): number => {
 };
 const refsOf = (t: any): any[] => [t.metric, t.lhs, t.rhs, t.pattern, t.signal?.lhs, t.signal?.rhs, t.signal?.pattern].filter(Boolean);
 
+/** The wire Cell.unit (and ConditionSummary.unit) of a condition as the worker's core writes it (src/core/condition.ts:
+    a value test carries its series' unit, a universe attribute its catalog unit, a cross-section rank and a pattern
+    none; a STATE or EVENT the unit of its first side that is not a bar field). The unit is the core's scaling class,
+    not a display unit: a percent distance, ROC or ATR % arrive as 'dimensionless' (ERRORS M355), so the page must take
+    its format from the catalog; the fixture carries the same field so the page's display path is the production one.
+    A cross-section rank carries its catalog unit on the summary and none on its cells, as the core does.
+    tests/page/fixture-units.test.ts checks this against the real core. */
+const unitMemo = new Map<string, string | null>();
+export function unitOf(test: any, where: 'cell' | 'summary' = 'cell'): string | null {
+  const key = where + JSON.stringify(test), hit = unitMemo.get(key); if (hit !== undefined) return hit;
+  const ser = (r: any) => { try { return resolveSeries(r, 'fixture', { capBudgetMs:2000 }) } catch { return { unit:null } } };
+  const sideUnit = (s: any) => s && s.kind && s.kind !== 'price' ? ser(s).unit as string | null : null;
+  const anyUnit = (s: any) => s && s.kind ? ser(s).unit as string | null : null;
+  let u: string | null = null;
+  if (test.kind === 'value') {
+    const k = test.metric?.kind;
+    const spec = (kind: 'universe' | 'xsection', id: string) => { try { return (metricSpec(kind, id, 'fixture').unit ?? null) as string | null } catch { return null } };
+    u = k === 'universe' ? spec('universe', test.metric.attr) : k === 'xsection' ? (where === 'summary' ? spec('xsection', test.metric.metric) : null)
+      : k === 'pattern' ? null : ser(test.metric).unit as string | null;
+  } else {
+    const sg = test.kind === 'event' ? test.signal : test;
+    if (!sg.pattern) u = sideUnit(sg.lhs) ?? sideUnit(sg.rhs) ?? anyUnit(sg.lhs) ?? anyUnit(sg.rhs);
+  }
+  unitMemo.set(key, u);
+  return u;
+}
+
 /** one condition on one ticker at its last bar */
 export function evaluate(m: Market, t: Tk, cd: ConditionDef): { cell: Cell; signal: S | null } {
   const at = t.c.length - 1, tt = cd.test as any, eval_date = t.d[at];
-  const base = { id:cd.id, eval_date, reason:null, remark:null } as Cell;
+  const base = { id:cd.id, eval_date, unit:unitOf(tt), reason:null, remark:null } as Cell;
   const priceDerived = refsOf(tt).some(r => r.kind === 'indicator' || r.kind === 'transform' || r.kind === 'pattern');
   if (t.breakAt != null && priceDerived && t.breakAt > at - lookback(refsOf(tt))) base.remark = 'PRICE_BREAK_IN_LOOKBACK';
   if (tt.kind === 'value') {
@@ -140,7 +169,7 @@ export function run(m: Market, def: Definition, versions: Versions, data: RunRes
   const extra = (def.universe.metric_filters || []);
   const elig = view.rows.filter(r => extra.every((f, i) => evaluate(m, m.byTicker.get(r.ticker)!, { id:'f' + i, enabled:true, test:f }).cell.status === 'pass'));
   const active = def.conditions.filter(c => c.enabled), k = need(def, active.length);
-  const summaries: ConditionSummary[] = active.map(c => ({ id:c.id, source:'dynamic', metric:'', params_resolved:{}, is_default:false, kind:c.test.kind, unit:null, evaluated:elig.length, passed:0, na:0, exhaustive:true, eval_date_basis:'ticker_last_bar' }));
+  const summaries: ConditionSummary[] = active.map(c => ({ id:c.id, source:'dynamic', metric:'', params_resolved:{}, is_default:false, kind:c.test.kind, unit:unitOf(c.test, 'summary'), evaluated:elig.length, passed:0, na:0, exhaustive:true, eval_date_basis:'ticker_last_bar' }));
   const rows: ResultRow[] = [];
   for (const u of elig) {
     const t = m.byTicker.get(u.ticker)!, cells = active.map(c => evaluate(m, t, c).cell);

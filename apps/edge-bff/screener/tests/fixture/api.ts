@@ -139,7 +139,9 @@ export interface FixtureOpts {
   newPublicationAfterRuns?: number;
   /** the publication the page load starts at (smoke: a cached paint followed by a newer publication, 6c.9 item 2) */
   publication?: number;
-  /** markup in the names (smoke: no element is made from them, report 9.1 text rendering) */
+  /** markup in the names (smoke: no element is made from them, report 9.1 text rendering): a company name and a sector,
+      and (EXEC-SCREENER-V21) a catalog label (RSI's indicator name and description), a preset's name and why, and the
+      message of every injected failure (a server message) */
   hostile?: boolean;
 }
 
@@ -158,8 +160,13 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
       const r = runDef(m, p.definition, v, d);
       return { ...p, match_count:r.match_count, near_count:r.near_count };
     });
+    let indicators = catalogIndicators({ capBudgetMs:CAP_BUDGET_MS });
+    if (opts.hostile) {                            // copies: the shared catalog objects stay as they are
+      indicators = indicators.map(x => x.id === 'I13' ? { ...x, name:'<b id="xss2">Relative</b> Strength <img src=x onerror="window.__xss=2"> Index', description:'<script>window.__xss=3</script>gains & losses' } : x);
+      for (let i = 0; i < presets.length; i++) if (presets[i].id === 'golden') presets[i] = { ...presets[i], name:'<img src=x onerror="window.__xss=4">Golden "Cross"', why:'<u id="xss3">why</u> it matters' };
+    }
     return { versions:v, data:{ ...d, refresh:'ready' }, limits:LIMITS,
-      indicators:catalogIndicators({ capBudgetMs:CAP_BUDGET_MS }),
+      indicators,
       metrics:METRICS, fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets };
   };
   const counters: Record<string, number> = {};
@@ -177,7 +184,9 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
   });
   const failing = (k: 'catalog' | 'run' | 'preview') => {
     const f = opts.fail?.[k]; if (!f || f.times <= 0) return;
-    f.times--; throw new ApiFailure(errorText(f.code, { field:f.field, retryAfter:f.retryAfter ?? null }) || `fixture failure ${f.code}`, f.code, f.status, f.field, f.retryAfter ?? null);
+    f.times--;
+    const msg = opts.hostile ? '<img src=x onerror="window.__xss=5">The <b id="xss4">server</b> said no.' : errorText(f.code, { field:f.field, retryAfter:f.retryAfter ?? null }) || `fixture failure ${f.code}`;
+    throw new ApiFailure(msg, f.code, f.status, f.field, f.retryAfter ?? null);
   };
   const enc = (x: unknown) => new TextEncoder().encode(JSON.stringify(x));
   async function conditional<T>(k: string, body: T, inm?: string | null): Promise<Conditional<T>> {
@@ -196,7 +205,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
     async catalog(inm) { count('catalog'); await wait('catalog'); failing('catalog'); const c = timed(catalog); await later(); return conditional('catalog', c, inm) },
     async universe(inm) { count('universe'); await wait('universe'); return conditional<UniverseResponse>('universe', { versions:versions(), data:data(), rows:m.tickers.map(t => universeRow(m, t)) }, inm) },
     async run(req, o: CallOpts = {}) {
-      count('run'); await wait('run', o.signal); if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      count(o.lane === 'aux' ? 'aux' : 'run'); await wait('run', o.signal);      // the extra columns' lane counted apart if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');
       failing('run');
       checkParams(req.definition);
       runs++; if (opts.newPublicationAfterRuns && runs > opts.newPublicationAfterRuns) pub = 2;

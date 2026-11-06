@@ -2,9 +2,10 @@
    Backtest's api/texts.ts; the shell's words live in static/edge-labels.js). Plain text: the page escapes every string
    it puts into markup (format.ts esc). The API sends codes, never messages for the page to show verbatim where the
    page has its own wording (report 9.2: remarks are worded here from the API's codes). */
-import type { ApiError, CellRemark, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
+import type { ApiError, Cell, CellRemark, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
+import type { ExtraCellState } from './extra-columns.ts';
 import { ApiFailure } from './api/types.ts';
-import { nf, timeText } from './format.ts';
+import { comparableAcrossStocks, fmtValue, nf, timeText, unitWords, type ValueFormat } from './format.ts';
 import { OPLABEL, optionText } from './entries.ts';
 import { cardName, type Card } from './forms.ts';
 import { ctx as page, entryOf, S, stateOfDefinition } from './state.ts';
@@ -22,6 +23,8 @@ export const T = {
   updating: 'Updating…',
   outOfDate: 'Out of date',
   retry: 'Retry',
+  // QA M3: a preview or a column refused twice for a newer publication than the table's rows (run.ts dataChanged)
+  dataBehind: 'New data is still reaching part of the screener service, so this cannot be shown at the date of the table yet. Try again in a minute.',
   // fixed reasons for what has no data (report 9.2 D rows; P11 a: shown disabled with the reason, not removed)
   noIndex: 'No data: index membership (LQ45, IDX30, IDX80, ISSI) is not in the market database.',
   // (plain words: no decision, plan, field or code name; tests/page/plain-words.test.ts walks every T entry)
@@ -327,3 +330,78 @@ export const methodText = (evalDate: string) =>
   `EVENT tests (crosses, breakouts, divergences, flips) pass when the event happened within the chosen number of sessions, ` +
   `counted on the stock's own bars. A stock without a trade on ${evalDate} is stale: it is hidden by default, and when shown ` +
   `it is evaluated at its own last bar with a remark. Near misses are one condition short of the match.`;
+
+/* ---- EXEC-SCREENER-V21 (data audit, report v21/reports/s2_data.md): the words of a cell and of an extra column ------
+   One rule for every number of the table, the preview and the extra columns: an NA cell says n/a with its reason, a
+   cell evaluated before the screen's date says so, a price-break cell is marked, a missing answer is never shown as a
+   number or as 0. */
+
+/** The tooltip lines of a cell (contract Cell): the date it was evaluated on (and that it is the stock's last trade
+    when that is before the screen's evaluation date), the event date and bars ago, the last event, the NA reason, not
+    evaluated, and the price-break remark naming the row's ex-date. */
+export function cellTitle(c: Cell, rowRemarks: readonly RowRemark[], evalDate: string | null): string {
+  return [
+    c.eval_date ? `Evaluated ${c.eval_date}${evalDate && c.eval_date !== evalDate ? ` (the stock's last trade; the screen's date is ${evalDate})` : ''}` : '',
+    c.event_date ? `Event ${c.event_date}${c.bars_ago != null ? ` (${c.bars_ago} session${c.bars_ago === 1 ? '' : 's'} ago)` : ''}` : '',
+    c.last_event_date && c.last_event_date !== c.event_date ? `Last event ${c.last_event_date}` : '',
+    c.status === 'na' ? naText(c.reason) : '',
+    c.status === 'not_evaluated' ? 'Not evaluated: the row could no longer match' : '',
+    c.remark ? cellRemarkText(c.remark, rowRemarks as RowRemark[]) : '',
+  ].filter(Boolean).join('\n');
+}
+
+/** What an extra-column cell shows (extra-columns.ts ExtraCellState), with the column's format (format.ts
+    formatOfOutput / formatOfMetric): text, tone ('up' / 'down' for a signed percent only), muted, whether to draw the
+    price-break mark, and its tooltip. A cell is NA with its reason, not computed, loading, failed, or missing from the
+    answer; none of these is written as a number. */
+export interface ExtraCellView { text: string; tone: '' | 'up' | 'down'; muted: boolean; mark: boolean; title: string }
+export function extraCellView(s: ExtraCellState, f: ValueFormat, rowRemarks: readonly RowRemark[], evalDate: string | null): ExtraCellView {
+  const v = (text: string, title: string, muted = true): ExtraCellView => ({ text, tone:'', muted, mark:false, title });
+  switch (s.kind) {
+    case 'loading': return v('…', 'Loading this column');
+    case 'error': return v('—', `This column could not be loaded: ${s.message}`);
+    case 'none': return v('—', 'No value for this stock in the answer that the table shows');
+  }
+  const c = s.cell, title = cellTitle(c, rowRemarks, evalDate);
+  if (c.status === 'na') return v('n/a', title);
+  if (c.status === 'not_evaluated') return v('·', title);
+  if (c.value == null || !Number.isFinite(c.value)) return v('—', [title, 'No value was returned for this cell'].filter(Boolean).join('\n'));
+  const x = c.value;
+  return { text:fmtValue(x, f), tone:f === 'pct_signed' ? (x > 0 ? 'up' : x < 0 ? 'down' : '') : '', muted:false, mark:!!c.remark, title };
+}
+
+/** An extra column's header tooltip: its name, the unit, the parameters it is computed with, that sessions are the
+    stock's own trading sessions, and a warning when its values depend on the stock's price or share count. */
+export function extraColumnTitle(label: string, f: ValueFormat, paramText: string): string {
+  const u = unitWords(f);
+  return [
+    label + (u ? ` (${u})` : ''),
+    paramText ? `Computed with: ${paramText}` : '',
+    'Sessions are the stock\'s own trading sessions up to its evaluation date.',
+    comparableAcrossStocks(f) ? '' : 'In the stock\'s own price or share units: not comparable between stocks.',
+  ].filter(Boolean).join('\n');
+}
+
+/** The 1-day change of a row whose last session is the ex-date of an unadjusted corporate action (the move is
+    distorted; the contract gives universe values no cell remark): the remark to show beside it, else null. */
+export function chg1dBreakText(rowRemarks: readonly RowRemark[], lastBarDate: string | null | undefined): string | null {
+  const r = rowRemarks.find(x => x.code === 'PRICE_BREAK' && x.ex_date === lastBarDate) as Extract<RowRemark, { code: 'PRICE_BREAK' }> | undefined;
+  return r ? `Distorted: the last session ${r.ex_date} is the ex-date of a ${actionText(r.action)} not adjusted in the price history.` : null;
+}
+
+/** A stale row's Last or 1D (QA M4): the stock did not trade on the screen's date, so its close and its change are of
+    its last session. null when the stock traded on the screen's date. */
+export function staleValueText(what: 'close' | 'change', lastBarDate: string | null | undefined, evalDate: string | null | undefined): string | null {
+  if (!lastBarDate || !evalDate || lastBarDate >= evalDate) return null;
+  return `${what === 'close' ? 'Close' : 'Change'} of ${lastBarDate}, the stock's last session: it did not trade on ${evalDate}, the date of the screen.`;
+}
+
+/** "today" for a move on the screen's evaluation date, else the date of the stock's last session (a stale stock's
+    change is not today's) */
+export const dayWord = (lastBarDate: string | null | undefined, evalDate: string | null | undefined) =>
+  !lastBarDate || lastBarDate === evalDate ? 'today' : `on ${lastBarDate}`;
+
+/** An EVENT cell's text (table and preview): the sessions are the stock's own trading sessions, never calendar days
+    (data audit: "Nd ago" read as days). */
+export const eventText = (x: Cell) => x.bars_ago == null ? (x.status === 'pass' ? 'yes' : '—') : x.bars_ago === 0 ? 'today'
+  : `${x.bars_ago} session${x.bars_ago === 1 ? '' : 's'} ago`;
