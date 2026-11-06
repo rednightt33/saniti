@@ -12,6 +12,10 @@ import { chipNoBreak, chipTraded, T } from './texts.ts';
 import { condText, displayUnit, newCard, optOf, type Card } from './forms.ts';
 import { byGroup, OPLABEL } from './entries.ts';
 import { hiddenCounts, universeView } from './universe-view.ts';
+import { bindPopResize, dressPop, drawerClass, fnavHtml, FKEYS, indScopeHtml, naButtonHtml, scopeIndustries, spy, summaryHtml, toggleNa, unsetClass, jumpTo, bindFilterDialog } from './layout/filters.ts';
+import { filtersFolded, setFiltersFolded, syncRails } from './layout/panes.ts';
+import { layoutHooks, wide } from './layout/prefs.ts';
+import { afterPress } from './press.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 const FRESH = freshUniverse();
@@ -29,10 +33,11 @@ export function universeEdited(u = S.universe): boolean {
 }
 
 /** the active-filter chips (scopeChips) */
-function scopeChips(): { html: string; removable: number } {
-  const U = S.universe, out: string[] = []; let n = 0;
+function scopeChips(): { html: string; removable: number; texts: string[] } {
+  const U = S.universe, out: string[] = [], texts: string[] = []; let n = 0;
   const add = (label: string, val: string, clear: string | null, title = '') => {
     if (clear && clear !== 'traded' && clear !== 'breaks') n++;     // the P4 chips are on by default: not an edit
+    texts.push(`${label} ${val}`.trim());
     out.push(`<span class="fchip ${clear ? '' : 'fixed'}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)} <b>${esc(val)}</b>${clear ? `<button data-uclear="${clear}" title="Remove filter" aria-label="Remove ${esc(label)} filter">${ico(IC.x, 's')}</button>` : ''}</span>`);
   };
   const list = (a: string[], one: string, many: string) => a.length > 2 ? `${a.length} ${many}` : a.join(', ') || one;
@@ -52,7 +57,7 @@ function scopeChips(): { html: string; removable: number } {
   else out.push(`<span class="fchip off" title="Stale stocks are listed with a remark">Stale shown <b>${h ? h.stale : ''}</b><button class="link" data-uhide="traded" style="margin-left:4px">Hide</button></span>`);
   if (U.exclude_price_breaks) add(chipNoBreak, h ? `hides ${h.breaks}` : '', 'breaks', 'Hides stocks whose price history crosses an unadjusted corporate action (temporary: until the price history is adjusted for corporate actions). Remove to list them with a remark.');
   else out.push(`<span class="fchip off" title="Stocks with a price break are listed with a remark; their values are shown and marked">Price breaks shown <b>${h ? h.breaks : ''}</b><button class="link" data-uhide="breaks" style="margin-left:4px">Hide</button></span>`);
-  return { html:out.join(''), removable:n };
+  return { html:out.join(''), removable:n, texts };
 }
 
 type QFDef = [key: string, label: string, val: (u: UState) => string, on: (u: UState) => boolean, disabled?: string];
@@ -127,21 +132,32 @@ export const uCountTxt = () => {
   const R = ctx.R, listed = ctx.universe?.rows.length ?? R?.listed ?? 0;
   if (!ctx.universe && !R) return `In universe <b>…</b>`;
   const v = ctx.universe ? universeView(ctx.universe.rows, definitionOf().universe) : null;
-  const n = v?.exact ? v.counts.eligible : R ? R.eligible : null;
+  // the run's count only while the table answers the page: a pending edit is counted by Screen now, not shown with the
+  // previous screen's number (S2 data audit 1a; the same class as ERRORS M358)
+  const n = v?.exact ? v.counts.eligible : R && !ctx.stale ? R.eligible : null;
   return `In universe <b>${n == null ? '…' : nf(n)}</b> of ${nf(listed)}`;
 };
+/** EXEC-SCREENER-V21 product decision 2026-11-06: screener data is daily; the timeframe is shown as "Daily" only,
+    as a label (no 5m / 15m / 1h / 4h choice) */
+const TF_STATIC = `<span class="qf qf-static" title="Screener data is daily: every condition is calculated on daily bars."><span>Timeframe</span><b>Daily</b></span>`;
 const qfHtml = () => QF.map(([k, label, val, on, dis]) => dis
   ? `<button class="qf" disabled title="${esc(dis)}" aria-disabled="true"><span>${label}</span><b>${esc(val(S.universe))}</b>${ico(IC.chev, 's')}</button>`
-  : `<button class="qf ${on(S.universe) ? 'on' : ''} ${S.pop === k ? 'open' : ''}" data-qf="${k}" aria-expanded="${S.pop === k}" aria-haspopup="dialog" ${ctx.catalog ? '' : 'disabled title="Loading…"'}><span>${label}</span><b>${esc(val(S.universe))}</b>${ico(IC.chev, 's')}</button>`).join('');
+  : `<button class="qf ${on(S.universe) ? 'on' : ''} ${S.pop === k ? 'open' : ''}" data-qf="${k}" aria-expanded="${S.pop === k}" aria-haspopup="dialog" ${ctx.catalog ? '' : 'disabled title="Loading…"'}><span>${label}</span><b>${esc(val(S.universe))}</b>${ico(IC.chev, 's')}</button>${k === 'liq' ? TF_STATIC : ''}`).join('');
 
 export function renderUniverse() {
+  if (afterPress('universe', renderUniverse)) return;   // never under a pressed pointer (press.ts, ERRORS M357)
   const c = scopeChips(), n = c.removable;
-  $('cardU').innerHTML = `<div class="toolbar">
-      <span id="uQf" style="display:contents">${qfHtml()}</span><button class="btn" data-act="drawer" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.filter, 's')}More filters<span id="uN">${n ? `<span class="count">${n}</span>` : ''}</span></button></div>
+  const p = S.source?.kind === 'preset' ? ctx.catalog?.presets.find(x => x.id === (S.source as { id: string }).id) : null;
+  const sum = filtersFolded() ? summaryHtml(summaryItems(), c.texts, p?.name ?? null, uCountTxt()) : '';
+  $('cardU').innerHTML = `${sum}<div class="toolbar">
+      <span id="uQf" style="display:contents">${qfHtml()}</span><button class="btn" data-act="drawer" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.filter, 's')}More filters<span id="uN">${n ? `<span class="count">${n}</span>` : ''}</span></button>${ctx.catalog ? naButtonHtml() : ''}</div>
     <div class="chipbar"><span>Active filters</span><span id="uChips" style="display:contents">${c.html}</span>${universeEdited() ? `<button class="link" data-act="resetU">Clear all</button>` : ''}<span class="ucount" id="uCount">${uCountTxt()}</span></div>
     <div class="presets" id="uPresets"></div>`;
   ui.renderPresets(); renderPop(); renderDrawer();
+  syncRails(); layoutHooks.afterUniverse();
 }
+/** the quick filters that can be set, as the folded bar's summary line shows them */
+const summaryItems = () => QF.filter(q => !q[4]).map(([, label, val, on]) => ({ label, value:val(S.universe), on:on(S.universe) }));
 export function updateUniverseLight() {
   const c = scopeChips(), n = c.removable;
   $('uQf').innerHTML = qfHtml(); $('uChips').innerHTML = c.html; $('uCount').innerHTML = uCountTxt();
@@ -150,6 +166,10 @@ export function updateUniverseLight() {
   // the open popover's Clear follows an edit made in it (the prototype left it as it was when the popover opened)
   const qc = document.querySelector('#pop [data-uqclear]') as HTMLButtonElement | null, q = QF.find(x => x[0] === S.pop);
   if (qc && q) qc.disabled = !q[3](S.universe);
+  // the dialog's group list follows the edit; the industry list follows the sectors
+  const dr = $('drawerHost').querySelector('.drawer');
+  if (dr) { const nav = dr.querySelector('.fnav'); if (nav) nav.outerHTML = fnavHtml(); FKEYS.forEach(k => dr.querySelector(`.dsec[data-k="${k}"]`)?.classList.toggle('unset', !!unsetClass(k))); scopeIndustries(dr); spy(dr) }
+  syncRails();
 }
 
 /** the control a re-render replaces, found again by its data attributes (focus stays on it for keyboard users) */
@@ -192,7 +212,7 @@ export function renderPop() {
   keepScroll(el, () => { el.innerHTML = `<div class="dsec" style="padding:0;border:0">${usec(S.pop!)}</div>${extra ? `<div class="dsec" style="padding:8px 0 0;border-bottom:0;border-top:1px solid var(--border)">${usec(extra)}</div>` : ''}
     <div class="pf"><span class="note" data-ucount>${uCountTxt()}</span><span class="acts" style="gap:6px"><button class="btn sm" data-uqclear="${S.pop}" ${q[3](S.universe) ? '' : 'disabled'}>Clear</button><button class="btn sm primary" data-act="popclose">Done</button></span></div>` });
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', q[1]);
-  el.hidden = false; placePop();
+  el.hidden = false; dressPop(el, S.pop); placePop();
 }
 export function placePop() {
   const el = $('pop'), t = document.querySelector(`[data-qf="${S.pop}"]`);
@@ -214,10 +234,27 @@ let drawerOpener: HTMLElement | null = null;
 export function renderDrawer() {
   const h = $('drawerHost');
   if (!S.drawer) { h.innerHTML = ''; return }
-  const body = () => `<div class="drawer-wrap" data-dwrap><aside class="drawer" role="dialog" aria-modal="true" aria-label="More filters"><div class="drawer-h"><div style="flex:1"><strong>More filters</strong><small>Who is eligible before any condition runs. Indicator tests live in the Screen builder.</small></div><button class="iconbtn sm" data-act="drawerclose" title="Close" aria-label="Close">${ico(IC.x)}</button></div>
-    <div class="drawer-b">${['index', 'board', 'liq', 'sector', 'cap', 'industry', 'metric', 'quality', 'notation'].map(k => `<div class="dsec">${usec(k)}</div>`).join('')}</div>
+  // EXEC-SCREENER-V21: a centred dialog; the groups with data, in the reference order, with a group list that follows the
+  // scroll (layout/filters.ts). Index, board, market cap, free float and special notation have no data: they are listed
+  // with their reasons under "Not available yet" in the filter bar.
+  const body = () => `<div class="drawer-wrap" data-dwrap><aside class="drawer ${drawerClass()}" role="dialog" aria-modal="true" aria-label="More filters"><div class="drawer-h"><div style="flex:1"><strong>More filters</strong><small>Who is eligible before any condition runs. Indicator tests live in the Screen builder.</small></div><button class="iconbtn sm" data-act="drawerclose" title="Close" aria-label="Close">${ico(IC.x)}</button></div>
+    ${fnavHtml()}<div class="drawer-b">${FKEYS.map(k => `<div class="dsec ${unsetClass(k)}" data-k="${k}" id="f-${k}">${k === 'industry' ? usec(k).replace('</small></div>', `</small>${indScopeHtml()}</div>`) : usec(k)}</div>`).join('')}</div>
     <div class="drawer-f"><button class="btn" data-act="resetU">${ico(IC.reset, 's')}Reset universe</button><span class="note" style="align-self:center" data-ucount>${uCountTxt()}</span><button class="btn primary" data-act="drawerclose">Done</button></div></aside></div>`;
   if (h.firstChild) keepScroll(h, () => { h.innerHTML = body() }); else h.innerHTML = body();
+  const dr = h.querySelector('.drawer'); if (dr) { scopeIndustries(dr); requestAnimationFrame(() => spy(dr)) }
+}
+/** open More filters scrolled to a group (the quick filters on a wide screen) */
+export function openDrawerAt(group: string) {
+  if (!S.drawer) openDrawer(true);
+  const dr = $('drawerHost').querySelector('.drawer'); if (!dr) return;
+  requestAnimationFrame(() => { jumpTo(dr, group); (dr.querySelector(`.fnav [data-fk="${CSS.escape(group)}"]`) as HTMLElement | null)?.focus({ preventScroll:true }) });
+}
+let filterDialogBound = false;
+/** the layout's events on the filter bar, popover and dialog (bound once by layout/index.ts) */
+export function bindUniverseLayout() {
+  if (filterDialogBound) return; filterDialogBound = true;
+  bindFilterDialog($('drawerHost')); bindPopResize($('pop'), () => S.pop);
+  layoutHooks.openFiltersAt = g => { if (!ctx.catalog) return false; openDrawerAt(g); return true };
 }
 export function openDrawer(on: boolean) {
   if (on && !trapBound) { document.addEventListener('keydown', trapDrawer); trapBound = true }
@@ -233,7 +270,10 @@ const edit = (level: 'universe' | 'universe-light' = 'universe') => { ui.markDir
 /** delegated clicks of the universe card, popover and drawer (the universe part of the prototype's onClick) */
 export function onUniverseClick(b: HTMLElement): boolean {
   const U = S.universe, d = b.dataset;
-  if (d.qf) { openPop(d.qf); return true }
+  // EXEC-SCREENER-V21: on a wide screen a quick filter opens More filters at its group (reference layout.js 616-626)
+  if (d.qf) { if (wide() && (d.qf === 'sector' || d.qf === 'liq') && layoutHooks.openFiltersAt(d.qf)) return true; openPop(d.qf); return true }
+  if (d.na != null) { toggleNa(b); return true }
+  if (d.act === 'uopen') { setFiltersFolded(false); return true }
   if (d.uqclear) { QCLEAR[d.uqclear]?.(U); edit(); return true }
   if (d.sector) {
     const s = d.sector; U.sectors_in ||= []; U.sectors_out ||= [];

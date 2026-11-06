@@ -10,7 +10,8 @@
    S5  first results: an empty screen from the universe rows (no run); a remembered screen from its cached result when
        its versions are confirmed, else POST run;
    S6  saved screens and the watchlist fill in when they answer, never blocking S5;
-   S7  preview, Stock vs IHSG, counts and CSV wait until asked; S8 edits are debounced (run.ts).
+   S7  preview, Stock vs IHSG, counts and CSV wait until asked; S8 an edit marks the table out of date and nothing is
+       sent until Screen now (EXEC-SCREENER-V21 product decision 6; run.ts, screen-gate.ts).
    ?perf=1 shows the stage marks (the Terminal's perf.ts; performance marks 'terminal:<stage>'). */
 import type { CatalogResponse, RunResponse, UniverseResponse, Versions } from './core/contract.ts';
 import type { FileCache } from '../../terminal/src/data/rack.ts';
@@ -28,10 +29,13 @@ import { dataLine, T } from './texts.ts';
 import { closeDialog, dialogOpen, openMenu, openSave, toast } from './dialogs.ts';
 import { closePop, onUniverseClick, onUniverseField, openDrawer, placePop, renderUniverse, updateUniverseLight, uCountTxt } from './universe-ui.ts';
 import { fitPresets, loadDefinition, onPresetClick, openSource, renderPresets } from './presets-ui.ts';
-import { hideSuggest, onAdderInput, onAdderKey, onBuilderClick, onBuilderField, renderConds, updateCondsLight, drawSuggest, bSum } from './builder.ts';
+import { browseAll, hideSuggest, onAdderInput, onAdderKey, onBuilderClick, onBuilderField, renderConds, updateCondsLight, drawSuggest, bSum } from './builder.ts';
 import { exportCsv, onResultsChange, onResultsClick, onResultsKey, renderResults, sizePreview, sortRows } from './results.ts';
 import { bindPreview, pickStock, renderDetails, resetPreview, togglePreview } from './preview.ts';
-import { cancelRun, resultOf, runHooks, schedule } from './run.ts';
+import { dataChanged, republished, retry, runHooks, schedule, screenNow, sync, useCached } from './run.ts';
+import { bindScreenGate, gateHooks, renderScreen, topScreenHtml } from './screen-gate.ts';
+import { initLayout } from './layout/index.ts';   // V21 layout (subagent 1)
+import { afterPress, bindPress } from './press.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 let boot!: BootCache;
@@ -39,19 +43,34 @@ const tags = { catalog:null as string | null, universe:null as string | null };
 let confirmed = false;
 
 /* ---- page head (the prototype's renderHeader) ------------------------------------------------------------- */
+/** what renderHeader last wrote: the head and the page actions after Screen now are written only when they changed */
+const headDrawn = { head:'', acts:'' };
 export function renderHeader() {
+  if (afterPress('header', renderHeader)) return;          // never under a pressed pointer (press.ts, ERRORS M357)
   const p = S.source?.kind === 'preset' ? presetOf(S.source.id) : null;
   const cat = ctx.catalog, d = cat?.data;
   const data = !cat ? `<span class="sbox">${spin(T.loadingData)}</span>`
-    : `<span>· ${esc(dataLine(ctx.universe?.rows.length ?? ctx.R?.listed ?? 0, d!.evaluation_date, d!.published_at))}</span>${!confirmed ? `<span class="sbox">${spin(T.updating)}</span>` : ''}${d!.refresh === 'failed_keeping_previous' ? `<span class="pill t-warning" title="The latest publication failed its checks; the previous one is kept.">previous publication</span>` : ''}`;   // 'refreshing' is on /health only (report 8.3, 6d.4)
-  $('pageHead').innerHTML = `<div><span class="eyebrow">Market intelligence</span><h1>Market Screener</h1>
+    : `<span>${esc(dataLine(ctx.universe?.rows.length ?? ctx.R?.listed ?? 0, d!.evaluation_date, d!.published_at))}</span>${!confirmed ? `<span class="sbox">${spin(T.updating)}</span>` : ''}${d!.refresh === 'failed_keeping_previous' ? `<span class="pill t-warning" title="The latest publication failed its checks; the previous one is kept.">previous publication</span>` : ''}`;   // 'refreshing' is on /health only (report 8.3, 6d.4)
+  const head = `<div><span class="eyebrow">Market intelligence</span><h1>Market Screener</h1>
     <p>Screen<input class="title-in" id="titleIn" value="${esc(S.name)}" size="${Math.max(8, S.name.length)}" maxlength="120" aria-label="Screen name"><span class="pill cat ${p ? 'cat-' + esc(p.category) : 'cat-Saved'} srcpill">${p ? 'Preset · ' + esc(p.category) : S.source ? 'My screen' : 'Custom screen'}${S.dirty ? ' · edited' : ''}</span><span id="dataLine" style="display:contents">${data}</span></p></div>`;
-  $('pageActs').innerHTML = `<button class="btn" data-hd="reset">${ico(IC.reset, 's')}Reset</button><button class="btn" data-hd="save" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.save, 's')}${S.source?.kind === 'saved' && S.dirty ? 'Save changes' : 'Save screen'}</button><button class="btn primary" data-hd="export" data-menu aria-haspopup="menu">${ico(IC.export, 's')}Export</button>`;
+  const ph = $('pageHead');
+  if (headDrawn.head !== head || !ph.querySelector('#titleIn')) { ph.innerHTML = head; headDrawn.head = head }
+  // v21 page actions: Screen now (drawn and patched in place by screen-gate.ts renderScreen, never re-created here),
+  // then Add indicator (opens the Indicators window), Reset, Save, Export
+  const acts = $('pageActs');
+  const rest = `<button type="button" class="btn top-add" data-hd="add" title="Add a condition (Alt+A)" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.plus, 's')}Add indicator</button><button class="btn" data-hd="reset">${ico(IC.reset, 's')}Reset</button><button class="btn" data-hd="save" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.save, 's')}${S.source?.kind === 'saved' && S.dirty ? 'Save changes' : 'Save screen'}</button><button class="btn primary" data-hd="export" data-menu aria-haspopup="menu">${ico(IC.export, 's')}Export</button>`;
+  if (headDrawn.acts !== rest || !acts.querySelector('[data-hd="export"]')) {
+    for (const ch of [...acts.children]) if (!ch.classList.contains('top-screen')) ch.remove();
+    acts.insertAdjacentHTML('beforeend', rest); headDrawn.acts = rest;
+  }
+  if (!acts.querySelector('.top-screen')) renderScreen();
 }
 function onHeadClick(e: Event) {
   const b = (e.target as HTMLElement).closest('[data-hd]') as HTMLElement | null; if (!b) return;
   const k = b.dataset.hd;
-  if (k === 'reset') { S.q = ''; ($('tq') as HTMLInputElement).value = ''; cancelRun(); loadDefinition({ universe:definitionOf({ universe:freshUniverse(), cards:[], logic:'all', atLeast:2 }).universe, conditions:[], logic:'all' }, 'Untitled screen', null); toast('Screen reset — full universe, no conditions'); return }
+  // Reset is an edit like any other (EXEC-SCREENER-V21): the table stays until Screen now
+  if (k === 'reset') { S.q = ''; ($('tq') as HTMLInputElement).value = ''; loadDefinition({ universe:definitionOf({ universe:freshUniverse(), cards:[], logic:'all', atLeast:2 }).universe, conditions:[], logic:'all' }, 'Untitled screen', null); toast('Screen reset — full universe, no conditions'); return }
+  if (k === 'add') { browseAll(); return }
   if (k === 'save') { openSave(); return }
   if (k === 'export') openMenu(b, [
     ['Export results (CSV)', IC.dl, () => exportCsv()],
@@ -67,10 +86,38 @@ export function markDirty() { if (!S.dirty) { S.dirty = true; renderHeader() } }
 /* ---- refresh orchestration (the prototype's refresh) ------------------------------------------------------- */
 type Level = 'all' | 'universe' | 'universe-light' | 'conds' | 'conds-light' | 'results';
 let inRefresh = false;
+/** the areas asked while a pointer was pressed (press.ts): drawn once, after the click */
+const heldLevels = new Set<Level>();
 export function refresh(level: Level) {
+  if (inRefresh) return;
+  if (level !== 'results') {                  // an edit: the gate marks the table out of date, nothing is sent (run.ts)
+    inRefresh = true; try { sync() } finally { inRefresh = false }
+  }
+  heldLevels.add(level);
+  if (batching) return;                        // drawn once when the batch ends (batch)
+  if (afterPress('refresh', drawHeld)) return; // the drawing waits for the press to end (press.ts, ERRORS M357)
+  drawHeld();
+}
+/** Run `fn`, a sequence of steps that each ask a refresh (a remembered screen brought to the table and the page drawn
+    for it; a new publication and the table's definition brought to it), and draw the page once at its end, at the
+    widest level asked. Each step drew the whole table before, twice in one task at boot (S4 D2). The state each step
+    sets is set at once, as in refresh. */
+let batching = 0;
+function batch(fn: () => void) {
+  batching++;
+  try { fn() } finally {
+    if (--batching === 0 && heldLevels.size && !afterPress('refresh', drawHeld)) drawHeld();
+  }
+}
+function drawHeld() {
+  const levels = [...heldLevels]; heldLevels.clear();
+  // 'all' and 'universe' draw every area; otherwise each level asked is drawn once, in the order asked
+  const wide = levels.find(l => l === 'all' || l === 'universe');
+  for (const l of wide ? [wide] : levels) draw(l);
+}
+function draw(level: Level) {
   if (inRefresh) return; inRefresh = true;
   try {
-    if (level !== 'results') schedule();      // the table follows the definition (run.ts); calls back with 'results'
     if (level === 'all' || level === 'universe') { renderUniverse(); renderConds() }
     else if (level === 'universe-light') { updateUniverseLight(); updateCondsLight() }
     else if (level === 'conds') renderConds();
@@ -82,6 +129,7 @@ export function refresh(level: Level) {
     if (S.preview) renderDetails();
     if (level !== 'results') remember();
     if (ctx.R && ctx.catalog && ctx.bootState !== 'results' && !ctx.running) { ctx.bootState = 'results'; $('app').dataset.boot = 'results' }
+    renderScreen();
   } finally { inRefresh = false }
 }
 /** The prototype's repick (openSource): once the result of a just loaded preset or saved screen is there, a picked
@@ -118,16 +166,26 @@ function useCatalog(c: CatalogResponse) {
 }
 function useUniverse(u: UniverseResponse) { ctx.universe = u; mark('universe') }
 
-/** a worker answer at another price_data than the catalog: ask catalog and universe again (6c.5 item 3) */
-let reasking = false;
+/** a worker answer at another price_data than the catalog: ask catalog and universe again (6c.5 item 3). Once per
+    (answer's, catalog's) price_data pair each REASK_MS: edge-bff reads the worker's health at most once a minute
+    (screener.py HEALTH_SECONDS), so until then a catalog asked again answers 304, and every run, preview or column
+    answer would ask again (QA M3, ERRORS M359). */
+const REASK_MS = 60_000;
+let reasking = false, reasked = { pair:'', at:0 };
 async function versionSeen(v: Versions) {
   if (!ctx.catalog || v.price_data === ctx.catalog.versions.price_data || reasking) return;
+  const pair = `${v.price_data}|${ctx.catalog.versions.price_data}`, now = Date.now();
+  if (pair === reasked.pair && now - reasked.at < REASK_MS) return;
+  reasked = { pair, at:now };
   reasking = true;
   try {
     const [c, u] = await Promise.all([ctx.api.catalog(tags.catalog), ctx.api.universe(tags.universe)]);
     if (c.status === 200) { tags.catalog = c.etag; useCatalog(c.body); boot.putCatalog(ctx.login, c.bytes, c.etag, c.body) }
     if (u.status === 200) { tags.universe = u.etag; useUniverse(u.body); boot.putUniverse(ctx.login, u.bytes, u.etag, u.body) }
-    refresh('all');
+    batch(() => {
+      refresh('all');
+      if (c.status === 200 || u.status === 200) republished();   // the table's definition, never the pending edits
+    });
   } catch { /* the next answer asks again */ } finally { reasking = false }
 }
 
@@ -136,20 +194,22 @@ let restored = false;
 function restoreLast(cachedResult: RunResponse | null) {
   if (restored || !ctx.catalog) return; restored = true;
   const last = lastScreen();
-  if (!last) { refresh('all'); return }
+  if (!last) { batch(() => { screenNow(); refresh('all') }); return }
   const src = last.item_id ? { kind:'saved' as const, item_id:last.item_id, revision:0 } : last.preset ? { kind:'preset' as const, id:last.preset } : null;
   const st = stateOfDefinition(last.definition);
   S.universe = st.universe; S.cards = st.cards; S.logic = st.logic; S.atLeast = st.atLeast; S.name = last.name || 'Untitled screen';
   S.source = src; S.dirty = false;
   if (last.sort) S.sort = { key:last.sort.key as typeof S.sort.key, dir:last.sort.dir };
   S.nearMiss = !!last.near;
-  // the cached result of this definition, when its versions equal the catalog's (6c.4 S5): no run
-  const key = canonical(definitionOf());
+  // the cached result of this definition, when its versions equal the catalog's (6c.4 S5): no run; else it is run
+  // (the boot restores the last screen at once: the one case besides Screen now, a saved screen, Retry and a
+  // publication change that brings a definition to the table, run.ts)
+  const def = definitionOf(), key = canonical(def);
   const p = boot.pointer();
   if (cachedResult && p?.last && canonical(p.last.definition) === key && sameVersions(cachedResult.versions, ctx.catalog.versions)) {
-    ctx.R = resultOf(cachedResult, key); mark('results from cache');
+    useCached(cachedResult, def); mark('results from cache');
   }
-  refresh('all');
+  batch(() => { screenNow(); refresh('all') });
 }
 
 /* ---- boot (6c.4) ------------------------------------------------------------------------------------------- */
@@ -171,7 +231,7 @@ const sleep = (ms: number) => new Promise(ok => setTimeout(ok, ms));
 function bootFailed(msg: string, retry: boolean) {
   ctx.runError = msg; ctx.running = false;
   $('resPane').innerHTML = `<div class="empty" role="alert"><strong>The screener could not load</strong>${esc(msg)}${retry ? `<div class="acts"><button class="btn sm" data-act="reboot">${ico(IC.reset, 's')}${T.retry}</button></div>` : ''}</div>`;
-  const dl = document.getElementById('dataLine'); if (dl) dl.innerHTML = `<span class="note down">${esc(msg)}</span>`;
+  const dl = document.getElementById('dataLine'); if (dl) { dl.innerHTML = `<span class="note down">${esc(msg)}</span>`; headDrawn.head = '' }
 }
 
 export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {}) {
@@ -181,10 +241,11 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   const pp = panelPrefs();
   S.preview = !!pp.preview; S.bOpen = pp.bOpen ?? true; S.perPage = [10, 25, 50, 100].includes(pp.perPage!) ? pp.perPage! : 25;
   S.pvView = pp.pvView === 'perf' ? 'perf' : 'chart'; S.perf = pp.perf || '6M';
-  Object.assign(ui, { refresh, renderHeader, renderUniverse, renderPresets, renderConds, renderResults, renderDetails, togglePreview, pickStock, openSource, toast, markDirty, schedule, versionSeen, remember });
+  Object.assign(ui, { refresh, renderHeader, renderUniverse, renderPresets, renderConds, renderResults, renderDetails, togglePreview, pickStock, openSource, toast, markDirty, schedule, versionSeen, remember, renderScreen, screenNow, retry, dataChanged });
   runHooks.mark = mark;
   runHooks.answered = (def, bytes, r) => { if (ctx.login) boot.putResult(ctx.login, def, bytes, r) };
   bind();
+  initLayout();   // V21 layout (subagent 1)
   boot = new BootCache(opts.cache ?? fileCache());
   const et = boot.etags();
   tags.catalog = et.catalog; tags.universe = et.universe;
@@ -192,7 +253,7 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
 
   // S2: everything at once
   const sessionP = api.session().then(s => { ctx.login = s.login; mark('session'); return s });
-  const catP = withRetry(() => api.catalog(et.catalog), m => { const dl = document.getElementById('dataLine'); if (dl) dl.innerHTML = `<span class="sbox">${spin(esc(m))}</span>` });
+  const catP = withRetry(() => api.catalog(et.catalog), m => { const dl = document.getElementById('dataLine'); if (dl) { dl.innerHTML = `<span class="sbox">${spin(esc(m))}</span>`; headDrawn.head = '' } });
   const uniP = withRetry(() => api.universe(et.universe), () => {});
   const itemsP = api.items('screen'), metricsP = api.items('metric'), watchP = api.watchlist();
   // S6: saved screens, My metrics and the watchlist fill in whenever they answer
@@ -225,13 +286,17 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   if (!ctx.catalog) { bootFailed(T.unreachable, true); return }
   confirmed = true;
   if (!restored) restoreLast(cached.catalog && cat.status === 304 ? cached.result : null);
-  else if (cat.status === 200 || uni.status === 200) refresh('all');
+  else if (cat.status === 200 || uni.status === 200) batch(() => { refresh('all'); republished() })   // the table's definition at the new publication
   else renderHeader();                  // both 304: the cached paint is confirmed as drawn; only "Updating…" goes
 }
 
 /* ---- events (the prototype's delegated listeners) ---------------------------------------------------------- */
-let typingT: ReturnType<typeof setTimeout> | undefined;
+let typingT: ReturnType<typeof setTimeout> | undefined, typingEl: HTMLInputElement | null = null;
 function bind() {
+  bindPress(document, window);          // first: its capture listeners run before the page's own (press.ts)
+  bindScreenGate();
+  // Screen now's shortcuts apply a number the user typed and its 350 ms debounce has not applied yet (screen-gate.ts)
+  gateHooks.flush = () => { if (typingT === undefined || !typingEl) return; clearTimeout(typingT); typingT = undefined; const t = typingEl; typingEl = null; onUniverseField(t) || onBuilderField(t) };
   $('pageHead').addEventListener('click', onHeadClick); $('pageActs').addEventListener('click', onHeadClick);
   $('pageHead').addEventListener('change', e => {
     const t = e.target as HTMLInputElement; if (t.id !== 'titleIn') return;
@@ -247,10 +312,10 @@ function bind() {
   for (const id of ['cardU', 'cardC', 'pop', 'drawerHost']) {
     const el = $(id);
     el.addEventListener('click', onClick);
-    el.addEventListener('change', e => { const t = e.target as HTMLInputElement; if (t.id === 'adderQ' || t.id === 'tq' || t.id === 'pvq') return; clearTimeout(typingT); onUniverseField(t) || onBuilderField(t) });
+    el.addEventListener('change', e => { const t = e.target as HTMLInputElement; if (t.id === 'adderQ' || t.id === 'tq' || t.id === 'pvq') return; clearTimeout(typingT); typingT = undefined; typingEl = null; onUniverseField(t) || onBuilderField(t) });
     el.addEventListener('input', e => {
       const t = e.target as HTMLInputElement; if (t.type !== 'number') return;
-      clearTimeout(typingT); typingT = setTimeout(() => { onUniverseField(t) || onBuilderField(t) }, 350);
+      clearTimeout(typingT); typingEl = t; typingT = setTimeout(() => { typingT = undefined; typingEl = null; onUniverseField(t) || onBuilderField(t) }, 350);
     });
   }
   $('cardC').addEventListener('input', e => { const t = e.target as HTMLInputElement; if (t.id === 'adderQ') onAdderInput(t.value) });

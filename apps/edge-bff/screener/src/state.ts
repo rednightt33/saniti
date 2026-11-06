@@ -51,6 +51,12 @@ export interface Result {
   rows: Row[];                       // matches and near rows of a run; the eligible universe rows without conditions
   run: RunResponse | null;           // null while the screen has no condition (local, no run)
   defHash: string;                   // canonical JSON of the definition it answers (the page's own key; out-of-date mark)
+  /** EXEC-SCREENER-V21: the definition it answers (run.ts screenedDefinition; the preview, CSV and extra columns
+      describe these rows, not the page's pending edits). Optional only for results built outside run.ts. */
+  def?: Definition;
+  /** the screen's name when it was screened (Screen now, the boot, a saved screen): the CSV of an out-of-date table
+      is named after the screen its rows answer, not the page's pending name (QA M2) */
+  name?: string;
   eligible: number; listed: number; staleHidden: number; breakHidden: number;
 }
 export interface Ctx {
@@ -59,6 +65,10 @@ export interface Ctx {
   entries: Entry[]; byKey: Map<string, Entry>;
   R: Result | null;
   running: boolean; runError: string | null; updating: boolean; stale: boolean;
+  /** EXEC-SCREENER-V21 run gate (explicit Screen now, product decision 6): the page's definition differs from the one
+      the table answers or the run on its way asks; nothing is sent until Screen now (run.ts screenNow, which owns it).
+      `stale` is then true as well (the table does not answer the page's definition). */
+  pending: boolean;
   /** the worker's refusal of the last run, on the card its field names (report 8.8: where and how to fix) */
   refused: { id: string; message: string } | null;
   saved: SavedItem[] | null; metrics: SavedItem[] | null; watch: Set<string> | null;
@@ -73,7 +83,7 @@ export interface Ctx {
 }
 export const ctx: Ctx = {
   api:null as unknown as ScreenerApi, catalog:null, universe:null, entries:[], byKey:new Map(), R:null,
-  running:false, runError:null, updating:false, stale:false, refused:null, saved:null, metrics:null, watch:null, counts:new Map(), login:'', bootState:'skeleton',
+  running:false, runError:null, updating:false, stale:false, pending:false, refused:null, saved:null, metrics:null, watch:null, counts:new Map(), login:'', bootState:'skeleton',
   watchError:null, repick:null,
 };
 
@@ -83,7 +93,19 @@ export const ui = {
   renderHeader: () => {}, renderUniverse: () => {}, renderPresets: () => {}, renderConds: () => {}, renderResults: () => {},
   renderDetails: () => {}, togglePreview: (_on: boolean) => {}, pickStock: (_tk: string) => {}, openSource: (_id: string) => {},
   toast: (_m: string) => {}, markDirty: () => {}, schedule: (_now?: boolean) => {}, versionSeen: (_v: Versions) => {}, remember: (_now?: boolean) => {},
+  /** EXEC-SCREENER-V21: re-draw the Screen now controls (page action, builder bar, out-of-date bar) from ctx */
+  renderScreen: () => {},
+  /** EXEC-SCREENER-V21 (run.ts): bring the page's definition to the table now (Screen now; an opened saved screen) */
+  screenNow: () => {},
+  /** EXEC-SCREENER-V21 (run.ts): send the screened definition again (Retry); never the pending edits */
+  retry: () => {},
+  /** QA M3 (run.ts dataChanged): a request refused DATA_VERSION_CHANGED re-runs the table once per publication pair;
+      false when it already did (the caller shows its message with Retry) */
+  dataChanged: () => false as boolean,
 };
+
+/** EXEC-SCREENER-V21: where the table stands against the page's definition (run.ts screenPhase). */
+export type ScreenPhase = 'clean' | 'pending' | 'running' | 'error';
 
 export const activeCards = (cards = S.cards) => cards.filter(c => c.on);
 /** The card a refusal's field names: `definition.conditions[i]...` is the i-th card (definitionOf keeps card order,
