@@ -332,7 +332,11 @@ export interface PreviewResponse {
   ticker: string; status: PreviewStatus; remarks: RowRemark[]; met: number; need: number; cells: Cell[];
   bars: { d: string[]; o: (number | null)[]; h: (number | null)[]; l: (number | null)[]; c: (number | null)[]; v: (number | null)[] };
   ihsg_close: (number | null)[];
-  overlays: { condition_id: string; output: string; values: (number | null)[] }[];
+  /** unit, additive (EXEC-SCREENER-ADD, ERRORS M368): the series' scaling class (registry Unit: 'price',
+      'price_change', 'volume', 'price_x_volume', 'dimensionless', 'other'; null when the core gives none). The page
+      draws only 'price' series on the candle axis; a percent, an oscillator or a rank there flattened the candles.
+      Optional for the page: an answer of an older worker has none, and such a series is not drawn. */
+  overlays: { condition_id: string; output: string; unit?: string | null; values: (number | null)[] }[];
   markers: { condition_id: string; bars: { date: string; kind: string }[] }[];
   perf: Record<PerfPeriod, { stock_pct: number | null; ihsg_pct: number | null }>;
 }

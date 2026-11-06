@@ -145,6 +145,10 @@ Alt+S, Ctrl/Cmd+Enter); a saved screen, the boot's last screen, Retry and a publ
 columns (`screener/src/extra-columns.ts`) are asked with an auxiliary POST run on a second `client_order.page`, pinned
 with `data_version` to the table's publication, so it never replaces the table's run. Values are written in the
 catalog's format (`entries.ts formatOfOpt`, `format.ts fmtValue`), never from the wire's coarse `Cell.unit`.
+Since EXEC-SCREENER-ADD (2026-11-06) a condition is added in one window only, "Add a condition"
+(`screener/src/add-condition.ts`): the page action Add indicator, Alt+A, "/", the builder's search box, "+", the quick chips
+and My metrics' Add all open it; the detailed Indicators window is gone. The preview chart draws only the overlays whose
+`unit` (on each overlay of the preview answer) is `price`.
 
 | Method/path (session cookie; PUT, POST and DELETE with Origin + `X-CSRF-Token`) | Result |
 | --- | --- |

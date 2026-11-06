@@ -1453,3 +1453,89 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
   #cardU .presets>.seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
   #cardU .prow{flex-basis:100%}
 }
+
+/* ---------- EXEC-SCREENER-ADD: "Add a condition", the one way to add a condition (src/add-condition.ts) ----------
+   The reference's final look (layout.js 636-763; screener.css 1085-1112, 1297-1344, 1432-1466, 1603-1673): a wide window,
+   groups on the left, one row per indicator with its timeframe (shown, not chosen: the data is daily), its condition,
+   the thresholds that condition needs (blue = can be changed) and Add / Added. No "Open the detailed browser". */
+.dialog.qwin{width:min(1320px,100%);height:min(800px,calc(100vh - 40px));max-height:none;overflow:hidden;border-radius:var(--r-2xl)}
+.qwin-h{display:flex;align-items:flex-start;gap:var(--s-6);padding:var(--s-8) var(--s-9) var(--s-5)}
+.qwin-h>div{flex:1;display:grid;gap:2px}
+.qwin-h strong{font-size:var(--fs-xl);font-weight:var(--fw-semibold);color:var(--text)}
+.qwin-h small{font-size:var(--fs-sm);color:var(--text-3)}
+.qwin-t{display:flex;align-items:center;gap:var(--s-5);padding:0 var(--s-9) var(--s-5)}
+.qwin-t .searchbox{flex:1;height:38px}
+.qwin-t .searchbox input{font-size:var(--fs-lg)}
+.qwin-sort{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--text-3);white-space:nowrap}
+.qwin-sort .sel{width:auto;height:36px}
+.qwin-b{flex:1;min-height:0;display:grid;grid-template-columns:210px minmax(0,1fr);border-top:1px solid var(--border)}
+.qwin-g.qrail{display:flex;flex-direction:column;flex-wrap:nowrap;gap:2px;overflow:auto;padding:10px 8px;border-right:1px solid var(--border)}
+.qwin-g .qri{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 10px;border:1px solid transparent;border-radius:var(--r-md);font-size:var(--fs-md);color:var(--text-2);cursor:pointer;line-height:1.25}
+.qwin-g .qri:hover{background:var(--hover);color:var(--text)}
+.qwin-g .qri:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.qwin-g .qri .lab{flex:1;min-width:0}
+.qwin-g .qri .c{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:var(--r-pill);display:inline-grid;place-items:center;background:var(--text);color:var(--surface);font-size:var(--fs-2xs);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums}
+.qwin-g .qri.on{background:var(--surface);border-color:var(--border-2);box-shadow:0 1px 2px rgba(0,0,0,.06);color:var(--text);font-weight:var(--fw-semibold)}
+.qwin-g .qri .ico{width:14px;height:14px;flex:none}
+.qwin-g .qri.q-on .ico{color:var(--green)}
+.qwin-g .qri.q-on .c{background:var(--green)}
+.qwin-g .qri.q-my .ico{color:#e0a106;fill:#f5c518}
+.qrsep{height:1px;background:var(--border);margin:6px 4px}
+.qrtitle{font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3);padding:6px 10px 4px}
+.qwin-l{min-height:0;overflow:auto;padding:0 var(--s-6) var(--s-6);overscroll-behavior:contain}
+.qcols,.qrow{display:grid;grid-template-columns:minmax(0,1fr) 236px 224px 236px 88px;column-gap:12px;align-items:center}
+.qcols{position:sticky;top:0;z-index:3;align-items:end;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+.qcols em{display:block;margin:2px 0 0;font-style:normal;font-weight:var(--fw-medium);letter-spacing:0;text-transform:none;color:var(--blue)}
+.qrow{min-height:54px;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);cursor:pointer}
+.qrow:hover,.qrow.act{background:var(--surface-2)}
+.qrow.na{cursor:not-allowed;opacity:.55}
+.qnm{display:grid;min-width:0}
+.qnm b{font-size:var(--fs-base);font-weight:var(--fw-semibold);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qnm small{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qrow.isadd .qnm b{color:var(--text-3)}
+/* the timeframe: shown as in the reference, never chosen (the data is daily) */
+.tf-seg.tf-add{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:2px;border-radius:var(--r-md);background:var(--sel);cursor:default;user-select:none}
+.tf-add span{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 5px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-3);white-space:nowrap}
+.tf-add span.on{background:var(--surface);color:var(--text);font-weight:var(--fw-semibold);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tf-add span.na{cursor:not-allowed}
+.rr{display:block;min-width:0}
+.rr.qs .sel{width:100%;height:var(--h-sm);font-size:var(--fs-12);background:var(--surface-2)}
+.qrow:hover .rr.qs .sel,.qrow.act .rr.qs .sel{background:var(--surface)}
+.rr.qt{display:grid;gap:4px}
+.rr .ln{display:flex;align-items:center;gap:var(--s-3)}
+.rr .lead{min-width:44px;font-size:var(--fs-xs);color:var(--text-3)}
+.rr .inp{width:64px;height:var(--h-sm);font-size:var(--fs-12);padding:0 var(--s-3);text-align:right;color:var(--blue);font-weight:var(--fw-semibold)}
+.rr .inp[aria-invalid="true"],.rr .sel[aria-invalid="true"]{border-color:var(--red);color:var(--red)}
+.rr .unit{display:grid;font-size:var(--fs-xs);color:var(--text-3);line-height:1.2}
+.rr .unit small{font-size:var(--fs-2xs)}
+.rr-fixed{display:block;height:var(--h-sm);line-height:calc(var(--h-sm) - 2px);padding:0 var(--s-5);border:1px dashed var(--border-2);border-radius:var(--r-md);font-size:var(--fs-12);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr-none{color:var(--text-3)}
+.qact{justify-self:end;height:var(--h-sm);display:inline-flex;align-items:center;gap:4px;padding:0 var(--s-6);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--text)}
+.qact .ico{width:12px;height:12px}
+.qact.on{color:var(--green);border-color:color-mix(in srgb,var(--green) 40%,transparent)}
+.qact .q-rm{display:none}
+.qrow.isadd:hover .qact.on{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent);background:var(--red-bg)}
+.qrow.isadd:hover .qact .q-on{display:none}
+.qrow.isadd:hover .qact .q-rm{display:inline}
+.qadd{justify-self:end;font-size:var(--fs-xs);color:var(--text-3)}
+.qwin-empty{padding:var(--s-9);text-align:center;color:var(--text-3)}
+.qwin-f{display:flex;align-items:center;justify-content:space-between;gap:var(--s-5);padding:var(--s-5) var(--s-9);border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.qcount{font-weight:var(--fw-semibold);color:var(--text-2)}
+.toast .toast-act{margin-left:10px;padding:2px 10px;border-radius:999px;background:var(--surface);color:var(--text);font-weight:var(--fw-semibold)}
+/* the builder's search box opens the window (it is a button that looks like a search box) */
+.adder .adder-open{width:100%;font:inherit;text-align:left;cursor:text}
+.adder .adder-open .ph{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--text-3)}
+@media (max-width:1100px){.qcols,.qrow{grid-template-columns:minmax(0,1fr) 200px 200px 210px 80px}}
+@media (max-width:760px){
+  .backdrop:has(.qwin){padding:0}
+  .dialog.qwin{width:100%;height:100%;border-radius:0}
+  .qwin-t{flex-wrap:wrap}
+  .qwin-b{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+  .qwin-g.qrail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:6px 8px;scrollbar-width:none}
+  .qwin-g .qri{width:auto;flex:none;min-height:32px;white-space:nowrap}
+  .qrsep,.qrtitle,.qcols{display:none}
+  .qrow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
+  .qrow>.tf-add,.qrow>.rr{grid-column:1/-1}
+  .qrow>.rr.qt:has(>.rr-none){display:none}
+  .qwin-f>span:first-child{display:none}
+}

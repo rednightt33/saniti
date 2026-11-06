@@ -12035,8 +12035,144 @@ push, deploy, atau publish sampai ada instruksi eksplisit".
 - **Go merge dan deploy dev (2026-11-06):** "Ok,ago merge" (atas pertanyaan "Kalau Anda setuju di-deploy sekarang, cukup
   tulis 'go merge'"). Merge PR #51 ke `main` men-deploy edge-bff (sumber GitHub, `watchPatterns` `/apps/edge-bff/**`);
   screener-worker tidak ikut (kode inti tidak berubah). Bundle live sebelum merge: `assets/index-CvB2JGE9.js`,
-  `assets/style-calwZ5Ae.css`; build lokal commit ini: `assets/index-C3AZxsiJ.js`, `assets/style-Bb_KuIay.css`. Sesudah
-  deploy: cek live dengan data asli (unit dari worker, BFF dan CSP di server), lalu item ini ditutup.
+  `assets/style-calwZ5Ae.css`; build lokal commit ini: `assets/index-C3AZxsiJ.js`, `assets/style-Bb_KuIay.css`.
+- **Deploy dev (2026-11-06):** PR #51 di-merge 11:50 UTC (`main` `f82babdc`); bundle baru tayang 11:51:21 UTC dan sama
+  persis (byte-equal) dengan build lokal; CSP, `no-store` dan 401 tanpa sesi utuh (`RAILWAY_CHANGELOG.md`). Temuan lama
+  tanpa sesi: ERRORS M367 (terbuka).
+- **Cek live dengan login (2026-11-06, user: "Jalankan script"):** lulus. `live_check_dev.py` (katalog dan empat run
+  200); Chromium dengan login: preset tanpa run, Alt+S tepat satu run, persen dengan "%", kolom tambahan lewat run
+  pembantu `px_` dengan `data_version`, preview, ketik lalu Screen now satu run, tanpa pelanggaran CSP dan tanpa error
+  konsol (`RAILWAY_CHANGELOG.md`). Deployment edge-bff `910cef24` SUCCESS. Temuan: ERRORS M368 (garis persen di sumbu
+  harga grafik preview; terbuka, sudah ada sebelum v21).
+- **Sisa sebelum item ini ditutup:** keputusan user atas M368 dan keputusan terbuka di atas; lalu item dipindah ke
+  changelog dan keputusan yang masih terbuka ke `FUTURE_PLAN.md`.
 - **Keputusan terbuka untuk user:** L1 (Screen now saat run berjalan), L3 (kolom tambahan di CSV), L5 (tanggal header
   telat sampai sekitar 1 menit), beda kata dengan referensi, dan kalimat "Outperformed IHSG by X pts" yang dihitung
   halaman.
+
+## EXEC-SCREENER-ADD — jendela "Add a condition" dan satuan garis grafik preview (M368 pilihan A) (go 2026-11-06)
+
+**Kata user, 2026-11-06:** atas pertanyaan M368 ("(a) perbaikan permanen lewat kontrak dan worker, (b) sementara di
+halaman, atau ditunda"): "A". Lalu, dengan screenshot jendela "Add a condition" dan tombol "+ Add indicator" dari HTML
+referensi v21: "Lalu ada issue nih, which kalau kamu liat di HTML terlampir, ketika klik add indiator maka yang muncul
+adalah seperti screenshot terlampir .. ini berbeda kondisinya dengan kondisi live. Buat plan dulu, baru nanti execute
+bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; eksekusi menunggu go.
+
+### Bagian 1: "Add indicator" membuka jendela "Add a condition"
+
+- **Penyebab (terverifikasi):**
+  - di live, tombol "Add indicator" (`src/app.ts:61`, `data-hd="add"` → `builder.ts browseAll()`) dan Alt+A
+    (`src/layout/index.ts:102`) membuka jendela detail "Indicators" (`browser.ts`). Screenshot live
+    `shots/coord/live-add-indicator.png`, 2026-11-06, dev, dengan login;
+  - di referensi, tombol yang sama, Alt+A, "/" dan kotak cari builder (layar lebar) membuka jendela cepat "Add a
+    condition" (`layout.js` 525-535, 636-763). Jendela detail hanya dibuka lewat tombol "Open the detailed browser";
+  - jendela cepat itu, pemilih aturan dan threshold per baris (`ruleCtl`, 1010-1101) dan tanda "sudah di layar" dengan
+    Undo sengaja tidak dipindahkan subagent 1 ("not in my brief", `reports/s1_ui.md` §2). CSS-nya juga dibuang.
+- **Kelas masalah:** perilaku referensi yang dilepas oleh pembagian tugas, tanpa diputuskan user. Daftar lengkap yang
+  dilepas ada di `s1_ui.md` §2. Rencana ini menutup tiga butir yang saling terkait: jendela cepat, pemilih aturan dan
+  threshold, serta tanda "sudah di layar" dengan Undo. Butir lain (chip "Published" di header, kolom Mkt cap) tetap
+  keputusan terbuka.
+- **Perbaikan (lapisan halaman; tidak ada perubahan backend):**
+  - modul baru `src/add-condition.ts` membuat dialog "Add a condition" seperti referensi:
+    - kotak cari (nama, nama pendek, kode, sinonim katalog);
+    - panel kiri: "On the screen", "My metrics", lalu kelompok dengan jumlah dari katalog. Kelompok aktif mengikuti
+      scroll;
+    - urutan: Group / A-Z / Z-A; indikator tanpa data tampil abu-abu di bawah, dengan alasan dari katalog;
+    - tiap baris: nama dan parameter default, kolom Timeframe, pilihan kondisi, threshold dengan nilai default, dan
+      tombol Add / klik lagi untuk menghapus;
+    - footer: pintasan keyboard dan jumlah kondisi di layar; tombol "Open the detailed browser" membuka jendela
+      Indicators yang sekarang;
+  - semua isi diturunkan dari katalog, tanpa daftar di kode:
+    - pilihan kondisi = opsi tes entri (`e.opts`, sama dengan dropdown kartu);
+    - field threshold mengikuti opsi itu (value / value2 / within) dengan default, satuan dan batas dari katalog
+      (`within_max`);
+    - validasi lewat fungsi yang sama dengan kartu (`forms.ts cardErrors`, `paramError`);
+  - "sudah di layar" = sebuah kartu menghasilkan tes wire yang sama (`toWire` + `canonical`), bukan id (pelajaran
+    M358). Menghapus menghapus kartu dengan tes itu, dengan Undo di toast;
+  - menambah adalah editan biasa: kartu baru, tabel "Out of date", tanpa run sampai Screen now (gerbang v21). Batas
+    `max_conditions` disebut di jendela dengan aturan dan contoh katalog (aturan gerbang `AGENTS.md`);
+  - pembuka: tombol "Add indicator", Alt+A, "/", kotak cari builder di layar lebar, dan tombol "+" builder. Di ponsel
+    dialog memenuhi layar;
+  - kolom Timeframe hanya "Daily" (keputusan produk 3: tanpa 5m/15m/1h/4h);
+  - aksesibilitas: dialog modal dengan focus trap; ↑↓ pindah, Enter tambah/hapus, Esc tutup; fokus kembali ke pembuka.
+- **Mencakup:** semua indikator dan My metrics di katalog, termasuk yang baru, tanpa ubah kode. **Tidak mencakup:**
+  timeframe intraday (sengaja), dan pengaturan parameter selain default (tetap di kartu atau jendela detail, seperti
+  referensi).
+- **Risiko dan biaya:** sekitar 350 baris TypeScript dan CSS dari referensi; satu deploy edge-bff.
+- **Verifikasi:**
+  - tes unit: model baris (cari, kelompok, urutan), "sudah di layar", tambah lalu hapus lalu Undo, kondisi dengan
+    threshold salah ditolak, batas max_conditions;
+  - smoke Chromium: Add indicator membuka "Add a condition" (bukan Indicators); tambah RSI < 30 → kartu baru, tabel
+    "Out of date", nol run; klik lagi → terhapus, Undo → kembali; "Open the detailed browser" membuka Indicators;
+    Alt+A dan "/"; tanpa tugas >50 ms; plain-words;
+  - visual di 1440/1100/390, terang dan gelap; cek live dengan login.
+- **Permanen.**
+
+### Bagian 2: M368 pilihan A, satuan garis grafik preview lewat kontrak
+
+- **Penyebab (terverifikasi, ERRORS M368):** jawaban preview tidak membawa satuan garis
+  (`apps/screener-worker/src/preview.ts:61`), dan halaman menggambar semua garis di sumbu harga (`src/preview.ts
+  drawChart`). Garis persen Minervini (4,9..68 dan −34,7..0) menekan candle AALI 9.450.
+- **Kelas masalah:** deret dengan satuan berbeda di satu sumbu: osilator (RSI, Stochastic), persen (jarak, ROC), rank,
+  dan nanti flow (lot, rupiah).
+- **Perbaikan (lapisan kontrak dan worker; halaman mengikuti):**
+  - kontrak (`screener/src/core/contract.ts` PreviewResponse.overlays, `apps/screener-worker/CONTRACT.md`): field
+    tambahan `unit` per garis, dari kelas satuan registry (`price`, `price_change`, `volume`, `price_x_volume`,
+    `dimensionless`, `other`). Aditif, klien lama tidak terganggu;
+  - worker: `unit: r.unit` dari `ResolvedSeries.unit`, yang sudah dihitung inti untuk setiap deret;
+  - halaman: hanya garis `price` yang digambar di sumbu candle. Garis lain tidak digambar di sana; nilainya tetap di
+    "Why it passed". Garis tanpa `unit` (worker lama selama rollout) juga tidak digambar: aman, tidak menekan grafik;
+  - fixture tes membawa `unit` asli dari resolver inti (pelajaran M355).
+- **Mencakup:** semua kondisi yang ada dan yang akan datang, karena kelas satuannya dari registry. **Tidak mencakup:**
+  menggambar osilator atau volume di panel terpisah. Itu bisa ditambah kemudian di atas field `unit` yang sama.
+- **Risiko dan biaya:** perubahan kecil (sekitar 30 baris) plus tes. Mengubah `screener/src/core/**` membuat
+  screener-worker dan edge-bff sama-sama deploy ulang dari satu merge (`.railway/railway.ts:214-228`). Selama rollout,
+  halaman baru dengan worker lama tidak menggambar garis apa pun (aman); halaman lama dengan worker baru mengabaikan
+  field baru.
+- **Verifikasi:**
+  - tes worker: preview SMA → `unit: 'price'`, preview jarak 52W → `'dimensionless'`;
+  - tes halaman: pemilihan garis per satuan;
+  - smoke: sumbu grafik Minervini tidak turun ke 0;
+  - cek live: AALI/Minervini dan satu preset RSI;
+  - deployment screener-worker dan edge-bff SUCCESS dari API Railway.
+- **Permanen.**
+
+### Status eksekusi (2026-11-06, branch `claude/charming-hamilton-faq25e`, belum di-merge)
+- Bagian 2 (M368): kontrak `overlays[].unit`, worker, fixture, halaman `candleOverlays`; tes worker 67/67.
+- Bagian 1 (M369): `src/add-condition.ts`, semua pintu ke jendela itu, `browser.ts` dan `layout/window.ts` dihapus,
+  daftar saran builder dihapus, CSS, toast Undo.
+- Ikut diperbaiki: rujukan baris `SCREENER_ONBOARDING.md` (M370); tulis-ulang posisi scroll tabel hanya bila tergeser
+  (M364).
+- Bukti: typecheck; vitest 32 file, 780 lulus, 1 dilewati; build dan bundle 31; smoke tiga kali berturut-turut lulus
+  (tugas terpanjang halaman 0 ms); visual 46 screenshot; worker 67/67.
+- Sisa: merge (deploy edge-bff dan screener-worker) menunggu go merge; lalu cek live dengan login.
+- Go merge (user 2026-11-06): "go merge". PR rednightt33/saniti#52 di-merge; deploy edge-bff dan screener-worker.
+  Titik kembali: edge-bff `910cef24-cb29-4796-8d24-6a494abc890f` (f82babdc), screener-worker
+  `105e9e04-e682-451f-a5d9-6e7f0b052408` (80b77b50, SLEEPING).
+
+### Urutan eksekusi sesudah go
+1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).
+2. Semua pemeriksaan: typecheck, vitest, tes worker, build dan bundle, smoke, visual.
+3. Commit di branch, PR, merge sesudah go merge. Deploy edge-bff dan screener-worker, cek live dengan login, catat di
+   `RAILWAY_CHANGELOG.md` dan `ERRORS_AND_SOLUTIONS.md`.
+
+### Keputusan user (2026-11-06)
+"Time frame tetap di show saja, tapi dibuat unclickable. Also sepertinya untuk default add condition yang sekarang
+actually tidak usah ada, tapi versi yang paling valid adalah add a condition yang di bagian 1. Jadi kalau user mau tambah
+indikator, di pintunya hanya 1 saja, which is bagian 1. Untuk 2, oke, tidak usah digambar di grafik candle, cukup white
+pass saja. Konfirmasi before proceed."
+- Timeframe di jendela tetap tampil seperti referensi, tetapi tidak bisa diklik.
+- Jendela "Add a condition" menjadi satu-satunya pintu untuk menambah indikator; cara menambah yang sekarang dilepas.
+- Bagian 2: garis non-harga tidak digambar di grafik candle; nilainya cukup di "Why it passed".
+- Konfirmasi (2026-11-06): "So sebenarnya poinnya adalah sekarang kalau mau nambah indikator ada dua screenshot.
+  Screenshot A dan screenshot B. Nah, saya mau cukup ada screenshot B saja, tapi di screenshot B tanpa ada tulisan open in
+  detailed browser. Sudah benar untuk usulan timeframe, saya konfirmasi." (A = jendela detail "Indicators", B = "Add a
+  condition"). Ini juga go eksekusi Bagian 2 lalu Bagian 1.
+  - Hanya jendela B, tanpa tombol "Open the detailed browser"; jendela A dihapus dari halaman.
+  - Semua pintu membuka B: tombol "Add indicator", Alt+A, "/", kotak cari builder, tombol "+", chip cepat di builder
+    kosong (B terbuka dengan pencarian itu), tombol Add di tab My metrics (B terbuka di "My metrics"). Daftar saran kecil
+    di bawah kotak cari dihapus.
+  - Parameter selain default diatur di kartu sesudah ditambahkan (header kolom dan kartu), tidak lagi sebelum menambah.
+  - Timeframe: 5m, 15m, 1h, 4h dan Daily tampil, Daily tersorot, tidak ada yang bisa diklik; 5m-4h abu-abu dengan
+    keterangan "No data yet: intraday bars are not in the market database."; label "Timeframe · Daily" di bar filter
+    tetap.

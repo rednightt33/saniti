@@ -27,7 +27,7 @@ CONTRACT (approval-gate report, EXEC-SCREENER).
 | `GET /v1/catalog` | `CatalogResponse` (8.4): `versions`, `data` (with `refresh`), `limits[]`, `indicators[]`, `metrics[]`, `fundamentals[]`, `periods`, `groupings`, `presets[]` | gzip when accepted; `ETag`; `If-None-Match` → `304` |
 | `GET /v1/universe` | `UniverseResponse`: every listed stock, hidden ones included, with remarks | gzip when accepted; `ETag`; `304` |
 | `POST /v1/run` | `RunRequest` → `RunResponse` (8.5) | gzip (`Content-Encoding: gzip`), `ETag` |
-| `POST /v1/preview` | `PreviewRequest` → `PreviewResponse` (8.6) | gzip, `ETag` |
+| `POST /v1/preview` | `PreviewRequest` → `PreviewResponse` (8.6); each overlay carries its series' `unit` (registry scaling class, additive, EXEC-SCREENER-ADD) | gzip, `ETag` |
 | `POST /v1/counts` | `CountsRequest` → `CountsResponse`; an entry whose definition is refused carries `{item_id, error}` | gzip, `ETag` |
 | `POST /v1/validate` | `{schema_version: 1, definition}` → `{valid: true, definition_hash, normalized, versions}` (versions additive: the registries it was checked against) or the first refusal | JSON |
 

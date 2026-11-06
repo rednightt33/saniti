@@ -173,10 +173,11 @@ describe('the catalog a user reads is plain words', () => {
     // every string and template literal of the page's modules (src/*.ts, src/api/*.ts and the v21 layout src/layout/*.ts;
     // not src/core, whose user-visible words are walked above) that holds a space, so a sentence rather than a key;
     // icons.ts is SVG path data, and so is a literal that is only path data (SVG_PATH below) or the d="..." of an inline
-    // <svg> (layout/filters.ts, header-edit.ts, window.ts)
+    // <svg> (layout/filters.ts, header-edit.ts)
     const sources = import.meta.glob(['../../src/*.ts', '../../src/api/*.ts', '../../src/layout/*.ts', '!../../src/icons.ts'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
     expect(Object.keys(sources).length).toBeGreaterThan(15);
-    expect(Object.keys(sources).filter(f => f.includes('/layout/')).length).toBeGreaterThanOrEqual(9);
+    // 8 since EXEC-SCREENER-ADD removed layout/window.ts with the detailed Indicators window
+    expect(Object.keys(sources).filter(f => f.includes('/layout/')).length).toBeGreaterThanOrEqual(8);
     // SVG path data (an ico('m9 6 6 6-6 6') argument, a <path d="..."> written inline): path commands and numbers only
     const SVG_PATH = /^\s*[MmLlHhVvCcSsQqTtAaZz][\d\s.,+-MmLlHhVvCcSsQqTtAaZz]*$/;
     const NAMED = /\b(?:P|D|M|U|FL)\d+\b|\bF\d\d\b|\bEXEC-[A-Z]|\bTEMPORARY\b|\breplicas?\b|\bregistry\b|\bdata layer\b|\bworker\b|\bsnapshot\b|\bedge-bff\b/;

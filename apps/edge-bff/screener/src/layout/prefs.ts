@@ -7,7 +7,7 @@ import { store } from '../storage.ts';
 /** wide layout: three panes with draggable borders (the reference switches at 900 px; below it the page stacks) */
 export const wide = () => innerWidth > 900;
 
-export const LKEYS = { panes:'scr.panes', win:'scr.ibwin', pops:'scr.popsize', order:'scr.colorder' } as const;
+export const LKEYS = { panes:'scr.panes', pops:'scr.popsize', order:'scr.colorder' } as const;
 
 export interface PanePrefs { lw: number | null; rw: number | null; lcol: boolean; ucol: boolean }
 export const panes: PanePrefs = { lw:null, rw:null, lcol:false, ucol:false, ...sanePanes(store.get<Partial<PanePrefs>>(LKEYS.panes, {})) };
