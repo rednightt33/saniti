@@ -1,0 +1,129 @@
+{
+ "_note": "EXEC-IND-PRESETS (20261106_002_edge_bff_indicator_presets.sql; user 2026-11-06: \"Q1 A\", \"Q2 A\"). Staged by scripts/onboarding/run_job.sh with the migration file as an extra (verification/screener/jobs/run_migration.sh). Probes named expect_err_* must print ERR; every other probe must print OUT.",
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261106_002_edge_bff_indicator_presets.sql"
+ ],
+ "probes": [
+  [
+   "edge_bff_tables",
+   null,
+   "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relkind IN ('r', 'p') ORDER BY 1"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT c.relname, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'edge_bff' AND c.relkind IN ('r', 'p') AND a.grantee = 'edge_bff_runtime'::regrole GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "other_grantees_on_new_table",
+   null,
+   "SELECT c.relname, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'edge_bff' AND c.relname = 'indicator_presets' AND a.grantee <> c.relowner AND a.grantee <> 'edge_bff_runtime'::regrole GROUP BY 1, 2 ORDER BY 1, 2"
+  ],
+  [
+   "runtime_members",
+   null,
+   "SELECT m.rolname FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member WHERE a.roleid = 'edge_bff_runtime'::regrole ORDER BY 1"
+  ],
+  [
+   "preset_indexes",
+   null,
+   "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename = 'indicator_presets' ORDER BY 1, 2"
+  ],
+  [
+   "preset_constraints",
+   null,
+   "SELECT conrelid::regclass::text, conname, contype FROM pg_constraint WHERE conrelid = 'edge_bff.indicator_presets'::regclass ORDER BY 1, 2"
+  ],
+  [
+   "preset_comments",
+   null,
+   "SELECT c.relname, a.attname, col_description(c.oid, a.attnum) IS NOT NULL AS has_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_attribute a ON a.attrelid = c.oid WHERE n.nspname = 'edge_bff' AND c.relname = 'indicator_presets' AND a.attname IN ('def_id', 'config', 'summary', 'revision', 'used_at') UNION ALL SELECT c.relname, '(table)', obj_description(c.oid, 'pg_class') IS NOT NULL FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relname = 'indicator_presets' ORDER BY 1, 2"
+  ],
+  [
+   "runtime_public_reach",
+   null,
+   "SELECT count(*) FILTER (WHERE has_table_privilege('edge_bff_runtime', c.oid, 'SELECT')) AS readable, count(*) AS relations FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm')"
+  ],
+  [
+   "as_runtime_reads",
+   "edge_bff_runtime",
+   "SELECT count(*) FROM edge_bff.indicator_presets"
+  ],
+  [
+   "as_runtime_reads_existing",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.terminal_layouts) AS terminal_layouts, (SELECT count(*) FROM edge_bff.conversation_ui) AS conversation_ui"
+  ],
+  [
+   "as_runtime_insert",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000001', 'dryrun-probe', 'Dry run probe', 'FL03', '{\"params\": {}}'::jsonb, 'Top 3', 1) RETURNING preset_id, revision"
+  ],
+  [
+   "as_runtime_replace_revision",
+   "edge_bff_runtime",
+   "UPDATE edge_bff.indicator_presets SET name = 'Dry run probe 2', config = '{\"params\": {\"top\": 5}}'::jsonb, revision = revision + 1, updated_at = now(), used_at = now() WHERE owner_key = 'dryrun-probe' AND preset_id = 'ipr_00000000000000000000000000000001' RETURNING revision"
+  ],
+  [
+   "as_runtime_mark",
+   "edge_bff_runtime",
+   "UPDATE edge_bff.indicator_presets SET favorite = true, used_at = now() WHERE owner_key = 'dryrun-probe' AND preset_id = 'ipr_00000000000000000000000000000001' RETURNING favorite, revision"
+  ],
+  [
+   "as_runtime_counts_after_writes",
+   "edge_bff_runtime",
+   "SELECT count(*) FROM edge_bff.indicator_presets WHERE owner_key = 'dryrun-probe'"
+  ],
+  [
+   "as_runtime_delete",
+   "edge_bff_runtime",
+   "WITH d AS (DELETE FROM edge_bff.indicator_presets WHERE owner_key = 'dryrun-probe' AND preset_id = 'ipr_00000000000000000000000000000001' RETURNING 1) SELECT count(*) FROM d"
+  ],
+  [
+   "expect_err_preset_id_format",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('preset-1', 'dryrun-probe', 'Bad id', 'FL03', '{\"params\": {}}'::jsonb, 'Top 3', 1) RETURNING preset_id, revision"
+  ],
+  [
+   "expect_err_name_untrimmed",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000002', 'dryrun-probe', ' padded ', 'FL03', '{\"params\": {}}'::jsonb, 'Top 3', 1) RETURNING preset_id, revision"
+  ],
+  [
+   "expect_err_def_id_format",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000003', 'dryrun-probe', 'Bad def', 'FL-03', '{}'::jsonb, 'x', 1) RETURNING preset_id, revision"
+  ],
+  [
+   "expect_err_config_not_object",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000004', 'dryrun-probe', 'Array config', 'FL03', '[1]'::jsonb, 'Top 3', 1) RETURNING preset_id, revision"
+  ],
+  [
+   "expect_err_config_too_large",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000005', 'dryrun-probe', 'Large config', 'FL03', jsonb_build_object('params', repeat('x', 17000)), 'Top 3', 1) RETURNING preset_id, revision"
+  ],
+  [
+   "expect_err_summary_too_long",
+   "edge_bff_runtime",
+   "INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000006', 'dryrun-probe', 'Long summary', 'FL03', '{}'::jsonb, repeat('s', 301), 1) RETURNING preset_id, revision"
+  ],
+  [
+   "expect_err_duplicate_name",
+   "edge_bff_runtime",
+   "WITH a AS (INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000007', 'dryrun-probe', 'Twice', 'FL03', '{\"params\": {}}'::jsonb, 'Top 3', 1) RETURNING preset_id, revision) INSERT INTO edge_bff.indicator_presets (preset_id, owner_key, name, def_id, config, summary, schema_version) VALUES ('ipr_00000000000000000000000000000008', 'dryrun-probe', 'Twice', 'FL03', '{\"params\": {}}'::jsonb, 'Top 3', 1) RETURNING preset_id, revision"
+  ],
+  [
+   "expect_err_truncate",
+   "edge_bff_runtime",
+   "TRUNCATE edge_bff.indicator_presets"
+  ],
+  [
+   "expect_err_public_market_read",
+   "edge_bff_runtime",
+   "SELECT count(*) FROM public.\"Price_Stock_Indonesia_IDX\" WHERE false"
+  ]
+ ]
+}
