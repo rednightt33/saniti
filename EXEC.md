@@ -11873,3 +11873,26 @@ added. Sudah alright. Go ya.. assign 5 agent 5.5 sonnet medium to review ur work
 bug, non responsive". Go ini berlaku untuk EXEC-TERMINAL-LOOK, EXEC-BROKER-INV-PANEL dan EXEC-IND-DIALOG sekaligus
 (semua butir menunggu go yang sama). Klik baris = selalu menambah, dengan notifikasi singkat "added"; Place · Unit dan
 Favorites tetap seperti contoh. Merge ke `main` sesudah review lima agen dan perbaikannya.
+
+### Hasil EXEC-TERMINAL-LOOK, EXEC-BROKER-INV-PANEL, EXEC-IND-DIALOG (2026-11-06)
+
+- **Dibangun (branch `claude/practical-thompson-2intee`, merge ke `main` `80b77b50`):**
+  - Legend: baris 13 px, jarak 6 px, nama abu-abu saat diam, gelap saat di-hover (`terminal.css` EXEC-TERMINAL-LOOK 1).
+  - Sumbu harga: pemisah ribuan, desimal dari harga instrumen, paling banyak 2 untuk saham/indeks (obligasi 3)
+    (`data/priceFormat.ts`; IHSG dibatasi 2 karena feed IDX membawa 3, ERRORS M354).
+  - Kartu indikator dihapus (`indCard.ts`, `calc/explain*.ts`, tes kartu; ±3.600 baris); tooltip hover tetap.
+  - Jendela Indicators gaya "Add a condition" (`indMenu.ts`): On the chart, Favorites, kelompok; baris setting bawaan dari
+    registry; klik selalu menambah dengan notifikasi "<nama> added".
+  - FL23: tombol Brokers/Board/Investor di panel (undo-able, pilihan kosong ditolak), label 0 dan garis nol, bawaan opsi C
+    (`auto_c`, spesifikasi → registry; oracle juga).
+  - Top brokers: lajur Domestic/Foreign/Total; panel baru "Foreign × Domestic map" (skala, diagonal vonis ±6/±10%, titik
+    1D/5D/20D, tabel), periode dan Top N sendiri, semua papan.
+- **Verifikasi:** Terminal 859 tes; Backtest 88 tes dan tripwire OK; registry `--check` OK; oracle 127 kasus × 7 ticker
+  457.498 nilai 0 selisih; Chromium dengan data BBRI asli (`verification/terminal_api/terminal_look/look_check.mjs`);
+  angka desain user keluar sama (BBRI 5D s.d. 27 Okt).
+- **Review lima agen (Sonnet 5.5, medium):** angka 0 salah (594 nilai + 54 kasus opsi C); temuan desain, bug dan responsif
+  diperbaiki sebelum rilis (ERRORS M354). Tidak diubah (tampilan lama, di luar lingkup): letak pilihan Board di Top
+  brokers, gaya kode broker di tabelnya, lebar plot di ponsel.
+- **Catatan:** tes `apps/backtest-worker` (3 file) gagal `ERR_IMPORT_ATTRIBUTE_MISSING` pada import `flowRegistry.json` di
+  Node lokal; baris import itu sama dengan sebelum perubahan (dugaan masalah lingkungan, belum dicek di commit dasar).
+- **Belum:** cek di browser asli user (chart tersimpan, ponsel).
