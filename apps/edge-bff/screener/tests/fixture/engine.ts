@@ -201,7 +201,8 @@ export function preview(m: Market, def: Definition, ticker: string, versions: Ve
     if (!ind || !OVERLAY_SHAPES.has(shapeOf(ind.indicator) || '')) continue;
     const reg = BY_ID[ind.indicator], o = calculate(reg, barsOf(t), resolveParams(reg, ind.params || {}));
     const outs = shapeOf(ind.indicator) === 'band' ? Object.keys(o).filter(x => !x.startsWith('_')) : [ind.output];
-    for (const out of outs) if (out !== 'direction') overlays.push({ condition_id:c.id, output:out, values:sl(Array.from(o[out] || [], x => isN(x) ? x : null)) });
+    // each overlay carries the core's unit of that output, as the worker does (EXEC-SCREENER-ADD, ERRORS M368)
+    for (const out of outs) if (out !== 'direction') overlays.push({ condition_id:c.id, output:out, unit:unitOf({ kind:'value', metric:{ ...ind, output:out } }), values:sl(Array.from(o[out] || [], x => isN(x) ? x : null)) });
   }
   const markers = active.map((c, i) => ({ condition_id:c.id, bars:(ev[i].signal || []).map((s, j) => s && j >= N - 130 ? { date:t.d[j], kind:'event' } : null).filter(Boolean) as { date: string; kind: string }[] }));
   const perf = Object.fromEntries(Object.entries(periods).map(([p, n]) => [p, N - 1 - n >= 0 ? { stock_pct:(t.c[N - 1] / t.c[N - 1 - n] - 1) * 100, ihsg_pct:(ihsg[N - 1] / ihsg[N - 1 - n] - 1) * 100 } : { stock_pct:null, ihsg_pct:null }])) as PreviewResponse['perf'];

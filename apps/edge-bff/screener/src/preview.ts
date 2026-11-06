@@ -185,6 +185,10 @@ const legend = (a: PreviewResponse) => {
 };
 
 export const CHART_BARS = 130;
+/** The overlays drawn on the candles' axis: the price series only (the answer's `unit`, the registry's scaling class).
+    A percent, an oscillator, a rank or a volume there stretched the price axis and flattened the candles (ERRORS M368);
+    their values are in "Why it passed". A series without a unit (an older worker) is not drawn. */
+export const candleOverlays = (ov: PreviewResponse['overlays']) => ov.filter(o => o.unit === 'price');
 function drawChart(a: PreviewResponse) {
   const el = document.getElementById('dChart'); if (!el) return;
   const css = (v: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -197,7 +201,7 @@ function drawChart(a: PreviewResponse) {
     return o == null || h == null || l == null || c == null ? { time:d as Time } : { time:d as Time, open:o, high:h, low:l, close:c };
   }));
   const A = screenedCards(), seen = new Map<string, number>();
-  for (const ov of a.overlays) {
+  for (const ov of candleOverlays(a.overlays)) {
     const c = A.find(x => x.id === ov.condition_id); if (!c) continue;
     const j = seen.get(c.id) ?? 0; seen.set(c.id, j + 1);
     const s = chart.addSeries(LineSeries, { color:colorOf(c), lineWidth:1, lineStyle:j ? 2 : 0, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false });

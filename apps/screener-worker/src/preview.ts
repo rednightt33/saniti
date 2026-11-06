@@ -58,7 +58,7 @@ export function runPreview(task: PreviewTask, snap: ThreadSnapshot, env: ThreadE
   const full = (r: ResolvedSeries) => r.full(tc);
   const overlays: PreviewResponse['overlays'] = [], markers: PreviewResponse['markers'] = [];
   for (const b of p.bound) {
-    for (const r of b.series) if (r.kind !== 'price' && r.kind !== 'pattern') overlays.push({ condition_id: b.id, output: overlayName(r), values: r12(full(r), from, n) });
+    for (const r of b.series) if (r.kind !== 'price' && r.kind !== 'pattern') overlays.push({ condition_id: b.id, output: overlayName(r), unit: r.unit ?? null, values: r12(full(r), from, n) });
     if (b.kind !== 'event') continue;
     const sig = conditionSignal(b, full, n);
     if (!sig) continue;
