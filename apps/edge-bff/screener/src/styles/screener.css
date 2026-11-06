@@ -1490,8 +1490,10 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 /* the settings column: two blue boxes or fewer on one line, more behind "Customize" (user 2026-11-06: "kalau ada kotak
    biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator harusnya sama"); left-aligned */
 .rr.qt{position:relative;display:flex;align-items:center;gap:6px 12px;flex-wrap:nowrap;white-space:nowrap;min-width:0}
-.qbox{display:inline-flex;flex:none;align-items:center;gap:6px;cursor:default}
-.qbox .lab{flex:none;max-width:110px;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-xs);color:var(--text-3)}
+/* a box never shrinks its field; when the line is short of room, the label gives way (ellipsis, full name in title) */
+.qbox{display:inline-flex;flex:0 1 auto;min-width:0;align-items:center;gap:6px;cursor:default}
+.qbox>.inp,.qbox>.sel,.qbox>.unit{flex:none}
+.qbox .lab{flex:0 1 auto;min-width:3ch;max-width:110px;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-xs);color:var(--text-3)}
 .qbox.chg .lab,.qpl.chg .lab{color:var(--blue)}
 .rr.qt .inp{width:max(54px,calc(var(--n,3) * 1ch + 30px))}
 .rr.qt .sel{height:var(--h-sm);min-width:84px;max-width:132px;padding:0 22px 0 var(--s-3);font-size:var(--fs-12);color:var(--blue);font-weight:var(--fw-semibold);background-color:var(--surface-2)}

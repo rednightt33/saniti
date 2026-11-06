@@ -1,5 +1,35 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `e0cfb700`: "Add a condition" Customize for more than two blue boxes (PR #57)
+
+- **Change:**
+  - in the window, two blue boxes or fewer are shown in the row on one line;
+  - more go behind "⚙ Customize N", which opens a panel (defaults, Reset, Done; Escape closes it only);
+  - every row is one height.
+  - Also the records of PR #56. No backend, variable, migration or database change; screener-worker skipped
+    (`69a8166a` SKIPPED).
+- **Go:** user 2026-11-06 "Ok, implement versi ini lalu go merge". PR rednightt33/saniti#57 merged 16:34 UTC (merge commit
+  `e0cfb700`).
+- **Deployment (Railway API):** edge-bff `1b3fc3a0-c200-4831-8a4a-815b046ecf43` SUCCESS, created 16:34:19 UTC (seen
+  16:35:09 UTC), commit `e0cfb700`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-K21MnYw1.js` and `assets/style-DvOZuKoF.css` are byte-equal to the local
+    build of the same tree (sha256 `f321fe190670906a…`, `91c593e00aa51f09…`);
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, ~16:40 UTC):**
+  - 128 rows, all 54 px, none showing more than two boxes; 34 rows inline and 34 behind Customize;
+  - RSI shows "Customize 3"; the panel holds Length, Source and value with their defaults; value 25 makes it "Custom ·
+    1 of 3 changed"; Escape closes the panel and leaves the window; RSI is added;
+  - with Minervini, SMA Length 50 + Enter says "already on the screen";
+  - no run sent, no CSP violation.
+  - Three 503 responses showed in the console once and not again on a second load (0 responses of 5xx), likely the
+    screener-worker waking.
+- **Found:** two rows of the live catalog overflowed their cell by 10–16 px: "Volume spike" (its label "Above (x
+  average)") and "New N-session high of a line" (its Line options). The labels now give way first; the fix is in the
+  next PR.
+- **Rollback:** redeploy edge-bff `66310845-bf5d-40f7-a6ae-3d36edc88a39` (commit `3a0a1d03`), or revert merge `e0cfb700`
+  on `main`.
+
 ## 2026-11-06 — edge-bff from `main` `3a0a1d03`: indicator row buttons stay reachable (EXEC-IND-HOVER, ERRORS M380)
 
 - **Change:** a pointed-at indicator row stays active 0.5 s after the pointer leaves; a pane row takes the pointer 8px
