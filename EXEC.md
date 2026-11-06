@@ -11972,3 +11972,18 @@ Lima subagen Sonnet (high), hanya pemeriksaan. Laporan: `verification/terminal_a
   dengan saran memilih Foreign/Domestic atau Top-N. Investor tidak diwajibkan (pilihan (a), tafsiran "your advice").
   Dideteksi dari hasil hitungan (tanpa informasi: semua nilai 0 atau kosong), bukan daftar indikator.
 - Tetap di branch; rilis menunggu keputusan user sesudah pemeriksaan ulang.
+
+### Top brokers rapi, keterangan tingkat, bawaan papan Regular (2026-11-06, go)
+
+**Kata user, 2026-11-06:** "Biar sekalian tolong setelah ini minta tolong spacing dibagian top brokers dirapihkan, lalu ada
+keterangan apakah ini Big accum, accum, normal or what. Kemudian semua board kalau bisa di panel sebelah kanan, dan panel
+bawah (kalau user tambahkan) defaultnya adalah Regular." Atas pertanyaan balik: "1A 2A. Jalankan setelah laporan QA agent
+beres saja, biar sekalian bereskan bug."
+- 1A: tangga 5 tingkat (Big Dist · Dist · Neutral · Acc · Big Acc) di Top brokers, tingkat sekarang ditandai, ambang
+  ±6%/±10% tertulis, rasio ditunjuk posisinya; spacing panel dirapikan (pilihan papan tidak di baris sendiri).
+- 2A: peta Foreign × Domestic mendapat pilihan papan, bawaan Regular. Semua pilihan papan panel kanan (Broker summary, Top
+  brokers, Broker inventory, Bandar detector, peta) bawaan Regular; indikator Flow yang ditambahkan user bawaan Regular
+  lewat spesifikasi (spreadsheet → registry → oracle).
+- Tafsiran yang tidak dijawab tegas: Flow Timeline (panel bawah bawaan, bukan tambahan user) tetap All boards; chart dan
+  pilihan yang sudah tersimpan tetap memakai pilihannya sendiri.
+- Dikerjakan bersama perbaikan temuan QA putaran 2.
