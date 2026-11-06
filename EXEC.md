@@ -11920,3 +11920,40 @@ untuk butir 2 / butir 5 tidak, hanya 4 garis miring yang dihapus / butir 3 ok su
    gaya tooltip panel kanan.
 
 **Menunggu:** go user.
+
+## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (disetujui, menunggu go)
+
+**Kata user, 2026-11-06:** "Untuk indicator saat kalau kita scroll maka hanya terbatas pada indicator group itu saja, while
+kalau di HTML contoh maka dia bisa scroll semua indikator, dan panel disebelah kiri tetap mengikuti / kemudian untuk huruf
+0 di broker summary hilangkan saja / kemudian untuk opsi di indikator broker inventory ada tombol clear, it doesnt seem to
+function at all / kemudian misalkan saya klik alt B, panel sebelah kanan lagi scroll all the way down, once alt B sudah
+selected custom timeframe, maka panel kanan otomatis ke scroll ke atas? / kemudian untuk foreign X domestic heatmap yg
+saya SS boleh hilangkan? kemudian tambahkan hoverstate juga kalau mouse hover ke dot di dalam quadrant". Atas konfirmasi:
+"benar untuk butir 2 / butir 5 tidak, hanya 4 garis miring yang dihapus / butir 3 ok sudah benar... masukan exec ya".
+
+1. **Jendela Indicators:** satu daftar berisi semua indikator dengan judul kelompok; klik kelompok di kiri meloncat ke
+   bagiannya, dan kelompok aktif di kiri mengikuti scroll (seperti "Add a condition" Screener v16: `qSpyMode`, `qRailMark`).
+   On the chart dan Favorites tetap menyaring; pencarian tetap menyaring.
+2. **Label "0" di panel Broker Inventory (FL23) dihapus.** Garis titik nol tetap (tidak diminta dihapus).
+3. **Clear di tombol FL23 berfungsi:** pilihan benar-benar kosong; selama kosong panel tidak menggambar garis dan menulis
+   "Choose at least one broker/board/investor"; tombol dan chart selalu sama.
+4. **Alt+B:** sesudah periode dipilih di chart, panel kanan di-scroll ke paling atas (Broker summary dari judulnya).
+5. **Peta Foreign × Domestic:** empat garis miring (batas vonis ±6/±10%) dihapus; latar kuadran, garis tengah, kisi dan
+   skala tetap. Hover pada titik: titik membesar dan tooltip (periode, X foreign, Y domestic, vonis, kuadran) dengan gaya
+   tooltip panel kanan.
+
+**Menunggu:** go user.
+
+## EXEC-FLOW-PANE-FILTERS — tombol filter di baris semua indikator Flow (permintaan 2026-11-06, usulan, belum disetujui)
+
+**Kata user, 2026-11-06:** "kemudian selanjutnya adalah untuk semua tipe indikator flow, kita mau tambahkan juga indikator
+seperti terlampir. Now list down all flow indicators, serta filter yang bisa ditambahkan, propose ke saya. Kalau ada broker
+scope, maka ada box lain juga bisa muncul untuk user input N. Nama Indikator | Filter yang ditambahkan | Interaksi? | DLL".
+Tafsiran (lampiran tidak ikut terkirim): tombol seperti Brokers/Board/Investor di panel Broker Inventory.
+
+**Usulan:** `verification/terminal_api/flow_pane_filters/flow_pane_filters_proposal.html` (dari `flowRegistry.json` lewat
+`build_proposal.py`): 45 indikator di menu; tombol Broker (All/Selected/Top-N, kotak N 1–20 saat Top-N, daftar kode saat
+Selected) pada 27; kotak Top N saja pada 7; Board pada 40; Investor pada 41; tanpa tombol 4 (FL27, FL28, FL31, FL46). Clear
+seperti EXEC-TERMINAL-LOOK-2 butir 3; garis di chart harga: tombol muncul saat baris legend di-hover/disentuh.
+
+**Menunggu:** persetujuan usulan dan go.
