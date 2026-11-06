@@ -28,6 +28,7 @@ function sentence(status: number, e: any): string {
   if (status === 401) return 'Your EDGE sign-in has ended: sign in to EDGE again, then reload this page.';
   if (status === 403) return 'This page’s sign-in check failed: reload the page and try again.';
   if (status === 404 || e.code === 'NOT_FOUND') return 'That layout no longer exists (it was deleted on another device or tab).';
+  if (status === 409 && e.code === 'REVISION_CONFLICT') return 'This layout was changed on another device or tab. Open it again (Open layout), then try again.';
   if (status === 413) return 'This layout is too large to save: remove some indicators and try again.';
   if (status >= 500 && e.code !== 'LAYOUTS_NOT_READY') return `Saved layouts are not available right now (server error ${status}). ${LATER}`;
   return e.message || `Saved layouts answered ${status}. ${LATER}`;
@@ -58,6 +59,7 @@ export const layoutsApi = {
   put: (id: string, body: { name: string; state: Record<string, string>; summary: string; revision?: number }) => call<Layout>('PUT', `/${id}`, body),
   mark: (id: string, body: { favorite?: boolean; opened?: true }) => call<LayoutMeta>('PATCH', `/${id}`, body),
   remove: (id: string) => call<void>('DELETE', `/${id}`),
+  prime: () => { token().catch(() => {}) },
   /** QA round 3 (L2): a change still waiting for its autosave is sent as the page goes away (keepalive; no answer read) */
   putOnLeave: (id: string, body: { name: string; state: Record<string, string>; summary: string; revision: number }) => {
     if (!csrfNow) return;

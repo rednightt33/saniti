@@ -70,7 +70,18 @@ export function initLayouts(ctx: Ctx) {
   const setActive = (a: Active | null) => { active = a; a ? store.set(ACTIVE_KEY, JSON.stringify(a)) : store.remove(ACTIVE_KEY); paint() };
   const setBase = (s: Record<string, string>) => { base = canonical(s); store.set(BASE_KEY, base); paint() };
   const now = () => snapshotOf(k => store.get(k));
-  const dirty = () => !!active && !settling && canonical(now()) !== base;
+  /* QA round 4 (M1, M2): while an opened layout restores itself, the page writes its own settings (defaults, a normalised
+     list); only a setting the user changed counts then. A write within GESTURE_MS of the user's pointer or key is the
+     user's (touched); at settle every untouched setting is taken as the page wrote it */
+  const GESTURE_MS = 1500, touched = new Set<string>(); let gestureAt = 0;
+  addEventListener('pointerdown', () => { gestureAt = Date.now() }, true); addEventListener('keydown', () => { gestureAt = Date.now() }, true);
+  const baseObj = (): Record<string, string> => { try { return Object.fromEntries(JSON.parse(base || '[]')) } catch { return {} } };
+  const changed = () => { const n = now(), b = baseObj(); return LAYOUT_KEYS.filter(k => (n[k] ?? null) !== (b[k] ?? null)) };
+  const dirty = () => !!active && (settling ? changed().some(k => touched.has(k)) : canonical(now()) !== base);
+  /* QA round 4 (M4): another tab of this browser may open another layout (the settings are shared by the tabs); this tab
+     then stops saving instead of writing that tab's chart into its own layout */
+  let stale = false;
+  const owns = () => { const a = read<Active | null>(ACTIVE_KEY, null); return !!active && !!a && a.id === active.id };
   /** QA round 3 (M4): with no layout open, a chart worth keeping (indicators, or a chart type or mode of its own) */
   const unsavedWork = () => { const s = now(); let n = 0; try { const a = JSON.parse(s['ml.ind.v1'] || '[]'); n = Array.isArray(a) ? a.length : 0 } catch { /* none */ }
     return n > 0 || (s['ml.chart.style'] || 'candle') !== 'candle' || (s['ml.chart.mode'] || 'price') !== 'price' };
@@ -96,7 +107,7 @@ export function initLayouts(ctx: Ctx) {
   function paint() {
     const d = dirty();
     btn.innerHTML = `<span class="lay-name">${esc(active ? active.name : 'Layout')}</span>${d ? '<i class="lay-dirty" title="Unsaved changes"></i>' : ''}${ICON.chev}`;
-    btn.title = active ? `Layout: ${active.name}${d ? ' (unsaved changes)' : autosave ? ' (saved automatically)' : ''}` : 'Save or open a chart layout';
+    btn.title = active ? `Layout: ${active.name}${stale ? ' (another tab opened a different layout: reload this tab)' : d ? ' (unsaved changes)' : autosave ? ' (saved automatically)' : ''}` : 'Save or open a chart layout';
     btn.setAttribute('aria-label', btn.title);
   }
 
@@ -111,6 +122,7 @@ export function initLayouts(ctx: Ctx) {
   const save = (loud: boolean) => chain = chain.then(async () => {
     clearTimeout(timer); timer = 0;
     if (!active) { await saveAs('Save layout', 'My layout'); return }
+    if (stale || !owns()) { stale = true; paint(); say('Another tab opened a different layout. Reload this tab to work on it here; this tab no longer saves.', true); return }
     if (!dirty()) { if (loud) say(`“${active.name}” is already saved`); return }      // QA round 3 (L5): no write without a change
     const state = now(), summary = summaryOf(state);
     try {
@@ -136,23 +148,35 @@ export function initLayouts(ctx: Ctx) {
     });
     if (name) say(`Saved “${active!.name}”`);
   };
-  const schedule = () => { if (autosave && active && !settling) { clearTimeout(timer); timer = setTimeout(() => save(false), AUTOSAVE_MS) } };
-  storeWatch.add(k => { if (!(LAYOUT_KEYS as readonly string[]).includes(k) || switching) return; paint(); schedule() });
+  const schedule = () => { if (autosave && active && !stale && dirty()) { clearTimeout(timer); timer = setTimeout(() => save(false), AUTOSAVE_MS) } };
+  storeWatch.add(k => { if (!(LAYOUT_KEYS as readonly string[]).includes(k) || switching) return; if (Date.now() - gestureAt < GESTURE_MS) touched.add(k); paint(); schedule() });
+  addEventListener('storage', e => {
+    if (e.key !== ACTIVE_KEY || !active || owns() || stale) return;
+    stale = true; clearTimeout(timer); timer = 0; paint();
+    say('Another tab opened a different layout. Reload this tab to work on it here; this tab no longer saves.', true);
+  });
   /* after a layout is opened the page restores itself (each part writes its settings again); once it has settled, a
      difference from the layout is a change: shown, and saved when Autosave is on */
-  const settled = () => { settling = false; store.remove(REBASE_KEY); paint(); if (dirty()) schedule() };
+  const settled = () => {
+    const n = now(), b = baseObj(), merged: Record<string, string> = {};
+    for (const k of LAYOUT_KEYS) { const v = touched.has(k) ? b[k] : n[k]; if (v !== undefined) merged[k] = v }
+    settling = false; store.remove(REBASE_KEY); setBase(merged); schedule();
+  };
   if (settling) { const t0 = Date.now(), wait = () => (window as any).__flowAll || Date.now() - t0 > SETTLE_MAX_MS ? setTimeout(settled, 600) : setTimeout(wait, 250); setTimeout(wait, 1500) }
   else if (dirty()) schedule();                                  // QA round 3 (L2): a change left unsaved by a reload
   /* a change still waiting for its autosave when the page goes away is sent on the way out */
   addEventListener('pagehide', () => {
-    if (!timer || !active || !dirty()) return;
+    if (!timer || !active || stale || !owns() || !dirty()) return;
     const state = now(); layoutsApi.putOnLeave(active.id, { name:active.name, state, summary:summaryOf(state), revision:active.revision });
   });
 
+  if (active) layoutsApi.prime();                                 // QA round 4 (L1): the token is there for a save on leave
   /* ---- switching layouts: the page reloads on the same ticker with the layout's settings ---- */
-  const flush = async () => { if (timer) { clearTimeout(timer); timer = 0; await save(false) } else await chain };
+  /* QA round 4 (M3): before leaving, a change is saved when Autosave is on; one still unsaved (Autosave off, or a save
+     that failed) is never dropped without asking */
+  const flush = async () => { clearTimeout(timer); timer = 0; await chain; if (autosave && !stale && dirty()) await save(false) };
   const okToLeave = async () => {
-    if (active) return !dirty() || autosave || await confirmBox(`Discard the unsaved changes to “${active.name}”?`, 'Discard changes');
+    if (active) return stale || !dirty() || await confirmBox(`Discard the unsaved changes to “${active.name}”?`, 'Discard changes');
     return !unsavedWork() || await confirmBox('This chart is not saved as a layout. Discard it? (Save layout keeps it.)', 'Discard chart');
   };
   const load = async (state: Record<string, string>, a: Active) => {
@@ -208,7 +232,8 @@ export function initLayouts(ctx: Ctx) {
   const keepFocus = (sel: string | null) => { if (sel) (menu.querySelector(sel) as HTMLElement | null)?.focus() };
   async function openMenu() {
     toast.classList.remove('show');
-    renderMenu(); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); place();
+    listing = true; renderMenu();                                 // QA round 4 (L3): "Loading…" until the list is read
+    menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); place();
     navItems()[0]?.focus();
     await fetchList();
     if (menu.hidden) return;

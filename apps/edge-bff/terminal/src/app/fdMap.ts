@@ -41,13 +41,17 @@ export function mapSvg(pts: MapPoint[], lim: number): string {
   if (ok.length > 1) g += `<polyline points="${ok.map(p => `${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--text-3)" stroke-width="1" opacity=".8"/>`;
   /* QA M4 (2026-11-06): the current (larger) dot is drawn first so a smaller dot near it stays on top and can be pointed
      at; the hit area is a little larger than the dot, and every dot takes keyboard focus with its tooltip as its name */
+  /* QA round 4 (L3): points at the same place ("5D" and "1D" both at 0, 0) put their labels one under the other */
+  const placed: [number, number][] = [];
   for (const p of [...ok].sort((a, b) => Number(b.cur) - Number(a.cur))) {
-    const cx = X(p.x), cy = Y(p.y), r = p.cur ? 6 : 4, hollow = out(p.x) || out(p.y), right = cx > S - 40;
+    const cx = X(p.x), cy0 = Y(p.y), r = p.cur ? 6 : 4, hollow = out(p.x) || out(p.y), right = cx > S - 40;
+    let ly = cy0; while (placed.some(([x, y]) => Math.abs(x - cx) < 18 && Math.abs(y - ly) < 10)) ly += 11;
+    placed.push([cx, ly]); const cy = cy0;
     /* EXEC-TERMINAL-LOOK-2 (5): a dot grows under the pointer and the panel's tooltip names its period and figures */
     g += `<g class="fdm-pt" data-tip="${esc(p.tip)}" tabindex="0" role="img" aria-label="${esc(p.tip.replace('|', ': '))}">${p.cur ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11" fill="var(--text)" opacity=".12"/>` : ''}`
       + `<circle class="dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${hollow ? 'var(--surface)' : 'var(--text)'}" stroke="var(--text)" stroke-width="${hollow ? 1.2 : 0}"/>`
       + `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r + 3}" fill="transparent"/></g>`
-      + `<text x="${(cx + (right ? -9 : 9)).toFixed(1)}" y="${(cy + 3.5).toFixed(1)}" class="fdm-p${p.cur ? ' cur' : ''}" text-anchor="${right ? 'end' : 'start'}">${esc(p.label)}</text>`;
+      + `<text x="${(cx + (right ? -9 : 9)).toFixed(1)}" y="${(ly + 3.5).toFixed(1)}" class="fdm-p${p.cur ? ' cur' : ''}" text-anchor="${right ? 'end' : 'start'}">${esc(p.label)}</text>`;
   }
   g += `</g><rect x="0" y="0" width="${S}" height="${S}" rx="6" fill="none" stroke="var(--border)"/></g></svg>`;
   // QA M3: the axes are the investor types of the trades of the Top N brokers, as a share of the period's total buy value

@@ -5334,7 +5334,12 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   ulang 409 memakai nama tersimpan; daftar panah dari input switch; Esc/Tab-trap di tingkat dokumen, fokus kembali ke tombol
   Layout; dialog `minmax(0,1fr)`; pesan kegagalan berupa kalimat dengan tindakan; `failed()` memanggil `redrawFlow`;
   plus semua Low (QA_REPORT.md bagian 10).
-- **Status:** FIXED di branch (bukti `verification/terminal_api/terminal_look/look_check6.mjs`); rilis menunggu QA singkat.
+- **QA putaran 4 (2026-11-06):** perbaikan base memunculkan kelas baru: setelan yang ditulis halaman sendiri dihitung
+  sebagai perubahan (layout baru langsung "unsaved"), perubahan user saat halaman memulihkan diri tak terlihat, dua tab
+  menimpa layout satu sama lain, dan panel terlipat bisa lebih tinggi dari panel terbuka. Diperbaiki dengan membedakan
+  tulisan user (dalam 1,5 s sesudah klik/tombol) dari tulisan halaman, tab yang kehilangan layout-nya berhenti menyimpan,
+  dan tinggi lipat dibatasi tinggi panel terbuka (QA_REPORT.md bagian 11, `look_check7.mjs`).
+- **Status:** FIXED di branch (bukti `look_check6.mjs`, `look_check7.mjs`).
 - **Lesson:** ukuran yang menampung konten diturunkan dari konten itu sendiri (tinggi baris, lebar nama), dan "keadaan
   tersimpan" diambil dari sumbernya (isi layout), bukan dari keadaan halaman sesudah memulihkan diri. Setiap fitur baru
   diuji di ponsel, layar sentuh dan dengan kegagalan server sebelum QA.

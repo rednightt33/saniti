@@ -233,14 +233,16 @@ export function initIndicators(ctx: Ctx) {
        plus its margins, never a fixed height the row may overflow */
     const folded = new Map<number, number>();
     list.forEach(i => { if(!i.fold || i.def.pane !== 'sub') return; const k = paneOfInst(i)?.paneIndex(); if(k === undefined || k < 1) return;
-      folded.set(k, Math.max(folded.get(k) || 0, FOLD_PX, Math.ceil(i.row.offsetHeight) + 12)) });
+      folded.set(k, Math.max(folded.get(k) || 0, FOLD_PX, (i.restH && i.row.matches(':hover,:focus-within') ? i.restH : (i.restH = Math.ceil(i.row.offsetHeight))) + 12)) });   // the row's height at rest
     /* the price pane keeps at least ~45 % of the height however many panes are open (front-end audit 2026-10-30: 10 panes
-       left it 113 px); up to two panes the factor stays the reference's 2.4; an open pane counts, a folded one does not */
-    const open = subs - folded.size, f0 = open ? Math.max(2.4, 0.82 * open) : 1;
-    /* a folded pane of height h gets the factor f = h·U / (H − Hf): U the open panes' factors, Hf the folded heights */
-    const H = panes.reduce((t, pn) => t + pn.getHeight(), 0), U = f0 + open, Hf = [...folded.values()].reduce((t, h) => t + h, 0);
-    const factor = (h: number) => H > Hf + 60 ? h * U / (H - Hf) : 0.12;
-    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? f0 : folded.has(k) ? factor(folded.get(k)!) : 1));
+       left it 113 px); up to two panes the factor stays the reference's 2.4. QA round 4 (M1): the panes are laid out as if
+       every one were open, then the height a folded pane gives up goes to the price pane; an open pane keeps its height */
+    const f0 = subs ? Math.max(2.4, 0.82 * subs) : 1, H = panes.reduce((t, pn) => t + pn.getHeight(), 0);
+    const one = H / (f0 + subs), open = subs - folded.size;
+    folded.forEach((h, k) => folded.set(k, Math.min(h, Math.max(FOLD_PX, one))));   // folding never makes a pane taller
+    const Hf = [...folded.values()].reduce((t, h) => t + h, 0), price = H - open * one - Hf;
+    if(!folded.size || price < 60) panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? f0 : folded.has(k) ? 0.12 : 1));
+    else panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? price : folded.has(k) ? folded.get(k)! : one));
     /* QA round 3 (M1): a folded pane draws nothing, its axis labels included */
     const text = (chart.options() as any).layout?.textColor || '#191919';
     panes.forEach((pn, k) => { if(!k) return; const c = folded.has(k) ? 'rgba(0,0,0,0)' : text;
@@ -256,8 +258,14 @@ export function initIndicators(ctx: Ctx) {
     refresh(inst); layoutPanes(); if(keep) save();
   };
   const stage = legend.parentElement;
+  /* QA round 4 (M2): the rows' narrow form (one line, a Filters button) follows the chart's own width, not the window's:
+     with both side panels open a 1280 px window leaves the chart about as wide as a tablet */
+  const NARROW_PX = 1000;
+  const narrowCheck = () => { const on = stage.clientWidth > 0 && stage.clientWidth < NARROW_PX; if(document.documentElement.classList.contains('ind-narrow') !== on) { document.documentElement.classList.toggle('ind-narrow', on); requestAnimationFrame(() => list.forEach(placeRow)) } };
+  narrowCheck();
   /* the panes' height changes with the window: a folded pane is sized again */
   { let h = 0; new ResizeObserver(() => { const nh = chart.panes().reduce((t, pn) => t + pn.getHeight(), 0);
+      narrowCheck();
       if(Math.abs(nh - h) > 2 && list.some(i => i.fold)) { h = nh; layoutPanes() } else h = nh }).observe(stage) }
   /* EXEC-FLOW-PANE-FILTERS (user go 2026-11-06; proposal verification/terminal_api/flow_pane_filters): every Flow
      indicator's broker scope, Top N, Rank by, brokers, boards and investors as controls on its own legend row (def.paneFilters,
@@ -580,7 +588,8 @@ export function initIndicators(ctx: Ctx) {
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
       b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
-      const full = r.querySelector('.ind-fltnote'); if(full) full.textContent = b.textContent || '';
+      /* QA round 4 (L2): the panel repeats the full title (shortened on the row) with the value or note */
+      const full = r.querySelector('.ind-fltnote'); if(full) { full.textContent = ''; const t = document.createElement('b'); t.textContent = inst.def.title(inst.params); full.append(t, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }
       b.style.color = '';
     } else if(inst.def.lines) {
       b.innerHTML = (inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;');
@@ -615,7 +624,9 @@ export function initIndicators(ctx: Ctx) {
     buildPaneFilters(inst);
     if(inst.def.multi) buildParts(inst);
     if(inst.fold) r.classList.add('folded');
-    if(inst.def.pane === 'sub') { inst.rowRO = new ResizeObserver(() => { if(inst.fold) relayout() }); inst.rowRO.observe(r) }   // a folded pane follows its row's height
+    /* a folded pane follows its row's height; QA round 4 (L1): not the growth while the row is pointed at or focused (its
+       buttons show then), which would move the chart on every hover */
+    if(inst.def.pane === 'sub') { inst.rowRO = new ResizeObserver(() => { if(inst.fold && !r.matches(':hover,:focus-within')) relayout() }); inst.rowRO.observe(r) }
     recompute(inst);
     placeRow(inst);
     if(inst.fold) setFold(inst, true, false);

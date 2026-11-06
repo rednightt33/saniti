@@ -50,7 +50,8 @@ try {
     await ctx.close() }
   // M3: a change made while an opened layout restores itself is shown as a change once it settles (Autosave off)
   { const { ctx, p } = await page(D, { 'ml.layout.autosave':'0' });
-    await p.evaluate(() => document.body.focus()); await p.keyboard.press('.'); await p.waitForSelector('.lay-orow'); await p.click('.lay-orow:has-text("Target")');
+    await p.evaluate(() => document.body.focus()); await p.keyboard.press('.'); await p.waitForSelector('.lay-orow');
+    await Promise.all([p.waitForNavigation({ timeout:30000 }), p.click('.lay-orow:has-text("Target")')]);   // opening a layout reloads the page
     await p.waitForFunction(() => !document.querySelector('.ml-boot') && document.getElementById('layoutBtn'), null, { timeout:30000 });
     await p.click('#styleGroup [data-style="line"]'); await p.waitForTimeout(9500);
     R.m3 = { dirty:await p.evaluate(() => window.marketLabLayouts.dirty()), btn:await p.$eval('#layoutBtn', b => b.textContent.trim() + (b.querySelector('.lay-dirty') ? ' •' : '')) };

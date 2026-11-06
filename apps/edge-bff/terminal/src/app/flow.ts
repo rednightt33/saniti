@@ -239,7 +239,9 @@ export function initFlow(ctx: Ctx) {
     const note = $('flowNote');
     const everything = flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length && flt.investors.size===INVESTORS.length;
     note.hidden = !(flowLoading || flowMore || everything || used===0 || ctx.brokerFailed);
-    if(ctx.brokerFailed) { note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.title = note.textContent; flowBars.setData([]); flowCum.setData([]) }
+    if(ctx.brokerFailed) { note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.title = note.textContent; flowBars.setData([]); flowCum.setData([])
+      // QA round 4 (L4): with no data there is no scale to show (it read "Rp 8, Rp 4, Rp 0")
+      for(const side of ['left', 'right']) try { flowChart.priceScale(side).applyOptions({ visible:false }) } catch(e) { /* no such scale */ } }
     else if(flowLoading || flowMore) note.innerHTML = spin(flowLoading ? 'Loading broker data' : 'Loading earlier broker data');
     else note.textContent = used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
     showTip(ctx.lastTipIdx);

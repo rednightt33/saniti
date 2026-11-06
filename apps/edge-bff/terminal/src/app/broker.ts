@@ -253,7 +253,7 @@ export function initBroker(ctx: Ctx) {
   // QA (2026-11-06): en-GB writes September "Sept"; the Terminal's other dates use three letters
   const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).replace('Sept', 'Sep');
   const cv = v => nfCompact.format(Math.abs(v));
-  const sgn = v => (v<0?'−':'+') + cv(v);           // QA round 2: the same minus sign as the verdict and the map
+  const sgn = v => { const c = cv(v); return c === '0' ? '0' : (v<0?'−':'+') + c };   // QA round 2: one minus sign; round 4 (L3): no "+0"
   const bkTag = (b) => `<span class="bk ${bkCat(b)}"><i></i>${b}</span>`;
   const verdict = r => {
     if(live) return bandarVerdict(r);                                  // the agreed levels (FL24); the fixture keeps the reference's

@@ -439,3 +439,33 @@ plus `look_check3/4/5.mjs` (regresi). ERRORS M355.
 
 **Tes:** Terminal vitest 870/870; Backtest 88/88; tripwire OK; edge-bff 162/162 (layouts, screener, edge, backtest,
 terminal); oracle 457.498 nilai 0 selisih.
+
+## 11. QA putaran 4 (singkat) dan perbaikannya (2026-11-06)
+
+Dua agen (Sonnet, high) atas draft `c0f6fa2e`. Agen 1 (layout): FAIL minor, backend dan runbook PASS (gladi sendiri
+DRYRUN 38/38, APPLY 23/23, ulang ditolak). Agen 2 (collapse, panel, Flow, minus): PASS dengan 2 Medium. Temuan putaran 3
+tertutup kecuali yang tercatat di bawah; tidak ada angka salah (dicek lagi ke PostgreSQL).
+
+| Temuan putaran 4 | Perbaikan | Bukti (`look_check7.mjs`) |
+|---|---|---|
+| Q4-M1 layout baru langsung "unsaved" | saat settle, setelan yang tidak disentuh user diambil seperti yang ditulis halaman | dirty false, 0 PUT |
+| Q4-M2 perubahan saat settle tak tersimpan | setelan yang ditulis dalam 1,5 s sesudah klik/tombol = milik user (touched), dihitung sebagai perubahan | Ctrl+S → 1 PUT, style line |
+| Q4-M3 autosave gagal lalu pindah layout | sebelum pindah: simpan bila Autosave; yang masih belum tersimpan selalu ditanya | "Discard the unsaved changes to “Alpha”?" |
+| Q4-M4 dua tab | tab yang layout-nya diganti tab lain berhenti menyimpan dan memberi tahu | Alpha tak berubah, 0 PUT |
+| Q4-L1 simpan saat keluar | token dibaca saat layout aktif | 1 PUT keepalive |
+| Q4-L2 toolbar 1280/1024 dua panel | tingkat ringkas kedua (≤ 780 px bar) | luber 0 di 1024–1440, nama pendek/panjang |
+| Q4-L3 "No saved layouts yet" saat memuat | "Loading…" sejak awal | "Loading…" |
+| Q4-L4 Indicators tanpa tooltip | `title` | — |
+| 409 tanpa tindakan | kalimat "Open it again (Open layout), then try again." | — |
+| Agen 2 M1 chart harga mengecil saat sebagian dilipat | tinggi yang dilepas panel terlipat diberikan ke chart harga; panel terlipat tidak pernah lebih tinggi dari panel terbuka | 235 → 235 (tidak mengecil); 5 panel 0 tumpuk |
+| Agen 2 M2 baris pane tetap terbungkus di 1280 dengan dua panel | bentuk sempit mengikuti lebar area chart (< 1000 px), bukan lebar layar | 1280 dua panel: 24/24/24 px |
+| Agen 2 M3 judul panel terpotong | hint yang dipotong lebih dulu | 4 judul utuh |
+| Agen 2 L1 baris membesar saat hover | panel terlipat mengikuti tinggi baris saat diam, bukan saat hover | 50 → 50 |
+| Agen 2 L2 nama penuh di ponsel | panel Filters mengulang judul lengkap dan nilainya | "Net Buy Persistence · Cohort (…, 5D) · 100.0%" |
+| Agen 2 L3 label peta bertumpuk, "+0", penanda tangga | label digeser bila bertumpuk; nol tanpa tanda; penanda jadi dua takik | label 121,5/132,5/143,5; "+0" 0 |
+| Agen 2 L4 sumbu karangan saat gagal | skala Flow Timeline disembunyikan bila file gagal | `flow_failed.png` |
+
+**Catatan tidak diubah:** pencarian "ma" tidak lagi menemukan "Moving Average" (sengaja: cocok dari awal kata; "sma"
+menemukannya); tombol Layout di ponsel ada di ujung toolbar yang digeser (desain toolbar yang ada).
+
+**Tes:** Terminal 870/870; Backtest 88/88; tripwire OK; edge-bff 162/162; oracle 0 selisih; `look_check3–7` tanpa galat.

@@ -1238,6 +1238,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 /* EXEC-BROKER-INV-PANEL (design peta_asing_domestik.html): the Foreign × Domestic map panel; the quadrant tag solid like
    the design's pill (green, blue, amber, red by quadrant) */
 .fdm-now{gap:6px;flex-wrap:wrap}
+.fdm-now .tag{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* QA round 4 (L3): one line at 260 px */
 #fdBoard{margin-left:auto}
 .tag.fdm-t0,.tag.fdm-t1,.tag.fdm-t2,.tag.fdm-t3{color:#fff;font-weight:var(--fw-semibold)}
 .tag.fdm-t4,.tag.fdm-t5,.tag.fdm-t6,.tag.fdm-t7,.tag.fdm-t8{background:var(--sel);color:var(--text-2);font-weight:var(--fw-semibold)}   /* a flat part: no direction colour */
@@ -1318,34 +1319,33 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
    row, fixed inside the window, wrapping its controls */
 .ind-fltbtn{display:none;align-items:center;height:24px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:var(--fs-xs);color:var(--text);text-shadow:none;cursor:pointer}
 .ind-fltbtn[aria-expanded="true"]{border-color:var(--accent)}
-@media(max-width:1024px){
-  .ind-fltbtn{display:inline-flex}
-  .ind-flt,.ind-flt.on-hover,.ind-row:hover .ind-flt.on-hover,.ind-row:focus-within .ind-flt.on-hover{display:none}
-  .ind-row.flt-open .ind-flt,.ind-row.flt-open .ind-flt.on-hover{display:flex;flex-wrap:wrap;gap:6px;position:fixed;left:8px;right:8px;max-width:480px;margin:0;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:80}
-  .ind-row.in-pane:has(.ind-flt),html.fit .ind-row.in-pane:has(.ind-flt){flex-wrap:nowrap;max-width:calc(100% - var(--ax-l,94px) - 84px)}
-  .ind-row.flt-open{z-index:80}
-  .ind-flt .fl-btn .fl-k{display:inline}
-}
-@media(max-width:1024px) and (hover:none){.ind-fltbtn{height:32px}}
+/* QA round 4 (M2): the narrow form follows the chart's width (indicators.ts narrowCheck sets html.ind-narrow) */
+  html.ind-narrow .ind-fltbtn{display:inline-flex}
+  html.ind-narrow .ind-flt,html.ind-narrow .ind-flt.on-hover,html.ind-narrow .ind-row:hover .ind-flt.on-hover,html.ind-narrow .ind-row:focus-within .ind-flt.on-hover{display:none}
+  html.ind-narrow .ind-row.flt-open .ind-flt,html.ind-narrow .ind-row.flt-open .ind-flt.on-hover{display:flex;flex-wrap:wrap;gap:6px;position:fixed;left:8px;right:8px;max-width:480px;margin:0;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:80}
+  html.ind-narrow .ind-row.in-pane:has(.ind-flt),html.fit.ind-narrow .ind-row.in-pane:has(.ind-flt){flex-wrap:nowrap;max-width:calc(100% - var(--ax-l,94px) - 84px)}
+  html.ind-narrow .ind-row.flt-open{z-index:80}
+  html.ind-narrow .ind-flt .fl-btn .fl-k{display:inline}
+@media (hover:none){html.ind-narrow .ind-fltbtn{height:32px}}
 .ind-act{display:none}
 .ind-fltnote{display:none}
-@media(max-width:1024px){
-  html .ind-row:has(.ind-fltbtn) > .ind-eye,html.fit .ind-row:has(.ind-fltbtn) > .ind-eye,html .ind-row:has(.ind-fltbtn) > .ind-fold,html.fit .ind-row:has(.ind-fltbtn) > .ind-fold{display:none!important}
-  .ind-row:has(.ind-fltbtn) .ind-k,html.fit .ind-row:has(.ind-fltbtn) .ind-k{min-width:72px;flex:0 1 auto}
+/* QA round 4 (M2): the narrow form follows the chart's width (indicators.ts narrowCheck sets html.ind-narrow) */
+  html.ind-narrow .ind-row:has(.ind-fltbtn) > .ind-eye,html.fit.ind-narrow .ind-row:has(.ind-fltbtn) > .ind-eye,html.ind-narrow .ind-row:has(.ind-fltbtn) > .ind-fold,html.fit.ind-narrow .ind-row:has(.ind-fltbtn) > .ind-fold{display:none!important}
+  html.ind-narrow .ind-row:has(.ind-fltbtn) .ind-k,html.fit.ind-narrow .ind-row:has(.ind-fltbtn) .ind-k{min-width:72px;flex:0 1 auto}
   /* QA R2-M4 (2026-11-06): on a narrow screen the value or note takes its own line under the name and Filters, wrapping
      instead of being cut */
-  .ind-row:has(.ind-fltbtn),html.fit .ind-row:has(.ind-fltbtn){flex-wrap:wrap;row-gap:0;white-space:normal}
-  .ind-row:has(.ind-fltbtn) > b,html.fit .ind-row:has(.ind-fltbtn) > b{flex-basis:100%;min-width:0;white-space:normal;line-height:1.35;order:3}
-  .ind-row.flt-open .ind-act{display:flex;flex-basis:100%;gap:6px;padding-top:8px;margin-top:2px;border-top:1px solid var(--border)}
+  html.ind-narrow .ind-row:has(.ind-fltbtn),html.fit.ind-narrow .ind-row:has(.ind-fltbtn){flex-wrap:wrap;row-gap:0;white-space:normal}
+  html.ind-narrow .ind-row:has(.ind-fltbtn) > b,html.fit.ind-narrow .ind-row:has(.ind-fltbtn) > b{flex-basis:100%;min-width:0;white-space:normal;line-height:1.35;order:3}
+  html.ind-narrow .ind-row.flt-open .ind-act{display:flex;flex-basis:100%;gap:6px;padding-top:8px;margin-top:2px;border-top:1px solid var(--border)}
   /* QA round 3 (Q3-H1, R2-M4): a pane row keeps one line, its name and its value or note shortened with "…"; the Filters
      panel repeats them in full (.ind-fltnote), and the folded pane is sized from this one-line row */
-  .ind-row.in-pane:has(.ind-fltbtn),html.fit .ind-row.in-pane:has(.ind-fltbtn){flex-wrap:nowrap;white-space:nowrap}
-  .ind-row.in-pane:has(.ind-fltbtn) .ind-k,html.fit .ind-row.in-pane:has(.ind-fltbtn) .ind-k{flex:1 1 0;min-width:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ind-row.in-pane:has(.ind-fltbtn) > b,html.fit .ind-row.in-pane:has(.ind-fltbtn) > b{flex:0 1 auto;flex-basis:auto;min-width:0;max-width:55%;order:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ind-row.in-pane:has(.ind-fltbtn) > b .flow-nodata-tip{white-space:nowrap}
-  .ind-row.flt-open .ind-fltnote:not(:empty){display:block;flex-basis:100%;order:-1;padding:0 2px 8px;margin-bottom:2px;border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-2);white-space:normal;line-height:1.4}
-  .ind-actbtn{height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:var(--fs-xs);color:var(--text);cursor:pointer}
-}
+  html.ind-narrow .ind-row.in-pane:has(.ind-fltbtn),html.fit.ind-narrow .ind-row.in-pane:has(.ind-fltbtn){flex-wrap:nowrap;white-space:nowrap}
+  html.ind-narrow .ind-row.in-pane:has(.ind-fltbtn) .ind-k,html.fit.ind-narrow .ind-row.in-pane:has(.ind-fltbtn) .ind-k{flex:1 1 0;min-width:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html.ind-narrow .ind-row.in-pane:has(.ind-fltbtn) > b,html.fit.ind-narrow .ind-row.in-pane:has(.ind-fltbtn) > b{flex:0 1 auto;flex-basis:auto;min-width:0;max-width:55%;order:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html.ind-narrow .ind-row.in-pane:has(.ind-fltbtn) > b .flow-nodata-tip{white-space:nowrap}
+  html.ind-narrow .ind-row.flt-open .ind-fltnote:not(:empty){display:block;flex-basis:100%;order:-1;padding:0 2px 8px;margin-bottom:2px;border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-2);white-space:normal;line-height:1.4}
+  html.ind-narrow .ind-actbtn{height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:var(--fs-xs);color:var(--text);cursor:pointer}
+
 /* QA H2 (phone check 2026-11-06): the legend over the price chart stays inside its column; a long name shortens */
 @media(max-width:1024px){
   .chart-legend{grid-template-columns:minmax(0,1fr)}
@@ -1367,7 +1367,11 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .acc-steps .st-dist-big.on{background:var(--down)}.acc-steps .st-dist.on{background:#f59ea6;color:#7a1220}
 .acc-steps .st-neu.on{background:var(--sel);color:var(--text);border-color:var(--border-2)}
 .acc-steps .st-acc.on{background:#8fd6c3;color:#064e3b}.acc-steps .st-acc-big.on{background:var(--up)}
-.acc-pin{position:absolute;z-index:2;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--text);border-radius:1px}
+/* QA round 4 (L3): the pin is two notches on the ladder's edges, not a line through the step's word */
+.acc-pin{position:absolute;z-index:2;top:-5px;bottom:-5px;width:0;pointer-events:none}
+.acc-pin::before,.acc-pin::after{content:"";position:absolute;left:-5px;border:5px solid transparent}
+.acc-pin::before{top:0;border-top-color:var(--text);border-bottom-width:0}
+.acc-pin::after{bottom:0;border-bottom-color:var(--text);border-top-width:0}
 .acc-lv{position:relative;height:13px;margin-top:2px}
 .acc-lv span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
 /* spacing: Top N row, ladder, lanes and the table on one rhythm; the Board choice sits on the period row */
@@ -1459,7 +1463,10 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 /* QA round 3 (agent 5 L5): at the narrowest right panel "Big Dist" / "Big Acc" fit their step, and a panel title keeps one
    line (shortened with "…", the full title stays in the button's text) */
 .acc-steps span{letter-spacing:-.02em}
-.st-head > span:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* QA round 4 (M3): the hint gives way first (it ends with "…"); the title keeps its words up to 70 % of the head */
+.st-head > span:first-child{flex:0 0 auto;max-width:70%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-head small{flex:1 1 0;min-width:0;text-align:right}
+.ind-row.in-pane{min-height:24px}
 /* QA round 2/3 (open Low): a legend row keeps its height when its buttons appear on hover or focus (it grew 22 -> 24 px) */
 html.fit .chart-legend .ind-row{min-height:24px}
 .ind-row:focus-visible{outline:2px solid #0070f3;outline-offset:1px;border-radius:4px}
@@ -1471,4 +1478,11 @@ html.fit .chart-legend .ind-row{min-height:24px}
   .ind-btn > span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
   .mk-search kbd{display:none}
   .lay-btn{max-width:120px}
+}
+/* QA round 4 (agent 1 L2): a narrower bar (1280 px window with both panels open: 732 px) also tightens the dividers, the
+   symbol pill and the Layout name, so Search and Full screen stay on the bar */
+@container tvbar (max-width: 780px){
+  .divider{margin:0 1px}
+  .symbol-pill{padding:0 8px}
+  .lay-btn{max-width:84px;padding:0 6px}
 }

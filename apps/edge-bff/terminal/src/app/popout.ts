@@ -22,7 +22,7 @@ const ICON = {
 };
 const OPEN_KEY = 'ml.win.open';
 const cv = (v: number) => nfCompact.format(Math.abs(v));
-const sgn = (v: number) => (v < 0 ? '−' : '+') + cv(v);            // QA round 3: one minus sign, as the panel
+const sgn = (v: number) => { const c = cv(v); return c === '0' ? '0' : (v < 0 ? '−' : '+') + c };            // QA round 3: one minus sign, as the panel
 const price = (v: number | null) => v == null ? '–' : v.toLocaleString('en-US', { maximumFractionDigits:v < 100 ? 2 : 0 });
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 const INVESTORS = ['All', 'Foreign', 'Domestic'], BOARDS = ['All', 'Regular', 'Nego', 'Cash'];

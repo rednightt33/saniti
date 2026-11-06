@@ -12031,3 +12031,5 @@ singkat pada area yang diubah, lalu rilis.
 - Status 2026-11-06: semua temuan diperbaiki di branch (QA_REPORT.md bagian 10, ERRORS M355); runbook migrasi layout siap
   dan sudah digladi lokal. Berikutnya: QA singkat area yang diubah, lalu rilis (merge ke `main`, migrasi DRYRUN/APPLY,
   deploy edge-bff).
+- QA singkat (putaran 4, 2026-11-06) dijalankan; temuannya diperbaiki (QA_REPORT.md bagian 11). Rilis: migrasi tabel
+  layout perlu token Railway (sesi ini tidak punya; API Railway menjawab "Not Authorized").
