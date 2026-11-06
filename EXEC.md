@@ -12330,4 +12330,5 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
 - Bukti: typecheck; vitest 783 lulus, 1 dilewati (3 tes baru); bundle 31; smoke langkah baru "Add a condition sets the
   parameters too" lulus; visual 46 screenshot (1440 dan 1100); membuka jendela 24 kali tanpa tugas lambat, sama
   dengan sebelum perubahan; tripwire OK.
-- Sisa: merge dan deploy edge-bff menunggu "go merge".
+- Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#55; hanya edge-bff yang dideploy. Titik kembali: edge-bff
+  `0718b572-45bf-48d2-bfcb-6daa040fb837` (`bb935001`, rilis Terminal sesi lain, sudah memuat PR #54).
