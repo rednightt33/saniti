@@ -12035,8 +12035,13 @@ push, deploy, atau publish sampai ada instruksi eksplisit".
 - **Go merge dan deploy dev (2026-11-06):** "Ok,ago merge" (atas pertanyaan "Kalau Anda setuju di-deploy sekarang, cukup
   tulis 'go merge'"). Merge PR #51 ke `main` men-deploy edge-bff (sumber GitHub, `watchPatterns` `/apps/edge-bff/**`);
   screener-worker tidak ikut (kode inti tidak berubah). Bundle live sebelum merge: `assets/index-CvB2JGE9.js`,
-  `assets/style-calwZ5Ae.css`; build lokal commit ini: `assets/index-C3AZxsiJ.js`, `assets/style-Bb_KuIay.css`. Sesudah
-  deploy: cek live dengan data asli (unit dari worker, BFF dan CSP di server), lalu item ini ditutup.
+  `assets/style-calwZ5Ae.css`; build lokal commit ini: `assets/index-C3AZxsiJ.js`, `assets/style-Bb_KuIay.css`.
+- **Deploy dev (2026-11-06):** PR #51 di-merge 11:50 UTC (`main` `f82babdc`); bundle baru tayang 11:51:21 UTC dan sama
+  persis (byte-equal) dengan build lokal; CSP, `no-store` dan 401 tanpa sesi utuh (`RAILWAY_CHANGELOG.md`). Temuan lama
+  tanpa sesi: ERRORS M367 (terbuka).
+- **Sisa sebelum item ini ditutup:** cek live dengan login EDGE (unit katalog asli, satu run, Screen now, kolom
+  tambahan). Sesi ini tidak punya kredensial EDGE maupun Railway CLI; dilakukan oleh user di browser, atau oleh agen
+  bila token Railway (read) tersedia untuk `verification/screener/live_check_dev.py`.
 - **Keputusan terbuka untuk user:** L1 (Screen now saat run berjalan), L3 (kolom tambahan di CSV), L5 (tanggal header
   telat sampai sekitar 1 menit), beda kata dengan referensi, dan kalimat "Outperformed IHSG by X pts" yang dihitung
   halaman.

@@ -5314,6 +5314,22 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M367 — Screener page without a session: two unhandled promise rejections in the console (2026-11-06, open)
+
+- **Found by:** the coordinator's live check after the EXEC-SCREENER-V21 deploy (Chromium on
+  `edge-bff-dev.up.railway.app/screener-app/` without a session).
+- **Symptom:** the page shows "Sign in to EDGE first, then open the Screener tab again." correctly, and the console also
+  shows two uncaught promise rejections with that same message.
+- **Verified cause (code):** `src/app.ts` boot starts the catalog and universe requests (`catP`, `uniP`) at once; when
+  the session request fails, boot calls `bootFailed` and returns before it awaits them, so their 401 rejections are
+  never handled. The same code is in `main` before v21 (`99b27ffd` `app.ts:195-207`): not a v21 regression.
+- **Class:** requests started in parallel whose promises are abandoned on an early return; any later boot step started
+  the same way (flow data, saved items) would add more.
+- **Fix (proposed, not made):** attach a no-op `catch` to every promise boot starts before its first `await`, or await
+  them together and handle the session failure from the joint result. Low priority: users open the page inside EDGE
+  with a session.
+- **Status:** OPEN.
+
 ### M366 — Screener preview: an answer of another publication than the table shown beside its row (2026-11-06, branch)
 
 - **Found by:** tests and accessibility review of EXEC-SCREENER-V21 (subagent 4, `s4_tests.md` D4, code reading).

@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `f82babdc`: Screener v21 three-panel page (EXEC-SCREENER-V21, PR #51)
+
+- **Change:** the Screener page (`apps/edge-bff/screener`) in the v21 three-panel layout with the explicit Screen now
+  gate, extra columns on their own request page, and the QA fixes ERRORS M355-M366. No backend, variable, migration or
+  database change; `screener/src/core` unchanged, so screener-worker does not rebuild.
+- **Go:** user 2026-11-06 "Ok,ago merge". PR rednightt33/saniti#51 merged at 11:50 UTC (merge commit `f82babdc`).
+  User runs in flight were not checked before the merge (AGENTS.md asks it for an orc deploy or a Postgres restart).
+- **edge-bff (verified from the live service):** the new build was served at 11:51:21 UTC (42 s after the merge was
+  watched); `/ready` 200. The served `assets/index-C3AZxsiJ.js` and `assets/style-Bb_KuIay.css` are byte-equal to the
+  local build of the same tree (sha256 `c65113696654e8cf…`, `03a8229f5f587a9a…`); before the merge the live page served
+  `index-CvB2JGE9.js` / `style-calwZ5Ae.css`. `/screener-app/` keeps `Cache-Control: no-store` and the screener CSP
+  (`script-src 'self'`, one external script, no inline script); `/api/v1/screener/catalog` without a session answers
+  401. Chromium on the live page without a session: the three panels, the sign-in message, no CSP violation. Deployment
+  ID not readable from the session (no Railway token).
+- **Not yet verified:** the signed-in check (real catalog units, a run, Screen now, extra columns) needs EDGE
+  credentials, which `verification/screener/live_check_dev.py` reads through the Railway CLI; this session has neither.
+- **Rollback:** redeploy the previous edge-bff deployment in the dashboard, or revert merge `f82babdc` on `main`.
+
 ## 2026-11-06 — edge-bff (and screener-worker) from `main` `80b77b50`: Terminal look, Broker Inventory panel, Indicators window
 
 - **Change:** EXEC-TERMINAL-LOOK (legend spacing and grey rest state, price axis thousands and derived decimals ≤ 2 for
