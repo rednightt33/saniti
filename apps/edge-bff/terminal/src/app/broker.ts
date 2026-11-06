@@ -139,6 +139,10 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-TERMINAL-PANELS B1, EXEC-BROKER-FULL: the panel gets the recent broker years first and the whole history after them; a second
      answer redraws it with the user's choices (periods by date, filters, picked brokers) kept */
   ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()) };
+  ctx.brokerPanelFailed = () => {
+    $('rpSub').textContent = `${M.broker.label} · broker data could not be loaded`;
+    ['bsBody','accBody','fdBody','invBody', ...(M.hide.bandar ? [] : ['bdBody'])].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = '<div class="rp-empty">Broker data could not be loaded. Reload the page to try again.</div>' });
+  };
   if(M.later){
     $('rpSub').textContent = `${M.broker.label} · loading`;
     // the hidden Bandar section gets no ring: nothing would ever replace it
@@ -176,6 +180,7 @@ export function initBroker(ctx: Ctx) {
   rpAside.addEventListener('focusin', (e: any) => { const t = e.target.closest?.('.fdm-pt[data-tip]'); if(t) tipAt(t) });
   rpAside.addEventListener('focusout', (e: any) => { if(e.target.closest?.('.fdm-pt[data-tip]')) hideStTip() });
   rpAside.addEventListener('click', (e: any) => { const t = e.target.closest?.('.fdm-pt[data-tip]'); if(t) tipAt(t) });
+  rpAside.addEventListener('keydown', (e: any) => { if(e.key === 'Escape' && e.target.closest?.('.fdm-pt')) hideStTip() });
 
   let rpSec = {};
   try{ rpSec = JSON.parse(store.get('ml.broker.sections') || '{}') || {} }catch(e){}
@@ -229,7 +234,7 @@ export function initBroker(ctx: Ctx) {
   // QA (2026-11-06): en-GB writes September "Sept"; the Terminal's other dates use three letters
   const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).replace('Sept', 'Sep');
   const cv = v => nfCompact.format(Math.abs(v));
-  const sgn = v => (v<0?'-':'+') + cv(v);
+  const sgn = v => (v<0?'−':'+') + cv(v);           // QA round 2: the same minus sign as the verdict and the map
   const bkTag = (b) => `<span class="bk ${bkCat(b)}"><i></i>${b}</span>`;
   const verdict = r => {
     if(live) return bandarVerdict(r);                                  // the agreed levels (FL24); the fixture keeps the reference's
@@ -399,7 +404,7 @@ export function initBroker(ctx: Ctx) {
     $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
-        + `<div class="acc-leg">${SPLIT_LEGEND}<span class="bk-leg">Dot: broker's own type <span class="bk F"><i></i>Foreign</span><span class="bk L"><i></i>Local</span></span></div>`
+        + `<div class="acc-leg">${SPLIT_LEGEND}<span class="bk-leg">Dot: broker's own type <span class="bk F"><i></i>Foreign</span><span class="bk L"><i></i>Domestic</span></span></div>`
       /* QA M7 (2026-11-06): trades whose every broker nets to 0 (crossing on Nego or Cash) are not "no data" */
       : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`;
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
@@ -604,7 +609,7 @@ export function initBroker(ctx: Ctx) {
   }
 
   /* ---- wiring ---- */
-  $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${new Date(bkDates[RS.d]+'T00:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'})} ${bkDates[RS.d].slice(0,4)}`;
+  $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${new Date(bkDates[RS.d]+'T00:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'}).replace('Sept', 'Sep')} ${bkDates[RS.d].slice(0,4)}`;
   const renderAll = () => { renderBS(); renderAcc(); renderFD(); renderInv(); renderBD() };
   // EXEC-TERMINAL-PANELS C1: a period dragged on the chart applies to every panel (each can change it again)
   applyChartRange = (f, t) => { closeRangeCalendar(); [bsRange, accRange, fdRange, invRange, bdRange].forEach(r => r.setDates(f, t)) };

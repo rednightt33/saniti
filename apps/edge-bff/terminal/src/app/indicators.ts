@@ -237,8 +237,15 @@ export function initIndicators(ctx: Ctx) {
   const fltClose = (keep?: Element | null) => document.querySelectorAll('.ind-row.flt-open').forEach(r => { if(keep && r.contains(keep)) return;
     r.classList.remove('flt-open'); r.querySelector('.ind-fltbtn')?.setAttribute('aria-expanded', 'false') });
   document.addEventListener('pointerdown', (e: any) => { if(!e.target.closest?.('.fl-pop')) fltClose(e.target) }, true);
-  document.addEventListener('keydown', (e: any) => { if(e.key !== 'Escape') return; const r = document.activeElement?.closest?.('.ind-row.flt-open');
-    if(r) { fltClose(); (r.querySelector('.ind-fltbtn') as HTMLElement | null)?.focus() } });
+  /* QA R2-M6 (2026-11-06): Escape closes an open panel wherever the focus is (also after a list closed and left it on the
+     page); Tab out of the row closes it; the panel follows its row when the window is resized or scrolled */
+  document.addEventListener('keydown', (e: any) => { if(e.key !== 'Escape') return; const r = document.activeElement?.closest?.('.ind-row.flt-open') || document.querySelector('.ind-row.flt-open');
+    if(r && !document.querySelector('.ind-row.flt-open .fl-pop:not([hidden])')) { fltClose(); (r.querySelector('.ind-fltbtn') as HTMLElement | null)?.focus() } });
+  document.addEventListener('focusout', (e: any) => { const r = e.target.closest?.('.ind-row.flt-open'); if(!r) return;
+    setTimeout(() => { const a = document.activeElement; if(a && a !== document.body && !r.contains(a)) fltClose() }, 0) });
+  const fltPlace = () => document.querySelectorAll<HTMLElement>('.ind-row.flt-open').forEach(r => { const box = r.querySelector('.ind-flt') as HTMLElement, rr = r.getBoundingClientRect();
+    box.style.top = Math.max(8, Math.min(rr.bottom + 4, innerHeight - box.offsetHeight - 8)) + 'px' });
+  addEventListener('resize', fltPlace); addEventListener('scroll', fltPlace, true);
   function buildPaneFilters(inst) {
     const keys = inst.def.paneFilters as string[] | undefined;
     if(!keys || !keys.length || !ctx.makeFilter) return;
@@ -323,7 +330,7 @@ export function initIndicators(ctx: Ctx) {
     box.appendChild(acts);
     /* a line on the price chart keeps its legend clean: the controls show while the row is pointed at or tapped */
     /* QA M5: the row takes keyboard focus, so Tab reveals its controls (:focus-within) as the pointer does */
-    if(inst.def.pane !== 'sub') { box.classList.add('on-hover'); inst.row.tabIndex = 0; inst.row.setAttribute('aria-label', `${inst.def.name}: Tab to its filters`) }
+    if(inst.def.pane !== 'sub') { box.classList.add('on-hover'); inst.row.tabIndex = 0 }   // QA round 2: no aria-label, so the row's own name and value are read
   }
   function placeRow(inst) {
     if(inst.def.pane !== 'sub' || !inst.series) return;
@@ -535,6 +542,7 @@ export function initIndicators(ctx: Ctx) {
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
+      b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
       b.style.color = '';
     } else if(inst.def.lines) {
       b.innerHTML = (inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;');

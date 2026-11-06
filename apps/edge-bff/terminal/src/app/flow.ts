@@ -153,6 +153,9 @@ export function initFlow(ctx: Ctx) {
     const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
     // EXEC-TERMINAL-NODAY (user 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline"): no date beside the label
     const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
+    /* QA R2-M3 (2026-11-06): broker files that failed are not a zero: the figures read "—" */
+    if(ctx.brokerFailed) { const dash = (l: string) => `<div class="flow-stat"><span class="flow-stat-label">${l}</span><span class="flow-stat-val flat">—</span></div>`;
+      $('flowSummary').innerHTML = dash(LATEST) + dash('Period net total') + dash(AVG); return }
     $('flowSummary').innerHTML = stat(LATEST, last) + stat('Period net total', total) + stat(AVG, avg);
   };
   let summaryRaf = 0;
@@ -168,7 +171,7 @@ export function initFlow(ctx: Ctx) {
           label kuning di judul"): the sessions after the broker data's last date are hatched on the Flow chart, and the
           Flow title carried "Broker through … · price …" until EXEC-TERMINAL-FULL (user 2026-10-27: "untuk A dihapus
           saja") ---- */
-  const weekdayDay = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace(',', '');
+  const weekdayDay = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep').replace(',', '');
   const through = ctx.M.through?.broker;                  // the broker data's own last date (the manifest)
   const brokerThroughText = () => through ? weekdayDay(through) : 'unknown';
   const noData = document.createElement('div'); noData.className = 'flow-nodata'; noData.hidden = true;
@@ -212,8 +215,9 @@ export function initFlow(ctx: Ctx) {
     flowSummary();
     const note = $('flowNote');
     const everything = flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length && flt.investors.size===INVESTORS.length;
-    note.hidden = !(flowLoading || flowMore || everything || used===0);
-    if(flowLoading || flowMore) note.innerHTML = spin(flowLoading ? 'Loading broker data' : 'Loading earlier broker data');
+    note.hidden = !(flowLoading || flowMore || everything || used===0 || ctx.brokerFailed);
+    if(ctx.brokerFailed) { note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.title = note.textContent; flowBars.setData([]); flowCum.setData([]) }
+    else if(flowLoading || flowMore) note.innerHTML = spin(flowLoading ? 'Loading broker data' : 'Loading earlier broker data');
     else note.textContent = used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
     showTip(ctx.lastTipIdx);
   };
@@ -243,7 +247,7 @@ export function initFlow(ctx: Ctx) {
   let cumOn = store.get('ml.flow.cum') !== '0';
   // EXEC-TERMINAL-LAG: formatted once per session (toLocaleDateString on every crosshair move cost ~0.5 s per drag)
   const dmyCache = new Map<number, string>();
-  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
+  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep').replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
   ctx.tipHooks = [];                                       // crosshair listeners (indicator legend values)
   const noFlow = !inputsOf(ctx.M).has('flow');
   const showTip = (i: number) => {
@@ -251,6 +255,8 @@ export function initFlow(ctx: Ctx) {
     ctx.tipHooks.forEach(fn => fn(i));
     const vb = $('volVal'); if(vb){ vb.textContent = nfCompact.format(volume[i].value); vb.className = ohlc[i].close >= ohlc[i].open ? 'up' : 'down' }
     if(noFlow){ $('flowTip').hidden = true; return }       // ERRORS M332: a ticker without broker files (a bond) has no Flow readout
+    if(ctx.brokerFailed && i != null && i >= 0) { $('flowTip').hidden = false;      // QA R2-M3: not "Net Rp 0" when the files failed
+      $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; <span class="flow-nodata-tip">Broker data could not be loaded</span>`; return }
     if(i > ctx.brokerEnd){                                   // EXEC-TERMINAL-FRESH: no broker data yet on this session
       badgeVals.clear(); cumBadge.applyOptions({ axisLabelVisible:false }); netBadge.applyOptions({ axisLabelVisible:false });
       $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; <span class="flow-nodata-tip">No broker data yet (through ${brokerThroughText()})</span>`;
@@ -369,7 +375,12 @@ export function initFlow(ctx: Ctx) {
       pop.hidden = !open; btn.setAttribute('aria-expanded', String(open));
       /* reviewer 5 (2026-11-06): a list that would leave the window is moved back inside it (Broker Inventory's buttons sit
          at the left of a pane, the Flow Timeline's at the right; a phone is narrower than the list) */
-      if(open){ pop.style.translate = ''; const r = pop.getBoundingClientRect(), dx = r.right > innerWidth - 8 ? innerWidth - 8 - r.right : r.left < 8 ? 8 - r.left : 0; if(dx) pop.style.translate = `${Math.round(dx)}px 0` }
+      if(open){ pop.style.translate = ''; pop.style.maxHeight = ''; const r = pop.getBoundingClientRect(), dx = r.right > innerWidth - 8 ? innerWidth - 8 - r.right : r.left < 8 ? 8 - r.left : 0;
+        /* QA R2-M5 (2026-11-06): a list taller than the room under its button opens above it when there is more room there,
+           else it is cut to the room left and scrolls */
+        let dy = 0; const below = innerHeight - 8 - r.top, bh = btn.getBoundingClientRect(), above = bh.top - 8;
+        if(r.bottom > innerHeight - 8) { if(above > below) { const h = Math.min(r.height, above); pop.style.maxHeight = h + 'px'; dy = -(r.top - bh.top) - h - 4 } else pop.style.maxHeight = Math.max(120, below) + 'px' }
+        if(dx || dy) pop.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px` }
       if(open){ openPops.add(api); renderList(); if(search){ search.value=''; renderList(); search.focus() } } else openPops.delete(api);
     };
     if(search) search.oninput = renderList;

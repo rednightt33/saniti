@@ -27,9 +27,26 @@ export const PANE_FILTER_KEYS = ['scope', 'top', 'rank', 'brokers', 'boards', 'i
 /** QA M2: the whole market's cohort (every broker, both investor types) */
 export const allBrokersBothSides = (p: any) => !!p && p.scope === 'all' && (!Array.isArray(p.investors) || p.investors.length >= 2);
 /** a result with no finite non-zero value in any output series (all 0 or empty) */
+/** QA round 2 (R2-M1, 2026-11-06): a result that carries nothing: it has values and every value is the same (0 for a net,
+    a flat 50 for the percentile of a constant 0). An empty result (too little history) is not this case: it gets the
+    history note instead */
 export const carriesNothing = (o: any) => {
   const series = Object.values(o || {}).filter(Array.isArray) as any[][];
-  return series.length > 0 && series.every(a => a.every(v => v === null || v === undefined || !Number.isFinite(v) || v === 0));
+  let first: number | null = null;
+  for (const a of series) for (const v of a) {
+    if (v === null || v === undefined || !Number.isFinite(v)) continue;
+    if (first === null) first = v; else if (Math.abs(v - first) > 1e-9 * Math.max(1, Math.abs(first))) return false;
+  }
+  return first !== null;
+};
+/** the first candle with a value in any output, or -1 */
+export const firstValueAt = (o: any) => {
+  let f = -1;
+  for (const a of Object.values(o || {}).filter(Array.isArray) as any[][]) {
+    const k = a.findIndex(v => v !== null && v !== undefined && Number.isFinite(v));
+    if (k >= 0 && (f < 0 || k < f)) f = k;
+  }
+  return f;
 };
 /** EXEC-TERMINAL-LOOK-2 (3): a list the user emptied (Clear) draws nothing and says what to choose */
 export function emptyChoice(p: any): string {
@@ -307,10 +324,14 @@ export function initFlowIndicators(ctx: Ctx) {
         if (i > ctx.brokerEnd) return 'No broker data yet';
         const di = DAY ? DAY.dayOf[i] : i;
         if (di < 0 || !R.has[di]) return `No broker data on this ${one}`;
-        /* QA M8 (2026-11-06): a value still empty because the window or baseline reaches before the first broker candle */
-        { const need = Math.max(1, Number(p?.window) || 1) + Math.max(0, Number(p?.baseline) || 0) + Math.max(0, Number(p?.recent) || 0) - 1;
-          let seen = 0; for (let k = 0; k <= di; k++) if (R.has[k]) seen++;
-          if (seen < need) return `Needs ${need} ${one}s of broker history (${seen} so far)` }
+        /* QA M8, R2-M2 (2026-11-06): a value still empty because the indicator's window reaches before the first broker
+           candle. The need is read from the indicator's own first value (exact for every formula); with no value yet it
+           is the sum of its windows, said as "at least" */
+        { const count = (to: number) => { let n = 0; for (let k = 0; k <= to && k < R.N; k++) if (R.has[k]) n++; return n };
+          const f = firstValueAt(raw), seen = count(di);
+          if (f >= 0) { const fd = DAY ? DAY.dayOf[f] : f; if (fd >= 0 && di < fd) return `Needs ${count(fd)} ${one}s of broker history (${seen} so far)` }
+          else { const est = ['window', 'baseline', 'recent'].reduce((t, k) => t + Math.max(0, Number(p?.[k]) || 0), 0);
+            if (est > seen) return `Needs at least ${est} ${one}s of broker history (${seen} so far)` } }
         /* K4 (user 2026-11-05 "3 ok"): a choice that counts transactions needs them; the others draw without them */
         if ((r.needs_frequency || needsCounts(p)) && !hasCounts(R)) return r.needs_frequency ? 'Needs the transaction counts'
           : 'No transaction counts for this ticker: choose Value or Lot';

@@ -68,7 +68,7 @@ export function legendBp(bars: AssetBar[], at: number, source: AssetSource, ret:
 const KEY = 'ml.assets.v1', DEF_KEY = 'ml.assets.defaults';
 const fmtPct = (v: number | null) => v === null || !Number.isFinite(v) ? '' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
 const fmtBp = (v: number | null) => v === null || !Number.isFinite(v) ? '' : (Math.abs(v) < .05 ? '±' : v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + ' bp';
-const shortDay = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', timeZone:'UTC' });
+const shortDay = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
 const CARRIED = 'rgba(100,116,139,.55)';                 // a bond value carried onto a session it did not trade (faded)
 const esc = (t: string) => String(t).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]!));
 const rgba = (hex: string, a: number) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})` };
@@ -595,7 +595,7 @@ export function initAssets(ctx: Ctx) {
     if (p.state === 'loading' || !p.combos.length) { tip.innerHTML = ''; return }
     if (i > p.end || i < p.from) {
       p.netBadge.applyOptions({ axisLabelVisible:false }); p.cumBadge.applyOptions({ axisLabelVisible:false });
-      const through = p.through ? new Date(p.through + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace(',', '') : '';
+      const through = p.through ? new Date(p.through + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep').replace(',', '') : '';
       tip.innerHTML = `<b>${a.ticker}</b> &nbsp; <span class="flow-nodata-tip">${i > p.end && through ? `No broker data yet (through ${through})` : `No broker data on this ${U.one}`}</span>`; return;
     }
     const hasCum = Number.isFinite(p.cumArr[i]);

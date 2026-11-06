@@ -1,7 +1,7 @@
 // EXEC-FLOW-PANE-FILTERS and EXEC-TERMINAL-LOOK-2 (user go 2026-11-06): which choices each Flow indicator shows on its row,
 // and what an emptied choice does
 import { describe, expect, it } from 'vitest';
-import { allBrokersBothSides, carriesNothing, emptyChoice, PANE_FILTER_KEYS } from '../../src/app/flowIndicators';
+import { allBrokersBothSides, carriesNothing, emptyChoice, firstValueAt, PANE_FILTER_KEYS } from '../../src/app/flowIndicators';
 import { menuItems, visibleItems } from '../../src/app/indMenu';
 import IND from '../../src/data/indRegistry.json';
 import { MENU_HIDDEN } from '../../src/app/indMenu';
@@ -47,6 +47,13 @@ describe('QA fixes (2026-11-06)', () => {
     expect(carriesNothing({ value:[null, 0, 0.5] })).toBe(false);
     expect(carriesNothing({ buy:[0, 0], sell:[null, 0] })).toBe(true);
     expect(carriesNothing({})).toBe(false);
+    // R2-M1: a flat percentile (50 everywhere) carries nothing; an empty result (short history) is not this case
+    expect(carriesNothing({ value:[null, 50, 50, 50] })).toBe(true);
+    expect(carriesNothing({ value:[null, null, null] })).toBe(false);
+    expect(carriesNothing({ value:[null, 12.5, 13] })).toBe(false);
+    // R2-M2: the first candle with a value, across outputs
+    expect(firstValueAt({ a:[null, null, 3], b:[null, 1, null] })).toBe(1);
+    expect(firstValueAt({ a:[null, null] })).toBe(-1);
   });
   it('M9: the search finds an indicator by its short name, the exact one first', () => {
     const items = menuItems(IND as any[], FLOW as any);

@@ -1,8 +1,8 @@
 /* EXEC-BROKER-INV-PANEL (user 2026-11-06: "tambahkan juga 2x domestic foreign map (terlampir)", "1B" own panel, "2A"
    English labels; design verification/terminal_api/top_broker_clarity/user_design/peta_asing_domestik.html): the Foreign ×
    Domestic map. x = the Top N groups' foreign net ÷ the period's total buy value, y = the same for domestic transactions,
-   so x + y = the Bandar verdict's ratio (Top brokers). The dashed diagonals are the verdict's ±6% lines, the solid ones
-   ±10%: a point between them has that verdict. Values are percent. */
+   so x + y = the Bandar verdict's ratio (Top brokers). The verdict's ±6%/±10% lines are not drawn (user 2026-11-06); the
+   verdict tag above the map carries them. Values are percent. */
 import { FD_QUADRANTS, fdQuadrant } from '../data/brokerAgg';
 
 export interface MapPoint { label: string; x: number; y: number; r: number; cur: boolean; tip: string; empty?: boolean }
@@ -17,7 +17,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;',
 const pct = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%` };   // QA: never "−0.0%"
 
 /** the map as SVG: quadrant shading and names, a light grid at half range, tick labels (−lim, −lim/2, 0, +lim/2, +lim),
-    verdict diagonals, the points (current one larger) and a trail through them; axis titles say what the % is of */
+    the points (current one larger) and a trail through them; axis titles say what the % is of */
 export function mapSvg(pts: MapPoint[], lim: number): string {
   const S = 236, L = 46, T = 8, B = 16,   // QA H3: room for "−17.5%" left of the plot
   P = (v: number) => (Math.max(-lim, Math.min(lim, v)) + lim) / (2 * lim) * S, X = P, Y = (v: number) => S - P(v);
@@ -67,6 +67,6 @@ export function mapReadout(cur: MapPoint, all: MapPoint[]): string {
   const cls = (v: number) => v > 0 ? 'up' : v < 0 ? 'down' : '';
   const row = (p: MapPoint) => p.empty ? `<div class="fdm-row${p.cur ? ' on' : ''}"><span>${esc(p.label)}</span><span>—</span><span>—</span><span>—</span><span></span></div>`
     : `<div class="fdm-row${p.cur ? ' on' : ''}"><span>${esc(p.label)}</span><span class="${cls(p.x)}">${pct(p.x)}</span><span class="${cls(p.y)}">${pct(p.y)}</span><span class="${cls(p.r)}">${pct(p.r)}</span><span class="fdm-dot fdm-t${fdQuadrant(p.x, p.y)}" title="${FD_QUADRANTS[fdQuadrant(p.x, p.y)]}"></span></div>`;
-  return `<div class="fdm-eq"><div><span>X · Foreign</span><b class="${cls(cur.x)}">${pct(cur.x)}</b></div><i>+</i><div><span>Y · Domestic</span><b class="${cls(cur.y)}">${pct(cur.y)}</b></div><i>=</i><div><span>Verdict ${esc(cur.label)}</span><b class="${cls(cur.r)}">${pct(cur.r)}</b></div></div>`
+  return `<div class="fdm-eq"><div><span>X · Foreign (Top N)</span><b class="${cls(cur.x)}">${pct(cur.x)}</b></div><i>+</i><div><span>Y · Domestic (Top N)</span><b class="${cls(cur.y)}">${pct(cur.y)}</b></div><i>=</i><div><span>Verdict ${esc(cur.label)}</span><b class="${cls(cur.r)}">${pct(cur.r)}</b></div></div>`
     + `<div class="fdm-tbl"><div class="fdm-row h"><span>Period</span><span>X foreign</span><span>Y dom.</span><span>Verdict</span><span></span></div>${all.map(row).join('')}</div>`;
 }

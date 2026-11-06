@@ -149,6 +149,8 @@ export interface Ctx {
   flowRows?: FlowRows;
   /** QA M6: the broker files could not be loaded */
   brokerFailed?: boolean;
+  /** QA R2-M3: the right panel says the broker files failed instead of loading for ever */
+  brokerPanelFailed?: () => void;
   /* EXEC-TERMINAL-PANELS: drag a period on the main chart (rangeSelect.ts) */
   selectRangeOnChart: (done: (from: string, to: string) => void, cancelled?: () => void) => void;
   crosshairAt: (i: number | null) => void;           // flow.ts: both charts' crosshair on session i

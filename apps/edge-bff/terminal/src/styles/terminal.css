@@ -1329,7 +1329,10 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 @media(max-width:1024px){
   html .ind-row:has(.ind-fltbtn) > .ind-eye,html.fit .ind-row:has(.ind-fltbtn) > .ind-eye{display:none!important}
   .ind-row:has(.ind-fltbtn) .ind-k,html.fit .ind-row:has(.ind-fltbtn) .ind-k{min-width:72px;flex:0 1 auto}
-  .ind-row:has(.ind-fltbtn) > b,html.fit .ind-row:has(.ind-fltbtn) > b{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  /* QA R2-M4 (2026-11-06): on a narrow screen the value or note takes its own line under the name and Filters, wrapping
+     instead of being cut */
+  .ind-row:has(.ind-fltbtn),html.fit .ind-row:has(.ind-fltbtn){flex-wrap:wrap;row-gap:0;white-space:normal}
+  .ind-row:has(.ind-fltbtn) > b,html.fit .ind-row:has(.ind-fltbtn) > b{flex-basis:100%;min-width:0;white-space:normal;line-height:1.35;order:3}
   .ind-row.flt-open .ind-act{display:flex;flex-basis:100%;gap:6px;padding-top:8px;margin-top:2px;border-top:1px solid var(--border)}
   .ind-actbtn{height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:var(--fs-xs);color:var(--text);cursor:pointer}
 }
@@ -1339,3 +1342,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
   .chart-legend .ind-row{max-width:100%;min-width:0}
   .ind-row .ind-k{min-width:0;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* QA R2-M3: the Flow Timeline's note may wrap rather than cut the failure message */
+.flow-note{white-space:normal;max-width:360px}
+.fl-pop{overflow:auto}

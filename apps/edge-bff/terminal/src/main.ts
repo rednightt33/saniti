@@ -137,8 +137,8 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
 function later(ctx: Ctx, M: MarketData) {
   if (!M.later) return;
   /* QA M6 (2026-11-06): the Flow rows say the files failed instead of "Loading broker data" for ever */
-  const failed = () => { const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false;
-    ctx.brokerFailed = true; ctx.refreshFlowIndicators?.() };
+  const failed = () => { ctx.brokerFailed = true; const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false;
+    ctx.refreshFlowIndicators?.(); ctx.brokerPanelFailed?.() };
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
     ctx.flowRows = b.flow;                                 // EXEC-TERMINAL-FLOW-IND: read by the Flow indicators on setFlowData

@@ -16,7 +16,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const pad = (n: number) => String(n).padStart(2, '0');
 export const ymd = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 export const longDay = (t: string) => new Date(t + 'T00:00:00Z')
-  .toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' });
+  .toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
 
 /** the weeks (Monday first) of one month: each cell is a 'YYYY-MM-DD' or '' outside the month */
 export function monthGrid(y: number, m: number): string[][] {

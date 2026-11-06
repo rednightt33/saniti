@@ -325,7 +325,7 @@ function intradayMarks(ctx: Ctx, chart: any, series: any[], keys: string[], cont
   }
   series.forEach(s => s.attachPrimitive(new SessionLines()));
   if (!keys.length) return;
-  const day = (k: string) => new Date(k.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' });
+  const day = (k: string) => new Date(k.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
   const tf = String(ctx.M.tf || '').toUpperCase(), last = keys[keys.length - 1];
   const note = document.createElement('div');
   note.className = 'tf-note';
