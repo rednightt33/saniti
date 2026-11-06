@@ -1210,14 +1210,14 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 
 /* EXEC-BROKER-INV-PANEL (user 2026-11-06): Broker Inventory's Brokers / Board / Investor buttons on its pane row (the Flow
    Timeline's buttons, one size smaller), their lists open to the right; "0" at the start of the lines, in the left gutter */
-.ind-flt{display:inline-flex;align-items:center;gap:6px;margin-left:6px}
+.ind-flt{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-left:6px;max-width:100%;min-width:0}
 .ind-flt .fl{position:relative}
 .ind-flt .fl-btn{height:24px;padding:0 6px 0 8px;font-size:var(--fs-xs);text-shadow:none}
 .ind-flt .fl-pop{left:0;right:auto;top:calc(100% + 4px);text-shadow:none}
 .ind-flt .fl-btn .fl-v{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ind-zero{position:absolute;z-index:4;transform:translate(-100%,-50%);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-2);font-variant-numeric:tabular-nums;pointer-events:none}
 .ind-zero[hidden]{display:none}
-.ind-row.in-pane:has(.ind-flt){flex-wrap:wrap;row-gap:4px}
+.ind-row.in-pane:has(.ind-flt){flex-wrap:wrap;row-gap:4px;max-width:calc(100% - var(--ax-l,94px) - 84px)}
 @media(max-width:760px){.ind-flt{margin-left:0}.ind-flt .fl-btn .fl-k{display:none}}
 
 /* EXEC-BROKER-INV-PANEL (design top_brokers_panel.html, "Dua lajur"): Top brokers' Domestic / Foreign / Total lanes, the

@@ -578,7 +578,7 @@ export function initBroker(ctx: Ctx) {
     $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
     $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y)}<span class="tag ${vc}${big}">${vt}</span></div>`
       + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
-    $('fdHint').textContent = `${fdRange.text()} · Top ${RS.fdN}`;
+    $('fdHint').textContent = fdRange.text();
   }
 
   /* ---- wiring ---- */

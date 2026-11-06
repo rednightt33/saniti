@@ -26,8 +26,9 @@ export function mapSvg(pts: MapPoint[], lim: number): string {
   for (const c of [6, 10, -6, -10])             // the verdict's lines: foreign + domestic = c
     g += `<line x1="${X(-lim) - S}" y1="${Y(c + lim) - S}" x2="${X(lim) + S}" y2="${Y(c - lim) + S}" stroke="${c > 0 ? 'var(--up)' : 'var(--down)'}" stroke-width="1" ${Math.abs(c) === 10 ? '' : 'stroke-dasharray="3 3"'} opacity=".5"/>`;
   g += `<line x1="${S / 2}" y1="0" x2="${S / 2}" y2="${S}" stroke="var(--border-2)"/><line x1="0" y1="${S / 2}" x2="${S}" y2="${S / 2}" stroke="var(--border-2)"/>`;
-  g += `<text x="${S - 6}" y="12" class="fdm-q" text-anchor="end">Both accumulating</text><text x="6" y="12" class="fdm-q">Dom. absorbing · foreign out</text>`;
-  g += `<text x="${S - 6}" y="${S - 6}" class="fdm-q" text-anchor="end">Foreign absorbing · dom. out</text><text x="6" y="${S - 6}" class="fdm-q">Both distributing</text>`;
+  // the corner names fit inside their quadrant (half the map); the full name is the tag above the map
+  g += `<text x="${S - 6}" y="12" class="fdm-q" text-anchor="end">Both accumulate</text><text x="6" y="12" class="fdm-q">Domestic absorbs</text>`;
+  g += `<text x="${S - 6}" y="${S - 6}" class="fdm-q" text-anchor="end">Foreign absorbs</text><text x="6" y="${S - 6}" class="fdm-q">Both distribute</text>`;
   const ok = pts.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
   if (ok.length > 1) g += `<polyline points="${ok.map(p => `${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--text-3)" stroke-width="1" opacity=".8"/>`;
   for (const p of ok) {
