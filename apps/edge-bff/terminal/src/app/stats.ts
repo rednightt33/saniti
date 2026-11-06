@@ -1,7 +1,7 @@
 /* LEFT PANEL — Statistics (visible-range, collapsible, accordion), reference lines 1400-1655. */
 import { periodsPerYear, UNIT } from '../data/timeframe';
 import type { Ctx } from './context';
-import { $, avgOf, cls, empty, median, pct, row, spin, store } from './context';
+import { $, avgOf, cls, empty, median, minus, pct, row, spin, store } from './context';
 
 export function initStats(ctx: Ctx) {
   const { chart, dates, closes, volume, N, SYMBOL } = ctx;
@@ -139,7 +139,7 @@ export function initStats(ctx: Ctx) {
     const hits = counts.map((c,i) => {
       const e0 = lo+i*step, e1 = e0+step;
       const range = (i===0 && clipLo) ? `≤ ${fmtEdge(e1)}` : (i===bins-1 && clipHi) ? `≥ ${fmtEdge(e0)}` : `${fmtEdge(e0)} to ${fmtEdge(e1)}`;
-      return `<rect class="hit" x="${(i*bw).toFixed(1)}" y="0" width="${bw.toFixed(1)}" height="${SH}" data-tip="${range}|${c} ${unit} · ${(c/vals.length*100).toFixed(1)}%"/>`;
+      return `<rect class="hit" x="${(i*bw).toFixed(1)}" y="0" width="${bw.toFixed(1)}" height="${SH}" data-tip="${minus(range)}|${c} ${unit} · ${(c/vals.length*100).toFixed(1)}%"/>`;
     }).join('');
     // dotted vertical marker where the latest observation sits (clamped into the clipped range)
     let line = '', tag = '';
@@ -172,7 +172,7 @@ export function initStats(ctx: Ctx) {
     const grid = c.ticks.map((t: number) => { const y = (SH-4-(t-c.lo)/((c.hi-c.lo)||1)*(SH-8)).toFixed(1), z = c.zero!==undefined && Math.abs(t-c.zero)<1e-9;
       return `<line x1="0" x2="${SW}" y1="${y}" y2="${y}" stroke="${z?'#d4d4d4':'#f0f0f0'}" ${z?'stroke-dasharray="3 3"':''} vector-effect="non-scaling-stroke"/>` }).join('');
     const lines = c.series.map((s: any) => polyline(s.vals, c.lo, c.hi, s.color, {dash:s.dash||''})).join('');
-    host.innerHTML = `<div class="lc"><div class="lc-y">${c.ticks.map((t: number)=>`<span style="top:${yPct(t,c.lo,c.hi).toFixed(1)}%">${c.fmtY(t)}</span>`).join('')}</div>`
+    host.innerHTML = `<div class="lc"><div class="lc-y">${c.ticks.map((t: number)=>`<span style="top:${yPct(t,c.lo,c.hi).toFixed(1)}%">${minus(c.fmtY(t))}</span>`).join('')}</div>`
       + `<div class="lc-plot"><svg class="spark" viewBox="0 0 ${SW} ${SH}" preserveAspectRatio="none" aria-hidden="true">${grid}${c.area||''}${lines}</svg><div class="xh"></div>${c.series.map((s: any)=>`<i class="dot" style="background:${s.color}"></i>`).join('')}</div>`
       + `<div class="lc-x"><span class="l">${fmtTick(c.idx[0],long)}</span><span class="c">${fmtTick(c.idx[Math.floor(last/2)],long)}</span><span class="r">${fmtTick(c.idx[last],long)}</span></div></div>`;
     const plot = host.querySelector('.lc-plot') as HTMLElement, xh = plot.querySelector('.xh') as HTMLElement, dots = [...plot.querySelectorAll<HTMLElement>('.dot')];
@@ -181,7 +181,7 @@ export function initStats(ctx: Ctx) {
       const r = plot.getBoundingClientRect(), f = Math.min(1, Math.max(0, (e.clientX-r.left)/r.width)), k = Math.round(f*last);
       xh.style.left = (k/last*100)+'%'; xh.style.display = 'block';
       dots.forEach((d,j) => { d.style.left = (k/last*100)+'%'; d.style.top = yPct(c.series[j].vals[k], c.lo, c.hi)+'%'; d.style.display = 'block' });
-      showStTip(e.clientX, e.clientY, `<b>${fmtDay(c.idx[k])}</b> ${c.tipFn(k)}`);
+      showStTip(e.clientX, e.clientY, `<b>${fmtDay(c.idx[k])}</b> ${minus(c.tipFn(k))}`);
     };
     plot.onpointerleave = off;
   };
@@ -189,7 +189,7 @@ export function initStats(ctx: Ctx) {
     let mid = '';
     const pos = zero===undefined ? -1 : (zero-lo)/(hi-lo);
     if(pos > .14 && pos < .86) mid = `<span class="c" style="left:${(pos*100).toFixed(1)}%">${fmt(zero as number)}</span>`;   // skip if it would collide with an edge label
-    return `<span class="l">${clip.lo?'≤ ':''}${fmt(lo)}</span>${mid}<span class="r">${clip.hi?'≥ ':''}${fmt(hi)}</span>`;
+    return minus(`<span class="l">${clip.lo?'≤ ':''}${fmt(lo)}</span>${mid}<span class="r">${clip.hi?'≥ ':''}${fmt(hi)}</span>`);
   };
 
   /* ---- visible range ---- */

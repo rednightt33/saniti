@@ -5314,6 +5314,31 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M355 — QA putaran 3: collapse panel bawah dan dialog layout belum siap rilis (2026-11-06, branch)
+
+- **Ditemukan oleh:** lima agen QA putaran 3 (user 2026-11-06: "QA putaran 3."), draft `28614e02`, sebelum merge ke `main`;
+  laporan `verification/terminal_api/qa_20261106/QA_REPORT.md` bagian 9.
+- **Verified:**
+  - Panel indikator yang dilipat selalu 30 px (`FOLD_PX`), padahal baris judulnya 44–193 px di ≤ 1024 px dan 50 px di
+    1440 bila catatannya dua baris: baris saling tumpuk, chevron "Expand" mengenai tombol Remove baris berikutnya.
+  - Dialog Open layout: kolom grid `auto` ikut lebar nama (`nowrap`), nama 120 huruf mendorong dialog keluar layar ponsel.
+  - Perubahan bisa hilang: base layout diambil dari halaman sesudah "settle" (perubahan pada detik awal ikut jadi base);
+    membuka layout tanpa layout aktif tidak bertanya; ulang autosave sesudah 409 menulis nama lama.
+  - Menu: daftar panah memuat `label` padahal fokus di `input` (indexOf −1); Esc hanya terdengar di dalam dialog.
+  - File broker gagal: `failed()` tidak menggambar ulang Flow Timeline ("Rp 0" sampai zoom).
+- **Root cause:** ukuran dan perilaku diturunkan dari asumsi (tinggi baris tetap, base dari keadaan halaman, fokus di elemen
+  yang didaftar) alih-alih dari elemen yang sebenarnya; uji awal hanya desktop dan alur bahagia.
+- **Solution (branch, sesudah `8d82c6fa`):** tinggi panel terlipat = tinggi barisnya sendiri + margin (diamati ulang saat
+  baris berubah), baris pane satu baris di ≤ 1024 px dengan teks penuh di panel Filters, label sumbu panel terlipat tidak
+  ditulis; base = isi layout yang dibuka, beda sesudah settle = perubahan; konfirmasi bila chart tanpa layout punya isi;
+  ulang 409 memakai nama tersimpan; daftar panah dari input switch; Esc/Tab-trap di tingkat dokumen, fokus kembali ke tombol
+  Layout; dialog `minmax(0,1fr)`; pesan kegagalan berupa kalimat dengan tindakan; `failed()` memanggil `redrawFlow`;
+  plus semua Low (QA_REPORT.md bagian 10).
+- **Status:** FIXED di branch (bukti `verification/terminal_api/terminal_look/look_check6.mjs`); rilis menunggu QA singkat.
+- **Lesson:** ukuran yang menampung konten diturunkan dari konten itu sendiri (tinggi baris, lebar nama), dan "keadaan
+  tersimpan" diambil dari sumbernya (isi layout), bukan dari keadaan halaman sesudah memulihkan diri. Setiap fitur baru
+  diuji di ponsel, layar sentuh dan dengan kegagalan server sebelum QA.
+
 ### M354 — Review lima agen atas EXEC-TERMINAL-LOOK, EXEC-BROKER-INV-PANEL, EXEC-IND-DIALOG sebelum rilis (2026-11-06, branch)
 
 - **Ditemukan oleh:** lima agen reviewer (user 2026-11-06: "assign 5 agent 5.5 sonnet medium to review ur work. Design

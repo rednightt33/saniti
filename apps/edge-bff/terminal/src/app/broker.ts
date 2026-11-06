@@ -1,7 +1,7 @@
 /* RIGHT PANEL — Broker activity (reference lines 3685-3985). The fixture is the reference's dummy history built around
    a real BBCA day; live data is the published broker summary of the ticker (the last sessions in its files). */
 import type { Ctx } from './context';
-import { $, keyOf, nfCompact, pct, row, spin, store } from './context';
+import { $, keyOf, minus, nfCompact, pct, row, spin, store } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
 import { aggregate, fdQuadrant, fdSplit, FD_QUADRANTS, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
 import { atLeast } from '../calc/flow';
@@ -46,7 +46,7 @@ export function verdictLadder(ratio: number, tip: string): string {
   const [cur] = bandarVerdict(ratio), lim = Math.max(big * 1.5, 0.15), x = Math.max(0, Math.min(100, 50 + ratio / lim * 50));
   const pos = (v: number) => (50 + v / lim * 50).toFixed(2), pctL = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}%`;
   const edges = [-lim, -big, -acc, acc, big, lim];
-  return `<div class="acc-ladder" data-tip="${tip}" role="img" aria-label="Verdict ${cur}: ${(ratio * 100).toFixed(2)}% of total buy">`
+  return `<div class="acc-ladder" data-tip="${tip}" role="img" aria-label="Verdict ${cur}: ${minus((ratio * 100).toFixed(2))}% of total buy">`
     + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}" style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
     + `<i class="acc-pin" style="left:${x.toFixed(1)}%"></i></div>`
     + `<div class="acc-lv">${[-big, -acc, acc, big].map(v => `<span style="left:${pos(v)}%">${pctL(v)}</span>`).join('')}</div></div>`;
@@ -361,7 +361,7 @@ export function initBroker(ctx: Ctx) {
       <div class="rp-sub"><span>${gross?'Top sellers · gross':'Top net sellers'}</span><span>${sellers.length} brokers</span></div>
       <table class="rp-t">${head}<tbody>${rowsHtml(sellers,'s')}</tbody></table>
       ${can?`<button class="rp-more" id="bsMore">${RS.more?'Show less':'Show top 10'}</button>`:''}`;
-    $('bsHint').textContent = (gross ? 'Gross' : 'Net') + ' · ' + bsRange.text();
+    $('bsHint').textContent = (gross ? 'Gross' : 'Net') + ' · ' + bsRange.text() + (live && RS.board !== 'All' ? ` · ${RS.board}` : '');   // QA round 3 (F3)
     const mb = $('bsMore'); if(mb) mb.onclick = () => { RS.more = !RS.more; renderBS() };
     $('bsBody').querySelectorAll('tr[data-b]').forEach(tr => tr.onclick = () => selectBroker(tr.dataset.b));
   }
@@ -402,9 +402,11 @@ export function initBroker(ctx: Ctx) {
     const val = (x, side) => `<span class="v ${side==='buy'?'up':'down'}">${x ? sgn(x.net) : ''}</span>`;
     const bar = (x, side) => `<div class="trk ${side}">${x ? splitFill(Math.abs(x.net)/mx*100, x.f, x.d, side) : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
-    const [vt, vc] = bal.verdict, big = /^Big /.test(vt) ? ' big' : '';
     const r2 = +(bal.ratio * 100).toFixed(2), ratio = (r2 > 0 ? '+' : r2 < 0 ? '−' : '') + Math.abs(r2).toFixed(2) + '%';   // QA: never "−0.00%"
-    const why = `Bandar balance · Top ${N}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
+    /* QA round 3 (agent 3 F1): the verdict, the ladder and the header read the ratio as shown (two decimals), so "+6.00%"
+       is never called Neutral */
+    const shown = r2 / 100, [vt, vc] = bandarVerdict(shown), big = /^Big /.test(vt) ? ' big' : '', onBoard = board === 'All' ? '' : ` · ${board}`;
+    const why = `Bandar balance · Top ${N}${onBoard}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
       + ` = (${cv(bal.buy)} − ${cv(bal.sell)}) ÷ ${cv(bal.total)} = ${ratio}. Acc from 6%, Big Acc from 10%; Dist and Big Dist the same below zero.`;
     /* EXEC-BROKER-INV-PANEL (user 2026-11-06, design top_brokers_panel.html "Dua lajur"): three lanes, Domestic, Foreign and
        Total, each the Top N buyers' net against the Top N sellers' net in that investor type; Domestic + Foreign = Total */
@@ -420,7 +422,7 @@ export function initBroker(ctx: Ctx) {
     const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
       + `<span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
-      + verdictLadder(bal.ratio, why)
+      + verdictLadder(shown, why)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */
       + `<div class="acc-lanes"><div class="acc-cap">Investor type of the trades · Top ${N} brokers</div>${lanes}</div>`;
@@ -432,7 +434,7 @@ export function initBroker(ctx: Ctx) {
       : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`;
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
     $('accBody').querySelectorAll('#accTop button').forEach(btn => btn.onclick = () => { RS.accN = +btn.dataset.n; store.set('ml.acc.top', String(RS.accN)); renderAcc() });
-    $('accHint').textContent = n ? `${accRange.text()} · net · ${vt}` : `${accRange.text()} · net`;
+    $('accHint').textContent = (n ? `${accRange.text()} · net · ${vt}` : `${accRange.text()} · net`) + (board === 'All' ? '' : ` · ${board}`);   // QA round 3 (F3): the board
   }
   function renderAcc(){
     if(live) return renderAccPaired();
@@ -554,11 +556,11 @@ export function initBroker(ctx: Ctx) {
     const lines = all.map((s, k) => `<path d="${s.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.cum).toFixed(1)).join('')}" fill="none" stroke="${INV_COLORS[k]}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
     const unit = RS.invUnit === 'lot' ? 'lot' : '';
     const hits = Array.from({ length:n }, (_, i) => {
-      const d = invRange.bf + i, rows = picks.map((b,k) => `${b} ${all[k][i].cum<0?'-':'+'}${cv(all[k][i].cum)}`).join('<br>');
+      const d = invRange.bf + i, rows = picks.map((b,k) => `${b} ${all[k][i].cum<0?'−':'+'}${cv(all[k][i].cum)}`).join('<br>');
       return `<rect class="hit" x="${(x(i)-W/(n-1)/2).toFixed(1)}" y="0" width="${(W/(n-1)).toFixed(1)}" height="${H}" data-tip="${bkDates[d].slice(5)}|<br>${rows}"></rect>`;
     }).join('');
     $('invBody').innerHTML = `
-      <div class="rp-invwrap"><span class="rp-ymax">${hi>0?'+'+cv(hi):'0'}</span><span class="rp-ymin">${lo<0?'-'+cv(lo):'0'}</span>
+      <div class="rp-invwrap"><span class="rp-ymax">${hi>0?'+'+cv(hi):'0'}</span><span class="rp-ymin">${lo<0?'−'+cv(lo):'0'}</span>
         <svg class="rp-inv" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">
           <line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#d4d4d4" stroke-dasharray="3 3"/>${lines}${hits}</svg></div>
       <div class="axis"><span class="l">${bkDates[invRange.bf].slice(5)}</span><span class="r">${bkDates[invRange.bt].slice(5)}</span></div>`;
@@ -608,7 +610,7 @@ export function initBroker(ctx: Ctx) {
     const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', board), N);
     const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
     const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
-    const pc = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`;
+    const pc = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%` };   // QA round 3 (agent 5 M4): never "−0.0%"
     return { label, x, y, r, cur, empty:!(bal.total > 0),
       tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|X foreign ${pc(x)} + Y domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
   };
@@ -622,7 +624,7 @@ export function initBroker(ctx: Ctx) {
     if (custom) { const k = `${fdRange.bf}-${fdRange.bt}`, was = spans.get(k); spans.set(k, [fdRange.bf, fdRange.bt, true]); void was }
     const pts: MapPoint[] = [...spans.values()].sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).map(([f, tt, c]) => fdPoint(f, tt, `${tt - f + 1}D`, c));
     const cur = pts.find(p => p.cur) || pts[1], lim = mapLimit(pts.flatMap(p => [p.x, p.y, p.r]));
-    const [vt, vc] = bandarVerdict(cur.r / 100), big = /^Big /.test(vt) ? ' big' : '';
+    const [vt, vc] = bandarVerdict(Math.round(cur.r * 100) / 1e4), big = /^Big /.test(vt) ? ' big' : '';   // as Top brokers: the ratio as shown
     $('fdTop').innerHTML = [3, 5, 10].map(k => `<button type="button" data-n="${k}" class="${k === RS.fdN ? 'active' : ''}" aria-pressed="${k === RS.fdN}">Top ${k}</button>`).join('');
     // the map has its own Board choice (reviewer 1: it does not follow Top brokers' choice); x, y and the verdict share it
     $('fdBoard').value = RS.fdBoard;

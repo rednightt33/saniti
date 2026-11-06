@@ -75,9 +75,16 @@ export function initFlow(ctx: Ctx) {
     if(ki && ki.length) { flt.investors.clear(); ki.forEach(b => flt.investors.add(b)) }
     if(k && Array.isArray(k.brokers) && k.brokers.length) keptBrokers = k.brokers.map(String);
   } catch(e) { /* a broken entry: the defaults */ }
-  const keepFilters = () => { if(!live || keptBrokers) return;      // not before the kept broker list is applied
-    const all = flt.brokers.size === allBrokers().length;
-    store.set(FKEY, JSON.stringify({ boards:[...flt.boards], investors:[...flt.investors], brokers:all ? null : [...flt.brokers].sort() })) };
+  /* QA round 3 (agent 4 L3): the kept list is applied on every broker file until the whole history is in (a broker of
+     earlier years only is then found too), and only a choice the user makes is written back. A broker the ticker does not
+     have stays in the kept list (it is the choice for the tickers that have it); a list the user turns into "all" is
+     written as all */
+  let brokerTouched = false;
+  const keepFilters = () => { if(!live) return;
+    const all = flt.brokers.size === allBrokers().length, have = new Set(allBrokers());
+    const others = (keptBrokers || []).filter(b => !have.has(b));          // kept for the tickers that have them
+    const brokers = all ? (brokerTouched || !keptBrokers ? null : keptBrokers) : [...new Set([...flt.brokers, ...(brokerTouched ? [] : others)])].sort();
+    store.set(FKEY, JSON.stringify({ boards:[...flt.boards], investors:[...flt.investors], brokers })) };
   const isDefault = () => flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length
     && flt.investors.size===1 && flt.investors.has('Foreign');
 
@@ -361,7 +368,10 @@ export function initFlow(ctx: Ctx) {
   const openPops = new Set<FilterApi>();
   const closeAll = (except?: FilterApi) => { openPops.forEach(p => { if(p !== except) p.close() }) };
   document.addEventListener('click', e => { if(![...openPops].some(p => p.root.contains(e.target as Node))) closeAll() });
-  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAll() });
+  /* QA round 3 (open Low of round 2): Escape in a list gives the focus back to its button, not to the page */
+  document.addEventListener('keydown', e => { if(e.key !== 'Escape') return;
+    const owner = [...openPops].find(p => p.root.contains(document.activeElement)); closeAll();
+    if(owner) (owner.root.querySelector('.fl-btn') as HTMLElement | null)?.focus() });
 
   const makeFilter = ctx.makeFilter = (root: HTMLElement, { title, searchable, placeholder, grid, mono, max, getOptions, state, summary, onChange }: any) => {
     root.innerHTML = `<button class="fl-btn" aria-haspopup="true" aria-expanded="false"><span class="fl-k">${title}</span><span class="fl-v"></span><i class="chev"></i></button>
@@ -421,15 +431,17 @@ export function initFlow(ctx: Ctx) {
   brokerSummary.isModified = (s: Set<string>) => s.size !== allBrokers().length;
   const listSummary = (all: number, def?: Set<string>) => { const f: any = (s: Set<string>) => s.size===all ? `All (${all})` : s.size===0 ? 'None' : [...s].map(x=>x==='Cash'?'Cash':x).join(', ');
     f.isModified = (s: Set<string>) => def ? !(s.size===def.size && [...def].every(x=>s.has(x))) : s.size!==all; return f };
-  const onFilter = () => { recomputeFlow(); $('flReset').hidden = isDefault(); keepFilters() };
+  const onFilter = (save = true) => { recomputeFlow(); $('flReset').hidden = isDefault(); if(save) keepFilters() };
+  ctx.redrawFlow = () => onFilter(false);                  // QA round 3 (R2-M3): the broker files failed: the Flow shows it now
 
   const fBroker = makeFilter($('flBroker'), { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true,
-    getOptions:()=>allBrokers().map(b=>({id:b,label:b})), state:flt.brokers, summary:brokerSummary, onChange:onFilter });
+    getOptions:()=>allBrokers().map(b=>({id:b,label:b})), state:flt.brokers, summary:brokerSummary, onChange:() => { brokerTouched = true; onFilter() } });
   const fBoard = makeFilter($('flBoard'), { title:'Board', getOptions:()=>BOARDS, state:flt.boards,
     summary:listSummary(BOARDS.length), onChange:onFilter });
   const fInv = makeFilter($('flInvestor'), { title:'Investor', getOptions:()=>INVESTORS, state:flt.investors,
     summary:listSummary(INVESTORS.length, new Set(['Foreign'])), onChange:onFilter });
   $('flReset').onclick = () => {
+    brokerTouched = true;                                   // Reset is the user's choice: every broker, written as such
     flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b));
     flt.boards.clear(); BOARDS.forEach(b=>flt.boards.add(b.id));
     flt.investors.clear(); flt.investors.add('Foreign');
@@ -464,11 +476,11 @@ export function initFlow(ctx: Ctx) {
     const wasAll = flt.brokers.size === allBrokers().length;   // a broker choice the user made survives the full history
     ctx.COMBOS = combos; flowFrom = from; flowTo = to; flowLoading = false; flowMore = more;
     if(wasAll){ flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b)) }
-    if(keptBrokers && combos.length) {               // the kept broker choice, on this ticker's brokers
-      const have = new Set(allBrokers()), mine = keptBrokers.filter(b => have.has(b)); keptBrokers = null;
-      if(mine.length) { flt.brokers.clear(); mine.forEach(b => flt.brokers.add(b)) }
+    if(keptBrokers && combos.length && !brokerTouched) {     // the kept broker choice, on this ticker's brokers
+      const have = new Set(allBrokers()), mine = keptBrokers.filter(b => have.has(b));
+      flt.brokers.clear(); (mine.length ? mine : allBrokers()).forEach(b => flt.brokers.add(b));
     }
-    [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter();
+    [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter(false);
     ctx.refreshFlowIndicators?.();
   };
 

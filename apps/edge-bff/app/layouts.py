@@ -6,13 +6,16 @@ it checks the shape (a JSON object of setting name -> string, the page's localSt
 meaning (the page drops a setting it no longer knows when it opens a layout).
 
 Routes (session; writes also with the CSRF header, as /api/v1/screener):
-  GET    /api/v1/terminal/layouts               {layouts: [Layout without state]}, the most recently opened first
+  GET    /api/v1/terminal/layouts               {layouts: [Layout without state], limit}, the most recently opened first
   GET    /api/v1/terminal/layouts/{layout_id}   Layout with state
   PUT    /api/v1/terminal/layouts/{layout_id}   {name, state, summary?, revision?}: create (no revision) or replace
   PATCH  /api/v1/terminal/layouts/{layout_id}   {favorite?, opened?}: star it, or mark it opened (no revision)
   DELETE /api/v1/terminal/layouts/{layout_id}
-Errors: {"error": {code, field?, message, details?}}: 422 INVALID_INPUT / LIMIT_EXCEEDED, 404 NOT_FOUND,
-409 REVISION_CONFLICT (details.revision: the stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not applied).
+Errors: {"error": {code, field?, message, details?}}: 422 INVALID_INPUT (a field the API does not take, a name, summary or
+state out of shape, more than STATE_KEYS settings, text PostgreSQL cannot store: NUL or an unpaired surrogate) /
+LIMIT_EXCEEDED (LAYOUT_LIMIT layouts, STATE_BYTES of state), 404 NOT_FOUND, 409 REVISION_CONFLICT (details.revision: the
+stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not applied). A body over 131,072 bytes is refused before it
+reaches these routes (main.py, 413 REQUEST_TOO_LARGE).
 """
 import asyncio
 from contextlib import contextmanager
@@ -33,7 +36,6 @@ STATE_BYTES = 65536                                 # migration 20261106_001 (oc
 STATE_KEYS = 64
 LAYOUT_LIMIT = 50                                   # per owner, as the screener's 50 saved screens
 SCHEMA_VERSION = 1
-REQUEST_BYTES = 131072
 RETRY_SECONDS = 30
 FIELDS = ('layout_id', 'name', 'summary', 'schema_version', 'favorite', 'revision', 'created_at', 'updated_at', 'opened_at')
 
@@ -43,7 +45,7 @@ MESSAGES = {
     'REVISION_CONFLICT': 'The layout changed since it was read (another tab or device saved it): read it again.',
     'NAME_TAKEN': 'Another layout has this name: choose another name.',
     'LIMIT_EXCEEDED': 'A limit was reached.',
-    'LAYOUTS_NOT_READY': 'Saved layouts are not installed yet; retry after the stated seconds.',
+    'LAYOUTS_NOT_READY': 'Saved layouts are not available yet on this server. Try again in a few minutes; your chart is unchanged.',
 }
 
 
@@ -67,9 +69,17 @@ def too_large(size=None):
                    {'limit': 'layout_bytes', 'allowed': STATE_BYTES, **({'needed': size} if size else {})})
 
 
+def storable(field, text):
+    """Text PostgreSQL can store (QA round 3, L1: a NUL or an unpaired surrogate reached the database as a 503)"""
+    if '\x00' in text or any('\ud800' <= ch <= '\udfff' for ch in text):
+        raise invalid(field, f'{field} holds a character that cannot be stored (NUL or an unpaired surrogate)')
+    return text
+
+
 def checked_name(name):
     if not isinstance(name, str) or not name.strip():
         raise invalid('name', 'name is 1 to 120 characters')
+    storable('name', name)
     name = ' '.join(name.split())
     if len(name) > NAME_MAX:
         raise invalid('name', f'name is at most {NAME_MAX} characters')
@@ -87,6 +97,7 @@ def checked_state(state):
             raise invalid('state', f'{k[:40]!r} is not a Terminal setting name (ml.…)')
         if not isinstance(v, str):
             raise invalid('state', f'the value of {k} is text')
+        storable('state', v)
     size = len(json.dumps(state, ensure_ascii=False, separators=(', ', ': ')).encode())
     if size > STATE_BYTES:
         raise too_large(size)
@@ -185,14 +196,11 @@ class Layouts:
 
     @staticmethod
     async def body(request):
-        raw = await request.body()
-        if len(raw) > REQUEST_BYTES:
-            raise failure('LIMIT_EXCEEDED', 422, None, f'A request is at most {REQUEST_BYTES:,} bytes.',
-                          {'limit': 'request_bytes', 'allowed': REQUEST_BYTES, 'needed': len(raw)})
+        raw = await request.body()           # at most 131,072 bytes: main.py refuses a larger body first (413)
         try:
             body = json.loads(raw or b'null')
-        except ValueError:
-            raise invalid(None, 'The body is not JSON.')
+        except (ValueError, RecursionError):
+            raise invalid(None, 'The body is not JSON a layout can carry.')
         if not isinstance(body, dict):
             raise invalid(None, 'The body is a JSON object.')
         return body
@@ -228,6 +236,7 @@ class Layouts:
             summary = body.get('summary', '')
             if not isinstance(summary, str) or len(summary) > SUMMARY_MAX:
                 raise invalid('summary', f'summary is text of at most {SUMMARY_MAX} characters')
+            storable('summary', summary)
             revision = body.get('revision')
             if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int) or revision < 1):
                 raise invalid('revision', 'revision is the positive whole number the layout was read with')

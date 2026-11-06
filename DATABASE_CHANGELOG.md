@@ -9,12 +9,18 @@
   layouts: name unique per owner, state JSON object at most 65,536 bytes, summary, favorite, revision, opened_at); index
   `terminal_layouts_owner_opened`; `edge_bff_runtime` gets SELECT/INSERT/UPDATE/DELETE only (the file checks no TRUNCATE,
   REFERENCES, TRIGGER and nothing for PUBLIC); preflight refuses a second run; rollback body in the file (drop the table).
-- **Status:** written and tested on a disposable local PostgreSQL 16 (`apps/edge-bff/tests/test_layouts.py`, 18 tests;
-  the edge-bff suites that build the schema from the migrations, 154 tests); **not applied to Railway**. It is applied at
-  the release, DRYRUN then APPLY through the runbook of `20261028_001`
-  (`verification/screener/jobs/run_migration.sh`), then `database/migrations/APPLIED.sha256` gains it. Until then
+- **Status:** written and tested on a disposable local PostgreSQL 16 (`apps/edge-bff/tests/test_layouts.py`: API,
+  the verify block against extra and PUBLIC grants, the table rules, a second run refused, the provisioned login; the
+  edge-bff suites that build the schema from the migrations, 162 tests); **not applied to Railway**. Runbook ready (QA
+  round 3, M1): `verification/screener/jobs/migration20261106_001_{dryrun,apply}.params.json` and its checks in
+  `check_migration_log.py`; rehearsed with the real job runner (`scripts/onboarding/migration_job.py`) on a local database
+  built from the six edge_bff migrations: DRYRUN `VERDICT PASS 38/38`, APPLY `VERDICT PASS 23/23`, a second APPLY refused
+  by the preflight (logs `verification/terminal_api/layouts_migration/rehearsal_*.log`). Live read-only check 2026-11-06:
+  the table does not exist and PUBLIC holds no privilege on any edge_bff table. It is applied at the release through
+  `verification/screener/jobs/run_migration.sh` (DRYRUN then APPLY), then `database/migrations/APPLIED.sha256` gains it. Until then
   edge-bff answers 503 `LAYOUTS_NOT_READY` on the layout routes and the rest of the Terminal works.
-- `scripts/provision_edge_bff_login.py` holds the table to exactly these grants once it exists.
+- `scripts/provision_edge_bff_login.py` holds the table to exactly these grants once it exists, and now refuses any
+  PUBLIC privilege on an EDGE table (QA round 3, L6; none live).
 
 ## 2026-11-05 — Feature 01 queue claimed per ticker (EXEC-UNIVERSE-BROKER L3)
 

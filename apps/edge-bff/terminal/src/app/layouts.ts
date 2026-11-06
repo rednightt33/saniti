@@ -23,7 +23,7 @@ export const NOT_LAYOUT = ['ml.symbol', 'ml.tfs', 'ml.draw.', 'ml.drawings', 'ml
   'ml.winst.', 'ml.assets.', 'ml.ind.favs', 'ml.ind.box', 'ml.ind.navw', 'ml.layout.'] as const;
 
 const ACTIVE_KEY = 'ml.layout.active', AUTO_KEY = 'ml.layout.autosave', BASE_KEY = 'ml.layout.base', REBASE_KEY = 'ml.layout.rebase';
-const RECENT = 5, AUTOSAVE_MS = 1500;
+const RECENT = 5, AUTOSAVE_MS = 1500, SETTLE_MAX_MS = 8000;
 const TF_LABEL: Record<string, string> = { '5m':'5M', '15m':'15M', '1h':'1H', '4h':'4H', D:'D', W:'W', M:'M' };
 
 /** the layout settings as stored now (absent ones left out) */
@@ -63,12 +63,18 @@ export function initLayouts(ctx: Ctx) {
   let active: Active | null = read<Active | null>(ACTIVE_KEY, null);
   if (active && (typeof active.id !== 'string' || typeof active.name !== 'string')) active = null;
   let autosave = store.get(AUTO_KEY) !== '0';
+  /* base: the saved state of the open layout. QA round 3 (M3): after a layout is opened it is the layout's own state, never
+     what the page holds once it settles, so a change made while the page restores itself still counts as a change */
   let base = store.get(BASE_KEY) || '';
-  let rebasing = store.get(REBASE_KEY) === '1', switching = false;
+  let settling = store.get(REBASE_KEY) === '1', switching = false;
   const setActive = (a: Active | null) => { active = a; a ? store.set(ACTIVE_KEY, JSON.stringify(a)) : store.remove(ACTIVE_KEY); paint() };
   const setBase = (s: Record<string, string>) => { base = canonical(s); store.set(BASE_KEY, base); paint() };
   const now = () => snapshotOf(k => store.get(k));
-  const dirty = () => !!active && !rebasing && canonical(now()) !== base;
+  const dirty = () => !!active && !settling && canonical(now()) !== base;
+  /** QA round 3 (M4): with no layout open, a chart worth keeping (indicators, or a chart type or mode of its own) */
+  const unsavedWork = () => { const s = now(); let n = 0; try { const a = JSON.parse(s['ml.ind.v1'] || '[]'); n = Array.isArray(a) ? a.length : 0 } catch { /* none */ }
+    return n > 0 || (s['ml.chart.style'] || 'candle') !== 'candle' || (s['ml.chart.mode'] || 'price') !== 'price' };
+  const MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
 
   /* ---- the toolbar button, after Price / Return (the user's red box) ---- */
   const btn = document.createElement('button');
@@ -76,10 +82,17 @@ export function initLayouts(ctx: Ctx) {
   const anchor = $('modeGroup') as HTMLElement;
   const sep = document.createElement('div'); sep.className = 'divider lay-div';
   anchor.after(sep, btn);
+  /* QA round 3 (M6, L6): a message wraps and sits at the bottom (never over the menu); a failure stays until it is closed */
   const toast = document.createElement('div'); toast.className = 'lay-toast'; toast.setAttribute('role', 'status'); toast.setAttribute('aria-live', 'polite');
   document.body.appendChild(toast);
   let toastTimer: any = 0;
-  const say = (t: string) => { toast.textContent = t; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2600) };
+  const say = (t: string, error = false) => {
+    toast.innerHTML = `<span>${esc(t)}</span>${error ? '<button type="button" class="lay-tx" aria-label="Close message">×</button>' : ''}`;
+    toast.classList.toggle('err', error); toast.classList.add('show'); clearTimeout(toastTimer);
+    if (!error) toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+  };
+  const fail = (e: any, what: string) => say(e?.message || what, true);
+  toast.addEventListener('click', e => { if ((e.target as HTMLElement).closest('.lay-tx')) toast.classList.remove('show') });
   function paint() {
     const d = dirty();
     btn.innerHTML = `<span class="lay-name">${esc(active ? active.name : 'Layout')}</span>${d ? '<i class="lay-dirty" title="Unsaved changes"></i>' : ''}${ICON.chev}`;
@@ -89,144 +102,162 @@ export function initLayouts(ctx: Ctx) {
 
   /* ---- saving ---- */
   let chain: Promise<unknown> = Promise.resolve(), timer: any = 0;
-  const create = async (name: string, state: Record<string, string>) => {
-    const r = await layoutsApi.put(newLayoutId(), { name, state, summary:summaryOf(state) });
-    return r;
-  };
-  /** save the chart into the active layout (none: ask for a name first). Last write wins: a newer revision saved from
-      another tab or device is read and replaced, since the chart on screen is what the user asked to keep */
+  let list: LayoutMeta[] = [], listError = '', listing = false;
+  const fetchList = async () => { listing = true; try { list = (await layoutsApi.list()).layouts; listError = '' } catch (e: any) { list = []; listError = e?.message || 'Saved layouts could not be read.' } finally { listing = false } };
+  const freeName = (want: string) => { const names = new Set(list.map(l => l.name)); if (!names.has(want)) return want; let k = 2; while (names.has(`${want} ${k}`)) k++; return `${want} ${k}` };
+  const create = (name: string, state: Record<string, string>) => layoutsApi.put(newLayoutId(), { name, state, summary:summaryOf(state) });
+  /** save the chart into the open layout (none: ask for a name first). The chart wins over a newer revision saved from
+      another tab or device, since it is what the user asked to keep; the stored name stays (QA round 3, M5) */
   const save = (loud: boolean) => chain = chain.then(async () => {
     clearTimeout(timer); timer = 0;
     if (!active) { await saveAs('Save layout', 'My layout'); return }
-    const state = now(), body = { name:active.name, state, summary:summaryOf(state) };
+    if (!dirty()) { if (loud) say(`“${active.name}” is already saved`); return }      // QA round 3 (L5): no write without a change
+    const state = now(), summary = summaryOf(state);
     try {
       let r;
-      try { r = await layoutsApi.put(active.id, { ...body, revision:active.revision }) }
+      try { r = await layoutsApi.put(active.id, { name:active.name, state, summary, revision:active.revision }) }
       catch (e) {
         if (!(e instanceof LayoutApiError) || e.code !== 'REVISION_CONFLICT') throw e;
         const cur = await layoutsApi.get(active.id);
-        r = await layoutsApi.put(active.id, { ...body, revision:cur.revision });
+        r = await layoutsApi.put(active.id, { name:cur.name, state, summary, revision:cur.revision });
       }
       setActive({ id:r.layout_id, name:r.name, revision:r.revision }); setBase(state);
       if (loud) say(`Saved “${r.name}”`);
     } catch (e: any) {
-      if (e instanceof LayoutApiError && e.status === 404) { setActive(null); say('This layout was deleted elsewhere: save it again to keep it.') }
-      else say(e?.message || 'The layout could not be saved.');
+      if (e instanceof LayoutApiError && e.status === 404) { setActive(null); store.remove(BASE_KEY); base = ''; say('This layout was deleted on another device or tab. Use Save layout to keep this chart.', true) }
+      else fail(e, 'The layout could not be saved. Try again in a minute; your chart is unchanged.');
     }
   }).catch(() => {});
   const saveAs = async (title: string, suggest: string) => {
-    const name = await askName(title, suggest, async n => {
+    await fetchList();
+    const name = await askName(title, freeName(suggest), async n => {
       const state = now(), r = await create(n, state);
       setActive({ id:r.layout_id, name:r.name, revision:r.revision }); setBase(state);
     });
     if (name) say(`Saved “${active!.name}”`);
   };
-  storeWatch.add(k => {
-    if (!(LAYOUT_KEYS as readonly string[]).includes(k) || switching) return;
-    paint();
-    if (autosave && active && !rebasing) { clearTimeout(timer); timer = setTimeout(() => save(false), AUTOSAVE_MS) }
+  const schedule = () => { if (autosave && active && !settling) { clearTimeout(timer); timer = setTimeout(() => save(false), AUTOSAVE_MS) } };
+  storeWatch.add(k => { if (!(LAYOUT_KEYS as readonly string[]).includes(k) || switching) return; paint(); schedule() });
+  /* after a layout is opened the page restores itself (each part writes its settings again); once it has settled, a
+     difference from the layout is a change: shown, and saved when Autosave is on */
+  const settled = () => { settling = false; store.remove(REBASE_KEY); paint(); if (dirty()) schedule() };
+  if (settling) { const t0 = Date.now(), wait = () => (window as any).__flowAll || Date.now() - t0 > SETTLE_MAX_MS ? setTimeout(settled, 600) : setTimeout(wait, 250); setTimeout(wait, 1500) }
+  else if (dirty()) schedule();                                  // QA round 3 (L2): a change left unsaved by a reload
+  /* a change still waiting for its autosave when the page goes away is sent on the way out */
+  addEventListener('pagehide', () => {
+    if (!timer || !active || !dirty()) return;
+    const state = now(); layoutsApi.putOnLeave(active.id, { name:active.name, state, summary:summaryOf(state), revision:active.revision });
   });
-  /* after a layout is opened, the page settles (each part writes its settings as it restores them) before the opened state
-     becomes the saved one */
-  if (rebasing) {
-    const done = () => { if (!rebasing) return; rebasing = false; store.remove(REBASE_KEY); setBase(now()) };
-    const t0 = Date.now(), wait = () => (window as any).__flowAll || Date.now() - t0 > 8000 ? setTimeout(done, 600) : setTimeout(wait, 250);
-    setTimeout(wait, 1500);
-  }
 
   /* ---- switching layouts: the page reloads on the same ticker with the layout's settings ---- */
   const flush = async () => { if (timer) { clearTimeout(timer); timer = 0; await save(false) } else await chain };
-  const okToLeave = async () => !dirty() || autosave || await confirmBox(`“${active!.name}” has unsaved changes. Leave them?`, 'Leave without saving');
+  const okToLeave = async () => {
+    if (active) return !dirty() || autosave || await confirmBox(`Discard the unsaved changes to “${active.name}”?`, 'Discard changes');
+    return !unsavedWork() || await confirmBox('This chart is not saved as a layout. Discard it? (Save layout keeps it.)', 'Discard chart');
+  };
   const load = async (state: Record<string, string>, a: Active) => {
-    switching = true;
+    switching = true; clearTimeout(timer); timer = 0;
     applyState(state, (k, v) => store.set(k, v), k => store.remove(k));
     store.set(ACTIVE_KEY, JSON.stringify(a)); store.set(BASE_KEY, canonical(state)); store.set(REBASE_KEY, '1');
     location.reload();
   };
   const openLayout = async (id: string) => {
-    if (active && id === active.id && !dirty()) { closeMenu(); return }
+    if (active && id === active.id && !dirty()) { closeMenu(true); return }
     await flush(); if (!(await okToLeave())) return;
     try {
       const l = await layoutsApi.get(id);
       await layoutsApi.mark(id, { opened:true }).catch(() => {});
       await load(l.state, { id:l.layout_id, name:l.name, revision:l.revision });
-    } catch (e: any) { say(e?.message || 'The layout could not be opened.') }
+    } catch (e: any) {
+      if (e instanceof LayoutApiError && e.status === 404) { await fetchList(); redrawOpen(); say('That layout no longer exists (deleted on another device or tab). The list is updated.', true) }
+      else fail(e, 'The layout could not be opened. Try again in a minute.');
+    }
   };
 
   /* ---- the menu ---- */
   const menu = document.createElement('div');
   menu.className = 'lay-menu'; menu.hidden = true; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Layout');
   document.body.appendChild(menu);
-  let list: LayoutMeta[] = [], listError = '';
-  const fetchList = async () => { try { list = (await layoutsApi.list()).layouts; listError = '' } catch (e: any) { list = []; listError = e?.message || 'Saved layouts could not be read.' } };
-  const recentRow = (l: LayoutMeta) => `<div class="lay-item${active && l.layout_id === active.id ? ' on' : ''}" role="menuitem" tabindex="-1" data-open="${l.layout_id}">
-      <span class="lay-iname"><b>${esc(l.name)}</b><small>${esc(l.summary || '')}</small></span>
-      <button type="button" class="lay-star${l.favorite ? ' fav' : ''}" data-star="${l.layout_id}" aria-pressed="${l.favorite}" aria-label="${l.favorite ? 'Remove from favourites' : 'Add to favourites'}">${ICON.star}</button></div>`;
+  const ordered = () => [...list].sort((a, b) => Number(b.favorite) - Number(a.favorite) || (a.opened_at < b.opened_at ? 1 : a.opened_at > b.opened_at ? -1 : 0));
+  const starBtn = (l: LayoutMeta, role = '') => `<button type="button" class="lay-star${l.favorite ? ' fav' : ''}"${role} data-star="${l.layout_id}" aria-pressed="${l.favorite}" aria-label="${esc(`${l.favorite ? 'Remove' : 'Add'} “${l.name}” ${l.favorite ? 'from' : 'to'} favourites`)}">${ICON.star}</button>`;
+  /* QA round 3 (L3): the row is a group of two controls (open, star), the open layout marked with aria-current */
+  const recentRow = (l: LayoutMeta) => { const on = !!active && l.layout_id === active.id;
+    return `<div class="lay-item${on ? ' on' : ''}" role="none"><button type="button" class="lay-open" role="menuitem" data-open="${l.layout_id}"${on ? ' aria-current="true"' : ''}>
+      <span class="lay-iname"><b>${esc(l.name)}</b><small>${esc(l.summary || '')}</small></span></button>${starBtn(l)}</div>` };
+  const kbd = (t: string) => `<kbd>${t}</kbd>`;
   function renderMenu() {
-    const recent = list.slice(0, RECENT);
-    menu.innerHTML = `<button type="button" class="lay-mi" role="menuitem" data-act="save"${active && !dirty() && autosave ? ' aria-disabled="true"' : ''}><span>Save layout</span><kbd>Ctrl + S</kbd></button>
-      <label class="lay-mi lay-switch"><span>Autosave</span><input type="checkbox" role="switch" ${autosave ? 'checked' : ''} aria-label="Autosave"><i></i></label>
-      <div class="lay-sep"></div>
+    const recent = ordered().slice(0, RECENT), same = active && !dirty();
+    menu.innerHTML = `<button type="button" class="lay-mi" role="menuitem" data-act="save"${same ? ' aria-disabled="true" title="No unsaved changes"' : ''}><span>Save layout</span>${kbd(MAC ? '⌘ S' : 'Ctrl + S')}</button>
+      <label class="lay-mi lay-switch"><span>Autosave</span><input type="checkbox" role="menuitemcheckbox" ${autosave ? 'checked aria-checked="true"' : 'aria-checked="false"'} aria-label="Autosave"><i></i></label>
+      <div class="lay-sep" role="separator"></div>
       <button type="button" class="lay-mi" role="menuitem" data-act="copy">${ICON.copy}<span>Make a copy…</span></button>
-      <button type="button" class="lay-mi" role="menuitem" data-act="rename">${ICON.pen}<span>Rename…</span></button>
-      <div class="lay-sep"></div>
+      <button type="button" class="lay-mi" role="menuitem" data-act="rename"${active ? '' : ' aria-disabled="true" title="Save the chart as a layout first"'}>${ICON.pen}<span>Rename…</span></button>
+      <div class="lay-sep" role="separator"></div>
       <button type="button" class="lay-mi" role="menuitem" data-act="new">${ICON.plus}<span>Create new layout…</span></button>
-      <div class="lay-sep"></div>
-      <div class="lay-head">Recently used</div>
-      ${listError ? `<div class="lay-msg">${esc(listError)}</div>` : recent.length ? recent.map(recentRow).join('') : '<div class="lay-msg">No saved layouts yet.</div>'}
-      <div class="lay-sep"></div>
-      <button type="button" class="lay-mi" role="menuitem" data-act="open">${ICON.folder}<span>Open layout…</span><kbd>.</kbd></button>`;
+      <div class="lay-sep" role="separator"></div>
+      <div class="lay-head" role="presentation">Recently used</div>
+      ${listing && !list.length ? '<div class="lay-msg">Loading…</div>' : listError ? `<div class="lay-msg">${esc(listError)}</div>` : recent.length ? recent.map(recentRow).join('') : '<div class="lay-msg">No saved layouts yet.</div>'}
+      <div class="lay-sep" role="separator"></div>
+      <button type="button" class="lay-mi" role="menuitem" data-act="open">${ICON.folder}<span>Open layout…</span>${kbd('.')}</button>`;
   }
   const place = () => { const r = btn.getBoundingClientRect(), w = menu.offsetWidth;
     menu.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px'; menu.style.top = (r.bottom + 6) + 'px';
     menu.style.maxHeight = Math.max(200, innerHeight - r.bottom - 16) + 'px' };
+  /* the menu's focus order for the arrow keys (QA round 3, M1: the Autosave switch is its input) */
+  const navItems = () => [...menu.querySelectorAll<HTMLElement>('.lay-mi:not(.lay-switch), .lay-switch input, .lay-open')];
+  const keepFocus = (sel: string | null) => { if (sel) (menu.querySelector(sel) as HTMLElement | null)?.focus() };
   async function openMenu() {
+    toast.classList.remove('show');
     renderMenu(); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); place();
-    await fetchList(); if (!menu.hidden) { renderMenu(); place() }
-    (menu.querySelector('.lay-mi') as HTMLElement | null)?.focus();
+    navItems()[0]?.focus();
+    await fetchList();
+    if (menu.hidden) return;
+    const f = document.activeElement as HTMLElement | null, sel = f && menu.contains(f) ? (f.dataset.act ? `[data-act="${f.dataset.act}"]` : f.dataset.open ? `[data-open="${f.dataset.open}"]` : f.dataset.star ? `[data-star="${f.dataset.star}"]` : f.matches('input') ? '.lay-switch input' : null) : null;
+    renderMenu(); place(); keepFocus(sel);
   }
   function closeMenu(focus = false) { if (menu.hidden) return; menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); if (focus) btn.focus() }
   btn.addEventListener('click', () => menu.hidden ? openMenu() : closeMenu());
   document.addEventListener('pointerdown', e => { const t = e.target as Node; if (!menu.hidden && !menu.contains(t) && !btn.contains(t)) closeMenu() }, true);
   addEventListener('resize', () => { if (!menu.hidden) place() });
-  // Escape closes the menu wherever the focus is (a star click redraws the menu and leaves the focus on the page)
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden && !document.querySelector('.lay-back')) { closeMenu(true) } });
+  // Escape closes the menu wherever the focus is (a star click redraws the menu)
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden && !document.querySelector('.lay-back')) closeMenu(true) });
   menu.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { e.stopPropagation(); closeMenu(true); return }
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    const items = [...menu.querySelectorAll<HTMLElement>('.lay-mi,.lay-item')], k = items.indexOf(document.activeElement as HTMLElement);
-    e.preventDefault(); items[(k + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    const t = e.target as HTMLElement;
+    if (e.key === 'ArrowRight' && t.matches('.lay-open')) { e.preventDefault(); (t.parentElement?.querySelector('.lay-star') as HTMLElement | null)?.focus(); return }
+    if (e.key === 'ArrowLeft' && t.matches('.lay-star')) { e.preventDefault(); (t.parentElement?.querySelector('.lay-open') as HTMLElement | null)?.focus(); return }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const items = navItems(), at = t.matches('.lay-star') ? t.parentElement?.querySelector('.lay-open') : t, k = items.indexOf(at as HTMLElement);
+    e.preventDefault();
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (k + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[k < 0 && e.key === 'ArrowUp' ? items.length - 1 : k < 0 && e.key === 'ArrowDown' ? 0 : next]?.focus();
   });
   menu.addEventListener('change', e => {
     const box = e.target as HTMLInputElement; if (box.type !== 'checkbox') return;
-    autosave = box.checked; store.set(AUTO_KEY, autosave ? '1' : '0'); paint();
+    autosave = box.checked; box.setAttribute('aria-checked', String(autosave)); store.set(AUTO_KEY, autosave ? '1' : '0'); paint();
     if (autosave && dirty()) save(false);
   });
+  const toggleStar = async (id: string, redraw: () => void, focusSel: string) => {
+    const l = list.find(x => x.layout_id === id); if (!l) return;
+    try { const r = await layoutsApi.mark(id, { favorite:!l.favorite }); l.favorite = r.favorite; redraw(); (document.querySelector(focusSel) as HTMLElement | null)?.focus() }
+    catch (er: any) { if (er instanceof LayoutApiError && er.status === 404) { await fetchList(); redraw() } fail(er, 'The star could not be changed. Try again in a minute.') }
+  };
   menu.addEventListener('click', async e => {
     const t = e.target as HTMLElement, star = t.closest('[data-star]') as HTMLElement | null;
-    if (star) {
-      e.stopPropagation(); const id = star.dataset.star!, l = list.find(x => x.layout_id === id); if (!l) return;
-      try { const r = await layoutsApi.mark(id, { favorite:!l.favorite }); l.favorite = r.favorite; renderMenu(); (menu.querySelector(`[data-star="${id}"]`) as HTMLElement | null)?.focus() } catch (er: any) { say(er?.message || 'Not changed.') }
-      return;
-    }
+    if (star) { e.stopPropagation(); const id = star.dataset.star!; toggleStar(id, renderMenu, `.lay-menu [data-star="${id}"]`); return }
     const row = t.closest('[data-open]') as HTMLElement | null;
     if (row) { closeMenu(); openLayout(row.dataset.open!); return }
-    const act = (t.closest('[data-act]') as HTMLElement | null)?.dataset.act; if (!act) return;
+    const item = t.closest('[data-act]') as HTMLElement | null, act = item?.dataset.act; if (!act) return;
+    if (act === 'rename' && !active) { say('Save the chart as a layout first (Save layout), then it can be renamed.'); return }
     closeMenu();
     if (act === 'save') save(true);
-    else if (act === 'copy') copyLayout();
+    else if (act === 'copy') saveAs('Make a copy', active ? `${active.name} copy` : 'My layout');
     else if (act === 'rename') renameLayout();
     else if (act === 'new') newLayout();
     else if (act === 'open') openDialog();
   });
-  menu.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.target as HTMLElement).matches('.lay-item')) { e.preventDefault(); (e.target as HTMLElement).click() } });
 
-  async function copyLayout() {
-    await saveAs('Make a copy', active ? `${active.name} copy` : 'My layout');
-  }
   async function renameLayout() {
-    if (!active) { await saveAs('Save layout', 'My layout'); return }
-    const was = active;
+    const was = active!;
     const name = await askName('Rename layout', was.name, async n => {
       const cur = await layoutsApi.get(was.id);
       const r = await layoutsApi.put(was.id, { name:n, state:cur.state, summary:cur.summary, revision:cur.revision });
@@ -244,84 +275,100 @@ export function initLayouts(ctx: Ctx) {
     });
   }
 
-  /* ---- dialogs ---- */
-  const modal = (inner: string, label: string) => {
+  /* ---- dialogs (QA round 3, M2): Escape closes them wherever the focus is, Tab stays inside, and the focus goes back to
+     the Layout button (or what opened them, when it is still on screen) ---- */
+  const modal = (inner: string, label: string, onClose?: () => void) => {
     const back = document.createElement('div'); back.className = 'lay-back';
     back.innerHTML = `<div class="lay-dlg" role="dialog" aria-modal="true" aria-label="${esc(label)}">${inner}</div>`;
     document.body.appendChild(back);
-    const opener = document.activeElement as HTMLElement | null;
-    const close = () => { back.remove(); opener?.focus?.() };
+    const was = document.activeElement as HTMLElement | null;
+    const opener = was && was !== document.body && was.isConnected && was.offsetParent !== null && !menu.contains(was) ? was : btn;
+    const dlg = back.firstElementChild as HTMLElement;
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return }
+      if (e.key !== 'Tab') return;
+      const f = [...dlg.querySelectorAll<HTMLElement>('button:not([disabled]),input,[tabindex="0"]')].filter(x => x.offsetParent !== null);
+      if (!f.length) return;
+      const i = f.indexOf(document.activeElement as HTMLElement);
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus() } else if (!e.shiftKey && (i === f.length - 1 || i < 0)) { e.preventDefault(); f[0].focus() }
+    };
+    const close = () => { document.removeEventListener('keydown', key, true); back.remove(); onClose?.(); opener.focus?.() };
+    document.addEventListener('keydown', key, true);
     back.addEventListener('pointerdown', e => { if (e.target === back) close() });
-    return { back, dlg:back.firstElementChild as HTMLElement, close };
+    return { back, dlg, close };
   };
   /** a name, sent through `commit` (its refusal is shown under the field); resolves to the name, or null when cancelled */
   function askName(title: string, suggest: string, commit: (name: string) => Promise<void>) {
     return new Promise<string | null>(resolve => {
+      let result: string | null = null;
       const { dlg, close } = modal(`<h3>${esc(title)}</h3><input class="lay-in" type="text" maxlength="120" value="${esc(suggest)}" aria-label="Layout name">
-        <div class="lay-err" role="alert"></div><div class="lay-btns"><button type="button" class="lay-b2" data-x>Cancel</button><button type="button" class="lay-b1" data-ok>Save</button></div>`, title);
+        <div class="lay-err" role="alert"></div><div class="lay-btns"><button type="button" class="lay-b2" data-x>Cancel</button><button type="button" class="lay-b1" data-ok>Save</button></div>`, title, () => resolve(result));
       const input = dlg.querySelector('input') as HTMLInputElement, err = dlg.querySelector('.lay-err') as HTMLElement, ok = dlg.querySelector('[data-ok]') as HTMLButtonElement;
-      const done = (v: string | null) => { close(); resolve(v) };
       const go = async () => {
         const n = input.value.replace(/\s+/g, ' ').trim();
         if (!n) { err.textContent = 'Give the layout a name.'; input.focus(); return }
         ok.disabled = true; err.textContent = '';
-        try { await commit(n); done(n) } catch (e: any) { err.textContent = e?.message || 'Not saved.'; ok.disabled = false; input.focus() }
+        try { await commit(n); result = n; close() } catch (e: any) { err.textContent = e?.message || 'Not saved. Try again in a minute.'; ok.disabled = false; input.focus() }
       };
-      ok.onclick = go; (dlg.querySelector('[data-x]') as HTMLElement).onclick = () => done(null);
-      dlg.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go() } else if (e.key === 'Escape') { e.stopPropagation(); done(null) } });
+      ok.onclick = go; (dlg.querySelector('[data-x]') as HTMLElement).onclick = close;
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go() } });
       input.focus(); input.select();
     });
   }
   function confirmBox(text: string, yes: string) {
     return new Promise<boolean>(resolve => {
-      const { dlg, close } = modal(`<p>${esc(text)}</p><div class="lay-btns"><button type="button" class="lay-b2" data-x>Cancel</button><button type="button" class="lay-b1 warn" data-ok>${esc(yes)}</button></div>`, 'Confirm');
-      const done = (v: boolean) => { close(); resolve(v) };
-      (dlg.querySelector('[data-ok]') as HTMLElement).onclick = () => done(true);
-      (dlg.querySelector('[data-x]') as HTMLElement).onclick = () => done(false);
-      dlg.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); done(false) } });
+      let result = false;
+      const { dlg, close } = modal(`<p>${esc(text)}</p><div class="lay-btns"><button type="button" class="lay-b2" data-x>Cancel</button><button type="button" class="lay-b1 warn" data-ok>${esc(yes)}</button></div>`, 'Confirm', () => resolve(result));
+      (dlg.querySelector('[data-ok]') as HTMLElement).onclick = () => { result = true; close() };
+      (dlg.querySelector('[data-x]') as HTMLElement).onclick = close;
       (dlg.querySelector('[data-x]') as HTMLElement).focus();
     });
   }
+  let redrawOpen = () => {};
   async function openDialog() {
     if (document.querySelector('.lay-back')) return;
     const { dlg, close } = modal(`<h3>Open layout</h3><input class="lay-in" type="search" placeholder="Search layouts" aria-label="Search layouts">
       <div class="lay-list" role="listbox" aria-label="Saved layouts"><div class="lay-msg">Loading…</div></div>
-      <div class="lay-btns"><button type="button" class="lay-b2" data-x>Close</button></div>`, 'Open layout');
+      <div class="lay-btns"><button type="button" class="lay-b2" data-x>Close</button></div>`, 'Open layout', () => { redrawOpen = () => {} });
     dlg.classList.add('wide');
     const q = dlg.querySelector('input') as HTMLInputElement, box = dlg.querySelector('.lay-list') as HTMLElement;
     let armed = '';
     const day = (t: string) => new Date(t).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).replace('Sept', 'Sep');
-    const draw = () => {
+    const draw = (focus?: string) => {
       if (listError) { box.innerHTML = `<div class="lay-msg">${esc(listError)}</div>`; return }
-      const f = q.value.trim().toLowerCase();
-      const rows = [...list].sort((a, b) => Number(b.favorite) - Number(a.favorite) || (a.opened_at < b.opened_at ? 1 : -1)).filter(l => !f || l.name.toLowerCase().includes(f));
-      box.innerHTML = rows.length ? rows.map(l => `<div class="lay-orow${active && l.layout_id === active.id ? ' on' : ''}" role="option" tabindex="0" data-open="${l.layout_id}" aria-selected="${!!active && l.layout_id === active.id}">
-          <button type="button" class="lay-star${l.favorite ? ' fav' : ''}" data-star="${l.layout_id}" aria-pressed="${l.favorite}" aria-label="${l.favorite ? 'Remove from favourites' : 'Add to favourites'}">${ICON.star}</button>
-          <span class="lay-iname"><b>${esc(l.name)}</b><small>${esc(l.summary || '')} · saved ${day(l.updated_at)}</small></span>
-          <button type="button" class="lay-del${armed === l.layout_id ? ' armed' : ''}" data-del="${l.layout_id}" aria-label="${armed === l.layout_id ? 'Click again to delete' : 'Delete layout'}">${armed === l.layout_id ? 'Delete?' : ICON.trash}</button></div>`).join('')
+      const f = q.value.trim().toLowerCase(), rows = ordered().filter(l => !f || l.name.toLowerCase().includes(f));
+      box.innerHTML = rows.length ? rows.map(l => { const on = !!active && l.layout_id === active.id;
+        return `<div class="lay-orow${on ? ' on' : ''}" role="option" tabindex="0" data-open="${l.layout_id}" aria-selected="${on}">
+          ${starBtn(l)}
+          <span class="lay-iname"><b title="${esc(l.name)}">${esc(l.name)}</b><small>${esc(l.summary || '')} · saved ${day(l.updated_at)}</small></span>
+          <button type="button" class="lay-del${armed === l.layout_id ? ' armed' : ''}" data-del="${l.layout_id}" aria-label="${esc(armed === l.layout_id ? `Click again to delete “${l.name}”` : `Delete “${l.name}”`)}">${armed === l.layout_id ? 'Delete?' : ICON.trash}</button></div>` }).join('')
         : `<div class="lay-msg">${list.length ? 'No layout matches.' : 'No saved layouts yet. Use Save layout to keep this chart.'}</div>`;
+      if (focus) (box.querySelector(focus) as HTMLElement | null)?.focus();
     };
+    redrawOpen = () => draw();
     q.addEventListener('input', () => { armed = ''; draw() });
     (dlg.querySelector('[data-x]') as HTMLElement).onclick = close;
     dlg.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { e.stopPropagation(); close() }
-      else if (e.key === 'Enter' && (e.target as HTMLElement).matches('.lay-orow')) { e.preventDefault(); (e.target as HTMLElement).click() }
+      const t = e.target as HTMLElement;
+      if (e.key === 'Enter' && t.matches('.lay-orow')) { e.preventDefault(); t.click(); return }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const rows = [...box.querySelectorAll<HTMLElement>('.lay-orow')]; if (!rows.length) return;
+      const at = rows.indexOf(t.closest('.lay-orow') as HTMLElement);
+      e.preventDefault(); rows[at < 0 ? (e.key === 'ArrowDown' ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))].focus();
     });
     box.addEventListener('click', async e => {
       const t = e.target as HTMLElement, star = t.closest('[data-star]') as HTMLElement | null, del = t.closest('[data-del]') as HTMLElement | null;
-      if (star) {
-        const l = list.find(x => x.layout_id === star.dataset.star); if (!l) return;
-        try { const r = await layoutsApi.mark(l.layout_id, { favorite:!l.favorite }); l.favorite = r.favorite; draw() } catch (er: any) { say(er?.message || 'Not changed.') }
-        return;
-      }
+      if (star) { const id = star.dataset.star!; toggleStar(id, () => draw(), `.lay-list [data-star="${id}"]`); return }
       if (del) {
         const id = del.dataset.del!;
-        if (armed !== id) { armed = id; draw(); (box.querySelector(`[data-del="${id}"]`) as HTMLElement | null)?.focus(); return }
+        if (armed !== id) { armed = id; draw(`[data-del="${id}"]`); return }
         try {
+          const at = [...box.querySelectorAll('.lay-orow')].findIndex(r => (r as HTMLElement).dataset.open === id);
           await layoutsApi.remove(id); list = list.filter(l => l.layout_id !== id); armed = '';
           if (active && active.id === id) { setActive(null); store.remove(BASE_KEY); base = '' }
           draw(); say('Layout deleted');
-        } catch (er: any) { say(er?.message || 'Not deleted.') }
+          const rows = box.querySelectorAll<HTMLElement>('.lay-orow'); (rows[Math.min(at, rows.length - 1)] || q).focus();
+        } catch (er: any) { if (er instanceof LayoutApiError && er.status === 404) { await fetchList(); draw() } fail(er, 'The layout could not be deleted. Try again in a minute.') }
         return;
       }
       const row = t.closest('[data-open]') as HTMLElement | null;

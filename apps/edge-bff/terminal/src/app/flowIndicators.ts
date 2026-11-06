@@ -369,6 +369,10 @@ export function initFlowIndicators(ctx: Ctx) {
         if (p.side && p.side !== 'buy' && !(sided && p.scope === 'topn')) parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
         const f = filterText(p); if (f) parts.push(f);
         if (p.window) parts.push(`${p.window}${letter}`);
+        /* QA round 2/3 (open Low "units not written"): a figure in lots says so (Rupiah figures carry "Rp" themselves);
+           from the registry unit: lot per trade, or a lot/value choice left at lot */
+        if (r.unit === 'lot/tx') parts.push('lot per trade');
+        else if (r.unit === 'lot|IDR' && !onIndex && (p.unit ?? byKey.unit?.default) === 'lot') parts.push('Lot');
         return spec.titled(parts[0], parts.slice(1));
       },
     };

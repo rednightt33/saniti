@@ -69,7 +69,9 @@ function visibleAll(items: MenuItem[], group: string, query: string, favs: Set<s
   const q = query.trim().toLowerCase();
   // QA M9 (2026-11-06): the short name too ("RSI", "SMA", "ATR"), as the search box's own example reads; an exact short
   // name or code comes first
-  if (q) return items.filter(i => `${i.name} ${i.id} ${i.short || ''} ${i.group} ${i.kind}`.toLowerCase().includes(q))
+  /* QA round 3 (agent 5 L7): the words are matched from their start ("rsi" no longer finds "Persistence") */
+  const at = new RegExp('(^|[^a-z0-9])' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (q) return items.filter(i => at.test(`${i.name} ${i.id} ${i.short || ''} ${i.group} ${i.kind}`.toLowerCase()))
     .sort((a, b) => Number((b.short || '').toLowerCase() === q || b.id.toLowerCase() === q) - Number((a.short || '').toLowerCase() === q || a.id.toLowerCase() === q));
   if (group === 'fav') return items.filter(i => favs.has(i.id));
   if (group === 'all') return items;

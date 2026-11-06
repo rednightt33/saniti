@@ -1240,6 +1240,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-now{gap:6px;flex-wrap:wrap}
 #fdBoard{margin-left:auto}
 .tag.fdm-t0,.tag.fdm-t1,.tag.fdm-t2,.tag.fdm-t3{color:#fff;font-weight:var(--fw-semibold)}
+.tag.fdm-t4,.tag.fdm-t5,.tag.fdm-t6,.tag.fdm-t7,.tag.fdm-t8{background:var(--sel);color:var(--text-2);font-weight:var(--fw-semibold)}   /* a flat part: no direction colour */
 .tag.fdm-t0{background:var(--up)}.tag.fdm-t1{background:var(--accent)}.tag.fdm-t2{background:#d98a0b}.tag.fdm-t3{background:var(--down)}
 .fdm-wrap{display:grid;grid-template-columns:14px minmax(0,1fr);gap:2px 4px;margin:6px 0 8px}
 .fdm-svg{grid-column:2;grid-row:1;width:100%;max-width:300px;height:auto;display:block;justify-self:center}
@@ -1249,8 +1250,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-tk{font-size:10px;fill:var(--text-3);font-variant-numeric:tabular-nums}
 .fdm-q{font-size:9.5px;fill:var(--text-3)}
 .fdm-p{font-size:10.5px;fill:var(--text-2);font-weight:var(--fw-medium)}.fdm-p.cur{fill:var(--text);font-weight:var(--fw-bold)}
-.fdm-eq{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);margin:0 0 6px;text-align:center}
-.fdm-eq span{display:block;font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
+.fdm-eq{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);margin:0 0 6px;text-align:center}
+.fdm-eq span{display:block;font-size:var(--fs-2xs);color:var(--text-3);white-space:normal;overflow-wrap:anywhere;line-height:1.25}   /* QA round 3 (agent 5 M3): wraps in a narrow panel instead of cutting the verdict */
 .fdm-eq b{font-size:var(--fs-12);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums}
 .fdm-eq i{font-style:normal;color:var(--text-3)}
 .fdm-tbl{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
@@ -1260,6 +1261,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-row.on{background:var(--sel);font-weight:var(--fw-semibold)}
 .fdm-dot{justify-self:end;width:8px;height:8px;border-radius:50%}
 .fdm-dot.fdm-t0{background:var(--up)}.fdm-dot.fdm-t1{background:var(--accent)}.fdm-dot.fdm-t2{background:#d98a0b}.fdm-dot.fdm-t3{background:var(--down)}
+.fdm-dot.fdm-t4,.fdm-dot.fdm-t5,.fdm-dot.fdm-t6,.fdm-dot.fdm-t7,.fdm-dot.fdm-t8{background:var(--text-3)}
 
 .im-box{height:min(720px,calc(100dvh - 64px));max-height:calc(100dvh - 16px)}
 /* reviewer 5 (2026-11-06, phones and touch): the pane buttons on their own line clear of the right axis tags; touch-size
@@ -1326,6 +1328,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:1024px) and (hover:none){.ind-fltbtn{height:32px}}
 .ind-act{display:none}
+.ind-fltnote{display:none}
 @media(max-width:1024px){
   html .ind-row:has(.ind-fltbtn) > .ind-eye,html.fit .ind-row:has(.ind-fltbtn) > .ind-eye,html .ind-row:has(.ind-fltbtn) > .ind-fold,html.fit .ind-row:has(.ind-fltbtn) > .ind-fold{display:none!important}
   .ind-row:has(.ind-fltbtn) .ind-k,html.fit .ind-row:has(.ind-fltbtn) .ind-k{min-width:72px;flex:0 1 auto}
@@ -1334,6 +1337,13 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
   .ind-row:has(.ind-fltbtn),html.fit .ind-row:has(.ind-fltbtn){flex-wrap:wrap;row-gap:0;white-space:normal}
   .ind-row:has(.ind-fltbtn) > b,html.fit .ind-row:has(.ind-fltbtn) > b{flex-basis:100%;min-width:0;white-space:normal;line-height:1.35;order:3}
   .ind-row.flt-open .ind-act{display:flex;flex-basis:100%;gap:6px;padding-top:8px;margin-top:2px;border-top:1px solid var(--border)}
+  /* QA round 3 (Q3-H1, R2-M4): a pane row keeps one line, its name and its value or note shortened with "…"; the Filters
+     panel repeats them in full (.ind-fltnote), and the folded pane is sized from this one-line row */
+  .ind-row.in-pane:has(.ind-fltbtn),html.fit .ind-row.in-pane:has(.ind-fltbtn){flex-wrap:nowrap;white-space:nowrap}
+  .ind-row.in-pane:has(.ind-fltbtn) .ind-k,html.fit .ind-row.in-pane:has(.ind-fltbtn) .ind-k{flex:1 1 0;min-width:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ind-row.in-pane:has(.ind-fltbtn) > b,html.fit .ind-row.in-pane:has(.ind-fltbtn) > b{flex:0 1 auto;flex-basis:auto;min-width:0;max-width:55%;order:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ind-row.in-pane:has(.ind-fltbtn) > b .flow-nodata-tip{white-space:nowrap}
+  .ind-row.flt-open .ind-fltnote:not(:empty){display:block;flex-basis:100%;order:-1;padding:0 2px 8px;margin-bottom:2px;border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-2);white-space:normal;line-height:1.4}
   .ind-actbtn{height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:var(--fs-xs);color:var(--text);cursor:pointer}
 }
 /* QA H2 (phone check 2026-11-06): the legend over the price chart stays inside its column; a long name shortens */
@@ -1378,7 +1388,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 
 /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the layout button after Price / Return, its menu (the user's reference: Save,
    Autosave, Make a copy, Rename, Create new, Recently used with stars, Open) and its dialogs */
-.lay-btn{display:inline-flex;align-items:center;gap:6px;height:32px;max-width:200px;padding:0 8px 0 10px;border:1px solid transparent;border-radius:var(--r-md,8px);background:transparent;color:var(--text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:0 0 auto}
+.lay-btn{display:inline-flex;align-items:center;gap:6px;height:32px;max-width:150px;padding:0 8px 0 10px;border:1px solid transparent;border-radius:var(--r-md,8px);background:transparent;color:var(--text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:0 0 auto}
 .lay-btn:hover,.lay-btn[aria-expanded="true"]{background:var(--hover)}
 .lay-btn:focus-visible{outline:2px solid #0070f3;outline-offset:1px}
 .lay-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1387,7 +1397,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .lay-dirty{width:6px;height:6px;border-radius:50%;background:#f5a623;flex:0 0 auto}
 .lay-menu{position:fixed;z-index:60;width:264px;overflow:auto;padding:6px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.14);font-size:13px;color:var(--text)}
 .lay-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;box-sizing:border-box}
-.lay-mi:hover,.lay-mi:focus-visible,.lay-item:hover,.lay-item:focus-visible{background:var(--hover);outline:none}
+.lay-mi:hover,.lay-item:hover{background:var(--hover)}
+.lay-mi:focus-visible,.lay-open:focus-visible,.lay-star:focus-visible,.lay-orow:focus-visible,.lay-del:focus-visible{outline:2px solid #0070f3;outline-offset:-2px}   /* QA round 3 (L3): a visible keyboard ring */
 .lay-mi > span{flex:1}
 .lay-mi svg{color:var(--text-2);flex:0 0 auto}
 .lay-mi[aria-disabled="true"]{color:var(--text-3)}
@@ -1401,7 +1412,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .lay-switch input:focus-visible + i{outline:2px solid #0070f3;outline-offset:2px}
 .lay-sep{height:1px;margin:6px 4px;background:var(--border)}
 .lay-head{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
-.lay-item{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 10px;border-radius:6px;cursor:pointer}
+.lay-item{display:flex;align-items:center;gap:4px;padding:2px 4px 2px 2px;border-radius:6px}
+.lay-open{flex:1;min-width:0;display:flex;padding:4px 8px;border:0;border-radius:5px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .lay-item.on{background:var(--text);color:var(--surface)}
 .lay-item.on small{color:rgba(255,255,255,.7)}
 .lay-iname{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -1415,8 +1427,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .lay-item.on .lay-star.fav{color:#ffc24d}
 .lay-star:hover{background:rgba(127,127,127,.15)}
 .lay-msg{padding:8px 10px;color:var(--text-3);font-size:12px;line-height:1.4}
-.lay-back{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(0,0,0,.28);padding:16px}
-.lay-dlg{width:min(360px,100%);padding:18px;border-radius:12px;background:var(--surface);box-shadow:0 18px 48px rgba(0,0,0,.2);color:var(--text);font-size:13px;box-sizing:border-box}
+.lay-back{position:fixed;inset:0;z-index:70;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;background:rgba(0,0,0,.28);padding:16px;box-sizing:border-box}   /* QA round 3 (H2): the column never grows past the window */
+.lay-dlg{min-width:0;max-width:100%;width:min(360px,100%);padding:18px;border-radius:12px;background:var(--surface);box-shadow:0 18px 48px rgba(0,0,0,.2);color:var(--text);font-size:13px;box-sizing:border-box}
 .lay-dlg.wide{width:min(520px,100%)}
 .lay-dlg h3{margin:0 0 12px;font-size:15px;font-weight:600}
 .lay-dlg p{margin:0 0 14px;line-height:1.45}
@@ -1430,13 +1442,33 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .lay-b1:disabled{opacity:.5;cursor:default}
 .lay-b2{border:1px solid var(--border-2);background:var(--surface);color:var(--text)}
 .lay-list{margin-top:10px;max-height:min(420px,60vh);overflow:auto;border:1px solid var(--border);border-radius:8px}
-.lay-orow{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 6px;border-bottom:1px solid var(--border);cursor:pointer}
+.lay-orow{display:flex;align-items:center;gap:8px;min-width:0;padding:8px 8px 8px 6px;border-bottom:1px solid var(--border);cursor:pointer}
 .lay-orow:last-child{border-bottom:0}
 .lay-orow:hover,.lay-orow:focus-visible{background:var(--hover);outline:none}
 .lay-orow.on .lay-iname b::after{content:"Open";margin-left:8px;padding:1px 6px;border-radius:4px;background:var(--sel);color:var(--text-2);font-size:10.5px;font-weight:600}
 .lay-del{min-width:28px;height:28px;display:grid;place-items:center;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--text-3);cursor:pointer;font:inherit;font-size:12px;font-weight:600;flex:0 0 auto}
 .lay-del:hover{background:rgba(229,72,77,.1);color:var(--down,#e5484d)}
 .lay-del.armed{background:var(--down,#e5484d);color:#fff}
-.lay-toast{position:fixed;left:50%;top:64px;z-index:80;transform:translate(-50%,-6px);padding:7px 12px;border-radius:8px;background:var(--text);color:var(--surface);font-size:12px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;max-width:calc(100% - 32px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lay-toast.show{opacity:1;transform:translate(-50%,0)}
+.lay-toast{position:fixed;left:50%;bottom:24px;z-index:80;display:flex;align-items:flex-start;gap:10px;transform:translate(-50%,6px);padding:9px 12px;border-radius:8px;background:var(--text);color:var(--surface);font-size:12.5px;font-weight:500;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;width:max-content;max-width:min(520px,calc(100vw - 32px));box-sizing:border-box}
+.lay-toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.lay-toast.err{background:#7a1d22}
+.lay-tx{flex:0 0 auto;width:22px;height:22px;margin:-2px -4px -2px 0;border:0;border-radius:5px;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer}
+.lay-tx:hover{background:rgba(255,255,255,.15)}
+@media (pointer:coarse){.lay-mi kbd{display:none}}
 @media (max-width:640px){.lay-btn{max-width:120px;padding:0 6px}.lay-menu{width:min(300px,calc(100vw - 16px))}}
+/* QA round 3 (agent 5 L5): at the narrowest right panel "Big Dist" / "Big Acc" fit their step, and a panel title keeps one
+   line (shortened with "…", the full title stays in the button's text) */
+.acc-steps span{letter-spacing:-.02em}
+.st-head > span:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* QA round 2/3 (open Low): a legend row keeps its height when its buttons appear on hover or focus (it grew 22 -> 24 px) */
+html.fit .chart-legend .ind-row{min-height:24px}
+.ind-row:focus-visible{outline:2px solid #0070f3;outline-offset:1px;border-radius:4px}
+/* QA round 3 (agents 1 L4, 5 L4): with both side panels open the toolbar is narrow; the Layout button added a width, so below
+   900 px of toolbar the Indicators and Events buttons show their icons only (their names stay for screen readers) and the
+   search box drops its key hint, instead of the search box shrinking to nothing and Full screen leaving the bar */
+.main-col .tvbar{container:tvbar / inline-size}
+@container tvbar (max-width: 900px){
+  .ind-btn > span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .mk-search kbd{display:none}
+  .lay-btn{max-width:120px}
+}

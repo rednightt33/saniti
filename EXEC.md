@@ -11991,7 +11991,7 @@ beres saja, biar sekalian bereskan bug."
   fixture; fixture tetap All (pembanding 1:1). Jendela pop-out baru mulai di Regular, state jendela yang sudah tersimpan
   tetap. Bukti: `verification/terminal_api/qa_20261106/QA_REPORT.md` bagian 8.
 
-## EXEC-TERMINAL-LAYOUTS — simpan/buka layout chart dan collapse panel indikator bawah (permintaan 2026-11-06, belum disetujui)
+## EXEC-TERMINAL-LAYOUTS — simpan/buka layout chart dan collapse panel indikator bawah (go 2026-11-06, draft)
 
 **Kata user, 2026-11-06:** "Misalkan user di dalam satu chart mereka menambahkan indikator 1, 2, 3, dan 4. Saya mau
 ditambahkan opsi di mana layout dari layout ini bisa di-save dan bisa dibuka kapanpun. Mungkin kita bisa taruh di pojok
@@ -12023,3 +12023,11 @@ mengecek hal ini. Konfirmasi."
   - Collapse: tombol di ujung baris judul indikator panel bawah; di layar ≤ 1024 px tombolnya ada di panel Filters
     (seperti Hide/Settings/Remove, QA H1).
   - Bukti: `verification/terminal_api/terminal_look/look_check5.mjs` (API tiruan di `serve.mjs`).
+
+**QA putaran 3 (2026-11-06):** belum siap rilis (QA_REPORT.md bagian 9). Pilihan yang ditawarkan: (1) perbaiki semua High
+dan Medium plus Low yang murah, QA singkat area yang diubah, lalu rilis; (2) perbaiki semuanya termasuk seluruh Low;
+(3) rilis tanpa layout/collapse. **Kata user:** "1 dan 2, jalankan" — perbaiki semua temuan (High, Medium dan Low), QA
+singkat pada area yang diubah, lalu rilis.
+- Status 2026-11-06: semua temuan diperbaiki di branch (QA_REPORT.md bagian 10, ERRORS M355); runbook migrasi layout siap
+  dan sudah digladi lokal. Berikutnya: QA singkat area yang diubah, lalu rilis (merge ke `main`, migrasi DRYRUN/APPLY,
+  deploy edge-bff).

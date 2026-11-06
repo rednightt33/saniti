@@ -1,0 +1,15 @@
+MIG APPLY 20261106_001_edge_bff_terminal_layouts.sql sha256=0ae400e79d03fa326702886c6e83ef2ac367d275f897b4a4b4a492b383f7e085
+OUT {"q": "edge_bff_tables", "ms": 0, "part": 0, "rows": [["backtest_jobs"], ["backtest_results"], ["backtest_trials"], ["conversation_ui"], ["jobs"], ["screener_items"]]}
+OUT {"q": "edge_bff_tables", "ms": 0, "part": 1, "rows": [["sessions"], ["terminal_layouts"], ["watchlist_items"]]}
+OUT {"q": "runtime_grants", "ms": 1, "part": 0, "rows": [["backtest_jobs", "INSERT,SELECT,UPDATE"], ["backtest_results", "DELETE,INSERT,SELECT"], ["backtest_trials", "INSERT,SELECT,UPDATE"], ["conversation_ui", "DELETE,INSERT,SELECT,UPDATE"], ["jobs", "DELETE,INSERT,SELECT,UPDATE"], ["screener_items", "DELETE,INSERT,SELECT,UPDATE"]]}
+OUT {"q": "runtime_grants", "ms": 1, "part": 1, "rows": [["sessions", "DELETE,INSERT,SELECT,UPDATE"], ["terminal_layouts", "DELETE,INSERT,SELECT,UPDATE"], ["watchlist_items", "DELETE,INSERT,SELECT"]]}
+OUT {"q": "other_grantees_on_new_table", "ms": 0, "part": 0, "rows": []}
+OUT {"q": "runtime_members", "ms": 0, "part": 0, "rows": [["edge_bff_login"]]}
+OUT {"q": "layout_indexes", "ms": 1, "part": 0, "rows": [["terminal_layouts", "terminal_layouts_owner_name", "CREATE UNIQUE INDEX terminal_layouts_owner_name ON edge_bff.terminal_layouts USING btree (owner_key, name)"], ["terminal_layouts", "terminal_layouts_owner_opened", "CREATE INDEX terminal_layouts_owner_opened ON edge_bff.terminal_layouts USING btree (owner_key, opened_at DESC)"], ["terminal_layouts", "terminal_layouts_pkey", "CREATE UNIQUE INDEX terminal_layouts_pkey ON edge_bff.terminal_layouts USING btree (layout_id)"]]}
+OUT {"q": "layout_constraints", "ms": 0, "part": 0, "rows": [["edge_bff.terminal_layouts", "terminal_layouts_layout_id_check", "c"], ["edge_bff.terminal_layouts", "terminal_layouts_name_check", "c"], ["edge_bff.terminal_layouts", "terminal_layouts_owner_name", "u"], ["edge_bff.terminal_layouts", "terminal_layouts_pkey", "p"], ["edge_bff.terminal_layouts", "terminal_layouts_revision_check", "c"], ["edge_bff.terminal_layouts", "terminal_layouts_schema_version_check", "c"]]}
+OUT {"q": "layout_constraints", "ms": 0, "part": 1, "rows": [["edge_bff.terminal_layouts", "terminal_layouts_state_check", "c"], ["edge_bff.terminal_layouts", "terminal_layouts_state_size", "c"], ["edge_bff.terminal_layouts", "terminal_layouts_summary_check", "c"]]}
+OUT {"q": "layout_comments", "ms": 1, "part": 0, "rows": [["terminal_layouts", "(table)", true], ["terminal_layouts", "opened_at", true], ["terminal_layouts", "revision", true], ["terminal_layouts", "state", true], ["terminal_layouts", "summary", true]]}
+OUT {"q": "runtime_public_reach", "ms": 0, "part": 0, "rows": [[0, 1]]}
+OUT {"q": "as_runtime_reads", "ms": 0, "part": 0, "rows": [[0]]}
+OUT {"q": "as_runtime_reads_existing", "ms": 0, "part": 0, "rows": [[0, 0]]}
+JOB_DONE MIGRATION APPLY

@@ -55,6 +55,9 @@ def main():
                 allowed=c.execute('SELECT has_table_privilege(%s,%s,%s) AS allowed',(LOGIN,'edge_bff.'+name,privilege)).fetchone()['allowed']
                 if privilege in granted and not allowed:raise RuntimeError('Incomplete EDGE grants')
                 if privilege not in granted and allowed:raise RuntimeError('Unexpected EDGE grants; reconcile first')
+            # QA round 3 (L6): PUBLIC holds nothing on an EDGE table (every role would reach it; the login's own grants hide
+            # a PUBLIC SELECT); live 2026-11-06: none of the 8 tables has a PUBLIC privilege
+            if c.execute("SELECT has_table_privilege('public',%s,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS any",('edge_bff.'+name,)).fetchone()['any']:raise RuntimeError('PUBLIC can use an EDGE table; reconcile first')
     print(f'EDGE login provisioned; only the {len(found)} operational tables reachable')
 
 if __name__=='__main__':

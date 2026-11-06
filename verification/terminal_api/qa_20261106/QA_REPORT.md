@@ -406,3 +406,36 @@ login `edge_bff_login` di Postgres lokal: semua alur dan pesan sampai ke penggun
 
 ### Rekomendasi
 Belum siap rilis. Perbaiki High dan Medium dulu (layout dan collapse), lalu QA ulang singkat pada area yang diubah.
+
+## 10. Perbaikan sesudah putaran 3 (2026-11-06, go user)
+
+**Kata user:** "1 dan 2, jalankan" — semua temuan High, Medium dan Low diperbaiki, lalu QA singkat area yang diubah.
+Bukti: `verification/terminal_api/terminal_look/look_check6.mjs` (satu cek per temuan; API tiruan dengan kegagalan disuntik)
+plus `look_check3/4/5.mjs` (regresi). ERRORS M355.
+
+| Temuan | Perbaikan | Bukti (look_check6) |
+|---|---|---|
+| Q3-H1 collapse bertumpuk | tinggi panel terlipat = tinggi barisnya + margin, diamati ulang; baris pane satu baris di ≤ 1024 px, teks penuh di panel Filters | 3 panel terlipat: ponsel 32/32/32 px, 1440 24/24/50 px, 0 tumpuk |
+| Q3-H2 dialog keluar layar | kolom `minmax(0,1fr)`, dialog `min-width:0` | nama 120 huruf di 390 px: dialog 16–374, Close 290–356 |
+| Q3-M1 label sumbu panel terlipat | warna teks sumbu transparan saat terlipat | tangkapan `fold_d1440.png` |
+| Q3-M2 panah/Esc/fokus | daftar panah dari input switch; Esc dan Tab-trap di tingkat dokumen; fokus kembali ke tombol Layout | panah: save→autosave→copy→rename→new→recent→open→save; trap true; fokus `layoutBtn` |
+| Q3-M3 perubahan awal hilang | base = isi layout yang dibuka; beda sesudah settle = perubahan | "Target •", dirty true |
+| Q3-M4 chart tanpa layout dibuang | konfirmasi "This chart is not saved as a layout. Discard it?" | indikator tetap 3 setelah Cancel |
+| Q3-M5 nama tertimpa | ulang 409 memakai nama tersimpan | server tetap "Renamed elsewhere" |
+| Q3-M6 pesan | kalimat dengan tindakan; 503 tanpa "stated seconds"; toast membungkus, gagal bertahan sampai ditutup | teks 503 dan 500 terbaca |
+| Q3-M7 runbook migrasi | params + pemeriksaan + gladi lokal (DRYRUN 38/38, APPLY 23/23); tes hak akses tabel | `verification/terminal_api/layouts_migration/` |
+| Q3-M8 file broker gagal | `failed()` → `redrawFlow` | ringkasan "—" langsung |
+| Q3-M9 peta | persamaan membungkus; bagian 0,0% = datar ("No net flow"); tidak ada "−0.0%" | panel 260 px tanpa geser; Nego "No net flow · Top 3" |
+| Low: toolbar | ≤ 900 px toolbar: Indicators/Events ikon saja (nama tetap untuk pembaca layar), tanpa hint tombol | 1440 dua panel: tanpa luber, Search 99 px, Full screen terlihat |
+| Low: daftar broker diingat | ditulis hanya saat user memilih; kode yang tidak ada di ticker tetap disimpan; diterapkan sampai seluruh riwayat masuk | ZZ1, ZZ2 tetap |
+| Low: tanda minus | satu "−" di Flow Timeline, Statistics, pop-out, tooltip, aria | ringkasan "−Rp" |
+| Low: papan di hint; ±6,00% | hint menyebut papan; verdict dari rasio yang tampil | "Net · 03 Nov · Regular"; "… · Dist · Regular" |
+| Low: Esc daftar Brokers; Tab ke tombol baris | fokus kembali ke tombolnya; setiap baris legend bisa di-Tab | fokus "board button"; Tab → `volEye` |
+| Low: panel Filters sesudah resize | ditempatkan ulang sesudah baris diletakkan | — |
+| Low: legend bergeser hover; "Big Dist" 1 px; judul panel; satuan lot; pencarian "rsi"; Undo di akhir | tinggi baris tetap 24 px; label rapat; judul satu baris; "Lot"/"lot per trade" dari satuan registry; cocok dari awal kata; Undo kembali ke posisi | Undo: FL12, FL23, FL21 |
+| Low backend | NUL/surrogate/JSON dalam → 422; pesan 503 polos; README/docstring; PUBLIC dicek di provisioning; inventaris data | `test_layouts.py` 26 tes |
+
+**Tidak diubah (bukan bagian draft):** label sumbu waktu "2"/"4" (pilihan tick lightweight-charts, sama di build lama).
+
+**Tes:** Terminal vitest 870/870; Backtest 88/88; tripwire OK; edge-bff 162/162 (layouts, screener, edge, backtest,
+terminal); oracle 457.498 nilai 0 selisih.

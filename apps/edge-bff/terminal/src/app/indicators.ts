@@ -229,19 +229,29 @@ export function initIndicators(ctx: Ctx) {
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
     const panes = chart.panes(), subs = Math.max(0, panes.length - 1);
-    const folded = new Set(list.filter(i => i.fold && i.def.pane === 'sub').map(i => paneOfInst(i)?.paneIndex()).filter(k => k !== undefined && k > 0));
+    /* QA round 3 (H1): a folded pane is as high as its own title row (a row that wraps, a long note, a touch-sized button)
+       plus its margins, never a fixed height the row may overflow */
+    const folded = new Map<number, number>();
+    list.forEach(i => { if(!i.fold || i.def.pane !== 'sub') return; const k = paneOfInst(i)?.paneIndex(); if(k === undefined || k < 1) return;
+      folded.set(k, Math.max(folded.get(k) || 0, FOLD_PX, Math.ceil(i.row.offsetHeight) + 12)) });
     /* the price pane keeps at least ~45 % of the height however many panes are open (front-end audit 2026-10-30: 10 panes
        left it 113 px); up to two panes the factor stays the reference's 2.4; an open pane counts, a folded one does not */
     const open = subs - folded.size, f0 = open ? Math.max(2.4, 0.82 * open) : 1;
-    /* a folded pane gets the factor that makes it FOLD_PX of the panes' height: f = h·U / (H − n·h) */
-    const H = panes.reduce((t, pn) => t + pn.getHeight(), 0), U = f0 + open, n = folded.size;
-    const ff = n && H > n * FOLD_PX + 60 ? FOLD_PX * U / (H - n * FOLD_PX) : 0.12;
-    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? f0 : folded.has(k) ? ff : 1));
-    requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow) });
+    /* a folded pane of height h gets the factor f = h·U / (H − Hf): U the open panes' factors, Hf the folded heights */
+    const H = panes.reduce((t, pn) => t + pn.getHeight(), 0), U = f0 + open, Hf = [...folded.values()].reduce((t, h) => t + h, 0);
+    const factor = (h: number) => H > Hf + 60 ? h * U / (H - Hf) : 0.12;
+    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? f0 : folded.has(k) ? factor(folded.get(k)!) : 1));
+    /* QA round 3 (M1): a folded pane draws nothing, its axis labels included */
+    const text = (chart.options() as any).layout?.textColor || '#191919';
+    panes.forEach((pn, k) => { if(!k) return; const c = folded.has(k) ? 'rgba(0,0,0,0)' : text;
+      for(const side of ['right', 'left']) try { chart.priceScale(side, k).applyOptions({ textColor:c }) } catch(e) { /* no such scale */ } });
+    requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow); fltPlace() });
   };
+  let relayoutAt = 0;
+  const relayout = () => { if(relayoutAt) return; relayoutAt = requestAnimationFrame(() => { relayoutAt = 0; layoutPanes() }) };
   const setFold = (inst, on: boolean, keep = true) => {
     inst.fold = on; inst.row.classList.toggle('folded', on);
-    const b = inst.row.querySelector('.ind-fold'); if(b) { b.setAttribute('aria-expanded', String(!on)); b.setAttribute('aria-label', on ? 'Expand pane' : 'Collapse pane'); b.dataset.label = on ? 'Expand' : 'Collapse' }
+    const b = inst.row.querySelector('.ind-fold'); if(b) { b.setAttribute('aria-expanded', String(!on)); b.setAttribute('aria-label', `${on ? 'Expand' : 'Collapse'} the ${inst.def.name} pane`); b.dataset.label = on ? 'Expand' : 'Collapse' }
     const a = inst.row.querySelector('.ind-actbtn[data-act="fold"]'); if(a) a.textContent = on ? 'Expand' : 'Collapse';
     refresh(inst); layoutPanes(); if(keep) save();
   };
@@ -266,11 +276,15 @@ export function initIndicators(ctx: Ctx) {
     setTimeout(() => { const a = document.activeElement; if(a && a !== document.body && !r.contains(a)) fltClose() }, 0) });
   const fltPlace = () => document.querySelectorAll<HTMLElement>('.ind-row.flt-open').forEach(r => { const box = r.querySelector('.ind-flt') as HTMLElement, rr = r.getBoundingClientRect();
     box.style.top = Math.max(8, Math.min(rr.bottom + 4, innerHeight - box.offsetHeight - 8)) + 'px' });
-  addEventListener('resize', fltPlace); addEventListener('scroll', fltPlace, true);
+  /* QA round 3 (L1): after a resize the rows move once the panes are laid out again, so the panel follows a frame later */
+  addEventListener('resize', () => requestAnimationFrame(() => requestAnimationFrame(fltPlace))); addEventListener('scroll', fltPlace, true);
   function buildPaneFilters(inst) {
     const keys = inst.def.paneFilters as string[] | undefined;
     if(!keys || !keys.length || !ctx.makeFilter) return;
     const box = document.createElement('span'); box.className = 'ind-flt';
+    /* QA round 3 (Q3-H1, R2-M4): on a narrow screen a pane row keeps one line (its value or note shortened); the panel
+       repeats them in full */
+    const full = document.createElement('span'); full.className = 'ind-fltnote'; box.appendChild(full);
     /* QA H1/H2 (2026-11-06, user "go with your advice"): on a narrow screen the controls fold behind one "Filters" button
        and open as a panel under the row, inside the window, instead of wrapping over the panes */
     const fbtn = document.createElement('button'); fbtn.type = 'button'; fbtn.className = 'ind-fltbtn'; fbtn.textContent = 'Filters';
@@ -358,6 +372,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.def.pane !== 'sub' || !inst.series) return;
     const el = inst.series.getPane().getHTMLElement(); if(!el) return;
     inst.row.style.top = (el.getBoundingClientRect().top - stage.getBoundingClientRect().top + 6) + 'px';
+    if(inst.row.classList.contains('flt-open')) fltPlace();
     if(inst.watch !== el) { if(inst.ro) inst.ro.disconnect(); inst.ro = new ResizeObserver(() => placeRow(inst)); inst.ro.observe(el); inst.watch = el }
   }
 
@@ -565,6 +580,7 @@ export function initIndicators(ctx: Ctx) {
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
       b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
+      const full = r.querySelector('.ind-fltnote'); if(full) full.textContent = b.textContent || '';
       b.style.color = '';
     } else if(inst.def.lines) {
       b.innerHTML = (inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;');
@@ -582,11 +598,12 @@ export function initIndicators(ctx: Ctx) {
   function build(inst) {
     const r = inst.row = document.createElement('div');
     r.className = 'ind-row'; r.dataset.uid = inst.uid; r.dataset.def = inst.def.id;
+    r.tabIndex = 0;                                         // QA round 3 (round-1 M5): Tab reaches every row, which then shows its buttons
     r.innerHTML = '<span class="ind-k"></span><b></b>'
       + `<button class="ind-eye" type="button" data-act="eye" aria-pressed="true" data-label="Hide" aria-label="Show or hide">${EYE}</button>`
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
       + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`
-      + (inst.def.pane === 'sub' ? `<button class="ind-fold" type="button" data-act="fold" aria-expanded="true" data-label="Collapse" aria-label="Collapse pane">${CHEV}</button>` : '');
+      + (inst.def.pane === 'sub' ? `<button class="ind-fold" type="button" data-act="fold" aria-expanded="true" data-label="Collapse" aria-label="Collapse the ${inst.def.name.replace(/"/g, '&quot;')} pane">${CHEV}</button>` : '');
     r.addEventListener('click', (e: any) => {
       const a = e.target.closest('[data-act]'); if(!a) return;
       if(a.dataset.act === 'fold') { setFold(inst, !inst.fold); return }
@@ -598,6 +615,7 @@ export function initIndicators(ctx: Ctx) {
     buildPaneFilters(inst);
     if(inst.def.multi) buildParts(inst);
     if(inst.fold) r.classList.add('folded');
+    if(inst.def.pane === 'sub') { inst.rowRO = new ResizeObserver(() => { if(inst.fold) relayout() }); inst.rowRO.observe(r) }   // a folded pane follows its row's height
     recompute(inst);
     placeRow(inst);
     if(inst.fold) setFold(inst, true, false);
@@ -618,6 +636,7 @@ export function initIndicators(ctx: Ctx) {
   function remove(inst) {
     const sub = inst.def.pane === 'sub', pane = sub ? inst.series.getPane() : null;
     if(inst.ro) inst.ro.disconnect();
+    if(inst.rowRO) inst.rowRO.disconnect();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove();
@@ -835,10 +854,20 @@ export function initIndicators(ctx: Ctx) {
   /* undo / redo: an indicator comes back with the same inputs, style and visibility */
   /* every step names its indicator by a history id that a revived indicator keeps (front-end audit I3: a step holding the
      object lost it after remove + undo, and a redo then added a second copy) */
-  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, ...(inst.fold ? { fold:true } : {}) }));
+  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, at:list.indexOf(inst), ...(inst.fold ? { fold:true } : {}) }));
+  /* QA round 3 (agent 4 L4): an indicator brought back by Undo returns to its place: in the list, its legend row, its pane */
+  const placeAt = (inst, at) => {
+    const i = list.indexOf(inst); if(typeof at !== 'number' || at < 0 || at >= i) return;
+    list.splice(i, 1); list.splice(at, 0, inst);
+    const next = list.slice(at + 1).find(o => o.row && o.row.parentElement === inst.row.parentElement); if(next) next.row.before(inst.row);
+    if(inst.def.pane === 'sub') {
+      const pn = paneOfInst(inst), after = list.slice(at + 1).map(o => o.def.pane === 'sub' ? paneOfInst(o) : null).find(Boolean);
+      if(pn && after) { try { pn.moveTo(after.paneIndex()) } catch(e) { /* the pane stays last */ } layoutPanes() }
+    }
+  };
   const revive = snap => {
     if(byHid(snap.hid)) return byHid(snap.hid);                       // already there: never a second copy
-    const inst = add(snap.def, JSON.parse(JSON.stringify(snap))); if(inst) inst.hid = snap.hid;
+    const inst = add(snap.def, JSON.parse(JSON.stringify(snap))); if(inst) { inst.hid = snap.hid; placeAt(inst, snap.at) }
     save(); Ind.onChange && Ind.onChange(); return inst;
   };
   const drop = hid => { const inst = byHid(hid); if(inst) remove(inst) };
