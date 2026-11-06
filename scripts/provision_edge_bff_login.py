@@ -21,9 +21,12 @@ SCREENER_GRANTS = {'screener_items':{'SELECT','INSERT','UPDATE','DELETE'},'watch
 SCREENER_TABLES = set(SCREENER_GRANTS)
 # EXEC-TERMINAL-LAYOUTS (migration 20261106_001): the Terminal's saved layouts are listed, created, replaced, marked and deleted
 LAYOUT_GRANTS = {'terminal_layouts':{'SELECT','INSERT','UPDATE','DELETE'}}
+# EXEC-IND-PRESETS (migration 20261106_002): the Terminal's indicator presets, the same operations
+PRESET_GRANTS = {'indicator_presets':{'SELECT','INSERT','UPDATE','DELETE'}}
+PRESET_TABLES = set(PRESET_GRANTS)
 LAYOUT_TABLES = set(LAYOUT_GRANTS)
 # a table of a later migration is held to exactly its grants, TRUNCATE included
-EXACT_GRANTS = {**BACKTEST_GRANTS, **SCREENER_GRANTS, **LAYOUT_GRANTS}
+EXACT_GRANTS = {**BACKTEST_GRANTS, **SCREENER_GRANTS, **LAYOUT_GRANTS, **PRESET_GRANTS}
 
 def main():
     url,password=os.environ.get('DATABASE_URL',''),os.environ.get('EDGE_DB_PASSWORD','')
@@ -43,11 +46,11 @@ def main():
         # Include inherited PUBLIC rights: a grant there is still a leak even with a dedicated login.
         reachable=c.execute("SELECT n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%%' AND c.relkind IN ('r','p','v','m','f') AND has_table_privilege(%s,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')",(LOGIN,)).fetchall()
         found={(r['nspname'],r['relname']) for r in reachable};backtest={('edge_bff',name) for name in BACKTEST_TABLES}
-        screener={('edge_bff',name) for name in SCREENER_TABLES};layouts={('edge_bff',name) for name in LAYOUT_TABLES}
+        screener={('edge_bff',name) for name in SCREENER_TABLES};layouts={('edge_bff',name) for name in LAYOUT_TABLES};presets={('edge_bff',name) for name in PRESET_TABLES}
         # each later migration's tables: all of them or none (a migration grants its tables together)
-        if found-backtest-screener-layouts!={('edge_bff',name) for name in TABLES} or found&backtest not in (set(),backtest) \
-                or found&screener not in (set(),screener) or found&layouts not in (set(),layouts):raise RuntimeError('EDGE has unexpected reachable relations; provisioning rolled back')
-        for name in sorted(TABLES|(BACKTEST_TABLES if found&backtest else set())|(SCREENER_TABLES if found&screener else set())|(LAYOUT_TABLES if found&layouts else set())):
+        if found-backtest-screener-layouts-presets!={('edge_bff',name) for name in TABLES} or found&backtest not in (set(),backtest) \
+                or found&screener not in (set(),screener) or found&layouts not in (set(),layouts) or found&presets not in (set(),presets):raise RuntimeError('EDGE has unexpected reachable relations; provisioning rolled back')
+        for name in sorted(TABLES|(BACKTEST_TABLES if found&backtest else set())|(SCREENER_TABLES if found&screener else set())|(LAYOUT_TABLES if found&layouts else set())|(PRESET_TABLES if found&presets else set())):
             granted=EXACT_GRANTS.get(name,{'SELECT','INSERT','UPDATE','DELETE'})
             # a backtest or screener table is held to exactly its grants, TRUNCATE included (it would empty the trials as
             # DELETE would, and every owner's saved items at once)

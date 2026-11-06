@@ -7,6 +7,7 @@
    fixture keeps the reference's popover (1:1 check). Nothing is listed by hand: the rows come from the Terminal's
    registries (indRegistry.json, flowRegistry.json). */
 import type { Ctx } from './context';
+import type { Preset } from '../data/presetsApi';
 import { $, store } from './context';
 import { draggable, fitInView, shiftOf } from './draggable';
 import { FLOW_REG, SINGLE_SECURITY } from './flowIndicators';
@@ -97,6 +98,7 @@ export function defaultsText(id: string, indReg: any[], flowReg: { indicators: a
   }).join(' · ');
 }
 
+const PRESET_ICON = '<svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg>';
 const STAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.4.9-4.6 4.5 1.1 6.3L12 17.3l-5.7 3 1.1-6.3-4.6-4.5 6.4-.9z"/></svg>';
 const CHECK = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg>';
 
@@ -107,7 +109,6 @@ export function initIndMenu(ctx: Ctx) {
   const { IND_REG, Ind, volCtl } = ctx;
   const items = menuItems(IND_REG as any[], FLOW_REG as any, inputsOf(ctx.M));
   const groupsOf = (kind: 'Technical' | 'Flow') => [...new Set(items.filter(i => kind === 'Flow' ? i.kind === 'Flow' : i.kind !== 'Flow').map(i => i.group))];
-  const defaults = new Map(items.map(i => [i.id, i.kind === 'Base' ? '' : defaultsText(i.id, IND_REG as any[], FLOW_REG as any)]));
   let favs = new Set<string>();
   try { favs = new Set(JSON.parse(store.get(FAV_KEY) || '[]')) } catch { /* none saved */ }
   const saveFavs = () => store.set(FAV_KEY, JSON.stringify([...favs]));
@@ -126,7 +127,7 @@ export function initIndMenu(ctx: Ctx) {
       <label class="im-search"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg>
         <input type="search" id="imSearch" placeholder="RSI, MACD, Bandar Balance, Broker Inventory…" autocomplete="off" aria-label="Search indicators"></label>
       <div class="im-body"><nav class="im-nav" aria-label="Indicator groups"></nav><div class="im-split" role="separator" aria-orientation="vertical" aria-label="Resize the group list" tabindex="0"></div>
-        <div class="im-main"><div class="im-cols" aria-hidden="true"><span></span><span>Indicator</span><span>Place · Unit</span><span></span></div><div class="im-list" role="list"></div></div></div>
+        <div class="im-main"><div class="im-cols" aria-hidden="true"><span></span><span>Indicator</span><span></span></div><div class="im-list" role="list"></div></div></div>
       <div class="im-foot"><span>/ to search · ↑ ↓ to move · Enter to add · Esc to close</span><b class="im-count"></b></div>
       <div class="im-toast" role="status" aria-live="polite"></div>
       <div class="im-rz im-rz-r" aria-hidden="true"></div><div class="im-rz im-rz-b" aria-hidden="true"></div>
@@ -146,6 +147,7 @@ export function initIndMenu(ctx: Ctx) {
       `<button type="button" data-g="${esc(id)}" class="${cls}${group === id && !query ? ' on' : ''}">${ico}<span class="lab">${label}</span><span class="cnt">${n}</span></button>`;
     const flow = groupsOf('Flow');
     return b('chart', 'On the chart', items.reduce((t, i) => t + onChart(i), 0), 'q-on', CHECK)
+      + (P() ? b('presets', 'My presets', P()!.list().length, 'q-pre', PRESET_ICON) : '')
       + b('fav', 'Favorites', view('fav', '').length, 'q-my', STAR.replace('<svg ', '<svg class="ico" '))
       + `<div class="im-sep"></div>${b('all', 'All indicators', items.length)}`
       + `<div class="im-title">Technical</div>${groupsOf('Technical').map(g => b(`t:${g}`, esc(g), view(`t:${g}`, '').length)).join('')}`
@@ -154,7 +156,7 @@ export function initIndMenu(ctx: Ctx) {
   /* EXEC-TERMINAL-LOOK-2 (user 2026-11-06: "kalau di HTML contoh maka dia bisa scroll semua indikator, dan panel disebelah
      kiri tetap mengikuti"): outside On the chart, Favorites and a search the list holds every indicator under its group's
      heading; a group on the left jumps to its heading and the group in view is marked on the left (Screener v16 qSpyMode) */
-  const spyMode = () => group !== 'chart' && group !== 'fav' && !query.trim();
+  const spyMode = () => group !== 'chart' && group !== 'fav' && group !== 'presets' && !query.trim();
   const keyOf = (i: MenuItem) => `${i.kind === 'Flow' ? 'f' : 't'}:${i.group}`;
   const ordered = () => [...groupsOf('Technical').map(g => `t:${g}`), ...groupsOf('Flow').map(g => `f:${g}`)]
     .flatMap(k => items.filter(i => keyOf(i) === k));
@@ -184,25 +186,70 @@ export function initIndMenu(ctx: Ctx) {
   const render = () => {
     const keep = nav.scrollTop;
     nav.innerHTML = navHtml(); nav.scrollTop = keep;
+    /* EXEC-IND-PRESETS: My presets lists the owner's presets; a search shows the presets it matches above the indicators */
+    const ps = P(), q = query.trim().toLowerCase();
+    if (ps && group === 'presets' && !q) {
+      const all = ps.list();
+      list.innerHTML = ps.loading() && !all.length ? '<div class="im-empty">Loading…</div>' : ps.error() ? `<div class="im-empty">${esc(ps.error())}</div>`
+        : all.length ? all.map(presetRow).join('') : '<div class="im-empty">No presets yet. On the chart, open an indicator\'s Settings (or its row) and choose Save as preset to keep it with its filters.</div>';
+      countEl.textContent = `${all.length} preset${all.length === 1 ? '' : 's'}`;
+      return;
+    }
+    const hits = ps && q ? ps.list().filter(p => `${p.name} ${p.summary} ${ps.defName(p) || ''} ${p.def_id}`.toLowerCase().includes(q)) : [];
     const spying = spyMode(), rows = spying ? ordered() : view(group, query), wide = !spying;
     let last = '';
-    list.innerHTML = rows.length ? rows.map(i => {
+    list.innerHTML = (hits.length ? `<div class="im-sec" role="presentation">My presets</div>${hits.map(presetRow).join('')}${rows.length ? '<div class="im-sec" role="presentation">Indicators</div>' : ''}` : '')
+      + (rows.length ? rows.map(i => {
       const k = keyOf(i), head = spying && k !== last ? `<div class="im-sec" data-sec="${esc(k)}" role="presentation">${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}</div>` : '';
       last = k;
       return head + rowHtml(i, wide);
-    }).join('') : `<div class="im-empty">${group === 'fav' && !query ? 'No favorites yet: star an indicator to keep it here.' : group === 'chart' && !query ? 'No indicator on the chart yet.' : 'No indicators match.'}</div>`;
+    }).join('') : hits.length ? '' : `<div class="im-empty">${group === 'fav' && !query ? 'No favorites yet: star an indicator to keep it here.' : group === 'chart' && !query ? 'No indicator on the chart yet.' : 'No indicators match.'}</div>`);
     const n = items.reduce((t, i) => t + onChart(i), 0);
     countEl.textContent = `${n} indicator${n === 1 ? '' : 's'} on the chart`;
   };
   const rowHtml = (i: MenuItem, wide: boolean) => {
-      const n = onChart(i), fav = favs.has(i.id), d = defaults.get(i.id) || '';
-      const where = wide ? ` · ${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}` : '';
+      /* EXEC-IND-PRESETS (user 2026-11-06: "C bisa di-replace dengan indikator definition, bagian D remove entirely"): the
+         grey line is the indicator's definition; the Place · Unit column is gone */
+      const n = onChart(i), fav = favs.has(i.id), d = i.tip || '';
       return `<div class="im-row" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
         + `<div><div class="nm"><span class="nmt">${esc(i.name)}</span>${i.kind === 'Base' ? '' : `<small>${esc(i.id)}</small>`}${n ? `<em>${i.kind === 'Base' ? 'On chart' : `${n} on chart`}</em>` : ''}</div>`
-        + `<div class="pa">${esc(d || (i.kind === 'Base' ? 'Volume bars under the price chart' : 'No settings'))}</div></div>`
-        + `<div class="mt">${esc(i.place)}<span>${esc(unitText(i.unit))}${where}</span></div>`
+        + `<div class="pa" title="${esc(d)}">${esc(d || (i.kind === 'Base' ? 'Volume bars under the price chart' : ''))}</div></div>`
         + `<button type="button" class="im-add" data-add="${esc(i.id)}" aria-label="Add ${esc(i.name)}">Add</button></div>`;
   };
+  const P = () => ctx.presets || null;
+  const presetRow = (p: Preset) => {
+    const nm = P()!.defName(p), gone = !nm;
+    return `<div class="im-row im-prow${gone ? ' gone' : ''}" role="listitem" tabindex="0" data-preset="${esc(p.preset_id)}"><button type="button" class="im-star${p.favorite ? ' on' : ''}" data-pstar="${esc(p.preset_id)}" aria-pressed="${p.favorite}" aria-label="${p.favorite ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
+      + `<div><div class="nm"><span class="nmt">${esc(p.name)}</span><small>${gone ? 'no longer available' : `${esc(nm)} · ${esc(p.def_id)}`}</small></div>`
+      + `<div class="pa" title="${esc(p.summary)}">${esc(p.summary)}</div></div>`
+      + `<div class="im-pact"><button type="button" class="im-more" data-pmenu="${esc(p.preset_id)}" aria-haspopup="menu" aria-label="More for ${esc(p.name)}">⋯</button>`
+      + `<button type="button" class="im-add" data-padd="${esc(p.preset_id)}" aria-label="Add ${esc(p.name)}"${gone ? ' disabled' : ''}>Add</button></div></div>`;
+  };
+  const presetOf = (id: string) => P()?.list().find(p => p.preset_id === id) || null;
+  /* the ⋯ menu of a preset: Rename, Update from chart, Delete */
+  const pmenu = document.createElement('div'); pmenu.className = 'im-pmenu'; pmenu.hidden = true; pmenu.setAttribute('role', 'menu');
+  dlg.appendChild(pmenu);
+  const closePmenu = () => { if (!pmenu.hidden) { pmenu.hidden = true; (pmenu as any).owner?.focus?.() } };
+  const openPmenu = (b: HTMLElement, p: Preset) => {
+    pmenu.innerHTML = `<button type="button" role="menuitem" data-pm="rename">Rename…</button><button type="button" role="menuitem" data-pm="update">Update from chart</button><button type="button" role="menuitem" class="warn" data-pm="delete">Delete…</button>`;
+    (pmenu as any).owner = b; (pmenu as any).preset = p; pmenu.hidden = false;
+    const r = b.getBoundingClientRect(), w = pmenu.offsetWidth;
+    pmenu.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px'; pmenu.style.top = Math.min(r.bottom + 4, innerHeight - pmenu.offsetHeight - 8) + 'px';
+    (pmenu.querySelector('button') as HTMLElement).focus();
+  };
+  pmenu.addEventListener('click', async (e: any) => {
+    const a = e.target.closest('[data-pm]')?.dataset.pm, p = (pmenu as any).preset as Preset; if (!a || !p) return;
+    pmenu.hidden = true; const ps = P()!;
+    if (a === 'rename') await ps.rename(p); else if (a === 'update') await ps.update(p); else await ps.remove(p);
+    render();
+  });
+  pmenu.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') { e.stopPropagation(); closePmenu(); return }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const bs = [...pmenu.querySelectorAll<HTMLElement>('button')], k = bs.indexOf(document.activeElement as HTMLElement);
+    e.preventDefault(); bs[(k + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length].focus();
+  });
+  document.addEventListener('pointerdown', e => { if (!pmenu.hidden && !pmenu.contains(e.target as Node)) pmenu.hidden = true }, true);
   const byId = (id: string) => items.find(i => i.id === id)!;
   let toastTimer: any = 0;
   const note = (text: string) => {
@@ -229,7 +276,9 @@ export function initIndMenu(ctx: Ctx) {
   const hideTip = () => { tip.hidden = true };
   const open = (o: boolean) => {
     dlg.hidden = !o; btn.setAttribute('aria-expanded', String(o)); hideTip();
-    if (o) { query = ''; search.value = ''; render(); fitInView(dlg.querySelector('.im-box')); search.focus() } else btn.focus();
+    if (o) { query = ''; search.value = ''; render(); fitInView(dlg.querySelector('.im-box')); search.focus()
+      const ps = P(); if (ps) { ps.onChange = () => { if (!dlg.hidden) render() }; ps.refresh() } }
+    else { pmenu.hidden = true; btn.focus() }
   };
 
   btn.addEventListener('click', (e: Event) => { e.stopImmediatePropagation(); open(dlg.hidden) }, true);
@@ -239,7 +288,7 @@ export function initIndMenu(ctx: Ctx) {
     const b = e.target.closest('[data-g]'); if (!b) return;
     const to = b.dataset.g, wasSpy = spyMode();
     query = ''; search.value = '';
-    if (to === 'chart' || to === 'fav') { group = to; render(); list.scrollTop = 0; return }
+    if (to === 'chart' || to === 'fav' || to === 'presets') { group = to; render(); list.scrollTop = 0; return }
     group = to;
     if (!wasSpy) render();                    // from a filtered view back to the full list
     mark(to); scrollToGroup(to);
@@ -253,16 +302,21 @@ export function initIndMenu(ctx: Ctx) {
     else if (e.key === 'ArrowDown' && first) { e.preventDefault(); first.focus() }
   });
   list.addEventListener('click', (e: any) => {
+    const ps = P(), pst = e.target.closest('[data-pstar]'), pm = e.target.closest('[data-pmenu]'), pr = e.target.closest('.im-row[data-preset]');
+    if (ps && pst) { const p = presetOf(pst.dataset.pstar); if (p) ps.star(p); return }
+    if (ps && pm) { const p = presetOf(pm.dataset.pmenu); if (p) openPmenu(pm, p); return }
+    if (ps && pr) { const p = presetOf(pr.dataset.preset); if (p) { ps.add(p); render() } return }
     const s = e.target.closest('[data-star]');
     if (s) { const id = s.dataset.star; favs.has(id) ? favs.delete(id) : favs.add(id); saveFavs(); render(); return }
     const r = e.target.closest('.im-row[data-id]'); if (r) add(byId(r.dataset.id));
   });
   list.addEventListener('keydown', (e: any) => {
-    const r = e.target.closest('.im-row[data-id]'); if (!r) return;
-    if (e.key === 'Enter' || e.key === ' ') { if (e.target.closest('button') && e.target.closest('[data-star]')) return; e.preventDefault(); add(byId(r.dataset.id)) }
+    const r = e.target.closest('.im-row[data-id],.im-row[data-preset]'); if (!r) return;
+    if (e.key === 'Enter' || e.key === ' ') { if (e.target.closest('button')) return; e.preventDefault()
+      if (r.dataset.preset) { const p = presetOf(r.dataset.preset); if (p) { P()?.add(p); render() } } else add(byId(r.dataset.id)) }
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      const all = [...list.querySelectorAll('.im-row[data-id]')] as HTMLElement[], k = all.indexOf(r);
+      const all = [...list.querySelectorAll('.im-row[data-id],.im-row[data-preset]')] as HTMLElement[], k = all.indexOf(r);
       if (e.key === 'ArrowUp' && k === 0) search.focus(); else all[Math.max(0, Math.min(all.length - 1, k + (e.key === 'ArrowDown' ? 1 : -1)))]?.focus();
     }
   });

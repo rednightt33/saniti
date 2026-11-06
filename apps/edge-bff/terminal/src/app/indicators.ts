@@ -214,6 +214,8 @@ export function initIndicators(ctx: Ctx) {
   let parked: { at: number; o: any }[] = [];
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;
+  const PRESETS = ctx.M.mode === 'live';                 // EXEC-IND-PRESETS: presets live on the EDGE account (the fixture keeps the reference's rows)
+  const BOOKMARK = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg>';
   const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
@@ -366,7 +368,7 @@ export function initIndicators(ctx: Ctx) {
        the name keeps its room; they press the row's own buttons */
     const acts = document.createElement('span'); acts.className = 'ind-act';
     /* EXEC-TERMINAL-LAYOUTS: a pane indicator's Collapse joins them there too (on a phone the row keeps one line) */
-    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ['del', 'Remove']] as [string, string][]) {
+    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ...(PRESETS ? [['preset', 'Save as preset']] : []), ['del', 'Remove']] as [string, string][]) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'ind-actbtn'; b.textContent = label; b.dataset.act = act;
       b.onclick = e => { e.stopPropagation(); (inst.row.querySelector(`:scope > [data-act="${act}"]`) as HTMLElement | null)?.click(); if(act !== 'eye') fltClose() };
       acts.appendChild(b);
@@ -623,6 +625,7 @@ export function initIndicators(ctx: Ctx) {
     r.innerHTML = '<span class="ind-k"></span><b></b>'
       + `<button class="ind-eye" type="button" data-act="eye" aria-pressed="true" data-label="Hide" aria-label="Show or hide">${EYE}</button>`
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
+      + (PRESETS ? `<button class="ind-eye ind-save" type="button" data-act="preset" data-label="Save as preset" aria-label="Save as preset">${BOOKMARK}</button>` : '')
       + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`;
     /* EXEC-TERMINAL-LOOK-3 (user 2026-11-06: "collapse panel di bawah, bisa disamakan juga dengan B ... taruh saja di atas
        y-axis"): the pane's chevron sits on its right, above the y-axis, as the Flow Timeline's does */
@@ -637,6 +640,7 @@ export function initIndicators(ctx: Ctx) {
       if(a.dataset.act === 'fold') { setFold(inst, !inst.fold); return }
       if(a.dataset.act === 'eye') { inst.on = !inst.on; refresh(inst); save() }
       else if(a.dataset.act === 'cfg') openSettings(inst)
+      else if(a.dataset.act === 'preset') askPreset(inst)
       else userRemove(inst);
     });
     if(inst.def.pane === 'sub') { r.classList.add('in-pane'); stage.appendChild(r) } else legend.appendChild(r);
@@ -690,7 +694,7 @@ export function initIndicators(ctx: Ctx) {
         <div class="idlg-tabs" role="tablist">${['Inputs', 'Style'].map(t => `<button type="button" role="tab" data-tab="${t}">${t}</button>`).join('')}</div>
         <div class="idlg-body"></div>
         <div class="idlg-err" role="alert" hidden></div>
-        <div class="idlg-foot"><button class="idlg-btn" type="button" data-act="reset">Reset</button><span class="sp"></span><button class="idlg-btn" type="button" data-act="cancel">Cancel</button><button class="idlg-btn pri" type="button" data-act="ok">Ok</button></div></div>`;
+        <div class="idlg-foot"><button class="idlg-btn" type="button" data-act="reset">Reset</button>${PRESETS ? '<button class="idlg-btn" type="button" data-act="preset">Save as preset…</button>' : ''}<span class="sp"></span><button class="idlg-btn" type="button" data-act="cancel">Cancel</button><button class="idlg-btn pri" type="button" data-act="ok">Ok</button></div></div>`;
     draggable(back.querySelector('.idlg'), back.querySelector('.idlg-head'));   // user 2026-11-01: moved by its header
     back.querySelector('h2').textContent = def.name;
     const body = back.querySelector('.idlg-body'), errBox = back.querySelector('.idlg-err'), dlg = back.querySelector('.idlg');
@@ -866,6 +870,7 @@ export function initIndicators(ctx: Ctx) {
       else if(e.target.closest('.idlg-x')) close(false);
       else if(a && a.dataset.act === 'ok') close(true);
       else if(a && a.dataset.act === 'cancel') close(false);
+      else if(a && a.dataset.act === 'preset') { const m = askPreset(inst); errBox.textContent = m; errBox.hidden = !m }
       else if(a && a.dataset.act === 'reset') {
         inst.params = defaults(def.inputs);
         inst.style = def.multi ? regStyle(def, inst.base) : { ...defaults(def.style), ...(def.style.some(f => f.key === 'color' && f.def !== undefined) ? {} : { color:PALETTE[0] }) };
@@ -902,8 +907,8 @@ export function initIndicators(ctx: Ctx) {
     save(); Ind.onChange && Ind.onChange(); return inst;
   };
   const drop = hid => { const inst = byHid(hid); if(inst) remove(inst) };
-  function userAdd(id) {
-    const inst = add(id); if(!inst) return null;
+  function userAdd(id, saved?) {
+    const inst = add(id, saved); if(!inst) return null;
     const snap = snapOf(inst);
     Hist.push({ undo:() => drop(snap.hid), redo:() => revive(snap) });
     return inst;
@@ -914,6 +919,23 @@ export function initIndicators(ctx: Ctx) {
     Hist.push({ undo:() => revive(snap), redo:() => drop(snap.hid) });
   }
   Ind.add = id => userAdd(id);
+  /* EXEC-IND-PRESETS (user 2026-11-06: "men-save indikator beserta dengan filternya"): an indicator from a preset comes with
+     its parameters, filters and style; a parameter the indicator no longer has goes back to its default (dropStale, the
+     rule of a saved chart) */
+  const configOf = inst => JSON.parse(JSON.stringify({ params:inst.params, style:inst.style, on:inst.on, ...(inst.fold ? { fold:true } : {}) }));
+  Ind.addPreset = (defId, config, presetId) => {
+    const o = dropStale({ def:defId, params:config?.params || {}, style:config?.style, on:config?.on !== false, ...(config?.fold ? { fold:true } : {}) });
+    const inst: any = userAdd(defId, o); if(!inst) return null;
+    if(presetId) inst.presetId = presetId;
+    save(); Ind.onChange && Ind.onChange(); return inst;
+  };
+  Ind.onChartOf = defId => list.filter(i => i.def.id === defId).map(i => ({ title:i.def.title(i.params), config:configOf(i), presetId:i.presetId }));
+  Ind.defName = defId => defOf(defId)?.name ?? null;
+  const askPreset = inst => {
+    const m = inst.def.validate ? inst.def.validate(inst.params) : '';
+    if(m) return m;
+    Ind.savePreset?.({ defId:inst.def.id, title:inst.def.title(inst.params), config:configOf(inst) }); return '';
+  };
   /* EXEC-INV-SYNC (user 2026-11-01): a broker picked in the right panel joins every Broker Inventory (FL23) on the chart, by
      the panel's own rule (withPicked: already there, nothing; else added, the oldest leaving past the maximum) */
   Ind.brokerPicked = (code: string) => {

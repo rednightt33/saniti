@@ -6,8 +6,8 @@ its migration must leave, so the go/no-go after each job is a script's answer, n
     python3 -I verification/screener/jobs/check_migration_log.py --params-ok <params.json>
 
 Migrations with checks (MIGRATIONS below): 20261028_001_edge_bff_screener.sql (EXEC-SCREENER migration 1),
-20261028_100_terminal_service_accounts.sql (EXEC-MU-RUNTIME step 1) and 20261106_001_edge_bff_terminal_layouts.sql
-(EXEC-TERMINAL-LAYOUTS). A log of any other file FAILs; --covers exits 0
+20261028_100_terminal_service_accounts.sql (EXEC-MU-RUNTIME step 1), 20261106_001_edge_bff_terminal_layouts.sql
+(EXEC-TERMINAL-LAYOUTS) and 20261106_002_edge_bff_indicator_presets.sql (EXEC-IND-PRESETS). A log of any other file FAILs; --covers exits 0
 only for a file with checks (run_migration.sh asks before it starts a job).
 The log is the one scripts/onboarding/run_job.sh writes (lines `MIG ...`, `OUT {json}`, `ERR {json}`, `JOB_DONE ...`).
 Checks: the job ran the named file with the expected sha256 (DRYRUN: its body ran and was rolled back); every probe
@@ -325,6 +325,61 @@ def check_layouts(check, mode, outs, sha):
                                          'as_runtime_counts_after_writes', 'as_runtime_delete')})
 
 
+# ---- 20261106_002_edge_bff_indicator_presets.sql (EXEC-IND-PRESETS, user go 2026-11-06) ---------------------------------
+PRESETS = '20261106_002_edge_bff_indicator_presets.sql'
+# after it: the edge_bff tables of 20261106_001 (applied on dev 2026-11-06) and the new one, edge_bff_runtime as granted
+PRESET_TABLES = sorted(LAYOUT_TABLES + ['indicator_presets'])
+PRESET_GRANTS = {**LAYOUT_GRANTS, 'indicator_presets': 'DELETE,INSERT,SELECT,UPDATE'}
+PRESET_INDEXES = {('indicator_presets', 'indicator_presets_owner_name'), ('indicator_presets', 'indicator_presets_owner_used'),
+                  ('indicator_presets', 'indicator_presets_pkey')}
+PRESET_CONSTRAINTS = ['indicator_presets_config_check', 'indicator_presets_config_size', 'indicator_presets_def_id_check',
+                      'indicator_presets_name_check', 'indicator_presets_owner_name', 'indicator_presets_pkey',
+                      'indicator_presets_preset_id_check', 'indicator_presets_revision_check',
+                      'indicator_presets_schema_version_check', 'indicator_presets_summary_check']
+ERR_TEXT_PRESETS = {'expect_err_preset_id_format': '"indicator_presets_preset_id_check"',
+                    'expect_err_name_untrimmed': '"indicator_presets_name_check"',
+                    'expect_err_def_id_format': '"indicator_presets_def_id_check"',
+                    'expect_err_config_not_object': '"indicator_presets_config_check"',
+                    'expect_err_config_too_large': '"indicator_presets_config_size"',
+                    'expect_err_summary_too_long': '"indicator_presets_summary_check"',
+                    'expect_err_duplicate_name': '"indicator_presets_owner_name"',
+                    'expect_err_truncate': 'InsufficientPrivilege: permission denied for table indicator_presets',
+                    'expect_err_public_market_read': 'InsufficientPrivilege: permission denied for table Price_Stock_Indonesia_IDX'}
+PRESET_PROBES = ['edge_bff_tables', 'runtime_grants', 'other_grantees_on_new_table', 'runtime_members', 'preset_indexes',
+                 'preset_constraints', 'preset_comments', 'runtime_public_reach', 'as_runtime_reads',
+                 'as_runtime_reads_existing', 'as_runtime_insert', 'as_runtime_replace_revision', 'as_runtime_mark',
+                 'as_runtime_counts_after_writes', 'as_runtime_delete', 'expect_err_preset_id_format',
+                 'expect_err_name_untrimmed', 'expect_err_def_id_format', 'expect_err_config_not_object',
+                 'expect_err_config_too_large', 'expect_err_summary_too_long', 'expect_err_duplicate_name',
+                 'expect_err_truncate', 'expect_err_public_market_read']
+
+
+def check_presets(check, mode, outs, sha):
+    check('edge_bff tables', [r[0] for r in outs.get('edge_bff_tables', [])] == PRESET_TABLES, outs.get('edge_bff_tables'))
+    check('edge_bff_runtime grants exact', {r[0]: r[1] for r in outs.get('runtime_grants', [])} == PRESET_GRANTS,
+          outs.get('runtime_grants'))
+    check('no PUBLIC or other grantee on the new table', outs.get('other_grantees_on_new_table') == [],
+          outs.get('other_grantees_on_new_table'))
+    check('runtime members', outs.get('runtime_members') == [['edge_bff_login']], outs.get('runtime_members'))
+    check('indexes', {(r[0], r[1]) for r in outs.get('preset_indexes', [])} == PRESET_INDEXES, outs.get('preset_indexes'))
+    # PostgreSQL 18 also lists each NOT NULL (contype 'n'); the comparison holds the other kinds (ERRORS M372)
+    check('constraints', sorted(r[1] for r in outs.get('preset_constraints', []) if r[2] != 'n') == PRESET_CONSTRAINTS,
+          outs.get('preset_constraints'))
+    check('comments present', len(outs.get('preset_comments') or []) == 6 and all(r[2] is True for r in outs['preset_comments']),
+          outs.get('preset_comments'))
+    reach = outs.get('runtime_public_reach') or [[None, None]]
+    check('runtime reads no public relation', reach[0][0] == 0 and (reach[0][1] or 0) > 0, reach)
+    check('new table empty, readable by the runtime role', outs.get('as_runtime_reads') == [[0]], outs.get('as_runtime_reads'))
+    check('existing tables still readable by the runtime role', len(outs.get('as_runtime_reads_existing') or []) == 1,
+          outs.get('as_runtime_reads_existing'))
+    if mode == 'DRYRUN':
+        check('writes the app needs', outs.get('as_runtime_insert') == [['ipr_00000000000000000000000000000001', 1]]
+              and outs.get('as_runtime_replace_revision') == [[2]] and outs.get('as_runtime_mark') == [[True, 2]]
+              and outs.get('as_runtime_counts_after_writes') == [[1]] and outs.get('as_runtime_delete') == [[1]],
+              {k: outs.get(k) for k in ('as_runtime_insert', 'as_runtime_replace_revision', 'as_runtime_mark',
+                                         'as_runtime_counts_after_writes', 'as_runtime_delete')})
+
+
 # file name -> the expected ERR text per expect_err_* probe, the migration's own checks, the reviewed probes per mode
 # and the role each probe's name gives (first matching prefix; none: the admin connection)
 MIGRATIONS = {
@@ -336,6 +391,9 @@ MIGRATIONS = {
     LAYOUTS: {'err_text': ERR_TEXT_LAYOUTS,
               'checks': lambda check, mode, outs, sha, probes: check_layouts(check, mode, outs, sha),
               'probes': {'DRYRUN': LAYOUT_PROBES, 'APPLY': LAYOUT_PROBES[:10]}, 'roles': SCREENER_ROLES},
+    PRESETS: {'err_text': ERR_TEXT_PRESETS,
+              'checks': lambda check, mode, outs, sha, probes: check_presets(check, mode, outs, sha),
+              'probes': {'DRYRUN': PRESET_PROBES, 'APPLY': PRESET_PROBES[:10]}, 'roles': SCREENER_ROLES},
 }
 # what a probe statement may be (outside comments, quoted text and $$ bodies): data statements only, so no probe can end
 # the DRYRUN's one transaction (a COMMIT there keeps the migration, ERRORS M230's class) or leave its role (SET ROLE,

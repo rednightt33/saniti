@@ -5337,6 +5337,24 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED and deployed (edge-bff `7a60bb22`, `main` `5a22dcb5`, PR #56). Live, signed in: with Minervini,
   Length 50 + Enter changes no card and says "already on the screen"; Length 30 + Enter adds one.
 
+### M379 — Migration runner: the runner guard's deployment list fails once and stops an APPLY before it starts (2026-11-06, open)
+
+- **Found by:** the releases of migrations `20261106_001` (APPLY attempt 2) and `20261106_002` (APPLY attempt 1).
+- **Symptom:** `run_migration.sh apply` prints `DEPLOYMENT_LIST_FAILED`, `RUN_JOB_EXIT 5`, `NO_LOG`,
+  `APPLY_NOT_VERIFIED`. Nothing ran on dev: `DATABASE_URL` absent from orc-test-runner, the table absent (read back
+  both times). The same `railway deployment list` call by hand answered within a second
+  (`verification/screener/jobs/migration20261106_002_apply_attempt1_deployment_list_failed.run.txt`).
+- **Verified:** the refusal comes from `scripts/onboarding/runner_guard.sh` `runner_free`, which makes one
+  `railway deployment list` call and treats any empty answer as a failure; a retry minutes later passed (APPLY job
+  `122d4b0d`, 23/23). **Suspected, not verified:** the call's connection to backboard.railway.com closed mid-request
+  (the 2026-11-06 13:2x attempts showed closed connections); the CLI's stderr is discarded (`2>/dev/null`), so the
+  log does not say. Check that would confirm it: keep the CLI's stderr in the `.run.txt` on the next failure.
+- **Class:** a guard that reads remote state once and refuses on a transient read error; every job started through
+  `run_job.sh` (migrations, onboarding and repair jobs) shares it.
+- **Solution:** none yet. The refusal is safe (it fails closed, before `DATABASE_URL` is set). Proposal: retry the
+  list call two more times with a short pause and print the CLI's last error line; refuse as now when all fail.
+- **Lesson:** after `DEPLOYMENT_LIST_FAILED`, read `DATABASE_URL` and the target object back, rename the `.run.txt`
+  as an attempt record, then run again.
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and

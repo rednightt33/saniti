@@ -1,5 +1,40 @@
 # Database changelog
 
+## 2026-11-06 — EDGE Terminal indicator presets (schema `edge_bff`, EXEC-IND-PRESETS) — applied on dev
+
+- **User:** "opsi untuk men-save indikator beserta dengan filternya ... Mungkin bisa di-save di bagian indicators" and,
+  asked where and how much, "Q1 A / Q2 A" (on the EDGE account, the full version) (2026-11-06). Operational schema
+  `edge_bff`, no market data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as `20261106_001`.
+- **`20261106_002_edge_bff_indicator_presets.sql`** (sha256 `30ab4b8b7ffe83c793891c09483b0d07ffb9230add14b44e8f4aac5253765e7c`):
+  `edge_bff.indicator_presets` (one owner's presets: `ipr_` id, name 1–120 characters and unique per owner, `def_id`
+  the indicator code, `config` a JSON object at most 16,384 bytes, summary at most 300, favorite, revision, used_at);
+  index `indicator_presets_owner_used`; `edge_bff_runtime` gets SELECT/INSERT/UPDATE/DELETE only (the file refuses
+  TRUNCATE, REFERENCES, TRIGGER and anything for PUBLIC); preflight refuses a second run; rollback body in the file.
+  `scripts/provision_edge_bff_login.py` knows its exact grants.
+- **Status:** tested on a disposable local PostgreSQL 16 (`apps/edge-bff/tests/test_presets.py`: API, conflicts and
+  order, refusals by field, size, depth and count limits, session/CSRF/owner, 503 without the table, the verify block
+  against extra and PUBLIC grants, the table rules, a second run refused, the provisioned login; edge-bff 333 tests).
+  Runbook: `verification/screener/jobs/migration20261106_002_{dryrun,apply}.params.json` and the `PRESETS` checks in
+  `check_migration_log.py`; rehearsed with the real job runner on a local database built from the seven edge_bff
+  migrations: DRYRUN `VERDICT PASS 39/39`, APPLY `VERDICT PASS 23/23` (logs
+  `verification/terminal_api/presets_migration/`). **Not applied to Railway**: it is applied at the release through
+  `verification/screener/jobs/run_migration.sh` (DRYRUN then APPLY) with the user's go; until then the preset routes
+  answer 503 `PRESETS_NOT_READY` and the rest of the Terminal works.
+- **Applied 2026-11-06 (user: "ok"):** after B6 (22:4x WIB), with no user run in flight (`edge_bff.jobs` 0,
+  `AI_conversation_turn` RUNNING 0, 0 active statements), through `verification/screener/jobs/run_migration.sh` with the
+  session's Railway account token:
+  - DRYRUN job `b3ac99c7`: `VERDICT PASS 39/39`; `DATABASE_URL` removed (VAR_REMOVED).
+  - APPLY attempt 1 stopped before any job ran (`DEPLOYMENT_LIST_FAILED`: the runner guard's deployment list call
+    failed once, as in `20261106_001` attempt 2; the same call by hand answered a second later). Checked before the
+    retry: `DATABASE_URL` absent from orc-test-runner, the table absent. Record
+    `migration20261106_002_apply_attempt1_deployment_list_failed.run.txt`.
+  - APPLY job `122d4b0d`: `VERDICT PASS 23/23`; `DATABASE_URL` removed (VAR_REMOVED). The job's
+    `POSTGRES_MEMORY_CHECK` line could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, the session has an account token
+    only); a new empty table is not a large update (AGENTS.md), so no Postgres restart is due.
+  - Read back through pgweb catalogs (15:48 UTC): `edge_bff.indicator_presets` with `indicator_presets_pkey`,
+    `indicator_presets_owner_name`, `indicator_presets_owner_used`; ACL `edge_bff_runtime=arwd` (SELECT, INSERT, UPDATE,
+    DELETE) and nothing for PUBLIC. `database/migrations/APPLIED.sha256` lists it.
+
 ## 2026-11-06 — EDGE Terminal saved chart layouts (schema `edge_bff`, EXEC-TERMINAL-LAYOUTS) — applied on dev
 
 - **User:** "Saya mau ditambahkan opsi di mana layout dari layout ini bisa di-save dan bisa dibuka kapanpun" and, asked

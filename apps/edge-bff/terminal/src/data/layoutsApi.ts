@@ -13,7 +13,6 @@ export class LayoutApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) { super(message) }
 }
 
-const BASE = '/api/v1/terminal/layouts';
 const LATER = 'Try again in a minute; your chart is unchanged.';
 let csrf: Promise<string> | null = null, csrfNow = '';
 const token = () => csrf ??= fetch('/api/v1/auth/session', { credentials:'same-origin' })
@@ -23,33 +22,40 @@ const token = () => csrf ??= fetch('/api/v1/auth/session', { credentials:'same-o
     : new LayoutApiError(r.status, 'SESSION', `Saved layouts are not available right now (EDGE answered ${r.status}). ${LATER}`)))
   .then(d => (csrfNow = d.csrf_token || '')).catch(e => { csrf = null; throw e });
 
-/** the plain sentence for a refusal without its own message (or with one meant for developers) */
-function sentence(status: number, e: any): string {
+/** the plain sentence for a refusal without its own message (or with one meant for developers); `what` names the saved
+    objects ("layout", "preset") */
+function sentence(status: number, e: any, what = 'layout'): string {
   if (status === 401) return 'Your EDGE sign-in has ended: sign in to EDGE again, then reload this page.';
   if (status === 403) return 'This page’s sign-in check failed: reload the page and try again.';
-  if (status === 404 || e.code === 'NOT_FOUND') return 'That layout no longer exists (it was deleted on another device or tab).';
-  if (status === 409 && e.code === 'REVISION_CONFLICT') return 'This layout was changed on another device or tab. Open it again (Open layout), then try again.';
-  if (status === 413) return 'This layout is too large to save: remove some indicators and try again.';
-  if (status >= 500 && e.code !== 'LAYOUTS_NOT_READY') return `Saved layouts are not available right now (server error ${status}). ${LATER}`;
-  return e.message || `Saved layouts answered ${status}. ${LATER}`;
+  if (status === 404 || e.code === 'NOT_FOUND') return `That ${what} no longer exists (it was deleted on another device or tab).`;
+  if (status === 409 && e.code === 'REVISION_CONFLICT') return `This ${what} was changed on another device or tab. Open the list again, then try again.`;
+  if (status === 413) return `This ${what} is too large to save.`;
+  if (status >= 500 && !/_NOT_READY$/.test(e.code || '')) return `Saved ${what}s are not available right now (server error ${status}). ${LATER}`;
+  return e.message || `Saved ${what}s answered ${status}. ${LATER}`;
 }
 
-async function call<T>(method: string, path: string, body?: unknown, retried = false): Promise<T> {
+/** EXEC-IND-PRESETS: one client for the EDGE account's saved objects (layouts, presets): session, CSRF, plain messages */
+export const savedClient = (BASE: string, what: string) => {
+  const call = async <T>(method: string, path: string, body?: unknown, retried = false): Promise<T> => {
   const headers: Record<string, string> = {};
   if (method !== 'GET') { headers['x-csrf-token'] = await token(); headers['content-type'] = 'application/json' }
   let res: Response;
   try { res = await fetch(BASE + path, { method, headers, credentials:'same-origin', body:body === undefined ? undefined : JSON.stringify(body) }) }
-  catch { throw new LayoutApiError(0, 'NETWORK', `Saved layouts could not be reached: check the connection. ${LATER}`) }
+  catch { throw new LayoutApiError(0, 'NETWORK', `Saved ${what}s could not be reached: check the connection. ${LATER}`) }
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const e = data?.error || {};
     // a refused CSRF token (the session was renewed elsewhere): read the session again once
     if (res.status === 403 && !retried) { csrf = null; csrfNow = ''; return call<T>(method, path, body, true) }
-    throw new LayoutApiError(res.status, e.code || String(res.status), sentence(res.status, e), e.details);
+    throw new LayoutApiError(res.status, e.code || String(res.status), sentence(res.status, e, what), e.details);
   }
   return data as T;
-}
+  };
+  return call;
+};
+const BASE = '/api/v1/terminal/layouts';
+const call = savedClient(BASE, 'layout');
 
 export const newLayoutId = () => 'lay_' + [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
 

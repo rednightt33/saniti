@@ -25,6 +25,8 @@ It is a module-by-module port of the reference page `03-terminal-right-panel.htm
 | the gateway to terminal-api (data routes only, EDGE session + CSRF) | `app/main.py` (`forward_terminal`), `tests/test_terminal.py` |
 | saved chart layouts (EXEC-TERMINAL-LAYOUTS): the menu, what a layout holds (`LAYOUT_KEYS`) | `terminal/src/app/layouts.ts`, `terminal/src/data/layoutsApi.ts`, tests `terminal/tests/data/layouts.test.ts` |
 | the layouts API on edge-bff, table `edge_bff.terminal_layouts` (migration `20261106_001`) | `app/layouts.py`, `tests/test_layouts.py` |
+| indicator presets (EXEC-IND-PRESETS): Save as preset, the My presets group of the Indicators window, the name and confirmation dialogs | `terminal/src/app/presets.ts`, `terminal/src/app/indMenu.ts`, `terminal/src/ui/dialogs.ts`, `terminal/src/data/presetsApi.ts` |
+| the presets API on edge-bff, table `edge_bff.indicator_presets` (migration `20261106_002`) | `app/presets.py`, `tests/test_presets.py` |
 
 Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), EDGE session, writes with CSRF:
 
@@ -38,6 +40,22 @@ Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), ED
 
 Without the table (migration not applied) every route answers 503 `LAYOUTS_NOT_READY` with `Retry-After`; `/ready` never
 reads it. `layout_id` is `lay_` and 32 lowercase hex digits, made by the page.
+
+Indicator presets (user 2026-11-06: "men-save indikator beserta dengan filternya"; "Q1 A" on the EDGE account, "Q2 A"
+the full version): one indicator with its parameters, filters and style, added again from the Indicators window on any
+ticker. A preset is a template: changing the indicator on the chart does not change it. EDGE session, writes with CSRF:
+
+| Route | Contract |
+| --- | --- |
+| GET `/api/v1/terminal/presets` | `{presets: [Preset with config], limit}` of the owner, favorites first, then the most recently used |
+| PUT `/api/v1/terminal/presets/{preset_id}` | `{name, def_id, config, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `config` is `{params, style?, on?, fold?}` (objects at most 8 deep, text without NUL or an unpaired surrogate, at most 16,384 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (100 presets, `preset_bytes`) |
+| PATCH `/api/v1/terminal/presets/{preset_id}` | `{favorite?, used?: true}`: the star, or the used order; no revision |
+| DELETE `/api/v1/terminal/presets/{preset_id}` | 204; 404 `NOT_FOUND` |
+
+Without the table every preset route answers 503 `PRESETS_NOT_READY` with `Retry-After: 30`; the rest of the Terminal
+works. `preset_id` is `ipr_` and 32 lowercase hex digits, made by the page. When a preset is added, a parameter the
+indicator no longer has goes back to its default; a preset of an indicator the Terminal no longer has is listed as "no
+longer available" and cannot be added.
 
 Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build), `npx vitest run tests/calc`
 (parity), and the 1:1 check `TERMINAL_REFERENCE_HTML=<reference file> node tests/visual/compare.mjs <out>` then
@@ -393,7 +411,7 @@ Orc owns history, answers, methodology, evidence, usage and exports. BFF accesse
 Orc endpoints, not SQL. Its dedicated restricted schema holds its operational tables: sessions, jobs and UI metadata,
 and, with migration `20261026_005`, the three backtest tables (backtest jobs, result parts and trials; see Backtest
 tab), with migration `20261028_001` the screener's saved items and watchlist (see Screener tab), and with migration
-`20261106_001` the Terminal's saved chart layouts (see Terminal tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
+`20261106_001` the Terminal's saved chart layouts and with `20261106_002` its indicator presets (see Terminal tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
 not extend Orc's retention (code default 30 days, actual configuration must be checked before rollout). Expired
 history returns 410.
 There is currently no automatic purge of terminal job inputs/UI metadata or of backtest jobs: define an operational

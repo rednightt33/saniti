@@ -12342,3 +12342,29 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
     Length 50 + Enter dengan Minervini tidak menghapus kartu dan menulis "already on the screen".
 - Pertanyaan terbuka untuk user: area kosong di bawah baris tabel masih bergaris miring (latar area kosong, bukan sel
   gagal); dibuat polos juga atau tidak.
+
+## EXEC-IND-PRESETS — nilai indikator di kiri, jendela Indicators, preset indikator di akun EDGE (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "Kalau indikator filtersnya on, maka yang saya kotakin sebelah kanan warna biru dipindah ke kotak
+kiri yang A. Kemudian lihat screenshot indicators untuk B ... tidak perlu ada border warna biru, cukup shadow yang menonjol
+saja. Kemudian untuk C bisa di-replace dengan indikator definition bagian D, remove entirely. Kemudian boleh desain satu
+menu ... untuk men-save indikator beserta dengan filternya ... Mungkin bisa di-save di bagian indicators kali ya. Coba
+propose." Atas usulan "My presets" dan pertanyaan balik: "Q1 A" (simpan di akun EDGE), "Q2 A" (cakupan lengkap).
+- Nilai baris indikator pindah ke kiri, tepat sesudah judul; filter tetap rata kanan.
+- Kotak pencarian jendela Indicators: hover/aktif tanpa garis biru, bayangan lebih tegas.
+- Baris daftar: baris abu-abu (setelan bawaan) diganti definisi indikator; kolom PLACE · UNIT dihapus.
+- My presets: "Save as preset…" di jendela Settings dan di baris indikator; grup "My presets" di atas Favorites (nama,
+  indikator asal dan kodenya, ringkasan filter; Add; bintang; menu ⋯ Rename / Update from chart / Delete; ikut pencarian);
+  preset = template (indikator, parameter, filter, gaya); berlaku untuk semua indikator; disimpan di akun EDGE (tabel
+  baru `edge_bff.indicator_presets`, maksimal 100 per akun); parameter yang tidak dikenal lagi kembali ke bawaan;
+  preset dari indikator yang dihapus ditandai "no longer available".
+- Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
+- Status 2026-11-06 (branch): dikerjakan. Backend `apps/edge-bff/app/presets.py` + migrasi `20261106_002` (belum
+  diterapkan; gladi lokal DRYRUN 39/39, APPLY 23/23); Terminal `app/presets.ts`, `ui/dialogs.ts`, `data/presetsApi.ts`,
+  `indMenu.ts`, `indicators.ts` (hanya mode live). Bukti `verification/terminal_api/terminal_look/look_check9.mjs`
+  (simpan dari baris dan dari Settings, nama sama ditanya dulu lalu diganti, Add, bintang, Rename, Update from chart,
+  Delete, pencarian, indikator yang sudah tidak ada, parameter usang kembali ke bawaan, ponsel tanpa geser) plus
+  `look_check3/5/6/7/8` tanpa galat; Terminal 870/870, edge-bff 333 lulus, tripwire backtest OK.
+- Go rilis 2026-11-06 (user: "ok", 22:4x WIB, sesudah B6): migrasi `20261106_002` DRYRUN lalu APPLY, lalu `main`.
+- **Dirilis 2026-11-06:** migrasi `20261106_002` diterapkan (DRYRUN `b3ac99c7` 39/39, APPLY `122d4b0d` 23/23; satu
+  percobaan APPLY berhenti sebelum jalan, ERRORS M379); `main` `4b606058`, edge-bff `33cfef02` SUCCESS, aset live = build lokal.
