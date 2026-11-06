@@ -367,6 +367,9 @@ export function initFlow(ctx: Ctx) {
       const open = pop.hidden;
       closeAll(api);
       pop.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+      /* reviewer 5 (2026-11-06): a list that would leave the window is moved back inside it (Broker Inventory's buttons sit
+         at the left of a pane, the Flow Timeline's at the right; a phone is narrower than the list) */
+      if(open){ pop.style.translate = ''; const r = pop.getBoundingClientRect(), dx = r.right > innerWidth - 8 ? innerWidth - 8 - r.right : r.left < 8 ? 8 - r.left : 0; if(dx) pop.style.translate = `${Math.round(dx)}px 0` }
       if(open){ openPops.add(api); renderList(); if(search){ search.value=''; renderList(); search.focus() } } else openPops.delete(api);
     };
     if(search) search.oninput = renderList;

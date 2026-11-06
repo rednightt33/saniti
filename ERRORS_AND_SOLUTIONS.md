@@ -5314,6 +5314,34 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M354 — Review lima agen atas EXEC-TERMINAL-LOOK, EXEC-BROKER-INV-PANEL, EXEC-IND-DIALOG sebelum rilis (2026-11-06, branch)
+
+- **Ditemukan oleh:** lima agen reviewer (user 2026-11-06: "assign 5 agent 5.5 sonnet medium to review ur work. Design
+  inconsistencies, angka salah, bug, non responsive"), sebelum merge ke `main`.
+- **Verified:**
+  - Angka: 594 nilai lajur/peta dan 54 kasus opsi C dihitung ulang mandiri dari `Feature_05` BBRI: 0 salah; oracle 127 kasus ×
+    7 ticker 457.498 nilai 0 selisih. Angka desain user (BBRI 5D s.d. 27 Okt: Domestic +1,4T, Foreign −547,5B, Total +900,7B,
+    vonis +15,07%) keluar sama.
+  - IHSG ditulis 3 desimal (4,904.287): feed indeks IDX memang membawa 3 desimal (1.572 dari 1.744 nilai OHLC), aturan
+    "desimal dari data" lalu memberi 3, padahal keputusan user menyebut IHSG 2 desimal.
+  - Tombol Board/Investor/Brokers di panel FL23 bisa dikosongkan: tombol menulis "None" sementara garis tetap (state tombol
+    ≠ parameter). Perubahan dari tombol tidak masuk undo. Daftar pilihannya tertutup Flow Timeline (konteks tumpuk baris
+    pane) dan keluar layar di ponsel 360 px.
+  - Desain: peta tanpa skala/judul sumbu, "Total" tidak tebal, tag kuadran pucat; label menyesatkan bila periode tanpa nilai
+    beli ("Both accumulating"); peta tidak menyebut "All boards".
+  - Responsif: jendela Indicators di ponsel mendatar (844×390) hampir tanpa daftar; tombol legend 20 px di layar sentuh;
+    teks SVG peta ~6 px pada panel 260 px; garis diagonal keluar kotak.
+- **Root cause:** perilaku baru diuji di desktop dan saham saja; indeks dan layar sentuh/pendek tidak masuk uji awal; tombol
+  filter memakai komponen Flow Timeline yang dirancang untuk header kanan (daftar ke kiri) dan boleh kosong.
+- **Solution (commit `85dc418e` dan sesudahnya, branch):** desimal saham/indeks paling banyak 2 (obligasi 3), diturunkan dari
+  data di bawah batas itu; pilihan kosong di tombol pane ditolak dan kembali; perubahan tombol jadi satu langkah undo;
+  daftar pilihan naik di atas Flow Timeline dan digeser masuk layar (semua tombol filter); peta dengan skala, grid, judul
+  sumbu "% of total buy", clipPath, teks lebih besar, "All boards", periode tanpa nilai beli tanpa kuadran; "Total" tebal,
+  tag kuadran solid, token desain; aturan ponsel, layar sentuh dan layar pendek untuk legend, tombol dan jendela.
+- **Status:** FIXED di branch; dirilis bersama EXEC-TERMINAL-LOOK (status rilis di RAILWAY_CHANGELOG).
+- **Lesson:** setiap aturan tampilan yang "diturunkan dari data" diuji pada setiap jenis instrumen (saham, indeks,
+  obligasi), dan setiap kontrol baru diuji di ponsel, layar sentuh dan layar pendek sebelum review.
+
 ### M353 — EDGE Terminal "terminal data service answered 503 (TERMINAL_UNAVAILABLE)" sesudah restart Postgres (2026-11-06)
 
 - **Ditemukan oleh:** user, sesaat sesudah batas memori Postgres diganti ke 1 GB (Postgres menyala ulang 04:55:05 UTC).

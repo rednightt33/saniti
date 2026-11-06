@@ -255,7 +255,14 @@ export function initIndicators(ctx: Ctx) {
     const inp = k => inst.def.inputs.find(f => f.key === k);
     const codes = () => { const f = inp('brokers'), v = inst.params.brokers; return Array.isArray(v) ? v : f?.resolve ? f.resolve(v, inst.params) : [] };
     const allCodes = () => [...(ctx.flowRows?.brokers || [])].sort();
-    const apply = (k, v) => { inst.params = { ...inst.params, [k]:v }; recompute(inst); save(); Ind.onChange && Ind.onChange() };
+    /* reviewer 4 (2026-11-06): a change here is one step of the chart's undo timeline, as the same change in the dialog */
+    const apply = (k, v) => {
+      const before = JSON.stringify(inst.params), hid = inst.hid;
+      inst.params = { ...inst.params, [k]:v }; recompute(inst); save(); Ind.onChange && Ind.onChange();
+      const after = JSON.stringify(inst.params);
+      const set = (json: string) => { const cur = byHid(hid); if(!cur) return; cur.params = JSON.parse(json); recompute(cur); save() };
+      if(after !== before) Hist.push({ undo:() => set(before), redo:() => set(after) });
+    };
     const summaryOf = (all: () => number, def: string[]) => { const f: any = (s: Set<string>) => s.size === all() ? `All (${all()})` : s.size === 0 ? 'None' : [...s].join(', ');
       f.isModified = (s: Set<string>) => !(s.size === def.length && def.every(x => s.has(x))); return f };
     inst.flt = [];

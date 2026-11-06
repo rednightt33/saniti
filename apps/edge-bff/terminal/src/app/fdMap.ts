@@ -27,7 +27,7 @@ export function mapSvg(pts: MapPoint[], lim: number): string {
     g += `<text x="${L - 4}" y="${(T + Y(v) + 3).toFixed(1)}" class="fdm-tk" text-anchor="end">${tick(v)}</text>`;
     g += `<text x="${(L + X(v)).toFixed(1)}" y="${T + S + 12}" class="fdm-tk" text-anchor="${v === -lim ? 'start' : v === lim ? 'end' : 'middle'}">${tick(v)}</text>`;
   }
-  g += `<g transform="translate(${L} ${T})"><g clip-path="inset(0 round 6px)">`;
+  g += `<g transform="translate(${L} ${T})"><defs><clipPath id="fdm-clip"><rect x="0" y="0" width="${S}" height="${S}" rx="6"/></clipPath></defs><g clip-path="url(#fdm-clip)">`;
   g += `<rect x="0" y="0" width="${S}" height="${S}" fill="var(--surface)"/>`;
   g += `<rect x="${S / 2}" y="0" width="${S / 2}" height="${S / 2}" fill="rgba(8,153,129,.08)"/><rect x="0" y="${S / 2}" width="${S / 2}" height="${S / 2}" fill="rgba(242,54,69,.07)"/>`;
   for (const v of [-lim / 2, lim / 2]) g += `<line x1="${X(v)}" y1="0" x2="${X(v)}" y2="${S}" stroke="var(--border)" stroke-dasharray="2 3"/><line x1="0" y1="${Y(v)}" x2="${S}" y2="${Y(v)}" stroke="var(--border)" stroke-dasharray="2 3"/>`;

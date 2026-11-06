@@ -1218,6 +1218,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ind-zero{position:absolute;z-index:4;transform:translate(-100%,-50%);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-2);font-variant-numeric:tabular-nums;pointer-events:none}
 .ind-zero[hidden]{display:none}
 .ind-row.in-pane:has(.ind-flt){flex-wrap:wrap;row-gap:4px;max-width:calc(100% - var(--ax-l,94px) - 84px)}
+/* reviewer 4: an open list sits above the Flow Timeline below the pane (the row's own stacking context held it under) */
+.ind-row.in-pane:has(.fl-pop:not([hidden])){z-index:40}
 @media(max-width:760px){.ind-flt{margin-left:0}.ind-flt .fl-btn .fl-k{display:none}}
 
 /* EXEC-BROKER-INV-PANEL (design top_brokers_panel.html, "Dua lajur"): Top brokers' Domestic / Foreign / Total lanes, the
@@ -1244,11 +1246,11 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-ax{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
 .fdm-y{grid-column:1;grid-row:1;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;align-self:center}
 .fdm-x{grid-column:2;grid-row:2;text-align:center;padding-left:20px}
-.fdm-tk{font-size:8.5px;fill:var(--text-3);font-variant-numeric:tabular-nums}
-.fdm-q{font-size:8.5px;fill:var(--text-3)}
-.fdm-p{font-size:9.5px;fill:var(--text-2);font-weight:var(--fw-medium)}.fdm-p.cur{fill:var(--text);font-weight:var(--fw-bold)}
+.fdm-tk{font-size:10px;fill:var(--text-3);font-variant-numeric:tabular-nums}
+.fdm-q{font-size:9.5px;fill:var(--text-3)}
+.fdm-p{font-size:10.5px;fill:var(--text-2);font-weight:var(--fw-medium)}.fdm-p.cur{fill:var(--text);font-weight:var(--fw-bold)}
 .fdm-eq{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);margin:0 0 6px;text-align:center}
-.fdm-eq span{display:block;font-size:var(--fs-2xs);color:var(--text-3)}
+.fdm-eq span{display:block;font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
 .fdm-eq b{font-size:var(--fs-12);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums}
 .fdm-eq i{font-style:normal;color:var(--text-3)}
 .fdm-tbl{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
@@ -1258,3 +1260,30 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-row.on{background:var(--sel);font-weight:var(--fw-semibold)}
 .fdm-dot{justify-self:end;width:8px;height:8px;border-radius:50%}
 .fdm-dot.fdm-t0{background:var(--up)}.fdm-dot.fdm-t1{background:var(--accent)}.fdm-dot.fdm-t2{background:#d98a0b}.fdm-dot.fdm-t3{background:var(--down)}
+
+.im-box{height:min(720px,calc(100dvh - 64px));max-height:calc(100dvh - 16px)}
+/* reviewer 5 (2026-11-06, phones and touch): the pane buttons on their own line clear of the right axis tags; touch-size
+   buttons where there is no hover; the Indicators window in a short landscape window; the group strip shows it scrolls */
+@media(max-width:760px){
+  html.fit .ind-row.in-pane:has(.ind-flt),.ind-row.in-pane:has(.ind-flt){max-width:calc(100vw - var(--ax-l,94px) - 140px)}
+  .ind-flt{flex-basis:100%;margin-left:0}
+  .im-box{height:calc(100dvh - 32px)}
+  .im-nav{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
+  .im-star{width:32px;height:32px}
+}
+@media(hover:none){
+  .ind-eye{min-width:30px;min-height:30px}
+  .chart-legend{gap:8px}
+  .ind-flt .fl-btn{height:32px}
+}
+@media(max-height:480px){
+  .im-head p,.im-foot span{display:none}
+  .im-head{padding-top:var(--s-6)}
+  .im-search{margin:var(--s-4) 20px}
+  .im-box{height:calc(100dvh - 16px)}
+  .im-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+  .im-split,.im-sep,.im-title,.im-rz{display:none}
+  .im-nav{flex-direction:row;overflow-x:auto;border-bottom:1px solid var(--border);padding:4px 8px;scrollbar-width:none}
+  .im-nav button{width:auto;flex:none;min-height:30px;white-space:nowrap}
+  .im-row{min-height:48px}
+}
