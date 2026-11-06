@@ -5314,6 +5314,244 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M366 — Screener preview: an answer of another publication than the table shown beside its row (2026-11-06, branch)
+
+- **Found by:** tests and accessibility review of EXEC-SCREENER-V21 (subagent 4, `s4_tests.md` D4, code reading).
+- **Symptom (verified in the QA harness):** a preview answer whose `versions.registry` differed from the table's run was
+  drawn as the row's chart and "Why it passed".
+- **Verified cause (code):** `preview.ts` (before) kept every answer (`PV.answer = a`); only a refusal
+  `DATA_VERSION_CHANGED` was handled, and the request names only `price_data`. The extra columns compare every version
+  field (`extra-columns.ts`).
+- **Class:** an answer joined to the table without checking that it comes from the same publication (any version
+  field: price, flow, engine, registry). Every panel that describes table rows has the same need.
+- **Solution (uncommitted):** `preview.ts` compares the answer's versions with the table's (`boot-cache.ts
+  sameVersions`, all `VERSION_FIELDS`). A mismatch is handled like the refusal: one re-run per publication pair
+  (`run.ts dataChanged`, M359), then the message with Retry.
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: the coordinator's `d4.cjs` (preview, one
+  run, preview, then the message and Retry; no chart of the other publication).
+- **Lesson:** every answer shown beside the table carries its versions and is checked against the table's.
+
+### M365 — Screener: the switch knob and two chevrons still animated under "reduce motion" (2026-11-06, branch)
+
+- **Found by:** subagent 4 (`s4_tests.md` D3, `tests/visual/shots.mjs` reduced-motion check).
+- **Verified cause (code):** the reduced-motion block of `screener.css` listed the elements to stop one by one; `.sw
+  span` (transition .15s), `.pmore .ico` and `.builder-h .tgl .ico` were not in the list.
+- **Class:** a list of moving elements kept by hand misses every new one.
+- **Solution (uncommitted):** under `prefers-reduced-motion: reduce`, every transition of the page is off (`*, *::before,
+  *::after`); the loading rings keep turning (a waiting state, not decoration).
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: `tests/visual/shots.mjs` passes ("0
+  colour/opacity fades kept", no element moves).
+- **Lesson:** a page-wide rule, not a list, for what a user setting turns off.
+
+### M364 — Screener: adding an extra column, and the page boot, blocked the main thread over 50 ms (2026-11-06, branch)
+
+- **Found by:** subagent 4 (`s4_tests.md` D2): 55–98 ms in the smoke's extra-column step (limit of report 6c.9 item 2).
+- **Verified cause (CPU profile and call counts, unminified smoke build):**
+  - `extra-columns.ts tableOf` rebuilt the table key (a sorted ticker list serialised to JSON) for every cell and every
+    sort comparison: 146 calls in one boot;
+  - `layout/columns.ts` drew the table again after `setColumns`, which draws it itself;
+  - at boot, bringing the remembered screen to the table (`screenNow` → `settle` → refresh 'results') and drawing the
+    page (`refresh('all')`) drew the whole table twice in one task.
+- **Class:** derived work redone per cell, and the same area drawn more than once per user action or boot step.
+- **Solution (uncommitted):**
+  - `tableOf` kept per (result, catalog) object (neither is changed in place);
+  - one draw per column change;
+  - `app.ts batch()`: a sequence of refreshes (restoring the last screen, a new publication) draws once, at the widest
+    level asked;
+  - `preview.ts renderDetails` writes the panel and re-creates its chart only when its markup, the theme or the answer
+    changed (a preset click redrew the unchanged chart: 55 ms in 1 of 3 runs).
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: per-action long tasks in the column and
+  preset steps are all under 50 ms; two full smoke runs pass ("longest main-thread task of the page: 0 ms" outside the
+  fixture's own compute).
+  Residual: `layout/table.ts applyDense` still forces one layout of the table per draw (about 20 ms unminified); a
+  slower device could cross 50 ms on a large page.
+- **Lesson:** profile per action, and keep a derived key next to the object it derives from.
+
+### M363 — Screener preview: Retry could not be clicked with a mouse (2026-11-06, branch)
+
+- **Found by:** subagent 4 (`s4_tests.md` D1); the element at the button's centre was `#dChart`.
+- **Verified cause (code):** the error and its Retry were drawn inside `.ml-boot`, the shared loading overlay
+  (`terminal/src/styles/spin.css:7`, `pointer-events:none`), so the click went through to the chart box.
+- **Class:** an action placed inside an overlay that lets clicks through.
+- **Solution (uncommitted):** the message and Retry are drawn in `.pv-err`, outside `.ml-boot` (`preview.ts`,
+  `screener.css`).
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: the smoke step "preview of a service still
+  behind the table" clicks Retry and passes.
+- **Lesson:** a loading overlay holds no action; an error with an action replaces it.
+
+### M362 — Screener on a phone: preset category tabs and the "more presets" button outside the card, unreachable (2026-11-06, branch)
+
+- **Found by:** the coordinator of EXEC-SCREENER-V21, from the final 390 px screenshots.
+- **Symptom:** at 390 px the preset tabs stopped at "Combine…", the preset chips and the description were cut at the
+  card's edge, and the "more presets" button could not be reached (no scroll).
+- **Verified cause (browser measurement):**
+  - `#uPresets.presets` was 483 px wide inside the 358 px `#cardU` (`overflow:hidden`);
+  - it is a flex item with `min-width:auto`, so it grew to the tabs' no-wrap width (`.seg` 459 px, `flex:0 0 auto`);
+  - the tabs' own `overflow-x:auto` never scrolled.
+- **Class:** a flex or grid item with `min-width:auto` whose content does not wrap grows past a parent that clips it, and
+  its controls become unreachable. It would hit any long row (filter chips, new preset groups, flow panels) at a narrow
+  width or a large zoom.
+- **Solution (uncommitted):** `#cardU .presets{min-width:0}`; the tabs `flex:0 1 auto;min-width:0;max-width:100%;
+  overflow-x:auto` (they scroll on a phone).
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: the coordinator's `reach.cjs` (every visible
+  control's centre is in the viewport or in a scrollable parent) finds none unreachable at 390, 1100 and 1440 px.
+- **Lesson:** check that every control can be reached at the narrow width, not only that the page has no horizontal
+  scroll; `min-width:0` on every flex item that holds a no-wrap row.
+
+### M361 — Screener column picker and extra-column tooltips: raw parameter keys and "dimensionless" (2026-11-06, branch)
+
+- **Found by:** independent QA of EXEC-SCREENER-V21 (subagent 5, `s5_qa.md` L2).
+- **Symptom:** the picker and the header tooltip read `smoothing_type RMA`, `annualization_periods 252`,
+  `return_type log`, and the unit "dimensionless" (Balance of Power).
+- **Verified cause (code):** `src/layout/columns.ts` and `results.ts paramsText` (before) joined the wire keys and
+  values of `ExtraColumnDef.params`, and fell back to `ExtraColumnDef.unit` (the wire's scaling class, see M355). Every
+  catalog parameter has a label (`entries.ts`, checked on the fixture catalog: no parameter without one).
+  `tests/page/plain-words.test.ts` reads the page's own strings, not text built at run time from catalog keys.
+- **Class:** user text built from machine keys instead of the catalog's words: any new parameter or unit (flow,
+  macro) would show its key.
+- **Solution (uncommitted):** `ExtraColumnDef.paramText` from each parameter's catalog label and option text
+  (`extra-columns.ts specOf`); the unit from `format.ts unitWords(format)`.
+- **Status:** FIXED in code (branch, not committed, not deployed).
+- **Lesson:** text for the user comes from catalog labels; a key is never a fallback the user sees.
+
+### M360 — Screener table: a stale stock's Last and 1D shown as ordinary values of the screen's date (2026-11-06, branch)
+
+- **Found by:** independent QA of EXEC-SCREENER-V21 (subagent 5, `s5_qa.md` M4).
+- **Symptom:** a stock that did not trade on the screen's date (LPPF, last session 2026-10-20, screen 2026-10-23) showed
+  `1,635 | −0.91%` like any other row. Only the Remark badge said "Stale". The preview already wrote "on 2026-10-20"
+  (M356), the table did not.
+- **Verified cause (code):** `results.ts` (before) wrote `nf(r.last)` and `d1Td` marked only a price break on the last
+  bar; `Row.stale` and `Row.last_bar_date` (from the worker) were not read by these cells.
+- **Class:** the same as M356 (a value labelled with a date it is not of), in the table: Last, 1D and every value cell of
+  a stale row; the coming flow and macro series that lag the price calendar.
+- **Solution (uncommitted):** a stale row has `tr.stale` (values muted, `screener.css`); Last and 1D carry
+  `texts.ts staleValueText` ("Close of 2026-10-20, the stock's last session: it did not trade on 2026-10-23, the date of
+  the screen.") as title and as screen-reader text. Condition and extra cells already name their evaluated date
+  (`cellTitle`).
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: S5's `t5_remarks.cjs` on the production
+  build shows the dated Last and 1D for LPPF and ELSA.
+- **Lesson:** every surface that shows a value takes its date from the value; a row-level badge is not enough.
+
+### M359 — Screener: unbounded run loop when a preview is refused DATA_VERSION_CHANGED while the catalog still answers the old publication (2026-11-06, branch)
+
+- **Found by:** independent QA of EXEC-SCREENER-V21 (subagent 5, `s5_qa.md` M3). The mechanism predates v21.
+- **Symptom:** in the QA harness (the worker answers at a new price_data, the catalog and universe answer 304, the
+  preview is refused DATA_VERSION_CHANGED), the page sent 159 main runs in about 5 s, each followed by a catalog and a
+  universe GET and a preview; it stayed "Screening…".
+- **Verified cause (code):**
+  - `preview.ts` (before) answered every DATA_VERSION_CHANGED with `ui.schedule(true)` (a forced re-run), and the next
+    preview asked again;
+  - `extra-columns.ts` did the same;
+  - `app.ts versionSeen` asked the catalog again after every answer at another price_data, while edge-bff reads the
+    worker's health at most every 60 s (`apps/edge-bff/app/screener.py:70`, `HEALTH_SECONDS`), so the catalog answered
+    304 until then.
+- **Class:** an automatic re-request on a refusal or a version mismatch with no bound per cause. Any request that can be
+  refused for a version can hit it: preview, extra columns, counts, and later flow or macro panels.
+- **Solution (uncommitted):**
+  - one place decides the re-run: `run.ts dataChanged()` re-runs the screened definition at most once per (definition,
+    the rows' price_data, the catalog's price_data);
+  - a second refusal at the same three shows `T.dataBehind` with Retry (preview `[data-pvretry]`, the column's error);
+  - `versionSeen` asks the catalog once per (answer's, catalog's) price_data pair every 60 s.
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: S5's `t8_pub.cjs` on the production build
+  sends one run, one refused preview, one re-run, one refused preview, then nothing (before: 159 runs).
+- **Lesson:** every automatic retry needs a bound per cause, kept where the cause is decided, not in each caller.
+
+### M358 — Screener: a screened column linked to a page condition by its id alone (wrong editor, colours, CSV name) (2026-11-06, branch)
+
+- **Found by:** independent QA of EXEC-SCREENER-V21 (subagent 5, `s5_qa.md` M1, M2); the colour case by the coordinator
+  while fixing M1.
+- **Symptom:**
+  - after screening Minervini and choosing the preset "Oversold in Uptrend" (not yet screened), the chip of the "SMA
+    200" column opened the editor of "Relative Strength Index · Condition 2";
+  - every condition column and every "Met" dot had the first colour (a v21 regression of phase B);
+  - a CSV exported while the table was out of date carried the page's pending name ("Untitled screen") over
+    Minervini's rows.
+- **Verified cause (code):**
+  - presets and saved screens reuse condition ids (`a`, `b`, …), and `results.ts` (before) offered the chip when
+    `S.cards.some(x => x.id === c.id)`; `layout/header-edit.ts cardOf` opens by id;
+  - since v21 the table's columns are the screened definition's cards (`run.ts screenedCards`), separate objects, so
+    `builder.ts colorOf`'s `S.cards.indexOf(c)` was −1 for each;
+  - `results.ts exportCsv` took `S.name`.
+- **Class:** a property of the screened screen (its conditions, colours, name) read from the page's pending state, or
+  matched by a key the definitions reuse.
+- **Solution (uncommitted):**
+  - `run.ts pageCardOf(c)`: the page card with the same id, entry and test form (never a raw card or a My metric); the
+    chip is offered only then, and `colorOf` uses it, else the card's place in the screened definition;
+  - `Result.name` (the name it was screened under); the CSV of an out-of-date table takes it, a table that answers the
+    page takes the page's name.
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified: S5's `t10_hedit.cjs` (no chip on the SMA 200
+  column while the page's `b` is RSI) and `t9_saved.cjs` (`# Screen,Minervini Trend Template` after Reset).
+- **Lesson:** what describes the table comes from the screened definition and the result; an id is only an identity
+  together with what it names.
+
+### M357 — Screener: the first click after typing a value was lost (Screen now, column headers) (2026-11-06, branch)
+
+- **Found by:** independent QA of EXEC-SCREENER-V21 (subagent 5, `s5_qa.md` H1); widened by the coordinator.
+- **Symptom:** type a number in a condition, then click "Screen now" (top or builder bar) or a column header: nothing
+  happened; a second click worked.
+- **Verified cause (browser trace on the fixture build):**
+  - the press moves the focus, so the field's blur and change run inside the press; `app.ts refresh` then rewrote
+    `#pageActs` (`renderHeader`) and `screen-gate.ts renderScreen` replaced the button (`outerHTML`); the 350 ms number
+    debounce and run answers can also land inside a press;
+  - for a column header, the change made the out-of-date bar appear above the table, which pushed the header down: the
+    trace shows `mousedown` on the header button, `pointerup` on the bar's button, and `click` on their common parent
+    `div.center`;
+  - a click goes to the common parent of the pressed and the released node, so the page's handler never saw it.
+- **Class:** any drawing (re-created nodes or moved layout) between the press and the release of a pointer. It applies
+  to every area of the page (builder, table, filters, presets, preview) and to every later panel that redraws on an
+  answer.
+- **Solution (uncommitted):**
+  - `src/press.ts`: while a pointer is pressed, the area renderers wait (refresh, renderHeader, renderResults,
+    renderConds, renderUniverse, renderPresets, renderDetails, renderScreen) and draw once after the click;
+  - the state an edit changes (S, the gate's flags in `run.ts sync`) is set at once;
+  - the Screen now controls are patched in place, never re-created; `renderHeader` writes the other actions only when
+    they change.
+- **Status:** FIXED in code (branch, not committed, not deployed). Verified on the fixture build (type, then click: top
+  Screen now runs, the column header sorts on the first click) and with S5's `t7_typeclick.cjs` on the production
+  build (all five clicks run).
+- **Lesson:** a page that redraws on change must not redraw under a pressed pointer; test every control with "type,
+  then click" without leaving the field first.
+
+### M356 — Screener preview: a stale stock's move labelled "today" and its "Stock vs IHSG" dated to the screen's date; event cells "Nd ago" for sessions (2026-11-06, branch)
+
+- **Found by:** the data audit of EXEC-SCREENER-V21 (subagent 2, `s2_data.md` D-2 and 1c).
+- **Symptom:** the preview quote wrote `±x.xx% today` for every stock, and the Stock vs IHSG note "(n sessions to
+  <evaluation date>)". Event cells in the table and the preview wrote `3d ago`.
+- **Verified cause (code):**
+  - `preview.ts` (before) appended `' today'` to the 1-day change and named `a.data.evaluation_date`;
+  - for a stale stock the change and `perf` belong to its own last bar (`apps/screener-worker/src/preview.ts:56`,
+    `at = n - 1` of the ticker's own dates);
+  - `bars_ago` counts the stock's own sessions (contract `Cell`), so "d" read as calendar days.
+- **Class:** any label that names a date or a time unit the value does not carry (stale stocks; the stock's own sessions
+  against calendar days; the coming flow and macro series with their own calendars).
+- **Solution (EXEC-SCREENER-V21, uncommitted):** `texts.ts dayWord` ("today" only when the last bar is the evaluation
+  date, else "on <date>"); the perf note names the stock's last bar; `texts.ts eventText` writes "N sessions ago" in the
+  table and the preview; every cell tooltip comes from `cellTitle` (evaluated date, and that it is the stock's last
+  trade when it is before the screen's date).
+- **Status:** FIXED in code (branch, not committed, not deployed).
+- **Lesson:** a value's label must take its date and unit from the value's own basis, never from the page's date.
+
+### M355 — Screener: percent values shown without "%" in production (distance from 52W high, ROC, ATR %, historical volatility, close vs MA) (2026-11-06, branch)
+
+- **Found by:** the data audit of EXEC-SCREENER-V21 (subagent 2, `s2_data.md` D-1), on the real core.
+- **Symptom:** a VALUE cell of a percent measure read `−4.53` instead of `−4.5%` in the table and the preview's "Why it
+  passed". The fixture build showed `%`, so the visual checks never saw it.
+- **Verified cause (code):**
+  - the wire `Cell.unit` is the core's scaling class, not a display unit: `src/core/transforms.ts:188` sets
+    `pct_distance` to `'dimensionless'` (also ROC, NATR, HV, hi52/lo52);
+  - `results.ts` (before) took `x.unit ?? o?.unit`, so `'dimensionless'` won over the option's `'%'`, and `format.ts
+    valueText` has no branch for it (falls to `xfmt`);
+  - the fixture's cells carry no unit (`tests/fixture/engine.ts:100`), so the fixture fell back to `o.unit`.
+- **Class:** any number formatted from a coarse machine unit instead of the catalog's display unit; it would hit every
+  new metric (flow, fundamentals, macro) whose wire unit is a class.
+- **Solution (EXEC-SCREENER-V21, uncommitted):** the format comes from the catalog only: `entries.ts formatOfOpt`
+  (output `unit` + `display_unit` + test form, or the metric's unit) → `format.ts fmtValue`; used by the table, the
+  preview's list and copy text, and the extra columns (`ExtraColumnDef.format`). A test fixes the formats of the extra
+  columns (`tests/page/extra-columns-core.test.ts`).
+- **Status:** FIXED in code (branch, not committed, not deployed). Optional backend need: a `display_unit` on
+  `ConditionSummary` so every surface formats without the catalog lookup.
+- **Lesson:** test fixtures must carry the wire's real fields (here `Cell.unit`), or a display path is never exercised.
+
 ### M354 — Review lima agen atas EXEC-TERMINAL-LOOK, EXEC-BROKER-INV-PANEL, EXEC-IND-DIALOG sebelum rilis (2026-11-06, branch)
 
 - **Ditemukan oleh:** lima agen reviewer (user 2026-11-06: "assign 5 agent 5.5 sonnet medium to review ur work. Design
