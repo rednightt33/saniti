@@ -341,3 +341,68 @@ pembulatan ringkas yang sudah ada). Masih ada dua pesan yang salah (R2-M1, R2-M2
 - Playwright (`terminal_look/look_check4.mjs`, `look_check3.mjs`): keempat pilihan papan = Regular di desktop dan
   iPhone 13; tangga BBRI 5D −6,37% → Dist; peta tooltip "Regular board"; FL12 baru `boards: ["Regular"]`; tanpa geser
   horizontal, tanpa galat konsol.
+
+## 9. QA putaran 3 — draft `28614e02` (2026-11-06)
+
+**Kata user:** "QA putaran 3." Lalu, sebelum QA mulai, dua fitur baru ditambahkan (EXEC-TERMINAL-LAYOUTS: "di akun edge. Tidak usah
+mengganti saham."). Lima agen (Sonnet, high) hanya memeriksa; tanpa ubah kode, build, publish atau migrasi Railway.
+Bukti tiap agen: scratchpad `qa1r3` … `qa5r3`.
+
+| Agen | Area | Status |
+|---|---|---|
+| 1 | Menu layout di halaman | FAIL (1 High, 6 Medium) |
+| 2 | API dan migrasi layout | PASS dengan temuan (3 Medium) |
+| 3 | Angka sesudah 1A/2A (vs PostgreSQL) | PASS (3 Low) |
+| 4 | Collapse panel bawah; setelan yang diingat | FAIL (collapse); PASS (setelan) |
+| 5 | Uji ulang putaran 2; regresi | FAIL minor |
+
+**Angka:** tidak ada yang salah. Top brokers 18 kombinasi, Broker summary 48, peta 243 nilai, FL11/12/23/24/33 Regular dan
+All, Flow Timeline sesudah reload: semua cocok dengan PostgreSQL (BBRI sampai 2026-11-03).
+
+### Temuan digabung
+**High**
+- **Q3-H1 — Collapse di layar ≤ 1024 px dan di ponsel:** panel Flow yang dilipat 30 px, padahal barisnya 44–193 px; baris saling
+  tumpuk. Di 1440 baris dua-baris juga meluber dan chevron bisa mengenai tombol Remove baris berikutnya (agen 4 H1, M1).
+  Akar yang sama: baris panel Flow di ponsel satu kata per baris dan saling tumpuk walau tidak dilipat (agen 5 M2).
+- **Q3-H2 — Dialog Open layout keluar layar** di ponsel/1024 bila nama layout panjang (≥ 30 huruf); tombol Close/hapus tidak
+  terjangkau (agen 1 H1).
+
+**Medium**
+- Q3-M1 — Panel terlipat masih menampilkan label sumbu "0.0"/"0.0%" (agen 4 M2).
+- Q3-M2 — Menu layout: panah bawah berputar di Save/Autosave saja; dialog tanpa focus trap, Esc hanya bila fokus di dalam;
+  fokus tidak kembali ke tombol Layout (agen 1 M1, M2).
+- Q3-M3 — Perubahan dalam detik-detik awal sesudah membuka layout tidak tersimpan dan tidak ditandai (agen 1 M3).
+- Q3-M4 — Membuka layout / Create new tanpa layout aktif membuang chart yang belum disimpan tanpa konfirmasi (agen 1 M4).
+- Q3-M5 — Konflik autosave mengembalikan nama layout yang diganti di perangkat lain (agen 1 M5, agen 2 L2).
+- Q3-M6 — Pesan gagal tidak jelas ("retry after the stated seconds", "answered 500", "No such layout.") dan toast terpotong
+  di ponsel (agen 1 M6, agen 2 M2).
+- Q3-M7 — Runbook migrasi belum punya parameter/pemeriksaan untuk `20261106_001` (agen 2 M1); tes hak akses tabel belum ada
+  (agen 2 M3).
+- Q3-M8 — R2-M3 sebagian: file broker gagal, Flow Timeline masih "Rp 0" dan garis nol sampai di-zoom (agen 5 M1).
+- Q3-M9 — Peta: persamaan terpotong di panel kanan ≤ ~308 px (agen 5 M3); titik 0,0/0,0 di Nego disebut "Both
+  accumulating" dan "−0.0%" muncul lagi (agen 5 M4 = Low lama "nama kuadran tanpa ambang").
+
+**Low (ringkas)**
+- Toolbar terlalu lebar di 1440 bila kedua panel terbuka, atau di 1024 dengan nama layout panjang (agen 5 L4, agen 1 L4).
+- Daftar broker Flow Timeline yang diingat ditimpa pada saham tanpa broker itu; di saham tanpa data broker, Board/Investor
+  tidak lagi tersimpan (agen 4 L3).
+- Tanda minus "-" sisa di pop-out, Statistics, Flow Timeline, legend chart (agen 3 F2, agen 5 L3).
+- Hint Broker summary/Top brokers tidak menyebut papan (agen 3 F3).
+- ±6,00% / ±10,00% tampil, verdict tingkat bawah (agen 3 F1).
+- Panel Filters tidak ikut baris sesudah resize (agen 5 L1).
+- Tombol baris indikator tidak terjangkau Tab (agen 5 L2, M5 putaran 1).
+- "Big Dist" terpotong 1 px di 260 px (agen 5 L5).
+- Label chevron tanpa nama indikator; tinggi lipat 28–44 px (agen 4 L1, L2).
+- 503/NUL/surrogate dijawab 503, bukan 422; README/dokumen inventaris tabel (agen 2 L1, L3, L4).
+- Menu "No saved layouts yet" saat masih memuat; Save tanpa perubahan tetap menulis; toast menutupi menu (agen 1 L1, L5, L6).
+
+**Tertutup dari putaran 2:** R2-M1, R2-M2, R2-M5, "Sep", Low peta, aria-label baris, Esc titik peta; Alt+B sesudah panel
+diurutkan ulang menggulir ke atas.
+
+### Tes
+Terminal vitest 870/870; Backtest 88/88; tripwire OK; edge-bff `test_layouts.py` 18/18 (agen 2: suite penuh 305/306, satu
+tes chat EDGE ponsel gagal juga di kode sebelumnya). Agen 2 menjalankan halaman build terhadap edge-bff asli dengan
+login `edge_bff_login` di Postgres lokal: semua alur dan pesan sampai ke pengguna.
+
+### Rekomendasi
+Belum siap rilis. Perbaiki High dan Medium dulu (layout dan collapse), lalu QA ulang singkat pada area yang diubah.
