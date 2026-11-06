@@ -1219,3 +1219,40 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ind-zero[hidden]{display:none}
 .ind-row.in-pane:has(.ind-flt){flex-wrap:wrap;row-gap:4px}
 @media(max-width:760px){.ind-flt{margin-left:0}.ind-flt .fl-btn .fl-k{display:none}}
+
+/* EXEC-BROKER-INV-PANEL (design top_brokers_panel.html, "Dua lajur"): Top brokers' Domestic / Foreign / Total lanes, the
+   panel's 11.5 px figures; Foreign faded as in the table's bars */
+.acc-lanes{display:grid;gap:4px;margin:2px 0 10px}
+.acc-lane{display:grid;grid-template-columns:62px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--text-2);cursor:help}
+.acc-lane .nm b{color:var(--text);font-weight:600}
+.acc-lane .nv{text-align:right;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.acc-tl{position:relative;display:flex;height:8px;border-radius:4px;overflow:hidden;background:#f0f0f0}
+.acc-tl i{display:block;height:100%}
+.acc-tl i.b{background:var(--up)}.acc-tl i.s{background:var(--down)}
+.acc-tl .mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:rgba(0,0,0,.18)}
+.acc-lane.f .acc-tl i{opacity:.42}
+.acc-cut{border-top:1px dashed var(--border-2);margin:2px 0}
+
+/* EXEC-BROKER-INV-PANEL (design peta_asing_domestik.html): the Foreign × Domestic map panel */
+.fdm-now{gap:6px;flex-wrap:wrap}
+.tag.fdm-t0{background:#e3f5ef;color:#087f5b}.tag.fdm-t1{background:#e6f0fe;color:#0062d6}
+.tag.fdm-t2{background:#fdf1dc;color:#9a5b0b}.tag.fdm-t3{background:#fde8ea;color:#d62839}
+.fdm-wrap{display:grid;grid-template-columns:14px minmax(0,1fr);grid-template-rows:auto auto;gap:2px 4px;margin:6px 0 8px}
+.fdm-svg{grid-column:2;width:100%;max-width:300px;height:auto;display:block;justify-self:center}
+.fdm-ax{font-size:10px;color:var(--text-3);white-space:nowrap}
+.fdm-ax b{font-weight:500;color:var(--text-2)}
+.fdm-y{grid-column:1;grid-row:1;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;align-self:center}
+.fdm-x{grid-column:2;text-align:center}
+.fdm-q{font-size:8.5px;fill:var(--text-3)}
+.fdm-p{font-size:9.5px;fill:var(--text-2);font-weight:500}.fdm-p.cur{fill:var(--text);font-weight:700}
+.fdm-eq{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:4px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin:0 0 6px;text-align:center}
+.fdm-eq span{display:block;font-size:10.5px;color:var(--text-3)}
+.fdm-eq b{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.fdm-eq i{font-style:normal;color:var(--text-3)}
+.fdm-tbl{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.fdm-row{display:grid;grid-template-columns:44px repeat(3,minmax(0,1fr)) 18px;align-items:center;gap:4px;padding:5px 8px;font-size:11.5px;font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
+.fdm-row span:not(:first-child){text-align:right}
+.fdm-row.h{border-top:0;background:var(--soft);font-size:10.5px;color:var(--text-3)}
+.fdm-row.on{background:var(--sel);font-weight:600}
+.fdm-dot{justify-self:end;width:8px;height:8px;border-radius:50%}
+.fdm-dot.fdm-t0{background:#089981}.fdm-dot.fdm-t1{background:#0070f3}.fdm-dot.fdm-t2{background:#f5a623}.fdm-dot.fdm-t3{background:#f23645}

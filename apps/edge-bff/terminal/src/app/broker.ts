@@ -3,9 +3,10 @@
 import type { Ctx } from './context';
 import { $, keyOf, nfCompact, pct, row, spin, store } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
-import { aggregate, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
+import { aggregate, fdQuadrant, fdSplit, FD_QUADRANTS, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
 import { atLeast } from '../calc/flow';
 import FLOW_REG from '../data/flowRegistry.json';
+import { mapLimit, mapReadout, mapSvg, quadrantTag, type MapPoint } from './fdMap';
 
 /* EXEC-TERMINAL-FLOW-IND (user 2026-10-30: "Kita pakai B dulu ya which B: pakai batas Screener (6/10%), default Top 3"),
    live: the Bandar panel's verdict is the agreed bandar balance, Bandar Balance · % (FL24); its levels and Top N are read
@@ -58,7 +59,8 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-IHSG-FLOW (user 2026-11-03: "B", "Sembunyikan"): an index's broker rows are the market aggregate, so its panels
      show Rupiah only: no Lot and no Avg in Broker summary, Broker inventory in Value without the Lot button */
   const IDX = !!M.index;
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:IDX ? 'value' : 'lot', invInv:'All', invBoard:'All' };
+  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:IDX ? 'value' : 'lot', invInv:'All', invBoard:'All',
+    fdN:[3, 5, 10].includes(Number(store.get('ml.fd.top'))) ? Number(store.get('ml.fd.top')) : 3 };
   if(live){
     $('bdTop').querySelectorAll('button').forEach((b: any) => b.classList.toggle('active', +b.dataset.n === RS.bdN));
     $('bdHint').textContent = `Top ${RS.bdN}`;
@@ -364,16 +366,24 @@ export function initBroker(ctx: Ctx) {
     const bar = (x, side) => `<div class="trk ${side}">${x ? splitFill(Math.abs(x.net)/mx*100, x.f, x.d, side) : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
     const [vt, vc] = bal.verdict, big = /^Big /.test(vt) ? ' big' : '';
-    const share = bal.buy + bal.sell ? bal.buy / (bal.buy + bal.sell) * 100 : 50;
     const ratio = (bal.ratio > 0 ? '+' : bal.ratio < 0 ? '−' : '') + Math.abs(bal.ratio * 100).toFixed(2) + '%';
     const why = `Bandar balance · Top ${N}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
       + ` = (${cv(bal.buy)} − ${cv(bal.sell)}) ÷ ${cv(bal.total)} = ${ratio}. Acc from 6%, Big Acc from 10%; Dist and Big Dist the same below zero.`;
+    /* EXEC-BROKER-INV-PANEL (user 2026-11-06, design top_brokers_panel.html "Dua lajur"): three lanes, Domestic, Foreign and
+       Total, each the Top N buyers' net against the Top N sellers' net in that investor type; Domestic + Foreign = Total */
+    const sp = fdSplit(bal.buyers, bal.sellers, new Map(all.map(x => [x.b, { d:x.d, f:x.f }])), bal.total);
+    const lane = (nm: string, b: number, s: number, net: number, faded: boolean) => {
+      const pb = Math.max(b, 0), ps = Math.max(s, 0), w = pb + ps ? pb / (pb + ps) * 100 : 50;
+      return `<div class="acc-lane${faded ? ' f' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${sgn(b)} · Sellers' net sale ${sgn(s)} · Net ${sgn(net)}">`
+        + `<span class="nm">${nm}</span><div class="acc-tl"><i class="b" style="width:${w.toFixed(1)}%"></i><span class="mid"></span><i class="s" style="width:${(100 - w).toFixed(1)}%"></i></div>`
+        + `<span class="nv ${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${sgn(net)}</span></div>`;
+    };
+    const lanes = lane('Domestic', sp.buy.d, sp.sell.d, sp.net.d, false) + lane('Foreign', sp.buy.f, sp.sell.f, sp.net.f, true)
+      + '<div class="acc-cut"></div>' + lane('<b>Total</b>', sp.buy.t, sp.sell.t, sp.net.t, false);
     const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
-      + `<span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span><span class="tag ${vc}${big}" data-tip="${why}">${vt}</span></div>`
-      + `<div class="acc-tug" data-tip="Top ${N}|Net buy ${cv(bal.buy)} · Net sell ${cv(bal.sell)}">`
-      + `<i class="b" style="width:${share.toFixed(1)}%">${bal.buy ? cv(bal.buy) : ''}</i><i class="s" style="width:${(100 - share).toFixed(1)}%">${bal.sell ? cv(bal.sell) : ''}</i></div>`
-      + `<div class="acc-net">Net ${sgn(bal.net)} · ${ratio} of total buy</div>`;
+      + `<span class="tag ${vc}${big}" data-tip="${why}">${vt}</span><span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
+      + `<div class="acc-lanes">${lanes}</div>`;
     $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
@@ -545,11 +555,37 @@ export function initBroker(ctx: Ctx) {
     $('bdBody').querySelectorAll('.rp-bar[data-b]').forEach(el => el.onclick = () => selectBroker(el.dataset.b));
   }
 
+  /* ---- Foreign × Domestic map (EXEC-BROKER-INV-PANEL, user 2026-11-06: own panel "1B", English "2A") ----
+     the points are the 20D, 5D and 1D periods ending at the panel's chosen end, plus the chosen period when it is custom;
+     every board, every investor type split into Foreign (x) and Domestic (y) */
+  const fdSec = document.querySelector('.st[data-sec="fdmap"]') as HTMLElement | null;
+  if(fdSec && live) fdSec.hidden = false;
+  const fdRange = makeRange($('fdRange'), { key:'fd', presets:[1,5,20], def:5, onChange:() => renderFD() });
+  const fdPoint = (f: number, t: number, label: string, cur: boolean): MapPoint => {
+    const N = RS.fdN, part = inv => new Map(bkAggRange(f, t, inv, 'All').map(o => [o.b, netOf(o)]));
+    const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', 'All'), N);
+    const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
+    const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
+    return { label, x, y, r, cur, tip:`${label} · X foreign ${x.toFixed(1)}% · Y domestic ${y.toFixed(1)}% · verdict ${r.toFixed(1)}%` };
+  };
+  function renderFD(){
+    if(!fdSec || fdSec.hidden) return;
+    const t = fdRange.bt, custom = fdRange.bn === 'custom', pts: MapPoint[] = [20, 5, 1].map(d => fdPoint(Math.max(0, t - d + 1), t, `${d}D`, !custom && +fdRange.bn === d));
+    if(custom) pts.push(fdPoint(fdRange.bf, fdRange.bt, `${fdRange.days()}D`, true));
+    const cur = pts.find(p => p.cur) || pts[1], lim = mapLimit(pts.flatMap(p => [p.x, p.y, p.r]));
+    const [vt, vc] = bandarVerdict(cur.r / 100), big = /^Big /.test(vt) ? ' big' : '';
+    $('fdTop').innerHTML = [3, 5, 10].map(k => `<button type="button" data-n="${k}" class="${k === RS.fdN ? 'active' : ''}" aria-pressed="${k === RS.fdN}">Top ${k}</button>`).join('');
+    $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
+    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y)}<span class="tag ${vc}${big}">${vt}</span></div>`
+      + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
+    $('fdHint').textContent = `${fdRange.text()} · Top ${RS.fdN}`;
+  }
+
   /* ---- wiring ---- */
   $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${new Date(bkDates[RS.d]+'T00:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'})} ${bkDates[RS.d].slice(0,4)}`;
-  const renderAll = () => { renderBS(); renderAcc(); renderInv(); renderBD() };
+  const renderAll = () => { renderBS(); renderAcc(); renderFD(); renderInv(); renderBD() };
   // EXEC-TERMINAL-PANELS C1: a period dragged on the chart applies to every panel (each can change it again)
-  applyChartRange = (f, t) => { closeRangeCalendar(); [bsRange, accRange, invRange, bdRange].forEach(r => r.setDates(f, t)) };
+  applyChartRange = (f, t) => { closeRangeCalendar(); [bsRange, accRange, fdRange, invRange, bdRange].forEach(r => r.setDates(f, t)) };
   // clicking a broker anywhere highlights it and adds it to the inventory chart (oldest one drops out past 5)
   panelRefresh = () => { invFilter.refresh(); renderAll() };
   const selectBroker = b => ctx.brokerShared!.pick(b);

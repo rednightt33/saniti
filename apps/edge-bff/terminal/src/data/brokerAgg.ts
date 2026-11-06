@@ -119,3 +119,22 @@ export function withPicked(list: string[], code: string, max: number): string[] 
   const out = [...list, code];
   return out.length > max ? out.slice(out.length - max) : out;
 }
+
+/* ---- EXEC-BROKER-INV-PANEL (user 2026-11-06: "untuk top brokers bisa pakai HTML terlampir dan tambahkan juga 2x
+   domestic foreign map"): the Top N groups split by investor type ---- */
+export interface SidePart { t: number; d: number; f: number }
+export interface FdSplit { buy: SidePart; sell: SidePart; net: SidePart; total: number; ratio: number; rf: number; rd: number }
+/** the Top N buyers' and sellers' net split into domestic and foreign transactions. `buyers` and `sellers` are the codes
+    of the Top N groups (all investors, as the verdict), `part` each broker's net by investor type, `total` the period's
+    total buy value (the verdict's denominator). buy = the buyers' net (positive = buying), sell = the sellers' net sale
+    (positive = selling); net = buy − sell, so net.d + net.f = net.t and rd + rf = the verdict's ratio. */
+export function fdSplit(buyers: string[], sellers: string[], part: Map<string, { d: number; f: number }>, total: number): FdSplit {
+  const sum = (codes: string[], k: 'd' | 'f') => codes.reduce((s, b) => s + (part.get(b)?.[k] || 0), 0);
+  const bd = sum(buyers, 'd'), bf = sum(buyers, 'f'), sd = -sum(sellers, 'd'), sf = -sum(sellers, 'f');
+  const buy = { t:bd + bf, d:bd, f:bf }, sell = { t:sd + sf, d:sd, f:sf };
+  const net = { t:buy.t - sell.t, d:buy.d - sell.d, f:buy.f - sell.f };
+  return { buy, sell, net, total, ratio:total > 0 ? net.t / total : 0, rf:total > 0 ? net.f / total : 0, rd:total > 0 ? net.d / total : 0 };
+}
+/** the map's four quadrants by the signs of the foreign (x) and domestic (y) contributions; 0 counts as the positive side */
+export const FD_QUADRANTS = ['Both accumulating', 'Domestic absorbing, foreign leaving', 'Foreign absorbing, domestic leaving', 'Both distributing'] as const;
+export const fdQuadrant = (x: number, y: number) => x >= 0 && y >= 0 ? 0 : x < 0 && y >= 0 ? 1 : x >= 0 ? 2 : 3;
