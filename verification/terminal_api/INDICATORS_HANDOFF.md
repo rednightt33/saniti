@@ -375,3 +375,14 @@ Bagian ini menambah, bukan mengganti, isi di atas. Rincian keputusan: `EXEC.md`,
 - **Setting tersimpan**: pilihan select yang tidak lagi ditawarkan kembali ke bawaan; gaya satu garis yang namanya berubah
   pindah ke garis pertama (`dropStale`, `indicators.ts`).
 - **Kartu**: `withChange` (`T/src/calc/explain.ts`) untuk garis perubahan; semua kartu Flow juga diuji pada konteks indeks.
+
+## 12. Sesudah 2026-11-06 (EXEC-TERMINAL-LOOK, EXEC-BROKER-INV-PANEL, EXEC-IND-DIALOG)
+
+- Kartu indikator dihapus (user "2B"): `indCard.ts`, `calc/explain*.ts` dan tesnya tidak ada lagi; rujukan ke file itu di
+  atas adalah sejarah. Tooltip hover (nama + `tip`) tetap.
+- Jendela Indicators bergaya "Add a condition" Screener (`indMenu.ts`): baris abu-abu = setting bawaan dari registry
+  (`defaultsText`), klik selalu menambah dengan notifikasi "added".
+- Sumbu harga: desimal diturunkan dari harga instrumen (`data/priceFormat.ts`).
+- FL23: bawaan `auto_c` (2 net buyer + 1 net seller di periode terlihat, dipilih sekali), tombol Brokers/Board/Investor di
+  panelnya (`PANE_FILTERS`), label 0 (`zeroLabel` dari parameter tetap `start`).
+- Panel kanan: lajur Domestic/Foreign/Total di Top brokers dan panel "Foreign × Domestic map" (`fdMap.ts`, `fdSplit`).

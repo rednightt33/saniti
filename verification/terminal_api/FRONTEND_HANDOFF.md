@@ -175,6 +175,10 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 
 ## Indicator cards and drawings (EXEC-IND-CARDS IC2-IC5, EXEC-DRAW-ALL-TF, 2026-11-01)
 
+> **2026-11-06:** the indicator cards are removed (EXEC-TERMINAL-LOOK 2B: `app/indCard.ts`, `calc/explain*.ts`, the (i)
+> buttons); the hover tooltip stays. The Indicators window is the Screener-style layout of EXEC-IND-DIALOG
+> (`app/indMenu.ts`). The card notes below are history.
+
 - The card of an indicator (`app/indCard.ts`): tabs Kalkulator, Grafik, Langkah, from the menu's info button and the
   legend's (i) button. Its numbers come from the indicator's definition: `def.compute(params)` (the chart's series) and
   `def.explain(params, t, output)` (`calc/explain*.ts`; `null` = no value at t, `undefined` = no explainer). An

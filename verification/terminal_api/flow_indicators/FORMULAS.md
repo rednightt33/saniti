@@ -61,8 +61,11 @@ Later the Screener and the Backtest use the same module on the same raw data.
   on any candle, and windows that span such a date reach one session further back per missing date (Reviewer A, A1).
   The one known gap, 2026-09-17 and 2026-09-18 for almost every stock (ERRORS_AND_SOLUTIONS M238), was filled on
   2026-10-31 (EXEC-PRICE-GAP-0917); the rule stays for any later gap.
-- **Default brokers of FL23** (`top3_net_buy_20`): the three largest net buyers by `Σ(bv-sv)` (all boards, all
-  investors) over the last 20 candles with data, as the Broker inventory panel picks them.
+- **Default brokers of FL23** (`auto_c`, EXEC-BROKER-INV-PANEL option C, user 2026-11-06): the two largest net buyers
+  and the largest net seller by `Σ(bv-sv)` from the start candle (the first visible one) to the last candle with data, on
+  the indicator's boards and investors; ties by broker code. The Terminal resolves it once, when the data first answers,
+  and keeps the codes (user "3B"). Charts saved earlier keep `top3_net_buy_20`:
+  the three largest net buyers by `Σ(bv-sv)` (all boards, all investors) over the last 20 candles with data, as the Broker inventory panel picks them.
 - **Default lists of FL34** (`class:Institutional-heavy`, `class:Retail-heavy`): the brokers of that classification in
   `ref/brokers`.
 
