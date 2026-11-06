@@ -394,7 +394,6 @@ table.res{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
 .res td.co{max-width:170px;overflow:hidden;text-overflow:ellipsis}
 .res tbody tr{cursor:pointer}
 .res tbody tr:hover td{background:var(--surface-2)}
-.res tbody tr:hover td.fail{background:repeating-linear-gradient(135deg,var(--surface-2) 0 6px,var(--hover) 6px 7px)}
 .res tbody tr.picked td{background:var(--blue-bg)}
 .res tbody tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--text)}
 .res tbody tr.near td{color:var(--text-3)}
@@ -403,7 +402,6 @@ table.res{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
 .res .ar{opacity:.45}
 .res .ar.on{opacity:1;color:var(--text)}
 .res .cdot{width:8px;height:8px;border-radius:2px;display:inline-block}
-.res td.fail{color:var(--text-3);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)}
 th .pv{font-weight:400;color:var(--text-3)} th .pv.cus{color:var(--blue);font-weight:600}
 .dots{display:inline-flex;gap:3px;align-items:center;vertical-align:middle}
 .dots i{width:9px;height:9px;border-radius:3px;border:1.5px solid var(--c)}
@@ -1101,20 +1099,16 @@ body.scr-pending #resPane .tbl-wrap{opacity:.55;transition:opacity .15s}
   #cardC .mc.x [data-savem] .ico{color:var(--amber)}
 }
 
-/* ---------- results: a failed condition cell is solid and muted (no hatch, so it never reads as a hole in the table) ---------- */
-.res tbody td.fail{background:var(--surface-2);color:var(--text-3)}
-.res tbody tr:hover td.fail{background:var(--hover)}
-
 /* ---------- near-miss rows: the ticker badge stays on the column centre; "near" sits beside it without shifting it ---------- */
 .res td:has(>.sym){position:relative;min-width:132px}
 .res td:has(>.sym)>.pill{position:absolute;top:50%;left:calc(50% + 30px);transform:translateY(-50%);height:18px!important;padding:0 7px;font-size:var(--fs-2xs)!important;
   background:var(--amber);color:#fff;font-weight:var(--fw-semibold);border-radius:999px}
 .res td:has(>.sym)>.pill i{display:none}
 
-/* ---------- failed condition cell: pink fill with strong red diagonal lines ---------- */
-.res tbody td.fail{color:var(--red);background-color:color-mix(in srgb,var(--down) 8%,var(--surface));
-  background-image:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--down) 45%,transparent) 6px 7px)}
-.res tbody tr:hover td.fail{background-color:color-mix(in srgb,var(--down) 13%,var(--surface))}
+/* ---------- failed condition cell: a solid pink fill, no diagonal lines (user 2026-11-06: the lines broke the row's
+   hover; the hover darkens the pink) ---------- */
+.res tbody td.fail{color:var(--red);background:color-mix(in srgb,var(--down) 8%,var(--surface))}
+.res tbody tr:hover td.fail{background:color-mix(in srgb,var(--down) 14%,var(--surface))}
 .res tbody tr.near td.fail{color:var(--red)}
 
 /* Indicators window: group counts as round ink badges */
