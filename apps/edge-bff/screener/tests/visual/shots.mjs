@@ -4,7 +4,7 @@
    390 px, for a side-by-side comparison with the design reference (the user's upload, never executed by the tests: it
    is untrusted input; the comparison runs from a scratch folder, see the phase C report). Each state also checks that
    the v21 structure is there (panes, rails, gutters, builder tabs, the Screen now controls, More filters with its group
-   list, the Indicators window, the column picker), so a layout regression fails without a human looking, and the
+   list, the Add a condition window, the column picker), so a layout regression fails without a human looking, and the
    checks a picture cannot make: no horizontal page scroll, Tab kept inside a modal window, Escape closing it with the
    focus back on its opener, the pane borders on the keyboard, and no animation left under prefers-reduced-motion.
    The table follows the explicit Screen now gate: a preset only marks the table out of date (shot 02-pending), Screen
@@ -92,11 +92,13 @@ for (const theme of ['light', 'dark']) for (const vp of VIEWPORTS) {
       await check(page, `${tag} More filters`, ['.drawer[role="dialog"][aria-modal="true"] .fnav [data-fk]', '.drawer .drawer-b .dsec']);
       await shot('05-filters');
       await trap(page, `${tag} More filters`, '.drawer', '[data-act="drawer"]');
-      // the Indicators window (Browse)
-      await page.click('#cardC [data-act="browse"]'); await page.waitForTimeout(250);
-      await check(page, `${tag} Indicators`, ['.dialog.ib[role="dialog"]']);
-      await shot('06-indicators');
-      await trap(page, `${tag} Indicators`, '.dialog.ib', '#cardC [data-act="browse"]');
+      // Add a condition, the one way to add (EXEC-SCREENER-ADD): groups, rows with timeframe, condition, threshold, Add;
+      // no detailed browser
+      await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(250);
+      await check(page, `${tag} Add a condition`, ['.dialog.qwin[role="dialog"]', '#acg [data-ag="__on"]', '#acl .qcols', '#acl .qrow .tf-add span.on', '#acl .qrow [data-af="opt"]', '#acl .qrow [data-qact]']);
+      if (await page.locator('.qwin [data-qbrowse], .dialog.ib').count()) fails.push(`${tag}: the detailed Indicators browser is still reachable`);
+      await shot('06-add-condition');
+      await trap(page, `${tag} Add a condition`, '.dialog.qwin', '#pageActs [data-hd="add"]');
       // the column picker: two columns added, then shown in the table
       await page.click('#resTools [data-act="cols"]'); await page.waitForTimeout(150);
       if (!await page.evaluate(() => !!document.activeElement?.closest('#colPop'))) fails.push(`${tag}: the column picker did not take the focus`);

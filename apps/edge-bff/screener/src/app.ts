@@ -29,11 +29,12 @@ import { dataLine, T } from './texts.ts';
 import { closeDialog, dialogOpen, openMenu, openSave, toast } from './dialogs.ts';
 import { closePop, onUniverseClick, onUniverseField, openDrawer, placePop, renderUniverse, updateUniverseLight, uCountTxt } from './universe-ui.ts';
 import { fitPresets, loadDefinition, onPresetClick, openSource, renderPresets } from './presets-ui.ts';
-import { browseAll, hideSuggest, onAdderInput, onAdderKey, onBuilderClick, onBuilderField, renderConds, updateCondsLight, drawSuggest, bSum } from './builder.ts';
+import { onBuilderClick, onBuilderField, renderConds, updateCondsLight, bSum } from './builder.ts';
+import { openAddCondition } from './add-condition.ts';
 import { exportCsv, onResultsChange, onResultsClick, onResultsKey, renderResults, sizePreview, sortRows } from './results.ts';
 import { bindPreview, pickStock, renderDetails, resetPreview, togglePreview } from './preview.ts';
 import { dataChanged, republished, retry, runHooks, schedule, screenNow, sync, useCached } from './run.ts';
-import { bindScreenGate, gateHooks, renderScreen, topScreenHtml } from './screen-gate.ts';
+import { bindScreenGate, gateHooks, renderScreen } from './screen-gate.ts';
 import { initLayout } from './layout/index.ts';   // V21 layout (subagent 1)
 import { afterPress, bindPress } from './press.ts';
 
@@ -70,7 +71,7 @@ function onHeadClick(e: Event) {
   const k = b.dataset.hd;
   // Reset is an edit like any other (EXEC-SCREENER-V21): the table stays until Screen now
   if (k === 'reset') { S.q = ''; ($('tq') as HTMLInputElement).value = ''; loadDefinition({ universe:definitionOf({ universe:freshUniverse(), cards:[], logic:'all', atLeast:2 }).universe, conditions:[], logic:'all' }, 'Untitled screen', null); toast('Screen reset — full universe, no conditions'); return }
-  if (k === 'add') { browseAll(); return }
+  if (k === 'add') { openAddCondition(); return }        // the one way to add a condition (EXEC-SCREENER-ADD)
   if (k === 'save') { openSave(); return }
   if (k === 'export') openMenu(b, [
     ['Export results (CSV)', IC.dl, () => exportCsv()],
@@ -312,15 +313,12 @@ function bind() {
   for (const id of ['cardU', 'cardC', 'pop', 'drawerHost']) {
     const el = $(id);
     el.addEventListener('click', onClick);
-    el.addEventListener('change', e => { const t = e.target as HTMLInputElement; if (t.id === 'adderQ' || t.id === 'tq' || t.id === 'pvq') return; clearTimeout(typingT); typingT = undefined; typingEl = null; onUniverseField(t) || onBuilderField(t) });
+    el.addEventListener('change', e => { const t = e.target as HTMLInputElement; if (t.id === 'tq' || t.id === 'pvq') return; clearTimeout(typingT); typingT = undefined; typingEl = null; onUniverseField(t) || onBuilderField(t) });
     el.addEventListener('input', e => {
       const t = e.target as HTMLInputElement; if (t.type !== 'number') return;
       clearTimeout(typingT); typingEl = t; typingT = setTimeout(() => { typingT = undefined; typingEl = null; onUniverseField(t) || onBuilderField(t) }, 350);
     });
   }
-  $('cardC').addEventListener('input', e => { const t = e.target as HTMLInputElement; if (t.id === 'adderQ') onAdderInput(t.value) });
-  $('cardC').addEventListener('focusin', e => { const t = e.target as HTMLInputElement; if (t.id === 'adderQ') drawSuggest(t.value) });
-  $('cardC').addEventListener('keydown', onAdderKey);
   $('drawerHost').addEventListener('mousedown', e => { if ((e.target as HTMLElement).matches('[data-dwrap]')) openDrawer(false) });
   // role=tab and role=radio segments: arrow keys move between the preset category tabs and the Match choices (report
   // 9.2 accessibility); the choice re-renders its card, so the focus is put back on the chosen button
@@ -334,13 +332,12 @@ function bind() {
   $('cardU').addEventListener('keydown', arrows); $('cardC').addEventListener('keydown', arrows);
   document.addEventListener('pointerdown', e => {
     const t = e.target as HTMLElement;
-    if (!t.closest('.adder')) hideSuggest();
     if (!t.closest('#menu') && !t.closest('[data-menu]')) $('menu').hidden = true;
     if (S.pop && !t.closest('#pop') && !t.closest('[data-qf]')) closePop();
   });
   document.addEventListener('keydown', e => {
     const tag = (document.activeElement as HTMLElement | null)?.tagName || '';
-    if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(tag) && !dialogOpen()) { e.preventDefault(); if (!S.bOpen) { S.bOpen = true; renderConds() } ($('adderQ') as HTMLInputElement | null)?.focus() }
+    if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(tag) && !dialogOpen()) { e.preventDefault(); openAddCondition() }   // "/" opens Add a condition
     if (e.key === 'Escape') {
       if (!$('menu').hidden) { $('menu').hidden = true; return }
       if (dialogOpen()) { closeDialog(); return }

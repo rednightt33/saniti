@@ -23,7 +23,7 @@
   flight (`edge_bff.jobs` 0, `AI_conversation_turn` RUNNING 0, 0 active statements), through
   `verification/screener/jobs/run_migration.sh` with the session's Railway account token:
   - DRYRUN job `d19c51a4` (13:21 UTC): judged on an incomplete log read, then on the same job's complete log 38/38 except
-    the PostgreSQL 18 NOT NULL rows (ERRORS M368); the runner and the checker fixed; DRYRUN again, job `4b4ef869`:
+    the PostgreSQL 18 NOT NULL rows (ERRORS M372); the runner and the checker fixed; DRYRUN again, job `4b4ef869`:
     `VERDICT PASS 38/38`.
   - APPLY attempts 1 and 2 stopped before any job ran (`SET_FAILED`, then the runner guard's `DEPLOYMENT_LIST_FAILED`:
     connections to backboard.railway.com closed mid-request); records `migration20261106_001_apply_attempt{1,2}_*.run.txt`.

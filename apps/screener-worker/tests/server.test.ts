@@ -252,6 +252,10 @@ test('preview: one ticker\'s cells and status (match.ts), bars, IHSG aligned, ov
   assert.equal(p.body.cells.length, 2); assert.ok(['match', 'near', 'fail'].includes(p.body.status));
   assert.equal(p.body.bars.d.length, 260); assert.equal(p.body.ihsg_close.length, 260);
   assert.ok(p.body.overlays.some((o: any) => o.condition_id === 'a') && p.body.overlays.every((o: any) => o.values.length === 260));
+  // every overlay carries its series' unit (EXEC-SCREENER-ADD, ERRORS M368): RSI is not a price, the SMA crossed is
+  assert.ok(p.body.overlays.every((o: any) => 'unit' in o), 'an overlay without unit');
+  assert.ok(p.body.overlays.filter((o: any) => o.condition_id === 'a').every((o: any) => o.unit !== 'price'), 'RSI drawn as a price');
+  assert.ok(p.body.overlays.some((o: any) => o.condition_id === 'b' && o.unit === 'price'), 'the SMA is not a price series');
   assert.equal(p.body.markers.length, 1); assert.ok(p.body.markers[0].bars.every((m: any) => m.kind === 'crosses_above'));
   assert.deepEqual(Object.keys(p.body.perf), ['1M', '3M', '6M', '1Y']);
   assert.equal(typeof p.body.perf['1M'].stock_pct, 'number');

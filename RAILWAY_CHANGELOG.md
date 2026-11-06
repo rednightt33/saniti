@@ -1,5 +1,33 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `f82babdc`: Screener v21 three-panel page (EXEC-SCREENER-V21, PR #51)
+
+- **Change:** the Screener page (`apps/edge-bff/screener`) in the v21 three-panel layout with the explicit Screen now
+  gate, extra columns on their own request page, and the QA fixes ERRORS M355-M366. No backend, variable, migration or
+  database change; `screener/src/core` unchanged, so screener-worker does not rebuild.
+- **Go:** user 2026-11-06 "Ok,ago merge". PR rednightt33/saniti#51 merged at 11:50 UTC (merge commit `f82babdc`).
+  User runs in flight were not checked before the merge (AGENTS.md asks it for an orc deploy or a Postgres restart).
+- **edge-bff (verified from the live service):** the new build was served at 11:51:21 UTC (42 s after the merge was
+  watched); `/ready` 200. The served `assets/index-C3AZxsiJ.js` and `assets/style-Bb_KuIay.css` are byte-equal to the
+  local build of the same tree (sha256 `c65113696654e8cf…`, `03a8229f5f587a9a…`); before the merge the live page served
+  `index-CvB2JGE9.js` / `style-calwZ5Ae.css`. `/screener-app/` keeps `Cache-Control: no-store` and the screener CSP
+  (`script-src 'self'`, one external script, no inline script); `/api/v1/screener/catalog` without a session answers
+  401. Chromium on the live page without a session: the three panels, the sign-in message, no CSP violation.
+- **Deployment (Railway API, after the user saved a token for `backboard.railway.com` on the session environment):**
+  edge-bff `910cef24-cb29-4796-8d24-6a494abc890f` SUCCESS, commit `f82babdc`, created 11:50:28 UTC. The Railway CLI 5.71
+  answered "Unauthorized" with the same credential; `verification/screener/live_check_dev.py` ran with a local stand-in
+  for its one `railway variable list` call (GraphQL `variables`), nothing printed.
+- **Signed-in check (2026-11-06 ~12:10 UTC):**
+  - `live_check_dev.py`: catalog 200 (evaluation 2026-11-06, published 11:08 UTC); four runs 200 in 211-281 ms over 862
+    eligible stocks (RSI<30: 178 matches; close>SMA20: 123; MACD hist>0: 286; ADX>25: 438).
+  - Chromium on the live page, signed in: a preset sends no run and marks the table out of date; Alt+S sends exactly one
+    run (Minervini: 9 matches); percent cells carry "%" (+62.2%, −4.55%); the column picker has no YTD and no raw keys;
+    Return 1M and RVOL come from two auxiliary runs on the `px_` page with `data_version` (+12.2% / 0.36×); the
+    preview chart draws; typing a value then clicking Screen now sends one run; no CSP violation, no console error.
+  - Found: the preview chart draws percent overlays on the price axis (ERRORS M368, open; predates v21).
+- **Rollback:** redeploy edge-bff `19f8d01e-f510-4d75-8efb-9a1714d0f7b4` (commit `80b77b50`, the deployment live before the
+  merge), or revert merge `f82babdc` on `main`.
+
 ## 2026-11-06 — edge-bff (and screener-worker) from `main` `80b77b50`: Terminal look, Broker Inventory panel, Indicators window
 
 - **Change:** EXEC-TERMINAL-LOOK (legend spacing and grey rest state, price axis thousands and derived decimals ≤ 2 for

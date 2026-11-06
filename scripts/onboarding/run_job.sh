@@ -62,7 +62,7 @@ for _ in $(seq 1 "${RUN_JOB_POLL_ROUNDS:-90}"); do
   fetch
   ended "$LOG" && break
 done
-# ERRORS M368 (2026-11-06): the log service can hold the job's own lines back after JOB_EXIT (a DRYRUN log missed 8 of 33
+# ERRORS M372 (2026-11-06): the log service can hold the job's own lines back after JOB_EXIT (a DRYRUN log missed 8 of 33
 # lines, JOB_DONE included); the log is read again until two reads 15 s apart hold the same lines
 prev=-1
 for _ in 1 2 3 4 5 6; do n=$(grep -c "" "$LOG"); [ "$n" = "$prev" ] && break; prev=$n; sleep 15; fetch; done

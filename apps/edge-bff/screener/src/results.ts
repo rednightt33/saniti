@@ -175,7 +175,9 @@ export function renderResults() {
   // the table keeps its scroll position across a re-render (values arriving, a sort, an extra column)
   const ow = $('resPane').querySelector('.tbl-wrap') as HTMLElement | null, sx = ow?.scrollLeft ?? 0, sy = ok === lastOrder ? ow?.scrollTop ?? 0 : 0; lastOrder = ok;
   $('resMeta').innerHTML = metaL; $('resTools').innerHTML = metaR; $('resPane').innerHTML = body; $('tqClear').hidden = !S.q;
-  const nw = $('resPane').querySelector('.tbl-wrap') as HTMLElement | null; if (nw) { nw.scrollLeft = sx; nw.scrollTop = sy }
+  // the table's scroll is put back only when it was scrolled: writing a scroll offset lays the new table out at once, and
+  // at 0 (the boot, most redraws) that layout was half of a long task (ERRORS M364)
+  const nw = $('resPane').querySelector('.tbl-wrap') as HTMLElement | null; if (nw && (sx || sy)) { nw.scrollLeft = sx; nw.scrollTop = sy }
   $('preview').hidden = !S.preview; document.body.classList.toggle('has-pv', S.preview); sizePreview();
   const tbl = $('resPane').querySelector('table.res') as HTMLTableElement | null; if (tbl) applyTable(tbl);
   layoutHooks.afterResults();
