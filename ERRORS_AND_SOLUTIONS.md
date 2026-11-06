@@ -5354,7 +5354,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   list call two more times with a short pause and print the CLI's last error line; refuse as now when all fail.
 - **Lesson:** after `DEPLOYMENT_LIST_FAILED`, read `DATABASE_URL` and the target object back, rename the `.run.txt`
   as an attempt record, then run again.
-### M380 — Terminal: the indicator row's buttons vanish and move under the pointer (2026-11-06, fixed in code)
+### M380 — Terminal: the indicator row's buttons vanish and move under the pointer (2026-11-06, fixed, live)
 
 - **Found by:** the user (2026-11-06): "sangat sulit untuk ngeklik empat icon tersebut. Kalau mouse kita geser sedikit
   atau keluar dari right range, maka langsung keempat indikator tersebut hilang, tidak bisa diklik."
@@ -5375,6 +5375,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   "…"). The on-hover filters follow the same rule. Check: buttons kept 3 and 7px below and 6px left, 0.25 s after
   leaving, gone at 0.75 s; Settings opens after a slip; the buttons' x unchanged while the crosshair value changes;
   1440 and 1100px.
+- **Live:** `main` `3a0a1d03`, edge-bff `66310845` SUCCESS; served assets equal the local build.
 - **Not covered:** above the first pane row the separator's resize handle (about 5px) keeps the pointer for resizing;
   there only the 0.5 s grace applies.
 - **Lesson:** a control revealed on hover needs a tolerance (time and area), and nothing beside it may change width

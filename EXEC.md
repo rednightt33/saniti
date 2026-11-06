@@ -12382,3 +12382,4 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   samping; kini lebar nilai ditahan selama baris aktif (ERRORS M380).
 - Status 2026-11-06 (branch): dikerjakan. Bukti `look_check10.mjs` (1440 dan 1100 px) plus `look_check3/5/6/7/8/9` tanpa
   galat, angka tampilan lama sama; Terminal 870/870.
+- **Dirilis 2026-11-06** (user: "Opsi 2. Jalankan dulu"): `main` `3a0a1d03`, edge-bff `66310845` SUCCESS, aset live = build lokal.
