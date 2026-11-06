@@ -12293,3 +12293,4 @@ Atas pertanyaan balik: "Q1 - A", "Q2- tidak ada perubahan pada flow ratio sama s
 - Status 2026-11-06 (branch): dikerjakan. Ruang atas tiap panel bawah kini diturunkan dari tinggi barisnya (garis, label
   sumbu dan badge nilai tidak tertutup baris yang lebih tinggi). Toggle hanya di mode live (fixture tetap 1:1). Bukti
   `verification/terminal_api/terminal_look/look_check8.mjs` plus `look_check3/5/6/7` tanpa galat; Terminal 870/870.
+- **Dirilis 2026-11-06** (user: "gas"): `main` `bb935001`, edge-bff `0718b572` SUCCESS, aset live = build lokal.
