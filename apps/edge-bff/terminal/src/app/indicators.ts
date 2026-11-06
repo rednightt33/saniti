@@ -268,7 +268,7 @@ export function initIndicators(ctx: Ctx) {
         summary.isModified = () => false;
         const api = ctx.makeFilter(root, { title:'Brokers', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:f.max ?? 5,
           getOptions:() => allCodes().map(b => ({ id:b, label:b })), state, summary,
-          onChange:() => { if(state.size) apply('brokers', [...state]) } });
+          onChange:() => { if(state.size) apply('brokers', [...state]); else api.sync!() } });   // reviewer 2: never an empty list shown as "None" over old lines
         api.sync = () => { state.clear(); codes().forEach(b => state.add(b)); api.refresh() };
         inst.flt.push(api);
       } else {
@@ -277,7 +277,7 @@ export function initIndicators(ctx: Ctx) {
         const state = new Set<string>(cur());
         const api = ctx.makeFilter(root, { title:k === 'boards' ? 'Board' : 'Investor', getOptions:() => opts, state,
           summary:summaryOf(all, Array.isArray(f.def) ? f.def : opts.map(o => o.id)),
-          onChange:() => { if(state.size) apply(k, opts.map(o => o.id).filter(id => state.has(id))) } });
+          onChange:() => { if(state.size) apply(k, opts.map(o => o.id).filter(id => state.has(id))); else api.sync!() } });
         api.sync = () => { state.clear(); cur().forEach(x => state.add(x)); api.refresh() };
         inst.flt.push(api);
       }

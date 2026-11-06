@@ -157,7 +157,7 @@ export function initAssets(ctx: Ctx) {
   // a bond's yield keeps its own figures in Return mode (a yield is not rebased to a return)
   /* EXEC-TERMINAL-LOOK 2: an added asset's default ticks follow its own prices, with thousands separators (a share 1,320) */
   const decOf = new WeakMap<object, number>();
-  const assetDecimals = (a: Asset) => { let d = decOf.get(a.bars); if (d == null) { d = barDecimals(a.bars as any[]); decOf.set(a.bars, d) } return d };
+  const assetDecimals = (a: Asset) => { let d = decOf.get(a.bars); if (d == null) { d = barDecimals(a.bars as any[], 2); decOf.set(a.bars, d) } return d };
   const priceFormat = (a: Asset): any => ret() && !a.bond ? ctx.formatMode()
     : a.opts.minTick === 'default' ? (a.bond ? { type:'price', precision:3, minMove:.001 }
       : { type:'custom', minMove:10 ** -assetDecimals(a), formatter:(v: number) => priceText(v, assetDecimals(a)) })

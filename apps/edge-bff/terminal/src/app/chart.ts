@@ -16,7 +16,9 @@ export function initChart(ctx: Ctx) {
   const fi = !!ctx.M.fixedIncome;
   /* EXEC-TERMINAL-LOOK 2 (1A): thousands separators and the decimals the instrument's prices carry (shares 0, an index 2);
      a bond keeps its three */
-  const PD = ctx.priceDecimals = fi ? 3 : barDecimals(ohlc as any[]);
+  /* reviewer 2 (2026-11-06): the IDX index feed carries three decimals (IHSG 4,904.287) while the user's decision reads
+     "IHSG 2 desimal (7,123.45)": a share or an index shows at most two, derived below that from its own prices */
+  const PD = ctx.priceDecimals = fi ? 3 : barDecimals(ohlc as any[], 2);
   ctx.priceText = v => priceText(v, PD);
   ctx.axisLabel = v => ctx.displayMode === 'return' ? v.toFixed(1) + '%' : ctx.priceText(v);
   ctx.formatMode = () => ({ type:'custom', formatter:(v: number) => ctx.axisLabel(v), minMove:ctx.displayMode === 'return' ? .01 : 10 ** -PD });

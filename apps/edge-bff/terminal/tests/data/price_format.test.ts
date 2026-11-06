@@ -15,6 +15,10 @@ describe('price decimals derived from the data', () => {
   it('a price with more decimals than the cap keeps the cap', () => {
     expect(priceDecimals([1 / 3], 4)).toBe(4);
   });
+  it('an index feed with three decimals is capped at two for a share or an index (reviewer 2: IHSG 4,904.287)', () => {
+    expect(barDecimals([{ open:4904.287, high:4910.5, low:4890.114, close:4904.287 }], 2)).toBe(2);
+    expect(priceText(4904.287, 2)).toBe('4,904.29');
+  });
   it('reads every price of the bars', () => {
     expect(barDecimals([{ open:1320, high:1330, low:1310, close:1325 }])).toBe(0);
     expect(barDecimals([{ open:7000, high:7010.5, low:6990, close:7005 }])).toBe(1);

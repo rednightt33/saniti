@@ -372,14 +372,14 @@ export function initBroker(ctx: Ctx) {
     /* EXEC-BROKER-INV-PANEL (user 2026-11-06, design top_brokers_panel.html "Dua lajur"): three lanes, Domestic, Foreign and
        Total, each the Top N buyers' net against the Top N sellers' net in that investor type; Domestic + Foreign = Total */
     const sp = fdSplit(bal.buyers, bal.sellers, new Map(all.map(x => [x.b, { d:x.d, f:x.f }])), bal.total);
-    const lane = (nm: string, b: number, s: number, net: number, faded: boolean) => {
+    const lane = (nm: string, b: number, s: number, net: number, faded: boolean, strong = false) => {
       const pb = Math.max(b, 0), ps = Math.max(s, 0), w = pb + ps ? pb / (pb + ps) * 100 : 50;
       return `<div class="acc-lane${faded ? ' f' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${sgn(b)} · Sellers' net sale ${sgn(s)} · Net ${sgn(net)}">`
-        + `<span class="nm">${nm}</span><div class="acc-tl"><i class="b" style="width:${w.toFixed(1)}%"></i><span class="mid"></span><i class="s" style="width:${(100 - w).toFixed(1)}%"></i></div>`
+        + `<span class="nm${strong ? ' strong' : ''}">${nm}</span><div class="acc-tl"><i class="b" style="width:${w.toFixed(1)}%"></i><span class="mid"></span><i class="s" style="width:${(100 - w).toFixed(1)}%"></i></div>`
         + `<span class="nv ${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${sgn(net)}</span></div>`;
     };
     const lanes = lane('Domestic', sp.buy.d, sp.sell.d, sp.net.d, false) + lane('Foreign', sp.buy.f, sp.sell.f, sp.net.f, true)
-      + '<div class="acc-cut"></div>' + lane('<b>Total</b>', sp.buy.t, sp.sell.t, sp.net.t, false);
+      + '<div class="acc-cut"></div>' + lane('Total', sp.buy.t, sp.sell.t, sp.net.t, false, true);
     const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
       + `<span class="tag ${vc}${big}" data-tip="${why}">${vt}</span><span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
@@ -566,17 +566,19 @@ export function initBroker(ctx: Ctx) {
     const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', 'All'), N);
     const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
     const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
-    return { label, x, y, r, cur, tip:`${label} · X foreign ${x.toFixed(1)}% · Y domestic ${y.toFixed(1)}% · verdict ${r.toFixed(1)}%` };
+    return { label, x, y, r, cur, empty:!(bal.total > 0), tip:`${label} · Top ${N}, all boards · X foreign ${x.toFixed(1)}% + Y domestic ${y.toFixed(1)}% = verdict ${r.toFixed(1)}% of total buy value` };
   };
   function renderFD(){
     if(!fdSec || fdSec.hidden) return;
-    const t = fdRange.bt, custom = fdRange.bn === 'custom', pts: MapPoint[] = [20, 5, 1].map(d => fdPoint(Math.max(0, t - d + 1), t, `${d}D`, !custom && +fdRange.bn === d));
+    // a period near the first session holds fewer sessions: its label says how many
+    const t = fdRange.bt, custom = fdRange.bn === 'custom', pts: MapPoint[] = [20, 5, 1].map(d => { const f = Math.max(0, t - d + 1); return fdPoint(f, t, `${t - f + 1}D`, !custom && +fdRange.bn === d) });
     if(custom) pts.push(fdPoint(fdRange.bf, fdRange.bt, `${fdRange.days()}D`, true));
     const cur = pts.find(p => p.cur) || pts[1], lim = mapLimit(pts.flatMap(p => [p.x, p.y, p.r]));
     const [vt, vc] = bandarVerdict(cur.r / 100), big = /^Big /.test(vt) ? ' big' : '';
     $('fdTop').innerHTML = [3, 5, 10].map(k => `<button type="button" data-n="${k}" class="${k === RS.fdN ? 'active' : ''}" aria-pressed="${k === RS.fdN}">Top ${k}</button>`).join('');
+    $('fdNote').textContent = 'All boards';           // reviewer 1: the map does not follow Top brokers' Board choice
     $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
-    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y)}<span class="tag ${vc}${big}">${vt}</span></div>`
+    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
       + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
     $('fdHint').textContent = fdRange.text();
   }
