@@ -12270,3 +12270,23 @@ pass saja. Konfirmasi before proceed."
   - Timeframe: 5m, 15m, 1h, 4h dan Daily tampil, Daily tersorot, tidak ada yang bisa diklik; 5m-4h abu-abu dengan
     keterangan "No data yet: intraday bars are not in the market database."; label "Timeframe · Daily" di bar filter
     tetap.
+
+## EXEC-TERMINAL-LOOK-3 — baris filter panel bawah, toggle filter, Top brokers (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "Ada font size yang kurang konsisten antara A dan B ... Disamakan saja dengan B dari sisi ukuran
+dan lain-lain. Kemudian ... collapse panel di bawah, bisa disamakan juga dengan B, which is ada di sebelah kanan. In this
+case, taruh saja di atas y-axis. Kemudian, saya minta untuk dibuatkan menu atau semacam toggle ... taruh di bawah trash
+... pop-up yang kita tambahkan tadi bisa di-hide ... kotaknya ini bisa disamakan saja dengan posisi flow timeline ...
+[Top brokers] Yang saya kotakin warna biru, kita bisa remove ... tanda panah ke bawah dan tanda panah ke atas ... dikasih
+kayak semacam line aja. Kemudian untuk C ... bisa dipindah ke posisi D. Dikasih batch. Fill-nya hijau pekat, font-nya
+putih. Kemudian untuk X dan Y, spacing-nya tidak sama ... Idealnya bisa menggunakan spacing antara foreign dan total."
+Atas pertanyaan balik: "Q1 - A", "Q2- tidak ada perubahan pada flow ratio sama sekali, jangan touch", "Q3- A".
+- Tombol filter di baris indikator panel bawah sama ukuran, huruf dan bentuk dengan filter Flow Timeline; dirapatkan ke
+  kanan baris, berakhir sebelum tombol collapse.
+- Tombol collapse di kanan, di atas sumbu-Y panelnya.
+- Toggle di toolbar kiri di bawah tempat sampah: sembunyikan/tampilkan filter di semua baris indikator (nama dan nilai
+  tetap); diingat dan ikut layout (Q1 A).
+- Flow Ratio (FL46) tidak diubah sama sekali (Q2).
+- Top brokers: keterangan "Dot: broker's own type" dihapus; dua takik penanda tangga disambung garis; rasio pindah ke
+  sebelah Top 3/5/10 sebagai badge: hijau pekat bila positif, merah pekat bila negatif, abu-abu bila 0, huruf putih (Q3 A);
+  jarak Domestic–Foreign = jarak Foreign–Total.
