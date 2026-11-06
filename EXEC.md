@@ -12143,6 +12143,13 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
 3. Commit di branch, PR, merge sesudah go merge. Deploy edge-bff dan screener-worker, cek live dengan login, catat di
    `RAILWAY_CHANGELOG.md` dan `ERRORS_AND_SOLUTIONS.md`.
 
-### Pertanyaan sebelum go
-- Kolom Timeframe di jendela: label "Daily" saja (usulan, sesuai keputusan 3), atau kolomnya dihilangkan?
-- Garis non-harga di grafik preview: tidak digambar (usulan), atau dibuat panel kedua di bawah candle sekarang juga?
+### Keputusan user (2026-11-06)
+"Time frame tetap di show saja, tapi dibuat unclickable. Also sepertinya untuk default add condition yang sekarang
+actually tidak usah ada, tapi versi yang paling valid adalah add a condition yang di bagian 1. Jadi kalau user mau tambah
+indikator, di pintunya hanya 1 saja, which is bagian 1. Untuk 2, oke, tidak usah digambar di grafik candle, cukup white
+pass saja. Konfirmasi before proceed."
+- Timeframe di jendela tetap tampil seperti referensi, tetapi tidak bisa diklik.
+- Jendela "Add a condition" menjadi satu-satunya pintu untuk menambah indikator; cara menambah yang sekarang dilepas.
+- Bagian 2: garis non-harga tidak digambar di grafik candle; nilainya cukup di "Why it passed".
+- Rincian yang dikonfirmasi dulu sebelum go: nasib jendela detail "Indicators", kotak cari builder, chip cepat di builder
+  kosong, tombol Add di tab My metrics, dan tampilan 5m/15m/1h/4h (abu-abu, tidak bisa diklik).
