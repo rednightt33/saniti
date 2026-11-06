@@ -5314,7 +5314,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
-### M378 — Screener "Add a condition": Enter in a field removed a condition already on the screen (2026-11-06, fixed in code)
+### M378 — Screener "Add a condition": Enter in a field removed a condition already on the screen (2026-11-06, fixed)
 
 - **Found by:** the coordinator's live check of PR #55 (dev, signed in).
 - **Symptom:** with the Minervini preset loaded, typing 50 in the SMA row's Length and pressing Enter removed
@@ -5334,7 +5334,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     toast says so;
   - the step fails without the fix ("Simple Moving Average removed");
   - typecheck; vitest 783 passed, 1 skipped; bundle 31; visual 46 shots; tripwire OK.
-- **Status:** FIXED in code (branch, not deployed).
+- **Status:** FIXED and deployed (edge-bff `7a60bb22`, `main` `5a22dcb5`, PR #56). Live, signed in: with Minervini,
+  Length 50 + Enter changes no card and says "already on the screen"; Length 30 + Enter adds one.
 
 ### M379 — Migration runner: the runner guard's deployment list fails once and stops an APPLY before it starts (2026-11-06, open)
 

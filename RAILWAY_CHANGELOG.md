@@ -28,6 +28,30 @@
 - **screener-worker:** `terminal/src/calc/**` unchanged: no rebuild. **Postgres:** a new empty table is not a large
   update: no restart.
 
+## 2026-11-06 — edge-bff from `main` `5a22dcb5`: "Add a condition" Enter only adds (ERRORS M378, PR #56)
+
+- **Change:**
+  - in "Add a condition", Enter in a field adds the row, and says "already on the screen" when it already is: it never
+    removes a card;
+  - records of the PR #55 deploy.
+  - No backend, variable, migration or database change; screener-worker skipped (`e5553495` SKIPPED).
+- **Go:** user 2026-11-06 "merge". PR rednightt33/saniti#56 merged 15:31 UTC (merge commit `5a22dcb5`).
+- **Deployment (Railway API):** edge-bff `7a60bb22-0432-497d-ab5c-935908c0ef18` SUCCESS, created 15:31:25 UTC (seen
+  15:32:13 UTC), commit `5a22dcb5`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-bZ1aIrBR.js` and `assets/style-bYE2zL4c.css` are byte-equal to the local
+    build of the same tree (sha256 `7f0c6c611437d34c…`, `e192731bf4dc7019…`);
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, ~15:35 UTC):**
+  - with Minervini loaded, SMA Length 50 + Enter changes no card and says "Simple Moving Average: already on the screen
+    with this condition." (before: Minervini's "Close above SMA(50)" was removed);
+  - Length 30 + Enter adds one Custom card;
+  - Length 0 is refused;
+  - failed cells are solid and the failed MACD divergence cells read "No";
+  - no CSP violation, no console error.
+- **Rollback:** redeploy edge-bff `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` (commit `f9871686`), or revert merge `5a22dcb5`
+  on `main`.
+
 ## 2026-11-06 — edge-bff from `main` `f9871686`: Screener parameters in "Add a condition", solid failed cells, event fail "No" (PR #55)
 
 - **Change (ERRORS M376, M377):**

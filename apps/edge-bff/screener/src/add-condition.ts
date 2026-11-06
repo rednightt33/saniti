@@ -160,7 +160,7 @@ export function restore(gone: { at: number; c: Card }[]) {
 
 /* ---- the window -------------------------------------------------------------------------------------------------- */
 const FIRST_ROWS = 20;
-const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, items:[] as AddItem[], added:[] as boolean[], spyLock:0, rest:undefined as ReturnType<typeof setTimeout> | undefined, restHtml:'' };
+const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, pop:null as number | null, items:[] as AddItem[], added:[] as boolean[], spyLock:0, rest:undefined as ReturnType<typeof setTimeout> | undefined, restHtml:'' };
 let root: HTMLElement | null = null, drawing = false;
 const $q = <T extends HTMLElement>(sel: string) => root?.querySelector<T>(sel) ?? null;
 
@@ -181,28 +181,56 @@ function ruleHtml(it: AddItem, i: number): [string, string] {
   }
   const e = it.entry!, r = ruleOf(e), o = e.opts.find(x => x.key === r.opt), er = ruleErrors(e);
   const sel = `<select class="sel" data-af="opt" data-ai="${i}" aria-label="Condition for ${esc(e.label)}"${er.op ? ` aria-invalid="true" title="${esc(er.op)}"` : ''}>${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === r.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}</select>`;
-  const L = fieldsOf(o);
-  const thr = L.length ? L.map(l => {
-    const v = r[l.f], d = fdef(e, l.f), ch = String(v) !== String(d);
-    return `<span class="ln"><span class="lead">${l.lead}</span><input class="inp${ch ? ' chg' : ''}" type="number" step="${l.f === 'within' ? 1 : 'any'}"${l.f === 'within' ? ` min="1" max="${withinMax()}"` : ''} data-af="${l.f}" data-ai="${i}" value="${esc(v)}" aria-label="${esc(l.label)}${l.unit ? ` (${esc(l.unit)})` : ''} for ${esc(e.label)}"${er[l.f] ? ` aria-invalid="true" title="${esc(er[l.f])}"` : ''}><span class="unit">${esc(l.unit)}<small>${ch ? 'custom · ' : ''}default ${esc(d)}</small></span></span>`;
-  }).join('') : '<span class="rr-none">—</span>';
-  return [`<span class="rr qs">${sel}</span>`, `<span class="rr qt">${thr}</span>`];
+  return [`<span class="rr qs">${sel}</span>`, `<span class="rr qt${W.pop === i ? ' open' : ''}">${settingsHtml(e, i)}</span>`];
 }
-/** a parameter field of a row: the card's field (a select for options and true/false, else a number with the
-    catalog's limits), blue when it differs from its default */
-function paramField(e: Entry, p: EntryParam, i: number, v: ParamValue | undefined, def: ParamValue | undefined, second: boolean, err: string | undefined): string {
+
+/* ---- the settings column: every blue box of the row (user 2026-11-06, the HTML of ten options, then "Pokoknya kalau
+   ada kotak biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator harusnya sama ... tambahin
+   juga parameter yang customizable ada berapa"): a box is a parameter of the indicator (and of its second line for a
+   two-line condition) or a threshold field of the condition. Two boxes or fewer are shown in the row, on one line;
+   more go behind a "Customize" button that shows how many there are and opens a panel (parameters, then the threshold
+   under a thin rule, each with its default; Reset to default, Done; Escape closes it). The fields, their limits and
+   checks are the card's either way. */
+interface Box { name: string; control: string; unit: string; def: string; changed: boolean; thr: boolean }
+/** a parameter's control: the card's field (a select for options and true/false, else a number with the catalog's
+    limits) */
+function paramControl(e: Entry, p: EntryParam, i: number, v: ParamValue | undefined, def: ParamValue | undefined, second: boolean, err: string | undefined): string {
   const attr = second ? 'data-ap2' : 'data-ap', name = `${second ? '2nd ' : ''}${p.label || p.key}`;
-  const ch = String(v) !== String(def), common = `${attr}="${esc(p.key)}" data-ai="${i}" aria-label="${esc(name)} of ${esc(e.label)}"${err ? ` aria-invalid="true" title="${esc(err)}"` : ` title="${esc(`${rangeText(p) ? rangeText(p) + ' · ' : ''}default ${optionText(p, def as ParamValue)}`)}"`}`;
-  const field = p.options ? `<select class="sel" ${common}>${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
+  const common = `${attr}="${esc(p.key)}" data-ai="${i}" aria-label="${esc(name)} of ${esc(e.label)}"${err ? ` aria-invalid="true" title="${esc(err)}"` : ` title="${esc(`${rangeText(p) ? rangeText(p) + ' · ' : ''}default ${optionText(p, def as ParamValue)}`)}"`}`;
+  return p.options ? `<select class="sel" ${common}>${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
     : p.type === 'boolean' ? `<select class="sel" ${common}><option value="true" ${v === true ? 'selected' : ''}>true</option><option value="false" ${v === false ? 'selected' : ''}>false</option></select>`
-    : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="${p.step ?? (p.integer ? 1 : 'any')}" value="${esc(Number.isFinite(v as number) ? v : '')}" ${common}>`;
-  return `<label class="qp${ch ? ' chg' : ''}"><span>${esc(name)}</span>${field}</label>`;
+    : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="${p.step ?? (p.integer ? 1 : 'any')}" value="${esc(Number.isFinite(v as number) ? v : '')}" style="--n:${String(v ?? '').length}" ${common}>`;
 }
-/** the row's parameters, editable (option A, user 2026-11-06); the second line's too for a two-line condition */
-function paramsHtml(e: Entry, i: number): string {
-  const r = ruleOf(e), c = cardOfRule(e), er = ruleErrors(e), two = twoLines(optOf(e, c));
-  const d2 = two ? newCard(e, [], { opt:r.opt }).second : {};
-  return `<span class="qps">${e.params.map(p => paramField(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`])).join('')}${two ? e.params.map(p => paramField(e, p, i, c.second[p.key], d2[p.key], true, er[`p2.${p.key}`])).join('') : ''}</span>`;
+/** the blue boxes of a row, in order: its parameters, the second line's, then the threshold fields */
+function boxesOf(e: Entry, i: number): Box[] {
+  const r = ruleOf(e), c = cardOfRule(e), o = optOf(e, c), er = ruleErrors(e), out: Box[] = [];
+  const d2 = twoLines(o) ? newCard(e, [], { opt:r.opt }).second : null;
+  for (const p of e.params) out.push({ name:p.label || p.key, control:paramControl(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`]), unit:'', def:optionText(p, p.default), changed:String(c.params[p.key]) !== String(p.default), thr:false });
+  if (d2) for (const p of e.params) out.push({ name:`2nd ${p.label || p.key}`, control:paramControl(e, p, i, c.second[p.key], d2[p.key], true, er[`p2.${p.key}`]), unit:'', def:optionText(p, d2[p.key]), changed:String(c.second[p.key]) !== String(d2[p.key]), thr:false });
+  for (const l of fieldsOf(o)) {
+    const v = r[l.f], d = fdef(e, l.f);
+    out.push({ name:l.lead, unit:l.unit, def:String(d), changed:String(v) !== String(d), thr:true,
+      control:`<input class="inp" type="number" step="${l.f === 'within' ? 1 : 'any'}"${l.f === 'within' ? ` min="1" max="${withinMax()}"` : ''} data-af="${l.f}" data-ai="${i}" value="${esc(v)}" style="--n:${String(v).length}" aria-label="${esc(l.label)}${l.unit ? ` (${esc(l.unit)})` : ''} for ${esc(e.label)}"${er[l.f] ? ` aria-invalid="true" title="${esc(er[l.f])}"` : ` title="default ${esc(d)}"`}>` });
+  }
+  return out;
+}
+/** at most this many boxes are shown in the row; more go behind "Customize" */
+export const INLINE_BOXES = 2;
+function settingsHtml(e: Entry, i: number): string {
+  const B = boxesOf(e, i);
+  if (!B.length) return '<span class="rr-none">—</span>';
+  if (B.length <= INLINE_BOXES) return B.map(b => `<label class="qbox${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</label>`).join('');
+  const n = B.filter(b => b.changed).length, open = W.pop === i;
+  const btn = `<button type="button" class="qcus${n ? ' chg' : ''}" data-cus="${i}" aria-expanded="${open}" aria-haspopup="dialog" title="${n ? `${n} of ${B.length} fields changed` : `${B.length} fields you can change`}">${ico(IC.gear, 's')}<span class="t">${n ? 'Custom' : 'Customize'}</span><span class="n">${n ? `${n} of ${B.length} changed` : B.length}</span></button>`;
+  if (!open) return btn;
+  const line = (b: Box) => `<label class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab">${esc(b.name)}</span>${b.control}<span class="def">${b.unit ? esc(b.unit) + ' · ' : ''}default ${esc(b.def)}</span></label>`;
+  const ps = B.filter(b => !b.thr), ts = B.filter(b => b.thr);
+  return btn + `<span class="qpop" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}</strong>${ps.map(line).join('')}${ps.length && ts.length ? '<span class="qsep"></span>' : ''}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
+}
+/** Reset to default: the row's parameters and threshold back to the catalog's defaults (its condition stays) */
+export function resetRule(e: Entry) {
+  const r = ruleOf(e); r.params = defaultParams(e) as Params; delete r.second;
+  r.value = e.def.value; r.value2 = e.def.value2; r.within = e.def.within;
 }
 function rowHtml(it: AddItem, i: number, added: boolean): string {
   const [cond, thr] = it.ok ? ruleHtml(it, i) : ['<span></span>', '<span></span>'];
@@ -210,8 +238,8 @@ function rowHtml(it: AddItem, i: number, added: boolean): string {
     : added ? `<button type="button" class="qact on" data-qact="${i}" tabindex="-1" aria-label="Remove ${esc(it.label)}"><span class="q-on">Added ${ico(IC.check, 's')}</span><span class="q-rm">Remove</span></button>`
     : `<button type="button" class="qact" data-qact="${i}" tabindex="-1" aria-label="Add ${esc(it.label)}">Add</button>`;
   const title = added ? 'On the screen with this condition. Click to remove it.' : it.ok ? 'Click to add with the condition shown' : (it.why || 'No data');
-  const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters on a second line of the row
-  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${editable ? '' : `<small>${esc(it.sub)}</small>`}</span>${editable ? paramsHtml(it.entry!, i) : ''}${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+  const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters are in the settings column (no grey line)
+  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${editable ? '' : `<small>${esc(it.sub)}</small>`}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
 }
 function railHtml(): string {
   const btn = (g: string, inner: string, cls = '') => `<button type="button" class="qri ${cls}${W.g === g ? ' on' : ''}" data-ag="${esc(g)}" aria-pressed="${W.g === g}">${inner}</button>`;
@@ -232,7 +260,7 @@ function drawList() {
   const l = $q<HTMLElement>('#acl'); if (!l) return;
   const fa = document.activeElement as HTMLElement | null, fs = root?.contains(fa) ? fieldSel(fa) : null, fk = fs ? `${fa!.dataset.ai}|${fs}` : null;
   const st = l.scrollTop;
-  W.items = listItems(W.q, W.g, W.sort); W.act = Math.min(W.act, Math.max(0, W.items.length - 1));
+  W.items = listItems(W.q, W.g, W.sort); W.act = Math.min(W.act, Math.max(0, W.items.length - 1)); W.pop = null;
   const on = S.cards.length ? screenSigs() : null;                   // nothing on the screen: no row is added
   W.added = W.items.map(it => !!on && it.ok && on.has(itemSig(it)));
   // the first rows at once, the rest in the next task: every row holds a select and its fields, and drawing a hundred of
@@ -241,7 +269,7 @@ function drawList() {
   const rows = W.items.map((it, i) => rowHtml(it, i, W.added[i]));
   drawing = true;
   try { l.innerHTML = W.items.length
-    ? `<div class="qcols" aria-hidden="true"><span>Indicator</span><span>Timeframe</span><span>Condition</span><span>Threshold<em>blue = you can change it</em></span><span></span></div>` + rows.slice(0, FIRST_ROWS).join('')
+    ? `<div class="qcols" aria-hidden="true"><span>Indicator</span><span>Timeframe</span><span>Condition</span><span>Parameters &amp; threshold<em>blue = you can change it</em></span><span></span></div>` + rows.slice(0, FIRST_ROWS).join('')
     : `<p class="qwin-empty">Nothing matches “${esc(W.q)}”. Try another name, or what it measures (for example “momentum” or “volume”).</p>` } finally { drawing = false }
   if (rows.length > FIRST_ROWS) { W.restHtml = rows.slice(FIRST_ROWS).join(''); W.rest = setTimeout(drawRest, 0) }
   $q('#acq')?.setAttribute('aria-activedescendant', W.items.length ? 'aco' + W.act : '');
@@ -294,7 +322,7 @@ function toggle(i: number) {
     const r = addItem(it); toast(r.message);
     if (!r.ok) { const f = Object.keys(it.entry ? ruleErrors(it.entry) : {})[0]; if (f) root?.querySelector<HTMLElement>(`[data-ai="${i}"]${errSel(f)}`)?.focus(); return }
   }
-  const keep = (document.activeElement as HTMLElement | null)?.closest?.('.rr,.qps');
+  const keep = (document.activeElement as HTMLElement | null)?.closest?.('.rr');
   drawRow(i);
   if (!keep) $q<HTMLInputElement>('#acq')?.focus({ preventScroll:true });   // several in a row: back to the search
 }
@@ -326,7 +354,7 @@ function drawRow(i: number) {
 /** Open the window. `q` searches at once (a quick chip, the builder's search box); `g` opens on a panel (My metrics). */
 export function openAddCondition(q = '', g: string = ALL) {
   if (!ctx.catalog) return;
-  W.q = q; W.g = g; W.act = 0;
+  W.q = q; W.g = g; W.act = 0; W.pop = null;
   dialog(`<div class="dialog qwin" role="dialog" aria-label="Add a condition">
     <div class="qwin-h"><div><strong>Add a condition</strong><small>Pick the condition next to an indicator, then click the row to add it. Click an added row to remove it. The window stays open until you close it.</small></div><button type="button" class="iconbtn sm" data-close aria-label="Close">${ico(IC.x)}</button></div>
     <div class="qwin-t"><label class="searchbox">${ico(IC.search, 's')}<input id="acq" placeholder="RSI, Stochastic, VWAP, Supertrend, breakout…" autocomplete="off" aria-label="Search indicators" role="combobox" aria-controls="acl" aria-expanded="true" value="${esc(q)}"></label>
@@ -357,7 +385,12 @@ function onClick(e: Event) {
     root?.querySelector<HTMLElement>(`[data-ag="${CSS.escape(to)}"]`)?.focus({ preventScroll:true });
     return;
   }
-  if (t.closest('select,input,.rr,.qp')) return;          // the row's own controls (a parameter's label too)
+  const cus = t.closest<HTMLElement>('[data-cus]'), done = t.closest<HTMLElement>('[data-cusdone]'), reset = t.closest<HTMLElement>('[data-cusreset]');
+  if (cus) { setPop(W.pop === Number(cus.dataset.cus) ? null : Number(cus.dataset.cus)); return }
+  if (done) { setPop(null, true); return }
+  if (reset) { const it = W.items[Number(reset.dataset.cusreset)]; if (it?.entry) { resetRule(it.entry); drawRow(Number(reset.dataset.cusreset)) } return }
+  if (W.pop != null && !t.closest('.qpop')) setPop(null);        // a click outside the panel closes it, then acts
+  if (t.closest('select,input,.rr')) return;              // the row's own controls (a parameter's label too)
   const r = t.closest<HTMLElement>('.qrow[data-ai]'); if (r) toggle(Number(r.dataset.ai));
 }
 /** a rule or a threshold changed: kept per indicator; the row's "added" state follows (it compares the wire test) */
@@ -390,8 +423,22 @@ function onInput(e: Event) {
   if (!f || f === 'opt' || !it?.entry) return;
   const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value);
 }
+/** open the Customize panel of row `i` (null closes it); the panel's first field takes the focus, and closing gives it
+    back to the button when `back` */
+function setPop(i: number | null, back = false) {
+  const was = W.pop; W.pop = i;
+  if (was != null && was !== i) drawRow(was);
+  if (i != null) {
+    drawRow(i);
+    const pop = $q<HTMLElement>(`#aco${i} .qpop`);
+    pop?.querySelector<HTMLElement>('input,select')?.focus({ preventScroll:true });
+    pop?.scrollIntoView({ block:'nearest' });
+  } else if (back && was != null) $q<HTMLElement>(`#aco${was} [data-cus]`)?.focus();
+}
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement, n = W.items.length;
+  // Escape closes the Customize panel only, never the window behind it (the page's own Escape closes dialogs)
+  if (e.key === 'Escape' && W.pop != null) { e.preventDefault(); e.stopPropagation(); setPop(null, true); return }
   if ((t.dataset.af || t.dataset.ap != null || t.dataset.ap2 != null) && e.key === 'Enter' && t.tagName === 'INPUT') {
     // Enter in a field adds; it never removes. The value just typed can make the row the same test as a card already on
     // the screen (Length 50 + Close above SMA, in Minervini), a state the row shows only once the field is applied: a
@@ -401,7 +448,7 @@ function onKey(e: KeyboardEvent) {
     if (W.added[i]) { toast(`${W.items[i]?.label}: already on the screen with this condition.`); return }
     toggle(i); return;
   }
-  if (t.closest('.rr,.qps')) return;
+  if (t.closest('.rr')) return;
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && n && (t.id === 'acq' || t.closest('#acl'))) {
     e.preventDefault(); drawRest(); moveAct((W.act + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
   } else if (e.key === 'Enter' && t.id === 'acq') { e.preventDefault(); toggle(W.act) }

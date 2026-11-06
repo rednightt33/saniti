@@ -12338,6 +12338,32 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
   kolom hanya menambah.
   - Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#56; hanya edge-bff. Titik kembali: edge-bff
     `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` (`f9871686`).
+  - Di-merge 15:31 UTC (`main` `5a22dcb5`); edge-bff `7a60bb22` SUCCESS; bundle live sama persis. Cek live lulus:
+    Length 50 + Enter dengan Minervini tidak menghapus kartu dan menulis "already on the screen".
+- Pertanyaan terbuka untuk user: area kosong di bawah baris tabel masih bergaris miring (latar area kosong, bukan sel
+  gagal); dibuat polos juga atau tidak.
+- Tata letak kolom isian (user 2026-11-06), lewat HTML pilihan:
+  - "Semua sifatnya custom. Seharusnya ada di bagian yang garis merah. Sekarang scattered dan sangat sulit untuk dibaca."
+  - "Opsi lain adalah kamu kasih saya HTML dulu deh ... 10 opsi dalam satu HTML di tab berbeda."
+  - "kalau threshold-nya customizable di bawah dua, maka bisa taruh saja di bagian yang merah ... Tapi kalau lebih dari
+    dua, maka kasih logo customizable. Seperti opsi nomor 5."
+  - "buat rata kiri, dan icon customizable seperti screenshot."
+  - "Pokoknya kalau ada kotak biru lebih dari 2, berarti masuk customizable. Misalkan RSA ini. Ya udah, masuk
+    customizable. Jadi, tinggi kolom setiap indikator harusnya sama. Lalu tambahin juga parameter yang customizable ada
+    berapa."
+  - "Ok, implement versi ini lalu go merge"
+- Dikerjakan (`src/add-condition.ts`):
+  - setiap kotak biru dihitung (parameter, parameter garis kedua, ambang);
+  - 2 atau kurang tampil di baris, satu baris, rata kiri;
+  - lebih dari 2 masuk tombol "⚙ Customize N" bergaris putus-putus, yang membuka panel: parameter, lalu ambang di bawah
+    garis tipis, masing-masing dengan default; ada Reset to default dan Done; Esc menutup panel saja;
+  - sesudah ada yang diubah, tombol menjadi "Custom · k of N changed";
+  - semua baris setinggi 54 px pada 1440 dan 1100 (kolom isian 268 dan 272 px).
+- Bukti: typecheck; vitest 783 lulus; bundle 31; langkah smoke baru "more than two blue boxes go behind Customize";
+  smoke penuh lulus dengan perubahan ini (tanpa perubahan ini, 2 dari 2 run gagal di pemeriksaan tugas lambat M375);
+  visual 46 screenshot; tripwire OK.
+- Go merge (user 2026-11-06): "Ok, implement versi ini lalu go merge". Titik kembali: edge-bff
+  `66310845-bf5d-40f7-a6ae-3d36edc88a39` (`3a0a1d03`, rilis sesi lain).
 
 ## EXEC-IND-PRESETS — nilai indikator di kiri, jendela Indicators, preset indikator di akun EDGE (go 2026-11-06)
 
