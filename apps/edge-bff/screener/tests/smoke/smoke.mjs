@@ -275,7 +275,8 @@ await at('Add a condition is the one way to add: every door opens it, no detaile
   expect(await cards() === 0, 'clicking an added row did not remove it');
   await page.click('#toast .toast-act'); await page.waitForTimeout(150);                   // Undo
   expect(await cards() === 1, 'Undo did not bring the condition back');
-  const thr = adx.locator('[data-af="value"]');
+  await adx.locator('.qcus').click(); await page.waitForTimeout(100);                      // ADX has three boxes: behind Customize
+  const thr = adx.locator('.qpop [data-af="value"]');
   await thr.fill(''); await thr.dispatchEvent('change'); await page.waitForTimeout(100);
   await adx.locator('[data-qact]').click(); await page.waitForTimeout(150);
   expect(/Enter a value/.test(await text('#toast')) && await cards() === 1, 'an empty threshold was not refused with the card\'s message');
@@ -305,6 +306,37 @@ await at('Add a condition sets the parameters too (user 2026-11-06, option A): L
   const card = await openCard(0);
   expect(await card.locator('[data-p="length"]').inputValue() === '50' && await card.locator('[data-segc].on').count() === 1, 'the card does not hold Length 50 as Custom: ' + await card.innerText());
   expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
+});
+await at('Add a condition: more than two blue boxes go behind Customize with their count; Escape closes the panel only; Reset, Done; every row one height', async () => {
+  // user 2026-11-06: "kalau ada kotak biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator
+  // harusnya sama. Lalu tambahin juga parameter yang customizable ada berapa"
+  await fresh(); await ready();
+  const r0 = await runs();
+  await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(300);
+  const geo = await page.locator('#acl .qrow').evaluateAll(rs => ({ h:[...new Set(rs.map(r => r.offsetHeight))], over:rs.filter(r => { const q = r.querySelector('.rr.qt'); return q && q.scrollWidth > q.clientWidth + 1 }).length,
+    bad:rs.filter(r => { const n = r.querySelectorAll('.rr.qt .qbox').length; return n > 2 }).length }));
+  expect(geo.h.length === 1 && geo.over === 0 && geo.bad === 0, 'rows are not one height, a settings cell overflows, or a row shows more than two boxes: ' + JSON.stringify(geo));
+  await page.fill('#acq', 'relative strength'); await page.waitForTimeout(200);
+  const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Relative Strength Index$/ }) });
+  const btn = row.locator('.qcus');
+  expect(await btn.count() === 1 && /Customize\s*3/.test(await btn.innerText()) && await row.locator('.qbox').count() === 0, 'RSI (Length, Source, value) is not behind "Customize 3": ' + await row.locator('.rr.qt').innerText());
+  await btn.click(); await page.waitForTimeout(150);
+  const pop = row.locator('.qpop');
+  expect(await pop.locator('[data-ap],[data-af]').count() === 3 && await pop.evaluate(p => p.contains(document.activeElement)), 'the panel does not hold the three fields with the focus');
+  await pop.locator('[data-af="value"]').fill('25'); await pop.locator('[data-af="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  expect(/Custom\s*1 of 3 changed/.test(await btn.innerText()), 'the button does not say what changed: ' + await btn.innerText());
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop').count() === 0 && await page.locator('.dialog.qwin').count() === 1, 'Escape did not close only the panel');
+  await btn.click(); await row.locator('[data-cusreset]').click(); await page.waitForTimeout(150);
+  expect(/Customize\s*3/.test(await btn.innerText()) && await row.locator('.qpop [data-af="value"]').inputValue() === '30', 'Reset to default did not bring the defaults back');
+  await row.locator('.qpop [data-af="value"]').fill('25'); await row.locator('.qpop [data-af="value"]').dispatchEvent('change');
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop').count() === 0, 'Done did not close the panel');
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape');
+  const card = await openCard(0);
+  expect(await card.locator('[data-k="value"]').inputValue() === '25', 'the card does not hold the value set in the panel');
+  expect(await runs() === r0, 'the window ran the screen');
 });
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
   await fresh(); await ready();

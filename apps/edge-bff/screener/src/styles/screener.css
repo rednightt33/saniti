@@ -1487,14 +1487,31 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qnm b{font-size:var(--fs-base);font-weight:var(--fw-semibold);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qnm small{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qrow.isadd .qnm b{color:var(--text-3)}
-/* the settings column: the indicator's parameters, one per line, then the condition's threshold under a thin rule
-   (user 2026-11-06: "Semua sifatnya custom. Seharusnya ada di bagian yang garis merah"); blue = you can change it */
-.rr.qt .lead{width:96px;min-width:96px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rr.qt .sel{height:var(--h-sm);max-width:132px;padding:0 22px 0 var(--s-3);font-size:var(--fs-12);color:var(--blue);font-weight:var(--fw-semibold);background-color:var(--surface-2)}
+/* the settings column: two blue boxes or fewer on one line, more behind "Customize" (user 2026-11-06: "kalau ada kotak
+   biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator harusnya sama"); left-aligned */
+.rr.qt{position:relative;display:flex;align-items:center;gap:6px 12px;flex-wrap:nowrap;white-space:nowrap;min-width:0}
+.qbox{display:inline-flex;flex:none;align-items:center;gap:6px;cursor:default}
+.qbox .lab{flex:none;max-width:110px;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-xs);color:var(--text-3)}
+.qbox.chg .lab,.qpl.chg .lab{color:var(--blue)}
+.rr.qt .inp{width:max(54px,calc(var(--n,3) * 1ch + 30px))}
+.rr.qt .sel{height:var(--h-sm);min-width:84px;max-width:132px;padding:0 22px 0 var(--s-3);font-size:var(--fs-12);color:var(--blue);font-weight:var(--fw-semibold);background-color:var(--surface-2)}
 .qrow:hover .rr.qt .sel,.qrow.act .rr.qt .sel{background-color:var(--surface)}
-.rr .ln.qp{cursor:default}
-.rr .ln.qp.chg .lead{color:var(--blue)}
-.rr .ln.qp+.ln.thr{margin-top:2px;padding-top:6px;border-top:1px dashed var(--border)}
+.qbox .unit{display:inline;white-space:nowrap}
+.qcus{display:inline-flex;align-items:center;gap:5px;height:var(--h-sm);padding:0 11px;border:1px dashed var(--border-2);border-radius:var(--r-md);background:var(--surface);font:inherit;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text-2);cursor:pointer}
+.qcus:hover,.qcus[aria-expanded="true"]{border-color:var(--blue);color:var(--blue)}
+.qcus .ico{width:13px;height:13px}
+.qcus .n{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:2px;padding:0 6px;border-radius:var(--r-pill);background:var(--sel);font-size:var(--fs-2xs);font-weight:var(--fw-semibold);color:var(--text-2)}
+.qcus.chg{border-style:solid;border-color:var(--blue);background:var(--blue-bg);color:var(--blue);font-weight:var(--fw-semibold)}
+.qcus.chg .n{background:var(--surface);color:var(--blue)}
+.qpop{position:absolute;z-index:6;top:calc(100% + 6px);left:0;min-width:300px;display:grid;gap:8px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(0,0,0,.18);white-space:normal;cursor:default}
+.qpop>strong{font-size:var(--fs-12)}
+.qpl{display:grid;grid-template-columns:120px auto 1fr;align-items:center;gap:8px}
+.qpl .lab{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qpl .sel{min-width:96px}
+.qpl .def{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
+.qsep{border-top:1px dashed var(--border)}
+.qpf{display:flex;justify-content:space-between;align-items:center}
+.qpf .link{background:none;border:0;padding:0;font:inherit;font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--blue);cursor:pointer}
 /* the timeframe: shown as in the reference, never chosen (the data is daily) */
 .tf-seg.tf-add{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:2px;border-radius:var(--r-md);background:var(--sel);cursor:default;user-select:none}
 .tf-add span{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 5px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-3);white-space:nowrap}
@@ -1503,7 +1520,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .rr{display:block;min-width:0}
 .rr.qs .sel{width:100%;height:var(--h-sm);font-size:var(--fs-12);background:var(--surface-2)}
 .qrow:hover .rr.qs .sel,.qrow.act .rr.qs .sel{background:var(--surface)}
-.rr.qt{display:grid;gap:4px}
+/* .rr.qt: see the settings column rules (one line, or Customize) */
 .rr .ln{display:flex;align-items:center;gap:var(--s-3)}
 .rr .lead{min-width:44px;font-size:var(--fs-xs);color:var(--text-3)}
 .rr .inp{width:64px;height:var(--h-sm);font-size:var(--fs-12);padding:0 var(--s-3);text-align:right;color:var(--blue);font-weight:var(--fw-semibold)}
@@ -1527,9 +1544,8 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 /* the builder's search box opens the window (it is a button that looks like a search box) */
 .adder .adder-open{width:100%;font:inherit;text-align:left;cursor:text}
 .adder .adder-open .ph{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--text-3)}
-@media (max-width:1100px){.qcols,.qrow{grid-template-columns:minmax(0,1fr) 150px 170px 232px 76px}
-  .tf-add span{padding:0 2px}
-  .rr.qt .lead{width:80px;min-width:80px}}
+@media (max-width:1100px){.qcols,.qrow{grid-template-columns:minmax(0,1fr) 132px 152px 272px 76px}
+  .tf-add span{padding:0 2px}}
 @media (max-width:760px){
   .backdrop:has(.qwin){padding:0}
   .dialog.qwin{width:100%;height:100%;border-radius:0}
