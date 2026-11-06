@@ -11919,7 +11919,10 @@ untuk butir 2 / butir 5 tidak, hanya 4 garis miring yang dihapus / butir 3 ok su
    skala tetap. Hover di titik: titik membesar dan kotak keterangan (periode, X Foreign, Y Domestic, vonis, kuadran) dengan
    gaya tooltip panel kanan.
 
-**Menunggu:** go user.
+**Go, kata user 2026-11-06:** "Alright. Go. Also run 5 agents sonnet high untuk QC dan QA ... Gunakan versi draft saat ini
+sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publish. Tahap ini hanya pemeriksaan dan
+pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
+sampai user memutuskan sesudah laporan QC/QA.
 
 ## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (disetujui, menunggu go)
 
@@ -11942,7 +11945,10 @@ saya SS boleh hilangkan? kemudian tambahkan hoverstate juga kalau mouse hover ke
    skala tetap. Hover pada titik: titik membesar dan tooltip (periode, X foreign, Y domestic, vonis, kuadran) dengan gaya
    tooltip panel kanan.
 
-**Menunggu:** go user.
+**Go, kata user 2026-11-06:** "Alright. Go. Also run 5 agents sonnet high untuk QC dan QA ... Gunakan versi draft saat ini
+sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publish. Tahap ini hanya pemeriksaan dan
+pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
+sampai user memutuskan sesudah laporan QC/QA.
 
 ## EXEC-FLOW-PANE-FILTERS — tombol filter di baris semua indikator Flow (permintaan 2026-11-06, usulan, belum disetujui)
 
@@ -11968,4 +11974,7 @@ ya hanya brokers, board dan type yang ada. Coba finalize ya".
 - Tanpa tombol: FL27, FL28, FL31; FL46 tetap lewat ⚙. Side, hari rolling, baseline, satuan, garis acuan tetap di dialog.
 - Clear: garis hilang dan "Choose at least one …"; garis di chart harga: tombol muncul saat baris legend di-hover/disentuh.
 
-**Menunggu:** go user.
+**Go, kata user 2026-11-06:** "Alright. Go. Also run 5 agents sonnet high untuk QC dan QA ... Gunakan versi draft saat ini
+sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publish. Tahap ini hanya pemeriksaan dan
+pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
+sampai user memutuskan sesudah laporan QC/QA.
