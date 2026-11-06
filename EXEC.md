@@ -12364,6 +12364,11 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
   visual 46 screenshot; tripwire OK.
 - Go merge (user 2026-11-06): "Ok, implement versi ini lalu go merge". Titik kembali: edge-bff
   `66310845-bf5d-40f7-a6ae-3d36edc88a39` (`3a0a1d03`, rilis sesi lain).
+- Di-merge 16:34 UTC (`main` `e0cfb700`, PR #57); edge-bff `1b3fc3a0` SUCCESS; bundle live sama persis.
+  - Cek live lulus: 128 baris setinggi 54 px; RSI "Customize 3"; panel, Esc, dan "1 of 3 changed" bekerja.
+  - Temuan: 2 baris katalog live meluap 10–16 px ("Volume spike", "New N-session high of a line"). Perbaikan umum:
+    label mengalah dengan "…" (nama lengkap di tooltip), kotak isian tidak pernah menyusut. Diuji dengan CSS yang
+    disuntikkan di halaman live: 0 baris meluap pada 1440 dan 1100. Dikirim di PR lanjutan dalam go yang sama.
 
 ## EXEC-IND-PRESETS — nilai indikator di kiri, jendela Indicators, preset indikator di akun EDGE (go 2026-11-06)
 
