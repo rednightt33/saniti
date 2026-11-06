@@ -298,6 +298,9 @@ await at('Add a condition sets the parameters too (user 2026-11-06, option A): L
   await row.locator('[data-ap="length"]').fill('50'); await row.locator('[data-ap="length"]').press('Enter'); await page.waitForTimeout(200);
   expect(await cards() === 1, 'Enter in the Length field did not add the condition');
   expect(/\bisadd\b/.test(await row.getAttribute('class')) && /\bchg\b/.test(await row.locator('.qp', { hasText:'Length' }).getAttribute('class')), 'the row is not on the screen with Length 50, in blue');
+  // Enter in a field never removes (ERRORS M378): the same Length again leaves the card on the screen and says so
+  await row.locator('[data-ap="length"]').press('Enter'); await page.waitForTimeout(200);
+  expect(await cards() === 1 && /already on the screen/.test(await text('#toast')), 'Enter in a field removed a condition already on the screen: ' + await text('#toast'));
   await page.keyboard.press('Escape');
   const card = await openCard(0);
   expect(await card.locator('[data-p="length"]').inputValue() === '50' && await card.locator('[data-segc].on').count() === 1, 'the card does not hold Length 50 as Custom: ' + await card.innerText());

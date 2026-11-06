@@ -392,7 +392,15 @@ function onInput(e: Event) {
 }
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement, n = W.items.length;
-  if ((t.dataset.af || t.dataset.ap != null || t.dataset.ap2 != null) && e.key === 'Enter' && t.tagName === 'INPUT') { e.preventDefault(); onField(e); toggle(Number(t.dataset.ai)); return }
+  if ((t.dataset.af || t.dataset.ap != null || t.dataset.ap2 != null) && e.key === 'Enter' && t.tagName === 'INPUT') {
+    // Enter in a field adds; it never removes. The value just typed can make the row the same test as a card already on
+    // the screen (Length 50 + Close above SMA, in Minervini), a state the row shows only once the field is applied: a
+    // toggle then removed that card unseen (ERRORS M378, live 2026-11-06). Removing stays a click on the row or Remove.
+    e.preventDefault(); onField(e);
+    const i = Number(t.dataset.ai);
+    if (W.added[i]) { toast(`${W.items[i]?.label}: already on the screen with this condition.`); return }
+    toggle(i); return;
+  }
   if (t.closest('.rr,.qps')) return;
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && n && (t.id === 'acq' || t.closest('#acl'))) {
     e.preventDefault(); drawRest(); moveAct((W.act + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);

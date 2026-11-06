@@ -12332,3 +12332,7 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
   dengan sebelum perubahan; tripwire OK.
 - Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#55; hanya edge-bff yang dideploy. Titik kembali: edge-bff
   `0718b572-45bf-48d2-bfcb-6daa040fb837` (`bb935001`, rilis Terminal sesi lain, sudah memuat PR #54).
+- Di-merge 15:16 UTC (`main` `f9871686`); edge-bff `64d65d68` SUCCESS; bundle live sama persis. Cek live dengan login
+  lulus: parameter SMA di jendela, Length 0 ditolak, Length 30 + Enter menambah kartu Custom; sel gagal polos dan "No".
+- Temuan di cek live: Enter di kolom bisa menghapus kondisi yang sudah ada (ERRORS M378). Perbaikan di branch: Enter di
+  kolom hanya menambah. Merge menunggu "go merge".
