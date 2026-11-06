@@ -12037,6 +12037,9 @@ singkat pada area yang diubah, lalu rilis.
   di environment sesi (`RAILWAY_TOKEN`, `RAILWAY_API_TOKEN`; nilai tidak dibaca). Proxy menyuntikkan token akun untuk
   backboard.railway.com, maka CLI dijalankan tanpa `RAILWAY_TOKEN` (token proyek + header suntikan ditolak: "cannot be
   combined"). Urutan: sesudah B6 (20:20 WIB) dan tanpa run user aktif → DRYRUN → APPLY → merge `main` → cek live.
+- **Dirilis 2026-11-06:** migrasi `20261106_001` diterapkan (APPLY `f79b4ca1`, 23/23, dibaca balik); `main` `4963b9c2`,
+  edge-bff `337b8023` SUCCESS, aset live = build lokal, rute layout ada (401 tanpa sesi). Belum dicek: halaman dengan login
+  (user). Bagian ini dipindah dari EXEC sesudah user mengonfirmasi perilaku live.
 **Menunggu:** go user.
 
 ## EXEC-SCREENER-V21 — frontend Screener ke desain Type A 3-panel v21 (go 2026-11-06)

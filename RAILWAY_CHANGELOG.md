@@ -28,6 +28,29 @@
 - **Rollback:** redeploy edge-bff `19f8d01e-f510-4d75-8efb-9a1714d0f7b4` (commit `80b77b50`, the deployment live before the
   merge), or revert merge `f82babdc` on `main`.
 
+## 2026-11-06 — edge-bff from `main` `4963b9c2`: Terminal saved layouts, pane collapse, Flow pane filters, QA rounds 1-4 fixes
+
+- **Change:** EXEC-TERMINAL-LOOK-2, EXEC-FLOW-PANE-FILTERS (row filters on every Flow indicator; Top brokers verdict ladder
+  1A; Regular board default 2A), EXEC-TERMINAL-LAYOUTS (saved chart layouts on the EDGE account: `/api/v1/terminal/layouts`,
+  table `edge_bff.terminal_layouts`; collapse of lower-pane indicators), and the fixes of QA rounds 1-4
+  (`verification/terminal_api/qa_20261106/QA_REPORT.md`; ERRORS M371, M372). User: "1 dan 2, jalankan", then "A",
+  "saya izinkan 1".
+- **Database first:** migration `20261106_001` DRYRUN (job `4b4ef869`, 38/38) and APPLY (job `f79b4ca1`, 23/23) on dev
+  between 13:21 and 13:33 UTC through `run_migration.sh` with the session's Railway account token (DATABASE_CHANGELOG.md).
+  `DATABASE_URL` set on orc-test-runner only for each job and removed (read back: absent). Two APPLY attempts stopped
+  before any job ran (connections to backboard.railway.com closed mid-request); a `DATABASE_URL` set by hand for the
+  diagnosis was removed and checked gone.
+- **Before the push:** no user run in flight (`edge_bff.jobs` 0, `AI_conversation_turn` RUNNING 0, 13:35 UTC); after B6
+  (20:20 WIB). `main` had moved twice (PR #51 Screener v21, PR #52 Screener Add a condition): merged into the branch,
+  Terminal 870/870, edge-bff 162/162, Backtest 88/88, tripwire OK against `c4ff8770`. `main` fast-forwarded to
+  `4963b9c2` at 13:36:06 UTC.
+- **edge-bff:** deployment `337b8023` SUCCESS (read through the Railway API). Live: `/ready` 200; the served
+  `assets/index-BfAuN8pc.js` and `assets/style-cyjox1jv.css` are the files of the local build of `4963b9c2`;
+  `/api/v1/terminal/layouts` answers 401 without a session (the route is there). The signed-in page was not opened from
+  the session (no EDGE login here).
+- **screener-worker:** `terminal/src/calc/**` unchanged by this release: no rebuild.
+- **Postgres:** the migration jobs and the look checks read a few thousand rows; not a large update (no restart).
+
 ## 2026-11-06 — edge-bff (and screener-worker) from `main` `80b77b50`: Terminal look, Broker Inventory panel, Indicators window
 
 - **Change:** EXEC-TERMINAL-LOOK (legend spacing and grey rest state, price axis thousands and derived decimals ≤ 2 for
