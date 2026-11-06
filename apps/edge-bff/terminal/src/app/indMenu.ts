@@ -146,11 +146,46 @@ export function initIndMenu(ctx: Ctx) {
       + `<div class="im-title">Technical</div>${groupsOf('Technical').map(g => b(`t:${g}`, esc(g), view(`t:${g}`, '').length)).join('')}`
       + (flow.length ? `<div class="im-title">Flow</div>${flow.map(g => b(`f:${g}`, esc(g), view(`f:${g}`, '').length)).join('')}` : '');
   };
+  /* EXEC-TERMINAL-LOOK-2 (user 2026-11-06: "kalau di HTML contoh maka dia bisa scroll semua indikator, dan panel disebelah
+     kiri tetap mengikuti"): outside On the chart, Favorites and a search the list holds every indicator under its group's
+     heading; a group on the left jumps to its heading and the group in view is marked on the left (Screener v16 qSpyMode) */
+  const spyMode = () => group !== 'chart' && group !== 'fav' && !query.trim();
+  const keyOf = (i: MenuItem) => `${i.kind === 'Flow' ? 'f' : 't'}:${i.group}`;
+  const ordered = () => [...groupsOf('Technical').map(g => `t:${g}`), ...groupsOf('Flow').map(g => `f:${g}`)]
+    .flatMap(k => items.filter(i => keyOf(i) === k));
+  let spyLock = 0;
+  const mark = (g: string) => {
+    group = g;
+    nav.querySelectorAll<HTMLElement>('[data-g]').forEach(b => { const on = b.dataset.g === g; b.classList.toggle('on', on); if (on) b.scrollIntoView({ block:'nearest', inline:'nearest' }) });
+  };
+  const secTop = (h: HTMLElement) => { const r = h.nextElementSibling as HTMLElement | null; return r ? Math.max(0, r.offsetTop - list.offsetTop - h.offsetHeight - 6) : 0 };
+  const spy = () => {
+    if (!spyMode() || Date.now() < spyLock) return;
+    const top = list.scrollTop + 2; let cur = '';
+    // a sticky heading reports where it is stuck, so each group's place is read from its first row
+    list.querySelectorAll<HTMLElement>('.im-sec').forEach(h => { if (secTop(h) <= top) cur = h.dataset.sec as string });
+    if (list.scrollTop < 2 && group === 'all') return;            // "All indicators" stays marked at the top
+    if (cur && cur !== group) mark(cur);
+  };
+  const scrollToGroup = (g: string) => {
+    spyLock = Date.now() + 400;
+    const h = g === 'all' ? null : list.querySelector<HTMLElement>(`.im-sec[data-sec="${CSS.escape(g)}"]`);
+    list.scrollTop = h ? secTop(h) : 0;
+  };
   const render = () => {
     const keep = nav.scrollTop;
     nav.innerHTML = navHtml(); nav.scrollTop = keep;
-    const rows = view(group, query), wide = group === 'all' || group === 'chart' || group === 'fav' || !!query.trim();
+    const spying = spyMode(), rows = spying ? ordered() : view(group, query), wide = !spying;
+    let last = '';
     list.innerHTML = rows.length ? rows.map(i => {
+      const k = keyOf(i), head = spying && k !== last ? `<div class="im-sec" data-sec="${esc(k)}" role="presentation">${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}</div>` : '';
+      last = k;
+      return head + rowHtml(i, wide);
+    }).join('') : `<div class="im-empty">${group === 'fav' && !query ? 'No favorites yet: star an indicator to keep it here.' : group === 'chart' && !query ? 'No indicator on the chart yet.' : 'No indicators match.'}</div>`;
+    const n = items.reduce((t, i) => t + onChart(i), 0);
+    countEl.textContent = `${n} indicator${n === 1 ? '' : 's'} on the chart`;
+  };
+  const rowHtml = (i: MenuItem, wide: boolean) => {
       const n = onChart(i), fav = favs.has(i.id), d = defaults.get(i.id) || '';
       const where = wide ? ` · ${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}` : '';
       return `<div class="im-row" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
@@ -158,9 +193,6 @@ export function initIndMenu(ctx: Ctx) {
         + `<div class="pa">${esc(d || (i.kind === 'Base' ? 'Volume bars under the price chart' : 'No settings'))}</div></div>`
         + `<div class="mt">${esc(i.place)}<span>${esc(unitText(i.unit))}${where}</span></div>`
         + `<button type="button" class="im-add" data-add="${esc(i.id)}" aria-label="Add ${esc(i.name)}">Add</button></div>`;
-    }).join('') : `<div class="im-empty">${group === 'fav' && !query ? 'No favorites yet: star an indicator to keep it here.' : group === 'chart' && !query ? 'No indicator on the chart yet.' : 'No indicators match.'}</div>`;
-    const n = items.reduce((t, i) => t + onChart(i), 0);
-    countEl.textContent = `${n} indicator${n === 1 ? '' : 's'} on the chart`;
   };
   const byId = (id: string) => items.find(i => i.id === id)!;
   let toastTimer: any = 0;
@@ -196,8 +228,14 @@ export function initIndMenu(ctx: Ctx) {
   dlg.addEventListener('pointerdown', (e: any) => { if (e.target === dlg) open(false) });   // the backdrop
   nav.addEventListener('click', (e: any) => {
     const b = e.target.closest('[data-g]'); if (!b) return;
-    group = b.dataset.g; query = ''; search.value = ''; render(); list.scrollTop = 0;
+    const to = b.dataset.g, wasSpy = spyMode();
+    query = ''; search.value = '';
+    if (to === 'chart' || to === 'fav') { group = to; render(); list.scrollTop = 0; return }
+    group = to;
+    if (!wasSpy) render();                    // from a filtered view back to the full list
+    mark(to); scrollToGroup(to);
   });
+  list.addEventListener('scroll', spy, { passive:true });
   search.addEventListener('input', () => { query = search.value; render(); list.scrollTop = 0 });
   initResize(dlg.querySelector('.im-box') as HTMLElement, dlg.querySelector('.im-body') as HTMLElement);
   search.addEventListener('keydown', (e: KeyboardEvent) => {

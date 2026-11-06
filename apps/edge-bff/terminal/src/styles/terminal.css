@@ -1124,6 +1124,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .im-add{justify-self:end;width:80px;height:34px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-md);font-weight:var(--fw-medium);color:var(--text);cursor:pointer}
 .im-add:hover{border-color:var(--border-2);background:var(--hover)}
 .im-empty{padding:40px 16px;text-align:center;color:var(--text-3);font-size:var(--fs-base)}
+/* EXEC-TERMINAL-LOOK-2: the group headings of the one scrolling list (sticky while their rows pass) */
+.im-sec{position:sticky;top:-4px;z-index:2;margin:6px -8px 0;padding:8px 16px 6px;background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
 .im-foot{display:flex;align-items:center;gap:var(--s-6);padding:10px 20px;border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-3)}
 .im-foot b{margin-left:auto;font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap}
 .im-toast{position:absolute;left:50%;bottom:52px;z-index:5;transform:translate(-50%,8px);padding:7px 12px;border-radius:var(--r-md);background:var(--text);color:var(--surface);font-size:var(--fs-12);font-weight:var(--fw-medium);box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis}
@@ -1215,8 +1217,6 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ind-flt .fl-btn{height:24px;padding:0 6px 0 8px;font-size:var(--fs-xs);text-shadow:none}
 .ind-flt .fl-pop{left:0;right:auto;top:calc(100% + 4px);text-shadow:none}
 .ind-flt .fl-btn .fl-v{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ind-zero{position:absolute;z-index:4;transform:translate(-100%,-50%);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-2);font-variant-numeric:tabular-nums;pointer-events:none}
-.ind-zero[hidden]{display:none}
 .ind-row.in-pane:has(.ind-flt){flex-wrap:wrap;row-gap:4px;max-width:calc(100% - var(--ax-l,94px) - 84px)}
 /* reviewer 4: an open list sits above the Flow Timeline below the pane (the row's own stacking context held it under) */
 .ind-row.in-pane:has(.fl-pop:not([hidden])){z-index:40}
@@ -1287,3 +1287,19 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
   .im-nav button{width:auto;flex:none;min-height:30px;white-space:nowrap}
   .im-row{min-height:48px}
 }
+
+/* EXEC-FLOW-PANE-FILTERS (user go 2026-11-06): the scope and Rank by menus and the N box beside the filter buttons, the same
+   height, border and text as the buttons; on a price-chart line the controls show while its row is pointed at or tapped */
+.ind-flt [hidden]{display:none!important}
+.ind-sel,.ind-num{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 4px 0 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:var(--fs-xs);color:var(--text);text-shadow:none;white-space:nowrap}
+.ind-sel span,.ind-num span{color:var(--text-3)}
+.ind-sel select{border:0;background:none;font:inherit;color:var(--text);padding:0 2px;cursor:pointer;max-width:130px}
+.ind-num input{width:38px;border:0;background:none;font:inherit;font-variant-numeric:tabular-nums;color:var(--text);padding:0 2px;text-align:right}
+.ind-sel:focus-within,.ind-num:focus-within{border-color:var(--accent)}
+.ind-flt.on-hover{display:none}
+.ind-row:hover .ind-flt.on-hover,.ind-row:focus-within .ind-flt.on-hover,.ind-row.flt-open .ind-flt.on-hover,.ind-row:has(.fl-pop:not([hidden])) .ind-flt.on-hover{display:inline-flex}
+.chart-legend .ind-row:has(.fl-pop:not([hidden])){position:relative;z-index:40}
+@media(hover:none){.ind-sel,.ind-num{height:32px}}
+.fdm-pt{cursor:pointer}
+.fdm-pt .dot{transform-box:fill-box;transform-origin:center;transition:transform .12s}
+.fdm-pt:hover .dot{transform:scale(1.6)}

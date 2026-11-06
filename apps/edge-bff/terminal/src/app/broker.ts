@@ -92,7 +92,11 @@ export function initBroker(ctx: Ctx) {
     if($('workspace').classList.contains('right-collapsed')) $('rpExpand').click();
     const sec = $('bsBody').closest('.st') as HTMLElement | null;
     if(sec?.classList.contains('collapsed')) (sec.querySelector('.st-head') as HTMLElement).click();
-    sec?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    /* EXEC-TERMINAL-LOOK-2 (user 2026-11-06: "once alt B sudah selected custom timeframe, maka panel kanan otomatis ke
+       scroll ke atas"): the panel's scrolling column goes back to its top, Broker summary from its title */
+    let sc = sec?.parentElement || null;
+    while(sc && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
+    if(sc) sc.scrollTo({ top:0, behavior:'smooth' }); else sec?.scrollIntoView({ block:'start', behavior:'smooth' });
   };
   if(live) document.addEventListener('keydown', (e: any) => {
     if(!e.altKey || e.ctrlKey || e.metaKey || e.code !== 'KeyB' || e.repeat || !ready) return;
@@ -561,12 +565,15 @@ export function initBroker(ctx: Ctx) {
   const fdSec = document.querySelector('.st[data-sec="fdmap"]') as HTMLElement | null;
   if(fdSec && live) fdSec.hidden = false;
   const fdRange = makeRange($('fdRange'), { key:'fd', presets:[1,5,20], def:5, onChange:() => renderFD() });
+  const fdRangeText = (f: number, t: number) => f === t ? dayShort(t) : `${dayShort(f)} – ${dayShort(t)}`;
   const fdPoint = (f: number, t: number, label: string, cur: boolean): MapPoint => {
     const N = RS.fdN, part = inv => new Map(bkAggRange(f, t, inv, 'All').map(o => [o.b, netOf(o)]));
     const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', 'All'), N);
     const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
     const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
-    return { label, x, y, r, cur, empty:!(bal.total > 0), tip:`${label} · Top ${N}, all boards · X foreign ${x.toFixed(1)}% + Y domestic ${y.toFixed(1)}% = verdict ${r.toFixed(1)}% of total buy value` };
+    const pc = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`;
+    return { label, x, y, r, cur, empty:!(bal.total > 0),
+      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, all boards|X foreign ${pc(x)} + Y domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
   };
   function renderFD(){
     if(!fdSec || fdSec.hidden) return;

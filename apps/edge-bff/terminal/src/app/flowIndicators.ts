@@ -19,9 +19,20 @@ export const FLOW_REG = REG as unknown as { families: string[]; indicators: Flow
    lots or its Rupiah-per-share average price. On an index (the market aggregate of every stock) they are hidden
    (data/inputs.ts 'single'): lots of different stocks do not add up (2 Nov: GOTO 43.1 M lots = Rp104 bn, BUMI 38.2 M lots
    = Rp482 bn), a Rupiah-per-share VWAP is not the index level, an index has no volume and no insider. Review in EXEC.md. */
-/** EXEC-BROKER-INV-PANEL (user 2026-11-06: "Pilihannya brokers, Market Board dan Investor Type saja"): the choices shown as
-    buttons on an indicator's own pane row; the others stay in the settings dialog */
-export const PANE_FILTERS: Record<string, string[]> = { FL23:['brokers', 'boards', 'investors'] };
+/** EXEC-FLOW-PANE-FILTERS (user go 2026-11-06): the choices shown on a Flow indicator's legend row, in this order, when the
+    indicator has them (Broker Inventory 2026-11-06: brokers, boards, investors). FL46's two sides use prefixed keys
+    (num_, den_), so it gets none and keeps its settings dialog; the others (window, baseline, unit, levels, Side) stay
+    in the dialog. */
+export const PANE_FILTER_KEYS = ['scope', 'top', 'rank', 'brokers', 'boards', 'investors'] as const;
+/** EXEC-TERMINAL-LOOK-2 (3): a list the user emptied (Clear) draws nothing and says what to choose */
+export function emptyChoice(p: any): string {
+  if (!p) return '';
+  const brokersShown = p.scope === undefined || p.scope === 'selected';
+  if (brokersShown && Array.isArray(p.brokers) && !p.brokers.length && 'brokers' in p) return 'Choose at least one broker';
+  if (Array.isArray(p.boards) && !p.boards.length) return 'Choose at least one board';
+  if (Array.isArray(p.investors) && !p.investors.length) return 'Choose at least one investor';
+  return '';
+}
 export const SINGLE_SECURITY = new Set(['FL01', 'FL03', 'FL05', 'FL06', 'FL07', 'FL08', 'FL09', 'FL13', 'FL14', 'FL15',
   'FL17', 'FL18', 'FL19', 'FL20', 'FL27', 'FL31', 'FL39',
   /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05 "Ok, masukan exec"): the new ones built on a Rupiah-per-share price */
@@ -254,12 +265,13 @@ export function initFlowIndicators(ctx: Ctx) {
     /* EXEC-BROKER-INV-PANEL: an indicator that counts from the first candle on screen (a fixed `start`) marks its 0 in the
        pane; the pane's own broker, board and investor buttons are the user's choice for Broker Inventory (2026-11-06) */
     const zeroLabel = r.place === 'pane' && r.params.some(q => q.key === 'start' && q.kind === 'fixed');
-    const paneFilters = PANE_FILTERS[r.id];
+    const paneFilters = PANE_FILTER_KEYS.filter(k => inputs.some((f: any) => f.key === k));
     return {
       id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, zeroLabel, paneFilters, inputs, style:[], fill:null,
       pane:r.place === 'pane' ? 'sub' : 'overlay', format:F.fmt, minMove:F.minMove,
       outsOf:(p: any) => outs(p.plot === 'hist' ? 'histogram' : p.plot === 'line' ? 'line' : plotDefault, p),
       compute:(p: any) => {
+        if (emptyChoice(p)) return {};                 // nothing chosen: no line (the row says what to choose)
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
@@ -273,7 +285,8 @@ export function initFlowIndicators(ctx: Ctx) {
       },
       /* the legend's text where the value is empty: why, when the reason is the data (plan S4: a message, not a zero) */
       note:(i: number, raw: any, p: any) => {
-        const R = ctx.flowRows;
+        const R = ctx.flowRows, empty = emptyChoice(p);
+        if (empty) return empty;
         if (isBrokerFree(r)) return noVolume ? 'No volume for this ticker' : '';
         /* a list given as a classification (FL34) waits for the reference file's classes */
         const usesClass = p && Object.values(p).some(v => typeof v === 'string' && v.startsWith('class:'));

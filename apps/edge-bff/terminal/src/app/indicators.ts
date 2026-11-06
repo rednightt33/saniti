@@ -228,31 +228,19 @@ export function initIndicators(ctx: Ctx) {
     requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow) });
   };
   const stage = legend.parentElement;
-  /* EXEC-BROKER-INV-PANEL (user 2026-11-06: "yang saya kasih panah, bisa tulis saja huruf 0 agar user tahu it begins from
-     0"): an indicator that counts from the first candle on screen (def.zeroLabel, FL23) writes "0" in the left gutter at
-     its zero level, beside a thin zero line, so the reader sees where every line starts */
-  function placeZero(inst) {
-    if(!inst.zeroEl) return;
-    const host = inst.parts?.find(pt => pt.series && pt.kind !== 'marker')?.series, el = host?.getPane().getHTMLElement();
-    const y = host && inst.on ? host.priceToCoordinate(0) : null;
-    if(!el || y === null || y === undefined || y < 0 || y > el.clientHeight) { inst.zeroEl.hidden = true; return }
-    const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
-    const axL = parseFloat(getComputedStyle(stage).getPropertyValue('--ax-l')) || 94;
-    inst.zeroEl.style.left = (r.left - s.left + axL - 6) + 'px'; inst.zeroEl.style.top = (r.top - s.top + y) + 'px';
-    inst.zeroEl.hidden = false;
-  }
-  let zeroQueued = false;
-  const placeZeros = () => { if(zeroQueued) return; zeroQueued = true; requestAnimationFrame(() => { zeroQueued = false; list.forEach(placeZero) }) };
-  chart.timeScale().subscribeVisibleLogicalRangeChange(placeZeros);
-  /* EXEC-BROKER-INV-PANEL (user 2026-11-06: "yang saya kotakin juga boleh ditambahkan ke panel broker inventory? Pilihannya
-     brokers, Market Board dan Investor Type saja"): the indicator's broker, board and investor choices (def.paneFilters)
-     as the Flow Timeline's filter buttons on its pane row; a change is the same as in the settings dialog */
+  /* EXEC-FLOW-PANE-FILTERS (user go 2026-11-06; proposal verification/terminal_api/flow_pane_filters): every Flow
+     indicator's broker scope, Top N, Rank by, brokers, boards and investors as controls on its own legend row (def.paneFilters,
+     derived from its inputs). Top N and Rank by show only for a Top-N scope, the broker list only for Selected (the inputs'
+     own `when`); a change is the same as in the settings dialog and one undo step. Clear really empties a list: the
+     indicator then draws nothing and its row asks for a choice (EXEC-TERMINAL-LOOK-2, 3). */
   function buildPaneFilters(inst) {
     const keys = inst.def.paneFilters as string[] | undefined;
-    if(!keys || !ctx.makeFilter) return;
+    if(!keys || !keys.length || !ctx.makeFilter) return;
     const box = document.createElement('span'); box.className = 'ind-flt';
     inst.row.appendChild(box);
+    const escH = (t: unknown) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
     const inp = k => inst.def.inputs.find(f => f.key === k);
+    const shown = f => !f.when || f.when(inst.params);
     const codes = () => { const f = inp('brokers'), v = inst.params.brokers; return Array.isArray(v) ? v : f?.resolve ? f.resolve(v, inst.params) : [] };
     const allCodes = () => [...(ctx.flowRows?.brokers || [])].sort();
     /* reviewer 4 (2026-11-06): a change here is one step of the chart's undo timeline, as the same change in the dialog */
@@ -266,17 +254,35 @@ export function initIndicators(ctx: Ctx) {
     const summaryOf = (all: () => number, def: string[]) => { const f: any = (s: Set<string>) => s.size === all() ? `All (${all()})` : s.size === 0 ? 'None' : [...s].join(', ');
       f.isModified = (s: Set<string>) => !(s.size === def.length && def.every(x => s.has(x))); return f };
     inst.flt = [];
+    const ctl = (k, el: HTMLElement, sync: () => void) => { el.dataset.k = k; box.appendChild(el); inst.flt.push({ root:el, close(){}, refresh(){}, sync:() => { el.hidden = !shown(inp(k)); sync() } }) };
     for(const k of keys) {
       const f = inp(k); if(!f) continue;
-      const root = document.createElement('div'); root.className = 'fl'; box.appendChild(root);
+      if(f.kind === 'select') {                       // scope and Rank by: a small menu with the input's own options
+        const wrap = document.createElement('label'); wrap.className = 'ind-sel';
+        wrap.innerHTML = `<span>${k === 'scope' ? 'Broker' : k === 'rank' ? 'Rank by' : escH(f.label)}</span><select aria-label="${escH(f.label)}">${f.options.map(o => `<option value="${escH(o)}">${escH(f.labels?.[o] ?? o)}</option>`).join('')}</select>`;
+        const sel = wrap.querySelector('select') as HTMLSelectElement;
+        sel.onchange = () => apply(k, sel.value);
+        ctl(k, wrap, () => { sel.value = String(inst.params[k] ?? f.def) });
+        continue;
+      }
+      if(f.kind === 'int') {                          // Top N: a number box, kept inside the input's range
+        const wrap = document.createElement('label'); wrap.className = 'ind-num';
+        wrap.innerHTML = `<span>${k === 'top' ? 'N' : escH(f.label)}</span><input type="number" inputmode="numeric" min="${f.min}" max="${f.max}" step="1" aria-label="${escH(f.label)}">`;
+        const box2 = wrap.querySelector('input') as HTMLInputElement;
+        const commit = () => { const v = Math.round(Number(box2.value)); if(!Number.isFinite(v)) { box2.value = String(inst.params[k] ?? f.def); return }
+          const c = Math.max(f.min, Math.min(f.max, v)); box2.value = String(c); if(c !== inst.params[k]) apply(k, c) };
+        box2.onchange = commit; box2.onkeydown = e => { if(e.key === 'Enter') { e.preventDefault(); commit(); box2.blur() } };
+        ctl(k, wrap, () => { if(document.activeElement !== box2) box2.value = String(inst.params[k] ?? f.def) });
+        continue;
+      }
+      const root = document.createElement('div'); root.className = 'fl'; root.dataset.k = k; box.appendChild(root);
       if(k === 'brokers') {
         const state = new Set<string>(codes());
         const summary: any = (s: Set<string>) => s.size === 0 ? 'None' : s.size <= 3 ? [...s].join(', ') : `${s.size} selected`;
         summary.isModified = () => false;
-        const api = ctx.makeFilter(root, { title:'Brokers', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:f.max ?? 5,
-          getOptions:() => allCodes().map(b => ({ id:b, label:b })), state, summary,
-          onChange:() => { if(state.size) apply('brokers', [...state]); else api.sync!() } });   // reviewer 2: never an empty list shown as "None" over old lines
-        api.sync = () => { state.clear(); codes().forEach(b => state.add(b)); api.refresh() };
+        const api = ctx.makeFilter(root, { title:'Brokers', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:f.max,
+          getOptions:() => allCodes().map(b => ({ id:b, label:b })), state, summary, onChange:() => apply('brokers', [...state]) });
+        api.sync = () => { root.hidden = !shown(f); state.clear(); codes().forEach(b => state.add(b)); api.refresh() };
         inst.flt.push(api);
       } else {
         const opts = k === 'boards' ? BOARDS : INVESTORS, all = () => opts.length;
@@ -284,17 +290,19 @@ export function initIndicators(ctx: Ctx) {
         const state = new Set<string>(cur());
         const api = ctx.makeFilter(root, { title:k === 'boards' ? 'Board' : 'Investor', getOptions:() => opts, state,
           summary:summaryOf(all, Array.isArray(f.def) ? f.def : opts.map(o => o.id)),
-          onChange:() => { if(state.size) apply(k, opts.map(o => o.id).filter(id => state.has(id))); else api.sync!() } });
+          onChange:() => apply(k, opts.map(o => o.id).filter(id => state.has(id))) });
         api.sync = () => { state.clear(); cur().forEach(x => state.add(x)); api.refresh() };
         inst.flt.push(api);
       }
     }
+    inst.flt.forEach(f => f.sync && f.sync());
+    /* a line on the price chart keeps its legend clean: the controls show while the row is pointed at or tapped */
+    if(inst.def.pane !== 'sub') { box.classList.add('on-hover'); inst.row.addEventListener('click', (e: any) => { if(!e.target.closest('button,select,input,.fl')) inst.row.classList.toggle('flt-open') }) }
   }
   function placeRow(inst) {
     if(inst.def.pane !== 'sub' || !inst.series) return;
     const el = inst.series.getPane().getHTMLElement(); if(!el) return;
     inst.row.style.top = (el.getBoundingClientRect().top - stage.getBoundingClientRect().top + 6) + 'px';
-    placeZero(inst);
     if(inst.watch !== el) { if(inst.ro) inst.ro.disconnect(); inst.ro = new ResizeObserver(() => placeRow(inst)); inst.ro.observe(el); inst.watch = el }
   }
 
@@ -466,7 +474,6 @@ export function initIndicators(ctx: Ctx) {
     if(inst.def.outsOf && inst.parts && plotKeyOf(inst.def.outsOf(inst.params)) !== inst.plotKey) rebuildParts(inst);
     inst.raw = inst.def.compute(inst.params); refresh(inst);
     (inst.flt || []).forEach(f => f.sync && f.sync());
-    placeZero(inst);
   };
   // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
   ctx.refreshFlowIndicators = () => list.forEach(inst => { if(inst.def === flowDef || inst.def === flowLineDef || inst.def.flow) recompute(inst) });
@@ -531,7 +538,6 @@ export function initIndicators(ctx: Ctx) {
     });
     if(inst.def.pane === 'sub') { r.classList.add('in-pane'); stage.appendChild(r) } else legend.appendChild(r);
     buildPaneFilters(inst);
-    if(inst.def.zeroLabel) { inst.zeroEl = document.createElement('span'); inst.zeroEl.className = 'ind-zero'; inst.zeroEl.textContent = '0'; inst.zeroEl.hidden = true; stage.appendChild(inst.zeroEl) }
     if(inst.def.multi) buildParts(inst);
     recompute(inst);
     placeRow(inst);
@@ -554,7 +560,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.ro) inst.ro.disconnect();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
-    inst.row.remove(); if(inst.zeroEl) inst.zeroEl.remove();
+    inst.row.remove();
     if(sub && pane && pane.getSeries().length === 0 && chart.panes().length > 1) { try { chart.removePane(pane.paneIndex()) } catch(e) {} }
     list.splice(list.indexOf(inst), 1); if(sub) layoutPanes();
     save(); Ind.onChange && Ind.onChange();
