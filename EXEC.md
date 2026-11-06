@@ -12156,8 +12156,11 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
   - menambah ADX tidak menjalankan screen;
   - grafik AALI/Minervini hanya menggambar 9 garis harga (g dan h tidak), sumbu sekitar 6.000-10.000.
   - Rincian di `RAILWAY_CHANGELOG.md`.
-- Temuan baru: kotak "Look up a ticker" kehilangan ketikan saat jawaban preview menggambar ulang panel (ERRORS M371,
-  terbuka, menunggu keputusan user).
+- Temuan baru: kotak "Look up a ticker" kehilangan ketikan saat jawaban preview menggambar ulang panel (ERRORS M371).
+  - Keputusan user (2026-11-06): "Ok". Ini jawaban atas usulan "pilihan 1 (saran saya): aturan umum untuk semua panel"
+    dan atas PR dokumen.
+  - Dikerjakan di branch: `src/keep-field.ts`, dipakai oleh semua penggambar panel, plus langkah smoke M371.
+  - Merge dan deploy menunggu "go merge".
 
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).

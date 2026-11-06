@@ -16,6 +16,7 @@ import { bindPopResize, dressPop, drawerClass, fnavHtml, FKEYS, indScopeHtml, na
 import { filtersFolded, setFiltersFolded, syncRails } from './layout/panes.ts';
 import { layoutHooks, wide } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
+import { keepField } from './keep-field.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 const FRESH = freshUniverse();
@@ -149,10 +150,12 @@ export function renderUniverse() {
   const c = scopeChips(), n = c.removable;
   const p = S.source?.kind === 'preset' ? ctx.catalog?.presets.find(x => x.id === (S.source as { id: string }).id) : null;
   const sum = filtersFolded() ? summaryHtml(summaryItems(), c.texts, p?.name ?? null, uCountTxt()) : '';
-  $('cardU').innerHTML = `${sum}<div class="toolbar">
-      <span id="uQf" style="display:contents">${qfHtml()}</span><button class="btn" data-act="drawer" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.filter, 's')}More filters<span id="uN">${n ? `<span class="count">${n}</span>` : ''}</span></button>${ctx.catalog ? naButtonHtml() : ''}</div>
-    <div class="chipbar"><span>Active filters</span><span id="uChips" style="display:contents">${c.html}</span>${universeEdited() ? `<button class="link" data-act="resetU">Clear all</button>` : ''}<span class="ucount" id="uCount">${uCountTxt()}</span></div>
-    <div class="presets" id="uPresets"></div>`;
+  keepField($('cardU'), () => {   // typed text survives the redraw (keep-field.ts, ERRORS M371)
+    $('cardU').innerHTML = `${sum}<div class="toolbar">
+        <span id="uQf" style="display:contents">${qfHtml()}</span><button class="btn" data-act="drawer" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.filter, 's')}More filters<span id="uN">${n ? `<span class="count">${n}</span>` : ''}</span></button>${ctx.catalog ? naButtonHtml() : ''}</div>
+      <div class="chipbar"><span>Active filters</span><span id="uChips" style="display:contents">${c.html}</span>${universeEdited() ? `<button class="link" data-act="resetU">Clear all</button>` : ''}<span class="ucount" id="uCount">${uCountTxt()}</span></div>
+      <div class="presets" id="uPresets"></div>`;
+  });
   ui.renderPresets(); renderPop(); renderDrawer();
   syncRails(); layoutHooks.afterUniverse();
 }
@@ -184,7 +187,7 @@ function focusSel(a: Element | null): string | null {
 const keepScroll = (el: HTMLElement, fn: () => void) => {
   const s = [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist')].map(x => x.scrollTop), top = el.scrollTop;
   const a = document.activeElement, sel = a && el.contains(a) ? focusSel(a) : null;
-  fn(); el.scrollTop = top;
+  keepField(el, fn); el.scrollTop = top;
   [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist')].forEach((x, i) => { x.scrollTop = s[i] || 0 });
   if (sel) (el.querySelector(sel) as HTMLElement | null)?.focus({ preventScroll:true });
 };

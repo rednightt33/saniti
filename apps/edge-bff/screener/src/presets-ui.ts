@@ -12,6 +12,7 @@ import { ApiFailure } from './api/types.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { errorText, failureOn, placeText, savedErrorText, T } from './texts.ts';
 import { afterPress } from './press.ts';
+import { keepField } from './keep-field.ts';
 
 const $ = (id: string) => document.getElementById(id);
 const CAT_ORDER = ['Bandarmology', 'Technical', 'Fundamental', 'Combined'];
@@ -67,7 +68,7 @@ const srcKey = () => S.source?.kind === 'preset' ? 'p:' + S.source.id : S.source
 export function renderPresets() {
   if (afterPress('presets', renderPresets)) return;   // never under a pressed pointer (press.ts, ERRORS M357)
   const el = $('uPresets'); if (!el) return;
-  el.innerHTML = presetsHtml(); fitPresets();
+  keepField(el, () => { el.innerHTML = presetsHtml() }); fitPresets();   // keep-field.ts, ERRORS M371
   if (S.pcat === 'My screens') askCounts();
 }
 /** one row of presets until the round button expands them; the active preset moves to the front while collapsed */

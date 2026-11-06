@@ -5314,7 +5314,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
-### M371 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, open)
+### M371 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed in code)
 
 - **Found by:** the coordinator's signed-in live check after PR #52 (dev, Minervini then Screen now).
 - **Symptom:**
@@ -5331,14 +5331,31 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Class:** an area renderer replaces a text field the user is typing in, and the typed text and focus are lost.
   - Verified here only for the preview lookup.
   - `universe-ui.ts` already restores focus (`keepScroll` + `focusSel`, `:177-190`), but not a typed value.
-  - The builder's `renderConds` (`builder.ts:109`) rewrites its host without keeping focus. Not checked live; the check
-    is to type in a card's number field while a run answer lands.
-- **Fix (proposed, not made):**
-  - one shared rule for every area renderer: before a redraw, note the focused field (its key, value, selection);
-    after it, find it again and restore all three;
-  - or leave the lookup box out of the redrawn part, as the Screen now controls are (`screen-gate.ts renderScreen`).
-  - A test types into the lookup while a slow preview (`?slow=preview`) lands, and does the same in a builder field.
-- **Status:** OPEN; awaiting the user's decision.
+  - The builder's `renderConds` (`builder.ts:109`) rewrites its host without keeping focus. Checked on the smoke build
+    (a card's number field typed while a slow run lands, before and after the fix): the field is not replaced there and
+    keeps "42". Not this defect today, but the same mechanism, so the fix covers it too.
+- **Decision:** user 2026-11-06 "Ok" to the proposal with option 1 recommended (one shared rule for every area
+  renderer).
+- **Solution (branch `claude/charming-hamilton-faq25e`):**
+  - new `apps/edge-bff/screener/src/keep-field.ts`: `keepField(host, draw)` notes the focused control of the host
+    (found again by its id, else its tag, name and data attributes) and gives it back its focus after the drawing;
+  - a text field also gets back its text and caret, only for text typed and not yet sent: an input event marks it; a
+    change, Enter or Escape unmarks it, so the page's own drawing still wins when it acts on the field (Enter picks a
+    ticker and empties the lookup). The restored text is announced with an input event, so the page's handlers see it
+    (the suggestions, the number debounce);
+  - `bindKeepField(document)` in `app.ts` next to `bindPress`;
+  - every area renderer draws through it: `app.ts` header, `results.ts` tools and table, `builder.ts renderConds`,
+    `universe-ui.ts renderUniverse` and its pop and drawer (`keepScroll`), `presets-ui.ts`, `preview.ts renderDetails`.
+- **Verified (local):**
+  - the smoke step "typed text survives a redraw (ERRORS M371)": the lookup node is replaced by the preview answer
+    (`?slow=preview:1500`), and the typed text, focus and suggestions stay; Enter still picks the stock and empties
+    the box;
+  - the step fails without the fix (`{"v":"","act":""}`, the live symptom) and with the Enter rule removed;
+  - typecheck; vitest 780 passed, 1 skipped; build and bundle 31; full smoke three runs in a row (longest page task 0 ms);
+    visual 46 shots; backtest tripwire OK.
+- **Status:** FIXED in code (branch, not deployed).
+- **Lesson:** a page that redraws an area from late answers must keep what the user is doing in it: the pointer
+  (press.ts) and the keyboard (keep-field.ts). A new area renderer draws through both.
 
 ### M370 — screener-worker suite red: 52 stale line pointers in SCREENER_ONBOARDING.md (2026-11-06, fixed)
 

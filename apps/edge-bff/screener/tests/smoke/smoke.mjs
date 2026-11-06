@@ -338,6 +338,24 @@ await at('preview: the ring while a new ticker loads, never the previous candles
   expect(/vs IHSG/.test(await text('#dtb')), 'Stock vs IHSG view missing');
   await page.click('[data-pvv="chart"]');
 });
+await at('typed text survives a redraw (ERRORS M371): the lookup keeps what is typed while a preview answer redraws the panel; Enter still picks and empties it', async () => {
+  // seen live on dev 2026-11-06: right after Screen now the preview answer redrew the panel while a ticker was typed in
+  // "Look up a ticker", and the box came back empty and without focus (src/keep-field.ts)
+  await fresh('?slow=preview:1500'); await ready();
+  await page.click('[data-open="p:minervini"]'); await screen();
+  const tk = await page.locator('#resPane tbody tr').nth(1).getAttribute('data-tk'), part = tk.slice(0, 3);
+  await page.evaluate(() => { document.getElementById('pvq').dataset.mark = '1' });
+  await page.locator('#pvq').click(); await page.keyboard.type(part, { delay:120 });
+  await page.waitForFunction(() => !document.querySelector('#pvq[data-mark]'), null, { timeout:6000 });   // the answer redrew the panel
+  await page.waitForTimeout(100);
+  const st = await page.evaluate(() => ({ v:document.getElementById('pvq').value, act:document.activeElement?.id, sug:!document.getElementById('pvsug').hidden }));
+  expect(st.v === part && st.act === 'pvq' && st.sug, `the lookup lost what was typed in a redraw: ${JSON.stringify(st)} (typed ${part})`);
+  await page.keyboard.type(tk.slice(3)); await page.waitForTimeout(100);
+  const pick = await page.locator('#pvsug [data-g].act').getAttribute('data-g');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(t => new RegExp(t).test(document.querySelector('#dtb .preview-head')?.textContent || ''), pick, { timeout:6000 });
+  expect(await page.locator('#pvq').inputValue() === '', 'Enter picked a stock but the lookup kept the old text');
+});
 await at('preview of a service still behind the table: one re-run, then the reason and Retry (M3)', async () => {
   await fresh('?fail=preview:DATA_VERSION_CHANGED:409:9'); await ready();
   await page.click('[data-open="p:minervini"]'); await screen();
