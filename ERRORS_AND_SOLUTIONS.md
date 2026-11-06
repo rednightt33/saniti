@@ -5314,7 +5314,31 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
-### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, open)
+### M375 — Screener smoke run: a page task over 50 ms now and then, in a different step each time (2026-11-06, open)
+
+- **Found by:** the coordinator's smoke runs for M374.
+- **Symptom:** `tests/smoke/smoke.mjs` fails now and then with "[long tasks] the page blocked the main thread for N ms",
+  N between 56 and 106, in a different step each time:
+  - "markup in names" twice;
+  - "five edits give no run";
+  - "Add a condition is the one way to add";
+  - "prototype behaviours kept";
+  - "extra columns" (110 ms).
+  The other runs pass with the page's longest task at 0 ms.
+- **Verified (smoke with a local, uncommitted log of each long task the run counts as the page's):**
+  - the task is not inside or next to the fixture's timed compute (none within 400 ms, or the nearest is 100 ms later);
+  - one seen run: 65 ms at 1.9 s after the page opened, the boot;
+  - it happens on `c4ff8770`, before M373 and M374 (1 run of 3), and on `88683a63` (1 of 3), as on the M374 branch (4
+    of 9). It does not come from M373 or M374.
+  - The machine was not busy (load about 1.2 of 4 cores).
+- **Suspected, not verified:** a boot task of the page (the bundle's evaluation or its first drawing), or work the
+  fixture does outside `timed()` (`tests/fixture/api.ts:176`, the market built when `fixtureApi` is created).
+  The check is a Chromium performance trace of a failing run, to name the task.
+- **Class:** a time budget checked on a shared machine without naming the task, so a slow boot task and a real
+  regression look the same.
+- **Status:** OPEN; not fixed in the M374 change (outside its scope).
+
+### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, fixed in code)
 
 - **Found by:** the coordinator's live check of M373 (dev, signed in).
 - **Symptom:** after Screen now the preview shows AALI. Typing "AALI" in "Look up a ticker" and pressing Enter keeps
@@ -5327,9 +5351,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - It predates M373: `keep-field.ts` acts only inside a redraw.
 - **Class:** an action that relies on a redraw's side effect (emptying a field) does nothing when the redraw is
   skipped as unchanged.
-- **Fix (proposed, not made):** `pickStock` empties the lookup and closes its suggestions itself, whatever the redraw
-  does. A smoke step presses Enter on the stock already shown.
-- **Status:** OPEN; minor; awaiting the user's decision.
+- **Decision:** user 2026-11-06 "betulkan skrg go merge".
+- **Solution (branch):** `pickStock` empties the lookup, resets its highlighted suggestion and closes its suggestions
+  itself, whatever the redraw does. This covers every pick: Enter, a click on a suggestion, a result row.
+- **Verified (local):**
+  - the smoke step "picking the stock already shown empties the lookup (ERRORS M374)" passes;
+  - without the fix it fails with the live symptom (`{"v":"BMRI","sug":true}`);
+  - typecheck; vitest 780 passed, 1 skipped; bundle 31; visual 46 shots; backtest tripwire OK.
+- **Status:** FIXED in code (branch, not deployed).
 
 ### M373 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed)
 

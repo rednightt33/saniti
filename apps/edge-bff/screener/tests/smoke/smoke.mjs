@@ -356,6 +356,15 @@ await at('typed text survives a redraw (ERRORS M373): the lookup keeps what is t
   await page.waitForFunction(t => new RegExp(t).test(document.querySelector('#dtb .preview-head')?.textContent || ''), pick, { timeout:6000 });
   expect(await page.locator('#pvq').inputValue() === '', 'Enter picked a stock but the lookup kept the old text');
 });
+await at('picking the stock already shown empties the lookup (ERRORS M374)', async () => {
+  // seen live on dev 2026-11-06: the preview showed AALI, "AALI" + Enter kept the text, as the panel did not redraw
+  const shown = (await page.locator('#dtb .preview-head strong').first().innerText()).trim().split(/\s/)[0];
+  await page.locator('#pvq').click(); await page.keyboard.type(shown, { delay:40 }); await page.waitForTimeout(150);
+  expect(await page.locator('#pvsug [data-g].act').getAttribute('data-g') === shown, `the lookup does not offer ${shown} first`);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(200);
+  const st = await page.evaluate(() => ({ v:document.getElementById('pvq').value, sug:!document.getElementById('pvsug').hidden, head:document.querySelector('#dtb .preview-head')?.textContent || '' }));
+  expect(st.v === '' && !st.sug && st.head.includes(shown), `Enter on the stock already shown left the lookup as it was: ${JSON.stringify({ v:st.v, sug:st.sug })}`);
+});
 await at('preview of a service still behind the table: one re-run, then the reason and Retry (M3)', async () => {
   await fresh('?fail=preview:DATA_VERSION_CHANGED:409:9'); await ready();
   await page.click('[data-open="p:minervini"]'); await screen();

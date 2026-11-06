@@ -12239,7 +12239,10 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
   - Cek live dengan login lulus:
     - "AALI" yang diketik tepat sesudah Screen now tetap ada, beserta fokus dan sarannya;
     - Enter pada saham lain memilihnya dan mengosongkan kotak.
-  - Temuan kecil: Enter pada saham yang sudah tampil tidak mengosongkan kotak (ERRORS M374, terbuka, perilaku lama).
+  - Temuan kecil: Enter pada saham yang sudah tampil tidak mengosongkan kotak (ERRORS M374, perilaku lama).
+    - Keputusan user (2026-11-06): "betulkan skrg go merge". Ini perintah untuk memperbaiki M374 lalu merge dan
+      deploy edge-bff.
+    - Titik kembali: edge-bff `01f75fd4-a413-4091-a782-3a84251e39e2` (`88683a63`).
 
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).
