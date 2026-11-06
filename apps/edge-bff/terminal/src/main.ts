@@ -29,6 +29,7 @@ import { initReorder } from './ui/reorder';
 import { initFullscreen } from './ui/fullscreen';
 import { initPopout } from './app/popout';
 import { initLayouts } from './app/layouts';
+import { initPresets } from './app/presets';
 import { initAssets } from './app/assets';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts } from './data/chartTime';
@@ -117,6 +118,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   finishFlow(ctx, flow);
   initDrawings(ctx);
   initIndicators(ctx);
+  ctx.presets = initPresets(ctx);                          // EXEC-IND-PRESETS: live only (null in the fixture)
   initSearch(ctx);
   initSelect();
   initBroker(ctx);

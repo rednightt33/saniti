@@ -87,6 +87,12 @@ export interface IndSurface {
   /** EXEC-IND-CARDS: an indicator as the chart has it, for its card */
   /** EXEC-INV-SYNC: a broker picked in the right panel (Broker Inventory indicators take it) */
   brokerPicked?: (code: string) => void;
+  /** EXEC-IND-PRESETS: add an indicator from a preset (one undo step); the chart's indicators of an id, as presets read them;
+      the presets module's "save this one" (set by presets.ts) */
+  addPreset?: (defId: string, config: any, presetId?: string) => unknown;
+  onChartOf?: (defId: string) => { title: string; config: any; presetId?: string }[];
+  savePreset?: (p: { defId: string; title: string; config: any }) => void;
+  defName?: (defId: string) => string | null;
 }
 
 export interface HistEntry { undo(): void; redo(): void }
@@ -176,6 +182,8 @@ export interface Ctx {
   refitFlow?: () => void;
   /* EXEC-TERMINAL-POPOUT (broker.ts): what Broker activity shares with its windows (popout.ts), live */
   brokerShared?: BrokerShared;
+  /** EXEC-IND-PRESETS: the owner's indicator presets (live only; presets.ts) */
+  presets?: import('./presets').PresetsSurface | null;
 }
 
 export interface BrokerShared {

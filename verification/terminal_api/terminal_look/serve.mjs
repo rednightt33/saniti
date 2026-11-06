@@ -37,13 +37,33 @@ export async function serve(DATA, TICKER) {
     logos:gz({ columns:['ticker', 'sha256'], ticker:[], sha256:[] }) };
 
   const files = new Map(); let origin = '';
-  const LAYOUTS = { rows:new Map(), calls:[], tick:0 };
+  const LAYOUTS = { rows:new Map(), calls:[], tick:0 }, PRESETS = { rows:new Map(), calls:[], tick:0 };
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x'), path = decodeURIComponent(url.pathname);
     const json = (o, status = 200) => { res.writeHead(status, { 'Content-Type':'application/json' }); res.end(JSON.stringify(o)) };
     if (path === '/api/v1/auth/session') return json({ csrf_token:'t', login:'look' });
     /* EXEC-TERMINAL-LAYOUTS: an in-memory stand-in of edge-bff's /api/v1/terminal/layouts (apps/edge-bff/app/layouts.py):
        revision, conflicts, names unique, opened order; writes need the CSRF header */
+    /* EXEC-IND-PRESETS: an in-memory stand-in of /api/v1/terminal/presets (apps/edge-bff/app/presets.py) */
+    const pre = path.match(/^\/api\/v1\/terminal\/presets(?:\/(ipr_[0-9a-f]{32}))?$/);
+    if (pre) {
+      const id = pre[1], err = (code, status, extra = {}) => json({ error:{ code, message:code, ...extra } }, status);
+      if (req.method !== 'GET' && req.headers['x-csrf-token'] !== 't') return err('CSRF', 403);
+      let body = {}; if (req.method === 'PUT' || req.method === 'PATCH') { let t = ''; for await (const c of req) t += c; body = JSON.parse(t || '{}') }
+      const now = new Date(Date.now() + PRESETS.tick++).toISOString(), row = id && PRESETS.rows.get(id);
+      PRESETS.calls.push(`${req.method} ${id || ''}`.trim());
+      if (!id) return json({ presets:[...PRESETS.rows.values()].sort((a, b) => Number(b.favorite) - Number(a.favorite) || (a.used_at < b.used_at ? 1 : -1)), limit:100 });
+      if (req.method === 'DELETE') { if (!row) return err('NOT_FOUND', 404); PRESETS.rows.delete(id); res.writeHead(204); return res.end() }
+      if (req.method === 'PATCH') { if (!row) return err('NOT_FOUND', 404); if (body.favorite !== undefined) row.favorite = body.favorite; if (body.used) row.used_at = now; return json(row) }
+      const name = String(body.name || '').trim();
+      if (body.revision != null && row && row.revision !== body.revision) return err('REVISION_CONFLICT', 409, { details:{ revision:row.revision } });
+      if ([...PRESETS.rows.values()].some(r => r.name === name && r.preset_id !== id)) return err('NAME_TAKEN', 409, { field:'name', message:'Another preset has this name: choose another name.' });
+      if (body.revision == null) { if (row) return err('REVISION_CONFLICT', 409);
+        const r = { preset_id:id, name, def_id:body.def_id, config:body.config, summary:body.summary || '', schema_version:1, favorite:false, revision:1, created_at:now, updated_at:now, used_at:now };
+        PRESETS.rows.set(id, r); return json(r, 201) }
+      if (!row) return err('NOT_FOUND', 404);
+      Object.assign(row, { name, def_id:body.def_id, config:body.config, summary:body.summary || '', revision:row.revision + 1, updated_at:now, used_at:now }); return json(row);
+    }
     const lay = path.match(/^\/api\/v1\/terminal\/layouts(?:\/(lay_[0-9a-f]{32}))?$/);
     if (lay) {
       const id = lay[1], meta = r => { const { state, ...m } = r; return m }, err = (code, status, extra = {}) => json({ error:{ code, message:code, ...extra } }, status);
@@ -91,5 +111,5 @@ export async function serve(DATA, TICKER) {
   await new Promise(ok => server.listen(0, '127.0.0.1', ok));
   origin = `http://127.0.0.1:${server.address().port}`;
 
-  return { origin, close:() => server.close(), layouts:LAYOUTS };
+  return { origin, close:() => server.close(), layouts:LAYOUTS, presets:PRESETS };
 }

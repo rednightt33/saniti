@@ -12311,3 +12311,9 @@ propose." Atas usulan "My presets" dan pertanyaan balik: "Q1 A" (simpan di akun 
   baru `edge_bff.indicator_presets`, maksimal 100 per akun); parameter yang tidak dikenal lagi kembali ke bawaan;
   preset dari indikator yang dihapus ditandai "no longer available".
 - Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
+- Status 2026-11-06 (branch): dikerjakan. Backend `apps/edge-bff/app/presets.py` + migrasi `20261106_002` (belum
+  diterapkan; gladi lokal DRYRUN 39/39, APPLY 23/23); Terminal `app/presets.ts`, `ui/dialogs.ts`, `data/presetsApi.ts`,
+  `indMenu.ts`, `indicators.ts` (hanya mode live). Bukti `verification/terminal_api/terminal_look/look_check9.mjs`
+  (simpan dari baris dan dari Settings, nama sama ditanya dulu lalu diganti, Add, bintang, Rename, Update from chart,
+  Delete, pencarian, indikator yang sudah tidak ada, parameter usang kembali ke bawaan, ponsel tanpa geser) plus
+  `look_check3/5/6/7/8` tanpa galat; Terminal 870/870, edge-bff 333 lulus, tripwire backtest OK.
