@@ -5314,7 +5314,33 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
-### M370 — screener-worker suite red: 52 stale line pointers in SCREENER_ONBOARDING.md (2026-11-06, branch)
+### M371 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, open)
+
+- **Found by:** the coordinator's signed-in live check after PR #52 (dev, Minervini then Screen now).
+- **Symptom:**
+  - Right after Screen now, a click in "Look up a ticker" puts the focus there.
+  - Typing "AALI" then leaves the box empty, without focus and without suggestions.
+  - The same steps six seconds later work: the value stays, focus stays, AALI is suggested.
+- **Verified cause (live probe and code):**
+  - the node the click focused is gone by the end of typing (a mark set on it before the click is missing);
+  - `renderDetails` (`apps/edge-bff/screener/src/preview.ts:144` and `:156`) rewrites the whole panel, the lookup box
+    included (`lookup()`, `:131`), each time a preview answer or a row pick redraws it;
+  - it keeps neither the focused field nor its value. `press.ts` holds a redraw only while a pointer is pressed, not
+    while a field is being typed in.
+  - The lookup moved into this panel with v21 (PR #51); not from PR #52.
+- **Class:** an area renderer replaces a text field the user is typing in, and the typed text and focus are lost.
+  - Verified here only for the preview lookup.
+  - `universe-ui.ts` already restores focus (`keepScroll` + `focusSel`, `:177-190`), but not a typed value.
+  - The builder's `renderConds` (`builder.ts:109`) rewrites its host without keeping focus. Not checked live; the check
+    is to type in a card's number field while a run answer lands.
+- **Fix (proposed, not made):**
+  - one shared rule for every area renderer: before a redraw, note the focused field (its key, value, selection);
+    after it, find it again and restore all three;
+  - or leave the lookup box out of the redrawn part, as the Screen now controls are (`screen-gate.ts renderScreen`).
+  - A test types into the lookup while a slow preview (`?slow=preview`) lands, and does the same in a builder field.
+- **Status:** OPEN; awaiting the user's decision.
+
+### M370 — screener-worker suite red: 52 stale line pointers in SCREENER_ONBOARDING.md (2026-11-06, fixed)
 
 - **Found by:** the coordinator, running `apps/screener-worker` `npm test` for EXEC-SCREENER-ADD.
 - **Symptom:** `tests/onboarding_pointers.test.ts` failed: 52 pointers of `SCREENER_ONBOARDING.md` named lines where the
@@ -5325,10 +5351,10 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Class:** line pointers in a guide drift whenever the cited files change; any guide that cites `file:line`.
 - **Solution (branch):** every pointer moved to the line where its symbol is defined (script picks the definition among
   the lines the test names); `main.py:548` spelled `apps/terminal-api/app/main.py:574`. The worker suite passes (67/67).
-- **Status:** FIXED (branch, not merged). Lesson: run the worker suite after changing a cited file; the guide's
+- **Status:** FIXED (merged in `main` `c4ff8770`, PR #52). Lesson: run the worker suite after changing a cited file; the guide's
   pointers are tested only there.
 
-### M369 — Screener: "Add indicator" opened the detailed Indicators window instead of the reference's "Add a condition" (2026-11-06, branch)
+### M369 — Screener: "Add indicator" opened the detailed Indicators window instead of the reference's "Add a condition" (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots of the reference and of live, 2026-11-06).
 - **Verified cause:** the v21 port left the reference's "Add a condition" window, its condition and threshold picker and
@@ -5344,12 +5370,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     "on the screen" compares the wire test;
   - the timeframe is shown (5m to 4h greyed with their reason, Daily on) and cannot be chosen;
   - adding never runs (Screen now gate).
-- **Status:** FIXED in code (branch, not deployed). Verified: `tests/page/add-condition.test.ts` (9), the smoke step "Add
+- **Status:** FIXED and deployed (edge-bff `4f16f07f`, `main` `c4ff8770`). Live signed-in check 2026-11-06: all five
+  doors open it, no detailed browser, timeframe not clickable, add ADX without a run (`RAILWAY_CHANGELOG.md`).
+  Verified before the merge: `tests/page/add-condition.test.ts` (9), the smoke step "Add
   a condition is the one way to add" (every door, no detailed browser, timeframe, add, remove, Undo, wrong threshold, no
   run), three full smoke runs, visual 46 shots.
 - **Lesson:** list what a split leaves out of the reference and have the user decide it before the release.
 
-### M368 — Screener preview chart: percent and index overlays drawn on the price axis, candles squashed (2026-11-06, open)
+### M368 — Screener preview chart: percent and index overlays drawn on the price axis, candles squashed (2026-11-06, fixed)
 
 - **Found by:** the coordinator's signed-in live check after the EXEC-SCREENER-V21 deploy (AALI, preset Minervini).
 - **Symptom:** the preview's candle chart has a line near 0 and a price axis from 0 to 12,000, so the candles of a
@@ -5375,8 +5403,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution (EXEC-SCREENER-ADD, branch):** `contract.ts` `PreviewResponse.overlays[].unit` (additive, optional for the
   page); `apps/screener-worker/src/preview.ts` sends `ResolvedSeries.unit`; `src/preview.ts candleOverlays` keeps
   `unit === 'price'` only (a series without a unit is not drawn); the fixture carries the core's unit.
-- **Status:** FIXED in code (branch, not deployed). Verified: worker test (RSI not `price`, the SMA crossed `price`),
-  `tests/page/add-condition.test.ts` (the overlay choice). Live check after the deploy: AALI with Minervini.
+- **Status:** FIXED and deployed (edge-bff `4f16f07f`, screener-worker `ccb2c727`, `main` `c4ff8770`).
+  - Verified before the merge: worker test (RSI not `price`, the SMA crossed `price`); `tests/page/add-condition.test.ts`
+    (the overlay choice).
+  - Live, AALI with Minervini, 2026-11-06:
+    - the 11 overlays each carry `unit`;
+    - 9 SMA series are `price` and drawn;
+    - g and h are `dimensionless` and not drawn;
+    - the axis runs about 6,000-10,000 against candles of 5,825-9,900.
 
 ### M367 — Screener page without a session: two unhandled promise rejections in the console (2026-11-06, open)
 

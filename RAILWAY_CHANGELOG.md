@@ -1,5 +1,43 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff and screener-worker from `main` `c4ff8770`: "Add a condition" window, preview overlays by unit (EXEC-SCREENER-ADD, PR #52)
+
+- **Change:**
+  - Screener page: "Add a condition" is the one way to add a condition (ERRORS M369). The detailed Indicators window
+    is removed.
+  - Contract field `PreviewResponse.overlays[].unit` (additive); screener-worker sends it; the page draws only
+    `price` overlays on the candle axis (M368, user decision "A").
+  - No variable, migration or database change.
+- **Go:** user 2026-11-06 "go merge". PR rednightt33/saniti#52 merged 13:21 UTC (merge commit `c4ff8770`).
+- **Deployments (Railway API, through the session credential for `backboard.railway.com`):**
+  - edge-bff `4f16f07f-0d0e-40d9-bd03-e41d5d9b5f2b` SUCCESS (seen 13:22:56 UTC);
+  - screener-worker `ccb2c727-2e73-484f-8fba-2b514b39c923` SUCCESS, created 13:22:00 UTC (seen 13:23:37 UTC).
+  - Both are on commit `c4ff8770`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-kHd9hlL1.js` and `assets/style-DYQZvLdL.css` are byte-equal to the local
+    build of the same tree (sha256 `448b8946aa4dbdfd…`, `729bc2390eea5e2c…`);
+  - the screener CSP is unchanged (`script-src 'self'`);
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, 2026-11-06 ~13:30 UTC):**
+  - all five doors open "Add a condition": the page's Add indicator, Alt+A, "/", the builder search box and "+";
+  - the "detailed browser" is not offered;
+  - 128 indicators in 8 groups;
+  - timeframe: 5m to 4h greyed with their reason, Daily on, nothing clickable;
+  - adding ADX makes one card and marks the row "on the screen"; the window sends no run; the out-of-date bar shows;
+  - Minervini, then Screen now: 9 matches;
+  - AALI preview: 11 overlays, each carries `unit`:
+    - 9 SMA series are `price` and drawn, within 6,147-8,596 against candles of 5,825-9,900;
+    - conditions g and h (`pct_distance`, 4.9 to 68.2 and −34.7 to 0) are `dimensionless` and not drawn;
+    - the axis runs about 6,000-10,000, no longer 0-12,000;
+  - no CSP violation, no console error.
+- **Found:** the preview's "Look up a ticker" box loses what is typed while a preview answer redraws the panel (ERRORS
+  M371, open; from v21, not from this PR).
+- **Rollback:**
+  - edge-bff `910cef24-cb29-4796-8d24-6a494abc890f` (commit `f82babdc`);
+  - screener-worker `105e9e04-e682-451f-a5d9-6e7f0b052408` (commit `80b77b50`);
+  - or revert merge `c4ff8770` on `main`.
+  - An old worker with the new page draws no overlay (safe); an old page with the new worker ignores the field.
+
 ## 2026-11-06 — edge-bff from `main` `f82babdc`: Screener v21 three-panel page (EXEC-SCREENER-V21, PR #51)
 
 - **Change:** the Screener page (`apps/edge-bff/screener`) in the v21 three-panel layout with the explicit Screen now
