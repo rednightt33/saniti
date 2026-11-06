@@ -1,5 +1,37 @@
 # Railway changelog
 
+## 2026-11-06 — Postgres memory limit 1 GB again (EXEC-PG-MEMORY)
+
+- User: "minta tolong untuk memory progress di cap jadi 1 GB.. sekarang 4GB.. tidak perluy lakukan perubahancode".
+- **Before (04:53 UTC):** 0 EDGE jobs, 0 orc turns, 0 active statements; outside B6.
+- **Change:** set by the user in the Railway dashboard (this session has no Railway token; `set_postgres_memory.py`
+  stopped at `KeyError: 'RAILWAY_TOKEN'`). `.railway/railway.ts` `memoryBytes` 4000000000 → 1000000000 to match.
+- **After:** Postgres start 2026-11-05 16:00:53 → 2026-11-06 04:55:05 UTC; edge-bff `/ready` 200. The limit was not
+  read back by the agent (Railway API "Not Authorized"); run `railway config plan` from a session with a token to
+  confirm it shows no change.
+- This restart also clears the cache of the EXEC-TERMINAL-IND-EDIT live verification (~1.3M `Feature_05` rows read;
+  the Telegram button failed, ERRORS M344).
+- The user then saw "The terminal data service answered 503 (TERMINAL_UNAVAILABLE)" in EDGE; terminal-api answered
+  normally from about 05:00 UTC (ERRORS M353: its pool does not check connections after a Postgres restart).
+
+## 2026-11-06 — edge-bff and screener-worker from `main` `b1ac95a0` (EXEC-TERMINAL-IND-EDIT: Terminal Flow indicators, tab titles)
+
+- **Change:** Terminal Flow indicators (side rule, FL11/FL13–FL16/FL21/FL22/FL27/FL29/FL32–FL34/FL37–FL39 edits, new
+  FL40–FL48), menu hides I37, I41, FL07, FL35, FL36, FL28 card on an index (ERRORS M351, M352), EDGE tab title per page.
+  No variable, migration or database change. `calc/indicators.ts` and `indRegistry.json` unchanged (tripwire OK), so the
+  Backtest and Screener registries did not change; backtest-worker not redeployed.
+- **Before the push:** no user run in flight (`edge_bff.jobs` QUEUED/RUNNING/RECOVERING 0, `AI_conversation_turn`
+  RUNNING 0, 04:40 UTC); outside the release windows. `main` fast-forwarded from `636936ed` to `b1ac95a0`.
+- **edge-bff (verified from the live service):** new version served at 04:42:25 UTC: `/ready` 200, `/` title "EDGE",
+  `edge-labels.js` holds the page titles, the Terminal bundle `assets/index-p3wYdQLy.js` holds the new indicators. The
+  deployment ID was not readable from the session (the Railway API refused this session's token).
+- **screener-worker:** watches `terminal/src/calc/**`, so it rebuilds for this commit (only its `screener_engine` label
+  changes). Its status was **not verified** from the session (internal service, no public address; Railway API not
+  readable): to be read in the dashboard.
+- **Postgres:** the verification read about 1.3 million `Feature_05` rows through pgweb (read-only); a restart is due
+  under AGENTS.md (large update), asked of the user (Telegram "🔄 Restart Postgres"); the script needs a Railway token
+  this session does not have.
+
 ## 2026-11-05 — market-python-sandbox: validator accepts both TA-Lib answers at a division by zero (EXEC-UNIVERSE-BROKER L5)
 
 - User: "2 saja" (strengthen the old-path validator now), ERRORS M349.
@@ -5971,21 +6003,3 @@ B6 window:
   1 px line above the titles, every title and cell left/middle, the long title "Volatilitas tahunan" wraps and sits in
   the middle with the others; no page error. edge-bff suite before the push: 277 passed.
 - **Rollback:** redeploy edge-bff `cff201ce` (commit `33fbc99`).
-
-## 2026-11-06 — edge-bff and screener-worker from `main` `b1ac95a0` (EXEC-TERMINAL-IND-EDIT: Terminal Flow indicators, tab titles)
-
-- **Change:** Terminal Flow indicators (side rule, FL11/FL13–FL16/FL21/FL22/FL27/FL29/FL32–FL34/FL37–FL39 edits, new
-  FL40–FL48), menu hides I37, I41, FL07, FL35, FL36, FL28 card on an index (ERRORS M351, M352), EDGE tab title per page.
-  No variable, migration or database change. `calc/indicators.ts` and `indRegistry.json` unchanged (tripwire OK), so the
-  Backtest and Screener registries did not change; backtest-worker not redeployed.
-- **Before the push:** no user run in flight (`edge_bff.jobs` QUEUED/RUNNING/RECOVERING 0, `AI_conversation_turn`
-  RUNNING 0, 04:40 UTC); outside the release windows. `main` fast-forwarded from `636936ed` to `b1ac95a0`.
-- **edge-bff (verified from the live service):** new version served at 04:42:25 UTC: `/ready` 200, `/` title "EDGE",
-  `edge-labels.js` holds the page titles, the Terminal bundle `assets/index-p3wYdQLy.js` holds the new indicators. The
-  deployment ID was not readable from the session (the Railway API refused this session's token).
-- **screener-worker:** watches `terminal/src/calc/**`, so it rebuilds for this commit (only its `screener_engine` label
-  changes). Its status was **not verified** from the session (internal service, no public address; Railway API not
-  readable): to be read in the dashboard.
-- **Postgres:** the verification read about 1.3 million `Feature_05` rows through pgweb (read-only); a restart is due
-  under AGENTS.md (large update), asked of the user (Telegram "🔄 Restart Postgres"); the script needs a Railway token
-  this session does not have.

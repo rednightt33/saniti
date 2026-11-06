@@ -5314,6 +5314,31 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M353 — EDGE Terminal "terminal data service answered 503 (TERMINAL_UNAVAILABLE)" sesudah restart Postgres (2026-11-06)
+
+- **Ditemukan oleh:** user, sesaat sesudah batas memori Postgres diganti ke 1 GB (Postgres menyala ulang 04:55:05 UTC).
+- **Verified:**
+  - edge-bff menjawab `TERMINAL_UNAVAILABLE` 503 bila terminal-api tidak terjangkau, lewat batas 30 detik, atau
+    menjawab bukan JSON (`apps/edge-bff/app/main.py:405-427`). Galat 500 FastAPI ("Internal Server Error", teks)
+    termasuk yang terakhir.
+  - Pool terminal-api tidak mengecek koneksi sebelum dipakai (`apps/terminal-api/app/store.py:35`, tanpa `check=`). Pool
+    edge-bff mengecek (`apps/edge-bff/app/store.py:38`, `check=ConnectionPool.check_connection`, pelajaran M246).
+    market-ai-backend juga tanpa cek (`apps/market-ai-backend/app/db.py:13`).
+  - Sekitar 05:00 UTC terminal-api normal: `/ready` 200; 16 permintaan yang membaca database (sesi tiruan) menjawab 401
+    JSON dalam 0,2 detik.
+- **Root cause (dugaan kuat, belum dibaca dari log):** restart Postgres memutus semua koneksi di pool terminal-api. Pool
+  meminjamkan koneksi mati itu ke permintaan berikutnya, yang lalu gagal 500 (bukan JSON) dan diterjemahkan edge-bff
+  menjadi 503. Koneksi mati dibuang setelah gagal, jadi galat hilang sendiri. Cek pembeda: log terminal-api sekitar
+  04:55–05:00 UTC (`OperationalError` / "server closed the connection unexpectedly"); sesi ini tidak bisa membaca log
+  Railway.
+- **Class:** setiap service dengan pool koneksi tanpa cek akan menjawab galat sesudah restart Postgres, dan restart
+  sekarang rutin (cron 09:45 dan 20:45 WIB, sesudah setiap update besar, perubahan batas memori).
+- **Solution (usulan, menunggu user):** `check=ConnectionPool.check_connection` di semua pool (terminal-api,
+  market-ai-backend), dengan tes yang mematikan koneksi pool lalu memastikan permintaan berikutnya berhasil.
+- **Status:** OPEN (pulih sendiri; perbaikan permanen menunggu persetujuan).
+- **Lesson:** pelajaran yang ditemukan di satu service (M246, edge-bff) harus diterapkan ke semua service dengan
+  mekanisme yang sama.
+
 ### M352 — FL23 Broker Inventory di IHSG menggambar Lot sesudah aturan "tanpa Lot di indeks" digeneralisasi (2026-11-05, branch)
 
 - **Ditemukan oleh:** agen verifikasi regresi EXEC-TERMINAL-IND-EDIT (sebelum merge ke `main`, tidak pernah rilis).
