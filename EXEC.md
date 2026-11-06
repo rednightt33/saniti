@@ -12294,3 +12294,20 @@ Atas pertanyaan balik: "Q1 - A", "Q2- tidak ada perubahan pada flow ratio sama s
   sumbu dan badge nilai tidak tertutup baris yang lebih tinggi). Toggle hanya di mode live (fixture tetap 1:1). Bukti
   `verification/terminal_api/terminal_look/look_check8.mjs` plus `look_check3/5/6/7` tanpa galat; Terminal 870/870.
 - **Dirilis 2026-11-06** (user: "gas"): `main` `bb935001`, edge-bff `0718b572` SUCCESS, aset live = build lokal.
+
+## EXEC-IND-PRESETS — nilai indikator di kiri, jendela Indicators, preset indikator di akun EDGE (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "Kalau indikator filtersnya on, maka yang saya kotakin sebelah kanan warna biru dipindah ke kotak
+kiri yang A. Kemudian lihat screenshot indicators untuk B ... tidak perlu ada border warna biru, cukup shadow yang menonjol
+saja. Kemudian untuk C bisa di-replace dengan indikator definition bagian D, remove entirely. Kemudian boleh desain satu
+menu ... untuk men-save indikator beserta dengan filternya ... Mungkin bisa di-save di bagian indicators kali ya. Coba
+propose." Atas usulan "My presets" dan pertanyaan balik: "Q1 A" (simpan di akun EDGE), "Q2 A" (cakupan lengkap).
+- Nilai baris indikator pindah ke kiri, tepat sesudah judul; filter tetap rata kanan.
+- Kotak pencarian jendela Indicators: hover/aktif tanpa garis biru, bayangan lebih tegas.
+- Baris daftar: baris abu-abu (setelan bawaan) diganti definisi indikator; kolom PLACE · UNIT dihapus.
+- My presets: "Save as preset…" di jendela Settings dan di baris indikator; grup "My presets" di atas Favorites (nama,
+  indikator asal dan kodenya, ringkasan filter; Add; bintang; menu ⋯ Rename / Update from chart / Delete; ikut pencarian);
+  preset = template (indikator, parameter, filter, gaya); berlaku untuk semua indikator; disimpan di akun EDGE (tabel
+  baru `edge_bff.indicator_presets`, maksimal 100 per akun); parameter yang tidak dikenal lagi kembali ke bawaan;
+  preset dari indikator yang dihapus ditandai "no longer available".
+- Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
