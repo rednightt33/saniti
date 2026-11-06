@@ -5314,6 +5314,30 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M368 — Screener preview chart: percent and index overlays drawn on the price axis, candles squashed (2026-11-06, open)
+
+- **Found by:** the coordinator's signed-in live check after the EXEC-SCREENER-V21 deploy (AALI, preset Minervini).
+- **Symptom:** the preview's candle chart has a line near 0 and a price axis from 0 to 12,000, so the candles of a
+  9,450 stock are flattened at the top.
+- **Verified cause (live answer and code):**
+  - the live preview answer for AALI carries eleven overlays; conditions `g` and `h` send
+    `pct_distance(rolling_min(low,252))` (4.9 to 68) and `pct_distance(rolling_max(high,252))` (−34.7 to 0), which are
+    percents;
+  - the worker sends every series a condition reads except bars and patterns, without a unit
+    (`apps/screener-worker/src/preview.ts:61`; contract `overlays: {condition_id, output, values}`);
+  - the page puts every overlay on the candles' price scale (`src/preview.ts drawChart`). It does so on `main` before v21
+    too (`99b27ffd` `preview.ts:160`): not a v21 regression.
+- **Class:** series of different units on one axis. Any condition on an oscillator (RSI, Stochastic), a percent
+  (distances, ROC) or a rank (RS rank) squashes the chart; the coming flow overlays (lots, rupiah) would too.
+- **Fix (proposed, not made):**
+  - (a) contract: the worker adds the series' unit to each overlay (additive field), and the page draws only price
+    overlays on the candle axis;
+  - (b) page only, until then: the overlay's unit is derived from the screened condition in the catalog (`entries.ts
+    formatOfOpt` / `formatOfSide`), and only a `price` series goes on the candle axis; the others stay in "Why it
+    passed".
+  Either way, other units could get their own pane later.
+- **Status:** OPEN (decision with the user).
+
 ### M367 — Screener page without a session: two unhandled promise rejections in the console (2026-11-06, open)
 
 - **Found by:** the coordinator's live check after the EXEC-SCREENER-V21 deploy (Chromium on

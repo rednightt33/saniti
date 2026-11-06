@@ -12039,9 +12039,13 @@ push, deploy, atau publish sampai ada instruksi eksplisit".
 - **Deploy dev (2026-11-06):** PR #51 di-merge 11:50 UTC (`main` `f82babdc`); bundle baru tayang 11:51:21 UTC dan sama
   persis (byte-equal) dengan build lokal; CSP, `no-store` dan 401 tanpa sesi utuh (`RAILWAY_CHANGELOG.md`). Temuan lama
   tanpa sesi: ERRORS M367 (terbuka).
-- **Sisa sebelum item ini ditutup:** cek live dengan login EDGE (unit katalog asli, satu run, Screen now, kolom
-  tambahan). Sesi ini tidak punya kredensial EDGE maupun Railway CLI; dilakukan oleh user di browser, atau oleh agen
-  bila token Railway (read) tersedia untuk `verification/screener/live_check_dev.py`.
+- **Cek live dengan login (2026-11-06, user: "Jalankan script"):** lulus. `live_check_dev.py` (katalog dan empat run
+  200); Chromium dengan login: preset tanpa run, Alt+S tepat satu run, persen dengan "%", kolom tambahan lewat run
+  pembantu `px_` dengan `data_version`, preview, ketik lalu Screen now satu run, tanpa pelanggaran CSP dan tanpa error
+  konsol (`RAILWAY_CHANGELOG.md`). Deployment edge-bff `910cef24` SUCCESS. Temuan: ERRORS M368 (garis persen di sumbu
+  harga grafik preview; terbuka, sudah ada sebelum v21).
+- **Sisa sebelum item ini ditutup:** keputusan user atas M368 dan keputusan terbuka di atas; lalu item dipindah ke
+  changelog dan keputusan yang masih terbuka ke `FUTURE_PLAN.md`.
 - **Keputusan terbuka untuk user:** L1 (Screen now saat run berjalan), L3 (kolom tambahan di CSV), L5 (tanggal header
   telat sampai sekitar 1 menit), beda kata dengan referensi, dan kalimat "Outperformed IHSG by X pts" yang dihitung
   halaman.
