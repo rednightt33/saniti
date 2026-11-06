@@ -12338,3 +12338,7 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
   kolom hanya menambah.
   - Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#56; hanya edge-bff. Titik kembali: edge-bff
     `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` (`f9871686`).
+  - Di-merge 15:31 UTC (`main` `5a22dcb5`); edge-bff `7a60bb22` SUCCESS; bundle live sama persis. Cek live lulus:
+    Length 50 + Enter dengan Minervini tidak menghapus kartu dan menulis "already on the screen".
+- Pertanyaan terbuka untuk user: area kosong di bawah baris tabel masih bergaris miring (latar area kosong, bukan sel
+  gagal); dibuat polos juga atau tidak.
