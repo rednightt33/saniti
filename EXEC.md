@@ -11802,7 +11802,7 @@ hilangkan semua indikator card yang ada, sudah but retain the tooltip". Atas per
 3. **Kartu (D), 2B:** dihapus total, kode dan tesnya (jendela, tombol (i), isi kartu, baris petunjuk di tooltip). Tooltip
    hover (nama + satu kalimat) tetap. Riwayat kode ada di Git.
 
-**Belum dijalankan:** menunggu go user.
+**Go:** 2026-11-06 (lihat EXEC-IND-DIALOG).
 
 ## EXEC-BROKER-INV-PANEL — filter dan titik nol di panel Broker Inventory; ide Top brokers (permintaan 2026-11-06, belum disetujui)
 
@@ -11852,7 +11852,7 @@ broker inventory / kemudian untuk top brokers bisa pakai HTML terlampir dan tamb
 - Broker bawaan FL23 dipilih sekali saat indikator ditambahkan (opsi C pada periode yang terlihat saat itu), lalu tetap
   sampai user menggantinya; tidak berganti saat chart digeser (3B).
 
-**Menunggu:** go user.
+**Go:** 2026-11-06 (lihat EXEC-IND-DIALOG).
 
 ## EXEC-IND-DIALOG — jendela Indicators bergaya "Add a condition" Screener (permintaan 2026-11-06, belum disetujui)
 
@@ -11868,4 +11868,8 @@ condition" Screener).
 - tooltip hover nama (satu kalimat) tetap; tanpa tombol detailed browser, kolom Condition, Threshold dan tombol (i);
 - kaki: pintasan keyboard dan jumlah indikator di chart.
 
-**Menunggu:** konfirmasi user atas contoh, lalu go.
+**Jawaban user dan go, 2026-11-06:** "Klik selalu menambah. Kalau klik kasih semacam notifikasi saja bahwa indikator
+added. Sudah alright. Go ya.. assign 5 agent 5.5 sonnet medium to review ur work. Design inconsistencies, angka salah,
+bug, non responsive". Go ini berlaku untuk EXEC-TERMINAL-LOOK, EXEC-BROKER-INV-PANEL dan EXEC-IND-DIALOG sekaligus
+(semua butir menunggu go yang sama). Klik baris = selalu menambah, dengan notifikasi singkat "added"; Place · Unit dan
+Favorites tetap seperti contoh. Merge ke `main` sesudah review lima agen dan perbaikannya.
