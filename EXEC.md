@@ -11990,3 +11990,15 @@ beres saja, biar sekalian bereskan bug."
 - Status 2026-11-06: dikerjakan di branch (draft, belum rilis). Bandar detector tidak berubah karena hanya tampil di mode
   fixture; fixture tetap All (pembanding 1:1). Jendela pop-out baru mulai di Regular, state jendela yang sudah tersimpan
   tetap. Bukti: `verification/terminal_api/qa_20261106/QA_REPORT.md` bagian 8.
+
+## EXEC-TERMINAL-LAYOUTS — simpan/buka layout chart dan collapse panel indikator bawah (permintaan 2026-11-06, belum disetujui)
+
+**Kata user, 2026-11-06:** "Misalkan user di dalam satu chart mereka menambahkan indikator 1, 2, 3, dan 4. Saya mau
+ditambahkan opsi di mana layout dari layout ini bisa di-save dan bisa dibuka kapanpun. Mungkin kita bisa taruh di pojok
+kanan atas ... auto save, kemudian make a copy, rename, create layout, dan open layout. Bagian download chart data tidak
+usah, itu satu. Yang kedua adalah, kalau misalkan user menambahkan indikator di bawah, saya mau untuk ditambahkan opsi
+untuk collapse. Sama seperti fungsi collapse flow timeline. ... Ini kita tambahkan, baru nanti putaran QA selanjutnya juga
+mengecek hal ini. Konfirmasi."
+- QA putaran 3 (diminta 2026-11-06: "QA putaran 3.") ditunda sampai fitur ini selesai, lalu memeriksa semuanya.
+- Pertanyaan terbuka: tempat simpan (akun di server atau browser), isi layout dan apakah membuka layout mengganti saham,
+  perilaku collapse.
