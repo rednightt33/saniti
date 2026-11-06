@@ -12033,6 +12033,10 @@ singkat pada area yang diubah, lalu rilis.
   deploy edge-bff).
 - QA singkat (putaran 4, 2026-11-06) dijalankan; temuannya diperbaiki (QA_REPORT.md bagian 11). Rilis: migrasi tabel
   layout perlu token Railway (sesi ini tidak punya; API Railway menjawab "Not Authorized").
+- **Kata user 2026-11-06 (pilihan rilis):** "A" (token lewat environment, rilis lengkap) dan "check env variable". Token ada
+  di environment sesi (`RAILWAY_TOKEN`, `RAILWAY_API_TOKEN`; nilai tidak dibaca). Proxy menyuntikkan token akun untuk
+  backboard.railway.com, maka CLI dijalankan tanpa `RAILWAY_TOKEN` (token proyek + header suntikan ditolak: "cannot be
+  combined"). Urutan: sesudah B6 (20:20 WIB) dan tanpa run user aktif → DRYRUN → APPLY → merge `main` → cek live.
 **Menunggu:** go user.
 
 ## EXEC-SCREENER-V21 — frontend Screener ke desain Type A 3-panel v21 (go 2026-11-06)
