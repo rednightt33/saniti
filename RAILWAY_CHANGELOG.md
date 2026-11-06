@@ -1,5 +1,20 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff (and screener-worker) from `main` `80b77b50`: Terminal look, Broker Inventory panel, Indicators window
+
+- **Change:** EXEC-TERMINAL-LOOK (legend spacing and grey rest state, price axis thousands and derived decimals ≤ 2 for
+  shares/indices, indicator cards removed), EXEC-BROKER-INV-PANEL (FL23 pane buttons, 0 label, default option C `auto_c`;
+  Top brokers Domestic/Foreign/Total lanes; Foreign × Domestic map panel), EXEC-IND-DIALOG (Screener-style Indicators
+  window, "added" note). No variable, migration or database change.
+- **Before the push:** no user run in flight (`edge_bff.jobs` 0, `AI_conversation_turn` RUNNING 0, 07:28 UTC); outside
+  B6. `main` had moved (PR #50, PLAN.md only): merged, tripwire OK against `d4ec50c5`, pushed `80b77b50` at 07:28:45 UTC.
+- **edge-bff (verified from the live service):** new build served at 07:29:19 UTC, `/ready` 200; the served
+  `assets/index-D5SIKxGH.js` and `assets/style-lf2NID00.css` are the same files as the local build of `80b77b50` (both hold
+  the review fixes: `fdm-clip`, "No buy value in this period", `100dvh`). Deployment ID not readable from the session.
+- **screener-worker:** watches `terminal/src/calc/**` (`calc/flow.ts` changed: `autoInventoryBrokers`), so it rebuilds;
+  status **not verified** from the session (Railway API "Not Authorized"): to be read in the dashboard.
+- **Postgres:** the look checks read about 25 thousand rows (BBRI, IHSG) through pgweb read-only; not a large update.
+
 ## 2026-11-06 — Postgres memory limit 1 GB again (EXEC-PG-MEMORY)
 
 - User: "minta tolong untuk memory progress di cap jadi 1 GB.. sekarang 4GB.. tidak perluy lakukan perubahancode".
