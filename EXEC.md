@@ -12364,3 +12364,21 @@ propose." Atas usulan "My presets" dan pertanyaan balik: "Q1 A" (simpan di akun 
 - Go rilis 2026-11-06 (user: "ok", 22:4x WIB, sesudah B6): migrasi `20261106_002` DRYRUN lalu APPLY, lalu `main`.
 - **Dirilis 2026-11-06:** migrasi `20261106_002` diterapkan (DRYRUN `b3ac99c7` 39/39, APPLY `122d4b0d` 23/23; satu
   percobaan APPLY berhenti sebelum jalan, ERRORS M379); `main` `4b606058`, edge-bff `33cfef02` SUCCESS, aset live = build lokal.
+
+## EXEC-IND-HOVER — tombol baris indikator tidak hilang saat kursor sedikit meleset (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "untuk saat ini kan kalau kita mau mengaktifkan yang saya kotakin merah kita harus
+hoverstate mouse ke kolom indikator" ... "yang jadi masalah adalah sangat sulit untuk ngeklik empat icon tersebut. Kalau
+mouse kita geser sedikit atau keluar dari right range, maka langsung keempat indikator tersebut hilang, tidak bisa
+diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi lebih toleran).
+- Akar masalah (`terminal.css:460-461`, `:1211`, `:1032`): tombol mata/Settings/Save as preset/Remove hanya tampil selama
+  kursor di dalam baris setinggi 22 px, tanpa jeda; keluar 1-2 px langsung hilang.
+- Kelas: kontrol yang muncul saat kursor di area sempit dan hilang seketika; juga filter panel bawah saat toggle filter
+  mati (`terminal.css:1308`) dan baris legenda chart harga.
+- Perbaikan: baris yang sudah ditunjuk tetap "aktif" 0,5 detik sesudah kursor keluar; baris panel bawah yang aktif
+  melebar 8 px ke segala arah sebagai area tunjuk; hanya satu baris aktif sekaligus.
+- A (grup terpilih di daftar kiri) dan B (judul grup) belum dipilih user; tidak dikerjakan di sini.
+- Ditemukan saat pemeriksaan: nilai baris mengikuti crosshair saat kursor melenceng ke chart, sehingga tombol bergeser ke
+  samping; kini lebar nilai ditahan selama baris aktif (ERRORS M380).
+- Status 2026-11-06 (branch): dikerjakan. Bukti `look_check10.mjs` (1440 dan 1100 px) plus `look_check3/5/6/7/8/9` tanpa
+  galat, angka tampilan lama sama; Terminal 870/870.
