@@ -1477,7 +1477,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qrsep{height:1px;background:var(--border);margin:6px 4px}
 .qrtitle{font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3);padding:6px 10px 4px}
 .qwin-l{min-height:0;overflow:auto;padding:0 var(--s-6) var(--s-6);overscroll-behavior:contain}
-.qcols,.qrow{display:grid;grid-template-columns:minmax(0,1fr) 236px 224px 236px 88px;column-gap:12px;align-items:center}
+.qcols,.qrow{display:grid;grid-template-columns:minmax(0,1fr) 236px 224px 268px 88px;column-gap:12px;align-items:center}
 .qcols{position:sticky;top:0;z-index:3;align-items:end;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
 .qcols em{display:block;margin:2px 0 0;font-style:normal;font-weight:var(--fw-medium);letter-spacing:0;text-transform:none;color:var(--blue)}
 .qrow{min-height:54px;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);cursor:pointer}
@@ -1487,18 +1487,14 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qnm b{font-size:var(--fs-base);font-weight:var(--fw-semibold);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qnm small{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qrow.isadd .qnm b{color:var(--text-3)}
-/* the row's parameters, editable as on the card (user 2026-11-06, option A); blue like the threshold: you can change it */
-.qps{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;min-width:0}
-/* a second line under the row's first four columns: room for the parameters at every width (the name column alone is
-   narrow, 120 px at 1100) */
-.qrow>.qps{grid-column:1/-2;grid-row:2;margin-top:6px}
-.qp{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-2xs);color:var(--text-3);cursor:default;min-width:0}
-.qp>span{white-space:nowrap}
-.qp .inp{width:58px;height:24px;padding:0 6px;font-size:var(--fs-12);text-align:right;color:var(--blue);font-weight:var(--fw-semibold)}
-.qp .sel{height:24px;max-width:132px;padding:0 22px 0 6px;font-size:var(--fs-12);color:var(--blue);font-weight:var(--fw-semibold);background-color:var(--surface-2)}
-.qrow:hover .qp .sel,.qrow.act .qp .sel{background-color:var(--surface)}
-.qp.chg>span{color:var(--blue)}
-.qp [aria-invalid="true"]{border-color:var(--red);color:var(--red)}
+/* the settings column: the indicator's parameters, one per line, then the condition's threshold under a thin rule
+   (user 2026-11-06: "Semua sifatnya custom. Seharusnya ada di bagian yang garis merah"); blue = you can change it */
+.rr.qt .lead{width:96px;min-width:96px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr.qt .sel{height:var(--h-sm);max-width:132px;padding:0 22px 0 var(--s-3);font-size:var(--fs-12);color:var(--blue);font-weight:var(--fw-semibold);background-color:var(--surface-2)}
+.qrow:hover .rr.qt .sel,.qrow.act .rr.qt .sel{background-color:var(--surface)}
+.rr .ln.qp{cursor:default}
+.rr .ln.qp.chg .lead{color:var(--blue)}
+.rr .ln.qp+.ln.thr{margin-top:2px;padding-top:6px;border-top:1px dashed var(--border)}
 /* the timeframe: shown as in the reference, never chosen (the data is daily) */
 .tf-seg.tf-add{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:2px;border-radius:var(--r-md);background:var(--sel);cursor:default;user-select:none}
 .tf-add span{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 5px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-3);white-space:nowrap}
@@ -1531,7 +1527,9 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 /* the builder's search box opens the window (it is a button that looks like a search box) */
 .adder .adder-open{width:100%;font:inherit;text-align:left;cursor:text}
 .adder .adder-open .ph{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--text-3)}
-@media (max-width:1100px){.qcols,.qrow{grid-template-columns:minmax(0,1fr) 200px 200px 210px 80px}}
+@media (max-width:1100px){.qcols,.qrow{grid-template-columns:minmax(0,1fr) 150px 170px 232px 76px}
+  .tf-add span{padding:0 2px}
+  .rr.qt .lead{width:80px;min-width:80px}}
 @media (max-width:760px){
   .backdrop:has(.qwin){padding:0}
   .dialog.qwin{width:100%;height:100%;border-radius:0}
@@ -1541,8 +1539,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
   .qwin-g .qri{width:auto;flex:none;min-height:32px;white-space:nowrap}
   .qrsep,.qrtitle,.qcols{display:none}
   .qrow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
-  .qrow>.tf-add,.qrow>.rr,.qrow>.qps{grid-column:1/-1}
-  .qrow>.qps{grid-row:auto;margin-top:0}
+  .qrow>.tf-add,.qrow>.rr{grid-column:1/-1}
   .qrow>.rr.qt:has(>.rr-none){display:none}
   .qwin-f>span:first-child{display:none}
 }

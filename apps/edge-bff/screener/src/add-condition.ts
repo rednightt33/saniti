@@ -184,9 +184,10 @@ function ruleHtml(it: AddItem, i: number): [string, string] {
   const L = fieldsOf(o);
   const thr = L.length ? L.map(l => {
     const v = r[l.f], d = fdef(e, l.f), ch = String(v) !== String(d);
-    return `<span class="ln"><span class="lead">${l.lead}</span><input class="inp${ch ? ' chg' : ''}" type="number" step="${l.f === 'within' ? 1 : 'any'}"${l.f === 'within' ? ` min="1" max="${withinMax()}"` : ''} data-af="${l.f}" data-ai="${i}" value="${esc(v)}" aria-label="${esc(l.label)}${l.unit ? ` (${esc(l.unit)})` : ''} for ${esc(e.label)}"${er[l.f] ? ` aria-invalid="true" title="${esc(er[l.f])}"` : ''}><span class="unit">${esc(l.unit)}<small>${ch ? 'custom · ' : ''}default ${esc(d)}</small></span></span>`;
-  }).join('') : '<span class="rr-none">—</span>';
-  return [`<span class="rr qs">${sel}</span>`, `<span class="rr qt">${thr}</span>`];
+    return `<span class="ln thr"><span class="lead">${l.lead}</span><input class="inp${ch ? ' chg' : ''}" type="number" step="${l.f === 'within' ? 1 : 'any'}"${l.f === 'within' ? ` min="1" max="${withinMax()}"` : ''} data-af="${l.f}" data-ai="${i}" value="${esc(v)}" aria-label="${esc(l.label)}${l.unit ? ` (${esc(l.unit)})` : ''} for ${esc(e.label)}"${er[l.f] ? ` aria-invalid="true" title="${esc(er[l.f])}"` : ''}><span class="unit">${esc(l.unit)}<small>${ch ? 'custom · ' : ''}default ${esc(d)}</small></span></span>`;
+  }).join('') : '';
+  const set = (e.params.length ? paramsHtml(e, i) : '') + thr;
+  return [`<span class="rr qs">${sel}</span>`, `<span class="rr qt">${set || '<span class="rr-none">—</span>'}</span>`];
 }
 /** a parameter field of a row: the card's field (a select for options and true/false, else a number with the
     catalog's limits), blue when it differs from its default */
@@ -196,13 +197,15 @@ function paramField(e: Entry, p: EntryParam, i: number, v: ParamValue | undefine
   const field = p.options ? `<select class="sel" ${common}>${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
     : p.type === 'boolean' ? `<select class="sel" ${common}><option value="true" ${v === true ? 'selected' : ''}>true</option><option value="false" ${v === false ? 'selected' : ''}>false</option></select>`
     : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="${p.step ?? (p.integer ? 1 : 'any')}" value="${esc(Number.isFinite(v as number) ? v : '')}" ${common}>`;
-  return `<label class="qp${ch ? ' chg' : ''}"><span>${esc(name)}</span>${field}</label>`;
+  return `<label class="ln qp${ch ? ' chg' : ''}"><span class="lead" title="${esc(name)}">${esc(name)}</span>${field}</label>`;
 }
-/** the row's parameters, editable (option A, user 2026-11-06); the second line's too for a two-line condition */
+/** the row's parameters, editable (option A, user 2026-11-06), one per line in the settings column with the threshold
+    under them (user 2026-11-06: "Semua sifatnya custom. Seharusnya ada di bagian yang garis merah"); the second line's
+    too for a two-line condition */
 function paramsHtml(e: Entry, i: number): string {
   const r = ruleOf(e), c = cardOfRule(e), er = ruleErrors(e), two = twoLines(optOf(e, c));
   const d2 = two ? newCard(e, [], { opt:r.opt }).second : {};
-  return `<span class="qps">${e.params.map(p => paramField(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`])).join('')}${two ? e.params.map(p => paramField(e, p, i, c.second[p.key], d2[p.key], true, er[`p2.${p.key}`])).join('') : ''}</span>`;
+  return e.params.map(p => paramField(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`])).join('') + (two ? e.params.map(p => paramField(e, p, i, c.second[p.key], d2[p.key], true, er[`p2.${p.key}`])).join('') : '');
 }
 function rowHtml(it: AddItem, i: number, added: boolean): string {
   const [cond, thr] = it.ok ? ruleHtml(it, i) : ['<span></span>', '<span></span>'];
@@ -210,8 +213,8 @@ function rowHtml(it: AddItem, i: number, added: boolean): string {
     : added ? `<button type="button" class="qact on" data-qact="${i}" tabindex="-1" aria-label="Remove ${esc(it.label)}"><span class="q-on">Added ${ico(IC.check, 's')}</span><span class="q-rm">Remove</span></button>`
     : `<button type="button" class="qact" data-qact="${i}" tabindex="-1" aria-label="Add ${esc(it.label)}">Add</button>`;
   const title = added ? 'On the screen with this condition. Click to remove it.' : it.ok ? 'Click to add with the condition shown' : (it.why || 'No data');
-  const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters on a second line of the row
-  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${editable ? '' : `<small>${esc(it.sub)}</small>`}</span>${editable ? paramsHtml(it.entry!, i) : ''}${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+  const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters are in the settings column
+  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${editable ? '' : `<small>${esc(it.sub)}</small>`}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
 }
 function railHtml(): string {
   const btn = (g: string, inner: string, cls = '') => `<button type="button" class="qri ${cls}${W.g === g ? ' on' : ''}" data-ag="${esc(g)}" aria-pressed="${W.g === g}">${inner}</button>`;
@@ -241,7 +244,7 @@ function drawList() {
   const rows = W.items.map((it, i) => rowHtml(it, i, W.added[i]));
   drawing = true;
   try { l.innerHTML = W.items.length
-    ? `<div class="qcols" aria-hidden="true"><span>Indicator</span><span>Timeframe</span><span>Condition</span><span>Threshold<em>blue = you can change it</em></span><span></span></div>` + rows.slice(0, FIRST_ROWS).join('')
+    ? `<div class="qcols" aria-hidden="true"><span>Indicator</span><span>Timeframe</span><span>Condition</span><span>Parameters &amp; threshold<em>blue = you can change it</em></span><span></span></div>` + rows.slice(0, FIRST_ROWS).join('')
     : `<p class="qwin-empty">Nothing matches “${esc(W.q)}”. Try another name, or what it measures (for example “momentum” or “volume”).</p>` } finally { drawing = false }
   if (rows.length > FIRST_ROWS) { W.restHtml = rows.slice(FIRST_ROWS).join(''); W.rest = setTimeout(drawRest, 0) }
   $q('#acq')?.setAttribute('aria-activedescendant', W.items.length ? 'aco' + W.act : '');
@@ -294,7 +297,7 @@ function toggle(i: number) {
     const r = addItem(it); toast(r.message);
     if (!r.ok) { const f = Object.keys(it.entry ? ruleErrors(it.entry) : {})[0]; if (f) root?.querySelector<HTMLElement>(`[data-ai="${i}"]${errSel(f)}`)?.focus(); return }
   }
-  const keep = (document.activeElement as HTMLElement | null)?.closest?.('.rr,.qps');
+  const keep = (document.activeElement as HTMLElement | null)?.closest?.('.rr');
   drawRow(i);
   if (!keep) $q<HTMLInputElement>('#acq')?.focus({ preventScroll:true });   // several in a row: back to the search
 }
@@ -357,7 +360,7 @@ function onClick(e: Event) {
     root?.querySelector<HTMLElement>(`[data-ag="${CSS.escape(to)}"]`)?.focus({ preventScroll:true });
     return;
   }
-  if (t.closest('select,input,.rr,.qp')) return;          // the row's own controls (a parameter's label too)
+  if (t.closest('select,input,.rr')) return;              // the row's own controls (a parameter's label too)
   const r = t.closest<HTMLElement>('.qrow[data-ai]'); if (r) toggle(Number(r.dataset.ai));
 }
 /** a rule or a threshold changed: kept per indicator; the row's "added" state follows (it compares the wire test) */
@@ -401,7 +404,7 @@ function onKey(e: KeyboardEvent) {
     if (W.added[i]) { toast(`${W.items[i]?.label}: already on the screen with this condition.`); return }
     toggle(i); return;
   }
-  if (t.closest('.rr,.qps')) return;
+  if (t.closest('.rr')) return;
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && n && (t.id === 'acq' || t.closest('#acl'))) {
     e.preventDefault(); drawRest(); moveAct((W.act + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
   } else if (e.key === 'Enter' && t.id === 'acq') { e.preventDefault(); toggle(W.act) }
