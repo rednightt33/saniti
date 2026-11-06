@@ -1,6 +1,6 @@
 # Database changelog
 
-## 2026-11-06 — EDGE Terminal indicator presets (schema `edge_bff`, EXEC-IND-PRESETS) — not applied yet
+## 2026-11-06 — EDGE Terminal indicator presets (schema `edge_bff`, EXEC-IND-PRESETS) — applied on dev
 
 - **User:** "opsi untuk men-save indikator beserta dengan filternya ... Mungkin bisa di-save di bagian indicators" and,
   asked where and how much, "Q1 A / Q2 A" (on the EDGE account, the full version) (2026-11-06). Operational schema
@@ -20,6 +20,20 @@
   `verification/terminal_api/presets_migration/`). **Not applied to Railway**: it is applied at the release through
   `verification/screener/jobs/run_migration.sh` (DRYRUN then APPLY) with the user's go; until then the preset routes
   answer 503 `PRESETS_NOT_READY` and the rest of the Terminal works.
+- **Applied 2026-11-06 (user: "ok"):** after B6 (22:4x WIB), with no user run in flight (`edge_bff.jobs` 0,
+  `AI_conversation_turn` RUNNING 0, 0 active statements), through `verification/screener/jobs/run_migration.sh` with the
+  session's Railway account token:
+  - DRYRUN job `b3ac99c7`: `VERDICT PASS 39/39`; `DATABASE_URL` removed (VAR_REMOVED).
+  - APPLY attempt 1 stopped before any job ran (`DEPLOYMENT_LIST_FAILED`: the runner guard's deployment list call
+    failed once, as in `20261106_001` attempt 2; the same call by hand answered a second later). Checked before the
+    retry: `DATABASE_URL` absent from orc-test-runner, the table absent. Record
+    `migration20261106_002_apply_attempt1_deployment_list_failed.run.txt`.
+  - APPLY job `122d4b0d`: `VERDICT PASS 23/23`; `DATABASE_URL` removed (VAR_REMOVED). The job's
+    `POSTGRES_MEMORY_CHECK` line could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, the session has an account token
+    only); a new empty table is not a large update (AGENTS.md), so no Postgres restart is due.
+  - Read back through pgweb catalogs (15:48 UTC): `edge_bff.indicator_presets` with `indicator_presets_pkey`,
+    `indicator_presets_owner_name`, `indicator_presets_owner_used`; ACL `edge_bff_runtime=arwd` (SELECT, INSERT, UPDATE,
+    DELETE) and nothing for PUBLIC. `database/migrations/APPLIED.sha256` lists it.
 
 ## 2026-11-06 — EDGE Terminal saved chart layouts (schema `edge_bff`, EXEC-TERMINAL-LAYOUTS) — applied on dev
 
