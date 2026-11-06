@@ -11987,3 +11987,6 @@ beres saja, biar sekalian bereskan bug."
 - Tafsiran yang tidak dijawab tegas: Flow Timeline (panel bawah bawaan, bukan tambahan user) tetap All boards; chart dan
   pilihan yang sudah tersimpan tetap memakai pilihannya sendiri.
 - Dikerjakan bersama perbaikan temuan QA putaran 2.
+- Status 2026-11-06: dikerjakan di branch (draft, belum rilis). Bandar detector tidak berubah karena hanya tampil di mode
+  fixture; fixture tetap All (pembanding 1:1). Jendela pop-out baru mulai di Regular, state jendela yang sudah tersimpan
+  tetap. Bukti: `verification/terminal_api/qa_20261106/QA_REPORT.md` bagian 8.

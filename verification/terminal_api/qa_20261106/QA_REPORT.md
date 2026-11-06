@@ -306,3 +306,38 @@ pembulatan ringkas yang sudah ada). Masih ada dua pesan yang salah (R2-M1, R2-M2
 - **Playwright:** ±30 skenario per agen (desktop 1000–1920, iPhone 13, iPad, CPU 4x), tanpa galat konsol.
 - **Tidak diuji:** situs live, perangkat sentuh asli, pembaca layar, obligasi, intraday, kasus baseline 250 pada riwayat
   > 250 sesi.
+
+## 8. Perbaikan sesudah putaran 2 dan pekerjaan 1A/2A (2026-11-06, go user)
+
+**Kata user:** "1A 2A. Jalankan setelah laporan QA agent beres saja, biar sekalian bereskan bug." lalu "Ok".
+
+**Temuan putaran 2 yang diperbaiki** (commit `f2660c95`)
+- R2-M1: catatan "always net to 0" hanya bila hasilnya konstan (bukan bila kosong karena riwayat pendek).
+- R2-M2: "Needs N" dihitung dari nilai pertama indikator itu sendiri.
+- R2-M3: file broker gagal tampil "—" dan pesan di Flow Timeline, tooltip dan panel kanan.
+- R2-M4: di layar sempit nilai/catatan pindah ke baris sendiri dan dibungkus; `title` berisi teks penuh.
+- R2-M5: daftar broker membuka ke atas bila ruang di bawah lebih sempit, atau dipotong dan bisa digulir.
+- R2-M6: Esc menutup panel Filters di mana pun fokusnya; Tab keluar menutupnya; panel ikut saat resize/scroll.
+- Low: "Sep" di semua tempat; satu tanda minus "−"; komentar diagonal; "Top N" di persamaan peta; "Domestic" di legenda
+  titik; baris chart harga tanpa `aria-label`; Esc pada titik peta.
+- **Belum dikerjakan (Low):** Esc di daftar Brokers memindah fokus ke body; nama kuadran tanpa ambang minimum; legend
+  bergeser ±2 px saat hover; satuan lot/Rp tidak tertulis.
+
+**1A — Top brokers** (draft)
+- Tangga 5 tingkat Big Dist · Dist · Neutral · Acc · Big Acc; tingkat sekarang diwarnai, posisi rasio ditandai garis,
+  ambang −10%/−6%/+6%/+10% di bawahnya (dari `BANDAR_LEVELS`, skala linear ±15%).
+- Pilihan Board pindah ke baris periode; jarak antar blok rapi.
+
+**2A — bawaan papan Regular** (draft)
+- Panel kanan (live): Broker summary, Top brokers, Broker inventory, peta Foreign × Domestic mulai di Regular.
+  Peta kini punya pilihan Board sendiri; x, y dan vonis memakai papan yang sama, tooltip menyebut papannya.
+- Jendela pop-out mulai di Regular; state jendela yang sudah tersimpan tetap dipakai.
+- Indikator Flow yang ditambahkan user: 45 parameter papan bawaan Regular lewat spesifikasi → registry (`--check` OK).
+- Tetap All: Flow Timeline (panel bawah bawaan), mode fixture, Bandar detector (hanya tampil di fixture).
+
+**Tes**
+- Terminal vitest 864/864, `tsc` OK; Backtest 88/88; tripwire OK.
+- Oracle vs Terminal: 127 kasus × 7 ticker, 457.498 nilai, 0 selisih (bawaan registry baru).
+- Playwright (`terminal_look/look_check4.mjs`, `look_check3.mjs`): keempat pilihan papan = Regular di desktop dan
+  iPhone 13; tangga BBRI 5D −6,37% → Dist; peta tooltip "Regular board"; FL12 baru `boards: ["Regular"]`; tanpa geser
+  horizontal, tanpa galat konsol.

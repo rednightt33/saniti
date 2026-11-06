@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "a668a27b562cb8433f83fb079688c66e5d3ff27c76cb0434fd65dce1121d26e4"
+  "sha256": "29e0e54a8355772339573429ed728e9afe3769075f3e0ba4133945277b985c83"
  },
  "families": [
   "Share",
@@ -99,9 +99,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -232,9 +230,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -365,9 +361,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -498,9 +492,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -631,9 +623,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -774,9 +764,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -896,9 +884,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -1024,9 +1010,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -1180,9 +1164,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -1356,9 +1338,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -1500,9 +1480,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -1661,9 +1639,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -1777,9 +1753,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -1930,9 +1904,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2024,9 +1996,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2110,9 +2080,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2258,9 +2226,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2373,9 +2339,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2486,9 +2450,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2615,9 +2577,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2755,9 +2715,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2845,9 +2803,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -2966,9 +2922,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3027,9 +2981,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3096,9 +3048,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3232,9 +3182,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3422,9 +3370,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3562,9 +3508,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3727,9 +3671,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3818,9 +3760,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -3929,9 +3869,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4040,7 +3978,7 @@
     {
      "key": "boards",
      "label": "Market board",
-     "status": "PROPOSED",
+     "status": "DECIDED",
      "kind": "multi",
      "options": [
       "Regular",
@@ -4048,9 +3986,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4158,7 +4094,7 @@
     {
      "key": "boards",
      "label": "Market board",
-     "status": "PROPOSED",
+     "status": "DECIDED",
      "kind": "multi",
      "options": [
       "Regular",
@@ -4166,9 +4102,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4313,9 +4247,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4445,9 +4377,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4505,9 +4435,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4647,9 +4575,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4735,9 +4661,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4850,9 +4774,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -4965,9 +4887,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -5078,9 +4998,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -5231,9 +5149,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -5355,9 +5271,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -5429,9 +5343,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {
@@ -5517,9 +5429,7 @@
       "Cash"
      ],
      "default": [
-      "Regular",
-      "Nego",
-      "Cash"
+      "Regular"
      ]
     },
     {

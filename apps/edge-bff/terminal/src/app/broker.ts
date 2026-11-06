@@ -36,6 +36,22 @@ export function bandarBalance(list: { b: string; bv: number; sv: number }[], n: 
   return { buyers:buyers.map(x => x.b), sellers:sellers.map(x => x.b), buy, sell, net:buy - sell, total, ratio, verdict:bandarVerdict(ratio) };
 }
 
+/** EXEC Top brokers 1A (user 2026-11-06: "ada keterangan apakah ini Big accum, accum, normal or what"; "1A"): the verdict
+    as a five-step ladder, Big Dist · Dist · Neutral · Acc · Big Acc, the step the ratio falls in marked, the levels written
+    under the steps (FL24's ±6% and ±10%) and a pin at the ratio (±15% fills the ladder). The levels come from the verdict
+    rule itself (BANDAR_LEVELS), not a second list. */
+export function verdictLadder(ratio: number, tip: string): string {
+  const [acc, big] = BANDAR_LEVELS.map(v => v / 100), steps: [string, string][] =   // the levels are percent (6, 10); the ratio a share
+    [['Big Dist', 'dist big'], ['Dist', 'dist'], ['Neutral', 'neu'], ['Acc', 'acc'], ['Big Acc', 'acc big']];
+  const [cur] = bandarVerdict(ratio), lim = Math.max(big * 1.5, 0.15), x = Math.max(0, Math.min(100, 50 + ratio / lim * 50));
+  const pos = (v: number) => (50 + v / lim * 50).toFixed(2), pctL = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}%`;
+  const edges = [-lim, -big, -acc, acc, big, lim];
+  return `<div class="acc-ladder" data-tip="${tip}" role="img" aria-label="Verdict ${cur}: ${(ratio * 100).toFixed(2)}% of total buy">`
+    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}" style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
+    + `<i class="acc-pin" style="left:${x.toFixed(1)}%"></i></div>`
+    + `<div class="acc-lv">${[-big, -acc, acc, big].map(v => `<span style="left:${pos(v)}%">${pctL(v)}</span>`).join('')}</div></div>`;
+}
+
 /** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
 export function niceTicks(lo: number, hi: number): number[] {
   const span = (hi - lo) || 1, raw = span / 6, mag = 10 ** Math.floor(Math.log10(raw));
@@ -59,7 +75,10 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-IHSG-FLOW (user 2026-11-03: "B", "Sembunyikan"): an index's broker rows are the market aggregate, so its panels
      show Rupiah only: no Lot and no Avg in Broker summary, Broker inventory in Value without the Lot button */
   const IDX = !!M.index;
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:IDX ? 'value' : 'lot', invInv:'All', invBoard:'All',
+  /* EXEC-FLOW-PANE-FILTERS 2A (user 2026-11-06: "semua board ... defaultnya adalah Regular"): live panels start on the
+     Regular board; the fixture keeps All (the reference's 1:1 check) */
+  const BOARD0 = live ? 'Regular' : 'All';
+  const RS = { d:0, inv:'All', board:BOARD0, mode:'net', more:false, accSide:'buy', accBoard:BOARD0, accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:IDX ? 'value' : 'lot', invInv:'All', invBoard:BOARD0, fdBoard:BOARD0,
     fdN:[3, 5, 10].includes(Number(store.get('ml.fd.top'))) ? Number(store.get('ml.fd.top')) : 3 };
   if(live){
     $('bdTop').querySelectorAll('button').forEach((b: any) => b.classList.toggle('active', +b.dataset.n === RS.bdN));
@@ -361,7 +380,10 @@ export function initBroker(ctx: Ctx) {
      2026-10-30) */
   if(live){
     $('accTitle').textContent = 'Top brokers';
-    if($('accSide')) ($('accSide').closest('.rp-ctl') as HTMLElement).innerHTML = `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`;
+    /* Top brokers spacing (user 2026-11-06): the Board choice sits on the period row instead of a row of its own */
+    /* the period row is rebuilt each time the data arrives (makeRange), so the choice is added when it is missing */
+    document.getElementById('accSide')?.closest('.rp-ctl')?.remove();
+    if(!document.getElementById('accBoard')) ($('accRange').querySelector('.rp-ctl') as HTMLElement).insertAdjacentHTML('beforeend', `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`);
     $('accBoard').value = RS.accBoard;
     $('accBoard').onchange = e => { RS.accBoard = e.target.value; renderAcc() };
   }
@@ -397,7 +419,8 @@ export function initBroker(ctx: Ctx) {
       + '<div class="acc-cut"></div>' + lane('Total', sp.buy.t, sp.sell.t, sp.net.t, false, true);
     const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
-      + `<span class="tag ${vc}${big}" data-tip="${why}">${vt}</span><span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
+      + `<span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
+      + verdictLadder(bal.ratio, why)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */
       + `<div class="acc-lanes"><div class="acc-cap">Investor type of the trades · Top ${N} brokers</div>${lanes}</div>`;
@@ -575,19 +598,19 @@ export function initBroker(ctx: Ctx) {
 
   /* ---- Foreign × Domestic map (EXEC-BROKER-INV-PANEL, user 2026-11-06: own panel "1B", English "2A") ----
      the points are the 20D, 5D and 1D periods ending at the panel's chosen end, plus the chosen period when it is custom;
-     every board, every investor type split into Foreign (x) and Domestic (y) */
+     on the map's Board choice (Regular by default, 2A), every investor type split into Foreign (x) and Domestic (y) */
   const fdSec = document.querySelector('.st[data-sec="fdmap"]') as HTMLElement | null;
   if(fdSec && live) fdSec.hidden = false;
   const fdRange = makeRange($('fdRange'), { key:'fd', presets:[1,5,20], def:5, onChange:() => renderFD() });
   const fdRangeText = (f: number, t: number) => f === t ? dayShort(t) : `${dayShort(f)} – ${dayShort(t)}`;
   const fdPoint = (f: number, t: number, label: string, cur: boolean): MapPoint => {
-    const N = RS.fdN, part = inv => new Map(bkAggRange(f, t, inv, 'All').map(o => [o.b, netOf(o)]));
-    const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', 'All'), N);
+    const N = RS.fdN, board = RS.fdBoard, part = inv => new Map(bkAggRange(f, t, inv, board).map(o => [o.b, netOf(o)]));
+    const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', board), N);
     const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
     const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
     const pc = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`;
     return { label, x, y, r, cur, empty:!(bal.total > 0),
-      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, all boards|X foreign ${pc(x)} + Y domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
+      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|X foreign ${pc(x)} + Y domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
   };
   function renderFD(){
     if(!fdSec || fdSec.hidden) return;
@@ -601,7 +624,9 @@ export function initBroker(ctx: Ctx) {
     const cur = pts.find(p => p.cur) || pts[1], lim = mapLimit(pts.flatMap(p => [p.x, p.y, p.r]));
     const [vt, vc] = bandarVerdict(cur.r / 100), big = /^Big /.test(vt) ? ' big' : '';
     $('fdTop').innerHTML = [3, 5, 10].map(k => `<button type="button" data-n="${k}" class="${k === RS.fdN ? 'active' : ''}" aria-pressed="${k === RS.fdN}">Top ${k}</button>`).join('');
-    $('fdNote').textContent = 'All boards';           // reviewer 1: the map does not follow Top brokers' Board choice
+    // the map has its own Board choice (reviewer 1: it does not follow Top brokers' choice); x, y and the verdict share it
+    $('fdBoard').value = RS.fdBoard;
+    $('fdBoard').onchange = (e: any) => { RS.fdBoard = e.target.value; renderFD() };
     $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
     $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty, RS.fdN)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
       + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
@@ -617,6 +642,7 @@ export function initBroker(ctx: Ctx) {
   panelRefresh = () => { invFilter.refresh(); renderAll() };
   const selectBroker = b => ctx.brokerShared!.pick(b);
   $('bsInv').onchange = e => { RS.inv = e.target.value; renderBS() };
+  $('bsBoard').value = RS.board;
   $('bsBoard').onchange = e => { RS.board = e.target.value; renderBS() };
   const segWire = (id, attr, fn) => $(id).querySelectorAll('button').forEach(btn => btn.onclick = () => {
     $(id).querySelectorAll('button').forEach(x=>x.classList.toggle('active', x===btn)); fn(btn.dataset[attr]);

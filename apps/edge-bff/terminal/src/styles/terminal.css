@@ -1238,7 +1238,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 /* EXEC-BROKER-INV-PANEL (design peta_asing_domestik.html): the Foreign × Domestic map panel; the quadrant tag solid like
    the design's pill (green, blue, amber, red by quadrant) */
 .fdm-now{gap:6px;flex-wrap:wrap}
-.fdm-note{margin-left:auto;font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap}
+#fdBoard{margin-left:auto}
 .tag.fdm-t0,.tag.fdm-t1,.tag.fdm-t2,.tag.fdm-t3{color:#fff;font-weight:var(--fw-semibold)}
 .tag.fdm-t0{background:var(--up)}.tag.fdm-t1{background:var(--accent)}.tag.fdm-t2{background:#d98a0b}.tag.fdm-t3{background:var(--down)}
 .fdm-wrap{display:grid;grid-template-columns:14px minmax(0,1fr);gap:2px 4px;margin:6px 0 8px}
@@ -1346,3 +1346,22 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 /* QA R2-M3: the Flow Timeline's note may wrap rather than cut the failure message */
 .flow-note{white-space:normal;max-width:360px}
 .fl-pop{overflow:auto}
+
+/* Top brokers 1A (user 2026-11-06): the verdict ladder under Top N; the step the ratio falls in is filled, the others are
+   outlined; the levels sit under the step edges; a pin marks the ratio */
+.acc-ladder{position:relative;margin:2px 0 12px;cursor:help}
+.acc-steps{position:relative;height:22px}
+.acc-steps span{position:absolute;top:0;bottom:0;display:grid;place-items:center;font-size:var(--fs-2xs);font-weight:var(--fw-medium);color:var(--text-3);border:1px solid var(--border);margin-left:-1px;background:var(--surface);white-space:nowrap;overflow:hidden}
+.acc-steps span:first-child{border-radius:6px 0 0 6px;margin-left:0}.acc-steps span:nth-child(5){border-radius:0 6px 6px 0}
+.acc-steps span.on{z-index:1;font-weight:var(--fw-semibold);color:#fff;border-color:transparent}
+.acc-steps .st-dist-big.on{background:var(--down)}.acc-steps .st-dist.on{background:#f59ea6;color:#7a1220}
+.acc-steps .st-neu.on{background:var(--sel);color:var(--text);border-color:var(--border-2)}
+.acc-steps .st-acc.on{background:#8fd6c3;color:#064e3b}.acc-steps .st-acc-big.on{background:var(--up)}
+.acc-pin{position:absolute;z-index:2;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--text);border-radius:1px}
+.acc-lv{position:relative;height:13px;margin-top:2px}
+.acc-lv span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
+/* spacing: Top N row, ladder, lanes and the table on one rhythm; the Board choice sits on the period row */
+#accBody > .acc-bal{margin:0 0 8px}
+.acc-lanes{margin:0 0 12px}
+#accRange .rp-ctl{flex-wrap:wrap;gap:6px}
+#accRange .rp-sel{height:26px}

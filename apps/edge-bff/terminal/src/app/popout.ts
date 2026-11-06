@@ -39,10 +39,11 @@ export function initPopout(ctx: Ctx) {
   if (ctx.M.mode !== 'live' || !S) return;
   const B = () => ctx.M.broker;
   const state: Record<Key, any> = {
-    bs:{ p:{ n:'5' }, inv:'All', board:'All', mode:'net', limit:'20', q:'' },
-    acc:{ p:{ n:'5' }, inv:'All', board:'All', unit:'value', limit:'10' },
-    inv:{ inv:'All', board:'All', unit:'lot', view:'cum' }
+    bs:{ p:{ n:'5' }, inv:'All', board:'Regular', mode:'net', limit:'20', q:'' },
+    acc:{ p:{ n:'5' }, inv:'All', board:'Regular', unit:'value', limit:'10' },
+    inv:{ inv:'All', board:'Regular', unit:'lot', view:'cum' }
   };
+  // 2A (user 2026-11-06): windows start on the Regular board; a window state already saved keeps its own choice
   (Object.keys(state) as Key[]).forEach(k => { try { Object.assign(state[k], JSON.parse(store.get('ml.winst.' + k) || '{}') || {}) } catch { /* the defaults */ } });
   // EXEC-TERMINAL-BS-SIDE: a Broker summary window remembered before the two sides (sorted by a column) keeps its
   // Net or Gross choice: "% of value" was Gross
