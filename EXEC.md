@@ -11951,3 +11951,14 @@ ya hanya brokers, board dan type yang ada. Coba finalize ya".
 sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publish. Tahap ini hanya pemeriksaan dan
 pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
 sampai user memutuskan sesudah laporan QC/QA.
+
+### QC/QA draft `c20703ff` (2026-11-06)
+
+Lima subagen Sonnet (high), hanya pemeriksaan. Laporan: `verification/terminal_api/qa_20261106/QA_REPORT.md`.
+- **Status: FAIL.** Tidak ada angka salah (44 baris matriks dicocokkan dengan PostgreSQL/snapshot).
+- **Temuan terbuka:**
+  - High 3: tombol meluber di ponsel/tablet; baris chart harga keluar layar di ponsel; label sumbu Y peta kehilangan tanda.
+  - Medium 9, antara lain: pilihan kosong hilang saat reload; 0% struktural pada scope "All brokers"; arti
+    Foreign/Domestic tidak jelas.
+  - Low beberapa.
+- **Belum dirilis; menunggu keputusan user atas perbaikan.**
