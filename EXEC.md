@@ -11956,4 +11956,16 @@ Tafsiran (lampiran tidak ikut terkirim): tombol seperti Brokers/Board/Investor d
 Selected) pada 27; kotak Top N saja pada 7; Board pada 40; Investor pada 41; tanpa tombol 4 (FL27, FL28, FL31, FL46). Clear
 seperti EXEC-TERMINAL-LOOK-2 butir 3; garis di chart harga: tombol muncul saat baris legend di-hover/disentuh.
 
-**Menunggu:** persetujuan usulan dan go.
+**Finalisasi, kata user 2026-11-06:** "Kalau bisa urutan Top N juga dibuatkan jadi menu. Misal net buy persistence, kalau
+user select scope Top N, maka kan ada Top N berapa, kemudian bisa rank Top N by X. Tapi kalau scopenya hanya brokers, maka
+ya hanya brokers, board dan type yang ada. Coba finalize ya".
+- Tombol **Broker** (27 indikator): All brokers / Selected / Top-N.
+  - **Top-N** memunculkan kotak **N** (1–20) dan menu **Rank by** dengan pilihan dari registry indikator itu: "Net / Gross"
+    pada indikator ber-Side (FL01–FL05, FL08, FL13, FL14, FL33; aturan R1), "Top net buyers / Top gross buyers / Top net
+    sellers" pada yang lain, FL38 tanpa net sellers.
+  - **Selected** memunculkan daftar kode broker saja (tanpa N dan Rank); **All brokers** tanpa tambahan.
+- Kotak **N** tanpa cakupan (7: FL15, FL16, FL24, FL25, FL29, FL42, FL48); **Board** (40) dan **Investor** (41) selalu.
+- Tanpa tombol: FL27, FL28, FL31; FL46 tetap lewat ⚙. Side, hari rolling, baseline, satuan, garis acuan tetap di dialog.
+- Clear: garis hilang dan "Choose at least one …"; garis di chart harga: tombol muncul saat baris legend di-hover/disentuh.
+
+**Menunggu:** go user.

@@ -32,12 +32,16 @@ for x in reg['indicators']:
         note = ['Usul: judul baris sudah menyebut kedua sisi; ubah lewat ⚙']
     else:
         if 'scope' in P:
-            filt.append(f"<b>Broker</b> ({dflt(P['scope'])})")
             mx, t = P.get('brokers', {}).get('max'), P.get('top', {})
-            inter.append(f"Broker → pilih <i>All brokers / Selected / Top-N</i>; Top-N memunculkan kotak <b>N</b> ({t.get('min', 1)}–{t.get('max', '…')}); "
-                         f"Selected memunculkan daftar kode (cari{f', maks. {mx}' if mx else ''})")
+            ranks = [o[1] if isinstance(o, list) else o for o in P.get('rank', {}).get('options', [])]
+            filt.append(f"<b>Broker</b> ({dflt(P['scope'])})")
             if 'rank' in P:
-                note.append(f"Urutan Top-N ({dflt(P['rank'])}) tetap di dialog")
+                filt.append(f"<b>Top N</b> ({dflt(P['top'])}) + <b>Rank by</b> ({dflt(P['rank'])}) — hanya saat Top-N")
+            inter.append(f"Broker → pilih <i>All brokers / Selected / Top-N</i>")
+            inter.append(f"<i>Top-N</i> → muncul kotak <b>N</b> ({t.get('min', 1)}–{t.get('max', '…')})"
+                         + (f" dan menu <b>Rank by</b>: {' / '.join(ranks)}" if ranks else ''))
+            inter.append(f"<i>Selected</i> → muncul daftar kode broker (cari{f', maks. {mx}' if mx else ''}); tanpa N dan Rank")
+            inter.append('<i>All brokers</i> → tanpa kotak tambahan')
         elif x['id'] == 'FL23':
             filt.append('<b>Brokers</b> (sudah ada)')
             inter.append('Daftar kode (maks. 5); klik kode broker di panel kanan ikut masuk')
@@ -73,7 +77,7 @@ for f in fam:
         body += (f'<tr><td><b>{html.escape(nm)}</b><small>{i} · {pl}</small></td><td>{"<br>".join(fl)}</td>'
                  f'<td>{"<br>".join(it) or "—"}</td><td>{"<br>".join(nt) or "—"}</td></tr>')
 summary = (f'{len(rows)} indikator di menu (FL07, FL35, FL36 disembunyikan). Dengan tombol Broker (cakupan + kotak N): '
-           f'{cnt(lambda r: any("<b>Broker</b>" in s for s in r[4]))}; kotak Top N saja: {cnt(lambda r: any("Top N" in s for s in r[4]))}; '
+           f'{cnt(lambda r: any("<b>Broker</b>" in s for s in r[4]))}; Top N + Rank by saat Top-N: {cnt(lambda r: any("Rank by" in s for s in r[4]))}; kotak Top N tanpa cakupan: {cnt(lambda r: any("Top N" in s for s in r[4]) and not any("<b>Broker</b>" in s for s in r[4]))}; '
            f'Board: {cnt(lambda r: any("Board" in s for s in r[4]))}; Investor: {cnt(lambda r: any("Investor" in s for s in r[4]))}; '
            f'tanpa tombol: {cnt(lambda r: r[4][0].startswith("—"))}.')
 out = f'''<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -88,13 +92,14 @@ body{{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 Inter,"Segoe
 th,td{{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12.5px}}
 th{{position:sticky;top:0;background:var(--surface);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}}
 td small{{display:block;color:var(--text-3);font-size:11px}}tr.fam td{{background:var(--sel);font-weight:600;font-size:12px}}
-</style></head><body><div class="wrap"><h1>Tombol filter di baris indikator Flow — usulan</h1>
+</style></head><body><div class="wrap"><h1>Tombol filter di baris indikator Flow — usulan final</h1>
 <p>{summary}</p>
 <div class="box"><b>Aturan (diturunkan dari parameter registry, bukan daftar manual):</b>
-<p>• Indikator dengan <b>cakupan broker</b> mendapat tombol <b>Broker</b>: All brokers / Selected / Top-N. Memilih Top-N memunculkan
-kotak <b>N</b> di sebelahnya; Selected memunculkan daftar kode broker. • Indikator dengan Top N tanpa cakupan (Bandar Balance,
+<p>• Indikator dengan <b>cakupan broker</b> mendapat tombol <b>Broker</b>: All brokers / Selected / Top-N. <b>Top-N</b>
+memunculkan kotak <b>N</b> dan menu <b>Rank by</b> (pilihan dari registry indikator itu); <b>Selected</b> memunculkan daftar
+kode broker saja; <b>All brokers</b> tanpa tambahan. Board dan Investor selalu ada. • Indikator dengan Top N tanpa cakupan (Bandar Balance,
 Concentration Top-N, FL42) mendapat kotak <b>N</b>. • Papan → tombol <b>Board</b>; jenis investor → tombol <b>Investor</b>
-(sama dengan Broker Inventory). • Parameter lain (hari rolling, baseline, satuan, garis acuan, Side, urutan Top-N) tetap di
+(sama dengan Broker Inventory). • Parameter lain (hari rolling, baseline, satuan, garis acuan, Side) tetap di
 dialog ⚙. • Clear di tombol mana pun: garis hilang dan panel menulis "Choose at least one …" (sama dengan butir 3).
 • Indikator baru otomatis ikut aturan ini.</p></div>
 <div class="scroll"><table><thead><tr><th style="width:24%">Nama indikator</th><th style="width:22%">Filter yang ditambahkan (bawaan)</th>
