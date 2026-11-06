@@ -100,6 +100,10 @@ export function pickStock(tk: string) {
   S.pick = tk; S.dtab = 'stock';
   if (!S.preview) { S.preview = true; savePanel({ preview:true }); ui.renderResults() }
   document.querySelectorAll<HTMLElement>('#resPane tr[data-tk]').forEach(tr => tr.classList.toggle('picked', tr.dataset.tk === tk));
+  // a pick empties the lookup and closes its suggestions itself: the redraw below is skipped when the stock is already
+  // shown (the `drawn` memo), so emptying it as a side effect of the redraw left the typed text there (ERRORS M374)
+  const q = document.getElementById('pvq') as HTMLInputElement | null;
+  if (q) { q.value = ''; lookIdx = 0; drawLookup('') }
   renderDetails();
 }
 
