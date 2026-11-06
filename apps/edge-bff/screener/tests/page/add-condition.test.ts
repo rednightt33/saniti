@@ -5,7 +5,8 @@ import type { CatalogResponse, PreviewResponse, SavedItem } from '../../src/core
 import { entriesOf } from '../../src/entries.ts';
 import { newCard, toWire } from '../../src/forms.ts';
 import { canonical, ctx, entryOf, freshUniverse, S } from '../../src/state.ts';
-import { ALL, MY, ON_SCREEN, addItem, groupsOf, itemSig, listItems, removeItem, resetRules, restore, ruleErrors, ruleOf, screenSigs, setOpt } from '../../src/add-condition.ts';
+import { isCustom } from '../../src/forms.ts';
+import { ALL, MY, ON_SCREEN, addItem, cardOfRule, groupsOf, itemSig, listItems, removeItem, resetRules, restore, ruleErrors, ruleOf, screenSigs, setOpt } from '../../src/add-condition.ts';
 import { candleOverlays } from '../../src/preview.ts';
 import { fixtureApi } from '../fixture/api.ts';
 
@@ -102,6 +103,47 @@ describe('adding, removing, Undo', () => {
     restore(gone);
     expect(S.cards.map(sigOf)).toEqual(before);
     expect(new Set(S.cards.map(c => c.id)).size).toBe(3);           // ids stay unique
+  });
+});
+
+describe('the parameters in the row (user 2026-11-06, option A: as on the card)', () => {
+  it('a row opens at the catalog defaults; a changed Length is added with the card (Custom) and is another condition', () => {
+    const e = ctx.byKey.get('I01')!, len = e.params.find(p => p.key === 'length')!;
+    expect(ruleOf(e).params.length).toBe(len.default);
+    ruleOf(e).params = { ...ruleOf(e).params, length:50 };
+    expect(ruleErrors(e)).toEqual({});
+    expect(addItem(item('I01')).ok).toBe(true);
+    const c = S.cards[0];
+    expect(c.params.length).toBe(50); expect(isCustom(e, c)).toBe(true);
+    expect(screenSigs().has(itemSig(item('I01')))).toBe(true);
+    resetRules();                                                   // the row back at Length 20: not the card's test
+    expect(screenSigs().has(itemSig(item('I01')))).toBe(false);
+  });
+  it('a parameter outside the catalog limits is refused with the card\'s own check (paramError), and nothing is added', () => {
+    const e = ctx.entries.find(x => x.available && x.params.some(p => p.type !== 'enum' && p.type !== 'boolean' && p.min != null))!;
+    const p = e.params.find(x => x.type !== 'enum' && x.type !== 'boolean' && x.min != null)!;
+    ruleOf(e).params = { ...ruleOf(e).params, [p.key]:p.min! - 1 };
+    const er = ruleErrors(e);
+    expect(er[`p.${p.key}`]).toContain(p.label || p.key);
+    const r = addItem(item(e.key));
+    expect(r.ok).toBe(false); expect(r.message).toContain(p.label || p.key);
+    expect(S.cards.length).toBe(0);
+    ruleOf(e).params = { ...ruleOf(e).params, [p.key]:NaN };
+    expect(ruleErrors(e)[`p.${p.key}`]).toContain('Enter a number.');
+  });
+  it('a two-line condition carries the second line\'s parameters; another condition starts from its own defaults', () => {
+    const e = ctx.entries.find(x => x.available && x.params.some(p => p.type !== 'enum' && p.type !== 'boolean') && x.opts.some(o => !o.disabled && (o.form === 'state_instance' || o.form === 'event_instance')))!;
+    const two = e.opts.find(o => !o.disabled && (o.form === 'state_instance' || o.form === 'event_instance'))!;
+    const one = e.opts.find(o => !o.disabled && o.form !== 'state_instance' && o.form !== 'event_instance')!;
+    const p = e.params.find(x => x.type !== 'enum' && x.type !== 'boolean')!;
+    setOpt(e, two.key);
+    const d2 = cardOfRule(e).second[p.key] as number;
+    ruleOf(e).second = { ...cardOfRule(e).second, [p.key]:d2 + 1 };
+    expect(cardOfRule(e).second[p.key]).toBe(d2 + 1);
+    expect(addItem(item(e.key)).ok).toBe(true);
+    expect(S.cards[0].second[p.key]).toBe(d2 + 1);
+    setOpt(e, one.key); setOpt(e, two.key);                         // the second line's edit belonged to the old choice
+    expect(cardOfRule(e).second[p.key]).toBe(d2);
   });
 });
 
