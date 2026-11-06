@@ -28,6 +28,7 @@ import { initRangeSelect } from './app/rangeSelect';
 import { initReorder } from './ui/reorder';
 import { initFullscreen } from './ui/fullscreen';
 import { initPopout } from './app/popout';
+import { initLayouts } from './app/layouts';
 import { initAssets } from './app/assets';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts } from './data/chartTime';
@@ -126,6 +127,13 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   if (M.mode === 'live') initAssets(ctx);                  // EXEC-TERMINAL-ASSETS: added assets and their Flow Timelines
   if (M.mode === 'live') document.querySelector('#symbolPill .exchange')?.remove();   // EXEC-TERMINAL-FULL-2: no "IDX" label
   if (M.mode === 'live') liveCtx = ctx;                     // the timeframe buttons reset the view through it
+  /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the chart type and Price/Return are kept (they are part of a layout); applied
+     once every part that draws on the chart is there */
+  if (M.mode === 'live') {
+    if (store.get('ml.chart.style') === 'line') (document.querySelector('#styleGroup [data-style="line"]') as HTMLElement | null)?.click();
+    if (store.get('ml.chart.mode') === 'return') (document.querySelector('#modeGroup [data-mode="return"]') as HTMLElement | null)?.click();
+    initLayouts(ctx);
+  }
   // EXEC-INTRADAY-FEATURES C4 (user 2026-11-01): on an intraday chart Broker activity and the Bandar detector are daily
   if (M.intraday) document.querySelector('#brokerPanel .side-title strong')?.insertAdjacentHTML('afterend',
     '<span class="flow-daily" title="Broker data is daily: each day’s figures, shown on that day’s candles">Daily</span>');

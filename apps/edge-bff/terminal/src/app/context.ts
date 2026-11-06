@@ -9,10 +9,13 @@ import { fromChart } from '../data/chartTime';
 
 export const $ = (id: string): any => document.getElementById(id);
 
+/* EXEC-TERMINAL-LAYOUTS: a saved setting that changes is announced (the layout menu's autosave and unsaved mark) */
+export const storeWatch = new Set<(k: string) => void>();
+const told = (k: string) => storeWatch.forEach(fn => { try { fn(k) } catch(e) {} });
 export const store = {
   get(k: string): string | null { try{ return localStorage.getItem(k) }catch(e){ return null } },
-  set(k: string, v: string) { try{ localStorage.setItem(k,v) }catch(e){} },
-  remove(k: string) { try{ localStorage.removeItem(k) }catch(e){} }
+  set(k: string, v: string) { let was: string | null = null; try{ was = localStorage.getItem(k); localStorage.setItem(k,v) }catch(e){ return } if(was !== v) told(k) },
+  remove(k: string) { let was: string | null = null; try{ was = localStorage.getItem(k); localStorage.removeItem(k) }catch(e){ return } if(was !== null) told(k) }
 };
 
 export const nfCompact = new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});

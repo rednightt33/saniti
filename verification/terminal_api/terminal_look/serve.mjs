@@ -37,10 +37,33 @@ export async function serve(DATA, TICKER) {
     logos:gz({ columns:['ticker', 'sha256'], ticker:[], sha256:[] }) };
 
   const files = new Map(); let origin = '';
+  const LAYOUTS = { rows:new Map(), calls:[], tick:0 };
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x'), path = decodeURIComponent(url.pathname);
     const json = (o, status = 200) => { res.writeHead(status, { 'Content-Type':'application/json' }); res.end(JSON.stringify(o)) };
     if (path === '/api/v1/auth/session') return json({ csrf_token:'t', login:'look' });
+    /* EXEC-TERMINAL-LAYOUTS: an in-memory stand-in of edge-bff's /api/v1/terminal/layouts (apps/edge-bff/app/layouts.py):
+       revision, conflicts, names unique, opened order; writes need the CSRF header */
+    const lay = path.match(/^\/api\/v1\/terminal\/layouts(?:\/(lay_[0-9a-f]{32}))?$/);
+    if (lay) {
+      const id = lay[1], meta = r => { const { state, ...m } = r; return m }, err = (code, status, extra = {}) => json({ error:{ code, message:code, ...extra } }, status);
+      if (req.method !== 'GET' && req.headers['x-csrf-token'] !== 't') return err('CSRF', 403);
+      let body = {}; if (req.method === 'PUT' || req.method === 'PATCH') { let t = ''; for await (const c of req) t += c; body = JSON.parse(t || '{}') }
+      const now = new Date(Date.now() + LAYOUTS.tick++).toISOString(), row = id && LAYOUTS.rows.get(id);
+      LAYOUTS.calls.push(`${req.method} ${id || ''}`.trim());
+      if (!id) return json({ layouts:[...LAYOUTS.rows.values()].sort((a, b) => a.opened_at < b.opened_at ? 1 : -1).map(meta), limit:50 });
+      if (req.method === 'GET') return row ? json(row) : err('NOT_FOUND', 404);
+      if (req.method === 'DELETE') { if (!row) return err('NOT_FOUND', 404); LAYOUTS.rows.delete(id); res.writeHead(204); return res.end() }
+      if (req.method === 'PATCH') { if (!row) return err('NOT_FOUND', 404); if (body.favorite !== undefined) row.favorite = body.favorite; if (body.opened) row.opened_at = now; return json(meta(row)) }
+      const name = String(body.name || '').trim();
+      if ([...LAYOUTS.rows.values()].some(r => r.name === name && r.layout_id !== id)) return err('NAME_TAKEN', 409, { field:'name', message:'Another layout has this name: choose another name.' });
+      if (body.revision == null) { if (row) return err('REVISION_CONFLICT', 409, { details:{ revision:row.revision } });
+        const r = { layout_id:id, name, summary:body.summary || '', schema_version:1, favorite:false, revision:1, created_at:now, updated_at:now, opened_at:now, state:body.state };
+        LAYOUTS.rows.set(id, r); return json(r, 201) }
+      if (!row) return err('NOT_FOUND', 404);
+      if (row.revision !== body.revision) return err('REVISION_CONFLICT', 409, { details:{ revision:row.revision } });
+      Object.assign(row, { name, state:body.state, summary:body.summary || '', revision:row.revision + 1, updated_at:now, opened_at:now }); return json(row);
+    }
     const ref = path.match(/^\/api\/terminal\/v1\/reference\/(\w+)$/);
     if (ref && REFS[ref[1]]) { const key = `/bucket/ref/${ref[1]}`; files.set(key, REFS[ref[1]]); return json({ url:origin + key, sha256:sha(REFS[ref[1]]), bytes:REFS[ref[1]].length, rows:1 }) }
     if (path === '/api/terminal/v1/bundle' && req.method === 'POST') {
@@ -68,5 +91,5 @@ export async function serve(DATA, TICKER) {
   await new Promise(ok => server.listen(0, '127.0.0.1', ok));
   origin = `http://127.0.0.1:${server.address().port}`;
 
-  return { origin, close:() => server.close() };
+  return { origin, close:() => server.close(), layouts:LAYOUTS };
 }

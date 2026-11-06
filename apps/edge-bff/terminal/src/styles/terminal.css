@@ -1327,7 +1327,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 @media(max-width:1024px) and (hover:none){.ind-fltbtn{height:32px}}
 .ind-act{display:none}
 @media(max-width:1024px){
-  html .ind-row:has(.ind-fltbtn) > .ind-eye,html.fit .ind-row:has(.ind-fltbtn) > .ind-eye{display:none!important}
+  html .ind-row:has(.ind-fltbtn) > .ind-eye,html.fit .ind-row:has(.ind-fltbtn) > .ind-eye,html .ind-row:has(.ind-fltbtn) > .ind-fold,html.fit .ind-row:has(.ind-fltbtn) > .ind-fold{display:none!important}
   .ind-row:has(.ind-fltbtn) .ind-k,html.fit .ind-row:has(.ind-fltbtn) .ind-k{min-width:72px;flex:0 1 auto}
   /* QA R2-M4 (2026-11-06): on a narrow screen the value or note takes its own line under the name and Filters, wrapping
      instead of being cut */
@@ -1365,3 +1365,78 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .acc-lanes{margin:0 0 12px}
 #accRange .rp-ctl{flex-wrap:wrap;gap:6px}
 #accRange .rp-sel{height:26px}
+
+/* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): a pane indicator folds to its title row, as the Flow Timeline does (its chevron
+   points down while open and up while folded) */
+.ind-fold,html.fit .ind-row .ind-fold{position:relative;flex:0 0 auto;width:22px;height:22px;display:grid!important;place-items:center;border:0;border-radius:5px;background:transparent;color:var(--text-3);cursor:pointer;opacity:1;order:9}
+.ind-fold:hover{background:var(--hover);color:var(--text)}
+.ind-fold svg{transition:transform .15s}
+.ind-row.folded .ind-fold svg{transform:rotate(180deg)}
+.ind-fold::after{content:attr(data-label);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:5px;background:#171717;color:#fff;font-size:11px;font-weight:500;white-space:nowrap;text-shadow:none;opacity:0;pointer-events:none;transition:opacity .12s}
+.ind-fold:hover::after,.ind-fold:focus-visible::after{opacity:1}
+@media (pointer:coarse){.ind-fold,html.fit .ind-row .ind-fold{min-width:30px;min-height:30px}}
+
+/* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the layout button after Price / Return, its menu (the user's reference: Save,
+   Autosave, Make a copy, Rename, Create new, Recently used with stars, Open) and its dialogs */
+.lay-btn{display:inline-flex;align-items:center;gap:6px;height:32px;max-width:200px;padding:0 8px 0 10px;border:1px solid transparent;border-radius:var(--r-md,8px);background:transparent;color:var(--text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:0 0 auto}
+.lay-btn:hover,.lay-btn[aria-expanded="true"]{background:var(--hover)}
+.lay-btn:focus-visible{outline:2px solid #0070f3;outline-offset:1px}
+.lay-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lay-btn svg{flex:0 0 auto;color:var(--text-3);transition:transform .15s}
+.lay-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.lay-dirty{width:6px;height:6px;border-radius:50%;background:#f5a623;flex:0 0 auto}
+.lay-menu{position:fixed;z-index:60;width:264px;overflow:auto;padding:6px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.14);font-size:13px;color:var(--text)}
+.lay-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;box-sizing:border-box}
+.lay-mi:hover,.lay-mi:focus-visible,.lay-item:hover,.lay-item:focus-visible{background:var(--hover);outline:none}
+.lay-mi > span{flex:1}
+.lay-mi svg{color:var(--text-2);flex:0 0 auto}
+.lay-mi[aria-disabled="true"]{color:var(--text-3)}
+.lay-mi kbd{font:inherit;font-size:11.5px;color:var(--text-3);padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg)}
+.lay-switch{cursor:pointer}
+.lay-switch input{position:absolute;opacity:0;width:1px;height:1px}
+.lay-switch i{position:relative;width:34px;height:20px;border-radius:10px;background:#d4d4d4;transition:background .15s;flex:0 0 auto}
+.lay-switch i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.lay-switch input:checked + i{background:var(--text)}
+.lay-switch input:checked + i::after{transform:translateX(14px)}
+.lay-switch input:focus-visible + i{outline:2px solid #0070f3;outline-offset:2px}
+.lay-sep{height:1px;margin:6px 4px;background:var(--border)}
+.lay-head{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.lay-item{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 10px;border-radius:6px;cursor:pointer}
+.lay-item.on{background:var(--text);color:var(--surface)}
+.lay-item.on small{color:rgba(255,255,255,.7)}
+.lay-iname{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lay-iname b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lay-iname small{font-size:11.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lay-star{width:28px;height:28px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;cursor:pointer;color:var(--text-3);flex:0 0 auto}
+.lay-star svg{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linejoin:round}
+.lay-star.fav{color:#f5a623}
+.lay-star.fav svg{fill:currentColor}
+.lay-item.on .lay-star{color:rgba(255,255,255,.75)}
+.lay-item.on .lay-star.fav{color:#ffc24d}
+.lay-star:hover{background:rgba(127,127,127,.15)}
+.lay-msg{padding:8px 10px;color:var(--text-3);font-size:12px;line-height:1.4}
+.lay-back{position:fixed;inset:0;z-index:70;display:grid;place-items:center;background:rgba(0,0,0,.28);padding:16px}
+.lay-dlg{width:min(360px,100%);padding:18px;border-radius:12px;background:var(--surface);box-shadow:0 18px 48px rgba(0,0,0,.2);color:var(--text);font-size:13px;box-sizing:border-box}
+.lay-dlg.wide{width:min(520px,100%)}
+.lay-dlg h3{margin:0 0 12px;font-size:15px;font-weight:600}
+.lay-dlg p{margin:0 0 14px;line-height:1.45}
+.lay-in{width:100%;height:36px;padding:0 10px;border:1px solid var(--border-2);border-radius:8px;font:inherit;color:inherit;background:var(--surface);box-sizing:border-box}
+.lay-in:focus{outline:2px solid #0070f3;outline-offset:-1px;border-color:transparent}
+.lay-err{min-height:18px;margin-top:6px;color:var(--down,#e5484d);font-size:12px}
+.lay-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.lay-b1,.lay-b2{height:34px;padding:0 14px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+.lay-b1{border:0;background:var(--text);color:var(--surface)}
+.lay-b1.warn{background:var(--down,#e5484d);color:#fff}
+.lay-b1:disabled{opacity:.5;cursor:default}
+.lay-b2{border:1px solid var(--border-2);background:var(--surface);color:var(--text)}
+.lay-list{margin-top:10px;max-height:min(420px,60vh);overflow:auto;border:1px solid var(--border);border-radius:8px}
+.lay-orow{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 6px;border-bottom:1px solid var(--border);cursor:pointer}
+.lay-orow:last-child{border-bottom:0}
+.lay-orow:hover,.lay-orow:focus-visible{background:var(--hover);outline:none}
+.lay-orow.on .lay-iname b::after{content:"Open";margin-left:8px;padding:1px 6px;border-radius:4px;background:var(--sel);color:var(--text-2);font-size:10.5px;font-weight:600}
+.lay-del{min-width:28px;height:28px;display:grid;place-items:center;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--text-3);cursor:pointer;font:inherit;font-size:12px;font-weight:600;flex:0 0 auto}
+.lay-del:hover{background:rgba(229,72,77,.1);color:var(--down,#e5484d)}
+.lay-del.armed{background:var(--down,#e5484d);color:#fff}
+.lay-toast{position:fixed;left:50%;top:64px;z-index:80;transform:translate(-50%,-6px);padding:7px 12px;border-radius:8px;background:var(--text);color:var(--surface);font-size:12px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;max-width:calc(100% - 32px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lay-toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-width:640px){.lay-btn{max-width:120px;padding:0 6px}.lay-menu{width:min(300px,calc(100vw - 16px))}}

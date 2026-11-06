@@ -214,20 +214,41 @@ export function initIndicators(ctx: Ctx) {
   let parked: { at: number; o: any }[] = [];
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;
+  const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
-  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base })), parked)));
+  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base, ...(i.fold ? { fold:true } : {}) })), parked)));
   const defaults = (fields, over?) => Object.fromEntries(fields.filter(f => f.kind !== 'fixed' && f.kind !== 'button' && (f.kind !== 'color' || f.def !== undefined)).map(f => [f.key, over && over[f.key] !== undefined ? over[f.key] : f.def]));
 
+  /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06: "kalau misalkan user menambahkan indikator di bawah, saya mau untuk ditambahkan
+     opsi untuk collapse. Sama seperti fungsi collapse flow timeline"): a pane indicator can be folded to its title row; its
+     lines are not drawn then (its row keeps the name, value and filters) and the price chart takes the room */
+  const drawn = inst => inst.on && !inst.fold;
+  const FOLD_PX = 30;
+  const paneOfInst = inst => (inst.series || inst.parts?.find(pt => pt.series)?.series || inst.lines?.find(l => l.series)?.series)?.getPane() || null;
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
     const panes = chart.panes(), subs = Math.max(0, panes.length - 1);
+    const folded = new Set(list.filter(i => i.fold && i.def.pane === 'sub').map(i => paneOfInst(i)?.paneIndex()).filter(k => k !== undefined && k > 0));
     /* the price pane keeps at least ~45 % of the height however many panes are open (front-end audit 2026-10-30: 10 panes
-       left it 113 px); up to two panes the factor stays the reference's 2.4 */
-    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? (subs ? Math.max(2.4, 0.82 * subs) : 1) : 1));
+       left it 113 px); up to two panes the factor stays the reference's 2.4; an open pane counts, a folded one does not */
+    const open = subs - folded.size, f0 = open ? Math.max(2.4, 0.82 * open) : 1;
+    /* a folded pane gets the factor that makes it FOLD_PX of the panes' height: f = h·U / (H − n·h) */
+    const H = panes.reduce((t, pn) => t + pn.getHeight(), 0), U = f0 + open, n = folded.size;
+    const ff = n && H > n * FOLD_PX + 60 ? FOLD_PX * U / (H - n * FOLD_PX) : 0.12;
+    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? f0 : folded.has(k) ? ff : 1));
     requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow) });
   };
+  const setFold = (inst, on: boolean, keep = true) => {
+    inst.fold = on; inst.row.classList.toggle('folded', on);
+    const b = inst.row.querySelector('.ind-fold'); if(b) { b.setAttribute('aria-expanded', String(!on)); b.setAttribute('aria-label', on ? 'Expand pane' : 'Collapse pane'); b.dataset.label = on ? 'Expand' : 'Collapse' }
+    const a = inst.row.querySelector('.ind-actbtn[data-act="fold"]'); if(a) a.textContent = on ? 'Expand' : 'Collapse';
+    refresh(inst); layoutPanes(); if(keep) save();
+  };
   const stage = legend.parentElement;
+  /* the panes' height changes with the window: a folded pane is sized again */
+  { let h = 0; new ResizeObserver(() => { const nh = chart.panes().reduce((t, pn) => t + pn.getHeight(), 0);
+      if(Math.abs(nh - h) > 2 && list.some(i => i.fold)) { h = nh; layoutPanes() } else h = nh }).observe(stage) }
   /* EXEC-FLOW-PANE-FILTERS (user go 2026-11-06; proposal verification/terminal_api/flow_pane_filters): every Flow
      indicator's broker scope, Top N, Rank by, brokers, boards and investors as controls on its own legend row (def.paneFilters,
      derived from its inputs). Top N and Rank by show only for a Top-N scope, the broker list only for Selected (the inputs'
@@ -322,9 +343,10 @@ export function initIndicators(ctx: Ctx) {
     /* QA H1 (phone check 2026-11-06): on a narrow screen the row's Hide, Settings and Remove move into the Filters panel, so
        the name keeps its room; they press the row's own buttons */
     const acts = document.createElement('span'); acts.className = 'ind-act';
-    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ['del', 'Remove']] as const) {
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'ind-actbtn'; b.textContent = label;
-      b.onclick = e => { e.stopPropagation(); (inst.row.querySelector(`.ind-eye[data-act="${act}"]`) as HTMLElement | null)?.click(); if(act !== 'eye') fltClose() };
+    /* EXEC-TERMINAL-LAYOUTS: a pane indicator's Collapse joins them there too (on a phone the row keeps one line) */
+    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ['del', 'Remove'], ...(inst.def.pane === 'sub' ? [['fold', inst.fold ? 'Expand' : 'Collapse']] : [])] as [string, string][]) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'ind-actbtn'; b.textContent = label; b.dataset.act = act;
+      b.onclick = e => { e.stopPropagation(); (inst.row.querySelector(`:scope > [data-act="${act}"]`) as HTMLElement | null)?.click(); if(act !== 'eye') fltClose() };
       acts.appendChild(b);
     }
     box.appendChild(acts);
@@ -371,7 +393,7 @@ export function initIndicators(ctx: Ctx) {
     });
     inst.series = inst.parts.find(pt => pt.series)?.series || null;
     if(panel && (r.guides.length || r.levelsParam)) inst.series.applyOptions({ autoscaleInfoProvider:orig => {   // keep visible reference levels inside the pane (e.g. RSI 30 / 70)
-      const res = orig(), lv = inst.on && inst.style.guides.on ? guideLevels(inst) : [];
+      const res = orig(), lv = drawn(inst) && inst.style.guides.on ? guideLevels(inst) : [];
       if(!res || !res.priceRange || !lv.length) return res;
       return { ...res, priceRange:{ minValue:Math.min(res.priceRange.minValue, ...lv), maxValue:Math.max(res.priceRange.maxValue, ...lv) } };
     } });
@@ -392,7 +414,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.raw._labels) inst.parts.forEach(pt => { if(pt.series && pt.kind !== 'marker') pt.series.applyOptions({ title:pt.o.k === 'total' ? 'Total' : pt.o.label || '' }) });
     const breaks = new Set((inst.raw._breaks || []).map(i => i + off));         // calculation restarts here: never draw a line into this bar
     const dir = inst.disp.direction, bandsOff = 'bands_mode' in p && p.bands_mode === 'None', T = i => ohlc[i].time;
-    const shown = pt => inst.on && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
+    const shown = pt => drawn(inst) && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
     inst.parts.forEach(pt => {
       const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
       if(pt.kind === 'marker') {
@@ -424,9 +446,9 @@ export function initIndicators(ctx: Ctx) {
     });
     /* reference levels (optional guides from the workbook), drawn on the pane's first series */
     (inst.guideLines || []).forEach(([se, pl]) => { try{ se.removePriceLine(pl) }catch(e){} }); inst.guideLines = [];
-    if(inst.def.zeroLabel && inst.on) { const host = inst.parts.find(pt => pt.series && pt.kind !== 'marker')?.series;
+    if(inst.def.zeroLabel && drawn(inst)) { const host = inst.parts.find(pt => pt.series && pt.kind !== 'marker')?.series;
       if(host) inst.guideLines.push([host, host.createPriceLine({ price:0, color:'#c8c8c8', lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:false, title:'' })]) }
-    if(st.guides && st.guides.on && inst.on) {
+    if(st.guides && st.guides.on && drawn(inst)) {
       const host = inst.parts[0].series;
       guideLevels(inst).forEach(lv =>
         inst.guideLines.push([host, host.createPriceLine({ price:lv, color:'#a3a3a3', lineWidth:1, lineStyle:L.LineStyle.Dashed, axisLabelVisible:false, title:'' })]));
@@ -457,9 +479,9 @@ export function initIndicators(ctx: Ctx) {
     (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series));
     inst.lines = inst.raw.map((ln, k) => {
       const color = LINE_COLORS[k % LINE_COLORS.length];
-      if(!inst.on) return { id:ln.id, color, series:null, vals:ln.vals };     // hidden: no series at all, so the right axis and its crosshair label stay empty
+      if(!drawn(inst)) return { id:ln.id, color, series:null, vals:ln.vals };     // hidden: no series at all, so the right axis and its crosshair label stay empty
       const series = chart.addSeries(L.LineSeries, {
-        priceScaleId:'right', color, lineWidth:inst.style.width, lineStyle:LINE_STYLES[inst.style.lineStyle], visible:inst.on,
+        priceScaleId:'right', color, lineWidth:inst.style.width, lineStyle:LINE_STYLES[inst.style.lineStyle], visible:true,
         lastValueVisible:true, priceLineVisible:false, crosshairMarkerVisible:false, title:`${ln.id} · ${inst.def.lineTag(inst.params)}`,
         priceFormat:{ type:'custom', formatter:inst.def.format, minMove:1 }
       });
@@ -479,7 +501,7 @@ export function initIndicators(ctx: Ctx) {
       return inst.sType === 'hist' ? { time:ohlc[i].time, value, color:v >= 0 ? inst.style.color : inst.style.colorNeg } : { time:ohlc[i].time, value };
     };
     inst.series.setData(inst.vals.flatMap((v, i) => v === null ? [] : [point(v, i)]));
-    const o = { visible:inst.on };
+    const o = { visible:drawn(inst) };
     if(inst.sType === 'line') Object.assign(o, { color:inst.style.color, lineWidth:inst.style.width || 2, lineStyle:LINE_STYLES[inst.style.lineStyle || 'Solid'] });
     inst.series.applyOptions(o);
     paintRow(inst);
@@ -563,9 +585,11 @@ export function initIndicators(ctx: Ctx) {
     r.innerHTML = '<span class="ind-k"></span><b></b>'
       + `<button class="ind-eye" type="button" data-act="eye" aria-pressed="true" data-label="Hide" aria-label="Show or hide">${EYE}</button>`
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
-      + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`;
+      + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`
+      + (inst.def.pane === 'sub' ? `<button class="ind-fold" type="button" data-act="fold" aria-expanded="true" data-label="Collapse" aria-label="Collapse pane">${CHEV}</button>` : '');
     r.addEventListener('click', (e: any) => {
       const a = e.target.closest('[data-act]'); if(!a) return;
+      if(a.dataset.act === 'fold') { setFold(inst, !inst.fold); return }
       if(a.dataset.act === 'eye') { inst.on = !inst.on; refresh(inst); save() }
       else if(a.dataset.act === 'cfg') openSettings(inst)
       else userRemove(inst);
@@ -573,14 +597,16 @@ export function initIndicators(ctx: Ctx) {
     if(inst.def.pane === 'sub') { r.classList.add('in-pane'); stage.appendChild(r) } else legend.appendChild(r);
     buildPaneFilters(inst);
     if(inst.def.multi) buildParts(inst);
+    if(inst.fold) r.classList.add('folded');
     recompute(inst);
     placeRow(inst);
+    if(inst.fold) setFold(inst, true, false);
   }
   const nextBase = () => PALETTE[list.length % 6];
   const byHid = hid => list.find(i => i.hid === hid);
   function add(defId, saved?) {
     const def = defOf(defId); if(!def || !usable(defId)) return null;
-    const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true };
+    const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true, fold:def.pane === 'sub' && !!(saved && saved.fold) };
     inst.hid = inst.uid;
     if(def.multi) { inst.base = (saved && saved.base) || nextBase(); inst.style = merge(regStyle(def, inst.base), saved && saved.style) }
     else inst.style = { ...defaults(def.style, saved && saved.style), ...(def.style.some(f => f.key === 'color' && f.def !== undefined) ? {} : { color:(saved && saved.style && saved.style.color) || PALETTE[list.length % PALETTE.length] }) };
@@ -809,7 +835,7 @@ export function initIndicators(ctx: Ctx) {
   /* undo / redo: an indicator comes back with the same inputs, style and visibility */
   /* every step names its indicator by a history id that a revived indicator keeps (front-end audit I3: a step holding the
      object lost it after remove + undo, and a redo then added a second copy) */
-  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid }));
+  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, ...(inst.fold ? { fold:true } : {}) }));
   const revive = snap => {
     if(byHid(snap.hid)) return byHid(snap.hid);                       // already there: never a second copy
     const inst = add(snap.def, JSON.parse(JSON.stringify(snap))); if(inst) inst.hid = snap.hid;

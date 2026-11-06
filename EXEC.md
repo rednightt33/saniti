@@ -12000,5 +12000,26 @@ usah, itu satu. Yang kedua adalah, kalau misalkan user menambahkan indikator di 
 untuk collapse. Sama seperti fungsi collapse flow timeline. ... Ini kita tambahkan, baru nanti putaran QA selanjutnya juga
 mengecek hal ini. Konfirmasi."
 - QA putaran 3 (diminta 2026-11-06: "QA putaran 3.") ditunda sampai fitur ini selesai, lalu memeriksa semuanya.
-- Pertanyaan terbuka: tempat simpan (akun di server atau browser), isi layout dan apakah membuka layout mengganti saham,
-  perilaku collapse.
+- Pertanyaan balik 2026-11-06: tempat simpan; isi layout dan apakah membuka layout mengganti saham; perilaku collapse.
+
+**Jawaban user, 2026-11-06:** "di akun edge. Tidak usah mengganti saham."
+- Layout disimpan per akun EDGE di database (tabel baru `edge_bff.terminal_layouts`, seperti `edge_bff.screener_items`),
+  lewat API edge-bff; terlihat di perangkat mana pun.
+- Membuka layout memasang isinya ke saham yang sedang dibuka (template); saham tidak berganti.
+- Isi layout (usulan yang tidak dikoreksi): indikator dengan setelan dan status sembunyi, status collapse panel, timeframe,
+  jenis chart, Price/Return, Volume, Events, setelan Flow Timeline (filter, Cumulative, buka/tutup, tinggi). Gambar garis
+  tetap per saham; panel kanan tidak termasuk.
+- Menu: Save layout (Ctrl+S), Autosave, Make a copy, Rename, Create new layout, Recently used (bintang favorit),
+  Open layout (tombol titik); tanpa Download chart data.
+- Collapse: tombol di ujung kanan baris judul setiap indikator panel bawah; tertutup = satu baris judul, ruangnya dipakai
+  chart harga; diingat dan ikut layout.
+- Migrasi ke database live dijalankan saat rilis (runbook seperti EXEC-SCREENER), bukan sebelum user memutuskan rilis.
+- Status 2026-11-06 (draft di branch, belum rilis):
+  - Database: `database/migrations/20261106_001_edge_bff_terminal_layouts.sql` (belum diterapkan ke Railway).
+  - edge-bff: `app/layouts.py` (GET/PUT/PATCH/DELETE `/api/v1/terminal/layouts`), batas 50 layout, 64 KB per layout.
+  - Terminal: `src/app/layouts.ts` (menu di sebelah kanan Price/Return; Ctrl+S; tombol titik membuka daftar);
+    jenis chart, Price/Return dan filter Flow Timeline kini diingat (bagian dari layout); pengingat yang baru wajib
+    digolongkan (tes `tests/data/layouts.test.ts`).
+  - Collapse: tombol di ujung baris judul indikator panel bawah; di layar ≤ 1024 px tombolnya ada di panel Filters
+    (seperti Hide/Settings/Remove, QA H1).
+  - Bukti: `verification/terminal_api/terminal_look/look_check5.mjs` (API tiruan di `serve.mjs`).

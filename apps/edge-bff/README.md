@@ -23,6 +23,21 @@ It is a module-by-module port of the reference page `03-terminal-right-panel.htm
 | data shapes; live data from the rack; the reference's synthetic data | `terminal/src/data/types.ts`, `live.ts`, `fixture.ts` |
 | an indicator formula (spec `verification/terminal_api/INDICATOR_SPEC.md`) | `terminal/src/calc/indicators.ts`, tests `terminal/tests/calc` |
 | the gateway to terminal-api (data routes only, EDGE session + CSRF) | `app/main.py` (`forward_terminal`), `tests/test_terminal.py` |
+| saved chart layouts (EXEC-TERMINAL-LAYOUTS): the menu, what a layout holds (`LAYOUT_KEYS`) | `terminal/src/app/layouts.ts`, `terminal/src/data/layoutsApi.ts`, tests `terminal/tests/data/layouts.test.ts` |
+| the layouts API on edge-bff, table `edge_bff.terminal_layouts` (migration `20261106_001`) | `app/layouts.py`, `tests/test_layouts.py` |
+
+Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), EDGE session, writes with CSRF:
+
+| Route | Contract |
+| --- | --- |
+| GET `/api/v1/terminal/layouts` | `{layouts: [Layout without state], limit}` of the owner, the most recently opened first |
+| GET `/api/v1/terminal/layouts/{layout_id}` | the Layout with `state` (setting name -> text); 404 `NOT_FOUND` |
+| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (50 layouts, 65,536 bytes of state, 64 settings) |
+| PATCH `/api/v1/terminal/layouts/{layout_id}` | `{favorite?, opened?: true}`: the star, or the Recently used order; no revision |
+| DELETE `/api/v1/terminal/layouts/{layout_id}` | 204; 404 `NOT_FOUND` |
+
+Without the table (migration not applied) every route answers 503 `LAYOUTS_NOT_READY` with `Retry-After`; `/ready` never
+reads it. `layout_id` is `lay_` and 32 lowercase hex digits, made by the page.
 
 Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build), `npx vitest run tests/calc`
 (parity), and the 1:1 check `TERMINAL_REFERENCE_HTML=<reference file> node tests/visual/compare.mjs <out>` then

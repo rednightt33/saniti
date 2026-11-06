@@ -1,5 +1,21 @@
 # Database changelog
 
+## 2026-11-06 — EDGE Terminal saved chart layouts (schema `edge_bff`, EXEC-TERMINAL-LAYOUTS) — file added, NOT applied
+
+- **User:** "Saya mau ditambahkan opsi di mana layout dari layout ini bisa di-save dan bisa dibuka kapanpun" and, asked
+  where layouts live, "di akun edge. Tidak usah mengganti saham." (2026-11-06). Operational schema `edge_bff`, no market
+  data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as `20261028_001`.
+- **`20261106_001_edge_bff_terminal_layouts.sql`** (sha256 `0ae400e79d03fa326702886c6e83ef2ac367d275f897b4a4b4a492b383f7e085`): `edge_bff.terminal_layouts` (one owner's
+  layouts: name unique per owner, state JSON object at most 65,536 bytes, summary, favorite, revision, opened_at); index
+  `terminal_layouts_owner_opened`; `edge_bff_runtime` gets SELECT/INSERT/UPDATE/DELETE only (the file checks no TRUNCATE,
+  REFERENCES, TRIGGER and nothing for PUBLIC); preflight refuses a second run; rollback body in the file (drop the table).
+- **Status:** written and tested on a disposable local PostgreSQL 16 (`apps/edge-bff/tests/test_layouts.py`, 18 tests;
+  the edge-bff suites that build the schema from the migrations, 154 tests); **not applied to Railway**. It is applied at
+  the release, DRYRUN then APPLY through the runbook of `20261028_001`
+  (`verification/screener/jobs/run_migration.sh`), then `database/migrations/APPLIED.sha256` gains it. Until then
+  edge-bff answers 503 `LAYOUTS_NOT_READY` on the layout routes and the rest of the Terminal works.
+- `scripts/provision_edge_bff_login.py` holds the table to exactly these grants once it exists.
+
 ## 2026-11-05 — Feature 01 queue claimed per ticker (EXEC-UNIVERSE-BROKER L3)
 
 - **User:** "Untuk point nomor 4 OK --> masukan exec. Inspect database. Ensure keputusan diambil dari code inspection

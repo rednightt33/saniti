@@ -62,6 +62,22 @@ export function initFlow(ctx: Ctx) {
   /* ---- filter state ---- */
   const allBrokers = ctx.allBrokers = () => [...new Set(ctx.COMBOS.map(c=>c.broker))].sort();
   const flt = { brokers:new Set(allBrokers()), boards:new Set(BOARDS.map(b=>b.id)), investors:new Set(['Foreign']) };
+  /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the Flow Timeline's filters are kept (they are part of a layout). Boards and
+     investors as chosen; brokers as a list only when not every broker is chosen, applied to the ticker's own brokers once
+     they arrive (a list with none of them means every broker) */
+  const FKEY = 'ml.flow.filters', live = ctx.M.mode === 'live';
+  let keptBrokers: string[] | null = null;
+  if(live) try {
+    const k = JSON.parse(store.get(FKEY) || 'null');
+    const pick = (a: any, ids: string[]) => Array.isArray(a) ? ids.filter(id => a.includes(id)) : [];
+    const kb = k && pick(k.boards, BOARDS.map(b=>b.id)), ki = k && pick(k.investors, INVESTORS.map(b=>b.id));
+    if(kb && kb.length) { flt.boards.clear(); kb.forEach(b => flt.boards.add(b)) }
+    if(ki && ki.length) { flt.investors.clear(); ki.forEach(b => flt.investors.add(b)) }
+    if(k && Array.isArray(k.brokers) && k.brokers.length) keptBrokers = k.brokers.map(String);
+  } catch(e) { /* a broken entry: the defaults */ }
+  const keepFilters = () => { if(!live || keptBrokers) return;      // not before the kept broker list is applied
+    const all = flt.brokers.size === allBrokers().length;
+    store.set(FKEY, JSON.stringify({ boards:[...flt.boards], investors:[...flt.investors], brokers:all ? null : [...flt.brokers].sort() })) };
   const isDefault = () => flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length
     && flt.investors.size===1 && flt.investors.has('Foreign');
 
@@ -405,7 +421,7 @@ export function initFlow(ctx: Ctx) {
   brokerSummary.isModified = (s: Set<string>) => s.size !== allBrokers().length;
   const listSummary = (all: number, def?: Set<string>) => { const f: any = (s: Set<string>) => s.size===all ? `All (${all})` : s.size===0 ? 'None' : [...s].map(x=>x==='Cash'?'Cash':x).join(', ');
     f.isModified = (s: Set<string>) => def ? !(s.size===def.size && [...def].every(x=>s.has(x))) : s.size!==all; return f };
-  const onFilter = () => { recomputeFlow(); $('flReset').hidden = isDefault() };
+  const onFilter = () => { recomputeFlow(); $('flReset').hidden = isDefault(); keepFilters() };
 
   const fBroker = makeFilter($('flBroker'), { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true,
     getOptions:()=>allBrokers().map(b=>({id:b,label:b})), state:flt.brokers, summary:brokerSummary, onChange:onFilter });
@@ -448,6 +464,10 @@ export function initFlow(ctx: Ctx) {
     const wasAll = flt.brokers.size === allBrokers().length;   // a broker choice the user made survives the full history
     ctx.COMBOS = combos; flowFrom = from; flowTo = to; flowLoading = false; flowMore = more;
     if(wasAll){ flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b)) }
+    if(keptBrokers && combos.length) {               // the kept broker choice, on this ticker's brokers
+      const have = new Set(allBrokers()), mine = keptBrokers.filter(b => have.has(b)); keptBrokers = null;
+      if(mine.length) { flt.brokers.clear(); mine.forEach(b => flt.brokers.add(b)) }
+    }
     [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter();
     ctx.refreshFlowIndicators?.();
   };
