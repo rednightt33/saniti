@@ -5314,6 +5314,48 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed in code)
+
+- **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and
+  Source, Custom).
+- **Verified cause:** the window drew the parameters as grey text (`add-condition.ts paramsText`) by design ("Parameters
+  other than the defaults are set on the card", EXEC-SCREENER-ADD); its threshold column shows only the value fields of
+  the chosen condition, so a condition without a value (Close above SMA) showed "—".
+- **Audit (live dev catalog, 128 entries):**
+  - 82 have parameters (49 indicators, 33 patterns), none editable in the window;
+  - 24 of them have a default condition without a threshold, and 23 of those have another condition with one.
+- **Class:** two places that build the same condition (the window and the card) exposing different parts of it.
+- **Decision:** user 2026-11-06 "ok" to option A (the parameters editable in the window, as on the card).
+- **Solution (branch):**
+  - the window's rule holds the parameters (and the second line's for a two-line condition);
+  - the row shows them as fields on a second line: the catalog's options and limits, the card's check
+    (`entries.ts paramError`, keys `p.<key>` and `p2.<key>` in `ruleErrors`), blue like the threshold;
+  - the card added carries them; "on the screen" compares the wire test, which includes them.
+- **Verified (local):**
+  - `tests/page/add-condition.test.ts` (3 new tests: Length 50 carried and Custom, limits refused, the second line);
+  - the smoke step "Add a condition sets the parameters too": Length 0 refused with the field named, Length 50 + Enter
+    adds a Custom card, a label click adds nothing;
+  - visual shots at 1440 and 1100.
+- **Status:** FIXED in code (branch, not deployed).
+- **Lesson:** when two places build the same object, derive both from one list (the catalog's parameters) and check
+  they expose the same fields.
+
+### M376 — Screener results: diagonal lines on a failed cell broke the row's hover (2026-11-06, fixed in code)
+
+- **Found by:** the user (screenshot of a result table with hatched pink cells).
+- **Verified cause:**
+  - the last rule for `.res tbody td.fail` (`src/styles/screener.css`) drew a pink fill plus a `background-image` of red
+    diagonal lines;
+  - the hover changed only `background-color`, so the lines stayed over the hover colour;
+  - two older hatch rules were dead but still in the file.
+- **Class:** a background-image layered over a state colour survives a hover that changes only the colour.
+- **Solution (branch):** a failed cell is a solid pink fill (8 %) and darker on hover (14 %), no `background-image`;
+  the dead rules removed.
+  - Checked on the fixture page in light and dark: `background-image: none` at rest and on hover.
+  - Same change: an event cell that failed with no event in reach reads "No" (user: "Dengan tulisan no"), as a state
+    cell does.
+- **Status:** FIXED in code (branch, not deployed).
+
 ### M375 — Screener smoke run: a page task over 50 ms now and then, in a different step each time (2026-11-06, open)
 
 - **Found by:** the coordinator's smoke runs for M374.
@@ -5336,6 +5378,11 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   The check is a Chromium performance trace of a failing run, to name the task.
 - **Class:** a time budget checked on a shared machine without naming the task, so a slow boot task and a real
   regression look the same.
+- **More evidence (M376/M377 work, 2026-11-06):**
+  - the keyboard step alone, 6 runs before and 6 after the change: no page task over 30 ms;
+  - opening "Add a condition" 24 times with six conditions on the screen: no long task, before or after;
+  - in full runs the tasks over 50 ms were at 0.3–0.4 s after a page opened (51, 58 ms), and one 54 ms in the step that
+    opens the window six times (as on `c4ff8770`).
 - **Status:** OPEN; not fixed in the M374 change (outside its scope).
 
 ### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, fixed)

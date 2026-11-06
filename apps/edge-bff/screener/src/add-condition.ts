@@ -11,12 +11,16 @@
    screen" when a card produces the same wire test (forms.ts toWire), never by id (ERRORS M358). Adding is an edit like
    any other: a new card, the table out of date, no run until Screen now. The timeframe is shown as in the reference
    but cannot be chosen: the data is daily (product decisions 2-3; user 2026-11-06 "tetap di show saja, tapi dibuat
-   unclickable"); 5m to 4h are greyed with their reason. Parameters other than the defaults are set on the card. */
-import type { ConditionDef, SavedItem } from './core/contract.ts';
+   unclickable"); 5m to 4h are greyed with their reason.
+   The indicator's parameters (Length, Source, ...) are set in the row too, as on the card (user 2026-11-06, option A of
+   the audit: "Seharusnya ini cukup konsisten"): the fields, their limits and their checks are the catalog's and the
+   card's (entries.ts paramError), and the card added carries them. A condition on two lines of the indicator (a cross
+   of two moving averages) shows the second line's parameters too ("2nd"), as the card does. */
+import type { ConditionDef, ParamValue, SavedItem } from './core/contract.ts';
 import { esc } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { canonical, ctx, entryOf, S, ui } from './state.ts';
-import { GHEAD, GORD, matches, optionText, type Entry, type Opt } from './entries.ts';
+import { defaultParams, GHEAD, GORD, matches, optionText, paramError, rangeText, type Entry, type EntryParam, type Opt } from './entries.ts';
 import { cardErrors, displayUnit, fromWire, newCard, newCardId, optOf, toWire, type Card } from './forms.ts';
 import { closeDialog, dialog, toast, toastAction } from './dialogs.ts';
 
@@ -26,18 +30,21 @@ const TIMEFRAMES = ['5m', '15m', '1h', '4h', 'Daily'];
 export const NO_INTRADAY = 'No data yet: intraday bars are not in the market database.';
 
 /* ---- the rule chosen per indicator before adding (the reference's RULE); defaults from the catalog --------------- */
-export interface Rule { opt: string; value: number | ''; value2: number | ''; within: number | '' }
+type Params = Record<string, ParamValue>;
+export interface Rule { opt: string; value: number | ''; value2: number | ''; within: number | ''; params: Params; second?: Params }
 const RULE = new Map<string, Rule>();
 export function ruleOf(e: Entry): Rule {
   let r = RULE.get(e.key);
-  if (!r) { r = { opt:e.def.opt, value:e.def.value, value2:e.def.value2, within:e.def.within }; RULE.set(e.key, r) }
+  if (!r) { r = { opt:e.def.opt, value:e.def.value, value2:e.def.value2, within:e.def.within, params:defaultParams(e) as Params }; RULE.set(e.key, r) }
   return r;
 }
 /** tests and a new catalog: forget the rules chosen so far */
 export function resetRules() { RULE.clear() }
 /** a new rule option, with the value fields it needs filled from the catalog default when empty (as the card does) */
 export function setOpt(e: Entry, opt: string) {
-  const r = ruleOf(e); r.opt = opt;
+  const r = ruleOf(e);
+  if (r.opt !== opt) delete r.second;             // the second line's defaults belong to the condition (its form's defaults)
+  r.opt = opt;
   const o = e.opts.find(x => x.key === opt);
   if (o?.value === 'input' && r.value === '') r.value = e.def.value;
   if (o?.between && r.value2 === '') r.value2 = e.def.value2 === '' ? (typeof r.value === 'number' ? r.value : 0) : e.def.value2;
@@ -45,10 +52,21 @@ export function setOpt(e: Entry, opt: string) {
 const withinMax = () => ctx.catalog?.limits.find(l => l.name === 'within_max')?.value ?? 130;
 /** the card this rule adds (fresh id among the page's cards) */
 export function cardOfRule(e: Entry, r = ruleOf(e)): Card {
-  return newCard(e, S.cards.map(x => x.id), { opt:r.opt, value:r.value, value2:r.value2, within:r.within });
+  return newCard(e, S.cards.map(x => x.id), { opt:r.opt, value:r.value, value2:r.value2, within:r.within, params:{ ...r.params } as Card['params'], ...(r.second ? { second:{ ...r.second } as Card['second'] } : {}) });
 }
-/** the rule's problems, field -> message: the card's own validation (forms.ts cardErrors) */
-export const ruleErrors = (e: Entry): Record<string, string> => cardErrors(e, cardOfRule(e), withinMax());
+/** the condition reads two lines of the indicator, the second with its own parameters (as the card shows "2nd") */
+const twoLines = (o: Opt | undefined) => !!o && (o.form === 'state_instance' || o.form === 'event_instance');
+/** the rule's problems, field -> message: the card's own validation (forms.ts cardErrors) and each parameter's
+    (entries.ts paramError, the card's check), keyed 'p.<key>' and 'p2.<key>' */
+export function ruleErrors(e: Entry): Record<string, string> {
+  const c = cardOfRule(e), out = cardErrors(e, c, withinMax());
+  const lines: [string, Params][] = [['p', c.params as Params], ...(twoLines(optOf(e, c)) ? [['p2', c.second as Params] as [string, Params]] : [])];
+  for (const [k, vals] of lines) for (const p of e.params) {
+    const msg = paramError(p, vals[p.key]);
+    if (msg) out[`${k}.${p.key}`] = `${k === 'p2' ? '2nd ' : ''}${p.label || p.key}: ${msg}`;
+  }
+  return out;
+}
 
 /* ---- rows ------------------------------------------------------------------------------------------------------ */
 export interface AddItem {
@@ -170,13 +188,30 @@ function ruleHtml(it: AddItem, i: number): [string, string] {
   }).join('') : '<span class="rr-none">—</span>';
   return [`<span class="rr qs">${sel}</span>`, `<span class="rr qt">${thr}</span>`];
 }
+/** a parameter field of a row: the card's field (a select for options and true/false, else a number with the
+    catalog's limits), blue when it differs from its default */
+function paramField(e: Entry, p: EntryParam, i: number, v: ParamValue | undefined, def: ParamValue | undefined, second: boolean, err: string | undefined): string {
+  const attr = second ? 'data-ap2' : 'data-ap', name = `${second ? '2nd ' : ''}${p.label || p.key}`;
+  const ch = String(v) !== String(def), common = `${attr}="${esc(p.key)}" data-ai="${i}" aria-label="${esc(name)} of ${esc(e.label)}"${err ? ` aria-invalid="true" title="${esc(err)}"` : ` title="${esc(`${rangeText(p) ? rangeText(p) + ' · ' : ''}default ${optionText(p, def as ParamValue)}`)}"`}`;
+  const field = p.options ? `<select class="sel" ${common}>${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
+    : p.type === 'boolean' ? `<select class="sel" ${common}><option value="true" ${v === true ? 'selected' : ''}>true</option><option value="false" ${v === false ? 'selected' : ''}>false</option></select>`
+    : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="${p.step ?? (p.integer ? 1 : 'any')}" value="${esc(Number.isFinite(v as number) ? v : '')}" ${common}>`;
+  return `<label class="qp${ch ? ' chg' : ''}"><span>${esc(name)}</span>${field}</label>`;
+}
+/** the row's parameters, editable (option A, user 2026-11-06); the second line's too for a two-line condition */
+function paramsHtml(e: Entry, i: number): string {
+  const r = ruleOf(e), c = cardOfRule(e), er = ruleErrors(e), two = twoLines(optOf(e, c));
+  const d2 = two ? newCard(e, [], { opt:r.opt }).second : {};
+  return `<span class="qps">${e.params.map(p => paramField(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`])).join('')}${two ? e.params.map(p => paramField(e, p, i, c.second[p.key], d2[p.key], true, er[`p2.${p.key}`])).join('') : ''}</span>`;
+}
 function rowHtml(it: AddItem, i: number, added: boolean): string {
   const [cond, thr] = it.ok ? ruleHtml(it, i) : ['<span></span>', '<span></span>'];
   const act = !it.ok ? `<span class="qadd">No data</span>`
     : added ? `<button type="button" class="qact on" data-qact="${i}" tabindex="-1" aria-label="Remove ${esc(it.label)}"><span class="q-on">Added ${ico(IC.check, 's')}</span><span class="q-rm">Remove</span></button>`
     : `<button type="button" class="qact" data-qact="${i}" tabindex="-1" aria-label="Add ${esc(it.label)}">Add</button>`;
   const title = added ? 'On the screen with this condition. Click to remove it.' : it.ok ? 'Click to add with the condition shown' : (it.why || 'No data');
-  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b><small>${esc(it.sub)}</small></span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+  const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters on a second line of the row
+  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${editable ? '' : `<small>${esc(it.sub)}</small>`}</span>${editable ? paramsHtml(it.entry!, i) : ''}${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
 }
 function railHtml(): string {
   const btn = (g: string, inner: string, cls = '') => `<button type="button" class="qri ${cls}${W.g === g ? ' on' : ''}" data-ag="${esc(g)}" aria-pressed="${W.g === g}">${inner}</button>`;
@@ -195,7 +230,7 @@ function footHtml(): string {
 function drawList() {
   if (drawing) return;
   const l = $q<HTMLElement>('#acl'); if (!l) return;
-  const fa = document.activeElement as HTMLElement | null, fk = root?.contains(fa) && fa?.dataset.af ? `${fa.dataset.ai}|${fa.dataset.af}` : null;
+  const fa = document.activeElement as HTMLElement | null, fs = root?.contains(fa) ? fieldSel(fa) : null, fk = fs ? `${fa!.dataset.ai}|${fs}` : null;
   const st = l.scrollTop;
   W.items = listItems(W.q, W.g, W.sort); W.act = Math.min(W.act, Math.max(0, W.items.length - 1));
   const on = S.cards.length ? screenSigs() : null;                   // nothing on the screen: no row is added
@@ -211,7 +246,7 @@ function drawList() {
   if (rows.length > FIRST_ROWS) { W.restHtml = rows.slice(FIRST_ROWS).join(''); W.rest = setTimeout(drawRest, 0) }
   $q('#acq')?.setAttribute('aria-activedescendant', W.items.length ? 'aco' + W.act : '');
   l.scrollTop = st;
-  if (fk) { const [i, f] = fk.split('|'); l.querySelector<HTMLElement>(`[data-ai="${i}"][data-af="${f}"]`)?.focus() }
+  if (fk) { const [i, f] = fk.split('|'); l.querySelector<HTMLElement>(`[data-ai="${i}"]${f}`)?.focus() }
   const r = $q('#acg'); if (r) r.innerHTML = railHtml();
   const ft = $q('#acf'); if (ft) ft.innerHTML = footHtml();
 }
@@ -257,12 +292,19 @@ function toggle(i: number) {
     if (gone.length) toastAction(`${it.label} removed`, 'Undo', () => { restore(gone); drawList(); toast(`${it.label} restored`) });
   } else {
     const r = addItem(it); toast(r.message);
-    if (!r.ok) { const f = Object.keys(it.entry ? ruleErrors(it.entry) : {})[0]; if (f) root?.querySelector<HTMLElement>(`[data-ai="${i}"][data-af="${f === 'op' ? 'opt' : f}"]`)?.focus(); return }
+    if (!r.ok) { const f = Object.keys(it.entry ? ruleErrors(it.entry) : {})[0]; if (f) root?.querySelector<HTMLElement>(`[data-ai="${i}"]${errSel(f)}`)?.focus(); return }
   }
-  const keep = (document.activeElement as HTMLElement | null)?.closest?.('.rr');
+  const keep = (document.activeElement as HTMLElement | null)?.closest?.('.rr,.qps');
   drawRow(i);
   if (!keep) $q<HTMLInputElement>('#acq')?.focus({ preventScroll:true });   // several in a row: back to the search
 }
+/** a row's field as a selector (its data-af, data-ap or data-ap2), to find it again after a redraw */
+function fieldSel(el: HTMLElement | null): string | null {
+  const d = el?.dataset; if (!d) return null;
+  return d.af ? `[data-af="${d.af}"]` : d.ap ? `[data-ap="${CSS.escape(d.ap)}"]` : d.ap2 ? `[data-ap2="${CSS.escape(d.ap2)}"]` : null;
+}
+/** the field of an error key of ruleErrors */
+const errSel = (k: string) => k === 'op' ? '[data-af="opt"]' : k.startsWith('p2.') ? `[data-ap2="${CSS.escape(k.slice(3))}"]` : k.startsWith('p.') ? `[data-ap="${CSS.escape(k.slice(2))}"]` : `[data-af="${k}"]`;
 /** after an add or a remove only this row and the counts change (a whole redraw with the page's own draw in one task
     went over 50 ms) */
 /* A redraw removes the focused field; a field whose value changed then fires "change" while it is being removed, and
@@ -273,10 +315,10 @@ function drawRow(i: number) {
   if (drawing) return;
   drawRest();
   const it = W.items[i], el = $q<HTMLElement>(`#aco${i}`); if (!it || !el) return drawList();
-  const fa = document.activeElement as HTMLElement | null, ff = el.contains(fa) ? fa?.dataset.af : undefined;
+  const fa = document.activeElement as HTMLElement | null, ff = el.contains(fa) ? fieldSel(fa) : null;
   W.added[i] = it.ok && screenSigs().has(itemSig(it));
   drawing = true; try { el.outerHTML = rowHtml(it, i, W.added[i]) } finally { drawing = false }
-  if (ff) $q<HTMLElement>(`#aco${i} [data-af="${ff}"]`)?.focus();
+  if (ff) $q<HTMLElement>(`#aco${i} ${ff}`)?.focus();
   const r = $q('#acg'); if (r) r.innerHTML = railHtml();
   const ft = $q('#acf'); if (ft) ft.innerHTML = footHtml();
 }
@@ -315,12 +357,28 @@ function onClick(e: Event) {
     root?.querySelector<HTMLElement>(`[data-ag="${CSS.escape(to)}"]`)?.focus({ preventScroll:true });
     return;
   }
-  if (t.closest('select,input,.rr')) return;              // the row's own controls
+  if (t.closest('select,input,.rr,.qp')) return;          // the row's own controls (a parameter's label too)
   const r = t.closest<HTMLElement>('.qrow[data-ai]'); if (r) toggle(Number(r.dataset.ai));
 }
 /** a rule or a threshold changed: kept per indicator; the row's "added" state follows (it compares the wire test) */
+/** a parameter field's value as the card reads it (builder.ts onBuilderField): an option, true/false, or a number (NaN
+    when empty, so the check names it) */
+function paramValue(p: EntryParam, el: HTMLInputElement | HTMLSelectElement): ParamValue {
+  return p.type === 'boolean' ? el.value === 'true' : p.options || p.type === 'enum' ? el.value : el.value.trim() === '' ? NaN : Number(el.value);
+}
+/** a parameter changed: kept in the rule (the first line's or the second's) */
+function setParam(el: HTMLInputElement | HTMLSelectElement): boolean {
+  const key = el.dataset.ap ?? el.dataset.ap2, it = W.items[Number(el.dataset.ai)];
+  if (key == null || !it?.entry || it.kind !== 'ind') return false;
+  const e = it.entry, p = e.params.find(x => x.key === key); if (!p) return false;
+  const r = ruleOf(e);
+  if (el.dataset.ap2 != null) r.second = { ...(r.second || cardOfRule(e).second), [key]:paramValue(p, el) } as Params;
+  else r.params = { ...r.params, [key]:paramValue(p, el) };
+  return true;
+}
 function onField(e: Event) {
   const el = e.target as HTMLInputElement | HTMLSelectElement, f = el.dataset.af, it = W.items[Number(el.dataset.ai)];
+  if (setParam(el)) { drawRow(Number(el.dataset.ai)); return }
   if (!f || !it?.entry || it.kind !== 'ind') return;
   if (f === 'opt') setOpt(it.entry, el.value);
   else { const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value) }
@@ -328,13 +386,14 @@ function onField(e: Event) {
 }
 function onInput(e: Event) {
   const el = e.target as HTMLInputElement, f = el.dataset.af, it = W.items[Number(el.dataset.ai)];
+  if (el.tagName === 'INPUT' && setParam(el)) return;
   if (!f || f === 'opt' || !it?.entry) return;
   const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value);
 }
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement, n = W.items.length;
-  if (t.dataset.af && e.key === 'Enter' && t.tagName === 'INPUT') { e.preventDefault(); onField(e); toggle(Number(t.dataset.ai)); return }
-  if (t.closest('.rr')) return;
+  if ((t.dataset.af || t.dataset.ap != null || t.dataset.ap2 != null) && e.key === 'Enter' && t.tagName === 'INPUT') { e.preventDefault(); onField(e); toggle(Number(t.dataset.ai)); return }
+  if (t.closest('.rr,.qps')) return;
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && n && (t.id === 'acq' || t.closest('#acl'))) {
     e.preventDefault(); drawRest(); moveAct((W.act + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
   } else if (e.key === 'Enter' && t.id === 'acq') { e.preventDefault(); toggle(W.act) }

@@ -12275,3 +12275,35 @@ pass saja. Konfirmasi before proceed."
   - Timeframe: 5m, 15m, 1h, 4h dan Daily tampil, Daily tersorot, tidak ada yang bisa diklik; 5m-4h abu-abu dengan
     keterangan "No data yet: intraday bars are not in the market database."; label "Timeframe · Daily" di bar filter
     tetap.
+
+## EXEC-SCREENER-ADD-PARAMS — sel gagal tanpa garis miring, parameter di jendela "Add a condition", "No" di kolom peristiwa (2026-11-06)
+
+### Permintaan user (2026-11-06, kata-kata user)
+"Tolong grid line-nya dihapus saja karena ini yang merusak hover state. Jadi hanya merah saja. Dengan tulisan no. Jadi
+tanpa grid line." dan "kalau saya klik add indicator, seperti di screenshot, simple moving average. Seharusnya threshold
+itu bisa diganti. Karena kalau kamu lihat screenshot satunya lagi, simple moving average itu bisa diganti dengan custom
+indicator juga. Seharusnya ini cukup konsisten. ... boleh lakukan audit saja mana indikator yang memang bisa di-custom.
+Sehingga threshold-nya bisa diatur."
+
+### Audit (katalog live dev, 128 indikator)
+- 82 punya parameter yang bisa diubah (49 indikator teknikal, 33 pola); jendela hanya menampilkannya sebagai teks, dan
+  parameter baru bisa diubah di kartu.
+- 58 punya parameter dan kondisi bawaannya punya ambang; 24 punya parameter tetapi kondisi bawaannya tanpa ambang
+  (SMA "Close above SMA" dan sejenisnya); 23 dari 24 itu punya kondisi lain dengan ambang.
+- 43 tanpa parameter dengan ambang (32 fundamental termasuk); 3 tanpa parameter dan tanpa ambang (OBV, PVT, A/D).
+
+### Keputusan user (2026-11-06): "ok"
+Jawaban atas dua pertanyaan: jendela pilihan A (saran: parameter bisa diubah di jendela, seperti kartu) dan kolom
+peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
+
+### Status eksekusi (branch `claude/charming-hamilton-faq25e`, belum di-merge)
+- Sel gagal pink polos, hover pink lebih tua, tanpa garis miring (ERRORS M376).
+- Jendela "Add a condition": parameter tiap indikator di baris kedua, bisa diubah, biru seperti ambang; batas dan
+  pemeriksaan sama dengan kartu (`paramError`); kondisi dua garis menampilkan parameter garis kedua ("2nd"); kartu
+  yang ditambahkan membawa parameternya (Custom) (ERRORS M377).
+- Kolom peristiwa di tabel: gagal tanpa peristiwa dalam jangkauan menulis "No"; peristiwa yang terjadi lebih awal dari
+  jendela tetap "N sessions ago".
+- Bukti: typecheck; vitest 783 lulus, 1 dilewati (3 tes baru); bundle 31; smoke langkah baru "Add a condition sets the
+  parameters too" lulus; visual 46 screenshot (1440 dan 1100); membuka jendela 24 kali tanpa tugas lambat, sama
+  dengan sebelum perubahan; tripwire OK.
+- Sisa: merge dan deploy edge-bff menunggu "go merge".

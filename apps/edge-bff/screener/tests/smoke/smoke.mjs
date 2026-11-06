@@ -271,7 +271,7 @@ await at('Add a condition is the one way to add: every door opens it, no detaile
   await adx.locator('[data-qact]').click(); await page.waitForTimeout(150);
   expect(await cards() === 1, 'Add did not add a card');
   expect(/\bisadd\b/.test(await adx.getAttribute('class')) && (await page.locator('#acg [data-ag="__on"] .c').innerText()) === '1', 'the row is not marked as on the screen');
-  await adx.locator('.qnm').click(); await page.waitForTimeout(150);                       // a click on an added row removes it
+  await adx.locator('.qnm b').click(); await page.waitForTimeout(150);                     // a click on an added row (its name) removes it
   expect(await cards() === 0, 'clicking an added row did not remove it');
   await page.click('#toast .toast-act'); await page.waitForTimeout(150);                   // Undo
   expect(await cards() === 1, 'Undo did not bring the condition back');
@@ -280,6 +280,27 @@ await at('Add a condition is the one way to add: every door opens it, no detaile
   await adx.locator('[data-qact]').click(); await page.waitForTimeout(150);
   expect(/Enter a value/.test(await text('#toast')) && await cards() === 1, 'an empty threshold was not refused with the card\'s message');
   await page.keyboard.press('Escape');
+  expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
+});
+await at('Add a condition sets the parameters too (user 2026-11-06, option A): Length 50 is added as a Custom card, a wrong Length is refused, a label click adds nothing', async () => {
+  await fresh(); await ready();
+  const r0 = await runs(), cards = () => page.locator('#condList .mc[data-card]').count();
+  await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', 'simple moving'); await page.waitForTimeout(150);
+  const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Simple Moving Average$/ }) });
+  const len = row.locator('[data-ap="length"]');
+  expect(await len.inputValue() === '20' && await row.locator('select[data-ap="source"]').count() === 1, 'the row does not offer Length and Source as fields');
+  await row.locator('.qp', { hasText:'Length' }).locator('span').click(); await page.waitForTimeout(100);
+  expect(await cards() === 0, 'a click on a parameter label added the row');
+  await len.fill('0'); await len.dispatchEvent('change'); await page.waitForTimeout(100);
+  expect(await row.locator('[data-ap="length"][aria-invalid="true"]').count() === 1, 'Length 0 is not marked wrong');
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(150);
+  expect(await cards() === 0 && /Length/.test(await text('#toast')), 'Length 0 was not refused with the field named: ' + await text('#toast'));
+  await row.locator('[data-ap="length"]').fill('50'); await row.locator('[data-ap="length"]').press('Enter'); await page.waitForTimeout(200);
+  expect(await cards() === 1, 'Enter in the Length field did not add the condition');
+  expect(/\bisadd\b/.test(await row.getAttribute('class')) && /\bchg\b/.test(await row.locator('.qp', { hasText:'Length' }).getAttribute('class')), 'the row is not on the screen with Length 50, in blue');
+  await page.keyboard.press('Escape');
+  const card = await openCard(0);
+  expect(await card.locator('[data-p="length"]').inputValue() === '50' && await card.locator('[data-segc].on').count() === 1, 'the card does not hold Length 50 as Custom: ' + await card.innerText());
   expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
 });
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
