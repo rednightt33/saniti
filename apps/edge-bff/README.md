@@ -23,6 +23,21 @@ It is a module-by-module port of the reference page `03-terminal-right-panel.htm
 | data shapes; live data from the rack; the reference's synthetic data | `terminal/src/data/types.ts`, `live.ts`, `fixture.ts` |
 | an indicator formula (spec `verification/terminal_api/INDICATOR_SPEC.md`) | `terminal/src/calc/indicators.ts`, tests `terminal/tests/calc` |
 | the gateway to terminal-api (data routes only, EDGE session + CSRF) | `app/main.py` (`forward_terminal`), `tests/test_terminal.py` |
+| saved chart layouts (EXEC-TERMINAL-LAYOUTS): the menu, what a layout holds (`LAYOUT_KEYS`) | `terminal/src/app/layouts.ts`, `terminal/src/data/layoutsApi.ts`, tests `terminal/tests/data/layouts.test.ts` |
+| the layouts API on edge-bff, table `edge_bff.terminal_layouts` (migration `20261106_001`) | `app/layouts.py`, `tests/test_layouts.py` |
+
+Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), EDGE session, writes with CSRF:
+
+| Route | Contract |
+| --- | --- |
+| GET `/api/v1/terminal/layouts` | `{layouts: [Layout without state], limit}` of the owner, the most recently opened first |
+| GET `/api/v1/terminal/layouts/{layout_id}` | the Layout with `state` (setting name -> text); 404 `NOT_FOUND` |
+| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field (more than 64 settings, text with NUL or an unpaired surrogate included), 422 `LIMIT_EXCEEDED` (50 layouts, 65,536 bytes of state); a body over 131,072 bytes is 413 before the route |
+| PATCH `/api/v1/terminal/layouts/{layout_id}` | `{favorite?, opened?: true}`: the star, or the Recently used order; no revision |
+| DELETE `/api/v1/terminal/layouts/{layout_id}` | 204; 404 `NOT_FOUND` |
+
+Without the table (migration not applied) every route answers 503 `LAYOUTS_NOT_READY` with `Retry-After`; `/ready` never
+reads it. `layout_id` is `lay_` and 32 lowercase hex digits, made by the page.
 
 Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build), `npx vitest run tests/calc`
 (parity), and the 1:1 check `TERMINAL_REFERENCE_HTML=<reference file> node tests/visual/compare.mjs <out>` then
@@ -377,14 +392,15 @@ Limitations written out (Word has no folded sections) and the footer. Tests: `te
 Orc owns history, answers, methodology, evidence, usage and exports. BFF accesses them only through authenticated
 Orc endpoints, not SQL. Its dedicated restricted schema holds its operational tables: sessions, jobs and UI metadata,
 and, with migration `20261026_005`, the three backtest tables (backtest jobs, result parts and trials; see Backtest
-tab), and with migration `20261028_001` the screener's saved items and watchlist (see Screener tab), which hold no
-market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
+tab), with migration `20261028_001` the screener's saved items and watchlist (see Screener tab), and with migration
+`20261106_001` the Terminal's saved chart layouts (see Terminal tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
 not extend Orc's retention (code default 30 days, actual configuration must be checked before rollout). Expired
 history returns 410.
 There is currently no automatic purge of terminal job inputs/UI metadata or of backtest jobs: define an operational
 retention policy before long-term use. Backtest result parts are deleted after 30 days; the backtest trials are never
 reset (K3). Saved screener items and the watchlist are the user's own objects and are not purged (each owner at most
-`SCREEN_LIMIT` items of each kind and `WATCHLIST_LIMIT` tickers); every statement on them names the owner. Sessions are cleaned when the loop starts and then hourly.
+`SCREEN_LIMIT` items of each kind and `WATCHLIST_LIMIT` tickers); every statement on them names the owner. Saved Terminal
+layouts are the user's own objects too and are not purged (at most `LAYOUT_LIMIT` = 50 per owner, owner in every statement). Sessions are cleaned when the loop starts and then hourly.
 
 Deployment configuration rejects an administrative database username; it requires `edge_bff_login`.
 The server sets `X-Saniti-Owner`; a browser cannot choose an owner. One active job per owner is intentional for this

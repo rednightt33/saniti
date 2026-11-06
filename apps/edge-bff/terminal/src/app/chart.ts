@@ -1,6 +1,6 @@
 /* Main price chart, compare series and the toolbar groups (reference lines 1137-1384). */
 import type { Ctx } from './context';
-import { $, hasLogos, logoHtml } from './context';
+import { $, hasLogos, logoHtml, store } from './context';
 import type { Point } from '../data/types';
 import { barDecimals, priceText } from '../data/priceFormat';
 
@@ -244,6 +244,7 @@ export function initChart(ctx: Ctx) {
     activate(event.currentTarget, button);
     event.currentTarget.querySelectorAll('button').forEach((b: HTMLElement) => b.setAttribute('aria-pressed', String(b===button)));
     ctx.chartStyle = button.dataset.style;
+    if(ctx.M.mode === 'live') store.set('ml.chart.style', ctx.chartStyle);     // EXEC-TERMINAL-LAYOUTS: kept, and part of a layout
     updateMainDisplay();
   });
   $('modeGroup').addEventListener('click', (event: any) => {
@@ -251,6 +252,7 @@ export function initChart(ctx: Ctx) {
     if (!button) return;
     activate(event.currentTarget, button);
     ctx.displayMode = button.dataset.mode;
+    if(ctx.M.mode === 'live') store.set('ml.chart.mode', ctx.displayMode);     // EXEC-TERMINAL-LAYOUTS
     updateMainDisplay();
     active.forEach((_, id) => refreshSeries(id));
     chart.priceScale('left').applyOptions({ autoScale:true });
@@ -325,7 +327,7 @@ function intradayMarks(ctx: Ctx, chart: any, series: any[], keys: string[], cont
   }
   series.forEach(s => s.attachPrimitive(new SessionLines()));
   if (!keys.length) return;
-  const day = (k: string) => new Date(k.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' });
+  const day = (k: string) => new Date(k.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
   const tf = String(ctx.M.tf || '').toUpperCase(), last = keys[keys.length - 1];
   const note = document.createElement('div');
   note.className = 'tf-note';

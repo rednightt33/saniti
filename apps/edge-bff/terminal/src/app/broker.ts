@@ -1,7 +1,7 @@
 /* RIGHT PANEL — Broker activity (reference lines 3685-3985). The fixture is the reference's dummy history built around
    a real BBCA day; live data is the published broker summary of the ticker (the last sessions in its files). */
 import type { Ctx } from './context';
-import { $, keyOf, nfCompact, pct, row, spin, store } from './context';
+import { $, keyOf, minus, nfCompact, pct, row, spin, store } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
 import { aggregate, fdQuadrant, fdSplit, FD_QUADRANTS, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
 import { atLeast } from '../calc/flow';
@@ -36,6 +36,22 @@ export function bandarBalance(list: { b: string; bv: number; sv: number }[], n: 
   return { buyers:buyers.map(x => x.b), sellers:sellers.map(x => x.b), buy, sell, net:buy - sell, total, ratio, verdict:bandarVerdict(ratio) };
 }
 
+/** EXEC Top brokers 1A (user 2026-11-06: "ada keterangan apakah ini Big accum, accum, normal or what"; "1A"): the verdict
+    as a five-step ladder, Big Dist · Dist · Neutral · Acc · Big Acc, the step the ratio falls in marked, the levels written
+    under the steps (FL24's ±6% and ±10%) and a pin at the ratio (±15% fills the ladder). The levels come from the verdict
+    rule itself (BANDAR_LEVELS), not a second list. */
+export function verdictLadder(ratio: number, tip: string): string {
+  const [acc, big] = BANDAR_LEVELS.map(v => v / 100), steps: [string, string][] =   // the levels are percent (6, 10); the ratio a share
+    [['Big Dist', 'dist big'], ['Dist', 'dist'], ['Neutral', 'neu'], ['Acc', 'acc'], ['Big Acc', 'acc big']];
+  const [cur] = bandarVerdict(ratio), lim = Math.max(big * 1.5, 0.15), x = Math.max(0, Math.min(100, 50 + ratio / lim * 50));
+  const pos = (v: number) => (50 + v / lim * 50).toFixed(2), pctL = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}%`;
+  const edges = [-lim, -big, -acc, acc, big, lim];
+  return `<div class="acc-ladder" data-tip="${tip}" role="img" aria-label="Verdict ${cur}: ${minus((ratio * 100).toFixed(2))}% of total buy">`
+    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}" style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
+    + `<i class="acc-pin" style="left:${x.toFixed(1)}%"></i></div>`
+    + `<div class="acc-lv">${[-big, -acc, acc, big].map(v => `<span style="left:${pos(v)}%">${pctL(v)}</span>`).join('')}</div></div>`;
+}
+
 /** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
 export function niceTicks(lo: number, hi: number): number[] {
   const span = (hi - lo) || 1, raw = span / 6, mag = 10 ** Math.floor(Math.log10(raw));
@@ -59,7 +75,10 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-IHSG-FLOW (user 2026-11-03: "B", "Sembunyikan"): an index's broker rows are the market aggregate, so its panels
      show Rupiah only: no Lot and no Avg in Broker summary, Broker inventory in Value without the Lot button */
   const IDX = !!M.index;
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', accBoard:'All', accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:IDX ? 'value' : 'lot', invInv:'All', invBoard:'All',
+  /* EXEC-FLOW-PANE-FILTERS 2A (user 2026-11-06: "semua board ... defaultnya adalah Regular"): live panels start on the
+     Regular board; the fixture keeps All (the reference's 1:1 check) */
+  const BOARD0 = live ? 'Regular' : 'All';
+  const RS = { d:0, inv:'All', board:BOARD0, mode:'net', more:false, accSide:'buy', accBoard:BOARD0, accN:[3, 5, 10].includes(topKept) ? topKept : BANDAR_TOP, bdN:live ? BANDAR_TOP : 5, broker:null, invUnit:IDX ? 'value' : 'lot', invInv:'All', invBoard:BOARD0, fdBoard:BOARD0,
     fdN:[3, 5, 10].includes(Number(store.get('ml.fd.top'))) ? Number(store.get('ml.fd.top')) : 3 };
   if(live){
     $('bdTop').querySelectorAll('button').forEach((b: any) => b.classList.toggle('active', +b.dataset.n === RS.bdN));
@@ -92,7 +111,11 @@ export function initBroker(ctx: Ctx) {
     if($('workspace').classList.contains('right-collapsed')) $('rpExpand').click();
     const sec = $('bsBody').closest('.st') as HTMLElement | null;
     if(sec?.classList.contains('collapsed')) (sec.querySelector('.st-head') as HTMLElement).click();
-    sec?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    /* EXEC-TERMINAL-LOOK-2 (user 2026-11-06: "once alt B sudah selected custom timeframe, maka panel kanan otomatis ke
+       scroll ke atas"): the panel's scrolling column goes back to its top, Broker summary from its title */
+    let sc = sec?.parentElement || null;
+    while(sc && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
+    if(sc) sc.scrollTo({ top:0, behavior:'smooth' }); else sec?.scrollIntoView({ block:'start', behavior:'smooth' });
   };
   if(live) document.addEventListener('keydown', (e: any) => {
     if(!e.altKey || e.ctrlKey || e.metaKey || e.code !== 'KeyB' || e.repeat || !ready) return;
@@ -135,6 +158,10 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-TERMINAL-PANELS B1, EXEC-BROKER-FULL: the panel gets the recent broker years first and the whole history after them; a second
      answer redraws it with the user's choices (periods by date, filters, picked brokers) kept */
   ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()) };
+  ctx.brokerPanelFailed = () => {
+    $('rpSub').textContent = `${M.broker.label} · broker data could not be loaded`;
+    ['bsBody','accBody','fdBody','invBody', ...(M.hide.bandar ? [] : ['bdBody'])].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = '<div class="rp-empty">Broker data could not be loaded. Reload the page to try again.</div>' });
+  };
   if(M.later){
     $('rpSub').textContent = `${M.broker.label} · loading`;
     // the hidden Bandar section gets no ring: nothing would ever replace it
@@ -167,6 +194,12 @@ export function initBroker(ctx: Ctx) {
   });
   rpAside.addEventListener('pointerleave', hideStTip);
   $('rightScroll').addEventListener('scroll', hideStTip, {passive:true});
+  /* QA M4 (2026-11-06): a map point's tooltip also on keyboard focus and on a tap (no hover on touch screens) */
+  const tipAt = (el: Element) => { const r = el.getBoundingClientRect(); showStTip(r.right, r.top, tipHtml((el as HTMLElement).dataset.tip as string)) };
+  rpAside.addEventListener('focusin', (e: any) => { const t = e.target.closest?.('.fdm-pt[data-tip]'); if(t) tipAt(t) });
+  rpAside.addEventListener('focusout', (e: any) => { if(e.target.closest?.('.fdm-pt[data-tip]')) hideStTip() });
+  rpAside.addEventListener('click', (e: any) => { const t = e.target.closest?.('.fdm-pt[data-tip]'); if(t) tipAt(t) });
+  rpAside.addEventListener('keydown', (e: any) => { if(e.key === 'Escape' && e.target.closest?.('.fdm-pt')) hideStTip() });
 
   let rpSec = {};
   try{ rpSec = JSON.parse(store.get('ml.broker.sections') || '{}') || {} }catch(e){}
@@ -216,10 +249,11 @@ export function initBroker(ctx: Ctx) {
 
   /* ---- state ---- */
   RS.d = BK_DAYS-1;
-  const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return t.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}) };
-  const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'});
+  const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return t.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep') };
+  // QA (2026-11-06): en-GB writes September "Sept"; the Terminal's other dates use three letters
+  const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'}).replace('Sept', 'Sep');
   const cv = v => nfCompact.format(Math.abs(v));
-  const sgn = v => (v<0?'-':'+') + cv(v);
+  const sgn = v => { const c = cv(v); return c === '0' ? '0' : (v<0?'−':'+') + c };   // QA round 2: one minus sign; round 4 (L3): no "+0"
   const bkTag = (b) => `<span class="bk ${bkCat(b)}"><i></i>${b}</span>`;
   const verdict = r => {
     if(live) return bandarVerdict(r);                                  // the agreed levels (FL24); the fixture keeps the reference's
@@ -327,7 +361,7 @@ export function initBroker(ctx: Ctx) {
       <div class="rp-sub"><span>${gross?'Top sellers · gross':'Top net sellers'}</span><span>${sellers.length} brokers</span></div>
       <table class="rp-t">${head}<tbody>${rowsHtml(sellers,'s')}</tbody></table>
       ${can?`<button class="rp-more" id="bsMore">${RS.more?'Show less':'Show top 10'}</button>`:''}`;
-    $('bsHint').textContent = (gross ? 'Gross' : 'Net') + ' · ' + bsRange.text();
+    $('bsHint').textContent = (gross ? 'Gross' : 'Net') + ' · ' + bsRange.text() + (live && RS.board !== 'All' ? ` · ${RS.board}` : '');   // QA round 3 (F3)
     const mb = $('bsMore'); if(mb) mb.onclick = () => { RS.more = !RS.more; renderBS() };
     $('bsBody').querySelectorAll('tr[data-b]').forEach(tr => tr.onclick = () => selectBroker(tr.dataset.b));
   }
@@ -346,7 +380,10 @@ export function initBroker(ctx: Ctx) {
      2026-10-30) */
   if(live){
     $('accTitle').textContent = 'Top brokers';
-    if($('accSide')) ($('accSide').closest('.rp-ctl') as HTMLElement).innerHTML = `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`;
+    /* Top brokers spacing (user 2026-11-06): the Board choice sits on the period row instead of a row of its own */
+    /* the period row is rebuilt each time the data arrives (makeRange), so the choice is added when it is missing */
+    document.getElementById('accSide')?.closest('.rp-ctl')?.remove();
+    if(!document.getElementById('accBoard')) ($('accRange').querySelector('.rp-ctl') as HTMLElement).insertAdjacentHTML('beforeend', `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`);
     $('accBoard').value = RS.accBoard;
     $('accBoard').onchange = e => { RS.accBoard = e.target.value; renderAcc() };
   }
@@ -365,9 +402,11 @@ export function initBroker(ctx: Ctx) {
     const val = (x, side) => `<span class="v ${side==='buy'?'up':'down'}">${x ? sgn(x.net) : ''}</span>`;
     const bar = (x, side) => `<div class="trk ${side}">${x ? splitFill(Math.abs(x.net)/mx*100, x.f, x.d, side) : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
-    const [vt, vc] = bal.verdict, big = /^Big /.test(vt) ? ' big' : '';
-    const ratio = (bal.ratio > 0 ? '+' : bal.ratio < 0 ? '−' : '') + Math.abs(bal.ratio * 100).toFixed(2) + '%';
-    const why = `Bandar balance · Top ${N}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
+    const r2 = +(bal.ratio * 100).toFixed(2), ratio = (r2 > 0 ? '+' : r2 < 0 ? '−' : '') + Math.abs(r2).toFixed(2) + '%';   // QA: never "−0.00%"
+    /* QA round 3 (agent 3 F1): the verdict, the ladder and the header read the ratio as shown (two decimals), so "+6.00%"
+       is never called Neutral */
+    const shown = r2 / 100, [vt, vc] = bandarVerdict(shown), big = /^Big /.test(vt) ? ' big' : '', onBoard = board === 'All' ? '' : ` · ${board}`;
+    const why = `Bandar balance · Top ${N}${onBoard}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
       + ` = (${cv(bal.buy)} − ${cv(bal.sell)}) ÷ ${cv(bal.total)} = ${ratio}. Acc from 6%, Big Acc from 10%; Dist and Big Dist the same below zero.`;
     /* EXEC-BROKER-INV-PANEL (user 2026-11-06, design top_brokers_panel.html "Dua lajur"): three lanes, Domestic, Foreign and
        Total, each the Top N buyers' net against the Top N sellers' net in that investor type; Domestic + Foreign = Total */
@@ -382,16 +421,20 @@ export function initBroker(ctx: Ctx) {
       + '<div class="acc-cut"></div>' + lane('Total', sp.buy.t, sp.sell.t, sp.net.t, false, true);
     const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
-      + `<span class="tag ${vc}${big}" data-tip="${why}">${vt}</span><span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
-      + `<div class="acc-lanes">${lanes}</div>`;
+      + `<span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
+      + verdictLadder(shown, why)
+      /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
+         dots beside the codes are the broker's own type (live: Foreign or local) */
+      + `<div class="acc-lanes"><div class="acc-cap">Investor type of the trades · Top ${N} brokers</div>${lanes}</div>`;
     $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
-        + `<div class="acc-leg">${SPLIT_LEGEND}</div>`
-      : `<div class="rp-empty">Tidak ada data</div>`;
+        + `<div class="acc-leg">${SPLIT_LEGEND}<span class="bk-leg">Dot: broker's own type <span class="bk F"><i></i>Foreign</span><span class="bk L"><i></i>Domestic</span></span></div>`
+      /* QA M7 (2026-11-06): trades whose every broker nets to 0 (crossing on Nego or Cash) are not "no data" */
+      : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`;
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
     $('accBody').querySelectorAll('#accTop button').forEach(btn => btn.onclick = () => { RS.accN = +btn.dataset.n; store.set('ml.acc.top', String(RS.accN)); renderAcc() });
-    $('accHint').textContent = `${accRange.text()} · net · ${vt}`;
+    $('accHint').textContent = (n ? `${accRange.text()} · net · ${vt}` : `${accRange.text()} · net`) + (board === 'All' ? '' : ` · ${board}`);   // QA round 3 (F3): the board
   }
   function renderAcc(){
     if(live) return renderAccPaired();
@@ -513,11 +556,11 @@ export function initBroker(ctx: Ctx) {
     const lines = all.map((s, k) => `<path d="${s.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.cum).toFixed(1)).join('')}" fill="none" stroke="${INV_COLORS[k]}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
     const unit = RS.invUnit === 'lot' ? 'lot' : '';
     const hits = Array.from({ length:n }, (_, i) => {
-      const d = invRange.bf + i, rows = picks.map((b,k) => `${b} ${all[k][i].cum<0?'-':'+'}${cv(all[k][i].cum)}`).join('<br>');
+      const d = invRange.bf + i, rows = picks.map((b,k) => `${b} ${all[k][i].cum<0?'−':'+'}${cv(all[k][i].cum)}`).join('<br>');
       return `<rect class="hit" x="${(x(i)-W/(n-1)/2).toFixed(1)}" y="0" width="${(W/(n-1)).toFixed(1)}" height="${H}" data-tip="${bkDates[d].slice(5)}|<br>${rows}"></rect>`;
     }).join('');
     $('invBody').innerHTML = `
-      <div class="rp-invwrap"><span class="rp-ymax">${hi>0?'+'+cv(hi):'0'}</span><span class="rp-ymin">${lo<0?'-'+cv(lo):'0'}</span>
+      <div class="rp-invwrap"><span class="rp-ymax">${hi>0?'+'+cv(hi):'0'}</span><span class="rp-ymin">${lo<0?'−'+cv(lo):'0'}</span>
         <svg class="rp-inv" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">
           <line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#d4d4d4" stroke-dasharray="3 3"/>${lines}${hits}</svg></div>
       <div class="axis"><span class="l">${bkDates[invRange.bf].slice(5)}</span><span class="r">${bkDates[invRange.bt].slice(5)}</span></div>`;
@@ -557,34 +600,43 @@ export function initBroker(ctx: Ctx) {
 
   /* ---- Foreign × Domestic map (EXEC-BROKER-INV-PANEL, user 2026-11-06: own panel "1B", English "2A") ----
      the points are the 20D, 5D and 1D periods ending at the panel's chosen end, plus the chosen period when it is custom;
-     every board, every investor type split into Foreign (x) and Domestic (y) */
+     on the map's Board choice (Regular by default, 2A), every investor type split into Foreign (x) and Domestic (y) */
   const fdSec = document.querySelector('.st[data-sec="fdmap"]') as HTMLElement | null;
   if(fdSec && live) fdSec.hidden = false;
   const fdRange = makeRange($('fdRange'), { key:'fd', presets:[1,5,20], def:5, onChange:() => renderFD() });
+  const fdRangeText = (f: number, t: number) => f === t ? dayShort(t) : `${dayShort(f)} – ${dayShort(t)}`;
   const fdPoint = (f: number, t: number, label: string, cur: boolean): MapPoint => {
-    const N = RS.fdN, part = inv => new Map(bkAggRange(f, t, inv, 'All').map(o => [o.b, netOf(o)]));
-    const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', 'All'), N);
+    const N = RS.fdN, board = RS.fdBoard, part = inv => new Map(bkAggRange(f, t, inv, board).map(o => [o.b, netOf(o)]));
+    const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', board), N);
     const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
     const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
-    return { label, x, y, r, cur, empty:!(bal.total > 0), tip:`${label} · Top ${N}, all boards · X foreign ${x.toFixed(1)}% + Y domestic ${y.toFixed(1)}% = verdict ${r.toFixed(1)}% of total buy value` };
+    const pc = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%` };   // QA round 3 (agent 5 M4): never "−0.0%"
+    return { label, x, y, r, cur, empty:!(bal.total > 0),
+      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|X foreign ${pc(x)} + Y domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
   };
   function renderFD(){
     if(!fdSec || fdSec.hidden) return;
     // a period near the first session holds fewer sessions: its label says how many
-    const t = fdRange.bt, custom = fdRange.bn === 'custom', pts: MapPoint[] = [20, 5, 1].map(d => { const f = Math.max(0, t - d + 1); return fdPoint(f, t, `${t - f + 1}D`, !custom && +fdRange.bn === d) });
-    if(custom) pts.push(fdPoint(fdRange.bf, fdRange.bt, `${fdRange.days()}D`, true));
+    /* QA M4 (2026-11-06): one point per distinct period: near the first session the presets collapse, and a custom period
+       equal to a preset marks that preset */
+    const t = fdRange.bt, custom = fdRange.bn === 'custom', spans = new Map<string, [number, number, boolean]>();
+    for (const d of [20, 5, 1]) { const f = Math.max(0, t - d + 1), k = `${f}-${t}`; const was = spans.get(k); spans.set(k, [f, t, (was?.[2] || false) || (!custom && +fdRange.bn === d)]) }
+    if (custom) { const k = `${fdRange.bf}-${fdRange.bt}`, was = spans.get(k); spans.set(k, [fdRange.bf, fdRange.bt, true]); void was }
+    const pts: MapPoint[] = [...spans.values()].sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).map(([f, tt, c]) => fdPoint(f, tt, `${tt - f + 1}D`, c));
     const cur = pts.find(p => p.cur) || pts[1], lim = mapLimit(pts.flatMap(p => [p.x, p.y, p.r]));
-    const [vt, vc] = bandarVerdict(cur.r / 100), big = /^Big /.test(vt) ? ' big' : '';
+    const [vt, vc] = bandarVerdict(Math.round(cur.r * 100) / 1e4), big = /^Big /.test(vt) ? ' big' : '';   // as Top brokers: the ratio as shown
     $('fdTop').innerHTML = [3, 5, 10].map(k => `<button type="button" data-n="${k}" class="${k === RS.fdN ? 'active' : ''}" aria-pressed="${k === RS.fdN}">Top ${k}</button>`).join('');
-    $('fdNote').textContent = 'All boards';           // reviewer 1: the map does not follow Top brokers' Board choice
+    // the map has its own Board choice (reviewer 1: it does not follow Top brokers' choice); x, y and the verdict share it
+    $('fdBoard').value = RS.fdBoard;
+    $('fdBoard').onchange = (e: any) => { RS.fdBoard = e.target.value; renderFD() };
     $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
-    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
+    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty, RS.fdN)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
       + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
     $('fdHint').textContent = fdRange.text();
   }
 
   /* ---- wiring ---- */
-  $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${new Date(bkDates[RS.d]+'T00:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'})} ${bkDates[RS.d].slice(0,4)}`;
+  $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${new Date(bkDates[RS.d]+'T00:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'}).replace('Sept', 'Sep')} ${bkDates[RS.d].slice(0,4)}`;
   const renderAll = () => { renderBS(); renderAcc(); renderFD(); renderInv(); renderBD() };
   // EXEC-TERMINAL-PANELS C1: a period dragged on the chart applies to every panel (each can change it again)
   applyChartRange = (f, t) => { closeRangeCalendar(); [bsRange, accRange, fdRange, invRange, bdRange].forEach(r => r.setDates(f, t)) };
@@ -592,6 +644,7 @@ export function initBroker(ctx: Ctx) {
   panelRefresh = () => { invFilter.refresh(); renderAll() };
   const selectBroker = b => ctx.brokerShared!.pick(b);
   $('bsInv').onchange = e => { RS.inv = e.target.value; renderBS() };
+  $('bsBoard').value = RS.board;
   $('bsBoard').onchange = e => { RS.board = e.target.value; renderBS() };
   const segWire = (id, attr, fn) => $(id).querySelectorAll('button').forEach(btn => btn.onclick = () => {
     $(id).querySelectorAll('button').forEach(x=>x.classList.toggle('active', x===btn)); fn(btn.dataset[attr]);

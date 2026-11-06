@@ -19,9 +19,44 @@ export const FLOW_REG = REG as unknown as { families: string[]; indicators: Flow
    lots or its Rupiah-per-share average price. On an index (the market aggregate of every stock) they are hidden
    (data/inputs.ts 'single'): lots of different stocks do not add up (2 Nov: GOTO 43.1 M lots = Rp104 bn, BUMI 38.2 M lots
    = Rp482 bn), a Rupiah-per-share VWAP is not the index level, an index has no volume and no insider. Review in EXEC.md. */
-/** EXEC-BROKER-INV-PANEL (user 2026-11-06: "Pilihannya brokers, Market Board dan Investor Type saja"): the choices shown as
-    buttons on an indicator's own pane row; the others stay in the settings dialog */
-export const PANE_FILTERS: Record<string, string[]> = { FL23:['brokers', 'boards', 'investors'] };
+/** EXEC-FLOW-PANE-FILTERS (user go 2026-11-06): the choices shown on a Flow indicator's legend row, in this order, when the
+    indicator has them (Broker Inventory 2026-11-06: brokers, boards, investors). FL46's two sides use prefixed keys
+    (num_, den_), so it gets none and keeps its settings dialog; the others (window, baseline, unit, levels, Side) stay
+    in the dialog. */
+export const PANE_FILTER_KEYS = ['scope', 'top', 'rank', 'brokers', 'boards', 'investors'] as const;
+/** QA M2: the whole market's cohort (every broker, both investor types) */
+export const allBrokersBothSides = (p: any) => !!p && p.scope === 'all' && (!Array.isArray(p.investors) || p.investors.length >= 2);
+/** a result with no finite non-zero value in any output series (all 0 or empty) */
+/** QA round 2 (R2-M1, 2026-11-06): a result that carries nothing: it has values and every value is the same (0 for a net,
+    a flat 50 for the percentile of a constant 0). An empty result (too little history) is not this case: it gets the
+    history note instead */
+export const carriesNothing = (o: any) => {
+  const series = Object.values(o || {}).filter(Array.isArray) as any[][];
+  let first: number | null = null;
+  for (const a of series) for (const v of a) {
+    if (v === null || v === undefined || !Number.isFinite(v)) continue;
+    if (first === null) first = v; else if (Math.abs(v - first) > 1e-9 * Math.max(1, Math.abs(first))) return false;
+  }
+  return first !== null;
+};
+/** the first candle with a value in any output, or -1 */
+export const firstValueAt = (o: any) => {
+  let f = -1;
+  for (const a of Object.values(o || {}).filter(Array.isArray) as any[][]) {
+    const k = a.findIndex(v => v !== null && v !== undefined && Number.isFinite(v));
+    if (k >= 0 && (f < 0 || k < f)) f = k;
+  }
+  return f;
+};
+/** EXEC-TERMINAL-LOOK-2 (3): a list the user emptied (Clear) draws nothing and says what to choose */
+export function emptyChoice(p: any): string {
+  if (!p) return '';
+  const brokersShown = p.scope === undefined || p.scope === 'selected';
+  if (brokersShown && Array.isArray(p.brokers) && !p.brokers.length && 'brokers' in p) return 'Choose at least one broker';
+  if (Array.isArray(p.boards) && !p.boards.length) return 'Choose at least one board';
+  if (Array.isArray(p.investors) && !p.investors.length) return 'Choose at least one investor';
+  return '';
+}
 export const SINGLE_SECURITY = new Set(['FL01', 'FL03', 'FL05', 'FL06', 'FL07', 'FL08', 'FL09', 'FL13', 'FL14', 'FL15',
   'FL17', 'FL18', 'FL19', 'FL20', 'FL27', 'FL31', 'FL39',
   /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05 "Ok, masukan exec"): the new ones built on a Rupiah-per-share price */
@@ -254,17 +289,21 @@ export function initFlowIndicators(ctx: Ctx) {
     /* EXEC-BROKER-INV-PANEL: an indicator that counts from the first candle on screen (a fixed `start`) marks its 0 in the
        pane; the pane's own broker, board and investor buttons are the user's choice for Broker Inventory (2026-11-06) */
     const zeroLabel = r.place === 'pane' && r.params.some(q => q.key === 'start' && q.kind === 'fixed');
-    const paneFilters = PANE_FILTERS[r.id];
+    const paneFilters = PANE_FILTER_KEYS.filter(k => inputs.some((f: any) => f.key === k));
     return {
       id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, zeroLabel, paneFilters, inputs, style:[], fill:null,
       pane:r.place === 'pane' ? 'sub' : 'overlay', format:F.fmt, minMove:F.minMove,
       outsOf:(p: any) => outs(p.plot === 'hist' ? 'histogram' : p.plot === 'line' ? 'line' : plotDefault, p),
       compute:(p: any) => {
+        if (emptyChoice(p)) return {};                 // nothing chosen: no line (the row says what to choose)
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
         if (r.id === 'FL23') q.start = firstVisible();
         noLot(q);
         const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
+        /* QA M2 (2026-11-06, user "go with your advice"): every broker over both investor types nets to 0 (each buy has a
+           seller), so a net reading of that cohort carries no information; read from the result, not a list of indicators */
+        if (ctx.flowRows?.n && allBrokersBothSides(p) && carriesNothing(o)) return { _allZero:true };
         if (r.id !== 'FL23') return o;
         const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
         codes.forEach((c, j) => { slots[SLOTS[j]] = o[c] });
@@ -273,16 +312,26 @@ export function initFlowIndicators(ctx: Ctx) {
       },
       /* the legend's text where the value is empty: why, when the reason is the data (plan S4: a message, not a zero) */
       note:(i: number, raw: any, p: any) => {
-        const R = ctx.flowRows;
+        const R = ctx.flowRows, empty = emptyChoice(p);
+        if (empty) return empty;
+        if (raw?._allZero) return 'All brokers over both investor types always net to 0: choose Foreign or Domestic, or a Top-N cohort';
         if (isBrokerFree(r)) return noVolume ? 'No volume for this ticker' : '';
         /* a list given as a classification (FL34) waits for the reference file's classes */
         const usesClass = p && Object.values(p).some(v => typeof v === 'string' && v.startsWith('class:'));
         if (usesClass && classState !== 'ready') return classState === 'loading' ? 'Loading the broker classification' : 'No broker classification published yet';
-        if (!R) return 'Loading broker data';
+        if (!R) return ctx.brokerFailed ? 'Broker data could not be loaded: reload the page' : 'Loading broker data';
         if (!R.n) return 'No broker data for this ticker';
         if (i > ctx.brokerEnd) return 'No broker data yet';
         const di = DAY ? DAY.dayOf[i] : i;
         if (di < 0 || !R.has[di]) return `No broker data on this ${one}`;
+        /* QA M8, R2-M2 (2026-11-06): a value still empty because the indicator's window reaches before the first broker
+           candle. The need is read from the indicator's own first value (exact for every formula); with no value yet it
+           is the sum of its windows, said as "at least" */
+        { const count = (to: number) => { let n = 0; for (let k = 0; k <= to && k < R.N; k++) if (R.has[k]) n++; return n };
+          const f = firstValueAt(raw), seen = count(di);
+          if (f >= 0) { const fd = DAY ? DAY.dayOf[f] : f; if (fd >= 0 && di < fd) return `Needs ${count(fd)} ${one}s of broker history (${seen} so far)` }
+          else { const est = ['window', 'baseline', 'recent'].reduce((t, k) => t + Math.max(0, Number(p?.[k]) || 0), 0);
+            if (est > seen) return `Needs at least ${est} ${one}s of broker history (${seen} so far)` } }
         /* K4 (user 2026-11-05 "3 ok"): a choice that counts transactions needs them; the others draw without them */
         if ((r.needs_frequency || needsCounts(p)) && !hasCounts(R)) return r.needs_frequency ? 'Needs the transaction counts'
           : 'No transaction counts for this ticker: choose Value or Lot';
@@ -295,10 +344,10 @@ export function initFlowIndicators(ctx: Ctx) {
         return '';
       },
       validate:(p: any) => {
-        if (p.scope === 'selected' && !(Array.isArray(p.brokers) && p.brokers.length)) return 'Choose at least one broker.';
+        // QA M1 (2026-11-06): an emptied list is a saved state (the row asks for a choice), not an invalid one
         if (r.id === 'FL46') { const why = ratioRefusal(p); if (why) return why }
         if (r.id === 'FL34') { const a = new Set(brokersOf(p.inst)); if (brokersOf(p.retail).some(b => a.has(b))) return 'A broker cannot be in both the institutional and the retail list.' }
-        if (r.id === 'FL23' && Array.isArray(p.brokers) && (p.brokers.length < 1 || p.brokers.length > 5)) return 'Choose 1 to 5 brokers.';
+        if (r.id === 'FL23' && Array.isArray(p.brokers) && p.brokers.length > 5) return 'Choose up to 5 brokers.';
         return '';
       },
       /* a ratio's neutral line is 1, an imbalance's 0 (FL48 "Show as"; verification 2026-11-05): the default guide follows */
@@ -320,6 +369,10 @@ export function initFlowIndicators(ctx: Ctx) {
         if (p.side && p.side !== 'buy' && !(sided && p.scope === 'topn')) parts.push(p.side === 'both' ? 'Buy & Sell' : 'Sell');
         const f = filterText(p); if (f) parts.push(f);
         if (p.window) parts.push(`${p.window}${letter}`);
+        /* QA round 2/3 (open Low "units not written"): a figure in lots says so (Rupiah figures carry "Rp" themselves);
+           from the registry unit: lot per trade, or a lot/value choice left at lot */
+        if (r.unit === 'lot/tx') parts.push('lot per trade');
+        else if (r.unit === 'lot|IDR' && !onIndex && (p.unit ?? byKey.unit?.default) === 'lot') parts.push('Lot');
         return spec.titled(parts[0], parts.slice(1));
       },
     };

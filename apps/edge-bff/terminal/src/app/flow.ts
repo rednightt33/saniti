@@ -62,6 +62,29 @@ export function initFlow(ctx: Ctx) {
   /* ---- filter state ---- */
   const allBrokers = ctx.allBrokers = () => [...new Set(ctx.COMBOS.map(c=>c.broker))].sort();
   const flt = { brokers:new Set(allBrokers()), boards:new Set(BOARDS.map(b=>b.id)), investors:new Set(['Foreign']) };
+  /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the Flow Timeline's filters are kept (they are part of a layout). Boards and
+     investors as chosen; brokers as a list only when not every broker is chosen, applied to the ticker's own brokers once
+     they arrive (a list with none of them means every broker) */
+  const FKEY = 'ml.flow.filters', live = ctx.M.mode === 'live';
+  let keptBrokers: string[] | null = null;
+  if(live) try {
+    const k = JSON.parse(store.get(FKEY) || 'null');
+    const pick = (a: any, ids: string[]) => Array.isArray(a) ? ids.filter(id => a.includes(id)) : [];
+    const kb = k && pick(k.boards, BOARDS.map(b=>b.id)), ki = k && pick(k.investors, INVESTORS.map(b=>b.id));
+    if(kb && kb.length) { flt.boards.clear(); kb.forEach(b => flt.boards.add(b)) }
+    if(ki && ki.length) { flt.investors.clear(); ki.forEach(b => flt.investors.add(b)) }
+    if(k && Array.isArray(k.brokers) && k.brokers.length) keptBrokers = k.brokers.map(String);
+  } catch(e) { /* a broken entry: the defaults */ }
+  /* QA round 3 (agent 4 L3): the kept list is applied on every broker file until the whole history is in (a broker of
+     earlier years only is then found too), and only a choice the user makes is written back. A broker the ticker does not
+     have stays in the kept list (it is the choice for the tickers that have it); a list the user turns into "all" is
+     written as all */
+  let brokerTouched = false;
+  const keepFilters = () => { if(!live) return;
+    const all = flt.brokers.size === allBrokers().length, have = new Set(allBrokers());
+    const others = (keptBrokers || []).filter(b => !have.has(b));          // kept for the tickers that have them
+    const brokers = all ? (brokerTouched || !keptBrokers ? null : keptBrokers) : [...new Set([...flt.brokers, ...(brokerTouched ? [] : others)])].sort();
+    store.set(FKEY, JSON.stringify({ boards:[...flt.boards], investors:[...flt.investors], brokers })) };
   const isDefault = () => flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length
     && flt.investors.size===1 && flt.investors.has('Foreign');
 
@@ -153,6 +176,9 @@ export function initFlow(ctx: Ctx) {
     const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
     // EXEC-TERMINAL-NODAY (user 2026-10-29: "Hilangkan date di 27 Oct 2026 ya di flow timeline"): no date beside the label
     const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
+    /* QA R2-M3 (2026-11-06): broker files that failed are not a zero: the figures read "—" */
+    if(ctx.brokerFailed) { const dash = (l: string) => `<div class="flow-stat"><span class="flow-stat-label">${l}</span><span class="flow-stat-val flat">—</span></div>`;
+      $('flowSummary').innerHTML = dash(LATEST) + dash('Period net total') + dash(AVG); return }
     $('flowSummary').innerHTML = stat(LATEST, last) + stat('Period net total', total) + stat(AVG, avg);
   };
   let summaryRaf = 0;
@@ -168,7 +194,7 @@ export function initFlow(ctx: Ctx) {
           label kuning di judul"): the sessions after the broker data's last date are hatched on the Flow chart, and the
           Flow title carried "Broker through … · price …" until EXEC-TERMINAL-FULL (user 2026-10-27: "untuk A dihapus
           saja") ---- */
-  const weekdayDay = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace(',', '');
+  const weekdayDay = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep').replace(',', '');
   const through = ctx.M.through?.broker;                  // the broker data's own last date (the manifest)
   const brokerThroughText = () => through ? weekdayDay(through) : 'unknown';
   const noData = document.createElement('div'); noData.className = 'flow-nodata'; noData.hidden = true;
@@ -212,8 +238,11 @@ export function initFlow(ctx: Ctx) {
     flowSummary();
     const note = $('flowNote');
     const everything = flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length && flt.investors.size===INVESTORS.length;
-    note.hidden = !(flowLoading || flowMore || everything || used===0);
-    if(flowLoading || flowMore) note.innerHTML = spin(flowLoading ? 'Loading broker data' : 'Loading earlier broker data');
+    note.hidden = !(flowLoading || flowMore || everything || used===0 || ctx.brokerFailed);
+    if(ctx.brokerFailed) { note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.title = note.textContent; flowBars.setData([]); flowCum.setData([])
+      // QA round 4 (L4): with no data there is no scale to show (it read "Rp 8, Rp 4, Rp 0")
+      for(const side of ['left', 'right']) try { flowChart.priceScale(side).applyOptions({ visible:false }) } catch(e) { /* no such scale */ } }
+    else if(flowLoading || flowMore) note.innerHTML = spin(flowLoading ? 'Loading broker data' : 'Loading earlier broker data');
     else note.textContent = used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
     showTip(ctx.lastTipIdx);
   };
@@ -243,7 +272,7 @@ export function initFlow(ctx: Ctx) {
   let cumOn = store.get('ml.flow.cum') !== '0';
   // EXEC-TERMINAL-LAG: formatted once per session (toLocaleDateString on every crosshair move cost ~0.5 s per drag)
   const dmyCache = new Map<number, string>();
-  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
+  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep').replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
   ctx.tipHooks = [];                                       // crosshair listeners (indicator legend values)
   const noFlow = !inputsOf(ctx.M).has('flow');
   const showTip = (i: number) => {
@@ -251,6 +280,8 @@ export function initFlow(ctx: Ctx) {
     ctx.tipHooks.forEach(fn => fn(i));
     const vb = $('volVal'); if(vb){ vb.textContent = nfCompact.format(volume[i].value); vb.className = ohlc[i].close >= ohlc[i].open ? 'up' : 'down' }
     if(noFlow){ $('flowTip').hidden = true; return }       // ERRORS M332: a ticker without broker files (a bond) has no Flow readout
+    if(ctx.brokerFailed && i != null && i >= 0) { $('flowTip').hidden = false;      // QA R2-M3: not "Net Rp 0" when the files failed
+      $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; <span class="flow-nodata-tip">Broker data could not be loaded</span>`; return }
     if(i > ctx.brokerEnd){                                   // EXEC-TERMINAL-FRESH: no broker data yet on this session
       badgeVals.clear(); cumBadge.applyOptions({ axisLabelVisible:false }); netBadge.applyOptions({ axisLabelVisible:false });
       $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; <span class="flow-nodata-tip">No broker data yet (through ${brokerThroughText()})</span>`;
@@ -339,7 +370,10 @@ export function initFlow(ctx: Ctx) {
   const openPops = new Set<FilterApi>();
   const closeAll = (except?: FilterApi) => { openPops.forEach(p => { if(p !== except) p.close() }) };
   document.addEventListener('click', e => { if(![...openPops].some(p => p.root.contains(e.target as Node))) closeAll() });
-  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeAll() });
+  /* QA round 3 (open Low of round 2): Escape in a list gives the focus back to its button, not to the page */
+  document.addEventListener('keydown', e => { if(e.key !== 'Escape') return;
+    const owner = [...openPops].find(p => p.root.contains(document.activeElement)); closeAll();
+    if(owner) (owner.root.querySelector('.fl-btn') as HTMLElement | null)?.focus() });
 
   const makeFilter = ctx.makeFilter = (root: HTMLElement, { title, searchable, placeholder, grid, mono, max, getOptions, state, summary, onChange }: any) => {
     root.innerHTML = `<button class="fl-btn" aria-haspopup="true" aria-expanded="false"><span class="fl-k">${title}</span><span class="fl-v"></span><i class="chev"></i></button>
@@ -369,7 +403,12 @@ export function initFlow(ctx: Ctx) {
       pop.hidden = !open; btn.setAttribute('aria-expanded', String(open));
       /* reviewer 5 (2026-11-06): a list that would leave the window is moved back inside it (Broker Inventory's buttons sit
          at the left of a pane, the Flow Timeline's at the right; a phone is narrower than the list) */
-      if(open){ pop.style.translate = ''; const r = pop.getBoundingClientRect(), dx = r.right > innerWidth - 8 ? innerWidth - 8 - r.right : r.left < 8 ? 8 - r.left : 0; if(dx) pop.style.translate = `${Math.round(dx)}px 0` }
+      if(open){ pop.style.translate = ''; pop.style.maxHeight = ''; const r = pop.getBoundingClientRect(), dx = r.right > innerWidth - 8 ? innerWidth - 8 - r.right : r.left < 8 ? 8 - r.left : 0;
+        /* QA R2-M5 (2026-11-06): a list taller than the room under its button opens above it when there is more room there,
+           else it is cut to the room left and scrolls */
+        let dy = 0; const below = innerHeight - 8 - r.top, bh = btn.getBoundingClientRect(), above = bh.top - 8;
+        if(r.bottom > innerHeight - 8) { if(above > below) { const h = Math.min(r.height, above); pop.style.maxHeight = h + 'px'; dy = -(r.top - bh.top) - h - 4 } else pop.style.maxHeight = Math.max(120, below) + 'px' }
+        if(dx || dy) pop.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px` }
       if(open){ openPops.add(api); renderList(); if(search){ search.value=''; renderList(); search.focus() } } else openPops.delete(api);
     };
     if(search) search.oninput = renderList;
@@ -394,15 +433,17 @@ export function initFlow(ctx: Ctx) {
   brokerSummary.isModified = (s: Set<string>) => s.size !== allBrokers().length;
   const listSummary = (all: number, def?: Set<string>) => { const f: any = (s: Set<string>) => s.size===all ? `All (${all})` : s.size===0 ? 'None' : [...s].map(x=>x==='Cash'?'Cash':x).join(', ');
     f.isModified = (s: Set<string>) => def ? !(s.size===def.size && [...def].every(x=>s.has(x))) : s.size!==all; return f };
-  const onFilter = () => { recomputeFlow(); $('flReset').hidden = isDefault() };
+  const onFilter = (save = true) => { recomputeFlow(); $('flReset').hidden = isDefault(); if(save) keepFilters() };
+  ctx.redrawFlow = () => onFilter(false);                  // QA round 3 (R2-M3): the broker files failed: the Flow shows it now
 
   const fBroker = makeFilter($('flBroker'), { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true,
-    getOptions:()=>allBrokers().map(b=>({id:b,label:b})), state:flt.brokers, summary:brokerSummary, onChange:onFilter });
+    getOptions:()=>allBrokers().map(b=>({id:b,label:b})), state:flt.brokers, summary:brokerSummary, onChange:() => { brokerTouched = true; onFilter() } });
   const fBoard = makeFilter($('flBoard'), { title:'Board', getOptions:()=>BOARDS, state:flt.boards,
     summary:listSummary(BOARDS.length), onChange:onFilter });
   const fInv = makeFilter($('flInvestor'), { title:'Investor', getOptions:()=>INVESTORS, state:flt.investors,
     summary:listSummary(INVESTORS.length, new Set(['Foreign'])), onChange:onFilter });
   $('flReset').onclick = () => {
+    brokerTouched = true;                                   // Reset is the user's choice: every broker, written as such
     flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b));
     flt.boards.clear(); BOARDS.forEach(b=>flt.boards.add(b.id));
     flt.investors.clear(); flt.investors.add('Foreign');
@@ -437,7 +478,11 @@ export function initFlow(ctx: Ctx) {
     const wasAll = flt.brokers.size === allBrokers().length;   // a broker choice the user made survives the full history
     ctx.COMBOS = combos; flowFrom = from; flowTo = to; flowLoading = false; flowMore = more;
     if(wasAll){ flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b)) }
-    [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter();
+    if(keptBrokers && combos.length && !brokerTouched) {     // the kept broker choice, on this ticker's brokers
+      const have = new Set(allBrokers()), mine = keptBrokers.filter(b => have.has(b));
+      flt.brokers.clear(); (mine.length ? mine : allBrokers()).forEach(b => flt.brokers.add(b));
+    }
+    [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter(false);
     ctx.refreshFlowIndicators?.();
   };
 

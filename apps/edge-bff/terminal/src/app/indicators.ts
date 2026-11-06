@@ -214,45 +214,97 @@ export function initIndicators(ctx: Ctx) {
   let parked: { at: number; o: any }[] = [];
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;
+  const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
-  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base })), parked)));
+  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base, ...(i.fold ? { fold:true } : {}) })), parked)));
   const defaults = (fields, over?) => Object.fromEntries(fields.filter(f => f.kind !== 'fixed' && f.kind !== 'button' && (f.kind !== 'color' || f.def !== undefined)).map(f => [f.key, over && over[f.key] !== undefined ? over[f.key] : f.def]));
 
+  /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06: "kalau misalkan user menambahkan indikator di bawah, saya mau untuk ditambahkan
+     opsi untuk collapse. Sama seperti fungsi collapse flow timeline"): a pane indicator can be folded to its title row; its
+     lines are not drawn then (its row keeps the name, value and filters) and the price chart takes the room */
+  const drawn = inst => inst.on && !inst.fold;
+  const FOLD_PX = 30;
+  const paneOfInst = inst => (inst.series || inst.parts?.find(pt => pt.series)?.series || inst.lines?.find(l => l.series)?.series)?.getPane() || null;
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
     const panes = chart.panes(), subs = Math.max(0, panes.length - 1);
+    /* QA round 3 (H1): a folded pane is as high as its own title row (a row that wraps, a long note, a touch-sized button)
+       plus its margins, never a fixed height the row may overflow */
+    const folded = new Map<number, number>();
+    list.forEach(i => { if(!i.fold || i.def.pane !== 'sub') return; const k = paneOfInst(i)?.paneIndex(); if(k === undefined || k < 1) return;
+      folded.set(k, Math.max(folded.get(k) || 0, FOLD_PX, (i.restH && i.row.matches(':hover,:focus-within') ? i.restH : (i.restH = Math.ceil(i.row.offsetHeight))) + 12)) });   // the row's height at rest
     /* the price pane keeps at least ~45 % of the height however many panes are open (front-end audit 2026-10-30: 10 panes
-       left it 113 px); up to two panes the factor stays the reference's 2.4 */
-    panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? (subs ? Math.max(2.4, 0.82 * subs) : 1) : 1));
-    requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow) });
+       left it 113 px); up to two panes the factor stays the reference's 2.4. QA round 4 (M1): the panes are laid out as if
+       every one were open, then the height a folded pane gives up goes to the price pane; an open pane keeps its height */
+    const f0 = subs ? Math.max(2.4, 0.82 * subs) : 1, H = panes.reduce((t, pn) => t + pn.getHeight(), 0);
+    const one = H / (f0 + subs), open = subs - folded.size;
+    folded.forEach((h, k) => folded.set(k, Math.min(h, Math.max(FOLD_PX, one))));   // folding never makes a pane taller
+    const Hf = [...folded.values()].reduce((t, h) => t + h, 0), price = H - open * one - Hf;
+    if(!folded.size || price < 60) panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? f0 : folded.has(k) ? 0.12 : 1));
+    else panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? price : folded.has(k) ? folded.get(k)! : one));
+    /* QA round 3 (M1): a folded pane draws nothing, its axis labels included */
+    const text = (chart.options() as any).layout?.textColor || '#191919';
+    panes.forEach((pn, k) => { if(!k) return; const c = folded.has(k) ? 'rgba(0,0,0,0)' : text;
+      for(const side of ['right', 'left']) try { chart.priceScale(side, k).applyOptions({ textColor:c }) } catch(e) { /* no such scale */ } });
+    requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow); fltPlace() });
+  };
+  let relayoutAt = 0;
+  const relayout = () => { if(relayoutAt) return; relayoutAt = requestAnimationFrame(() => { relayoutAt = 0; layoutPanes() }) };
+  const setFold = (inst, on: boolean, keep = true) => {
+    inst.fold = on; inst.row.classList.toggle('folded', on);
+    const b = inst.row.querySelector('.ind-fold'); if(b) { b.setAttribute('aria-expanded', String(!on)); b.setAttribute('aria-label', `${on ? 'Expand' : 'Collapse'} the ${inst.def.name} pane`); b.dataset.label = on ? 'Expand' : 'Collapse' }
+    const a = inst.row.querySelector('.ind-actbtn[data-act="fold"]'); if(a) a.textContent = on ? 'Expand' : 'Collapse';
+    refresh(inst); layoutPanes(); if(keep) save();
   };
   const stage = legend.parentElement;
-  /* EXEC-BROKER-INV-PANEL (user 2026-11-06: "yang saya kasih panah, bisa tulis saja huruf 0 agar user tahu it begins from
-     0"): an indicator that counts from the first candle on screen (def.zeroLabel, FL23) writes "0" in the left gutter at
-     its zero level, beside a thin zero line, so the reader sees where every line starts */
-  function placeZero(inst) {
-    if(!inst.zeroEl) return;
-    const host = inst.parts?.find(pt => pt.series && pt.kind !== 'marker')?.series, el = host?.getPane().getHTMLElement();
-    const y = host && inst.on ? host.priceToCoordinate(0) : null;
-    if(!el || y === null || y === undefined || y < 0 || y > el.clientHeight) { inst.zeroEl.hidden = true; return }
-    const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect();
-    const axL = parseFloat(getComputedStyle(stage).getPropertyValue('--ax-l')) || 94;
-    inst.zeroEl.style.left = (r.left - s.left + axL - 6) + 'px'; inst.zeroEl.style.top = (r.top - s.top + y) + 'px';
-    inst.zeroEl.hidden = false;
-  }
-  let zeroQueued = false;
-  const placeZeros = () => { if(zeroQueued) return; zeroQueued = true; requestAnimationFrame(() => { zeroQueued = false; list.forEach(placeZero) }) };
-  chart.timeScale().subscribeVisibleLogicalRangeChange(placeZeros);
-  /* EXEC-BROKER-INV-PANEL (user 2026-11-06: "yang saya kotakin juga boleh ditambahkan ke panel broker inventory? Pilihannya
-     brokers, Market Board dan Investor Type saja"): the indicator's broker, board and investor choices (def.paneFilters)
-     as the Flow Timeline's filter buttons on its pane row; a change is the same as in the settings dialog */
+  /* QA round 4 (M2): the rows' narrow form (one line, a Filters button) follows the chart's own width, not the window's:
+     with both side panels open a 1280 px window leaves the chart about as wide as a tablet */
+  const NARROW_PX = 1000;
+  const narrowCheck = () => { const on = stage.clientWidth > 0 && stage.clientWidth < NARROW_PX; if(document.documentElement.classList.contains('ind-narrow') !== on) { document.documentElement.classList.toggle('ind-narrow', on); requestAnimationFrame(() => list.forEach(placeRow)) } };
+  narrowCheck();
+  /* the panes' height changes with the window: a folded pane is sized again */
+  { let h = 0; new ResizeObserver(() => { const nh = chart.panes().reduce((t, pn) => t + pn.getHeight(), 0);
+      narrowCheck();
+      if(Math.abs(nh - h) > 2 && list.some(i => i.fold)) { h = nh; layoutPanes() } else h = nh }).observe(stage) }
+  /* EXEC-FLOW-PANE-FILTERS (user go 2026-11-06; proposal verification/terminal_api/flow_pane_filters): every Flow
+     indicator's broker scope, Top N, Rank by, brokers, boards and investors as controls on its own legend row (def.paneFilters,
+     derived from its inputs). Top N and Rank by show only for a Top-N scope, the broker list only for Selected (the inputs'
+     own `when`); a change is the same as in the settings dialog and one undo step. Clear really empties a list: the
+     indicator then draws nothing and its row asks for a choice (EXEC-TERMINAL-LOOK-2, 3). */
+  /* QA H1: an open Filters panel closes on a click outside it or on Escape (one document listener for every row) */
+  const fltClose = (keep?: Element | null) => document.querySelectorAll('.ind-row.flt-open').forEach(r => { if(keep && r.contains(keep)) return;
+    r.classList.remove('flt-open'); r.querySelector('.ind-fltbtn')?.setAttribute('aria-expanded', 'false') });
+  document.addEventListener('pointerdown', (e: any) => { if(!e.target.closest?.('.fl-pop')) fltClose(e.target) }, true);
+  /* QA R2-M6 (2026-11-06): Escape closes an open panel wherever the focus is (also after a list closed and left it on the
+     page); Tab out of the row closes it; the panel follows its row when the window is resized or scrolled */
+  document.addEventListener('keydown', (e: any) => { if(e.key !== 'Escape') return; const r = document.activeElement?.closest?.('.ind-row.flt-open') || document.querySelector('.ind-row.flt-open');
+    if(r && !document.querySelector('.ind-row.flt-open .fl-pop:not([hidden])')) { fltClose(); (r.querySelector('.ind-fltbtn') as HTMLElement | null)?.focus() } });
+  document.addEventListener('focusout', (e: any) => { const r = e.target.closest?.('.ind-row.flt-open'); if(!r) return;
+    setTimeout(() => { const a = document.activeElement; if(a && a !== document.body && !r.contains(a)) fltClose() }, 0) });
+  const fltPlace = () => document.querySelectorAll<HTMLElement>('.ind-row.flt-open').forEach(r => { const box = r.querySelector('.ind-flt') as HTMLElement, rr = r.getBoundingClientRect();
+    box.style.top = Math.max(8, Math.min(rr.bottom + 4, innerHeight - box.offsetHeight - 8)) + 'px' });
+  /* QA round 3 (L1): after a resize the rows move once the panes are laid out again, so the panel follows a frame later */
+  addEventListener('resize', () => requestAnimationFrame(() => requestAnimationFrame(fltPlace))); addEventListener('scroll', fltPlace, true);
   function buildPaneFilters(inst) {
     const keys = inst.def.paneFilters as string[] | undefined;
-    if(!keys || !ctx.makeFilter) return;
+    if(!keys || !keys.length || !ctx.makeFilter) return;
     const box = document.createElement('span'); box.className = 'ind-flt';
-    inst.row.appendChild(box);
+    /* QA round 3 (Q3-H1, R2-M4): on a narrow screen a pane row keeps one line (its value or note shortened); the panel
+       repeats them in full */
+    const full = document.createElement('span'); full.className = 'ind-fltnote'; box.appendChild(full);
+    /* QA H1/H2 (2026-11-06, user "go with your advice"): on a narrow screen the controls fold behind one "Filters" button
+       and open as a panel under the row, inside the window, instead of wrapping over the panes */
+    const fbtn = document.createElement('button'); fbtn.type = 'button'; fbtn.className = 'ind-fltbtn'; fbtn.textContent = 'Filters';
+    fbtn.setAttribute('aria-expanded', 'false'); fbtn.setAttribute('aria-label', `Filters of ${inst.def.name}`);
+    inst.row.appendChild(fbtn); inst.row.appendChild(box);
+    const place = () => { const r = inst.row.getBoundingClientRect(); box.style.top = Math.max(8, Math.min(r.bottom + 4, innerHeight - box.offsetHeight - 8)) + 'px' };
+    const openBox = (o: boolean) => { inst.row.classList.toggle('flt-open', o); fbtn.setAttribute('aria-expanded', String(o)); if(o) place() };
+    fbtn.onclick = e => { e.stopPropagation(); openBox(!inst.row.classList.contains('flt-open')) };
+    // closing on a click elsewhere and on Escape: one listener for every row (fltClose, below)
+    const escH = (t: unknown) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
     const inp = k => inst.def.inputs.find(f => f.key === k);
+    const shown = f => !f.when || f.when(inst.params);
     const codes = () => { const f = inp('brokers'), v = inst.params.brokers; return Array.isArray(v) ? v : f?.resolve ? f.resolve(v, inst.params) : [] };
     const allCodes = () => [...(ctx.flowRows?.brokers || [])].sort();
     /* reviewer 4 (2026-11-06): a change here is one step of the chart's undo timeline, as the same change in the dialog */
@@ -266,17 +318,37 @@ export function initIndicators(ctx: Ctx) {
     const summaryOf = (all: () => number, def: string[]) => { const f: any = (s: Set<string>) => s.size === all() ? `All (${all()})` : s.size === 0 ? 'None' : [...s].join(', ');
       f.isModified = (s: Set<string>) => !(s.size === def.length && def.every(x => s.has(x))); return f };
     inst.flt = [];
+    const ctl = (k, el: HTMLElement, sync: () => void) => { el.dataset.k = k; box.appendChild(el); inst.flt.push({ root:el, close(){}, refresh(){}, sync:() => { el.hidden = !shown(inp(k)); sync() } }) };
     for(const k of keys) {
       const f = inp(k); if(!f) continue;
-      const root = document.createElement('div'); root.className = 'fl'; box.appendChild(root);
+      if(f.kind === 'select') {                       // scope and Rank by: a small menu with the input's own options
+        const wrap = document.createElement('label'); wrap.className = 'ind-sel';
+        wrap.innerHTML = `<span>${k === 'scope' ? 'Broker' : k === 'rank' ? 'Rank by' : escH(f.label)}</span><select aria-label="${escH(f.label)}">${f.options.map(o => `<option value="${escH(o)}">${escH(f.labels?.[o] ?? o)}</option>`).join('')}</select>`;
+        const sel = wrap.querySelector('select') as HTMLSelectElement;
+        sel.onchange = () => { apply(k, sel.value); sel.blur() };      // QA: the chart's keys (Ctrl+Z, Alt+B) work again at once
+        ctl(k, wrap, () => { sel.value = String(inst.params[k] ?? f.def) });
+        continue;
+      }
+      if(f.kind === 'int') {                          // Top N: a number box, kept inside the input's range
+        const wrap = document.createElement('label'); wrap.className = 'ind-num';
+        wrap.innerHTML = `<span>${k === 'top' ? 'N' : escH(f.label)}</span><input type="number" inputmode="numeric" min="${f.min}" max="${f.max}" step="1" aria-label="${escH(f.label)}">`;
+        const box2 = wrap.querySelector('input') as HTMLInputElement;
+        /* QA (2026-11-06): an empty or non-numeric box goes back to the current N (not Top 1); the value is applied on Enter
+           or when the box is left, so arrow steps are one undo step */
+        const commit = () => { const raw = box2.value.trim(), v = Math.round(Number(raw)); if(!raw || !Number.isFinite(v)) { box2.value = String(inst.params[k] ?? f.def); return }
+          const c = Math.max(f.min, Math.min(f.max, v)); box2.value = String(c); if(c !== inst.params[k]) apply(k, c) };
+        box2.onblur = commit; box2.onkeydown = e => { if(e.key === 'Enter') { e.preventDefault(); commit(); box2.blur() } else if(e.key === 'Escape') { box2.value = String(inst.params[k] ?? f.def); box2.blur() } };
+        ctl(k, wrap, () => { if(document.activeElement !== box2) box2.value = String(inst.params[k] ?? f.def) });
+        continue;
+      }
+      const root = document.createElement('div'); root.className = 'fl'; root.dataset.k = k; box.appendChild(root);
       if(k === 'brokers') {
         const state = new Set<string>(codes());
         const summary: any = (s: Set<string>) => s.size === 0 ? 'None' : s.size <= 3 ? [...s].join(', ') : `${s.size} selected`;
         summary.isModified = () => false;
-        const api = ctx.makeFilter(root, { title:'Brokers', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:f.max ?? 5,
-          getOptions:() => allCodes().map(b => ({ id:b, label:b })), state, summary,
-          onChange:() => { if(state.size) apply('brokers', [...state]); else api.sync!() } });   // reviewer 2: never an empty list shown as "None" over old lines
-        api.sync = () => { state.clear(); codes().forEach(b => state.add(b)); api.refresh() };
+        const api = ctx.makeFilter(root, { title:'Brokers', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:f.max,
+          getOptions:() => allCodes().map(b => ({ id:b, label:b })), state, summary, onChange:() => apply('brokers', [...state]) });
+        api.sync = () => { root.hidden = !shown(f); state.clear(); codes().forEach(b => state.add(b)); api.refresh() };
         inst.flt.push(api);
       } else {
         const opts = k === 'boards' ? BOARDS : INVESTORS, all = () => opts.length;
@@ -284,17 +356,31 @@ export function initIndicators(ctx: Ctx) {
         const state = new Set<string>(cur());
         const api = ctx.makeFilter(root, { title:k === 'boards' ? 'Board' : 'Investor', getOptions:() => opts, state,
           summary:summaryOf(all, Array.isArray(f.def) ? f.def : opts.map(o => o.id)),
-          onChange:() => { if(state.size) apply(k, opts.map(o => o.id).filter(id => state.has(id))); else api.sync!() } });
+          onChange:() => apply(k, opts.map(o => o.id).filter(id => state.has(id))) });
         api.sync = () => { state.clear(); cur().forEach(x => state.add(x)); api.refresh() };
         inst.flt.push(api);
       }
     }
+    inst.flt.forEach(f => f.sync && f.sync());
+    /* QA H1 (phone check 2026-11-06): on a narrow screen the row's Hide, Settings and Remove move into the Filters panel, so
+       the name keeps its room; they press the row's own buttons */
+    const acts = document.createElement('span'); acts.className = 'ind-act';
+    /* EXEC-TERMINAL-LAYOUTS: a pane indicator's Collapse joins them there too (on a phone the row keeps one line) */
+    for(const [act, label] of [['eye', 'Hide or show'], ['cfg', 'Settings'], ['del', 'Remove'], ...(inst.def.pane === 'sub' ? [['fold', inst.fold ? 'Expand' : 'Collapse']] : [])] as [string, string][]) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'ind-actbtn'; b.textContent = label; b.dataset.act = act;
+      b.onclick = e => { e.stopPropagation(); (inst.row.querySelector(`:scope > [data-act="${act}"]`) as HTMLElement | null)?.click(); if(act !== 'eye') fltClose() };
+      acts.appendChild(b);
+    }
+    box.appendChild(acts);
+    /* a line on the price chart keeps its legend clean: the controls show while the row is pointed at or tapped */
+    /* QA M5: the row takes keyboard focus, so Tab reveals its controls (:focus-within) as the pointer does */
+    if(inst.def.pane !== 'sub') { box.classList.add('on-hover'); inst.row.tabIndex = 0 }   // QA round 2: no aria-label, so the row's own name and value are read
   }
   function placeRow(inst) {
     if(inst.def.pane !== 'sub' || !inst.series) return;
     const el = inst.series.getPane().getHTMLElement(); if(!el) return;
     inst.row.style.top = (el.getBoundingClientRect().top - stage.getBoundingClientRect().top + 6) + 'px';
-    placeZero(inst);
+    if(inst.row.classList.contains('flt-open')) fltPlace();
     if(inst.watch !== el) { if(inst.ro) inst.ro.disconnect(); inst.ro = new ResizeObserver(() => placeRow(inst)); inst.ro.observe(el); inst.watch = el }
   }
 
@@ -330,7 +416,7 @@ export function initIndicators(ctx: Ctx) {
     });
     inst.series = inst.parts.find(pt => pt.series)?.series || null;
     if(panel && (r.guides.length || r.levelsParam)) inst.series.applyOptions({ autoscaleInfoProvider:orig => {   // keep visible reference levels inside the pane (e.g. RSI 30 / 70)
-      const res = orig(), lv = inst.on && inst.style.guides.on ? guideLevels(inst) : [];
+      const res = orig(), lv = drawn(inst) && inst.style.guides.on ? guideLevels(inst) : [];
       if(!res || !res.priceRange || !lv.length) return res;
       return { ...res, priceRange:{ minValue:Math.min(res.priceRange.minValue, ...lv), maxValue:Math.max(res.priceRange.maxValue, ...lv) } };
     } });
@@ -351,7 +437,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.raw._labels) inst.parts.forEach(pt => { if(pt.series && pt.kind !== 'marker') pt.series.applyOptions({ title:pt.o.k === 'total' ? 'Total' : pt.o.label || '' }) });
     const breaks = new Set((inst.raw._breaks || []).map(i => i + off));         // calculation restarts here: never draw a line into this bar
     const dir = inst.disp.direction, bandsOff = 'bands_mode' in p && p.bands_mode === 'None', T = i => ohlc[i].time;
-    const shown = pt => inst.on && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
+    const shown = pt => drawn(inst) && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
     inst.parts.forEach(pt => {
       const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
       if(pt.kind === 'marker') {
@@ -383,9 +469,9 @@ export function initIndicators(ctx: Ctx) {
     });
     /* reference levels (optional guides from the workbook), drawn on the pane's first series */
     (inst.guideLines || []).forEach(([se, pl]) => { try{ se.removePriceLine(pl) }catch(e){} }); inst.guideLines = [];
-    if(inst.def.zeroLabel && inst.on) { const host = inst.parts.find(pt => pt.series && pt.kind !== 'marker')?.series;
+    if(inst.def.zeroLabel && drawn(inst)) { const host = inst.parts.find(pt => pt.series && pt.kind !== 'marker')?.series;
       if(host) inst.guideLines.push([host, host.createPriceLine({ price:0, color:'#c8c8c8', lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:false, title:'' })]) }
-    if(st.guides && st.guides.on && inst.on) {
+    if(st.guides && st.guides.on && drawn(inst)) {
       const host = inst.parts[0].series;
       guideLevels(inst).forEach(lv =>
         inst.guideLines.push([host, host.createPriceLine({ price:lv, color:'#a3a3a3', lineWidth:1, lineStyle:L.LineStyle.Dashed, axisLabelVisible:false, title:'' })]));
@@ -416,9 +502,9 @@ export function initIndicators(ctx: Ctx) {
     (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series));
     inst.lines = inst.raw.map((ln, k) => {
       const color = LINE_COLORS[k % LINE_COLORS.length];
-      if(!inst.on) return { id:ln.id, color, series:null, vals:ln.vals };     // hidden: no series at all, so the right axis and its crosshair label stay empty
+      if(!drawn(inst)) return { id:ln.id, color, series:null, vals:ln.vals };     // hidden: no series at all, so the right axis and its crosshair label stay empty
       const series = chart.addSeries(L.LineSeries, {
-        priceScaleId:'right', color, lineWidth:inst.style.width, lineStyle:LINE_STYLES[inst.style.lineStyle], visible:inst.on,
+        priceScaleId:'right', color, lineWidth:inst.style.width, lineStyle:LINE_STYLES[inst.style.lineStyle], visible:true,
         lastValueVisible:true, priceLineVisible:false, crosshairMarkerVisible:false, title:`${ln.id} · ${inst.def.lineTag(inst.params)}`,
         priceFormat:{ type:'custom', formatter:inst.def.format, minMove:1 }
       });
@@ -438,7 +524,7 @@ export function initIndicators(ctx: Ctx) {
       return inst.sType === 'hist' ? { time:ohlc[i].time, value, color:v >= 0 ? inst.style.color : inst.style.colorNeg } : { time:ohlc[i].time, value };
     };
     inst.series.setData(inst.vals.flatMap((v, i) => v === null ? [] : [point(v, i)]));
-    const o = { visible:inst.on };
+    const o = { visible:drawn(inst) };
     if(inst.sType === 'line') Object.assign(o, { color:inst.style.color, lineWidth:inst.style.width || 2, lineStyle:LINE_STYLES[inst.style.lineStyle || 'Solid'] });
     inst.series.applyOptions(o);
     paintRow(inst);
@@ -466,7 +552,6 @@ export function initIndicators(ctx: Ctx) {
     if(inst.def.outsOf && inst.parts && plotKeyOf(inst.def.outsOf(inst.params)) !== inst.plotKey) rebuildParts(inst);
     inst.raw = inst.def.compute(inst.params); refresh(inst);
     (inst.flt || []).forEach(f => f.sync && f.sync());
-    placeZero(inst);
   };
   // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
   ctx.refreshFlowIndicators = () => list.forEach(inst => { if(inst.def === flowDef || inst.def === flowLineDef || inst.def.flow) recompute(inst) });
@@ -502,6 +587,9 @@ export function initIndicators(ctx: Ctx) {
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
+      b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
+      /* QA round 4 (L2): the panel repeats the full title (shortened on the row) with the value or note */
+      const full = r.querySelector('.ind-fltnote'); if(full) { full.textContent = ''; const t = document.createElement('b'); t.textContent = inst.def.title(inst.params); full.append(t, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }
       b.style.color = '';
     } else if(inst.def.lines) {
       b.innerHTML = (inst.lines || []).map(l => { const x = l.vals[i]; return `<span style="color:${l.color}">${l.id} ${x === null || x === undefined ? '' : inst.def.format(x)}</span>` }).join(' &nbsp;');
@@ -519,28 +607,35 @@ export function initIndicators(ctx: Ctx) {
   function build(inst) {
     const r = inst.row = document.createElement('div');
     r.className = 'ind-row'; r.dataset.uid = inst.uid; r.dataset.def = inst.def.id;
+    r.tabIndex = 0;                                         // QA round 3 (round-1 M5): Tab reaches every row, which then shows its buttons
     r.innerHTML = '<span class="ind-k"></span><b></b>'
       + `<button class="ind-eye" type="button" data-act="eye" aria-pressed="true" data-label="Hide" aria-label="Show or hide">${EYE}</button>`
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
-      + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`;
+      + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`
+      + (inst.def.pane === 'sub' ? `<button class="ind-fold" type="button" data-act="fold" aria-expanded="true" data-label="Collapse" aria-label="Collapse the ${inst.def.name.replace(/"/g, '&quot;')} pane">${CHEV}</button>` : '');
     r.addEventListener('click', (e: any) => {
       const a = e.target.closest('[data-act]'); if(!a) return;
+      if(a.dataset.act === 'fold') { setFold(inst, !inst.fold); return }
       if(a.dataset.act === 'eye') { inst.on = !inst.on; refresh(inst); save() }
       else if(a.dataset.act === 'cfg') openSettings(inst)
       else userRemove(inst);
     });
     if(inst.def.pane === 'sub') { r.classList.add('in-pane'); stage.appendChild(r) } else legend.appendChild(r);
     buildPaneFilters(inst);
-    if(inst.def.zeroLabel) { inst.zeroEl = document.createElement('span'); inst.zeroEl.className = 'ind-zero'; inst.zeroEl.textContent = '0'; inst.zeroEl.hidden = true; stage.appendChild(inst.zeroEl) }
     if(inst.def.multi) buildParts(inst);
+    if(inst.fold) r.classList.add('folded');
+    /* a folded pane follows its row's height; QA round 4 (L1): not the growth while the row is pointed at or focused (its
+       buttons show then), which would move the chart on every hover */
+    if(inst.def.pane === 'sub') { inst.rowRO = new ResizeObserver(() => { if(inst.fold && !r.matches(':hover,:focus-within')) relayout() }); inst.rowRO.observe(r) }
     recompute(inst);
     placeRow(inst);
+    if(inst.fold) setFold(inst, true, false);
   }
   const nextBase = () => PALETTE[list.length % 6];
   const byHid = hid => list.find(i => i.hid === hid);
   function add(defId, saved?) {
     const def = defOf(defId); if(!def || !usable(defId)) return null;
-    const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true };
+    const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true, fold:def.pane === 'sub' && !!(saved && saved.fold) };
     inst.hid = inst.uid;
     if(def.multi) { inst.base = (saved && saved.base) || nextBase(); inst.style = merge(regStyle(def, inst.base), saved && saved.style) }
     else inst.style = { ...defaults(def.style, saved && saved.style), ...(def.style.some(f => f.key === 'color' && f.def !== undefined) ? {} : { color:(saved && saved.style && saved.style.color) || PALETTE[list.length % PALETTE.length] }) };
@@ -552,9 +647,10 @@ export function initIndicators(ctx: Ctx) {
   function remove(inst) {
     const sub = inst.def.pane === 'sub', pane = sub ? inst.series.getPane() : null;
     if(inst.ro) inst.ro.disconnect();
+    if(inst.rowRO) inst.rowRO.disconnect();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
-    inst.row.remove(); if(inst.zeroEl) inst.zeroEl.remove();
+    inst.row.remove();
     if(sub && pane && pane.getSeries().length === 0 && chart.panes().length > 1) { try { chart.removePane(pane.paneIndex()) } catch(e) {} }
     list.splice(list.indexOf(inst), 1); if(sub) layoutPanes();
     save(); Ind.onChange && Ind.onChange();
@@ -769,10 +865,20 @@ export function initIndicators(ctx: Ctx) {
   /* undo / redo: an indicator comes back with the same inputs, style and visibility */
   /* every step names its indicator by a history id that a revived indicator keeps (front-end audit I3: a step holding the
      object lost it after remove + undo, and a redo then added a second copy) */
-  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid }));
+  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, at:list.indexOf(inst), ...(inst.fold ? { fold:true } : {}) }));
+  /* QA round 3 (agent 4 L4): an indicator brought back by Undo returns to its place: in the list, its legend row, its pane */
+  const placeAt = (inst, at) => {
+    const i = list.indexOf(inst); if(typeof at !== 'number' || at < 0 || at >= i) return;
+    list.splice(i, 1); list.splice(at, 0, inst);
+    const next = list.slice(at + 1).find(o => o.row && o.row.parentElement === inst.row.parentElement); if(next) next.row.before(inst.row);
+    if(inst.def.pane === 'sub') {
+      const pn = paneOfInst(inst), after = list.slice(at + 1).map(o => o.def.pane === 'sub' ? paneOfInst(o) : null).find(Boolean);
+      if(pn && after) { try { pn.moveTo(after.paneIndex()) } catch(e) { /* the pane stays last */ } layoutPanes() }
+    }
+  };
   const revive = snap => {
     if(byHid(snap.hid)) return byHid(snap.hid);                       // already there: never a second copy
-    const inst = add(snap.def, JSON.parse(JSON.stringify(snap))); if(inst) inst.hid = snap.hid;
+    const inst = add(snap.def, JSON.parse(JSON.stringify(snap))); if(inst) { inst.hid = snap.hid; placeAt(inst, snap.at) }
     save(); Ind.onChange && Ind.onChange(); return inst;
   };
   const drop = hid => { const inst = byHid(hid); if(inst) remove(inst) };

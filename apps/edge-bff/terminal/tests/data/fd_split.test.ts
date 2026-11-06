@@ -28,7 +28,10 @@ describe('Top N groups split by investor type', () => {
 
 describe('Foreign × Domestic map', () => {
   it('quadrants by sign (0 counts as positive)', () => {
-    expect([fdQuadrant(1, 1), fdQuadrant(-1, 1), fdQuadrant(1, -1), fdQuadrant(-1, -1), fdQuadrant(0, 0)]).toEqual([0, 1, 2, 3, 0]);
+    expect([fdQuadrant(1, 1), fdQuadrant(-1, 1), fdQuadrant(1, -1), fdQuadrant(-1, -1)]).toEqual([0, 1, 2, 3]);
+    // QA round 3: a part that shows as 0.0% is flat (Nego 0.0 / 0.0 was "Both accumulating")
+    expect([fdQuadrant(0, 0), fdQuadrant(-0.04, 0.04), fdQuadrant(0, 5), fdQuadrant(0.01, -5), fdQuadrant(5, 0), fdQuadrant(-5, -0.049)]).toEqual([4, 4, 5, 6, 7, 8]);
+    expect([fdQuadrant(0.05, 0.05), fdQuadrant(-0.05, 0.05)]).toEqual([0, 1]);
   });
   it('the axis half-range: at least 12 % with room, rounded to 5 (10 above 40)', () => {
     expect(mapLimit([1, -3])).toBe(15); expect(mapLimit([24.2, -9.2, 15.1])).toBe(30); expect(mapLimit([60])).toBe(70);

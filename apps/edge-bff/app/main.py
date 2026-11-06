@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .backtest import Backtests
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
+from .layouts import Layouts
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
@@ -178,6 +179,7 @@ def create_app(settings=None, store=None, orc=None):
     worker = Worker(settings, store, orc)
     backtests = Backtests(settings, store)
     screeners = Screeners(settings, store)
+    layouts = Layouts(settings, store)
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -439,6 +441,8 @@ def create_app(settings=None, store=None, orc=None):
     backtests.routes(app, session, write)
     # EDGE screener (report API CONTRACT 8.2): /api/v1/screener... with this session (writes with CSRF, as the backtest)
     screeners.routes(app, session, write)
+    # EXEC-TERMINAL-LAYOUTS (user 2026-11-06: "di akun edge"): the Terminal's saved chart layouts, /api/v1/terminal/layouts
+    layouts.routes(app, session, write)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):

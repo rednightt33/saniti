@@ -42,6 +42,10 @@ describe('indicator menu rows', () => {
     expect(visibleItems(all, 'f:Bandar Balance', '', new Set()).every(i => i.group === 'Bandar Balance' && i.kind === 'Flow')).toBe(true);
     expect(visibleItems(all, 't:Volume', '', new Set())[0].id).toBe('VOL');
     expect(visibleItems(all, 'fav', '', new Set(['FL24', 'I01'])).map(i => i.id).sort()).toEqual(['FL24', 'I01']);
+    // QA round 3: words match from their start; "rsi" finds RSI, not "Net Buy Persistence"; "pers" still does
+    const names = (q: string) => visibleItems(all, 'all', q, new Set()).map(i => i.name);
+    expect(names('rsi').some(n => /Persistence/.test(n))).toBe(false);
+    expect(names('pers').some(n => /Persistence/.test(n))).toBe(true);
     expect(visibleItems(all, 'fav', 'fl24', new Set()).map(i => i.id)).toEqual(['FL24']);      // a search looks everywhere
     expect(visibleItems(all, 'all', '', new Set()).length).toBe(all.length);
   });

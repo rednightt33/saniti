@@ -1,0 +1,25 @@
+Starting Container
+OUT {"q": "layout_indexes", "ms": 15, "part": 0, "rows": [["terminal_layouts", "terminal_layouts_owner_name", "CREATE UNIQUE INDEX terminal_layouts_owner_name ON edge_bff.terminal_layouts USING btree (owner_key, name)"], ["terminal_layouts", "terminal_layouts_owner_opened", "CREATE INDEX terminal_layouts_owner_opened ON edge_bff.terminal_layouts USING btree (owner_key, opened_at DESC)"], ["terminal_layouts", "terminal_layouts_pkey", "CREATE UNIQUE INDEX terminal_layouts_pkey ON edge_bff.terminal_layouts USING btree (layout_id)"]]}
+OUT {"q": "edge_bff_tables", "ms": 2, "part": 1, "rows": [["sessions"], ["terminal_layouts"], ["watchlist_items"]]}
+OUT {"q": "runtime_grants", "ms": 5, "part": 0, "rows": [["backtest_jobs", "INSERT,SELECT,UPDATE"], ["backtest_results", "DELETE,INSERT,SELECT"], ["backtest_trials", "INSERT,SELECT,UPDATE"], ["conversation_ui", "DELETE,INSERT,SELECT,UPDATE"], ["jobs", "DELETE,INSERT,SELECT,UPDATE"], ["screener_items", "DELETE,INSERT,SELECT,UPDATE"]]}
+OUT {"q": "other_grantees_on_new_table", "ms": 4, "part": 0, "rows": []}
+OUT {"q": "runtime_members", "ms": 4, "part": 0, "rows": [["edge_bff_login"]]}
+MIG DRYRUN 20261106_001_edge_bff_terminal_layouts.sql sha256=0ae400e79d03fa326702886c6e83ef2ac367d275f897b4a4b4a492b383f7e085
+MIG DRYRUN_BODY_OK 20261106_001_edge_bff_terminal_layouts.sql
+OUT {"q": "edge_bff_tables", "ms": 2, "part": 0, "rows": [["backtest_jobs"], ["backtest_results"], ["backtest_trials"], ["conversation_ui"], ["jobs"], ["screener_items"]]}
+OUT {"q": "layout_comments", "ms": 12, "part": 0, "rows": [["terminal_layouts", "(table)", true], ["terminal_layouts", "opened_at", true], ["terminal_layouts", "revision", true], ["terminal_layouts", "state", true], ["terminal_layouts", "summary", true]]}
+OUT {"q": "layout_constraints", "ms": 4, "part": 0, "rows": [["edge_bff.terminal_layouts", "terminal_layouts_created_at_not_null", "n"], ["edge_bff.terminal_layouts", "terminal_layouts_favorite_not_null", "n"], ["edge_bff.terminal_layouts", "terminal_layouts_layout_id_check", "c"], ["edge_bff.terminal_layouts", "terminal_layouts_layout_id_not_null", "n"], ["edge_bff.terminal_layouts", "terminal_layouts_name_check", "c"], ["edge_bff.terminal_layouts", "terminal_layouts_name_not_null", "n"]]}
+OUT {"q": "as_runtime_insert", "ms": 2, "part": 0, "rows": [["lay_00000000000000000000000000000001", 1]]}
+OUT {"q": "as_runtime_replace_revision", "ms": 1, "part": 0, "rows": [[2]]}
+OUT {"q": "as_runtime_mark", "ms": 1, "part": 0, "rows": [[true, 2]]}
+OUT {"q": "as_runtime_counts_after_writes", "ms": 1, "part": 0, "rows": [[1]]}
+ERR {"q": "expect_err_layout_id_format", "error": "CheckViolation: new row for relation \"terminal_layouts\" violates check constraint \"terminal_layouts_layout_id_check\"\nDETAIL:  Failing row contains (layout-1, dryrun-probe, Bad id, {\"ml.tf\": \"D\"}, D \u00b7 0 indicators, 1, f, 1, 2026-11-06 13:22:06.535089+00, 2026-11-06 13:22:06.535089+00, 2026-11-06 13:22:06.535089+00)."}
+OUT {"q": "runtime_public_reach", "ms": 1, "part": 0, "rows": [[0, 108]]}
+OUT {"q": "as_runtime_reads", "ms": 1, "part": 0, "rows": [[0]]}
+OUT {"q": "as_runtime_reads_existing", "ms": 6, "part": 0, "rows": [[0, 106]]}
+ERR {"q": "expect_err_state_too_large", "error": "CheckViolation: new row for relation \"terminal_layouts\" violates check constraint \"terminal_layouts_state_size\"\nDETAIL:  Failing row contains (lay_00000000000000000000000000000004, dryrun-probe, Large state, {\"ml.ind.v1\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..., D \u00b7 0 indicators, 1, f, 1, 2026-11-06 1"}
+ERR {"q": "expect_err_summary_too_long", "error": "CheckViolation: new row for relation \"terminal_layouts\" violates check constraint \"terminal_layouts_summary_check\"\nDETAIL:  Failing row contains (lay_00000000000000000000000000000005, dryrun-probe, Long summary, {}, ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss..., 1, f, 1, 2026-11-06 13:22:06.53"}
+ERR {"q": "expect_err_duplicate_name", "error": "UniqueViolation: duplicate key value violates unique constraint \"terminal_layouts_owner_name\"\nDETAIL:  Key (owner_key, name)=(dryrun-probe, Twice) already exists."}
+ERR {"q": "expect_err_truncate", "error": "InsufficientPrivilege: permission denied for table terminal_layouts"}
+ERR {"q": "expect_err_public_market_read", "error": "InsufficientPrivilege: permission denied for table Price_Stock_Indonesia_IDX"}
+JOB_EXIT 0

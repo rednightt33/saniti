@@ -291,6 +291,13 @@ set_params('FL23', swap('Broker', ('Broker', 'Pilih banyak (cari kode)', '1 - 5 
                                    '2 net buyer + 1 net seller terbesar di periode terlihat (dipilih saat ditambahkan)', D,
                                    'Opsi C (2026-11-06): mengikuti filter papan dan investor; tetap sampai user menggantinya (3B).')))
 
+# ---- decision 2026-11-06 (user: "semua board kalau bisa di panel sebelah kanan, dan panel bawah (kalau user tambahkan)
+# defaultnya adalah Regular"; "2A"): every market-board choice of a Flow indicator starts on Regular (FL46's numerator and
+# denominator boards too); the user can still pick Nego and Cash ----
+REGULAR_NOTE = 'Bawaan Regular (2026-11-06, user "2A").'
+for _fid in [f[0] for f in FL]:
+    set_params(_fid, lambda ps: [(p[0], p[1], p[2], 'Regular', D, REGULAR_NOTE) if 'papan' in p[0].lower() and p[1].startswith('Pilih banyak') else p for p in ps])
+
 BY_SPEC = {n: f for f in FL for n in f[2]}
 NEW_NAME = {11: 'Buy/Sell Average Transaction Size Ratio', 13: 'Average Transaction Size Percentile', 14: 'Block Money Candidate'}
 FIX = {10: ('#7', '#9'), 11: ('#7 dan #8', '#1 dan #2'), 19: ('#20', '#18'), 26: ('(#34)', '(#27)')}

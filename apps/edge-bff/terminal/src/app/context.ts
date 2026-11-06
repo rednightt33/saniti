@@ -9,14 +9,20 @@ import { fromChart } from '../data/chartTime';
 
 export const $ = (id: string): any => document.getElementById(id);
 
+/* EXEC-TERMINAL-LAYOUTS: a saved setting that changes is announced (the layout menu's autosave and unsaved mark) */
+export const storeWatch = new Set<(k: string) => void>();
+const told = (k: string) => storeWatch.forEach(fn => { try { fn(k) } catch(e) {} });
 export const store = {
   get(k: string): string | null { try{ return localStorage.getItem(k) }catch(e){ return null } },
-  set(k: string, v: string) { try{ localStorage.setItem(k,v) }catch(e){} },
-  remove(k: string) { try{ localStorage.removeItem(k) }catch(e){} }
+  set(k: string, v: string) { let was: string | null = null; try{ was = localStorage.getItem(k); localStorage.setItem(k,v) }catch(e){ return } if(was !== v) told(k) },
+  remove(k: string) { let was: string | null = null; try{ was = localStorage.getItem(k); localStorage.removeItem(k) }catch(e){ return } if(was !== null) told(k) }
 };
 
 export const nfCompact = new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
-export const rupiah = (n: number) => (n<0?'-':'')+'Rp '+nfCompact.format(Math.abs(n));
+/** QA round 3 (one minus sign): a negative figure on the page takes the minus sign "−", never the hyphen "-"; text that
+    already holds a hyphen-minus before a figure is turned the same way */
+export const minus = (s: string) => s.replace(/(^|[\s(>:=~≤≥|])-(?=\d|Rp|\.\d)/g, '$1−');
+export const rupiah = (n: number) => (n<0?'−':'')+'Rp '+nfCompact.format(Math.abs(n));
 export const keyOf = (t: any): string | null => typeof t === 'string' ? t
   : typeof t === 'number' ? fromChart(t)                    // an intraday candle (data/chartTime.ts)
   : (t && typeof t === 'object' ? `${t.year}-${String(t.month).padStart(2,'0')}-${String(t.day).padStart(2,'0')}` : null);
@@ -33,9 +39,9 @@ export function brokerEnd(dates: string[], through?: string) {
 /* tiny maths / formatting */
 export const median = (a: number[]) => { const s=[...a].sort((x,y)=>x-y), m=s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2 };
 export const avgOf = (a: number[]) => a.reduce((s,x)=>s+x,0)/a.length;
-export const pct = (v: number, d=2) => (v>=0?'+':'')+v.toFixed(d)+'%';
+export const pct = (v: number, d=2) => { const r = +v.toFixed(d); return (r>0?'+':r<0?'−':'')+Math.abs(r).toFixed(d)+'%' };   // never "−0.00%"
 export const cls = (v: number) => v>=0 ? 'up' : 'down';
-export const row = (l: string, v: string | number, c='', tip='') => `<div class="st-row"${tip?` data-tip="${l}|${tip}"`:''}><span>${l}</span><b class="${c}">${v}</b></div>`;
+export const row = (l: string, v: string | number, c='', tip='') => `<div class="st-row"${tip?` data-tip="${l}|${minus(tip)}"`:''}><span>${l}</span><b class="${c}">${minus(String(v))}</b></div>`;
 export const empty = (msg: string) => `<div class="st-row"><span>${msg}</span></div>`;
 /* EXEC-TERMINAL-SPIN: the loading ring, ui/spin.ts (one for every rack page since EXEC-BACKTEST-SPIN) */
 export { spin } from '../ui/spin';
@@ -147,6 +153,11 @@ export interface Ctx {
   refreshFlowIndicators: () => void;
   /* EXEC-TERMINAL-FLOW-IND, live: the raw broker rows on the candles (worker.ts flowRowsOf), for the Flow indicators */
   flowRows?: FlowRows;
+  /** QA M6: the broker files could not be loaded */
+  brokerFailed?: boolean;
+  /** QA R2-M3: the right panel says the broker files failed instead of loading for ever */
+  redrawFlow?: () => void;
+  brokerPanelFailed?: () => void;
   /* EXEC-TERMINAL-PANELS: drag a period on the main chart (rangeSelect.ts) */
   selectRangeOnChart: (done: (from: string, to: string) => void, cancelled?: () => void) => void;
   crosshairAt: (i: number | null) => void;           // flow.ts: both charts' crosshair on session i

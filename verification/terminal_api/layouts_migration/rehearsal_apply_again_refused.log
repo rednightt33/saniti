@@ -1,0 +1,9 @@
+MIG APPLY 20261106_001_edge_bff_terminal_layouts.sql sha256=0ae400e79d03fa326702886c6e83ef2ac367d275f897b4a4b4a492b383f7e085
+Traceback (most recent call last):
+  File "/home/user/saniti/scripts/onboarding/migration_job.py", line 44, in <module>
+    conn.execute(body)
+    ~~~~~~~~~~~~^^^^^^
+  File "/tmp/claude-0/-home-user-saniti/5abac1e8-94e8-5166-9d5b-02bb4e4273bc/scratchpad/edgevenv/lib/python3.13/site-packages/psycopg/connection.py", line 269, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.RaiseException: edge_bff.terminal_layouts exists: reconcile before applying
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at RAISE

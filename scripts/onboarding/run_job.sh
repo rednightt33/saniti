@@ -56,11 +56,16 @@ id=$(timeout 300 railway up "$STAGE" --path-as-root -p $P --service orc-test-run
   | grep -oE "id=[0-9a-f-]+" | cut -d= -f2)
 echo "JOB ${id:-NOT_STARTED}"
 [ -n "${id:-}" ] || exit 4
+fetch() { timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines "$(( ${RUN_JOB_LOG_LINES:-5000} > 5000 ? 5000 : ${RUN_JOB_LOG_LINES:-5000} ))" > "$LOG" 2>&1; }
 for _ in $(seq 1 "${RUN_JOB_POLL_ROUNDS:-90}"); do
   sleep 20
-  timeout 60 railway logs "$id" -p $P -s $S -e $E --deployment --lines "$(( ${RUN_JOB_LOG_LINES:-5000} > 5000 ? 5000 : ${RUN_JOB_LOG_LINES:-5000} ))" > "$LOG" 2>&1
+  fetch
   ended "$LOG" && break
 done
+# ERRORS M372 (2026-11-06): the log service can hold the job's own lines back after JOB_EXIT (a DRYRUN log missed 8 of 33
+# lines, JOB_DONE included); the log is read again until two reads 15 s apart hold the same lines
+prev=-1
+for _ in 1 2 3 4 5 6; do n=$(grep -c "" "$LOG"); [ "$n" = "$prev" ] && break; prev=$n; sleep 15; fetch; done
 grep -c "^OUT \|\"OUT " "$LOG"; grep "ERR \|VERDICT\|Traceback\|JOB_DONE\|JOB_EXIT\|MIG \|READBACK" "$LOG" | cut -c1-400
 # EXEC-PG-MEMORY (user 2026-11-03, AGENTS.md "Postgres memory after large updates"): a job whose params.json says
 # "large_write": true restarts Postgres afterwards through scripts/restart_postgres.py --apply (every guard of that

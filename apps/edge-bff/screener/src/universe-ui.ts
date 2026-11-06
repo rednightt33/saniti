@@ -150,7 +150,7 @@ export function renderUniverse() {
   const c = scopeChips(), n = c.removable;
   const p = S.source?.kind === 'preset' ? ctx.catalog?.presets.find(x => x.id === (S.source as { id: string }).id) : null;
   const sum = filtersFolded() ? summaryHtml(summaryItems(), c.texts, p?.name ?? null, uCountTxt()) : '';
-  keepField($('cardU'), () => {   // typed text survives the redraw (keep-field.ts, ERRORS M371)
+  keepField($('cardU'), () => {   // typed text survives the redraw (keep-field.ts, ERRORS M373)
     $('cardU').innerHTML = `${sum}<div class="toolbar">
         <span id="uQf" style="display:contents">${qfHtml()}</span><button class="btn" data-act="drawer" ${ctx.catalog ? '' : 'disabled'}>${ico(IC.filter, 's')}More filters<span id="uN">${n ? `<span class="count">${n}</span>` : ''}</span></button>${ctx.catalog ? naButtonHtml() : ''}</div>
       <div class="chipbar"><span>Active filters</span><span id="uChips" style="display:contents">${c.html}</span>${universeEdited() ? `<button class="link" data-act="resetU">Clear all</button>` : ''}<span class="ucount" id="uCount">${uCountTxt()}</span></div>

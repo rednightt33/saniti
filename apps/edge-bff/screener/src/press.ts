@@ -17,7 +17,7 @@
    A press that never ends (released outside the window, a native scrollbar) ends by itself after LONG_PRESS_MS; then
    the page draws as before, under the pointer.
    The keyboard has its own guard: keep-field.ts gives the field being typed in back its text and focus after a
-   drawing (ERRORS M371). */
+   drawing (ERRORS M373). */
 export const LONG_PRESS_MS = 2000;
 
 let down = false;

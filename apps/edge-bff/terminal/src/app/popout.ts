@@ -22,7 +22,7 @@ const ICON = {
 };
 const OPEN_KEY = 'ml.win.open';
 const cv = (v: number) => nfCompact.format(Math.abs(v));
-const sgn = (v: number) => (v < 0 ? '-' : '+') + cv(v);
+const sgn = (v: number) => { const c = cv(v); return c === '0' ? '0' : (v < 0 ? '−' : '+') + c };            // QA round 3: one minus sign, as the panel
 const price = (v: number | null) => v == null ? '–' : v.toLocaleString('en-US', { maximumFractionDigits:v < 100 ? 2 : 0 });
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
 const INVESTORS = ['All', 'Foreign', 'Domestic'], BOARDS = ['All', 'Regular', 'Nego', 'Cash'];
@@ -39,10 +39,11 @@ export function initPopout(ctx: Ctx) {
   if (ctx.M.mode !== 'live' || !S) return;
   const B = () => ctx.M.broker;
   const state: Record<Key, any> = {
-    bs:{ p:{ n:'5' }, inv:'All', board:'All', mode:'net', limit:'20', q:'' },
-    acc:{ p:{ n:'5' }, inv:'All', board:'All', unit:'value', limit:'10' },
-    inv:{ inv:'All', board:'All', unit:'lot', view:'cum' }
+    bs:{ p:{ n:'5' }, inv:'All', board:'Regular', mode:'net', limit:'20', q:'' },
+    acc:{ p:{ n:'5' }, inv:'All', board:'Regular', unit:'value', limit:'10' },
+    inv:{ inv:'All', board:'Regular', unit:'lot', view:'cum' }
   };
+  // 2A (user 2026-11-06): windows start on the Regular board; a window state already saved keeps its own choice
   (Object.keys(state) as Key[]).forEach(k => { try { Object.assign(state[k], JSON.parse(store.get('ml.winst.' + k) || '{}') || {}) } catch { /* the defaults */ } });
   // EXEC-TERMINAL-BS-SIDE: a Broker summary window remembered before the two sides (sorted by a column) keeps its
   // Net or Gross choice: "% of value" was Gross
@@ -224,7 +225,7 @@ export function initPopout(ctx: Ctx) {
     const xt = Array.from({ length:Math.min(6, n) }, (_, j) => Math.round(j * (n - 1) / Math.max(1, Math.min(6, n) - 1)));
     const svg = `<svg class="pw-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
       ${ticks.map(v => `<line x1="${AX}" x2="${W - 8}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${v === 0 ? '#d4d4d4' : '#f0f0f0'}"${v === 0 ? ' stroke-dasharray="3 3"' : ''}/><text x="${AX - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${v === 0 ? '0' : sgn(v)}</text>`).join('')}
-      ${xt.map(i => `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${new Date(d[span[0] + i] + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'2-digit', timeZone:'UTC' })}</text>`).join('')}
+      ${xt.map(i => `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${new Date(d[span[0] + i] + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'2-digit', timeZone:'UTC' }).replace('Sept', 'Sep')}</text>`).join('')}
       ${series.map((_, k) => `<path d="${val(k).map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join('')}" fill="none" stroke="${S.colors[k]}" stroke-width="1.8"/>`).join('')}
       <line class="inv-xh" x1="0" x2="0" y1="${PT}" y2="${PT + ph}" stroke="#9ca3af" stroke-dasharray="3 3" visibility="hidden"/>
       <rect class="pw-hit" x="${AX}" y="0" width="${pw}" height="${H}" fill="transparent"/></svg>`;

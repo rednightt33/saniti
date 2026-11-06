@@ -28,6 +28,7 @@ import { initRangeSelect } from './app/rangeSelect';
 import { initReorder } from './ui/reorder';
 import { initFullscreen } from './ui/fullscreen';
 import { initPopout } from './app/popout';
+import { initLayouts } from './app/layouts';
 import { initAssets } from './app/assets';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts } from './data/chartTime';
@@ -126,6 +127,13 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   if (M.mode === 'live') initAssets(ctx);                  // EXEC-TERMINAL-ASSETS: added assets and their Flow Timelines
   if (M.mode === 'live') document.querySelector('#symbolPill .exchange')?.remove();   // EXEC-TERMINAL-FULL-2: no "IDX" label
   if (M.mode === 'live') liveCtx = ctx;                     // the timeframe buttons reset the view through it
+  /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the chart type and Price/Return are kept (they are part of a layout); applied
+     once every part that draws on the chart is there */
+  if (M.mode === 'live') {
+    if (store.get('ml.chart.style') === 'line') (document.querySelector('#styleGroup [data-style="line"]') as HTMLElement | null)?.click();
+    if (store.get('ml.chart.mode') === 'return') (document.querySelector('#modeGroup [data-mode="return"]') as HTMLElement | null)?.click();
+    initLayouts(ctx);
+  }
   // EXEC-INTRADAY-FEATURES C4 (user 2026-11-01): on an intraday chart Broker activity and the Bandar detector are daily
   if (M.intraday) document.querySelector('#brokerPanel .side-title strong')?.insertAdjacentHTML('afterend',
     '<span class="flow-daily" title="Broker data is daily: each day’s figures, shown on that day’s candles">Daily</span>');
@@ -136,7 +144,10 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
    activity when that panel is open */
 function later(ctx: Ctx, M: MarketData) {
   if (!M.later) return;
-  const failed = () => { const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false };
+  /* QA M6 (2026-11-06): the Flow rows say the files failed instead of "Loading broker data" for ever */
+  const failed = () => { ctx.brokerFailed = true; ctx.redrawFlow?.();      // QA round 3 (R2-M3): "—" and no zero line at once
+    const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false;
+    ctx.refreshFlowIndicators?.(); ctx.brokerPanelFailed?.() };
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
     ctx.flowRows = b.flow;                                 // EXEC-TERMINAL-FLOW-IND: read by the Flow indicators on setFlowData

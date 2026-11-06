@@ -175,7 +175,7 @@ export function renderResults() {
   else body = `<div class="empty"><strong>The universe is empty</strong>Every listing is filtered out. Loosen a filter or reset the universe.<div class="acts"><button class="btn sm" data-act="resetU2">Reset universe</button></div></div>`;
   // the table keeps its scroll position across a re-render (values arriving, a sort, an extra column)
   const ow = $('resPane').querySelector('.tbl-wrap') as HTMLElement | null, sx = ow?.scrollLeft ?? 0, sy = ok === lastOrder ? ow?.scrollTop ?? 0 : 0; lastOrder = ok;
-  keepField($('resTools'), () => { $('resTools').innerHTML = metaR });   // keep-field.ts, ERRORS M371
+  keepField($('resTools'), () => { $('resTools').innerHTML = metaR });   // keep-field.ts, ERRORS M373
   $('resMeta').innerHTML = metaL; keepField($('resPane'), () => { $('resPane').innerHTML = body }); $('tqClear').hidden = !S.q;
   // the table's scroll is put back only when it was scrolled: writing a scroll offset lays the new table out at once, and
   // at 0 (the boot, most redraws) that layout was half of a long task (ERRORS M364)

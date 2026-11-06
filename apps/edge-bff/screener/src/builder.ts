@@ -116,7 +116,7 @@ export function renderConds() {
   if (W) S.bOpen = true;                       // the pane always shows its body on a wide screen (it collapses to a rail)
   const tgl = W ? `<button class="tgl" data-act="btoggle" aria-expanded="true" aria-controls="cardC" title="Collapse the screen builder">`
     : `<button class="tgl ${S.bOpen ? '' : 'closed'}" data-act="btoggle" aria-expanded="${S.bOpen}">`;
-  keepField(el, () => {   // typed text survives the redraw (keep-field.ts, ERRORS M371)
+  keepField(el, () => {   // typed text survives the redraw (keep-field.ts, ERRORS M373)
     el.innerHTML = `<div class="builder-h">${tgl}${ico(IC.chev, 's')}Screen builder <small id="bSum">${bSum()}</small></button><span class="sp"></span>
         <div class="btabs" role="tablist" aria-label="Screen builder sections">${btabsHtml()}</div>
         ${n > 1 ? `<span class="logic">Match <span class="seg sm" role="radiogroup" aria-label="Match"><button class="${S.logic === 'all' ? 'on' : ''}" data-logic="all" role="radio" aria-checked="${S.logic === 'all'}">All</button><button class="${S.logic === 'any' ? 'on' : ''}" data-logic="any" role="radio" aria-checked="${S.logic === 'any'}">Any</button><button class="${S.logic === 'at_least' ? 'on' : ''}" data-logic="at_least" role="radio" aria-checked="${S.logic === 'at_least'}">At least</button></span>${S.logic === 'at_least' ? `<input class="inp" type="number" min="1" max="${Math.max(1, a)}" step="1" data-s="atLeast" value="${S.atLeast}" aria-label="At least N">` : ''}<span>of ${a} active</span></span>` : ''}

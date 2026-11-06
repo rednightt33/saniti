@@ -5,8 +5,9 @@ its migration must leave, so the go/no-go after each job is a script's answer, n
     python3 -I verification/screener/jobs/check_migration_log.py --covers <migration file name>
     python3 -I verification/screener/jobs/check_migration_log.py --params-ok <params.json>
 
-Migrations with checks (MIGRATIONS below): 20261028_001_edge_bff_screener.sql (EXEC-SCREENER migration 1) and
-20261028_100_terminal_service_accounts.sql (EXEC-MU-RUNTIME step 1). A log of any other file FAILs; --covers exits 0
+Migrations with checks (MIGRATIONS below): 20261028_001_edge_bff_screener.sql (EXEC-SCREENER migration 1),
+20261028_100_terminal_service_accounts.sql (EXEC-MU-RUNTIME step 1) and 20261106_001_edge_bff_terminal_layouts.sql
+(EXEC-TERMINAL-LAYOUTS). A log of any other file FAILs; --covers exits 0
 only for a file with checks (run_migration.sh asks before it starts a job).
 The log is the one scripts/onboarding/run_job.sh writes (lines `MIG ...`, `OUT {json}`, `ERR {json}`, `JOB_DONE ...`).
 Checks: the job ran the named file with the expected sha256 (DRYRUN: its body ran and was rolled back); every probe
@@ -268,6 +269,62 @@ def check_service_accounts(check, mode, outs, sha, probes):
               outs.get('as_api_add_person'))
 
 
+# ---- 20261106_001_edge_bff_terminal_layouts.sql (EXEC-TERMINAL-LAYOUTS, user go 2026-11-06) -------------------------
+LAYOUTS = '20261106_001_edge_bff_terminal_layouts.sql'
+# the edge_bff tables and edge_bff_runtime's privileges after it: the new table as the migration grants it, every other
+# table as after 20261028_001 (GRANTS above); rehearsed on a local PostgreSQL 16 built from the edge_bff migrations
+LAYOUT_TABLES = sorted(TABLES + ['terminal_layouts'])
+LAYOUT_GRANTS = {**GRANTS, 'terminal_layouts': 'DELETE,INSERT,SELECT,UPDATE'}
+LAYOUT_INDEXES = {('terminal_layouts', 'terminal_layouts_owner_name'), ('terminal_layouts', 'terminal_layouts_owner_opened'),
+                  ('terminal_layouts', 'terminal_layouts_pkey')}
+LAYOUT_CONSTRAINTS = ['terminal_layouts_layout_id_check', 'terminal_layouts_name_check', 'terminal_layouts_owner_name',
+                      'terminal_layouts_pkey', 'terminal_layouts_revision_check', 'terminal_layouts_schema_version_check',
+                      'terminal_layouts_state_check', 'terminal_layouts_state_size', 'terminal_layouts_summary_check']
+ERR_TEXT_LAYOUTS = {'expect_err_layout_id_format': '"terminal_layouts_layout_id_check"',
+                    'expect_err_name_untrimmed': '"terminal_layouts_name_check"',
+                    'expect_err_state_not_object': '"terminal_layouts_state_check"',
+                    'expect_err_state_too_large': '"terminal_layouts_state_size"',
+                    'expect_err_summary_too_long': '"terminal_layouts_summary_check"',
+                    'expect_err_duplicate_name': '"terminal_layouts_owner_name"',
+                    'expect_err_truncate': 'InsufficientPrivilege: permission denied for table terminal_layouts',
+                    'expect_err_public_market_read': 'InsufficientPrivilege: permission denied for table Price_Stock_Indonesia_IDX'}
+# the reviewed probes in their order (migration20261106_001_dryrun.params.json); the APPLY runs the first 10 (read-only)
+LAYOUT_PROBES = ['edge_bff_tables', 'runtime_grants', 'other_grantees_on_new_table', 'runtime_members', 'layout_indexes',
+                 'layout_constraints', 'layout_comments', 'runtime_public_reach', 'as_runtime_reads',
+                 'as_runtime_reads_existing', 'as_runtime_insert', 'as_runtime_replace_revision', 'as_runtime_mark',
+                 'as_runtime_counts_after_writes', 'as_runtime_delete', 'expect_err_layout_id_format',
+                 'expect_err_name_untrimmed', 'expect_err_state_not_object', 'expect_err_state_too_large',
+                 'expect_err_summary_too_long', 'expect_err_duplicate_name', 'expect_err_truncate',
+                 'expect_err_public_market_read']
+
+
+def check_layouts(check, mode, outs, sha):
+    check('edge_bff tables', [r[0] for r in outs.get('edge_bff_tables', [])] == LAYOUT_TABLES, outs.get('edge_bff_tables'))
+    check('edge_bff_runtime grants exact', {r[0]: r[1] for r in outs.get('runtime_grants', [])} == LAYOUT_GRANTS,
+          outs.get('runtime_grants'))
+    check('no PUBLIC or other grantee on the new table', outs.get('other_grantees_on_new_table') == [],
+          outs.get('other_grantees_on_new_table'))
+    check('runtime members', outs.get('runtime_members') == [['edge_bff_login']], outs.get('runtime_members'))
+    check('indexes', {(r[0], r[1]) for r in outs.get('layout_indexes', [])} == LAYOUT_INDEXES, outs.get('layout_indexes'))
+    # PostgreSQL 18 also lists each NOT NULL as a constraint (contype 'n'; the live dev database, 2026-11-06); PostgreSQL 16
+    # does not. The NOT NULLs are the columns' own definitions, so the comparison holds the other kinds
+    check('constraints', sorted(r[1] for r in outs.get('layout_constraints', []) if r[2] != 'n') == LAYOUT_CONSTRAINTS,
+          outs.get('layout_constraints'))
+    check('comments present', len(outs.get('layout_comments') or []) == 5 and all(r[2] is True for r in outs['layout_comments']),
+          outs.get('layout_comments'))
+    reach = outs.get('runtime_public_reach') or [[None, None]]
+    check('runtime reads no public relation', reach[0][0] == 0 and (reach[0][1] or 0) > 0, reach)
+    check('new table empty, readable by the runtime role', outs.get('as_runtime_reads') == [[0]], outs.get('as_runtime_reads'))
+    check('existing tables still readable by the runtime role', len(outs.get('as_runtime_reads_existing') or []) == 1,
+          outs.get('as_runtime_reads_existing'))
+    if mode == 'DRYRUN':
+        check('writes the app needs', outs.get('as_runtime_insert') == [['lay_00000000000000000000000000000001', 1]]
+              and outs.get('as_runtime_replace_revision') == [[2]] and outs.get('as_runtime_mark') == [[True, 2]]
+              and outs.get('as_runtime_counts_after_writes') == [[1]] and outs.get('as_runtime_delete') == [[1]],
+              {k: outs.get(k) for k in ('as_runtime_insert', 'as_runtime_replace_revision', 'as_runtime_mark',
+                                         'as_runtime_counts_after_writes', 'as_runtime_delete')})
+
+
 # file name -> the expected ERR text per expect_err_* probe, the migration's own checks, the reviewed probes per mode
 # and the role each probe's name gives (first matching prefix; none: the admin connection)
 MIGRATIONS = {
@@ -276,6 +333,9 @@ MIGRATIONS = {
                'probes': {'DRYRUN': SCREENER_PROBES, 'APPLY': SCREENER_PROBES[:10]}, 'roles': SCREENER_ROLES},
     SERVICE_ACCOUNTS: {'err_text': ERR_TEXT_SERVICE_ACCOUNTS, 'checks': check_service_accounts,
                        'probes': {'DRYRUN': SERVICE_PROBES, 'APPLY': SERVICE_PROBES[:27]}, 'roles': SERVICE_ROLES},
+    LAYOUTS: {'err_text': ERR_TEXT_LAYOUTS,
+              'checks': lambda check, mode, outs, sha, probes: check_layouts(check, mode, outs, sha),
+              'probes': {'DRYRUN': LAYOUT_PROBES, 'APPLY': LAYOUT_PROBES[:10]}, 'roles': SCREENER_ROLES},
 }
 # what a probe statement may be (outside comments, quoted text and $$ bodies): data statements only, so no probe can end
 # the DRYRUN's one transaction (a COMMIT there keeps the migration, ERRORS M230's class) or leave its role (SET ROLE,

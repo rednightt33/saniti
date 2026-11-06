@@ -296,7 +296,7 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
 let typingT: ReturnType<typeof setTimeout> | undefined, typingEl: HTMLInputElement | null = null;
 function bind() {
   bindPress(document, window);          // first: its capture listeners run before the page's own (press.ts)
-  bindKeepField(document);              // typed text survives an area redraw (keep-field.ts, ERRORS M371)
+  bindKeepField(document);              // typed text survives an area redraw (keep-field.ts, ERRORS M373)
   bindScreenGate();
   // Screen now's shortcuts apply a number the user typed and its 350 ms debounce has not applied yet (screen-gate.ts)
   gateHooks.flush = () => { if (typingT === undefined || !typingEl) return; clearTimeout(typingT); typingT = undefined; const t = typingEl; typingEl = null; onUniverseField(t) || onBuilderField(t) };

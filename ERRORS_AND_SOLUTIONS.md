@@ -5314,7 +5314,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
-### M371 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed in code)
+### M373 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed in code)
 
 - **Found by:** the coordinator's signed-in live check after PR #52 (dev, Minervini then Screen now).
 - **Symptom:**
@@ -5347,7 +5347,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - every area renderer draws through it: `app.ts` header, `results.ts` tools and table, `builder.ts renderConds`,
     `universe-ui.ts renderUniverse` and its pop and drawer (`keepScroll`), `presets-ui.ts`, `preview.ts renderDetails`.
 - **Verified (local):**
-  - the smoke step "typed text survives a redraw (ERRORS M371)": the lookup node is replaced by the preview answer
+  - the smoke step "typed text survives a redraw (ERRORS M373)": the lookup node is replaced by the preview answer
     (`?slow=preview:1500`), and the typed text, focus and suggestions stay; Enter still picks the stock and empties
     the box;
   - the step fails without the fix (`{"v":"","act":""}`, the live symptom) and with the Enter rule removed;
@@ -5356,6 +5356,54 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** FIXED in code (branch, not deployed).
 - **Lesson:** a page that redraws an area from late answers must keep what the user is doing in it: the pointer
   (press.ts) and the keyboard (keep-field.ts). A new area renderer draws through both.
+
+### M372 — DRYRUN log of a migration job read before the log service held all its lines (2026-11-06)
+
+- **Symptom:** the first Railway DRYRUN of `20261106_001_edge_bff_terminal_layouts.sql` (job `d19c51a4`) judged `VERDICT
+  FAIL 31/38`: 8 of the job's 33 log lines were missing (`runtime_grants` part 1, `as_runtime_delete`, two refusals,
+  `JOB_DONE`), and the constraint check failed.
+- **Verified root cause:** (1) `scripts/onboarding/run_job.sh` stops reading at the first log that holds `JOB_EXIT`
+  (`runner_guard.sh` `ended`), but the log service can still be holding the job's own lines back; a read of the same
+  deployment a few minutes later held all 33 lines, `JOB_DONE` included. (2) The live dev database is PostgreSQL 18, which
+  lists every NOT NULL as a `pg_constraint` row (contype `n`); the local rehearsal ran on PostgreSQL 16, which does not.
+- **Solution:** `run_job.sh` reads the log again until two reads 15 s apart hold the same lines (every job, not only this
+  migration); `check_migration_log.py` compares the layout table's constraints without the `n` rows (the NOT NULLs are
+  the columns' own definitions). The complete log of the same job then gives `VERDICT PASS 38/38`; the DRYRUN was run
+  again with the fixed runner. The incomplete first read is kept as
+  `verification/screener/jobs/migration20261106_001_dryrun_first_fetch_incomplete.log`.
+- **Status:** FIXED.
+- **Lesson:** a job's verdict is read from a log that has stopped growing, never from the first read after the job ends;
+  a rehearsal on another PostgreSQL major version checks the catalog shape, not exact catalog rows.
+
+### M371 — QA putaran 3: collapse panel bawah dan dialog layout belum siap rilis (2026-11-06, branch)
+
+- **Ditemukan oleh:** lima agen QA putaran 3 (user 2026-11-06: "QA putaran 3."), draft `28614e02`, sebelum merge ke `main`;
+  laporan `verification/terminal_api/qa_20261106/QA_REPORT.md` bagian 9.
+- **Verified:**
+  - Panel indikator yang dilipat selalu 30 px (`FOLD_PX`), padahal baris judulnya 44–193 px di ≤ 1024 px dan 50 px di
+    1440 bila catatannya dua baris: baris saling tumpuk, chevron "Expand" mengenai tombol Remove baris berikutnya.
+  - Dialog Open layout: kolom grid `auto` ikut lebar nama (`nowrap`), nama 120 huruf mendorong dialog keluar layar ponsel.
+  - Perubahan bisa hilang: base layout diambil dari halaman sesudah "settle" (perubahan pada detik awal ikut jadi base);
+    membuka layout tanpa layout aktif tidak bertanya; ulang autosave sesudah 409 menulis nama lama.
+  - Menu: daftar panah memuat `label` padahal fokus di `input` (indexOf −1); Esc hanya terdengar di dalam dialog.
+  - File broker gagal: `failed()` tidak menggambar ulang Flow Timeline ("Rp 0" sampai zoom).
+- **Root cause:** ukuran dan perilaku diturunkan dari asumsi (tinggi baris tetap, base dari keadaan halaman, fokus di elemen
+  yang didaftar) alih-alih dari elemen yang sebenarnya; uji awal hanya desktop dan alur bahagia.
+- **Solution (branch, sesudah `8d82c6fa`):** tinggi panel terlipat = tinggi barisnya sendiri + margin (diamati ulang saat
+  baris berubah), baris pane satu baris di ≤ 1024 px dengan teks penuh di panel Filters, label sumbu panel terlipat tidak
+  ditulis; base = isi layout yang dibuka, beda sesudah settle = perubahan; konfirmasi bila chart tanpa layout punya isi;
+  ulang 409 memakai nama tersimpan; daftar panah dari input switch; Esc/Tab-trap di tingkat dokumen, fokus kembali ke tombol
+  Layout; dialog `minmax(0,1fr)`; pesan kegagalan berupa kalimat dengan tindakan; `failed()` memanggil `redrawFlow`;
+  plus semua Low (QA_REPORT.md bagian 10).
+- **QA putaran 4 (2026-11-06):** perbaikan base memunculkan kelas baru: setelan yang ditulis halaman sendiri dihitung
+  sebagai perubahan (layout baru langsung "unsaved"), perubahan user saat halaman memulihkan diri tak terlihat, dua tab
+  menimpa layout satu sama lain, dan panel terlipat bisa lebih tinggi dari panel terbuka. Diperbaiki dengan membedakan
+  tulisan user (dalam 1,5 s sesudah klik/tombol) dari tulisan halaman, tab yang kehilangan layout-nya berhenti menyimpan,
+  dan tinggi lipat dibatasi tinggi panel terbuka (QA_REPORT.md bagian 11, `look_check7.mjs`).
+- **Status:** FIXED di branch (bukti `look_check6.mjs`, `look_check7.mjs`).
+- **Lesson:** ukuran yang menampung konten diturunkan dari konten itu sendiri (tinggi baris, lebar nama), dan "keadaan
+  tersimpan" diambil dari sumbernya (isi layout), bukan dari keadaan halaman sesudah memulihkan diri. Setiap fitur baru
+  diuji di ponsel, layar sentuh dan dengan kegagalan server sebelum QA.
 
 ### M370 — screener-worker suite red: 52 stale line pointers in SCREENER_ONBOARDING.md (2026-11-06, fixed)
 

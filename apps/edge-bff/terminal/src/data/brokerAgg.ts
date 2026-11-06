@@ -136,5 +136,17 @@ export function fdSplit(buyers: string[], sellers: string[], part: Map<string, {
   return { buy, sell, net, total, ratio:total > 0 ? net.t / total : 0, rf:total > 0 ? net.f / total : 0, rd:total > 0 ? net.d / total : 0 };
 }
 /** the map's four quadrants by the signs of the foreign (x) and domestic (y) contributions; 0 counts as the positive side */
-export const FD_QUADRANTS = ['Both accumulating', 'Domestic absorbing, foreign leaving', 'Foreign absorbing, domestic leaving', 'Both distributing'] as const;
-export const fdQuadrant = (x: number, y: number) => x >= 0 && y >= 0 ? 0 : x < 0 && y >= 0 ? 1 : x >= 0 ? 2 : 3;
+/* QA round 3 (agent 5 M4, the open Low "quadrant names without a minimum"): a part that shows as 0.0% (under FD_FLAT
+   percentage points either way, the map's one decimal) is flat, not a direction; both flat is "No net flow", one flat names
+   the other side only. x foreign, y domestic, in % of total buy value */
+export const FD_FLAT = 0.05;
+export const FD_QUADRANTS = ['Both accumulating', 'Domestic absorbing, foreign leaving', 'Foreign absorbing, domestic leaving', 'Both distributing',
+  'No net flow', 'Domestic accumulating, foreign flat', 'Domestic distributing, foreign flat', 'Foreign accumulating, domestic flat',
+  'Foreign distributing, domestic flat'] as const;
+export const fdQuadrant = (x: number, y: number) => {
+  const fx = Math.abs(x) < FD_FLAT, fy = Math.abs(y) < FD_FLAT;
+  if(fx && fy) return 4;
+  if(fx) return y > 0 ? 5 : 6;
+  if(fy) return x > 0 ? 7 : 8;
+  return x > 0 && y > 0 ? 0 : x < 0 && y > 0 ? 1 : x > 0 ? 2 : 3;
+};

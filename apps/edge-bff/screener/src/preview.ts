@@ -142,7 +142,7 @@ export function renderDetails() {
   }
   if (!tk) {
     dropChart();
-    keepField($('dtb'), () => {   // keep-field.ts, ERRORS M371
+    keepField($('dtb'), () => {   // keep-field.ts, ERRORS M373
       $('dtb').innerHTML = `<div class="pvtop">${lookup()}</div><div class="preview-head"><div><strong>Preview</strong><small>Stock detail and method</small></div>${closeBtn()}</div><div class="dempty">${ico(IC.chart)}<b style="color:var(--text)">Pick a stock</b>Click a result row — or look up any ticker above — to see its chart, why it passed or failed, and its remarks.</div>`;
     });
     $('dacts').hidden = true; return;
@@ -176,7 +176,7 @@ export function renderDetails() {
   const theme = document.documentElement.dataset.theme || '';
   if (drawn && drawn.html === html && drawn.theme === theme && drawn.a === a && $('dtb').querySelector('.preview-head')) { $('dacts').hidden = false; layoutHooks.afterDetails(); return }
   dropChart();
-  keepField($('dtb'), () => { $('dtb').innerHTML = html });   // the lookup keeps what is typed (keep-field.ts, ERRORS M371)
+  keepField($('dtb'), () => { $('dtb').innerHTML = html });   // the lookup keeps what is typed (keep-field.ts, ERRORS M373)
   drawn = { html, theme, a };
   $('dacts').hidden = false;
   ($('dSend') as HTMLButtonElement).disabled = true; $('dSend').title = T.sendPhase;

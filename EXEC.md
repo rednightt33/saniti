@@ -11897,31 +11897,7 @@ Favorites tetap seperti contoh. Merge ke `main` sesudah review lima agen dan per
   Node lokal; baris import itu sama dengan sebelum perubahan (dugaan masalah lingkungan, belum dicek di commit dasar).
 - **Belum:** cek di browser asli user (chart tersimpan, ponsel).
 
-## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (disetujui, menunggu go)
-
-**Kata user, 2026-11-06 (sesudah rilis `80b77b50`):** "Untuk indicator saat kalau kita scroll maka hanya terbatas pada
-indicator group itu saja, while kalau di HTML contoh maka dia bisa scroll semua indikator, dan panel disebelah kiri tetap
-mengikuti / untuk huruf 0 di broker summary hilangkan saja / untuk opsi di indikator broker inventory ada tombol clear, it
-doesnt seem to function at all / kalau saya klik alt B, panel sebelah kanan lagi scroll all the way down, once alt B sudah
-selected custom timeframe, maka panel kanan otomatis ke scroll ke atas? / untuk foreign X domestic heatmap yg saya SS boleh
-hilangkan? kemudian tambahkan hoverstate juga kalau mouse hover ke dot di dalam quadrant". Atas pertanyaan balik: "benar
-untuk butir 2 / butir 5 tidak, hanya 4 garis miring yang dihapus / butir 3 ok sudah benar... masukan exec ya".
-
-1. **Jendela Indicators:** satu daftar semua indikator dengan judul kelompok; klik kelompok di kiri meloncat ke bagiannya,
-   kelompok aktif di kiri mengikuti scroll (seperti "Add a condition" Screener v16: `qSpyMode`, `qScrollTo`). On the chart
-   dan Favorites tetap menyaring; pencarian tetap menyaring.
-2. **Label "0" di panel Broker Inventory (FL23) dihapus.** Garis titik-titik di nol tetap (user tidak meminta garisnya
-   dihapus; "huruf 0").
-3. **Clear di tombol Brokers/Board/Investor FL23 berfungsi:** pilihan benar-benar kosong; selama kosong panel tidak
-   menggambar garis dan menulis "Choose at least one broker" (board/investor); tombol dan chart selalu sama.
-4. **Alt+B:** sesudah periode dipilih di chart, panel kanan kembali ke paling atas (Broker summary terlihat dari judulnya).
-5. **Peta Foreign × Domestic:** empat garis miring (batas vonis ±6/±10%) dihapus; latar kuadran, garis tengah, kisi dan
-   skala tetap. Hover di titik: titik membesar dan kotak keterangan (periode, X Foreign, Y Domestic, vonis, kuadran) dengan
-   gaya tooltip panel kanan.
-
-**Menunggu:** go user.
-
-## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (disetujui, menunggu go)
+## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (go 2026-11-06, draft)
 
 **Kata user, 2026-11-06:** "Untuk indicator saat kalau kita scroll maka hanya terbatas pada indicator group itu saja, while
 kalau di HTML contoh maka dia bisa scroll semua indikator, dan panel disebelah kiri tetap mengikuti / kemudian untuk huruf
@@ -11942,9 +11918,12 @@ saya SS boleh hilangkan? kemudian tambahkan hoverstate juga kalau mouse hover ke
    skala tetap. Hover pada titik: titik membesar dan tooltip (periode, X foreign, Y domestic, vonis, kuadran) dengan gaya
    tooltip panel kanan.
 
-**Menunggu:** go user.
+**Go, kata user 2026-11-06:** "Alright. Go. Also run 5 agents sonnet high untuk QC dan QA ... Gunakan versi draft saat ini
+sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publish. Tahap ini hanya pemeriksaan dan
+pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
+sampai user memutuskan sesudah laporan QC/QA.
 
-## EXEC-FLOW-PANE-FILTERS — tombol filter di baris semua indikator Flow (permintaan 2026-11-06, usulan, belum disetujui)
+## EXEC-FLOW-PANE-FILTERS — tombol filter di baris semua indikator Flow (go 2026-11-06, draft)
 
 **Kata user, 2026-11-06:** "kemudian selanjutnya adalah untuk semua tipe indikator flow, kita mau tambahkan juga indikator
 seperti terlampir. Now list down all flow indicators, serta filter yang bisa ditambahkan, propose ke saya. Kalau ada broker
@@ -11968,6 +11947,99 @@ ya hanya brokers, board dan type yang ada. Coba finalize ya".
 - Tanpa tombol: FL27, FL28, FL31; FL46 tetap lewat ⚙. Side, hari rolling, baseline, satuan, garis acuan tetap di dialog.
 - Clear: garis hilang dan "Choose at least one …"; garis di chart harga: tombol muncul saat baris legend di-hover/disentuh.
 
+**Go, kata user 2026-11-06:** "Alright. Go. Also run 5 agents sonnet high untuk QC dan QA ... Gunakan versi draft saat ini
+sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publish. Tahap ini hanya pemeriksaan dan
+pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
+sampai user memutuskan sesudah laporan QC/QA.
+
+### QC/QA draft `c20703ff` (2026-11-06)
+
+Lima subagen Sonnet (high), hanya pemeriksaan. Laporan: `verification/terminal_api/qa_20261106/QA_REPORT.md`.
+- **Status: FAIL.** Tidak ada angka salah (44 baris matriks dicocokkan dengan PostgreSQL/snapshot).
+- **Temuan terbuka:**
+  - High 3: tombol meluber di ponsel/tablet; baris chart harga keluar layar di ponsel; label sumbu Y peta kehilangan tanda.
+  - Medium 9, antara lain: pilihan kosong hilang saat reload; 0% struktural pada scope "All brokers"; arti
+    Foreign/Domestic tidak jelas.
+  - Low beberapa.
+- **Belum dirilis; menunggu keputusan user atas perbaikan.**
+
+### Perbaikan hasil QC/QA (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "Oke, kita perbaiki dulu. Untuk H1 dan M2, we'll go with your advice."
+- Cakupan = rekomendasi laporan: H1–H3, M1–M3 wajib; M4, M5, M7, M8, M9 dan butir Low yang murah.
+- H1/H2: di layar sempit (≤ 1024 px) kontrol baris dilipat ke satu tombol "Filters" yang membuka panel kontrol.
+- M2: baris tidak menggambar garis dan menulis catatan bahwa semua broker atas kedua jenis investor selalu ber-net 0,
+  dengan saran memilih Foreign/Domestic atau Top-N. Investor tidak diwajibkan (pilihan (a), tafsiran "your advice").
+  Dideteksi dari hasil hitungan (tanpa informasi: semua nilai 0 atau kosong), bukan daftar indikator.
+- Tetap di branch; rilis menunggu keputusan user sesudah pemeriksaan ulang.
+
+### Top brokers rapi, keterangan tingkat, bawaan papan Regular (2026-11-06, go)
+
+**Kata user, 2026-11-06:** "Biar sekalian tolong setelah ini minta tolong spacing dibagian top brokers dirapihkan, lalu ada
+keterangan apakah ini Big accum, accum, normal or what. Kemudian semua board kalau bisa di panel sebelah kanan, dan panel
+bawah (kalau user tambahkan) defaultnya adalah Regular." Atas pertanyaan balik: "1A 2A. Jalankan setelah laporan QA agent
+beres saja, biar sekalian bereskan bug."
+- 1A: tangga 5 tingkat (Big Dist · Dist · Neutral · Acc · Big Acc) di Top brokers, tingkat sekarang ditandai, ambang
+  ±6%/±10% tertulis, rasio ditunjuk posisinya; spacing panel dirapikan (pilihan papan tidak di baris sendiri).
+- 2A: peta Foreign × Domestic mendapat pilihan papan, bawaan Regular. Semua pilihan papan panel kanan (Broker summary, Top
+  brokers, Broker inventory, Bandar detector, peta) bawaan Regular; indikator Flow yang ditambahkan user bawaan Regular
+  lewat spesifikasi (spreadsheet → registry → oracle).
+- Tafsiran yang tidak dijawab tegas: Flow Timeline (panel bawah bawaan, bukan tambahan user) tetap All boards; chart dan
+  pilihan yang sudah tersimpan tetap memakai pilihannya sendiri.
+- Dikerjakan bersama perbaikan temuan QA putaran 2.
+- Status 2026-11-06: dikerjakan di branch (draft, belum rilis). Bandar detector tidak berubah karena hanya tampil di mode
+  fixture; fixture tetap All (pembanding 1:1). Jendela pop-out baru mulai di Regular, state jendela yang sudah tersimpan
+  tetap. Bukti: `verification/terminal_api/qa_20261106/QA_REPORT.md` bagian 8.
+
+## EXEC-TERMINAL-LAYOUTS — simpan/buka layout chart dan collapse panel indikator bawah (go 2026-11-06, draft)
+
+**Kata user, 2026-11-06:** "Misalkan user di dalam satu chart mereka menambahkan indikator 1, 2, 3, dan 4. Saya mau
+ditambahkan opsi di mana layout dari layout ini bisa di-save dan bisa dibuka kapanpun. Mungkin kita bisa taruh di pojok
+kanan atas ... auto save, kemudian make a copy, rename, create layout, dan open layout. Bagian download chart data tidak
+usah, itu satu. Yang kedua adalah, kalau misalkan user menambahkan indikator di bawah, saya mau untuk ditambahkan opsi
+untuk collapse. Sama seperti fungsi collapse flow timeline. ... Ini kita tambahkan, baru nanti putaran QA selanjutnya juga
+mengecek hal ini. Konfirmasi."
+- QA putaran 3 (diminta 2026-11-06: "QA putaran 3.") ditunda sampai fitur ini selesai, lalu memeriksa semuanya.
+- Pertanyaan balik 2026-11-06: tempat simpan; isi layout dan apakah membuka layout mengganti saham; perilaku collapse.
+
+**Jawaban user, 2026-11-06:** "di akun edge. Tidak usah mengganti saham."
+- Layout disimpan per akun EDGE di database (tabel baru `edge_bff.terminal_layouts`, seperti `edge_bff.screener_items`),
+  lewat API edge-bff; terlihat di perangkat mana pun.
+- Membuka layout memasang isinya ke saham yang sedang dibuka (template); saham tidak berganti.
+- Isi layout (usulan yang tidak dikoreksi): indikator dengan setelan dan status sembunyi, status collapse panel, timeframe,
+  jenis chart, Price/Return, Volume, Events, setelan Flow Timeline (filter, Cumulative, buka/tutup, tinggi). Gambar garis
+  tetap per saham; panel kanan tidak termasuk.
+- Menu: Save layout (Ctrl+S), Autosave, Make a copy, Rename, Create new layout, Recently used (bintang favorit),
+  Open layout (tombol titik); tanpa Download chart data.
+- Collapse: tombol di ujung kanan baris judul setiap indikator panel bawah; tertutup = satu baris judul, ruangnya dipakai
+  chart harga; diingat dan ikut layout.
+- Migrasi ke database live dijalankan saat rilis (runbook seperti EXEC-SCREENER), bukan sebelum user memutuskan rilis.
+- Status 2026-11-06 (draft di branch, belum rilis):
+  - Database: `database/migrations/20261106_001_edge_bff_terminal_layouts.sql` (belum diterapkan ke Railway).
+  - edge-bff: `app/layouts.py` (GET/PUT/PATCH/DELETE `/api/v1/terminal/layouts`), batas 50 layout, 64 KB per layout.
+  - Terminal: `src/app/layouts.ts` (menu di sebelah kanan Price/Return; Ctrl+S; tombol titik membuka daftar);
+    jenis chart, Price/Return dan filter Flow Timeline kini diingat (bagian dari layout); pengingat yang baru wajib
+    digolongkan (tes `tests/data/layouts.test.ts`).
+  - Collapse: tombol di ujung baris judul indikator panel bawah; di layar ≤ 1024 px tombolnya ada di panel Filters
+    (seperti Hide/Settings/Remove, QA H1).
+  - Bukti: `verification/terminal_api/terminal_look/look_check5.mjs` (API tiruan di `serve.mjs`).
+
+**QA putaran 3 (2026-11-06):** belum siap rilis (QA_REPORT.md bagian 9). Pilihan yang ditawarkan: (1) perbaiki semua High
+dan Medium plus Low yang murah, QA singkat area yang diubah, lalu rilis; (2) perbaiki semuanya termasuk seluruh Low;
+(3) rilis tanpa layout/collapse. **Kata user:** "1 dan 2, jalankan" — perbaiki semua temuan (High, Medium dan Low), QA
+singkat pada area yang diubah, lalu rilis.
+- Status 2026-11-06: semua temuan diperbaiki di branch (QA_REPORT.md bagian 10, ERRORS M371); runbook migrasi layout siap
+  dan sudah digladi lokal. Berikutnya: QA singkat area yang diubah, lalu rilis (merge ke `main`, migrasi DRYRUN/APPLY,
+  deploy edge-bff).
+- QA singkat (putaran 4, 2026-11-06) dijalankan; temuannya diperbaiki (QA_REPORT.md bagian 11). Rilis: migrasi tabel
+  layout perlu token Railway (sesi ini tidak punya; API Railway menjawab "Not Authorized").
+- **Kata user 2026-11-06 (pilihan rilis):** "A" (token lewat environment, rilis lengkap) dan "check env variable". Token ada
+  di environment sesi (`RAILWAY_TOKEN`, `RAILWAY_API_TOKEN`; nilai tidak dibaca). Proxy menyuntikkan token akun untuk
+  backboard.railway.com, maka CLI dijalankan tanpa `RAILWAY_TOKEN` (token proyek + header suntikan ditolak: "cannot be
+  combined"). Urutan: sesudah B6 (20:20 WIB) dan tanpa run user aktif → DRYRUN → APPLY → merge `main` → cek live.
+- **Dirilis 2026-11-06:** migrasi `20261106_001` diterapkan (APPLY `f79b4ca1`, 23/23, dibaca balik); `main` `4963b9c2`,
+  edge-bff `337b8023` SUCCESS, aset live = build lokal, rute layout ada (401 tanpa sesi). Belum dicek: halaman dengan login
+  (user). Bagian ini dipindah dari EXEC sesudah user mengonfirmasi perilaku live.
 **Menunggu:** go user.
 
 ## EXEC-SCREENER-V21 — frontend Screener ke desain Type A 3-panel v21 (go 2026-11-06)
@@ -12156,11 +12228,13 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
   - menambah ADX tidak menjalankan screen;
   - grafik AALI/Minervini hanya menggambar 9 garis harga (g dan h tidak), sumbu sekitar 6.000-10.000.
   - Rincian di `RAILWAY_CHANGELOG.md`.
-- Temuan baru: kotak "Look up a ticker" kehilangan ketikan saat jawaban preview menggambar ulang panel (ERRORS M371).
+- Temuan baru: kotak "Look up a ticker" kehilangan ketikan saat jawaban preview menggambar ulang panel (ERRORS M373).
   - Keputusan user (2026-11-06): "Ok". Ini jawaban atas usulan "pilihan 1 (saran saya): aturan umum untuk semua panel"
     dan atas PR dokumen.
-  - Dikerjakan di branch: `src/keep-field.ts`, dipakai oleh semua penggambar panel, plus langkah smoke M371.
-  - Merge dan deploy menunggu "go merge".
+  - Dikerjakan di branch: `src/keep-field.ts`, dipakai oleh semua penggambar panel, plus langkah smoke M373.
+  - Nomor ERRORS menjadi M373: sesi Terminal memakai M371 dan M372 di `main` lebih dulu.
+  - Go merge (user 2026-11-06): "ok", sebagai jawaban atas "Ketik 'go merge' kalau PR #53 boleh di-merge". Hanya
+    edge-bff yang dideploy. Titik kembali: edge-bff `337b8023-657b-4335-8e49-90b834840bfe` (`4963b9c2`).
 
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).

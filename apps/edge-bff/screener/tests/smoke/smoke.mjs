@@ -338,7 +338,7 @@ await at('preview: the ring while a new ticker loads, never the previous candles
   expect(/vs IHSG/.test(await text('#dtb')), 'Stock vs IHSG view missing');
   await page.click('[data-pvv="chart"]');
 });
-await at('typed text survives a redraw (ERRORS M371): the lookup keeps what is typed while a preview answer redraws the panel; Enter still picks and empties it', async () => {
+await at('typed text survives a redraw (ERRORS M373): the lookup keeps what is typed while a preview answer redraws the panel; Enter still picks and empties it', async () => {
   // seen live on dev 2026-11-06: right after Screen now the preview answer redrew the panel while a ticker was typed in
   // "Look up a ticker", and the box came back empty and without focus (src/keep-field.ts)
   await fresh('?slow=preview:1500'); await ready();

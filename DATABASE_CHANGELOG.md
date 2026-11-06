@@ -1,5 +1,39 @@
 # Database changelog
 
+## 2026-11-06 — EDGE Terminal saved chart layouts (schema `edge_bff`, EXEC-TERMINAL-LAYOUTS) — applied on dev
+
+- **User:** "Saya mau ditambahkan opsi di mana layout dari layout ini bisa di-save dan bisa dibuka kapanpun" and, asked
+  where layouts live, "di akun edge. Tidak usah mengganti saham." (2026-11-06). Operational schema `edge_bff`, no market
+  data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as `20261028_001`.
+- **`20261106_001_edge_bff_terminal_layouts.sql`** (sha256 `0ae400e79d03fa326702886c6e83ef2ac367d275f897b4a4b4a492b383f7e085`): `edge_bff.terminal_layouts` (one owner's
+  layouts: name unique per owner, state JSON object at most 65,536 bytes, summary, favorite, revision, opened_at); index
+  `terminal_layouts_owner_opened`; `edge_bff_runtime` gets SELECT/INSERT/UPDATE/DELETE only (the file checks no TRUNCATE,
+  REFERENCES, TRIGGER and nothing for PUBLIC); preflight refuses a second run; rollback body in the file (drop the table).
+- **Status:** written and tested on a disposable local PostgreSQL 16 (`apps/edge-bff/tests/test_layouts.py`: API,
+  the verify block against extra and PUBLIC grants, the table rules, a second run refused, the provisioned login; the
+  edge-bff suites that build the schema from the migrations, 162 tests); **not applied to Railway**. Runbook ready (QA
+  round 3, M1): `verification/screener/jobs/migration20261106_001_{dryrun,apply}.params.json` and its checks in
+  `check_migration_log.py`; rehearsed with the real job runner (`scripts/onboarding/migration_job.py`) on a local database
+  built from the six edge_bff migrations: DRYRUN `VERDICT PASS 38/38`, APPLY `VERDICT PASS 23/23`, a second APPLY refused
+  by the preflight (logs `verification/terminal_api/layouts_migration/rehearsal_*.log`). Live read-only check 2026-11-06:
+  the table does not exist and PUBLIC holds no privilege on any edge_bff table. It is applied at the release through
+  `verification/screener/jobs/run_migration.sh` (DRYRUN then APPLY), then `database/migrations/APPLIED.sha256` gains it. Until then
+  edge-bff answers 503 `LAYOUTS_NOT_READY` on the layout routes and the rest of the Terminal works.
+- **Applied 2026-11-06 (user: "A", then "saya izinkan 1" for the Railway variable writes):** after B6, with no user run in
+  flight (`edge_bff.jobs` 0, `AI_conversation_turn` RUNNING 0, 0 active statements), through
+  `verification/screener/jobs/run_migration.sh` with the session's Railway account token:
+  - DRYRUN job `d19c51a4` (13:21 UTC): judged on an incomplete log read, then on the same job's complete log 38/38 except
+    the PostgreSQL 18 NOT NULL rows (ERRORS M372); the runner and the checker fixed; DRYRUN again, job `4b4ef869`:
+    `VERDICT PASS 38/38`.
+  - APPLY attempts 1 and 2 stopped before any job ran (`SET_FAILED`, then the runner guard's `DEPLOYMENT_LIST_FAILED`:
+    connections to backboard.railway.com closed mid-request); records `migration20261106_001_apply_attempt{1,2}_*.run.txt`.
+    A manual `DATABASE_URL` set for the diagnosis was removed and checked gone.
+  - APPLY job `f79b4ca1`: `VERDICT PASS 23/23`; `DATABASE_URL` removed from orc-test-runner (VAR_REMOVED, read back 0).
+  - Read back through pgweb catalogs: the table and its three indexes; `edge_bff_runtime` SELECT/INSERT/UPDATE/DELETE
+    only; PUBLIC none; pgweb itself cannot read the table (by design). `APPLIED.sha256` gains the file.
+- `scripts/provision_edge_bff_login.py` holds the table to exactly these grants once it exists, and now refuses any
+  PUBLIC privilege on an EDGE table (QA round 3, L6; none live).
+
 ## 2026-11-05 — Feature 01 queue claimed per ticker (EXEC-UNIVERSE-BROKER L3)
 
 - **User:** "Untuk point nomor 4 OK --> masukan exec. Inspect database. Ensure keputusan diambil dari code inspection

@@ -1,4 +1,4 @@
-/* ERRORS M371: an area the page redraws replaces the field the user is typing in, and the typed text and the focus are
+/* ERRORS M373: an area the page redraws replaces the field the user is typing in, and the typed text and the focus are
    lost. Seen live on dev (2026-11-06): right after Screen now, the preview answer redrew the panel while "AALI" was
    being typed in "Look up a ticker"; the box came back empty and without focus.
    press.ts holds a drawing while a pointer is pressed; this module covers the keyboard. Every area renderer that
