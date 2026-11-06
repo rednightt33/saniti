@@ -140,7 +140,7 @@ def param(row):
             p.update(kind='multi', options=INVESTORS, default=INVESTORS if default == 'Semua' else [default])
         elif key.endswith('brokers'):
             lo, hi = span(choices)
-            p.update(kind='brokers', default='top3_net_buy_20' if default.startswith('3 net buyer') else [],
+            p.update(kind='brokers', default='auto_c' if default.startswith('2 net buyer + 1 net seller') else 'top3_net_buy_20' if default.startswith('3 net buyer') else [],
                      **({'min': lo, 'max': hi} if hi else {}))
         else:                                                # inst, retail: a classification's brokers by default
             p.update(kind='brokers', default='class:' + re.search(r'(Institutional-heavy|Retail-heavy)', default).group(1))

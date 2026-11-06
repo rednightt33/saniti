@@ -1,7 +1,7 @@
 // EXEC-TERMINAL-FLOW-IND (user go 2026-10-30): the Flow indicators against hand-computed values, the spreadsheet's own
 // illustrations (FLOW_INDICATORS_SPEC.xlsx, column "Example Illustration") and the conventions of FORMULAS.md.
 import { describe, expect, it } from 'vitest';
-import { above, atLeast, atMost, computeFlow, defaultInventoryBrokers, flowDefaults, flowRows, percentile, transactionSize, zscore, type FlowContext } from '../../src/calc/flow';
+import { above, atLeast, atMost, autoInventoryBrokers, computeFlow, defaultInventoryBrokers, flowDefaults, flowRows, percentile, transactionSize, zscore, type FlowContext } from '../../src/calc/flow';
 import REG from '../../src/data/flowRegistry.json';
 import { ratioRefusal } from '../../src/app/flowIndicators';
 
@@ -187,6 +187,22 @@ describe('Broker Inventory and the classification lists', () => {
   it('FL23 defaults to the three largest net buyers of the last 20 candles', () => {
     const c = ctx([r(D[0], 'A', 30, 0, 1, 0), r(D[0], 'B', 20, 0, 1, 0), r(D[0], 'C', 10, 0, 1, 0), r(D[0], 'D', 5, 0, 1, 0)], D);
     expect(defaultInventoryBrokers(c.rows)).toEqual(['A', 'B', 'C']);
+  });
+  /* EXEC-BROKER-INV-PANEL option C (user 2026-11-06): two net buyers and one net seller from the start candle, on the
+     chosen boards and investors; earlier candles and other boards/investors do not count */
+  it('FL23 option C: the two largest net buyers and the largest net seller from the start candle, filters applied', () => {
+    const c = ctx([
+      r(D[0], 'OLD', 999, 0, 1, 0),                                        // before the start: ignored
+      r(D[1], 'A', 50, 0, 1, 0), r(D[2], 'A', 10, 30, 1, 1),               // A net +30
+      r(D[1], 'B', 40, 0, 1, 0), r(D[1], 'C', 40, 0, 1, 0),                // B and C tie at +40: by code, B then C
+      r(D[1], 'S', 0, 70, 0, 1), r(D[2], 'T', 0, 20, 0, 1),                // S the largest net seller
+      r(D[1], 'F', 500, 0, 1, 0, 1, 1, 'Foreign'),                         // a foreign buy: out with investors Domestic
+      r(D[1], 'N', 0, 900, 0, 1, 1, 1, 'Domestic', 'Nego'),                // a Nego sale: out with boards Regular
+    ], D);
+    expect(autoInventoryBrokers(c, { start:D[1], boards:['Regular'], investors:['Domestic'] })).toEqual(['B', 'C', 'S']);
+    expect(autoInventoryBrokers(c, { start:D[1] })).toEqual(['F', 'B', 'N']);
+    const o = computeFlow('FL23', c, { brokers:'auto_c', unit:'value', view:'cum', start:D[1], boards:['Regular'], investors:['Domestic'] });
+    expect(Object.keys(o)).toEqual(['B', 'C', 'S']);
   });
   it('FL34 institutional minus retail net over the traded value; a broker in both lists gives nothing', () => {
     const c = ctx([r(D[0], 'II', 60, 0, 1, 0), r(D[0], 'RR', 0, 40, 0, 1), r(D[0], 'XX', 40, 60, 1, 1)], D,

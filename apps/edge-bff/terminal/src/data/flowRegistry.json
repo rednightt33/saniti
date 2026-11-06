@@ -3,7 +3,7 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "7b20d88239e6e821c1c7a4bc07b4108d79757e79e351e42ae899a81243c57bda"
+  "sha256": "a668a27b562cb8433f83fb079688c66e5d3ff27c76cb0434fd65dce1121d26e4"
  },
  "families": [
   "Share",
@@ -2910,7 +2910,7 @@
      "label": "Brokers",
      "status": "DECIDED",
      "kind": "brokers",
-     "default": "top3_net_buy_20",
+     "default": "auto_c",
      "min": 1,
      "max": 5
     },

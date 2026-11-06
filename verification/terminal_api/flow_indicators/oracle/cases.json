@@ -1339,6 +1339,23 @@
    }
   },
   {
+   "id": "FL23",
+   "case": "auto_c",
+   "params": {
+    "brokers": "auto_c",
+    "unit": "value",
+    "view": "cum",
+    "total": false,
+    "boards": [
+     "Regular"
+    ],
+    "investors": [
+     "Foreign"
+    ],
+    "start": "2025-06-02"
+   }
+  },
+  {
    "id": "FL24",
    "case": "default",
    "params": {

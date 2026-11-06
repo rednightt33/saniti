@@ -4,7 +4,7 @@
    scripts/build_flow_registry.py); the numbers come from calc/flow.ts on the raw broker rows the worker sends
    (ctx.flowRows). Rules of the spreadsheet that need the chart: the default anchor and Broker Inventory's start are the
    first visible candle; "days" are the chart's candles (user 2026-10-30: "2-3 OK"). */
-import { classBrokers, computeFlow, defaultInventoryBrokers, type FlowContext, type FlowRows, type InsiderRow } from '../calc/flow';
+import { autoInventoryBrokers, classBrokers, computeFlow, defaultInventoryBrokers, type FlowContext, type FlowRows, type InsiderRow } from '../calc/flow';
 import REG from '../data/flowRegistry.json';
 import type { Ctx } from './context';
 import { nfCompact, rupiah } from './context';
@@ -19,6 +19,9 @@ export const FLOW_REG = REG as unknown as { families: string[]; indicators: Flow
    lots or its Rupiah-per-share average price. On an index (the market aggregate of every stock) they are hidden
    (data/inputs.ts 'single'): lots of different stocks do not add up (2 Nov: GOTO 43.1 M lots = Rp104 bn, BUMI 38.2 M lots
    = Rp482 bn), a Rupiah-per-share VWAP is not the index level, an index has no volume and no insider. Review in EXEC.md. */
+/** EXEC-BROKER-INV-PANEL (user 2026-11-06: "Pilihannya brokers, Market Board dan Investor Type saja"): the choices shown as
+    buttons on an indicator's own pane row; the others stay in the settings dialog */
+export const PANE_FILTERS: Record<string, string[]> = { FL23:['brokers', 'boards', 'investors'] };
 export const SINGLE_SECURITY = new Set(['FL01', 'FL03', 'FL05', 'FL06', 'FL07', 'FL08', 'FL09', 'FL13', 'FL14', 'FL15',
   'FL17', 'FL18', 'FL19', 'FL20', 'FL27', 'FL31', 'FL39',
   /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05 "Ok, masukan exec"): the new ones built on a Rupiah-per-share price */
@@ -158,12 +161,15 @@ export function initFlowIndicators(ctx: Ctx) {
     for (const k of Object.keys(o)) out[k] = Array.isArray(o[k]) ? (marker ? markerOnCandles : onCandles)(o[k], DAY.dayOf) : o[k];
     return out;
   };
-  /** a token default (`class:...`, `top3_net_buy_20`) as broker codes, for the settings dialog */
-  const brokersOf = (v: any): string[] =>
+  /** a token default (`class:...`, `top3_net_buy_20`, `auto_c`) as broker codes, for the settings dialog; `auto_c` (FL23,
+      EXEC-BROKER-INV-PANEL option C) reads the candles on screen and the indicator's own boards and investors */
+  const brokersOf = (v: any, p?: any): string[] =>
     Array.isArray(v) ? v : typeof v === 'string' && v.startsWith('class:') ? classBrokers(context(), v.slice(6))
-      : v === 'top3_net_buy_20' ? defaultInventoryBrokers(context().rows) : [];
+      : v === 'top3_net_buy_20' ? defaultInventoryBrokers(context().rows)
+      : v === 'auto_c' ? (ctx.flowRows?.n ? autoInventoryBrokers(context(), { start:firstVisible(), boards:p?.boards, investors:p?.investors }) : []) : [];
 
-  const tokenLabel = (v: string) => v.startsWith('class:') ? v.slice(6) : v === 'top3_net_buy_20' ? 'Top 3 net buyers, last 20' : v;
+  const tokenLabel = (v: string) => v.startsWith('class:') ? v.slice(6) : v === 'top3_net_buy_20' ? 'Top 3 net buyers, last 20'
+    : v === 'auto_c' ? '2 net buyers + 1 net seller on screen' : v;
   const per = tf === 'W' ? 'weekly' : tf === 'M' ? 'monthly' : 'daily';
   /* a candle is a "day" (user 2026-10-30: "2-3 OK"); on weekly and monthly charts the words follow the candle (Reviewer B,
      B2, B3: "Rolling weeks (1 = daily)", "Average Daily Value · 20W") */
@@ -234,6 +240,7 @@ export function initFlowIndicators(ctx: Ctx) {
           return { ...base, kind:'multi', def:q.default, options:() => all, all:() => all.map(x => x.id), title:isBoard ? 'Board' : 'Investor' };
         }
         case 'brokers': { const k = scopeKey(q.key); return { ...base, kind:'brokers', def:q.default, max:q.max ?? undefined, resolve:brokersOf, tokenLabel,
+          ...(q.default === 'auto_c' ? { freezeToken:'auto_c' } : {}),
           ...(k ? { when:(p: any) => p[k] === 'selected' } : {}) } }
         case 'int': return { ...base, kind:'int', min:q.min ?? 1, max:q.max ?? 5000, def:q.default };
         case 'num': return { ...base, kind:'num', min:q.min ?? -1e12, max:q.max ?? 1e12, minExclusive:!!(q as any).min_exclusive, step:'any', def:q.default };
@@ -244,8 +251,12 @@ export function initFlowIndicators(ctx: Ctx) {
       }
     });
     const viewBound = r.params.some(q => q.kind === 'date') || r.id === 'FL23';
+    /* EXEC-BROKER-INV-PANEL: an indicator that counts from the first candle on screen (a fixed `start`) marks its 0 in the
+       pane; the pane's own broker, board and investor buttons are the user's choice for Broker Inventory (2026-11-06) */
+    const zeroLabel = r.place === 'pane' && r.params.some(q => q.key === 'start' && q.kind === 'fixed');
+    const paneFilters = PANE_FILTERS[r.id];
     return {
-      id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, inputs, style:[], fill:null,
+      id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, zeroLabel, paneFilters, inputs, style:[], fill:null,
       pane:r.place === 'pane' ? 'sub' : 'overlay', format:F.fmt, minMove:F.minMove,
       outsOf:(p: any) => outs(p.plot === 'hist' ? 'histogram' : p.plot === 'line' ? 'line' : plotDefault, p),
       compute:(p: any) => {

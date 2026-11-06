@@ -285,6 +285,12 @@ DEC_20261105 = [
      'Kelompok B tetap, ganti labelnya, masukan exec'),
 ]
 
+# ---- decision 2026-11-06 (EXEC-BROKER-INV-PANEL: "Broker bawaan pakai opsi C", "3B"): FL23's default brokers are the two
+# largest net buyers and the largest net seller over the candles on screen, picked once when the indicator is added ----
+set_params('FL23', swap('Broker', ('Broker', 'Pilih banyak (cari kode)', '1 - 5 broker',
+                                   '2 net buyer + 1 net seller terbesar di periode terlihat (dipilih saat ditambahkan)', D,
+                                   'Opsi C (2026-11-06): mengikuti filter papan dan investor; tetap sampai user menggantinya (3B).')))
+
 BY_SPEC = {n: f for f in FL for n in f[2]}
 NEW_NAME = {11: 'Buy/Sell Average Transaction Size Ratio', 13: 'Average Transaction Size Percentile', 14: 'Block Money Candidate'}
 FIX = {10: ('#7', '#9'), 11: ('#7 dan #8', '#1 dan #2'), 19: ('#20', '#18'), 26: ('(#34)', '(#27)')}

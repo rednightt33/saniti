@@ -689,10 +689,30 @@ def fl23_default_brokers(T):
     return [b for _, b in heapq.nsmallest(3, elig)]
 
 
+def fl23_auto_brokers(T, p):
+    """EXEC-BROKER-INV-PANEL option C (2026-11-06): the two largest net buyers and the largest net seller (value) from the
+    start candle to the last candle with data, on the chosen boards and investors; ties by broker code"""
+    has = [i for i in range(T.n) if T.has[i]]
+    if not has:
+        return []
+    last = has[-1]
+    a = min(_anchor_idx(T, p['start']), last)
+    agg = T.agg(*filt(p))
+    tot = {}
+    for k in range(a, last + 1):
+        for b, v in agg[k].items():
+            tot[b] = tot.get(b, 0) + v[BV] - v[SV]
+    buyers = [b for _, b in heapq.nsmallest(2, [(-x, b) for b, x in tot.items() if x > 0])]
+    sellers = [b for _, b in heapq.nsmallest(1, [(x, b) for b, x in tot.items() if x < 0])]
+    return buyers + sellers
+
+
 def s_fl23(T, p):
     brokers = p['brokers']
     if brokers == 'top3_net_buy_20':
         brokers = fl23_default_brokers(T)
+    elif brokers == 'auto_c':
+        brokers = fl23_auto_brokers(T, p)
     brokers = list(brokers)
     lot = p.get('unit', 'lot') == 'lot'
     cum_view = p.get('view', 'cum') == 'cum'

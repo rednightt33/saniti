@@ -428,6 +428,17 @@ export function defaultInventoryBrokers(R: FlowRows): string[] {
   if (!idx.length) return [];
   return topBrokers(g, R, idx[idx.length - 1], idx[0], 3, 'net_buy').map(b => R.brokers[b]);
 }
+/** EXEC-BROKER-INV-PANEL (user 2026-11-06: "Broker bawaan pakai opsi C", "3B"): FL23's default brokers, the two largest
+    net buyers and the largest net seller (value) from the first candle on screen (`p.start`) to the last candle with data,
+    on the chosen boards and investors. The Terminal resolves it once, when the indicator is added. */
+export function autoInventoryBrokers(ctx: FlowContext, p: FlowParams): string[] {
+  const R = ctx.rows, g = grid(R, p.boards ?? null, p.investors ?? null);
+  let t = R.N - 1; while (t >= 0 && !R.has[t]) t--;
+  const a = Math.min(anchorAt(ctx, p.start), t);
+  if (t < 0 || a < 0) return [];
+  const buyers = topBrokers(g, R, a, t, 2, 'net_buy'), seller = topBrokers(g, R, a, t, 1, 'net_sell');
+  return [...buyers, ...seller].map(b => R.brokers[b]);
+}
 /** FL34 default lists: the brokers of a classification */
 export const classBrokers = (ctx: FlowContext, cls: string) => Object.keys(ctx.classification).filter(b => ctx.classification[b] === cls).sort();
 const resolveBrokers = (ctx: FlowContext, v: any, fallback: () => string[]): string[] =>
@@ -513,7 +524,7 @@ export const FLOW: Record<string, Fn> = {
     }) };
   },
   FL23:(c, p) => {
-    const R = c.rows, g = grid0(p), brokers = resolveBrokers(c, p.brokers, () => defaultInventoryBrokers(R)).slice(0, 5);
+    const R = c.rows, g = grid0(p), brokers = resolveBrokers(c, p.brokers, () => p.brokers === 'auto_c' ? autoInventoryBrokers(c, p) : defaultInventoryBrokers(R)).slice(0, 5);
     const s = anchorAt(c, p.start), value = p.unit === 'value', daily = p.view === 'daily', out: FlowOut = {};
     const lines = brokers.map(code => {
       const b = R.brokers.indexOf(code), o = series(R.N); let acc = 0;

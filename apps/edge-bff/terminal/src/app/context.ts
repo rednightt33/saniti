@@ -86,7 +86,7 @@ export interface IndSurface {
 export interface HistEntry { undo(): void; redo(): void }
 
 export interface FilterOption { id: string; label: string }
-export interface FilterApi { root: HTMLElement; close(): void; refresh(): void }
+export interface FilterApi { root: HTMLElement; close(): void; refresh(): void; sync?: () => void }
 
 export interface Ctx {
   M: MarketData;
