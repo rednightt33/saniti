@@ -1,5 +1,33 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `f9871686`: Screener parameters in "Add a condition", solid failed cells, event fail "No" (PR #55)
+
+- **Change (ERRORS M376, M377):**
+  - a failed result cell is solid pink, darker on hover, without diagonal lines;
+  - an event cell that failed with no event in reach reads "No";
+  - "Add a condition" shows each indicator's parameters as editable fields, with the card's limits and check.
+  - No backend, variable, migration or database change; screener-worker skipped (`217b8ff9` SKIPPED).
+- **Go:** user 2026-11-06 "merge". PR rednightt33/saniti#55 merged 15:16 UTC (merge commit `f9871686`).
+- **Deployment (Railway API):** edge-bff `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` SUCCESS, created 15:16:14 UTC (seen
+  15:17:24 UTC), commit `f9871686`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-SOhMLGZb.js` and `assets/style-bYE2zL4c.css` are byte-equal to the local
+    build of the same tree (sha256 `64e02719473786f4…`, `e192731bf4dc7019…`);
+  - the screener CSP is unchanged;
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, ~15:25 UTC):**
+  - the window's SMA row offers Length (20) and Source (open … ohlc4);
+  - Length 0 is refused ("Simple Moving Average: Length: Must be at least 1.") and nothing is added;
+  - Length 30 + Enter adds a card with Length 30, Custom, without a run;
+  - MACD bullish divergence offers Fast, Slow and Signal;
+  - Minervini + SMA 30 + MACD divergence, Screen now, near misses on: all 6 failed cells have `background-image: none`
+    and get darker on hover; the 6 failed MACD divergence cells read "No";
+  - no CSP violation, no console error.
+- **Found:** with Minervini, Length 50 + Enter removed the "Close above SMA(50)" card already on the screen: Enter in a
+  field toggled a row whose "on the screen" state appeared only on that Enter (ERRORS M378; the fix is in the next PR).
+- **Rollback:** redeploy edge-bff `0718b572-45bf-48d2-bfcb-6daa040fb837` (commit `bb935001`), or revert merge `f9871686`
+  on `main`.
+
 ## 2026-11-06 — edge-bff from `main` `138bbe6b`: Screener pick empties the lookup (ERRORS M374, PR #54)
 
 - **Change:** `pickStock` (`apps/edge-bff/screener/src/preview.ts`) empties "Look up a ticker" and closes its
