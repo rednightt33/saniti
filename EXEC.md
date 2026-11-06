@@ -12243,6 +12243,11 @@ bareng point A". Ini persetujuan untuk membuat rencana dan keputusan M368 = A; e
     - Keputusan user (2026-11-06): "betulkan skrg go merge". Ini perintah untuk memperbaiki M374 lalu merge dan
       deploy edge-bff.
     - Titik kembali: edge-bff `01f75fd4-a413-4091-a782-3a84251e39e2` (`88683a63`).
+    - Di-merge 14:17 UTC (`main` `138bbe6b`, PR #54); edge-bff `f111e7d9` SUCCESS; bundle live sama persis.
+    - Cek live lulus: Enter pada saham yang sudah tampil (AALI) kini mengosongkan kotak; Enter pada saham lain tetap
+      memilih dan mengosongkan kotak.
+    - Temuan terpisah: smoke sesekali gagal karena tugas halaman di atas 50 ms (ERRORS M375, terbuka, sudah ada sebelum
+      perubahan ini).
 
 ### Urutan eksekusi sesudah go
 1. Bagian 2 (kontrak, worker, halaman, tes), lalu Bagian 1 (jendela, CSS, tes).

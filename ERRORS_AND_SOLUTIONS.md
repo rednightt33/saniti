@@ -5338,7 +5338,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   regression look the same.
 - **Status:** OPEN; not fixed in the M374 change (outside its scope).
 
-### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, fixed in code)
+### M374 — Screener preview: Enter on the stock already shown leaves the typed text in "Look up a ticker" (2026-11-06, fixed)
 
 - **Found by:** the coordinator's live check of M373 (dev, signed in).
 - **Symptom:** after Screen now the preview shows AALI. Typing "AALI" in "Look up a ticker" and pressing Enter keeps
@@ -5358,7 +5358,9 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - the smoke step "picking the stock already shown empties the lookup (ERRORS M374)" passes;
   - without the fix it fails with the live symptom (`{"v":"BMRI","sug":true}`);
   - typecheck; vitest 780 passed, 1 skipped; bundle 31; visual 46 shots; backtest tripwire OK.
-- **Status:** FIXED in code (branch, not deployed).
+- **Status:** FIXED and deployed (edge-bff `f111e7d9`, `main` `138bbe6b`, PR #54). Live, signed in, 2026-11-06: with
+  AALI shown, "AALI" + Enter leaves the lookup empty and its suggestions closed; "ULTJ" + Enter picks ULTJ and empties
+  it.
 
 ### M373 — Screener preview: "Look up a ticker" loses what is typed when a preview answer redraws the panel (2026-11-06, fixed)
 

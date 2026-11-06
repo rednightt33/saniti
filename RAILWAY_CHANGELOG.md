@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `138bbe6b`: Screener pick empties the lookup (ERRORS M374, PR #54)
+
+- **Change:** `pickStock` (`apps/edge-bff/screener/src/preview.ts`) empties "Look up a ticker" and closes its
+  suggestions itself; also the records of the PR #53 deploy and ERRORS M375. No backend, variable, migration or database
+  change; screener-worker skipped (`f46b1ce5` SKIPPED).
+- **Go:** user 2026-11-06 "betulkan skrg go merge". PR rednightt33/saniti#54 merged 14:17 UTC (merge commit `138bbe6b`).
+- **Deployment (Railway API):** edge-bff `f111e7d9-102e-4b02-b908-bcdbe5b1f295` SUCCESS, created 14:17:18 UTC (seen
+  14:18:09 UTC), commit `138bbe6b`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-B6Arcnt8.js` and `assets/style-DYQZvLdL.css` are byte-equal to the local
+    build of the same tree (sha256 `f461f9b93e66cc32…`, `729bc2390eea5e2c…`);
+  - the screener CSP is unchanged;
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, ~14:20 UTC):**
+  - the preview shows AALI; "AALI" + Enter now leaves the lookup empty with its suggestions closed (before: "AALI" kept);
+  - "ULTJ" + Enter picks ULTJ and empties the box;
+  - M373 still holds: "AALI" typed right after Screen now is kept through the redraw;
+  - no CSP violation, no console error.
+- **Rollback:** redeploy edge-bff `01f75fd4-a413-4091-a782-3a84251e39e2` (commit `88683a63`), or revert merge `138bbe6b`
+  on `main`.
+
 ## 2026-11-06 — edge-bff from `main` `88683a63`: Screener keeps typed text through an area redraw (ERRORS M373, PR #53)
 
 - **Change:** `apps/edge-bff/screener/src/keep-field.ts`. Every area renderer of the Screener page gives the field being
