@@ -12361,3 +12361,4 @@ propose." Atas usulan "My presets" dan pertanyaan balik: "Q1 A" (simpan di akun 
   (simpan dari baris dan dari Settings, nama sama ditanya dulu lalu diganti, Add, bintang, Rename, Update from chart,
   Delete, pencarian, indikator yang sudah tidak ada, parameter usang kembali ke bawaan, ponsel tanpa geser) plus
   `look_check3/5/6/7/8` tanpa galat; Terminal 870/870, edge-bff 333 lulus, tripwire backtest OK.
+- Go rilis 2026-11-06 (user: "ok", 22:4x WIB, sesudah B6): migrasi `20261106_002` DRYRUN lalu APPLY, lalu `main`.
