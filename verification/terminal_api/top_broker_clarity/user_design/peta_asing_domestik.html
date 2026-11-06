@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Peta foreign × domestik</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* =====================================================================
+   EDGE / Market Lab — Design Spec v1  (sumber: EDGE v6, screener.html)
+   ---------------------------------------------------------------------
+   Cara pakai
+   1. Pasang file ini paling awal (sebelum CSS halaman) + font Inter:
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+      <link rel="stylesheet" href="edge-design-spec.css">
+   2. Elemen polos (table, button, input, select, h1–h3, a) langsung
+      ikut gaya EDGE lewat layer "edge-base".
+   3. Komponen siap pakai: .card .btn .seg .tabs .pill .tog .inp .field
+      .tbl .kpi .kv .dialog .note .eyebrow .empty .switch
+   4. Mode gelap: <html class="dark"> atau <html data-theme="dark">.
+   Urutan layer: edge-base < edge-components < edge-utilities, jadi CSS
+   halaman (di luar layer) selalu menang tanpa perlu !important.
+   ===================================================================== */
+
+@layer edge-tokens, edge-base, edge-components, edge-utilities;
+
+/* ---------------------------------------------------------------------
+   1. TOKENS
+   --------------------------------------------------------------------- */
+@layer edge-tokens {
+:root{
+  /* Permukaan */
+  --bg:#fafafa;            /* latar halaman */
+  --surface:#ffffff;       /* kartu, tabel, input */
+  --surface-2:#f7f7f7;     /* hover baris tabel, kbd */
+  --hover:#f3f3f3;         /* hover tombol/menu */
+  --sel:#efefef;           /* item terpilih (seg, tab, pill netral) */
+  --border:#eaeaea;        /* semua garis 1px */
+  --border-2:#dcdcdc;      /* garis saat hover */
+
+  /* Teks */
+  --text:#171717;          /* utama, angka penting */
+  --text-2:#4d4d4d;        /* sekunder, label tombol */
+  --text-3:#8f8f8f;        /* keterangan, header tabel */
+
+  /* Semantik pasar (IDX: hijau naik, merah turun) */
+  --green:#087f5b;  --green-bg:rgba(8,153,129,.10);   /* teks naik / pill positif */
+  --red:#d62839;    --red-bg:rgba(242,54,69,.09);     /* teks turun / pill negatif */
+  --up:#089981;     --down:#f23645;                  /* candle, bar, garis chart */
+  --blue:#0070f3;   --blue-bg:rgba(0,112,243,.08);    /* fokus, link, nilai Custom */
+  --amber:#b45309;  --amber-bg:rgba(245,166,35,.14);  /* peringatan */
+  --violet:#7928ca; --navy:#17348c;                  /* aksen chart, broker lokal */
+
+  /* Seri chart (urutan tetap) */
+  --c1:#0070f3; --c2:#7928ca; --c3:#f5a623; --c4:#089981; --c5:#e5484d; --c6:#17348c;
+
+  /* Tipografi */
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  --fs-2xs:10.5px;  /* label kecil uppercase, badge */
+  --fs-xs:11px;     /* pill, catatan kecil */
+  --fs-sm:11.5px;   /* label field, note */
+  --fs-12:12px;     /* tombol kecil, sel tabel padat */
+  --fs-md:12.5px;   /* tabel, seg, menu */
+  --fs-base:13px;   /* teks body default */
+  --fs-lg:14px;     /* judul kartu */
+  --fs-xl:15px;     /* judul dialog */
+  --fs-2xl:18px;    /* angka KPI besar */
+  --fs-3xl:22px;    /* judul halaman (h1) */
+  --fw-regular:400; --fw-medium:500; --fw-semibold:600; --fw-bold:700;
+  --lh-base:1.5; --lh-tight:1.35;
+  --ls-caps:.05em;  /* letter-spacing teks uppercase */
+  --ls-title:-.01em;
+
+  /* Jarak (kelipatan 2/4) */
+  --s-1:2px; --s-2:4px; --s-3:6px; --s-4:8px; --s-5:10px; --s-6:12px;
+  --s-7:14px; --s-8:16px; --s-9:20px; --s-10:24px; --s-11:32px;
+
+  /* Radius */
+  --r-xs:4px;   /* kbd, input kecil */
+  --r-sm:6px;   /* item menu, tombol di dalam seg, ikon kecil */
+  --r-md:8px;   /* tombol, input, seg, search */
+  --r-lg:10px;  /* popover, kartu kecil */
+  --r-xl:12px;  /* kartu / panel */
+  --r-2xl:14px; /* dialog */
+  --r-pill:999px;
+
+  /* Ukuran kontrol */
+  --h-xs:22px;  /* seg kecil */
+  --h-sm:28px;  /* tombol kecil */
+  --h-md:32px;  /* tombol, input, select, tab */
+  --h-th:36px;  /* header tabel */
+  --h-row:44px; /* baris tabel normal (padat: 36px) */
+  --h-top:52px; /* top bar */
+
+  /* Bayangan & fokus */
+  --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px -8px rgba(0,0,0,.22);          /* hover tombol/kartu */
+  --shadow-lg:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);   /* popover, dialog */
+  --ring:0 0 0 3px var(--blue-bg);
+
+  /* Lapisan */
+  --z-sticky:40; --z-pop:60; --z-modal:80; --z-toast:99;
+  color-scheme:light;
+}
+:root.dark,:root[data-theme="dark"]{
+  --bg:#0a0a0a; --surface:#111111; --surface-2:#161616; --hover:#1c1c1c; --sel:#232323;
+  --border:#262626; --border-2:#333333;
+  --text:#ededed; --text-2:#b4b4b4; --text-3:#7c7c7c;
+  --green:#3ecf8e; --green-bg:rgba(62,207,142,.12); --red:#ff6369; --red-bg:rgba(255,99,105,.12);
+  --blue:#52a8ff; --blue-bg:rgba(82,168,255,.12); --amber:#f5b041; --amber-bg:rgba(245,176,65,.14);
+  --violet:#bf7af0; --navy:#7d9bff;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px -8px rgba(0,0,0,.7);
+  --shadow-lg:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;
+  color-scheme:dark;
+}
+}
+
+/* ---------------------------------------------------------------------
+   2. BASE — elemen HTML polos langsung bergaya EDGE
+   --------------------------------------------------------------------- */
+@layer edge-base {
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+h1{margin:0;font-size:var(--fs-3xl);font-weight:var(--fw-semibold);letter-spacing:var(--ls-title);line-height:1.25}
+h2{margin:0;font-size:var(--fs-xl);font-weight:var(--fw-semibold);line-height:1.3}
+h3{margin:0;font-size:var(--fs-lg);font-weight:var(--fw-semibold);line-height:1.35}
+p{margin:0}
+small{font-size:var(--fs-sm);color:var(--text-3)}
+a{color:var(--blue);font-weight:var(--fw-medium);text-decoration:none}
+a:hover{text-decoration:underline}
+hr{border:0;border-top:1px solid var(--border);margin:var(--s-6) 0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+::selection{background:var(--blue-bg)}
+
+/* tombol polos = tombol sekunder */
+button{font:inherit;color:inherit;cursor:pointer;height:var(--h-md);padding:0 var(--s-6);border-radius:var(--r-md);
+  border:1px solid var(--border);background:var(--surface);font-weight:var(--fw-medium);
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s-3);white-space:nowrap}
+button:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow)}
+button:disabled{cursor:not-allowed;opacity:.45}
+
+/* input polos */
+input:where([type="text"],[type="number"],[type="search"],[type="email"],[type="password"],[type="date"],:not([type])),select,textarea{
+  font:inherit;color:var(--text);height:var(--h-md);min-width:0;border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none}
+textarea{height:auto;padding:var(--s-4) var(--s-5);resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:var(--ring)}
+input[type="checkbox"],input[type="radio"],input[type="range"]{accent-color:var(--text)}
+label{font-size:var(--fs-sm);color:var(--text-3);font-weight:var(--fw-medium)}
+
+/* tabel polos */
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-md);background:var(--surface)}
+th{height:var(--h-th);padding:0 var(--s-5);text-align:right;font-weight:var(--fw-medium);color:var(--text-3);
+  border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface)}
+td{height:var(--h-row);padding:0 var(--s-5);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover td{background:var(--surface-2)}
+caption{caption-side:top;text-align:left;padding:0 0 var(--s-4);font-weight:var(--fw-semibold)}
+kbd{font:var(--fw-medium) var(--fs-2xs) var(--sans);border:1px solid var(--border);border-radius:var(--r-xs);padding:1px 5px;color:var(--text-3);background:var(--surface-2)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:var(--hover);border-radius:var(--r-xs);padding:1px 4px}
+}
+
+/* ---------------------------------------------------------------------
+   3. KOMPONEN
+   --------------------------------------------------------------------- */
+@layer edge-components {
+/* Kartu / panel: border 1px, radius 12, tanpa bayangan */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);min-width:0}
+.card-h{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-7) var(--s-8) var(--s-5)}
+.card-h h3,.card-h strong{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.card-b{padding:0 var(--s-8) var(--s-8)}
+.card-f{display:flex;gap:var(--s-4);justify-content:flex-end;padding:var(--s-6) var(--s-8);border-top:1px solid var(--border)}
+
+/* Teks pendukung */
+.eyebrow{display:block;font-size:var(--fs-xs);font-weight:var(--fw-semibold);color:var(--text-3);text-transform:uppercase;letter-spacing:var(--ls-caps)}
+.note{font-size:var(--fs-sm);color:var(--text-3);line-height:var(--lh-tight)}
+
+/* Tombol */
+.btn{height:var(--h-md);padding:0 var(--s-6);border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface);color:var(--text);
+  font-weight:var(--fw-medium);font-size:var(--fs-base);display:inline-flex;align-items:center;justify-content:center;gap:var(--s-3);white-space:nowrap}
+.btn:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow)}
+.btn.primary{background:var(--text);color:var(--surface);border-color:var(--text)}
+.btn.ghost{border-color:transparent;background:none;box-shadow:none}
+.btn.ghost:hover:not(:disabled){background:var(--hover);box-shadow:none}
+.btn.danger{color:var(--red)}
+.btn.sm{height:var(--h-sm);padding:0 9px;font-size:var(--fs-12)}
+.btn.block{width:100%}
+.iconbtn{width:var(--h-md);height:var(--h-md);padding:0;border:0;background:none;border-radius:var(--r-md);display:inline-grid;place-items:center;color:var(--text-2);box-shadow:none}
+.iconbtn.sm{width:26px;height:26px;border-radius:var(--r-sm)}
+.iconbtn:hover:not(:disabled){background:var(--hover);color:var(--text);box-shadow:none}
+
+/* Segmented control (pilihan 2–5) */
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--r-md);padding:2px;gap:2px;background:var(--surface)}
+.seg button{height:26px;padding:0 var(--s-5);border:0;border-radius:var(--r-sm);background:none;box-shadow:none;font-size:var(--fs-md);font-weight:var(--fw-medium);color:var(--text-2)}
+.seg button:hover{color:var(--text);box-shadow:none}
+.seg button.on,.seg button[aria-pressed="true"]{background:var(--sel);color:var(--text)}
+.seg.sm button{height:var(--h-xs);padding:0 var(--s-4);font-size:var(--fs-sm)}
+
+/* Tabs (navigasi antar-view) */
+.tabs{display:flex;flex-wrap:wrap;gap:2px}
+.tabs button{height:var(--h-md);padding:0 var(--s-6);border:0;border-radius:7px;background:none;box-shadow:none;font-weight:var(--fw-medium);color:var(--text-2)}
+.tabs button:hover{color:var(--text);background:var(--hover);box-shadow:none}
+.tabs button.on,.tabs button[aria-selected="true"]{background:var(--sel);color:var(--text)}
+
+/* Pill (status/angka) dan Tog (chip filter yang bisa diklik) */
+.pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:var(--fw-semibold);background:var(--sel);color:var(--text-2);white-space:nowrap}
+.pill.pos{background:var(--green-bg);color:var(--green)}
+.pill.neg{background:var(--red-bg);color:var(--red)}
+.pill.warn{background:var(--amber-bg);color:var(--amber)}
+.pill.info{background:var(--blue-bg);color:var(--blue)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.tog{height:26px;padding:0 var(--s-5);border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);box-shadow:none;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text-2)}
+.tog:hover:not(:disabled){border-color:var(--border-2);box-shadow:none;color:var(--text)}
+.tog.on,.tog[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--surface)}
+
+/* Field (label + input) */
+.field{display:grid;gap:var(--s-2)}
+.field>span,.field>label{font-size:var(--fs-sm);color:var(--text-3);font-weight:var(--fw-medium)}
+.field small{font-size:var(--fs-2xs);color:var(--text-3)}
+.inp,.sel{height:var(--h-md);width:100%;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none;min-width:0}
+.inp.sm,.sel.sm{height:var(--h-sm);font-size:var(--fs-12);padding:0 var(--s-4)}
+.inp:focus,.sel:focus{border-color:var(--blue);box-shadow:var(--ring)}
+.inp.custom{border-color:var(--blue);color:var(--blue);font-weight:var(--fw-semibold)}  /* nilai ≠ default */
+
+/* Tabel data */
+.tbl-wrap{overflow:auto;border-radius:inherit}
+.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-md)}
+.tbl th{position:sticky;top:0;z-index:2;height:var(--h-th);padding:0 var(--s-5);background:var(--surface);font-weight:var(--fw-medium);color:var(--text-3);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl th.sort{cursor:pointer;user-select:none}
+.tbl th.sort:hover{color:var(--text)}
+.tbl td{height:var(--h-row);padding:0 var(--s-5);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl th.l,.tbl td.l,.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl.compact td{height:var(--h-th)}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--surface-2)}
+.tbl tbody tr.sel td{background:var(--blue-bg)}
+.tbl tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--text)}
+.tbl .sym{font-weight:var(--fw-semibold);color:var(--text)}
+.tbl .sub{display:block;font-size:var(--fs-xs);color:var(--text-3);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.tbl td.miss{color:var(--text-3);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)}
+
+/* KPI & baris label–nilai */
+.kpi{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-4) var(--s-5)}
+.kpi span{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.kpi b{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.kpi.lg b{font-size:var(--fs-2xl)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-4);padding:var(--s-3) 0;font-size:var(--fs-md);color:var(--text-2);border-bottom:1px solid var(--border)}
+.kv:last-child{border-bottom:0}
+.kv b{color:var(--text);font-weight:var(--fw-medium)}
+
+/* Popover, dialog, toast */
+.pop{position:absolute;z-index:var(--z-pop);min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:var(--s-3)}
+.menu-item{width:100%;height:auto;white-space:normal;line-height:var(--lh-tight);display:flex;align-items:center;gap:var(--s-4);padding:7px var(--s-4);border:0;border-radius:var(--r-sm);background:none;box-shadow:none;font-size:var(--fs-md);font-weight:var(--fw-regular);text-align:left;justify-content:flex-start}
+.menu-item:hover{background:var(--hover);box-shadow:none}
+.menu-title{font-size:var(--fs-2xs);font-weight:var(--fw-bold);color:var(--text-3);text-transform:uppercase;letter-spacing:var(--ls-caps);padding:var(--s-3) var(--s-4) var(--s-2)}
+.backdrop{position:fixed;inset:0;z-index:var(--z-modal);background:rgba(0,0,0,.32);display:grid;place-items:center;padding:var(--s-9)}
+.dialog{width:min(520px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-2xl);box-shadow:var(--shadow-lg)}
+.dialog-head{padding:var(--s-8) 18px var(--s-6);border-bottom:1px solid var(--border)}
+.dialog-head strong{display:block;font-size:var(--fs-xl);font-weight:var(--fw-semibold)}
+.dialog-body{padding:var(--s-8) 18px;overflow:auto;display:grid;gap:var(--s-7)}
+.dialog-foot{display:flex;justify-content:flex-end;gap:var(--s-4);padding:var(--s-6) 18px;border-top:1px solid var(--border)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:var(--z-toast);background:var(--text);color:var(--surface);border-radius:var(--r-pill);padding:var(--s-4) var(--s-7);font-size:var(--fs-md);box-shadow:var(--shadow-lg)}
+
+/* Lain-lain */
+.switch{position:relative;width:32px;height:18px;padding:0;border:0;border-radius:var(--r-pill);background:var(--border-2);box-shadow:none;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.2);transition:.15s}
+.switch.on{background:var(--text)} .switch.on::after{left:16px}
+.empty{padding:36px var(--s-9);text-align:center;color:var(--text-3)}
+.empty strong{display:block;color:var(--text);font-size:var(--fs-lg);margin-bottom:var(--s-2)}
+}
+
+/* ---------------------------------------------------------------------
+   4. UTILITAS
+   --------------------------------------------------------------------- */
+@layer edge-utilities {
+.up{color:var(--green)} .down{color:var(--red)} .muted{color:var(--text-3)} .strong{color:var(--text);font-weight:var(--fw-semibold)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.custom-val{color:var(--blue);font-weight:var(--fw-semibold)}  /* parameter yang diubah dari default */
+.row{display:flex;align-items:center;gap:var(--s-4)} .stack{display:grid;gap:var(--s-4)} .grow{flex:1;min-width:0}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+}
+
+</style>
+<style>
+/* ---- halaman (di luar layer, menang atas spec) ---- */
+:root{--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+header.top{position:sticky;top:0;z-index:var(--z-sticky);background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 var(--s-8)}
+header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-5) var(--s-9);min-height:var(--h-top)}
+header.top h1{font-size:var(--fs-xl)}
+.intro{margin:var(--s-9) 0 var(--s-3);display:grid;gap:var(--s-5)}
+.box{padding:var(--s-6) var(--s-7)}
+.box h2{font-size:var(--fs-base);margin:0 0 var(--s-3)}
+.box p{margin:var(--s-2) 0;color:var(--text-2)}
+.box p b{color:var(--text)}
+.toc{display:flex;flex-wrap:wrap;gap:var(--s-3)}
+.toc a{font-size:var(--fs-12);color:var(--text);border:1px solid var(--border);border-radius:var(--r-pill);padding:2px 9px;background:var(--surface);font-weight:var(--fw-medium)}
+.toc a:hover{background:var(--hover);text-decoration:none}
+.opt{display:grid;grid-template-columns:332px 1fr;gap:var(--s-9);align-items:start;margin:var(--s-9) 0;scroll-margin-top:70px}
+@media (max-width:760px){.opt{grid-template-columns:1fr}}
+.about h3{margin:2px 0 var(--s-3);font-size:var(--fs-xl)}
+.about .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:var(--r-sm);background:var(--text);color:var(--surface);font-size:var(--fs-12);margin-right:var(--s-4);vertical-align:1px}
+.about p{color:var(--text-2)}
+.about ul{margin:var(--s-3) 0;padding-left:18px}.about li{margin:2px 0;color:var(--text-2)}
+.about .pro b{color:var(--green)}.about .con b{color:var(--red)}
+.about .ex{margin-top:var(--s-4);font-size:var(--fs-sm);color:var(--text-3)}
+
+/* panel tiruan (panel kanan Terminal) */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-5) var(--s-6) var(--s-6);width:332px;max-width:100%}
+.head{display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-3)}
+.head strong{font-size:var(--fs-base)}.head small{margin-left:auto;font-size:var(--fs-xs);white-space:nowrap}
+.ctl{display:flex;align-items:center;gap:var(--s-3);flex-wrap:wrap;margin:0 0 var(--s-3)}
+.ctl .r{margin-left:auto}
+.rp-sel{height:26px;font-size:var(--fs-sm);padding:0 4px;border-radius:var(--r-sm)}
+.seg button:disabled{opacity:.45}
+.pill.big.pos{background:var(--up);color:#fff}.pill.big.neg{background:var(--down);color:#fff}
+.pill.sq{border-radius:var(--r-xs);height:16px;padding:0 4px;font-size:9.5px;letter-spacing:.02em}
+.sub{font-size:var(--fs-xs);color:var(--text-3)}
+.line{display:flex;justify-content:space-between;align-items:center;gap:var(--s-4);font-size:var(--fs-sm);padding:2px 0}
+.line>span:first-child{color:var(--text-3)}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.hr{border-top:1px solid var(--border);margin:var(--s-4) 0}
+.cut{border-top:1px dashed var(--border-2);margin:3px 0}
+
+/* tarik tambang */
+.tug{display:flex;height:18px;border-radius:var(--r-xs);overflow:hidden;margin:var(--s-3) 0 3px;gap:0}
+.tug i{display:flex;align-items:center;font-style:normal;font-size:10px;color:#fff;padding:0 5px;white-space:nowrap;overflow:hidden;min-width:0}
+.tug i.b{background:var(--up)}.tug i.s{background:var(--down);justify-content:flex-end}
+.tug i.f{opacity:.45;color:var(--text)}
+.tug.thin{height:10px;margin:2px 0}
+.tug.thin i{font-size:0;padding:0}
+.mid{width:2px;background:var(--surface);flex:0 0 2px}
+
+/* tabel Top brokers */
+.pa-head,.pa-row{display:grid;grid-template-columns:minmax(40px,auto) minmax(44px,auto) 1fr 1fr minmax(44px,auto) minmax(40px,auto);align-items:center;column-gap:6px}
+.pa-head{padding:var(--s-3) 0 5px;font-size:var(--fs-xs);color:var(--text-3);border-bottom:1px solid var(--border);margin-bottom:3px;white-space:nowrap}
+.pa-head .l{grid-column:1/4;display:flex;align-items:center;gap:6px}.pa-head .r{grid-column:4/7;display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.pa-head i{width:8px;height:8px;border-radius:2px}.pa-head i.up{background:var(--up)}.pa-head i.down{background:var(--down)}
+.pa-row{height:22px;font-size:var(--fs-sm);border-radius:var(--r-xs)}
+.pa-row .v{font-variant-numeric:tabular-nums;white-space:nowrap}.pa-row .v.up{text-align:right}
+.pa-row .b{font-family:var(--mono);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
+.pa-row .b.rt{justify-content:flex-end}
+.trk{position:relative;height:8px;background:var(--hover);border-radius:2px;overflow:hidden}
+.fill{position:absolute;top:0;bottom:0;display:flex}
+.trk.buy .fill{right:0;flex-direction:row-reverse}.trk.sell .fill{left:0}
+.fill i{display:block;height:100%}.trk.buy .fill i{background:var(--up)}.trk.sell .fill i{background:var(--down)}.fill i.f{opacity:.42}
+.pa-row.inn{background:linear-gradient(90deg,rgba(8,153,129,.07),transparent 45%,transparent 55%,rgba(242,54,69,.07))}
+.pa-row.dim{opacity:.38}
+.leg{display:flex;flex-wrap:wrap;gap:var(--s-6);font-size:var(--fs-xs);color:var(--text-3);margin-top:var(--s-4);padding-top:7px;border-top:1px solid var(--border)}
+.leg span{display:inline-flex;align-items:center;gap:5px}
+.leg i{width:14px;height:7px;border-radius:2px;display:inline-block;background:linear-gradient(90deg,var(--up) 50%,var(--down) 50%)}.leg i.f{opacity:.42}
+
+/* bagian opsi */
+.lane{display:grid;grid-template-columns:58px 1fr 54px;gap:var(--s-3);align-items:center;font-size:var(--fs-sm);margin:3px 0}
+.lane .nm{color:var(--text-2)}.lane .nv{text-align:right}
+.div{position:relative;height:12px;background:var(--surface-2);border-radius:2px}
+.div .z{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--text-3)}
+.div .t{position:absolute;top:-1px;bottom:-1px;width:0;border-left:1px dashed var(--border-2)}
+.div i{position:absolute;top:2px;bottom:2px;border-radius:2px}
+.div i.p{background:var(--up)}.div i.n{background:var(--down)}.div i.f{opacity:.45}
+.div.tot i{top:0;bottom:0}
+.mx{display:grid;grid-template-columns:62px 1fr 1fr 1fr;font-size:var(--fs-sm);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin:var(--s-3) 0 var(--s-4)}
+.mx>div{padding:5px 7px;border-bottom:1px solid var(--border);text-align:right}
+.mx>div:nth-child(4n+1){text-align:left;color:var(--text-2)}
+.mx>.h{font-size:var(--fs-2xs);color:var(--text-3);font-weight:var(--fw-semibold);text-transform:uppercase;letter-spacing:var(--ls-caps);background:var(--surface-2)}
+.mx>.t{font-weight:var(--fw-semibold);border-bottom:0}
+.mx>.w{background:var(--amber-bg);color:var(--amber)}
+.quad{display:grid;grid-template-columns:auto 1fr 1fr;gap:3px;font-size:var(--fs-2xs);margin:var(--s-3) 0 var(--s-4);align-items:stretch}
+.quad>span{color:var(--text-3);display:grid;place-items:center;padding:0 4px}
+.quad>div{border:1px solid var(--border);border-radius:var(--r-xs);padding:5px 6px;color:var(--text-3);line-height:1.3;min-height:34px}
+.quad>div.on{border-color:var(--text);color:var(--text);box-shadow:inset 0 0 0 1px var(--text);font-weight:var(--fw-semibold)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin:var(--s-3) 0 var(--s-4)}
+.kpi{padding:var(--s-3) var(--s-4)}
+.kpi b{display:block;font-size:var(--fs-lg)}
+.kpi em{font-style:normal;font-size:var(--fs-xs);color:var(--text-3)}
+.story{font-size:var(--fs-md);line-height:1.5;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-4) var(--s-5);margin:var(--s-3) 0 var(--s-4)}
+.story b{color:var(--text);font-weight:var(--fw-semibold)}
+.comp{display:grid;grid-template-columns:36px 1fr 86px;gap:var(--s-3);align-items:center;font-size:var(--fs-sm);margin:4px 0}
+.bar100{display:flex;height:12px;border-radius:2px;overflow:hidden;background:var(--surface-2)}
+.bar100 i{display:block;height:100%}
+.off{grid-column:2/4;font-size:var(--fs-xs);color:var(--amber);margin:-2px 0 2px}
+.approx{color:var(--amber);font-weight:var(--fw-semibold)}
+.solo{padding:24px}
+/* peta asing × domestik */
+.qsec{margin:var(--s-5) 0 var(--s-3);padding-top:var(--s-5);border-top:1px solid var(--border)}
+.qsec .qh{display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3)}
+.qsec .qh strong{font-size:var(--fs-12)}.qsec .qh small{margin-left:auto;font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
+.qwrap{position:relative;padding:14px 0 0}
+.qsvg{display:block;width:100%;height:auto;font-family:var(--sans)}
+.qax{position:absolute;top:0;left:0;font-size:var(--fs-2xs);color:var(--text-3)}.qax b{font-weight:var(--fw-medium)}
+.qxr{display:flex;justify-content:space-between;font-size:var(--fs-2xs);color:var(--text-3);margin-top:2px}
+.ql{font-size:8.5px;fill:var(--text-3);font-weight:500}
+.qt{font-size:8px;font-weight:600}
+.qp{font-size:9.5px;fill:var(--text-2);font-weight:600}.qp.cur{fill:var(--text);font-size:10.5px}
+.qread{margin-top:var(--s-4)}
+.qread .ctl{margin-bottom:var(--s-2)}
+.qeq{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;text-align:center;gap:2px;font-size:var(--fs-sm);margin:var(--s-3) 0;border:1px solid var(--border);border-radius:var(--r-md);padding:5px 4px}
+.qeq span{font-size:var(--fs-2xs);color:var(--text-3);display:block}
+.qeq b{font-weight:var(--fw-semibold)}
+.qeq i{font-style:normal;color:var(--text-3)}
+.qkey{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-5);font-size:var(--fs-2xs);color:var(--text-3);margin-top:var(--s-2)}
+.qkey span{display:inline-flex;align-items:center;gap:4px}
+.qkey i{display:inline-block;border-radius:50%;background:var(--text)}
+.top3{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin:var(--s-3) 0}
+.top3 .card{padding:var(--s-3) var(--s-4);border-radius:var(--r-md)}
+.top3 .card>div{display:flex;justify-content:space-between;font-size:var(--fs-sm);padding:1px 0}
+.top3 .card>div b{font-family:var(--mono);font-size:11px}
+.top3 .eyebrow{margin-bottom:2px;font-size:var(--fs-2xs)}
+
+.pill.qnow{background:var(--blue);color:#fff}
+.qat{font-size:9.5px;fill:var(--text-2);font-weight:600}
+.qtk{font-size:8.5px;fill:var(--text-3)}
+.qdef{font-size:var(--fs-xs);color:var(--text-3);margin:var(--s-2) 0 0;line-height:1.4}
+.qtbl{margin:var(--s-3) 0 var(--s-4);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
+.qrow{display:grid;grid-template-columns:48px 1fr 1fr 1fr 22px;align-items:center;font-size:var(--fs-sm);padding:4px 8px;border-bottom:1px solid var(--border);text-align:right}
+.qrow:last-child{border-bottom:0}.qrow>span:first-child{text-align:left;color:var(--text-2)}
+.qrow.h{font-size:var(--fs-2xs);color:var(--text-3);font-weight:var(--fw-semibold);background:var(--surface-2)}
+.qrow.on{background:var(--surface-2);font-weight:var(--fw-semibold)}.qrow.on>span:first-child{color:var(--text)}
+.pill.dotp{height:14px;width:14px;padding:0;justify-content:center}
+.foot{margin:var(--s-11) 0 40px;font-size:var(--fs-12)}
+</style></head>
+<body>
+<main class="solo"><div class="panel" id="panel"></div></main>
+<script>
+const DATA = {"BBCA":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"BK","net":154300000000.0,"lot":"314.5K","avg":"4,906","d":734300.0,"f":154300000000.0,"exact":true},{"b":"YU","net":111800000000.0,"lot":"227.8K","avg":"4,909","d":12600000000.0,"f":99300000000.0,"exact":true},{"b":"CC","net":43800000000.0,"lot":"87.7K","avg":"4,997","d":12100000000.0,"f":31700000000.0,"exact":true},{"b":"MG","net":42300000000.0,"lot":"85.8K","avg":"4,930","d":42300000000.0,"f":48900000.0,"exact":true},{"b":"XL","net":36000000000.0,"lot":"72.8K","avg":"4,943","d":36000000000.0,"f":0.0,"exact":true},{"b":"YP","net":35600000000.0,"lot":"72.8K","avg":"4,890","d":34900000000.0,"f":664900000.0,"exact":true},{"b":"TP","net":21300000000.0,"lot":"43.2K","avg":"4,942","d":19900000000.0,"f":1500000000.0,"exact":true},{"b":"XC","net":11500000000.0,"lot":"23.7K","avg":"4,877","d":10600000000.0,"f":985000000.0,"exact":true},{"b":"CP","net":10900000000.0,"lot":"22.4K","avg":"4,873","d":10900000000.0,"f":0.0,"exact":false},{"b":"XA","net":5900000000.0,"lot":"12.1K","avg":"4,905","d":5900000000.0,"f":0.0,"exact":false}],"sell":[{"b":"AK","net":-176600000000.0,"lot":"358.6K","avg":"4,925","d":-34100000000.0,"f":-142500000000.0,"exact":true},{"b":"ZP","net":-148100000000.0,"lot":"299.7K","avg":"4,941","d":-633100000.0,"f":-147500000000.0,"exact":true},{"b":"RX","net":-35400000000.0,"lot":"70.9K","avg":"4,987","d":-43800.0,"f":-35400000000.0,"exact":true},{"b":"YJ","net":-34900000000.0,"lot":"72.1K","avg":"4,844","d":-34900000000.0,"f":0.0,"exact":true},{"b":"NI","net":-20600000000.0,"lot":"41.7K","avg":"4,939","d":-20600000000.0,"f":57800000.0,"exact":true},{"b":"SQ","net":-17700000000.0,"lot":"36.6K","avg":"4,826","d":-12500000000.0,"f":-5200000000.0,"exact":true},{"b":"AG","net":-12500000000.0,"lot":"25.7K","avg":"4,856","d":845800000.0,"f":-13300000000.0,"exact":true},{"b":"PD","net":-11900000000.0,"lot":"24.7K","avg":"4,800","d":-11900000000.0,"f":0.0,"exact":true},{"b":"DR","net":-9900000000.0,"lot":"20.5K","avg":"4,811","d":-9900000000.0,"f":-0.0,"exact":false},{"b":"BB","net":-9800000000.0,"lot":"19.9K","avg":"4,932","d":300000000.0,"f":-10100000000.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":310000000000.0,"sell":360100000000.0,"net":-50100000000.0,"ratio":-2.24,"fshare":86.0},"5":{"v":"Neutral","cls":"neu","buy":388200000000.0,"sell":415600000000.0,"net":-27300000000.0,"ratio":-1.22,"fshare":69.0},"10":{"v":"Neutral","cls":"neu","buy":473600000000.0,"sell":477300000000.0,"net":-3700000000.0,"ratio":-0.17,"fshare":72.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"YU","net":687700000000.0,"lot":"1.3M","avg":"5,145","d":56500000000.0,"f":631100000000.0,"exact":true},{"b":"SQ","net":590400000000.0,"lot":"1.2M","avg":"5,119","d":593800000000.0,"f":-3500000000.0,"exact":true},{"b":"CC","net":572400000000.0,"lot":"1.1M","avg":"5,158","d":198600000000.0,"f":373800000000.0,"exact":true},{"b":"BK","net":402600000000.0,"lot":"807.7K","avg":"4,984","d":-12300000000.0,"f":414800000000.0,"exact":true},{"b":"XL","net":176500000000.0,"lot":"351.8K","avg":"5,019","d":176700000000.0,"f":-134199999.99999999,"exact":true},{"b":"YP","net":114100000000.0,"lot":"230.6K","avg":"4,948","d":113900000000.0,"f":236200000.0,"exact":true},{"b":"XC","net":78800000000.0,"lot":"155.4K","avg":"5,066","d":78800000000.0,"f":-70000000.0,"exact":true},{"b":"OD","net":74100000000.0,"lot":"145.3K","avg":"5,100","d":74100000000.0,"f":16300000.0,"exact":true},{"b":"PD","net":61600000000.0,"lot":"118.4K","avg":"5,199","d":61600000000.0,"f":0.0,"exact":false},{"b":"GR","net":46900000000.0,"lot":"90.8K","avg":"5,167","d":46900000000.0,"f":0.0,"exact":false}],"sell":[{"b":"AK","net":-1700000000000.0,"lot":"3.3M","avg":"5,075","d":-31100000000.0,"f":-1600000000000.0,"exact":true},{"b":"KZ","net":-447900000000.0,"lot":"878.9K","avg":"5,096","d":-24400000000.0,"f":-423500000000.0,"exact":true},{"b":"ZP","net":-386000000000.0,"lot":"759.6K","avg":"5,082","d":-21900000000.0,"f":-364200000000.0,"exact":true},{"b":"RX","net":-244300000000.0,"lot":"472.9K","avg":"5,166","d":-20300000000.0,"f":-224000000000.0,"exact":true},{"b":"IF","net":-128600000000.0,"lot":"249.4K","avg":"5,158","d":-128600000000.0,"f":12100000.0,"exact":true},{"b":"DX","net":-57900000000.0,"lot":"116.3K","avg":"4,981","d":-58000000000.0,"f":104000000.0,"exact":true},{"b":"LG","net":-44000000000.0,"lot":"83.3K","avg":"5,283","d":-45000000000.0,"f":1000000000.0,"exact":true},{"b":"BB","net":-29700000000.0,"lot":"58.2K","avg":"5,103","d":-6100000000.0,"f":-23600000000.0,"exact":true},{"b":"YJ","net":-27300000000.0,"lot":"57K","avg":"4,783","d":-27300000000.0,"f":-0.0,"exact":false},{"b":"AG","net":-19200000000.0,"lot":"38.6K","avg":"4,972","d":-3099999999.999998,"f":-16100000000.000002,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":1900000000000.0,"sell":2500000000000.0,"net":-644500000000.0,"ratio":-5.65,"fshare":37.0},"5":{"v":"Neutral","cls":"neu","buy":2400000000000.0,"sell":2900000000000.0,"net":-438300000000.0,"ratio":-3.84,"fshare":45.0},"10":{"v":"Neutral","cls":"neu","buy":2800000000000.0,"sell":3000000000000.0,"net":-240900000000.0,"ratio":-2.11,"fshare":43.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"SQ","net":1200000000000.0,"lot":"2.3M","avg":"5,111","d":1200000000000.0,"f":1000000000.0,"exact":true},{"b":"XL","net":1100000000000.0,"lot":"2.2M","avg":"5,126","d":1100000000000.0,"f":5000000000.0,"exact":true},{"b":"YP","net":570100000000.0,"lot":"1.1M","avg":"5,064","d":564600000000.0,"f":5500000000.0,"exact":true},{"b":"YU","net":556000000000.0,"lot":"1.1M","avg":"5,185","d":45800000000.0,"f":510200000000.0,"exact":true},{"b":"XC","net":400600000000.0,"lot":"779.8K","avg":"5,138","d":399700000000.0,"f":894000000.0,"exact":true},{"b":"PD","net":329300000000.0,"lot":"639.5K","avg":"5,150","d":305800000000.0,"f":23500000000.0,"exact":true},{"b":"OD","net":213400000000.0,"lot":"411.6K","avg":"5,185","d":213400000000.0,"f":39800000.0,"exact":true},{"b":"GR","net":212800000000.0,"lot":"419.5K","avg":"5,074","d":212300000000.0,"f":544800000.0,"exact":true},{"b":"KK","net":202700000000.0,"lot":"395.3K","avg":"5,128","d":170600000000.0,"f":32100000000.0,"exact":false},{"b":"TP","net":200800000000.0,"lot":"379.7K","avg":"5,288","d":137900000000.0,"f":62900000000.0,"exact":false}],"sell":[{"b":"CC","net":-1700000000000.0,"lot":"3.2M","avg":"5,327","d":590900000000.0,"f":-2300000000000.0,"exact":true},{"b":"RX","net":-1400000000000.0,"lot":"2.6M","avg":"5,285","d":-19800000000.0,"f":-1400000000000.0,"exact":true},{"b":"AK","net":-1000000000000.0,"lot":"2.2M","avg":"4,724","d":-8100000000.0,"f":-1000000000000.0,"exact":true},{"b":"KZ","net":-628400000000.0,"lot":"1.2M","avg":"5,441","d":-68599999999.99999,"f":-559800000000.0,"exact":true},{"b":"ZP","net":-464600000000.0,"lot":"1.3M","avg":"3,684","d":79700000000.0,"f":-544200000000.00006,"exact":true},{"b":"DX","net":-429900000000.0,"lot":"760.9K","avg":"5,650","d":-57400000000.0,"f":-372500000000.0,"exact":true},{"b":"BB","net":-330300000000.0,"lot":"626.9K","avg":"5,269","d":-293500000000.0,"f":-36800000000.0,"exact":true},{"b":"AG","net":-245100000000.0,"lot":"401.5K","avg":"6,105","d":16399999999.999998,"f":-261500000000.0,"exact":true},{"b":"NI","net":-60700000000.0,"lot":"102.2K","avg":"5,939","d":-60700000000.0,"f":-0.0,"exact":false},{"b":"IF","net":-11500000000.0,"lot":"22.4K","avg":"5,123","d":-11500000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":2800000000000.0,"sell":4099999999999.9995,"net":-1300000000000.0,"ratio":-3.42,"fshare":20.0},"5":{"v":"Neutral","cls":"neu","buy":3800000000000.0,"sell":5200000000000.0,"net":-1400000000000.0,"ratio":-3.78,"fshare":30.0},"10":{"v":"Neutral","cls":"neu","buy":5000000000000.0,"sell":6300000000000.0,"net":-1300000000000.0,"ratio":-3.56,"fshare":31.0}}}},"BBRI":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"OD","net":170800000000.0,"lot":"597K","avg":"2,860","d":170800000000.0,"f":0.0,"exact":true},{"b":"AK","net":74000000000.0,"lot":"255.6K","avg":"2,896","d":15700000000.0,"f":58300000000.0,"exact":true},{"b":"CC","net":24600000000.0,"lot":"89.4K","avg":"2,752","d":15000000000.0,"f":9600000000.0,"exact":true},{"b":"YU","net":6500000000.0,"lot":"23.1K","avg":"2,823","d":15200000000.0,"f":-8700000000.0,"exact":true},{"b":"KZ","net":4099999999.9999995,"lot":"13.1K","avg":"3,104","d":3600000000.0,"f":463500000.0,"exact":true},{"b":"NI","net":3000000000.0,"lot":"11.4K","avg":"2,658","d":4500000000.0,"f":-1500000000.0,"exact":true},{"b":"PO","net":2600000000.0,"lot":"9.1K","avg":"2,900","d":2600000000.0,"f":0.0,"exact":true},{"b":"SS","net":2300000000.0,"lot":"8K","avg":"2,822","d":2300000000.0,"f":0.0,"exact":true},{"b":"IC","net":1900000000.0,"lot":"6.8K","avg":"2,839","d":1900000000.0,"f":0.0,"exact":false},{"b":"YJ","net":1800000000.0,"lot":"6.2K","avg":"2,839","d":1800000000.0,"f":0.0,"exact":false}],"sell":[{"b":"BB","net":-163100000000.0,"lot":"579.6K","avg":"2,813","d":-91500000000.0,"f":-71600000000.0,"exact":true},{"b":"DR","net":-28300000000.0,"lot":"99.8K","avg":"2,838","d":-28300000000.0,"f":0.0,"exact":true},{"b":"XL","net":-17000000000.0,"lot":"58.8K","avg":"2,881","d":-17000000000.0,"f":41100000.0,"exact":true},{"b":"ZP","net":-14900000000.0,"lot":"50.8K","avg":"2,941","d":-19000000000.0,"f":4099999999.9999995,"exact":true},{"b":"AG","net":-12300000000.0,"lot":"43.1K","avg":"2,867","d":-4400000000.0,"f":-7900000000.0,"exact":true},{"b":"AI","net":-8600000000.0,"lot":"30.3K","avg":"2,844","d":-8600000000.0,"f":203000.0,"exact":true},{"b":"TP","net":-8100000000.0,"lot":"28K","avg":"2,886","d":-8100000000.0,"f":-14400000.0,"exact":true},{"b":"YP","net":-7800000000.0,"lot":"25.9K","avg":"3,011","d":-7800000000.0,"f":28200000.0,"exact":true},{"b":"PD","net":-6800000000.0,"lot":"24.2K","avg":"2,814","d":-6800000000.0,"f":-0.0,"exact":false},{"b":"XA","net":-5600000000.0,"lot":"19.5K","avg":"2,879","d":-5600000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":269399999999.99997,"sell":208300000000.0,"net":61100000000.0,"ratio":4.76,"fshare":27.0},"5":{"v":"Neutral","cls":"neu","buy":280000000000.0,"sell":235600000000.0,"net":44300000000.0,"ratio":3.45,"fshare":30.0},"10":{"v":"Neutral","cls":"neu","buy":291600000000.0,"sell":272500000000.0,"net":19000000000.0,"ratio":1.48,"fshare":29.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"NI","net":854600000000.0,"lot":"3M","avg":"2,874","d":857000000000.0,"f":-2400000000.0,"exact":true},{"b":"CC","net":370900000000.0,"lot":"1.3M","avg":"2,901","d":501300000000.0,"f":-130400000000.0,"exact":true},{"b":"OD","net":352700000000.0,"lot":"1.3M","avg":"2,817","d":352600000000.0,"f":123700000.0,"exact":true},{"b":"DP","net":34400000000.0,"lot":"124K","avg":"2,772","d":-15700000000.0,"f":50100000000.0,"exact":true},{"b":"HP","net":8900000000.0,"lot":"31.1K","avg":"2,850","d":8900000000.0,"f":0.0,"exact":true},{"b":"KZ","net":4600000000.0,"lot":"16.3K","avg":"2,802","d":4099999999.9999995,"f":462500000.0,"exact":true},{"b":"IC","net":2900000000.0,"lot":"10.2K","avg":"2,851","d":2900000000.0,"f":0.0,"exact":true},{"b":"PO","net":2700000000.0,"lot":"9.2K","avg":"2,900","d":2700000000.0,"f":0.0,"exact":true},{"b":"SS","net":2100000000.0,"lot":"8.3K","avg":"2,532","d":2100000000.0,"f":0.0,"exact":false},{"b":"II","net":1100000000.0,"lot":"3.8K","avg":"2,880","d":1100000000.0,"f":0.0,"exact":false}],"sell":[{"b":"ZP","net":-309500000000.0,"lot":"1.1M","avg":"2,846","d":-48300000000.0,"f":-261200000000.0,"exact":true},{"b":"BB","net":-212300000000.0,"lot":"746.5K","avg":"2,844","d":-59200000000.0,"f":-153100000000.0,"exact":true},{"b":"YP","net":-155700000000.0,"lot":"548.7K","avg":"2,838","d":-155200000000.0,"f":-490200000.0,"exact":true},{"b":"XL","net":-148400000000.0,"lot":"520.1K","avg":"2,853","d":-148400000000.0,"f":-22600000.0,"exact":true},{"b":"RX","net":-133100000000.0,"lot":"465.6K","avg":"2,858","d":-417900000.0,"f":-132600000000.0,"exact":true},{"b":"BK","net":-76700000000.0,"lot":"255K","avg":"3,006","d":-28000000000.0,"f":-48700000000.0,"exact":true},{"b":"SQ","net":-71600000000.0,"lot":"246K","avg":"2,910","d":-71900000000.0,"f":337700000.0,"exact":true},{"b":"AK","net":-64599999999.99999,"lot":"228K","avg":"2,834","d":-4300000000.0,"f":-60300000000.0,"exact":true},{"b":"DX","net":-49900000000.0,"lot":"175K","avg":"2,851","d":-30600000000.0,"f":-19300000000.0,"exact":false},{"b":"TP","net":-48400000000.0,"lot":"167.5K","avg":"2,889","d":-31800000000.0,"f":-16600000000.000002,"exact":false}],"bd":{"3":{"v":"Big Acc","cls":"acc","buy":1600000000000.0,"sell":677500000000.0,"net":900700000000.0,"ratio":15.07,"fshare":0.0},"5":{"v":"Big Acc","cls":"acc","buy":1600000000000.0,"sell":958900000000.0,"net":662500000000.0,"ratio":11.08,"fshare":2.0},"10":{"v":"Acc","cls":"acc","buy":1600000000000.0,"sell":1300000000000.0,"net":364700000000.0,"ratio":6.1,"fshare":2.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"NI","net":970200000000.0,"lot":"3.4M","avg":"2,834","d":969600000000.0,"f":571200000.0,"exact":true},{"b":"CC","net":825200000000.0,"lot":"3M","avg":"2,778","d":1000000000000.0,"f":-184900000000.0,"exact":true},{"b":"OD","net":526000000000.0,"lot":"1.9M","avg":"2,709","d":525700000000.00006,"f":379900000.0,"exact":true},{"b":"XL","net":456500000000.0,"lot":"1.7M","avg":"2,657","d":451600000000.0,"f":5000000000.0,"exact":true},{"b":"SQ","net":190500000000.0,"lot":"739.4K","avg":"2,577","d":189200000000.0,"f":1300000000.0,"exact":true},{"b":"XC","net":159400000000.0,"lot":"591.2K","avg":"2,697","d":159400000000.0,"f":0.0,"exact":true},{"b":"YP","net":152100000000.0,"lot":"619.9K","avg":"2,453","d":152000000000.0,"f":56200000.0,"exact":true},{"b":"PD","net":148800000000.0,"lot":"574.9K","avg":"2,588","d":155000000000.0,"f":-6200000000.0,"exact":true},{"b":"AZ","net":113000000000.0,"lot":"420.6K","avg":"2,687","d":113000000000.0,"f":0.0,"exact":false},{"b":"GR","net":90000000000.0,"lot":"349.1K","avg":"2,577","d":90000000000.0,"f":0.0,"exact":false}],"sell":[{"b":"ZP","net":-1500000000000.0,"lot":"5.7M","avg":"2,660","d":-3200000000.0,"f":-1500000000000.0,"exact":true},{"b":"AK","net":-1400000000000.0,"lot":"4.9M","avg":"2,776","d":-145100000000.0,"f":-1200000000000.0,"exact":true},{"b":"KZ","net":-721400000000.0,"lot":"2.9M","avg":"2,493","d":27700000000.0,"f":-749100000000.0,"exact":true},{"b":"BB","net":-224000000000.0,"lot":"793K","avg":"2,825","d":-129400000000.0,"f":-94600000000.0,"exact":true},{"b":"RX","net":-202200000000.0,"lot":"715.3K","avg":"2,827","d":-491100000.0,"f":-201700000000.0,"exact":true},{"b":"XA","net":-88800000000.0,"lot":"304.3K","avg":"2,916","d":-88800000000.0,"f":94700000.0,"exact":true},{"b":"BK","net":-68000000000.0,"lot":"216.9K","avg":"3,135","d":-130800000000.00002,"f":62900000000.0,"exact":true},{"b":"DX","net":-18100000000.0,"lot":"58.6K","avg":"3,091","d":1100000000.0,"f":-19200000000.0,"exact":true},{"b":"TS","net":-5700000000.0,"lot":"19.2K","avg":"2,987","d":-5700000000.0,"f":-0.0,"exact":false},{"b":"YU","net":-3800000000.0,"lot":"797","avg":"47,468","d":9000000000.0,"f":-12800000000.0,"exact":false}],"bd":{"3":{"v":"Dist","cls":"dist","buy":2300000000000.0,"sell":3600000000000.0,"net":-1300000000000.0,"ratio":-6.25,"fshare":0.0},"5":{"v":"Neutral","cls":"neu","buy":3000000000000.0,"sell":4000000000000.0,"net":-1000000000000.0,"ratio":-5.15,"fshare":0.0},"10":{"v":"Neutral","cls":"neu","buy":3600000000000.0,"sell":4200000000000.0,"net":-561700000000.0,"ratio":-2.78,"fshare":4.0}}}},"BMRI":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"CC","net":200300000000.0,"lot":"523.8K","avg":"3,824","d":206500000000.0,"f":-6200000000.0,"exact":true},{"b":"BB","net":18600000000.0,"lot":"48.6K","avg":"3,826","d":0.0,"f":18600000000.0,"exact":true},{"b":"KZ","net":18500000000.0,"lot":"47.3K","avg":"3,911","d":0.0,"f":18500000000.0,"exact":true},{"b":"YU","net":16899999999.999998,"lot":"44.2K","avg":"3,835","d":35000000000.0,"f":-18100000000.0,"exact":true},{"b":"XL","net":13600000000.0,"lot":"35.1K","avg":"3,872","d":13600000000.0,"f":0.0,"exact":true},{"b":"XC","net":13500000000.0,"lot":"35.3K","avg":"3,822","d":13500000000.0,"f":0.0,"exact":true},{"b":"GR","net":10900000000.0,"lot":"28.9K","avg":"3,776","d":10900000000.0,"f":0.0,"exact":true},{"b":"YB","net":8199999999.999999,"lot":"21.7K","avg":"3,787","d":8199999999.999999,"f":0.0,"exact":true},{"b":"YP","net":6500000000.0,"lot":"17K","avg":"3,832","d":5938600000.0,"f":561400000.0,"exact":false},{"b":"CP","net":6200000000.0,"lot":"16.9K","avg":"3,702","d":6197000000.0,"f":3000000.0,"exact":false}],"sell":[{"b":"ZP","net":-143600000000.0,"lot":"376K","avg":"3,820","d":-20400000.0,"f":-143600000000.0,"exact":true},{"b":"AK","net":-142500000000.0,"lot":"372.3K","avg":"3,827","d":4600000000.0,"f":-147100000000.0,"exact":true},{"b":"AG","net":-14800000000.0,"lot":"38.5K","avg":"3,850","d":-11100000000.0,"f":-3700000000.0,"exact":true},{"b":"MG","net":-12100000000.0,"lot":"31.2K","avg":"3,885","d":-12100000000.0,"f":0.0,"exact":true},{"b":"DR","net":-5400000000.0,"lot":"14.5K","avg":"3,697","d":-5400000000.0,"f":0.0,"exact":true},{"b":"DH","net":-4800000000.0,"lot":"12.5K","avg":"3,825","d":-4800000000.0,"f":-2400000.0,"exact":true},{"b":"SS","net":-3700000000.0,"lot":"9.9K","avg":"3,795","d":-3700000000.0,"f":0.0,"exact":true},{"b":"BK","net":-3200000000.0,"lot":"9.2K","avg":"3,481","d":-19200000000.0,"f":16100000000.000002,"exact":true},{"b":"TP","net":-2600000000.0,"lot":"7K","avg":"3,796","d":-2462500000.0,"f":-137500000.0,"exact":false},{"b":"SQ","net":-2600000000.0,"lot":"6.8K","avg":"3,847","d":-2600000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":237300000000.0,"sell":301000000000.0,"net":-63600000000.0,"ratio":-5.81,"fshare":8.0},"5":{"v":"Neutral","cls":"neu","buy":267899999999.99997,"sell":318500000000.0,"net":-50600000000.0,"ratio":-4.61,"fshare":13.0},"10":{"v":"Neutral","cls":"neu","buy":313300000000.0,"sell":335400000000.0,"net":-22100000000.0,"ratio":-2.02,"fshare":15.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"NI","net":706700000000.0,"lot":"1.8M","avg":"3,872","d":701300000000.0,"f":5400000000.0,"exact":true},{"b":"CC","net":223500000000.0,"lot":"594.5K","avg":"3,760","d":280200000000.0,"f":-56700000000.0,"exact":true},{"b":"KZ","net":174900000000.0,"lot":"452K","avg":"3,870","d":-1800000000.0,"f":176700000000.0,"exact":true},{"b":"YU","net":47400000000.0,"lot":"138.5K","avg":"3,424","d":87700000000.0,"f":-40300000000.0,"exact":true},{"b":"AZ","net":37300000000.0,"lot":"101.2K","avg":"3,688","d":37300000000.0,"f":0.0,"exact":true},{"b":"BB","net":24800000000.0,"lot":"65K","avg":"3,814","d":5600000000.0,"f":19200000000.0,"exact":true},{"b":"OD","net":15500000000.0,"lot":"41.5K","avg":"3,732","d":15500000000.0,"f":9900000.0,"exact":true},{"b":"XC","net":14200000000.0,"lot":"38.9K","avg":"3,655","d":14200000000.0,"f":0.0,"exact":true},{"b":"BQ","net":11900000000.0,"lot":"30.5K","avg":"3,902","d":11823500000.0,"f":76500000.0,"exact":false},{"b":"YB","net":10300000000.0,"lot":"27.6K","avg":"3,736","d":10300000000.0,"f":0.0,"exact":false}],"sell":[{"b":"ZP","net":-375200000000.0,"lot":"982.8K","avg":"3,818","d":-19100000000.0,"f":-356200000000.0,"exact":true},{"b":"BK","net":-201600000000.0,"lot":"538.1K","avg":"3,747","d":-24200000000.0,"f":-177400000000.0,"exact":true},{"b":"TP","net":-180500000000.0,"lot":"482.5K","avg":"3,740","d":-4400000000.0,"f":-176100000000.0,"exact":true},{"b":"AK","net":-136600000000.0,"lot":"352.3K","avg":"3,878","d":-19800000000.0,"f":-116800000000.0,"exact":true},{"b":"YP","net":-123000000000.0,"lot":"319.2K","avg":"3,853","d":-122400000000.0,"f":-592300000.0,"exact":true},{"b":"AI","net":-45400000000.0,"lot":"122.9K","avg":"3,698","d":-9200000000.0,"f":-36200000000.0,"exact":true},{"b":"XL","net":-32299999999.999996,"lot":"81.1K","avg":"3,978","d":-32299999999.999996,"f":0.0,"exact":true},{"b":"CP","net":-30400000000.0,"lot":"80.7K","avg":"3,775","d":-30400000000.0,"f":3000000.0,"exact":true},{"b":"DR","net":-25500000000.0,"lot":"67.2K","avg":"3,787","d":-25500000000.0,"f":-0.0,"exact":false},{"b":"LG","net":-23500000000.0,"lot":"61.1K","avg":"3,838","d":-13900000000.0,"f":-9600000000.0,"exact":false}],"bd":{"3":{"v":"Acc","cls":"acc","buy":1100000000000.0,"sell":757300000000.0,"net":347900000000.0,"ratio":6.82,"fshare":16.0},"5":{"v":"Neutral","cls":"neu","buy":1200000000000.0,"sell":1000000000000.0,"net":173000000000.0,"ratio":3.39,"fshare":19.0},"10":{"v":"Neutral","cls":"neu","buy":1300000000000.0,"sell":1200000000000.0,"net":92700000000.0,"ratio":1.82,"fshare":18.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"NI","net":760000000000.0,"lot":"2M","avg":"3,862","d":751900000000.0,"f":8100000000.0,"exact":true},{"b":"XL","net":537200000000.00006,"lot":"1.5M","avg":"3,686","d":536000000000.0,"f":1200000000.0,"exact":true},{"b":"CC","net":467800000000.0,"lot":"1.2M","avg":"3,759","d":703600000000.0,"f":-235900000000.0,"exact":true},{"b":"YU","net":303300000000.0,"lot":"969.5K","avg":"3,129","d":50200000000.0,"f":253100000000.0,"exact":true},{"b":"XC","net":146000000000.0,"lot":"388.7K","avg":"3,755","d":146000000000.0,"f":0.0,"exact":true},{"b":"SQ","net":126900000000.0,"lot":"322.7K","avg":"3,932","d":122200000000.0,"f":4700000000.0,"exact":true},{"b":"AZ","net":104100000000.0,"lot":"277.9K","avg":"3,745","d":104100000000.0,"f":0.0,"exact":true},{"b":"PD","net":80300000000.0,"lot":"217.8K","avg":"3,687","d":78200000000.0,"f":2100000000.0,"exact":true},{"b":"YP","net":71500000000.0,"lot":"194.4K","avg":"3,675","d":69600000000.0,"f":1900000000.0,"exact":false},{"b":"OD","net":68000000000.0,"lot":"184.4K","avg":"3,689","d":68000000000.0,"f":0.0,"exact":false}],"sell":[{"b":"ZP","net":-1100000000000.0,"lot":"3.1M","avg":"3,653","d":37000000000.0,"f":-1200000000000.0,"exact":true},{"b":"BK","net":-864300000000.0,"lot":"2.2M","avg":"3,858","d":-95800000000.0,"f":-768600000000.0,"exact":true},{"b":"AK","net":-646300000000.0,"lot":"1.8M","avg":"3,516","d":-69200000000.0,"f":-577100000000.0,"exact":true},{"b":"TP","net":-185900000000.0,"lot":"491K","avg":"3,785","d":27100000000.0,"f":-212900000000.0,"exact":true},{"b":"KZ","net":-149700000000.0,"lot":"488K","avg":"3,069","d":-39700000000.0,"f":-110000000000.0,"exact":true},{"b":"BB","net":-56400000000.0,"lot":"130.5K","avg":"4,326","d":-94400000000.0,"f":38000000000.0,"exact":true},{"b":"AI","net":-47000000000.0,"lot":"123.8K","avg":"3,796","d":9900000000.0,"f":-56900000000.0,"exact":true},{"b":"IF","net":-44900000000.0,"lot":"119.2K","avg":"3,770","d":-25600000000.0,"f":-19400000000.0,"exact":true},{"b":"CD","net":-25200000000.0,"lot":"69.5K","avg":"3,633","d":-25200000000.0,"f":-0.0,"exact":false},{"b":"AG","net":-24800000000.0,"lot":"66.3K","avg":"3,742","d":-4800000000.0,"f":-20000000000.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":1800000000000.0,"sell":2600000000000.0,"net":-865400000000.0,"ratio":-5.1,"fshare":0.0},"5":{"v":"Neutral","cls":"neu","buy":2200000000000.0,"sell":3000000000000.0,"net":-751700000000.0,"ratio":-4.43,"fshare":14.0},"10":{"v":"Neutral","cls":"neu","buy":2700000000000.0,"sell":3200000000000.0,"net":-499400000000.0,"ratio":-2.94,"fshare":14.0}}}},"TLKM":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"OD","net":193100000000.0,"lot":"896.4K","avg":"2,154","d":193100000000.0,"f":4600000.0,"exact":true},{"b":"YU","net":86900000000.0,"lot":"403.9K","avg":"2,152","d":32700000000.000004,"f":54200000000.0,"exact":true},{"b":"RX","net":18800000000.0,"lot":"87.7K","avg":"2,146","d":0.0,"f":18800000000.0,"exact":true},{"b":"XC","net":5300000000.0,"lot":"23.8K","avg":"2,214","d":5300000000.0,"f":0.0,"exact":true},{"b":"KZ","net":4600000000.0,"lot":"22K","avg":"2,116","d":1100000000.0,"f":3600000000.0,"exact":true},{"b":"SQ","net":3200000000.0,"lot":"14.5K","avg":"2,194","d":2700000000.0,"f":430000000.0,"exact":true},{"b":"XL","net":2700000000.0,"lot":"11.2K","avg":"2,380","d":2700000000.0,"f":0.0,"exact":true},{"b":"PD","net":2600000000.0,"lot":"12.2K","avg":"2,162","d":2600000000.0,"f":0.0,"exact":true},{"b":"AI","net":2600000000.0,"lot":"11.9K","avg":"2,188","d":600000000.0,"f":2000000000.0,"exact":false},{"b":"IF","net":2400000000.0,"lot":"11K","avg":"2,199","d":2334300000.0,"f":65700000.0,"exact":false}],"sell":[{"b":"AK","net":-209000000000.0,"lot":"972.4K","avg":"2,149","d":-11500000000.0,"f":-197500000000.0,"exact":true},{"b":"BK","net":-64200000000.0,"lot":"296.2K","avg":"2,167","d":-37800.0,"f":-64200000000.0,"exact":true},{"b":"ZP","net":-36500000000.0,"lot":"167.4K","avg":"2,180","d":118700000.0,"f":-36600000000.0,"exact":true},{"b":"CC","net":-9900000000.0,"lot":"45.2K","avg":"2,189","d":2100000000.0,"f":-12000000000.0,"exact":true},{"b":"SS","net":-6300000000.0,"lot":"30K","avg":"2,116","d":-6300000000.0,"f":0.0,"exact":true},{"b":"YP","net":-2600000000.0,"lot":"12.8K","avg":"2,066","d":-2600000000.0,"f":2200000.0,"exact":true},{"b":"LG","net":-1700000000.0,"lot":"8.1K","avg":"2,130","d":-1700000000.0,"f":0.0,"exact":true},{"b":"YJ","net":-1400000000.0,"lot":"6.3K","avg":"2,178","d":-1400000000.0,"f":0.0,"exact":true},{"b":"AZ","net":-898100000.0,"lot":"4.2K","avg":"2,126","d":-898100000.0,"f":-0.0,"exact":false},{"b":"DX","net":-519299999.99999994,"lot":"2.4K","avg":"2,207","d":-519299999.99999994,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":298900000000.0,"sell":309700000000.0,"net":-10800000000.0,"ratio":-1.49,"fshare":35.0},"5":{"v":"Neutral","cls":"neu","buy":308800000000.0,"sell":325900000000.0,"net":-17200000000.0,"ratio":-2.36,"fshare":36.0},"10":{"v":"Neutral","cls":"neu","buy":322300000000.0,"sell":333100000000.0,"net":-10800000000.0,"ratio":-1.49,"fshare":35.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"YU","net":798800000000.0,"lot":"3.6M","avg":"2,203","d":801300000000.0,"f":-2600000000.0,"exact":true},{"b":"OD","net":197100000000.0,"lot":"916.2K","avg":"2,152","d":197100000000.0,"f":749000.0,"exact":true},{"b":"KZ","net":161400000000.0,"lot":"734.8K","avg":"2,196","d":3300000000.0,"f":158100000000.0,"exact":true},{"b":"NI","net":93100000000.0,"lot":"420.9K","avg":"2,213","d":96300000000.0,"f":-3200000000.0,"exact":true},{"b":"PD","net":32600000000.0,"lot":"153.1K","avg":"2,127","d":29900000000.0,"f":2700000000.0,"exact":true},{"b":"OK","net":16399999999.999998,"lot":"78K","avg":"2,096","d":16399999999.999998,"f":0.0,"exact":true},{"b":"AI","net":10800000000.0,"lot":"49.7K","avg":"2,185","d":980600000.0,"f":9900000000.0,"exact":true},{"b":"AZ","net":9800000000.0,"lot":"46.6K","avg":"2,113","d":9800000000.0,"f":0.0,"exact":true},{"b":"GR","net":6000000000.0,"lot":"30.4K","avg":"1,987","d":6000000000.0,"f":0.0,"exact":false},{"b":"IF","net":4400000000.0,"lot":"21K","avg":"2,122","d":4323800000.0,"f":76200000.0,"exact":false}],"sell":[{"b":"BK","net":-457700000000.0,"lot":"2.1M","avg":"2,204","d":-29400000000.0,"f":-428300000000.0,"exact":true},{"b":"AK","net":-398500000000.0,"lot":"1.8M","avg":"2,163","d":797300000.0,"f":-399300000000.0,"exact":true},{"b":"ZP","net":-165700000000.0,"lot":"761.2K","avg":"2,177","d":-17100000000.000002,"f":-148600000000.0,"exact":true},{"b":"CC","net":-87600000000.0,"lot":"388.6K","avg":"2,255","d":33100000000.0,"f":-120700000000.0,"exact":true},{"b":"RX","net":-50500000000.0,"lot":"227.8K","avg":"2,215","d":-127300.0,"f":-50500000000.0,"exact":true},{"b":"YP","net":-42800000000.0,"lot":"195.4K","avg":"2,190","d":-42600000000.0,"f":-197100000.0,"exact":true},{"b":"BB","net":-37300000000.0,"lot":"177.1K","avg":"2,109","d":-26000000000.0,"f":-11300000000.0,"exact":true},{"b":"TP","net":-32299999999.999996,"lot":"150.2K","avg":"2,151","d":-1800000000.0,"f":-30500000000.0,"exact":true},{"b":"XL","net":-28200000000.0,"lot":"129.3K","avg":"2,178","d":-28200000000.0,"f":-0.0,"exact":false},{"b":"CP","net":-15600000000.0,"lot":"72.6K","avg":"2,156","d":-15600000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":1200000000000.0,"sell":1000000000000.0,"net":135400000000.0,"ratio":3.92,"fshare":83.0},"5":{"v":"Neutral","cls":"neu","buy":1300000000000.0,"sell":1200000000000.0,"net":123000000000.0,"ratio":3.56,"fshare":75.0},"10":{"v":"Neutral","cls":"neu","buy":1300000000000.0,"sell":1300000000000.0,"net":14300000000.0,"ratio":0.41,"fshare":73.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"YU","net":1000000000000.0,"lot":"4.8M","avg":"2,100","d":836000000000.0,"f":168300000000.0,"exact":true},{"b":"RX","net":303000000000.0,"lot":"1.5M","avg":"2,011","d":-10800.0,"f":303000000000.0,"exact":true},{"b":"BK","net":292500000000.0,"lot":"1.6M","avg":"1,831","d":-84800000000.0,"f":377300000000.0,"exact":true},{"b":"CC","net":225800000000.0,"lot":"1.1M","avg":"1,989","d":284900000000.0,"f":-59100000000.0,"exact":true},{"b":"OD","net":206800000000.0,"lot":"965K","avg":"2,143","d":206800000000.0,"f":8100000.0,"exact":true},{"b":"XL","net":113700000000.0,"lot":"561.2K","avg":"2,027","d":113700000000.0,"f":51300000.0,"exact":true},{"b":"NI","net":101300000000.0,"lot":"456.5K","avg":"2,218","d":101600000000.0,"f":-300200000.0,"exact":true},{"b":"PD","net":97800000000.0,"lot":"465K","avg":"2,104","d":94800000000.0,"f":3000000000.0,"exact":true},{"b":"BB","net":60900000000.0,"lot":"380.6K","avg":"1,599","d":-51700000000.0,"f":112600000000.0,"exact":false},{"b":"SQ","net":52500000000.0,"lot":"249.8K","avg":"2,101","d":52500000000.0,"f":0.0,"exact":false}],"sell":[{"b":"ZP","net":-1700000000000.0,"lot":"8.3M","avg":"2,065","d":-17800000000.0,"f":-1700000000000.0,"exact":true},{"b":"AK","net":-494600000000.0,"lot":"2.6M","avg":"1,915","d":44300000000.0,"f":-538900000000.0,"exact":true},{"b":"KZ","net":-413600000000.0,"lot":"2.1M","avg":"1,974","d":-19000000000.0,"f":-394600000000.0,"exact":true},{"b":"LG","net":-27100000000.0,"lot":"121.3K","avg":"2,234","d":-23500000000.0,"f":-3600000000.0,"exact":true},{"b":"AI","net":-26400000000.0,"lot":"115.2K","avg":"2,289","d":-33700000000.000004,"f":7400000000.0,"exact":true},{"b":"TP","net":-12100000000.0,"lot":"55.2K","avg":"2,194","d":5900000000.0,"f":-18100000000.0,"exact":true},{"b":"SS","net":-10800000000.0,"lot":"49.2K","avg":"2,195","d":-10800000000.0,"f":0.0,"exact":true},{"b":"BQ","net":-6200000000.0,"lot":"19.8K","avg":"3,153","d":7500000000.0,"f":-13700000000.0,"exact":true},{"b":"CD","net":-5000000000.0,"lot":"27.7K","avg":"1,803","d":-5000000000.0,"f":-0.0,"exact":false},{"b":"AG","net":-4500000000.0,"lot":"25.4K","avg":"1,764","d":700000000.0,"f":-5200000000.0,"exact":false}],"bd":{"3":{"v":"Dist","cls":"dist","buy":1600000000000.0,"sell":2600000000000.0,"net":-1000000000000.0,"ratio":-6.95,"fshare":100.0},"5":{"v":"Neutral","cls":"neu","buy":2000000000000.0,"sell":2700000000000.0,"net":-644300000000.0,"ratio":-4.38,"fshare":79.0},"10":{"v":"Neutral","cls":"neu","buy":2500000000000.0,"sell":2700000000000.0,"net":-256800000000.0,"ratio":-1.74,"fshare":65.0}}}},"GOTO":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"XL","net":14200000000.0,"lot":"5.9M","avg":"24","d":14200000000.0,"f":-16700000.0,"exact":true},{"b":"RX","net":12000000000.0,"lot":"5M","avg":"24","d":0.0,"f":12000000000.0,"exact":true},{"b":"BB","net":7800000000.0,"lot":"3.2M","avg":"24","d":7800000000.0,"f":0.0,"exact":true},{"b":"YU","net":4500000000.0,"lot":"1.8M","avg":"25","d":5900000000.0,"f":-1400000000.0,"exact":true},{"b":"CC","net":4099999999.9999995,"lot":"1.7M","avg":"24","d":4099999999.9999995,"f":2000000.0,"exact":true},{"b":"RB","net":3400000000.0,"lot":"1.4M","avg":"24","d":3400000000.0,"f":0.0,"exact":true},{"b":"AO","net":3000000000.0,"lot":"1.2M","avg":"24","d":3000000000.0,"f":0.0,"exact":true},{"b":"ZP","net":3000000000.0,"lot":"1.2M","avg":"24","d":2200000000.0,"f":773900000.0,"exact":true},{"b":"YB","net":2800000000.0,"lot":"1.2M","avg":"24","d":2800000000.0,"f":0.0,"exact":false},{"b":"XC","net":2300000000.0,"lot":"951.7K","avg":"24","d":2300000000.0,"f":0.0,"exact":false}],"sell":[{"b":"AK","net":-23900000000.0,"lot":"9.6M","avg":"25","d":0.0,"f":-23900000000.0,"exact":true},{"b":"BK","net":-8600000000.0,"lot":"3.6M","avg":"24","d":672.0,"f":-8600000000.0,"exact":true},{"b":"PG","net":-8500000000.0,"lot":"3.5M","avg":"24","d":-8500000000.0,"f":0.0,"exact":true},{"b":"MG","net":-8400000000.0,"lot":"3.8M","avg":"22","d":-8400000000.0,"f":0.0,"exact":true},{"b":"AI","net":-5100000000.0,"lot":"2.1M","avg":"24","d":-4800000.0,"f":-5100000000.0,"exact":true},{"b":"YP","net":-5100000000.0,"lot":"2.1M","avg":"24","d":-5100000000.0,"f":37000000.0,"exact":true},{"b":"MU","net":-2600000000.0,"lot":"1.1M","avg":"24","d":-2600000000.0,"f":0.0,"exact":true},{"b":"XA","net":-1300000000.0,"lot":"532.2K","avg":"25","d":309100000.0,"f":-1600000000.0,"exact":true},{"b":"TP","net":-1100000000.0,"lot":"456.5K","avg":"24","d":100000000.0,"f":-1200000000.0,"exact":false},{"b":"CP","net":-862800000.0,"lot":"364.9K","avg":"24","d":-862800000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":34000000000.0,"sell":41100000000.0,"net":-7000000000.0,"ratio":-4.6,"fshare":35.0},"5":{"v":"Dist","cls":"dist","buy":42600000000.0,"sell":54600000000.0,"net":-11900000000.0,"ratio":-7.77,"fshare":39.0},"10":{"v":"Neutral","cls":"neu","buy":57100000000.0,"sell":65500000000.0,"net":-8400000000.0,"ratio":-5.5,"fshare":40.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"DH","net":100300000000.0,"lot":"40.1M","avg":"25","d":100200000000.0,"f":24000000.0,"exact":true},{"b":"RX","net":63500000000.0,"lot":"25.6M","avg":"25","d":0.0,"f":63500000000.0,"exact":true},{"b":"SS","net":42300000000.0,"lot":"16.8M","avg":"25","d":42300000000.0,"f":0.0,"exact":true},{"b":"BB","net":34800000000.0,"lot":"13.8M","avg":"25","d":34800000000.0,"f":0.0,"exact":true},{"b":"SQ","net":15300000000.0,"lot":"6.1M","avg":"25","d":15300000000.0,"f":481000.0,"exact":true},{"b":"XL","net":9400000000.0,"lot":"4M","avg":"23","d":9400000000.0,"f":-19500000.0,"exact":true},{"b":"BK","net":8100000000.0,"lot":"2.8M","avg":"28","d":-888.0,"f":8100000000.0,"exact":true},{"b":"RB","net":5800000000.0,"lot":"2.4M","avg":"24","d":5800000000.0,"f":0.0,"exact":true},{"b":"AO","net":4200000000.0,"lot":"1.7M","avg":"24","d":4200000000.0,"f":0.0,"exact":false},{"b":"MU","net":4000000000.0,"lot":"1.7M","avg":"24","d":4000000000.0,"f":0.0,"exact":false}],"sell":[{"b":"YU","net":-105900000000.0,"lot":"42.6M","avg":"25","d":-32500000000.0,"f":-73400000000.0,"exact":true},{"b":"AK","net":-57800000000.0,"lot":"23.1M","avg":"25","d":-2000000000.0,"f":-55800000000.0,"exact":true},{"b":"CC","net":-53500000000.0,"lot":"21.4M","avg":"25","d":-54100000000.0,"f":668500000.0,"exact":true},{"b":"MG","net":-30200000000.0,"lot":"12.2M","avg":"25","d":-30200000000.0,"f":-2500.0,"exact":true},{"b":"KI","net":-17700000000.0,"lot":"7.1M","avg":"25","d":-17700000000.0,"f":0.0,"exact":true},{"b":"TP","net":-11400000000.0,"lot":"4.6M","avg":"25","d":637200000.0,"f":-12000000000.0,"exact":true},{"b":"XA","net":-9600000000.0,"lot":"3.9M","avg":"25","d":992200000.0,"f":-10600000000.0,"exact":true},{"b":"PG","net":-8400000000.0,"lot":"3.5M","avg":"24","d":-8400000000.0,"f":0.0,"exact":true},{"b":"CP","net":-6200000000.0,"lot":"2.4M","avg":"26","d":-6200000000.0,"f":-0.0,"exact":false},{"b":"AI","net":-4800000000.0,"lot":"2M","avg":"24","d":400000000.0,"f":-5200000000.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":206000000000.0,"sell":217200000000.0,"net":-11200000000.0,"ratio":-1.45,"fshare":31.0},"5":{"v":"Neutral","cls":"neu","buy":256100000000.00003,"sell":265100000000.00003,"net":-9000000000.0,"ratio":-1.16,"fshare":25.0},"10":{"v":"Neutral","cls":"neu","buy":287600000000.0,"sell":305500000000.0,"net":-17900000000.0,"ratio":-2.31,"fshare":27.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"KI","net":986500000000.0,"lot":"360.2M","avg":"27","d":986000000000.0,"f":523299999.99999994,"exact":true},{"b":"SS","net":257700000000.0,"lot":"87.1M","avg":"30","d":257700000000.0,"f":0.0,"exact":true},{"b":"KZ","net":180700000000.0,"lot":"76.2M","avg":"24","d":-6900000000.0,"f":187700000000.0,"exact":true},{"b":"DH","net":131699999999.99998,"lot":"52M","avg":"25","d":131500000000.0,"f":182100000.0,"exact":true},{"b":"SQ","net":87200000000.0,"lot":"33.1M","avg":"26","d":86800000000.0,"f":410600000.0,"exact":true},{"b":"AT","net":77100000000.0,"lot":"26.5M","avg":"29","d":77100000000.0,"f":0.0,"exact":true},{"b":"YP","net":74700000000.0,"lot":"26.5M","avg":"28","d":71200000000.0,"f":3500000000.0,"exact":true},{"b":"LG","net":52800000000.0,"lot":"16.9M","avg":"31","d":53100000000.0,"f":-333600000.0,"exact":true},{"b":"XL","net":34200000000.000004,"lot":"12M","avg":"29","d":34200000000.000004,"f":0.0,"exact":false},{"b":"OD","net":32799999999.999996,"lot":"11.6M","avg":"28","d":23299999999.999996,"f":9500000000.0,"exact":false}],"sell":[{"b":"ZP","net":-745000000000.0,"lot":"266M","avg":"28","d":23800000000.0,"f":-768800000000.0,"exact":true},{"b":"TP","net":-390300000000.0,"lot":"139.4M","avg":"28","d":-3400000000.0,"f":-386800000000.0,"exact":true},{"b":"CC","net":-278300000000.0,"lot":"101.6M","avg":"27","d":-171300000000.0,"f":-107000000000.0,"exact":true},{"b":"MG","net":-229700000000.0,"lot":"76.2M","avg":"30","d":-229700000000.0,"f":6900000.0,"exact":true},{"b":"YU","net":-191600000000.0,"lot":"80.9M","avg":"24","d":-43400000000.0,"f":-148300000000.0,"exact":true},{"b":"AK","net":-151100000000.0,"lot":"62.1M","avg":"24","d":1000000000.0,"f":-152100000000.0,"exact":true},{"b":"BB","net":-48100000000.0,"lot":"18M","avg":"27","d":-8199999999.999999,"f":-39800000000.0,"exact":true},{"b":"CP","net":-36400000000.0,"lot":"13.4M","avg":"27","d":-36400000000.0,"f":10000000.0,"exact":true},{"b":"PD","net":-30400000000.0,"lot":"16.1M","avg":"19","d":-30400000000.0,"f":-0.0,"exact":false},{"b":"NI","net":-11500000000.0,"lot":"4.1M","avg":"28","d":-11500000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":1400000000000.0,"sell":1400000000000.0,"net":11400000000.0,"ratio":0.12,"fshare":13.0},"5":{"v":"Neutral","cls":"neu","buy":1600000000000.0,"sell":1800000000000.0,"net":-191100000000.0,"ratio":-2.0,"fshare":11.0},"10":{"v":"Neutral","cls":"neu","buy":1900000000000.0,"sell":2100000000000.0,"net":-197000000000.0,"ratio":-2.06,"fshare":13.0}}}},"ANTM":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"AK","net":60500000000.0,"lot":"220.2K","avg":"2,747","d":-6400000.0,"f":60500000000.0,"exact":true},{"b":"PD","net":26000000000.0,"lot":"97.1K","avg":"2,673","d":26000000000.0,"f":0.0,"exact":true},{"b":"CC","net":13600000000.0,"lot":"51.2K","avg":"2,654","d":15600000000.0,"f":-2000000000.0,"exact":true},{"b":"BB","net":7300000000.0,"lot":"25.8K","avg":"2,843","d":13900000000.0,"f":-6600000000.0,"exact":true},{"b":"LG","net":2700000000.0,"lot":"9.9K","avg":"2,735","d":2700000000.0,"f":-3200000.0,"exact":true},{"b":"XA","net":2500000000.0,"lot":"8.8K","avg":"2,807","d":2500000000.0,"f":0.0,"exact":true},{"b":"DR","net":2100000000.0,"lot":"7.4K","avg":"2,759","d":2000000000.0,"f":2800000.0,"exact":true},{"b":"CP","net":2000000000.0,"lot":"7.4K","avg":"2,734","d":2000000000.0,"f":0.0,"exact":true},{"b":"XC","net":1900000000.0,"lot":"7K","avg":"2,781","d":1900000000.0,"f":0.0,"exact":false},{"b":"BS","net":1600000000.0,"lot":"5.9K","avg":"2,728","d":1600000000.0,"f":0.0,"exact":false}],"sell":[{"b":"KZ","net":-42600000000.0,"lot":"156.2K","avg":"2,725","d":1600000000.0,"f":-44100000000.0,"exact":true},{"b":"BK","net":-32600000000.0,"lot":"119.5K","avg":"2,728","d":-19400.0,"f":-32600000000.0,"exact":true},{"b":"ZP","net":-12500000000.0,"lot":"45.3K","avg":"2,754","d":-7100000000.0,"f":-5300000000.0,"exact":true},{"b":"HP","net":-8199999999.999999,"lot":"30.6K","avg":"2,681","d":-8199999999.999999,"f":0.0,"exact":true},{"b":"SH","net":-6000000000.0,"lot":"22K","avg":"2,728","d":-6000000000.0,"f":0.0,"exact":true},{"b":"NI","net":-3800000000.0,"lot":"14K","avg":"2,743","d":-3800000000.0,"f":272000.0,"exact":true},{"b":"TP","net":-3600000000.0,"lot":"13.1K","avg":"2,756","d":-71200000.0,"f":-3500000000.0,"exact":true},{"b":"FS","net":-3200000000.0,"lot":"12K","avg":"2,672","d":-3200000000.0,"f":0.0,"exact":true},{"b":"XL","net":-2700000000.0,"lot":"10.4K","avg":"2,608","d":-2624900000.0,"f":-75100000.0,"exact":false},{"b":"KI","net":-2100000000.0,"lot":"7.8K","avg":"2,689","d":-2100000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":100100000000.0,"sell":87600000000.0,"net":12400000000.0,"ratio":3.36,"fshare":60.0},"5":{"v":"Neutral","cls":"neu","buy":110100000000.0,"sell":101800000000.0,"net":8199999999.999999,"ratio":2.23,"fshare":55.0},"10":{"v":"Neutral","cls":"neu","buy":120200000000.0,"sell":117300000000.0,"net":2900000000.0,"ratio":0.77,"fshare":56.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"YU","net":132199999999.99998,"lot":"470.3K","avg":"2,811","d":114300000000.0,"f":17800000000.0,"exact":true},{"b":"PD","net":39800000000.0,"lot":"147.3K","avg":"2,704","d":39800000000.0,"f":0.0,"exact":true},{"b":"BB","net":36800000000.0,"lot":"131K","avg":"2,810","d":66000000000.0,"f":-29200000000.0,"exact":true},{"b":"SS","net":23400000000.0,"lot":"84.2K","avg":"2,773","d":23400000000.0,"f":0.0,"exact":true},{"b":"CC","net":11700000000.0,"lot":"41.4K","avg":"2,817","d":41000000000.0,"f":-29300000000.0,"exact":true},{"b":"DR","net":11500000000.0,"lot":"43.2K","avg":"2,658","d":11500000000.0,"f":170000.0,"exact":true},{"b":"XA","net":5900000000.0,"lot":"21.4K","avg":"2,761","d":5900000000.0,"f":0.0,"exact":true},{"b":"AZ","net":5200000000.0,"lot":"18.3K","avg":"2,844","d":5200000000.0,"f":0.0,"exact":true},{"b":"OD","net":4800000000.0,"lot":"19.2K","avg":"2,504","d":4798900000.0,"f":1100000.0,"exact":false},{"b":"CP","net":2500000000.0,"lot":"9.6K","avg":"2,644","d":2500000000.0,"f":0.0,"exact":false}],"sell":[{"b":"BK","net":-124800000000.0,"lot":"449.2K","avg":"2,779","d":7600000000.0,"f":-132400000000.0,"exact":true},{"b":"KZ","net":-49600000000.0,"lot":"180.4K","avg":"2,749","d":24700000000.0,"f":-74300000000.0,"exact":true},{"b":"AK","net":-27800000000.0,"lot":"99.6K","avg":"2,789","d":15300000000.0,"f":-43100000000.0,"exact":true},{"b":"GR","net":-24600000000.0,"lot":"91.1K","avg":"2,700","d":-24600000000.0,"f":0.0,"exact":true},{"b":"YP","net":-9400000000.0,"lot":"32.9K","avg":"2,851","d":-9300000000.0,"f":-99300000.0,"exact":true},{"b":"NI","net":-8000000000.0,"lot":"28.2K","avg":"2,851","d":-7900000000.0,"f":-143000000.0,"exact":true},{"b":"LG","net":-5800000000.0,"lot":"19.4K","avg":"2,970","d":-5500000000.0,"f":-272000000.0,"exact":true},{"b":"DX","net":-5400000000.0,"lot":"19.2K","avg":"2,843","d":641700000.0,"f":-6100000000.0,"exact":true},{"b":"RS","net":-3500000000.0,"lot":"12.1K","avg":"2,858","d":-3500000000.0,"f":-0.0,"exact":false},{"b":"RX","net":-2900000000.0,"lot":"11.3K","avg":"2,594","d":-100000000.0,"f":-2800000000.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":208800000000.0,"sell":202200000000.0,"net":6700000000.0,"ratio":0.45,"fshare":63.0},"5":{"v":"Neutral","cls":"neu","buy":243800000000.0,"sell":236200000000.0,"net":7700000000.0,"ratio":0.52,"fshare":54.0},"10":{"v":"Neutral","cls":"neu","buy":273800000000.0,"sell":261800000000.0,"net":12000000000.0,"ratio":0.81,"fshare":56.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"YU","net":135199999999.99998,"lot":"481.8K","avg":"2,806","d":103900000000.0,"f":31200000000.0,"exact":true},{"b":"SS","net":103200000000.0,"lot":"346.3K","avg":"2,982","d":103200000000.0,"f":0.0,"exact":true},{"b":"PD","net":61000000000.0,"lot":"218.6K","avg":"2,789","d":61000000000.0,"f":0.0,"exact":true},{"b":"CC","net":60800000000.0,"lot":"243.1K","avg":"2,503","d":93600000000.0,"f":-32799999999.999996,"exact":true},{"b":"XL","net":49400000000.0,"lot":"179.5K","avg":"2,753","d":49500000000.0,"f":-59300000.0,"exact":true},{"b":"SQ","net":45200000000.0,"lot":"154.6K","avg":"2,924","d":45200000000.0,"f":-8199999.999999999,"exact":true},{"b":"DD","net":29800000000.0,"lot":"93.8K","avg":"3,182","d":29800000000.0,"f":0.0,"exact":true},{"b":"KI","net":28700000000.0,"lot":"109.7K","avg":"2,622","d":28800000000.0,"f":-62800000.0,"exact":true},{"b":"DX","net":17500000000.0,"lot":"50.6K","avg":"3,466","d":17500000000.0,"f":0.0,"exact":false},{"b":"LG","net":16399999999.999998,"lot":"61.1K","avg":"2,679","d":14199999999.999998,"f":2200000000.0,"exact":false}],"sell":[{"b":"BK","net":-158800000000.0,"lot":"524.3K","avg":"3,029","d":-4800000000.0,"f":-154000000000.0,"exact":true},{"b":"ZP","net":-155100000000.0,"lot":"566.4K","avg":"2,738","d":-14600000000.0,"f":-140500000000.0,"exact":true},{"b":"AZ","net":-84400000000.0,"lot":"339.2K","avg":"2,487","d":-78000000000.0,"f":-6300000000.0,"exact":true},{"b":"KZ","net":-59600000000.0,"lot":"232.3K","avg":"2,564","d":53800000000.0,"f":-113400000000.0,"exact":true},{"b":"OD","net":-29300000000.0,"lot":"87.8K","avg":"3,337","d":1400000000.0,"f":-30700000000.0,"exact":true},{"b":"GR","net":-22200000000.0,"lot":"77.1K","avg":"2,885","d":-22300000000.0,"f":30100000.0,"exact":true},{"b":"KK","net":-19600000000.0,"lot":"51.5K","avg":"3,801","d":-21400000000.0,"f":1800000000.0,"exact":true},{"b":"CP","net":-16300000000.0,"lot":"50.8K","avg":"3,213","d":-16300000000.0,"f":-7600000.0,"exact":true},{"b":"DH","net":-15100000000.0,"lot":"48.4K","avg":"3,127","d":-15100000000.0,"f":-0.0,"exact":false},{"b":"AI","net":-9400000000.0,"lot":"28.7K","avg":"3,274","d":-9400000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":299400000000.0,"sell":398300000000.0,"net":-98900000000.0,"ratio":-1.85,"fshare":45.0},"5":{"v":"Neutral","cls":"neu","buy":409600000000.0,"sell":487100000000.0,"net":-77500000000.0,"ratio":-1.45,"fshare":33.0},"10":{"v":"Neutral","cls":"neu","buy":547299999999.99994,"sell":569800000000.0,"net":-22500000000.0,"ratio":-0.42,"fshare":25.0}}}},"ADRO":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"AK","net":15100000000.0,"lot":"60.3K","avg":"2,495","d":-29300000.0,"f":15100000000.0,"exact":true},{"b":"CC","net":11700000000.0,"lot":"47.3K","avg":"2,474","d":7900000000.0,"f":3800000000.0,"exact":true},{"b":"DX","net":8500000000.0,"lot":"35.2K","avg":"2,430","d":8500000000.0,"f":0.0,"exact":true},{"b":"IC","net":2200000000.0,"lot":"9K","avg":"2,462","d":2200000000.0,"f":0.0,"exact":true},{"b":"KZ","net":1400000000.0,"lot":"5.6K","avg":"2,460","d":0.0,"f":1400000000.0,"exact":true},{"b":"BK","net":1300000000.0,"lot":"5K","avg":"2,581","d":0.0,"f":1300000000.0,"exact":true},{"b":"CP","net":1300000000.0,"lot":"5.2K","avg":"2,465","d":1300000000.0,"f":0.0,"exact":true},{"b":"DH","net":1300000000.0,"lot":"5.1K","avg":"2,485","d":1200000000.0,"f":38600000.0,"exact":true},{"b":"DR","net":1100000000.0,"lot":"4.7K","avg":"2,435","d":1100000000.0,"f":0.0,"exact":false},{"b":"TP","net":359900000.0,"lot":"1.5K","avg":"2,470","d":359900000.0,"f":0.0,"exact":false}],"sell":[{"b":"XL","net":-20000000000.0,"lot":"80.5K","avg":"2,483","d":-20000000000.0,"f":0.0,"exact":true},{"b":"SS","net":-8600000000.0,"lot":"35K","avg":"2,460","d":-8600000000.0,"f":0.0,"exact":true},{"b":"YU","net":-5500000000.0,"lot":"22.4K","avg":"2,476","d":-2000000000.0,"f":-3500000000.0,"exact":true},{"b":"EP","net":-1600000000.0,"lot":"6.7K","avg":"2,419","d":66500000.0,"f":-1700000000.0,"exact":true},{"b":"XC","net":-1300000000.0,"lot":"5.3K","avg":"2,497","d":-1300000000.0,"f":0.0,"exact":true},{"b":"RF","net":-1100000000.0,"lot":"4.5K","avg":"2,484","d":-1100000000.0,"f":0.0,"exact":true},{"b":"XA","net":-979400000.0,"lot":"3.9K","avg":"2,499","d":-979400000.0,"f":0.0,"exact":true},{"b":"ZP","net":-685700000.0,"lot":"2.8K","avg":"2,407","d":91600000.0,"f":-777400000.0,"exact":true},{"b":"SQ","net":-643100000.0,"lot":"2.6K","avg":"2,504","d":-643100000.0,"f":-0.0,"exact":false},{"b":"PD","net":-601400000.0,"lot":"2.5K","avg":"2,424","d":-601400000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":35300000000.0,"sell":34100000000.0,"net":1200000000.0,"ratio":1.08,"fshare":43.0},"5":{"v":"Neutral","cls":"neu","buy":38900000000.0,"sell":37100000000.0,"net":1800000000.0,"ratio":1.67,"fshare":42.0},"10":{"v":"Neutral","cls":"neu","buy":44200000000.0,"sell":41100000000.0,"net":3100000000.0,"ratio":2.9,"fshare":46.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"DX","net":41200000000.0,"lot":"169.2K","avg":"2,435","d":41200000000.0,"f":0.0,"exact":true},{"b":"AK","net":19000000000.0,"lot":"75K","avg":"2,533","d":5500000000.0,"f":13500000000.0,"exact":true},{"b":"OD","net":15000000000.0,"lot":"62.1K","avg":"2,421","d":14800000000.0,"f":229800000.0,"exact":true},{"b":"NI","net":6800000000.0,"lot":"28.3K","avg":"2,410","d":6800000000.0,"f":29400000.0,"exact":true},{"b":"BB","net":4700000000.0,"lot":"19.1K","avg":"2,467","d":6200000000.0,"f":-1500000000.0,"exact":true},{"b":"ZP","net":4200000000.0,"lot":"17.7K","avg":"2,346","d":5400000000.0,"f":-1200000000.0,"exact":true},{"b":"GR","net":3600000000.0,"lot":"14.6K","avg":"2,455","d":3600000000.0,"f":0.0,"exact":true},{"b":"IC","net":3100000000.0,"lot":"12.8K","avg":"2,460","d":3100000000.0,"f":0.0,"exact":true},{"b":"IF","net":2800000000.0,"lot":"11.5K","avg":"2,436","d":2780900000.0,"f":19100000.0,"exact":false},{"b":"DR","net":1900000000.0,"lot":"7.8K","avg":"2,438","d":1900000000.0,"f":0.0,"exact":false}],"sell":[{"b":"XL","net":-30400000000.0,"lot":"123.6K","avg":"2,457","d":-30400000000.0,"f":0.0,"exact":true},{"b":"BK","net":-26100000000.0,"lot":"108.5K","avg":"2,411","d":71900.0,"f":-26100000000.0,"exact":true},{"b":"YU","net":-16000000000.0,"lot":"65.3K","avg":"2,442","d":2700000000.0,"f":-18700000000.0,"exact":true},{"b":"TP","net":-11900000000.0,"lot":"48.5K","avg":"2,458","d":-4200000000.0,"f":-7700000000.0,"exact":true},{"b":"SQ","net":-6200000000.0,"lot":"25.1K","avg":"2,460","d":-6200000000.0,"f":0.0,"exact":true},{"b":"CC","net":-4300000000.0,"lot":"18.2K","avg":"2,353","d":5200000000.0,"f":-9400000000.0,"exact":true},{"b":"XC","net":-3300000000.0,"lot":"13.4K","avg":"2,438","d":-3300000000.0,"f":0.0,"exact":true},{"b":"YP","net":-3000000000.0,"lot":"12.1K","avg":"2,457","d":-2900000000.0,"f":-21200000.0,"exact":true},{"b":"EP","net":-2000000000.0,"lot":"8.2K","avg":"2,424","d":-300000000.0,"f":-1700000000.0,"exact":false},{"b":"XA","net":-1900000000.0,"lot":"7.8K","avg":"2,477","d":-1900000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":75200000000.0,"sell":72500000000.0,"net":2800000000.0,"ratio":0.57,"fshare":25.0},"5":{"v":"Neutral","cls":"neu","buy":86800000000.0,"sell":90500000000.0,"net":-3800000000.0,"ratio":-0.78,"fshare":22.0},"10":{"v":"Neutral","cls":"neu","buy":102400000000.0,"sell":105000000000.0,"net":-2600000000.0,"ratio":-0.53,"fshare":24.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"DX","net":77800000000.0,"lot":"320.3K","avg":"2,429","d":77800000000.0,"f":0.0,"exact":true},{"b":"ZP","net":46300000000.0,"lot":"189.6K","avg":"2,444","d":1000000000.0,"f":45300000000.0,"exact":true},{"b":"AK","net":43400000000.0,"lot":"168.4K","avg":"2,574","d":5800000000.0,"f":37500000000.0,"exact":true},{"b":"LG","net":37300000000.0,"lot":"160.5K","avg":"2,322","d":37100000000.0,"f":183700000.0,"exact":true},{"b":"NI","net":33200000000.000004,"lot":"135.4K","avg":"2,451","d":33200000000.000004,"f":25500000.0,"exact":true},{"b":"OD","net":25300000000.0,"lot":"104.7K","avg":"2,419","d":25100000000.0,"f":242200000.0,"exact":true},{"b":"XA","net":18200000000.0,"lot":"73.4K","avg":"2,483","d":18200000000.0,"f":24300000.0,"exact":true},{"b":"XL","net":16899999999.999998,"lot":"84.2K","avg":"2,012","d":16899999999.999998,"f":0.0,"exact":true},{"b":"SS","net":15200000000.0,"lot":"66.6K","avg":"2,280","d":15200000000.0,"f":0.0,"exact":false},{"b":"CP","net":6200000000.0,"lot":"25.4K","avg":"2,449","d":6200000000.0,"f":0.0,"exact":false}],"sell":[{"b":"BK","net":-168100000000.0,"lot":"691.6K","avg":"2,431","d":-7000000000.0,"f":-161100000000.0,"exact":true},{"b":"CC","net":-50300000000.0,"lot":"209.9K","avg":"2,396","d":-1700000000.0,"f":-48600000000.0,"exact":true},{"b":"YU","net":-40600000000.0,"lot":"169.9K","avg":"2,390","d":1500000000.0,"f":-42100000000.0,"exact":true},{"b":"PD","net":-22500000000.0,"lot":"98.6K","avg":"2,284","d":-22500000000.0,"f":11500000.0,"exact":true},{"b":"AG","net":-9900000000.0,"lot":"39.5K","avg":"2,497","d":131199999.99999999,"f":-10000000000.0,"exact":true},{"b":"SQ","net":-8800000000.0,"lot":"33.8K","avg":"2,603","d":-8800000000.0,"f":-2500000.0,"exact":true},{"b":"XC","net":-6300000000.0,"lot":"28.2K","avg":"2,232","d":-6300000000.0,"f":0.0,"exact":true},{"b":"KZ","net":-5800000000.0,"lot":"20.6K","avg":"2,823","d":3100000000.0,"f":-8900000000.0,"exact":true},{"b":"BQ","net":-4000000000.0,"lot":"15.1K","avg":"2,646","d":-4000000000.0,"f":-0.0,"exact":false},{"b":"BB","net":-3600000000.0,"lot":"20K","avg":"1,781","d":-2000000000.0,"f":-1600000000.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":167500000000.0,"sell":259000000000.0,"net":-91500000000.0,"ratio":-4.44,"fshare":54.0},"5":{"v":"Neutral","cls":"neu","buy":238000000000.0,"sell":291400000000.0,"net":-53400000000.0,"ratio":-2.59,"fshare":38.0},"10":{"v":"Neutral","cls":"neu","buy":319800000000.0,"sell":319900000000.0,"net":-30800000.0,"ratio":-0.0,"fshare":36.0}}}},"ASII":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"AK","net":97800000000.0,"lot":"209.1K","avg":"4,678","d":-9400000000.0,"f":107200000000.0,"exact":true},{"b":"CC","net":11800000000.0,"lot":"25.4K","avg":"4,633","d":20800000000.0,"f":-9000000000.0,"exact":true},{"b":"PD","net":5800000000.0,"lot":"12.5K","avg":"4,666","d":5800000000.0,"f":0.0,"exact":true},{"b":"KZ","net":5200000000.0,"lot":"11.2K","avg":"4,629","d":0.0,"f":5200000000.0,"exact":true},{"b":"KK","net":1300000000.0,"lot":"3K","avg":"4,383","d":1100000000.0,"f":183600000.0,"exact":true},{"b":"RX","net":1100000000.0,"lot":"2.4K","avg":"4,710","d":88000.0,"f":1100000000.0,"exact":true},{"b":"IH","net":498400000.0,"lot":"1.1K","avg":"4,680","d":498400000.0,"f":0.0,"exact":true},{"b":"HD","net":252300000.0,"lot":"518","avg":"4,871","d":-184000000.0,"f":436300000.0,"exact":true},{"b":"BQ","net":132900000.0,"lot":"307","avg":"4,329","d":132900000.0,"f":0.0,"exact":false},{"b":"AG","net":115600000.0,"lot":"247","avg":"4,682","d":115600000.0,"f":0.0,"exact":false}],"sell":[{"b":"BK","net":-42300000000.0,"lot":"91K","avg":"4,652","d":347300.0,"f":-42300000000.0,"exact":true},{"b":"XL","net":-16000000000.0,"lot":"34.2K","avg":"4,680","d":-16000000000.0,"f":0.0,"exact":true},{"b":"ZP","net":-15600000000.0,"lot":"33.1K","avg":"4,699","d":-312700000.0,"f":-15300000000.0,"exact":true},{"b":"YU","net":-15300000000.0,"lot":"32.9K","avg":"4,645","d":-6800000000.0,"f":-8400000000.0,"exact":true},{"b":"TP","net":-5800000000.0,"lot":"12.3K","avg":"4,680","d":-2500000000.0,"f":-3300000000.0,"exact":true},{"b":"AZ","net":-5100000000.0,"lot":"11K","avg":"4,618","d":-5000000000.0,"f":-42600000.0,"exact":true},{"b":"YP","net":-4200000000.0,"lot":"9K","avg":"4,676","d":-4200000000.0,"f":4200000.0,"exact":true},{"b":"XA","net":-3200000000.0,"lot":"7K","avg":"4,625","d":-3200000000.0,"f":0.0,"exact":true},{"b":"SQ","net":-2900000000.0,"lot":"6.1K","avg":"4,683","d":-2900000000.0,"f":-0.0,"exact":false},{"b":"GR","net":-2700000000.0,"lot":"5.8K","avg":"4,634","d":-2676900000.0,"f":-23100000.0,"exact":false}],"bd":{"3":{"v":"Big Acc","cls":"acc","buy":115400000000.0,"sell":73900000000.0,"net":41500000000.0,"ratio":13.19,"fshare":85.0},"5":{"v":"Acc","cls":"acc","buy":121900000000.0,"sell":95000000000.0,"net":26900000000.0,"ratio":8.56,"fshare":86.0},"10":{"v":"Neutral","cls":"neu","buy":124000000000.0,"sell":113000000000.0,"net":11000000000.0,"ratio":3.51,"fshare":85.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"AK","net":398700000000.0,"lot":"875.5K","avg":"4,554","d":-31800000000.0,"f":430500000000.0,"exact":true},{"b":"CC","net":70600000000.0,"lot":"154.8K","avg":"4,564","d":43000000000.0,"f":27600000000.0,"exact":true},{"b":"NI","net":31800000000.0,"lot":"70.8K","avg":"4,485","d":33400000000.0,"f":-1700000000.0,"exact":true},{"b":"PD","net":23700000000.0,"lot":"52.2K","avg":"4,529","d":22900000000.0,"f":707300000.0,"exact":true},{"b":"OD","net":9100000000.0,"lot":"20.4K","avg":"4,445","d":9100000000.0,"f":-966000.0,"exact":true},{"b":"DH","net":6900000000.0,"lot":"15.1K","avg":"4,549","d":6900000000.0,"f":0.0,"exact":true},{"b":"SH","net":6000000000.0,"lot":"13.3K","avg":"4,528","d":-332900000.0,"f":6300000000.0,"exact":true},{"b":"RX","net":5200000000.0,"lot":"11.5K","avg":"4,568","d":652500000.0,"f":4600000000.0,"exact":true},{"b":"PP","net":4500000000.0,"lot":"10K","avg":"4,505","d":4500000000.0,"f":0.0,"exact":false},{"b":"IF","net":4200000000.0,"lot":"9.4K","avg":"4,442","d":4200000000.0,"f":0.0,"exact":false}],"sell":[{"b":"BK","net":-197200000000.0,"lot":"432.9K","avg":"4,555","d":10700000.0,"f":-197200000000.0,"exact":true},{"b":"BB","net":-122700000000.0,"lot":"273K","avg":"4,493","d":3800000000.0,"f":-126400000000.0,"exact":true},{"b":"ZP","net":-83400000000.0,"lot":"182.8K","avg":"4,561","d":-3100000000.0,"f":-80300000000.0,"exact":true},{"b":"YU","net":-49000000000.0,"lot":"108.6K","avg":"4,510","d":4700000000.0,"f":-53700000000.0,"exact":true},{"b":"KZ","net":-31100000000.0,"lot":"70.6K","avg":"4,403","d":5500000000.0,"f":-36600000000.0,"exact":true},{"b":"TP","net":-21700000000.0,"lot":"47.2K","avg":"4,586","d":-2000000000.0,"f":-19700000000.0,"exact":true},{"b":"XL","net":-14700000000.0,"lot":"31K","avg":"4,735","d":-14700000000.0,"f":0.0,"exact":true},{"b":"SS","net":-5900000000.0,"lot":"12.9K","avg":"4,608","d":-5900000000.0,"f":0.0,"exact":true},{"b":"AZ","net":-5700000000.0,"lot":"12.3K","avg":"4,614","d":-5700000000.0,"f":-0.0,"exact":false},{"b":"BQ","net":-5100000000.0,"lot":"11.2K","avg":"4,559","d":1300000000.0,"f":-6400000000.0,"exact":false}],"bd":{"3":{"v":"Acc","cls":"acc","buy":501100000000.0,"sell":403200000000.0,"net":97900000000.0,"ratio":6.09,"fshare":80.0},"5":{"v":"Neutral","cls":"neu","buy":533799999999.99994,"sell":483300000000.0,"net":50600000000.0,"ratio":3.15,"fshare":75.0},"10":{"v":"Neutral","cls":"neu","buy":560600000000.0,"sell":536299999999.99994,"net":24300000000.0,"ratio":1.52,"fshare":72.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"AK","net":1200000000000.0,"lot":"2.8M","avg":"4,527","d":-2000000000.0,"f":1300000000000.0,"exact":true},{"b":"CC","net":37700000000.0,"lot":"80.9K","avg":"4,652","d":6100000000.0,"f":31600000000.0,"exact":true},{"b":"KZ","net":37700000000.0,"lot":"93.4K","avg":"4,033","d":10800000000.0,"f":26800000000.0,"exact":true},{"b":"SH","net":25800000000.0,"lot":"54.7K","avg":"4,716","d":-1900000000.0,"f":27700000000.0,"exact":true},{"b":"NI","net":25400000000.0,"lot":"59.1K","avg":"4,297","d":23300000000.0,"f":2000000000.0,"exact":true},{"b":"PD","net":23700000000.0,"lot":"51.7K","avg":"4,588","d":22900000000.0,"f":815800000.0,"exact":true},{"b":"OD","net":21900000000.0,"lot":"49.9K","avg":"4,376","d":21900000000.0,"f":1900000.0,"exact":true},{"b":"XL","net":20800000000.0,"lot":"53.4K","avg":"3,889","d":20800000000.0,"f":0.0,"exact":true},{"b":"DX","net":18500000000.0,"lot":"39.5K","avg":"4,686","d":14900000000.0,"f":3600000000.0,"exact":false},{"b":"TP","net":14200000000.0,"lot":"35.4K","avg":"4,026","d":-3800000000.0,"f":18000000000.0,"exact":false}],"sell":[{"b":"ZP","net":-472500000000.0,"lot":"1M","avg":"4,558","d":-17400000000.0,"f":-455100000000.0,"exact":true},{"b":"YU","net":-349500000000.0,"lot":"801.5K","avg":"4,360","d":-20700000000.0,"f":-328800000000.0,"exact":true},{"b":"BK","net":-323600000000.0,"lot":"724.5K","avg":"4,467","d":1700000000.0,"f":-325300000000.0,"exact":true},{"b":"BB","net":-159600000000.0,"lot":"364.3K","avg":"4,380","d":41100000000.0,"f":-200600000000.0,"exact":true},{"b":"DR","net":-66300000000.0,"lot":"143K","avg":"4,635","d":-64800000000.0,"f":-1500000000.0,"exact":true},{"b":"LG","net":-29800000000.0,"lot":"70.9K","avg":"4,202","d":-28600000000.0,"f":-1200000000.0,"exact":true},{"b":"BQ","net":-26100000000.0,"lot":"55.8K","avg":"4,671","d":-2200000000.0,"f":-23900000000.0,"exact":true},{"b":"IF","net":-22100000000.0,"lot":"44.9K","avg":"4,907","d":-22000000000.0,"f":-25800000.0,"exact":true},{"b":"YJ","net":-16800000000.0,"lot":"34.3K","avg":"4,898","d":-16800000000.0,"f":-0.0,"exact":false},{"b":"AG","net":-14300000000.0,"lot":"33K","avg":"4,342","d":-100000000.0,"f":-14200000000.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":1300000000000.0,"sell":1100000000000.0,"net":178300000000.0,"ratio":3.13,"fshare":97.0},"5":{"v":"Neutral","cls":"neu","buy":1400000000000.0,"sell":1400000000000.0,"net":3700000000.0,"ratio":0.06,"fshare":94.0},"10":{"v":"Neutral","cls":"neu","buy":1500000000000.0,"sell":1500000000000.0,"net":-6300000000.0,"ratio":-0.11,"fshare":88.0}}}},"MAPI":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"AK","net":841400000.0,"lot":"6.3K","avg":"1,330","d":-78300000.0,"f":919700000.0,"exact":true},{"b":"ZP","net":204600000.0,"lot":"1.5K","avg":"1,333","d":-23100000.0,"f":227700000.0,"exact":true},{"b":"OD","net":127300000.0,"lot":"962","avg":"1,324","d":127300000.0,"f":0.0,"exact":true},{"b":"TP","net":76500000.0,"lot":"578","avg":"1,324","d":76500000.0,"f":0.0,"exact":true},{"b":"SQ","net":28700000.0,"lot":"215","avg":"1,335","d":28700000.0,"f":0.0,"exact":true},{"b":"XL","net":20200000.0,"lot":"144","avg":"1,400","d":20200000.0,"f":0.0,"exact":true},{"b":"BS","net":20000000.0,"lot":"150","avg":"1,330","d":20000000.0,"f":0.0,"exact":true},{"b":"PD","net":13200000.0,"lot":"99","avg":"1,332","d":13200000.0,"f":0.0,"exact":true},{"b":"DH","net":6300000.0,"lot":"47","avg":"1,337","d":6300000.0,"f":0.0,"exact":false},{"b":"GR","net":1400000.0,"lot":"10","avg":"1,355","d":1400000.0,"f":0.0,"exact":false}],"sell":[{"b":"CC","net":-356700000.0,"lot":"2.7K","avg":"1,324","d":83900000.0,"f":-440600000.0,"exact":true},{"b":"YP","net":-350700000.0,"lot":"2.6K","avg":"1,331","d":-350700000.0,"f":0.0,"exact":true},{"b":"BK","net":-161800000.0,"lot":"1.2K","avg":"1,338","d":0.0,"f":-161800000.0,"exact":true},{"b":"DR","net":-131900000.0,"lot":"989","avg":"1,334","d":-131900000.0,"f":0.0,"exact":true},{"b":"AO","net":-74600000.0,"lot":"563","avg":"1,325","d":-74600000.0,"f":0.0,"exact":true},{"b":"XA","net":-73300000.0,"lot":"551","avg":"1,331","d":-73300000.0,"f":0.0,"exact":true},{"b":"AZ","net":-39700000.0,"lot":"295","avg":"1,347","d":-39700000.0,"f":0.0,"exact":true},{"b":"YB","net":-37000000.0,"lot":"280","avg":"1,322","d":-37000000.0,"f":0.0,"exact":true},{"b":"CP","net":-27700000.0,"lot":"201","avg":"1,380","d":-27700000.0,"f":-0.0,"exact":false},{"b":"BQ","net":-20200000.0,"lot":"153","avg":"1,322","d":-20200000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Big Acc","cls":"acc","buy":1200000000.0,"sell":869200000.0,"net":304200000.0,"ratio":12.74,"fshare":89.0},"5":{"v":"Acc","cls":"acc","buy":1300000000.0,"sell":1100000000.0,"net":202900000.0,"ratio":8.5,"fshare":88.0},"10":{"v":"Neutral","cls":"neu","buy":1300000000.0,"sell":1300000000.0,"net":65800000.0,"ratio":2.76,"fshare":84.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"NI","net":7000000000.0,"lot":"51.4K","avg":"1,368","d":7000000000.0,"f":0.0,"exact":true},{"b":"YU","net":2500000000.0,"lot":"20.6K","avg":"1,239","d":2500000000.0,"f":8100000.0,"exact":true},{"b":"LG","net":1100000000.0,"lot":"8.4K","avg":"1,253","d":1100000000.0,"f":0.0,"exact":true},{"b":"BS","net":854100000.0,"lot":"6.9K","avg":"1,237","d":854100000.0,"f":0.0,"exact":true},{"b":"SQ","net":265100000.00000003,"lot":"2.1K","avg":"1,243","d":265100000.00000003,"f":0.0,"exact":true},{"b":"XC","net":167200000.0,"lot":"1.6K","avg":"1,052","d":167200000.0,"f":0.0,"exact":true},{"b":"XL","net":119200000.0,"lot":"1.3K","avg":"943","d":119200000.0,"f":0.0,"exact":true},{"b":"OD","net":102600000.0,"lot":"1.1K","avg":"927","d":102600000.0,"f":0.0,"exact":true},{"b":"KK","net":74800000.0,"lot":"683","avg":"1,095","d":74800000.0,"f":0.0,"exact":false},{"b":"DH","net":52100000.0,"lot":"405","avg":"1,286","d":52100000.0,"f":0.0,"exact":false}],"sell":[{"b":"KZ","net":-6100000000.0,"lot":"49.3K","avg":"1,242","d":0.0,"f":-6100000000.0,"exact":true},{"b":"CC","net":-2000000000.0,"lot":"15K","avg":"1,331","d":652000000.0,"f":-2600000000.0,"exact":true},{"b":"ZP","net":-1000000000.0,"lot":"9K","avg":"1,160","d":829900000.0,"f":-1900000000.0,"exact":true},{"b":"PD","net":-918500000.0,"lot":"5.6K","avg":"1,634","d":-918500000.0,"f":0.0,"exact":true},{"b":"YP","net":-673600000.0,"lot":"4.6K","avg":"1,475","d":-670600000.0,"f":-3000000.0,"exact":true},{"b":"RF","net":-563900000.0,"lot":"4K","avg":"1,404","d":-563900000.0,"f":0.0,"exact":true},{"b":"BB","net":-423600000.0,"lot":"3K","avg":"1,421","d":2500000.0,"f":-426100000.0,"exact":true},{"b":"DR","net":-215700000.0,"lot":"1.6K","avg":"1,331","d":-215700000.0,"f":0.0,"exact":true},{"b":"AZ","net":-187400000.0,"lot":"1.4K","avg":"1,372","d":-187400000.0,"f":-0.0,"exact":false},{"b":"GR","net":-76800000.0,"lot":"432","avg":"1,779","d":-76800000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":10600000000.0,"sell":9200000000.0,"net":1500000000.0,"ratio":4.2,"fshare":24.0},"5":{"v":"Neutral","cls":"neu","buy":11800000000.0,"sell":10800000000.0,"net":1000000000.0,"ratio":2.85,"fshare":22.0},"10":{"v":"Neutral","cls":"neu","buy":12300000000.0,"sell":12200000000.0,"net":49700000.0,"ratio":0.14,"fshare":21.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"PD","net":148500000000.0,"lot":"963.5K","avg":"1,541","d":-82100000000.0,"f":230500000000.0,"exact":true},{"b":"YU","net":7300000000.0,"lot":"60.7K","avg":"1,210","d":7600000000.0,"f":-210600000.0,"exact":true},{"b":"CC","net":4400000000.0,"lot":"28.5K","avg":"1,535","d":-68900000.0,"f":4500000000.0,"exact":true},{"b":"BS","net":2600000000.0,"lot":"19.9K","avg":"1,322","d":2600000000.0,"f":0.0,"exact":true},{"b":"SQ","net":1200000000.0,"lot":"8.7K","avg":"1,396","d":1200000000.0,"f":-15100000.0,"exact":true},{"b":"LG","net":1000000000.0,"lot":"8.3K","avg":"1,252","d":1000000000.0,"f":0.0,"exact":true},{"b":"AI","net":768100000.0,"lot":"4.8K","avg":"1,587","d":-203300000.0,"f":971500000.0,"exact":true},{"b":"XC","net":732700000.0,"lot":"6.2K","avg":"1,173","d":732700000.0,"f":0.0,"exact":true},{"b":"DR","net":285800000.0,"lot":"1.8K","avg":"1,558","d":285800000.0,"f":0.0,"exact":false},{"b":"IF","net":161000000.0,"lot":"1.1K","avg":"1,489","d":161000000.0,"f":0.0,"exact":false}],"sell":[{"b":"AK","net":-76000000000.0,"lot":"485.3K","avg":"1,565","d":250900000.0,"f":-76200000000.0,"exact":true},{"b":"ZP","net":-57600000000.0,"lot":"391.7K","avg":"1,471","d":2300000000.0,"f":-59900000000.0,"exact":true},{"b":"BK","net":-14200000000.0,"lot":"97.9K","avg":"1,453","d":62100.0,"f":-14200000000.0,"exact":true},{"b":"KZ","net":-6000000000.0,"lot":"48.6K","avg":"1,238","d":66700000.0,"f":-6100000000.0,"exact":true},{"b":"NI","net":-4700000000.0,"lot":"26.8K","avg":"1,756","d":-4700000000.0,"f":0.0,"exact":true},{"b":"BB","net":-2800000000.0,"lot":"17.2K","avg":"1,660","d":-2800000000.0,"f":-43600000.0,"exact":true},{"b":"OD","net":-1600000000.0,"lot":"9.6K","avg":"1,658","d":-1600000000.0,"f":263000.0,"exact":true},{"b":"XL","net":-1400000000.0,"lot":"9.6K","avg":"1,500","d":-1400000000.0,"f":0.0,"exact":true},{"b":"GR","net":-1400000000.0,"lot":"9K","avg":"1,532","d":-1400000000.0,"f":-0.0,"exact":false},{"b":"HP","net":-385200000.0,"lot":"3.1K","avg":"1,235","d":-385200000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":160200000000.0,"sell":147800000000.0,"net":12400000000.0,"ratio":2.68,"fshare":5.0},"5":{"v":"Neutral","cls":"neu","buy":164100000000.0,"sell":158500000000.0,"net":5500000000.0,"ratio":1.2,"fshare":4.0},"10":{"v":"Neutral","cls":"neu","buy":167100000000.0,"sell":166200000000.0,"net":884400000.0,"ratio":0.19,"fshare":5.0}}}},"BRPT":{"asof":"27 Oct 2026","1":{"range":"27 Oct","buy":[{"b":"YP","net":6000000000.0,"lot":"43.8K","avg":"1,366","d":6000000000.0,"f":0.0,"exact":true},{"b":"MG","net":4500000000.0,"lot":"32K","avg":"1,411","d":4500000000.0,"f":0.0,"exact":true},{"b":"XC","net":3500000000.0,"lot":"24K","avg":"1,459","d":4200000000.0,"f":-712500000.0,"exact":true},{"b":"AZ","net":2800000000.0,"lot":"20.4K","avg":"1,366","d":2800000000.0,"f":0.0,"exact":true},{"b":"IF","net":2000000000.0,"lot":"15.1K","avg":"1,349","d":1600000000.0,"f":397500000.0,"exact":true},{"b":"BQ","net":1500000000.0,"lot":"10.7K","avg":"1,361","d":1500000000.0,"f":0.0,"exact":true},{"b":"NI","net":993500000.0,"lot":"6.9K","avg":"1,449","d":993500000.0,"f":0.0,"exact":true},{"b":"SQ","net":855000000.0,"lot":"5.8K","avg":"1,475","d":855000000.0,"f":0.0,"exact":true},{"b":"KK","net":844100000.0,"lot":"6.3K","avg":"1,347","d":844100000.0,"f":0.0,"exact":false},{"b":"GR","net":843700000.0,"lot":"6.5K","avg":"1,306","d":843700000.0,"f":0.0,"exact":false}],"sell":[{"b":"KZ","net":-9300000000.0,"lot":"65.8K","avg":"1,412","d":-11100000000.0,"f":1800000000.0,"exact":true},{"b":"ZP","net":-8100000000.0,"lot":"60.6K","avg":"1,339","d":-8199999999.999999,"f":57800000.0,"exact":true},{"b":"AK","net":-4000000000.0,"lot":"26.9K","avg":"1,483","d":0.0,"f":-4000000000.0,"exact":true},{"b":"BK","net":-2200000000.0,"lot":"15.7K","avg":"1,385","d":0.0,"f":-2200000000.0,"exact":true},{"b":"XL","net":-1500000000.0,"lot":"12.4K","avg":"1,216","d":-1500000000.0,"f":0.0,"exact":true},{"b":"LG","net":-1400000000.0,"lot":"9.7K","avg":"1,430","d":-1400000000.0,"f":-1500000.0,"exact":true},{"b":"CC","net":-729600000.0,"lot":"4.8K","avg":"1,508","d":-701100000.0,"f":-28500000.0,"exact":true},{"b":"HP","net":-698500000.0,"lot":"5K","avg":"1,407","d":-698500000.0,"f":0.0,"exact":true},{"b":"AG","net":-564200000.0,"lot":"3.9K","avg":"1,463","d":20000000.0,"f":-584200000.0,"exact":false},{"b":"DR","net":-527000000.0,"lot":"3.5K","avg":"1,519","d":-527000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":14000000000.0,"sell":21400000000.0,"net":-7400000000.0,"ratio":-5.61,"fshare":43.0},"5":{"v":"Neutral","cls":"neu","buy":18800000000.0,"sell":25100000000.0,"net":-6200000000.0,"ratio":-4.74,"fshare":32.0},"10":{"v":"Neutral","cls":"neu","buy":23800000000.0,"sell":29000000000.0,"net":-5200000000.0,"ratio":-3.92,"fshare":35.0}}},"5":{"range":"21 Oct \u2013 27 Oct","buy":[{"b":"KZ","net":30700000000.0,"lot":"209.6K","avg":"1,463","d":-20300000000.0,"f":51000000000.0,"exact":true},{"b":"AZ","net":24800000000.0,"lot":"170.7K","avg":"1,454","d":24800000000.0,"f":-293000.0,"exact":true},{"b":"CC","net":11900000000.0,"lot":"81.2K","avg":"1,469","d":16700000000.0,"f":-4800000000.0,"exact":true},{"b":"AI","net":10800000000.0,"lot":"73.7K","avg":"1,472","d":-785600000.0,"f":11600000000.0,"exact":true},{"b":"OD","net":10600000000.0,"lot":"72.3K","avg":"1,466","d":10600000000.0,"f":0.0,"exact":true},{"b":"MG","net":8100000000.0,"lot":"57.2K","avg":"1,411","d":8100000000.0,"f":0.0,"exact":true},{"b":"YP","net":5800000000.0,"lot":"43.5K","avg":"1,343","d":5800000000.0,"f":0.0,"exact":true},{"b":"GR","net":2400000000.0,"lot":"17.4K","avg":"1,374","d":2400000000.0,"f":0.0,"exact":true},{"b":"KI","net":1800000000.0,"lot":"13K","avg":"1,393","d":1800000000.0,"f":0.0,"exact":false},{"b":"XC","net":1700000000.0,"lot":"9.7K","avg":"1,796","d":1700000000.0,"f":0.0,"exact":false}],"sell":[{"b":"BK","net":-31900000000.0,"lot":"221.8K","avg":"1,440","d":-85300.0,"f":-31900000000.0,"exact":true},{"b":"LG","net":-23200000000.0,"lot":"157.2K","avg":"1,475","d":-23200000000.0,"f":-3400000.0,"exact":true},{"b":"XL","net":-14900000000.0,"lot":"105.5K","avg":"1,409","d":-14900000000.0,"f":0.0,"exact":true},{"b":"AK","net":-13100000000.0,"lot":"90.3K","avg":"1,448","d":-16000000.0,"f":-13100000000.0,"exact":true},{"b":"YU","net":-5900000000.0,"lot":"40.8K","avg":"1,433","d":-1200000000.0,"f":-4600000000.0,"exact":true},{"b":"BB","net":-4400000000.0,"lot":"28.3K","avg":"1,550","d":-4000000000.0,"f":-423500000.0,"exact":true},{"b":"NI","net":-4200000000.0,"lot":"28.7K","avg":"1,474","d":-4200000000.0,"f":423000.0,"exact":true},{"b":"TP","net":-4000000000.0,"lot":"28K","avg":"1,442","d":-309600000.0,"f":-3700000000.0,"exact":true},{"b":"SQ","net":-3400000000.0,"lot":"23.7K","avg":"1,432","d":-3400000000.0,"f":-0.0,"exact":false},{"b":"AG","net":-3200000000.0,"lot":"22.5K","avg":"1,447","d":-100000000.0,"f":-3100000000.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":67400000000.00001,"sell":70000000000.0,"net":-2600000000.0,"ratio":-0.33,"fshare":45.0},"5":{"v":"Neutral","cls":"neu","buy":88900000000.0,"sell":88900000000.0,"net":-71500000.0,"ratio":-0.01,"fshare":47.0},"10":{"v":"Neutral","cls":"neu","buy":108700000000.0,"sell":108200000000.0,"net":489300000.0,"ratio":0.06,"fshare":44.0}}},"20":{"range":"30 Sept \u2013 27 Oct","buy":[{"b":"AZ","net":102900000000.0,"lot":"831.5K","avg":"1,237","d":103000000000.0,"f":-101700000.0,"exact":true},{"b":"KZ","net":73500000000.0,"lot":"542.1K","avg":"1,356","d":7700000000.0,"f":65700000000.0,"exact":true},{"b":"AI","net":65300000000.0,"lot":"492K","avg":"1,326","d":-15300000000.0,"f":80500000000.0,"exact":true},{"b":"DP","net":54100000000.0,"lot":"445.8K","avg":"1,214","d":-28000000.0,"f":54100000000.0,"exact":true},{"b":"MG","net":52500000000.0,"lot":"390.9K","avg":"1,342","d":52500000000.0,"f":0.0,"exact":true},{"b":"OD","net":49600000000.0,"lot":"353.7K","avg":"1,403","d":49600000000.0,"f":0.0,"exact":true},{"b":"GR","net":3300000000.0,"lot":"24.7K","avg":"1,354","d":3800000000.0,"f":-426000000.0,"exact":true},{"b":"KI","net":2700000000.0,"lot":"18.8K","avg":"1,414","d":2700000000.0,"f":0.0,"exact":true},{"b":"YJ","net":934700000.0,"lot":"6.7K","avg":"1,394","d":837900000.0,"f":96800000.0,"exact":false},{"b":"AT","net":665500000.0,"lot":"4.5K","avg":"1,464","d":665500000.0,"f":0.0,"exact":false}],"sell":[{"b":"AK","net":-63000000000.0,"lot":"464.3K","avg":"1,356","d":-2600000000.0,"f":-60400000000.0,"exact":true},{"b":"CC","net":-61200000000.0,"lot":"483.1K","avg":"1,266","d":-35200000000.0,"f":-26000000000.0,"exact":true},{"b":"BB","net":-55100000000.0,"lot":"398.2K","avg":"1,384","d":-8300000000.000001,"f":-46800000000.0,"exact":true},{"b":"YU","net":-46600000000.0,"lot":"352.4K","avg":"1,322","d":-25700000000.0,"f":-20900000000.0,"exact":true},{"b":"XL","net":-37600000000.0,"lot":"293.7K","avg":"1,280","d":-37500000000.0,"f":-55300000.0,"exact":true},{"b":"ZP","net":-24900000000.0,"lot":"215.6K","avg":"1,154","d":-35100000000.0,"f":10300000000.0,"exact":true},{"b":"BK","net":-18700000000.0,"lot":"122.5K","avg":"1,528","d":-5900.0,"f":-18700000000.0,"exact":true},{"b":"PD","net":-17200000000.0,"lot":"156.7K","avg":"1,096","d":-17200000000.0,"f":-625000.0,"exact":true},{"b":"RF","net":-16800000000.0,"lot":"118.1K","avg":"1,424","d":-16800000000.0,"f":-0.0,"exact":false},{"b":"NI","net":-8700000000.0,"lot":"68.5K","avg":"1,267","d":-8700000000.0,"f":-0.0,"exact":false}],"bd":{"3":{"v":"Neutral","cls":"neu","buy":241600000000.0,"sell":179200000000.0,"net":62400000000.0,"ratio":2.2,"fshare":57.0},"5":{"v":"Neutral","cls":"neu","buy":348200000000.0,"sell":263399999999.99997,"net":84800000000.0,"ratio":3.0,"fshare":55.0},"10":{"v":"Neutral","cls":"neu","buy":405400000000.0,"sell":349700000000.0,"net":55700000000.0,"ratio":1.97,"fshare":48.0}}}}};
+const TICKERS = Object.keys(DATA);
+let T = TICKERS.includes('BBRI') ? 'BBRI' : TICKERS[0];
+const fmt = (v, sign = true) => { const a = Math.abs(v), s = v < 0 ? '−' : sign && v > 0 ? '+' : '';
+  const [d, u] = a >= 1e12 ? [a / 1e12, 'T'] : a >= 1e9 ? [a / 1e9, 'B'] : a >= 1e6 ? [a / 1e6, 'M'] : [a / 1e3, 'K'];
+  return s + (Math.round(d * 10) / 10).toLocaleString('en-US') + u };
+const pct = (v, dp = 2) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(dp) + '%';
+const share = (p, t) => t ? p / t * 100 : 0;
+const cls = v => v > 0 ? 'up' : v < 0 ? 'down' : 'muted';
+const D = st => DATA[T][st.d];
+
+/* agregat domestik/asing untuk Top N, dihitung dari baris broker (berlaku untuk ticker mana pun) */
+function A(st) {
+  const x = D(st), n = +st.n, b = x.buy.slice(0, n), s = x.sell.slice(0, n), bd = x.bd[st.n];
+  const sum = (a, k) => a.reduce((t, r) => t + r[k], 0);
+  const buy = { t: sum(b, 'net'), d: sum(b, 'd'), f: sum(b, 'f') };
+  const sell = { t: -sum(s, 'net'), d: -sum(s, 'd'), f: -sum(s, 'f') };     // positif = menjual
+  const net = { t: buy.t - sell.t, d: buy.d - sell.d, f: buy.f - sell.f };
+  const tb = bd.ratio ? Math.abs(bd.net / (bd.ratio / 100)) : 0;             // total nilai beli (penyebut vonis)
+  return { x, n, b, s, bd, buy, sell, net, tb, ratio: bd.ratio, rd: tb ? net.d / tb * 100 : 0, rf: tb ? net.f / tb * 100 : 0,
+    approx: [...b, ...s].some(r => !r.exact) };
+}
+const verdictOf = r => r >= 10 ? ['Big Acc', 'pos big'] : r >= 6 ? ['Acc', 'pos'] : r <= -10 ? ['Big Dist', 'neg big'] : r <= -6 ? ['Dist', 'neg'] : ['Neutral', ''];
+const vpill = bd => { const big = /Big/.test(bd.v); return `<span class="pill ${bd.cls === 'acc' ? 'pos' : bd.cls === 'dist' ? 'neg' : ''}${big ? ' big' : ''}">${bd.v}</span>` };
+const vpillR = r => { const [v, c] = verdictOf(r); return `<span class="pill ${c}">${v}</span>` };
+const ax = a => a.approx ? ' <span class="approx" title="Sebagian bagian asing diperkirakan dari daftar 10 besar Foreign">≈</span>' : '';
+
+/* kontrol */
+const seg = (k, st, items, small) => `<div class="seg${small ? ' sm' : ''}" data-k="${k}">${items.map(([v, l, dis]) => `<button data-v="${v}" class="${String(st[k]) === String(v) ? 'on' : ''}"${dis ? ' disabled title="Tidak aktif di contoh"' : ''}>${l}</button>`).join('')}</div>`;
+const period = st => seg('d', st, [['1', '1D'], ['5', '5D'], ['20', '20D'], ['c', 'Custom', 1]], 1);
+const topN = st => seg('n', st, [['3', 'Top 3'], ['5', 'Top 5'], ['10', 'Top 10']], 1);
+const board = '<select class="rp-sel" disabled title="Contoh memakai All boards"><option>All boards</option></select>';
+const head = (st, extra = '') => `<div class="head"><strong>Top brokers</strong>${extra}<small>${D(st).range} · net</small></div>
+  <div class="ctl">${period(st)}${board}</div>`;
+const ctlN = (st, a, extra = '') => `<div class="ctl">${topN(st)}${vpill(a.bd)}<span class="sub num r">${pct(a.ratio)}</span>${extra}</div>`;
+
+/* tarik tambang dasar (opsi 10) */
+const tugBase = a => { const b = share(a.buy.t, a.buy.t + a.sell.t);
+  return `<div class="tug"><i class="b" style="width:${b}%">${fmt(a.buy.t, false)}</i><i class="s" style="width:${100 - b}%">${fmt(a.sell.t, false)}</i></div>` };
+/* tarik tambang terbelah: tiap sisi dibagi bagian domestik (pekat) dan asing (pudar); bagian berlawanan tidak digambar */
+const tugSplit = (a, thin) => { const tot = a.buy.t + a.sell.t, bw = share(a.buy.t, tot), sw = 100 - bw;
+  const side = (o, w, c) => { const pd = Math.max(o.d, 0), pf = Math.max(o.f, 0), g = pd + pf || 1;
+    const segD = `<i class="${c}" style="width:${w * pd / g}%" title="Domestik ${fmt(o.d, false)}">${w * pd / g > 14 ? 'D ' + fmt(pd, false) : ''}</i>`;
+    const segF = `<i class="${c} f" style="width:${w * pf / g}%" title="Asing ${fmt(o.f, false)}">${w * pf / g > 14 ? 'A ' + fmt(pf, false) : ''}</i>`;
+    return c === 'b' ? segD + segF : segF + segD };
+  return `<div class="tug${thin ? ' thin' : ''}">${side(a.buy, bw, 'b')}<span class="mid"></span>${side(a.sell, sw, 's')}</div>` };
+
+/* tabel Top brokers (seperti panel live) */
+function table(st, o = {}) {
+  const x = D(st), n = +st.n, rows = Math.max(8, n), leg = o.leg && o.leg !== 't' ? o.leg : null;
+  const val = r => r ? (leg ? r[leg] : r.net) : 0;
+  const buy = x.buy.slice(0, rows), sell = x.sell.slice(0, rows);
+  const mx = Math.max(1, ...buy.map(r => Math.abs(val(r))), ...sell.map(r => Math.abs(val(r))));
+  const parts = (r, s) => { if (leg) return `<i class="${leg === 'f' ? 'f' : ''}" style="width:100%"></i>`;
+    const same = [['d', r.d], ['f', r.f]].filter(([, v]) => s === 'buy' ? v > 0 : v < 0), tot = same.reduce((t, [, v]) => t + Math.abs(v), 0);
+    return tot ? same.map(([k, v]) => `<i class="${k}" style="width:${(Math.abs(v) / tot * 100).toFixed(1)}%"></i>`).join('') : '' };
+  const cell = (r, s) => r ? `<span class="b${s === 'sell' ? ' rt' : ''}" title="${r.b}: Domestik ${fmt(r.d)} · Asing ${fmt(r.f)}${r.exact ? '' : ' (bagian asing diperkirakan)'}">${s === 'sell' && o.badge ? o.badge(r, s) : ''}${r.b}${r.exact ? '' : '<span class="approx">≈</span>'}${s === 'buy' && o.badge ? o.badge(r, s) : ''}</span>` : '<span></span>';
+  const v = (r, s) => { const z = val(r); return `<span class="v ${r ? (leg ? cls(z) : s === 'buy' ? 'up' : 'down') : ''}" style="${s === 'buy' ? 'text-align:right' : ''}">${r ? fmt(z) : ''}</span>` };
+  const bar = (r, s) => { if (!r) return `<div class="trk ${s}"></div>`; const z = val(r), dir = leg && ((s === 'buy') !== (z > 0)) ? ' style="opacity:.35"' : '';
+    return `<div class="trk ${s}"${dir}><div class="fill" style="width:${(Math.abs(z) / mx * 100).toFixed(1)}%">${parts(r, s)}</div></div>` };
+  let out = `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`;
+  for (let k = 0; k < Math.max(buy.length, sell.length); k++) {
+    if (k === n && n < rows) out += '<div class="cut"></div>';
+    const b = buy[k], s = sell[k];
+    out += `<div class="pa-row ${k < n ? 'inn' : ''}">${cell(b, 'buy')}${v(b, 'buy')}${bar(b, 'buy')}${bar(s, 'sell')}${v(s, 'sell')}${cell(s, 'sell')}</div>`;
+  }
+  return out + `<div class="leg"><span><i></i>Domestik</span><span><i class="f"></i>Asing</span>${o.legExtra || ''}</div>`;
+}
+/* baris "berlawanan": bagian yang arahnya melawan sisinya */
+const against = (a, side) => { const o = a[side], bad = [];
+  if (o.d < 0) bad.push(['Domestik', o.d]); if (o.f < 0) bad.push(['Asing', o.f]);
+  return bad.map(([k, v]) => `<span class="pill warn" title="${k} ${side === 'buy' ? 'menjual bersih di broker pembeli' : 'membeli bersih di broker penjual'}">${k} berlawanan ${fmt(side === 'buy' ? v : -v)}</span>`).join(' ') };
+const sideLine = (a, side) => { const o = a[side], c = side === 'buy' ? 'up' : 'down';
+  return `<div class="line"><span>${side === 'buy' ? 'Beli' : 'Jual'} <b class="num ${c}">${fmt(o.t, false)}</b></span>
+    <span class="num">D ${fmt(side === 'buy' ? o.d : -o.d)} · A ${fmt(side === 'buy' ? o.f : -o.f)}</span></div>` };
+
+const BD = {"dates": ["2026-10-07", "2026-10-08", "2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-11-02", "2026-11-03"], "5": {"all": {"buyers": [["OD", 131807362000], ["LG", 90855347000], ["DX", 75377009000]], "sellers": [["ZP", -195335017000], ["YU", -174614322000], ["BB", -172821810000]], "buy": 298039718000.0, "sell": 542771149000.0, "total": 3867229487016.0, "ratio": -0.06328340012447456, "allbuy": 710916636000.0}, "foreign": {"buyers": [["CC", 18628002400], ["AK", 11263127000], ["BK", 9317309070]], "sellers": [["ZP", -232166197000], ["YU", -189203867400], ["BB", -179157497430]], "buy": 39208438470.0, "sell": 600527561830.0, "total": 1311412684988.0, "ratio": -0.42802630307418166, "allbuy": 48816855470.0}, "domestic": {"buyers": [["OD", 131397388000], ["LG", 90195779000], ["DX", 75377009000]], "sellers": [["PD", -43462423000], ["AZ", -34414089000], ["AI", -11994159000]], "buy": 296970176000.0, "sell": 89870671000.0, "total": 2555816802028.0, "ratio": 0.08103065322822428, "allbuy": 736210612430.0}, "split": {"OD": [409974000, 131397388000], "LG": [659568000, 90195779000], "DX": [0, 75377009000], "ZP": [-232166197000, 36831180000], "YU": [-189203867400, 14589545400], "BB": [-179157497430, 6335687430]}, "hist_n": 56, "hist_min": -0.18640244512112, "hist_max": 0.15068847662468068, "pct": 0.25, "daily": [["2026-10-28", 0.061947006585467985, 0.06912176315154094, 0.06828195339509788], ["2026-10-29", -0.04544930803849696, -0.7186698629537456, 0.1710385527204509], ["2026-10-30", -0.18652259534578183, -0.6472509975946114, 0.13956963523381907], ["2026-11-02", 0.12448813244825088, 0.13261592975296735, -0.03501577617091712], ["2026-11-03", -0.024534497866562237, -1.4751677228774422, 0.24664800753891797]], "pos": 2, "gdays": 5, "grp": ["OD", "LG", "DX"], "avgbuy": 773445897403.2, "fnet": -606029948360.0, "dnet": 606029948360.0, "pxchg": -0.08275862068965523, "days_turn": -0.31641700062237277, "top1share": 0.4422476402960494, "top3share": 0.4192330055418762, "v_all": "Dist", "v_f": "Big Dist", "v_d": "Acc", "pct_F": 0.16071428571428573, "hmin_F": -0.9218976290898014, "hmax_F": 0.34744838546336143, "pct_D": 0.6428571428571429, "hmin_D": -0.5245418494193441, "hmax_D": 0.3022783219433039}, "20": {"all": {"buyers": [["NI", 980134146000], ["CC", 851572231000], ["OD", 707190246000]], "sellers": [["ZP", -1450193283000], ["AK", -1083531399000], ["KZ", -808815509000]], "buy": 2538896623000.0, "sell": 3342540191000.0, "total": 21532967882124.0, "ratio": -0.03732154213015661, "allbuy": 4337443668000.0}, "foreign": {"buyers": [["DP", 49424532000], ["LG", 13026474000], ["SH", 3567000000]], "sellers": [["ZP", -1480307539000], ["AK", -1004023997000], ["KZ", -819837497000]], "buy": 66018006000.0, "sell": 3304169033000.0, "total": 6865310240966.0, "ratio": -0.4716685646160061, "allbuy": 77256056000.0}, "domestic": {"buyers": [["CC", 985680725600], ["NI", 978566433000], ["OD", 706400955000]], "sellers": [["BK", -112945453110], ["BB", -99311165320], ["AK", -79507402000]], "buy": 2670648113600.0, "sell": 291764020430.0, "total": 14667657641158.0, "ratio": 0.16218568440640185, "allbuy": 4530455924910.0}, "split": {"NI": [1567713000, 978566433000], "CC": [-134108494600, 985680725600], "OD": [789291000, 706400955000], "ZP": [-1480307539000, 30114256000], "AK": [-1004023997000, -79507402000], "KZ": [-819837497000, 11021988000]}, "hist_n": 41, "hist_min": -0.10063591080054159, "hist_max": 0.04798061919659335, "pct": 0.4146341463414634, "daily": [["2026-10-07", 0.14332340813893224, 0.3243706062483509, -1.031809831278246], ["2026-10-08", -0.13044868741697604, -1.2843381624809822, 0.2698163110964027], ["2026-10-09", -0.09404661146813492, -0.3571603305189943, 0.12322842448162304], ["2026-10-12", 0.13028168386281955, 0.2306424841367093, -0.16769814673667124], ["2026-10-13", -0.1734584769284444, -0.3217791148582372, 0.134562814678174], ["2026-10-14", 0.011500734020175245, -0.1227417644072264, 0.19816635333221727], ["2026-10-15", 0.17376853551640883, 0.39577221515954125, -0.22007069014609915], ["2026-10-16", -0.22391732846786194, -1.3197603859469824, 0.1325454600362865], ["2026-10-19", -0.23543998010732572, -1.2947690349733736, 0.13087633961572726], ["2026-10-20", -0.05555350353805481, -0.5222416908784356, 0.1101309759088038], ["2026-10-21", 0.06745661444856917, -0.12464873008508576, 0.11156215600249422], ["2026-10-22", 0.1874787949989569, -0.5647782923264587, 0.36052841731839225], ["2026-10-23", 0.20364040319736343, -1.8965190740224778, 0.46681446177017294], ["2026-10-26", 0.28639929841223694, -1.1216076623186735, 0.3968175079616041], ["2026-10-27", 0.04758209403239682, -0.029613265920222002, 0.08528035994540331], ["2026-10-28", 0.061947006585467985, 0.06912176315154094, 0.06828195339509788], ["2026-10-29", -0.04544930803849696, -0.7186698629537456, 0.1710385527204509], ["2026-10-30", -0.18652259534578183, -0.6472509975946114, 0.13956963523381907], ["2026-11-02", 0.12448813244825088, 0.13261592975296735, -0.03501577617091712], ["2026-11-03", -0.024534497866562237, -1.4751677228774422, 0.24664800753891797]], "pos": 11, "gdays": 14, "grp": ["NI", "CC", "OD"], "avgbuy": 1076648394106.2, "fnet": -4137593640660.0, "dnet": 4137593640660.0, "pxchg": -0.14469453376205788, "days_turn": -0.7464308426031322, "top1share": 0.38604728413158396, "top3share": 0.585343999215715, "v_all": "Neutral", "v_f": "Big Dist", "v_d": "Big Acc", "pct_F": 0.07317073170731707, "hmin_F": -0.5012328038437499, "hmax_F": 0.19833025802819368, "pct_D": 1.0, "hmin_D": -0.25220518681141035, "hmax_D": 0.16218568440640185}};
+/* ===== Peta Asing × Domestik (dipakai versi A, B, C) ===== */
+const QN = {
+  pp: (x, y) => x >= 0 && y >= 0 ? 0 : x < 0 && y >= 0 ? 1 : x >= 0 ? 2 : 3,
+  name: ['Searah akumulasi', 'Domestik menyerap, foreign keluar', 'Foreign menyerap, domestik keluar', 'Searah distribusi'],
+  cls: ['pos', 'info', 'warn', 'neg'],
+};
+const niceLim = (vals, min) => { const m = Math.max(min, ...vals.map(Math.abs)) * 1.15; const st = m > 40 ? 10 : 5; return Math.ceil(m / st) * st };
+/* o: { lim, pts:[{x,y,lab,cur,small,op,tip,noTrail}], trail, trailDash, diag } — nilai dalam persen */
+function quadSVG(o) {
+  const S = 236, L = o.lim, P = v => (Math.max(-L, Math.min(L, v)) + L) / (2 * L) * S, X = P, Y = v => S - P(v);
+  const out = v => Math.abs(v) > L;
+  let g = `<svg class="qsvg" viewBox="-2 -2 ${S + 4} ${S + 4}" role="img" aria-label="Peta foreign terhadap domestik"><defs><clipPath id="qc"><rect x="0" y="0" width="${S}" height="${S}" rx="6"/></clipPath></defs><g clip-path="url(#qc)">`;
+  g += `<rect x="0" y="0" width="${S}" height="${S}" fill="var(--surface)"/>`;
+  g += `<rect x="${S / 2}" y="0" width="${S / 2}" height="${S / 2}" fill="var(--green-bg)"/><rect x="0" y="${S / 2}" width="${S / 2}" height="${S / 2}" fill="var(--red-bg)"/>`;
+  if (o.diag) [6, 10, -6, -10].forEach(c => {   /* batas verdict: foreign + domestik = c */
+    g += `<line x1="${X(-L) - S}" y1="${Y(c + L) - S}" x2="${X(L) + S}" y2="${Y(c - L) + S}" stroke="${c > 0 ? 'var(--green)' : 'var(--red)'}" stroke-width="1" stroke-dasharray="${Math.abs(c) === 10 ? '' : '3 3'}" opacity=".5"/>` });
+  g += `<line x1="${S / 2}" y1="0" x2="${S / 2}" y2="${S}" stroke="var(--border-2)"/><line x1="0" y1="${S / 2}" x2="${S}" y2="${S / 2}" stroke="var(--border-2)"/>`;
+  g += `<text x="${S - 6}" y="12" class="ql" text-anchor="end">Searah akumulasi</text><text x="6" y="12" class="ql">Dom. serap · foreign keluar</text>`;
+  g += `<text x="${S - 6}" y="${S - 6}" class="ql" text-anchor="end">Foreign serap · dom. keluar</text><text x="6" y="${S - 6}" class="ql">Searah distribusi</text>`;
+  const pts = o.pts, tp = pts.filter(p => !p.noTrail);
+  if (o.trail && tp.length > 1) g += `<polyline points="${tp.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}" fill="none" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="${o.trailDash || ''}" opacity=".8"/>`;
+  pts.forEach(p => { const cx = X(p.x), cy = Y(p.y), r = p.cur ? 6 : p.small ? 2.6 : 4, hollow = out(p.x) || out(p.y), fill = p.small ? 'var(--text-2)' : 'var(--text)';
+    g += `<g opacity="${p.op ?? 1}"><title>${p.tip || ''}</title>${p.cur ? `<circle cx="${cx}" cy="${cy}" r="11" fill="var(--text)" opacity=".12"/>` : ''}<circle cx="${cx}" cy="${cy}" r="${r}" fill="${hollow ? 'var(--surface)' : fill}" stroke="${fill}" stroke-width="${hollow ? 1.2 : 0}"/></g>`;
+    if (p.lab) g += `<text x="${cx + (cx > S - 40 ? -9 : 9)}" y="${cy + 3.5}" class="qp${p.cur ? ' cur' : ''}" text-anchor="${cx > S - 40 ? 'end' : 'start'}">${p.lab}</text>` });
+  g += `</g><rect x="0" y="0" width="${S}" height="${S}" rx="6" fill="none" stroke="var(--border)"/></svg>`;
+  return `<div class="qwrap"><span class="qax qy">Domestik ↑ <b>+${L}%</b></span>${g}<div class="qxr"><span>−${L}%</span><span>Foreign →</span><span>+${L}%</span></div></div>`;
+}
+
+/* ---- Versi A: data panel (kontribusi rasio), jejak 1D → 5D → 20D ---- */
+function QUAD_A(st) {
+  const P = ['20', '5', '1'].map(d => { const a = A({ d, n: st.n }); return { d, x: a.rf, y: a.rd, r: a.ratio } });
+  const cur = P.find(p => p.d === st.d) || P[1], lim = niceLim(P.flatMap(p => [p.x, p.y, p.r]), 12);
+  const pts = P.map(p => ({ x: p.x, y: p.y, lab: p.d + 'D', cur: p.d === cur.d, tip: `${p.d}D · foreign ${pct(p.x, 1)} · domestik ${pct(p.y, 1)} · verdict ${pct(p.r, 1)}` }));
+  const q = QN.pp(cur.x, cur.y), same = P.filter(p => QN.pp(p.x, p.y) === q).length;
+  const q1 = QN.pp(P[2].x, P[2].y), q20 = QN.pp(P[0].x, P[0].y);
+  return `<div class="qsec"><div class="qh"><strong>Peta foreign × domestik</strong><small>Top ${st.n} · kontribusi ke rasio</small></div>
+    ${quadSVG({ lim, pts, trail: 1, diag: 1 })}
+    <div class="qread"><div class="ctl"><span class="pill qnow">${QN.name[q]}</span></div>
+      <div class="qeq"><div><span>Foreign</span><b class="${cls(cur.x)}">${pct(cur.x, 1)}</b></div><i>+</i><div><span>Domestik</span><b class="${cls(cur.y)}">${pct(cur.y, 1)}</b></div><i>=</i><div><span>Verdict ${cur.d}D</span><b class="${cls(cur.r)}">${pct(cur.r, 1)}</b></div></div>
+      <div class="line"><span>Kuadran sama di</span><span class="num"><b>${same}</b> / 3 periode${same === 3 ? ' · konsisten' : ''}</span></div>
+      <div class="line"><span>1D dibanding 20D</span><span>${q1 === q20 ? 'Sejalan' : `<b>Berubah</b>: ${QN.name[q1].toLowerCase()}`}</span></div>
+      <div class="qkey"><span><i style="width:9px;height:9px"></i>Periode terpilih</span><span>Garis: 20D → 5D → 1D</span><span>Garis miring: batas verdict (putus-putus 6%, utuh 10%)</span></div></div></div>` }
+
+/* ---- data per golongan (Top 3 masing-masing golongan), dipakai B dan C ---- */
+const bandP = p => p >= .9 ? ['Akumulasi kuat', 'pos big'] : p >= .75 ? ['Akumulasi ringan', 'pos'] : p <= .1 ? ['Distribusi kuat', 'neg big'] : p <= .25 ? ['Distribusi ringan', 'neg'] : ['Normal', ''];
+const fd = s => { const [y, m, d] = s.split('-'); return `${+d} ${['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][m - 1]}` };
+function quadB(w, days) {
+  const px = w.foreign.ratio * 100, py = w.domestic.ratio * 100, n = w.daily.length;
+  const dv = w.daily.flatMap(d => [Math.abs(d[2]), Math.abs(d[3])]).map(v => v * 100).sort((a, b) => a - b);
+  const lim = niceLim([px, py, dv[Math.floor(dv.length * .8)] || 0], 20), tail = Math.max(0, n - 5);
+  const pts = w.daily.map((d, k) => ({ x: d[2] * 100, y: d[3] * 100, small: 1, op: .25 + .75 * (k + 1) / n, noTrail: k < tail, lab: k === n - 1 ? fd(d[0]) : '',
+    tip: `${fd(d[0])} · foreign ${pct(d[2] * 100, 1)} · lokal ${pct(d[3] * 100, 1)}` }));
+  pts.push({ x: px, y: py, cur: 1, noTrail: 1, lab: days + ' hari', tip: `${days} hari · foreign ${pct(px, 1)} · lokal ${pct(py, 1)}` });
+  const q = QN.pp(px, py), same = w.daily.filter(d => QN.pp(d[2], d[3]) === q).length;
+  const [bf, cf] = bandP(w.pct_F), [bdm, cd] = bandP(w.pct_D);
+  return { svg: quadSVG({ lim, pts, trail: 1, trailDash: '2 2' }), q, same, n, px, py,
+    read: `<div class="qread"><div class="ctl"><span class="pill qnow">${QN.name[q]}</span></div>
+      <div class="line"><span>Foreign ${pct(px, 1)} · persentil ${Math.round(w.pct_F * 100)}</span><span class="pill ${cf}">${bf}</span></div>
+      <div class="line"><span>Domestik ${pct(py, 1)} · persentil ${Math.round(w.pct_D * 100)}</span><span class="pill ${cd}">${bdm}</span></div>
+      <div class="line"><span>Hari di kuadran yang sama</span><span class="num"><b>${same}</b> / ${n} hari</span></div>
+      <div class="line"><span>Harga selama periode</span><span class="num ${cls(w.pxchg)}">${pct(w.pxchg * 100, 1)}</span></div>
+      <div class="qkey"><span><i style="width:9px;height:9px"></i>${days} hari</span><span><i style="width:5px;height:5px;opacity:.6"></i>Harian (pekat = terbaru)</span><span>Garis: 5 hari terakhir</span><span>Titik kosong = di luar skala</span></div></div>` } }
+
+/* ---- Versi B: panel tetap, peta dari data per golongan ---- */
+function QUAD_B(st) {
+  const w = BD[st.d];
+  if (!w) return `<div class="qsec"><div class="qh"><strong>Peta foreign × domestik</strong><small>Top 3 per golongan</small></div><div class="empty" style="padding:18px 8px"><strong>Belum tersedia untuk ${st.d}D</strong>Peta ini hanya punya data 5D dan 20D.</div></div>`;
+  const r = quadB(w, st.d);
+  return `<div class="qsec"><div class="qh"><strong>Peta foreign × domestik</strong><small>Top 3 per golongan · s/d ${fd(BD.dates[BD.dates.length - 1])}</small></div>${r.svg}${r.read}</div>` }
+
+/* ---- Versi C: seluruh panel memakai Top 3 per golongan ---- */
+function renderC(st) {
+  const d = BD[st.d] ? st.d : '20', w = BD[d], days = w.daily, range = `${fd(days[0][0])} – ${fd(days[days.length - 1][0])}`;
+  const lane = (nm, s, f) => { const w2 = share(s.buy, s.buy + s.sell) || 50;
+    return `<div class="lane"><span class="nm">${nm}</span><div class="tug thin"><i class="b${f ? ' f' : ''}" style="width:${w2}%" title="Beli Top 3 ${fmt(s.buy, false)}"></i><span class="mid"></span><i class="s${f ? ' f' : ''}" style="width:${100 - w2}%" title="Jual Top 3 ${fmt(s.sell, false)}"></i></div><span class="nv num ${cls(s.ratio)}">${pct(s.ratio * 100, 1)}</span></div>` };
+  const r = quadB(w, d);
+  const card = (t, rows, side) => `<div class="card"><span class="eyebrow">${t}</span>${rows.map(([b, v]) => `<div><b>${b}</b><span class="num ${side}">${fmt(v)}</span></div>`).join('')}</div>`;
+  return `<div class="head"><strong>Top brokers</strong><small>${range} · net</small></div>
+    <div class="ctl">${seg('d', { d }, [['1', '1D', 1], ['5', '5D'], ['20', '20D'], ['c', 'Custom', 1]], 1)}${board}</div>
+    <div class="ctl">${seg('n', { n: '3' }, [['3', 'Top 3'], ['5', 'Top 5', 1], ['10', 'Top 10', 1]], 1)}${vpillR(w.all.ratio * 100)}<span class="sub num r">${pct(w.all.ratio * 100)}</span></div>
+    ${lane('Domestik', w.domestic)}${lane('Foreign', w.foreign, 1)}<div class="cut"></div>${lane('<b>Gabungan</b>', w.all)}
+    <div class="sub" style="margin:3px 0 0">Rasio = (beli Top 3 − jual Top 3) ÷ total beli golongan itu</div>
+    <div class="qsec"><div class="qh"><strong>Peta foreign × domestik</strong><small>Top 3 per golongan</small></div>${r.svg}${r.read}</div>
+    <div class="top3">${card('Domestik · beli', w.domestic.buyers, 'up')}${card('Domestik · jual', w.domestic.sellers, 'down')}${card('Foreign · beli', w.foreign.buyers, 'up')}${card('Foreign · jual', w.foreign.sellers, 'down')}</div>` }
+
+/* Peta dengan sumbu X dan Y berlabel (menggantikan quadSVG) */
+function quadSVG(o) {
+  const S = 236, L = o.lim, ML = 40, MT = 8, MR = 16, MB = 34, W = ML + S + MR, H = MT + S + MB;
+  const P = v => (Math.max(-L, Math.min(L, v)) + L) / (2 * L) * S, X = P, Y = v => S - P(v), out = v => Math.abs(v) > L;
+  const ticks = [-L, -L / 2, 0, L / 2, L], tl = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + '%';
+  let g = `<svg class="qsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Peta kontribusi foreign (X) terhadap domestik (Y)">
+    <defs><clipPath id="qc"><rect x="0" y="0" width="${S}" height="${S}" rx="6"/></clipPath></defs>`;
+  /* sumbu Y */
+  g += `<text class="qat" transform="translate(10 ${MT + S / 2}) rotate(-90)" text-anchor="middle">Y · Domestik (% total beli)</text>`;
+  ticks.forEach(v => g += `<text class="qtk" x="${ML - 5}" y="${MT + Y(v) + 3}" text-anchor="end">${tl(v)}</text>`);
+  /* sumbu X */
+  ticks.forEach(v => g += `<text class="qtk" x="${ML + X(v)}" y="${MT + S + 12}" text-anchor="middle">${tl(v)}</text>`);
+  g += `<text class="qat" x="${ML + S / 2}" y="${MT + S + 28}" text-anchor="middle">X · Foreign (% total beli)</text>`;
+  g += `<g transform="translate(${ML} ${MT})"><g clip-path="url(#qc)"><rect x="0" y="0" width="${S}" height="${S}" fill="var(--surface)"/>`;
+  g += `<rect x="${S / 2}" y="0" width="${S / 2}" height="${S / 2}" fill="var(--green-bg)"/><rect x="0" y="${S / 2}" width="${S / 2}" height="${S / 2}" fill="var(--red-bg)"/>`;
+  ticks.filter(v => v && Math.abs(v) !== L).forEach(v => g += `<line x1="${X(v)}" y1="0" x2="${X(v)}" y2="${S}" stroke="var(--border)" stroke-dasharray="1 3"/><line x1="0" y1="${Y(v)}" x2="${S}" y2="${Y(v)}" stroke="var(--border)" stroke-dasharray="1 3"/>`);
+  if (o.diag) [6, 10, -6, -10].forEach(c => g += `<line x1="${X(-L) - S}" y1="${Y(c + L) - S}" x2="${X(L) + S}" y2="${Y(c - L) + S}" stroke="${c > 0 ? 'var(--green)' : 'var(--red)'}" stroke-dasharray="${Math.abs(c) === 10 ? '' : '3 3'}" opacity=".5"/>`);
+  g += `<line x1="${S / 2}" y1="0" x2="${S / 2}" y2="${S}" stroke="var(--text-3)" opacity=".6"/><line x1="0" y1="${S / 2}" x2="${S}" y2="${S / 2}" stroke="var(--text-3)" opacity=".6"/>`;
+  const ql = (x, y, a, t) => `<text x="${x}" y="${y}" class="ql" text-anchor="${a}" paint-order="stroke" stroke="var(--surface)" stroke-width="3">${t}</text>`;
+  g += ql(S - 6, 12, 'end', 'Searah akumulasi') + ql(6, 12, 'start', 'Dom. serap · foreign keluar') + ql(S - 6, S - 6, 'end', 'Foreign serap · dom. keluar') + ql(6, S - 6, 'start', 'Searah distribusi');
+  const pts = o.pts, tp = pts.filter(p => !p.noTrail);
+  if (o.trail && tp.length > 1) g += `<polyline points="${tp.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}" fill="none" stroke="var(--text-3)" stroke-width="1" opacity=".8"/>`;
+  pts.forEach(p => { const cx = X(p.x), cy = Y(p.y), r = p.cur ? 6 : 4, hollow = out(p.x) || out(p.y);
+    g += `<g><title>${p.tip || ''}</title>${p.cur ? `<circle cx="${cx}" cy="${cy}" r="11" fill="var(--text)" opacity=".12"/>` : ''}<circle cx="${cx}" cy="${cy}" r="${r}" fill="${hollow ? 'var(--surface)' : 'var(--text)'}" stroke="var(--text)" stroke-width="${hollow ? 1.2 : 0}"/></g>`;
+    if (p.lab) g += `<text x="${cx + (cx > S - 40 ? -10 : 10)}" y="${cy + 3.5}" class="qp${p.cur ? ' cur' : ''}" text-anchor="${cx > S - 40 ? 'end' : 'start'}" paint-order="stroke" stroke="var(--surface)" stroke-width="3">${p.lab}</text>` });
+  g += `</g><rect x="0" y="0" width="${S}" height="${S}" rx="6" fill="none" stroke="var(--border)"/></g></svg>`;
+  return `<div class="qwrap">${g}</div>`;
+}
+
+/* Panel: hanya kuadran */
+function renderQuad(st) {
+  const P = ['20', '5', '1'].map(d => { const a = A({ d, n: st.n }); return { d, x: a.rf, y: a.rd, r: a.ratio, bd: a.bd } });
+  const cur = P.find(p => p.d === st.d) || P[1], lim = niceLim(P.flatMap(p => [p.x, p.y, p.r]), 12);
+  const pts = P.map(p => ({ x: p.x, y: p.y, lab: p.d + 'D', cur: p.d === cur.d, tip: `${p.d}D · X foreign ${pct(p.x, 1)} · Y domestik ${pct(p.y, 1)} · verdict ${pct(p.r, 1)}` }));
+  const q = QN.pp(cur.x, cur.y), same = P.filter(p => QN.pp(p.x, p.y) === q).length;
+  const q1 = QN.pp(P[2].x, P[2].y), q20 = QN.pp(P[0].x, P[0].y);
+  const dom = Math.abs(cur.y) >= Math.abs(cur.x) ? ['Domestik', cur.y] : ['Foreign', cur.x];
+  const row = p => `<div class="qrow${p.d === cur.d ? ' on' : ''}"><span>${p.d}D</span><span class="num ${cls(p.x)}">${pct(p.x, 1)}</span><span class="num ${cls(p.y)}">${pct(p.y, 1)}</span><span class="num ${cls(p.r)}">${pct(p.r, 1)}</span><span><span class="pill ${QN.cls[QN.pp(p.x, p.y)]} dotp" title="${QN.name[QN.pp(p.x, p.y)]}"><i class="dot"></i></span></span></div>`;
+  return `<div class="head"><strong>Peta foreign × domestik</strong><small>${D(st).range}</small></div>
+    <div class="ctl">${seg('d', st, [['1', '1D'], ['5', '5D'], ['20', '20D'], ['c', 'Custom', 1]], 1)}${seg('n', st, [['3', 'Top 3'], ['5', 'Top 5'], ['10', 'Top 10']], 1)}</div>
+    <div class="ctl"><span class="pill qnow">${QN.name[q]}</span>${vpill(cur.bd)}</div>
+    ${quadSVG({ lim, pts, trail: 1, diag: 1 })}
+    <div class="qeq"><div><span>X · Foreign</span><b class="${cls(cur.x)}">${pct(cur.x, 1)}</b></div><i>+</i><div><span>Y · Domestik</span><b class="${cls(cur.y)}">${pct(cur.y, 1)}</b></div><i>=</i><div><span>Verdict ${cur.d}D</span><b class="${cls(cur.r)}">${pct(cur.r, 1)}</b></div></div>
+    <div class="qtbl"><div class="qrow h"><span>Periode</span><span>X foreign</span><span>Y dom.</span><span>Verdict</span><span></span></div>${P.slice().reverse().map(row).join('')}</div>` }
+
+const OPTS = [
+ { name: 'Tarik tambang terbelah', what: 'Batang tarik tambang opsi 10 tetap dipakai, tetapi setiap sisi dibagi menjadi bagian domestik (pekat) dan asing (pudar). Di bawahnya ada rincian kedua sisi. Bagian yang arahnya berlawanan muncul sebagai pill kuning.',
+   pro: ['Paling dekat dengan opsi 10: batangnya sama, hanya dibelah', 'Pola warnanya sama dengan legenda tabel (pekat = domestik, pudar = asing)'], con: ['Bagian yang berlawanan arah tidak digambar di batang, hanya ditulis'],
+   ex: 'Coba BBRI 5D: sisi beli hampir seluruhnya pekat, dan ada pill "Asing berlawanan −133B".',
+   render: st => { const a = A(st); return `${head(st)}${ctlN(st, a)}${tugSplit(a)}${sideLine(a, 'buy')}${sideLine(a, 'sell')}
+     <div class="ctl" style="margin-top:4px">${against(a, 'buy')} ${against(a, 'sell')}</div>${table(st)}` } },
+
+ { name: 'Dua lajur: Domestik dan Asing', what: 'Tarik tambang dipecah menjadi dua lajur, satu untuk investor domestik dan satu untuk investor asing. Masing-masing menunjukkan beli dan jual di Top N, dengan Net di kanan. Lajur ketiga adalah total seperti opsi 10.',
+   pro: ['Langsung terlihat golongan mana yang menarik ke arah beli', 'Net per golongan tertulis jelas'], con: ['Tiga batang berarti panel bertambah tinggi sekitar 40 px'],
+   ex: 'BBRI 5D Top 3: domestik +1.4T, asing −548B, total +900.7B.',
+   render: st => { const a = A(st);
+     const lane = (nm, b, s, net, f) => { const pb = Math.max(b, 0), ps = Math.max(s, 0), w = share(pb, pb + ps) || 50;
+       return `<div class="lane"><span class="nm">${nm}</span><div class="tug thin"><i class="b${f ? ' f' : ''}" style="width:${w}%"></i><span class="mid"></span><i class="s${f ? ' f' : ''}" style="width:${100 - w}%"></i></div><span class="nv num ${cls(net)}">${fmt(net)}</span></div>` };
+     return `${head(st)}${ctlN(st, a)}
+     ${lane('Domestik', a.buy.d, a.sell.d, a.net.d)}${lane('Asing', a.buy.f, a.sell.f, a.net.f, 1)}<div class="cut"></div>${lane('<b>Total</b>', a.buy.t, a.sell.t, a.net.t)}
+     ${QUAD_A(st)}${table(st)}` } },
+
+ { name: 'Kontribusi ke rasio vonis', what: 'Rasio vonis dipecah menjadi kontribusi domestik + kontribusi asing (keduanya dibagi total beli yang sama). Ada batang divergen dengan garis batas ±6% dan ±10%, plus vonis yang akan muncul bila hanya satu golongan dihitung.',
+   pro: ['Angkanya bisa dijumlah: kontribusi domestik + asing = rasio vonis', 'Menjawab "siapa yang membuat vonis ini Big Acc"'], con: ['Konsep "kontribusi rasio" perlu satu kalimat penjelasan bagi pengguna baru'],
+   ex: 'BBRI 5D Top 3: +15.07% = domestik +24.2% + asing −9.2%. Tanpa asing, rasionya akan jauh di atas Big Acc.',
+   render: st => { const a = A(st), lim = Math.max(12, Math.abs(a.rd), Math.abs(a.rf), Math.abs(a.ratio)) * 1.05, X = v => 50 + v / lim * 50;
+     const ticks = [-10, -6, 6, 10].map(t => `<span class="t" style="left:${X(t)}%"></span>`).join('');
+     const bar = (v, f, tot) => `<div class="div${tot ? ' tot' : ''}">${ticks}<span class="z" style="left:50%"></span><i class="${v >= 0 ? 'p' : 'n'}${f ? ' f' : ''}" style="left:${Math.min(50, X(v))}%;width:${Math.abs(X(v) - 50)}%"></i></div>`;
+     return `${head(st)}${ctlN(st, a)}
+     <div class="lane"><span class="nm">Domestik</span>${bar(a.rd)}<span class="nv num ${cls(a.rd)}">${pct(a.rd, 1)}</span></div>
+     <div class="lane"><span class="nm">Asing</span>${bar(a.rf, 1)}<span class="nv num ${cls(a.rf)}">${pct(a.rf, 1)}</span></div>
+     <div class="lane"><span class="nm"><b>Vonis</b></span>${bar(a.ratio, 0, 1)}<span class="nv num ${cls(a.ratio)}"><b>${pct(a.ratio, 1)}</b></span></div>
+     <div class="line" style="margin-top:4px"><span>Bila hanya domestik</span>${vpillR(a.rd)}</div><div class="line"><span>Bila hanya asing</span>${vpillR(a.rf)}</div>
+     <div class="sub" style="margin:2px 0 6px">Garis putus-putus = batas ±6% dan ±10%. Penyebut = total nilai beli${ax(a)}.</div>${table(st)}` } },
+
+ { name: 'Matriks 3×3 (golongan × sisi)', what: 'Tabel kecil dengan baris Domestik, Asing, Total dan kolom Beli Top N, Jual Top N, Net. Sel yang arahnya berlawanan diberi warna kuning. Tarik tambang opsi 10 ada di atasnya.',
+   pro: ['Semua angka terlihat tanpa perlu hover', 'Mudah diekspor atau disalin'], con: ['Paling "spreadsheet": kurang visual', 'Menambah 4 baris'],
+   ex: 'Coba BBCA 20D: domestik justru membeli +563B di broker penjual (sel kuning).',
+   render: st => { const a = A(st), w = (v, bad) => `<div class="num ${bad ? 'w' : ''}">${fmt(v)}</div>`;
+     return `${head(st)}${ctlN(st, a)}${tugBase(a)}
+     <div class="mx"><div class="h"></div><div class="h">Beli Top ${st.n}</div><div class="h">Jual Top ${st.n}</div><div class="h">Net</div>
+       <div>Domestik</div>${w(a.buy.d, a.buy.d < 0)}${w(-a.sell.d, a.sell.d < 0)}<div class="num ${cls(a.net.d)}">${fmt(a.net.d)}</div>
+       <div>Asing</div>${w(a.buy.f, a.buy.f < 0)}${w(-a.sell.f, a.sell.f < 0)}<div class="num ${cls(a.net.f)}">${fmt(a.net.f)}</div>
+       <div class="t">Total</div><div class="num t up">${fmt(a.buy.t)}</div><div class="num t down">${fmt(-a.sell.t)}</div><div class="num t ${cls(a.net.t)}">${fmt(a.net.t)}</div></div>${table(st)}` } },
+
+ { name: 'Label pola Domestik × Asing', what: 'Arah Net domestik dan Net asing diringkas menjadi satu label pola, misalnya "Domestik akumulasi · Asing distribusi", dengan kotak 2×2 yang menandai posisinya. Golongan dianggap netral bila kontribusinya di bawah ±2% dari total beli.',
+   pro: ['Satu label yang mudah dihafal dan bisa dipakai di screener atau alert', 'Penggerak utama disebut langsung'], con: ['Ambang ±2% masih usulan dan perlu diuji', 'Menyembunyikan besarnya angka'],
+   ex: 'BBRI 5D: "Domestik akumulasi · Asing distribusi". ASII 20D: penggerak utama asing.',
+   render: st => { const a = A(st), th = 2, dir = r => r >= th ? 1 : r <= -th ? -1 : 0, dd = dir(a.rd), df = dir(a.rf);
+     const w = d => d > 0 ? 'akumulasi' : d < 0 ? 'distribusi' : 'netral';
+     const drv = Math.abs(a.net.d) >= Math.abs(a.net.f) ? ['Domestik', a.net.d] : ['Asing', a.net.f];
+     const q = (d, f, t) => `<div class="${dd === d && df === f ? 'on' : ''}">${t}</div>`;
+     const neutralNote = dd === 0 || df === 0 ? '<div class="sub" style="margin:-2px 0 6px">Satu golongan netral, jadi tidak ada kotak yang ditandai penuh.</div>' : '';
+     return `${head(st)}${ctlN(st, a)}
+     <div class="ctl"><span class="pill info">Domestik ${w(dd)} · Asing ${w(df)}</span></div>
+     <div class="line"><span>Penggerak utama</span><span class="num"><b>${drv[0]}</b> <span class="${cls(drv[1])}">${fmt(drv[1])}</span></span></div>
+     <div class="quad"><span></span><span>Asing beli</span><span>Asing jual</span>
+       <span>Dom. beli</span>${q(1, 1, 'Searah: keduanya akumulasi')}${q(1, -1, 'Domestik serap, asing keluar')}
+       <span>Dom. jual</span>${q(-1, 1, 'Asing serap, domestik keluar')}${q(-1, -1, 'Searah: keduanya distribusi')}</div>${neutralNote}
+     ${tugSplit(a, 1)}${table(st)}` } },
+
+ { name: 'Komposisi 100% per sisi', what: 'Langsung menjawab "berapa proporsinya". Untuk sisi beli dan jual ditampilkan batang 100% bagian domestik vs asing, dan persentase terhadap Net sisi itu. Bagian berlawanan ditulis di bawahnya sebagai pengurang.',
+   pro: ['Bentuk yang paling mudah dicerna: "D 72% · A 28%"', 'Pengurang terlihat jelas, tidak tersembunyi'], con: ['Bila ada bagian berlawanan, persentasenya bisa >100% (misalnya 108% dan −8%)'],
+   ex: 'BBRI 5D Top 3 sisi beli: domestik 108% · asing −8% dari 1.6T.',
+   render: st => { const a = A(st);
+     const row = (lbl, o, c) => { const pd = Math.max(o.d, 0), pf = Math.max(o.f, 0), g = pd + pf || 1, sd = share(o.d, o.t), sf = share(o.f, o.t);
+       const neg = [o.d < 0 ? `Domestik ${fmt(-Math.abs(o.d))}` : '', o.f < 0 ? `Asing ${fmt(-Math.abs(o.f))}` : ''].filter(Boolean).join(' · ');
+       return `<div class="comp"><span class="sub">${lbl}</span><div class="bar100"><i style="width:${pd / g * 100}%;background:var(--${c})"></i><i style="width:${pf / g * 100}%;background:var(--${c});opacity:.45"></i></div>
+         <span class="num" style="text-align:right">D ${Math.round(sd)}% · A ${Math.round(sf)}%</span>${neg ? `<span class="off">Dikurangi bagian berlawanan: ${neg}</span>` : ''}</div>` };
+     return `${head(st)}${ctlN(st, a)}${tugBase(a)}
+     ${row('Beli', a.buy, 'up')}${row('Jual', a.sell, 'down')}
+     <div class="sub" style="margin:2px 0 6px">Persentase terhadap beli bersih ${fmt(a.buy.t, false)} dan jual bersih ${fmt(a.sell.t, false)} Top ${st.n}${ax(a)}.</div>${table(st)}` } },
+
+ { name: 'Saringan Semua · Domestik · Asing', what: 'Tambahan satu tombol segmen. Saat Domestik atau Asing dipilih, tarik tambang dan tabel hanya memakai bagian golongan itu untuk broker yang sama, dan vonis diganti dengan kontribusi rasio golongan tersebut.',
+   pro: ['Satu panel bisa dipakai untuk tiga sudut pandang', 'Broker tempat asing berlawanan langsung terlihat (batang pudar ke arah sebaliknya)'], con: ['Urutan broker tetap berdasarkan Net total, bukan Net golongan', 'Broker di luar Top 10 total tidak ikut'],
+   ex: 'BBRI 5D → Asing: CC dan NI di kolom pembeli bernilai negatif.',
+   render: st => { const a = A(st), lg = st.leg || 't';
+     const pick = o => lg === 't' ? o.t : o[lg], b = pick(a.buy), s = pick(a.sell), pb = Math.max(b, 0), ps = Math.max(s, 0), w = share(pb, pb + ps) || 50, f = lg === 'f' ? ' f' : '';
+     const r = lg === 't' ? a.ratio : lg === 'd' ? a.rd : a.rf;
+     return `${head(st)}<div class="ctl">${topN(st)}${seg('leg', st, [['t', 'Semua'], ['d', 'Domestik'], ['f', 'Asing']], 1)}</div>
+     <div class="ctl">${lg === 't' ? vpill(a.bd) : `<span class="pill">Kontribusi ${lg === 'd' ? 'domestik' : 'asing'}</span>`}<span class="num r ${cls(r)}">${pct(r)}</span></div>
+     <div class="tug"><i class="b${f}" style="width:${w}%">${fmt(b, lg !== 't')}</i><i class="s${f}" style="width:${100 - w}%">${fmt(lg === 't' ? s : -s, lg !== 't')}</i></div>
+     <div class="sub" style="margin-bottom:6px">Net ${lg === 't' ? 'total' : lg === 'd' ? 'domestik' : 'asing'} Top ${st.n}: <b class="${cls(b - s)}">${fmt(b - s)}</b>${lg !== 't' && (b < 0 || s < 0) ? ' · ada bagian berlawanan arah' : ''}</div>
+     ${table(st, { leg: lg })}` } },
+
+ { name: 'Tag golongan per broker', what: 'Setiap kode broker diberi tag kecil: D (≥75% domestik), A (≥75% asing), D·A (campuran), atau ↔ bila bagian domestik dan asingnya berlawanan arah. Di atas tabel ada hitungan tag untuk Top N dan rincian D/A.',
+   pro: ['Menjawab per broker, bukan hanya per jumlah', 'Tag bisa dipakai lagi di tabel lain (Broker summary, screener)'], con: ['Ambang 75% masih usulan', 'Menambah lebar kolom kode broker'],
+   ex: 'BBRI 5D: NI dan CC bertag ↔ (domestik beli, asing jual), ZP dan RX bertag A.',
+   render: st => { const a = A(st);
+     const tg = r => { const ad = Math.abs(r.d), af = Math.abs(r.f), g = ad + af; if (!g) return ['', ''];
+       if (r.d * r.f < 0 && Math.min(ad, af) / g >= .02) return ['↔', 'warn'];
+       const sf = af / g; return sf >= .75 ? ['A', 'info'] : sf <= .25 ? ['D', ''] : ['D·A', ''] };
+     const badge = r => { const [t, c] = tg(r); return t ? `<span class="pill sq ${c}" title="Domestik ${fmt(r.d)} · Asing ${fmt(r.f)}">${t}</span>` : '' };
+     const count = rows => { const m = {}; rows.forEach(r => { const t = tg(r)[0]; if (t) m[t] = (m[t] || 0) + 1 }); return Object.entries(m).map(([k, v]) => `${v}× ${k}`).join(' · ') || '–' };
+     return `${head(st)}${ctlN(st, a)}${tugSplit(a)}
+     <div class="line"><span>Pembeli Top ${st.n}</span><span class="num">${count(a.b)}</span></div>
+     <div class="line"><span>Penjual Top ${st.n}</span><span class="num">${count(a.s)}</span></div>
+     ${sideLine(a, 'buy')}${table(st, { badge, legExtra: '<span><span class="pill sq warn">↔</span>berlawanan</span>' })}` } },
+
+ { name: 'Kartu Net Domestik dan Net Asing', what: 'Dua kartu KPI di atas: Net domestik Top N dan Net asing Top N (beli Top N − jual Top N), masing-masing dengan kontribusi rasionya. Tarik tambang opsi 10 tetap ada di bawahnya.',
+   pro: ['Angka yang paling sering dicari trader ("asing net buy/sell berapa") tampil paling besar', 'Mudah dijadikan kolom di watchlist'], con: ['Tidak menunjukkan berapa yang datang dari sisi beli dan berapa dari sisi jual'],
+   ex: 'BBCA 5D: Net asing −1.4T walaupun vonisnya Neutral.',
+   render: st => { const a = A(st), k = (t, v, r) => `<div class="kpi"><span>${t}</span><b class="num ${cls(v)}">${fmt(v)}</b><em class="num">${pct(r, 1)} dari total beli</em></div>`;
+     return `${head(st)}${ctlN(st, a)}<div class="kpis">${k('Net domestik Top ' + st.n, a.net.d, a.rd)}${k('Net asing Top ' + st.n, a.net.f, a.rf)}</div>
+     ${tugBase(a)}<div class="sub" style="margin-bottom:6px">Net total ${fmt(a.net.t)} = domestik ${fmt(a.net.d)} + asing ${fmt(a.net.f)}${ax(a)}</div>${table(st)}` } },
+
+ { name: 'Kalimat ringkas otomatis', what: 'Satu atau dua kalimat yang disusun otomatis dari angka yang sama: siapa yang membentuk akumulasi, apakah ada golongan yang berlawanan, dan di broker mana. Tarik tambang terbelah ada di bawahnya.',
+   pro: ['Paling mudah dipahami pengguna baru', 'Kalimat yang sama bisa dipakai untuk AI chat atau notifikasi'], con: ['Lebih panjang untuk dibaca berulang kali', 'Aturan kalimat perlu dijaga agar tidak menyesatkan'],
+   ex: 'Ganti ticker untuk melihat kalimat berubah: ASII 20D, BBCA 20D, MAPI 20D.',
+   render: st => { const a = A(st), side = a.net.t >= 0 ? 'buy' : 'sell', o = a[side], word = side === 'buy' ? 'Akumulasi' : 'Distribusi';
+     const pd = share(o.d, o.t), pf = share(o.f, o.t), lead = Math.abs(pd) >= Math.abs(pf) ? 'domestik' : 'asing';
+     const rows = side === 'buy' ? a.b : a.s, sg = side === 'buy' ? 1 : -1;
+     const opp = rows.flatMap(r => [['domestik', r.d], ['asing', r.f]].filter(([, v]) => v * sg < 0 && Math.abs(v) >= Math.abs(o.t) * .01).map(([k, v]) => `${r.b} (${k} ${fmt(v)})`));
+     const mix = Math.min(Math.abs(pd), Math.abs(pf)) >= 30 ? `dari investor domestik (${fmt(o.d * sg, false)}, ${Math.round(pd)}%) dan asing (${fmt(o.f * sg, false)}, ${Math.round(pf)}%)`
+       : `terutama dari investor <b>${lead}</b> (${fmt((lead === 'domestik' ? o.d : o.f) * sg, false)}, ${Math.round(lead === 'domestik' ? pd : pf)}%)`;
+     return `${head(st)}${ctlN(st, a)}
+     <div class="story"><b>${word} Top ${st.n} ${fmt(o.t, false)}</b> berasal ${mix}.
+       ${opp.length ? `Arah berlawanan di: ${opp.join(', ')}.` : 'Tidak ada golongan yang berlawanan arah.'}
+       Secara keseluruhan, Net domestik <b class="${cls(a.net.d)}">${fmt(a.net.d)}</b>, Net asing <b class="${cls(a.net.f)}">${fmt(a.net.f)}</b>.${a.approx ? ' <span class="approx">Sebagian bagian asing diperkirakan.</span>' : ''}</div>
+     ${tugSplit(a)}${table(st)}` } },
+];
+
+OPTS[1].no = 2; OPTS.splice(0, OPTS.length, OPTS[1]);
+OPTS[0].render = renderQuad;
+const st = { d: '5', n: '3' };
+function render() {
+  const el = document.getElementById('panel');
+  el.innerHTML = OPTS[0].render(st);
+  el.querySelectorAll('[data-k]').forEach(g => g.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+    if (b.disabled) return; st[g.dataset.k] = b.dataset.v; render() }));
+}
+render();
+</script>
+</body></html>

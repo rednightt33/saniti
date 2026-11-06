@@ -11827,4 +11827,23 @@ hilangkan semua indikator card yang ada, sudah but retain the tooltip". Atas per
   dropdown di header panel, bukan hanya di dialog.
 - Bawaan broker FL23 sekarang: `top3_net_buy_20` (3 pembeli bersih terbesar 20 sesi terakhir).
 
-**Menunggu:** pilihan opsi Top brokers, persetujuan butir filter dan titik nol, hierarki bawaan broker.
+**Keputusan user, 2026-11-06:** "Broker bawaan pakai opsi C / Pemahaman kamu sudah benar untuk filter dan 0 di panel
+broker inventory / kemudian untuk top brokers bisa pakai HTML terlampir dan tambahkan juga 2x domestic foreign map
+(terlampir)". Desain user disimpan di `verification/terminal_api/top_broker_clarity/user_design/`.
+
+1. **Broker Inventory, filter:** dropdown Brokers, Market board, Investor type di header panel indikator FL23 (parameter
+   `brokers`, `boards`, `investors` yang sudah ada); pilihan lain (Unit, View, total) tetap di dialog.
+2. **Broker Inventory, titik nol:** label "0" di sisi kiri pada titik awal garis, dengan garis nol tipis.
+3. **Broker Inventory, bawaan (opsi C):** pilihan user selalu didahulukan; tanpa pilihan, 2 pembeli bersih terbesar +
+   1 penjual bersih terbesar di periode yang terlihat, mengikuti filter Board dan Investor panel.
+4. **Top brokers (desain `top_brokers_panel.html`, opsi "Dua lajur: Domestik dan Asing"):** di bawah Top N dan vonis,
+   tiga lajur tarik tambang: Domestik, Asing, Total. Tiap lajur = beli Top N pembeli vs jual Top N penjual, hanya bagian
+   investor golongan itu, Net di kanan; Domestik + Asing = Total. Tabel broker tetap (bar pekat domestik, pudar asing).
+5. **Peta asing × domestik (desain `peta_asing_domestik.html`):** X = Net asing Top N ÷ total nilai beli, Y = Net domestik
+   Top N ÷ total nilai beli, X + Y = rasio vonis; garis diagonal batas vonis ±6% (putus-putus) dan ±10%; titik 1D, 5D,
+   20D dengan jejak; label kuadran (Searah akumulasi; Domestik menyerap, asing keluar; Asing menyerap, domestik keluar;
+   Searah distribusi); persamaan X + Y = vonis dan tabel per periode.
+   - Di Terminal bagian asing per broker dihitung tepat dari data broker per jenis investor (desain memakai perkiraan
+     "≈" dari daftar 10 besar Foreign).
+
+**Menunggu:** jawaban atas pertanyaan letak peta, bahasa label, dan bawaan broker saat chart digeser; lalu go.
