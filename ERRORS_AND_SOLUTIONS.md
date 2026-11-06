@@ -5314,6 +5314,24 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
+### M368 — DRYRUN log of a migration job read before the log service held all its lines (2026-11-06)
+
+- **Symptom:** the first Railway DRYRUN of `20261106_001_edge_bff_terminal_layouts.sql` (job `d19c51a4`) judged `VERDICT
+  FAIL 31/38`: 8 of the job's 33 log lines were missing (`runtime_grants` part 1, `as_runtime_delete`, two refusals,
+  `JOB_DONE`), and the constraint check failed.
+- **Verified root cause:** (1) `scripts/onboarding/run_job.sh` stops reading at the first log that holds `JOB_EXIT`
+  (`runner_guard.sh` `ended`), but the log service can still be holding the job's own lines back; a read of the same
+  deployment a few minutes later held all 33 lines, `JOB_DONE` included. (2) The live dev database is PostgreSQL 18, which
+  lists every NOT NULL as a `pg_constraint` row (contype `n`); the local rehearsal ran on PostgreSQL 16, which does not.
+- **Solution:** `run_job.sh` reads the log again until two reads 15 s apart hold the same lines (every job, not only this
+  migration); `check_migration_log.py` compares the layout table's constraints without the `n` rows (the NOT NULLs are
+  the columns' own definitions). The complete log of the same job then gives `VERDICT PASS 38/38`; the DRYRUN was run
+  again with the fixed runner. The incomplete first read is kept as
+  `verification/screener/jobs/migration20261106_001_dryrun_first_fetch_incomplete.log`.
+- **Status:** FIXED.
+- **Lesson:** a job's verdict is read from a log that has stopped growing, never from the first read after the job ends;
+  a rehearsal on another PostgreSQL major version checks the catalog shape, not exact catalog rows.
+
 ### M367 — QA putaran 3: collapse panel bawah dan dialog layout belum siap rilis (2026-11-06, branch)
 
 - **Ditemukan oleh:** lima agen QA putaran 3 (user 2026-11-06: "QA putaran 3."), draft `28614e02`, sebelum merge ke `main`;

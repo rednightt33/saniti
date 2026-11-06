@@ -306,7 +306,9 @@ def check_layouts(check, mode, outs, sha):
           outs.get('other_grantees_on_new_table'))
     check('runtime members', outs.get('runtime_members') == [['edge_bff_login']], outs.get('runtime_members'))
     check('indexes', {(r[0], r[1]) for r in outs.get('layout_indexes', [])} == LAYOUT_INDEXES, outs.get('layout_indexes'))
-    check('constraints', sorted(r[1] for r in outs.get('layout_constraints', [])) == LAYOUT_CONSTRAINTS,
+    # PostgreSQL 18 also lists each NOT NULL as a constraint (contype 'n'; the live dev database, 2026-11-06); PostgreSQL 16
+    # does not. The NOT NULLs are the columns' own definitions, so the comparison holds the other kinds
+    check('constraints', sorted(r[1] for r in outs.get('layout_constraints', []) if r[2] != 'n') == LAYOUT_CONSTRAINTS,
           outs.get('layout_constraints'))
     check('comments present', len(outs.get('layout_comments') or []) == 5 and all(r[2] is True for r in outs['layout_comments']),
           outs.get('layout_comments'))
