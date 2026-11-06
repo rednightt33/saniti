@@ -20,6 +20,30 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## SCREENER-FLOW-FROM-TERMINAL — preset bandar aktif dan screener flow dari indikator Terminal (disetujui sebagai arah, 2026-11-06)
+
+**Kata user, 2026-11-06:** "Iya, maksud saya screener-screener di bagian bandar tersebut semuanya menggunakan
+variabel-variabel atau indikator-indikator yang ada di terminal. Goalnya adalah setelah dari sini kita mau aktivasi
+semua yang berkaitan dengan bandar dan kita mau tambah screener-screener yang bersifat flow dari terminal."
+Sebelumnya (EXEC-TERMINAL-IND-EDIT, 2026-11-05): "kita beresin dulu terminal. once indikator terminal beserta
+parameter2nya done, baru kita translate it to screener agar tidak double work" dan "Ok untuk screener dan backtest bisa
+dijalakan sekaligus setelah fase terminal selesai." Fase Terminal itu dirilis 2026-11-06 (`main` `b1ac95a0`). Ini
+persetujuan arah dan rencana, belum "go" eksekusi.
+
+- **Kode sekarang (diperiksa 2026-11-06, `main` `419d8867`):**
+  - Screener: 22 metrik flow dengan definisi lama (penomoran FL01-FL20 laporan audit, bukan nomor Terminal), tanpa kode
+    hitung (`flowmetrics.ts` belum ada, `screener/src/core/metrics.ts:131`); publisher hanya menerbitkan xsection
+    `price` dan `actions` (`publisher.py:269`); worker `flow_data: null` (`screener-worker/src/snapshot.ts:258`). Delapan
+    preset bandar/flow (bigacc, silent, bavg, follow, freq, fstreak, qflow, vacc) tidak tersedia.
+  - Terminal: 48 indikator flow FL01-FL48 (`terminal/src/data/flowRegistry.json`; FL07, FL35, FL36 disembunyikan dari
+    menu), dihitung oleh modul murni `terminal/src/calc/flow.ts`, yang dirancang agar Screener dan Backtest memakai
+    hitungan yang sama dari baris broker (`flow.ts:11-13`).
+- **Arah:** metrik flow Screener diganti dengan indikator Terminal (nama, nomor, parameter dan rumus sama, dihitung oleh
+  `calc/flow.ts`); preset bandar dipetakan ke indikator Terminal; indikator flow Terminal lain ditambahkan sebagai
+  pilihan filter.
+- **Pertanyaan terbuka:** lihat jawaban AI 2026-11-06 (cara data broker sampai ke Screener, cakupan indikator,
+  pemetaan Broker Follow, Backtest ikut atau tidak, ambang bandar).
+
 ## Anggaran reasoning dan penyajian — persetujuan target, audit dahulu
 
 **Persetujuan target, 2026-10-19 (kata user):** "Saya setuju terkait reasoning 48, penyajian 48k"
