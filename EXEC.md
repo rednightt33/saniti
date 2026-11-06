@@ -11897,34 +11897,7 @@ Favorites tetap seperti contoh. Merge ke `main` sesudah review lima agen dan per
   Node lokal; baris import itu sama dengan sebelum perubahan (dugaan masalah lingkungan, belum dicek di commit dasar).
 - **Belum:** cek di browser asli user (chart tersimpan, ponsel).
 
-## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (disetujui, menunggu go)
-
-**Kata user, 2026-11-06 (sesudah rilis `80b77b50`):** "Untuk indicator saat kalau kita scroll maka hanya terbatas pada
-indicator group itu saja, while kalau di HTML contoh maka dia bisa scroll semua indikator, dan panel disebelah kiri tetap
-mengikuti / untuk huruf 0 di broker summary hilangkan saja / untuk opsi di indikator broker inventory ada tombol clear, it
-doesnt seem to function at all / kalau saya klik alt B, panel sebelah kanan lagi scroll all the way down, once alt B sudah
-selected custom timeframe, maka panel kanan otomatis ke scroll ke atas? / untuk foreign X domestic heatmap yg saya SS boleh
-hilangkan? kemudian tambahkan hoverstate juga kalau mouse hover ke dot di dalam quadrant". Atas pertanyaan balik: "benar
-untuk butir 2 / butir 5 tidak, hanya 4 garis miring yang dihapus / butir 3 ok sudah benar... masukan exec ya".
-
-1. **Jendela Indicators:** satu daftar semua indikator dengan judul kelompok; klik kelompok di kiri meloncat ke bagiannya,
-   kelompok aktif di kiri mengikuti scroll (seperti "Add a condition" Screener v16: `qSpyMode`, `qScrollTo`). On the chart
-   dan Favorites tetap menyaring; pencarian tetap menyaring.
-2. **Label "0" di panel Broker Inventory (FL23) dihapus.** Garis titik-titik di nol tetap (user tidak meminta garisnya
-   dihapus; "huruf 0").
-3. **Clear di tombol Brokers/Board/Investor FL23 berfungsi:** pilihan benar-benar kosong; selama kosong panel tidak
-   menggambar garis dan menulis "Choose at least one broker" (board/investor); tombol dan chart selalu sama.
-4. **Alt+B:** sesudah periode dipilih di chart, panel kanan kembali ke paling atas (Broker summary terlihat dari judulnya).
-5. **Peta Foreign × Domestic:** empat garis miring (batas vonis ±6/±10%) dihapus; latar kuadran, garis tengah, kisi dan
-   skala tetap. Hover di titik: titik membesar dan kotak keterangan (periode, X Foreign, Y Domestic, vonis, kuadran) dengan
-   gaya tooltip panel kanan.
-
-**Go, kata user 2026-11-06:** "Alright. Go. Also run 5 agents sonnet high untuk QC dan QA ... Gunakan versi draft saat ini
-sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publish. Tahap ini hanya pemeriksaan dan
-pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
-sampai user memutuskan sesudah laporan QC/QA.
-
-## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (disetujui, menunggu go)
+## EXEC-TERMINAL-LOOK-2 — catatan sesudah rilis 2026-11-06 (go 2026-11-06, draft)
 
 **Kata user, 2026-11-06:** "Untuk indicator saat kalau kita scroll maka hanya terbatas pada indicator group itu saja, while
 kalau di HTML contoh maka dia bisa scroll semua indikator, dan panel disebelah kiri tetap mengikuti / kemudian untuk huruf
@@ -11950,7 +11923,7 @@ sebagai baseline. Jangan reapply perubahan sebelumnya, mengubah kode, atau publi
 pelaporan." Dikerjakan di branch `claude/practical-thompson-2intee` (draft); tidak di-merge ke `main` dan tidak dirilis
 sampai user memutuskan sesudah laporan QC/QA.
 
-## EXEC-FLOW-PANE-FILTERS — tombol filter di baris semua indikator Flow (permintaan 2026-11-06, usulan, belum disetujui)
+## EXEC-FLOW-PANE-FILTERS — tombol filter di baris semua indikator Flow (go 2026-11-06, draft)
 
 **Kata user, 2026-11-06:** "kemudian selanjutnya adalah untuk semua tipe indikator flow, kita mau tambahkan juga indikator
 seperti terlampir. Now list down all flow indicators, serta filter yang bisa ditambahkan, propose ke saya. Kalau ada broker
