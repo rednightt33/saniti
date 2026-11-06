@@ -5336,7 +5336,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     formatOfOpt` / `formatOfSide`), and only a `price` series goes on the candle axis; the others stay in "Why it
     passed".
   Either way, other units could get their own pane later.
-- **Status:** OPEN (decision with the user).
+- **Decision:** user 2026-11-06 "A" (the contract fix); plan in `EXEC.md` EXEC-SCREENER-ADD, part 2.
+- **Status:** OPEN (planned, waiting for the go).
 
 ### M367 — Screener page without a session: two unhandled promise rejections in the console (2026-11-06, open)
 
