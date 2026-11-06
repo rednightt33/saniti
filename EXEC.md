@@ -11962,3 +11962,13 @@ Lima subagen Sonnet (high), hanya pemeriksaan. Laporan: `verification/terminal_a
     Foreign/Domestic tidak jelas.
   - Low beberapa.
 - **Belum dirilis; menunggu keputusan user atas perbaikan.**
+
+### Perbaikan hasil QC/QA (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "Oke, kita perbaiki dulu. Untuk H1 dan M2, we'll go with your advice."
+- Cakupan = rekomendasi laporan: H1–H3, M1–M3 wajib; M4, M5, M7, M8, M9 dan butir Low yang murah.
+- H1/H2: di layar sempit (≤ 1024 px) kontrol baris dilipat ke satu tombol "Filters" yang membuka panel kontrol.
+- M2: baris tidak menggambar garis dan menulis catatan bahwa semua broker atas kedua jenis investor selalu ber-net 0,
+  dengan saran memilih Foreign/Domestic atau Top-N. Investor tidak diwajibkan (pilihan (a), tafsiran "your advice").
+  Dideteksi dari hasil hitungan (tanpa informasi: semua nilai 0 atau kosong), bukan daftar indikator.
+- Tetap di branch; rilis menunggu keputusan user sesudah pemeriksaan ulang.
