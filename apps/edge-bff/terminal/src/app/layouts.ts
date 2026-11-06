@@ -5,7 +5,7 @@
 
    A layout is the chart's own settings: the stored values of LAYOUT_KEYS (indicators with their settings, visibility and
    fold, timeframe, chart type, Price/Return, Volume, Events, the bond price/yield choice, the Flow Timeline's filters,
-   Cumulative, open/closed and height). Drawings stay per ticker and the right panel is not part of it. Opening a layout
+   Cumulative, open/closed and height, and whether the indicators' filters show). Drawings stay per ticker and the right panel is not part of it. Opening a layout
    writes those values (a value the layout does not hold goes back to its default) and reloads the page on the same ticker,
    so every part restores itself the way it does after any reload.
 
@@ -16,7 +16,7 @@ import { $, store, storeWatch } from './context';
 import { LayoutApiError, layoutsApi, newLayoutId, type LayoutMeta } from '../data/layoutsApi';
 
 export const LAYOUT_KEYS = ['ml.ind.v1', 'ml.tf', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on', 'ml.vol.removed', 'ml.events.v1',
-  'ml.fi.metric', 'ml.flow.filters', 'ml.flow.cum', 'ml.flow.collapsed', 'ml.flow.h', 'ml.flow.ratio'] as const;
+  'ml.fi.metric', 'ml.ind.filters', 'ml.flow.filters', 'ml.flow.cum', 'ml.flow.collapsed', 'ml.flow.h', 'ml.flow.ratio'] as const;
 /** stored settings that are not part of a layout (prefixes): the ticker, per-ticker drawings, the side panels and windows,
     the compared assets, the Indicators dialog's own preferences and the layout menu's own state */
 export const NOT_LAYOUT = ['ml.symbol', 'ml.tfs', 'ml.draw.', 'ml.drawings', 'ml.stats.', 'ml.broker.', 'ml.acc.', 'ml.fd.', 'ml.win.',

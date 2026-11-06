@@ -52,6 +52,18 @@
 - **Rollback:** redeploy edge-bff `337b8023-657b-4335-8e49-90b834840bfe` (commit `4963b9c2`), or revert merge `88683a63`
   on `main`.
 
+## 2026-11-06 — edge-bff from `main` `bb935001`: EXEC-TERMINAL-LOOK-3 (pane filters, collapse, filter toggle, Top brokers)
+
+- **Change:** pane filters at the Flow Timeline's size on the right of their row; the collapse chevron over the pane's
+  y-axis; the pane's top room from its row height; a filter toggle under the trash (live only, part of a layout); Top
+  brokers ratio badge beside Top 3/5/10, joined pin, even lanes, dot key removed. Flow Ratio untouched (user: "jangan
+  touch"). No variable, migration or database change. User: "gas".
+- **Before the push:** no user run in flight (0 / 0, 15:04 UTC); outside B6; `main` `138bbe6b` was an ancestor
+  (fast-forward); tripwire OK; Terminal 870/870; look checks 3, 5, 6, 7, 8 without errors.
+- **edge-bff:** deployment `0718b572` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-BjnP6fb_.js` and
+  `assets/style-BGtaHDD1.css` are the files of the local build of `bb935001`.
+- **screener-worker:** `terminal/src/calc/**` unchanged: no rebuild.
+
 ## 2026-11-06 — edge-bff from `main` `4963b9c2`: Terminal saved layouts, pane collapse, Flow pane filters, QA rounds 1-4 fixes
 
 - **Change:** EXEC-TERMINAL-LOOK-2, EXEC-FLOW-PANE-FILTERS (row filters on every Flow indicator; Top brokers verdict ladder

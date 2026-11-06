@@ -413,7 +413,7 @@ export function initBroker(ctx: Ctx) {
     const sp = fdSplit(bal.buyers, bal.sellers, new Map(all.map(x => [x.b, { d:x.d, f:x.f }])), bal.total);
     const lane = (nm: string, b: number, s: number, net: number, faded: boolean, strong = false) => {
       const pb = Math.max(b, 0), ps = Math.max(s, 0), w = pb + ps ? pb / (pb + ps) * 100 : 50;
-      return `<div class="acc-lane${faded ? ' f' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${sgn(b)} · Sellers' net sale ${sgn(s)} · Net ${sgn(net)}">`
+      return `<div class="acc-lane${faded ? ' f' : ''}${strong ? ' total' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${sgn(b)} · Sellers' net sale ${sgn(s)} · Net ${sgn(net)}">`
         + `<span class="nm${strong ? ' strong' : ''}">${nm}</span><div class="acc-tl"><i class="b" style="width:${w.toFixed(1)}%"></i><span class="mid"></span><i class="s" style="width:${(100 - w).toFixed(1)}%"></i></div>`
         + `<span class="nv ${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${sgn(net)}</span></div>`;
     };
@@ -421,7 +421,9 @@ export function initBroker(ctx: Ctx) {
       + '<div class="acc-cut"></div>' + lane('Total', sp.buy.t, sp.sell.t, sp.net.t, false, true);
     const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
-      + `<span class="acc-ratio ${bal.ratio >= 0 ? 'up' : 'down'}" data-tip="${why}">${ratio}</span></div>`
+      /* EXEC-TERMINAL-LOOK-3 (user 2026-11-06: "C ... bisa dipindah ke posisi D. Dikasih batch. Fill-nya hijau pekat, font-nya
+         putih"; "Q3- A"): the ratio as a badge beside Top 3/5/10, solid green above zero, solid red below, grey at zero */
+      + `<span class="acc-ratio ${r2 > 0 ? 'up' : r2 < 0 ? 'down' : 'flat'}" data-tip="${why}">${ratio}</span></div>`
       + verdictLadder(shown, why)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */
@@ -429,7 +431,7 @@ export function initBroker(ctx: Ctx) {
     $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
-        + `<div class="acc-leg">${SPLIT_LEGEND}<span class="bk-leg">Dot: broker's own type <span class="bk F"><i></i>Foreign</span><span class="bk L"><i></i>Domestic</span></span></div>`
+        + `<div class="acc-leg">${SPLIT_LEGEND}</div>`        /* EXEC-TERMINAL-LOOK-3: the "Dot: broker's own type" key removed (user) */
       /* QA M7 (2026-11-06): trades whose every broker nets to 0 (crossing on Nego or Cash) are not "no data" */
       : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`;
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });

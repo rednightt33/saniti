@@ -71,7 +71,7 @@ try {
     await p.goto(`${origin}/terminal-app/`); await ready(p); await p.waitForTimeout(1200);
     const price = () => p.evaluate(() => { const c = document.querySelector('#chart canvas'); const t = [...document.querySelectorAll('#chart table tr')]; return t.length ? Math.round(t[0].getBoundingClientRect().height) : 0 });
     const h0 = await price();
-    for (const d of ['FL21', 'FL11']) await p.evaluate(d => document.querySelector(`.ind-row[data-def="${d}"] > [data-act="fold"]`).click(), d);
+    for (const d of ['FL21', 'FL11']) await p.evaluate(d => document.querySelector(`.ind-fold[data-def="${d}"]`).click(), d);
     await p.waitForTimeout(800); const h2 = await price();
     R.c_m1 = { price_open:h0, price_two_folded:h2 };
     // L1: pointing at a folded pane row does not grow it

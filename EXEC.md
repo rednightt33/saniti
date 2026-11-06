@@ -12276,6 +12276,30 @@ pass saja. Konfirmasi before proceed."
     keterangan "No data yet: intraday bars are not in the market database."; label "Timeframe · Daily" di bar filter
     tetap.
 
+## EXEC-TERMINAL-LOOK-3 — baris filter panel bawah, toggle filter, Top brokers (go 2026-11-06)
+
+**Kata user, 2026-11-06:** "Ada font size yang kurang konsisten antara A dan B ... Disamakan saja dengan B dari sisi ukuran
+dan lain-lain. Kemudian ... collapse panel di bawah, bisa disamakan juga dengan B, which is ada di sebelah kanan. In this
+case, taruh saja di atas y-axis. Kemudian, saya minta untuk dibuatkan menu atau semacam toggle ... taruh di bawah trash
+... pop-up yang kita tambahkan tadi bisa di-hide ... kotaknya ini bisa disamakan saja dengan posisi flow timeline ...
+[Top brokers] Yang saya kotakin warna biru, kita bisa remove ... tanda panah ke bawah dan tanda panah ke atas ... dikasih
+kayak semacam line aja. Kemudian untuk C ... bisa dipindah ke posisi D. Dikasih batch. Fill-nya hijau pekat, font-nya
+putih. Kemudian untuk X dan Y, spacing-nya tidak sama ... Idealnya bisa menggunakan spacing antara foreign dan total."
+Atas pertanyaan balik: "Q1 - A", "Q2- tidak ada perubahan pada flow ratio sama sekali, jangan touch", "Q3- A".
+- Tombol filter di baris indikator panel bawah sama ukuran, huruf dan bentuk dengan filter Flow Timeline; dirapatkan ke
+  kanan baris, berakhir sebelum tombol collapse.
+- Tombol collapse di kanan, di atas sumbu-Y panelnya.
+- Toggle di toolbar kiri di bawah tempat sampah: sembunyikan/tampilkan filter di semua baris indikator (nama dan nilai
+  tetap); diingat dan ikut layout (Q1 A).
+- Flow Ratio (FL46) tidak diubah sama sekali (Q2).
+- Top brokers: keterangan "Dot: broker's own type" dihapus; dua takik penanda tangga disambung garis; rasio pindah ke
+  sebelah Top 3/5/10 sebagai badge: hijau pekat bila positif, merah pekat bila negatif, abu-abu bila 0, huruf putih (Q3 A);
+  jarak Domestic–Foreign = jarak Foreign–Total.
+- Status 2026-11-06 (branch): dikerjakan. Ruang atas tiap panel bawah kini diturunkan dari tinggi barisnya (garis, label
+  sumbu dan badge nilai tidak tertutup baris yang lebih tinggi). Toggle hanya di mode live (fixture tetap 1:1). Bukti
+  `verification/terminal_api/terminal_look/look_check8.mjs` plus `look_check3/5/6/7` tanpa galat; Terminal 870/870.
+- **Dirilis 2026-11-06** (user: "gas"): `main` `bb935001`, edge-bff `0718b572` SUCCESS, aset live = build lokal.
+
 ## EXEC-SCREENER-ADD-PARAMS — sel gagal tanpa garis miring, parameter di jendela "Add a condition", "No" di kolom peristiwa (2026-11-06)
 
 ### Permintaan user (2026-11-06, kata-kata user)
