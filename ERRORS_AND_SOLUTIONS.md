@@ -5355,6 +5355,32 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   list call two more times with a short pause and print the CLI's last error line; refuse as now when all fail.
 - **Lesson:** after `DEPLOYMENT_LIST_FAILED`, read `DATABASE_URL` and the target object back, rename the `.run.txt`
   as an attempt record, then run again.
+### M380 — Terminal: the indicator row's buttons vanish and move under the pointer (2026-11-06, fixed, live)
+
+- **Found by:** the user (2026-11-06): "sangat sulit untuk ngeklik empat icon tersebut. Kalau mouse kita geser sedikit
+  atau keluar dari right range, maka langsung keempat indikator tersebut hilang, tidak bisa diklik."
+- **Verified causes** (`apps/edge-bff/terminal/src/styles/terminal.css`, `app/indicators.ts`; browser check
+  `verification/terminal_api/terminal_look/look_check10.mjs`):
+  - the buttons (eye, Settings, Save as preset, Remove) show only while the pointer is inside a row 22px tall, with no
+    delay: 1-2px off the row and they are gone;
+  - a pane row lets the pointer through (`pointer-events:none`, so the chart works between its filter boxes): just off
+    it the pointer is on the chart;
+  - on the chart the row's value follows the crosshair ("Buy 37.1%" → "No broker data on this day"), so the buttons
+    after it move sideways; back on the row the value returns and they move back: a click aimed during the slip lands
+    beside them.
+- **Class:** controls revealed by hover on a thin target, with content beside them that changes width with the pointer;
+  also the on-hover pane filters (filter toggle off) and the price-pane legend rows.
+- **Solution (EXEC-IND-HOVER, user "Opsi 2"):** a row that was pointed at stays active 0.5 s after the pointer leaves
+  (`.hov`, one row at a time); an active pane row takes the pointer 8px around it (a band under its own content; the
+  pane separator's resize handle stays above it); while active, the value keeps its width (a longer value ends in
+  "…"). The on-hover filters follow the same rule. Check: buttons kept 3 and 7px below and 6px left, 0.25 s after
+  leaving, gone at 0.75 s; Settings opens after a slip; the buttons' x unchanged while the crosshair value changes;
+  1440 and 1100px.
+- **Live:** `main` `3a0a1d03`, edge-bff `66310845` SUCCESS; served assets equal the local build.
+- **Not covered:** above the first pane row the separator's resize handle (about 5px) keeps the pointer for resizing;
+  there only the 0.5 s grace applies.
+- **Lesson:** a control revealed on hover needs a tolerance (time and area), and nothing beside it may change width
+  while it is reachable.
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and

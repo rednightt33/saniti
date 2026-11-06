@@ -458,7 +458,7 @@ body{font-variant-numeric:tabular-nums}
 .chart-legend{gap:3px}
 .flow-tip,.ind-row{text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff}
 .ind-eye{position:relative;width:20px;height:20px;border-radius:4px;display:grid;place-items:center;color:var(--text-3);opacity:0;transition:opacity .12s,background .12s,color .12s}
-.ind-row:hover .ind-eye,.ind-eye:focus-visible,.ind-eye[aria-pressed="false"]{opacity:1}
+.ind-row:hover .ind-eye,.ind-row.hov .ind-eye,.ind-eye:focus-visible,.ind-eye[aria-pressed="false"]{opacity:1}
 .ind-eye:hover{background:var(--hover);color:var(--text)}
 .ind-eye .eye-off{display:none}
 .ind-eye[aria-pressed="false"] .eye-on{display:none}
@@ -641,6 +641,13 @@ body{font-variant-numeric:tabular-nums}
 .idlg-in:focus,.idlg-in:focus-visible{outline:none;border-color:transparent;box-shadow:var(--sel-shadow)}
 .idlg-in.bad{border-color:var(--red)}
 .ind-row.in-pane{position:absolute;left:var(--ax-l,94px);z-index:5}
+/* EXEC-IND-HOVER (user 2026-11-06, "Opsi 2"): an active pane row (.hov, indicators.ts) keeps 8px around it as part of
+   itself, so a pointer that slips off the row onto the chart does not hide its buttons; under the row's own content
+   (z-index -1 inside the row's stacking context), so the title and buttons still take the clicks. The pane separator's
+   resize handle (lightweight-charts, z-index 50) stays above the band, so a pane can still be resized from its edge. A legend row of the
+   price pane has neighbours above and below and keeps only the 0.5 s grace. */
+.ind-row.hov > b{flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}   /* its width is held while the row is active (indicators.ts) */
+.ind-row.in-pane.hov::before{content:'';position:absolute;inset:-8px;z-index:-1;pointer-events:auto}   /* the pane row itself lets the pointer through (the chart between its filter boxes); its band takes it */
 .idlg-fl{width:176px}
 .idlg-fl .fl-btn{width:100%;height:38px;border-radius:9px;font-size:13px;justify-content:space-between}
 .idlg-fl .fl-k{display:none}
@@ -1029,7 +1036,7 @@ html.fit .ind-row .ind-k{min-width:0;overflow:hidden;text-overflow:ellipsis}
 html.fit .ind-row .ind-k{order:0}
 html.fit .ind-row .ind-eye{order:1}
 html.fit .ind-row > b{order:2}
-html.fit .ind-row:not(:hover):not(:focus-within) .ind-eye:not([aria-pressed="false"]){display:none}
+html.fit .ind-row:not(:hover):not(.hov):not(:focus-within) .ind-eye:not([aria-pressed="false"]){display:none}
 /* - the chart pick's hint wraps inside the chart and carries a Cancel button (I2, I4: a touch screen has no Esc) */
 .rs-hint{display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);box-sizing:border-box;white-space:normal;text-align:center}
 .rs-cancel{pointer-events:auto;flex:none;height:22px;padding:0 10px;border:1px solid rgba(255,255,255,.45);border-radius:5px;background:transparent;color:#fff;font:500 11.5px var(--sans);cursor:pointer}
@@ -1210,10 +1217,10 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .chart-legend{gap:6px}
 .ind-row{min-height:22px;font-size:var(--fs-base);line-height:22px}
 .ind-row .ind-k{color:var(--text-3);transition:color .12s}
-.ind-row:hover .ind-k,.ind-row:focus-within .ind-k{color:var(--text)}
+.ind-row:hover .ind-k,.ind-row.hov .ind-k,.ind-row:focus-within .ind-k{color:var(--text)}
 .ind-row b{font-weight:var(--fw-medium)}
 .ind-row b:not(.up):not(.down){color:var(--text-2)}
-.ind-row:hover b:not(.up):not(.down),.ind-row:focus-within b:not(.up):not(.down){color:var(--text)}
+.ind-row:hover b:not(.up):not(.down),.ind-row.hov b:not(.up):not(.down),.ind-row:focus-within b:not(.up):not(.down){color:var(--text)}
 
 /* EXEC-BROKER-INV-PANEL (user 2026-11-06): Broker Inventory's Brokers / Board / Investor buttons on its pane row (the Flow
    Timeline's buttons, one size smaller), their lists open to the right; "0" at the start of the lines, in the left gutter */
@@ -1305,7 +1312,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ind-num input{width:38px;border:0;background:none;font:inherit;font-variant-numeric:tabular-nums;color:var(--text);padding:0 2px;text-align:right}
 .ind-sel:focus-within,.ind-num:focus-within{border-color:var(--accent)}
 .ind-flt.on-hover{display:none}
-.ind-row:hover .ind-flt.on-hover,.ind-row:focus-within .ind-flt.on-hover,.ind-row.flt-open .ind-flt.on-hover,.ind-row:has(.fl-pop:not([hidden])) .ind-flt.on-hover{display:inline-flex}
+.ind-row:hover .ind-flt.on-hover,.ind-row.hov .ind-flt.on-hover,.ind-row:focus-within .ind-flt.on-hover,.ind-row.flt-open .ind-flt.on-hover,.ind-row:has(.fl-pop:not([hidden])) .ind-flt.on-hover{display:inline-flex}
 .chart-legend .ind-row:has(.fl-pop:not([hidden])){position:relative;z-index:40}
 @media(hover:none){.ind-sel,.ind-num{height:32px}}
 .fdm-pt{cursor:pointer}
@@ -1326,7 +1333,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ind-fltbtn[aria-expanded="true"]{border-color:var(--accent)}
 /* QA round 4 (M2): the narrow form follows the chart's width (indicators.ts narrowCheck sets html.ind-narrow) */
   html.ind-narrow .ind-fltbtn{display:inline-flex}
-  html.ind-narrow .ind-flt,html.ind-narrow .ind-flt.on-hover,html.ind-narrow .ind-row:hover .ind-flt.on-hover,html.ind-narrow .ind-row:focus-within .ind-flt.on-hover{display:none}
+  html.ind-narrow .ind-flt,html.ind-narrow .ind-flt.on-hover,html.ind-narrow .ind-row:hover .ind-flt.on-hover,html.ind-narrow .ind-row.hov .ind-flt.on-hover,html.ind-narrow .ind-row:focus-within .ind-flt.on-hover{display:none}
   html.ind-narrow .ind-row.flt-open .ind-flt,html.ind-narrow .ind-row.flt-open .ind-flt.on-hover{display:flex;flex-wrap:wrap;gap:6px;position:fixed;left:8px;right:8px;max-width:480px;margin:0;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);z-index:80}
   html.ind-narrow .ind-row.in-pane:has(.ind-flt),html.fit.ind-narrow .ind-row.in-pane:has(.ind-flt){flex-wrap:nowrap;max-width:calc(100% - var(--ax-l,94px) - 84px)}
   html.ind-narrow .ind-row.flt-open{z-index:80}

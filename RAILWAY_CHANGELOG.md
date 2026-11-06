@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-11-06 — edge-bff from `main` `3a0a1d03`: indicator row buttons stay reachable (EXEC-IND-HOVER, ERRORS M380)
+
+- **Change:** a pointed-at indicator row stays active 0.5 s after the pointer leaves; a pane row takes the pointer 8px
+  around it; its value keeps its width while active, so the buttons no longer move. No variable, migration or database
+  change. User: "Opsi 2. Jalankan dulu".
+- **Before the push:** no user run in flight (0 / 0, 16:21 UTC); outside B6 (23:21 WIB); `main` `1fc9aec1` an ancestor
+  (fast-forward); tripwire OK; Terminal 870/870; look checks 3, 5, 6, 7, 8, 9, 10 without errors.
+- **edge-bff:** deployment `66310845` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-DxzBMdvH.js` and
+  `assets/style-BaW2RX5A.css` byte-equal to the local build of `3a0a1d03`.
+- **screener-worker:** `terminal/src/calc/**` unchanged: no rebuild.
+
 ## 2026-11-06 — edge-bff from `main` `4b606058`: Terminal indicator presets, Indicators window fixes (EXEC-IND-PRESETS)
 
 - **Change:** "Save as preset" from the indicator row and Settings; My presets in the Indicators window (Add, star,

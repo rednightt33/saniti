@@ -618,6 +618,8 @@ export function initIndicators(ctx: Ctx) {
     eye.setAttribute('aria-pressed', String(inst.on)); eye.dataset.label = inst.on ? 'Hide' : 'Show';
   }
 
+  const HOVER_GRACE_MS = 500;
+  let hovRow: HTMLElement | null = null;
   function build(inst) {
     const r = inst.row = document.createElement('div');
     r.className = 'ind-row'; r.dataset.uid = inst.uid; r.dataset.def = inst.def.id;
@@ -635,6 +637,23 @@ export function initIndicators(ctx: Ctx) {
       f.setAttribute('aria-label', `Collapse the ${inst.def.name} pane`); f.innerHTML = CHEV; f.onclick = () => setFold(inst, !inst.fold);
       stage.appendChild(f);
     }
+    /* EXEC-IND-HOVER (user 2026-11-06: "Kalau mouse kita geser sedikit ... langsung keempat indikator tersebut hilang";
+       "Opsi 2"): a row that was pointed at stays active (.hov: its buttons and on-hover filters show) for HOVER_GRACE_MS
+       after the pointer leaves it, and a pane row's active area reaches 8px around it (terminal.css .ind-row.hov::before).
+       One row is active at a time. While it is active its value keeps the width it had (a longer value, such as the
+       crosshair's "No broker data on this day", ends in "…"), so the buttons after it do not move under the pointer. */
+    const calm = (row: HTMLElement) => { clearTimeout((row as any).hovT); row.classList.remove('hov'); (row.querySelector(':scope > b') as HTMLElement).style.width = '' };
+    r.addEventListener('pointerenter', () => {
+      if(hovRow && hovRow !== r) calm(hovRow);
+      clearTimeout((r as any).hovT);
+      const val = r.querySelector(':scope > b') as HTMLElement;
+      if(!r.classList.contains('hov')) { val.style.width = Math.ceil(val.getBoundingClientRect().width) + 'px'; r.classList.add('hov') }
+      hovRow = r;
+    });
+    r.addEventListener('pointerleave', () => {
+      clearTimeout((r as any).hovT);
+      (r as any).hovT = setTimeout(() => { calm(r); if(hovRow === r) hovRow = null }, HOVER_GRACE_MS);
+    });
     r.addEventListener('click', (e: any) => {
       const a = e.target.closest('[data-act]'); if(!a) return;
       if(a.dataset.act === 'fold') { setFold(inst, !inst.fold); return }
@@ -649,7 +668,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.fold) r.classList.add('folded');
     /* a folded pane follows its row's height; QA round 4 (L1): not the growth while the row is pointed at or focused (its
        buttons show then), which would move the chart on every hover */
-    if(inst.def.pane === 'sub') { inst.rowRO = new ResizeObserver(() => { if(inst.fold && !r.matches(':hover,:focus-within')) relayout() }); inst.rowRO.observe(r) }
+    if(inst.def.pane === 'sub') { inst.rowRO = new ResizeObserver(() => { if(inst.fold && !r.matches(':hover,.hov,:focus-within')) relayout() }); inst.rowRO.observe(r) }
     recompute(inst);
     placeRow(inst);
     if(inst.fold) setFold(inst, true, false);
