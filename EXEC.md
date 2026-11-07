@@ -12435,6 +12435,8 @@ struktur database."
   dipindah sekali ke akun): "3 jalankan dulu". Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
 - Go rilis 2026-11-07 (user: "rilis paket dan main", 22:16 WIB, sesudah B6): migrasi `20261107_001` DRYRUN lalu APPLY,
   lalu `main` dengan seluruh paket di branch (EXEC-RP-LOOK, EXEC-DRAW-PANES, EXEC-PANE-ORDER, EXEC-IND-NAV, M386).
+- **Dirilis 2026-11-07:** migrasi `20261107_001` diterapkan (DRYRUN `ea96b2e7` 36/36, APPLY `8e07820a` 23/23); `main`
+  `dbe23aaa`, edge-bff `dbd23c1b` SUCCESS, aset live = build lokal. Termasuk EXEC-RP-LOOK, EXEC-PANE-ORDER, EXEC-IND-NAV.
 - Status 2026-11-07 (branch): dikerjakan. Backend `apps/edge-bff/app/drawings.py` + migrasi `20261107_001` (belum
   diterapkan; gladi lokal DRYRUN 36/36, APPLY 23/23); Terminal `data/drawingsApi.ts` (akun; browser hanya saat akun tak
   terjangkau; pindah sekali dari `ml.drawings.*`), `app/drawings.ts` (pengelola per panel,

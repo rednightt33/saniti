@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-11-07 — edge-bff from `main` `dbe23aaa`: Terminal drawings on the EDGE account and in indicator panes, pane order, right-panel and Indicators window look
+
+- **Change:** EXEC-DRAW-PANES (drawings of the price chart, Flow Timelines and indicator panes kept on the EDGE account;
+  lines, Brush and Text in every indicator pane), EXEC-PANE-ORDER (Move up / Move down), EXEC-RP-LOOK (Foreign x Domestic
+  labels, fold and no point tooltip; Top brokers and Broker summary rows; Events switch; Top brokers header),
+  EXEC-IND-NAV (A1, B1), ERRORS M385 and M386. User: "rilis paket dan main".
+- **Database first:** migration `20261107_001` DRYRUN (job `ea96b2e7`, 36/36) and APPLY (job `8e07820a`, 23/23) on dev
+  at 15:17-15:20 UTC through `run_migration.sh`; `DATABASE_URL` set on orc-test-runner only for each job and removed
+  (VAR_REMOVED). No variable change.
+- **Before the push:** no user run in flight (0 / 0, 15:25 UTC); after B6 (22:25 WIB); `main` `4451a31a` (PR #59 Screener,
+  already live as edge-bff `3b54bab2`) merged into the branch (EXEC, ERRORS, DATABASE_CHANGELOG conflicts, both sides kept;
+  the Terminal entries renumbered M385/M386 as main had taken M381-M384), so the push was a fast-forward; tripwire OK;
+  Terminal 870/870; edge-bff 352 passed; look checks 3, 5-13 without errors.
+- **edge-bff:** deployment `dbd23c1b` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-D1070xV0.js` and
+  `assets/style-DSizTLqk.css` byte-equal to the local build of `dbe23aaa`; `/api/v1/terminal/drawings` 401 without a
+  session.
+- **screener-worker:** no file under `terminal/src/calc/**` or `apps/screener-worker` changed by this release: no rebuild.
+
 ## 2026-11-07 — orc-test-runner: the K6 read-only Feature 05 measurement (job `972bb712`)
 
 - **Go:** user 2026-11-07 "K6 boleh" (EXEC-SCREENER-FLOW-CANDLES K6: one read-only database check through the temporary

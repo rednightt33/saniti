@@ -5445,7 +5445,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   READY (588 combinations run, 0 refusals).
 - **Status:** FIXED on branch (`b981a5e4` and the next commit), not released.
 
-### M385 — Terminal: headings, switches and control rows out of line, missed by every check so far (2026-11-07, fixed in code; numbered M381 in its branch commits, renumbered when main had taken M381-M384)
+### M385 — Terminal: headings, switches and control rows out of line, missed by every check so far (2026-11-07, fixed, live; numbered M381 in its branch commits, renumbered when main had taken M381-M384)
 
 - **Found by:** the user (2026-11-07), with screenshots: the Indicators window's "TREND" heading neither in the middle of
   its band nor on the column of "INDICATOR"; the Events switch's knob low; and asking "Saya pikir masalah alignment
@@ -5467,7 +5467,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   market choice at the right (desktop and phone).
 - **Lesson:** a look change is checked by measuring alignment against its neighbours (start lines, ink centre, one-line
   rows), not only by screenshots and box positions; run `look_check11.mjs` with every Terminal look change.
-### M386 — Terminal: a white gap between an indicator row's value and its buttons (2026-11-07, fixed in code; caused by M380's fix; numbered M382 in its branch commits)
+### M386 — Terminal: a white gap between an indicator row's value and its buttons (2026-11-07, fixed, live; caused by M380's fix; numbered M382 in its branch commits)
 
 - **Found by:** the user (2026-11-07), screenshot of "Broker Inventory (Regular, Lot) No broker data yet" with an empty
   stretch before the eye button: "kenapa ada gap putih?"
