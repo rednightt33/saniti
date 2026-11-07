@@ -12583,4 +12583,9 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   - K7: "=" dan "!=" hanya untuk output bilangan bulat.
   - K2: ditanyakan user ("K2 ini apa ya?"); dijelaskan 2026-11-07 dengan pilihan A (jalur persetujuan untuk core),
     B (pola candle di Screener saja), C (core keluar dari daftar yang dijaga); menunggu jawaban.
-- Status: rencana; tidak ada yang dijalankan sampai K2 dijawab dan user memberi "go".
+- Go (user 2026-11-07): "Ok A Jalankan".
+  - K2: A, jalur persetujuan untuk perubahan core Backtest di tripwire (seperti baseline worker), ditambah tes bahwa
+    hasil kondisi lama tetap sama.
+  - Eksekusi dimulai: P0 (OPERATORS.md untuk disetujui user, pemeriksaan read-only database K6, peta nomor FL) dan P1
+    (rapikan). P2 dibangun setelah OPERATORS.md disetujui (K4).
+- Status: berjalan (P0, P1).
