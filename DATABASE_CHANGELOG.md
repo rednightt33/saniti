@@ -1,6 +1,6 @@
 # Database changelog
 
-## 2026-11-07 — EDGE Terminal drawings on the account (schema `edge_bff`, EXEC-DRAW-PANES) — not applied yet
+## 2026-11-07 — EDGE Terminal drawings on the account (schema `edge_bff`, EXEC-DRAW-PANES) — applied on dev
 
 - **User:** "semua gambar harus di simpan di akun EDGE, sama seperti trading view. Cek dulu struktur database." and, on the
   proposal, "3 jalankan dulu" (2026-11-07). Operational schema `edge_bff`, no market data, no catalog row; not in
@@ -20,6 +20,13 @@
   `verification/terminal_api/drawings_migration/`). **Not applied to Railway**: applied at the release through
   `verification/screener/jobs/run_migration.sh` (DRYRUN then APPLY) with the user's go; until then the drawings routes
   answer 503 `DRAWINGS_NOT_READY` and the page keeps the drawings in the browser.
+- **Applied 2026-11-07 (user: "rilis paket dan main"):** 22:16 WIB (after B6), no user run in flight (`edge_bff.jobs` 0,
+  `AI_conversation_turn` RUNNING 0, 0 active statements), through `verification/screener/jobs/run_migration.sh` with the
+  session's Railway account token: DRYRUN job `ea96b2e7` `VERDICT PASS 36/36`, APPLY job `8e07820a` `VERDICT PASS 23/23`;
+  `DATABASE_URL` removed after each (VAR_REMOVED). Read back through pgweb catalogs (15:20 UTC):
+  `edge_bff.terminal_drawings` with `terminal_drawings_pkey`; ACL `edge_bff_runtime=arwd` (SELECT, INSERT, UPDATE,
+  DELETE), nothing for PUBLIC. `database/migrations/APPLIED.sha256` lists it. A new empty table is not a large update: no
+  Postgres restart.
 
 ## 2026-11-07 — Feature 05 measured for the screener broker window (K6, read-only; no write)
 
