@@ -13,6 +13,12 @@ import { sha256Hex } from '../../../terminal/src/data/rack.ts';
 import reg from '../../src/core/screener-registry.json' with { type: 'json' };
 import { catalogIndicators, resolveScreenerParams, screenerIndicator } from '../../src/core/registry.ts';
 import { isScreenerError } from '../../src/core/errors.ts';
+import { METRICS_CATALOG } from '../../src/core/catalog.ts';
+import type { CatalogOperators } from '../../src/core/contract.ts';
+/** the catalog's operators block as the worker sends it (screener-worker catalog.ts catalogOperators): each measure with
+    its transform's arguments */
+const OPERATORS: CatalogOperators = (() => { const o = METRICS_CATALOG.operators; return { types:o.types, default_measure:o.default_measure, tests:o.tests.map(t => ({ ...t })),
+  measures:o.measures.map(x => ({ ...x, args:(METRICS_CATALOG.transforms.find(t => t.fn === x.fn)?.args ?? []).map(a => ({ ...a })) })) } as CatalogOperators })();
 import { DAYS, IHSG, LISTINGS, T as TK } from './data.ts';
 import { preview as pv, run as runDef, universeRow, type Market, type Tk } from './engine.ts';
 
@@ -167,7 +173,8 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
     }
     return { versions:v, data:{ ...d, refresh:'ready' }, limits:LIMITS,
       indicators,
-      metrics:METRICS, fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets };
+      metrics:METRICS, fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets,
+      operators:OPERATORS };
   };
   const counters: Record<string, number> = {};
   /** the fixture's own main-thread compute ([start, end] in performance.now() ms): the worker's work in production,

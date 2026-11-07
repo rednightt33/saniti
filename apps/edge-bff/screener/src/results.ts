@@ -23,6 +23,7 @@ import { applyTable } from './layout/table.ts';
 import { layoutHooks } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
+import { opValueText } from './operators.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -35,7 +36,10 @@ export function cellKey(c: Cell | undefined, kind: string | undefined): number |
   if (kind === 'state') return (c.status === 'pass' ? 1 : 0) * 1e15 + (c.lhs ?? 0) / 1e3;
   return c.value ?? null;
 }
-const kindOfCard = (c: Card) => { const e = entryOf(c); const o = e && optOf(e, c); return o?.kind || (c.raw as any)?.kind };
+const kindOfCard = (c: Card) => {
+  if (c.op) return c.op.test === 'cross' ? 'event' : c.op.test === 'ever' || c.op.test === 'at_least' || c.op.test === 'streak' ? 'window' : 'value';
+  const e = entryOf(c); const o = e && optOf(e, c); return o?.kind || (c.raw as any)?.kind;
+};
 function rowVal(r: Row, key: string): number | string | null {
   switch (key) {
     case 'match': return r.met + (r.status === 'match' ? 100 : 0);
@@ -89,6 +93,7 @@ function cellHtml(r: Row, c: Card): string {
   // happened, but earlier than the window, keeps "N sessions ago"
   else if (kind === 'event') txt = x.status !== 'pass' && x.bars_ago == null ? 'No' : eventText(x);
   else if (kind === 'state') txt = x.status === 'pass' ? 'Yes' : 'No';
+  else if (c.op && e?.ops) txt = opValueText(e.ops, e, c.op, x.value, x.status === 'pass');
   else txt = fmtValue(x.value, formatOfOpt(e, o));
   const side = formatOfSide(e, o);
   const tip = [

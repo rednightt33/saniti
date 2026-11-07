@@ -275,7 +275,9 @@ function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within:
 /** The units whose values depend on a stock's price level or share count (a price, a price difference, a volume): a
     rank across stocks of them only orders the stocks by price or size (OPERATORS.md section 4: a price level is not
     comparable across stocks), so operator 11 is not offered on them. */
-const NOT_RANKED = ['price', 'price_change', 'volume'];
+const RANK_TEST = METRICS_CATALOG.operators.tests.find(t => t.key === 'rank');
+const NOT_RANKED: readonly string[] = RANK_TEST?.not_on_units ?? [];
+const RANK_LEVELS = RANK_TEST?.not_on_levels !== false;
 /** Operator 11 (OPERATORS.md; contract.ts RankRef): a VALUE test on the percent rank 0-100 of `of` at each ticker's
     evaluation bar against the filtered universe (the caller's S1 values, screen.ts crossSections, decision C). A
     ticker whose own value is missing is NA with its series' reason; the cell remark follows the ranked series'
@@ -283,7 +285,7 @@ const NOT_RANKED = ['price', 'price_change', 'volume'];
 function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): BoundCondition {
   if (!isObj(m.of)) throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of must be the metric reference to rank.`, `${f}.metric.of`);
   const of = resolveSeries(m.of as MetricRef, `${f}.metric.of`, ctx);
-  if (of.comparableWith !== null || NOT_RANKED.includes(String(of.unit)))
+  if ((RANK_LEVELS && of.comparableWith !== null) || NOT_RANKED.includes(String(of.unit)))
     throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of: ${of.label} is ${of.comparableWith ? 'a price or volume level' : `in ${of.unit}`}, which depends on each stock's price or size, so ranking it across stocks only orders them by price or size. Rank a series that compares across stocks: a percent, an oscillator, a percentile or a z-score (right: rank of RSI or of a change in %; wrong: rank of the close).`, `${f}.metric.of`);
   if (t.op === 'eq' || t.op === 'ne') throw new ScreenerError('INVALID_CONDITION', `${f}.op: "=" and "!=" are for whole numbers; a rank is a percent 0-100: use >=, <= or a range (right: rank >= 90; wrong: rank = 90).`, `${f}.op`, { allowed: ['gt', 'lt', 'ge', 'le', 'between', 'outside'] });
   const norm: RankRef = { kind: 'rank', of: of.ref };

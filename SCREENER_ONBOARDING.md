@@ -371,7 +371,7 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
   `stale`, and the P4 remarks from the `actions` file (`snapshot.ts:225-241`).
 - **Pinned series** (`snapshot.ts:263-284`): the 53 indicators at `registry.ts:250` `startParams` (the registry
   defaults, except I43 at anchor Week: P17 a does not offer its default Session), 76 outputs; the core's declared
-  derived series of the default cards (`condition.ts:454` `declaredDerivedSeries`: the bar fields, the prior Donchian
+  derived series of the default cards (`condition.ts:456` `declaredDerivedSeries`: the bar fields, the prior Donchian
   bands, the rising lags and vs-MA averages); every series the presets read. 113 series on the real publication (LOCAL).
   Each is a tail of `SCREENER_WITHIN_MAX` + 1 bars per ticker (`metrics.ts:179` `tailLength`) in one shared
   `Float64Array`, written by the pre-warm through the one `series()` path (`prewarmChunk`, `snapshot.ts:370-387`),
@@ -405,8 +405,8 @@ field), `transform` (`pct_distance`, `band_position`, `lag`, `change`, `rolling_
 `stoch_cross_in_zone`, `new_high`, `silent`), `flow` (PHASE 2; refused at bind until then, `condition.ts:182`),
 `xsection` (`return_rank`), `universe` (a row attribute; fundamentals use this kind too, `contract.ts:460-462`). These
 lists are data, read from `screener-metrics.json` (section 1.11), never kept in code; `transforms.ts` implements each
-`fn` and pattern `type` (`IMPLEMENTED_TRANSFORMS` `:271`, `IMPLEMENTED_PATTERNS` `:522`), and `catalogProblems`
-(`catalog.ts:172`) fails when the two disagree.
+`fn` and pattern `type` (`IMPLEMENTED_TRANSFORMS` `:271`, `IMPLEMENTED_PATTERNS` `:515`), and `catalogProblems`
+(`apps/edge-bff/screener/src/core/catalog.ts:185`) fails when the two disagree.
 
 | Test | Rule (`evaluate.ts`) |
 |---|---|
@@ -519,7 +519,7 @@ window and refused after it ...".
 Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:154-158`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
 `owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:421-426`). Routes (`server.ts` header
-`:5-16`, `contract.ts:572` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
+`:5-16`, `contract.ts:586` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
 with `ETag`), `POST /v1/validate` (`{valid, definition_hash, normalized, versions}`; `versions` is additive,
@@ -680,7 +680,7 @@ Everything that is not one of the registry indicators is described as **data** i
 the 52-week high distance, the `return_rank` cross-section, 4 universe attributes, the 20 flow metrics FL01-FL20 of
 PHASE 2, the 32 fundamentals of APPENDIX C.3 with the 2 dividend metrics among them, index membership, listing board,
 notation) and the `periods` block (1M, 3M, 6M, 1Y = 21, 63, 126, 252 sessions, P23 a).
-`apps/edge-bff/screener/src/core/catalog.ts:75` `METRICS_CATALOG` loads and checks it at import, and `catalogProblems`
+`apps/edge-bff/screener/src/core/catalog.ts:88` `METRICS_CATALOG` loads and checks it at import, and `catalogProblems`
 again at the worker's start. Each metric entry carries:
 
 | Field | Meaning |
@@ -691,7 +691,7 @@ again at the worker's start. Each metric entry carries:
 | `unit` | raw unit on the wire (IDR, percent, fraction, sessions, …) |
 | `requires {file, columns}` | the xsection file and columns it needs; null when the snapshot already has what it reads |
 | `decision` | a sentence naming an open user decision, or null |
-| `applies_to` | a predicate over universe attributes (for example `Industry = Banks`); outside it the cell is `NOT_APPLICABLE` (`catalog.ts:142` `appliesTo`) |
+| `applies_to` | a predicate over universe attributes (for example `Industry = Banks`); outside it the cell is `NOT_APPLICABLE` (`apps/edge-bff/screener/src/core/catalog.ts:155` `appliesTo`) |
 | `formula`, `interpretation`, `misuse`, `evidence` | the `Feature_Catalog` fields, so a later AI onboarding can reuse them |
 | `unavailable_reason`, `default_test`, `ref`, `fl` | the reason shown while it is unavailable; the card it opens with; a reference template; the FLOW INDICATOR PROPOSALS id |
 
@@ -728,7 +728,7 @@ catalog per worker versions and `published_at` (an advance keeps the versions). 
 metric of an existing kind over a file the worker already reads needs only catalog entries; a new file needs worker
 code (its name in the file list, a decoder, its data version, its binding)** (section 2.1).
 
-**Presets** (`presets.json`, 26 presets of APPENDIX A.2; `apps/edge-bff/screener/src/core/catalog.ts:76` `PRESETS`):
+**Presets** (`presets.json`, 26 presets of APPENDIX A.2; `apps/edge-bff/screener/src/core/catalog.ts:89` `PRESETS`):
 each `{id, category, name, why, definition}` and for eight of them the prototype's default sort (`view.sort`). A preset
 is `AVAILABLE` only when every enabled leg and metric filter is (`validate.ts:495-524` `presetAvailability`; it never
 runs with a leg removed); the available ones are computed at each swap and kept pinned in the result cache, so a preset
@@ -982,7 +982,7 @@ What changes, per class (yes = always; maybe = depends; no = never):
 Notes: "no" for terminal-api rests on `/xsection` validating names against the index (BRANCH, section 1.6); a new
 service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:39`). "A wire kind
 the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
-`catalog.ts:152` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
+`apps/edge-bff/screener/src/core/catalog.ts:165` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
 field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:460-462`), so
 it needs no new kind (2.14). "File list" means the worker's list of files it reads (today `PHASE1_FILES`,
 `apps/screener-worker/src/snapshot.ts:58`): a file outside it is never downloaded, never enters the skip-unchanged rule
@@ -1084,9 +1084,9 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | Indicators (registry release only): base registry regenerated (`npm run registry` in `apps/backtest-worker`), overlay entry (`shape`, the test forms per output with operators and labels, `synonyms`, a one-line `description` of 20-160 characters in our own words, `default_test`), screener registry regenerated (`npm run registry` in `apps/edge-bff/screener`), both `registry:check` green | the generated files; `tests/core/registry.test.ts` "has one entry per base id and vice versa" |
-| Other metrics: `screener-metrics.json` entries with the built fields (section 1.11): `id`, `group`, `kind`, `label`, `short`, `params` (ranges; flow maxima derived from the published window), `tests`, `unit`, `requires {file, columns}`, `decision`, `applies_to`, `unavailable_reason`, `formula`, `interpretation`, `misuse`, `evidence`, `default_test` | `catalog.ts:172` `catalogProblems` at import and at the worker's start |
-| A new transform `fn` or pattern `type`: its function in `transforms.ts` and its id in `IMPLEMENTED_TRANSFORMS` / `IMPLEMENTED_PATTERNS` (`transforms.ts:271, 522`); an offered pattern without a `decision` must be implemented | `tests/core/catalog.test.ts` "keeps its rules and lists exactly the transforms and patterns transforms.ts computes" |
-| A new fundamental: `catalogProblems` checks its rule (`catalog.ts:199-201`): `kind: 'universe'` with the file it requires; no count is kept in code (FIXED, it held 32): that every fundamental of APPENDIX C.3 is there is derived from the prototype's catalogue, and a new one beyond it passes | `tests/core/catalog.test.ts` "holds every fundamental metric of the prototype's catalogue (APPENDIX C.3)" |
+| Other metrics: `screener-metrics.json` entries with the built fields (section 1.11): `id`, `group`, `kind`, `label`, `short`, `params` (ranges; flow maxima derived from the published window), `tests`, `unit`, `requires {file, columns}`, `decision`, `applies_to`, `unavailable_reason`, `formula`, `interpretation`, `misuse`, `evidence`, `default_test` | `apps/edge-bff/screener/src/core/catalog.ts:185` `catalogProblems` at import and at the worker's start |
+| A new transform `fn` or pattern `type`: its function in `transforms.ts` and its id in `IMPLEMENTED_TRANSFORMS` / `IMPLEMENTED_PATTERNS` (`transforms.ts:271, 515`); an offered pattern without a `decision` must be implemented | `tests/core/catalog.test.ts` "keeps its rules and lists exactly the transforms and patterns transforms.ts computes" |
+| A new fundamental: `catalogProblems` checks its rule (`apps/edge-bff/screener/src/core/catalog.ts:227-229`): `kind: 'universe'` with the file it requires; no count is kept in code (FIXED, it held 32): that every fundamental of APPENDIX C.3 is there is derived from the prototype's catalogue, and a new one beyond it passes | `tests/core/catalog.test.ts` "holds every fundamental metric of the prototype's catalogue (APPENDIX C.3)" |
 | Availability derived, never coded: removing the file from a fixture index makes the metric `REQUIRES_DATA` with no code change | `tests/core/catalog.test.ts` "derives availability from the published index: flow needs its files, technical metrics need none, a decision wins" |
 | A new wire kind or NA reason added to `contract.ts` only when no existing one fits; each new refusal or NA meets the four "Gates and evidence" items (rule seen first, how to pass, right and wrong example, a message naming the field and the fix) | `contract.ts`; texts |
 | Defaults, ranges and thresholds are the user's words, recorded; thresholds never validated against returns are labelled so | `EXEC.md` |
@@ -1509,7 +1509,7 @@ can differ; the cell's `eval_date` says which value was used). FACT behind the r
 
 **L4 contract and catalog.**
 - A new wire kind, the first time a market-wide series is used (PROPOSED, an additive change to `contract.ts`
-  `MetricRef` and `MetricKind`, and to the kinds `catalog.ts:152` `KINDS` accepts): `{kind: 'series', series:
+  `MetricRef` and `MetricKind`, and to the kinds `apps/edge-bff/screener/src/core/catalog.ts:165` `KINDS` accepts): `{kind: 'series', series:
   'USDIDR', field: 'close'}`, valid series read from the catalog; its binding in `condition.ts` and its validation in
   `validate.ts` are new code.
 - Transform `vs_series` (generalising `vs_index`): the stock's return over d sessions minus the series' return over the

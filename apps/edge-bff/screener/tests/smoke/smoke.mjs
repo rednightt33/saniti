@@ -341,6 +341,51 @@ await at('Add a condition: more than two blue boxes go behind Customize with the
   expect(await card.locator('[data-k="value"]').inputValue() === '25', 'the card does not hold the value set in the panel');
   expect(await runs() === r0, 'the window ran the screen');
 });
+await at('Operators (P3): "Operator…" opens Customize with Measure and Test from the catalog; percentile, K of N and rank run and show their cells', async () => {
+  // user 2026-11-07 (EXEC-SCREENER-FLOW-CANDLES, OPERATORS.md approved K4): an indicator setting, then a universal operator
+  await fresh(); await ready();
+  const r0 = await runs();
+  await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(300);
+  await page.fill('#acq', 'relative strength'); await page.waitForTimeout(200);
+  const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Relative Strength Index$/ }) });
+  await row.locator('[data-af="opt"]').selectOption('__op'); await page.waitForTimeout(200);
+  const pop = row.locator('.qpop');
+  expect(await pop.count() === 1, 'choosing Operator did not open the Customize panel');
+  const measures = await pop.locator('[data-ao="measure"] option').allInnerTexts(), tests = await pop.locator('[data-ao="test"] option').allInnerTexts();
+  // RSI has one line and no other series in its unit, so "Compared with another series" is not offered on it
+  expect(measures.length === 9 && /Percentile of its own history/.test(measures.join('|')) && !/Compared with another series/.test(measures.join('|')) && tests.length === 7 && /Rank among the screened stocks/.test(tests.join('|')),
+    'the operator lists are not the catalog\'s (8 measures without the relative one + "The value itself", 7 tests): ' + JSON.stringify({ measures, tests }));
+  expect(await pop.locator('[data-ao="measure"]').inputValue() === 'percentile' && await pop.locator('[data-aoa="length"]').inputValue() === '60' && await pop.locator('[data-ao="value"]').inputValue() === '90',
+    'the operator does not open on the catalog default (percentile of 60 sessions, at or above 90)');
+  // a range check in place: N out of range is refused at the field, never rounded
+  await pop.locator('[data-aoa="length"]').fill('300'); await pop.locator('[data-aoa="length"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  expect(await row.locator('[data-aoa="length"][aria-invalid="true"]').count() === 1, 'a length above 260 is not refused at its field');
+  await row.locator('[data-aoa="length"]').fill('60'); await row.locator('[data-aoa="length"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-ao="value"]').fill('50'); await row.locator('[data-ao="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  // the same indicator a second time: on 3 of the last 5 sessions above 50
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-ao="measure"]').selectOption('none'); await page.waitForTimeout(150);
+  await row.locator('[data-ao="test"]').selectOption('at_least'); await page.waitForTimeout(150);
+  await row.locator('[data-ao="value"]').fill('50'); await row.locator('[data-ao="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  // and a rank among the screened stocks
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-ao="test"]').selectOption('rank'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  const sums = await page.locator('#condList .mc[data-card] .msum').allInnerTexts();
+  expect(sums.length === 3 && /percentile of its own history \(60\) ≥ 50/.test(sums[0]) && /≥ 50 on 3 of the last 5 sessions/.test(sums[1]) && /rank among the screened stocks ≥ 90/.test(sums[2]),
+    'the cards do not state their operators: ' + JSON.stringify(sums));
+  expect(await runs() === r0, 'adding operators ran the screen');
+  await page.click('[data-logic="any"]'); await page.waitForTimeout(150);
+  await screen();
+  const cells = await page.locator('#resPane tbody tr').first().locator('td').allInnerTexts();
+  expect(cells.some(c => /^(Yes|No) · \d+\/5$/.test(c.trim())), 'the K of N cell does not read "Yes · k/5" or "No · k/5": ' + JSON.stringify(cells));
+});
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
   await fresh(); await ready();
   await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', 'vwap'); await page.waitForTimeout(100);

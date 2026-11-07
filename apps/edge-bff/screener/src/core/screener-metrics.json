@@ -3420,5 +3420,285 @@
       "applies_to": "Industry = Banks",
       "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and a decision of their own."
     }
-  ]
+  ],
+  "operators": {
+    "note": "The 15 universal operators of verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), as the page offers them: a measure (a transform of the series, operators 2, 3, 4, 6, 7, 12, 13, 14) and a test of the measured series (1, 15, 8, 5, 9, 10, 11). One source for the page's lists and the core's output-type rules (transforms.ts operatorTakes, condition.ts bindRank); a measure's unit gives the unit of its result ('diff': the unit of a difference of the series).",
+    "types": {
+      "P": {
+        "fns": [
+          "percentile",
+          "zscore"
+        ],
+        "words": "is already set against its own history (a percentile or z-score)"
+      },
+      "D": {
+        "fns": [
+          "rising_run"
+        ],
+        "words": "is a count of consecutive sessions"
+      }
+    },
+    "measures": [
+      {
+        "id": 2,
+        "fn": "vs_average",
+        "label": "Against its own average",
+        "help": "Today's value against its average of the N sessions before today: difference, ratio or percent.",
+        "unit": {
+          "by": "form",
+          "difference": "diff",
+          "ratio": "ratio",
+          "percent": "percent"
+        },
+        "not_on": [
+          "P",
+          "D"
+        ],
+        "default": {
+          "cmp": "ge",
+          "value": 10
+        }
+      },
+      {
+        "id": 3,
+        "fn": "percentile",
+        "label": "Percentile of its own history",
+        "help": "Where today's value stands among its own last N sessions, 0 to 100.",
+        "unit": "percentile",
+        "not_on": [
+          "P"
+        ],
+        "default": {
+          "cmp": "ge",
+          "value": 90
+        }
+      },
+      {
+        "id": 4,
+        "fn": "change",
+        "label": "Change over N sessions",
+        "help": "Today's value minus its value N sessions ago, in the series' own unit.",
+        "unit": "diff",
+        "not_on": [
+          "D"
+        ],
+        "default": {
+          "cmp": "gt",
+          "value": 0
+        }
+      },
+      {
+        "id": 4,
+        "fn": "change_pct",
+        "label": "Change over N sessions, %",
+        "help": "The percent change over the last N sessions.",
+        "unit": "percent",
+        "not_on": [
+          "D"
+        ],
+        "default": {
+          "cmp": "ge",
+          "value": 5
+        }
+      },
+      {
+        "id": 6,
+        "fn": "zscore",
+        "label": "Z-score against its own history",
+        "help": "How many standard deviations today's value is from its own mean of the N sessions before today.",
+        "unit": "sd",
+        "not_on": [
+          "P",
+          "D"
+        ],
+        "default": {
+          "cmp": "ge",
+          "value": 2
+        }
+      },
+      {
+        "id": 7,
+        "fn": "relative",
+        "label": "Compared with another series",
+        "help": "The difference or ratio to a second series of the same unit.",
+        "unit": {
+          "by": "form",
+          "difference": "diff",
+          "ratio": "ratio"
+        },
+        "not_on": [],
+        "second": true,
+        "default": {
+          "cmp": "gt",
+          "value": 0
+        }
+      },
+      {
+        "id": 12,
+        "fn": "slope",
+        "label": "Slope over N sessions",
+        "help": "The straight-line trend of the last N sessions, per session.",
+        "unit": "diff",
+        "not_on": [
+          "D"
+        ],
+        "default": {
+          "cmp": "gt",
+          "value": 0
+        }
+      },
+      {
+        "id": 13,
+        "fn": "acceleration",
+        "label": "Acceleration over N sessions",
+        "help": "The slope of the last N sessions minus the slope of the N before.",
+        "unit": "diff",
+        "not_on": [
+          "D"
+        ],
+        "default": {
+          "cmp": "gt",
+          "value": 0
+        }
+      },
+      {
+        "id": 14,
+        "fn": "distance_to_extreme",
+        "label": "Distance to its high or low",
+        "help": "How far today's value is from its N-session high or low, today included.",
+        "unit": {
+          "by": "form",
+          "absolute": "diff",
+          "percent": "percent"
+        },
+        "not_on": [
+          "D"
+        ],
+        "default": {
+          "cmp": "ge",
+          "value": -5
+        }
+      }
+    ],
+    "tests": [
+      {
+        "id": 1,
+        "key": "value",
+        "label": "Above or below a value",
+        "help": "The measured value against a threshold.",
+        "ops": [
+          "gt",
+          "lt",
+          "ge",
+          "le",
+          "eq",
+          "ne"
+        ],
+        "default": {}
+      },
+      {
+        "id": 15,
+        "key": "range",
+        "label": "Inside or outside a range",
+        "help": "Between two values, both included, or outside them.",
+        "ops": [
+          "between",
+          "outside"
+        ],
+        "default": {
+          "value": 20,
+          "value2": 80
+        }
+      },
+      {
+        "id": 8,
+        "key": "cross",
+        "label": "Crosses a value",
+        "help": "Crossed above or below a threshold within the last N sessions.",
+        "ops": [
+          "crosses_above",
+          "crosses_below"
+        ],
+        "within": true,
+        "default": {
+          "n": 5
+        }
+      },
+      {
+        "id": 5,
+        "key": "ever",
+        "label": "Ever in the last N sessions",
+        "help": "The threshold test passed on at least one of the last N sessions.",
+        "ops": [
+          "gt",
+          "lt",
+          "ge",
+          "le"
+        ],
+        "length": true,
+        "default": {
+          "n": 5
+        }
+      },
+      {
+        "id": 9,
+        "key": "at_least",
+        "label": "On K of the last N sessions",
+        "help": "The threshold test passed on at least K of the last N sessions.",
+        "ops": [
+          "gt",
+          "lt",
+          "ge",
+          "le"
+        ],
+        "length": true,
+        "count": true,
+        "default": {
+          "n": 5,
+          "k": 3
+        }
+      },
+      {
+        "id": 10,
+        "key": "streak",
+        "label": "N sessions in a row",
+        "help": "The threshold test passed on each of the last N sessions.",
+        "ops": [
+          "gt",
+          "lt",
+          "ge",
+          "le"
+        ],
+        "length": true,
+        "default": {
+          "n": 3
+        }
+      },
+      {
+        "id": 11,
+        "key": "rank",
+        "label": "Rank among the screened stocks",
+        "help": "The percent rank, 0 to 100, of the measured value among the stocks of your filtered universe.",
+        "ops": [
+          "ge",
+          "le",
+          "gt",
+          "lt",
+          "between",
+          "outside"
+        ],
+        "not_on_units": [
+          "price",
+          "price_change",
+          "volume"
+        ],
+        "not_on_levels": true,
+        "default": {
+          "cmp": "ge",
+          "value": 90
+        }
+      }
+    ],
+    "default_measure": "percentile"
+  }
 }

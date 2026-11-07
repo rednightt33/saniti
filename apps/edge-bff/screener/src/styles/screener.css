@@ -1512,6 +1512,8 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qpl{display:grid;grid-template-columns:120px auto 1fr;align-items:center;gap:8px}
 .qpl .lab{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qpl .sel{min-width:96px}
+/* the universal operators' selects (P3): their options are phrases ("On K of the last N sessions"), not one word */
+.qpl .sel.qop{min-width:240px;max-width:300px}
 .qpl .def{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
 .qsep{border-top:1px dashed var(--border)}
 .qpf{display:flex;justify-content:space-between;align-items:center}

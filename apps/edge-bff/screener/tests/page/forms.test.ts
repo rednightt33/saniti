@@ -88,7 +88,10 @@ describe('toWire / fromWire (forms.ts)', () => {
     // over an indicator (what it is computed on), a pattern, a flow and a cross-section metric in a form the page does
     // not offer, two bar fields, and an indicator the catalog does not know (its id is the only name there is)
     expect(cardName(undefined, named({ kind:'event', within:3, signal:{ lhs:{ kind:'price', field:'close' }, op:'crosses_above', rhs:{ kind:'transform', fn:'lag', of:{ kind:'indicator', indicator:'I01', output:'sma' }, args:{ bars:2 } } } }))).toBe(label('I01'));
-    expect(cardName(undefined, named({ kind:'value', op:'gt', value:1, metric:{ kind:'transform', fn:'change', of:{ kind:'indicator', indicator:'I06', output:'macd' }, args:{ bars:3 } } }))).toBe(label('I06'));
+    expect(cardName(undefined, named({ kind:'value', op:'gt', value:1, metric:{ kind:'transform', fn:'rising_run', of:{ kind:'indicator', indicator:'I06', output:'macd' } } }))).toBe(label('I06'));
+    // a measure of the operators block (P3: change of MACD over 3 sessions) is no longer kept: it opens as an operator card
+    const op = fromWire({ id:'z', enabled:true, test:{ kind:'value', op:'gt', value:1, metric:{ kind:'transform', fn:'change', of:{ kind:'indicator', indicator:'I06', output:'macd' }, args:{ bars:3 } } } }, byKey);
+    expect([op.raw, op.entry, op.op?.measure, op.op?.margs]).toEqual([undefined, 'I06', 'change', { bars:3 }]);
     expect(cardName(undefined, named({ kind:'event', within:3, signal:{ pattern:{ kind:'pattern', type:'volspike' } } }))).toBe(label('volspike'));
     expect(cardName(undefined, named({ kind:'value', op:'gt', value:1, metric:{ kind:'flow', metric:'bandar', params:{ window:20 } } }))).toBe(label('bandar'));
     expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'xsection', metric:'return_rank', params:{ window:252 } }, op:'gt', rhs:{ value:50 } }))).toBe(label('return_rank'));

@@ -513,7 +513,21 @@ export interface CatalogResponse {
   periods: Periods;
   groupings: Grouping[];             // the Backtest's groupingsOf over ref/tickers.json.gz; unclassified counted apart
   presets: CatalogPreset[];
+  /** additive (EXEC-SCREENER-FLOW-CANDLES P3): the universal operators the page offers (screener-metrics.json
+      operators, each measure with its transform's arguments); absent from an older worker, whose page offers none */
+  operators?: CatalogOperators;
 }
+/** The universal operators of verification/screener/OPERATORS.md as the page offers them: measures (a transform of the
+    condition's series, with the transform's arguments and the unit of its result) and tests (how the measured series
+    is tested), plus the output types a series made by a transform has (types). */
+export interface CatalogOperators {
+  types: Record<string, { fns: string[]; words: string }>;
+  measures: { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; default: { cmp: string; value: number }; args: CatalogParam[] }[];
+  tests: { id: number; key: OperatorTestKey; label: string; help: string; ops: string[]; within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean;
+    default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number } }[];
+  default_measure: string;
+}
+export type OperatorTestKey = 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank';
 /** One ticker of the universe, for the page's popover counts (it runs universe.ts on these rows, the worker runs the
     same function in S0; report 8.4). Every listed stock is in it, hidden ones included, so the chips can count what
     they hide (P4). */

@@ -394,29 +394,22 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
 const differenceUnit = (x: ResolvedSeries): string | null => x.unit === 'price' ? 'price_change' : x.unit as string | null;
 /** A unit in words for a refusal. */
 const unitWords = (x: ResolvedSeries): string => x.unit === null ? 'without a unit' : x.comparableWith ? `a ${x.comparableWith === 'close' ? 'price' : 'volume'} level (${x.unit})` : `in ${x.unit}`;
-/** Which universal operators an output type takes (OPERATORS.md section 4), for the types a price or indicator series
-    can have: an operator result that is already a percentile or a z-score (type P) is not offered the operators that
-    set it against its own history again (Historical Average, Historical Percentile, Z-Score); a run of consecutive
-    sessions (type D, rising_run) grows by one a session, so Historical Average, Change in percent, Z-Score, Slope,
-    Acceleration and Distance to Extreme have no meaning on it. Every other series takes every operator. */
-const NOT_OFFERED: Record<'P' | 'D', readonly string[]> = {
-  P: ['vs_average', 'percentile', 'zscore'],
-  D: ['vs_average', 'change_pct', 'zscore', 'slope', 'acceleration', 'distance_to_extreme'],
-};
-const OPERATOR_NAMES: Record<string, string> = {
-  vs_average: 'Historical Average', percentile: 'Historical Percentile', zscore: 'Z-Score', change_pct: 'Change in percent',
-  slope: 'Trend / Slope', acceleration: 'Acceleration', distance_to_extreme: 'Distance to Extreme',
-};
-function outputType(x: ResolvedSeries): 'P' | 'D' | null {
+/** Which universal operators an output type takes (OPERATORS.md section 4), from the catalog's operators block (one
+    source with the page): a series made by a transform of a type (P: percentile, zscore, already set against its own
+    history; D: rising_run, a count of consecutive sessions) is not offered the measures whose not_on names that type;
+    every other series takes every measure. */
+const OPS = METRICS_CATALOG.operators;
+const NOT_OFFERED: Record<string, readonly string[]> = Object.fromEntries(Object.keys(OPS.types).map(k => [k, OPS.measures.filter(m => m.not_on.includes(k)).map(m => m.fn)]));
+const OPERATOR_NAMES: Record<string, string> = Object.fromEntries(OPS.measures.map(m => [m.fn, m.label]));
+function outputType(x: ResolvedSeries): string | null {
   const fn = x.kind === 'transform' ? (x.ref as TransformRef).fn : null;
-  return fn === 'percentile' || fn === 'zscore' ? 'P' : fn === 'rising_run' ? 'D' : null;
+  return Object.entries(OPS.types).find(([, t]) => fn !== null && t.fns.includes(fn))?.[0] ?? null;
 }
 function operatorTakes(fn: string, of: ResolvedSeries, field: string): void {
   const type = outputType(of);
   if (!type || !NOT_OFFERED[type].includes(fn)) return;
-  const what = type === 'P' ? 'is already set against its own history (a percentile or z-score)' : 'is a count of consecutive sessions';
-  const takes = Object.keys(OPERATOR_NAMES).filter(k => !NOT_OFFERED[type].includes(k)).map(k => OPERATOR_NAMES[k]);
-  throw new ScreenerError('INVALID_CONDITION', `${field}: ${of.label} ${what}, so ${OPERATOR_NAMES[fn]} is not offered on it; it takes ${takes.join(', ')}, a value test, a range or a cross. Apply the operator to the series itself instead (right: ${OPERATOR_NAMES[fn]} of RSI; wrong: ${OPERATOR_NAMES[fn]} of a ${type === 'P' ? 'percentile' : 'rising run'}).`, field, { allowed: takes });
+  const takes = [...new Set(OPS.measures.filter(m => !NOT_OFFERED[type].includes(m.fn)).map(m => m.label))];
+  throw new ScreenerError('INVALID_CONDITION', `${field}: ${of.label} ${OPS.types[type].words}, so ${OPERATOR_NAMES[fn]} is not offered on it; it takes ${takes.join(', ')}, a value test, a range or a cross. Apply the operator to the series itself instead (right: ${OPERATOR_NAMES[fn]} of RSI; wrong: ${OPERATOR_NAMES[fn]} of ${OPS.types[type].fns.join(' or ')}).`, field, { allowed: takes });
 }
 const closeSeries = (): ResolvedSeries => ({ kind: 'price', key: '', ref: { kind: 'price', field: 'close' }, label: 'close', unit: 'price', historyClass: null, inputs: ['C'], comparableWith: 'close', compareLag: NO_LAG, full: t => t.bars.C });
 

@@ -3,7 +3,7 @@
    each with its parameters and the choices of its operator select. Everything comes from the catalog answer; the page
    holds no indicator list, no synonym table and no default of its own (report 6.9, 9.2 P6). Pure: no DOM. */
 import type {
-  Availability, CatalogIndicator, CatalogMetric, CatalogOutput, CatalogParam, CatalogResponse, MetricKind, ParamMap,
+  Availability, CatalogIndicator, CatalogOperators, CatalogMetric, CatalogOutput, CatalogParam, CatalogResponse, MetricKind, ParamMap,
   ParamValue, TestForm, TestFormSpec, TestKind, TestOp,
 } from './core/contract.ts';
 import { formatOfMetric, formatOfOutput, type ValueFormat } from './format.ts';
@@ -43,6 +43,9 @@ export interface Entry {
   synonyms: string[];
   history: string | null;      // history_class note ("level depends on history start" for cumulative)
   indicator?: CatalogIndicator; metric?: CatalogMetric; metricKind?: MetricKind;
+  /** the catalog's universal operators (GET /catalog `operators`, P3) on an indicator entry: the measures and tests a
+      card on it may add (operators.ts); absent from an older catalog, and on metrics */
+  ops?: CatalogOperators;
 }
 
 const GROUP_OF_METRIC = (g: string, kind: string) => GORD.includes(g) ? g
@@ -163,7 +166,7 @@ function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental', indicator
 /** Every entry of the catalog, indicators first (registry order), then metrics, then fundamentals. */
 export function entriesOf(cat: CatalogResponse): Entry[] {
   return [
-    ...cat.indicators.map(ind => indicatorEntry(ind, cat.indicators)),
+    ...cat.indicators.map(ind => { const e = indicatorEntry(ind, cat.indicators); if (cat.operators) e.ops = cat.operators; return e }),
     ...cat.metrics.map(m => metricEntry(m, 'metric', cat.indicators)),
     ...cat.fundamentals.map(m => metricEntry(m, 'fundamental', cat.indicators)),
   ];
