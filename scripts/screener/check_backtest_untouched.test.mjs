@@ -1,8 +1,11 @@
-/* Tests of the Backtest tripwire (check_backtest_untouched.mjs, EXEC-MU-RUNTIME): on a throwaway git repository made
-   from this tree's files (the tripwire, the worker, the core, the Terminal's formulas, Feature 04, a short EXEC.md),
-   whose `origin/main` is its first commit:
-   - a Screener-side change to a formula or core path fails, with or without a baseline, and a baseline cannot be
-     recorded over it;
+/* Tests of the Backtest tripwire (check_backtest_untouched.mjs, EXEC-MU-RUNTIME and EXEC-SCREENER-FLOW-CANDLES K2 A) on a
+   throwaway git repository made from this tree's files (the tripwire, the worker, the core, the Terminal's formulas,
+   Feature 04, a short EXEC.md), whose `origin/main` is its first commit:
+   - a change to a formula or Feature 04 path fails, with or without a record, and no record can be made over it;
+   - a core change without a core record fails (as before K2 A); recorded (--record-core: an EXEC section, the user's
+     decision and its date) it passes; any further core change, a file git does not track yet included, fails again
+     until recorded again; a record naming no EXEC section, without the decision or its date, or with versions of other
+     sources, fails; a core record approves no worker change and a worker baseline no core change;
    - a worker change without a baseline fails; recorded (--record, an EXEC section) it passes; any further worker change,
      a test or an untracked file too, fails again until recorded again; a baseline naming no EXEC section, or with
      versions of other sources, fails.
@@ -19,8 +22,9 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const COPIED = ['scripts/screener/check_backtest_untouched.mjs', 'apps/backtest-worker', 'apps/edge-bff/backtest/src/core',
   'apps/edge-bff/terminal/src/calc', 'apps/edge-bff/terminal/src/data/indRegistry.json', 'features/feature04',
   'apps/feature-04-worker', 'apps/stockbit-updater', '.gitignore'];
-const EXEC = '# Executions\n\n## EXEC-MU-RUNTIME — test section\n\nApproved for the test.\n\n## EXEC-SCREENER — another\n';
+const EXEC = '# Executions\n\n## EXEC-MU-RUNTIME — test section\n\nApproved for the test.\n\n## EXEC-SCREENER — another\n\n## EXEC-SCREENER-FLOW-CANDLES — the core approval\n';
 const BASELINE = 'scripts/screener/backtest_worker_baseline.json';
+const CORE_BASELINE = 'scripts/screener/backtest_core_baseline.json';
 let dir = '';
 
 const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
@@ -30,8 +34,10 @@ function tripwire(...args) {
   return { code: r.status, out: r.stdout + r.stderr };
 }
 const record = (section = 'EXEC-MU-RUNTIME') => tripwire('--record', '--exec', section, '--decision', 'Tahap 0, ukur (test)', '--note', 'log fields (test)');
+const recordCore = (section = 'EXEC-SCREENER-FLOW-CANDLES', date = '2026-11-07') =>
+  tripwire('--record-core', '--exec', section, '--decision', '"2A" and K2 "A" (test)', ...(date ? ['--date', date] : []), '--note', 'candle patterns (test)');
 const append = (file, text) => fs.appendFileSync(path.join(dir, file), text);
-const restore = () => { git('checkout', '--', '.'); git('clean', '-fdq', '--', 'apps', 'features'); fs.rmSync(path.join(dir, BASELINE), { force: true }) };
+const restore = () => { git('checkout', '--', '.'); git('clean', '-fdq', '--', 'apps', 'features'); for (const f of [BASELINE, CORE_BASELINE]) fs.rmSync(path.join(dir, f), { force: true }) };
 
 before(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tripwire-test-'));
@@ -50,34 +56,113 @@ before(() => {
 });
 after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-test('unchanged: OK, the worker as the base', () => {
+test('unchanged: OK, the core and the worker as the base', () => {
   const r = tripwire();
   assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /apps\/edge-bff\/backtest\/src\/core unchanged/);
   assert.match(r.out, /apps\/backtest-worker unchanged/);
 });
 
-test('a Screener-side change to a formula or core path fails, a baseline approves none, and none can be recorded over it', () => {
+test('a change to a formula or Feature 04 path fails, no record approves it, and none can be recorded over it', () => {
   try {
-    for (const [file, text] of [['apps/edge-bff/backtest/src/core/engine.ts', '\n// changed\n'],
-      ['apps/edge-bff/terminal/src/calc/indicators.ts', '\n// changed\n'], ['features/feature04/NEW.md', 'new\n']]) {
+    for (const [file, text] of [['apps/edge-bff/terminal/src/calc/indicators.ts', '\n// changed\n'], ['features/feature04/NEW.md', 'new\n']]) {
       append(file, text);
       const r = tripwire();
       assert.equal(r.code, 1, r.out);
-      assert.match(r.out, /formula, core or Feature 04 paths differ|untracked files in formula, core or Feature 04 paths/);
+      assert.match(r.out, /formula or Feature 04 paths differ|untracked files in formula or Feature 04 paths/);
       assert.ok(r.out.includes(file), r.out);
-      const rec = record();
-      assert.equal(rec.code, 1, rec.out);
-      assert.match(rec.out, /baseline NOT recorded/);
-      assert.ok(!fs.existsSync(path.join(dir, BASELINE)));
+      for (const rec of [record(), recordCore()]) {
+        assert.equal(rec.code, 1, rec.out);
+        assert.match(rec.out, /NOT recorded/);
+      }
+      assert.ok(!fs.existsSync(path.join(dir, BASELINE)) && !fs.existsSync(path.join(dir, CORE_BASELINE)));
       restore();
     }
-    // with a baseline that approves a worker change, a core change still fails
+    // with records that approve a core and a worker change, a formula change still fails
+    append('apps/edge-bff/backtest/src/core/engine.ts', '\n// approved core change\n');
+    assert.equal(recordCore().code, 0);
     append('apps/backtest-worker/src/server.ts', '\n// approved log line\n');
     assert.equal(record().code, 0);
-    append('apps/edge-bff/backtest/src/core/engine.ts', '\n// changed\n');
+    assert.equal(tripwire().code, 0);
+    append('apps/edge-bff/terminal/src/data/indRegistry.json', '\n');
     const r = tripwire();
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /formula, core or Feature 04 paths differ from origin\/main \(no baseline approves these\): apps\/edge-bff\/backtest\/src\/core\/engine\.ts/);
+    assert.match(r.out, /formula or Feature 04 paths differ from origin\/main \(no record approves these\): apps\/edge-bff\/terminal\/src\/data\/indRegistry\.json/);
+  } finally { restore() }
+});
+
+test('a core change fails without its record (as before K2 A), passes once recorded with the decision, and fails again on any further core change', () => {
+  try {
+    append('apps/edge-bff/backtest/src/core/engine.ts', '\n// changed\n');
+    let r = tripwire();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /apps\/edge-bff\/backtest\/src\/core differs from origin\/main \(apps\/edge-bff\/backtest\/src\/core\/engine\.ts\) and no recorded approval approves it: scripts\/screener\/backtest_core_baseline\.json is missing/);
+    // a worker baseline is no approval of a core change, and cannot be recorded over one
+    r = record();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /baseline NOT recorded/);
+    // a core record needs an EXEC section and the date of the decision
+    r = recordCore('EXEC-NOT-THERE');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /exec\.section "EXEC-NOT-THERE" is not a section of EXEC\.md/);
+    r = recordCore('EXEC-SCREENER-FLOW-CANDLES', '');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /exec\.date \(the date of the user's decision, YYYY-MM-DD\) is missing/);
+    r = recordCore();
+    assert.equal(r.code, 0, r.out);
+    const b = JSON.parse(fs.readFileSync(path.join(dir, CORE_BASELINE), 'utf8'));
+    assert.deepEqual([b.exec.section, b.exec.date], ['EXEC-SCREENER-FLOW-CANDLES', '2026-11-07']);
+    assert.match(b.exec.decision, /2A/);
+    assert.equal(b.base_commit, git('rev-parse', 'origin/main').trim());
+    assert.notEqual(b.engine_version, b.base_engine_version);          // a core change changes engine_version
+    assert.match(b.core_tree, /^[0-9a-f]{64}$/);
+    r = tripwire();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /apps\/edge-bff\/backtest\/src\/core as approved by EXEC-SCREENER-FLOW-CANDLES \(scripts\/screener\/backtest_core_baseline\.json, decision of 2026-11-07/);
+    assert.ok(r.out.includes(`engine_version ${b.engine_version}`), r.out);
+    // a further change anywhere in the core, a file git does not track yet included: not approved
+    for (const [file, text] of [['apps/edge-bff/backtest/src/core/conditions.ts', '\n// more\n'], ['apps/edge-bff/backtest/src/core/extra.ts', 'export {};\n']]) {
+      const at = path.join(dir, file), before = fs.existsSync(at) ? fs.readFileSync(at) : null;
+      append(file, text);
+      r = tripwire();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /and from the tree scripts\/screener\/backtest_core_baseline\.json approves/);
+      if (before === null) fs.rmSync(at); else fs.writeFileSync(at, before);
+    }
+    assert.equal(tripwire().code, 0);
+    // a core record approves no worker change: that needs its own baseline (recorded on the approved core)
+    append('apps/backtest-worker/tests/server.test.ts', '\n// a worker test\n');
+    r = tripwire();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /apps\/backtest-worker differs from origin\/main \(apps\/backtest-worker\/tests\/server\.test\.ts\) and no recorded baseline approves it/);
+    assert.equal(record('EXEC-SCREENER-FLOW-CANDLES').code, 0);
+    r = tripwire();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /core as approved by EXEC-SCREENER-FLOW-CANDLES.*apps\/backtest-worker as approved by EXEC-SCREENER-FLOW-CANDLES/);
+    git('checkout', '--', 'apps/backtest-worker'); fs.rmSync(path.join(dir, BASELINE));
+    // a record with another engine_version (made on other sources), without the decision or its date, or not JSON, fails
+    for (const change of [{ engine_version: '0'.repeat(16) }, { registry_version: 'f'.repeat(16) }, { exec: { section: 'EXEC-SCREENER-FLOW-CANDLES', decision: '', date: '2026-11-07' } },
+      { exec: { section: 'EXEC-SCREENER-FLOW-CANDLES', decision: '2A' } }, { exec: { section: 'EXEC-GONE', decision: '2A', date: '2026-11-07' } }, { note: '' }]) {
+      fs.writeFileSync(path.join(dir, CORE_BASELINE), JSON.stringify({ ...b, ...change }));
+      r = tripwire();
+      assert.equal(r.code, 1, `${JSON.stringify(change)}: ${r.out}`);
+    }
+    fs.writeFileSync(path.join(dir, CORE_BASELINE), '{not json');
+    assert.match(tripwire().out, /backtest_core_baseline\.json is not JSON/);
+  } finally { restore() }
+});
+
+test('the core as the base passes whatever an old core record says, and no core record is made without a core change', () => {
+  try {
+    append('apps/edge-bff/backtest/src/core/engine.ts', '\n// approved core change\n');
+    assert.equal(recordCore().code, 0);
+    git('checkout', '--', 'apps/edge-bff/backtest/src/core');
+    let r = tripwire();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /apps\/edge-bff\/backtest\/src\/core unchanged/);
+    r = recordCore();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /there is no core change to approve/);
   } finally { restore() }
 });
 
