@@ -477,6 +477,8 @@ export function initIndicators(ctx: Ctx) {
     const shown = pt => drawn(inst) && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
     inst.parts.forEach(pt => {
       const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
+      /* re-test Q2: the axis shows the last value only when the last candle has one (an empty end showed 1.68× of 30 Oct) */
+      if(pt.series && r.zone !== 'overlay' && pt.kind !== 'marker') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
       if(pt.kind === 'marker') {
         /* EXEC-TERMINAL-FLOW-IND: a mark under each candle where the indicator holds (FL09, FL27), on the series drawn */
         const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;

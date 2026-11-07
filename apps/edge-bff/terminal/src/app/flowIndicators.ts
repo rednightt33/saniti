@@ -331,6 +331,8 @@ export function initFlowIndicators(ctx: Ctx) {
       }
     });
     const viewBound = r.params.some(q => q.kind === 'date') || r.id === 'FL23';
+    /* an indicator that models a position (an opening balance: FL19, FL20) */
+    const modelled = r.params.some(q => q.key === 'opening');
     /* an indicator with no broker choice reads the whole market (FL32, FL40) */
     const marketWide = !r.params.some(q => q.key === 'scope' || q.key === 'top' || q.key === 'brokers' || q.key === 'inst') && r.params.some(q => q.key === 'investors');
     /* the date a value starts from: the anchor (default: the first candle in view) or a fixed start (Broker Inventory) */
@@ -383,11 +385,11 @@ export function initFlowIndicators(ctx: Ctx) {
         if (!R.n) return 'No broker data for this ticker';
         if (i > ctx.brokerEnd) return 'No broker data yet';
         const di = DAY ? DAY.dayOf[i] : i, fb = firstBroker();
-        if (di >= 0 && fb >= 0 && di < fb) return `Before the broker data (it starts ${longDay(dates[fb])})`;   // agent 5 F9
+        if (di >= 0 && fb >= 0 && di < fb) return `Before broker data (from ${longDay(dates[fb])})`;   // agent 5 F9
         if (di < 0 || !R.has[di]) return `No broker data on this ${one}`;
         /* EXEC-QA5-FIX (agent 5 F2, F2-07): a value that starts at a date (the anchor, Broker Inventory's start) says so */
         const start = startOf(p);
-        if (start && dates[di] && dates[di].slice(0, 10) < start) return `Starts at its start date, ${dayText(start)}`;
+        if (start && dates[di] && dates[di].slice(0, 10) < start) return `Starts ${dayText(start)} (start date)`;
         /* QA M8, R2-M2 (2026-11-06): a value still empty because the indicator's window reaches before the first broker
            candle. The need is read from the indicator's own first value (exact for every formula); with no value yet it
            is the sum of its windows, said as "at least" */
@@ -407,9 +409,9 @@ export function initFlowIndicators(ctx: Ctx) {
         }
         /* EXEC-QA5-FIX (QA Q2, F2-12): no row of the chosen board and investor type in the window */
         { const w = Math.max(1, Number(p?.window) || 1);
-          if (!filterHasRows(p, Math.max(0, di - w + 1), di)) return `No trades on ${[Array.isArray(p?.boards) ? p.boards.join('+') : '', Array.isArray(p?.investors) && p.investors.length === 1 ? p.investors[0] : ''].filter(Boolean).join(' · ') || 'this filter'} in this ${w > 1 ? `${w}-${one} window` : one}` }
+          if (!filterHasRows(p, Math.max(0, di - w + 1), di)) return `No trades: ${[Array.isArray(p?.boards) ? p.boards.join('+') : '', Array.isArray(p?.investors) && p.investors.length === 1 ? p.investors[0] : ''].filter(Boolean).join(' · ') || 'this filter'}${w > 1 ? ` in ${w}${letter}` : ''}` }
         /* the rest: the formula has nothing to measure here (nothing sold by the group, a position of 0 or less) */
-        return `No value on this ${one}: nothing to measure for this choice (for example no trade on one side, or a modelled position of 0 or less)`;
+        return modelled ? 'No value: modelled position is 0 or less' : 'No value: nothing to measure here';   // re-test N2: the model's words only where there is a model
       },
       validate:(p: any) => {
         // QA M1 (2026-11-06): an emptied list is a saved state (the row asks for a choice), not an invalid one
@@ -441,6 +443,8 @@ export function initFlowIndicators(ctx: Ctx) {
         const f = filterText(p); if (f) parts.push(f);
         // a window that caps a count reads "limit 60D" (QA F2-09: "60D" read as a 60-day window)
         if (p.window) parts.push(/limit/i.test(byKey.window?.label || '') ? `limit ${p.window}${letter}` : `${p.window}${letter}`);
+        // re-test N4: the change line's distance when it is not the window (FL11, FL34)
+        if (byKey.lag && p.lag !== undefined && p.lag !== 'window') parts.push(`change vs ${p.lag}${letter} ago`);
         /* EXEC-QA5-FIX (QA Q3, agent 5 F3): the periods compared, "last 5D vs 20D"; a baseline only where it is used (FL47
            reads its baseline only for a percentile or z-score) */
         const baseUsed = !(byKey.stat && (p.stat ?? byKey.stat.default) === 'value');
