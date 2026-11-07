@@ -12508,6 +12508,23 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
     kontrol jendela (satu baris, Board di kanan) dan judul kolom tabel di tengah pitanya (sempat 7,2/5,1 px, diperbaiki
     jadi 6,1/6,1).
 
+## EXEC-QA5-FIX — perbaikan temuan QA lima agen atas angka Terminal (go 2026-11-07)
+
+- Kata user 2026-11-07, sesudah rilis `4c7f46be`: "Setelah done, jalankan 5 agents sonnet 5.5 high" (lima agen: Top
+  brokers/verdict/Foreign × Domestic, Broker summary/inventory, Flow FL01-16, FL17-32, FL33-48 + legend/sumbu). Hasil:
+  semua hitungan cocok dengan hitung ulang mandiri dan database (FL11, FL16, FL22, FL28, FL30, FL47, FL48, insider);
+  temuan ada di makna, label, pembulatan dan keadaan kosong.
+- Usulan (A prioritas, B + teks/label, C + semua item kecil); kata user: "Jalankan A-C then test lagi".
+- A: (H1) Avg mode Net panel Broker summary; (H2) "position" Broker inventory; (1) pembulatan sebelum kategori/jumlah
+  (Foreign × Domestic 2 desimal dengan bagian yang menjumlah, warna dan driver dari angka yang tampil, "±0.00 pt", nol
+  sumbu "5.55e-17"); (2) jendela F×D: sesi tanpa nilai beli tetap tercatat, Δ hanya antar sesi berurutan, "now" = sesi
+  terakhir; (3) garis tidak menyambung melewati hari tanpa nilai; (8) jendela ⤢ mengikuti aturan indeks.
+- B: judul memuat parameter yang mengubah arti (tanggal awal, baseline, recent, unit, opsi), teks penyebut yang jujur,
+  pesan untuk nilai kosong (sebelum data, sebelum tanggal awal, filter tanpa transaksi, sebab lain), FL31 tanpa "Rp 0"
+  palsu dan catatan harga perkiraan, penjelasan kelompok "net buyers" di tooltip (diturunkan dari parameter).
+- C: semua item kecil dari kelima laporan. FL46 tidak diubah (keputusan user).
+- Catatan error: ERRORS M387-M390.
+
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
 **Kata user, 2026-11-07:** "untuk screenshot A, itu adalah selected state about currently where user scroll. Mungkin bisa

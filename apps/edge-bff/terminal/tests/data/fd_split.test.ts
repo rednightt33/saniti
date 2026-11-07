@@ -1,6 +1,6 @@
 // EXEC-BROKER-INV-PANEL (user 2026-11-06): Top brokers' Domestic / Foreign / Total lanes and the Foreign × Domestic map
 import { describe, expect, it } from 'vitest';
-import { fdQuadrant, fdSplit } from '../../src/data/brokerAgg';
+import { fdQuadrant, fdShown, fdSplit } from '../../src/data/brokerAgg';
 import { mapLimit, mapSvg } from '../../src/app/fdMap';
 import { bandarBalance } from '../../src/app/broker';
 
@@ -29,9 +29,9 @@ describe('Top N groups split by investor type', () => {
 describe('Foreign × Domestic map', () => {
   it('quadrants by sign (0 counts as positive)', () => {
     expect([fdQuadrant(1, 1), fdQuadrant(-1, 1), fdQuadrant(1, -1), fdQuadrant(-1, -1)]).toEqual([0, 1, 2, 3]);
-    // QA round 3: a part that shows as 0.0% is flat (Nego 0.0 / 0.0 was "Both accumulating")
-    expect([fdQuadrant(0, 0), fdQuadrant(-0.04, 0.04), fdQuadrant(0, 5), fdQuadrant(0.01, -5), fdQuadrant(5, 0), fdQuadrant(-5, -0.049)]).toEqual([4, 4, 5, 6, 7, 8]);
-    expect([fdQuadrant(0.05, 0.05), fdQuadrant(-0.05, 0.05)]).toEqual([0, 1]);
+    // QA round 3: a part that shows as 0.00% is flat (Nego 0.0 / 0.0 was "Both accumulating"); EXEC-QA5-FIX: two decimals
+    expect([fdQuadrant(0, 0), fdQuadrant(-0.004, 0.004), fdQuadrant(0, 5), fdQuadrant(0.001, -5), fdQuadrant(5, 0), fdQuadrant(-5, -0.0049)]).toEqual([4, 4, 5, 6, 7, 8]);
+    expect([fdQuadrant(0.005, 0.005), fdQuadrant(-0.005, 0.005), fdQuadrant(0.04, -0.04)]).toEqual([0, 1, 2]);
   });
   it('the axis half-range: at least 12 % with room, rounded to 5 (10 above 40)', () => {
     expect(mapLimit([1, -3])).toBe(15); expect(mapLimit([24.2, -9.2, 15.1])).toBe(30); expect(mapLimit([60])).toBe(70);
@@ -74,7 +74,26 @@ describe('Foreign × Domestic window', () => {
     expect(D.map(s => s.d)).toEqual(['2026-11-04', '2026-11-03']);
     expect(D[0]).toMatchObject({ i:2, dx:5, dy:-2, dr:3, driver:'fx' });
     expect(D[1]).toMatchObject({ i:1, dx:-1, dy:4, dr:3, driver:'dm' });
-    for (const s of D) expect(s.dx + s.dy).toBeCloseTo(s.dr, 10);
+    for (const s of D) expect(s.dx! + s.dy!).toBeCloseTo(s.dr!, 10);
+  });
+  // EXEC-QA5-FIX (QA 2026-11-07, F1, F2, F4, F10)
+  it('the figures as shown add up after rounding; the verdict is rounded as Top brokers', () => {
+    // 2 Jan 2026 1D Regular Top 3: −57.556 + 30.438 = −27.118 read "−57.6 + 30.4 = −27.1" at one decimal
+    const v = fdShown(-57.556, 30.438, -27.118);
+    expect(v.r).toBe(-27.12); expect(+(v.x + v.y).toFixed(2)).toBe(v.r);
+    for (let k = 0; k < 2000; k++) { const x = (Math.random() - .5) * 80, y = (Math.random() - .5) * 80, s = fdShown(x, y);
+      expect(+(s.x + s.y).toFixed(2)).toBe(s.r); expect(Math.abs(s.x - x)).toBeLessThanOrEqual(0.0151); expect(Math.abs(s.y - y)).toBeLessThanOrEqual(0.0151) }
+    expect(fdShown(5.959, 0, 5.959).r).toBe(5.96);              // "+6.0%" beside a Neutral tag cannot happen at two decimals
+  });
+  it('a session without buy value breaks the trail: no change across it, no driver when the verdict did not move', () => {
+    const T = [{ d:'2026-10-20', x:-1, y:1, r:0 }, { d:'2026-10-21', x:0, y:0, r:0, empty:true }, { d:'2026-10-22', x:-2, y:3, r:1 }, { d:'2026-10-23', x:-1.8, y:2.8, r:1 }];
+    const D = trailDeltas(T);
+    expect(D.map(s => [s.d, s.dr])).toEqual([['2026-10-23', 0], ['2026-10-22', null], ['2026-10-21', null]]);
+    expect(D[0].driver).toBeNull(); expect(D[0]).toMatchObject({ dx:0.2, dy:-0.2 });
+    const svg = trailSvg(T, 15);
+    expect(svg.match(/<polyline/g) || []).toHaveLength(1);      // only the 22-23 Oct run is a line; 20 Oct stands alone
+    expect(svg.match(/class="fdw-pt/g)).toHaveLength(3);
+    expect(trailSvg([...T, { d:'2026-10-24', x:0, y:0, r:0, empty:true }], 15)).toContain('>23 Oct<');   // the newest point is not "now"
   });
   it('the map marks the row under the pointer and names the newest point "now"', () => {
     const T = [{ d:'2026-11-02', x:-5, y:2, r:-3 }, { d:'2026-11-03', x:-6, y:6, r:0 }, { d:'2026-11-04', x:-1, y:4, r:3 }];

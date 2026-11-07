@@ -16,6 +16,9 @@ export function num(v: number | null | undefined, d = 2): string {
 /** three significant digits for a small value, else d decimals */
 export function smart(v: number | null | undefined, d = 1): string {
   if (!ok(v)) return '–';
+  /* EXEC-QA5-FIX (QA 2026-11-07, agent 5 F6): a floating-point remainder (an axis tick of 5.55e-17 at the zero line) is 0,
+     not "5.55e-17" */
+  if (Math.abs(v) < 1e-9) v = 0;
   const a = Math.abs(v);
   if (a > 0 && a < 0.1) return minus(String(Number(v.toPrecision(3))));
   return num(v, d);
@@ -27,7 +30,11 @@ export const change = (v: number | null | undefined, d = 2) => !ok(v) ? '–' : 
 /** an indicator level in percent (1 decimal, no sign): "48.2%" */
 export const pctLevel = (v: number | null | undefined) => !ok(v) ? '–' : smart(v, 1) + '%';
 /** a difference of two percentages, in percentage points (EXEC-TERMINAL-IND-EDIT: FL11 and FL34 change lines) */
-export const points = (v: number | null | undefined) => !ok(v) ? '–' : (v > 0 ? '+' : '') + num(v, 2) + ' pt';
+/* EXEC-QA5-FIX (QA F7, Q4): the sign follows the number as shown, so −0.003 reads "0.00 pt", never "−0.00 pt" or "+0.00 pt" */
+export const points = (v: number | null | undefined) => { if (!ok(v)) return '–'; const r = +v.toFixed(2) || 0; return (r > 0 ? '+' : '') + num(r, 2) + ' pt' };
+/** a change in percent with its sign, as the level's digits: "+7.9%" / "−7.9%" / "0.0%" (QA agent 5 F8: "Change %"
+    indicators showed a rise without "+") */
+export const pctChange = (v: number | null | undefined) => { if (!ok(v)) return '–'; const t = pctLevel(v); return t.startsWith('−') || /^0(\.0+)?%$/.test(t) ? t : '+' + t };
 /** Rasio: 2 decimals and × */
 export const ratio = (v: number | null | undefined) => !ok(v) ? '–' : smart(v, 2) + '×';
 /** Nilai transaksi: Rp with B (miliar) or T (triliun), 1 decimal; below 1B the whole rupiah */

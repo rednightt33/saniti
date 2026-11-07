@@ -56,9 +56,15 @@ export function sidesTable(list: Agg[], o: { mode: 'net' | 'gross'; limit: numbe
   const all = list.filter(x => !q || x.b.includes(q)).map(x => sumRow(x.b, [x], gross));
   const net = o.mode === 'net';
   const key = (r: SumRow, left: boolean) => net ? (left ? r.nv : -r.nv) : (left ? r.bv : r.sv);
+  /* EXEC-QA5-FIX (QA 2026-11-07, S-05): in Gross a side's share is of its own side, the buyers' buy value over the period's
+     buy value and the sellers' sell value over its sell value (each side sums to 100%); "buy + sell over buy + sell" put
+     every broker on both sides and the two totals added up to 199.8% */
+  const sideTot = (left: boolean) => list.reduce((t, x) => t + (left ? x.bv : x.sv), 0);
   const side = (left: boolean): SumSide => {
     const rows = all.filter(r => key(r, left) > 0).sort((a, b) => key(b, left) - key(a, left) || a.b.localeCompare(b.b));
-    return { rows:o.limit == null ? rows : rows.slice(0, o.limit), count:rows.length, total:sumRow('Total', rows, gross) };
+    const tot = sideTot(left), own = (r: SumRow): SumRow => net ? r : { ...r, share:tot ? (left ? r.bv : r.sv) / tot * 100 : 0 };
+    const kept = (o.limit == null ? rows : rows.slice(0, o.limit)).map(own);
+    return { rows:kept, count:rows.length, total:own(sumRow('Total', rows, gross)) };
   };
   return { left:side(true), right:side(false), total:sumRow('Total', list, gross) };
 }
@@ -90,9 +96,11 @@ export function invStats(v: number[]): InvStats {
 }
 
 /** CSV text: a header line and one line per row; a cell with a comma, quote or line break is quoted */
-export function toCsv(head: string[], rows: (string | number | null)[][]): string {
-  const cell = (v: string | number | null) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s };
-  return [head, ...rows].map(r => r.map(cell).join(',')).join('\n');
+/* EXEC-QA5-FIX (S-07): a number keeps at most 6 decimals, so a sum of fractional lots reads 418352.84, not
+   418352.83999999997; a context line (what the table is: ticker, period, filters) may lead the header */
+export function toCsv(head: string[], rows: (string | number | null)[][], context?: string): string {
+  const cell = (v: string | number | null) => { const s = v == null ? '' : typeof v === 'number' ? String(+v.toFixed(6)) : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s };
+  return [...(context ? [[context]] : []), head, ...rows].map(r => r.map(cell).join(',')).join('\n');
 }
 
 /** EXEC-TERMINAL-TOPSPLIT (user 2026-10-29: "pakai versi ini saja, tapi di balik ya, yang tebal = domestic"): the parts of a
@@ -136,10 +144,22 @@ export function fdSplit(buyers: string[], sellers: string[], part: Map<string, {
   return { buy, sell, net, total, ratio:total > 0 ? net.t / total : 0, rf:total > 0 ? net.f / total : 0, rd:total > 0 ? net.d / total : 0 };
 }
 /** the map's four quadrants by the signs of the foreign (x) and domestic (y) contributions; 0 counts as the positive side */
-/* QA round 3 (agent 5 M4, the open Low "quadrant names without a minimum"): a part that shows as 0.0% (under FD_FLAT
-   percentage points either way, the map's one decimal) is flat, not a direction; both flat is "No net flow", one flat names
-   the other side only. x foreign, y domestic, in % of total buy value */
-export const FD_FLAT = 0.05;
+/* QA round 3 (agent 5 M4, the open Low "quadrant names without a minimum"): a part that shows as 0.00% (under FD_FLAT
+   percentage points either way) is flat, not a direction; both flat is "No net flow", one flat names the other side only.
+   x foreign, y domestic, in % of total buy value. EXEC-QA5-FIX (QA 2026-11-07, F1-F3): the map shows two decimals, as Top
+   brokers' verdict, and the flat band is derived from that precision */
+export const FD_DP = 2;
+export const FD_FLAT = 0.5 / 10 ** FD_DP;
+const rd = (v: number) => { const r = Math.round(v * 10 ** FD_DP) / 10 ** FD_DP; return r === 0 ? 0 : r };
+/** the figures as shown: each rounded to FD_DP decimals, the verdict as Top brokers rounds it, and the two parts adjusted
+    by the largest remainder so that Foreign + Domestic = Verdict on screen too (a rounding never changes a sum) */
+export function fdShown(x: number, y: number, r = x + y): { x: number; y: number; r: number } {
+  const R = rd(r); let X = rd(x), Y = rd(y);
+  const gap = Math.round((R - X - Y) * 10 ** FD_DP);           // whole steps of 0.01 still missing (−1, 0 or +1)
+  if (gap) { const ex = x - X, ey = y - Y, step = gap / 10 ** FD_DP;   // give the step to the part rounded furthest the other way
+    if ((gap > 0 ? ex >= ey : ex <= ey)) X = rd(X + step); else Y = rd(Y + step) }
+  return { x:X, y:Y, r:R };
+}
 export const FD_QUADRANTS = ['Both accumulating', 'Domestic absorbing, foreign leaving', 'Foreign absorbing, domestic leaving', 'Both distributing',
   'No net flow', 'Domestic accumulating, foreign flat', 'Domestic distributing, foreign flat', 'Foreign accumulating, domestic flat',
   'Foreign distributing, domestic flat'] as const;

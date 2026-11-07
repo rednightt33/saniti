@@ -19,6 +19,12 @@ export const store = {
 };
 
 export const nfCompact = new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1});
+/** EXEC-QA5-FIX (QA 2026-11-07, S-08): an axis tick keeps two decimals, so 1,250 reads 1.25K, not "1.3K" beside 1.3K */
+export const tickCompact = (v: number) => (v < 0 ? '−' : v > 0 ? '+' : '') + new Intl.NumberFormat('en-US', { notation:'compact', maximumFractionDigits:2 }).format(Math.abs(v));
+/** EXEC-QA5-FIX (S-09): the candles with any part on screen (a monthly candle half in view counts, as the eye reads it);
+    the broker windows, the inventory panel and the Flow anchor share this one rule */
+export const visibleBars = (r: { from: number; to: number } | null, N: number): [number, number] =>
+  [r ? Math.max(0, Math.ceil(r.from - 0.5)) : 0, r ? Math.min(N - 1, Math.floor(r.to + 0.5)) : N - 1];
 /** QA round 3 (one minus sign): a negative figure on the page takes the minus sign "−", never the hyphen "-"; text that
     already holds a hyphen-minus before a figure is turned the same way */
 export const minus = (s: string) => s.replace(/(^|[\s(>:=~≤≥|])-(?=\d|Rp|\.\d)/g, '$1−');

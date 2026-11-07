@@ -487,7 +487,8 @@ export function initIndicators(ctx: Ctx) {
       }
       if(pt.kind === 'hist') {
         const rising = /rising/.test(pt.o.rule), states = s.states && /optional_state/.test(pt.o.rule), V = BARS.V;
-        pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:v,
+        /* EXEC-QA5-FIX (QA 2026-11-07, agent 5 F1): a day without a value is a gap (whitespace), never bridged */
+        pt.series.setData(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [{ time:T(i), value:v,
           color: states ? (i && a[i - 1] !== null ? alpha(STATE_COLORS[v >= a[i - 1] ? (V[i] >= V[i - 1] ? 0 : 2) : (V[i] >= V[i - 1] ? 3 : 1)], op) : c1)
                : rising ? (i && a[i - 1] !== null && v < a[i - 1] ? c2 : c1) : (v >= 0 ? c1 : c2) }]));
         pt.series.applyOptions({ visible:vis });
@@ -499,7 +500,7 @@ export function initIndicators(ctx: Ctx) {
         pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
         pt.series.applyOptions({ visible:vis, color:c1, pointMarkersRadius:Math.max(1, s.width) });
       } else {
-        pt.series.setData(a.flatMap((v, i) => v === null ? [] : [breaks.has(i + 1) ? { time:T(i), value:conv(v), color:'rgba(0,0,0,0)' } : { time:T(i), value:conv(v) }]));
+        pt.series.setData(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:conv(v), color:'rgba(0,0,0,0)' } : { time:T(i), value:conv(v) }]))   // a gap, not a bridge (agent 5 F1);
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
       }
       if(r.zone === 'overlay') [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));
@@ -545,7 +546,7 @@ export function initIndicators(ctx: Ctx) {
         lastValueVisible:true, priceLineVisible:false, crosshairMarkerVisible:false, title:`${ln.id} · ${inst.def.lineTag(inst.params)}`,
         priceFormat:{ type:'custom', formatter:inst.def.format, minMove:1 }
       });
-      series.setData(ln.vals.flatMap((v, i) => v === null ? [] : [{ time:ohlc[i].time, value:Math.round(v) }]));
+      series.setData(ln.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [{ time:ohlc[i].time, value:Math.round(v) }]));
       return { id:ln.id, color, series, vals:ln.vals };
     });
     paintRow(inst);
@@ -564,7 +565,7 @@ export function initIndicators(ctx: Ctx) {
       const value = sub ? Math.round(v) : +v.toFixed(4);
       return inst.sType === 'hist' ? { time:ohlc[i].time, value, color:v >= 0 ? inst.style.color : inst.style.colorNeg } : { time:ohlc[i].time, value };
     };
-    inst.series.setData(inst.vals.flatMap((v, i) => v === null ? [] : [point(v, i)]));
+    inst.series.setData(inst.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [point(v, i)]));   // a gap, not a bridge
     const o = { visible:drawn(inst) };
     if(inst.sType === 'line') Object.assign(o, { color:inst.style.color, lineWidth:inst.style.width || 2, lineStyle:LINE_STYLES[inst.style.lineStyle || 'Solid'] });
     inst.series.applyOptions(o);
