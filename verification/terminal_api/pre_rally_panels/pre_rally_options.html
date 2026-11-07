@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pre-Rally Panels</title>
+<style>
+:root{--bg:#f4f4f5;--surface:#fff;--border:#eaeaea;--text:#171717;--text-2:#666;--text-3:#999;--sel:#f2f2f2;--up:#089981;--down:#f23645;
+ --up-soft:#e3f5ef;--down-soft:#fde8ea;--fx:#0070f3;--fx-soft:#e6f0fe;--dm:#d97706;--dm-soft:#fef3e0;--pu:#7928ca;
+ --ph-decline:#fde8ea;--ph-climax:#fbd5d9;--ph-base:#f2f2f2;--ph-spring:#fef3e0;--ph-test:#e6f0fe;--ph-ready:#d9f2ea;--ph-markup:#c4ebde;
+ --sans:"Inter","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f0f10;--surface:#18181a;--border:#2a2a2d;--text:#ededed;--text-2:#a1a1a1;--text-3:#707070;--sel:#26262a;--up-soft:#0d2e27;--down-soft:#3a1519;--fx-soft:#0b2240;--dm-soft:#3a2a0b;
+ --ph-decline:#2a1215;--ph-climax:#3a1519;--ph-base:#1f1f22;--ph-spring:#33240a;--ph-test:#0b2240;--ph-ready:#0d2e27;--ph-markup:#0f3a30}}
+:root[data-theme="dark"]{--bg:#0f0f10;--surface:#18181a;--border:#2a2a2d;--text:#ededed;--text-2:#a1a1a1;--text-3:#707070;--sel:#26262a;--up-soft:#0d2e27;--down-soft:#3a1519;--fx-soft:#0b2240;--dm-soft:#3a2a0b;
+ --ph-decline:#2a1215;--ph-climax:#3a1519;--ph-base:#1f1f22;--ph-spring:#33240a;--ph-test:#0b2240;--ph-ready:#0d2e27;--ph-markup:#0f3a30}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:12px 16px}
+h1{font-size:17px;margin:0}
+.muted{color:var(--text-2)}.small{font-size:11.5px}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:16px 0}
+.box h2{font-size:14px;margin:0 0 6px}.box p{margin:5px 0}.box ul,.box ol{margin:6px 0;padding-left:18px}.box li{margin:3px 0}
+.toc{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.toc a{font-size:12px;color:var(--text);text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:2px 9px;background:var(--surface)}
+table.sum{width:100%;border-collapse:collapse;font-size:12px}
+table.sum th,table.sum td{padding:6px 8px;border-top:1px solid var(--border);text-align:left;vertical-align:top}
+table.sum th{color:var(--text-2);font-weight:600;background:var(--sel)}
+.opt{display:grid;grid-template-columns:minmax(0,1fr) 520px;gap:20px;align-items:start;margin:22px 0;padding-top:20px;border-top:1px solid var(--border);scroll-margin-top:64px}
+@media (max-width:980px){.opt{grid-template-columns:1fr}}
+.opt h3{margin:0 0 4px;font-size:15px}
+.opt .n{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:6px;background:var(--text);color:var(--bg);font-size:12px;margin-right:8px;vertical-align:1px}
+.opt .q{font-weight:600;margin:4px 0}.opt p{margin:4px 0}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.chip{font-size:11px;border-radius:999px;padding:1px 8px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);white-space:nowrap}
+.chip.k{background:var(--sel);color:var(--text)}
+.rate{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:2px}
+.rate.hi{background:var(--up-soft);color:var(--up)}.rate.mid{background:var(--sel);color:var(--text-2)}.rate.lo{background:var(--down-soft);color:var(--down)}
+dl.d{display:grid;grid-template-columns:96px 1fr;gap:3px 10px;margin:6px 0;font-size:12.5px}
+dl.d dt{color:var(--text-2)}dl.d dd{margin:0}
+.term{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;width:100%;max-width:520px}
+.term .lab{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:6px 10px 0;color:var(--text-2)}
+.term .lab b{color:var(--text);font-weight:500}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px 12px;width:100%;max-width:330px}
+.panel .head{display:flex;align-items:center;gap:8px;margin-bottom:8px}.panel .head strong{font-size:13px}.panel .head small{margin-left:auto;font-size:11px;color:var(--text-2)}
+.up{color:var(--up)}.down{color:var(--down)}.num{font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}
+.tag.g{background:var(--up-soft);color:var(--up)}.tag.r{background:var(--down-soft);color:var(--down)}.tag.n{background:var(--sel);color:var(--text-2)}.tag.b{background:var(--fx-soft);color:var(--fx)}.tag.o{background:var(--dm-soft);color:var(--dm)}
+.check{list-style:none;padding:0;margin:4px 0}
+.check li{display:grid;grid-template-columns:18px 1fr auto;gap:6px;align-items:center;font-size:12px;padding:4px 0;border-top:1px solid var(--border)}
+.check li:first-child{border-top:0}
+.check .ok{color:var(--up);font-weight:700}.check .no{color:var(--text-3)}
+table.t{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+table.t th,table.t td{padding:4px 5px;border-top:1px solid var(--border);text-align:right;white-space:nowrap}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t th{color:var(--text-3);font-weight:500;font-size:10.5px;border-top:0}
+.big{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.phasebar{display:flex;height:12px;border-radius:3px;overflow:hidden;margin:6px 0 2px}
+.leg{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10.5px;color:var(--text-2);margin:4px 0 0}
+.leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+svg text{font-family:var(--sans)}
+.refs li{font-size:12px}
+footer{margin:28px 0 40px;color:var(--text-2);font-size:12px}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><h1>Panel pra-reli: 20 opsi</h1><span class="muted small">data contoh (dummy) · satu skenario untuk semua opsi</span></div></header>
+<main class="wrap">
+
+<section class="box">
+  <h2>Konteks</h2>
+  <ul>
+    <li><b>Tujuan</b> (permintaan Anda): pengguna bisa mengenali fase-fase yang berpotensi menjadi <b>pra-reli</b>, lewat panel baru sebagai indikator di bawah chart atau panel di sisi kanan.</li>
+    <li><b>Data yang sudah ada di Terminal:</b> 48 indikator Flow (FL01–FL48) dari ringkasan broker harian per broker, jenis investor (asing/domestik), papan, nilai, lot dan frekuensi. Ditambah harga OHLCV, IHSG, aksi korporasi dan transaksi orang dalam (FL31). Setiap opsi menyebut indikator mana yang dipakai, dan apa yang perlu dihitung baru.</li>
+    <li><b>Mock-up:</b> semuanya memakai satu skenario <b>data contoh</b> (bukan saham nyata) agar bisa dibandingkan. Alurnya: turun → klimaks jual → dasar (volatilitas menyempit, volume mengering, akumulasi diam-diam) → spring (turun sebentar di bawah dasar lalu pulih) → uji → siap → tembus dan naik.</li>
+    <li><b>Batas:</b> panel-panel ini menggambarkan kondisi, <b>bukan ramalan</b>. Ambang angkanya heuristik dari literatur praktik dan harus diuji ulang pada data IDX sebelum dipakai sebagai sinyal (lihat bagian Riset).</li>
+  </ul>
+  <div class="toc" id="toc"></div>
+</section>
+
+<section class="box">
+  <h2>Riset acuan (ringkas)</h2>
+  <ol class="refs">
+    <li><b>Fase Wyckoff</b> (klimaks jual → dasar → spring/uji → tanda kekuatan → naik). Ambang angka berbeda antarsumber dan belum ada uji baku: <a href="https://www.luxalgo.com/library/concept/wyckoff-method/">LuxAlgo: Wyckoff</a>, <a href="https://www.luxalgo.com/library/concept/spring/">LuxAlgo: Spring</a>, <a href="https://capital.com/en-gb/learn/technical-analysis/the-wyckoff-method">Capital.com</a>.</li>
+    <li><b>Volatility Contraction Pattern</b> (Minervini): 2–4 penyempitan yang makin dangkal, volume mengering, lalu tembus pivot dengan volume besar: <a href="https://www.luxalgo.com/library/concept/volatility-contraction-pattern/">LuxAlgo: VCP</a>, <a href="https://www.luxalgo.com/library/concept/volume-dry-up.md">LuxAlgo: Volume dry-up</a>, <a href="https://therighttrader.com/learn/trading-strategies/volatility-contraction-pattern">The Right Trader</a>.</li>
+    <li><b>Squeeze</b> (Bollinger): fase volatilitas rendah sering diikuti gerak tajam ke salah satu arah; arah dibaca dari alat volume/akumulasi: <a href="https://chartschool.stockcharts.com/table-of-contents/trading-strategies-and-models/trading-strategies/bollinger-band-squeeze">StockCharts ChartSchool</a>.</li>
+    <li><b>Arus asing di IDX:</b> pembelian bersih investor asing berkaitan dengan imbal hasil berlebih sesudahnya (Rudiawarni, Sulistiawan &amp; Sergi, <i>Economic Modelling</i> 2024): <a href="https://ideas.repec.org/a/eee/ecmode/v135y2024ics0264999324000865.html">IDEAS/RePEc</a>. Bukti untuk arus per broker masih campuran: <a href="https://scholarhub.ui.ac.id/icmr/vol11/iss1/2">Indonesian Capital Market Review</a>.</li>
+    <li><b>Order imbalance</b> cenderung berlanjut (autokorelasi), dan imbalance yang lalu berkaitan dengan imbal hasil sesudahnya: <a href="https://www.cis.upenn.edu/~mkearns/finread/stock-misbalance.pdf">Chordia &amp; Subrahmanyam</a>.</li>
+    <li><b>Dekat harga tertinggi 52 minggu</b> menjelaskan sebagian besar laba momentum (George &amp; Hwang, <i>Journal of Finance</i> 2004): <a href="https://alphaarchitect.com/the-secret-to-momentum-is-the-52-week-high/">Alpha Architect</a>, <a href="https://quantpedia.com/Screener/Details/88">Quantpedia</a>.</li>
+    <li><b>Garis kekuatan relatif</b> mencetak tertinggi baru lebih dulu daripada harga (praktik O'Neil/IBD, belum diuji akademik): <a href="https://deepvue.com/?p=1703">Deepvue</a>.</li>
+    <li><b>Bandarmologi</b> (praktik IDX): akumulasi = beli bersih broker besar yang terpusat, harga rata-rata beli stabil, harga datar lama; baca minimal 5–10 hari; akumulasi tidak menjamin harga naik: <a href="https://ajaib.co.id/belajar/investasi/tanda-saham-sedang-diakumulasi-bandar">Ajaib</a>, <a href="https://www.industry.co.id/read/156212/cara-membaca-aksi-broker-summary-kenali-tanda-akumulasi-dan-distribusi-saham">Industry.co.id</a>, <a href="https://pintarsaham.id/?p=74699">Pintarsaham</a>.</li>
+  </ol>
+</section>
+
+<section class="box">
+  <h2>Ringkasan 20 opsi</h2>
+  <div style="overflow-x:auto"><table class="sum" id="sumtbl"><thead><tr><th>#</th><th>Opsi</th><th>Tipe</th><th>Fase</th><th>Data</th><th>Nilai</th></tr></thead><tbody></tbody></table></div>
+  <p class="small muted">Tipe: <b>Panel bawah</b> = indikator di bawah chart (seperti indikator Flow sekarang); <b>Overlay</b> = digambar di chart harga; <b>Panel kanan</b> = kartu di panel Broker activity. Nilai = penilaian saya: tinggi, sedang atau rendah, menurut manfaat untuk tujuan pra-reli, kesiapan data dan risiko salah baca.</p>
+</section>
+
+<div id="opts"></div>
+
+<section class="box">
+  <h2>Usulan saya</h2>
+  <ol>
+    <li><b>Mulai dari intinya: 1 Pelacak fase</b> (panel kanan). Isinya dihitung dari opsi yang datanya sudah ada:
+      <ul>
+        <li><b>3</b> Kotak dasar;</li>
+        <li><b>4</b> Penyempitan volatilitas dan <b>5</b> Volume mengering;</li>
+        <li><b>7</b> Akumulasi diam-diam;</li>
+        <li><b>8</b> Pita biaya bandar;</li>
+        <li><b>15</b> Hari serapan;</li>
+        <li><b>16</b> Spring;</li>
+        <li><b>18</b> Kekuatan relatif.</li>
+      </ul>
+      Pengguna melihat satu jawaban ("fase apa sekarang, syarat mana yang sudah terpenuhi"), lalu bisa membuka panel rinciannya.</li>
+    <li><b>Lalu tiga panel bawah</b> yang paling sering ditanyakan: <b>7</b>, <b>8</b>, <b>15</b>.</li>
+    <li><b>Skor gabungan (2)</b> baru dibuat <b>setelah</b> ambang tiap pilar diuji pada data IDX (berapa kali "siap" benar-benar diikuti kenaikan). Tanpa itu, angka 0–100 terlihat lebih pasti daripada buktinya.</li>
+  </ol>
+</section>
+<footer>Data contoh dibuat oleh skrip di halaman ini (angka acak tetap, seed 7). Usulan; belum dibangun di Terminal. Dicatat di FUTURE_PLAN.md (PRE-RALLY).</footer>
+</main>
+
+<script>
+/* ---- one dummy scenario (seeded) ---- */
+let seed = 7; const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 };
+const N = 180, PH = [];
+const phaseOf = i => i < 35 ? 'Decline' : i < 45 ? 'Climax' : i < 121 ? 'Base' : i < 125 ? 'Spring' : i < 134 ? 'Test' : i < 140 ? 'Ready' : 'Markup';
+const close = [], high = [], low = [], vol = [], ihsg = [], topNet = [], fNet = [], dNet = [], breadth = [], hhi = [], bigPct = [], persist = [], cost = [], vwap = [];
+let p = 1500, ix = 7000;
+for (let i = 0; i < N; i++) {
+  const ph = phaseOf(i); PH.push(ph);
+  let drift = 0, vola = .012, v = 1;
+  if (ph === 'Decline') { drift = -.011; vola = .018; v = 1.25 }
+  if (ph === 'Climax') { drift = i < 37 ? -.03 : .02; vola = .03; v = i < 38 ? 3.2 : 1.6 }
+  if (ph === 'Base') { const k = i - 45, amp = k < 30 ? .05 : k < 55 ? .03 : .014; drift = Math.sin(k / (k < 30 ? 5 : k < 55 ? 4 : 3)) * amp / 3; vola = k < 30 ? .014 : k < 55 ? .009 : .005; v = k < 30 ? .9 : k < 55 ? .65 : .45 }
+  if (ph === 'Spring') { drift = i < 123 ? -.03 : .035; vola = .012; v = .95 }
+  if (ph === 'Test') { drift = .003; vola = .006; v = .4 }
+  if (ph === 'Ready') { drift = .004; vola = .006; v = .6 }
+  if (ph === 'Markup') { drift = i === 140 ? .055 : .006; vola = .015; v = i === 140 ? 2.6 : 1.15 }
+  // the price follows anchors (decline, climax, three ever shallower pullbacks 10% / 6% / 3%, a spring under the 1,060
+  // support, a quiet test, the breakout at session 140, the markup), with a noise that shrinks through the base
+  const A = [[0, 1500], [34, 1080], [36, 1025], [40, 1172], [52, 1090], [64, 1180], [76, 1062], [88, 1178], [100, 1108], [110, 1177], [118, 1142], [121, 1150], [122, 1046], [124, 1148], [130, 1124], [134, 1160], [139, 1176], [140, 1236], [179, 1450]];
+  let a = 0; while (a < A.length - 2 && A[a + 1][0] <= i) a++;
+  const [i0, p0] = A[a], [i1, p1] = A[a + 1], base = p0 + (p1 - p0) * (i - i0) / (i1 - i0);
+  p = base * (1 + (rnd() - .5) * vola * 1.2); drift = 0; ix = ix * (1 + (i < 60 ? -.0015 : i < 140 ? .0003 : .0012) + (rnd() - .5) * .012);
+  close.push(p); ihsg.push(ix);
+  const r = p * vola * (1 + rnd()); high.push(p + r * rnd()); low.push(p - r * rnd());
+  vol.push(Math.round(30e6 * v * (.75 + rnd() * .5)));
+  const acc = ph === 'Base' ? .35 + (i - 45) / 76 * .45 : ph === 'Spring' ? 1.6 : ph === 'Test' || ph === 'Ready' ? .7 : ph === 'Markup' ? .5 : ph === 'Climax' ? .3 : -.6;
+  const tn = (acc + (rnd() - .5) * .9) * 9e9; topNet.push(tn);
+  const fShare = ph === 'Decline' ? 1.2 : ph === 'Base' ? -.4 + (i - 45) / 76 * .9 : ph === 'Markup' ? .6 : .3;
+  fNet.push(tn * fShare * .5 + (rnd() - .5) * 3e9); dNet.push(tn - fNet[i]);
+  breadth.push(Math.max(15, Math.min(75, (ph === 'Base' ? 52 - (i - 45) / 76 * 18 : ph === 'Markup' ? 55 : 48) + (rnd() - .5) * 14)));
+  hhi.push(ph === 'Base' || ph === 'Spring' || ph === 'Test' ? .05 + (i - 45) / 90 * .14 + (rnd() - .5) * .04 : (rnd() - .5) * .06);
+  bigPct.push(Math.max(2, Math.min(99, (ph === 'Base' ? 40 + (i - 45) / 76 * 35 : ph === 'Spring' ? 90 : ph === 'Markup' ? 70 : 35) + (rnd() - .5) * 40)));
+  persist.push(Math.max(0, Math.min(100, (ph === 'Base' ? 55 + (i - 45) / 76 * 30 : ph === 'Decline' ? 25 : 70) + (rnd() - .5) * 20)));
+}
+// cumulative and derived series
+const cum = a => { let s = 0; return a.map(v => s += v) };
+const cumTop = cum(topNet), ma = (a, n) => a.map((_, i) => { const s = a.slice(Math.max(0, i - n + 1), i + 1); return s.reduce((t, v) => t + v, 0) / s.length });
+const vol50 = ma(vol, 50), volRatio = vol.map((v, i) => v / vol50[i]);
+const range = close.map((c, i) => (high[i] - low[i]) / c * 100), atr = ma(range, 10);
+const sd = (a, n) => a.map((_, i) => { const s = a.slice(Math.max(0, i - n + 1), i + 1), m = s.reduce((t, v) => t + v, 0) / s.length; return Math.sqrt(s.reduce((t, v) => t + (v - m) ** 2, 0) / s.length) });
+const bw = sd(close, 20).map((s, i) => 4 * s / ma(close, 20)[i] * 100);
+const pctRank = (a, i, n = 120) => { const s = a.slice(Math.max(0, i - n + 1), i + 1), v = a[i]; return Math.round(s.filter(x => x <= v).length / s.length * 100) };
+const bwPct = bw.map((_, i) => pctRank(bw, i));
+let cv = 0, cq = 0; const icost = close.map((c, i) => { if (i >= 45 && topNet[i] > 0) { cv += c * topNet[i]; cq += topNet[i] } return cq ? cv / cq : null });
+const bvwap = close.map((_, i) => { const s = [], w = []; for (let k = Math.max(0, i - 19); k <= i; k++) if (topNet[k] > 0) { s.push(close[k] * topNet[k]); w.push(topNet[k]) } return w.length ? s.reduce((a, b) => a + b, 0) / w.reduce((a, b) => a + b, 0) : close[i] });
+const rs = close.map((c, i) => c / ihsg[i] * 5);
+const hi52 = close.map((_, i) => Math.max(...close.slice(Math.max(0, i - 179), i + 1)));
+const ret = close.map((c, i) => i ? c / close[i - 1] - 1 : 0);
+const absorb = ret.map((r, i) => r < 0 && topNet[i] > 0);
+const NOW = 138;                                     // the "today" of the panels: the Ready phase, before the breakout
+
+/* ---- drawing ---- */
+const PCOL = { Decline:'var(--ph-decline)', Climax:'var(--ph-climax)', Base:'var(--ph-base)', Spring:'var(--ph-spring)', Test:'var(--ph-test)', Ready:'var(--ph-ready)', Markup:'var(--ph-markup)' };
+const PNAME = { Decline:'Turun', Climax:'Klimaks jual', Base:'Dasar / akumulasi', Spring:'Spring', Test:'Uji', Ready:'Siap', Markup:'Naik' };
+const W = 520;
+function frame(h, lo, hi, opts = {}) {
+  const L = 4, R = 44, T = 6, B = opts.axis ? 16 : 4, x = i => L + i / (N - 1) * (W - L - R), y = v => T + (hi - v) / (hi - lo || 1) * (h - T - B);
+  let g = `<svg viewBox="0 0 ${W} ${h}" width="100%" role="img">`;
+  if (opts.phases !== false) { let s = 0; for (let i = 1; i <= N; i++) if (i === N || PH[i] !== PH[s]) { g += `<rect x="${x(s)}" y="${T}" width="${x(i - 1) - x(s) + (W - L - R) / N}" height="${h - T - B}" fill="${PCOL[PH[s]]}" opacity=".75"/>`; s = i } }
+  if (opts.now !== false) g += `<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${T}" y2="${h - B}" stroke="var(--text-3)" stroke-dasharray="2 3"/>`;
+  const o = { g, x, y, h, T, B, L, R, close:(lbls = []) => o.g + lbls.map(([v, t]) => `<text x="${W - R + 4}" y="${y(v) + 3}" font-size="9.5" fill="var(--text-3)">${t}</text>`).join('') + (opts.axis ? `<text x="${x(0)}" y="${h - 3}" font-size="9.5" fill="var(--text-3)">sesi 1</text><text x="${x(NOW)}" y="${h - 3}" font-size="9.5" text-anchor="middle" fill="var(--text-2)">hari ini</text><text x="${x(N - 1)}" y="${h - 3}" font-size="9.5" text-anchor="end" fill="var(--text-3)">${N}</text>` : '') + '</svg>' };
+  return o;
+}
+const path = (f, a, c, w = 1.5, dash) => `<polyline fill="none" stroke="${c}" stroke-width="${w}" ${dash ? 'stroke-dasharray="4 3"' : ''} points="${a.map((v, i) => v == null ? null : f.x(i).toFixed(1) + ',' + f.y(v).toFixed(1)).filter(Boolean).join(' ')}"/>`;
+const bars = (f, a, col, base = 0) => a.map((v, i) => { const y0 = f.y(base), y1 = f.y(v); return `<rect x="${(f.x(i) - 1).toFixed(1)}" y="${Math.min(y0, y1).toFixed(1)}" width="2" height="${Math.abs(y1 - y0).toFixed(1)}" fill="${typeof col === 'function' ? col(v, i) : col}"/>` }).join('');
+const dots = (f, idx, a, c, r = 3.2) => idx.map(i => `<circle cx="${f.x(i).toFixed(1)}" cy="${f.y(a[i]).toFixed(1)}" r="${r}" fill="${c}" stroke="var(--surface)" stroke-width="1"/>`).join('');
+const mm = a => { const v = a.filter(x => x != null); return [Math.min(...v), Math.max(...v)] };
+function priceSvg(h = 120, extra = () => '', axis = false) { const [lo, hi] = mm([...low, ...high]); const f = frame(h, lo * .98, hi * 1.01, { axis }); f.g += path(f, close, 'var(--text)', 1.6) + extra(f); return f.close([[hi, fmt(hi)], [lo, fmt(lo)]]) }
+const fmt = v => Math.round(v).toLocaleString('en-US');
+const rp = v => { const a = Math.abs(v), s = v < 0 ? '−' : v > 0 ? '+' : ''; return a >= 1e12 ? s + (a / 1e12).toFixed(1) + 'T' : a >= 1e9 ? s + (a / 1e9).toFixed(1) + 'B' : s + (a / 1e6).toFixed(0) + 'M' };
+const term = (title, val, price, pane) => `<div class="term"><div class="lab"><b>Harga (contoh)</b></div>${price}<div class="lab"><b>${title}</b> ${val}</div>${pane}</div>`;
+const phaseLegend = () => `<div class="leg">${Object.keys(PCOL).map(k => `<span><i style="background:${PCOL[k]}"></i>${PNAME[k]}</span>`).join('')}</div>`;
+const phaseStrip = () => { let s = 0, out = ''; for (let i = 1; i <= N; i++) if (i === N || PH[i] !== PH[s]) { out += `<i style="flex:${i - s};background:${PCOL[PH[s]]}"></i>`; s = i } return `<div class="phasebar">${out}</div>` };
+
+/* ---- the 20 options ---- */
+const nowCost = icost[NOW], dist = (close[NOW] / nowCost - 1) * 100, base = close.slice(45, 121), bHi = Math.max(...base), bLo = Math.min(...base);
+const absorbN = absorb.slice(NOW - 19, NOW + 1).filter(Boolean).length, dry = volRatio.slice(NOW - 19, NOW + 1).filter(v => v < .6).length;
+const checks = [
+  ['Dasar terbentuk ≥ 40 sesi, kedalaman ≤ 35%', true, `${121 - 45} sesi · ${((bHi / bLo - 1) * 100).toFixed(1)}%`],
+  ['Volatilitas menyempit bertahap', true, '3 penyempitan: 10% → 6% → 3%'],
+  ['Volume mengering (< 0,6× rata-rata 50 hari)', true, `${dry} dari 20 sesi`],
+  ['Top-N beli bersih saat harga datar (FL25, FL27)', true, `kumulatif ${rp(cumTop[NOW] - cumTop[45])}`],
+  ['Harga dekat biaya bandar (FL19, FL20)', true, `${dist >= 0 ? '+' : '−'}${Math.abs(dist).toFixed(1)}% dari ${fmt(nowCost)}`],
+  ['Spring + uji bervolume rendah', true, 'sesi 122–124'],
+  ['Kekuatan relatif terhadap IHSG di tertinggi baru', rs[NOW] >= Math.max(...rs.slice(0, NOW)) * .995, 'garis RS'],
+  ['Harga tembus atas dasar dengan volume ≥ 1,5×', false, `pivot ${fmt(bHi)}`]
+];
+const OPTS = [
+ { t:'Pelacak fase pra-reli', type:'Panel kanan', phase:'Semua', data:'Gabungan opsi 3–8, 15, 16, 18 (sudah ada + hitungan baru)', rate:'hi',
+   q:'Saham ini sedang di fase apa, dan syarat mana yang sudah terpenuhi?',
+   what:'Satu kartu: label fase sekarang, daftar periksa delapan syarat (dengan angka buktinya), dan pita fase 180 sesi terakhir. Setiap baris bisa diklik untuk membuka panel rinciannya.',
+   why:'Wyckoff dan VCP sama-sama membaca rangkaian keadaan, bukan satu angka; daftar periksa membuat setiap syarat bisa dicek.',
+   risk:'Label fase dari aturan bisa salah pada saham berlikuiditas rendah; harus menunjukkan buktinya, bukan hanya label.',
+   mock:() => `<div class="panel"><div class="head"><strong>Fase pra-reli</strong><small>contoh · sesi ${NOW + 1}</small></div><div><span class="tag g" style="font-size:12px">Siap: menunggu tembus</span> <span class="small muted">${checks.filter(c => c[1]).length} dari ${checks.length} syarat</span></div>
+     <ul class="check">${checks.map(([t, ok, v]) => `<li><span class="${ok ? 'ok' : 'no'}">${ok ? '✓' : '○'}</span><span>${t}</span><span class="small muted num">${v}</span></li>`).join('')}</ul>${phaseStrip()}${phaseLegend()}</div>` },
+ { t:'Skor pra-reli 0–100', type:'Panel bawah', phase:'Semua', data:'Gabungan lima pilar (hitungan baru dari indikator yang ada)', rate:'mid',
+   q:'Seberapa lengkap tanda-tanda pra-reli hari ini dibanding kemarin?',
+   what:'Satu garis 0–100 dari lima pilar (dasar tenang, volume kering, arus akumulasi, serapan, kekuatan relatif), dengan batang tumpuk kontribusi tiap pilar.',
+   why:'Merangkum banyak sinyal menjadi satu tren yang mudah dipantau.',
+   risk:'Angka tunggal terlihat lebih pasti daripada buktinya; bobot dan ambang harus diuji pada data IDX dulu (lihat Usulan).',
+   mock:() => { const score = close.map((_, i) => { const a = PH[i] === 'Base' ? (i - 45) / 76 * 25 : PH[i] === 'Decline' ? 3 : PH[i] === 'Markup' ? 30 : 20; return Math.max(0, Math.min(100, 15 + a + (100 - bwPct[i]) * .25 + Math.max(0, Math.min(25, (cumTop[i] - cumTop[Math.max(0, i - 20)]) / 4e9)) + (rnd() - .5) * 8)) });
+     const f = frame(110, 0, 100); f.g += `<line x1="${f.L}" x2="${W - f.R}" y1="${f.y(70)}" y2="${f.y(70)}" stroke="var(--up)" stroke-dasharray="3 3"/>` + path(f, score, 'var(--text)', 2);
+     return term('Pre-rally score', `<span class="num">${Math.round(score[NOW])}</span>`, priceSvg(90), f.close([[100, '100'], [70, '70'], [0, '0']])) } },
+ { t:'Kotak dasar', type:'Overlay', phase:'Dasar', data:'Harga (hitungan baru)', rate:'hi',
+   q:'Di mana batas dasarnya, sudah berapa lama, seberapa dalam?',
+   what:'Kotak di chart harga dari atas sampai bawah rentang dasar, dengan label lama (sesi), kedalaman (%) dan garis pivot (atas dasar) yang menjadi titik tembus.',
+   why:'Fase dasar adalah syarat awal Wyckoff dan VCP; pivot adalah titik konfirmasi.',
+   risk:'Batas dasar bergeser saat harga keluar sedikit; aturan penentuan harus stabil.',
+   mock:() => term('Base box', `<span class="small">${121 - 45} sesi · ${((bHi / bLo - 1) * 100).toFixed(1)}% · pivot ${fmt(bHi)}</span>`, priceSvg(170, f => `<rect x="${f.x(45)}" y="${f.y(bHi)}" width="${f.x(120) - f.x(45)}" height="${f.y(bLo) - f.y(bHi)}" fill="none" stroke="var(--fx)" stroke-width="1.5" stroke-dasharray="5 3"/><line x1="${f.x(45)}" x2="${f.x(N - 1)}" y1="${f.y(bHi)}" y2="${f.y(bHi)}" stroke="var(--fx)" stroke-width="1"/><text x="${f.x(47)}" y="${f.y(bHi) - 4}" font-size="10" fill="var(--fx)">pivot ${fmt(bHi)}</text>`, true), '') },
+ { t:'Penyempitan volatilitas (VCP)', type:'Panel bawah', phase:'Dasar', data:'Harga (hitungan baru)', rate:'hi',
+   q:'Apakah ayunan harga makin kecil dari satu tarikan ke tarikan berikutnya?',
+   what:'Rentang harian rata-rata 10 hari (%) dengan label kedalaman setiap tarikan di dalam dasar (contoh 10% → 6% → 3%).',
+   why:'VCP: 2–4 penyempitan makin dangkal menandai penawaran yang habis.',
+   risk:'Kedalaman tarikan bergantung pada cara memilih titik puncak dan lembah.',
+   mock:() => { const [lo, hi] = mm(atr); const f = frame(110, 0, hi * 1.1); f.g += path(f, atr, 'var(--pu)', 1.8) + [[70, '10%'], [94, '6%'], [114, '3%']].map(([i, t]) => `<text x="${f.x(i)}" y="${f.y(atr[i]) - 6}" font-size="10" text-anchor="middle" fill="var(--pu)">${t}</text>`).join('');
+     return term('Volatility contraction · range 10D', `<span class="num">${atr[NOW].toFixed(1)}%</span>`, priceSvg(90), f.close([[hi, hi.toFixed(1) + '%'], [0, '0%']])) } },
+ { t:'Volume mengering', type:'Panel bawah', phase:'Dasar · Uji', data:'Volume (hitungan baru)', rate:'hi',
+   q:'Apakah penjual sudah habis (volume jauh di bawah biasanya)?',
+   what:'Volume harian dibagi rata-rata 50 hari; sesi di bawah 0,6× diberi warna; hitungan sesi kering dalam 20 sesi terakhir.',
+   why:'VCP dan Wyckoff: volume mengering di akhir dasar dan saat uji; tembus yang sah bervolume besar.',
+   risk:'Saham tidak likuid selalu terlihat "kering"; perlu batas likuiditas minimum (FL28).',
+   mock:() => { const f = frame(110, 0, 3.3); f.g += bars(f, volRatio, v => v < .6 ? 'var(--up)' : v > 1.5 ? 'var(--down)' : 'var(--text-3)') + `<line x1="${f.L}" x2="${W - f.R}" y1="${f.y(1)}" y2="${f.y(1)}" stroke="var(--text-3)" stroke-dasharray="3 3"/>`;
+     return term('Volume ÷ 50D average', `<span class="num">${volRatio[NOW].toFixed(2)}× · ${dry}/20 kering</span>`, priceSvg(90), f.close([[3, '3×'], [1, '1×'], [0, '0']])) } },
+ { t:'Squeeze (lebar Bollinger)', type:'Panel bawah', phase:'Dasar · Siap', data:'Harga (hitungan baru)', rate:'mid',
+   q:'Apakah volatilitas sedang di titik terendahnya sendiri?',
+   what:'Lebar Bollinger 20 hari sebagai persentil terhadap 120 sesi; titik saat di bawah persentil 10.',
+   why:'Volatilitas rendah sering diikuti gerak tajam; arahnya dibaca dari arus (opsi 7, 15).',
+   risk:'Squeeze tidak memberi arah; bisa pecah ke bawah.',
+   mock:() => { const f = frame(110, 0, 100); f.g += path(f, bwPct, 'var(--fx)', 1.6) + dots(f, bwPct.map((v, i) => v <= 10 && i > 40 ? i : -1).filter(i => i >= 0), bwPct, 'var(--fx)', 2.5);
+     return term('Bandwidth percentile (120)', `<span class="num">P${bwPct[NOW]}</span>`, priceSvg(90), f.close([[100, '100'], [10, '10'], [0, '0']])) } },
+ { t:'Akumulasi diam-diam (divergensi)', type:'Panel bawah', phase:'Dasar', data:'FL25 Bandar Balance Rupiah (kumulatif), FL27 Silent Accumulation', rate:'hi',
+   q:'Apakah broker besar terus membeli bersih saat harga datar?',
+   what:'Kumulatif beli bersih Top-N (Rp) dari awal dasar, di samping perubahan harga di periode yang sama; area naik saat harga datar diberi warna.',
+   why:'Inti bandarmologi dan Wyckoff fase B: penyerapan barang tanpa menaikkan harga. Arus beli bersih asing di IDX berkaitan dengan imbal hasil sesudahnya (Rudiawarni dkk. 2024).',
+   risk:'Beli bersih broker bukan kepemilikan sebenarnya (crossing, broker perantara); bukti per broker masih campuran.',
+   mock:() => { const c = cumTop.map((v, i) => i < 45 ? null : v - cumTop[45]); const [lo, hi] = mm(c); const f = frame(110, Math.min(0, lo), hi * 1.1); f.g += path(f, c, 'var(--up)', 2);
+     return term('Top-N net buy, cumulative since base', `<span class="num up">${rp(cumTop[NOW] - cumTop[45])}</span> <span class="small muted">harga ${((close[NOW] / close[45] - 1) * 100).toFixed(1)}%</span>`, priceSvg(90), f.close([[hi, rp(hi)], [0, '0']])) } },
+ { t:'Pita biaya bandar', type:'Overlay', phase:'Dasar · Uji', data:'FL19 Implied Cost, FL17/FL42 Buy VWAP, FL20/FL39 jarak %', rate:'hi',
+   q:'Di harga berapa pembeli besar masuk, dan seberapa jauh harga sekarang?',
+   what:'Garis perkiraan harga pokok pembeli bersih terbesar sejak awal dasar dan Buy VWAP 20 hari, digambar di chart harga, dengan jarak harga sekarang (%).',
+   why:'Praktik bandarmologi: harga rata-rata beli bandar yang stabil dan harga yang bertahan di atasnya menandakan dasar yang dijaga.',
+   risk:'Harga pokok adalah perkiraan dari beli bersih broker, bukan biaya sebenarnya.',
+   mock:() => term('Bandar cost band', `<span class="num">${dist >= 0 ? '+' : '−'}${Math.abs(dist).toFixed(1)}% dari ${fmt(nowCost)}</span>`, priceSvg(170, f => path(f, icost, 'var(--dm)', 2) + path(f, bvwap.map((v, i) => i < 45 ? null : v), 'var(--fx)', 1.3, true), true), `<div class="leg" style="padding:0 10px 8px"><span><i style="background:var(--dm)"></i>Implied cost (FL19)</span><span><i style="background:var(--fx)"></i>Buy VWAP 20D (FL17)</span></div>`) },
+ { t:'Hari akumulasi dan rasio volume naik/turun', type:'Panel bawah', phase:'Dasar · Siap', data:'FL29 Accumulation Days + volume naik/turun (hitungan baru)', rate:'mid',
+   q:'Lebih banyak hari beli besar atau hari jual besar akhir-akhir ini?',
+   what:'Persen hari akumulasi (FL29) dalam 20 sesi, dan rasio volume hari naik dibanding hari turun dalam 50 sesi.',
+   why:'Praktik O\'Neil: hitung hari akumulasi vs distribusi; Wyckoff: volume lebih besar di hari naik dalam dasar.',
+   risk:'Rasio volume dari harga penutupan saja kasar; lebih baik digabung dengan arus broker.',
+   mock:() => { const ud = close.map((_, i) => { let u = 0, d = 0; for (let k = Math.max(1, i - 49); k <= i; k++) (ret[k] > 0 ? u += vol[k] : d += vol[k]); return d ? u / d : 1 }); const f = frame(110, .5, 2); f.g += `<line x1="${f.L}" x2="${W - f.R}" y1="${f.y(1)}" y2="${f.y(1)}" stroke="var(--text-3)" stroke-dasharray="3 3"/>` + path(f, ud, 'var(--up)', 1.8);
+     return term('Up/down volume ratio 50D', `<span class="num">${ud[NOW].toFixed(2)}</span>`, priceSvg(90), f.close([[2, '2.0'], [1, '1.0'], [.5, '0.5']])) } },
+ { t:'Kegigihan vs keluasan pembeli', type:'Panel bawah', phase:'Dasar', data:'FL35 Persistence · Top Buyer, FL12 Persistence, FL22 Buy Breadth', rate:'mid',
+   q:'Apakah sedikit broker membeli terus, sementara makin banyak broker lain menjual?',
+   what:'Dua garis: persen hari pembeli terbesar menjadi pembeli bersih (naik) dan persen broker yang menjadi pembeli bersih (turun). Celah yang melebar = barang berpindah ke tangan yang lebih sedikit.',
+   why:'Akumulasi menurut praktik IDX: pembelian terpusat dan konsisten; order imbalance yang berlanjut (Chordia & Subrahmanyam).',
+   risk:'Dua garis bisa membingungkan; perlu label "celah".',
+   mock:() => { const f = frame(110, 0, 100); f.g += path(f, ma(persist, 5), 'var(--up)', 1.8) + path(f, ma(breadth, 5), 'var(--down)', 1.5);
+     return term('Top buyer persistence vs breadth', `<span class="up num">${Math.round(persist[NOW])}%</span> · <span class="down num">${Math.round(breadth[NOW])}%</span>`, priceSvg(90), f.close([[100, '100%'], [50, '50%'], [0, '0%']])) } },
+ { t:'Pergeseran konsentrasi', type:'Panel bawah', phase:'Dasar', data:'FL14 HHI Buy − Sell, FL16 Top-N Net Buy', rate:'mid',
+   q:'Apakah pembelian makin terpusat dibanding penjualan?',
+   what:'Selisih keterpusatan sisi beli dan sisi jual (HHI) dengan rata-rata 10 hari; di atas nol = pembeli lebih terpusat daripada penjual.',
+   why:'Ciri akumulasi: sedikit pembeli besar menyerap dari banyak penjual kecil.',
+   risk:'HHI sulit dijelaskan ke pengguna; butuh kalimat penjelas.',
+   mock:() => { const f = frame(110, -.1, .25); f.g += bars(f, hhi, v => v > 0 ? 'var(--up)' : 'var(--down)') + path(f, ma(hhi, 10), 'var(--text)', 1.6);
+     return term('Concentration HHI buy − sell', `<span class="num">${hhi[NOW].toFixed(2)}</span>`, priceSvg(90), f.close([[.25, '0.25'], [0, '0'], [-.1, '−0.1']])) } },
+ { t:'Rotasi asing–domestik', type:'Panel bawah', phase:'Dasar · Naik', data:'Foreign × Domestic map (sudah ada) sebagai garis waktu', rate:'mid',
+   q:'Siapa yang menyerap selama dasar, dan apakah asing mulai masuk?',
+   what:'Bagian asing dan domestik dari beli bersih Top-N (% nilai beli) 5 hari bergulir, dengan latar menurut kuadran peta.',
+   why:'Arus asing di IDX berkaitan dengan imbal hasil sesudahnya (Rudiawarni dkk. 2024); domestik yang menyerap lalu asing masuk adalah pola yang dicari.',
+   risk:'Satu saham bisa didominasi satu broker asing; harus bisa dibuka ke opsi 13.',
+   mock:() => { const fx = ma(fNet, 5).map(v => v / 2e9), dx = ma(dNet, 5).map(v => v / 2e9), [lo, hi] = mm([...fx, ...dx]); const f = frame(110, lo, hi); f.g += `<line x1="${f.L}" x2="${W - f.R}" y1="${f.y(0)}" y2="${f.y(0)}" stroke="var(--text-3)" stroke-dasharray="3 3"/>` + path(f, fx, 'var(--fx)', 1.7) + path(f, dx, 'var(--dm)', 1.7);
+     return term('Foreign / Domestic part · 5D', `<span class="num" style="color:var(--fx)">${fx[NOW].toFixed(1)}%</span> · <span class="num" style="color:var(--dm)">${dx[NOW].toFixed(1)}%</span>`, priceSvg(90), f.close([[hi, hi.toFixed(0) + '%'], [0, '0'], [lo, lo.toFixed(0) + '%']])) } },
+ { t:'Papan pemuat (broker yang menimbun)', type:'Panel kanan', phase:'Dasar', data:'FL23 Broker Inventory, FL19 Implied Cost', rate:'hi',
+   q:'Broker mana yang menimbun selama dasar, di harga berapa?',
+   what:'Daftar broker dengan kenaikan persediaan bersih terbesar sejak awal dasar: lot, harga pokok, jarak dari harga sekarang, berapa hari aktif membeli. Klik menambahkannya ke Broker Inventory.',
+   why:'Bandarmologi: siapa yang mengumpulkan dan di harga berapa lebih penting daripada total.',
+   risk:'Persediaan broker bukan kepemilikan nasabah; satu broker bisa melayani banyak pihak.',
+   mock:() => { const rows = [['CC', 412, 1102, 48], ['YP', 268, 1118, 39], ['AK', 190, 1094, 31], ['ZP', -205, 1131, 12], ['KZ', -160, 1125, 9]];
+     return `<div class="panel"><div class="head"><strong>Loaders</strong><small>sejak awal dasar · contoh</small></div><table class="t"><tr><th>Broker</th><th>Lot</th><th>Harga pokok</th><th>Jarak</th><th>Hari beli</th></tr>${rows.map(([b, l, c, d]) => `<tr><td><b>${b}</b></td><td class="${l > 0 ? 'up' : 'down'}">${l > 0 ? '+' : '−'}${Math.abs(l)}K</td><td>${fmt(c)}</td><td>${((close[NOW] / c - 1) * 100).toFixed(1)}%</td><td>${d}/76</td></tr>`).join('')}</table><p class="small muted" style="margin:6px 0 0">Tiga broker teratas memegang 74% dari total timbunan.</p></div>` } },
+ { t:'Jejak lot besar', type:'Panel bawah', phase:'Dasar · Spring', data:'FL08 Transaction Size Percentile, FL09 Block Money Candidate, FL40 Activity Spike Balance', rate:'mid',
+   q:'Kapan transaksi berukuran besar muncul di sisi beli?',
+   what:'Persentil ukuran transaksi beli harian dengan penanda saat FL09 menyala (lot besar + porsi berarti + arus bersih positif).',
+   why:'Institusi membeli dalam blok; ukuran transaksi naik saat akumulasi serius.',
+   risk:'Satu transaksi blok bisa nego antarpihak; pisahkan papan Nego (FL30).',
+   mock:() => { const f = frame(110, 0, 100), cand = bigPct.map((v, i) => v > 85 && topNet[i] > 0 && i > 45 ? i : -1).filter(i => i >= 0); f.g += path(f, ma(bigPct, 3), 'var(--pu)', 1.6) + dots(f, cand, ma(bigPct, 3), 'var(--up)');
+     return term('Buy transaction size percentile', `<span class="num">P${Math.round(bigPct[NOW])}</span> <span class="small muted">${cand.length} kandidat blok</span>`, priceSvg(90), f.close([[100, '100'], [50, '50'], [0, '0']])) } },
+ { t:'Hari serapan', type:'Panel bawah', phase:'Dasar · Spring · Uji', data:'FL24 Bandar Balance % + perubahan harga (hitungan baru)', rate:'hi',
+   q:'Saat harga turun, apakah broker besar justru membeli bersih?',
+   what:'Batang per sesi: hari harga turun tetapi Top-N beli bersih (hijau = serapan); hitungan serapan dalam 20 sesi.',
+   why:'Wyckoff: penawaran diserap di dasar dan pada spring; bandarmologi: barang ditampung saat harga ditekan.',
+   risk:'Satu hari serapan tidak berarti; hitungan 20 sesi lebih stabil.',
+   mock:() => { const f = frame(110, -1.2, 1.2), sig = topNet.map(v => Math.max(-1, Math.min(1, v / 9e9))); f.g += bars(f, sig, (v, i) => absorb[i] ? 'var(--up)' : v > 0 ? 'var(--up-soft)' : 'var(--down-soft)');
+     return term('Absorption days', `<span class="num">${absorbN}/20</span>`, priceSvg(90), f.close([[1, 'beli'], [0, '0'], [-1, 'jual']])) } },
+ { t:'Pendeteksi spring', type:'Overlay', phase:'Spring · Uji', data:'Harga, volume, FL24/FL25 (hitungan baru)', rate:'hi',
+   q:'Apakah ada turun sebentar di bawah dasar yang langsung pulih dan diserap?',
+   what:'Penanda di chart harga: hari harga menembus bawah dasar lalu ditutup kembali di dalamnya, dengan Top-N beli bersih kuat; lalu penanda "uji" saat harga kembali mendekati dengan volume rendah.',
+   why:'Wyckoff fase C: spring + uji tenang mendahului tanda kekuatan.',
+   risk:'Sumber berbeda soal volume spring (rendah vs tinggi); aturan harus jelas dan diuji.',
+   mock:() => term('Spring & test', '<span class="small">spring sesi 123 · uji sesi 131</span>', priceSvg(170, f => `<line x1="${f.x(45)}" x2="${f.x(121)}" y1="${f.y(bLo)}" y2="${f.y(bLo)}" stroke="var(--text-3)" stroke-dasharray="4 3"/>` + `<circle cx="${f.x(122)}" cy="${f.y(low[122]) + 8}" r="6" fill="var(--dm)"/><text x="${f.x(122)}" y="${f.y(low[122]) + 22}" font-size="10" text-anchor="middle" fill="var(--dm)">Spring</text><circle cx="${f.x(130)}" cy="${f.y(low[130]) + 8}" r="5" fill="var(--fx)"/><text x="${f.x(130) + 4}" y="${f.y(low[130]) + 22}" font-size="10" fill="var(--fx)">Uji</text>`, true), '') },
+ { t:'Penawaran di atas harga', type:'Panel kanan', phase:'Siap', data:'FL43/FL44 Sell VWAP, FL23 inventory penjual', rate:'mid',
+   q:'Seberapa banyak barang penjual menunggu antara harga sekarang dan pivot?',
+   what:'Daftar penjual bersih besar dengan harga rata-rata jualnya dan sisa persediaannya, diurutkan menurut jarak di atas harga sekarang; total lot di bawah pivot.',
+   why:'Tembus lebih mudah bila penawaran di atas tipis (Wyckoff: "supply exhausted").',
+   risk:'Persediaan penjual bisa sudah habis tetapi belum terlihat (beda broker).',
+   mock:() => `<div class="panel"><div class="head"><strong>Supply overhead</strong><small>contoh</small></div><div class="small muted">Antara ${fmt(close[NOW])} dan pivot ${fmt(bHi)}</div><div class="big num">≈ 88K lot</div><table class="t"><tr><th>Penjual</th><th>Sell VWAP</th><th>Jarak</th><th>Sisa</th></tr>${[['ZP', 1176, 41], ['KZ', 1168, 29], ['BK', 1189, 18]].map(([b, v, l]) => `<tr><td><b>${b}</b></td><td>${fmt(v)}</td><td>+${((v / close[NOW] - 1) * 100).toFixed(1)}%</td><td>${l}K</td></tr>`).join('')}</table><p class="small muted" style="margin:6px 0 0">Setara 1,3 hari volume rata-rata.</p></div>` },
+ { t:'Kekuatan relatif terhadap IHSG', type:'Panel bawah', phase:'Siap', data:'Harga saham + IHSG (sudah dimuat)', rate:'hi',
+   q:'Apakah saham ini lebih kuat dari pasar, bahkan sebelum harganya tembus?',
+   what:'Garis harga ÷ IHSG; titik biru saat garis mencetak tertinggi baru lebih dulu daripada harga.',
+   why:'Praktik O\'Neil: garis RS memimpin harga; momentum dekat tertinggi berkaitan dengan imbal hasil sesudahnya (George & Hwang 2004).',
+   risk:'Sinyal "RS memimpin" belum diuji akademik; sektor dan kapitalisasi memengaruhi.',
+   mock:() => { const [lo, hi] = mm(rs); const f = frame(110, lo * .97, hi * 1.02), lead = rs.map((v, i) => i > 60 && v >= Math.max(...rs.slice(0, i)) && close[i] < Math.max(...close.slice(0, i)) ? i : -1).filter(i => i >= 0);
+     f.g += path(f, rs, 'var(--fx)', 1.8) + dots(f, lead, rs, 'var(--fx)', 3);
+     return term('RS line vs IHSG', `<span class="small">${lead.length} kali memimpin harga</span>`, priceSvg(90), f.close([[hi, 'tinggi'], [lo, 'rendah']])) } },
+ { t:'Dekat tertinggi 52 minggu dan pocket pivot', type:'Panel bawah', phase:'Siap · Naik', data:'Harga dan volume (hitungan baru)', rate:'mid',
+   q:'Seberapa dekat harga ke tertinggi 52 minggu, dan adakah hari naik bervolume besar di dalam dasar?',
+   what:'Jarak ke tertinggi 52 minggu (%) dengan penanda pocket pivot: hari naik dengan volume di atas volume hari turun terbesar 10 sesi sebelumnya.',
+   why:'Kedekatan ke tertinggi 52 minggu memprediksi imbal hasil (George & Hwang 2004); pocket pivot adalah konfirmasi praktik.',
+   risk:'Untuk saham yang turun lama, tertinggi 52 minggu jauh; lebih berguna setelah dasar.',
+   mock:() => { const d = close.map((c, i) => (c / hi52[i] - 1) * 100), pp = close.map((_, i) => { if (i < 11 || ret[i] <= 0) return -1; const mxDown = Math.max(...vol.slice(i - 10, i).filter((_, k) => ret[i - 10 + k] < 0), 0); return vol[i] > mxDown && i > 45 ? i : -1 }).filter(i => i >= 0);
+     const f = frame(110, Math.min(...d), 2); f.g += path(f, d, 'var(--text)', 1.6) + dots(f, pp, d, 'var(--up)', 2.6);
+     return term('Distance to 52-week high', `<span class="num">${d[NOW].toFixed(1)}%</span> <span class="small muted">${pp.length} pocket pivot</span>`, priceSvg(90), f.close([[0, '0%'], [Math.min(...d), Math.min(...d).toFixed(0) + '%']])) } },
+ { t:'Konteks peristiwa dan orang dalam', type:'Panel kanan', phase:'Dasar · Siap', data:'FL31 Insider Net Change, aksi korporasi (Events), FL30 Crossing Share', rate:'mid',
+   q:'Adakah peristiwa yang menjelaskan atau mengganggu sinyal arus?',
+   what:'Kartu: transaksi orang dalam selama dasar, aksi korporasi terdekat (dividen, right issue, RUPS), dan porsi transaksi nego. Peringatan bila arus didorong nego atau aksi korporasi.',
+   why:'Beli orang dalam saat dasar menguatkan; nego besar dan aksi korporasi bisa memalsukan arus broker.',
+   risk:'Data orang dalam terlambat dilaporkan; harus memakai tanggal laporan.',
+   mock:() => `<div class="panel"><div class="head"><strong>Context</strong><small>selama dasar · contoh</small></div><ul class="check"><li><span class="ok">+</span><span>Orang dalam membeli 2 kali (FL31)</span><span class="small muted">+1,2 jt lembar</span></li><li><span class="no">•</span><span>RUPS tahunan 14 hari lagi</span><span class="small muted">Events</span></li><li><span class="no">•</span><span>Porsi nego 20 sesi (FL30)</span><span class="small muted">3,1%</span></li><li><span class="ok">✓</span><span>Tidak ada right issue atau tender offer</span><span></span></li></ul><span class="tag g">Arus tidak didorong peristiwa</span></div>` }
+];
+const RT = { hi:'tinggi', mid:'sedang', lo:'rendah' };
+document.getElementById('toc').innerHTML = OPTS.map((o, i) => `<a href="#o${i + 1}">${i + 1}. ${o.t}</a>`).join('');
+document.querySelector('#sumtbl tbody').innerHTML = OPTS.map((o, i) => `<tr><td>${i + 1}</td><td><a href="#o${i + 1}" style="color:inherit">${o.t}</a></td><td>${o.type}</td><td>${o.phase}</td><td>${o.data}</td><td><span class="rate ${o.rate}">${RT[o.rate]}</span></td></tr>`).join('');
+document.getElementById('opts').innerHTML = OPTS.map((o, i) => `<section class="opt" id="o${i + 1}"><div><h3><span class="n">${i + 1}</span>${o.t}<span class="rate ${o.rate}">${RT[o.rate]}</span></h3>
+  <div class="meta"><span class="chip k">${o.type}</span><span class="chip">Fase: ${o.phase}</span></div><p class="q">${o.q}</p><p>${o.what}</p>
+  <dl class="d"><dt>Data</dt><dd>${o.data}</dd><dt>Dasar</dt><dd>${o.why}</dd><dt>Risiko</dt><dd>${o.risk}</dd></dl></div><div>${o.mock()}</div></section>`).join('');
+</script>
+</body>
+</html>
