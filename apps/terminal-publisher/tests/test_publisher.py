@@ -73,9 +73,13 @@ class FakeConn:
         self.statements = []
         # EXEC-PUBLISH-FLOW: advisory locks held by others (names), RUNNING broker rounds, loader signal times
         self.held, self.rounds, self.signals = set(), 0, []
+        # EXEC-SCREENER-FLOW-CANDLES P4: Monitoring_Stockbit_Update rows (finished_at, mode, status, changed_dates), and
+        # every statement with its parameters
+        self.broker_rounds, self.calls = [], []
 
     def execute(self, sql, params=()):
         self.statements.append(sql)
+        self.calls.append((sql, params))
         return Result(self._rows(sql, params))
 
     def cursor(self):
@@ -99,6 +103,23 @@ class FakeConn:
         return sorted(r for r in self.fixed if r[0] == ticker and r[1] == metric and lo <= r[2] <= hi)
 
     def _rows(self, sql, params):
+        # EXEC-SCREENER-FLOW-CANDLES P4: the broker day statements (before the broader matches below)
+        if sql == pub.BROKER_DAYS_WINDOW_SQL:              # the skip scan: the newest n distinct dates, oldest first
+            return [(d,) for d in sorted({r[1] for r in self.brokers})[-params[0]:]]
+        if sql == pub.BROKER_DAY_SQL:                      # no ORDER BY: newest rows first, the publisher orders them
+            d, tickers = params
+            return [(r[0], *r[2:]) for r in reversed(self.brokers) if r[1] == d and r[0] in tickers]
+        if sql == pub.BROKER_DAY_STAMPS_SQL:
+            dates, tickers = params
+            out = {}
+            for r in self.brokers:
+                if r[1] in dates and r[0] in tickers:
+                    out.setdefault(r[1], []).append(r)
+            return [(d, len(v), str(sum(x[5] for x in v)), str(sum(x[6] for x in v))) for d, v in out.items()]
+        if sql == pub.BROKER_ROUNDS_SQL:
+            since = dt.datetime.fromisoformat(params[0]) if params[0] else None
+            return [(at, dates) for at, mode, status, dates in sorted(self.broker_rounds, key=lambda r: r[0])
+                    if mode == 'APPLY' and status == 'SUCCESS' and (since is None or at > since)]
         if sql.startswith('SELECT pg_try_advisory_lock('):
             return [(params[0] not in self.held,)]
         if sql.startswith('SELECT pg_advisory_unlock('):
@@ -301,7 +322,8 @@ def test_verify_compares_the_transaction_counts():
     _, conn, bucket = run('backfill')
     assert pub.verify(conn, bucket) == 0
     conn.brokers = [r[:10] + (r[10] + 1, r[11]) if r[1] == '2026-01-02' and r[2] == 'AK' else r for r in conn.brokers]
-    assert pub.verify(conn, bucket) == 1
+    # the yearly broker file and (EXEC-SCREENER-FLOW-CANDLES P4) the Screener's broker day file of that date
+    assert pub.verify(conn, bucket) == 2
 
 
 def test_index_price_file_keeps_null_volume():
@@ -644,14 +666,16 @@ def test_a_pack_that_differs_from_the_table_is_republished_from_the_slice():
 def test_the_xsection_files_are_written_before_the_state_json_that_indexes_them():
     _, conn, bucket = run('backfill')
     state = bucket.get_json('state.json')
-    assert sorted(state['xsection']) == ['actions', 'price'] and bucket.puts[-1] == 'state.json'
+    # EXEC-SCREENER-FLOW-CANDLES P4: the broker day file of the fixture's one trade date is indexed beside them
+    assert sorted(state['xsection']) == ['actions', 'broker-2026-01-02', 'price'] and bucket.puts[-1] == 'state.json'
     for name, e in state['xsection'].items():
         key = e['key'][len('v1/'):]
         assert re.fullmatch(rf'xsection/{name}\.{e["sha256"][:16]}\.json\.gz', key)          # content-addressed
         assert key in bucket.puts[:-1]                                                        # before state.json
         body = bucket.objects[key]
         assert (len(body), hashlib.sha256(body).hexdigest()) == (e['bytes'], e['sha256'])
-        assert e['rows'] == len(bucket.get_json(key)['t'])
+        doc = bucket.get_json(key)
+        assert e['rows'] == len(doc[doc['columns'][0]])                                       # t, or b for a broker day
     # a later run: the new object is put before that run's state.json
     conn.prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0)]
     n = len(bucket.puts)
@@ -679,7 +703,7 @@ def test_terminal_api_reads_the_index_as_written():
            'g': {**good, 'key': own('g'), 'rows': '5'}, 'h': 'v1/xsection/h.json.gz',
            'i': {**good, 'key': own('i', '0' * 16)}, 'j': {**good, 'key': own('j')[3:]}}
     assert pub.xsection_entries(raw) == reader.xsection_index(raw)
-    assert sorted(pub.xsection_entries(raw)) == ['actions', 'price', 'stamped']
+    assert sorted(pub.xsection_entries(raw)) == ['actions', 'broker-2026-01-02', 'price', 'stamped']
 
 
 def test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward():
@@ -811,7 +835,7 @@ def test_an_index_entry_that_is_not_an_xsection_object_is_neither_carried_nor_pr
     state['xsection']['evil'] = {'key': 'v1/manifest/BBCA.json', 'sha256': 'ab' * 32, 'bytes': 1, 'rows': 0}
     bucket.put('state.json', json.dumps(state).encode(), 'application/json')
     pub.Publisher(conn, bucket, today=TODAY).run('logos')
-    assert sorted(bucket.get_json('state.json')['xsection']) == ['actions', 'price']
+    assert sorted(bucket.get_json('state.json')['xsection']) == ['actions', 'broker-2026-01-02', 'price']
     assert 'manifest/BBCA.json' in bucket.objects
 
 
@@ -1029,7 +1053,7 @@ def test_the_xsection_cleanup_keeps_newer_objects_other_keys_and_everything_when
     p = pub.Publisher(conn, bucket, today=TODAY, clock=lambda: bucket.clock)
     assert p.collect_garbage() == 1 and bucket.deleted == [stale]
     gc = events(capsys, 'gc')[0]
-    assert gc['xsection_named'] == 2 and gc['kept_newer_than_last_run'] == 1
+    assert gc['xsection_named'] == 3 and gc['kept_newer_than_last_run'] == 1        # price, actions, broker-2026-01-02
     assert indexed(bucket) | {newer, 'xsection/notes.txt'} <= set(bucket.objects)
     # a state.json without an index (a publisher before the xsection writer, or a rollback to one) names no xsection
     # file: no xsection object is deleted until an index names one again
@@ -2506,3 +2530,246 @@ def test_the_loaders_hold_the_lock_the_publisher_waits_for():
         assert 'hold_publish_write_lock(connection)' in source, loader
     intraday = (apps / 'idx-price-cron/intraday_update.py').read_text()
     assert 'pu.hold_publish_write_lock(conn)' in intraday and 'pu.release_publish_write_lock(conn)' in intraday
+
+
+# ---- EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07): broker day files for the Screener (P4_BROKER_DAYS.md) ----------
+DAY_UNIVERSE = UNIVERSE + [('AALI', 'Astra Agro Lestari', 'stock', 'Consumer', 'Plantation', 'common')]
+DAY_STOCKS = ['AALI', 'BBCA']                                  # kind 'stock' of DAY_UNIVERSE (IHSG is an index)
+
+
+def day_rows(d):
+    """Feature 05 rows of one date (ticker, date, broker, investor, board, bv, sv, bl, sl, gap, bf, sf): two stocks of the
+    universe, an index and a code outside the universe (neither is in the file)."""
+    return [('BBCA', d, 'YP', 'Domestic', 'Regular', 0.0, 500.0, 0.0, 4.5, True, 0, 2),
+            ('BBCA', d, 'AK', 'Foreign', 'Regular', 500.0, 0.0, 5.0, 0.0, False, 3, 0),
+            ('AALI', d, 'YP', 'Foreign', 'Nego', 1234.5, 1000.0, 1.0, 2.0, False, None, 1),
+            ('IHSG', d, 'AK', 'Domestic', 'Regular', 7.0, 7.0, 1.0, 1.0, False, 1, 1),
+            ('GONE', d, 'AK', 'Domestic', 'Regular', 9.0, 9.0, 1.0, 1.0, False, 1, 1)]
+
+
+def day_conn(dates=('2026-01-02', '2026-01-05')):
+    return FakeConn(PRICES, [r for d in dates for r in day_rows(d)], DAY_UNIVERSE)
+
+
+def days(bucket):
+    """{date: entry} of the broker day files state.json indexes."""
+    return {n[len('broker-'):]: e for n, e in bucket.get_json('state.json')['xsection'].items() if n.startswith('broker-')}
+
+
+def day_doc(bucket, d):
+    return bucket.get_json(days(bucket)[d]['key'][len('v1/'):])
+
+
+def day_puts(bucket, since=0):
+    return [k for k in bucket.puts[since:] if k.startswith('xsection/broker-')]
+
+
+def day_reads(conn, since=0):
+    """The dates whose rows a run read (BROKER_DAY_SQL)."""
+    return [p[0] for s, p in conn.calls[since:] if s == pub.BROKER_DAY_SQL]
+
+
+def finished(hour):
+    return dt.datetime(2026, 11, 7, hour, 0, tzinfo=dt.timezone.utc)
+
+
+def test_the_window_is_the_newest_trade_dates_read_by_an_index_skip_scan(monkeypatch):
+    sql = pub.BROKER_DAYS_WINDOW_SQL
+    assert sql.startswith('WITH RECURSIVE') and 'max(f.trade_date)' in sql and 'f.trade_date < d.trade_date' in sql
+    assert 'DISTINCT' not in sql.upper() and pub.BROKER_DAY_SESSIONS == 60                       # K1
+    dates = [f'2026-01-{d:02d}' for d in range(2, 9)]
+    monkeypatch.setattr(pub, 'BROKER_DAY_SESSIONS', 5)
+    conn, bucket = day_conn(dates), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('broker-days')
+    assert sorted(days(bucket)) == dates[-5:] and (pub.BROKER_DAYS_WINDOW_SQL, (5,)) in conn.calls
+    assert not any('DISTINCT' in s and pub.F05 in s for s in conn.statements)     # never a DISTINCT over Feature 05
+    assert sorted(day_reads(conn)) == dates[-5:]                          # one statement per date of the window
+
+
+def test_a_broker_day_file_holds_the_stock_rows_in_key_order_with_whole_numbers_as_integers():
+    conn, bucket = day_conn(('2026-01-02',)), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    e, doc = days(bucket)['2026-01-02'], day_doc(bucket, '2026-01-02')
+    assert e['key'] == f"v1/xsection/broker-2026-01-02.{e['sha256'][:16]}.json.gz"
+    assert (e['rows'], e['as_of'], set(e)) == (3, '2026-01-02', {'key', 'sha256', 'bytes', 'rows', 'as_of'})
+    assert (doc['schema_version'], doc['dataset'], doc['name'], doc['date'], doc['source']) == (
+        1, 'xsection', 'broker-2026-01-02', '2026-01-02', 'Feature_05_Foreign_Domestic_Broker_Detail')
+    # the stocks only (not the index, not a code outside the universe), by ticker, broker, investor type, board
+    assert doc['tickers'] == [{'t': 'AALI', 'rows': 1}, {'t': 'BBCA', 'rows': 2}]
+    assert doc['brokers'] == ['AK', 'YP'] and doc['investor_types'] == ['Domestic', 'Foreign']
+    assert doc['boards'] == ['Regular', 'Nego', 'Tunai'] and doc['columns'] == pub.BROKER_DAY_COLUMNS
+    assert (doc['b'], doc['i'], doc['m']) == ([1, 0, 1], [1, 1, 0], [1, 0, 0])
+    assert (doc['bv'], doc['sv'], doc['bl'], doc['sl']) == ([1234.5, 500, 0], [1000, 0, 500], [1, 5, 0], [2, 0, 4.5])
+    assert (doc['bf'], doc['sf']) == ([None, 3, 0], [1, 0, 2]) and doc['gap'] == [['BBCA', 'Regular']]
+    raw = gzip.decompress(bucket.objects[e['key'][3:]]).decode()
+    assert '"bv":[1234.5,500,0]' in raw and '"sl":[2,0,4.5]' in raw                  # 500, not 500.0
+    assert '"check":{"rows":3,"bv":1734.5,"sv":1500.0}' in raw                       # the sums stay floats
+    assert set(doc['means']) >= set(pub.BROKER_DAY_COLUMNS) | {'tickers', 'gap', 'check'}
+    assert pub.whole(1234.0) == 1234 and type(pub.whole(1234.0)) is int and pub.whole(0.5) == 0.5
+    assert pub.whole(None) is None and pub.encode(doc) == pub.encode(pub.broker_day_doc('2026-01-02', [
+        (r[0], *r[2:]) for r in day_rows('2026-01-02') if r[0] in DAY_STOCKS]))        # deterministic, any input order
+
+
+def test_daily_fills_the_window_once_then_builds_only_a_new_date():
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)          # the first fill: no entry yet
+    first = days(bucket)
+    assert sorted(first) == ['2026-01-02', '2026-01-05'] and sorted(day_reads(conn)) == sorted(first)
+    conn.brokers += day_rows('2026-01-06')
+    n, c = len(bucket.puts), len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)
+    now = days(bucket)
+    assert {d: now[d] for d in first} == first and day_reads(conn, c) == ['2026-01-06']
+    assert [p for s, p in conn.calls[c:] if s == pub.BROKER_DAY_STAMPS_SQL] == [(['2026-01-06'], DAY_STOCKS)]
+    assert day_puts(bucket, n) == [now['2026-01-06']['key'][3:]] and now['2026-01-06']['as_of'] == '2026-01-06'
+    stamps = bucket.get_json('state.json')['broker_day_stamps']
+    assert sorted(stamps) == ['2026-01-02', '2026-01-05', '2026-01-06'] and stamps['2026-01-06'] == 'rows=3;bv=1734.5;sv=1500.0'
+
+
+def test_a_finished_broker_round_rebuilds_the_dates_it_changed_once(capsys):
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    before = days(bucket)
+    conn.brokers = [r[:5] + (r[5] + 1,) + r[6:] if r[1] == '2026-01-02' and r[0] == 'BBCA' and r[2] == 'AK' else r
+                    for r in conn.brokers]
+    # a failed round and a VERIFY round are not taken into account; dates outside the window and other text are left out
+    conn.broker_rounds = [(finished(1), 'APPLY', 'FAILED', ['2026-01-05']), (finished(2), 'VERIFY', 'SUCCESS', ['2026-01-05']),
+                          (finished(3), 'APPLY', 'SUCCESS', ['2026-01-02', '2025-01-01', 'x'])]
+    seen = during_wait(bucket)
+    capsys.readouterr()
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)
+    after, state = days(bucket), bucket.get_json('state.json')
+    assert after['2026-01-02']['key'] != before['2026-01-02']['key'] and after['2026-01-05'] == before['2026-01-05']
+    assert day_doc(bucket, '2026-01-02')['bv'][1] == 501 and state['broker_days_checked_at'] == finished(3).isoformat()
+    old = before['2026-01-02']['key'][3:]
+    assert old in seen[0] and old not in bucket.objects                   # one active copy: the old file goes after the wait
+    line = events(capsys, 'broker_days')[0]
+    assert line['reasons'] == {'round': ['2026-01-02']} and line['built'] == line['uploaded'] == ['2026-01-02']
+    assert (line['first'], line['last'], line['sessions'], line['carried'], line['dropped']) == ('2026-01-02', '2026-01-05', 2, 1, [])
+    assert {'bytes', 'seconds'} <= set(line)
+    c = len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)  # nothing newer: no date is read again
+    assert day_reads(conn, c) == [] and days(bucket) == after
+    assert [p for s, p in conn.calls[c:] if s == pub.BROKER_ROUNDS_SQL] == [(finished(3).isoformat(),)]
+
+
+def test_a_round_date_whose_rows_did_not_change_is_read_but_not_put_again():
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    before = days(bucket)
+    conn.broker_rounds = [(finished(3), 'APPLY', 'SUCCESS', ['2026-01-02'])]
+    n, c = len(bucket.puts), len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)
+    assert day_reads(conn, c) == ['2026-01-02'] and day_puts(bucket, n) == [] and days(bucket) == before
+
+
+def test_only_the_sweep_run_compares_the_stamps_and_rebuilds_a_date_changed_outside_a_round():
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    before = days(bucket)
+    conn.brokers = [r[:6] + (r[6] + 2,) + r[7:] if r[1] == '2026-01-05' and r[0] == 'BBCA' else r for r in conn.brokers]
+    c = len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)
+    assert days(bucket) == before and not any(s == pub.BROKER_DAY_STAMPS_SQL for s, _ in conn.calls[c:])
+    c = len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=True)
+    after = days(bucket)
+    assert after['2026-01-05']['key'] != before['2026-01-05']['key'] and after['2026-01-02'] == before['2026-01-02']
+    # one aggregate over the window, then the one date whose stamp differs
+    assert [p for s, p in conn.calls[c:] if s == pub.BROKER_DAY_STAMPS_SQL] == [(['2026-01-02', '2026-01-05'], DAY_STOCKS)]
+    assert day_reads(conn, c) == ['2026-01-05']
+    assert bucket.get_json('state.json')['broker_day_stamps']['2026-01-05'] == 'rows=3;bv=1734.5;sv=1504.0'
+    c = len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=True)    # the stamps agree now: nothing is rebuilt
+    assert day_reads(conn, c) == [] and days(bucket) == after
+
+
+def test_an_entry_outside_the_window_is_dropped_and_its_object_deleted_after_the_wait(monkeypatch, capsys):
+    monkeypatch.setattr(pub, 'BROKER_DAY_SESSIONS', 2)
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    old = days(bucket)['2026-01-02']['key'][3:]
+    conn.brokers += day_rows('2026-01-06')
+    seen = during_wait(bucket)
+    capsys.readouterr()
+    p = pub.Publisher(conn, bucket, today=TODAY)
+    p.run('daily', sweep=False)
+    assert sorted(days(bucket)) == ['2026-01-05', '2026-01-06']
+    assert sorted(bucket.get_json('state.json')['broker_day_stamps']) == ['2026-01-05', '2026-01-06']
+    assert old in seen[0] and old in p.replaced and old not in bucket.objects
+    assert events(capsys, 'broker_days')[0]['dropped'] == ['broker-2026-01-02']
+
+
+def test_a_date_that_fails_keeps_its_previous_entry_and_the_run_goes_on(capsys):
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    before, stamps = days(bucket), bucket.get_json('state.json')['broker_day_stamps']
+    conn.brokers = [r[:5] + (r[5] + 1,) + r[6:] for r in conn.brokers]
+    conn.broker_rounds = [(finished(3), 'APPLY', 'SUCCESS', ['2026-01-02', '2026-01-05'])]
+    rows = conn._rows
+    conn._rows = lambda sql, params: ((_ for _ in ()).throw(pub.psycopg.OperationalError('password=x'))
+                                      if sql == pub.BROKER_DAY_SQL and params[0] == '2026-01-02' else rows(sql, params))
+    capsys.readouterr()
+    p = pub.Publisher(conn, bucket, today=TODAY)
+    p.run('daily', sweep=False)
+    out, after, state = capsys.readouterr().out, days(bucket), bucket.get_json('state.json')
+    assert after['2026-01-02'] == before['2026-01-02'] and after['2026-01-05']['key'] != before['2026-01-05']['key']
+    assert state['broker_day_stamps']['2026-01-02'] == stamps['2026-01-02']          # the kept file's stamp
+    assert state['broker_days_checked_at'] is None                                    # the round is read again next run
+    assert p.broker_days_failed == ['2026-01-02'] and p.xsection_failed == [] and bucket.puts[-1] == 'state.json'
+    failed = [e for e in map(json.loads, out.splitlines()) if e['event'] == 'broker_day_failed']
+    assert failed == [{'event': 'broker_day_failed', 'date': '2026-01-02', 'reason': 'round', 'error': 'OperationalError',
+                       'kept': before['2026-01-02']['key']}] and 'password' not in out
+    conn._rows = rows
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)
+    assert days(bucket)['2026-01-02']['key'] != before['2026-01-02']['key']
+    assert bucket.get_json('state.json')['broker_days_checked_at'] == finished(3).isoformat()
+
+
+def test_a_broker_day_object_missing_from_the_bucket_is_put_again():
+    conn, bucket = day_conn(('2026-01-02',)), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    key = days(bucket)['2026-01-02']['key'][3:]
+    body = bucket.objects.pop(key)                                    # deleted by hand: the index names a missing object
+    pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=False)
+    assert bucket.objects[key] == body and days(bucket)['2026-01-02']['key'] == f'v1/{key}'
+
+
+def test_verify_checks_every_broker_day_file_against_sql(capsys):
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    assert pub.verify(conn, bucket) == 0
+    # a lot count the yearly broker file does not sum: only the broker day file of that date differs
+    conn.brokers = [r[:7] + (r[7] + 0.5,) + r[8:] if r[1] == '2026-01-05' and r[0] == 'AALI' else r for r in conn.brokers]
+    capsys.readouterr()
+    assert pub.verify(conn, bucket) == 1
+    (bad,) = [e for e in events(capsys, 'verify_mismatch')]
+    assert bad['name'] == 'broker-2026-01-05' and 'first difference at row 0' in bad['problems'][0]
+    conn.brokers = [r for r in conn.brokers if not (r[1] == '2026-01-05' and r[0] == 'AALI')]     # a row gone from SQL
+    assert pub.verify(conn, bucket) == 2                                  # that file and the yearly broker file
+
+
+def test_the_broker_days_mode_rebuilds_every_window_date_and_the_other_modes_carry_the_entries():
+    conn, bucket = day_conn(), FakeBucket()
+    pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+    state = bucket.get_json('state.json')
+    mine = lambda s: ({n: e for n, e in s['xsection'].items() if n.startswith('broker-')}, s['broker_day_stamps'],
+                      s['broker_days_checked_at'])
+    statements = (pub.BROKER_DAYS_WINDOW_SQL, pub.BROKER_DAY_SQL, pub.BROKER_DAY_STAMPS_SQL, pub.BROKER_ROUNDS_SQL)
+    for mode, args in (('logos', ()), ('events', ()), ('packs', ()), ('intraday', ()), ('broker-range', ('2026-01-01', '2026-12-31'))):
+        c = len(conn.calls)
+        pub.Publisher(conn, bucket, today=TODAY, get=fake_get()).run(mode, *args)
+        assert mine(bucket.get_json('state.json')) == mine(state), mode
+        assert not any(s in statements for s, _ in conn.calls[c:]), mode
+    n, c = len(bucket.puts), len(conn.calls)
+    pub.Publisher(conn, bucket, today=TODAY).run('broker-days')
+    assert sorted(day_reads(conn, c)) == ['2026-01-02', '2026-01-05'] and day_puts(bucket, n) == []   # same bytes
+    assert not any(k.startswith(('price/', 'broker/', 'events/', 'pack/', 'manifest/', 'xsection/price.', 'xsection/actions.'))
+                   for k in bucket.puts[n:])
+    assert mine(bucket.get_json('state.json')) == mine(state)
+    # terminal-api serves neither publisher-private field (bucket.py STATE_FIELDS)
+    spec = importlib.util.spec_from_file_location('terminal_api_bucket', ROOT / 'apps/terminal-api/app/bucket.py')
+    reader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(reader)
+    assert not {'broker_days_checked_at', 'broker_day_stamps'} & set(reader.STATE_FIELDS)
+    assert reader.xsection_index(state['xsection']) == state['xsection']               # every broker day entry served

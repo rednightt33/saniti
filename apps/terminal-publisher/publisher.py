@@ -24,9 +24,15 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
                 since its last run (C7.4 A), backfill every series.
   fixed_income  every bond's files (EXEC-FI-TERMINAL; initial load): `daily` publishes the bond years whose stamp changed
                 and `backfill` every year, as for the prices.
+  broker-days   every Screener broker day file of the window (EXEC-SCREENER-FLOW-CANDLES P4: the first fill, a repair;
+                publish_broker_days). A large read (60 dates, about 1.47 M rows): run scripts/restart_postgres.py after it
+                (AGENTS.md, Postgres memory after large updates).
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
-`price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward.
+`price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward. The broker
+day files (`broker-YYYY-MM-DD`, EXEC-SCREENER-FLOW-CANDLES P4) are maintained by BROKER_DAYS_MAINTAINED_BY (daily: the new
+dates, the dates of a finished broker round, and on the sweep run the dates whose stamp changed; backfill and
+broker-days: every window date); every other mode carries their entries forward unchanged.
 
 Start (EXEC-PUBLISH-FLOW, user go 2026-11-05: "kalau cron selesai, dia trigger ke publisher"): a loader that finished
 writing changed data notifies telegram-monitor after its commit; telegram-monitor records public.terminal_publish_signal
@@ -86,7 +92,11 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
                                    one columnar file; each ticker's slice equals its price pack) and `actions` (the
                                    corporate actions on their ex dates: share-count changes and cash dividends). <sha16>
                                    is the first 16 hex of the sha256 (the form terminal-api accepts); state.json
-                                   `xsection` = {name: {key, sha256, bytes, rows, as_of}} is their manifest
+                                   `xsection` = {name: {key, sha256, bytes, rows, as_of}} is their manifest.
+                                   `broker-YYYY-MM-DD` (EXEC-SCREENER-FLOW-CANDLES P4, user 2026-11-07): the stock rows of
+                                   Feature 05 on one trade date, one file per date of the BROKER_DAY_SESSIONS newest
+                                   (verification/screener/P4_BROKER_DAYS.md); state.json `broker_days_checked_at` and
+                                   `broker_day_stamps` are the publisher's own (terminal-api does not serve them)
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
 Data files are written before the manifest that names them, and the xsection and content-keyed reference files before
@@ -106,6 +116,7 @@ import datetime as dt
 import gzip
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -265,8 +276,48 @@ XSECTION_ACTIONS_SQL = ('SELECT ticker, annotation_date::text, event_type, ratio
                         'AND event_type = ANY(%s) AND annotation_date >= %s')
 ACTION_COLUMNS = ['t', 'd', 'type', 'ratio_old', 'ratio_new', 'amount_per_share', 'currency']
 PRICE_XSECTION_COLUMNS = ['t', 'd', 'o', 'h', 'l', 'c', 'v']
-# which modes rebuild which file (report 6.5); every other index entry is carried forward as it is
+# which modes rebuild which file (report 6.5); every other index entry is carried forward as it is (the broker day files
+# have their own rule: BROKER_DAYS_MAINTAINED_BY)
 XSECTION_REBUILT_BY = {'price': ('daily', 'backfill', 'packs'), 'actions': ('daily', 'backfill', 'packs', 'events')}
+
+# ---- EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07, under EXEC-BROKER-DELTA): broker data for the Screener ---------------
+# One xsection file per Feature 05 trade date, `broker-YYYY-MM-DD` (user 2026-11-07: "hari baru = satu file baru, tanggal
+# berubah = file tanggal itu diganti"; K1: the 60 newest sessions). verification/screener/P4_BROKER_DAYS.md is the contract
+# with apps/screener-worker; P4 computes no indicator.
+BROKER_DAY_SESSIONS = 60
+# daily and backfill maintain the files and the manual mode broker-days (the first fill, a repair) rebuilds every window
+# date; backfill rebuilds every window date too, as it republishes every other file (an unchanged one is not put again,
+# store). Every other mode carries the entries forward unchanged.
+BROKER_DAYS_MAINTAINED_BY = ('daily', 'backfill', 'broker-days')
+BROKER_DAYS_REBUILT_BY = ('backfill', 'broker-days')
+BROKER_DAY_NAME = re.compile(r'broker-(\d{4}-\d{2}-\d{2})')
+DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
+BROKER_DAY_COLUMNS = ['b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'bf', 'sf']
+BROKER_DAY_INVESTOR_TYPES = ['Domestic', 'Foreign']          # the table's CHECK (investor_type)
+BROKER_DAY_BOARDS = ['Regular', 'Nego', 'Tunai']             # the table's CHECK (market_board)
+F05 = BROKER_TABLES['stock']
+# the window: the BROKER_DAY_SESSIONS newest distinct trade dates, by an index skip scan on
+# Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx (each step one max(trade_date) below the previous date, a
+# backward probe of the index); never a SELECT DISTINCT over the table
+BROKER_DAYS_WINDOW_SQL = ('WITH RECURSIVE d(trade_date, n) AS ('
+                          f'SELECT max(trade_date), 1 FROM public."{F05}" '
+                          'UNION ALL '
+                          f'SELECT (SELECT max(f.trade_date) FROM public."{F05}" f WHERE f.trade_date < d.trade_date), '
+                          'd.n + 1 FROM d WHERE d.trade_date IS NOT NULL AND d.n < %s) '
+                          'SELECT trade_date::text FROM d WHERE trade_date IS NOT NULL ORDER BY 1')
+# one date's stock rows (about 24,500, K6) through the trade_date index; ordered here, in code point order (the database
+# collation need not be)
+BROKER_DAY_SQL = ('SELECT ticker, broker, investor_type, market_board, buy_value::float8, sell_value::float8, '
+                  'buy_lots::float8, sell_lots::float8, source_balance_gap, buy_freq, sell_freq '
+                  f'FROM public."{F05}" WHERE trade_date = %s AND ticker = ANY(%s)')
+# the per-date stamp of the stock rows: their count and the exact (numeric) sums of buy and sell value
+BROKER_DAY_STAMPS_SQL = ('SELECT trade_date::text, count(*), sum(buy_value)::text, sum(sell_value)::text '
+                         f'FROM public."{F05}" WHERE trade_date = ANY(%s::date[]) AND ticker = ANY(%s) GROUP BY 1')
+# the broker rounds that finished since the last check, with the dates refresh.py refreshed in Feature 05
+# (apps/stockbit-updater/refresh.py refresh_broker_features: features.changed_dates, 'YYYY-MM-DD' strings)
+BROKER_ROUNDS_SQL = ("SELECT finished_at, features->'changed_dates' FROM public.\"Monitoring_Stockbit_Update\" "
+                     "WHERE mode = 'APPLY' AND status = 'SUCCESS' "
+                     "AND finished_at > coalesce(%s::timestamptz, '-infinity'::timestamptz) ORDER BY finished_at")
 
 
 def indexed_key(family):
@@ -683,6 +734,81 @@ def read_actions(conn, kind, first_year):
     return [r[:7] for r in rows], outside
 
 
+def whole(v):
+    """A number as a broker day file writes it (P4_BROKER_DAYS.md 1): a whole number as an integer (1234, not 1234.0)."""
+    return int(v) if isinstance(v, float) and v.is_integer() else v
+
+
+def day_stamp(rows=0, bv=0, sv=0):
+    """The per-date stamp in state.json broker_day_stamps: rows and the sums of buy and sell value (BROKER_DAY_STAMPS_SQL;
+    a date without stock rows has the zero stamp)."""
+    return f'rows={rows};bv={bv};sv={sv}'
+
+
+def broker_day_doc(date, rows):
+    """EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07; P4_BROKER_DAYS.md section 1): the `broker-YYYY-MM-DD` xsection file
+    of one Feature 05 trade date. `rows` are BROKER_DAY_SQL rows (ticker, broker, investor_type, market_board, bv, sv, bl,
+    sl, source_balance_gap, bf, sf) in any order; the file holds them ordered by ticker (code point order), broker,
+    investor type and board (the primary key order), `tickers` [{t, rows}] in that order, b/i/m as indices into
+    `brokers` (this file's codes, sorted), `investor_types` and `boards` (fixed, the table's CHECKs), whole numbers as
+    integers, `gap` the [ticker, board] pairs whose source_balance_gap is true (as broker_doc), and `check` the rows and
+    the sums of bv and sv (floats) a reader recomputes. An investor type or board outside the CHECKs is a KeyError: the
+    date fails and keeps its previous file."""
+    rows = sorted(rows, key=lambda r: r[:4])
+    brokers = sorted({r[1] for r in rows})
+    at_b = {b: n for n, b in enumerate(brokers)}
+    at_i = {v: n for n, v in enumerate(BROKER_DAY_INVESTOR_TYPES)}
+    at_m = {v: n for n, v in enumerate(BROKER_DAY_BOARDS)}
+    tickers = []
+    for r in rows:
+        if tickers and tickers[-1]['t'] == r[0]:
+            tickers[-1]['rows'] += 1
+        else:
+            tickers.append({'t': r[0], 'rows': 1})
+    cols = {'b': [at_b[r[1]] for r in rows], 'i': [at_i[r[2]] for r in rows], 'm': [at_m[r[3]] for r in rows],
+            'bv': [whole(r[4]) for r in rows], 'sv': [whole(r[5]) for r in rows], 'bl': [whole(r[6]) for r in rows],
+            'sl': [whole(r[7]) for r in rows], 'bf': [freq(r[9]) for r in rows], 'sf': [freq(r[10]) for r in rows]}
+    gap = sorted({(r[0], r[3]) for r in rows if r[8]})
+    return {'schema_version': SCHEMA_VERSION, 'dataset': 'xsection', 'name': f'broker-{date}', 'date': date,
+            'source': F05,
+            'units': {'bv': 'IDR', 'sv': 'IDR', 'bl': 'lots (100 shares; odd lots as fractions)', 'sl': 'lots',
+                      'bf': 'buy transactions', 'sf': 'sell transactions'},
+            'means': {'date': 'the Feature 05 trade date of every row of this file',
+                      'rows': 'one row per stock, broker, investor type and board, ordered by ticker (code point order), '
+                              'broker, investor type and board (the primary key order); only stocks of the universe',
+                      'tickers': '[{t, rows}] in file order: the column arrays hold the rows of every ticker back to back',
+                      'b': 'index into brokers (the distinct broker codes of this file, sorted)',
+                      'i': 'index into investor_types: the source investor identity (Foreign/Domestic), not broker '
+                           'domicile',
+                      'm': 'index into boards: the market board of the row',
+                      'bv': 'gross buy value', 'sv': 'gross sell value', 'bl': 'lots bought', 'sl': 'lots sold',
+                      'bf': 'number of buy transactions; null when the source has none',
+                      'sf': 'number of sell transactions; null when the source has none',
+                      'numbers': 'a whole number is written as an integer (1234, not 1234.0)',
+                      'gap': '[ticker, board] pairs whose total buy value over all brokers differs from the total sell '
+                             'value in the source (source_balance_gap, ERRORS M157), sorted',
+                      'check': 'rows, and the sums of bv and sv over the file (floats): a reader recomputes them'},
+            'brokers': brokers, 'investor_types': list(BROKER_DAY_INVESTOR_TYPES), 'boards': list(BROKER_DAY_BOARDS),
+            'tickers': tickers, 'columns': BROKER_DAY_COLUMNS, **cols, 'gap': [list(g) for g in gap],
+            'check': {'rows': len(rows), 'bv': math.fsum(r[4] for r in rows), 'sv': math.fsum(r[5] for r in rows)}}
+
+
+def broker_day_rows(doc):
+    """A broker day document -> (its rows (ticker, broker, investor_type, board, bv, sv, bl, sl, bf, sf) in file order,
+    its gap pairs), decoded through its own tables; ValueError when its arrays or indices do not fit (verify)."""
+    n = len(doc['b'])
+    if (doc['columns'] != BROKER_DAY_COLUMNS or any(len(doc[c]) != n for c in BROKER_DAY_COLUMNS)
+            or sum(t['rows'] for t in doc['tickers']) != n):
+        raise ValueError('the arrays do not fit')
+    tables = {'b': doc['brokers'], 'i': doc['investor_types'], 'm': doc['boards']}
+    if any(not (isinstance(x, int) and 0 <= x < len(tables[c])) for c in tables for x in doc[c]):
+        raise ValueError('an index outside its table')
+    tickers = [t['t'] for t in doc['tickers'] for _ in range(t['rows'])]
+    rows = [(t, tables['b'][b], tables['i'][i], tables['m'][m], *rest)
+            for t, b, i, m, *rest in zip(tickers, *(doc[c] for c in BROKER_DAY_COLUMNS))]
+    return rows, [tuple(g) for g in doc['gap']]
+
+
 def _count(v, least):
     return isinstance(v, int) and not isinstance(v, bool) and v >= least
 
@@ -913,6 +1039,10 @@ class Publisher:
         self.bytes = 0
         self.xsection = {}                                  # the index written into state.json (run())
         self.xsection_failed = []                           # xsection files whose rebuild failed (their entry kept)
+        # EXEC-SCREENER-FLOW-CANDLES P4: state.json's publisher-private broker day fields (publish_broker_days)
+        self.broker_days_checked_at = None                  # the newest broker round finished_at taken into account
+        self.broker_day_stamps = {}                         # date -> day_stamp of the dates built or checked
+        self.broker_days_failed = []                        # dates whose file failed (entry kept), or ['plan']
         self.ref_written = {}                               # name -> the bytes put under its fixed key this run
         self.refs = {}                                      # the `refs` index written into state.json (index_refs)
         self.refs_failed = []                               # reference files whose content copy failed (entry kept)
@@ -1200,6 +1330,131 @@ class Publisher:
             seconds=round(time.monotonic() - started, 1), **info)
         return {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
 
+    # ---- broker day files (EXEC-SCREENER-FLOW-CANDLES P4, user 2026-11-07; P4_BROKER_DAYS.md section 2) ---------------
+    def broker_days_window(self):
+        """The BROKER_DAY_SESSIONS newest Feature 05 trade dates, oldest first (BROKER_DAYS_WINDOW_SQL: an index skip
+        scan, one backward probe of the trade_date index per date)."""
+        return [d for (d,) in self.conn.execute(BROKER_DAYS_WINDOW_SQL, (BROKER_DAY_SESSIONS,)).fetchall()]
+
+    def broker_rounds(self, since):
+        """The finished broker rounds (Monitoring_Stockbit_Update: mode APPLY, status SUCCESS) whose finished_at is after
+        `since` (state.json broker_days_checked_at; every one without it), oldest first -> [(finished_at, the
+        'YYYY-MM-DD' dates of features.changed_dates)]; anything else in the list is left out."""
+        out = []
+        for at, dates in self.conn.execute(BROKER_ROUNDS_SQL, (since,)).fetchall():
+            listed = dates if isinstance(dates, list) else []
+            out.append((at, sorted({d for d in listed if isinstance(d, str) and DATE.fullmatch(d)})))
+        return out
+
+    def broker_day_stamps_of(self, dates, stocks):
+        """{date: day_stamp} of the stock rows of `dates` (one BROKER_DAY_STAMPS_SQL statement; none for no date)."""
+        if not dates:
+            return {}
+        found = {d: day_stamp(n, bv, sv) for d, n, bv, sv in
+                 self.conn.execute(BROKER_DAY_STAMPS_SQL, (list(dates), stocks)).fetchall()}
+        return {d: found.get(d, day_stamp()) for d in dates}
+
+    def publish_broker_days(self, mode, kind, state, previous, present, sweep):
+        """EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07: "hari baru = satu file baru, tanggal berubah = file tanggal itu
+        diganti", one active copy per stock-date; K1 window 60 sessions): the `broker-YYYY-MM-DD` entries of
+        self.xsection, one per date of the window (broker_days_window), each the stock rows (kind 'stock') of that date.
+
+        In daily a date is (re)built when (P4_BROKER_DAYS.md section 2):
+          new      it is in the window and has no index entry (a new date, or the first fill); or its entry's object is
+                   not in the bucket's xsection listing (`missing`: put again, the same bytes, as store does);
+          round    a finished broker round lists it (broker_rounds after state.json broker_days_checked_at);
+          stamp    on the sweep run only (`sweep`, 07:30 WIB), its stamp (day_stamp of the stock rows) differs from
+                   state.json broker_day_stamps[date]: the safety net for a Feature 05 change outside a round. Only that
+                   run aggregates the window.
+        backfill and broker-days rebuild every window date (`all`). A built file whose sha256 equals its entry is not put
+        again (store; put at once, as the other xsection files, before state.json). An entry outside the window is
+        dropped; delete_replaced deletes its object after the usual wait. A date that fails keeps its previous entry and
+        stamp and logs broker_day_failed (the class only); the run goes on. broker_days_checked_at becomes the newest
+        round finished_at taken into account: it stops before the first round that listed a failed date, so the next run
+        reads that round again. The stamp of a date is read before its rows: a change in between makes the next sweep
+        rebuild it. Every other mode carries the entries, the stamps and the check time forward unchanged. One
+        `broker_days` log line per run."""
+        started = time.monotonic()
+        self.broker_days_failed = []
+        entries = {n: e for n, e in previous.items() if BROKER_DAY_NAME.fullmatch(n)}
+        raw = state.get('broker_day_stamps')
+        stamps_before = ({d: s for d, s in raw.items() if isinstance(d, str) and DATE.fullmatch(d) and isinstance(s, str)}
+                         if isinstance(raw, dict) else {})
+        checked_at = state.get('broker_days_checked_at')
+        try:
+            dt.datetime.fromisoformat(checked_at)
+        except (TypeError, ValueError):
+            checked_at = None                                   # absent or unreadable: every finished round is read
+        self.broker_day_stamps, self.broker_days_checked_at = stamps_before, checked_at
+        if mode not in BROKER_DAYS_MAINTAINED_BY:
+            log('broker_days', mode=mode, maintained=False, carried=len(entries))
+            return
+        stocks = sorted(t for t, k in kind.items() if k == 'stock')
+        full, check = mode in BROKER_DAYS_REBUILT_BY, mode == 'daily' and sweep
+        try:
+            window = self.broker_days_window()
+            rounds = self.broker_rounds(checked_at)
+            reasons = {}
+            for d in window:
+                e = entries.get(f'broker-{d}')
+                if full:
+                    reasons[d] = 'all'
+                elif e is None:
+                    reasons[d] = 'new'
+                elif present is not None and e['key'][len(PREFIX) + 1:] not in present:
+                    reasons[d] = 'missing'
+            in_window = set(window)
+            for _, dates in rounds:
+                for d in dates:
+                    if d in in_window:
+                        reasons.setdefault(d, 'round')
+            stamps = self.broker_day_stamps_of(window if full or check else sorted(reasons), stocks)
+            if check:
+                for d in window:
+                    if d not in reasons and stamps_before.get(d) != stamps[d]:
+                        reasons[d] = 'stamp'
+        except Exception as e:  # noqa: BLE001 - the class only; every entry, stamp and the check time are kept
+            self.broker_days_failed = ['plan']
+            log('broker_days_failed', step='plan', error=type(e).__name__, kept=len(entries))
+            return
+        built, uploaded, failed, put_bytes = [], [], [], 0
+        for d in sorted(reasons, reverse=True):                 # newest first, as the worker loads them
+            name = f'broker-{d}'
+            try:
+                rows = self.conn.execute(BROKER_DAY_SQL, (d, stocks)).fetchall()
+                body, sha = encode(broker_day_doc(d, rows))
+                key, put = self.store(entries.get(name, {}), 'xsection', None, name, body, sha, present, counted=False,
+                                      now=True)
+                self.xsection[name] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': len(rows), 'as_of': d}
+                built.append(d)
+                if put:
+                    uploaded.append(d)
+                    put_bytes += len(body)
+            except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
+                failed.append(d)
+                log('broker_day_failed', date=d, reason=reasons[d], error=type(e).__name__,
+                    kept=entries.get(name, {}).get('key'))
+        dropped = sorted(n for n in entries if BROKER_DAY_NAME.fullmatch(n).group(1) not in in_window)
+        for n in dropped:
+            self.xsection.pop(n, None)
+        self.broker_day_stamps = dict(sorted({**{d: s for d, s in stamps_before.items() if d in in_window},
+                                              **{d: stamps[d] for d in built}}.items()))
+        for at, dates in rounds:
+            if set(failed) & set(dates):
+                break
+            checked_at = at.isoformat()
+        self.broker_days_checked_at, self.broker_days_failed = checked_at, sorted(failed)
+        by_reason = {}
+        for d in sorted(reasons):
+            by_reason.setdefault(reasons[d], []).append(d)
+        log('broker_days', mode=mode, first=window[0] if window else None, last=window[-1] if window else None,
+            sessions=len(window), built=sorted(built), uploaded=sorted(uploaded),
+            carried=sum(1 for d in window if f'broker-{d}' in entries and d not in built), dropped=dropped,
+            failed=sorted(failed), bytes=put_bytes,
+            window_bytes=sum(self.xsection[f'broker-{d}']['bytes'] for d in window if f'broker-{d}' in self.xsection),
+            seconds=round(time.monotonic() - started, 1), reasons=by_reason, rounds=len(rounds), stamps_checked=check,
+            checked_at=checked_at)
+
     def present_keys(self, family, previous):
         """The keys under `<family>/` of an indexed family (xsection, ref; one listing of that prefix; no cleanup runs
         during the run, it comes after state.json), or, when the bucket cannot list them, the keys of the previous index (`store` then trusts the
@@ -1401,7 +1656,7 @@ class Publisher:
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'index' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
-        elif mode in ('logos', 'packs', 'intraday', 'fixed_income'):
+        elif mode in ('logos', 'packs', 'intraday', 'fixed_income', 'broker-days'):
             todo = []
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ in BROKER_TABLES]
@@ -1455,13 +1710,16 @@ class Publisher:
         rebuilt = [name for name, modes in XSECTION_REBUILT_BY.items() if mode in modes]
         # a key the bucket holds is not put again; an indexed object the listing lacks (deleted by hand) is put again,
         # the same bytes. The cleanup runs after state.json, so no object this listing names is deleted during the run.
-        present = self.present_keys('xsection', previous) if rebuilt else None
+        # One listing serves the broker day files too (EXEC-SCREENER-FLOW-CANDLES P4).
+        present = (self.present_keys('xsection', previous) if rebuilt or mode in BROKER_DAYS_MAINTAINED_BY else None)
         for name in rebuilt:
             try:
                 self.xsection[name] = self.publish_xsection(name, kind, through, touched, previous, present)
             except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
                 self.xsection_failed.append(name)
                 log('xsection_failed', name=name, error=type(e).__name__, kept=self.xsection.get(name, {}).get('key'))
+        # EXEC-SCREENER-FLOW-CANDLES P4: the broker day files, put at once (a failed date keeps its entry), before state.json
+        self.publish_broker_days(mode, kind, state, previous, present, sweep)
         # barrier: every data file, pack and xsection file is in the bucket before a manifest names it
         self.uploads.wait()
         self.step('manifests')
@@ -1504,12 +1762,15 @@ class Publisher:
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
             'refs': self.refs,
             'intraday_change_seen': self.intraday_seen.isoformat() if self.intraday_seen else state.get('intraday_change_seen'),
+            # EXEC-SCREENER-FLOW-CANDLES P4: publisher-private (terminal-api STATE_FIELDS does not serve them)
+            'broker_days_checked_at': self.broker_days_checked_at, 'broker_day_stamps': self.broker_day_stamps,
             'finished_at': self.finished_at}).encode(), 'application/json')
         self.step('cleanup')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), fixed_income=len(fi_touched), seconds=round(time.monotonic() - started, 1),
             broker_behind_sessions=self.broker_behind,
-            xsection=sorted(self.xsection), xsection_failed=self.xsection_failed, refs=sorted(self.refs),
+            xsection=sorted(self.xsection), xsection_failed=self.xsection_failed,
+            broker_days_failed=self.broker_days_failed, refs=sorted(self.refs),
             refs_failed=self.refs_failed, phases=self.phases, threads=self.threads)
         # EXEC-PUBLISHER-SPEED (user 2026-10-29, "Ok setuju"): the objects this publication stopped naming go once no
         # reader can still use them, by name, without a listing of the bucket (delete_replaced)
@@ -1994,8 +2255,9 @@ def verify_xsection(conn, bucket, kind, pack_sha):
     """EXEC-SCREENER: the files of state.json's xsection index. Each: present, its bytes and sha256 as indexed, its rows
     as indexed. price: every ticker's slice encodes to its published price pack (manifest `packs`) and has the rows,
     first and last date and sum of closes of SQL, and no published ticker with rows is missing; actions: the rows SQL
-    gives now. -> (files checked, mismatches)."""
+    gives now; a broker day file (EXEC-SCREENER-FLOW-CANDLES P4): broker_day_problems. -> (files checked, mismatches)."""
     state = bucket.get_json('state.json') or {}
+    stocks = sorted(t for t, typ in kind.items() if data_kind(typ) == 'stock')
     checked = bad = 0
     for name, e in sorted(xsection_entries(state.get('xsection')).items()):
         body = bucket.get_raw(e['key'][len(PREFIX) + 1:])
@@ -2025,10 +2287,37 @@ def verify_xsection(conn, bucket, kind, pack_sha):
             rows, _ = read_actions(conn, kind, state['price_first_year'])
             if columnar(rows, ACTION_COLUMNS) != {c: doc[c] for c in ACTION_COLUMNS}:
                 problems.append('the rows differ from SQL')
+        elif BROKER_DAY_NAME.fullmatch(name):
+            problems += broker_day_problems(conn, name, doc, stocks)
         if problems:
             bad += 1
             log('verify_mismatch', dataset='xsection', name=name, problems=problems[:20], count=len(problems))
     return checked, bad
+
+
+def broker_day_problems(conn, name, doc, stocks):
+    """EXEC-SCREENER-FLOW-CANDLES P4: one broker day file against SQL: its name and date are the index name's, its decoded
+    rows (broker_day_rows) and gap pairs are the stock rows Feature 05 holds for that date now (BROKER_DAY_SQL, in the
+    file's order), and its check is the rows and sums of those rows. -> the problems found."""
+    date = BROKER_DAY_NAME.fullmatch(name).group(1)
+    problems = [] if (doc.get('name'), doc.get('date')) == (name, date) else ['name or date differ from the index']
+    try:
+        got, gap = broker_day_rows(doc)
+    except (KeyError, IndexError, TypeError, ValueError):
+        return problems + ['not a broker day file']
+    sql = sorted(conn.execute(BROKER_DAY_SQL, (date, stocks)).fetchall(), key=lambda r: r[:4])
+    want = [(*r[:8], freq(r[9]), freq(r[10])) for r in sql]
+    if got != want:
+        diff = next((n for n, (a, b) in enumerate(zip(got, want)) if a != b), min(len(got), len(want)))
+        problems.append(f'rows {len(got)} but SQL {len(want)}; first difference at row {diff}')
+    if gap != sorted({(r[0], r[3]) for r in sql if r[8]}):
+        problems.append('gap differs from SQL')
+    check = doc.get('check') or {}
+    sums = (math.fsum(r[4] for r in got), math.fsum(r[5] for r in got))
+    if check.get('rows') != len(got) or any(not isinstance(check.get(c), (int, float)) or
+                                            abs(check[c] - s) > max(1e-6, abs(s) * 1e-9) for c, s in zip(('bv', 'sv'), sums)):
+        problems.append('check differs from the rows')
+    return problems
 
 
 WIB = dt.timezone(dt.timedelta(hours=7))
