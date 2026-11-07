@@ -66,6 +66,9 @@ export interface ResolvedSeries {
   /** The bars a value depends on when the reference states it exactly (a pattern: breakout(N) reads N + 1 bars);
       otherwise evaluate.ts lookbackStart derives it from the series' first valid bar. */
   readonly window?: number;
+  /** True when every value is a whole number (a count: rising_run). "=" and "!=" are offered only on such a series
+      (K7, OPERATORS.md operator 1); a series without the flag is read as continuous. */
+  readonly integer?: boolean;
   full(t: TickerCalc): ArrayLike<Num | undefined>;
 }
 export interface ResolvedIndicator extends ResolvedSeries {

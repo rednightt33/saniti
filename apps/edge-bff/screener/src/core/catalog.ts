@@ -54,11 +54,24 @@ export interface MetricDefinition {
   unavailable_reason?: string;
   fl?: string;
 }
+/** The universal operators (EXEC-SCREENER-FLOW-CANDLES; verification/screener/OPERATORS.md, approved K4) as the page
+    offers them: a measure is a transform of the series (its arguments are the transform's), a test how the measured
+    series is tested. types: the output types of OPERATORS.md section 4 a series can have, by the transform that makes
+    it. One source for the page and the core (transforms.ts operatorTakes, condition.ts bindRank). unit: the unit of a
+    measure's result, fixed or by an argument ('diff' = the unit of a difference of the series). */
+export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; short?: string; default: { cmp: string; value: number; range?: [number, number] } }
+export interface OperatorTest {
+  id: number; key: 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank'; label: string; help: string; ops: string[];
+  within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
+  short?: string; default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number; range?: [number, number] };
+}
+export interface OperatorsBlock { note?: string; types: Record<string, { fns: string[]; words: string }>; measures: OperatorMeasure[]; tests: OperatorTest[]; default_measure: string }
 export interface MetricsCatalog {
   schema_version: number; note?: string; cost_note?: string;
   periods: Periods;
   transforms: TransformDefinition[];
   metrics: MetricDefinition[];
+  operators: OperatorsBlock;
 }
 /** One preset of src/core/presets.json (report 6.12 "Presets"; APPENDIX A.2): the prototype's presets remapped onto
     the registry and the catalog. Availability, the unavailable legs and the match / near counts are derived at run time
@@ -195,6 +208,22 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
     if (m.kind === 'flow' && !m.params.some(p => p.key === 'window')) out.push(`${w}: a flow metric needs a window parameter (contract FlowRef)`);
     if (m.kind === 'transform' && !m.ref) out.push(`${w}: a transform-based metric needs its reference template (ref)`);
     if (m.kind === 'pattern' && m.tests.includes('value')) out.push(`${w}: a pattern is a signal, never a VALUE`);
+  }
+  // the operators block: every measure a transform of the catalog, every type's transforms too, every not_on a type,
+  // the tests the seven of OPERATORS.md with their operators known to the contract
+  const ob = c.operators;
+  if (!ob || !Array.isArray(ob.measures) || !Array.isArray(ob.tests) || !ob.types) out.push('operators: measures, tests and types are required');
+  else {
+    for (const [k, t] of Object.entries(ob.types)) for (const fn of t.fns) if (!fns.has(fn)) out.push(`operators type ${k}: ${fn} is not a transform of the catalog`);
+    for (const m of ob.measures) {
+      if (!fns.has(m.fn)) out.push(`operators measure ${m.fn}: not a transform of the catalog`);
+      for (const k of m.not_on) if (!ob.types[k]) out.push(`operators measure ${m.fn}: not_on ${k} is not a type`);
+      if (typeof m.unit === 'object') { const arg = c.transforms.find(t => t.fn === m.fn)?.args.find(a => a.key === (m.unit as Record<string, string>).by);
+        if (!arg || !(arg.options || []).every(o => typeof (m.unit as Record<string, string>)[o] === 'string')) out.push(`operators measure ${m.fn}: unit by ${(m.unit as Record<string, string>).by} must name a unit for each option`) }
+    }
+    for (const t of ob.tests) for (const k of t.not_on || []) if (!ob.types[k]) out.push(`operators test ${t.key}: not_on ${k} is not a type`);
+    const keys = ob.tests.map(t => t.key).sort().join(',');
+    if (keys !== 'at_least,cross,ever,range,rank,streak,value') out.push(`operators tests: ${keys} are not the seven tests of OPERATORS.md`);
   }
   // a fundamental is a universe attribute read from its file (the worker's universe row), never counted here: that the
   // catalog holds every fundamental of APPENDIX C.3 is derived from the prototype's catalogue in tests/core/catalog.test.ts

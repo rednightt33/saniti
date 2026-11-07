@@ -62,6 +62,14 @@ describe('every series a condition reads is causal: its value at a bar never rea
       { kind: 'transform', fn: 'ma', of: vol, args: { ma: 'SMA', length: 20 } },
       { kind: 'transform', fn: 'ratio', of: vol, args: { by: { kind: 'transform', fn: 'lag', of: { kind: 'transform', fn: 'ma', of: vol, args: { ma: 'SMA', length: 20 } }, args: { bars: 1 } } } },
       { kind: 'transform', fn: 'vs_index', of: close, args: { window: 63 } },
+      // the universal operators (OPERATORS.md 2-4, 6, 7, 12-14): a window "before t" must never read t itself or later
+      { kind: 'transform', fn: 'vs_average', of: rsi, args: { ma: 'EMA', length: 20, form: 'difference' } },
+      { kind: 'transform', fn: 'vs_average', of: vol, args: { ma: 'SMA', length: 20, form: 'percent' } },
+      { kind: 'transform', fn: 'percentile', of: rsi, args: { length: 60 } }, { kind: 'transform', fn: 'zscore', of: obv, args: { length: 40 } },
+      { kind: 'transform', fn: 'change_pct', of: close, args: { bars: 10 } },
+      { kind: 'transform', fn: 'relative', of: close, args: { form: 'ratio', by: { kind: 'indicator', indicator: 'I01', output: 'sma', params: { length: 50 } } } },
+      { kind: 'transform', fn: 'slope', of: rsi, args: { length: 20 } }, { kind: 'transform', fn: 'acceleration', of: close, args: { length: 10 } },
+      { kind: 'transform', fn: 'distance_to_extreme', of: { kind: 'price', field: 'high' }, args: { extreme: 'highest', length: 50, form: 'percent' } },
     ];
     expect(new Set(refs.map(x => x.fn))).toEqual(new Set(METRICS_CATALOG.transforms.map(x => x.fn)));     // every transform of the catalog
     const bad = refs.map(x => causal(resolveSeries(x as unknown as MetricRef, 'x', ctx), ctx)).filter(Boolean);

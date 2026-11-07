@@ -1,5 +1,5 @@
 /* EXEC-PANE-ORDER (user 2026-11-07: "panah naik dan turun mirip trading view ... untuk mengatur secara lokasi"; "bisa di
-   taruh di screenshot yang saya kotakin merah") and ERRORS M382 (the white gap after a row's value):
+   taruh di screenshot yang saya kotakin merah") and ERRORS M386 (the white gap after a row's value):
    1. a pane's Move up / Move down show while the pointer is in the pane, at its top left in the left axis's room, centred
       on the title's line; Move up is off for the first pane, Move down for the last;
    2. Move up swaps the panes (and the saved order); a reload keeps it; Undo puts it back; the pane's drawing goes with it;
@@ -49,7 +49,7 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
     await p.keyboard.press('Control+KeyZ'); await p.waitForTimeout(600);
     const t3 = await tops();
     check('undo puts it back', (await order()) === 'FL03,FL23' && t3.FL03 < t3.FL23, { order:await order(), tops:t3 });
-    // M382: from the chart onto the row: no gap before the buttons
+    // M386: from the chart onto the row: no gap before the buttons
     const k = await p.locator('.ind-row[data-def="FL03"] .ind-k').boundingBox();
     await p.mouse.move(180, k.y + 70); await p.waitForTimeout(200); await p.mouse.move(k.x + 30, k.y + k.height / 2, { steps:4 }); await p.waitForTimeout(300);
     const gap = await p.$eval('.ind-row[data-def="FL03"]', r => { const v = r.querySelector(':scope > b'), e = r.querySelector('.ind-eye'); return Math.round(e.getBoundingClientRect().left - v.getBoundingClientRect().left - v.scrollWidth) });

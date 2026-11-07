@@ -7,6 +7,7 @@ import type {
   ConditionDef, IndicatorRef, MetricRef, ParamMap, ParamValue, Side, Test, TestOp, ValueTest,
 } from './core/contract.ts';
 import { defaultParams, isDefP, OPLABEL, optionText, type Entry, type Opt } from './entries.ts';
+import { opErrors, opFromTest, opShort, opTest, opText, type OpState } from './operators.ts';
 
 export interface Card {
   id: string;                  // ^[0-9a-z]{1,6}$, unique in the screen
@@ -21,6 +22,9 @@ export interface Card {
   raw?: Test;                  // a raw card's wire test
   rawName?: string;            // a raw card's name: the catalog's name of what its test reads (fromWire; never on the wire)
   review?: string[];           // needs_review fields of a loaded saved screen (report 9.5), shown, never adjusted
+  /** a universal operator on the card's indicator (operators.ts, P3): the card's test is then the operator's; opt keeps
+      the entry's default condition, so every reader of the card's option still finds one */
+  op?: OpState;
 }
 
 /** Display scale of a value field by unit: IDR values are typed in Rp B, as the prototype's money fields. */
@@ -46,7 +50,7 @@ export function newCard(e: Entry, taken: Iterable<string>, over: Partial<Card> =
     id:newCardId(taken), on:true, entry:e.key, params:{ ...defaultParams(e), ...(over.params || {}) }, opt:opt?.key || '',
     value:over.value ?? e.def.value, value2:over.value2 ?? e.def.value2, within:over.within ?? e.def.within,
     second:{ ...defaultParams(e), ...(opt?.defaults ? pick(opt.defaults, e) : {}), ...(over.second || {}) },
-    ...(over.metric ? { metric:over.metric } : {}),
+    ...(over.metric ? { metric:over.metric } : {}), ...(over.op ? { op:{ ...over.op, margs:{ ...over.op.margs } } } : {}),
   };
 }
 /** the defaults of a form that are the second instance's parameters (keys that are entry parameters) */
@@ -95,6 +99,7 @@ const num = (v: number | '' | undefined, scale = 1) => v === '' || v == null ? N
 export function cardErrors(e: Entry | undefined, c: Card, withinMax = 130): Record<string, string> {
   const out: Record<string, string> = {};
   if (!e || c.raw) return out;
+  if (c.op && e.ops) return opErrors(e.ops, e, c.op, withinMax);
   const o = optOf(e, c);
   if (!o) { out.op = 'Pick a condition.'; return out }
   if (o.disabled) out.op = o.disabled;
@@ -116,6 +121,7 @@ export function cardErrors(e: Entry | undefined, c: Card, withinMax = 130): Reco
 export function toWire(e: Entry | undefined, c: Card): ConditionDef {
   const base = { id:c.id, enabled:c.on, ...(c.label ? { label:c.label } : {}) };
   if (!e || c.raw) return { ...base, test:c.raw! };
+  if (c.op && e.ops) return { ...base, test:opTest(e.ops, c.op, c.params, (p, output) => ind(e, p, output)) };
   const o = optOf(e, c)!;
   const scale = displayScale(o.unit), v = num(c.value, scale), v2 = num(c.value2, scale), within = Number(c.within);
   if (e.kind !== 'indicator') {
@@ -183,6 +189,20 @@ export function refName(t: any, entries: Map<string, Entry>): string | null {
 }
 /** A wire condition as a card on `entries` (by key); an unmapped one becomes a raw card. */
 export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
+  const card = fromWireForm(cd, entries);
+  if (!card.raw) return card;
+  // a test the card's own forms do not hold may be a universal operator's (operators.ts opFromTest)
+  for (const e of entries.values()) {
+    if (!e.ops || e.kind !== 'indicator') continue;
+    const r = opFromTest(e.ops, cd.test);
+    if (!r) break;                                   // every indicator entry carries the same operators block
+    const ie = entries.get(r.indicator);
+    if (!ie?.ops || !ie.indicator?.outputs.some(o => o.key === r.op.output)) break;
+    return { id:cd.id, on:cd.enabled !== false, entry:ie.key, params:full(ie, r.params), opt:ie.def.opt, value:'', value2:'', within:ie.def.within, second:full(ie), op:r.op, ...(cd.label ? { label:cd.label } : {}) };
+  }
+  return card;
+}
+function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
   const raw = (): Card => {
     const name = refName(cd.test, entries);
     return { id:cd.id, on:cd.enabled !== false, entry:null, params:{}, opt:'', value:'', value2:'', within:'', second:{}, raw:cd.test, ...(name ? { rawName:name } : {}), ...(cd.label ? { label:cd.label } : {}) };
@@ -253,6 +273,7 @@ const vtxt = (v: number | '' | undefined) => v === '' || v == null ? '…' : Str
 /** The card's rule in words (the prototype's condText). */
 export function condText(e: Entry | undefined, c: Card): string {
   if (!e || c.raw) return `${cardName(e, c)}: ${rawText(c.raw)} (kept as saved; not editable here)`;
+  if (c.op && e.ops) { const p = pv(e, c); return `${cardName(e, c)}${p ? ` (${p})` : ''}: ${opText(e.ops, e, c.op)}` }
   const o = optOf(e, c); const p = pv(e, c), name = `${cardName(e, c)}${p ? ` (${p})` : ''}`;
   if (!o) return name;
   const u = displayUnit(o.unit), us = u === '%' || u === '×' ? u : u ? ' ' + u : '';
@@ -276,5 +297,10 @@ export function condRule(e: Entry | undefined, c: Card): string {
 /** parameter summary (the prototype's paramSummary) */
 export const paramSummary = (e: Entry, p: ParamMap) => e.params.map(x => `${x.label || x.key} ${optionText(x, p[x.key])}${String(p[x.key]) !== String(x.default) ? ` (default ${optionText(x, x.default)})` : ''}`).join(' · ');
 /** the column header's short name and its parameter pill (the prototype's shortName, shortPv) */
-export const shortName = (e: Entry | undefined, c: Card) => c.metric?.name || (e ? e.short : cardName(e, c));
+export const shortName = (e: Entry | undefined, c: Card) => {
+  const base = c.metric?.name || (e ? e.short : cardName(e, c));
+  // an operator card names its measure and test (QA5 D2: four RSI operators under one "RSI 14" header)
+  const op = c.op && e?.ops ? opShort(e.ops, c.op) : '';
+  return op ? `${base} · ${op}` : base;
+};
 export const shortPv = (e: Entry | undefined, c: Card) => e ? e.params.filter(p => p.type !== 'enum' && p.type !== 'boolean').map(p => c.params[p.key]).join('/') : '';

@@ -30,6 +30,7 @@ import type { Op } from '../../../backtest/src/core/conditions.ts';
 import type { Num } from '../../../terminal/src/calc/indicators.ts';
 import type { Cell, CellRemark, HistoryClass, NaReason, ValueTest } from './contract.ts';
 import type { Tail } from './metrics.ts';
+import { valuePasses } from './universe.ts';
 
 /* ---- views of a series by bar index ------------------------------------------------------------------------------ */
 
@@ -107,14 +108,28 @@ export function evaluateValue(v: BarView, test: Pick<ValueTest, 'op' | 'value' |
   if (!Number.isFinite(x)) return { status: 'na', reason: naReason(v, at) ?? 'NULL_AT_EVALUATION', value: null };
   return { status: valuePasses(x, test) ? 'pass' : 'fail', reason: null, value: x };
 }
-/** The VALUE rule on one number (gt, lt strict; between inclusive); universe.ts applies the same rule to row attributes. */
-export function valuePasses(x: number, test: Pick<ValueTest, 'op' | 'value' | 'value2'>): boolean {
-  switch (test.op) {
-    case 'gt': return x > test.value;
-    case 'lt': return x < test.value;
-    case 'between': return x >= test.value && x <= (test.value2 as number);
+/** The VALUE rule on one number: universe.ts valuePasses, the one copy (QA3 D1), re-exported for the core's readers. */
+export { valuePasses };
+
+/** One session of a window test's inner comparison (OPERATORS.md 5, 9, 10): pass, fail, or n/a with its reason. */
+export type SessionOutcome = { status: 'pass' | 'fail' } | { status: 'na'; reason: NaReason };
+/** A window test (contract.ts WindowTest) on the `length` sessions ending at `at`, from the inner test's outcome per
+    session: ever passes when one session passes, at_least when `count` do, streak when every one does. n/a sessions
+    count as not passing; the result is n/a (with the reason at `at`, else the latest one) only when every session is
+    n/a. value: the passing sessions in the window (streak: the run ending at `at`); eventBar / lastEventBar: the latest
+    passing session (null when none). Reads sessions at-length+1 .. at only. */
+export function evaluateWindow(outcome: (i: number) => SessionOutcome, mode: 'ever' | 'at_least' | 'streak', length: number, count: number, at: number): Evaluation {
+  if (!(Number.isInteger(length) && length >= 1)) throw new RangeError(`evaluateWindow: length must be a whole number of at least 1, not ${length}`);
+  let passes = 0, run = 0, runOpen = true, latest: number | null = null, na = 0, reason: NaReason | null = null;
+  for (let i = at; i > at - length; i--) {
+    const o = i >= 0 ? outcome(i) : { status: 'na' as const, reason: 'INSUFFICIENT_HISTORY' as NaReason };
+    if (o.status === 'pass') { passes++; if (latest === null) latest = i; if (runOpen) run++ }
+    else { runOpen = false; if (o.status === 'na') { na++; reason ??= o.reason } }
   }
-  throw new RangeError(`evaluateValue: op ${JSON.stringify(test.op)} is not gt, lt or between`);
+  const value = mode === 'streak' ? run : passes;
+  if (na === length) return { status: 'na', reason: reason ?? 'INSUFFICIENT_HISTORY', value: null, eventBar: null, barsAgo: null, lastEventBar: null };
+  const pass = mode === 'ever' ? passes >= 1 : mode === 'at_least' ? passes >= count : run >= length;
+  return { status: pass ? 'pass' : 'fail', reason: null, value, eventBar: latest, barsAgo: latest === null ? null : at - latest, lastEventBar: latest };
 }
 
 /** STATE compare (report 6.9): pass iff compareAt(lhs, op, rhs, at). lhs and rhs: the current values (null for a

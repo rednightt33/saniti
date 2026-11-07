@@ -24,20 +24,21 @@
    Worker-side module (imports the backtest core through metrics.ts). */
 import type { Bars } from '../../../terminal/src/calc/indicators.ts';
 import type {
-  Cell, CellRemark, ConditionDef, MetricRef, ParamMap, PatternRef, Side, Test, TestKind, UniverseRow, ValueTest, XsectionRef,
+  Cell, CellRemark, ConditionDef, MetricRef, ParamMap, PatternRef, RankRef, Side, Test, TestKind, UniverseRow, ValueTest, WindowTest, XsectionRef,
 } from './contract.ts';
+import { WINDOW_MODES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG, appliesTo, metricSpec, resolveCatalogParams } from './catalog.ts';
 import type { MetricDefinition, MetricsCatalog } from './catalog.ts';
 import {
-  compareAt, crossSignal, evaluateEvent, valuePasses, evaluateState, evaluateStatePattern, evaluateValue, lookbackStart, lookbackStartOfWindow,
-  priceBreakRemark, signalAt, toCell, viewOfSeries, viewOfTail,
+  compareAt, crossSignal, evaluateEvent, evaluateWindow, valuePasses, evaluateState, evaluateStatePattern, evaluateValue, lookbackStart, lookbackStartOfWindow,
+  naReason, priceBreakRemark, signalAt, toCell, viewOfSeries, viewOfTail,
 } from './evaluate.ts';
-import type { BarView, Evaluation, Operand } from './evaluate.ts';
+import type { BarView, Evaluation, Operand, SessionOutcome } from './evaluate.ts';
 import { laggedSeries, missingInput, resolveSeries } from './metrics.ts';
 import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
-import { resolveSignal } from './transforms.ts';
+import { outputType, resolveSignal } from './transforms.ts';
 import { INDICATORS, SBY_ID, isDefaultParams } from './registry.ts';
 import type { ParamOptions } from './registry.ts';
 import { priceBreakDates } from './universe.ts';
@@ -68,8 +69,10 @@ export interface TickerInput {
   missing?: TickerBars['missing'];
 }
 
-/** A population-level metric a condition reads (report 6.10 stage S1; xsection.ts). */
-export interface XsectionNeed { key: string; metric: string; params: ParamMap; window: number }
+/** A population-level metric a condition reads (report 6.10 stage S1; xsection.ts). rankOf: operator 11 (contract.ts
+    RankRef), the series whose value at each ticker's evaluation bar is ranked against the filtered universe (decision C);
+    absent for the fixed-population return_rank. */
+export interface XsectionNeed { key: string; metric: string; params: ParamMap; window: number; rankOf?: ResolvedSeries }
 
 /** One side of a STATE or EVENT comparison, bound. */
 type BoundSide = { kind: 'value'; value: number } | { kind: 'series'; r: ResolvedSeries };
@@ -86,6 +89,8 @@ export interface BoundCondition {
   universeAttr: string | null;
   /** the per-condition summary fields of report 8.5 conditions[] that do not depend on the run */
   summary: { metric: string; params_resolved: ParamMap; is_default: boolean; unit: string | null };
+  /** a window test's inner comparison and window (operators 5, 9, 10): conditionSignal reads them */
+  window?: { inner: BoundCondition; mode: WindowTest['mode']; length: number; count: number };
   evaluate(input: TickerInput): { cell: Cell; source: SeriesSource };
 }
 
@@ -141,16 +146,23 @@ export function bindTest(id: string, test: Test, f: string, ctx: BindContext): B
     if ('pattern' in sig) return bindPattern(id, 'event', sig.pattern as PatternRef, within, `${f}.signal.pattern`, ctx);
     return bindCompare(id, 'event', sig.lhs as Side, sig.op as 'crosses_above' | 'crosses_below', sig.rhs as Side, within, `${f}.signal`, ctx);
   }
-  throw new ScreenerError('INVALID_CONDITION', `${f}.kind must be value, state or event.`, `${f}.kind`, { allowed: ['value', 'state', 'event'] });
+  if (t.kind === 'window') return bindWindow(id, t, f, ctx);
+  throw new ScreenerError('INVALID_CONDITION', `${f}.kind must be value, state, event or window.`, `${f}.kind`, { allowed: ['value', 'state', 'event', 'window'] });
 }
 
 function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): BoundCondition {
   const m = t.metric as MetricRef;
   if (!isObj(m)) throw new ScreenerError('INVALID_CONDITION', `${f}.metric must be a metric reference.`, `${f}.metric`);
   const rule = { op: t.op, value: t.value, value2: t.value2 };
-  const testOf = (metric: MetricRef): ValueTest => ({ kind: 'value', metric, op: t.op, value: t.value, ...(t.op === 'between' ? { value2: t.value2 } : {}) });
+  const testOf = (metric: MetricRef): ValueTest => ({ kind: 'value', metric, op: t.op, value: t.value, ...(t.op === 'between' || t.op === 'outside' ? { value2: t.value2 } : {}) });
+  // K7 (OPERATORS.md operator 1): "=" and "!=" only on a whole-number value; any other is refused naming it
+  const wholeOnly = (whole: boolean, name: string, unit: string | null) => {
+    if ((t.op === 'eq' || t.op === 'ne') && !whole)
+      throw new ScreenerError('INVALID_CONDITION', `${f}.op: "=" and "!=" are offered only on whole-number values (a count of sessions, a run, a number of brokers); ${name}${unit ? ` (${unit})` : ''} is continuous, so an exact match almost never happens: use >=, <= or a range (right: rising run = 3; wrong: RSI = 30).`, `${f}.op`, { allowed: ['gt', 'lt', 'ge', 'le', 'between', 'outside'] });
+  };
   if (m.kind === 'universe') {
     const spec = universeSpec(m.attr, `${f}.metric.attr`, catalog);
+    wholeOnly(['sessions', 'days', 'years'].includes(String(spec.unit)), spec.label || spec.id, spec.unit);
     return {
       id, kind: 'value', test: testOf({ kind: 'universe', attr: spec.id }), series: [], xsection: null, universeAttr: spec.id,
       summary: { metric: spec.id, params_resolved: {}, is_default: true, unit: spec.unit },
@@ -167,6 +179,7 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
   }
   if (m.kind === 'xsection') {
     const x = xsectionNeed(m, `${f}.metric`, catalog);
+    wholeOnly(false, x.metric, 'rank');
     return {
       id, kind: 'value', test: testOf({ kind: 'xsection', metric: x.metric, params: x.params } as XsectionRef), series: [], xsection: x, universeAttr: null,
       summary: { metric: x.metric, params_resolved: x.params, is_default: canonicalJson(x.params) === canonicalJson(defaultsOf(metricSpec('xsection', x.metric, 'm', catalog))), unit: metricSpec('xsection', x.metric, 'm', catalog).unit },
@@ -179,9 +192,11 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
       },
     };
   }
+  if (m.kind === 'rank') return bindRank(id, m as RankRef, t, f, ctx, catalog);
   if (m.kind === 'flow') throw unavailableFlow(m.metric, `${f}.metric`, catalog);
   if (m.kind === 'pattern') throw new ScreenerError('INVALID_CONDITION', `${f}.metric: a pattern is a signal, not a value; use it in a state or event test ({"kind":"state","pattern":...}).`, `${f}.metric`);
   const r = resolveSeries(m, `${f}.metric`, ctx);
+  wholeOnly(r.integer === true, r.label, r.unit as string | null);
   return {
     id, kind: 'value', test: testOf(r.ref), series: [r], xsection: null, universeAttr: null,
     summary: summaryOf([{ kind: 'series', r }], r.label, r.unit, catalog),
@@ -257,6 +272,97 @@ function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within:
   };
 }
 
+/** The units whose values depend on a stock's price level or share count (a price, a price difference, a volume): a
+    rank across stocks of them only orders the stocks by price or size (OPERATORS.md section 4: a price level is not
+    comparable across stocks), so operator 11 is not offered on them. */
+const RANK_TEST = METRICS_CATALOG.operators.tests.find(t => t.key === 'rank');
+const NOT_RANKED: readonly string[] = RANK_TEST?.not_on_units ?? [];
+const RANK_LEVELS = RANK_TEST?.not_on_levels !== false;
+/** Operator 11 (OPERATORS.md; contract.ts RankRef): a VALUE test on the percent rank 0-100 of `of` at each ticker's
+    evaluation bar against the filtered universe (the caller's S1 values, screen.ts crossSections, decision C). A
+    ticker whose own value is missing is NA with its series' reason; the cell remark follows the ranked series'
+    lookback, as a VALUE test on it would. */
+function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): BoundCondition {
+  if (!isObj(m.of)) throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of must be the metric reference to rank.`, `${f}.metric.of`);
+  const of = resolveSeries(m.of as MetricRef, `${f}.metric.of`, ctx);
+  if ((RANK_LEVELS && of.comparableWith !== null) || NOT_RANKED.includes(String(of.unit)))
+    throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of: ${of.label} is ${of.comparableWith ? 'a price or volume level' : `in ${of.unit}`}, which depends on each stock's price or size, so ranking it across stocks only orders them by price or size. Rank a series that compares across stocks: a percent, an oscillator, a percentile or a z-score (right: rank of RSI or of a change in %; wrong: rank of the close).`, `${f}.metric.of`);
+  if (t.op === 'eq' || t.op === 'ne') throw new ScreenerError('INVALID_CONDITION', `${f}.op: "=" and "!=" are for whole numbers; a rank is a percent 0-100: use >=, <= or a range (right: rank >= 90; wrong: rank = 90).`, `${f}.op`, { allowed: ['gt', 'lt', 'ge', 'le', 'between', 'outside'] });
+  const norm: RankRef = { kind: 'rank', of: of.ref };
+  const x: XsectionNeed = { key: canonicalJson(norm), metric: 'rank', params: {}, window: 0, rankOf: of };
+  const rule = { op: t.op, value: t.value, value2: t.value2 };
+  const two = t.op === 'between' || t.op === 'outside';
+  const base = summaryOf([{ kind: 'series', r: of }], `rank(${of.label})`, 'percentile', catalog);
+  return {
+    id, kind: 'value', test: { kind: 'value', metric: norm, op: t.op, value: t.value, ...(two ? { value2: t.value2 } : {}) },
+    series: [of], xsection: x, universeAttr: null, summary: base,
+    evaluate: input => {
+      const v = input.xsection(x.key), { view, tail, source } = read(input, of, 0);
+      const e: Evaluation = typeof v === 'number' && Number.isFinite(v) ? { status: valuePasses(v, rule) ? 'pass' : 'fail', reason: null, value: v }
+        : { status: 'na', reason: naReason(view, input.at) ?? 'NULL_AT_EVALUATION', value: null };
+      return { cell: cellOf(id, e, input, 'percentile', [startOf(of, tail, input.at, 0)]), source };
+    },
+  };
+}
+
+/** Operators 5, 9, 10 (OPERATORS.md; contract.ts WindowTest): the inner VALUE or STATE comparison, bound once, read on
+    each of the `length` sessions ending at the evaluation bar by evaluating it with the evaluation bar moved there (the
+    same code, lags and NA reasons as the condition alone; its tails hold within_max + 1 bars, so every session up to
+    within_max back is in them), then evaluate.ts evaluateWindow. The cell's remark is set when the inner cell of any
+    session carries one (the union of their lookbacks). */
+function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): BoundCondition {
+  if (!(WINDOW_MODES as readonly string[]).includes(t.mode as string))
+    throw new ScreenerError('INVALID_CONDITION', `${f}.mode must be one of ${WINDOW_MODES.join(', ')}.`, `${f}.mode`, { allowed: [...WINDOW_MODES] });
+  const L = t.length;
+  if (!(Number.isInteger(L) && L >= 1 && L <= ctx.withinMax))
+    throw new ScreenerError('INVALID_CONDITION', `${f}.length must be a whole number of sessions from 1 to ${ctx.withinMax}.`, `${f}.length`);
+  let count = 1;
+  if (t.mode === 'at_least') {
+    count = t.count as number;
+    if (count === undefined) throw new ScreenerError('INVALID_CONDITION', `${f}.count is required with mode at_least: how many of the ${L} sessions must pass (right: 3 of 5).`, `${f}.count`);
+    if (!(Number.isInteger(count) && count >= 1 && count <= L))
+      throw new ScreenerError('INVALID_CONDITION', `${f}.count must be a whole number from 1 to the window length ${L} ("${count} of ${L}" cannot be met; right: 3 of 5; wrong: 6 of 5).`, `${f}.count`);
+  } else if (t.count !== undefined) throw new ScreenerError('INVALID_CONDITION', `${f}.count is used only with mode at_least; remove it.`, `${f}.count`);
+  const it = t.test as unknown as Record<string, unknown>;
+  // the inner test (OPERATORS.md 5, 9, 10: "an inner condition"): a value test, a state comparison or pattern, or an event
+  // (a cross or a pattern) read on each session, i.e. within 1
+  if (!isObj(it) || (it.kind !== 'value' && it.kind !== 'state' && it.kind !== 'event'))
+    throw new ScreenerError('INVALID_CONDITION', `${f}.test must be a value test, a state test or an event with within 1 on the ticker's bars.`, `${f}.test`, { allowed: ['value', 'state', 'event'] });
+  if (it.kind === 'event' && it.within !== 1)
+    throw new ScreenerError('INVALID_CONDITION', `${f}.test.within must be 1 inside a window: the window counts the sessions on which the cross or pattern happened (right: crosses above 70 on 3 of the last 10 sessions = an event with within 1 in a window of 10; wrong: within 5 inside it).`, `${f}.test.within`);
+  // an event inside a window is read one session at a time: bound with within_max 1, so its tail read reaches one bar back
+  const inner = bindTest(id, t.test as Test, `${f}.test`, it.kind === 'event' ? { ...ctx, withinMax: 1 } : ctx);
+  // OPERATORS.md section 4: a window mode the catalog does not offer on the inner series' output type (a streak of a run)
+  const spec = METRICS_CATALOG.operators.tests.find(x => x.key === t.mode), type = inner.series.length ? outputType(inner.series[0]) : null;
+  if (type && spec?.not_on?.includes(type))
+    throw new ScreenerError('INVALID_CONDITION', `${f}.mode: ${inner.series[0].label} ${METRICS_CATALOG.operators.types[type].words}, so "${spec.label}" is not offered on it: it already counts sessions in a row. Test the run itself (right: rising run >= 3; wrong: rising run >= 1 for 3 sessions in a row).`, `${f}.mode`, { allowed: WINDOW_MODES.filter(m => m !== t.mode) });
+  if (inner.xsection || inner.universeAttr !== null)
+    throw new ScreenerError('INVALID_CONDITION', `${f}.test: a window counts sessions of a series on the ticker's bars; ${inner.summary.metric} has one value per ticker at the evaluation date (use it in a value test alone).`, `${f}.test.metric`);
+  const test: WindowTest = { kind: 'window', mode: t.mode, length: L, ...(t.mode === 'at_least' ? { count } : {}), test: inner.test as WindowTest['test'] };
+  const word = t.mode === 'ever' ? `ever in ${L}` : t.mode === 'at_least' ? `${count} of ${L}` : `${L} in a row`;
+  return {
+    id, kind: 'window', test, series: inner.series, xsection: null, universeAttr: null, window: { inner, mode: t.mode, length: L, count },
+    summary: { ...inner.summary, metric: `${inner.summary.metric} (${word})`, unit: 'sessions' },
+    evaluate: input => {
+      // the tails are read once per ticker, not once per session (the series path keys every read)
+      const memo = new Map<ResolvedSeries, ReturnType<TickerInput['series']>>();
+      const at = input.at, moved: TickerInput = { ...input, series: r => { let x = memo.get(r); if (!x) { x = input.series(r); memo.set(r, x) } return x } };
+      let dynamic = false, remark: CellRemark | null = null;
+      const outcome = (i: number): SessionOutcome => {
+        const r = inner.evaluate({ ...moved, at: i });
+        if (r.source === 'dynamic') dynamic = true;
+        remark ??= r.cell.remark;
+        return r.cell.status === 'na' ? { status: 'na', reason: r.cell.reason ?? 'NULL_AT_EVALUATION' } : { status: r.cell.status === 'pass' ? 'pass' : 'fail' };
+      };
+      const e = evaluateWindow(outcome, t.mode, L, count, at);
+      // the window itself spans sessions at-L+1 .. at: an ex-date after its first session mixes the two sides of a break
+      // in the count, even where each session alone reads one bar (a bar field: QA2 2026-11-07 D1)
+      if (!remark) { const ex = priceBreakDates(input.row); if (ex.length) remark = priceBreakRemark([at - L + 1], input.dates, at, ex) }
+      return { cell: toCell(id, e, { dates: input.dates, at, ihsgCalendar: input.ihsgCalendar, unit: 'sessions', remark }), source: dynamic ? 'dynamic' : 'precomputed' };
+    },
+  };
+}
+
 /* ---- helpers ------------------------------------------------------------------------------------------------------- */
 
 function cellOf(id: string, e: Evaluation, input: TickerInput, unit: string | null, starts: (number | null)[]): Cell {
@@ -321,6 +427,20 @@ function unavailableFlow(metric: unknown, field: string, catalog: MetricsCatalog
     series through `full` (the caller's Calc for the ticker). Universe and cross-section conditions have no series. */
 export function conditionSignal(b: BoundCondition, full: (r: ResolvedSeries) => ArrayLike<number | null | undefined>, n: number): Uint8Array | null {
   if (b.universeAttr !== null || b.xsection !== null) return null;
+  if (b.window) {
+    // the window test on every bar: the inner test's passes over the `length` bars ending there (n/a counts as not
+    // passing; a marker is a pass, so the n/a-only case of evaluateWindow needs no separate mark)
+    const p = conditionSignal(b.window.inner, full, n), { mode, length, count } = b.window, out = new Uint8Array(n);
+    if (!p) return null;
+    let sum = 0, run = 0;
+    for (let i = 0; i < n; i++) {
+      sum += p[i]; if (i >= length) sum -= p[i - length];
+      run = p[i] ? run + 1 : 0;
+      // a window reaching before bar 0 counts the sessions there as not passing, as evaluateWindow does (QA2 D2)
+      out[i] = +(mode === 'ever' ? sum >= 1 : mode === 'at_least' ? sum >= count : run >= length);
+    }
+    return out;
+  }
   const out = new Uint8Array(n), t = b.test;
   if (t.kind === 'value') {
     const v = viewOfSeries(full(b.series[0]) as ArrayLike<number | null>);
@@ -332,6 +452,7 @@ export function conditionSignal(b: BoundCondition, full: (r: ResolvedSeries) => 
     for (let i = 0; i < n; i++) out[i] = +(s[i] === 1);
     return out;
   }
+  if (t.kind === 'window') return null;                             // bound windows carry b.window (above)
   const sig = (t.kind === 'state' ? t : t.signal) as { lhs: Side; op: 'gt' | 'lt' | 'crosses_above' | 'crosses_below'; rhs: Side };
   const views: Operand[] = [], rs = [...b.series];                 // the series sides in order, lagged where bound so
   for (const s of [sig.lhs, sig.rhs]) views.push(isValueSide(s) ? s.value : viewOfSeries(full(rs.shift()!) as ArrayLike<number | null>));

@@ -275,7 +275,8 @@ await at('Add a condition is the one way to add: every door opens it, no detaile
   expect(await cards() === 0, 'clicking an added row did not remove it');
   await page.click('#toast .toast-act'); await page.waitForTimeout(150);                   // Undo
   expect(await cards() === 1, 'Undo did not bring the condition back');
-  const thr = adx.locator('[data-af="value"]');
+  await adx.locator('.qcus').click(); await page.waitForTimeout(100);                      // ADX has three boxes: behind Customize
+  const thr = adx.locator('.qpop [data-af="value"]');
   await thr.fill(''); await thr.dispatchEvent('change'); await page.waitForTimeout(100);
   await adx.locator('[data-qact]').click(); await page.waitForTimeout(150);
   expect(/Enter a value/.test(await text('#toast')) && await cards() === 1, 'an empty threshold was not refused with the card\'s message');
@@ -305,6 +306,93 @@ await at('Add a condition sets the parameters too (user 2026-11-06, option A): L
   const card = await openCard(0);
   expect(await card.locator('[data-p="length"]').inputValue() === '50' && await card.locator('[data-segc].on').count() === 1, 'the card does not hold Length 50 as Custom: ' + await card.innerText());
   expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
+});
+await at('Add a condition: more than two blue boxes go behind Customize with their count; Escape closes the panel only; Reset, Done; every row one height', async () => {
+  // user 2026-11-06: "kalau ada kotak biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator
+  // harusnya sama. Lalu tambahin juga parameter yang customizable ada berapa"
+  await fresh(); await ready();
+  const r0 = await runs();
+  await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(300);
+  const geo = await page.locator('#acl .qrow').evaluateAll(rs => ({ h:[...new Set(rs.map(r => r.offsetHeight))], over:rs.filter(r => { const q = r.querySelector('.rr.qt'); return q && q.scrollWidth > q.clientWidth + 1 }).length,
+    bad:rs.filter(r => { const n = r.querySelectorAll('.rr.qt .qbox').length; return n > 2 }).length }));
+  expect(geo.h.length === 1 && geo.over === 0 && geo.bad === 0, 'rows are not one height, a settings cell overflows, or a row shows more than two boxes: ' + JSON.stringify(geo));
+  // the column titles share one middle line (user 2026-11-07, EXEC-SCREENER-TIDY): their vertical centres agree within 1 px
+  const mids = await page.locator('#acl .qcols > span').evaluateAll(xs => xs.filter(x => x.textContent.trim()).map(x => { const r = x.getBoundingClientRect(); return Math.round((r.top + r.bottom) / 2 * 10) / 10 }));
+  expect(mids.length >= 4 && Math.max(...mids) - Math.min(...mids) <= 1, 'the column titles are not on one middle line: ' + JSON.stringify(mids));
+  await page.fill('#acq', 'relative strength'); await page.waitForTimeout(200);
+  const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Relative Strength Index$/ }) });
+  const btn = row.locator('.qcus');
+  expect(await btn.count() === 1 && /Customize\s*3/.test(await btn.innerText()) && await row.locator('.qbox').count() === 0, 'RSI (Length, Source, value) is not behind "Customize 3": ' + await row.locator('.rr.qt').innerText());
+  await btn.click(); await page.waitForTimeout(150);
+  const pop = row.locator('.qpop');
+  expect(await pop.locator('[data-ap],[data-af]').count() === 3 && await pop.evaluate(p => p.contains(document.activeElement)), 'the panel does not hold the three fields with the focus');
+  await pop.locator('[data-af="value"]').fill('25'); await pop.locator('[data-af="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  expect(/Custom\s*1 of 3 changed/.test(await btn.innerText()), 'the button does not say what changed: ' + await btn.innerText());
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop').count() === 0 && await page.locator('.dialog.qwin').count() === 1, 'Escape did not close only the panel');
+  await btn.click(); await row.locator('[data-cusreset]').click(); await page.waitForTimeout(150);
+  expect(/Customize\s*3/.test(await btn.innerText()) && await row.locator('.qpop [data-af="value"]').inputValue() === '30', 'Reset to default did not bring the defaults back');
+  await row.locator('.qpop [data-af="value"]').fill('25'); await row.locator('.qpop [data-af="value"]').dispatchEvent('change');
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop').count() === 0, 'Done did not close the panel');
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape');
+  const card = await openCard(0);
+  expect(await card.locator('[data-k="value"]').inputValue() === '25', 'the card does not hold the value set in the panel');
+  expect(await runs() === r0, 'the window ran the screen');
+});
+await at('Operators (P3): "Operator…" opens Customize with Measure and Test from the catalog; percentile, K of N and rank run and show their cells', async () => {
+  // user 2026-11-07 (EXEC-SCREENER-FLOW-CANDLES, OPERATORS.md approved K4): an indicator setting, then a universal operator
+  await fresh(); await ready();
+  const r0 = await runs();
+  await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(300);
+  await page.fill('#acq', 'relative strength'); await page.waitForTimeout(200);
+  const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Relative Strength Index$/ }) });
+  await row.locator('[data-af="opt"]').selectOption('__op'); await page.waitForTimeout(200);
+  const pop = row.locator('.qpop');
+  expect(await pop.count() === 1, 'choosing Operator did not open the Customize panel');
+  const measures = await pop.locator('[data-ao="measure"] option').allInnerTexts(), tests = await pop.locator('[data-ao="test"] option').allInnerTexts();
+  // RSI has one line and no other series in its unit, so "Compared with another series" is not offered on it
+  expect(measures.length === 9 && /Percentile of its own history/.test(measures.join('|')) && !/Compared with another series/.test(measures.join('|')) && tests.length === 7 && /Rank among the screened stocks/.test(tests.join('|')),
+    'the operator lists are not the catalog\'s (8 measures without the relative one + "The value itself", 7 tests): ' + JSON.stringify({ measures, tests }));
+  expect(await pop.locator('[data-ao="measure"]').inputValue() === 'percentile' && await pop.locator('[data-aoa="length"]').inputValue() === '60' && await pop.locator('[data-ao="value"]').inputValue() === '90',
+    'the operator does not open on the catalog default (percentile of 60 sessions, at or above 90)');
+  // a range check in place: N out of range is refused at the field, never rounded
+  await pop.locator('[data-aoa="length"]').fill('300'); await pop.locator('[data-aoa="length"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  expect(await row.locator('[data-aoa="length"][aria-invalid="true"]').count() === 1, 'a length above 260 is not refused at its field');
+  await row.locator('[data-aoa="length"]').fill('60'); await row.locator('[data-aoa="length"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-ao="value"]').fill('50'); await row.locator('[data-ao="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  // the same indicator a second time: on 3 of the last 5 sessions above 50
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-ao="measure"]').selectOption('none'); await page.waitForTimeout(150);
+  await row.locator('[data-ao="test"]').selectOption('at_least'); await page.waitForTimeout(150);
+  await row.locator('[data-ao="value"]').fill('50'); await row.locator('[data-ao="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  // and a rank among the screened stocks
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-ao="test"]').selectOption('rank'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  const sums = await page.locator('#condList .mc[data-card] .msum').allInnerTexts();
+  expect(sums.length === 3 && /Percentile of its own history, 60 sessions ≥ 50/.test(sums[0]) && /≥ 50 on 3 of the last 5 sessions/.test(sums[1]) && /rank among the screened stocks ≥ 90/.test(sums[2]),
+    'the cards do not state their operators: ' + JSON.stringify(sums));
+  expect(await runs() === r0, 'adding operators ran the screen');
+  await page.click('[data-logic="any"]'); await page.waitForTimeout(150);
+  await screen();
+  const cells = await page.locator('#resPane tbody tr').first().locator('td').allInnerTexts();
+  expect(cells.some(c => /^(Yes|No) · \d+\/5$/.test(c.trim())), 'the K of N cell does not read "Yes · k/5" or "No · k/5": ' + JSON.stringify(cells));
+  // the column headers name the operator (QA5 D2), and the preview's "Why it passed" writes each cell as the table does
+  // (QA5 D1: one cell text, cell-text.ts)
+  const heads = (await page.locator('#resPane thead th').allInnerTexts()).map(h => h.replace(/\s+/g, ' ').trim());
+  expect(heads.some(h => /pctl/.test(h)) && heads.some(h => /3 of 5/.test(h)) && heads.some(h => /rank/.test(h)), 'the headers do not name the operators: ' + JSON.stringify(heads));
+  const n = cells.length, last3 = cells.slice(n - 3).map(c => c.trim());
+  await page.locator('#resPane tbody tr').first().click(); await page.waitForTimeout(600);
+  const why = (await page.locator('#dtb .chk-list > div b').allInnerTexts()).map(t => t.trim());
+  expect(JSON.stringify(why) === JSON.stringify(last3), 'the preview does not write the cells as the table: ' + JSON.stringify({ why, table:last3 }));
 });
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
   await fresh(); await ready();
@@ -358,6 +446,8 @@ await at('preview: the ring while a new ticker loads, never the previous candles
   await page.waitForSelector('#dChart canvas', { timeout:8000 });
   expect(new RegExp(second).test(await text('#dtb .preview-head')), `preview shows ${first} instead of ${second}`);
   expect(/why it/i.test(await page.locator('#dtb').textContent()), 'no "why it passed" list');
+  // no Fundamentals section while the catalog offers no fundamental with data (user 2026-11-07, EXEC-SCREENER-TIDY)
+  expect(!/Fundamentals/.test(await page.locator('#dtb').textContent()), 'the Preview still shows a Fundamentals section without data');
   await page.click('[data-pvv="perf"]');
   expect(/vs IHSG/.test(await text('#dtb')), 'Stock vs IHSG view missing');
   await page.click('[data-pvv="chart"]');

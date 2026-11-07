@@ -680,7 +680,7 @@ export function initIndicators(ctx: Ctx) {
        after the pointer leaves it, and a pane row's active area reaches 8px around it (terminal.css .ind-row.hov::before).
        One row is active at a time. While the pointer is away from it (the grace) its value keeps the width it had when the
        pointer left (the crosshair's longer value, such as "No broker data on this day", ends in "…"), so the buttons do not
-       move under a pointer coming back; on the row the value takes its own width (ERRORS M382: a width held from the
+       move under a pointer coming back; on the row the value takes its own width (ERRORS M386: a width held from the
        chart's value left a white gap after a shorter value). */
     const calm = (row: HTMLElement) => { clearTimeout((row as any).hovT); row.classList.remove('hov'); (row.querySelector(':scope > b') as HTMLElement).style.width = '' };
     r.addEventListener('pointerenter', () => {

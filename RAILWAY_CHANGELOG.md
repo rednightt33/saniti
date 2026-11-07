@@ -1,5 +1,70 @@
 # Railway changelog
 
+## 2026-11-07 — orc-test-runner: the K6 read-only Feature 05 measurement (job `972bb712`)
+
+- **Go:** user 2026-11-07 "K6 boleh" (EXEC-SCREENER-FLOW-CANDLES K6: one read-only database check through the temporary
+  job runner).
+- **What ran:** `scripts/onboarding/run_job.sh verification/screener/k6/window_job.py verification/screener/k6/window_params.json
+  verification/screener/k6/window.log` at 13:21 UTC (after B6), with the Railway CLI on the proxy's account credential
+  (`RAILWAY_TOKEN` unset for the run: the project-token header and the proxy's own credential cannot be combined).
+  The runner guard found the runner free (its last job `122d4b0d` had ended with `JOB_EXIT 0`).
+- **Variable:** `DATABASE_URL` on orc-test-runner (dev) set as the reference `${{Postgres.DATABASE_URL}}` with
+  `--skip-deploys` for the run and removed after it: `VAR_REMOVED` (no value written or printed).
+- **Deployment:** orc-test-runner `972bb712-a54d-4a39-9fd0-d05dd4301c95`, `JOB_DONE`, `JOB_EXIT 0` at about 13:36 UTC
+  (job time 889 s). Results: `DATABASE_CHANGELOG.md` 2026-11-07.
+- **Postgres restart:** the job's own step (`large_write`) could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, as on
+  2026-11-06), so no restart came from it. The check through `scripts/restart_postgres.py` (run unchanged with the
+  proxy's credential) at 13:38 UTC refused it: postgres-memory-cron runs at 13:45 UTC (within 45 minutes); memory
+  0.996 GB, 0 statements, 0 user runs. Checked again at 14:32 UTC: refused `memory_low`, memory 0.080 GB (below the
+  0.8 GB threshold, nothing to free), 0 statements, 0 user runs. No restart was needed after K6.
+
+## 2026-11-06 — edge-bff from `main` `99fe0daa`: "Add a condition" labels give way before fields (PR #58)
+
+- **Change:** CSS only. A blue box never shrinks its field; when the line is short of room, the label gives way (ellipsis,
+  full name in its title). Also the records of PR #57. No backend, variable, migration or database change.
+- **Go:** within the user's go of 2026-11-06 "Ok, implement versi ini lalu go merge" (a defect of that version, found
+  by its live check). PR rednightt33/saniti#58 merged 16:39 UTC (merge commit `99fe0daa`).
+- **Deployment (Railway API):** edge-bff `9f0322b3-ae5f-4a8e-8471-44291347295a` SUCCESS, created 16:39:03 UTC, commit
+  `99fe0daa`.
+- **edge-bff (verified from the live service):** `index.html`, `assets/index-K21MnYw1.js` and `assets/style-Ck8ppa0U.css`
+  are byte-equal to the local build (sha256 `f321fe190670906a…`, `d2bc1247d964de94…`).
+- **Signed-in check:**
+  - 0 of 128 rows overflow at 1440 and 1100 (before: "Volume spike" 284 > 268 px, "New N-session high of a line" 278 >
+    268 px); Volume spike's labels end in an ellipsis with the full name in the title;
+  - RSI "Customize 3", the panel, Escape and "already on the screen" as in PR #57;
+  - no 5xx response.
+- **Rollback:** redeploy edge-bff `1b3fc3a0-c200-4831-8a4a-815b046ecf43` (commit `e0cfb700`), or revert merge `99fe0daa`.
+
+## 2026-11-06 — edge-bff from `main` `e0cfb700`: "Add a condition" Customize for more than two blue boxes (PR #57)
+
+- **Change:**
+  - in the window, two blue boxes or fewer are shown in the row on one line;
+  - more go behind "⚙ Customize N", which opens a panel (defaults, Reset, Done; Escape closes it only);
+  - every row is one height.
+  - Also the records of PR #56. No backend, variable, migration or database change; screener-worker skipped
+    (`69a8166a` SKIPPED).
+- **Go:** user 2026-11-06 "Ok, implement versi ini lalu go merge". PR rednightt33/saniti#57 merged 16:34 UTC (merge commit
+  `e0cfb700`).
+- **Deployment (Railway API):** edge-bff `1b3fc3a0-c200-4831-8a4a-815b046ecf43` SUCCESS, created 16:34:19 UTC (seen
+  16:35:09 UTC), commit `e0cfb700`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-K21MnYw1.js` and `assets/style-DvOZuKoF.css` are byte-equal to the local
+    build of the same tree (sha256 `f321fe190670906a…`, `91c593e00aa51f09…`);
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, ~16:40 UTC):**
+  - 128 rows, all 54 px, none showing more than two boxes; 34 rows inline and 34 behind Customize;
+  - RSI shows "Customize 3"; the panel holds Length, Source and value with their defaults; value 25 makes it "Custom ·
+    1 of 3 changed"; Escape closes the panel and leaves the window; RSI is added;
+  - with Minervini, SMA Length 50 + Enter says "already on the screen";
+  - no run sent, no CSP violation.
+  - Three 503 responses showed in the console once and not again on a second load (0 responses of 5xx), likely the
+    screener-worker waking.
+- **Found:** two rows of the live catalog overflowed their cell by 10–16 px: "Volume spike" (its label "Above (x
+  average)") and "New N-session high of a line" (its Line options). The labels now give way first; the fix is in the
+  next PR.
+- **Rollback:** redeploy edge-bff `66310845-bf5d-40f7-a6ae-3d36edc88a39` (commit `3a0a1d03`), or revert merge `e0cfb700`
+  on `main`.
+
 ## 2026-11-06 — edge-bff from `main` `3a0a1d03`: indicator row buttons stay reachable (EXEC-IND-HOVER, ERRORS M380)
 
 - **Change:** a pointed-at indicator row stays active 0.5 s after the pointer leaves; a pane row takes the pointer 8px
@@ -27,6 +92,30 @@
   session.
 - **screener-worker:** `terminal/src/calc/**` unchanged: no rebuild. **Postgres:** a new empty table is not a large
   update: no restart.
+
+## 2026-11-06 — edge-bff from `main` `5a22dcb5`: "Add a condition" Enter only adds (ERRORS M378, PR #56)
+
+- **Change:**
+  - in "Add a condition", Enter in a field adds the row, and says "already on the screen" when it already is: it never
+    removes a card;
+  - records of the PR #55 deploy.
+  - No backend, variable, migration or database change; screener-worker skipped (`e5553495` SKIPPED).
+- **Go:** user 2026-11-06 "merge". PR rednightt33/saniti#56 merged 15:31 UTC (merge commit `5a22dcb5`).
+- **Deployment (Railway API):** edge-bff `7a60bb22-0432-497d-ab5c-935908c0ef18` SUCCESS, created 15:31:25 UTC (seen
+  15:32:13 UTC), commit `5a22dcb5`.
+- **edge-bff (verified from the live service):**
+  - `/screener-app/` `index.html`, `assets/index-bZ1aIrBR.js` and `assets/style-bYE2zL4c.css` are byte-equal to the local
+    build of the same tree (sha256 `7f0c6c611437d34c…`, `e192731bf4dc7019…`);
+  - `/api/v1/screener/catalog` without a session answers 401.
+- **Signed-in check (Chromium, ~15:35 UTC):**
+  - with Minervini loaded, SMA Length 50 + Enter changes no card and says "Simple Moving Average: already on the screen
+    with this condition." (before: Minervini's "Close above SMA(50)" was removed);
+  - Length 30 + Enter adds one Custom card;
+  - Length 0 is refused;
+  - failed cells are solid and the failed MACD divergence cells read "No";
+  - no CSP violation, no console error.
+- **Rollback:** redeploy edge-bff `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` (commit `f9871686`), or revert merge `5a22dcb5`
+  on `main`.
 
 ## 2026-11-06 — edge-bff from `main` `f9871686`: Screener parameters in "Add a condition", solid failed cells, event fail "No" (PR #55)
 

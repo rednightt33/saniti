@@ -9,7 +9,9 @@ import type {
   Cell, ConditionDef, ConditionSummary, Definition, MetricRef, PreviewResponse, ResultRow, RowRemark, RunResponse, Side, UniverseRow, Versions,
 } from '../../src/core/contract.ts';
 import { universeView } from '../../src/universe-view.ts';
-import { resolveSeries } from '../../src/core/metrics.ts';
+import { resolveSeries, tickerCalc } from '../../src/core/metrics.ts';
+import { valuePasses } from '../../src/core/evaluate.ts';
+import { percentRank } from '../../src/core/xsection.ts';
 import { metricSpec } from '../../src/core/catalog.ts';
 
 export type S = (number | null)[];
@@ -53,7 +55,8 @@ export function series(m: Market, t: Tk, ref: MetricRef | Side): S {
         case 'ma': { const len = Number(a.length ?? 20); out = String(a.ma ?? 'EMA') === 'SMA' ? sma(of, len) : ema(of, len); break }
         case 'rolling_max': case 'rolling_min': { const len = Number(a.length ?? 252); out = of.map((_, i) => { if (i < len - 1) return null; let x = r.fn === 'rolling_max' ? -Infinity : Infinity; for (let j = i - len + 1; j <= i; j++) { const y = of[j]; if (!isN(y)) return null; x = r.fn === 'rolling_max' ? Math.max(x, y) : Math.min(x, y) } return x }); break }
         case 'vs_index': { const w = Number(a.window ?? 63); const ix = m.ihsg, off = m.days.length - n; out = t.c.map((c, i) => i >= w ? ((c / t.c[i - w]) - (ix[off + i] / ix[off + i - w])) * 100 : null); break }
-        default: throw new Error('fixture: unknown transform ' + r.fn);
+        // every other transform (the universal operators, P3) is the worker's own, through the core on these bars
+        default: out = Array.from(resolveSeries(r, 'fixture', { capBudgetMs:2000 }).full(tickerCalc({ ticker:t.ticker, dates:t.d, bars:barsOf(t) })) as ArrayLike<number | null | undefined>, x => isN(x) ? x : null);
       }
       break;
     }
@@ -68,6 +71,14 @@ export function series(m: Market, t: Tk, ref: MetricRef | Side): S {
       const w = Number(r.params?.window ?? 252), ret = (k: Tk) => { const i = k.c.length - 1; return i >= w ? k.c[i] / k.c[i - w] : null };
       const pop = m.tickers.filter(k => !k.remarks.length).map(ret).filter(isN), me = ret(t);
       const v = me == null || pop.length < 2 ? null : 100 * pop.filter(x => x < me).length / (pop.length - 1);
+      out = t.c.map((_, i) => i === n - 1 ? v : null); break;
+    }
+    case 'rank': {
+      // operator 11 over the fixture's listed stocks without a remark (the worker ranks within the filtered universe)
+      const val = (k: Tk) => { const s = series(m, k, (r as any).of); return s[k.c.length - 1] };
+      const values = new Map(m.tickers.map(k => [k.ticker, val(k)] as [string, number | null]));
+      const pop = new Set(m.tickers.filter(k => !k.remarks.length && isN(values.get(k.ticker))).map(k => k.ticker));
+      const v = percentRank(values, pop).get(t.ticker) ?? null;
       out = t.c.map((_, i) => i === n - 1 ? v : null); break;
     }
     case 'universe': {
@@ -132,8 +143,23 @@ export function evaluate(m: Market, t: Tk, cd: ConditionDef): { cell: Cell; sign
   if (tt.kind === 'value') {
     const v = series(m, t, tt.metric)[at];
     if (!isN(v)) return { cell:{ ...base, status:'na', value:null, reason:'NULL_AT_EVALUATION' }, signal:null };
-    const pass = tt.op === 'gt' ? v > tt.value : tt.op === 'lt' ? v < tt.value : v >= tt.value && v <= tt.value2;
-    return { cell:{ ...base, status:pass ? 'pass' : 'fail', value:v }, signal:null };
+    return { cell:{ ...base, status:valuePasses(v, tt) ? 'pass' : 'fail', value:v }, signal:null };
+  }
+  if (tt.kind === 'window') {
+    // operators 5, 9, 10: the inner value test on each of the last `length` sessions
+    const L = tt.length, it = tt.test, cross = it.kind === 'event' ? it.signal : null;
+    const s = series(m, t, cross ? cross.lhs : it.metric), y = cross ? cross.rhs.value : 0;
+    let hits = 0, run = 0, open = true, latest = -1, na = 0;
+    for (let i = at; i > at - L; i--) {
+      const x = i >= 0 ? s[i] : null;
+      if (!isN(x) || (cross && !isN(s[i - 1]))) { na++; open = false; continue }
+      // an event inside a window: the cross on that session (both bars finite), else the value test
+      const ok = cross ? (cross.op === 'crosses_above' ? (s[i - 1]! <= y && x > y) : (s[i - 1]! >= y && x < y)) : valuePasses(x, it);
+      if (ok) { hits++; if (latest < 0) latest = i; if (open) run++ } else open = false;
+    }
+    if (na === L) return { cell:{ ...base, unit:'sessions', status:'na', value:null, reason:'NULL_AT_EVALUATION' }, signal:null };
+    const pass = tt.mode === 'ever' ? hits >= 1 : tt.mode === 'at_least' ? hits >= tt.count : run >= L;
+    return { cell:{ ...base, unit:'sessions', status:pass ? 'pass' : 'fail', value:tt.mode === 'streak' ? run : hits, event_date:latest >= 0 ? t.d[latest] : null, bars_ago:latest >= 0 ? at - latest : null }, signal:null };
   }
   if (tt.kind === 'state' && tt.pattern) { const s = series(m, t, tt.pattern); return { cell:{ ...base, status:s[at] ? 'pass' : 'fail' }, signal:null } }
   if (tt.kind === 'state') {

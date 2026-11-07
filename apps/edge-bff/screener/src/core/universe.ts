@@ -35,11 +35,26 @@ const included = (v: string | null, list: readonly string[] | undefined, unclass
   !list || !list.length || inList(v, list) || (v === null && unclassified);
 const atLeast = (v: number | null, bound: number | null | undefined): boolean => bound === null || bound === undefined || (v !== null && Number.isFinite(v) && v >= bound);
 
-/** The VALUE rule on a row attribute (evaluate.ts evaluateValue's rule; a null value fails a filter). */
-function valuePasses(v: unknown, t: ValueTest): boolean {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return false;
-  return t.op === 'gt' ? v > t.value : t.op === 'lt' ? v < t.value : v >= t.value && v <= (t.value2 as number);
+/** THE VALUE rule on one number (OPERATORS.md operators 1 and 15), the one copy every reader uses: evaluate.ts
+    (conditions, metric filters through the core) re-exports it, and the attribute filters below (S0, the page's local
+    counts) call it. gt, lt strict; ge, le inclusive; eq, ne exact (validate.ts offers them only on whole-number series,
+    K7); between inclusive of both bounds; outside below value or above value2. QA3 2026-11-07 D1: a second copy here
+    kept only gt / lt / between, so a filter with ge, le, eq, ne or outside silently dropped every stock. */
+export function valuePasses(x: number, test: Pick<ValueTest, 'op' | 'value' | 'value2'>): boolean {
+  switch (test.op) {
+    case 'gt': return x > test.value;
+    case 'lt': return x < test.value;
+    case 'ge': return x >= test.value;
+    case 'le': return x <= test.value;
+    case 'eq': return x === test.value;
+    case 'ne': return x !== test.value;
+    case 'between': return x >= test.value && x <= (test.value2 as number);
+    case 'outside': return x < test.value || x > (test.value2 as number);
+  }
+  throw new RangeError(`valuePasses: op ${JSON.stringify(test.op)} is not one of gt, lt, ge, le, eq, ne, between, outside`);
 }
+/** The VALUE rule on a row attribute: a null or missing value fails a filter. */
+const attrPasses = (v: unknown, t: ValueTest): boolean => typeof v === 'number' && Number.isFinite(v) && valuePasses(v, t);
 /** The row field a universe-attribute filter reads, or null when the filter needs the worker. */
 function rowAttr(t: ValueTest, sample: UniverseRow | undefined): string | null {
   const m = t.metric;
@@ -63,7 +78,7 @@ export function applyUniverse(rows: readonly UniverseRow[], def: UniverseDef): U
     if (!included(r.sector, def.sectors_in, unclassified) || inList(r.sector, def.sectors_out)) continue;
     if (!included(r.industry, def.industries_in, unclassified) || inList(r.industry, def.industries_out)) continue;
     if (!atLeast(r.last, def.price_min) || !atLeast(r.adv20_idr, def.adv20_min_idr) || !atLeast(r.bars, def.min_history_bars)) continue;
-    if (filters.some(f => f.attr !== null && !valuePasses((r as unknown as Record<string, unknown>)[f.attr], f.t))) continue;
+    if (filters.some(f => f.attr !== null && !attrPasses((r as unknown as Record<string, unknown>)[f.attr], f.t))) continue;
     eligible.push(r);
   }
   return {

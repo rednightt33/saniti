@@ -1477,8 +1477,10 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qrsep{height:1px;background:var(--border);margin:6px 4px}
 .qrtitle{font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3);padding:6px 10px 4px}
 .qwin-l{min-height:0;overflow:auto;padding:0 var(--s-6) var(--s-6);overscroll-behavior:contain}
-.qcols,.qrow{display:grid;grid-template-columns:minmax(0,1fr) 236px 224px 236px 88px;column-gap:12px;align-items:center}
-.qcols{position:sticky;top:0;z-index:3;align-items:end;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+.qcols,.qrow{display:grid;grid-template-columns:minmax(0,1fr) 236px 224px 268px 88px;column-gap:12px;align-items:center}
+/* the column titles share one middle line: the two-line "Parameters & threshold" title is centred against the one-line
+   titles (user 2026-11-07, "ini sepertinya tidak middle line"; EXEC-SCREENER-TIDY) */
+.qcols{position:sticky;top:0;z-index:3;align-items:center;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
 .qcols em{display:block;margin:2px 0 0;font-style:normal;font-weight:var(--fw-medium);letter-spacing:0;text-transform:none;color:var(--blue)}
 .qrow{min-height:54px;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);cursor:pointer}
 .qrow:hover,.qrow.act{background:var(--surface-2)}
@@ -1487,18 +1489,38 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qnm b{font-size:var(--fs-base);font-weight:var(--fw-semibold);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qnm small{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qrow.isadd .qnm b{color:var(--text-3)}
-/* the row's parameters, editable as on the card (user 2026-11-06, option A); blue like the threshold: you can change it */
-.qps{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;min-width:0}
-/* a second line under the row's first four columns: room for the parameters at every width (the name column alone is
-   narrow, 120 px at 1100) */
-.qrow>.qps{grid-column:1/-2;grid-row:2;margin-top:6px}
-.qp{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-2xs);color:var(--text-3);cursor:default;min-width:0}
-.qp>span{white-space:nowrap}
-.qp .inp{width:58px;height:24px;padding:0 6px;font-size:var(--fs-12);text-align:right;color:var(--blue);font-weight:var(--fw-semibold)}
-.qp .sel{height:24px;max-width:132px;padding:0 22px 0 6px;font-size:var(--fs-12);color:var(--blue);font-weight:var(--fw-semibold);background-color:var(--surface-2)}
-.qrow:hover .qp .sel,.qrow.act .qp .sel{background-color:var(--surface)}
-.qp.chg>span{color:var(--blue)}
-.qp [aria-invalid="true"]{border-color:var(--red);color:var(--red)}
+/* the settings column: two blue boxes or fewer on one line, more behind "Customize" (user 2026-11-06: "kalau ada kotak
+   biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator harusnya sama"); left-aligned */
+.rr.qt{position:relative;display:flex;align-items:center;gap:6px 12px;flex-wrap:nowrap;white-space:nowrap;min-width:0}
+/* a box never shrinks its field; when the line is short of room, the label gives way (ellipsis, full name in title) */
+.qbox{display:inline-flex;flex:0 1 auto;min-width:0;align-items:center;gap:6px;cursor:default}
+.qbox>.inp,.qbox>.sel,.qbox>.unit{flex:none}
+.qbox .lab{flex:0 1 auto;min-width:3ch;max-width:110px;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-xs);color:var(--text-3)}
+.qbox.chg .lab,.qpl.chg .lab{color:var(--blue)}
+.rr.qt .inp{width:max(54px,calc(var(--n,3) * 1ch + 30px))}
+.rr.qt .sel{height:var(--h-sm);min-width:84px;max-width:132px;padding:0 22px 0 var(--s-3);font-size:var(--fs-12);color:var(--blue);font-weight:var(--fw-semibold);background-color:var(--surface-2)}
+.qrow:hover .rr.qt .sel,.qrow.act .rr.qt .sel{background-color:var(--surface)}
+.qbox .unit{display:inline;white-space:nowrap}
+.qcus{display:inline-flex;align-items:center;gap:5px;height:var(--h-sm);padding:0 11px;border:1px dashed var(--border-2);border-radius:var(--r-md);background:var(--surface);font:inherit;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text-2);cursor:pointer}
+.qcus:hover,.qcus[aria-expanded="true"]{border-color:var(--blue);color:var(--blue)}
+.qcus .ico{width:13px;height:13px}
+.qcus .n{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:2px;padding:0 6px;border-radius:var(--r-pill);background:var(--sel);font-size:var(--fs-2xs);font-weight:var(--fw-semibold);color:var(--text-2)}
+.qcus.chg{border-style:solid;border-color:var(--blue);background:var(--blue-bg);color:var(--blue);font-weight:var(--fw-semibold)}
+.qcus.chg .n{background:var(--surface);color:var(--blue)}
+.qpop{position:absolute;z-index:6;top:calc(100% + 6px);left:0;min-width:300px;display:grid;gap:8px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(0,0,0,.18);white-space:normal;cursor:default}
+.qpop>strong{font-size:var(--fs-12)}
+.qpl{display:grid;grid-template-columns:120px auto 1fr;align-items:center;gap:8px}
+.qpl .lab{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qpl .sel{min-width:96px}
+/* the universal operators' selects (P3): their options are phrases ("On K of the last N sessions"), not one word */
+.qpl .sel.qop{min-width:240px;max-width:300px}
+/* a tall operator panel scrolls inside itself on a short screen; on a narrow one its selects take the line (QA5 D6) */
+.qpop{max-height:min(80vh,720px);overflow:auto}
+@media (max-width:640px){.qpl{grid-template-columns:96px minmax(0,1fr)}.qpl .def{grid-column:2}.qpl .sel.qop{min-width:0;width:100%}.qpop{max-width:calc(100vw - 24px)}}
+.qpl .def{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
+.qsep{border-top:1px dashed var(--border)}
+.qpf{display:flex;justify-content:space-between;align-items:center}
+.qpf .link{background:none;border:0;padding:0;font:inherit;font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--blue);cursor:pointer}
 /* the timeframe: shown as in the reference, never chosen (the data is daily) */
 .tf-seg.tf-add{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:2px;border-radius:var(--r-md);background:var(--sel);cursor:default;user-select:none}
 .tf-add span{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 5px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-3);white-space:nowrap}
@@ -1507,7 +1529,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .rr{display:block;min-width:0}
 .rr.qs .sel{width:100%;height:var(--h-sm);font-size:var(--fs-12);background:var(--surface-2)}
 .qrow:hover .rr.qs .sel,.qrow.act .rr.qs .sel{background:var(--surface)}
-.rr.qt{display:grid;gap:4px}
+/* .rr.qt: see the settings column rules (one line, or Customize) */
 .rr .ln{display:flex;align-items:center;gap:var(--s-3)}
 .rr .lead{min-width:44px;font-size:var(--fs-xs);color:var(--text-3)}
 .rr .inp{width:64px;height:var(--h-sm);font-size:var(--fs-12);padding:0 var(--s-3);text-align:right;color:var(--blue);font-weight:var(--fw-semibold)}
@@ -1531,7 +1553,8 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 /* the builder's search box opens the window (it is a button that looks like a search box) */
 .adder .adder-open{width:100%;font:inherit;text-align:left;cursor:text}
 .adder .adder-open .ph{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--text-3)}
-@media (max-width:1100px){.qcols,.qrow{grid-template-columns:minmax(0,1fr) 200px 200px 210px 80px}}
+@media (max-width:1100px){.qcols,.qrow{grid-template-columns:minmax(0,1fr) 132px 152px 272px 76px}
+  .tf-add span{padding:0 2px}}
 @media (max-width:760px){
   .backdrop:has(.qwin){padding:0}
   .dialog.qwin{width:100%;height:100%;border-radius:0}
@@ -1541,8 +1564,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
   .qwin-g .qri{width:auto;flex:none;min-height:32px;white-space:nowrap}
   .qrsep,.qrtitle,.qcols{display:none}
   .qrow{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
-  .qrow>.tf-add,.qrow>.rr,.qrow>.qps{grid-column:1/-1}
-  .qrow>.qps{grid-row:auto;margin-top:0}
+  .qrow>.tf-add,.qrow>.rr{grid-column:1/-1}
   .qrow>.rr.qt:has(>.rr-none){display:none}
   .qwin-f>span:first-child{display:none}
 }

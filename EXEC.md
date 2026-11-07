@@ -12338,6 +12338,38 @@ peristiwa "No" (sel gagal tanpa peristiwa dalam jangkauan menulis "No").
   kolom hanya menambah.
   - Go merge (user 2026-11-06): "merge". PR rednightt33/saniti#56; hanya edge-bff. Titik kembali: edge-bff
     `64d65d68-efb7-40ee-aecf-e6ee75d3d4c1` (`f9871686`).
+  - Di-merge 15:31 UTC (`main` `5a22dcb5`); edge-bff `7a60bb22` SUCCESS; bundle live sama persis. Cek live lulus:
+    Length 50 + Enter dengan Minervini tidak menghapus kartu dan menulis "already on the screen".
+- Pertanyaan terbuka untuk user: area kosong di bawah baris tabel masih bergaris miring (latar area kosong, bukan sel
+  gagal); dibuat polos juga atau tidak.
+- Tata letak kolom isian (user 2026-11-06), lewat HTML pilihan:
+  - "Semua sifatnya custom. Seharusnya ada di bagian yang garis merah. Sekarang scattered dan sangat sulit untuk dibaca."
+  - "Opsi lain adalah kamu kasih saya HTML dulu deh ... 10 opsi dalam satu HTML di tab berbeda."
+  - "kalau threshold-nya customizable di bawah dua, maka bisa taruh saja di bagian yang merah ... Tapi kalau lebih dari
+    dua, maka kasih logo customizable. Seperti opsi nomor 5."
+  - "buat rata kiri, dan icon customizable seperti screenshot."
+  - "Pokoknya kalau ada kotak biru lebih dari 2, berarti masuk customizable. Misalkan RSA ini. Ya udah, masuk
+    customizable. Jadi, tinggi kolom setiap indikator harusnya sama. Lalu tambahin juga parameter yang customizable ada
+    berapa."
+  - "Ok, implement versi ini lalu go merge"
+- Dikerjakan (`src/add-condition.ts`):
+  - setiap kotak biru dihitung (parameter, parameter garis kedua, ambang);
+  - 2 atau kurang tampil di baris, satu baris, rata kiri;
+  - lebih dari 2 masuk tombol "⚙ Customize N" bergaris putus-putus, yang membuka panel: parameter, lalu ambang di bawah
+    garis tipis, masing-masing dengan default; ada Reset to default dan Done; Esc menutup panel saja;
+  - sesudah ada yang diubah, tombol menjadi "Custom · k of N changed";
+  - semua baris setinggi 54 px pada 1440 dan 1100 (kolom isian 268 dan 272 px).
+- Bukti: typecheck; vitest 783 lulus; bundle 31; langkah smoke baru "more than two blue boxes go behind Customize";
+  smoke penuh lulus dengan perubahan ini (tanpa perubahan ini, 2 dari 2 run gagal di pemeriksaan tugas lambat M375);
+  visual 46 screenshot; tripwire OK.
+- Go merge (user 2026-11-06): "Ok, implement versi ini lalu go merge". Titik kembali: edge-bff
+  `66310845-bf5d-40f7-a6ae-3d36edc88a39` (`3a0a1d03`, rilis sesi lain).
+- Di-merge 16:34 UTC (`main` `e0cfb700`, PR #57); edge-bff `1b3fc3a0` SUCCESS; bundle live sama persis.
+  - Cek live lulus: 128 baris setinggi 54 px; RSI "Customize 3"; panel, Esc, dan "1 of 3 changed" bekerja.
+  - Temuan: 2 baris katalog live meluap 10–16 px ("Volume spike", "New N-session high of a line"). Perbaikan umum:
+    label mengalah dengan "…" (nama lengkap di tooltip), kotak isian tidak pernah menyusut. Diuji dengan CSS yang
+    disuntikkan di halaman live: 0 baris meluap pada 1440 dan 1100. Dikirim di PR lanjutan dalam go yang sama.
+  - PR #58 di-merge 16:39 UTC (`main` `99fe0daa`); edge-bff `9f0322b3` SUCCESS; live: 0 dari 128 baris meluap.
 
 ## EXEC-IND-PRESETS — nilai indikator di kiri, jendela Indicators, preset indikator di akun EDGE (go 2026-11-06)
 
@@ -12426,7 +12458,7 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - R5: keterangan Top brokers di kepala panel (" · net · Acc · Regular") dihapus, tanggal tetap.
 - R6 (user, pesan berikutnya 2026-11-07: "trennya juga tidak di tengah ... di indikatornya juga nggak jelas, ini mau left align,
   center line, atau apa"): judul grup jendela Indicators mulai di kolom nama (sejajar "INDICATOR") dan tintanya di
-  tengah pita; ERRORS M381; pemeriksaan baru `look_check11.mjs`.
+  tengah pita; ERRORS M385; pemeriksaan baru `look_check11.mjs`.
 - Status 2026-11-07 (branch): R1, R2, R4, R5, R6 dan R3 untuk Broker summary dikerjakan; `look_check11.mjs` lulus kecuali
   baris Top brokers (Top 3/5/10 + lencana rasio + Regular butuh 332 px, panel 287 px: menunggu keputusan user); "73D"
   ditanyakan balik. Terminal 870/870, `look_check3/5/6/7/8/9/10` tanpa galat. Belum dirilis.
@@ -12468,8 +12500,304 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
 - Move up / Move down di kiri judul tiap panel indikator (di antara toolbar gambar dan judul), tampil selama kursor di panel
   itu (selalu di layar sentuh); ↑ mati di panel teratas, ↓ di panel terbawah; chart harga tetap paling atas, Flow Timeline
   tidak ikut; urutan tersimpan (ikut layout), bisa di-undo; gambar panel ikut pindah (milik serinya). Hanya mode live.
-- Pertanyaan user yang sama: "boleh cek screenshot terlampir kenapa ada gap putih?" — ERRORS M382 (disebabkan perbaikan
+- Pertanyaan user yang sama: "boleh cek screenshot terlampir kenapa ada gap putih?" — ERRORS M386 (disebabkan perbaikan
   M380), diperbaiki.
 - Status 2026-11-07 (branch): dikerjakan. Bukti `look_check13.mjs` (tampil di panelnya saja, ujung mati, sejajar judul,
   tidak menimpa toolbar, tukar urutan, tetap setelah muat ulang, undo, gambar ikut, tanpa gap) dan `look_check11.mjs`
   (tombol baru masuk pemeriksaan kerataan) lulus; `look_check3/5/6/7/8/9/10/12` tanpa galat; Terminal 870/870.
+
+## EXEC-SCREENER-TIDY — Fundamentals di Preview dihapus, judul kolom "Add a condition" sejajar tengah (2026-11-07)
+
+### Kata user (2026-11-07)
+- "lait screenshot terlampir bagian fundamental hapus saja. Masukan exec" (screenshot: bagian FUNDAMENTALS di panel
+  Preview, delapan baris "no data").
+- Judul kolom: "lihat yang saya screenshot, ini sepertinya tidak middle line. Kenapa bisa terjadi ya? Bukannya sudah kamu
+  review tadi sebelumnya. Nanti dibenarkan sekaligus kita gabungkan dengan indikator flow."
+- Area kosong bergaris di bawah tabel: "Dibiarkan."
+
+### Fakta (2026-11-07)
+- Fundamentals: `apps/edge-bff/screener/src/preview.ts:173` menulis delapan baris tetap (Market cap, P/E, P/B, ROE,
+  Div. yield, EPS growth, D/E, Piotroski) yang selalu "no data". Katalog live: 32 fundamental, semuanya REQUIRES_DATA
+  ("No fundamental data source exists yet").
+- Judul kolom: `.qcols{align-items:end}` (`src/styles/screener.css:1481`). Judul "Parameters & threshold" dua baris
+  (judul + "blue = you can change it"); judul lain satu baris dan duduk di baris bawahnya, bukan di tengah.
+  - Lolos dari pemeriksaan: cek visual dan smoke sebelumnya mengukur baris (tinggi, luapan), tidak mengukur sejajar
+    judul. Kelas: sel judul grid dengan jumlah baris berbeda.
+
+### Rencana (eksekusi bersama pekerjaan flow, sesuai kata user)
+1. Fundamentals: bagian itu tidak digambar selama katalog tidak punya fundamental yang tersedia (diturunkan dari katalog,
+   bukan daftar tetap); muncul lagi sendiri bila data fundamental datang. Kalimat "Fundamentals ... have no data yet" di
+   tab Method ikut disesuaikan.
+2. Judul kolom: `align-items:center` untuk `.qcols`; smoke menambah cek "pusat vertikal semua judul kolom sama (±1 px)".
+3. Tes: smoke Preview tanpa bagian Fundamentals; visual 1440 dan 1100.
+- Keputusan user (2026-11-07): "3. hanya preview": 32 baris fundamental di jendela "Add a condition" tetap tampil
+  dengan alasannya; hanya bagian Fundamentals di Preview yang tidak digambar.
+- Status: belum dieksekusi; dikerjakan dalam EXEC-SCREENER-FLOW-CANDLES (langkah 1), menunggu "go".
+
+## EXEC-SCREENER-FLOW-CANDLES — indikator flow Terminal masuk Screener, dan 20 pola candle di core Backtest (rencana 2026-11-07, BELUM dieksekusi)
+
+### Kata user
+- 2026-11-07 (permintaan): "cek di bagian terminal sudah banyak indikator yang bersifat flow. Coba review indikator flow
+  ini bisa dipakai dari sisi apa untuk screener saham? Coba review dan propose." dan "please propose 20 candles sebagai
+  screener juga, ini mau kita tambahkan ke screener."
+- 2026-11-07 (atas usulan di FUTURE_PLAN SCREENER-FLOW-CANDLES): "1 kenapa tidak semua indikator flow masuk? 2A 3. hanya
+  preview. Jangan jalankan. Masukan exec."
+  - 2A: pola candle dibangun di core Backtest (dipakai Screener dan nanti Backtest; `engine_version` berubah).
+  - 3: lihat EXEC-SCREENER-TIDY.
+  - Pertanyaan 1 dijawab di sesi: dari 48 FL, 33 baru masuk (22 layak + 11 dengan lantai ADV), 3 sudah ada (FL27,
+    FL28, FL31), 12 tidak untuk screening (alasan di bawah).
+
+### Cakupan flow (48 indikator FL01-FL48, `verification/terminal_api/flow_indicators/FORMULAS.md`; diperbarui 2026-11-07)
+- Semua 45 indikator yang belum ada di screener masuk, masing-masing dengan parameter setup Terminal-nya dan operator
+  universal sesuai jenis output (tabel jenis K/P/Rp/L/H/D/F/B yang disampaikan di sesi 2026-11-07):
+  - K (kontinu ternormalisasi): FL03-FL07, FL10-FL16, FL22, FL24, FL29, FL30, FL32-FL36, FL38-FL41, FL46, FL48;
+  - P (sudah persentil/z): FL08, FL21, FL37 (FL47 bila stat = persentil);
+  - Rp (Rupiah): FL02, FL25;
+  - L (lot per transaksi): FL01;
+  - H (level harga): FL17, FL42, FL43;
+  - D (hari beruntun): FL26; F (sinyal 0/1): FL09;
+  - B (hitungan broker): FL23 versi screener (seri a kumulatif, b harian, c ternormalisasi; keputusan B);
+  - patokan N sesi ke belakang (keputusan D dan E): FL18, FL19, FL20, FL44, FL45.
+- Sudah ada (3): FL27 `silent`, FL28 `adv20_idr`, FL31 `insider_net` (dipetakan ke FL yang sama).
+- Koreksi 2026-11-07 (P0, peta `verification/screener/FLOW_MAP.md`): hitungan "45 belum ada" dan "3 sudah ada" di atas
+  salah. 18 FL sudah punya entri screener dengan rumus yang sama (sebagian dengan bawaan lain: papan, jendela, skala
+  x100): FL11, FL14, FL24-FL39; 2 hanya sebagian (FL22 breadth, FL23 broker); 28 belum ada: FL01-FL10, FL12, FL13,
+  FL15-FL21, FL40-FL48. Cakupan tidak berubah (48 FL masuk dari `flowRegistry.json`, P5), tetapi P5 mengganti 22
+  entri lama, sehingga butuh keputusan sebelum P5:
+  - G1 papan bawaan (diputuskan 2026-11-07: ikut Terminal, Regular; lihat Keputusan di bawah): registry memakai `["Regular"]` untuk setiap FL yang punya parameter papan, sedangkan P8 b memutuskan
+    semua papan; entri screener yang diturunkan dari registry harus memakai Regular, Nego, Cash.
+  - G2 kalender: candle Terminal memakai tanggal harga (baris broker tanpa bar harga dibuang), keputusan D12 memakai
+    sesi bursa; berbeda pada hari Nego saja (81 saham-hari dari 15 saham dalam 20 sesi) dan hari tanpa transaksi.
+    - Diputuskan (user 2026-11-07): "samakan saja dengan indikator lainnya agar apple to apple. Kalender hari atau
+      sesi." Indikator screener lain dihitung di sesi saham itu sendiri, yaitu bar harganya
+      (`screener/src/core/metrics.ts:25-28`, `evaluate.ts:77-83`), dan Terminal juga memakai tanggal harga. Jadi flow
+      memakai sesi = bar harga saham itu, bukan kalender sesi bursa D12. Baris broker pada hari tanpa bar harga tidak
+      dihitung, seperti di Terminal.
+  - G3 kedalaman: 60 sesi (K1); baseline 252 sesi FL05 lama tidak bisa dihitung.
+  - Sepuluh rumus lama tanpa padanan Terminal (FLOW_MAP.md, "Formulas that have no Terminal equivalent"), antara lain
+    `fnet` (net asing Rupiah D sesi) dan `broker` (net satu broker D sesi bergulir): dipertahankan sebagai entri
+    screener sendiri, dibangun ulang dengan operator, atau dihapus.
+- Lantai likuiditas ADV bawaan: FL03-FL06, FL08, FL10, FL13-FL15, FL36, FL46.
+- Penomoran: keputusan flow 2026-10-28 (D1-D14, P9) memakai nomor FL dari `verification/screener/AUDIT.md` 16.11, beda
+  dari FL01-FL48 (bandar balance = FL09 AUDIT = FL24 Terminal; `insider_net` FL20 lama = FL31). Nilai yang sudah
+  diputuskan (P9: top-3, 10 sesi, semua papan, ±6/±10; P10 a as-of broker berlabel; P8 b semua papan bawaan) tetap.
+
+### Keputusan user lanjutan (2026-11-07, kata user)
+- Operator: "Proposed Universal Screener Operators" 1-15 (Absolute, Historical Average, Historical Percentile, Change,
+  Ever/Lookback, Z-Score, Relative Comparison, Crossover/Crossunder, Persistence/Frequency, Consecutive/Streak,
+  Ranking/Cross-Sectional, Trend/Slope, Acceleration, Distance to Extreme, Range/Between).
+- Dua lapis: "ada beberapa parameter yang memang terkait dengan how that indicator state setup ... parameter yang memang
+  ada di terminal untuk indikator tersebut. Kedua adalah dengan universal screener option 1-15 ... Ini bisa di benchmark
+  against that indicator for that corresponding stock atau terhadap universe."
+- FL01, FL02, FL23 masuk lewat operator ("FL1, 2, dan 23 sebenarnya bisa ditambahkan ... percentile ... naik compare
+  to X previous session ... broker yang jumlah inventory-nya berkurang sebanyak percentage atau nominal").
+- "B OK C universe hasil filter D OK E OK":
+  - B: tabel operator FL23 dan seri baru "inventory ternormalisasi" (inventory / nilai transaksi L sesi);
+  - C: persentil lintas saham (operator 11) memakai universe HASIL FILTER user sebagai populasi;
+  - D: FL20 dan FL45 versi screener dengan patokan N sesi ke belakang dari tanggal yang dinilai;
+  - E: FL18, FL19, FL44 ikut dengan patokan N sesi.
+- "inspect dulu kondisi arsitektur di database kita dan kira-kira buat implementation plan ... Semua step atau langkah
+  harus dibuat berdasarkan code inspection" lalu QA oleh 5 sub-agent Sonnet dengan MASTER PROMPT "FIVE INDEPENDENT QA
+  SUB-AGENTS" (QA1 rumus, QA2 data dan waktu, QA3 logika operator, QA4 backend dan integrasi, QA5 UI dan E2E).
+
+### Fakta arsitektur (pemeriksaan kode 2026-11-07; lima agen read-only, klaim kunci dicek ulang)
+- Data broker: F05 `Feature_05_Foreign_Domestic_Broker_Detail` (ticker, trade_date, broker, investor_type,
+  market_board; nilai, lot, `buy_freq`/`sell_freq` boleh NULL; DATABASE_SCHEMA.md:2932-2977). Publisher boleh membaca F05
+  (`database/migrations/20261025_100*.sql`, GRANT ke `terminal_market_reader`), tidak F02/F03/F04/F06.
+- Publisher: `broker_sql` per ticker (`apps/terminal-publisher/publisher.py:136-141`), file per ticker-tahun
+  `v1/broker/{ticker}/{year}`, kolom `d,b,i,m,bv,sv,bl,sl,bf,sf`. Xsection hanya `price` dan `actions`;
+  `publish_xsection` menganggap nama lain = actions (`publisher.py:1192-1195`), jadi file baru butuh cabang sendiri.
+- Volume terukur: satu ticker-tahun ~250 KB gzip; semua F05 2025 = 5.348.402 baris ~55 MB gzip
+  (`verification/terminal_api/DESIGN.md:54`); ~24 ribu baris per sesi (AUDIT.md:2914). Turunan: 41 sesi ~10 MB,
+  60 sesi ~13 MB, 270 sesi ~60 MB gzip (INFERENCE dari angka terukur).
+- Worker: hanya membaca `PHASE1_FILES = [price, actions]` dan mewajibkannya (`apps/screener-worker/src/snapshot.ts:58`,
+  `refresh.ts:286-289`); batas sementara 24 MB per file dan per refresh, CPU 4.500 ms per screen, tenggat 20 s, heap
+  512 MB (`apps/screener-worker/README.md`). Data Phase 1 sudah 11,77 MB.
+- Mesin: flow selalu ditolak (`screener/src/core/condition.ts:182`); hanya indikator/harga/transform yang seri
+  (`metrics.ts:132-139`); metrik non-indikator hanya dibanding angka (`validate.ts:235`); 10 transform, rantai maks 4
+  (`transforms.ts:146,152`); ekor evaluasi = within_max + 1 = 131 bar (`metrics.ts:176-179`); persentil lintas saham
+  hanya `return_rank` dengan populasi tetap (`xsection.ts:1-44`); `flow_through` selalu null (`snapshot.ts:258-259`).
+- Operator 3, 6, 9 belum ada; 1 tanpa >=, <=, =, !=; 7 dan 8 hanya pasangan tertentu; 10 hanya `rising_run`; 11
+  hanya return_rank; 12 hanya lewat change; 14 hanya untuk close; 15 hanya VALUE.
+- Modul flow Terminal: `computeFlow(id, ctx, params)` (`terminal/src/calc/flow.ts:782-787`), tanpa DOM; import dari
+  Node GAGAL `ERR_IMPORT_ATTRIBUTE_MISSING` pada `import REG from '../data/flowRegistry.json'` (`flow.ts:16`; dicek
+  ulang; sama dengan catatan EXEC.md:11896). Paritas Terminal vs oracle sudah 0 selisih (457.498 nilai). `ranking`
+  beku/harian ditanam per id; anchor `view` diselesaikan Terminal, bukan flow.ts (`flow.ts:388-399`).
+- Katalog screener: 20 entri flow memakai penomoran FL lama AUDIT, bukan FL01-FL48 (`screener-metrics.json:1231-2390`);
+  formula hanya teks; kolom `buy_freq` vs encoding `bf`.
+- UI/API: format kirim sudah bisa merangkai transform (`contract.ts:120`), tetapi `toWire`/`fromWire` hanya bentuk tetap
+  (`screener/src/forms.ts:116-246`); bentuk lain jadi kartu raw "tidak bisa diubah". edge-bff tidak memeriksa isi
+  kondisi, hanya meneruskan (`apps/edge-bff/app/screener.py:1-12, 945-954`); kode tolak baru harus masuk `RELAYED`.
+- Core Backtest: `PRICE_ACTION` (`backtest/src/core/conditions.ts:123-188`); tripwire menaruh `backtest/src/core` di
+  `ALWAYS` dan gagal untuk setiap perubahan, tanpa baseline yang bisa menyetujui
+  (`scripts/screener/check_backtest_untouched.mjs:44-51, 101-104`); `engine_version` = hash isi file
+  (`apps/backtest-worker/src/version.ts:1-10`). Hari suspend = bar hilang, bukan bar datar; tidak ada tabel tick size;
+  ARA/ARB tidak dimodelkan.
+
+### Keputusan yang dibutuhkan sebelum eksekusi
+- K1 Kedalaman data broker untuk screener (menentukan operator berbaseline panjang pada flow):
+  A) file jendela mentah ~60 sesi (~13 MB): semua parameter FL bisa diubah, operator flow dengan N + jendela <= 60;
+  baseline 250 (FL08, FL09, FL21, FL37, FL47 persentil; operator 3/6 N panjang) tidak tersedia untuk flow;
+  B) A + file seri panjang (260 sesi) untuk parameter bawaan saja, dihitung dengan flow.ts yang sama;
+  C) jendela mentah 270 sesi (~60 MB): melewati batas 24 MB dan heap 512 MB; tidak disarankan.
+- K2 Pola candle di core Backtest (2A) berarti mengubah aturan tripwire (`ALWAYS`) dengan keputusan tercatat.
+- K3 Populasi persentil lintas saham: keputusan C untuk operator 11 baru; RS rank lama (`return_rank`, dipakai preset
+  Minervini dan CANSLIM) tetap populasi tetap atau ikut C.
+- K4 Spesifikasi operator (OPERATORS.md: rumus tepat tiap operator, batas inklusif/eksklusif, perlakuan nilai kosong,
+  satuan) disetujui user sebelum dibangun; menjadi acuan QA.
+- K5 Empat kandidat operator di master prompt QA yang tidak ada di daftar 15 (Rolling Sum/Cumulative, Positive/Negative
+  Days Count, Condition Recency, Conditional Comparison): masuk cakupan atau tidak.
+- K6 Pemeriksaan read-only sekali di database (cakupan `buy_freq`/`sell_freq` sepanjang riwayat, ukuran file jendela)
+  lewat job sementara Railway (`scripts/onboarding/run_job.sh`) butuh persetujuan.
+- K7 "=" dan "!=" hanya untuk output bilangan bulat (sinyal 0/1, hitungan hari, jumlah broker).
+
+### Rencana fase (tiap fase: kode di branch, tes, QA, PR, merge dan deploy dev hanya dengan "go")
+- P0 Spesifikasi dan pengukuran: OPERATORS.md (K4); tabel kelayakan FL x operator (jenis K/P/Rp/L/H/D/F/B) sebagai
+  data; pengukuran K6; peta nomor FL lama -> FL01-FL48.
+- P1 Rapikan (EXEC-SCREENER-TIDY): Fundamentals di Preview diturunkan dari katalog; judul kolom sejajar tengah + cek
+  smoke.
+- P2 Mesin operator (tanpa flow; langsung berguna untuk indikator dan harga): transform baru (persentil bergulir,
+  z-score, perubahan %, slope, akselerasi, jarak ke ekstrem untuk seri apa pun, persistence K dari N, streak umum,
+  "pernah" sebagai seri boolean), op >=, <=, =, != (K7), between untuk STATE/EVENT, perbandingan seri vs seri dengan
+  cek satuan, operator 11 lintas saham di populasi hasil filter (tahap S1 `screen.ts`), unit biaya, pesan tolak sesuai
+  aturan gerbang AGENTS.md (aturan, cara lolos, contoh benar/salah, pesan). Tes: oracle brute force tiap transform,
+  properti, plan pruning = exhaustive, katalog.
+- P3 UI operator: rantai generik di `forms.ts` (toWire/fromWire kompatibel mundur; definisi lama tetap sama),
+  pemilih operator di "Add a condition" (panel Customize) dan kartu builder, format sel (persentil, z, peringkat),
+  "why it passed", fixture engine. Tes: vitest, smoke, visual.
+- P4 Data flow: cabang xsection `broker_window` di publisher (kedalaman K1), aturan file opsional di worker (S3),
+  decoder lintas ticker, `flow_through` dan tanggal as-of broker (P10 a), cek cache review edge-bff (S5); urutan rilis
+  worker lalu publisher. Tes: publisher, worker, E2E lokal dengan file format publisher.
+- P5 Hitung flow: perbaiki import JSON `flow.ts:16` (`with { type: 'json' }`, juga memperbaiki tes backtest-worker);
+  `flowmetrics.ts` membungkus `computeFlow`; flow sebagai jenis seri sehingga operator bisa dirangkai; entri katalog
+  diturunkan dari `flowRegistry.json` + tabel kelayakan (ganti 20 entri lama, preset ikut); FL23 versi screener (seri
+  a/b/c, Top-K pemegang, lookback L, gabungan >= X broker); FL18/19/20/44/45 patokan N sesi; lantai ADV. Tes: paritas
+  bit demi bit screener vs `computeFlow` Terminal pada baris yang sama; oracle.py (butuh K6).
+- P6 Pola candle (K2): primitif candle + 20 pola, entri PATTERNS dan katalog, penjaga data IDX. Tes: bar sintetis,
+  simetri, frekuensi pada data nyata, hitung ulang independen, `lookback.test.ts`, tripwire, backtest-worker.
+- P7 QA: lima agen Sonnet sesuai MASTER PROMPT setelah tiap unit rilis (A = P1-P3 operator, B = P4-P5 flow, C = P6
+  candle); cacat dikirim ke Main Agent, diperbaiki, dites ulang; keputusan READY / NOT READY per unit.
+- P8 Rilis dev per unit: PR, deploy (publisher, screener-worker, edge-bff sesuai unit), cek live dengan login, catatan
+  RAILWAY_CHANGELOG, ERRORS, EXEC.
+- Jawaban user (2026-11-07): "K1 kedalaman data broker limit to only 60 sessions for now, jadi N diabatasi 60 ... K3 ok
+  K4 ok K5 no meed K6 boleh K7 ok".
+  - K1: file jendela broker 60 sesi (pilihan A). Operator flow: N + jendela indikator <= 60. Baseline di dalam FL08,
+    FL09, FL21, FL37, FL47 (persentil) dibatasi otomatis oleh kedalaman data (60 dikurangi jendela), diturunkan dari
+    kedalaman file, bukan daftar tangan.
+  - K3: RS rank lama (`return_rank`) tetap populasi tetap; operator 11 baru memakai universe hasil filter.
+  - K4: OPERATORS.md ditulis dan disetujui user sebelum dibangun (P0).
+  - K5: empat operator tambahan di master prompt QA tidak masuk cakupan; QA menilai 15 operator yang disetujui.
+  - K6: boleh menjalankan pemeriksaan read-only database lewat job sementara Railway.
+  - K7: "=" dan "!=" hanya untuk output bilangan bulat.
+  - K2: ditanyakan user ("K2 ini apa ya?"); dijelaskan 2026-11-07 dengan pilihan A (jalur persetujuan untuk core),
+    B (pola candle di Screener saja), C (core keluar dari daftar yang dijaga); menunggu jawaban.
+- Go (user 2026-11-07): "Ok A Jalankan".
+  - K2: A, jalur persetujuan untuk perubahan core Backtest di tripwire (seperti baseline worker), ditambah tes bahwa
+    hasil kondisi lama tetap sama.
+  - Eksekusi dimulai: P0 (OPERATORS.md untuk disetujui user, pemeriksaan read-only database K6, peta nomor FL) dan P1
+    (rapikan). P2 dibangun setelah OPERATORS.md disetujui (K4).
+- Keputusan user 2026-11-07 (atas pertanyaan K4, G1, G2, rumus lama): "Jalankan opsi A / Opsi P8B berubah, OK / Rumus
+  lama tanpa padaan diterminal, OK" dan "Kita mau fitur ini release as soon as possible for me to test".
+  - K4: `verification/screener/OPERATORS.md` disetujui; menjadi acuan P2, P3, P5 dan QA.
+  - G1: papan bawaan flow ikut Terminal (`flowRegistry.json`: Regular); P8 b (semua papan bawaan) diganti. Pengguna
+    tetap bisa memilih papan lain di setelan indikator.
+  - G2: lihat di atas (sesi = bar harga saham itu).
+  - Rumus lama: dibangun ulang dengan operator (net satu broker N sesi lewat FL23 seri a dengan patokan N sesi; 1/H lewat
+    ambang FL38; status Big Acc/Dist lewat range FL24 ±6/±10; hari distribusi lewat Persistence), dipertahankan sebagai
+    entri screener sendiri (`fnet` net asing Rupiah, net pemegang besar KSEI, pengaman n/a tanggal lampau FL34), dihapus
+    (breadth lama tanpa net nol; FL22 menggantikan). Kesamaan hasil bangun ulang dites di P5.
+  - Urutan rilis: unit A (operator, P2-P3) dirilis lebih dulu tanpa menunggu K6; K6 hanya dibutuhkan unit B (flow).
+- K6 selesai 2026-11-07 (job `972bb712`, read-only, 13:21-13:37 UTC; `DATABASE_CHANGELOG.md`):
+  - jendela 60 sesi (2026-08-10 .. 2026-11-03, semua COMPLETE): 1.473.361 baris kode universe (rata-rata 24,5 ribu per
+    sesi), file berkode publisher 17,06 MB gzip (120 MB teks JSON); 41 sesi 11,65 MB; 20 sesi 5,58 MB;
+  - `buy_freq`/`sell_freq` sepanjang riwayat (2016-01 .. 2026-11, 46,4 juta baris): kosong hanya pada kode bukan 4 huruf
+    (waran, right); saham 4 huruf dan kode universe 0 baris kosong di setiap bulan;
+  - akibat untuk P4 (INFERENCE dari angka dan batas worker): file 60 sesi muat di batas 24 MB per file, tetapi bersama file
+    Phase 1 (11,77 MB) refresh pertama sekitar 28,8 MB, di atas batas 24 MB per refresh, dan 120 MB teks JSON berat untuk
+    heap worker 512 MB. P4 butuh kode file yang lebih ringkas atau keputusan soal batas (ditanyakan ke user sebelum P4).
+- QA unit A putaran 1 (2026-11-07, lima agen Sonnet sesuai MASTER PROMPT): QA1 rumus NOT READY (z-score dan slope pada
+  jendela datar), QA2 data/waktu NOT READY (remark price break pada jendela atas harga mentah), QA3 logika NOT READY (filter
+  universe dengan ge/le/eq/ne/outside membuang semua saham: salinan kedua aturan nilai di universe.ts), QA4 backend READY.
+  Perbaikan `58380855`; putaran 2: QA1, QA2, QA3 READY. Penyimpangan terbuka: ranking antar saham di dalam jendela (operator
+  11 sebagai kondisi dalam 5/9/10) belum dibangun, butuh keputusan user.
+- QA unit A putaran 1-2 selesai 2026-11-07: QA1, QA2, QA3, QA4, QA5 semuanya READY (QA5 putaran 1 NOT READY: pratinjau
+  salah membaca sel operator, judul kolom tidak menyebut operator, satu rentang untuk semua measure; perbaikan `b981a5e4`
+  dan berikutnya). Cacat yang ditemukan dicatat M381-M384. Sisa LOW yang diterima: teks select terpotong di layar ponsel,
+  panel 20 px lebih tinggi dari jendela 1100x760 (bisa digulir). Belum dibangun (keputusan user): ranking antar saham di
+  dalam jendela; "=" dan "!=" tetap tersembunyi (K7, belum ada hasil operator berupa bilangan bulat).
+- Status: unit A (P1-P3) siap PR ([PR #59](https://github.com/rednightt33/saniti/pull/59)); menunggu "merge" dari user. P0
+  selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
+- P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; diterima 2026-11-07, menunggu "go").
+
+## EXEC-BROKER-DELTA — publisher mengirim broker 5 sesi terakhir + tanggal yang berubah, bukan file setahun (opsi D, cakupan 2) (diterima 2026-11-07, BELUM dieksekusi)
+
+### Kata user
+- 2026-11-07: "Oke, ini kita perlu edit karena proses perpindahan data dari Postgres ke storage akan menjadi sangat lama.
+  [...] propose ke saya metode-metode dari sisi waktu, time efficient, kemudian juga dari sisi integritas data bisa
+  terjaga. Setelah itu, baru kita lanjut P4 dst".
+- 2026-11-07: "Saya tidak mau data 4 November saja, tapi juga data mungkin yang misalkan 5 hari ke belakang. Tapi jangan
+  juga satu tahun ke belakang, atau 20 sesi terakhir. [...] Opsi mana yang serve requirement saya ini?"
+- 2026-11-07 (atas opsi D dan pilihan cakupan): "Oke, cakupan 2." Cakupan 2 = publisher dan ketiga pembaca (Screener,
+  Terminal, Backtest) diubah bersama. Ini persetujuan rancangan, belum "go" eksekusi.
+
+### Fakta (kode dan log live, 2026-11-07)
+- Mode `daily` mencari ticker-tahun yang punya tanggal broker lebih baru dari `broker_through` lalu menulis ulang file
+  tahun berjalan per ticker, `v1/broker/{ticker}/{year}`, seluruhnya (`apps/terminal-publisher/publisher.py:1386-1391`).
+  Update 4 Nov berarti 1 Jan-4 Nov dikirim ulang untuk setiap saham yang punya baris 4 Nov.
+- Ukuran: run hari broker 2026-11-03 5.954 file, 126,39 MB, 404,9 s; run harga saja 2026-11-06 1.709 file, 28,67 MB,
+  342 s (log terminal-publisher, deployment `e78dd177`).
+- Koreksi tanggal lama tidak terbit lewat `daily` (Revisi R2 EXEC-PUBLISH-FLOW, `publisher.py:1377-1383`).
+- Pemicu cron selesai -> publisher sudah jalan untuk harga (sinyal 2026-11-06 10:05:22 UTC -> `run_again` -> harga 6 Nov
+  terbit 10:21 UTC). Pemicu dari putaran broker belum terlihat live: belum ada putaran sejak pemicu aktif; broker di
+  Postgres dan storage sampai 2026-11-03 (`broker_behind_sessions` 3, run 2026-11-07 12:04 UTC).
+- Pembaca file broker: Terminal (`terminal/src/data/live.ts:89`), Backtest (`backtest-worker/src/terminal.ts:435`);
+  Screener belum membaca broker (P4 EXEC-SCREENER-FLOW-CANDLES).
+
+### Root cause dan kelas
+- Root cause: satuan terbit adalah file ticker-tahun utuh, jadi satu tanggal baru memaksa seluruh tahun ditulis ulang.
+- Kelas: data yang bertambah per tanggal tetapi diterbitkan sebagai file tahunan penuh. Berlaku untuk broker saham,
+  `_INDEX` IHSG, harga (`pack/price`, file tahun harga), xsection harga, dan data baru per tanggal (lintas-aset, makro).
+  Tidak berlaku untuk intraday (sudah per periode lewat `intraday_publish_change`) dan `ref/*` (kecil, utuh tiap run).
+
+### Rancangan (lapisan: catatan perubahan di database, format file di publisher, penggabungan di pembaca)
+1. Catatan perubahan = Revisi R2: `broker_publish_change` ditulis oleh fungsi refresh Feature 05 (saham dan `_INDEX`) di
+   statement yang sama dengan barisnya (migrasi baru). Tidak memindai seluruh Feature 05 tiap run.
+2. Tiap run: satu file delta untuk semua saham, berisi baris broker 5 sesi terakhir (tanggal bursa) ditambah tanggal
+   lama yang tercatat berubah sejak publikasi terakhir. Setiap tanggal membawa jumlah baris dan checksum. File tahunan
+   tidak ditulis ulang.
+3. `state.json` mencatat dasar (file tahunan + pack arsip) dan daftar delta sejak kompaksi terakhir.
+4. Pembaca (Terminal, Backtest, Screener) mengambil dasar + delta; satu tanggal di delta menggantikan tanggal yang sama
+   di dasar untuk saham itu. Jumlah baris atau checksum tidak cocok -> kembali ke file penuh.
+5. Kompaksi berkala: file tahunan yang tersentuh disusun ulang, delta lama dihapus sesudah jeda (pola `replaced_wait`).
+6. Screener (P4): jendela 60 sesi = dasar jendela pada kompaksi + delta sesudahnya; refresh harian hanya delta.
+7. Urutan rilis: pembaca dulu (bisa membaca delta dan tetap membaca file tahunan lama), lalu publisher.
+8. Tumpang tindih yang disatukan supaya tidak dikerjakan dua kali: S6 (broker tidak disimpan dua kali) dan S7 (storage B)
+   EXEC-PUBLISH-FLOW memakai format dasar + delta yang sama.
+
+### Keputusan user 2026-11-07 (kata user)
+- "Detail D -- exclude it for now pertanyaan yang kamu tanyakan arusan mengenai seberapa sering, da apakah data harga ikut
+  pola yang sama sekarang." Kompaksi berkala dan harga tidak termasuk cakupan sekarang: hanya broker (saham dan IHSG).
+- "Untuk P4 ok" (atas pilihan kode file jendela ringkas atau batas worker dinaikkan): kode file ringkas, batas worker tetap.
+- "Merge dan go sampai P4 pertanyaan diatas sudah conclude dari saya." PR #59 di-merge; eksekusi opsi D dan P4 dimulai.
+  Pertanyaan RAM worker (berapa lama data ditahan di memori, biaya multi-user) dijawab dengan bukti live sebelum P4
+  di-deploy.
+
+### Detail terbuka (dikeluarkan dari cakupan sekarang, keputusan user 2026-11-07)
+- Kompaksi: seberapa sering dan kapan (usul: mingguan, Sabtu, di luar jendela B6 dan cron lain).
+- Harga (`pack/price`, xsection harga) ikut pola yang sama sekarang atau sesudah broker.
+- Kode file jendela Screener lebih ringkas (K6: 60 sesi 17,06 MB gzip, 120 MB teks JSON; ditambah Phase 1 11,77 MB
+  melewati batas 24 MB per refresh dan berat untuk heap 512 MB) atau batas worker dinaikkan.
+
+### Cakupan dan risiko
+- Mencakup: tanggal baru, isi ulang tanggal lama, koreksi (saham dan IHSG).
+- Tidak mencakup: perubahan `IDX_Broker_Profile` (terbit lewat `ref/brokers` tiap run).
+- Risiko: tiga pembaca berubah; kesalahan penggabungan memberi angka salah. Penjaga: checksum per tanggal, jalan balik ke
+  file penuh, tes paritas pembaca lama vs baru.
+- Ongkos: satu migrasi, publisher, tiga pembaca, tes, deploy berurutan.
+
+### Bukti yang direncanakan
+- Tes publisher: tanggal baru, tanggal lama yang dikoreksi (tahun berjalan dan arsip), IHSG.
+- Tes pembaca: hasil dasar + delta sama persis dengan file penuh untuk saham yang sama (Terminal, Backtest, Screener).
+- E2E lokal dengan file format publisher; DRYRUN migrasi.
+- Live: satu putaran broker -> ukuran dan waktu run sebelum/sesudah, `verify` storage = SQL untuk saham yang tersentuh,
+  chart Terminal sama dengan sebelumnya.

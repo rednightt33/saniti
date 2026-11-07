@@ -32,7 +32,8 @@ export const T = {
   noCap: 'No data: market cap waits for its shares-outstanding data, which is planned but not yet approved.',
   noFreeFloat: 'No data: free float is not in the market database.',
   noNotation: 'No data: special notation / FCA flags are not in the market database, so this filter is off.',
-  noFundamentals: 'No data: fundamentals wait for a data source and a decision of their own.',
+  noFundamentalValue: 'The preview does not carry this value yet.',
+  operatorCardNote: 'To change this operator, open Add a condition, set it again and add it; then remove this card.',
   sendPhase: 'Send to Backtest comes with Phase 1b, once its rules are confirmed.',
   bandarPhase: 'Not editable here: the bandar thresholds become parameters of each bandar condition when the flow definitions arrive (Phase 3).',
   // P17 consequence (catalog default_offered false: I43 VWAP, whose registry default anchor Session is not offered)

@@ -5314,7 +5314,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   kebutuhannya diturunkan dari definisinya. Daftar jenis aset tidak boleh jadi satu-satunya pengaman. Saat menambah
   dataset baru (macro, lintas aset), cek dulu kolom apa saja yang ada di filenya.
 
-### M378 — Screener "Add a condition": Enter in a field removed a condition already on the screen (2026-11-06, fixed in code)
+### M378 — Screener "Add a condition": Enter in a field removed a condition already on the screen (2026-11-06, fixed)
 
 - **Found by:** the coordinator's live check of PR #55 (dev, signed in).
 - **Symptom:** with the Minervini preset loaded, typing 50 in the SMA row's Length and pressing Enter removed
@@ -5334,7 +5334,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     toast says so;
   - the step fails without the fix ("Simple Moving Average removed");
   - typecheck; vitest 783 passed, 1 skipped; bundle 31; visual 46 shots; tripwire OK.
-- **Status:** FIXED in code (branch, not deployed).
+- **Status:** FIXED and deployed (edge-bff `7a60bb22`, `main` `5a22dcb5`, PR #56). Live, signed in: with Minervini,
+  Length 50 + Enter changes no card and says "already on the screen"; Length 30 + Enter adds one.
 
 ### M379 — Migration runner: the runner guard's deployment list fails once and stops an APPLY before it starts (2026-11-06, open)
 
@@ -5380,7 +5381,71 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   there only the 0.5 s grace applies.
 - **Lesson:** a control revealed on hover needs a tolerance (time and area), and nothing beside it may change width
   while it is reachable.
-### M381 — Terminal: headings, switches and control rows out of line, missed by every check so far (2026-11-07, fixed in code)
+### M381 — Screener operators: a universe-attribute filter with ge, le, eq, ne or outside dropped every stock (2026-11-07, fixed on branch)
+
+- **Found by:** QA3 (five-agent QA of EXEC-SCREENER-FLOW-CANDLES unit A, round 1), on the branch before any release.
+- **Symptom:** `metric_filters: [{op: 'ge', value: 130, metric: {kind: 'universe', attr: 'bars'}}]` kept 0 stocks
+  (51 expected); le, eq, ne and outside likewise; gt, lt and between were right; the same test as a condition was right.
+- **Verified cause:** the VALUE rule had two copies. `evaluate.ts valuePasses` gained the new operators (P2), but
+  `universe.ts` kept its own copy (gt, lt, else between), so every new operator fell into the between branch with no
+  `value2` and failed.
+- **Class:** one rule written twice; the copy that is not changed goes silently wrong (the page's local counts read it too).
+- **Solution:** `universe.ts valuePasses` is the one copy (it is the module the page may import); `evaluate.ts`
+  re-exports it; the attribute filter calls it through `attrPasses`.
+- **Verified:** the core test runs every value operator as a universe filter and checks the kept stocks against the rule;
+  QA3 round 2: all 8 operators on bars, last, adv20_idr and chg_1d_pct equal its oracle and the condition path.
+- **Lesson:** a rule that both the page and the worker apply lives in one module both import, never in two.
+- **Status:** FIXED on branch `claude/charming-hamilton-faq25e` (`58380855`), not released.
+
+### M382 — Screener operators: a flat window gave a z-score and a slope of floating-point noise (2026-11-07, fixed on branch)
+
+- **Found by:** QA1 round 1.
+- **Symptom:** `zScore(Array(9).fill(0.15585714285714286), 7)` gave −0.926 instead of missing (601 of 1,200 flat
+  windows of non-binary-fraction constants); `slope` of a flat window gave about 1e-18 instead of 0 (674 of 1,200), so
+  "slope > 0" passed on a flat series about half the time; "above its SMA" could pass on a flat series the same way.
+- **Verified cause:** `sd > 0` and the slope sum were tested on floating-point results; for a constant that is not a binary
+  fraction the mean is an ulp off, so a degenerate window did not read as degenerate.
+- **Class:** a degenerate input (a window of equal values) decided by floating-point arithmetic instead of by its
+  definition; every operator that compares around 0 on such a window is exposed.
+- **Solution:** exact detection (min = max in the window, or the run of equal values `equalRun`): z-score missing, slope
+  0, the SMA form of "against its own average" reads the average as today's value.
+- **Verified:** core test over 200 constants x 3 windows; QA1 round 2: 2,400 flat cases, 0 non-null z-scores, every slope,
+  acceleration and difference exactly 0, the 495 non-flat cases unchanged.
+- **Lesson:** decide a degenerate case from the data, not from the arithmetic.
+- **Status:** FIXED on branch (`58380855`), not released.
+
+### M383 — Screener operators: window tests missed a price break in their own span; their chart markers disagreed with the cell (2026-11-07, fixed on branch)
+
+- **Found by:** QA2 round 1.
+- **Symptom:** "close > 1 at least once in the last 10 sessions" with an ex-date four sessions back had no
+  PRICE_BREAK_IN_LOOKBACK remark; on a history shorter than the window the chart showed no marker where the cell passed.
+- **Verified cause:** the remark was the union of each session's own remark, and a bar field reads one bar, so no single
+  session crosses the ex-date although the count does; `conditionSignal` zeroed every bar before `length - 1`.
+- **Class:** a window over sessions inherits the lookbacks of its sessions plus its own span; two readers of one rule
+  (cell, marker) drifted.
+- **Solution:** the window cell also takes the remark of its own span (`priceBreakRemark([at - L + 1], ...)`); the marker
+  counts sessions before bar 0 as not passing, as `evaluateWindow` does.
+- **Verified:** core tests (ex-date inside, older than the window, and at a longer window; markers equal the cell on a
+  90-bar history); QA2 round 2 at the window's edges.
+- **Status:** FIXED on branch (`58380855`), not released.
+
+### M384 — Screener operators: the preview misread operator cells; headers did not name the operator; one range for every measure (2026-11-07, fixed on branch)
+
+- **Found by:** QA5 round 1 (real Chromium on the fixture build).
+- **Symptom:** "Why it passed" showed "Yes"/"No" for a rank and "-2.1" for a z-score the table showed as "−2.07σ"; four RSI
+  operator columns all read "RSI 14"; the Range test opened at 20 to 80 for every measure (0 matches for change, z-score,
+  slope) and values carried over from the previous test ("above 90" on Volume SMA matched everything).
+- **Verified cause:** the cell text had a second copy in `preview.ts` that read the card's default condition; the header
+  took the entry's short name only; `withTest` took one default for all measures.
+- **Class:** the M381 class on the page (two copies of one rule); defaults chosen without the unit of what they apply to.
+- **Solution:** one cell text (`src/cell-text.ts`) for table and preview; headers append the operator's catalog `short`
+  and comparison; thresholds come from the measure (catalog `default.range`, blank for a difference), the entry's own
+  value on the plain series, 0-100 for a rank, and are reset on every change of measure, test or comparison.
+- **Verified:** page tests; the smoke step checks the headers and that the preview writes the table's cells; QA5 round 2
+  READY (588 combinations run, 0 refusals).
+- **Status:** FIXED on branch (`b981a5e4` and the next commit), not released.
+
+### M385 — Terminal: headings, switches and control rows out of line, missed by every check so far (2026-11-07, fixed in code; numbered M381 in its branch commits, renumbered when main had taken M381-M384)
 
 - **Found by:** the user (2026-11-07), with screenshots: the Indicators window's "TREND" heading neither in the middle of
   its band nor on the column of "INDICATOR"; the Events switch's knob low; and asking "Saya pikir masalah alignment
@@ -5402,7 +5467,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   market choice at the right (desktop and phone).
 - **Lesson:** a look change is checked by measuring alignment against its neighbours (start lines, ink centre, one-line
   rows), not only by screenshots and box positions; run `look_check11.mjs` with every Terminal look change.
-### M382 — Terminal: a white gap between an indicator row's value and its buttons (2026-11-07, fixed in code; caused by M380's fix)
+### M386 — Terminal: a white gap between an indicator row's value and its buttons (2026-11-07, fixed in code; caused by M380's fix; numbered M382 in its branch commits)
 
 - **Found by:** the user (2026-11-07), screenshot of "Broker Inventory (Regular, Lot) No broker data yet" with an empty
   stretch before the eye button: "kenapa ada gap putih?"
@@ -5417,6 +5482,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   (`look_check10.mjs` "stable": 559 → 560).
 - **Lesson:** a hold on a size is taken when the content is at rest, and the check of a fix includes the path the user
   takes into it (here: from the chart onto the row), not only the path out.
+
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and
