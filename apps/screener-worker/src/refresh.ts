@@ -37,8 +37,19 @@
    While paused, a publication made meanwhile is seen on that first request, which is served from the snapshot held (the
    DATA_VERSION_PENDING rule of `latest` still applies to a page pinned to a newer version). With no snapshot loaded the
    poll never pauses. Logs refresh_poll_paused and refresh_poll_resumed.
+   EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07: per-date broker files, worker limits unchanged, K1 window 60 sessions;
+   verification/screener/P4_BROKER_DAYS.md section 3): beside the Phase 1 files the index may name broker days
+   (broker-YYYY-MM-DD, broker.ts brokerWindow: the newest 60 by date), optional. Rule 2's per-file cap applies to them
+   as to every file; within SCREENER_MAX_REFRESH_BYTES the Phase 1 downloads come first, then the broker days newest
+   first (brokerPlan): a day the snapshot holds with the same sha256 is carried, one in the disk cache is read without a
+   grant, the others are downloaded while they fit; from the first that does not fit the rest wait for a follow-up
+   refresh of the same publication, which starts at once (FOLLOW_UP_MS, not after the poll) until the window is complete
+   or nothing more fits. Rule 3 compares the broker days this refresh would hold (names and sha256) with the snapshot's
+   too. Rule 4 asks /xsection in batches of at most XSECTION_MAX_NAMES (16, terminal-api MAX_XSECTION_NAMES).
    Logs: refresh {data_version, published_at, files, bytes, granted, cached, grant_ms, download_ms, decode_ms,
-   check_ms, defaults_ms, install_ms, presets_ms, orphans, snapshot_digest, rss} (6.16); REFRESH_FAILED adds the
+   check_ms, defaults_ms, install_ms, presets_ms, orphans, snapshot_digest, rss, broker_days {window, loaded, carried,
+   cached, granted, missing, bytes, first, last, read, rows, dropped_tickers, dropped_rows, store_bytes}} (6.16; P4
+   broker_days: days, except bytes, the gzip bytes of the broker days downloaded); REFRESH_FAILED adds the
    failure, integrity_failures (DATA_INTEGRITY failures since the start), keeping_previous and retry_in_ms. */
 import { DataError } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { FileEntry } from '../../edge-bff/backtest/src/core/datafile.ts';
@@ -47,8 +58,10 @@ import { fileOriginOf } from '../../backtest-worker/src/terminal.ts';
 import type { TerminalClient, TickerReference } from '../../backtest-worker/src/terminal.ts';
 import type { Limits } from './config.ts';
 import { errorFields, log } from './log.ts';
-import { PHASE1_FILES, referenceHash } from './snapshot.ts';
+import { PHASE1_FILES, PRICE_FILE, referenceHash } from './snapshot.ts';
 import type { IndexEntry, PublicationState, ReadFile, TickerEntry } from './snapshot.ts';
+import { brokerWindow } from './broker.ts';
+import type { WindowDay } from './broker.ts';
 
 export const API = '/api/terminal/v1';
 export const PROXY_HEADER = 'x-terminal-proxy-key';
@@ -56,6 +69,8 @@ export const POLL_MS = 60_000;                 // report 6.5 rule 1
 export const SKEW_RETRY_MS = 15_000;           // a skewed publication is tried again this much later (rule 4)
 export const BACKOFF_MAX_STEPS = 4;            // 60 s, 120 s, 240 s, 480 s, 960 s at most (rule 1)
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;     // terminal-api XSECTION_NAME
+export const XSECTION_MAX_NAMES = 16;          // terminal-api MAX_XSECTION_NAMES: names per /xsection call (P4 batches)
+export const FOLLOW_UP_MS = 0;                 // P4: broker days that did not fit load on a refresh started at once
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
@@ -157,6 +172,11 @@ export class TerminalApi {
     return last ? { rows, last } : null;
   }
 }
+/** P4: whether the broker days a refresh would hold are those the snapshot holds (the same names and sha256). */
+function sameDays(loaded: Record<string, string>, held: Held['broker']): boolean {
+  const names = Object.keys(loaded);
+  return names.length === Object.keys(held).length && names.every(n => held[n]?.sha256 === loaded[n]);
+}
 function indexEntry(e: any): boolean {
   return !!e && typeof e === 'object' && typeof e.key === 'string' && typeof e.sha256 === 'string' && /^[0-9a-f]{64}$/.test(e.sha256)
     && Number.isSafeInteger(e.bytes) && e.bytes >= 1 && Number.isSafeInteger(e.rows) && e.rows >= 0 && (e.as_of === null || e.as_of === undefined || typeof e.as_of === 'string');
@@ -180,19 +200,26 @@ async function readCapped(res: Response, cap: number, what: string, field?: stri
 
 /* ---- the refresh ----------------------------------------------------------------------------------------------- */
 
-/** What the replica holds (server.ts). */
-export interface Held { finished_at: string; files: Record<string, string>; refHash: string; price_data: string }
+/** What the replica holds (server.ts). P4: broker, the broker days its snapshot loaded (name -> sha256 and how many
+    tickers were dropped from it for having no price), and brokerMissing, the days of its window it could not load. */
+export interface Held {
+  finished_at: string; files: Record<string, string>; refHash: string; price_data: string;
+  broker: Record<string, { sha256: string; dropped: number }>; brokerMissing: number;
+}
+/** P4: the broker days one build reads (cached or granted, with their entries), carries from the held snapshot, and
+    leaves missing (brokerPlan). */
+export interface BrokerInput { read: { name: string; date: string; file: FileEntry }[]; carry: string[]; missing: number }
 /** The parts of the app the refresh drives (server.ts implements them on the pool and the builder thread). */
 export interface RefreshHost {
   held(): Held | null;
   /** download, verify and decode on a builder thread -> the staged snapshot's entries (for the cross-check) */
-  build(input: { files: Record<ReadFile, FileEntry>; ref: TickerReference; state: PublicationState }): Promise<{ entries: TickerEntry[]; stats: Record<string, unknown> }>;
+  build(input: { files: Record<ReadFile, FileEntry>; broker: BrokerInput; ref: TickerReference; state: PublicationState }): Promise<{ entries: TickerEntry[]; stats: Record<string, unknown> }>;
   /** pre-warm, digest, install, presets, documents, swap; throws to abort (nothing changes) */
   complete(input: { state: PublicationState; ref: TickerReference; files: Record<string, string> }): Promise<Record<string, unknown>>;
   /** the builder's work is dropped (a failure before complete() succeeded) */
   abandon(): void;
-  /** rule 3: the same files and reference; published_at and the state fields advance */
-  advance(state: PublicationState): void;
+  /** rule 3: the same files and reference; published_at and the state fields advance (P4: and the window's missing days) */
+  advance(state: PublicationState, broker: { missing: number }): void;
   /** the outcome of the latest publication changed (ready, failed_keeping_previous, or failed with no snapshot) */
   outcome(state: 'ready' | 'failed_keeping_previous' | 'failed', error: DataError | null): void;
 }
@@ -211,6 +238,8 @@ export class Refresher {
   pollMs: number;
   idleMs: number;
   private lastUse = performance.now(); private paused = false;
+  /** P4: the publication whose missing broker days cannot be loaded by another refresh (nothing more fits) */
+  private waitingFor: string | null = null;
   integrityFailures = 0;
 
   constructor(o: { api: TerminalApi; client: TerminalClient; host: RefreshHost; limits: Limits; fileOrigin: string; pollMs?: number; idleMs?: number }) {
@@ -277,7 +306,8 @@ export class Refresher {
       return;
     }
     const held = this.host.held();
-    if (held && st.finished_at === held.finished_at) return;
+    // the publication held: nothing to do, unless broker days of its window wait and another refresh can load some (P4)
+    if (held && st.finished_at === held.finished_at && (held.brokerMissing === 0 || this.waitingFor === st.finished_at)) return;
     if (this.failedFor === st.finished_at && Date.now() < this.retryAt) return;
     this.phase = 'refreshing';
     const t0 = performance.now(), fields: Record<string, unknown> = { published_at: st.finished_at };
@@ -287,19 +317,9 @@ export class Refresher {
       for (const name of PHASE1_FILES)
         if (!index[name]) throw new DataError('DATA_UNAVAILABLE', `The publication of ${st.finished_at} indexes no ${name} cross-sectional file (indexed: ${Object.keys(index).join(', ') || 'none'}).`, name);
       const files: Record<string, string> = Object.fromEntries(PHASE1_FILES.map(n => [n, index[n].sha256]));
-      // rule 3: the same files, and the same reference file: keep the snapshot, advance the publication
-      let ref: TickerReference | null = null;
-      if (held && PHASE1_FILES.every(n => held.files[n] === files[n])) {
-        ref = await this.client.reference('tickers');
-        if (referenceHash(ref) === held.refHash) {
-          this.host.advance(st);
-          this.succeeded();
-          log('info', 'refresh_skipped', { published_at: st.finished_at, data_version: held.price_data, reason: 'same files and reference', ms: Math.round(performance.now() - t0) });
-          return;
-        }
-      }
-      // rule 2: the caps, before any grant
-      for (const name of PHASE1_FILES) {
+      const window = brokerWindow(index);
+      // rule 2: the per-file cap, before any grant, on every file this refresh may read (P4: the window's broker days too)
+      for (const name of [...PHASE1_FILES, ...window.map(w => w.name)]) {
         const e = index[name];
         if (e.bytes > this.limits.max_file_bytes)
           throw new DataError('DATA_INTEGRITY', `The ${name} file has ${e.bytes} bytes; SCREENER_MAX_FILE_BYTES allows ${this.limits.max_file_bytes}.`, name, { limit: 'file_bytes', allowed: this.limits.max_file_bytes, needed: e.bytes });
@@ -307,26 +327,56 @@ export class Refresher {
       const cached: string[] = [], missing: string[] = [];
       for (const name of PHASE1_FILES) (await this.isCached(index[name]) ? cached : missing).push(name);
       const toDownload = missing.reduce((s, n) => s + index[n].bytes, 0);
+      // P4: the broker days, newest first, within what the Phase 1 downloads leave of SCREENER_MAX_REFRESH_BYTES
+      const plan = await this.brokerPlan(window, held, held?.files[PRICE_FILE] === files[PRICE_FILE], this.limits.max_refresh_bytes - toDownload);
+      const loaded = [...plan.carried, ...plan.cached, ...plan.granted].map(w => w.date).sort();
+      const days: Record<string, unknown> = { window: window.length, loaded: loaded.length, carried: plan.carried.length, cached: plan.cached.length,
+        granted: plan.granted.length, missing: plan.missing.length, bytes: plan.bytes, first: loaded[0] ?? null, last: loaded[loaded.length - 1] ?? null };
+      fields.broker_days = days;
+      // rule 3: the same files (P4: the same broker days too) and the same reference file: keep the snapshot, advance
+      // the publication
+      let ref: TickerReference | null = null;
+      if (held && PHASE1_FILES.every(n => held.files[n] === files[n]) && sameDays(plan.loaded, held.broker)) {
+        if (st.finished_at === held.finished_at) {
+          // a follow-up of the publication held: none of its missing broker days fits; they wait for the next publication
+          this.waitingFor = st.finished_at;
+          log('info', 'refresh_broker_waiting', { published_at: st.finished_at, broker_days: days, ms: Math.round(performance.now() - t0) });
+          return;
+        }
+        ref = await this.client.reference('tickers');
+        if (referenceHash(ref) === held.refHash) {
+          this.host.advance(st, { missing: plan.missing.length });
+          if (plan.missing.length) this.waitingFor = st.finished_at;
+          this.succeeded();
+          log('info', 'refresh_skipped', { published_at: st.finished_at, data_version: held.price_data, reason: 'same files and reference', broker_days: days, ms: Math.round(performance.now() - t0) });
+          return;
+        }
+      }
+      // rule 2: the refresh cap on the Phase 1 downloads (the broker days were planned within what they leave)
       if (toDownload > this.limits.max_refresh_bytes)
         throw new DataError('DATA_INTEGRITY', `The refresh would download ${toDownload} bytes; SCREENER_MAX_REFRESH_BYTES allows ${this.limits.max_refresh_bytes}.`, 'xsection', { limit: 'refresh_bytes', allowed: this.limits.max_refresh_bytes, needed: toDownload });
       Object.assign(fields, { files: PHASE1_FILES.length, bytes: PHASE1_FILES.reduce((s, n) => s + index[n].bytes, 0), cached, granted: missing });
-      // rule 4: grant what the caches lack, from the publication /state named
+      // rule 4: grant what the caches lack, from the publication /state named, in batches of XSECTION_MAX_NAMES
       const urls: Record<string, string> = {};
-      if (missing.length) {
+      const names = [...missing, ...plan.granted.map(w => w.name)];
+      if (names.length) {
         const tg = performance.now();
-        const grant = await this.grant(st, missing);
+        const grant = await this.grant(st, names);
         for (const f of grant.files) {
           if (!this.fileOrigin(f.url)) throw new DataError('DATA_INTEGRITY', `terminal-api /xsection answered a URL for ${f.name} that is not on the bucket origin (SCREENER_FILE_ORIGIN).`, f.name);
           urls[f.name] = f.url;
         }
         fields.grant_ms = Math.round(performance.now() - tg);
+        fields.grants = Math.ceil(names.length / XSECTION_MAX_NAMES);
       }
       ref ??= await this.client.reference('tickers');
       const entry = (n: string): FileEntry => ({ url: urls[n] ?? '', sha256: index[n].sha256, bytes: index[n].bytes });
       // rule 5: build, check, pre-warm, install, swap
       built = true;
-      const b = await this.host.build({ files: Object.fromEntries(PHASE1_FILES.map(n => [n, entry(n)])) as Record<ReadFile, FileEntry>, ref, state: st });
-      Object.assign(fields, b.stats);
+      const broker: BrokerInput = { read: [...plan.cached, ...plan.granted].map(w => ({ name: w.name, date: w.date, file: entry(w.name) })), carry: plan.carried.map(w => w.name), missing: plan.missing.length };
+      const b = await this.host.build({ files: Object.fromEntries(PHASE1_FILES.map(n => [n, entry(n)])) as Record<ReadFile, FileEntry>, broker, ref, state: st });
+      const { broker_days: builtDays, ...stats } = b.stats as Record<string, unknown> & { broker_days?: Record<string, unknown> };
+      Object.assign(fields, stats); Object.assign(days, builtDays ?? {});
       const tc = performance.now();
       await this.crossCheck(b.entries);
       fields.check_ms = Math.round(performance.now() - tc);
@@ -334,6 +384,8 @@ export class Refresher {
       built = false;
       this.succeeded();
       log('info', 'refresh', { ...fields, ms: Math.round(performance.now() - t0), rss: process.memoryUsage().rss });
+      // P4: the days that did not fit are loaded by a refresh started at once, not after the poll (until none fits)
+      if (plan.missing.length) this.later(FOLLOW_UP_MS);
     } catch (e) {
       if (built) this.host.abandon();
       if (e instanceof Deferred) {
@@ -343,6 +395,24 @@ export class Refresher {
       }
       this.failed(st, e, fields, t0);
     }
+  }
+  /** P4: the window's broker days this refresh loads, newest first: a day the snapshot holds with the same sha256 is
+      carried when reading it again would give the same rows (no ticker was dropped from it for having no price, or the
+      price file is the same); a day in the disk cache is read without a grant; the others are downloaded while they fit
+      in `budget` (SCREENER_MAX_REFRESH_BYTES less the Phase 1 downloads); from the first one that does not fit, the
+      days left to download wait (missing). loaded: name -> sha256 of the days the snapshot will hold. */
+  private async brokerPlan(window: (WindowDay & { entry: IndexEntry })[], held: Held | null, samePrice: boolean, budget: number) {
+    const carried: WindowDay[] = [], cached: WindowDay[] = [], granted: WindowDay[] = [], missing: WindowDay[] = [];
+    let full = false, bytes = 0;
+    for (const w of window) {
+      const h = held?.broker[w.name];
+      if (h && h.sha256 === w.entry.sha256 && (h.dropped === 0 || samePrice)) { carried.push(w); continue }
+      if (await this.isCached(w.entry)) { cached.push(w); continue }
+      if (!full && bytes + w.entry.bytes <= budget) { granted.push(w); bytes += w.entry.bytes; continue }
+      full = true; missing.push(w);
+    }
+    const loaded: Record<string, string> = Object.fromEntries([...carried, ...cached, ...granted].map(w => [w.name, w.entry.sha256]));
+    return { carried, cached, granted, missing, bytes, loaded };
   }
   private succeeded(): void { this.failedFor = null; this.failures = 0; this.retryAt = 0; this.host.outcome('ready', null) }
   private failed(st: PublicationState, e: unknown, fields: Record<string, unknown>, t0: number): void {
@@ -362,8 +432,18 @@ export class Refresher {
     return this.client.cached({ ticker: 'XSECTION', generated_at: null, granted_at: 0, expires_in_seconds: null,
       datasets: { price: { data_through: null, first_year: null, files: [{ url: '', sha256: e.sha256, bytes: e.bytes }] } } } as never);
   }
-  /** POST /xsection for `names`, held to the publication `st` names (rule 4). */
+  /** POST /xsection for `names` in batches of at most XSECTION_MAX_NAMES (P4; terminal-api refuses more in one call),
+      each held to the publication `st` names (rule 4). */
   private async grant(st: PublicationState, names: string[]): Promise<Grant> {
+    const out: Grant = { finished_at: st.finished_at, expires_in_seconds: null, files: [] };
+    for (let k = 0; k < names.length; k += XSECTION_MAX_NAMES) {
+      const g = await this.grantBatch(st, names.slice(k, k + XSECTION_MAX_NAMES));
+      out.files.push(...g.files);
+      if (g.expires_in_seconds !== null) out.expires_in_seconds = Math.min(out.expires_in_seconds ?? Infinity, g.expires_in_seconds);
+    }
+    return out;
+  }
+  private async grantBatch(st: PublicationState, names: string[]): Promise<Grant> {
     const index = st.xsection ?? {};
     for (let attempt = 0; ; attempt++) {
       const g = await this.api.xsection(names);

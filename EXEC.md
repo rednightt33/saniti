@@ -12638,7 +12638,13 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 - Status: unit A (P1-P3) di-merge 2026-11-07 14:41 UTC (`4451a31a`, PR #59) dan live di dev (edge-bff `3b54bab2`,
   screener-worker `64b73512`; cek login: 6 screen operator 200, RAILWAY_CHANGELOG 2026-11-07). P0
   selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
-- P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; diterima 2026-11-07, menunggu "go").
+- P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; go user 2026-11-07 "Merge dan go sampai P4"). Kontrak:
+  `verification/screener/P4_BROKER_DAYS.md`. Dibangun 2026-11-07: publisher `b1be7f44` (file `broker-YYYY-MM-DD` untuk 60
+  tanggal, 163 tes), worker (file broker opsional, batas tetap, sisa tanggal di refresh berikutnya; 87 tes; store
+  terukur 79,4 MB untuk 60 x 24.500 baris sintetis). Temuan tinjauan: ganti snapshot dengan price_data sama membuang
+  snapshot lama seketika (request yang antre bisa 500); diperbaiki: dibuang sesudah SCREENER_DEADLINE_MS + 1 s. Terbuka:
+  satu file broker rusak menahan harga baru juga (sesuai kontrak; ditinjau di P5), EXPLAIN (ANALYZE, BUFFERS) query
+  jendela/tanggal/stamp di dev sebelum isi awal, restart Postgres sesudah isi awal.
 
 ## EXEC-BROKER-DELTA — publisher mengirim broker 5 sesi terakhir + tanggal yang berubah, bukan file setahun (opsi D, cakupan 2) (diterima 2026-11-07, BELUM dieksekusi)
 

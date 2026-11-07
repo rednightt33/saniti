@@ -15,7 +15,8 @@ MULTI-USER SCALE AND COST (versions, caches, gzip relay, per-owner lanes), `08` 
   (`apps/edge-bff/terminal/src/calc/indicators.ts`) through the backtest core's `Calc`. Comparisons use the backtest
   core's `compare`. The worker adds no formula: it loads data, schedules work and caches answers.
 - **Data access.** terminal-api only, with the gateway key: `GET /state` (the publication and its xsection index),
-  `POST /xsection` (presigned URLs for the publication's cross-sectional files), `GET /manifest/{ticker}` (the cross-check)
+  `POST /xsection` (presigned URLs for the publication's cross-sectional files: `price`, `actions` and, P4, the broker
+  days; at most 16 names per call), `GET /manifest/{ticker}` (the cross-check)
   and `GET /reference/tickers` (through `TerminalClient`). It downloads only from presigned URLs on
   `SCREENER_FILE_ORIGIN`. It holds no Postgres or bucket credential and writes nothing except its own disk cache.
 
@@ -24,8 +25,9 @@ MULTI-USER SCALE AND COST (versions, caches, gzip relay, per-owner lanes), `08` 
 | File | Role |
 |---|---|
 | `src/server.ts` | `node:http` API: key and owner tag, routes, version pinning, admission, the result/counts/preview caches, the refresh host (build, install, swap, grace), preset pre-warm, request logs, `main()` |
-| `src/refresh.ts` | `TerminalApi` (`/state`, `/xsection`, `/manifest`) and `Refresher`: poll, skip-unchanged, caps before any grant, grant only uncached files, skew retry and deferral, origin check, manifest cross-check, backoff |
-| `src/snapshot.ts` | `buildSnapshot`: the price file sliced through `priceSeries`, shared-memory bar columns, universe rows and remarks, the pinned tails of the 53 defaults (76 outputs), the core's declared derived series (`declaredDerivedSeries`) and the presets' series, `snapshot_digest`; `ThreadSnapshot` (one thread's view) |
+| `src/refresh.ts` | `TerminalApi` (`/state`, `/xsection`, `/manifest`) and `Refresher`: poll, skip-unchanged, caps before any grant, the broker-day plan within the download budget (`brokerPlan`) and its follow-up refreshes, grant only uncached files in batches of 16, skew retry and deferral, origin check, manifest cross-check, backoff |
+| `src/snapshot.ts` | `buildSnapshot`: the price file sliced through `priceSeries`, shared-memory bar columns, universe rows and remarks, the broker store (P4), the pinned tails of the 53 defaults (76 outputs), the core's declared derived series (`declaredDerivedSeries`) and the presets' series, `snapshot_digest`; `ThreadSnapshot` (one thread's view; `brokerRows`) |
+| `src/broker.ts` | EXEC-SCREENER-FLOW-CANDLES P4: the broker day files (`broker-YYYY-MM-DD`): the window (newest 60), the document checks (`decodeBrokerDay`), the shared store per ticker (`buildBrokerStore`, days carried from the held snapshot), `flow_data`, `broker_window`, the date-range accessor (`brokerRowsOf`); no formula |
 | `src/pool.ts` | the compute threads (`worker_threads`), the builder thread, owner lanes (deficit round robin), the queue, the per-owner budget (P33), deadlines, cancellation and kill |
 | `src/thread.ts` | the code each thread runs: install or drop a snapshot, build, pre-warm, digest, run, counts, preview |
 | `src/run.ts` | request envelopes and normalization, the cost estimate and its tracker, `runTask` (core `runScreen`), gzip and `ETag`, the result cache key |
@@ -59,18 +61,31 @@ bytes of a gzip answer and relays the rest unparsed.
 ## Refresh, snapshot and swap
 
 1. **Poll.** `GET /state` every 60 s. The refresh starts only when `finished_at` changes, and one refresh runs at a time.
-2. **Caps before any grant.** The index must name `price` and `actions`. A file above `SCREENER_MAX_FILE_BYTES`, or a
-   download total above `SCREENER_MAX_REFRESH_BYTES`, fails the refresh before `/xsection` is called.
-3. **Skip unchanged.** The same sha256 for both files and the same reference contents: nothing is downloaded, recomputed
-   or swapped. Only `published_at` advances (log `refresh_skipped`); the snapshot's cached answers are dropped, so
+2. **Caps before any grant.** The index must name `price` and `actions`. A file above `SCREENER_MAX_FILE_BYTES` (a broker
+   day too), or Phase 1 downloads above `SCREENER_MAX_REFRESH_BYTES`, fail the refresh before `/xsection` is called.
+   **Broker days (EXEC-SCREENER-FLOW-CANDLES P4, user 2026-11-07; `verification/screener/P4_BROKER_DAYS.md`).** The
+   index entries named `broker-YYYY-MM-DD`, the newest 60 by date, are optional. Within `SCREENER_MAX_REFRESH_BYTES` the
+   Phase 1 downloads come first, then the broker days newest first (`refresh.ts` `brokerPlan`): a day the snapshot holds
+   with the same sha256 is carried from its store (when no ticker was dropped from it, or the price file is the same),
+   one in the disk cache is read without a grant, the others are downloaded while they fit. From the first that does
+   not fit the rest wait: a follow-up refresh of the same publication starts at once, not after the poll, until the
+   window is complete; when nothing more fits it stops (log `refresh_broker_waiting`) until the next publication.
+3. **Skip unchanged.** The same sha256 for both files, the same broker days (names and sha256 the refresh would hold)
+   and the same reference contents: nothing is downloaded, recomputed or swapped. Only `published_at` advances (log
+   `refresh_skipped`); the snapshot's cached answers are dropped, so
    no answer names the older publication, and the presets are computed again in the system lane.
-4. **Grant only what is missing.** `POST /xsection` names only the files that neither cache holds. The answer must name
+4. **Grant only what is missing.** `POST /xsection` names only the files that neither cache holds, in batches of at
+   most 16 names (terminal-api `MAX_XSECTION_NAMES`). Each answer must name
    the publication `/state` named (`finished_at`, and each file's sha256 and size). A skewed answer (terminal-api's two
    processes may lag each other by up to a minute) is asked again `SCREENER_DOWNLOAD_RETRIES` times, then the refresh
    is deferred by 15 s (log `refresh_deferred`, not a failure). Every URL must be on `SCREENER_FILE_ORIGIN`.
 5. **Build.** The builder thread downloads, then `TerminalClient.file` and `inflateVerified` check the sha256 and size
    and inflate under `SCREENER_MAX_INFLATED_BYTES`. The builder then decodes: each ticker's slice goes through the
-   backtest core's `priceSeries`, every ticker must be in the reference file, and IHSG must be present. Each ticker is
+   backtest core's `priceSeries`, every ticker must be in the reference file, and IHSG must be present. Each broker day
+   read is checked (`broker.ts` `decodeBrokerDay`: name and date, columns, lengths, the tickers' rows and `check.rows`,
+   indices inside their tables, `check.bv`/`check.sv` within 1e-6 relative) and kept as typed columns at once; a
+   failure is the refresh's failure as for a Phase 1 file. A broker ticker the price file does not have is not loaded
+   (counted). Each ticker is
    then checked against its `/manifest`: the rows must equal the sum of its yearly files and the last date their newest.
    The 53 defaults (76 outputs), the declared derived series of the default cards (bar fields, the Donchian prior
    bands, the rising lags and vs-MA averages) and the presets' series are pre-warmed into shared tails of
@@ -84,7 +99,11 @@ bytes of a gzip answer and relays the rest unparsed.
    same publication after a backoff of 60 s doubling to 16 min. A newer publication is tried at once.
 
 Memory: the bars of every ticker are stored once per replica in `SharedArrayBuffer` columns (O, H, L, C, V as
-`Float64Array`, a null volume as NaN, T as an index into one date table). F never runs on a typed view: a ticker's bars
+`Float64Array`, a null volume as NaN, T as an index into one date table). P4: the broker rows too, per ticker ordered
+by date then file order (D and B `Uint16Array` into the date and broker tables, investor type and board `Uint8Array`,
+`bv` `sv` `bl` `sl` `bf` `sf` `Float64Array`, a null frequency as NaN): 54 bytes per row, 79.4 MB for 60 dates of 24,500
+rows (1.47 M rows, measured on a synthetic set, `tests/broker.test.ts`; LOCAL, not the service). A thread reads a
+ticker's rows in a date range through `ThreadSnapshot.brokerRows` (views, no copy); P5 computes the flows from them. F never runs on a typed view: a ticker's bars
 are materialized back into plain arrays equal to `priceSeries`' output (`tests/typed_views.test.ts`). The pinned tails
 sit in one shared `Float64Array` and are installed in each thread's `SeriesCache` as pinned entries.
 
@@ -116,12 +135,16 @@ replica from measured runs (exponential average, alpha 0.2). Pre-warmed series c
 
 ## Versions and caches
 
+- `flow_data` (P4): sha256 over the sorted `name:sha256` of the loaded broker days, null when none; `data.flow_through`
+  is the newest loaded date and `data.broker_window` `{first, last, sessions, complete}` (`complete` false while days
+  wait for a follow-up refresh).
 - `screener_engine`: sha256 over the screener core, the worker's `src`, the backtest core, the Terminal's calculation
   module, `apps/backtest-worker/src/terminal.ts` and the Node major version. A change to any of them changes the version.
 - Start-up check: the indicator registry generator reproduces `REGISTRY_VERSION`, the screener registry has no
   problem, and its sources' sha256 match. Otherwise the process exits with `startup_check_failed`.
-- Result cache (gzip bytes): keyed by the snapshot identity (price data plus the actions and reference contents),
-  `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive` and `explain`. Nothing
+- Result cache (gzip bytes): keyed by the snapshot identity (price data plus the actions and reference contents and,
+  P4, `flow_data`), `screener_engine`, `registry`, `screener_registry`, `flow_data`, `definition_hash`, `exhaustive`
+  and `explain`. Nothing
   user-specific goes into the key or the answer. Previews share the result cache; counts have their own (`CountsCache`,
   at most 50,000 entries, about 18 MB, least recently used out, the presets' counts pinned). Every cache is per replica
   and dropped with its snapshot.
@@ -186,7 +209,8 @@ header, body or presigned URL is ever logged.
 | Event | When |
 |---|---|
 | `start`, `stop`, `config_invalid`, `startup_check_failed` | process life; `start` carries the configuration without secrets and the versions |
-| `refresh`, `refresh_skipped`, `refresh_deferred`, `refresh_skew`, `refresh_state_unavailable`, `REFRESH_FAILED`, `swap` | a publication: per-phase ms (state, grant, download, decode, manifest check, pre-warm per thread, install, presets), bytes, `snapshot_digest`, RSS; the failure code and the backoff |
+| `refresh`, `refresh_skipped`, `refresh_deferred`, `refresh_skew`, `refresh_state_unavailable`, `REFRESH_FAILED`, `swap` | a publication: per-phase ms (state, grant, download, decode, manifest check, pre-warm per thread, install, presets), bytes, `snapshot_digest`, RSS; the failure code and the backoff; P4 `broker_days` {window, loaded, carried, cached, granted, missing, bytes (gzip bytes of the days downloaded), first, last, read, rows, dropped_tickers, dropped_rows, store_bytes} and `grants` (the `/xsection` calls) |
+| `refresh_broker_waiting` | P4: a follow-up of the publication held finds no missing broker day that fits; the days wait for the next publication |
 | `run`, `preview`, `counts` | one line per request that explains its cost: owner tag, `definition_hash`, `data_version`, cache hit, predicted ms, stages (tickers in and out, ms), conditions (source, evaluated, pruned), pinned and LRU hits, series computed, queue, busy and total ms, payload bytes, status |
 | `http` | one line per request (method, path, status, ms) except `/health` and `/ready` |
 | `thread_killed`, `thread_error`, `task_failed`, `install_failed`, `request_failed`, `preset_failed`, `terminal_retry` | faults, with the error's name, code, message and (unexpected errors) the first stack frames |
@@ -208,13 +232,16 @@ The image keeps the repository layout under `/app`, because the worker imports t
 ## Tests
 
 `npm test` runs every suite with a fake terminal-api (`tests/fake-terminal.mjs`: `/state`, `/xsection` with the proxy key and
-skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file). Last run: 61 of 61 pass (2026-10-29).
+skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file; P4 broker day files in the publisher's
+format, and at most 16 names per `/xsection` as terminal-api). Last run: 87 of 87 pass (2026-11-07).
 
 | Suite | What it locks |
 |---|---|
 | `config.test.ts` | every limit required with no default; errors name the variable, not the value; cap and owner-budget checks; `screener_engine` is a content hash; the start-up check |
 | `readme_config.test.ts` | this README's "Configuration" table against `loadConfig` itself (the names it reads, recorded; each left out in turn): one row per name read and no other, each row's `config.ts` line reads it, its minimum is the `whole()` minimum, optional rows are the ones it starts without, the proposed values pass it together, the counts in the prose; and that each kind of drift fails |
 | `onboarding_pointers.test.ts` (rule and parser in `doc-pointers.ts`) | every `path:line` pointer of the repository's `SCREENER_ONBOARDING.md` against the files as they are now, read by the rule its "Pointers" bullet states: each names one file and existing lines, and the symbol written next to it is on its first cited line; and that each kind of drift fails (a line that moved under its symbol, a bare pointer after another file's pointer, a line past the end, an ambiguous name, a renamed symbol) |
+| `broker.test.ts` | P4: each broker-day document rule refused on its own; the window (newest 60); the store's order per ticker, a ticker without price dropped, null frequencies; a carried day equal to reading its file again; the date-range accessor; `flow_data`, `flow_through`, `broker_window`, `sid` and the result cache key; the store's memory at 60 x 24,500 rows |
+| `broker_refresh.test.ts` | P4 end to end: broker days loaded beside the Phase 1 files; the budget newest first and the follow-up refreshes; the follow-up that stops when nothing fits; batches of 16 and the window of 60; skip-unchanged, a changed or new day downloaded alone, the cache key; a dropped-ticker day read again on a new price file; a broken day and the per-file cap; the disk cache |
 | `refresh.test.ts` | a publication loads end to end; integrity failures (sha256, manifest cross-check, reference) answer `424` with no snapshot and keep the previous one when held; file, refresh and inflate caps before any grant; a warm disk cache grants nothing; skew retry then deferral; skip unchanged; one refresh at a time; pinning across a swap (grace, `DATA_VERSION_CHANGED`, `DATA_VERSION_PENDING`) |
 | `snapshot.test.ts`, `typed_views.test.ts` | slices equal `priceSeries`; groupings parity with the Backtest; remarks; pinned tails equal F; digest stable across builds; materialized bars equal F bit for bit |
 | `views.test.ts` | a request's `TickerView`: `missingInput` from the snapshot's mask equals the scan; a screen of pre-warmed series reads no column and answers as plain arrays do; views out of `CALC_KEEP` release their `Calc` with the same answer; `return_rank` once per thread, same ranks |
@@ -251,3 +278,10 @@ the method, every scenario, K = 1 and K = 4, and the proposed limits. Phase 17 m
 - A counts request is one job on one thread: 50 saved screens with distinct custom series took 15-18 s locally (deadline 20 s), and a timeout loses every entry computed before it (`BENCHMARK_LOCAL.md`).
 - One ticker whose every row is dropped by `priceSeries` (`DATA_MISSING`) fails the whole refresh by design (keeps the
   previous snapshot). Review whether the publisher can ever produce that.
+- P4 (2026-11-07): a change of the broker days alone (a follow-up refresh of the first fill, a broker round) builds a
+  whole new snapshot: the Phase 1 files are read again (downloaded when the disk cache does not hold them) and the
+  defaults pre-warmed again. A new snapshot with the same `price_data` retires the previous one at once (existing rule
+  of `swap`), so a request queued on it at that moment answers `500` once; review whether such swaps should keep the
+  grace window.
+- P4: the catalog's `max_refresh_bytes` rule still reads "more fails it"; with broker days, the days beyond it wait
+  for a follow-up refresh instead (the Phase 1 files still fail). Its wording is the page's (plain-words test).

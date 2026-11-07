@@ -129,9 +129,10 @@ export async function normalize(definition: unknown, vctx: ValidateContext, fiel
 }
 
 /** The result cache key (8.10, 6d.2): the snapshot, the engine and registry versions, the definition hash and the two
-    options that change the answer's bytes (exhaustive counts, explain's plan). No owner, page or order. */
+    options that change the answer's bytes (exhaustive counts, explain's plan), and flow_data (P4: the broker days the
+    answer was computed with; sid names it too). No owner, page or order. */
 export const resultKey = (desc: SnapshotDesc, hash: string, options: RunOptionsN, kind = 'run'): string =>
-  canonicalJson([kind, desc.sid, desc.versions.screener_engine, desc.versions.registry, desc.versions.screener_registry, hash, options.exhaustive, options.explain]);
+  canonicalJson([kind, desc.sid, desc.versions.screener_engine, desc.versions.registry, desc.versions.screener_registry, desc.versions.flow_data, hash, options.exhaustive, options.explain]);
 
 /* ---- cost (6.10 "Counts and budget") ------------------------------------------------------------------------- */
 

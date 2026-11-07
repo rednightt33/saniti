@@ -25,7 +25,12 @@
    are tails of tailLength(SCREENER_WITHIN_MAX) bars per (series, ticker) in one shared Float64Array, written by the
    pre-warm through the one series() path (metrics.ts) and installed in each thread's SeriesCache as pinned views.
    snapshot_digest = sha256 over the series keys, the tickers and every tail and its header (6.7 Auditability): two
-   replicas at one publication log the same digest. */
+   replicas at one publication log the same digest.
+   EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07; verification/screener/P4_BROKER_DAYS.md section 3): the optional
+   broker day files beside the Phase 1 files, decoded and stored once per replica by broker.ts (desc.broker: shared
+   columns per ticker of this snapshot; a ticker without price is not loaded); versions.flow_data, data.flow_through
+   and data.broker_window come from it, and sid names flow_data, so a change of the broker days alone is another
+   snapshot (its own caches, never the previous one's answers). */
 import crypto from 'node:crypto';
 import { DataError, PRICE_ACTION_TYPES, dataVersion, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
@@ -48,13 +53,15 @@ import { returnRankAll } from '../../edge-bff/screener/src/core/xsection.ts';
 import { priceBreakRemarks } from '../../edge-bff/screener/src/core/universe.ts';
 import type { ActionRow } from '../../edge-bff/screener/src/core/universe.ts';
 import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
+import { brokerFlowData, brokerRowsOf, brokerWindowOf, buildBrokerStore } from './broker.ts';
+import type { BrokerDay, BrokerRows, BrokerStats, BrokerStore } from './broker.ts';
 
 export const INDEX_TICKER = 'IHSG';
 export const PRICE_FILE = 'price';
 export const ACTIONS_FILE = 'actions';
-/** The xsection files this build reads (report 6.5 "Phase 1 files"), the one list of them: the refresh requires and
-    downloads exactly these (refresh.ts), the builder decodes each into BuildInput (thread.ts), and a metric counts as
-    available only over a file of this list (catalog.ts metricAvailability), never over one the index merely names. */
+/** The required xsection files (report 6.5 "Phase 1 files"), the one list of them: the refresh requires these (P4 reads
+    the optional broker days beside them, broker.ts), the builder decodes each into BuildInput (thread.ts), and a metric
+    counts as available only over a file of this list (catalog.ts metricAvailability), never one the index merely names. */
 export const PHASE1_FILES = [PRICE_FILE, ACTIONS_FILE] as const;
 export type ReadFile = typeof PHASE1_FILES[number];
 
@@ -87,6 +94,7 @@ export interface SnapshotDesc {
   tails: Float64Array;               // (s * tickers + j) * tailLength: the tail's values (n - from of them)
   tailMeta: Int32Array;              // (s * tickers + j) * 4: n, from, firstValid, lastValid
   digest: string | null;             // set by the pre-warm's last step (snapshotDigest)
+  broker: BrokerStore;               // P4: the loaded broker days (broker.ts), per ticker of `tickers`
 }
 const FIELDS = ['O', 'H', 'L', 'C', 'V'] as const;
 
@@ -173,8 +181,11 @@ export interface BuildInput extends Record<ReadFile, Columnar> {
   /** the presets: every series their enabled conditions read (bound as a run binds them, lagged sides included) is
       pinned too; a condition that does not bind (an unavailable metric) is left out and listed */
   presets: readonly PresetDefinition[];
+  /** P4: the broker days read now (decoded, broker.ts decodeBrokerDay), those carried from the held snapshot's store
+      and the window's days left for a follow-up refresh; none: an empty store */
+  broker?: { days: readonly BrokerDay[]; carry: { from: BrokerStore; names: readonly string[] } | null; missing: number };
 }
-export interface BuildStats { tickers: number; stocks: number; bars: number; dropped: number; no_price: number; actions: number; series: number; skipped: { ref: string; reason: string }[] }
+export interface BuildStats { tickers: number; stocks: number; bars: number; dropped: number; no_price: number; actions: number; series: number; skipped: { ref: string; reason: string }[]; broker: BrokerStats }
 
 /** The snapshot of one publication (header), without its tails' values (prewarm fills them, snapshotDigest seals
     them). Throws DataError for anything the publisher cannot have written. */
@@ -255,10 +266,15 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
   rows.sort((a, b) => byTicker(a.ticker, b.ticker));
 
   const price_data = await dataVersion(entries.map(e => ({ ticker: e.t, dataset: 'price', sha256: e.pack_sha256 })));
-  const versions = { screener_engine: input.engine.screener_engine, registry: input.engine.registry, screener_registry: input.engine.screener_registry, price_data, flow_data: null };
-  const data = { evaluation_date: E, price_through: input.state.price_through ?? E, flow_through: null, broker_behind_sessions: input.state.broker_behind_sessions, published_at: input.state.finished_at };
+  // P4: the broker store per ticker of this snapshot, and the versions and data it gives (broker_window last, so
+  // published_at stays in the head edge-bff reads)
+  const broker = buildBrokerStore(entries.map(e => e.t), input.broker?.days ?? [], input.broker?.carry ?? null, input.broker?.missing ?? 0);
+  const flow_data = brokerFlowData(broker.store.days);
+  const versions = { screener_engine: input.engine.screener_engine, registry: input.engine.registry, screener_registry: input.engine.screener_registry, price_data, flow_data };
+  const data = { evaluation_date: E, price_through: input.state.price_through ?? E, flow_through: broker.store.dates[broker.store.dates.length - 1] ?? null,
+    broker_behind_sessions: input.state.broker_behind_sessions, published_at: input.state.finished_at, broker_window: brokerWindowOf(broker.store) };
   const actionsSha = crypto.createHash('sha256').update(JSON.stringify([...actions.entries()])).digest('hex').slice(0, 16);
-  const sid = `${price_data.slice(0, 32)}:${actionsSha}:${referenceHash(input.ref)}`;
+  const sid = `${price_data.slice(0, 32)}:${actionsSha}:${referenceHash(input.ref)}:${flow_data ? flow_data.slice(0, 16) : '-'}`;
 
   // the pinned series: the 53 at their start configuration (76 outputs), then the presets' (6.7 "Pre-warmed")
   const desc0 = { offsets, O, H, L, C, V, T: Tix, dates, tickers: entries.map(e => e.t), index, missing };
@@ -285,9 +301,9 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
   const S = list.length;
   const desc: SnapshotDesc = {
     sid, versions, data, finished_at: input.state.finished_at, tailLength: input.tailLength, ...desc0, rows, series: list,
-    tails: shared(Float64Array, S * T * input.tailLength), tailMeta: shared(Int32Array, S * T * 4), digest: null,
+    tails: shared(Float64Array, S * T * input.tailLength), tailMeta: shared(Int32Array, S * T * 4), digest: null, broker: broker.store,
   };
-  const stats: BuildStats = { tickers: T, stocks: rows.length, bars: w, dropped, no_price: input.ref.tickers.filter(r => r.type === 'stock' && !entries.some(e => e.t === r.ticker)).length, actions: nActions, series: S, skipped };
+  const stats: BuildStats = { tickers: T, stocks: rows.length, bars: w, dropped, no_price: input.ref.tickers.filter(r => r.type === 'stock' && !entries.some(e => e.t === r.ticker)).length, actions: nActions, series: S, skipped, broker: broker.stats };
   return { desc, entries, stats };
 }
 /** A pinned series' reference resolved again (a thread resolves the list the builder wrote): a pattern through
@@ -440,6 +456,13 @@ export class ThreadSnapshot {
     const j = this.position.get(ticker);
     if (j === undefined) throw new RangeError(`snapshot: no ticker ${ticker}`);
     return materialize(this.desc, j);
+  }
+  /** P4 (for P5's flow module): one ticker's broker rows from `from` to `to` (ISO dates, both included; null = open), as
+      views into the shared store without a copy (broker.ts brokerRowsOf); undefined for a ticker the snapshot does not
+      have. No formula: the rows as the files hold them. */
+  brokerRows(ticker: string, from: string | null = null, to: string | null = null): BrokerRows | undefined {
+    const j = this.position.get(ticker);
+    return j === undefined ? undefined : brokerRowsOf(this.desc.broker, j, from, to);
   }
   /** A request's view of one ticker (TickerView), with this thread's copy of its dates; undefined for an unknown ticker. */
   view(ticker: string): TickerView | undefined {

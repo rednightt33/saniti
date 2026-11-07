@@ -41,7 +41,7 @@ export interface Versions {
   registry: string;                   // 16 hex: registry_version of backtest-registry.json, passed through
   screener_registry: string;          // 16 hex: screener_registry_version of screener-registry.json, sha256 over base + overlay + derived fields (report 6.8 Versions; 8.3 abbreviates it as base + overlay)
   price_data: string;                 // 64 hex: datafile.dataVersion over (ticker, 'price', pack sha256) of every ticker
-  flow_data: string | null;           // the same over the flow files; null before Phase 2
+  flow_data: string | null;           // 64 hex: sha256 over the sorted name:sha256 of the loaded broker day files (EXEC-SCREENER-FLOW-CANDLES P4, verification/screener/P4_BROKER_DAYS.md section 3); null when none is loaded
   definition_hash?: string;           // 64 hex: sha256 of canonicalJson(definition, params resolved, labels removed); set on run. Report 8.3 also names counts, but a counts answer covers up to max_counts definitions, which one hash cannot name: its versions leave it out (each entry is keyed by item_id; the worker caches per definition_hash, report 8.6)
 }
 
@@ -54,11 +54,17 @@ export type RefreshState = 'ready' | 'failed_keeping_previous';
 export interface DataStatus {
   evaluation_date: string;            // E = price_through
   price_through: string;              // state.json
-  flow_through: string | null;        // last complete flow date (Phase 2); null before
+  flow_through: string | null;        // the newest loaded broker day (P4); null when none is loaded
   broker_behind_sessions: number | null;
   published_at: string;               // state.json finished_at
+  broker_window?: BrokerWindow;       // P4 (additive): the broker days the worker holds; set on every worker answer
   refresh?: RefreshState;             // catalog only: the publication's outcome
 }
+/** EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07, K1 window 60 sessions; verification/screener/P4_BROKER_DAYS.md
+    section 3): the loaded broker days, oldest and newest, how many, and whether every day of the publication's window
+    (its newest 60 indexed broker days) is loaded; complete is false while days still wait for a follow-up refresh. A
+    publication that indexes no broker day: {first: null, last: null, sessions: 0, complete: true}. */
+export interface BrokerWindow { first: string | null; last: string | null; sessions: number; complete: boolean }
 
 /** Error body, the edge-bff convention ({"error": {...}}; apps/edge-bff/backtest/CONTRACT.md section 11). TEMPORARY
     exception (report 8.1, ERRORS M261): 401/403 of the auth dependencies are {"detail": ...}; the client maps them. */

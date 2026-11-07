@@ -83,7 +83,7 @@ export function limitEntries(l: Limits): LimitEntry[] {
       `a file of ${l.max_file_bytes} bytes`, `a file of ${l.max_file_bytes + 1} bytes (an operator raises the limit)`),
     e('max_inflated_bytes', l.max_inflated_bytes, 'bytes', `a published data file is at most ${l.max_inflated_bytes} bytes uncompressed; a larger one fails the data refresh`,
       `a file of ${l.max_inflated_bytes} bytes uncompressed`, `a file of ${l.max_inflated_bytes + 1} bytes uncompressed (an operator raises the limit)`),
-    e('max_refresh_bytes', l.max_refresh_bytes, 'bytes', `one data refresh downloads at most ${l.max_refresh_bytes} bytes; more fails it`,
+    e('max_refresh_bytes', l.max_refresh_bytes, 'bytes', `one data refresh downloads at most ${l.max_refresh_bytes} bytes; more fails it, except broker day files that do not fit, which wait for the next refresh (it starts at once)`,
       `a refresh of ${l.max_refresh_bytes} bytes`, `a refresh of ${l.max_refresh_bytes + 1} bytes (an operator raises the limit)`),
   ];
 }

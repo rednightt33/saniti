@@ -71,6 +71,7 @@ export interface Snap {
   vctx: ValidateContext; pinned: Set<string>; position: Map<string, number>; index: TickerBars;
   groupings: Grouping[]; availability: Map<string, { availability: Availability; reason: string | null }>;
   presets: CatalogPreset[]; catalog: Doc; universe: Doc; expiresAt: number | null;
+  brokerMissing: number;             // P4: days of the publication's broker window this snapshot could not load (yet)
 }
 
 /* ---- the main thread's half of the engine (the worker's tests replace it; production uses run.ts and the core) ---- */
@@ -243,17 +244,20 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   let builder: ComputeThread | null = null, staged: { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; ref: TickerReference } | null = null;
   const lruBytes = cacheShare(cfg);
   const host: RefreshHost = {
-    held: (): Held | null => current && { finished_at: current.finished_at, files: current.files, refHash: current.refHash, price_data: current.price_data },
+    held: (): Held | null => current && { finished_at: current.finished_at, files: current.files, refHash: current.refHash, price_data: current.price_data,
+      broker: Object.fromEntries(current.desc.broker.days.map(d => [d.name, { sha256: d.sha256, dropped: d.dropped.length }])), brokerMissing: current.brokerMissing },
     async build(input) {
       builder = pool.builder('builder', { role: 'builder', env, terminal });
-      const task: BuildTask = { kind: 'build', files: input.files, ref: input.ref, state: input.state, engine: engineVersions, tailLength: TAIL, presets: presetDefs };
+      // P4: the days to carry come out of the held snapshot's store (shared columns, nothing copied)
+      const broker = { ...input.broker, from: input.broker.carry.length ? current?.desc.broker ?? null : null };
+      const task: BuildTask = { kind: 'build', files: input.files, broker, ref: input.ref, state: input.state, engine: engineVersions, tailLength: TAIL, presets: presetDefs };
       const { done } = await builder.run(task);
       const out = await onBuilder(() => done) as { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; download_ms: number; decode_ms: number; download_bytes: number };
       staged = { desc: out.desc, entries: out.entries, stats: out.stats, ref: input.ref };
       const st = out.stats;
       return { entries: out.entries, stats: { download_ms: out.download_ms, decode_ms: out.decode_ms, downloaded_bytes: out.download_bytes, tickers: st.tickers, stocks: st.stocks,
         bars: st.bars, dropped_rows: st.dropped, no_price: st.no_price, actions: st.actions, pinned_series: st.series,
-        pinned_skipped: st.skipped.length, pinned_skipped_first: st.skipped.slice(0, 3) } };
+        pinned_skipped: st.skipped.length, pinned_skipped_first: st.skipped.slice(0, 3), broker_days: { ...st.broker } } };
     },
     async complete(input) {
       if (!staged || !builder) throw new Error('complete: nothing staged');
@@ -281,7 +285,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
           sid: desc.sid, desc, price_data: desc.versions.price_data, finished_at: input.state.finished_at, files: input.files, refHash: referenceHash(ref),
           vctx: engine.validateContext(desc, groupings, metrics, availability), pinned: new Set(desc.series.map(s => s.key)),
           position: new Map(desc.tickers.map((t, j) => [t, j])), index: materialize(desc, desc.index), groupings, availability,
-          presets: [], catalog: null as unknown as Doc, universe: universeDoc(desc), expiresAt: null,
+          presets: [], catalog: null as unknown as Doc, universe: universeDoc(desc), expiresAt: null, brokerMissing: desc.broker.missing,
         };
         const tp = performance.now();
         snap.presets = await presets(snap);
@@ -294,11 +298,14 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       return fields;
     },
     abandon() { if (builder) builder.kill().catch(() => {}); builder = null; staged = null },
-    advance(st) {
+    advance(st, broker) {
       if (!current) return;
       const s = current;
       s.finished_at = st.finished_at;
-      s.desc.data = { ...s.desc.data, published_at: st.finished_at, price_through: st.price_through ?? s.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions };
+      // P4: the same broker days; whether the new index's window is complete with them
+      s.brokerMissing = broker.missing;
+      const window = s.desc.data.broker_window ? { ...s.desc.data.broker_window, complete: broker.missing === 0 } : undefined;
+      s.desc.data = { ...s.desc.data, published_at: st.finished_at, price_through: st.price_through ?? s.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions, ...(window ? { broker_window: window } : {}) };
       // availability from this publication's index and the files the snapshot read, by the rule of the swap, so the
       // catalog, validation and the presets below never answer by an index the publication no longer has
       s.availability = metricAvailability(metrics, st.xsection, Object.keys(s.files));
@@ -329,7 +336,10 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (previous) retire(previous);
     current = s; outcome = 'ready'; failure = null;
     if (old) {
-      if (old.price_data === s.price_data) retire(old);    // same price_data (actions or reference changed): nothing to pin
+      // same price_data (actions, reference or, since P4, broker days changed): nothing to pin, but a request already
+      // queued or running on the old snapshot finishes on it; every request ends by its deadline, so the old one goes
+      // SCREENER_DEADLINE_MS + 1 s later (dropped at once, such a request answered 500: P4 review 2026-11-07)
+      if (old.price_data === s.price_data) { const t = setTimeout(() => retire(old), L.deadline_ms + 1000); t.unref?.() }
       else {
         old.expiresAt = now() + L.previous_grace_s * 1000; previous = old;
         if (graceTimer) clearTimeout(graceTimer);
