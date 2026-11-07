@@ -413,8 +413,10 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
 
   /* EXEC-TERMINAL-FLOW-IND: Insider Net Change reads the insider rows of the same events file; Institutional vs Retail
      Net the brokers' classification (absent from a reference file published before it: no list, no value) */
-  const loadInsider = async (): Promise<InsiderTx[]> => (await job.events).flatMap((r: any) =>
-    r.family === 'INSIDER' && (r.action === 'BUY' || r.action === 'SELL') && Number.isFinite(r.value) ? [{ d:r.d, value:r.action === 'BUY' ? r.value : -r.value }] : []);
+  /* EXEC-QA5-FIX (QA 2026-11-07, F2-03): a ticker with no events file published has no insider rows to read; that is "not
+     available", not a flat "Rp 0" (the indicator says so) */
+  const loadInsider = async (): Promise<InsiderTx[]> => { if (!files.events?.length) throw new Error('no events file'); return (await job.events).flatMap((r: any) =>
+    r.family === 'INSIDER' && (r.action === 'BUY' || r.action === 'SELL') && Number.isFinite(r.value) ? [{ d:r.d, value:r.action === 'BUY' ? r.value : -r.value }] : []) };
   const brokerClass = brokerRefP.then((rows: any[]) => Object.fromEntries(rows.filter(r => typeof r.classification === 'string').map(r => [r.code, r.classification])), () => ({}));
 
   return {

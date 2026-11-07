@@ -5483,6 +5483,77 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Lesson:** a hold on a size is taken when the content is at rest, and the check of a fix includes the path the user
   takes into it (here: from the chart onto the row), not only the path out.
 
+### M387 — Terminal: Broker summary panel's "Avg" in Net mode was not a price (2026-11-07, fixed on branch)
+
+- **Found by:** QA agent 2 of the five-agent round (user 2026-11-07: "jalankan 5 agents sonnet 5.5 high"), finding S-01.
+- **Verified cause** (`apps/edge-bff/terminal/src/app/broker.ts`, Broker summary rows; read back in the code): in Net mode
+  the panel divided the net value by the net lots (both absolute), `avg = |net value| ÷ (|net lots| × 100)`. The two
+  differences can have opposite signs or be tiny, so the result is no price: NI read 11,681 in a 2,660-2,950 period, and
+  12% of the top-5 rows sat outside the period's price range. The ⤢ window already showed Avg buy / Avg sell.
+- **Class:** a quotient of two differences shown as if it were a quantity of its own (any "average" built from net
+  figures).
+- **Solution:** live, the buyers' table shows Avg buy (buy value ÷ (buy lots × 100)) and the sellers' Avg sell, named in
+  the header with how it is computed, and "–" without lots. The fixture keeps the reference (1:1 check).
+- **Lesson:** an average price is always a gross value over its own gross volume; a net figure has no price.
+
+### M388 — Terminal: Broker inventory's "position" read as the shares a broker holds (2026-11-07, fixed on branch)
+
+- **Found by:** QA agent 2, finding S-02.
+- **Verified cause** (`data/brokerAgg.ts inventory`, `app/popout.ts renderInv`, `app/broker.ts renderInvLive`): the
+  line adds up the broker's daily net from the first session in view; the window called it "position" (End, High, Low)
+  and nothing said where it starts, so the same broker and last day read +5.8M lots or +4.8M lots depending on the zoom.
+- **Class:** a running sum whose start is the view, labelled like a stock (holdings, a balance).
+- **Solution:** the panel and the window say "net lots (value) bought since <date>, the first session in view; not
+  shares held", the start date in the table's tooltips, and "broker data starts here" when the view starts earlier.
+- **Lesson:** a cumulative figure names its start date wherever it is shown.
+
+### M389 — Terminal: figures rounded after their category, sum or colour was decided (2026-11-07, fixed on branch)
+
+- **Found by:** QA agents 1, 3 and 5 (F1-F4, F10; Q4; F1, F6, F7).
+- **Verified causes:**
+  - Foreign × Domestic showed one decimal while its verdict tag used two: "+6.0%" beside Neutral, "−10.0%" beside Dist;
+    the three figures were rounded each on its own, so "−57.6 + 30.4 = −27.1" (25% of the panel's cases, 12.7% of the
+    window's Δ rows); "0.0%" took the colour of the raw sign; the driver compared unrounded changes.
+  - `specFormat.points` put the sign before rounding ("−0.00 pt"); `smart` printed an axis tick of 5.55e-17.
+  - The F×D window dropped sessions without buy value and then took Δ between the points left (Cash: 4 of 20 points, a
+    Δ across four sessions, "now" not on the last session).
+  - Every Flow line dropped its empty days from the series, so the chart drew a straight line across them (FL48 Top 20:
+    10 Mar - 13 Apr).
+- **Class:** a decision (category, colour, sum, change) taken on a number other than the one shown; a gap removed from a
+  series instead of kept.
+- **Solution:** `fdShown` (data/brokerAgg.ts) rounds to two decimals as Top brokers and gives the rounding step to the
+  part rounded furthest the other way, so Foreign + Domestic = Verdict on screen; tags, colours, flat band (`FD_FLAT`
+  derived from the precision), Δ and driver are taken from the shown figures; no driver when the verdict did not move.
+  `points` signs the rounded value, `smart` reads below 1e-9 as 0. The window keeps every session ("—"), breaks the trail
+  and gives no Δ across a gap. Empty days are whitespace in every line and histogram series (`app/indicators.ts`).
+- **Lesson:** round once, then derive everything shown from the rounded figure; never delete an empty period from a series.
+
+### M390 — Terminal: labels and messages that hid what a number is (2026-11-07, fixed on branch)
+
+- **Found by:** QA agents 1-5 (titles Q3/F3/F2-01/F2-09, denominators Q6/F2-04/F2-05, empty states Q2/F2-03/F2-07/F4/F5/F9,
+  index S-03, cohort lean Q1/F2-08, and the small items of all five reports).
+- **Verified causes:** the title named only non-default selects, so FL15 (lots) and FL16 (Rupiah) read alike and the
+  anchor, baseline and "recent" periods never showed (FL18 moved 8% with the zoom without saying from when); tips said
+  "seluruh nilai transaksi" where the formula divides by the chosen investor type's buy value (FL24 −37.4% vs −10.6%);
+  one empty-state text ("No broker data on this day", "Needs N days") covered other causes; FL31 drew "Rp 0" when no
+  events file was published; the ⤢ windows showed lots and average prices on an index; nothing said the default cohort
+  of net buyers leans every directional reading to the buy side (FL11 positive on 200 of 200 days).
+- **Solution:** titles name the unit and measure always, a fixed basis, "minus even share", "last 5D vs 20D", "vs 250D",
+  "limit 60D" and "from <date>" (`app/flowIndicators.ts`, derived from the registry's parameters); registry tips name
+  their denominators and data (`scripts/build_flow_registry.py PLAIN`, FL46 unchanged); notes say "before the broker
+  data", "starts at its start date", "no trades on <board · investor>", "no value: nothing to measure", "no insider data
+  published", and a constant all-market reading names its value; the windows follow the index rule; a tip sentence on the
+  net-buyer cohort is derived from the registry defaults; FL09's "Top net sellers", which can never fire, is not offered.
+  Small items: Gross "% of buy / % of sell" per side, "Total · all N", crossing-only messages, CSV context line and
+  6-decimal numbers, axis ticks with two decimals, the view rule "any part on screen" shared (`visibleBars`), Nego note,
+  quadrant colours = the absorbing side, lane split by net direction, tooltips with Rp, levels from FL24, the running
+  week or month marked in the date readout, a zero line on a pane's second scale, signed "Change %" values.
+- **Not changed, with reason:** FL46 (the user decides); intraday candles showing the previous day's figure (decision C4);
+  "Rp 1.0T" one decimal and whole rupiah below 1B (Design Spec v1.2); the axis above 100% on bounded panes (the legend's
+  reserved band); a broker code absent from the data (codes are picked from the list).
+- **Lesson:** a label carries every parameter that changes the number and the denominator it divides by; an empty value
+  names its own cause.
+
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and

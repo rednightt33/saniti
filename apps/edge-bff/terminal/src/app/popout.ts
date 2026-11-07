@@ -72,6 +72,8 @@ export function initPopout(ctx: Ctx) {
     const n = +p.n || 5;
     return [Math.max(0, last - n + 1), last];
   };
+  /* QA S-12: a chosen range without a session names its days, as the panel's note does */
+  const noSession = (p: Period) => p.n === 'custom' && p.from && p.to ? `No trading session in ${p.from === p.to ? longDay(p.from) : `${longDay(p.from)} – ${longDay(p.to)}`}` : 'No broker session in the chosen days';
   const spanText = (f: number, t: number) => {
     const d = B().dates;
     return f === t ? longDay(d[f]) : `${longDay(d[f])} – ${longDay(d[t])} · ${t - f + 1} sessions`;
@@ -118,7 +120,7 @@ export function initPopout(ctx: Ctx) {
       <input class="rp-sel pw-search" type="search" placeholder="Search broker…" aria-label="Search broker" value="${esc(st.q)}" autocomplete="off"></div>`;
     const span = msg ? null : resolve(st.p);
     if (msg || !span) {
-      w.body.innerHTML = head + `<div class="rp-empty">${msg || (st.p.n === 'view' ? 'No broker session in the chart’s view' : 'No broker session in the chosen days')}</div>`;
+      w.body.innerHTML = head + `<div class="rp-empty">${msg || (st.p.n === 'view' ? 'No broker session in the chart’s view' : noSession(st.p))}</div>`;
       w.setSub(B().label + ' · ' + scope + tf); bsTable = null; wire(); return;
     }
     const [f, t] = span;
@@ -175,7 +177,7 @@ export function initPopout(ctx: Ctx) {
     const head = `<div class="pw-ctl">${periodCtl('acc')}${select('inv', st.inv, INVESTORS, 'All investors', 'Investor type')}${select('board', st.board, BOARDS, 'All boards', 'Board')}
       ${IDX ? '' : seg('unit', st.unit, [['value', 'Value'], ['lot', 'Lot']], 'Unit')}${seg('limit', st.limit, [['10', 'Top 10'], ['20', 'Top 20']], 'Rows')}</div>`;
     const span = msg ? null : resolve(st.p);
-    if (msg || !span) { w.body.innerHTML = head + `<div class="rp-empty">${msg || 'No broker session in this period'}</div>`; w.setSub(B().label + tf); wireCtl('acc', w, () => renderAcc(w)); return }
+    if (msg || !span) { w.body.innerHTML = head + `<div class="rp-empty">${msg || (st.p.n === 'view' ? 'No broker session in the chart’s view' : noSession(st.p))}</div>`; w.setSub(B().label + tf); wireCtl('acc', w, () => renderAcc(w)); return }
     const [f, t] = span, lot = !IDX && st.unit === 'lot', N = +st.limit;
     // EXEC-TERMINAL-TOPSPLIT: with All investors each bar is split into Domestic (solid) and Foreign (faded)
     const split = st.inv === 'All', part = (inv: string) => new Map(split ? aggregate(B().rows, f, t, inv, st.board).map(o => [o.b, lot ? o.bl - o.sl : o.bv - o.sv] as [string, number]) : []);
@@ -286,7 +288,7 @@ export function initPopout(ctx: Ctx) {
       ${seg('span', st.span, [['5', '5'], ['10', '10'], ['20', '20 sessions']], 'Sessions on the map')}
       ${seg('view', st.view, [['level', 'Level'], ['delta', 'Change (Δ)']], 'Table view')}${select('board', st.board, BOARDS, 'All boards', 'Board')}</div>`;
     const pr = msg ? null : resolve(st.p.n === 'view' ? { n:'5' } : st.p);
-    if (msg || !pr) { w.body.innerHTML = head + `<div class="rp-empty">${msg || 'No broker session in the chosen days'}</div>`; w.setSub(B().label + tf); wireCtl('fd', w, () => renderFD(w)); return }
+    if (msg || !pr) { w.body.innerHTML = head + `<div class="rp-empty">${msg || noSession(st.p)}</div>`; w.setSub(B().label + tf); wireCtl('fd', w, () => renderFD(w)); return }
     const d = B().dates, len = pr[1] - pr[0] + 1, board = st.board;
     /* EXEC-QA5-FIX (QA F4): every session stays in the list; one without buy value shows "—", has no point on the map and
        no change, so a change is never taken across it */

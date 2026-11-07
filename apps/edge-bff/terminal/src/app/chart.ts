@@ -20,7 +20,7 @@ export function initChart(ctx: Ctx) {
      "IHSG 2 desimal (7,123.45)": a share or an index shows at most two, derived below that from its own prices */
   const PD = ctx.priceDecimals = fi ? 3 : barDecimals(ohlc as any[], 2);
   ctx.priceText = v => priceText(v, PD);
-  ctx.axisLabel = v => ctx.displayMode === 'return' ? v.toFixed(1) + '%' : ctx.priceText(v);
+  ctx.axisLabel = v => ctx.displayMode === 'return' ? (v < -0.05 ? '−' : '') + Math.abs(v).toFixed(1) + '%' : ctx.priceText(v);   // agent 5 F8: the minus as the legend's
   ctx.formatMode = () => ({ type:'custom', formatter:(v: number) => ctx.axisLabel(v), minMove:ctx.displayMode === 'return' ? .01 : 10 ** -PD });
 
   const chart = ctx.chart = L.createChart(container, {

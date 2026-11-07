@@ -290,7 +290,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker.",
+   "tip": "Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker pada papan dan jenis investor yang sama.",
    "params": [
     {
      "key": "scope",
@@ -552,7 +552,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata pasar.",
+   "tip": "Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata semua broker pada papan dan jenis investor yang sama.",
    "params": [
     {
      "key": "scope",
@@ -1137,10 +1137,6 @@
       [
        "gross_buy",
        "Top gross buyers"
-      ],
-      [
-       "net_sell",
-       "Top net sellers"
       ]
      ],
      "default": "net_buy"
@@ -2959,7 +2955,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual, dibanding seluruh nilai transaksi.",
+   "tip": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual: (net beli N pembeli terbesar − net jual N penjual terbesar) ÷ nilai beli semua broker pada papan dan jenis investor yang dipilih (dengan satu jenis investor, penyebutnya hanya jenis itu).",
    "params": [
     {
      "key": "top",
@@ -3103,7 +3099,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Berapa hari berturut-turut kelompok (misalnya asing) membeli bersih atau menjual bersih.",
+   "tip": "Berapa hari berturut-turut kelompok (misalnya asing) membeli bersih atau menjual bersih; hitungan dibatasi sampai batas hari yang dipilih.",
    "params": [
     {
      "key": "scope",
@@ -3238,7 +3234,7 @@
     "net",
     "gross"
    ],
-   "tip": "Tanda saat volume naik tetapi harga hampir diam; pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).",
+   "tip": "Tanda saat volume (papan Regular) naik tetapi harga hampir diam; bisa akumulasi atau distribusi, tanda ini tidak membaca broker. Pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).",
    "params": [
     {
      "key": "recent",
@@ -3324,7 +3320,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Rata-rata nilai Rupiah yang diperdagangkan per hari.",
+   "tip": "Rata-rata nilai Rupiah yang diperdagangkan per hari di papan Regular (harga penutupan × volume).",
    "params": [
     {
      "key": "window",
@@ -3348,7 +3344,7 @@
     "value",
     "balance"
    ],
-   "tip": "Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai transaksi (persen).",
+   "tip": "Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai beli pada papan dan jenis investor yang dipilih (persen).",
    "params": [
     {
      "key": "top",
@@ -3454,7 +3450,7 @@
    "outputs": [
     "value"
    ],
-   "tip": "Arah transaksi orang dalam.",
+   "tip": "Arah transaksi orang dalam (hanya aksi BUY dan SELL). Banyak transaksi memakai harga perkiraan Stockbit (sebagian besar baris KSEI), jadi nilainya perkiraan.",
    "params": [
     {
      "key": "window",
@@ -3495,7 +3491,7 @@
     "buy",
     "sell"
    ],
-   "tip": "Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya.",
+   "tip": "Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya. Dengan kedua jenis investor, sisi beli dan jual adalah transaksi yang sama (garisnya sama); pilih Asing atau Domestik untuk membandingkan sisi.",
    "params": [
     {
      "key": "boards",
@@ -3747,7 +3743,7 @@
     "value",
     "change"
    ],
-   "tip": "Siapa yang dominan: broker institusi atau broker ritel.",
+   "tip": "Siapa yang dominan: broker institusi atau broker ritel. Daftar institusi dan ritel memakai klasifikasi broker terkini untuk semua tanggal.",
    "params": [
     {
      "key": "boards",

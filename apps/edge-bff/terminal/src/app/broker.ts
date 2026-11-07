@@ -314,7 +314,8 @@ export function initBroker(ctx: Ctx) {
       from.min = to.min = bkDates[0]; from.max = to.max = bkDates[last];
       }
       save();
-      if(nav){ $q('.rp-date').textContent = days() === 1 ? bkFmtDay(st.bt) : `${text()} ${bkDates[st.bt].slice(0,4)} · ${days()}D`;
+      // QA S-12 (live): a custom period counts sessions, "3 sessions", not "3D" (16-25 Mar holds 3 trading sessions)
+      if(nav){ $q('.rp-date').textContent = days() === 1 ? bkFmtDay(st.bt) : `${text()} ${bkDates[st.bt].slice(0,4)} · ${live && st.bn === 'custom' ? `${days()} sessions` : `${days()}D`}`;
         $q('[data-act=prev]').disabled = st.bf <= 0; $q('[data-act=next]').disabled = st.bt >= last }
     };
     const shift = dir => {
@@ -339,7 +340,8 @@ export function initBroker(ctx: Ctx) {
           onChart:() => ctx.selectRangeOnChart((f, t) => applyChartRange(f, t)) });
         return;
       }
-      note(); preset(b.dataset.n); render(); onChange();
+      // QA S-12 (live): a preset is the last N sessions of the data, as every panel's (not N sessions back from a stepped end)
+      note(); if(live) st.bt = last; preset(b.dataset.n); render(); onChange();
     });
     if(nav) root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { note(); shift(b.dataset.act === 'prev' ? -1 : 1); render(); onChange() });
     const custom = () => {
@@ -540,7 +542,10 @@ export function initBroker(ctx: Ctx) {
     const n = none ? 0 : t - f + 1, all = none ? [] : picks.map(invSeries);
     const scope = [RS.invInv, RS.invBoard].filter(v => v !== 'All').join(' · ');      // F1: the filters in force
     // EXEC-TERMINAL-INVBADGE (user 2026-10-29: "batch 3/5 dikasih batch juga"): the count of brokers as a badge
-    $('invHint').innerHTML = `<span class="rp-count">${picks.length}/${INV_MAX}</span>${scope ? ' · ' + scope : ''} · ${none ? 'no broker data in view' : invRange.text()}`;
+    // QA S-11: on a weekly or monthly chart the broker figures stay daily, as the window says
+    const tfNote = M.tf === 'W' || M.tf === 'M' || M.intraday ? ' · daily figures' : '';
+    $('invHint').innerHTML = `<span class="rp-count">${picks.length}/${INV_MAX}</span>${scope ? ' · ' + scope : ''} · ${none ? 'no broker data in view' : invRange.text()}${tfNote}`;
+    $('invHint').title = $('invHint').textContent;
     const chips = (i = null) => picks.map((bk, k) => {
       const p = all[k] ? (i === null ? all[k].at(-1) : all[k][i]) : null, v = p ? p.cum : 0;
       return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${bk}<b class="${v>0?'up':v<0?'down':''}">${sgn(v)}</b><button type="button" data-rm="${bk}" aria-label="Remove ${bk}">×</button></span>`;
@@ -681,7 +686,8 @@ export function initBroker(ctx: Ctx) {
     const fold = $('fdBody').querySelector('.fdm-fold') as HTMLButtonElement;
     fold.onclick = () => { const open = fold.getAttribute('aria-expanded') !== 'true'; store.set('ml.fd.readout', open ? '1' : '0');
       fold.setAttribute('aria-expanded', String(open)); fold.parentElement!.classList.toggle('folded', !open); ($('fdmDetail') as HTMLElement).hidden = !open };
-    $('fdHint').textContent = fdRange.text();
+    $('fdHint').textContent = fdRange.text(); $('fdHint').title = fdRange.text();   // QA F13: the full text in a narrow panel
+    $('fdBody').querySelectorAll('.fdm-now .tag').forEach((t: any) => { t.title = t.textContent });
   }
 
   /* ---- wiring ---- */

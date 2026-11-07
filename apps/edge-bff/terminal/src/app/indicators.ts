@@ -509,6 +509,14 @@ export function initIndicators(ctx: Ctx) {
     (inst.guideLines || []).forEach(([se, pl]) => { try{ se.removePriceLine(pl) }catch(e){} }); inst.guideLines = [];
     if(inst.def.zeroLabel && drawn(inst)) { const host = inst.parts.find(pt => pt.series && pt.kind !== 'marker')?.series;
       if(host) inst.guideLines.push([host, host.createPriceLine({ price:0, color:'#c8c8c8', lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:false, title:'' })]) }
+    /* EXEC-QA5-FIX (QA Q5, F2-10): a line on the pane's second (left) scale gets its own zero line when its values cross 0,
+       so its 0 is not read against the right scale's 0 (FL11 change, FL29 balance) */
+    if(drawn(inst)) inst.parts.forEach(pt => {
+      if(pt.o.scale !== 'left' || !pt.series || !shown(pt)) return;
+      const a = (inst.disp[pt.o.k] || []).filter(v => v !== null && v !== undefined);
+      if(a.length && Math.min(...a) < 0 && Math.max(...a) > 0)
+        inst.guideLines.push([pt.series, pt.series.createPriceLine({ price:0, color:alpha(st.out[pt.o.k].color, .55), lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:true, title:'0' })]);
+    });
     if(st.guides && st.guides.on && drawn(inst)) {
       const host = inst.parts[0].series;
       guideLevels(inst).forEach(lv =>
@@ -618,14 +626,16 @@ export function initIndicators(ctx: Ctx) {
     r.querySelector('.ind-k').textContent = inst.def.title(inst.params);
     const b = r.querySelector('b');
     if(inst.def.multi) {                                     // one coloured value per visible output
-      const reg = inst.def.reg, many = inst.parts.length > 1, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
+      // QA F2-11: an output names itself only beside another visible output ("Silent Accumulation Silent Accumulation No")
+      const reg = inst.def.reg, many = inst.parts.filter(pt => inst.style.out[pt.o.k]?.on).length > 1, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
       b.innerHTML = inst.parts.map(pt => {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
         if(!s.on || v === null || v === undefined) return '';
         const prev = inst.disp[pt.o.k][i - 1];
         const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
-        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
+        /* EXEC-QA5-FIX (agent 5 F8): a line on the price reads in the price's own decimals, as the price axis (2,903 · 3,316) */
+        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
