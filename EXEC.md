@@ -12717,6 +12717,13 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 - Akibat: satuan kirim menjadi tanggal (hari baru saja; tanggal lama hanya bila berubah), untuk harga, broker dan event.
   Menggantikan "5 sesi terakhir" dan tingkatan mingguan pada rancangan di atas. Harga dan event masuk cakupan (sebelumnya
   harga dikeluarkan). Intraday dan obligasi tidak disebut user (belum masuk).
+- Klarifikasi user 2026-11-07: "kalau misalnya ada data berubah, jangan sampai data tersebut ada di storage 2. [...]
+  jangan sampai ada data Oktober 3 duplikat di storage. [...] kalau ada data historis yang berubah, mungkin data itu bisa
+  di-replace entah 1 tahun ke belakang [...] kalau misalkan data itu update menambah 1 hari, ya data di mana 1 hari
+  tambahan itu saja yang diupdate. [...] kalau misalkan ada satu ticker, dia berubah harganya. Dua minggu yang lalu, dia
+  berubah, maka kita replace saja 1 tahun ke belakang."
+  - Aturan: setiap saham-tanggal ada di tepat satu file yang aktif. Hari baru = satu file baru. Tanggal lama berubah = file
+    yang memuatnya diganti (paling besar satu tahun saham itu), file lama dihapus sesudah jeda aman unduhan.
 - Keputusan yang masih perlu: storage tidak bisa menambah ke file yang sudah ada, jadi pembaca per saham (Terminal,
   Backtest) butuh peleburan berkala file harian menjadi file per saham, atau membuka satu file per hari.
 
