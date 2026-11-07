@@ -543,6 +543,14 @@ export function overlayProblems(overlay, base) {
   const cm = overlay.cost_model || {};
   for (const k of ['ns_per_bar_length', 'reference_bars']) if (!(isN(cm[k]) && cm[k] > 0)) out.push(`cost_model.${k} must be a positive number`);
   if (typeof cm.evidence !== 'string' || !cm.evidence) out.push('cost_model.evidence is required');
+  // QA unit B, QA4: the flow kernels' prior per broker row, measured (its evidence names the benchmark note)
+  const fl = cm.flow || {};
+  for (const k of ['context_ns_per_row', 'presence_ns_per_row']) if (!(isN(fl[k]) && fl[k] > 0)) out.push(`cost_model.flow.${k} must be a positive number`);
+  // one measured prior per way an entry is computed (FLOW_COMPUTES; none is never computed), no other key
+  const computed = FLOW_COMPUTES.filter(c => c !== 'none'), per = fl.ns_per_unit && typeof fl.ns_per_unit === 'object' ? fl.ns_per_unit : {};
+  for (const c of computed) if (!(isN(per[c]) && per[c] > 0)) out.push(`cost_model.flow.ns_per_unit.${c} must be a positive number`);
+  for (const c of Object.keys(per)) if (!computed.includes(c)) out.push(`cost_model.flow.ns_per_unit.${c} is not a way a flow entry is computed (${computed.join(', ')})`);
+  if (typeof fl.evidence !== 'string' || !fl.evidence) out.push('cost_model.flow.evidence is required');
   out.push(...costReviewProblems(overlay.cost_reviews, base));
   return out;
 }

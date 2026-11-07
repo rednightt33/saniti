@@ -46,7 +46,9 @@ computes every flow value with the Terminal's own module, so a value equals the 
   tests, rank across stocks at S1) applies to it as to an indicator; the output type for K7 and the measure rules comes
   from the feasibility table (section 2).
 - **Cost.** One `computeFlow` per (ticker, id, params) per snapshot, cached in the thread's series cache; cost units from
-  the window length; the plan prunes as for indicators.
+  what it computes on the ticker: its broker rows and its grid of brokers x (sessions + 1) cells (QA unit B, QA4; the
+  window length alone predicted about 3000 times too low; `verification/screener/BENCHMARK_FLOW_COST.md`); the plan
+  prunes as for indicators.
 - **Cells and words.** Values in the registry's `unit`; the condition summary names the FL id, name and parameters.
 
 ## 2. Catalog (stage P5a)
@@ -85,7 +87,8 @@ through `flowmetrics.ts` computeEntry; tests `tests/core/flow-screener.test.ts`,
   run reads the whole history, so the full series), one memo entry per candle shared with the full series; the first
   value is found too when a read session has none (the NA reason). A value test: one computeFlow per stock (heavy
   fixture, 100 brokers, 15,694 rows: FL18 full 19.1 ms, value test 0.5 ms, cross within 3 1.5 ms). The worker's cost
-  units count the sessions computed x (N + 1) / the window (run.ts costUnits).
+  units count, per session computed, the slice's rows (rows x (N + 1) / the window) and its grid of brokers x (N + 2),
+  plus the window's rows once (run.ts costUnits; BENCHMARK_FLOW_COST.md).
 - **FL23 Broker Inventory, screener version** (`compute: inventory`; parameters `holders` top / selected / all,
   `brokers` (0-5, read with selected), `top` K (1-5), `unit`, `series`, `lookback` L (1-60, default 20), `boards`,
   `investors`, `move` up / down, `move_min`; the Terminal's `view`, `total`, `start` are not condition parameters):

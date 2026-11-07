@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "179e1f2467515df7",
+  "screener_registry_version": "a5da50d745dc6094",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -22,7 +22,7 @@
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "345f0ace3cdee57a3be023ba36b626e5a1b32a51e5771f903d637c7456cf9301"
+      "sha256": "9185fa110b2a96c15b27dbf57a2f258f902ae90ee1b75bc9711fbdebabf076f0"
     },
     {
       "role": "oracle",
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "a864d3d623cf38e7118011d960367fb1914cba1508a232ca11957fd13e355c00"
+      "sha256": "a62ed4bc7c92e1853a5791f8d8465f6e98b981bf51de8d899fc100d244caa8a2"
     },
     {
       "role": "flow_registry",
@@ -80,7 +80,18 @@
     "rule": "cap = floor(SCREENER_CAP_BUDGET_MS * 1e6 / (ns_per_bar_length * reference_bars)) for a parameter whose cost_class is O(N·n); none for O(N)",
     "ns_per_bar_length": 5.96,
     "reference_bars": 1330000,
-    "evidence": "audit/verify_matrix_a.json a-cost-long-length: CCI(1000) took 7.93 s on the full market (7.93e9 ns / (1.33e6 bars x 1000) = 5.96 ns); 1.33 M price rows, audit/reuse.md section 3.4 E"
+    "evidence": "audit/verify_matrix_a.json a-cost-long-length: CCI(1000) took 7.93 s on the full market (7.93e9 ns / (1.33e6 bars x 1000) = 5.96 ns); 1.33 M price rows, audit/reuse.md section 3.4 E",
+    "flow": {
+      "ns_per_unit": {
+        "terminal": 67.3,
+        "anchored": 92,
+        "inventory": 196.7,
+        "foreign_net": 9
+      },
+      "context_ns_per_row": 102.2,
+      "presence_ns_per_row": 35,
+      "evidence": "verification/screener/BENCHMARK_FLOW_COST.md section 3 (2026-11-07, apps/screener-worker/tests/bench/flow_cost.bench.ts BENCH_MODE=calibrate: 900 stocks x 60 broker days of 25,086 rows, SCREENER_THREADS 2, Xeon 2.10 GHz x4, Node 22.22): ns_per_unit per way an entry is computed = the geometric mean of its kernels' whole-market ns per unit (terminal: 37 kernels, 4.4 FL28 to 160.1 FL27; anchored: FL20 100.7 and FL45 84.0; inventory: FL23 196.7; foreign_net: fnet 9.0); context_ns_per_row = the window contexts' pooled 102.2 ns per row over 48 whole-market runs; presence_ns_per_row = the broker-data series' 35 ns per row (tests/bench/profile_flow.ts, whole market, in process)"
+    }
   },
   "indicators": [
     {

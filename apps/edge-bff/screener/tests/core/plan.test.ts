@@ -138,4 +138,24 @@ describe('order, cost model and budget', () => {
     expect(() => costTracker(0, 0.5)).toThrow(RangeError);
     expect(() => costTracker(1, 0)).toThrow(RangeError);
   });
+  it('a prior per key (a flow kernel\'s per broker row, an indicator\'s per bar and length), and a series of several kernels shares its measured time among them in proportion to their predicted cost (QA unit B, QA4)', () => {
+    const t = costTracker(k => k.startsWith('flow:') ? 500 : 5, 1);
+    expect(t.predict('flow:FL10', 'O(N)', 1, 10000)).toBeCloseTo(10000 * 500 / 1e6, 12);
+    expect(t.predict('indicator:rsi', 'O(N)', 1, 10000)).toBeCloseTo(10000 * 5 / 1e6, 12);
+    // a flow kernel over 10,000 rows (5 ms predicted) under an operator of length 10 over 60 sessions (0.003 ms): 10 ms
+    // measured is shared 5 : 0.003, and the same series is then predicted at its measurement
+    const parts = [{ key: 'flow:FL10', costClass: 'O(N)' as const, length: 1, bars: 10000 }, { key: 'transform:percentile', costClass: 'O(N·n)' as const, length: 10, bars: 60 }];
+    t.observeShared(parts, 10);
+    expect(t.predict('flow:FL10', 'O(N)', 1, 10000)).toBeCloseTo(10 * 5 / 5.003, 9);
+    expect(t.predict('transform:percentile', 'O(N·n)', 10, 60)).toBeCloseTo(10 * 0.003 / 5.003, 9);
+    expect(parts.reduce((s, p) => s + t.predict(p.key, p.costClass, p.length, p.bars), 0)).toBeCloseTo(10, 9);
+    // one kernel: observeShared is observe; two parts of one key are its work added once
+    const a = costTracker(5, 1), b = costTracker(5, 1);
+    a.observeShared([{ key: 'k', costClass: 'O(N·n)', length: 20, bars: 500 }], 3); b.observe('k', 3, 500, 20);
+    expect(a.predict('k', 'O(N·n)', 20, 500)).toBeCloseTo(b.predict('k', 'O(N·n)', 20, 500), 12);
+    const c = costTracker(5, 1);
+    c.observeShared([{ key: 'k', costClass: 'O(N)', length: 1, bars: 300 }, { key: 'k', costClass: 'O(N)', length: 1, bars: 100 }], 4);
+    expect(c.predict('k', 'O(N)', 1, 400)).toBeCloseTo(4, 12);
+    expect(() => costTracker(() => -1, 0.5).predict('x', 'O(N)', 1, 1)).toThrow(RangeError);
+  });
 });

@@ -87,7 +87,8 @@ export function coreEngine(cfg: Config): Engine {
   return {
     normalize: (definition, snap, field) => normalize(definition, snap.vctx, field),
     estimate: (def, snap, only) => estimateCost(def, snap, tracker, env, only),
-    observe(list) { for (const o of list) tracker.observe(o.key, o.ms, o.bars, o.length) },
+    // QA unit B, QA4: every observation of a cost signature, its time shared among its kernels by their predicted cost
+    observe(list) { for (const o of list) tracker.observeShared(o.units.map((u, k) => ({ ...u, bars: o.bars[k] })), o.ms) },
     validateContext: (desc, groupings, metrics, availability) => ({
       limits: { max_conditions: cfg.limits.max_conditions, max_metric_filters: cfg.limits.max_metric_filters, within_max: cfg.limits.within_max },
       capBudgetMs: cfg.limits.cap_budget_ms, tickers: new Set(desc.rows.map(r => r.ticker)), groupings, metrics, availability,
@@ -182,12 +183,14 @@ function parseJson(body: Buffer | null): unknown {
   const text = body ? body.toString('utf8') : '';
   try { return text ? JSON.parse(text) : null } catch { throw refuse('INVALID_INPUT', 'The request body is not JSON.', 'body') }
 }
-/** compute_budget's refusal: the costliest condition by its number in the definition (details.costliest keeps its id,
-    which the page words as the card) */
+/** compute_budget's refusal (the gate rule: the catalog's limit entry states it before, its example_refused names how to
+    pass): the costliest condition by its number in the definition (details.costliest keeps its id, which the page
+    words as the card), how to pass and a right and a wrong example. A flow condition's cost grows with the broker rows
+    of the stocks it reads and, anchored, with its anchor (run.ts costUnits). */
 const budgetRefusal = (what: string, e: Estimate, max: number, def: Definition) => {
   const at = e.costliest ? def.conditions.findIndex(c => c.id === e.costliest) : -1;
   return refuse('LIMIT_EXCEEDED',
-    `This ${what} is predicted to need ${e.needed_ms} ms of compute, above the ${max} ms budget${at >= 0 ? `; the costliest is condition ${at + 1}` : ''}. Use default parameters, shorter lengths, fewer custom conditions or a narrower universe.`,
+    `This ${what} is predicted to need ${e.needed_ms} ms of compute, above the ${max} ms budget${at >= 0 ? `; the costliest is condition ${at + 1}` : ''}. To pass, use default parameters, fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe (right: one flow condition at its default window on the whole market; wrong: five anchored flow conditions at an anchor of 40 sessions on the whole market).`,
     undefined, { limit: 'compute_budget', allowed: max, needed: e.needed_ms, ...(e.costliest ? { costliest: e.costliest } : {}) });
 };
 
@@ -529,6 +532,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
         const r = await job.promise;
         queue_ms = r.queue_ms;
         computed = (r.outcome as { counts: CountsEntryOut[] }).counts.filter(g => items.some(i => i.item_id === g.item_id));
+        engine.observe((r.outcome as { observe?: RunOutcome['observe'] }).observe ?? []);      // a count teaches the cost model as a run does
         for (const g of computed) {
           if ('match_count' in g) {
             busy += g.busy_ms;
@@ -557,7 +561,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     log(status === 'ok' ? 'info' : 'warn', 'run', {
       definition_hash: hash, data_version: s.price_data, owner_tag: owner, replica: REPLICA, n_conditions: def.conditions.filter(c => c.enabled).length,
       cache_hit: r?.cache_hit ?? false, predicted_ms: r?.predicted_ms ?? null, stages: o?.log.stages ?? [], conditions: o?.log.conditions ?? [], pruned: o?.log.pruned ?? 0,
-      pinned_hits: o?.log.pinned_hits ?? 0, lru_hits: o?.log.lru_hits ?? 0, series_computed: o?.log.computed ?? 0,
+      pinned_hits: o?.log.pinned_hits ?? 0, lru_hits: o?.log.lru_hits ?? 0, series_computed: o?.log.computed ?? 0, series_reused: o?.log.reused ?? 0,
       queue_ms: Math.round(r?.queue_ms ?? 0), busy_ms: o?.busy_ms ?? 0, total_ms: Math.round(total), payload_bytes: r?.gzip.byteLength ?? 0, status,
     });
   }

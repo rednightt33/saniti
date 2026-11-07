@@ -79,7 +79,7 @@ export function limitEntries(l: Limits): LimitEntry[] {
     e('cap_budget_ms', l.cap_budget_ms, 'ms', `a length parameter is at most its cap (the highest value its field allows): the longest length whose computation over the whole market takes at most ${l.cap_budget_ms} ms on one processor core`,
       capped ? `${capped.name} ${capped.key} ${capped.cap}` : 'a length at its highest allowed value', capped ? `${capped.name} ${capped.key} ${capped.cap + 1} (use ${capped.cap} or less)` : 'a length above its highest allowed value (use a shorter one)'),
     e('compute_budget', l.max_cpu_ms, 'ms', `a screen's predicted worst-case compute is at most ${l.max_cpu_ms} ms; a costlier screen is refused before it runs, naming its costliest condition`,
-      'a screen of indicators at their default parameters (computed in advance for every stock)', `a screen whose custom conditions are predicted at ${l.max_cpu_ms + 1} ms (use fewer custom conditions or shorter lengths)`),
+      'a screen of indicators at their default parameters (computed in advance for every stock)', `a screen whose custom conditions are predicted at ${l.max_cpu_ms + 1} ms (use fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe)`),
     e('deadline_ms', l.deadline_ms, 'ms', `a screen is answered within ${l.deadline_ms} ms, waiting included, or stopped`,
       `a screen answered after ${l.deadline_ms} ms`, `a screen still running after ${l.deadline_ms} ms (use fewer custom conditions or shorter lengths)`),
     e('owner_inflight', l.owner_inflight, 'requests', `at most ${requests(l.owner_inflight)} of one user ${l.owner_inflight === 1 ? 'computes' : 'compute'} at once on one server; the next ones wait their turn`,

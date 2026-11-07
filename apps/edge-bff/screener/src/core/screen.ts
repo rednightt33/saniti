@@ -163,7 +163,7 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
   if (env.maxCpuMs !== undefined) {
     const est = costEstimate(planConds, survivors.length);
     if (est.needed_ms > env.maxCpuMs)
-      throw new ScreenerError('LIMIT_EXCEEDED', `This screen is costed at ${Math.ceil(est.needed_ms)} ms of compute, above the ${env.maxCpuMs} ms budget; use default parameters, shorter lengths or a narrower universe${est.costliest ? ` (the costliest is condition ${est.costliest})` : ''}.`,
+      throw new ScreenerError('LIMIT_EXCEEDED', `This screen is costed at ${Math.ceil(est.needed_ms)} ms of compute, above the ${env.maxCpuMs} ms budget; use default parameters, fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe${est.costliest ? ` (the costliest is condition ${est.costliest})` : ''}.`,
         'definition.conditions', { limit: 'compute_budget', allowed: env.maxCpuMs, needed: Math.ceil(est.needed_ms), ...(est.costliest ? { costliest: est.costliest } : {}) });
   }
   const plan = runPlan({ tickers: survivors.map(s => s.row.ticker), conditions: planConds, logic: def.logic, atLeast: def.at_least, exhaustive: !!options.exhaustive, cancelled: env.cancelled, cacheHits: env.cacheHits });

@@ -67,7 +67,11 @@ export interface ScreenerIndicator {
   probe_params: { params: ParamMap; evidence: string } | null;
   oracle: OracleRow[]; oracle_note: string | null;
 }
-export interface CostModel { status: string; rule: string; ns_per_bar_length: number; reference_bars: number; evidence: string }
+/** flow (QA unit B, QA4): the prior of a flow kernel's cost per unit of its work (a broker row read or a cell of its
+    brokers x sessions grid; computeFlow over the window, or an anchored call's slice) per way an entry is computed
+    (ns_per_unit by FlowCompute), of a ticker's window context per row and of the broker-data series' per row, measured
+    on the worker (evidence); the worker learns each key's own from every run (run.ts costUnits). */
+export interface CostModel { status: string; rule: string; ns_per_bar_length: number; reference_bars: number; evidence: string; flow: { ns_per_unit: Record<string, number>; context_ns_per_row: number; presence_ns_per_row: number; evidence: string } }
 /** One parameter of a flow indicator as flowRegistry.json has it (the Terminal's setup), with `condition`: false for
     the kinds that only draw (levels, button, fixed; P5_FLOW.md section 1). options: [value, label] pairs for a select,
     values for a multi. */

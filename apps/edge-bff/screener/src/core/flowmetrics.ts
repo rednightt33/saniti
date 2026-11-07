@@ -309,6 +309,9 @@ export interface TickerFlow {
   rows(): BrokerRowsLike | undefined;
   classification: Readonly<Record<string, string>>;
   memo?: { get(key: string): FlowOut | undefined; set(key: string, v: FlowOut): void };
+  /** the caller's meter (the worker's cost model, QA unit B, QA4): the window's context is built through it, once per
+      view, so its time is the context's own and not the flow series' that happens to build it first */
+  meter?: { context<T>(build: () => T): T };
 }
 /** The candles of a ticker inside the window: bars [lo, lo + N) (found by date, cheap), and the FlowContext on them
     (built on the first computeFlow the memo does not answer). */
@@ -329,13 +332,16 @@ function windowOf(t: TickerBars): Frame {
 function contextOf(t: TickerBars): FlowContext {
   const fr = windowOf(t);
   if (fr.ctx) return fr.ctx;
-  const { lo, N } = fr, dates = t.dates.slice(lo, lo + N) as string[];
-  const num = (x: unknown): Num => typeof x === 'number' && Number.isFinite(x) ? x : null;
-  const C = t.bars.C as ArrayLike<unknown>, V = t.bars.V as ArrayLike<unknown>;
-  const close: Num[] = [], volume: Num[] = [];
-  for (let i = lo; i < lo + N; i++) { close.push(num(C[i])); volume.push(num(V[i])) }
-  const rows = N ? t.flow!.rows() : undefined;
-  fr.ctx = { rows: rows ? brokerFlowRows(rows, dates) : EMPTY_ROWS(N), dates, close, volume, insider: [], classification: { ...t.flow!.classification } };
+  const build = (): FlowContext => {
+    const { lo, N } = fr, dates = t.dates.slice(lo, lo + N) as string[];
+    const num = (x: unknown): Num => typeof x === 'number' && Number.isFinite(x) ? x : null;
+    const C = t.bars.C as ArrayLike<unknown>, V = t.bars.V as ArrayLike<unknown>;
+    const close: Num[] = [], volume: Num[] = [];
+    for (let i = lo; i < lo + N; i++) { close.push(num(C[i])); volume.push(num(V[i])) }
+    const rows = N ? t.flow!.rows() : undefined;
+    return { rows: rows ? brokerFlowRows(rows, dates) : EMPTY_ROWS(N), dates, close, volume, insider: [], classification: { ...t.flow!.classification } };
+  };
+  fr.ctx = t.flow!.meter ? t.flow!.meter.context(build) : build();
   return fr.ctx;
 }
 /** computeFlow on a ticker's window context through the memo (one call per ticker, id and parameters). */
@@ -383,11 +389,21 @@ function currentOnly(t: TickerBars, lo: number, s: ArrayLike<Num> | undefined): 
   const last = t.flow!.last;
   return Array.from(s, (v, k) => last !== null && t.dates[lo + k] === last ? v : null);
 }
-/** The candles with broker data, 1 or null per candle (memoized as computeFlow answers are). */
+/** The candles with broker data, 1 or null per candle (memoized as computeFlow answers are): brokerFlowRows' `has` read
+    from the rows' dates alone, without building the window's context (a flow series builds it when it first needs it;
+    the worker's cost model times it apart, QA unit B, QA4). */
 function presenceOf(t: TickerBars): { lo: number; out: FlowOut } {
   const fr = windowOf(t), key = canonicalJson([t.ticker, 'broker_data']);
   let out = t.flow!.memo?.get(key);
-  if (!out) { const R = contextOf(t).rows; out = { has: Array.from(R.has, x => x ? 1 : null) }; t.flow!.memo?.set(key, out) }
+  if (!out) {
+    const has: Num[] = new Array(fr.N).fill(null), v = fr.N ? t.flow!.rows() : undefined;
+    if (v) {
+      const at = new Map(t.dates.slice(fr.lo, fr.lo + fr.N).map((d, k) => [d, k])), day = Int32Array.from(v.dates, d => at.get(d) ?? -1);
+      for (let k = 0; k < v.rows; k++) { const c = day[v.D[k]]; if (c >= 0) has[c] = 1 }
+    }
+    out = { has };
+    t.flow!.memo?.set(key, out);
+  }
   return { lo: fr.lo, out };
 }
 /** A series of the window's candles placed on the ticker's bars (null outside). */
