@@ -8,10 +8,11 @@ import type {
 } from './core/contract.ts';
 import { formatOfMetric, formatOfOutput, type ValueFormat } from './format.ts';
 
-/** The prototype's group order (GORD): the 53-indicator catalogue first, then technical, flow and fundamental metrics. */
-export const GORD = ['Trend', 'Momentum', 'Volatility', 'Volume', 'PriceVolume', 'Technical', 'Flow', 'Fundamental'];
+/** The prototype's group order (GORD): the 53-indicator catalogue first, then technical metrics, the candlestick patterns
+    (EXEC-SCREENER-FLOW-CANDLES P6: the catalog's group Candlestick), flow and fundamental metrics. */
+export const GORD = ['Trend', 'Momentum', 'Volatility', 'Volume', 'PriceVolume', 'Technical', 'Candlestick', 'Flow', 'Fundamental'];
 export const GL = (g: string) => ({ Fundamental:'Fund', PriceVolume:'Price·Vol' } as Record<string, string>)[g] || g;
-export const GHEAD = (g: string) => ({ Flow:'Flow & bandarmology', PriceVolume:'Price & volume', 'My metrics':'My metrics · your saved parameters' } as Record<string, string>)[g] || g;
+export const GHEAD = (g: string) => ({ Flow:'Flow & bandarmology', PriceVolume:'Price & volume', Candlestick:'Candlestick patterns', 'My metrics':'My metrics · your saved parameters' } as Record<string, string>)[g] || g;
 export const OPLABEL: Record<string, string> = { gt:'greater than', lt:'less than', between:'between', crosses_above:'crosses above', crosses_below:'crosses below' };
 const cap = (s: string) => s ? s[0].toUpperCase() + s.slice(1) : s;
 
@@ -179,7 +180,8 @@ function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental', indicator
   }
   const available = m.availability === 'AVAILABLE';
   const def = (m as any).default_test as { op?: string; test?: string; value?: number; value2?: number; within?: number } | undefined;
-  const defOpt = (def && opts.find(o => o.op === def.op && (!def.test || o.kind === def.test))) || opts[0];
+  // a pattern's default names its test only (state or event, no operator): it opens on that test (ERRORS M385)
+  const defOpt = (def && opts.find(o => (def.op === undefined ? pattern : o.op === def.op) && (!def.test || o.kind === def.test))) || opts[0];
   return {
     key:m.id, kind, group:kind === 'fundamental' ? 'Fundamental' : GROUP_OF_METRIC(m.group, m.kind),
     label:(m as any).label || (m as any).name || m.id, short:(m as any).short || (m as any).label || m.id,

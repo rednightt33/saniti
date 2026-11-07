@@ -128,7 +128,8 @@ export interface PriceRef { kind: 'price'; field: PriceField }
     screener-metrics.json). args may hold numbers, strings, booleans or a second reference (ratio's denominator). */
 export interface TransformRef { kind: 'transform'; fn: string; of: MetricRef; args?: Record<string, ParamValue | MetricRef> }
 /** A pattern signal (today breakout, breakdown, volspike, macross, macd_divergence, squeeze, stoch_cross_in_zone,
-    new_high, silent; core PRICE_ACTION and bullishDivergence where they exist). */
+    new_high, silent; core PRICE_ACTION and bullishDivergence where they exist; and the 20 candlestick patterns of the
+    Backtest core's candle registry, EXEC-SCREENER-FLOW-CANDLES P6, computed by its candles.ts). */
 export interface PatternRef { kind: 'pattern'; type: string; params?: ParamMap }
 /** A flow parameter's value (EXEC-SCREENER-FLOW-CANDLES P5a): a number, text or switch, or a list of texts (the boards,
     investor types and brokers of the Terminal's flowRegistry.json `multi` and `brokers` parameters). */

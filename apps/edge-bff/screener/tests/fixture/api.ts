@@ -13,7 +13,7 @@ import { sha256Hex } from '../../../terminal/src/data/rack.ts';
 import reg from '../../src/core/screener-registry.json' with { type: 'json' };
 import { catalogIndicators, resolveScreenerParams, screenerIndicator } from '../../src/core/registry.ts';
 import { isScreenerError } from '../../src/core/errors.ts';
-import { METRICS_CATALOG } from '../../src/core/catalog.ts';
+import { CANDLE_GROUP, METRICS_CATALOG, resolveCatalogParams } from '../../src/core/catalog.ts';
 import type { CatalogOperators } from '../../src/core/contract.ts';
 /** the catalog's operators block as the worker sends it (screener-worker catalog.ts catalogOperators): each measure with
     its transform's arguments */
@@ -65,6 +65,9 @@ function checkParams(definition: Definition) {
     // a flow indicator's parameters and output by the core's own rules (flowmetrics.ts resolveFlow, P5a), on the
     // fixture's broker window; a Phase 2 entry the fixture still lists stays unavailable
     if (x.kind === 'flow' && FLOW_IDS.has(x.metric)) { try { resolveFlow(x, path, { flow:FLOW_CTX }) } catch (e) { refuse(e) } }
+    // a candlestick pattern's parameters by the core catalog's ranges (catalog.ts resolveCatalogParams, P6)
+    const candle = x.kind === 'pattern' && CANDLE_METRICS.find(m => m.id === x.type);
+    if (candle) { try { resolveCatalogParams(candle.params, x.params, `${path}.params`) } catch (e) { refuse(e) } }
     for (const [k, v] of Object.entries(x)) walk(v, `${path}.${k}`);
   };
   walk(definition, 'definition');
@@ -128,6 +131,12 @@ export const FLOW_METRICS: CatalogMetric[] = (() => {
   return out;
 })();
 const FLOW_IDS = new Set(FLOW_METRICS.map(m => m.id));
+/** The candlestick patterns of GET /catalog as the worker builds them (apps/screener-worker/src/catalog.ts catalogMetric
+    over the core's generated candle entries, EXEC-SCREENER-FLOW-CANDLES P6): computed from the price bars alone, so
+    always available. */
+export const CANDLE_METRICS: CatalogMetric[] = METRICS_CATALOG.metrics.filter(x => x.group === CANDLE_GROUP).map(x => ({
+  id:x.id, group:x.group, kind:x.kind, params:x.params, tests:x.tests, unit:x.unit, formula:x.formula, interpretation:x.interpretation, misuse:x.misuse,
+  availability:'AVAILABLE', reason:null, applies_to:x.applies_to, label:x.label, short:x.short, synonyms:x.synonyms, default_test:x.default_test } as CatalogMetric));
 const FUND = [['cap', 'Market cap'], ['pe', 'P/E'], ['pb', 'P/B'], ['peg', 'PEG'], ['evEbitda', 'EV/EBITDA'], ['divYield', 'Dividend yield'], ['payout', 'Payout ratio'], ['divYears', 'Years of dividends'],
   ['roe', 'ROE'], ['roa', 'ROA'], ['roic', 'ROIC'], ['netMargin', 'Net margin'], ['grossMargin', 'Gross margin'], ['revG', 'Revenue growth YoY'], ['epsG', 'EPS growth YoY'], ['epsGq', 'EPS growth, latest quarter YoY'],
   ['epsG3y', 'EPS CAGR 3Y'], ['der', 'Debt / equity'], ['curr', 'Current ratio'], ['intCov', 'Interest coverage'], ['fcfYield', 'FCF yield'], ['piotroski', 'Piotroski F-score (0–9)'], ['altman', 'Altman Z-score'],
@@ -226,7 +235,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
     return { versions:v, data:{ ...d, refresh:'ready' }, limits:LIMITS,
       indicators,
       // the hand-kept metrics, then the flow entries (a hand-kept Phase 2 id the core now lists as a flow entry is the core's)
-      metrics:[...METRICS.filter(x => !FLOW_IDS.has(x.id)), ...FLOW_METRICS], fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets,
+      metrics:[...METRICS.filter(x => !FLOW_IDS.has(x.id)), ...CANDLE_METRICS, ...FLOW_METRICS], fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets,
       operators:OPERATORS };
   };
   const counters: Record<string, number> = {};

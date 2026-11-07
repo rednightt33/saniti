@@ -16,6 +16,7 @@ import { previewCells } from '../../src/core/screen.ts';
 import { IMPLEMENTED_PATTERNS, patternSignal, resolveSignal } from '../../src/core/transforms.ts';
 import { validateDefinition } from '../../src/core/validate.ts';
 import { OPTS, memoryEnv, rng, rowOf, synth, tailBars, vctx } from './helpers.ts';
+import { CANDLES } from '../../../backtest/src/core/candles.ts';
 
 /* ---- pattern windows ------------------------------------------------------------------------------------------- */
 
@@ -29,6 +30,13 @@ const PARAMS: Record<string, ParamMap[]> = {
   new_high: [{ of: 'close', length: 1 }, { of: 'close', length: 12 }, { of: 'volume', length: 8 }, { of: 'I40.obv', length: 15 }, { of: 'I41.pvt', length: 6 }, { of: 'I44.adl', length: 10 }, { of: 'I50.nvi', length: 9 }],
   silent: [{ days: 1, length: 1, volx: 1, move: 50 }, { days: 5, length: 20, volx: 0.8, move: 10 }, { days: 3, length: 12, volx: 0.5, move: 20 }],
 };
+// EXEC-SCREENER-FLOW-CANDLES P6: every candlestick pattern at its defaults, with the trend by change over 2 sessions, and
+// with the trend off (where the pattern offers it) and a short average body, each with a loose range guard
+for (const p of CANDLES.patterns) {
+  const keys = new Set(p.params.map(q => q.key)), trend = p.params.find(q => q.key === 'trend')!.options!;
+  const loose: ParamMap = { min_range_ticks: 1, trend_length: 2, ...(keys.has('body_avg_length') ? { body_avg_length: 3, long_body: 0 } : {}) };
+  PARAMS[p.id] = [{}, { ...loose, trend: 'change' }, { ...loose, trend: trend.includes('none') ? 'none' : 'average' }];
+}
 
 describe('a window-class pattern reads exactly its stated window', () => {
   const tickers = Array.from({ length: 12 }, (_, k) => synth(`W${k}`, 700 + k, 360));

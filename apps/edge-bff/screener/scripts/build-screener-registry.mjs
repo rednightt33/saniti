@@ -21,7 +21,8 @@
    parameters as they are) with each output's kind from the hand-kept src/core/flow-kinds.json (flowEntries: the build
    stops when an FL or an output has no row); both files are sources of the version. P5b (section 3): the Screener's
    versions of FL18-FL20, FL23, FL44, FL45, FL34's point-in-time guard and the Screener's own entries (fnet, ksei_net),
-   from the same file.
+   from the same file. P6 (verification/screener/P6_CANDLES.md): `candles`, the 20 candlestick patterns generated from
+   the Backtest core's candle-registry.json through its candles.ts (candleEntries); both files are sources.
    Every derived field is a pure function of the inputs and the code: nothing reads a clock, so the file and its version
    are the same bytes on any machine at any load (ERRORS: the timed cost_class flipped under CPU contention).
    The overlay and the derived narrowing may only narrow the base (report 6.8 narrow-only rule), so every transferable
@@ -56,6 +57,8 @@ export const PATHS = {
   out: 'apps/edge-bff/screener/src/core/screener-registry.json',
   flowRegistry: 'apps/edge-bff/terminal/src/data/flowRegistry.json',
   flowKinds: 'apps/edge-bff/screener/src/core/flow-kinds.json',
+  candleRegistry: 'apps/edge-bff/backtest/src/core/candle-registry.json',
+  candles: 'apps/edge-bff/backtest/src/core/candles.ts',
 };
 
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
@@ -672,6 +675,27 @@ export function flowEntries(reg, kinds) {
   return flows;
 }
 
+/* ---- the candlestick patterns (EXEC-SCREENER-FLOW-CANDLES P6; verification/screener/P6_CANDLES.md section 2) ------- */
+/** The Screener's candle entries, generated from the Backtest core's candle registry (candles.ts CANDLES, read through
+    the core's own module, never a copy): per pattern its id, name, side, pair and mirror, the candles it reads, its
+    parameters in the catalog's parameter shape (label, default, min, max, options and the registry's plain meaning;
+    step 1 for whole numbers and for percent shares, 0.1 for multiples), the exact definition (candleFormula), the
+    plain interpretation and misuse words, the search synonyms and the sessions it reads at its defaults. */
+export function candleEntries(core) {
+  const { CANDLES, candleFormula, candleLookback } = core;
+  const guard = 'A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).';
+  return CANDLES.patterns.map(p => ({
+    id: p.id, name: p.name, side: p.side, pair: p.pair, mirror: p.mirror, bars: p.bars, trend: p.trend,
+    params: p.params.map(q => ({
+      key: q.key, type: q.type, label: q.label, default: q.default,
+      ...(q.type === 'enum' ? { options: q.options } : { min: q.min, max: q.max, step: q.type === 'integer' || q.max > 20 ? 1 : 0.1 }),
+      exclusive_min: false, integer: q.type === 'integer', meaning: q.meaning,
+    })),
+    formula: candleFormula(p.id), interpretation: p.summary, misuse: `${p.misuse} ${guard}`, synonyms: p.synonyms,
+    sessions_at_defaults: candleLookback(p.id),
+  }));
+}
+
 /* ---- the oracle mapping (report 7.3) -------------------------------------------------------------------------- */
 function readOracle() {
   const r = spawnSync('python3', [at(PATHS.spec), '--json'], { encoding: 'utf8', maxBuffer: 16 << 20 });
@@ -826,12 +850,13 @@ export async function build({ against = null } = {}) {
     registry_version: base.registry_version,
     generated_by: PATHS.generator,
     sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator,
-      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds })
+      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds, candle_registry: PATHS.candleRegistry, candles: PATHS.candles })
       .map(([role, file]) => ({ role, file, sha256: sha256(fs.readFileSync(at(file))) })),
     probe: PROBE,
     cost_model: overlay.cost_model,
     indicators,
     flows: flowEntries(readJson(PATHS.flowRegistry), readJson(PATHS.flowKinds)),
+    candles: candleEntries(await import(at(PATHS.candles))),
   };
   const { screener_registry_version: _v, ...hashed } = doc;
   doc.screener_registry_version = sha256(canonicalJson(hashed)).slice(0, 16);

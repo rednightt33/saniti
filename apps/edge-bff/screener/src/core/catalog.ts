@@ -10,12 +10,13 @@
    own metrics, the 48 flow indicators generated from the Terminal's flowRegistry.json into screener-registry.json
    (`flows`; flowMetric); P5b (section 3): some as the Screener's version, then the Screener's own flow entries (fnet;
    ksei_net, REQUIRES_DATA). The file itself holds no flow entry: the old Phase 2 ones were rebuilt on these (FLOW_MAP.md)
-   and the presets read them.
+   and the presets read them. P6 (verification/screener/P6_CANDLES.md): before the flow entries, the 20 candlestick
+   patterns generated from the Backtest core's candle registry into screener-registry.json (`candles`; candleMetric).
    Worker-side module (the page reads the same entries from GET /catalog and never imports this file). */
 import type { CatalogParam, Definition, MetricKind, ParamMap, ParamValue, Periods, PriceField, SavedView, TestKind } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { SCREENER_REGISTRY } from './registry.ts';
-import type { FlowRegistryEntry } from './registry.ts';
+import type { CandleRegistryEntry, FlowRegistryEntry } from './registry.ts';
 import metricsDoc from './screener-metrics.json' with { type: 'json' };
 import presetsDoc from './presets.json' with { type: 'json' };
 
@@ -123,8 +124,25 @@ export function flowMetric(f: FlowRegistryEntry): MetricDefinition {
     flow: f,
   };
 }
-/** screener-metrics.json with the generated flow entries after its own. */
-export const METRICS_CATALOG = { ...(metricsDoc as unknown as MetricsCatalog), metrics: [...(metricsDoc as unknown as MetricsCatalog).metrics, ...SCREENER_REGISTRY.flows.map(flowMetric)] } as MetricsCatalog;
+/** The group the candlestick patterns are offered in (the page's group order holds it after Technical). */
+export const CANDLE_GROUP = 'Candlestick';
+/** A candlestick pattern of the generated registry as a catalog entry (EXEC-SCREENER-FLOW-CANDLES P6;
+    verification/screener/P6_CANDLES.md section 2): kind pattern, group Candlestick, the pattern's name and parameters
+    (the core registry's, with their plain meaning), tested on the bar (state) or within N sessions (event, the default:
+    within 3), the exact definition as the core's candleFormula writes it, the plain interpretation and misuse words of
+    the registry and its search synonyms. Computed by the Backtest core's candles.ts (transforms.ts PATTERNS). */
+export function candleMetric(c: CandleRegistryEntry): MetricDefinition {
+  return {
+    id: c.id, group: CANDLE_GROUP, kind: 'pattern', label: c.name, short: c.name, params: c.params as MetricParam[], tests: ['state', 'event'], unit: null,
+    formula: c.formula, interpretation: c.interpretation, misuse: c.misuse,
+    evidence: 'apps/edge-bff/backtest/src/core/candle-registry.json (the Backtest core\'s candles.ts), verification/screener/P6_CANDLES.md',
+    requires: null, decision: null, applies_to: null,
+    synonyms: c.synonyms, default_test: { test: 'event', within: 3 },
+  };
+}
+/** screener-metrics.json with the generated candlestick patterns (P6) and flow entries after its own. */
+export const METRICS_CATALOG = { ...(metricsDoc as unknown as MetricsCatalog), metrics: [...(metricsDoc as unknown as MetricsCatalog).metrics,
+  ...SCREENER_REGISTRY.candles.map(candleMetric), ...SCREENER_REGISTRY.flows.map(flowMetric)] } as MetricsCatalog;
 export const PRESETS = presetsDoc as unknown as PresetsDoc;
 export const TRANSFORM_FNS: readonly string[] = METRICS_CATALOG.transforms.map(t => t.fn);
 

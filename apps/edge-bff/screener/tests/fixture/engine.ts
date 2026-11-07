@@ -13,6 +13,7 @@ import { resolveSeries, tickerCalc } from '../../src/core/metrics.ts';
 import { valuePasses } from '../../src/core/evaluate.ts';
 import { percentRank } from '../../src/core/xsection.ts';
 import { metricSpec } from '../../src/core/catalog.ts';
+import { CANDLE_IDS, candleSignal } from '../../../backtest/src/core/candles.ts';
 import { FLOW_CTX, tickerFlow } from './broker.ts';
 
 export type S = (number | null)[];
@@ -78,6 +79,8 @@ export function series(m: Market, t: Tk, ref: MetricRef | Side): S {
       const p = r.params || {};
       if (r.type === 'breakout') { const len = Number(p.length ?? 20); out = t.c.map((c, i) => { if (i < len) return 0; let mx = -Infinity; for (let j = i - len; j < i; j++) mx = Math.max(mx, t.h[j]); return c > mx ? 1 : 0 }) }
       else if (r.type === 'volspike') { const len = Number(p.length ?? 20), x = Number(p.ratio ?? 2); out = t.v.map((v, i) => { if (i < len) return 0; let s = 0; for (let j = i - len; j < i; j++) s += t.v[j]; return v > x * s / len ? 1 : 0 }) }
+      // the candlestick patterns (P6): the Backtest core's evaluator on the ticker's bars, as the worker computes them
+      else if (CANDLE_IDS.includes(r.type)) out = Array.from(candleSignal(barsOf(t), r.type, r.params));
       else throw new Error('fixture: unknown pattern ' + r.type);
       break;
     }

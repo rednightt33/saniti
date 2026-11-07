@@ -9,6 +9,7 @@
 import type { Params } from '../../../terminal/src/calc/indicators.ts';
 import { BY_ID, REGISTRY_VERSION, ValidationError, resolveParams } from '../../../backtest/src/core/registry.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
+import { CANDLES } from '../../../backtest/src/core/candles.ts';
 import type {
   CatalogIndicator, CatalogOutput, CatalogParam, CostClass, DefaultTest, DisabledTestForm, HistoryClass, ParamMap,
   Shape, TestFormSpec,
@@ -100,6 +101,15 @@ export interface FlowRegistryEntry {
   /** the catalog's words for a screener version or entry (flow-kinds.json); null: the Terminal's indicator as it is */
   formula: string | null; misuse: string | null;
 }
+/** One candlestick pattern of the generated registry (EXEC-SCREENER-FLOW-CANDLES P6; build-screener-registry.mjs
+    candleEntries): generated from the Backtest core's candle-registry.json, which candles.ts evaluates. params are in
+    the catalog's parameter shape with the registry's plain meaning; sessions_at_defaults the bars a signal reads at
+    the defaults (candles.ts candleLookback). */
+export interface CandleRegistryEntry {
+  id: string; name: string; side: 'bullish' | 'bearish'; pair: string; mirror: string; bars: number; trend: 'down' | 'up';
+  params: (CatalogParam & { meaning: string })[];
+  formula: string; interpretation: string; misuse: string; synonyms: string[]; sessions_at_defaults: number;
+}
 export interface ScreenerRegistryDoc {
   schema_version: number; screener_registry_version: string; registry_version: string; generated_by: string;
   sources: { role: string; file: string; sha256: string }[];
@@ -107,6 +117,8 @@ export interface ScreenerRegistryDoc {
   /** EXEC-SCREENER-FLOW-CANDLES P5a: the Terminal's flow indicators FL01-FL48 (flowRegistry.json + flow-kinds.json),
       P5b: with the Screener's versions and its own flow entries */
   flows: FlowRegistryEntry[];
+  /** EXEC-SCREENER-FLOW-CANDLES P6: the 20 candlestick patterns of the Backtest core (candle-registry.json) */
+  candles: CandleRegistryEntry[];
 }
 
 export const SCREENER_REGISTRY = doc as unknown as ScreenerRegistryDoc;
@@ -142,6 +154,14 @@ export function registryProblems(): string[] {
     }
     if (s.default_offered !== s.params.every(p => p.start === undefined)) out.push(`${s.id}: default_offered disagrees with its parameters`);
     if (typeof s.description !== 'string' || !s.description.trim()) out.push(`${s.id}: description is missing (screener-overlay.json)`);
+  }
+  // P6: the candle entries are the core registry's patterns, with the same parameters (a stale file is rebuilt)
+  const core = CANDLES.patterns, gen = SCREENER_REGISTRY.candles || [];
+  if (core.map(p => p.id).join() !== gen.map(c => c.id).join()) out.push('screener-registry.json candles are not the patterns of the core candle registry: run npm run registry in apps/edge-bff/screener');
+  for (const c of gen) {
+    const p = core.find(x => x.id === c.id);
+    if (p && JSON.stringify(p.params.map(q => [q.key, q.type, q.default, q.min, q.max, q.options])) !== JSON.stringify(c.params.map(q => [q.key, q.type, q.default, q.min, q.max, q.options])))
+      out.push(`candle ${c.id}: its parameters differ from the core candle registry: run npm run registry in apps/edge-bff/screener`);
   }
   return out;
 }

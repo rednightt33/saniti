@@ -67,7 +67,9 @@ test('the start-up check passes on this tree and names a source whose hash diffe
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'startup-'));
   for (const f of ['apps/edge-bff/backtest/src/core/backtest-registry.json', 'apps/edge-bff/terminal/src/data/indRegistry.json', 'apps/edge-bff/terminal/src/calc/indicators.ts',
     'apps/edge-bff/screener/src/core/screener-overlay.json', 'apps/edge-bff/screener/scripts/build-screener-registry.mjs',
-    'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/screener/src/core/flow-kinds.json']) {
+    'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/screener/src/core/flow-kinds.json',
+    // P6: the candle registry and its evaluator, sources of the generated candle entries (in the image with the backtest core)
+    'apps/edge-bff/backtest/src/core/candle-registry.json', 'apps/edge-bff/backtest/src/core/candles.ts']) {
     fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(REPO_ROOT, f), path.join(tmp, f));
   }
   assert.deepEqual((await checkStartup(tmp)).problems, [], 'the oracle script is build-only');
