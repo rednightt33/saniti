@@ -37,13 +37,36 @@ export async function serve(DATA, TICKER) {
     logos:gz({ columns:['ticker', 'sha256'], ticker:[], sha256:[] }) };
 
   const files = new Map(); let origin = '';
-  const LAYOUTS = { rows:new Map(), calls:[], tick:0 }, PRESETS = { rows:new Map(), calls:[], tick:0 };
+  const LAYOUTS = { rows:new Map(), calls:[], tick:0 }, PRESETS = { rows:new Map(), calls:[], tick:0 }, DRAWINGS = { rows:new Map(), calls:[], down:false };
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x'), path = decodeURIComponent(url.pathname);
     const json = (o, status = 200) => { res.writeHead(status, { 'Content-Type':'application/json' }); res.end(JSON.stringify(o)) };
     if (path === '/api/v1/auth/session') return json({ csrf_token:'t', login:'look' });
     /* EXEC-TERMINAL-LAYOUTS: an in-memory stand-in of edge-bff's /api/v1/terminal/layouts (apps/edge-bff/app/layouts.py):
        revision, conflicts, names unique, opened order; writes need the CSRF header */
+    /* EXEC-DRAW-PANES: an in-memory stand-in of /api/v1/terminal/drawings (apps/edge-bff/app/drawings.py): sets per
+       ticker and place, revisions, the ticker and set rules; DRAWINGS.down = true answers 503 DRAWINGS_NOT_READY */
+    const drw = path.match(/^\/api\/v1\/terminal\/drawings(?:\/([^/]+)\/([^/]+))?$/);
+    if (drw) {
+      const [, t, sid] = drw, err = (code, status, extra = {}) => json({ error:{ code, message:code, ...extra } }, status);
+      if (DRAWINGS.down) return err('DRAWINGS_NOT_READY', 503);
+      if (req.method !== 'GET' && req.headers['x-csrf-token'] !== 't') return err('CSRF', 403);
+      let body = {}; if (req.method === 'PUT') { let x = ''; for await (const c of req) x += c; body = JSON.parse(x || '{}') }
+      DRAWINGS.calls.push(`${req.method} ${t || url.searchParams.get('ticker')}/${sid || ''}`);
+      if (!t) { const tk = url.searchParams.get('ticker') || ''; if (!/^[A-Z0-9]{1,12}$/.test(tk)) return err('INVALID_INPUT', 422, { field:'ticker' });
+        return json({ sets:[...DRAWINGS.rows.values()].filter(r => r.ticker === tk).sort((a, b) => a.set_id < b.set_id ? -1 : 1), limits:{ set_bytes:100000, sets:5000 } }) }
+      if (!/^[A-Z0-9]{1,12}$/.test(t)) return err('INVALID_INPUT', 422, { field:'ticker' });
+      if (!/^(chart|flow|pane_[0-9a-f]{16})$/.test(sid)) return err('INVALID_INPUT', 422, { field:'set_id' });
+      const key = `${t}/${sid}`, row = DRAWINGS.rows.get(key), now = new Date().toISOString();
+      if (req.method === 'DELETE') { if (!row) return err('NOT_FOUND', 404); DRAWINGS.rows.delete(key); res.writeHead(204); return res.end() }
+      if (!Array.isArray(body.drawings)) return err('INVALID_INPUT', 422, { field:'drawings' });
+      if (JSON.stringify(body.drawings).length > 100000) return err('LIMIT_EXCEEDED', 422, { field:'drawings', message:'The drawings of one place are at most 100,000 bytes.' });
+      if (body.revision == null) { if (row) return err('REVISION_CONFLICT', 409, { details:{ revision:row.revision } });
+        const r = { ticker:t, set_id:sid, drawings:body.drawings, schema_version:1, revision:1, created_at:now, updated_at:now }; DRAWINGS.rows.set(key, r); return json(r, 201) }
+      if (!row) return err('NOT_FOUND', 404);
+      if (row.revision !== body.revision) return err('REVISION_CONFLICT', 409, { details:{ revision:row.revision } });
+      Object.assign(row, { drawings:body.drawings, revision:row.revision + 1, updated_at:now }); return json(row);
+    }
     /* EXEC-IND-PRESETS: an in-memory stand-in of /api/v1/terminal/presets (apps/edge-bff/app/presets.py) */
     const pre = path.match(/^\/api\/v1\/terminal\/presets(?:\/(ipr_[0-9a-f]{32}))?$/);
     if (pre) {
@@ -111,5 +134,5 @@ export async function serve(DATA, TICKER) {
   await new Promise(ok => server.listen(0, '127.0.0.1', ok));
   origin = `http://127.0.0.1:${server.address().port}`;
 
-  return { origin, close:() => server.close(), layouts:LAYOUTS, presets:PRESETS };
+  return { origin, close:() => server.close(), layouts:LAYOUTS, presets:PRESETS, drawings:DRAWINGS };
 }

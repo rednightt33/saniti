@@ -1,5 +1,26 @@
 # Database changelog
 
+## 2026-11-07 — EDGE Terminal drawings on the account (schema `edge_bff`, EXEC-DRAW-PANES) — not applied yet
+
+- **User:** "semua gambar harus di simpan di akun EDGE, sama seperti trading view. Cek dulu struktur database." and, on the
+  proposal, "3 jalankan dulu" (2026-11-07). Operational schema `edge_bff`, no market data, no catalog row; not in
+  `DATABASE_SCHEMA.md` (schema `public` only), as `20261106_001`.
+- **`20261107_001_edge_bff_terminal_drawings.sql`** (sha256 `5a8fb73412fac55a0f5b643a46167e34ea2781944e55216f43b1fc94ea99a7c9`):
+  `edge_bff.terminal_drawings` (one owner's set per ticker (`^[A-Z0-9]{1,12}$`) and place (`chart`, `flow`,
+  `pane_` + 16 hexadecimal digits); `drawings` a JSON list of at most 100,000 bytes; revision); key
+  (owner_key, ticker, set_id), which serves the page's read of one ticker; `edge_bff_runtime` gets SELECT/INSERT/UPDATE/
+  DELETE only (the file refuses TRUNCATE, REFERENCES, TRIGGER and anything for PUBLIC); preflight refuses a second run;
+  rollback body in the file. `scripts/provision_edge_bff_login.py` knows its exact grants.
+- **Status:** tested on a disposable local PostgreSQL 16 (`apps/edge-bff/tests/test_drawings.py`: API per ticker,
+  revisions, refusals by field, size, depth and count limits, session/CSRF/owner, 503 without the table, the verify block
+  against extra and PUBLIC grants, the table rules, a second run refused, the provisioned login). Runbook:
+  `verification/screener/jobs/migration20261107_001_{dryrun,apply}.params.json` and the `DRAWINGS` checks in
+  `check_migration_log.py`; rehearsed with the real job runner on a local database built from the eight edge_bff
+  migrations: DRYRUN `VERDICT PASS 36/36`, APPLY `VERDICT PASS 23/23`, a second APPLY refused (logs
+  `verification/terminal_api/drawings_migration/`). **Not applied to Railway**: applied at the release through
+  `verification/screener/jobs/run_migration.sh` (DRYRUN then APPLY) with the user's go; until then the drawings routes
+  answer 503 `DRAWINGS_NOT_READY` and the page keeps the drawings in the browser.
+
 ## 2026-11-06 — EDGE Terminal indicator presets (schema `edge_bff`, EXEC-IND-PRESETS) — applied on dev
 
 - **User:** "opsi untuk men-save indikator beserta dengan filternya ... Mungkin bisa di-save di bagian indicators" and,

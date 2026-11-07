@@ -113,7 +113,7 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
   prefix>` from `reference/logos`, columns ticker, file, sha256, source, fetched_at); 404 `no_logo` → show a monogram.
 - (EXEC-TERMINAL-1026C) Worker answers carry `flowTo` (last session with broker rows): Latest day net uses it and shows
   its date. Statistics shows the visible dates. Right-click while a drawing tool is armed cancels the drawing.
-  Prototype `?drawpanes=1`: drawing tools on indicator panes and the Flow chart (not saved yet).
+  Drawing tools on indicator panes (EXEC-DRAW-PANES, 2026-11-07; the `?drawpanes=1` prototype is gone): lines, Brush and Text in every pane, kept on the EDGE account with the price chart's and Flow Timeline's drawings (`src/data/drawingsApi.ts`).
 
 ## 10. Since 2026-10-26 (EXEC-TERMINAL-SPEED)
 

@@ -10,6 +10,8 @@ import * as Lib from 'lightweight-charts-drawing';
 import type { Ctx } from './context';
 import { store } from './context';
 import { fromChart, toChart } from '../data/chartTime';
+import { accountDrawings } from '../data/drawingsApi';
+import { say } from '../ui/dialogs';
 
 /** EXEC-TERMINAL-WM G1 (user 2026-10-27): one set of drawings for every timeframe; on weekly or monthly candles each point
     sits on the candle that holds its date. Points after the last session (drawn into the future) keep their time. */
@@ -139,17 +141,30 @@ export function initDrawings(ctx: Ctx) {
      intraday set kept apart before (`.intraday`) is merged into it once. */
   const intraday = !!ctx.M.intraday;
   const memos = new Map<string, TimeMemo>();                // F7: per saved set, the points this timeframe moved
+  /* EXEC-DRAW-PANES (user 2026-11-07: "semua gambar harus di simpan di akun EDGE, sama seperti trading view"): live, every
+     set is kept on the EDGE account (data/drawingsApi.ts): the price chart's (key = the ticker), each Flow Timeline's
+     (`flow.TICKER`) and each indicator pane's (`pane.TICKER.<pane id>`); this browser keeps a set only while the account
+     cannot be reached. The fixture keeps the browser's storage (the reference's behaviour). */
+  const acct = ctx.M.mode === 'live' ? accountDrawings(say) : null;
+  const where = (key: string): [string, string] => key.startsWith('flow.') ? [key.slice(5), 'flow']
+    : key.startsWith('pane.') ? [key.split('.')[1], 'pane_' + key.split('.')[2]] : [key, 'chart'];
   const repo = {
     key: (symbol: string) => `ml.drawings.${symbol}`,
-    load: (symbol: string) => {
+    load: async (symbol: string) => {
       const legacy = store.get(`${repo.key(symbol)}.intraday`);
       if (legacy !== null) { store.set(repo.key(symbol), mergeSets(store.get(repo.key(symbol)) || '[]', legacy)); store.remove(`${repo.key(symbol)}.intraday`) }
-      const json = store.get(repo.key(symbol)) || '[]';
+      const json = acct ? await acct.load(...where(symbol), repo.key(symbol)) : store.get(repo.key(symbol)) || '[]';
       const shown = intraday ? onIntradayCandles(json, dates) : onDailyCandles(json, barOf, lastSession, tf !== 'D');
       memos.set(symbol, shownTimes(json, shown));
-      return Promise.resolve(shown);
+      return shown;
     },
-    save: (symbol: string, json: string) => { store.set(repo.key(symbol), storedTimes(json, memos.get(symbol) || new Map())); return Promise.resolve() }
+    save: (symbol: string, json: string) => {
+      const stored = storedTimes(json, memos.get(symbol) || new Map());
+      if (acct) acct.save(...where(symbol), stored, repo.key(symbol)); else store.set(repo.key(symbol), stored);
+      return Promise.resolve();
+    },
+    /** a pane's set when the user removes the pane (2A: its drawings go with it; Undo brings them back through save) */
+    forget: (symbol: string) => { if (acct) acct.remove(...where(symbol)); store.remove(repo.key(symbol)) }
   };
 
   const prefs = { magnet: store.get('ml.draw.magnet') === '1' };
@@ -164,7 +179,7 @@ export function initDrawings(ctx: Ctx) {
   const listeners: ((json: string) => void)[] = [];
   /* live: the drawings of each Flow Timeline (EXEC-TERMINAL-FRESH: the chart's own; EXEC-TERMINAL-ASSETS: one more per added
      asset), each with its chart, plot element and .flow-wrap */
-  interface FlowHost { m: any; chart: any; el: HTMLElement; wrap: HTMLElement; input: HTMLInputElement }
+  interface FlowHost { m: any; chart: any; el: HTMLElement; wrap: HTMLElement; input: HTMLInputElement; kind?: 'flow' | 'pane' }
   const hosts = new Set<FlowHost>();
   const flowArmed = () => [...hosts].find(h => h.m.tool()) || null;
 
@@ -186,7 +201,8 @@ export function initDrawings(ctx: Ctx) {
   /* ---- drag-release finishes a 2-point tool (the library places a point on press only); used by the price chart and,
           live, by the Flow chart (EXEC-TERMINAL-FRESH) ---- */
   const isTwoPoint = (kind: string | null) => { const s = kind && LibAny.OVERLAY_SPECS[kind]; return !!s && s.pointCount === 2 && !s.variableLength && !s.freehand };
-  function dragFinish(m: any, el: HTMLElement) {
+  function dragFinish(mgr: any, el: HTMLElement) {
+    const live = typeof mgr === 'function', m = { tool:() => (live ? mgr() : mgr).tool(), drawings:() => (live ? mgr() : mgr).drawings() };   // a pane's manager can be replaced (EXEC-DRAW-PANES rebind)
     let press: { x: number; y: number; count: number; synthetic: boolean } | null = null;
     el.addEventListener('pointerdown', (e: any) => {
       const kind = m.tool();
@@ -270,7 +286,7 @@ export function initDrawings(ctx: Ctx) {
     const inGroup = (id: string | undefined) => id === 'trend-line' && LINES.some(l => l.id === kind);
     bar.querySelectorAll<HTMLElement>('.dr-btn[data-tool]').forEach(b => { const on = b.dataset.tool === (kind || '') || inGroup(b.dataset.tool); b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)) });
     wrap.classList.toggle('dr-tool', !!kind);
-    hosts.forEach(h => h.wrap.classList.toggle('dr-tool', !!kind && FLOW_TOOLS.has(kind)));   // the Flow takes FLOW_TOOLS only
+    hosts.forEach(h => { if(h.kind !== 'pane') h.wrap.classList.toggle('dr-tool', !!kind && FLOW_TOOLS.has(kind)) });   // the Flow takes FLOW_TOOLS only
     applyCursor();
   }
   function syncMagnet() {
@@ -343,7 +359,7 @@ export function initDrawings(ctx: Ctx) {
     const t = effCursor(), lines = t === 'cross', labels = t === 'cross' || t === 'dot';
     chart.applyOptions({ crosshair:{ vertLine:{ visible:lines, labelVisible:labels }, horzLine:{ visible:lines, labelVisible:labels } } });
     const fx = { crosshair:{ vertLine:{ visible:lines, labelVisible:labels }, horzLine:{ visible:lines } } };
-    ctx.flowChart.applyOptions(fx); hosts.forEach(h => { if(h.chart !== ctx.flowChart) h.chart.applyOptions(fx) });
+    ctx.flowChart.applyOptions(fx); hosts.forEach(h => { if(h.kind !== 'pane' && h.chart !== ctx.flowChart) h.chart.applyOptions(fx) });
     CURSORS.forEach(c => wrap.classList.toggle('cur-' + c.id, c.id === t));
     const cur = CURSORS.find(c => c.id === cursorType)!;
     cb.innerHTML = cur.icon; cb.dataset.label = 'Cursor: ' + cur.label; cb.setAttribute('aria-label', cb.dataset.label);
@@ -485,8 +501,13 @@ export function initDrawings(ctx: Ctx) {
     } };
   }
   container.addEventListener('pointerdown', (e: PointerEvent) => {        // and back to the price chart
-    const h = flowArmed();
-    if(e.button === 0 && h){ const kind = h.m.tool(); h.m.setTool(null); dm.setTool(kind); syncTool(kind) }
+    if(e.button !== 0) return;
+    const h = flowArmed(), kind = dm.tool() || (h ? h.m.tool() : null); if(!kind) return;
+    /* EXEC-DRAW-PANES: a press in an indicator pane takes a line tool (FLOW_TOOLS) to that pane's manager; any other tool
+       stays where it is (the price chart's manager ignores a press outside its pane) */
+    const pane = paneHostAt(e.clientY);
+    if(pane){ if(!FLOW_TOOLS.has(kind) || pane.m.tool() === kind) return; dm.setTool(null); if(h && h !== pane) h.m.setTool(null); pane.m.setTool(kind); syncTool(kind); return }
+    if(h){ h.m.setTool(null); dm.setTool(kind); syncTool(kind) }
   }, true);
   let lastPtr: { x: number; y: number; t: number } | null = null;
   document.addEventListener('keydown', (e: any) => {
@@ -633,43 +654,105 @@ export function initDrawings(ctx: Ctx) {
   } else flowMenu({ chart:ctx.flowChart, wrap:document.getElementById('flowChart')!.parentElement as HTMLElement });
   document.addEventListener('keydown', (e: any) => { if(e.altKey && e.code === 'KeyR' && !e.ctrlKey && !e.metaKey && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)){ e.preventDefault(); resetView() } });
 
-  /* EXEC-TERMINAL-1026C C4 PROTOTYPE (user 2026-10-26: "trendline, horizontal ray ... Bisa juga digambar di bagian
-     indikator panel bawah"), on with ?drawpanes=1 only: one more drawing manager per indicator pane and one on the Flow
-     Timeline; the library keeps each manager to its own pane, so the armed toolbar tool moves to the manager of the pane
-     the press lands in. Not yet: saving these drawings, undo, drag-release for two-point tools (click, click). */
-  if(new URLSearchParams(location.search).get('drawpanes') === '1') {
-    const extra = new Map<any, any>();                       // series → its DrawingManager
-    const all = () => [dm, ...extra.values()];
-    const armed = () => all().map(m => m.tool()).find(Boolean) || null;
-    const managerFor = (c: any, series: any) => {
-      let m = extra.get(series);
-      if(!m){
-        m = new LibAny.DrawingManager(c, series, { magnet: prefs.magnet ? 'weak' : 'off', stayInDrawingMode: false });
-        m.on('tool', (k: any) => { if(!k && !armed()) syncTool(null) });
-        extra.set(series, m);
-      }
-      return m;
-    };
-    const route = (target: any) => {
-      const kind = armed();
-      if(!kind || target.tool() === kind) return;
-      all().forEach(m => { if(m !== target && m.tool()) m.setTool(null) });
-      target.setTool(kind); syncTool(kind);
-    };
-    wrap.addEventListener('pointerdown', (e: PointerEvent) => {
-      if(e.button !== 0 || !armed()) return;
-      const panes = chart.panes();
-      for(let i = 1; i < panes.length; i++){
-        const r = panes[i].getHTMLElement()?.getBoundingClientRect(), s = panes[i].getSeries()[0];
-        if(r && s && e.clientY >= r.top && e.clientY <= r.bottom){ route(managerFor(chart, s)); return }
-      }
-      route(dm);
-    }, true);
-    // (the Flow chart has its own manager since EXEC-TERMINAL-FRESH)
-    // C5 for these panes too: a right-click while any tool is armed drops the drawing in progress
-    const cancel = (e: Event) => { if(!armed()) return; e.preventDefault(); e.stopImmediatePropagation(); all().forEach(m => m.tool() && m.setTool(null)); syncTool(null) };
-    wrap.addEventListener('contextmenu', cancel, true);
+  /* EXEC-DRAW-PANES (user 2026-11-07: "find out bagaimana caranya kita bisa menambahkan line ... di indikator di panel
+     terpisah"; "1A", "2A"), live, replacing the C4 prototype (?drawpanes=1): every indicator pane has its own drawing
+     manager on its first series (the library keeps a manager to its series' pane), with the Flow Timeline's tools
+     (FLOW_TOOLS, 1A), its drawings kept per ticker and pane id (`pane.TICKER.<pid>`, on the EDGE account), the shared undo
+     history, drag-release and the Text editor. A press in a pane while one of those tools is armed moves the tool to that
+     pane's manager. The pane's drawings go with the pane when the user removes it, and come back with Undo (2A). */
+  interface PaneHost extends FlowHost { key: string; series: any; inst: any }
+  const paneHosts = new Map<string, PaneHost>();
+  const forgotten = new Map<string, string>();              // removed panes' drawings, for an Undo of the removal
+  const paneKey = (inst: any) => `pane.${SYMBOL}.${inst.pid}`;
+  const seriesOf = (inst: any) => inst.series || inst.parts?.find((pt: any) => pt.series)?.series || inst.lines?.find((l: any) => l.series)?.series || null;
+  const paneHostAt = (y: number) => [...paneHosts.values()].find(h => { const r = h.series?.getPane?.().getHTMLElement?.()?.getBoundingClientRect(); return r && y >= r.top && y <= r.bottom }) || null;
+  /* one step of the undo history names the pane by its key: a step taken before a rebind (new series) or a removal still
+     finds the pane's current manager, or saves to the account when the pane is gone */
+  const setPane = (key: string, json: string) => {
+    const h = paneHosts.get(key);
+    if(h){ h.m.importJSON(json); (h as any).base = h.m.exportJSON() }
+    repo.save(key, json); syncRemove();
+  };
+  /* the library asks the chart for its series' pane size on every repaint; a pane the chart has just created has no size in
+     that frame yet (lightweight-charts asserts "Value is undefined"): that frame draws nothing in it */
+  const paneChart = new Proxy(chart, { get(t: any, k) {
+    if(k === 'paneSize') return (i: number) => { try { return t.paneSize(i) } catch { return { width:0, height:0 } } };
+    const v = t[k]; return typeof v === 'function' ? v.bind(t) : v;
+  } });
+  function paneManager(host: PaneHost, series: any) {
+    const m = new LibAny.DrawingManager(paneChart, series, { magnet:'off', stayInDrawingMode:false });
+    m.on('change', () => { if(!(host as any).pressed) (host as any).queue() });
+    m.on('tool', (k: any) => { if(!k && !dm.tool() && !flowArmed()) syncTool(null) });
+    m.on('selection', syncRemove);
+    m.on('textEdit', (d: any, at: any) => {
+      (host as any).editing = { id:d.id };
+      const pr = series.getPane().getHTMLElement().getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+      host.input.style.left = (chart.priceScale('left').width() + at.x) + 'px'; host.input.style.top = (pr.top - wr.top + at.y) + 'px';
+      host.input.value = d.text || ''; host.input.hidden = false; setTimeout(() => { host.input.focus(); host.input.select() }, 0);
+    });
+    return m;
   }
+  const paneDraw = {
+    attach(inst: any) {
+      if(!inst?.pid || paneHosts.has(paneKey(inst))) return;
+      const series = seriesOf(inst); if(!series) return;
+      const key = paneKey(inst), input = document.createElement('input');
+      input.className = 'dr-text'; input.hidden = true; input.placeholder = 'Text'; input.setAttribute('aria-label', 'Drawing text');
+      wrap.appendChild(input);
+      const host: any = { kind:'pane', key, series, inst, chart, el:container, wrap, input, pressed:false, timer:0, editing:null, base:'[]' };
+      host.queue = () => { clearTimeout(host.timer); host.timer = setTimeout(() => {
+        if(!paneHosts.has(key)) return;
+        const now = host.m.exportJSON(); if(now === host.base) return;
+        const before = host.base; host.base = now;
+        Hist.push({ undo:() => setPane(key, before), redo:() => setPane(key, now) });
+        repo.save(key, now); syncRemove();
+      }, 0) };
+      host.m = paneManager(host, series);
+      host.onDown = () => { host.pressed = true };
+      host.onUp = () => { if(host.pressed){ host.pressed = false; host.queue() } };
+      container.addEventListener('pointerdown', host.onDown, true);
+      window.addEventListener('pointerup', host.onUp);
+      dragFinish(() => host.m, container);
+      const close = (keep: boolean) => {
+        if(!host.editing) return;
+        const { id } = host.editing, v = input.value.trim(); host.editing = null; input.hidden = true;
+        const cur = host.m.get(id); if(!cur) return;
+        if(keep && v) host.m.update({ ...cur, text:v }); else if(!cur.text) host.m.remove(id);
+      };
+      input.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); close(true) } else if(e.key === 'Escape'){ e.stopPropagation(); close(false) } });
+      input.addEventListener('blur', () => close(true));
+      hosts.add(host); paneHosts.set(key, host);
+      const back = forgotten.get(key);
+      if(back !== undefined){ forgotten.delete(key); host.m.importJSON(back); host.base = host.m.exportJSON(); repo.save(key, host.base); syncRemove() }
+      else repo.load(key).then(json => { if(paneHosts.get(key) !== host) return; host.m.importJSON(json); host.base = host.m.exportJSON(); paneDraw.show(inst); syncRemove() });
+      paneDraw.show(inst);
+    },
+    /* the indicator drew itself again on new series (a plot type or a line set changed): the manager moves with its drawings */
+    rebind(inst: any) {
+      const host: any = inst?.pid && paneHosts.get(paneKey(inst)), series = seriesOf(inst);
+      if(!host || !series || host.series === series) return;
+      const json = host.m.exportJSON(), armed = host.m.tool();
+      try { host.m.destroy() } catch(_) { /* its series is already gone */ }
+      host.series = series; host.m = paneManager(host, series); host.m.importJSON(json);
+      if(armed) host.m.setTool(armed);
+      paneDraw.show(inst);
+    },
+    show(inst: any) { const host: any = inst?.pid && paneHosts.get(paneKey(inst)); if(host) host.m.setDrawingsVisible(!!inst.on && !inst.fold) },
+    forget(inst: any) {
+      const host: any = inst?.pid && paneHosts.get(paneKey(inst)); if(!host) return;
+      const json = host.m.exportJSON();
+      if(json !== '[]') { forgotten.set(host.key, json); repo.forget(host.key) }
+    },
+    detach(inst: any) {
+      const host: any = inst?.pid && paneHosts.get(paneKey(inst)); if(!host) return;
+      clearTimeout(host.timer); paneHosts.delete(host.key); hosts.delete(host);
+      container.removeEventListener('pointerdown', host.onDown, true); window.removeEventListener('pointerup', host.onUp);
+      if(host.m.tool()){ host.m.setTool(null); if(!dm.tool() && !flowArmed()) syncTool(null) }
+      try { host.m.destroy() } catch(_) { /* its series is already gone */ }
+      host.input.remove(); syncRemove();
+    }
+  };
+  if(ctx.M.mode === 'live') ctx.paneDraw = paneDraw;
 
   syncTool(null); syncMagnet(); syncRemove(); syncLineButton(); applyCursor();
 

@@ -12401,6 +12401,13 @@ struktur database."
 - Go user 2026-11-07 atas usulan tabel (`edge_bff.terminal_drawings`: satu baris per akun per set gambar: chart harga,
   Flow Timeline, tiap panel indikator, per ticker; revisi; batas ukuran; API GET per ticker, PUT, DELETE; gambar di browser
   dipindah sekali ke akun): "3 jalankan dulu". Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
+- Status 2026-11-07 (branch): dikerjakan. Backend `apps/edge-bff/app/drawings.py` + migrasi `20261107_001` (belum
+  diterapkan; gladi lokal DRYRUN 36/36, APPLY 23/23); Terminal `data/drawingsApi.ts` (akun; browser hanya saat akun tak
+  terjangkau; pindah sekali dari `ml.drawings.*`), `app/drawings.ts` (pengelola per panel,
+  menggantikan prototipe `?drawpanes=1`), id panel di `app/indicators.ts`. Bukti `look_check12.mjs` (akun mati lalu
+  hidup, Alt+H dan tarik-lepas di panel, undo/redo, seri FL23 diganti saat broker dipilih, muat ulang tanpa menulis,
+  hapus panel lalu undo) dan `look_check3/5/6/7/8/9/10` tanpa galat; `look_check11` lulus kecuali baris Top brokers
+  (menunggu keputusan).
 
 ## EXEC-RP-LOOK — panel kanan: Foreign × Domestic, posisi kontrol, toggle Events, keterangan Top brokers (2026-11-07)
 

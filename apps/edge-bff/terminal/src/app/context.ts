@@ -176,6 +176,10 @@ export interface Ctx {
      Timeline (drawings.ts), the charts and heights the asset Flow Timelines add below the chart's own (assets.ts) */
   openTickerSearch?: (from: HTMLElement | null, use: { pick?: (r: Instrument) => void; tag?: (ticker: string) => string; label?: string }) => void;
   attachFlowDrawings?: (chart: LWC.IChartApi, series: LWC.ISeriesApi<any>, el: HTMLElement, ticker: string) => { manager: any; detach(): void };
+  /** EXEC-DRAW-PANES (live): the drawings of each indicator pane, called by indicators.ts for a pane indicator (`pid` kept
+      with it): attach once its series exist, rebind when its series are replaced, show with its pane, forget when the user
+      removes it (2A), detach when it goes */
+  paneDraw?: { attach(inst: any): void; rebind(inst: any): void; show(inst: any): void; forget(inst: any): void; detach(inst: any): void };
   extraFlowCharts?: () => LWC.IChartApi[];
   extraFlowHeight?: () => number;
   axisWidths?: { left: number; right: number };

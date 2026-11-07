@@ -16,6 +16,7 @@ import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
 import { withPicked } from '../data/brokerAgg';
 import { fits, inputsOf, needsOf, splitSaved, withParked, type Input } from '../data/inputs';
+import { newPaneId } from '../data/drawingsApi';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
@@ -219,7 +220,7 @@ export function initIndicators(ctx: Ctx) {
   const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
-  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base, ...(i.fold ? { fold:true } : {}) })), parked)));
+  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base, ...(i.fold ? { fold:true } : {}), ...(i.pid ? { pid:i.pid } : {}) })), parked)));
   const defaults = (fields, over?) => Object.fromEntries(fields.filter(f => f.kind !== 'fixed' && f.kind !== 'button' && (f.kind !== 'color' || f.def !== undefined)).map(f => [f.key, over && over[f.key] !== undefined ? over[f.key] : f.def]));
 
   /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06: "kalau misalkan user menambahkan indikator di bawah, saya mau untuk ditambahkan
@@ -528,6 +529,10 @@ export function initIndicators(ctx: Ctx) {
     paintRow(inst);
   }
   function refresh(inst) {                                   // redraw one indicator from its cached values
+    refreshPlot(inst);
+    if(inst.pid && ctx.paneDraw) { ctx.paneDraw.attach(inst); ctx.paneDraw.rebind(inst); ctx.paneDraw.show(inst) }   // EXEC-DRAW-PANES: series that came late, new series, folded or hidden
+  }
+  function refreshPlot(inst) {
     if(inst.def.multi) return refreshMulti(inst);
     if(inst.def.lines) return refreshLines(inst);
     ensureSeries(inst);
@@ -672,6 +677,7 @@ export function initIndicators(ctx: Ctx) {
     recompute(inst);
     placeRow(inst);
     if(inst.fold) setFold(inst, true, false);
+    if(inst.pid) ctx.paneDraw?.attach(inst);                 // EXEC-DRAW-PANES: its drawings, once its series exist
   }
   const nextBase = () => PALETTE[list.length % 6];
   const byHid = hid => list.find(i => i.hid === hid);
@@ -679,6 +685,8 @@ export function initIndicators(ctx: Ctx) {
     const def = defOf(defId); if(!def || !usable(defId)) return null;
     const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true, fold:def.pane === 'sub' && !!(saved && saved.fold) };
     inst.hid = inst.uid;
+    /* EXEC-DRAW-PANES (2A: a pane's drawings belong to that pane): a pane indicator keeps one id for its life, saved with it */
+    if(def.pane === 'sub') inst.pid = saved && typeof saved.pid === 'string' && /^[0-9a-f]{16}$/.test(saved.pid) ? saved.pid : newPaneId();
     if(def.multi) { inst.base = (saved && saved.base) || nextBase(); inst.style = merge(regStyle(def, inst.base), saved && saved.style) }
     else inst.style = { ...defaults(def.style, saved && saved.style), ...(def.style.some(f => f.key === 'color' && f.def !== undefined) ? {} : { color:(saved && saved.style && saved.style.color) || PALETTE[list.length % PALETTE.length] }) };
     if(def.validate && def.validate(inst.params)) inst.params = defaults(def.inputs);     // a saved set that breaks a rule falls back to defaults
@@ -687,6 +695,7 @@ export function initIndicators(ctx: Ctx) {
     return inst;
   }
   function remove(inst) {
+    if(inst.pid) ctx.paneDraw?.detach(inst);
     const sub = inst.def.pane === 'sub', pane = sub ? inst.series.getPane() : null;
     if(inst.ro) inst.ro.disconnect();
     if(inst.rowRO) inst.rowRO.disconnect();
@@ -909,7 +918,7 @@ export function initIndicators(ctx: Ctx) {
   /* undo / redo: an indicator comes back with the same inputs, style and visibility */
   /* every step names its indicator by a history id that a revived indicator keeps (front-end audit I3: a step holding the
      object lost it after remove + undo, and a redo then added a second copy) */
-  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, at:list.indexOf(inst), ...(inst.fold ? { fold:true } : {}) }));
+  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, at:list.indexOf(inst), ...(inst.fold ? { fold:true } : {}), ...(inst.pid ? { pid:inst.pid } : {}) }));
   /* QA round 3 (agent 4 L4): an indicator brought back by Undo returns to its place: in the list, its legend row, its pane */
   const placeAt = (inst, at) => {
     const i = list.indexOf(inst); if(typeof at !== 'number' || at < 0 || at >= i) return;
@@ -926,6 +935,7 @@ export function initIndicators(ctx: Ctx) {
     save(); Ind.onChange && Ind.onChange(); return inst;
   };
   const drop = hid => { const inst = byHid(hid); if(inst) remove(inst) };
+  const dropForget = hid => { const inst = byHid(hid); if(inst?.pid) ctx.paneDraw?.forget(inst); drop(hid) };   // a Redo of the user's removal
   function userAdd(id, saved?) {
     const inst = add(id, saved); if(!inst) return null;
     const snap = snapOf(inst);
@@ -934,8 +944,9 @@ export function initIndicators(ctx: Ctx) {
   }
   function userRemove(inst) {
     const snap = snapOf(inst);
+    if(inst.pid) ctx.paneDraw?.forget(inst);                 // EXEC-DRAW-PANES 2A: its drawings go with it; Undo brings them back
     remove(inst);
-    Hist.push({ undo:() => revive(snap), redo:() => drop(snap.hid) });
+    Hist.push({ undo:() => revive(snap), redo:() => dropForget(snap.hid) });
   }
   Ind.add = id => userAdd(id);
   /* EXEC-IND-PRESETS (user 2026-11-06: "men-save indikator beserta dengan filternya"): an indicator from a preset comes with
@@ -971,8 +982,9 @@ export function initIndicators(ctx: Ctx) {
   Ind.removeAll = () => {
     if(!list.length) return;
     const snaps = list.map(snapOf);
+    list.forEach(i => { if(i.pid) ctx.paneDraw?.forget(i) });
     [...list].forEach(remove);
-    Hist.push({ undo:() => snaps.forEach(revive), redo:() => snaps.forEach(s => drop(s.hid)) });
+    Hist.push({ undo:() => snaps.forEach(revive), redo:() => snaps.forEach(s => dropForget(s.hid)) });
   };
 
   /* saved lists from before the registry used 'ma' / 'ema' (one MA indicator with a type switch) */
