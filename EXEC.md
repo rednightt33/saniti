@@ -12398,6 +12398,9 @@ struktur database."
   diperiksa dulu; tabel baru dan migrasinya menunggu go user atas usulan.
 - Dasar teknis: prototipe `?drawpanes=1` (EXEC-TERMINAL-1026C C4, `drawings.ts:636-672`) diganti cara Flow Timeline
   (`attachFlow`).
+- Go user 2026-11-07 atas usulan tabel (`edge_bff.terminal_drawings`: satu baris per akun per set gambar: chart harga,
+  Flow Timeline, tiap panel indikator, per ticker; revisi; batas ukuran; API GET per ticker, PUT, DELETE; gambar di browser
+  dipindah sekali ke akun): "3 jalankan dulu". Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
 
 ## EXEC-RP-LOOK — panel kanan: Foreign × Domestic, posisi kontrol, toggle Events, keterangan Top brokers (2026-11-07)
 
@@ -12420,3 +12423,5 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Status 2026-11-07 (branch): R1, R2, R4, R5, R6 dan R3 untuk Broker summary dikerjakan; `look_check11.mjs` lulus kecuali
   baris Top brokers (Top 3/5/10 + lencana rasio + Regular butuh 332 px, panel 287 px: menunggu keputusan user); "73D"
   ditanyakan balik. Terminal 870/870, `look_check3/5/6/7/8/9/10` tanpa galat. Belum dirilis.
+- Jawaban user 2026-11-07: "2C" ("73D" tetap seperti sekarang); Top brokers: "we'll decide about masalah top brokers"
+  (baris kontrol Top brokers menunggu). Aturan `look_check11.mjs` masuk AGENTS.md (user: "Tambah ke agents MD.").

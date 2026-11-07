@@ -24,6 +24,7 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261028_001_edge_bff_screener.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261106_001_edge_bff_terminal_layouts.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261106_002_edge_bff_indicator_presets.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261107_001_edge_bff_terminal_drawings.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:
@@ -33,7 +34,7 @@ def database():
 @pytest.fixture
 def store(database):
     # EXEC-SCREENER (migration 20261028_001): with the saved screener items and the watchlist
-    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.terminal_layouts,edge_bff.indicator_presets')
+    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings')
     return Store(database)
 
 @pytest.fixture
