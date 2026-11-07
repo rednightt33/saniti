@@ -83,7 +83,7 @@ describe('catalog (P5_FLOW.md section 2)', () => {
     expect(() => G.flowEntries(REG, badKey)).toThrow(/FL18\.screener\.replace: when is not a parameter of FL18/);
     const noData = structuredClone(k); delete noData.screener_entries.ksei_net.requires;
     expect(() => G.flowEntries(REG, noData)).toThrow(/ksei_net: an entry that is never computed names the data it requires/);
-  });
+  }, 60_000);   // builds the catalog: slow under parallel load (QA1 round 2), no assertion changed
 });
 
 /* ---- parity ---------------------------------------------------------------------------------------------------- */
