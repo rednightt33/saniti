@@ -382,12 +382,24 @@ export class TickerView implements TickerCalc {
   /** P5a: the ticker's broker rows of the loaded window, the classification and the thread's computeFlow memo (the core's
       flow series read them; flowmetrics.ts TickerFlow); absent on a view without them (the pre-warm's) */
   readonly flow?: TickerFlow;
-  constructor(desc: SnapshotDesc, j: number, dates: readonly string[], onColumn: () => void = () => {}, flow?: TickerFlow) {
+  /** the thread's meter of reused work (run.ts screenEnv): the Calc's memo of full outputs reports a read of an output
+      made before the measurement began */
+  private reuse?: Reuse;
+  constructor(desc: SnapshotDesc, j: number, dates: readonly string[], onColumn: () => void = () => {}, flow?: TickerFlow, reuse?: Reuse) {
     this.desc = desc; this.j = j; this.ticker = desc.tickers[j]; this.dates = dates;
     this.bars = lazyBars(dates, k => { onColumn(); return column(desc, j, k) });
     if (flow) this.flow = flow;
+    if (reuse) this.reuse = reuse;
   }
-  get calc(): Calc { return this.made ??= new Calc(this.bars) }
+  get calc(): Calc {
+    if (this.made) return this.made;
+    const c = new Calc(this.bars);
+    if (this.reuse) c.memo = new StampedMap(this.reuse);
+    return this.made = c;
+  }
+  /** The ticker's broker rows and distinct brokers in the loaded window (the work a flow series does grows with them;
+      run.ts costUnits). */
+  get flowSize(): { rows: number; brokers: number } { return { rows: brokerRowCount(this.desc, this.j), brokers: brokerCounts(this.desc)[this.j] } }
   readonly missing = (inputs: readonly BarField[], at: number): BarField | null => {
     if (at !== this.dates.length - 1) return scanMissingInput(this, inputs, at);
     const m = this.desc.missing[this.j];
@@ -491,15 +503,37 @@ export class ThreadSnapshot {
     if (j === undefined) return undefined;
     const dates = this.dates[j] ??= datesOf(this.desc, j);
     const w = this.desc.data.broker_window, store = this.desc.broker;
-    const flow: TickerFlow = { first: w?.first ?? null, last: w?.last ?? null, classification: this.desc.brokerClasses ?? {}, memo: this.flowMemo,
+    const flow: TickerFlow = { first: w?.first ?? null, last: w?.last ?? null, classification: this.desc.brokerClasses ?? {}, memo: this.flowMemo, meter: this.contexts,
       rows: () => brokerRowsOf(store, j, w?.first ?? null, w?.last ?? null) };
-    return new TickerView(this.desc, j, dates, () => { this.stats.columns++ }, flow);
+    return new TickerView(this.desc, j, dates, () => { this.stats.columns++ }, flow, this.reuse);
   }
+  /** The thread's meter of reused work on this snapshot: its computeFlow memo and every view's Calc memo report a read
+      of an entry made before the current measurement began (run.ts screenEnv learns only from series computed cold). */
+  readonly reuse = new Reuse();
+  /** The thread's meter of the flow windows' contexts (flowmetrics.ts TickerFlow.meter): each build's time and the rows
+      it read, summed, so run.ts screenEnv takes it out of the flow series that built it and observes it on its own. */
+  readonly contexts = { ms: 0, rows: 0, built: 0, context<T>(build: () => T): T {
+    const t0 = performance.now(), v = build() as T & { rows?: { n: number } };
+    this.ms += performance.now() - t0; this.rows += v.rows?.n ?? 0; this.built++;
+    return v;
+  } };
+  /** The broker rows and brokers of an average ticker with broker data in the loaded window (run.ts: the S3 order's
+      flow costs). */
+  get avgFlowSize(): { rows: number; brokers: number } {
+    if (this.perTicker === undefined) {
+      const counts = brokerCounts(this.desc);
+      let rows = 0, brokers = 0, n = 0;
+      for (let j = 0; j < this.desc.tickers.length; j++) { const r = brokerRowCount(this.desc, j); if (r) { rows += r; brokers += counts[j]; n++ } }
+      this.perTicker = { rows: n ? rows / n : 0, brokers: n ? brokers / n : 0 };
+    }
+    return this.perTicker;
+  }
+  private perTicker?: { rows: number; brokers: number };
   /** P5a: the loaded broker window as the core checks a flow condition against it (K1 depth, availability, anchors). */
   get flowContext(): FlowBindContext { return flowContextOf(this.desc) }
   /** P5a: computeFlow answers by (ticker, indicator, parameters) for this snapshot, the FLOW_MEMO_KEEP most recent (a
       few KB each: the outputs over the window's 60 candles), so one call serves every output and request. */
-  readonly flowMemo = new LruMemo<FlowOut>(FLOW_MEMO_KEEP);
+  readonly flowMemo = new LruMemo<FlowOut>(FLOW_MEMO_KEEP, this.reuse);
   /** A cross-section's values (stage S1, report 6.7 "pre-warmed per publication", 6.10; core screen.ts
       xsectionValues): return_rank on the fixed population depends on the snapshot alone (every listed row, never the
       request's filters, xsection.ts), so it is computed once per thread by the core's own functions on the same inputs
@@ -523,13 +557,52 @@ export const XSECTION_KEEP = 16;
 /** P5a: computeFlow answers a thread keeps per snapshot (an answer is its outputs over the window's candles, about 1 KB
     per output: some 20 MB at most). */
 export const FLOW_MEMO_KEEP = 16384;
-/** A memo of at most `keep` entries, the least recently used out. */
+/** What a measurement reused (QA unit B, QA4: the cost model learns only from a series computed cold): a memo stamps
+    each entry with the measurement it was made in, and a read of an entry made before the current measurement began
+    is counted. begin() starts a measurement. One per compute thread and snapshot. */
+export class Reuse {
+  private epoch = 0;
+  /** reads, since begin(), of entries made before it */
+  reused = 0;
+  begin(): void { this.epoch++; this.reused = 0 }
+  get stamp(): number { return this.epoch }
+  read(made: number): void { if (made < this.epoch) this.reused++ }
+}
+/** A Map that reports to a Reuse meter each read of an entry made before the current measurement (a view's Calc memo). */
+export class StampedMap<V> extends Map<string, V> {
+  private made = new Map<string, number>();
+  private meter: Reuse;
+  constructor(meter: Reuse) { super(); this.meter = meter }
+  get(key: string): V | undefined { const v = super.get(key); if (v !== undefined) this.meter.read(this.made.get(key) ?? 0); return v }
+  set(key: string, v: V): this { this.made?.set(key, this.meter?.stamp ?? 0); return super.set(key, v) }
+}
+/** A memo of at most `keep` entries, the least recently used out; with a Reuse meter, a read of an entry made before the
+    current measurement is reported to it. */
 export class LruMemo<V> {
-  private map = new Map<string, V>(); private keep: number;
-  constructor(keep: number) { this.keep = keep }
-  get(key: string): V | undefined { const v = this.map.get(key); if (v !== undefined) { this.map.delete(key); this.map.set(key, v) } return v }
-  set(key: string, v: V): void { this.map.delete(key); this.map.set(key, v); if (this.map.size > this.keep) this.map.delete(this.map.keys().next().value as string) }
+  private map = new Map<string, { v: V; made: number }>(); private keep: number; private meter?: Reuse;
+  constructor(keep: number, meter?: Reuse) { this.keep = keep; if (meter) this.meter = meter }
+  get(key: string): V | undefined {
+    const e = this.map.get(key);
+    if (e === undefined) return undefined;
+    this.map.delete(key); this.map.set(key, e); this.meter?.read(e.made);
+    return e.v;
+  }
+  set(key: string, v: V): void { this.map.delete(key); this.map.set(key, { v, made: this.meter?.stamp ?? 0 }); if (this.map.size > this.keep) this.map.delete(this.map.keys().next().value as string) }
   get size(): number { return this.map.size }
+}
+/** Ticker j's broker rows in the loaded window (the store holds the window's days only). */
+export const brokerRowCount = (d: Pick<SnapshotDesc, 'broker'>, j: number): number => d.broker.offsets[j + 1] - d.broker.offsets[j];
+const brokerCountsOf = new WeakMap<object, Uint16Array>();
+/** Each ticker's distinct brokers in the loaded window (computed once per store: one pass over its rows). */
+export function brokerCounts(d: Pick<SnapshotDesc, 'broker'>): Uint16Array {
+  const s = d.broker;
+  let c = brokerCountsOf.get(s);
+  if (c) return c;
+  const T = s.offsets.length - 1, seen = new Int32Array(Math.max(1, s.brokers.length)).fill(-1);
+  c = new Uint16Array(Math.max(0, T));
+  for (let j = 0; j < T; j++) for (let k = s.offsets[j]; k < s.offsets[j + 1]; k++) if (seen[s.B[k]] !== j) { seen[s.B[k]] = j; c[j]++ }
+  brokerCountsOf.set(s, c);
+  return c;
 }
 /** The loaded broker window of a snapshot as the core checks a flow condition against it (P5a): its sessions and dates,
     whether every day of the window is loaded (data.broker_window.complete) and whether the brokers' classification is

@@ -68,7 +68,10 @@ export interface MetricDefinition {
     series is tested. types: the output types of OPERATORS.md section 4 a series can have, by the transform that makes
     it. One source for the page and the core (transforms.ts operatorTakes, condition.ts bindRank). unit: the unit of a
     measure's result, fixed or by an argument ('diff' = the unit of a difference of the series). */
-export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; short?: string; default: { cmp: string; value: number; range?: [number, number] } }
+/** forms: the catalog's other transforms that follow this measure's not_on, never offered as a measure themselves
+    (operator 7's: the moving average of a series, which the catalog offers in state and event tests only, as the series
+    another one is compared with, and the ratio of two series, operator 7 in its ratio form). */
+export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; forms?: string[]; short?: string; default: { cmp: string; value: number; range?: [number, number] } }
 export interface OperatorTest {
   id: number; key: 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank'; label: string; help: string; ops: string[];
   within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
@@ -254,8 +257,14 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
   if (!ob || !Array.isArray(ob.measures) || !Array.isArray(ob.tests) || !ob.types) out.push('operators: measures, tests and types are required');
   else {
     for (const [k, t] of Object.entries(ob.types)) for (const fn of t.fns) if (!fns.has(fn)) out.push(`operators type ${k}: ${fn} is not a transform of the catalog`);
+    const measureFns = new Set(ob.measures.map(m => m.fn)), formOf = new Map<string, string>();
     for (const m of ob.measures) {
       if (!fns.has(m.fn)) out.push(`operators measure ${m.fn}: not a transform of the catalog`);
+      for (const f of m.forms ?? []) {
+        if (!fns.has(f) || measureFns.has(f)) out.push(`operators measure ${m.fn}: form ${f} is not a transform of the catalog outside the measures`);
+        if (formOf.has(f) && formOf.get(f) !== m.fn) out.push(`operators measure ${m.fn}: form ${f} is already a form of ${formOf.get(f)}`);
+        formOf.set(f, m.fn);
+      }
       for (const k of m.not_on) if (!ob.types[k]) out.push(`operators measure ${m.fn}: not_on ${k} is not a type`);
       if (typeof m.unit === 'object') { const arg = c.transforms.find(t => t.fn === m.fn)?.args.find(a => a.key === (m.unit as Record<string, string>).by);
         if (!arg || !(arg.options || []).every(o => typeof (m.unit as Record<string, string>)[o] === 'string')) out.push(`operators measure ${m.fn}: unit by ${(m.unit as Record<string, string>).by} must name a unit for each option`) }

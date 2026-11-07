@@ -2268,7 +2268,7 @@
     }
   ],
   "operators": {
-    "note": "The 15 universal operators of verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), as the page offers them: a measure (a transform of the series, operators 2, 3, 4, 6, 7, 12, 13, 14) and a test of the measured series (1, 15, 8, 5, 9, 10, 11). One source for the page's lists and the core's output-type rules (transforms.ts operatorTakes, condition.ts bindRank); a measure's unit gives the unit of its result ('diff': the unit of a difference of the series). types: the output types of OPERATORS.md section 4 (P and D also from the transform that makes them; every type from flow-kinds.json for the Terminal's flow indicators, EXEC-SCREENER-FLOW-CANDLES P5a); not_on lists the types a measure or test is not offered on (section 4), not_against_value the types a test takes only against a second series.",
+    "note": "The 15 universal operators of verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), as the page offers them: a measure (a transform of the series, operators 2, 3, 4, 6, 7, 12, 13, 14) and a test of the measured series (1, 15, 8, 5, 9, 10, 11). One source for the page's lists and the core's output-type rules (transforms.ts operatorTakes, condition.ts bindRank); a measure's unit gives the unit of its result ('diff': the unit of a difference of the series). types: the output types of OPERATORS.md section 4 (P and D also from the transform that makes them; every type from flow-kinds.json for the Terminal's flow indicators, EXEC-SCREENER-FLOW-CANDLES P5a); not_on lists the types a measure or test is not offered on (section 4), not_against_value the types a test takes only against a second series. forms: the catalog's other transforms that follow a measure's not_on: the moving average of a series (offered in state and event tests only, the series another one is compared with) and the ratio of two series (operator 7 in its ratio form) are comparisons with another series, so a 0/1 signal takes neither.",
     "types": {
       "P": {
         "fns": [
@@ -2424,6 +2424,10 @@
         },
         "not_on": [
           "F"
+        ],
+        "forms": [
+          "ma",
+          "ratio"
         ],
         "second": true,
         "default": {

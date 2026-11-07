@@ -68,7 +68,7 @@ describe('the anchor N sessions back (FL18, FL19, FL20, FL44, FL45; decisions D,
       }
     }
     expect([compared > 4000, values > 2000]).toEqual([true, true]);
-  });
+  }, 60_000);   // about 2 s alone (a computeFlow per anchored session): a heavy test's own timeout, as oracle.test.ts
   it('ranks the frozen Top-N cohort on the sessions up to the evaluated one only (no look-ahead): a later session does not change an earlier value', () => {
     const st = STOCKS.AAAA, all = mine(st, { metric: 'FL18', params: { anchor_sessions: 10 } }), T = terminal(st);
     // the Terminal's own anchored line over the whole window ranks its cohort to the last candle: it differs somewhere
@@ -200,7 +200,7 @@ describe('FL23 screener version (decision B): series a, b, c, Top-K holders, loo
     }
     expect([checked > 600, counted > 50]).toEqual([true, true]);
     expect(topHolders(['BK', 'AK', 'CC', 'DX'], [5, 5, -1, 7], 3)).toEqual([3, 1, 0]);     // 7 first, the tie 5 by code AK before BK, no negative
-  });
+  }, 60_000);   // about 0.7 s alone: a heavy test's own timeout under a full parallel run
   it('holders all: every broker of the window, the count of brokers whose net over the lookback rose (fell) by at least the amount; "=" is offered on the count (K7, a number of brokers)', () => {
     const p = { holders: 'all', unit: 'value', lookback: 5, series: 'cum', move: 'down', move_min: 1e8, boards: ['Regular', 'Nego', 'Cash'] };
     let seen = 0;

@@ -67,7 +67,11 @@ export interface ScreenerIndicator {
   probe_params: { params: ParamMap; evidence: string } | null;
   oracle: OracleRow[]; oracle_note: string | null;
 }
-export interface CostModel { status: string; rule: string; ns_per_bar_length: number; reference_bars: number; evidence: string }
+/** flow (QA unit B, QA4): the prior of a flow kernel's cost per unit of its work (a broker row read or a cell of its
+    brokers x sessions grid; computeFlow over the window, or an anchored call's slice) per way an entry is computed
+    (ns_per_unit by FlowCompute), of a ticker's window context per row and of the broker-data series' per row, measured
+    on the worker (evidence); the worker learns each key's own from every run (run.ts costUnits). */
+export interface CostModel { status: string; rule: string; ns_per_bar_length: number; reference_bars: number; evidence: string; flow: { ns_per_unit: Record<string, number>; context_ns_per_row: number; presence_ns_per_row: number; evidence: string } }
 /** One parameter of a flow indicator as flowRegistry.json has it (the Terminal's setup), with `condition`: false for
     the kinds that only draw (levels, button, fixed; P5_FLOW.md section 1). options: [value, label] pairs for a select,
     values for a multi. */
@@ -78,6 +82,10 @@ export interface FlowRegistryParam {
   condition: boolean;
   /** P5b: a parameter of the Screener's version, not the Terminal's (flow-kinds.json `screener`; its default is its own) */
   screener?: boolean;
+  /** QA unit B (QA5): a select or switch whose every option gives the same values on the generator's probe (the
+      Terminal's display options, "Plot"; build-screener-registry.mjs displayOnlyParams): condition false, refused if
+      sent, computeFlow takes its default */
+  display_only?: boolean;
 }
 /** An output's kind (flow-kinds.json): a letter of OPERATORS.md section 4, {kind, unit}, or by a select parameter (whose
     options may again follow another select parameter, FL23's value by series, then by unit). */

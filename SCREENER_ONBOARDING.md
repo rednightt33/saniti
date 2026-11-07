@@ -122,7 +122,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    Backtest show; between the price cron (17:00 WIB) and the end of the 19:00 run the database holds a session the rack
    does not (about 3 hours, TARGET ARCHITECTURE 6.5).
 2. **One formula path (I1).** Every technical number comes from `F` in `indicators.ts` through the Backtest core's
-   `Calc` (`apps/edge-bff/screener/src/core/metrics.ts:284` `series`, the one path). There is no SQL, TA-Lib or Python
+   `Calc` (`apps/edge-bff/screener/src/core/metrics.ts:286` `series`, the one path). There is no SQL, TA-Lib or Python
    copy of a formula. The page side is locked by a test (`apps/edge-bff/screener/tests/bundle/bundle.test.mjs`, "import
    from the screener core only contract.ts and universe.ts, and no formula module"); in the core the rule is stated in
    `transforms.ts`' header and held by review: no test fails when a core file defines an indicator kernel (OPEN).
@@ -225,11 +225,11 @@ The existing publisher is described in `BACKTEST_END_TO_END.md` section 4. What 
 - **Change detection by stamps (FACT).** A `daily` run republishes only what changed: price stamps per ticker-year,
   event stamps per ticker, broker by date (`Publisher.run`, `publisher.py:10`).
 - **Write order (FACT).** Data files, packs, the xsection files, manifests, reference files and their `refs` copies,
-  then `state.json` last with `finished_at`, `xsection` and `refs`; the order is `publisher.py:1059-1094`. terminal-api
+  then `state.json` last with `finished_at`, `xsection` and `refs`; the order is `publisher.py:1052-1087`. terminal-api
   and the workers treat a new `finished_at` as a new publication.
 - **Verify mode (FACT, extended on the branch).** `verify` (`publisher.py:2119`) compares every manifest-listed file
   with SQL (rows, first and last date, a column sum), the xsection files too (`verify_xsection`, `publisher.py:2261`),
-  and exits 1 on a mismatch (`publisher.py:1519`; test `test_verify_checks_the_xsection_files`).
+  and exits 1 on a mismatch (`publisher.py:1512`; test `test_verify_checks_the_xsection_files`).
 
 **The xsection file family (BRANCH).** Each whole-universe file:
 
@@ -238,7 +238,7 @@ The existing publisher is described in `BACKTEST_END_TO_END.md` section 4. What 
 | Key | `v1/xsection/<name>.<sha16>.json.gz` (`XSECTION_KEY = indexed_key('xsection')`, `publisher.py:162-168`): content-addressed by the first 16 hex of its sha256, never overwritten |
 | Body | one columnar document from `encode`: `schema_version`, `dataset` `xsection`, `name`, `units`, `means` (what each column and null mean), `columns`, equal-length arrays (`xsection_price_doc` `publisher.py:690`, `xsection_actions_doc` `publisher.py:711`) |
 | Index | `state.json` `xsection: {name: {key, sha256, bytes, rows, as_of}}`, written before nothing else reads it (test `test_the_xsection_files_are_written_before_the_state_json_that_indexes_them`); `xsection_entries` (`publisher.py:841`) keeps exactly what terminal-api's `xsection_index` serves (test `test_terminal_api_reads_the_index_as_written`) |
-| Rebuild | `XSECTION_REBUILT_BY` (`publisher.py:281`): `daily`, `backfill`, `packs` rebuild `price` and `actions`; `events` rebuilds `actions`; every other mode carries the entries forward (test `test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward`). A file that fails to build keeps its previous entry, the rest of the run goes on, and the run exits 3 (`publisher.py:1529`; test `test_a_failed_xsection_file_keeps_its_entry_and_the_rest_is_published`) |
+| Rebuild | `XSECTION_REBUILT_BY` (`publisher.py:281`): `daily`, `backfill`, `packs` rebuild `price` and `actions`; `events` rebuilds `actions`; every other mode carries the entries forward (test `test_modes_that_do_not_rebuild_an_xsection_file_carry_its_entry_forward`). A file that fails to build keeps its previous entry, the rest of the run goes on, and the run exits 3 (`publisher.py:1522`; test `test_a_failed_xsection_file_keeps_its_entry_and_the_rest_is_published`) |
 | Cleanup | `collect_garbage` deletes an xsection object the index no longer names (tests `test_pruning_keeps_the_objects_of_the_previous_index`, `test_the_xsection_cleanup_waits_for_the_grace_so_two_runs_minutes_apart_keep_the_previous_index`, `test_the_xsection_cleanup_keeps_newer_objects_other_keys_and_everything_when_no_index_names_a_file`) |
 | Slices equal packs | each ticker's slice of `price` is encoded as its price pack and compared with the manifest's pack sha256; a pack that differs is republished from the slice (`xsection_price`, `publisher.py:1284`; tests `test_each_ticker_slice_of_the_price_file_equals_its_price_pack`, `test_a_pack_that_differs_from_the_table_is_republished_from_the_slice`) |
 
@@ -313,7 +313,7 @@ and the borrowed backtest-worker files.
   proposed dev values (LOCAL, provisional) is the worker README's "Configuration" table. Tests: `tests/config.test.ts`;
   `tests/readme_config.test.ts` (the README table against `loadConfig` itself).
 - **Start-up check** (`src/version.ts:59-74` `checkStartup`): the screener registry has no problem against the base
-  registry (`registry.ts:123` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
+  registry (`registry.ts:131` `registryProblems`); `screener-metrics.json` and `presets.json` pass `catalogProblems`
   with the transforms and patterns `transforms.ts` computes (`IMPLEMENTED_TRANSFORMS`, `IMPLEMENTED_PATTERNS`); the
   backtest registry artifact matches its sources; every source `screener-registry.json` names (except the build-only
   oracle script) is in the image with the recorded sha256. Otherwise `startup_check_failed` and exit.
@@ -328,7 +328,7 @@ and the borrowed backtest-worker files.
    `refresh.ts:317-319`, else `DATA_UNAVAILABLE`). Other indexed names are ignored by the refresh.
 3. **Skip unchanged.** The same sha256 for both files and the same reference contents (`referenceHash`,
    `snapshot.ts:135`): nothing is downloaded, recomputed or swapped; only `published_at` and the state fields advance
-   (`refresh.ts:338-354`, server `advance`, `server.ts:302-322`: the snapshot's cached answers and counts are dropped
+   (`refresh.ts:338-354`, server `advance`, `server.ts:305-325`: the snapshot's cached answers and counts are dropped
    and the presets computed again, so no answer names the older publication). Test: `tests/refresh.test.ts` "the same
    files on a new publication: no download, no recompute, no swap; only published_at advances (6d.2)".
 4. **Caps before any grant.** An indexed size above `SCREENER_MAX_FILE_BYTES`, or downloads above
@@ -341,7 +341,7 @@ and the borrowed backtest-worker files.
    sha256) and `inflateVerified` checks sha256 and size; `buildSnapshot` decodes (section 1.7.3).
 7. **Cross-check** every ticker against its `/manifest`: rows = the sum of its yearly files, last date = their newest
    (`refresh.ts:461-470`).
-8. **Pre-warm, digest, install, presets, documents, swap** (`server.ts` host `complete`, `:263-300`): the pinned series
+8. **Pre-warm, digest, install, presets, documents, swap** (`server.ts` host `complete`, `:266-303`): the pinned series
    are computed on the builder alone while a snapshot serves, at a cold start on the builder and every compute thread
    in chunks (`:265-273`); `snapshot_digest`; install on every compute thread, all-or-nothing (`pool.ts:219-225`); the
    available presets are computed in the system lane and pinned in the result cache (`server.ts:358-372`); catalog and
@@ -356,7 +356,7 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
 
 ### 1.7.3 The snapshot: what is computed once per publication
 
-`src/snapshot.ts` `buildSnapshot` (`:192-308`) and `ThreadSnapshot` (`:442-520`):
+`src/snapshot.ts` `buildSnapshot` (`:192-308`) and `ThreadSnapshot` (`:454-554`):
 
 - **Bars once per replica** in `SharedArrayBuffer` columns (O, H, L, C, V as `Float64Array`, a null volume as NaN, T as
   an index into one date table). Each ticker's slice goes through the backtest core's `priceSeries` (`datafile.ts:139`),
@@ -369,12 +369,12 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
 - **Universe rows** (the listed stocks, hidden ones included): name, sector, industry, last, 1D %, ADV20 (the backtest
   core's `liquidity`, `signals.ts:174`, through `metrics.ts:189` `universeAttributes`), first and last bar, bar count,
   `stale`, and the P4 remarks from the `actions` file (`snapshot.ts:236-252`).
-- **Pinned series** (`snapshot.ts:279-300`): the 53 indicators at `registry.ts:285` `startParams` (the registry
+- **Pinned series** (`snapshot.ts:279-300`): the 53 indicators at `registry.ts:293` `startParams` (the registry
   defaults, except I43 at anchor Week: P17 a does not offer its default Session), 76 outputs; the core's declared
-  derived series of the default cards (`condition.ts:589` `declaredDerivedSeries`: the bar fields, the prior Donchian
+  derived series of the default cards (`condition.ts:601` `declaredDerivedSeries`: the bar fields, the prior Donchian
   bands, the rising lags and vs-MA averages); every series the presets read. 113 series on the real publication (LOCAL).
   Each is a tail of `SCREENER_WITHIN_MAX` + 1 bars per ticker (`metrics.ts:210` `tailLength`) in one shared
-  `Float64Array`, written by the pre-warm through the one `series()` path (`prewarmChunk`, `snapshot.ts:407-424`),
+  `Float64Array`, written by the pre-warm through the one `series()` path (`prewarmChunk`, `snapshot.ts:419-436`),
   installed in each thread's `SeriesCache` as pinned entries (`:453`). Test: `tests/snapshot.test.ts` "the pre-warm: ...
   each tail equal to the dynamic series() on the same bars".
 - **Identity**: `price_data` = `dataVersion` over (ticker, `price`, pack sha256) of every ticker (`snapshot.ts:268`);
@@ -385,10 +385,10 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
   life (about 10.6 MB per thread), price columns and the backtest core's `Calc` made on first use, `missingInput`
   answered from a per-ticker mask (`:370-375`), so a screen of pinned series reads no bar column (test
   `tests/views.test.ts`); `return_rank` cross-sections once per thread and snapshot, at most 16 windows (`crossSection`,
-  `snapshot.ts:508-522`).
+  `snapshot.ts:542-552`).
 
 Custom parameters are computed per request through the same `series()` call (`metrics.ts:250`), keyed by
-(`price_data`, `screener_engine`, the resolved reference) (`seriesKey`, `metrics.ts:235`), on the ticker's **full**
+(`price_data`, `screener_engine`, the resolved reference) (`seriesKey`, `metrics.ts:236`), on the ticker's **full**
 history then tailed (tails are not exact for recursive and cumulative indicators: EMA 200 is up to 7.7% off with a
 500-bar tail, report 6.5), and kept in the thread's series LRU (one share of `SCREENER_CACHE_BYTES`). "Precomputed"
 and "dynamic" are the same call at two times, so they cannot differ; each condition says which (`source`). Test:
@@ -405,8 +405,8 @@ field), `transform` (`pct_distance`, `band_position`, `lag`, `change`, `rolling_
 `stoch_cross_in_zone`, `new_high`, `silent`), `flow` (PHASE 2; refused at bind until then, `condition.ts:182`),
 `xsection` (`return_rank`), `universe` (a row attribute; fundamentals use this kind too, `contract.ts:466-468`). These
 lists are data, read from `screener-metrics.json` (section 1.11), never kept in code; `transforms.ts` implements each
-`fn` and pattern `type` (`IMPLEMENTED_TRANSFORMS` `:286`, `IMPLEMENTED_PATTERNS` `:583`), and `catalogProblems`
-(`apps/edge-bff/screener/src/core/catalog.ts:224`) fails when the two disagree.
+`fn` and pattern `type` (`IMPLEMENTED_TRANSFORMS` `:287`, `IMPLEMENTED_PATTERNS` `:603`), and `catalogProblems`
+(`apps/edge-bff/screener/src/core/catalog.ts:227`) fails when the two disagree.
 
 | Test | Rule (`evaluate.ts`) |
 |---|---|
@@ -457,17 +457,19 @@ unevaluated conditions is pruned iff m + r < θ. It never hides a match or a nea
 oracle on random whole screens).
 
 **Cost and budget.** Before any compute the worker prices the worst case on the S0 survivors
-(`apps/screener-worker/src/run.ts:205-235` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
-that are not pinned, from `costUnits` `:160-196` over the core's `costTracker`, `plan.ts:143`, which learns ms per unit
-per replica with an exponential mean, alpha 0.2, `run.ts:139`, seeded by the registry's provisional 5.96 ns per bar per
-length unit). Above `SCREENER_MAX_CPU_MS` the request is refused (`422 LIMIT_EXCEEDED compute_budget`, naming the
-costliest condition), never cut short. LOCAL caveat (`BENCHMARK_LOCAL.md` section 7): the model under-prices an O(N)
+(`apps/screener-worker/src/run.ts:245-283` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
+that are not pinned, from `costUnits` `:185-230` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
+per replica with an exponential mean, alpha 0.2, `run.ts:142`, seeded by the registry's provisional 5.96 ns per bar per
+length unit; a flow kernel by its stock's broker rows and brokers x sessions grid and a measured prior per way it is
+computed, the broker-data series and window context once per stock, every cold series observed with its time shared
+among its kernels: `verification/screener/BENCHMARK_FLOW_COST.md`, QA unit B). Above `SCREENER_MAX_CPU_MS` the request
+is refused (`422 LIMIT_EXCEEDED compute_budget`, naming the costliest condition and how to pass), never cut short. LOCAL caveat (`BENCHMARK_LOCAL.md` section 7): the model under-prices an O(N)
 series 24-62 times until the tracker has seen it and mispredicts up to 4.36 times after; hence the proposed
 `SCREENER_MAX_CPU_MS` 4500 = 20 s / 4.36 until a fitted model lands (Phase 17).
 
 ### 1.7.6 Admission, lanes and per-owner budgets (P33, built in Phase 1)
 
-In this order (`src/pool.ts` header `:4-23`; `server.ts:399-420` `compute`):
+In this order (`src/pool.ts` header `:4-23`; `server.ts:402-423` `compute`):
 
 1. a result-cache hit (and a counts hit) is answered at once, outside every queue and budget;
 2. the per-request compute budget (above);
@@ -496,7 +498,7 @@ with K - 1 it rose 1.6 times.
 |---|---|---|---|
 | Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:134-135`, `server.ts:100-125` |
 | Counts cache | (snapshot, definition hash) | 50,000 entries (`COUNTS_KEEP`), LRU; the presets pinned | `server.ts:131-152` |
-| Series LRU (custom parameters) and the pinned tails | `seriesKey` (`metrics.ts:235`) per ticker | one share of `SCREENER_CACHE_BYTES` per compute thread; pinned tails not counted | `metrics.ts:242` `SeriesCache`, `snapshot.ts:438-454` |
+| Series LRU (custom parameters) and the pinned tails | `seriesKey` (`metrics.ts:236`) per ticker | one share of `SCREENER_CACHE_BYTES` per compute thread; pinned tails not counted | `metrics.ts:243` `SeriesCache`, `snapshot.ts:438-454` |
 | One request's views | ticker | `CALC_KEEP` 256 tickers hold a `Calc` (released on eviction) | `run.ts:218`, `:227-267` |
 | Disk cache of the files | sha256 | `SCREENER_CACHE_DIR_BYTES` in `SCREENER_CACHE_DIR` (the container's disk, no volume) | `TerminalClient` `DiskCache` |
 | Catalog and universe documents | the publication and its outcome | one each | `apps/screener-worker/src/catalog.ts:93-120` (JSON, gzip level 9, `ETag` = sha256 of the JSON bytes) |
@@ -508,7 +510,7 @@ caller but never cached under the newer publication (`server.ts:413-416`, `:484-
 `tests/refresh.test.ts` "a screen still computing when the same files advance the publication is never cached under the
 newer one").
 
-**Pinning** (`server.ts:388-397` `pinned`): `data_version` pins run, counts and preview to the current snapshot, or to
+**Pinning** (`server.ts:391-400` `pinned`): `data_version` pins run, counts and preview to the current snapshot, or to
 the previous one during `SCREENER_PREVIOUS_GRACE_S`; an older version answers `409 DATA_VERSION_CHANGED`; one this
 replica has not loaded while terminal-api names a newer publication answers `409 DATA_VERSION_PENDING` (edge-bff
 retries it once). Test: `tests/refresh.test.ts` "versions: a run pinned to the previous snapshot is served in the grace
@@ -664,7 +666,7 @@ available; it never runs with a leg removed.
   sha256 of the generated document without that field (read it from the file: it moved with each generator change on
   2026-10-29, while the cost probe was made reproducible), so any input or derived change moves it.
 - **Narrow-only.** The overlay and the derived narrowing may only narrow the base registry
-  (`registry.ts:123` `registryProblems` fails on a wider range), so every transferable screener condition is also valid
+  (`registry.ts:131` `registryProblems` fails on a wider range), so every transferable screener condition is also valid
   for the Backtest.
 - **Checks.** `npm run registry:check` re-derives every field and fails on a difference
   (`tests/core/registry-check.test.mjs`); the cost probe's rule is tested in `tests/core/registry-cost.test.mjs`; the
@@ -680,7 +682,7 @@ Everything that is not one of the registry indicators is described as **data** i
 the 52-week high distance, the `return_rank` cross-section, 4 universe attributes, the 20 flow metrics FL01-FL20 of
 PHASE 2, the 32 fundamentals of APPENDIX C.3 with the 2 dividend metrics among them, index membership, listing board,
 notation) and the `periods` block (1M, 3M, 6M, 1Y = 21, 63, 126, 252 sessions, P23 a).
-`apps/edge-bff/screener/src/core/catalog.ts:129` `METRICS_CATALOG` loads and checks it at import, and `catalogProblems`
+`apps/edge-bff/screener/src/core/catalog.ts:132` `METRICS_CATALOG` loads and checks it at import, and `catalogProblems`
 again at the worker's start. Each metric entry carries:
 
 | Field | Meaning |
@@ -691,7 +693,7 @@ again at the worker's start. Each metric entry carries:
 | `unit` | raw unit on the wire (IDR, percent, fraction, sessions, …) |
 | `requires {file, columns}` | the xsection file and columns it needs; null when the snapshot already has what it reads |
 | `decision` | a sentence naming an open user decision, or null |
-| `applies_to` | a predicate over universe attributes (for example `Industry = Banks`); outside it the cell is `NOT_APPLICABLE` (`apps/edge-bff/screener/src/core/catalog.ts:194` `appliesTo`) |
+| `applies_to` | a predicate over universe attributes (for example `Industry = Banks`); outside it the cell is `NOT_APPLICABLE` (`apps/edge-bff/screener/src/core/catalog.ts:197` `appliesTo`) |
 | `formula`, `interpretation`, `misuse`, `evidence` | the `Feature_Catalog` fields, so a later AI onboarding can reuse them |
 | `unavailable_reason`, `default_test`, `ref`, `fl` | the reason shown while it is unavailable; the card it opens with; a reference template; the FLOW INDICATOR PROPOSALS id |
 
@@ -728,7 +730,7 @@ catalog per worker versions and `published_at` (an advance keeps the versions). 
 metric of an existing kind over a file the worker already reads needs only catalog entries; a new file needs worker
 code (its name in the file list, a decoder, its data version, its binding)** (section 2.1).
 
-**Presets** (`presets.json`, 26 presets of APPENDIX A.2; `apps/edge-bff/screener/src/core/catalog.ts:128` `PRESETS`):
+**Presets** (`presets.json`, 26 presets of APPENDIX A.2; `apps/edge-bff/screener/src/core/catalog.ts:131` `PRESETS`):
 each `{id, category, name, why, definition}` and for eight of them the prototype's default sort (`view.sort`). A preset
 is `AVAILABLE` only when every enabled leg and metric filter is (`validate.ts:529-558` `presetAvailability`; it never
 runs with a leg removed); the available ones are computed at each swap and kept pinned in the result cache, so a preset
@@ -982,7 +984,7 @@ What changes, per class (yes = always; maybe = depends; no = never):
 Notes: "no" for terminal-api rests on `/xsection` validating names against the index (BRANCH, section 1.6); a new
 service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:39`). "A wire kind
 the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
-`apps/edge-bff/screener/src/core/catalog.ts:204` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
+`apps/edge-bff/screener/src/core/catalog.ts:207` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
 field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:466-468`), so
 it needs no new kind (2.14). "File list" means the worker's list of files it reads (today `PHASE1_FILES`,
 `apps/screener-worker/src/snapshot.ts:74`): a file outside it is never downloaded, never enters the skip-unchanged rule
@@ -1087,8 +1089,8 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | Indicators (registry release only): base registry regenerated (`npm run registry` in `apps/backtest-worker`), overlay entry (`shape`, the test forms per output with operators and labels, `synonyms`, a one-line `description` of 20-160 characters in our own words, `default_test`), screener registry regenerated (`npm run registry` in `apps/edge-bff/screener`), both `registry:check` green | the generated files; `tests/core/registry.test.ts` "has one entry per base id and vice versa" |
-| Other metrics: `screener-metrics.json` entries with the built fields (section 1.11): `id`, `group`, `kind`, `label`, `short`, `params` (ranges; flow maxima derived from the published window), `tests`, `unit`, `requires {file, columns}`, `decision`, `applies_to`, `unavailable_reason`, `formula`, `interpretation`, `misuse`, `evidence`, `default_test` | `apps/edge-bff/screener/src/core/catalog.ts:224` `catalogProblems` at import and at the worker's start |
-| A new transform `fn` or pattern `type`: its function in `transforms.ts` and its id in `IMPLEMENTED_TRANSFORMS` / `IMPLEMENTED_PATTERNS` (`transforms.ts:286, 583`); an offered pattern without a `decision` must be implemented | `tests/core/catalog.test.ts` "keeps its rules and lists exactly the transforms and patterns transforms.ts computes" |
+| Other metrics: `screener-metrics.json` entries with the built fields (section 1.11): `id`, `group`, `kind`, `label`, `short`, `params` (ranges; flow maxima derived from the published window), `tests`, `unit`, `requires {file, columns}`, `decision`, `applies_to`, `unavailable_reason`, `formula`, `interpretation`, `misuse`, `evidence`, `default_test` | `apps/edge-bff/screener/src/core/catalog.ts:227` `catalogProblems` at import and at the worker's start |
+| A new transform `fn` or pattern `type`: its function in `transforms.ts` and its id in `IMPLEMENTED_TRANSFORMS` / `IMPLEMENTED_PATTERNS` (`transforms.ts:287, 603`); an offered pattern without a `decision` must be implemented | `tests/core/catalog.test.ts` "keeps its rules and lists exactly the transforms and patterns transforms.ts computes" |
 | A new fundamental: `catalogProblems` checks its rule (`apps/edge-bff/screener/src/core/catalog.ts:227-229`): `kind: 'universe'` with the file it requires; no count is kept in code (FIXED, it held 32): that every fundamental of APPENDIX C.3 is there is derived from the prototype's catalogue, and a new one beyond it passes | `tests/core/catalog.test.ts` "holds every fundamental metric of the prototype's catalogue (APPENDIX C.3)" |
 | Availability derived, never coded: removing the file from a fixture index makes the metric `REQUIRES_DATA` with no code change | `tests/core/catalog.test.ts` "derives availability from the published index: flow needs its files, technical metrics need none, a decision wins" |
 | A new wire kind or NA reason added to `contract.ts` only when no existing one fits; each new refusal or NA meets the four "Gates and evidence" items (rule seen first, how to pass, right and wrong example, a message naming the field and the fix) | `contract.ts`; texts |
@@ -1100,7 +1102,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | The file in the worker's file list (today `PHASE1_FILES`, `snapshot.ts:74`): the refresh requires it in the index (`refresh.ts:317-319`), caps it before any grant, grants it only when neither cache holds it, downloads it on the builder with sha256 and size checks and decodes it with the shared decoders (`decodeColumnar`/`inflateVerified`); its sha256 joins the skip-unchanged rule (`refresh.ts:339`) and the snapshot identity `sid` (`snapshot.ts:292`). A file that is optional needs its own rule, as the broker day files have (P4, `broker.ts`): the Phase 1 list makes a missing file fail the refresh | `tests/refresh.test.ts` |
-| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `run.ts:160-196` `costUnits` or pinned in the snapshot | condition and estimate tests |
+| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `run.ts:185-230` `costUnits` or pinned in the snapshot | condition and estimate tests |
 | Cross-checks on load (counts, dates, a self-check against a stored oracle where one exists); a failure keeps the previous snapshot and logs `REFRESH_FAILED` | a fixture with a corrupted sha256 |
 | Units converted once, at the decoder, from the document's `units`; raw units on the wire | a unit test |
 | Alignment: the as-of rule for each cell (own bars, market sessions, or backward as-of on availability) and the `eval_date` each cell reports | a fixture across a holiday |
@@ -1513,7 +1515,7 @@ can differ; the cell's `eval_date` says which value was used). FACT behind the r
 
 **L4 contract and catalog.**
 - A new wire kind, the first time a market-wide series is used (PROPOSED, an additive change to `contract.ts`
-  `MetricRef` and `MetricKind`, and to the kinds `apps/edge-bff/screener/src/core/catalog.ts:204` `KINDS` accepts): `{kind: 'series', series:
+  `MetricRef` and `MetricKind`, and to the kinds `apps/edge-bff/screener/src/core/catalog.ts:207` `KINDS` accepts): `{kind: 'series', series:
   'USDIDR', field: 'close'}`, valid series read from the catalog; its binding in `condition.ts` and its validation in
   `validate.ts` are new code.
 - Transform `vs_series` (generalising `vs_index`): the stock's return over d sessions minus the series' return over the

@@ -20,6 +20,7 @@ import type { BrokerRowsLike, FlowBindContext } from '../../src/core/flowmetrics
 import { resolveSeries, tickerCalc } from '../../src/core/metrics.ts';
 import { runScreen } from '../../src/core/screen.ts';
 import { percentileOwn } from '../../src/core/transforms.ts';
+import { probeContext } from '../../src/core/flowprobe.ts';
 import { availabilityMap, validateDefinition } from '../../src/core/validate.ts';
 import { percentRank } from '../../src/core/xsection.ts';
 import { OPTS, WITHIN_MAX, memoryEnv, rowOf, synth, vctx } from './helpers.ts';
@@ -41,8 +42,8 @@ describe('catalog (P5_FLOW.md section 2)', () => {
       const keys = [...r.params.flatMap((p: any) => sv?.replace?.[p.key] ? sv.replace[p.key].map(key) : [p.key]), ...(sv?.add || []).map(key)];
       expect([r.id, f.outputs.map(o => o.key), f.default_output, f.params.map(p => p.key)]).toEqual([r.id, outputs, outputs[0], keys]);
       for (const p of f.params) {
-        expect([r.id, p.key, p.condition]).toEqual([r.id, p.key, !['levels', 'button', 'fixed'].includes(p.kind)]);
-        if (!p.screener) expect([r.id, p]).toEqual([r.id, { ...r.params.find((q: any) => q.key === p.key), condition: p.condition }]);
+        expect([r.id, p.key, p.condition]).toEqual([r.id, p.key, !['levels', 'button', 'fixed'].includes(p.kind) && !p.display_only]);
+        if (!p.screener) expect([r.id, p]).toEqual([r.id, { ...r.params.find((q: any) => q.key === p.key), condition: p.condition, ...(p.display_only ? { display_only: true } : {}) }]);
       }
       // G1: the registry's default board, Regular
       const boards = f.params.find(p => p.key === 'boards');
@@ -119,10 +120,11 @@ describe('parity with the Terminal (P5_FLOW.md section 5)', () => {
     for (const f of FLOWS) {
       if (f.requires) { expect(code(() => resolveFlow({ kind: 'flow', metric: f.id }, 'f', { flow: FLOW_CTX }))!.code).toBe('METRIC_UNAVAILABLE'); continue }
       if (f.compute !== 'terminal') continue;                       // the Screener's versions: tests/core/flow-screener.test.ts
-      // the default parameters: the registry's (flowDefaults, the display-only levels aside), a built-in percentile
-      // baseline capped to the window (K1): FL08, FL09 and FL21 at 60 - 1, FL37 at 60 - 20
+      // the default parameters: the registry's (flowDefaults, the parameters a condition does not take aside: the
+      // levels that only draw and a display-only "Plot"), a built-in percentile baseline capped to the window (K1):
+      // FL08, FL09 and FL21 at 60 - 1, FL37 at 60 - 20
       const p = resolveFlowParams(f, undefined, 'f', 60), d = flowDefaults(f.id);
-      delete d.levels;
+      for (const q of f.params) if (!q.condition) delete d[q.key];
       const capped = { FL08: 59, FL09: 59, FL21: 59, FL37: 40 } as Record<string, number>;
       expect([f.id, p]).toEqual([f.id, capped[f.id] ? { ...d, baseline: capped[f.id] } : d]);
       // a sided indicator draws its sell line with side sell (its buy line at the default side buy)
@@ -142,7 +144,7 @@ describe('parity with the Terminal (P5_FLOW.md section 5)', () => {
       }
     }
     expect(compared).toBeGreaterThan(40 * 4);
-  });
+  }, 60_000);   // about 0.5 s alone (48 FL x every stock): a heavy test's own timeout under a full parallel run
   it('one computeFlow per (ticker, id, parameters): the outputs of one call share it through the memo', () => {
     const s = stock('MEMO', 11, STOCKS.AAAA.rows), memo = s.t.flow!.memo as Map<string, unknown>;
     resolveFlow({ kind: 'flow', metric: 'FL11', output: 'value' }, 'f', { flow: FLOW_CTX }).full(tickerCalc(s.t));
@@ -177,6 +179,32 @@ describe('parameter refusals (P5_FLOW.md section 1)', () => {
     expect(R({ metric: 'FL24', params: { levels: '6, 10' } })).toMatchObject({ code: 'INVALID_CONDITION', field: 'definition.conditions[0].test.metric.params.levels' });
     expect(R({ metric: 'FL34', params: { reset: null } })!.message).toMatch(/only draws on the Terminal's chart/);
     expect(R({ metric: 'FL01', params: { ranking: 'daily' } })!.code).toBe('INVALID_CONDITION');
+  });
+  it('a select or switch whose every option gives the same values (the Terminal\'s "Plot") is display-only, derived by the generator\'s probe: not a condition parameter, refused if sent, its default used; one that changes a value (FL34 "Change line vs") stays (QA unit B, QA5)', () => {
+    const reg = (REG as any).indicators as any[];
+    // derived on the probe, never listed: the generator's answer is the registry's, entry by entry
+    for (const r of reg) expect([r.id, FLOW_BY_ID[r.id].params.filter(p => p.display_only).map(p => p.key)]).toEqual([r.id, G.displayOnlyParams(r).filter((k: string) => FLOW_BY_ID[r.id].params.some(p => p.key === k))]);
+    expect(FLOWS.flatMap(f => f.params.filter(p => p.display_only).map(p => `${f.id}.${p.key}`))).toEqual(expect.arrayContaining(['FL26.plot', 'FL34.plot']));
+    for (const id of ['FL26', 'FL34']) {
+      const p = FLOW_BY_ID[id].params.find(q => q.key === 'plot')!;
+      expect([id, p.condition, p.display_only]).toEqual([id, false, true]);
+      const r = R({ metric: id, params: { plot: 'line' } })!;
+      expect([id, r.code, r.field]).toEqual([id, 'INVALID_CONDITION', 'definition.conditions[0].test.metric.params.plot']);
+      expect(r.message).toMatch(/"Plot" of FL\d\d .* only changes how the Terminal draws the indicator \(each of its options gives the same values\); a condition does not take it, so remove it \(the parameters a condition takes: .*; right: .*; wrong: \{"plot": \.\.\.\}\)\./);
+      // its options give the same values on the real fixture too, and left out the default is what computeFlow takes
+      const T = terminal(STOCKS.AAAA), at = (plot: string) => computeFlow(id, T.ctx, { ...flowDefaults(id), plot });
+      expect([id, JSON.stringify(at('hist')) === JSON.stringify(at('line'))]).toEqual([id, true]);
+      const params = (resolveFlow({ kind: 'flow', metric: id } as never, 'f', { flow: FLOW_CTX }).ref as any).params;
+      expect([id, 'plot' in params]).toEqual([id, false]);
+    }
+    // a choice that changes a value keeps its place: FL34's change line reads 1, 5 or 20 sessions back
+    const lag = FLOW_BY_ID.FL34.params.find(q => q.key === 'lag')!;
+    expect([lag.condition, lag.display_only]).toEqual([true, undefined]);
+    expect(R({ metric: 'FL34', output: 'change', params: { lag: '5' } })).toBe(null);
+    const ctx = probeContext(80), change = (l: string) => computeFlow('FL34', ctx, { ...flowDefaults('FL34'), lag: l }).change;
+    expect(JSON.stringify(change('1')) === JSON.stringify(change('5'))).toBe(false);
+    // a choice that matters only beside another is not display-only: FL07's denominator under one investor type
+    expect(FLOW_BY_ID.FL07.params.find(q => q.key === 'denom')!.condition).toBe(true);
   });
   it('refuses an output the indicator does not give at its parameters (a side; the Terminal\'s FL23 lines), and selected brokers without a broker (FL23\'s holders too)', () => {
     expect(R({ metric: 'FL24', output: 'buy' })).toMatchObject({ code: 'INVALID_CONDITION', field: 'definition.conditions[0].test.metric.output', details: { allowed: ['value'] } });
@@ -361,6 +389,44 @@ describe('output types (OPERATORS.md section 4) and K7', () => {
     // lots per transaction cross a series, not a fixed number
     expect(bind({ kind: 'event', within: 3, signal: { lhs: F('FL01'), op: 'crosses_above', rhs: { value: 5 } } })!.message).toMatch(/against a fixed value is not offered/);
     expect(bind({ kind: 'event', within: 3, signal: { lhs: F('FL01'), op: 'crosses_above', rhs: { kind: 'transform', fn: 'ma', of: F('FL01'), args: { ma: 'SMA', length: 10 } } as never } })).toBe(null);
+  });
+  it('a 0/1 signal (type F of flow-kinds.json: FL27, FL09) takes no comparison with another series, no state against another series and no average, wherever it stands; the tests it takes still pass (OPERATORS.md section 4, QA3 D2)', () => {
+    const T = (fn: string, of: unknown, args: Record<string, unknown> = {}) => ({ kind: 'transform', fn, of, args }) as never;
+    const v = (metric: unknown, op = 'ge', value = 0) => ({ kind: 'value', metric, op, value }) as never;
+    // every F output of the generated entries is one the rules below apply to (derived from the kinds, no FL list)
+    const signals = FLOWS.flatMap(e => e.outputs.filter(o => o.kind === 'F').map(o => [e.id, o.key] as const)).filter(([id]) => FLOW_BY_ID[id].compute !== 'none');
+    expect(signals.map(([id]) => id)).toEqual(expect.arrayContaining(['FL09', 'FL27']));
+    const refusals: [string, Test, string, RegExp][] = [
+      ['relative, the signal as the series', v(T('relative', F('FL27'), { by: F('FL09'), form: 'difference' })), 'definition.conditions[0].test.metric.of', /FL27\.value is a 0\/1 signal, which has no magnitude, so Compared with another series is not offered on it; it takes no measure, only the tests /],
+      ['relative, the signal as the second series', v(T('relative', F('FL24'), { by: F('FL27'), form: 'difference' })), 'definition.conditions[0].test.metric.args.by', /FL27\.value is a 0\/1 signal/],
+      ['a state against another series, the signal on the left', { kind: 'state', lhs: F('FL27'), op: 'gt', rhs: F('FL09') } as never, 'definition.conditions[0].test.lhs', /so Compared with another series is not offered on it/],
+      ['a state against another series, the signal on the right', { kind: 'state', lhs: F('FL24'), op: 'gt', rhs: F('FL27') } as never, 'definition.conditions[0].test.rhs', /FL27\.value is a 0\/1 signal/],
+      ['a moving average of the signal (the series another one is compared with)', v(T('ma', F('FL27'), { ma: 'SMA', length: 5 }), 'ge', 0.5), 'definition.conditions[0].test.metric.of', /so Moving average of a series, like Compared with another series, is not offered on it/],
+      ['its own average', v(T('vs_average', F('FL09'), { ma: 'SMA', form: 'difference', length: 5 })), 'definition.conditions[0].test.metric.of', /FL09\.value is a 0\/1 signal/],
+      ['a ratio of the signal (operator 7 in its ratio form)', v(T('ratio', F('FL27'), { by: F('FL09') })), 'definition.conditions[0].test.metric.of', /so Ratio of two series, like Compared with another series, is not offered on it/],
+      ['the signal against its own moving average', { kind: 'state', lhs: F('FL27'), op: 'gt', rhs: T('ma', F('FL27'), { ma: 'SMA', length: 5 }) } as never, 'definition.conditions[0].test.rhs.of', /FL27\.value is a 0\/1 signal/],
+      ['a change of the signal in its own unit', v(T('change', F('FL27'), { bars: 3 })), 'definition.conditions[0].test.metric.of', /so Change, in its own unit is not offered on it/],
+    ];
+    for (const [what, test, field, message] of refusals) {
+      const r = bind(test);
+      expect([what, r?.code, r?.field]).toEqual([what, 'INVALID_CONDITION', field]);
+      expect([what, r!.message]).toEqual([what, expect.stringMatching(message)]);
+      expect([what, r!.message]).toEqual([what, expect.stringMatching(/\(right: .* of RSI; wrong: .* of FL\d\d\.value\)\.$/)]);
+    }
+    // the rule follows the type, not the id: every F output is refused the same way
+    for (const [id, out] of signals) expect([id, bind({ kind: 'state', lhs: F(id, {}, out), op: 'gt', rhs: F(id, {}, out) } as never)?.code]).toEqual([id, 'INVALID_CONDITION']);
+    // what section 4 offers a 0/1 signal: "= 1", ever, K of N, in a row; and a lag of it stays a signal
+    expect(bind(v(F('FL27'), 'eq', 1))).toBe(null);
+    expect(bind({ kind: 'window', mode: 'ever', length: 5, test: v(F('FL27'), 'eq', 1) } as never)).toBe(null);
+    expect(bind({ kind: 'window', mode: 'at_least', length: 5, count: 2, test: v(F('FL27'), 'eq', 1) } as never)).toBe(null);
+    expect(bind({ kind: 'state', lhs: F('FL27'), op: 'gt', rhs: { value: 0.5 } } as never)).toBe(null);
+    expect(bind(v(T('lag', F('FL27'), { bars: 1 }), 'eq', 1))).toBe(null);
+    // a series of a type that takes them keeps them: a relative comparison and a state of two % series, an average of lots,
+    // a percentile or a run against its own moving average (operators 7 and 8 are offered on P and D)
+    expect(bind(v(T('relative', F('FL24'), { by: F('FL07'), form: 'difference' }), 'ge', -1e9))).toBe(null);
+    expect(bind({ kind: 'state', lhs: F('FL24'), op: 'gt', rhs: F('FL07') } as never)).toBe(null);
+    for (const m of [F('FL21', { baseline: 20 }), F('FL26', { window: 30 })]) expect(bind({ kind: 'state', lhs: m, op: 'gt', rhs: T('ma', m, { ma: 'SMA', length: 5 }) } as never)).toBe(null);
+    expect(bind({ kind: 'event', within: 3, signal: { lhs: F('FL01'), op: 'crosses_above', rhs: T('ma', F('FL01'), { ma: 'SMA', length: 10 }) } } as never)).toBe(null);
   });
   it('two series of one unit: the close against Buy VWAP · Rolling (both price levels) is a state and a cross; Bandar Balance · % against the close is refused naming both units', () => {
     const close = { kind: 'price', field: 'close' } as never;

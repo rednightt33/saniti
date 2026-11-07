@@ -46,7 +46,7 @@ import type { BarView, Evaluation, Operand, SessionOutcome } from './evaluate.ts
 import { laggedSeries, missingInput, resolveSeries } from './metrics.ts';
 import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
-import { outputType, resolveSignal } from './transforms.ts';
+import { operatorTakes, outputType, resolveSignal } from './transforms.ts';
 import { FLOW_BY_ID, FLOW_PRESENCE, FLOW_DESIGN_SESSIONS, depthRefusal, readsFlow, resolveFlowParams } from './flowmetrics.ts';
 import type { FlowBindContext } from './flowmetrics.ts';
 import { INDICATORS, SBY_ID, isDefaultParams } from './registry.ts';
@@ -127,10 +127,16 @@ const isValueSide = (s: Side): s is { value: number } => isObj(s) && !('kind' in
 const startOf = (r: ResolvedSeries, tail: Tail, at: number, extra: number): number | null =>
   r.window !== undefined ? lookbackStartOfWindow(r.window, at, extra) : lookbackStart(r.historyClass, tail.firstValid, at, extra);
 
-/** Reads a series for one ticker as a view; checks that the tail holds the bars an evaluation at `at` reads. */
+/** Reads a series for one ticker as a view; checks that the tail holds the bars an evaluation at `at` reads. A bar
+    before the tail reads as missing, which is exact when the full series has no value before the tail (its firstValid
+    is in it, or it has none): a flow series, whose values all lie in the loaded broker window (metrics.ts series keeps
+    every one of them in its tail), is read at the stock's last candle with broker data (P10 a), which is behind its
+    last price bar when the broker data is behind the prices, and an event there scans within_max sessions back from it
+    (QA unit B: "tail of FL32.buy on BBCA starts at bar 269, but bar 268 is needed" with the broker data one session
+    behind). A series with values before its tail (a price indicator) is read at its last bar only. */
 function read(input: TickerInput, r: ResolvedSeries, reach: number): { view: BarView; tail: Tail; source: SeriesSource } {
   const { tail, source } = input.series(r);
-  if (input.at - reach < tail.from && tail.from > 0)
+  if (input.at - reach < tail.from && tail.firstValid >= 0 && tail.firstValid < tail.from)
     throw new RangeError(`condition: the tail of ${r.label} on ${input.ticker} starts at bar ${tail.from}, but bar ${input.at - reach} is needed (evaluate at the last bar)`);
   return { view: viewOfTail(tail, missingInput(input, r.inputs, input.at) !== null), tail, source };
 }
@@ -318,6 +324,9 @@ function sameUnit(a: ResolvedSeries, b: ResolvedSeries, f: string): void {
   throw new ScreenerError('INVALID_CONDITION', `${f}: ${a.label} is ${words(a)} and ${b.label} is ${words(b)}; a comparison of two series needs the same unit (right: close against Buy VWAP · Rolling, both price levels; wrong: Bandar Balance · % against the close).`, f, { allowed: [String(a.unit)] });
 }
 
+/** The measure that compares a series with a second one (OPERATORS.md operator 7; the operators block's measure with
+    `second`): its not_on decides which output types a STATE between two series takes. */
+const SECOND = OPS.measures.find(m => m.second)?.fn;
 function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, within: number, f: string, ctx: BindContext): RawBound {
   const ops = kind === 'state' ? ['gt', 'lt'] : ['crosses_above', 'crosses_below'];
   if (!ops.includes(op)) throw new ScreenerError('INVALID_CONDITION', `${f}.op must be ${ops.join(' or ')}.`, `${f}.op`, { allowed: ops });
@@ -331,6 +340,9 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
   const lagged = (s: BoundSide, d: 'gt' | 'lt', field: string): BoundSide => s.kind === 'series' && s.r.compareLag[d] === 1 ? { kind: 'series', r: laggedSeries(s.r, field, ctx) } : s;
   const L = isBar(R0) && !isBar(L0) ? lagged(L0, up ? 'lt' : 'gt', `${f}.lhs`) : L0;
   const R = isBar(L0) && !isBar(R0) ? lagged(R0, up ? 'gt' : 'lt', `${f}.rhs`) : R0;
+  // OPERATORS.md section 4: a STATE between two series is operator 7 read as its sign (lhs - rhs > 0), so a side whose
+  // output type the comparison with a second series is not offered on (a 0/1 signal) is refused, naming that side
+  if (kind === 'state' && L0.kind === 'series' && R0.kind === 'series' && SECOND) for (const [s, side] of [[L0, 'lhs'], [R0, 'rhs']] as const) operatorTakes(SECOND, s.r, `${f}.${side}`);
   // P5a: a flow series against a value (operators 1 and 8 by its output type) or against a second series (operators 7
   // and 8: the same unit)
   if (L0.kind === 'series' && R0.kind === 'series' && (readsFlow(L0.r) || readsFlow(R0.r))) {

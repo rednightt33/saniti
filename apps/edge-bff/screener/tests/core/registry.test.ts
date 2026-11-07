@@ -38,7 +38,7 @@ describe('generated file', () => {
 
   it('records the hash of every source it was built from', () => {
     const roles = SCREENER_REGISTRY.sources.map(s => s.role).sort();
-    expect(roles).toEqual(['base', 'calc', 'flow_kinds', 'flow_registry', 'generator', 'oracle', 'overlay', 'terminal']);
+    expect(roles).toEqual(['base', 'calc', 'flow_calc', 'flow_kinds', 'flow_probe', 'flow_registry', 'generator', 'oracle', 'overlay', 'terminal']);
     for (const s of SCREENER_REGISTRY.sources) expect(s.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 

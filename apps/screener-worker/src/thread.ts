@@ -22,7 +22,7 @@ import { errorFields, log, setLogSink } from './log.ts';
 import { runPreview } from './preview.ts';
 import type { PreviewTask } from './preview.ts';
 import { CancelledRun, isCancelled, runTask } from './run.ts';
-import type { CountsEntryOut, CountsTask, RunTask, ThreadEnv } from './run.ts';
+import type { CountsEntryOut, CountsTask, RunOutcome, RunTask, ThreadEnv } from './run.ts';
 import { PHASE1_FILES, ThreadSnapshot, buildSnapshot, prewarmChunk, snapshotDigest } from './snapshot.ts';
 import type { PublicationState, ReadFile, SnapshotDesc, SnapshotReference } from './snapshot.ts';
 import { decodeBrokerDay } from './broker.ts';
@@ -116,12 +116,13 @@ function start(d: ThreadData): void {
       case 'preview': return runPreview(task, snapshot(task.sid), d.env);
       case 'counts_list': {
         // each definition on its own; a failure is that entry's error, the others are still counted (8.6)
-        const snap = snapshot(task.sid), out: CountsEntryOut[] = [];
+        const snap = snapshot(task.sid), out: CountsEntryOut[] = [], observe: RunOutcome['observe'] = [];
         for (const item of task.items) {
           if (cancelled()) throw new CancelledRun();
           try {
             const o = runTask({ ...item, kind: 'counts', sid: task.sid, options: { exhaustive: false, explain: false }, queue_ms: 0, s0_ms: 0, versions: snap.desc.versions, data: snap.desc.data }, snap, d.env, cancelled);
             out.push({ item_id: item.item_id, match_count: o.match_count, near_count: o.near_count, busy_ms: o.busy_ms });
+            observe.push(...o.observe);
           } catch (e) {
             if (cancelled() || isCancelled(e)) throw e;
             const s = serialError(e);
@@ -129,7 +130,7 @@ function start(d: ThreadData): void {
             out.push({ item_id: item.item_id, error: s.error });
           }
         }
-        return { kind: 'counts_list', counts: out };
+        return { kind: 'counts_list', counts: out, observe };
       }
     }
   }

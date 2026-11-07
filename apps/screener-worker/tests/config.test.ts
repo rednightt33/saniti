@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { describeConfig, loadConfig } from '../src/config.ts';
 import { ENGINE_VERSION, REPO_ROOT, checkStartup, engineVersion } from '../src/version.ts';
 import { PRESETS } from '../../edge-bff/screener/src/core/catalog.ts';
+import { SOURCES } from '../../edge-bff/screener/src/core/registry.ts';
 import { KEY, PROXY, envFor } from './helpers.ts';
 
 const URL0 = 'http://127.0.0.1:9';
@@ -65,9 +66,9 @@ test('the start-up check passes on this tree and names a source whose hash diffe
   const ok = await checkStartup();
   assert.deepEqual(ok.problems, []);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'startup-'));
-  for (const f of ['apps/edge-bff/backtest/src/core/backtest-registry.json', 'apps/edge-bff/terminal/src/data/indRegistry.json', 'apps/edge-bff/terminal/src/calc/indicators.ts',
-    'apps/edge-bff/screener/src/core/screener-overlay.json', 'apps/edge-bff/screener/scripts/build-screener-registry.mjs',
-    'apps/edge-bff/terminal/src/data/flowRegistry.json', 'apps/edge-bff/screener/src/core/flow-kinds.json']) {
+  // the image's copy of every source the registry names, the build-only oracle aside (derived from the registry, so a
+  // new source, such as the flow probe's flow.ts and flowprobe.ts, is checked without a list kept here)
+  for (const f of SOURCES.filter(s => s.role !== 'oracle').map(s => s.file)) {
     fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(REPO_ROOT, f), path.join(tmp, f));
   }
   assert.deepEqual((await checkStartup(tmp)).problems, [], 'the oracle script is build-only');

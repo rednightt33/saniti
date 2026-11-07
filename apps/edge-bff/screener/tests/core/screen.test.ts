@@ -191,7 +191,7 @@ describe('the snapshot\'s declared series', () => {
     const r = runScreen(card, env);
     expect(r.conditions.map(c => c.source)).toEqual(['precomputed', 'precomputed']);
     expect(env.computed).toBe(0);
-  });
+  }, 60_000);   // about 0.7 s alone: a heavy test's own timeout under a full parallel run
 });
 
 describe('is_default and params_resolved (report 8.5)', () => {

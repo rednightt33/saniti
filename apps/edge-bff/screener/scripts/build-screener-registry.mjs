@@ -39,6 +39,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { computeFlow } from '../../terminal/src/calc/flow.ts';
+import { probeContext, probeLength } from '../src/core/flowprobe.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '../../../..');
@@ -56,6 +58,8 @@ export const PATHS = {
   out: 'apps/edge-bff/screener/src/core/screener-registry.json',
   flowRegistry: 'apps/edge-bff/terminal/src/data/flowRegistry.json',
   flowKinds: 'apps/edge-bff/screener/src/core/flow-kinds.json',
+  flowCalc: 'apps/edge-bff/terminal/src/calc/flow.ts',
+  flowProbe: 'apps/edge-bff/screener/src/core/flowprobe.ts',
 };
 
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
@@ -539,6 +543,14 @@ export function overlayProblems(overlay, base) {
   const cm = overlay.cost_model || {};
   for (const k of ['ns_per_bar_length', 'reference_bars']) if (!(isN(cm[k]) && cm[k] > 0)) out.push(`cost_model.${k} must be a positive number`);
   if (typeof cm.evidence !== 'string' || !cm.evidence) out.push('cost_model.evidence is required');
+  // QA unit B, QA4: the flow kernels' prior per broker row, measured (its evidence names the benchmark note)
+  const fl = cm.flow || {};
+  for (const k of ['context_ns_per_row', 'presence_ns_per_row']) if (!(isN(fl[k]) && fl[k] > 0)) out.push(`cost_model.flow.${k} must be a positive number`);
+  // one measured prior per way an entry is computed (FLOW_COMPUTES; none is never computed), no other key
+  const computed = FLOW_COMPUTES.filter(c => c !== 'none'), per = fl.ns_per_unit && typeof fl.ns_per_unit === 'object' ? fl.ns_per_unit : {};
+  for (const c of computed) if (!(isN(per[c]) && per[c] > 0)) out.push(`cost_model.flow.ns_per_unit.${c} must be a positive number`);
+  for (const c of Object.keys(per)) if (!computed.includes(c)) out.push(`cost_model.flow.ns_per_unit.${c} is not a way a flow entry is computed (${computed.join(', ')})`);
+  if (typeof fl.evidence !== 'string' || !fl.evidence) out.push('cost_model.flow.evidence is required');
   out.push(...costReviewProblems(overlay.cost_reviews, base));
   return out;
 }
@@ -592,14 +604,51 @@ function screenerParam(spec, W, where, problems) {
   if (spec.kind === 'brokers' && !Array.isArray(p.default)) problems.push(`${w}: a broker list's default is a list`);
   return p;
 }
-/** One entry's parameters: the registry's (every kind, condition false for the kinds that only draw), with a row's
-    screener version applied (replace: a registry key replaced in place by the listed parameters, a shared one of
-    screener_params by its key, an empty list dropping it; add: appended). */
+/** The values a select or switch parameter of the registry takes (its options; false and true). */
+const choicesOf = p => p.kind === 'bool' ? [false, true] : (p.options || []).map(o => Array.isArray(o) ? o[0] : o);
+const hasValue = out => Object.values(out).some(s => Array.isArray(s) && s.some(v => typeof v === 'number' && Number.isFinite(v)));
+/** The registry's select and switch parameters of indicator r that change no value computeFlow gives (QA unit B, QA5:
+    the Terminal's display options, such as "Plot" histogram or line). Derived, never listed: on the depth probe's
+    synthetic context (src/core/flowprobe.ts probeContext, as long as any of the contexts' sessions reach), every option
+    of such a parameter gives the same outputs, at the registry defaults and with each other parameter of options set
+    to each of its other values in turn: a select or switch to each option, a list (boards, investor types) to each
+    single option and to all of them (so a choice that matters only beside another, a Top-N ranking under scope topn, a
+    denominator of the chosen investor types against the board's, keeps its place); a parameter whose outputs have no
+    value on any probed context is kept (the probe cannot tell). computeFlow fills a parameter left out with its default
+    (flow.ts flowDefaults), so leaving it out changes no value either. */
+export function displayOnlyParams(r) {
+  const defaults = Object.fromEntries(r.params.filter(p => p.default !== undefined).map(p => [p.key, p.default]));
+  const choosers = r.params.filter(p => (p.kind === 'select' || p.kind === 'bool') && choicesOf(p).length > 1);
+  const lists = r.params.filter(p => p.kind === 'multi' && choicesOf(p).length > 1).map(q => [q.key, [...choicesOf(q).map(o => [o]), choicesOf(q)]]);
+  const others = [...choosers.map(q => [q.key, choicesOf(q)]), ...lists];
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const contexts = [defaults, ...others.flatMap(([k, values]) => values.filter(v => !same(v, defaults[k])).map(v => ({ ...defaults, [k]: v })))];
+  const L = Math.max(...contexts.flatMap(c => choosers.map(p => Math.max(...choicesOf(p).map(v => probeLength(r.params, { ...c, [p.key]: v }))))), probeLength(r.params, defaults));
+  const ctx = probeContext(L), memo = new Map();
+  const outputs = values => {
+    const k = JSON.stringify(values);
+    if (!memo.has(k)) { const out = computeFlow(r.id, ctx, values); memo.set(k, { text: JSON.stringify(out), value: hasValue(out) }) }
+    return memo.get(k);
+  };
+  return choosers.filter(p => {
+    let valued = false;
+    for (const c of contexts) {
+      const outs = choicesOf(p).map(v => outputs({ ...c, [p.key]: v }));
+      if (outs.some(o => o.text !== outs[0].text)) return false;
+      valued ||= outs[0].value;
+    }
+    return valued;
+  }).map(p => p.key);
+}
+/** One entry's parameters: the registry's (every kind; condition false for the kinds that only draw and, with
+    display_only true, for a select or switch that changes no value, displayOnlyParams), with a row's screener version
+    applied (replace: a registry key replaced in place by the listed parameters, a shared one of screener_params by its
+    key, an empty list dropping it; add: appended). */
 function entryParams(r, sv, shared, W, problems) {
-  const params = [];
+  const params = [], display = new Set(displayOnlyParams(r));
   for (const p of r.params) {
     const rep = sv?.replace?.[p.key];
-    if (rep === undefined) { params.push({ ...structuredClone(p), condition: !FLOW_DISPLAY_KINDS.includes(p.kind) }); continue }
+    if (rep === undefined) { params.push({ ...structuredClone(p), condition: !FLOW_DISPLAY_KINDS.includes(p.kind) && !display.has(p.key), ...(display.has(p.key) ? { display_only: true } : {}) }); continue }
     for (const x of rep) params.push(screenerParam(typeof x === 'string' ? shared[x] ?? { key: x } : x, W, `flow-kinds.json ${r.id}.screener`, problems));
   }
   for (const k of Object.keys(sv?.replace || {})) if (!r.params.some(p => p.key === k)) problems.push(`flow-kinds.json ${r.id}.screener.replace: ${k} is not a parameter of ${r.id}`);
@@ -826,7 +875,7 @@ export async function build({ against = null } = {}) {
     registry_version: base.registry_version,
     generated_by: PATHS.generator,
     sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator,
-      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds })
+      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds, flow_calc: PATHS.flowCalc, flow_probe: PATHS.flowProbe })
       .map(([role, file]) => ({ role, file, sha256: sha256(fs.readFileSync(at(file))) })),
     probe: PROBE,
     cost_model: overlay.cost_model,

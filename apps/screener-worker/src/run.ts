@@ -33,12 +33,12 @@ import { SBY_ID, SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/regi
 import { runScreen } from '../../edge-bff/screener/src/core/screen.ts';
 import type { ScreenEnv } from '../../edge-bff/screener/src/core/screen.ts';
 import { applyUniverse } from '../../edge-bff/screener/src/core/universe.ts';
-import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import { FLOW_BY_ID, FLOW_PRESENCE } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import { operandReach } from '../../edge-bff/screener/src/core/transforms.ts';
 import { definitionHash, validateDefinition } from '../../edge-bff/screener/src/core/validate.ts';
 import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
-import { TickerView, barCount, flowContextOf } from './snapshot.ts';
+import { TickerView, barCount, brokerCounts, brokerRowCount, flowContextOf } from './snapshot.ts';
 import { BROKER_DAY_SESSIONS } from './broker.ts';
 import type { SnapshotDesc, ThreadSnapshot } from './snapshot.ts';
 import { refuse, toApiError } from './errors.ts';
@@ -140,12 +140,37 @@ export const resultKey = (desc: SnapshotDesc, hash: string, options: RunOptionsN
 /* ---- cost (6.10 "Counts and budget") ------------------------------------------------------------------------- */
 
 export const COST_ALPHA = 0.2;          // weight of a new measurement in plan.ts's exponentially weighted mean
-export const newCostTracker = (): CostTracker => costTracker(SCREENER_REGISTRY.cost_model.ns_per_bar_length, COST_ALPHA);
+/** The cost key of the broker-data series (flowmetrics.ts FLOW_PRESENCE: the candles of a ticker with broker data, read
+    once per ticker before its first flow series). */
+export const PRESENCE_KEY = `flow:${String((FLOW_PRESENCE.ref as { metric: string }).metric)}`;
+/** The cost key of a ticker's window context (flowmetrics.ts contextOf: its rows into FlowRows, once per view, timed
+    apart by the thread's meter, snapshot.ts ThreadSnapshot.contexts). */
+export const CONTEXT_KEY = 'flow:context';
+const CONTEXT_UNIT: CostUnit = { key: CONTEXT_KEY, costClass: 'O(N)', length: 1, flow: { rows: 1, brokers: 0 } };
+/** The prior of a cost key before its first measurement (QA unit B, QA4; screener-overlay.json cost_model.flow,
+    measured: verification/screener/BENCHMARK_FLOW_COST.md): a flow kernel's ns per unit of its work (CostUnit flow: a
+    broker row read or a cell of the brokers x sessions grid) by how its entry is computed (the registry's `compute`:
+    the Terminal's computeFlow, the anchor N sessions back, the Screener's Broker Inventory, the foreign net), a window
+    context's and the broker-data series' per row; every other kernel the indicators' ns per bar and length
+    (cost_model.ns_per_bar_length). */
+export const costPrior = (key: string): number => {
+  const m = SCREENER_REGISTRY.cost_model;
+  if (key === PRESENCE_KEY) return m.flow.presence_ns_per_row;
+  if (key === CONTEXT_KEY) return m.flow.context_ns_per_row;
+  if (!key.startsWith('flow:')) return m.ns_per_bar_length;
+  const e = FLOW_BY_ID[key.slice(5).split('{')[0]];
+  return m.flow.ns_per_unit[e?.compute ?? 'terminal'] ?? m.flow.ns_per_unit.terminal;
+};
+export const newCostTracker = (): CostTracker => costTracker(costPrior, COST_ALPHA);
 
 /** One kernel a series runs when it is computed: its cost key, class and length (the multiplier of an O(N·n) class);
-    bars: the bars it runs over when they are not the ticker's (P5a: a flow indicator and the operators on it run over
-    the loaded broker window's sessions). */
-export interface CostUnit { key: string; costClass: 'O(N)' | 'O(N·n)'; length: number; bars?: number }
+    bars: the bars it runs over when they are not the ticker's (P5a: an operator on a flow series runs over the loaded
+    broker window's sessions); flow: a flow kernel's count is the ticker's broker rows in the window times flow.rows
+    plus its brokers in the window times flow.brokers (QA unit B, QA4, measured in BENCHMARK_FLOW_COST.md: computeFlow
+    reads every row into its grid of brokers x (sessions + 1) cells per measure, and a Top-N ranking visits every broker
+    on every session; the window's context, built once per stock, is costed apart, CONTEXT_KEY; a large stock holds
+    some 13,000 rows of 100 brokers, a small one 500 rows of fewer brokers). */
+export interface CostUnit { key: string; costClass: 'O(N)' | 'O(N·n)'; length: number; bars?: number; flow?: { rows: number; brokers: number } }
 /** Whether a reference reads a flow indicator (directly or through operators). */
 const readsFlowRef = (ref: unknown): boolean => obj(ref) && (ref.kind === 'flow' || (ref.kind === 'transform' && (readsFlowRef(ref.of) || (obj(ref.args) && Object.values(ref.args).some(readsFlowRef)))) || (ref.kind === 'rank' && readsFlowRef(ref.of)));
 const maxNumber = (m: unknown): number => {
@@ -160,19 +185,28 @@ const maxNumber = (m: unknown): number => {
 export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS, reach?: number | null): CostUnit[] {
   if (!obj(ref)) return [];
   switch (ref.kind) {
-    // P5a: one computeFlow per (ticker, indicator, parameters) over the window's candles, linear in them (its grids are
-    // prefix sums; the measured mean per indicator corrects the prediction): cost units from the window length.
+    // P5a: one computeFlow per (ticker, indicator, parameters) over the window's candles (QA unit B, QA4: a count of
+    // sessions said nothing of the work, so a flow condition was predicted about 3000 times too low): its grid reads
+    // every row once and holds brokers x (sessions + 1) cells per measure, and a Top-N ranking visits every broker on
+    // every session. The window's context it reads is built once per ticker (CONTEXT_KEY, costed and observed apart).
+    // The key names the indicator and its choices (the select and switch parameters that decide what it computes:
+    // FL23's Top-K holders cost several times its selected brokers), so each is learned on its own.
     // P5b: an anchored entry (anchor_sessions N) runs one computeFlow over N + 1 candles per session it computes: every
     // session of the window from the N-th on, or, resolved for a screen under a reach R (metrics.ts flowReach), the
-    // last R + 1 (flowmetrics.ts lazy series): length = those sessions x (N + 1) / the window, in window-long calls
+    // last R + 1 (flowmetrics.ts lazy series); each call reads its slice's rows, about rows x (N + 1) / sessions, and
+    // its grid of brokers x (N + 2) cells. The broker-data series reads the rows' dates once.
     case 'flow': {
-      const e = FLOW_BY_ID[String(ref.metric)];
+      const id = String(ref.metric), e = FLOW_BY_ID[id];
+      if (`flow:${id}` === PRESENCE_KEY) return [{ key: PRESENCE_KEY, costClass: 'O(N)', length: 1, flow: { rows: 1, brokers: 0 } }];
+      const p = obj(ref.params) ? ref.params : {};
+      const choices = (e?.params ?? []).filter(q => q.condition && (q.kind === 'select' || q.kind === 'bool')).map(q => `${q.key}=${String(p[q.key] ?? q.default)}`);
+      const key = `flow:${id}${choices.length ? `{${choices.join(',')}}` : ''}`;
       if (e?.compute === 'anchored') {
-        const n = Number((obj(ref.params) ? ref.params.anchor_sessions : undefined) ?? e.params.find(p => p.key === 'anchor_sessions')?.default) || 1;
+        const n = Number(p.anchor_sessions ?? e.params.find(q => q.key === 'anchor_sessions')?.default) || 1;
         const computed = Math.max(1, typeof reach === 'number' ? Math.min(sessions - n, reach + 1) : sessions - n);
-        return [{ key: `flow:${e.id}`, costClass: 'O(N·n)', length: Math.max(1, Math.ceil(computed * (n + 1) / sessions)), bars: sessions }];
+        return [{ key, costClass: 'O(N)', length: 1, flow: { rows: computed * (n + 1) / sessions, brokers: computed * (n + 2) } }];
       }
-      return [{ key: `flow:${String(ref.metric)}`, costClass: 'O(N)', length: 1, bars: sessions }];
+      return [{ key, costClass: 'O(N)', length: 1, flow: { rows: 1, brokers: sessions + 1 } }];
     }
     case 'indicator': {
       const ind = SBY_ID[ref.indicator as string];
@@ -194,9 +228,15 @@ export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS, reach?: 
   }
   return [];
 }
-/** Predicted ms of computing one series on one ticker of `bars` bars (under the reach it was resolved with, P5b). */
-export const predictMs = (tracker: CostTracker, r: Pick<ResolvedSeries, 'ref' | 'flowReach'>, bars: number, sessions = BROKER_DAY_SESSIONS): number =>
-  costUnits(r.ref, sessions, r.flowReach).reduce((s, u) => s + tracker.predict(u.key, u.costClass, u.length, u.bars ?? bars), 0);
+/** A ticker's broker data in the loaded window as the flow costs read it: its rows and its distinct brokers. */
+export interface FlowSize { rows: number; brokers: number }
+const NO_FLOW: FlowSize = { rows: 0, brokers: 0 };
+/** What a unit runs over on a ticker of `bars` bars and broker data `f`. */
+const unitBars = (u: CostUnit, bars: number, f: FlowSize): number => u.flow ? f.rows * u.flow.rows + f.brokers * u.flow.brokers : u.bars ?? bars;
+/** Predicted ms of computing one series on one ticker of `bars` bars and broker data `f` in the loaded window (under the
+    reach it was resolved with, P5b). */
+export const predictMs = (tracker: CostTracker, r: Pick<ResolvedSeries, 'ref' | 'flowReach'>, bars: number, sessions = BROKER_DAY_SESSIONS, f: FlowSize = NO_FLOW): number =>
+  costUnits(r.ref, sessions, r.flowReach).reduce((s, u) => s + tracker.predict(u.key, u.costClass, u.length, unitBars(u, bars, f)), 0);
 
 /** The parts of a held snapshot the estimate reads. */
 export interface CostView { desc: SnapshotDesc; pinned: Set<string>; position: Map<string, number>; index: TickerBars }
@@ -207,20 +247,24 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
   const u = only === undefined ? applyUniverse(held.desc.rows, def.universe) : null;
   const survivors = only === undefined ? (u as ReturnType<typeof applyUniverse>).eligible.map(r => r.ticker) : [only];
   const s0_ms = performance.now() - t0;
-  let bars = 0;
-  for (const t of survivors) { const j = held.position.get(t); if (j !== undefined) bars += barCount(held.desc, j) }
-  const avg = survivors.length ? bars / survivors.length : 0;
+  let bars = 0, rows = 0, brokers = 0;
+  const counts = brokerCounts(held.desc);
+  for (const t of survivors) { const j = held.position.get(t); if (j !== undefined) { bars += barCount(held.desc, j); rows += brokerRowCount(held.desc, j); brokers += counts[j] } }
+  const n = survivors.length || 1, avg = bars / n, avgRows: FlowSize = { rows: rows / n, brokers: brokers / n };
   const dv = { price_data: held.desc.versions.price_data, screener_engine: held.desc.versions.screener_engine };
   const flow = flowContextOf(held.desc), sessions = flow.sessions || BROKER_DAY_SESSIONS;
   // bound as runScreen binds a screen (screen.ts screenBinding: an anchored flow series is computed where it is read)
   const ctx: BindContext = { capBudgetMs: env.capBudgetMs, index: held.index, withinMax: env.withinMax, catalog: METRICS_CATALOG, flow, flowLazy: true };
   const pinned = (r: ResolvedSeries) => r.kind === 'price' || held.pinned.has(seriesKey(dv, r));   // a bar field is the snapshot itself (screen.ts)
+  let readsFlow = false;
   const conds: PlanCondition[] = def.conditions.flatMap((c, k) => {
     if (!c.enabled) return [];
     const b = bindCondition(c, `definition.conditions[${k}]`, ctx);
     const stage = b.xsection ? 'S1' : b.universeAttr !== null || b.series.every(pinned) ? 'S2' : 'S3';
     // a rank across stocks (S1, operator 11) computes its series on every survivor: costed as screen.ts does
-    const predictedMs = stage === 'S3' || b.xsection?.rankOf ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg, sessions), 0) : 0;
+    const computes = stage === 'S3' || !!b.xsection?.rankOf;
+    if (computes && b.readsFlow) readsFlow = true;
+    const predictedMs = computes ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg, sessions, avgRows), 0) : 0;
     return [{ id: c.id, stage, predictedMs, evaluate: () => { throw new Error('estimate only') } }];
   });
   const est = costEstimate(conds, survivors.length);
@@ -228,10 +272,14 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
   let filters = 0;
   if (u) for (const i of u.pending) {
     const b = bindTest(`f${i}`, (def.universe.metric_filters ?? [])[i], `definition.universe.metric_filters[${i}]`, ctx);
-    filters += b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg, sessions), 0) * survivors.length;
+    if (b.readsFlow) readsFlow = true;
+    filters += b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg, sessions, avgRows), 0) * survivors.length;
   }
+  // a flow condition first reads the broker-data series of each ticker (condition.ts withFlow), then builds the window's
+  // context (CONTEXT_KEY): once per ticker, whatever the number of flow conditions
+  const presence = readsFlow ? (predictMs(tracker, FLOW_PRESENCE, avg, sessions, avgRows) + tracker.predict(CONTEXT_KEY, 'O(N)', 1, unitBars(CONTEXT_UNIT, avg, avgRows))) * survivors.length : 0;
   const perTicker = conds.reduce((s, c) => s + c.predictedMs, 0);
-  return { needed_ms: Math.ceil(est.needed_ms + filters), costliest: est.costliest, perTicker, eligible: survivors.length, s0_ms };
+  return { needed_ms: Math.ceil(est.needed_ms + filters + presence), costliest: est.costliest, perTicker, eligible: survivors.length, s0_ms };
 }
 
 /* ================================================================================================================ */
@@ -245,8 +293,15 @@ export interface ThreadEnv { capBudgetMs: number; withinMax: number; maxResponse
     about this many tickers' bars and outputs, whatever the number of custom series. */
 export const CALC_KEEP = 256;
 
-/** What a request measured on the snapshot: pinned tails read, series computed (by cost key, for the cost model). */
-export interface Measured { pinned_hits: number; lru_hits: number; computed: number; observe: Map<string, { ms: number; bars: number; length: number }> }
+/** The measured time of the series of one cost signature (their units' keys, classes and lengths) a request computed
+    cold: the sum of their ms and, per unit, of the bars (or broker rows) it ran over; the main thread shares the time
+    among the units in proportion to their predicted cost (plan.ts observeShared), so a series of several kernels (a flow
+    indicator under an operator) teaches the model too. */
+export interface Observation { units: { key: string; costClass: 'O(N)' | 'O(N·n)'; length: number }[]; ms: number; bars: number[]; series: number }
+/** What a request measured on the snapshot: pinned tails read, series computed, of them those that reused work made
+    before (a memo entry of an earlier series: not a cold measurement, not observed), and the observations by cost
+    signature. */
+export interface Measured { pinned_hits: number; lru_hits: number; computed: number; reused: number; observe: Map<string, Observation> }
 
 /** The snapshot as screen.ts reads it (header). A ticker is the thread's TickerView (dates kept by the thread, columns
     and Calc made on first use, missingInput from the snapshot's mask), so a screen of pre-warmed series is lookups
@@ -254,7 +309,7 @@ export interface Measured { pinned_hits: number; lru_hits: number; computed: num
     series' cache key is computed once per request. */
 export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () => boolean, keep = CALC_KEEP): { env: ScreenEnv; measured: Measured; calc(ticker: string): TickerCalc | undefined } {
   const calcs = new Map<string, TickerView>();
-  const measured: Measured = { pinned_hits: 0, lru_hits: 0, computed: 0, observe: new Map() };
+  const measured: Measured = { pinned_hits: 0, lru_hits: 0, computed: 0, reused: 0, observe: new Map() };
   const sctx = { versions: snap.dv, tailLength: snap.desc.tailLength, cache: snap.cache };
   const keys = new WeakMap<ResolvedSeries, string>();
   const keyOf = (r: ResolvedSeries): string => { let k = keys.get(r); if (k === undefined) keys.set(r, k = seriesKey(snap.dv, r)); return k };
@@ -270,7 +325,15 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
   // P5a: a flow condition is bound against the snapshot's loaded window (K1 depth, anchors); its availability (a
   // window still loading) was checked on the main thread with the current publication's data (validate.ts), so a
   // thread never refuses it again on its own copy of that data
-  const flow = { ...snap.flowContext, complete: true }, sessions = flow.sessions || BROKER_DAY_SESSIONS;
+  const flow = { ...snap.flowContext, complete: true }, sessions = flow.sessions || BROKER_DAY_SESSIONS, avgRows = snap.avgFlowSize;
+  /** sums one measurement into its cost signature's observation (the units' keys, classes and lengths) */
+  const record = (units: CostUnit[], ms: number, bars: number[], n: number): void => {
+    const sig = units.map(u => `${u.key}|${u.costClass}|${u.length}`).join(';');
+    let o = measured.observe.get(sig);
+    if (!o) measured.observe.set(sig, o = { units: units.map(u => ({ key: u.key, costClass: u.costClass, length: u.length })), ms: 0, bars: units.map(() => 0), series: 0 });
+    o.ms += Math.max(0, ms); o.series += n;
+    bars.forEach((b, k) => { o.bars[k] += b });
+  };
   const screen: ScreenEnv = {
     capBudgetMs: env.capBudgetMs, index: snap.ihsg, withinMax: env.withinMax, catalog: METRICS_CATALOG, flow,
     evaluationDate: snap.desc.data.evaluation_date, rows: snap.desc.rows, ihsgCalendar: snap.ihsgCalendar,
@@ -279,18 +342,24 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
       const hit = snap.cache.get(keyOf(r), t.ticker);
       if (hit) { if (hit.pinned) measured.pinned_hits++; else measured.lru_hits++; return { tail: hit.tail, source: hit.pinned ? 'precomputed' : 'dynamic' } }
       if (t instanceof TickerView) touch(t.ticker, t);
-      const tc = t instanceof TickerView || (t as TickerCalc).calc ? t as TickerCalc : tickerCalc(t), t0 = performance.now();
-      const out = series(sctx, tc, r);
-      const ms = performance.now() - t0, units = costUnits(r.ref, sessions, r.flowReach);
+      const tc = t instanceof TickerView || (t as TickerCalc).calc ? t as TickerCalc : tickerCalc(t);
+      snap.reuse.begin();
+      const c0 = snap.contexts.ms, r0 = snap.contexts.rows, n0 = snap.contexts.built;
+      const t0 = performance.now(), out = series(sctx, tc, r), ms = performance.now() - t0;
       measured.computed++;
-      if (units.length === 1) {
-        const o = measured.observe.get(units[0].key) ?? { ms: 0, bars: 0, length: units[0].length };
-        if (o.length === units[0].length) { o.ms += ms; o.bars += units[0].bars ?? t.dates.length; measured.observe.set(units[0].key, o) }
-      }
+      // the window's context this series built (once per view): its own cost, observed on its own
+      if (snap.contexts.built > n0) record([{ ...CONTEXT_UNIT }], snap.contexts.ms - c0, [snap.contexts.rows - r0], snap.contexts.built - n0);
+      // QA unit B, QA4: every series computed cold teaches the cost model, whatever the number of its kernels (one that
+      // read a memo entry of an earlier series did less than its units say: not observed)
+      if (snap.reuse.reused) { measured.reused++; return out }
+      const units = costUnits(r.ref, sessions, r.flowReach);
+      if (!units.length) return out;
+      const f = t instanceof TickerView ? t.flowSize : NO_FLOW;
+      record(units, ms - (snap.contexts.ms - c0), units.map(u => unitBars(u, t.dates.length, f)), 1);
       return out;
     },
     isPrewarmed: r => snap.pinned.has(keyOf(r)),
-    predictMs: (r, bars) => predictMs(threadTracker, r, bars, sessions),
+    predictMs: (r, bars) => predictMs(threadTracker, r, bars, sessions, avgRows),
     xsectionValues: need => snap.crossSection(need),
     cacheHits: () => measured.pinned_hits + measured.lru_hits,
     cancelled,
@@ -324,13 +393,13 @@ export function countsAnswer(defs: readonly { item_id: string }[], settled: read
   });
   return { counts, missing };
 }
-export interface RunLog { stages: { name: string; in: number; out: number; ms: number }[]; conditions: { id: string; source: string; evaluated: number; exhaustive: boolean }[]; pruned: number; pinned_hits: number; lru_hits: number; computed: number }
+export interface RunLog { stages: { name: string; in: number; out: number; ms: number }[]; conditions: { id: string; source: string; evaluated: number; exhaustive: boolean }[]; pruned: number; pinned_hits: number; lru_hits: number; computed: number; reused: number }
 export interface RunOutcome {
   kind: 'run' | 'counts';
   gzip: Uint8Array | null; etag: string | null; json_bytes: number;
   match_count: number; near_count: number; busy_ms: number;
   log: RunLog;
-  observe: { key: string; ms: number; bars: number; length: number }[];
+  observe: Observation[];
 }
 
 /** One screen (or one definition's counts) on a snapshot, through core runScreen; `cancelled` is checked between
@@ -344,9 +413,9 @@ export function runTask(task: RunTask, snap: ThreadSnapshot, env: ThreadEnv, can
   const log: RunLog = {
     stages: (r.plan?.stages ?? []).map(x => ({ name: x.name, in: x.in, out: x.out, ms: Math.round(x.ms) })), pruned: r.plan?.pruned ?? 0,
     conditions: r.conditions.map(c => ({ id: c.id, source: c.source, evaluated: c.evaluated, exhaustive: c.exhaustive })),
-    pinned_hits: s.measured.pinned_hits, lru_hits: s.measured.lru_hits, computed: s.measured.computed,
+    pinned_hits: s.measured.pinned_hits, lru_hits: s.measured.lru_hits, computed: s.measured.computed, reused: s.measured.reused,
   };
-  const observe = [...s.measured.observe].map(([key, o]) => ({ key, ...o }));
+  const observe = [...s.measured.observe.values()];
   if (task.kind === 'counts') return { kind: 'counts', gzip: null, etag: null, json_bytes: 0, match_count: r.match_count, near_count: r.near_count, busy_ms: busy(), log, observe };
   // the answer (8.5): schema_version, versions and data open it (edge-bff reads them from the gzip head)
   const answer: RunResponse = {
