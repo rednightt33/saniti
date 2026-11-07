@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "aca1025aae2135b5",
+  "screener_registry_version": "179e1f2467515df7",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "e536fca4f2c26a0cfebcc9899d5a03e60e1404fd3c42e85d6d42720856f187af"
+      "sha256": "a864d3d623cf38e7118011d960367fb1914cba1508a232ca11957fd13e355c00"
     },
     {
       "role": "flow_registry",
@@ -43,6 +43,16 @@
       "role": "flow_kinds",
       "file": "apps/edge-bff/screener/src/core/flow-kinds.json",
       "sha256": "a7c5454420b495d4ae9e1e35d89ed683e76e41bd217fc4aa12f2a45be00068a0"
+    },
+    {
+      "role": "flow_calc",
+      "file": "apps/edge-bff/terminal/src/calc/flow.ts",
+      "sha256": "0212edbb7e0eea1e287852de8f27499ee0fb29fe6e7133cef89083777504801d"
+    },
+    {
+      "role": "flow_probe",
+      "file": "apps/edge-bff/screener/src/core/flowprobe.ts",
+      "sha256": "f96ce104c69c859f6f70bfc88b80468153448b01fe0d922745b74a1833c10264"
     }
   ],
   "probe": {
@@ -10377,7 +10387,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         }
       ],
       "adv_floor": true,
@@ -10536,7 +10547,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         },
         {
           "key": "lag",
@@ -11035,7 +11047,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         },
         {
           "key": "unit",
@@ -12499,7 +12512,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         }
       ],
       "adv_floor": false,
@@ -12653,7 +12667,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         }
       ],
       "adv_floor": false,
@@ -12998,7 +13013,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         }
       ],
       "adv_floor": false,
@@ -13408,7 +13424,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         },
         {
           "key": "lag",
@@ -14359,7 +14376,8 @@
             ]
           ],
           "default": "hist",
-          "condition": true
+          "condition": false,
+          "display_only": true
         }
       ],
       "adv_floor": false,

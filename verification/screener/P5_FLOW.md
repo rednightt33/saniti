@@ -14,6 +14,15 @@ computes every flow value with the Terminal's own module, so a value equals the 
   Record<string, ParamValue> }` (output: the registry's `outputs`, default the first). Parameters are the registry's
   (`flowRegistry.json` indicators[].params: int with min/max, multi with options, select, date, levels); a parameter left
   out takes `flowDefaults`. `levels` and `button`/`fixed` kinds are display-only and refused as condition parameters.
+  So is a select or switch whose every option gives the same values (QA unit B, QA5: the Terminal's "Plot" on FL10,
+  FL11, FL14, FL25, FL26, FL31, FL34, FL41), derived at catalog build, never listed: `build-screener-registry.mjs`
+  `displayOnlyParams` runs `computeFlow` on the depth probe's synthetic context (`src/core/flowprobe.ts`, shared with
+  `indicatorDepth`) at the registry defaults and with each other select, switch or list set to each of its other values
+  in turn; identical outputs everywhere (with a value somewhere) make it `condition: false, display_only: true`: the
+  page does not offer it, the core refuses it if sent (naming the parameters a condition takes) and computeFlow takes
+  its default. A choice that changes a value stays (FL34 "Change line vs", FL07 "Denominator" under one investor type).
+  `flow.ts` and `flowprobe.ts` are sources of the registry (`flow_calc`, `flow_probe`), so a change to either needs
+  `npm run registry`.
 - **Validation.** Every parameter checked against the registry (kind, min, max, options), refusal `PARAM_OUT_OF_RANGE` /
   `INVALID_CONDITION` naming the field, following the gate rule of AGENTS.md (rule, how to pass, right and wrong
   example, message). **Depth (K1):** the sessions an indicator reads back (its window or N parameters, plus any operator

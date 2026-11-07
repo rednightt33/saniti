@@ -18,7 +18,8 @@
      `flows`), each checked against its kind, range and options; a parameter left out takes flowDefaults' value, except a
      built-in percentile baseline (FL08, FL09, FL21, FL37, FL47) that does not fit the loaded window: it is capped to the
      window less the indicator's own window (K1, derived from the depth, never listed); the kinds that only draw
-     (levels, button, fixed) are refused.
+     (levels, button, fixed) and a select or switch the generator finds changes no value (display_only, the Terminal's
+     "Plot") are refused, and computeFlow takes their default.
    - Output: one series the registry names and computeFlow gives at these parameters (a sided indicator draws its sell
      line only with side sell or both; FL23 draws one line per broker: `lines` reads the line of the one broker named,
      `total` needs total true).
@@ -44,6 +45,7 @@ import { FLOW_REASONS } from './catalog.ts';
 import { anchoredAt, anchoredLazy, anchoredSeries, foreignNet, inventory } from './flowscreener.ts';
 import type { FlowCall, InventorySetup } from './flowscreener.ts';
 import { SCREENER_REGISTRY } from './registry.ts';
+import { probeContext, probeLength } from './flowprobe.ts';
 import type { FlowKindSpec, FlowRegistryEntry, FlowRegistryParam } from './registry.ts';
 import kindsDoc from './flow-kinds.json' with { type: 'json' };
 import type { ResolvedSeries, TickerBars, TickerCalc } from './metrics.ts';
@@ -151,7 +153,7 @@ export function resolveFlowParams(e: FlowRegistryEntry, given: unknown, field: s
   const g = (given || {}) as Record<string, unknown>, specs = conditionParams(e), keys = specs.map(p => p.key);
   for (const k of Object.keys(g)) {
     const p = e.params.find(x => x.key === k);
-    if (p && !p.condition) throw new ScreenerError('INVALID_CONDITION', `${field}.params.${k}: "${p.label}" of ${e.id} ${e.name} only draws on the Terminal's chart (a reference line, a button or a fixed text); a condition does not take it, so remove it (the parameters a condition takes: ${keys.join(', ')}).`, `${field}.params.${k}`, { allowed: keys });
+    if (p && !p.condition) throw new ScreenerError('INVALID_CONDITION', `${field}.params.${k}: "${p.label}" of ${e.id} ${e.name} ${p.display_only ? 'only changes how the Terminal draws the indicator (each of its options gives the same values)' : 'only draws on the Terminal\'s chart (a reference line, a button or a fixed text)'}; a condition does not take it, so remove it (the parameters a condition takes: ${keys.join(', ')}; right: ${keys.length ? `{"${keys[0]}": ${JSON.stringify(conditionParams(e)[0].default)}}` : '{}'}; wrong: {"${k}": ...}).`, `${field}.params.${k}`, { allowed: keys });
     if (!p) throw new ScreenerError('INVALID_CONDITION', `${field}.params.${k}: not a parameter of ${e.id} ${e.name}; use only ${keys.join(', ')}.`, `${field}.params.${k}`, { allowed: keys });
   }
   const defaults = flowDefaults(e.id), out: Record<string, FlowParamValue> = {};
@@ -209,39 +211,6 @@ export function seriesKeyOf(e: FlowRegistryEntry, output: string, params: Record
 
 /* ---- depth (K1) ------------------------------------------------------------------------------------------------------ */
 
-const PROBE_BROKERS = 44;
-/** A synthetic context of L candles with broker data on every candle, for the depth probe: 44 brokers trading every
-    candle on both investor types and the Regular board (a third of them on Nego, a third on Cash too), the first 22 net
-    buyers and the others net sellers on every candle, transaction counts everywhere, varying prices and volumes, and a
-    classification with institutional and retail brokers, so every indicator has a value as soon as its windows fit. */
-function probeContext(L: number): FlowContext {
-  const brokers = Array.from({ length: PROBE_BROKERS }, (_, b) => `B${String(b).padStart(2, '0')}`);
-  const per: [number, number, number][] = [];                         // [broker, investor, board] of one candle
-  for (let b = 0; b < PROBE_BROKERS; b++) for (const inv of [0, 1]) {
-    per.push([b, inv, 0]);
-    if (b % 3 === 0) per.push([b, inv, 1]); else if (b % 3 === 1) per.push([b, inv, 2]);
-  }
-  const n = L * per.length, R: FlowRows = { n, N: L, t: new Int32Array(n), b: new Uint16Array(n), inv: new Uint8Array(n), brd: new Uint8Array(n),
-    bv: new Float64Array(n), sv: new Float64Array(n), bl: new Float64Array(n), sl: new Float64Array(n), bf: new Float64Array(n), sf: new Float64Array(n),
-    brokers, has: new Uint8Array(L).fill(1) };
-  const close: Num[] = [], volume: Num[] = [], dates: string[] = [];
-  let k = 0;
-  for (let t = 0; t < L; t++) {
-    const price = 1000 + 50 * Math.sin(t / 3);
-    close.push(price); volume.push(1e6 + 1e5 * ((t * 7) % 11));
-    dates.push(new Date(Date.UTC(2000, 0, 3) + t * 864e5).toISOString().slice(0, 10));
-    for (const [b, inv, brd] of per) {
-      const u = 1 + ((b * 7 + t * 13 + inv) % 11) / 10, buyer = b < PROBE_BROKERS / 2;
-      const bl = buyer ? 10 * u + 5 : 5 * u, sl = buyer ? 5 * u : 10 * u + 5;
-      R.t[k] = t; R.b[k] = b; R.inv[k] = inv; R.brd[k] = brd;
-      R.bl[k] = bl; R.sl[k] = sl; R.bv[k] = bl * 100 * price * (1 + 0.01 * ((b + t) % 5)); R.sv[k] = sl * 100 * price * (1 + 0.01 * ((b + 2 * t) % 5));
-      R.bf[k] = 3 + ((b + t) % 7); R.sf[k] = 2 + ((b + 3 * t) % 5);
-      k++;
-    }
-  }
-  const classification = Object.fromEntries(brokers.map((c, b) => [c, b % 4 === 0 ? 'Institutional-heavy' : b % 4 === 1 ? 'Retail-heavy' : 'Mixed']));
-  return { rows: R, dates, close, volume, insider: [], classification };
-}
 /* ---- computing an entry (P5b: the Screener's versions on top of computeFlow) ----------------------------------------- */
 
 /** The Terminal's parameters of a screener version (its screener parameters left out): what computeFlow is given. */
@@ -278,13 +247,7 @@ export function indicatorDepth(e: FlowRegistryEntry, output: string, params: Rec
   const key = canonicalJson([e.id, output, p]);
   const hit = depthMemo.get(key);
   if (hit !== undefined) return hit;
-  let L = 2;
-  for (const q of e.params) {
-    const v = p[q.key];
-    if (q.kind === 'int' && typeof v === 'number') L += 2 * v;
-    else if (q.kind === 'select' && typeof v === 'string' && /^\d+$/.test(v)) L += 2 * Number(v);
-  }
-  const c = probeContext(L), s = computeEntry(e, c, p)[output];
+  const c = probeContext(probeLength(e.params, p)), s = computeEntry(e, c, p)[output];
   let first = -1;
   if (s) for (let t = 0; t < s.length; t++) if (typeof s[t] === 'number' && Number.isFinite(s[t] as number)) { first = t; break }
   const depth = first < 0 ? null : first + 1;

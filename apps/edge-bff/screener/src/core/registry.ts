@@ -78,6 +78,10 @@ export interface FlowRegistryParam {
   condition: boolean;
   /** P5b: a parameter of the Screener's version, not the Terminal's (flow-kinds.json `screener`; its default is its own) */
   screener?: boolean;
+  /** QA unit B (QA5): a select or switch whose every option gives the same values on the generator's probe (the
+      Terminal's display options, "Plot"; build-screener-registry.mjs displayOnlyParams): condition false, refused if
+      sent, computeFlow takes its default */
+  display_only?: boolean;
 }
 /** An output's kind (flow-kinds.json): a letter of OPERATORS.md section 4, {kind, unit}, or by a select parameter (whose
     options may again follow another select parameter, FL23's value by series, then by unit). */

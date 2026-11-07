@@ -20,6 +20,7 @@ import type { BrokerRowsLike, FlowBindContext } from '../../src/core/flowmetrics
 import { resolveSeries, tickerCalc } from '../../src/core/metrics.ts';
 import { runScreen } from '../../src/core/screen.ts';
 import { percentileOwn } from '../../src/core/transforms.ts';
+import { probeContext } from '../../src/core/flowprobe.ts';
 import { availabilityMap, validateDefinition } from '../../src/core/validate.ts';
 import { percentRank } from '../../src/core/xsection.ts';
 import { OPTS, WITHIN_MAX, memoryEnv, rowOf, synth, vctx } from './helpers.ts';
@@ -41,8 +42,8 @@ describe('catalog (P5_FLOW.md section 2)', () => {
       const keys = [...r.params.flatMap((p: any) => sv?.replace?.[p.key] ? sv.replace[p.key].map(key) : [p.key]), ...(sv?.add || []).map(key)];
       expect([r.id, f.outputs.map(o => o.key), f.default_output, f.params.map(p => p.key)]).toEqual([r.id, outputs, outputs[0], keys]);
       for (const p of f.params) {
-        expect([r.id, p.key, p.condition]).toEqual([r.id, p.key, !['levels', 'button', 'fixed'].includes(p.kind)]);
-        if (!p.screener) expect([r.id, p]).toEqual([r.id, { ...r.params.find((q: any) => q.key === p.key), condition: p.condition }]);
+        expect([r.id, p.key, p.condition]).toEqual([r.id, p.key, !['levels', 'button', 'fixed'].includes(p.kind) && !p.display_only]);
+        if (!p.screener) expect([r.id, p]).toEqual([r.id, { ...r.params.find((q: any) => q.key === p.key), condition: p.condition, ...(p.display_only ? { display_only: true } : {}) }]);
       }
       // G1: the registry's default board, Regular
       const boards = f.params.find(p => p.key === 'boards');
@@ -119,10 +120,11 @@ describe('parity with the Terminal (P5_FLOW.md section 5)', () => {
     for (const f of FLOWS) {
       if (f.requires) { expect(code(() => resolveFlow({ kind: 'flow', metric: f.id }, 'f', { flow: FLOW_CTX }))!.code).toBe('METRIC_UNAVAILABLE'); continue }
       if (f.compute !== 'terminal') continue;                       // the Screener's versions: tests/core/flow-screener.test.ts
-      // the default parameters: the registry's (flowDefaults, the display-only levels aside), a built-in percentile
-      // baseline capped to the window (K1): FL08, FL09 and FL21 at 60 - 1, FL37 at 60 - 20
+      // the default parameters: the registry's (flowDefaults, the parameters a condition does not take aside: the
+      // levels that only draw and a display-only "Plot"), a built-in percentile baseline capped to the window (K1):
+      // FL08, FL09 and FL21 at 60 - 1, FL37 at 60 - 20
       const p = resolveFlowParams(f, undefined, 'f', 60), d = flowDefaults(f.id);
-      delete d.levels;
+      for (const q of f.params) if (!q.condition) delete d[q.key];
       const capped = { FL08: 59, FL09: 59, FL21: 59, FL37: 40 } as Record<string, number>;
       expect([f.id, p]).toEqual([f.id, capped[f.id] ? { ...d, baseline: capped[f.id] } : d]);
       // a sided indicator draws its sell line with side sell (its buy line at the default side buy)
@@ -177,6 +179,32 @@ describe('parameter refusals (P5_FLOW.md section 1)', () => {
     expect(R({ metric: 'FL24', params: { levels: '6, 10' } })).toMatchObject({ code: 'INVALID_CONDITION', field: 'definition.conditions[0].test.metric.params.levels' });
     expect(R({ metric: 'FL34', params: { reset: null } })!.message).toMatch(/only draws on the Terminal's chart/);
     expect(R({ metric: 'FL01', params: { ranking: 'daily' } })!.code).toBe('INVALID_CONDITION');
+  });
+  it('a select or switch whose every option gives the same values (the Terminal\'s "Plot") is display-only, derived by the generator\'s probe: not a condition parameter, refused if sent, its default used; one that changes a value (FL34 "Change line vs") stays (QA unit B, QA5)', () => {
+    const reg = (REG as any).indicators as any[];
+    // derived on the probe, never listed: the generator's answer is the registry's, entry by entry
+    for (const r of reg) expect([r.id, FLOW_BY_ID[r.id].params.filter(p => p.display_only).map(p => p.key)]).toEqual([r.id, G.displayOnlyParams(r).filter((k: string) => FLOW_BY_ID[r.id].params.some(p => p.key === k))]);
+    expect(FLOWS.flatMap(f => f.params.filter(p => p.display_only).map(p => `${f.id}.${p.key}`))).toEqual(expect.arrayContaining(['FL26.plot', 'FL34.plot']));
+    for (const id of ['FL26', 'FL34']) {
+      const p = FLOW_BY_ID[id].params.find(q => q.key === 'plot')!;
+      expect([id, p.condition, p.display_only]).toEqual([id, false, true]);
+      const r = R({ metric: id, params: { plot: 'line' } })!;
+      expect([id, r.code, r.field]).toEqual([id, 'INVALID_CONDITION', 'definition.conditions[0].test.metric.params.plot']);
+      expect(r.message).toMatch(/"Plot" of FL\d\d .* only changes how the Terminal draws the indicator \(each of its options gives the same values\); a condition does not take it, so remove it \(the parameters a condition takes: .*; right: .*; wrong: \{"plot": \.\.\.\}\)\./);
+      // its options give the same values on the real fixture too, and left out the default is what computeFlow takes
+      const T = terminal(STOCKS.AAAA), at = (plot: string) => computeFlow(id, T.ctx, { ...flowDefaults(id), plot });
+      expect([id, JSON.stringify(at('hist')) === JSON.stringify(at('line'))]).toEqual([id, true]);
+      const params = (resolveFlow({ kind: 'flow', metric: id } as never, 'f', { flow: FLOW_CTX }).ref as any).params;
+      expect([id, 'plot' in params]).toEqual([id, false]);
+    }
+    // a choice that changes a value keeps its place: FL34's change line reads 1, 5 or 20 sessions back
+    const lag = FLOW_BY_ID.FL34.params.find(q => q.key === 'lag')!;
+    expect([lag.condition, lag.display_only]).toEqual([true, undefined]);
+    expect(R({ metric: 'FL34', output: 'change', params: { lag: '5' } })).toBe(null);
+    const ctx = probeContext(80), change = (l: string) => computeFlow('FL34', ctx, { ...flowDefaults('FL34'), lag: l }).change;
+    expect(JSON.stringify(change('1')) === JSON.stringify(change('5'))).toBe(false);
+    // a choice that matters only beside another is not display-only: FL07's denominator under one investor type
+    expect(FLOW_BY_ID.FL07.params.find(q => q.key === 'denom')!.condition).toBe(true);
   });
   it('refuses an output the indicator does not give at its parameters (a side; the Terminal\'s FL23 lines), and selected brokers without a broker (FL23\'s holders too)', () => {
     expect(R({ metric: 'FL24', output: 'buy' })).toMatchObject({ code: 'INVALID_CONDITION', field: 'definition.conditions[0].test.metric.output', details: { allowed: ['value'] } });
