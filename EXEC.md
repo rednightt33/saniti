@@ -12635,4 +12635,71 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   dan berikutnya). Cacat yang ditemukan dicatat M381-M384. Sisa LOW yang diterima: teks select terpotong di layar ponsel,
   panel 20 px lebih tinggi dari jendela 1100x760 (bisa digulir). Belum dibangun (keputusan user): ranking antar saham di
   dalam jendela; "=" dan "!=" tetap tersembunyi (K7, belum ada hasil operator berupa bilangan bulat).
-- Status: unit A (P1-P3) siap PR; menunggu "merge" dari user. P0: restart Postgres sesudah K6 (cek 14:32 UTC).
+- Status: unit A (P1-P3) siap PR ([PR #59](https://github.com/rednightt33/saniti/pull/59)); menunggu "merge" dari user. P0
+  selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
+- P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; diterima 2026-11-07, menunggu "go").
+
+## EXEC-BROKER-DELTA — publisher mengirim broker 5 sesi terakhir + tanggal yang berubah, bukan file setahun (opsi D, cakupan 2) (diterima 2026-11-07, BELUM dieksekusi)
+
+### Kata user
+- 2026-11-07: "Oke, ini kita perlu edit karena proses perpindahan data dari Postgres ke storage akan menjadi sangat lama.
+  [...] propose ke saya metode-metode dari sisi waktu, time efficient, kemudian juga dari sisi integritas data bisa
+  terjaga. Setelah itu, baru kita lanjut P4 dst".
+- 2026-11-07: "Saya tidak mau data 4 November saja, tapi juga data mungkin yang misalkan 5 hari ke belakang. Tapi jangan
+  juga satu tahun ke belakang, atau 20 sesi terakhir. [...] Opsi mana yang serve requirement saya ini?"
+- 2026-11-07 (atas opsi D dan pilihan cakupan): "Oke, cakupan 2." Cakupan 2 = publisher dan ketiga pembaca (Screener,
+  Terminal, Backtest) diubah bersama. Ini persetujuan rancangan, belum "go" eksekusi.
+
+### Fakta (kode dan log live, 2026-11-07)
+- Mode `daily` mencari ticker-tahun yang punya tanggal broker lebih baru dari `broker_through` lalu menulis ulang file
+  tahun berjalan per ticker, `v1/broker/{ticker}/{year}`, seluruhnya (`apps/terminal-publisher/publisher.py:1386-1391`).
+  Update 4 Nov berarti 1 Jan-4 Nov dikirim ulang untuk setiap saham yang punya baris 4 Nov.
+- Ukuran: run hari broker 2026-11-03 5.954 file, 126,39 MB, 404,9 s; run harga saja 2026-11-06 1.709 file, 28,67 MB,
+  342 s (log terminal-publisher, deployment `e78dd177`).
+- Koreksi tanggal lama tidak terbit lewat `daily` (Revisi R2 EXEC-PUBLISH-FLOW, `publisher.py:1377-1383`).
+- Pemicu cron selesai -> publisher sudah jalan untuk harga (sinyal 2026-11-06 10:05:22 UTC -> `run_again` -> harga 6 Nov
+  terbit 10:21 UTC). Pemicu dari putaran broker belum terlihat live: belum ada putaran sejak pemicu aktif; broker di
+  Postgres dan storage sampai 2026-11-03 (`broker_behind_sessions` 3, run 2026-11-07 12:04 UTC).
+- Pembaca file broker: Terminal (`terminal/src/data/live.ts:89`), Backtest (`backtest-worker/src/terminal.ts:435`);
+  Screener belum membaca broker (P4 EXEC-SCREENER-FLOW-CANDLES).
+
+### Root cause dan kelas
+- Root cause: satuan terbit adalah file ticker-tahun utuh, jadi satu tanggal baru memaksa seluruh tahun ditulis ulang.
+- Kelas: data yang bertambah per tanggal tetapi diterbitkan sebagai file tahunan penuh. Berlaku untuk broker saham,
+  `_INDEX` IHSG, harga (`pack/price`, file tahun harga), xsection harga, dan data baru per tanggal (lintas-aset, makro).
+  Tidak berlaku untuk intraday (sudah per periode lewat `intraday_publish_change`) dan `ref/*` (kecil, utuh tiap run).
+
+### Rancangan (lapisan: catatan perubahan di database, format file di publisher, penggabungan di pembaca)
+1. Catatan perubahan = Revisi R2: `broker_publish_change` ditulis oleh fungsi refresh Feature 05 (saham dan `_INDEX`) di
+   statement yang sama dengan barisnya (migrasi baru). Tidak memindai seluruh Feature 05 tiap run.
+2. Tiap run: satu file delta untuk semua saham, berisi baris broker 5 sesi terakhir (tanggal bursa) ditambah tanggal
+   lama yang tercatat berubah sejak publikasi terakhir. Setiap tanggal membawa jumlah baris dan checksum. File tahunan
+   tidak ditulis ulang.
+3. `state.json` mencatat dasar (file tahunan + pack arsip) dan daftar delta sejak kompaksi terakhir.
+4. Pembaca (Terminal, Backtest, Screener) mengambil dasar + delta; satu tanggal di delta menggantikan tanggal yang sama
+   di dasar untuk saham itu. Jumlah baris atau checksum tidak cocok -> kembali ke file penuh.
+5. Kompaksi berkala: file tahunan yang tersentuh disusun ulang, delta lama dihapus sesudah jeda (pola `replaced_wait`).
+6. Screener (P4): jendela 60 sesi = dasar jendela pada kompaksi + delta sesudahnya; refresh harian hanya delta.
+7. Urutan rilis: pembaca dulu (bisa membaca delta dan tetap membaca file tahunan lama), lalu publisher.
+8. Tumpang tindih yang disatukan supaya tidak dikerjakan dua kali: S6 (broker tidak disimpan dua kali) dan S7 (storage B)
+   EXEC-PUBLISH-FLOW memakai format dasar + delta yang sama.
+
+### Detail terbuka (ditanyakan sebelum "go")
+- Kompaksi: seberapa sering dan kapan (usul: mingguan, Sabtu, di luar jendela B6 dan cron lain).
+- Harga (`pack/price`, xsection harga) ikut pola yang sama sekarang atau sesudah broker.
+- Kode file jendela Screener lebih ringkas (K6: 60 sesi 17,06 MB gzip, 120 MB teks JSON; ditambah Phase 1 11,77 MB
+  melewati batas 24 MB per refresh dan berat untuk heap 512 MB) atau batas worker dinaikkan.
+
+### Cakupan dan risiko
+- Mencakup: tanggal baru, isi ulang tanggal lama, koreksi (saham dan IHSG).
+- Tidak mencakup: perubahan `IDX_Broker_Profile` (terbit lewat `ref/brokers` tiap run).
+- Risiko: tiga pembaca berubah; kesalahan penggabungan memberi angka salah. Penjaga: checksum per tanggal, jalan balik ke
+  file penuh, tes paritas pembaca lama vs baru.
+- Ongkos: satu migrasi, publisher, tiga pembaca, tes, deploy berurutan.
+
+### Bukti yang direncanakan
+- Tes publisher: tanggal baru, tanggal lama yang dikoreksi (tahun berjalan dan arsip), IHSG.
+- Tes pembaca: hasil dasar + delta sama persis dengan file penuh untuk saham yang sama (Terminal, Backtest, Screener).
+- E2E lokal dengan file format publisher; DRYRUN migrasi.
+- Live: satu putaran broker -> ukuran dan waktu run sebelum/sesudah, `verify` storage = SQL untuk saham yang tersentuh,
+  chart Terminal sama dengan sebelumnya.

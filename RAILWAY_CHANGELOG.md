@@ -15,7 +15,8 @@
 - **Postgres restart:** the job's own step (`large_write`) could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, as on
   2026-11-06), so no restart came from it. The check through `scripts/restart_postgres.py` (run unchanged with the
   proxy's credential) at 13:38 UTC refused it: postgres-memory-cron runs at 13:45 UTC (within 45 minutes); memory
-  0.996 GB, 0 statements, 0 user runs. It is checked again at 14:32 UTC (below).
+  0.996 GB, 0 statements, 0 user runs. Checked again at 14:32 UTC: refused `memory_low`, memory 0.080 GB (below the
+  0.8 GB threshold, nothing to free), 0 statements, 0 user runs. No restart was needed after K6.
 
 ## 2026-11-06 — edge-bff from `main` `99fe0daa`: "Add a condition" labels give way before fields (PR #58)
 
