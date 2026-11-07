@@ -6,7 +6,8 @@
      ?newpub=1                                  a new publication after the first run
      ?pub=2                                     the page load starts at the second publication
      ?noidb=1                                   IndexedDB refuses to open (the page works without its cache)
-     ?hostile=1                                 markup in a company name and a sector (rendered as text only) */
+     ?hostile=1                                 markup in a company name and a sector (rendered as text only)
+     ?brokerloading=12                          the broker data still loading, 12 sessions so far (flow refused FLOW_UNAVAILABLE) */
 import '../../src/styles/screener.css';
 import '../../../terminal/src/styles/spin.css';
 import { bootPage } from '../../src/app.ts';
@@ -20,6 +21,7 @@ for (const part of (q.get('fail') || '').split(',').filter(Boolean)) { const [k,
 if (q.get('newpub')) opts.newPublicationAfterRuns = Number(q.get('newpub'));
 if (q.get('pub')) opts.publication = Number(q.get('pub'));
 if (q.get('hostile')) opts.hostile = true;
+if (q.get('brokerloading')) opts.brokerLoading = Number(q.get('brokerloading'));
 const api = fixtureApi(opts);
 (window as any).__fixture = api;
 const refusing = { open:() => { const r: any = {}; setTimeout(() => { r.error = new DOMException('blocked', 'UnknownError'); r.onerror?.({ preventDefault() {} }) }, 0); return r } } as unknown as IDBFactory;

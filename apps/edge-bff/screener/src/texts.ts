@@ -205,12 +205,19 @@ function rangeWords(r: Range): string {
 /* limits */
 /** The fix a catalog limit names: the closing parenthesis of its refused example ("… (switch one off or remove it)");
     one that opens with the code it is answered with ("(BUSY: retry in a few seconds)") gives what follows the code,
-    which the page words itself; an example without one gives the right example. */
+    which the page words itself; an example without one gives the right example. A part of the parenthesis that states
+    the refused example's own count ("65 in all; use a shorter window or N": a number that is neither the limit nor in
+    its right example) describes that example, not this refusal, which states its own (details.needed): it is left out,
+    so the message never names two counts (QA5 unit B D2: "this one needs 90 sessions. 65 in all; ..."). */
 function fixOf(l: LimitEntry): string {
   const m = /\(([^()]*)\)\W*$/.exec(l.example_refused || '');
   const fix = m ? m[1].replace(/^[A-Z][A-Z0-9_]+:\s*/, '').trim() : '';
-  return sentence(fix || `allowed: ${l.example_ok}`);
+  const known = new Set([l.value, ...numbersIn(l.example_ok)]);
+  const own = fix.split(';').map(x => x.trim()).filter(x => x && numbersIn(x).every(n => known.has(n))).join('; ');
+  return sentence(own || `allowed: ${l.example_ok}`);
 }
+/** the numbers a text states ("65,536 bytes": 65536) */
+const numbersIn = (s: string): number[] => (s.match(/\d[\d,]*(?:\.\d+)?/g) || []).map(x => Number(x.replace(/,/g, '')));
 /** A refusal that points at a limit, worded from the limit's catalog entry: the lead, the place in the screen (a
     field of the definition; an envelope field such as the ticker or the name is no place, the rule says where), the
     rule, what this request needed (in the entry's unit, its number written as the rule writes the value) and the fix;
@@ -369,6 +376,14 @@ export const flowDateTitle = (date: string, priceDate: string | null | undefined
 /** the date a flow cell shows beside its value: only when the broker data is older than the stock's prices */
 export const flowDateShown = (c: Cell, priceDate: string | null | undefined): string | null =>
   c.eval_date && c.status !== 'na' && c.status !== 'not_evaluated' && priceDate && c.eval_date < priceDate ? shortDate(c.eval_date) : null;
+/** The words under a card that compares a bar field with a flow price level (cell-text.ts levelAtFlowDate): both sides
+    are of the stock's broker data date, the publication's latest broker session, and that it is older than the prices
+    when it is (the 20-question test, item C). */
+export function levelAsOfText(d: Partial<DataStatus> | null | undefined): string {
+  const last = d?.broker_window?.last ?? d?.flow_through ?? null, prices = d?.price_through ?? d?.evaluation_date ?? null;
+  if (!last) return 'Both sides as of each stock\'s broker data date, not its price date.';
+  return `Both sides as of the broker data date, ${shortDate(last)}${prices && last < prices ? ` (each stock's latest broker data; prices are of ${shortDate(prices)})` : ''}.`;
+}
 /** The broker data the publication holds, for Method & sources: its last session and how many are loaded. */
 export function brokerDataText(d: Partial<DataStatus> | null | undefined): string {
   const w = d?.broker_window, last = w?.last ?? d?.flow_through ?? null;

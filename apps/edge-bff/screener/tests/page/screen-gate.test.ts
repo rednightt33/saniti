@@ -103,7 +103,7 @@ describe('the Screen now gate (run.ts)', () => {
     S.errors = {};
     for (let k = 0; k < 21; k++) S.cards.push(card('I13'));
     edit();
-    expect(screenBlocked()).toMatch(/At most 20 enabled conditions\. Switch off or remove 2 condition\(s\)\. Allowed: .*Refused: /);
+    expect(screenBlocked()).toMatch(/At most 20 enabled conditions in one screen\. Switch off or remove 2 condition\(s\)\. Allowed: .*Refused: /);
     screenNow(); expect(calls.length).toBe(0);
   });
   it('a refusal stays on its card; Screen now does not send it again, Retry does; an edit clears the refusal', async () => {

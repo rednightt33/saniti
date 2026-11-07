@@ -14,7 +14,8 @@ import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, 
 import { confirmDialog, openSaveMetric, toast } from './dialogs.ts';
 import { MY, openAddCondition } from './add-condition.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
-import { T } from './texts.ts';
+import { levelAsOfText, T } from './texts.ts';
+import { levelAtFlowDate } from './cell-text.ts';
 import { ApiFailure } from './api/types.ts';
 import { layoutHooks, wide } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
@@ -58,7 +59,9 @@ function condRow(c: Card): string {
   // a raw card, and a card with a universal operator (P3: set and changed in the Add a condition window), show their rule
   // an operator card says where it is changed (QA5 D7): in the Add a condition window, as a new card
   const opNote = c.op && e ? `<div class="note" data-opnote="${c.id}">${esc(T.operatorCardNote)}</div>` : '';
-  if (!e || c.raw || c.op) return `<div class="mc ${c.on ? '' : 'off'} ${x}" data-card="${c.id}"${tip}>${head}<div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${opNote}${review}${pass}</div>`;
+  // the close against a flow price level: both read at the broker data date (P10 a)
+  const asOf = levelAtFlowDate(c, e) ? `<div class="note" data-asof="${c.id}">${esc(levelAsOfText(ctx.catalog?.data))}</div>` : '';
+  if (!e || c.raw || c.op) return `<div class="mc ${c.on ? '' : 'off'} ${x}" data-card="${c.id}"${tip}>${head}<div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${asOf}${opNote}${review}${pass}</div>`;
   const o = optOf(e, c), cus = isCustom(e, c) || S.open.has(c.id);
   const u = displayUnit(o?.unit);
   const err = (k: string) => errs[k] ? `<span class="ferr" role="alert">${esc(errs[k])}</span>` : '';
@@ -86,7 +89,7 @@ function condRow(c: Card): string {
   const grid = e.params.length && (cus || twoLines) ? `<div class="pgrid">${e.params.map(p => pf(p)).join('')}${twoLines ? e.params.map(p => pf(p, true)).join('') : ''}</div><div class="mrow"><span class="pbadge my" data-pm="${c.id}" ${c.metric ? '' : 'hidden'}>★ ${esc(c.metric?.name || '')}</span><button class="link" data-savem="${c.id}">${ico(IC.star, 's')}Save as My metric</button></div>` : '';
   const ops = `<select class="sel" data-c="${c.id}" data-k="op" aria-label="Condition">${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === c.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}</select>${err('op')}`;
   return `<div class="mc ${c.on ? '' : 'off'} ${cus ? 'cus' : ''} ${x}" data-card="${c.id}"${tip}>${head}
-    <div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${review}
+    <div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${asOf}${review}
     ${mode}${grid}${ops}${vals}${within}${pass}</div>`;
 }
 

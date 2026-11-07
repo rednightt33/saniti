@@ -118,8 +118,10 @@ through `flowmetrics.ts` computeEntry; tests `tests/core/flow-screener.test.ts`,
 ## 4b. As built (P5c, 2026-11-07)
 
 - Every flow entry is offered from its catalog data (no FL id in the page): parameters by kind (whole numbers and numbers
-  with min/max, selects, switches, boards and investor types as checkboxes, broker codes, an anchor date inside the broker
-  window), the entry's own conditions per output type, and Measure + Test; "=" and "!=" only on D, F and B outputs.
+  with min/max, selects, switches, boards and investor types as checkboxes, broker codes, and the anchor as a whole number
+  of sessions back from the evaluated date: the catalog's anchored entries take `anchor_sessions`, section 3; a date field
+  inside the broker window is drawn only for an entry the catalog anchors by a date, and none does), the entry's own
+  conditions per output type, and Measure + Test; "=" and "!=" only on D, F and B outputs.
 - Depth: the worker is the only authority (the page bundle may not import flow.ts). The page shows "about N sessions of
   broker data left at this setup" as a hint and never refuses a depth in place; a too-deep condition gets the worker's
   `LIMIT_EXCEEDED broker_depth` refusal on its card. Follow-up (not in this release): a depth table generated from the

@@ -17,6 +17,15 @@ export function readsFlow(c: Card, e: Entry | undefined): boolean {
   const walk = (x: unknown): boolean => !!x && typeof x === 'object' && ((x as { kind?: unknown }).kind === 'flow' || Object.values(x as object).some(walk));
   return !!c.raw && walk(c.raw);
 }
+/** Whether a card compares a bar field (the close) with a flow indicator's price level: its "Close above / below"
+    condition, or an operator comparing the output with a bar field (a measure with a second series). Both sides are
+    then read at the stock's broker data date (P10 a), which the card says (texts.ts levelAsOfText; the 20-question
+    test, item C). */
+export function levelAtFlowDate(c: Card, e: Entry | undefined): boolean {
+  if (!e?.flow) return false;
+  if (c.op) return !!e.ops?.measures.find(m => m.fn === c.op!.measure)?.second && c.op.by.startsWith('price:');
+  return optOf(e, c)?.form === 'state_level';
+}
 /** The test kind a card's cells are: an operator card's test (a cross is an event, ever / K of N / in a row a window),
     else its condition's kind, else a kept card's wire kind. */
 export const kindOfCard = (c: Card, e: Entry | undefined): string | undefined => {

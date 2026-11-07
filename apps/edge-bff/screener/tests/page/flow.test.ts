@@ -21,7 +21,6 @@ import { validateTest, availabilityMap } from '../../src/core/validate.ts';
 import { METRICS_CATALOG } from '../../src/core/catalog.ts';
 import { vctx } from '../core/helpers.ts';
 import { fixtureApi } from '../fixture/api.ts';
-import { evaluate } from '../fixture/engine.ts';
 import { BROKER_WINDOW, FLOW_CTX } from '../fixture/broker.ts';
 
 let catalog: CatalogResponse;
@@ -165,7 +164,8 @@ describe('the broker sessions (K1): the fields stop where the broker data does',
     S.cards = [deep]; sync(); screenNow();
     for (let k = 0; k < 50 && ctx.running; k++) await new Promise(ok => setTimeout(ok, 5));
     expect(ctx.refused?.id).toBe(deep.id);
-    expect(ctx.refused!.message).toMatch(/Limit reached in condition 1 .*: a flow condition reads at most the 60 sessions of broker data the Screener holds.*; this one needs \d+ sessions\. .*shorter window or N/);
+    expect(ctx.refused!.message).toMatch(/Limit reached in condition 1 .*: a flow condition reads at most the 60 sessions of broker data the Screener holds.*; this one needs \d+ sessions\. Use a shorter window or N\.$/);
+    expect(ctx.refused!.message).not.toMatch(/in all/);                // one count: this one's, never the example's (QA5 D2)
     cancelRun();
   });
   it('a longer window of the indicator leaves fewer sessions to N', () => {
@@ -220,7 +220,7 @@ describe('the broker sessions at the boundary: the page\'s hint against the work
     }
     expect(n).toBeGreaterThan(150);
     expect(wrong).toBeGreaterThan(0);                                   // the setups where the hint alone was stricter
-  });
+  }, 60_000);                                                           // some thousand validations: seconds under a full parallel run
 });
 
 describe('the Terminal\'s parameters travel in its own shapes', () => {
@@ -309,7 +309,7 @@ describe('a flow cell names its broker data date (P10 a)', () => {
     // a stock without broker data in the window: n/a FLOW_UNAVAILABLE, no date (the core's noFlowCell)
     const none = await api.run({ schema_version: 1, definition: { ...def, universe: { ...def.universe, tickers: ['MTDL'] } } } as never);
     expect(none.body.conditions[0]).toMatchObject({ evaluated: 1, na: 1, passed: 0 });
-    const m = api.market, cellOf = evaluate(m, m.byTicker.get('MTDL')!, def.conditions[0]).cell;
+    const cellOf = (await api.preview({ schema_version: 1, definition: def, ticker: 'MTDL', data_version: catalog.versions.price_data })).cells[0];
     expect(cellOf).toMatchObject({ status: 'na', reason: 'FLOW_UNAVAILABLE', eval_date: null });
     expect(cellTitle(cellOf, [], catalog.data.evaluation_date, true)).toMatch(/no broker data/);
   });
