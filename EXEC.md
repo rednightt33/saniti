@@ -12474,7 +12474,7 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   x100): FL11, FL14, FL24-FL39; 2 hanya sebagian (FL22 breadth, FL23 broker); 28 belum ada: FL01-FL10, FL12, FL13,
   FL15-FL21, FL40-FL48. Cakupan tidak berubah (48 FL masuk dari `flowRegistry.json`, P5), tetapi P5 mengganti 22
   entri lama, sehingga butuh keputusan sebelum P5:
-  - G1 papan bawaan: registry memakai `["Regular"]` untuk setiap FL yang punya parameter papan, sedangkan P8 b memutuskan
+  - G1 papan bawaan (diputuskan 2026-11-07: ikut Terminal, Regular; lihat Keputusan di bawah): registry memakai `["Regular"]` untuk setiap FL yang punya parameter papan, sedangkan P8 b memutuskan
     semua papan; entri screener yang diturunkan dari registry harus memakai Regular, Nego, Cash.
   - G2 kalender: candle Terminal memakai tanggal harga (baris broker tanpa bar harga dibuang), keputusan D12 memakai
     sesi bursa; berbeda pada hari Nego saja (81 saham-hari dari 15 saham dalam 20 sesi) dan hari tanpa transaksi.
@@ -12606,4 +12606,15 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
     hasil kondisi lama tetap sama.
   - Eksekusi dimulai: P0 (OPERATORS.md untuk disetujui user, pemeriksaan read-only database K6, peta nomor FL) dan P1
     (rapikan). P2 dibangun setelah OPERATORS.md disetujui (K4).
-- Status: berjalan (P0, P1).
+- Keputusan user 2026-11-07 (atas pertanyaan K4, G1, G2, rumus lama): "Jalankan opsi A / Opsi P8B berubah, OK / Rumus
+  lama tanpa padaan diterminal, OK" dan "Kita mau fitur ini release as soon as possible for me to test".
+  - K4: `verification/screener/OPERATORS.md` disetujui; menjadi acuan P2, P3, P5 dan QA.
+  - G1: papan bawaan flow ikut Terminal (`flowRegistry.json`: Regular); P8 b (semua papan bawaan) diganti. Pengguna
+    tetap bisa memilih papan lain di setelan indikator.
+  - G2: lihat di atas (sesi = bar harga saham itu).
+  - Rumus lama: dibangun ulang dengan operator (net satu broker N sesi lewat FL23 seri a dengan patokan N sesi; 1/H lewat
+    ambang FL38; status Big Acc/Dist lewat range FL24 ±6/±10; hari distribusi lewat Persistence), dipertahankan sebagai
+    entri screener sendiri (`fnet` net asing Rupiah, net pemegang besar KSEI, pengaman n/a tanggal lampau FL34), dihapus
+    (breadth lama tanpa net nol; FL22 menggantikan). Kesamaan hasil bangun ulang dites di P5.
+  - Urutan rilis: unit A (operator, P2-P3) dirilis lebih dulu tanpa menunggu K6; K6 hanya dibutuhkan unit B (flow).
+- Status: berjalan (P0 K6, P2).

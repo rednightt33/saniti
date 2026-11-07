@@ -1,7 +1,8 @@
-# Screener universal operators: specification (EXEC-SCREENER-FLOW-CANDLES, P0; draft for the user's approval, K4)
+# Screener universal operators: specification (EXEC-SCREENER-FLOW-CANDLES, P0; approved by the user, K4)
 
-Status: DRAFT, 2026-11-07. Nothing in this file is built yet. Once the user approves it, it is the reference the
-implementation (P2, P3, P5) and the five QA agents (P7) check against. A change to a rule here needs the user's approval.
+Status: APPROVED by the user on 2026-11-07 ("Jalankan opsi A", K4; EXEC.md EXEC-SCREENER-FLOW-CANDLES). It is the
+reference the implementation (P2, P3, P5) and the five QA agents (P7) check against. A change to a rule here needs the
+user's approval.
 
 Sources this file follows (checked in the code on 2026-11-07):
 - User decisions: EXEC.md `EXEC-SCREENER-FLOW-CANDLES` (operators 1-15; two layers "indicator setup + operator"; C =

@@ -56,16 +56,36 @@ def fnum(v):
     return 'null' if v is None else (ENC_FLOAT(v) if isinstance(v, float) else str(int(v)))
 
 
-conn = psycopg.connect(os.environ['DATABASE_URL'], autocommit=True, connect_timeout=30,
-                       options=(f"-c default_transaction_read_only=on "
-                                f"-c statement_timeout={int(P.get('statement_timeout_ms', 600000))} "
-                                f"-c work_mem={P.get('work_mem', '64MB')} -c max_parallel_workers_per_gather=0 "
-                                f"-c application_name=k6_window_job"))
-print('READONLY ' + json.dumps(conn.execute('SHOW transaction_read_only').fetchone()), flush=True)
+def connect():
+    c = psycopg.connect(os.environ['DATABASE_URL'], autocommit=True, connect_timeout=30,
+                        options=(f"-c default_transaction_read_only=on "
+                                 f"-c statement_timeout={int(P.get('statement_timeout_ms', 600000))} "
+                                 f"-c work_mem={P.get('work_mem', '64MB')} -c max_parallel_workers_per_gather=0 "
+                                 f"-c application_name=k6_window_job"))
+    print('READONLY ' + json.dumps(c.execute('SHOW transaction_read_only').fetchone()), flush=True)
+    return c
+
+
+conn = connect()
+
+
+def q(statement, args=None):
+    """Rows of one read-only statement. A lost connection (a Postgres restart: the scheduled one at 13:45 UTC, M340) is
+    opened again once and the statement repeated; any other error is raised to the part that asked."""
+    global conn
+    try:
+        return conn.execute(statement, args).fetchall()
+    except psycopg.OperationalError as e:
+        print('RECONNECT ' + json.dumps({'error': type(e).__name__}), flush=True)
+        time.sleep(20)
+        conn = connect()
+        return conn.execute(statement, args).fetchall()
+
+
 t_job = time.time()
 
 # ---- the universe as the publisher reads it (UNIVERSE_SQL); stock kind = every type except index ----------------------
-universe = conn.execute('SELECT "Ticker", "Security Type" FROM public."IDX_Stock_Universe"').fetchall()
+universe = q('SELECT "Ticker", "Security Type" FROM public."IDX_Stock_Universe"')
 U = {t for t, typ in universe if typ != 'index'}
 types = {}
 for _, typ in universe:
@@ -73,13 +93,13 @@ for _, typ in universe:
 out('universe', securities=len(universe), stock_kind=len(U), by_type=types)
 
 # ---- (a) the latest trade dates of Feature 05, from its trade_date index (one index probe per date) -------------------
-dates = [r[0] for r in conn.execute(
+dates = [r[0] for r in q(
     f'WITH RECURSIVE d(t) AS (SELECT max(trade_date) FROM {F05} '
     f'UNION ALL SELECT (SELECT max(trade_date) FROM {F05} WHERE trade_date < d.t) FROM d WHERE d.t IS NOT NULL) '
-    f'SELECT t FROM d WHERE t IS NOT NULL LIMIT %s', (SESSIONS,)).fetchall()]
+    f'SELECT t FROM d WHERE t IS NOT NULL LIMIT %s', (SESSIONS,))]
 dates.sort()
-quality = dict(conn.execute('SELECT trade_date, status FROM public.broker_summary_date_quality '
-                            'WHERE trade_date = ANY(%s)', (dates,)).fetchall())
+quality = dict(q('SELECT trade_date, status FROM public.broker_summary_date_quality WHERE trade_date = ANY(%s)',
+                 (dates,)))
 out('window', sessions=len(dates), first=dates[0] if dates else None, last=dates[-1] if dates else None)
 
 # compact column store of the window rows (about 60 bytes a row): codes as vocabulary ids, numbers in typed arrays
@@ -102,10 +122,10 @@ read_ms = 0
 for di, day in enumerate(dates):
     t0 = time.time()
     try:
-        rows = conn.execute(
+        rows = q(
             f'SELECT ticker, broker, investor_type, market_board, buy_value::float8, sell_value::float8, '
             f'buy_lots::float8, sell_lots::float8, source_balance_gap, buy_freq, sell_freq FROM {F05} '
-            f'WHERE trade_date = %s', (day,)).fetchall()
+            f'WHERE trade_date = %s', (day,))
     except Exception as e:  # noqa: BLE001 - one failed date must not hide the others
         err(f'session:{day}', e)
         continue
@@ -133,6 +153,58 @@ for di, day in enumerate(dates):
     out('session', d=day, status=quality.get(day, 'NONE'), ms=ms, **s)
     del rows
 out('window_read', rows=len(col_t), read_ms=read_ms, job_s=round(time.time() - t_job, 1))
+
+# ---- (c) buy_freq/sell_freq over the whole history, one statement per calendar month ------------------------------
+if P.get('months', True):
+    lo, hi = q(f'SELECT min(trade_date), max(trade_date) FROM {F05}')[0]
+    out('history', first=lo, last=hi)
+    y, m = lo.year, lo.month
+    total = {}
+    null_dates = []
+    while (y, m) <= (hi.year, hi.month):
+        start, end = date(y, m, 1), date(y + (m == 12), m % 12 + 1, 1)
+        t0 = time.time()
+        try:
+            # per date: hash aggregate over the month's rows (trade_date index range); the universe is a hash join
+            rows = q(
+                f'SELECT f.trade_date, count(*), '
+                f'count(*) FILTER (WHERE f.buy_freq IS NULL), count(*) FILTER (WHERE f.sell_freq IS NULL), '
+                f"count(*) FILTER (WHERE f.ticker ~ '^[A-Z]{{4}}$'), "
+                f"count(*) FILTER (WHERE f.ticker ~ '^[A-Z]{{4}}$' AND (f.buy_freq IS NULL OR f.sell_freq IS NULL)), "
+                f'count(u.t), count(u.t) FILTER (WHERE f.buy_freq IS NULL OR f.sell_freq IS NULL) '
+                f'FROM {F05} f LEFT JOIN unnest(%s::text[]) u(t) ON u.t = f.ticker '
+                f'WHERE f.trade_date >= %s AND f.trade_date < %s GROUP BY f.trade_date ORDER BY 1',
+                (sorted(U), start, end))
+            keys = ['rows', 'null_bf', 'null_sf', 'four_rows', 'four_null_any', 'u_rows', 'u_null_any']
+            month = {k: sum(r[i + 1] for r in rows) for i, k in enumerate(keys)}
+            for k, v in month.items():
+                total[k] = total.get(k, 0) + v
+            null_dates += [f'{r[0].isoformat()}:{r[7]}/{r[6]}' for r in rows if r[7]]
+            out('month', ym=f'{y}-{m:02d}', dates=len(rows), ms=round((time.time() - t0) * 1000), **month,
+                u_dates_with_null=sum(1 for r in rows if r[7]))
+        except Exception as e:  # noqa: BLE001
+            err(f'month:{y}-{m:02d}', e)
+        y, m = y + (m == 12), m % 12 + 1
+    out('history_total', **total)
+    for i in range(0, len(null_dates), 20):
+        out('u_null_dates', chunk=i // 20, dates=null_dates[i:i + 20])
+
+# ---- (d) the date-quality table over the whole history -------------------------------------------------------------
+try:
+    rows = q('SELECT status, count(*), min(trade_date), max(trade_date), '
+                        'count(*) FILTER (WHERE stock_freq_share < 1), min(stock_freq_share) '
+             'FROM public.broker_summary_date_quality GROUP BY 1 ORDER BY 1')
+    for r in rows:
+        out('date_quality', status=r[0], dates=r[1], first=r[2], last=r[3], freq_share_below_1=r[4],
+            min_freq_share=float(r[5]) if r[5] is not None else None)
+    low = q('SELECT trade_date, stock_freq_share::float8, status FROM public.broker_summary_date_quality '
+            'WHERE stock_freq_share < 0.99 ORDER BY 1')
+    for i in range(0, len(low), 20):
+        out('date_quality_low', chunk=i // 20, dates=[f'{d.isoformat()}:{round(s, 4)}:{st}' for d, s, st in low[i:i + 20]])
+except Exception as e:  # noqa: BLE001
+    err('date_quality', e)
+
+conn.close()                                         # every read is done; the rest is local
 
 # ---- (b) file size of the window, encoded as publisher.encode would ------------------------------------------------
 DATE_STR = [ENC_STR(d.isoformat()) for d in dates]
@@ -229,56 +301,6 @@ try:
 except Exception as e:  # noqa: BLE001
     err('file:all', e)
 del order, col_t, col_d, col_b, col_i, col_m, col_bv, col_sv, col_bl, col_sl, col_bf, col_sf, col_gap
-
-# ---- (c) buy_freq/sell_freq over the whole history, one statement per calendar month ------------------------------
-if P.get('months', True):
-    lo, hi = conn.execute(f'SELECT min(trade_date), max(trade_date) FROM {F05}').fetchone()
-    out('history', first=lo, last=hi)
-    y, m = lo.year, lo.month
-    total = {}
-    null_dates = []
-    while (y, m) <= (hi.year, hi.month):
-        start, end = date(y, m, 1), date(y + (m == 12), m % 12 + 1, 1)
-        t0 = time.time()
-        try:
-            # per date: hash aggregate over the month's rows (trade_date index range); the universe is a hash join
-            rows = conn.execute(
-                f'SELECT f.trade_date, count(*), '
-                f'count(*) FILTER (WHERE f.buy_freq IS NULL), count(*) FILTER (WHERE f.sell_freq IS NULL), '
-                f"count(*) FILTER (WHERE f.ticker ~ '^[A-Z]{{4}}$'), "
-                f"count(*) FILTER (WHERE f.ticker ~ '^[A-Z]{{4}}$' AND (f.buy_freq IS NULL OR f.sell_freq IS NULL)), "
-                f'count(u.t), count(u.t) FILTER (WHERE f.buy_freq IS NULL OR f.sell_freq IS NULL) '
-                f'FROM {F05} f LEFT JOIN unnest(%s::text[]) u(t) ON u.t = f.ticker '
-                f'WHERE f.trade_date >= %s AND f.trade_date < %s GROUP BY f.trade_date ORDER BY 1',
-                (sorted(U), start, end)).fetchall()
-            keys = ['rows', 'null_bf', 'null_sf', 'four_rows', 'four_null_any', 'u_rows', 'u_null_any']
-            month = {k: sum(r[i + 1] for r in rows) for i, k in enumerate(keys)}
-            for k, v in month.items():
-                total[k] = total.get(k, 0) + v
-            null_dates += [f'{r[0].isoformat()}:{r[7]}/{r[6]}' for r in rows if r[7]]
-            out('month', ym=f'{y}-{m:02d}', dates=len(rows), ms=round((time.time() - t0) * 1000), **month,
-                u_dates_with_null=sum(1 for r in rows if r[7]))
-        except Exception as e:  # noqa: BLE001
-            err(f'month:{y}-{m:02d}', e)
-        y, m = y + (m == 12), m % 12 + 1
-    out('history_total', **total)
-    for i in range(0, len(null_dates), 20):
-        out('u_null_dates', chunk=i // 20, dates=null_dates[i:i + 20])
-
-# ---- (d) the date-quality table over the whole history -------------------------------------------------------------
-try:
-    rows = conn.execute('SELECT status, count(*), min(trade_date), max(trade_date), '
-                        'count(*) FILTER (WHERE stock_freq_share < 1), min(stock_freq_share) '
-                        'FROM public.broker_summary_date_quality GROUP BY 1 ORDER BY 1').fetchall()
-    for r in rows:
-        out('date_quality', status=r[0], dates=r[1], first=r[2], last=r[3], freq_share_below_1=r[4],
-            min_freq_share=float(r[5]) if r[5] is not None else None)
-    low = conn.execute('SELECT trade_date, stock_freq_share::float8, status FROM public.broker_summary_date_quality '
-                       'WHERE stock_freq_share < 0.99 ORDER BY 1').fetchall()
-    for i in range(0, len(low), 20):
-        out('date_quality_low', chunk=i // 20, dates=[f'{d.isoformat()}:{round(s, 4)}:{st}' for d, s, st in low[i:i + 20]])
-except Exception as e:  # noqa: BLE001
-    err('date_quality', e)
 
 out('done', job_s=round(time.time() - t_job, 1))
 print('JOB_DONE', flush=True)
