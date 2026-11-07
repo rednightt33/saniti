@@ -1145,6 +1145,12 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
    descenders, so the padding below is 2px less (measured by look_check11.mjs) */
 .im-list > .im-sec:first-child{margin-top:-4px}   /* the list's own 4px above the first heading */
 .im-sec{position:sticky;top:-4px;z-index:2;margin:0 -8px;padding:9px 16px 7px 50px;background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+/* EXEC-IND-NAV B1 (user 2026-11-07: "B1 ok"; "agar bisa lebih jelas lah bahwa indikator yang di bawahnya itu adalah grup dari
+   bagian yang di atas"): a group heading is a grey band with dark, slightly larger letters and its count, so it reads as
+   the title of the rows under it and not as the column header ("INDICATOR" stays small and grey) */
+.im-sec{background:var(--sel);color:var(--text);font-size:var(--fs-xs);border-top:1px solid var(--border);padding-top:8px;padding-bottom:8px}   /* its top line takes 1px: 8 / 8 keeps the ink in the middle (look_check11) */
+.im-list > .im-sec:first-child{border-top:0;padding-top:9px;padding-bottom:7px}
+.im-sec-n{margin-left:8px;font-weight:var(--fw-medium);letter-spacing:0;color:var(--text-3)}
 .im-foot{display:flex;align-items:center;gap:var(--s-6);padding:10px 20px;border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-3)}
 .im-foot b{margin-left:auto;font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap}
 .im-toast{position:absolute;left:50%;bottom:52px;z-index:5;transform:translate(-50%,8px);padding:7px 12px;border-radius:var(--r-md);background:var(--text);color:var(--surface);font-size:var(--fs-12);font-weight:var(--fw-medium);box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis}

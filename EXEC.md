@@ -12450,9 +12450,14 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 **Kata user, 2026-11-07:** "untuk screenshot A, itu adalah selected state about currently where user scroll. Mungkin bisa
 dibuat lebih standout, entah fillnya dipergelap atau shadownya dipertebal." Atas pilihan A1 (latar lebih gelap + garis
 kiri, disarankan) atau A2 (bayangan lebih tebal): "Ok untuk ini, jalankan dulu di branch sekarang." Dibaca sebagai A1
-(opsi yang disarankan); A2 tinggal diganti bila maksud user lain. Judul grup (B1/B2) masih menunggu.
+(opsi yang disarankan); A2 tinggal diganti bila maksud user lain.
 - Grup terpilih: latar lebih gelap (9% warna teks di atas permukaan) dan garis 3 px di kirinya; di layar sempit (grup jadi
   deretan chip) garisnya di bawah.
+- B1 (user 2026-11-07: "B1 ok , buat di branch dulu"; permintaan awal: "agar bisa lebih jelas lah bahwa indikator yang di
+  bawahnya itu adalah grup dari bagian yang di atas"): judul grup jadi pita abu-abu, huruf hitam sedikit lebih besar dan
+  jumlah indikatornya ("VOLUME 5"); judul kolom "INDICATOR" tetap kecil abu-abu. Teks tetap sejajar kolom nama dan di
+  tengah pitanya (`look_check11.mjs` lulus).
+- Status 2026-11-07 (branch): A1 dan B1 dikerjakan; Terminal 870/870. Belum dirilis.
 
 ## EXEC-PANE-ORDER — urutan panel indikator dengan panah naik/turun (go 2026-11-07)
 
