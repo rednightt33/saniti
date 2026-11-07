@@ -171,3 +171,5 @@ OUT {"part":"month","ym":"2024-08","dates":22,"ms":9044,"rows":481052,"null_bf":
 OUT {"part":"month","ym":"2024-09","dates":20,"ms":8105,"rows":467775,"null_bf":24971,"null_sf":24971,"four_rows":442804,"four_null_any":0,"u_rows":427363,"u_null_any":0,"u_dates_with_null":0}
 OUT {"part":"month","ym":"2024-10","dates":23,"ms":9466,"rows":520425,"null_bf":22910,"null_sf":22910,"four_rows":497515,"four_null_any":0,"u_rows":479930,"u_null_any":0,"u_dates_with_null":0}
 OUT {"part":"month","ym":"2024-11","dates":20,"ms":8198,"rows":438399,"null_bf":21095,"null_sf":21095,"four_rows":417304,"four_null_any":0,"u_rows":404126,"u_null_any":0,"u_dates_with_null":0}
+OUT {"part":"month","ym":"2024-12","dates":19,"ms":6238,"rows":411308,"null_bf":21986,"null_sf":21986,"four_rows":389322,"four_null_any":0,"u_rows":376038,"u_null_any":0,"u_dates_with_null":0}
+OUT {"part":"month","ym":"2025-01","dates":19,"ms":5508,"rows":409818,"null_bf":20965,"null_sf":20965,"four_rows":388853,"four_null_any":0,"u_rows":375788,"u_null_any":0,"u_dates_with_null":0}
