@@ -27,3 +27,4 @@ apps/edge-bff/screener/dist-fixture/
 verification/terminal_api/flow_indicators/oracle/cache/
 verification/terminal_api/flow_indicators/oracle/out/
 verification/terminal_api/flow_indicators/oracle/compare.json
+.claude/worktrees/
