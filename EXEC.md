@@ -12727,6 +12727,22 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 - Keputusan yang masih perlu: storage tidak bisa menambah ke file yang sudah ada, jadi pembaca per saham (Terminal,
   Backtest) butuh peleburan berkala file harian menjadi file per saham, atau membuka satu file per hari.
 
+### Keputusan user 2026-11-07: pilihan C (kata user: "C")
+- Dinilai dari kecepatan Terminal (permintaan user: "Goalnya juga dari sisi efisiensi loading ke terminal sih"):
+  EXEC-TERMINAL-SPEED mengukur 21 file 3,15-3,51 s dan 5 file 0,94-1,16 s per saham (sandbox, 6 koneksi), kira-kira
+  +0,15 s per file tambahan.
+- Susunan per saham (Terminal, Backtest), tiga lapis, tiap saham-tanggal di tepat satu file aktif:
+  1. arsip tahun lama (berubah hanya bila tanggal di dalamnya dikoreksi);
+  2. tahun berjalan sampai akhir bulan lalu (ditulis sekali sebulan, dari file yang sudah ada di storage);
+  3. bulan berjalan (ditulis ulang setiap hari; paling banyak 22 sesi saham itu).
+  Sekitar 8 file per saham (sekarang 5). Kunjungan ulang hanya mengunduh lapis 3.
+- Susunan Screener: satu file per tanggal untuk semua saham; hari baru = satu file baru; tanggal berubah = file tanggal itu
+  diganti.
+- Berlaku untuk harga, broker dan event. Tanggal lama yang berubah: file lapis yang memuatnya diganti (arsip lama: pack
+  arsip ditulis ulang, jarang).
+- Sebelum membangun lapis per saham: ukur waktu buka chart dengan 5, 8, 15 dan 30 file kecil dari bucket yang sama.
+- Urutan: P4 (file broker per tanggal untuk Screener, kode ringkas) lebih dulu, lalu susunan per saham ini.
+
 ### Detail terbuka (dikeluarkan dari cakupan sekarang, keputusan user 2026-11-07)
 - Kompaksi: seberapa sering dan kapan (usul: mingguan, Sabtu, di luar jendela B6 dan cron lain).
 - Harga (`pack/price`, xsection harga) ikut pola yang sama sekarang atau sesudah broker.
