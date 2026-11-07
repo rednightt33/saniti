@@ -12741,7 +12741,9 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 - Berlaku untuk harga, broker dan event. Tanggal lama yang berubah: file lapis yang memuatnya diganti (arsip lama: pack
   arsip ditulis ulang, jarang).
 - Sebelum membangun lapis per saham: ukur waktu buka chart dengan 5, 8, 15 dan 30 file kecil dari bucket yang sama.
-- Urutan: P4 (file broker per tanggal untuk Screener, kode ringkas) lebih dulu, lalu susunan per saham ini.
+- Urutan (user 2026-11-07: "C nanti saja deh, setelah screener ini done"): P4 (file broker per tanggal untuk Screener),
+  P5, QA unit B dan rilis flow lebih dulu; susunan per saham C (publisher, terminal-api, Terminal, Backtest, harga
+  Screener) sesudah Screener flow selesai, mulai dengan langkah 0 (ukur waktu buka chart dengan 5, 8, 15, 30 file).
 
 ### Detail terbuka (dikeluarkan dari cakupan sekarang, keputusan user 2026-11-07)
 - Kompaksi: seberapa sering dan kapan (usul: mingguan, Sabtu, di luar jendela B6 dan cron lain).
