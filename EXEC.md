@@ -12642,6 +12642,8 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   terbaru; tidak ada konflik; diff ditinjau (perubahan tak sengaja, penghapusan, perubahan sensitif); build, lint dan tes
   relevan lulus pada kode terkini; PR terdokumentasi dan mengarah ke main; review dan CI yang diwajibkan lulus; dampak
   deploy ditinjau (database, konfigurasi, dependensi, rollback); merge, deploy dan verifikasi sesudah deploy berhasil.
+- P6 (20 pola candle, unit C) dibangun paralel selama unit B menunggu merge (user 2026-11-07: "Parallel, alright").
+  Kontrak: `verification/screener/P6_CANDLES.md`.
 - Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
   Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
   sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1
