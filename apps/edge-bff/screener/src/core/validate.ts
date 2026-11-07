@@ -21,7 +21,11 @@
      6.12) in an enabled condition or a metric filter (a switched-off condition is kept and checked for shape only);
    - LIMIT_EXCEEDED {limit, allowed, needed}: more than max_conditions enabled conditions, more than
      max_metric_filters metric filters (VALUE tests only), a within above within_max (a published limit of 8.9, so its
-     rule and examples are in catalog.limits[] before the user meets it).
+     rule and examples are in catalog.limits[] before the user meets it); P5a: a flow condition reading more sessions
+     than the loaded broker window holds (broker_depth, condition.ts);
+   - P5a flow indicators (flowmetrics.ts): their parameters through the registry's rules (PARAM_OUT_OF_RANGE,
+     INVALID_CONDITION), availability from the loaded broker window (ValidateContext.flow; METRIC_UNAVAILABLE with
+     reason_code FLOW_UNAVAILABLE while it loads), a flow series against a value or a series of the same unit.
    The valid ids (indicator ids, transform fn, pattern type, flow and cross-section metric, universe attr) are read from
    the generated registry and screener-metrics.json, never from a list in this file (report 6.9). The normalized
    definition has every parameter and argument resolved (defaults filled in; condition.ts builds it from the resolved
@@ -34,7 +38,9 @@ import type {
 } from './contract.ts';
 import { CONDITION_ID, VALUE_OPS, WINDOW_MODES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
-import { METRICS_CATALOG, PRESETS, metricSpec, resolveCatalogParams, transformSpec } from './catalog.ts';
+import { FLOW_REASONS, METRICS_CATALOG, PRESETS, metricSpec, resolveCatalogParams, transformSpec } from './catalog.ts';
+import { FLOW_BY_ID, FLOW_DESIGN_SESSIONS, resolveFlowParams } from './flowmetrics.ts';
+import type { FlowBindContext } from './flowmetrics.ts';
 import type { MetricDefinition, MetricsCatalog, PresetDefinition, TransformDefinition } from './catalog.ts';
 import { bindTest } from './condition.ts';
 import { resolveIndicator } from './metrics.ts';
@@ -52,7 +58,19 @@ export type { MetricDefinition, MetricsCatalog, TransformDefinition, PresetDefin
     METRIC_UNAVAILABLE refusal): the decision, or the metric's unavailable_reason followed by what the publication lacks
     (its data; with some of the columns, how many it lacks) or that the Screener does not read it yet, never a file or
     column name. `reads` omitted (the core's own tests): every indexed file counts as read. */
-export function availabilityOf(m: MetricDefinition, index: Readonly<Record<string, { columns?: string[] }>>, reads?: ReadonlySet<string>): { availability: Availability; reason: string | null } {
+export function availabilityOf(m: MetricDefinition, index: Readonly<Record<string, { columns?: string[] }>>, reads?: ReadonlySet<string>, flow?: FlowBindContext): { availability: Availability; reason: string | null } {
+  // EXEC-SCREENER-FLOW-CANDLES P5a: a retired Phase 2 flow entry is never computed (its reason names its replacement);
+  // a flow indicator needs data the Screener does not hold (FL31: insider), the loaded broker window (none: no broker
+  // days; not complete: still loading, the FLOW_UNAVAILABLE rule) and, for a default classification list (FL34), the
+  // brokers' classification
+  if (m.retired) return { availability: 'REQUIRES_DATA', reason: m.unavailable_reason ?? null };
+  if (m.flow) {
+    if (m.flow.requires === 'insider') return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.insider };
+    if (!flow || !flow.sessions) return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.none };
+    if (!flow.complete) return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.loading(flow.sessions) };
+    if (m.flow.needs_classification && !flow.classification) return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.classification };
+    return { availability: 'AVAILABLE', reason: null };
+  }
   if (m.decision) return { availability: 'REQUIRES_DECISION', reason: m.decision };
   if (m.requires) {
     const e = Object.prototype.hasOwnProperty.call(index, m.requires.file) ? index[m.requires.file] : undefined;
@@ -65,8 +83,8 @@ export function availabilityOf(m: MetricDefinition, index: Readonly<Record<strin
   return { availability: 'AVAILABLE', reason: null };
 }
 /** availabilityOf for every metric of the catalog, by id (ValidateContext.availability); `reads` as there. */
-export const availabilityMap = (index: Readonly<Record<string, { columns?: string[] }>>, catalog: MetricsCatalog = METRICS_CATALOG, reads?: ReadonlySet<string>): Map<string, { availability: Availability; reason: string | null }> =>
-  new Map(catalog.metrics.map(m => [m.id, availabilityOf(m, index, reads)]));
+export const availabilityMap = (index: Readonly<Record<string, { columns?: string[] }>>, catalog: MetricsCatalog = METRICS_CATALOG, reads?: ReadonlySet<string>, flow?: FlowBindContext): Map<string, { availability: Availability; reason: string | null }> =>
+  new Map(catalog.metrics.map(m => [m.id, availabilityOf(m, index, reads, flow)]));
 
 /** What validation needs besides the definition. limits: the worker's environment values (report 8.9); capBudgetMs:
     SCREENER_CAP_BUDGET_MS (registry.ts caps); tickers: the listed stocks of the snapshot; groupings: catalog.groupings
@@ -79,6 +97,9 @@ export interface ValidateContext {
   groupings: readonly Grouping[];
   metrics: MetricsCatalog;
   availability: ReadonlyMap<string, { availability: Availability; reason: string | null }>;
+  /** P5a: the loaded broker window (the worker's data.broker_window and its reference file's classification): a flow
+      condition's depth (K1), availability and anchor are checked against it; absent, they are not */
+  flow?: FlowBindContext;
 }
 
 /* ---- JSON shape --------------------------------------------------------------------------------------------------- */
@@ -105,7 +126,7 @@ const bool = (x: unknown, field: string, absent: boolean): boolean => {
 
 const REF_KEYS: Record<string, readonly string[]> = {
   indicator: ['kind', 'indicator', 'params', 'output'], price: ['kind', 'field'], transform: ['kind', 'fn', 'of', 'args'],
-  pattern: ['kind', 'type', 'params'], flow: ['kind', 'metric', 'params'], xsection: ['kind', 'metric', 'params'], universe: ['kind', 'attr'],
+  pattern: ['kind', 'type', 'params'], flow: ['kind', 'metric', 'output', 'params'], xsection: ['kind', 'metric', 'params'], universe: ['kind', 'attr'],
   rank: ['kind', 'of'],
 };
 /** Every metric reference of a test with its field (transform operands and reference arguments included), outer first. */
@@ -137,8 +158,11 @@ function checkRef(r: MetricRef, field: string, ctx: ValidateContext, enabled: bo
   const m = entryOf(r, field, ctx.metrics);
   if (m && enabled) {
     const a = ctx.availability.get(m.id);
+    // P5a: a flow indicator while the broker window is still loading carries the NA code FLOW_UNAVAILABLE beside the
+    // catalog's words (P5_FLOW.md section 1 Availability)
+    const loading = !!m.flow && !!ctx.flow && ctx.flow.sessions > 0 && !ctx.flow.complete && !m.flow.requires;
     if (a && a.availability !== 'AVAILABLE')
-      throw new ScreenerError('METRIC_UNAVAILABLE', `${field}: ${m.label || m.id} is not available: ${a.reason}`, field, { metric: m.id, availability: a.availability, reason: a.reason ?? '' });
+      throw new ScreenerError('METRIC_UNAVAILABLE', `${field}: ${m.label || m.id} is not available: ${a.reason}`, field, { metric: m.id, availability: a.availability, reason: a.reason ?? '', ...(loading ? { reason_code: 'FLOW_UNAVAILABLE' } : {}) });
   }
   if (r.kind === 'indicator') {
     const ri = resolveIndicator(r, field, { capBudgetMs: ctx.capBudgetMs });
@@ -208,6 +232,13 @@ function compareForm(kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, 
   const L = lhs as MetricRef, R = rhs as MetricRef;
   if (L.kind === 'rank' || (!isVal(rhs) && R.kind === 'rank')) throw formRefusal(field, 'a rank across stocks is a value at the evaluation date: use a value test ({"kind":"value","metric":{"kind":"rank",...},"op":"ge","value":90})');
   if (L.kind === 'pattern' || (!isVal(rhs) && R.kind === 'pattern')) throw formRefusal(field, `a pattern is tested on its own: {"kind":"${kind}", ${kind === 'state' ? '"pattern"' : '"signal": {"pattern"'}: ...}`);
+  // P5a: a flow series against a value or a second series of the same unit (operators 1, 7, 8), a price against a flow
+  // price level (close against Buy VWAP): the units are checked on the resolved series (condition.ts sameUnit)
+  if (L.kind === 'flow' || (!isVal(rhs) && R.kind === 'flow')) {
+    if (L.kind === 'flow') entryAllows(entryOf(L, `${field}.lhs`, ctx.metrics), kind, `${field}.lhs`);
+    if (!isVal(rhs) && R.kind === 'flow') entryAllows(entryOf(R, `${field}.rhs`, ctx.metrics), kind, `${field}.rhs`);
+    return;
+  }
   if (L.kind === 'indicator') {
     const { ind, out } = indOut(L);
     if (isVal(rhs)) return requireForm(out, ind.id, `${pre}_value` as TestForm, op, field);
@@ -319,7 +350,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
   // metric's availability is not asked of it (it may wait for data: METRIC_UNAVAILABLE), and it normalizes without the
   // binding (same shape, so the hash is the same on and off)
   let b: ReturnType<typeof bindTest> | null;
-  try { b = bindTest('v', input as unknown as Test, field, { capBudgetMs: ctx.capBudgetMs, withinMax: ctx.limits.within_max, catalog: ctx.metrics }) }
+  try { b = bindTest('v', input as unknown as Test, field, { capBudgetMs: ctx.capBudgetMs, withinMax: ctx.limits.within_max, catalog: ctx.metrics, flow: ctx.flow }) }
   catch (e) { if (enabled || !(e instanceof ScreenerError && e.code === 'METRIC_UNAVAILABLE')) throw e; b = null }
   if (!enabled) { if (b) comparable(b, field); return normalizeTest(input as unknown as Test, field, ctx) }
   comparable(b!, field);
@@ -330,7 +361,7 @@ function comparable(b: ReturnType<typeof bindTest>, field: string): void {
   if (b.test.kind === 'state' || b.test.kind === 'event') {
     const s = (b.test.kind === 'state' ? b.test : b.test.signal) as { lhs?: Side; rhs?: Side };
     const lf = s.lhs && (s.lhs as MetricRef).kind === 'price' ? (s.lhs as { field: string }).field : null;
-    if (lf && s.rhs && (s.rhs as MetricRef).kind === 'transform') {
+    if (lf && s.rhs && ((s.rhs as MetricRef).kind === 'transform' || (s.rhs as MetricRef).kind === 'flow')) {
       const level = b.series[b.series.length - 1];
       if (!level || level.comparableWith !== lf)
         throw formRefusal(`${field}${b.test.kind === 'event' ? '.signal' : ''}.rhs`, `${level ? level.label : 'the right side'} is not a level comparable with ${lf}${level?.comparableWith ? ` (it is comparable with ${level.comparableWith})` : ''}`);
@@ -349,7 +380,16 @@ function normalizeRef(r: MetricRef, field: string, ctx: ValidateContext): Metric
       for (const k of refKeys) if (has(given, k)) args[k] = normalizeRef(given[k] as MetricRef, `${field}.args.${k}`, ctx);
       return { kind: 'transform', fn: spec.fn, of: normalizeRef(r.of, `${field}.of`, ctx), args } as MetricRef;
     }
-    case 'pattern': case 'flow': case 'xsection': {
+    case 'flow':
+      // P5a: a flow indicator's parameters through the registry's rules (flowmetrics.ts), its output stated
+      if (FLOW_BY_ID[r.metric]) {
+        const e = FLOW_BY_ID[r.metric], output = r.output ?? e.default_output;
+        return { kind: 'flow', metric: e.id, output, params: resolveFlowParams(e, r.params, field, ctx.flow?.sessions ?? FLOW_DESIGN_SESSIONS, output) } as MetricRef;
+      }
+      // a retired Phase 2 entry keeps its old shape (window, board) until P5b remaps it
+      { const spec = metricSpec('flow', r.metric, `${field}.metric`, ctx.metrics);
+        return { kind: 'flow', metric: spec.id, params: resolveCatalogParams(spec.params, r.params, `${field}.params`) } as MetricRef }
+    case 'pattern': case 'xsection': {
       const id = r.kind === 'pattern' ? r.type : r.metric, spec = metricSpec(r.kind, id, `${field}.${r.kind === 'pattern' ? 'type' : 'metric'}`, ctx.metrics);
       const params = resolveCatalogParams(spec.params, r.params, `${field}.params`);
       return (r.kind === 'pattern' ? { kind: 'pattern', type: spec.id, params } : { kind: r.kind, metric: spec.id, params }) as MetricRef;

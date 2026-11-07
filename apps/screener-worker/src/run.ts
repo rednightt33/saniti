@@ -36,7 +36,8 @@ import { applyUniverse } from '../../edge-bff/screener/src/core/universe.ts';
 import { definitionHash, validateDefinition } from '../../edge-bff/screener/src/core/validate.ts';
 import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
-import { TickerView, barCount } from './snapshot.ts';
+import { TickerView, barCount, flowContextOf } from './snapshot.ts';
+import { BROKER_DAY_SESSIONS } from './broker.ts';
 import type { SnapshotDesc, ThreadSnapshot } from './snapshot.ts';
 import { refuse, toApiError } from './errors.ts';
 
@@ -139,8 +140,12 @@ export const resultKey = (desc: SnapshotDesc, hash: string, options: RunOptionsN
 export const COST_ALPHA = 0.2;          // weight of a new measurement in plan.ts's exponentially weighted mean
 export const newCostTracker = (): CostTracker => costTracker(SCREENER_REGISTRY.cost_model.ns_per_bar_length, COST_ALPHA);
 
-/** One kernel a series runs when it is computed: its cost key, class and length (the multiplier of an O(N·n) class). */
-export interface CostUnit { key: string; costClass: 'O(N)' | 'O(N·n)'; length: number }
+/** One kernel a series runs when it is computed: its cost key, class and length (the multiplier of an O(N·n) class);
+    bars: the bars it runs over when they are not the ticker's (P5a: a flow indicator and the operators on it run over
+    the loaded broker window's sessions). */
+export interface CostUnit { key: string; costClass: 'O(N)' | 'O(N·n)'; length: number; bars?: number }
+/** Whether a reference reads a flow indicator (directly or through operators). */
+const readsFlowRef = (ref: unknown): boolean => obj(ref) && (ref.kind === 'flow' || (ref.kind === 'transform' && (readsFlowRef(ref.of) || (obj(ref.args) && Object.values(ref.args).some(readsFlowRef)))) || (ref.kind === 'rank' && readsFlowRef(ref.of)));
 const maxNumber = (m: unknown): number => {
   let n = 1;
   if (obj(m)) for (const v of Object.values(m)) if (typeof v === 'number' && Number.isFinite(v) && v > n) n = v;
@@ -150,9 +155,12 @@ const maxNumber = (m: unknown): number => {
     ticker's Calc, whatever is pre-warmed): an indicator with the registry's cost class and the largest value of its
     O(N·n) parameters; a transform or a pattern as O(N·n) over its largest numeric argument (conservative: a rolling
     window may be linear in its implementation; the measured mean corrects the prediction). */
-export function costUnits(ref: unknown): CostUnit[] {
+export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS): CostUnit[] {
   if (!obj(ref)) return [];
   switch (ref.kind) {
+    // P5a: one computeFlow per (ticker, indicator, parameters) over the window's candles, linear in them (its grids are
+    // prefix sums; the measured mean per indicator corrects the prediction): cost units from the window length
+    case 'flow': return [{ key: `flow:${String(ref.metric)}`, costClass: 'O(N)', length: 1, bars: sessions }];
     case 'indicator': {
       const ind = SBY_ID[ref.indicator as string];
       if (!ind) return [];
@@ -161,18 +169,19 @@ export function costUnits(ref: unknown): CostUnit[] {
       return [{ key: `indicator:${ind.key}`, costClass: ind.cost_class === 'O(N·n)' ? 'O(N·n)' : 'O(N)', length }];
     }
     case 'transform': {
-      const inner = costUnits(ref.of);
-      if (obj(ref.args)) for (const a of Object.values(ref.args)) if (obj(a)) inner.push(...costUnits(a));
-      return [...inner, { key: `transform:${String(ref.fn)}`, costClass: 'O(N·n)', length: maxNumber(ref.args) }];
+      const inner = costUnits(ref.of, sessions);
+      if (obj(ref.args)) for (const a of Object.values(ref.args)) if (obj(a)) inner.push(...costUnits(a, sessions));
+      // an operator on a flow series works on the window's values only (the bars before it are empty)
+      return [...inner, { key: `transform:${String(ref.fn)}`, costClass: 'O(N·n)', length: maxNumber(ref.args), ...(readsFlowRef(ref) ? { bars: sessions } : {}) }];
     }
     case 'pattern': return [{ key: `pattern:${String(ref.type)}`, costClass: 'O(N·n)', length: maxNumber(ref.params) }];
-    case 'rank': return costUnits(ref.of);                     // operator 11: the ranked series is what is computed
+    case 'rank': return costUnits(ref.of, sessions);           // operator 11: the ranked series is what is computed
   }
   return [];
 }
 /** Predicted ms of computing one series on one ticker of `bars` bars. */
-export const predictMs = (tracker: CostTracker, r: Pick<ResolvedSeries, 'ref'>, bars: number): number =>
-  costUnits(r.ref).reduce((s, u) => s + tracker.predict(u.key, u.costClass, u.length, bars), 0);
+export const predictMs = (tracker: CostTracker, r: Pick<ResolvedSeries, 'ref'>, bars: number, sessions = BROKER_DAY_SESSIONS): number =>
+  costUnits(r.ref, sessions).reduce((s, u) => s + tracker.predict(u.key, u.costClass, u.length, u.bars ?? bars), 0);
 
 /** The parts of a held snapshot the estimate reads. */
 export interface CostView { desc: SnapshotDesc; pinned: Set<string>; position: Map<string, number>; index: TickerBars }
@@ -187,14 +196,15 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
   for (const t of survivors) { const j = held.position.get(t); if (j !== undefined) bars += barCount(held.desc, j) }
   const avg = survivors.length ? bars / survivors.length : 0;
   const dv = { price_data: held.desc.versions.price_data, screener_engine: held.desc.versions.screener_engine };
-  const ctx: BindContext = { capBudgetMs: env.capBudgetMs, index: held.index, withinMax: env.withinMax, catalog: METRICS_CATALOG };
+  const flow = flowContextOf(held.desc), sessions = flow.sessions || BROKER_DAY_SESSIONS;
+  const ctx: BindContext = { capBudgetMs: env.capBudgetMs, index: held.index, withinMax: env.withinMax, catalog: METRICS_CATALOG, flow };
   const pinned = (r: ResolvedSeries) => r.kind === 'price' || held.pinned.has(seriesKey(dv, r));   // a bar field is the snapshot itself (screen.ts)
   const conds: PlanCondition[] = def.conditions.flatMap((c, k) => {
     if (!c.enabled) return [];
     const b = bindCondition(c, `definition.conditions[${k}]`, ctx);
     const stage = b.xsection ? 'S1' : b.universeAttr !== null || b.series.every(pinned) ? 'S2' : 'S3';
     // a rank across stocks (S1, operator 11) computes its series on every survivor: costed as screen.ts does
-    const predictedMs = stage === 'S3' || b.xsection?.rankOf ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg), 0) : 0;
+    const predictedMs = stage === 'S3' || b.xsection?.rankOf ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg, sessions), 0) : 0;
     return [{ id: c.id, stage, predictedMs, evaluate: () => { throw new Error('estimate only') } }];
   });
   const est = costEstimate(conds, survivors.length);
@@ -202,7 +212,7 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
   let filters = 0;
   if (u) for (const i of u.pending) {
     const b = bindTest(`f${i}`, (def.universe.metric_filters ?? [])[i], `definition.universe.metric_filters[${i}]`, ctx);
-    filters += b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg), 0) * survivors.length;
+    filters += b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg, sessions), 0) * survivors.length;
   }
   const perTicker = conds.reduce((s, c) => s + c.predictedMs, 0);
   return { needed_ms: Math.ceil(est.needed_ms + filters), costliest: est.costliest, perTicker, eligible: survivors.length, s0_ms };
@@ -241,8 +251,12 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
     if (c) touch(ticker, c);
     return c;
   };
+  // P5a: a flow condition is bound against the snapshot's loaded window (K1 depth, anchors); its availability (a
+  // window still loading) was checked on the main thread with the current publication's data (validate.ts), so a
+  // thread never refuses it again on its own copy of that data
+  const flow = { ...snap.flowContext, complete: true }, sessions = flow.sessions || BROKER_DAY_SESSIONS;
   const screen: ScreenEnv = {
-    capBudgetMs: env.capBudgetMs, index: snap.ihsg, withinMax: env.withinMax, catalog: METRICS_CATALOG,
+    capBudgetMs: env.capBudgetMs, index: snap.ihsg, withinMax: env.withinMax, catalog: METRICS_CATALOG, flow,
     evaluationDate: snap.desc.data.evaluation_date, rows: snap.desc.rows, ihsgCalendar: snap.ihsgCalendar,
     bars: ticker => calc(ticker),
     series(r: ResolvedSeries, t: TickerBars): { tail: Tail; source: SeriesSource } {
@@ -251,16 +265,16 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
       if (t instanceof TickerView) touch(t.ticker, t);
       const tc = t instanceof TickerView || (t as TickerCalc).calc ? t as TickerCalc : tickerCalc(t), t0 = performance.now();
       const out = series(sctx, tc, r);
-      const ms = performance.now() - t0, units = costUnits(r.ref);
+      const ms = performance.now() - t0, units = costUnits(r.ref, sessions);
       measured.computed++;
       if (units.length === 1) {
         const o = measured.observe.get(units[0].key) ?? { ms: 0, bars: 0, length: units[0].length };
-        if (o.length === units[0].length) { o.ms += ms; o.bars += t.dates.length; measured.observe.set(units[0].key, o) }
+        if (o.length === units[0].length) { o.ms += ms; o.bars += units[0].bars ?? t.dates.length; measured.observe.set(units[0].key, o) }
       }
       return out;
     },
     isPrewarmed: r => snap.pinned.has(keyOf(r)),
-    predictMs: (r, bars) => predictMs(threadTracker, r, bars),
+    predictMs: (r, bars) => predictMs(threadTracker, r, bars, sessions),
     xsectionValues: need => snap.crossSection(need),
     cacheHits: () => measured.pinned_hits + measured.lru_hits,
     cancelled,

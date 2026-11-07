@@ -17,7 +17,9 @@ MULTI-USER SCALE AND COST (versions, caches, gzip relay, per-owner lanes), `08` 
 - **Data access.** terminal-api only, with the gateway key: `GET /state` (the publication and its xsection index),
   `POST /xsection` (presigned URLs for the publication's cross-sectional files: `price`, `actions` and, P4, the broker
   days; at most 16 names per call), `GET /manifest/{ticker}` (the cross-check)
-  and `GET /reference/tickers` (through `TerminalClient`). It downloads only from presigned URLs on
+  and `GET /reference/tickers` (through `TerminalClient`); P5a: `GET /reference/brokers` (the brokers' classification
+  for FL34, read with its sha256 and size through `TerminalClient.file`; without them, or on a failure, it is left out
+  and logged `broker_classes_unavailable`). It downloads only from presigned URLs on
   `SCREENER_FILE_ORIGIN`. It holds no Postgres or bucket credential and writes nothing except its own disk cache.
 
 ## Layout
@@ -28,6 +30,7 @@ MULTI-USER SCALE AND COST (versions, caches, gzip relay, per-owner lanes), `08` 
 | `src/refresh.ts` | `TerminalApi` (`/state`, `/xsection`, `/manifest`) and `Refresher`: poll, skip-unchanged, caps before any grant, the broker-day plan within the download budget (`brokerPlan`) and its follow-up refreshes, grant only uncached files in batches of 16, skew retry and deferral, origin check, manifest cross-check, backoff |
 | `src/snapshot.ts` | `buildSnapshot`: the price file sliced through `priceSeries`, shared-memory bar columns, universe rows and remarks, the broker store (P4), the pinned tails of the 53 defaults (76 outputs), the core's declared derived series (`declaredDerivedSeries`) and the presets' series, `snapshot_digest`; `ThreadSnapshot` (one thread's view; `brokerRows`) |
 | `src/broker.ts` | EXEC-SCREENER-FLOW-CANDLES P4: the broker day files (`broker-YYYY-MM-DD`): the window (newest 60), the document checks (`decodeBrokerDay`), the shared store per ticker (`buildBrokerStore`, days carried from the held snapshot), `flow_data`, `broker_window`, the date-range accessor (`brokerRowsOf`); no formula |
+| (P5a) | the flow indicators FL01-FL48 are computed by the core (`apps/edge-bff/screener/src/core/flowmetrics.ts`, the Terminal's `calc/flow.ts` `computeFlow`, `verification/screener/P5_FLOW.md`) on a request's `TickerView.flow` (`snapshot.ts`: the ticker's broker rows of the window, `desc.brokerClasses`, the thread's `flowMemo` of computeFlow answers); never pinned; cost units over the window's sessions (`run.ts` `costUnits`) |
 | `src/pool.ts` | the compute threads (`worker_threads`), the builder thread, owner lanes (deficit round robin), the queue, the per-owner budget (P33), deadlines, cancellation and kill |
 | `src/thread.ts` | the code each thread runs: install or drop a snapshot, build, pre-warm, digest, run, counts, preview |
 | `src/run.ts` | request envelopes and normalization, the cost estimate and its tracker, `runTask` (core `runScreen`), gzip and `ETag`, the result cache key |
@@ -135,6 +138,11 @@ replica from measured runs (exponential average, alpha 0.2). Pre-warmed series c
 
 ## Versions and caches
 
+- P5a: the engine hash covers `apps/edge-bff/terminal/src/data/flowRegistry.json` (the flow indicators' defaults); the
+  start-up check compares it and `flow-kinds.json` with the sources screener-registry.json names (the image copies the
+  registry, `Dockerfile`); the brokers' classification is part of the snapshot's identity (`snapshot.ts`
+  `referenceHash`). A flow condition is refused while the broker window is incomplete (`METRIC_UNAVAILABLE`, details
+  `reason_code` `FLOW_UNAVAILABLE`) and beyond the loaded window (`LIMIT_EXCEEDED` `broker_depth`).
 - `flow_data` (P4): sha256 over the sorted `name:sha256` of the loaded broker days, null when none; `data.flow_through`
   is the newest loaded date and `data.broker_window` `{first, last, sessions, complete}` (`complete` false while days
   wait for a follow-up refresh).
@@ -211,6 +219,7 @@ header, body or presigned URL is ever logged.
 | `start`, `stop`, `config_invalid`, `startup_check_failed` | process life; `start` carries the configuration without secrets and the versions |
 | `refresh`, `refresh_skipped`, `refresh_deferred`, `refresh_skew`, `refresh_state_unavailable`, `REFRESH_FAILED`, `swap` | a publication: per-phase ms (state, grant, download, decode, manifest check, pre-warm per thread, install, presets), bytes, `snapshot_digest`, RSS; the failure code and the backoff; P4 `broker_days` {window, loaded, carried, cached, granted, missing, bytes (gzip bytes of the days downloaded), first, last, read, rows, dropped_tickers, dropped_rows, store_bytes} and `grants` (the `/xsection` calls) |
 | `refresh_broker_waiting` | P4: a follow-up of the publication held finds no missing broker day that fits; the days wait for the next publication |
+| `broker_classes_unavailable` | P5a: the reference file `brokers` could not be read with its sha256 (a publication before the refs index, a failure): the snapshot has no classification and FL34 shows REQUIRES_DATA; the refresh goes on |
 | `run`, `preview`, `counts` | one line per request that explains its cost: owner tag, `definition_hash`, `data_version`, cache hit, predicted ms, stages (tickers in and out, ms), conditions (source, evaluated, pruned), pinned and LRU hits, series computed, queue, busy and total ms, payload bytes, status |
 | `http` | one line per request (method, path, status, ms) except `/health` and `/ready` |
 | `thread_killed`, `thread_error`, `task_failed`, `install_failed`, `request_failed`, `preset_failed`, `terminal_retry` | faults, with the error's name, code, message and (unexpected errors) the first stack frames |
@@ -241,6 +250,7 @@ format, and at most 16 names per `/xsection` as terminal-api). Last run: 87 of 8
 | `readme_config.test.ts` | this README's "Configuration" table against `loadConfig` itself (the names it reads, recorded; each left out in turn): one row per name read and no other, each row's `config.ts` line reads it, its minimum is the `whole()` minimum, optional rows are the ones it starts without, the proposed values pass it together, the counts in the prose; and that each kind of drift fails |
 | `onboarding_pointers.test.ts` (rule and parser in `doc-pointers.ts`) | every `path:line` pointer of the repository's `SCREENER_ONBOARDING.md` against the files as they are now, read by the rule its "Pointers" bullet states: each names one file and existing lines, and the symbol written next to it is on its first cited line; and that each kind of drift fails (a line that moved under its symbol, a bare pointer after another file's pointer, a line past the end, an ambiguous name, a renamed symbol) |
 | `broker.test.ts` | P4: each broker-day document rule refused on its own; the window (newest 60); the store's order per ticker, a ticker without price dropped, null frequencies; a carried day equal to reading its file again; the date-range accessor; `flow_data`, `flow_through`, `broker_window`, `sid` and the result cache key; the store's memory at 60 x 24,500 rows |
+| `flow.test.ts` | P5a end to end: the catalog's 48 flow indicators (FL31 needs insider data; the retired Phase 2 entries), a run at each stock's last candle with broker data equal to the Terminal's computeFlow on the same rows (FL34 on the reference file's classification), the depth refusal, a window still loading |
 | `broker_refresh.test.ts` | P4 end to end: broker days loaded beside the Phase 1 files; the budget newest first and the follow-up refreshes; the follow-up that stops when nothing fits; batches of 16 and the window of 60; skip-unchanged, a changed or new day downloaded alone, the cache key; a dropped-ticker day read again on a new price file; a broken day and the per-file cap; the disk cache |
 | `refresh.test.ts` | a publication loads end to end; integrity failures (sha256, manifest cross-check, reference) answer `424` with no snapshot and keep the previous one when held; file, refresh and inflate caps before any grant; a warm disk cache grants nothing; skew retry then deferral; skip unchanged; one refresh at a time; pinning across a swap (grace, `DATA_VERSION_CHANGED`, `DATA_VERSION_PENDING`) |
 | `snapshot.test.ts`, `typed_views.test.ts` | slices equal `priceSeries`; groupings parity with the Backtest; remarks; pinned tails equal F; digest stable across builds; materialized bars equal F bit for bit |

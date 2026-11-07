@@ -16,6 +16,10 @@
       cost_class (work ratio at two lengths, counted by V8 block coverage, never timed; a class lowered from the
       committed registry's needs a reviewed reason in the overlay's cost_reviews, see costLowerings), and the Feature 04
       / Feature 01 parity oracle read from `python3 scripts/terminal_indicator_spec.py --json`.
+   EXEC-SCREENER-FLOW-CANDLES P5a (verification/screener/P5_FLOW.md section 2): `flows`, the Terminal's 48 flow
+   indicators generated from apps/edge-bff/terminal/src/data/flowRegistry.json (name, family, unit, place, tip and
+   parameters as they are) with each output's kind from the hand-kept src/core/flow-kinds.json (flowEntries: the build
+   stops when an FL or an output has no row); both files are sources of the version.
    Every derived field is a pure function of the inputs and the code: nothing reads a clock, so the file and its version
    are the same bytes on any machine at any load (ERRORS: the timed cost_class flipped under CPU contention).
    The overlay and the derived narrowing may only narrow the base (report 6.8 narrow-only rule), so every transferable
@@ -48,6 +52,8 @@ export const PATHS = {
   generator: 'apps/edge-bff/screener/scripts/build-screener-registry.mjs',
   loader: 'apps/backtest-worker/loader/register.mjs',
   out: 'apps/edge-bff/screener/src/core/screener-registry.json',
+  flowRegistry: 'apps/edge-bff/terminal/src/data/flowRegistry.json',
+  flowKinds: 'apps/edge-bff/screener/src/core/flow-kinds.json',
 };
 
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
@@ -535,6 +541,60 @@ export function overlayProblems(overlay, base) {
   return out;
 }
 
+/* ---- the flow indicators (EXEC-SCREENER-FLOW-CANDLES P5a; verification/screener/P5_FLOW.md section 2) ---------- */
+/** The kinds of OPERATORS.md section 4 an output of flow-kinds.json may name. */
+export const FLOW_KINDS = ['K', 'P', 'Rp', 'L', 'H', 'D', 'F', 'B'];
+/** Registry parameter kinds that only draw (the Terminal's reference lines, its buttons and fixed texts): a condition
+    never takes them (P5_FLOW.md section 1). */
+export const FLOW_DISPLAY_KINDS = ['levels', 'button', 'fixed'];
+/** What is wrong with one output's kind row of flow-kinds.json (empty when sound): a kind letter, {kind, unit}, or
+    {by: <select parameter>, <each of its options>: one of those two}. */
+function flowKindProblems(where, spec, r) {
+  const one = (w, s) => typeof s === 'string' ? (FLOW_KINDS.includes(s) ? [] : [`${w}: kind ${s} is not one of ${FLOW_KINDS.join(', ')}`])
+    : s && typeof s === 'object' && !('by' in s) ? (FLOW_KINDS.includes(s.kind) && typeof s.unit === 'string' && s.unit ? [] : [`${w}: {kind, unit} needs a kind of ${FLOW_KINDS.join(', ')} and a unit`])
+    : [`${w}: not a kind`];
+  if (!spec || typeof spec !== 'object' || !('by' in spec)) return one(where, spec);
+  const p = r.params.find(q => q.key === spec.by);
+  if (!p || p.kind !== 'select') return [`${where}: by ${spec.by} is not a select parameter of ${r.id}`];
+  const options = p.options.map(o => Array.isArray(o) ? o[0] : o);
+  const out = options.filter(o => !(o in spec)).map(o => `${where}: no kind for ${spec.by} = ${o}`);
+  for (const [k, s] of Object.entries(spec)) if (k !== 'by') out.push(...(options.includes(k) ? one(`${where}.${k}`, s) : [`${where}: ${k} is not an option of ${spec.by}`]));
+  return out;
+}
+/** The Screener's 48 flow entries, one per FL of flowRegistry.json (generated, never typed: P5_FLOW.md section 2): the
+    registry's name, family, unit, place, tip and parameters as they are (every kind, with condition false for the kinds
+    that only draw), the outputs with their kind from flow-kinds.json (a test fails, and this build stops, when an FL or
+    an output has no row), the default output (the registry's first), the ADV floor flag, the data the Screener does not
+    hold (requires: insider for FL31) and whether a default reads the broker classification (a `class:` broker list,
+    FL34). The board default stays the registry's Regular (G1, user 2026-11-07). */
+export function flowEntries(reg, kinds) {
+  const problems = [];
+  if (!reg || !Array.isArray(reg.indicators)) throw new Error('flowRegistry.json has no indicators');
+  const rows = kinds?.indicators || {};
+  for (const id of Object.keys(rows)) if (!reg.indicators.some(r => r.id === id)) problems.push(`flow-kinds.json: ${id} is not an indicator of flowRegistry.json`);
+  const flows = reg.indicators.map(r => {
+    const row = rows[r.id];
+    if (!row) { problems.push(`flow-kinds.json: ${r.id} ${r.name} has no row`); return null }
+    const keys = Object.keys(row.outputs || {});
+    for (const o of r.outputs) if (!keys.includes(o)) problems.push(`flow-kinds.json: ${r.id} output ${o} has no kind`);
+    for (const o of keys) if (!r.outputs.includes(o)) problems.push(`flow-kinds.json: ${r.id} ${o} is not an output`);
+    for (const o of r.outputs) if (row.outputs?.[o]) problems.push(...flowKindProblems(`flow-kinds.json ${r.id}.${o}`, row.outputs[o], r));
+    if (typeof row.adv_floor !== 'boolean') problems.push(`flow-kinds.json: ${r.id} adv_floor must be true or false`);
+    if (row.requires !== undefined && row.requires !== 'insider') problems.push(`flow-kinds.json: ${r.id} requires ${row.requires}: only insider is known`);
+    return {
+      id: r.id, name: r.name, family: r.family, unit: r.unit, place: r.place, tip: r.tip ?? null, needs_frequency: !!r.needs_frequency,
+      outputs: r.outputs.map(o => ({ key: o, kind: row.outputs?.[o] ?? null })),
+      default_output: r.outputs[0],
+      params: r.params.map(p => ({ ...structuredClone(p), condition: !FLOW_DISPLAY_KINDS.includes(p.kind) })),
+      adv_floor: !!row.adv_floor,
+      requires: row.requires ?? null,
+      needs_classification: r.params.some(p => typeof p.default === 'string' && p.default.startsWith('class:')),
+    };
+  });
+  if (problems.length) throw new Error(`flow kinds:\n  ${problems.join('\n  ')}`);
+  return flows;
+}
+
 /* ---- the oracle mapping (report 7.3) -------------------------------------------------------------------------- */
 function readOracle() {
   const r = spawnSync('python3', [at(PATHS.spec), '--json'], { encoding: 'utf8', maxBuffer: 16 << 20 });
@@ -688,11 +748,13 @@ export async function build({ against = null } = {}) {
     screener_registry_version: '',
     registry_version: base.registry_version,
     generated_by: PATHS.generator,
-    sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator })
+    sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator,
+      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds })
       .map(([role, file]) => ({ role, file, sha256: sha256(fs.readFileSync(at(file))) })),
     probe: PROBE,
     cost_model: overlay.cost_model,
     indicators,
+    flows: flowEntries(readJson(PATHS.flowRegistry), readJson(PATHS.flowKinds)),
   };
   const { screener_registry_version: _v, ...hashed } = doc;
   doc.screener_registry_version = sha256(canonicalJson(hashed)).slice(0, 16);

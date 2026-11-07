@@ -121,7 +121,9 @@ describe('the catalog a user reads is plain words', () => {
   });
   it('on publications that carry the files, without some columns, complete, and complete but not read by the Screener: the reasons stay plain', () => {
     const files = [...new Set(METRICS_CATALOG.metrics.flatMap(m => m.requires ? [m.requires.file] : []))];
-    const partial = Object.fromEntries(files.map(f => [f, { columns: ['d'] }]));
+    // each file with the first column a metric needs of it, so a metric that needs more columns lacks some (P5a: the
+    // flow entries no longer read a file of columns)
+    const partial = Object.fromEntries(files.map(f => [f, { columns: [METRICS_CATALOG.metrics.find(m => m.requires?.file === f)!.requires!.columns[0]] }]));
     const full = Object.fromEntries(files.map(f => [f, {}]));
     const reasons = (cat: CatalogResponse) => shownIn(cat).filter(([w]) => / reason$/.test(w));
     const p = reasons(catalogAt(partial));

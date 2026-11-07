@@ -47,6 +47,15 @@ the publication's outcome: two replicas at one publication answer the same bytes
   indexed broker days, wait for a follow-up refresh; `{null, null, 0, true}` when the index names none). It is the last
   field of `data`. Pinning stays on `price_data`: a change of the broker days alone is a new snapshot at the same
   `price_data`, which replaces the previous one at once.
+- Flow conditions (EXEC-SCREENER-FLOW-CANDLES P5a; `verification/screener/P5_FLOW.md`): `metrics[]` holds the Terminal's
+  48 flow indicators (`kind` `flow`, `id` `FL01`-`FL48`, their setup in `flow`: parameters, output kinds, the sessions
+  they read at their defaults) and the retired Phase 2 flow entries (`retired`, always unavailable); `limits[]` adds
+  `broker_depth`. A flow condition is refused `422 METRIC_UNAVAILABLE` while the broker window is incomplete (details
+  `reason_code` `FLOW_UNAVAILABLE`, `reason` in plain words) or without broker days, and `422 LIMIT_EXCEEDED {limit:
+  'broker_depth', allowed, needed}` when it reads more sessions than the loaded window holds; its summary has `source`
+  `flow` and `eval_date_basis` `flow_date`, its cells the date of the stock's last candle with broker data (`eval_date`,
+  null with NA `FLOW_UNAVAILABLE` for a stock without broker data in the window). Both codes are among edge-bff's
+  relayed ones; no new code.
 - `data_version` (optional on run and counts, required on preview) pins a request to a snapshot: the current one, or the
   previous one for `SCREENER_PREVIOUS_GRACE_S` after a swap.
 - A version the replica held and dropped, or one older than both: `409 DATA_VERSION_CHANGED` (the page reads the catalog

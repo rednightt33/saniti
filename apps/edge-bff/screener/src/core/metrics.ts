@@ -19,13 +19,20 @@ import { ScreenerError } from './errors.ts';
 import { inputsOf, isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
 import type { BarField, ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
 import { resolveTransform } from './transforms.ts';
+import { resolveFlow } from './flowmetrics.ts';
+import type { FlowBindContext, TickerFlow } from './flowmetrics.ts';
 
 /* ---- a ticker's data ------------------------------------------------------------------------------------------- */
 
 /** One ticker's bars as the snapshot holds them: datafile.priceSeries (its own sessions, oldest first, a row without
     four finite prices dropped), dates 'YYYY-MM-DD' aligned with the bars. `missing` (optional, the worker's snapshot):
     missingInput's answer without reading the bar columns; it must equal scanMissingInput on the same bars. */
-export interface TickerBars { ticker: string; dates: readonly string[]; bars: Bars; missing?(inputs: readonly BarField[], at: number): BarField | null }
+export interface TickerBars {
+  ticker: string; dates: readonly string[]; bars: Bars; missing?(inputs: readonly BarField[], at: number): BarField | null;
+  /** EXEC-SCREENER-FLOW-CANDLES P5a: the ticker's broker rows in the loaded window, its classification and the memo of
+      computeFlow answers (the worker's TickerView); a flow series is computed from it (flowmetrics.ts) */
+  flow?: TickerFlow;
+}
 /** A ticker with the backtest core's per-ticker memo of indicator outputs. A TickerCalc lives for one ticker's work (one
     pre-warm pass or one request) and is then dropped: Calc keeps every full output it computed. */
 export interface TickerCalc extends TickerBars { calc: Calc }
@@ -69,6 +76,16 @@ export interface ResolvedSeries {
   /** True when every value is a whole number (a count: rising_run). "=" and "!=" are offered only on such a series
       (K7, OPERATORS.md operator 1); a series without the flag is read as continuous. */
   readonly integer?: boolean;
+  /** EXEC-SCREENER-FLOW-CANDLES P5a, set exactly on a series that reads a flow indicator (directly or through operators):
+      the sessions of broker data it reads (the indicator's own window, flowmetrics.ts indicatorDepth, plus the operators'
+      N), null when the probe gives no value; flowOwn the flow indicator's own part. A condition on it is evaluated at
+      the stock's last candle with broker data (P10 a) and may read at most the loaded window (K1). */
+  readonly flowDepth?: number | null;
+  readonly flowOwn?: number | null;
+  /** The output type of OPERATORS.md section 4 the series has when it is a flow output (K, P, Rp, L, H, D, F, B) or a
+      transform that keeps its operand's level (lag, ma, rolling_max, rolling_min); absent otherwise (transforms.ts
+      outputType then reads the transform). */
+  readonly outputKind?: string;
   full(t: TickerCalc): ArrayLike<Num | undefined>;
 }
 export interface ResolvedIndicator extends ResolvedSeries {
@@ -132,13 +149,16 @@ export function scanMissingInput(t: TickerBars, inputs: readonly BarField[], at:
     vs_index when it computes, so validation needs none). A pattern is a 0/1 signal, not a value (transforms.ts
     resolveSignal, read by STATE and EVENT tests only); flow, xsection and universe values are per ticker at E, not bar
     series (flowmetrics.ts in Phase 2, xsection.ts, the snapshot's universe attributes); pattern, flow, xsection and
-    universe are refused here so no caller reads them as a series. */
-export function resolveSeries(ref: MetricRef, field: string, ctx: ParamOptions & { index?: TickerBars }): ResolvedSeries {
+    universe are refused here so no caller reads them as a series. P5a: a flow indicator output is a series of the
+    ticker's bars too (flowmetrics.ts resolveFlow: computed by the Terminal's flow.ts on the window's candles, aligned;
+    `flow` = the loaded broker window, checked when given). */
+export function resolveSeries(ref: MetricRef, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext }): ResolvedSeries {
   if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new ScreenerError('INVALID_CONDITION', `${field} must be a metric reference.`, field);
   switch (ref.kind) {
     case 'indicator': return resolveIndicator(ref, field, ctx);
     case 'price': return resolvePrice(ref, field);
     case 'transform': return resolveTransform(ref, field, ctx);
+    case 'flow': return resolveFlow(ref, field, ctx);
     default: throw new ScreenerError('INVALID_CONDITION', `${field}: a ${JSON.stringify((ref as { kind?: unknown }).kind)} reference is not a series on the ticker's bars; use it where its test form allows it.`, `${field}.kind`);
   }
 }
@@ -146,7 +166,7 @@ export function resolveSeries(ref: MetricRef, field: string, ctx: ParamOptions &
 /** The series `r` read one bar earlier: transform lag(r, 1), resolved like any transform (computed on the full series,
     then tailed; same key as a lag written in a request). A bar-field comparison reads it where the series' compareLag
     says so (Donchian's prior band, report 6.8). */
-export const laggedSeries = (r: ResolvedSeries, field: string, ctx: ParamOptions & { index?: TickerBars }): ResolvedSeries =>
+export const laggedSeries = (r: ResolvedSeries, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext }): ResolvedSeries =>
   resolveTransform({ kind: 'transform', fn: 'lag', of: r.ref, args: { bars: 1 } }, field, ctx);
 
 /* ---- universe attributes (report 6.7 "universe attributes", 6.12; API CONTRACT 8.4 universe body) ------------------ */

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "e27eddeea6094ee4",
+  "screener_registry_version": "79c72aa2dd1ee9d3",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,17 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "a7594f040ef820ec6963b599282f71003dd7a2cdecc65829a91fcdee08023420"
+      "sha256": "4796c21c875167e523404db2749a6643da829245387fe648a2b83277f1dbee0f"
+    },
+    {
+      "role": "flow_registry",
+      "file": "apps/edge-bff/terminal/src/data/flowRegistry.json",
+      "sha256": "240fdfbd1ca6f19a24ba08e0119342d65ec1f197ef8dfa799089c2db0536772f"
+    },
+    {
+      "role": "flow_kinds",
+      "file": "apps/edge-bff/screener/src/core/flow-kinds.json",
+      "sha256": "3caf5605e1f4b472aefed1b78fc477d7f0ad25eece186234c85aece48a02a80d"
     }
   ],
   "probe": {
@@ -8767,6 +8777,6277 @@
       "probe_params": null,
       "oracle": [],
       "oracle_note": null
+    }
+  ],
+  "flows": [
+    {
+      "id": "FL01",
+      "name": "Transaction Size · Lot",
+      "family": "Transaction Size",
+      "unit": "lot/tx",
+      "place": "pane",
+      "tip": "Rata-rata lot per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "L"
+        },
+        {
+          "key": "sell",
+          "kind": "L"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL02",
+      "name": "Transaction Size · Value",
+      "family": "Transaction Size",
+      "unit": "IDR/tx",
+      "place": "pane",
+      "tip": "Rata-rata nilai Rupiah per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "Rp"
+        },
+        {
+          "key": "sell",
+          "kind": "Rp"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL03",
+      "name": "Share · Volume",
+      "family": "Share",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "K"
+        },
+        {
+          "key": "sell",
+          "kind": "K"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL04",
+      "name": "Share · Transactions",
+      "family": "Share",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Porsi jumlah transaksi beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "K"
+        },
+        {
+          "key": "sell",
+          "kind": "K"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL05",
+      "name": "Transaction Size · vs Market",
+      "family": "Transaction Size",
+      "unit": "x",
+      "place": "pane",
+      "tip": "Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata pasar.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "K"
+        },
+        {
+          "key": "sell",
+          "kind": "K"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "1.0",
+          "condition": false
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL06",
+      "name": "Transaction Size · Buy/Sell Ratio",
+      "family": "Transaction Size",
+      "unit": "x",
+      "place": "pane",
+      "tip": "Ukuran rata-rata transaksi beli dibanding ukuran rata-rata transaksi jual dari kelompok yang sama.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "ratio",
+          "kind": "K"
+        }
+      ],
+      "default_output": "ratio",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "1.0",
+          "condition": false
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL07",
+      "name": "Share · Market Volume",
+      "family": "Share",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Porsi pembelian broker atau kelompok broker terhadap seluruh volume saham.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "denom",
+          "label": "Denominator",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "board",
+              "Board volume, all investors"
+            ],
+            [
+              "filter",
+              "Board and investor volume"
+            ]
+          ],
+          "default": "board",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL08",
+      "name": "Transaction Size · Percentile",
+      "family": "Transaction Size",
+      "unit": "0-100",
+      "place": "pane",
+      "tip": "Posisi ukuran transaksi hari ini dibanding riwayat saham itu sendiri (0-100).",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "P"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        },
+        {
+          "key": "basis",
+          "label": "Basis",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Lot",
+          "default": "Lot",
+          "condition": false
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 250,
+          "min": 20,
+          "max": 1000,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "",
+          "condition": false
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL09",
+      "name": "Block Money Candidate",
+      "family": "Other",
+      "unit": "flag",
+      "place": "marker",
+      "tip": "Tanda saat pembelian berukuran besar, berporsi berarti dan berarus bersih positif terjadi bersamaan.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "F"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 250,
+          "min": 20,
+          "max": 1000,
+          "condition": true
+        },
+        {
+          "key": "pct_min",
+          "label": "Size percentile at least",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 90,
+          "min": 0,
+          "max": 100,
+          "condition": true
+        },
+        {
+          "key": "ratio_min",
+          "label": "Size ratio (buy) at least",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 2,
+          "min": 0,
+          "min_exclusive": true,
+          "condition": true
+        },
+        {
+          "key": "part_min",
+          "label": "Buy participation (%) at least",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 5,
+          "min": 0,
+          "max": 100,
+          "condition": true
+        },
+        {
+          "key": "flow_min",
+          "label": "Net flow / turnover (%) above",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 0,
+          "min": -100,
+          "max": 100,
+          "condition": true
+        },
+        {
+          "key": "use_imb",
+          "label": "Use buy/sell imbalance",
+          "status": "DECIDED",
+          "kind": "bool",
+          "default": false,
+          "condition": true
+        },
+        {
+          "key": "imb_min",
+          "label": "Buy/sell imbalance at least",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 0,
+          "min": -1,
+          "max": 1,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL10",
+      "name": "Transactions · Buy/Sell Imbalance",
+      "family": "Transactions",
+      "unit": "-1..1",
+      "place": "pane",
+      "tip": "Selisih jumlah transaksi beli dan jual dibagi totalnya (-1 sampai 1) untuk broker atau kelompok yang dipilih.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "0",
+          "condition": false
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "PROPOSED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL11",
+      "name": "Net Flow / Turnover Ratio",
+      "family": "Net Flow",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Pembelian bersih broker atau kelompok broker dibanding seluruh nilai transaksi saham.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        },
+        {
+          "key": "change",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "PROPOSED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        },
+        {
+          "key": "lag",
+          "label": "Change line vs",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "window",
+              "Same as rolling days (no overlap)"
+            ],
+            [
+              "1",
+              "1 session back"
+            ],
+            [
+              "5",
+              "5 sessions back"
+            ],
+            [
+              "20",
+              "20 sessions back"
+            ]
+          ],
+          "default": "window",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL12",
+      "name": "Net Buy Persistence · Cohort",
+      "family": "Net Flow",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Persentase hari dalam jendela ketika broker atau kelompok broker menjadi pembeli bersih.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Days",
+          "status": "PROPOSED",
+          "kind": "int",
+          "default": 5,
+          "min": 2,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL13",
+      "name": "Concentration HHI · Gross",
+      "family": "Concentration",
+      "unit": "0-1",
+      "place": "pane",
+      "tip": "Seberapa terpusat pembelian (atau penjualan) pada sedikit broker (0-1).",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "K"
+        },
+        {
+          "key": "sell",
+          "kind": "K"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "all",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "lot",
+              "Lot"
+            ],
+            [
+              "value",
+              "Rupiah"
+            ]
+          ],
+          "default": "lot",
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL14",
+      "name": "Concentration HHI · Buy − Sell",
+      "family": "Concentration",
+      "unit": "diff",
+      "place": "pane",
+      "tip": "Keterpusatan sisi beli dikurangi keterpusatan sisi jual.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "asym",
+          "kind": "K"
+        }
+      ],
+      "default_output": "asym",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "all",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "0",
+          "condition": false
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "PROPOSED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "lot",
+              "Lot"
+            ],
+            [
+              "value",
+              "Rupiah"
+            ]
+          ],
+          "default": "lot",
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL15",
+      "name": "Concentration Top-N · Gross Buy",
+      "family": "Concentration",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Persentase pembelian yang dikuasai N broker pembeli terbesar.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "lot",
+              "Lot"
+            ],
+            [
+              "value",
+              "Rupiah"
+            ]
+          ],
+          "default": "lot",
+          "condition": true
+        },
+        {
+          "key": "even",
+          "label": "Minus the even share (N/k)",
+          "status": "DECIDED",
+          "kind": "bool",
+          "default": false,
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL16",
+      "name": "Concentration Top-N · Net Buy",
+      "family": "Concentration",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Persentase pembelian bersih positif yang berasal dari N pembeli bersih terbesar.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "lot",
+              "Lot"
+            ],
+            [
+              "value",
+              "Rupiah"
+            ]
+          ],
+          "default": "value",
+          "condition": true
+        },
+        {
+          "key": "even",
+          "label": "Minus the even share (N/k)",
+          "status": "DECIDED",
+          "kind": "bool",
+          "default": false,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL17",
+      "name": "Buy VWAP · Rolling",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "price",
+      "place": "price",
+      "tip": "Harga rata-rata pembelian kelompok broker selama N hari terakhir.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "H"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "PROPOSED",
+          "kind": "int",
+          "default": 20,
+          "min": 2,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL18",
+      "name": "Buy VWAP · Anchored",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "price",
+      "place": "price",
+      "tip": "Harga rata-rata pembelian kelompok broker tetap sejak tanggal awal.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "H"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Frozen: ranked once from the anchor to the last day",
+          "default": "frozen",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "anchor",
+          "label": "Anchor date",
+          "status": "DECIDED",
+          "kind": "date",
+          "default": "view",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL19",
+      "name": "Implied Cost · Anchored",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "price",
+      "place": "price",
+      "tip": "Perkiraan harga pokok rata-rata posisi yang masih dipegang kelompok broker sejak tanggal awal.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "H"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Frozen: ranked once from the anchor to the last day",
+          "default": "frozen",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "anchor",
+          "label": "Anchor date",
+          "status": "DECIDED",
+          "kind": "date",
+          "default": "view",
+          "condition": true
+        },
+        {
+          "key": "opening",
+          "label": "Opening inventory",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "0 (assumed)",
+          "default": "0",
+          "condition": false
+        },
+        {
+          "key": "validity",
+          "label": "Validity rule",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "No cost while the modelled inventory is 0 or less",
+          "default": "-",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL20",
+      "name": "Implied Cost · Distance %",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Jarak harga penutupan dari perkiraan harga pokok rata-rata, dalam persen.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Frozen: ranked once from the anchor to the last day",
+          "default": "frozen",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "anchor",
+          "label": "Anchor date",
+          "status": "DECIDED",
+          "kind": "date",
+          "default": "view",
+          "condition": true
+        },
+        {
+          "key": "opening",
+          "label": "Opening inventory",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "0 (assumed)",
+          "default": "0",
+          "condition": false
+        },
+        {
+          "key": "validity",
+          "label": "Validity rule",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "No cost while the modelled inventory is 0 or less",
+          "default": "-",
+          "condition": false
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "0",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL21",
+      "name": "Flow Percentile · vs Turnover",
+      "family": "Net Flow",
+      "unit": "0-100",
+      "place": "pane",
+      "tip": "Posisi arus bersih dibanding nilai transaksi hari ini terhadap riwayat saham itu sendiri (0-100).",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "P"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 250,
+          "min": 20,
+          "max": 1000,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "",
+          "condition": false
+        },
+        {
+          "key": "measure",
+          "label": "Measure",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross buy"
+            ],
+            [
+              "gross_sell",
+              "Gross sell"
+            ]
+          ],
+          "default": "net",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL22",
+      "name": "Broker Buy Breadth",
+      "family": "Other",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Persentase broker aktif yang menjadi pembeli bersih.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": {
+            "by": "measure",
+            "pct": "K",
+            "count": {
+              "kind": "B",
+              "unit": "brokers"
+            }
+          }
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "measure",
+          "label": "Show as",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "pct",
+              "% of active brokers"
+            ],
+            [
+              "count",
+              "Number of brokers"
+            ]
+          ],
+          "default": "pct",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL23",
+      "name": "Broker Inventory",
+      "family": "Other",
+      "unit": "lot|IDR",
+      "place": "pane",
+      "tip": "Perkiraan posisi bersih (lot atau Rupiah) tiap broker yang dipilih sejak tanggal awal; bukan kepemilikan sebenarnya.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "lines",
+          "kind": {
+            "by": "unit",
+            "lot": {
+              "kind": "Rp",
+              "unit": "lot"
+            },
+            "value": {
+              "kind": "Rp",
+              "unit": "IDR"
+            }
+          }
+        },
+        {
+          "key": "total",
+          "kind": {
+            "by": "unit",
+            "lot": {
+              "kind": "Rp",
+              "unit": "lot"
+            },
+            "value": {
+              "kind": "Rp",
+              "unit": "IDR"
+            }
+          }
+        }
+      ],
+      "default_output": "lines",
+      "params": [
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": "auto_c",
+          "min": 1,
+          "max": 5,
+          "condition": true
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "lot",
+              "Lot"
+            ],
+            [
+              "value",
+              "Value"
+            ]
+          ],
+          "default": "lot",
+          "condition": true
+        },
+        {
+          "key": "view",
+          "label": "View",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "cum",
+              "Cumulative"
+            ],
+            [
+              "daily",
+              "Daily"
+            ]
+          ],
+          "default": "cum",
+          "condition": true
+        },
+        {
+          "key": "total",
+          "label": "Show cohort total",
+          "status": "DECIDED",
+          "kind": "bool",
+          "default": false,
+          "condition": true
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "start",
+          "label": "Counts from",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "The first visible candle",
+          "default": "-",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL24",
+      "name": "Bandar Balance · %",
+      "family": "Bandar Balance",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual, dibanding seluruh nilai transaksi.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 10,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "DECIDED",
+          "kind": "levels",
+          "default": "6, 10, -6, -10",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL25",
+      "name": "Bandar Balance · Rupiah",
+      "family": "Bandar Balance",
+      "unit": "IDR",
+      "place": "pane",
+      "tip": "Sama dengan Bandar Balance, tetapi dalam Rupiah, tidak dibagi nilai transaksi.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "Rp"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 10,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL26",
+      "name": "Net Flow Streak",
+      "family": "Net Flow",
+      "unit": "days",
+      "place": "pane",
+      "tip": "Berapa hari berturut-turut kelompok (misalnya asing) membeli bersih atau menjual bersih.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "D"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "all",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Limit (days)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 60,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL27",
+      "name": "Silent Accumulation",
+      "family": "Other",
+      "unit": "flag",
+      "place": "marker",
+      "tip": "Tanda saat volume naik tetapi harga hampir diam; pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "F"
+        },
+        {
+          "key": "net",
+          "kind": "F"
+        },
+        {
+          "key": "gross",
+          "kind": "F"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "recent",
+          "label": "Recent sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 5,
+          "min": 1,
+          "max": 60,
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "condition": true
+        },
+        {
+          "key": "volx",
+          "label": "Volume x",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 1.5,
+          "min": 0,
+          "max": 100,
+          "condition": true
+        },
+        {
+          "key": "move",
+          "label": "Max move %",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 3,
+          "min": 0,
+          "max": 100,
+          "condition": true
+        },
+        {
+          "key": "n_net",
+          "label": "Net trigger: N brokers",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "x_net",
+          "label": "Net trigger: ratio at least",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 1.5,
+          "min": 0,
+          "min_exclusive": true,
+          "condition": true
+        },
+        {
+          "key": "n_gross",
+          "label": "Gross trigger: N brokers",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "x_gross",
+          "label": "Gross trigger: ratio at least",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 1.5,
+          "min": 0,
+          "min_exclusive": true,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL28",
+      "name": "Average Daily Value",
+      "family": "Other",
+      "unit": "IDR",
+      "place": "pane",
+      "tip": "Rata-rata nilai Rupiah yang diperdagangkan per hari.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "Rp"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "window",
+          "label": "Sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL29",
+      "name": "Bandar Balance · Accumulation Days",
+      "family": "Bandar Balance",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai transaksi (persen).",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        },
+        {
+          "key": "balance",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 2,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "threshold",
+          "label": "Daily balance above (%)",
+          "status": "DECIDED",
+          "kind": "num",
+          "default": 0,
+          "min": -100,
+          "max": 100,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL30",
+      "name": "Crossing Share",
+      "family": "Other",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Berapa bagian transaksi yang terjadi di luar pasar reguler.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL31",
+      "name": "Insider Net Change",
+      "family": "Other",
+      "unit": "IDR",
+      "place": "pane",
+      "tip": "Arah transaksi orang dalam.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "Rp"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": "insider",
+      "needs_classification": false
+    },
+    {
+      "id": "FL32",
+      "name": "Activity Spike",
+      "family": "Transactions",
+      "unit": "x",
+      "place": "pane",
+      "tip": "Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "K"
+        },
+        {
+          "key": "sell",
+          "kind": "K"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "DECIDED",
+          "kind": "levels",
+          "default": "2.5",
+          "condition": false
+        },
+        {
+          "key": "measure",
+          "label": "Measure",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "tx",
+              "Transactions"
+            ],
+            [
+              "value",
+              "Value (Rp)"
+            ],
+            [
+              "lot",
+              "Lot"
+            ]
+          ],
+          "default": "tx",
+          "condition": true
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL33",
+      "name": "Transaction Size · Change %",
+      "family": "Transaction Size",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Perubahan nilai rata-rata per transaksi (beli atau jual) beberapa hari terakhir dibanding periode sebelumnya, untuk semua broker atau kelompok broker.",
+      "needs_frequency": true,
+      "outputs": [
+        {
+          "key": "buy",
+          "kind": "K"
+        },
+        {
+          "key": "sell",
+          "kind": "K"
+        }
+      ],
+      "default_output": "buy",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "all",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Net"
+            ],
+            [
+              "gross_buy",
+              "Gross"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "recent",
+          "label": "Recent sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 5,
+          "min": 1,
+          "max": 60,
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "DECIDED",
+          "kind": "levels",
+          "default": "0",
+          "condition": false
+        },
+        {
+          "key": "side",
+          "label": "Side",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "buy",
+              "Buy"
+            ],
+            [
+              "sell",
+              "Sell"
+            ],
+            [
+              "both",
+              "Both"
+            ]
+          ],
+          "default": "buy",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL34",
+      "name": "Institutional vs Retail Net",
+      "family": "Other",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Siapa yang dominan: broker institusi atau broker ritel.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        },
+        {
+          "key": "change",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "inst",
+          "label": "Institutional brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": "class:Institutional-heavy",
+          "condition": true
+        },
+        {
+          "key": "retail",
+          "label": "Retail brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": "class:Retail-heavy",
+          "condition": true
+        },
+        {
+          "key": "reset",
+          "label": "Back to the default classification",
+          "status": "DECIDED",
+          "kind": "button",
+          "condition": false
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        },
+        {
+          "key": "lag",
+          "label": "Change line vs",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "1",
+              "1 session back"
+            ],
+            [
+              "5",
+              "5 sessions back"
+            ],
+            [
+              "20",
+              "20 sessions back"
+            ]
+          ],
+          "default": "1",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": true
+    },
+    {
+      "id": "FL35",
+      "name": "Net Buy Persistence · Top Buyer",
+      "family": "Net Flow",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Apakah pembeli terbesar membeli terus, atau hanya sekali besar.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 2,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL36",
+      "name": "Share · Market Value (Buy + Sell)",
+      "family": "Share",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Seberapa besar kelompok (misalnya asing) ikut dalam semua transaksi, dari dua sisi.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "PROPOSED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "PROPOSED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL37",
+      "name": "Net Flow Percentile · Rupiah",
+      "family": "Net Flow",
+      "unit": "0-100",
+      "place": "pane",
+      "tip": "Apakah arus bersih saat ini luar biasa dibanding kebiasaan saham itu sendiri.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": {
+            "by": "stat",
+            "pct": "P",
+            "z": {
+              "kind": "P",
+              "unit": "sd"
+            }
+          }
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "PROPOSED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Net window",
+          "status": "PROPOSED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 250,
+          "min": 20,
+          "max": 1000,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "",
+          "condition": false
+        },
+        {
+          "key": "stat",
+          "label": "Statistic",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "pct",
+              "Percentile"
+            ],
+            [
+              "z",
+              "Z-score"
+            ]
+          ],
+          "default": "pct",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL38",
+      "name": "Concentration HHI · Net Buy",
+      "family": "Concentration",
+      "unit": "0-1",
+      "place": "pane",
+      "tip": "Apakah pembelian bersih dikuasai sedikit broker.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "all",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "PROPOSED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "lot",
+              "Lot"
+            ],
+            [
+              "value",
+              "Rupiah"
+            ]
+          ],
+          "default": "value",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL39",
+      "name": "Buy VWAP · Rolling · Distance %",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Seberapa jauh harga sekarang dari harga rata-rata beli bandar baru-baru ini.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 2,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "PROPOSED",
+          "kind": "levels",
+          "default": "0",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL40",
+      "name": "Activity Spike · Balance",
+      "family": "Transactions",
+      "unit": "x",
+      "place": "pane",
+      "tip": "Lonjakan sisi beli dibagi lonjakan sisi jual hari ini: di atas 1 sisi beli lebih menonjol dari biasanya, di bawah 1 sisi jual. Bermakna dengan filter investor (bawaan asing).",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign"
+          ],
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "measure",
+          "label": "Measure",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "tx",
+              "Transactions"
+            ],
+            [
+              "value",
+              "Value (Rp)"
+            ],
+            [
+              "lot",
+              "Lot"
+            ]
+          ],
+          "default": "tx",
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "DECIDED",
+          "kind": "levels",
+          "default": "0.5, 1, 2",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL41",
+      "name": "Net Flow / Average Turnover",
+      "family": "Net Flow",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Pembelian bersih broker atau kelompok broker dibanding nilai transaksi rata-rata (bukan hari itu saja), sehingga hari ramai tidak mengencerkan nilainya.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Average turnover over (sessions)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "plot",
+          "label": "Plot",
+          "status": "PROPOSED",
+          "kind": "select",
+          "options": [
+            [
+              "hist",
+              "Histogram"
+            ],
+            [
+              "line",
+              "Line"
+            ]
+          ],
+          "default": "hist",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL42",
+      "name": "Buy VWAP · Rolling · Daily Top-N",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "price",
+      "place": "price",
+      "tip": "Harga rata-rata pembelian para pembeli bersih terbesar setiap hari selama N hari terakhir (pembelinya boleh berganti tiap hari).",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "H"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL43",
+      "name": "Sell VWAP · Rolling",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "price",
+      "place": "price",
+      "tip": "Harga rata-rata penjualan kelompok broker selama N hari terakhir.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "H"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "PROPOSED",
+          "kind": "int",
+          "default": 20,
+          "min": 2,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL44",
+      "name": "Sell VWAP · Anchored",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "price",
+      "place": "price",
+      "tip": "Harga rata-rata penjualan kelompok broker tetap sejak tanggal awal.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "H"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Frozen: ranked once from the anchor to the last day",
+          "default": "frozen",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "anchor",
+          "label": "Anchor date",
+          "status": "DECIDED",
+          "kind": "date",
+          "default": "view",
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL45",
+      "name": "Buy VWAP · Anchored · Distance %",
+      "family": "Buy VWAP & Implied Cost",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Jarak harga penutupan dari harga rata-rata pembelian kelompok broker sejak tanggal awal, dalam persen.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "scope",
+          "label": "Broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "brokers",
+          "label": "Brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "rank",
+          "label": "Rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "ranking",
+          "label": "Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Frozen: ranked once from the anchor to the last day",
+          "default": "frozen",
+          "condition": false
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "anchor",
+          "label": "Anchor date",
+          "status": "DECIDED",
+          "kind": "date",
+          "default": "view",
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "DECIDED",
+          "kind": "levels",
+          "default": "0",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL46",
+      "name": "Flow Ratio",
+      "family": "Ratio",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Rasio bebas: pembilang dan penyebut dipilih sendiri (beli atau jual, kotor atau net, oleh siapa, papan dan jenis investor).",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "num_measure",
+          "label": "Numerator: measure",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "gross_buy",
+              "Gross buy"
+            ],
+            [
+              "gross_sell",
+              "Gross sell"
+            ],
+            [
+              "net_buy",
+              "Net buy"
+            ],
+            [
+              "net_sell",
+              "Net sell"
+            ]
+          ],
+          "default": "gross_buy",
+          "condition": true
+        },
+        {
+          "key": "num_scope",
+          "label": "Numerator: broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "topn",
+          "condition": true
+        },
+        {
+          "key": "num_brokers",
+          "label": "Numerator: brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "num_top",
+          "label": "Numerator: Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "num_rank",
+          "label": "Numerator: rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "gross_sell",
+              "Top gross sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "num_ranking",
+          "label": "Numerator: Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "num_boards",
+          "label": "Numerator: market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "num_investors",
+          "label": "Numerator: investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign"
+          ],
+          "condition": true
+        },
+        {
+          "key": "den_measure",
+          "label": "Denominator: measure",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "gross_buy",
+              "Gross buy"
+            ],
+            [
+              "gross_sell",
+              "Gross sell"
+            ],
+            [
+              "net_buy",
+              "Net buy"
+            ],
+            [
+              "net_sell",
+              "Net sell"
+            ]
+          ],
+          "default": "gross_buy",
+          "condition": true
+        },
+        {
+          "key": "den_scope",
+          "label": "Denominator: broker scope",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "all",
+              "All brokers"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "topn",
+              "Top-N cohort"
+            ]
+          ],
+          "default": "all",
+          "condition": true
+        },
+        {
+          "key": "den_brokers",
+          "label": "Denominator: brokers",
+          "status": "DECIDED",
+          "kind": "brokers",
+          "default": [],
+          "condition": true
+        },
+        {
+          "key": "den_top",
+          "label": "Denominator: Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "den_rank",
+          "label": "Denominator: rank Top-N by",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "net_buy",
+              "Top net buyers"
+            ],
+            [
+              "net_sell",
+              "Top net sellers"
+            ],
+            [
+              "gross_buy",
+              "Top gross buyers"
+            ],
+            [
+              "gross_sell",
+              "Top gross sellers"
+            ]
+          ],
+          "default": "net_buy",
+          "condition": true
+        },
+        {
+          "key": "den_ranking",
+          "label": "Denominator: Top-N ranking",
+          "status": "DECIDED",
+          "kind": "fixed",
+          "text": "Recomputed every day",
+          "default": "daily",
+          "condition": false
+        },
+        {
+          "key": "den_boards",
+          "label": "Denominator: market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "den_investors",
+          "label": "Denominator: investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "unit",
+          "label": "Unit (both sides)",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "value",
+              "Rupiah"
+            ],
+            [
+              "lot",
+              "Lot"
+            ],
+            [
+              "tx",
+              "Transactions"
+            ]
+          ],
+          "default": "value",
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days (1 = daily)",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 1,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        }
+      ],
+      "adv_floor": true,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL47",
+      "name": "Net Buy Intensity",
+      "family": "Net Flow",
+      "unit": "%",
+      "place": "pane",
+      "tip": "Dari setiap Rp100 yang dibeli, berapa yang bersih (tidak dibatalkan penjualan broker yang sama); atau posisinya dibanding riwayat saham itu sendiri.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": {
+            "by": "stat",
+            "value": "K",
+            "pct": {
+              "kind": "P",
+              "unit": "0-100"
+            }
+          }
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 5,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "stat",
+          "label": "Statistic",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "value",
+              "Value (%)"
+            ],
+            [
+              "pct",
+              "Percentile"
+            ]
+          ],
+          "default": "value",
+          "condition": true
+        },
+        {
+          "key": "baseline",
+          "label": "Baseline sessions",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 252,
+          "min": 20,
+          "max": 1000,
+          "condition": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
+    },
+    {
+      "id": "FL48",
+      "name": "Bandar Balance · Imbalance",
+      "family": "Bandar Balance",
+      "unit": "-1..1",
+      "place": "pane",
+      "tip": "Pembeli bersih terbesar dibanding penjual bersih terbesar selama jendela: (B − S) ÷ (B + S) dari -1 sampai 1, atau B ÷ S.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": "K"
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "top",
+          "label": "Top N",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 3,
+          "min": 1,
+          "max": 20,
+          "condition": true
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular"
+          ],
+          "condition": true
+        },
+        {
+          "key": "investors",
+          "label": "Investor type",
+          "status": "DECIDED",
+          "kind": "multi",
+          "options": [
+            "Foreign",
+            "Domestic"
+          ],
+          "default": [
+            "Foreign",
+            "Domestic"
+          ],
+          "condition": true
+        },
+        {
+          "key": "window",
+          "label": "Rolling days",
+          "status": "DECIDED",
+          "kind": "int",
+          "default": 5,
+          "min": 1,
+          "max": 250,
+          "condition": true
+        },
+        {
+          "key": "form",
+          "label": "Show as",
+          "status": "DECIDED",
+          "kind": "select",
+          "options": [
+            [
+              "imbalance",
+              "Imbalance (B − S) ÷ (B + S)"
+            ],
+            [
+              "ratio",
+              "Ratio B ÷ S"
+            ]
+          ],
+          "default": "imbalance",
+          "condition": true
+        },
+        {
+          "key": "levels",
+          "label": "Reference lines",
+          "status": "DECIDED",
+          "kind": "levels",
+          "default": "0",
+          "condition": false
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false
     }
   ]
 }

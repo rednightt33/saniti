@@ -20,7 +20,11 @@
    EXEC-SCREENER-FLOW-CANDLES P4 (verification/screener/P4_BROKER_DAYS.md section 1): publication.broker = {date: rows}
    adds one broker day file per date (index name broker-YYYY-MM-DD, as_of the date) in the publisher's format
    (xsectionBrokerDoc, encodeBrokerDay); files[name].doc replaces a file's document (a broken one). /xsection refuses
-   more than 16 names, as terminal-api's MAX_XSECTION_NAMES does. */
+   more than 16 names, as terminal-api's MAX_XSECTION_NAMES does.
+   EXEC-SCREENER-FLOW-CANDLES P5a: publication.brokers = [[code, name, type, classification], ...] serves the reference
+   file `brokers` (publisher.py brokers_doc: code, name, type, classification) at GET /api/terminal/v1/reference/brokers
+   with its sha256, bytes and rows, as terminal-api answers for a file its refs index names; without it the route is a
+   404 (a publication without the file). */
 import crypto from 'node:crypto';
 import http from 'node:http';
 import zlib from 'node:zlib';
@@ -169,9 +173,16 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
     }
     const refKey = `ref/tickers.${pubs.length}.json.gz`;
     objects.set(refKey, { body: encode(tickersRef(p.ref)).body });
+    let brokersRef = null;
+    if (p.brokers) {
+      const cols = ['code', 'name', 'type', 'classification'], e = encode({ schema_version: 1, columns: cols, ...Object.fromEntries(cols.map((c, i) => [c, p.brokers.map(r => r[i])])) });
+      const key = `v1/ref/brokers.${e.sha256.slice(0, 16)}.json.gz`;
+      objects.set(key, { body: e.body });
+      brokersRef = { key, sha256: e.sha256, bytes: e.body.length, rows: p.brokers.length };
+    }
     const state = { finished_at: p.finished_at, price_through: p.price_through ?? Object.values(p.prices).reduce((m, r) => r[r.length - 1][0] > m ? r[r.length - 1][0] : m, ''),
       broker_through: p.broker_through ?? null, broker_behind_sessions: p.broker_behind_sessions ?? 0, xsection: p.noIndex ? null : files };
-    return { state, manifests, refKey };
+    return { state, manifests, refKey, brokersRef };
   }
   pubs.push(build(publication));
   const latest = () => pubs[pubs.length - 1];
@@ -222,6 +233,9 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
         return m ? send(res, 200, m) : send(res, 404, { error: 'unknown_ticker', message: 'No published data.' });
       }
       if (req.method === 'GET' && u.pathname === '/api/terminal/v1/reference/tickers') return send(res, 200, { url: presign(pub.refKey), expires_in_seconds: ttl, encoding: 'gzip json' });
+      if (req.method === 'GET' && u.pathname === '/api/terminal/v1/reference/brokers') return pub.brokersRef
+        ? send(res, 200, { url: presign(pub.brokersRef.key), expires_in_seconds: ttl, encoding: 'gzip json', sha256: pub.brokersRef.sha256, bytes: pub.brokersRef.bytes, rows: pub.brokersRef.rows })
+        : send(res, 404, { error: 'unknown_reference', message: 'Reference files: tickers.' });
       return send(res, 404, { detail: 'Not Found' });
     } catch (e) { send(res, 500, { error: 'fake_error', message: String(e) }) }
   });

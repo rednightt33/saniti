@@ -97,7 +97,7 @@ export interface ParamRangeDetails { field: string; min?: number; max?: number; 
 /** INVALID_CONDITION / UNKNOWN_INDICATOR details (report 8.8 "allowed values"): the values the field accepts. */
 export interface AllowedDetails { allowed: (string | number)[] }
 /** METRIC_UNAVAILABLE details (report 8.8, 6.12). */
-export interface MetricUnavailableDetails { metric: string; availability: Exclude<Availability, 'AVAILABLE'>; reason: string }
+export interface MetricUnavailableDetails { metric: string; availability: Exclude<Availability, 'AVAILABLE'>; reason: string; reason_code?: NaReason }
 
 /** Latest wins per page (the Backtest preview's client_order; report 8.1): a newer seq of the same page replaces the
     older call, which answers 409 SCREEN_REPLACED / PREVIEW_REPLACED. */
@@ -109,6 +109,9 @@ export interface ClientOrder { page: string; seq: number }
 
 export type ParamValue = number | string | boolean;
 export type ParamMap = Record<string, ParamValue>;
+/** The parameters a condition summary names (report 8.5 params_resolved): an indicator's or a transform's (ParamMap),
+    or a flow indicator's, whose boards, investor types and brokers are lists (P5a). */
+export type ResolvedParams = Record<string, ParamValue | string[]>;
 export type PriceField = 'open' | 'high' | 'low' | 'close' | 'volume';
 export const PRICE_FIELDS: readonly PriceField[] = ['open', 'high', 'low', 'close', 'volume'];
 export type Board = 'regular' | 'all';
@@ -127,8 +130,18 @@ export interface TransformRef { kind: 'transform'; fn: string; of: MetricRef; ar
 /** A pattern signal (today breakout, breakdown, volspike, macross, macd_divergence, squeeze, stoch_cross_in_zone,
     new_high, silent; core PRICE_ACTION and bullishDivergence where they exist). */
 export interface PatternRef { kind: 'pattern'; type: string; params?: ParamMap }
-/** Phase 2 flow metric (F1-F8, B1, B4, D1, D4). board: 'all' by default (P8 b, user 2026-10-28: "semua papan"). */
-export interface FlowRef { kind: 'flow'; metric: string; params: { window: number; board?: Board } & Record<string, ParamValue> }
+/** A flow parameter's value (EXEC-SCREENER-FLOW-CANDLES P5a): a number, text or switch, or a list of texts (the boards,
+    investor types and brokers of the Terminal's flowRegistry.json `multi` and `brokers` parameters). */
+export type FlowParamValue = ParamValue | string[];
+/** One of the Terminal's 48 flow indicators as a series (EXEC-SCREENER-FLOW-CANDLES P5a; verification/screener/
+    P5_FLOW.md section 1): metric 'FL01'..'FL48'; output one of the registry's `outputs` (default the first); params the
+    registry's parameters (flowRegistry.json indicators[].params; the Terminal's setup), a parameter left out taking its
+    registry default (flow.ts flowDefaults; the board default Regular, G1, user 2026-11-07), the kinds that only draw
+    (levels, button, fixed) refused. Computed by the Terminal's own flow.ts computeFlow on the broker rows the worker
+    holds, on the stock's own price bars inside the loaded broker window (G2), read at the stock's last candle with
+    broker data (P10 a). A retired Phase 2 entry of screener-metrics.json (fnet, bandar, ...) keeps this shape until the
+    presets are remapped (P5b) and is never computed. */
+export interface FlowRef { kind: 'flow'; metric: string; output?: string; params?: Record<string, FlowParamValue> }
 /** A cross-sectional value on the fixed population (P7; today return_rank). */
 export interface XsectionRef { kind: 'xsection'; metric: string; params?: { window?: number } & Record<string, ParamValue> }
 /** A universe attribute (last, chg_1d_pct, adv20_idr, bars, ...; screener-metrics.json). */
@@ -276,14 +289,16 @@ export interface RunOptions { exhaustive?: boolean; explain?: boolean }
 export interface RunRequest { schema_version: 1; client_order: ClientOrder; data_version?: string; definition: Definition; options?: RunOptions }
 
 /** Where a condition's values came from: precomputed (a pre-warmed snapshot hit), dynamic (computed for this screen
-    on full history), flow, xsection. is_default says whether the parameters are the registry's (report 8.5). */
+    on full history), flow (a condition that reads a flow indicator, P5a: evaluated at the stock's last candle with
+    broker data, eval_date_basis 'flow_date'), xsection. is_default says whether the parameters are the registry's
+    (report 8.5). */
 export type ConditionSource = 'precomputed' | 'dynamic' | 'flow' | 'xsection';
 /** Per-condition summary. metric: '<id>.<output>' for an indicator, '<lhs> x <rhs>' for a cross between two
     references (report 8.5 example). passed counts the tickers in `evaluated`; it equals the count over every eligible
     ticker only when exhaustive is true, and the page never shows a non-exhaustive count against the universe size
     (report 6.10). */
 export interface ConditionSummary {
-  id: string; source: ConditionSource; metric: string; params_resolved: ParamMap; is_default: boolean; kind: TestKind;
+  id: string; source: ConditionSource; metric: string; params_resolved: ResolvedParams; is_default: boolean; kind: TestKind;
   unit: string | null; evaluated: number; passed: number; na: number; exhaustive: boolean;
   eval_date_basis: 'ticker_last_bar' | 'flow_date';
 }
@@ -396,12 +411,13 @@ export interface CountsResponse { versions: Versions; data: DataStatus; counts: 
     its refusal, ...); edge-bff's follow its own config (request_bytes, saved_definition_bytes, saved_items, watchlist,
     inflight_per_page). owner_cpu_budget (SCREENER_OWNER_CPU_MS, P33 built in Phase 1, user 2026-10-28): one owner tag's
     compute per sliding minute on a replica; its refusal is LIMIT_EXCEEDED with details.retry_after_seconds. The refresh caps (max_file_bytes, max_inflated_bytes, max_refresh_bytes) never refuse a request:
-    they fail a refresh (REFRESH_FAILED in the log), so they are listed for transparency only. The flow `within` +
-    window row of 8.9 joins in Phase 2. */
+    they fail a refresh (REFRESH_FAILED in the log), so they are listed for transparency only. broker_depth (K1,
+    EXEC-SCREENER-FLOW-CANDLES P5a): the sessions a flow condition reads (the flow indicator's own window plus its
+    operators' N, length or within) are at most the loaded broker window's sessions (data.broker_window.sessions). */
 export type LimitName = 'max_conditions' | 'max_metric_filters' | 'within_max' | 'cap_budget_ms' | 'compute_budget' | 'deadline_ms'
   | 'inflight_per_page' | 'owner_inflight' | 'owner_cpu_budget' | 'previous_grace_s' | 'queue' | 'request_bytes' | 'saved_definition_bytes'
   | 'saved_items' | 'watchlist' | 'max_counts' | 'max_response_bytes' | 'max_file_bytes' | 'max_inflated_bytes'
-  | 'max_refresh_bytes';
+  | 'max_refresh_bytes' | 'broker_depth';
 /** A limit as the page shows it before the user meets it (AGENTS.md "Gates and evidence": the rule, how to pass it,
     one right and one wrong example), generated from the value, never typed into the page. */
 export interface LimitEntry { name: LimitName | string; value: number; unit: string; rule: string; example_ok: string; example_refused: string }
@@ -499,6 +515,23 @@ export interface CatalogMetric {
   params: CatalogParam[]; tests: TestKind[]; unit: string | null;
   formula: string; interpretation: string; misuse: string;
   availability: Availability; reason: string | null; applies_to: string | null;
+  /** additive (EXEC-SCREENER-FLOW-CANDLES P5a): a flow indicator's Terminal setup, generated from flowRegistry.json
+      (params is empty on a flow entry: its parameters are these) */
+  flow?: CatalogFlow;
+  /** additive (P5a): a Phase 2 flow entry replaced by the Terminal's flow indicators (the FL id, or "none"); always
+      unavailable, its reason naming the replacement, until P5b remaps the presets that read it */
+  retired?: string;
+}
+/** A flow entry's setup (P5_FLOW.md section 2): the registry's family, place, tip and parameters as they are (condition
+    false on the kinds that only draw), each output with its kind of OPERATORS.md section 4 (a letter, or by a parameter)
+    and unit, the default output, the ADV floor flag, and, at this publication, the sessions the indicator reads at its
+    defaults (depth; null when not known) and the loaded broker sessions they are measured against (K1). */
+export interface CatalogFlow {
+  family: string; place: string; tip: string | null; unit: string;
+  outputs: { key: string; kind: unknown }[]; default_output: string;
+  params: { key: string; label: string; kind: string; status?: string; options?: unknown[]; default?: unknown; min?: number | null; max?: number | null; condition: boolean }[];
+  adv_floor: boolean; needs_classification: boolean;
+  depth: number | null; sessions: number;
 }
 /** Session counts of 1M, 3M, 6M and 1Y (P23 a: 21/63/126/252), from screener-metrics.json. */
 export type Periods = Record<PerfPeriod, number>;

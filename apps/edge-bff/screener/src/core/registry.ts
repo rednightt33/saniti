@@ -68,10 +68,30 @@ export interface ScreenerIndicator {
   oracle: OracleRow[]; oracle_note: string | null;
 }
 export interface CostModel { status: string; rule: string; ns_per_bar_length: number; reference_bars: number; evidence: string }
+/** One parameter of a flow indicator as flowRegistry.json has it (the Terminal's setup), with `condition`: false for
+    the kinds that only draw (levels, button, fixed; P5_FLOW.md section 1). options: [value, label] pairs for a select,
+    values for a multi. */
+export interface FlowRegistryParam {
+  key: string; label: string; status?: string;
+  kind: 'int' | 'num' | 'select' | 'multi' | 'bool' | 'date' | 'brokers' | 'levels' | 'button' | 'fixed';
+  options?: (string | [string, string])[]; default?: unknown; min?: number | null; max?: number | null; text?: string;
+  condition: boolean;
+}
+/** An output's kind (flow-kinds.json): a letter of OPERATORS.md section 4, {kind, unit}, or by a select parameter. */
+export type FlowKindSpec = string | { kind: string; unit: string } | ({ by: string } & Record<string, unknown>);
+/** One of the 48 flow indicators of the generated registry (build-screener-registry.mjs flowEntries). */
+export interface FlowRegistryEntry {
+  id: string; name: string; family: string; unit: string; place: string; tip: string | null; needs_frequency: boolean;
+  outputs: { key: string; kind: FlowKindSpec }[]; default_output: string;
+  params: FlowRegistryParam[];
+  adv_floor: boolean; requires: 'insider' | null; needs_classification: boolean;
+}
 export interface ScreenerRegistryDoc {
   schema_version: number; screener_registry_version: string; registry_version: string; generated_by: string;
   sources: { role: string; file: string; sha256: string }[];
   probe: Record<string, unknown>; cost_model: CostModel; indicators: ScreenerIndicator[];
+  /** EXEC-SCREENER-FLOW-CANDLES P5a: the Terminal's flow indicators FL01-FL48 (flowRegistry.json + flow-kinds.json) */
+  flows: FlowRegistryEntry[];
 }
 
 export const SCREENER_REGISTRY = doc as unknown as ScreenerRegistryDoc;

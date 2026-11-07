@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "note": "EXEC-SCREENER-FLOW-CANDLES P5 (verification/screener/P5_FLOW.md section 2): the output kind of every output of the Terminal's 48 flow indicators (flowRegistry.json), from EXEC.md \"Cakupan flow\" (K continuous normalised, P percentile or z-score, Rp rupiah or another amount, L lots per transaction, H price level, D day count, F 0/1 signal, B broker count) and OPERATORS.md section 4, and the ADV liquidity floor flag (EXEC.md: FL03-FL06, FL08, FL10, FL13-FL15, FL36, FL46). The operators block of screener-metrics.json reads the kinds (measures and tests not offered on a kind: rank and percentile-type measures not on H, = and != only on D, F and B, K7). An output is a kind letter, {\"kind\", \"unit\"} (a unit other than the registry's), or {\"by\": <parameter>, <option>: ...} when the kind follows a parameter. requires: data the Screener does not hold (insider). The screener registry generator (scripts/build-screener-registry.mjs) refuses an indicator or output without a row.",
+  "window_sessions": 60,
+  "window_note": "K1 (user 2026-11-07): the broker window the publisher writes (P4 BROKER_DAY_SESSIONS = 60); the window a built-in baseline left out is capped to when the caller names no loaded window (the worker always names its own).",
+  "kinds": {
+    "K": "continuous normalised (%, x, 0-1, -1..1)",
+    "P": "already a percentile or z-score",
+    "Rp": "rupiah or another amount (lots, rupiah per transaction)",
+    "L": "lots per transaction",
+    "H": "price level",
+    "D": "consecutive-day count",
+    "F": "0/1 signal",
+    "B": "broker count"
+  },
+  "indicators": {
+    "FL01": {
+      "outputs": {
+        "buy": "L",
+        "sell": "L"
+      },
+      "adv_floor": false
+    },
+    "FL02": {
+      "outputs": {
+        "buy": "Rp",
+        "sell": "Rp"
+      },
+      "adv_floor": false
+    },
+    "FL03": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL04": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL05": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL06": {
+      "outputs": {
+        "ratio": "K"
+      },
+      "adv_floor": true
+    },
+    "FL07": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL08": {
+      "outputs": {
+        "value": "P"
+      },
+      "adv_floor": true
+    },
+    "FL09": {
+      "outputs": {
+        "value": "F"
+      },
+      "adv_floor": false
+    },
+    "FL10": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL11": {
+      "outputs": {
+        "value": "K",
+        "change": "K"
+      },
+      "adv_floor": false
+    },
+    "FL12": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL13": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL14": {
+      "outputs": {
+        "asym": "K"
+      },
+      "adv_floor": true
+    },
+    "FL15": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL16": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL17": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false
+    },
+    "FL18": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false,
+      "note": "an anchored price level (H, OPERATORS.md section 4)."
+    },
+    "FL19": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false,
+      "note": "an anchored price level (H, OPERATORS.md section 4)."
+    },
+    "FL20": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false,
+      "note": "a distance in percent from an anchored price level (K)."
+    },
+    "FL21": {
+      "outputs": {
+        "value": "P"
+      },
+      "adv_floor": false
+    },
+    "FL22": {
+      "outputs": {
+        "value": {
+          "by": "measure",
+          "pct": "K",
+          "count": {
+            "kind": "B",
+            "unit": "brokers"
+          }
+        }
+      },
+      "adv_floor": false,
+      "note": "measure count (U6) is the number of net-buying brokers, a whole number (B); pct is a percent (K)."
+    },
+    "FL23": {
+      "outputs": {
+        "lines": {
+          "by": "unit",
+          "lot": {
+            "kind": "Rp",
+            "unit": "lot"
+          },
+          "value": {
+            "kind": "Rp",
+            "unit": "IDR"
+          }
+        },
+        "total": {
+          "by": "unit",
+          "lot": {
+            "kind": "Rp",
+            "unit": "lot"
+          },
+          "value": {
+            "kind": "Rp",
+            "unit": "IDR"
+          }
+        }
+      },
+      "adv_floor": false,
+      "note": "The Terminal's Broker Inventory: one line per broker and their total, in lots or rupiah (an amount, kind Rp, as the per-broker series of OPERATORS.md section 4). The screener version (decision B: series a, b, c and the broker count B) is stage P5b."
+    },
+    "FL24": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL25": {
+      "outputs": {
+        "value": "Rp"
+      },
+      "adv_floor": false
+    },
+    "FL26": {
+      "outputs": {
+        "value": "D"
+      },
+      "adv_floor": false
+    },
+    "FL27": {
+      "outputs": {
+        "value": "F",
+        "net": "F",
+        "gross": "F"
+      },
+      "adv_floor": false
+    },
+    "FL28": {
+      "outputs": {
+        "value": "Rp"
+      },
+      "adv_floor": false
+    },
+    "FL29": {
+      "outputs": {
+        "value": "K",
+        "balance": "K"
+      },
+      "adv_floor": false
+    },
+    "FL30": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL31": {
+      "outputs": {
+        "value": "Rp"
+      },
+      "adv_floor": false,
+      "requires": "insider",
+      "note": "Insider net change: the insider transactions are not published to the Screener (no insider file), so it stays REQUIRES_DATA."
+    },
+    "FL32": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": false
+    },
+    "FL33": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": false
+    },
+    "FL34": {
+      "outputs": {
+        "value": "K",
+        "change": "K"
+      },
+      "adv_floor": false
+    },
+    "FL35": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL36": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL37": {
+      "outputs": {
+        "value": {
+          "by": "stat",
+          "pct": "P",
+          "z": {
+            "kind": "P",
+            "unit": "sd"
+          }
+        }
+      },
+      "adv_floor": false
+    },
+    "FL38": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL39": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL40": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL41": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL42": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false
+    },
+    "FL43": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false
+    },
+    "FL44": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false,
+      "note": "an anchored price level (H, OPERATORS.md section 4)."
+    },
+    "FL45": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false,
+      "note": "a distance in percent from an anchored price level (K)."
+    },
+    "FL46": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL47": {
+      "outputs": {
+        "value": {
+          "by": "stat",
+          "value": "K",
+          "pct": {
+            "kind": "P",
+            "unit": "0-100"
+          }
+        }
+      },
+      "adv_floor": false,
+      "note": "stat value is a percent (K); stat pct its percentile in the stock's own history (P, EXEC: \"FL47 bila stat = persentil\")."
+    },
+    "FL48": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    }
+  }
+}

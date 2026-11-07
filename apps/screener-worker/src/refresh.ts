@@ -59,7 +59,7 @@ import type { TerminalClient, TickerReference } from '../../backtest-worker/src/
 import type { Limits } from './config.ts';
 import { errorFields, log } from './log.ts';
 import { PHASE1_FILES, PRICE_FILE, referenceHash } from './snapshot.ts';
-import type { IndexEntry, PublicationState, ReadFile, TickerEntry } from './snapshot.ts';
+import type { IndexEntry, PublicationState, ReadFile, SnapshotReference, TickerEntry } from './snapshot.ts';
 import { brokerWindow } from './broker.ts';
 import type { WindowDay } from './broker.ts';
 
@@ -157,6 +157,14 @@ export class TerminalApi {
     const ttl = j.expires_in_seconds;
     return { finished_at: j.finished_at, expires_in_seconds: typeof ttl === 'number' && Number.isFinite(ttl) ? ttl : null, files };
   }
+  /** GET /reference/{name} (main.py reference): the presigned URL of a reference file and, when the publication's refs
+      index names it, its sha256 and size (null otherwise). P5a reads `brokers` for the brokers' classification. */
+  async referenceFile(name: string): Promise<{ url: string; sha256: string | null; bytes: number | null }> {
+    const j = await this.call('GET', `/reference/${encodeURIComponent(name)}`, undefined, `The ${name} reference`, name);
+    if (typeof j.url !== 'string' || !/^https?:\/\//.test(j.url)) throw new DataError('DATA_INTEGRITY', `terminal-api /reference/${name}: no URL.`, name);
+    const sha = typeof j.sha256 === 'string' && /^[0-9a-f]{64}$/.test(j.sha256) ? j.sha256 : null, bytes = Number.isSafeInteger(j.bytes) && j.bytes > 0 ? j.bytes as number : null;
+    return { url: j.url, sha256: sha, bytes };
+  }
   /** GET /manifest/{ticker}: the rows and the newest last date of its yearly price files (null without price files). */
   async manifest(ticker: string): Promise<{ rows: number; last: string } | null> {
     const m = await this.call('GET', `/manifest/${encodeURIComponent(ticker)}`, undefined, `The manifest of ${ticker}`, ticker);
@@ -213,9 +221,9 @@ export interface BrokerInput { read: { name: string; date: string; file: FileEnt
 export interface RefreshHost {
   held(): Held | null;
   /** download, verify and decode on a builder thread -> the staged snapshot's entries (for the cross-check) */
-  build(input: { files: Record<ReadFile, FileEntry>; broker: BrokerInput; ref: TickerReference; state: PublicationState }): Promise<{ entries: TickerEntry[]; stats: Record<string, unknown> }>;
+  build(input: { files: Record<ReadFile, FileEntry>; broker: BrokerInput; ref: SnapshotReference; state: PublicationState }): Promise<{ entries: TickerEntry[]; stats: Record<string, unknown> }>;
   /** pre-warm, digest, install, presets, documents, swap; throws to abort (nothing changes) */
-  complete(input: { state: PublicationState; ref: TickerReference; files: Record<string, string> }): Promise<Record<string, unknown>>;
+  complete(input: { state: PublicationState; ref: SnapshotReference; files: Record<string, string> }): Promise<Record<string, unknown>>;
   /** the builder's work is dropped (a failure before complete() succeeded) */
   abandon(): void;
   /** rule 3: the same files and reference; published_at and the state fields advance (P4: and the window's missing days) */
@@ -335,7 +343,7 @@ export class Refresher {
       fields.broker_days = days;
       // rule 3: the same files (P4: the same broker days too) and the same reference file: keep the snapshot, advance
       // the publication
-      let ref: TickerReference | null = null;
+      let ref: SnapshotReference | null = null;
       if (held && PHASE1_FILES.every(n => held.files[n] === files[n]) && sameDays(plan.loaded, held.broker)) {
         if (st.finished_at === held.finished_at) {
           // a follow-up of the publication held: none of its missing broker days fits; they wait for the next publication
@@ -343,7 +351,7 @@ export class Refresher {
           log('info', 'refresh_broker_waiting', { published_at: st.finished_at, broker_days: days, ms: Math.round(performance.now() - t0) });
           return;
         }
-        ref = await this.client.reference('tickers');
+        ref = await this.reference();
         if (referenceHash(ref) === held.refHash) {
           this.host.advance(st, { missing: plan.missing.length });
           if (plan.missing.length) this.waitingFor = st.finished_at;
@@ -369,7 +377,7 @@ export class Refresher {
         fields.grant_ms = Math.round(performance.now() - tg);
         fields.grants = Math.ceil(names.length / XSECTION_MAX_NAMES);
       }
-      ref ??= await this.client.reference('tickers');
+      ref ??= await this.reference();
       const entry = (n: string): FileEntry => ({ url: urls[n] ?? '', sha256: index[n].sha256, bytes: index[n].bytes });
       // rule 5: build, check, pre-warm, install, swap
       built = true;
@@ -413,6 +421,30 @@ export class Refresher {
     }
     const loaded: Record<string, string> = Object.fromEntries([...carried, ...cached, ...granted].map(w => [w.name, w.entry.sha256]));
     return { carried, cached, granted, missing, bytes, loaded };
+  }
+  /** The reference the build reads: the tickers file, and (P5a) the brokers' classification (brokerClasses). */
+  private async reference(): Promise<SnapshotReference> {
+    const ref: SnapshotReference = await this.client.reference('tickers');
+    const classes = await this.brokerClasses();
+    return classes ? { ...ref, brokerClasses: classes } : ref;
+  }
+  /** EXEC-SCREENER-FLOW-CANDLES P5a: the brokers' classification of the reference file `brokers` (code -> its
+      `classification`, IDX_Broker_Profile; every row whose classification is a text, as the Terminal's live.ts reads it),
+      for FL34. The file is read as every data file is (TerminalClient.file: sha256 and size, the disk cache) from a URL on
+      the bucket origin; a publication whose refs index does not name it (no sha256) or a failure leaves it out (null,
+      logged broker_classes_unavailable): FL34 is then REQUIRES_DATA, the refresh goes on. */
+  private async brokerClasses(): Promise<Record<string, string> | null> {
+    try {
+      const r = await this.api.referenceFile('brokers');
+      if (!r.sha256 || !r.bytes) { log('warn', 'broker_classes_unavailable', { reason: 'the publication does not index the brokers reference (no sha256)' }); return null }
+      if (!this.fileOrigin(r.url)) throw new DataError('DATA_INTEGRITY', 'terminal-api /reference/brokers answered a URL that is not on the bucket origin (SCREENER_FILE_ORIGIN).', 'brokers');
+      const { doc } = await this.client.file({ url: r.url, sha256: r.sha256, bytes: r.bytes }, 'The brokers reference', 'brokers');
+      const code = doc.code as unknown[] | undefined, cls = doc.classification as unknown[] | undefined;
+      if (!Array.isArray(code) || !Array.isArray(cls)) { log('warn', 'broker_classes_unavailable', { reason: 'the brokers reference has no code or classification column' }); return null }
+      const out: Record<string, string> = {};
+      for (let k = 0; k < code.length; k++) if (typeof code[k] === 'string' && code[k] && typeof cls[k] === 'string') out[code[k] as string] = cls[k] as string;
+      return out;
+    } catch (e) { log('warn', 'broker_classes_unavailable', errorFields(e)); return null }
   }
   private succeeded(): void { this.failedFor = null; this.failures = 0; this.retryAt = 0; this.host.outcome('ready', null) }
   private failed(st: PublicationState, e: unknown, fields: Record<string, unknown>, t0: number): void {

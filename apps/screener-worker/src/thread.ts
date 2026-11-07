@@ -15,7 +15,7 @@
 import { isMainThread, parentPort, workerData } from 'node:worker_threads';
 import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
 import { TerminalClient } from '../../backtest-worker/src/terminal.ts';
-import type { TerminalOptions, TickerReference } from '../../backtest-worker/src/terminal.ts';
+import type { TerminalOptions } from '../../backtest-worker/src/terminal.ts';
 import type { FileEntry } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { serialError } from './errors.ts';
 import { errorFields, log, setLogSink } from './log.ts';
@@ -24,7 +24,7 @@ import type { PreviewTask } from './preview.ts';
 import { CancelledRun, isCancelled, runTask } from './run.ts';
 import type { CountsEntryOut, CountsTask, RunTask, ThreadEnv } from './run.ts';
 import { PHASE1_FILES, ThreadSnapshot, buildSnapshot, prewarmChunk, snapshotDigest } from './snapshot.ts';
-import type { PublicationState, ReadFile, SnapshotDesc } from './snapshot.ts';
+import type { PublicationState, ReadFile, SnapshotDesc, SnapshotReference } from './snapshot.ts';
 import { decodeBrokerDay } from './broker.ts';
 import type { BrokerStore } from './broker.ts';
 
@@ -35,7 +35,7 @@ export interface BuildTask {
   kind: 'build';
   files: Record<ReadFile, FileEntry>;
   broker: BrokerBuild;
-  ref: TickerReference; state: PublicationState;
+  ref: SnapshotReference; state: PublicationState;       // P5a: with the brokers' classification when it was read
   engine: { screener_engine: string; registry: string; screener_registry: string };
   tailLength: number; presets: PresetDefinition[];
 }

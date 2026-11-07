@@ -9,6 +9,10 @@
    - metrics[], fundamentals[], periods: src/core/screener-metrics.json with availability derived at run time from the
      files the publication indexes and this snapshot read (validate.ts availabilityMap; 6.12), never a list kept here;
    - groupings: the reference file's, by the Backtest's rule (snapshot.ts groupingsOf);
+   - P5a: the Terminal's 48 flow indicators (core catalog.ts METRICS_CATALOG) carry `flow`, their setup with each
+     output's kind and the sessions they read at their defaults against the loaded broker window (contract.ts
+     CatalogFlow), available on a complete window (validate.ts availabilityOf); the retired Phase 2 flow entries carry
+     `retired` and stay unavailable;
    - presets[]: src/core/presets.json (core catalog.ts PRESETS); each with its availability (validate.ts
      presetAvailability: available only when every leg is, never run with a leg removed) and, when available, its match and near counts at
      this publication (computed by the refresh, which keeps each available preset's full result in the result cache, so
@@ -19,8 +23,11 @@ import type { Availability, CatalogMetric, CatalogOperators, CatalogParam, Catal
 import type { MetricDefinition, MetricsCatalog } from '../../edge-bff/screener/src/core/catalog.ts';
 import { INDICATORS, capOf, catalogIndicators } from '../../edge-bff/screener/src/core/registry.ts';
 import { availabilityMap } from '../../edge-bff/screener/src/core/validate.ts';
+import { indicatorDepth, resolveFlowParams } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import type { FlowBindContext } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { Limits } from './config.ts';
 import type { IndexEntry, SnapshotDesc } from './snapshot.ts';
+import { BROKER_DAY_SESSIONS } from './broker.ts';
 
 /* ---- availability (6.12) --------------------------------------------------------------------------------------- */
 
@@ -29,15 +36,25 @@ import type { IndexEntry, SnapshotDesc } from './snapshot.ts';
     refresh downloaded them): a file counts only when it is both indexed and read, so a metric over a file the publisher
     writes before this build reads it shows REQUIRES_DATA ("the Screener does not read it yet"), the reason a run with it
     is refused with, never AVAILABLE and then refused at bind. */
-export const metricAvailability = (m: MetricsCatalog, index: Record<string, IndexEntry> | null, read: Iterable<string>): Map<string, { availability: Availability; reason: string | null }> =>
-  availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m, new Set(read));
+export const metricAvailability = (m: MetricsCatalog, index: Record<string, IndexEntry> | null, read: Iterable<string>, flow?: FlowBindContext): Map<string, { availability: Availability; reason: string | null }> =>
+  availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m, new Set(read), flow);
 const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
 /** A catalog entry as the page reads it (contract.ts CatalogMetric plus the additive fields screener-metrics.json
     carries for the page: label, short, synonyms, default_test, ref, fl; the fixture tests/fixture/api.ts has the same
     shape); the internal fields (requires, decision, evidence, unavailable_reason) stay in the worker. */
-function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }): CatalogMetric {
+function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }, sessions: number): CatalogMetric {
   const extra: Record<string, unknown> = {};
-  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'fl'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  // retired (P5a): a Phase 2 flow entry the Terminal's flow indicators replace; shown unavailable with the reason naming
+  // its replacement, so the presets that still read it name their legs, until P5b remaps them
+  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'fl', 'retired'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  // P5a: a flow indicator's Terminal setup (contract.ts CatalogFlow): the registry's parameters, each output's kind, and
+  // the sessions it reads at its defaults against the loaded window (a built-in baseline shown capped to the window)
+  if (x.flow) {
+    const f = x.flow, defaults = resolveFlowParams(f, undefined, 'catalog', sessions);
+    extra.flow = { family: f.family, place: f.place, tip: f.tip, unit: f.unit, outputs: f.outputs, default_output: f.default_output,
+      params: f.params.map(p => p.key in defaults ? { ...p, default: defaults[p.key] } : p), adv_floor: f.adv_floor, needs_classification: f.needs_classification,
+      depth: f.requires ? null : depthAt(f, defaults), sessions };
+  }
   return { id: x.id, group: x.group, kind: x.kind, params: x.params, tests: x.tests, unit: x.unit, formula: x.formula, interpretation: x.interpretation,
     misuse: x.misuse, availability: a.availability, reason: a.reason, applies_to: x.applies_to, ...extra } as CatalogMetric;
 }
@@ -88,6 +105,16 @@ export function limitEntries(l: Limits): LimitEntry[] {
   ];
 }
 
+/** K1 (EXEC-SCREENER-FLOW-CANDLES P5a): the broker data a flow condition may read, from the loaded window, with the
+    rule, a right and a wrong example (the gate rule; condition.ts refuses beyond it with LIMIT_EXCEEDED broker_depth). */
+export function brokerDepthLimit(sessions: number): LimitEntry {
+  const own = Math.min(10, Math.max(1, sessions - 1)), n = Math.max(1, sessions - own);
+  return { name: 'broker_depth', value: sessions, unit: 'sessions',
+    rule: `a flow condition reads at most the ${sessions} sessions of broker data the Screener holds: the indicator's own window plus the operator's N, length or within`,
+    example_ok: `Bandar Balance · % over ${own} sessions with a percentile over ${n} sessions (${own + n} in all)`,
+    example_refused: `the same with a percentile over ${n + 5} sessions (${own + n + 5} in all; use a shorter window or N)` };
+}
+
 /* ---- documents -------------------------------------------------------------------------------------------------- */
 export interface Doc { json: Buffer; gzip: Buffer; etag: string }
 export function doc(value: unknown): Doc {
@@ -100,15 +127,21 @@ export interface CatalogInput {
   availability: Map<string, { availability: Availability; reason: string | null }>;
   groupings: Grouping[]; presets: CatalogPreset[];
 }
+/** The sessions a flow entry reads at its defaults (flowmetrics.ts indicatorDepth on its default output); null where the
+    default output is not one series (FL23: one line per broker). */
+function depthAt(f: NonNullable<MetricDefinition['flow']>, params: ReturnType<typeof resolveFlowParams>): number | null {
+  try { return indicatorDepth(f, f.default_output, params) } catch { return null }
+}
 export function catalogDoc(c: CatalogInput): Doc {
   const metrics: CatalogMetric[] = [], fundamentals: CatalogMetric[] = [];
+  const sessions = c.desc.data?.broker_window?.sessions || BROKER_DAY_SESSIONS;
   for (const x of c.metrics.metrics) {
     const a = c.availability.get(x.id) ?? { availability: 'REQUIRES_DATA' as Availability, reason: 'Not evaluated.' };
-    (isFundamental(x) ? fundamentals : metrics).push(catalogMetric(x, a));
+    (isFundamental(x) ? fundamentals : metrics).push(catalogMetric(x, a, sessions));
   }
   const body: CatalogResponse = {
     versions: { ...c.desc.versions }, data: { ...c.desc.data, refresh: c.refresh },
-    limits: limitEntries(c.limits),
+    limits: [...limitEntries(c.limits), brokerDepthLimit(sessions)],
     indicators: catalogIndicators({ capBudgetMs: c.limits.cap_budget_ms }),
     metrics, fundamentals, periods: c.metrics.periods as Periods, groupings: c.groupings, presets: c.presets,
     operators: catalogOperators(c.metrics),

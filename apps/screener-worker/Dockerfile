@@ -7,7 +7,7 @@
 # in the repository and in the image. Only what the server reads is copied (report 07 section 7.1): the worker's
 # package.json (ES modules) and src; the screener core (with its generated registry, metric catalog and presets) and the
 # registry generator (its sha256 is a source the start-up check compares); the backtest core; the indicator formulas and
-# the indicator registry they are described by; from the backtest worker the terminal-api client, the module loader and
+# the indicator registry they are described by; the flow indicators' registry (calc/flow.ts reads it, P5a); from the backtest worker the terminal-api client, the module loader and
 # the registry script (the start-up registry check). Never copied: tests, node_modules, the page, any key.
 FROM node:22-slim
 
@@ -20,6 +20,7 @@ COPY apps/edge-bff/screener/scripts/build-screener-registry.mjs ./apps/edge-bff/
 COPY apps/edge-bff/backtest/src/core ./apps/edge-bff/backtest/src/core
 COPY apps/edge-bff/terminal/src/calc ./apps/edge-bff/terminal/src/calc
 COPY apps/edge-bff/terminal/src/data/indRegistry.json ./apps/edge-bff/terminal/src/data/indRegistry.json
+COPY apps/edge-bff/terminal/src/data/flowRegistry.json ./apps/edge-bff/terminal/src/data/flowRegistry.json
 COPY apps/backtest-worker/src/terminal.ts ./apps/backtest-worker/src/terminal.ts
 COPY apps/backtest-worker/loader ./apps/backtest-worker/loader
 COPY apps/backtest-worker/scripts/build-registry.mjs ./apps/backtest-worker/scripts/build-registry.mjs

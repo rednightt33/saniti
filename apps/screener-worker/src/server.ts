@@ -55,8 +55,8 @@ import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
 import { countsAnswer, countsEnvelope, estimateCost, newCostTracker, normalize, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
-import { groupingsOf, materialize, referenceHash } from './snapshot.ts';
-import type { BuildStats, SnapshotDesc, TickerEntry } from './snapshot.ts';
+import { flowContextOf, groupingsOf, materialize, referenceHash } from './snapshot.ts';
+import type { BuildStats, SnapshotDesc, SnapshotReference, TickerEntry } from './snapshot.ts';
 import type { BuildTask } from './thread.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, SCREENER_REGISTRY_VERSION, checkStartup } from './version.ts';
 
@@ -91,6 +91,7 @@ export function coreEngine(cfg: Config): Engine {
     validateContext: (desc, groupings, metrics, availability) => ({
       limits: { max_conditions: cfg.limits.max_conditions, max_metric_filters: cfg.limits.max_metric_filters, within_max: cfg.limits.within_max },
       capBudgetMs: cfg.limits.cap_budget_ms, tickers: new Set(desc.rows.map(r => r.ticker)), groupings, metrics, availability,
+      flow: flowContextOf(desc),                 // P5a: the loaded broker window (K1 depth, availability, anchors)
     }),
   };
 }
@@ -241,7 +242,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     return fromSerial(e.serial);
   };
   const onBuilder = async <T>(work: () => Promise<T>): Promise<T> => { try { return await work() } catch (e) { throw builderError(e) } };
-  let builder: ComputeThread | null = null, staged: { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; ref: TickerReference } | null = null;
+  let builder: ComputeThread | null = null, staged: { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; ref: SnapshotReference } | null = null;
   const lruBytes = cacheShare(cfg);
   const host: RefreshHost = {
     held: (): Held | null => current && { finished_at: current.finished_at, files: current.files, refHash: current.refHash, price_data: current.price_data,
@@ -280,7 +281,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       await pool.install(desc.sid, desc, lruBytes);
       fields.install_ms = Math.round(performance.now() - ti);
       try {
-        const groupings = groupingsOf(ref), availability = metricAvailability(metrics, input.state.xsection, Object.keys(input.files));
+        const groupings = groupingsOf(ref), availability = metricAvailability(metrics, input.state.xsection, Object.keys(input.files), flowContextOf(desc));
         const snap: Snap = {
           sid: desc.sid, desc, price_data: desc.versions.price_data, finished_at: input.state.finished_at, files: input.files, refHash: referenceHash(ref),
           vctx: engine.validateContext(desc, groupings, metrics, availability), pinned: new Set(desc.series.map(s => s.key)),
@@ -308,7 +309,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       s.desc.data = { ...s.desc.data, published_at: st.finished_at, price_through: st.price_through ?? s.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions, ...(window ? { broker_window: window } : {}) };
       // availability from this publication's index and the files the snapshot read, by the rule of the swap, so the
       // catalog, validation and the presets below never answer by an index the publication no longer has
-      s.availability = metricAvailability(metrics, st.xsection, Object.keys(s.files));
+      s.availability = metricAvailability(metrics, st.xsection, Object.keys(s.files), flowContextOf(s.desc));
       s.vctx = engine.validateContext(s.desc, s.groupings, metrics, s.availability);
       // a cached answer carries the data block it was computed with (published_at): drop this snapshot's answers and
       // counts, so every answer names the publication it is served at (the numbers are the same), and compute the

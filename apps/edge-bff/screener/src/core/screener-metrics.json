@@ -1547,14 +1547,15 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
+      "unavailable_reason": "Replaced: the Screener now reads the Terminal's flow indicators, and this foreign net value returns as an entry of its own, computed on the same broker data, in the next update.",
       "fl": "FL01",
       "short": "Foreign net",
       "default_test": {
         "op": "gt",
         "value": 0,
         "value2": 10000000000
-      }
+      },
+      "retired": "none"
     },
     {
       "id": "fpct",
@@ -1605,9 +1606,10 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Net Flow / Turnover Ratio”; screens and presets that use this entry are moved over to it in the next update.",
       "fl": "FL02",
-      "short": "Foreign %"
+      "short": "Foreign %",
+      "retired": "FL11"
     },
     {
       "id": "fpart",
@@ -1662,8 +1664,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL03"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Share · Market Value (Buy + Sell)”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL03",
+      "retired": "FL36"
     },
     {
       "id": "fstreak",
@@ -1713,13 +1716,14 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Net Flow Streak”; screens and presets that use this entry are moved over to it in the next update.",
       "fl": "FL04",
       "short": "F streak",
       "default_test": {
         "op": "gt",
         "value": 4
-      }
+      },
+      "retired": "FL26"
     },
     {
       "id": "fsurprise",
@@ -1768,8 +1772,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL05"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Net Flow Percentile · Rupiah”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL05",
+      "retired": "FL37"
     },
     {
       "id": "broker",
@@ -1834,13 +1839,14 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Broker Inventory”; screens and presets that use this entry are moved over to it in the next update.",
       "fl": "FL06",
       "short": "Broker",
       "default_test": {
         "op": "gt",
         "value": 1000000000
-      }
+      },
+      "retired": "FL23"
     },
     {
       "id": "topacc",
@@ -1907,9 +1913,10 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Bandar Balance · Rupiah”; screens and presets that use this entry are moved over to it in the next update.",
       "fl": "FL07",
-      "short": "Top-N net"
+      "short": "Top-N net",
+      "retired": "FL25"
     },
     {
       "id": "buy_intensity",
@@ -1975,8 +1982,9 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL08"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Net Flow / Turnover Ratio”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL08",
+      "retired": "FL11"
     },
     {
       "id": "bandar",
@@ -2044,14 +2052,15 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Bandar Balance · %”; screens and presets that use this entry are moved over to it in the next update.",
       "fl": "FL09",
       "short": "Bandar",
       "default_test": {
         "op": "between",
         "value": 6,
         "value2": 100
-      }
+      },
+      "retired": "FL24"
     },
     {
       "id": "net_buy_hhi",
@@ -2106,8 +2115,9 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL10"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Concentration HHI · Net Buy”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL10",
+      "retired": "FL38"
     },
     {
       "id": "conc_gap",
@@ -2162,8 +2172,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL11"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Concentration HHI · Buy − Sell”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL11",
+      "retired": "FL14"
     },
     {
       "id": "breadth",
@@ -2219,8 +2230,9 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL12"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Broker Buy Breadth”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL12",
+      "retired": "FL22"
     },
     {
       "id": "bavg",
@@ -2286,8 +2298,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL13"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Buy VWAP · Rolling · Distance %”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL13",
+      "retired": "FL39"
     },
     {
       "id": "dominant_persistence",
@@ -2342,8 +2355,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL14"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Net Buy Persistence · Top Buyer”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL14",
+      "retired": "FL35"
     },
     {
       "id": "acc_days",
@@ -2409,8 +2423,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL15"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Bandar Balance · Accumulation Days”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL15",
+      "retired": "FL29"
     },
     {
       "id": "freq",
@@ -2468,14 +2483,15 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Activity Spike”; screens and presets that use this entry are moved over to it in the next update.",
       "fl": "FL16",
       "short": "Freq x",
       "default_test": {
         "op": "gt",
         "value": 2.5,
         "within": 3
-      }
+      },
+      "retired": "FL32"
     },
     {
       "id": "trade_size_change",
@@ -2532,8 +2548,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL17"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Transaction Size · Change %”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL17",
+      "retired": "FL33"
     },
     {
       "id": "crossing_share",
@@ -2572,8 +2589,9 @@
       },
       "decision": null,
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL18"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Crossing Share”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL18",
+      "retired": "FL30"
     },
     {
       "id": "inst_retail",
@@ -2611,8 +2629,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL19"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Institutional vs Retail Net”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL19",
+      "retired": "FL34"
     },
     {
       "id": "insider_net",
@@ -2649,8 +2668,9 @@
       },
       "decision": "Not in the first set of flow metrics: it comes in a later part of Phase 2.",
       "applies_to": null,
-      "unavailable_reason": "Flow metrics arrive with Phase 2 (all trading boards by default).",
-      "fl": "FL20"
+      "unavailable_reason": "Replaced by the Terminal's flow indicator “Insider Net Change”; screens and presets that use this entry are moved over to it in the next update.",
+      "fl": "FL20",
+      "retired": "FL31"
     },
     {
       "id": "cap",
@@ -3422,7 +3442,7 @@
     }
   ],
   "operators": {
-    "note": "The 15 universal operators of verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), as the page offers them: a measure (a transform of the series, operators 2, 3, 4, 6, 7, 12, 13, 14) and a test of the measured series (1, 15, 8, 5, 9, 10, 11). One source for the page's lists and the core's output-type rules (transforms.ts operatorTakes, condition.ts bindRank); a measure's unit gives the unit of its result ('diff': the unit of a difference of the series).",
+    "note": "The 15 universal operators of verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), as the page offers them: a measure (a transform of the series, operators 2, 3, 4, 6, 7, 12, 13, 14) and a test of the measured series (1, 15, 8, 5, 9, 10, 11). One source for the page's lists and the core's output-type rules (transforms.ts operatorTakes, condition.ts bindRank); a measure's unit gives the unit of its result ('diff': the unit of a difference of the series). types: the output types of OPERATORS.md section 4 (P and D also from the transform that makes them; every type from flow-kinds.json for the Terminal's flow indicators, EXEC-SCREENER-FLOW-CANDLES P5a); not_on lists the types a measure or test is not offered on (section 4), not_against_value the types a test takes only against a second series.",
     "types": {
       "P": {
         "fns": [
@@ -3436,6 +3456,30 @@
           "rising_run"
         ],
         "words": "is a count of consecutive sessions"
+      },
+      "K": {
+        "fns": [],
+        "words": "is a normalised value (a percent, a ratio or an index)"
+      },
+      "Rp": {
+        "fns": [],
+        "words": "is an amount (rupiah or lots), which grows with the stock's size"
+      },
+      "L": {
+        "fns": [],
+        "words": "is lots per transaction, which depend on the price per share and are not comparable with a fixed number"
+      },
+      "H": {
+        "fns": [],
+        "words": "is a price level, which is not comparable with a fixed value or across stocks"
+      },
+      "F": {
+        "fns": [],
+        "words": "is a 0/1 signal, which has no magnitude"
+      },
+      "B": {
+        "fns": [],
+        "words": "is a count of brokers"
       }
     },
     "measures": [
@@ -3452,7 +3496,8 @@
         },
         "not_on": [
           "P",
-          "D"
+          "D",
+          "F"
         ],
         "default": {
           "cmp": "ge",
@@ -3471,7 +3516,8 @@
         "help": "Where today's value stands among its own last N sessions, 0 to 100.",
         "unit": "percentile",
         "not_on": [
-          "P"
+          "P",
+          "F"
         ],
         "default": {
           "cmp": "ge",
@@ -3490,7 +3536,8 @@
         "help": "Today's value minus its value N sessions ago, in the series' own unit.",
         "unit": "diff",
         "not_on": [
-          "D"
+          "D",
+          "F"
         ],
         "default": {
           "cmp": "gt",
@@ -3505,7 +3552,8 @@
         "help": "The percent change over the last N sessions.",
         "unit": "percent",
         "not_on": [
-          "D"
+          "D",
+          "F"
         ],
         "default": {
           "cmp": "ge",
@@ -3525,7 +3573,8 @@
         "unit": "sd",
         "not_on": [
           "P",
-          "D"
+          "D",
+          "F"
         ],
         "default": {
           "cmp": "ge",
@@ -3547,7 +3596,9 @@
           "difference": "diff",
           "ratio": "ratio"
         },
-        "not_on": [],
+        "not_on": [
+          "F"
+        ],
         "second": true,
         "default": {
           "cmp": "gt",
@@ -3562,7 +3613,8 @@
         "help": "The straight-line trend of the last N sessions, per session.",
         "unit": "diff",
         "not_on": [
-          "D"
+          "D",
+          "F"
         ],
         "default": {
           "cmp": "gt",
@@ -3577,7 +3629,8 @@
         "help": "The slope of the last N sessions minus the slope of the N before.",
         "unit": "diff",
         "not_on": [
-          "D"
+          "D",
+          "F"
         ],
         "default": {
           "cmp": "gt",
@@ -3596,7 +3649,8 @@
           "percent": "percent"
         },
         "not_on": [
-          "D"
+          "D",
+          "F"
         ],
         "default": {
           "cmp": "ge",
@@ -3624,7 +3678,11 @@
           "ne"
         ],
         "default": {},
-        "short": ""
+        "short": "",
+        "not_on": [
+          "L",
+          "H"
+        ]
       },
       {
         "id": 15,
@@ -3636,7 +3694,12 @@
           "outside"
         ],
         "default": {},
-        "short": ""
+        "short": "",
+        "not_on": [
+          "L",
+          "H",
+          "F"
+        ]
       },
       {
         "id": 8,
@@ -3651,7 +3714,13 @@
         "default": {
           "n": 5
         },
-        "short": "cross"
+        "short": "cross",
+        "not_on": [
+          "F"
+        ],
+        "not_against_value": [
+          "L"
+        ]
       },
       {
         "id": 5,
@@ -3746,7 +3815,12 @@
             100
           ]
         },
-        "short": "rank"
+        "short": "rank",
+        "not_on": [
+          "L",
+          "H",
+          "F"
+        ]
       }
     ],
     "default_measure": "percentile"
