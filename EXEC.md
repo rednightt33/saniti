@@ -12685,6 +12685,20 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 8. Tumpang tindih yang disatukan supaya tidak dikerjakan dua kali: S6 (broker tidak disimpan dua kali) dan S7 (storage B)
    EXEC-PUBLISH-FLOW memakai format dasar + delta yang sama.
 
+### Fakta RAM screener-worker dan waktu publisher (log dan metrik Railway, 2026-11-07; jawaban pertanyaan user)
+- Data di RAM: satu salinan per replika untuk semua user (bar harga semua saham, `SharedArrayBuffer`), bukan per user.
+  Diunduh saat bangun (dari cache disk bila publikasi sama: `cached: disk`, 0 byte dari storage) atau saat publikasi
+  baru: xsection price 12.339.063 B + actions 21.214 B (deployment `ccb2c727`, log `refresh`).
+- Memori terukur saat hidup 0,47-0,62 GB, puncak 1,09 GB (metrik `MEMORY_USAGE_GB`, 2026-11-05..07); batas container
+  2,75 GB; cache 256 MiB (`SCREENER_CACHE_BYTES`); 2 thread hitung x 512 MB heap.
+- Tidur: 300 s tanpa request -> poll berhenti -> Railway menghentikan container. 11 masa hidup 10,9-26,1 menit, total
+  184 menit dalam ~25 jam (2026-11-06 13:22 .. 2026-11-07 14:45). Bangun: refresh ~20-25 s (baca disk 2,3 s, decode
+  3,6 s).
+- Tarif Railway (docs.railway.com/reference/pricing/plans): RAM $10/GB-bulan ($0,000231/GB-menit). 0,5 GB x 184 menit
+  ~ $0,02 per hari.
+- Waktu publisher: run tanpa data baru 215-242 s, harga saja 342 s (2026-11-06), hari broker 405 s (2026-11-03); jeda
+  `replaced_wait` 600 s sebelum run ulang. File tahunan broker menambah sekitar 1-3 menit (INFERENCE dari selisih).
+
 ### Keputusan user 2026-11-07 (kata user)
 - "Detail D -- exclude it for now pertanyaan yang kamu tanyakan arusan mengenai seberapa sering, da apakah data harga ikut
   pola yang sama sekarang." Kompaksi berkala dan harga tidak termasuk cakupan sekarang: hanya broker (saham dan IHSG).
