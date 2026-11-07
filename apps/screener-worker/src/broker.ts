@@ -10,7 +10,8 @@
    - The document (decodeBrokerDay), after sha256 and size (TerminalClient.file, inflateVerified): name and date equal
      the index name; columns exactly BROKER_COLUMNS; every column the same length; the tickers' rows add up to it and to
      check.rows; b, i, m indices inside brokers (sorted, distinct), investor_types and boards (the fixed lists of the
-     table's CHECK); bv, sv, bl, sl numbers; bf, sf whole numbers or null; check.bv and check.sv recomputed within
+     table's CHECK); within each ticker the rows strictly increasing in (broker, investor type, board) as text, the
+     primary key order publisher.py broker_day_doc writes (a duplicate or a reordered row is refused); bv, sv, bl, sl numbers; bf, sf whole numbers or null; check.bv and check.sv recomputed within
      CHECK_TOLERANCE (1e-6) relative. A failure is DATA_INTEGRITY naming the file, the refresh's failure as for a Phase 1
      file (the previous snapshot keeps serving, REFRESH_FAILED with the code).
    - The store (buildBrokerStore), once per replica in SharedArrayBuffer columns: per ticker of the price snapshot, its
@@ -70,6 +71,15 @@ export interface BrokerDay {
   bv: Float64Array; sv: Float64Array; bl: Float64Array; sl: Float64Array; bf: Float64Array; sf: Float64Array;
 }
 const sameList = (a: unknown, b: readonly string[]) => Array.isArray(a) && a.length === b.length && b.every((x, k) => a[k] === x);
+/** The place of each entry of a fixed table in the text order of its words (the primary key's order: 'Nego' before
+    'Regular' before 'Tunai', though the file's table lists Regular first). */
+const textRank = (table: readonly string[]): number[] => { const s = [...table].sort(); return table.map(x => s.indexOf(x)) };
+const INVESTOR_RANK = textRank(INVESTOR_TYPES), BOARD_RANK = textRank(BOARDS);
+/** Two rows of one ticker in the primary key's order (broker, investor type, board as text): negative when the first
+    comes before the second, 0 when the keys are equal. The broker index is in text order (brokers is checked sorted and
+    distinct). */
+const keyOrder = (b0: number, i0: number, m0: number, b1: number, i1: number, m1: number): number =>
+  b0 - b1 || INVESTOR_RANK[i0] - INVESTOR_RANK[i1] || BOARD_RANK[m0] - BOARD_RANK[m1];
 const near = (a: number, b: number) => a === b || Math.abs(a - b) <= CHECK_TOLERANCE * Math.max(Math.abs(a), Math.abs(b));
 
 /** The broker day file `name` (sha256 already verified), checked by the rules of the header; DATA_INTEGRITY naming the
@@ -118,12 +128,22 @@ export function decodeBrokerDay(doc: Columnar, name: string, sha256: string): Br
     if (typeof v !== 'number' || !Number.isSafeInteger(v)) throw fail(`has ${c} ${JSON.stringify(v)} in row ${r + 1}, not a whole number or null`);
     return v;
   };
-  let sumBv = 0, sumSv = 0;
+  let sumBv = 0, sumSv = 0, k = 0;
   for (let r = 0; r < n; r++) {
     if (!index(B[r], brokers.length)) throw fail(`has b ${JSON.stringify(B[r])} in row ${r + 1}, not an index into its ${brokers.length} brokers`);
     if (!index(I[r], INVESTOR_TYPES.length)) throw fail(`has i ${JSON.stringify(I[r])} in row ${r + 1}, not an index into investor_types`);
     if (!index(M[r], BOARDS.length)) throw fail(`has m ${JSON.stringify(M[r])} in row ${r + 1}, not an index into boards`);
     b[r] = B[r] as number; i[r] = I[r] as number; m[r] = M[r] as number;
+    // within a ticker the rows follow the primary key strictly (publisher.py broker_day_doc sorts by ticker, broker,
+    // investor type and board as text): a row equal to the one before is a duplicate, a smaller one is out of order
+    while (r >= starts[k + 1]) k++;
+    if (r > starts[k]) {
+      const c = keyOrder(b[r - 1], i[r - 1], m[r - 1], b[r], i[r], m[r]);
+      if (c >= 0) {
+        const words = (x: number) => `(${brokers[b[x]] as string}, ${INVESTOR_TYPES[i[x]]}, ${BOARDS[m[x]]})`;
+        throw fail(`has rows ${r} and ${r + 1} of ${tickers[k]} ${c === 0 ? 'with the same' : 'out of the'} primary key ${words(r - 1)}${c === 0 ? '' : ` then ${words(r)}`}: within a ticker the rows are distinct and ordered by broker, investor type and board as text, as the publisher writes them (a duplicate or a reordered row means the file was not written by broker_day_doc)`);
+      }
+    }
     bv[r] = value(BV[r], 'bv', r); sv[r] = value(SV[r], 'sv', r); bl[r] = value(BL[r], 'bl', r); sl[r] = value(SL[r], 'sl', r);
     bf[r] = count(BF[r], 'bf', r); sf[r] = count(SF[r], 'sf', r);
     sumBv += bv[r]; sumSv += sv[r];

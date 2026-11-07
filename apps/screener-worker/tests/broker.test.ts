@@ -91,6 +91,33 @@ test('integrity: each document rule refuses with DATA_INTEGRITY naming the file 
   assert.throws(() => decodeBrokerDay(f.doc, 'broker-2026-02-30', f.sha256), /not named broker-YYYY-MM-DD/);
 });
 
+test('integrity: within a ticker the rows follow the primary key strictly (broker, investor type, board as text, publisher.py broker_day_doc); a duplicate or a reordered row is DATA_INTEGRITY naming the rows and the ticker', async () => {
+  const rows: unknown[][] = [
+    ['T000', 'AK', 'Domestic', 'Nego', 300, 0, 3, 0, 1, 1, false],
+    ['T000', 'AK', 'Domestic', 'Regular', 1200, 800, 12, 8, 4, 2, false],
+    ['T000', 'AK', 'Foreign', 'Regular', 50, 20, 1, 1, 1, 1, false],
+    ['T000', 'BK', 'Domestic', 'Regular', 10, 10, 1, 1, 1, 1, false],
+    ['T001', 'AK', 'Domestic', 'Regular', 100, 200, 1, 2, 1, 1, false],
+  ];
+  const f = await fileOf(DATE, TICKERS, 1, rows);
+  const ok = decodeBrokerDay(f.doc, NAME, f.sha256);
+  // the board's text order is not its table's: Nego (index 1) comes before Regular (index 0)
+  assert.deepEqual([...ok.m].map(m => BOARDS[m]), ['Nego', 'Regular', 'Regular', 'Regular', 'Regular']);
+  const refused = (what: string, edit: (d: any) => void, message: RegExp) => {
+    const d = clone(f.doc);
+    edit(d);
+    d.check.bv = d.bv.reduce((s: number, v: number) => s + v, 0); d.check.sv = d.sv.reduce((s: number, v: number) => s + v, 0);
+    assert.throws(() => decodeBrokerDay(d, NAME, f.sha256), (e: unknown) => e instanceof DataError && e.code === 'DATA_INTEGRITY' && e.field === NAME && message.test(e.message), what);
+  };
+  const swap = (d: any, a: number, b: number) => { for (const c of ['b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'bf', 'sf']) [d[c][a], d[c][b]] = [d[c][b], d[c][a]] };
+  refused('a duplicate row', d => { for (const c of ['b', 'i', 'm']) d[c][1] = d[c][0] }, /has rows 1 and 2 of T000 with the same primary key \(AK, Domestic, Nego\)/);
+  refused('two boards in index order (Regular before Nego)', d => swap(d, 0, 1), /has rows 1 and 2 of T000 out of the primary key \(AK, Domestic, Regular\) then \(AK, Domestic, Nego\)/);
+  refused('two investor types reordered', d => swap(d, 1, 2), /has rows 2 and 3 of T000 out of the primary key \(AK, Foreign, Regular\) then \(AK, Domestic, Regular\)/);
+  refused('two brokers reordered', d => swap(d, 2, 3), /has rows 3 and 4 of T000 out of the primary key \(BK, Domestic, Regular\)/);
+  // the order restarts at each ticker: T001's first row (AK, Domestic, Regular) is smaller than T000's last (BK, ...)
+  assert.deepEqual([ok.rows, ok.tickers, [...ok.starts]], [5, ['T000', 'T001'], [0, 4, 5]]);
+});
+
 test('the window: the index entries named broker-YYYY-MM-DD with a real date, the newest 60 by date, newest first', () => {
   const entry = (k: number) => ({ key: `k${k}`, sha256: String(k % 10).repeat(64), bytes: 100 + k, rows: 1, as_of: null });
   const index: Record<string, ReturnType<typeof entry>> = { price: entry(1), actions: entry(2), broker_window: entry(3), 'broker-2026-02-30': entry(4), 'broker-x': entry(5) };
