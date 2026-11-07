@@ -45,8 +45,12 @@ P = `apps/edge-bff/screener/src/core/presets.json`.
 | inst_retail (2308) | FL19 (2819) | FL34 | DEFAULTS | boards all; T646 uses today's classification (no point-in-time guard) |
 | insider_net (2347) | FL20 (2834) | FL31 | SAME (insider part) | the major-holder part is lost |
 
-So 20 of the 22 entries have a Terminal equivalent (16 same or same with other defaults, 2 partial); `fnet` and
-`broker` have none. FL with no screener entry today: FL01-FL10, FL12, FL13, FL15-FL21, FL23 (partial only), FL40-FL48.
+So 21 of the 22 entries have a Terminal equivalent: 5 the same (silent, adv20_idr, trade_size_change, crossing_share,
+insider_net for its insider part), 14 the same formula with other defaults, 2 partial (`broker` -> FL23, `breadth` ->
+FL22); `fnet` has none. Counted from the Terminal side: 18 FL have a screener entry with the same formula (FL11 twice:
+`fpct` and `buy_intensity`), 2 only a partial one (FL22, FL23), and 28 none: FL01-FL10, FL12, FL13, FL15-FL21,
+FL40-FL48. (Corrected 2026-11-07: the first draft said 20 of 22 and named `broker` as having none, against its own
+table.)
 
 ## Presets that use flow entries (P)
 

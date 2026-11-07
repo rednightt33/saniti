@@ -12469,6 +12469,19 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   - B (hitungan broker): FL23 versi screener (seri a kumulatif, b harian, c ternormalisasi; keputusan B);
   - patokan N sesi ke belakang (keputusan D dan E): FL18, FL19, FL20, FL44, FL45.
 - Sudah ada (3): FL27 `silent`, FL28 `adv20_idr`, FL31 `insider_net` (dipetakan ke FL yang sama).
+- Koreksi 2026-11-07 (P0, peta `verification/screener/FLOW_MAP.md`): hitungan "45 belum ada" dan "3 sudah ada" di atas
+  salah. 18 FL sudah punya entri screener dengan rumus yang sama (sebagian dengan bawaan lain: papan, jendela, skala
+  x100): FL11, FL14, FL24-FL39; 2 hanya sebagian (FL22 breadth, FL23 broker); 28 belum ada: FL01-FL10, FL12, FL13,
+  FL15-FL21, FL40-FL48. Cakupan tidak berubah (48 FL masuk dari `flowRegistry.json`, P5), tetapi P5 mengganti 22
+  entri lama, sehingga butuh keputusan sebelum P5:
+  - G1 papan bawaan: registry memakai `["Regular"]` untuk setiap FL yang punya parameter papan, sedangkan P8 b memutuskan
+    semua papan; entri screener yang diturunkan dari registry harus memakai Regular, Nego, Cash.
+  - G2 kalender: candle Terminal memakai tanggal harga (baris broker tanpa bar harga dibuang), keputusan D12 memakai
+    sesi bursa; berbeda pada hari Nego saja (81 saham-hari dari 15 saham dalam 20 sesi) dan hari tanpa transaksi.
+  - G3 kedalaman: 60 sesi (K1); baseline 252 sesi FL05 lama tidak bisa dihitung.
+  - Sepuluh rumus lama tanpa padanan Terminal (FLOW_MAP.md, "Formulas that have no Terminal equivalent"), antara lain
+    `fnet` (net asing Rupiah D sesi) dan `broker` (net satu broker D sesi bergulir): dipertahankan sebagai entri
+    screener sendiri, dibangun ulang dengan operator, atau dihapus.
 - Lantai likuiditas ADV bawaan: FL03-FL06, FL08, FL10, FL13-FL15, FL36, FL46.
 - Penomoran: keputusan flow 2026-10-28 (D1-D14, P9) memakai nomor FL dari `verification/screener/AUDIT.md` 16.11, beda
   dari FL01-FL48 (bandar balance = FL09 AUDIT = FL24 Terminal; `insider_net` FL20 lama = FL31). Nilai yang sudah
