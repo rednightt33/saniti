@@ -32,7 +32,7 @@ import { canonicalJson, sha256Hex } from '../../../backtest/src/core/hash.ts';
 import type {
   Availability, ConditionDef, Definition, Grouping, MetricRef, Side, Test, TestForm, TestKind, UniverseDef, ValueTest,
 } from './contract.ts';
-import { CONDITION_ID } from './contract.ts';
+import { CONDITION_ID, VALUE_OPS, WINDOW_MODES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG, PRESETS, metricSpec, resolveCatalogParams, transformSpec } from './catalog.ts';
 import type { MetricDefinition, MetricsCatalog, PresetDefinition, TransformDefinition } from './catalog.ts';
@@ -106,6 +106,7 @@ const bool = (x: unknown, field: string, absent: boolean): boolean => {
 const REF_KEYS: Record<string, readonly string[]> = {
   indicator: ['kind', 'indicator', 'params', 'output'], price: ['kind', 'field'], transform: ['kind', 'fn', 'of', 'args'],
   pattern: ['kind', 'type', 'params'], flow: ['kind', 'metric', 'params'], xsection: ['kind', 'metric', 'params'], universe: ['kind', 'attr'],
+  rank: ['kind', 'of'],
 };
 /** Every metric reference of a test with its field (transform operands and reference arguments included), outer first. */
 function walkRefs(ref: unknown, field: string, visit: (r: MetricRef, field: string) => void): void {
@@ -114,6 +115,7 @@ function walkRefs(ref: unknown, field: string, visit: (r: MetricRef, field: stri
   if (!keys) throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be one of ${Object.keys(REF_KEYS).join(', ')}.`, `${field}.kind`, { allowed: Object.keys(REF_KEYS) });
   object(ref, field, keys, `a ${ref.kind} reference`);
   visit(ref as unknown as MetricRef, field);
+  if (ref.kind === 'rank') walkRefs(ref.of, `${field}.of`, visit);
   if (ref.kind === 'transform') {
     const spec = transformSpec(ref.fn, `${field}.fn`);
     walkRefs(ref.of, `${field}.of`, visit);
@@ -154,7 +156,12 @@ function checkRef(r: MetricRef, field: string, ctx: ValidateContext, enabled: bo
 const formRefusal = (field: string, what: string, allowed?: string[]) =>
   new ScreenerError('INVALID_CONDITION', `${field}: ${what}${allowed && allowed.length ? `; the catalog offers ${allowed.join(', ')}` : ''}.`, field, allowed ? { allowed } : undefined);
 /** The output's test form allows the operator (catalog tests[].ops), else INVALID_CONDITION with what it offers. */
-function requireForm(out: ScreenerOutput, id: string, form: TestForm, op: string, field: string, withOutput?: string): void {
+/** The operator of the overlay's form lists an operator belongs to (OPERATORS.md 1 and 15: the inclusive ge / le and
+    the exact eq / ne are the same test form as gt / lt, outside the same as between; the overlay lists gt, lt and
+    between). eq and ne need a whole-number value besides (condition.ts, K7). */
+const FORM_OP: Record<string, string> = { ge: 'gt', le: 'lt', eq: 'gt', ne: 'gt', outside: 'between' };
+function requireForm(out: ScreenerOutput, id: string, form: TestForm, op0: string, field: string, withOutput?: string): void {
+  const op = FORM_OP[op0] ?? op0;
   const spec = out.tests.find(t => t.form === form && (withOutput === undefined || t.with_output === withOutput));
   const offered = out.tests.flatMap(t => t.ops.map(o => `${t.form} ${o}${t.with_output ? ` with ${t.with_output}` : ''}`));
   const disabled = out.disabled_tests.find(d => d.form === form);
@@ -181,6 +188,7 @@ function entryAllows(m: MetricDefinition | null, kind: TestKind, field: string):
 /** VALUE: the metric's form (indicator output 'value'; pct_distance / band_position of an output; a transform, pattern
     or catalog metric by its tests). */
 function valueForm(m: MetricRef, op: string, field: string, ctx: ValidateContext): void {
+  if (m.kind === 'rank') return;                                     // operator 11: any series that compares across stocks (condition.ts bindRank)
   if (m.kind === 'indicator') { const { ind, out } = indOut(m); requireForm(out, ind.id, 'value', op, field); return }
   if (m.kind === 'transform' && (m.fn === 'pct_distance' || m.fn === 'band_position') && isObj(m.of) && (m.of as MetricRef).kind === 'indicator') {
     const { ind, out } = indOut(m.of as { indicator: string; output: string });
@@ -198,6 +206,7 @@ function compareForm(kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, 
   const pre = kind === 'state' ? 'state' : 'event';
   if (isVal(lhs)) throw formRefusal(`${field}.lhs`, 'the left side must be the metric and the right side the value or the second metric (never reordered)');
   const L = lhs as MetricRef, R = rhs as MetricRef;
+  if (L.kind === 'rank' || (!isVal(rhs) && R.kind === 'rank')) throw formRefusal(field, 'a rank across stocks is a value at the evaluation date: use a value test ({"kind":"value","metric":{"kind":"rank",...},"op":"ge","value":90})');
   if (L.kind === 'pattern' || (!isVal(rhs) && R.kind === 'pattern')) throw formRefusal(field, `a pattern is tested on its own: {"kind":"${kind}", ${kind === 'state' ? '"pattern"' : '"signal": {"pattern"'}: ...}`);
   if (L.kind === 'indicator') {
     const { ind, out } = indOut(L);
@@ -246,7 +255,8 @@ function compareForm(kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, 
 
 /* ---- tests ----------------------------------------------------------------------------------------------------------- */
 
-const VALUE_OPS = ['gt', 'lt', 'between'], STATE_OPS = ['gt', 'lt'], EVENT_OPS = ['crosses_above', 'crosses_below'];
+const STATE_OPS = ['gt', 'lt'], EVENT_OPS = ['crosses_above', 'crosses_below'];
+const TWO_BOUNDS = ['between', 'outside'];
 /** One test (a condition card's, a metric filter's or a My metric's), normalized. `enabled` false checks the shape and
     the parameters only (a switched-off condition may name a metric that is not available yet). */
 export function validateTest(input: unknown, field: string, ctx: ValidateContext, enabled = true): Test {
@@ -255,12 +265,12 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
   const refs = (ref: unknown, f: string) => walkRefs(ref, f, (r, rf) => checkRef(r, rf, ctx, enabled));
   if (kind === 'value') {
     const t = object(input, field, ['kind', 'metric', 'op', 'value', 'value2'], 'a value test');
-    if (!VALUE_OPS.includes(t.op as string)) throw new ScreenerError('INVALID_CONDITION', `${field}.op must be one of ${VALUE_OPS.join(', ')}.`, `${field}.op`, { allowed: VALUE_OPS });
+    if (!(VALUE_OPS as readonly string[]).includes(t.op as string)) throw new ScreenerError('INVALID_CONDITION', `${field}.op must be one of ${VALUE_OPS.join(', ')}.`, `${field}.op`, { allowed: [...VALUE_OPS] });
     finite(t.value, `${field}.value`);
-    if (t.op === 'between') {
-      finite(t.value2, `${field}.value2`, 'a number (the upper bound of between)');
-      if ((t.value as number) > (t.value2 as number)) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 must be at least the lower value (${t.value}): "between" includes both bounds, the lower one first, and never swaps them.`, `${field}.value2`);
-    } else if (has(t, 'value2')) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 is used only with the operator "between"; remove it.`, `${field}.value2`);
+    if (TWO_BOUNDS.includes(t.op as string)) {
+      finite(t.value2, `${field}.value2`, `a number (the upper bound of ${t.op})`);
+      if ((t.value as number) > (t.value2 as number)) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 must be at least the lower value (${t.value}): "${t.op}" takes the lower bound first, both bounds ${t.op === 'between' ? 'included' : 'excluded from the outside range'}, and never swaps them (right: 2 to 8; wrong: 8 to 2).`, `${field}.value2`);
+    } else if (has(t, 'value2')) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 is used only with the operators "between" and "outside"; remove it.`, `${field}.value2`);
     refs(t.metric, `${field}.metric`);
     valueForm(t.metric as MetricRef, t.op as string, `${field}.metric`, ctx);
   } else if (kind === 'state') {
@@ -293,7 +303,15 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
       sides(s, sf, refs);
       compareForm('event', s.lhs as Side, s.op as string, s.rhs as Side, sf, ctx);
     }
-  } else throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be value, state or event.`, `${field}.kind`, { allowed: ['value', 'state', 'event'] });
+  } else if (kind === 'window') {
+    const t = object(input, field, ['kind', 'mode', 'length', 'count', 'test'], 'a window test');
+    if (!(WINDOW_MODES as readonly string[]).includes(t.mode as string)) throw new ScreenerError('INVALID_CONDITION', `${field}.mode must be one of ${WINDOW_MODES.join(', ')}.`, `${field}.mode`, { allowed: [...WINDOW_MODES] });
+    const L = t.length;
+    if (typeof L !== 'number' || !Number.isInteger(L) || L < 1) throw new ScreenerError('INVALID_CONDITION', `${field}.length must be a whole number of sessions of at least 1 (at most ${ctx.limits.within_max}).`, `${field}.length`);
+    if (L > ctx.limits.within_max) throw new ScreenerError('LIMIT_EXCEEDED', `${field}.length is at most ${ctx.limits.within_max} sessions (the sessions the Screener keeps per series).`, `${field}.length`, { limit: 'within_max', allowed: ctx.limits.within_max, needed: L });
+    if (!isObj(t.test)) throw new ScreenerError('INVALID_CONDITION', `${field}.test must be the value test or state comparison counted over the window.`, `${field}.test`);
+    validateTest(t.test, `${field}.test`, ctx, enabled);
+  } else throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be value, state, event or window.`, `${field}.kind`, { allowed: ['value', 'state', 'event', 'window'] });
   // normalize through the binding: every reference resolved (parameters, arguments), and a bar field compared with a
   // transform only where the transform is a level of that field. A switched-off condition is bound too, so a shape the
   // binding refuses (a ratio without its `by`, vs_index of anything but the close, the close against a volume level) is
@@ -337,11 +355,13 @@ function normalizeRef(r: MetricRef, field: string, ctx: ValidateContext): Metric
       return (r.kind === 'pattern' ? { kind: 'pattern', type: spec.id, params } : { kind: r.kind, metric: spec.id, params }) as MetricRef;
     }
     case 'universe': return { kind: 'universe', attr: metricSpec('universe', r.attr, `${field}.attr`, ctx.metrics).id };
+    case 'rank': return { kind: 'rank', of: normalizeRef(r.of, `${field}.of`, ctx) };
   }
 }
 function normalizeTest(t: Test, field: string, ctx: ValidateContext): Test {
   const side = (s: Side, f: string): Side => isObj(s) && !has(s as Record<string, unknown>, 'kind') ? { value: (s as { value: number }).value } : normalizeRef(s as MetricRef, f, ctx);
-  if (t.kind === 'value') return { kind: 'value', metric: normalizeRef(t.metric, `${field}.metric`, ctx), op: t.op, value: t.value, ...(t.op === 'between' ? { value2: t.value2 } : {}) };
+  if (t.kind === 'value') return { kind: 'value', metric: normalizeRef(t.metric, `${field}.metric`, ctx), op: t.op, value: t.value, ...(TWO_BOUNDS.includes(t.op) ? { value2: t.value2 } : {}) };
+  if (t.kind === 'window') return { kind: 'window', mode: t.mode, length: t.length, ...(t.mode === 'at_least' ? { count: t.count } : {}), test: normalizeTest(t.test, `${field}.test`, ctx) as typeof t.test };
   if (t.kind === 'state') return 'pattern' in t && t.pattern ? { kind: 'state', pattern: normalizeRef(t.pattern, `${field}.pattern`, ctx) as never }
     : { kind: 'state', lhs: side((t as { lhs: Side }).lhs, `${field}.lhs`), op: (t as { op: 'gt' | 'lt' }).op, rhs: side((t as { rhs: Side }).rhs, `${field}.rhs`) };
   const s = t.signal as { pattern?: MetricRef; lhs?: Side; op?: 'crosses_above' | 'crosses_below'; rhs?: Side };
@@ -413,6 +433,7 @@ export function validateUniverse(input: unknown, field: string, ctx: ValidateCon
     const filters = u.metric_filters.map((t, i) => {
       const f = `${field}.metric_filters[${i}]`;
       if (!isObj(t) || t.kind !== 'value') throw new ScreenerError('INVALID_CONDITION', `${f} must be a value test ({"kind":"value", ...}): metric filters are values at the evaluation bar.`, `${f}.kind`, { allowed: ['value'] });
+      if (isObj(t.metric) && t.metric.kind === 'rank') throw new ScreenerError('INVALID_CONDITION', `${f}.metric: a rank across stocks is ranked within the filtered universe, so it cannot be one of the filters that make that universe; add it as a condition instead.`, `${f}.metric`);
       return validateTest(t, f, ctx) as ValueTest;
     });
     if (filters.length) out.metric_filters = filters;
@@ -480,9 +501,10 @@ export function presetAvailability(p: PresetDefinition, availability: ReadonlyMa
       const a = m ? availability.get(m.id) : undefined;
       if (m && a && a.availability !== 'AVAILABLE') legs.push({ leg, place, metric: m.label || m.id, a: a.availability, reason: a.reason });
     };
-    const each = (x: unknown) => { if (isObj(x) && typeof x.kind === 'string' && REF_KEYS[x.kind]) { visit(x as unknown as MetricRef); if (x.kind === 'transform') { each(x.of); if (isObj(x.args)) Object.values(x.args).forEach(each) } } };
+    const each = (x: unknown) => { if (isObj(x) && typeof x.kind === 'string' && REF_KEYS[x.kind]) { visit(x as unknown as MetricRef); if (x.kind === 'rank') each(x.of); if (x.kind === 'transform') { each(x.of); if (isObj(x.args)) Object.values(x.args).forEach(each) } } };
     const t = test as Record<string, unknown>;
     if (!isObj(t)) return;
+    if (t.kind === 'window') { look(leg, place, t.test); return }
     each(t.metric); each(t.lhs); each(t.rhs); each(t.pattern);
     if (isObj(t.signal)) { each(t.signal.lhs); each(t.signal.rhs); each(t.signal.pattern) }
   };

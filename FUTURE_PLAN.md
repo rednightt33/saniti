@@ -1288,3 +1288,8 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
 - **Keputusan user 2026-11-01:** "coba kita expand dulu ke 100 giga".
   - Dikerjakan 06:10 UTC: 60% terpakai, sisa sekitar 40 GB, cukup untuk sekitar 3 tahun pada laju sekarang.
   - Retensi dan merapikan ruang kosong tetap usulan.
+
+## SCREENER-FLOW-CANDLES — dipindah ke EXEC.md (2026-11-07)
+
+Usulan ini disetujui sebagai rencana (user 2026-11-07: "2A ... Jangan jalankan. Masukan exec.") dan kini ada di
+`EXEC.md` EXEC-SCREENER-FLOW-CANDLES.

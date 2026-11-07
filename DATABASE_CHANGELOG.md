@@ -1,5 +1,34 @@
 # Database changelog
 
+## 2026-11-07 — Feature 05 measured for the screener broker window (K6, read-only; no write)
+
+- **User:** "K6 boleh" (2026-11-07, EXEC-SCREENER-FLOW-CANDLES K6: one read-only check of `buy_freq`/`sell_freq` coverage
+  over the whole history and of the window file size, through the temporary Railway job runner).
+- **Job:** `verification/screener/k6/window_job.py` (params `window_params.json`) on orc-test-runner, job `972bb712`,
+  13:21-13:37 UTC (after B6), read-only session (`READONLY ["on"]`), `work_mem` 64 MB, no parallel workers; log
+  `verification/screener/k6/window.log`, runner record `window.run.txt`; `JOB_DONE`, `JOB_EXIT 0`, `VAR_REMOVED`.
+  Rehearsed first on a disposable local PostgreSQL 16 with 1.6 M synthetic rows of the same shape (peak 290 MB, a
+  killed connection reconnected once), counts cross-checked with separate SQL.
+- **Results (VERIFIED, from the log):**
+  - Universe: 908 securities, 907 not an index (862 stock, 45 fund).
+  - Window K1: the latest 60 Feature 05 dates, 2026-08-10 .. 2026-11-03, every one `COMPLETE` in
+    `broker_summary_date_quality`; 1,499,354 rows (median 24,916 a session; universe codes 1,473,361, median 868
+    tickers); 60 per-date reads took 15.3 s (median 66 ms, the first cold 5.2 s).
+  - File size, encoded as `publisher.encode` (columnar JSON, gzip 9; the streamed text equals `json.dumps` of the same
+    document, `encode_check` same_text true, equal gzip size), columns ticker + the broker file's ten: 20 sessions 5.58
+    MB; 41 sessions 11.65 MB; 60 sessions 17.06 MB gzip (120.4 MB of JSON text, 11.6 bytes a row); every F05 code 60
+    sessions 17.31 MB.
+  - `buy_freq`/`sell_freq` over the whole history (2016-01-04 .. 2026-11-03, 131 months, 46,362,460 rows): 2,174,694 rows
+    without a frequency, all of codes that are not four letters (warrants, rights; none since 2026-08-31); four-letter
+    codes and current-universe codes: 0 rows without a frequency in every month. `broker_summary_date_quality`: 2,601
+    dates `COMPLETE`, 5 `UNCHECKED` (the first week of 2016), `stock_freq_share` 1 on every date.
+- **For the screener (P4, INFERENCE from these figures and the worker limits):** the 60-session file (17.06 MB) fits the
+  24 MB per-file cap, but with the Phase 1 files (11.77 MB) a first refresh would download about 28.8 MB, above the
+  24 MB per-refresh cap, and 120 MB of JSON text is a large share of the worker's 512 MB heap to parse. P4 needs a
+  more compact encoding or a decision on the caps (EXEC-SCREENER-FLOW-CANDLES).
+- **Postgres memory:** a read of millions of rows is a large update (AGENTS.md); the job's own restart step could not
+  read Railway (`KeyError: 'RAILWAY_TOKEN'`); the restart check is recorded in `RAILWAY_CHANGELOG.md` (2026-11-07).
+
 ## 2026-11-06 — EDGE Terminal indicator presets (schema `edge_bff`, EXEC-IND-PRESETS) — applied on dev
 
 - **User:** "opsi untuk men-save indikator beserta dengan filternya ... Mungkin bisa di-save di bagian indicators" and,

@@ -95,7 +95,7 @@ describe('transform references', () => {
     expect(() => noIndex.full(T)).toThrow(RangeError);
   });
   it('refuses an unknown fn, an argument out of range, an unknown argument and a non-level for pct_distance, naming the field', () => {
-    const e1 = refusal(() => resolveSeries({ kind: 'transform', fn: 'zscore', of: close } as any, 'definition.conditions[0].test.metric', OPTS));
+    const e1 = refusal(() => resolveSeries({ kind: 'transform', fn: 'no_such_fn', of: close } as any, 'definition.conditions[0].test.metric', OPTS));
     expect([e1.code, e1.field, (e1.details as any).allowed]).toEqual(['INVALID_CONDITION', 'definition.conditions[0].test.metric.fn', expect.arrayContaining(['pct_distance', 'vs_index'])]);
     const e2 = refusal(() => resolveSeries({ kind: 'transform', fn: 'lag', of: close, args: { bars: 0 } }, 'm', OPTS));
     expect([e2.code, e2.field, e2.details]).toEqual(['PARAM_OUT_OF_RANGE', 'm.args.bars', { field: 'm.args.bars', min: 1, max: 260, exclusive_min: false, integer: true }]);

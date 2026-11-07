@@ -10,7 +10,7 @@ import { esc, fmtValue, nf, sectorTag, sgn, slug, tone } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, evalDate, freshUniverse, S, ui, type Row } from './state.ts';
 import { condText, isCustom, optOf, paramSummary, shortName, shortPv, type Card } from './forms.ts';
-import { cellTitle, chg1dBreakText, eventText, extraCellView, extraColumnTitle, remarkBadge, remarkTitle, staleValueText, T } from './texts.ts';
+import { cellTitle, chg1dBreakText, extraCellView, extraColumnTitle, remarkBadge, remarkTitle, staleValueText, T } from './texts.ts';
 import { formatOfOpt, formatOfSide } from './entries.ts';
 import { pageCardOf, screenedCards } from './run.ts';
 import { colorOf } from './builder.ts';
@@ -23,6 +23,7 @@ import { applyTable } from './layout/table.ts';
 import { layoutHooks } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
+import { cellText, kindOfCard as kindOf } from './cell-text.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -35,7 +36,7 @@ export function cellKey(c: Cell | undefined, kind: string | undefined): number |
   if (kind === 'state') return (c.status === 'pass' ? 1 : 0) * 1e15 + (c.lhs ?? 0) / 1e3;
   return c.value ?? null;
 }
-const kindOfCard = (c: Card) => { const e = entryOf(c); const o = e && optOf(e, c); return o?.kind || (c.raw as any)?.kind };
+const kindOfCard = (c: Card) => kindOf(c, entryOf(c));
 function rowVal(r: Row, key: string): number | string | null {
   switch (key) {
     case 'match': return r.met + (r.status === 'match' ? 100 : 0);
@@ -82,14 +83,9 @@ const orderOf = () => `${ctx.R?.defHash}|${ctx.R?.run?.versions.price_data}|${S.
 function cellHtml(r: Row, c: Card): string {
   const x = cellOf(r, c.id), e = entryOf(c), o = e && optOf(e, c), kind = kindOfCard(c);
   if (!x) return `<td class="fail" title="Not in this result"><span>—</span></td>`;
-  let txt: string;
-  if (x.status === 'na') txt = 'n/a';
-  else if (x.status === 'not_evaluated') txt = '·';
-  // an event that did not happen within reach fails as "No", like a state (user 2026-11-06: "Dengan tulisan no"); one that
-  // happened, but earlier than the window, keeps "N sessions ago"
-  else if (kind === 'event') txt = x.status !== 'pass' && x.bars_ago == null ? 'No' : eventText(x);
-  else if (kind === 'state') txt = x.status === 'pass' ? 'Yes' : 'No';
-  else txt = fmtValue(x.value, formatOfOpt(e, o));
+  // the one cell text (cell-text.ts): an event that did not happen within reach fails as "No", like a state (user
+  // 2026-11-06: "Dengan tulisan no"); one that happened, but earlier than the window, keeps "N sessions ago"
+  const txt = cellText(e, c, x);
   const side = formatOfSide(e, o);
   const tip = [
     kind === 'state' && x.lhs != null ? `${fmtValue(x.lhs, side)} vs ${fmtValue(x.rhs, side)}` : '',

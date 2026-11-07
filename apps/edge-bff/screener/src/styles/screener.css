@@ -1478,7 +1478,9 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qrtitle{font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3);padding:6px 10px 4px}
 .qwin-l{min-height:0;overflow:auto;padding:0 var(--s-6) var(--s-6);overscroll-behavior:contain}
 .qcols,.qrow{display:grid;grid-template-columns:minmax(0,1fr) 236px 224px 268px 88px;column-gap:12px;align-items:center}
-.qcols{position:sticky;top:0;z-index:3;align-items:end;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+/* the column titles share one middle line: the two-line "Parameters & threshold" title is centred against the one-line
+   titles (user 2026-11-07, "ini sepertinya tidak middle line"; EXEC-SCREENER-TIDY) */
+.qcols{position:sticky;top:0;z-index:3;align-items:center;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
 .qcols em{display:block;margin:2px 0 0;font-style:normal;font-weight:var(--fw-medium);letter-spacing:0;text-transform:none;color:var(--blue)}
 .qrow{min-height:54px;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);cursor:pointer}
 .qrow:hover,.qrow.act{background:var(--surface-2)}
@@ -1510,6 +1512,11 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qpl{display:grid;grid-template-columns:120px auto 1fr;align-items:center;gap:8px}
 .qpl .lab{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qpl .sel{min-width:96px}
+/* the universal operators' selects (P3): their options are phrases ("On K of the last N sessions"), not one word */
+.qpl .sel.qop{min-width:240px;max-width:300px}
+/* a tall operator panel scrolls inside itself on a short screen; on a narrow one its selects take the line (QA5 D6) */
+.qpop{max-height:min(80vh,720px);overflow:auto}
+@media (max-width:640px){.qpl{grid-template-columns:96px minmax(0,1fr)}.qpl .def{grid-column:2}.qpl .sel.qop{min-width:0;width:100%}.qpop{max-width:calc(100vw - 24px)}}
 .qpl .def{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
 .qsep{border-top:1px dashed var(--border)}
 .qpf{display:flex;justify-content:space-between;align-items:center}

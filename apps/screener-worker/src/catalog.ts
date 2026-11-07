@@ -15,7 +15,7 @@
      a preset click is a cache hit; 6.7, 6c.4). */
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
-import type { Availability, CatalogMetric, CatalogPreset, CatalogResponse, Grouping, LimitEntry, Periods, RefreshState, UniverseResponse } from '../../edge-bff/screener/src/core/contract.ts';
+import type { Availability, CatalogMetric, CatalogOperators, CatalogParam, CatalogPreset, CatalogResponse, Grouping, LimitEntry, Periods, RefreshState, UniverseResponse } from '../../edge-bff/screener/src/core/contract.ts';
 import type { MetricDefinition, MetricsCatalog } from '../../edge-bff/screener/src/core/catalog.ts';
 import { INDICATORS, capOf, catalogIndicators } from '../../edge-bff/screener/src/core/registry.ts';
 import { availabilityMap } from '../../edge-bff/screener/src/core/validate.ts';
@@ -111,8 +111,19 @@ export function catalogDoc(c: CatalogInput): Doc {
     limits: limitEntries(c.limits),
     indicators: catalogIndicators({ capBudgetMs: c.limits.cap_budget_ms }),
     metrics, fundamentals, periods: c.metrics.periods as Periods, groupings: c.groupings, presets: c.presets,
+    operators: catalogOperators(c.metrics),
   };
   return doc(body);
+}
+/** The operators block of screener-metrics.json for the page, each measure with its transform's arguments (their
+    ranges and defaults are the transform's, so the page offers exactly what validate.ts accepts). */
+export function catalogOperators(m: MetricsCatalog): CatalogOperators {
+  const o = m.operators;
+  return {
+    types: o.types,
+    measures: o.measures.map(x => ({ ...x, args: (m.transforms.find(t => t.fn === x.fn)?.args ?? []).map(a => ({ ...a })) as CatalogParam[] })),
+    tests: o.tests.map(t => ({ ...t })), default_measure: o.default_measure,
+  };
 }
 export function universeDoc(desc: SnapshotDesc): Doc {
   const body: UniverseResponse = { versions: { ...desc.versions }, data: { ...desc.data }, rows: desc.rows };

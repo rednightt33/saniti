@@ -1,5 +1,40 @@
 # Railway changelog
 
+## 2026-11-07 — orc-test-runner: the K6 read-only Feature 05 measurement (job `972bb712`)
+
+- **Go:** user 2026-11-07 "K6 boleh" (EXEC-SCREENER-FLOW-CANDLES K6: one read-only database check through the temporary
+  job runner).
+- **What ran:** `scripts/onboarding/run_job.sh verification/screener/k6/window_job.py verification/screener/k6/window_params.json
+  verification/screener/k6/window.log` at 13:21 UTC (after B6), with the Railway CLI on the proxy's account credential
+  (`RAILWAY_TOKEN` unset for the run: the project-token header and the proxy's own credential cannot be combined).
+  The runner guard found the runner free (its last job `122d4b0d` had ended with `JOB_EXIT 0`).
+- **Variable:** `DATABASE_URL` on orc-test-runner (dev) set as the reference `${{Postgres.DATABASE_URL}}` with
+  `--skip-deploys` for the run and removed after it: `VAR_REMOVED` (no value written or printed).
+- **Deployment:** orc-test-runner `972bb712-a54d-4a39-9fd0-d05dd4301c95`, `JOB_DONE`, `JOB_EXIT 0` at about 13:36 UTC
+  (job time 889 s). Results: `DATABASE_CHANGELOG.md` 2026-11-07.
+- **Postgres restart:** the job's own step (`large_write`) could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, as on
+  2026-11-06), so no restart came from it. The check through `scripts/restart_postgres.py` (run unchanged with the
+  proxy's credential) at 13:38 UTC refused it: postgres-memory-cron runs at 13:45 UTC (within 45 minutes); memory
+  0.996 GB, 0 statements, 0 user runs. Checked again at 14:32 UTC: refused `memory_low`, memory 0.080 GB (below the
+  0.8 GB threshold, nothing to free), 0 statements, 0 user runs. No restart was needed after K6.
+
+## 2026-11-06 — edge-bff from `main` `99fe0daa`: "Add a condition" labels give way before fields (PR #58)
+
+- **Change:** CSS only. A blue box never shrinks its field; when the line is short of room, the label gives way (ellipsis,
+  full name in its title). Also the records of PR #57. No backend, variable, migration or database change.
+- **Go:** within the user's go of 2026-11-06 "Ok, implement versi ini lalu go merge" (a defect of that version, found
+  by its live check). PR rednightt33/saniti#58 merged 16:39 UTC (merge commit `99fe0daa`).
+- **Deployment (Railway API):** edge-bff `9f0322b3-ae5f-4a8e-8471-44291347295a` SUCCESS, created 16:39:03 UTC, commit
+  `99fe0daa`.
+- **edge-bff (verified from the live service):** `index.html`, `assets/index-K21MnYw1.js` and `assets/style-Ck8ppa0U.css`
+  are byte-equal to the local build (sha256 `f321fe190670906a…`, `d2bc1247d964de94…`).
+- **Signed-in check:**
+  - 0 of 128 rows overflow at 1440 and 1100 (before: "Volume spike" 284 > 268 px, "New N-session high of a line" 278 >
+    268 px); Volume spike's labels end in an ellipsis with the full name in the title;
+  - RSI "Customize 3", the panel, Escape and "already on the screen" as in PR #57;
+  - no 5xx response.
+- **Rollback:** redeploy edge-bff `1b3fc3a0-c200-4831-8a4a-815b046ecf43` (commit `e0cfb700`), or revert merge `99fe0daa`.
+
 ## 2026-11-06 — edge-bff from `main` `e0cfb700`: "Add a condition" Customize for more than two blue boxes (PR #57)
 
 - **Change:**

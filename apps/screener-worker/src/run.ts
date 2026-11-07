@@ -165,6 +165,7 @@ export function costUnits(ref: unknown): CostUnit[] {
       return [...inner, { key: `transform:${String(ref.fn)}`, costClass: 'O(N·n)', length: maxNumber(ref.args) }];
     }
     case 'pattern': return [{ key: `pattern:${String(ref.type)}`, costClass: 'O(N·n)', length: maxNumber(ref.params) }];
+    case 'rank': return costUnits(ref.of);                     // operator 11: the ranked series is what is computed
   }
   return [];
 }
@@ -191,7 +192,8 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
     if (!c.enabled) return [];
     const b = bindCondition(c, `definition.conditions[${k}]`, ctx);
     const stage = b.xsection ? 'S1' : b.universeAttr !== null || b.series.every(pinned) ? 'S2' : 'S3';
-    const predictedMs = stage === 'S3' ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg), 0) : 0;
+    // a rank across stocks (S1, operator 11) computes its series on every survivor: costed as screen.ts does
+    const predictedMs = stage === 'S3' || b.xsection?.rankOf ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg), 0) : 0;
     return [{ id: c.id, stage, predictedMs, evaluate: () => { throw new Error('estimate only') } }];
   });
   const est = costEstimate(conds, survivors.length);
@@ -348,7 +350,8 @@ export function definitionRefs(d: Definition | undefined): MetricRef[] {
   const out: MetricRef[] = [];
   const add = (s: unknown) => { if (obj(s) && typeof s.kind === 'string') out.push(s as unknown as MetricRef) };
   for (const c of d?.conditions ?? []) {
-    const t = c?.test as unknown as Record<string, any> | undefined;
+    let t = c?.test as unknown as Record<string, any> | undefined;
+    if (t?.kind === 'window') t = t.test;                     // operators 5, 9, 10: the inner comparison's references
     if (!t) continue;
     if (t.kind === 'value') add(t.metric);
     else if (t.kind === 'state') { add(t.lhs); add(t.rhs); add(t.pattern) }

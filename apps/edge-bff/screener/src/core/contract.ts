@@ -127,7 +127,14 @@ export interface FlowRef { kind: 'flow'; metric: string; params: { window: numbe
 export interface XsectionRef { kind: 'xsection'; metric: string; params?: { window?: number } & Record<string, ParamValue> }
 /** A universe attribute (last, chg_1d_pct, adv20_idr, bars, ...; screener-metrics.json). */
 export interface UniverseRef { kind: 'universe'; attr: string }
-export type MetricRef = IndicatorRef | PriceRef | TransformRef | PatternRef | FlowRef | XsectionRef | UniverseRef;
+/** Operator 11, Ranking / Cross-Sectional (EXEC-SCREENER-FLOW-CANDLES P2; verification/screener/OPERATORS.md): the
+    percent rank, 0-100, of a series' value at each ticker's evaluation bar against the population of decision C (user
+    2026-11-07): the stocks of the user's own filtered universe (after the universe filters, before the conditions)
+    whose value is not missing; xsection.ts percentRank. A VALUE test only; not a metric filter (the population is the
+    filtered universe itself) and not inside a window test. The fixed-population return_rank (K3) is a separate
+    metric. */
+export interface RankRef { kind: 'rank'; of: MetricRef }
+export type MetricRef = IndicatorRef | PriceRef | TransformRef | PatternRef | FlowRef | XsectionRef | UniverseRef | RankRef;
 export type MetricKind = MetricRef['kind'];
 
 /** A constant side of a STATE or EVENT comparison. */
@@ -137,7 +144,12 @@ export type Side = MetricRef | ValueSide;
 /** VALUE (report 6.9): the metric at the evaluation bar. gt/lt strict; between inclusive (value <= x <= value2) and
     counted as one condition; value > value2 is refused with INVALID_CONDITION field value2, never reordered (I7);
     value = value2 is accepted (TEST PLAN 10b.3). */
-export interface ValueTest { kind: 'value'; metric: MetricRef; op: 'gt' | 'lt' | 'between'; value: number; value2?: number }
+export interface ValueTest { kind: 'value'; metric: MetricRef; op: ValueOp; value: number; value2?: number }
+/** VALUE operators (OPERATORS.md operators 1 and 15): gt, lt strict; ge, le inclusive; eq, ne only on a whole-number
+    series (K7: a count such as rising_run or a universe attribute in sessions); between inside, both bounds included;
+    outside: x < value or x > value2. between and outside take value <= value2 (never reordered). */
+export type ValueOp = 'gt' | 'lt' | 'ge' | 'le' | 'eq' | 'ne' | 'between' | 'outside';
+export const VALUE_OPS: readonly ValueOp[] = ['gt', 'lt', 'ge', 'le', 'eq', 'ne', 'between', 'outside'];
 /** STATE (report 6.9): compare(lhs, op, rhs)[at] with the core's rules (bar 0 never true, NaN false). price vs an
     output only where the output is level_comparable (its comparable_with field); a pattern state is true on `at`. */
 export interface StateCompare { kind: 'state'; lhs: Side; op: 'gt' | 'lt'; rhs: Side }
@@ -150,7 +162,20 @@ export type StateTest = StateCompare | StatePattern;
 export interface EventCross { lhs: Side; op: 'crosses_above' | 'crosses_below'; rhs: Side }
 export interface EventPattern { pattern: PatternRef }
 export interface EventTest { kind: 'event'; signal: EventCross | EventPattern; within: number }
-export type Test = ValueTest | StateTest | EventTest;
+/** Operators 5, 9 and 10 (OPERATORS.md: Ever / Lookback, Persistence / Frequency, Consecutive / Streak) over an inner
+    test on the ticker's own bars (a VALUE test, a STATE comparison or pattern, or an EVENT cross or pattern with within
+    1: the cross on that session, operator 8; a rank across stocks is not taken inside a window), on the `length` sessions ending at the evaluation bar:
+    - ever: the inner test passes on at least one of them;
+    - at_least: on at least `count` of them (1 <= count <= length);
+    - streak: on each of the last `length` sessions (a session where the inner test is n/a breaks the run).
+    A session where the inner test is n/a counts as not passing; the test is n/a only when the inner test is n/a on
+    every one of the sessions. length 1..within_max (the evaluation tail). The cell's value is the number of passing
+    sessions in the window (streak: the run ending at the evaluation bar, at most length); event_date and bars_ago name
+    the latest passing session. */
+export interface WindowTest { kind: 'window'; mode: WindowMode; length: number; count?: number; test: ValueTest | StateTest | EventTest }
+export type WindowMode = 'ever' | 'at_least' | 'streak';
+export const WINDOW_MODES: readonly WindowMode[] = ['ever', 'at_least', 'streak'];
+export type Test = ValueTest | StateTest | EventTest | WindowTest;
 export type TestKind = Test['kind'];
 
 /** One condition card. id ^[0-9a-z]{1,6}$, unique in the definition; at most max_conditions enabled. */
@@ -489,7 +514,21 @@ export interface CatalogResponse {
   periods: Periods;
   groupings: Grouping[];             // the Backtest's groupingsOf over ref/tickers.json.gz; unclassified counted apart
   presets: CatalogPreset[];
+  /** additive (EXEC-SCREENER-FLOW-CANDLES P3): the universal operators the page offers (screener-metrics.json
+      operators, each measure with its transform's arguments); absent from an older worker, whose page offers none */
+  operators?: CatalogOperators;
 }
+/** The universal operators of verification/screener/OPERATORS.md as the page offers them: measures (a transform of the
+    condition's series, with the transform's arguments and the unit of its result) and tests (how the measured series
+    is tested), plus the output types a series made by a transform has (types). */
+export interface CatalogOperators {
+  types: Record<string, { fns: string[]; words: string }>;
+  measures: { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; short?: string; default: { cmp: string; value: number; range?: [number, number] }; args: CatalogParam[] }[];
+  tests: { id: number; key: OperatorTestKey; label: string; help: string; ops: string[]; within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
+    short?: string; default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number; range?: [number, number] } }[];
+  default_measure: string;
+}
+export type OperatorTestKey = 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank';
 /** One ticker of the universe, for the page's popover counts (it runs universe.ts on these rows, the worker runs the
     same function in S0; report 8.4). Every listed stock is in it, hidden ones included, so the chips can count what
     they hide (P4). */
