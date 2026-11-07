@@ -3456,8 +3456,13 @@
         ],
         "default": {
           "cmp": "ge",
-          "value": 10
-        }
+          "value": 10,
+          "range": [
+            -5,
+            5
+          ]
+        },
+        "short": "vs avg"
       },
       {
         "id": 3,
@@ -3470,8 +3475,13 @@
         ],
         "default": {
           "cmp": "ge",
-          "value": 90
-        }
+          "value": 90,
+          "range": [
+            20,
+            80
+          ]
+        },
+        "short": "pctl"
       },
       {
         "id": 4,
@@ -3485,7 +3495,8 @@
         "default": {
           "cmp": "gt",
           "value": 0
-        }
+        },
+        "short": "chg"
       },
       {
         "id": 4,
@@ -3498,8 +3509,13 @@
         ],
         "default": {
           "cmp": "ge",
-          "value": 5
-        }
+          "value": 5,
+          "range": [
+            -5,
+            5
+          ]
+        },
+        "short": "chg %"
       },
       {
         "id": 6,
@@ -3513,14 +3529,19 @@
         ],
         "default": {
           "cmp": "ge",
-          "value": 2
-        }
+          "value": 2,
+          "range": [
+            -1,
+            1
+          ]
+        },
+        "short": "z"
       },
       {
         "id": 7,
         "fn": "relative",
         "label": "Compared with another series",
-        "help": "The difference or ratio to a second series of the same unit.",
+        "help": "The difference or ratio to a second series of the same unit. To test a cross of the two series, use the difference with \"Crosses a value\" at 0.",
         "unit": {
           "by": "form",
           "difference": "diff",
@@ -3531,7 +3552,8 @@
         "default": {
           "cmp": "gt",
           "value": 0
-        }
+        },
+        "short": "vs"
       },
       {
         "id": 12,
@@ -3545,7 +3567,8 @@
         "default": {
           "cmp": "gt",
           "value": 0
-        }
+        },
+        "short": "slope"
       },
       {
         "id": 13,
@@ -3559,7 +3582,8 @@
         "default": {
           "cmp": "gt",
           "value": 0
-        }
+        },
+        "short": "accel"
       },
       {
         "id": 14,
@@ -3576,8 +3600,13 @@
         ],
         "default": {
           "cmp": "ge",
-          "value": -5
-        }
+          "value": -5,
+          "range": [
+            -10,
+            0
+          ]
+        },
+        "short": "to hi/lo"
       }
     ],
     "tests": [
@@ -3594,7 +3623,8 @@
           "eq",
           "ne"
         ],
-        "default": {}
+        "default": {},
+        "short": ""
       },
       {
         "id": 15,
@@ -3605,10 +3635,8 @@
           "between",
           "outside"
         ],
-        "default": {
-          "value": 20,
-          "value2": 80
-        }
+        "default": {},
+        "short": ""
       },
       {
         "id": 8,
@@ -3622,7 +3650,8 @@
         "within": true,
         "default": {
           "n": 5
-        }
+        },
+        "short": "cross"
       },
       {
         "id": 5,
@@ -3635,12 +3664,15 @@
           "ge",
           "le",
           "crosses_above",
-          "crosses_below"
+          "crosses_below",
+          "between",
+          "outside"
         ],
         "length": true,
         "default": {
           "n": 5
-        }
+        },
+        "short": "ever"
       },
       {
         "id": 9,
@@ -3653,14 +3685,17 @@
           "ge",
           "le",
           "crosses_above",
-          "crosses_below"
+          "crosses_below",
+          "between",
+          "outside"
         ],
         "length": true,
         "count": true,
         "default": {
           "n": 5,
           "k": 3
-        }
+        },
+        "short": "K of N"
       },
       {
         "id": 10,
@@ -3671,7 +3706,9 @@
           "gt",
           "lt",
           "ge",
-          "le"
+          "le",
+          "between",
+          "outside"
         ],
         "length": true,
         "default": {
@@ -3679,7 +3716,8 @@
         },
         "not_on": [
           "D"
-        ]
+        ],
+        "short": "in a row"
       },
       {
         "id": 11,
@@ -3703,7 +3741,8 @@
         "default": {
           "cmp": "ge",
           "value": 90
-        }
+        },
+        "short": "rank"
       }
     ],
     "default_measure": "percentile"

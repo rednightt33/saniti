@@ -7,7 +7,7 @@ import type {
   ConditionDef, IndicatorRef, MetricRef, ParamMap, ParamValue, Side, Test, TestOp, ValueTest,
 } from './core/contract.ts';
 import { defaultParams, isDefP, OPLABEL, optionText, type Entry, type Opt } from './entries.ts';
-import { opErrors, opFromTest, opTest, opText, type OpState } from './operators.ts';
+import { opErrors, opFromTest, opShort, opTest, opText, type OpState } from './operators.ts';
 
 export interface Card {
   id: string;                  // ^[0-9a-z]{1,6}$, unique in the screen
@@ -297,5 +297,10 @@ export function condRule(e: Entry | undefined, c: Card): string {
 /** parameter summary (the prototype's paramSummary) */
 export const paramSummary = (e: Entry, p: ParamMap) => e.params.map(x => `${x.label || x.key} ${optionText(x, p[x.key])}${String(p[x.key]) !== String(x.default) ? ` (default ${optionText(x, x.default)})` : ''}`).join(' · ');
 /** the column header's short name and its parameter pill (the prototype's shortName, shortPv) */
-export const shortName = (e: Entry | undefined, c: Card) => c.metric?.name || (e ? e.short : cardName(e, c));
+export const shortName = (e: Entry | undefined, c: Card) => {
+  const base = c.metric?.name || (e ? e.short : cardName(e, c));
+  // an operator card names its measure and test (QA5 D2: four RSI operators under one "RSI 14" header)
+  const op = c.op && e?.ops ? opShort(e.ops, c.op) : '';
+  return op ? `${base} · ${op}` : base;
+};
 export const shortPv = (e: Entry | undefined, c: Card) => e ? e.params.filter(p => p.type !== 'enum' && p.type !== 'boolean').map(p => c.params[p.key]).join('/') : '';

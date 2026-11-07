@@ -378,13 +378,21 @@ await at('Operators (P3): "Operator…" opens Customize with Measure and Test fr
   await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
   await page.keyboard.press('Escape'); await page.waitForTimeout(150);
   const sums = await page.locator('#condList .mc[data-card] .msum').allInnerTexts();
-  expect(sums.length === 3 && /percentile of its own history \(60\) ≥ 50/.test(sums[0]) && /≥ 50 on 3 of the last 5 sessions/.test(sums[1]) && /rank among the screened stocks ≥ 90/.test(sums[2]),
+  expect(sums.length === 3 && /Percentile of its own history, 60 sessions ≥ 50/.test(sums[0]) && /≥ 50 on 3 of the last 5 sessions/.test(sums[1]) && /rank among the screened stocks ≥ 90/.test(sums[2]),
     'the cards do not state their operators: ' + JSON.stringify(sums));
   expect(await runs() === r0, 'adding operators ran the screen');
   await page.click('[data-logic="any"]'); await page.waitForTimeout(150);
   await screen();
   const cells = await page.locator('#resPane tbody tr').first().locator('td').allInnerTexts();
   expect(cells.some(c => /^(Yes|No) · \d+\/5$/.test(c.trim())), 'the K of N cell does not read "Yes · k/5" or "No · k/5": ' + JSON.stringify(cells));
+  // the column headers name the operator (QA5 D2), and the preview's "Why it passed" writes each cell as the table does
+  // (QA5 D1: one cell text, cell-text.ts)
+  const heads = (await page.locator('#resPane thead th').allInnerTexts()).map(h => h.replace(/\s+/g, ' ').trim());
+  expect(heads.some(h => /pctl/.test(h)) && heads.some(h => /3 of 5/.test(h)) && heads.some(h => /rank/.test(h)), 'the headers do not name the operators: ' + JSON.stringify(heads));
+  const n = cells.length, last3 = cells.slice(n - 3).map(c => c.trim());
+  await page.locator('#resPane tbody tr').first().click(); await page.waitForTimeout(600);
+  const why = (await page.locator('#dtb .chk-list > div b').allInnerTexts()).map(t => t.trim());
+  expect(JSON.stringify(why) === JSON.stringify(last3), 'the preview does not write the cells as the table: ' + JSON.stringify({ why, table:last3 }));
 });
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
   await fresh(); await ready();

@@ -23,7 +23,7 @@ import { canonical, ctx, entryOf, S, ui } from './state.ts';
 import { defaultParams, GHEAD, GORD, matches, optionText, paramError, rangeText, type Entry, type EntryParam, type Opt } from './entries.ts';
 import { cardErrors, displayUnit, fromWire, newCard, newCardId, optOf, toWire, type Card } from './forms.ts';
 import { closeDialog, dialog, toast, toastAction } from './dialogs.ts';
-import { defaultOp, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, opsFor, plainOffered, secondOptions, testOf, testsFor, withMeasure, withTest, type OpState } from './operators.ts';
+import { defaultOp, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, opsFor, plainOffered, secondOptions, testOf, testsFor, withCmp, withMeasure, withTest, type OpState } from './operators.ts';
 
 export const MY = 'My metrics', ON_SCREEN = '__on', ALL = 'All';
 export type Sort = 'group' | 'az' | 'za';
@@ -235,20 +235,24 @@ function opBoxes(e: Entry, op: OpState, i: number, er: Record<string, string>): 
   if (outs.length > 1) out.push({ name:'Line', control:sel('output', 'Line', outs.map(x => ({ v:x.key, t:x.label || x.key })), op.output), unit:'', def:'', changed:false, thr:true, hint:'' });
   out.push({ name:'Measure', control:sel('measure', 'Measure', [...(plainOffered(ops, e, op.output) ? [{ v:'none', t:'The value itself' }] : []), ...measuresFor(ops, e, op.output).map(x => ({ v:x.fn, t:x.label }))], op.measure, m?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
   for (const a of m?.args || []) {
-    const p = a as EntryParam, v = op.margs[a.key], msg = er[`o.a.${a.key}`];
+    const p = a as EntryParam, v = op.margs[a.key], msg = er[`o.a.${a.key}`], range = rangeText(p);
     const ctl = p.options ? `<select class="sel" data-aoa="${esc(a.key)}" data-ai="${i}" aria-label="${esc(a.label || a.key)} of ${esc(e.label)}"${msg ? ` aria-invalid="true" title="${esc(msg)}"` : ''}>${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
       : `<input class="inp" type="number" ${a.min != null ? `min="${a.min}"` : ''} ${a.max != null ? `max="${a.max}"` : ''} step="1" data-aoa="${esc(a.key)}" data-ai="${i}" value="${esc(Number.isFinite(v as number) ? v : '')}" style="--n:${String(v ?? '').length}" aria-label="${esc(a.label || a.key)} of ${esc(e.label)}"${msg ? ` aria-invalid="true" title="${esc(msg)}"` : ` title="${esc(`${rangeText(p) ? rangeText(p) + ' · ' : ''}default ${optionText(p, a.default as ParamValue)}`)}"`}>`;
-    out.push({ name:a.label || a.key, control:ctl, unit:'', def:optionText(p, a.default as ParamValue), changed:String(v) !== String(a.default), thr:true });
+    // the field shows its range beside its default (OPERATORS.md section 5: "the field shows its range")
+    out.push({ name:a.label || a.key, control:ctl, unit:'', def:`${optionText(p, a.default as ParamValue)}${range ? ` · ${range}` : ''}`, changed:String(v) !== String(a.default), thr:true });
   }
   if (m?.second) out.push({ name:'Compared with', control:sel('by', 'Compared with', secondOptions(e, op.output).map(x => ({ v:x.key, t:x.label })), op.by), unit:'', def:'', changed:false, thr:true, hint:'' });
   out.push({ name:'Test', control:sel('test', 'Test', testsFor(ops, e, op).map(x => ({ v:x.key, t:x.label })), op.test, t?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
   if (t) {
-    out.push({ name:'Compare', control:sel('cmp', 'Compare', opsFor(e, op, t).map(x => ({ v:x, t:OP_WORDS[x] || x })), op.cmp), unit:'', def:'', changed:false, thr:true, hint:'' });
+    // what the defaults of this measure and test would be: a field set otherwise counts as changed on the Customize button
+    const d0 = withTest(ops, e, { ...op, cmp:m ? m.default.cmp : op.cmp }, op.test);
+    out.push({ name:'Condition', control:sel('cmp', 'Condition', opsFor(e, op, t).map(x => ({ v:x, t:OP_WORDS[x] || x })), op.cmp), unit:'', def:'', changed:op.cmp !== d0.cmp, thr:true, hint:'' });
     const u = opFieldUnit(ops, e, op), two = op.cmp === 'between' || op.cmp === 'outside';
-    out.push({ name:two ? 'from' : 'value', control:numIn('value', two ? 'From' : 'Value', op.value), unit:u, def:'', changed:false, thr:true, hint:u });
-    if (two) out.push({ name:'to', control:numIn('value2', 'To', op.value2), unit:u, def:'', changed:false, thr:true, hint:u });
-    if (t.within || t.length) out.push({ name:t.count ? 'of the last' : t.within ? 'within' : t.key === 'streak' ? 'in a row' : 'in the last', control:numIn('n', 'Sessions', op.n, `min="1" max="${withinMax()}" step="1"`), unit:'sessions', def:String(t.default?.n ?? ''), changed:false, thr:true });
-    if (t.count) out.push({ name:'on at least', control:numIn('k', 'Sessions passing', op.k, 'min="1" step="1"'), unit:'sessions', def:String(t.default?.k ?? ''), changed:false, thr:true });
+    out.push({ name:two ? 'From' : 'Value', control:numIn('value', two ? 'From' : 'Value', op.value), unit:u, def:'', changed:String(op.value) !== String(d0.value), thr:true, hint:u });
+    if (two) out.push({ name:'To', control:numIn('value2', 'To', op.value2), unit:u, def:'', changed:String(op.value2) !== String(d0.value2), thr:true, hint:u });
+    // "on at least K of the last N sessions": K first, as it reads (QA5 D4)
+    if (t.count) out.push({ name:'On at least', control:numIn('k', 'Sessions passing', op.k, 'min="1" step="1"'), unit:'sessions', def:String(t.default?.k ?? ''), changed:String(op.k) !== String(t.default?.k ?? ''), thr:true });
+    if (t.within || t.length) out.push({ name:t.count ? 'Of the last' : t.within ? 'Within' : t.key === 'streak' ? 'In a row' : 'In the last', control:numIn('n', 'Sessions', op.n, `min="1" max="${withinMax()}" step="1"`), unit:'sessions', def:`${t.default?.n ?? ''} · 1 to ${withinMax()}`, changed:String(op.n) !== String(t.default?.n ?? ''), thr:true });
   }
   return out;
 }
@@ -263,7 +267,8 @@ function setOpField(el: HTMLInputElement | HTMLSelectElement): boolean {
     case 'measure': r.op = withMeasure(e.ops, e, r.op, el.value); break;
     case 'test': r.op = withTest(e.ops, e, r.op, el.value); break;
     case 'output': { const next = { ...r.op, output:el.value }; if (!secondOptions(e, el.value).some(x => x.key === next.by)) next.by = secondOptions(e, el.value)[0]?.key ?? ''; r.op = withMeasure(e.ops, e, next, measuresFor(e.ops, e, el.value).some(x => x.fn === next.measure) ? next.measure : 'none'); break }
-    case 'by': case 'cmp': r.op = { ...r.op, [f]:el.value }; break;
+    case 'by': r.op = { ...r.op, by:el.value }; break;
+    case 'cmp': r.op = withCmp(e.ops, e, r.op, el.value); break;
     case 'value': case 'value2': case 'n': case 'k': r.op = { ...r.op, [f]:n(el.value) }; break;
     default: return false;
   }

@@ -59,11 +59,11 @@ export interface MetricDefinition {
     series is tested. types: the output types of OPERATORS.md section 4 a series can have, by the transform that makes
     it. One source for the page and the core (transforms.ts operatorTakes, condition.ts bindRank). unit: the unit of a
     measure's result, fixed or by an argument ('diff' = the unit of a difference of the series). */
-export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; default: { cmp: string; value: number } }
+export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; short?: string; default: { cmp: string; value: number; range?: [number, number] } }
 export interface OperatorTest {
   id: number; key: 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank'; label: string; help: string; ops: string[];
   within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
-  default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number };
+  short?: string; default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number };
 }
 export interface OperatorsBlock { note?: string; types: Record<string, { fns: string[]; words: string }>; measures: OperatorMeasure[]; tests: OperatorTest[]; default_measure: string }
 export interface MetricsCatalog {

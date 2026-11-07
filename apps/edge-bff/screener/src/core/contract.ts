@@ -523,9 +523,9 @@ export interface CatalogResponse {
     is tested), plus the output types a series made by a transform has (types). */
 export interface CatalogOperators {
   types: Record<string, { fns: string[]; words: string }>;
-  measures: { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; default: { cmp: string; value: number }; args: CatalogParam[] }[];
+  measures: { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; short?: string; default: { cmp: string; value: number; range?: [number, number] }; args: CatalogParam[] }[];
   tests: { id: number; key: OperatorTestKey; label: string; help: string; ops: string[]; within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
-    default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number } }[];
+    short?: string; default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number } }[];
   default_measure: string;
 }
 export type OperatorTestKey = 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank';

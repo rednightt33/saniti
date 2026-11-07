@@ -55,7 +55,9 @@ function condRow(c: Card): string {
     + (ctx.refused?.id === c.id ? `<span class="ferr" role="alert" data-refused="${c.id}">${esc(ctx.refused.message)}</span>` : '');
   const x = openRows.has(c.id) ? 'x' : '', tip = wide() ? ` tabindex="0" role="group" aria-label="${esc(cardName(e, c))}${x ? '' : ', press Enter to edit'}"${x ? '' : ' title="Click to edit"'}` : '';
   // a raw card, and a card with a universal operator (P3: set and changed in the Add a condition window), show their rule
-  if (!e || c.raw || c.op) return `<div class="mc ${c.on ? '' : 'off'} ${x}" data-card="${c.id}"${tip}>${head}<div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${review}${pass}</div>`;
+  // an operator card says where it is changed (QA5 D7): in the Add a condition window, as a new card
+  const opNote = c.op && e ? `<div class="note" data-opnote="${c.id}">${esc(T.operatorCardNote)}</div>` : '';
+  if (!e || c.raw || c.op) return `<div class="mc ${c.on ? '' : 'off'} ${x}" data-card="${c.id}"${tip}>${head}<div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${opNote}${review}${pass}</div>`;
   const o = optOf(e, c), cus = isCustom(e, c) || S.open.has(c.id);
   const u = displayUnit(o?.unit);
   const err = (k: string) => errs[k] ? `<span class="ferr" role="alert">${esc(errs[k])}</span>` : '';

@@ -26,6 +26,7 @@ import { perfPlot } from './layout/perf.ts';
 import { layoutHooks } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
+import { cellText } from './cell-text.ts';
 import { sameVersions } from './api/boot-cache.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -163,9 +164,8 @@ export function renderDetails() {
   const head = `<div class="pvtop">${lookup()}</div><div class="preview-head">${logoOf(tk)}<div><strong>${esc(tk)}${sectorTag(sector)}</strong><small>${esc(name || '')}</small></div>${closeBtn()}</div>`;
   const rmk = remarks.length ? `<div class="chips">${remarks.map(r => `<span class="pill t-warning rbadge" title="${esc(remarkTitle(r))}">${ico(IC.warn, 's')}${esc(remarkText(r))}</span>`).join('')}</div>` : '';
   const why = A.length && a ? `<div class="sec-title">Why it ${a.status === 'match' ? 'passed' : 'did not pass'}</div><div class="chk-list">${A.map(c => {
-      const x = a.cells.find(y => y.id === c.id), e = entryOf(c), o = e && optOf(e, c), kind = o?.kind || (c.raw as any)?.kind;
-      const txt = !x ? '—' : x.status === 'na' ? 'n/a' : x.status === 'not_evaluated' ? '·' : kind === 'event' ? eventText(x)
-        : kind === 'state' ? (x.status === 'pass' ? 'Yes' : 'No') : fmtValue(x.value, formatOfOpt(e, o));
+      // the table's own cell text (cell-text.ts): an operator card in its unit, never by the card's default condition
+      const x = a.cells.find(y => y.id === c.id), e = entryOf(c), txt = cellText(e, c, x);
       const tip = x ? cellTitle(x, remarks, evalDate()) : '';
       const mark = x?.status === 'pass' ? '<span class="up">✓</span>' : x?.status === 'na' ? '<span class="muted">–</span>' : '<span class="down">✕</span>';
       return `<div title="${esc(tip)}"><i class="cdot" style="background:${colorOf(c)}"></i><span>${esc(condText(e, c))}</span><b>${esc(txt)}${x?.remark ? ` ${ico(IC.warn, 's')}` : ''}</b>${mark}</div>`;

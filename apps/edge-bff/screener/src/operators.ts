@@ -48,20 +48,43 @@ export function defaultOp(ops: CatalogOperators, e: Entry, output = defaultOutpu
   const m = measureOf(ops, ops.default_measure) ?? ops.measures[0];
   return { output, measure: m.fn, margs: argDefaults(m), by: '', test: 'value', cmp: m.default.cmp, value: m.default.value, value2: '', n: '', k: '' };
 }
-/** The operator with another measure: its arguments' defaults and its default comparison (the test stays when it still
-    applies, else the value test). */
+/** The operator with another measure: its arguments' defaults, then the test (kept when it still applies, else the
+    first one offered) with the values that suit the new measure (withTest). */
 export function withMeasure(ops: CatalogOperators, e: Entry, op: OpState, fn: string): OpState {
   const m = fn === 'none' ? undefined : measureOf(ops, fn);
-  const next: OpState = { ...op, measure: m ? m.fn : 'none', margs: argDefaults(m), by: m?.second ? secondOptions(e, op.output)[0]?.key ?? '' : '' };
-  if (m && (next.test === 'value' || next.test === 'rank')) { next.cmp = next.test === 'rank' ? next.cmp : m.default.cmp; if (next.test === 'value') next.value = m.default.value }
+  const next: OpState = { ...op, measure: m ? m.fn : 'none', margs: argDefaults(m), by: m?.second ? secondOptions(e, op.output)[0]?.key ?? '' : '', cmp: m?.default.cmp ?? op.cmp };
   const tests = testsFor(ops, e, next);
-  return tests.some(t => t.key === next.test) ? withTest(ops, e, next, next.test) : withTest(ops, e, next, tests[0]?.key ?? 'value');
+  return withTest(ops, e, next, tests.some(t => t.key === next.test) ? next.test : tests[0]?.key ?? 'value');
 }
-/** The operator with another test: its default fields; the comparison kept when the test takes it. */
+/** The thresholds a test opens with on the measured series (QA5 2026-11-07 D3: one range for every measure, and values
+    kept from the previous test, gave screens that match nothing): a rank its own (0-100); a range the measure's range
+    (catalog default.range) or, on the plain series, the entry's own between bounds, else blank fields to fill in (a
+    difference has no scale-free range); any other test the measure's default value, or the entry's own on the plain
+    series. Never a value of another measure or test. */
+function thresholds(ops: CatalogOperators, e: Entry, op: OpState, t: OpTest): { value: number | ''; value2: number | '' } {
+  const m = op.measure === 'none' ? undefined : measureOf(ops, op.measure);
+  if (t.key === 'rank') return { value: t.default.value ?? '', value2: t.default.value2 ?? '' };
+  if (t.key === 'range') {
+    const r = m ? m.default.range : (typeof e.def.value === 'number' && typeof e.def.value2 === 'number' ? [e.def.value, e.def.value2] : undefined);
+    return r ? { value: r[0], value2: r[1] } : { value: '', value2: '' };
+  }
+  return { value: m ? m.default.value : e.def.value, value2: '' };
+}
+/** The operator with another test: its default fields and the thresholds that suit the measured series (thresholds);
+    the comparison kept when the test takes it. */
 export function withTest(ops: CatalogOperators, e: Entry, op: OpState, key: string): OpState {
   const t = testOf(ops, key) ?? ops.tests[0], d = t.default || {}, offered = opsFor(e, op, t);
   const cmp = offered.includes(op.cmp) ? op.cmp : d.cmp && offered.includes(d.cmp) ? d.cmp : offered[0] ?? t.ops[0];
-  return { ...op, test: t.key, cmp, value: d.value ?? op.value, value2: d.value2 ?? (t.key === 'range' ? op.value2 : ''), n: d.n ?? (t.within || t.length ? op.n || 5 : ''), k: d.k ?? (t.count ? op.k || 3 : '') };
+  return { ...op, test: t.key, cmp: t.key === 'range' && !['between', 'outside'].includes(cmp) ? 'between' : cmp, ...thresholds(ops, e, op, t),
+    n: d.n ?? (t.within || t.length ? op.n || 5 : ''), k: d.k ?? (t.count ? op.k || 3 : '') };
+}
+/** The operator with another comparison: a range operator (between, outside) on a test that was not one opens with the
+    range thresholds, a single-value one after a range with the single default. */
+export function withCmp(ops: CatalogOperators, e: Entry, op: OpState, cmp: string): OpState {
+  const two = (c: string) => c === 'between' || c === 'outside', t = testOf(ops, op.test);
+  if (!t || two(cmp) === two(op.cmp)) return { ...op, cmp };
+  const th = thresholds(ops, e, op, two(cmp) ? { ...t, key: 'range' } : { ...t, key: 'value' });
+  return { ...op, cmp, ...th };
 }
 
 /** The unit of the measured series: a measure's own (fixed, or by its form argument; 'diff' is a difference of the
@@ -225,14 +248,21 @@ const v = (x: number | '') => x === '' ? '…' : String(x);
 /** The measure in words: "Percentile of its own history (60 sessions)". */
 export function measureText(ops: CatalogOperators, e: Entry, op: OpState): string {
   const m = op.measure === 'none' ? undefined : measureOf(ops, op.measure); if (!m) return '';
-  const args = m.args.map(a => optionText(a as EntryParam, op.margs[a.key])).join(', ');
-  const by = m.second ? ` vs ${secondOptions(e, op.output).find(s => s.key === op.by)?.label || '…'}` : '';
-  return `${m.label.toLowerCase()} (${args})${by}`;
+  // every number argument of a measure is a count of sessions (the catalog's Sessions / Sessions before today)
+  const args = m.args.map(a => a.type === 'integer' ? `${op.margs[a.key]} sessions` : optionText(a as EntryParam, op.margs[a.key])).join(', ');
+  const name = m.second ? `Compared with ${secondOptions(e, op.output).find(s => s.key === op.by)?.label || '…'}` : m.label;
+  return `${name}, ${args}`;
+}
+/** The operator in a column header's few words (catalog `short`): "pctl", "z · 3 in a row", "ever 5", "3 of 5", "rank". */
+export function opShort(ops: CatalogOperators, op: OpState): string {
+  const m = op.measure === 'none' ? undefined : measureOf(ops, op.measure), t = testOf(ops, op.test);
+  const tw = !t?.short ? '' : t.key === 'at_least' ? `${v(op.k)} of ${v(op.n)}` : t.key === 'ever' ? `ever ${v(op.n)}` : t.key === 'streak' ? `${v(op.n)} in a row` : t.short;
+  return [m?.short, tw].filter(Boolean).join(' · ');
 }
 /** The operator's rule in words, after the card's name: "RSI · percentile of its own history (60) ≥ 90". */
 export function opText(ops: CatalogOperators, e: Entry, op: OpState): string {
   const out = outputOf(e, op.output), line = (e.indicator?.outputs.length || 0) > 1 ? ` ${out?.label || op.output}` : '';
-  const mt = measureText(ops, e, op), what = `${line}${mt ? `${line ? ',' : ''} ${mt}` : ''}`.trim();
+  const mt = measureText(ops, e, op), what = `${line}${mt ? `${line ? ' ·' : ''} ${mt}` : ''}`.trim();
   const sign = OP_SIGN[op.cmp] ? `${OP_SIGN[op.cmp]} ${v(op.value)}` : op.cmp === 'between' ? `between ${v(op.value)} and ${v(op.value2)}` : op.cmp === 'outside' ? `outside ${v(op.value)} to ${v(op.value2)}` : `${OP_WORDS[op.cmp] || op.cmp} ${v(op.value)}`;
   switch (op.test) {
     case 'value': case 'range': return `${what} ${sign}`.trim();
@@ -264,7 +294,7 @@ export function opFormat(ops: CatalogOperators, e: Entry, op: OpState): ValueFor
 }
 /** The unit word a value field shows. */
 export function opFieldUnit(ops: CatalogOperators, e: Entry, op: OpState): string {
-  if (op.test === 'rank') return '0–100';
+  if (op.test === 'rank' || resultUnit(ops, e, op) === 'percentile') return '0–100';
   const f = opFormat(ops, e, op);
   return f === 'pct_signed' || f === 'pct' ? '%' : f === 'multiple' ? '×' : f === 'sd' ? 'σ' : '';
 }
