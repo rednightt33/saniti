@@ -193,7 +193,7 @@ FL31 (insider net) is 0 on days without insider trades: 3 and 6 are not offered 
 - The cell shows the value the comparison reads, in the operator's unit: percentile and rank `0-100`, z-score `σ`,
   change `%` or points, slope per session; a condition (5, 8, 9, 10) shows Yes / No, and 8 the sessions since the cross.
 - "Why it passed" names the series, its setup, the operator and its parameters, e.g. "Bandar Balance % (Top 3, 10
-  sessions): percentile 250 >= 90 -> 94".
+  sessions): percentile over 40 sessions >= 90 -> 94" (10 + 40 <= 60, section 3).
 - A flow value carries its broker as-of date when it is older than the price date (P10 a).
 
 ## 7. Tests the QA agents run against this file
