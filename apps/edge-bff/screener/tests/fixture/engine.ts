@@ -147,12 +147,14 @@ export function evaluate(m: Market, t: Tk, cd: ConditionDef): { cell: Cell; sign
   }
   if (tt.kind === 'window') {
     // operators 5, 9, 10: the inner value test on each of the last `length` sessions
-    const s = series(m, t, tt.test.metric), L = tt.length;
+    const L = tt.length, it = tt.test, cross = it.kind === 'event' ? it.signal : null;
+    const s = series(m, t, cross ? cross.lhs : it.metric), y = cross ? cross.rhs.value : 0;
     let hits = 0, run = 0, open = true, latest = -1, na = 0;
     for (let i = at; i > at - L; i--) {
       const x = i >= 0 ? s[i] : null;
-      if (!isN(x)) { na++; open = false; continue }
-      const ok = valuePasses(x, tt.test);
+      if (!isN(x) || (cross && !isN(s[i - 1]))) { na++; open = false; continue }
+      // an event inside a window: the cross on that session (both bars finite), else the value test
+      const ok = cross ? (cross.op === 'crosses_above' ? (s[i - 1]! <= y && x > y) : (s[i - 1]! >= y && x < y)) : valuePasses(x, it);
       if (ok) { hits++; if (latest < 0) latest = i; if (open) run++ } else open = false;
     }
     if (na === L) return { cell:{ ...base, unit:'sessions', status:'na', value:null, reason:'NULL_AT_EVALUATION' }, signal:null };

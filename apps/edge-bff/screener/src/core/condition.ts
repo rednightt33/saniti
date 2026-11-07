@@ -38,7 +38,7 @@ import type { BarView, Evaluation, Operand, SessionOutcome } from './evaluate.ts
 import { laggedSeries, missingInput, resolveSeries } from './metrics.ts';
 import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
-import { resolveSignal } from './transforms.ts';
+import { outputType, resolveSignal } from './transforms.ts';
 import { INDICATORS, SBY_ID, isDefaultParams } from './registry.ts';
 import type { ParamOptions } from './registry.ts';
 import { priceBreakDates } from './universe.ts';
@@ -319,13 +319,23 @@ function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): Bou
   let count = 1;
   if (t.mode === 'at_least') {
     count = t.count as number;
+    if (count === undefined) throw new ScreenerError('INVALID_CONDITION', `${f}.count is required with mode at_least: how many of the ${L} sessions must pass (right: 3 of 5).`, `${f}.count`);
     if (!(Number.isInteger(count) && count >= 1 && count <= L))
       throw new ScreenerError('INVALID_CONDITION', `${f}.count must be a whole number from 1 to the window length ${L} ("${count} of ${L}" cannot be met; right: 3 of 5; wrong: 6 of 5).`, `${f}.count`);
   } else if (t.count !== undefined) throw new ScreenerError('INVALID_CONDITION', `${f}.count is used only with mode at_least; remove it.`, `${f}.count`);
   const it = t.test as unknown as Record<string, unknown>;
-  if (!isObj(it) || (it.kind !== 'value' && it.kind !== 'state') || 'pattern' in it)
-    throw new ScreenerError('INVALID_CONDITION', `${f}.test must be a value test or a state comparison on the ticker's bars (a pattern over a window is an event test with "within").`, `${f}.test`, { allowed: ['value', 'state'] });
-  const inner = bindTest(id, t.test as Test, `${f}.test`, ctx);
+  // the inner test (OPERATORS.md 5, 9, 10: "an inner condition"): a value test, a state comparison or pattern, or an event
+  // (a cross or a pattern) read on each session, i.e. within 1
+  if (!isObj(it) || (it.kind !== 'value' && it.kind !== 'state' && it.kind !== 'event'))
+    throw new ScreenerError('INVALID_CONDITION', `${f}.test must be a value test, a state test or an event with within 1 on the ticker's bars.`, `${f}.test`, { allowed: ['value', 'state', 'event'] });
+  if (it.kind === 'event' && it.within !== 1)
+    throw new ScreenerError('INVALID_CONDITION', `${f}.test.within must be 1 inside a window: the window counts the sessions on which the cross or pattern happened (right: crosses above 70 on 3 of the last 10 sessions = an event with within 1 in a window of 10; wrong: within 5 inside it).`, `${f}.test.within`);
+  // an event inside a window is read one session at a time: bound with within_max 1, so its tail read reaches one bar back
+  const inner = bindTest(id, t.test as Test, `${f}.test`, it.kind === 'event' ? { ...ctx, withinMax: 1 } : ctx);
+  // OPERATORS.md section 4: a window mode the catalog does not offer on the inner series' output type (a streak of a run)
+  const spec = METRICS_CATALOG.operators.tests.find(x => x.key === t.mode), type = inner.series.length ? outputType(inner.series[0]) : null;
+  if (type && spec?.not_on?.includes(type))
+    throw new ScreenerError('INVALID_CONDITION', `${f}.mode: ${inner.series[0].label} ${METRICS_CATALOG.operators.types[type].words}, so "${spec.label}" is not offered on it: it already counts sessions in a row. Test the run itself (right: rising run >= 3; wrong: rising run >= 1 for 3 sessions in a row).`, `${f}.mode`, { allowed: WINDOW_MODES.filter(m => m !== t.mode) });
   if (inner.xsection || inner.universeAttr !== null)
     throw new ScreenerError('INVALID_CONDITION', `${f}.test: a window counts sessions of a series on the ticker's bars; ${inner.summary.metric} has one value per ticker at the evaluation date (use it in a value test alone).`, `${f}.test.metric`);
   const test: WindowTest = { kind: 'window', mode: t.mode, length: L, ...(t.mode === 'at_least' ? { count } : {}), test: inner.test as WindowTest['test'] };
@@ -345,6 +355,9 @@ function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): Bou
         return r.cell.status === 'na' ? { status: 'na', reason: r.cell.reason ?? 'NULL_AT_EVALUATION' } : { status: r.cell.status === 'pass' ? 'pass' : 'fail' };
       };
       const e = evaluateWindow(outcome, t.mode, L, count, at);
+      // the window itself spans sessions at-L+1 .. at: an ex-date after its first session mixes the two sides of a break
+      // in the count, even where each session alone reads one bar (a bar field: QA2 2026-11-07 D1)
+      if (!remark) { const ex = priceBreakDates(input.row); if (ex.length) remark = priceBreakRemark([at - L + 1], input.dates, at, ex) }
       return { cell: toCell(id, e, { dates: input.dates, at, ihsgCalendar: input.ihsgCalendar, unit: 'sessions', remark }), source: dynamic ? 'dynamic' : 'precomputed' };
     },
   };
@@ -423,7 +436,8 @@ export function conditionSignal(b: BoundCondition, full: (r: ResolvedSeries) => 
     for (let i = 0; i < n; i++) {
       sum += p[i]; if (i >= length) sum -= p[i - length];
       run = p[i] ? run + 1 : 0;
-      out[i] = +(i >= length - 1 && (mode === 'ever' ? sum >= 1 : mode === 'at_least' ? sum >= count : run >= length));
+      // a window reaching before bar 0 counts the sessions there as not passing, as evaluateWindow does (QA2 D2)
+      out[i] = +(mode === 'ever' ? sum >= 1 : mode === 'at_least' ? sum >= count : run >= length);
     }
     return out;
   }

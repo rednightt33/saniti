@@ -83,8 +83,11 @@ const FORM_OF: Partial<Record<OperatorTestKey, string>> = { value: 'value', rang
 const FAMILY: Record<string, string> = { ge: 'gt', le: 'lt', outside: 'between' };
 function plainOps(e: Entry, op: OpState, t: OpTest): string[] | null {
   if (op.measure !== 'none' || t.key === 'rank') return null;              // no form needed
-  const form = outputOf(e, op.output)?.tests.find(x => x.form === FORM_OF[t.key]);
-  return form ? (form.ops as string[]) : [];
+  const forms = outputOf(e, op.output)?.tests || [];
+  const value = forms.find(x => x.form === FORM_OF[t.key])?.ops as string[] | undefined;
+  // a window counts a cross on each session through the output's event_value form (its crosses_above / crosses_below)
+  const cross = t.key === 'ever' || t.key === 'at_least' ? forms.find(x => x.form === 'event_value')?.ops as string[] | undefined : undefined;
+  return [...(value || []), ...(cross || [])];
 }
 /** The tests the measured series takes: the rank only on a unit that compares across stocks (the catalog's
     not_on_units and not_on_levels; OPERATORS.md section 4); on the plain series, only the tests its forms offer.
@@ -137,11 +140,13 @@ function seriesRef(ops: CatalogOperators, op: OpState, params: ParamMap, ind: In
 export function opTest(ops: CatalogOperators, op: OpState, params: ParamMap, ind: IndRef): Test {
   const s = seriesRef(ops, op, params, ind), v = num(op.value), v2 = num(op.value2), n = num(op.n), k = num(op.k);
   const value = (metric: MetricRef, cmp = op.cmp): Test => ({ kind: 'value', metric, op: cmp as ValueOp, value: v, ...(cmp === 'between' || cmp === 'outside' ? { value2: v2 } : {}) });
+  // inside a window a cross is read on each session: an event with within 1 (OPERATORS.md 5 and 9 over operator 8)
+  const inner = (): Test => op.cmp.startsWith('crosses_') ? { kind: 'event', within: 1, signal: { lhs: s, op: op.cmp as 'crosses_above' | 'crosses_below', rhs: { value: v } } } : value(s);
   switch (op.test) {
     case 'value': case 'range': return value(s);
     case 'cross': return { kind: 'event', within: n, signal: { lhs: s, op: op.cmp as 'crosses_above' | 'crosses_below', rhs: { value: v } } };
-    case 'ever': case 'streak': return { kind: 'window', mode: op.test, length: n, test: value(s) as never };
-    case 'at_least': return { kind: 'window', mode: 'at_least', length: n, count: k, test: value(s) as never };
+    case 'ever': case 'streak': return { kind: 'window', mode: op.test, length: n, test: inner() as never };
+    case 'at_least': return { kind: 'window', mode: 'at_least', length: n, count: k, test: inner() as never };
     case 'rank': return value({ kind: 'rank', of: s });
   }
 }
@@ -150,7 +155,14 @@ export function opTest(ops: CatalogOperators, op: OpState, params: ParamMap, ind
 export function opFromTest(ops: CatalogOperators, t: any): { indicator: string; params: ParamMap; op: OpState } | null {
   if (!t || typeof t !== 'object') return null;
   let test: OperatorTestKey, inner = t, n: number | '' = '', k: number | '' = '';
-  if (t.kind === 'window') { test = t.mode; inner = t.test; n = t.length; k = t.mode === 'at_least' ? t.count : '' }
+  if (t.kind === 'window') {
+    test = t.mode; inner = t.test; n = t.length; k = t.mode === 'at_least' ? t.count : '';
+    // a cross counted over the window: an event with within 1 (opTest inner)
+    if (inner?.kind === 'event' && inner.within === 1 && !inner.signal?.pattern && typeof inner.signal?.rhs?.value === 'number' && !inner.signal.rhs.kind) {
+      const r = read(ops, inner.signal.lhs); if (!r) return null;
+      return { ...r, op: { ...r.op, test, cmp: inner.signal.op, value: inner.signal.rhs.value, value2: '', n, k } };
+    }
+  }
   else if (t.kind === 'event') {
     if (!t.signal || t.signal.pattern || typeof t.signal.rhs?.value !== 'number' || t.signal.rhs.kind) return null;
     const r = read(ops, t.signal.lhs); if (!r || r.op.measure === 'none') return null;          // a plain cross is the card's own form

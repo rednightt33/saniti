@@ -30,6 +30,7 @@ import type { Op } from '../../../backtest/src/core/conditions.ts';
 import type { Num } from '../../../terminal/src/calc/indicators.ts';
 import type { Cell, CellRemark, HistoryClass, NaReason, ValueTest } from './contract.ts';
 import type { Tail } from './metrics.ts';
+import { valuePasses } from './universe.ts';
 
 /* ---- views of a series by bar index ------------------------------------------------------------------------------ */
 
@@ -107,22 +108,8 @@ export function evaluateValue(v: BarView, test: Pick<ValueTest, 'op' | 'value' |
   if (!Number.isFinite(x)) return { status: 'na', reason: naReason(v, at) ?? 'NULL_AT_EVALUATION', value: null };
   return { status: valuePasses(x, test) ? 'pass' : 'fail', reason: null, value: x };
 }
-/** The VALUE rule on one number (OPERATORS.md 1 and 15): gt, lt strict; ge, le inclusive; eq, ne exact (validate.ts
-    offers them only on whole-number series, K7); between inclusive of both bounds; outside below value or above value2.
-    universe.ts applies the same rule to row attributes. */
-export function valuePasses(x: number, test: Pick<ValueTest, 'op' | 'value' | 'value2'>): boolean {
-  switch (test.op) {
-    case 'gt': return x > test.value;
-    case 'lt': return x < test.value;
-    case 'ge': return x >= test.value;
-    case 'le': return x <= test.value;
-    case 'eq': return x === test.value;
-    case 'ne': return x !== test.value;
-    case 'between': return x >= test.value && x <= (test.value2 as number);
-    case 'outside': return x < test.value || x > (test.value2 as number);
-  }
-  throw new RangeError(`evaluateValue: op ${JSON.stringify(test.op)} is not one of gt, lt, ge, le, eq, ne, between, outside`);
-}
+/** The VALUE rule on one number: universe.ts valuePasses, the one copy (QA3 D1), re-exported for the core's readers. */
+export { valuePasses };
 
 /** One session of a window test's inner comparison (OPERATORS.md 5, 9, 10): pass, fail, or n/a with its reason. */
 export type SessionOutcome = { status: 'pass' | 'fail' } | { status: 'na'; reason: NaReason };

@@ -486,7 +486,7 @@
           "label": "Sessions",
           "default": 10,
           "min": 2,
-          "max": 130,
+          "max": 260,
           "exclusive_min": false,
           "integer": true,
           "step": 1
@@ -3628,12 +3628,14 @@
         "id": 5,
         "key": "ever",
         "label": "Ever in the last N sessions",
-        "help": "The threshold test passed on at least one of the last N sessions.",
+        "help": "The threshold test passed (or the series crossed it) on at least one of the last N sessions.",
         "ops": [
           "gt",
           "lt",
           "ge",
-          "le"
+          "le",
+          "crosses_above",
+          "crosses_below"
         ],
         "length": true,
         "default": {
@@ -3644,12 +3646,14 @@
         "id": 9,
         "key": "at_least",
         "label": "On K of the last N sessions",
-        "help": "The threshold test passed on at least K of the last N sessions.",
+        "help": "The threshold test passed (or the series crossed it) on at least K of the last N sessions.",
         "ops": [
           "gt",
           "lt",
           "ge",
-          "le"
+          "le",
+          "crosses_above",
+          "crosses_below"
         ],
         "length": true,
         "count": true,
@@ -3672,7 +3676,10 @@
         "length": true,
         "default": {
           "n": 3
-        }
+        },
+        "not_on": [
+          "D"
+        ]
       },
       {
         "id": 11,

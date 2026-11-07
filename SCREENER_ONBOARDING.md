@@ -140,7 +140,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    deliberate **registry release** (P6, section 2.4).
 4. **Feature 04 is unchanged and is not read at run time (P2 a).** It is the parity oracle in tests (section 1.12).
 5. **Nothing fabricated (I5).** Every cell is PASS, FAIL or NA, and every NA carries a reason code
-   (`apps/edge-bff/screener/src/core/contract.ts:238` `NA_REASONS`). A metric without data is shown disabled with its reason, never silently dropped.
+   (`apps/edge-bff/screener/src/core/contract.ts:239` `NA_REASONS`). A metric without data is shown disabled with its reason, never silently dropped.
 6. **No silent adjustment (I7).** Invalid input is refused with the field and the fix; never clamped, rounded or
    reordered (`validate.ts` header; `registry.ts` header: the backtest core's `resolveParams` first, then only
    narrowing).
@@ -150,7 +150,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    means on (`universe.ts:56`, `traded_on_eval_date !== false`, `exclude_price_breaks !== false`). Shown through a chip,
    their rows carry a remark with the reason (`STALE` with the last bar date; `PRICE_BREAK` with the action, ex-date,
    ratios and the close ratio, `universe.ts:92` `priceBreakRemarks`), and their price-derived values stay visible:
-   a cell whose lookback contains an ex-date carries `PRICE_BREAK_IN_LOOKBACK` (`evaluate.ts:214` `priceBreakRemark`),
+   a cell whose lookback contains an ex-date carries `PRICE_BREAK_IN_LOOKBACK` (`evaluate.ts:201` `priceBreakRemark`),
    and the answer warns `PRICE_BREAKS_IN_RESULT` with the rows and cells. A remark never changes PASS, FAIL or NA.
    Tests: `apps/screener-worker/tests/server.test.ts` "P4: stale and price-break tickers are hidden by default and
    counted; shown through the chips, they carry their remarks and their values ...", `tests/core/universe.test.ts`
@@ -371,7 +371,7 @@ nothing; skew then deferral; skip unchanged; one refresh at a time; pinning acro
   `stale`, and the P4 remarks from the `actions` file (`snapshot.ts:225-241`).
 - **Pinned series** (`snapshot.ts:263-284`): the 53 indicators at `registry.ts:250` `startParams` (the registry
   defaults, except I43 at anchor Week: P17 a does not offer its default Session), 76 outputs; the core's declared
-  derived series of the default cards (`condition.ts:456` `declaredDerivedSeries`: the bar fields, the prior Donchian
+  derived series of the default cards (`condition.ts:470` `declaredDerivedSeries`: the bar fields, the prior Donchian
   bands, the rising lags and vs-MA averages); every series the presets read. 113 series on the real publication (LOCAL).
   Each is a tail of `SCREENER_WITHIN_MAX` + 1 bars per ticker (`metrics.ts:179` `tailLength`) in one shared
   `Float64Array`, written by the pre-warm through the one `series()` path (`prewarmChunk`, `snapshot.ts:370-387`),
@@ -405,7 +405,7 @@ field), `transform` (`pct_distance`, `band_position`, `lag`, `change`, `rolling_
 `stoch_cross_in_zone`, `new_high`, `silent`), `flow` (PHASE 2; refused at bind until then, `condition.ts:182`),
 `xsection` (`return_rank`), `universe` (a row attribute; fundamentals use this kind too, `contract.ts:460-462`). These
 lists are data, read from `screener-metrics.json` (section 1.11), never kept in code; `transforms.ts` implements each
-`fn` and pattern `type` (`IMPLEMENTED_TRANSFORMS` `:271`, `IMPLEMENTED_PATTERNS` `:515`), and `catalogProblems`
+`fn` and pattern `type` (`IMPLEMENTED_TRANSFORMS` `:285`, `IMPLEMENTED_PATTERNS` `:530`), and `catalogProblems`
 (`apps/edge-bff/screener/src/core/catalog.ts:185`) fails when the two disagree.
 
 | Test | Rule (`evaluate.ts`) |
@@ -417,7 +417,7 @@ lists are data, read from `screener-metrics.json` (section 1.11), never kept in 
 A bar field compared with an output whose `price_compare_lag` is 1 (Donchian's prior band, `rolling_max` of the high)
 reads the lagged series `lag(x, 1)` as its own cached series, never a shifted view (`condition.ts` header).
 
-NA reasons (per cell, never failing the whole screen; `apps/edge-bff/screener/src/core/contract.ts:238` `NA_REASONS`): `INSUFFICIENT_HISTORY`,
+NA reasons (per cell, never failing the whole screen; `apps/edge-bff/screener/src/core/contract.ts:239` `NA_REASONS`): `INSUFFICIENT_HISTORY`,
 `NULL_AT_EVALUATION` (also for a missing input, e.g. IHSG volume), `FLOW_UNAVAILABLE`, `FLOW_LAGGED`,
 `NOT_APPLICABLE` (`applies_to`), `DATA_INTEGRITY`, `MIXED_ADJUSTMENT_BASIS`. Remarks explain a value and never change
 PASS, FAIL or NA: `STALE` and `PRICE_BREAK` per row, `PRICE_BREAK_IN_LOOKBACK` per cell. A cell's lookback
@@ -427,7 +427,7 @@ stated window already holds the bar before; semantic review S1); every window-cl
 test `tests/core/lookback.test.ts` "a window-class pattern reads exactly its stated window").
 
 **As-of policy.** The evaluation date E is `price_through`. Each ticker is evaluated at its own last bar on or before E
-(`evaluate.ts:79` `evaluationBar`); a ticker whose last bar is before E is STALE (hidden by default). `bars_ago`
+(`evaluate.ts:80` `evaluationBar`); a ticker whose last bar is before E is STALE (hidden by default). `bars_ago`
 counts the ticker's own bars. Every series a condition reads is causal (test `tests/core/asof.test.ts`).
 
 **Match and near** (`match.ts`): `need = entryNeed(logic, at_least, active)` of the backtest core
@@ -440,11 +440,11 @@ other rank (P7); a member's denominator is P - 1, an outside ticker's P, every r
 
 ### 1.7.5 The planner
 
-`plan.ts` (orchestration, header `:1-23`) over `screen.ts:132` `runScreen`:
+`plan.ts` (orchestration, header `:1-23`) over `screen.ts:133` `runScreen`:
 
 | Stage | Evaluates |
 |---|---|
-| S0 | universe hard filters (`universe.ts:52` `applyUniverse`: type, sector and industry, price, ADV, the P4 chips, history length, explicit tickers, universe-attribute filters), then the metric filters that need a formula: conjunctive, outside `met` |
+| S0 | universe hard filters (`universe.ts:67` `applyUniverse`: type, sector and industry, price, ADV, the P4 chips, history length, explicit tickers, universe-attribute filters), then the metric filters that need a formula: conjunctive, outside `met` |
 | S1 | population-level cross-sectional values (never pruned) |
 | S2 | conditions whose every series is pinned, and universe attributes: every S0 survivor |
 | S3 | the other conditions, cheapest predicted first (`orderS3`, `plan.ts:130`) |
@@ -519,7 +519,7 @@ window and refused after it ...".
 Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:154-158`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
 `owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:421-426`). Routes (`server.ts` header
-`:5-16`, `contract.ts:586` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
+`:5-16`, `contract.ts:587` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
 with `ETag`), `POST /v1/validate` (`{valid, definition_hash, normalized, versions}`; `versions` is additive,
@@ -1085,7 +1085,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 |---|---|
 | Indicators (registry release only): base registry regenerated (`npm run registry` in `apps/backtest-worker`), overlay entry (`shape`, the test forms per output with operators and labels, `synonyms`, a one-line `description` of 20-160 characters in our own words, `default_test`), screener registry regenerated (`npm run registry` in `apps/edge-bff/screener`), both `registry:check` green | the generated files; `tests/core/registry.test.ts` "has one entry per base id and vice versa" |
 | Other metrics: `screener-metrics.json` entries with the built fields (section 1.11): `id`, `group`, `kind`, `label`, `short`, `params` (ranges; flow maxima derived from the published window), `tests`, `unit`, `requires {file, columns}`, `decision`, `applies_to`, `unavailable_reason`, `formula`, `interpretation`, `misuse`, `evidence`, `default_test` | `apps/edge-bff/screener/src/core/catalog.ts:185` `catalogProblems` at import and at the worker's start |
-| A new transform `fn` or pattern `type`: its function in `transforms.ts` and its id in `IMPLEMENTED_TRANSFORMS` / `IMPLEMENTED_PATTERNS` (`transforms.ts:271, 515`); an offered pattern without a `decision` must be implemented | `tests/core/catalog.test.ts` "keeps its rules and lists exactly the transforms and patterns transforms.ts computes" |
+| A new transform `fn` or pattern `type`: its function in `transforms.ts` and its id in `IMPLEMENTED_TRANSFORMS` / `IMPLEMENTED_PATTERNS` (`transforms.ts:285, 530`); an offered pattern without a `decision` must be implemented | `tests/core/catalog.test.ts` "keeps its rules and lists exactly the transforms and patterns transforms.ts computes" |
 | A new fundamental: `catalogProblems` checks its rule (`apps/edge-bff/screener/src/core/catalog.ts:227-229`): `kind: 'universe'` with the file it requires; no count is kept in code (FIXED, it held 32): that every fundamental of APPENDIX C.3 is there is derived from the prototype's catalogue, and a new one beyond it passes | `tests/core/catalog.test.ts` "holds every fundamental metric of the prototype's catalogue (APPENDIX C.3)" |
 | Availability derived, never coded: removing the file from a fixture index makes the metric `REQUIRES_DATA` with no code change | `tests/core/catalog.test.ts` "derives availability from the published index: flow needs its files, technical metrics need none, a decision wins" |
 | A new wire kind or NA reason added to `contract.ts` only when no existing one fits; each new refusal or NA meets the four "Gates and evidence" items (rule seen first, how to pass, right and wrong example, a message naming the field and the fix) | `contract.ts`; texts |

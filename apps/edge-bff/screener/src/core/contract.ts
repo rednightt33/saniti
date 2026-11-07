@@ -163,7 +163,8 @@ export interface EventCross { lhs: Side; op: 'crosses_above' | 'crosses_below'; 
 export interface EventPattern { pattern: PatternRef }
 export interface EventTest { kind: 'event'; signal: EventCross | EventPattern; within: number }
 /** Operators 5, 9 and 10 (OPERATORS.md: Ever / Lookback, Persistence / Frequency, Consecutive / Streak) over an inner
-    VALUE or STATE comparison on the ticker's own bars, on the `length` sessions ending at the evaluation bar:
+    test on the ticker's own bars (a VALUE test, a STATE comparison or pattern, or an EVENT cross or pattern with within
+    1: the cross on that session, operator 8; a rank across stocks is not taken inside a window), on the `length` sessions ending at the evaluation bar:
     - ever: the inner test passes on at least one of them;
     - at_least: on at least `count` of them (1 <= count <= length);
     - streak: on each of the last `length` sessions (a session where the inner test is n/a breaks the run).
@@ -171,7 +172,7 @@ export interface EventTest { kind: 'event'; signal: EventCross | EventPattern; w
     every one of the sessions. length 1..within_max (the evaluation tail). The cell's value is the number of passing
     sessions in the window (streak: the run ending at the evaluation bar, at most length); event_date and bars_ago name
     the latest passing session. */
-export interface WindowTest { kind: 'window'; mode: WindowMode; length: number; count?: number; test: ValueTest | StateCompare }
+export interface WindowTest { kind: 'window'; mode: WindowMode; length: number; count?: number; test: ValueTest | StateTest | EventTest }
 export type WindowMode = 'ever' | 'at_least' | 'streak';
 export const WINDOW_MODES: readonly WindowMode[] = ['ever', 'at_least', 'streak'];
 export type Test = ValueTest | StateTest | EventTest | WindowTest;
@@ -523,7 +524,7 @@ export interface CatalogResponse {
 export interface CatalogOperators {
   types: Record<string, { fns: string[]; words: string }>;
   measures: { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; default: { cmp: string; value: number }; args: CatalogParam[] }[];
-  tests: { id: number; key: OperatorTestKey; label: string; help: string; ops: string[]; within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean;
+  tests: { id: number; key: OperatorTestKey; label: string; help: string; ops: string[]; within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
     default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number } }[];
   default_measure: string;
 }

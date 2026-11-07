@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { F } from '../../../terminal/src/calc/indicators.ts';
 import type { Definition, UniverseRow } from '../../src/core/contract.ts';
 import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
-import { bindCondition } from '../../src/core/condition.ts';
+import { bindCondition, conditionSignal } from '../../src/core/condition.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
 import { evaluateWindow, valuePasses } from '../../src/core/evaluate.ts';
 import { resolveSeries, tickerCalc } from '../../src/core/metrics.ts';
@@ -21,7 +21,7 @@ import {
   acceleration, distanceToExtreme, pctChange, percentileOwn, relative, slope, vsAverage, zScore,
 } from '../../src/core/transforms.ts';
 import { validateDefinition, validateTest } from '../../src/core/validate.ts';
-import { OPTS, WITHIN_MAX, memoryEnv, rng, rowOf, synth, vctx } from './helpers.ts';
+import { OPTS, WITHIN_MAX, memoryEnv, rng, rowOf, synth, tailBars, vctx } from './helpers.ts';
 
 const isN = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const refusal = (fn: () => unknown): ScreenerError => { try { fn() } catch (e) { if (e instanceof ScreenerError) return e; throw e } throw new Error('expected a ScreenerError') };
@@ -120,6 +120,30 @@ describe('operators 2-4, 6, 7, 12-14 equal a brute-force reading of OPERATORS.md
       near(distanceToExtreme(RSI, ext, n, 'percent'), RSI.map((v, i) => isN(v) && isN(m[i]) && (m[i] as number) > 0 ? 100 * (v / (m[i] as number) - 1) : null));
     }
     expect(distanceToExtreme([5, 8, 6], 'highest', 2, 'absolute')).toEqual([null, 0, -2]);
+  });
+  it('2 with EMA: the EMA over the sessions before today (shifted one session, seeded with the SMA of its first N values)', () => {
+    const bfEma = (x: (number | null)[], n: number) => {                       // brute force from the spec, not indicators.ts
+      const out: (number | null)[] = x.map(() => null), k = 2 / (n + 1); let e: number | null = null, seen: number[] = [];
+      for (let i = 0; i < x.length; i++) { const v = x[i]; if (!isN(v)) continue; if (e === null) { seen.push(v); if (seen.length === n) { e = seen.reduce((s, u) => s + u, 0) / n; out[i] = e } } else { e = v * k + e * (1 - k); out[i] = e } }
+      return out;
+    };
+    for (const n of [1, 5, 20]) {
+      const e = bfEma(CLOSE, n), avg = CLOSE.map((_, i) => i >= 1 ? e[i - 1] : null);
+      near(vsAverage(CLOSE, 'EMA', n, 'percent'), CLOSE.map((v, i) => isN(avg[i]) && (avg[i] as number) > 0 ? 100 * (v / (avg[i] as number) - 1) : null));
+    }
+  });
+  it('a flat window reads exactly flat: z-score missing, slope 0, against its SMA exactly 0, for constants that are not binary fractions (QA1 D1, D2)', () => {
+    const R = rng(11);
+    for (let k = 0; k < 200; k++) {
+      const c = Math.round(R() * 1e6) / 7, x = Array(40).fill(c) as number[];
+      for (const n of [3, 7, 20]) {
+        expect([c, n, zScore(x, n).at(-1)]).toEqual([c, n, null]);
+        expect([c, n, slope(x, n).at(-1)]).toEqual([c, n, 0]);
+        expect([c, n, acceleration(x, n).at(-1)]).toEqual([c, n, 0]);
+        expect([c, n, vsAverage(x, 'SMA', n, 'percent').at(-1), vsAverage(x, 'SMA', n, 'difference').at(-1), vsAverage(x, 'SMA', n, 'ratio').at(-1)]).toEqual([c, n, 0, 0, 1]);
+      }
+    }
+    expect(zScore([1, 1, 1, 2, 1, 1, 1, 1], 3).slice(4)).toEqual([expect.any(Number), expect.any(Number), expect.any(Number), null]);   // the window flat again: missing
   });
   it('chains: a percentile of a change in percent of the close equals the brute-force composition', () => {
     const r = resolveSeries({ kind: 'transform', fn: 'percentile', of: { kind: 'transform', fn: 'change_pct', of: { kind: 'price', field: 'close' }, args: { bars: 5 } }, args: { length: 60 } }, 'm', OPTS);
@@ -250,13 +274,15 @@ describe('refusals of OPERATORS.md section 5 name the field and the fix', () => 
     const f = refusal(() => validateDefinition({ universe: { ...UNIVERSE_DEFAULTS, metric_filters: [{ kind: 'value', op: 'ge', value: 50, metric: { kind: 'rank', of: rsi } }] }, logic: 'all', conditions: [] }, CTX));
     expect([f.code, f.field]).toEqual(['INVALID_CONDITION', 'definition.universe.metric_filters[0].metric']);
   });
-  it('window limits: length 1..within_max (LIMIT_EXCEEDED above), K <= N, no pattern inside', () => {
+  it('window limits: length 1..within_max (LIMIT_EXCEEDED above), K <= N, no window inside a window', () => {
     const inner = { kind: 'value', metric: rsi, op: 'gt', value: 50 };
     const e = v({ kind: 'window', mode: 'ever', length: WITHIN_MAX + 1, test: inner });
     expect([e.code, e.field, e.details]).toEqual(['LIMIT_EXCEEDED', 'definition.conditions[0].test.length', { limit: 'within_max', allowed: WITHIN_MAX, needed: WITHIN_MAX + 1 }]);
     const k = v({ kind: 'window', mode: 'at_least', length: 5, count: 6, test: inner });
     expect([k.field, k.message]).toEqual(['definition.conditions[0].test.count', expect.stringMatching(/right: 3 of 5; wrong: 6 of 5/)]);
-    expect(v({ kind: 'window', mode: 'ever', length: 5, test: { kind: 'state', pattern: { kind: 'pattern', type: 'breakout' } } }).field).toBe('definition.conditions[0].test.test');
+    // a window inside a window is refused (a pattern state inside one is taken: the sessions it held on)
+    expect(v({ kind: 'window', mode: 'ever', length: 5, test: { kind: 'window', mode: 'ever', length: 3, test: inner } }).field).toBe('definition.conditions[0].test.test');
+    expect(() => validateTest({ kind: 'window', mode: 'ever', length: 5, test: { kind: 'state', pattern: { kind: 'pattern', type: 'breakout' } } }, 'f', CTX)).not.toThrow();
     expect(v({ kind: 'window', mode: 'ever', length: 5, count: 2, test: inner }).field).toBe('definition.conditions[0].test.count');
     expect(validateTest({ kind: 'window', mode: 'at_least', length: 5, count: 3, test: inner }, 'f', CTX))
       .toEqual({ kind: 'window', mode: 'at_least', length: 5, count: 3, test: { kind: 'value', metric: { kind: 'indicator', indicator: 'I13', output: 'rsi', params: { length: 14, source: 'close' } }, op: 'gt', value: 50 } });
@@ -265,5 +291,67 @@ describe('refusals of OPERATORS.md section 5 name the field and the fix', () => 
   it('an operator\'s N out of its catalog range is PARAM_OUT_OF_RANGE naming the argument', () => {
     const e = v({ kind: 'value', op: 'gt', value: 0, metric: { kind: 'transform', fn: 'percentile', of: rsi, args: { length: 300 } } });
     expect([e.code, e.field]).toEqual(['PARAM_OUT_OF_RANGE', 'definition.conditions[0].test.metric.args.length']);
+  });
+});
+
+describe('QA round 1 fixes (2026-11-07), each with a case besides the one observed', () => {
+  const IX = synth('IHSG', 3, 520, '2024-06-03'), E = IX.dates.at(-1)!;
+  const T = Array.from({ length: 12 }, (_, k) => synth(`Q${String(k).padStart(2, '0')}`, 700 + k, 520, '2024-06-03'));
+  const SHORT = tailBars(synth('QSH', 799, 520, '2024-06-03'), 90);
+  const ALLT = [...T, SHORT], rows = ALLT.map(t => rowOf(t, E, { adv20_idr: 5e9, last: 1000 })), CTX = vctx(ALLT.map(t => t.ticker));
+  const U = { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null } as Definition['universe'];
+  const rsi = { kind: 'indicator', indicator: 'I13', output: 'rsi' } as const, close = { kind: 'price', field: 'close' } as const;
+  it('QA3 D1: a universe-attribute filter with every value operator keeps exactly the stocks the rule keeps (one rule for filters and conditions)', () => {
+    const bars = new Map(rows.map(r => [r.ticker, r.bars]));
+    for (const [op, value, value2] of [['gt', 90, undefined], ['lt', 520, undefined], ['ge', 520, undefined], ['le', 90, undefined], ['eq', 90, undefined], ['ne', 90, undefined], ['between', 90, 520], ['outside', 100, 500]] as const) {
+      const d = validateDefinition({ universe: { ...U, metric_filters: [{ kind: 'value', op, value, ...(value2 !== undefined ? { value2 } : {}), metric: { kind: 'universe', attr: 'bars' } }] }, logic: 'all', conditions: [] }, CTX);
+      const got = runScreen(d, memoryEnv(ALLT, IX, rows, E)).rows.map(r => r.ticker).sort();
+      const want = ALLT.map(t => t.ticker).filter(t => valuePasses(bars.get(t)!, { op, value, value2 })).sort();
+      expect([op, got]).toEqual([op, want]);
+      expect(want.length).toBeGreaterThan(0);
+    }
+  });
+  it('QA3 D2: a streak is not offered on a run (type D), other window modes are', () => {
+    const run = { kind: 'transform', fn: 'rising_run', of: close };
+    const e = refusal(() => validateTest({ kind: 'window', mode: 'streak', length: 3, test: { kind: 'value', op: 'ge', value: 1, metric: run } }, 'c', CTX));
+    expect([e.code, e.field, e.message]).toEqual(['INVALID_CONDITION', 'c.mode', expect.stringMatching(/consecutive sessions.*right: rising run >= 3/)]);
+    expect(() => validateTest({ kind: 'window', mode: 'ever', length: 3, test: { kind: 'value', op: 'ge', value: 2, metric: run } }, 'c', CTX)).not.toThrow();
+  });
+  it('QA3 D3: a cross (and a pattern) counted inside a window equals the brute force; a cross with within above 1 inside is refused', () => {
+    const t = T[3], env = memoryEnv([t], IX, [rowOf(t, E)], E), r = F.rsi(t.bars, { length: 14 }).rsi as (number | null)[], at = t.dates.length - 1;
+    const crossed = (i: number) => isN(r[i]) && isN(r[i - 1]) && (r[i - 1] as number) <= 50 && (r[i] as number) > 50;
+    for (const [mode, length, count] of [['ever', 10, 1], ['at_least', 60, 3], ['at_least', WITHIN_MAX, 5]] as const) {
+      const b = bindCondition({ id: 'w', enabled: true, test: { kind: 'window', mode, length, ...(mode === 'at_least' ? { count } : {}), test: { kind: 'event', within: 1, signal: { lhs: rsi, op: 'crosses_above', rhs: { value: 50 } } } } }, 'c', env);
+      const cell = b.evaluate({ ticker: t.ticker, dates: t.dates, bars: t.bars, at, row: rowOf(t, E), ihsgCalendar: IX.dates, series: x => env.series(x, t), xsection: () => null }).cell;
+      const hits = Array.from({ length }, (_, k) => crossed(at - k)).filter(Boolean).length;
+      expect([mode, length, cell.status, cell.value]).toEqual([mode, length, (mode === 'ever' ? hits >= 1 : hits >= count) ? 'pass' : 'fail', hits]);
+    }
+    expect(() => validateTest({ kind: 'window', mode: 'at_least', length: 20, count: 2, test: { kind: 'event', within: 1, signal: { pattern: { kind: 'pattern', type: 'breakout' } } } }, 'c', CTX)).not.toThrow();
+    const e = refusal(() => validateTest({ kind: 'window', mode: 'ever', length: 10, test: { kind: 'event', within: 5, signal: { lhs: rsi, op: 'crosses_above', rhs: { value: 50 } } } }, 'c', CTX));
+    expect([e.code, e.field]).toEqual(['INVALID_CONDITION', 'c.test.within']);
+  });
+  it('QA2 D1: a window over a bar field carries the price-break remark when an ex-date falls inside it, and not when it is older', () => {
+    const t = T[5], at = t.dates.length - 1;
+    for (const [back, length, want] of [[4, 10, 'PRICE_BREAK_IN_LOOKBACK'], [4, 3, null], [20, 30, 'PRICE_BREAK_IN_LOOKBACK']] as const) {
+      const row = rowOf(t, E, {}, [{ code: 'PRICE_BREAK', action: 'STOCK_SPLIT', ex_date: t.dates[at - back], ratio_old: 1, ratio_new: 2, close_ratio: 0.5 }]);
+      const env = memoryEnv([t], IX, [row], E);
+      const b = bindCondition({ id: 'w', enabled: true, test: { kind: 'window', mode: 'ever', length, test: { kind: 'value', op: 'gt', value: 1, metric: close } } }, 'c', env);
+      const cell = b.evaluate({ ticker: t.ticker, dates: t.dates, bars: t.bars, at, row, ihsgCalendar: IX.dates, series: x => env.series(x, t), xsection: () => null }).cell;
+      expect([back, length, cell.remark]).toEqual([back, length, want]);
+    }
+  });
+  it('QA2 D2: the chart markers of a window test agree with its cell on every bar, a history shorter than the window included', () => {
+    const t = SHORT, env = memoryEnv([t], IX, [rowOf(t, E)], E), calc = tickerCalc(t);
+    for (const [mode, length, count] of [['ever', WITHIN_MAX, 1], ['at_least', 120, 10], ['streak', 3, 1]] as const) {
+      const b = bindCondition({ id: 'w', enabled: true, test: { kind: 'window', mode, length, ...(mode === 'at_least' ? { count } : {}), test: { kind: 'value', op: 'gt', value: 50, metric: rsi } } }, 'c', env);
+      const sig = conditionSignal(b, r => r.full(calc) as ArrayLike<number | null>, t.dates.length)!;
+      const at = t.dates.length - 1;
+      const cell = b.evaluate({ ticker: t.ticker, dates: t.dates, bars: t.bars, at, row: rowOf(t, E), ihsgCalendar: IX.dates, series: x => env.series(x, t), xsection: () => null }).cell;
+      expect([mode, sig[at]]).toEqual([mode, cell.status === 'pass' ? 1 : 0]);
+    }
+  });
+  it('QA3 D5 / QA4 D2: K of N without K says K is required', () => {
+    const e = refusal(() => validateTest({ kind: 'window', mode: 'at_least', length: 5, test: { kind: 'value', op: 'gt', value: 50, metric: rsi } }, 'c', CTX));
+    expect([e.field, e.message]).toEqual(['c.count', expect.stringMatching(/required with mode at_least.*right: 3 of 5/)]);
   });
 });

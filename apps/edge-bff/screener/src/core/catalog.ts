@@ -62,7 +62,7 @@ export interface MetricDefinition {
 export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; default: { cmp: string; value: number } }
 export interface OperatorTest {
   id: number; key: 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank'; label: string; help: string; ops: string[];
-  within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean;
+  within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
   default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number };
 }
 export interface OperatorsBlock { note?: string; types: Record<string, { fns: string[]; words: string }>; measures: OperatorMeasure[]; tests: OperatorTest[]; default_measure: string }
@@ -221,6 +221,7 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
       if (typeof m.unit === 'object') { const arg = c.transforms.find(t => t.fn === m.fn)?.args.find(a => a.key === (m.unit as Record<string, string>).by);
         if (!arg || !(arg.options || []).every(o => typeof (m.unit as Record<string, string>)[o] === 'string')) out.push(`operators measure ${m.fn}: unit by ${(m.unit as Record<string, string>).by} must name a unit for each option`) }
     }
+    for (const t of ob.tests) for (const k of t.not_on || []) if (!ob.types[k]) out.push(`operators test ${t.key}: not_on ${k} is not a type`);
     const keys = ob.tests.map(t => t.key).sort().join(',');
     if (keys !== 'at_least,cross,ever,range,rank,streak,value') out.push(`operators tests: ${keys} are not the seven tests of OPERATORS.md`);
   }

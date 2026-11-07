@@ -22,7 +22,7 @@ import type { BindContext, BoundCondition, TickerInput, XsectionNeed } from './c
 import { evaluationBar } from './evaluate.ts';
 import { countCells, needOf, previewStatus } from './match.ts';
 import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
-import { costEstimate, runPlan } from './plan.ts';
+import { PlanCancelledError, costEstimate, runPlan } from './plan.ts';
 import type { PlanCondition } from './plan.ts';
 import { applyUniverse } from './universe.ts';
 import { percentRank, returnRankAll } from './xsection.ts';
@@ -97,7 +97,8 @@ function crossSections(env: ScreenEnv, bound: readonly BoundCondition[], populat
         return Number.isFinite(v) ? v : null;
       };
       const values = new Map<string, number | null>(), members = new Set<string>();
-      for (const r of population) { const v = valueOf(r.ticker); values.set(r.ticker, v); if (v !== null) members.add(r.ticker) }
+      // the cancel flag between tickers, as the planner checks it (QA4 D1: a rank computes its series on every survivor)
+      for (const r of population) { if (env.cancelled?.()) throw new PlanCancelledError(); const v = valueOf(r.ticker); values.set(r.ticker, v); if (v !== null) members.add(r.ticker) }
       for (const t of also) if (!values.has(t)) values.set(t, valueOf(t));
       out.set(x.key, percentRank(values, members));
       continue;

@@ -144,16 +144,30 @@ export function vsIndex(close: In, indexAligned: In, d: number): Series {
 
 /** The index of the first bar with a value (-1 when none). */
 function firstValue(x: In): number { for (let i = 0; i < x.length; i++) if (at(x, i) !== null) return i; return -1 }
+/** The number of consecutive bars ending at i whose values are all exactly equal (0 where x[i] is missing). A window
+    lying inside such a run is flat: its spread and slope are exactly 0, whatever the floating-point arithmetic of the
+    formula gives for a constant that is not a binary fraction (QA1 2026-11-07, D1/D2: z-scores and slopes of about
+    1e-17 instead of "no value" and 0). */
+function equalRun(x: In): Int32Array {
+  const N = x.length, r = new Int32Array(N);
+  for (let i = 0; i < N; i++) { const v = at(x, i); if (v === null) continue; r[i] = i > 0 && at(x, i - 1) === v ? r[i - 1] + 1 : 1 }
+  return r;
+}
 
 /** Operator 2 (Historical Average): x against its own average over the N sessions before t. A_t = SMA or EMA of x as
     indicators.ts computes it (ma above), read one session back: lag(ma(x), 1), the average of t-N .. t-1. difference
     x_t - A_t; ratio x_t / A_t; percent 100 x (x_t / A_t - 1). null where x_t or A_t is missing; ratio and percent also
     where A_t <= 0 (a ratio to a zero or negative average has no meaning). */
 export function vsAverage(x: In, type: 'SMA' | 'EMA', n: number, form: 'difference' | 'ratio' | 'percent'): Series {
-  const a = lag(ma(x, type, n), 1), N = x.length, o = nul(N);
+  const a = lag(ma(x, type, n), 1), N = x.length, o = nul(N), run = equalRun(x);
   for (let i = 0; i < N; i++) {
-    const v = at(x, i), m = at(a, i);
+    const v = at(x, i);
+    let m = at(a, i);
     if (v === null || m === null) continue;
+    // a flat window (today and the N sessions before it all equal): the average IS today's value. The SMA of a constant
+    // that is not a binary fraction can come out an ulp off (QA1 D1 class: a degenerate window must read exactly
+    // degenerate), which would make "above its average" pass on a flat series; the EMA keeps its own seeded value
+    if (type === 'SMA' && run[i] > n) m = v;
     if (form === 'difference') o[i] = v - m;
     else if (m > 0) o[i] = form === 'ratio' ? v / m : (v / m - 1) * 100;
   }
@@ -187,9 +201,9 @@ export function zScore(x: In, n: number): Series {
   for (let t = first + n; t < N; t++) {
     const v = at(x, t);
     if (v === null) continue;
-    let sum = 0, count = 0;
-    for (let j = t - n; j < t; j++) { const w = at(x, j); if (w !== null) { sum += w; count++ } }
-    if (count < 2) continue;
+    let sum = 0, count = 0, lo = Infinity, hi = -Infinity;
+    for (let j = t - n; j < t; j++) { const w = at(x, j); if (w !== null) { sum += w; count++; if (w < lo) lo = w; if (w > hi) hi = w } }
+    if (count < 2 || lo === hi) continue;                     // a flat window: SD is exactly 0 (equalRun note)
     const mean = sum / count;
     let sq = 0;
     for (let j = t - n; j < t; j++) { const w = at(x, j); if (w !== null) sq += (w - mean) * (w - mean) }
@@ -227,9 +241,9 @@ export function slope(x: In, n: number): Series {
   whole(n, 'slope: length', 2);
   const N = x.length, o = nul(N), kbar = (n - 1) / 2, sxx = n * (n * n - 1) / 12;
   for (let t = n - 1; t < N; t++) {
-    let s = 0, ok = true;
-    for (let k = 0; k < n; k++) { const v = at(x, t - n + 1 + k); if (v === null) { ok = false; break } s += (k - kbar) * v }
-    if (ok) o[t] = s / sxx;
+    let s = 0, ok = true, lo = Infinity, hi = -Infinity;
+    for (let k = 0; k < n; k++) { const v = at(x, t - n + 1 + k); if (v === null) { ok = false; break } s += (k - kbar) * v; if (v < lo) lo = v; if (v > hi) hi = v }
+    if (ok) o[t] = lo === hi ? 0 : s / sxx;                   // a flat window: exactly 0 (equalRun note)
   }
   return o;
 }
@@ -401,7 +415,8 @@ const unitWords = (x: ResolvedSeries): string => x.unit === null ? 'without a un
 const OPS = METRICS_CATALOG.operators;
 const NOT_OFFERED: Record<string, readonly string[]> = Object.fromEntries(Object.keys(OPS.types).map(k => [k, OPS.measures.filter(m => m.not_on.includes(k)).map(m => m.fn)]));
 const OPERATOR_NAMES: Record<string, string> = Object.fromEntries(OPS.measures.map(m => [m.fn, m.label]));
-function outputType(x: ResolvedSeries): string | null {
+/** The output type of OPERATORS.md section 4 a series has (P, D), from the transform that made it; null for any other. */
+export function outputType(x: ResolvedSeries): string | null {
   const fn = x.kind === 'transform' ? (x.ref as TransformRef).fn : null;
   return Object.entries(OPS.types).find(([, t]) => fn !== null && t.fns.includes(fn))?.[0] ?? null;
 }
