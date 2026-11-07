@@ -21,6 +21,11 @@ const OPERATORS: CatalogOperators = (() => { const o = METRICS_CATALOG.operators
   measures:o.measures.map(x => ({ ...x, args:(METRICS_CATALOG.transforms.find(t => t.fn === x.fn)?.args ?? []).map(a => ({ ...a })) })) } as CatalogOperators })();
 import { DAYS, IHSG, LISTINGS, T as TK } from './data.ts';
 import { preview as pv, run as runDef, universeRow, type Market, type Tk } from './engine.ts';
+import { availabilityMap } from '../../src/core/validate.ts';
+import { indicatorDepth, resolveFlow, resolveFlowParams } from '../../src/core/flowmetrics.ts';
+import { BROKER_SESSIONS, BROKER_WINDOW, FLOW_CTX } from './broker.ts';
+import { bindTest } from '../../src/core/condition.ts';
+import { readsFlow } from './engine.ts';
 
 /* ---- the market ---------------------------------------------------------------------------------------------- */
 const STALE = new Set(['LPPF', 'ELSA']), BREAK = new Map([['GOTO', 'STOCK_SPLIT'], ['BUKA', 'REVERSE_SPLIT']]), UNCLASSIFIED = new Set(['MTDL', 'ASSA']);
@@ -45,20 +50,30 @@ const CAP_BUDGET_MS = 2000;
 /** the worker's parameter refusals (registry.ts resolveScreenerParams: ranges, whole numbers, caps, options the
     screener does not offer, P17 a), so the page meets them in the fixture as it would on the wire; the rest of the
     worker's validation is not mirrored here */
+const refuse = (e: unknown): never => {
+  if (!isScreenerError(e)) throw e;
+  throw new ApiFailure(errorText(e.code, { field:e.field, details:e.details as Record<string, unknown>, server:e.message }) || e.message, e.code, e.status, e.field, null, (e.details as Record<string, unknown>) ?? null);
+};
 function checkParams(definition: Definition) {
   const walk = (x: any, path: string) => {
     if (!x || typeof x !== 'object') return;
     if (Array.isArray(x)) { x.forEach((y, i) => walk(y, `${path}[${i}]`)); return }
     if (x.kind === 'indicator' && typeof x.indicator === 'string') {
       try { resolveScreenerParams(screenerIndicator(x.indicator, `${path}.indicator`), x.params ?? {}, `${path}.params`, { capBudgetMs:CAP_BUDGET_MS }) }
-      catch (e) {
-        if (!isScreenerError(e)) throw e;
-        throw new ApiFailure(errorText(e.code, { field:e.field, details:e.details as Record<string, unknown>, server:e.message }) || e.message, e.code, e.status, e.field, null, (e.details as Record<string, unknown>) ?? null);
-      }
+      catch (e) { refuse(e) }
     }
+    // a flow indicator's parameters and output by the core's own rules (flowmetrics.ts resolveFlow, P5a), on the
+    // fixture's broker window; a Phase 2 entry the fixture still lists stays unavailable
+    if (x.kind === 'flow' && FLOW_IDS.has(x.metric)) { try { resolveFlow(x, path, { flow:FLOW_CTX }) } catch (e) { refuse(e) } }
     for (const [k, v] of Object.entries(x)) walk(v, `${path}.${k}`);
   };
   walk(definition, 'definition');
+  // a condition that reads a flow indicator is bound by the core with the fixture's broker window, as the worker binds
+  // it: the sessions it reads over the window (K1) are refused LIMIT_EXCEEDED broker_depth, naming the condition's test
+  (definition.conditions || []).forEach((cd, i) => {
+    if (cd.enabled === false || !readsFlow(cd.test)) return;
+    try { bindTest(cd.id, cd.test, `definition.conditions[${i}].test`, { capBudgetMs:CAP_BUDGET_MS, withinMax:130, flow:FLOW_CTX }) } catch (e) { refuse(e) }
+  });
 }
 const P = (key: string, label: string, def: number, min = 1, max?: number) => ({ key, type:'integer' as const, label, default:def, min, ...(max ? { max } : {}), exclusive_min:false, integer:true, step:1 });
 const metric = (id: string, group: string, kind: CatalogMetric['kind'], label: string, unit: string | null, tests: CatalogMetric['tests'], extra: Record<string, unknown> = {}): CatalogMetric & Record<string, unknown> => ({
@@ -81,6 +96,38 @@ export const METRICS: (CatalogMetric & Record<string, unknown>)[] = [
     .map(([id, l]) => ({ ...metric(id, 'Flow', 'flow', l, 'IDR', ['value']), availability:'REQUIRES_DATA' as const, reason:FLOW_REASON })),
   { ...metric('bandar', 'Flow', 'flow', 'Bandar status', '%', ['state']), availability:'REQUIRES_DECISION' as const, reason:BANDAR_REASON },
 ];
+/** The flow entries of GET /catalog as the worker builds them (apps/screener-worker/src/catalog.ts catalogMetric: the
+    core's flow entries, the Terminal's indicators and the Screener's own, each with its setup at the loaded broker
+    window: the defaults the core resolves, the sessions it reads at them), available as the core's availabilityOf says
+    on the fixture's complete broker window (broker.ts). EXEC-SCREENER-FLOW-CANDLES P5c. The worker builds them once
+    per publication; the fixture once per browser (kept under fixture.flowCatalog with the entries they were built
+    from): the depth probes leave megabytes of garbage, whose collection, run on every page load, landed in a later task
+    of the page and failed the smoke run's long-task check. */
+function buildFlowMetrics(): CatalogMetric[] {
+  const a = availabilityMap({}, METRICS_CATALOG, undefined, FLOW_CTX);
+  return METRICS_CATALOG.metrics.filter(x => x.flow).map(x => {
+    const f = x.flow!, defaults = resolveFlowParams(f, undefined, 'catalog', BROKER_SESSIONS);
+    let depth: number | null = null;
+    if (!f.requires) try { depth = indicatorDepth(f, f.default_output, defaults) } catch { depth = null }
+    const av = a.get(x.id) ?? { availability:'REQUIRES_DATA' as const, reason:'Not evaluated.' };
+    const extra: Record<string, unknown> = {};
+    for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref'] as const) if ((x as unknown as Record<string, unknown>)[k] !== undefined) extra[k] = (x as unknown as Record<string, unknown>)[k];
+    const version = (f as { version?: string }).version;
+    return { id:x.id, group:x.group, kind:x.kind, params:x.params, tests:x.tests, unit:x.unit, formula:x.formula, interpretation:x.interpretation, misuse:x.misuse,
+      availability:av.availability, reason:av.reason, applies_to:x.applies_to, ...extra,
+      flow:{ family:f.family, place:f.place, tip:f.tip, unit:f.unit, outputs:f.outputs, default_output:f.default_output,
+        params:f.params.map(p => p.key in defaults ? { ...p, default:defaults[p.key] } : p), adv_floor:f.adv_floor, needs_classification:f.needs_classification,
+        ...(version ? { version } : {}), depth, sessions:BROKER_SESSIONS } } as CatalogMetric;
+  });
+}
+export const FLOW_METRICS: CatalogMetric[] = (() => {
+  const KEY = 'fixture.flowCatalog', src = JSON.stringify([BROKER_SESSIONS, METRICS_CATALOG.metrics.filter(x => x.flow), METRICS_CATALOG.operators]);
+  try { const kept = JSON.parse(globalThis.localStorage?.getItem(KEY) || 'null'); if (kept?.src === src) return kept.out as CatalogMetric[] } catch { /* no storage: built here */ }
+  const out = buildFlowMetrics();
+  try { globalThis.localStorage?.setItem(KEY, JSON.stringify({ src, out })) } catch { /* storage full or off */ }
+  return out;
+})();
+const FLOW_IDS = new Set(FLOW_METRICS.map(m => m.id));
 const FUND = [['cap', 'Market cap'], ['pe', 'P/E'], ['pb', 'P/B'], ['peg', 'PEG'], ['evEbitda', 'EV/EBITDA'], ['divYield', 'Dividend yield'], ['payout', 'Payout ratio'], ['divYears', 'Years of dividends'],
   ['roe', 'ROE'], ['roa', 'ROA'], ['roic', 'ROIC'], ['netMargin', 'Net margin'], ['grossMargin', 'Gross margin'], ['revG', 'Revenue growth YoY'], ['epsG', 'EPS growth YoY'], ['epsGq', 'EPS growth, latest quarter YoY'],
   ['epsG3y', 'EPS CAGR 3Y'], ['der', 'Debt / equity'], ['curr', 'Current ratio'], ['intCov', 'Interest coverage'], ['fcfYield', 'FCF yield'], ['piotroski', 'Piotroski F-score (0–9)'], ['altman', 'Altman Z-score'],
@@ -128,7 +175,10 @@ const limit = (name: string, value: number, unit: string, rule: string, ok: stri
 const LIMITS = [limit('max_conditions', 20, 'conditions', 'At most 20 enabled conditions', 'a screen with 20 enabled conditions', 'a screen with 21 enabled conditions'),
   limit('max_metric_filters', 8, 'filters', 'At most 8 universe metric filters', '8 metric filters', '9 metric filters'),
   limit('within_max', 130, 'sessions', '"within" is 1 to 130 sessions', 'within 130 sessions', 'within 131 sessions'),
-  limit('max_counts', 50, 'saved screens', 'Counts for at most 50 saved screens at once', '50 saved screens', '51 saved screens')];
+  limit('max_counts', 50, 'saved screens', 'Counts for at most 50 saved screens at once', '50 saved screens', '51 saved screens'),
+  // the worker's K1 entry at the fixture's window (apps/screener-worker/src/catalog.ts brokerDepthLimit, 60 sessions)
+  limit('broker_depth', BROKER_SESSIONS, 'sessions', `a flow condition reads at most the ${BROKER_SESSIONS} sessions of broker data the Screener holds: the indicator's own window plus the operator's N, length or within`,
+    `Bandar Balance · % over 10 sessions with a percentile over ${BROKER_SESSIONS - 10} sessions (${BROKER_SESSIONS} in all)`, `the same with a percentile over ${BROKER_SESSIONS - 5} sessions (${BROKER_SESSIONS + 5} in all; use a shorter window or N)`)];
 
 const grouping = (key: 'sector' | 'industry', rows: Tk[]) => {
   const m = new Map<string, number>(); let un = 0;
@@ -155,8 +205,10 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
   const m = market();
   if (opts.hostile) { const t = m.byTicker.get('BBCA')!; t.name = '<img src=x onerror="window.__xss=1">Bank "Central" Asia'; t.sector = '<b id="xss">Financials</b>' }
   let pub = opts.publication ?? 1;
-  const versions = (): Versions => ({ screener_engine:'0a1b2c3d4e5f6071', registry:R.registry_version, screener_registry:R.screener_registry_version, price_data:'fixture-' + String(pub).padStart(58, '0'), flow_data:null });
-  const data = () => ({ evaluation_date:m.evalDate, price_through:m.evalDate, flow_through:null, broker_behind_sessions:0, published_at:pub === 1 ? `${m.evalDate}T12:03:23Z` : `${m.evalDate}T23:59:00Z` });
+  const versions = (): Versions => ({ screener_engine:'0a1b2c3d4e5f6071', registry:R.registry_version, screener_registry:R.screener_registry_version, price_data:'fixture-' + String(pub).padStart(58, '0'), flow_data:'fixture-flow-' + '0'.repeat(51) });
+  // the broker data ends a session before the prices (broker.ts): a flow value carries its own date (P10 a)
+  const data = () => ({ evaluation_date:m.evalDate, price_through:m.evalDate, flow_through:BROKER_WINDOW.last, broker_behind_sessions:1, broker_window:{ ...BROKER_WINDOW },
+    published_at:pub === 1 ? `${m.evalDate}T12:03:23Z` : `${m.evalDate}T23:59:00Z` });
   const shape = new Map<string, string>(R.indicators.map((x: any) => [x.id, x.overlay?.shape]));
   const periods = { '1M':21, '3M':63, '6M':126, '1Y':252 };
   const catalog = (): CatalogResponse => {
@@ -173,7 +225,8 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
     }
     return { versions:v, data:{ ...d, refresh:'ready' }, limits:LIMITS,
       indicators,
-      metrics:METRICS, fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets,
+      // the hand-kept metrics, then the flow entries (a hand-kept Phase 2 id the core now lists as a flow entry is the core's)
+      metrics:[...METRICS.filter(x => !FLOW_IDS.has(x.id)), ...FLOW_METRICS], fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets,
       operators:OPERATORS };
   };
   const counters: Record<string, number> = {};

@@ -8,7 +8,8 @@
 import { esc, nf } from './format.ts';
 import { COLORS, IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, S, ui } from './state.ts';
-import { defaultParams, isDefP, optionText, paramError, rangeText, type Entry } from './entries.ts';
+import { defaultParams, depthHint, flowBudget, flowSessions, isDefP, isFlowType, optionText, paramError, rangeText, type Entry } from './entries.ts';
+import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
 import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, optOf, paramSummary, type Card } from './forms.ts';
 import { confirmDialog, openSaveMetric, toast } from './dialogs.ts';
 import { MY, openAddCondition } from './add-condition.ts';
@@ -63,13 +64,19 @@ function condRow(c: Card): string {
   const err = (k: string) => errs[k] ? `<span class="ferr" role="alert">${esc(errs[k])}</span>` : '';
   const inv = (k: string) => errs[k] ? 'aria-invalid="true"' : '';
   const vals = o && o.value === 'input' ? `<div class="vrow"><input class="inp" type="number" step="any" data-c="${c.id}" data-k="value" value="${c.value}" ${inv('value')} aria-label="${o.between ? 'From' : 'Value'}">${o.between ? `<span class="unit">–</span><input class="inp" type="number" step="any" data-c="${c.id}" data-k="value2" value="${c.value2}" ${inv('value2')} aria-label="To">` : ''}${u ? `<span class="unit">${esc(u)}</span>` : ''}</div>${err('value')}${err('value2')}` : '';
-  const within = o?.within ? `<div class="vrow"><span class="unit">within</span><input class="inp" type="number" min="1" max="${withinMax()}" step="1" data-c="${c.id}" data-k="within" value="${c.within}" ${inv('within')} aria-label="Within sessions"><span class="unit">sessions</span></div>${err('within')}` : '';
+  // a flow indicator's "within": at most the broker sessions held, with about how many the setup leaves as a hint (K1:
+  // the worker judges the setup, its refusal shown on this card)
+  const S0 = e.flow ? flowSessions(e) : null, wmax = S0 == null ? withinMax() : Math.min(withinMax(), S0), wh = e.flow ? depthHint(flowBudget(e, c.params)) : '';
+  const within = o?.within ? `<div class="vrow"><span class="unit">within</span><input class="inp" type="number" min="1" max="${wmax}" step="1" data-c="${c.id}" data-k="within" value="${c.within}" ${inv('within')} aria-label="Within sessions"${wh ? ` title="${esc(wh)}"` : ''}><span class="unit">sessions${wh ? ` · ${esc(wh)}` : ''}</span></div>${err('within')}` : '';
   const pf = (p: Entry['params'][number], second = false) => {
     const v = second ? c.second[p.key] : c.params[p.key], k = (second ? '2.' : '') + p.key, attr = second ? 'data-p2' : 'data-p';
-    const field = p.options ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}">${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
+    // a flow indicator's list, anchor date or broker codes (param-fields.ts)
+    const field = isFlowType(p) ? flowControlHtml(p, v, `data-c="${c.id}" ${attr}="${esc(p.key)}"`, (second ? '2nd ' : '') + (p.label || p.key), errs[k] || paramTitle(p, p.default), !!errs[k])
+      : p.options ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}">${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
       : p.type === 'boolean' ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}"><option value="true" ${v === true ? 'selected' : ''}>true</option><option value="false" ${v === false ? 'selected' : ''}>false</option></select>`
       : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="${p.step ?? (p.integer ? 1 : 'any')}" data-c="${c.id}" ${attr}="${p.key}" value="${esc(v)}" ${inv(k)} title="${esc(rangeText(p))}">`;
-    return `<label class="pf ${isDefP(p, v) ? '' : 'chg'}" data-pf="${c.id}|${k}"><span>${esc((second ? '2nd ' : '') + (p.label || p.key))}</span>${field}<small>${errs[k] ? `<b class="down">${esc(errs[k])}</b>` : `${defaultOffered(e) ? 'default' : 'opens at'} ${esc(optionText(p, p.default))}`}</small></label>`;
+    const tag = p.type === 'multi' ? 'div' : 'label';            // a checkbox group is not one labelled control
+    return `<${tag} class="pf ${isDefP(p, v) ? '' : 'chg'}" data-pf="${c.id}|${k}"><span>${esc((second ? '2nd ' : '') + (p.label || p.key))}</span>${field}<small>${errs[k] ? `<b class="down">${esc(errs[k])}</b>` : `${defaultOffered(e) ? 'default' : 'opens at'} ${esc(optionText(p, p.default))}`}</small></${tag}>`;
   };
   const twoLines = o && (o.form === 'state_instance' || o.form === 'event_instance');
   // P17 consequence (catalog default_offered false, I43): no Default chip, the card is Custom with its reason
@@ -228,7 +235,7 @@ export function onBuilderField(el: HTMLInputElement | HTMLSelectElement): boolea
   const e = entryOf(c);
   if (d.p || d.p2) {
     const key = (d.p || d.p2)!, p = e?.params.find(x => x.key === key); if (!e || !p) return true;
-    const v = p.type === 'boolean' ? el.value === 'true' : p.type === 'enum' ? el.value : el.value.trim() === '' ? NaN : Number(el.value);
+    const v = paramFieldValue(p, el);
     const errKey = (d.p2 ? '2.' : '') + key, msg = paramError(p, v as any);
     const errs = S.errors[c.id] ||= {};
     if (msg) { errs[errKey] = `${p.label || p.key}: ${msg}`; renderConds(); ui.schedule(); return true }
@@ -236,7 +243,8 @@ export function onBuilderField(el: HTMLInputElement | HTMLSelectElement): boolea
     const target = d.p2 ? c.second : c.params;
     if (target[key] === v) { checkCard(c); return true }
     target[key] = v as any; if (!d.p2) syncMetric(c);
-    checkCard(c); ui.markDirty(); ui.refresh(el.tagName === 'SELECT' ? 'conds' : 'conds-light'); return true;
+    // a choice (a select, a list's box) redraws the card: its lines, conditions and limits may follow it
+    checkCard(c); ui.markDirty(); ui.refresh(el.tagName === 'SELECT' || (el as HTMLInputElement).type === 'checkbox' || isFlowType(p) ? 'conds' : 'conds-light'); return true;
   }
   const k = d.k!;
   if (k === 'on') { c.on = (el as HTMLInputElement).checked; ui.markDirty(); ui.refresh('conds'); return true }

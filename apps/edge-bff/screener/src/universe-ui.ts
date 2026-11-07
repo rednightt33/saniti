@@ -75,7 +75,8 @@ const QF: QFDef[] = [
 const CAPB: [string, string][] = [['Mega', '≥ 200T'], ['Big', '50–200T'], ['Mid', '10–50T'], ['Small', '1–10T'], ['Micro', '< 1T']];
 
 const metricOpts = (cur: string | null) => {
-  const list = byGroup(ctx.entries.filter(e => e.kind !== 'indicator' && e.opts.some(o => o.kind === 'value')));
+  // a flow indicator is a condition (read at its own broker data date, with its setup), not a universe filter
+  const list = byGroup(ctx.entries.filter(e => e.kind !== 'indicator' && !e.flow && e.opts.some(o => o.kind === 'value')));
   const groups = [...new Set(list.map(e => e.group))];
   return `${cur ? '' : '<option value="" selected disabled>Pick a metric…</option>'}` + groups.map(g => `<optgroup label="${esc(g)}">${list.filter(e => e.group === g)
     .map(e => `<option value="${esc(e.key)}" ${e.key === cur ? 'selected' : ''} ${e.available ? '' : `disabled title="${esc(e.reason || '')}"`}>${esc(e.label)}${e.available ? '' : ' — no data'}</option>`).join('')}</optgroup>`).join('');

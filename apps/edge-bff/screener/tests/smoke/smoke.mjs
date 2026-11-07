@@ -394,6 +394,73 @@ await at('Operators (P3): "Operator…" opens Customize with Measure and Test fr
   const why = (await page.locator('#dtb .chk-list > div b').allInnerTexts()).map(t => t.trim());
   expect(JSON.stringify(why) === JSON.stringify(last3), 'the preview does not write the cells as the table: ' + JSON.stringify({ why, table:last3 }));
 });
+await at('Flow (P5c): a flow indicator with its Terminal parameters (a board list, whole numbers), session fields with their broker-data hint, a too-deep operator refused by the worker on its card; cells and the preview name the broker data date', async () => {
+  // EXEC-SCREENER-FLOW-CANDLES P5c (verification/screener/P5_FLOW.md section 4): the fixture's broker data ends a session
+  // before its prices (tests/fixture/broker.ts), so every flow value carries its broker data date
+  await fresh(); await ready();
+  const r0 = await runs(), cat = await page.evaluate(async () => (await window.__fixture.catalog(null)).body);
+  const last = cat.data.broker_window.last, sessions = cat.data.broker_window.sessions;
+  // a flow entry with a board list, a window and a percent output, chosen from the catalog, never by id
+  const e = cat.metrics.find(m => m.flow && m.availability === 'AVAILABLE' && m.flow.outputs.length === 1 && m.flow.outputs[0].kind === 'K'
+    && m.flow.params.some(p => p.kind === 'multi' && (p.options || []).includes('Nego')) && m.flow.params.some(p => p.key === 'window' && p.kind === 'int') && m.flow.depth > 1 && m.flow.depth < 30);
+  expect(!!e, 'the fixture catalog has no flow entry with a board list and a window');
+  await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', e.label); await page.waitForTimeout(200);
+  const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:e.label }) }).first();
+  expect(await row.count() === 1 && /Flow/.test(await row.getAttribute('data-rg')), `${e.label} is not a row of the Flow group`);
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  const pop = row.locator('.qpop'), nego = pop.locator('.msel input[data-ap][data-mv="Nego"]');
+  expect(await pop.locator('.msel').count() >= 1 && await nego.count() === 1 && !(await nego.isChecked()) && await pop.locator('input[data-ap="window"]').inputValue() === String(e.flow.params.find(p => p.key === 'window').default),
+    'the panel does not offer the board list (Regular only) and the window at their defaults: ' + await pop.innerText());
+  await nego.check(); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop .msel input[data-mv="Nego"]').isChecked() && /Custom\s*1 of/.test(await row.locator('.qcus').innerText()), 'ticking Nego is not kept as a changed field: ' + await row.locator('.qcus').innerText());
+  // the operator: the percentile opens within half of the sessions the hint leaves; the session fields take at most
+  // the broker sessions held and say about how many the setup leaves (K1: the worker is the authority)
+  await row.locator('[data-af="opt"]').selectOption('__op'); await page.waitForTimeout(200);
+  const left = sessions - e.flow.depth, len = row.locator('.qpop [data-aoa="length"]');
+  expect(await row.locator('.qpop [data-ao="measure"]').inputValue() === 'percentile' && Number(await len.inputValue()) <= Math.floor(left / 2) && await len.getAttribute('max') === String(sessions),
+    `the percentile does not open within half of the ${left} broker sessions left, or its field is not capped at the ${sessions} held: ` + JSON.stringify({ v:await len.inputValue(), max:await len.getAttribute('max') }));
+  await row.locator('.qpop [data-ao="test"]').selectOption('ever'); await page.waitForTimeout(150);
+  const n = row.locator('.qpop [data-ao="n"]'), hint = left - Number(await len.inputValue());
+  expect(await n.getAttribute('max') === String(sessions) && new RegExp(`about ${hint} sessions of broker data left`).test(await row.locator('.qpop').innerText()),
+    'N does not take the broker sessions held with the hint of what the setup leaves: ' + await row.locator('.qpop').innerText());
+  // one session too deep: not refused in place; the worker refuses it on its card at Screen now
+  await n.fill(String(hint + 1)); await n.dispatchEvent('change'); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop [aria-invalid="true"]').count() === 0, 'a depth the worker judges was refused in place');
+  await row.locator('.qpop [data-ao="value"]').fill('0'); await row.locator('.qpop [data-ao="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  await screen();
+  const refused = page.locator('#condList .mc[data-card] [data-refused]');
+  expect(await refused.count() === 1 && /broker data the Screener holds.*this one needs \d+ sessions/.test(await refused.innerText()), 'the worker\'s refusal is not on the too-deep card: ' + (await refused.count() ? await refused.innerText() : await text('#condList')));
+  // within the hint, and the indicator's own condition (Nego kept); the too-deep card removed
+  await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', e.label); await page.waitForTimeout(200);
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  await row.locator('.qpop [data-ao="n"]').fill('5'); await row.locator('.qpop [data-ao="n"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await row.locator('[data-af="opt"]').selectOption({ index:0 }); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  await page.locator('#condList .mc[data-card]').first().locator('[data-del]').click(); await page.waitForTimeout(150);
+  const sums = await page.locator('#condList .mc[data-card] .msum').allInnerTexts();
+  expect(sums.length === 2 && sums.every(x => x.includes(e.label) && /Regular \+ Nego/.test(x)) && /at least once in the last 5 sessions/.test(sums[0]),
+    'the cards do not state the flow setup and operator: ' + JSON.stringify(sums));
+  expect(await runs() === r0 + 1, 'adding flow conditions ran the screen');
+  await page.click('[data-logic="any"]'); await page.waitForTimeout(150);
+  await screen();
+  expect(!/could not run|not offered|not available/i.test(await text('#resPane')) && /match/.test(await meta()), 'the flow screen did not run: ' + await meta() + ' ' + (await text('#resPane')).slice(0, 300));
+  const first = page.locator('#resPane tbody tr').first(), dates = await first.locator('td .fdate').allInnerTexts();
+  const short = `${Number(last.slice(8))} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(last.slice(5, 7)) - 1]}`;
+  expect(dates.length >= 1 && dates.every(d => d.trim() === short), `the flow cells do not show their broker data date ${short}: ` + JSON.stringify(dates));
+  const tip = await first.locator('td:has(.fdate)').first().getAttribute('title');
+  expect(new RegExp(`Broker data of ${last}`).test(tip || ''), 'a flow cell\'s tooltip does not name its broker data date: ' + tip);
+  await first.click(); await page.waitForTimeout(600);
+  const why = await page.locator('#dtb .chk-list .fdate').allInnerTexts();
+  expect(why.length === 2 && why.every(w => w.includes(`Broker data of ${last}`)), 'the preview does not name the broker data date of both flow conditions: ' + JSON.stringify(why));
+  await page.click('[data-hd="export"]'); await page.click('#menu button:has-text("Method & sources")'); await page.waitForTimeout(200);
+  expect(new RegExp(`Broker data through\\s*${last} \\(${sessions} sessions\\)`).test(await text('#dtb')), 'Method & sources does not name the broker data: ' + (await text('#dtb')).slice(0, 600));
+});
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
   await fresh(); await ready();
   await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', 'vwap'); await page.waitForTimeout(100);
@@ -764,9 +831,9 @@ await at('prototype behaviours kept: repick, preset toast count, local universe 
   await page.keyboard.press('Shift+Tab');
   expect(await page.evaluate(() => !!document.activeElement?.closest('.drawer')), 'Shift+Tab left the drawer');
   await page.keyboard.press('Escape');
-  // Method & sources keeps the prototype's bandar thresholds, disabled with the reason (P9, Phase 3)
+  // Method & sources says the bandar thresholds are each condition's own values (P5), with no disabled global fields
   await page.click('[data-hd="export"]'); await page.click('#menu button:has-text("Method & sources")');
-  expect(/Bandar status thresholds/i.test(await text('#dtb')) && await page.locator('#dtb input[disabled]').count() === 2, 'bandar thresholds not shown disabled');
+  expect(/Bandar thresholds/i.test(await text('#dtb')) && /each condition's own values/i.test(await text('#dtb')) && await page.locator('#dtb input[disabled]').count() === 0, 'the bandar thresholds are not said to be each condition\'s own values');
 });
 await at('phone width: no horizontal page scroll', async () => {
   await open({ width:390, height:844 }); await go(); await ready();

@@ -1568,3 +1568,15 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
   .qrow>.rr.qt:has(>.rr-none){display:none}
   .qwin-f>span:first-child{display:none}
 }
+
+/* EXEC-SCREENER-FLOW-CANDLES P5c: a flow indicator's parameters (param-fields.ts): a list as a group of checkboxes, an
+   anchor date, broker codes; the broker data date beside a flow value (results.ts, preview.ts) */
+.msel{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0}
+.msel .mopt{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--text-2);white-space:nowrap;cursor:pointer}
+.pgrid .pf .msel .mopt span{font-size:var(--fs-xs);color:var(--text-2);overflow:visible}
+.msel .mopt input{margin:0;accent-color:var(--blue)}
+.msel[aria-invalid="true"]{outline:1px solid var(--red);outline-offset:2px;border-radius:4px}
+.inp.inp-date{min-width:9.5em}
+.inp.inp-codes{min-width:8em}
+.fdate{margin-left:4px;font-size:var(--fs-2xs);color:var(--text-3);font-weight:var(--fw-regular);white-space:nowrap}
+.chk-list .fdate{display:block;margin:0}

@@ -114,3 +114,16 @@ through `flowmetrics.ts` computeEntry; tests `tests/core/flow-screener.test.ts`,
   Nego-only day and a day without a price bar.
 - Validation refusals per rule; depth refusal derived from the window; availability; evaluation date; mapping of
   investor types and boards; operators on a flow series (percentile, at_least, rank); K7.
+
+## 4b. As built (P5c, 2026-11-07)
+
+- Every flow entry is offered from its catalog data (no FL id in the page): parameters by kind (whole numbers and numbers
+  with min/max, selects, switches, boards and investor types as checkboxes, broker codes, an anchor date inside the broker
+  window), the entry's own conditions per output type, and Measure + Test; "=" and "!=" only on D, F and B outputs.
+- Depth: the worker is the only authority (the page bundle may not import flow.ts). The page shows "about N sessions of
+  broker data left at this setup" as a hint and never refuses a depth in place; a too-deep condition gets the worker's
+  `LIMIT_EXCEEDED broker_depth` refusal on its card. Follow-up (not in this release): a depth table generated from the
+  core probe into the catalog, so the page can refuse exactly in place.
+- The broker data date: cell tooltip, a short date beside a value older than the stock's prices, under each condition in
+  the Preview, and "Broker data through ..." in Method & sources. The old disabled "Bandar status thresholds (Phase 3)"
+  fields are gone: each condition holds its own thresholds.

@@ -187,6 +187,12 @@ function normalize(cd: ConditionDef): unknown {
         : Object.fromEntries(Object.entries(r.params || {}).filter(([k, v]) => String(e.params.find(x => x.key === k)?.default) !== String(v)));
       return Object.keys(p).length ? { kind:'indicator', indicator:r.indicator, params:p, output:r.output } : { kind:'indicator', indicator:r.indicator, output:r.output };
     }
+    // a flow indicator (P5c): its output stated, parameters only where they differ from the catalog's defaults
+    if (r.kind === 'flow' && byKey.get(r.metric)?.flow) {
+      const e = byKey.get(r.metric)!, txt = (v: unknown) => Array.isArray(v) ? v.join(',') : String(v);
+      const p = Object.fromEntries(Object.entries(r.params || {}).filter(([k, v]) => txt(e.params.find(x => x.key === k)?.default) !== txt(v)));
+      return { kind:'flow', metric:r.metric, output:r.output ?? e.flow!.default_output, ...(Object.keys(p).length ? { params:p } : {}) };
+    }
     const id = r.kind === 'pattern' ? r.type : r.kind === 'xsection' ? r.metric : null, e = id ? byKey.get(id) : undefined;
     if (e && r.params) {
       const p = Object.fromEntries(Object.entries(r.params).filter(([k, v]) => String(e.params.find(x => x.key === k)?.default) !== String(v)));

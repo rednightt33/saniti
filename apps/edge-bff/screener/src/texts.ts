@@ -2,7 +2,7 @@
    Backtest's api/texts.ts; the shell's words live in static/edge-labels.js). Plain text: the page escapes every string
    it puts into markup (format.ts esc). The API sends codes, never messages for the page to show verbatim where the
    page has its own wording (report 9.2: remarks are worded here from the API's codes). */
-import type { ApiError, Cell, CellRemark, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
+import type { ApiError, Cell, CellRemark, DataStatus, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
 import type { ExtraCellState } from './extra-columns.ts';
 import { ApiFailure } from './api/types.ts';
 import { comparableAcrossStocks, fmtValue, nf, timeText, unitWords, type ValueFormat } from './format.ts';
@@ -35,7 +35,8 @@ export const T = {
   noFundamentalValue: 'The preview does not carry this value yet.',
   operatorCardNote: 'To change this operator, open Add a condition, set it again and add it; then remove this card.',
   sendPhase: 'Send to Backtest comes with Phase 1b, once its rules are confirmed.',
-  bandarPhase: 'Not editable here: the bandar thresholds become parameters of each bandar condition when the flow definitions arrive (Phase 3).',
+  // the prototype's global bandar thresholds are each condition's own values since the flow indicators (P5)
+  bandarOwn: 'The bandar thresholds are each condition\'s own values, set on its card: for example Bandar Balance at 6% or more for accumulation and 10% or more for big accumulation, as the bandar presets use.',
   // P17 consequence (catalog default_offered false: I43 VWAP, whose registry default anchor Session is not offered)
   noDefault: 'The screener does not offer this indicator\'s standard default, so the card opens at the starting parameters shown; change them here.',
   noWatchlistPage: 'Saved in your EDGE watchlist.',
@@ -45,7 +46,7 @@ export const T = {
 export const NA_TEXT: Record<NaReason, string> = {
   INSUFFICIENT_HISTORY: 'n/a: not enough history for this indicator up to the evaluation date',
   NULL_AT_EVALUATION: 'n/a: no value on the evaluation date (flat window, zero band width or zero volume)',
-  FLOW_UNAVAILABLE: 'n/a: flow data is not available for this stock',
+  FLOW_UNAVAILABLE: 'n/a: this stock has no broker data in the sessions the Screener holds',
   FLOW_LAGGED: 'n/a: flow data is older than the price data',
   NOT_APPLICABLE: 'n/a: this metric does not apply to this stock',
   DATA_INTEGRITY: 'n/a: the data failed its integrity check in this publication',
@@ -330,7 +331,8 @@ export const methodText = (evalDate: string) =>
   `VALUE tests read each stock's value on the evaluation date (${evalDate}). STATE tests compare two values on that date. ` +
   `EVENT tests (crosses, breakouts, divergences, flips) pass when the event happened within the chosen number of sessions, ` +
   `counted on the stock's own bars. A stock without a trade on ${evalDate} is stale: it is hidden by default, and when shown ` +
-  `it is evaluated at its own last bar with a remark. Near misses are one condition short of the match.`;
+  `it is evaluated at its own last bar with a remark. Flow conditions read each stock's broker data at its last session with ` +
+  `broker data; the value shows that date when it is older than the prices. Near misses are one condition short of the match.`;
 
 /* ---- EXEC-SCREENER-V21 (data audit, report v21/reports/s2_data.md): the words of a cell and of an extra column ------
    One rule for every number of the table, the preview and the extra columns: an NA cell says n/a with its reason, a
@@ -338,17 +340,41 @@ export const methodText = (evalDate: string) =>
    number or as 0. */
 
 /** The tooltip lines of a cell (contract Cell): the date it was evaluated on (and that it is the stock's last trade
-    when that is before the screen's evaluation date), the event date and bars ago, the last event, the NA reason, not
-    evaluated, and the price-break remark naming the row's ex-date. */
-export function cellTitle(c: Cell, rowRemarks: readonly RowRemark[], evalDate: string | null): string {
+    when that is before the screen's evaluation date; for a flow condition, `flow`, the date of its broker data and that
+    it is older than the stock's prices, `evalDate` being then the stock's price date), the event date and bars ago,
+    the last event, the NA reason, not evaluated, and the price-break remark naming the row's ex-date. */
+export function cellTitle(c: Cell, rowRemarks: readonly RowRemark[], evalDate: string | null, flow = false): string {
   return [
-    c.eval_date ? `Evaluated ${c.eval_date}${evalDate && c.eval_date !== evalDate ? ` (the stock's last trade; the screen's date is ${evalDate})` : ''}` : '',
+    // a flow condition is read at the stock's last session with broker data (P10 a): its date is the broker data's
+    flow && c.eval_date ? flowDateTitle(c.eval_date, evalDate)
+      : c.eval_date ? `Evaluated ${c.eval_date}${evalDate && c.eval_date !== evalDate ? ` (the stock's last trade; the screen's date is ${evalDate})` : ''}` : '',
     c.event_date ? `Event ${c.event_date}${c.bars_ago != null ? ` (${c.bars_ago} session${c.bars_ago === 1 ? '' : 's'} ago)` : ''}` : '',
     c.last_event_date && c.last_event_date !== c.event_date ? `Last event ${c.last_event_date}` : '',
     c.status === 'na' ? naText(c.reason) : '',
     c.status === 'not_evaluated' ? 'Not evaluated: the row could no longer match' : '',
     c.remark ? cellRemarkText(c.remark, rowRemarks as RowRemark[]) : '',
   ].filter(Boolean).join('\n');
+}
+
+/* ---- EXEC-SCREENER-FLOW-CANDLES P5c: the broker data date of a flow value (P10 a, OPERATORS.md section 6) ---------
+   A flow condition is read at the stock's last session with broker data, on or before the screen's date; its cell
+   carries that date. The tooltip always names it; the cell shows it beside the value when it is older than the stock's
+   prices; the preview names it under the condition. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** '2026-10-22' as '22 Oct' (the cell's few characters; the tooltip has the full date) */
+export const shortDate = (iso: string) => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(iso); return m ? `${Number(m[2])} ${MONTHS[Number(m[1]) - 1] ?? m[1]}` : iso };
+/** a flow cell's date line: the broker data's date, and that it is older than the prices when it is */
+export const flowDateTitle = (date: string, priceDate: string | null | undefined) =>
+  `Broker data of ${date}${priceDate && date < priceDate ? ` (the stock's latest broker data; prices are of ${priceDate})` : ''}`;
+/** the date a flow cell shows beside its value: only when the broker data is older than the stock's prices */
+export const flowDateShown = (c: Cell, priceDate: string | null | undefined): string | null =>
+  c.eval_date && c.status !== 'na' && c.status !== 'not_evaluated' && priceDate && c.eval_date < priceDate ? shortDate(c.eval_date) : null;
+/** The broker data the publication holds, for Method & sources: its last session and how many are loaded. */
+export function brokerDataText(d: Partial<DataStatus> | null | undefined): string {
+  const w = d?.broker_window, last = w?.last ?? d?.flow_through ?? null;
+  if (!last || (w && !w.sessions)) return 'none loaded yet';
+  if (!w) return last;
+  return `${last} (${w.sessions} session${w.sessions === 1 ? '' : 's'}${w.complete ? '' : ', still loading'})`;
 }
 
 /** What an extra-column cell shows (extra-columns.ts ExtraCellState), with the column's format (format.ts

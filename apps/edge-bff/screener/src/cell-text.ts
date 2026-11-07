@@ -10,6 +10,13 @@ import { optOf, type Card } from './forms.ts';
 import { opValueText } from './operators.ts';
 import { eventText } from './texts.ts';
 
+/** Whether a card's condition reads a flow indicator (EXEC-SCREENER-FLOW-CANDLES P5c): a card on one, or a kept card
+    whose test names one; its cells are then of the stock's broker data date (P10 a). */
+export function readsFlow(c: Card, e: Entry | undefined): boolean {
+  if (e?.flow) return true;
+  const walk = (x: unknown): boolean => !!x && typeof x === 'object' && ((x as { kind?: unknown }).kind === 'flow' || Object.values(x as object).some(walk));
+  return !!c.raw && walk(c.raw);
+}
 /** The test kind a card's cells are: an operator card's test (a cross is an event, ever / K of N / in a row a window),
     else its condition's kind, else a kept card's wire kind. */
 export const kindOfCard = (c: Card, e: Entry | undefined): string | undefined => {
@@ -25,6 +32,6 @@ export function cellText(e: Entry | undefined, c: Card, x: Cell | undefined): st
   const kind = kindOfCard(c, e);
   if (kind === 'event') return x.status !== 'pass' && x.bars_ago == null ? 'No' : eventText(x);
   if (kind === 'state') return x.status === 'pass' ? 'Yes' : 'No';
-  if (c.op && e?.ops) return opValueText(e.ops, e, c.op, x.value, x.status === 'pass');
+  if (c.op && e?.ops) return opValueText(e.ops, e, c.op, x.value, x.status === 'pass', c.params);
   return fmtValue(x.value, formatOfOpt(e, e ? optOf(e, c) : undefined));
 }

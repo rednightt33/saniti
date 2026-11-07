@@ -13,6 +13,7 @@ import { resolveSeries, tickerCalc } from '../../src/core/metrics.ts';
 import { valuePasses } from '../../src/core/evaluate.ts';
 import { percentRank } from '../../src/core/xsection.ts';
 import { metricSpec } from '../../src/core/catalog.ts';
+import { FLOW_CTX, tickerFlow } from './broker.ts';
 
 export type S = (number | null)[];
 export interface Tk {
@@ -25,6 +26,19 @@ export interface Market { tickers: Tk[]; byTicker: Map<string, Tk>; days: string
 const memo = new Map<string, S>();
 const isN = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 const barsOf = (t: Tk): Bars => ({ O:t.o, H:t.h, L:t.l, C:t.c, V:t.v, T:t.d });
+/** a series of the core on the ticker's bars, with its broker data (a flow indicator and the operators over it, P5c) */
+const coreSeries = (t: Tk, r: MetricRef): S => Array.from(resolveSeries(r, 'fixture', { capBudgetMs:2000, flow:FLOW_CTX })
+  .full(tickerCalc({ ticker:t.ticker, dates:t.d, bars:barsOf(t), flow:tickerFlow(t.ticker, t.d) })) as ArrayLike<number | null | undefined>, x => isN(x) ? x : null);
+/** whether a test reads a flow indicator (it is then evaluated at the stock's last session with broker data, P10 a) */
+export const readsFlow = (x: unknown): boolean => !!x && typeof x === 'object' && ((x as { kind?: unknown }).kind === 'flow' || Object.values(x as object).some(readsFlow));
+/** the stock's last bar with broker data on or before its last bar (-1: none in the window) */
+export function flowBar(t: Tk): number {
+  const rows = tickerFlow(t.ticker, t.d).rows(); if (!rows || !rows.rows) return -1;
+  const days = new Set(Array.from(rows.D, k => rows.dates[k]));
+  for (let i = t.c.length - 1; i >= 0; i--) if (days.has(t.d[i])) return i;
+  return -1;
+}
+
 const sma = (a: S, n: number): S => { const r: S = new Array(a.length).fill(null); for (let i = n - 1; i < a.length; i++) { let s = 0, ok = true; for (let j = i - n + 1; j <= i; j++) { const x = a[j]; if (!isN(x)) { ok = false; break } s += x } if (ok) r[i] = s / n } return r };
 const ema = (a: S, n: number): S => { const r: S = new Array(a.length).fill(null), k = 2 / (n + 1); let e: number | null = null, s = 0, m = 0; for (let i = 0; i < a.length; i++) { const x = a[i]; if (!isN(x)) continue; if (e == null) { s += x; m++; if (m === n) { e = s / n; r[i] = e } } else { e = x * k + e * (1 - k); r[i] = e } } return r };
 
@@ -56,7 +70,7 @@ export function series(m: Market, t: Tk, ref: MetricRef | Side): S {
         case 'rolling_max': case 'rolling_min': { const len = Number(a.length ?? 252); out = of.map((_, i) => { if (i < len - 1) return null; let x = r.fn === 'rolling_max' ? -Infinity : Infinity; for (let j = i - len + 1; j <= i; j++) { const y = of[j]; if (!isN(y)) return null; x = r.fn === 'rolling_max' ? Math.max(x, y) : Math.min(x, y) } return x }); break }
         case 'vs_index': { const w = Number(a.window ?? 63); const ix = m.ihsg, off = m.days.length - n; out = t.c.map((c, i) => i >= w ? ((c / t.c[i - w]) - (ix[off + i] / ix[off + i - w])) * 100 : null); break }
         // every other transform (the universal operators, P3) is the worker's own, through the core on these bars
-        default: out = Array.from(resolveSeries(r, 'fixture', { capBudgetMs:2000 }).full(tickerCalc({ ticker:t.ticker, dates:t.d, bars:barsOf(t) })) as ArrayLike<number | null | undefined>, x => isN(x) ? x : null);
+        default: out = coreSeries(t, r);
       }
       break;
     }
@@ -75,12 +89,16 @@ export function series(m: Market, t: Tk, ref: MetricRef | Side): S {
     }
     case 'rank': {
       // operator 11 over the fixture's listed stocks without a remark (the worker ranks within the filtered universe)
-      const val = (k: Tk) => { const s = series(m, k, (r as any).of); return s[k.c.length - 1] };
+      // a flow series is read at each stock's last session with broker data (P10 a)
+      const atOf = (k: Tk) => readsFlow((r as any).of) ? flowBar(k) : k.c.length - 1;
+      const val = (k: Tk) => { const s = series(m, k, (r as any).of), i = atOf(k); return i < 0 ? null : s[i] };
       const values = new Map(m.tickers.map(k => [k.ticker, val(k)] as [string, number | null]));
       const pop = new Set(m.tickers.filter(k => !k.remarks.length && isN(values.get(k.ticker))).map(k => k.ticker));
-      const v = percentRank(values, pop).get(t.ticker) ?? null;
-      out = t.c.map((_, i) => i === n - 1 ? v : null); break;
+      const v = percentRank(values, pop).get(t.ticker) ?? null, me = atOf(t);
+      out = t.c.map((_, i) => i === me ? v : null); break;
     }
+    // a flow indicator (P5c): the core's flowmetrics.ts on the fixture's broker rows (broker.ts)
+    case 'flow': out = coreSeries(t, r); break;
     case 'universe': {
       const i = n - 1, adv = sma(t.c.map((c, j) => c * t.v[j]), 20);
       const val = r.attr === 'last' ? t.c[i] : r.attr === 'adv20_idr' ? adv[i] : r.attr === 'chg_1d_pct' ? (t.c[i] / t.c[i - 1] - 1) * 100 : r.attr === 'bars' ? n : null;
@@ -136,9 +154,14 @@ export function unitOf(test: any, where: 'cell' | 'summary' = 'cell'): string | 
 
 /** one condition on one ticker at its last bar */
 export function evaluate(m: Market, t: Tk, cd: ConditionDef): { cell: Cell; signal: S | null } {
-  const at = t.c.length - 1, tt = cd.test as any, eval_date = t.d[at];
+  const tt = cd.test as any, flow = readsFlow(tt);
+  // a flow condition is read at the stock's last session with broker data, its date the cell's (P10 a); without any in
+  // the window it is n/a FLOW_UNAVAILABLE without a date, as the worker's core does
+  const at = flow ? flowBar(t) : t.c.length - 1;
+  if (at < 0) return { cell:{ id:cd.id, status:'na', eval_date:null, unit:unitOf(tt), reason:'FLOW_UNAVAILABLE', remark:null, ...(tt.kind === 'value' || tt.kind === 'window' ? { value:null } : {}) } as Cell, signal:null };
+  const eval_date = t.d[at];
   const base = { id:cd.id, eval_date, unit:unitOf(tt), reason:null, remark:null } as Cell;
-  const priceDerived = refsOf(tt).some(r => r.kind === 'indicator' || r.kind === 'transform' || r.kind === 'pattern');
+  const priceDerived = !flow && refsOf(tt).some(r => r.kind === 'indicator' || r.kind === 'transform' || r.kind === 'pattern');
   if (t.breakAt != null && priceDerived && t.breakAt > at - lookback(refsOf(tt))) base.remark = 'PRICE_BREAK_IN_LOOKBACK';
   if (tt.kind === 'value') {
     const v = series(m, t, tt.metric)[at];
@@ -195,7 +218,8 @@ export function run(m: Market, def: Definition, versions: Versions, data: RunRes
   const extra = (def.universe.metric_filters || []);
   const elig = view.rows.filter(r => extra.every((f, i) => evaluate(m, m.byTicker.get(r.ticker)!, { id:'f' + i, enabled:true, test:f }).cell.status === 'pass'));
   const active = def.conditions.filter(c => c.enabled), k = need(def, active.length);
-  const summaries: ConditionSummary[] = active.map(c => ({ id:c.id, source:'dynamic', metric:'', params_resolved:{}, is_default:false, kind:c.test.kind, unit:unitOf(c.test, 'summary'), evaluated:elig.length, passed:0, na:0, exhaustive:true, eval_date_basis:'ticker_last_bar' }));
+  // a flow condition is evaluated at each stock's broker data date, and its summary says so (P5a: source flow, flow_date)
+  const summaries: ConditionSummary[] = active.map(c => ({ id:c.id, source:readsFlow(c.test) ? 'flow' : 'dynamic', metric:'', params_resolved:{}, is_default:false, kind:c.test.kind, unit:unitOf(c.test, 'summary'), evaluated:elig.length, passed:0, na:0, exhaustive:true, eval_date_basis:readsFlow(c.test) ? 'flow_date' : 'ticker_last_bar' }));
   const rows: ResultRow[] = [];
   for (const u of elig) {
     const t = m.byTicker.get(u.ticker)!, cells = active.map(c => evaluate(m, t, c).cell);
