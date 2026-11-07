@@ -12487,6 +12487,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Pilihan user 2026-11-07: "terkait dengan window saya tertarik dari HTML terlampir opsi 2 tapi perlu diperjelas verdictnya
   ini berubah karena foreign atau karena domestik. Boleh propose mungkin 5 opsi dalam satu HTML untuk Peta + jejak 20 sesi
   nomor 2" — usulan `verification/terminal_api/fd_map_expand/fd_trail_driver_options.html`, menunggu pilihan user.
+- User 2026-11-07: "Saya masih bingung cara membaca indikatornya ... percentage ini represent apa sebenarnya?" dan "Saya
+  tendesi lebih ke Peta + jejak 20 sesi (opsi 2) dan ada toggle untuk switch it ke Tabel penggerak per sesi (opsi A).. boleh
+  kirim HTMLnya lalu describe how to calcualte it? kasih dummy data saja" — mock-up dengan data contoh dan penjelasan cara
+  hitung: `verification/terminal_api/fd_map_expand/fd_trail_toggle_mockup.html`. Belum go untuk dibangun.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
