@@ -12571,4 +12571,16 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   candle); cacat dikirim ke Main Agent, diperbaiki, dites ulang; keputusan READY / NOT READY per unit.
 - P8 Rilis dev per unit: PR, deploy (publisher, screener-worker, edge-bff sesuai unit), cek live dengan login, catatan
   RAILWAY_CHANGELOG, ERRORS, EXEC.
-- Status: rencana; tidak ada yang dijalankan sampai K1-K7 dijawab dan user memberi "go".
+- Jawaban user (2026-11-07): "K1 kedalaman data broker limit to only 60 sessions for now, jadi N diabatasi 60 ... K3 ok
+  K4 ok K5 no meed K6 boleh K7 ok".
+  - K1: file jendela broker 60 sesi (pilihan A). Operator flow: N + jendela indikator <= 60. Baseline di dalam FL08,
+    FL09, FL21, FL37, FL47 (persentil) dibatasi otomatis oleh kedalaman data (60 dikurangi jendela), diturunkan dari
+    kedalaman file, bukan daftar tangan.
+  - K3: RS rank lama (`return_rank`) tetap populasi tetap; operator 11 baru memakai universe hasil filter.
+  - K4: OPERATORS.md ditulis dan disetujui user sebelum dibangun (P0).
+  - K5: empat operator tambahan di master prompt QA tidak masuk cakupan; QA menilai 15 operator yang disetujui.
+  - K6: boleh menjalankan pemeriksaan read-only database lewat job sementara Railway.
+  - K7: "=" dan "!=" hanya untuk output bilangan bulat.
+  - K2: ditanyakan user ("K2 ini apa ya?"); dijelaskan 2026-11-07 dengan pilihan A (jalur persetujuan untuk core),
+    B (pola candle di Screener saja), C (core keluar dari daftar yang dijaga); menunggu jawaban.
+- Status: rencana; tidak ada yang dijalankan sampai K2 dijawab dan user memberi "go".
