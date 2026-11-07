@@ -73,7 +73,7 @@ describe('runPlan: pruned output = exhaustive output = brute force (property tes
     }
     expect(prunedTotal).toBeGreaterThan(1000);                                                               // the rule did prune
     expect(sawNear).toBeGreaterThan(100);
-  });
+  }, 60_000);   // about 0.75 s alone: a heavy test's own timeout under a full parallel run
 
   it('permuting the S3 order changes no result', () => {
     for (let seed = 1000; seed < 1200; seed++) {

@@ -142,7 +142,7 @@ describe('parity with the Terminal (P5_FLOW.md section 5)', () => {
       }
     }
     expect(compared).toBeGreaterThan(40 * 4);
-  });
+  }, 60_000);   // about 0.5 s alone (48 FL x every stock): a heavy test's own timeout under a full parallel run
   it('one computeFlow per (ticker, id, parameters): the outputs of one call share it through the memo', () => {
     const s = stock('MEMO', 11, STOCKS.AAAA.rows), memo = s.t.flow!.memo as Map<string, unknown>;
     resolveFlow({ kind: 'flow', metric: 'FL11', output: 'value' }, 'f', { flow: FLOW_CTX }).full(tickerCalc(s.t));
