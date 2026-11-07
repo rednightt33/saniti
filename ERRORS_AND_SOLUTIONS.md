@@ -5446,6 +5446,22 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   READY (588 combinations run, 0 refusals).
 - **Status:** FIXED on branch (`b981a5e4` and the next commit), not released.
 
+### M385 — Screener page: a pattern opened on "Detected" (state) although its catalog default is the event within N (2026-11-07, fixed on branch)
+
+- **Found by:** the P6 page test of the candlestick patterns (EXEC-SCREENER-FLOW-CANDLES P6), on the fixture catalog.
+- **Symptom:** a pattern whose catalog `default_test` is `{test: "event", within: 3}` (breakout, breakdown, macross,
+  macd_divergence, squeeze, stoch_cross_in_zone, new_high, and the 20 candle patterns) was added from "Add a condition"
+  as "Detected" on the evaluated bar, not as the event within 3 sessions the catalog names.
+- **Verified cause:** `apps/edge-bff/screener/src/entries.ts` `metricEntry` chose the default condition by
+  `o.op === def.op`; a pattern's default names its test only (no operator), so nothing matched and the first condition
+  (state) was taken.
+- **Class:** a default written for one kind of entry (a value test with an operator) read the same way for another
+  (a signal with a test only).
+- **Solution:** a default without an operator matches a pattern's condition of the named test.
+- **Verified:** `apps/edge-bff/screener/tests/page/candles.test.ts` (every candle row opens on the event within 3; Add
+  writes `{kind: "event", within: 3}`); the screener vitest suite.
+- **Status:** FIXED on branch (P6, not merged).
+
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and
