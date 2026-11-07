@@ -12707,6 +12707,19 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   Pertanyaan RAM worker (berapa lama data ditahan di memori, biaya multi-user) dijawab dengan bukti live sebelum P4
   di-deploy.
 
+### Persyaratan user 2026-11-07 (memperluas cakupan; rancangan menunggu keputusan)
+- Kata user: "Ini diluar P4, goalnya adalah kalau data yang berubah, misalkan data update hari ini, ya data hari itu
+  saja yang dikirim dan data apabila memang ada data historical yang berubah. [...] masa ketika ada satu hari data
+  update, masa yang dikirim adalah 1 Januari sampai hari ini? Lebih parah lagi, ada yang dari 2018 sampai hari ini, which
+  is nggak efisien. Yang mau saya kirimkan ketika ada update harga, ya harga hari itu aja yang dikirim, atau kalau memang
+  ada perubahan data-data di tahun-tahun sebelumnya, barulah kita kirimkan data tersebut, boleh 1 tahun ke belakang. Ini
+  berlaku untuk harga, dan broker dan event."
+- Akibat: satuan kirim menjadi tanggal (hari baru saja; tanggal lama hanya bila berubah), untuk harga, broker dan event.
+  Menggantikan "5 sesi terakhir" dan tingkatan mingguan pada rancangan di atas. Harga dan event masuk cakupan (sebelumnya
+  harga dikeluarkan). Intraday dan obligasi tidak disebut user (belum masuk).
+- Keputusan yang masih perlu: storage tidak bisa menambah ke file yang sudah ada, jadi pembaca per saham (Terminal,
+  Backtest) butuh peleburan berkala file harian menjadi file per saham, atau membuka satu file per hari.
+
 ### Detail terbuka (dikeluarkan dari cakupan sekarang, keputusan user 2026-11-07)
 - Kompaksi: seberapa sering dan kapan (usul: mingguan, Sabtu, di luar jendela B6 dan cron lain).
 - Harga (`pack/price`, xsection harga) ikut pola yang sama sekarang atau sesudah broker.
