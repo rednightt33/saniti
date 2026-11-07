@@ -4,7 +4,8 @@
    (EXEC-SCREENER-FLOW-CANDLES P5c) without the worker. The flow values themselves are the core's: the fixture engine
    computes them with flowmetrics.ts (the Terminal's flow.ts), never a formula here. Sample data, not market data.
    The window is the 60 sessions that end one session before the last price day, so a flow value is a session older
-   than the prices (its broker data date is shown); MTDL has no broker data (n/a). */
+   than the prices (its broker data date is shown); MTDL (unclassified) and BJBR (a listed, liquid bank, so it is in a
+   default screen's universe) have no broker data: their flow cells are n/a FLOW_UNAVAILABLE. */
 import type { BrokerRowsLike, FlowBindContext, TickerFlow } from '../../src/core/flowmetrics.ts';
 import { BROKERS, DAYS, T } from './data.ts';
 
@@ -14,7 +15,7 @@ export const BROKER_DAYS: string[] = DAYS.slice(DAYS.length - 1 - BROKER_SESSION
 export const BROKER_WINDOW = { first: BROKER_DAYS[0], last: BROKER_DAYS[BROKER_DAYS.length - 1], sessions: BROKER_SESSIONS, complete: true };
 export const FLOW_CTX: FlowBindContext = { ...BROKER_WINDOW, classification: true };
 /** stocks without broker data in the window */
-export const NO_BROKER_DATA = new Set(['MTDL']);
+export const NO_BROKER_DATA = new Set(['MTDL', 'BJBR']);
 
 const CODES: string[] = BROKERS.map((b: any[]) => String(b[0]));
 const SORTED = [...CODES].sort();

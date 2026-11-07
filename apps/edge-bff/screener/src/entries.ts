@@ -90,8 +90,17 @@ export const listOf = (v: unknown): string[] => typeof v === 'string' && v ? v.s
 export const optionText = (p: EntryParam, x: unknown): string => {
   if (p.type === 'multi') { const l = listOf(x); return l.length ? l.map(v => p.option_labels?.[v] ?? v).join(' + ') : 'none' }
   if (p.type === 'date') return x === 'view' || x === '' || x == null ? 'start of the broker data' : String(x);
-  if (p.type === 'brokers') { const l = listOf(x); return l.length ? l.join(' + ') : 'default brokers' }
+  if (p.type === 'brokers') { const l = listOf(x); return l.length ? l.join(' + ') : noBrokers(p) }
   return p.option_labels?.[String(x)] ?? String(x);
+};
+/** a broker list left empty in words (it is read as the Terminal's default): no broker where that default is a list
+    ("none named"; it was "default brokers", so a field's default read "default default brokers": QA5 unit B item 3),
+    the class of a classification token ("class:Institutional-heavy": the Institutional-heavy brokers), any other token
+    as the default list */
+const noBrokers = (p: EntryParam): string => {
+  if (typeof p.wire !== 'string' || !p.wire) return 'none named';
+  const cls = /^class:(.+)$/.exec(p.wire)?.[1];
+  return cls ? `the ${cls} brokers` : 'the standard list';
 };
 /** option_labels of an entry's parameters: an option '<indicator id>.<output>' is named by that indicator (and the
     output, for one of several), as the catalog's indicators name them; an option with underscores by its words (the
@@ -342,6 +351,12 @@ function flowEntry(m: CatalogMetric, cat: CatalogResponse): Entry {
   const budget = flowBudget(base), outs = flowOutputs(base), multi = outs.length > 1;
   const opts: Opt[] = [];
   for (const o of outs) {
+    // a price level (its kind compares with the close): the close above or below it, as an indicator's level is offered
+    // ("Close above SMA"), where the catalog's operators compare the output with the close (a measure with a second
+    // series that its kind takes); read at the stock's broker data date, both sides (P10 a; the card says so)
+    if (o.comparable && ops?.measures.some(m => m.second && !m.not_on.includes(o.kind))) for (const op of ['gt', 'lt'] as TestOp[])
+      opts.push({ key:`flow_level|${o.key}|state|${op}`, label:`${cap(o.comparable)} ${op === 'gt' ? 'above' : 'below'} ${o.label}`, kind:'state', form:'state_level', output:o.key, op,
+        value:'none', between:false, within:false, unit:o.unit, defaults:{} });
     const label = (op: TestOp) => multi ? `${o.label} ${OPLABEL[op]}` : cap(OPLABEL[op]);
     const add = (kind: TestKind, op: TestOp) => opts.push({ key:`flow|${o.key}|${kind}|${op}`, label:label(op), kind, form:'metric', output:o.key, op, value:'input',
       between:op === 'between', within:kind === 'event', unit:o.unit, defaults:{} });

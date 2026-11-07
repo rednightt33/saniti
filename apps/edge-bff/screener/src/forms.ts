@@ -146,6 +146,7 @@ export function cardErrors(e: Entry | undefined, c: Card, withinMax = 130): Reco
     // the worker's to judge, its refusal shown on the card)
     const sr = seriesOf(e, o.output || '', c.params), key = o.kind === 'event' ? 'cross' : o.between ? 'range' : 'value';
     if (!sr || !sr.drawn) out.op = sr?.why || 'Pick a condition.';
+    else if (o.form === 'state_level') { if (!sr.comparable) out.op = `${sr.label} is not a price level at this setup, so "${o.label}" is not offered; pick another condition or an operator.` }
     else if (!testTakes(e.ops, key, sr.type, key === 'cross')) out.op = `${sr.label} ${e.ops?.types[sr.type!]?.words ?? 'does not take this test'} at this setup, so "${o.label}" is not offered; pick another condition or an operator.`;
     const S0 = flowSessions(e);
     if (o.within && S0 != null && Number.isInteger(num(c.within)) && num(c.within) > S0)
@@ -174,6 +175,7 @@ export function toWire(e: Entry | undefined, c: Card): ConditionDef {
   const scale = displayScale(o.unit), v = num(c.value, scale), v2 = num(c.value2, scale), within = Number(c.within);
   if (e.kind !== 'indicator') {
     const ref = e.flow ? flowRef(e, c.params, o.output!) : metricRef(e, c.params);
+    if (e.flow && o.form === 'state_level') return { ...base, test:{ kind:'state', lhs:{ kind:'price', field:(seriesOf(e, o.output!, c.params)?.comparable || 'close') as 'close' }, op:o.op as 'gt' | 'lt', rhs:ref } };
     if (o.kind === 'value') return { ...base, test:{ kind:'value', metric:ref, op:o.op as ValueTest['op'], value:v, ...(o.between ? { value2:v2 } : {}) } };
     if (ref.kind === 'pattern') return { ...base, test:o.kind === 'state' ? { kind:'state', pattern:ref } : { kind:'event', signal:{ pattern:ref }, within } };
     if (o.kind === 'state') return { ...base, test:{ kind:'state', lhs:ref, op:o.op as 'gt' | 'lt', rhs:{ value:v } } };
@@ -212,6 +214,21 @@ const sortKeys = (v: any): any => Array.isArray(v) ? v.map(sortKeys) : v && type
 const keyOfRef = (r: any): string | null => r?.kind === 'pattern' ? r.type : r?.kind === 'flow' || r?.kind === 'xsection' ? r.metric
   : r?.kind === 'universe' ? r.attr : r?.kind === 'transform' ? r.fn : r?.kind === 'price' ? r.field : null;
 
+/** A catalog metric reference's parameters as its card keeps them (fromWire): the entry's own (its params, and a
+    transform template's top-level args of the same keys); null when the reference carries any other argument that
+    differs from the entry's template (another series under the volume ratio's average, a parameter the entry does not
+    have), which the card cannot hold: it is then kept raw, never changed (QA5 unit B: the generated catalog's volume
+    ratio read its template's own series back as a parameter). */
+function metricParams(e: Entry, r: any): ParamMap | null {
+  const given = { ...(r?.params || {}), ...(r?.kind === 'transform' ? r.args || {} : {}) };
+  const tmpl = (e.metric as any)?.ref, fixed: Record<string, unknown> = { ...(tmpl?.params || {}), ...(tmpl?.kind === 'transform' ? tmpl.args || {} : {}) };
+  const own: ParamMap = {};
+  for (const [k, v] of Object.entries(given)) {
+    if (e.params.some(p => p.key === k)) own[k] = v as ParamValue;
+    else if (!(k in fixed) || JSON.stringify(sortKeys(v)) !== JSON.stringify(sortKeys(fixed[k]))) return null;
+  }
+  return own;
+}
 /** The catalog entry a metric reference names (fromWire): an entry whose catalog template (`ref`) has this shape, its own
     parameters aside; else the entry named by the id. */
 function metricEntryOf(r: any, entries: Map<string, Entry>): Entry | undefined {
@@ -287,14 +304,21 @@ function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
       const fe = flowEntryOf(m);
       if (fe) { const p = flowParamsFromWire(fe, m.params); return (p && mk(fe, 'metric', m.output ?? fe.flow!.default_output, t.op, p)) || raw() }
       const e = metricEntry(m);
-      if (e) return mk(e, 'metric', undefined, t.op, { ...(m.params || {}), ...(m.kind === 'transform' ? m.args || {} : {}) }) || raw();
+      const p = e ? metricParams(e, m) : null;
+      if (e && p) return mk(e, 'metric', undefined, t.op, p) || raw();
       return raw();
     }
-    if (t?.kind === 'state' && t.pattern) { const e = metricEntry(t.pattern); return (e && mk(e, 'metric', undefined, 'gt', t.pattern.params, {})) || raw() }
-    if (t?.kind === 'event' && t.signal?.pattern) { const e = metricEntry(t.signal.pattern); return (e && mk(e, 'metric', undefined, 'gt', t.signal.pattern.params)) || raw() }
+    if (t?.kind === 'state' && t.pattern) { const e = metricEntry(t.pattern), p = e && metricParams(e, t.pattern); return (e && p && mk(e, 'metric', undefined, 'gt', p, {})) || raw() }
+    if (t?.kind === 'event' && t.signal?.pattern) { const e = metricEntry(t.signal.pattern), p = e && metricParams(e, t.signal.pattern); return (e && p && mk(e, 'metric', undefined, 'gt', p)) || raw() }
     const s = t?.kind === 'state' ? t : t?.kind === 'event' ? t.signal : null;
     if (!s) return raw();
     const pre = t.kind === 'state' ? 'state' : 'event', { lhs, rhs, op } = s;
+    // a bar field against a flow price level: the entry's "Close above / below" condition, at the field it compares with
+    const fl = lhs?.kind === 'price' ? flowEntryOf(rhs) : undefined;
+    if (fl) {
+      const p = flowParamsFromWire(fl, rhs.params), output = rhs.output ?? fl.flow!.default_output;
+      return (p && pre === 'state' && seriesOf(fl, output, p)?.comparable === lhs.field && mk(fl, 'state_level', output, op, p)) || raw();
+    }
     // a flow output crossing a value (P5c): the card's own condition, its value in the field's display scale
     const fe = flowEntryOf(lhs);
     if (fe) {
@@ -327,8 +351,8 @@ function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
       }
       return raw();
     }
-    const e = metricEntry(lhs);
-    if (e && rhs && typeof rhs.value === 'number') return mk(e, 'metric', undefined, op, lhs.params, { value:rhs.value }) || raw();
+    const e = metricEntry(lhs), p = e && metricParams(e, lhs);
+    if (e && p && rhs && typeof rhs.value === 'number' && !rhs.kind) return mk(e, 'metric', undefined, op, p, { value:rhs.value }) || raw();
     return raw();
   } catch { return raw() }
 }

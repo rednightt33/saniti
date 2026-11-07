@@ -13,6 +13,8 @@ import { fixtureApi } from '../fixture/api.ts';
 const api = fixtureApi();
 const cat = (await api.catalog(null)) as { status: 200; body: CatalogResponse };
 const entries = entriesOf(cat.body), byKey = new Map(entries.map(e => [e.key, e]));
+/** a flow indicator of the catalog (by its data, never an id): its card name in the kept-card cases */
+const FLOW_KEY = entries.find(e => e.flow && e.available)!.key;
 const strip = (c: Card) => ({ entry:c.entry, opt:c.opt, params:c.params, value:c.value, value2:c.value2, within:c.within, ...(c.opt.includes('_instance') ? { second:c.second } : {}) });
 
 describe('catalog entries (entries.ts)', () => {
@@ -30,7 +32,8 @@ describe('catalog entries (entries.ts)', () => {
   it('marks entries without data unavailable with their reason (P11 a)', () => {
     const roe = byKey.get('roe')!;
     expect(roe.available).toBe(false);
-    expect(roe.reason).toMatch(/No data/);
+    expect(roe.reason).toBe(cat.body.fundamentals.find(f => f.id === 'roe')!.reason);
+    expect(roe.reason).toMatch(/data/);
   });
 });
 
@@ -92,8 +95,8 @@ describe('toWire / fromWire (forms.ts)', () => {
     // a measure of the operators block (P3: change of MACD over 3 sessions) is no longer kept: it opens as an operator card
     const op = fromWire({ id:'z', enabled:true, test:{ kind:'value', op:'gt', value:1, metric:{ kind:'transform', fn:'change', of:{ kind:'indicator', indicator:'I06', output:'macd' }, args:{ bars:3 } } } }, byKey);
     expect([op.raw, op.entry, op.op?.measure, op.op?.margs]).toEqual([undefined, 'I06', 'change', { bars:3 }]);
-    expect(cardName(undefined, named({ kind:'event', within:3, signal:{ pattern:{ kind:'pattern', type:'volspike' } } }))).toBe(label('volspike'));
-    expect(cardName(undefined, named({ kind:'value', op:'gt', value:1, metric:{ kind:'flow', metric:'bandar', params:{ window:20 } } }))).toBe(label('bandar'));
+    expect(cardName(undefined, named({ kind:'event', within:3, signal:{ pattern:{ kind:'pattern', type:'volspike', params:{ zz:1 } } } }))).toBe(label('volspike'));
+    expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'flow', metric:FLOW_KEY }, op:'gt', rhs:{ value:1 } }))).toBe(label(FLOW_KEY));
     expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'xsection', metric:'return_rank', params:{ window:252 } }, op:'gt', rhs:{ value:50 } }))).toBe(label('return_rank'));
     expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'price', field:'close' }, op:'gt', rhs:{ kind:'price', field:'open' } }))).toBe('Close');
     expect(cardName(undefined, named({ kind:'state', lhs:{ kind:'price', field:'close' }, op:'gt', rhs:{ kind:'indicator', indicator:'I99', output:'x' } }))).toBe('I99');
@@ -104,10 +107,10 @@ describe('toWire / fromWire (forms.ts)', () => {
     expect(templated.length).toBeGreaterThanOrEqual(3);
     for (const e of templated) {
       const ref = (e.metric as any).ref;
-      expect([e.key, cardName(undefined, named({ kind:'event', within:3, signal:{ lhs:ref, op:'crosses_above', rhs:{ value:0 } } }))]).toEqual([e.key, e.label]);
+      expect([e.key, cardName(undefined, named({ kind:'event', within:3, signal:{ lhs:ref, op:'crosses_above', rhs:{ kind:'price', field:'close' } } }))]).toEqual([e.key, e.label]);
       expect([e.key, cardName(undefined, named({ kind:'state', lhs:{ ...ref, args:{ ...(ref.args || {}), zz:1 } }, op:'gt', rhs:{ kind:'price', field:'close' } }))]).toEqual([e.key, e.label]);
     }
-    for (const k of ['I13', 'I01', 'I06', 'volspike', 'bandar', 'return_rank', ...templated.map(e => e.key)]) expect(label(k)).not.toBe(k);
+    for (const k of ['I13', 'I01', 'I06', 'volspike', FLOW_KEY, 'return_rank', ...templated.map(e => e.key)]) expect(label(k)).not.toBe(k);
     // a label the user gave is kept before any of these
     expect(cardName(undefined, fromWire({ id:'z', enabled:true, label:'My RSI', test:rsi.raw! }, byKey))).toBe('My RSI');
   });
