@@ -12383,3 +12383,40 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 - Status 2026-11-06 (branch): dikerjakan. Bukti `look_check10.mjs` (1440 dan 1100 px) plus `look_check3/5/6/7/8/9` tanpa
   galat, angka tampilan lama sama; Terminal 870/870.
 - **Dirilis 2026-11-06** (user: "Opsi 2. Jalankan dulu"): `main` `3a0a1d03`, edge-bff `66310845` SUCCESS, aset live = build lokal.
+
+## EXEC-DRAW-PANES — alat gambar di panel indikator, semua gambar di akun EDGE (keputusan 2026-11-07)
+
+**Kata user, 2026-11-07:** "saat ini kita punya banyak banget indikator yang menggambar, seperti trendline, horizontal
+line, horizontal ray ... Tidak bisa di bagian panel-panel yang ditambahkan di bawah." Atas usulan tiga pertanyaan:
+"1A masukan exec / 2A masukan exec / 3 semua gambar harus di simpan di akun EDGE, sama seperti trading view. Cek dulu
+struktur database."
+- 1A: alat di panel indikator = kelompok Lines (Trend line, Horizontal line, Horizontal ray, Ray, Vertical line) + Brush
+  + Text, seperti Flow Timeline.
+- 2A: gambar milik panel itu (seperti TradingView); indikator dihapus = gambarnya ikut terhapus (bisa di-undo); dua panel
+  kode yang sama punya gambar masing-masing; tiap indikator di chart diberi id tetap (ikut layout).
+- 3: semua gambar (chart harga, Flow Timeline, panel indikator) disimpan di akun EDGE, bukan di browser. Struktur database
+  diperiksa dulu; tabel baru dan migrasinya menunggu go user atas usulan.
+- Dasar teknis: prototipe `?drawpanes=1` (EXEC-TERMINAL-1026C C4, `drawings.ts:636-672`) diganti cara Flow Timeline
+  (`attachFlow`).
+
+## EXEC-RP-LOOK — panel kanan: Foreign × Domestic, posisi kontrol, toggle Events, keterangan Top brokers (2026-11-07)
+
+**Kata user, 2026-11-07:** "Di bagian foreign, cukup hilangkan "X" & "Y" dan" (Top N)". 73D. Lihat juga screenshot
+foreign X domestic map yang saya kotakin biru Bisa dikasih opsi untuk collapse dan expand agar panel tidak terlalu
+memakan space. Kemudian lihat di bagian foreign ex domestic map. Bagaimana kolom atau slider untuk memilih hari.
+Kemudian untuk memilih top, dan untuk memilih market. Aplikasikan posisi tersebut di panel top brokers. Dan di panel
+broker summary. Kemudian lihat screenshot di bagian events ... Slidernya dotnya sedikit ke bawah dan tidak middle
+align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya X, tidak perlu ada, atau hapus saja."
+- R1: kartu Foreign × Domestic: "X · Foreign (Top N)" → "Foreign", "Y · Domestic (Top N)" → "Domestic" (juga kepala
+  tabel "X foreign", "Y dom."); "73D" ditanyakan balik.
+- R2: kartu dan tabel periode di bawah peta bisa dilipat/dibuka.
+- R3: posisi kontrol peta (baris periode; baris Top N dengan pilihan market di kanan) diterapkan ke Top brokers dan
+  Broker summary.
+- R4: titik toggle Events turun 2 px: `.ev-head span{margin-top:2px}` (`terminal.css:731`) mengenai bagian dalam toggle.
+- R5: keterangan Top brokers di kepala panel (" · net · Acc · Regular") dihapus, tanggal tetap.
+- R6 (user, pesan berikutnya 2026-11-07: "trennya juga tidak di tengah ... di indikatornya juga nggak jelas, ini mau left align,
+  center line, atau apa"): judul grup jendela Indicators mulai di kolom nama (sejajar "INDICATOR") dan tintanya di
+  tengah pita; ERRORS M381; pemeriksaan baru `look_check11.mjs`.
+- Status 2026-11-07 (branch): R1, R2, R4, R5, R6 dan R3 untuk Broker summary dikerjakan; `look_check11.mjs` lulus kecuali
+  baris Top brokers (Top 3/5/10 + lencana rasio + Regular butuh 332 px, panel 287 px: menunggu keputusan user); "73D"
+  ditanyakan balik. Terminal 870/870, `look_check3/5/6/7/8/9/10` tanpa galat. Belum dirilis.

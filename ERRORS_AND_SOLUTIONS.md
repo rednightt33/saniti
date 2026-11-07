@@ -5380,6 +5380,28 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   there only the 0.5 s grace applies.
 - **Lesson:** a control revealed on hover needs a tolerance (time and area), and nothing beside it may change width
   while it is reachable.
+### M381 — Terminal: headings, switches and control rows out of line, missed by every check so far (2026-11-07, fixed in code)
+
+- **Found by:** the user (2026-11-07), with screenshots: the Indicators window's "TREND" heading neither in the middle of
+  its band nor on the column of "INDICATOR"; the Events switch's knob low; and asking "Saya pikir masalah alignment
+  seperti ini sudah dicek ya sama agent sebelumnya. Tapi kenapa masih bisa kebobolan?"
+- **Verified causes** (`apps/edge-bff/terminal/src/styles/terminal.css`):
+  - the group heading had its own left padding (16px) while the column header and the names start at 50px
+    (`.im-sec` against `.im-cols` and `.im-row`); above it the list's 4px, a 6px margin and 8px padding, below it 6px;
+  - `.ev-head span{margin-top:2px}`, meant for the Events subtitle, also moved the switch's track and knob (both spans):
+    the knob sat 2px low.
+- **Why the checks missed it (verified from the check scripts):** the QA rounds and `look_check*.mjs` measured overlap,
+  overflow, clipping, positions of single elements and behaviour; none compared where sibling texts start, where the ink
+  of a heading sits in its band, or a knob's centre against its track. Element boxes looked right; the ink did not.
+- **Class:** each element sets its own spacing by hand (padding, margin, a broad descendant selector), with no shared
+  measure; any heading, switch or row in the Terminal can drift the same way.
+- **Solution:** the heading starts on the names' column and its ink is centred (padding measured on the rendered
+  capitals); the subtitle rule reaches only the subtitle. New check `verification/terminal_api/terminal_look/look_check11.mjs`
+  reads the rendered pixels and fails on: a text start more than 1px off its column, ink more than 1px off its band's
+  middle, any visible switch's knob more than 0.5px off its track, and a control row that is not one line with its
+  market choice at the right (desktop and phone).
+- **Lesson:** a look change is checked by measuring alignment against its neighbours (start lines, ink centre, one-line
+  rows), not only by screenshots and box positions; run `look_check11.mjs` with every Terminal look change.
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and

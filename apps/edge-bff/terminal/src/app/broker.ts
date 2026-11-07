@@ -380,12 +380,9 @@ export function initBroker(ctx: Ctx) {
      2026-10-30) */
   if(live){
     $('accTitle').textContent = 'Top brokers';
-    /* Top brokers spacing (user 2026-11-06): the Board choice sits on the period row instead of a row of its own */
-    /* the period row is rebuilt each time the data arrives (makeRange), so the choice is added when it is missing */
+    /* EXEC-RP-LOOK R3 (user 2026-11-07: the map's positions "Aplikasikan ... di panel top brokers"): the period row alone, then
+       the Top N row with the Board choice at its right (renderAccPaired) */
     document.getElementById('accSide')?.closest('.rp-ctl')?.remove();
-    if(!document.getElementById('accBoard')) ($('accRange').querySelector('.rp-ctl') as HTMLElement).insertAdjacentHTML('beforeend', `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`);
-    $('accBoard').value = RS.accBoard;
-    $('accBoard').onchange = e => { RS.accBoard = e.target.value; renderAcc() };
   }
   function renderAccPaired(){
     const board = RS.accBoard, part = inv => new Map(bkAggRange(accRange.bf, accRange.bt, inv, board).map(o => [o.b, netOf(o)]));
@@ -419,24 +416,27 @@ export function initBroker(ctx: Ctx) {
     };
     const lanes = lane('Domestic', sp.buy.d, sp.sell.d, sp.net.d, false) + lane('Foreign', sp.buy.f, sp.sell.f, sp.net.f, true)
       + '<div class="acc-cut"></div>' + lane('Total', sp.buy.t, sp.sell.t, sp.net.t, false, true);
-    const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
+    const boards = ['All', 'Regular', 'Nego', 'Cash'].map(v => `<option value="${v}"${v === board ? ' selected' : ''}>${v === 'All' ? 'All boards' : v}</option>`).join('');
+    const ctlRow = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
       /* EXEC-TERMINAL-LOOK-3 (user 2026-11-06: "C ... bisa dipindah ke posisi D. Dikasih batch. Fill-nya hijau pekat, font-nya
          putih"; "Q3- A"): the ratio as a badge beside Top 3/5/10, solid green above zero, solid red below, grey at zero */
-      + `<span class="acc-ratio ${r2 > 0 ? 'up' : r2 < 0 ? 'down' : 'flat'}" data-tip="${why}">${ratio}</span></div>`
-      + verdictLadder(shown, why)
+      + (n ? `<span class="acc-ratio ${r2 > 0 ? 'up' : r2 < 0 ? 'down' : 'flat'}" data-tip="${why}">${ratio}</span>` : '')
+      + `<select class="rp-sel" id="accBoard" aria-label="Board">${boards}</select></div>`;
+    const tug = verdictLadder(shown, why)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */
       + `<div class="acc-lanes"><div class="acc-cap">Investor type of the trades · Top ${N} brokers</div>${lanes}</div>`;
-    $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
+    $('accBody').innerHTML = ctlRow + (n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
         + `<div class="acc-leg">${SPLIT_LEGEND}</div>`        /* EXEC-TERMINAL-LOOK-3: the "Dot: broker's own type" key removed (user) */
       /* QA M7 (2026-11-06): trades whose every broker nets to 0 (crossing on Nego or Cash) are not "no data" */
-      : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`;
+      : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`);
+    $('accBoard').onchange = (e: any) => { RS.accBoard = e.target.value; renderAcc() };
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
     $('accBody').querySelectorAll('#accTop button').forEach(btn => btn.onclick = () => { RS.accN = +btn.dataset.n; store.set('ml.acc.top', String(RS.accN)); renderAcc() });
-    $('accHint').textContent = (n ? `${accRange.text()} · net · ${vt}` : `${accRange.text()} · net`) + (board === 'All' ? '' : ` · ${board}`);   // QA round 3 (F3): the board
+    $('accHint').textContent = accRange.text();   // EXEC-RP-LOOK R5 (user 2026-11-07: " · net · Acc · Regular" "tidak perlu ada, atau hapus saja")
   }
   function renderAcc(){
     if(live) return renderAccPaired();
@@ -614,7 +614,7 @@ export function initBroker(ctx: Ctx) {
     const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
     const pc = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%` };   // QA round 3 (agent 5 M4): never "−0.0%"
     return { label, x, y, r, cur, empty:!(bal.total > 0),
-      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|X foreign ${pc(x)} + Y domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
+      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|Foreign ${pc(x)} + Domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
   };
   function renderFD(){
     if(!fdSec || fdSec.hidden) return;
@@ -633,7 +633,10 @@ export function initBroker(ctx: Ctx) {
     $('fdBoard').onchange = (e: any) => { RS.fdBoard = e.target.value; renderFD() };
     $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
     $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty, RS.fdN)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
-      + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
+      + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse(), store.get('ml.fd.readout') !== '0');
+    const fold = $('fdBody').querySelector('.fdm-fold') as HTMLButtonElement;
+    fold.onclick = () => { const open = fold.getAttribute('aria-expanded') !== 'true'; store.set('ml.fd.readout', open ? '1' : '0');
+      fold.setAttribute('aria-expanded', String(open)); fold.parentElement!.classList.toggle('folded', !open); ($('fdmDetail') as HTMLElement).hidden = !open };
     $('fdHint').textContent = fdRange.text();
   }
 
@@ -646,6 +649,9 @@ export function initBroker(ctx: Ctx) {
   panelRefresh = () => { invFilter.refresh(); renderAll() };
   const selectBroker = b => ctx.brokerShared!.pick(b);
   $('bsInv').onchange = e => { RS.inv = e.target.value; renderBS() };
+  /* EXEC-RP-LOOK R3 (user 2026-11-07: the map's positions also "di panel broker summary"), live only (the fixture stays 1:1
+     with the reference): the switch on the left, the investor and board choices on the right */
+  if(live){ const row = $('bsInv').parentElement as HTMLElement; row.prepend($('bsMode')); row.classList.add('bs-ctl') }
   $('bsBoard').value = RS.board;
   $('bsBoard').onchange = e => { RS.board = e.target.value; renderBS() };
   const segWire = (id, attr, fn) => $(id).querySelectorAll('button').forEach(btn => btn.onclick = () => {

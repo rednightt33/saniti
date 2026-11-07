@@ -67,10 +67,13 @@ export const quadrantTag = (x: number, y: number, empty = false, n?: number) => 
 };
 
 /** the equation under the map and one row per period */
-export function mapReadout(cur: MapPoint, all: MapPoint[]): string {
+export function mapReadout(cur: MapPoint, all: MapPoint[], open = true): string {
   const cls = (v: number) => v > 0 ? 'up' : v < 0 ? 'down' : '';
   const row = (p: MapPoint) => p.empty ? `<div class="fdm-row${p.cur ? ' on' : ''}"><span>${esc(p.label)}</span><span>—</span><span>—</span><span>—</span><span></span></div>`
     : `<div class="fdm-row${p.cur ? ' on' : ''}"><span>${esc(p.label)}</span><span class="${cls(p.x)}">${pct(p.x)}</span><span class="${cls(p.y)}">${pct(p.y)}</span><span class="${cls(p.r)}">${pct(p.r)}</span><span class="fdm-dot fdm-t${fdQuadrant(p.x, p.y)}" title="${FD_QUADRANTS[fdQuadrant(p.x, p.y)]}"></span></div>`;
-  return `<div class="fdm-eq"><div><span>X · Foreign (Top N)</span><b class="${cls(cur.x)}">${pct(cur.x)}</b></div><i>+</i><div><span>Y · Domestic (Top N)</span><b class="${cls(cur.y)}">${pct(cur.y)}</b></div><i>=</i><div><span>Verdict ${esc(cur.label)}</span><b class="${cls(cur.r)}">${pct(cur.r)}</b></div></div>`
-    + `<div class="fdm-tbl"><div class="fdm-row h"><span>Period</span><span>X foreign</span><span>Y dom.</span><span>Verdict</span><span></span></div>${all.map(row).join('')}</div>`;
+  /* EXEC-RP-LOOK R1 (user 2026-11-07: "cukup hilangkan "X" & "Y" dan" (Top N)""): plain Foreign and Domestic; R2 ("opsi untuk
+     collapse dan expand"): the equation and the table fold under one button, which keeps the verdict when folded */
+  return `<div class="fdm-read${open ? '' : ' folded'}"><button type="button" class="fdm-fold" aria-expanded="${open}" aria-controls="fdmDetail"><span class="fdm-ft">Foreign + Domestic = Verdict ${esc(cur.label)}</span><span class="fdm-fv ${cls(cur.r)}">${pct(cur.r)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`
+    + `<div id="fdmDetail"${open ? '' : ' hidden'}><div class="fdm-eq"><div><span>Foreign</span><b class="${cls(cur.x)}">${pct(cur.x)}</b></div><i>+</i><div><span>Domestic</span><b class="${cls(cur.y)}">${pct(cur.y)}</b></div><i>=</i><div><span>Verdict ${esc(cur.label)}</span><b class="${cls(cur.r)}">${pct(cur.r)}</b></div></div>`
+    + `<div class="fdm-tbl"><div class="fdm-row h"><span>Period</span><span>Foreign</span><span>Domestic</span><span>Verdict</span><span></span></div>${all.map(row).join('')}</div></div></div>`;
 }

@@ -728,7 +728,7 @@ body{font-variant-numeric:tabular-nums}
 .ev-pop{width:320px}
 .ev-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 6px}
 .ev-head strong{display:block;font-size:13px;font-weight:600}
-.ev-head span{display:block;margin-top:2px;font-size:11.5px;color:var(--text-3)}
+.ev-head > div > span{display:block;margin-top:2px;font-size:11.5px;color:var(--text-3)}
 .ev-quick{display:flex;align-items:center;justify-content:space-between;padding:4px 14px 6px;font-size:11.5px;color:var(--text-3)}
 .ev-quick button{padding:2px 7px;margin-left:2px;border-radius:5px;font-size:11.5px;color:var(--text-2)}
 .ev-quick button:hover{background:var(--hover);color:var(--text)}
@@ -1136,7 +1136,11 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .im-add:hover{border-color:var(--border-2);background:var(--hover)}
 .im-empty{padding:40px 16px;text-align:center;color:var(--text-3);font-size:var(--fs-base)}
 /* EXEC-TERMINAL-LOOK-2: the group headings of the one scrolling list (sticky while their rows pass) */
-.im-sec{position:sticky;top:-4px;z-index:2;margin:6px -8px 0;padding:8px 16px 6px;background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+/* the group heading's text starts where the names do (list 8px + row 4px + star 28px + gap 10px = .im-cols 12px + 28px + 10px)
+   and its ink sits in the middle of its band: no margin above it (the previous row's line is its top); capitals have no
+   descenders, so the padding below is 2px less (measured by look_check11.mjs) */
+.im-list > .im-sec:first-child{margin-top:-4px}   /* the list's own 4px above the first heading */
+.im-sec{position:sticky;top:-4px;z-index:2;margin:0 -8px;padding:9px 16px 7px 50px;background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
 .im-foot{display:flex;align-items:center;gap:var(--s-6);padding:10px 20px;border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-3)}
 .im-foot b{margin-left:auto;font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap}
 .im-toast{position:absolute;left:50%;bottom:52px;z-index:5;transform:translate(-50%,8px);padding:7px 12px;border-radius:var(--r-md);background:var(--text);color:var(--surface);font-size:var(--fs-12);font-weight:var(--fw-medium);box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis}
@@ -1251,7 +1255,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
    the design's pill (green, blue, amber, red by quadrant) */
 .fdm-now{gap:6px;flex-wrap:wrap}
 .fdm-now .tag{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* QA round 4 (L3): one line at 260 px */
-#fdBoard{margin-left:auto}
+#fdBoard,#accBoard,.bs-ctl #bsInv{margin-left:auto}   /* EXEC-RP-LOOK R3: the market (and investor) choice at the row's right, as the map */
+.bs-ctl{flex-wrap:nowrap;gap:4px}.bs-ctl .rp-sel{min-width:0;flex:0 1 auto}.bs-ctl .seg{flex:none}.bs-ctl .seg button{padding:0 6px}   /* one row, as the map's (287px at the default panel width) */
 .tag.fdm-t0,.tag.fdm-t1,.tag.fdm-t2,.tag.fdm-t3{color:#fff;font-weight:var(--fw-semibold)}
 .tag.fdm-t4,.tag.fdm-t5,.tag.fdm-t6,.tag.fdm-t7,.tag.fdm-t8{background:var(--sel);color:var(--text-2);font-weight:var(--fw-semibold)}   /* a flat part: no direction colour */
 .tag.fdm-t0{background:var(--up)}.tag.fdm-t1{background:var(--accent)}.tag.fdm-t2{background:#d98a0b}.tag.fdm-t3{background:var(--down)}
@@ -1268,6 +1273,16 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-eq b{font-size:var(--fs-12);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums}
 .fdm-eq i{font-style:normal;color:var(--text-3)}
 .fdm-tbl{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
+/* EXEC-RP-LOOK R2 (user 2026-11-07): the readout under the map folds; folded, its button keeps the equation on one line */
+.fdm-fold{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;margin:0 0 6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-2);font:inherit;font-size:var(--fs-sm);text-align:left;cursor:pointer}
+.fdm-fold:hover{background:var(--hover);color:var(--text)}
+.fdm-fold:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.fdm-ft{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fdm-fv{flex:none;font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fdm-read:not(.folded) .fdm-fv{display:none}            /* open, the card below shows the same numbers */
+.fdm-fold svg{flex:none;color:var(--text-3);transition:transform .15s}
+.fdm-read:not(.folded) .fdm-fold svg{transform:rotate(180deg)}
+.fdm-fv.up{color:var(--up)}.fdm-fv.down{color:var(--down)}   /* folded: the verdict alone */
 .fdm-row{display:grid;grid-template-columns:44px repeat(3,minmax(0,1fr)) 18px;align-items:center;gap:4px;padding:5px 8px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
 .fdm-row span:not(:first-child){text-align:right}
 .fdm-row.h{border-top:0;background:var(--soft);font-size:var(--fs-2xs);color:var(--text-3)}
