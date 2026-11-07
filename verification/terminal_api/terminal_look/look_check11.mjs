@@ -78,6 +78,11 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
       return [s, row ? new Set([...row.children].filter(c => c.offsetWidth).map(c => Math.round(c.getBoundingClientRect().top))).size === 1 : null] })));
     for (const [k, v] of Object.entries(r.oneLine)) check(`one line ${k}`, v === true, v);
     check('acc period row', !r.rows.accPeriodHasSelect, r.rows.accPeriodHasSelect);
+    // EXEC-RP-LOOK R3/R7: Top brokers' ratio badge on the period row; no tooltip on the map's points
+    r.accBadgeOnPeriod = await p.evaluate(() => !!document.querySelector('#accRange .acc-ratio') && !document.querySelector('#accBody .acc-ratio'));
+    check('acc badge on the period row', r.accBadgeOnPeriod, r.accBadgeOnPeriod);
+    r.mapTips = await p.evaluate(() => document.querySelectorAll('.fdm-pt[data-tip], .fdm-pt [data-tip], .fdm-pt[title]').length);
+    check('map points without tooltip', r.mapTips === 0, r.mapTips);
     check('bs first', r.rows.bsFirst === 'bsMode', r.rows.bsFirst);
     check('acc hint', !/net|Acc|Dist|Neutral|Regular/.test(r.rows.accHint), r.rows.accHint);
     check('fd labels', !r.rows.fdLabels.some(t => /^[XY] |Top N|X foreign|Y dom/.test(t)), r.rows.fdLabels);

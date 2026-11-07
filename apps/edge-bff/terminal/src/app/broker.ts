@@ -421,8 +421,12 @@ export function initBroker(ctx: Ctx) {
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
       /* EXEC-TERMINAL-LOOK-3 (user 2026-11-06: "C ... bisa dipindah ke posisi D. Dikasih batch. Fill-nya hijau pekat, font-nya
          putih"; "Q3- A"): the ratio as a badge beside Top 3/5/10, solid green above zero, solid red below, grey at zero */
-      + (n ? `<span class="acc-ratio ${r2 > 0 ? 'up' : r2 < 0 ? 'down' : 'flat'}" data-tip="${why}">${ratio}</span>` : '')
       + `<select class="rp-sel" id="accBoard" aria-label="Board">${boards}</select></div>`;
+    /* EXEC-RP-LOOK R3 (user 2026-11-07: "X dan Y nya di tuker saja untuk top brokers"): the ratio badge sits on the period
+       row (rebuilt by makeRange when the data arrives, so it is placed on every render), the Board choice on the Top N row */
+    const periodRow = $('accRange').querySelector('.rp-ctl:has(.seg)') as HTMLElement | null;
+    periodRow?.querySelector('.acc-ratio')?.remove();
+    if(n) periodRow?.insertAdjacentHTML('beforeend', `<span class="acc-ratio ${r2 > 0 ? 'up' : r2 < 0 ? 'down' : 'flat'}" data-tip="${why}">${ratio}</span>`);
     const tug = verdictLadder(shown, why)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */

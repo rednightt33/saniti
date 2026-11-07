@@ -1204,8 +1204,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
    jomplang"): the Top N balance in Top brokers, on the panel's own sizes (seg and tag as Broker summary, 11.5 px figures,
    10.5 px inside the bar as the spec's badge size); the Top N rows shaded */
 .acc-bal{gap:8px}
-.acc-bal .acc-ratio{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:6px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#fff;cursor:help}
-.acc-bal .acc-ratio.up{background:var(--up);color:#fff}.acc-bal .acc-ratio.down{background:var(--down);color:#fff}.acc-bal .acc-ratio.flat{background:var(--text-3);color:#fff}
+.acc-bal .acc-ratio,#accRange .acc-ratio{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:6px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#fff;cursor:help}
+.acc-ratio.up{background:var(--up);color:#fff}.acc-ratio.down{background:var(--down);color:#fff}.acc-ratio.flat{background:var(--text-3);color:#fff}
 .acc-bal .tag{cursor:help}
 .tag.big.acc{background:#089981;color:#fff}.tag.big.dist{background:#f23645;color:#fff}
 .acc-tug{display:flex;height:16px;border-radius:4px;overflow:hidden;background:#f0f0f0;margin:0 0 4px}

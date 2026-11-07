@@ -12432,3 +12432,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   ditanyakan balik. Terminal 870/870, `look_check3/5/6/7/8/9/10` tanpa galat. Belum dirilis.
 - Jawaban user 2026-11-07: "2C" ("73D" tetap seperti sekarang); Top brokers: "we'll decide about masalah top brokers"
   (baris kontrol Top brokers menunggu). Aturan `look_check11.mjs` masuk AGENTS.md (user: "Tambah ke agents MD.").
+- User 2026-11-07 (dengan tangkapan layar Top brokers, X = pilihan Regular, Y = lencana rasio): "X dan Y nya di tuker saja
+  untuk top brokers. masukan exec" — lencana rasio pindah ke baris periode, pilihan Regular ke baris Top N (rata kanan,
+  satu baris, seperti peta). Keputusan baris Top brokers selesai.
+- R7 (user 2026-11-07): "foreign x domestic map kalau hover ke dot tidak usah muncul tool tip, hapus ya masukan exec" —
+  titik peta tanpa tooltip (pembaca layar tetap membaca periode dan angkanya).
+- Pertanyaan user yang sama: "kalau seandainya foreign x dometic ini mau di expand, kira2 informasi apa yang deserve kita
+  show? ... coba propose 10 opsi dalam 1 HTML" — usulan, menunggu pilihan user.

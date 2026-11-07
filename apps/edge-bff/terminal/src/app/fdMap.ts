@@ -48,7 +48,9 @@ export function mapSvg(pts: MapPoint[], lim: number): string {
     let ly = cy0; while (placed.some(([x, y]) => Math.abs(x - cx) < 18 && Math.abs(y - ly) < 10)) ly += 11;
     placed.push([cx, ly]); const cy = cy0;
     /* EXEC-TERMINAL-LOOK-2 (5): a dot grows under the pointer and the panel's tooltip names its period and figures */
-    g += `<g class="fdm-pt" data-tip="${esc(p.tip)}" tabindex="0" role="img" aria-label="${esc(p.tip.replace('|', ': '))}">${p.cur ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11" fill="var(--text)" opacity=".12"/>` : ''}`
+    /* EXEC-RP-LOOK R7 (user 2026-11-07: "kalau hover ke dot tidak usah muncul tool tip, hapus"): no tooltip on a point; a
+       screen reader still reads its period and figures */
+    g += `<g class="fdm-pt" role="img" aria-label="${esc(p.tip.replace('|', ': '))}">${p.cur ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11" fill="var(--text)" opacity=".12"/>` : ''}`
       + `<circle class="dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${hollow ? 'var(--surface)' : 'var(--text)'}" stroke="var(--text)" stroke-width="${hollow ? 1.2 : 0}"/>`
       + `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r + 3}" fill="transparent"/></g>`
       + `<text x="${(cx + (right ? -9 : 9)).toFixed(1)}" y="${(ly + 3.5).toFixed(1)}" class="fdm-p${p.cur ? ' cur' : ''}" text-anchor="${right ? 'end' : 'start'}">${esc(p.label)}</text>`;
