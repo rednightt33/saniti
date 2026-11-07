@@ -127,10 +127,16 @@ const isValueSide = (s: Side): s is { value: number } => isObj(s) && !('kind' in
 const startOf = (r: ResolvedSeries, tail: Tail, at: number, extra: number): number | null =>
   r.window !== undefined ? lookbackStartOfWindow(r.window, at, extra) : lookbackStart(r.historyClass, tail.firstValid, at, extra);
 
-/** Reads a series for one ticker as a view; checks that the tail holds the bars an evaluation at `at` reads. */
+/** Reads a series for one ticker as a view; checks that the tail holds the bars an evaluation at `at` reads. A bar
+    before the tail reads as missing, which is exact when the full series has no value before the tail (its firstValid
+    is in it, or it has none): a flow series, whose values all lie in the loaded broker window (metrics.ts series keeps
+    every one of them in its tail), is read at the stock's last candle with broker data (P10 a), which is behind its
+    last price bar when the broker data is behind the prices, and an event there scans within_max sessions back from it
+    (QA unit B: "tail of FL32.buy on BBCA starts at bar 269, but bar 268 is needed" with the broker data one session
+    behind). A series with values before its tail (a price indicator) is read at its last bar only. */
 function read(input: TickerInput, r: ResolvedSeries, reach: number): { view: BarView; tail: Tail; source: SeriesSource } {
   const { tail, source } = input.series(r);
-  if (input.at - reach < tail.from && tail.from > 0)
+  if (input.at - reach < tail.from && tail.firstValid >= 0 && tail.firstValid < tail.from)
     throw new RangeError(`condition: the tail of ${r.label} on ${input.ticker} starts at bar ${tail.from}, but bar ${input.at - reach} is needed (evaluate at the last bar)`);
   return { view: viewOfTail(tail, missingInput(input, r.inputs, input.at) !== null), tail, source };
 }

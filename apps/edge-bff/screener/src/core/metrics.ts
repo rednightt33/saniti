@@ -211,18 +211,19 @@ export const tailLength = (withinMax: number): number => {
   if (!(Number.isInteger(withinMax) && withinMax >= 1)) throw new RangeError(`tailLength: within_max must be a whole number of at least 1, not ${withinMax}`);
   return withinMax + 1;
 };
-/** The last bars of one ticker's series: values[i - from] is bar i (NaN for no value); n = the ticker's bar count;
+/** The last bars of one ticker's series (`length` of them, or, with everyValue, from its first value if that is
+    earlier): values[i - from] is bar i (NaN for no value); n = the ticker's bar count;
     firstValid / lastValid = the first and last bar of the FULL series with a value (-1 when none), so a reader can tell
     INSUFFICIENT_HISTORY (no value up to the evaluation bar) from NULL_AT_EVALUATION. */
 export interface Tail { readonly n: number; readonly from: number; readonly values: Float64Array; readonly firstValid: number; readonly lastValid: number }
-export function tailOf(s: ArrayLike<Num | undefined>, length: number): Tail {
-  const n = s.length, from = Math.max(0, n - length), values = new Float64Array(n - from);
+export function tailOf(s: ArrayLike<Num | undefined>, length: number, everyValue = false): Tail {
+  const n = s.length, ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   let firstValid = -1, lastValid = -1;
-  for (let i = 0; i < n; i++) {
-    const v = s[i], ok = typeof v === 'number' && Number.isFinite(v);
-    if (ok) { if (firstValid < 0) firstValid = i; lastValid = i }
-    if (i >= from) values[i - from] = ok ? v as number : NaN;
-  }
+  for (let i = 0; i < n; i++) if (ok(s[i])) { if (firstValid < 0) firstValid = i; lastValid = i }
+  // everyValue: the tail starts no later than the first value (a flow series: its values are the loaded window's, read
+  // at the last candle with broker data, however far behind the prices that is; condition.ts read)
+  const from = Math.max(0, everyValue && firstValid >= 0 ? Math.min(n - length, firstValid) : n - length), values = new Float64Array(n - from);
+  for (let i = from; i < n; i++) { const v = s[i]; values[i - from] = ok(v) ? v : NaN }
   return { n, from, values, firstValid, lastValid };
 }
 const TAIL_OVERHEAD = 64;
@@ -279,12 +280,14 @@ export class SeriesCache {
 export interface SeriesContext { versions: DataVersions; tailLength: number; cache: SeriesCache }
 export type SeriesSource = 'precomputed' | 'dynamic';
 /** THE series path (report 6.7): the cached tail of `r` on ticker `t`, or on a miss its full series through Calc,
-    tailed and cached. `prewarm` pins the entry as part of the publication's snapshot. source: 'precomputed' when the
+    tailed (a flow-reading series from its first value at the latest, so a test at the last candle with broker data
+    reads it whole however far the broker data is behind the prices) and cached. `prewarm` pins the entry as part of the publication's snapshot. source: 'precomputed' when the
     tail comes from a pinned (pre-warmed) entry, else 'dynamic'. */
 export function series(ctx: SeriesContext, t: TickerCalc, r: ResolvedSeries, prewarm = false): { tail: Tail; source: SeriesSource } {
   const key = seriesKey(ctx.versions, r), hit = ctx.cache.get(key, t.ticker);
   if (hit) return { tail: hit.tail, source: hit.pinned ? 'precomputed' : 'dynamic' };
-  const tail = tailOf(r.full(t), ctx.tailLength);
+  // a flow-reading series keeps every value in its tail (it is read at the stock's last candle with broker data, P10 a)
+  const tail = tailOf(r.full(t), ctx.tailLength, r.flowDepth !== undefined);
   ctx.cache.set(key, t.ticker, tail, prewarm);
   return { tail, source: prewarm ? 'precomputed' : 'dynamic' };
 }
