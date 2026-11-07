@@ -362,6 +362,44 @@ describe('output types (OPERATORS.md section 4) and K7', () => {
     expect(bind({ kind: 'event', within: 3, signal: { lhs: F('FL01'), op: 'crosses_above', rhs: { value: 5 } } })!.message).toMatch(/against a fixed value is not offered/);
     expect(bind({ kind: 'event', within: 3, signal: { lhs: F('FL01'), op: 'crosses_above', rhs: { kind: 'transform', fn: 'ma', of: F('FL01'), args: { ma: 'SMA', length: 10 } } as never } })).toBe(null);
   });
+  it('a 0/1 signal (type F of flow-kinds.json: FL27, FL09) takes no comparison with another series, no state against another series and no average, wherever it stands; the tests it takes still pass (OPERATORS.md section 4, QA3 D2)', () => {
+    const T = (fn: string, of: unknown, args: Record<string, unknown> = {}) => ({ kind: 'transform', fn, of, args }) as never;
+    const v = (metric: unknown, op = 'ge', value = 0) => ({ kind: 'value', metric, op, value }) as never;
+    // every F output of the generated entries is one the rules below apply to (derived from the kinds, no FL list)
+    const signals = FLOWS.flatMap(e => e.outputs.filter(o => o.kind === 'F').map(o => [e.id, o.key] as const)).filter(([id]) => FLOW_BY_ID[id].compute !== 'none');
+    expect(signals.map(([id]) => id)).toEqual(expect.arrayContaining(['FL09', 'FL27']));
+    const refusals: [string, Test, string, RegExp][] = [
+      ['relative, the signal as the series', v(T('relative', F('FL27'), { by: F('FL09'), form: 'difference' })), 'definition.conditions[0].test.metric.of', /FL27\.value is a 0\/1 signal, which has no magnitude, so Compared with another series is not offered on it; it takes no measure, only the tests /],
+      ['relative, the signal as the second series', v(T('relative', F('FL24'), { by: F('FL27'), form: 'difference' })), 'definition.conditions[0].test.metric.args.by', /FL27\.value is a 0\/1 signal/],
+      ['a state against another series, the signal on the left', { kind: 'state', lhs: F('FL27'), op: 'gt', rhs: F('FL09') } as never, 'definition.conditions[0].test.lhs', /so Compared with another series is not offered on it/],
+      ['a state against another series, the signal on the right', { kind: 'state', lhs: F('FL24'), op: 'gt', rhs: F('FL27') } as never, 'definition.conditions[0].test.rhs', /FL27\.value is a 0\/1 signal/],
+      ['a moving average of the signal (the series another one is compared with)', v(T('ma', F('FL27'), { ma: 'SMA', length: 5 }), 'ge', 0.5), 'definition.conditions[0].test.metric.of', /so Moving average of a series, like Compared with another series, is not offered on it/],
+      ['its own average', v(T('vs_average', F('FL09'), { ma: 'SMA', form: 'difference', length: 5 })), 'definition.conditions[0].test.metric.of', /FL09\.value is a 0\/1 signal/],
+      ['a ratio of the signal (operator 7 in its ratio form)', v(T('ratio', F('FL27'), { by: F('FL09') })), 'definition.conditions[0].test.metric.of', /so Ratio of two series, like Compared with another series, is not offered on it/],
+      ['the signal against its own moving average', { kind: 'state', lhs: F('FL27'), op: 'gt', rhs: T('ma', F('FL27'), { ma: 'SMA', length: 5 }) } as never, 'definition.conditions[0].test.rhs.of', /FL27\.value is a 0\/1 signal/],
+      ['a change of the signal in its own unit', v(T('change', F('FL27'), { bars: 3 })), 'definition.conditions[0].test.metric.of', /so Change, in its own unit is not offered on it/],
+    ];
+    for (const [what, test, field, message] of refusals) {
+      const r = bind(test);
+      expect([what, r?.code, r?.field]).toEqual([what, 'INVALID_CONDITION', field]);
+      expect([what, r!.message]).toEqual([what, expect.stringMatching(message)]);
+      expect([what, r!.message]).toEqual([what, expect.stringMatching(/\(right: .* of RSI; wrong: .* of FL\d\d\.value\)\.$/)]);
+    }
+    // the rule follows the type, not the id: every F output is refused the same way
+    for (const [id, out] of signals) expect([id, bind({ kind: 'state', lhs: F(id, {}, out), op: 'gt', rhs: F(id, {}, out) } as never)?.code]).toEqual([id, 'INVALID_CONDITION']);
+    // what section 4 offers a 0/1 signal: "= 1", ever, K of N, in a row; and a lag of it stays a signal
+    expect(bind(v(F('FL27'), 'eq', 1))).toBe(null);
+    expect(bind({ kind: 'window', mode: 'ever', length: 5, test: v(F('FL27'), 'eq', 1) } as never)).toBe(null);
+    expect(bind({ kind: 'window', mode: 'at_least', length: 5, count: 2, test: v(F('FL27'), 'eq', 1) } as never)).toBe(null);
+    expect(bind({ kind: 'state', lhs: F('FL27'), op: 'gt', rhs: { value: 0.5 } } as never)).toBe(null);
+    expect(bind(v(T('lag', F('FL27'), { bars: 1 }), 'eq', 1))).toBe(null);
+    // a series of a type that takes them keeps them: a relative comparison and a state of two % series, an average of lots,
+    // a percentile or a run against its own moving average (operators 7 and 8 are offered on P and D)
+    expect(bind(v(T('relative', F('FL24'), { by: F('FL07'), form: 'difference' }), 'ge', -1e9))).toBe(null);
+    expect(bind({ kind: 'state', lhs: F('FL24'), op: 'gt', rhs: F('FL07') } as never)).toBe(null);
+    for (const m of [F('FL21', { baseline: 20 }), F('FL26', { window: 30 })]) expect(bind({ kind: 'state', lhs: m, op: 'gt', rhs: T('ma', m, { ma: 'SMA', length: 5 }) } as never)).toBe(null);
+    expect(bind({ kind: 'event', within: 3, signal: { lhs: F('FL01'), op: 'crosses_above', rhs: T('ma', F('FL01'), { ma: 'SMA', length: 10 }) } } as never)).toBe(null);
+  });
   it('two series of one unit: the close against Buy VWAP · Rolling (both price levels) is a state and a cross; Bandar Balance · % against the close is refused naming both units', () => {
     const close = { kind: 'price', field: 'close' } as never;
     expect(bind({ kind: 'state', lhs: close, op: 'gt', rhs: F('FL17') })).toBe(null);
