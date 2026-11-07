@@ -463,6 +463,15 @@ export function initIndicators(ctx: Ctx) {
   }
   const guideLevels = inst => { const lv = String(inst.style.guides.levels).split(/[,;|\s]+/).filter(Boolean).map(Number).filter(Number.isFinite); return inst.def.guidesFor ? inst.def.guidesFor(inst.params, lv) : lv };
   const STATE_COLORS = ['#089981', '#8b5a2b', '#0070f3', '#d6409f'];   // Market Facilitation: green, fade, fake, squat
+  /* EXEC-QA5-FIX (re-test 2026-11-07, agent 5 N1): Lightweight Charts 5.2 joins the points on either side of a whitespace
+     item, so a gap is made by colouring the segment into it transparent: a point's colour is the colour of the segment
+     that starts there. Every point followed by an empty one (before a later value) is made transparent. */
+  const GAP = 'rgba(0,0,0,0)';
+  const gapped = (pts: any[]) => { let later = false;
+    for(let i = pts.length - 1; i >= 0; i--){ const has = pts[i].value !== undefined;
+      if(has && later && i + 1 < pts.length && pts[i + 1].value === undefined) pts[i] = { ...pts[i], color:GAP };
+      if(has) later = true }
+    return pts };
   function refreshMulti(inst) {
     const r = inst.def.reg, st = inst.style, p = inst.params, N2 = N, off = st.offset | 0, op = (st.opacity ?? 100) / 100;
     const ret = r.zone === 'overlay' && ctx.displayMode === 'return', base = closes[0], conv = v => ret ? (v / base - 1) * 100 : v;
@@ -495,14 +504,14 @@ export function initIndicators(ctx: Ctx) {
                : rising ? (i && a[i - 1] !== null && v < a[i - 1] ? c2 : c1) : (v >= 0 ? c1 : c2) }]));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'seg') {
-        const data = want => a.map((v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) });   // whitespace breaks the line at every trend flip
+        const data = want => gapped(a.map((v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) }));   // a transparent segment at every trend flip (whitespace alone is joined)
         pt.series.setData(data(1)); pt.series2.setData(data(-1));
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width }); pt.series2.applyOptions({ visible:vis, color:c2, lineWidth:s.width });
       } else if(pt.kind === 'dots') {
         pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
         pt.series.applyOptions({ visible:vis, color:c1, pointMarkersRadius:Math.max(1, s.width) });
       } else {
-        pt.series.setData(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:conv(v), color:'rgba(0,0,0,0)' } : { time:T(i), value:conv(v) }]))   // a gap, not a bridge (agent 5 F1);
+        pt.series.setData(gapped(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:conv(v), color:GAP } : { time:T(i), value:conv(v) }])))   // a gap, not a bridge (agent 5 F1);
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
       }
       if(r.zone === 'overlay') [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));
@@ -517,7 +526,7 @@ export function initIndicators(ctx: Ctx) {
       if(pt.o.scale !== 'left' || !pt.series || !shown(pt)) return;
       const a = (inst.disp[pt.o.k] || []).filter(v => v !== null && v !== undefined);
       if(a.length && Math.min(...a) < 0 && Math.max(...a) > 0)
-        inst.guideLines.push([pt.series, pt.series.createPriceLine({ price:0, color:alpha(st.out[pt.o.k].color, .55), lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:true, title:'0' })]);
+        inst.guideLines.push([pt.series, pt.series.createPriceLine({ price:0, color:alpha(st.out[pt.o.k].color, .55), lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:true, title:'' })]);
     });
     if(st.guides && st.guides.on && drawn(inst)) {
       const host = inst.parts[0].series;
@@ -556,7 +565,7 @@ export function initIndicators(ctx: Ctx) {
         lastValueVisible:true, priceLineVisible:false, crosshairMarkerVisible:false, title:`${ln.id} · ${inst.def.lineTag(inst.params)}`,
         priceFormat:{ type:'custom', formatter:inst.def.format, minMove:1 }
       });
-      series.setData(ln.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [{ time:ohlc[i].time, value:Math.round(v) }]));
+      series.setData(gapped(ln.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [{ time:ohlc[i].time, value:Math.round(v) }])));
       return { id:ln.id, color, series, vals:ln.vals };
     });
     paintRow(inst);
@@ -575,7 +584,8 @@ export function initIndicators(ctx: Ctx) {
       const value = sub ? Math.round(v) : +v.toFixed(4);
       return inst.sType === 'hist' ? { time:ohlc[i].time, value, color:v >= 0 ? inst.style.color : inst.style.colorNeg } : { time:ohlc[i].time, value };
     };
-    inst.series.setData(inst.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [point(v, i)]));   // a gap, not a bridge
+    const pts = inst.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [point(v, i)]);
+    inst.series.setData(inst.sType === 'line' ? gapped(pts) : pts);   // a gap, not a bridge
     const o = { visible:drawn(inst) };
     if(inst.sType === 'line') Object.assign(o, { color:inst.style.color, lineWidth:inst.style.width || 2, lineStyle:LINE_STYLES[inst.style.lineStyle || 'Solid'] });
     inst.series.applyOptions(o);

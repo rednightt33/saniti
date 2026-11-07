@@ -203,6 +203,8 @@ export function initFlowIndicators(ctx: Ctx) {
   };
   /* the first candle with broker rows (before it: "before the broker data", QA agent 5 F9) */
   const firstBroker = () => { const R = ctx.flowRows; if (!R) return -1; for (let k = 0; k < R.N; k++) if (R.has[k]) return k; return -1 };
+  /* the first broker session's own date (re-test N7: a weekly candle's date is its Monday, 29 Dec, not the 2 Jan session) */
+  const firstBrokerDay = () => { const d0 = M.broker?.dates?.[0], fb = firstBroker(); return d0 || (fb >= 0 ? dates[fb].slice(0, 10) : '') };
   /* EXEC-QA5-FIX (QA Q2, F2-12): rows that pass the indicator's own board and investor choice in candles a..b */
   const filterHasRows = (p: any, a: number, b: number) => {
     const R = ctx.flowRows; if (!R) return true;
@@ -275,7 +277,7 @@ export function initFlowIndicators(ctx: Ctx) {
       return r.outputs.map(k => extra[k] ? { k, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', ...extra[k] } : k === 'change'
         /* EXEC-TERMINAL-IND-EDIT (FL34 to-do 17, FL11 U2): the change line is a line on its own scale (left), in points */
         ? { k, label:'Change', r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', scale:'left', fmt:spec.points, fk:'pt', minMove:.01 }
-        : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
+        : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.outputs.includes('change') ? 'Level' : r.name.split(' · ').pop()!,   // re-test F8: not the title again r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
             /* U3: a share minus the even share reads in points; U6: a count of brokers; U1: a z-score */
             ...(p && p.even ? { fmt:spec.points, fk:'pt', minMove:.01 } : p && p.measure === 'count' ? { fmt:(v: number) => spec.num(v, 0), fk:'count', minMove:1 }
               : p && p.stat === 'z' ? { fmt:(v: number) => spec.smart(v, 2), fk:'z', minMove:.01 } : p && p.stat === 'pct' && r.unit === '%' ? { fmt:spec.indicator, fk:'pctile', minMove:.01 }
@@ -333,6 +335,7 @@ export function initFlowIndicators(ctx: Ctx) {
     const viewBound = r.params.some(q => q.kind === 'date') || r.id === 'FL23';
     /* an indicator that models a position (an opening balance: FL19, FL20) */
     const modelled = r.params.some(q => q.key === 'opening');
+    const topBothSides = !!byKey.top && !byKey.scope;
     /* an indicator with no broker choice reads the whole market (FL32, FL40) */
     const marketWide = !r.params.some(q => q.key === 'scope' || q.key === 'top' || q.key === 'brokers' || q.key === 'inst') && r.params.some(q => q.key === 'investors');
     /* the date a value starts from: the anchor (default: the first candle in view) or a fixed start (Broker Inventory) */
@@ -374,6 +377,8 @@ export function initFlowIndicators(ctx: Ctx) {
       note:(i: number, raw: any, p: any) => {
         const R = ctx.flowRows, empty = emptyChoice(p);
         if (empty) return empty;
+        /* re-test N2: before the broker data that comes first, also for a constant all-market reading */
+        { const fb0 = firstBroker(), d0 = DAY ? DAY.dayOf[i] : i; if (R && R.n && fb0 >= 0 && d0 >= 0 && d0 < fb0) return `Before broker data (from ${longDay(firstBrokerDay())})` }
         if (raw?._allZero) { const c = Number(raw._const) || 0, how = marketWide ? 'choose Foreign or Domestic' : 'choose Foreign or Domestic, or a Top-N cohort';
           return Math.abs(c) < 1e-9 ? `All brokers over both investor types always net to 0: ${how}` : `All brokers over both investor types: always ${F.fmt(c)} (every buy has a seller): ${how}` }
         if (usesInsider(r) && insiderState !== 'ready') return insiderState === 'loading' ? 'Loading insider data' : 'No insider data published for this ticker';
@@ -385,7 +390,7 @@ export function initFlowIndicators(ctx: Ctx) {
         if (!R.n) return 'No broker data for this ticker';
         if (i > ctx.brokerEnd) return 'No broker data yet';
         const di = DAY ? DAY.dayOf[i] : i, fb = firstBroker();
-        if (di >= 0 && fb >= 0 && di < fb) return `Before broker data (from ${longDay(dates[fb])})`;   // agent 5 F9
+        if (di >= 0 && fb >= 0 && di < fb) return `Before broker data (from ${longDay(firstBrokerDay())})`;   // agent 5 F9
         if (di < 0 || !R.has[di]) return `No broker data on this ${one}`;
         /* EXEC-QA5-FIX (agent 5 F2, F2-07): a value that starts at a date (the anchor, Broker Inventory's start) says so */
         const start = startOf(p);
@@ -411,6 +416,8 @@ export function initFlowIndicators(ctx: Ctx) {
         { const w = Math.max(1, Number(p?.window) || 1);
           if (!filterHasRows(p, Math.max(0, di - w + 1), di)) return `No trades: ${[Array.isArray(p?.boards) ? p.boards.join('+') : '', Array.isArray(p?.investors) && p.investors.length === 1 ? p.investors[0] : ''].filter(Boolean).join(' · ') || 'this filter'}${w > 1 ? ` in ${w}${letter}` : ''}` }
         /* the rest: the formula has nothing to measure here (nothing sold by the group, a position of 0 or less) */
+        /* re-test N3: a Top N of both sides (FL24, FL42, FL48: no broker scope) needs N net buyers and N net sellers */
+        if (topBothSides) return `No value: fewer than ${p?.top ?? byKey.top?.default} net buyers or sellers here`;
         return modelled ? 'No value: modelled position is 0 or less' : 'No value: nothing to measure here';   // re-test N2: the model's words only where there is a model
       },
       validate:(p: any) => {
@@ -451,7 +458,8 @@ export function initFlowIndicators(ctx: Ctx) {
         if (p.recent && p.baseline) parts.push(`last ${p.recent}${letter} vs ${p.baseline}${letter}`);
         else if (p.baseline && baseUsed) parts.push(`vs ${p.baseline}${letter}`);
         // the date the value starts from (QA F2-01: the anchor followed the zoom without being shown)
-        const start = startOf(p); if (start) parts.push(`from ${dayText(start)}`);
+        const start0 = startOf(p), fbd = firstBrokerDay(), start = start0 && fbd && start0 < fbd ? fbd : start0;   // re-test N5
+        if (start) parts.push(`from ${dayText(start)}`);
         /* QA round 2/3 (open Low "units not written"): a figure in lots per trade says so (a lot/value choice is named by
            its select above, Rupiah figures carry "Rp" themselves) */
         if (r.unit === 'lot/tx') parts.push('lot per trade');

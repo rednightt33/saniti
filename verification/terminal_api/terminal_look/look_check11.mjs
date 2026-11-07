@@ -121,5 +121,14 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
   }
   await ctx.close();
 }
+/* EXEC-QA5-FIX (re-test 2026-11-07, N1): at the right panel's minimum width (260 px) no figure of a panel table runs into
+   its neighbour (two decimals once did: "−57.56%+30.44%−27.12%"): every cell's text fits its cell */
+{ const ctx = await b.newContext({ viewport:{ width:1440, height:900 } }), p = await ctx.newPage(); p.on('pageerror', e => errs.push('narrow ' + e.message));
+  await p.addInitScript(() => { localStorage.setItem('ml.broker.collapsed', '0'); localStorage.setItem('ml.broker.w', '260') });
+  await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 }); await p.waitForTimeout(2500);
+  R.narrow = await p.evaluate(() => ({ panel:Math.round(document.getElementById('brokerPanel').getBoundingClientRect().width),
+    over:[...document.querySelectorAll('.fdm-row span, .rp-t td, .rp-t th')].filter(e => e.offsetWidth && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent).slice(0, 8) }));
+  check('narrow panel cells fit', R.narrow.panel <= 270 && !R.narrow.over.length, R.narrow);
+  await ctx.close() }
 console.log(JSON.stringify(R)); console.log('errs', errs); console.log(bad.length ? 'FAIL\n' + bad.join('\n') : 'PASS');
 await b.close(); close(); process.exit(bad.length || errs.length ? 1 : 0);

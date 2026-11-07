@@ -311,9 +311,10 @@ export function initPopout(ctx: Ctx) {
       : `<thead><tr><th>${to}</th><th>Verdict</th><th>Δ Verdict</th><th class="fdw-fx">Δ Foreign</th><th class="fdw-dm">Δ Domestic</th><th data-tip="Driver|The side whose change is larger: Δ Verdict = Δ Foreign + Δ Domestic; Foreign on a tie, none when the verdict did not move">Driver</th></tr></thead><tbody>${trailDeltas(T).map((s, k) =>
         s.dr === null ? `<tr data-i="${s.i}" class="fdw-gap${k ? '' : ' cur'}"><td>${trailDay(s.d)}</td>${s.r === null ? '<td>—</td>' : `<td class="${fdCls(s.r)}">${fdPct(s.r)}</td>`}<td colspan="4" class="fdw-why">${s.r === null ? 'No buy value' : 'Session before has no buy value'}</td></tr>`
         : `<tr data-i="${s.i}"${k ? '' : ' class="cur"'}><td>${trailDay(s.d)}</td><td class="${fdCls(s.r!)}">${fdPct(s.r!)}</td><td class="${fdCls(s.dr)}">${pt(s.dr)}</td><td class="${fdCls(s.dx!)}">${pt(s.dx!)}</td><td class="${fdCls(s.dy!)}">${pt(s.dy!)}</td><td>${tag(s.driver)}</td></tr>`).join('')}</tbody>`;
-    const gaps = nEmpty ? ` ${nEmpty} without buy value (—).` : '';
-    const cap = lv ? `${T.length} session${T.length > 1 ? 's' : ''};${gaps} the list scrolls. Newest first.`
-      : T.length > 1 ? `${T.length - 1} change${T.length > 2 ? 's' : ''};${gaps} the list scrolls. Δ = change from the session before, in percentage points. Δ Verdict = Δ Foreign + Δ Domestic.` : 'One session: no change to show yet.';
+    // re-test N2: whole sentences; the changes counted are the ones with a value
+    const nChg = trailDeltas(T).filter(x => x.dr !== null).length, noChg = T.length - 1 - nChg;
+    const cap = lv ? `${T.length} session${T.length > 1 ? 's' : ''}${nEmpty ? `, ${nEmpty} without buy value (—)` : ''}. The list scrolls, newest first.`
+      : T.length > 1 ? `${nChg} change${nChg === 1 ? '' : 's'}${noChg ? ` (${noChg} row${noChg === 1 ? '' : 's'} without one: no buy value that session or the one before)` : ''}. The list scrolls. Δ = change from the session before, in percentage points. Δ Verdict = Δ Foreign + Δ Domestic.` : 'One session: no change to show yet.';
     w.body.innerHTML = head + `<div class="pw-fdw"><div class="pw-fd"><div class="pw-fd-map">${trailSvg(T, lim)}</div>
       <div class="pw-fd-side"><div class="pw-scroll"><table class="pw-t pw-fdt">${table}</table></div><p class="pw-foot">${cap}</p></div></div></div>`;
     wireCtl('fd', w, () => renderFD(w));

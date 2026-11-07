@@ -1318,7 +1318,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-fold svg{flex:none;color:var(--text-3);transition:transform .15s}
 .fdm-read:not(.folded) .fdm-fold svg{transform:rotate(180deg)}
 .fdm-fv.up{color:var(--up)}.fdm-fv.down{color:var(--down)}   /* folded: the verdict alone */
-.fdm-row{display:grid;grid-template-columns:44px repeat(3,minmax(0,1fr)) 18px;align-items:center;gap:4px;padding:5px 8px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
+/* re-test N1 (2026-11-07): two decimals fit the panel's 260 px minimum: narrower label and dot columns */
+.fdm-row{display:grid;grid-template-columns:34px repeat(3,minmax(0,1fr)) 10px;align-items:center;gap:3px;padding:5px 6px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
 .fdm-row span:not(:first-child){text-align:right}
 .fdm-row.h{border-top:0;background:var(--soft);font-size:var(--fs-2xs);color:var(--text-3)}
 .fdm-row.on{background:var(--sel);font-weight:var(--fw-semibold)}

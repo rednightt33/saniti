@@ -449,7 +449,7 @@ export function initBroker(ctx: Ctx) {
       /* EXEC-QA5-FIX (QA F6): a part against its side pushes the other way (buyers that sold in this type add to the sell
          side), so both parts negative is not drawn 50/50; the bar's split follows the net's sign */
       const pb = Math.max(b, 0) + Math.max(-s, 0), ps = Math.max(s, 0) + Math.max(-b, 0), w = pb + ps ? pb / (pb + ps) * 100 : 50;
-      return `<div class="acc-lane${faded ? ' f' : ''}${strong ? ' total' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${sgn(b)} · Sellers' net sale ${sgn(s)} · Net ${sgn(net)}">`
+      return `<div class="acc-lane${faded ? ' f' : ''}${strong ? ' total' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${rp(b)} · Sellers' net sale ${rp(s)} · Net ${rp(net)}">`
         + `<span class="nm${strong ? ' strong' : ''}">${nm}</span><div class="acc-tl"><i class="b" style="width:${w.toFixed(1)}%"></i><span class="mid"></span><i class="s" style="width:${(100 - w).toFixed(1)}%"></i></div>`
         + `<span class="nv ${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${sgn(net)}</span></div>`;
     };
@@ -478,7 +478,7 @@ export function initBroker(ctx: Ctx) {
     $('accBoard').onchange = (e: any) => { RS.accBoard = e.target.value; renderAcc() };
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
     $('accBody').querySelectorAll('#accTop button').forEach(btn => btn.onclick = () => { RS.accN = +btn.dataset.n; store.set('ml.acc.top', String(RS.accN)); renderAcc() });
-    $('accHint').textContent = accRange.text();   // EXEC-RP-LOOK R5 (user 2026-11-07: " · net · Acc · Regular" "tidak perlu ada, atau hapus saja")
+    $('accHint').textContent = accRange.text(); $('accHint').title = accRange.text();   // re-test N5   // EXEC-RP-LOOK R5 (user 2026-11-07: " · net · Acc · Regular" "tidak perlu ada, atau hapus saja")
   }
   function renderAcc(){
     if(live) return renderAccPaired();
