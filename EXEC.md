@@ -12478,6 +12478,11 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
     semua papan; entri screener yang diturunkan dari registry harus memakai Regular, Nego, Cash.
   - G2 kalender: candle Terminal memakai tanggal harga (baris broker tanpa bar harga dibuang), keputusan D12 memakai
     sesi bursa; berbeda pada hari Nego saja (81 saham-hari dari 15 saham dalam 20 sesi) dan hari tanpa transaksi.
+    - Diputuskan (user 2026-11-07): "samakan saja dengan indikator lainnya agar apple to apple. Kalender hari atau
+      sesi." Indikator screener lain dihitung di sesi saham itu sendiri, yaitu bar harganya
+      (`screener/src/core/metrics.ts:25-28`, `evaluate.ts:77-83`), dan Terminal juga memakai tanggal harga. Jadi flow
+      memakai sesi = bar harga saham itu, bukan kalender sesi bursa D12. Baris broker pada hari tanpa bar harga tidak
+      dihitung, seperti di Terminal.
   - G3 kedalaman: 60 sesi (K1); baseline 252 sesi FL05 lama tidak bisa dihitung.
   - Sepuluh rumus lama tanpa padanan Terminal (FLOW_MAP.md, "Formulas that have no Terminal equivalent"), antara lain
     `fnet` (net asing Rupiah D sesi) dan `broker` (net satu broker D sesi bergulir): dipertahankan sebagai entri
