@@ -1105,7 +1105,11 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .im-nav button{display:flex;align-items:center;gap:var(--s-4);width:100%;min-height:36px;padding:6px 10px;border:1px solid transparent;border-radius:var(--r-sm);background:none;font-size:var(--fs-md);font-weight:var(--fw-medium);color:var(--text-2);text-align:left;line-height:1.25;cursor:pointer}
 .im-nav button:hover{background:var(--hover);color:var(--text)}
 .im-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.im-nav button.on{background:var(--surface);border-color:var(--border-2);box-shadow:0 1px 2px rgba(0,0,0,.06);color:var(--text);font-weight:var(--fw-semibold)}
+/* EXEC-IND-NAV A1 (user 2026-11-07: "selected state ... bisa dibuat lebih standout, entah fillnya dipergelap"; "Ok untuk ini,
+   jalankan dulu di branch"): the group the list shows has a darker fill and a bar on its left (under it when the groups
+   are a row of chips, narrow screens) */
+.im-nav button.on{background:color-mix(in srgb,var(--text) 9%,var(--surface));border-color:transparent;box-shadow:inset 3px 0 0 var(--text);color:var(--text);font-weight:var(--fw-semibold)}
+.im-nav button.on:hover{background:color-mix(in srgb,var(--text) 12%,var(--surface))}
 .im-nav .lab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .im-nav .cnt{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:var(--r-pill);display:inline-grid;place-items:center;background:var(--text);color:var(--surface);font-size:var(--fs-2xs);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums}
 .im-nav .ico{flex:none;width:14px;height:14px}
@@ -1160,6 +1164,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
   .im-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
   .im-nav{flex-direction:row;overflow-x:auto;border-bottom:1px solid var(--border);padding:6px 8px;scrollbar-width:none}
   .im-nav button{width:auto;flex:none;min-height:32px;white-space:nowrap}
+  .im-nav button.on{box-shadow:inset 0 -2px 0 var(--text)}
   .im-sep,.im-title{display:none}
   .im-cols,.im-row{grid-template-columns:28px minmax(0,1fr) 72px}
   .im-cols span:nth-child(3),.im-row .mt{display:none}
@@ -1315,6 +1320,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
   .im-split,.im-sep,.im-title,.im-rz{display:none}
   .im-nav{flex-direction:row;overflow-x:auto;border-bottom:1px solid var(--border);padding:4px 8px;scrollbar-width:none}
   .im-nav button{width:auto;flex:none;min-height:30px;white-space:nowrap}
+  .im-nav button.on{box-shadow:inset 0 -2px 0 var(--text)}
   .im-row{min-height:48px}
 }
 

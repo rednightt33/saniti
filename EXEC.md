@@ -12445,6 +12445,15 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   Foreign × Domestic, B perbaikan window Broker summary, C keduanya): "A". 10 opsi window peta dalam satu HTML
   (`verification/terminal_api/fd_map_expand/fd_map_window_options.html`), menggantikan halaman panel sempit.
 
+## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
+
+**Kata user, 2026-11-07:** "untuk screenshot A, itu adalah selected state about currently where user scroll. Mungkin bisa
+dibuat lebih standout, entah fillnya dipergelap atau shadownya dipertebal." Atas pilihan A1 (latar lebih gelap + garis
+kiri, disarankan) atau A2 (bayangan lebih tebal): "Ok untuk ini, jalankan dulu di branch sekarang." Dibaca sebagai A1
+(opsi yang disarankan); A2 tinggal diganti bila maksud user lain. Judul grup (B1/B2) masih menunggu.
+- Grup terpilih: latar lebih gelap (9% warna teks di atas permukaan) dan garis 3 px di kirinya; di layar sempit (grup jadi
+  deretan chip) garisnya di bawah.
+
 ## EXEC-PANE-ORDER — urutan panel indikator dengan panah naik/turun (go 2026-11-07)
 
 **Kata user, 2026-11-07:** "panen-panen indikator yang ditambahkan di bawah itu tidak bisa diatur ... Bisa nggak ditambah
