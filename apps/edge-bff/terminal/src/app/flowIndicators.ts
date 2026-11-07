@@ -29,9 +29,6 @@ export const PANE_FILTER_KEYS = ['scope', 'top', 'rank', 'brokers', 'boards', 'i
     indicator without a broker choice at all (no scope, no Top N, no brokers: FL32, FL40) reads the whole market too */
 export const allBrokersBothSides = (p: any, marketWide = false) => !!p && (p.scope === 'all' || (marketWide && p.scope === undefined))
   && (!Array.isArray(p.investors) || p.investors.length >= 2);
-/** the two sides of the whole market over both investor types are the same trades: a buy side equal to its sell side */
-export const sidesEqual = (o: any) => Array.isArray(o?.buy) && Array.isArray(o?.sell) && o.buy.some((v: any) => v !== null)
-  && o.buy.every((v: any, i: number) => v === o.sell[i] || (v !== null && o.sell[i] !== null && Math.abs(v - o.sell[i]) <= 1e-9 * Math.max(1, Math.abs(v))));
 /** a result with no finite non-zero value in any output series (all 0 or empty) */
 /** QA round 2 (R2-M1, 2026-11-06): a result that carries nothing: it has values and every value is the same (0 for a net,
     a flat 50 for the percentile of a constant 0). An empty result (too little history) is not this case: it gets the
@@ -213,6 +210,18 @@ export function initFlowIndicators(ctx: Ctx) {
     for (let k = 0; k < R.n; k++) { const t = R.t[k]; if (t < a || t > b) continue; if ((!bs || bs.has(R.brd[k])) && (!is || is.has(R.inv[k]))) return true }
     return false;
   };
+  /* re-test R2-04: per candle, whether a window ending there holds a row of the chosen boards and investors (one pass over the
+     rows and a prefix sum, cached per choice) */
+  const rowsMemo = new Map<string, Int32Array>();
+  const filterPrefix = (p: any) => {
+    const R = ctx.flowRows; if (!R) return null;
+    const key = JSON.stringify([p?.boards, p?.investors, R.n]); let pre = rowsMemo.get(key);
+    if (!pre) { const bs = Array.isArray(p?.boards) ? new Set(p.boards.map(boardIndex)) : null, is = Array.isArray(p?.investors) ? new Set(p.investors.map(investorIndex)) : null;
+      const per = new Int32Array(R.N); for (let k = 0; k < R.n; k++) if ((!bs || bs.has(R.brd[k])) && (!is || is.has(R.inv[k]))) per[R.t[k]]++;
+      pre = new Int32Array(R.N + 1); for (let t = 0; t < R.N; t++) pre[t + 1] = pre[t] + per[t];
+      if (rowsMemo.size > 50) rowsMemo.clear(); rowsMemo.set(key, pre) }
+    return pre;
+  };
   let cached: { rows: FlowRows; ins: InsiderRow[]; cls: Record<string, string>; c: FlowContext } | null = null;
   const context = (): FlowContext => {
     const rows = ctx.flowRows || EMPTY(dates.length);
@@ -277,7 +286,8 @@ export function initFlowIndicators(ctx: Ctx) {
       return r.outputs.map(k => extra[k] ? { k, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', ...extra[k] } : k === 'change'
         /* EXEC-TERMINAL-IND-EDIT (FL34 to-do 17, FL11 U2): the change line is a line on its own scale (left), in points */
         ? { k, label:'Change', r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', scale:'left', fmt:spec.points, fk:'pt', minMove:.01 }
-        : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.outputs.includes('change') ? 'Level' : r.name.split(' · ').pop()!,   // re-test F8: not the title again r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
+        /* re-test F8: beside a change line the level is "Level", not the title again */
+        : { k, label:k === 'buy' ? 'Buy' : k === 'sell' ? 'Sell' : r.outputs.includes('change') ? 'Level' : r.name.split(' · ').pop()!, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'',
             /* U3: a share minus the even share reads in points; U6: a count of brokers; U1: a z-score */
             ...(p && p.even ? { fmt:spec.points, fk:'pt', minMove:.01 } : p && p.measure === 'count' ? { fmt:(v: number) => spec.num(v, 0), fk:'count', minMove:1 }
               : p && p.stat === 'z' ? { fmt:(v: number) => spec.smart(v, 2), fk:'z', minMove:.01 } : p && p.stat === 'pct' && r.unit === '%' ? { fmt:spec.indicator, fk:'pctile', minMove:.01 }
@@ -291,7 +301,7 @@ export function initFlowIndicators(ctx: Ctx) {
     /* EXEC-QA5-FIX (QA 2026-11-07, Q1, F2-08): a default cohort of the day's largest net buyers leans every reading with a
        direction to the buy side (FL11 was positive on 200 of 200 days); said wherever the registry's defaults pick that
        cohort, derived from them */
-    const cohortNote = byKey.rank?.default === 'net_buy' && (byKey.scope ? byKey.scope.default === 'topn' : !!byKey.top)
+    const cohortNote = r.unit !== 'price' && byKey.rank?.default === 'net_buy' && (byKey.scope ? byKey.scope.default === 'topn' : !!byKey.top)
       ? ' Kelompok bawaan: N pembeli bersih terbesar setiap hari; ukuran yang punya arah (net, selisih, rasio beli/jual) karena itu condong ke sisi beli, jadi bandingkan besar-kecilnya antar hari.' : '';
     const note = note0 + cohortNote;
     const reg = { key:r.id, id:r.id, name:r.name, short:r.name, zone:r.place === 'pane' ? 'panel' : 'overlay', unit:r.unit, outs:outs(plotDefault),
@@ -339,10 +349,13 @@ export function initFlowIndicators(ctx: Ctx) {
     /* an indicator with no broker choice reads the whole market (FL32, FL40) */
     const marketWide = !r.params.some(q => q.key === 'scope' || q.key === 'top' || q.key === 'brokers' || q.key === 'inst') && r.params.some(q => q.key === 'investors');
     /* the date a value starts from: the anchor (default: the first candle in view) or a fixed start (Broker Inventory) */
+    /* re-test R2-01: a start that follows the view is the one the last computation used (the title never runs ahead of the
+       numbers while the view moves) */
+    let usedStart: string | null = null;
     const startOf = (p: any): string | null => {
       const dq = r.params.find(q => q.kind === 'date');
-      if (dq) { const a = p?.[dq.key]; return a === 'view' || a == null ? firstVisible() : String(a).slice(0, 10) }
-      return r.params.some(q => q.key === 'start' && q.kind === 'fixed') ? firstVisible() : null;
+      if (dq) { const a = p?.[dq.key]; return a === 'view' || a == null ? usedStart ?? firstVisible() : String(a).slice(0, 10) }
+      return r.params.some(q => q.key === 'start' && q.kind === 'fixed') ? usedStart ?? firstVisible() : null;
     };
     /* EXEC-BROKER-INV-PANEL: an indicator that counts from the first candle on screen (a fixed `start`) marks its 0 in the
        pane; the pane's own broker, board and investor buttons are the user's choice for Broker Inventory (2026-11-06) */
@@ -355,8 +368,8 @@ export function initFlowIndicators(ctx: Ctx) {
       compute:(p: any) => {
         if (emptyChoice(p)) return {};                 // nothing chosen: no line (the row says what to choose)
         const q = { ...p };
-        if (q.anchor === 'view' || q.anchor == null) q.anchor = firstVisible();
-        if (r.id === 'FL23') q.start = firstVisible();
+        if (q.anchor === 'view' || q.anchor == null) { q.anchor = firstVisible(); usedStart = q.anchor }
+        if (r.id === 'FL23') { q.start = firstVisible(); usedStart = q.start }
         noLot(q);
         if (usesInsider(r) && insiderState !== 'ready') return {};      // QA F2-03: no "Rp 0" while the events are missing
         const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
@@ -366,6 +379,13 @@ export function initFlowIndicators(ctx: Ctx) {
         if (ctx.flowRows?.n && allBrokersBothSides(p, marketWide) && carriesNothing(o)) {
           const c = (Object.values(o).filter(Array.isArray) as any[][]).flat().find(v => v !== null && Number.isFinite(v));
           return { _allZero:true, _const:c ?? 0 };
+        }
+        /* re-test R2-04: a windowed reading over a window without any trade of the chosen board and investor is no reading
+           (FL25 "Rp 0", FL29 "0.0%", FL26 "0" read as a balance); empty with the "No trades" note instead. Not for a running
+           position (Broker Inventory) or a marker */
+        if (byKey.window && !zeroLabel && r.place !== 'marker' && !DAY && (p.boards || p.investors)) {
+          const pre = filterPrefix(p), w = Math.max(1, Number(p.window) || 1);
+          if (pre) for (const k of Object.keys(o)) if (Array.isArray(o[k])) o[k] = o[k].map((v: any, t: number) => v !== null && pre[t + 1] - pre[Math.max(0, t - w + 1)] === 0 ? null : v);
         }
         if (r.id !== 'FL23') return o;
         const codes = Object.keys(o).filter(k => k !== 'total'), slots: any = { _labels:codes };
@@ -381,8 +401,11 @@ export function initFlowIndicators(ctx: Ctx) {
         { const fb0 = firstBroker(), d0 = DAY ? DAY.dayOf[i] : i; if (R && R.n && fb0 >= 0 && d0 >= 0 && d0 < fb0) return `Before broker data (from ${longDay(firstBrokerDay())})` }
         if (raw?._allZero) { const c = Number(raw._const) || 0, how = marketWide ? 'choose Foreign or Domestic' : 'choose Foreign or Domestic, or a Top-N cohort';
           return Math.abs(c) < 1e-9 ? `All brokers over both investor types always net to 0: ${how}` : `All brokers over both investor types: always ${F.fmt(c)} (every buy has a seller): ${how}` }
-        if (usesInsider(r) && insiderState !== 'ready') return insiderState === 'loading' ? 'Loading insider data' : 'No insider data published for this ticker';
-        if (isBrokerFree(r)) return noVolume ? 'No volume for this ticker' : '';
+        if (usesInsider(r) && insiderState !== 'ready') return insiderState === 'loading' ? 'Loading insider data' : 'No insider data for this ticker (none published, or it could not be read)';
+        if (isBrokerFree(r)) { if (noVolume) return 'No volume for this ticker';
+          const f = firstValueAt(raw), di0 = DAY ? DAY.dayOf[i] : i;                     // re-test R2-03: the price window still filling
+          if (f >= 0 && di0 >= 0 && di0 < (DAY ? DAY.dayOf[f] : f)) return `Needs ${(DAY ? DAY.dayOf[f] : f) + 1} ${one}s of history (${di0 + 1} so far)`;
+          return '' }
         /* a list given as a classification (FL34) waits for the reference file's classes */
         const usesClass = p && Object.values(p).some(v => typeof v === 'string' && v.startsWith('class:'));
         if (usesClass && classState !== 'ready') return classState === 'loading' ? 'Loading the broker classification' : 'No broker classification published yet';
@@ -400,7 +423,9 @@ export function initFlowIndicators(ctx: Ctx) {
            is the sum of its windows, said as "at least" */
         { const count = (to: number) => { let n = 0; for (let k = 0; k <= to && k < R.N; k++) if (R.has[k]) n++; return n };
           const f = firstValueAt(raw), seen = count(di);
-          if (f >= 0) { const fd = DAY ? DAY.dayOf[f] : f; if (fd >= 0 && di < fd) return `Needs ${count(fd)} ${one}s of broker history (${seen} so far)` }
+          if (f >= 0) { const fd = DAY ? DAY.dayOf[f] : f;
+            if (fd >= 0 && di < fd && modelled && start) return 'No value yet: modelled position is 0 or less';   // re-test F2-07
+            if (fd >= 0 && di < fd) return `Needs ${count(fd)} ${one}s of broker history (${seen} so far)` }
           else { const est = ['window', 'baseline', 'recent'].reduce((t, k) => t + Math.max(0, Number(p?.[k]) || 0), 0);
             if (est > seen) return `Needs at least ${est} ${one}s of broker history (${seen} so far)` } }
         /* K4 (user 2026-11-05 "3 ok"): a choice that counts transactions needs them; the others draw without them */

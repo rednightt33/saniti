@@ -10,7 +10,7 @@ import { initFlowIndicators } from './flowIndicators';
 import type { Ctx } from './context';
 import { draggable } from './draggable';
 import * as spec from '../data/specFormat';
-import { $, nfCompact, rupiah, store } from './context';
+import { $, nfCompact, rupiah, store, visibleBars } from './context';
 import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
@@ -621,7 +621,8 @@ export function initIndicators(ctx: Ctx) {
   /* at most one recompute per 120 ms while the view moves (and one after it stops), and only when the first visible candle
      changed: one per frame made pan and zoom stutter with several of them (front-end audit I12) */
   let viewTimer: any = 0, viewLast = 0;
-  const firstVisibleIdx = () => { const r = chart.timeScale().getVisibleLogicalRange(); return r ? Math.max(0, Math.min(N - 1, Math.ceil(r.from))) : 0 };
+  /* re-test R2-01: the same "in view" rule as the anchor itself (visibleBars), so a pan that moves the anchor recomputes */
+  const firstVisibleIdx = () => visibleBars(chart.timeScale().getVisibleLogicalRange(), N)[0];
   const followView = () => {
     viewTimer = 0; viewLast = performance.now();
     const fv = firstVisibleIdx();
@@ -635,11 +636,14 @@ export function initIndicators(ctx: Ctx) {
   function paintRow(inst, i = ctx.lastTipIdx) {
     if(!inst.row || (inst.def.multi && !inst.disp)) return;          // still being built
     const r = inst.row, ret = ctx.displayMode === 'return';
-    r.querySelector('.ind-k').textContent = inst.def.title(inst.params);
+    { const k = r.querySelector('.ind-k'), t = inst.def.title(inst.params); k.textContent = t; k.title = t }   // re-test R2-06: the full title on a narrow screen
     const b = r.querySelector('b');
     if(inst.def.multi) {                                     // one coloured value per visible output
       // QA F2-11: an output names itself only beside another visible output ("Silent Accumulation Silent Accumulation No")
-      const reg = inst.def.reg, many = inst.parts.filter(pt => inst.style.out[pt.o.k]?.on).length > 1, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
+      /* re-test R2-02: an output names itself beside another visible output, or when it is the only one shown but not the
+         first (the one the title names: FL27's Net trigger, FL29's Balance %) */
+      const onParts = inst.parts.filter(pt => inst.style.out[pt.o.k]?.on), many = onParts.length > 1 || (onParts.length === 1 && onParts[0] !== inst.parts[0]);
+      const reg = inst.def.reg, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
       b.innerHTML = inst.parts.map(pt => {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
         if(!s.on || v === null || v === undefined) return '';

@@ -64,6 +64,10 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
       return { dy:+((mb.top + mb.height / 2) - (k.top + k.height / 2)).toFixed(1), row:+(row.getBoundingClientRect().left - mb.right).toFixed(1), bar:bar ? +(mb.left - bar.right).toFixed(1) : 0 } });
     check(`${nm} pane move buttons`, r.move && Math.abs(r.move.dy) <= 1 && r.move.row >= 0 && r.move.bar >= 0, r.move);
   }
+  /* EXEC-QA5-FIX (2026-11-07): an added indicator shows its value on the last candle (a slip once hid every Flow output:
+     its "show" flag fell inside a comment, and no other check read the legend's value) */
+  r.legend = await p.evaluate(() => [...document.querySelectorAll('.ind-row.in-pane')].map(x => x.querySelector(':scope > b')?.textContent || ''));
+  check(`${nm} indicator value shown`, r.legend.length > 0 && r.legend.every(t => /\d/.test(t) && !/^No |^Needs |^Before /.test(t)), r.legend);
   // 2. every visible toggle: the thumb in the middle of its track (the Events window open for its master switch)
   await p.click('#evBtn'); await p.waitForTimeout(300);
   r.toggles = await p.evaluate(() => [...document.querySelectorAll('.toggle')].filter(t => t.offsetWidth).map(t => {

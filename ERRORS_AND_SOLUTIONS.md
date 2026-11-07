@@ -5553,6 +5553,27 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   reserved band); a broker code absent from the data (codes are picked from the list).
 - **Lesson:** a label carries every parameter that changes the number and the denominator it divides by; an empty value
   names its own cause.
+- **Re-test (2026-11-07, the same five agents, user "then test lagi"):** every number still matched the independent
+  recalculations (0 differences) and the database. Of the round-1 findings, most were FIXED; the open ones and the new
+  ones were fixed on the branch in the same task:
+  - Lines were still joined across empty days: Lightweight Charts 5.2 joins the points on either side of a whitespace
+    item. A gap is now a transparent segment into it (`indicators.ts gapped`), also at Supertrend's trend flips.
+  - After a pan the "from <date>" title could be one candle off the anchor the numbers used (FL18 12% on a small
+    broker): `followView` used another "first candle in view" rule than the anchor. Both use `visibleBars`, and the
+    title reads the start the last computation used.
+  - At the panel's 260 px minimum the two-decimal F×D table ran together; the grid is narrower and `look_check11.mjs`
+    checks the minimum width.
+  - Smaller items: the CSV share header in Gross, Net in Rp, search totals, inventory axis dates, End 0 not green,
+    short notes that fit a phone row, "No value yet: modelled position is 0 or less", "Needs N days of history" for
+    price indicators, "fewer than N net buyers or sellers", windowed readings over a window without any trade of the
+    filter left empty with "No trades", the change distance in FL11/FL34 titles, no stale last value on the axis,
+    output names when only a non-first output shows, one zero label, the full title on hover.
+  - A slip while fixing: an inline comment swallowed the rest of a line and hid every Flow output's value (its `vis`
+    flag). Found by the main agent's own browser check before any release; `look_check11.mjs` now fails when an added
+    indicator shows no value on the last candle.
+- **Kept (as before):** FL46; intraday previous-day values (C4); "Rp 1.0T" and whole rupiah below 1B, also in FL23's
+  row (Design Spec v1.2); the ⤢ window may sit partly off a phone's screen (it stays draggable; the panel is not shown
+  on a phone); a saved FL09 "Top net sellers" now reads Top net buyers (the old choice never fired).
 
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
