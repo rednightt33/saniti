@@ -5402,6 +5402,21 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   market choice at the right (desktop and phone).
 - **Lesson:** a look change is checked by measuring alignment against its neighbours (start lines, ink centre, one-line
   rows), not only by screenshots and box positions; run `look_check11.mjs` with every Terminal look change.
+### M382 — Terminal: a white gap between an indicator row's value and its buttons (2026-11-07, fixed in code; caused by M380's fix)
+
+- **Found by:** the user (2026-11-07), screenshot of "Broker Inventory (Regular, Lot) No broker data yet" with an empty
+  stretch before the eye button: "kenapa ada gap putih?"
+- **Verified cause** (`apps/edge-bff/terminal/src/app/indicators.ts`, M380's fix; reproduced with
+  `look_check13.mjs`): M380 held the value's width from the moment the pointer entered the row. Coming from the chart,
+  the value then still showed the crosshair's longer text ("No broker data on this day", 164px); the pointer on the row
+  ended the crosshair, the value went back to the latest one ("Buy 37.1%", 69px), and the held 164px left a 95px gap.
+- **Class:** a size measured while the content is in a passing state (here the crosshair's value) and then held.
+- **Solution:** the value's width is held only during the 0.5 s grace after the pointer leaves the row, measured as it
+  leaves (the latest value then); on the row the value takes its own width. Check: no gap (6px, the normal spacing)
+  after coming from the chart; the buttons still move by at most 1px while the pointer is off the row
+  (`look_check10.mjs` "stable": 559 → 560).
+- **Lesson:** a hold on a size is taken when the content is at rest, and the check of a fix includes the path the user
+  takes into it (here: from the chart onto the row), not only the path out.
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and

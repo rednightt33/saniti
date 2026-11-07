@@ -38,7 +38,7 @@ async function ink(p, sel, i = 0) {
 
 for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['phone', devices['iPhone 13']]]) {
   const ctx = await b.newContext(opt), p = await ctx.newPage(); p.on('pageerror', e => errs.push(nm + ' ' + e.message));
-  await p.addInitScript(() => { if (!sessionStorage.getItem('s')) { sessionStorage.setItem('s', '1'); localStorage.setItem('ml.broker.collapsed', '0') } });
+  await p.addInitScript(() => { if (!sessionStorage.getItem('s')) { sessionStorage.setItem('s', '1'); localStorage.setItem('ml.broker.collapsed', '0'); localStorage.setItem('ml.ind.v1', JSON.stringify([{ def:'FL03', params:{} }])) } });
   await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 }); await p.waitForTimeout(2500);
   const r = R[nm] = {};
 
@@ -54,6 +54,15 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
   await p.screenshot({ path:`${SP}/look11_${nm}_ind.png`, clip:await p.locator('.im-main').boundingBox() });
   await p.keyboard.press('Escape'); await p.waitForTimeout(200);
 
+  // 1b. EXEC-PANE-ORDER: a pane's Move up / Move down centred on its title's line, between the drawing toolbar and the row
+  const paneRow = await p.$('.ind-row.in-pane');
+  if (paneRow) {
+    const rb = await paneRow.boundingBox(); await p.mouse.move(rb.x + rb.width / 2, rb.y + rb.height + 30); await p.waitForTimeout(250);
+    r.move = await p.evaluate(() => { const m = [...document.querySelectorAll('.ind-move')].find(x => getComputedStyle(x).opacity === '1'); if (!m) return null;
+      const row = [...document.querySelectorAll('.ind-row.in-pane')].find(x => Math.abs(x.getBoundingClientRect().top - m.getBoundingClientRect().top) < 30), k = row.querySelector('.ind-k').getBoundingClientRect(), mb = m.getBoundingClientRect(), bar = document.querySelector('.dr-bar')?.getBoundingClientRect();
+      return { dy:+((mb.top + mb.height / 2) - (k.top + k.height / 2)).toFixed(1), row:+(row.getBoundingClientRect().left - mb.right).toFixed(1), bar:bar ? +(mb.left - bar.right).toFixed(1) : 0 } });
+    check(`${nm} pane move buttons`, r.move && Math.abs(r.move.dy) <= 1 && r.move.row >= 0 && r.move.bar >= 0, r.move);
+  }
   // 2. every visible toggle: the thumb in the middle of its track (the Events window open for its master switch)
   await p.click('#evBtn'); await p.waitForTimeout(300);
   r.toggles = await p.evaluate(() => [...document.querySelectorAll('.toggle')].filter(t => t.offsetWidth).map(t => {

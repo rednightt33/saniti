@@ -12438,4 +12438,20 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - R7 (user 2026-11-07): "foreign x domestic map kalau hover ke dot tidak usah muncul tool tip, hapus ya masukan exec" —
   titik peta tanpa tooltip (pembaca layar tetap membaca periode dan angkanya).
 - Pertanyaan user yang sama: "kalau seandainya foreign x dometic ini mau di expand, kira2 informasi apa yang deserve kita
-  show? ... coba propose 10 opsi dalam 1 HTML" — usulan, menunggu pilihan user.
+  show? ... coba propose 10 opsi dalam 1 HTML" — usulan dikirim 2026-11-07
+  (`verification/terminal_api/fd_map_expand/fd_map_expand_options.html`, angka BBRI dari `calc.py`), menunggu pilihan user.
+
+## EXEC-PANE-ORDER — urutan panel indikator dengan panah naik/turun (go 2026-11-07)
+
+**Kata user, 2026-11-07:** "panen-panen indikator yang ditambahkan di bawah itu tidak bisa diatur ... Bisa nggak ditambah
+indikator seperti semacam panah naik dan turun mirip trading view ... untuk mengatur secara lokasi di mana indikator
+tersebut terpilih ... Konfirmasi." Atas konfirmasi (dua letak, A di deretan tombol baris, B di pojok kanan): "Untuk tombol
+panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi kiri judul panel, di ruang sumbu kiri).
+- Move up / Move down di kiri judul tiap panel indikator (di antara toolbar gambar dan judul), tampil selama kursor di panel
+  itu (selalu di layar sentuh); ↑ mati di panel teratas, ↓ di panel terbawah; chart harga tetap paling atas, Flow Timeline
+  tidak ikut; urutan tersimpan (ikut layout), bisa di-undo; gambar panel ikut pindah (milik serinya). Hanya mode live.
+- Pertanyaan user yang sama: "boleh cek screenshot terlampir kenapa ada gap putih?" — ERRORS M382 (disebabkan perbaikan
+  M380), diperbaiki.
+- Status 2026-11-07 (branch): dikerjakan. Bukti `look_check13.mjs` (tampil di panelnya saja, ujung mati, sejajar judul,
+  tidak menimpa toolbar, tukar urutan, tetap setelah muat ulang, undo, gambar ikut, tanpa gap) dan `look_check11.mjs`
+  (tombol baru masuk pemeriksaan kerataan) lulus; `look_check3/5/6/7/8/9/10/12` tanpa galat; Terminal 870/870.

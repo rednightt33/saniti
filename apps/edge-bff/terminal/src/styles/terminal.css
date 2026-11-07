@@ -1417,6 +1417,18 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ind-fold::after{content:attr(data-label);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:5px;background:#171717;color:#fff;font-size:11px;font-weight:500;white-space:nowrap;text-shadow:none;opacity:0;pointer-events:none;transition:opacity .12s}
 .ind-fold:hover::after,.ind-fold:focus-visible::after{opacity:1}
 @media (pointer:coarse){.ind-fold{width:30px;height:30px}}
+/* EXEC-PANE-ORDER (user 2026-11-07): Move up / Move down at a pane's top left, over the left axis (the room left of the
+   pane's title), centred on the title's line; shown while the pointer is in the pane, kept on a touch screen */
+.ind-move{position:absolute;z-index:6;display:flex;gap:2px;opacity:0;pointer-events:none;transition:opacity .12s}
+.ind-move.on,.ind-move:focus-within{opacity:1;pointer-events:auto}
+.ind-move button{position:relative;width:24px;height:24px;display:grid;place-items:center;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-2);cursor:pointer}
+.ind-move button:hover:not(:disabled){background:var(--hover);color:var(--text)}
+.ind-move button:disabled{opacity:.35;cursor:default}
+.ind-move button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ind-move button::after{content:attr(data-label);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:5px;background:#171717;color:#fff;font-size:11px;font-weight:500;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
+.ind-move button:hover:not(:disabled)::after,.ind-move button:focus-visible::after{opacity:1}
+@media (hover:none){.ind-move{opacity:1;pointer-events:auto}}
+@media (pointer:coarse){.ind-move button{width:30px;height:30px}}
 
 /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the layout button after Price / Return, its menu (the user's reference: Save,
    Autosave, Make a copy, Rename, Create new, Recently used with stars, Open) and its dialogs */

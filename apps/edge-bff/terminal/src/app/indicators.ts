@@ -215,7 +215,10 @@ export function initIndicators(ctx: Ctx) {
   let parked: { at: number; o: any }[] = [];
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;
-  const PRESETS = ctx.M.mode === 'live';                 // EXEC-IND-PRESETS: presets live on the EDGE account (the fixture keeps the reference's rows)
+  const PRESETS = ctx.M.mode === 'live';
+  const LIVE = ctx.M.mode === 'live';
+  const ARROW_UP = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 15.5V4.5M5.5 9 10 4.5 14.5 9"/></svg>';
+  const ARROW_DOWN = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4.5v11M5.5 11 10 15.5 14.5 11"/></svg>';                 // EXEC-IND-PRESETS: presets live on the EDGE account (the fixture keeps the reference's rows)
   const BOOKMARK = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg>';
   const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
@@ -261,6 +264,16 @@ export function initIndicators(ctx: Ctx) {
     refresh(inst); layoutPanes(); if(keep) save();
   };
   const stage = legend.parentElement;
+  /* EXEC-PANE-ORDER: the pane under the pointer shows its Move up / Move down (a whole pane is an easy target) */
+  if(LIVE) {
+    let shown: HTMLElement | null = null;
+    const show = (el: HTMLElement | null) => { if(shown === el) return; shown?.classList.remove('on'); shown = el; el?.classList.add('on') };
+    stage.addEventListener('pointermove', (e: PointerEvent) => {
+      const inst = list.find(i => i.moveBox && (() => { const r = paneOfInst(i)?.getHTMLElement()?.getBoundingClientRect(); return r && e.clientY >= r.top && e.clientY <= r.bottom })());
+      show(inst ? inst.moveBox : null);
+    });
+    stage.addEventListener('pointerleave', () => show(null));
+  }
   /* QA round 4 (M2): the rows' narrow form (one line, a Filters button) follows the chart's own width, not the window's:
      with both side panels open a 1280 px window leaves the chart about as wide as a tablet */
   const NARROW_PX = 1000;
@@ -390,6 +403,15 @@ export function initIndicators(ctx: Ctx) {
     const right = sr.right - er.right;
     inst.row.style.right = (right + axis + 6) + 'px';
     if(inst.foldBtn) { inst.foldBtn.style.top = (top - 2) + 'px'; inst.foldBtn.style.right = (right + 3) + 'px' }   // at the axis's right edge, clear of its labels
+    if(inst.moveBox) {                                       // EXEC-PANE-ORDER: centred on the row's first line, left of it
+      const line = (inst.row.querySelector('.ind-k') as HTMLElement | null)?.getBoundingClientRect();
+      const mid = line && line.height ? line.top - sr.top + line.height / 2 : top + 11;
+      // right against the title (the room between the drawing toolbar and the row), as the user marked it
+      const rl = inst.row.getBoundingClientRect().left - sr.left;
+      inst.moveBox.style.left = (rl - inst.moveBox.offsetWidth - 10) + 'px'; inst.moveBox.style.top = (mid - inst.moveBox.offsetHeight / 2) + 'px';
+      const subs = list.filter(i => i.def.pane === 'sub'), k = subs.indexOf(inst);
+      (inst.moveBox.children[0] as HTMLButtonElement).disabled = k <= 0; (inst.moveBox.children[1] as HTMLButtonElement).disabled = k < 0 || k >= subs.length - 1;
+    }
     /* the pane's top margin is its row's height (not a fixed 20 %), so the lines, the axis labels and the last-value badge
        stay under the row and the chevron */
     const ph = er.height, want = ph > 0 && !inst.fold ? Math.min(0.5, Math.max(0.2, (inst.row.offsetHeight + 22) / ph)) : 0.2;
@@ -641,22 +663,36 @@ export function initIndicators(ctx: Ctx) {
       f.type = 'button'; f.className = 'ind-fold'; f.dataset.def = inst.def.id; f.setAttribute('aria-expanded', 'true'); f.dataset.label = 'Collapse';
       f.setAttribute('aria-label', `Collapse the ${inst.def.name} pane`); f.innerHTML = CHEV; f.onclick = () => setFold(inst, !inst.fold);
       stage.appendChild(f);
+      /* EXEC-PANE-ORDER (user 2026-11-07: "panah naik dan turun mirip trading view ... untuk mengatur secara lokasi"; "bisa di
+         taruh di screenshot yang saya kotakin merah"): Move up / Move down at the pane's top left, over the left axis; shown
+         while the pointer is anywhere in the pane (or a button has the focus), live only */
+      if(LIVE) {
+        const mv = inst.moveBox = document.createElement('div');
+        mv.className = 'ind-move'; mv.setAttribute('role', 'group'); mv.setAttribute('aria-label', `Move the ${inst.def.name} pane`);
+        mv.innerHTML = `<button type="button" data-dir="-1" data-label="Move up" aria-label="Move the ${inst.def.name} pane up">${ARROW_UP}</button>`
+          + `<button type="button" data-dir="1" data-label="Move down" aria-label="Move the ${inst.def.name} pane down">${ARROW_DOWN}</button>`;
+        mv.addEventListener('click', (e: any) => { const b = e.target.closest('button[data-dir]'); if(b && !b.disabled) userMove(inst, +b.dataset.dir) });
+        stage.appendChild(mv);
+      }
     }
     /* EXEC-IND-HOVER (user 2026-11-06: "Kalau mouse kita geser sedikit ... langsung keempat indikator tersebut hilang";
        "Opsi 2"): a row that was pointed at stays active (.hov: its buttons and on-hover filters show) for HOVER_GRACE_MS
        after the pointer leaves it, and a pane row's active area reaches 8px around it (terminal.css .ind-row.hov::before).
-       One row is active at a time. While it is active its value keeps the width it had (a longer value, such as the
-       crosshair's "No broker data on this day", ends in "…"), so the buttons after it do not move under the pointer. */
+       One row is active at a time. While the pointer is away from it (the grace) its value keeps the width it had when the
+       pointer left (the crosshair's longer value, such as "No broker data on this day", ends in "…"), so the buttons do not
+       move under a pointer coming back; on the row the value takes its own width (ERRORS M382: a width held from the
+       chart's value left a white gap after a shorter value). */
     const calm = (row: HTMLElement) => { clearTimeout((row as any).hovT); row.classList.remove('hov'); (row.querySelector(':scope > b') as HTMLElement).style.width = '' };
     r.addEventListener('pointerenter', () => {
       if(hovRow && hovRow !== r) calm(hovRow);
       clearTimeout((r as any).hovT);
-      const val = r.querySelector(':scope > b') as HTMLElement;
-      if(!r.classList.contains('hov')) { val.style.width = Math.ceil(val.getBoundingClientRect().width) + 'px'; r.classList.add('hov') }
+      (r.querySelector(':scope > b') as HTMLElement).style.width = ''; r.classList.add('hov');
       hovRow = r;
     });
     r.addEventListener('pointerleave', () => {
       clearTimeout((r as any).hovT);
+      const val = r.querySelector(':scope > b') as HTMLElement;
+      val.style.width = Math.ceil(val.getBoundingClientRect().width) + 'px';
       (r as any).hovT = setTimeout(() => { calm(r); if(hovRow === r) hovRow = null }, HOVER_GRACE_MS);
     });
     r.addEventListener('click', (e: any) => {
@@ -700,6 +736,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.ro) inst.ro.disconnect();
     if(inst.rowRO) inst.rowRO.disconnect();
     if(inst.foldBtn) inst.foldBtn.remove();
+    if(inst.moveBox) inst.moveBox.remove();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove();
@@ -935,6 +972,25 @@ export function initIndicators(ctx: Ctx) {
     save(); Ind.onChange && Ind.onChange(); return inst;
   };
   const drop = hid => { const inst = byHid(hid); if(inst) remove(inst) };
+  /* EXEC-PANE-ORDER: a pane changes place with its neighbour above or below (the price pane stays first); the saved list
+     (and so a layout) keeps the new order, the pane's drawings go with it (they belong to its series), Undo puts it back */
+  const movePane = (hid, dir: number) => {
+    const inst = byHid(hid); if(!inst) return false;
+    const subs = list.filter(i => i.def.pane === 'sub'), k = subs.indexOf(inst), other = subs[k + dir];
+    if(k < 0 || !other) return false;
+    const a = paneOfInst(inst), b = paneOfInst(other); if(!a || !b) return false;
+    try { a.moveTo(b.paneIndex()) } catch(e) { return false }
+    const i = list.indexOf(inst), j = list.indexOf(other); list[i] = other; list[j] = inst;
+    const after = dir > 0 ? inst : other, before = dir > 0 ? other : inst;
+    if(after.row.parentElement === before.row.parentElement) after.row.after(before.row);   // the rows keep the panes' order for Tab
+    save(); layoutPanes(); Ind.onChange && Ind.onChange();
+    return true;
+  };
+  function userMove(inst, dir: number) {
+    const hid = inst.hid;
+    if(movePane(hid, dir)) Hist.push({ undo:() => movePane(hid, -dir), redo:() => movePane(hid, dir) });
+    (inst.moveBox?.querySelector(`[data-dir="${dir}"]:not([disabled])`) as HTMLElement | null)?.focus({ preventScroll:true });
+  }
   const dropForget = hid => { const inst = byHid(hid); if(inst?.pid) ctx.paneDraw?.forget(inst); drop(hid) };   // a Redo of the user's removal
   function userAdd(id, saved?) {
     const inst = add(id, saved); if(!inst) return null;
