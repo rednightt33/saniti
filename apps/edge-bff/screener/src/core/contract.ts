@@ -139,8 +139,8 @@ export type FlowParamValue = ParamValue | string[];
     registry default (flow.ts flowDefaults; the board default Regular, G1, user 2026-11-07), the kinds that only draw
     (levels, button, fixed) refused. Computed by the Terminal's own flow.ts computeFlow on the broker rows the worker
     holds, on the stock's own price bars inside the loaded broker window (G2), read at the stock's last candle with
-    broker data (P10 a). A retired Phase 2 entry of screener-metrics.json (fnet, bandar, ...) keeps this shape until the
-    presets are remapped (P5b) and is never computed. */
+    broker data (P10 a). P5b (P5_FLOW.md section 3): metric may also be a Screener version's id (FL18-FL20, FL23, FL44,
+    FL45 with their screener parameters) or one of the Screener's own flow entries (fnet; ksei_net), same shape. */
 export interface FlowRef { kind: 'flow'; metric: string; output?: string; params?: Record<string, FlowParamValue> }
 /** A cross-sectional value on the fixed population (P7; today return_rank). */
 export interface XsectionRef { kind: 'xsection'; metric: string; params?: { window?: number } & Record<string, ParamValue> }
@@ -518,19 +518,19 @@ export interface CatalogMetric {
   /** additive (EXEC-SCREENER-FLOW-CANDLES P5a): a flow indicator's Terminal setup, generated from flowRegistry.json
       (params is empty on a flow entry: its parameters are these) */
   flow?: CatalogFlow;
-  /** additive (P5a): a Phase 2 flow entry replaced by the Terminal's flow indicators (the FL id, or "none"); always
-      unavailable, its reason naming the replacement, until P5b remaps the presets that read it */
-  retired?: string;
 }
-/** A flow entry's setup (P5_FLOW.md section 2): the registry's family, place, tip and parameters as they are (condition
-    false on the kinds that only draw), each output with its kind of OPERATORS.md section 4 (a letter, or by a parameter)
-    and unit, the default output, the ADV floor flag, and, at this publication, the sessions the indicator reads at its
-    defaults (depth; null when not known) and the loaded broker sessions they are measured against (K1). */
+/** A flow entry's setup (P5_FLOW.md sections 2 and 3): the registry's family, place, tip and parameters as they are
+    (condition false on the kinds that only draw; screener true on a parameter of the Screener's version, text its
+    words), each output with its kind of OPERATORS.md section 4 (a letter, or by a parameter, which may again follow
+    another parameter) and unit, the default output, the ADV floor flag, version 'screener' for the Screener's version
+    of an indicator or its own entry (P5b), and, at this publication, the sessions the indicator reads at its defaults
+    (depth; null when not known) and the loaded broker sessions they are measured against (K1). */
 export interface CatalogFlow {
   family: string; place: string; tip: string | null; unit: string;
   outputs: { key: string; kind: unknown }[]; default_output: string;
-  params: { key: string; label: string; kind: string; status?: string; options?: unknown[]; default?: unknown; min?: number | null; max?: number | null; condition: boolean }[];
+  params: { key: string; label: string; kind: string; status?: string; options?: unknown[]; default?: unknown; min?: number | null; max?: number | null; text?: string; condition: boolean; screener?: boolean }[];
   adv_floor: boolean; needs_classification: boolean;
+  version?: 'terminal' | 'screener';
   depth: number | null; sessions: number;
 }
 /** Session counts of 1M, 3M, 6M and 1Y (P23 a: 21/63/126/252), from screener-metrics.json. */

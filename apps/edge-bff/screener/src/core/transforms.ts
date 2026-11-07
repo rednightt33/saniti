@@ -297,7 +297,7 @@ export const IMPLEMENTED_TRANSFORMS: readonly string[] = ['pct_distance', 'band_
     parameters are read) and the close for vs_index. `index` (IHSG's bars) serves vs_index when it computes (validation
     needs none). Nesting deeper than
     MAX_DEPTH transforms is refused. */
-export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext }): ResolvedSeries {
+export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext; flowReach?: number | null }): ResolvedSeries {
   const operands: ResolvedSeries[] = [];
   const r = resolveTransformCore(ref, field, ctx, operands);
   return withFlow(r, (r.ref as TransformRef).fn, ((r.ref as TransformRef).args || {}) as Record<string, unknown>, operands);
@@ -308,6 +308,21 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
 function operatorSessions(fn: string, args: Record<string, unknown>): number {
   const n = typeof args.length === 'number' ? args.length : typeof args.bars === 'number' ? args.bars : 0;
   return fn === 'acceleration' ? 2 * n : n;
+}
+/** The operators whose value at a session reads only the N sessions before it, each exactly (no running sum, no
+    recursion): a reader of their result at its last `reach` sessions reads their operand at its last reach + N. */
+const LOCAL = ['lag', 'change', 'change_pct', 'rolling_max', 'rolling_min', 'distance_to_extreme', 'slope', 'acceleration', 'relative', 'ratio', 'pct_distance'];
+/** P5b cost (flowmetrics.ts resolveFlow's lazy anchored series): the reach of a transform's operands from the reach of
+    its reader. undefined (not a screen) and null (the whole history) pass down; a local operator adds its N (2N for
+    acceleration); a percentile or z-score adds its N only over a flow series itself (its readiness reads the operand's
+    first value, which the lazy flow series keeps; an operator in between would move it); a moving average, a historical
+    average, a rising run (a running sum or a recursion over the whole history) and anything else read the whole
+    history (null). */
+export function operandReach(fn: string, args: Record<string, unknown>, reach: number | null | undefined, ofKind: unknown): number | null | undefined {
+  if (reach === undefined || reach === null) return reach;
+  if (LOCAL.includes(fn)) return reach + operatorSessions(fn, args);
+  if ((fn === 'percentile' || fn === 'zscore') && ofKind === 'flow') return reach + operatorSessions(fn, args);
+  return null;
 }
 /** Transforms that keep their operand's level (and so its output type): a lag, an average, a rolling extreme. */
 const KEEPS_LEVEL = ['lag', 'ma', 'rolling_max', 'rolling_min'];
@@ -325,13 +340,16 @@ function withFlow(r: ResolvedSeries, fn: string, args: Record<string, unknown>, 
   const own = owns.every(x => typeof x === 'number') ? Math.max(...owns as number[]) : null;
   return { ...r, ...kind, flowDepth: depth, flowOwn: own };
 }
-function resolveTransformCore(ref: TransformRef, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext }, operands: ResolvedSeries[]): ResolvedSeries {
+function resolveTransformCore(ref: TransformRef, field: string, ctx0: ParamOptions & { index?: TickerBars; flow?: FlowBindContext; flowReach?: number | null }, operands: ResolvedSeries[]): ResolvedSeries {
   if (field.split('.of').length - 1 + field.split('.args.').length - 1 >= MAX_DEPTH)
     throw new ScreenerError('INVALID_CONDITION', `${field}: transforms nest at most ${MAX_DEPTH} deep; simplify the reference.`, field);
   const spec = transformSpec(ref.fn, `${field}.fn`);
   if (ref.args !== undefined && !isObj(ref.args)) throw new ScreenerError('INVALID_CONDITION', `${field}.args must be an object.`, `${field}.args`);
   const refKeys = spec.ref_args.map(a => a.key), given = (ref.args || {}) as Record<string, unknown>;
   const scalar = resolveCatalogParams(spec.args, Object.fromEntries(Object.entries(given).filter(([k]) => !refKeys.includes(k))), `${field}.args`, refKeys);
+  // the operands are resolved under the reach this operator gives them (P5b; operandReach)
+  const reach = operandReach(spec.fn, scalar, ctx0.flowReach, isObj(ref.of) ? ref.of.kind : null);
+  const ctx = reach === ctx0.flowReach ? ctx0 : { ...ctx0, flowReach: reach };
   const refArgs: Record<string, ResolvedSeries> = {};
   for (const k of refKeys) {
     if (!isObj(given[k])) throw new ScreenerError('INVALID_CONDITION', `${field}.args.${k} must be a metric reference (${spec.ref_args.find(a => a.key === k)!.label}).`, `${field}.args.${k}`);

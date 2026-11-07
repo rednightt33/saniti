@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "79c72aa2dd1ee9d3",
+  "screener_registry_version": "aca1025aae2135b5",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "4796c21c875167e523404db2749a6643da829245387fe648a2b83277f1dbee0f"
+      "sha256": "e536fca4f2c26a0cfebcc9899d5a03e60e1404fd3c42e85d6d42720856f187af"
     },
     {
       "role": "flow_registry",
@@ -42,7 +42,7 @@
     {
       "role": "flow_kinds",
       "file": "apps/edge-bff/screener/src/core/flow-kinds.json",
-      "sha256": "3caf5605e1f4b472aefed1b78fc477d7f0ad25eece186234c85aece48a02a80d"
+      "sha256": "a7c5454420b495d4ae9e1e35d89ed683e76e41bd217fc4aa12f2a45be00068a0"
     }
   ],
   "probe": {
@@ -8928,7 +8928,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL02",
@@ -9078,7 +9083,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL03",
@@ -9228,7 +9238,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL04",
@@ -9378,7 +9393,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL05",
@@ -9536,7 +9556,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL06",
@@ -9672,7 +9697,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL07",
@@ -9818,7 +9848,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL08",
@@ -9987,7 +10022,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL09",
@@ -10183,7 +10223,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL10",
@@ -10337,7 +10382,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL11",
@@ -10517,7 +10567,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL12",
@@ -10649,7 +10704,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL13",
@@ -10821,7 +10881,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL14",
@@ -10993,7 +11058,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL15",
@@ -11090,7 +11160,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL16",
@@ -11187,7 +11262,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL17",
@@ -11315,7 +11395,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL18",
@@ -11431,17 +11516,25 @@
           "condition": true
         },
         {
-          "key": "anchor",
-          "label": "Anchor date",
-          "status": "DECIDED",
-          "kind": "date",
-          "default": "view",
-          "condition": true
+          "key": "anchor_sessions",
+          "label": "Anchor: sessions before the evaluated candle",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 59,
+          "text": "The anchor is the candle N sessions before the candle being evaluated, found per stock on its own sessions; the value reads those N + 1 sessions, ranks a Top-N cohort over them only, and is missing when the anchor falls before the stock's first session with broker data.",
+          "condition": true,
+          "screener": true
         }
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "anchored",
+      "current_only": false,
+      "formula": "The Terminal's Buy VWAP · Anchored with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only.",
+      "misuse": null
     },
     {
       "id": "FL19",
@@ -11557,12 +11650,15 @@
           "condition": true
         },
         {
-          "key": "anchor",
-          "label": "Anchor date",
-          "status": "DECIDED",
-          "kind": "date",
-          "default": "view",
-          "condition": true
+          "key": "anchor_sessions",
+          "label": "Anchor: sessions before the evaluated candle",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 59,
+          "text": "The anchor is the candle N sessions before the candle being evaluated, found per stock on its own sessions; the value reads those N + 1 sessions, ranks a Top-N cohort over them only, and is missing when the anchor falls before the stock's first session with broker data.",
+          "condition": true,
+          "screener": true
         },
         {
           "key": "opening",
@@ -11585,7 +11681,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "anchored",
+      "current_only": false,
+      "formula": "The Terminal's Implied Cost · Anchored with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only.",
+      "misuse": null
     },
     {
       "id": "FL20",
@@ -11701,12 +11802,15 @@
           "condition": true
         },
         {
-          "key": "anchor",
-          "label": "Anchor date",
-          "status": "DECIDED",
-          "kind": "date",
-          "default": "view",
-          "condition": true
+          "key": "anchor_sessions",
+          "label": "Anchor: sessions before the evaluated candle",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 59,
+          "text": "The anchor is the candle N sessions before the candle being evaluated, found per stock on its own sessions; the value reads those N + 1 sessions, ranks a Top-N cohort over them only, and is missing when the anchor falls before the stock's first session with broker data.",
+          "condition": true,
+          "screener": true
         },
         {
           "key": "opening",
@@ -11737,7 +11841,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "anchored",
+      "current_only": false,
+      "formula": "The Terminal's Implied Cost · Distance % with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only.",
+      "misuse": null
     },
     {
       "id": "FL21",
@@ -11909,7 +12018,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL22",
@@ -11995,7 +12109,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL23",
@@ -12007,45 +12126,91 @@
       "needs_frequency": false,
       "outputs": [
         {
-          "key": "lines",
+          "key": "value",
           "kind": {
-            "by": "unit",
-            "lot": {
-              "kind": "Rp",
-              "unit": "lot"
+            "by": "series",
+            "cum": {
+              "by": "unit",
+              "lot": {
+                "kind": "Rp",
+                "unit": "lot"
+              },
+              "value": {
+                "kind": "Rp",
+                "unit": "IDR"
+              }
             },
-            "value": {
-              "kind": "Rp",
-              "unit": "IDR"
+            "daily": {
+              "by": "unit",
+              "lot": {
+                "kind": "Rp",
+                "unit": "lot"
+              },
+              "value": {
+                "kind": "Rp",
+                "unit": "IDR"
+              }
+            },
+            "norm": {
+              "kind": "K",
+              "unit": "%"
             }
           }
         },
         {
-          "key": "total",
+          "key": "count",
           "kind": {
-            "by": "unit",
-            "lot": {
-              "kind": "Rp",
-              "unit": "lot"
-            },
-            "value": {
-              "kind": "Rp",
-              "unit": "IDR"
-            }
+            "kind": "B",
+            "unit": "brokers"
           }
         }
       ],
-      "default_output": "lines",
+      "default_output": "value",
       "params": [
+        {
+          "key": "holders",
+          "label": "Holders",
+          "kind": "select",
+          "options": [
+            [
+              "top",
+              "Top-K holders (largest inventory)"
+            ],
+            [
+              "selected",
+              "Selected brokers"
+            ],
+            [
+              "all",
+              "All brokers"
+            ]
+          ],
+          "default": "top",
+          "text": "Top-K: at each session the K brokers with the largest positive inventory over the lookback (ties by broker code); selected: the brokers named; all: every broker with a row in the loaded window.",
+          "condition": true,
+          "screener": true
+        },
         {
           "key": "brokers",
           "label": "Brokers",
-          "status": "DECIDED",
           "kind": "brokers",
-          "default": "auto_c",
+          "default": [],
+          "min": 0,
+          "max": 5,
+          "text": "Read with holders \"Selected brokers\": 1 to 5 broker codes.",
+          "condition": true,
+          "screener": true
+        },
+        {
+          "key": "top",
+          "label": "Top K",
+          "kind": "int",
+          "default": 3,
           "min": 1,
           "max": 5,
-          "condition": true
+          "text": "Read with holders \"Top-K holders\" (the Terminal draws at most 5 brokers).",
+          "condition": true,
+          "screener": true
         },
         {
           "key": "unit",
@@ -12066,30 +12231,38 @@
           "condition": true
         },
         {
-          "key": "view",
-          "label": "View",
-          "status": "DECIDED",
+          "key": "series",
+          "label": "Series",
           "kind": "select",
           "options": [
             [
               "cum",
-              "Cumulative"
+              "a · Inventory over the lookback"
             ],
             [
               "daily",
-              "Daily"
+              "b · Daily net"
+            ],
+            [
+              "norm",
+              "c · Inventory ÷ traded value of the lookback (%)"
             ]
           ],
           "default": "cum",
-          "condition": true
+          "text": "a: the Terminal's cumulative inventory counted from the first of the lookback's sessions; b: the Terminal's daily net; c: a as a percent of every investor's traded value on the chosen boards over the same sessions.",
+          "condition": true,
+          "screener": true
         },
         {
-          "key": "total",
-          "label": "Show cohort total",
-          "status": "DECIDED",
-          "kind": "bool",
-          "default": false,
-          "condition": true
+          "key": "lookback",
+          "label": "Lookback (sessions)",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "text": "The L sessions ending at the evaluated candle: the inventory counts from the first of them; Top-K holders are ranked on it; series c divides by their traded value.",
+          "condition": true,
+          "screener": true
         },
         {
           "key": "boards",
@@ -12122,18 +12295,43 @@
           "condition": true
         },
         {
-          "key": "start",
-          "label": "Counts from",
-          "status": "DECIDED",
-          "kind": "fixed",
-          "text": "The first visible candle",
-          "default": "-",
-          "condition": false
+          "key": "move",
+          "label": "Holders that moved: direction",
+          "kind": "select",
+          "options": [
+            [
+              "up",
+              "Rose by at least"
+            ],
+            [
+              "down",
+              "Fell by at least"
+            ]
+          ],
+          "default": "up",
+          "text": "Read by output count.",
+          "condition": true,
+          "screener": true
+        },
+        {
+          "key": "move_min",
+          "label": "Holders that moved: by at least",
+          "kind": "num",
+          "default": 0,
+          "min": 0,
+          "text": "Read by output count, in the series' unit: lots or rupiah for a and b, percent of the traded value for c; a holder counts when its series is above 0 and at least this (rose) or below 0 and at most minus this (fell).",
+          "condition": true,
+          "screener": true
         }
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "inventory",
+      "current_only": false,
+      "formula": "Series a: the Terminal's Broker Inventory (cumulative net lots or rupiah) of each holder, counted from the first of the last L sessions, summed over the holders; b: the Terminal's daily net of the holders; c: 100 x the holders' inventory over the L sessions / every investor's traded value (gross buy) on the chosen boards over the same sessions. Holders: the K brokers with the largest positive inventory over the L sessions, the brokers named, or every broker. Output count: how many holders' series rose (fell) by at least the amount.",
+      "misuse": "An inventory is a net of the broker's clients over the sessions counted, not a holding: it starts at zero on the first of them. Series a and b scale with the stock's size (use c to compare stocks)."
     },
     {
       "id": "FL24",
@@ -12212,7 +12410,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL25",
@@ -12301,7 +12504,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL26",
@@ -12450,7 +12658,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL27",
@@ -12559,7 +12772,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL28",
@@ -12590,7 +12808,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL29",
@@ -12675,7 +12898,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL30",
@@ -12721,7 +12949,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL31",
@@ -12770,7 +13003,12 @@
       ],
       "adv_floor": false,
       "requires": "insider",
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL32",
@@ -12887,7 +13125,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL33",
@@ -13059,7 +13302,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL34",
@@ -13187,7 +13435,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": true
+      "needs_classification": true,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": true,
+      "formula": null,
+      "misuse": "The brokers' classification is today's, not the one of the day the trades happened: the value is read only at the latest broker date, and is n/a on any earlier session (also inside an operator over its history)."
     },
     {
       "id": "FL35",
@@ -13248,7 +13501,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL36",
@@ -13379,7 +13637,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL37",
@@ -13553,7 +13816,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL38",
@@ -13699,7 +13967,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL39",
@@ -13835,7 +14108,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL40",
@@ -13925,7 +14203,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL41",
@@ -14081,7 +14364,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL42",
@@ -14152,7 +14440,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL43",
@@ -14280,7 +14573,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL44",
@@ -14396,17 +14694,25 @@
           "condition": true
         },
         {
-          "key": "anchor",
-          "label": "Anchor date",
-          "status": "DECIDED",
-          "kind": "date",
-          "default": "view",
-          "condition": true
+          "key": "anchor_sessions",
+          "label": "Anchor: sessions before the evaluated candle",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 59,
+          "text": "The anchor is the candle N sessions before the candle being evaluated, found per stock on its own sessions; the value reads those N + 1 sessions, ranks a Top-N cohort over them only, and is missing when the anchor falls before the stock's first session with broker data.",
+          "condition": true,
+          "screener": true
         }
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "anchored",
+      "current_only": false,
+      "formula": "The Terminal's Sell VWAP · Anchored with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only.",
+      "misuse": null
     },
     {
       "id": "FL45",
@@ -14522,12 +14828,15 @@
           "condition": true
         },
         {
-          "key": "anchor",
-          "label": "Anchor date",
-          "status": "DECIDED",
-          "kind": "date",
-          "default": "view",
-          "condition": true
+          "key": "anchor_sessions",
+          "label": "Anchor: sessions before the evaluated candle",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 59,
+          "text": "The anchor is the candle N sessions before the candle being evaluated, found per stock on its own sessions; the value reads those N + 1 sessions, ranks a Top-N cohort over them only, and is missing when the anchor falls before the stock's first session with broker data.",
+          "condition": true,
+          "screener": true
         },
         {
           "key": "levels",
@@ -14540,7 +14849,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "anchored",
+      "current_only": false,
+      "formula": "The Terminal's Buy VWAP · Anchored · Distance % with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only.",
+      "misuse": null
     },
     {
       "id": "FL46",
@@ -14854,7 +15168,12 @@
       ],
       "adv_floor": true,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL47",
@@ -14950,7 +15269,12 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
     },
     {
       "id": "FL48",
@@ -15047,7 +15371,107 @@
       ],
       "adv_floor": false,
       "requires": null,
-      "needs_classification": false
+      "needs_classification": false,
+      "version": "terminal",
+      "compute": "terminal",
+      "current_only": false,
+      "formula": null,
+      "misuse": null
+    },
+    {
+      "id": "fnet",
+      "name": "Foreign Net Value",
+      "family": "Foreign",
+      "unit": "IDR",
+      "place": "pane",
+      "tip": "Foreign investors' net buying (buy value minus sell value) in rupiah over the last sessions.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": {
+            "kind": "Rp",
+            "unit": "IDR"
+          }
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "window",
+          "label": "Sessions",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "condition": true,
+          "screener": true
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "condition": true,
+          "screener": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": null,
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "foreign_net",
+      "current_only": false,
+      "formula": "Sum over the last D sessions of the buy value minus the sell value of every broker row with investor type Foreign on the chosen boards (every board by default), in rupiah; missing unless the session has broker data and the D sessions start at or after the stock's first session with broker data.",
+      "misuse": "Investor type, not broker domicile. A rupiah amount grows with the stock's size (Net Flow / Turnover Ratio with all brokers and Foreign investors compares stocks). One Nego block can dominate on every board."
+    },
+    {
+      "id": "ksei_net",
+      "name": "Major-Holder Net Change (KSEI)",
+      "family": "Ownership",
+      "unit": "pp",
+      "place": "pane",
+      "tip": "Net change of the 5% holders' stakes reported to KSEI over the last sessions.",
+      "needs_frequency": false,
+      "outputs": [
+        {
+          "key": "value",
+          "kind": {
+            "kind": "K",
+            "unit": "pp"
+          }
+        }
+      ],
+      "default_output": "value",
+      "params": [
+        {
+          "key": "window",
+          "label": "Sessions",
+          "kind": "int",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "condition": true,
+          "screener": true
+        }
+      ],
+      "adv_floor": false,
+      "requires": "ksei",
+      "needs_classification": false,
+      "version": "screener",
+      "compute": "none",
+      "current_only": false,
+      "formula": "Sum of the KSEI-reported changes (percentage points of the shares) of the stock's major holders with a position date in the last D sessions.",
+      "misuse": "KSEI dates are position-report dates and many prices are estimates; not point-in-time for past dates."
     }
   ]
 }

@@ -121,7 +121,7 @@ function crossSections(env: ScreenEnv, bound: readonly BoundCondition[], populat
 function stageS0(def: Definition, env: ScreenEnv): { eligible: UniverseRow[]; counts: UniverseCounts } {
   const u = applyUniverse(env.rows, def.universe);
   if (!u.pending.length) return { eligible: u.eligible, counts: u.counts };
-  const filters = u.pending.map(i => bindTest(`f${i}`, def.universe.metric_filters![i], `definition.universe.metric_filters[${i}]`, env));
+  const filters = u.pending.map(i => bindTest(`f${i}`, def.universe.metric_filters![i], `definition.universe.metric_filters[${i}]`, screenBinding(env)));
   const xs = crossSections(env, filters);
   const eligible = u.eligible.filter(row => {
     const t = env.bars(row.ticker);
@@ -133,12 +133,16 @@ function stageS0(def: Definition, env: ScreenEnv): { eligible: UniverseRow[]; co
   return { eligible, counts: { ...u.counts, eligible: eligible.length, filtered_out: u.counts.filtered_out + dropped } };
 }
 
+/** The binding of a screen's conditions and filters (P5b cost): the snapshot's binding context with flowLazy, so an
+    anchored flow series is computed only on the sessions its test reads (condition.ts BindContext). A preview binds
+    with the snapshot's own context (it draws whole series). */
+export const screenBinding = (env: ScreenEnv): BindContext => ({ capBudgetMs: env.capBudgetMs, index: env.index, withinMax: env.withinMax, catalog: env.catalog, flow: env.flow, flowLazy: true });
 /** Runs one normalized definition over the snapshot (stages above). */
 export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOptions = {}): ScreenResult {
   const t0 = now();
   const s0 = stageS0(def, env), ts0 = now();
   const active = def.conditions.filter(c => c.enabled);
-  const bound = active.map(c => bindCondition(c, `definition.conditions[${def.conditions.indexOf(c)}]`, env));
+  const bound = active.map(c => bindCondition(c, `definition.conditions[${def.conditions.indexOf(c)}]`, screenBinding(env)));
   const xs = crossSections(env, bound, s0.eligible), ts1 = now();
   const survivors = s0.eligible.flatMap(row => { const t = env.bars(row.ticker); return t ? [{ row, t }] : [] });
   const avgBars = survivors.length ? survivors.reduce((n, s) => n + s.t.dates.length, 0) / survivors.length : 0;

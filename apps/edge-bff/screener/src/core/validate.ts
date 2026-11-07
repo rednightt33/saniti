@@ -59,13 +59,11 @@ export type { MetricDefinition, MetricsCatalog, TransformDefinition, PresetDefin
     (its data; with some of the columns, how many it lacks) or that the Screener does not read it yet, never a file or
     column name. `reads` omitted (the core's own tests): every indexed file counts as read. */
 export function availabilityOf(m: MetricDefinition, index: Readonly<Record<string, { columns?: string[] }>>, reads?: ReadonlySet<string>, flow?: FlowBindContext): { availability: Availability; reason: string | null } {
-  // EXEC-SCREENER-FLOW-CANDLES P5a: a retired Phase 2 flow entry is never computed (its reason names its replacement);
-  // a flow indicator needs data the Screener does not hold (FL31: insider), the loaded broker window (none: no broker
-  // days; not complete: still loading, the FLOW_UNAVAILABLE rule) and, for a default classification list (FL34), the
-  // brokers' classification
-  if (m.retired) return { availability: 'REQUIRES_DATA', reason: m.unavailable_reason ?? null };
+  // EXEC-SCREENER-FLOW-CANDLES P5a: a flow entry needs data the Screener does not hold (FL31: insider; P5b ksei_net:
+  // KSEI), the loaded broker window (none: no broker days; not complete: still loading, the FLOW_UNAVAILABLE rule) and,
+  // for a default classification list (FL34), the brokers' classification
   if (m.flow) {
-    if (m.flow.requires === 'insider') return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.insider };
+    if (m.flow.requires) return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS[m.flow.requires] };
     if (!flow || !flow.sessions) return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.none };
     if (!flow.complete) return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.loading(flow.sessions) };
     if (m.flow.needs_classification && !flow.classification) return { availability: 'REQUIRES_DATA', reason: FLOW_REASONS.classification };
@@ -380,15 +378,11 @@ function normalizeRef(r: MetricRef, field: string, ctx: ValidateContext): Metric
       for (const k of refKeys) if (has(given, k)) args[k] = normalizeRef(given[k] as MetricRef, `${field}.args.${k}`, ctx);
       return { kind: 'transform', fn: spec.fn, of: normalizeRef(r.of, `${field}.of`, ctx), args } as MetricRef;
     }
-    case 'flow':
-      // P5a: a flow indicator's parameters through the registry's rules (flowmetrics.ts), its output stated
-      if (FLOW_BY_ID[r.metric]) {
-        const e = FLOW_BY_ID[r.metric], output = r.output ?? e.default_output;
-        return { kind: 'flow', metric: e.id, output, params: resolveFlowParams(e, r.params, field, ctx.flow?.sessions ?? FLOW_DESIGN_SESSIONS, output) } as MetricRef;
-      }
-      // a retired Phase 2 entry keeps its old shape (window, board) until P5b remaps it
-      { const spec = metricSpec('flow', r.metric, `${field}.metric`, ctx.metrics);
-        return { kind: 'flow', metric: spec.id, params: resolveCatalogParams(spec.params, r.params, `${field}.params`) } as MetricRef }
+    case 'flow': {
+      // P5a: a flow entry's parameters through the registry's rules (flowmetrics.ts), its output stated
+      const e = FLOW_BY_ID[metricSpec('flow', r.metric, `${field}.metric`, ctx.metrics).id], output = r.output ?? e.default_output;
+      return { kind: 'flow', metric: e.id, output, params: resolveFlowParams(e, r.params, field, ctx.flow?.sessions ?? FLOW_DESIGN_SESSIONS, output) } as MetricRef;
+    }
     case 'pattern': case 'xsection': {
       const id = r.kind === 'pattern' ? r.type : r.metric, spec = metricSpec(r.kind, id, `${field}.${r.kind === 'pattern' ? 'type' : 'metric'}`, ctx.metrics);
       const params = resolveCatalogParams(spec.params, r.params, `${field}.params`);

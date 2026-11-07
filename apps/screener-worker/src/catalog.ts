@@ -11,8 +11,8 @@
    - groupings: the reference file's, by the Backtest's rule (snapshot.ts groupingsOf);
    - P5a: the Terminal's 48 flow indicators (core catalog.ts METRICS_CATALOG) carry `flow`, their setup with each
      output's kind and the sessions they read at their defaults against the loaded broker window (contract.ts
-     CatalogFlow), available on a complete window (validate.ts availabilityOf); the retired Phase 2 flow entries carry
-     `retired` and stay unavailable;
+     CatalogFlow), available on a complete window (validate.ts availabilityOf); P5b: the Screener's versions (FL18-FL20,
+     FL23, FL44, FL45) and its own flow entries (fnet; ksei_net REQUIRES_DATA) the same way, with version 'screener';
    - presets[]: src/core/presets.json (core catalog.ts PRESETS); each with its availability (validate.ts
      presetAvailability: available only when every leg is, never run with a leg removed) and, when available, its match and near counts at
      this publication (computed by the refresh, which keeps each available preset's full result in the result cache, so
@@ -40,20 +40,18 @@ export const metricAvailability = (m: MetricsCatalog, index: Record<string, Inde
   availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m, new Set(read), flow);
 const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
 /** A catalog entry as the page reads it (contract.ts CatalogMetric plus the additive fields screener-metrics.json
-    carries for the page: label, short, synonyms, default_test, ref, fl; the fixture tests/fixture/api.ts has the same
+    carries for the page: label, short, synonyms, default_test, ref; the fixture tests/fixture/api.ts has the same
     shape); the internal fields (requires, decision, evidence, unavailable_reason) stay in the worker. */
 function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }, sessions: number): CatalogMetric {
   const extra: Record<string, unknown> = {};
-  // retired (P5a): a Phase 2 flow entry the Terminal's flow indicators replace; shown unavailable with the reason naming
-  // its replacement, so the presets that still read it name their legs, until P5b remaps them
-  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'fl', 'retired'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref'] as const) if (x[k] !== undefined) extra[k] = x[k];
   // P5a: a flow indicator's Terminal setup (contract.ts CatalogFlow): the registry's parameters, each output's kind, and
   // the sessions it reads at its defaults against the loaded window (a built-in baseline shown capped to the window)
   if (x.flow) {
     const f = x.flow, defaults = resolveFlowParams(f, undefined, 'catalog', sessions);
     extra.flow = { family: f.family, place: f.place, tip: f.tip, unit: f.unit, outputs: f.outputs, default_output: f.default_output,
       params: f.params.map(p => p.key in defaults ? { ...p, default: defaults[p.key] } : p), adv_floor: f.adv_floor, needs_classification: f.needs_classification,
-      depth: f.requires ? null : depthAt(f, defaults), sessions };
+      version: f.version, depth: f.requires ? null : depthAt(f, defaults), sessions };
   }
   return { id: x.id, group: x.group, kind: x.kind, params: x.params, tests: x.tests, unit: x.unit, formula: x.formula, interpretation: x.interpretation,
     misuse: x.misuse, availability: a.availability, reason: a.reason, applies_to: x.applies_to, ...extra } as CatalogMetric;
@@ -127,8 +125,8 @@ export interface CatalogInput {
   availability: Map<string, { availability: Availability; reason: string | null }>;
   groupings: Grouping[]; presets: CatalogPreset[];
 }
-/** The sessions a flow entry reads at its defaults (flowmetrics.ts indicatorDepth on its default output); null where the
-    default output is not one series (FL23: one line per broker). */
+/** The sessions a flow entry reads at its defaults (flowmetrics.ts indicatorDepth on its default output); null where it
+    cannot be probed. */
 function depthAt(f: NonNullable<MetricDefinition['flow']>, params: ReturnType<typeof resolveFlowParams>): number | null {
   try { return indicatorDepth(f, f.default_output, params) } catch { return null }
 }

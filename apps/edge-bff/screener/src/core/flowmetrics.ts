@@ -29,6 +29,10 @@
    - Series: the output aligned to the stock's bars (null outside the window), so every operator applies to it as to an
      indicator; one computeFlow per (ticker, id, parameters) through the caller's memo (TickerFlow.memo, the thread's
      per-snapshot memo), the outputs of one call shared.
+   P5b (P5_FLOW.md section 3): the Screener's versions (FL18-FL20, FL44, FL45 with the anchor N sessions back; FL23's
+   Broker Inventory series a, b, c and the count of holders that moved), FL34's point-in-time guard and the Screener's
+   own entries (fnet; ksei_net REQUIRES_DATA) are computed by flowscreener.ts on top of the same computeFlow (computeEntry
+   dispatches on the entry's `compute`).
    Worker-side module (imports the Terminal's flow module); the page reads the entries from GET /catalog. */
 import { boardIndex, computeFlow, flowDefaults, investorIndex } from '../../../terminal/src/calc/flow.ts';
 import type { FlowContext, FlowOut, FlowRows, Num } from '../../../terminal/src/calc/flow.ts';
@@ -36,7 +40,9 @@ import { canonicalJson } from '../../../backtest/src/core/hash.ts';
 import { isIsoDate } from '../../../backtest/src/core/signals.ts';
 import type { FlowParamValue, FlowRef, MetricRef } from './contract.ts';
 import { ScreenerError } from './errors.ts';
-import { FLOW_REASONS, METRICS_CATALOG } from './catalog.ts';
+import { FLOW_REASONS } from './catalog.ts';
+import { anchoredAt, anchoredLazy, anchoredSeries, foreignNet, inventory } from './flowscreener.ts';
+import type { FlowCall, InventorySetup } from './flowscreener.ts';
 import { SCREENER_REGISTRY } from './registry.ts';
 import type { FlowKindSpec, FlowRegistryEntry, FlowRegistryParam } from './registry.ts';
 import kindsDoc from './flow-kinds.json' with { type: 'json' };
@@ -63,11 +69,11 @@ export function flowEntry(id: unknown, field: string): FlowRegistryEntry {
 /** The value of a select option or multi option of the registry ([value, label] or value). */
 const optionValue = (o: string | [string, string]): string => Array.isArray(o) ? o[0] : o;
 /** An output's kind and unit at resolved parameters (flow-kinds.json through the entry: a letter, {kind, unit}, or by a
-    select parameter's value). */
+    select parameter's value, which may again follow another select parameter: FL23's value by series, then by unit). */
 export function outputKind(e: FlowRegistryEntry, output: string, params: Record<string, FlowParamValue>): { kind: string; unit: string } {
   const o = e.outputs.find(x => x.key === output);
   let s: FlowKindSpec | undefined = o?.kind;
-  if (s && typeof s === 'object' && 'by' in s) s = (s as Record<string, unknown>)[String(params[(s as { by: string }).by])] as FlowKindSpec | undefined;
+  while (s && typeof s === 'object' && 'by' in s) s = (s as Record<string, unknown>)[String(params[(s as { by: string }).by])] as FlowKindSpec | undefined;
   if (typeof s === 'string') return { kind: s, unit: e.unit };
   if (s && typeof s === 'object' && 'kind' in s) return { kind: String(s.kind), unit: String((s as { unit: string }).unit) };
   throw new RangeError(`flow: ${e.id}.${output} has no kind at ${JSON.stringify(params)}`);
@@ -118,25 +124,26 @@ function checkParam(e: FlowRegistryEntry, p: FlowRegistryParam, v: unknown, f: s
       if (isToken(v, p)) return v as string;
       const lo = p.min ?? 0, hi = p.max ?? undefined;
       if (!Array.isArray(v) || v.some(x => typeof x !== 'string' || !BROKER.test(x)) || new Set(v).size !== v.length || v.length < lo || (hi !== undefined && v.length > hi))
-        throw bad(`is ${typeof p.default === 'string' ? `${JSON.stringify(p.default)} or ` : ''}a list of ${lo ? `${lo} ` : ''}${hi !== undefined ? `to ${hi} ` : ''}broker codes, each once (right: ["YP", "AK"]; wrong: ["yp", "YP", "YP"])`);
+        throw bad(`is ${typeof p.default === 'string' ? `${JSON.stringify(p.default)} or ` : ''}a list of ${lo && hi !== undefined ? `${lo} to ${hi} ` : hi !== undefined ? `at most ${hi} ` : lo ? `at least ${lo} ` : ''}broker codes, each once (right: ["YP", "AK"]; wrong: ["yp", "YP", "YP"])`);
       return [...v] as string[];
     }
   }
   throw bad('only draws on the Terminal\'s chart (a reference line, a button or a fixed text); a condition does not take it');
 }
 /** The Terminal's "nothing chosen" rules (flowIndicators.ts emptyChoice, ratioRefusal): a scope of selected brokers
-    with no broker named has no line, so it is refused naming the field. */
+    with no broker named has no line, so it is refused naming the field; P5b: so are FL23's holders "Selected brokers"
+    with none named (its other holders do not read the list). */
 function emptyChoice(e: FlowRegistryEntry, params: Record<string, FlowParamValue>, field: string): void {
   for (const pre of ['', 'num_', 'den_']) {
-    const brokers = params[`${pre}brokers`], scope = params[`${pre}scope`];
+    const brokers = params[`${pre}brokers`], scope = params[`${pre}scope`] ?? params[`${pre}holders`];
     if (Array.isArray(brokers) && !brokers.length && (scope === undefined || scope === 'selected') && e.params.some(p => p.key === `${pre}brokers`))
-      throw new ScreenerError('INVALID_CONDITION', `${field}.params.${pre}brokers: ${e.id} ${e.name} reads the selected brokers, and none is named: name at least one broker, or choose another broker scope (right: ["YP"]; wrong: []).`, `${field}.params.${pre}brokers`);
+      throw new ScreenerError('INVALID_CONDITION', `${field}.params.${pre}brokers: ${e.id} ${e.name} reads the selected brokers, and none is named: name at least one broker, or choose another ${params[`${pre}holders`] !== undefined ? 'holders setting' : 'broker scope'} (right: ["YP"]; wrong: []).`, `${field}.params.${pre}brokers`);
   }
 }
 
 /** The parameters of a flow reference, checked and complete (normalized: every condition parameter stated, so a request
     that leaves a default out hashes as one that states it). A parameter left out takes the registry default (flow.ts
-    flowDefaults), except `baseline` when the indicator at its default would read more sessions than `sessions` (the
+    flowDefaults; a screener parameter its own default, P5b), except `baseline` when the indicator at its default would read more sessions than `sessions` (the
     loaded window, FLOW_DESIGN_SESSIONS without one): it is lowered by the excess, never below its minimum (K1: "60
     dikurangi jendela"). An unknown key, a kind that only draws, or a value outside its rule is refused. */
 export function resolveFlowParams(e: FlowRegistryEntry, given: unknown, field: string, sessions = FLOW_DESIGN_SESSIONS, output?: string): Record<string, FlowParamValue> {
@@ -148,7 +155,7 @@ export function resolveFlowParams(e: FlowRegistryEntry, given: unknown, field: s
     if (!p) throw new ScreenerError('INVALID_CONDITION', `${field}.params.${k}: not a parameter of ${e.id} ${e.name}; use only ${keys.join(', ')}.`, `${field}.params.${k}`, { allowed: keys });
   }
   const defaults = flowDefaults(e.id), out: Record<string, FlowParamValue> = {};
-  for (const p of specs) out[p.key] = checkParam(e, p, Object.prototype.hasOwnProperty.call(g, p.key) ? g[p.key] : defaults[p.key], `${field}.params.${p.key}`);
+  for (const p of specs) out[p.key] = checkParam(e, p, Object.prototype.hasOwnProperty.call(g, p.key) ? g[p.key] : p.screener ? structuredClone(p.default) : defaults[p.key], `${field}.params.${p.key}`);
   emptyChoice(e, out, field);
   // K1: a built-in baseline left out is capped to the window less the indicator's own window (derived, flowDepth)
   const base = specs.find(p => p.key === 'baseline' && p.kind === 'int');
@@ -169,8 +176,11 @@ const EMPTY_ROWS = (N: number): FlowRows => ({ n: 0, N, t: new Int32Array(0), b:
   brokers: [], has: new Uint8Array(N) });
 const outputMemo = new Map<string, string[]>();
 /** The output keys computeFlow gives at these parameters (computed once on an empty context, as the Terminal's
-    flowIndicators.ts probes an indicator): a sided indicator's lines follow its side, FL23's are broker codes. */
+    flowIndicators.ts probes an indicator): a sided indicator's lines follow its side. A screener version or entry (P5b)
+    gives every output it names. */
 export function producedOutputs(id: string, params: Record<string, FlowParamValue>): string[] {
+  const e = FLOW_BY_ID[id];
+  if (e && e.compute !== 'terminal') return e.outputs.map(o => o.key);
   const key = canonicalJson([id, params]);
   let keys = outputMemo.get(key);
   if (!keys) {
@@ -181,17 +191,11 @@ export function producedOutputs(id: string, params: Record<string, FlowParamValu
   }
   return keys;
 }
-/** The series key of the output in computeFlow's answer, or the refusal naming the field: an output the registry does
-    not name; a sided line the side does not draw; FL23's `lines` with other than one broker; `total` without total. */
+/** The series key of the output in computeFlow's answer, or the refusal naming the field: an output the entry does
+    not name; a sided line the side does not draw; `total` without total. */
 export function seriesKeyOf(e: FlowRegistryEntry, output: string, params: Record<string, FlowParamValue>, field: string): string {
   if (!e.outputs.some(o => o.key === output))
     throw new ScreenerError('INVALID_CONDITION', `${field}.output: ${JSON.stringify(output)} is not an output of ${e.id} ${e.name}; use one of ${e.outputs.map(o => o.key).join(', ')}.`, `${field}.output`, { allowed: e.outputs.map(o => o.key) });
-  if (e.id === 'FL23' && output === 'lines') {
-    const b = params.brokers;
-    if (!Array.isArray(b) || b.length !== 1)
-      throw new ScreenerError('INVALID_CONDITION', `${field}.params.brokers: ${e.id} ${e.name} draws one line per broker, and a condition reads one series: name exactly one broker for output lines, or read output total with total true (right: brokers ["YP"]; wrong: brokers "auto_c" or ["YP", "AK"]).`, `${field}.params.brokers`);
-    return b[0];
-  }
   const produced = producedOutputs(e.id, params);
   if (!produced.includes(output)) {
     const side = e.params.find(p => p.key === 'side'), total = e.params.find(p => p.key === 'total' && p.kind === 'bool');
@@ -238,14 +242,37 @@ function probeContext(L: number): FlowContext {
   const classification = Object.fromEntries(brokers.map((c, b) => [c, b % 4 === 0 ? 'Institutional-heavy' : b % 4 === 1 ? 'Retail-heavy' : 'Mixed']));
   return { rows: R, dates, close, volume, insider: [], classification };
 }
+/* ---- computing an entry (P5b: the Screener's versions on top of computeFlow) ----------------------------------------- */
+
+/** The Terminal's parameters of a screener version (its screener parameters left out): what computeFlow is given. */
+const terminalParams = (e: FlowRegistryEntry, params: Record<string, FlowParamValue>): Record<string, FlowParamValue> =>
+  Object.fromEntries(Object.entries(params).filter(([k]) => !e.params.find(p => p.key === k)?.screener));
+/** Every output of a flow entry on a context, by the entry's `compute` (registry.ts FlowCompute): the Terminal's
+    computeFlow (`call`: the caller's memo of it on the same context); the anchor N sessions back (flowscreener.ts
+    anchoredSeries); the Screener's Broker Inventory (inventory, its FL23 calls through `call`); the foreign net (fnet,
+    foreignNet). An entry whose data is not published (compute none) is never computed. */
+export function computeEntry(e: FlowRegistryEntry, ctx: FlowContext, params: Record<string, FlowParamValue>, call: FlowCall = computeFlow): FlowOut {
+  switch (e.compute) {
+    case 'terminal': return call(e.id, ctx, params);
+    case 'anchored': {
+      const q = terminalParams(e, params), n = params.anchor_sessions as number;
+      return Object.fromEntries(e.outputs.map(o => [o.key, anchoredSeries(e.id, ctx, q, n, o.key)]));
+    }
+    case 'inventory': return inventory(ctx, params as unknown as InventorySetup, call);
+    case 'foreign_net': return { value: foreignNet(ctx.rows, params.boards as string[], params.window as number) };
+  }
+  throw new RangeError(`flow: ${e.id} is not computed (${e.requires ?? 'no'} data)`);
+}
 const depthMemo = new Map<string, number | null>();
 /** The sessions the indicator reads back at these parameters (K1): on the probe context with broker data on every
     candle, the first candle of the output with a value, plus one (each(R, W, ...) gives W; a percentile over a
     baseline of a W-session series W + baseline; an anchored line 1, its anchor being the first candle). The probe is
     as long as any sum of the indicator's session parameters can reach. null when the output has no value on the probe
     at all (its emptiness is not a matter of history, e.g. a net of every broker over both investor types). An anchor
-    date is probed at the first candle (its place in the window is checked by the caller). */
+    date is probed at the first candle (its place in the window is checked by the caller). P5b: a screener version is
+    probed the same way through computeEntry (the anchor N sessions back reads N + 1 sessions, FL23's lookback L). */
 export function indicatorDepth(e: FlowRegistryEntry, output: string, params: Record<string, FlowParamValue>): number | null {
+  if (e.compute === 'none') return null;                       // never computed (its data is not published)
   const p: Record<string, FlowParamValue> = { ...params };
   for (const q of e.params) if (q.kind === 'date' && typeof p[q.key] === 'string') p[q.key] = 'view';
   const key = canonicalJson([e.id, output, p]);
@@ -257,10 +284,7 @@ export function indicatorDepth(e: FlowRegistryEntry, output: string, params: Rec
     if (q.kind === 'int' && typeof v === 'number') L += 2 * v;
     else if (q.kind === 'select' && typeof v === 'string' && /^\d+$/.test(v)) L += 2 * Number(v);
   }
-  const c = probeContext(L), out = computeFlow(e.id, c, p);
-  const k = e.id === 'FL23' && output === 'lines' && Array.isArray(p.brokers) ? null : output;
-  // FL23 lines: the probe's brokers are not the user's; its own first value is the start (1)
-  const s = k === null ? computeFlow(e.id, c, { ...p, brokers: [c.rows.brokers[0]] })[c.rows.brokers[0]] : out[k];
+  const c = probeContext(L), s = computeEntry(e, c, p)[output];
   let first = -1;
   if (s) for (let t = 0; t < s.length; t++) if (typeof s[t] === 'number' && Number.isFinite(s[t] as number)) { first = t; break }
   const depth = first < 0 ? null : first + 1;
@@ -351,12 +375,50 @@ function contextOf(t: TickerBars): FlowContext {
   fr.ctx = { rows: rows ? brokerFlowRows(rows, dates) : EMPTY_ROWS(N), dates, close, volume, insider: [], classification: { ...t.flow!.classification } };
   return fr.ctx;
 }
-/** computeFlow of one indicator on a ticker (the memo's answer when it has one). */
-function flowOutOf(t: TickerBars, id: string, params: Record<string, FlowParamValue>): { lo: number; out: FlowOut } {
-  const fr = windowOf(t), key = canonicalJson([t.ticker, id, params]);
+/** computeFlow on a ticker's window context through the memo (one call per ticker, id and parameters). */
+const memoCall = (t: TickerBars): FlowCall => (id, ctx, params) => {
+  const key = canonicalJson([t.ticker, id, params]);
   let out = t.flow!.memo?.get(key);
-  if (!out) { out = computeFlow(id, contextOf(t), params); t.flow!.memo?.set(key, out) }
+  if (!out) { out = computeFlow(id, ctx, params); t.flow!.memo?.set(key, out) }
+  return out;
+};
+/** An anchored entry's value at one candle of a ticker's window (flowscreener.ts anchoredAt) through the memo, one
+    entry per (ticker, indicator, parameters, output, candle): the full series and the lazy one share it. */
+const anchoredAtMemo = (t: TickerBars, e: FlowRegistryEntry, params: Record<string, FlowParamValue>, output: string) => {
+  const ctx = contextOf(t), q = terminalParams(e, params), n = params.anchor_sessions as number, memo = t.flow!.memo;
+  return (s: number): Num => {
+    const key = canonicalJson([t.ticker, e.id, params, output, s]), hit = memo?.get(key);
+    if (hit) return hit.v[0];
+    const v = anchoredAt(e.id, ctx, q, n, output, s);
+    memo?.set(key, { v: [v] });
+    return v;
+  };
+};
+/** Every output of one entry on a ticker (the memo's answer when it has one; computeEntry; an anchored entry's
+    candles through anchoredAtMemo). */
+function flowOutOf(t: TickerBars, e: FlowRegistryEntry, params: Record<string, FlowParamValue>): { lo: number; out: FlowOut } {
+  const fr = windowOf(t);
+  if (e.compute === 'terminal') return { lo: fr.lo, out: memoCall(t)(e.id, contextOf(t), params) };
+  const key = canonicalJson([t.ticker, e.id, params]);
+  let out = t.flow!.memo?.get(key);
+  if (!out) {
+    out = e.compute === 'anchored' ? Object.fromEntries(e.outputs.map(o => { const at = anchoredAtMemo(t, e, params, o.key); return [o.key, Array.from({ length: windowOf(t).N }, (_, s) => at(s))] }))
+      : computeEntry(e, contextOf(t), params, memoCall(t));
+    t.flow!.memo?.set(key, out);
+  }
   return { lo: fr.lo, out };
+}
+/** An anchored entry's output only where a condition reads it (flowscreener.ts anchoredLazy: the last `reach` + 1
+    candles with broker data), through the same per-candle memo; not kept as a whole (its candles are). */
+function lazyOutOf(t: TickerBars, e: FlowRegistryEntry, params: Record<string, FlowParamValue>, output: string, reach: number): { lo: number; s: Num[] } {
+  return { lo: windowOf(t).lo, s: anchoredLazy(contextOf(t), params.anchor_sessions as number, reach, anchoredAtMemo(t, e, params, output)) };
+}
+/** FL34's point-in-time guard (P5b; old FL19, FLOW_MAP.md item 8): the broker classification is today's, so the value
+    is kept only on the last date of the loaded window and missing on every earlier candle. */
+function currentOnly(t: TickerBars, lo: number, s: ArrayLike<Num> | undefined): Num[] | undefined {
+  if (!s) return undefined;
+  const last = t.flow!.last;
+  return Array.from(s, (v, k) => last !== null && t.dates[lo + k] === last ? v : null);
 }
 /** The candles with broker data, 1 or null per candle (memoized as computeFlow answers are). */
 function presenceOf(t: TickerBars): { lo: number; out: FlowOut } {
@@ -382,13 +444,9 @@ export interface FlowSeriesFields { flowEntry: FlowRegistryEntry; outputKind: st
     the output and its series key in computeFlow's answer, the kind and unit (an H output a price level comparable with
     the close), the sessions it reads (flowDepth), and how to compute it on a ticker (the window's candles, aligned).
     With `ctx.flow` (the worker's loaded window): a window that is not complete, a publication without broker days,
-    FL31 (no insider data) and FL34 without the broker classification are METRIC_UNAVAILABLE (FLOW_UNAVAILABLE while
-    the window loads); an anchor date outside the window is refused. */
-export function resolveFlow(ref: FlowRef, field: string, ctx: { flow?: FlowBindContext }): ResolvedSeries & FlowSeriesFields {
-  // a retired Phase 2 entry (fnet, bandar, ...): unavailable with its reason until P5b remaps it, never computed
-  const old = !FLOW_BY_ID[ref.metric] ? METRICS_CATALOG.metrics.find(m => m.kind === 'flow' && m.retired && m.id === ref.metric) : undefined;
-  if (old) throw new ScreenerError('METRIC_UNAVAILABLE', `${field}.metric: ${old.label || old.id} is not available: ${old.unavailable_reason}`, `${field}.metric`,
-    { metric: old.id, availability: 'REQUIRES_DATA', reason: old.unavailable_reason ?? '' });
+    FL31 (no insider data), ksei_net (no KSEI data) and FL34 without the broker classification are METRIC_UNAVAILABLE
+    (FLOW_UNAVAILABLE while the window loads); an anchor date outside the window is refused. */
+export function resolveFlow(ref: FlowRef, field: string, ctx: { flow?: FlowBindContext; flowReach?: number | null }): ResolvedSeries & FlowSeriesFields {
   const e = flowEntry(ref.metric, `${field}.metric`);
   if (ref.output !== undefined && typeof ref.output !== 'string') throw new ScreenerError('INVALID_CONDITION', `${field}.output must be the name of one of the indicator's outputs (${e.outputs.map(o => o.key).join(', ')}).`, `${field}.output`, { allowed: e.outputs.map(o => o.key) });
   const output = ref.output ?? e.default_output;
@@ -397,7 +455,7 @@ export function resolveFlow(ref: FlowRef, field: string, ctx: { flow?: FlowBindC
   const key = seriesKeyOf(e, output, params, field);
   const unavailable = (reason: string, code?: 'FLOW_UNAVAILABLE') => new ScreenerError('METRIC_UNAVAILABLE', `${field}: ${e.name} is not available: ${reason}`, field,
     { metric: e.id, availability: 'REQUIRES_DATA', reason, ...(code ? { reason_code: code } : {}) });
-  if (e.requires === 'insider') throw unavailable(FLOW_REASONS.insider);
+  if (e.requires) throw unavailable(FLOW_REASONS[e.requires]);
   const w = ctx.flow;
   if (w) {
     if (!w.sessions) throw unavailable(FLOW_REASONS.none);
@@ -412,12 +470,19 @@ export function resolveFlow(ref: FlowRef, field: string, ctx: { flow?: FlowBindC
   const { kind, unit } = outputKind(e, output, params);
   const norm: FlowRef = { kind: 'flow', metric: e.id, output, params };
   const level = kind === 'H';
+  // P5b cost: an anchored entry a condition reads at its last `reach` sessions only is computed there only (lazy), as its
+  // own series (its key names the reach, so a cached part never serves a reader that needs more)
+  const reach = e.compute === 'anchored' && typeof ctx.flowReach === 'number' ? ctx.flowReach : undefined;
   return {
-    kind: 'flow', key: canonicalJson(norm), ref: norm as MetricRef, label: `${e.id}.${output}`,
+    kind: 'flow', key: reach === undefined ? canonicalJson(norm) : canonicalJson([norm, { reach }]), ref: norm as MetricRef, label: `${e.id}.${output}`,
     unit: level ? 'price' : unit, historyClass: 'window', inputs: [], comparableWith: level ? 'close' : null, compareLag: NO_LAG,
     integer: kind === 'D' || kind === 'F' || kind === 'B',
     flowEntry: e, outputKind: kind, flowDepth: indicatorDepth(e, output, params),
-    full: (t: TickerCalc) => { const { lo, out } = flowOutOf(t, e.id, params); return aligned(t.dates.length, lo, out[key]) },
+    full: (t: TickerCalc) => {
+      if (reach !== undefined) { const { lo, s } = lazyOutOf(t, e, params, key, reach); return aligned(t.dates.length, lo, s) }
+      const { lo, out } = flowOutOf(t, e, params);
+      return aligned(t.dates.length, lo, e.current_only ? currentOnly(t, lo, out[key]) : out[key]);
+    },
   };
 }
 /** The 0/1 series of the bars that have broker data (1 on a candle with at least one row, null elsewhere): where a flow

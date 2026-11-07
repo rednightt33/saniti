@@ -1,10 +1,11 @@
 /* EXEC-SCREENER-FLOW-CANDLES P5a (verification/screener/P5_FLOW.md), end to end against the fake terminal-api with
    60 broker day files in the publisher's format and the reference file `brokers` (its classification): the catalog
-   shows the Terminal's 48 flow indicators (FL31 REQUIRES_DATA, the retired Phase 2 entries unavailable with their
-   replacement), a run reads each stock at its last candle with broker data (eval_date, source flow) with the value
-   flow.ts computeFlow gives the Terminal's way on the same rows (FL34 on the reference file's classification), a
-   condition beyond the loaded window is refused LIMIT_EXCEEDED broker_depth, and while the window is still loading a
-   flow condition is refused with FLOW_UNAVAILABLE in its details and the catalog's words. */
+   shows the Terminal's 48 flow indicators and the Screener's own flow entries (P5b: fnet; FL31 and ksei_net
+   REQUIRES_DATA), a run reads each stock at its last candle with broker data (eval_date, source flow) with the value
+   flow.ts computeFlow gives the Terminal's way on the same rows (FL34 on the reference file's classification, read at
+   the last broker date only), the eight bandar presets run on a loaded window, a condition beyond the loaded window is
+   refused LIMIT_EXCEEDED broker_depth, and while the window is still loading a flow condition is refused with
+   FLOW_UNAVAILABLE in its details and the catalog's words. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { computeFlow, flowDefaults, flowRows } from '../../edge-bff/terminal/src/calc/flow.ts';
@@ -60,22 +61,31 @@ test('the window of K1 is the publisher\'s: 60 sessions, the core\'s design wind
   assert.equal(FLOW_DESIGN_SESSIONS, BROKER_DAY_SESSIONS);
 });
 
-test('the catalog: 48 flow indicators with their Terminal setup, available on a complete window (FL31 needs insider data); the retired Phase 2 entries unavailable, naming their replacement', async () => {
+test('the catalog: the 48 flow indicators with their Terminal setup and the Screener\'s own flow entries, available on a complete window (FL31 and ksei_net need data not published); the Screener\'s versions marked; no other flow entry', async () => {
   const { port, app } = await start(pubOf('2026-10-27T13:03:23Z'));
   assert.deepEqual(app.state().current!.desc.data.broker_window, { first: FIRST, last: LAST, sessions: 60, complete: true });
   assert.equal(Object.keys(app.state().current!.desc.brokerClasses).length, CLASSES.length, 'the classification of the reference file brokers');
   const cat = (await call(port, 'GET', '/v1/catalog', undefined, auth())).body;
-  const flows = (cat.metrics as any[]).filter(m => m.kind === 'flow' && m.flow), retired = (cat.metrics as any[]).filter(m => m.retired);
-  assert.equal(flows.length, 48);
-  assert.deepEqual(flows.filter(m => m.availability !== 'AVAILABLE').map(m => m.id), ['FL31']);
+  const flows = (cat.metrics as any[]).filter(m => m.kind === 'flow' && m.flow);
+  assert.equal(flows.length, 50);
+  assert.equal((cat.metrics as any[]).filter(m => m.kind === 'flow').length, 50, 'every flow entry is a generated one');
+  assert.deepEqual(flows.filter(m => m.availability !== 'AVAILABLE').map(m => m.id), ['FL31', 'ksei_net']);
+  assert.deepEqual(flows.filter(m => m.flow.version === 'screener').map(m => m.id), ['FL18', 'FL19', 'FL20', 'FL23', 'FL44', 'FL45', 'fnet', 'ksei_net']);
+  const fl23 = flows.find(m => m.id === 'FL23'), fl18 = flows.find(m => m.id === 'FL18');
+  assert.deepEqual([fl23.flow.outputs.map((o: any) => o.key), fl23.flow.depth, fl18.flow.depth, fl18.flow.params.find((p: any) => p.key === 'anchor_sessions')],
+    [['value', 'count'], 20, 21, { key: 'anchor_sessions', label: 'Anchor: sessions before the evaluated candle', kind: 'int', default: 20, min: 1, max: 59, text: fl18.flow.params.find((p: any) => p.key === 'anchor_sessions').text, condition: true, screener: true }]);
   const fl24 = flows.find(m => m.id === 'FL24'), fl37 = flows.find(m => m.id === 'FL37');
   assert.deepEqual([fl24.label, fl24.unit, fl24.params, fl24.flow.default_output, fl24.flow.depth, fl24.flow.sessions, fl24.flow.outputs], ['Bandar Balance · %', '%', [], 'value', 10, 60, [{ key: 'value', kind: 'K' }]]);
   assert.deepEqual([fl37.flow.params.find((p: any) => p.key === 'baseline').default, fl37.flow.depth], [40, 60], 'the built-in baseline capped to the window less its own (K1)');
   // the limit is published with its rule and examples before a user meets it (the gate rule)
   const limit = (cat.limits as any[]).find(l => l.name === 'broker_depth');
   assert.deepEqual([limit.value, limit.unit, limit.example_ok], [60, 'sessions', 'Bandar Balance · % over 10 sessions with a percentile over 50 sessions (60 in all)']);
-  assert.equal(retired.length, 20);
-  for (const m of retired) assert.equal(m.availability, 'REQUIRES_DATA', m.id);
+  // the eight bandar presets read the flow entries: available on the loaded window, with their counts computed
+  for (const id of ['bigacc', 'fstreak', 'silent', 'freq', 'bavg', 'follow']) {
+    const p = (cat.presets as any[]).find(x => x.id === id);
+    assert.deepEqual([id, p.availability, typeof p.match_count], [id, 'AVAILABLE', 'number']);
+  }
+  for (const id of ['qflow', 'vacc']) assert.deepEqual([id, (cat.presets as any[]).find(x => x.id === id).unavailable_legs.every((l: string) => l === 'a' || l === 'b')], [id, true]);
 });
 
 test('a run reads each stock at its last candle with broker data, with the Terminal\'s value: FL24 at its defaults and FL34 on the reference file\'s classification', async () => {

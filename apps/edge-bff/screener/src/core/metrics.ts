@@ -82,6 +82,10 @@ export interface ResolvedSeries {
       the stock's last candle with broker data (P10 a) and may read at most the loaded window (K1). */
   readonly flowDepth?: number | null;
   readonly flowOwn?: number | null;
+  /** P5b cost: the sessions before the evaluated candle its reader reads, when the series was resolved for a screen
+      (condition.ts BindContext.flowLazy): an anchored flow series under it is computed there only. null: every candle
+      (an operator that reads the whole history); absent: not resolved for a screen. The worker's cost units read it. */
+  readonly flowReach?: number | null;
   /** The output type of OPERATORS.md section 4 the series has when it is a flow output (K, P, Rp, L, H, D, F, B) or a
       transform that keeps its operand's level (lag, ma, rolling_max, rolling_min); absent otherwise (transforms.ts
       outputType then reads the transform). */
@@ -144,6 +148,10 @@ export function scanMissingInput(t: TickerBars, inputs: readonly BarField[], at:
   return null;
 }
 
+/** What resolving a reference reads besides it: the parameter options (caps), IHSG's bars (vs_index), the loaded broker
+    window (P5a) and, for a screen (P5b), the reach of its reader: the sessions before the evaluated candle the reader
+    reads (condition.ts sets it from the test, transforms.ts adds its operators' N; null: the whole history). */
+export type SeriesResolveContext = ParamOptions & { index?: TickerBars; flow?: FlowBindContext; flowReach?: number | null };
 /** Any metric reference that is a numeric series on the ticker's bars: indicator and price here, transform through
     transforms.ts resolveTransform (which resolves its `of` back through this function; `index` = IHSG's bars, read by
     vs_index when it computes, so validation needs none). A pattern is a 0/1 signal, not a value (transforms.ts
@@ -152,21 +160,24 @@ export function scanMissingInput(t: TickerBars, inputs: readonly BarField[], at:
     universe are refused here so no caller reads them as a series. P5a: a flow indicator output is a series of the
     ticker's bars too (flowmetrics.ts resolveFlow: computed by the Terminal's flow.ts on the window's candles, aligned;
     `flow` = the loaded broker window, checked when given). */
-export function resolveSeries(ref: MetricRef, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext }): ResolvedSeries {
+export function resolveSeries(ref: MetricRef, field: string, ctx: SeriesResolveContext): ResolvedSeries {
   if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new ScreenerError('INVALID_CONDITION', `${field} must be a metric reference.`, field);
+  let r: ResolvedSeries;
   switch (ref.kind) {
-    case 'indicator': return resolveIndicator(ref, field, ctx);
-    case 'price': return resolvePrice(ref, field);
-    case 'transform': return resolveTransform(ref, field, ctx);
-    case 'flow': return resolveFlow(ref, field, ctx);
+    case 'indicator': r = resolveIndicator(ref, field, ctx); break;
+    case 'price': r = resolvePrice(ref, field); break;
+    case 'transform': r = resolveTransform(ref, field, ctx); break;
+    case 'flow': r = resolveFlow(ref, field, ctx); break;
     default: throw new ScreenerError('INVALID_CONDITION', `${field}: a ${JSON.stringify((ref as { kind?: unknown }).kind)} reference is not a series on the ticker's bars; use it where its test form allows it.`, `${field}.kind`);
   }
+  // P5b cost: a flow-reading series resolved for a screen carries the reach it was resolved under (its cost units)
+  return r.flowDepth !== undefined && ctx.flowReach !== undefined ? { ...r, flowReach: ctx.flowReach } : r;
 }
 
 /** The series `r` read one bar earlier: transform lag(r, 1), resolved like any transform (computed on the full series,
     then tailed; same key as a lag written in a request). A bar-field comparison reads it where the series' compareLag
     says so (Donchian's prior band, report 6.8). */
-export const laggedSeries = (r: ResolvedSeries, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext }): ResolvedSeries =>
+export const laggedSeries = (r: ResolvedSeries, field: string, ctx: SeriesResolveContext): ResolvedSeries =>
   resolveTransform({ kind: 'transform', fn: 'lag', of: r.ref, args: { bars: 1 } }, field, ctx);
 
 /* ---- universe attributes (report 6.7 "universe attributes", 6.12; API CONTRACT 8.4 universe body) ------------------ */

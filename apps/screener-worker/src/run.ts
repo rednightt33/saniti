@@ -33,6 +33,8 @@ import { SBY_ID, SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/regi
 import { runScreen } from '../../edge-bff/screener/src/core/screen.ts';
 import type { ScreenEnv } from '../../edge-bff/screener/src/core/screen.ts';
 import { applyUniverse } from '../../edge-bff/screener/src/core/universe.ts';
+import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import { operandReach } from '../../edge-bff/screener/src/core/transforms.ts';
 import { definitionHash, validateDefinition } from '../../edge-bff/screener/src/core/validate.ts';
 import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
@@ -155,12 +157,23 @@ const maxNumber = (m: unknown): number => {
     ticker's Calc, whatever is pre-warmed): an indicator with the registry's cost class and the largest value of its
     O(N·n) parameters; a transform or a pattern as O(N·n) over its largest numeric argument (conservative: a rolling
     window may be linear in its implementation; the measured mean corrects the prediction). */
-export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS): CostUnit[] {
+export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS, reach?: number | null): CostUnit[] {
   if (!obj(ref)) return [];
   switch (ref.kind) {
     // P5a: one computeFlow per (ticker, indicator, parameters) over the window's candles, linear in them (its grids are
-    // prefix sums; the measured mean per indicator corrects the prediction): cost units from the window length
-    case 'flow': return [{ key: `flow:${String(ref.metric)}`, costClass: 'O(N)', length: 1, bars: sessions }];
+    // prefix sums; the measured mean per indicator corrects the prediction): cost units from the window length.
+    // P5b: an anchored entry (anchor_sessions N) runs one computeFlow over N + 1 candles per session it computes: every
+    // session of the window from the N-th on, or, resolved for a screen under a reach R (metrics.ts flowReach), the
+    // last R + 1 (flowmetrics.ts lazy series): length = those sessions x (N + 1) / the window, in window-long calls
+    case 'flow': {
+      const e = FLOW_BY_ID[String(ref.metric)];
+      if (e?.compute === 'anchored') {
+        const n = Number((obj(ref.params) ? ref.params.anchor_sessions : undefined) ?? e.params.find(p => p.key === 'anchor_sessions')?.default) || 1;
+        const computed = Math.max(1, typeof reach === 'number' ? Math.min(sessions - n, reach + 1) : sessions - n);
+        return [{ key: `flow:${e.id}`, costClass: 'O(N·n)', length: Math.max(1, Math.ceil(computed * (n + 1) / sessions)), bars: sessions }];
+      }
+      return [{ key: `flow:${String(ref.metric)}`, costClass: 'O(N)', length: 1, bars: sessions }];
+    }
     case 'indicator': {
       const ind = SBY_ID[ref.indicator as string];
       if (!ind) return [];
@@ -169,19 +182,21 @@ export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS): CostUni
       return [{ key: `indicator:${ind.key}`, costClass: ind.cost_class === 'O(N·n)' ? 'O(N·n)' : 'O(N)', length }];
     }
     case 'transform': {
-      const inner = costUnits(ref.of, sessions);
-      if (obj(ref.args)) for (const a of Object.values(ref.args)) if (obj(a)) inner.push(...costUnits(a, sessions));
+      // its operands under the reach it gives them (transforms.ts operandReach, as the core resolves them)
+      const r2 = operandReach(String(ref.fn), obj(ref.args) ? ref.args : {}, reach, obj(ref.of) ? ref.of.kind : null);
+      const inner = costUnits(ref.of, sessions, r2);
+      if (obj(ref.args)) for (const a of Object.values(ref.args)) if (obj(a)) inner.push(...costUnits(a, sessions, r2));
       // an operator on a flow series works on the window's values only (the bars before it are empty)
       return [...inner, { key: `transform:${String(ref.fn)}`, costClass: 'O(N·n)', length: maxNumber(ref.args), ...(readsFlowRef(ref) ? { bars: sessions } : {}) }];
     }
     case 'pattern': return [{ key: `pattern:${String(ref.type)}`, costClass: 'O(N·n)', length: maxNumber(ref.params) }];
-    case 'rank': return costUnits(ref.of, sessions);           // operator 11: the ranked series is what is computed
+    case 'rank': return costUnits(ref.of, sessions, reach);    // operator 11: the ranked series is what is computed
   }
   return [];
 }
-/** Predicted ms of computing one series on one ticker of `bars` bars. */
-export const predictMs = (tracker: CostTracker, r: Pick<ResolvedSeries, 'ref'>, bars: number, sessions = BROKER_DAY_SESSIONS): number =>
-  costUnits(r.ref, sessions).reduce((s, u) => s + tracker.predict(u.key, u.costClass, u.length, u.bars ?? bars), 0);
+/** Predicted ms of computing one series on one ticker of `bars` bars (under the reach it was resolved with, P5b). */
+export const predictMs = (tracker: CostTracker, r: Pick<ResolvedSeries, 'ref' | 'flowReach'>, bars: number, sessions = BROKER_DAY_SESSIONS): number =>
+  costUnits(r.ref, sessions, r.flowReach).reduce((s, u) => s + tracker.predict(u.key, u.costClass, u.length, u.bars ?? bars), 0);
 
 /** The parts of a held snapshot the estimate reads. */
 export interface CostView { desc: SnapshotDesc; pinned: Set<string>; position: Map<string, number>; index: TickerBars }
@@ -197,7 +212,8 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
   const avg = survivors.length ? bars / survivors.length : 0;
   const dv = { price_data: held.desc.versions.price_data, screener_engine: held.desc.versions.screener_engine };
   const flow = flowContextOf(held.desc), sessions = flow.sessions || BROKER_DAY_SESSIONS;
-  const ctx: BindContext = { capBudgetMs: env.capBudgetMs, index: held.index, withinMax: env.withinMax, catalog: METRICS_CATALOG, flow };
+  // bound as runScreen binds a screen (screen.ts screenBinding: an anchored flow series is computed where it is read)
+  const ctx: BindContext = { capBudgetMs: env.capBudgetMs, index: held.index, withinMax: env.withinMax, catalog: METRICS_CATALOG, flow, flowLazy: true };
   const pinned = (r: ResolvedSeries) => r.kind === 'price' || held.pinned.has(seriesKey(dv, r));   // a bar field is the snapshot itself (screen.ts)
   const conds: PlanCondition[] = def.conditions.flatMap((c, k) => {
     if (!c.enabled) return [];
@@ -265,7 +281,7 @@ export function screenEnv(snap: ThreadSnapshot, env: ThreadEnv, cancelled: () =>
       if (t instanceof TickerView) touch(t.ticker, t);
       const tc = t instanceof TickerView || (t as TickerCalc).calc ? t as TickerCalc : tickerCalc(t), t0 = performance.now();
       const out = series(sctx, tc, r);
-      const ms = performance.now() - t0, units = costUnits(r.ref, sessions);
+      const ms = performance.now() - t0, units = costUnits(r.ref, sessions, r.flowReach);
       measured.computed++;
       if (units.length === 1) {
         const o = measured.observe.get(units[0].key) ?? { ms: 0, bars: 0, length: units[0].length };

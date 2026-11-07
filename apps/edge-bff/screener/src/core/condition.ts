@@ -63,6 +63,12 @@ export interface BindContext extends ParamOptions {
       file carries the broker classification). With it a flow condition is checked against the window (K1 depth, the
       availability rule, an anchor date); without it (the core's own tests, a pre-warm binding) it is not */
   flow?: FlowBindContext;
+  /** P5b cost: binding for a screen (screen.ts runScreen; the worker's cost estimate): each flow series is resolved
+      under the reach its test reads (an event's within, a window's length and its inner test's), so an anchored series
+      is computed only on the sessions read (flowmetrics.ts resolveFlow). Off for a preview, which draws whole series. */
+  flowLazy?: boolean;
+  /** set by bindTest from the test when flowLazy (metrics.ts SeriesResolveContext) */
+  flowReach?: number | null;
 }
 
 /** What evaluating a condition reads for one ticker; the worker answers it from its snapshot. */
@@ -151,12 +157,20 @@ export function bindCondition(def: ConditionDef, field: string, ctx: BindContext
     flow indicator (P5a) is checked against the loaded window (K1: its sessions plus the test's within or length, when
     ctx.flow names the window) and evaluated at the stock's last candle with broker data (withFlow). */
 export function bindTest(id: string, test: Test, f: string, ctx: BindContext): BoundCondition {
-  return withFlow(bindTestRaw(id, test, f, ctx), f, ctx);
+  // P5b: for a screen, the series are resolved under the reach of the outermost test (a window's inner test keeps it)
+  const c = ctx.flowLazy && ctx.flowReach === undefined ? { ...ctx, flowReach: readSessions(test) } : ctx;
+  return withFlow(bindTestRaw(id, test, f, c), f, ctx);
 }
 type RawBound = Omit<BoundCondition, 'readsFlow' | 'evaluateAt'>;
 /** The sessions a test reads beyond its series' own (K1, OPERATORS.md section 3): an event's within, a window's
     length (plus what its inner test reads). */
 const testSessions = (t: Test): number => t.kind === 'event' ? t.within : t.kind === 'window' ? t.length + testSessions(t.test) : 0;
+/** testSessions of a test not yet checked (a malformed one reads none; bindTestRaw refuses it). */
+const readSessions = (t: unknown): number => {
+  if (!isObj(t)) return 0;
+  const n = (v: unknown) => Number.isInteger(v) && (v as number) > 0 ? v as number : 0;
+  return t.kind === 'event' ? n(t.within) : t.kind === 'window' ? n(t.length) + readSessions(t.test) : 0;
+};
 /** The bar of a ticker's last candle with broker data on or before `at` (P10 a), from the broker-data series
     (flowmetrics.ts FLOW_PRESENCE); -1 when it has none in the window. */
 export function flowBarOf(tail: Tail, at: number): number {

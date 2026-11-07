@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "The prototype's 26 presets (report APPENDIX A.2; evidence/html_model/presets_resolved.txt) remapped onto the registry and screener-metrics.json as report TARGET ARCHITECTURE 6.9.1 and 6.12 decide (P6 a: F conventions; P23 a: one year = 252 sessions, so 52W is 252 where the prototype had 250; P9 = FL09 bandar, states as per-condition thresholds; P8 all boards). The why texts state exactly what the definition tests. A preset is AVAILABLE only when every leg is (validate.ts presetAvailability); it never runs with a leg removed. Availability and counts are derived at run time. `view.sort` is the prototype's default sort of the eight presets that had one (bigacc, fstreak, freq, follow, oversold, piotroski, magic, dividend; its condition index mapped to the condition id, key \"c:<id>\"), kept on the unavailable ones too so it applies when they are enabled.",
+  "note": "The prototype's 26 presets (report APPENDIX A.2; evidence/html_model/presets_resolved.txt) remapped onto the registry and screener-metrics.json as report TARGET ARCHITECTURE 6.9.1 and 6.12 decide (P6 a: F conventions; P23 a: one year = 252 sessions, so 52W is 252 where the prototype had 250; P9 = FL09 bandar, states as per-condition thresholds; P8 all boards). EXEC-SCREENER-FLOW-CANDLES P5b (verification/screener/P5_FLOW.md section 3, FLOW_MAP.md \"Presets that use flow entries\"): the eight bandar presets read the Terminal's flow indicators and the Screener's flow entries with the old definitions' setup on the regular board (G1, user 2026-11-07: \"Opsi P8B berubah, OK\": the flow default board follows the Terminal; another board is a setting of the indicator): the bandar balance FL24 top 3, 10 sessions; the foreign streak FL26 (every broker, Foreign, cap 60) and fnet over 20 sessions; the trade-count spike FL32; the top buyers' VWAP distance FL39; broker YP's net as FL23 series a over a 5-session lookback. Each keeps the old formula's verdict on the same board set (tests/core/old-formulas.test.ts). The why texts state exactly what the definition tests. A preset is AVAILABLE only when every leg is (validate.ts presetAvailability); it never runs with a leg removed. Availability and counts are derived at run time. `view.sort` is the prototype's default sort of the eight presets that had one (bigacc, fstreak, freq, follow, oversold, piotroski, magic, dividend; its condition index mapped to the condition id, key \"c:<id>\"), kept on the unavailable ones too so it applies when they are enabled.",
   "presets": [
     {
       "id": "brk52",
@@ -703,7 +703,7 @@
       "id": "bigacc",
       "category": "Bandarmology",
       "name": "Big Accumulation",
-      "why": "Top-3 bandar balance over 10 sessions at least 10% of traded value (Big Acc), with the close above its 20-session SMA.",
+      "why": "Top-3 bandar balance over 10 sessions (regular board) at least 10% of traded value (Big Acc), with the close above its 20-session SMA.",
       "definition": {
         "universe": {
           "security_types": [
@@ -725,10 +725,13 @@
               "kind": "value",
               "metric": {
                 "kind": "flow",
-                "metric": "bandar",
+                "metric": "FL24",
                 "params": {
+                  "top": 3,
                   "window": 10,
-                  "top": 3
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "between",
@@ -767,7 +770,7 @@
       "id": "fstreak",
       "category": "Bandarmology",
       "name": "Foreign Accumulation Streak",
-      "why": "Foreign investors net bought on more than 4 sessions in a row, and their net over 20 sessions is positive.",
+      "why": "Foreign investors net bought on more than 4 sessions in a row on the regular board, and their net over 20 sessions there is positive.",
       "definition": {
         "universe": {
           "security_types": [
@@ -789,9 +792,16 @@
               "kind": "value",
               "metric": {
                 "kind": "flow",
-                "metric": "fstreak",
+                "metric": "FL26",
                 "params": {
-                  "window": 60
+                  "scope": "all",
+                  "investors": [
+                    "Foreign"
+                  ],
+                  "window": 60,
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "gt",
@@ -807,7 +817,10 @@
                 "kind": "flow",
                 "metric": "fnet",
                 "params": {
-                  "window": 20
+                  "window": 20,
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "gt",
@@ -828,7 +841,7 @@
       "id": "silent",
       "category": "Bandarmology",
       "name": "Silent Accumulation",
-      "why": "Silent accumulation (5-session volume at least 1.3x the 20-session baseline while the 5-session move is at most 4%), with a positive top-3 bandar balance over 10 sessions.",
+      "why": "Silent accumulation (5-session volume at least 1.3x the 20-session baseline while the 5-session move is at most 4%), with a positive top-3 bandar balance over 10 sessions (regular board).",
       "definition": {
         "universe": {
           "security_types": [
@@ -867,10 +880,13 @@
               "kind": "value",
               "metric": {
                 "kind": "flow",
-                "metric": "bandar",
+                "metric": "FL24",
                 "params": {
+                  "top": 3,
                   "window": 10,
-                  "top": 3
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "gt",
@@ -885,7 +901,7 @@
       "id": "freq",
       "category": "Bandarmology",
       "name": "Frequency Spike",
-      "why": "The trade count crossed above 2.5x its prior 20-session average within the last 3 sessions, with a positive one-session return.",
+      "why": "The trade count (regular board) crossed above 2.5x its prior 20-session average within the last 3 sessions, with a positive one-session return.",
       "definition": {
         "universe": {
           "security_types": [
@@ -908,9 +924,14 @@
               "signal": {
                 "lhs": {
                   "kind": "flow",
-                  "metric": "freq",
+                  "metric": "FL32",
                   "params": {
-                    "window": 20
+                    "measure": "tx",
+                    "side": "buy",
+                    "baseline": 20,
+                    "boards": [
+                      "Regular"
+                    ]
                   }
                 },
                 "op": "crosses_above",
@@ -952,7 +973,7 @@
       "id": "bavg",
       "category": "Bandarmology",
       "name": "Near Bandar Average Price",
-      "why": "Close within 3% of the top-3 buyers' average buy price over 10 sessions, with a top-3 bandar balance of at least 6% (Acc).",
+      "why": "Close within 3% of the top-3 net buyers' average buy price over 10 sessions, with a top-3 bandar balance of at least 6% (Acc), both on the regular board.",
       "definition": {
         "universe": {
           "security_types": [
@@ -974,10 +995,15 @@
               "kind": "value",
               "metric": {
                 "kind": "flow",
-                "metric": "bavg",
+                "metric": "FL39",
                 "params": {
+                  "scope": "topn",
+                  "top": 3,
+                  "rank": "net_buy",
                   "window": 10,
-                  "top": 3
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "between",
@@ -992,10 +1018,13 @@
               "kind": "value",
               "metric": {
                 "kind": "flow",
-                "metric": "bandar",
+                "metric": "FL24",
                 "params": {
+                  "top": 3,
                   "window": 10,
-                  "top": 3
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "between",
@@ -1011,7 +1040,7 @@
       "id": "follow",
       "category": "Bandarmology",
       "name": "Broker Follow",
-      "why": "Broker YP net bought more than Rp 1 B over 5 sessions, with the close above its 50-session SMA.",
+      "why": "Broker YP net bought more than Rp 1 B over 5 sessions (regular board), with the close above its 50-session SMA.",
       "definition": {
         "universe": {
           "security_types": [
@@ -1033,10 +1062,18 @@
               "kind": "value",
               "metric": {
                 "kind": "flow",
-                "metric": "broker",
+                "metric": "FL23",
                 "params": {
-                  "window": 5,
-                  "broker": "YP"
+                  "holders": "selected",
+                  "brokers": [
+                    "YP"
+                  ],
+                  "unit": "value",
+                  "series": "cum",
+                  "lookback": 5,
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "gt",
@@ -1712,7 +1749,7 @@
       "id": "qflow",
       "category": "Combined",
       "name": "Quality + Foreign Inflow",
-      "why": "ROE above 15%, debt/equity below 1, positive foreign net over 20 sessions and the close above its 50-session SMA.",
+      "why": "ROE above 15%, debt/equity below 1, positive foreign net over 20 sessions (regular board) and the close above its 50-session SMA.",
       "definition": {
         "universe": {
           "security_types": [
@@ -1762,7 +1799,10 @@
                 "kind": "flow",
                 "metric": "fnet",
                 "params": {
-                  "window": 20
+                  "window": 20,
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "gt",
@@ -1797,7 +1837,7 @@
       "id": "vacc",
       "category": "Combined",
       "name": "Value + Accumulation",
-      "why": "P/B below 1.5, P/E below 12 and a top-3 bandar balance over 10 sessions of at least 6% (Acc).",
+      "why": "P/B below 1.5, P/E below 12 and a top-3 bandar balance over 10 sessions (regular board) of at least 6% (Acc).",
       "definition": {
         "universe": {
           "security_types": [
@@ -1845,10 +1885,13 @@
               "kind": "value",
               "metric": {
                 "kind": "flow",
-                "metric": "bandar",
+                "metric": "FL24",
                 "params": {
+                  "top": 3,
                   "window": 10,
-                  "top": 3
+                  "boards": [
+                    "Regular"
+                  ]
                 }
               },
               "op": "between",

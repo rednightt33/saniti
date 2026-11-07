@@ -56,13 +56,13 @@ function probe(m: MetricDefinition): unknown {
 const definitionOf = (m: MetricDefinition) => ({ universe: U, logic: 'all', conditions: [{ id: 'a', enabled: true, test: probe(m) }] });
 
 test('a file the index names but this build does not read (a fundamentals file): its metrics show REQUIRES_DATA with a plain reason, and a run with one is refused with that same reason', async () => {
-  // the file of a metric the catalog shows (the retired Phase 2 flow entries are not shown, P5a) that a preset reads
-  const FILE = UNREAD.find(f => METRICS_CATALOG.metrics.some(m => m.requires?.file === f && !m.retired && !m.decision)
+  // the file of a metric the catalog shows that a preset reads
+  const FILE = UNREAD.find(f => METRICS_CATALOG.metrics.some(m => m.requires?.file === f && !m.decision)
     && presetDefinitions().some(p => METRICS_CATALOG.metrics.some(m => m.requires?.file === f && JSON.stringify(p.definition).includes(`"${m.id}"`))))!;
   assert.ok(FILE && !READ.includes(FILE), 'the case needs a file this build does not read');
   const { port } = await start(pubOf('2026-10-27T13:03:23Z', [FILE]));
   const cat = await catalogOf(port);
-  const over = METRICS_CATALOG.metrics.filter(m => m.requires?.file === FILE && !m.retired);
+  const over = METRICS_CATALOG.metrics.filter(m => m.requires?.file === FILE);
   assert.ok(over.filter(m => !m.decision).length >= 1, `metrics read ${FILE}`);
   for (const m of over) {
     const c = cat.get(m.id);
@@ -146,8 +146,6 @@ test('over the whole catalog, with every file a metric needs indexed: a metric i
   const run = (definition: unknown) => call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: ++seq }, definition }, auth(OWNER_A));
   for (const m of METRICS_CATALOG.metrics) {
     const c = cat.get(m.id);
-    // P5a: a retired Phase 2 flow entry is shown unavailable, its reason naming the flow indicator that replaces it
-    if (m.retired) assert.deepEqual([m.id, c?.availability, c?.reason, c?.retired], [m.id, 'REQUIRES_DATA', m.unavailable_reason, m.retired]);
     assert.ok(c, `${m.id} is in the catalog`);
     const v = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: definitionOf(m) }, auth(OWNER_A));
     const r = await run(definitionOf(m));

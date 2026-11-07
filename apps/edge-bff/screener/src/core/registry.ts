@@ -76,21 +76,36 @@ export interface FlowRegistryParam {
   kind: 'int' | 'num' | 'select' | 'multi' | 'bool' | 'date' | 'brokers' | 'levels' | 'button' | 'fixed';
   options?: (string | [string, string])[]; default?: unknown; min?: number | null; max?: number | null; text?: string;
   condition: boolean;
+  /** P5b: a parameter of the Screener's version, not the Terminal's (flow-kinds.json `screener`; its default is its own) */
+  screener?: boolean;
 }
-/** An output's kind (flow-kinds.json): a letter of OPERATORS.md section 4, {kind, unit}, or by a select parameter. */
+/** An output's kind (flow-kinds.json): a letter of OPERATORS.md section 4, {kind, unit}, or by a select parameter (whose
+    options may again follow another select parameter, FL23's value by series, then by unit). */
 export type FlowKindSpec = string | { kind: string; unit: string } | ({ by: string } & Record<string, unknown>);
-/** One of the 48 flow indicators of the generated registry (build-screener-registry.mjs flowEntries). */
+/** How the core computes a flow entry (P5b; flowscreener.ts): the Terminal's computeFlow as it is, the anchor N sessions
+    back, the Screener's Broker Inventory, the rupiah foreign net, or never (its data is not published). */
+export type FlowCompute = 'terminal' | 'anchored' | 'inventory' | 'foreign_net' | 'none';
+/** One flow entry of the generated registry (build-screener-registry.mjs flowEntries): the 48 Terminal indicators, some
+    as the Screener's version (P5b), then the Screener's own entries (fnet, ksei_net). */
 export interface FlowRegistryEntry {
   id: string; name: string; family: string; unit: string; place: string; tip: string | null; needs_frequency: boolean;
   outputs: { key: string; kind: FlowKindSpec }[]; default_output: string;
   params: FlowRegistryParam[];
-  adv_floor: boolean; requires: 'insider' | null; needs_classification: boolean;
+  adv_floor: boolean; requires: 'insider' | 'ksei' | null; needs_classification: boolean;
+  /** 'screener' when the Screener changes the Terminal's parameters or outputs, or the entry is the Screener's own */
+  version: 'terminal' | 'screener';
+  compute: FlowCompute;
+  /** P5b point-in-time guard (FL34): read only at the last date of the loaded broker window, n/a on every earlier one */
+  current_only: boolean;
+  /** the catalog's words for a screener version or entry (flow-kinds.json); null: the Terminal's indicator as it is */
+  formula: string | null; misuse: string | null;
 }
 export interface ScreenerRegistryDoc {
   schema_version: number; screener_registry_version: string; registry_version: string; generated_by: string;
   sources: { role: string; file: string; sha256: string }[];
   probe: Record<string, unknown>; cost_model: CostModel; indicators: ScreenerIndicator[];
-  /** EXEC-SCREENER-FLOW-CANDLES P5a: the Terminal's flow indicators FL01-FL48 (flowRegistry.json + flow-kinds.json) */
+  /** EXEC-SCREENER-FLOW-CANDLES P5a: the Terminal's flow indicators FL01-FL48 (flowRegistry.json + flow-kinds.json),
+      P5b: with the Screener's versions and its own flow entries */
   flows: FlowRegistryEntry[];
 }
 
