@@ -12642,6 +12642,11 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   terbaru; tidak ada konflik; diff ditinjau (perubahan tak sengaja, penghapusan, perubahan sensitif); build, lint dan tes
   relevan lulus pada kode terkini; PR terdokumentasi dan mengarah ke main; review dan CI yang diwajibkan lulus; dampak
   deploy ditinjau (database, konfigurasi, dependensi, rollback); merge, deploy dan verifikasi sesudah deploy berhasil.
+- Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
+  Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
+  sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1
+  pertanyaan candlestick lewat halaman (fixture), hasil dibandingkan dengan hitungan ulang independen; diulang dengan data
+  nyata di dev sesudah deploy. 20 pola candlestick (P6) belum dibangun; pertanyaan candle memakai pola harga yang ada.
 - FL31 (insider) dan net pemegang besar KSEI: datanya belum dikirim ke worker, tampil REQUIRES_DATA. User 2026-11-07:
   "Oke, FL31 dan KSEI nanti saja" (sesudah rilis flow; butuh file insider dan KSEI dari publisher).
 - P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; go user 2026-11-07 "Merge dan go sampai P4"). Kontrak:
