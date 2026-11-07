@@ -134,7 +134,8 @@ export function initPopout(ctx: Ctx) {
       if (!r) return `<td${edge}></td>`;
       const tot = r.b === 'Total', on = !tot && r.b === sel ? ' sel' : '', at = tot ? '' : ` data-b="${r.b}"`;
       // EXEC-QA5-FIX (S-04): the Total names how many brokers it sums (all of its side, not only the rows shown)
-      const totText = (side: SumSide) => `Total · all ${side.count}`;
+      // re-test N-3: with a search the Total sums the matching brokers only, and says so
+      const totText = (side: SumSide) => st.q ? `Total · ${side.count} matching` : `Total · all ${side.count}`;
       const cls = (k === 'nv' || k === 'nl' ? (r[k] >= 0 ? 'up' : 'down') : '') + on;
       const v = k === 'b' ? (tot ? totText(r === left.total ? left : right) : bkTag(r.b)) : k === 'ba' || k === 'sa' ? price(r[k]) : k === 'share' ? r.share.toFixed(1) + '%'
         : k === 'nv' || k === 'nl' ? sgn(r[k]) : cv(r[k]);
@@ -151,7 +152,7 @@ export function initPopout(ctx: Ctx) {
     const word = net ? ['net buyers', 'net sellers'] : ['buyers', 'sellers'];
     w.body.innerHTML = head + (n ? `<div class="pw-scroll"><table class="pw-t pw-acc pw-bs"><thead><tr><th></th>${L.map((k, j) => th(k, false, j)).join('')}${R.map((k, j) => th(k, true, j)).join('')}</tr></thead>
       <tbody>${rows}</tbody><tfoot><tr><td class="pw-rank"></td>${half(left.total, L, false)}${half(right.total, R, true)}</tr></tfoot></table></div>
-      <div class="pw-foot">${left.rows.length} of ${left.count} ${word[0]} · ${right.rows.length} of ${right.count} ${word[1]} · largest first${net ? '' : ' (buy value, sell value)'} · each Total sums every broker of its side · click a broker to add it to Broker inventory${st.board === 'Nego' || st.board === 'All' ? ' · Nego trades are priced by negotiation, so an average can sit outside the market range' : ''}</div>`
+      <div class="pw-foot">${left.rows.length} of ${left.count} ${word[0]} · ${right.rows.length} of ${right.count} ${word[1]} · largest first${net ? '' : ' (buy value, sell value)'} · ${st.q ? 'each Total sums the matching brokers of its side' : 'each Total sums every broker of its side'} · click a broker to add it to Broker inventory${st.board === 'Nego' || st.board === 'All' ? ' · Nego trades are priced by negotiation, so an average can sit outside the market range' : ''}</div>`
       : `<div class="rp-empty">${st.q ? 'No broker matches the search' : net && bsTable.total.bv > 0 ? 'Trades exist, but every broker nets to 0 (crossing)' : `No ${word[0]} or ${word[1]} in this period`}</div>`);
     w.setSub(`${B().label} · ${spanText(f, t)}${st.p.n === 'view' ? ' · follows chart' : ''} · ${scope}${tf}`);
     wire();
@@ -168,7 +169,8 @@ export function initPopout(ctx: Ctx) {
     // S-07: what the table is, on the first line; S-03: no lots or averages for an index
     const span = resolve(st.p), keep = (r: any[]) => IDX ? r.filter((_, j) => ![2, 4, 5, 7, 9].includes(j)) : r;
     const context = `${B().label} · ${span ? spanText(span[0], span[1]) : ''} · ${st.inv === 'All' ? 'all investors' : st.inv} · ${st.board === 'All' ? 'all boards' : st.board} · ${net ? 'Net' : 'Gross'}`;
-    return toCsv(keep(['Side', ...COLS.map(c => c[1])]), [...bsTable.left.rows.map(num(lw)), num(lw)(bsTable.left.total), ...bsTable.right.rows.map(num(rw)), num(rw)(bsTable.right.total), num('All')(bsTable.total)].map(keep), context);
+    // re-test N-1: in Gross the share is of the row's own side, as the table's "% of buy" / "% of sell"
+    return toCsv(keep(['Side', ...COLS.map(c => c[0] === 'share' && !net ? '% of own side (buy for buyers, sell for sellers)' : c[1])]), [...bsTable.left.rows.map(num(lw)), num(lw)(bsTable.left.total), ...bsTable.right.rows.map(num(rw)), num(rw)(bsTable.right.total), num('All')(bsTable.total)].map(keep), context);
   };
 
   /* ---- Top brokers: the period's largest net buyers beside its largest net sellers ---- */
@@ -250,7 +252,7 @@ export function initPopout(ctx: Ctx) {
       <rect class="pw-hit" x="${AX}" y="0" width="${pw}" height="${H}" fill="transparent"/></svg>`;
     const u = lot ? 'lot' : 'Rp';
     const rows = series.map((s, k) => { const v = invStats(val(k)), a = s.agg;
-      return `<tr data-b="${s.b}"><td><span class="rp-dot" style="background:${S.colors[k]}"></span><b class="pw-code">${s.b}</b></td><td class="${v.end >= 0 ? 'up' : 'down'}">${sgn(v.end)}</td><td>${sgn(v.hi)}</td><td>${sgn(v.lo)}</td>
+      return `<tr data-b="${s.b}"><td><span class="rp-dot" style="background:${S.colors[k]}"></span><b class="pw-code">${s.b}</b></td><td class="${v.end > 0 ? 'up' : v.end < 0 ? 'down' : ''}">${sgn(v.end)}</td><td>${sgn(v.hi)}</td><td>${sgn(v.lo)}</td>
         <td>${cv(lot ? a.bl : a.bv)}</td><td>${cv(lot ? a.sl : a.sv)}</td>${IDX ? '' : `<td>${price(avgPrice(a.bv, a.bl))}</td><td>${price(avgPrice(a.sv, a.sl))}</td>`}</tr>` }).join('');
     /* EXEC-QA5-FIX H2 (QA 2026-11-07, S-02): a cumulative line is net buying added up from the first session in view, not the
        shares held; it changes with the zoom, so the start date is said and the word "position" is not used */
@@ -258,7 +260,7 @@ export function initPopout(ctx: Ctx) {
     box.innerHTML = `<div class="pw-chart">${svg}</div>
       <table class="rp-t pw-t"><thead><tr><th>Broker</th><th data-tip="End|The ${word} on the last session in view (${u})">End</th><th data-tip="High|The highest ${word} (${u})">High</th><th data-tip="Low|The lowest ${word} (${u})">Low</th>
         <th>Bought (${u})</th><th>Sold (${u})</th>${IDX ? '' : '<th data-tip="Avg buy|Buy value ÷ (buy lots × 100)">Avg buy</th><th data-tip="Avg sell|Sell value ÷ (sell lots × 100)">Avg sell</th>'}</tr></thead><tbody>${rows}</tbody></table>
-      <div class="pw-foot">${cum ? `Each line adds up the broker's net ${lot ? 'lots' : 'value'} from ${from}, the first session in view${viewStart() < B().dates[0] ? ' (broker data starts here)' : ''}: net buying since then, not the shares held. Zooming the chart changes the start.` : `Each point is the broker's net ${lot ? 'lots' : 'value'} on that session.`}</div>`;
+      <div class="pw-foot">${cum ? `Each line adds up the broker's net ${lot ? 'lots' : 'value'} bought since ${from}, the first session in view${viewStart() < B().dates[0] ? ', where the broker data starts' : ''}. It is net buying since then, not the shares held; zooming the chart moves the start.` : `Each point is the broker's net ${lot ? 'lots' : 'value'} on that session.`}</div>`;
     const svgEl = box.querySelector('svg') as SVGSVGElement, xh = svgEl.querySelector('.inv-xh') as SVGLineElement;
     const show = (i: number | null) => {
       if (i === null) { xh.setAttribute('visibility', 'hidden'); paintLegend(null); return }

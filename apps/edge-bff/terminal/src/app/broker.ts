@@ -380,7 +380,7 @@ export function initBroker(ctx: Ctx) {
          (value ÷ (lots × 100)), as the window's Avg buy / Avg sell; net value ÷ net lots is not a price (NI read 11,681 in
          a 2,660-2,950 period). The fixture keeps the reference (1:1 check) */
       const avg = live ? avgPrice(side==='b'?o.bv:o.sv, side==='b'?o.bl:o.sl) : lot ? Math.round(val/(lot*100)) : 0;
-      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${live ? 'Rp ' : ''}${cv(o.bv)} · Sell ${live ? 'Rp ' : ''}${cv(o.sv)} · Net ${sgn(netOf(o))}"><td>${bkTag(o.b)}</td>${IDX ? '' : `<td>${cv(lot)}</td>`}<td class="${side==='b'?'up':'down'}">${cv(val)}</td>${IDX ? '' : `<td>${avg == null ? '–' : Math.round(avg).toLocaleString('en-US')}</td>`}</tr>`;
+      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${live ? 'Rp ' : ''}${cv(o.bv)} · Sell ${live ? 'Rp ' : ''}${cv(o.sv)} · Net ${live ? sgn(netOf(o)).replace(/^([+−]?)/, '$1Rp ') : sgn(netOf(o))}"><td>${bkTag(o.b)}</td>${IDX ? '' : `<td>${cv(lot)}</td>`}<td class="${side==='b'?'up':'down'}">${cv(val)}</td>${IDX ? '' : `<td>${avg == null ? '–' : Math.round(avg).toLocaleString('en-US')}</td>`}</tr>`;
     }).join('') || `<tr><td colspan="${IDX ? 2 : 4}" class="rp-empty">${!live ? 'Tidak ada data' : !list.length ? 'No broker trades in this period' : gross ? 'No trades on this side' : `No net ${side === 'b' ? 'buyer' : 'seller'}: ${buyers.length || sellers.length ? 'every other broker nets to 0' : 'every broker nets to 0 (crossing)'}`}</td></tr>`;
     // live: the average's side is named, with how it is computed (EXEC-QA5-FIX H1)
     const head = (side: 'b' | 's') => IDX ? `<thead><tr><th>Broker</th><th>Value</th></tr></thead>` : `<thead><tr><th>Broker</th><th>Lot</th><th>Value</th>${live ? `<th data-tip="${side === 'b' ? 'Avg buy|Buy value ÷ (buy lots × 100): the price the broker paid' : 'Avg sell|Sell value ÷ (sell lots × 100): the price the broker received'}">${side === 'b' ? 'Avg buy' : 'Avg sell'}</th>` : '<th>Avg</th>'}</tr></thead>`;
@@ -528,9 +528,10 @@ export function initBroker(ctx: Ctx) {
   /* EXEC-QA5-FIX H2 (QA 2026-11-07, S-02): the lines are net buying added up from the first session in view, not the shares
      a broker holds (they change with the zoom); said under the chart, with the date they start from, and when the view
      starts before the broker data, that the data starts there */
-  const invNote = (f: number, viewStart: string) => `Net ${RS.invUnit === 'lot' ? 'lots' : 'value'} bought since ${longDay(bkDates[f])}, the first session in view${viewStart < bkDates[0] ? ' (broker data starts here)' : ''}; not shares held.`;
-  /* an axis date with its year when the span crosses a year (S-11) */
-  const axDay = (f: number, t: number, d: number) => bkDates[f].slice(0, 4) === bkDates[t].slice(0, 4) ? bkDates[d].slice(5) : bkDates[d].slice(2);
+  const invNote = (f: number, viewStart: string) => `Net ${RS.invUnit === 'lot' ? 'lots' : 'value'} bought since ${longDay(bkDates[f])}, the first session in view${viewStart < bkDates[0] ? ', where the broker data starts' : ''}. Not shares held.`;
+  /* an axis date as the rest of the page writes it, "02 Jan", with its year when the span crosses one (re-test N-4) */
+  const axDay = (f: number, t: number, d: number) => { const x = new Date(bkDates[d] + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep');
+    return bkDates[f].slice(0, 4) === bkDates[t].slice(0, 4) ? x : `${x} ${bkDates[d].slice(2, 4)}` };
   function renderInvLive(){
     const picks = [...invSel], r = ctx.chart.timeScale().getVisibleLogicalRange();
     const [a, b] = visibleBars(r, ctx.N);
