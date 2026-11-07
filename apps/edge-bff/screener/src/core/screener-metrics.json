@@ -282,6 +282,277 @@
       "interpretation": "Points by which the stock beat (positive) or lagged (negative) the index over the window.",
       "misuse": "Not a percentile: use return_rank to compare across stocks.",
       "evidence": "report TARGET ARCHITECTURE 6.9 rs row; verification/screener/audit/html_model.md section 2.1 rs"
+    },
+    {
+      "fn": "vs_average",
+      "label": "Against its own average",
+      "args": [
+        {
+          "key": "ma",
+          "type": "enum",
+          "label": "Average",
+          "default": "SMA",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "SMA",
+            "EMA"
+          ]
+        },
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions before today",
+          "default": 20,
+          "min": 1,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "form",
+          "type": "enum",
+          "label": "Form",
+          "default": "percent",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "difference",
+            "ratio",
+            "percent"
+          ]
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "A = SMA or EMA of x over the N sessions before today (indicators.ts sma / ema read one session back); difference x - A, ratio x / A, percent 100 x (x / A - 1); null where x or A is missing, and for ratio and percent where A <= 0",
+      "interpretation": "How far today's value is above (positive) or below (negative) its own recent average, today left out of the average.",
+      "misuse": "On a series that can be zero or negative (an oscillator around 0) use the difference form; ratio and percent need a positive average.",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 2"
+    },
+    {
+      "fn": "percentile",
+      "label": "Percentile of its own history",
+      "args": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions before today",
+          "default": 60,
+          "min": 1,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "100 x (number of the N earlier values below x + half the number equal to x) / number of earlier values (mid-rank); the N sessions before today; null with fewer than N sessions of history",
+      "interpretation": "0 to 100: where today's value stands among its own last N sessions; 90 means higher than about 90% of them.",
+      "misuse": "A percentile of a series that is already a percentile or a z-score is not offered: it would compare the series with its own history twice.",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 3"
+    },
+    {
+      "fn": "zscore",
+      "label": "Z-score against its own history",
+      "args": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions before today",
+          "default": 60,
+          "min": 2,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "(x - mean) / sample standard deviation (n - 1) of the N sessions before today; null with fewer than N sessions of history, fewer than 2 values or a zero deviation",
+      "interpretation": "How many standard deviations today's value is from its own recent mean; above 2 is unusually high.",
+      "misuse": "Assumes the recent values are a fair baseline; after a regime change the z-score stays extreme for a while.",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 6"
+    },
+    {
+      "fn": "change_pct",
+      "label": "Change over N sessions, %",
+      "args": [
+        {
+          "key": "bars",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 5,
+          "min": 1,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "100 x (x[i] / x[i - bars] - 1); null where either is missing or the earlier value is <= 0",
+      "interpretation": "The percent change of the series over the last N sessions.",
+      "misuse": "Needs a positive earlier value; for a series around zero use the change in points (change).",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 4"
+    },
+    {
+      "fn": "relative",
+      "label": "Compared with another series",
+      "args": [
+        {
+          "key": "form",
+          "type": "enum",
+          "label": "Form",
+          "default": "difference",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "difference",
+            "ratio"
+          ]
+        }
+      ],
+      "ref_args": [
+        {
+          "key": "by",
+          "label": "Compared with"
+        }
+      ],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "difference x - by, or ratio x / by (null where by <= 0), on each bar; null where either is missing; both series must have the same unit",
+      "interpretation": "How far one series is from another of the same unit, for example the close against a moving average, or one oscillator against another.",
+      "misuse": "Only for two series of the same unit: a price with a price, a percent with a percent; a price against an oscillator is refused.",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 7"
+    },
+    {
+      "fn": "slope",
+      "label": "Slope over N sessions",
+      "args": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 2,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "ordinary least-squares slope of x over the N sessions ending today against the session index; in the unit of x per session; null where any value of the window is missing",
+      "interpretation": "Positive while the series trends up over the window, negative while it trends down; larger means steeper.",
+      "misuse": "A straight-line fit: a sharp turn inside the window can leave a small slope.",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 12"
+    },
+    {
+      "fn": "acceleration",
+      "label": "Acceleration over N sessions",
+      "args": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 10,
+          "min": 2,
+          "max": 130,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "slope of the last N sessions minus the slope of the N sessions before them; null where either slope is missing",
+      "interpretation": "Positive when the trend is getting steeper (or a fall is slowing), negative when it is losing pace.",
+      "misuse": "Reads 2N sessions; a short N reacts to noise.",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 13"
+    },
+    {
+      "fn": "distance_to_extreme",
+      "label": "Distance to its high or low",
+      "args": [
+        {
+          "key": "extreme",
+          "type": "enum",
+          "label": "Extreme",
+          "default": "highest",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "highest",
+            "lowest"
+          ]
+        },
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "form",
+          "type": "enum",
+          "label": "Form",
+          "default": "percent",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "absolute",
+            "percent"
+          ]
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "x - the highest (or lowest) x of the N sessions ending today, today included (a missing value restarts the window); percent 100 x (x / extreme - 1), null where the extreme is <= 0",
+      "interpretation": "How far today's value is below its N-session high (0 at the high) or above its N-session low (0 at the low).",
+      "misuse": "Today is included, so the distance to the high is never above 0; percent needs a positive extreme.",
+      "evidence": "verification/screener/OPERATORS.md (approved by the user 2026-11-07, K4), operator 14"
     }
   ],
   "metrics": [

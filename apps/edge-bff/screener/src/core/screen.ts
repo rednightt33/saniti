@@ -25,7 +25,7 @@ import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.t
 import { costEstimate, runPlan } from './plan.ts';
 import type { PlanCondition } from './plan.ts';
 import { applyUniverse } from './universe.ts';
-import { returnRankAll } from './xsection.ts';
+import { percentRank, returnRankAll } from './xsection.ts';
 
 /** The snapshot as runScreen reads it (the worker builds it once per publication). */
 export interface ScreenEnv extends BindContext {
@@ -78,12 +78,30 @@ function inputOf(env: ScreenEnv, row: UniverseRow, t: TickerBars, xs: Map<string
   if (t.missing) input.missing = (inputs, at) => t.missing!(inputs, at);
   return input;
 }
-/** Every cross-section the bound conditions read, over all listed stocks (population fixed at E, xsection.ts). */
-function crossSections(env: ScreenEnv, bound: readonly BoundCondition[]): Map<string, ReadonlyMap<string, number | null>> {
+/** Every cross-section the bound conditions read: return_rank over all listed stocks (population fixed at E,
+    xsection.ts); operator 11 (a rank of a series, condition.ts bindRank) over `population`, the S0 survivors (the
+    user's filtered universe, decision C), each ranked on its value at its evaluation bar; `also` (a previewed ticker
+    outside the universe) is ranked against them without joining them (xsection.ts percentRank: denominator P). */
+function crossSections(env: ScreenEnv, bound: readonly BoundCondition[], population?: readonly UniverseRow[], also: readonly string[] = []): Map<string, ReadonlyMap<string, number | null>> {
   const out = new Map<string, ReadonlyMap<string, number | null>>();
   for (const b of bound) {
     const x = b.xsection;
     if (!x || out.has(x.key)) continue;
+    if (x.rankOf) {
+      if (!population) throw new RangeError('screen: a rank across stocks needs the filtered universe (it is not offered as a metric filter)');
+      const valueOf = (ticker: string): number | null => {
+        const t = env.bars(ticker);
+        if (!t) return null;
+        const at = evaluationBar(t.dates, env.evaluationDate), { tail } = env.series(x.rankOf!, t);
+        const v = at >= tail.from && at < tail.n ? tail.values[at - tail.from] : NaN;
+        return Number.isFinite(v) ? v : null;
+      };
+      const values = new Map<string, number | null>(), members = new Set<string>();
+      for (const r of population) { const v = valueOf(r.ticker); values.set(r.ticker, v); if (v !== null) members.add(r.ticker) }
+      for (const t of also) if (!values.has(t)) values.set(t, valueOf(t));
+      out.set(x.key, percentRank(values, members));
+      continue;
+    }
     const pre = env.xsectionValues?.(x);
     if (pre) { out.set(x.key, pre); continue }
     if (x.metric !== 'return_rank') throw new RangeError(`screen: no computation for the cross-section ${x.metric}`);
@@ -116,7 +134,7 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
   const s0 = stageS0(def, env), ts0 = now();
   const active = def.conditions.filter(c => c.enabled);
   const bound = active.map(c => bindCondition(c, `definition.conditions[${def.conditions.indexOf(c)}]`, env));
-  const xs = crossSections(env, bound), ts1 = now();
+  const xs = crossSections(env, bound, s0.eligible), ts1 = now();
   const survivors = s0.eligible.flatMap(row => { const t = env.bars(row.ticker); return t ? [{ row, t }] : [] });
   const avgBars = survivors.length ? survivors.reduce((n, s) => n + s.t.dates.length, 0) / survivors.length : 0;
   const sources = new Map<string, { precomputed: number; dynamic: number }>();
@@ -124,7 +142,8 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
   const planConds: PlanCondition[] = bound.map(b => {
     const pinned = (r: ResolvedSeries) => r.kind === 'price' || env.isPrewarmed(r);    // a bar field is the snapshot itself
     const stage = b.xsection ? 'S1' : b.universeAttr !== null || b.series.every(pinned) ? 'S2' : 'S3';
-    const predictedMs = stage === 'S3' ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + (env.predictMs?.(r, avgBars) ?? 0), 0) : 0;
+    // a rank (S1) computes its series on every survivor, never pruned: costed like an S3 condition on all of them
+    const predictedMs = stage === 'S3' || b.xsection?.rankOf ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + (env.predictMs?.(r, avgBars) ?? 0), 0) : 0;
     const tally = { precomputed: 0, dynamic: 0 };
     sources.set(b.id, tally);
     return {
@@ -189,7 +208,9 @@ export function previewCells(def: Definition, env: ScreenEnv, ticker: string): {
   const inUniverse = stageS0({ ...def, universe: { ...def.universe, tickers: [ticker] } }, env).eligible.length === 1 && (!def.universe.tickers || def.universe.tickers.includes(ticker));
   const active = def.conditions.filter(c => c.enabled);
   const bound = active.map(c => bindCondition(c, `definition.conditions[${def.conditions.indexOf(c)}]`, env));
-  const input = inputOf(env, row, t, crossSections(env, bound));
+  // a rank is against the definition's filtered universe (decision C), the previewed ticker ranked against it
+  const population = bound.some(b => b.xsection?.rankOf) ? stageS0(def, env).eligible : undefined;
+  const input = inputOf(env, row, t, crossSections(env, bound, population, [ticker]));
   const cells = bound.map(b => b.evaluate(input).cell);
   const { met } = countCells(cells), need = needOf(def.logic, def.at_least, active.length);
   return { status: previewStatus(inUniverse, met, need), remarks: row.remarks, met, need, cells, bound };

@@ -136,6 +136,125 @@ export function vsIndex(close: In, indexAligned: In, d: number): Series {
   return o;
 }
 
+/* ---- the universal operators (EXEC-SCREENER-FLOW-CANDLES P2; verification/screener/OPERATORS.md, approved by the user
+   2026-11-07, K4). Each one is a series of the same bars, computed on the full series and then tailed like every
+   transform, so a chain (a percentile of a change of an indicator) is exact. A window "before t" is t-N .. t-1 (today
+   excluded: today is compared with its own past and never dilutes it, OPERATORS.md 1); a window "ending at t" is
+   t-N+1 .. t. A missing value is never read as 0. ---------------------------------------------------------------- */
+
+/** The index of the first bar with a value (-1 when none). */
+function firstValue(x: In): number { for (let i = 0; i < x.length; i++) if (at(x, i) !== null) return i; return -1 }
+
+/** Operator 2 (Historical Average): x against its own average over the N sessions before t. A_t = SMA or EMA of x as
+    indicators.ts computes it (ma above), read one session back: lag(ma(x), 1), the average of t-N .. t-1. difference
+    x_t - A_t; ratio x_t / A_t; percent 100 x (x_t / A_t - 1). null where x_t or A_t is missing; ratio and percent also
+    where A_t <= 0 (a ratio to a zero or negative average has no meaning). */
+export function vsAverage(x: In, type: 'SMA' | 'EMA', n: number, form: 'difference' | 'ratio' | 'percent'): Series {
+  const a = lag(ma(x, type, n), 1), N = x.length, o = nul(N);
+  for (let i = 0; i < N; i++) {
+    const v = at(x, i), m = at(a, i);
+    if (v === null || m === null) continue;
+    if (form === 'difference') o[i] = v - m;
+    else if (m > 0) o[i] = form === 'ratio' ? v / m : (v / m - 1) * 100;
+  }
+  return o;
+}
+
+/** Operator 3 (Historical Percentile, own history), mid-rank: 100 x (#(v < x_t) + 0.5 x #(v = x_t)) / #v, v = the
+    non-missing values of x in the N sessions before t. null where x_t is missing, where t - N is before the first value
+    of x (fewer than N sessions of history), or where the window holds no value. */
+export function percentileOwn(x: In, n: number): Series {
+  whole(n, 'percentile: length', 1);
+  const N = x.length, o = nul(N), first = firstValue(x);
+  if (first < 0) return o;
+  for (let t = first + n; t < N; t++) {
+    const v = at(x, t);
+    if (v === null) continue;
+    let below = 0, equal = 0, count = 0;
+    for (let j = t - n; j < t; j++) { const w = at(x, j); if (w === null) continue; count++; if (w < v) below++; else if (w === v) equal++ }
+    if (count) o[t] = 100 * (below + 0.5 * equal) / count;
+  }
+  return o;
+}
+
+/** Operator 6 (Z-Score): (x_t - M) / SD, M the mean and SD the sample standard deviation (n - 1) of the non-missing
+    values of x in the N sessions before t (two passes per window, no running sums: the value equals a brute-force
+    reading). null as percentileOwn, and where the window holds fewer than 2 values or SD is 0. */
+export function zScore(x: In, n: number): Series {
+  whole(n, 'zscore: length', 2);
+  const N = x.length, o = nul(N), first = firstValue(x);
+  if (first < 0) return o;
+  for (let t = first + n; t < N; t++) {
+    const v = at(x, t);
+    if (v === null) continue;
+    let sum = 0, count = 0;
+    for (let j = t - n; j < t; j++) { const w = at(x, j); if (w !== null) { sum += w; count++ } }
+    if (count < 2) continue;
+    const mean = sum / count;
+    let sq = 0;
+    for (let j = t - n; j < t; j++) { const w = at(x, j); if (w !== null) sq += (w - mean) * (w - mean) }
+    const sd = Math.sqrt(sq / (count - 1));
+    if (sd > 0) o[t] = (v - mean) / sd;
+  }
+  return o;
+}
+
+/** Operator 4 (Change), percent form: 100 x (x_t / x_(t-N) - 1); null where either is missing or x_(t-N) <= 0. The
+    absolute form is `change` above. */
+export function pctChange(x: In, bars: number): Series {
+  whole(bars, 'change_pct: bars', 1);
+  const N = x.length, o = nul(N);
+  for (let i = bars; i < N; i++) { const a = at(x, i), b = at(x, i - bars); if (a !== null && b !== null && b > 0) o[i] = (a / b - 1) * 100 }
+  return o;
+}
+
+/** Operator 7 (Relative Comparison): difference a_t - b_t, or ratio a_t / b_t (null where b_t <= 0); null where either
+    is missing. The two series must have the same unit (resolveTransform refuses others, naming both units). */
+export function relative(a: In, b: In, form: 'difference' | 'ratio'): Series {
+  const N = a.length, o = nul(N);
+  for (let i = 0; i < N; i++) {
+    const x = at(a, i), y = at(b, i);
+    if (x === null || y === null) continue;
+    if (form === 'difference') o[i] = x - y; else if (y > 0) o[i] = x / y;
+  }
+  return o;
+}
+
+/** Operator 12 (Trend / Slope): the ordinary least-squares slope of x over the N sessions ending at t against the
+    session index 0 .. N-1: sum((k - k̄) x_k) / sum((k - k̄)^2), k̄ = (N - 1) / 2, sum((k - k̄)^2) = N (N^2 - 1) / 12. In
+    the unit of x per session; null where any value of the window is missing. */
+export function slope(x: In, n: number): Series {
+  whole(n, 'slope: length', 2);
+  const N = x.length, o = nul(N), kbar = (n - 1) / 2, sxx = n * (n * n - 1) / 12;
+  for (let t = n - 1; t < N; t++) {
+    let s = 0, ok = true;
+    for (let k = 0; k < n; k++) { const v = at(x, t - n + 1 + k); if (v === null) { ok = false; break } s += (k - kbar) * v }
+    if (ok) o[t] = s / sxx;
+  }
+  return o;
+}
+
+/** Operator 13 (Acceleration): slope_N(t) - slope_N(t - N), the slope of the last N sessions minus the slope of the N
+    sessions before them; null where either slope is missing. */
+export function acceleration(x: In, n: number): Series {
+  const s = slope(x, n), N = x.length, o = nul(N);
+  for (let t = n; t < N; t++) { const a = s[t], b = s[t - n]; if (isN(a) && isN(b)) o[t] = a - b }
+  return o;
+}
+
+/** Operator 14 (Distance to Extreme): x_t against the highest (or lowest) x of the N sessions ending at t, today
+    included (rollingMax / rollingMin above: a missing value restarts the window). absolute x_t - H (0 or below; x_t - L
+    0 or above for the lowest); percent 100 x (x_t / extreme - 1), null where the extreme is <= 0. */
+export function distanceToExtreme(x: In, extreme: 'highest' | 'lowest', n: number, form: 'absolute' | 'percent'): Series {
+  const e = extreme === 'highest' ? rollingMax(x, n) : rollingMin(x, n), N = x.length, o = nul(N);
+  for (let i = 0; i < N; i++) {
+    const v = at(x, i), m = e[i];
+    if (v === null || !isN(m)) continue;
+    if (form === 'absolute') o[i] = v - m; else if (m > 0) o[i] = (v / m - 1) * 100;
+  }
+  return o;
+}
+
 /* ---- transform references ------------------------------------------------------------------------------------------ */
 
 const ORDER: (HistoryClass | null)[] = [null, 'window', 'calendar', 'recursive', 'cumulative'];
@@ -149,7 +268,8 @@ const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 
 const NO_LAG = Object.freeze({ gt: 0, lt: 0 }) as { gt: 0 | 1; lt: 0 | 1 };
 
 /** The transform functions this module computes (catalog.ts catalogProblems checks the catalog lists exactly these). */
-export const IMPLEMENTED_TRANSFORMS: readonly string[] = ['pct_distance', 'band_position', 'lag', 'change', 'rolling_max', 'rolling_min', 'rising_run', 'ma', 'ratio', 'vs_index'];
+export const IMPLEMENTED_TRANSFORMS: readonly string[] = ['pct_distance', 'band_position', 'lag', 'change', 'rolling_max', 'rolling_min', 'rising_run', 'ma', 'ratio', 'vs_index',
+  'vs_average', 'percentile', 'zscore', 'change_pct', 'relative', 'slope', 'acceleration', 'distance_to_extreme'];
 
 /** The transform reference resolved to a series (metrics.ts ResolvedSeries): fn and args checked against
     screener-metrics.json (unknown fn -> INVALID_CONDITION with the allowed ids; a range -> PARAM_OUT_OF_RANGE), `of`
@@ -206,7 +326,7 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
         full: t => f(of.full(t), num('length')) };
     }
     case 'rising_run':
-      return { ...base, label, unit: 'dimensionless', historyClass: worst(of.historyClass, 'recursive'), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
+      return { ...base, label, unit: 'dimensionless', historyClass: worst(of.historyClass, 'recursive'), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG, integer: true,
         full: t => risingRun(of.full(t)) };
     case 'ma': {
       const type = scalar.ma as 'SMA' | 'EMA';
@@ -227,8 +347,76 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
           return vsIndex(t.bars.C, asOf(index.dates, index.bars.C as ArrayLike<number | null>, t.dates), num('window'));
         } };
     }
+    // the universal operators (OPERATORS.md 2-4, 6, 7, 12-14)
+    case 'vs_average': {
+      operatorTakes(spec.fn, of, `${field}.of`);
+      const type = scalar.ma as 'SMA' | 'EMA', form = scalar.form as 'difference' | 'ratio' | 'percent';
+      return { ...base, label, unit: form === 'difference' ? differenceUnit(of) : form, historyClass: type === 'SMA' ? windowed(of.historyClass) : worst(of.historyClass, 'recursive'),
+        inputs: of.inputs, comparableWith: null, compareLag: NO_LAG, full: t => vsAverage(of.full(t), type, num('length'), form) };
+    }
+    case 'percentile':
+      operatorTakes(spec.fn, of, `${field}.of`);
+      return { ...base, label, unit: 'percentile', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
+        full: t => percentileOwn(of.full(t), num('length')) };
+    case 'zscore':
+      operatorTakes(spec.fn, of, `${field}.of`);
+      return { ...base, label, unit: 'sd', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
+        full: t => zScore(of.full(t), num('length')) };
+    case 'change_pct':
+      operatorTakes(spec.fn, of, `${field}.of`);
+      return { ...base, label, unit: 'percent', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
+        full: t => pctChange(of.full(t), num('bars')) };
+    case 'relative': {
+      const by = refArgs.by, form = scalar.form as 'difference' | 'ratio';
+      if (of.unit === null || of.unit === 'other' || of.unit !== by.unit || of.comparableWith !== by.comparableWith)
+        throw new ScreenerError('INVALID_CONDITION', `${field}.args.by: a relative comparison needs two series of the same unit; ${of.label} is ${unitWords(of)} and ${by.label} is ${unitWords(by)}. Compare a price with a price, a percent with a percent, a volume with a volume (right: close vs its SMA; wrong: RSI vs close).`, `${field}.args.by`, { allowed: [String(of.unit)] });
+      return { ...base, label, unit: form === 'ratio' ? 'ratio' : differenceUnit(of), historyClass: worst(of.historyClass, by.historyClass), inputs: unionInputs(of, by), comparableWith: null, compareLag: NO_LAG,
+        full: t => relative(of.full(t), by.full(t), form) };
+    }
+    case 'slope':
+      operatorTakes(spec.fn, of, `${field}.of`);
+      return { ...base, label, unit: differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
+        full: t => slope(of.full(t), num('length')) };
+    case 'acceleration':
+      operatorTakes(spec.fn, of, `${field}.of`);
+      return { ...base, label, unit: differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
+        full: t => acceleration(of.full(t), num('length')) };
+    case 'distance_to_extreme': {
+      operatorTakes(spec.fn, of, `${field}.of`);
+      const extreme = scalar.extreme as 'highest' | 'lowest', form = scalar.form as 'absolute' | 'percent';
+      return { ...base, label, unit: form === 'percent' ? 'percent' : differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
+        full: t => distanceToExtreme(of.full(t), extreme, num('length'), form) };
+    }
   }
   throw new ScreenerError('INVALID_CONDITION', `${field}.fn: ${spec.fn} is listed in the catalog but not computed here.`, `${field}.fn`);
+}
+/** The unit of a difference of x (x_t - something of x): a price difference for a price level, else the unit of x. */
+const differenceUnit = (x: ResolvedSeries): string | null => x.unit === 'price' ? 'price_change' : x.unit as string | null;
+/** A unit in words for a refusal. */
+const unitWords = (x: ResolvedSeries): string => x.unit === null ? 'without a unit' : x.comparableWith ? `a ${x.comparableWith === 'close' ? 'price' : 'volume'} level (${x.unit})` : `in ${x.unit}`;
+/** Which universal operators an output type takes (OPERATORS.md section 4), for the types a price or indicator series
+    can have: an operator result that is already a percentile or a z-score (type P) is not offered the operators that
+    set it against its own history again (Historical Average, Historical Percentile, Z-Score); a run of consecutive
+    sessions (type D, rising_run) grows by one a session, so Historical Average, Change in percent, Z-Score, Slope,
+    Acceleration and Distance to Extreme have no meaning on it. Every other series takes every operator. */
+const NOT_OFFERED: Record<'P' | 'D', readonly string[]> = {
+  P: ['vs_average', 'percentile', 'zscore'],
+  D: ['vs_average', 'change_pct', 'zscore', 'slope', 'acceleration', 'distance_to_extreme'],
+};
+const OPERATOR_NAMES: Record<string, string> = {
+  vs_average: 'Historical Average', percentile: 'Historical Percentile', zscore: 'Z-Score', change_pct: 'Change in percent',
+  slope: 'Trend / Slope', acceleration: 'Acceleration', distance_to_extreme: 'Distance to Extreme',
+};
+function outputType(x: ResolvedSeries): 'P' | 'D' | null {
+  const fn = x.kind === 'transform' ? (x.ref as TransformRef).fn : null;
+  return fn === 'percentile' || fn === 'zscore' ? 'P' : fn === 'rising_run' ? 'D' : null;
+}
+function operatorTakes(fn: string, of: ResolvedSeries, field: string): void {
+  const type = outputType(of);
+  if (!type || !NOT_OFFERED[type].includes(fn)) return;
+  const what = type === 'P' ? 'is already set against its own history (a percentile or z-score)' : 'is a count of consecutive sessions';
+  const takes = Object.keys(OPERATOR_NAMES).filter(k => !NOT_OFFERED[type].includes(k)).map(k => OPERATOR_NAMES[k]);
+  throw new ScreenerError('INVALID_CONDITION', `${field}: ${of.label} ${what}, so ${OPERATOR_NAMES[fn]} is not offered on it; it takes ${takes.join(', ')}, a value test, a range or a cross. Apply the operator to the series itself instead (right: ${OPERATOR_NAMES[fn]} of RSI; wrong: ${OPERATOR_NAMES[fn]} of a ${type === 'P' ? 'percentile' : 'rising run'}).`, field, { allowed: takes });
 }
 const closeSeries = (): ResolvedSeries => ({ kind: 'price', key: '', ref: { kind: 'price', field: 'close' }, label: 'close', unit: 'price', historyClass: null, inputs: ['C'], comparableWith: 'close', compareLag: NO_LAG, full: t => t.bars.C });
 

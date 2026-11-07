@@ -161,7 +161,9 @@ export function costTracker(initialNsPerBarLength: number, alpha: number): CostT
 export function costEstimate(conditions: readonly PlanCondition[], survivors: number): { needed_ms: number; costliest: string | null } {
   let needed = 0, best: PlanCondition | null = null;
   for (const c of conditions) {
-    if (c.stage !== 'S3') continue;
+    // S3 and S1 run on every survivor in the worst case (S1 is never pruned); an S1 return_rank and every S2 lookup
+    // carry predictedMs 0, a rank of a computed series its series' cost (screen.ts)
+    if (c.stage !== 'S3' && !(c.stage === 'S1' && c.predictedMs > 0)) continue;
     needed += c.predictedMs * survivors;
     if (!best || c.predictedMs > best.predictedMs || (c.predictedMs === best.predictedMs && c.id < best.id)) best = c;
   }
