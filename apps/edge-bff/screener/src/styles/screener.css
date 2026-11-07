@@ -1478,7 +1478,9 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qrtitle{font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3);padding:6px 10px 4px}
 .qwin-l{min-height:0;overflow:auto;padding:0 var(--s-6) var(--s-6);overscroll-behavior:contain}
 .qcols,.qrow{display:grid;grid-template-columns:minmax(0,1fr) 236px 224px 268px 88px;column-gap:12px;align-items:center}
-.qcols{position:sticky;top:0;z-index:3;align-items:end;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+/* the column titles share one middle line: the two-line "Parameters & threshold" title is centred against the one-line
+   titles (user 2026-11-07, "ini sepertinya tidak middle line"; EXEC-SCREENER-TIDY) */
+.qcols{position:sticky;top:0;z-index:3;align-items:center;margin:0 calc(-1 * var(--s-6));padding:var(--s-5) calc(var(--s-6) + var(--s-5)) var(--s-3);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
 .qcols em{display:block;margin:2px 0 0;font-style:normal;font-weight:var(--fw-medium);letter-spacing:0;text-transform:none;color:var(--blue)}
 .qrow{min-height:54px;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);cursor:pointer}
 .qrow:hover,.qrow.act{background:var(--surface-2)}

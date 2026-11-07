@@ -316,6 +316,9 @@ await at('Add a condition: more than two blue boxes go behind Customize with the
   const geo = await page.locator('#acl .qrow').evaluateAll(rs => ({ h:[...new Set(rs.map(r => r.offsetHeight))], over:rs.filter(r => { const q = r.querySelector('.rr.qt'); return q && q.scrollWidth > q.clientWidth + 1 }).length,
     bad:rs.filter(r => { const n = r.querySelectorAll('.rr.qt .qbox').length; return n > 2 }).length }));
   expect(geo.h.length === 1 && geo.over === 0 && geo.bad === 0, 'rows are not one height, a settings cell overflows, or a row shows more than two boxes: ' + JSON.stringify(geo));
+  // the column titles share one middle line (user 2026-11-07, EXEC-SCREENER-TIDY): their vertical centres agree within 1 px
+  const mids = await page.locator('#acl .qcols > span').evaluateAll(xs => xs.filter(x => x.textContent.trim()).map(x => { const r = x.getBoundingClientRect(); return Math.round((r.top + r.bottom) / 2 * 10) / 10 }));
+  expect(mids.length >= 4 && Math.max(...mids) - Math.min(...mids) <= 1, 'the column titles are not on one middle line: ' + JSON.stringify(mids));
   await page.fill('#acq', 'relative strength'); await page.waitForTimeout(200);
   const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Relative Strength Index$/ }) });
   const btn = row.locator('.qcus');
@@ -390,6 +393,8 @@ await at('preview: the ring while a new ticker loads, never the previous candles
   await page.waitForSelector('#dChart canvas', { timeout:8000 });
   expect(new RegExp(second).test(await text('#dtb .preview-head')), `preview shows ${first} instead of ${second}`);
   expect(/why it/i.test(await page.locator('#dtb').textContent()), 'no "why it passed" list');
+  // no Fundamentals section while the catalog offers no fundamental with data (user 2026-11-07, EXEC-SCREENER-TIDY)
+  expect(!/Fundamentals/.test(await page.locator('#dtb').textContent()), 'the Preview still shows a Fundamentals section without data');
   await page.click('[data-pvv="perf"]');
   expect(/vs IHSG/.test(await text('#dtb')), 'Stock vs IHSG view missing');
   await page.click('[data-pvv="chart"]');

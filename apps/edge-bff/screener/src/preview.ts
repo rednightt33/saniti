@@ -170,7 +170,11 @@ export function renderDetails() {
       const mark = x?.status === 'pass' ? '<span class="up">✓</span>' : x?.status === 'na' ? '<span class="muted">–</span>' : '<span class="down">✕</span>';
       return `<div title="${esc(tip)}"><i class="cdot" style="background:${colorOf(c)}"></i><span>${esc(condText(e, c))}</span><b>${esc(txt)}${x?.remark ? ` ${ico(IC.warn, 's')}` : ''}</b>${mark}</div>`;
     }).join('')}</div>` : '';
-  const facts = `<div class="sec-title">Fundamentals <span class="pill t-neutral" title="${esc(T.noFundamentals)}">no data</span></div><div class="facts">${['Market cap', 'P/E', 'P/B', 'ROE', 'Div. yield', 'EPS growth', 'D/E', 'Piotroski'].map(k => `<div title="${esc(k === 'Market cap' ? T.noCap : k === 'Div. yield' ? 'No data yet: dividends come with Phase 2, after validation.' : T.noFundamentals)}"><span>${k}</span><b class="muted">no data</b></div>`).join('')}</div>`;
+  // Fundamentals: drawn from the catalog, only the fundamentals it offers as AVAILABLE (user 2026-11-07, "bagian fundamental
+  // hapus saja"; EXEC-SCREENER-TIDY). None is available today, so the section is not drawn; it comes back by itself, with
+  // the catalog's labels, once a fundamental has data. The preview answer carries no fundamental value yet: "—".
+  const fundamentals = (ctx.catalog?.fundamentals || []).filter(f => f.availability === 'AVAILABLE');
+  const facts = fundamentals.length ? `<div class="sec-title">Fundamentals</div><div class="facts">${fundamentals.map(f => `<div title="${esc(T.noFundamentalValue)}"><span>${esc(ctx.byKey.get(f.id)?.label || f.id)}</span><b>—</b></div>`).join('')}</div>` : '';
   const view = S.pvView === 'perf'
     ? (a ? perfCard(tk, a) : `<div class="pcard">${PV.error ? `<p class="note down" role="alert">${esc(PV.error)} ${pvRetry}</p>` : spin(`Loading ${esc(tk)}`)}</div>`)
     : `<div><div id="dChart" style="position:relative">${a ? '' : PV.error ? `<div class="pv-err note down" role="alert">${esc(PV.error)} ${pvRetry}</div>` : `<span class="ml-boot">${spin(`Loading ${esc(tk)}`)}</span>`}</div><div class="legend" id="dLegend">${a ? legend(a) : ''}</div></div>`;
