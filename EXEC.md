@@ -12433,6 +12433,8 @@ struktur database."
 - Go user 2026-11-07 atas usulan tabel (`edge_bff.terminal_drawings`: satu baris per akun per set gambar: chart harga,
   Flow Timeline, tiap panel indikator, per ticker; revisi; batas ukuran; API GET per ticker, PUT, DELETE; gambar di browser
   dipindah sekali ke akun): "3 jalankan dulu". Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
+- Go rilis 2026-11-07 (user: "rilis paket dan main", 22:16 WIB, sesudah B6): migrasi `20261107_001` DRYRUN lalu APPLY,
+  lalu `main` dengan seluruh paket di branch (EXEC-RP-LOOK, EXEC-DRAW-PANES, EXEC-PANE-ORDER, EXEC-IND-NAV, M386).
 - Status 2026-11-07 (branch): dikerjakan. Backend `apps/edge-bff/app/drawings.py` + migrasi `20261107_001` (belum
   diterapkan; gladi lokal DRYRUN 36/36, APPLY 23/23); Terminal `data/drawingsApi.ts` (akun; browser hanya saat akun tak
   terjangkau; pindah sekali dari `ml.drawings.*`), `app/drawings.ts` (pengelola per panel,
