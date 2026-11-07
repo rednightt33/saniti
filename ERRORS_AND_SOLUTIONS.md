@@ -5679,6 +5679,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 
 ### M375 — Screener smoke run: a page task over 50 ms now and then, in a different step each time (2026-11-06, open)
 
+- **Update 2026-11-07 (unit B, traced in Chromium):** the Flow step's 50-80 ms task was the smoke harness, not the page:
+  `page.evaluate(... __fixture.catalog(null)).body)` returned the ~274 KB catalog to Node, and Playwright serializes a
+  return value on the page's main thread in one task (CPU profile: ~12 ms `innerSerialize`, ~47 ms native conversion).
+  Fixed in `tests/smoke/smoke.mjs` (the Flow steps pick their entries inside the page and return only those; limit
+  unchanged). Remaining occurrences in other steps (5 runs: 60 ms "extra columns", 53 ms, 102 ms): the "extra columns"
+  trace points at the results frame switching to compact density then measuring the pinned columns
+  (`layout/table.ts:39-50`, a second style recalc and layout). Still open.
+
 - **Found by:** the coordinator's smoke runs for M374.
 - **Symptom:** `tests/smoke/smoke.mjs` fails now and then with "[long tasks] the page blocked the main thread for N ms",
   N between 56 and 106, in a different step each time:

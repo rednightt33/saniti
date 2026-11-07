@@ -62,6 +62,10 @@ const go = q => page.goto(`${srv.origin}/screener-app/${q || ''}`);
 const ready = () => page.waitForSelector('#app[data-boot="results"]', { timeout:15000 });
 const text = sel => page.locator(sel).first().innerText();
 const counters = () => page.evaluate(() => ({ ...window.__fixture.counters }));
+/* catalogPicked: a step that reads the fixture's catalog (window.__fixture.catalog) picks what it needs inside the page
+   and returns only that. Playwright serializes an evaluate's return value on the page's main thread, and the whole
+   catalog (about 270 KB as JSON) took one task of 50-80 ms there, which the long-task check counts as the page's own
+   (the fixture's compute is left out through api.busy; this serialization is the smoke's, not the page's). */
 const idle = () => page.waitForFunction(() => !document.querySelector('#resMeta .ml-loading') && !document.querySelector('#pageActs .top-screen[aria-busy]'), null, { timeout:10000 });
 const meta = () => page.locator('#resMeta').textContent();          // textContent: the v21 layout hides its <small> line
 const runs = async () => (await counters()).run || 0;
@@ -398,11 +402,14 @@ await at('Flow (P5c): a flow indicator with its Terminal parameters (a board lis
   // EXEC-SCREENER-FLOW-CANDLES P5c (verification/screener/P5_FLOW.md section 4): the fixture's broker data ends a session
   // before its prices (tests/fixture/broker.ts), so every flow value carries its broker data date
   await fresh(); await ready();
-  const r0 = await runs(), cat = await page.evaluate(async () => (await window.__fixture.catalog(null)).body);
-  const last = cat.data.broker_window.last, sessions = cat.data.broker_window.sessions;
-  // a flow entry with a board list, a window and a percent output, chosen from the catalog, never by id
-  const e = cat.metrics.find(m => m.flow && m.availability === 'AVAILABLE' && m.flow.outputs.length === 1 && m.flow.outputs[0].kind === 'K'
-    && m.flow.params.some(p => p.kind === 'multi' && (p.options || []).includes('Nego')) && m.flow.params.some(p => p.key === 'window' && p.kind === 'int') && m.flow.depth > 1 && m.flow.depth < 30);
+  // a flow entry with a board list, a window and a percent output, chosen from the catalog, never by id; picked in the
+  // page, and only it and the broker window come back (catalogPicked)
+  const r0 = await runs(), { last, sessions, e } = await page.evaluate(async () => {
+    const cat = (await window.__fixture.catalog(null)).body;
+    return { last:cat.data.broker_window.last, sessions:cat.data.broker_window.sessions,
+      e:cat.metrics.find(m => m.flow && m.availability === 'AVAILABLE' && m.flow.outputs.length === 1 && m.flow.outputs[0].kind === 'K'
+        && m.flow.params.some(p => p.kind === 'multi' && (p.options || []).includes('Nego')) && m.flow.params.some(p => p.key === 'window' && p.kind === 'int') && m.flow.depth > 1 && m.flow.depth < 30) };
+  });
   expect(!!e, 'the fixture catalog has no flow entry with a board list and a window');
   await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', e.label); await page.waitForTimeout(200);
   const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:e.label }) }).first();
@@ -474,9 +481,12 @@ await at('Flow (P5c): a flow indicator with its Terminal parameters (a board lis
 });
 await at('Flow without broker data (QA5 unit B item 5): a stock without broker data reads n/a with its reason; while the broker data loads a flow screen is refused on its card', async () => {
   await fresh(); await ready();
-  const cat = await page.evaluate(async () => (await window.__fixture.catalog(null)).body);
-  // a flow entry with a value condition, and "Last close above 0" so a stock without broker data is still a row (Any)
-  const e = cat.metrics.find(m => m.flow && m.availability === 'AVAILABLE' && m.flow.outputs.length === 1 && m.flow.outputs[0].kind === 'K'), last = cat.metrics.find(m => m.kind === 'universe' && m.id === 'last');
+  // a flow entry with a value condition, and "Last close above 0" so a stock without broker data is still a row (Any);
+  // picked in the page (catalogPicked)
+  const { e, last } = await page.evaluate(async () => {
+    const cat = (await window.__fixture.catalog(null)).body;
+    return { e:cat.metrics.find(m => m.flow && m.availability === 'AVAILABLE' && m.flow.outputs.length === 1 && m.flow.outputs[0].kind === 'K'), last:cat.metrics.find(m => m.kind === 'universe' && m.id === 'last') };
+  });
   const add = async (label, pick) => {
     await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', label); await page.waitForTimeout(200);
     const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:label }) }).first();
