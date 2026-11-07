@@ -1,12 +1,12 @@
 /* RIGHT PANEL — Broker activity (reference lines 3685-3985). The fixture is the reference's dummy history built around
    a real BBCA day; live data is the published broker summary of the ticker (the last sessions in its files). */
 import type { Ctx } from './context';
-import { $, keyOf, minus, nfCompact, pct, row, spin, store } from './context';
+import { $, keyOf, minus, nfCompact, pct, row, spin, store, tickCompact, visibleBars } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
-import { aggregate, fdQuadrant, fdSplit, FD_QUADRANTS, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
+import { aggregate, avgPrice, fdQuadrant, fdShown, fdSplit, FD_QUADRANTS, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
 import { atLeast } from '../calc/flow';
 import FLOW_REG from '../data/flowRegistry.json';
-import { mapLimit, mapReadout, mapSvg, quadrantTag, type MapPoint } from './fdMap';
+import { fdPct, mapLimit, mapReadout, mapSvg, quadrantTag, type MapPoint } from './fdMap';
 
 /* EXEC-TERMINAL-FLOW-IND (user 2026-10-30: "Kita pakai B dulu ya which B: pakai batas Screener (6/10%), default Top 3"),
    live: the Bandar panel's verdict is the agreed bandar balance, Bandar Balance · % (FL24); its levels and Top N are read
@@ -36,6 +36,28 @@ export function bandarBalance(list: { b: string; bv: number; sv: number }[], n: 
   return { buyers:buyers.map(x => x.b), sellers:sellers.map(x => x.b), buy, sell, net:buy - sell, total, ratio, verdict:bandarVerdict(ratio) };
 }
 
+/** the rows of a period, summed per broker for one investor type (the board is the caller's) */
+export type AggOf = (f: number, t: number, inv: string) => { b: string; bv: number; sv: number }[];
+export interface FdPoint { f: number; t: number; x: number; y: number; r: number; total: number }
+/** the Foreign × Domestic point of the sessions f..t (EXEC-BROKER-INV-PANEL): the Top `n` net buyers and sellers of all
+    investors (the verdict's groups), their net split into foreign (x) and domestic (y) transactions, in % of the period's
+    total buy value; x + y = r, the verdict's ratio. One formula for the panel's map and the window's trail. */
+export function fdAt(agg: AggOf, f: number, t: number, n: number): FdPoint {
+  const net = (inv: string) => new Map(agg(f, t, inv).map(o => [o.b, o.bv - o.sv]));
+  const fm = net('Foreign'), dm = net('Domestic'), bal = bandarBalance(agg(f, t, 'All'), n);
+  const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
+  return { f, t, x:sp.rf * 100, y:sp.rd * 100, r:sp.ratio * 100, total:bal.total };
+}
+/** EXEC-FD-WINDOW (user 2026-11-07: "Peta + jejak 20 sesi (opsi 2) dan ada toggle ... Tabel penggerak per sesi (opsi A)";
+    "pake seperti HTML terlampir"): the trail, one point per session for the last `span` sessions up to `end`, each the
+    period of `len` sessions ending there (a rolling period). A session with fewer than `len` sessions before it starts no
+    point; when none can, the one point is the sessions 0..end. Oldest first. */
+export function fdTrail(agg: AggOf, end: number, len: number, span: number, n: number): FdPoint[] {
+  const out: FdPoint[] = [];
+  for (let e = Math.max(len - 1, end - span + 1); e <= end; e++) out.push(fdAt(agg, e - len + 1, e, n));
+  return out.length || end < 0 ? out : [fdAt(agg, 0, end, n)];
+}
+
 /** EXEC Top brokers 1A (user 2026-11-06: "ada keterangan apakah ini Big accum, accum, normal or what"; "1A"): the verdict
     as a five-step ladder, Big Dist · Dist · Neutral · Acc · Big Acc, the step the ratio falls in marked, the levels written
     under the steps (FL24's ±6% and ±10%) and a pin at the ratio (±15% fills the ladder). The levels come from the verdict
@@ -47,7 +69,9 @@ export function verdictLadder(ratio: number, tip: string): string {
   const pos = (v: number) => (50 + v / lim * 50).toFixed(2), pctL = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}%`;
   const edges = [-lim, -big, -acc, acc, big, lim];
   return `<div class="acc-ladder" data-tip="${tip}" role="img" aria-label="Verdict ${cur}: ${minus((ratio * 100).toFixed(2))}% of total buy">`
-    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}" style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
+    /* EXEC-RP-LOOK R8 (user 2026-11-07: "batch minus 12,99% dihilangkan saja. Tapi hover state ketika mouse ke big dist, maka
+       tooltip yang keluar adalah angka minus 12,99%"): the marked step's own tooltip leads with the ratio */
+    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}"${t === cur ? ` data-tip="${ratio > 0 ? '+' : ''}${minus((ratio * 100).toFixed(2))}% · ${t}|${tip.split('|').slice(1).join('|')}"` : ''} style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
     + `<i class="acc-pin" style="left:${x.toFixed(1)}%"></i></div>`
     + `<div class="acc-lv">${[-big, -acc, acc, big].map(v => `<span style="left:${pos(v)}%">${pctL(v)}</span>`).join('')}</div></div>`;
 }
@@ -96,7 +120,8 @@ export function initBroker(ctx: Ctx) {
   const ensureDefaults = () => {
     const n = M.broker.dates.length;
     if(invSel.size || !n) return;
-    const top = aggregate(M.broker.rows, Math.max(0, n - 20), n - 1).sort((a,b) => (b.bv-b.sv)-(a.bv-a.sv)).slice(0,3);
+    // EXEC-QA5-FIX (S-13): on the inventory's own investor and board choice (live: Regular), as its hint says
+    const top = aggregate(M.broker.rows, Math.max(0, n - 20), n - 1, live ? RS.invInv : 'All', live ? RS.invBoard : 'All').sort((a,b) => (b.bv-b.sv)-(a.bv-a.sv)).slice(0,3);
     top.forEach(o => invSel.add(o.b)); RS.broker = top.length ? top[0].b : brokerCodes()[0] ?? null;
   };
   ctx.brokerShared = { invSel, max:INV_MAX, colors:INV_COLORS, changed, ensureDefaults, brokers:brokerCodes,
@@ -220,7 +245,8 @@ export function initBroker(ctx: Ctx) {
   const bkRows = M.broker.rows;
   if(!BK_DAYS){                                                   // live: a ticker with no broker summary (an index)
     $('rpSub').textContent = `${M.broker.label} · no broker data`;
-    ['bsBody','accBody','invBody','bdBody'].forEach(id => { $(id).innerHTML = `<div class="rp-empty">Tidak ada data</div>` });
+    ['bsBody','accBody','invBody','bdBody'].forEach(id => { $(id).innerHTML = `<div class="rp-empty">${live ? 'No broker data for this ticker' : 'Tidak ada data'}</div>` });
+    if(live) ['bsHint','accHint','invHint','fdHint'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = '' });   // QA F9: no stale "5D net" 
     ['bsRange','accRange','invRange','bdRange'].forEach(id => { $(id).innerHTML = '' });
     return;
   }
@@ -288,7 +314,8 @@ export function initBroker(ctx: Ctx) {
       from.min = to.min = bkDates[0]; from.max = to.max = bkDates[last];
       }
       save();
-      if(nav){ $q('.rp-date').textContent = days() === 1 ? bkFmtDay(st.bt) : `${text()} ${bkDates[st.bt].slice(0,4)} · ${days()}D`;
+      // QA S-12 (live): a custom period counts sessions, "3 sessions", not "3D" (16-25 Mar holds 3 trading sessions)
+      if(nav){ $q('.rp-date').textContent = days() === 1 ? bkFmtDay(st.bt) : `${text()} ${bkDates[st.bt].slice(0,4)} · ${live && st.bn === 'custom' ? `${days()} sessions` : `${days()}D`}`;
         $q('[data-act=prev]').disabled = st.bf <= 0; $q('[data-act=next]').disabled = st.bt >= last }
     };
     const shift = dir => {
@@ -313,7 +340,8 @@ export function initBroker(ctx: Ctx) {
           onChart:() => ctx.selectRangeOnChart((f, t) => applyChartRange(f, t)) });
         return;
       }
-      note(); preset(b.dataset.n); render(); onChange();
+      // QA S-12 (live): a preset is the last N sessions of the data, as every panel's (not N sessions back from a stepped end)
+      note(); if(live) st.bt = last; preset(b.dataset.n); render(); onChange();
     });
     if(nav) root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { note(); shift(b.dataset.act === 'prev' ? -1 : 1); render(); onChange() });
     const custom = () => {
@@ -348,18 +376,22 @@ export function initBroker(ctx: Ctx) {
     const rowsHtml = (arr, side) => arr.slice(0,N).map(o => {
       const val = gross ? (side==='b'?o.bv:o.sv) : Math.abs(netOf(o));
       const lot = gross ? (side==='b'?o.bl:o.sl) : Math.abs(netLotOf(o));
-      const avg = lot ? Math.round(val/(lot*100)) : 0;
-      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${cv(o.bv)} · Sell ${cv(o.sv)} · Net ${sgn(netOf(o))}"><td>${bkTag(o.b)}</td>${IDX ? '' : `<td>${cv(lot)}</td>`}<td class="${side==='b'?'up':'down'}">${cv(val)}</td>${IDX ? '' : `<td>${avg.toLocaleString('en-US')}</td>`}</tr>`;
-    }).join('') || `<tr><td colspan="${IDX ? 2 : 4}" class="rp-empty">Tidak ada data</td></tr>`;
-    const head = IDX ? `<thead><tr><th>Broker</th><th>Value</th></tr></thead>` : `<thead><tr><th>Broker</th><th>Lot</th><th>Value</th><th>Avg</th></tr></thead>`;
+      /* EXEC-QA5-FIX H1 (QA 2026-11-07, S-01): live, the average is a price, what the buyers paid or the sellers received
+         (value ÷ (lots × 100)), as the window's Avg buy / Avg sell; net value ÷ net lots is not a price (NI read 11,681 in
+         a 2,660-2,950 period). The fixture keeps the reference (1:1 check) */
+      const avg = live ? avgPrice(side==='b'?o.bv:o.sv, side==='b'?o.bl:o.sl) : lot ? Math.round(val/(lot*100)) : 0;
+      return `<tr data-b="${o.b}" class="${o.b===RS.broker?'sel':''}" data-tip="${o.b}|Buy ${live ? 'Rp ' : ''}${cv(o.bv)} · Sell ${live ? 'Rp ' : ''}${cv(o.sv)} · Net ${live ? sgn(netOf(o)).replace(/^([+−]?)/, '$1Rp ') : sgn(netOf(o))}"><td>${bkTag(o.b)}</td>${IDX ? '' : `<td>${cv(lot)}</td>`}<td class="${side==='b'?'up':'down'}">${cv(val)}</td>${IDX ? '' : `<td>${avg == null ? '–' : Math.round(avg).toLocaleString('en-US')}</td>`}</tr>`;
+    }).join('') || `<tr><td colspan="${IDX ? 2 : 4}" class="rp-empty">${!live ? 'Tidak ada data' : !list.length ? 'No broker trades in this period' : gross ? 'No trades on this side' : `No net ${side === 'b' ? 'buyer' : 'seller'}: ${buyers.length || sellers.length ? 'every other broker nets to 0' : 'every broker nets to 0 (crossing)'}`}</td></tr>`;
+    // live: the average's side is named, with how it is computed (EXEC-QA5-FIX H1)
+    const head = (side: 'b' | 's') => IDX ? `<thead><tr><th>Broker</th><th>Value</th></tr></thead>` : `<thead><tr><th>Broker</th><th>Lot</th><th>Value</th>${live ? `<th data-tip="${side === 'b' ? 'Avg buy|Buy value ÷ (buy lots × 100): the price the broker paid' : 'Avg sell|Sell value ÷ (sell lots × 100): the price the broker received'}">${side === 'b' ? 'Avg buy' : 'Avg sell'}</th>` : '<th>Avg</th>'}</tr></thead>`;
     const can = Math.max(buyers.length, sellers.length) > 5;
     $('bsBody').innerHTML = (M.hide.brokerGauge ? '' : `
       <div class="rp-gauge"><div class="rp-gauge-top"><span>Broker action</span><span class="tag ${gc}">${gt}</span></div>
         <div class="rp-track" data-tip="Broker action|${g>=0?'+':''}${g.toFixed(2)} (−1 … +1)"><b style="left:${((g+1)/2*100).toFixed(1)}%"></b></div></div>`) + `
       <div class="rp-sub"><span>${gross?'Top buyers · gross':'Top net buyers'}</span><span>${buyers.length} brokers</span></div>
-      <table class="rp-t">${head}<tbody>${rowsHtml(buyers,'b')}</tbody></table>
+      <table class="rp-t">${head('b')}<tbody>${rowsHtml(buyers,'b')}</tbody></table>
       <div class="rp-sub"><span>${gross?'Top sellers · gross':'Top net sellers'}</span><span>${sellers.length} brokers</span></div>
-      <table class="rp-t">${head}<tbody>${rowsHtml(sellers,'s')}</tbody></table>
+      <table class="rp-t">${head('s')}<tbody>${rowsHtml(sellers,'s')}</tbody></table>
       ${can?`<button class="rp-more" id="bsMore">${RS.more?'Show less':'Show top 10'}</button>`:''}`;
     $('bsHint').textContent = (gross ? 'Gross' : 'Net') + ' · ' + bsRange.text() + (live && RS.board !== 'All' ? ` · ${RS.board}` : '');   // QA round 3 (F3)
     const mb = $('bsMore'); if(mb) mb.onclick = () => { RS.more = !RS.more; renderBS() };
@@ -380,12 +412,9 @@ export function initBroker(ctx: Ctx) {
      2026-10-30) */
   if(live){
     $('accTitle').textContent = 'Top brokers';
-    /* Top brokers spacing (user 2026-11-06): the Board choice sits on the period row instead of a row of its own */
-    /* the period row is rebuilt each time the data arrives (makeRange), so the choice is added when it is missing */
+    /* EXEC-RP-LOOK R3 (user 2026-11-07: the map's positions "Aplikasikan ... di panel top brokers"): the period row alone, then
+       the Top N row with the Board choice at its right (renderAccPaired) */
     document.getElementById('accSide')?.closest('.rp-ctl')?.remove();
-    if(!document.getElementById('accBoard')) ($('accRange').querySelector('.rp-ctl') as HTMLElement).insertAdjacentHTML('beforeend', `<select class="rp-sel" id="accBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>`);
-    $('accBoard').value = RS.accBoard;
-    $('accBoard').onchange = e => { RS.accBoard = e.target.value; renderAcc() };
   }
   function renderAccPaired(){
     const board = RS.accBoard, part = inv => new Map(bkAggRange(accRange.bf, accRange.bt, inv, board).map(o => [o.b, netOf(o)]));
@@ -398,7 +427,9 @@ export function initBroker(ctx: Ctx) {
     const buy = all.filter(x => x.net > 0).sort((a,b) => b.net-a.net || byCode(a, b)).slice(0,rows);
     const sell = all.filter(x => x.net < 0).sort((a,b) => a.net-b.net || byCode(a, b)).slice(0,rows);
     const mx = Math.max(1, ...buy.map(x => x.net), ...sell.map(x => -x.net));
-    const cell = (x, side) => x ? `<span class="pa-b" data-b="${x.b}" data-tip="${x.b}|${accRange.text()}${board === 'All' ? '' : ' ' + board} net ${sgn(x.net)} · ${sgn(x.lot)} lot · Domestic ${sgn(x.d)} · Foreign ${sgn(x.f)}">${bkTag(x.b)}</span>` : '<span class="pa-b"></span>';
+    // EXEC-QA5-FIX (QA F11): the tooltip names its units (Rupiah values, lots)
+    const rp = (v: number) => sgn(v).replace(/^([+−]?)/, '$1Rp ');
+    const cell = (x, side) => x ? `<span class="pa-b" data-b="${x.b}" data-tip="${x.b}|${accRange.text()}${board === 'All' ? '' : ' ' + board} · net value ${rp(x.net)} · net ${sgn(x.lot)} lot · Domestic ${rp(x.d)} · Foreign ${rp(x.f)}">${bkTag(x.b)}</span>` : '<span class="pa-b"></span>';
     const val = (x, side) => `<span class="v ${side==='buy'?'up':'down'}">${x ? sgn(x.net) : ''}</span>`;
     const bar = (x, side) => `<div class="trk ${side}">${x ? splitFill(Math.abs(x.net)/mx*100, x.f, x.d, side) : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
@@ -406,37 +437,48 @@ export function initBroker(ctx: Ctx) {
     /* QA round 3 (agent 3 F1): the verdict, the ladder and the header read the ratio as shown (two decimals), so "+6.00%"
        is never called Neutral */
     const shown = r2 / 100, [vt, vc] = bandarVerdict(shown), big = /^Big /.test(vt) ? ' big' : '', onBoard = board === 'All' ? '' : ` · ${board}`;
-    const why = `Bandar balance · Top ${N}${onBoard}|(net buy of the ${N} largest net buyers − net sell of the ${N} largest net sellers) ÷ total buy value`
-      + ` = (${cv(bal.buy)} − ${cv(bal.sell)}) ÷ ${cv(bal.total)} = ${ratio}. Acc from 6%, Big Acc from 10%; Dist and Big Dist the same below zero.`;
+    /* EXEC-QA5-FIX (QA F7, F8): the groups as they are (fewer than N when fewer brokers net buy or sell), the levels from
+       the verdict rule itself (BANDAR_LEVELS, FL24) */
+    const grp = (k: number, w: string) => k === N ? `the ${N} largest net ${w}s` : `the ${k} net ${w}${k === 1 ? '' : 's'} (fewer than ${N})`;
+    const why = `Bandar balance · Top ${N}${onBoard}|(net buy of ${grp(bal.buyers.length, 'buyer')} − net sell of ${grp(bal.sellers.length, 'seller')}) ÷ total buy value of every broker`
+      + ` = (Rp ${cv(bal.buy)} − Rp ${cv(bal.sell)}) ÷ Rp ${cv(bal.total)} = ${ratio}. Acc from ${BANDAR_LEVELS[0]}%, Big Acc from ${BANDAR_LEVELS[1]}%; Dist and Big Dist the same below zero.`;
     /* EXEC-BROKER-INV-PANEL (user 2026-11-06, design top_brokers_panel.html "Dua lajur"): three lanes, Domestic, Foreign and
        Total, each the Top N buyers' net against the Top N sellers' net in that investor type; Domestic + Foreign = Total */
     const sp = fdSplit(bal.buyers, bal.sellers, new Map(all.map(x => [x.b, { d:x.d, f:x.f }])), bal.total);
     const lane = (nm: string, b: number, s: number, net: number, faded: boolean, strong = false) => {
-      const pb = Math.max(b, 0), ps = Math.max(s, 0), w = pb + ps ? pb / (pb + ps) * 100 : 50;
-      return `<div class="acc-lane${faded ? ' f' : ''}${strong ? ' total' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${sgn(b)} · Sellers' net sale ${sgn(s)} · Net ${sgn(net)}">`
+      /* EXEC-QA5-FIX (QA F6): a part against its side pushes the other way (buyers that sold in this type add to the sell
+         side), so both parts negative is not drawn 50/50; the bar's split follows the net's sign */
+      const pb = Math.max(b, 0) + Math.max(-s, 0), ps = Math.max(s, 0) + Math.max(-b, 0), w = pb + ps ? pb / (pb + ps) * 100 : 50;
+      return `<div class="acc-lane${faded ? ' f' : ''}${strong ? ' total' : ''}" data-tip="${nm} · Top ${N}|Buyers' net ${rp(b)} · Sellers' net sale ${rp(s)} · Net ${rp(net)}">`
         + `<span class="nm${strong ? ' strong' : ''}">${nm}</span><div class="acc-tl"><i class="b" style="width:${w.toFixed(1)}%"></i><span class="mid"></span><i class="s" style="width:${(100 - w).toFixed(1)}%"></i></div>`
         + `<span class="nv ${net > 0 ? 'up' : net < 0 ? 'down' : ''}">${sgn(net)}</span></div>`;
     };
     const lanes = lane('Domestic', sp.buy.d, sp.sell.d, sp.net.d, false) + lane('Foreign', sp.buy.f, sp.sell.f, sp.net.f, true)
       + '<div class="acc-cut"></div>' + lane('Total', sp.buy.t, sp.sell.t, sp.net.t, false, true);
-    const tug = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
+    const boards = ['All', 'Regular', 'Nego', 'Cash'].map(v => `<option value="${v}"${v === board ? ' selected' : ''}>${v === 'All' ? 'All boards' : v}</option>`).join('');
+    const ctlRow = `<div class="rp-ctl acc-bal"><div class="seg" id="accTop" role="group" aria-label="Top N">${[3, 5, 10].map(k =>
         `<button type="button" data-n="${k}" class="${k === N ? 'active' : ''}" aria-pressed="${k === N}">Top ${k}</button>`).join('')}</div>`
       /* EXEC-TERMINAL-LOOK-3 (user 2026-11-06: "C ... bisa dipindah ke posisi D. Dikasih batch. Fill-nya hijau pekat, font-nya
          putih"; "Q3- A"): the ratio as a badge beside Top 3/5/10, solid green above zero, solid red below, grey at zero */
-      + `<span class="acc-ratio ${r2 > 0 ? 'up' : r2 < 0 ? 'down' : 'flat'}" data-tip="${why}">${ratio}</span></div>`
-      + verdictLadder(shown, why)
+      + `<select class="rp-sel" id="accBoard" aria-label="Board">${boards}</select></div>`;
+    /* EXEC-RP-LOOK R3 (user 2026-11-07: "X dan Y nya di tuker saja untuk top brokers"): the ratio badge sits on the period
+       row (rebuilt by makeRange when the data arrives, so it is placed on every render), the Board choice on the Top N row */
+    /* R8 (user 2026-11-07: the badge "dihilangkan saja"): the ratio is read from the ladder's marked step (its tooltip) */
+    $('accRange').querySelector('.acc-ratio')?.remove();
+    const tug = verdictLadder(shown, why)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */
       + `<div class="acc-lanes"><div class="acc-cap">Investor type of the trades · Top ${N} brokers</div>${lanes}</div>`;
-    $('accBody').innerHTML = n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
+    $('accBody').innerHTML = ctlRow + (n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
         + `<div class="acc-leg">${SPLIT_LEGEND}</div>`        /* EXEC-TERMINAL-LOOK-3: the "Dot: broker's own type" key removed (user) */
       /* QA M7 (2026-11-06): trades whose every broker nets to 0 (crossing on Nego or Cash) are not "no data" */
-      : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`;
+      : `<div class="rp-empty">${all.length ? 'No broker has a net buy or sell on this board in this period' : 'No broker trades in this period'}</div>`);
+    $('accBoard').onchange = (e: any) => { RS.accBoard = e.target.value; renderAcc() };
     $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
     $('accBody').querySelectorAll('#accTop button').forEach(btn => btn.onclick = () => { RS.accN = +btn.dataset.n; store.set('ml.acc.top', String(RS.accN)); renderAcc() });
-    $('accHint').textContent = (n ? `${accRange.text()} · net · ${vt}` : `${accRange.text()} · net`) + (board === 'All' ? '' : ` · ${board}`);   // QA round 3 (F3): the board
+    $('accHint').textContent = accRange.text(); $('accHint').title = accRange.text();   // re-test N5   // EXEC-RP-LOOK R5 (user 2026-11-07: " · net · Acc · Regular" "tidak perlu ada, atau hapus saja")
   }
   function renderAcc(){
     if(live) return renderAccPaired();
@@ -483,9 +525,16 @@ export function initBroker(ctx: Ctx) {
      main chart ... boleh gerak"), live: the period is the chart's visible sessions inside the broker window (no presets);
      the chart has a y-axis with ticks and a vertical line at the crosshair session, both ways with the main chart */
   if(live) ($('invRange') as HTMLElement).hidden = true;
+  /* EXEC-QA5-FIX H2 (QA 2026-11-07, S-02): the lines are net buying added up from the first session in view, not the shares
+     a broker holds (they change with the zoom); said under the chart, with the date they start from, and when the view
+     starts before the broker data, that the data starts there */
+  const invNote = (f: number, viewStart: string) => `Net ${RS.invUnit === 'lot' ? 'lots' : 'value'} bought since ${longDay(bkDates[f])}, the first session in view${viewStart < bkDates[0] ? ', where the broker data starts' : ''}. Not shares held.`;
+  /* an axis date as the rest of the page writes it, "02 Jan", with its year when the span crosses one (re-test N-4) */
+  const axDay = (f: number, t: number, d: number) => { const x = new Date(bkDates[d] + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep');
+    return bkDates[f].slice(0, 4) === bkDates[t].slice(0, 4) ? x : `${x} ${bkDates[d].slice(2, 4)}` };
   function renderInvLive(){
     const picks = [...invSel], r = ctx.chart.timeScale().getVisibleLogicalRange();
-    const a = r ? Math.max(0, Math.ceil(r.from)) : 0, b = r ? Math.min(ctx.N - 1, Math.floor(r.to)) : ctx.N - 1;
+    const [a, b] = visibleBars(r, ctx.N);
     const va = ctx.dates[a].slice(0, 10), vb = ctx.endDates[b];   // EXEC-TERMINAL-WM: to the last session of the last candle (an intraday key's session: its date)
     const f = bkDates.findIndex(x => x >= va);
     let t = -1; for(let i = 0; i < BK_DAYS && bkDates[i] <= vb; i++) t = i;
@@ -494,15 +543,18 @@ export function initBroker(ctx: Ctx) {
     const n = none ? 0 : t - f + 1, all = none ? [] : picks.map(invSeries);
     const scope = [RS.invInv, RS.invBoard].filter(v => v !== 'All').join(' · ');      // F1: the filters in force
     // EXEC-TERMINAL-INVBADGE (user 2026-10-29: "batch 3/5 dikasih batch juga"): the count of brokers as a badge
-    $('invHint').innerHTML = `<span class="rp-count">${picks.length}/${INV_MAX}</span>${scope ? ' · ' + scope : ''} · ${none ? 'no broker data in view' : invRange.text()}`;
+    // QA S-11: on a weekly or monthly chart the broker figures stay daily, as the window says
+    const tfNote = M.tf === 'W' || M.tf === 'M' || M.intraday ? ' · daily figures' : '';
+    $('invHint').innerHTML = `<span class="rp-count">${picks.length}/${INV_MAX}</span>${scope ? ' · ' + scope : ''} · ${none ? 'no broker data in view' : invRange.text()}${tfNote}`;
+    $('invHint').title = $('invHint').textContent;
     const chips = (i = null) => picks.map((bk, k) => {
       const p = all[k] ? (i === null ? all[k].at(-1) : all[k][i]) : null, v = p ? p.cum : 0;
-      return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${bk}<b class="${v>=0?'up':'down'}">${sgn(v)}</b><button type="button" data-rm="${bk}" aria-label="Remove ${bk}">×</button></span>`;
+      return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${bk}<b class="${v>0?'up':v<0?'down':''}">${sgn(v)}</b><button type="button" data-rm="${bk}" aria-label="Remove ${bk}">×</button></span>`;
     }).join('');
     const wireChips = () => $('invLegend').querySelectorAll('[data-rm]').forEach(x => x.onclick = () => { invSel.delete(x.dataset.rm); changed() });
     $('invLegend').innerHTML = chips(); wireChips();
     invOnCross = null;
-    if(!picks.length){ $('invBody').innerHTML = `<div class="rp-empty">Pilih 1–${INV_MAX} broker untuk melihat pergerakannya.</div>`; return }
+    if(!picks.length){ $('invBody').innerHTML = `<div class="rp-empty">Choose 1–${INV_MAX} brokers to see their net buying.</div>`; return }
     if(none){ $('invBody').innerHTML = `<div class="rp-empty">The chart shows ${longDay(va)} – ${longDay(vb)}; broker data covers ${longDay(bkDates[0])} – ${longDay(bkDates[BK_DAYS-1])}.</div>`; return }
     if(n < 2){ $('invBody').innerHTML = `<div class="rp-empty">Zoom the chart out to at least 2 sessions with broker data.</div>`; return }
     const W = 272, H = 120;
@@ -512,11 +564,12 @@ export function initBroker(ctx: Ctx) {
     const lines = all.map((s, k) => `<path d="${s.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.cum).toFixed(1)).join('')}" fill="none" stroke="${INV_COLORS[k]}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
     const grid = ticks.map(v => `<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${v === 0 ? '#d4d4d4' : '#f0f0f0'}"${v === 0 ? ' stroke-dasharray="3 3"' : ''} vector-effect="non-scaling-stroke"/>`).join('');
     $('invBody').innerHTML = `
-      <div class="rp-invwrap live"><div class="rp-yax">${ticks.map(v => `<span style="top:${(y(v)/H*100).toFixed(2)}%">${v === 0 ? '0' : sgn(v)}</span>`).join('')}</div>
+      <div class="rp-invwrap live"><div class="rp-yax">${ticks.map(v => `<span style="top:${(y(v)/H*100).toFixed(2)}%">${v === 0 ? '0' : tickCompact(v)}</span>`).join('')}</div>
         <svg class="rp-inv" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${grid}${lines}
           <line class="inv-xh" x1="0" x2="0" y1="0" y2="${H}" stroke="#9ca3af" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" visibility="hidden"/></svg>
         <span class="rp-invdate" hidden></span></div>
-      <div class="axis"><span class="l">${bkDates[f].slice(5)}</span><span class="r">${bkDates[t].slice(5)}</span></div>`;
+      <div class="axis"><span class="l">${axDay(f, t, f)}</span><span class="r">${axDay(f, t, t)}</span></div>
+      <div class="rp-invnote">${invNote(f, va)}</div>`;
     const svg = $('invBody').querySelector('svg'), xh = svg.querySelector('.inv-xh'), lab = $('invBody').querySelector('.rp-invdate');
     // EXEC-TERMINAL-LAG: the plot's place is measured once per drawing, not on every crosshair move (a forced layout each time)
     let geo = null;
@@ -608,13 +661,10 @@ export function initBroker(ctx: Ctx) {
   const fdRange = makeRange($('fdRange'), { key:'fd', presets:[1,5,20], def:5, onChange:() => renderFD() });
   const fdRangeText = (f: number, t: number) => f === t ? dayShort(t) : `${dayShort(f)} – ${dayShort(t)}`;
   const fdPoint = (f: number, t: number, label: string, cur: boolean): MapPoint => {
-    const N = RS.fdN, board = RS.fdBoard, part = inv => new Map(bkAggRange(f, t, inv, board).map(o => [o.b, netOf(o)]));
-    const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', board), N);
-    const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
-    const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
-    const pc = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%` };   // QA round 3 (agent 5 M4): never "−0.0%"
-    return { label, x, y, r, cur, empty:!(bal.total > 0),
-      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|X foreign ${pc(x)} + Y domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
+    const N = RS.fdN, board = RS.fdBoard, { x, y, r, total } = fdAt((a, b, inv) => bkAggRange(a, b, inv, board), f, t, N);
+    const sh = fdShown(x, y, r);   // EXEC-QA5-FIX (QA F1, F2): the figures as shown, two decimals, adding up
+    return { label, x, y, r, cur, empty:!(total > 0),
+      tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|Foreign ${fdPct(sh.x)} + Domestic ${fdPct(sh.y)} = verdict ${fdPct(sh.r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(sh.x, sh.y)]}` };
   };
   function renderFD(){
     if(!fdSec || fdSec.hidden) return;
@@ -632,9 +682,13 @@ export function initBroker(ctx: Ctx) {
     $('fdBoard').value = RS.fdBoard;
     $('fdBoard').onchange = (e: any) => { RS.fdBoard = e.target.value; renderFD() };
     $('fdTop').querySelectorAll('button').forEach((b: any) => b.onclick = () => { RS.fdN = +b.dataset.n; store.set('ml.fd.top', String(RS.fdN)); renderFD() });
-    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(cur.x, cur.y, cur.empty, RS.fdN)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
-      + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse());
-    $('fdHint').textContent = fdRange.text();
+    $('fdBody').innerHTML = `<div class="rp-ctl fdm-now">${quadrantTag(fdShown(cur.x, cur.y, cur.r).x, fdShown(cur.x, cur.y, cur.r).y, cur.empty, RS.fdN)}${cur.empty ? '' : `<span class="tag ${vc}${big}">${vt}</span>`}</div>`
+      + mapSvg(pts, lim) + mapReadout(cur, pts.slice().reverse(), store.get('ml.fd.readout') !== '0');
+    const fold = $('fdBody').querySelector('.fdm-fold') as HTMLButtonElement;
+    fold.onclick = () => { const open = fold.getAttribute('aria-expanded') !== 'true'; store.set('ml.fd.readout', open ? '1' : '0');
+      fold.setAttribute('aria-expanded', String(open)); fold.parentElement!.classList.toggle('folded', !open); ($('fdmDetail') as HTMLElement).hidden = !open };
+    $('fdHint').textContent = fdRange.text(); $('fdHint').title = fdRange.text();   // QA F13: the full text in a narrow panel
+    $('fdBody').querySelectorAll('.fdm-now .tag').forEach((t: any) => { t.title = t.textContent });
   }
 
   /* ---- wiring ---- */
@@ -646,6 +700,9 @@ export function initBroker(ctx: Ctx) {
   panelRefresh = () => { invFilter.refresh(); renderAll() };
   const selectBroker = b => ctx.brokerShared!.pick(b);
   $('bsInv').onchange = e => { RS.inv = e.target.value; renderBS() };
+  /* EXEC-RP-LOOK R3 (user 2026-11-07: the map's positions also "di panel broker summary"), live only (the fixture stays 1:1
+     with the reference): the switch on the left, the investor and board choices on the right */
+  if(live){ const row = $('bsInv').parentElement as HTMLElement; row.prepend($('bsMode')); row.classList.add('bs-ctl') }
   $('bsBoard').value = RS.board;
   $('bsBoard').onchange = e => { RS.board = e.target.value; renderBS() };
   const segWire = (id, attr, fn) => $(id).querySelectorAll('button').forEach(btn => btn.onclick = () => {

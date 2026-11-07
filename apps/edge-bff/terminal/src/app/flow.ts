@@ -272,7 +272,19 @@ export function initFlow(ctx: Ctx) {
   let cumOn = store.get('ml.flow.cum') !== '0';
   // EXEC-TERMINAL-LAG: formatted once per session (toLocaleDateString on every crosshair move cost ~0.5 s per drag)
   const dmyCache = new Map<number, string>();
-  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep').replace(',', ''); dmyCache.set(i, s) } return s };   // 28 Nov 2025
+  const fmtDMY = (i: number) => { let s = dmyCache.get(i); if(s === undefined){ s = new Date(dates[i].slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('Sept', 'Sep').replace(',', ''); dmyCache.set(i, s) } return i === N - 1 ? s + partial() : s };   // 28 Nov 2025
+  /* EXEC-QA5-FIX (QA 2026-11-07, Q10, agent 5 F10): the last weekly or monthly candle while its week or month is still
+     running (its last session before Friday, or before the month's last weekday) says how many sessions it holds so far */
+  const partial = () => {
+    const tf = ctx.M.tf, end = ctx.endDates?.[N - 1];
+    if (!end || (tf !== 'W' && tf !== 'M') || ctx.M.intraday) return '';
+    const d = new Date(end + 'T00:00:00Z'), wd = d.getUTCDay();
+    let open = tf === 'W' ? wd >= 1 && wd < 5 : false;
+    if (tf === 'M') { const x = new Date(d); for (x.setUTCDate(x.getUTCDate() + 1); x.getUTCMonth() === d.getUTCMonth(); x.setUTCDate(x.getUTCDate() + 1)) if (x.getUTCDay() % 6) { open = true; break } }
+    if (!open) return '';
+    const key = ctx.dates[N - 1], bd = ctx.M.broker?.dates || [], n = ctx.M.barOf ? bd.filter((x: string) => ctx.M.barOf!(x) === key).length : 0;
+    return ` · ${tf === 'W' ? 'week' : 'month'} so far${n ? ` (${n} session${n > 1 ? 's' : ''})` : ''}`;
+  };
   ctx.tipHooks = [];                                       // crosshair listeners (indicator legend values)
   const noFlow = !inputsOf(ctx.M).has('flow');
   const showTip = (i: number) => {

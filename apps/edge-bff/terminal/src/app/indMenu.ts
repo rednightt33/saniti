@@ -198,9 +198,12 @@ export function initIndMenu(ctx: Ctx) {
     const hits = ps && q ? ps.list().filter(p => `${p.name} ${p.summary} ${ps.defName(p) || ''} ${p.def_id}`.toLowerCase().includes(q)) : [];
     const spying = spyMode(), rows = spying ? ordered() : view(group, query), wide = !spying;
     let last = '';
-    list.innerHTML = (hits.length ? `<div class="im-sec" role="presentation">My presets</div>${hits.map(presetRow).join('')}${rows.length ? '<div class="im-sec" role="presentation">Indicators</div>' : ''}` : '')
+    /* EXEC-IND-NAV B1 (user 2026-11-07: "B1 ok"): every group heading carries how many indicators it holds */
+    const counts = new Map<string, number>(); rows.forEach(i => counts.set(keyOf(i), (counts.get(keyOf(i)) || 0) + 1));
+    const cnt = (k: number) => `<span class="im-sec-n">${k}</span>`;
+    list.innerHTML = (hits.length ? `<div class="im-sec" role="presentation">My presets${cnt(hits.length)}</div>${hits.map(presetRow).join('')}${rows.length ? `<div class="im-sec" role="presentation">Indicators${cnt(rows.length)}</div>` : ''}` : '')
       + (rows.length ? rows.map(i => {
-      const k = keyOf(i), head = spying && k !== last ? `<div class="im-sec" data-sec="${esc(k)}" role="presentation">${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}</div>` : '';
+      const k = keyOf(i), head = spying && k !== last ? `<div class="im-sec" data-sec="${esc(k)}" role="presentation">${i.kind === 'Flow' ? 'Flow · ' : ''}${esc(i.group)}${cnt(counts.get(k) || 0)}</div>` : '';
       last = k;
       return head + rowHtml(i, wide);
     }).join('') : hits.length ? '' : `<div class="im-empty">${group === 'fav' && !query ? 'No favorites yet: star an indicator to keep it here.' : group === 'chart' && !query ? 'No indicator on the chart yet.' : 'No indicators match.'}</div>`);

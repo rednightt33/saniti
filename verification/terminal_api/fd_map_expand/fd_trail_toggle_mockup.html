@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foreign × Domestic Window</title>
+<style>
+:root{--bg:#f4f4f5;--surface:#fff;--border:#eaeaea;--text:#171717;--text-2:#666;--text-3:#999;--sel:#f2f2f2;--up:#089981;--down:#f23645;
+ --up-soft:#e3f5ef;--down-soft:#fde8ea;--fx:#0070f3;--fx-soft:#e6f0fe;--dm:#d97706;--dm-soft:#fef3e0;--sans:"Inter","Segoe UI",system-ui,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f0f10;--surface:#18181a;--border:#2a2a2d;--text:#ededed;--text-2:#a1a1a1;--text-3:#707070;--sel:#26262a;--up-soft:#0d2e27;--down-soft:#3a1519;--fx-soft:#0b2240;--dm-soft:#3a2a0b}}
+:root[data-theme="dark"]{--bg:#0f0f10;--surface:#18181a;--border:#2a2a2d;--text:#ededed;--text-2:#a1a1a1;--text-3:#707070;--sel:#26262a;--up-soft:#0d2e27;--down-soft:#3a1519;--fx-soft:#0b2240;--dm-soft:#3a2a0b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13.5px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:12px 16px}
+h1{font-size:17px;margin:0}.muted{color:var(--text-2)}.small{font-size:12px}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin:16px 0}
+.box h2{font-size:15px;margin:0 0 8px}.box h3{font-size:13.5px;margin:14px 0 6px}.box p{margin:6px 0}.box ul,.box ol{margin:6px 0;padding-left:20px}.box li{margin:4px 0}
+.fx{color:var(--fx)}.dm{color:var(--dm)}.up{color:var(--up)}.down{color:var(--down)}
+table.ex{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;margin:6px 0}
+table.ex th,table.ex td{padding:5px 8px;border-top:1px solid var(--border);text-align:right;white-space:nowrap}
+table.ex th:first-child,table.ex td:first-child{text-align:left}
+table.ex th{color:var(--text-2);font-weight:600;background:var(--sel);border-top:0}
+table.ex tr.sum td{font-weight:700;border-top:1.5px solid var(--text-3)}
+.formula{white-space:pre-wrap;font-family:var(--mono);font-size:12.5px;background:var(--sel);border-radius:6px;padding:8px 10px;margin:6px 0;overflow-wrap:anywhere}
+.quad{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0;font-size:12.5px}
+.quad div{border:1px solid var(--border);border-radius:6px;padding:6px 8px}
+/* the window */
+.scroll{overflow-x:auto;padding:4px 2px 10px}
+.win{width:880px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.12);overflow:hidden;font-size:13px}
+.wh{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.wh strong{font-size:14px}.wh small{color:var(--text-3);font-size:12px;white-space:nowrap}
+.wh .ic{margin-left:auto;color:var(--text-2);letter-spacing:8px}
+.wb{padding:12px 14px 14px;min-height:430px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;padding:2px;gap:2px}
+.seg button,.seg span{height:24px;line-height:24px;padding:0 10px;border-radius:4px;border:0;background:none;font:500 12px var(--sans);color:var(--text-2);cursor:pointer}
+.seg .on{background:var(--sel);color:var(--text)}
+.seg.view .on{background:var(--text);color:var(--surface)}
+.sel{height:30px;line-height:28px;border:1px solid var(--border);border-radius:6px;padding:0 26px 0 10px;font-size:12px;position:relative}
+.sel::after{content:'▾';position:absolute;right:9px;color:var(--text-2)}
+.r{margin-left:auto}
+.now{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.tag.q{background:var(--fx);color:#fff}.tag.bd{background:var(--down);color:#fff}.tag.fx{background:var(--fx-soft);color:var(--fx)}.tag.dm{background:var(--dm-soft);color:var(--dm)}
+.grid2{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}
+.eq{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:4px;align-items:center;text-align:center;border:1px solid var(--border);border-radius:8px;padding:8px;margin:0 0 10px}
+.eq span{display:block;font-size:10.5px;color:var(--text-3)}.eq b{font-size:15px}.eq i{font-style:normal;color:var(--text-3)}
+table.t{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+table.t th,table.t td{padding:5px 6px;border-top:1px solid var(--border);text-align:right;white-space:nowrap}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t th{color:var(--text-3);font-weight:500;font-size:11px;border-top:0;position:sticky;top:0;background:var(--surface)}
+table.t tr.cur td{background:var(--sel);font-weight:600}
+table.t tr:hover td{background:color-mix(in srgb,var(--sel) 70%,transparent)}
+.tbox{max-height:360px;overflow:auto}
+.cap{font-size:11px;color:var(--text-3);margin:6px 0 0}
+.leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--text-2);margin-top:6px}
+svg text{font-family:var(--sans)}
+[hidden]{display:none !important}
+footer{margin:28px 0 40px;color:var(--text-2);font-size:12px}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><h1>Foreign × Domestic map: cara membaca dan cara menghitung</h1><span class="muted small">mock-up · data contoh (dummy)</span></div></header>
+<main class="wrap">
+
+<section class="box">
+  <h2>1. Arti persen di sumbu X dan Y</h2>
+  <p>Peta ini menjawab satu pertanyaan: <b>broker-broker terbesar yang membeli dan menjual bersih di periode ini, transaksinya lebih banyak untuk investor asing atau domestik, dan ke arah mana?</b></p>
+  <p>Semua persen memakai <b>penyebut yang sama</b>, yaitu <b>total nilai beli semua broker</b> di saham itu selama periode itu, di board yang dipilih (misalnya Regular, 5 hari). Jadi:</p>
+  <ul>
+    <li><b class="fx">X · Foreign</b>: arus bersih <b>transaksi investor asing</b> dari para broker Top N (pembeli bersih terbesar dan penjual bersih terbesar), dibagi total nilai beli.
+      <ul>
+        <li><b>Positif (kanan):</b> lewat broker-broker besar itu, asing <b>membeli</b> bersih.</li>
+        <li><b>Negatif (kiri):</b> asing <b>menjual</b> bersih.</li>
+      </ul></li>
+    <li><b class="dm">Y · Domestic</b>: hal yang sama untuk <b>transaksi investor domestik</b>. Positif (atas) berarti domestik membeli bersih, negatif (bawah) berarti menjual bersih.</li>
+    <li><b>Verdict = X + Y</b>: selisih bersih kekuatan Top N pembeli lawan Top N penjual, dibagi total nilai beli. Ini sama dengan <b>Bandar Balance</b> (FL24) di Top brokers.
+      <ul>
+        <li>Mulai ±6% disebut <b>Acc/Dist</b>, mulai ±10% disebut <b>Big Acc/Big Dist</b>.</li>
+        <li>Di bawah ±6% disebut <b>Neutral</b>.</li>
+      </ul></li>
+  </ul>
+  <p>Jadi persen ini <b>bukan</b> persen kenaikan harga dan <b>bukan</b> persen kepemilikan. Ini ukuran "seberapa besar dorongan bersih, dibanding semua pembelian di periode itu".</p>
+  <p class="muted small">Contoh: <b>X = −30%</b> berarti dari setiap Rp100 nilai beli semua broker di periode itu, transaksi asing lewat broker-broker Top N menjual bersih senilai Rp30.</p>
+  <div class="quad">
+    <div><b>Kiri-atas</b> (X−, Y+): <i>Domestic absorbing, foreign leaving</i>: asing keluar, domestik menampung.</div>
+    <div><b>Kanan-atas</b> (X+, Y+): <i>Both accumulating</i>: asing dan domestik sama-sama beli bersih.</div>
+    <div><b>Kiri-bawah</b> (X−, Y−): <i>Both distributing</i>: keduanya jual bersih.</div>
+    <div><b>Kanan-bawah</b> (X+, Y−): <i>Foreign absorbing, domestic leaving</i>: asing menampung, domestik keluar.</div>
+  </div>
+</section>
+
+<section class="box">
+  <h2>2. Cara menghitung: contoh langkah demi langkah</h2>
+  <p>Data contoh, satu periode 5 hari, board Regular, Top 3:</p>
+  <ol>
+    <li><b>Total nilai beli semua broker</b> di periode itu = <b>Rp100B</b>. Ini penyebut semua persen.</li>
+    <li><b>Urutkan broker menurut net</b> (nilai beli − nilai jual, semua investor). Ambil 3 pembeli bersih terbesar dan 3 penjual bersih terbesar.</li>
+    <li><b>Pecah net setiap broker itu</b> menurut jenis investor di transaksinya: bagian asing + bagian domestik = net broker itu.</li>
+    <li><b>Jumlahkan kolom</b> asing dan kolom domestik, lalu <b>bagi dengan Rp100B</b>.</li>
+  </ol>
+  <div style="overflow-x:auto"><table class="ex"><thead><tr><th>Broker</th><th>Peran</th><th>Net</th><th class="fx">Bagian asing</th><th class="dm">Bagian domestik</th></tr></thead><tbody>
+    <tr><td>AA</td><td>Pembeli bersih #1</td><td class="up">+20B</td><td>+5B</td><td>+15B</td></tr>
+    <tr><td>BB</td><td>Pembeli bersih #2</td><td class="up">+10B</td><td>0</td><td>+10B</td></tr>
+    <tr><td>CC</td><td>Pembeli bersih #3</td><td class="up">+5B</td><td>−2B</td><td>+7B</td></tr>
+    <tr><td>XX</td><td>Penjual bersih #1</td><td class="down">−25B</td><td>−22B</td><td>−3B</td></tr>
+    <tr><td>YY</td><td>Penjual bersih #2</td><td class="down">−12B</td><td>−10B</td><td>−2B</td></tr>
+    <tr><td>ZZ</td><td>Penjual bersih #3</td><td class="down">−8B</td><td>−1B</td><td>−7B</td></tr>
+    <tr class="sum"><td>Jumlah</td><td></td><td class="down">−10B</td><td class="fx">−30B</td><td class="dm">+20B</td></tr>
+  </tbody></table></div>
+  <div class="formula">X (Foreign)  = −30B ÷ 100B = <b>−30%</b><br>Y (Domestic) = +20B ÷ 100B = <b>+20%</b><br>Verdict      = X + Y = −10B ÷ 100B = <b>−10%</b> → Big Dist</div>
+  <p>Hasilnya titik di <b>kiri-atas</b> (asing keluar, domestik menampung), dan Verdict −10% = Big Dist.</p>
+  <p>Cek silang: Verdict juga sama dengan (beli bersih 3 pembeli − jual bersih 3 penjual) ÷ total beli = (35B − 45B) ÷ 100B = −10%. Angka ini persis sama dengan rasio di Top brokers.</p>
+  <h3>Jejak 20 sesi dan kolom Δ di tabel</h3>
+  <ul>
+    <li>Setiap titik jejak adalah perhitungan yang sama untuk <b>5 hari yang berakhir di sesi itu</b>, sehingga 20 titik = 20 sesi terakhir, bergeser satu hari tiap titik.</li>
+    <li><b>Δ</b> adalah perubahan dari titik sesi sebelumnya, dalam <b>poin persen (pt)</b>. Contoh: Foreign −24% → −30% = <b>Δ −6 pt</b>.</li>
+    <li>Karena Verdict = Foreign + Domestic, maka selalu <b>Δ Verdict = Δ Foreign + Δ Domestic</b>. Contoh: −6 pt + +2 pt = −4 pt.</li>
+    <li><b>Penggerak</b> = yang perubahannya lebih besar (tanpa melihat tanda). Pada contoh itu Foreign (6 &gt; 2): Verdict turun terutama karena asing.</li>
+  </ul>
+</section>
+
+<section class="box">
+  <h2>3. Mock-up window (data contoh): Peta + jejak 20 sesi, dengan tombol Peta / Tabel</h2>
+  <p class="small muted">Tombol <b>Map / Table</b> di baris kontrol bisa diklik. Titik terakhir sama dengan contoh hitungan di atas (−30%, +20%).</p>
+  <div class="scroll"><div class="win">
+    <div class="wh"><strong>Foreign × Domestic map</strong><small>DEMO · 20 sessions to 03 Nov · rolling 5D · Top 3 · Regular</small><span class="ic">📌↘✕</span></div>
+    <div class="wb">
+      <div class="ctl"><div class="seg"><span>1D</span><span class="on">5D</span><span>20D</span><span>Custom</span></div><div class="seg"><span class="on">Top 3</span><span>Top 5</span><span>Top 10</span></div>
+        <div class="seg view" role="tablist" aria-label="View"><button type="button" class="on" data-v="map" role="tab" aria-selected="true">Map</button><button type="button" data-v="table" role="tab" aria-selected="false">Table</button></div><span class="sel r">Regular</span></div>
+      <div class="now"><span class="tag q">Domestic absorbing, foreign leaving · Top 3</span><span class="tag bd">Big Dist</span><span class="small muted" id="change"></span></div>
+      <div id="vMap" class="grid2"><div id="map"></div><div><div class="eq"><div><span>Foreign</span><b class="down">−30.0%</b></div><i>+</i><div><span>Domestic</span><b class="up">+20.0%</b></div><i>=</i><div><span>Verdict 5D</span><b class="down">−10.0%</b></div></div><div id="mini"></div></div></div>
+      <div id="vTable" hidden><div class="tbox"><table class="t" id="tbl"></table></div><p class="cap">Each row: the 5D point ending that session. Δ = change from the row below (the session before), in percentage points; Δ Verdict = Δ Foreign + Δ Domestic. Driver = the larger change.</p></div>
+    </div>
+  </div></div>
+</section>
+<footer>Semua angka di halaman ini contoh (dummy). Rumusnya sama dengan Terminal (<code>apps/edge-bff/terminal/src/data/brokerAgg.ts</code> <code>fdSplit</code>, <code>app/broker.ts</code> <code>bandarBalance</code>). Mock-up; belum dibangun.</footer>
+</main>
+<script>
+/* 20 dummy rolling-5D points, ending at the worked example (−30%, +20%) */
+const raw = [[-4, 3], [-6, 2], [-5, 5], [-9, 6], [-8, 4], [-12, 7], [-11, 9], [-14, 8], [-13, 11], [-17, 10], [-16, 13], [-19, 12], [-21, 15], [-20, 14], [-23, 17], [-22, 16], [-25, 19], [-26, 17], [-24, 18], [-30, 20]];
+const days = ['07 Oct', '08 Oct', '09 Oct', '12 Oct', '13 Oct', '14 Oct', '15 Oct', '16 Oct', '19 Oct', '20 Oct', '21 Oct', '22 Oct', '23 Oct', '26 Oct', '27 Oct', '28 Oct', '29 Oct', '30 Oct', '02 Nov', '03 Nov'];
+const T = raw.map(([x, y], i) => ({ d:days[i], x, y, r:x + y }));
+const pc = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%', pt = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + ' pt';
+const cls = v => v > 0 ? 'up' : v < 0 ? 'down' : '';
+const lim = 35, Sz = 290, P = 40, sx = v => P + (v + lim) / (2 * lim) * Sz, sy = v => P + (lim - v) / (2 * lim) * Sz;
+let g = `<svg viewBox="0 0 ${Sz + P * 2} ${Sz + P * 2}" width="100%" role="img" aria-label="Foreign by Domestic map with a 20-session trail">`;
+g += `<rect x="${P + Sz / 2}" y="${P}" width="${Sz / 2}" height="${Sz / 2}" fill="var(--up-soft)" opacity=".7"/><rect x="${P}" y="${P + Sz / 2}" width="${Sz / 2}" height="${Sz / 2}" fill="var(--down-soft)" opacity=".7"/><rect x="${P}" y="${P}" width="${Sz}" height="${Sz}" rx="6" fill="none" stroke="var(--border)"/>`;
+g += `<line x1="${P + Sz / 2}" y1="${P}" x2="${P + Sz / 2}" y2="${P + Sz}" stroke="var(--text-3)" stroke-width=".8"/><line x1="${P}" y1="${P + Sz / 2}" x2="${P + Sz}" y2="${P + Sz / 2}" stroke="var(--text-3)" stroke-width=".8"/>`;
+[['Domestic absorbs', P + 6, P + 14, 'start'], ['Both accumulate', P + Sz - 6, P + 14, 'end'], ['Both distribute', P + 6, P + Sz - 6, 'start'], ['Foreign absorbs', P + Sz - 6, P + Sz - 6, 'end']].forEach(([t, x, y, a]) => g += `<text x="${x}" y="${y}" font-size="10" fill="var(--text-3)" text-anchor="${a}">${t}</text>`);
+[-lim, 0, lim].forEach(v => g += `<text x="${sx(v)}" y="${P + Sz + 14}" font-size="9.5" text-anchor="middle" fill="var(--text-3)">${pc(v)}</text><text x="${P - 4}" y="${sy(v) + 3}" font-size="9.5" text-anchor="end" fill="var(--text-3)">${pc(v)}</text>`);
+g += `<text x="${P + Sz / 2}" y="${P + Sz + 30}" font-size="10" text-anchor="middle" fill="var(--fx)">X · Foreign (% of total buy)</text><text x="11" y="${P + Sz / 2}" font-size="10" text-anchor="middle" fill="var(--dm)" transform="rotate(-90 11 ${P + Sz / 2})">Y · Domestic (% of total buy)</text>`;
+g += `<polyline fill="none" stroke="var(--text-3)" stroke-width="1" points="${T.map(p => sx(p.x) + ',' + sy(p.y)).join(' ')}"/>`;
+T.forEach((p, i) => g += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="${i === T.length - 1 ? 6.5 : 3}" fill="var(--text)" opacity="${.25 + .75 * i / (T.length - 1)}"/>`);
+g += `<text x="${sx(T[0].x) + 6}" y="${sy(T[0].y) + 4}" font-size="10" fill="var(--text-2)">${T[0].d}</text><text x="${sx(T.at(-1).x) + 10}" y="${sy(T.at(-1).y) + 4}" font-size="11" font-weight="700" fill="var(--text)">now</text>`;
+document.getElementById('map').innerHTML = g + '</svg>';
+const D = T.map((p, i) => i ? { ...p, dx:p.x - T[i - 1].x, dy:p.y - T[i - 1].y, dr:p.r - T[i - 1].r } : { ...p, dx:null, dy:null, dr:null });
+const drv = s => s.dx == null ? '' : `<span class="tag ${Math.abs(s.dx) >= Math.abs(s.dy) ? 'fx' : 'dm'}">${Math.abs(s.dx) >= Math.abs(s.dy) ? 'Foreign' : 'Domestic'}</span>`;
+const first = T[0], last = T.at(-1);
+document.getElementById('change').innerHTML = `20 sessions: Verdict ${pt(last.r - first.r)} = Foreign <b class="fx">${pt(last.x - first.x)}</b> + Domestic <b class="dm">${pt(last.y - first.y)}</b>`;
+document.getElementById('mini').innerHTML = `<table class="t"><tr><th>Last 5 sessions</th><th>Verdict</th><th>Δ Verdict</th><th>Driver</th></tr>${D.slice(-5).reverse().map((s, i) => `<tr class="${i === 0 ? 'cur' : ''}"><td>${s.d}</td><td class="${cls(s.r)}">${pc(s.r)}</td><td class="${cls(s.dr)}">${pt(s.dr)}</td><td>${drv(s)}</td></tr>`).join('')}</table><p class="cap">Table view: all 20 sessions with Δ Foreign and Δ Domestic.</p>`;
+document.getElementById('tbl').innerHTML = `<tr><th>5D to</th><th class="fx">Foreign</th><th class="dm">Domestic</th><th>Verdict</th><th>Δ Verdict</th><th class="fx">Δ Foreign</th><th class="dm">Δ Domestic</th><th>Driver</th></tr>`
+  + D.slice().reverse().map((s, i) => `<tr class="${i === 0 ? 'cur' : ''}"><td>${s.d}</td><td class="${cls(s.x)}">${pc(s.x)}</td><td class="${cls(s.y)}">${pc(s.y)}</td><td class="${cls(s.r)}"><b>${pc(s.r)}</b></td><td class="${cls(s.dr)}">${s.dr == null ? '—' : pt(s.dr)}</td><td class="${cls(s.dx)}">${s.dx == null ? '—' : pt(s.dx)}</td><td class="${cls(s.dy)}">${s.dy == null ? '—' : pt(s.dy)}</td><td>${drv(s)}</td></tr>`).join('');
+document.querySelectorAll('.seg.view button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.seg.view button').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-selected', String(on)) });
+  document.getElementById('vMap').hidden = b.dataset.v !== 'map'; document.getElementById('vTable').hidden = b.dataset.v !== 'table';
+});
+</script>
+</body>
+</html>

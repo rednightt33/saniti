@@ -57,6 +57,14 @@ export const savedClient = (BASE: string, what: string) => {
 const BASE = '/api/v1/terminal/layouts';
 const call = savedClient(BASE, 'layout');
 
+/** EXEC-DRAW-PANES: a write sent as the page goes away (keepalive; no answer read), for any saved object of the account */
+export const sendOnLeave = (url: string, method: string, body: unknown) => {
+  if (!csrfNow) return;
+  try { fetch(url, { method, keepalive:true, credentials:'same-origin', headers:{ 'x-csrf-token':csrfNow, 'content-type':'application/json' }, body:JSON.stringify(body) }) } catch { /* the page is leaving */ }
+};
+/** the CSRF token is read before the page needs to leave (sendOnLeave) */
+export const primeToken = () => { token().catch(() => {}) };
+
 export const newLayoutId = () => 'lay_' + [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
 
 export const layoutsApi = {

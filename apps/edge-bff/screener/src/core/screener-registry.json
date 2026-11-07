@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "a5da50d745dc6094",
+  "screener_registry_version": "96d2a1182c273adc",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -37,7 +37,7 @@
     {
       "role": "flow_registry",
       "file": "apps/edge-bff/terminal/src/data/flowRegistry.json",
-      "sha256": "240fdfbd1ca6f19a24ba08e0119342d65ec1f197ef8dfa799089c2db0536772f"
+      "sha256": "953cf436d33d63b9eff67ec5d4e226010d2761aca9330274df79b1c009e0f4cc"
     },
     {
       "role": "flow_kinds",
@@ -9117,7 +9117,7 @@
       "family": "Share",
       "unit": "%",
       "place": "pane",
-      "tip": "Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker.",
+      "tip": "Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker pada papan dan jenis investor yang sama.",
       "needs_frequency": false,
       "outputs": [
         {
@@ -9427,7 +9427,7 @@
       "family": "Transaction Size",
       "unit": "x",
       "place": "pane",
-      "tip": "Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata pasar.",
+      "tip": "Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata semua broker pada papan dan jenis investor yang sama.",
       "needs_frequency": true,
       "outputs": [
         {
@@ -10115,10 +10115,6 @@
             [
               "gross_buy",
               "Top gross buyers"
-            ],
-            [
-              "net_sell",
-              "Top net sellers"
             ]
           ],
           "default": "net_buy",
@@ -12363,7 +12359,7 @@
       "family": "Bandar Balance",
       "unit": "%",
       "place": "pane",
-      "tip": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual, dibanding seluruh nilai transaksi.",
+      "tip": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual: (net beli N pembeli terbesar − net jual N penjual terbesar) ÷ nilai beli semua broker pada papan dan jenis investor yang dipilih (dengan satu jenis investor, penyebutnya hanya jenis itu).",
       "needs_frequency": false,
       "outputs": [
         {
@@ -12542,7 +12538,7 @@
       "family": "Net Flow",
       "unit": "days",
       "place": "pane",
-      "tip": "Berapa hari berturut-turut kelompok (misalnya asing) membeli bersih atau menjual bersih.",
+      "tip": "Berapa hari berturut-turut kelompok (misalnya asing) membeli bersih atau menjual bersih; hitungan dibatasi sampai batas hari yang dipilih.",
       "needs_frequency": false,
       "outputs": [
         {
@@ -12697,7 +12693,7 @@
       "family": "Other",
       "unit": "flag",
       "place": "marker",
-      "tip": "Tanda saat volume naik tetapi harga hampir diam; pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).",
+      "tip": "Tanda saat volume (papan Regular) naik tetapi harga hampir diam; bisa akumulasi atau distribusi, tanda ini tidak membaca broker. Pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).",
       "needs_frequency": false,
       "outputs": [
         {
@@ -12811,7 +12807,7 @@
       "family": "Other",
       "unit": "IDR",
       "place": "pane",
-      "tip": "Rata-rata nilai Rupiah yang diperdagangkan per hari.",
+      "tip": "Rata-rata nilai Rupiah yang diperdagangkan per hari di papan Regular (harga penutupan × volume).",
       "needs_frequency": false,
       "outputs": [
         {
@@ -12847,7 +12843,7 @@
       "family": "Bandar Balance",
       "unit": "%",
       "place": "pane",
-      "tip": "Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai transaksi (persen).",
+      "tip": "Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai beli pada papan dan jenis investor yang dipilih (persen).",
       "needs_frequency": false,
       "outputs": [
         {
@@ -12988,7 +12984,7 @@
       "family": "Other",
       "unit": "IDR",
       "place": "pane",
-      "tip": "Arah transaksi orang dalam.",
+      "tip": "Arah transaksi orang dalam (hanya aksi BUY dan SELL). Banyak transaksi memakai harga perkiraan Stockbit (sebagian besar baris KSEI), jadi nilainya perkiraan.",
       "needs_frequency": false,
       "outputs": [
         {
@@ -13043,7 +13039,7 @@
       "family": "Transactions",
       "unit": "x",
       "place": "pane",
-      "tip": "Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya.",
+      "tip": "Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya. Dengan kedua jenis investor, sisi beli dan jual adalah transaksi yang sama (garisnya sama); pilih Asing atau Domestik untuk membandingkan sisi.",
       "needs_frequency": false,
       "outputs": [
         {
@@ -13342,7 +13338,7 @@
       "family": "Other",
       "unit": "%",
       "place": "pane",
-      "tip": "Siapa yang dominan: broker institusi atau broker ritel.",
+      "tip": "Siapa yang dominan: broker institusi atau broker ritel. Daftar institusi dan ritel memakai klasifikasi broker terkini untuk semua tanggal.",
       "needs_frequency": false,
       "outputs": [
         {

@@ -185,9 +185,11 @@ def outputs(fid, params):
 PLAIN = {
     'FL01': 'Rata-rata lot per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.',
     'FL02': 'Rata-rata nilai Rupiah per transaksi beli (atau jual) dari broker atau kelompok broker yang dipilih.',
-    'FL03': 'Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker.',
+    # EXEC-QA5-FIX (QA 2026-11-07, Q6, F2-04, F2-05, F2-02, F2-06, F2-09, F2-11, F12): each tip names its denominator and
+    # what its data is; FL46 unchanged (the user decides on FL46)
+    'FL03': 'Porsi lot beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih, dibanding semua broker pada papan dan jenis investor yang sama.',
     'FL04': 'Porsi jumlah transaksi beli (atau jual) yang berasal dari broker atau kelompok broker yang dipilih.',
-    'FL05': 'Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata pasar.',
+    'FL05': 'Porsi lot dibagi porsi jumlah transaksi: di atas 1 berarti ukuran transaksinya lebih besar dari rata-rata semua broker pada papan dan jenis investor yang sama.',
     'FL06': 'Ukuran rata-rata transaksi beli dibanding ukuran rata-rata transaksi jual dari kelompok yang sama.',
     'FL07': 'Porsi pembelian broker atau kelompok broker terhadap seluruh volume saham.',
     'FL08': 'Posisi ukuran transaksi hari ini dibanding riwayat saham itu sendiri (0-100).',
@@ -206,10 +208,15 @@ PLAIN = {
     'FL21': 'Posisi arus bersih dibanding nilai transaksi hari ini terhadap riwayat saham itu sendiri (0-100).',
     'FL22': 'Persentase broker aktif yang menjadi pembeli bersih.',
     'FL23': 'Perkiraan posisi bersih (lot atau Rupiah) tiap broker yang dipilih sejak tanggal awal; bukan kepemilikan sebenarnya.',
+    'FL24': 'Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual: (net beli N pembeli terbesar − net jual N penjual terbesar) ÷ nilai beli semua broker pada papan dan jenis investor yang dipilih (dengan satu jenis investor, penyebutnya hanya jenis itu).',
+    'FL26': 'Berapa hari berturut-turut kelompok (misalnya asing) membeli bersih atau menjual bersih; hitungan dibatasi sampai batas hari yang dipilih.',
+    'FL28': 'Rata-rata nilai Rupiah yang diperdagangkan per hari di papan Regular (harga penutupan × volume).',
+    'FL31': 'Arah transaksi orang dalam (hanya aksi BUY dan SELL). Banyak transaksi memakai harga perkiraan Stockbit (sebagian besar baris KSEI), jadi nilainya perkiraan.',
+    'FL34': 'Siapa yang dominan: broker institusi atau broker ritel. Daftar institusi dan ritel memakai klasifikasi broker terkini untuk semua tanggal.',
     # EXEC-TERMINAL-IND-EDIT (2026-11-05): indicators whose meaning grew; the Screener sheet's sentence no longer covers it
-    'FL27': 'Tanda saat volume naik tetapi harga hampir diam; pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).',
-    'FL29': 'Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai transaksi (persen).',
-    'FL32': 'Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya.',
+    'FL27': 'Tanda saat volume (papan Regular) naik tetapi harga hampir diam; bisa akumulasi atau distribusi, tanda ini tidak membaca broker. Pilihan dua tanda lain saat pembeli terbesar jauh lebih besar dari penjual terbesar (net atau kotor).',
+    'FL29': 'Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai beli pada papan dan jenis investor yang dipilih (persen).',
+    'FL32': 'Lonjakan aktivitas hari ini (jumlah transaksi, nilai atau lot) dibanding rata-rata hari-hari sebelumnya, sisi beli, jual atau keduanya. Dengan kedua jenis investor, sisi beli dan jual adalah transaksi yang sama (garisnya sama); pilih Asing atau Domestik untuk membandingkan sisi.',
     'FL33': 'Perubahan nilai rata-rata per transaksi (beli atau jual) beberapa hari terakhir dibanding periode sebelumnya, untuk semua broker atau kelompok broker.',
     'FL40': 'Lonjakan sisi beli dibagi lonjakan sisi jual hari ini: di atas 1 sisi beli lebih menonjol dari biasanya, di bawah 1 sisi jual. Bermakna dengan filter investor (bawaan asing).',
     'FL41': 'Pembelian bersih broker atau kelompok broker dibanding nilai transaksi rata-rata (bukan hari itu saja), sehingga hari ramai tidak mengencerkan nilainya.',
@@ -221,6 +228,11 @@ PLAIN = {
     'FL47': 'Dari setiap Rp100 yang dibeli, berapa yang bersih (tidak dibatalkan penjualan broker yang sama); atau posisinya dibanding riwayat saham itu sendiri.',
     'FL48': 'Pembeli bersih terbesar dibanding penjual bersih terbesar selama jendela: (B − S) ÷ (B + S) dari -1 sampai 1, atau B ÷ S.',
 }
+
+
+# EXEC-QA5-FIX (QA 2026-11-07, Q8): an option that can never give a value for an indicator. FL09 needs a positive net
+# flow of its cohort; a cohort of net sellers never has one (0 of 180 days on BBRI), so the choice is not offered.
+DROP_OPTIONS = {('FL09', 'rank'): {'net_sell'}}
 
 
 def build():
@@ -244,6 +256,10 @@ def build():
         head = name.split(' · ')[0]
         family = FAMILY_OF.get(head) or ('Net Flow' if name in NET_FLOW_NAMES else 'Other')
         ps = params[fid]
+        for q in ps:
+            drop = DROP_OPTIONS.get((fid, q['key']))
+            if drop:
+                q['options'] = [o for o in q['options'] if o[0] not in drop]
         indicators.append({'id': fid, 'name': name, 'family': family, 'place': PLACE[place.split(' (')[0]],
                            'unit': UNIT[unit], 'needs_frequency': freq == 'Ya', 'outputs': outputs(fid, ps),
                            'tip': PLAIN[fid] if fid in PLAIN else tips[fid], 'params': ps})   # a new id needs one of them

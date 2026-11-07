@@ -282,7 +282,7 @@ names (`MAX_XSECTION_NAMES`, `main.py:51`). Tests: `apps/terminal-api/tests/test
 `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
 `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
 
-Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:40`), so the browser
+Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:41`), so the browser
 can never pull a whole-universe file. **A new xsection name needs no terminal-api code change**: names are validated
 against the index, not against a list in code; only the size matters for the quota (section 1.15).
 
@@ -578,7 +578,7 @@ README "Logs".
   worker's `SCREENER_DEADLINE_MS` / 1000. The saved-item limits are constants (`SCREEN_LIMIT` 50, `WATCHLIST_LIMIT`
   500, `screener.py:77-78`).
 - **Page and frame**: `/screener` (`main.py:306`) and `/screener-app/` with its assets (`main.py:384-392`) under
-  `SCREENER_CSP` (`main.py:60-63`: `connect-src 'self'`).
+  `SCREENER_CSP` (`main.py:61-64`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;

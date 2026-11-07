@@ -728,7 +728,7 @@ body{font-variant-numeric:tabular-nums}
 .ev-pop{width:320px}
 .ev-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 6px}
 .ev-head strong{display:block;font-size:13px;font-weight:600}
-.ev-head span{display:block;margin-top:2px;font-size:11.5px;color:var(--text-3)}
+.ev-head > div > span{display:block;margin-top:2px;font-size:11.5px;color:var(--text-3)}
 .ev-quick{display:flex;align-items:center;justify-content:space-between;padding:4px 14px 6px;font-size:11.5px;color:var(--text-3)}
 .ev-quick button{padding:2px 7px;margin-left:2px;border-radius:5px;font-size:11.5px;color:var(--text-2)}
 .ev-quick button:hover{background:var(--hover);color:var(--text)}
@@ -861,6 +861,7 @@ html.fit .flow-wrap .flow-legend{align-items:center;padding-top:4px}
 .rp-yax span{position:absolute;right:4px;transform:translateY(-50%);font:10px var(--mono);color:var(--text-3);white-space:nowrap}
 .rp-invdate{position:absolute;bottom:-2px;transform:translate(-50%,100%);padding:1px 5px;border-radius:4px;background:var(--text);color:#fff;font-size:10px;white-space:nowrap;pointer-events:none;z-index:2}
 .rp-invwrap.live + .axis{padding-left:44px}
+.rp-invnote{margin:-4px 0 6px 44px;font-size:var(--fs-2xs);color:var(--text-3);line-height:1.35}   /* EXEC-QA5-FIX H2 */
 /* EXEC-TERMINAL-FRESH: broker data older than the prices */
 .flow-nodata{position:absolute;top:0;z-index:4;pointer-events:none;display:flex;align-items:center;justify-content:center;
   background:repeating-linear-gradient(135deg,rgba(146,64,14,.07) 0 6px,transparent 6px 12px);border-left:1px dashed #f59e0b}
@@ -938,6 +939,28 @@ body.fw-dragging,body.fw-dragging *{cursor:grabbing!important;user-select:none}
 .pw-at{font-size:11px;color:var(--text-3);margin-left:4px}
 .pw-inv{flex:1;min-height:0;overflow:auto}
 .pw-chart{margin-bottom:8px}
+/* EXEC-FD-WINDOW (user 2026-11-07, "pake seperti HTML terlampir"): the map beside the table; one column in a narrow window */
+.fw-body .pw-ctl > select:last-child{margin-left:auto}
+.pw-fdw{flex:1;min-height:0;display:flex;flex-direction:column;container-type:inline-size}
+.pw-fd{flex:1;min-height:0;display:grid;grid-template-columns:330px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:16px}
+.pw-fd-map{align-self:start}
+.fdw-svg{width:100%;height:auto;display:block}
+.fdw-ax{font-size:10px;fill:var(--text-2)}
+.fdw-l{font-size:11px;font-weight:500;fill:var(--text)}.fdw-l.now{font-weight:700}.fdw-l.hl{font-size:10.5px;font-weight:600}
+.pw-fd-side{min-height:0;display:flex;flex-direction:column}
+.pw-fdt th{padding:3px 8px 6px}   /* look_check11: the header text in the middle of its band (ink 7.2 above, 5.1 below at 4/5) */
+.pw-fdt td{padding:5px 8px;border-top:1px solid var(--border)}
+.pw-fdt th.fdw-fx{color:var(--accent)}.pw-fdt th.fdw-dm{color:#d98a0b}
+.pw-fdt tbody tr.cur td{background:var(--sel);font-weight:600}
+.pw-fdt tbody tr.hl td{background:var(--sel)}
+.pw-fdt tbody tr.fdw-gap td{color:var(--text-3)}.pw-fdt td.fdw-why{text-align:center;font-size:11px}.fdw-none{color:var(--text-3)}   /* EXEC-QA5-FIX F4 */
+.tag.fdw-fx{background:#e6f0fe;color:var(--accent)}.tag.fdw-dm{background:#fef3e0;color:#b45309}
+.pw-fd-side .pw-foot{margin:0}
+@container (max-width:620px){
+  .pw-fd{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;overflow:auto}
+  .pw-fd-map{max-width:330px;justify-self:center;width:100%}
+  .pw-fd-side .pw-scroll{flex:none;max-height:320px}
+}
 .pw-svg{display:block}
 .pw-svg text{font:10.5px var(--sans);fill:var(--text-3)}
 .rp-dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:-1px}
@@ -1105,7 +1128,11 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .im-nav button{display:flex;align-items:center;gap:var(--s-4);width:100%;min-height:36px;padding:6px 10px;border:1px solid transparent;border-radius:var(--r-sm);background:none;font-size:var(--fs-md);font-weight:var(--fw-medium);color:var(--text-2);text-align:left;line-height:1.25;cursor:pointer}
 .im-nav button:hover{background:var(--hover);color:var(--text)}
 .im-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.im-nav button.on{background:var(--surface);border-color:var(--border-2);box-shadow:0 1px 2px rgba(0,0,0,.06);color:var(--text);font-weight:var(--fw-semibold)}
+/* EXEC-IND-NAV A1 (user 2026-11-07: "selected state ... bisa dibuat lebih standout, entah fillnya dipergelap"; "Ok untuk ini,
+   jalankan dulu di branch"): the group the list shows has a darker fill and a bar on its left (under it when the groups
+   are a row of chips, narrow screens) */
+.im-nav button.on{background:color-mix(in srgb,var(--text) 9%,var(--surface));border-color:transparent;box-shadow:inset 3px 0 0 var(--text);color:var(--text);font-weight:var(--fw-semibold)}
+.im-nav button.on:hover{background:color-mix(in srgb,var(--text) 12%,var(--surface))}
 .im-nav .lab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .im-nav .cnt{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:var(--r-pill);display:inline-grid;place-items:center;background:var(--text);color:var(--surface);font-size:var(--fs-2xs);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums}
 .im-nav .ico{flex:none;width:14px;height:14px}
@@ -1136,7 +1163,17 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .im-add:hover{border-color:var(--border-2);background:var(--hover)}
 .im-empty{padding:40px 16px;text-align:center;color:var(--text-3);font-size:var(--fs-base)}
 /* EXEC-TERMINAL-LOOK-2: the group headings of the one scrolling list (sticky while their rows pass) */
-.im-sec{position:sticky;top:-4px;z-index:2;margin:6px -8px 0;padding:8px 16px 6px;background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+/* the group heading's text starts where the names do (list 8px + row 4px + star 28px + gap 10px = .im-cols 12px + 28px + 10px)
+   and its ink sits in the middle of its band: no margin above it (the previous row's line is its top); capitals have no
+   descenders, so the padding below is 2px less (measured by look_check11.mjs) */
+.im-list > .im-sec:first-child{margin-top:-4px}   /* the list's own 4px above the first heading */
+.im-sec{position:sticky;top:-4px;z-index:2;margin:0 -8px;padding:9px 16px 7px 50px;background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-2xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+/* EXEC-IND-NAV B1 (user 2026-11-07: "B1 ok"; "agar bisa lebih jelas lah bahwa indikator yang di bawahnya itu adalah grup dari
+   bagian yang di atas"): a group heading is a grey band with dark, slightly larger letters and its count, so it reads as
+   the title of the rows under it and not as the column header ("INDICATOR" stays small and grey) */
+.im-sec{background:var(--sel);color:var(--text);font-size:var(--fs-xs);border-top:1px solid var(--border);padding-top:8px;padding-bottom:8px}   /* its top line takes 1px: 8 / 8 keeps the ink in the middle (look_check11) */
+.im-list > .im-sec:first-child{border-top:0;padding-top:9px;padding-bottom:7px}
+.im-sec-n{margin-left:8px;font-weight:var(--fw-medium);letter-spacing:0;color:var(--text-3)}
 .im-foot{display:flex;align-items:center;gap:var(--s-6);padding:10px 20px;border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-3)}
 .im-foot b{margin-left:auto;font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap}
 .im-toast{position:absolute;left:50%;bottom:52px;z-index:5;transform:translate(-50%,8px);padding:7px 12px;border-radius:var(--r-md);background:var(--text);color:var(--surface);font-size:var(--fs-12);font-weight:var(--fw-medium);box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis}
@@ -1156,6 +1193,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
   .im-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
   .im-nav{flex-direction:row;overflow-x:auto;border-bottom:1px solid var(--border);padding:6px 8px;scrollbar-width:none}
   .im-nav button{width:auto;flex:none;min-height:32px;white-space:nowrap}
+  .im-nav button.on{box-shadow:inset 0 -2px 0 var(--text)}
   .im-sep,.im-title{display:none}
   .im-cols,.im-row{grid-template-columns:28px minmax(0,1fr) 72px}
   .im-cols span:nth-child(3),.im-row .mt{display:none}
@@ -1200,8 +1238,8 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
    jomplang"): the Top N balance in Top brokers, on the panel's own sizes (seg and tag as Broker summary, 11.5 px figures,
    10.5 px inside the bar as the spec's badge size); the Top N rows shaded */
 .acc-bal{gap:8px}
-.acc-bal .acc-ratio{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:6px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#fff;cursor:help}
-.acc-bal .acc-ratio.up{background:var(--up);color:#fff}.acc-bal .acc-ratio.down{background:var(--down);color:#fff}.acc-bal .acc-ratio.flat{background:var(--text-3);color:#fff}
+.acc-bal .acc-ratio,#accRange .acc-ratio{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:6px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:#fff;cursor:help}
+.acc-ratio.up{background:var(--up);color:#fff}.acc-ratio.down{background:var(--down);color:#fff}.acc-ratio.flat{background:var(--text-3);color:#fff}
 .acc-bal .tag{cursor:help}
 .tag.big.acc{background:#089981;color:#fff}.tag.big.dist{background:#f23645;color:#fff}
 .acc-tug{display:flex;height:16px;border-radius:4px;overflow:hidden;background:#f0f0f0;margin:0 0 4px}
@@ -1251,10 +1289,12 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
    the design's pill (green, blue, amber, red by quadrant) */
 .fdm-now{gap:6px;flex-wrap:wrap}
 .fdm-now .tag{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* QA round 4 (L3): one line at 260 px */
-#fdBoard{margin-left:auto}
+#fdBoard,#accBoard,.bs-ctl #bsInv{margin-left:auto}   /* EXEC-RP-LOOK R3: the market (and investor) choice at the row's right, as the map */
+.bs-ctl{flex-wrap:nowrap;gap:4px}.bs-ctl .rp-sel{min-width:0;flex:0 1 auto}.bs-ctl .seg{flex:none}.bs-ctl .seg button{padding:0 6px}   /* one row, as the map's (287px at the default panel width) */
 .tag.fdm-t0,.tag.fdm-t1,.tag.fdm-t2,.tag.fdm-t3{color:#fff;font-weight:var(--fw-semibold)}
 .tag.fdm-t4,.tag.fdm-t5,.tag.fdm-t6,.tag.fdm-t7,.tag.fdm-t8{background:var(--sel);color:var(--text-2);font-weight:var(--fw-semibold)}   /* a flat part: no direction colour */
-.tag.fdm-t0{background:var(--up)}.tag.fdm-t1{background:var(--accent)}.tag.fdm-t2{background:#d98a0b}.tag.fdm-t3{background:var(--down)}
+/* EXEC-QA5-FIX (QA F5): a quadrant takes the colour of the side that absorbs, as the window's Foreign blue / Domestic orange */
+.tag.fdm-t0{background:var(--up)}.tag.fdm-t1{background:#d98a0b}.tag.fdm-t2{background:var(--accent)}.tag.fdm-t3{background:var(--down)}
 .fdm-wrap{display:grid;grid-template-columns:14px minmax(0,1fr);gap:2px 4px;margin:6px 0 8px}
 .fdm-svg{grid-column:2;grid-row:1;width:100%;max-width:300px;height:auto;display:block;justify-self:center}
 .fdm-ax{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
@@ -1268,12 +1308,23 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fdm-eq b{font-size:var(--fs-12);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums}
 .fdm-eq i{font-style:normal;color:var(--text-3)}
 .fdm-tbl{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
-.fdm-row{display:grid;grid-template-columns:44px repeat(3,minmax(0,1fr)) 18px;align-items:center;gap:4px;padding:5px 8px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
+/* EXEC-RP-LOOK R2 (user 2026-11-07): the readout under the map folds; folded, its button keeps the equation on one line */
+.fdm-fold{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;margin:0 0 6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-2);font:inherit;font-size:var(--fs-sm);text-align:left;cursor:pointer}
+.fdm-fold:hover{background:var(--hover);color:var(--text)}
+.fdm-fold:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.fdm-ft{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fdm-fv{flex:none;font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fdm-read:not(.folded) .fdm-fv{display:none}            /* open, the card below shows the same numbers */
+.fdm-fold svg{flex:none;color:var(--text-3);transition:transform .15s}
+.fdm-read:not(.folded) .fdm-fold svg{transform:rotate(180deg)}
+.fdm-fv.up{color:var(--up)}.fdm-fv.down{color:var(--down)}   /* folded: the verdict alone */
+/* re-test N1 (2026-11-07): two decimals fit the panel's 260 px minimum: narrower label and dot columns */
+.fdm-row{display:grid;grid-template-columns:34px repeat(3,minmax(0,1fr)) 10px;align-items:center;gap:3px;padding:5px 6px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
 .fdm-row span:not(:first-child){text-align:right}
 .fdm-row.h{border-top:0;background:var(--soft);font-size:var(--fs-2xs);color:var(--text-3)}
 .fdm-row.on{background:var(--sel);font-weight:var(--fw-semibold)}
 .fdm-dot{justify-self:end;width:8px;height:8px;border-radius:50%}
-.fdm-dot.fdm-t0{background:var(--up)}.fdm-dot.fdm-t1{background:var(--accent)}.fdm-dot.fdm-t2{background:#d98a0b}.fdm-dot.fdm-t3{background:var(--down)}
+.fdm-dot.fdm-t0{background:var(--up)}.fdm-dot.fdm-t1{background:#d98a0b}.fdm-dot.fdm-t2{background:var(--accent)}.fdm-dot.fdm-t3{background:var(--down)}
 .fdm-dot.fdm-t4,.fdm-dot.fdm-t5,.fdm-dot.fdm-t6,.fdm-dot.fdm-t7,.fdm-dot.fdm-t8{background:var(--text-3)}
 
 .im-box{height:min(720px,calc(100dvh - 64px));max-height:calc(100dvh - 16px)}
@@ -1300,6 +1351,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
   .im-split,.im-sep,.im-title,.im-rz{display:none}
   .im-nav{flex-direction:row;overflow-x:auto;border-bottom:1px solid var(--border);padding:4px 8px;scrollbar-width:none}
   .im-nav button{width:auto;flex:none;min-height:30px;white-space:nowrap}
+  .im-nav button.on{box-shadow:inset 0 -2px 0 var(--text)}
   .im-row{min-height:48px}
 }
 
@@ -1402,6 +1454,18 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .ind-fold::after{content:attr(data-label);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:5px;background:#171717;color:#fff;font-size:11px;font-weight:500;white-space:nowrap;text-shadow:none;opacity:0;pointer-events:none;transition:opacity .12s}
 .ind-fold:hover::after,.ind-fold:focus-visible::after{opacity:1}
 @media (pointer:coarse){.ind-fold{width:30px;height:30px}}
+/* EXEC-PANE-ORDER (user 2026-11-07): Move up / Move down at a pane's top left, over the left axis (the room left of the
+   pane's title), centred on the title's line; shown while the pointer is in the pane, kept on a touch screen */
+.ind-move{position:absolute;z-index:6;display:flex;gap:2px;opacity:0;pointer-events:none;transition:opacity .12s}
+.ind-move.on,.ind-move:focus-within{opacity:1;pointer-events:auto}
+.ind-move button{position:relative;width:24px;height:24px;display:grid;place-items:center;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-2);cursor:pointer}
+.ind-move button:hover:not(:disabled){background:var(--hover);color:var(--text)}
+.ind-move button:disabled{opacity:.35;cursor:default}
+.ind-move button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ind-move button::after{content:attr(data-label);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 8px;border-radius:5px;background:#171717;color:#fff;font-size:11px;font-weight:500;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
+.ind-move button:hover:not(:disabled)::after,.ind-move button:focus-visible::after{opacity:1}
+@media (hover:none){.ind-move{opacity:1;pointer-events:auto}}
+@media (pointer:coarse){.ind-move button{width:30px;height:30px}}
 
 /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06): the layout button after Price / Return, its menu (the user's reference: Save,
    Autosave, Make a copy, Rename, Create new, Recently used with stars, Open) and its dialogs */

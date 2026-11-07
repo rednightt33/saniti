@@ -1,0 +1,59 @@
+{
+ "_note": "EXEC-DRAW-PANES (20261107_001_edge_bff_terminal_drawings.sql; user 2026-11-07: \"semua gambar harus di simpan di akun EDGE\", \"3 jalankan dulu\"). Staged by scripts/onboarding/run_job.sh with the migration file as an extra (verification/screener/jobs/run_migration.sh). Probes named expect_err_* must print ERR; every other probe must print OUT.",
+ "mode": "APPLY",
+ "migrations": [
+  "20261107_001_edge_bff_terminal_drawings.sql"
+ ],
+ "probes": [
+  [
+   "edge_bff_tables",
+   null,
+   "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relkind IN ('r', 'p') ORDER BY 1"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT c.relname, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'edge_bff' AND c.relkind IN ('r', 'p') AND a.grantee = 'edge_bff_runtime'::regrole GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "other_grantees_on_new_table",
+   null,
+   "SELECT c.relname, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'edge_bff' AND c.relname = 'terminal_drawings' AND a.grantee <> c.relowner AND a.grantee <> 'edge_bff_runtime'::regrole GROUP BY 1, 2 ORDER BY 1, 2"
+  ],
+  [
+   "runtime_members",
+   null,
+   "SELECT m.rolname FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member WHERE a.roleid = 'edge_bff_runtime'::regrole ORDER BY 1"
+  ],
+  [
+   "drawing_indexes",
+   null,
+   "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename = 'terminal_drawings' ORDER BY 1, 2"
+  ],
+  [
+   "drawing_constraints",
+   null,
+   "SELECT conrelid::regclass::text, conname, contype FROM pg_constraint WHERE conrelid = 'edge_bff.terminal_drawings'::regclass ORDER BY 1, 2"
+  ],
+  [
+   "drawing_comments",
+   null,
+   "SELECT c.relname, a.attname, col_description(c.oid, a.attnum) IS NOT NULL AS has_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_attribute a ON a.attrelid = c.oid WHERE n.nspname = 'edge_bff' AND c.relname = 'terminal_drawings' AND a.attname IN ('set_id', 'drawings', 'revision') UNION ALL SELECT c.relname, '(table)', obj_description(c.oid, 'pg_class') IS NOT NULL FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relname = 'terminal_drawings' ORDER BY 1, 2"
+  ],
+  [
+   "runtime_public_reach",
+   null,
+   "SELECT count(*) FILTER (WHERE has_table_privilege('edge_bff_runtime', c.oid, 'SELECT')) AS readable, count(*) AS relations FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm')"
+  ],
+  [
+   "as_runtime_reads",
+   "edge_bff_runtime",
+   "SELECT count(*) FROM edge_bff.terminal_drawings"
+  ],
+  [
+   "as_runtime_reads_existing",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.indicator_presets) AS indicator_presets, (SELECT count(*) FROM edge_bff.conversation_ui) AS conversation_ui"
+  ]
+ ]
+}

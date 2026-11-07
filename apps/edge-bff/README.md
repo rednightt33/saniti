@@ -27,6 +27,8 @@ It is a module-by-module port of the reference page `03-terminal-right-panel.htm
 | the layouts API on edge-bff, table `edge_bff.terminal_layouts` (migration `20261106_001`) | `app/layouts.py`, `tests/test_layouts.py` |
 | indicator presets (EXEC-IND-PRESETS): Save as preset, the My presets group of the Indicators window, the name and confirmation dialogs | `terminal/src/app/presets.ts`, `terminal/src/app/indMenu.ts`, `terminal/src/ui/dialogs.ts`, `terminal/src/data/presetsApi.ts` |
 | the presets API on edge-bff, table `edge_bff.indicator_presets` (migration `20261106_002`) | `app/presets.py`, `tests/test_presets.py` |
+| drawings (EXEC-DRAW-PANES): the price chart's, each Flow Timeline's and each indicator pane's, kept on the EDGE account | `terminal/src/app/drawings.ts`, `terminal/src/data/drawingsApi.ts`, pane ids in `terminal/src/app/indicators.ts` |
+| the drawings API on edge-bff, table `edge_bff.terminal_drawings` (migration `20261107_001`) | `app/drawings.py`, `tests/test_drawings.py` |
 
 Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), EDGE session, writes with CSRF:
 
@@ -56,6 +58,23 @@ Without the table every preset route answers 503 `PRESETS_NOT_READY` with `Retry
 works. `preset_id` is `ipr_` and 32 lowercase hex digits, made by the page. When a preset is added, a parameter the
 indicator no longer has goes back to its default; a preset of an indicator the Terminal no longer has is listed as "no
 longer available" and cannot be added.
+
+Drawings (user 2026-11-07: "semua gambar harus di simpan di akun EDGE, sama seperti trading view"; panes "1A", "2A"): one
+set per ticker and place, `set_id` `chart` (the price chart), `flow` (the Flow Timeline) or `pane_` and the indicator
+pane's 16 hexadecimal digits (kept with the indicator in `ml.ind.v1`, so a layout brings its panes' drawings back). The
+panes take the Flow Timeline's tools (lines, Brush, Text); a pane's drawings go with the pane when the user removes it and
+come back with Undo. EDGE session, writes with CSRF:
+
+| Route | Contract |
+| --- | --- |
+| GET `/api/v1/terminal/drawings?ticker=BBRI` | `{sets: [{ticker, set_id, drawings, revision, ...}], limits}` of the owner for that ticker |
+| PUT `/api/v1/terminal/drawings/{ticker}/{set_id}` | `{drawings, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `drawings` is the drawing library's list (at most 10 levels, at most 100,000 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (5,000 sets per owner, `set_bytes`) |
+| DELETE `/api/v1/terminal/drawings/{ticker}/{set_id}` | 204; 404 `NOT_FOUND` |
+
+Without the table every drawings route answers 503 `DRAWINGS_NOT_READY` with `Retry-After: 30`; the page then keeps the
+drawings in the browser (and says so once) and moves them to the account the next time it can read it. The sets kept in
+the browser before (`ml.drawings.*`) move to the account once, merged by drawing id. A change is written 0.4 s after the
+last one (a drag sends many); one still waiting when the page goes away is sent then (keepalive).
 
 Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build), `npx vitest run tests/calc`
 (parity), and the 1:1 check `TERMINAL_REFERENCE_HTML=<reference file> node tests/visual/compare.mjs <out>` then
@@ -411,7 +430,7 @@ Orc owns history, answers, methodology, evidence, usage and exports. BFF accesse
 Orc endpoints, not SQL. Its dedicated restricted schema holds its operational tables: sessions, jobs and UI metadata,
 and, with migration `20261026_005`, the three backtest tables (backtest jobs, result parts and trials; see Backtest
 tab), with migration `20261028_001` the screener's saved items and watchlist (see Screener tab), and with migration
-`20261106_001` the Terminal's saved chart layouts and with `20261106_002` its indicator presets (see Terminal tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
+`20261106_001` the Terminal's saved chart layouts, with `20261106_002` its indicator presets and with `20261107_001` its drawings (see Terminal tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
 not extend Orc's retention (code default 30 days, actual configuration must be checked before rollout). Expired
 history returns 410.
 There is currently no automatic purge of terminal job inputs/UI metadata or of backtest jobs: define an operational

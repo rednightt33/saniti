@@ -5381,7 +5381,6 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   there only the 0.5 s grace applies.
 - **Lesson:** a control revealed on hover needs a tolerance (time and area), and nothing beside it may change width
   while it is reachable.
-
 ### M381 — Screener operators: a universe-attribute filter with ge, le, eq, ne or outside dropped every stock (2026-11-07, fixed on branch)
 
 - **Found by:** QA3 (five-agent QA of EXEC-SCREENER-FLOW-CANDLES unit A, round 1), on the branch before any release.
@@ -5430,7 +5429,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   90-bar history); QA2 round 2 at the window's edges.
 - **Status:** FIXED on branch (`58380855`), not released.
 
-### M386 — Screener flow (P4): the broker day sweep stamp missed corrections that keep the value sums (2026-11-07, fixed on branch)
+### M391 — Screener flow (P4): the broker day sweep stamp missed corrections that keep the value sums (2026-11-07, fixed on branch)
 
 - **Found by:** QA2 unit B (publisher fakes).
 - **Symptom:** after a change of lots, a transaction count, the gap flag, or an investor type or board swap with equal
@@ -5441,20 +5440,20 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   checked on PostgreSQL 16 (an investor-type swap with equal sums changes the stamp).
 - **Status:** FIXED on branch (`c9064176`), not released. Lesson for new data: stamp every column a file carries.
 
-### M387 — Screener flow (P4): the worker trusted the row order of a broker day file (2026-11-07, fixed on branch)
+### M392 — Screener flow (P4): the worker trusted the row order of a broker day file (2026-11-07, fixed on branch)
 
 - **Found by:** QA2 unit B. **Cause:** `decodeBrokerDay` did not check duplicates or the primary-key order inside a ticker.
 - **Solution:** rows strictly increasing in (broker, investor type, board) text order, else DATA_INTEGRITY naming both
   rows. **Status:** FIXED on branch (`c3e59f6b`), not released.
 
-### M388 — Screener flow: a 0/1 signal took a relative comparison, a two-series state or an average (2026-11-07, fixed on branch)
+### M393 — Screener flow: a 0/1 signal took a relative comparison, a two-series state or an average (2026-11-07, fixed on branch)
 
 - **Found by:** QA3 unit B. **Cause:** the output-kind check ran per transform; `relative` and `change` never called it and
   a STATE of two series had none. **Class:** a type rule applied path by path instead of once.
 - **Solution:** one check for every governed transform and any second series, from flow-kinds.json and the operators
   block (`forms`, `not_on`), with the gate message. **Status:** FIXED on branch (`8cca8273`), not released.
 
-### M389 — Screener flow: the cost model predicted flow ~1000x too low and never learned composite conditions (2026-11-07, fixed on branch)
+### M394 — Screener flow: the cost model predicted flow ~1000x too low and never learned composite conditions (2026-11-07, fixed on branch)
 
 - **Found by:** QA4 unit B (900 stocks x 60 sessions). **Symptom:** anchored flow screens admitted at ~29 ms predicted ran
   16-19 s; the 4,500 ms gate did not protect. **Verified cause:** flow cost counted as 60 sessions at the indicators' rate;
@@ -5463,7 +5462,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   indicator and choice from every condition, priors measured (`verification/screener/BENCHMARK_FLOW_COST.md`).
   **Status:** FIXED on branch (`f610cdaf`), not released.
 
-### M390 — Screener flow: an event or window test on flow failed when broker data lagged the prices (2026-11-07, fixed on branch)
+### M395 — Screener flow: an event or window test on flow failed when broker data lagged the prices (2026-11-07, fixed on branch)
 
 - **Found by:** the P5c fix agent with the real catalog in the fixture ("tail of FL32.buy on BBCA starts at bar 269, but
   bar 268 is needed"; the freq preset had no count). On dev broker data is 3 sessions behind prices.
@@ -5472,7 +5471,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** flow series keep their whole tail; a read is refused only when it would be inexact; tests with broker
   data 0, 1 and 3 sessions behind prices against brute force. **Status:** FIXED on branch (`bf8ad89a`), not released.
 
-### M391 — Screener flow page: preview date cut off, contradictory depth text, stale and random fixture, display-only parameters (2026-11-07, fixed on branch)
+### M396 — Screener flow page: preview date cut off, contradictory depth text, stale and random fixture, display-only parameters (2026-11-07, fixed on branch)
 
 - **Found by:** QA5 unit B and the 20-question front-end test. **Symptoms:** the preview's broker date line clipped; the
   depth refusal carried the catalog example's number; "default default brokers"; the fixture served old flow entries and
@@ -5482,7 +5481,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   presets through the core, seeded Fisher-Yates; display-only parameters derived by probing computeFlow at catalog build
   and removed. **Status:** FIXED on branch (`8448d792`, `eed08608`), not released.
 
-### M392 — Screener worker: a swap with the same price data dropped the old snapshot at once (2026-11-07, fixed on branch)
+### M397 — Screener worker: a swap with the same price data dropped the old snapshot at once (2026-11-07, fixed on branch)
 
 - **Found by:** P4 review. **Cause:** `retire(old)` at once when price_data is unchanged (actions, reference or broker days
   changed): a queued request on the old snapshot answered 500. **Solution:** the old one goes after SCREENER_DEADLINE_MS
@@ -5503,6 +5502,136 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Verified:** page tests; the smoke step checks the headers and that the preview writes the table's cells; QA5 round 2
   READY (588 combinations run, 0 refusals).
 - **Status:** FIXED on branch (`b981a5e4` and the next commit), not released.
+
+### M385 — Terminal: headings, switches and control rows out of line, missed by every check so far (2026-11-07, fixed, live; numbered M381 in its branch commits, renumbered when main had taken M381-M384)
+
+- **Found by:** the user (2026-11-07), with screenshots: the Indicators window's "TREND" heading neither in the middle of
+  its band nor on the column of "INDICATOR"; the Events switch's knob low; and asking "Saya pikir masalah alignment
+  seperti ini sudah dicek ya sama agent sebelumnya. Tapi kenapa masih bisa kebobolan?"
+- **Verified causes** (`apps/edge-bff/terminal/src/styles/terminal.css`):
+  - the group heading had its own left padding (16px) while the column header and the names start at 50px
+    (`.im-sec` against `.im-cols` and `.im-row`); above it the list's 4px, a 6px margin and 8px padding, below it 6px;
+  - `.ev-head span{margin-top:2px}`, meant for the Events subtitle, also moved the switch's track and knob (both spans):
+    the knob sat 2px low.
+- **Why the checks missed it (verified from the check scripts):** the QA rounds and `look_check*.mjs` measured overlap,
+  overflow, clipping, positions of single elements and behaviour; none compared where sibling texts start, where the ink
+  of a heading sits in its band, or a knob's centre against its track. Element boxes looked right; the ink did not.
+- **Class:** each element sets its own spacing by hand (padding, margin, a broad descendant selector), with no shared
+  measure; any heading, switch or row in the Terminal can drift the same way.
+- **Solution:** the heading starts on the names' column and its ink is centred (padding measured on the rendered
+  capitals); the subtitle rule reaches only the subtitle. New check `verification/terminal_api/terminal_look/look_check11.mjs`
+  reads the rendered pixels and fails on: a text start more than 1px off its column, ink more than 1px off its band's
+  middle, any visible switch's knob more than 0.5px off its track, and a control row that is not one line with its
+  market choice at the right (desktop and phone).
+- **Lesson:** a look change is checked by measuring alignment against its neighbours (start lines, ink centre, one-line
+  rows), not only by screenshots and box positions; run `look_check11.mjs` with every Terminal look change.
+### M386 — Terminal: a white gap between an indicator row's value and its buttons (2026-11-07, fixed, live; caused by M380's fix; numbered M382 in its branch commits)
+
+- **Found by:** the user (2026-11-07), screenshot of "Broker Inventory (Regular, Lot) No broker data yet" with an empty
+  stretch before the eye button: "kenapa ada gap putih?"
+- **Verified cause** (`apps/edge-bff/terminal/src/app/indicators.ts`, M380's fix; reproduced with
+  `look_check13.mjs`): M380 held the value's width from the moment the pointer entered the row. Coming from the chart,
+  the value then still showed the crosshair's longer text ("No broker data on this day", 164px); the pointer on the row
+  ended the crosshair, the value went back to the latest one ("Buy 37.1%", 69px), and the held 164px left a 95px gap.
+- **Class:** a size measured while the content is in a passing state (here the crosshair's value) and then held.
+- **Solution:** the value's width is held only during the 0.5 s grace after the pointer leaves the row, measured as it
+  leaves (the latest value then); on the row the value takes its own width. Check: no gap (6px, the normal spacing)
+  after coming from the chart; the buttons still move by at most 1px while the pointer is off the row
+  (`look_check10.mjs` "stable": 559 → 560).
+- **Lesson:** a hold on a size is taken when the content is at rest, and the check of a fix includes the path the user
+  takes into it (here: from the chart onto the row), not only the path out.
+
+### M387 — Terminal: Broker summary panel's "Avg" in Net mode was not a price (2026-11-07, fixed on branch)
+
+- **Found by:** QA agent 2 of the five-agent round (user 2026-11-07: "jalankan 5 agents sonnet 5.5 high"), finding S-01.
+- **Verified cause** (`apps/edge-bff/terminal/src/app/broker.ts`, Broker summary rows; read back in the code): in Net mode
+  the panel divided the net value by the net lots (both absolute), `avg = |net value| ÷ (|net lots| × 100)`. The two
+  differences can have opposite signs or be tiny, so the result is no price: NI read 11,681 in a 2,660-2,950 period, and
+  12% of the top-5 rows sat outside the period's price range. The ⤢ window already showed Avg buy / Avg sell.
+- **Class:** a quotient of two differences shown as if it were a quantity of its own (any "average" built from net
+  figures).
+- **Solution:** live, the buyers' table shows Avg buy (buy value ÷ (buy lots × 100)) and the sellers' Avg sell, named in
+  the header with how it is computed, and "–" without lots. The fixture keeps the reference (1:1 check).
+- **Lesson:** an average price is always a gross value over its own gross volume; a net figure has no price.
+
+### M388 — Terminal: Broker inventory's "position" read as the shares a broker holds (2026-11-07, fixed on branch)
+
+- **Found by:** QA agent 2, finding S-02.
+- **Verified cause** (`data/brokerAgg.ts inventory`, `app/popout.ts renderInv`, `app/broker.ts renderInvLive`): the
+  line adds up the broker's daily net from the first session in view; the window called it "position" (End, High, Low)
+  and nothing said where it starts, so the same broker and last day read +5.8M lots or +4.8M lots depending on the zoom.
+- **Class:** a running sum whose start is the view, labelled like a stock (holdings, a balance).
+- **Solution:** the panel and the window say "net lots (value) bought since <date>, the first session in view; not
+  shares held", the start date in the table's tooltips, and "broker data starts here" when the view starts earlier.
+- **Lesson:** a cumulative figure names its start date wherever it is shown.
+
+### M389 — Terminal: figures rounded after their category, sum or colour was decided (2026-11-07, fixed on branch)
+
+- **Found by:** QA agents 1, 3 and 5 (F1-F4, F10; Q4; F1, F6, F7).
+- **Verified causes:**
+  - Foreign × Domestic showed one decimal while its verdict tag used two: "+6.0%" beside Neutral, "−10.0%" beside Dist;
+    the three figures were rounded each on its own, so "−57.6 + 30.4 = −27.1" (25% of the panel's cases, 12.7% of the
+    window's Δ rows); "0.0%" took the colour of the raw sign; the driver compared unrounded changes.
+  - `specFormat.points` put the sign before rounding ("−0.00 pt"); `smart` printed an axis tick of 5.55e-17.
+  - The F×D window dropped sessions without buy value and then took Δ between the points left (Cash: 4 of 20 points, a
+    Δ across four sessions, "now" not on the last session).
+  - Every Flow line dropped its empty days from the series, so the chart drew a straight line across them (FL48 Top 20:
+    10 Mar - 13 Apr).
+- **Class:** a decision (category, colour, sum, change) taken on a number other than the one shown; a gap removed from a
+  series instead of kept.
+- **Solution:** `fdShown` (data/brokerAgg.ts) rounds to two decimals as Top brokers and gives the rounding step to the
+  part rounded furthest the other way, so Foreign + Domestic = Verdict on screen; tags, colours, flat band (`FD_FLAT`
+  derived from the precision), Δ and driver are taken from the shown figures; no driver when the verdict did not move.
+  `points` signs the rounded value, `smart` reads below 1e-9 as 0. The window keeps every session ("—"), breaks the trail
+  and gives no Δ across a gap. Empty days are whitespace in every line and histogram series (`app/indicators.ts`).
+- **Lesson:** round once, then derive everything shown from the rounded figure; never delete an empty period from a series.
+
+### M390 — Terminal: labels and messages that hid what a number is (2026-11-07, fixed on branch)
+
+- **Found by:** QA agents 1-5 (titles Q3/F3/F2-01/F2-09, denominators Q6/F2-04/F2-05, empty states Q2/F2-03/F2-07/F4/F5/F9,
+  index S-03, cohort lean Q1/F2-08, and the small items of all five reports).
+- **Verified causes:** the title named only non-default selects, so FL15 (lots) and FL16 (Rupiah) read alike and the
+  anchor, baseline and "recent" periods never showed (FL18 moved 8% with the zoom without saying from when); tips said
+  "seluruh nilai transaksi" where the formula divides by the chosen investor type's buy value (FL24 −37.4% vs −10.6%);
+  one empty-state text ("No broker data on this day", "Needs N days") covered other causes; FL31 drew "Rp 0" when no
+  events file was published; the ⤢ windows showed lots and average prices on an index; nothing said the default cohort
+  of net buyers leans every directional reading to the buy side (FL11 positive on 200 of 200 days).
+- **Solution:** titles name the unit and measure always, a fixed basis, "minus even share", "last 5D vs 20D", "vs 250D",
+  "limit 60D" and "from <date>" (`app/flowIndicators.ts`, derived from the registry's parameters); registry tips name
+  their denominators and data (`scripts/build_flow_registry.py PLAIN`, FL46 unchanged); notes say "before the broker
+  data", "starts at its start date", "no trades on <board · investor>", "no value: nothing to measure", "no insider data
+  published", and a constant all-market reading names its value; the windows follow the index rule; a tip sentence on the
+  net-buyer cohort is derived from the registry defaults; FL09's "Top net sellers", which can never fire, is not offered.
+  Small items: Gross "% of buy / % of sell" per side, "Total · all N", crossing-only messages, CSV context line and
+  6-decimal numbers, axis ticks with two decimals, the view rule "any part on screen" shared (`visibleBars`), Nego note,
+  quadrant colours = the absorbing side, lane split by net direction, tooltips with Rp, levels from FL24, the running
+  week or month marked in the date readout, a zero line on a pane's second scale, signed "Change %" values.
+- **Not changed, with reason:** FL46 (the user decides); intraday candles showing the previous day's figure (decision C4);
+  "Rp 1.0T" one decimal and whole rupiah below 1B (Design Spec v1.2); the axis above 100% on bounded panes (the legend's
+  reserved band); a broker code absent from the data (codes are picked from the list).
+- **Lesson:** a label carries every parameter that changes the number and the denominator it divides by; an empty value
+  names its own cause.
+- **Re-test (2026-11-07, the same five agents, user "then test lagi"):** every number still matched the independent
+  recalculations (0 differences) and the database. Of the round-1 findings, most were FIXED; the open ones and the new
+  ones were fixed on the branch in the same task:
+  - Lines were still joined across empty days: Lightweight Charts 5.2 joins the points on either side of a whitespace
+    item. A gap is now a transparent segment into it (`indicators.ts gapped`), also at Supertrend's trend flips.
+  - After a pan the "from <date>" title could be one candle off the anchor the numbers used (FL18 12% on a small
+    broker): `followView` used another "first candle in view" rule than the anchor. Both use `visibleBars`, and the
+    title reads the start the last computation used.
+  - At the panel's 260 px minimum the two-decimal F×D table ran together; the grid is narrower and `look_check11.mjs`
+    checks the minimum width.
+  - Smaller items: the CSV share header in Gross, Net in Rp, search totals, inventory axis dates, End 0 not green,
+    short notes that fit a phone row, "No value yet: modelled position is 0 or less", "Needs N days of history" for
+    price indicators, "fewer than N net buyers or sellers", windowed readings over a window without any trade of the
+    filter left empty with "No trades", the change distance in FL11/FL34 titles, no stale last value on the axis,
+    output names when only a non-first output shows, one zero label, the full title on hover.
+  - A slip while fixing: an inline comment swallowed the rest of a line and hid every Flow output's value (its `vis`
+    flag). Found by the main agent's own browser check before any release; `look_check11.mjs` now fails when an added
+    indicator shows no value on the last candle.
+- **Kept (as before):** FL46; intraday previous-day values (C4); "Rp 1.0T" and whole rupiah below 1B, also in FL23's
+  row (Design Spec v1.2); the ⤢ window may sit partly off a phone's screen (it stays draggable; the panel is not shown
+  on a phone); a saved FL09 "Top net sellers" now reads Top net buyers (the old choice never fired).
 
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 

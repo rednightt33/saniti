@@ -21,6 +21,7 @@ from .client import OrcClient, OrcError, public_data
 from .config import Settings
 from .layouts import Layouts
 from .presets import Presets
+from .drawings import Drawings
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
@@ -182,6 +183,7 @@ def create_app(settings=None, store=None, orc=None):
     screeners = Screeners(settings, store)
     layouts = Layouts(settings, store)
     presets = Presets(settings, store)
+    drawings = Drawings(settings, store)
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -447,6 +449,8 @@ def create_app(settings=None, store=None, orc=None):
     layouts.routes(app, session, write)
     # EXEC-IND-PRESETS (user 2026-11-06: "Q1 A"): the Terminal's indicator presets, /api/v1/terminal/presets
     presets.routes(app, session, write)
+    # EXEC-DRAW-PANES (user 2026-11-07: "semua gambar harus di simpan di akun EDGE"): the Terminal's drawings, /api/v1/terminal/drawings
+    drawings.routes(app, session, write)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):

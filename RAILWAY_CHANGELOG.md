@@ -1,5 +1,49 @@
 # Railway changelog
 
+## 2026-11-08 — edge-bff from `main` `81146306`: Terminal QA round (EXEC-QA5-FIX, ERRORS M387-M390)
+
+- **Change:** the fixes of the five-agent QA round and its re-test: Broker summary average is a price, inventory says "net
+  since <date>", Foreign × Domestic two decimals that add up and its window keeps sessions without buy value, line gaps
+  drawn as transparent segments, index rule in the windows, titles that name what changes a number, tips that name their
+  denominators, empty values that name their cause, FL31 without a false "Rp 0", one view rule for the anchor and its
+  title, and the small items of all five reports. FL46 unchanged. User: "Jalankan A-C then test lagi", then "Ok".
+- **Before the push:** 00:47 WIB (outside B6); `edge_bff.jobs` QUEUED/RUNNING/RECOVERING 0, `AI_conversation_turn`
+  RUNNING 0; `main` `cb3ac1f7` had no commit beyond the branch (fast-forward); tripwire OK; Terminal 875/875; look checks
+  3, 5-13 without errors, `look_check11.mjs` PASS (with its new minimum-width and legend-value checks). No database or
+  variable change; no file under `terminal/src/calc/**` or `apps/screener-worker` changed (no screener-worker rebuild).
+- **edge-bff:** deployment `16aa6dbb` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-CP6iCL7N.js` and
+  `assets/style-CvtFpE16.css` byte-equal to the local build of `81146306`.
+
+## 2026-11-07 — edge-bff from `main` `4c7f46be`: Foreign × Domestic window, Top brokers ratio in the step tooltip
+
+- **Change:** EXEC-FD-WINDOW (the ⤢ window of the Foreign × Domestic panel: map with a trail of 5/10/20 sessions beside a
+  Level / Change (Δ) table, one formula with the panel) and EXEC-RP-LOOK R8 (Top brokers: no ratio badge; the marked
+  verdict step's tooltip leads with the ratio). User: "rilis paket dan main".
+- **Before the push:** 23:13 WIB (outside B6); `edge_bff.jobs` QUEUED/RUNNING/RECOVERING 0, `AI_conversation_turn`
+  RUNNING 0; `main` `6f00acb2` had no commit beyond the branch, so the push was a fast-forward; tripwire OK; Terminal
+  873/873; `look_check11.mjs` PASS (with the window's control row and table header added). No database or variable change.
+- **edge-bff:** deployment `aa4ca015` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-DJT9A7mW.js` and
+  `assets/style-DO43sIhA.css` byte-equal to the local build of `4c7f46be`.
+- **screener-worker:** no file under `terminal/src/calc/**` or `apps/screener-worker` changed: no rebuild.
+
+## 2026-11-07 — edge-bff from `main` `dbe23aaa`: Terminal drawings on the EDGE account and in indicator panes, pane order, right-panel and Indicators window look
+
+- **Change:** EXEC-DRAW-PANES (drawings of the price chart, Flow Timelines and indicator panes kept on the EDGE account;
+  lines, Brush and Text in every indicator pane), EXEC-PANE-ORDER (Move up / Move down), EXEC-RP-LOOK (Foreign x Domestic
+  labels, fold and no point tooltip; Top brokers and Broker summary rows; Events switch; Top brokers header),
+  EXEC-IND-NAV (A1, B1), ERRORS M385 and M386. User: "rilis paket dan main".
+- **Database first:** migration `20261107_001` DRYRUN (job `ea96b2e7`, 36/36) and APPLY (job `8e07820a`, 23/23) on dev
+  at 15:17-15:20 UTC through `run_migration.sh`; `DATABASE_URL` set on orc-test-runner only for each job and removed
+  (VAR_REMOVED). No variable change.
+- **Before the push:** no user run in flight (0 / 0, 15:25 UTC); after B6 (22:25 WIB); `main` `4451a31a` (PR #59 Screener,
+  already live as edge-bff `3b54bab2`) merged into the branch (EXEC, ERRORS, DATABASE_CHANGELOG conflicts, both sides kept;
+  the Terminal entries renumbered M385/M386 as main had taken M381-M384), so the push was a fast-forward; tripwire OK;
+  Terminal 870/870; edge-bff 352 passed; look checks 3, 5-13 without errors.
+- **edge-bff:** deployment `dbd23c1b` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-D1070xV0.js` and
+  `assets/style-DSizTLqk.css` byte-equal to the local build of `dbe23aaa`; `/api/v1/terminal/drawings` 401 without a
+  session.
+- **screener-worker:** no file under `terminal/src/calc/**` or `apps/screener-worker` changed by this release: no rebuild.
+
 ## 2026-11-07 — edge-bff and screener-worker from `main` `4451a31a`: Screener unit A, 15 universal operators (PR #59)
 
 - **Change:** EXEC-SCREENER-FLOW-CANDLES P0-P3: operator measures and tests in the screener core and worker, the

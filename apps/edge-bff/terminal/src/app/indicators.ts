@@ -10,12 +10,13 @@ import { initFlowIndicators } from './flowIndicators';
 import type { Ctx } from './context';
 import { draggable } from './draggable';
 import * as spec from '../data/specFormat';
-import { $, nfCompact, rupiah, store } from './context';
+import { $, nfCompact, rupiah, store, visibleBars } from './context';
 import { keyedMarkers } from '../data/chartTime';
 import { onCandles } from '../data/timeframe';
 import { sumOverDays } from './flow';
 import { withPicked } from '../data/brokerAgg';
 import { fits, inputsOf, needsOf, splitSaved, withParked, type Input } from '../data/inputs';
+import { newPaneId } from '../data/drawingsApi';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
@@ -214,12 +215,15 @@ export function initIndicators(ctx: Ctx) {
   let parked: { at: number; o: any }[] = [];
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;
-  const PRESETS = ctx.M.mode === 'live';                 // EXEC-IND-PRESETS: presets live on the EDGE account (the fixture keeps the reference's rows)
+  const PRESETS = ctx.M.mode === 'live';
+  const LIVE = ctx.M.mode === 'live';
+  const ARROW_UP = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 15.5V4.5M5.5 9 10 4.5 14.5 9"/></svg>';
+  const ARROW_DOWN = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4.5v11M5.5 11 10 15.5 14.5 11"/></svg>';                 // EXEC-IND-PRESETS: presets live on the EDGE account (the fixture keeps the reference's rows)
   const BOOKMARK = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg>';
   const CHEV = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg>';
   const GEAR = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.6l6.4 3.7v7.4L10 17.4l-6.4-3.7V6.3z"/><circle cx="10" cy="10" r="2.3"/></svg>';
 
-  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base, ...(i.fold ? { fold:true } : {}) })), parked)));
+  const save = () => store.set(KEY, JSON.stringify(withParked(list.map(i => ({ def:i.def.id, params:i.params, style:i.style, on:i.on, base:i.base, ...(i.fold ? { fold:true } : {}), ...(i.pid ? { pid:i.pid } : {}) })), parked)));
   const defaults = (fields, over?) => Object.fromEntries(fields.filter(f => f.kind !== 'fixed' && f.kind !== 'button' && (f.kind !== 'color' || f.def !== undefined)).map(f => [f.key, over && over[f.key] !== undefined ? over[f.key] : f.def]));
 
   /* EXEC-TERMINAL-LAYOUTS (user 2026-11-06: "kalau misalkan user menambahkan indikator di bawah, saya mau untuk ditambahkan
@@ -260,6 +264,16 @@ export function initIndicators(ctx: Ctx) {
     refresh(inst); layoutPanes(); if(keep) save();
   };
   const stage = legend.parentElement;
+  /* EXEC-PANE-ORDER: the pane under the pointer shows its Move up / Move down (a whole pane is an easy target) */
+  if(LIVE) {
+    let shown: HTMLElement | null = null;
+    const show = (el: HTMLElement | null) => { if(shown === el) return; shown?.classList.remove('on'); shown = el; el?.classList.add('on') };
+    stage.addEventListener('pointermove', (e: PointerEvent) => {
+      const inst = list.find(i => i.moveBox && (() => { const r = paneOfInst(i)?.getHTMLElement()?.getBoundingClientRect(); return r && e.clientY >= r.top && e.clientY <= r.bottom })());
+      show(inst ? inst.moveBox : null);
+    });
+    stage.addEventListener('pointerleave', () => show(null));
+  }
   /* QA round 4 (M2): the rows' narrow form (one line, a Filters button) follows the chart's own width, not the window's:
      with both side panels open a 1280 px window leaves the chart about as wide as a tablet */
   const NARROW_PX = 1000;
@@ -389,6 +403,15 @@ export function initIndicators(ctx: Ctx) {
     const right = sr.right - er.right;
     inst.row.style.right = (right + axis + 6) + 'px';
     if(inst.foldBtn) { inst.foldBtn.style.top = (top - 2) + 'px'; inst.foldBtn.style.right = (right + 3) + 'px' }   // at the axis's right edge, clear of its labels
+    if(inst.moveBox) {                                       // EXEC-PANE-ORDER: centred on the row's first line, left of it
+      const line = (inst.row.querySelector('.ind-k') as HTMLElement | null)?.getBoundingClientRect();
+      const mid = line && line.height ? line.top - sr.top + line.height / 2 : top + 11;
+      // right against the title (the room between the drawing toolbar and the row), as the user marked it
+      const rl = inst.row.getBoundingClientRect().left - sr.left;
+      inst.moveBox.style.left = (rl - inst.moveBox.offsetWidth - 10) + 'px'; inst.moveBox.style.top = (mid - inst.moveBox.offsetHeight / 2) + 'px';
+      const subs = list.filter(i => i.def.pane === 'sub'), k = subs.indexOf(inst);
+      (inst.moveBox.children[0] as HTMLButtonElement).disabled = k <= 0; (inst.moveBox.children[1] as HTMLButtonElement).disabled = k < 0 || k >= subs.length - 1;
+    }
     /* the pane's top margin is its row's height (not a fixed 20 %), so the lines, the axis labels and the last-value badge
        stay under the row and the chevron */
     const ph = er.height, want = ph > 0 && !inst.fold ? Math.min(0.5, Math.max(0.2, (inst.row.offsetHeight + 22) / ph)) : 0.2;
@@ -440,6 +463,15 @@ export function initIndicators(ctx: Ctx) {
   }
   const guideLevels = inst => { const lv = String(inst.style.guides.levels).split(/[,;|\s]+/).filter(Boolean).map(Number).filter(Number.isFinite); return inst.def.guidesFor ? inst.def.guidesFor(inst.params, lv) : lv };
   const STATE_COLORS = ['#089981', '#8b5a2b', '#0070f3', '#d6409f'];   // Market Facilitation: green, fade, fake, squat
+  /* EXEC-QA5-FIX (re-test 2026-11-07, agent 5 N1): Lightweight Charts 5.2 joins the points on either side of a whitespace
+     item, so a gap is made by colouring the segment into it transparent: a point's colour is the colour of the segment
+     that starts there. Every point followed by an empty one (before a later value) is made transparent. */
+  const GAP = 'rgba(0,0,0,0)';
+  const gapped = (pts: any[]) => { let later = false;
+    for(let i = pts.length - 1; i >= 0; i--){ const has = pts[i].value !== undefined;
+      if(has && later && i + 1 < pts.length && pts[i + 1].value === undefined) pts[i] = { ...pts[i], color:GAP };
+      if(has) later = true }
+    return pts };
   function refreshMulti(inst) {
     const r = inst.def.reg, st = inst.style, p = inst.params, N2 = N, off = st.offset | 0, op = (st.opacity ?? 100) / 100;
     const ret = r.zone === 'overlay' && ctx.displayMode === 'return', base = closes[0], conv = v => ret ? (v / base - 1) * 100 : v;
@@ -454,6 +486,8 @@ export function initIndicators(ctx: Ctx) {
     const shown = pt => drawn(inst) && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
     inst.parts.forEach(pt => {
       const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
+      /* re-test Q2: the axis shows the last value only when the last candle has one (an empty end showed 1.68× of 30 Oct) */
+      if(pt.series && r.zone !== 'overlay' && pt.kind !== 'marker') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
       if(pt.kind === 'marker') {
         /* EXEC-TERMINAL-FLOW-IND: a mark under each candle where the indicator holds (FL09, FL27), on the series drawn */
         const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
@@ -464,19 +498,20 @@ export function initIndicators(ctx: Ctx) {
       }
       if(pt.kind === 'hist') {
         const rising = /rising/.test(pt.o.rule), states = s.states && /optional_state/.test(pt.o.rule), V = BARS.V;
-        pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:v,
+        /* EXEC-QA5-FIX (QA 2026-11-07, agent 5 F1): a day without a value is a gap (whitespace), never bridged */
+        pt.series.setData(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [{ time:T(i), value:v,
           color: states ? (i && a[i - 1] !== null ? alpha(STATE_COLORS[v >= a[i - 1] ? (V[i] >= V[i - 1] ? 0 : 2) : (V[i] >= V[i - 1] ? 3 : 1)], op) : c1)
                : rising ? (i && a[i - 1] !== null && v < a[i - 1] ? c2 : c1) : (v >= 0 ? c1 : c2) }]));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'seg') {
-        const data = want => a.map((v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) });   // whitespace breaks the line at every trend flip
+        const data = want => gapped(a.map((v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) }));   // a transparent segment at every trend flip (whitespace alone is joined)
         pt.series.setData(data(1)); pt.series2.setData(data(-1));
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width }); pt.series2.applyOptions({ visible:vis, color:c2, lineWidth:s.width });
       } else if(pt.kind === 'dots') {
         pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
         pt.series.applyOptions({ visible:vis, color:c1, pointMarkersRadius:Math.max(1, s.width) });
       } else {
-        pt.series.setData(a.flatMap((v, i) => v === null ? [] : [breaks.has(i + 1) ? { time:T(i), value:conv(v), color:'rgba(0,0,0,0)' } : { time:T(i), value:conv(v) }]));
+        pt.series.setData(gapped(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:conv(v), color:GAP } : { time:T(i), value:conv(v) }])))   // a gap, not a bridge (agent 5 F1);
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
       }
       if(r.zone === 'overlay') [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));
@@ -485,6 +520,14 @@ export function initIndicators(ctx: Ctx) {
     (inst.guideLines || []).forEach(([se, pl]) => { try{ se.removePriceLine(pl) }catch(e){} }); inst.guideLines = [];
     if(inst.def.zeroLabel && drawn(inst)) { const host = inst.parts.find(pt => pt.series && pt.kind !== 'marker')?.series;
       if(host) inst.guideLines.push([host, host.createPriceLine({ price:0, color:'#c8c8c8', lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:false, title:'' })]) }
+    /* EXEC-QA5-FIX (QA Q5, F2-10): a line on the pane's second (left) scale gets its own zero line when its values cross 0,
+       so its 0 is not read against the right scale's 0 (FL11 change, FL29 balance) */
+    if(drawn(inst)) inst.parts.forEach(pt => {
+      if(pt.o.scale !== 'left' || !pt.series || !shown(pt)) return;
+      const a = (inst.disp[pt.o.k] || []).filter(v => v !== null && v !== undefined);
+      if(a.length && Math.min(...a) < 0 && Math.max(...a) > 0)
+        inst.guideLines.push([pt.series, pt.series.createPriceLine({ price:0, color:alpha(st.out[pt.o.k].color, .55), lineWidth:1, lineStyle:L.LineStyle.Dotted, axisLabelVisible:true, title:'' })]);
+    });
     if(st.guides && st.guides.on && drawn(inst)) {
       const host = inst.parts[0].series;
       guideLevels(inst).forEach(lv =>
@@ -522,12 +565,16 @@ export function initIndicators(ctx: Ctx) {
         lastValueVisible:true, priceLineVisible:false, crosshairMarkerVisible:false, title:`${ln.id} · ${inst.def.lineTag(inst.params)}`,
         priceFormat:{ type:'custom', formatter:inst.def.format, minMove:1 }
       });
-      series.setData(ln.vals.flatMap((v, i) => v === null ? [] : [{ time:ohlc[i].time, value:Math.round(v) }]));
+      series.setData(gapped(ln.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [{ time:ohlc[i].time, value:Math.round(v) }])));
       return { id:ln.id, color, series, vals:ln.vals };
     });
     paintRow(inst);
   }
   function refresh(inst) {                                   // redraw one indicator from its cached values
+    refreshPlot(inst);
+    if(inst.pid && ctx.paneDraw) { ctx.paneDraw.attach(inst); ctx.paneDraw.rebind(inst); ctx.paneDraw.show(inst) }   // EXEC-DRAW-PANES: series that came late, new series, folded or hidden
+  }
+  function refreshPlot(inst) {
     if(inst.def.multi) return refreshMulti(inst);
     if(inst.def.lines) return refreshLines(inst);
     ensureSeries(inst);
@@ -537,7 +584,8 @@ export function initIndicators(ctx: Ctx) {
       const value = sub ? Math.round(v) : +v.toFixed(4);
       return inst.sType === 'hist' ? { time:ohlc[i].time, value, color:v >= 0 ? inst.style.color : inst.style.colorNeg } : { time:ohlc[i].time, value };
     };
-    inst.series.setData(inst.vals.flatMap((v, i) => v === null ? [] : [point(v, i)]));
+    const pts = inst.vals.flatMap((v, i) => v === null ? [{ time:ohlc[i].time }] : [point(v, i)]);
+    inst.series.setData(inst.sType === 'line' ? gapped(pts) : pts);   // a gap, not a bridge
     const o = { visible:drawn(inst) };
     if(inst.sType === 'line') Object.assign(o, { color:inst.style.color, lineWidth:inst.style.width || 2, lineStyle:LINE_STYLES[inst.style.lineStyle || 'Solid'] });
     inst.series.applyOptions(o);
@@ -573,7 +621,8 @@ export function initIndicators(ctx: Ctx) {
   /* at most one recompute per 120 ms while the view moves (and one after it stops), and only when the first visible candle
      changed: one per frame made pan and zoom stutter with several of them (front-end audit I12) */
   let viewTimer: any = 0, viewLast = 0;
-  const firstVisibleIdx = () => { const r = chart.timeScale().getVisibleLogicalRange(); return r ? Math.max(0, Math.min(N - 1, Math.ceil(r.from))) : 0 };
+  /* re-test R2-01: the same "in view" rule as the anchor itself (visibleBars), so a pan that moves the anchor recomputes */
+  const firstVisibleIdx = () => visibleBars(chart.timeScale().getVisibleLogicalRange(), N)[0];
   const followView = () => {
     viewTimer = 0; viewLast = performance.now();
     const fv = firstVisibleIdx();
@@ -587,17 +636,22 @@ export function initIndicators(ctx: Ctx) {
   function paintRow(inst, i = ctx.lastTipIdx) {
     if(!inst.row || (inst.def.multi && !inst.disp)) return;          // still being built
     const r = inst.row, ret = ctx.displayMode === 'return';
-    r.querySelector('.ind-k').textContent = inst.def.title(inst.params);
+    { const k = r.querySelector('.ind-k'), t = inst.def.title(inst.params); k.textContent = t; k.title = t }   // re-test R2-06: the full title on a narrow screen
     const b = r.querySelector('b');
     if(inst.def.multi) {                                     // one coloured value per visible output
-      const reg = inst.def.reg, many = inst.parts.length > 1, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
+      // QA F2-11: an output names itself only beside another visible output ("Silent Accumulation Silent Accumulation No")
+      /* re-test R2-02: an output names itself beside another visible output, or when it is the only one shown but not the
+         first (the one the title names: FL27's Net trigger, FL29's Balance %) */
+      const onParts = inst.parts.filter(pt => inst.style.out[pt.o.k]?.on), many = onParts.length > 1 || (onParts.length === 1 && onParts[0] !== inst.parts[0]);
+      const reg = inst.def.reg, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
       b.innerHTML = inst.parts.map(pt => {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
         if(!s.on || v === null || v === undefined) return '';
         const prev = inst.disp[pt.o.k][i - 1];
         const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
-        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
+        /* EXEC-QA5-FIX (agent 5 F8): a line on the price reads in the price's own decimals, as the price axis (2,903 · 3,316) */
+        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
@@ -636,22 +690,36 @@ export function initIndicators(ctx: Ctx) {
       f.type = 'button'; f.className = 'ind-fold'; f.dataset.def = inst.def.id; f.setAttribute('aria-expanded', 'true'); f.dataset.label = 'Collapse';
       f.setAttribute('aria-label', `Collapse the ${inst.def.name} pane`); f.innerHTML = CHEV; f.onclick = () => setFold(inst, !inst.fold);
       stage.appendChild(f);
+      /* EXEC-PANE-ORDER (user 2026-11-07: "panah naik dan turun mirip trading view ... untuk mengatur secara lokasi"; "bisa di
+         taruh di screenshot yang saya kotakin merah"): Move up / Move down at the pane's top left, over the left axis; shown
+         while the pointer is anywhere in the pane (or a button has the focus), live only */
+      if(LIVE) {
+        const mv = inst.moveBox = document.createElement('div');
+        mv.className = 'ind-move'; mv.setAttribute('role', 'group'); mv.setAttribute('aria-label', `Move the ${inst.def.name} pane`);
+        mv.innerHTML = `<button type="button" data-dir="-1" data-label="Move up" aria-label="Move the ${inst.def.name} pane up">${ARROW_UP}</button>`
+          + `<button type="button" data-dir="1" data-label="Move down" aria-label="Move the ${inst.def.name} pane down">${ARROW_DOWN}</button>`;
+        mv.addEventListener('click', (e: any) => { const b = e.target.closest('button[data-dir]'); if(b && !b.disabled) userMove(inst, +b.dataset.dir) });
+        stage.appendChild(mv);
+      }
     }
     /* EXEC-IND-HOVER (user 2026-11-06: "Kalau mouse kita geser sedikit ... langsung keempat indikator tersebut hilang";
        "Opsi 2"): a row that was pointed at stays active (.hov: its buttons and on-hover filters show) for HOVER_GRACE_MS
        after the pointer leaves it, and a pane row's active area reaches 8px around it (terminal.css .ind-row.hov::before).
-       One row is active at a time. While it is active its value keeps the width it had (a longer value, such as the
-       crosshair's "No broker data on this day", ends in "…"), so the buttons after it do not move under the pointer. */
+       One row is active at a time. While the pointer is away from it (the grace) its value keeps the width it had when the
+       pointer left (the crosshair's longer value, such as "No broker data on this day", ends in "…"), so the buttons do not
+       move under a pointer coming back; on the row the value takes its own width (ERRORS M386: a width held from the
+       chart's value left a white gap after a shorter value). */
     const calm = (row: HTMLElement) => { clearTimeout((row as any).hovT); row.classList.remove('hov'); (row.querySelector(':scope > b') as HTMLElement).style.width = '' };
     r.addEventListener('pointerenter', () => {
       if(hovRow && hovRow !== r) calm(hovRow);
       clearTimeout((r as any).hovT);
-      const val = r.querySelector(':scope > b') as HTMLElement;
-      if(!r.classList.contains('hov')) { val.style.width = Math.ceil(val.getBoundingClientRect().width) + 'px'; r.classList.add('hov') }
+      (r.querySelector(':scope > b') as HTMLElement).style.width = ''; r.classList.add('hov');
       hovRow = r;
     });
     r.addEventListener('pointerleave', () => {
       clearTimeout((r as any).hovT);
+      const val = r.querySelector(':scope > b') as HTMLElement;
+      val.style.width = Math.ceil(val.getBoundingClientRect().width) + 'px';
       (r as any).hovT = setTimeout(() => { calm(r); if(hovRow === r) hovRow = null }, HOVER_GRACE_MS);
     });
     r.addEventListener('click', (e: any) => {
@@ -672,6 +740,7 @@ export function initIndicators(ctx: Ctx) {
     recompute(inst);
     placeRow(inst);
     if(inst.fold) setFold(inst, true, false);
+    if(inst.pid) ctx.paneDraw?.attach(inst);                 // EXEC-DRAW-PANES: its drawings, once its series exist
   }
   const nextBase = () => PALETTE[list.length % 6];
   const byHid = hid => list.find(i => i.hid === hid);
@@ -679,6 +748,8 @@ export function initIndicators(ctx: Ctx) {
     const def = defOf(defId); if(!def || !usable(defId)) return null;
     const inst: any = { uid:++uid, def, params:defaults(def.inputs, saved && saved.params), on:saved ? saved.on !== false : true, fold:def.pane === 'sub' && !!(saved && saved.fold) };
     inst.hid = inst.uid;
+    /* EXEC-DRAW-PANES (2A: a pane's drawings belong to that pane): a pane indicator keeps one id for its life, saved with it */
+    if(def.pane === 'sub') inst.pid = saved && typeof saved.pid === 'string' && /^[0-9a-f]{16}$/.test(saved.pid) ? saved.pid : newPaneId();
     if(def.multi) { inst.base = (saved && saved.base) || nextBase(); inst.style = merge(regStyle(def, inst.base), saved && saved.style) }
     else inst.style = { ...defaults(def.style, saved && saved.style), ...(def.style.some(f => f.key === 'color' && f.def !== undefined) ? {} : { color:(saved && saved.style && saved.style.color) || PALETTE[list.length % PALETTE.length] }) };
     if(def.validate && def.validate(inst.params)) inst.params = defaults(def.inputs);     // a saved set that breaks a rule falls back to defaults
@@ -687,10 +758,12 @@ export function initIndicators(ctx: Ctx) {
     return inst;
   }
   function remove(inst) {
+    if(inst.pid) ctx.paneDraw?.detach(inst);
     const sub = inst.def.pane === 'sub', pane = sub ? inst.series.getPane() : null;
     if(inst.ro) inst.ro.disconnect();
     if(inst.rowRO) inst.rowRO.disconnect();
     if(inst.foldBtn) inst.foldBtn.remove();
+    if(inst.moveBox) inst.moveBox.remove();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove();
@@ -909,7 +982,7 @@ export function initIndicators(ctx: Ctx) {
   /* undo / redo: an indicator comes back with the same inputs, style and visibility */
   /* every step names its indicator by a history id that a revived indicator keeps (front-end audit I3: a step holding the
      object lost it after remove + undo, and a redo then added a second copy) */
-  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, at:list.indexOf(inst), ...(inst.fold ? { fold:true } : {}) }));
+  const snapOf = inst => JSON.parse(JSON.stringify({ def:inst.def.id, params:inst.params, style:inst.style, on:inst.on, base:inst.base, hid:inst.hid, at:list.indexOf(inst), ...(inst.fold ? { fold:true } : {}), ...(inst.pid ? { pid:inst.pid } : {}) }));
   /* QA round 3 (agent 4 L4): an indicator brought back by Undo returns to its place: in the list, its legend row, its pane */
   const placeAt = (inst, at) => {
     const i = list.indexOf(inst); if(typeof at !== 'number' || at < 0 || at >= i) return;
@@ -926,6 +999,26 @@ export function initIndicators(ctx: Ctx) {
     save(); Ind.onChange && Ind.onChange(); return inst;
   };
   const drop = hid => { const inst = byHid(hid); if(inst) remove(inst) };
+  /* EXEC-PANE-ORDER: a pane changes place with its neighbour above or below (the price pane stays first); the saved list
+     (and so a layout) keeps the new order, the pane's drawings go with it (they belong to its series), Undo puts it back */
+  const movePane = (hid, dir: number) => {
+    const inst = byHid(hid); if(!inst) return false;
+    const subs = list.filter(i => i.def.pane === 'sub'), k = subs.indexOf(inst), other = subs[k + dir];
+    if(k < 0 || !other) return false;
+    const a = paneOfInst(inst), b = paneOfInst(other); if(!a || !b) return false;
+    try { a.moveTo(b.paneIndex()) } catch(e) { return false }
+    const i = list.indexOf(inst), j = list.indexOf(other); list[i] = other; list[j] = inst;
+    const after = dir > 0 ? inst : other, before = dir > 0 ? other : inst;
+    if(after.row.parentElement === before.row.parentElement) after.row.after(before.row);   // the rows keep the panes' order for Tab
+    save(); layoutPanes(); Ind.onChange && Ind.onChange();
+    return true;
+  };
+  function userMove(inst, dir: number) {
+    const hid = inst.hid;
+    if(movePane(hid, dir)) Hist.push({ undo:() => movePane(hid, -dir), redo:() => movePane(hid, dir) });
+    (inst.moveBox?.querySelector(`[data-dir="${dir}"]:not([disabled])`) as HTMLElement | null)?.focus({ preventScroll:true });
+  }
+  const dropForget = hid => { const inst = byHid(hid); if(inst?.pid) ctx.paneDraw?.forget(inst); drop(hid) };   // a Redo of the user's removal
   function userAdd(id, saved?) {
     const inst = add(id, saved); if(!inst) return null;
     const snap = snapOf(inst);
@@ -934,8 +1027,9 @@ export function initIndicators(ctx: Ctx) {
   }
   function userRemove(inst) {
     const snap = snapOf(inst);
+    if(inst.pid) ctx.paneDraw?.forget(inst);                 // EXEC-DRAW-PANES 2A: its drawings go with it; Undo brings them back
     remove(inst);
-    Hist.push({ undo:() => revive(snap), redo:() => drop(snap.hid) });
+    Hist.push({ undo:() => revive(snap), redo:() => dropForget(snap.hid) });
   }
   Ind.add = id => userAdd(id);
   /* EXEC-IND-PRESETS (user 2026-11-06: "men-save indikator beserta dengan filternya"): an indicator from a preset comes with
@@ -971,8 +1065,9 @@ export function initIndicators(ctx: Ctx) {
   Ind.removeAll = () => {
     if(!list.length) return;
     const snaps = list.map(snapOf);
+    list.forEach(i => { if(i.pid) ctx.paneDraw?.forget(i) });
     [...list].forEach(remove);
-    Hist.push({ undo:() => snaps.forEach(revive), redo:() => snaps.forEach(s => drop(s.hid)) });
+    Hist.push({ undo:() => snaps.forEach(revive), redo:() => snaps.forEach(s => dropForget(s.hid)) });
   };
 
   /* saved lists from before the registry used 'ma' / 'ema' (one MA indicator with a type switch) */

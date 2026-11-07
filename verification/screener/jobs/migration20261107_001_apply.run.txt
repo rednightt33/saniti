@@ -1,0 +1,27 @@
+MIGRATION 20261107_001_edge_bff_terminal_drawings.sql apply sha256=5a8fb73412fac55a0f5b643a46167e34ea2781944e55216f43b1fc94ea99a7c9 commit=cda64b1f234e
+JOB 8e07820a-ca5a-4ff3-8c77-141934af58e7
+14
+MIG APPLY 20261107_001_edge_bff_terminal_drawings.sql sha256=5a8fb73412fac55a0f5b643a46167e34ea2781944e55216f43b1fc94ea99a7c9
+JOB_EXIT 0
+JOB_DONE MIGRATION APPLY
+POSTGRES_MEMORY_CHECK
+KeyError: 'RAILWAY_TOKEN'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sys,json;v=json.load(sys.stdin);sys.exit(0 if not set(sys.argv[1:]) & set(v) else 1)
+                      ~~~~~~~~~^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/json/__init__.py", line 298, in load
+    return loads(fp.read(),
+        cls=cls, object_hook=object_hook,
+        parse_float=parse_float, parse_int=parse_int,
+        parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+  File "/usr/local/lib/python3.13/json/__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/usr/local/lib/python3.13/json/decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/json/decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+VAR_REMOVED

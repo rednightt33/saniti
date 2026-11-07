@@ -12416,6 +12416,146 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   galat, angka tampilan lama sama; Terminal 870/870.
 - **Dirilis 2026-11-06** (user: "Opsi 2. Jalankan dulu"): `main` `3a0a1d03`, edge-bff `66310845` SUCCESS, aset live = build lokal.
 
+## EXEC-DRAW-PANES — alat gambar di panel indikator, semua gambar di akun EDGE (keputusan 2026-11-07)
+
+**Kata user, 2026-11-07:** "saat ini kita punya banyak banget indikator yang menggambar, seperti trendline, horizontal
+line, horizontal ray ... Tidak bisa di bagian panel-panel yang ditambahkan di bawah." Atas usulan tiga pertanyaan:
+"1A masukan exec / 2A masukan exec / 3 semua gambar harus di simpan di akun EDGE, sama seperti trading view. Cek dulu
+struktur database."
+- 1A: alat di panel indikator = kelompok Lines (Trend line, Horizontal line, Horizontal ray, Ray, Vertical line) + Brush
+  + Text, seperti Flow Timeline.
+- 2A: gambar milik panel itu (seperti TradingView); indikator dihapus = gambarnya ikut terhapus (bisa di-undo); dua panel
+  kode yang sama punya gambar masing-masing; tiap indikator di chart diberi id tetap (ikut layout).
+- 3: semua gambar (chart harga, Flow Timeline, panel indikator) disimpan di akun EDGE, bukan di browser. Struktur database
+  diperiksa dulu; tabel baru dan migrasinya menunggu go user atas usulan.
+- Dasar teknis: prototipe `?drawpanes=1` (EXEC-TERMINAL-1026C C4, `drawings.ts:636-672`) diganti cara Flow Timeline
+  (`attachFlow`).
+- Go user 2026-11-07 atas usulan tabel (`edge_bff.terminal_drawings`: satu baris per akun per set gambar: chart harga,
+  Flow Timeline, tiap panel indikator, per ticker; revisi; batas ukuran; API GET per ticker, PUT, DELETE; gambar di browser
+  dipindah sekali ke akun): "3 jalankan dulu". Rilis (migrasi lalu `main`) menunggu go user sesudah pemeriksaan.
+- Go rilis 2026-11-07 (user: "rilis paket dan main", 22:16 WIB, sesudah B6): migrasi `20261107_001` DRYRUN lalu APPLY,
+  lalu `main` dengan seluruh paket di branch (EXEC-RP-LOOK, EXEC-DRAW-PANES, EXEC-PANE-ORDER, EXEC-IND-NAV, M386).
+- **Dirilis 2026-11-07:** migrasi `20261107_001` diterapkan (DRYRUN `ea96b2e7` 36/36, APPLY `8e07820a` 23/23); `main`
+  `dbe23aaa`, edge-bff `dbd23c1b` SUCCESS, aset live = build lokal. Termasuk EXEC-RP-LOOK, EXEC-PANE-ORDER, EXEC-IND-NAV.
+- Status 2026-11-07 (branch): dikerjakan. Backend `apps/edge-bff/app/drawings.py` + migrasi `20261107_001` (belum
+  diterapkan; gladi lokal DRYRUN 36/36, APPLY 23/23); Terminal `data/drawingsApi.ts` (akun; browser hanya saat akun tak
+  terjangkau; pindah sekali dari `ml.drawings.*`), `app/drawings.ts` (pengelola per panel,
+  menggantikan prototipe `?drawpanes=1`), id panel di `app/indicators.ts`. Bukti `look_check12.mjs` (akun mati lalu
+  hidup, Alt+H dan tarik-lepas di panel, undo/redo, seri FL23 diganti saat broker dipilih, muat ulang tanpa menulis,
+  hapus panel lalu undo) dan `look_check3/5/6/7/8/9/10` tanpa galat; `look_check11` lulus kecuali baris Top brokers
+  (menunggu keputusan).
+
+## EXEC-RP-LOOK — panel kanan: Foreign × Domestic, posisi kontrol, toggle Events, keterangan Top brokers (2026-11-07)
+
+**Kata user, 2026-11-07:** "Di bagian foreign, cukup hilangkan "X" & "Y" dan" (Top N)". 73D. Lihat juga screenshot
+foreign X domestic map yang saya kotakin biru Bisa dikasih opsi untuk collapse dan expand agar panel tidak terlalu
+memakan space. Kemudian lihat di bagian foreign ex domestic map. Bagaimana kolom atau slider untuk memilih hari.
+Kemudian untuk memilih top, dan untuk memilih market. Aplikasikan posisi tersebut di panel top brokers. Dan di panel
+broker summary. Kemudian lihat screenshot di bagian events ... Slidernya dotnya sedikit ke bawah dan tidak middle
+align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya X, tidak perlu ada, atau hapus saja."
+- R1: kartu Foreign × Domestic: "X · Foreign (Top N)" → "Foreign", "Y · Domestic (Top N)" → "Domestic" (juga kepala
+  tabel "X foreign", "Y dom."); "73D" ditanyakan balik.
+- R2: kartu dan tabel periode di bawah peta bisa dilipat/dibuka.
+- R3: posisi kontrol peta (baris periode; baris Top N dengan pilihan market di kanan) diterapkan ke Top brokers dan
+  Broker summary.
+- R4: titik toggle Events turun 2 px: `.ev-head span{margin-top:2px}` (`terminal.css:731`) mengenai bagian dalam toggle.
+- R5: keterangan Top brokers di kepala panel (" · net · Acc · Regular") dihapus, tanggal tetap.
+- R6 (user, pesan berikutnya 2026-11-07: "trennya juga tidak di tengah ... di indikatornya juga nggak jelas, ini mau left align,
+  center line, atau apa"): judul grup jendela Indicators mulai di kolom nama (sejajar "INDICATOR") dan tintanya di
+  tengah pita; ERRORS M385; pemeriksaan baru `look_check11.mjs`.
+- Status 2026-11-07 (branch): R1, R2, R4, R5, R6 dan R3 untuk Broker summary dikerjakan; `look_check11.mjs` lulus kecuali
+  baris Top brokers (Top 3/5/10 + lencana rasio + Regular butuh 332 px, panel 287 px: menunggu keputusan user); "73D"
+  ditanyakan balik. Terminal 870/870, `look_check3/5/6/7/8/9/10` tanpa galat. Belum dirilis.
+- Jawaban user 2026-11-07: "2C" ("73D" tetap seperti sekarang); Top brokers: "we'll decide about masalah top brokers"
+  (baris kontrol Top brokers menunggu). Aturan `look_check11.mjs` masuk AGENTS.md (user: "Tambah ke agents MD.").
+- User 2026-11-07 (dengan tangkapan layar Top brokers, X = pilihan Regular, Y = lencana rasio): "X dan Y nya di tuker saja
+  untuk top brokers. masukan exec" — lencana rasio pindah ke baris periode, pilihan Regular ke baris Top N (rata kanan,
+  satu baris, seperti peta). Keputusan baris Top brokers selesai.
+- R7 (user 2026-11-07): "foreign x domestic map kalau hover ke dot tidak usah muncul tool tip, hapus ya masukan exec" —
+  titik peta tanpa tooltip (pembaca layar tetap membaca periode dan angkanya).
+- R8 (user 2026-11-07, dengan tangkapan layar Top brokers): "Untuk bagian top brokers, batch minus 12,99%. Dihilangkan saja.
+  Tapi hover state ketika mouse ke big dist, maka tooltip yang keluar adalah angka minus 12,99%. [masukkan] exec" —
+  lencana rasio dihapus; anak tangga verdict yang aktif punya tooltip sendiri yang diawali rasionya ("−6.37% · Dist",
+  lalu rumusnya). `look_check11.mjs` memeriksa keduanya. Di branch; belum dirilis.
+- Pertanyaan user yang sama: "kalau seandainya foreign x dometic ini mau di expand, kira2 informasi apa yang deserve kita
+  show? ... coba propose 10 opsi dalam 1 HTML" — usulan dikirim 2026-11-07
+  (`verification/terminal_api/fd_map_expand/`, angka BBRI dari `calc.py`), menunggu pilihan user.
+- Koreksi user 2026-11-07: "yang saya maksud expand panel bukan panel seperti itu ... Yang saya maksud adalah panel-panel
+  seperti terlampir" (window ⤢ seperti Broker inventory dan Broker summary); atas pertanyaan balik (A window peta
+  Foreign × Domestic, B perbaikan window Broker summary, C keduanya): "A". 10 opsi window peta dalam satu HTML
+  (`verification/terminal_api/fd_map_expand/fd_map_window_options.html`), menggantikan halaman panel sempit.
+- Pilihan user 2026-11-07: "terkait dengan window saya tertarik dari HTML terlampir opsi 2 tapi perlu diperjelas verdictnya
+  ini berubah karena foreign atau karena domestik. Boleh propose mungkin 5 opsi dalam satu HTML untuk Peta + jejak 20 sesi
+  nomor 2" — usulan `verification/terminal_api/fd_map_expand/fd_trail_driver_options.html`, menunggu pilihan user.
+- User 2026-11-07: "Saya masih bingung cara membaca indikatornya ... percentage ini represent apa sebenarnya?" dan "Saya
+  tendesi lebih ke Peta + jejak 20 sesi (opsi 2) dan ada toggle untuk switch it ke Tabel penggerak per sesi (opsi A).. boleh
+  kirim HTMLnya lalu describe how to calcualte it? kasih dummy data saja" — mock-up dengan data contoh dan penjelasan cara
+  hitung: `verification/terminal_api/fd_map_expand/fd_trail_toggle_mockup.html`. Belum go untuk dibangun.
+- **EXEC-FD-WINDOW** — user 2026-11-07, melampirkan `aaaa.html`: "pake seperti HTML terlampir" (disimpan sebagai
+  `verification/terminal_api/fd_map_expand/aaaa.html`). Dibangun 2026-11-07, dirilis 2026-11-07 ("rilis paket dan
+  main": `main` `4c7f46be`, edge-bff `aa4ca015` SUCCESS):
+  - Tombol ⤢ di panel Foreign × Domestic membuka jendela "Foreign × Domestic map" (live saja; fixture tetap 1:1).
+  - Kontrol: periode 1D / 5D / 20D / Custom, Top 3 / 5 / 10, 5 / 10 / 20 sessions, Level / Change (Δ), Board di kanan
+    (bawaan Regular). Pilihan tersimpan per jendela (`ml.winst.fd`), jendela terbuka ikut dibuka lagi sesudah reload.
+  - Peta: satu titik per sesi (periode bergulir yang berakhir di sesi itu), garis jejak, titik lama lebih pudar, titik
+    terbaru besar bertanda "now", titik pertama bertanggal; batas sumbu diturunkan dari data (`mapLimit`), titik di luar
+    batas digambar kosong di tepi. Tanpa tooltip di titik (R7). Arah kursor di baris tabel menandai titiknya di peta.
+  - Tabel Level: tanggal akhir, Foreign, Domestic, Verdict (terbaru di atas). Tabel Change (Δ): Verdict, Δ Verdict,
+    Δ Foreign, Δ Domestic dan Driver = sisi dengan |Δ| lebih besar (Foreign bila sama); Δ Verdict = Δ Foreign + Δ Domestic.
+  - Rumus satu sumber: `fdAt` di `app/broker.ts` dipakai panel dan jendela (panel tidak lagi punya salinan rumus);
+    `fdTrail` membuat jejaknya. Cek: titik terbaru jendela = baris 5D panel (BBRI 03 Nov: −15,6% + 9,2% = −6,4%).
+  - Bukti: vitest 873/873 (3 tes baru di `tests/data/fd_split.test.ts`), `look_check11.mjs` PASS dengan cek baru baris
+    kontrol jendela (satu baris, Board di kanan) dan judul kolom tabel di tengah pitanya (sempat 7,2/5,1 px, diperbaiki
+    jadi 6,1/6,1).
+
+## EXEC-QA5-FIX — perbaikan temuan QA lima agen atas angka Terminal (go 2026-11-07)
+
+- Kata user 2026-11-07, sesudah rilis `4c7f46be`: "Setelah done, jalankan 5 agents sonnet 5.5 high" (lima agen: Top
+  brokers/verdict/Foreign × Domestic, Broker summary/inventory, Flow FL01-16, FL17-32, FL33-48 + legend/sumbu). Hasil:
+  semua hitungan cocok dengan hitung ulang mandiri dan database (FL11, FL16, FL22, FL28, FL30, FL47, FL48, insider);
+  temuan ada di makna, label, pembulatan dan keadaan kosong.
+- Usulan (A prioritas, B + teks/label, C + semua item kecil); kata user: "Jalankan A-C then test lagi".
+- A: (H1) Avg mode Net panel Broker summary; (H2) "position" Broker inventory; (1) pembulatan sebelum kategori/jumlah
+  (Foreign × Domestic 2 desimal dengan bagian yang menjumlah, warna dan driver dari angka yang tampil, "±0.00 pt", nol
+  sumbu "5.55e-17"); (2) jendela F×D: sesi tanpa nilai beli tetap tercatat, Δ hanya antar sesi berurutan, "now" = sesi
+  terakhir; (3) garis tidak menyambung melewati hari tanpa nilai; (8) jendela ⤢ mengikuti aturan indeks.
+- B: judul memuat parameter yang mengubah arti (tanggal awal, baseline, recent, unit, opsi), teks penyebut yang jujur,
+  pesan untuk nilai kosong (sebelum data, sebelum tanggal awal, filter tanpa transaksi, sebab lain), FL31 tanpa "Rp 0"
+  palsu dan catatan harga perkiraan, penjelasan kelompok "net buyers" di tooltip (diturunkan dari parameter).
+- C: semua item kecil dari kelima laporan. FL46 tidak diubah (keputusan user).
+- Catatan error: ERRORS M387-M390.
+- Uji ulang lima agen (ronde 2) dan perbaikannya selesai 2026-11-07; dirilis 2026-11-08 (kata user: "Ok"): `main`
+  `81146306`, edge-bff `16aa6dbb` SUCCESS. Rincian di RAILWAY_CHANGELOG dan ERRORS M390.
+
+## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
+
+**Kata user, 2026-11-07:** "untuk screenshot A, itu adalah selected state about currently where user scroll. Mungkin bisa
+dibuat lebih standout, entah fillnya dipergelap atau shadownya dipertebal." Atas pilihan A1 (latar lebih gelap + garis
+kiri, disarankan) atau A2 (bayangan lebih tebal): "Ok untuk ini, jalankan dulu di branch sekarang." Dibaca sebagai A1
+(opsi yang disarankan); A2 tinggal diganti bila maksud user lain.
+- Grup terpilih: latar lebih gelap (9% warna teks di atas permukaan) dan garis 3 px di kirinya; di layar sempit (grup jadi
+  deretan chip) garisnya di bawah.
+- B1 (user 2026-11-07: "B1 ok , buat di branch dulu"; permintaan awal: "agar bisa lebih jelas lah bahwa indikator yang di
+  bawahnya itu adalah grup dari bagian yang di atas"): judul grup jadi pita abu-abu, huruf hitam sedikit lebih besar dan
+  jumlah indikatornya ("VOLUME 5"); judul kolom "INDICATOR" tetap kecil abu-abu. Teks tetap sejajar kolom nama dan di
+  tengah pitanya (`look_check11.mjs` lulus).
+- Status 2026-11-07 (branch): A1 dan B1 dikerjakan; Terminal 870/870. Belum dirilis.
+
+## EXEC-PANE-ORDER — urutan panel indikator dengan panah naik/turun (go 2026-11-07)
+
+**Kata user, 2026-11-07:** "panen-panen indikator yang ditambahkan di bawah itu tidak bisa diatur ... Bisa nggak ditambah
+indikator seperti semacam panah naik dan turun mirip trading view ... untuk mengatur secara lokasi di mana indikator
+tersebut terpilih ... Konfirmasi." Atas konfirmasi (dua letak, A di deretan tombol baris, B di pojok kanan): "Untuk tombol
+panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi kiri judul panel, di ruang sumbu kiri).
+- Move up / Move down di kiri judul tiap panel indikator (di antara toolbar gambar dan judul), tampil selama kursor di panel
+  itu (selalu di layar sentuh); ↑ mati di panel teratas, ↓ di panel terbawah; chart harga tetap paling atas, Flow Timeline
+  tidak ikut; urutan tersimpan (ikut layout), bisa di-undo; gambar panel ikut pindah (milik serinya). Hanya mode live.
+- Pertanyaan user yang sama: "boleh cek screenshot terlampir kenapa ada gap putih?" — ERRORS M386 (disebabkan perbaikan
+  M380), diperbaiki.
+- Status 2026-11-07 (branch): dikerjakan. Bukti `look_check13.mjs` (tampil di panelnya saja, ujung mati, sejajar judul,
+  tidak menimpa toolbar, tukar urutan, tetap setelah muat ulang, undo, gambar ikut, tanpa gap) dan `look_check11.mjs`
+  (tombol baru masuk pemeriksaan kerataan) lulus; `look_check3/5/6/7/8/9/10/12` tanpa galat; Terminal 870/870.
+
 ## EXEC-SCREENER-TIDY — Fundamentals di Preview dihapus, judul kolom "Add a condition" sejajar tengah (2026-11-07)
 
 ### Kata user (2026-11-07)

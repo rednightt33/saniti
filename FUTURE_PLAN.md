@@ -235,6 +235,15 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
   menganggur) dan pool koneksi database (dipinjam, lalu dikembalikan di akhir permintaan).
 - **Keputusan user yang masih terbuka:** tambahan biaya server dan perubahan arsitektur untuk no. 3–4.
 
+## PRE-RALLY — Terminal: panel untuk mengenali fase pra-reli (usulan 2026-11-07, menunggu pilihan user)
+
+- Kata user, 2026-11-07: "bisa siapkan lagi kira-kira, just using a dummy data, mungkin 20 opsi dalam satu HTML, yang
+  kira-kira panel bisa kita tambahkan sebagai indikator terpisah atau panel di sebelah kanan. Benchmark dulu terhadap
+  research dulu supaya ... rekomendasi yang kamu kasih relevan. Take into account data yang saat ini ada di indikator
+  flow. Goalnya dari user tahu fase-fase yang menjadi potensial pre-rally."
+- Usulan: `verification/terminal_api/pre_rally_panels/pre_rally_options.html` (20 opsi, data contoh, acuan riset dan
+  sumber data per opsi: indikator Flow yang ada, harga, atau hitungan baru). Menunggu pilihan user; belum ada go.
+
 ## FI-SPEED — Terminal: sisa waktu muat di sisi server (usulan 2026-11-01, menunggu keputusan user)
 
 User 2026-11-01: "untuk load data obligasi kayaknya lama banget deh ... Coba cek deh, kenapa bisa selama ini ya?". Dua
