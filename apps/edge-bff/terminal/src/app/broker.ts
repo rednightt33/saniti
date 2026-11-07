@@ -47,7 +47,9 @@ export function verdictLadder(ratio: number, tip: string): string {
   const pos = (v: number) => (50 + v / lim * 50).toFixed(2), pctL = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}%`;
   const edges = [-lim, -big, -acc, acc, big, lim];
   return `<div class="acc-ladder" data-tip="${tip}" role="img" aria-label="Verdict ${cur}: ${minus((ratio * 100).toFixed(2))}% of total buy">`
-    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}" style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
+    /* EXEC-RP-LOOK R8 (user 2026-11-07: "batch minus 12,99% dihilangkan saja. Tapi hover state ketika mouse ke big dist, maka
+       tooltip yang keluar adalah angka minus 12,99%"): the marked step's own tooltip leads with the ratio */
+    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}"${t === cur ? ` data-tip="${ratio > 0 ? '+' : ''}${minus((ratio * 100).toFixed(2))}% · ${t}|${tip.split('|').slice(1).join('|')}"` : ''} style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
     + `<i class="acc-pin" style="left:${x.toFixed(1)}%"></i></div>`
     + `<div class="acc-lv">${[-big, -acc, acc, big].map(v => `<span style="left:${pos(v)}%">${pctL(v)}</span>`).join('')}</div></div>`;
 }
@@ -424,9 +426,8 @@ export function initBroker(ctx: Ctx) {
       + `<select class="rp-sel" id="accBoard" aria-label="Board">${boards}</select></div>`;
     /* EXEC-RP-LOOK R3 (user 2026-11-07: "X dan Y nya di tuker saja untuk top brokers"): the ratio badge sits on the period
        row (rebuilt by makeRange when the data arrives, so it is placed on every render), the Board choice on the Top N row */
-    const periodRow = $('accRange').querySelector('.rp-ctl:has(.seg)') as HTMLElement | null;
-    periodRow?.querySelector('.acc-ratio')?.remove();
-    if(n) periodRow?.insertAdjacentHTML('beforeend', `<span class="acc-ratio ${r2 > 0 ? 'up' : r2 < 0 ? 'down' : 'flat'}" data-tip="${why}">${ratio}</span>`);
+    /* R8 (user 2026-11-07: the badge "dihilangkan saja"): the ratio is read from the ladder's marked step (its tooltip) */
+    $('accRange').querySelector('.acc-ratio')?.remove();
     const tug = verdictLadder(shown, why)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */

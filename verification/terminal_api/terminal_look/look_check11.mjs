@@ -88,8 +88,9 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
     for (const [k, v] of Object.entries(r.oneLine)) check(`one line ${k}`, v === true, v);
     check('acc period row', !r.rows.accPeriodHasSelect, r.rows.accPeriodHasSelect);
     // EXEC-RP-LOOK R3/R7: Top brokers' ratio badge on the period row; no tooltip on the map's points
-    r.accBadgeOnPeriod = await p.evaluate(() => !!document.querySelector('#accRange .acc-ratio') && !document.querySelector('#accBody .acc-ratio'));
-    check('acc badge on the period row', r.accBadgeOnPeriod, r.accBadgeOnPeriod);
+    // R8: no ratio badge; the ladder's marked step carries the ratio in its tooltip
+    r.accRatio = await p.evaluate(() => ({ badges:document.querySelectorAll('.acc-ratio').length, tip:document.querySelector('.acc-steps .on')?.dataset.tip?.split('|')[0] || null }));
+    check('acc ratio on the marked step', r.accRatio.badges === 0 && /^[+−]?\d+\.\d{2}% · /.test(r.accRatio.tip || ''), r.accRatio);
     r.mapTips = await p.evaluate(() => document.querySelectorAll('.fdm-pt[data-tip], .fdm-pt [data-tip], .fdm-pt[title]').length);
     check('map points without tooltip', r.mapTips === 0, r.mapTips);
     check('bs first', r.rows.bsFirst === 'bsMode', r.rows.bsFirst);

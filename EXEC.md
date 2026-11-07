@@ -12473,6 +12473,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   satu baris, seperti peta). Keputusan baris Top brokers selesai.
 - R7 (user 2026-11-07): "foreign x domestic map kalau hover ke dot tidak usah muncul tool tip, hapus ya masukan exec" —
   titik peta tanpa tooltip (pembaca layar tetap membaca periode dan angkanya).
+- R8 (user 2026-11-07, dengan tangkapan layar Top brokers): "Untuk bagian top brokers, batch minus 12,99%. Dihilangkan saja.
+  Tapi hover state ketika mouse ke big dist, maka tooltip yang keluar adalah angka minus 12,99%. [masukkan] exec" —
+  lencana rasio dihapus; anak tangga verdict yang aktif punya tooltip sendiri yang diawali rasionya ("−6.37% · Dist",
+  lalu rumusnya). `look_check11.mjs` memeriksa keduanya. Di branch; belum dirilis.
 - Pertanyaan user yang sama: "kalau seandainya foreign x dometic ini mau di expand, kira2 informasi apa yang deserve kita
   show? ... coba propose 10 opsi dalam 1 HTML" — usulan dikirim 2026-11-07
   (`verification/terminal_api/fd_map_expand/`, angka BBRI dari `calc.py`), menunggu pilihan user.
@@ -12480,6 +12484,9 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   seperti terlampir" (window ⤢ seperti Broker inventory dan Broker summary); atas pertanyaan balik (A window peta
   Foreign × Domestic, B perbaikan window Broker summary, C keduanya): "A". 10 opsi window peta dalam satu HTML
   (`verification/terminal_api/fd_map_expand/fd_map_window_options.html`), menggantikan halaman panel sempit.
+- Pilihan user 2026-11-07: "terkait dengan window saya tertarik dari HTML terlampir opsi 2 tapi perlu diperjelas verdictnya
+  ini berubah karena foreign atau karena domestik. Boleh propose mungkin 5 opsi dalam satu HTML untuk Peta + jejak 20 sesi
+  nomor 2" — usulan `verification/terminal_api/fd_map_expand/fd_trail_driver_options.html`, menunggu pilihan user.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
