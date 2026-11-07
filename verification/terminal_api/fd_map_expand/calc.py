@@ -1,4 +1,4 @@
-"""Figures for fd_map_expand_options.html (user 2026-11-07: "kalau seandainya foreign x dometic ini mau di expand, kira2
+"""Figures for fd_map_window_options.html (user 2026-11-07: "kalau seandainya foreign x dometic ini mau di expand, kira2
 informasi apa yang deserve kita show? ... coba propose 10 opsi dalam 1 HTML").
 
 Mirrors the Terminal's Foreign x Domestic map exactly (apps/edge-bff/terminal/src/app/broker.ts bandarBalance,
@@ -112,6 +112,36 @@ res['after'] = {'q': q, 'n': len(after), 'episodes': eps, 'med5': round(statisti
 # 10. how much the reading stands for: the Top N's share of all buying, the average daily buy value, against the history
 res['size'] = {'topn_buy_share': res['now'][5]['topn_buy_share'], 'avg_daily_buy': round(res['now'][5]['total'] / 5),
                'hist_avg_daily_buy': round(statistics.mean(h['total'] for h in hist) / 5)}
+# ---- for the window options (user 2026-11-07: "A") ----
+# every broker of the 5D period: net, its foreign and domestic parts, buy and sell value, share of all buying
+def brokers(ds, boards=('Regular',)):
+    m = collections.defaultdict(lambda: {'buy': 0.0, 'sell': 0.0, 'Foreign': 0.0, 'Domestic': 0.0})
+    for d in ds:
+        for bd in boards:
+            for b, inv, bv, sv in by[(d, bd)]:
+                m[b]['buy'] += bv; m[b]['sell'] += sv; m[b][inv] += bv - sv
+    total = sum(v['buy'] for v in m.values())
+    out = [{'b': b, 'net': round(v['buy'] - v['sell']), 'f': round(v['Foreign']), 'd': round(v['Domestic']), 'buy': round(v['buy']),
+            'sell': round(v['sell']), 'share': round(v['buy'] / total * 100, 2)} for b, v in m.items()]
+    return sorted(out, key=lambda o: -abs(o['net']))
+res['brokers'] = brokers(cur5)[:16]
+res['broker_count'] = len(brokers(cur5))
+# the map's point for longer and shorter periods ending at the same session
+res['periods'] = {w: point(dates[END - w:END]) for w in (1, 5, 10, 20, 60, 120)}
+# each period's 30-session sparkline of its own rolling verdict
+res['spark'] = {w: [point(dates[k - w:k])['r'] for k in range(END - 29, END + 1)] for w in (5, 20, 60)}
+# the last 60 sessions' daily points (1D), for a heat strip
+res['daily60'] = [{'d': dates[k - 1], **{kk: vv for kk, vv in point([dates[k - 1]]).items() if kk in ('x', 'y', 'r', 'q')}} for k in range(END - 59, END + 1)]
+# Top N x board: the 5D verdict for N = 1..10 on Regular and on all boards
+res['grid'] = {bd: [point(cur5, n=n, boards=bds)['r'] for n in range(1, 11)] for bd, bds in (('Regular', ('Regular',)), ('All boards', BOARDS))}
+# 120 sessions of rolling 5D with the running percentile band of the 5D verdict over the history held before each session
+hist_r = [h['r'] for h in hist]
+band = []
+for k in range(END - 119, END + 1):
+    past = sorted(hist_r[:k - 5 + 1])
+    q = lambda f: past[min(len(past) - 1, int(f * (len(past) - 1)))]
+    band.append({'d': dates[k - 1], 'r': hist_r[k - 5], 'p10': q(.1), 'p50': q(.5), 'p90': q(.9), 'c': px.get(dates[k - 1])})
+res['band'] = band
 json.dump(res, open(OUT, 'w'), separators=(',', ':'))
 print(json.dumps({k: res[k] for k in ('end', 'run', 'pct', 'after', 'size')}, indent=1)[:2500])
 print('now', res['now'])

@@ -12439,7 +12439,11 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   titik peta tanpa tooltip (pembaca layar tetap membaca periode dan angkanya).
 - Pertanyaan user yang sama: "kalau seandainya foreign x dometic ini mau di expand, kira2 informasi apa yang deserve kita
   show? ... coba propose 10 opsi dalam 1 HTML" — usulan dikirim 2026-11-07
-  (`verification/terminal_api/fd_map_expand/fd_map_expand_options.html`, angka BBRI dari `calc.py`), menunggu pilihan user.
+  (`verification/terminal_api/fd_map_expand/`, angka BBRI dari `calc.py`), menunggu pilihan user.
+- Koreksi user 2026-11-07: "yang saya maksud expand panel bukan panel seperti itu ... Yang saya maksud adalah panel-panel
+  seperti terlampir" (window ⤢ seperti Broker inventory dan Broker summary); atas pertanyaan balik (A window peta
+  Foreign × Domestic, B perbaikan window Broker summary, C keduanya): "A". 10 opsi window peta dalam satu HTML
+  (`verification/terminal_api/fd_map_expand/fd_map_window_options.html`), menggantikan halaman panel sempit.
 
 ## EXEC-PANE-ORDER — urutan panel indikator dengan panah naik/turun (go 2026-11-07)
 
