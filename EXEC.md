@@ -12524,6 +12524,8 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   palsu dan catatan harga perkiraan, penjelasan kelompok "net buyers" di tooltip (diturunkan dari parameter).
 - C: semua item kecil dari kelima laporan. FL46 tidak diubah (keputusan user).
 - Catatan error: ERRORS M387-M390.
+- Uji ulang lima agen (ronde 2) dan perbaikannya selesai 2026-11-07; dirilis 2026-11-08 (kata user: "Ok"): `main`
+  `81146306`, edge-bff `16aa6dbb` SUCCESS. Rincian di RAILWAY_CHANGELOG dan ERRORS M390.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 

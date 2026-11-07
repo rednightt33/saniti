@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-08 — edge-bff from `main` `81146306`: Terminal QA round (EXEC-QA5-FIX, ERRORS M387-M390)
+
+- **Change:** the fixes of the five-agent QA round and its re-test: Broker summary average is a price, inventory says "net
+  since <date>", Foreign × Domestic two decimals that add up and its window keeps sessions without buy value, line gaps
+  drawn as transparent segments, index rule in the windows, titles that name what changes a number, tips that name their
+  denominators, empty values that name their cause, FL31 without a false "Rp 0", one view rule for the anchor and its
+  title, and the small items of all five reports. FL46 unchanged. User: "Jalankan A-C then test lagi", then "Ok".
+- **Before the push:** 00:47 WIB (outside B6); `edge_bff.jobs` QUEUED/RUNNING/RECOVERING 0, `AI_conversation_turn`
+  RUNNING 0; `main` `cb3ac1f7` had no commit beyond the branch (fast-forward); tripwire OK; Terminal 875/875; look checks
+  3, 5-13 without errors, `look_check11.mjs` PASS (with its new minimum-width and legend-value checks). No database or
+  variable change; no file under `terminal/src/calc/**` or `apps/screener-worker` changed (no screener-worker rebuild).
+- **edge-bff:** deployment `16aa6dbb` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-CP6iCL7N.js` and
+  `assets/style-CvtFpE16.css` byte-equal to the local build of `81146306`.
+
 ## 2026-11-07 — edge-bff from `main` `4c7f46be`: Foreign × Domestic window, Top brokers ratio in the step tooltip
 
 - **Change:** EXEC-FD-WINDOW (the ⤢ window of the Foreign × Domestic panel: map with a trail of 5/10/20 sessions beside a
