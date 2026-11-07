@@ -12415,3 +12415,31 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 - Status 2026-11-06 (branch): dikerjakan. Bukti `look_check10.mjs` (1440 dan 1100 px) plus `look_check3/5/6/7/8/9` tanpa
   galat, angka tampilan lama sama; Terminal 870/870.
 - **Dirilis 2026-11-06** (user: "Opsi 2. Jalankan dulu"): `main` `3a0a1d03`, edge-bff `66310845` SUCCESS, aset live = build lokal.
+
+## EXEC-SCREENER-TIDY — Fundamentals di Preview dihapus, judul kolom "Add a condition" sejajar tengah (2026-11-07)
+
+### Kata user (2026-11-07)
+- "lait screenshot terlampir bagian fundamental hapus saja. Masukan exec" (screenshot: bagian FUNDAMENTALS di panel
+  Preview, delapan baris "no data").
+- Judul kolom: "lihat yang saya screenshot, ini sepertinya tidak middle line. Kenapa bisa terjadi ya? Bukannya sudah kamu
+  review tadi sebelumnya. Nanti dibenarkan sekaligus kita gabungkan dengan indikator flow."
+- Area kosong bergaris di bawah tabel: "Dibiarkan."
+
+### Fakta (2026-11-07)
+- Fundamentals: `apps/edge-bff/screener/src/preview.ts:173` menulis delapan baris tetap (Market cap, P/E, P/B, ROE,
+  Div. yield, EPS growth, D/E, Piotroski) yang selalu "no data". Katalog live: 32 fundamental, semuanya REQUIRES_DATA
+  ("No fundamental data source exists yet").
+- Judul kolom: `.qcols{align-items:end}` (`src/styles/screener.css:1481`). Judul "Parameters & threshold" dua baris
+  (judul + "blue = you can change it"); judul lain satu baris dan duduk di baris bawahnya, bukan di tengah.
+  - Lolos dari pemeriksaan: cek visual dan smoke sebelumnya mengukur baris (tinggi, luapan), tidak mengukur sejajar
+    judul. Kelas: sel judul grid dengan jumlah baris berbeda.
+
+### Rencana (eksekusi bersama pekerjaan flow, sesuai kata user)
+1. Fundamentals: bagian itu tidak digambar selama katalog tidak punya fundamental yang tersedia (diturunkan dari katalog,
+   bukan daftar tetap); muncul lagi sendiri bila data fundamental datang. Kalimat "Fundamentals ... have no data yet" di
+   tab Method ikut disesuaikan.
+2. Judul kolom: `align-items:center` untuk `.qcols`; smoke menambah cek "pusat vertikal semua judul kolom sama (±1 px)".
+3. Tes: smoke Preview tanpa bagian Fundamentals; visual 1440 dan 1100.
+- Pertanyaan terbuka: 32 baris fundamental abu-abu di jendela "Add a condition" ikut disembunyikan atau tetap tampil
+  dengan alasannya.
+- Status: belum dieksekusi.
