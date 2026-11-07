@@ -310,8 +310,15 @@ BROKER_DAYS_WINDOW_SQL = ('WITH RECURSIVE d(trade_date, n) AS ('
 BROKER_DAY_SQL = ('SELECT ticker, broker, investor_type, market_board, buy_value::float8, sell_value::float8, '
                   'buy_lots::float8, sell_lots::float8, source_balance_gap, buy_freq, sell_freq '
                   f'FROM public."{F05}" WHERE trade_date = %s AND ticker = ANY(%s)')
-# the per-date stamp of the stock rows: their count and the exact (numeric) sums of buy and sell value
-BROKER_DAY_STAMPS_SQL = ('SELECT trade_date::text, count(*), sum(buy_value)::text, sum(sell_value)::text '
+# the per-date stamp of the stock rows: their count, the exact (numeric) sums of buy and sell value, and the sum of one
+# 64-bit hash per row over every column the file carries (QA unit B, QA2 D1, 2026-11-07: with the sums only, a change of
+# lots, transaction counts, the gap flag or a swap of investor type or board was invisible to the sweep). The sum does
+# not depend on row order, so no sort; the hash of each row is its key and values as text (numeric text is exact).
+BROKER_DAY_ROW_HASH = ("hashtextextended(concat_ws('|', ticker, broker, investor_type, market_board, buy_value::text, "
+                       "sell_value::text, buy_lots::text, sell_lots::text, coalesce(buy_freq::text, ''), "
+                       "coalesce(sell_freq::text, ''), source_balance_gap::text), 0)")
+BROKER_DAY_STAMPS_SQL = ('SELECT trade_date::text, count(*), sum(buy_value)::text, sum(sell_value)::text, '
+                         f'sum({BROKER_DAY_ROW_HASH})::text '
                          f'FROM public."{F05}" WHERE trade_date = ANY(%s::date[]) AND ticker = ANY(%s) GROUP BY 1')
 # the broker rounds that finished since the last check, with the dates refresh.py refreshed in Feature 05
 # (apps/stockbit-updater/refresh.py refresh_broker_features: features.changed_dates, 'YYYY-MM-DD' strings)
@@ -739,10 +746,10 @@ def whole(v):
     return int(v) if isinstance(v, float) and v.is_integer() else v
 
 
-def day_stamp(rows=0, bv=0, sv=0):
-    """The per-date stamp in state.json broker_day_stamps: rows and the sums of buy and sell value (BROKER_DAY_STAMPS_SQL;
-    a date without stock rows has the zero stamp)."""
-    return f'rows={rows};bv={bv};sv={sv}'
+def day_stamp(rows=0, bv=0, sv=0, h=0):
+    """The per-date stamp in state.json broker_day_stamps: rows, the sums of buy and sell value and the sum of the row
+    hashes (BROKER_DAY_STAMPS_SQL; a date without stock rows has the zero stamp)."""
+    return f'rows={rows};bv={bv};sv={sv};h={h}'
 
 
 def broker_day_doc(date, rows):
@@ -1350,7 +1357,7 @@ class Publisher:
         """{date: day_stamp} of the stock rows of `dates` (one BROKER_DAY_STAMPS_SQL statement; none for no date)."""
         if not dates:
             return {}
-        found = {d: day_stamp(n, bv, sv) for d, n, bv, sv in
+        found = {d: day_stamp(n, bv, sv, h) for d, n, bv, sv, h in
                  self.conn.execute(BROKER_DAY_STAMPS_SQL, (list(dates), stocks)).fetchall()}
         return {d: found.get(d, day_stamp()) for d in dates}
 

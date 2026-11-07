@@ -115,7 +115,11 @@ class FakeConn:
             for r in self.brokers:
                 if r[1] in dates and r[0] in tickers:
                     out.setdefault(r[1], []).append(r)
-            return [(d, len(v), str(sum(x[5] for x in v)), str(sum(x[6] for x in v))) for d, v in out.items()]
+            # the row hash: any deterministic 64-bit hash over every column but the date does (the database's is
+            # hashtextextended); a changed column changes it
+            h = lambda x: int.from_bytes(hashlib.sha256(repr((x[0], *x[2:])).encode()).digest()[:8], 'big', signed=True)
+            return [(d, len(v), str(sum(x[5] for x in v)), str(sum(x[6] for x in v)), str(sum(h(x) for x in v)))
+                    for d, v in out.items()]
         if sql == pub.BROKER_ROUNDS_SQL:
             since = dt.datetime.fromisoformat(params[0]) if params[0] else None
             return [(at, dates) for at, mode, status, dates in sorted(self.broker_rounds, key=lambda r: r[0])
@@ -2623,7 +2627,7 @@ def test_daily_fills_the_window_once_then_builds_only_a_new_date():
     assert [p for s, p in conn.calls[c:] if s == pub.BROKER_DAY_STAMPS_SQL] == [(['2026-01-06'], DAY_STOCKS)]
     assert day_puts(bucket, n) == [now['2026-01-06']['key'][3:]] and now['2026-01-06']['as_of'] == '2026-01-06'
     stamps = bucket.get_json('state.json')['broker_day_stamps']
-    assert sorted(stamps) == ['2026-01-02', '2026-01-05', '2026-01-06'] and stamps['2026-01-06'] == 'rows=3;bv=1734.5;sv=1500.0'
+    assert sorted(stamps) == ['2026-01-02', '2026-01-05', '2026-01-06'] and stamps['2026-01-06'].startswith('rows=3;bv=1734.5;sv=1500.0;h=')
 
 
 def test_a_finished_broker_round_rebuilds_the_dates_it_changed_once(capsys):
@@ -2678,10 +2682,28 @@ def test_only_the_sweep_run_compares_the_stamps_and_rebuilds_a_date_changed_outs
     # one aggregate over the window, then the one date whose stamp differs
     assert [p for s, p in conn.calls[c:] if s == pub.BROKER_DAY_STAMPS_SQL] == [(['2026-01-02', '2026-01-05'], DAY_STOCKS)]
     assert day_reads(conn, c) == ['2026-01-05']
-    assert bucket.get_json('state.json')['broker_day_stamps']['2026-01-05'] == 'rows=3;bv=1734.5;sv=1504.0'
+    assert bucket.get_json('state.json')['broker_day_stamps']['2026-01-05'].startswith('rows=3;bv=1734.5;sv=1504.0;h=')
     c = len(conn.calls)
     pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=True)    # the stamps agree now: nothing is rebuilt
     assert day_reads(conn, c) == [] and days(bucket) == after
+
+
+def test_the_sweep_stamp_sees_a_change_of_any_column_with_unchanged_value_sums():
+    """QA unit B, QA2 D1 (2026-11-07): lots, a transaction count, the gap flag, or an investor type swapped with the
+    value sums unchanged are each a changed stamp, so the sweep rebuilds the date."""
+    for change in (lambda r: r[:7] + (r[7] + 1,) + r[8:],                         # buy lots
+                   lambda r: r[:10] + ((r[10] or 0) + 1,) + r[11:],               # buy transactions
+                   lambda r: r[:9] + (not r[9],) + r[10:],                        # the gap flag
+                   lambda r: r[:3] + ('Foreign' if r[3] == 'Domestic' else 'Domestic',) + r[4:]):   # investor type
+        conn, bucket = day_conn(), FakeBucket()
+        pub.Publisher(conn, bucket, today=TODAY).run('backfill')
+        before = days(bucket)
+        hit = next(k for k, r in enumerate(conn.brokers) if r[1] == '2026-01-05')
+        conn.brokers = [change(r) if k == hit else r for k, r in enumerate(conn.brokers)]
+        c = len(conn.calls)
+        pub.Publisher(conn, bucket, today=TODAY).run('daily', sweep=True)
+        assert day_reads(conn, c) == ['2026-01-05']
+        assert days(bucket)['2026-01-05']['key'] != before['2026-01-05']['key']
 
 
 def test_an_entry_outside_the_window_is_dropped_and_its_object_deleted_after_the_wait(monkeypatch, capsys):
