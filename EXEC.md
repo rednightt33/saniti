@@ -12684,7 +12684,15 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 8. Tumpang tindih yang disatukan supaya tidak dikerjakan dua kali: S6 (broker tidak disimpan dua kali) dan S7 (storage B)
    EXEC-PUBLISH-FLOW memakai format dasar + delta yang sama.
 
-### Detail terbuka (ditanyakan sebelum "go")
+### Keputusan user 2026-11-07 (kata user)
+- "Detail D -- exclude it for now pertanyaan yang kamu tanyakan arusan mengenai seberapa sering, da apakah data harga ikut
+  pola yang sama sekarang." Kompaksi berkala dan harga tidak termasuk cakupan sekarang: hanya broker (saham dan IHSG).
+- "Untuk P4 ok" (atas pilihan kode file jendela ringkas atau batas worker dinaikkan): kode file ringkas, batas worker tetap.
+- "Merge dan go sampai P4 pertanyaan diatas sudah conclude dari saya." PR #59 di-merge; eksekusi opsi D dan P4 dimulai.
+  Pertanyaan RAM worker (berapa lama data ditahan di memori, biaya multi-user) dijawab dengan bukti live sebelum P4
+  di-deploy.
+
+### Detail terbuka (dikeluarkan dari cakupan sekarang, keputusan user 2026-11-07)
 - Kompaksi: seberapa sering dan kapan (usul: mingguan, Sabtu, di luar jendela B6 dan cron lain).
 - Harga (`pack/price`, xsection harga) ikut pola yang sama sekarang atau sesudah broker.
 - Kode file jendela Screener lebih ringkas (K6: 60 sesi 17,06 MB gzip, 120 MB teks JSON; ditambah Phase 1 11,77 MB
