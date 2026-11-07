@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-11-07 — edge-bff from `main` `4c7f46be`: Foreign × Domestic window, Top brokers ratio in the step tooltip
+
+- **Change:** EXEC-FD-WINDOW (the ⤢ window of the Foreign × Domestic panel: map with a trail of 5/10/20 sessions beside a
+  Level / Change (Δ) table, one formula with the panel) and EXEC-RP-LOOK R8 (Top brokers: no ratio badge; the marked
+  verdict step's tooltip leads with the ratio). User: "rilis paket dan main".
+- **Before the push:** 23:13 WIB (outside B6); `edge_bff.jobs` QUEUED/RUNNING/RECOVERING 0, `AI_conversation_turn`
+  RUNNING 0; `main` `6f00acb2` had no commit beyond the branch, so the push was a fast-forward; tripwire OK; Terminal
+  873/873; `look_check11.mjs` PASS (with the window's control row and table header added). No database or variable change.
+- **edge-bff:** deployment `aa4ca015` SUCCESS (Railway API). Live `/ready` 200; served `assets/index-DJT9A7mW.js` and
+  `assets/style-DO43sIhA.css` byte-equal to the local build of `4c7f46be`.
+- **screener-worker:** no file under `terminal/src/calc/**` or `apps/screener-worker` changed: no rebuild.
+
 ## 2026-11-07 — edge-bff from `main` `dbe23aaa`: Terminal drawings on the EDGE account and in indicator panes, pane order, right-panel and Indicators window look
 
 - **Change:** EXEC-DRAW-PANES (drawings of the price chart, Flow Timelines and indicator panes kept on the EDGE account;

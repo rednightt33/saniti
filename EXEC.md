@@ -12492,7 +12492,8 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   kirim HTMLnya lalu describe how to calcualte it? kasih dummy data saja" — mock-up dengan data contoh dan penjelasan cara
   hitung: `verification/terminal_api/fd_map_expand/fd_trail_toggle_mockup.html`. Belum go untuk dibangun.
 - **EXEC-FD-WINDOW** — user 2026-11-07, melampirkan `aaaa.html`: "pake seperti HTML terlampir" (disimpan sebagai
-  `verification/terminal_api/fd_map_expand/aaaa.html`). Dibangun di branch 2026-11-07, belum dirilis:
+  `verification/terminal_api/fd_map_expand/aaaa.html`). Dibangun 2026-11-07, dirilis 2026-11-07 ("rilis paket dan
+  main": `main` `4c7f46be`, edge-bff `aa4ca015` SUCCESS):
   - Tombol ⤢ di panel Foreign × Domestic membuka jendela "Foreign × Domestic map" (live saja; fixture tetap 1:1).
   - Kontrol: periode 1D / 5D / 20D / Custom, Top 3 / 5 / 10, 5 / 10 / 20 sessions, Level / Change (Δ), Board di kanan
     (bawaan Regular). Pilihan tersimpan per jendela (`ml.winst.fd`), jendela terbuka ikut dibuka lagi sesudah reload.
