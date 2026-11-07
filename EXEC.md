@@ -12638,6 +12638,8 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
 - Status: unit A (P1-P3) di-merge 2026-11-07 14:41 UTC (`4451a31a`, PR #59) dan live di dev (edge-bff `3b54bab2`,
   screener-worker `64b73512`; cek login: 6 screen operator 200, RAILWAY_CHANGELOG 2026-11-07). P0
   selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
+- FL31 (insider) dan net pemegang besar KSEI: datanya belum dikirim ke worker, tampil REQUIRES_DATA. User 2026-11-07:
+  "Oke, FL31 dan KSEI nanti saja" (sesudah rilis flow; butuh file insider dan KSEI dari publisher).
 - P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; go user 2026-11-07 "Merge dan go sampai P4"). Kontrak:
   `verification/screener/P4_BROKER_DAYS.md`. Dibangun 2026-11-07: publisher `b1be7f44` (file `broker-YYYY-MM-DD` untuk 60
   tanggal, 163 tes), worker (file broker opsional, batas tetap, sisa tanggal di refresh berikutnya; 87 tes; store
