@@ -1425,7 +1425,8 @@ Measured cost of the whole-universe 20-session read: 3.96 s in an `EXPLAIN (ANAL
 incremental).
 
 **L2 publisher.** The Phase 2 `broker_window` file (41 complete sessions = D ≤ 20 + within ≤ 20 + 1), raw F05 rows in
-the existing broker encoding, decodable by `brokerRows` (`datafile.ts:183`). About 1.0 M rows, 8-12 MB gzip (INFERENCE).
+the existing broker encoding, decodable by `brokerRows` (`datafile.ts:183`). Measured 2026-11-07 (K6 job `972bb712`,
+`DATABASE_CHANGELOG.md`): 41 sessions 1,005,518 rows, 11.65 MB gzip; 60 sessions (K1) 1,473,361 rows, 17.06 MB gzip.
 Rebuilt by `daily` when `broker_through` moves, by `broker-range` after a manual broker refresh.
 
 **L4 catalog.** The entry as it stands in `screener-metrics.json` (BRANCH; shortened: `params` also carry `label`,

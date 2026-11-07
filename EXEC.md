@@ -12617,4 +12617,17 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
     entri screener sendiri (`fnet` net asing Rupiah, net pemegang besar KSEI, pengaman n/a tanggal lampau FL34), dihapus
     (breadth lama tanpa net nol; FL22 menggantikan). Kesamaan hasil bangun ulang dites di P5.
   - Urutan rilis: unit A (operator, P2-P3) dirilis lebih dulu tanpa menunggu K6; K6 hanya dibutuhkan unit B (flow).
-- Status: berjalan (P0 K6, P2).
+- K6 selesai 2026-11-07 (job `972bb712`, read-only, 13:21-13:37 UTC; `DATABASE_CHANGELOG.md`):
+  - jendela 60 sesi (2026-08-10 .. 2026-11-03, semua COMPLETE): 1.473.361 baris kode universe (rata-rata 24,5 ribu per
+    sesi), file berkode publisher 17,06 MB gzip (120 MB teks JSON); 41 sesi 11,65 MB; 20 sesi 5,58 MB;
+  - `buy_freq`/`sell_freq` sepanjang riwayat (2016-01 .. 2026-11, 46,4 juta baris): kosong hanya pada kode bukan 4 huruf
+    (waran, right); saham 4 huruf dan kode universe 0 baris kosong di setiap bulan;
+  - akibat untuk P4 (INFERENCE dari angka dan batas worker): file 60 sesi muat di batas 24 MB per file, tetapi bersama file
+    Phase 1 (11,77 MB) refresh pertama sekitar 28,8 MB, di atas batas 24 MB per refresh, dan 120 MB teks JSON berat untuk
+    heap worker 512 MB. P4 butuh kode file yang lebih ringkas atau keputusan soal batas (ditanyakan ke user sebelum P4).
+- QA unit A putaran 1 (2026-11-07, lima agen Sonnet sesuai MASTER PROMPT): QA1 rumus NOT READY (z-score dan slope pada
+  jendela datar), QA2 data/waktu NOT READY (remark price break pada jendela atas harga mentah), QA3 logika NOT READY (filter
+  universe dengan ge/le/eq/ne/outside membuang semua saham: salinan kedua aturan nilai di universe.ts), QA4 backend READY.
+  Perbaikan `58380855`; putaran 2: QA1, QA2, QA3 READY. Penyimpangan terbuka: ranking antar saham di dalam jendela (operator
+  11 sebagai kondisi dalam 5/9/10) belum dibangun, butuh keputusan user.
+- Status: berjalan (P0 restart Postgres sesudah K6; QA5 unit A).

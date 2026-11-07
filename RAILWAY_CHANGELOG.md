@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-11-07 — orc-test-runner: the K6 read-only Feature 05 measurement (job `972bb712`)
+
+- **Go:** user 2026-11-07 "K6 boleh" (EXEC-SCREENER-FLOW-CANDLES K6: one read-only database check through the temporary
+  job runner).
+- **What ran:** `scripts/onboarding/run_job.sh verification/screener/k6/window_job.py verification/screener/k6/window_params.json
+  verification/screener/k6/window.log` at 13:21 UTC (after B6), with the Railway CLI on the proxy's account credential
+  (`RAILWAY_TOKEN` unset for the run: the project-token header and the proxy's own credential cannot be combined).
+  The runner guard found the runner free (its last job `122d4b0d` had ended with `JOB_EXIT 0`).
+- **Variable:** `DATABASE_URL` on orc-test-runner (dev) set as the reference `${{Postgres.DATABASE_URL}}` with
+  `--skip-deploys` for the run and removed after it: `VAR_REMOVED` (no value written or printed).
+- **Deployment:** orc-test-runner `972bb712-a54d-4a39-9fd0-d05dd4301c95`, `JOB_DONE`, `JOB_EXIT 0` at about 13:36 UTC
+  (job time 889 s). Results: `DATABASE_CHANGELOG.md` 2026-11-07.
+- **Postgres restart:** the job's own step (`large_write`) could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, as on
+  2026-11-06), so no restart came from it. The check through `scripts/restart_postgres.py` (run unchanged with the
+  proxy's credential) at 13:38 UTC refused it: postgres-memory-cron runs at 13:45 UTC (within 45 minutes); memory
+  0.996 GB, 0 statements, 0 user runs. It is checked again at 14:32 UTC (below).
+
 ## 2026-11-06 — edge-bff from `main` `99fe0daa`: "Add a condition" labels give way before fields (PR #58)
 
 - **Change:** CSS only. A blue box never shrinks its field; when the line is short of room, the label gives way (ellipsis,
