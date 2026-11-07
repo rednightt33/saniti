@@ -12440,6 +12440,66 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
    tab Method ikut disesuaikan.
 2. Judul kolom: `align-items:center` untuk `.qcols`; smoke menambah cek "pusat vertikal semua judul kolom sama (±1 px)".
 3. Tes: smoke Preview tanpa bagian Fundamentals; visual 1440 dan 1100.
-- Pertanyaan terbuka: 32 baris fundamental abu-abu di jendela "Add a condition" ikut disembunyikan atau tetap tampil
-  dengan alasannya.
-- Status: belum dieksekusi.
+- Keputusan user (2026-11-07): "3. hanya preview": 32 baris fundamental di jendela "Add a condition" tetap tampil
+  dengan alasannya; hanya bagian Fundamentals di Preview yang tidak digambar.
+- Status: belum dieksekusi; dikerjakan dalam EXEC-SCREENER-FLOW-CANDLES (langkah 1), menunggu "go".
+
+## EXEC-SCREENER-FLOW-CANDLES — indikator flow Terminal masuk Screener, dan 20 pola candle di core Backtest (rencana 2026-11-07, BELUM dieksekusi)
+
+### Kata user
+- 2026-11-07 (permintaan): "cek di bagian terminal sudah banyak indikator yang bersifat flow. Coba review indikator flow
+  ini bisa dipakai dari sisi apa untuk screener saham? Coba review dan propose." dan "please propose 20 candles sebagai
+  screener juga, ini mau kita tambahkan ke screener."
+- 2026-11-07 (atas usulan di FUTURE_PLAN SCREENER-FLOW-CANDLES): "1 kenapa tidak semua indikator flow masuk? 2A 3. hanya
+  preview. Jangan jalankan. Masukan exec."
+  - 2A: pola candle dibangun di core Backtest (dipakai Screener dan nanti Backtest; `engine_version` berubah).
+  - 3: lihat EXEC-SCREENER-TIDY.
+  - Pertanyaan 1 dijawab di sesi: dari 48 FL, 33 baru masuk (22 layak + 11 dengan lantai ADV), 3 sudah ada (FL27,
+    FL28, FL31), 12 tidak untuk screening (alasan di bawah).
+
+### Cakupan flow (48 indikator FL01-FL48, `verification/terminal_api/flow_indicators/FORMULAS.md`)
+- Masuk, layak langsung (22): FL07, FL09 (event), FL11, FL12, FL16, FL21, FL22, FL24, FL26, FL29, FL30, FL32, FL33, FL34,
+  FL35, FL37, FL38, FL39, FL40, FL41, FL47, FL48.
+- Masuk, dengan lantai likuiditas ADV bawaan (11): FL03, FL04, FL05, FL06, FL08, FL10, FL13, FL14, FL15, FL36, FL46.
+- Sudah ada (3): FL27 `silent`, FL28 `adv20_idr`, FL31 `insider_net` (dipetakan ke FL yang sama saat katalog diturunkan).
+- Tidak untuk screening (12): nilai mentah lot/Rupiah/harga yang tidak sebanding antar saham (FL01, FL02, FL17, FL25,
+  FL42, FL43; padanan relatifnya ada: FL05/FL08/FL33, FL39, FL24); broker pilihan per saham (FL23); patokan grafik dan
+  kohort beku yang memakai data sesudah tanggal yang dinilai (FL18, FL19, FL20, FL44, FL45; FORMULAS A8). Varian
+  screener (patokan N sesi ke belakang) = keputusan terpisah.
+- Pertanyaan terbuka: cakupan 33 di atas disetujui, atau 12 sisanya juga dibuatkan varian screener.
+- Catatan: keputusan flow 2026-10-28 (D1-D14, P9) memakai nomor FL dari `verification/screener/AUDIT.md` 16.11, beda dari
+  FL01-FL48 (bandar balance = FL09 AUDIT = FL24 Terminal). Peta nomor ditulis di langkah 3; nilai yang sudah diputuskan
+  (P9: top-3, 10 sesi, semua papan, ±6/±10; P10 a as-of broker berlabel; P8 b semua papan bawaan) tetap berlaku.
+
+### Langkah (urutan; tiap langkah diuji sebelum lanjut)
+1. **Rapikan (EXEC-SCREENER-TIDY):** Fundamentals di Preview tidak digambar selama katalog tidak punya fundamental yang
+   tersedia; judul kolom "Add a condition" `align-items:center` + cek smoke pusat vertikal judul.
+2. **Data broker untuk Screener (publisher):** file broker lintas saham (N sesi terakhir; per tanggal, ticker, broker,
+   tipe investor, papan: bv, sv, bl, sl, bf, sf), desain `broker_window` SCREENER_ONBOARDING; ukuran diukur dulu.
+   Migrasi grant bila sumbernya butuh (DRYRUN lalu APPLY, read back). Worker membaca sebagai file opsional (FUTURE_PLAN
+   S3); metrik flow tetap REQUIRES_DATA sampai file ada. Bacaan besar mengikuti aturan memori Postgres AGENTS.md.
+3. **Satu modul hitung:** worker memakai `apps/edge-bff/terminal/src/calc/flow.ts` (tanpa implementasi kedua); entri
+   flow katalog Screener diturunkan dari registry flow Terminal (id FL, parameter, default, rentang) dengan tanda
+   kelayakan; entri placeholder lama diganti; peta nomor AUDIT -> FL.
+4. **Flow bertahap:** batch 1 = FL24, FL29, FL35, FL26, FL22, FL38, FL11 (Foreign), FL37, FL39, FL09; batch 2 = sisa 12
+   yang layak langsung; batch 3 = 11 dengan lantai ADV. Tiap batch: paritas nilai Screener vs Terminal pada ticker
+   contoh, uji batas data (lag broker 3 sesi berlabel), beban worker diukur.
+5. **Pola candle di core Backtest (2A):** baca `BACKTEST_END_TO_END.md` dan `apps/edge-bff/backtest/CONTRACT.md` dulu;
+   primitif geometri candle (body, shadow atas/bawah, range, titik tengah body, tren sebelumnya) dan 20 pola sebagai
+   komposisi berparameter di registry `PRICE_ACTION`; `engine_version` naik; tripwire dan backtest-worker diuji.
+   Pola: Hammer/Hanging Man, Inverted Hammer/Shooting Star, Dragonfly/Gravestone Doji, Bullish/Bearish Marubozu,
+   Bullish/Bearish Engulfing, Bullish/Bearish Harami, Piercing Line/Dark Cloud Cover, Tweezer Bottom/Top, Morning/Evening
+   Star, Three White Soldiers/Three Black Crows. Penjaga IDX: hari tanpa transaksi/suspend bukan doji, ARA/ARB, harga
+   disesuaikan, tick size, gap body dilonggarkan. Tes: bar sintetis, simetri, frekuensi data nyata, hitung ulang
+   independen; label "belum divalidasi".
+6. **Screener:** 20 pola masuk katalog sebagai EVENT "dalam N sesi" (grup Technical atau grup baru "Candlestick",
+   ditentukan saat eksekusi dengan user); preset contoh flow (akumulasi bandar + breakout, asing masuk).
+7. **Rilis:** PR per langkah; deploy dev mengikuti urutan runbook (database, publisher, terminal-api bila perlu,
+   screener-worker, edge-bff), tiap langkah diverifikasi live dan bisa di-rollback; catatan di RAILWAY_CHANGELOG,
+   DATABASE_CHANGELOG (bila ada migrasi), ERRORS.
+
+### Risiko dan yang masih terbuka
+- Ukuran file broker dan memori/CPU worker (ranking Top-N per ticker per hari).
+- Izin data broker untuk user eksternal (E6, belum dijawab).
+- Ambang default pola candle (diusulkan saat langkah 5).
+- Status: rencana tercatat; tidak ada yang dijalankan sampai user memberi "go".
