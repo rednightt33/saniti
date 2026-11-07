@@ -63,7 +63,7 @@ export interface OperatorMeasure { id: number; fn: string; label: string; help: 
 export interface OperatorTest {
   id: number; key: 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank'; label: string; help: string; ops: string[];
   within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
-  short?: string; default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number };
+  short?: string; default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number; range?: [number, number] };
 }
 export interface OperatorsBlock { note?: string; types: Record<string, { fns: string[]; words: string }>; measures: OperatorMeasure[]; tests: OperatorTest[]; default_measure: string }
 export interface MetricsCatalog {

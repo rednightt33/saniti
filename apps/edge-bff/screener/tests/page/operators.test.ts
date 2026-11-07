@@ -113,8 +113,11 @@ describe('QA5 round 1 fixes (2026-11-07)', () => {
   });
   it('D2: an operator names itself in a column header', () => {
     const e = entry('I13'), ops = e.ops!, base = defaultOp(ops, e);
-    expect(opShort(ops, base)).toBe('pctl');
-    expect(opShort(ops, { ...withTest(ops, e, base, 'at_least'), n: 5, k: 3 })).toBe('pctl · 3 of 5');
-    expect(opShort(ops, withTest(ops, e, withMeasure(ops, e, base, 'none'), 'rank'))).toBe('rank');
+    expect(opShort(ops, base)).toBe('pctl · ≥90');
+    expect(opShort(ops, { ...withTest(ops, e, base, 'at_least'), n: 5, k: 3 })).toBe('pctl · 3 of 5 · ≥90');
+    expect(opShort(ops, withTest(ops, e, withMeasure(ops, e, base, 'none'), 'rank'))).toBe('rank · ≥90');
+    // a rank range opens on 0-100 whatever the measure (a change has no range of its own)
+    const rk = withTest(ops, e, withMeasure(ops, e, base, 'change'), 'rank');
+    expect(withCmp(ops, e, rk, 'between')).toMatchObject({ value: 80, value2: 100 });
   });
 });

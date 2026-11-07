@@ -61,10 +61,11 @@ export function withMeasure(ops: CatalogOperators, e: Entry, op: OpState, fn: st
     (catalog default.range) or, on the plain series, the entry's own between bounds, else blank fields to fill in (a
     difference has no scale-free range); any other test the measure's default value, or the entry's own on the plain
     series. Never a value of another measure or test. */
-function thresholds(ops: CatalogOperators, e: Entry, op: OpState, t: OpTest): { value: number | ''; value2: number | '' } {
+function thresholds(ops: CatalogOperators, e: Entry, op: OpState, t: OpTest, two = t.key === 'range'): { value: number | ''; value2: number | '' } {
   const m = op.measure === 'none' ? undefined : measureOf(ops, op.measure);
-  if (t.key === 'rank') return { value: t.default.value ?? '', value2: t.default.value2 ?? '' };
-  if (t.key === 'range') {
+  // a rank is 0-100 whatever it ranks: its own value, or its own range (QA5 round 2: a rank range opened blank)
+  if (t.key === 'rank') return two && t.default.range ? { value: t.default.range[0], value2: t.default.range[1] } : { value: t.default.value ?? '', value2: '' };
+  if (two) {
     const r = m ? m.default.range : (typeof e.def.value === 'number' && typeof e.def.value2 === 'number' ? [e.def.value, e.def.value2] : undefined);
     return r ? { value: r[0], value2: r[1] } : { value: '', value2: '' };
   }
@@ -83,8 +84,7 @@ export function withTest(ops: CatalogOperators, e: Entry, op: OpState, key: stri
 export function withCmp(ops: CatalogOperators, e: Entry, op: OpState, cmp: string): OpState {
   const two = (c: string) => c === 'between' || c === 'outside', t = testOf(ops, op.test);
   if (!t || two(cmp) === two(op.cmp)) return { ...op, cmp };
-  const th = thresholds(ops, e, op, two(cmp) ? { ...t, key: 'range' } : { ...t, key: 'value' });
-  return { ...op, cmp, ...th };
+  return { ...op, cmp, ...thresholds(ops, e, op, t, two(cmp)) };
 }
 
 /** The unit of the measured series: a measure's own (fixed, or by its form argument; 'diff' is a difference of the
@@ -257,7 +257,10 @@ export function measureText(ops: CatalogOperators, e: Entry, op: OpState): strin
 export function opShort(ops: CatalogOperators, op: OpState): string {
   const m = op.measure === 'none' ? undefined : measureOf(ops, op.measure), t = testOf(ops, op.test);
   const tw = !t?.short ? '' : t.key === 'at_least' ? `${v(op.k)} of ${v(op.n)}` : t.key === 'ever' ? `ever ${v(op.n)}` : t.key === 'streak' ? `${v(op.n)} in a row` : t.short;
-  return [m?.short, tw].filter(Boolean).join(' · ');
+  // the comparison too, so two cards that differ only there get two headers (QA5 round 2): "≥90", "50–80", "↑70"
+  const cmp = OP_SIGN[op.cmp] ? `${OP_SIGN[op.cmp]}${v(op.value)}` : op.cmp === 'between' ? `${v(op.value)}–${v(op.value2)}` : op.cmp === 'outside' ? `out ${v(op.value)}–${v(op.value2)}`
+    : op.cmp === 'crosses_above' ? `↑${v(op.value)}` : op.cmp === 'crosses_below' ? `↓${v(op.value)}` : '';
+  return [m?.short, tw, cmp].filter(Boolean).join(' · ');
 }
 /** The operator's rule in words, after the card's name: "RSI · percentile of its own history (60) ≥ 90". */
 export function opText(ops: CatalogOperators, e: Entry, op: OpState): string {

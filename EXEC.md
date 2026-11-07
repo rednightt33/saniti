@@ -12630,4 +12630,9 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   universe dengan ge/le/eq/ne/outside membuang semua saham: salinan kedua aturan nilai di universe.ts), QA4 backend READY.
   Perbaikan `58380855`; putaran 2: QA1, QA2, QA3 READY. Penyimpangan terbuka: ranking antar saham di dalam jendela (operator
   11 sebagai kondisi dalam 5/9/10) belum dibangun, butuh keputusan user.
-- Status: berjalan (P0 restart Postgres sesudah K6; QA5 unit A).
+- QA unit A putaran 1-2 selesai 2026-11-07: QA1, QA2, QA3, QA4, QA5 semuanya READY (QA5 putaran 1 NOT READY: pratinjau
+  salah membaca sel operator, judul kolom tidak menyebut operator, satu rentang untuk semua measure; perbaikan `b981a5e4`
+  dan berikutnya). Cacat yang ditemukan dicatat M381-M384. Sisa LOW yang diterima: teks select terpotong di layar ponsel,
+  panel 20 px lebih tinggi dari jendela 1100x760 (bisa digulir). Belum dibangun (keputusan user): ranking antar saham di
+  dalam jendela; "=" dan "!=" tetap tersembunyi (K7, belum ada hasil operator berupa bilangan bulat).
+- Status: unit A (P1-P3) siap PR; menunggu "merge" dari user. P0: restart Postgres sesudah K6 (cek 14:32 UTC).
