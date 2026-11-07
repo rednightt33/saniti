@@ -2,7 +2,8 @@
    kebobolan?"). Measures what earlier checks did not: where text actually starts and whether its ink sits in the middle of
    its band, read from the rendered pixels, plus every toggle's thumb in its track and the right-panel rows (EXEC-RP-LOOK).
    Fails (exit 1) on: a text start more than 1px off its column, ink more than 1px off its band's middle, a thumb more than
-   0.5px off its track's middle, a market choice not at its row's right. Writes look11_*.png to the scratchpad. */
+   0.5px off its track's middle, a market choice not at its row's right (the panels and the Foreign × Domestic window,
+   EXEC-FD-WINDOW). Writes look11_*.png to the scratchpad. */
 import { createRequire } from 'node:module';
 import { serve } from '/home/user/saniti/verification/terminal_api/terminal_look/serve.mjs';
 const { chromium, devices } = createRequire('/home/user/saniti/verification/terminal_api/terminal_look/')('playwright');
@@ -107,6 +108,16 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
     r.fold.reopened = await p.$eval('#fdmDetail', e => !e.hidden);
     check('fold', r.fold.stored === '0' && r.fold.hidden && r.fold.after_reload && r.fold.reopened, r.fold);
     for (const s of ['bs', 'acc', 'fdmap']) { const l = p.locator(`.st[data-sec="${s}"]`); await l.scrollIntoViewIfNeeded(); await p.screenshot({ path:`${SP}/look11_${s}.png`, clip:await l.boundingBox() }) }
+    // EXEC-FD-WINDOW: the Foreign × Domestic window's control row is one line with its Board choice at the right, and its
+    // table's column header sits in the middle of its band
+    const fdPop = p.locator('.st[data-sec="fdmap"] .st-pop'); await fdPop.scrollIntoViewIfNeeded(); await fdPop.click();
+    await p.waitForSelector('.fw .pw-fdw'); await p.waitForTimeout(300);
+    r.fdWin = await p.evaluate(() => { const row = document.querySelector('.fw:has(.pw-fdw) .pw-ctl'), sel = row.querySelector('select');
+      return { oneLine:new Set([...row.children].map(c => Math.round(c.getBoundingClientRect().top))).size === 1, right:+(row.getBoundingClientRect().right - sel.getBoundingClientRect().right).toFixed(1) } });
+    check('fd window row', r.fdWin.oneLine && Math.abs(r.fdWin.right) <= 1, r.fdWin);
+    r.fdWin.head = await ink(p, '.fw .pw-fdt thead tr');
+    if (r.fdWin.head) check('fd window table header', Math.abs(r.fdWin.head.above - r.fdWin.head.below) <= 1, r.fdWin.head);
+    await p.screenshot({ path:`${SP}/look11_fd_window.png`, clip:await p.locator('.fw:has(.pw-fdw)').boundingBox() });
   }
   await ctx.close();
 }

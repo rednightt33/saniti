@@ -11,11 +11,13 @@ import { $, keyOf, nfCompact, spin, store } from './context';
 import { longDay, openRangeCalendar } from '../ui/calendar';
 import { getWin, isWinOpen, openWin, type Win } from '../ui/floatwin';
 import { aggregate, avgPrice, inventory, invStats, sessionSpan, sidesTable, SPLIT_LEGEND, splitFill, toCsv, type SumKey, type SumRow } from '../data/brokerAgg';
-import { niceTicks } from './broker';
+import { fdTrail, niceTicks } from './broker';
+import { mapLimit, trailDay, trailDeltas, trailSvg, type TrailPoint } from './fdMap';
 
-type Key = 'bs' | 'acc' | 'inv';
-const TITLE: Record<Key, string> = { bs:'Broker summary', acc:'Top brokers', inv:'Broker inventory' };
-const SIZE: Record<Key, { w: number; h: number }> = { bs:{ w:880, h:520 }, acc:{ w:640, h:460 }, inv:{ w:720, h:560 } };
+type Key = 'bs' | 'acc' | 'inv' | 'fd';
+const KEYS: Key[] = ['bs', 'acc', 'inv', 'fd'];
+const TITLE: Record<Key, string> = { bs:'Broker summary', acc:'Top brokers', inv:'Broker inventory', fd:'Foreign × Domestic map' };
+const SIZE: Record<Key, { w: number; h: number }> = { bs:{ w:880, h:520 }, acc:{ w:640, h:460 }, inv:{ w:720, h:560 }, fd:{ w:860, h:540 } };
 const ICON = {
   pop:'<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5L9 7M6.5 13.5h-4v-4M2.5 13.5L7 9"/></svg>',
   csv:'<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M11 5V3.5A1 1 0 0 0 10 2.5H3.5a1 1 0 0 0-1 1V10a1 1 0 0 0 1 1H5"/></svg>'
@@ -41,15 +43,16 @@ export function initPopout(ctx: Ctx) {
   const state: Record<Key, any> = {
     bs:{ p:{ n:'5' }, inv:'All', board:'Regular', mode:'net', limit:'20', q:'' },
     acc:{ p:{ n:'5' }, inv:'All', board:'Regular', unit:'value', limit:'10' },
-    inv:{ inv:'All', board:'Regular', unit:'lot', view:'cum' }
+    inv:{ inv:'All', board:'Regular', unit:'lot', view:'cum' },
+    fd:{ p:{ n:'5' }, top:'3', span:'20', view:'level', board:'Regular' }
   };
   // 2A (user 2026-11-06): windows start on the Regular board; a window state already saved keeps its own choice
-  (Object.keys(state) as Key[]).forEach(k => { try { Object.assign(state[k], JSON.parse(store.get('ml.winst.' + k) || '{}') || {}) } catch { /* the defaults */ } });
+  KEYS.forEach(k => { try { Object.assign(state[k], JSON.parse(store.get('ml.winst.' + k) || '{}') || {}) } catch { /* the defaults */ } });
   // EXEC-TERMINAL-BS-SIDE: a Broker summary window remembered before the two sides (sorted by a column) keeps its
   // Net or Gross choice: "% of value" was Gross
   if ('sort' in state.bs) { state.bs.mode = state.bs.sort === 'share' ? 'gross' : 'net'; delete state.bs.sort; delete state.bs.desc }
   const keep = (k: Key) => store.set('ml.winst.' + k, JSON.stringify({ ...state[k], q:'' }));
-  const remember = () => store.set(OPEN_KEY, JSON.stringify((['bs', 'acc', 'inv'] as Key[]).filter(isWinOpen)));
+  const remember = () => store.set(OPEN_KEY, JSON.stringify(KEYS.filter(isWinOpen)));
   const renders: Partial<Record<Key, () => void>> = {};
 
   /* ---- the chart's visible sessions as broker session indexes (Broker inventory, and the "Chart" period) ---- */
@@ -253,8 +256,48 @@ export function initPopout(ctx: Ctx) {
     box.querySelectorAll('tr[data-b]').forEach((tr: any) => tr.onclick = () => S.pick(tr.dataset.b));
   }
 
+  /* ---- Foreign × Domestic map (EXEC-FD-WINDOW, user 2026-11-07: "Peta + jejak 20 sesi (opsi 2) dan ada toggle untuk switch
+     it ke Tabel penggerak per sesi (opsi A)"; "pake seperti HTML terlampir"): the map with one point per session for the
+     last 5, 10 or 20 sessions, each the chosen period (1D, 5D, 20D or the custom number of sessions) ending that session,
+     beside a table of those points (Level) or of each session's change and the side that drove it (Change (Δ)). The
+     Top N, the board and every figure are the panel's formula (fdAt). ---- */
+  const pc = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%` };   // never "−0.0%"
+  const pt = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)} pt` };
+  const ud = (v: number) => +v.toFixed(1) > 0 ? 'up' : +v.toFixed(1) < 0 ? 'down' : '';
+  function renderFD(w: Win) {
+    const st = state.fd, msg = blocked(), N = +st.top || 3, span = +st.span || 20;
+    const head = `<div class="pw-ctl">${seg('p', st.p.n, [['1', '1D'], ['5', '5D'], ['20', '20D'], ['custom', 'Custom']], 'Period')}
+      ${seg('top', st.top, [['3', 'Top 3'], ['5', 'Top 5'], ['10', 'Top 10']], 'Top N brokers')}
+      ${seg('span', st.span, [['5', '5'], ['10', '10'], ['20', '20 sessions']], 'Sessions on the map')}
+      ${seg('view', st.view, [['level', 'Level'], ['delta', 'Change (Δ)']], 'Table view')}${select('board', st.board, BOARDS, 'All boards', 'Board')}</div>`;
+    const pr = msg ? null : resolve(st.p.n === 'view' ? { n:'5' } : st.p);
+    if (msg || !pr) { w.body.innerHTML = head + `<div class="rp-empty">${msg || 'No broker session in the chosen days'}</div>`; w.setSub(B().label + tf); wireCtl('fd', w, () => renderFD(w)); return }
+    const d = B().dates, len = pr[1] - pr[0] + 1, board = st.board;
+    const T: TrailPoint[] = fdTrail((f, t, inv) => aggregate(B().rows, f, t, inv, board), pr[1], len, span, N)
+      .map(p => ({ d:d[p.t], x:p.x, y:p.y, r:p.r, empty:!(p.total > 0) })).filter((p: any) => !p.empty);
+    w.setSub(`${B().label} · ${T.length ? `${trailDay(T[0].d)} – ${trailDay(T.at(-1)!.d)} · ` : ''}rolling ${len}D · Top ${N} · ${board === 'All' ? 'all boards' : board}${tf}`);
+    if (!T.length) { w.body.innerHTML = head + `<div class="rp-empty">No buy value in these sessions</div>`; wireCtl('fd', w, () => renderFD(w)); return }
+    const lim = mapLimit(T.flatMap(p => [p.x, p.y])), lv = st.view !== 'delta', to = `${len}D to`;
+    const tag = (k: 'fx' | 'dm') => `<span class="tag fdw-${k}">${k === 'fx' ? 'Foreign' : 'Domestic'}</span>`;
+    const table = lv
+      ? `<thead><tr><th>${to}</th><th class="fdw-fx">Foreign</th><th class="fdw-dm">Domestic</th><th>Verdict</th></tr></thead><tbody>${T.map((p, i) => ({ p, i })).reverse().map(({ p, i }) =>
+        `<tr data-i="${i}"><td>${trailDay(p.d)}</td><td class="${ud(p.x)}">${pc(p.x)}</td><td class="${ud(p.y)}">${pc(p.y)}</td><td class="${ud(p.r)}">${pc(p.r)}</td></tr>`).join('')}</tbody>`
+      : `<thead><tr><th>${to}</th><th>Verdict</th><th>Δ Verdict</th><th class="fdw-fx">Δ Foreign</th><th class="fdw-dm">Δ Domestic</th><th data-tip="Driver|The side whose change is larger: Δ Verdict = Δ Foreign + Δ Domestic">Driver</th></tr></thead><tbody>${trailDeltas(T).map((s, k) =>
+        `<tr data-i="${s.i}"${k ? '' : ' class="cur"'}><td>${trailDay(s.d)}</td><td class="${ud(s.r)}">${pc(s.r)}</td><td class="${ud(s.dr)}">${pt(s.dr)}</td><td class="${ud(s.dx)}">${pt(s.dx)}</td><td class="${ud(s.dy)}">${pt(s.dy)}</td><td>${tag(s.driver)}</td></tr>`).join('')}</tbody>`;
+    const cap = lv ? `${T.length} session${T.length > 1 ? 's' : ''}; the list scrolls. Newest first.`
+      : T.length > 1 ? `${T.length - 1} change${T.length > 2 ? 's' : ''}; the list scrolls. Δ = change from the session before, in percentage points. Δ Verdict = Δ Foreign + Δ Domestic.` : 'One session: no change to show yet.';
+    w.body.innerHTML = head + `<div class="pw-fdw"><div class="pw-fd"><div class="pw-fd-map">${trailSvg(T, lim)}</div>
+      <div class="pw-fd-side"><div class="pw-scroll"><table class="pw-t pw-fdt">${table}</table></div><p class="pw-foot">${cap}</p></div></div></div>`;
+    wireCtl('fd', w, () => renderFD(w));
+    const box = w.body.querySelector('.pw-fd-map') as HTMLElement;
+    w.body.querySelectorAll('.pw-fdt tbody tr[data-i]').forEach((tr: any) => {
+      tr.onpointerenter = () => { box.innerHTML = trailSvg(T, lim, +tr.dataset.i); tr.classList.add('hl') };
+      tr.onpointerleave = () => { box.innerHTML = trailSvg(T, lim); tr.classList.remove('hl') };
+    });
+  }
+
   /* ---- opening, closing, docking ---- */
-  const host: Record<Key, () => HTMLElement> = { bs:() => $('bsBody'), acc:() => $('accBody'), inv:() => $('invBody') };
+  const host: Record<Key, () => HTMLElement> = { bs:() => $('bsBody'), acc:() => $('accBody'), inv:() => $('invBody'), fd:() => $('fdBody') };
   const dock = (k: Key) => {
     if ($('workspace').classList.contains('right-collapsed')) $('rpExpand').click();
     const sec = host[k]().closest('.st') as HTMLElement;
@@ -264,7 +307,7 @@ export function initPopout(ctx: Ctx) {
   };
   function openKey(k: Key) {
     if (isWinOpen(k)) { getWin(k)!.front(); return }
-    const n = (['bs', 'acc', 'inv'] as Key[]).indexOf(k), rp = $('brokerPanel').getBoundingClientRect();
+    const n = KEYS.indexOf(k), rp = $('brokerPanel').getBoundingClientRect();
     // a cascade from the widest window's place left of the panel: each later window starts 36 px left of and below the
     // one before, so a part of every window stays in view to be clicked
     const s = SIZE[k], x = Math.max(16, (rp.left > 400 ? rp.left : innerWidth) - SIZE.bs.w - 24 - n * 36), y = 64 + n * 36;
@@ -281,14 +324,14 @@ export function initPopout(ctx: Ctx) {
       onResize:() => { if (k === 'inv') renders.inv?.() } });
     w.el.addEventListener('pointermove', e => { const t = (e.target as HTMLElement).closest('[data-tip]') as HTMLElement | null; t ? ctx.showStTip(e.clientX, e.clientY, ctx.tipHtml(t.dataset.tip!)) : ctx.hideStTip() });
     w.el.addEventListener('pointerleave', ctx.hideStTip);
-    renders[k] = k === 'bs' ? () => renderBS(w) : k === 'acc' ? () => renderAcc(w) : () => renderInv(w);
+    renders[k] = k === 'bs' ? () => renderBS(w) : k === 'acc' ? () => renderAcc(w) : k === 'fd' ? () => renderFD(w) : () => renderInv(w);
     if (k === 'inv') S.ensureDefaults();
     renders[k]!(); remember();
   }
 
   /* the ⤢ button in each panel's header (a sibling of the header button: a button cannot hold another) */
-  (['bs', 'acc', 'inv'] as Key[]).forEach(k => {
-    const sec = host[k]().closest('.st') as HTMLElement;
+  KEYS.forEach(k => {
+    const sec = host[k]()?.closest('.st') as HTMLElement;
     if (!sec || sec.querySelector('.st-pop')) return;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'icon-btn st-pop'; b.innerHTML = ICON.pop;

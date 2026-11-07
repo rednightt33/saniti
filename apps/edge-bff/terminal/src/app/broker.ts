@@ -36,6 +36,28 @@ export function bandarBalance(list: { b: string; bv: number; sv: number }[], n: 
   return { buyers:buyers.map(x => x.b), sellers:sellers.map(x => x.b), buy, sell, net:buy - sell, total, ratio, verdict:bandarVerdict(ratio) };
 }
 
+/** the rows of a period, summed per broker for one investor type (the board is the caller's) */
+export type AggOf = (f: number, t: number, inv: string) => { b: string; bv: number; sv: number }[];
+export interface FdPoint { f: number; t: number; x: number; y: number; r: number; total: number }
+/** the Foreign × Domestic point of the sessions f..t (EXEC-BROKER-INV-PANEL): the Top `n` net buyers and sellers of all
+    investors (the verdict's groups), their net split into foreign (x) and domestic (y) transactions, in % of the period's
+    total buy value; x + y = r, the verdict's ratio. One formula for the panel's map and the window's trail. */
+export function fdAt(agg: AggOf, f: number, t: number, n: number): FdPoint {
+  const net = (inv: string) => new Map(agg(f, t, inv).map(o => [o.b, o.bv - o.sv]));
+  const fm = net('Foreign'), dm = net('Domestic'), bal = bandarBalance(agg(f, t, 'All'), n);
+  const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
+  return { f, t, x:sp.rf * 100, y:sp.rd * 100, r:sp.ratio * 100, total:bal.total };
+}
+/** EXEC-FD-WINDOW (user 2026-11-07: "Peta + jejak 20 sesi (opsi 2) dan ada toggle ... Tabel penggerak per sesi (opsi A)";
+    "pake seperti HTML terlampir"): the trail, one point per session for the last `span` sessions up to `end`, each the
+    period of `len` sessions ending there (a rolling period). A session with fewer than `len` sessions before it starts no
+    point; when none can, the one point is the sessions 0..end. Oldest first. */
+export function fdTrail(agg: AggOf, end: number, len: number, span: number, n: number): FdPoint[] {
+  const out: FdPoint[] = [];
+  for (let e = Math.max(len - 1, end - span + 1); e <= end; e++) out.push(fdAt(agg, e - len + 1, e, n));
+  return out.length || end < 0 ? out : [fdAt(agg, 0, end, n)];
+}
+
 /** EXEC Top brokers 1A (user 2026-11-06: "ada keterangan apakah ini Big accum, accum, normal or what"; "1A"): the verdict
     as a five-step ladder, Big Dist · Dist · Neutral · Acc · Big Acc, the step the ratio falls in marked, the levels written
     under the steps (FL24's ±6% and ±10%) and a pin at the ratio (±15% fills the ladder). The levels come from the verdict
@@ -613,12 +635,9 @@ export function initBroker(ctx: Ctx) {
   const fdRange = makeRange($('fdRange'), { key:'fd', presets:[1,5,20], def:5, onChange:() => renderFD() });
   const fdRangeText = (f: number, t: number) => f === t ? dayShort(t) : `${dayShort(f)} – ${dayShort(t)}`;
   const fdPoint = (f: number, t: number, label: string, cur: boolean): MapPoint => {
-    const N = RS.fdN, board = RS.fdBoard, part = inv => new Map(bkAggRange(f, t, inv, board).map(o => [o.b, netOf(o)]));
-    const fm = part('Foreign'), dm = part('Domestic'), bal = bandarBalance(bkAggRange(f, t, 'All', board), N);
-    const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
-    const x = sp.rf * 100, y = sp.rd * 100, r = sp.ratio * 100;
+    const N = RS.fdN, board = RS.fdBoard, { x, y, r, total } = fdAt((a, b, inv) => bkAggRange(a, b, inv, board), f, t, N);
     const pc = (v: number) => { const r = +v.toFixed(1); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%` };   // QA round 3 (agent 5 M4): never "−0.0%"
-    return { label, x, y, r, cur, empty:!(bal.total > 0),
+    return { label, x, y, r, cur, empty:!(total > 0),
       tip:`${label} · ${fdRangeText(f, t)} · Top ${N}, ${board === 'All' ? 'all boards' : board + ' board'}|Foreign ${pc(x)} + Domestic ${pc(y)} = verdict ${pc(r)} of total buy value · ${FD_QUADRANTS[fdQuadrant(x, y)]}` };
   };
   function renderFD(){

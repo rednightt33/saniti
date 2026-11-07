@@ -79,3 +79,48 @@ export function mapReadout(cur: MapPoint, all: MapPoint[], open = true): string 
     + `<div id="fdmDetail"${open ? '' : ' hidden'}><div class="fdm-eq"><div><span>Foreign</span><b class="${cls(cur.x)}">${pct(cur.x)}</b></div><i>+</i><div><span>Domestic</span><b class="${cls(cur.y)}">${pct(cur.y)}</b></div><i>=</i><div><span>Verdict ${esc(cur.label)}</span><b class="${cls(cur.r)}">${pct(cur.r)}</b></div></div>`
     + `<div class="fdm-tbl"><div class="fdm-row h"><span>Period</span><span>Foreign</span><span>Domestic</span><span>Verdict</span><span></span></div>${all.map(row).join('')}</div></div></div>`;
 }
+
+/* ---- EXEC-FD-WINDOW (user 2026-11-07: "Peta + jejak 20 sesi (opsi 2) dan ada toggle untuk switch it ke Tabel penggerak
+   per sesi (opsi A)"; "pake seperti HTML terlampir", verification/terminal_api/fd_map_expand/aaaa.html): the window's
+   map with one point per session, a line through them, older points fainter, the newest larger and named "now" ---- */
+export interface TrailPoint { d: string; x: number; y: number; r: number }
+const dayOf = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep');
+
+/** each session's change from the session before, in percentage points; Δ verdict = Δ foreign + Δ domestic, and the
+    driver is the side that moved more (Foreign on a tie). Newest first, as the table reads. */
+export const trailDeltas = (T: TrailPoint[]) => T.slice(1).map((p, k) => {
+  const dx = p.x - T[k].x, dy = p.y - T[k].y;
+  return { i:k + 1, d:p.d, r:p.r, dr:p.r - T[k].r, dx, dy, driver:(Math.abs(dx) >= Math.abs(dy) ? 'fx' : 'dm') as 'fx' | 'dm' };
+}).reverse();
+
+/** the trail map as SVG; `hover` is the index of a point to mark (a table row under the pointer), −1 for none */
+export function trailSvg(T: TrailPoint[], lim: number, hover = -1): string {
+  const S = 270, P = 38, W = S + P * 2, cl = (v: number) => Math.max(-lim, Math.min(lim, v));
+  const sx = (v: number) => P + (cl(v) + lim) / (2 * lim) * S, sy = (v: number) => P + (lim - cl(v)) / (2 * lim) * S;
+  const tick = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}%`, h = S / 2;
+  let g = `<svg class="fdw-svg" viewBox="0 0 ${W} ${W}" role="img" aria-label="Foreign against domestic, one point per session">`
+    + `<rect x="${P + h}" y="${P}" width="${h}" height="${h}" fill="rgba(8,153,129,.08)"/><rect x="${P}" y="${P + h}" width="${h}" height="${h}" fill="rgba(242,54,69,.07)"/>`
+    + `<rect x="${P}" y="${P}" width="${S}" height="${S}" rx="6" fill="none" stroke="var(--border)"/>`
+    + `<line x1="${P + h}" y1="${P}" x2="${P + h}" y2="${P + S}" stroke="var(--text-3)" stroke-width=".8"/><line x1="${P}" y1="${P + h}" x2="${P + S}" y2="${P + h}" stroke="var(--text-3)" stroke-width=".8"/>`;
+  for (const [t, x, y, a] of [['Domestic absorbs', P + 6, P + 14, 'start'], ['Both accumulate', P + S - 6, P + 14, 'end'], ['Both distribute', P + 6, P + S - 6, 'start'], ['Foreign absorbs', P + S - 6, P + S - 6, 'end']] as const)
+    g += `<text x="${x}" y="${y}" class="fdm-q" text-anchor="${a}">${t}</text>`;
+  for (const v of [-lim, 0, lim]) g += `<text x="${sx(v)}" y="${P + S + 14}" class="fdm-tk" text-anchor="middle">${tick(v)}</text><text x="${P - 4}" y="${sy(v) + 3}" class="fdm-tk" text-anchor="end">${tick(v)}</text>`;
+  g += `<text x="${P + h}" y="${P + S + 30}" class="fdw-ax" text-anchor="middle">Foreign (% of total buy)</text><text x="10" y="${P + h}" class="fdw-ax" text-anchor="middle" transform="rotate(-90 10 ${P + h})">Domestic (% of total buy)</text>`;
+  if (!T.length) return g + '</svg>';
+  g += `<polyline fill="none" stroke="var(--text-3)" stroke-width="1" points="${T.map(p => sx(p.x).toFixed(1) + ',' + sy(p.y).toFixed(1)).join(' ')}"/>`;
+  const last = T.length - 1, out = (p: TrailPoint) => Math.abs(p.x) > lim || Math.abs(p.y) > lim;
+  T.forEach((p, i) => {
+    const o = i === hover ? 1 : .25 + .75 * i / Math.max(last, 1), r = i === last ? 7 : i === hover ? 6 : 3.5;
+    // a point beyond the range sits on the edge, hollow (as the panel's map)
+    g += `<circle class="fdw-pt${i === hover ? ' hl' : ''}" cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${r}" fill="${out(p) ? 'var(--surface)' : 'var(--text)'}" stroke="var(--text)" stroke-width="${out(p) ? 1.2 : 0}" opacity="${o.toFixed(2)}"/>`;
+  });
+  const f = T[0], l = T[last], lab = (p: TrailPoint, dx: number, dy: number, t: string, c: string) => {
+    const right = sx(p.x) > P + S - 44;
+    return `<text x="${(sx(p.x) + (right ? -dx : dx)).toFixed(1)}" y="${(sy(p.y) + dy).toFixed(1)}" class="${c}" text-anchor="${right ? 'end' : 'start'}">${t}</text>`;
+  };
+  if (last) g += lab(f, 7, 3.5, dayOf(f.d), 'fdw-l');
+  g += lab(l, 10, 3.5, 'now', 'fdw-l now');
+  if (hover > 0 && hover < last) g += lab(T[hover], 9, -6, dayOf(T[hover].d), 'fdw-l hl');
+  return g + '</svg>';
+}
+export { dayOf as trailDay };

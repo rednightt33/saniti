@@ -42,3 +42,44 @@ describe('Foreign × Domestic map', () => {
     expect(svg).not.toContain('>1D<');
   });
 });
+
+// EXEC-FD-WINDOW (user 2026-11-07): the window's trail, its per-session changes and the map's marked point
+import { fdAt, fdTrail } from '../../src/app/broker';
+import { trailDeltas, trailSvg } from '../../src/app/fdMap';
+describe('Foreign × Domestic window', () => {
+  // four sessions; per session each broker's buy and sell value by investor type (F foreign, D domestic)
+  const DAYS: Record<string, { F: [number, number]; D: [number, number] }>[] = [
+    { AA:{ F:[100, 0], D:[0, 20] }, BB:{ F:[0, 60], D:[10, 0] } },
+    { AA:{ F:[50, 0], D:[30, 0] }, BB:{ F:[0, 0], D:[0, 90] } },
+    { AA:{ F:[0, 40], D:[0, 0] }, BB:{ F:[70, 0], D:[0, 10] } },
+    { AA:{ F:[10, 0], D:[60, 0] }, BB:{ F:[0, 30], D:[0, 20] } }
+  ];
+  const agg = (f: number, t: number, inv: string) => {
+    const m = new Map<string, { b: string; bv: number; sv: number }>();
+    for (let d = f; d <= t; d++) for (const [b, s] of Object.entries(DAYS[d])) for (const k of ['F', 'D'] as const) {
+      if (inv !== 'All' && inv !== (k === 'F' ? 'Foreign' : 'Domestic')) continue;
+      const o = m.get(b) || { b, bv:0, sv:0 }; o.bv += s[k][0]; o.sv += s[k][1]; m.set(b, o);
+    }
+    return [...m.values()];
+  };
+  it('one point per session, each the rolling period ending there; foreign + domestic = the verdict', () => {
+    const T = fdTrail(agg, 3, 2, 20, 1);
+    expect(T.map(p => [p.f, p.t])).toEqual([[0, 1], [1, 2], [2, 3]]);       // a session with fewer than 2 before it starts none
+    for (const p of T) { expect(p.x + p.y).toBeCloseTo(p.r, 10); expect(p).toEqual(fdAt(agg, p.f, p.t, 1)) }
+    expect(fdTrail(agg, 3, 1, 2, 1).map(p => p.t)).toEqual([2, 3]);       // the last `span` sessions only
+    expect(fdTrail(agg, 1, 5, 20, 1).map(p => [p.f, p.t])).toEqual([[0, 1]]);   // fewer sessions than one period: all of them
+  });
+  it('the change of each session: Δ verdict = Δ foreign + Δ domestic, the larger side drives, newest first', () => {
+    const D = trailDeltas([{ d:'2026-11-02', x:-5, y:2, r:-3 }, { d:'2026-11-03', x:-6, y:6, r:0 }, { d:'2026-11-04', x:-1, y:4, r:3 }]);
+    expect(D.map(s => s.d)).toEqual(['2026-11-04', '2026-11-03']);
+    expect(D[0]).toMatchObject({ i:2, dx:5, dy:-2, dr:3, driver:'fx' });
+    expect(D[1]).toMatchObject({ i:1, dx:-1, dy:4, dr:3, driver:'dm' });
+    for (const s of D) expect(s.dx + s.dy).toBeCloseTo(s.dr, 10);
+  });
+  it('the map marks the row under the pointer and names the newest point "now"', () => {
+    const T = [{ d:'2026-11-02', x:-5, y:2, r:-3 }, { d:'2026-11-03', x:-6, y:6, r:0 }, { d:'2026-11-04', x:-1, y:4, r:3 }];
+    expect(trailSvg(T, 15)).toContain('>now<');
+    const h = trailSvg(T, 15, 1);
+    expect(h).toContain('class="fdw-pt hl"'); expect(h).toContain('>03 Nov<');
+  });
+});

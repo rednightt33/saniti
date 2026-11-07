@@ -12491,6 +12491,21 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   tendesi lebih ke Peta + jejak 20 sesi (opsi 2) dan ada toggle untuk switch it ke Tabel penggerak per sesi (opsi A).. boleh
   kirim HTMLnya lalu describe how to calcualte it? kasih dummy data saja" — mock-up dengan data contoh dan penjelasan cara
   hitung: `verification/terminal_api/fd_map_expand/fd_trail_toggle_mockup.html`. Belum go untuk dibangun.
+- **EXEC-FD-WINDOW** — user 2026-11-07, melampirkan `aaaa.html`: "pake seperti HTML terlampir" (disimpan sebagai
+  `verification/terminal_api/fd_map_expand/aaaa.html`). Dibangun di branch 2026-11-07, belum dirilis:
+  - Tombol ⤢ di panel Foreign × Domestic membuka jendela "Foreign × Domestic map" (live saja; fixture tetap 1:1).
+  - Kontrol: periode 1D / 5D / 20D / Custom, Top 3 / 5 / 10, 5 / 10 / 20 sessions, Level / Change (Δ), Board di kanan
+    (bawaan Regular). Pilihan tersimpan per jendela (`ml.winst.fd`), jendela terbuka ikut dibuka lagi sesudah reload.
+  - Peta: satu titik per sesi (periode bergulir yang berakhir di sesi itu), garis jejak, titik lama lebih pudar, titik
+    terbaru besar bertanda "now", titik pertama bertanggal; batas sumbu diturunkan dari data (`mapLimit`), titik di luar
+    batas digambar kosong di tepi. Tanpa tooltip di titik (R7). Arah kursor di baris tabel menandai titiknya di peta.
+  - Tabel Level: tanggal akhir, Foreign, Domestic, Verdict (terbaru di atas). Tabel Change (Δ): Verdict, Δ Verdict,
+    Δ Foreign, Δ Domestic dan Driver = sisi dengan |Δ| lebih besar (Foreign bila sama); Δ Verdict = Δ Foreign + Δ Domestic.
+  - Rumus satu sumber: `fdAt` di `app/broker.ts` dipakai panel dan jendela (panel tidak lagi punya salinan rumus);
+    `fdTrail` membuat jejaknya. Cek: titik terbaru jendela = baris 5D panel (BBRI 03 Nov: −15,6% + 9,2% = −6,4%).
+  - Bukti: vitest 873/873 (3 tes baru di `tests/data/fd_split.test.ts`), `look_check11.mjs` PASS dengan cek baru baris
+    kontrol jendela (satu baris, Board di kanan) dan judul kolom tabel di tengah pitanya (sempat 7,2/5,1 px, diperbaiki
+    jadi 6,1/6,1).
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 

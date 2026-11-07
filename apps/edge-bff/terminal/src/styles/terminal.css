@@ -938,6 +938,27 @@ body.fw-dragging,body.fw-dragging *{cursor:grabbing!important;user-select:none}
 .pw-at{font-size:11px;color:var(--text-3);margin-left:4px}
 .pw-inv{flex:1;min-height:0;overflow:auto}
 .pw-chart{margin-bottom:8px}
+/* EXEC-FD-WINDOW (user 2026-11-07, "pake seperti HTML terlampir"): the map beside the table; one column in a narrow window */
+.fw-body .pw-ctl > select:last-child{margin-left:auto}
+.pw-fdw{flex:1;min-height:0;display:flex;flex-direction:column;container-type:inline-size}
+.pw-fd{flex:1;min-height:0;display:grid;grid-template-columns:330px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:16px}
+.pw-fd-map{align-self:start}
+.fdw-svg{width:100%;height:auto;display:block}
+.fdw-ax{font-size:10px;fill:var(--text-2)}
+.fdw-l{font-size:11px;font-weight:500;fill:var(--text)}.fdw-l.now{font-weight:700}.fdw-l.hl{font-size:10.5px;font-weight:600}
+.pw-fd-side{min-height:0;display:flex;flex-direction:column}
+.pw-fdt th{padding:3px 8px 6px}   /* look_check11: the header text in the middle of its band (ink 7.2 above, 5.1 below at 4/5) */
+.pw-fdt td{padding:5px 8px;border-top:1px solid var(--border)}
+.pw-fdt th.fdw-fx{color:var(--accent)}.pw-fdt th.fdw-dm{color:#d98a0b}
+.pw-fdt tbody tr.cur td{background:var(--sel);font-weight:600}
+.pw-fdt tbody tr.hl td{background:var(--sel)}
+.tag.fdw-fx{background:#e6f0fe;color:var(--accent)}.tag.fdw-dm{background:#fef3e0;color:#b45309}
+.pw-fd-side .pw-foot{margin:0}
+@container (max-width:620px){
+  .pw-fd{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;overflow:auto}
+  .pw-fd-map{max-width:330px;justify-self:center;width:100%}
+  .pw-fd-side .pw-scroll{flex:none;max-height:320px}
+}
 .pw-svg{display:block}
 .pw-svg text{font:10.5px var(--sans);fill:var(--text-3)}
 .rp-dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:-1px}
