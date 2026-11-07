@@ -661,7 +661,10 @@ stocks) and of a result (versions, duration, trials, lineage key, events). Off (
    end) and `backtest_preview` (`apps/edge-bff/README.md`). The worker: `job_end` with `phases_ms` per status phase and
    the memory, `preview_end` with each preview's queue wait (`preview_wait_ms`) and compute time (worker README, Logs).
    A worker source change changes `engine_version` (section 7.1); it is recorded for the Screener build's tripwire in
-   `scripts/screener/backtest_worker_baseline.json`.
+   `scripts/screener/backtest_worker_baseline.json`. A core change (`apps/edge-bff/backtest/src/core`) changes it too and
+   is approved by its own record, `scripts/screener/backtest_core_baseline.json` (EXEC-SCREENER-FLOW-CANDLES, user
+   2026-11-07 K2 "A"), with `apps/backtest-worker/tests/conditions-unchanged.test.ts`: every existing condition gives
+   the result recorded on the core before the change.
 
 Tables (`database/migrations/20261026_005_edge_bff_backtest.sql`): `edge_bff.backtest_jobs` (one RUNNING per owner,
 unique partial index), `edge_bff.backtest_results` (`(request_id, part)`, bytea, sha256, 30 days), and
@@ -695,6 +698,7 @@ Pure TypeScript, no I/O; the same modules run in the browser (charts, preview) a
 | `stats.ts`, `robustness.ts` | series and trade statistics; Monte Carlo, sensitivity, deflated Sharpe, `trialSet` |
 | `hash.ts` | `canonicalRequest`, `variantOf`, lineage key, variant hash, `requestHash` |
 | `catalog.ts` | page catalog, templates, `DISPLAY` units |
+| `candles.ts`, `candle-registry.json` | the 20 candlestick patterns as one registry of rules over candle primitives and one evaluator, with the IDX guards (no trade, minimum range in price ticks) (EXEC-SCREENER-FLOW-CANDLES P6, decision 2A); used by the Screener, not read by any Backtest request yet |
 
 How a run works (rules in CONTRACT.md sections 4 to 7):
 
