@@ -12635,7 +12635,8 @@ diklik." Atas usulan tiga opsi: "Opsi 2. Jalankan dulu" (tetap tersembunyi, tapi
   dan berikutnya). Cacat yang ditemukan dicatat M381-M384. Sisa LOW yang diterima: teks select terpotong di layar ponsel,
   panel 20 px lebih tinggi dari jendela 1100x760 (bisa digulir). Belum dibangun (keputusan user): ranking antar saham di
   dalam jendela; "=" dan "!=" tetap tersembunyi (K7, belum ada hasil operator berupa bilangan bulat).
-- Status: unit A (P1-P3) siap PR ([PR #59](https://github.com/rednightt33/saniti/pull/59)); menunggu "merge" dari user. P0
+- Status: unit A (P1-P3) di-merge 2026-11-07 14:41 UTC (`4451a31a`, PR #59) dan live di dev (edge-bff `3b54bab2`,
+  screener-worker `64b73512`; cek login: 6 screen operator 200, RAILWAY_CHANGELOG 2026-11-07). P0
   selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
 - P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; diterima 2026-11-07, menunggu "go").
 
