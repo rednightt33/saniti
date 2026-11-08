@@ -123,9 +123,12 @@ test('the trend before the pattern: average and change, read on the session befo
   assert.equal(last('hammer', bounce), 0);
   assert.equal(last('hammer', bounce, { trend: 'change', trend_length: 2 }), 0);
   assert.equal(last('hammer', bounce, { trend: 'change', trend_length: 11 }), 1, 'close 2890 below the close 11 sessions earlier (2980): a decline by change');
-  // a pattern that offers none: the trend test off finds the shape after a rise too
-  assert.equal(last('bullish_engulfing', [...ctx('up'), [2240, 2250, 2190, 2200], [2200, 2260, 2190, 2250]]), 0);
-  assert.equal(last('bullish_engulfing', [...ctx('up'), [2240, 2250, 2190, 2200], [2200, 2260, 2190, 2250]], { trend: 'none' }), 1);
+  // a pattern that offers none (the default for the 14 that offer it, user decision 2026-11-08): the trend test off finds
+  // the shape after a rise too; set to average it does not
+  const afterRise = [...ctx('up'), [2240, 2250, 2190, 2200], [2200, 2260, 2190, 2250]] as Bar[];
+  assert.equal(last('bullish_engulfing', afterRise, { trend: 'average' }), 0);
+  assert.equal(last('bullish_engulfing', afterRise, { trend: 'none' }), 1);
+  assert.equal(last('bullish_engulfing', afterRise), 1, 'the default is no trend test');
   // too few sessions before the pattern for the trend: never a pattern
   assert.equal(last('hammer', pos.slice(-6)), 0);
   assert.equal(last('hammer', pos.slice(-11)), 1, 'exactly trend_length sessions before candle 1');
@@ -316,7 +319,7 @@ test('events: on the bar, or within N sessions', () => {
 
 /* ---- frequency on the fixture stocks -------------------------------------------------------------------------------- */
 
-test('frequency on the fixture stocks: every pattern fires, none on more than 6 % of the bars, none on an index without volume', () => {
+test('frequency on the fixture stocks: every pattern fires, none on more than 8 % of the bars, none on an index without volume', () => {
   const rows: string[] = [], totals = new Map<string, number>();
   let stockBars = 0;
   for (const { ticker, bars } of fixtures) {
@@ -331,6 +334,8 @@ test('frequency on the fixture stocks: every pattern fires, none on more than 6 
     const n = totals.get(id)!, rate = n / stockBars;
     console.log(`# ${id.padEnd(22)} ${String(n).padStart(4)}  ${(1000 * rate).toFixed(2)} per 1,000 bars`);
     assert.ok(n > 0, `${id} never fires on the fixture stocks`);
-    assert.ok(rate <= 0.06, `${id} fires on ${(100 * rate).toFixed(1)} % of the bars: an unreasonable rate`);
+    // a broken rule fires on most bars; with the trend test off by default (user decision 2026-11-08) the busiest, the
+    // tweezers, fire on about 6.5 % of the bars (6 % was the bound with the trend on)
+    assert.ok(rate <= 0.08, `${id} fires on ${(100 * rate).toFixed(1)} % of the bars: an unreasonable rate`);
   }
 });

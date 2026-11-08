@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "aa4d3abb552d258e",
+  "screener_registry_version": "26a25e33747bc071",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -57,7 +57,7 @@
     {
       "role": "candle_registry",
       "file": "apps/edge-bff/backtest/src/core/candle-registry.json",
-      "sha256": "979bbc517e3edc8a645961c73282febedd9e0779a7535d154001ad76e51cc8c8"
+      "sha256": "c3c2956083dbb6fe54224274eb199d172c61f67643413bf1f1220081ac19845f"
     },
     {
       "role": "candles",
@@ -15896,7 +15896,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -15904,7 +15904,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -15962,7 +15962,7 @@
         "doji",
         "dragonfly"
       ],
-      "sessions_at_defaults": 11
+      "sessions_at_defaults": 2
     },
     {
       "id": "gravestone_doji",
@@ -15977,7 +15977,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -15985,7 +15985,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16043,7 +16043,7 @@
         "doji",
         "gravestone"
       ],
-      "sessions_at_defaults": 11
+      "sessions_at_defaults": 2
     },
     {
       "id": "bullish_marubozu",
@@ -16066,7 +16066,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16159,7 +16159,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16244,7 +16244,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16252,7 +16252,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16286,7 +16286,7 @@
         "engulfing",
         "bullish engulfing"
       ],
-      "sessions_at_defaults": 12
+      "sessions_at_defaults": 2
     },
     {
       "id": "bearish_engulfing",
@@ -16301,7 +16301,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16309,7 +16309,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16343,7 +16343,7 @@
         "engulfing",
         "bearish engulfing"
       ],
-      "sessions_at_defaults": 12
+      "sessions_at_defaults": 2
     },
     {
       "id": "bullish_harami",
@@ -16358,7 +16358,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16366,7 +16366,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16451,7 +16451,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16459,7 +16459,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16544,7 +16544,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16552,7 +16552,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16650,7 +16650,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16658,7 +16658,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16756,7 +16756,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16764,7 +16764,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16810,7 +16810,7 @@
         "tweezer",
         "tweezer bottom"
       ],
-      "sessions_at_defaults": 12
+      "sessions_at_defaults": 2
     },
     {
       "id": "tweezer_top",
@@ -16825,7 +16825,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16833,7 +16833,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -16879,7 +16879,7 @@
         "tweezer",
         "tweezer top"
       ],
-      "sessions_at_defaults": 12
+      "sessions_at_defaults": 2
     },
     {
       "id": "morning_star",
@@ -16894,7 +16894,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -16902,7 +16902,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -17012,7 +17012,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -17020,7 +17020,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -17130,7 +17130,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -17138,7 +17138,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -17215,7 +17215,7 @@
       ],
       "formula": "Three White Soldiers (3 candles, flagged on the last): each of the 3 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 > 0; dir2 > 0; dir3 > 0; 100 x body1 >= body_min_pct x range1; 100 x body2 >= body_min_pct x range2; 100 x body3 >= body_min_pct x range3; 100 x upper1 <= short_shadow_pct x range1; 100 x upper2 <= short_shadow_pct x range2; 100 x upper3 <= short_shadow_pct x range3; body1 >= long_body x avg_body; body2 >= long_body x avg_body; body3 >= long_body x avg_body; open2 >= open1; open2 <= close1; open3 >= open2; open3 <= close2; close2 > close1; close3 > close2.",
       "interpretation": "After a decline or a base, three long white candles in a row, each opening inside the previous body and closing higher, near its high.",
-      "misuse": "Three strong sessions after a decline; late in a long rise the same shape can mean exhaustion, which the trend test (on by default) excludes. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "misuse": "Three strong sessions after a decline; late in a long rise the same shape can mean exhaustion, which the trend test excludes when it is set (it is off by default). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
       "synonyms": [
         "three white soldiers",
         "soldiers",
@@ -17236,7 +17236,7 @@
           "key": "trend",
           "type": "enum",
           "label": "Prior trend measured by",
-          "default": "average",
+          "default": "none",
           "options": [
             "average",
             "change",
@@ -17244,7 +17244,7 @@
           ],
           "exclusive_min": false,
           "integer": false,
-          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test."
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
         },
         {
           "key": "trend_length",
@@ -17321,7 +17321,7 @@
       ],
       "formula": "Three Black Crows (3 candles, flagged on the last): each of the 3 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 < 0; dir2 < 0; dir3 < 0; 100 x body1 >= body_min_pct x range1; 100 x body2 >= body_min_pct x range2; 100 x body3 >= body_min_pct x range3; 100 x lower1 <= short_shadow_pct x range1; 100 x lower2 <= short_shadow_pct x range2; 100 x lower3 <= short_shadow_pct x range3; body1 >= long_body x avg_body; body2 >= long_body x avg_body; body3 >= long_body x avg_body; open2 <= open1; open2 >= close1; open3 <= open2; open3 >= close2; close2 < close1; close3 < close2.",
       "interpretation": "After a rise, three long black candles in a row, each opening inside the previous body and closing lower, near its low.",
-      "misuse": "Three weak sessions after a rise; late in a long decline the same shape can mean capitulation, which the trend test (on by default) excludes. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "misuse": "Three weak sessions after a rise; late in a long decline the same shape can mean capitulation, which the trend test excludes when it is set (it is off by default). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
       "synonyms": [
         "three black crows",
         "crows",
