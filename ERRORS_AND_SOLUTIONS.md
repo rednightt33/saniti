@@ -5429,7 +5429,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   90-bar history); QA2 round 2 at the window's edges.
 - **Status:** FIXED on branch (`58380855`), not released.
 
-### M391 — Screener flow (P4): the broker day sweep stamp missed corrections that keep the value sums (2026-11-07, fixed on branch)
+### M391 — Screener flow (P4): the broker day sweep stamp missed corrections that keep the value sums (2026-11-07, fixed, live 2026-11-08)
 
 - **Found by:** QA2 unit B (publisher fakes).
 - **Symptom:** after a change of lots, a transaction count, the gap flag, or an investor type or board swap with equal
@@ -5438,22 +5438,22 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Class:** change detection by partial aggregates (any dataset stamped by sums alone).
 - **Solution:** the stamp also sums a per-row `hashtextextended` over every column the file carries (order-free, no sort);
   checked on PostgreSQL 16 (an investor-type swap with equal sums changes the stamp).
-- **Status:** FIXED on branch (`c9064176`), not released. Lesson for new data: stamp every column a file carries.
+- **Status:** FIXED, live on dev 2026-11-08 (`c9064176`, merge `98ba272d`). Lesson for new data: stamp every column a file carries.
 
-### M392 — Screener flow (P4): the worker trusted the row order of a broker day file (2026-11-07, fixed on branch)
+### M392 — Screener flow (P4): the worker trusted the row order of a broker day file (2026-11-07, fixed, live 2026-11-08)
 
 - **Found by:** QA2 unit B. **Cause:** `decodeBrokerDay` did not check duplicates or the primary-key order inside a ticker.
 - **Solution:** rows strictly increasing in (broker, investor type, board) text order, else DATA_INTEGRITY naming both
   rows. **Status:** FIXED on branch (`c3e59f6b`), not released.
 
-### M393 — Screener flow: a 0/1 signal took a relative comparison, a two-series state or an average (2026-11-07, fixed on branch)
+### M393 — Screener flow: a 0/1 signal took a relative comparison, a two-series state or an average (2026-11-07, fixed, live 2026-11-08)
 
 - **Found by:** QA3 unit B. **Cause:** the output-kind check ran per transform; `relative` and `change` never called it and
   a STATE of two series had none. **Class:** a type rule applied path by path instead of once.
 - **Solution:** one check for every governed transform and any second series, from flow-kinds.json and the operators
   block (`forms`, `not_on`), with the gate message. **Status:** FIXED on branch (`8cca8273`), not released.
 
-### M394 — Screener flow: the cost model predicted flow ~1000x too low and never learned composite conditions (2026-11-07, fixed on branch)
+### M394 — Screener flow: the cost model predicted flow ~1000x too low and never learned composite conditions (2026-11-07, fixed, live 2026-11-08)
 
 - **Found by:** QA4 unit B (900 stocks x 60 sessions). **Symptom:** anchored flow screens admitted at ~29 ms predicted ran
   16-19 s; the 4,500 ms gate did not protect. **Verified cause:** flow cost counted as 60 sessions at the indicators' rate;
@@ -5462,7 +5462,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   indicator and choice from every condition, priors measured (`verification/screener/BENCHMARK_FLOW_COST.md`).
   **Status:** FIXED on branch (`f610cdaf`), not released.
 
-### M395 — Screener flow: an event or window test on flow failed when broker data lagged the prices (2026-11-07, fixed on branch)
+### M395 — Screener flow: an event or window test on flow failed when broker data lagged the prices (2026-11-07, fixed, live 2026-11-08)
 
 - **Found by:** the P5c fix agent with the real catalog in the fixture ("tail of FL32.buy on BBCA starts at bar 269, but
   bar 268 is needed"; the freq preset had no count). On dev broker data is 3 sessions behind prices.
@@ -5471,7 +5471,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** flow series keep their whole tail; a read is refused only when it would be inexact; tests with broker
   data 0, 1 and 3 sessions behind prices against brute force. **Status:** FIXED on branch (`bf8ad89a`), not released.
 
-### M396 — Screener flow page: preview date cut off, contradictory depth text, stale and random fixture, display-only parameters (2026-11-07, fixed on branch)
+### M396 — Screener flow page: preview date cut off, contradictory depth text, stale and random fixture, display-only parameters (2026-11-07, fixed, live 2026-11-08)
 
 - **Found by:** QA5 unit B and the 20-question front-end test. **Symptoms:** the preview's broker date line clipped; the
   depth refusal carried the catalog example's number; "default default brokers"; the fixture served old flow entries and
@@ -5481,7 +5481,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   presets through the core, seeded Fisher-Yates; display-only parameters derived by probing computeFlow at catalog build
   and removed. **Status:** FIXED on branch (`8448d792`, `eed08608`), not released.
 
-### M397 — Screener worker: a swap with the same price data dropped the old snapshot at once (2026-11-07, fixed on branch)
+### M397 — Screener worker: a swap with the same price data dropped the old snapshot at once (2026-11-07, fixed, live 2026-11-08)
 
 - **Found by:** P4 review. **Cause:** `retire(old)` at once when price_data is unchanged (actions, reference or broker days
   changed): a queued request on the old snapshot answered 500. **Solution:** the old one goes after SCREENER_DEADLINE_MS

@@ -12778,6 +12778,9 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
 - Status: unit A (P1-P3) di-merge 2026-11-07 14:41 UTC (`4451a31a`, PR #59) dan live di dev (edge-bff `3b54bab2`,
   screener-worker `64b73512`; cek login: 6 screen operator 200, RAILWAY_CHANGELOG 2026-11-07). P0
   selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
+- Unit B (flow) live di dev 2026-11-08: PR #60 merge `98ba272d`; edge-bff `469375db`, screener-worker `69e5c0f4`, publisher
+  `a1394d8a`; isi awal 60 tanggal broker (16,9 MB, 0 gagal); 48 entri flow AVAILABLE; 19 screen uji di data nyata 200;
+  paritas Terminal 18/18 (RAILWAY_CHANGELOG 2026-11-08). Berikutnya: unit C (P6, cabang lokal siap) dan C sesudahnya.
 - Go merge unit B (user 2026-11-08: "Ok merge"), sesudah checklist 7 poin dan QA putaran 2 READY (PR #60). Batas hitung
   SCREENER_MAX_CPU_MS tetap 4.500 ms (tidak diubah; pertanyaan ke user masih terbuka). Urutan rilis: merge -> edge-bff dan
   screener-worker dari GitHub -> EXPLAIN read-only di dev -> upload terminal-publisher -> isi awal 60 tanggal broker ->
