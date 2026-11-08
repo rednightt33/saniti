@@ -12818,6 +12818,9 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
     Inverted Hammer, Shooting Star tetap average dan tidak bisa dimatikan, karena tren yang membedakan pasangan
     berbentuk sama). Frekuensi fixture 2.908 -> 4.546 sinyal; engine_version e2205249ffdb5e9b; catatan persetujuan core
     dan worker direkam ulang (tripwire OK); skrip cek live dan buktinya offline disesuaikan (17/17).
+  - Unit C live di dev 2026-11-08 (user: "Alright, merge to main. Jalankan checklist dulu"): PR #62 merge `31572848`;
+    edge-bff `9b6f0f3e`, screener-worker `79baa13c`, backtest-worker `f297aa00` (engine e2205249ffdb5e9b); cek live 144/144
+    screen, 2.840/2.840 nilai sama (RAILWAY_CHANGELOG 2026-11-08). Sisa kecil terbuka: M403, M404, M375.
   - Pertanyaan user 2026-11-08: "candle filterini bisa multiple candle filter right ... Misal user mau filter saham2 yang
     ada candle hammer, engulfing etc": ya, satu kondisi per pola (sampai 20 kondisi), digabung All / Any / At least.
 - Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.

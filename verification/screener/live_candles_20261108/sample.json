@@ -1,0 +1,122 @@
+[
+ {
+  "ticker": "BBCA",
+  "reasons": [
+   "liquid (ADV20 1.91e+12)"
+  ]
+ },
+ {
+  "ticker": "BBRI",
+  "reasons": [
+   "liquid (ADV20 1.08e+12)"
+  ]
+ },
+ {
+  "ticker": "BMRI",
+  "reasons": [
+   "liquid (ADV20 9.14e+11)"
+  ]
+ },
+ {
+  "ticker": "XCID",
+  "reasons": [
+   "illiquid (ADV20 1.68e+06)"
+  ]
+ },
+ {
+  "ticker": "GDYR",
+  "reasons": [
+   "illiquid (ADV20 3.11e+06)"
+  ]
+ },
+ {
+  "ticker": "XCIS",
+  "reasons": [
+   "illiquid (ADV20 3.13e+06)"
+  ]
+ },
+ {
+  "ticker": "SATU",
+  "reasons": [
+   "near the 200 price band boundary (last 200)"
+  ]
+ },
+ {
+  "ticker": "ARNA",
+  "reasons": [
+   "near the 500 price band boundary (last 498)"
+  ]
+ },
+ {
+  "ticker": "BBMD",
+  "reasons": [
+   "near the 2000 price band boundary (last 2000)"
+  ]
+ },
+ {
+  "ticker": "ASII",
+  "reasons": [
+   "near the 5000 price band boundary (last 5000)"
+  ]
+ },
+ {
+  "ticker": "ENRG",
+  "reasons": [
+   "corporate action remark (PRICE_BREAK 2026-10-05)"
+  ]
+ },
+ {
+  "ticker": "BUVA",
+  "reasons": [
+   "corporate action remark (PRICE_BREAK 2026-10-14)"
+  ]
+ },
+ {
+  "ticker": "RDTX",
+  "reasons": [
+   "stale (last bar 2026-11-05)"
+  ]
+ },
+ {
+  "ticker": "AMMN",
+  "reasons": [
+   "shows bearish_harami:default_state"
+  ]
+ },
+ {
+  "ticker": "GGRM",
+  "reasons": [
+   "shows bullish_harami:default_state"
+  ]
+ },
+ {
+  "ticker": "LABA",
+  "reasons": [
+   "shows dark_cloud_cover:default_state"
+  ]
+ },
+ {
+  "ticker": "MEDC",
+  "reasons": [
+   "shows dragonfly_doji:default_state"
+  ]
+ },
+ {
+  "ticker": "RANS",
+  "reasons": [
+   "shows evening_star:default_state"
+  ]
+ },
+ {
+  "ticker": "DEWI",
+  "reasons": [
+   "shows hanging_man:default_state"
+  ]
+ },
+ {
+  "ticker": "AALI",
+  "reasons": [
+   "shows piercing_line:default_state"
+  ]
+ }
+]

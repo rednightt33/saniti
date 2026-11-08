@@ -1,5 +1,32 @@
 # Railway changelog
 
+## 2026-11-08 — Screener unit C (20 candlestick patterns) on dev: PR #62 merged; edge-bff, screener-worker, backtest-worker
+
+- **Change:** EXEC-SCREENER-FLOW-CANDLES P6: the 20 candlestick patterns in the Backtest core (`candle-registry.json`,
+  `candles.ts`), generated into the Screener catalog (group Candlestick, side), the trend test off by default except the
+  Hammer family (user 2026-11-08 "Ok opsi A"); the QA fixes of unit C (ERRORS M399 page, M400 refusals, M401 pattern
+  cost). No migration, no variable change.
+- **Go:** user 2026-11-08 "Alright, merge to main. Jalankan checklist dulu"; checklist 1-7 passed (branch contains main
+  `98ba272d`, no conflict, diff without deletions, config, dependency or secret changes; screener vitest 1,327, bundle
+  31/31, smoke 42 steps, screener-worker 104/104, backtest-worker 204/204, publisher 164, edge-bff 220 on PG16, tripwire
+  OK; no CI configured). PR rednightt33/saniti#62 merged (merge commit `31572848`).
+- **Deployments (Railway API):** edge-bff `9b6f0f3e-f5e6-48a2-99dd-39e5c5811704` SUCCESS and screener-worker
+  `79baa13c-c8c8-466a-b752-9691ffadd6ee` SUCCESS (GitHub, commit `31572848`, 08:04 UTC; worker start: screener_engine
+  `1ff20ef7ad420cf2`, registry `514dc3df60a25aff`, max_cpu_ms 4500); backtest-worker CLI upload
+  `f297aa00-b701-43ad-9d42-a7286f40d8d5` SUCCESS 08:05 UTC (`git archive 31572848` of the paths its Dockerfile copies,
+  Dockerfile at the upload root, `--path-as-root`; it was SLEEPING, no job running); start log `engine_version`
+  `e2205249ffdb5e9b` (equal to the repository's), `registry_version` `514dc3df60a25aff`.
+- **Live check** (`verification/screener/live_candles_dev.py`, signed in as the owner, read routes only): PASS, 144/144
+  screens on the wide universe (price_data `ef932748`, evaluation date 2026-11-06), 0 limit refusals, 78 relations
+  without a problem, 2,840 of 2,840 values (tickers, event dates, sessions ago, remarks) equal to an independent
+  computation from the Terminal's own price bars on 20 sample stocks; Three White Soldiers and Three Black Crows had no
+  positive in the sample (coverage, not a failure). `verification/screener/live_candles_20261108/report.json`.
+- **Postgres restart check 08:13 UTC:** refused `memory_low` (0.235 GB); no restart needed.
+- **Caches:** Backtest and Screener result keys include `engine_version`, so they start cold; stored backtests keep their
+  own metadata.
+- **Rollback:** edge-bff `469375db-261d-47ff-b6d3-946b7cb12b1a`, screener-worker `69e5c0f4-90ef-4a5a-b6ab-b1d63237b9da`,
+  backtest-worker `efd72cef-eff1-4004-981e-cba0a204966f` (redeploy), or revert merge `31572848`.
+
 ## 2026-11-08 — Screener unit B (flow) on dev: PR #60 merged; edge-bff, screener-worker, terminal-publisher; first broker day fill
 
 - **Change:** EXEC-SCREENER-FLOW-CANDLES P4 + P5: broker day files for the Screener (60 newest Feature 05 dates), the
