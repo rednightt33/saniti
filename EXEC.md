@@ -12597,6 +12597,11 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   1D peta pada tanggal itu; FL50 punya pilihan periode dan garis Verdict sebagai opsi; FL51 seperti mock-up, dihitung
   sejak candle pertama terlihat atau rentang yang dipilih di chart (seperti Alt + B), kotak bisa digeser; FL14 mendapat
   garis rata-rata 10 hari sebagai opsi di Settings. Sisa pertanyaan: periode bawaan FL50, harga pokok FL51.
+- User 2026-11-08: "Oke rolling 5D / Both saja diFL 51 / Jadi ada 2 opsi, untuk A dan B.. kemudian bisa opsi juga untuk
+  display as line chart harga avgnya? Konfirmasi". FL50 bawaan 5D bergulir. FL51 punya pilihan harga pokok: (a) harga
+  rata-rata beli dalam periode, (b) perkiraan modal posisi yang masih dipegang (model FL19 per broker); ditambah opsi
+  menggambar harga pokok broker sebagai garis di chart harga. Sisa pertanyaan: broker mana yang diberi garis, garis
+  berjalan atau mendatar, bawaan pilihan harga pokok.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
