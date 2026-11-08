@@ -546,6 +546,17 @@ export function openAddCondition(q = '', g: string = ALL) {
   if (spyMode() && g !== ALL) { railMark(g); scrollToGroup(g) }
   $q<HTMLInputElement>('#acq')?.focus();
 }
+/** "Operator…" chosen on a Screen builder card (user 2026-11-08, A and B the same): Add a condition opens on that
+    indicator with Operator chosen and its Customize box open, where an operator is set (QA5 D7: an operator is added
+    as a new card from this window). */
+export function openOperatorFor(e: Entry) {
+  if (!offersOperators(e.ops, e)) return;
+  openAddCondition(e.label);
+  setOpt(e, OP_OPT);
+  const i = W.items.findIndex(x => x.entry?.key === e.key);
+  if (i < 0) return;
+  W.act = i; drawList(); setPop(i);
+}
 function onClick(e: Event) {
   const t = e.target as HTMLElement;
   const g = t.closest<HTMLElement>('[data-ag]');

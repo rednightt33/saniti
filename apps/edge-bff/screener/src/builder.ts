@@ -12,7 +12,8 @@ import { defaultParams, depthHint, flowBudget, flowSessions, isDefP, isFlowType,
 import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
 import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, optOf, paramSummary, type Card } from './forms.ts';
 import { confirmDialog, openSaveMetric, toast, toastAction } from './dialogs.ts';
-import { MY, openAddCondition } from './add-condition.ts';
+import { MY, OP_OPT, openAddCondition, openOperatorFor } from './add-condition.ts';
+import { offersOperators, operatorTitle } from './operators.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { levelAsOfText, sideOf, T } from './texts.ts';
 import { levelAtFlowDate } from './cell-text.ts';
@@ -89,7 +90,10 @@ function condRow(c: Card): string {
     : !defaultOffered(e) ? `<span class="seg sm mseg"><button class="on" data-segc="${c.id}" title="${esc(T.noDefault)}">Custom</button></span>`
     : `<span class="seg sm mseg"><button class="${cus ? '' : 'on'}" data-segd="${c.id}" title="Use the standard parameters (the defaults shown under each field)">Default</button><button class="${cus ? 'on' : ''}" data-segc="${c.id}" title="Set your own parameters">Custom</button></span>`;
   const grid = e.params.length && (cus || twoLines) ? `<div class="pgrid">${e.params.map(p => pf(p)).join('')}${twoLines ? e.params.map(p => pf(p, true)).join('') : ''}</div><div class="mrow"><span class="pbadge my" data-pm="${c.id}" ${c.metric ? '' : 'hidden'}>★ ${esc(c.metric?.name || '')}</span><button class="link" data-savem="${c.id}">${ico(IC.star, 's')}Save as My metric</button></div>` : '';
-  const ops = `<select class="sel" data-c="${c.id}" data-k="op" aria-label="Condition">${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === c.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}</select>${err('op')}`;
+  // the same choices as Add a condition (user 2026-11-08: "A ada operator tapi B tidak"): "Operator…" where the
+  // indicator takes one; choosing it opens Add a condition on this indicator with the operator panel open
+  const opOpt = offersOperators(e.ops, e) ? `<option value="${OP_OPT}" title="${esc(operatorTitle(e.ops!, e, c.params as any))}">Operator…</option>` : '';
+  const ops = `<select class="sel" data-c="${c.id}" data-k="op" aria-label="Condition">${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === c.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}${opOpt}</select>${err('op')}`;
   return `<div class="mc ${c.on ? '' : 'off'} ${cus ? 'cus' : ''} ${x}" data-card="${c.id}"${tip}>${head}
     <div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${asOf}${review}
     ${mode}${grid}${ops}${vals}${within}${pass}</div>`;
@@ -173,6 +177,20 @@ function setBtab(k: BTab) {
   btab = k; renderConds();
   ($('cardC')?.querySelector(`[data-btab="${k}"]`) as HTMLElement | null)?.focus();
   const c = $('cardC'); if (c) c.scrollTop = 0;
+}
+/** C2 (user 2026-11-08): a flow indicator's chip in the results header opens its card in the Screen builder to edit
+    (its lists, dates and broker codes have fields only there): the Conditions tab, the pane open, the card open with its
+    fields shown, scrolled into view, its first field focused. */
+export function openCardToEdit(id: string) {
+  if (!S.cards.some(c => c.id === id)) return;
+  btab = 'cond'; S.bOpen = true; layoutHooks.expandBuilder();
+  openRows.add(id); S.open.add(id);
+  renderConds();
+  const card = $('condList')?.querySelector<HTMLElement>(`[data-card="${CSS.escape(id)}"]`);
+  if (!card) return;
+  card.scrollIntoView({ block:'nearest', inline:'nearest' });
+  card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 1200);
+  (card.querySelector('.pgrid :is(input,select)') as HTMLElement | null ?? card)?.focus?.({ preventScroll:true });
 }
 /** a click on a compact condition row (not on one of its controls) opens it to edit, or closes it (wide layout) */
 export function toggleRow(id: string) {
@@ -259,6 +277,7 @@ export function onBuilderField(el: HTMLInputElement | HTMLSelectElement): boolea
   const k = d.k!;
   if (k === 'on') { c.on = (el as HTMLInputElement).checked; ui.markDirty(); ui.refresh('conds'); return true }
   if (k === 'op') {
+    if (el.value === OP_OPT) { el.value = c.opt; if (e) openOperatorFor(e); return true }   // the card keeps its condition
     if (c.opt === el.value) return true;
     c.opt = el.value;
     const o = e && optOf(e, c);

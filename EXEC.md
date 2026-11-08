@@ -12802,6 +12802,25 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   dibuka "10 Rp B". Tinggi baris tetap sama (keputusan user 2026-11-06).
 - `npx vitest run` (screener): 1328 lulus. Smoke: tiga kegagalan lama yang juga gagal tanpa perubahan ini (ERRORS M410).
 
+## EXEC-SCREENER-CONSIST — "Operator…" di kartu builder (A = B); chip Flow di judul kolom membuka kartunya (C2); garis cost Loaders (go 2026-11-08)
+
+### Kata user
+- 2026-11-08: "untuk screenerr ada design inconsistency. Liat A dan B.. A ada operator tapi B tidak ad aoperator."
+- 2026-11-08: "liat C dan D kenapa kalau SMA "20" kita klik bisa muncul drop down customizable tapi indikator flow seperti
+  foreign net value "5" di klik tidak muncul customizable?"
+- 2026-11-08: "Jalankan yang exactly saya minta barusan." lalu "C2" dan "Garis cost langsung menyala kalau memang garis
+  cost nya di enable by user. Kalau gak ya gak ngapain dishow. Aneh kamu"
+
+### Yang dibangun
+1. A = B: pilihan kondisi di kartu Screen builder menawarkan "Operator…" untuk indikator yang sama dengan Add a condition
+   (`operators.ts` `offersOperators`, tanpa daftar). Memilihnya membuka Add a condition pada indikator itu dengan panel
+   operator terbuka (operator ditambahkan dari jendela itu, QA5 D7); kartu tetap pada kondisinya.
+2. C2: chip parameter indikator Flow di judul kolom hasil membuka kartunya di Screen builder (tab Conditions, panel
+   dibuka bila terlipat, isian ditampilkan, kartu disorot sebentar, fokus ke isian pertama). Chip indikator lain tetap
+   membuka editor cepat.
+3. Garis cost Loaders: diperiksa di stand-in (BBRI, 1440 px), tanpa perubahan kode. Cost lines ON + In view + Alt+B:
+   garis tampil dan periode ikut tampilan; Cost lines OFF: tidak ada garis. Ini sudah sesuai kata user.
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up

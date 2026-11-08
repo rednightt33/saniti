@@ -7,7 +7,7 @@ import { esc } from '../format.ts';
 import { ctx, entryOf, S } from '../state.ts';
 import { optionText, rangeText, type Entry, type EntryParam } from '../entries.ts';
 import { cardName, optOf, displayUnit, type Card } from '../forms.ts';
-import { onBuilderField, colorOf } from '../builder.ts';
+import { onBuilderField, colorOf, openCardToEdit } from '../builder.ts';
 import { toast } from '../dialogs.ts';
 
 let box: HTMLElement | null = null, id: string | null = null, tip: HTMLElement | null = null, tipT: ReturnType<typeof setTimeout> | undefined;
@@ -135,6 +135,7 @@ let debounce: ReturnType<typeof setTimeout> | undefined;
 export function bindHeaderEdit() {
   const pane = document.getElementById('resPane')!;
   pane.addEventListener('click', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (ch) { e.preventDefault(); e.stopPropagation(); openEditor(ch.dataset.pedit!) } }, true);
+  pane.addEventListener('click', e => { const ch = (e.target as HTMLElement).closest('[data-pcard]') as HTMLElement | null; if (ch) { e.preventDefault(); e.stopPropagation(); closeEditor(false); openCardToEdit(ch.dataset.pcard!) } }, true);
   pane.addEventListener('mouseover', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (!ch || ch.contains(e.relatedTarget as Node)) return; clearTimeout(tipT); tipT = setTimeout(() => showTip(ch), 250) });
   pane.addEventListener('mouseout', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (!ch || ch.contains(e.relatedTarget as Node)) return; hideTip() });
   document.addEventListener('change', e => { const t = e.target as HTMLInputElement; if (box?.contains(t) && t.matches('[data-c]')) { clearTimeout(debounce); apply(t) } });

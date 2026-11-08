@@ -118,6 +118,7 @@ export function initPanes() {
   gutters.lw = makeGutter('lw', 'Resize the screen builder');
   gutters.rw = makeGutter('rw', 'Resize the chart panel');
   layoutHooks.collapseBuilder = () => { if (!wide()) return false; S.bOpen = true; setBuilderCollapsed(true); return true };
+  layoutHooks.expandBuilder = () => { if (panes.lcol) setBuilderCollapsed(false, false) };
   const ro = new ResizeObserver(schedulePlace);
   for (const el of [app, cardC, pv]) ro.observe(el);
   addEventListener('resize', () => { applyPanes(); if (wide() && !S.bOpen) { S.bOpen = true; ui.renderConds() } });

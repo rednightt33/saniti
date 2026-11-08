@@ -312,6 +312,27 @@ await at('Add a condition sets the parameters too (user 2026-11-06, option A): L
   expect(await card.locator('[data-p="length"]').inputValue() === '50' && await card.locator('[data-segc].on').count() === 1, 'the card does not hold Length 50 as Custom: ' + await card.innerText());
   expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
 });
+await at('C2 and Operator… on a card (user 2026-11-08): a flow chip in the results header opens its card; a builder card offers Operator… and it opens Add a condition with the operator panel', async () => {
+  await fresh(); await ready();
+  for (const name of ['Foreign Net Value', 'Simple Moving Average']) {
+    await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(250);
+    await page.fill('#acq', name); await page.waitForTimeout(250);
+    await page.locator('#acl .qrow', { has:page.locator('b', { hasText:new RegExp('^' + name + '$') }) }).first().locator('[data-qact]').click(); await page.waitForTimeout(150);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  }
+  await page.click('.top-screen'); await page.waitForTimeout(2500);
+  const kinds = await page.$$eval('#resPane .pvchip', xs => xs.map(x => x.dataset.pcard ? 'card' : x.dataset.pedit ? 'edit' : '?'));
+  expect(kinds.includes('card') && kinds.includes('edit'), 'the flow chip does not open its card or the SMA chip lost its editor: ' + kinds);
+  await page.locator('#resPane [data-pcard]').first().click(); await page.waitForTimeout(300);
+  const at_ = await page.evaluate(() => { const c = document.activeElement?.closest('[data-card]'); return { nm:c?.querySelector('[data-nm]')?.textContent, grid:!!c?.querySelector('.pgrid') } });
+  expect(/Foreign Net Value/.test(at_.nm || '') && at_.grid, 'the flow chip did not open its card with its fields: ' + JSON.stringify(at_));
+  const sel = page.locator('#condList .mc', { has:page.locator('[data-nm]', { hasText:/Simple Moving/ }) }).first().locator('select[data-k="op"]');
+  if (!(await sel.isVisible())) { await page.locator('#condList .mc', { has:page.locator('[data-nm]', { hasText:/Simple Moving/ }) }).first().click(); await page.waitForTimeout(200) }
+  expect((await sel.evaluate(s => [...s.options].map(o => o.text))).includes('Operator…'), 'the builder card offers no Operator…');
+  await sel.selectOption('__op'); await page.waitForTimeout(400);
+  expect(await page.locator('.dialog.qwin .qpop').count() === 1 && await sel.evaluate(s => s.value) !== '__op', 'Operator… did not open Add a condition with the operator panel, or the card lost its condition');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+});
 await at('Add a condition: more than two blue boxes go behind Customize with their count; Escape closes the panel only; Reset, Done; every row one height', async () => {
   // user 2026-11-06: "kalau ada kotak biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator
   // harusnya sama. Lalu tambahin juga parameter yang customizable ada berapa"

@@ -1731,3 +1731,5 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 @container qlist (max-width:1000px){.qcols,.qrow{grid-template-columns:minmax(150px,1fr) 88px 196px 268px 72px}.qrow{--qnm-b:2}}
 @container qlist (max-width:820px){.qrow{grid-template-columns:minmax(0,1fr) auto}.qrow>.tf-add{justify-self:start;width:104px}.qnm{height:auto}.qnm b,.qnm small{-webkit-line-clamp:unset}}
 @media (max-width:760px){.qrow{grid-template-columns:minmax(0,1fr) auto}.qrow>.tf-add{justify-self:start;width:104px}.qnm{height:auto}.qnm b,.qnm small{-webkit-line-clamp:unset}}
+/* C2 (user 2026-11-08): the card a results-header chip opened shows where it is for a moment */
+.mc.flash{box-shadow:0 0 0 2px var(--blue);transition:box-shadow .3s}

@@ -163,10 +163,12 @@ export function renderResults() {
       const e = entryOf(c), pv = shortPv(e, c), cus = e && isCustom(e, c) ? 'cus' : '';
       // a card with parameters (not a My metric, whose parameters are its own) gets the editor chip, only when the page
       // has this same condition (pageCardOf: same id, entry and form; a preset reuses ids, QA M1)
-      // a flow indicator's setup is changed on its card or in Add a condition (lists, dates and broker codes have no
-      // field in the header's editor)
-      const ed = !!(e && e.params.length && !e.flow && pageCardOf(c)), lb = pv || (ed ? e!.params.map(p => String(c.params[p.key])).join('/') : '');
-      const chip = ed ? `<button type="button" class="pvchip ${cus}" data-pedit="${esc(c.id)}" aria-haspopup="dialog" aria-expanded="false" aria-label="Change parameters: ${esc(paramSummary(e!, c.params))}"><span class="pv ${cus}">${esc(lb)}</span></button>` : '';
+      // a flow indicator's setup has lists, dates and broker codes, which the header's editor has no field for: its chip
+      // opens the condition's card in the Screen builder instead (user 2026-11-08, option C2)
+      const ed = !!(e && e.params.length && pageCardOf(c)), lb = pv || (ed ? e!.params.map(p => String(c.params[p.key])).join('/') : '');
+      const chip = !ed ? '' : e!.flow
+        ? `<button type="button" class="pvchip ${cus}" data-pcard="${esc(c.id)}" title="Change on its card in the Screen builder" aria-label="Change parameters on the card: ${esc(paramSummary(e!, c.params))}"><span class="pv ${cus}">${esc(lb)}</span></button>`
+        : `<button type="button" class="pvchip ${cus}" data-pedit="${esc(c.id)}" aria-haspopup="dialog" aria-expanded="false" aria-label="Change parameters: ${esc(paramSummary(e!, c.params))}"><span class="pv ${cus}">${esc(lb)}</span></button>`;
       return th('c:' + c.id, `<i class="cdot" style="background:${colorOf(c)}"></i>${esc(shortName(e, c))}${!ed && pv ? ` <span class="pv ${cus}">${esc(pv)}</span>` : ''}`, '', `${sideOf(e) ? sideOf(e)!.title + '\n' : ''}${condText(e, c)} · ${e?.params.length ? (isCustom(e, c) ? 'custom parameters: ' : 'default parameters: ') + paramSummary(e, c.params) : 'fixed definition'}`, chip);
     }).join('')}${xdefs.map(d => extraTh(d, th)).join('')}</tr></thead>
       <tbody>${pr.map(r => {
