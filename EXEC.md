@@ -12680,6 +12680,19 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
     `indicators.ts` `Ind.brokerPicked`) tidak dicatat sebagai langkah undo, jadi Ctrl+Z membatalkan langkah tercatat
     sebelumnya (menambah indikator). Klik di luar dialog Settings sekarang = Cancel (`indicators.ts` `back.onclick`,
     `close(false)`). Batas 5 ada di `broker.ts` `INV_MAX`, registry FL23 `brokers.max`, slot `b1..b5` dan 5 warna.
+- Jawaban user 2026-11-08: "(2) Tidak, 10 broker hanya untuk indikator broker inventory saja yang overlay. (4) OK (3) ...
+  Ketika klik misalkan KZ, maka broker inventory akan menambah KZ ... Ctrl Z seharusnya mengundo, KZ seharusnya tidak
+  appear atau hilang. Sementara Ctrl Y akan menambah juga si KZ. Untuk loaders, coba kasih saya 10 objek dalam satu HTML
+  to decide." Artinya (BELUM DIJALANKAN, menunggu go):
+  - I1 FL52 (overlay di chart harga) sampai 10 broker; panel kanan dan FL23 tetap 5. Kode broker FL52 di ujung garis.
+  - I2 klik broker di panel kanan = satu langkah undo: Ctrl+Z menghapus broker itu lagi (dari panel dan indikator), Ctrl+Y
+    menambahkannya kembali.
+  - I3 dialog Settings: klik di luar kotak = memakai perubahan (seperti OK); Cancel, × dan Esc membuang; isian tidak sah
+    menahan kotak terbuka dengan pesannya.
+  - Loaders: 10 opsi di `verification/terminal_api/flow_dots/loaders_options.html` (data BBRI 10 Agu–3 Nov 2026,
+    `loaders_data.py`): 1 tombol kecilkan/tutup, 2 pilihan jumlah broker, 3 Net 5D, 4 P/L kertas, 5 % volume, 6 Asing /
+    Domestik, 7 beli terakhir + runtun, 8 sparkline posisi, 9 bar porsi akumulasi, 10 harga vs harga pokok. Menunggu
+    pilihan user.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
