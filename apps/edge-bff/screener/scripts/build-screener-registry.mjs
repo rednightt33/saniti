@@ -554,6 +554,11 @@ export function overlayProblems(overlay, base) {
   for (const c of computed) if (!(isN(per[c]) && per[c] > 0)) out.push(`cost_model.flow.ns_per_unit.${c} must be a positive number`);
   for (const c of Object.keys(per)) if (!computed.includes(c)) out.push(`cost_model.flow.ns_per_unit.${c} is not a way a flow entry is computed (${computed.join(', ')})`);
   if (typeof fl.evidence !== 'string' || !fl.evidence) out.push('cost_model.flow.evidence is required');
+  // QA unit C: a pattern's prior per bar, and a candlestick pattern's per bar and session of the window candles.ts reads,
+  // measured (its evidence names the benchmark note)
+  const pa = cm.pattern || {};
+  for (const k of ['ns_per_bar', 'candle_ns_per_bar_session']) if (!(isN(pa[k]) && pa[k] > 0)) out.push(`cost_model.pattern.${k} must be a positive number`);
+  if (typeof pa.evidence !== 'string' || !pa.evidence) out.push('cost_model.pattern.evidence is required');
   out.push(...costReviewProblems(overlay.cost_reviews, base));
   return out;
 }

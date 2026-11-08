@@ -21,7 +21,7 @@
    computed on a miss goes back to the main thread's cost model (observe). */
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
-import type { CountsEntry, DataStatus, Definition, MetricRef, RunResponse, UniverseCounts, UniverseDef, Versions } from '../../edge-bff/screener/src/core/contract.ts';
+import type { CountsEntry, DataStatus, Definition, MetricRef, PatternRef, RunResponse, UniverseCounts, UniverseDef, Versions } from '../../edge-bff/screener/src/core/contract.ts';
 import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
 import { bindCondition, bindTest } from '../../edge-bff/screener/src/core/condition.ts';
 import type { BindContext } from '../../edge-bff/screener/src/core/condition.ts';
@@ -30,11 +30,12 @@ import type { ResolvedSeries, SeriesSource, Tail, TickerBars, TickerCalc } from 
 import { costEstimate, costTracker } from '../../edge-bff/screener/src/core/plan.ts';
 import type { CostTracker, PlanCondition } from '../../edge-bff/screener/src/core/plan.ts';
 import { SBY_ID, SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/registry.ts';
+import { CANDLE_IDS } from '../../edge-bff/backtest/src/core/candles.ts';
 import { runScreen } from '../../edge-bff/screener/src/core/screen.ts';
 import type { ScreenEnv } from '../../edge-bff/screener/src/core/screen.ts';
 import { applyUniverse } from '../../edge-bff/screener/src/core/universe.ts';
 import { FLOW_BY_ID, FLOW_PRESENCE } from '../../edge-bff/screener/src/core/flowmetrics.ts';
-import { operandReach } from '../../edge-bff/screener/src/core/transforms.ts';
+import { operandReach, resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
 import { definitionHash, validateDefinition } from '../../edge-bff/screener/src/core/validate.ts';
 import type { ValidateContext } from '../../edge-bff/screener/src/core/validate.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
@@ -147,16 +148,27 @@ export const PRESENCE_KEY = `flow:${String((FLOW_PRESENCE.ref as { metric: strin
     apart by the thread's meter, snapshot.ts ThreadSnapshot.contexts). */
 export const CONTEXT_KEY = 'flow:context';
 const CONTEXT_UNIT: CostUnit = { key: CONTEXT_KEY, costClass: 'O(N)', length: 1, flow: { rows: 1, brokers: 0 } };
+/** The suffixes of a pattern's unit keys (`pattern:<type>` is its fixed work per bar): the window its core reads, and
+    for a recursive pattern (no window) the rule it had before QA unit C, kept (costUnits). */
+const PATTERN_WINDOW = ':window', PATTERN_LENGTH = ':length';
 /** The prior of a cost key before its first measurement (QA unit B, QA4; screener-overlay.json cost_model.flow,
     measured: verification/screener/BENCHMARK_FLOW_COST.md): a flow kernel's ns per unit of its work (CostUnit flow: a
     broker row read or a cell of the brokers x sessions grid) by how its entry is computed (the registry's `compute`:
     the Terminal's computeFlow, the anchor N sessions back, the Screener's Broker Inventory, the foreign net), a window
-    context's and the broker-data series' per row; every other kernel the indicators' ns per bar and length
-    (cost_model.ns_per_bar_length). */
+    context's and the broker-data series' per row; a pattern's (QA unit C; cost_model.pattern, measured: the same
+    section 6) per bar for its fixed work, and a candlestick pattern's per bar and session of the window candles.ts reads
+    (an older pattern's window, a registry kernel's, and every other kernel: the indicators' ns per bar and length,
+    cost_model.ns_per_bar_length). */
 export const costPrior = (key: string): number => {
   const m = SCREENER_REGISTRY.cost_model;
   if (key === PRESENCE_KEY) return m.flow.presence_ns_per_row;
   if (key === CONTEXT_KEY) return m.flow.context_ns_per_row;
+  if (key.startsWith('pattern:')) {
+    // a candlestick pattern's window is candles.ts's own loops (measured); an older pattern's a registry kernel's
+    // (Calc.out: Donchian, a rolling extreme, the stochastic), priced as the indicators are
+    if (key.endsWith(PATTERN_WINDOW)) return CANDLE_IDS.includes(key.slice(8, -PATTERN_WINDOW.length)) ? m.pattern.candle_ns_per_bar_session : m.ns_per_bar_length;
+    return key.endsWith(PATTERN_LENGTH) ? m.ns_per_bar_length : m.pattern.ns_per_bar;
+  }
   if (!key.startsWith('flow:')) return m.ns_per_bar_length;
   const e = FLOW_BY_ID[key.slice(5).split('{')[0]];
   return m.flow.ns_per_unit[e?.compute ?? 'terminal'] ?? m.flow.ns_per_unit.terminal;
@@ -180,8 +192,9 @@ const maxNumber = (m: unknown): number => {
 };
 /** The kernels computing a reference runs from the bars (a transform computes its operands in full, through the
     ticker's Calc, whatever is pre-warmed): an indicator with the registry's cost class and the largest value of its
-    O(N·n) parameters; a transform or a pattern as O(N·n) over its largest numeric argument (conservative: a rolling
-    window may be linear in its implementation; the measured mean corrects the prediction). */
+    O(N·n) parameters; a transform as O(N·n) over its largest numeric argument (conservative: a rolling window may be
+    linear in its implementation; the measured mean corrects the prediction); a pattern as its fixed work per bar plus
+    the window its core reads (QA unit C). */
 export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS, reach?: number | null): CostUnit[] {
   if (!obj(ref)) return [];
   switch (ref.kind) {
@@ -223,7 +236,21 @@ export function costUnits(ref: unknown, sessions = BROKER_DAY_SESSIONS, reach?: 
       // an operator on a flow series works on the window's values only (the bars before it are empty)
       return [...inner, { key: `transform:${String(ref.fn)}`, costClass: 'O(N·n)', length: maxNumber(ref.args), ...(readsFlowRef(ref) ? { bars: sessions } : {}) }];
     }
-    case 'pattern': return [{ key: `pattern:${String(ref.type)}`, costClass: 'O(N·n)', length: maxNumber(ref.params) }];
+    // QA unit C (verification/screener/BENCHMARK_FLOW_COST.md section 6): a pattern's work per bar is a fixed part (its
+    // guards, its rules and the copies of the bars: an O(N) unit) plus one step per session of the window its core reads
+    // (an O(N·n) unit of that length: candles.ts candleLookback for a candlestick pattern, transforms.ts PATTERNS window
+    // for the others; transforms.ts resolveSignal's window, its parameters completed), never the largest parameter value
+    // (min_range_ticks 50 is no length; Hammer's 30 % body was taken as one, and its 10-session trend was not). The key
+    // is the pattern's type, so each pattern is learned on its own. A recursive pattern (window Infinity, the
+    // whole history: macd_divergence) keeps, beside its fixed part, the O(N·n) unit over its largest parameter it had:
+    // its work was measured flat in its parameters, but dropping that unit lowers its class, which needs a reviewed
+    // reason first (ERRORS M300).
+    case 'pattern': {
+      const s = resolveSignal(ref as unknown as PatternRef, 'pattern', { capBudgetMs: Infinity }), type = (s.ref as PatternRef).type;
+      return [{ key: `pattern:${type}`, costClass: 'O(N)', length: 1 },
+        Number.isFinite(s.window) ? { key: `pattern:${type}${PATTERN_WINDOW}`, costClass: 'O(N·n)', length: s.window }
+          : { key: `pattern:${type}${PATTERN_LENGTH}`, costClass: 'O(N·n)', length: maxNumber((s.ref as PatternRef).params) }];
+    }
     case 'rank': return costUnits(ref.of, sessions, reach);    // operator 11: the ranked series is what is computed
   }
   return [];

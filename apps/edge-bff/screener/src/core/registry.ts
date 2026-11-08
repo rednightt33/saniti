@@ -72,7 +72,14 @@ export interface ScreenerIndicator {
     brokers x sessions grid; computeFlow over the window, or an anchored call's slice) per way an entry is computed
     (ns_per_unit by FlowCompute), of a ticker's window context per row and of the broker-data series' per row, measured
     on the worker (evidence); the worker learns each key's own from every run (run.ts costUnits). */
-export interface CostModel { status: string; rule: string; ns_per_bar_length: number; reference_bars: number; evidence: string; flow: { ns_per_unit: Record<string, number>; context_ns_per_row: number; presence_ns_per_row: number; evidence: string } }
+export interface CostModel {
+  status: string; rule: string; ns_per_bar_length: number; reference_bars: number; evidence: string;
+  flow: { ns_per_unit: Record<string, number>; context_ns_per_row: number; presence_ns_per_row: number; evidence: string };
+  /** QA unit C: a pattern's prior, measured (screener-worker run.ts costUnits): ns per bar of its fixed work, and ns per
+      bar and session of the window a candlestick pattern's candles.ts reads (an older pattern's window is a registry
+      kernel's: ns_per_bar_length) */
+  pattern: { ns_per_bar: number; candle_ns_per_bar_session: number; evidence: string };
+}
 /** One parameter of a flow indicator as flowRegistry.json has it (the Terminal's setup), with `condition`: false for
     the kinds that only draw (levels, button, fixed; P5_FLOW.md section 1). options: [value, label] pairs for a select,
     values for a multi. */

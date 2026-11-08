@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "d47d2c5116de6421",
+  "screener_registry_version": "aa4d3abb552d258e",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -22,7 +22,7 @@
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "9185fa110b2a96c15b27dbf57a2f258f902ae90ee1b75bc9711fbdebabf076f0"
+      "sha256": "b5c56826281b5e8d3a6692219dc9433e031069b3849666728ba949ec93404832"
     },
     {
       "role": "oracle",
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "ae35dc431619e794dc70dfcc9fe1f34a04413154e5c90171485c4753e5473242"
+      "sha256": "c82995f3a0c31c14eae9ab325d9f6bed37886c117fc1145adb82c8774309fb61"
     },
     {
       "role": "flow_registry",
@@ -101,6 +101,11 @@
       "context_ns_per_row": 102.2,
       "presence_ns_per_row": 35,
       "evidence": "verification/screener/BENCHMARK_FLOW_COST.md section 3 (2026-11-07, apps/screener-worker/tests/bench/flow_cost.bench.ts BENCH_MODE=calibrate: 900 stocks x 60 broker days of 25,086 rows, SCREENER_THREADS 2, Xeon 2.10 GHz x4, Node 22.22): ns_per_unit per way an entry is computed = the geometric mean of its kernels' whole-market ns per unit (terminal: 37 kernels, 4.4 FL28 to 160.1 FL27; anchored: FL20 100.7 and FL45 84.0; inventory: FL23 196.7; foreign_net: fnet 9.0); context_ns_per_row = the window contexts' pooled 102.2 ns per row over 48 whole-market runs; presence_ns_per_row = the broker-data series' 35 ns per row (tests/bench/profile_flow.ts, whole market, in process)"
+    },
+    "pattern": {
+      "ns_per_bar": 492.1,
+      "candle_ns_per_bar_session": 1.06,
+      "evidence": "verification/screener/BENCHMARK_FLOW_COST.md section 6 (2026-11-08, apps/screener-worker/tests/bench/pattern_cost.bench.ts BENCH_MODE=calibrate: 300 stocks x 1330 price bars, SCREENER_THREADS 2, Xeon 2.10 GHz x4, Node 22.22): a pattern's series costs ns_per_bar per bar (its guards, rules and copies of the bars) plus, for a candlestick pattern, candle_ns_per_bar_session per bar and session of the window candles.ts candleLookback reads: the least-squares line of the 20 candlestick patterns' 92 runs (defaults, trend 2 and 100, average body 100, 50 ticks: 386 to 856 ns per bar; the line within 0.65 to 1.31 of each); an older pattern's window is a registry kernel's and keeps the indicators' ns_per_bar_length"
     }
   },
   "indicators": [
