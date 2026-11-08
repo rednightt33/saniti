@@ -12754,6 +12754,9 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
     kalimat penjelasan, jendela dan pemisah bisa diubah ukurannya); Customize = kotak yang sama di tengah layar, digeser
     dari judul, diubah ukurannya, klik di luar = dipakai dan menutup tanpa aksi lain, tanda terpilih Terminal.
   - Screen builder: ruang kosong di bawah kotak cari (ERRORS M406).
+- Audit tampilan 5 agen (2026-11-08, mode audit saja): `verification/ui_audit_20261108/REPORT.md`. 27 temuan unik
+  (P1 3, P2 11, P3 13); P1: U1 kotak Loaders tertutup garis pemisah pane, U2 klik grup Add a condition tidak menggulir ke
+  atas, U3 jendela Add a condition bisa lebih sempit dari tabelnya. Belum diperbaiki: menunggu keputusan user.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
