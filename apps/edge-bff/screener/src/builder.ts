@@ -11,7 +11,7 @@ import { activeCards, ctx, entryOf, S, ui } from './state.ts';
 import { defaultParams, depthHint, flowBudget, flowSessions, isDefP, isFlowType, optionText, paramError, rangeText, type Entry } from './entries.ts';
 import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
 import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, optOf, paramSummary, type Card } from './forms.ts';
-import { confirmDialog, openSaveMetric, toast } from './dialogs.ts';
+import { confirmDialog, openSaveMetric, toast, toastAction } from './dialogs.ts';
 import { MY, openAddCondition } from './add-condition.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { levelAsOfText, sideOf, T } from './texts.ts';
@@ -212,7 +212,12 @@ export function onBuilderClick(b: HTMLElement): boolean {
   if (d.segc) { S.open.add(d.segc); renderConds(); return true }
   if (d.savem) { const c = S.cards.find(x => x.id === d.savem); if (c) openSaveMetric(c); return true }
   if (d.quick) { const e = ctx.byKey.get(d.quick); openAddCondition(e ? e.label : ''); return true }   // the window, searched for it
-  if (d.del) { S.cards = S.cards.filter(c => c.id !== d.del); delete S.errors[d.del]; openRows.delete(d.del); ui.markDirty(); ui.refresh('conds'); return true }
+  /* audit U24: a removed condition says so and can be brought back, as in the Add a condition window */
+  if (d.del) { const at = S.cards.findIndex(c => c.id === d.del), gone = S.cards[at];
+    S.cards = S.cards.filter(c => c.id !== d.del); delete S.errors[d.del]; openRows.delete(d.del); ui.markDirty(); ui.refresh('conds');
+    if (gone) { const name = cardName(entryOf(gone) ?? undefined, gone);
+      toastAction(`${name} removed`, 'Undo', () => { if (S.cards.some(c => c.id === gone.id)) return; S.cards.splice(Math.min(at, S.cards.length), 0, gone); ui.markDirty(); ui.refresh('conds'); toast(`${name} restored`) }) }
+    return true }
   if (d.logic) { S.logic = d.logic as typeof S.logic; ui.markDirty(); ui.refresh('conds'); return true }
   if (d.btab) { setBtab(d.btab as BTab); return true }
   if (d.addmetric) { openAddCondition('', MY); return true }                     // the window, on My metrics

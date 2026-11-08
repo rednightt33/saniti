@@ -5753,6 +5753,29 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M408 — UI audit 2026-11-08: 27 frontend defects found by five auditors (2026-11-08, fixed on branch)
+
+- **Found by:** the five-agent visual audit (`verification/ui_audit_20261108/REPORT.md`, sections B and F).
+- **Most severe (P1), verified causes:**
+  - **U1:** the Loaders box (z-index 6) sat under the chart's pane separators (z-index 50), so rows under a separator could
+    not be clicked.
+  - **U2:** `scrollToGroup` measured a group's sticky heading. Once the list was scrolled, a sticky heading reports its
+    pinned place, so a group above could not be reached.
+  - **U3:** the Add a condition window could be made narrower than its fixed row columns (640 px against 886 px).
+- **U5:** typing in a field and then clicking a button redrew the row on the field's `change` (blur) and replaced the
+  button under the pointer, so the first click was lost. This was present before.
+- **Other findings:** in the report.
+- **Class:**
+  - an overlay placed without regard to the host component's own layers (U1, U4);
+  - a measurement taken on a sticky element (U2);
+  - a layout that follows the screen's width rather than its container's (U3, U8);
+  - a redraw that replaces the element under a press (U5).
+- **Solution:** in the report, section F (one line per finding, with the browser evidence after the fix).
+- **Lesson:**
+  - measure positions on non-sticky elements;
+  - make a resizable container's rows respond to the container (container queries);
+  - keep a pressed control in place until its click.
+
 ### M406 — Screener Screen builder: an empty band under "Search indicators to add" (2026-11-08, fixed on branch)
 
 - **Found by:** the user (screenshot, the band marked red).

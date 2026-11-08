@@ -12761,6 +12761,8 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   diperbaiki; tombol × di kotak Loaders menyembunyikan kotaknya saja (garis harga pokok tetap; dibuka lagi lewat Settings
   "Show box"); panel kanan Terminal tidak sengaja disembunyikan di ≤1100 px: diberi laci (tombol di toolbar membuka panel
   di atas chart).
+  Dijalankan di branch 2026-11-08: ke-27 temuan diperbaiki dan dicek ulang di browser (REPORT.md bagian F, ERRORS M408);
+  FL51 mendapat parameter "Show box" (× di kotak = Show box mati, dapat di-undo); laci Broker activity di ≤1100 px.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 

@@ -334,7 +334,7 @@ function settingsHtml(e: Entry, i: number): string {
   const line = (b: Box) => `<${tag(b)} class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}<span class="def">${b.hint !== undefined ? esc(b.hint) : `${b.unit ? esc(b.unit) + ' · ' : ''}default ${esc(b.def)}`}</span></${tag(b)}>`;
   const ps = B.filter(b => !b.thr), ts = B.filter(b => b.thr);
   const side = sideOf(e);
-  return btn + `<span class="qpop" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}${side ? ` <small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.word)}</small>` : ''}</strong>${ps.map(line).join('')}${ps.length && ts.length ? '<span class="qsep"></span>' : ''}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
+  return btn + `<span class="qpop" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}${side ? ` <small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.word)}</small>` : ''}<button type="button" class="qpop-x" data-cusx="${i}" aria-label="Close" title="Close (Esc)">${ico(IC.x, 's')}</button></strong>${ps.map(line).join('')}${ps.length && ts.length ? '<span class="qsep"></span>' : ''}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
 }
 /** Reset to default: the row's parameters and threshold back to the catalog's defaults (its condition stays) */
 export function resetRule(e: Entry) {
@@ -448,9 +448,12 @@ function railMark(g: string) {
 function scrollToGroup(g: string) {
   drawRest();
   const l = $q<HTMLElement>('#acl'); if (!l) return;
-  const hd = l.querySelector<HTMLElement>('.qcols')?.offsetHeight || 0, r = g === ALL ? null : l.querySelector<HTMLElement>(`.qsec[data-sec="${CSS.escape(g)}"]`) || l.querySelector<HTMLElement>(`.qrow[data-rg="${CSS.escape(g)}"]`);
+  /* audit U2: measured on the group's first row (a sticky heading reports its pinned place once the list is scrolled, so a
+     group above could not be reached); the row lands under the column titles and its group's heading */
+  const hd = l.querySelector<HTMLElement>('.qcols')?.offsetHeight || 0, r = g === ALL ? null : l.querySelector<HTMLElement>(`.qrow[data-rg="${CSS.escape(g)}"]`);
+  const band = r ? (l.querySelector<HTMLElement>(`.qsec[data-sec="${CSS.escape(g)}"]`)?.offsetHeight || 0) : 0;
   W.spyLock = Date.now() + 700;
-  l.scrollTop = r ? r.getBoundingClientRect().top - l.getBoundingClientRect().top + l.scrollTop - hd : 0;
+  l.scrollTop = r ? r.getBoundingClientRect().top - l.getBoundingClientRect().top + l.scrollTop - hd - band : 0;
 }
 function spy() {
   if (!spyMode() || Date.now() < W.spyLock) return;
@@ -523,8 +526,15 @@ export function openAddCondition(q = '', g: string = ALL) {
     root!.addEventListener('input', onInput);
     root!.addEventListener('keydown', onKey);
     root!.addEventListener('pointerdown', onResize);
+    /* audit U5: pressing Add, Done, Reset or Customize does not move the focus out of a field first: the field's change
+       redrew the row and replaced the button under the pointer, so the first click was lost. The value typed is already
+       in the rule (input events); the row is drawn again by the action itself */
+    root!.addEventListener('mousedown', e => { if ((e.target as HTMLElement).closest('[data-qact],[data-cusdone],[data-cusreset],[data-cus],[data-cusx]')) e.preventDefault() });
+    /* audit U17: with the Customize box open, a click on the dark backdrop closes the box only, not the window */
+    o.querySelector('.backdrop')?.addEventListener('mousedown', e => { if (e.target === e.currentTarget && W.pop != null) { e.stopImmediatePropagation(); setPop(null, true) } }, true);
   });
   drawList();
+  if (root && innerWidth > 760) root.style.minWidth = `${Math.min(winMinWidth(), innerWidth - 40)}px`;   // audit U3
   if (spyMode() && g !== ALL) { railMark(g); scrollToGroup(g) }
   $q<HTMLInputElement>('#acq')?.focus();
 }
@@ -540,7 +550,7 @@ function onClick(e: Event) {
   }
   const cus = t.closest<HTMLElement>('[data-cus]'), done = t.closest<HTMLElement>('[data-cusdone]'), reset = t.closest<HTMLElement>('[data-cusreset]');
   if (cus) { setPop(W.pop === Number(cus.dataset.cus) ? null : Number(cus.dataset.cus)); return }
-  if (done) { setPop(null, true); return }
+  if (done || t.closest('[data-cusx]')) { setPop(null, true); return }
   if (reset) { const it = W.items[Number(reset.dataset.cusreset)]; if (it?.entry) { resetRule(it.entry); drawRow(Number(reset.dataset.cusreset)) } return }
   /* a click outside the Customize box applies it (its values are kept as they are typed) and closes it; the click does
      nothing else, as the box stands over the list (user 2026-11-08) */
@@ -593,6 +603,11 @@ function fitPop(i: number) {
 }
 /** the Customize box moved by its title or resized from its edges and corner; the window resized from its own edges and
     corner, and its group list's border moved (the Terminal's Indicators window) */
+/** the narrowest the window can be (audit U3): its rail, the border and a list of 440 px; below 1000 px and 820 px of list
+    the rows take a denser and then a stacked layout (container queries in screener.css), so nothing scrolls sideways */
+function winMinWidth(): number {
+  const nav = $q<HTMLElement>('#acg'); return Math.ceil((nav?.offsetWidth || 210) + 6 + 440);
+}
 function onResize(e: PointerEvent) {
   const t = e.target as HTMLElement, prz = t.closest<HTMLElement>('[data-prz]')?.dataset.prz, wrz = t.closest<HTMLElement>('[data-wrz]')?.dataset.wrz;
   const head = !prz && !wrz && W.pop != null && t.closest('.qpop>strong') && !t.closest('button,select,input');
@@ -609,8 +624,10 @@ function onResize(e: PointerEvent) {
       W.popBox = { w, h:prz === 'l' || prz === 'r' ? (B0.h || 0) : h, dx:B0.dx + (prz === 'l' ? -(w - pw) / 2 : (w - pw) / 2) * (prz === 'b' ? 0 : 1), dy:B0.dy + (prz === 'l' || prz === 'r' ? 0 : (h - ph) / 2) };
     } else if (wrz === 'split') win.style.setProperty('--qnav', `${Math.max(160, Math.min(340, nw + dx))}px`);
     else {
-      if (wrz !== 'b') win.style.width = `${Math.max(640, Math.min(innerWidth - 16, ww + 2 * (wrz === 'l' ? -dx : dx)))}px`;
-      if (wrz === 'b' || wrz === 'c') win.style.height = `${Math.max(420, Math.min(innerHeight - 16, wh + 2 * dy))}px`;
+      /* audit U3, U16: never narrower than its rail and table need (derived from the columns), never past the screen */
+      const minW = Math.min(winMinWidth(), innerWidth - 40);
+      if (wrz !== 'b') win.style.width = `${Math.max(minW, Math.min(innerWidth - 40, ww + 2 * (wrz === 'l' ? -dx : dx)))}px`;
+      if (wrz === 'b' || wrz === 'c') win.style.height = `${Math.max(420, Math.min(innerHeight - 40, wh + 2 * dy))}px`;
     }
     if (W.pop != null) fitPop(W.pop);
   };

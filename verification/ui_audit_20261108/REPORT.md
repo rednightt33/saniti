@@ -1,6 +1,6 @@
 # Audit UI/UX frontend — Terminal dan Screener (2026-11-08)
 
-Mode: **audit saja** (tidak ada perbaikan dalam audit ini). Build yang diaudit: branch `claude/practical-thompson-2intee`
+Mode: **audit saja** (tidak ada perbaikan dalam audit ini). **Status 2026-11-08: ke-27 temuan diperbaiki di branch dan dicek ulang di browser, lihat bagian F.** Build yang diaudit: branch `claude/practical-thompson-2intee`
 commit `0132bdab` (Terminal di stand-in BBRI, Screener di build fixture). Lima auditor independen (lebar 1440, 1100 dan
 390 px, terang dan gelap), lalu temuan berat direproduksi ulang oleh agen utama (`scratchpad/visual_review/verify.mjs`).
 Bukti (tangkapan layar dan skrip) per auditor: `scratchpad/visual_review/a1` … `a5` (tidak di Git).
@@ -111,3 +111,39 @@ Keyakinan: **C** = CONFIRMED (dicek ulang oleh agen utama bila ditandai ✓), **
 - [x] Temuan berat (U1–U6) direproduksi ulang oleh agen utama.
 - [x] Duplikat digabung (43 → 27).
 - [x] Setiap temuan punya bukti. Yang belum pasti ditandai NV.
+
+## F. Perbaikan (user 2026-11-08: "perbaiki semua temuan / sembunyikan kotak / tidak, tambahkan laci")
+
+Semua dicek ulang di browser (`scratchpad/visual_review/fixT.mjs`, `fixS.mjs`, `u12.mjs`, `dbgok.mjs`, `dbg24.mjs`). Tes:
+Terminal 887, Screener 1.327, screener-worker 105, backtest-worker 205 lulus. Pemeriksaan tampilan juga lulus: look check
+3, 5-13 dan `shots.mjs` Screener.
+
+| ID | Perbaikan | Bukti sesudah |
+|---|---|---|
+| U1 | Kotak di atas lapisan chart (z-index 60 > 50) | 6 dari 6 kode broker bisa diklik (`elementFromPoint`) |
+| U2 | Gulir diukur pada baris pertama grup | Fundamental 8270 → Trend 0 → Volume 1970 (baris 85 px di bawah judul) |
+| U3 | Container query: baris rapat di < 1000 px daftar, bertumpuk di < 820 px; minimum = daftar kiri + 446 | Jendela 656 px tanpa gulir samping |
+| U4 | Posisi awal di bawah baris legend, tinggi dibatasi di pane harga; × menyembunyikan kotak (Settings "Show box"); ponsel: di kaki chart | Tombol baris FL51, FL52, FL49: 111/111/111 bisa diklik; × lalu Ctrl+Z: tersembunyi → tampil |
+| U5 | Tombol aksi tidak mengambil fokus saat ditekan (nilai sudah tersimpan dari ketikan) | Ketik 25 lalu klik Add sekali: "1 condition on the screen"; Done sekali menutup |
+| U6 | Batas 420 px dihapus | Lebar ditarik menjadi 602 px |
+| U7 | Label parameter tidak menyusut | "Length", "Source" utuh |
+| U8 | Kolom di 1100 px diatur ulang, nama dua baris | Tidak ada gulir samping, tidak ada nama terpotong, "Daily" muat |
+| U9 | Tombol Customize terbuka: tanpa garis, bayangan lembut | Garis transparan + bayangan |
+| U10 | Jarak tab dirapatkan di ≤1280 px | 258/258 px (sebelumnya 291/258) |
+| U11 | Select bawaan memakai panah tipis yang sama dengan menu | `appearance:none` + panah sama |
+| U12 | Ukuran kontrol dan warna seperti Indicators Terminal | Add 32 px, grup 36 px, select 32 px, `--text-2` #666 |
+| U13 | Laci Broker activity di ≤1100 px (tombol toolbar; », Esc, klik di luar menutup) | 1100 px: tombol tampil, laci 360 px di kanan, Esc menutup |
+| U14 | Toolbar ponsel memudar di tepi; kotak Loaders versi ponsel | Kotak 374 × 235 di kaki chart (sebelumnya menutup chart) |
+| U15 | Reset / Done menempel di bawah kotak | Kotak 160 px: Done tetap terlihat |
+| U16 | Ukuran jendela dibatasi layar | Kanan 1420 ≤ 1440, bawah 880 ≤ 900 |
+| U17 | Klik latar saat Customize terbuka menutup kotaknya saja | Jendela tetap terbuka, kotak tertutup |
+| U18 | Fokus dijaga saat isi kotak digambar ulang; fokus kembali ke gear (baris ditampilkan sesaat) | Top 5 dengan keyboard: fokus tetap di "5"; Ok dan Cancel: fokus di gear |
+| U19 | Catatan legend mode Sellers | "Cost lines are drawn for loaders; Sellers lists none" |
+| U20 | Broker yang sudah di Broker Inventory ditandai ✓ dengan judul yang sesuai | NI ✓ |
+| U21 | Tabel selebar kotak | Sisa 3 px (sebelumnya 73 px) |
+| U22 | × di kotak Customize; catatan "default" satu kolom | × menutup; catatan di satu x |
+| U23 | Fokus kembali ke tombol More filters; chip sektor `aria-pressed` + label status | Fokus `[data-act="drawer"]` |
+| U24 | Hapus kondisi: notifikasi dengan Undo | "Simple Moving Average removed · Undo"; Undo mengembalikan di posisi semula |
+| U25 | Catatan di bawah isian yang disesuaikan | "Set to 1: the allowed range is 1–20" |
+| U26 | Layout 30 px/6 px; kode broker monospace; kartu tanpa baris kosong; "/" tidak tertutup; legend Flow Timeline satu baris di ponsel | Tercek di tangkapan layar |
+| U27 | Tepi memudar di baris yang tergulir ke samping (390 px) | `mask-image` aktif di 390, tidak di 1440 |
