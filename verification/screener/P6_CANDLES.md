@@ -107,6 +107,14 @@ Frequency at the defaults on the fixture stocks (7 stocks, 9,014 bars; IHSG has 
 The range guard at 3 ticks leaves out 20 % of the stock bars (BBCA 11 %, UNVR 3 %, DEWI 22 %, GOTO 37 %, KOCI 49 %,
 CLAY 29 % with 281 one-price days); at 2 ticks 10 %.
 
+Reviewed by the user on 2026-11-08 (EXEC.md EXEC-SCREENER-FLOW-CANDLES, ERRORS M402): every default above stays ("3 ok
+semua tetap."); a corporate action not yet adjusted in the price series is handled by the existing price-break remark
+("2A": PRICE_BREAK_IN_LOOKBACK, hidden by default); and the average body counts every bar of its window, one-price days
+(body 0) and the rare days without trades included ("kalau user memang mau cari candle tersebut, ya keluarin saja semua.
+itulah sebetulnya fungsi filter volume"). On a thinly traded stock a run of one-price days lowers that average, so an
+ordinary candle can read as long; the universe's liquidity filters (defaults: price >= 50, ADV20 >= Rp 1 billion) or a
+volume condition keep such stocks out.
+
 ## 6. Comparison with Feature 04's cdl_* (no database access)
 
 Feature 04 has 25 `cdl_*` columns: TA-Lib 0.6.8 / C 0.6.4 at default settings, each bar from a bounded window

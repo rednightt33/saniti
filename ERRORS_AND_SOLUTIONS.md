@@ -5713,7 +5713,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   after; 91 of 92 runs within 0.5-2), `apps/screener-worker/tests/pattern_cost.test.ts`. Commit e32c4f94.
 - **Status:** FIXED on branch, not released.
 
-### M402 — Candle patterns: one-price and no-trade days in the average body (2026-11-08, open: user decision)
+### M402 — Candle patterns: one-price and no-trade days in the average body (2026-11-08, kept by user decision)
 
 - **Found by:** QA unit C (QA2 D1); measured by the impact analysis of 2026-11-08 (session scratchpad `p6impact/`).
 - **Symptom:** the "long candle" rule (body at least `long_body` x the average body of the `body_avg_length` sessions
@@ -5728,7 +5728,12 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   from the average inside the same window ("A+") removes 28 of 2,908 fixture signals (27 on CLAY and GOTO); reaching
   further back until 10 moving days ("B+") removes 27 but reads up to 120 sessions back on CLAY, which breaks the fixed
   lookback the price-break remark relies on.
-- **Status:** OPEN, the user's decision asked 2026-11-08 (recommended A+); unchanged until then.
+- **Decision (user 2026-11-08):** "1 sebetulnya kalau user memang mau cari acndle tersebut, ya keluarin saja semua.
+  itulah sebetulnya fungsi filter volume right?": every traded bar stays in the average body, as built (option C).
+  Thinly traded stocks are the universe's job: the defaults (price >= 50, ADV20 >= Rp 1 billion, traded on the
+  evaluation date; `contract.ts` `UNIVERSE_DEFAULTS`) already leave out GOTO at Rp 26-30, and the user can add a volume
+  or liquidity condition.
+- **Status:** CLOSED, by design (documented in `verification/screener/P6_CANDLES.md` section 5); no code change.
 
 ### M403 — Screener page: a parameter refused at Add closes the panel without marking the field (2026-11-08, open)
 

@@ -12804,10 +12804,14 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
     (penolakan bukan-series dengan contoh), M401 (biaya pola dari jendela core, terukur). User 2026-11-08: "Tambah 3
     agent lagi to help": cek live candle untuk sesudah deploy, 15 pertanyaan candle lewat halaman
     (`verification/screener/qc15_20261108/`, 15/15 cocok), analisis dampak keputusan.
-  - Pertanyaan terbuka ke user (2026-11-08): (1) rata-rata badan candle dan hari satu harga atau tanpa transaksi
-    (ERRORS M402; rekomendasi A+: tidak ikut dirata-rata dalam jendela yang sama), (2) aksi korporasi yang belum
-    disesuaikan (rekomendasi: cukup tanda price break yang ada), (3) nilai bawaan di atas (rekomendasi: tetap). Terbuka
-    kecil: M403 (penolakan parameter saat Add menutup panel), M404 (bar BBRI di fixture).
+  - Keputusan user 2026-11-08 atas tiga pertanyaan P6: (1) rata-rata badan candle dan hari satu harga atau tanpa
+    transaksi (ERRORS M402): "1 sebetulnya kalau user memang mau cari acndle tersebut, ya keluarin saja semua. itulah
+    sebetulnya fungsi filter volume right?" -> tetap seperti sekarang (C); saham tipis disaring oleh filter universe
+    (bawaan harga >= 50 dan ADV20 >= Rp 1 miliar) atau kondisi volume pilihan user. (2) aksi korporasi yang belum
+    disesuaikan: "2A" -> cukup tanda price break yang ada (PRICE_BREAK_IN_LOOKBACK, disembunyikan secara bawaan).
+    (3) nilai bawaan P6: "3 ok semua tetap." -> min range 3 tick, open piercing dilonggarkan, star overlap 10 %,
+    toleransi tweezer 1 tick, tren aktif kecuali marubozu. Tidak ada perubahan kode. Terbuka kecil: M403 (penolakan
+    parameter saat Add menutup panel), M404 (bar BBRI di fixture).
 - Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
   Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
   sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1
