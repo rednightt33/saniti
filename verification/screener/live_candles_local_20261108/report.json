@@ -1,10 +1,10 @@
 {
- "checked_at": "2026-11-08T06:34:14.854Z",
+ "checked_at": "2026-11-08T07:44:46.848Z",
  "publication": {
   "versions": {
-   "screener_engine": "bc0935fa32b377c0",
+   "screener_engine": "1ff20ef7ad420cf2",
    "registry": "514dc3df60a25aff",
-   "screener_registry": "d47d2c5116de6421",
+   "screener_registry": "26a25e33747bc071",
    "price_data": "65dc79642b8196ffa96249bf299d5d8f204723c1a75f936ee49583573130079b",
    "flow_data": "d47101326bcadbbede197576a685583b5d03e50b1a137eac160f89bf63237349"
   },
@@ -23,9 +23,9 @@
    "refresh": "ready"
   },
   "versions_after": {
-   "screener_engine": "bc0935fa32b377c0",
+   "screener_engine": "1ff20ef7ad420cf2",
    "registry": "514dc3df60a25aff",
-   "screener_registry": "d47d2c5116de6421",
+   "screener_registry": "26a25e33747bc071",
    "price_data": "65dc79642b8196ffa96249bf299d5d8f204723c1a75f936ee49583573130079b",
    "flow_data": "d47101326bcadbbede197576a685583b5d03e50b1a137eac160f89bf63237349"
   },
@@ -129,15 +129,15 @@
     "default_state": 0,
     "default_w3": 0,
     "trend_alt_w3": 0,
-    "tick2_w3": 0,
-    "tick1_w3": 0,
+    "tick2_w3": 1,
+    "tick1_w3": 2,
     "long_trend_w5": 0,
     "own_w10": 1
    },
    "bullish_marubozu": {
     "default_state": 3,
     "default_w3": 5,
-    "trend_alt_w3": 5,
+    "trend_alt_w3": 3,
     "tick2_w3": 6,
     "tick1_w3": 6,
     "long_trend_w5": 6,
@@ -163,11 +163,11 @@
     "mix_flow": 3
    },
    "bearish_engulfing": {
-    "default_state": 0,
-    "default_w3": 1,
-    "trend_alt_w3": 2,
-    "tick2_w3": 1,
-    "tick1_w3": 1,
+    "default_state": 1,
+    "default_w3": 2,
+    "trend_alt_w3": 1,
+    "tick2_w3": 2,
+    "tick1_w3": 2,
     "long_trend_w5": 1,
     "own_w10": 2
    },
@@ -182,12 +182,12 @@
    },
    "bearish_harami": {
     "default_state": 0,
-    "default_w3": 0,
-    "trend_alt_w3": 3,
-    "tick2_w3": 0,
-    "tick1_w3": 0,
+    "default_w3": 3,
+    "trend_alt_w3": 0,
+    "tick2_w3": 3,
+    "tick1_w3": 4,
     "long_trend_w5": 1,
-    "own_w10": 3
+    "own_w10": 6
    },
    "piercing_line": {
     "default_state": 0,
@@ -214,24 +214,24 @@
     "tick2_w3": 3,
     "tick1_w3": 3,
     "long_trend_w5": 3,
-    "own_w10": 1,
+    "own_w10": 3,
     "mix_rsi": 3
    },
    "tweezer_top": {
-    "default_state": 0,
-    "default_w3": 1,
-    "trend_alt_w3": 4,
-    "tick2_w3": 1,
-    "tick1_w3": 1,
+    "default_state": 1,
+    "default_w3": 4,
+    "trend_alt_w3": 1,
+    "tick2_w3": 4,
+    "tick1_w3": 4,
     "long_trend_w5": 3,
-    "own_w10": 3
+    "own_w10": 4
    },
    "morning_star": {
-    "default_state": 0,
-    "default_w3": 0,
-    "trend_alt_w3": 1,
-    "tick2_w3": 0,
-    "tick1_w3": 0,
+    "default_state": 1,
+    "default_w3": 1,
+    "trend_alt_w3": 0,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
     "long_trend_w5": 0,
     "own_w10": 0
    },
@@ -248,8 +248,8 @@
     "default_state": 1,
     "default_w3": 1,
     "trend_alt_w3": 1,
-    "tick2_w3": 1,
-    "tick1_w3": 1,
+    "tick2_w3": 2,
+    "tick1_w3": 2,
     "long_trend_w5": 0,
     "own_w10": 1
    },
@@ -265,13 +265,13 @@
   },
   "timings_ms": [
    0,
-   9,
-   20
+   10,
+   27
   ],
   "round_trip_ms": {
-   "min": 2,
-   "median": 12,
-   "max": 25
+   "min": 3,
+   "median": 13,
+   "max": 33
   }
  },
  "relations": {
@@ -461,7 +461,7 @@
    ],
    "stale": false,
    "file_problems": [],
-   "price_break_cells": 12
+   "price_break_cells": 9
   },
   {
    "ticker": "STALE",
@@ -482,23 +482,6 @@
     }
    ],
    "stale": true,
-   "file_problems": [],
-   "price_break_cells": 0
-  },
-  {
-   "ticker": "ADJ",
-   "reasons": [
-    "shows bearish_engulfing:default_w3"
-   ],
-   "bars": 700,
-   "dropped_rows": 0,
-   "first": "2023-11-10",
-   "last": "2026-10-23",
-   "one_price_days": 64,
-   "zero_volume_days": 36,
-   "last_close": 2320,
-   "remarks": [],
-   "stale": false,
    "file_problems": [],
    "price_break_cells": 0
   },
@@ -588,6 +571,23 @@
    "price_break_cells": 0
   },
   {
+   "ticker": "ADJ",
+   "reasons": [
+    "shows bearish_engulfing:long_trend_w5"
+   ],
+   "bars": 700,
+   "dropped_rows": 0,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 64,
+   "zero_volume_days": 36,
+   "last_close": 2320,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
    "ticker": "BND500",
    "reasons": [
     "shows dragonfly_doji:long_trend_w5"
@@ -603,129 +603,112 @@
    "stale": false,
    "file_problems": [],
    "price_break_cells": 0
-  },
-  {
-   "ticker": "KOCI",
-   "reasons": [
-    "shows tweezer_bottom:own_w10"
-   ],
-   "bars": 715,
-   "dropped_rows": 0,
-   "first": "2023-10-06",
-   "last": "2026-10-23",
-   "one_price_days": 142,
-   "zero_volume_days": 0,
-   "last_close": 82,
-   "remarks": [],
-   "stale": false,
-   "file_problems": [],
-   "price_break_cells": 0
   }
  ],
  "parity": {
-  "compared": 2698,
-  "equal": 2698,
+  "compared": 2556,
+  "equal": 2556,
   "mismatches": 0,
   "first_mismatches": [],
   "by_pattern": {
    "hammer": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 15
    },
    "hanging_man": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 6
    },
    "inverted_hammer": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 11
+    "compared": 126,
+    "equal": 126,
+    "positives": 9
    },
    "shooting_star": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 3
    },
    "dragonfly_doji": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 5
    },
    "gravestone_doji": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 1
+    "compared": 126,
+    "equal": 126,
+    "positives": 4
    },
    "bullish_marubozu": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 42
+    "compared": 126,
+    "equal": 126,
+    "positives": 33
    },
    "bearish_marubozu": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 12
+    "compared": 126,
+    "equal": 126,
+    "positives": 11
    },
    "bullish_engulfing": {
-    "compared": 152,
-    "equal": 152,
-    "positives": 22
+    "compared": 144,
+    "equal": 144,
+    "positives": 15
    },
    "bearish_engulfing": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 8
+    "compared": 126,
+    "equal": 126,
+    "positives": 11
    },
    "bullish_harami": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 10
    },
    "bearish_harami": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 7
+    "compared": 126,
+    "equal": 126,
+    "positives": 17
    },
    "piercing_line": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 4
    },
    "dark_cloud_cover": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 7
    },
    "tweezer_bottom": {
-    "compared": 152,
-    "equal": 152,
-    "positives": 19
+    "compared": 144,
+    "equal": 144,
+    "positives": 14
    },
    "tweezer_top": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 13
+    "compared": 126,
+    "equal": 126,
+    "positives": 21
    },
    "morning_star": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 1
+    "compared": 126,
+    "equal": 126,
+    "positives": 4
    },
    "evening_star": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 5
    },
    "three_white_soldiers": {
-    "compared": 133,
-    "equal": 133,
-    "positives": 6
+    "compared": 126,
+    "equal": 126,
+    "positives": 8
    },
    "three_black_crows": {
-    "compared": 133,
-    "equal": 133,
+    "compared": 126,
+    "equal": 126,
     "positives": 6
    }
   }

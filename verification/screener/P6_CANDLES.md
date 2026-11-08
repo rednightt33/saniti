@@ -52,8 +52,9 @@ no Backtest request reads the patterns yet. Tripwire: `scripts/screener/backtest
 
 Shared by every pattern: `trend` (average: the close of the session before candle 1 below, for a bullish pattern, or
 above, for a bearish one, its `trend_length`-session average; change: below / above the close `trend_length` sessions
-earlier; none) default average (marubozu: none; Hammer, Hanging Man, Inverted Hammer and Shooting Star cannot switch it
-off: the trend is what tells each from its same-shape pair), `trend_length` 10 (2-100), `min_range_ticks` 3 (1-50: every
+earlier; none) default none (user decision 2026-11-08, option A: "Hilangkan syarat tren aktif"; set average or change to
+require the prior decline or rise), except Hammer, Hanging Man, Inverted Hammer and Shooting Star, which default to average
+and cannot switch it off (the trend is what tells each from its same-shape pair), `trend_length` 10 (2-100), `min_range_ticks` 3 (1-50: every
 candle spans at least 3 ticks of its price band: Rp 1 below 200, 2 below 500, 5 below 2,000, 10 below 5,000, 25 from
 5,000, counted band by band); where a long candle is needed `long_body` 1 (0-10) x the average body of the
 `body_avg_length` 10 (1-100) sessions before candle 1. Guards on every candle: open, high, low and close above 0 and
@@ -89,26 +90,28 @@ Tests (2026-11-07):
 - Screener: `tests/core/candles.test.ts`, `tests/core/lookback.test.ts` (each pattern reads exactly its window),
   `tests/page/candles.test.ts` (Add a condition, search, card, refusals, a fixture run).
 
-Frequency at the defaults on the fixture stocks (7 stocks, 9,014 bars; IHSG has no volume and shows none):
+Frequency at the defaults on the fixture stocks (7 stocks, 9,014 bars; IHSG has no volume and shows none), with the
+trend test off by default where a pattern offers it (user decision 2026-11-08: 4,546 signals; 2,908 with the trend on):
 
 | Pattern | Signals | per 1,000 bars | Pattern | Signals | per 1,000 bars |
 |---|---|---|---|---|---|
 | Hammer | 155 | 17.2 | Hanging Man | 253 | 28.1 |
 | Inverted Hammer | 207 | 23.0 | Shooting Star | 132 | 14.6 |
-| Dragonfly Doji | 53 | 5.9 | Gravestone Doji | 31 | 3.4 |
+| Dragonfly Doji | 169 | 18.7 | Gravestone Doji | 105 | 11.6 |
 | Bullish Marubozu | 324 | 35.9 | Bearish Marubozu | 406 | 45.0 |
-| Bullish Engulfing | 163 | 18.1 | Bearish Engulfing | 184 | 20.4 |
-| Bullish Harami | 195 | 21.6 | Bearish Harami | 150 | 16.6 |
-| Piercing Line | 24 | 2.7 | Dark Cloud Cover | 23 | 2.6 |
-| Tweezer Bottom | 296 | 32.8 | Tweezer Top | 261 | 29.0 |
-| Morning Star | 23 | 2.6 | Evening Star | 16 | 1.8 |
-| Three White Soldiers | 6 | 0.7 | Three Black Crows | 6 | 0.7 |
+| Bullish Engulfing | 307 | 34.1 | Bearish Engulfing | 376 | 41.7 |
+| Bullish Harami | 408 | 45.3 | Bearish Harami | 349 | 38.7 |
+| Piercing Line | 35 | 3.9 | Dark Cloud Cover | 58 | 6.4 |
+| Tweezer Bottom | 573 | 63.6 | Tweezer Top | 582 | 64.6 |
+| Morning Star | 45 | 5.0 | Evening Star | 36 | 4.0 |
+| Three White Soldiers | 8 | 0.9 | Three Black Crows | 18 | 2.0 |
 
 The range guard at 3 ticks leaves out 20 % of the stock bars (BBCA 11 %, UNVR 3 %, DEWI 22 %, GOTO 37 %, KOCI 49 %,
 CLAY 29 % with 281 one-price days); at 2 ticks 10 %.
 
 Reviewed by the user on 2026-11-08 (EXEC.md EXEC-SCREENER-FLOW-CANDLES, ERRORS M402): every default above stays ("3 ok
-semua tetap."); a corporate action not yet adjusted in the price series is handled by the existing price-break remark
+semua tetap.", then on the trend test: "Hilangkan syarat tren aktif" and "Ok opsi A": off by default except for the
+Hammer family); a corporate action not yet adjusted in the price series is handled by the existing price-break remark
 ("2A": PRICE_BREAK_IN_LOOKBACK, hidden by default); and the average body counts every bar of its window, one-price days
 (body 0) and the rare days without trades included ("kalau user memang mau cari candle tersebut, ya keluarin saja semua.
 itulah sebetulnya fungsi filter volume"). On a thinly traded stock a run of one-price days lowers that average, so an

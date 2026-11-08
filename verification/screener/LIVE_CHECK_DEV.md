@@ -79,8 +79,8 @@ it signs out at the end) and prints no secret. It opens at most `--max-sample` (
 
 What it does (`live_candles_dev.py` header): the catalog and universe; 144 screens on a wide universe (every listed
 stock, stale and price-break stocks included), pinned to the catalog's `price_data`: each pattern as Detected and as
-Detected within 3 at the defaults, within 3 with the trend test off (or by change for the four that cannot switch it
-off), with `min_range_ticks` 2 and 1, within 5 with `trend_length` 60, within 10 with its own parameters moved, plus a
+Detected within 3 at the defaults, within 3 with the other trend setting (the trend test on, average, where the default
+is off since the user decision of 2026-11-08; by change for the four that cannot switch it off), with `min_range_ticks` 2 and 1, within 5 with `trend_length` 60, within 10 with its own parameters moved, plus a
 candle with RSI(14) < 50, a candle with FL11 > 0 and those two alone; then a sample (3 liquid, 3 illiquid, one near each
 price band boundary 200 / 500 / 2,000 / 5,000, up to 2 with a PRICE_BREAK remark, 1 stale, then a stock for every
 screen whose pattern no sample stock shows yet) whose own price pack it reads through `POST /api/terminal/v1/bundle` as

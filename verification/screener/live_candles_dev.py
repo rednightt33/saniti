@@ -8,8 +8,8 @@ or written), then uses the public EDGE API only:
      with their last close, ADV20, bars and remarks (to choose the sample);
   2. POST /api/v1/screener/run on a wide universe (every listed stock; no price, liquidity, stale or price-break
      filter), pinned to the catalog's price_data: each of the 20 patterns as "Detected" (state, on the evaluated bar) and
-     as "Detected within 3" at the defaults, then within 3 with the trend test off (where the pattern offers it, else
-     the trend by change), with min_range_ticks 2 and 1, within 5 with a long trend_length (60), within 10 with the
+     as "Detected within 3" at the defaults, then within 3 with the other trend setting (the trend test on, average,
+     where the default is off; the Hammer family by change), with min_range_ticks 2 and 1, within 5 with a long trend_length (60), within 10 with the
      pattern's own parameters moved; two mixed screens (a candle with RSI(14) < 50, a candle with the flow FL11 > 0) and
      their other halves alone;
   3. a sample of stocks (liquid, illiquid, one near each price band boundary 200 / 500 / 2,000 / 5,000, a corporate
@@ -116,6 +116,13 @@ def candle_test(pid, kind, within, params):
     return {'kind': 'event', 'signal': {'pattern': pattern_ref(pid, params)}, 'within': within}
 
 
+def trend_alt(m):
+    """The other trend setting of a catalog entry: the trend test on (average) where its default is off (the 14
+    patterns that offer none, user decision 2026-11-08), else change (the Hammer family, which cannot switch it off)."""
+    p = next((p for p in m.get('params', []) if p.get('key') == 'trend'), {})
+    return 'average' if p.get('default') != 'average' else ('none' if 'none' in (p.get('options') or []) else 'change')
+
+
 def plan_screens(candles):
     """[(name, meta, definition)]: the candle screens of every catalog Candlestick entry, then the mixed ones."""
     out = []
@@ -123,7 +130,7 @@ def plan_screens(candles):
         pid = m['id']
         trend = next((p.get('options') or [] for p in m.get('params', []) if p.get('key') == 'trend'), [])
         variants = [('default_state', 'state', None, {}), ('default_w3', 'event', 3, {}),
-                    ('trend_alt_w3', 'event', 3, {'trend': 'none' if 'none' in trend else 'change'}),
+                    ('trend_alt_w3', 'event', 3, {'trend': trend_alt(m)}),
                     ('tick2_w3', 'event', 3, {'min_range_ticks': 2}), ('tick1_w3', 'event', 3, {'min_range_ticks': 1}),
                     ('long_trend_w5', 'event', 5, {'trend': 'average', 'trend_length': 60}),
                     ('own_w10', 'event', 10, OWN.get(pid, {'trend_length': 20}))]

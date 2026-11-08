@@ -115,7 +115,8 @@ export const PATTERN_IDS = Object.keys(PATTERNS);
 export function defaultsOf(id) {
   const p = PATTERNS[id];
   if (!p) throw new Error(`not a pattern of P6_CANDLES.md: ${id}`);
-  const out = { trend: p.trendDefault ?? 'average', trend_length: 10, min_range_ticks: 3 };
+  // the trend test is off by default where a pattern offers none (user decision 2026-11-08); the Hammer family's is average
+  const out = { trend: p.trendDefault ?? (p.trend.includes('none') ? 'none' : 'average'), trend_length: 10, min_range_ticks: 3 };
   if (p.long) Object.assign(out, { body_avg_length: 10, long_body: 1 });
   return Object.assign(out, p.own);
 }
@@ -363,10 +364,13 @@ export function compare(dir) {
       const only1 = [...a].filter(t => !zero.has(t)), only2 = [...zero].filter(t => !a.has(t));
       if (only1.length || only2.length) rel.push(`${id}: Detected has ${only1.join(',') || 'none'} beyond "within 3, 0 sessions ago", which has ${only2.join(',') || 'none'} beyond it`);
     }
-    // a looser setting never loses a stock: minimum range 3 -> 2 -> 1; the trend test off
-    for (const [tight, loose] of [['default_w3', 'tick2_w3'], ['tick2_w3', 'tick1_w3'], ['default_w3', 'trend_alt_w3']]) {
+    // a looser setting never loses a stock: minimum range 3 -> 2 -> 1; the trend test off against on (the default is off
+    // where the pattern offers none: then the "alternative" is the tighter one)
+    const alt = okScreen(`${id}:trend_alt_w3`), dflt = defaultsOf(id).trend;
+    const trendPair = !alt ? null : alt.params?.trend === 'none' ? ['default_w3', 'trend_alt_w3'] : dflt === 'none' ? ['trend_alt_w3', 'default_w3'] : null;
+    for (const [tight, loose] of [['default_w3', 'tick2_w3'], ['tick2_w3', 'tick1_w3'], ...(trendPair ? [trendPair] : [])]) {
       const a = okScreen(`${id}:${tight}`), b = okScreen(`${id}:${loose}`);
-      if (!a || !b || (loose === 'trend_alt_w3' && b.params?.trend !== 'none')) continue;
+      if (!a || !b) continue;
       relChecked++;
       const lost = [...setOf(a)].filter(t => !setOf(b).has(t));
       if (lost.length) rel.push(`${id}: ${loose} lost ${lost.slice(0, 10).join(',')} that ${tight} has`);

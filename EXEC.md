@@ -12812,6 +12812,14 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
     (3) nilai bawaan P6: "3 ok semua tetap." -> min range 3 tick, open piercing dilonggarkan, star overlap 10 %,
     toleransi tweezer 1 tick, tren aktif kecuali marubozu. Tidak ada perubahan kode. Terbuka kecil: M403 (penolakan
     parameter saat Add menutup panel), M404 (bar BBRI di fixture).
+  - Lalu user 2026-11-08 soal syarat tren: "Hilangkan syarat tren aktif." Pilihan yang ditanyakan: A tren mati secara
+    bawaan, opsi tetap ada, keluarga Hammer tetap wajib tren; B semua 20 mati; C opsi dihapus. User: "Ok opsi A".
+    Dibangun: `candle-registry.json` bawaan `trend` = none untuk 14 pola yang menawarkannya (Hammer, Hanging Man,
+    Inverted Hammer, Shooting Star tetap average dan tidak bisa dimatikan, karena tren yang membedakan pasangan
+    berbentuk sama). Frekuensi fixture 2.908 -> 4.546 sinyal; engine_version e2205249ffdb5e9b; catatan persetujuan core
+    dan worker direkam ulang (tripwire OK); skrip cek live dan buktinya offline disesuaikan (17/17).
+  - Pertanyaan user 2026-11-08: "candle filterini bisa multiple candle filter right ... Misal user mau filter saham2 yang
+    ada candle hammer, engulfing etc": ya, satu kondisi per pola (sampai 20 kondisi), digabung All / Any / At least.
 - Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
   Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
   sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1

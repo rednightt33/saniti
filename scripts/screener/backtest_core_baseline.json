@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "about": "The approved state of apps/edge-bff/backtest/src/core for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a core that differs from origin/main only while its content hash is core_tree (and, while the worker is the base's, the versions are these). Recorded with --record-core and changed only by a deliberate commit (EXEC-SCREENER-FLOW-CANDLES, K2 A).",
-  "base_commit": "4451a31a027c123a3b8b875eee1c558c6ae9bcca",
-  "recorded_on": "b588f5d45b3508de2be8626dd49bed1b3951b1c5",
-  "recorded_at": "2026-11-07",
-  "engine_version": "c95159e8f1dd9224",
+  "base_commit": "98ba272d8add04f1be23c1cea7a9a1bab8e248b9",
+  "recorded_on": "f5743053656177e909270502032ccd3b3ca610f7",
+  "recorded_at": "2026-11-08",
+  "engine_version": "e2205249ffdb5e9b",
   "base_engine_version": "c3a5f29a3848df7d",
   "registry_version": "514dc3df60a25aff",
-  "core_tree": "8567f99724b895285c7a3dd231cc6c77308603cc5c8c2c89547e199b17583304",
+  "core_tree": "64ebb6cb21bbca29988c69ce1e4c01d1804bfce81acefd61e970e9e38de78aa0",
   "core_files": 16,
   "exec": {
     "section": "EXEC-SCREENER-FLOW-CANDLES",
-    "decision": "User 2026-11-07 (verbatim in EXEC-SCREENER-FLOW-CANDLES): \"2A\" (pola candle dibangun di core Backtest, dipakai Screener dan nanti Backtest; engine_version berubah) and K2 \"A\" (\"Ok A Jalankan\": jalur persetujuan untuk perubahan core Backtest di tripwire, seperti baseline worker, ditambah tes bahwa hasil kondisi lama tetap sama)",
-    "date": "2026-11-07"
+    "decision": "User 2026-11-07 (verbatim in EXEC-SCREENER-FLOW-CANDLES): \"2A\" (pola candle dibangun di core Backtest, dipakai Screener dan nanti Backtest; engine_version berubah) and K2 \"A\" (\"Ok A Jalankan\": jalur persetujuan untuk perubahan core Backtest di tripwire); user 2026-11-08: \"Hilangkan syarat tren aktif.\" and \"Ok opsi A\" (syarat tren mati secara bawaan untuk 14 pola yang menawarkan none; keluarga Hammer tetap wajib tren)",
+    "date": "2026-11-08"
   },
-  "note": "P6 (verification/screener/P6_CANDLES.md): candle-registry.json and candles.ts added to the core, the 20 candlestick patterns as one registry and one evaluator with the IDX guards; conditions.ts and every other core file unchanged, and no Backtest request reads the patterns yet. apps/backtest-worker/tests/conditions-unchanged.test.ts holds every existing condition to its result recorded on the core before the change (engine_version c3a5f29a3848df7d)."
+  "note": "candle-registry.json: the shared trend default average -> none; the Hammer family (hammer, hanging_man, inverted_hammer, shooting_star) default average; the trend meaning and the soldiers and crows misuse text say so"
 }

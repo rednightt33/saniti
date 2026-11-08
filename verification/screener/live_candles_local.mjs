@@ -55,7 +55,7 @@ const OWN = { hammer: HAMMER, hanging_man: HAMMER, inverted_hammer: HAMMER, shoo
   tweezer_bottom: { tolerance_ticks: 0 }, tweezer_top: { tolerance_ticks: 0 },
   morning_star: { star_overlap_pct: -10, penetration_pct: 30, star_body_pct: 50 }, evening_star: { star_overlap_pct: -10, penetration_pct: 30, star_body_pct: 50 },
   three_white_soldiers: { body_min_pct: 60, short_shadow_pct: 10, long_body: 0.5 }, three_black_crows: { body_min_pct: 60, short_shadow_pct: 10, long_body: 0.5 } };
-const liveSets = id => [{}, { trend: M.PATTERNS[id].trend.includes('none') ? 'none' : 'change' }, { min_range_ticks: 2 }, { min_range_ticks: 1 }, { trend: 'average', trend_length: 60 }, OWN[id]];
+const liveSets = id => [{}, { trend: M.PATTERNS[id].trend.includes('none') ? 'average' : 'change' }, { min_range_ticks: 2 }, { min_range_ticks: 1 }, { trend: 'average', trend_length: 60 }, OWN[id]];
 
 let seed = 20261108;
 const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
@@ -195,9 +195,10 @@ function partA() {
   for (const [a, b, want] of TICKS) if (Math.abs(M.ticksBetween(a, b) - want) > 1e-9 || M.ticksBetween(a, b) !== M.ticksBetween(b, a)) failed.push({ name: `ticks ${a}-${b}`, got: M.ticksBetween(a, b), want });
   res.boundaries = { cases: CASES.length + TICKS.length, failed };
   // A4: the frequency table of P6_CANDLES.md section 5 (7 fixture stocks, 9,014 bars, defaults)
-  const DOC = { hammer: 155, hanging_man: 253, inverted_hammer: 207, shooting_star: 132, dragonfly_doji: 53, gravestone_doji: 31, bullish_marubozu: 324, bearish_marubozu: 406,
-    bullish_engulfing: 163, bearish_engulfing: 184, bullish_harami: 195, bearish_harami: 150, piercing_line: 24, dark_cloud_cover: 23, tweezer_bottom: 296, tweezer_top: 261,
-    morning_star: 23, evening_star: 16, three_white_soldiers: 6, three_black_crows: 6 };
+  // the trend test off by default where a pattern offers it (user decision 2026-11-08; 2,908 signals with it on)
+  const DOC = { hammer: 155, hanging_man: 253, inverted_hammer: 207, shooting_star: 132, dragonfly_doji: 169, gravestone_doji: 105, bullish_marubozu: 324, bearish_marubozu: 406,
+    bullish_engulfing: 307, bearish_engulfing: 376, bullish_harami: 408, bearish_harami: 349, piercing_line: 35, dark_cloud_cover: 58, tweezer_bottom: 573, tweezer_top: 582,
+    morning_star: 45, evening_star: 36, three_white_soldiers: 8, three_black_crows: 18 };
   const got = {}, stocks = fx.filter(f => f.ticker !== 'IHSG');
   for (const id of M.PATTERN_IDS) got[id] = stocks.reduce((s, f) => s + M.detect({ O: f.O, H: f.H, L: f.L, C: f.C, V: f.V }, id).reduce((a, x) => a + x, 0), 0);
   res.frequency = { stocks: stocks.length, bars: stocks.reduce((s, f) => s + f.T.length, 0), differs: Object.keys(DOC).filter(k => DOC[k] !== got[k]).map(k => ({ id: k, doc: DOC[k], independent: got[k] })) };
