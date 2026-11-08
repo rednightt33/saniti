@@ -12590,7 +12590,7 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
     ("NI 5.8M"); harga tetap di kiri. Mulai candle pertama terlihat. Broker ditambah/dihapus di panel (atau klik di kotak
     Loaders) = garis ikut berubah, maksimum 5.
 
-## EXEC-FLOW-NEW-3 — tiga indikator Flow baru dari usulan HTML (diterima 2026-11-08, dijalankan di branch 2026-11-08)
+## EXEC-FLOW-NEW-3 — tiga indikator Flow baru dari usulan HTML (diterima 2026-11-08, dirilis ke dev 2026-11-08)
 
 - Kata user 2026-11-08 (dengan tangkapan layar opsi 4 "Daily quadrant" dari `pra_rally_box.html`, opsi 11 dan 13 dari
   `pre_rally_options.html`): "indikator yang di tambahkan sebagai indikator baru adalah "Daily quadrant" jadikan FL
@@ -12654,8 +12654,11 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   Screener tetap seperti hasil QA unit B (48 indikator, FL14 hanya `asym`). Satu-satunya perubahan data Screener: pilihan
   Plot FL26 yang hanya untuk tampilan (display-only, tidak dipakai sebagai kondisi) kini berisi empat opsi. Memasukkan
   FL49/FL50/rata-rata FL14 ke Screener adalah keputusan terpisah (FUTURE_PLAN).
+- Rilis (user 2026-11-08: "Ok", lalu "Sudah di main hntuk screener. Push to main and merge"): di `main` `84f1c8f5`
+  bersama EXEC-RP-LOOK-2 dan EXEC-LEGEND-HIDE; edge-bff `10e57e56` dan screener-worker `7a41f6d1` SUCCESS (push
+  pertama `767c5827` menggagalkan start screener-worker, ERRORS M405, diperbaiki). RAILWAY_CHANGELOG 2026-11-08.
 
-## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dijalankan di branch 2026-11-08)
+## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up
   tolong tambahkanopsi seperti yang saya SS nomor A kalau di klik maka akan hide indicator name".

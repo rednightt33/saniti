@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-11-08 — Terminal Flow FL49-FL52, FL26 plots, F×D Nominal, legend hide on dev; screener-worker start fix (ERRORS M405)
+
+- **Change:** EXEC-FLOW-NEW-3 and EXEC-RP-LOOK-2 (FL49 Daily Quadrant, FL50 Rotation, FL51 Loaders box, FL52 Broker
+  Inventory on the price chart, FL26 four plots, FL14 average line, F×D window Nominal (Rp), Settings focus look, R9,
+  R10) and EXEC-LEGEND-HIDE. FL49-FL52 and FL14's average line are `terminal_only` (user "A"): the Screener's catalog
+  keeps its unit B/C content. No migration, no variable change.
+- **Go:** user 2026-11-08 "Ok" (release), "A" (Terminal only), "Sudah di main hntuk screener. Push to main and merge"
+  (after PR rednightt33/saniti#62 merged). Before each push: no edge_bff job queued/running/recovering, no AI turn
+  running, outside B6 (15:19 WIB), backtest tripwire OK.
+- **First push `767c5827`:** edge-bff `5ae9b963` SUCCESS; screener-worker `6ce5b19b` FAILED its `/ready` health check
+  (ERR_MODULE_NOT_FOUND `terminal/src/data/brokerAgg` from `calc/flow.ts`; ERRORS M405). The earlier screener-worker
+  deployment `79baa13c` (`31572848`) stayed active meanwhile.
+- **Fix push `84f1c8f5`:** edge-bff `10e57e56` SUCCESS, screener-worker `7a41f6d1` SUCCESS (health check `/ready` passed).
+  edge-bff `/ready` 200; the served Terminal files `index-_28vGiVg.js`, `style-BHhSfcUl.css`, `worker-BRmH7PZZ.js` are
+  byte-equal to the build.
+- **Not done:** a signed-in Screener run after the fix (the worker's health check passed; no screen was run from this
+  session).
+
 ## 2026-11-08 — Screener unit B (flow) on dev: PR #60 merged; edge-bff, screener-worker, terminal-publisher; first broker day fill
 
 - **Change:** EXEC-SCREENER-FLOW-CANDLES P4 + P5: broker day files for the Screener (60 newest Feature 05 dates), the
