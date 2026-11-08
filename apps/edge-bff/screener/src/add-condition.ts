@@ -196,8 +196,11 @@ const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, pop:null as numb
 let root: HTMLElement | null = null, drawing = false;
 const $q = <T extends HTMLElement>(sel: string) => root?.querySelector<T>(sel) ?? null;
 
-const tfHtml = () => `<span class="tf-seg tf-add" role="img" aria-label="Timeframe: Daily. 5m, 15m, 1h and 4h have no data yet.">${TIMEFRAMES.map(t => t === 'Daily'
-  ? `<span class="on">Daily</span>` : `<span class="na" title="${esc(NO_INTRADAY)}">${t}</span>`).join('')}</span>`;
+/* user 2026-11-08 ("1 dan 2 benarkan"): the timeframe is one compact "Daily" control; 5m, 15m, 1h and 4h stay in its list,
+   greyed, so the name column has the width (names and descriptions no longer cut). A click on it never adds the row
+   (onClick: a select is the row's own control). */
+const tfHtml = () => `<span class="tf-add"><select class="sel tf-sel" tabindex="-1" aria-label="Timeframe" title="Daily bars. ${esc(NO_INTRADAY)}">${TIMEFRAMES.map(t => t === 'Daily'
+  ? '<option selected>Daily</option>' : `<option disabled>${t} · no data yet</option>`).join('')}</select></span>`;
 interface Field { f: 'value' | 'value2' | 'within'; lead: string; label: string; unit: string }
 function fieldsOf(o: Opt | undefined): Field[] {
   const u = displayUnit(o?.unit), L: Field[] = [];
@@ -354,7 +357,8 @@ function bandHtml(i: number): string {
   return `<div class="qsec" data-sec="${esc(it.group)}" aria-hidden="true">${esc(GHEAD(it.group))}<span>${n}</span></div>`;
 }
 function rowHtml(it: AddItem, i: number, added: boolean): string {
-  const [cond, thr] = it.ok ? ruleHtml(it, i) : ['<span></span>', '<span></span>'];
+  // a row without data has no controls: its name and reason take the empty columns (EXEC-SCREENER-ADD-FIT)
+  const [cond, thr] = it.ok ? ruleHtml(it, i) : ['', ''];
   const act = !it.ok ? `<span class="qadd">No data</span>`
     : added ? `<button type="button" class="qact on" data-qact="${i}" tabindex="-1" aria-label="Remove ${esc(it.label)}"><span class="q-on">Added ${ico(IC.check, 's')}</span><span class="q-rm">Remove</span></button>`
     : `<button type="button" class="qact" data-qact="${i}" tabindex="-1" aria-label="Add ${esc(it.label)}">Add</button>`;
@@ -367,7 +371,7 @@ function rowHtml(it: AddItem, i: number, added: boolean): string {
   const code = it.kind === 'ind' && it.entry && /^(I|FL)\d+$/.test(it.entry.key) ? `<small class="qcode">${esc(it.entry.key)}</small>` : '';
   const desc = it.kind === 'ind' && it.ok && it.entry?.desc ? firstSentence(it.entry.desc) : '';
   const sub = side ? `<small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.line)}</small>` : desc ? `<small class="qdesc" title="${esc(it.entry!.desc)}">${esc(desc)}</small>` : editable ? '' : `<small>${esc(it.sub)}</small>`;
-  return `<div role="option" id="aco${i}" class="qrow${W.kbd && i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><span class="qnl"><b>${esc(it.label)}</b>${code}</span>${sub}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+  return `<div role="option" id="aco${i}" class="qrow${W.kbd && i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><span class="qnl"><b>${esc(it.label)}</b>${code}</span>${sub}</span>${it.ok ? tfHtml() + cond + thr : ''}${act}</div>`;
 }
 /** a group's section, from its entries: Fundamental when every entry is a fundamental, Flow when one reads the broker
     flow (a Terminal flow indicator, or a metric of the Flow group), Technical otherwise */

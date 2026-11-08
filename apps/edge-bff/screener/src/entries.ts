@@ -148,6 +148,18 @@ function optLabel(ind: CatalogIndicator, o: CatalogOutput, spec: TestFormSpec, o
 }
 const kindOf = (f: TestForm): TestKind => f.startsWith('value') ? 'value' : f.startsWith('state') ? 'state' : 'event';
 
+/** Display scale of a value field by unit: IDR values are typed in Rp B, as the prototype's money fields. */
+export const displayScale = (unit: string | null | undefined) => (unit || '').toUpperCase() === 'IDR' ? 1e9 : 1;
+
+/** The card's default from a catalog default test (ERRORS M409): the catalog writes the value in the wire's unit (IDR in
+    rupiah), the card's fields hold it in the field's display unit (forms.ts displayScale, IDR in Rp B), so it is divided
+    by the scale of the option it opens on. Every reader of `def` (newCard, Add a condition, the builder) gets field
+    units; toWire multiplies back. */
+function cardDefault(dt: { value?: number; value2?: number; within?: number } | undefined, o: Opt | undefined): Entry['def'] {
+  const scale = displayScale(o?.unit), v = (x: number | undefined) => (typeof x === 'number' ? x / scale : undefined);
+  return { opt:o?.key || '', value:v(dt?.value) ?? 0, value2:v(dt?.value2) ?? '', within:dt?.within ?? 5 };
+}
+
 function indicatorEntry(ind: CatalogIndicator, indicators: readonly CatalogIndicator[] = []): Entry {
   const opts: Opt[] = [];
   const valueOuts = ind.outputs.filter(o => o.tests.some(t => t.form === 'value' || t.form === 'event_value')).length;
@@ -173,7 +185,7 @@ function indicatorEntry(ind: CatalogIndicator, indicators: readonly CatalogIndic
     key:ind.id, kind:'indicator', group:ind.category, label:ind.name, short, xid:ind.id,
     desc:(ind as any).description || `${ind.name} (${ind.id}).`,
     params:withOptionLabels(ind.params, indicators), opts,
-    def:{ opt:defOpt?.key || '', value:dt?.value ?? 0, value2:dt?.value2 ?? '', within:dt?.within ?? 5 },
+    def:cardDefault(dt, defOpt),
     available:opts.some(o => !o.disabled), availability:'AVAILABLE', reason:opts.some(o => !o.disabled) ? null : 'No test is offered for this indicator.',
     synonyms:ind.synonyms || [],
     history:ind.history_class === 'cumulative' ? 'Level depends on where history starts; only relative tests are offered.' : null,
@@ -200,7 +212,7 @@ function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental', indicator
     label:(m as any).label || (m as any).name || m.id, short:(m as any).short || (m as any).label || m.id,
     desc:m.interpretation || m.formula || '',
     params:withOptionLabels(m.params || [], indicators), opts,
-    def:{ opt:defOpt?.key || '', value:def?.value ?? 0, value2:def?.value2 ?? '', within:def?.within ?? 5 },
+    def:cardDefault(def, defOpt),
     available, availability:m.availability, reason:available ? null : (m.reason || 'Not available.'),
     synonyms:(m as any).synonyms || [], history:null, metric:m, metricKind:m.kind, ...(m.side ? { side:m.side } : {}),
   };

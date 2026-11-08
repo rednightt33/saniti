@@ -120,6 +120,26 @@ describe('toWire / fromWire (forms.ts)', () => {
     expect((toWire(adv, c).test as any).value).toBe(12.5e9);
     expect(fromWire(toWire(adv, c), byKey).value).toBe(12.5);
   });
+  it('a catalog default test opens in the field\'s unit and goes back to the catalog\'s value (ERRORS M409)', () => {
+    // every entry whose catalog default carries a value, read from the catalog (never a list here): the card shows it in
+    // the field's display unit (IDR in Rp B) and the wire carries the catalog's own number again
+    const withDefault = entries.filter(e => {
+      const dt = (e.metric as any)?.default_test ?? (e.indicator as any)?.overlay?.default_test;
+      return dt && typeof dt.value === 'number' && e.opts.find(o => o.key === e.def.opt)?.value === 'input';
+    });
+    const idr = withDefault.filter(e => (e.opts.find(o => o.key === e.def.opt)!.unit || '').toUpperCase() === 'IDR');
+    expect(idr.map(e => e.key)).toContain('adv20_idr');
+    for (const e of withDefault) {
+      const dt = (e.metric as any)?.default_test ?? (e.indicator as any)?.overlay?.default_test;
+      const o = e.opts.find(x => x.key === e.def.opt)!, scale = (o.unit || '').toUpperCase() === 'IDR' ? 1e9 : 1;
+      expect([e.key, e.def.value]).toEqual([e.key, dt.value / scale]);
+      const w = toWire(e, newCard(e, [])).test as any;
+      const back = w.rhs?.value ?? w.value ?? w.signal?.rhs?.value;
+      if (back !== undefined) expect([e.key, back]).toEqual([e.key, dt.value]);
+    }
+    const adv = byKey.get('adv20_idr')!;
+    expect([adv.def.value, adv.def.value2]).toEqual([10, 100]);       // catalog: Rp 10,000,000,000 to Rp 100,000,000,000
+  });
 });
 
 describe('a registry default the screener does not offer (P17 a: I43 anchor Session; catalog default_offered)', () => {

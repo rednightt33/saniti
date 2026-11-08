@@ -5753,6 +5753,49 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M409 — Screener: a catalog default in rupiah shown raw in an Rp B field (ADV "> 10000000000 Rp B", 0 matches) (2026-11-08, fixed on branch)
+
+- **Symptom:** Add a condition -> Average daily value (20 sessions) opened at "Greater than 10000000000 Rp B". Added as
+  is, the wire value was 1e19 rupiah and no stock passed (fixture run: 0 matches).
+- **Verified cause:** `entries.ts` copied the catalog's `default_test.value` (written in the wire's unit, IDR rupiah,
+  `adv20_idr` `{op:'gt', value:10000000000, value2:100000000000}`) straight into the card's default, while the card's
+  fields hold IDR in Rp B (`forms.ts` `displayScale` 1e9) and `toWire` multiplies by 1e9 again.
+- **Class:** every catalog default test (metric or indicator overlay) on an output whose display unit differs from the
+  wire unit; today IDR (Rp B). Any later scaled unit (cross-asset prices in thousands, macro series in billions) meets
+  the same mechanism.
+- **Solution (permanent, the layer that owns the conversion):** `entries.ts` `cardDefault` divides a default's value and
+  value2 by the display scale of the option it opens on, so every reader of `def` (newCard, Add a condition, the
+  builder) gets field units and `toWire` restores the catalog's number. `displayScale` moved into `entries.ts` (forms.ts
+  re-exports it) so there is no import cycle.
+- **Test:** `tests/page/forms.test.ts` "a catalog default test opens in the field's unit": every catalog entry with a
+  default value, read from the catalog (no list), shows `value / scale` and writes the catalog value back; ADV opens at
+  10 to 100 Rp B.
+- **Lesson for new data (Part D):** a catalog default is in the wire's unit; the page converts it with the same scale as
+  the field. A new scaled unit is added to `displayScale` only.
+- **Status:** fixed on branch, released with EXEC-SCREENER-ADD-FIT.
+
+### M410 — Screener Add a condition: 37 names and 55 descriptions cut with "…" at 1440 and 1920 px (2026-11-08, fixed on branch)
+
+- **Symptom:** names such as long flow indicators and most one-sentence descriptions ended in an ellipsis.
+- **Verified cause:** the timeframe column (five spans 5m-Daily) took 236 px of a window capped at 1320 px, the name
+  column kept ~196 px, and `.qnm b` / `.qnm small` were one line with `text-overflow:ellipsis`.
+- **Class:** fixed-width informational columns in a capped dialog take the width the content column needs; any long
+  catalog name (new cross-asset or macro series names) is cut.
+- **Solution:** the timeframe is one compact select on Daily (5m, 15m, 1h, 4h listed and greyed, 88 px); the name
+  column gets the freed width (352 px at 1440); every row keeps one height (user 2026-11-06): the name on one line and
+  its description on two (a list under 1000 px: the name on two); a row without data has no controls, so its name and
+  reason take the empty columns. The stacked layouts below 820 px of list are declared after the new tracks (a
+  container query adds no specificity) and show the whole text.
+- **Measured (fixture, Chromium, 178 rows):** at 1920 and 1440 px every row is 71 px, 0 names and 1 description
+  ("Percentile of the N-session return …") end in "…" (before: 37 names and 55 descriptions); at 1100 px rows are
+  91 px, 4 names and 10 descriptions end in "…"; at 900 and 390 px (stacked) nothing is cut. No sideways scroll. The
+  full text is in each row's hover title.
+- **Smoke checks found already failing before this change (same run on the branch without it):** rows 55/54 px (now one
+  height), one settings cell overflowing ("Volume spike" needs 270 px; the column is now 276 px, still 1 over at the
+  smoke's own count), Broker Inventory's Customize selects cutting their option at 150 px, an empty threshold not
+  refused with the card's message. Open; not caused by this change.
+- **Status:** fixed on branch, released with EXEC-SCREENER-ADD-FIT.
+
 ### M408 — UI audit 2026-11-08: 27 frontend defects found by five auditors (2026-11-08, fixed on branch)
 
 - **Found by:** the five-agent visual audit (`verification/ui_audit_20261108/REPORT.md`, sections B and F).

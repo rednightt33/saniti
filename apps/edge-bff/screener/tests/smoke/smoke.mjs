@@ -270,7 +270,8 @@ await at('Add a condition is the one way to add: every door opens it, no detaile
   await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(150);
   expect(!(await page.locator('.qwin [data-qbrowse], .dialog.ib').count()) && !/detailed browser/i.test(await text('.dialog.qwin')), 'the detailed browser is still offered');
   const tf = page.locator('#acl .qrow').first().locator('.tf-add');
-  expect(await tf.locator('button').count() === 0 && (await tf.locator('span.on').innerText()) === 'Daily' && await tf.locator('span.na').count() === 4, 'the timeframe is not shown as 5m-4h greyed and Daily, with nothing to click');
+  // EXEC-SCREENER-ADD-FIT: one compact select on Daily, 5m-4h listed and greyed (nothing else to choose)
+  expect(await tf.locator('button').count() === 0 && await tf.locator('select.tf-sel').inputValue() === 'Daily' && await tf.locator('option[disabled]').count() === 4, 'the timeframe is not one Daily select with 5m-4h greyed');
   const adx = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Average Directional Index$/ }) });
   await adx.locator('[data-qact]').click(); await page.waitForTimeout(150);
   expect(await cards() === 1, 'Add did not add a card');

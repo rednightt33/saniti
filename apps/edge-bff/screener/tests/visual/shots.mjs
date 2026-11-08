@@ -95,7 +95,7 @@ for (const theme of ['light', 'dark']) for (const vp of VIEWPORTS) {
       // Add a condition, the one way to add (EXEC-SCREENER-ADD): groups, rows with timeframe, condition, threshold, Add;
       // no detailed browser
       await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(250);
-      await check(page, `${tag} Add a condition`, ['.dialog.qwin[role="dialog"]', '#acg [data-ag="__on"]', '#acl .qcols', '#acl .qrow .tf-add span.on', '#acl .qrow [data-af="opt"]', '#acl .qrow [data-qact]']);
+      await check(page, `${tag} Add a condition`, ['.dialog.qwin[role="dialog"]', '#acg [data-ag="__on"]', '#acl .qcols', '#acl .qrow .tf-add select.tf-sel', '#acl .qrow [data-af="opt"]', '#acl .qrow [data-qact]']);
       if (await page.locator('.qwin [data-qbrowse], .dialog.ib').count()) fails.push(`${tag}: the detailed Indicators browser is still reachable`);
       await shot('06-add-condition');
       await trap(page, `${tag} Add a condition`, '.dialog.qwin', '#pageActs [data-hd="add"]');

@@ -12781,6 +12781,27 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   Screener tidak tampil saat dibuka, tampil setelah mengetik "rsi" atau ↓. Catatan: posisi dihitung dari tanggal mulai,
   jadi kolom kotak FL52 = "Net since start" dan "5D" (bukan dua kolom berisi angka yang sama).
 
+## EXEC-SCREENER-ADD-FIT — Add a condition tanpa teks terpotong; default ADV dalam Rp B (go 2026-11-08, dirilis ke dev 2026-11-08)
+
+### Kata user
+- 2026-11-08 (tangkapan layar Add a condition): "untuk bagian screener, cek banyak tulisan yang terpotong, solusinya apa ya"
+- 2026-11-08, atas usulan (1) kolom timeframe dipadatkan + nama dan deskripsi boleh 2 baris, (2) default ADV dikonversi
+  ke satuan kolom: "1 dan 2 benarkan. masukan exec."
+- 2026-11-08: "Langsung merge to main biar saya bisa cek kalau sudah"
+
+### Yang dibangun
+1. Timeframe jadi satu pilihan ringkas "Daily" (5m, 15m, 1h, 4h tetap ada di daftar, abu-abu, "no data yet"); kolom nama
+   mendapat lebarnya (196 -> 368 px di 1440). Nama dan deskripsi membungkus, tanpa elipsis, di semua lebar
+   (ERRORS M410). Klik pada pilihan timeframe tidak menambah baris.
+2. Default katalog dalam rupiah dibagi skala tampilan kolom (`entries.ts` `cardDefault`, umum untuk semua satuan IDR):
+   ADV dibuka di 10 sampai 100 Rp B, wire tetap 1e10 (ERRORS M409).
+
+### Bukti
+- Chromium (fixture, 178 baris): di 1920/1440 px semua baris 71 px, 0 nama dan 1 deskripsi berakhir "…" (sebelumnya 37
+  nama dan 55 deskripsi); di 1100 px 4 nama dan 10 deskripsi; di 900/390 px (bertumpuk) tidak ada yang terpotong. ADV
+  dibuka "10 Rp B". Tinggi baris tetap sama (keputusan user 2026-11-06).
+- `npx vitest run` (screener): 1328 lulus. Smoke: tiga kegagalan lama yang juga gagal tanpa perubahan ini (ERRORS M410).
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up

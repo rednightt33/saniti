@@ -6,7 +6,7 @@
 import type {
   ConditionDef, IndicatorRef, MetricRef, ParamMap, ParamValue, Side, Test, TestOp, ValueTest,
 } from './core/contract.ts';
-import { defaultParams, flowSessions, flowSetupErrors, isDefP, LIST_SEP, listOf, OPLABEL, optionText, testTakes, type Entry, type Opt } from './entries.ts';
+import { defaultParams, displayScale, flowSessions, flowSetupErrors, isDefP, LIST_SEP, listOf, OPLABEL, optionText, testTakes, type Entry, type Opt } from './entries.ts';
 import { isSignal, opErrors, opFromTest, opShort, opTest, opText, seriesList, seriesOf, signalInner, testsFor, type OpState } from './operators.ts';
 
 export interface Card {
@@ -28,7 +28,7 @@ export interface Card {
 }
 
 /** Display scale of a value field by unit: IDR values are typed in Rp B, as the prototype's money fields. */
-export const displayScale = (unit: string | null | undefined) => (unit || '').toUpperCase() === 'IDR' ? 1e9 : 1;
+export { displayScale } from './entries.ts';   // kept in entries.ts, which builds the card defaults with it (no import cycle)
 export const displayUnit = (unit: string | null | undefined) => {
   const u = (unit || '').toLowerCase();
   return u === 'idr' ? 'Rp B' : u === '%' || u === 'percent' || u === 'pct' ? '%' : u === 'x' || u === 'ratio' || u === 'multiple' ? '×' : u === 'days' || u === 'sessions' ? 'sessions' : '';
