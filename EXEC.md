@@ -12605,6 +12605,8 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - User 2026-11-08: "3 penimpun, avg price mereka dihitung ada beberapa cara, pertama dari kapan pertama kali chart appear,
   kedua sesuai dengan range (alt B) bener gak?". Garis harga untuk 3 penimbun. Awal periode: candle pertama yang terlihat
   (bawaan) atau rentang yang dipilih di chart (Alt + B); cara hitung harga pokok A atau B berlaku untuk keduanya.
+- User 2026-11-08: "oke A" atas akhir periode cara pertama: sampai candle terakhir yang terlihat di layar (seperti periode
+  "Chart" jendela Broker summary).
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
