@@ -12765,6 +12765,17 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   FL51 mendapat parameter "Show box" (× di kotak = Show box mati, dapat di-undo); laci Broker activity di ≤1100 px.
 - Rilis (user 2026-11-08: "Rilis now."): `main` `3b0f9106`; edge-bff `d3b40e1c` dan screener-worker `8d20974a` SUCCESS
   (RAILWAY_CHANGELOG 2026-11-08).
+- Permintaan user 2026-11-08 sesudah rilis: "Khusus untuk loaders, kasih opsi to display cost line, bukan hanya setting bisa
+  juga dikasih di bagian floating. Kemudian terkait dengan broker inventory ... kalau seandainya kita add juga muncul
+  kayak semacam box juga. Dan ada opsi untuk select chart, dimana kalau kita select chart, ya inventory dihitung dari
+  start from that date aja. Kemudian lihat bagian screener, saat ini sepertinya selected step atau hover state stick. Di
+  bagian row pertama". Atas pertanyaan balik: "a. FL52 / b. ok / c. oke opsi 1". Dijalankan di branch:
+  - Loaders: tombol "Cost lines" di kotak (parameter `lines` yang sama dengan Settings).
+  - FL52: kotak mengambang (judul, tanggal mulai, In view / Select on chart, ×; satu baris per broker: kode berwarna,
+    posisi sekarang, perubahan sejak tanggal mulai, tombol hapus broker), bisa digeser dan diubah ukurannya; "Select on
+    chart" = posisi dihitung mulai tanggal yang dipilih; "In view" = mulai candle pertama yang terlihat.
+  - Screener Add a condition: penanda baris keyboard (`act`) hanya tampil sesudah mengetik di kotak cari atau ↑ ↓
+    (sebelumnya baris pertama tampak di-hover).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
