@@ -12757,6 +12757,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Audit tampilan 5 agen (2026-11-08, mode audit saja): `verification/ui_audit_20261108/REPORT.md`. 27 temuan unik
   (P1 3, P2 11, P3 13); P1: U1 kotak Loaders tertutup garis pemisah pane, U2 klik grup Add a condition tidak menggulir ke
   atas, U3 jendela Add a condition bisa lebih sempit dari tabelnya. Belum diperbaiki: menunggu keputusan user.
+- Keputusan user 2026-11-08: "1. perbaiki semua temuan / 2. sembunyikan kotak / 3. tidak, tambahkan laci". Artinya: U1-U27
+  diperbaiki; tombol × di kotak Loaders menyembunyikan kotaknya saja (garis harga pokok tetap; dibuka lagi lewat Settings
+  "Show box"); panel kanan Terminal tidak sengaja disembunyikan di ≤1100 px: diberi laci (tombol di toolbar membuka panel
+  di atas chart).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
