@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "6daa65ae046379a0",
+  "screener_registry_version": "195938abff8de209",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -47,7 +47,7 @@
     {
       "role": "flow_calc",
       "file": "apps/edge-bff/terminal/src/calc/flow.ts",
-      "sha256": "02bb6ae3cafc0d7b28e843ab550ab467afde72ac3614c655abf4d7c0ad0bf11d"
+      "sha256": "a2b733b1eb25c0f77998016d7a274c50c07a1c1a058727566448394f18fea9aa"
     },
     {
       "role": "flow_probe",

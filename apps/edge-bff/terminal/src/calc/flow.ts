@@ -14,7 +14,7 @@
    ========================================================================== */
 
 import REG from '../data/flowRegistry.json' with { type: 'json' };
-import { fdQuadrant, fdShown } from '../data/brokerAgg';
+import { fdQuadrant, fdShown } from './fd';
 
 export type Num = number | null;
 export type Series = Num[];

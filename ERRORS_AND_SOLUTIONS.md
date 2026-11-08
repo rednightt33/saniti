@@ -5753,6 +5753,34 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M405 — screener-worker did not start: the Terminal's flow formula imported a file the image does not copy (2026-11-08, fixed)
+
+- **Found by:** the release of `767c5827` (Terminal FL49-FL52): edge-bff `5ae9b963` SUCCESS, screener-worker `6ce5b19b`
+  FAILED its health check (`/ready`, 5 minutes); the earlier deployment `79baa13c` (`31572848`) stayed active.
+- **Symptom (deploy log):** `ERR_MODULE_NOT_FOUND: Cannot find module '/app/apps/edge-bff/terminal/src/data/brokerAgg'
+  imported from /app/apps/edge-bff/terminal/src/calc/flow.ts`, at every start.
+- **Verified cause:** `calc/flow.ts` (FL49/FL50) imported `fdShown`/`fdQuadrant` from `data/brokerAgg.ts`;
+  `apps/screener-worker/Dockerfile` copies `terminal/src/calc` and two JSON files of `src/data` only. Every test passed
+  because the tests run in the full repository, where the file exists; nothing compared a start command's imports with
+  the image's COPY lines.
+- **Class:** a service image built from a fixed COPY list, and a shared source (the Terminal's calc, the Screener and
+  Backtest cores) that gains an import outside that list. Applies to screener-worker and backtest-worker (both copy
+  `terminal/src/calc`) and to any later Node image built the same way.
+- **Solution:** the F×D formula (`FD_DP`, `FD_FLAT`, `fdShown`, `FD_QUADRANTS`, `fdQuadrant`) moved to
+  `terminal/src/calc/fd.ts` (pure, no imports), re-exported by `data/brokerAgg.ts` for the panels; `calc/flow.ts`
+  imports `./fd`. Guard: `scripts/check_image_imports.mjs` reads a Dockerfile (COPY sources, WORKDIR, CMD and its
+  `--import` loader), walks the run-time imports (type-only imports skipped) as the workers' loader resolves them and
+  lists every module outside the COPY sources; `apps/screener-worker/tests/image-imports.test.ts` and
+  `apps/backtest-worker/tests/image-imports.test.ts` run it. On the failed tree it reports
+  `apps/edge-bff/terminal/src/data/brokerAgg.ts: not copied into the image`; on the fix 50 and 27 modules, none missing.
+- **Open (verified 2026-11-08, not fixed):** `screener-registry.json` records the hash of `calc/flow.ts` only, so a
+  change to a module it imports does not mark the registry stale: a line appended to `calc/fd.ts` alone left
+  `npm run registry:check` at "current". Proposed fix (the Screener's generator, needs a go): hash `flow.ts` with its
+  run-time imports (the walk of `scripts/check_image_imports.mjs`).
+- **Status:** fixed (redeploy recorded in RAILWAY_CHANGELOG).
+- **Lesson:** a shared formula lives in the folder the consumers' images copy; a new import in shared code is checked
+  against each image, not only against the repository.
+
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and
