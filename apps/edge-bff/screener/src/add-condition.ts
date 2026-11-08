@@ -20,10 +20,11 @@ import type { ConditionDef, ParamValue, SavedItem } from './core/contract.ts';
 import { esc } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { canonical, ctx, entryOf, S, ui } from './state.ts';
-import { defaultParams, GHEAD, GORD, matches, optionText, paramError, rangeText, type Entry, type EntryParam, type Opt } from './entries.ts';
+import { defaultParams, depthHint, flowBudget, flowSessions, GHEAD, GORD, isFlowType, matches, optionText, paramError, rangeText, type Entry, type EntryParam, type Opt } from './entries.ts';
 import { cardErrors, displayUnit, fromWire, newCard, newCardId, optOf, toWire, type Card } from './forms.ts';
 import { closeDialog, dialog, toast, toastAction } from './dialogs.ts';
-import { defaultOp, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, opsFor, plainOffered, secondOptions, testOf, testsFor, withCmp, withMeasure, withTest, type OpState } from './operators.ts';
+import { defaultOp, fieldHint, fieldMax, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, opsFor, opText, plainOffered, secondOptions, seriesList, testOf, testsFor, withCmp, withMeasure, withTest, type OpState } from './operators.ts';
+import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
 
 export const MY = 'My metrics', ON_SCREEN = '__on', ALL = 'All';
 export type Sort = 'group' | 'az' | 'za';
@@ -39,7 +40,12 @@ export const OP_OPT = '__op';
 const RULE = new Map<string, Rule>();
 export function ruleOf(e: Entry): Rule {
   let r = RULE.get(e.key);
-  if (!r) { r = { opt:e.def.opt, value:e.def.value, value2:e.def.value2, within:e.def.within, params:defaultParams(e) as Params }; RULE.set(e.key, r) }
+  if (!r) {
+    r = { opt:e.def.opt, value:e.def.value, value2:e.def.value2, within:e.def.within, params:defaultParams(e) as Params };
+    // an indicator with no condition of its own (a flow output of lots per transaction, P5c) opens on the operator
+    if (!e.opts.some(o => !o.disabled) && offersOperators(e.ops, e)) { r.op = defaultOp(e.ops!, e, undefined, r.params); r.opt = OP_OPT }
+    RULE.set(e.key, r);
+  }
   return r;
 }
 /** tests and a new catalog: forget the rules chosen so far */
@@ -47,7 +53,7 @@ export function resetRules() { RULE.clear() }
 /** a new rule option, with the value fields it needs filled from the catalog default when empty (as the card does) */
 export function setOpt(e: Entry, opt: string) {
   const r = ruleOf(e);
-  if (opt === OP_OPT) { if (offersOperators(e.ops, e)) { r.op ??= defaultOp(e.ops!, e); r.opt = OP_OPT } return }
+  if (opt === OP_OPT) { if (offersOperators(e.ops, e)) { r.op ??= defaultOp(e.ops!, e, undefined, r.params); r.opt = OP_OPT } return }
   delete r.op;
   if (r.opt !== opt) delete r.second;             // the second line's defaults belong to the condition (its form's defaults)
   r.opt = opt;
@@ -56,6 +62,10 @@ export function setOpt(e: Entry, opt: string) {
   if (o?.between && r.value2 === '') r.value2 = e.def.value2 === '' ? (typeof r.value === 'number' ? r.value : 0) : e.def.value2;
 }
 const withinMax = () => ctx.catalog?.limits.find(l => l.name === 'within_max')?.value ?? 130;
+/** the most "within" takes on this row: within_max, and on a flow indicator the broker sessions held (K1) */
+const withinOf = (e: Entry) => { const S0 = flowSessions(e); return S0 == null ? withinMax() : Math.min(withinMax(), S0) };
+/** on a flow indicator, the hint of a "within": about how many broker sessions the setup leaves (the worker judges) */
+const withinHint = (e: Entry, params: Params) => e.flow ? depthHint(flowBudget(e, params)) : '';
 /** the card this rule adds (fresh id among the page's cards) */
 export function cardOfRule(e: Entry, r = ruleOf(e)): Card {
   return newCard(e, S.cards.map(x => x.id), { opt:r.op ? e.def.opt : r.opt, value:r.value, value2:r.value2, within:r.within, params:{ ...r.params } as Card['params'],
@@ -67,6 +77,8 @@ const twoLines = (o: Opt | undefined) => !!o && (o.form === 'state_instance' || 
     (entries.ts paramError, the card's check), keyed 'p.<key>' and 'p2.<key>' */
 export function ruleErrors(e: Entry): Record<string, string> {
   const c = cardOfRule(e), out = cardErrors(e, c, withinMax());
+  // a card's error under a parameter (a flow indicator's broker choice) is the row's p.<key>
+  for (const k of Object.keys(out)) if (e.params.some(p => p.key === k)) { out[`p.${k}`] = `${e.params.find(p => p.key === k)!.label || k}: ${out[k].replace(/^[^:]*:\s*/, '')}`; delete out[k] }
   const lines: [string, Params][] = [['p', c.params as Params], ...(!c.op && twoLines(optOf(e, c)) ? [['p2', c.second as Params] as [string, Params]] : [])];
   for (const [k, vals] of lines) for (const p of e.params) {
     const msg = paramError(p, vals[p.key]);
@@ -143,7 +155,13 @@ export function addItem(it: AddItem): { ok: boolean; message: string } {
     S.cards.push(cardOfRule(e));
   }
   S.bOpen = true; ui.markDirty(); ui.refresh('conds');
-  return { ok:true, message:`${it.label} added${it.kind === 'ind' ? ' · ' + (it.entry!.opts.find(o => o.key === ruleOf(it.entry!).opt)?.label || '') : ''}` };
+  return { ok:true, message:`${it.label} added${it.kind === 'ind' ? addedRule(it.entry!) : ''}` };
+}
+/** what the toast says after "added": the row's condition, or the operator's rule when the row adds an operator (its
+    condition select reads "Operator…", which names nothing: the 20-question test, item E); '' when there is none */
+function addedRule(e: Entry): string {
+  const r = ruleOf(e), what = r.op && e.ops ? opText(e.ops, e, r.op, r.params as Params) : e.opts.find(o => o.key === r.opt)?.label || '';
+  return what ? ` · ${what}` : '';
 }
 /** remove every card that adds this row's test; returns them with their places (for Undo) */
 export function removeItem(it: AddItem): { at: number; c: Card }[] {
@@ -167,7 +185,7 @@ export function restore(gone: { at: number; c: Card }[]) {
 
 /* ---- the window -------------------------------------------------------------------------------------------------- */
 const FIRST_ROWS = 20;
-const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, pop:null as number | null, items:[] as AddItem[], added:[] as boolean[], spyLock:0, rest:undefined as ReturnType<typeof setTimeout> | undefined, restHtml:'' };
+const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, pop:null as number | null, items:[] as AddItem[], added:[] as boolean[], spyLock:0, rest:undefined as ReturnType<typeof setTimeout> | undefined, restFrom:0 };
 let root: HTMLElement | null = null, drawing = false;
 const $q = <T extends HTMLElement>(sel: string) => root?.querySelector<T>(sel) ?? null;
 
@@ -199,11 +217,13 @@ function ruleHtml(it: AddItem, i: number): [string, string] {
    more go behind a "Customize" button that shows how many there are and opens a panel (parameters, then the threshold
    under a thin rule, each with its default; Reset to default, Done; Escape closes it). The fields, their limits and
    checks are the card's either way. */
-interface Box { name: string; control: string; unit: string; def: string; changed: boolean; thr: boolean; hint?: string }
+interface Box { name: string; control: string; unit: string; def: string; changed: boolean; thr: boolean; hint?: string; group?: boolean }
 /** a parameter's control: the card's field (a select for options and true/false, else a number with the catalog's
     limits) */
 function paramControl(e: Entry, p: EntryParam, i: number, v: ParamValue | undefined, def: ParamValue | undefined, second: boolean, err: string | undefined): string {
   const attr = second ? 'data-ap2' : 'data-ap', name = `${second ? '2nd ' : ''}${p.label || p.key}`;
+  // a flow indicator's list, anchor date or broker codes (param-fields.ts)
+  if (isFlowType(p)) return flowControlHtml(p, v, `${attr}="${esc(p.key)}" data-ai="${i}"`, `${name} of ${e.label}`, err || paramTitle(p, def), !!err)!;
   const common = `${attr}="${esc(p.key)}" data-ai="${i}" aria-label="${esc(name)} of ${esc(e.label)}"${err ? ` aria-invalid="true" title="${esc(err)}"` : ` title="${esc(`${rangeText(p) ? rangeText(p) + ' · ' : ''}default ${optionText(p, def as ParamValue)}`)}"`}`;
   return p.options ? `<select class="sel" ${common}>${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
     : p.type === 'boolean' ? `<select class="sel" ${common}><option value="true" ${v === true ? 'selected' : ''}>true</option><option value="false" ${v === false ? 'selected' : ''}>false</option></select>`
@@ -213,46 +233,61 @@ function paramControl(e: Entry, p: EntryParam, i: number, v: ParamValue | undefi
 function boxesOf(e: Entry, i: number): Box[] {
   const r = ruleOf(e), c = cardOfRule(e), o = optOf(e, c), er = ruleErrors(e), out: Box[] = [];
   const d2 = !r.op && twoLines(o) ? newCard(e, [], { opt:r.opt }).second : null;
-  for (const p of e.params) out.push({ name:p.label || p.key, control:paramControl(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`]), unit:'', def:optionText(p, p.default), changed:String(c.params[p.key]) !== String(p.default), thr:false });
+  // a list's checkbox group is a group of its own labels, never inside one label (a label names one control)
+  for (const p of e.params) out.push({ name:p.label || p.key, control:paramControl(e, p, i, c.params[p.key], p.default, false, er[`p.${p.key}`]), unit:'', def:optionText(p, p.default), changed:String(c.params[p.key]) !== String(p.default), thr:false, group:p.type === 'multi' });
   if (d2) for (const p of e.params) out.push({ name:`2nd ${p.label || p.key}`, control:paramControl(e, p, i, c.second[p.key], d2[p.key], true, er[`p2.${p.key}`]), unit:'', def:optionText(p, d2[p.key]), changed:String(c.second[p.key]) !== String(d2[p.key]), thr:false });
-  if (r.op && e.ops) { out.push(...opBoxes(e, r.op, i, er)); return out }
+  if (r.op && e.ops) { out.push(...opBoxes(e, r.op, i, er, c.params as Params)); return out }
   for (const l of fieldsOf(o)) {
     const v = r[l.f], d = fdef(e, l.f);
-    out.push({ name:l.lead, unit:l.unit, def:String(d), changed:String(v) !== String(d), thr:true,
-      control:`<input class="inp" type="number" step="${l.f === 'within' ? 1 : 'any'}"${l.f === 'within' ? ` min="1" max="${withinMax()}"` : ''} data-af="${l.f}" data-ai="${i}" value="${esc(v)}" style="--n:${String(v).length}" aria-label="${esc(l.label)}${l.unit ? ` (${esc(l.unit)})` : ''} for ${esc(e.label)}"${er[l.f] ? ` aria-invalid="true" title="${esc(er[l.f])}"` : ` title="default ${esc(d)}"`}>` });
+    const hint = l.f === 'within' ? withinHint(e, c.params as Params) : '';
+    out.push({ name:l.lead, unit:l.unit, def:hint ? `${d} · ${hint}` : String(d), changed:String(v) !== String(d), thr:true,
+      control:`<input class="inp" type="number" step="${l.f === 'within' ? 1 : 'any'}"${l.f === 'within' ? ` min="1" max="${withinOf(e)}"` : ''} data-af="${l.f}" data-ai="${i}" value="${esc(v)}" style="--n:${String(v).length}" aria-label="${esc(l.label)}${l.unit ? ` (${esc(l.unit)})` : ''} for ${esc(e.label)}"${er[l.f] ? ` aria-invalid="true" title="${esc(er[l.f])}"` : ` title="default ${esc(d)}"`}>` });
   }
   return out;
 }
 /** The operator's boxes (operators.ts; every list from the catalog's operators block): the line of the indicator (when
     it has several), the measure and its arguments, the second series of a relative comparison, the test, how it
     compares, the value or range, and the sessions of a cross or window test. */
-function opBoxes(e: Entry, op: OpState, i: number, er: Record<string, string>): Box[] {
+function opBoxes(e: Entry, op: OpState, i: number, er: Record<string, string>, params: Params): Box[] {
   const ops = e.ops!, out: Box[] = [], m = op.measure === 'none' ? undefined : measureOf(ops, op.measure), t = testOf(ops, op.test);
   const bad = (k: string) => er[k] ? ` aria-invalid="true" title="${esc(er[k])}"` : '';
   const sel = (f: string, label: string, list: { v: string; t: string }[], cur: string, help = '') => `<select class="sel qop" data-ao="${f}" data-ai="${i}" aria-label="${esc(label)} of ${esc(e.label)}"${er['o.' + f] ? bad('o.' + f) : help ? ` title="${esc(help)}"` : ''}>${list.map(x => `<option value="${esc(x.v)}" ${x.v === cur ? 'selected' : ''}>${esc(x.t)}</option>`).join('')}</select>`;
   const numIn = (f: string, label: string, v: number | '', attrs = '') => `<input class="inp" type="number" step="any" ${attrs} data-ao="${f}" data-ai="${i}" value="${esc(v)}" style="--n:${String(v).length}" aria-label="${esc(label)} for ${esc(e.label)}"${bad('o.' + f)}>`;
-  const outs = e.indicator!.outputs;
-  if (outs.length > 1) out.push({ name:'Line', control:sel('output', 'Line', outs.map(x => ({ v:x.key, t:x.label || x.key })), op.output), unit:'', def:'', changed:false, thr:true, hint:'' });
-  out.push({ name:'Measure', control:sel('measure', 'Measure', [...(plainOffered(ops, e, op.output) ? [{ v:'none', t:'The value itself' }] : []), ...measuresFor(ops, e, op.output).map(x => ({ v:x.fn, t:x.label }))], op.measure, m?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
+  // the lines the setup draws (a flow indicator's Buy and Sell follow its Side), and the one chosen
+  const outs = seriesList(e, params).filter(x => x.drawn || x.key === op.output);
+  if (seriesList(e, params).length > 1) out.push({ name:'Line', control:sel('output', 'Line', outs.map(x => ({ v:x.key, t:x.label })), op.output), unit:'', def:'', changed:false, thr:true, hint:'' });
+  out.push({ name:'Measure', control:sel('measure', 'Measure', [...(plainOffered(ops, e, op.output, params) ? [{ v:'none', t:'The value itself' }] : []), ...measuresFor(ops, e, op.output, params).map(x => ({ v:x.fn, t:x.label }))], op.measure, m?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
+  // on a flow series a session field takes at most the broker sessions held, and shows as a hint about how many the
+  // setup leaves (K1: the worker judges the setup; its refusal is shown on the card)
+  const argMax = fieldMax(ops, e, op, 'arg', withinMax(), params), nMax = fieldMax(ops, e, op, 'n', withinMax(), params) ?? withinMax();
+  const argHint = e.flow ? depthHint(fieldHint(ops, e, op, 'arg', params)) : '', nHint = e.flow ? depthHint(fieldHint(ops, e, op, 'n', params)) : '';
+  /** a measure argument counting sessions with a broker-data hint (a flow series) */
+  const sessionsLeft = (key: string) => !!argHint && (key === 'length' || key === 'bars');
   for (const a of m?.args || []) {
-    const p = a as EntryParam, v = op.margs[a.key], msg = er[`o.a.${a.key}`], range = rangeText(p);
+    const lim = (a.key === 'length' || a.key === 'bars') && argMax != null ? { ...a, max:a.max != null ? Math.min(a.max, argMax) : argMax } : a;
+    const p = lim as EntryParam, v = op.margs[a.key], msg = er[`o.a.${a.key}`], range = rangeText(p);
     const ctl = p.options ? `<select class="sel" data-aoa="${esc(a.key)}" data-ai="${i}" aria-label="${esc(a.label || a.key)} of ${esc(e.label)}"${msg ? ` aria-invalid="true" title="${esc(msg)}"` : ''}>${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(optionText(p, x))}</option>`).join('')}</select>`
-      : `<input class="inp" type="number" ${a.min != null ? `min="${a.min}"` : ''} ${a.max != null ? `max="${a.max}"` : ''} step="1" data-aoa="${esc(a.key)}" data-ai="${i}" value="${esc(Number.isFinite(v as number) ? v : '')}" style="--n:${String(v ?? '').length}" aria-label="${esc(a.label || a.key)} of ${esc(e.label)}"${msg ? ` aria-invalid="true" title="${esc(msg)}"` : ` title="${esc(`${rangeText(p) ? rangeText(p) + ' · ' : ''}default ${optionText(p, a.default as ParamValue)}`)}"`}>`;
-    // the field shows its range beside its default (OPERATORS.md section 5: "the field shows its range")
-    out.push({ name:a.label || a.key, control:ctl, unit:'', def:`${optionText(p, a.default as ParamValue)}${range ? ` · ${range}` : ''}`, changed:String(v) !== String(a.default), thr:true });
+      : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="1" data-aoa="${esc(a.key)}" data-ai="${i}" value="${esc(Number.isFinite(v as number) ? v : '')}" style="--n:${String(v ?? '').length}" aria-label="${esc(a.label || a.key)} of ${esc(e.label)}"${msg ? ` aria-invalid="true" title="${esc(msg)}"` : ` title="${esc(sessionsLeft(a.key) ? [rangeText(p), argHint].filter(Boolean).join(' · ') : `${rangeText(p) ? rangeText(p) + ' · ' : ''}default ${optionText(p, a.default as ParamValue)}`)}"`}>`;
+    // the field shows its range beside its default (OPERATORS.md section 5: "the field shows its range"); on a flow series
+    // the sessions the setup leaves instead of the default, which it may not open at (the 20-question test, item D: "default
+    // 60" with about 50 sessions left)
+    const left = sessionsLeft(a.key);
+    out.push({ name:a.label || a.key, control:ctl, unit:'', def:`${optionText(p, a.default as ParamValue)}${range ? ` · ${range}` : ''}`, changed:String(v) !== String(a.default), thr:true,
+      ...(left ? { hint:[range, argHint].filter(Boolean).join(' · ') } : {}) });
   }
-  if (m?.second) out.push({ name:'Compared with', control:sel('by', 'Compared with', secondOptions(e, op.output).map(x => ({ v:x.key, t:x.label })), op.by), unit:'', def:'', changed:false, thr:true, hint:'' });
-  out.push({ name:'Test', control:sel('test', 'Test', testsFor(ops, e, op).map(x => ({ v:x.key, t:x.label })), op.test, t?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
+  if (m?.second) out.push({ name:'Compared with', control:sel('by', 'Compared with', secondOptions(e, op.output, params).map(x => ({ v:x.key, t:x.label })), op.by), unit:'', def:'', changed:false, thr:true, hint:'' });
+  out.push({ name:'Test', control:sel('test', 'Test', testsFor(ops, e, op, params).map(x => ({ v:x.key, t:x.label })), op.test, t?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
   if (t) {
     // what the defaults of this measure and test would be: a field set otherwise counts as changed on the Customize button
-    const d0 = withTest(ops, e, { ...op, cmp:m ? m.default.cmp : op.cmp }, op.test);
-    out.push({ name:'Condition', control:sel('cmp', 'Condition', opsFor(e, op, t).map(x => ({ v:x, t:OP_WORDS[x] || x })), op.cmp), unit:'', def:'', changed:op.cmp !== d0.cmp, thr:true, hint:'' });
-    const u = opFieldUnit(ops, e, op), two = op.cmp === 'between' || op.cmp === 'outside';
+    const d0 = withTest(ops, e, { ...op, cmp:m ? m.default.cmp : op.cmp }, op.test, params);
+    out.push({ name:'Condition', control:sel('cmp', 'Condition', opsFor(e, op, t, params).map(x => ({ v:x, t:OP_WORDS[x] || x })), op.cmp), unit:'', def:'', changed:op.cmp !== d0.cmp, thr:true, hint:'' });
+    const u = opFieldUnit(ops, e, op, params), two = op.cmp === 'between' || op.cmp === 'outside';
     out.push({ name:two ? 'From' : 'Value', control:numIn('value', two ? 'From' : 'Value', op.value), unit:u, def:'', changed:String(op.value) !== String(d0.value), thr:true, hint:u });
     if (two) out.push({ name:'To', control:numIn('value2', 'To', op.value2), unit:u, def:'', changed:String(op.value2) !== String(d0.value2), thr:true, hint:u });
     // "on at least K of the last N sessions": K first, as it reads (QA5 D4)
     if (t.count) out.push({ name:'On at least', control:numIn('k', 'Sessions passing', op.k, 'min="1" step="1"'), unit:'sessions', def:String(t.default?.k ?? ''), changed:String(op.k) !== String(t.default?.k ?? ''), thr:true });
-    if (t.within || t.length) out.push({ name:t.count ? 'Of the last' : t.within ? 'Within' : t.key === 'streak' ? 'In a row' : 'In the last', control:numIn('n', 'Sessions', op.n, `min="1" max="${withinMax()}" step="1"`), unit:'sessions', def:`${t.default?.n ?? ''} · 1 to ${withinMax()}`, changed:String(op.n) !== String(t.default?.n ?? ''), thr:true });
+    if (t.within || t.length) out.push({ name:t.count ? 'Of the last' : t.within ? 'Within' : t.key === 'streak' ? 'In a row' : 'In the last', control:numIn('n', 'Sessions', op.n, `min="1" max="${nMax}" step="1"`), unit:'sessions', def:`${t.default?.n ?? ''} · 1 to ${nMax}`, changed:String(op.n) !== String(t.default?.n ?? ''), thr:true,
+      ...(nHint ? { hint:`1 to ${nMax} · ${nHint}` } : {}) });
   }
   return out;
 }
@@ -263,10 +298,11 @@ function setOpField(el: HTMLInputElement | HTMLSelectElement): boolean {
   const e = it.entry, r = ruleOf(e); if (!r.op || !e.ops) return false;
   const n = (x: string): number | '' => x.trim() === '' ? '' : Number(x);
   if (a != null) { const p = measureOf(e.ops, r.op.measure)?.args.find(x => x.key === a); r.op = { ...r.op, margs:{ ...r.op.margs, [a]:p?.type === 'enum' ? el.value : el.value.trim() === '' ? NaN : Number(el.value) } }; return true }
+  const P = r.params;
   switch (f) {
-    case 'measure': r.op = withMeasure(e.ops, e, r.op, el.value); break;
-    case 'test': r.op = withTest(e.ops, e, r.op, el.value); break;
-    case 'output': { const next = { ...r.op, output:el.value }; if (!secondOptions(e, el.value).some(x => x.key === next.by)) next.by = secondOptions(e, el.value)[0]?.key ?? ''; r.op = withMeasure(e.ops, e, next, measuresFor(e.ops, e, el.value).some(x => x.fn === next.measure) ? next.measure : 'none'); break }
+    case 'measure': r.op = withMeasure(e.ops, e, r.op, el.value, P); break;
+    case 'test': r.op = withTest(e.ops, e, r.op, el.value, P); break;
+    case 'output': { const next = { ...r.op, output:el.value }; if (!secondOptions(e, el.value, P).some(x => x.key === next.by)) next.by = secondOptions(e, el.value, P)[0]?.key ?? ''; r.op = withMeasure(e.ops, e, next, measuresFor(e.ops, e, el.value, P).some(x => x.fn === next.measure) ? next.measure : plainOffered(e.ops, e, el.value, P) ? 'none' : measuresFor(e.ops, e, el.value, P)[0]?.fn ?? 'none', P); break }
     case 'by': r.op = { ...r.op, by:el.value }; break;
     case 'cmp': r.op = withCmp(e.ops, e, r.op, el.value); break;
     case 'value': case 'value2': case 'n': case 'k': r.op = { ...r.op, [f]:n(el.value) }; break;
@@ -279,12 +315,13 @@ export const INLINE_BOXES = 2;
 function settingsHtml(e: Entry, i: number): string {
   const B = boxesOf(e, i);
   if (!B.length) return '<span class="rr-none">—</span>';
-  if (B.length <= INLINE_BOXES) return B.map(b => `<label class="qbox${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</label>`).join('');
+  const tag = (b: Box) => b.group ? 'span' : 'label';
+  if (B.length <= INLINE_BOXES) return B.map(b => `<${tag(b)} class="qbox${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</${tag(b)}>`).join('');
   const n = B.filter(b => b.changed).length, open = W.pop === i;
   const btn = `<button type="button" class="qcus${n ? ' chg' : ''}" data-cus="${i}" aria-expanded="${open}" aria-haspopup="dialog" title="${n ? `${n} of ${B.length} fields changed` : `${B.length} fields you can change`}">${ico(IC.gear, 's')}<span class="t">${n ? 'Custom' : 'Customize'}</span><span class="n">${n ? `${n} of ${B.length} changed` : B.length}</span></button>`;
   if (!open) return btn;
   // an operator's line has no catalog default of its own to show: its unit, if any, instead (the select's title explains it)
-  const line = (b: Box) => `<label class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab">${esc(b.name)}</span>${b.control}<span class="def">${b.hint !== undefined ? esc(b.hint) : `${b.unit ? esc(b.unit) + ' · ' : ''}default ${esc(b.def)}`}</span></label>`;
+  const line = (b: Box) => `<${tag(b)} class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}<span class="def">${b.hint !== undefined ? esc(b.hint) : `${b.unit ? esc(b.unit) + ' · ' : ''}default ${esc(b.def)}`}</span></${tag(b)}>`;
   const ps = B.filter(b => !b.thr), ts = B.filter(b => b.thr);
   return btn + `<span class="qpop" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}</strong>${ps.map(line).join('')}${ps.length && ts.length ? '<span class="qsep"></span>' : ''}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
 }
@@ -292,7 +329,7 @@ function settingsHtml(e: Entry, i: number): string {
 export function resetRule(e: Entry) {
   const r = ruleOf(e); r.params = defaultParams(e) as Params; delete r.second;
   r.value = e.def.value; r.value2 = e.def.value2; r.within = e.def.within;
-  if (r.op && e.ops) r.op = defaultOp(e.ops, e);
+  if (r.op && e.ops) r.op = defaultOp(e.ops, e, undefined, r.params);
 }
 function rowHtml(it: AddItem, i: number, added: boolean): string {
   const [cond, thr] = it.ok ? ruleHtml(it, i) : ['<span></span>', '<span></span>'];
@@ -325,26 +362,40 @@ function drawList() {
   W.items = listItems(W.q, W.g, W.sort); W.act = Math.min(W.act, Math.max(0, W.items.length - 1)); W.pop = null;
   const on = S.cards.length ? screenSigs() : null;                   // nothing on the screen: no row is added
   W.added = W.items.map(it => !!on && it.ok && on.has(itemSig(it)));
-  // the first rows at once, the rest in the next task: every row holds a select and its fields, and drawing a hundred of
-  // them in one task went over 50 ms on a busy page (report 6c.9; the smoke's long-task check)
-  clearTimeout(W.rest); W.restHtml = '';
-  const rows = W.items.map((it, i) => rowHtml(it, i, W.added[i]));
+  // the first rows at once, the rest in later tasks, a few dozen at a time, each written when it is drawn: every row
+  // holds a select and its fields, and drawing a hundred of them in one task went over 50 ms on a busy page (report
+  // 6c.9; the smoke's long-task check); the flow indicators (P5c) made the list some fifty rows longer
+  clearTimeout(W.rest); W.restFrom = W.items.length;
+  const rows = W.items.slice(0, FIRST_ROWS).map((it, i) => rowHtml(it, i, W.added[i]));
   drawing = true;
   try { l.innerHTML = W.items.length
-    ? `<div class="qcols" aria-hidden="true"><span>Indicator</span><span>Timeframe</span><span>Condition</span><span>Parameters &amp; threshold<em>blue = you can change it</em></span><span></span></div>` + rows.slice(0, FIRST_ROWS).join('')
+    ? `<div class="qcols" aria-hidden="true"><span>Indicator</span><span>Timeframe</span><span>Condition</span><span>Parameters &amp; threshold<em>blue = you can change it</em></span><span></span></div>` + rows.join('')
     : `<p class="qwin-empty">Nothing matches “${esc(W.q)}”. Try another name, or what it measures (for example “momentum” or “volume”).</p>` } finally { drawing = false }
-  if (rows.length > FIRST_ROWS) { W.restHtml = rows.slice(FIRST_ROWS).join(''); W.rest = setTimeout(drawRest, 0) }
+  if (W.items.length > FIRST_ROWS) { W.restFrom = FIRST_ROWS; W.rest = setTimeout(drawRestStep, 0) }
   $q('#acq')?.setAttribute('aria-activedescendant', W.items.length ? 'aco' + W.act : '');
   l.scrollTop = st;
   if (fk) { const [i, f] = fk.split('|'); l.querySelector<HTMLElement>(`[data-ai="${i}"]${f}`)?.focus() }
   const r = $q('#acg'); if (r) r.innerHTML = railHtml();
   const ft = $q('#acf'); if (ft) ft.innerHTML = footHtml();
 }
+/** the markup of the next `n` rows not drawn yet */
+function restHtml(n: number): string {
+  const from = W.restFrom, to = Math.min(W.items.length, from + n);
+  W.restFrom = to;
+  return W.items.slice(from, to).map((it, k) => rowHtml(it, from + k, W.added[from + k])).join('');
+}
+/** rows drawn per later task (drawList) */
+const REST_ROWS = 40;
+function drawRestStep() {
+  if (W.restFrom >= W.items.length) return;
+  $q<HTMLElement>('#acl')?.insertAdjacentHTML('beforeend', restHtml(REST_ROWS));
+  if (W.restFrom < W.items.length) W.rest = setTimeout(drawRestStep, 0);
+}
 /** the rows not drawn yet (drawList): now, before anything needs every row (a group scroll, the arrow keys) */
 function drawRest() {
   clearTimeout(W.rest);
-  if (!W.restHtml) return;
-  $q<HTMLElement>('#acl')?.insertAdjacentHTML('beforeend', W.restHtml); W.restHtml = '';
+  if (W.restFrom >= W.items.length) return;
+  $q<HTMLElement>('#acl')?.insertAdjacentHTML('beforeend', restHtml(Infinity));
 }
 /** the highlighted row (arrow keys): only the two rows change */
 function moveAct(i: number) {
@@ -391,7 +442,8 @@ function toggle(i: number) {
 /** a row's field as a selector (its data-af, data-ap or data-ap2), to find it again after a redraw */
 function fieldSel(el: HTMLElement | null): string | null {
   const d = el?.dataset; if (!d) return null;
-  return d.af ? `[data-af="${d.af}"]` : d.ap ? `[data-ap="${CSS.escape(d.ap)}"]` : d.ap2 ? `[data-ap2="${CSS.escape(d.ap2)}"]`
+  const mv = d.mv != null ? `[data-mv="${CSS.escape(d.mv)}"]` : '';    // one box of a list's checkbox group
+  return d.af ? `[data-af="${d.af}"]` : d.ap ? `[data-ap="${CSS.escape(d.ap)}"]${mv}` : d.ap2 ? `[data-ap2="${CSS.escape(d.ap2)}"]${mv}`
     : d.ao ? `[data-ao="${CSS.escape(d.ao)}"]` : d.aoa ? `[data-aoa="${CSS.escape(d.aoa)}"]` : null;
 }
 /** the field of an error key of ruleErrors */
@@ -459,9 +511,7 @@ function onClick(e: Event) {
 /** a rule or a threshold changed: kept per indicator; the row's "added" state follows (it compares the wire test) */
 /** a parameter field's value as the card reads it (builder.ts onBuilderField): an option, true/false, or a number (NaN
     when empty, so the check names it) */
-function paramValue(p: EntryParam, el: HTMLInputElement | HTMLSelectElement): ParamValue {
-  return p.type === 'boolean' ? el.value === 'true' : p.options || p.type === 'enum' ? el.value : el.value.trim() === '' ? NaN : Number(el.value);
-}
+const paramValue = (p: EntryParam, el: HTMLInputElement | HTMLSelectElement): ParamValue => paramFieldValue(p, el);
 /** a parameter changed: kept in the rule (the first line's or the second's) */
 function setParam(el: HTMLInputElement | HTMLSelectElement): boolean {
   const key = el.dataset.ap ?? el.dataset.ap2, it = W.items[Number(el.dataset.ai)];

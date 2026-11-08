@@ -44,6 +44,21 @@
   session.
 - **screener-worker:** no file under `terminal/src/calc/**` or `apps/screener-worker` changed by this release: no rebuild.
 
+## 2026-11-07 — edge-bff and screener-worker from `main` `4451a31a`: Screener unit A, 15 universal operators (PR #59)
+
+- **Change:** EXEC-SCREENER-FLOW-CANDLES P0-P3: operator measures and tests in the screener core and worker, the
+  "Operator…" choice in Add a condition, the catalog `operators` block. No migration, no variable change.
+- **Go:** user 2026-11-07 "Merge dan go sampai P4". PR rednightt33/saniti#59 merged 14:41 UTC (merge commit `4451a31a`).
+- **Deployments (Railway API, from GitHub):** edge-bff `3b54bab2-a519-4f95-b4fb-b0e36a03c5ad` SUCCESS and screener-worker
+  `64b73512-21e6-4d8e-aa7e-0d71496edf79` SUCCESS, both created 14:41:58 UTC, commit `4451a31a`.
+- **Signed-in check** (`verification/screener/live_check_operators_dev.py`, report in
+  `verification/screener/live_ops_20261107/report.json`): catalog 200 with engine `542b1ec8c42c6f52`, the seven tests and
+  nine measures; six screens on every listed stock, all 200: RSI percentile over 60 sessions >= 90 (29 matches, 745 ms),
+  RSI z-score over 20 > 2 (20, 622 ms), RSI > 50 on 3 of the last 5 sessions (73, 264 ms), close above SMA(20) 3 sessions
+  in a row (69, 260 ms), RSI rank >= 90 (87, 257 ms), RSI outside 30-70 (191, 230 ms). Data through 2026-11-06.
+- **Rollback:** redeploy edge-bff `9f0322b3-ae5f-4a8e-8471-44291347295a` (commit `99fe0daa`) and the previous
+  screener-worker deployment `ccb2c727-2e73-484f-8fba-2b514b39c923`, or revert merge `4451a31a`.
+
 ## 2026-11-07 — orc-test-runner: the K6 read-only Feature 05 measurement (job `972bb712`)
 
 - **Go:** user 2026-11-07 "K6 boleh" (EXEC-SCREENER-FLOW-CANDLES K6: one read-only database check through the temporary

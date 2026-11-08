@@ -8,25 +8,34 @@
    Messages (main -> thread): install {sid, desc, lruBytes} (a snapshot this thread serves; its pinned tails become
    views into the shared buffers); drop {sid}; task {seq, task} -> done {seq, outcome} | failed {seq, error}. A task's
    cancel flag is a shared Int32Array the main thread sets to the task's seq (the caller left, or its deadline passed);
-   plan.ts checks it between tickers. A thread that does not stop is terminated (pool.ts) and a new one is started. */
+   plan.ts checks it between tickers. A thread that does not stop is terminated (pool.ts) and a new one is started.
+   EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07): a build also reads the broker days the refresh planned (cached or
+   granted), each checked and kept as typed columns as soon as it is read (broker.ts decodeBrokerDay: one parsed
+   document at a time, never all of them), and carries the others from the held snapshot's store (task.broker.from). */
 import { isMainThread, parentPort, workerData } from 'node:worker_threads';
 import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
 import { TerminalClient } from '../../backtest-worker/src/terminal.ts';
-import type { TerminalOptions, TickerReference } from '../../backtest-worker/src/terminal.ts';
+import type { TerminalOptions } from '../../backtest-worker/src/terminal.ts';
 import type { FileEntry } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { serialError } from './errors.ts';
 import { errorFields, log, setLogSink } from './log.ts';
 import { runPreview } from './preview.ts';
 import type { PreviewTask } from './preview.ts';
 import { CancelledRun, isCancelled, runTask } from './run.ts';
-import type { CountsEntryOut, CountsTask, RunTask, ThreadEnv } from './run.ts';
+import type { CountsEntryOut, CountsTask, RunOutcome, RunTask, ThreadEnv } from './run.ts';
 import { PHASE1_FILES, ThreadSnapshot, buildSnapshot, prewarmChunk, snapshotDigest } from './snapshot.ts';
-import type { PublicationState, ReadFile, SnapshotDesc } from './snapshot.ts';
+import type { PublicationState, ReadFile, SnapshotDesc, SnapshotReference } from './snapshot.ts';
+import { decodeBrokerDay } from './broker.ts';
+import type { BrokerStore } from './broker.ts';
 
+/** P4: the broker days of one build (refresh.ts brokerPlan): read (from the disk cache or a granted URL), carried from
+    the held snapshot's store, and how many of the window wait for a follow-up refresh. */
+export interface BrokerBuild { read: { name: string; date: string; file: FileEntry }[]; carry: string[]; from: BrokerStore | null; missing: number }
 export interface BuildTask {
   kind: 'build';
   files: Record<ReadFile, FileEntry>;
-  ref: TickerReference; state: PublicationState;
+  broker: BrokerBuild;
+  ref: SnapshotReference; state: PublicationState;       // P5a: with the brokers' classification when it was read
   engine: { screener_engine: string; registry: string; screener_registry: string };
   tailLength: number; presets: PresetDefinition[];
 }
@@ -86,12 +95,19 @@ function start(d: ThreadData): void {
       case 'build': {
         if (!client) throw new Error('build: this thread has no terminal client');
         const t0 = performance.now();
-        // every file of the worker's one file list (snapshot.ts PHASE1_FILES), decoded by name into the build's input
-        const got = await Promise.all(PHASE1_FILES.map(n => client.file(task.files[n], `The ${n} cross-sectional file`, n)));
+        // every file of the worker's one file list (snapshot.ts PHASE1_FILES), decoded by name into the build's input,
+        // and beside them the broker days to read (P4), each checked as soon as it is read
+        const b = task.broker;
+        const [got, days] = await Promise.all([
+          Promise.all(PHASE1_FILES.map(n => client.file(task.files[n], `The ${n} cross-sectional file`, n))),
+          Promise.all(b.read.map(async r => decodeBrokerDay((await client.file(r.file, `The ${r.name} cross-sectional file`, r.name)).doc, r.name, r.file.sha256))),
+        ]);
         const byName = <T>(f: (k: number) => T) => Object.fromEntries(PHASE1_FILES.map((n, k) => [n, f(k)])) as Record<ReadFile, T>;
         const t1 = performance.now();
+        if (b.carry.length && !b.from) throw new Error('build: broker days to carry without the held store');
         const built = await buildSnapshot({ ...byName(k => got[k].doc), ref: task.ref, state: task.state, engine: task.engine,
-          tailLength: task.tailLength, capBudgetMs: d.env.capBudgetMs, withinMax: d.env.withinMax, presets: task.presets });
+          tailLength: task.tailLength, capBudgetMs: d.env.capBudgetMs, withinMax: d.env.withinMax, presets: task.presets,
+          broker: { days, carry: b.carry.length ? { from: b.from as BrokerStore, names: b.carry } : null, missing: b.missing } });
         return { ...built, cached: byName(k => got[k].cached), download_ms: Math.round(t1 - t0), decode_ms: Math.round(performance.now() - t1), downloads: client.stats.downloads, download_bytes: client.stats.download_bytes };
       }
       case 'prewarm': return prewarmChunk(task.desc, task.from, task.to, d.env.capBudgetMs);
@@ -100,12 +116,13 @@ function start(d: ThreadData): void {
       case 'preview': return runPreview(task, snapshot(task.sid), d.env);
       case 'counts_list': {
         // each definition on its own; a failure is that entry's error, the others are still counted (8.6)
-        const snap = snapshot(task.sid), out: CountsEntryOut[] = [];
+        const snap = snapshot(task.sid), out: CountsEntryOut[] = [], observe: RunOutcome['observe'] = [];
         for (const item of task.items) {
           if (cancelled()) throw new CancelledRun();
           try {
             const o = runTask({ ...item, kind: 'counts', sid: task.sid, options: { exhaustive: false, explain: false }, queue_ms: 0, s0_ms: 0, versions: snap.desc.versions, data: snap.desc.data }, snap, d.env, cancelled);
             out.push({ item_id: item.item_id, match_count: o.match_count, near_count: o.near_count, busy_ms: o.busy_ms });
+            observe.push(...o.observe);
           } catch (e) {
             if (cancelled() || isCancelled(e)) throw e;
             const s = serialError(e);
@@ -113,7 +130,7 @@ function start(d: ThreadData): void {
             out.push({ item_id: item.item_id, error: s.error });
           }
         }
-        return { kind: 'counts_list', counts: out };
+        return { kind: 'counts_list', counts: out, observe };
       }
     }
   }

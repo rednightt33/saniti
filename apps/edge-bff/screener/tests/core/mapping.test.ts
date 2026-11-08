@@ -1,8 +1,10 @@
 /* Operator mapping (report TARGET ARCHITECTURE 6.9.1; TEST PLAN 10b.3 "Operator mapping", 10b.10 "Operator
    coverage"): every (key, operator) pair of the prototype's catalogue (verification/screener/evidence/html_ui/
    catalog.json: 53 x_* registry entries, 17 legacy technical, 13 flow, 32 fundamental) maps to one wire test that
-   validates, or is refused with its reason (raw cumulative levels; Ichimoku until a registry release; flow until
-   Phase 2; fundamentals without data). An unmapped pair fails. A compound operator is one condition, so ANY and AT
+   validates, or is refused with its reason (raw cumulative levels; Ichimoku until a registry release; flow without
+   the broker window; fundamentals without data). The prototype's flow keys map to the Terminal's flow indicators and
+   the Screener's flow entries with the old definitions' setup (EXEC-SCREENER-FLOW-CANDLES P5b; FLOW_MAP.md), and
+   validate once the broker window is loaded. An unmapped pair fails. A compound operator is one condition, so ANY and AT
    LEAST count it once; the compound ones equal the prototype rules on a fixture: hup, zero, price_ma rising (21 bars)
    vs the line shape's rising (5 bars). */
 import { describe, expect, it } from 'vitest';
@@ -14,10 +16,25 @@ import { INDICATORS } from '../../src/core/registry.ts';
 import { tickerCalc } from '../../src/core/metrics.ts';
 import { SeriesCache, series, tailLength } from '../../src/core/metrics.ts';
 import { validateTest } from '../../src/core/validate.ts';
+import { METRICS_CATALOG } from '../../src/core/catalog.ts';
+import { availabilityMap } from '../../src/core/validate.ts';
 import { OPTS, WITHIN_MAX, headBars, rowOf, synth, vctx } from './helpers.ts';
 
 const CAT = JSON.parse(catalogText as unknown as string).cat as Record<string, { ops: string[]; g: string }>;
 const CTX = vctx(['X']);
+/** the same with a complete 60-session broker window (P5a): the flow pairs validate */
+const WINDOW = { sessions: 60, first: '2026-08-10', last: '2026-11-03', complete: true, classification: true };
+const FLOW_READY = { ...CTX, availability: availabilityMap({}, METRICS_CATALOG, undefined, WINDOW), flow: WINDOW };
+/** the old Phase 2 flow entries' setups on the flow entries (FLOW_MAP.md; the old definitions' boards) */
+const ALL = ['Regular', 'Nego', 'Cash'];
+const FLOW: Record<string, unknown> = {
+  bandar: { kind: 'flow', metric: 'FL24', params: { top: 3, window: 10, boards: ALL } }, topacc: { kind: 'flow', metric: 'FL25', params: { top: 5, window: 10, boards: ALL } },
+  broker: { kind: 'flow', metric: 'FL23', params: { holders: 'selected', brokers: ['YP'], unit: 'value', series: 'cum', lookback: 5, boards: ALL } },
+  bavg: { kind: 'flow', metric: 'FL39', params: { top: 3, window: 10, boards: ['Regular'] } }, fnet: { kind: 'flow', metric: 'fnet', params: { window: 20 } },
+  fstreak: { kind: 'flow', metric: 'FL26', params: { scope: 'all', investors: ['Foreign'], window: 60, boards: ALL } },
+  fpct: { kind: 'flow', metric: 'FL11', params: { scope: 'all', investors: ['Foreign'], window: 20, boards: ALL } },
+  freq: { kind: 'flow', metric: 'FL32', params: { measure: 'tx', side: 'buy', baseline: 20, boards: ALL } },
+};
 const close = { kind: 'price', field: 'close' }, volume = { kind: 'price', field: 'volume' };
 const ind = (indicator: string, output: string, params?: Record<string, unknown>) => ({ kind: 'indicator', indicator, output, ...(params ? { params } : {}) });
 const tr = (fn: string, of: unknown, args?: Record<string, unknown>) => ({ kind: 'transform', fn, of, ...(args ? { args } : {}) });
@@ -76,15 +93,14 @@ function wire(key: string, op: string): unknown {
     ichimoku: { above: SP(pat('ichimoku_above')), tk: EP(pat('ichimoku_tk_cross'), 10) },
     breakout: { up: EP(pat('breakout')), dn: EP(pat('breakdown')) },
     volspike: { gt: SP(pat('volspike')), xa: EV(tr('ratio', volume, { by: tr('lag', tr('ma', volume, { ma: 'SMA', length: 20 }), { bars: 1 }) }), 'crosses_above', { value: 2 }) },
-    bandar: { acc: V({ kind: 'flow', metric: 'bandar', params: { window: 10, top: 3 } }, 'between', 6, 100), bigacc: V({ kind: 'flow', metric: 'bandar', params: { window: 10 } }, 'between', 10, 100),
-      dist: V({ kind: 'flow', metric: 'bandar', params: { window: 10 } }, 'between', -100, -6), bigdist: V({ kind: 'flow', metric: 'bandar', params: { window: 10 } }, 'between', -100, -10) },
+    bandar: { acc: V(FLOW.bandar, 'between', 6, 100), bigacc: V(FLOW.bandar, 'between', 10, 100), dist: V(FLOW.bandar, 'between', -100, -6), bigdist: V(FLOW.bandar, 'between', -100, -10) },
     silent: { on: SP(pat('silent')) },
     obv: { rising: S(ind('I40', 'obv'), 'gt', tr('ma', ind('I40', 'obv'), { ma: 'SMA', length: 20 })), high: EP(pat('new_high', { of: 'I40.obv', length: 20 })) },
     mfi: { xa: EV(ind('I47', 'mfi'), 'crosses_above', { value: 20 }), xb: EV(ind('I47', 'mfi'), 'crosses_below', { value: 80 }) },
     cmf: { xa: EV(ind('I45', 'cmf'), 'crosses_above', { value: 0 }) },
-    fnet: { xa: EV({ kind: 'flow', metric: 'fnet', params: { window: 20 } }, 'crosses_above', { value: 0 }), xb: EV({ kind: 'flow', metric: 'fnet', params: { window: 20 } }, 'crosses_below', { value: 0 }) },
-    broker: { xa: EV({ kind: 'flow', metric: 'broker', params: { window: 5 } }, 'crosses_above', { value: 0 }) },
-    freq: { xa: EV({ kind: 'flow', metric: 'freq', params: { window: 20 } }, 'crosses_above', { value: 2.5 }, 3) },
+    fnet: { xa: EV(FLOW.fnet, 'crosses_above', { value: 0 }), xb: EV(FLOW.fnet, 'crosses_below', { value: 0 }) },
+    broker: { xa: EV(FLOW.broker, 'crosses_above', { value: 0 }) },
+    freq: { xa: EV(FLOW.freq, 'crosses_above', { value: 2.5 }, 3) },
   };
   if (legacy[key]?.[op]) return legacy[key][op];
   const valueMetric: Record<string, unknown> = {
@@ -93,10 +109,7 @@ function wire(key: string, op: string): unknown {
     ret: ind('I17', 'roc', { length: 20 }), rs: tr('vs_index', close, { window: 63 }), rs_rank: { kind: 'xsection', metric: 'return_rank', params: { window: 252 } },
     volspike: tr('ratio', volume, { by: tr('lag', tr('ma', volume, { ma: 'SMA', length: 20 }), { bars: 1 }) }),
     mfi: ind('I47', 'mfi'), cmf: ind('I45', 'cmf'), adv: { kind: 'universe', attr: 'adv20_idr' },
-    bandar: { kind: 'flow', metric: 'bandar', params: { window: 10 } }, topacc: { kind: 'flow', metric: 'topacc', params: { window: 10 } },
-    broker: { kind: 'flow', metric: 'broker', params: { window: 5 } }, bavg: { kind: 'flow', metric: 'bavg', params: { window: 10 } },
-    fnet: { kind: 'flow', metric: 'fnet', params: { window: 20 } }, fstreak: { kind: 'flow', metric: 'fstreak', params: { window: 60 } },
-    fpct: { kind: 'flow', metric: 'fpct', params: { window: 20 } }, freq: { kind: 'flow', metric: 'freq', params: { window: 20 } },
+    ...FLOW,
   };
   if (['gt', 'lt', 'between'].includes(op)) {
     if (valueMetric[key]) return val(op, valueMetric[key]);
@@ -120,7 +133,7 @@ describe('every (key, operator) pair of the prototype maps to a wire test or a s
       }
     }
     expect(unmapped).toEqual([]);
-    // refused only with a stated reason: raw cumulative levels, Ichimoku (P6), flow (Phase 2), fundamentals (no data)
+    // refused only with a stated reason: raw cumulative levels, Ichimoku (P6), flow (no broker window here), fundamentals (no data)
     for (const [pair, why] of Object.entries(refused)) {
       const [k] = pair.split(' ');
       const ok = (CAT[k].g === 'Fundamental' && /^METRIC_UNAVAILABLE/.test(why))
@@ -131,6 +144,10 @@ describe('every (key, operator) pair of the prototype maps to a wire test or a s
     }
     expect(Object.keys(refused).length).toBe(32 * 3 + 2 + 5 * 2 + 30);  // fundamentals, Ichimoku, raw cumulative gt / lt, the 30 flow pairs
     expect(mapped.length + Object.keys(refused).length).toBe(pairs.length);
+    // the 30 flow pairs validate once the broker window is loaded (their setups are sound, not only unavailable)
+    const flowPairs = Object.keys(refused).filter(p => FLOW[p.split(' ')[0]]);
+    expect(flowPairs.length).toBe(30);
+    for (const pair of flowPairs) { const [k, op] = pair.split(' '); expect([pair, (() => { try { validateTest(wire(k, op), 't', FLOW_READY); return 'valid' } catch (e) { return (e as Error).message } })()]).toEqual([pair, 'valid']) }
   });
 });
 

@@ -62,7 +62,9 @@ export function screenBlocked(): string | null {
   if (!ctx.catalog) return null;
   if (Object.keys(S.errors).length) return 'Fix the highlighted field of a condition; the screen runs once every field is valid.';
   const lim = ctx.catalog.limits.find(l => l.name === 'max_conditions'), n = activeCards().length;
-  if (lim && n > lim.value) return `${lim.rule}. Switch off or remove ${n - lim.value} condition(s). Allowed: ${lim.example_ok}. Refused: ${lim.example_refused}.`;
+  // the catalog's rule opens the sentence (the worker writes it in lower case, as a clause)
+  const rule = lim ? lim.rule.charAt(0).toUpperCase() + lim.rule.slice(1).replace(/[.\s]+$/, '') : '';
+  if (lim && n > lim.value) return `${rule}. Switch off or remove ${n - lim.value} condition(s). Allowed: ${lim.example_ok}. Refused: ${lim.example_refused}.`;
   return null;
 }
 

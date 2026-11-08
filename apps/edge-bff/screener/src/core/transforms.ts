@@ -19,10 +19,12 @@ import type { Num } from '../../../terminal/src/calc/indicators.ts';
 import type { HistoryClass, IndicatorRef, MetricRef, ParamMap, PatternRef, PriceField, TransformRef } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { METRICS_CATALOG, metricSpec, resolveCatalogParams, transformSpec } from './catalog.ts';
+import type { OperatorMeasure } from './catalog.ts';
 import { BAR_FIELDS, screenerIndicator, screenerOutput } from './registry.ts';
 import type { BarField, ParamOptions } from './registry.ts';
 import { resolveIndicator, resolveSeries } from './metrics.ts';
 import type { ResolvedSeries, TickerBars, TickerCalc } from './metrics.ts';
+import type { FlowBindContext } from './flowmetrics.ts';
 
 type In = ArrayLike<Num | undefined>;
 export type Series = Num[];
@@ -296,13 +298,62 @@ export const IMPLEMENTED_TRANSFORMS: readonly string[] = ['pct_distance', 'band_
     parameters are read) and the close for vs_index. `index` (IHSG's bars) serves vs_index when it computes (validation
     needs none). Nesting deeper than
     MAX_DEPTH transforms is refused. */
-export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOptions & { index?: TickerBars }): ResolvedSeries {
+export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOptions & { index?: TickerBars; flow?: FlowBindContext; flowReach?: number | null }): ResolvedSeries {
+  const operands: ResolvedSeries[] = [];
+  const r = resolveTransformCore(ref, field, ctx, operands);
+  return withFlow(r, (r.ref as TransformRef).fn, ((r.ref as TransformRef).args || {}) as Record<string, unknown>, operands);
+}
+/** K1 (OPERATORS.md section 3): the sessions an operator reads before its operand's own: N for 2, 3, 4, 6, 12 and 14
+    (and the lag, moving average and rolling windows), 2N for 13 (acceleration); a relative comparison or a ratio reads
+    none. */
+function operatorSessions(fn: string, args: Record<string, unknown>): number {
+  const n = typeof args.length === 'number' ? args.length : typeof args.bars === 'number' ? args.bars : 0;
+  return fn === 'acceleration' ? 2 * n : n;
+}
+/** The operators whose value at a session reads only the N sessions before it, each exactly (no running sum, no
+    recursion): a reader of their result at its last `reach` sessions reads their operand at its last reach + N. */
+const LOCAL = ['lag', 'change', 'change_pct', 'rolling_max', 'rolling_min', 'distance_to_extreme', 'slope', 'acceleration', 'relative', 'ratio', 'pct_distance'];
+/** P5b cost (flowmetrics.ts resolveFlow's lazy anchored series): the reach of a transform's operands from the reach of
+    its reader. undefined (not a screen) and null (the whole history) pass down; a local operator adds its N (2N for
+    acceleration); a percentile or z-score adds its N only over a flow series itself (its readiness reads the operand's
+    first value, which the lazy flow series keeps; an operator in between would move it); a moving average, a historical
+    average, a rising run (a running sum or a recursion over the whole history) and anything else read the whole
+    history (null). */
+export function operandReach(fn: string, args: Record<string, unknown>, reach: number | null | undefined, ofKind: unknown): number | null | undefined {
+  if (reach === undefined || reach === null) return reach;
+  if (LOCAL.includes(fn)) return reach + operatorSessions(fn, args);
+  if ((fn === 'percentile' || fn === 'zscore') && ofKind === 'flow') return reach + operatorSessions(fn, args);
+  return null;
+}
+/** Transforms that keep their operand's level (and so its output type): a lag, an average, a rolling extreme. */
+const KEEPS_LEVEL = ['lag', 'ma', 'rolling_max', 'rolling_min'];
+/** Of those, the ones whose every value is one of the operand's values (a lag, a rolling extreme; an average is not): a
+    whole-number operand stays whole, so "=" and "!=" stay offered on it (K7: "yesterday's signal = 1"). */
+const KEEPS_VALUES = KEEPS_LEVEL.filter(fn => fn !== 'ma');
+/** The transform's series with what it inherits from a flow operand (P5a): flowDepth = the deepest flow operand's
+    sessions plus the operator's own (operatorSessions; null when an operand's is not known), flowOwn the flow
+    indicator's own, and the operand's output type where the transform keeps its level. Without a flow operand only
+    the kept output type is added. */
+function withFlow(r: ResolvedSeries, fn: string, args: Record<string, unknown>, operands: readonly ResolvedSeries[]): ResolvedSeries {
+  const kind = { ...(KEEPS_LEVEL.includes(fn) && operands[0]?.outputKind ? { outputKind: operands[0].outputKind } : {}), ...(KEEPS_VALUES.includes(fn) && operands[0]?.integer ? { integer: true } : {}) };
+  const flows = operands.filter(o => o.flowDepth !== undefined);
+  if (!flows.length) return { ...r, ...kind };
+  const known = flows.every(o => typeof o.flowDepth === 'number');
+  const depth = known ? Math.max(...flows.map(o => o.flowDepth as number)) + operatorSessions(fn, args) : null;
+  const owns = flows.map(o => o.flowOwn === undefined ? o.flowDepth : o.flowOwn);
+  const own = owns.every(x => typeof x === 'number') ? Math.max(...owns as number[]) : null;
+  return { ...r, ...kind, flowDepth: depth, flowOwn: own };
+}
+function resolveTransformCore(ref: TransformRef, field: string, ctx0: ParamOptions & { index?: TickerBars; flow?: FlowBindContext; flowReach?: number | null }, operands: ResolvedSeries[]): ResolvedSeries {
   if (field.split('.of').length - 1 + field.split('.args.').length - 1 >= MAX_DEPTH)
     throw new ScreenerError('INVALID_CONDITION', `${field}: transforms nest at most ${MAX_DEPTH} deep; simplify the reference.`, field);
   const spec = transformSpec(ref.fn, `${field}.fn`);
   if (ref.args !== undefined && !isObj(ref.args)) throw new ScreenerError('INVALID_CONDITION', `${field}.args must be an object.`, `${field}.args`);
   const refKeys = spec.ref_args.map(a => a.key), given = (ref.args || {}) as Record<string, unknown>;
   const scalar = resolveCatalogParams(spec.args, Object.fromEntries(Object.entries(given).filter(([k]) => !refKeys.includes(k))), `${field}.args`, refKeys);
+  // the operands are resolved under the reach this operator gives them (P5b; operandReach)
+  const reach = operandReach(spec.fn, scalar, ctx0.flowReach, isObj(ref.of) ? ref.of.kind : null);
+  const ctx = reach === ctx0.flowReach ? ctx0 : { ...ctx0, flowReach: reach };
   const refArgs: Record<string, ResolvedSeries> = {};
   for (const k of refKeys) {
     if (!isObj(given[k])) throw new ScreenerError('INVALID_CONDITION', `${field}.args.${k} must be a metric reference (${spec.ref_args.find(a => a.key === k)!.label}).`, `${field}.args.${k}`);
@@ -310,6 +361,11 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
   }
   if (!isObj(ref.of)) throw new ScreenerError('INVALID_CONDITION', `${field}.of must be a metric reference.`, `${field}.of`);
   const of = resolveSeries(ref.of, `${field}.of`, ctx);
+  operands.push(of, ...refKeys.map(k => refArgs[k]));
+  // OPERATORS.md section 4: a measure of the operators block (or a transform it names among its forms) on a series of a
+  // type it is not offered on, as the series or as the second series, is refused before anything else of the transform
+  operatorTakes(spec.fn, of, `${field}.of`);
+  for (const k of refKeys) operatorTakes(spec.fn, refArgs[k], `${field}.args.${k}`);
   const args: Record<string, unknown> = { ...scalar };
   for (const k of refKeys) args[k] = refArgs[k].ref;
   const norm = { kind: 'transform', fn: spec.fn, of: of.ref, args } as unknown as TransformRef;
@@ -363,21 +419,17 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
     }
     // the universal operators (OPERATORS.md 2-4, 6, 7, 12-14)
     case 'vs_average': {
-      operatorTakes(spec.fn, of, `${field}.of`);
       const type = scalar.ma as 'SMA' | 'EMA', form = scalar.form as 'difference' | 'ratio' | 'percent';
       return { ...base, label, unit: form === 'difference' ? differenceUnit(of) : form, historyClass: type === 'SMA' ? windowed(of.historyClass) : worst(of.historyClass, 'recursive'),
         inputs: of.inputs, comparableWith: null, compareLag: NO_LAG, full: t => vsAverage(of.full(t), type, num('length'), form) };
     }
     case 'percentile':
-      operatorTakes(spec.fn, of, `${field}.of`);
       return { ...base, label, unit: 'percentile', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
         full: t => percentileOwn(of.full(t), num('length')) };
     case 'zscore':
-      operatorTakes(spec.fn, of, `${field}.of`);
       return { ...base, label, unit: 'sd', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
         full: t => zScore(of.full(t), num('length')) };
     case 'change_pct':
-      operatorTakes(spec.fn, of, `${field}.of`);
       return { ...base, label, unit: 'percent', historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
         full: t => pctChange(of.full(t), num('bars')) };
     case 'relative': {
@@ -388,15 +440,12 @@ export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOpt
         full: t => relative(of.full(t), by.full(t), form) };
     }
     case 'slope':
-      operatorTakes(spec.fn, of, `${field}.of`);
       return { ...base, label, unit: differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
         full: t => slope(of.full(t), num('length')) };
     case 'acceleration':
-      operatorTakes(spec.fn, of, `${field}.of`);
       return { ...base, label, unit: differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
         full: t => acceleration(of.full(t), num('length')) };
     case 'distance_to_extreme': {
-      operatorTakes(spec.fn, of, `${field}.of`);
       const extreme = scalar.extreme as 'highest' | 'lowest', form = scalar.form as 'absolute' | 'percent';
       return { ...base, label, unit: form === 'percent' ? 'percent' : differenceUnit(of), historyClass: windowed(of.historyClass), inputs: of.inputs, comparableWith: null, compareLag: NO_LAG,
         full: t => distanceToExtreme(of.full(t), extreme, num('length'), form) };
@@ -410,21 +459,45 @@ const differenceUnit = (x: ResolvedSeries): string | null => x.unit === 'price' 
 const unitWords = (x: ResolvedSeries): string => x.unit === null ? 'without a unit' : x.comparableWith ? `a ${x.comparableWith === 'close' ? 'price' : 'volume'} level (${x.unit})` : `in ${x.unit}`;
 /** Which universal operators an output type takes (OPERATORS.md section 4), from the catalog's operators block (one
     source with the page): a series made by a transform of a type (P: percentile, zscore, already set against its own
-    history; D: rising_run, a count of consecutive sessions) is not offered the measures whose not_on names that type;
-    every other series takes every measure. */
+    history; D: rising_run, a count of consecutive sessions) or a flow output of a type (flow-kinds.json) is not offered
+    the measures whose not_on names that type, nor the catalog's other transforms a measure names among its `forms`
+    (operator 7's: the moving average of a series, the series another one is compared with, and the ratio of two
+    series): a 0/1 signal takes no average and no comparison with another series. Every other series takes every
+    measure. */
 const OPS = METRICS_CATALOG.operators;
-const NOT_OFFERED: Record<string, readonly string[]> = Object.fromEntries(Object.keys(OPS.types).map(k => [k, OPS.measures.filter(m => m.not_on.includes(k)).map(m => m.fn)]));
-const OPERATOR_NAMES: Record<string, string> = Object.fromEntries(OPS.measures.map(m => [m.fn, m.label]));
-/** The output type of OPERATORS.md section 4 a series has (P, D), from the transform that made it; null for any other. */
+/** The measure of each transform the operators block governs: a measure's own fn, and each of its forms. */
+const MEASURE_OF: Readonly<Record<string, OperatorMeasure>> = Object.fromEntries(OPS.measures.flatMap(m => [m.fn, ...(m.forms ?? [])].map(fn => [fn, m])));
+const NOT_OFFERED: Record<string, readonly string[]> = Object.fromEntries(Object.keys(OPS.types).map(k => [k, Object.keys(MEASURE_OF).filter(fn => MEASURE_OF[fn].not_on.includes(k))]));
+/** The words of a governed transform: its label (the measure's, or a form's in the catalog) and, for a form, the
+    measure it follows. */
+const operatorName = (fn: string): { label: string; name: string } => {
+  const m = MEASURE_OF[fn], label = m.fn === fn ? m.label : METRICS_CATALOG.transforms.find(t => t.fn === fn)?.label ?? fn;
+  return { label, name: m.fn === fn ? label : `${label}, like ${m.label},` };
+};
+/** The output type of OPERATORS.md section 4 a series has: a flow output's kind (flow-kinds.json: K, P, Rp, L, H, D,
+    F, B), kept through a transform that keeps its operand's level (lag, ma, rolling_max, rolling_min); else P or D from
+    the transform that made it (percentile, zscore, rising_run); null for any other (an indicator output takes every
+    operator). */
 export function outputType(x: ResolvedSeries): string | null {
+  if (x.outputKind) return x.outputKind;
   const fn = x.kind === 'transform' ? (x.ref as TransformRef).fn : null;
   return Object.entries(OPS.types).find(([, t]) => fn !== null && t.fns.includes(fn))?.[0] ?? null;
 }
-function operatorTakes(fn: string, of: ResolvedSeries, field: string): void {
+/** Refuses the transform `fn` on `of` (as its series or its second series) when the operators block does not offer it
+    on of's output type (OPERATORS.md section 4; the gate rule of AGENTS.md: the page lists only the measures a type
+    takes, the message names the field, the type, what it takes and a right and a wrong example). A transform the block
+    does not govern, and a series without a type, pass. condition.ts reads it for a STATE between two series (operator
+    7 read as its sign). */
+export function operatorTakes(fn: string, of: ResolvedSeries, field: string): void {
   const type = outputType(of);
-  if (!type || !NOT_OFFERED[type].includes(fn)) return;
-  const takes = [...new Set(OPS.measures.filter(m => !NOT_OFFERED[type].includes(m.fn)).map(m => m.label))];
-  throw new ScreenerError('INVALID_CONDITION', `${field}: ${of.label} ${OPS.types[type].words}, so ${OPERATOR_NAMES[fn]} is not offered on it; it takes ${takes.join(', ')}, a value test, a range or a cross. Apply the operator to the series itself instead (right: ${OPERATOR_NAMES[fn]} of RSI; wrong: ${OPERATOR_NAMES[fn]} of ${OPS.types[type].fns.join(' or ')}).`, field, { allowed: takes });
+  if (!type || !NOT_OFFERED[type]?.includes(fn)) return;
+  const takes = [...new Set(OPS.measures.filter(m => !m.not_on.includes(type)).map(m => m.label))];
+  const tests = OPS.tests.filter(t => !(t.not_on || []).includes(type)).map(t => t.label);
+  const made = OPS.types[type].fns, { label, name } = operatorName(fn);
+  const wrong = made.length ? made.join(' or ') : of.label;
+  const rest = made.length ? ', a value test, a range or a cross. Apply the operator to the series itself instead'
+    : tests.length ? `${takes.length ? ' and' : ', only'} the tests ${tests.join(', ')}` : '';
+  throw new ScreenerError('INVALID_CONDITION', `${field}: ${of.label} ${OPS.types[type].words}, so ${name} is not offered on it; it takes ${takes.length ? takes.join(', ') : 'no measure'}${rest} (right: ${label} of RSI; wrong: ${label} of ${wrong}).`, field, { allowed: [...takes, ...(made.length ? [] : tests)] });
 }
 const closeSeries = (): ResolvedSeries => ({ kind: 'price', key: '', ref: { kind: 'price', field: 'close' }, label: 'close', unit: 'price', historyClass: null, inputs: ['C'], comparableWith: 'close', compareLag: NO_LAG, full: t => t.bars.C });
 

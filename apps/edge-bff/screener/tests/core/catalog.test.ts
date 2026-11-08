@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import prototypeText from '../../../../../verification/screener/evidence/html_ui/catalog.json?raw';
 import * as G from '../../scripts/build-screener-registry.mjs';
-import { METRICS_CATALOG, PRESETS, appliesTo, catalogProblems, resolveCatalogParams, transformSpec } from '../../src/core/catalog.ts';
+import { FLOW_REASONS, METRICS_CATALOG, PRESETS, appliesTo, catalogProblems, resolveCatalogParams, transformSpec } from '../../src/core/catalog.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS, rollingMax, rollingMin } from '../../src/core/transforms.ts';
 import { availabilityMap, availabilityOf, presetAvailability } from '../../src/core/validate.ts';
@@ -58,27 +58,28 @@ describe('screener-metrics.json', () => {
     expect([appliesTo('Industry = Banks', bank), appliesTo('Industry = Banks', miner), appliesTo('Industry = Banks', unclassified)]).toEqual([true, false, false]);
     expect([appliesTo('Industry != Banks', bank), appliesTo('Sector != Financials', miner), appliesTo('Sector != Financials', unclassified), appliesTo(null, bank)]).toEqual([false, true, true, true]);
   });
-  it('derives availability from the published index: flow needs its files, technical metrics need none, a decision wins', () => {
-    const flowIds = METRICS_CATALOG.metrics.filter(m => m.kind === 'flow').map(m => m.id);
-    expect(flowIds.length).toBe(20);
+  it('derives availability from the published index: technical metrics need none, a decision wins; the flow entries (the 48 Terminal flow indicators, then the Screener\'s own) follow the broker window (P5a, P5b)', () => {
+    const flows = METRICS_CATALOG.metrics.filter(m => m.kind === 'flow');
+    expect(flows.every(m => !!m.flow)).toBe(true);                                // no flow entry is typed in screener-metrics.json
+    expect(flows.map(m => m.id)).toEqual([...Array.from({ length: 48 }, (_, k) => `FL${String(k + 1).padStart(2, '0')}`), 'fnet', 'ksei_net']);
     const none = availabilityMap({});
-    const decided = METRICS_CATALOG.metrics.filter(m => m.kind === 'flow' && !m.decision).map(m => m.fl).sort();
-    expect(decided).toEqual(['FL01', 'FL02', 'FL04', 'FL06', 'FL07', 'FL08', 'FL09', 'FL10', 'FL12', 'FL16', 'FL18']);   // 16.11 D1: the first set
-    for (const id of flowIds) expect(none.get(id)!.availability).not.toBe('AVAILABLE');
     for (const id of ['hi52', 'rs', 'return_rank', 'breakout', 'squeeze', 'last', 'adv20_idr']) expect(none.get(id)!.availability).toBe('AVAILABLE');
-    const withFlow = availabilityMap({ broker_window: { columns: ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'buy_freq', 'sell_freq'] }, flow_series: {} });
-    for (const fl of decided) expect(withFlow.get(METRICS_CATALOG.metrics.find(m => m.fl === fl)!.id)!.availability).toBe('AVAILABLE');
-    expect(withFlow.get('fsurprise')!.availability).toBe('REQUIRES_DECISION');                                 // a later-list metric
-    const noFreq = availabilityOf(METRICS_CATALOG.metrics.find(m => m.id === 'freq')!, { broker_window: { columns: ['d', 'b'] } });
-    // i, m, bv, sv, bl, sl, buy_freq and sell_freq are missing: counted in words, never named (the page shows the reason)
-    expect(noFreq).toEqual({ availability: 'REQUIRES_DATA', reason: expect.stringMatching(/carries only part of its data: 8 of the 10 columns it needs are missing\.$/) });
-    // a file without any of the columns carries none of the data, never "part of it" ("1 of the 1 columns"); one
-    // missing column is singular; a file that lists them all is available
-    const pe = METRICS_CATALOG.metrics.find(m => m.id === 'pe')!, fnet = METRICS_CATALOG.metrics.find(m => m.id === 'fnet')!;
+    // the flow entries: no window (no broker days) -> REQUIRES_DATA; a window still loading -> REQUIRES_DATA with
+    // the loading words; complete -> AVAILABLE, except FL31 (no insider data), ksei_net (no KSEI data) and FL34 without
+    // the classification
+    const at = (w: { sessions: number; complete: boolean; classification: boolean }) => availabilityMap({}, METRICS_CATALOG, undefined, { first: '2026-08-10', last: '2026-11-03', ...w });
+    const needs: Record<string, string> = { FL31: FLOW_REASONS.insider, ksei_net: FLOW_REASONS.ksei };
+    for (const m of flows) expect([m.id, none.get(m.id)]).toEqual([m.id, { availability: 'REQUIRES_DATA', reason: needs[m.id] ?? FLOW_REASONS.none }]);
+    const loading = at({ sessions: 38, complete: false, classification: true }), ready = at({ sessions: 60, complete: true, classification: true }), noClass = at({ sessions: 60, complete: true, classification: false });
+    expect(loading.get('FL24')).toEqual({ availability: 'REQUIRES_DATA', reason: 'The broker data is still loading (38 sessions loaded so far); flow conditions run once every session of the window is loaded, usually within a few minutes.' });
+    for (const m of flows) expect([m.id, ready.get(m.id)!]).toEqual([m.id, needs[m.id] ? { availability: 'REQUIRES_DATA', reason: needs[m.id] } : { availability: 'AVAILABLE', reason: null }]);
+    // the catalog's words of a screener version are its own (flow-kinds.json), of a Terminal indicator the general ones
+    const fl23 = METRICS_CATALOG.metrics.find(m => m.id === 'FL23')!, fl24 = METRICS_CATALOG.metrics.find(m => m.id === 'FL24')!;
+    expect([fl23.formula, fl24.formula]).toEqual([expect.stringMatching(/^Series a: the Terminal's Broker Inventory/), expect.stringMatching(/^The Terminal's Bandar Balance · %/)]);
+    expect([noClass.get('FL34'), noClass.get('FL24')!.availability]).toEqual([{ availability: 'REQUIRES_DATA', reason: FLOW_REASONS.classification }, 'AVAILABLE']);
+    const pe = METRICS_CATALOG.metrics.find(m => m.id === 'pe')!;
     expect(availabilityOf(pe, { [pe.requires!.file]: { columns: ['d'] } }).reason).toMatch(/\. It needs data that this publication does not carry\.$/);
-    expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: ['x'] } }).reason).toMatch(/\. It needs data that this publication does not carry\.$/);
-    expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: [fnet.requires!.columns[0]] } }).reason).toMatch(/carries only part of its data: 1 of the 2 columns it needs is missing\.$/);
-    expect(availabilityOf(fnet, { [fnet.requires!.file]: { columns: [...fnet.requires!.columns] } })).toEqual({ availability: 'AVAILABLE', reason: null });
+    expect(availabilityOf(pe, { [pe.requires!.file]: { columns: [...pe.requires!.columns] } })).toEqual({ availability: 'AVAILABLE', reason: null });
     expect(availabilityOf(METRICS_CATALOG.metrics.find(m => m.id === 'index_membership')!, {}).availability).toBe('REQUIRES_DATA');
   });
   it('counts a published file only when the reader reads it: indexed but not read is REQUIRES_DATA in plain words, a missing file keeps its reason, a decision still wins (ERRORS M299)', () => {
@@ -86,6 +87,7 @@ describe('screener-metrics.json', () => {
     const all = Object.fromEntries(files.map(f => [f, {}]));
     const readsNone = availabilityMap(all, METRICS_CATALOG, new Set()), readsAll = availabilityMap(all, METRICS_CATALOG, new Set(files));
     for (const m of METRICS_CATALOG.metrics) {
+      if (m.flow) continue;                                                       // the broker window decides (above)
       if (m.decision) { expect([m.id, readsNone.get(m.id)!.availability]).toEqual([m.id, 'REQUIRES_DECISION']); continue }
       if (!m.requires) { expect([m.id, readsNone.get(m.id)!.availability]).toEqual([m.id, 'AVAILABLE']); continue }
       expect([m.id, readsNone.get(m.id)]).toEqual([m.id, { availability: 'REQUIRES_DATA', reason: `${m.unavailable_reason} It needs data that the Screener does not read yet.` }]);
@@ -118,10 +120,10 @@ describe('presets.json', () => {
     expect(status.ichi).toEqual({ availability: 'REQUIRES_DECISION', unavailable_legs: ['a', 'b'],
       reason: 'Not available: condition 1 (Close above the Ichimoku cloud), condition 2 (Tenkan crosses above Kijun): Ichimoku is not among the 53 indicators yet: it comes with a later release of the indicator list.' });
     expect(status.magic.reason).toMatch(/^Not available: condition 1 \(Magic Formula rank\): No fundamental data source .* universe filter 1 \(Market cap\): Market cap waits /);
-    expect(status.qflow.reason).toMatch(/^Not available: condition 1 \(ROE\), condition 2 \(Debt \/ equity\): No fundamental .* condition 3 \(Foreign net value\): Flow metrics /);
+    expect(status.qflow.reason).toMatch(/^Not available: condition 1 \(ROE\), condition 2 \(Debt \/ equity\): No fundamental .* condition 3 \(Foreign Net Value\): It needs the broker data, which this publication does not carry yet\.$/);
     expect([status.fstreak.availability, status.fstreak.unavailable_legs]).toEqual(['REQUIRES_DATA', ['a', 'b']]);
     expect([status.qflow.availability, status.qflow.unavailable_legs]).toEqual(['REQUIRES_DATA', ['a', 'b', 'c']]);      // the MA50 leg is available
-    expect([status.bavg.availability, status.bavg.unavailable_legs]).toEqual(['REQUIRES_DECISION', ['a', 'b']]);
+    expect([status.bavg.availability, status.bavg.unavailable_legs]).toEqual(['REQUIRES_DATA', ['a', 'b']]);        // flow legs: no broker window here (P5b)
     expect(status.magic.unavailable_legs).toEqual(['a', 'metric_filters[0]']);
     for (const p of PRESETS.presets) expect(Object.keys(p).filter(k => k !== 'view').sort()).toEqual(['category', 'definition', 'id', 'name', 'why']);
   });

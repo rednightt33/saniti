@@ -12775,9 +12775,33 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
   dan berikutnya). Cacat yang ditemukan dicatat M381-M384. Sisa LOW yang diterima: teks select terpotong di layar ponsel,
   panel 20 px lebih tinggi dari jendela 1100x760 (bisa digulir). Belum dibangun (keputusan user): ranking antar saham di
   dalam jendela; "=" dan "!=" tetap tersembunyi (K7, belum ada hasil operator berupa bilangan bulat).
-- Status: unit A (P1-P3) siap PR ([PR #59](https://github.com/rednightt33/saniti/pull/59)); menunggu "merge" dari user. P0
+- Status: unit A (P1-P3) di-merge 2026-11-07 14:41 UTC (`4451a31a`, PR #59) dan live di dev (edge-bff `3b54bab2`,
+  screener-worker `64b73512`; cek login: 6 screen operator 200, RAILWAY_CHANGELOG 2026-11-07). P0
   selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
-- P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; diterima 2026-11-07, menunggu "go").
+- Go merge unit B (user 2026-11-08: "Ok merge"), sesudah checklist 7 poin dan QA putaran 2 READY (PR #60). Batas hitung
+  SCREENER_MAX_CPU_MS tetap 4.500 ms (tidak diubah; pertanyaan ke user masih terbuka). Urutan rilis: merge -> edge-bff dan
+  screener-worker dari GitHub -> EXPLAIN read-only di dev -> upload terminal-publisher -> isi awal 60 tanggal broker ->
+  cek restart Postgres -> cek live dengan login (pertanyaan uji dengan data nyata).
+- Gerbang sebelum merge (user 2026-11-07, dijalankan sebelum PR dinyatakan siap merge): branch sinkron dengan main
+  terbaru; tidak ada konflik; diff ditinjau (perubahan tak sengaja, penghapusan, perubahan sensitif); build, lint dan tes
+  relevan lulus pada kode terkini; PR terdokumentasi dan mengarah ke main; review dan CI yang diwajibkan lulus; dampak
+  deploy ditinjau (database, konfigurasi, dependensi, rollback); merge, deploy dan verifikasi sesudah deploy berhasil.
+- P6 (20 pola candle, unit C) dibangun paralel selama unit B menunggu merge (user 2026-11-07: "Parallel, alright").
+  Kontrak: `verification/screener/P6_CANDLES.md`.
+- Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
+  Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
+  sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1
+  pertanyaan candlestick lewat halaman (fixture), hasil dibandingkan dengan hitungan ulang independen; diulang dengan data
+  nyata di dev sesudah deploy. 20 pola candlestick (P6) belum dibangun; pertanyaan candle memakai pola harga yang ada.
+- FL31 (insider) dan net pemegang besar KSEI: datanya belum dikirim ke worker, tampil REQUIRES_DATA. User 2026-11-07:
+  "Oke, FL31 dan KSEI nanti saja" (sesudah rilis flow; butuh file insider dan KSEI dari publisher).
+- P4 mengikuti EXEC-BROKER-DELTA (opsi D, cakupan 2; go user 2026-11-07 "Merge dan go sampai P4"). Kontrak:
+  `verification/screener/P4_BROKER_DAYS.md`. Dibangun 2026-11-07: publisher `b1be7f44` (file `broker-YYYY-MM-DD` untuk 60
+  tanggal, 163 tes), worker (file broker opsional, batas tetap, sisa tanggal di refresh berikutnya; 87 tes; store
+  terukur 79,4 MB untuk 60 x 24.500 baris sintetis). Temuan tinjauan: ganti snapshot dengan price_data sama membuang
+  snapshot lama seketika (request yang antre bisa 500); diperbaiki: dibuang sesudah SCREENER_DEADLINE_MS + 1 s. Terbuka:
+  satu file broker rusak menahan harga baru juga (sesuai kontrak; ditinjau di P5), EXPLAIN (ANALYZE, BUFFERS) query
+  jendela/tanggal/stamp di dev sebelum isi awal, restart Postgres sesudah isi awal.
 
 ## EXEC-BROKER-DELTA — publisher mengirim broker 5 sesi terakhir + tanggal yang berubah, bukan file setahun (opsi D, cakupan 2) (diterima 2026-11-07, BELUM dieksekusi)
 
@@ -12824,6 +12848,20 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
 8. Tumpang tindih yang disatukan supaya tidak dikerjakan dua kali: S6 (broker tidak disimpan dua kali) dan S7 (storage B)
    EXEC-PUBLISH-FLOW memakai format dasar + delta yang sama.
 
+### Fakta RAM screener-worker dan waktu publisher (log dan metrik Railway, 2026-11-07; jawaban pertanyaan user)
+- Data di RAM: satu salinan per replika untuk semua user (bar harga semua saham, `SharedArrayBuffer`), bukan per user.
+  Diunduh saat bangun (dari cache disk bila publikasi sama: `cached: disk`, 0 byte dari storage) atau saat publikasi
+  baru: xsection price 12.339.063 B + actions 21.214 B (deployment `ccb2c727`, log `refresh`).
+- Memori terukur saat hidup 0,47-0,62 GB, puncak 1,09 GB (metrik `MEMORY_USAGE_GB`, 2026-11-05..07); batas container
+  2,75 GB; cache 256 MiB (`SCREENER_CACHE_BYTES`); 2 thread hitung x 512 MB heap.
+- Tidur: 300 s tanpa request -> poll berhenti -> Railway menghentikan container. 11 masa hidup 10,9-26,1 menit, total
+  184 menit dalam ~25 jam (2026-11-06 13:22 .. 2026-11-07 14:45). Bangun: refresh ~20-25 s (baca disk 2,3 s, decode
+  3,6 s).
+- Tarif Railway (docs.railway.com/reference/pricing/plans): RAM $10/GB-bulan ($0,000231/GB-menit). 0,5 GB x 184 menit
+  ~ $0,02 per hari.
+- Waktu publisher: run tanpa data baru 215-242 s, harga saja 342 s (2026-11-06), hari broker 405 s (2026-11-03); jeda
+  `replaced_wait` 600 s sebelum run ulang. File tahunan broker menambah sekitar 1-3 menit (INFERENCE dari selisih).
+
 ### Keputusan user 2026-11-07 (kata user)
 - "Detail D -- exclude it for now pertanyaan yang kamu tanyakan arusan mengenai seberapa sering, da apakah data harga ikut
   pola yang sama sekarang." Kompaksi berkala dan harga tidak termasuk cakupan sekarang: hanya broker (saham dan IHSG).
@@ -12831,6 +12869,44 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
 - "Merge dan go sampai P4 pertanyaan diatas sudah conclude dari saya." PR #59 di-merge; eksekusi opsi D dan P4 dimulai.
   Pertanyaan RAM worker (berapa lama data ditahan di memori, biaya multi-user) dijawab dengan bukti live sebelum P4
   di-deploy.
+
+### Persyaratan user 2026-11-07 (memperluas cakupan; rancangan menunggu keputusan)
+- Kata user: "Ini diluar P4, goalnya adalah kalau data yang berubah, misalkan data update hari ini, ya data hari itu
+  saja yang dikirim dan data apabila memang ada data historical yang berubah. [...] masa ketika ada satu hari data
+  update, masa yang dikirim adalah 1 Januari sampai hari ini? Lebih parah lagi, ada yang dari 2018 sampai hari ini, which
+  is nggak efisien. Yang mau saya kirimkan ketika ada update harga, ya harga hari itu aja yang dikirim, atau kalau memang
+  ada perubahan data-data di tahun-tahun sebelumnya, barulah kita kirimkan data tersebut, boleh 1 tahun ke belakang. Ini
+  berlaku untuk harga, dan broker dan event."
+- Akibat: satuan kirim menjadi tanggal (hari baru saja; tanggal lama hanya bila berubah), untuk harga, broker dan event.
+  Menggantikan "5 sesi terakhir" dan tingkatan mingguan pada rancangan di atas. Harga dan event masuk cakupan (sebelumnya
+  harga dikeluarkan). Intraday dan obligasi tidak disebut user (belum masuk).
+- Klarifikasi user 2026-11-07: "kalau misalnya ada data berubah, jangan sampai data tersebut ada di storage 2. [...]
+  jangan sampai ada data Oktober 3 duplikat di storage. [...] kalau ada data historis yang berubah, mungkin data itu bisa
+  di-replace entah 1 tahun ke belakang [...] kalau misalkan data itu update menambah 1 hari, ya data di mana 1 hari
+  tambahan itu saja yang diupdate. [...] kalau misalkan ada satu ticker, dia berubah harganya. Dua minggu yang lalu, dia
+  berubah, maka kita replace saja 1 tahun ke belakang."
+  - Aturan: setiap saham-tanggal ada di tepat satu file yang aktif. Hari baru = satu file baru. Tanggal lama berubah = file
+    yang memuatnya diganti (paling besar satu tahun saham itu), file lama dihapus sesudah jeda aman unduhan.
+- Keputusan yang masih perlu: storage tidak bisa menambah ke file yang sudah ada, jadi pembaca per saham (Terminal,
+  Backtest) butuh peleburan berkala file harian menjadi file per saham, atau membuka satu file per hari.
+
+### Keputusan user 2026-11-07: pilihan C (kata user: "C")
+- Dinilai dari kecepatan Terminal (permintaan user: "Goalnya juga dari sisi efisiensi loading ke terminal sih"):
+  EXEC-TERMINAL-SPEED mengukur 21 file 3,15-3,51 s dan 5 file 0,94-1,16 s per saham (sandbox, 6 koneksi), kira-kira
+  +0,15 s per file tambahan.
+- Susunan per saham (Terminal, Backtest), tiga lapis, tiap saham-tanggal di tepat satu file aktif:
+  1. arsip tahun lama (berubah hanya bila tanggal di dalamnya dikoreksi);
+  2. tahun berjalan sampai akhir bulan lalu (ditulis sekali sebulan, dari file yang sudah ada di storage);
+  3. bulan berjalan (ditulis ulang setiap hari; paling banyak 22 sesi saham itu).
+  Sekitar 8 file per saham (sekarang 5). Kunjungan ulang hanya mengunduh lapis 3.
+- Susunan Screener: satu file per tanggal untuk semua saham; hari baru = satu file baru; tanggal berubah = file tanggal itu
+  diganti.
+- Berlaku untuk harga, broker dan event. Tanggal lama yang berubah: file lapis yang memuatnya diganti (arsip lama: pack
+  arsip ditulis ulang, jarang).
+- Sebelum membangun lapis per saham: ukur waktu buka chart dengan 5, 8, 15 dan 30 file kecil dari bucket yang sama.
+- Urutan (user 2026-11-07: "C nanti saja deh, setelah screener ini done"): P4 (file broker per tanggal untuk Screener),
+  P5, QA unit B dan rilis flow lebih dulu; susunan per saham C (publisher, terminal-api, Terminal, Backtest, harga
+  Screener) sesudah Screener flow selesai, mulai dengan langkah 0 (ukur waktu buka chart dengan 5, 8, 15, 30 file).
 
 ### Detail terbuka (dikeluarkan dari cakupan sekarang, keputusan user 2026-11-07)
 - Kompaksi: seberapa sering dan kapan (usul: mingguan, Sabtu, di luar jendela B6 dan cron lain).

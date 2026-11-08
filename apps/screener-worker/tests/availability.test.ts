@@ -55,12 +55,15 @@ function probe(m: MetricDefinition): unknown {
 }
 const definitionOf = (m: MetricDefinition) => ({ universe: U, logic: 'all', conditions: [{ id: 'a', enabled: true, test: probe(m) }] });
 
-test('a file the index names but this build does not read (broker_window): its metrics show REQUIRES_DATA with a plain reason, and a run with one is refused with that same reason', async () => {
-  assert.ok(!READ.includes('broker_window'), 'the case needs a file this build does not read');
-  const { port } = await start(pubOf('2026-10-27T13:03:23Z', ['broker_window']));
+test('a file the index names but this build does not read (a fundamentals file): its metrics show REQUIRES_DATA with a plain reason, and a run with one is refused with that same reason', async () => {
+  // the file of a metric the catalog shows that a preset reads
+  const FILE = UNREAD.find(f => METRICS_CATALOG.metrics.some(m => m.requires?.file === f && !m.decision)
+    && presetDefinitions().some(p => METRICS_CATALOG.metrics.some(m => m.requires?.file === f && JSON.stringify(p.definition).includes(`"${m.id}"`))))!;
+  assert.ok(FILE && !READ.includes(FILE), 'the case needs a file this build does not read');
+  const { port } = await start(pubOf('2026-10-27T13:03:23Z', [FILE]));
   const cat = await catalogOf(port);
-  const over = METRICS_CATALOG.metrics.filter(m => m.requires?.file === 'broker_window');
-  assert.ok(over.filter(m => !m.decision).length >= 5, 'the flow metrics of the first set read broker_window');
+  const over = METRICS_CATALOG.metrics.filter(m => m.requires?.file === FILE);
+  assert.ok(over.filter(m => !m.decision).length >= 1, `metrics read ${FILE}`);
   for (const m of over) {
     const c = cat.get(m.id);
     if (m.decision) { assert.deepEqual([m.id, c.availability, c.reason], [m.id, 'REQUIRES_DECISION', m.decision]); continue }
@@ -83,7 +86,7 @@ test('a file the index names but this build does not read (broker_window): its m
   // a preset with a leg over it is not available and quotes the same reason
   const cat2 = (await call(port, 'GET', '/v1/catalog', undefined, auth())).body;
   const leg = cat2.presets.find((p: any) => p.reason && p.reason.includes(c.reason));
-  assert.ok(leg && leg.availability === 'REQUIRES_DATA' && leg.match_count === null, 'a preset over broker_window names the reason');
+  assert.ok(leg && leg.availability === 'REQUIRES_DATA' && leg.match_count === null, `a preset over ${FILE} names the reason`);
 });
 
 test('an advance (the same files on a new publication) takes availability from the new index by the same rule, and validation follows it', async () => {

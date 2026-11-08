@@ -133,23 +133,43 @@ export function orderS3(conditions: readonly PlanCondition[]): PlanCondition[] {
 
 /** The cost model of S3 ordering and of the budget: predicted ms of a dynamic condition = (cost_class O(N·n) ? length :
     1) x bars x the ns per bar measured so far for its key (an exponentially weighted mean with weight alpha on the new
-    measurement; before any measurement, the registry cost model's ns_per_bar_length). observe() feeds measured times
-    back; its `length` is the multiplier predict() used (the length for O(N·n), 1 for O(N)). bars: what the caller
-    costs (one ticker's bars for PlanCondition.predictedMs, which is per ticker). */
+    measurement; before any measurement, the prior of its key: a number for every key, or a function of the key, the
+    registry cost model's ns_per_bar_length for an indicator, its flow prior for a flow indicator's broker rows).
+    observe() feeds measured times back; its `length` is the multiplier predict() used (the length for O(N·n), 1 for
+    O(N)). bars: what the caller costs (one ticker's bars for PlanCondition.predictedMs, which is per ticker; a flow
+    kernel's broker rows). observeShared() learns from one measured series of several kernels (a transform on its
+    operands): the time is shared among them in proportion to what each is predicted to cost now, so every condition
+    teaches the model, not only a series of one kernel (QA unit B, QA4). */
 export interface CostTracker {
   predict(key: string, costClass: 'O(N)' | 'O(N·n)', length: number, bars: number): number;
   observe(key: string, ms: number, bars: number, length: number): void;
+  observeShared(parts: readonly CostPart[], ms: number): void;
 }
-export function costTracker(initialNsPerBarLength: number, alpha: number): CostTracker {
-  if (!(Number.isFinite(initialNsPerBarLength) && initialNsPerBarLength > 0)) throw new RangeError(`costTracker: initialNsPerBarLength must be positive, not ${initialNsPerBarLength}`);
+/** One kernel of a measured series: its key, class, length (its multiplier, as predict reads it) and the bars (or rows)
+    it ran over. */
+export interface CostPart { key: string; costClass: 'O(N)' | 'O(N·n)'; length: number; bars: number }
+export function costTracker(initialNsPerBarLength: number | ((key: string) => number), alpha: number): CostTracker {
+  const positive = (v: number, of: string) => { if (!(Number.isFinite(v) && v > 0)) throw new RangeError(`costTracker: the prior ns per bar-length ${of} must be positive, not ${v}`); return v };
+  if (typeof initialNsPerBarLength === 'number') positive(initialNsPerBarLength, '');
   if (!(alpha > 0 && alpha <= 1)) throw new RangeError(`costTracker: alpha must be in (0, 1], not ${alpha}`);
+  const prior = typeof initialNsPerBarLength === 'number' ? () => initialNsPerBarLength : (key: string) => positive(initialNsPerBarLength(key), `of ${key}`);
   const ns = new Map<string, number>();
+  const mult = (costClass: 'O(N)' | 'O(N·n)', length: number) => costClass === 'O(N·n)' ? Math.max(1, length) : 1;
+  const predict = (key: string, costClass: 'O(N)' | 'O(N·n)', length: number, bars: number) => mult(costClass, length) * Math.max(0, bars) * (ns.get(key) ?? prior(key)) / 1e6;
+  const observe = (key: string, ms: number, bars: number, length: number) => {
+    if (!(Number.isFinite(ms) && ms >= 0 && bars > 0)) return;
+    const sample = ms * 1e6 / (bars * Math.max(1, length)), prev = ns.get(key);
+    ns.set(key, prev === undefined ? sample : alpha * sample + (1 - alpha) * prev);
+  };
   return {
-    predict: (key, costClass, length, bars) => (costClass === 'O(N·n)' ? Math.max(1, length) : 1) * Math.max(0, bars) * (ns.get(key) ?? initialNsPerBarLength) / 1e6,
-    observe: (key, ms, bars, length) => {
-      if (!(Number.isFinite(ms) && ms >= 0 && bars > 0)) return;
-      const sample = ms * 1e6 / (bars * Math.max(1, length)), prev = ns.get(key);
-      ns.set(key, prev === undefined ? sample : alpha * sample + (1 - alpha) * prev);
+    predict, observe,
+    observeShared(parts, ms) {
+      // one key once (two operands of one kind): its work is the sum of bars x multiplier of its parts
+      const work = new Map<string, number>();
+      for (const p of parts) work.set(p.key, (work.get(p.key) ?? 0) + mult(p.costClass, p.length) * Math.max(0, p.bars));
+      const shares = [...work].map(([key, w]) => ({ key, w, ms: predict(key, 'O(N)', 1, w) })), total = shares.reduce((s, x) => s + x.ms, 0);
+      if (!(total > 0)) return;
+      for (const s of shares) observe(s.key, ms * s.ms / total, s.w, 1);
     },
   };
 }

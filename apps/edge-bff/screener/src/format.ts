@@ -101,13 +101,15 @@ export function formatOfOutput(unit: string | null | undefined, displayUnit: str
   return 'raw';
 }
 /** The format of a non-indicator metric from its catalog unit (screener-metrics.json: '%', 'x', 'IDR', 'IDR per share',
-    'sessions', 'years', 'rank', 'pts'). */
+    'sessions', 'years', 'rank', 'pts'; a flow indicator's: 'IDR/tx', 'flag', 'brokers', '0-100', '0-1', '-1..1', 'sd'). */
 export function formatOfMetric(unit: string | null | undefined): ValueFormat {
   const u = (unit || '').toLowerCase();
   return u === '%' || u === 'percent' || u === 'pct' ? 'pct_signed' : u === 'x' || u === '×' || u === 'ratio' || u === 'multiple' ? 'multiple'
-    : u === 'idr' ? 'idr' : u === 'idr per share' || u === 'price' ? 'price' : u === 'volume' || u === 'shares' ? 'volume'
-    : u === 'sessions' || u === 'days' || u === 'bars' || u === 'years' ? 'count' : u === 'rank' || u === 'percentile' ? 'rank'
-    : u === 'pts' || u === 'points' ? 'pts' : 'raw';
+    : u === 'idr' || u === 'idr/tx' ? 'idr' : u === 'idr per share' || u === 'price' ? 'price' : u === 'volume' || u === 'shares' ? 'volume'
+    : u === 'sessions' || u === 'days' || u === 'bars' || u === 'years' || u === 'brokers' || u === 'flag' ? 'count' : u === 'rank' || u === 'percentile' ? 'rank'
+    : u === 'pts' || u === 'points' ? 'pts'
+    // the Terminal's flow units (flowRegistry.json `unit`, P5c): a 0-100 score, a 0-1 or -1..1 share, a z-score, a difference
+    : u === '0-100' ? 'index' : u === '0-1' || u === '-1..1' || u === 'sd' || u === 'diff' ? 'fraction' : 'raw';
 }
 
 /** d decimals, widened (up to 4 more) when rounding would turn a value that is not zero into 0 or −0, so a small

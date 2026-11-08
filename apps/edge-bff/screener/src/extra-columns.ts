@@ -25,7 +25,7 @@
    max_response_bytes and request_bytes), and cancelled by a new main run, a publication change or a column change.
    A failure marks the columns it carried (and the rest still missing for that table) with its message: never a retry
    loop. The answer never touches ctx.R, the saved definition or the main result state. */
-import type { Cell, ConditionDef, Definition, ParamMap, PerfPeriod, RowRemark, UniverseDef, ValueTest, Versions } from './core/contract.ts';
+import type { Cell, ConditionDef, Definition, ParamMap, PerfPeriod, ResolvedParams, RowRemark, UniverseDef, ValueTest, Versions } from './core/contract.ts';
 import { UNIVERSE_DEFAULTS } from './core/contract.ts';
 import { ApiFailure, isAbort } from './api/types.ts';
 import { VERSION_FIELDS } from './api/boot-cache.ts';
@@ -211,7 +211,7 @@ export function cacheKeyOf(id: string): string | null {
   return t && s?.test ? t.key + '#' + s.colKey : null;
 }
 
-interface ColAnswer { cells: Map<string, Cell>; params_resolved: ParamMap | null; unit: string | null; metric: string | null }
+interface ColAnswer { cells: Map<string, Cell>; params_resolved: ResolvedParams | null; unit: string | null; metric: string | null }
 /** table key -> column key -> what the worker answered; at most KEEP tables (the oldest goes first) */
 const cache = new Map<string, Map<string, ColAnswer>>();
 /** table key -> ticker -> its row remarks as the auxiliary answer gave them (equal to the table row's at one version) */
@@ -348,7 +348,7 @@ export function extraSortKey(ticker: string, id: string): number | null {
 }
 /** What the worker said about a column for the current table (header tooltip): the parameters it resolved, the unit,
     its metric name; null before the first answer. */
-export function extraColumnInfo(id: string): { params_resolved: ParamMap | null; unit: string | null; metric: string | null } | null {
+export function extraColumnInfo(id: string): { params_resolved: ResolvedParams | null; unit: string | null; metric: string | null } | null {
   const s = specs().byId.get(id), t = tableOf(); if (!s?.test || !t) return null;
   const a = cache.get(t.key)?.get(s.colKey);
   return a ? { params_resolved:a.params_resolved, unit:a.unit, metric:a.metric } : null;

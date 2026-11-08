@@ -16,9 +16,18 @@
    /api/terminal/v1/manifest/{ticker}; GET /api/terminal/v1/reference/tickers; GET /bucket/v1/<key> (presigned).
    requests: every request seen ({ method, path, headers, body }); fault(match, statuses): the next requests whose path
    starts with `match` (or for which match(req) is true) answer these statuses ('reset' drops the connection);
-   publish(p): a new publication (new index, objects kept as the publisher keeps the previous index's). */
+   publish(p): a new publication (new index, objects kept as the publisher keeps the previous index's).
+   EXEC-SCREENER-FLOW-CANDLES P4 (verification/screener/P4_BROKER_DAYS.md section 1): publication.broker = {date: rows}
+   adds one broker day file per date (index name broker-YYYY-MM-DD, as_of the date) in the publisher's format
+   (xsectionBrokerDoc, encodeBrokerDay); files[name].doc replaces a file's document (a broken one). /xsection refuses
+   more than 16 names, as terminal-api's MAX_XSECTION_NAMES does.
+   EXEC-SCREENER-FLOW-CANDLES P5a: publication.brokers = [[code, name, type, classification], ...] serves the reference
+   file `brokers` (publisher.py brokers_doc: code, name, type, classification) at GET /api/terminal/v1/reference/brokers
+   with its sha256, bytes and rows, as terminal-api answers for a file its refs index names; without it the route is a
+   404 (a publication without the file). */
 import crypto from 'node:crypto';
 import http from 'node:http';
+import zlib from 'node:zlib';
 import { encode, priceYears, pricePack, tickersRef } from '../../backtest-worker/tests/fake-terminal.mjs';
 
 export const PRICE_XSECTION_COLUMNS = ['t', 'd', 'o', 'h', 'l', 'c', 'v'];
@@ -41,6 +50,67 @@ export function xsectionPriceDoc(prices) {
 export function xsectionActionsDoc(rows) {
   return { schema_version: 1, dataset: 'xsection', name: 'actions', units: { ratio_old: 'shares', ratio_new: 'shares', amount_per_share: 'currency per share' },
     columns: ACTION_COLUMNS, ...Object.fromEntries(ACTION_COLUMNS.map((c, i) => [c, rows.map(r => r[i])])) };
+}
+
+/* ---- P4: broker day files ----------------------------------------------------------------------------------- */
+export const BROKER_DAY_COLUMNS = ['b', 'i', 'm', 'bv', 'sv', 'bl', 'sl', 'bf', 'sf'];
+export const BROKER_INVESTOR_TYPES = ['Domestic', 'Foreign'];
+export const BROKER_BOARDS = ['Regular', 'Nego', 'Tunai'];
+const cp = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+/** One broker day file (P4 section 1, publisher.py): rows = [[t, broker, investor_type, board, bv, sv, bl, sl, bf, sf,
+    gap?], ...] in any order; the file orders them by ticker, broker, investor_type, market_board (the primary key's
+    text order), indexes broker, investor type and board into its tables and adds tickers, gap and check. */
+export function xsectionBrokerDoc(date, rows) {
+  const sorted = [...rows].sort((x, y) => cp(x[0], y[0]) || cp(x[1], y[1]) || cp(x[2], y[2]) || cp(x[3], y[3]));
+  const brokers = [...new Set(sorted.map(r => r[1]))].sort(cp);
+  const tickers = [];
+  for (const r of sorted) { const last = tickers[tickers.length - 1]; if (last && last.t === r[0]) last.rows++; else tickers.push({ t: r[0], rows: 1 }) }
+  const col = k => sorted.map(r => r[k]);
+  const gap = [...new Set(sorted.filter(r => r[10]).map(r => JSON.stringify([r[0], r[3]])))].sort(cp).map(g => JSON.parse(g));
+  return {
+    schema_version: 1, dataset: 'xsection', name: `broker-${date}`, date, source: 'Feature_05_Foreign_Domestic_Broker_Detail',
+    units: { bv: 'IDR', sv: 'IDR', bl: 'lots (100 shares; odd lots as fractions)', sl: 'lots', bf: 'buy transactions', sf: 'sell transactions' },
+    means: { b: 'index into brokers', i: 'index into investor_types (the source investor identity, not broker domicile)', m: 'index into boards' },
+    brokers, investor_types: BROKER_INVESTOR_TYPES, boards: BROKER_BOARDS, tickers, columns: BROKER_DAY_COLUMNS,
+    b: sorted.map(r => brokers.indexOf(r[1])), i: sorted.map(r => BROKER_INVESTOR_TYPES.indexOf(r[2])), m: sorted.map(r => BROKER_BOARDS.indexOf(r[3])),
+    bv: col(4), sv: col(5), bl: col(6), sl: col(7), bf: col(8), sf: col(9), gap,
+    check: { rows: sorted.length, bv: col(4).reduce((a, x) => a + x, 0), sv: col(5).reduce((a, x) => a + x, 0) },
+  };
+}
+/** The publisher's encode of a broker day (P4 section 1): compact JSON, a whole number as an integer (1234, not 1234.0),
+    the check sums as floats; gzip level 9, mtime 0, OS byte 255 (as the backtest fake's encode). */
+export function encodeBrokerDay(doc) {
+  const num = x => x === null ? 'null' : String(x);                    // JS writes 1234 for 1234.0, as the publisher does
+  const flt = x => Number.isInteger(x) ? `${x}.0` : String(x);
+  const json = v => JSON.stringify(v);
+  const parts = Object.entries(doc).map(([k, v]) => {
+    if (BROKER_DAY_COLUMNS.includes(k)) return `${json(k)}:[${v.map(num).join(',')}]`;
+    if (k === 'check') return `${json(k)}:{"rows":${v.rows},"bv":${flt(v.bv)},"sv":${flt(v.sv)}}`;
+    return `${json(k)}:${json(v)}`;
+  });
+  const body = zlib.gzipSync(Buffer.from(`{${parts.join(',')}}`), { level: 9 });
+  body[9] = 255;
+  return { body, sha256: sha(body) };
+}
+/** Deterministic broker rows of one date for `tickers`: a few brokers per ticker on both investor types and the
+    Regular board (Nego now and then), whole and fractional lots, a null frequency now and then, a gap on one row. */
+export function brokerRowsOf(seed, date, tickers, { brokers = ['AK', 'BK', 'CC', 'DX', 'YP', 'ZP'] } = {}) {
+  let s = (seed * 7919 + Number(date.replace(/-/g, '')) % 104729) >>> 0 || 1;
+  const rnd = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296 };
+  const rows = [];
+  for (const t of tickers) {
+    const n = 2 + Math.floor(rnd() * 3);
+    const picked = [...brokers].sort(() => rnd() - 0.5).slice(0, n).sort();
+    for (const b of picked) for (const i of BROKER_INVESTOR_TYPES) {
+      const boards = rnd() < 0.2 ? ['Nego', 'Regular'] : ['Regular'];
+      for (const m of boards) {
+        const bl = rnd() < 0.3 ? Math.round(rnd() * 1e4) / 100 : Math.round(rnd() * 1e4), sl = Math.round(rnd() * 1e4);
+        rows.push([t, b, i, m, Math.round(bl * 100 * (500 + rnd() * 100)), Math.round(sl * 100 * (500 + rnd() * 100)), bl, sl,
+          rnd() < 0.05 ? null : Math.round(rnd() * 300), rnd() < 0.05 ? null : Math.round(rnd() * 300), rnd() < 0.02]);
+      }
+    }
+  }
+  return rows;
 }
 
 /** A deterministic random walk of n sessions ending on `last` (weekdays only), [[d, o, h, l, c, v], ...]. index: no volume. */
@@ -83,6 +153,14 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
     };
     put('price', xsectionPriceDoc(p.prices));
     put('actions', xsectionActionsDoc(p.actions ?? []));
+    // P4: one broker day file per date, under content keys as the publisher writes them
+    for (const [date, rows] of Object.entries(p.broker ?? {})) {
+      const name = `broker-${date}`, o = p.files?.[name] ?? {}, doc = o.doc ?? xsectionBrokerDoc(date, rows), real = encodeBrokerDay(doc);
+      const body = o.body ? Buffer.from(o.body) : real.body;
+      const k = `v1/xsection/${name}.${real.sha256.slice(0, 16)}.json.gz`;
+      objects.set(k, { body, status: o.status });
+      files[name] = { key: k, sha256: o.sha256 ?? real.sha256, bytes: o.bytes ?? real.body.length, rows: doc.check?.rows ?? 0, as_of: date };
+    }
     for (const [name, o] of Object.entries(p.files ?? {})) if (!files[name] && o.index) files[name] = o.index;
     const manifests = {};
     for (const [t, rows] of Object.entries(p.prices)) {
@@ -95,9 +173,16 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
     }
     const refKey = `ref/tickers.${pubs.length}.json.gz`;
     objects.set(refKey, { body: encode(tickersRef(p.ref)).body });
+    let brokersRef = null;
+    if (p.brokers) {
+      const cols = ['code', 'name', 'type', 'classification'], e = encode({ schema_version: 1, columns: cols, ...Object.fromEntries(cols.map((c, i) => [c, p.brokers.map(r => r[i])])) });
+      const key = `v1/ref/brokers.${e.sha256.slice(0, 16)}.json.gz`;
+      objects.set(key, { body: e.body });
+      brokersRef = { key, sha256: e.sha256, bytes: e.body.length, rows: p.brokers.length };
+    }
     const state = { finished_at: p.finished_at, price_through: p.price_through ?? Object.values(p.prices).reduce((m, r) => r[r.length - 1][0] > m ? r[r.length - 1][0] : m, ''),
       broker_through: p.broker_through ?? null, broker_behind_sessions: p.broker_behind_sessions ?? 0, xsection: p.noIndex ? null : files };
-    return { state, manifests, refKey };
+    return { state, manifests, refKey, brokersRef };
   }
   pubs.push(build(publication));
   const latest = () => pubs[pubs.length - 1];
@@ -135,6 +220,7 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
       if (req.method === 'POST' && u.pathname === '/api/terminal/v1/xsection') {
         let names;
         try { names = JSON.parse(entry.body || '{}').names } catch { return send(res, 400, { error: 'invalid_request' }) }
+        if (!Array.isArray(names) || !names.length || names.length > 16) return send(res, 422, { error: 'invalid_request', message: `names: 1 to 16 names (MAX_XSECTION_NAMES), not ${names?.length}` });
         const index = pub.state.xsection || {};
         const missing = (names || []).filter(n => !index[n]);
         if (missing.length) return send(res, 404, { error: 'xsection_not_published', message: `No cross-sectional file ${missing}` });
@@ -147,6 +233,9 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
         return m ? send(res, 200, m) : send(res, 404, { error: 'unknown_ticker', message: 'No published data.' });
       }
       if (req.method === 'GET' && u.pathname === '/api/terminal/v1/reference/tickers') return send(res, 200, { url: presign(pub.refKey), expires_in_seconds: ttl, encoding: 'gzip json' });
+      if (req.method === 'GET' && u.pathname === '/api/terminal/v1/reference/brokers') return pub.brokersRef
+        ? send(res, 200, { url: presign(pub.brokersRef.key), expires_in_seconds: ttl, encoding: 'gzip json', sha256: pub.brokersRef.sha256, bytes: pub.brokersRef.bytes, rows: pub.brokersRef.rows })
+        : send(res, 404, { error: 'unknown_reference', message: 'Reference files: tickers.' });
       return send(res, 404, { detail: 'Not Found' });
     } catch (e) { send(res, 500, { error: 'fake_error', message: String(e) }) }
   });

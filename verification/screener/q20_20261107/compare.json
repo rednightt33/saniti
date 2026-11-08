@@ -1,0 +1,836 @@
+{
+ "1": {
+  "title": "close above 1,000",
+  "cards": [],
+  "wallMs": 86,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "61 instrumentsin the universe · pick a preset to screen them",
+  "pageCount": 61,
+  "expected": 61,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": null
+ },
+ "2": {
+  "title": "RSI(14) below 30",
+  "cards": [
+   "Relative Strength Index (14, close) < 30"
+  ],
+  "wallMs": 138,
+  "computeMs": 75,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "2 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 2,
+  "bodyCount": 2,
+  "expected": 2,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   1.6503296335118794e-16
+  ],
+  "passCounts": [
+   {
+    "page": 2,
+    "na": 0,
+    "exp": 2,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "3": {
+  "title": "close above SMA(20)",
+  "cards": [
+   "Simple Moving Average (20, close): Close above SMA"
+  ],
+  "wallMs": 236,
+  "computeMs": 82,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "55 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 55,
+  "bodyCount": 55,
+  "expected": 55,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 55,
+    "na": 0,
+    "exp": 55,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "4": {
+  "title": "volume above 2x its 20-session average",
+  "cards": [
+   "Volume spike (20): Detected"
+  ],
+  "wallMs": 122,
+  "computeMs": 63,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "1 matchmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 1,
+  "bodyCount": 1,
+  "expected": 1,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 1,
+    "na": 0,
+    "exp": 1,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "5": {
+  "title": "breakout to a 20-session high (today)",
+  "cards": [
+   "Breakout (20): Detected (event) · within 1d"
+  ],
+  "wallMs": 219,
+  "computeMs": 93,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "7 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 7,
+  "bodyCount": 7,
+  "expected": 7,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 7,
+    "na": 0,
+    "exp": 7,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "6": {
+  "title": "RSI(14) crossed above 50 within 3 sessions",
+  "cards": [
+   "Relative Strength Index (14, close) crosses above 50 · within 3d"
+  ],
+  "wallMs": 143,
+  "computeMs": 79,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "10 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 10,
+  "bodyCount": 10,
+  "expected": 10,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 10,
+    "na": 0,
+    "exp": 10,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "7": {
+  "title": "MACD histogram > 0 AND close > SMA(50)",
+  "cards": [
+   "MACD (12, 26, 9, close) > 0",
+   "Simple Moving Average (50, close): Close above SMA"
+  ],
+  "wallMs": 256,
+  "computeMs": 106,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "40 matchesmeet all of 2 conditions · 90 in universe Near misses 27",
+  "pageCount": 40,
+  "bodyCount": 40,
+  "expected": 40,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0,
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 47,
+    "na": 0,
+    "exp": 47,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   },
+   {
+    "page": 60,
+    "na": 0,
+    "exp": 60,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ],
+  "near": {
+   "page": 27,
+   "exp": 27,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  }
+ },
+ "8": {
+  "title": "RSI percentile of its own 60 sessions >= 90",
+  "cards": [
+   "Relative Strength Index (14, close): Percentile of its own history, 60 sessions ≥ 90"
+  ],
+  "wallMs": 140,
+  "computeMs": 80,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "15 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 15,
+  "bodyCount": 15,
+  "expected": 15,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0.008403361344537766
+  ],
+  "passCounts": [
+   {
+    "page": 15,
+    "na": 0,
+    "exp": 15,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "9": {
+  "title": "close above SMA(20) for 5 sessions in a row",
+  "cards": [
+   "Simple Moving Average (20, close): Compared with Close, difference < 0 for 5 sessions in a row"
+  ],
+  "wallMs": 115,
+  "computeMs": 75,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "42 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 42,
+  "bodyCount": 42,
+  "expected": 42,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 42,
+    "na": 0,
+    "exp": 42,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "10": {
+  "title": "RSI rank >= 90 among stocks with ADV20 >= median",
+  "cards": [
+   "Relative Strength Index (14, close): rank among the screened stocks ≥ 90"
+  ],
+  "wallMs": 106,
+  "computeMs": 70,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "4 matchesmeet all of 1 condition · 45 in universe Near misses 0",
+  "pageCount": 4,
+  "bodyCount": 4,
+  "expected": 5,
+  "diff": {
+   "missing": [
+    "PANI"
+   ],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [
+    "PANI"
+   ],
+   "extra": []
+  }
+ },
+ "11": {
+  "title": "Bandar Balance (FL24, defaults, Regular) >= 6",
+  "cards": [
+   "Bandar Balance · % (Top N 3, Rolling days 10): ≥ 6"
+  ],
+  "wallMs": 266,
+  "computeMs": 165,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "23 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 23,
+  "bodyCount": 23,
+  "expected": 23,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   2.041708307513889e-16
+  ],
+  "passCounts": [
+   {
+    "page": 23,
+    "na": 1,
+    "exp": 23,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ]
+ },
+ "12": {
+  "title": "foreign net (fnet) positive over 5 sessions",
+  "cards": [
+   "Foreign Net Value (Sessions 5) > 0 Rp B"
+  ],
+  "wallMs": 312,
+  "computeMs": 147,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "51 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 51,
+  "bodyCount": 51,
+  "expected": 51,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 51,
+    "na": 1,
+    "exp": 51,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ]
+ },
+ "13": {
+  "title": "net flow streak (FL26) = 3",
+  "cards": [
+   "Net Flow Streak (Top N 3, Limit (days) 60): = 3"
+  ],
+  "wallMs": 237,
+  "computeMs": 156,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "6 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 6,
+  "bodyCount": 6,
+  "expected": 6,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 6,
+    "na": 1,
+    "exp": 6,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ]
+ },
+ "14": {
+  "title": "flow percentile (FL21) >= 90",
+  "cards": [
+   "Flow Percentile · vs Turnover (Top N 3, Rolling days (1 = daily) 1, Baseline sessions 59): ≥ 90"
+  ],
+  "wallMs": 230,
+  "computeMs": 133,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "9 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 9,
+  "bodyCount": 9,
+  "expected": 9,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 9,
+    "na": 1,
+    "exp": 9,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ]
+ },
+ "15": {
+  "title": "preset Big Accumulation (fixture preset list), loaded without its unavailable leg",
+  "cards": [
+   "Simple Moving Average (20, close): Close above SMA"
+  ],
+  "wallMs": 140,
+  "computeMs": 80,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "55 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 55,
+  "bodyCount": 55,
+  "expected": 55,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 55,
+    "na": 0,
+    "exp": 55,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ]
+ },
+ "16": {
+  "title": "FL23 inventory a, top 3 holders, slope over 5 sessions > 0",
+  "cards": [
+   "Broker Inventory (Top K 3, Lookback (sessions) 20, Holders that moved: by at least 0): Value · Slope (trend per session), 5 sessions > 0"
+  ],
+  "wallMs": 277,
+  "computeMs": 186,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "48 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 48,
+  "bodyCount": 48,
+  "expected": 48,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 48,
+    "na": 1,
+    "exp": 48,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ]
+ },
+ "17": {
+  "title": "close above FL18 buy VWAP anchored 20 sessions back",
+  "cards": [
+   "Buy VWAP · Anchored (Top N 3, Anchor: sessions before the evaluated candle 20): Compared with Close, difference < 0"
+  ],
+  "wallMs": 679,
+  "computeMs": 533,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "52 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "pageCount": 52,
+  "bodyCount": 52,
+  "expected": 52,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 52,
+    "na": 1,
+    "exp": 52,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ]
+ },
+ "18": {
+  "title": "close > SMA(50) AND RSI 50-70 AND FL24 >= 6 AND volume spike",
+  "cards": [
+   "Simple Moving Average (50, close): Close above SMA",
+   "Relative Strength Index (14, close) 50–70",
+   "Bandar Balance · % (Top N 3, Rolling days 10): ≥ 6",
+   "Volume spike (20): Detected"
+  ],
+  "wallMs": 363,
+  "computeMs": 291,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "0 matchesmeet all of 4 conditions · 90 in universe Near misses 12",
+  "pageCount": 0,
+  "bodyCount": 0,
+  "expected": 0,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0,
+   2.3313158678876716e-16,
+   1.4721498923669937e-16,
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 60,
+    "na": 0,
+    "exp": 60,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   },
+   {
+    "page": 45,
+    "na": 0,
+    "exp": 45,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   },
+   {
+    "page": 23,
+    "na": 1,
+    "exp": 23,
+    "expNa": 1,
+    "basis": "flow_date"
+   },
+   {
+    "page": 1,
+    "na": 0,
+    "exp": 1,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ],
+  "near": {
+   "page": 12,
+   "exp": 12,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  }
+ },
+ "19": {
+  "title": "breakout 20 (within 3) AND FL24 percentile >= 80 AND fnet > 0 on >= 3 of last 5",
+  "cards": [
+   "Breakout (20): Detected (event) · within 3d",
+   "Bandar Balance · % (Top N 3, Rolling days 10): Percentile of its own history, 25 sessions ≥ 80",
+   "Foreign Net Value (Sessions 1): > 0 on 3 of the last 5 sessions"
+  ],
+  "wallMs": 309,
+  "computeMs": 223,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "7 matchesmeet all of 3 conditions · 90 in universe Near misses 19",
+  "pageCount": 7,
+  "bodyCount": 7,
+  "expected": 7,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0,
+   0,
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 23,
+    "na": 0,
+    "exp": 23,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   },
+   {
+    "page": 28,
+    "na": 1,
+    "exp": 28,
+    "expNa": 1,
+    "basis": "flow_date"
+   },
+   {
+    "page": 43,
+    "na": 1,
+    "exp": 43,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ],
+  "near": {
+   "page": 19,
+   "exp": 19,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  }
+ },
+ "20": {
+  "title": "ANY: golden cross SMA20/50 within 5, OR squeeze (bandwidth at its 120-session low), OR FL11 > 0",
+  "cards": [
+   "Simple Moving Average (20, close): Golden cross (fast crosses above slow) · within 5d",
+   "Bollinger Bandwidth (20, close, 2, SMA): Distance to its high or low, lowest, 120 sessions, absolute ≤ 0",
+   "Net Flow / Turnover Ratio (Top N 3, Rolling days (1 = daily) 1) · Value > 0%"
+  ],
+  "wallMs": 350,
+  "computeMs": 246,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "90 matchesmeet any of 3 conditions · 90 in universe Near misses 0",
+  "pageCount": 90,
+  "bodyCount": 90,
+  "expected": 90,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   0,
+   1.0665648928483849e-12,
+   2.1903842616815696e-16
+  ],
+  "passCounts": [
+   {
+    "page": 6,
+    "na": 0,
+    "exp": 6,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   },
+   {
+    "page": 3,
+    "na": 0,
+    "exp": 3,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   },
+   {
+    "page": 89,
+    "na": 1,
+    "exp": 89,
+    "expNa": 1,
+    "basis": "flow_date"
+   }
+  ]
+ },
+ "1b": {
+  "title": "close above 1,000 (Price >= 1001: strict)",
+  "cards": [],
+  "wallMs": 77,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "58 instrumentsin the universe · pick a preset to screen them",
+  "pageCount": 58,
+  "expected": 58,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": null
+ },
+ "15b": {
+  "title": "closest: presets.json bigacc rebuilt by hand (FL24 top 3, 10 sessions, Regular, between 10 and 100 AND close > SMA(20))",
+  "cards": [
+   "Bandar Balance · % (Top N 3, Rolling days 10) 10–100%",
+   "Simple Moving Average (20, close): Close above SMA"
+  ],
+  "wallMs": 225,
+  "computeMs": 160,
+  "consoleErrors": [],
+  "csp": [],
+  "meta": "5 matchesmeet all of 2 conditions · 90 in universe Near misses 54",
+  "pageCount": 5,
+  "bodyCount": 5,
+  "expected": 5,
+  "diff": {
+   "missing": [],
+   "extra": []
+  },
+  "diffBody": {
+   "missing": [],
+   "extra": []
+  },
+  "cellMismatch": [],
+  "maxRel": [
+   2.102815114718347e-16,
+   0
+  ],
+  "passCounts": [
+   {
+    "page": 9,
+    "na": 1,
+    "exp": 9,
+    "expNa": 1,
+    "basis": "flow_date"
+   },
+   {
+    "page": 55,
+    "na": 0,
+    "exp": 55,
+    "expNa": 0,
+    "basis": "ticker_last_bar"
+   }
+  ],
+  "near": {
+   "page": 54,
+   "exp": 54,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  }
+ }
+}

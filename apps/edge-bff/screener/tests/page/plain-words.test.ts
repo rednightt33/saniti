@@ -24,7 +24,7 @@ import { ctx } from '../../src/state.ts';
 import { cellRemarkText, chipNoBreak, chipTraded, errorText, methodText, naText, remarkTitle, T } from '../../src/texts.ts';
 import { legNames } from '../../src/presets-ui.ts';
 import { EDGE_BFF_LIMITS, REFRESH_CAPS, WORKER_LIMITS, WORKER_VALUES } from './limits.ts';
-import { internalNames } from './plain-words.ts';
+import { internalNames, METRIC_IDS } from './plain-words.ts';
 
 type Limits = typeof WORKER_VALUES;
 interface WorkerCatalog {
@@ -121,7 +121,9 @@ describe('the catalog a user reads is plain words', () => {
   });
   it('on publications that carry the files, without some columns, complete, and complete but not read by the Screener: the reasons stay plain', () => {
     const files = [...new Set(METRICS_CATALOG.metrics.flatMap(m => m.requires ? [m.requires.file] : []))];
-    const partial = Object.fromEntries(files.map(f => [f, { columns: ['d'] }]));
+    // each file with the first column a metric needs of it, so a metric that needs more columns lacks some (P5a: the
+    // flow entries no longer read a file of columns)
+    const partial = Object.fromEntries(files.map(f => [f, { columns: [METRICS_CATALOG.metrics.find(m => m.requires?.file === f)!.requires!.columns[0]] }]));
     const full = Object.fromEntries(files.map(f => [f, {}]));
     const reasons = (cat: CatalogResponse) => shownIn(cat).filter(([w]) => / reason$/.test(w));
     const p = reasons(catalogAt(partial));
@@ -145,9 +147,12 @@ describe('the catalog a user reads is plain words', () => {
     expect(offending(shown)).toEqual([]);
   });
   it('the pattern catches each class the catalog used to show (so the walk above can fail)', () => {
+    expect(METRIC_IDS.length).toBeGreaterThanOrEqual(2);
     for (const s of ['wait for a source (P11)', 'use bandar (FL09)', 'waits for EXEC-MCAP', 'registry RVOL (I37) includes it', 'no value (NA INSUFFICIENT_HISTORY)',
       'market_board is the trading board', 'aligned to the ticker\'s dates (asOf)', 'between is value <= x <= value2', 'on a replica', 'preview a ticker of GET universe',
-      'or stopped with TIMEOUT', '(BUSY: retry)', 'it defaults to Regular (D7)', 'row remark STALE', 'use fpct to compare stocks', 'combine with fstreak'])
+      'or stopped with TIMEOUT', '(BUSY: retry)', 'it defaults to Regular (D7)', 'row remark STALE',
+      // a one-word metric id of the catalog as it stands (fpct and fstreak, the samples here, left it with P5b)
+      ...METRIC_IDS.slice(0, 2).map(id => `use ${id} to compare stocks`)])
       expect(internalNames(s), s).not.toEqual([]);
     for (const s of ['Market cap waits for its shares-outstanding data.', 'Relative Volume includes today', 'IHSG, LQ45, IDX30 and ADV20 over 20 sessions', 'P/E below 15', 'Phase 2',
       'the last close of a breakout', 'read it with Bandar balance', 'the bandar thresholds', 'its length cap', 'a payout below 85%'])

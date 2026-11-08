@@ -99,7 +99,7 @@ describe('LIMIT_EXCEEDED is worded from its catalog entry: where, the rule, what
   });
   it('compute_budget names the costliest condition by its place', () => {
     const m = plainWords(errorText('LIMIT_EXCEEDED', { details:{ limit:'compute_budget', allowed:20000, needed:31000, costliest:'b' } }));
-    expect(m).toBe(`Limit reached: ${limit('compute_budget').rule}; this one needs 31000 ms. Use fewer custom conditions or shorter lengths. The costliest is condition 2 (Relative Strength Index).`);
+    expect(m).toBe(`Limit reached: ${limit('compute_budget').rule}; this one needs 31000 ms. Use fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe. The costliest is condition 2 (Relative Strength Index).`);
   });
   it('max_conditions and max_metric_filters name the list to shorten', () => {
     expect(plainWords(errorText('LIMIT_EXCEEDED', { field:'definition.conditions', details:{ limit:'max_conditions', allowed:20, needed:23 } })))

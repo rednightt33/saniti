@@ -143,7 +143,7 @@ export async function reloadSaved() {
     (any case) replaces that metric; linked cards follow the new name. */
 export function openSaveMetric(c: Card) {
   const e = entryOf(c); if (!e) return;
-  const all = ctx.metrics || [], base = c.metric?.name || `${e.label} ${e.params.filter(p => p.type !== 'enum' && p.type !== 'boolean').map(p => c.params[p.key]).join('/')}`.trim();
+  const all = ctx.metrics || [], base = c.metric?.name || `${e.label} ${e.params.filter(p => p.type === 'integer' || p.type === 'number').map(p => c.params[p.key]).join('/')}`.trim();
   dialog(`<div class="dialog" role="dialog" aria-label="Save as My metric"><div class="dialog-h"><div style="flex:1"><strong>Save as My metric</strong><small>A named ${esc(e.label)} with these parameters. It appears under “My metrics” in the Add box, saved to your EDGE account.</small></div><button class="iconbtn sm" data-close>${ico(IC.x)}</button></div>
     <form class="dialog-b" id="mForm"><label class="fld"><span>Name</span><input class="inp" id="mName" value="${esc(base)}" maxlength="40" placeholder="Slow stochastic 50"></label>
       <div class="note"><b>Parameters:</b> ${esc(paramSummary(e, c.params))}<br><b>Starting condition:</b> ${esc(condRule(e, c) || '—')}</div><div class="note" id="mNote" aria-live="polite"></div></form>
