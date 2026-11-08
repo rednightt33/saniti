@@ -1,0 +1,878 @@
+{
+ "catalog": {
+  "status": 200,
+  "data": {
+   "evaluation_date": "2026-11-06",
+   "price_through": "2026-11-06",
+   "flow_through": "2026-11-03",
+   "broker_behind_sessions": 3,
+   "published_at": "2026-11-08T02:57:13.633637+00:00",
+   "broker_window": {
+    "first": "2026-08-10",
+    "last": "2026-11-03",
+    "sessions": 60,
+    "complete": true
+   },
+   "refresh": "ready"
+  },
+  "engine": "21ba252799d6fcdb"
+ },
+ "2": {
+  "title": "RSI(14) below 30",
+  "status": 200,
+  "ms": 256,
+  "match_count": 74,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "CUAN",
+    [
+     [
+      17.5372999397,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "DSSA",
+    [
+     [
+      28.0057149103,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BRPT",
+    [
+     [
+      24.7199784628,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "3": {
+  "title": "close above SMA(20)",
+  "status": 200,
+  "ms": 239,
+  "match_count": 51,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BBNI",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BRIS",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "4": {
+  "title": "volume above 2x its 20-session average",
+  "status": 200,
+  "ms": 335,
+  "match_count": 12,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "NATO",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "UVCR",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "SSIA",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "5": {
+  "title": "breakout to a 20-session high (today)",
+  "status": 200,
+  "ms": 367,
+  "match_count": 1,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "AIMS",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "6": {
+  "title": "RSI(14) crossed above 50 within 3 sessions",
+  "status": 200,
+  "ms": 240,
+  "match_count": 34,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "BBNI",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "PGAS",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "ICBP",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "7": {
+  "title": "MACD histogram > 0 AND close > SMA(50)",
+  "status": 200,
+  "ms": 251,
+  "match_count": 19,
+  "near": 108,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      48.2492977625,
+      "2026-11-06"
+     ],
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "PGAS",
+    [
+     [
+      19.5874242687,
+      "2026-11-06"
+     ],
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "KLBF",
+    [
+     [
+      5.14616834074,
+      "2026-11-06"
+     ],
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "8": {
+  "title": "RSI percentile of its own 60 sessions >= 90",
+  "status": 200,
+  "ms": 395,
+  "match_count": 7,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      96.6666666667,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "PGAS",
+    [
+     [
+      96.6666666667,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "UNVR",
+    [
+     [
+      96.6666666667,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "9": {
+  "title": "close above SMA(20) for 5 sessions in a row",
+  "status": 200,
+  "ms": 322,
+  "match_count": 19,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      5,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "AALI",
+    [
+     [
+      5,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "NATO",
+    [
+     [
+      5,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "10": {
+  "title": "RSI rank >= 90 among stocks with ADV20 >= median",
+  "status": 200,
+  "ms": 199,
+  "match_count": 3,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      100,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BBNI",
+    [
+     [
+      96,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BRIS",
+    [
+     [
+      92,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "11": {
+  "title": "Bandar Balance (FL24, defaults, Regular) >= 6",
+  "status": 200,
+  "ms": 213,
+  "match_count": 56,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "BBRI",
+    [
+     [
+      7.15520113492,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "TPIA",
+    [
+     [
+      9.47236622344,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "ASII",
+    [
+     [
+      6.86728164956,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "12": {
+  "title": "foreign net (fnet) positive over 5 sessions",
+  "status": 200,
+  "ms": 326,
+  "match_count": 138,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "BBCA",
+    [
+     [
+      520304279295,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "BUMI",
+    [
+     [
+      49584162400,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "ASII",
+    [
+     [
+      174983924450,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "13": {
+  "title": "net flow streak (FL26) = 3",
+  "status": 200,
+  "ms": 326,
+  "match_count": 17,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "PGAS",
+    [
+     [
+      3,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "AALI",
+    [
+     [
+      3,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "TOWR",
+    [
+     [
+      3,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "14": {
+  "title": "flow percentile (FL21) >= 90",
+  "status": 200,
+  "ms": 453,
+  "match_count": 50,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "TPIA",
+    [
+     [
+      94.9152542373,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "DSSA",
+    [
+     [
+      98.3050847458,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "ISAT",
+    [
+     [
+      98.3050847458,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "15": {
+  "title": "preset Big Accumulation (fixture preset list), loaded without its unavailable leg",
+  "status": 200,
+  "ms": 194,
+  "match_count": 51,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BBNI",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BRIS",
+    [
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ },
+ "16": {
+  "title": "FL23 inventory a, top 3 holders, slope over 5 sessions > 0",
+  "status": 200,
+  "ms": 524,
+  "match_count": 202,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "BBCA",
+    [
+     [
+      207623.7,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "BBRI",
+    [
+     [
+      186466.5,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "BMRI",
+    [
+     [
+      178226.5,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "17": {
+  "title": "close above FL18 buy VWAP anchored 20 sessions back",
+  "status": 200,
+  "ms": 380,
+  "match_count": 35,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      -177.868664726,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "PGAS",
+    [
+     [
+      -23.9203382555,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "ADMR",
+    [
+     [
+      -6.35347280905,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "18": {
+  "title": "close > SMA(50) AND RSI 50-70 AND FL24 >= 6 AND volume spike",
+  "status": 200,
+  "ms": 243,
+  "match_count": 0,
+  "near": 13,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASII",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      58.5284387384,
+      "2026-11-06"
+     ],
+     [
+      6.86728164956,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "AALI",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      59.1211083653,
+      "2026-11-06"
+     ],
+     [
+      17.4020038377,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "KLBF",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      54.9929815034,
+      "2026-11-06"
+     ],
+     [
+      7.44825782056,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "19": {
+  "title": "breakout 20 (within 3) AND FL24 percentile >= 80 AND fnet > 0 on >= 3 of last 5",
+  "status": 200,
+  "ms": 302,
+  "match_count": 1,
+  "near": 46,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "DKFT",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      100,
+      "2026-11-03"
+     ],
+     [
+      3,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "ASII",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      96,
+      "2026-11-03"
+     ],
+     [
+      5,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "DSSA",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      92,
+      "2026-11-03"
+     ],
+     [
+      3,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "20": {
+  "title": "ANY: golden cross SMA20/50 within 5, OR squeeze (bandwidth at its 120-session low), OR FL11 > 0",
+  "status": 200,
+  "ms": 687,
+  "match_count": 322,
+  "near": 0,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "ASPR",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      20.0983961407,
+      "2026-11-06"
+     ],
+     [
+      21.1031011176,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "INOV",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      17.5671466401,
+      "2026-11-06"
+     ],
+     [
+      16.0868702427,
+      "2026-11-03"
+     ]
+    ]
+   ],
+   [
+    "BBCA",
+    [
+     [
+      null,
+      "2026-11-06"
+     ],
+     [
+      27.8217147961,
+      "2026-11-06"
+     ],
+     [
+      29.7282461233,
+      "2026-11-03"
+     ]
+    ]
+   ]
+  ]
+ },
+ "15b": {
+  "title": "closest: presets.json bigacc rebuilt by hand (FL24 top 3, 10 sessions, Regular, between 10 and 100 AND close > SMA(20))",
+  "status": 200,
+  "ms": 211,
+  "match_count": 10,
+  "near": 54,
+  "universe": null,
+  "error": null,
+  "message": null,
+  "sample": [
+   [
+    "AALI",
+    [
+     [
+      17.4020038377,
+      "2026-11-03"
+     ],
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "INTP",
+    [
+     [
+      14.37854564,
+      "2026-11-03"
+     ],
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ],
+   [
+    "BTPS",
+    [
+     [
+      23.5614387767,
+      "2026-11-03"
+     ],
+     [
+      null,
+      "2026-11-06"
+     ]
+    ]
+   ]
+  ]
+ }
+}

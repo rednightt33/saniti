@@ -1,0 +1,17 @@
+Starting Container
+OUT {"part": "day_nodes", "nodes": [{"d": 0, "node": "Index Scan", "index": "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx", "rows": 23244.0, "loops": 1, "ms": 17.765, "hit": 5, "read": 383}]}
+OUT {"part": "day_verdict", "seq_scans": 0, "index_nodes": ["Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx"]}
+READONLY ["on"]
+OUT {"part": "window_dates", "first": "2026-08-10", "last": "2026-11-03", "n": 60}
+OUT {"part": "window", "execution_ms": 0.507, "planning_ms": 0.182, "wall_s": 0.0, "rows": 60.0, "shared_hit": 228, "shared_read": 0}
+OUT {"part": "window_nodes", "nodes": [{"d": 0, "node": "Sort", "index": null, "rows": 60.0, "loops": 1, "ms": 0.469, "hit": 228, "read": 0}, {"d": 1, "node": "Recursive Union", "index": null, "rows": 60.0, "loops": 1, "ms": 0.381, "hit": 228, "read": 0}, {"d": 2, "node": "Result", "index": null, "rows": 1.0, "loops": 1, "ms": 0.02, "hit": 4, "read": 0}, {"d": 3, "node": "Limit", "index": null, "rows": 1.0, "loops": 1, "ms": 0.018, "hit": 4, "read": 0}]}
+OUT {"part": "window_nodes", "nodes": [{"d": 4, "node": "Index Only Scan", "index": "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx", "rows": 1.0, "loops": 1, "ms": 0.017, "hit": 4, "read": 0}, {"d": 2, "node": "WorkTable Scan", "index": null, "rows": 0.98, "loops": 60, "ms": 0.006, "hit": 224, "read": 0}, {"d": 3, "node": "Result", "index": null, "rows": 1.0, "loops": 59, "ms": 0.006, "hit": 224, "read": 0}, {"d": 4, "node": "Limit", "index": null, "rows": 1.0, "loops": 59, "ms": 0.005, "hit": 224, "read": 0}]}
+OUT {"part": "window_nodes", "nodes": [{"d": 5, "node": "Index Only Scan", "index": "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx", "rows": 1.0, "loops": 59, "ms": 0.005, "hit": 224, "read": 0}, {"d": 1, "node": "CTE Scan", "index": null, "rows": 60.0, "loops": 1, "ms": 0.4, "hit": 228, "read": 0}]}
+OUT {"part": "window_verdict", "seq_scans": 0, "index_nodes": ["Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx"]}
+OUT {"part": "stocks", "n": 907}
+OUT {"part": "day", "execution_ms": 18.589, "planning_ms": 5.904, "wall_s": 0.03, "rows": 23244.0, "shared_hit": 5, "shared_read": 383}
+OUT {"part": "stamps", "execution_ms": 9442.617, "planning_ms": 1.965, "wall_s": 9.45, "rows": 60.0, "shared_hit": 49333, "shared_read": 26839}
+OUT {"part": "stamps_nodes", "nodes": [{"d": 0, "node": "Aggregate", "index": null, "rows": 60.0, "loops": 1, "ms": 9419.387, "hit": 49333, "read": 26839}, {"d": 1, "node": "Index Scan", "index": "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx", "rows": 1473361.0, "loops": 1, "ms": 8257.737, "hit": 49333, "read": 26839}]}
+OUT {"part": "stamps_verdict", "seq_scans": 0, "index_nodes": ["Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx"]}
+JOB_DONE
+JOB_EXIT 0

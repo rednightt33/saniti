@@ -1,0 +1,2 @@
+{"statement_timeout_ms": 600000, "work_mem": "64MB", "large_write": true,
+ "note": "P4 release (user 2026-11-08 'Ok merge'): read-only EXPLAIN (ANALYZE, BUFFERS) of the publisher's broker day statements; large_write only asks for the Postgres restart check after the ~1.47 M-row stamps read"}

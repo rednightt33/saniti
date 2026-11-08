@@ -398,6 +398,87 @@ await at('Operators (P3): "Operator…" opens Customize with Measure and Test fr
   const why = (await page.locator('#dtb .chk-list > div b').allInnerTexts()).map(t => t.trim());
   expect(JSON.stringify(why) === JSON.stringify(last3), 'the preview does not write the cells as the table: ' + JSON.stringify({ why, table:last3 }));
 });
+await at('Patterns (QA of unit C items 1-3): a candlestick names its side on its row, card and column; "Operator…" on a pattern counts the sessions it is detected (window tests only: no measure, no threshold), in words on its card, column and cells; the search finds a group by its heading and a side', async () => {
+  await fresh(); await ready();
+  const r0 = await runs();
+  await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(300);
+  await page.fill('#acq', 'candlestick'); await page.waitForTimeout(300);
+  const n = await page.locator('#acl .qrow[data-rg="Candlestick"]').count();
+  expect(n === 20, `"candlestick" does not find the 20 candlestick patterns: ${n}`);
+  await page.fill('#acq', 'bearish'); await page.waitForTimeout(300);
+  const sides = await page.locator('#acl .qrow[data-rg="Candlestick"] .qside').allInnerTexts();
+  expect(sides.length === 10 && sides.every(s => s === 'Bearish pattern'), '"bearish" does not find the ten bearish candlesticks, each with its side: ' + JSON.stringify(sides));
+  // an existing price pattern: on at least 1 of the last 20 sessions
+  await page.fill('#acq', 'breakout above'); await page.waitForTimeout(250);
+  let row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Breakout above prior N-session high$/ }) });
+  await row.locator('[data-af="opt"]').selectOption('__op'); await page.waitForTimeout(200);
+  const pop = row.locator('.qpop'), tests = await pop.locator('[data-ao="test"] option').allInnerTexts();
+  expect(await pop.count() === 1 && tests.length === 3 && /On K of the last N sessions/.test(tests.join('|')) && await pop.locator('[data-ao="measure"],[data-ao="cmp"],[data-ao="value"]').count() === 0,
+    'a pattern\'s operator does not offer the window tests alone: ' + JSON.stringify(tests));
+  await pop.locator('[data-ao="test"]').selectOption('at_least'); await page.waitForTimeout(150);
+  await row.locator('[data-ao="k"]').fill('1'); await row.locator('[data-ao="k"]').dispatchEvent('change'); await page.waitForTimeout(100);
+  await row.locator('[data-ao="n"]').fill('20'); await row.locator('[data-ao="n"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  // a candlestick: at least once in the last 30 sessions
+  await page.fill('#acq', 'bullish marubozu'); await page.waitForTimeout(250);
+  row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:/^Bullish Marubozu$/ }) });
+  expect(await row.locator('.qside').innerText() === 'Bullish pattern', 'the Bullish Marubozu row does not name its side');
+  await row.locator('[data-af="opt"]').selectOption('__op'); await page.waitForTimeout(200);
+  await row.locator('[data-ao="n"]').fill('30'); await row.locator('[data-ao="n"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  const sums = await page.locator('#condList .mc[data-card] .msum').allInnerTexts();
+  expect(sums.length === 2 && /Detected on at least 1 of the last 20 sessions$/.test(sums[0]) && /Detected at least once in the last 30 sessions$/.test(sums[1]), 'the cards do not say the pattern operators in words: ' + JSON.stringify(sums));
+  const pills = await page.locator('#condList .mc[data-card] [data-side]').allInnerTexts();
+  expect(JSON.stringify(pills) === '["Bullish"]', 'the candlestick card does not name its side (and only it): ' + JSON.stringify(pills));
+  expect(await runs() === r0, 'adding the pattern operators ran the screen');
+  await page.click('[data-logic="any"]'); await page.waitForTimeout(150);
+  await screen();
+  const heads = await page.locator('#resPane thead th').evaluateAll(ths => ths.map(t => ({ t:t.innerText.replace(/\s+/g, ' ').trim(), title:t.querySelector('button[data-sort]')?.getAttribute('title') || '' })));
+  expect(heads.some(h => /· 1 of 20/.test(h.t)) && heads.some(h => /^Bullish Marubozu · ever 30/.test(h.t) && /^Bullish pattern: /.test(h.title)), 'the columns do not name the windows and the side: ' + JSON.stringify(heads));
+  const tds = await page.locator('#resPane tbody tr').first().locator('td').evaluateAll(xs => xs.slice(-2).map(x => ({ t:x.innerText.trim(), title:x.getAttribute('title') || '' })));
+  expect(/^(Yes|No) · \d+\/20$/.test(tds[0].t) && /^(Yes|No) · \d+\/30$/.test(tds[1].t) && /^(Detected on \d+ of|Not detected in) the last 20 sessions \(1 needed\)/.test(tds[0].title) && /^(Detected on \d+ of|Not detected in) the last 30 sessions/.test(tds[1].title),
+    'the cells do not count the sessions detected, in words: ' + JSON.stringify(tds));
+  expect(await runs() === r0 + 1, 'Screen now did not run the screen exactly once');
+});
+await at('Customize at 1440, 1100 and 390 px (QA of unit C item 4): no select of the panel cuts its chosen option, and the panel stays inside the list (no sideways scroll)', async () => {
+  // a select's own need: a copy holding only its chosen option, as wide as that option
+  const measure = () => {
+    const pop = document.querySelector('.qpop'), list = document.querySelector('#acl'); if (!pop || !list) return null;
+    const cut = [...pop.querySelectorAll('select')].map(s => {
+      const c = document.createElement('select'), o = document.createElement('option'); c.className = s.className; o.textContent = s.selectedOptions[0]?.textContent || ''; c.append(o);
+      c.style.cssText = 'position:absolute;visibility:hidden;width:max-content!important;min-width:0!important;max-width:none!important';
+      s.parentElement.append(c); const need = c.getBoundingClientRect().width; c.remove();
+      return { text:s.selectedOptions[0]?.textContent, w:s.getBoundingClientRect().width, need };
+    }).filter(x => x.w + 0.5 < x.need);
+    const p = pop.getBoundingClientRect(), l = list.getBoundingClientRect();
+    return { cut, sideways:list.scrollWidth > list.clientWidth + 1 || list.scrollLeft > 0, inside:p.left >= l.left - 0.5 && p.right <= l.left + list.clientLeft + list.clientWidth + 0.5 };
+  };
+  for (const vp of [null, { width:1100, height:760 }, { width:390, height:844 }]) {
+    if (vp) await open(vp);
+    await fresh(); await ready();
+    await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(300);
+    for (const [q, name, how] of [['hammer', /^Hammer$/, 'cus'], ['broker inventory', /^Broker Inventory$/, 'cus'], ['relative strength', /^Relative Strength Index$/, 'op'], ['inverted hammer', /^Inverted Hammer$/, 'op']]) {
+      await page.fill('#acq', q); await page.waitForTimeout(250);
+      const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:name }) }).first();
+      if (how === 'op') await row.locator('[data-af="opt"]').selectOption('__op'); else await row.locator('.qcus').click();
+      await page.waitForTimeout(200);
+      // the longest options a flow select has: "Top-K holders (largest inventory)", "c · Inventory ÷ traded value of the lookback (%)"
+      if (q === 'broker inventory') for (const k of ['holders', 'series']) {
+        const sel = row.locator(`.qpop select[data-ap="${k}"]`), opts = await sel.locator('option').allInnerTexts();
+        const longest = opts.reduce((a, b) => b.length > a.length ? b : a, '');
+        await sel.selectOption({ label:longest }); await page.waitForTimeout(200);
+      }
+      const m = await page.evaluate(measure);
+      expect(m && !m.cut.length && !m.sideways && m.inside, `${q} at ${vp?.width ?? 1440} px: a select cuts its option, or the panel leaves the list: ` + JSON.stringify(m));
+      await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+    }
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  }
+  await open();
+});
 await at('Flow (P5c): a flow indicator with its Terminal parameters (a board list, whole numbers), session fields with their broker-data hint, a too-deep operator refused by the worker on its card; cells and the preview name the broker data date', async () => {
   // EXEC-SCREENER-FLOW-CANDLES P5c (verification/screener/P5_FLOW.md section 4): the fixture's broker data ends a session
   // before its prices (tests/fixture/broker.ts), so every flow value carries its broker data date

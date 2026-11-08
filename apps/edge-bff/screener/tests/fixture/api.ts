@@ -58,10 +58,10 @@ const refuse = (e: unknown): never => {
 };
 const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
 /** A catalog entry as the worker writes it (screener-worker catalog.ts catalogMetric, without its flow part): the
-    contract's fields and the additive ones the page reads (label, short, synonyms, default_test, ref). */
+    contract's fields and the additive ones the page reads (label, short, synonyms, default_test, ref, side). */
 function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }): CatalogMetric {
   const extra: Record<string, unknown> = {};
-  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'side'] as const) if (x[k] !== undefined) extra[k] = x[k];
   return { id:x.id, group:x.group, kind:x.kind, params:x.params, tests:x.tests, unit:x.unit, formula:x.formula, interpretation:x.interpretation, misuse:x.misuse,
     availability:a.availability, reason:a.reason, applies_to:x.applies_to, ...extra } as CatalogMetric;
 }

@@ -155,3 +155,76 @@ same: "Use fewer custom or flow conditions, shorter lengths, windows or anchors,
   estimate: the estimate does not know the cache, so it errs towards refusing (the memo-warm row of section 4).
 - The window context's per-stock part makes a universe of small stocks' contexts about twice its estimate (a seventh
   of the flow condition, so about 10 % of the total).
+
+## 6. Patterns (QA unit C, QA4; 2026-11-08)
+
+Same machine and method as sections 3 and 4 (the worker end to end, `SCREENER_THREADS` 2, every series memo-cold, ns
+from the worker's own observations), on a price-only market (`apps/screener-worker/tests/fake-terminal.mjs`
+`universe`: 300 stocks x 1330 bars to calibrate, QA4's 150 x 1330 to check), with
+`apps/screener-worker/tests/bench/pattern_cost.bench.ts`. Another agent's browser tests shared the machine: load
+average 0.1 to 0.6 for the first calibration, 1 to 4.7 for the others; the check's before and after ran back to back at
+3.4 to 3.9.
+
+```
+cd apps/screener-worker
+BENCH_MODE=calibrate node --experimental-strip-types --no-warnings=ExperimentalWarning \
+  --import ../backtest-worker/loader/register.mjs --test tests/bench/pattern_cost.bench.ts
+node --experimental-strip-types --no-warnings=ExperimentalWarning \
+  --import ../backtest-worker/loader/register.mjs --test tests/bench/pattern_cost.bench.ts      # the check
+```
+
+**Defect.** `run.ts` `costUnits` priced a pattern as one O(N·n) unit whose length was its largest numeric parameter, at
+the indicators' 5.96 ns per bar and length: Hammer's length was its body percentage (30), not its 10-session trend; a
+`min_range_ticks` of 50 (no length at all) made Hammer 1.7 times and Bullish Engulfing 5 times dearer; a 100-session
+trend made Hammer 3.3 times dearer.
+QA4: Hammer at its defaults predicted 36 ms for 125 measured, then at trend 100 368 for 115.
+
+**Measured.** A pattern's series costs a fixed part per bar (the copies of the bars, the IDX guards on every bar, the
+rules) plus a small part per session of the window its core reads (the trend's average and the average body, summed
+afresh per bar): 92 runs of the 20 candlestick patterns (defaults, trend 2 and 100, average body 100, 50 ticks) cost
+386 to 856 ns per bar; their least-squares line is 492.1 ns per bar plus 1.06 per bar and session of the window
+(`candles.ts` `candleLookback`), within 0.65 to 1.31 of each run. A second calibration under load gave 538 + 0.92 and
+562 + 1.02: the per-session part holds, the fixed part follows the load. The older patterns differ among themselves
+(23 runs; volspike, macross, new_high, silent and macd_divergence flat in their parameters, 97 to 423 ns per bar;
+breakout, breakdown and the stochastic cross about 2.2 to 3.8 ns per session of their rolling window), so their windows,
+computed by registry kernels (`Calc.out`), keep the indicators' 5.96 ns per bar and length.
+
+**Model** (`run.ts` `costUnits`, `costPrior`; `screener-overlay.json` `cost_model.pattern`): a pattern is two units,
+`pattern:<type>` O(N) at `ns_per_bar` 492.1, and `pattern:<type>:window` O(N·n) whose length is the window its core
+reads (`transforms.ts` `resolveSignal` `.window`: `candleLookback` for a candlestick pattern, the `PATTERNS` window
+for the others), at `candle_ns_per_bar_session` 1.06 for a candlestick pattern and `ns_per_bar_length` 5.96 for an
+older one; no parameter value is a length. `macd_divergence` reads the whole history (window Infinity): it keeps its O(N·n)
+unit over its largest parameter beside the fixed part, because dropping it would lower its class (ERRORS M300; its work
+was measured flat, 321 to 586 ns per bar at fast, slow or signal 200, which is the evidence a review would need). Both
+units of a series are learned together (`observeShared`), per pattern.
+
+**Calibration under the final model** (300 x 1330; the first run of each pattern at the prior, the others learned from
+it): the 20 candlestick patterns' predictions within 0.49 to 1.76 of busy (91 of 92 within 0.5 to 2; before: 0.11 to
+15.6, 60 of 92); the older ones within 0.67 to 7.4 (before 0.26 to 10.7; never under two thirds now: the indicators'
+rate on their windows is conservative for the flat ones, squeeze at a length of 200 the largest).
+
+**Check** (QA4's 150 x 1330, event within 3; cold = the key's first run, learned = the same key at another window,
+predicted ms from the run log, busy ms the thread's):
+
+| Case | before: predicted / busy | ratio | after: predicted / busy | ratio |
+|---|---|---|---|---|
+| Hammer at its defaults (window 11), cold | 36 / 116 | 0.31 | 101 / 129 | 0.78 |
+| Hammer at trend 100 (window 101), learned from it (QA4) | 363 / 107 | 3.39 | 138 / 113 | 1.22 |
+| Hanging Man trend 100, cold | 119 / 113 | 1.05 | 120 / 126 | 0.95 |
+| Hanging Man trend 50, learned | 54 / 107 | 0.50 | 109 / 136 | 0.80 |
+| Bullish Marubozu average body 100, trend 100 (trend off), cold | 119 / 163 | 0.73 | 120 / 180 | 0.67 |
+| Bullish Marubozu average body 20, learned | 142 / 118 | 1.20 | 146 / 120 | 1.22 |
+| Morning Star at its defaults (window 13), cold | 60 / 126 | 0.48 | 101 / 127 | 0.80 |
+| Morning Star trend 30, learned | 121 / 129 | 0.94 | 120 / 108 | 1.11 |
+| Evening Star average body 100, trend 100, cold | 119 / 130 | 0.92 | 120 / 136 | 0.88 |
+| Evening Star 2 ticks (window 13), learned | 62 / 145 | 0.43 | 110 / 108 | 1.02 |
+| Three White Soldiers 50 ticks (window 13), cold | 60 / 126 | 0.48 | 101 / 98 | 1.03 |
+| Three White Soldiers 2 ticks, learned | 120 / 105 | 1.14 | 92 / 105 | 0.88 |
+| Breakout length 20, cold | 24 / 47 | 0.51 | 124 / 49 | 2.53 |
+| Breakout length 100, learned | 221 / 101 | 2.19 | 83 / 89 | 0.93 |
+| Squeeze lookback 60 (its defaults are pre-warmed, so this is its first run) | 72 / 86 | 0.84 | 193 / 58 | 3.33 |
+
+Limits: one synthetic market on a shared machine (the fixed part moves with the load); each replica learns its own per
+pattern from its first cold run. The two units are learned with one factor, so a candlestick pattern learned at a short
+window and run at an average body of 100 can read about 0.6 of its time (the average body's loop costs more per session
+than the trend's); an older flat pattern at a long window is predicted up to 7 times its time until it has run once.

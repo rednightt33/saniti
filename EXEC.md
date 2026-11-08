@@ -12916,6 +12916,9 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
 - Status: unit A (P1-P3) di-merge 2026-11-07 14:41 UTC (`4451a31a`, PR #59) dan live di dev (edge-bff `3b54bab2`,
   screener-worker `64b73512`; cek login: 6 screen operator 200, RAILWAY_CHANGELOG 2026-11-07). P0
   selesai: cek restart Postgres sesudah K6 pada 14:32 UTC ditolak `memory_low` (0,080 GB), jadi restart tidak diperlukan.
+- Unit B (flow) live di dev 2026-11-08: PR #60 merge `98ba272d`; edge-bff `469375db`, screener-worker `69e5c0f4`, publisher
+  `a1394d8a`; isi awal 60 tanggal broker (16,9 MB, 0 gagal); 48 entri flow AVAILABLE; 19 screen uji di data nyata 200;
+  paritas Terminal 18/18 (RAILWAY_CHANGELOG 2026-11-08). Berikutnya: unit C (P6, cabang lokal siap) dan C sesudahnya.
 - Go merge unit B (user 2026-11-08: "Ok merge"), sesudah checklist 7 poin dan QA putaran 2 READY (PR #60). Batas hitung
   SCREENER_MAX_CPU_MS tetap 4.500 ms (tidak diubah; pertanyaan ke user masih terbuka). Urutan rilis: merge -> edge-bff dan
   screener-worker dari GitHub -> EXPLAIN read-only di dev -> upload terminal-publisher -> isi awal 60 tanggal broker ->
@@ -12926,6 +12929,35 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
   deploy ditinjau (database, konfigurasi, dependensi, rollback); merge, deploy dan verifikasi sesudah deploy berhasil.
 - P6 (20 pola candle, unit C) dibangun paralel selama unit B menunggu merge (user 2026-11-07: "Parallel, alright").
   Kontrak: `verification/screener/P6_CANDLES.md`.
+  - Dibangun 2026-11-07 di branch unit C (belum QA, belum merge): registry + evaluator di core Backtest
+    (`candle-registry.json`, `candles.ts`), 20 entri katalog Screener digenerate dari registry, catatan persetujuan core
+    di tripwire (`scripts/screener/backtest_core_baseline.json`, keputusan "2A" dan K2 "A" 2026-11-07), tes hasil kondisi
+    lama tetap sama (1.629 digest, direkam pada core sebelum P6). Definisi, frekuensi dan perbandingan Feature 04:
+    P6_CANDLES.md bagian 5-6. Nilai bawaan (min range 3 tick, open piercing dilonggarkan, star overlap 10 %, toleransi
+    tweezer 1 tick, tren aktif kecuali marubozu) menunggu tinjauan user. ERRORS M398 (pola membuka state, bukan event).
+  - 2026-11-08 (user: "Push ke branch utama"): P6 di-merge ke branch kerja (`f646370e`), PR #62 ke main. QA unit C
+    (lima agen Sonnet, MASTER PROMPT): kelimanya READY, 0 jawaban salah (QA1 ±2 juta bar 0 selisih; QA2 tanpa
+    look-ahead; QA3 semua kombinasi operator; QA4 160 run lewat worker; QA5 halaman). Perbaikan temuan: ERRORS M399
+    (operator jendela pada semua pola di halaman, sisi bullish/bearish, pencarian per kelompok, select Customize), M400
+    (penolakan bukan-series dengan contoh), M401 (biaya pola dari jendela core, terukur). User 2026-11-08: "Tambah 3
+    agent lagi to help": cek live candle untuk sesudah deploy, 15 pertanyaan candle lewat halaman
+    (`verification/screener/qc15_20261108/`, 15/15 cocok), analisis dampak keputusan.
+  - Keputusan user 2026-11-08 atas tiga pertanyaan P6: (1) rata-rata badan candle dan hari satu harga atau tanpa
+    transaksi (ERRORS M402): "1 sebetulnya kalau user memang mau cari acndle tersebut, ya keluarin saja semua. itulah
+    sebetulnya fungsi filter volume right?" -> tetap seperti sekarang (C); saham tipis disaring oleh filter universe
+    (bawaan harga >= 50 dan ADV20 >= Rp 1 miliar) atau kondisi volume pilihan user. (2) aksi korporasi yang belum
+    disesuaikan: "2A" -> cukup tanda price break yang ada (PRICE_BREAK_IN_LOOKBACK, disembunyikan secara bawaan).
+    (3) nilai bawaan P6: "3 ok semua tetap." -> min range 3 tick, open piercing dilonggarkan, star overlap 10 %,
+    toleransi tweezer 1 tick, tren aktif kecuali marubozu. Tidak ada perubahan kode. Terbuka kecil: M403 (penolakan
+    parameter saat Add menutup panel), M404 (bar BBRI di fixture).
+  - Lalu user 2026-11-08 soal syarat tren: "Hilangkan syarat tren aktif." Pilihan yang ditanyakan: A tren mati secara
+    bawaan, opsi tetap ada, keluarga Hammer tetap wajib tren; B semua 20 mati; C opsi dihapus. User: "Ok opsi A".
+    Dibangun: `candle-registry.json` bawaan `trend` = none untuk 14 pola yang menawarkannya (Hammer, Hanging Man,
+    Inverted Hammer, Shooting Star tetap average dan tidak bisa dimatikan, karena tren yang membedakan pasangan
+    berbentuk sama). Frekuensi fixture 2.908 -> 4.546 sinyal; engine_version e2205249ffdb5e9b; catatan persetujuan core
+    dan worker direkam ulang (tripwire OK); skrip cek live dan buktinya offline disesuaikan (17/17).
+  - Pertanyaan user 2026-11-08: "candle filterini bisa multiple candle filter right ... Misal user mau filter saham2 yang
+    ada candle hammer, engulfing etc": ya, satu kondisi per pola (sampai 20 kondisi), digabung All / Any / At least.
 - Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
   Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
   sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1

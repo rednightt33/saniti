@@ -15,7 +15,12 @@
    fit the loaded broker sessions): the worker is the one authority. A session field takes at most the broker sessions
    held, opens within the page's estimate of what the setup leaves and shows it as a hint; the lists leave out only what
    cannot fit at the catalog's own setup (the worker's depth); beyond that the worker's refusal is shown on the card.
-   The functions take the card's parameters (`params`) where a flow output's kind, line and depth follow them. */
+   The functions take the card's parameters (`params`) where a flow output's kind, line and depth follow them.
+   QA of unit C item 1 (OPERATORS.md section 4, type F): a pattern (the catalog's kind pattern: breakout, volume spike,
+   the 20 candlesticks) is a 0/1 signal, one series of type F. What it takes is the operators block's: no measure (every
+   measure's not_on holds F), and the tests whose not_on does not; of those, the test on one session ("= 1") and within N
+   are the card's own conditions ("Detected", "Detected (event)"), so the operator offers the window tests that count
+   the sessions it is detected (ever, K of N, in a row), each over the pattern's own test on every session. */
 import type { CatalogOperators, MetricRef, OperatorTestKey, ParamMap, ParamValue, Test, TestFormSpec, ValueOp } from './core/contract.ts';
 import { defaultParams, flowBudget, flowExactBudget, flowOutputs, flowSessions, optionText, paramError, testTakes, wholeKind, type Entry, type EntryParam } from './entries.ts';
 import { formatOfMetric, formatOfOutput, fmtValue, nf, type ValueFormat } from './format.ts';
@@ -51,16 +56,31 @@ export interface Series { key: string; label: string; unit: string | null; compa
 /** The series of an entry: an indicator's outputs, or a flow indicator's outputs at `params` (the catalog's defaults
     when none are given). */
 export function seriesList(e: Entry, params?: ParamMap): Series[] {
+  // a pattern: its one series, the 0/1 signal (type F; whole, so the "= 1" it is read with is a whole-number test)
+  if (isSignal(e)) return [{ key:SIGNAL_KEY, label:e.short || e.label, unit:null, comparable:null, type:SIGNAL_TYPE, whole:wholeKind(e.ops, SIGNAL_TYPE),
+    forms:null, drawn:true, why:null, fmt:'raw' }];
   if (e.flow) return flowOutputs(e, params ?? defaultParams(e)).map(o => ({ key:o.key, label:o.label, unit:o.unit, comparable:o.comparable, type:o.kind || null,
     whole:wholeKind(e.ops, o.kind), forms:null, drawn:o.drawn, why:o.why, fmt:formatOfMetric(o.unit) }));
   return (e.indicator?.outputs || []).map(o => ({ key:o.key, label:o.label || o.key, unit:o.unit, comparable:o.comparable_with, type:null, whole:false,
     forms:o.tests, drawn:true, why:null, fmt:formatOfOutput(o.unit, o.display_unit, null) }));
 }
 export const seriesOf = (e: Entry, key: string, params?: ParamMap): Series | undefined => seriesList(e, params).find(s => s.key === key);
-/** Whether a card on this entry can take an operator: an indicator or a flow indicator (their outputs are series) in a
-    catalog that offers operators. */
+/** The output type of OPERATORS.md section 4 a pattern's signal has: F, a 0/1 signal (section 4: "FL09, FL27, patterns,
+    candles"); what it takes is read from the operators block's not_on lists, never listed here. */
+export const SIGNAL_TYPE = 'F';
+/** the key of a pattern's one series (OpState.output; never on the wire: a pattern reference names no output) */
+export const SIGNAL_KEY = 'detected';
+/** A pattern entry (the catalog's kind pattern) of a catalog whose operators block has the 0/1 signal type: its card
+    may count the sessions the pattern is detected (QA of unit C item 1). */
+export const isSignal = (e: Entry | undefined): boolean => !!e && e.metricKind === 'pattern' && !!e.ops?.types?.[SIGNAL_TYPE];
+/** How a pattern is read on one session inside a window (the core's condition.ts bindWindow takes a state pattern or an
+    event pattern with within 1): its own state test where the entry offers one, else its event within 1. */
+export const signalInner = (e: Entry | undefined): 'state' | 'event' => !e?.metric || e.metric.tests.includes('state') ? 'state' : 'event';
+/** Whether a card on this entry can take an operator: an indicator or a flow indicator (their outputs are series), or
+    a pattern whose 0/1 signal some window test of the block takes, in a catalog that offers operators. */
 export const offersOperators = (ops: CatalogOperators | undefined, e: Entry | undefined): boolean =>
-  !!ops && !!e && ((e.kind === 'indicator' && !!e.indicator?.outputs.length) || (!!e.flow && !!e.flow.outputs.length));
+  !!ops && !!e && ((e.kind === 'indicator' && !!e.indicator?.outputs.length) || (!!e.flow && !!e.flow.outputs.length)
+    || (isSignal(e) && plainOffered(ops, e, SIGNAL_KEY)));
 export const measureOf = (ops: CatalogOperators, fn: string): Measure | undefined => ops.measures.find(m => m.fn === fn);
 export const testOf = (ops: CatalogOperators, key: string): OpTest | undefined => ops.tests.find(t => t.key === key);
 /** the output a new operator opens on: the one the entry's default condition reads, else the first the setup draws */
@@ -115,8 +135,8 @@ const minSessions = (m: Measure) => { const a = sessionArg(m); return a ? (a.min
     default comparison; on a flow series where that measure is not offered (its type, or the broker sessions left),
     the series itself, else the first measure offered. */
 export function defaultOp(ops: CatalogOperators, e: Entry, output = defaultOutput(e), params?: ParamMap): OpState {
-  const offered = e.flow ? measuresFor(ops, e, output, params) : ops.measures;
-  const m = offered.find(x => x.fn === ops.default_measure) ?? (e.flow ? undefined : ops.measures[0]);
+  const typed = !!e.flow || isSignal(e), offered = typed ? measuresFor(ops, e, output, params) : ops.measures;
+  const m = offered.find(x => x.fn === ops.default_measure) ?? (typed ? undefined : ops.measures[0]);
   if (!m) {
     const base: OpState = { output, measure: 'none', margs: {}, by: '', test: 'value', cmp: 'gt', value: e.def.value, value2: '', n: '', k: '' };
     if (plainOffered(ops, e, output, params) || !offered.length) { const t = testsFor(ops, e, base, params); return withTest(ops, e, base, t[0]?.key ?? 'value', params) }
@@ -138,6 +158,8 @@ export function withMeasure(ops: CatalogOperators, e: Entry, op: OpState, fn: st
     difference has no scale-free range); any other test the measure's default value, or the entry's own on the plain
     series. Never a value of another measure or test. */
 function thresholds(ops: CatalogOperators, e: Entry, op: OpState, t: OpTest, two = t.key === 'range'): { value: number | ''; value2: number | '' } {
+  // a pattern's signal is read one way only: = 1, detected (OPERATORS.md section 4, type F: operator 1 is "= 1")
+  if (isSignal(e)) return { value:1, value2:'' };
   const m = op.measure === 'none' ? undefined : measureOf(ops, op.measure);
   // a rank is 0-100 whatever it ranks: its own value, or its own range (QA5 round 2: a rank range opened blank)
   if (t.key === 'rank') return two && t.default.range ? { value: t.default.range[0], value2: t.default.range[1] } : { value: t.default.value ?? '', value2: '' };
@@ -216,6 +238,9 @@ const CMP_TEST = (o: string) => o.startsWith('crosses_') ? 'cross' : o === 'betw
     series the ones whose own test its output type takes; "=" and "!=" only on the series itself where it is a whole
     number (a day count, a 0/1 signal, a broker count: K7), never on a measured series (no measure gives a whole number). */
 export function opsFor(e: Entry, op: OpState, t: OpTest, params?: ParamMap): string[] {
+  // a pattern's signal: on each session of a window (a test over sessions) it is "= 1", detected, where its type takes a
+  // value test; one session ("Detected") and within N ("Detected (event)") are the card's own conditions, not offered
+  if (isSignal(e)) return op.measure === 'none' && t.length && testTakes(e.ops, 'value', SIGNAL_TYPE) ? ['eq'] : [];
   const plain = plainOps(e, op, t);
   const type = e.flow && e.ops && t.key !== 'rank' ? resultType(e.ops, e, op, params) : null;
   const whole = t.key === 'value' && op.measure === 'none' && !!seriesOf(e, op.output, params)?.whole;
@@ -241,8 +266,17 @@ export function secondOptions(e: Entry, output: string, params?: ParamMap): { ke
     only where the output has a second series of its unit; on a flow series only the measures its output type takes
     (not_on) and, at the catalog's own setup, that fit the broker sessions it leaves (K1, the worker's depth). */
 export function measuresFor(ops: CatalogOperators, e: Entry, output: string, params?: ParamMap): Measure[] {
-  const type = e.flow ? seriesOf(e, output, params)?.type : null, B = exactOf(e, params);
+  const type = e.flow || isSignal(e) ? seriesOf(e, output, params)?.type : null, B = exactOf(e, params);
   return ops.measures.filter(m => (!m.second || secondOptions(e, output, params).length > 0) && !(type && m.not_on.includes(type)) && (B == null || minSessions(m) <= B));
+}
+/** The words of a row's "Operator…" choice (its title): what the operator offers on this entry; a pattern's the window
+    tests its signal takes, from the catalog (QA of unit C item 1: "percentile, z-score" named what a 0/1 signal has not). */
+export function operatorTitle(ops: CatalogOperators, e: Entry, params?: ParamMap): string {
+  if (!isSignal(e)) return 'A universal operator: percentile, z-score, change, slope, rank, K of N and more, set in Customize';
+  const base: OpState = { output:SIGNAL_KEY, measure:'none', margs:{}, by:'', test:'value', cmp:'eq', value:1, value2:'', n:'', k:'' };
+  // a label's first word in lower case inside the sentence; a letter that stands for a number ("N sessions") kept
+  const tests = testsFor(ops, e, base, params).map(t => /^[A-Z][a-z]/.test(t.label) ? t.label.charAt(0).toLowerCase() + t.label.slice(1) : t.label);
+  return `Count the sessions it is detected on, set in Customize: ${tests.join(', ')}`;
 }
 /** Whether "The value itself" (no measure) is offered on this output: when some test takes the plain series. */
 export function plainOffered(ops: CatalogOperators, e: Entry, output: string, params?: ParamMap): boolean {
@@ -264,12 +298,15 @@ function seriesRef(ops: CatalogOperators, op: OpState, params: ParamMap, ind: In
   return { kind: 'transform', fn: m.fn, of: base, args };
 }
 /** The wire test of an operator (contract.ts: a value test, an event cross of a value, a window test over a value test,
-    or a value test on a rank). */
-export function opTest(ops: CatalogOperators, op: OpState, params: ParamMap, ind: IndRef): Test {
+    or a value test on a rank); a pattern's (its entry `e`, isSignal) a window over the pattern's own test on each
+    session (signalInner: its state, or its event within 1). */
+export function opTest(ops: CatalogOperators, op: OpState, params: ParamMap, ind: IndRef, e?: Entry): Test {
   const s = seriesRef(ops, op, params, ind), v = num(op.value), v2 = num(op.value2), n = num(op.n), k = num(op.k);
   const value = (metric: MetricRef, cmp = op.cmp): Test => ({ kind: 'value', metric, op: cmp as ValueOp, value: v, ...(cmp === 'between' || cmp === 'outside' ? { value2: v2 } : {}) });
-  // inside a window a cross is read on each session: an event with within 1 (OPERATORS.md 5 and 9 over operator 8)
-  const inner = (): Test => op.cmp.startsWith('crosses_') ? { kind: 'event', within: 1, signal: { lhs: s, op: op.cmp as 'crosses_above' | 'crosses_below', rhs: { value: v } } } : value(s);
+  // inside a window a cross is read on each session: an event with within 1 (OPERATORS.md 5 and 9 over operator 8); a
+  // pattern is its own test on each session ("= 1": detected)
+  const inner = (): Test => s.kind === 'pattern' ? (signalInner(e) === 'state' ? { kind: 'state', pattern: s } : { kind: 'event', within: 1, signal: { pattern: s } })
+    : op.cmp.startsWith('crosses_') ? { kind: 'event', within: 1, signal: { lhs: s, op: op.cmp as 'crosses_above' | 'crosses_below', rhs: { value: v } } } : value(s);
   switch (op.test) {
     case 'value': case 'range': return value(s);
     case 'cross': return { kind: 'event', within: n, signal: { lhs: s, op: op.cmp as 'crosses_above' | 'crosses_below', rhs: { value: v } } };
@@ -278,13 +315,25 @@ export function opTest(ops: CatalogOperators, op: OpState, params: ParamMap, ind
     case 'rank': return value({ kind: 'rank', of: s });
   }
 }
-/** An operator read back from a wire test (fromWire), with the indicator and its parameters, or null when the test is
-    not an operator's (or names what the catalog does not offer). */
-export function opFromTest(ops: CatalogOperators, t: any): { indicator: string; params: ParamMap; op: OpState } | null {
+/** An operator read back from a wire test (fromWire), with the indicator (a pattern: its type) and its parameters, or
+    null when the test is not an operator's (or names what the catalog does not offer). A pattern counted over a window
+    also says how it was read on each session (`signal`: its state, or its event within 1), which the caller checks
+    against what its entry writes (signalInner): any other shape stays a kept card, never rewritten. */
+export function opFromTest(ops: CatalogOperators, t: any): { indicator: string; params: ParamMap; op: OpState; signal?: 'state' | 'event' } | null {
   if (!t || typeof t !== 'object') return null;
   let test: OperatorTestKey, inner = t, n: number | '' = '', k: number | '' = '';
   if (t.kind === 'window') {
     test = t.mode; inner = t.test; n = t.length; k = t.mode === 'at_least' ? t.count : '';
+    // a pattern counted over the window (QA of unit C item 1): its state, or its event within 1, on each session, and
+    // nothing else in that test (the core refuses any other key)
+    const keys = (x: any, ...ks: string[]) => !!x && typeof x === 'object' && Object.keys(x).every(y => ks.includes(y));
+    const sig: any = inner?.kind === 'state' && keys(inner, 'kind', 'pattern') ? inner.pattern
+      : inner?.kind === 'event' && inner.within === 1 && keys(inner, 'kind', 'within', 'signal') && keys(inner.signal, 'pattern') ? inner.signal.pattern : undefined;
+    if (sig !== undefined) {
+      if (sig?.kind !== 'pattern' || typeof sig.type !== 'string' || !keys(sig, 'kind', 'type', 'params')) return null;
+      return { indicator: sig.type, params: sig.params || {}, signal: inner.kind,
+        op: { output: SIGNAL_KEY, measure: 'none', margs: {}, by: '', test, cmp: 'eq', value: 1, value2: '', n, k } };
+    }
     // a cross counted over the window: an event with within 1 (opTest inner)
     if (inner?.kind === 'event' && inner.within === 1 && !inner.signal?.pattern && typeof inner.signal?.rhs?.value === 'number' && !inner.signal.rhs.kind) {
       const r = read(ops, inner.signal.lhs); if (!r) return null;
@@ -389,17 +438,29 @@ export function measureText(ops: CatalogOperators, e: Entry, op: OpState, params
   const name = m.second ? `Compared with ${secondOptions(e, op.output, params).find(s => s.key === op.by)?.label || '…'}` : m.label;
   return `${name}, ${args}`;
 }
-/** The operator in a column header's few words (catalog `short`): "pctl", "z · 3 in a row", "ever 5", "3 of 5", "rank". */
-export function opShort(ops: CatalogOperators, op: OpState): string {
+/** The operator in a column header's few words (catalog `short`): "pctl", "z · 3 in a row", "ever 5", "3 of 5", "rank";
+    a pattern's (its entry `e`) the window alone: its comparison is always "detected" ("Hammer · 3 of 10"). */
+export function opShort(ops: CatalogOperators, op: OpState, e?: Entry): string {
   const m = op.measure === 'none' ? undefined : measureOf(ops, op.measure), t = testOf(ops, op.test);
   const tw = !t?.short ? '' : t.key === 'at_least' ? `${v(op.k)} of ${v(op.n)}` : t.key === 'ever' ? `ever ${v(op.n)}` : t.key === 'streak' ? `${v(op.n)} in a row` : t.short;
   // the comparison too, so two cards that differ only there get two headers (QA5 round 2): "≥90", "50–80", "↑70"
   const cmp = OP_SIGN[op.cmp] ? `${OP_SIGN[op.cmp]}${v(op.value)}` : op.cmp === 'between' ? `${v(op.value)}–${v(op.value2)}` : op.cmp === 'outside' ? `out ${v(op.value)}–${v(op.value2)}`
     : op.cmp === 'crosses_above' ? `↑${v(op.value)}` : op.cmp === 'crosses_below' ? `↓${v(op.value)}` : '';
-  return [m?.short, tw, cmp].filter(Boolean).join(' · ');
+  return [m?.short, tw, isSignal(e) ? '' : cmp].filter(Boolean).join(' · ');
 }
-/** The operator's rule in words, after the card's name: "RSI · percentile of its own history (60) ≥ 90". */
+/** A pattern's operator in words (QA of unit C item 1): the sessions it is detected on, as the test counts them. */
+export function signalText(test: OperatorTestKey | string, n: number | string, k: number | string): string {
+  switch (test) {
+    case 'ever': return `Detected at least once in the last ${n} sessions`;
+    case 'at_least': return `Detected on at least ${k} of the last ${n} sessions`;
+    case 'streak': return `Detected for ${n} sessions in a row`;
+  }
+  return 'Detected';
+}
+/** The operator's rule in words, after the card's name: "RSI · percentile of its own history (60) ≥ 90"; a pattern's
+    "Detected on at least 3 of the last 10 sessions". */
 export function opText(ops: CatalogOperators, e: Entry, op: OpState, params?: ParamMap): string {
+  if (isSignal(e) && op.measure === 'none') return signalText(op.test, v(op.n), v(op.k));
   const all = seriesList(e, params), out = all.find(s => s.key === op.output), line = all.length > 1 ? ` ${out?.label || op.output}` : '';
   const mt = measureText(ops, e, op, params), what = `${line}${mt ? `${line ? ' ·' : ''} ${mt}` : ''}`.trim();
   const sign = OP_SIGN[op.cmp] ? `${OP_SIGN[op.cmp]} ${v(op.value)}` : op.cmp === 'between' ? `between ${v(op.value)} and ${v(op.value2)}` : op.cmp === 'outside' ? `outside ${v(op.value)} to ${v(op.value2)}` : `${OP_WORDS[op.cmp] || op.cmp} ${v(op.value)}`;
@@ -419,6 +480,17 @@ export function opValueText(ops: CatalogOperators, e: Entry, op: OpState, x: num
   if (op.test === 'rank') return fmtValue(x, 'index');
   const f = opFormat(ops, e, op, params);
   return f === 'sd' ? `${fmtValue(x, 'fraction')}σ` : fmtValue(x, f);
+}
+/** A window operator's cell in words, the tooltip line beside its "Yes · 3/5" (QA of unit C item 1): how many sessions
+    of the window passed (a pattern: were detected), or the run that ends on the evaluated session; '' for any other
+    test or without a count. */
+export function opCellNote(e: Entry | undefined, op: OpState, x: number | null | undefined): string {
+  if (x == null || !Number.isFinite(x) || !(op.test === 'ever' || op.test === 'at_least' || op.test === 'streak')) return '';
+  const [yes, no] = isSignal(e) ? ['Detected', 'Not detected'] : ['Passed', 'Did not pass'], c = nf(x, 0);
+  // a streak counts the run that ends on the evaluated session
+  if (op.test === 'streak') return `${x < 1 ? `${no} on the last session` : x < 2 ? `${yes} on the last session only` : `${yes} on each of the last ${c} sessions`} (${v(op.n)} in a row needed)`;
+  const need = op.test === 'at_least' ? ` (${v(op.k)} needed)` : '';
+  return x < 1 ? `${no} in the last ${v(op.n)} sessions${need}` : `${yes} on ${c} of the last ${v(op.n)} sessions${need}`;
 }
 /** How the measured series' value is written (format.ts): percent, multiple, percentile (0-100), z (σ), else the
     output's own format (a difference of a price is a price difference). */

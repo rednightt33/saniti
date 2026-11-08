@@ -121,7 +121,7 @@ function crossSections(env: ScreenEnv, bound: readonly BoundCondition[], populat
 function stageS0(def: Definition, env: ScreenEnv): { eligible: UniverseRow[]; counts: UniverseCounts } {
   const u = applyUniverse(env.rows, def.universe);
   if (!u.pending.length) return { eligible: u.eligible, counts: u.counts };
-  const filters = u.pending.map(i => bindTest(`f${i}`, def.universe.metric_filters![i], `definition.universe.metric_filters[${i}]`, screenBinding(env)));
+  const filters = u.pending.map(i => bindTest(`f${i}`, def.universe.metric_filters![i], `definition.universe.metric_filters[${i}]`, { ...screenBinding(env), place: 'filter' }));
   const xs = crossSections(env, filters);
   const eligible = u.eligible.filter(row => {
     const t = env.bars(row.ticker);

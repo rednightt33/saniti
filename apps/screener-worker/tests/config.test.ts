@@ -67,7 +67,8 @@ test('the start-up check passes on this tree and names a source whose hash diffe
   assert.deepEqual(ok.problems, []);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'startup-'));
   // the image's copy of every source the registry names, the build-only oracle aside (derived from the registry, so a
-  // new source, such as the flow probe's flow.ts and flowprobe.ts, is checked without a list kept here)
+  // new source, such as the flow probe's flow.ts and flowprobe.ts or
+  // P6's candle-registry.json and candles.ts, is checked without a list kept here)
   for (const f of SOURCES.filter(s => s.role !== 'oracle').map(s => s.file)) {
     fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(REPO_ROOT, f), path.join(tmp, f));
   }

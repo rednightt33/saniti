@@ -172,6 +172,14 @@ take and give.
 | H price level | FL17, FL18, FL42, FL43, FL44 | 2, 3, 4, 5, 6, 7 (e.g. close vs VWAP), 8, 9, 10, 12, 13, 14 | 1, 11, 15: a price level is not comparable across stocks |
 | D consecutive-day count | FL26 | 1, 3, 5, 7, 8, 9, 11, 15 | 2, 4, 6, 12, 13, 14: a run grows by one a day; 10: it is already a run |
 | F 0/1 signal | FL09, FL27, patterns, candles | 1 (`= 1`), 5, 9, 10 | 2, 3, 4, 6, 7, 8, 11, 12, 13, 14, 15: no magnitude |
+
+On a pattern (the Screener's pattern entries and the 20 candlestick patterns, `P6_CANDLES.md`) operator 1 is offered as
+the test "Detected": the signal is 1 on the evaluated session (`{"kind":"state","pattern":...}`); "Detected within N
+sessions" (`{"kind":"event","within":N,"signal":{"pattern":...}}`) is operator 5 over Detected, and operators 5, 9 and
+10 are windows over Detected (`{"kind":"window",...,"test":{"kind":"state","pattern":...}}`). A pattern is a signal
+tested on its own, not a series of values: a value test on it (`= 1` included), a measure of it, its rank or a
+comparison with it is refused, the refusal naming these tests (section 5; `apps/edge-bff/screener/src/core/metrics.ts`
+`notSeriesRefusal`). A flow indicator of type F (FL09, FL27) is a series and takes `= 1` as a value test.
 | B broker count (FL23) | FL23 | per broker series (a cumulative, b daily, c normalised): 2-14 as their own type; then "at least X brokers" (1) | decided per series type |
 
 FL31 (insider net) is 0 on days without insider trades: 3 and 6 are not offered on it.
@@ -182,7 +190,8 @@ FL31 (insider net) is 0 on days without insider trades: 3 and 6 are not offered 
 |---|---|---|---|---|
 | Operator not offered for the output type | the operator list shows only section 4's operators | pick a listed operator | right: FL24 percentile; wrong: FL01 absolute | the indicator, its output type, the operators it takes |
 | N or K out of range | the field shows its range | a value inside it | right: N 20; wrong: N 0, N 300 | the field, the range |
-| K > N | "K of N" shows both | K <= N | right: 3 of 5; wrong: 6 of 5 | K and N |
+| K outside 1..N | "K of N" shows both | 1 <= K <= N | right: 3 of 5; wrong: 6 of 5, 0 of 5 | K as given, N, why it fails |
+| A pattern, or a value per stock, where a series is needed | a pattern's card offers only "Detected" and "Detected within N sessions"; a universe attribute or a rank only a value test | test the pattern on its own (Detected, within N, or a window over Detected); test the value alone | right: Hammer detected within 3 sessions; wrong: change over 5 sessions of Hammer | the reference by name, what it is, the tests that take it where it sits (a condition, a window, a universe filter) |
 | `=` / `!=` on a non-whole output | only whole-number outputs offer them | use `>=`, `<=` or a range | right: FL26 = 3; wrong: RSI = 30 | the output and its unit |
 | Units differ (7, 8) | the second series list shows only same-unit series | pick a same-unit series | right: close vs FL17; wrong: FL24 % vs close | both units |
 | Flow window beyond the broker data | the N field shows its maximum for that indicator | a smaller N or window | right: FL24 window 10, N 40; wrong: N 55 | N, the window, the 60-session data |

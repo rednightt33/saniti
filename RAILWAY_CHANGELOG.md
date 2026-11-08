@@ -1,5 +1,32 @@
 # Railway changelog
 
+## 2026-11-08 — Screener unit B (flow) on dev: PR #60 merged; edge-bff, screener-worker, terminal-publisher; first broker day fill
+
+- **Change:** EXEC-SCREENER-FLOW-CANDLES P4 + P5: broker day files for the Screener (60 newest Feature 05 dates), the
+  Terminal's 48 flow indicators as Screener metrics, the page, the 8 bandar presets. No migration, no variable change.
+- **Go:** user 2026-11-08 "Ok merge" after the pre-merge checklist and QA round 2 READY. PR rednightt33/saniti#60 merged
+  (merge commit `98ba272d`).
+- **Deployments (Railway API):** edge-bff `469375db-261d-47ff-b6d3-946b7cb12b1a` SUCCESS and screener-worker
+  `69e5c0f4-90ef-4a5a-b6ab-b1d63237b9da` SUCCESS (GitHub, commit `98ba272d`, 02:34 UTC); terminal-publisher CLI upload
+  `a1394d8a-957b-4721-8d58-401670d56ed5` SUCCESS (`git archive` of `4bdaa0a9`, `publisher.py` sha256 `9c708da9100e651c…`;
+  no run on deploy).
+- **EXPLAIN (ANALYZE, BUFFERS), read-only job `2dfb932a` on orc-test-runner** (`verification/screener/p4_explain/`): window
+  skip scan 0.5 ms; one date 18.6 ms (23,244 rows); the sweep's 60-date stamps 9.4 s (1,473,361 rows, 76 k buffers); all on
+  `Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx`, no sequential scan. A first attempt stopped at `SET_FAILED`
+  (Railway CLI refused for a moment); a probe variable used to diagnose it was removed and read back absent.
+- **First fill:** Run Now 02:52 UTC (daily mode): `broker_days` built and uploaded 60 dates 2026-08-10 .. 2026-11-03,
+  16,948,276 bytes, 153.6 s, 0 failed; `done` 304.6 s, 0 other files (no price change). Postgres restart check 02:57 UTC:
+  refused `memory_low` (0.489 GB) and `cron_due`; no restart needed.
+- **Signed-in checks:** catalog 200, broker window 60 sessions 2026-08-10 .. 2026-11-03 complete, flow_through
+  2026-11-03, 48 flow entries AVAILABLE and 2 REQUIRES_DATA (FL31 insider, KSEI net: user "nanti saja"). The 19 wire
+  definitions of the 20-question front-end test run on real data, all 200, 194-687 ms
+  (`verification/screener/live_q20_20261108/report.json`). Parity with the Terminal's own per-stock files and computation
+  (`live_parity_compute.mjs`): FL24, FL26, FL11 on BBCA, BBRI, ASII, TPIA, PGAS, GOTO, 18 of 18 equal to 12 digits
+  (`parity.jsonl`). Broker data ends 2026-11-03 (3 sessions behind prices) until the next Stockbit round.
+- **Rollback:** edge-bff `16aa6dbb-61ca-470a-b6b1-60d84f5b0e22`, screener-worker `64b73512-21e6-4d8e-aa7e-0d71496edf79`,
+  terminal-publisher `e78dd177-74f6-4d2c-9eac-de58e411c19d` (redeploy), or revert merge `98ba272d`; the broker day files are
+  then ignored by the older worker and dropped by the older publisher's state.
+
 ## 2026-11-08 — edge-bff from `main` `81146306`: Terminal QA round (EXEC-QA5-FIX, ERRORS M387-M390)
 
 - **Change:** the fixes of the five-agent QA round and its re-test: Broker summary average is a price, inventory says "net

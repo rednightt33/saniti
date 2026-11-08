@@ -1516,15 +1516,34 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qpl .sel{min-width:96px}
 /* the universal operators' selects (P3): their options are phrases ("On K of the last N sessions"), not one word */
 .qpl .sel.qop{min-width:240px;max-width:300px}
+/* a select in the panel is as wide as its options, so the chosen one is never cut (QA of unit C item 4: "Prior trend
+   measured by" read "avera" at 1440 and 1100 px). The cause: the panel sits inside the settings cell, so the cell's own
+   one-line rule (.rr.qt .sel: at least 84 px, at most 132 px) reached the panel's selects too, and the panel, sized to
+   its narrowest when the cell is narrower than it, let its grid squeeze a select down to that 84 px floor, below its
+   option, while the default beside it kept its width. Here the floor is the options' own width and there is no
+   ceiling; the minimums stay (the operators' 240 px) and the panel grows to hold the line. A phone's panel puts each
+   select on its own line instead (the rule below the 640 px width). */
+.qpop .qpl .sel{width:max-content;max-width:none}
 /* a tall operator panel scrolls inside itself on a short screen; on a narrow one its selects take the line (QA5 D6) */
 .qpop{max-height:min(80vh,720px);overflow:auto}
 @media (max-width:640px){.qpl{grid-template-columns:96px minmax(0,1fr)}.qpl .def{grid-column:2}.qpl .sel.qop{min-width:0;width:100%}.qpop{max-width:calc(100vw - 24px)}
   /* a parameter's select takes the line as the operator's do (its options are phrases: "Top-K holders (largest inventory)") */
-  .qpop .qpl .sel{min-width:0;max-width:none;width:100%}.qpop .qpl .def{white-space:normal}}
+  .qpop .qpl .sel{min-width:0;max-width:none;width:100%}.qpop .qpl .def{white-space:normal}
+  /* ... the whole line, under its label: beside a 96 px label "c · Inventory ÷ traded value of the lookback (%)" and
+     "Same as rolling days (no overlap)" were cut at 390 px (QA of unit C item 4); never narrower than its options (a
+     longer one scrolls the panel sideways rather than being cut) */
+  .qpop .qpl:has(>.sel){grid-template-columns:minmax(0,1fr)}.qpop .qpl:has(>.sel)>.def{grid-column:1}.qpop .qpl .sel{min-width:max-content}}
 .qpl .def{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
 .qsep{border-top:1px dashed var(--border)}
 .qpf{display:flex;justify-content:space-between;align-items:center}
 .qpf .link{background:none;border:0;padding:0;font:inherit;font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--blue);cursor:pointer}
+/* a pattern's side (P6, QA of unit C item 2): under the row's name, beside the card's name and the panel's heading */
+.qside{font-weight:var(--fw-semibold)}
+.qside.s-bullish{color:var(--green)} .qside.s-bearish{color:var(--red)}
+.qnm .qside{font-size:var(--fs-xs)}
+.qpop>strong .qside{margin-left:4px;font-size:var(--fs-2xs)}
+.mc .mrow .pill.qside{flex:none;height:18px;padding:0 6px;font-size:var(--fs-2xs)}
+.pill.qside.s-bullish{background:var(--green-bg)} .pill.qside.s-bearish{background:var(--red-bg)}
 /* the timeframe: shown as in the reference, never chosen (the data is daily) */
 .tf-seg.tf-add{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:2px;border-radius:var(--r-md);background:var(--sel);cursor:default;user-select:none}
 .tf-add span{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 5px;border-radius:var(--r-sm);font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-3);white-space:nowrap}

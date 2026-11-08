@@ -63,6 +63,28 @@ test('every new shape validates and runs; counts agree with the run', async () =
   assert.equal(ranks[0], 0); assert.equal(ranks.at(-1), 100);
 });
 
+test('a pattern counted over a window (the page\'s operator on a 0/1 signal, QA of unit C item 1) validates and runs; the catalog carries each candlestick\'s side (item 2) and no other entry has one', async () => {
+  const pat = (type: string, params?: Record<string, unknown>) => ({ kind: 'state', pattern: { kind: 'pattern', type, ...(params ? { params } : {}) } });
+  const shapes: Record<string, unknown> = {
+    breakout_k_of_n: { kind: 'window', mode: 'at_least', length: 10, count: 2, test: pat('breakout') },
+    volspike_ever: { kind: 'window', mode: 'ever', length: 20, test: pat('volspike') },
+    morning_star_streak: { kind: 'window', mode: 'streak', length: 2, test: pat('morning_star', { trend: 'none' }) },
+  };
+  for (const [name, t] of Object.entries(shapes)) {
+    const v = await validate(def(t));
+    assert.equal(v.status, 200, `${name}: validate ${JSON.stringify(v.body).slice(0, 200)}`);
+    const r = await run(def(t));
+    assert.equal(r.status, 200, `${name}: run ${JSON.stringify(r.body).slice(0, 200)}`);
+    for (const row of (r.body as any).rows) assert.ok(Number.isInteger(row.cells[0].value) && row.cells[0].value >= 1, `${name}: a match counts its sessions`);
+  }
+  const cat = (await call(port, 'GET', '/v1/catalog', undefined, auth(OWNER_A))).body as any;
+  const sided = (cat.metrics as any[]).filter(m => m.side !== undefined);
+  assert.equal(sided.length, 20);
+  assert.ok(sided.every(m => m.kind === 'pattern' && m.group === 'Candlestick' && ['bullish', 'bearish'].includes(m.side)));
+  assert.deepEqual([sided.find(m => m.id === 'morning_star').side, sided.find(m => m.id === 'evening_star').side], ['bullish', 'bearish']);
+  assert.equal((cat.fundamentals as any[]).filter(m => m.side !== undefined).length, 0);
+});
+
 test('a bad shape is the core refusal: code, field, HTTP 422', async () => {
   const bad: [unknown, string, string][] = [
     [val(rsi, 'eq', 50), 'INVALID_CONDITION', 'definition.conditions[0].test.op'],

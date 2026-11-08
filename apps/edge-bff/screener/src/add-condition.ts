@@ -23,7 +23,8 @@ import { canonical, ctx, entryOf, S, ui } from './state.ts';
 import { defaultParams, depthHint, flowBudget, flowSessions, GHEAD, GORD, isFlowType, matches, optionText, paramError, rangeText, type Entry, type EntryParam, type Opt } from './entries.ts';
 import { cardErrors, displayUnit, fromWire, newCard, newCardId, optOf, toWire, type Card } from './forms.ts';
 import { closeDialog, dialog, toast, toastAction } from './dialogs.ts';
-import { defaultOp, fieldHint, fieldMax, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, opsFor, opText, plainOffered, secondOptions, seriesList, testOf, testsFor, withCmp, withMeasure, withTest, type OpState } from './operators.ts';
+import { defaultOp, fieldHint, fieldMax, isSignal, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, operatorTitle, opsFor, opText, plainOffered, secondOptions, seriesList, signalText, testOf, testsFor, withCmp, withMeasure, withTest, type OpState } from './operators.ts';
+import { sideOf } from './texts.ts';
 import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
 
 export const MY = 'My metrics', ON_SCREEN = '__on', ALL = 'All';
@@ -205,7 +206,7 @@ function ruleHtml(it: AddItem, i: number): [string, string] {
     return [`<span class="rr-fixed" title="Saved with this metric">${esc(o?.label || 'Saved condition')}</span>`, '<span class="rr-none">—</span>'];
   }
   const e = it.entry!, r = ruleOf(e), o = e.opts.find(x => x.key === r.opt), er = ruleErrors(e);
-  const opOpt = offersOperators(e.ops, e) ? `<option value="${OP_OPT}" ${r.op ? 'selected' : ''} title="A universal operator: percentile, z-score, change, slope, rank, K of N and more, set in Customize">Operator…</option>` : '';
+  const opOpt = offersOperators(e.ops, e) ? `<option value="${OP_OPT}" ${r.op ? 'selected' : ''} title="${esc(operatorTitle(e.ops!, e, r.params))}">Operator…</option>` : '';
   const sel = `<select class="sel" data-af="opt" data-ai="${i}" aria-label="Condition for ${esc(e.label)}"${er.op ? ` aria-invalid="true" title="${esc(er.op)}"` : ''}>${e.opts.map(x => `<option value="${esc(x.key)}" ${!r.op && x.key === r.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}${opOpt}</select>`;
   return [`<span class="rr qs">${sel}</span>`, `<span class="rr qt${W.pop === i ? ' open' : ''}">${settingsHtml(e, i)}</span>`];
 }
@@ -256,7 +257,9 @@ function opBoxes(e: Entry, op: OpState, i: number, er: Record<string, string>, p
   // the lines the setup draws (a flow indicator's Buy and Sell follow its Side), and the one chosen
   const outs = seriesList(e, params).filter(x => x.drawn || x.key === op.output);
   if (seriesList(e, params).length > 1) out.push({ name:'Line', control:sel('output', 'Line', outs.map(x => ({ v:x.key, t:x.label })), op.output), unit:'', def:'', changed:false, thr:true, hint:'' });
-  out.push({ name:'Measure', control:sel('measure', 'Measure', [...(plainOffered(ops, e, op.output, params) ? [{ v:'none', t:'The value itself' }] : []), ...measuresFor(ops, e, op.output, params).map(x => ({ v:x.fn, t:x.label }))], op.measure, m?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
+  // a pattern's 0/1 signal takes no measure (OPERATORS.md section 4, type F): no Measure box with one choice in it
+  const signal = isSignal(e);
+  if (!signal) out.push({ name:'Measure', control:sel('measure', 'Measure', [...(plainOffered(ops, e, op.output, params) ? [{ v:'none', t:'The value itself' }] : []), ...measuresFor(ops, e, op.output, params).map(x => ({ v:x.fn, t:x.label }))], op.measure, m?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
   // on a flow series a session field takes at most the broker sessions held, and shows as a hint about how many the
   // setup leaves (K1: the worker judges the setup; its refusal is shown on the card)
   const argMax = fieldMax(ops, e, op, 'arg', withinMax(), params), nMax = fieldMax(ops, e, op, 'n', withinMax(), params) ?? withinMax();
@@ -276,14 +279,18 @@ function opBoxes(e: Entry, op: OpState, i: number, er: Record<string, string>, p
       ...(left ? { hint:[range, argHint].filter(Boolean).join(' · ') } : {}) });
   }
   if (m?.second) out.push({ name:'Compared with', control:sel('by', 'Compared with', secondOptions(e, op.output, params).map(x => ({ v:x.key, t:x.label })), op.by), unit:'', def:'', changed:false, thr:true, hint:'' });
-  out.push({ name:'Test', control:sel('test', 'Test', testsFor(ops, e, op, params).map(x => ({ v:x.key, t:x.label })), op.test, t?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
-  if (t) {
+  // a pattern's tests in its own words ("Detected on at least K of the last N sessions"), the catalog's label as the option
+  out.push({ name:signal ? 'Detected' : 'Test', control:sel('test', signal ? 'Detected' : 'Test', testsFor(ops, e, op, params).map(x => ({ v:x.key, t:x.label })), op.test, signal ? signalText(op.test, 'N', 'K') : t?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
+  if (t && !signal) {
     // what the defaults of this measure and test would be: a field set otherwise counts as changed on the Customize button
     const d0 = withTest(ops, e, { ...op, cmp:m ? m.default.cmp : op.cmp }, op.test, params);
     out.push({ name:'Condition', control:sel('cmp', 'Condition', opsFor(e, op, t, params).map(x => ({ v:x, t:OP_WORDS[x] || x })), op.cmp), unit:'', def:'', changed:op.cmp !== d0.cmp, thr:true, hint:'' });
     const u = opFieldUnit(ops, e, op, params), two = op.cmp === 'between' || op.cmp === 'outside';
     out.push({ name:two ? 'From' : 'Value', control:numIn('value', two ? 'From' : 'Value', op.value), unit:u, def:'', changed:String(op.value) !== String(d0.value), thr:true, hint:u });
     if (two) out.push({ name:'To', control:numIn('value2', 'To', op.value2), unit:u, def:'', changed:String(op.value2) !== String(d0.value2), thr:true, hint:u });
+  }
+  // the sessions of a cross or a window: a pattern's too (its comparison is always "detected": no Condition, no Value)
+  if (t) {
     // "on at least K of the last N sessions": K first, as it reads (QA5 D4)
     if (t.count) out.push({ name:'On at least', control:numIn('k', 'Sessions passing', op.k, 'min="1" step="1"'), unit:'sessions', def:String(t.default?.k ?? ''), changed:String(op.k) !== String(t.default?.k ?? ''), thr:true });
     if (t.within || t.length) out.push({ name:t.count ? 'Of the last' : t.within ? 'Within' : t.key === 'streak' ? 'In a row' : 'In the last', control:numIn('n', 'Sessions', op.n, `min="1" max="${nMax}" step="1"`), unit:'sessions', def:`${t.default?.n ?? ''} · 1 to ${nMax}`, changed:String(op.n) !== String(t.default?.n ?? ''), thr:true,
@@ -323,7 +330,8 @@ function settingsHtml(e: Entry, i: number): string {
   // an operator's line has no catalog default of its own to show: its unit, if any, instead (the select's title explains it)
   const line = (b: Box) => `<${tag(b)} class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}<span class="def">${b.hint !== undefined ? esc(b.hint) : `${b.unit ? esc(b.unit) + ' · ' : ''}default ${esc(b.def)}`}</span></${tag(b)}>`;
   const ps = B.filter(b => !b.thr), ts = B.filter(b => b.thr);
-  return btn + `<span class="qpop" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}</strong>${ps.map(line).join('')}${ps.length && ts.length ? '<span class="qsep"></span>' : ''}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
+  const side = sideOf(e);
+  return btn + `<span class="qpop" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}${side ? ` <small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.word)}</small>` : ''}</strong>${ps.map(line).join('')}${ps.length && ts.length ? '<span class="qsep"></span>' : ''}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
 }
 /** Reset to default: the row's parameters and threshold back to the catalog's defaults (its condition stays) */
 export function resetRule(e: Entry) {
@@ -338,7 +346,10 @@ function rowHtml(it: AddItem, i: number, added: boolean): string {
     : `<button type="button" class="qact" data-qact="${i}" tabindex="-1" aria-label="Add ${esc(it.label)}">Add</button>`;
   const title = added ? 'On the screen with this condition. Click to remove it.' : it.ok ? 'Click to add with the condition shown' : (it.why || 'No data');
   const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters are in the settings column (no grey line)
-  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${editable ? '' : `<small>${esc(it.sub)}</small>`}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+  // a pattern's side under its name (QA of unit C item 2), in place of the grey line (a row without data keeps its reason)
+  const side = it.kind === 'ind' && it.ok ? sideOf(it.entry) : null;
+  const sub = side ? `<small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.line)}</small>` : editable ? '' : `<small>${esc(it.sub)}</small>`;
+  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${sub}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
 }
 function railHtml(): string {
   const btn = (g: string, inner: string, cls = '') => `<button type="button" class="qri ${cls}${W.g === g ? ' on' : ''}" data-ag="${esc(g)}" aria-pressed="${W.g === g}">${inner}</button>`;
@@ -461,6 +472,7 @@ function drawRow(i: number) {
   const fa = document.activeElement as HTMLElement | null, ff = el.contains(fa) ? fieldSel(fa) : null;
   W.added[i] = it.ok && screenSigs().has(itemSig(it));
   drawing = true; try { el.outerHTML = rowHtml(it, i, W.added[i]) } finally { drawing = false }
+  if (W.pop === i) fitPop(i);
   if (ff) $q<HTMLElement>(`#aco${i} ${ff}`)?.focus();
   const r = $q('#acg'); if (r) r.innerHTML = railHtml();
   const ft = $q('#acf'); if (ft) ft.innerHTML = footHtml();
@@ -537,6 +549,18 @@ function onInput(e: Event) {
   if (el.tagName === 'INPUT' && (setParam(el) || setOpField(el))) return;
   if (!f || f === 'opt' || !it?.entry) return;
   const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value);
+}
+/** The open Customize panel of row `i` kept inside the list: moved left by what it passes the list's right edge, never
+    past its left edge, at its own place (under its button) when it fits. A panel wider than the room right of its cell
+    (an operator's, a flow indicator's, now that its selects are as wide as their options: QA of unit C item 4) made
+    the whole list scroll sideways, hiding the row's name. */
+function fitPop(i: number) {
+  const pop = $q<HTMLElement>(`#aco${i} .qpop`), l = $q<HTMLElement>('#acl'); if (!pop || !l) return;
+  pop.style.left = ''; l.scrollLeft = 0;
+  const cs = getComputedStyle(l), lr = l.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+  const from = lr.left + l.clientLeft + (parseFloat(cs.paddingLeft) || 0), to = lr.left + l.clientLeft + l.clientWidth - (parseFloat(cs.paddingRight) || 0);
+  const over = Math.min(pr.right - to, pr.left - from);
+  if (over > 0) pop.style.left = `${-Math.round(over)}px`;
 }
 /** open the Customize panel of row `i` (null closes it); the panel's first field takes the focus, and closing gives it
     back to the button when `back` */
