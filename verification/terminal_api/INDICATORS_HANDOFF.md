@@ -407,3 +407,7 @@ Bagian ini menambah, bukan mengganti. Rincian keputusan: `EXEC.md`, EXEC-FLOW-NE
 - **Kotak mengambang**: `def.box(raw, params)` memberi HTML; mesin (`paintBox`, `placeBox`) menaruhnya di chart, menggeser
   dari kepala (`[data-drag]`), menyimpan posisi di `style.box`, dan menjalankan `data-broker` (tambah ke Broker Inventory)
   serta `data-act="view|pick"` (periode di tampilan / pilih di chart). Dicek di `look_check11.mjs`.
+- **Khusus Terminal** (user 2026-11-08 "A"): `terminal_only` pada indikator (FL49–FL52) atau parameter garis (FL14 `avg`,
+  yang juga tercatat di `terminal_only_outputs`) membuat Screener melewatinya (`build-screener-registry.mjs`
+  `flowEntries`/`entryParams`). Indikator flow baru yang belum diputuskan untuk Screener diberi tanda ini; tanpa tanda dan
+  tanpa baris di `flow-kinds.json`, pembuatan daftar Screener berhenti (disengaja).

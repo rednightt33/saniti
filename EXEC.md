@@ -12648,6 +12648,12 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   - FL14: opsi "10-day average line" (mati): rata-rata 10 nilai terakhir, hanya bila kesepuluhnya ada.
 - Contoh BBRI di stand-in (data sampai 3 Nov 2026, tampilan penuh): Loaders XL +9,5M lot avg 3.116 (−14,6%), YU +6,6M,
   NI +5,8M; ZP −19,7M, AK −10,5M; Top 3 hold 39,84%.
+- Screener (user 2026-11-08, sesudah Screener unit B masuk `main` dan daftar flow Screener dibangkitkan dari registry
+  Terminal): atas pertanyaan "Pilih A atau B?" (A = untuk saat ini hanya di Terminal), jawaban user: "A". Registry
+  menandai FL49–FL52 dan garis rata-rata FL14 `terminal_only`; `build-screener-registry.mjs` melewatinya, jadi isi
+  Screener tetap seperti hasil QA unit B (48 indikator, FL14 hanya `asym`). Satu-satunya perubahan data Screener: pilihan
+  Plot FL26 yang hanya untuk tampilan (display-only, tidak dipakai sebagai kondisi) kini berisi empat opsi. Memasukkan
+  FL49/FL50/rata-rata FL14 ke Screener adalah keputusan terpisah (FUTURE_PLAN).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dijalankan di branch 2026-11-08)
 

@@ -32,14 +32,15 @@ import type { Row } from './flow-fixture.ts';
 
 describe('catalog (P5_FLOW.md section 2)', () => {
   it('holds one generated entry per FL of flowRegistry.json (its name, family, unit, tip, outputs and parameters), the Screener\'s versions as flow-kinds.json states them, then the Screener\'s own entries; FL31 and ksei_net REQUIRES_DATA', () => {
-    const reg = (REG as any).indicators as any[], k = KINDS as any, key = (x: any) => typeof x === 'string' ? x : x.key;
+    // user 2026-11-08 ("A"): an indicator, output or parameter marked terminal_only (FL49-FL52, FL14 avg) is not offered here
+    const reg = ((REG as any).indicators as any[]).filter(r => !r.terminal_only), k = KINDS as any, key = (x: any) => typeof x === 'string' ? x : x.key;
     expect(FLOWS.map(f => f.id)).toEqual([...reg.map(r => r.id), 'fnet', 'ksei_net']);
     for (const r of reg) {
       const f = FLOW_BY_ID[r.id], sv = k.indicators[r.id].screener;
       expect([f.name, f.family, f.unit, f.tip]).toEqual([r.name, r.family, r.unit, r.tip]);
       // the registry's outputs and parameters as they are, except where the Screener's version replaces them (P5b)
-      const outputs = sv?.replace_outputs ? Object.keys(k.indicators[r.id].outputs) : r.outputs;
-      const keys = [...r.params.flatMap((p: any) => sv?.replace?.[p.key] ? sv.replace[p.key].map(key) : [p.key]), ...(sv?.add || []).map(key)];
+      const outputs = sv?.replace_outputs ? Object.keys(k.indicators[r.id].outputs) : r.outputs.filter((o: string) => !(r.terminal_only_outputs || []).includes(o));
+      const keys = [...r.params.filter((p: any) => !p.terminal_only).flatMap((p: any) => sv?.replace?.[p.key] ? sv.replace[p.key].map(key) : [p.key]), ...(sv?.add || []).map(key)];
       expect([r.id, f.outputs.map(o => o.key), f.default_output, f.params.map(p => p.key)]).toEqual([r.id, outputs, outputs[0], keys]);
       for (const p of f.params) {
         expect([r.id, p.key, p.condition]).toEqual([r.id, p.key, !['levels', 'button', 'fixed'].includes(p.kind) && !p.display_only]);
@@ -52,6 +53,8 @@ describe('catalog (P5_FLOW.md section 2)', () => {
     expect(FLOWS.filter(f => f.version === 'screener').map(f => [f.id, f.compute])).toEqual([['FL18', 'anchored'], ['FL19', 'anchored'], ['FL20', 'anchored'], ['FL23', 'inventory'],
       ['FL44', 'anchored'], ['FL45', 'anchored'], ['fnet', 'foreign_net'], ['ksei_net', 'none']]);
     expect(FLOWS.filter(f => f.current_only).map(f => f.id)).toEqual(['FL34']);
+    expect((REG as any).indicators.filter((r: any) => r.terminal_only).map((r: any) => r.id)).toEqual(['FL49', 'FL50', 'FL51', 'FL52']);
+    expect([FLOW_BY_ID.FL14.outputs.map(o => o.key), FLOW_BY_ID.FL14.params.some(p => p.key === 'avg'), FLOW_BY_ID.FL49]).toEqual([['asym'], false, undefined]);
     // maxima derived from the broker window: the anchor at most the window less its own candle, a lookback the window
     expect(FLOW_BY_ID.FL18.params.find(p => p.key === 'anchor_sessions')).toMatchObject({ kind: 'int', min: 1, max: 59, default: 20, condition: true, screener: true });
     expect([FLOW_BY_ID.FL23.params.find(p => p.key === 'lookback')!.max, FLOW_BY_ID.fnet.params.find(p => p.key === 'window')!.max]).toEqual([60, 60]);
@@ -125,6 +128,8 @@ describe('parity with the Terminal (P5_FLOW.md section 5)', () => {
       // FL08, FL09 and FL21 at 60 - 1, FL37 at 60 - 20
       const p = resolveFlowParams(f, undefined, 'f', 60), d = flowDefaults(f.id);
       for (const q of f.params) if (!q.condition) delete d[q.key];
+      // a Terminal-only option (user 2026-11-08 "A": FL14's average line) is no parameter here
+      for (const q of ((REG as any).indicators.find((r: any) => r.id === f.id)?.params || [])) if (q.terminal_only) delete d[q.key];
       const capped = { FL08: 59, FL09: 59, FL21: 59, FL37: 40 } as Record<string, number>;
       expect([f.id, p]).toEqual([f.id, capped[f.id] ? { ...d, baseline: capped[f.id] } : d]);
       // a sided indicator draws its sell line with side sell (its buy line at the default side buy)
@@ -181,7 +186,7 @@ describe('parameter refusals (P5_FLOW.md section 1)', () => {
     expect(R({ metric: 'FL01', params: { ranking: 'daily' } })!.code).toBe('INVALID_CONDITION');
   });
   it('a select or switch whose every option gives the same values (the Terminal\'s "Plot") is display-only, derived by the generator\'s probe: not a condition parameter, refused if sent, its default used; one that changes a value (FL34 "Change line vs") stays (QA unit B, QA5)', () => {
-    const reg = (REG as any).indicators as any[];
+    const reg = ((REG as any).indicators as any[]).filter(r => !r.terminal_only);    // FL49-FL52: Terminal only (user 2026-11-08 "A")
     // derived on the probe, never listed: the generator's answer is the registry's, entry by entry
     for (const r of reg) expect([r.id, FLOW_BY_ID[r.id].params.filter(p => p.display_only).map(p => p.key)]).toEqual([r.id, G.displayOnlyParams(r).filter((k: string) => FLOW_BY_ID[r.id].params.some(p => p.key === k))]);
     expect(FLOWS.flatMap(f => f.params.filter(p => p.display_only).map(p => `${f.id}.${p.key}`))).toEqual(expect.arrayContaining(['FL26.plot', 'FL34.plot']));

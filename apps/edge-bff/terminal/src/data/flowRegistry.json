@@ -1974,8 +1974,12 @@
      "status": "DECIDED",
      "kind": "bool",
      "default": false,
-     "line": true
+     "line": true,
+     "terminal_only": true
     }
+   ],
+   "terminal_only_outputs": [
+    "avg"
    ]
   },
   {
@@ -5504,6 +5508,7 @@
    "outputs": [
     "value"
    ],
+   "terminal_only": true,
    "tip": "Kuadran peta Foreign × Domestic setiap sesi: Top N pembeli dan penjual bersih, net mereka dipecah menjadi transaksi asing dan domestik, dibagi total nilai beli. Satu sel per sesi; warnanya kuadran hari itu (hijau keduanya akumulasi, oranye domestik menyerap, biru asing menyerap, merah keduanya distribusi, abu-abu datar).",
    "params": [
     {
@@ -5552,6 +5557,7 @@
     "domestic",
     "verdict"
    ],
+   "terminal_only": true,
    "tip": "Porsi asing dan porsi domestik dari net Top N pembeli dan penjual bersih, dalam persen total nilai beli semua broker (periode bergulir). Asing + domestik = verdict Top brokers. Domestik di atas nol dan asing di bawah nol: domestik menyerap barang yang dilepas asing.",
    "params": [
     {
@@ -5606,6 +5612,7 @@
    "outputs": [
     "lines"
    ],
+   "terminal_only": true,
    "tip": "Kotak di chart: tiga broker yang paling banyak menambah posisi bersih (lot) dan dua penjual bersih terbesar dalam periode, dengan harga pokok, jarak harga sekarang dari harga pokok dan jumlah hari beli bersih. Periode: candle yang terlihat di chart, atau rentang yang dipilih di chart. Harga pokok: harga rata-rata beli, atau perkiraan modal posisi yang masih dipegang. Bukan kepemilikan nasabah sebenarnya.",
    "params": [
     {
@@ -5686,6 +5693,7 @@
    "outputs": [
     "lines"
    ],
+   "terminal_only": true,
    "tip": "Posisi bersih kumulatif broker yang dipilih di panel Broker inventory, digambar di chart harga dengan sumbu kanan sendiri (lot atau Rupiah), sejak candle pertama yang terlihat; bukan kepemilikan sebenarnya.",
    "params": [
     {

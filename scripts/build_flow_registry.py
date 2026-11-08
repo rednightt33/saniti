@@ -239,7 +239,10 @@ DROP_OPTIONS = {('FL09', 'rank'): {'net_sell'}}
 PLOT_OPTIONS = {'FL26': [['hist', 'Histogram'], ['strip', 'Strip'], ['cells', 'Cell columns'], ['line', 'Line']]}
 # EXEC-FLOW-NEW-3 (user 2026-11-08: FL14 "boleh sebagai opsi di settings"): a 10-day average line over the bars
 # A bool parameter with 'line' adds an output of its own key, drawn only while the parameter is on.
-EXTRA_PARAMS = {'FL14': [{'key': 'avg', 'label': '10-day average line', 'status': 'DECIDED', 'kind': 'bool', 'default': False, 'line': True}]}
+# 'terminal_only' (user 2026-11-08, "A"): an indicator, parameter or output the Terminal draws but the Screener does not
+# offer (scripts/build-screener-registry.mjs skips it), so the Screener stays as its unit-B QA left it until decided.
+EXTRA_PARAMS = {'FL14': [{'key': 'avg', 'label': '10-day average line', 'status': 'DECIDED', 'kind': 'bool', 'default': False, 'line': True,
+                          'terminal_only': True}]}
 
 
 def extra_indicators(by_id):
@@ -252,20 +255,20 @@ def extra_indicators(by_id):
     top, boards, investors = take('FL24', 'top'), take('FL24', 'boards'), take('FL23', 'investors')
     return [
         {'id': 'FL49', 'name': 'Foreign × Domestic · Daily Quadrant', 'family': 'Bandar Balance', 'place': 'pane', 'unit': 'quadrant',
-         'needs_frequency': False, 'outputs': ['value'],
+         'needs_frequency': False, 'outputs': ['value'], 'terminal_only': True,
          'tip': 'Kuadran peta Foreign × Domestic setiap sesi: Top N pembeli dan penjual bersih, net mereka dipecah menjadi transaksi '
                 'asing dan domestik, dibagi total nilai beli. Satu sel per sesi; warnanya kuadran hari itu (hijau keduanya '
                 'akumulasi, oranye domestik menyerap, biru asing menyerap, merah keduanya distribusi, abu-abu datar).',
          'params': [top, boards, take('FL22', 'window', default=1)]},
         {'id': 'FL50', 'name': 'Foreign × Domestic · Rotation', 'family': 'Bandar Balance', 'place': 'pane', 'unit': '%',
-         'needs_frequency': False, 'outputs': ['foreign', 'domestic', 'verdict'],   # verdict: drawn while its parameter is on
+         'needs_frequency': False, 'outputs': ['foreign', 'domestic', 'verdict'], 'terminal_only': True,   # verdict: drawn while its parameter is on
          'tip': 'Porsi asing dan porsi domestik dari net Top N pembeli dan penjual bersih, dalam persen total nilai beli semua broker '
                 '(periode bergulir). Asing + domestik = verdict Top brokers. Domestik di atas nol dan asing di bawah nol: '
                 'domestik menyerap barang yang dilepas asing.',
          'params': [top, boards, take('FL24', 'window', default=5),
                     {'key': 'verdict', 'label': 'Verdict line (Foreign + Domestic)', 'status': 'DECIDED', 'kind': 'bool', 'default': False, 'line': True}]},
         {'id': 'FL51', 'name': 'Loaders', 'family': 'Other', 'place': 'price', 'unit': 'price', 'needs_frequency': False,
-         'outputs': ['lines'],
+         'outputs': ['lines'], 'terminal_only': True,
          'tip': 'Kotak di chart: tiga broker yang paling banyak menambah posisi bersih (lot) dan dua penjual bersih terbesar dalam '
                 'periode, dengan harga pokok, jarak harga sekarang dari harga pokok dan jumlah hari beli bersih. Periode: candle '
                 'yang terlihat di chart, atau rentang yang dipilih di chart. Harga pokok: harga rata-rata beli, atau perkiraan '
@@ -277,7 +280,7 @@ def extra_indicators(by_id):
                     {'key': 'start', 'label': 'From', 'status': 'DECIDED', 'kind': 'date', 'default': 'view'},
                     {'key': 'end', 'label': 'To', 'status': 'DECIDED', 'kind': 'date', 'default': 'view'}]},
         {'id': 'FL52', 'name': 'Broker Inventory · Price Chart', 'family': 'Other', 'place': 'price', 'unit': 'lot|IDR',
-         'needs_frequency': False, 'outputs': ['lines'],
+         'needs_frequency': False, 'outputs': ['lines'], 'terminal_only': True,
          'tip': 'Posisi bersih kumulatif broker yang dipilih di panel Broker inventory, digambar di chart harga dengan sumbu '
                 'kanan sendiri (lot atau Rupiah), sejak candle pertama yang terlihat; bukan kepemilikan sebenarnya.',
          'params': [take('FL23', 'unit'), boards, investors, take('FL23', 'start')]},
@@ -312,9 +315,13 @@ def build():
             if q['key'] == 'plot' and fid in PLOT_OPTIONS:
                 q['options'] = [list(o) for o in PLOT_OPTIONS[fid]]
         ps = ps + [dict(q) for q in EXTRA_PARAMS.get(fid, [])]
-        indicators.append({'id': fid, 'name': name, 'family': family, 'place': PLACE[place.split(' (')[0]],
-                           'unit': UNIT[unit], 'needs_frequency': freq == 'Ya', 'outputs': outputs(fid, ps),
-                           'tip': PLAIN[fid] if fid in PLAIN else tips[fid], 'params': ps})   # a new id needs one of them
+        ind = {'id': fid, 'name': name, 'family': family, 'place': PLACE[place.split(' (')[0]],
+               'unit': UNIT[unit], 'needs_frequency': freq == 'Ya', 'outputs': outputs(fid, ps),
+               'tip': PLAIN[fid] if fid in PLAIN else tips[fid], 'params': ps}   # a new id needs one of them
+        only = [q['key'] for q in ps if q.get('line') and q.get('terminal_only')]
+        if only:
+            ind['terminal_only_outputs'] = only
+        indicators.append(ind)
     indicators += extra_indicators({i['id']: i for i in indicators})
     return {'schema_version': 1, 'generated_by': 'scripts/build_flow_registry.py',
             'source': {'file': str(SPEC.relative_to(ROOT)), 'sha256': hashlib.sha256(SPEC.read_bytes()).hexdigest()},

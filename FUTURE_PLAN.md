@@ -1302,3 +1302,10 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
 
 Usulan ini disetujui sebagai rencana (user 2026-11-07: "2A ... Jangan jalankan. Masukan exec.") dan kini ada di
 `EXEC.md` EXEC-SCREENER-FLOW-CANDLES.
+
+## Screener: indikator flow khusus Terminal (dicatat 2026-11-08)
+
+- User 2026-11-08 memilih "A": FL49–FL52 dan garis rata-rata FL14 hanya di Terminal (`terminal_only` di
+  `flowRegistry.json`). Bila nanti ingin di Screener: FL50 dan rata-rata FL14 berjenis K (persen/kontinu); FL49 (nama
+  kuadran) butuh jenis nilai baru yang hanya "sama dengan / tidak sama dengan"; FL51 (kotak per periode) dan FL52 (ikut
+  daftar panel kanan) bukan satu nilai per sesi. Perlu keputusan user dan QA Screener.

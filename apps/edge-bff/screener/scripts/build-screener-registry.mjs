@@ -647,6 +647,7 @@ export function displayOnlyParams(r) {
 function entryParams(r, sv, shared, W, problems) {
   const params = [], display = new Set(displayOnlyParams(r));
   for (const p of r.params) {
+    if (p.terminal_only) continue;                              // a Terminal-only option (FL14's average line, user 2026-11-08 "A")
     const rep = sv?.replace?.[p.key];
     if (rep === undefined) { params.push({ ...structuredClone(p), condition: !FLOW_DISPLAY_KINDS.includes(p.kind) && !display.has(p.key), ...(display.has(p.key) ? { display_only: true } : {}) }); continue }
     for (const x of rep) params.push(screenerParam(typeof x === 'string' ? shared[x] ?? { key: x } : x, W, `flow-kinds.json ${r.id}.screener`, problems));
@@ -679,10 +680,12 @@ export function flowEntries(reg, kinds) {
     if (!FLOW_COMPUTES.includes(compute)) problems.push(`${where} compute ${compute} is not one of ${FLOW_COMPUTES.join(', ')}`);
     return compute;
   };
-  const flows = reg.indicators.map(r => {
+  /* user 2026-11-08 ("A"): an indicator or output the registry marks terminal_only (FL49-FL52, FL14's average line) is
+     drawn by the Terminal and not offered here, until a decision adds it with its kinds */
+  const flows = reg.indicators.filter(r => !r.terminal_only).map(r => {
     const row = rows[r.id];
     if (!row) { problems.push(`flow-kinds.json: ${r.id} ${r.name} has no row`); return null }
-    const sv = row.screener, params = entryParams(r, sv, shared, W, problems), outKeys = sv?.replace_outputs ? Object.keys(row.outputs || {}) : r.outputs;
+    const sv = row.screener, params = entryParams(r, sv, shared, W, problems), outKeys = sv?.replace_outputs ? Object.keys(row.outputs || {}) : r.outputs.filter(o => !(r.terminal_only_outputs || []).includes(o));
     const keys = Object.keys(row.outputs || {});
     for (const o of outKeys) if (!keys.includes(o)) problems.push(`flow-kinds.json: ${r.id} output ${o} has no kind`);
     for (const o of keys) if (!outKeys.includes(o)) problems.push(`flow-kinds.json: ${r.id} ${o} is not an output`);
