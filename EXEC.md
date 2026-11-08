@@ -12669,6 +12669,17 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
     atas nol dalam periode yang ditandai (board dan jenis investor terpilih); dua baris bawah = dua penjual bersih
     terbesar periode itu, sebagai pembanding. Garis harga pokok hanya untuk tiga penimbun.
   - Pertanyaan terbuka: apakah L2 juga berlaku untuk FL52 (label "NI 5.8M" sekarang di sumbu kanan).
+- Permintaan user 2026-11-08 (BELUM DIJALANKAN, menunggu konfirmasi pemahaman): "Untuk broker inventory overlay ... nama
+  brokernya ... menempel di y-axis sebelah kanan. Buat saja di ujung line"; "ada batas maksimum ... Limitasi naikan jadi
+  10"; "kalau kita klik Ctrl Z setelah kita menambahkan, maka client broker inventory langsung hilang entirely ...
+  harusnya ... mengundo broker yang previously ditambahkan"; "ketika saya ubah basis MA menjadi EMA ... langsung klik di
+  luar box setting tersebut, maka itu sudah langsung apply ... Boleh disamakan dengan Trading View"; untuk Loaders:
+  "datanya masih kurang informatif. Boleh suggest ... tombol X atau tombol Hide ... option instead of fix, kita display
+  hanya 5 broker ... toggle ... Coba propose setelah kamu konfirmasi request saya agar align".
+  - Dicek di kode: Ctrl+Z menghapus indikator karena menambah broker dari panel kanan (`broker.ts` `pick`,
+    `indicators.ts` `Ind.brokerPicked`) tidak dicatat sebagai langkah undo, jadi Ctrl+Z membatalkan langkah tercatat
+    sebelumnya (menambah indikator). Klik di luar dialog Settings sekarang = Cancel (`indicators.ts` `back.onclick`,
+    `close(false)`). Batas 5 ada di `broker.ts` `INV_MAX`, registry FL23 `brokers.max`, slot `b1..b5` dan 5 warna.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
