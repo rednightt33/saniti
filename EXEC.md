@@ -12554,7 +12554,17 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   runtun di legend, tanpa angka di sumbu. FL12, FL29, FL35 tidak diubah.
 - User 2026-11-08 (tangkapan layar opsi 5 HTML): "FL26 bisa buat persis seperti di HTML ... jadi tingginya jangan setinggi
   itu". Sel kini kotak kecil setinggi 18 px, sudut membulat, berjarak, di kaki pane pendek (seri kustom
-  `app/stripSeries.ts`; histogram selalu setinggi pane dan bersudut tajam). FL26 yang sudah tersimpan dengan Plot
+  `app/stripSeries.ts`; histogram selalu setinggi pane dan bersudut tajam).
+- User 2026-11-08: "Buat 3 opsi... pertama opsi existing di main (liat SS), kedua opsi Strip panas satu baris tapi tingginya
+  rendah (seperti yg sudah kamu buat) yg ketiga Kolom kotak tanpa ruang kosong.. ini bisa di toggled di setting saja with
+  default opsi existing yang di main"; atas pertanyaan balik (Line dihapus atau tetap): "Empat opsi - masukan exec ya".
+  DICATAT, BELUM DIJALANKAN (menunggu go): Plot FL26 = Histogram (bawaan, seperti `main`), Strip (sel 18 px seperti di
+  branch), Kolom kotak (opsi 2 HTML: satu kotak = satu hari runtun, hijau di atas 0, merah di bawah, tanpa kotak kosong;
+  ukuran kotak mengikuti lebar candle dan dibatasi agar runtun terpanjang di data muat di pane), Line (tetap). Di branch
+  saat ini Strip masih bawaan: dikembalikan ke Histogram saat dijalankan.
+- Permintaan user 2026-11-08 (BELUM DIPUTUSKAN, menunggu jawaban pertanyaan balik): "broker inventory saat ini kalau kita
+  klik, appear di panel bawah right. Mesti buat another indicator dimana kalau kita klik maka broker inventory appear di
+  main chart (linenya seperti moving average) konfirmasi saja dulu". FL26 yang sudah tersimpan dengan Plot
   Histogram/Line tetap pilihan tersimpannya.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
