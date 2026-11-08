@@ -55,7 +55,8 @@ describe('Add a condition offers the 20 candlestick patterns', () => {
     expect(found('star')).toEqual(['shooting_star', 'morning_star', 'evening_star']);
     expect(found('palu')).toEqual(['hammer', 'inverted_hammer']);
     expect(found('bintang pagi')).toEqual(['morning_star']);
-    expect(found('candlestick').length).toBe(0);                     // the group name is a heading, not a search word
+    // the group's heading is a search word too (QA of unit C item 3, 2026-11-08: "candlestick" found nothing)
+    expect(found('candlestick').length).toBe(20);
     expect(new Set(listItems('', ALL, 'group').filter(it => it.group === 'Candlestick').map(it => it.key))).toEqual(new Set(IDS));
   });
 });

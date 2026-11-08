@@ -4,7 +4,7 @@
    holds no indicator list, no synonym table and no default of its own (report 6.9, 9.2 P6). Pure: no DOM. */
 import type {
   Availability, BrokerWindow, CatalogFlow, CatalogIndicator, CatalogOperators, CatalogMetric, CatalogOutput, CatalogParam, CatalogResponse,
-  MetricKind, ParamMap, ParamValue, TestForm, TestFormSpec, TestKind, TestOp,
+  MetricKind, ParamMap, ParamValue, PatternSide, TestForm, TestFormSpec, TestKind, TestOp,
 } from './core/contract.ts';
 import { formatOfMetric, formatOfOutput, type ValueFormat } from './format.ts';
 
@@ -44,9 +44,13 @@ export interface Entry {
   synonyms: string[];
   history: string | null;      // history_class note ("level depends on history start" for cumulative)
   indicator?: CatalogIndicator; metric?: CatalogMetric; metricKind?: MetricKind;
-  /** the catalog's universal operators (GET /catalog `operators`, P3) on an indicator entry and on a flow indicator
-      (P5c): the measures and tests a card on it may add (operators.ts); absent from an older catalog, and on metrics */
+  /** the catalog's universal operators (GET /catalog `operators`, P3) on an indicator entry, on a flow indicator (P5c)
+      and on a pattern (its 0/1 signal, QA of unit C item 1): the measures and tests a card on it may add (operators.ts);
+      absent from an older catalog, and on the other metrics */
   ops?: CatalogOperators;
+  /** a pattern's side (the catalog's additive `side`, P6: bullish or bearish), shown on its row and card and searched;
+      absent where the catalog gives none */
+  side?: PatternSide;
   /** EXEC-SCREENER-FLOW-CANDLES P5c: one of the Terminal's flow indicators (the catalog's `flow`: its parameters,
       outputs and their kinds, the sessions it reads at its defaults) and the loaded broker window (data.broker_window) */
   flow?: CatalogFlow;
@@ -198,7 +202,7 @@ function metricEntry(m: CatalogMetric, kind: 'metric' | 'fundamental', indicator
     params:withOptionLabels(m.params || [], indicators), opts,
     def:{ opt:defOpt?.key || '', value:def?.value ?? 0, value2:def?.value2 ?? '', within:def?.within ?? 5 },
     available, availability:m.availability, reason:available ? null : (m.reason || 'Not available.'),
-    synonyms:(m as any).synonyms || [], history:null, metric:m, metricKind:m.kind,
+    synonyms:(m as any).synonyms || [], history:null, metric:m, metricKind:m.kind, ...(m.side ? { side:m.side } : {}),
   };
 }
 
@@ -377,18 +381,21 @@ function flowEntry(m: CatalogMetric, cat: CatalogResponse): Entry {
 export function entriesOf(cat: CatalogResponse): Entry[] {
   return [
     ...cat.indicators.map(ind => { const e = indicatorEntry(ind, cat.indicators); if (cat.operators) e.ops = cat.operators; return e }),
-    ...cat.metrics.map(m => m.flow ? flowEntry(m, cat) : metricEntry(m, 'metric', cat.indicators)),
+    // a pattern is a 0/1 signal: the operators' window tests count the sessions it is detected (operators.ts isSignal)
+    ...cat.metrics.map(m => m.flow ? flowEntry(m, cat) : { ...metricEntry(m, 'metric', cat.indicators), ...(m.kind === 'pattern' && cat.operators ? { ops:cat.operators } : {}) }),
     ...cat.fundamentals.map(m => metricEntry(m, 'fundamental', cat.indicators)),
   ];
 }
 export const byGroup = <T extends { group: string }>(list: T[]) => [...list].sort((x, y) => GORD.indexOf(x.group) - GORD.indexOf(y.group));
 
-/** The adder's and browser's search (prototype drawSuggest): label, short name, description, key and the catalog's
-    synonyms (a synonym matches when it starts with the query). */
+/** The adder's and browser's search (prototype drawSuggest): label, short name, description, key, the heading of the
+    entry's group as the page shows it (GHEAD: "candlestick" or "pattern" finds the candlestick patterns, "flow" or
+    "bandarmology" the flow entries, "momentum" the momentum indicators; QA of unit C item 3), a pattern's side
+    ("bullish", "bearish") and the catalog's synonyms (a synonym matches when it starts with the query). */
 export function matches(e: Entry, q: string): boolean {
   const n = q.trim().toLowerCase();
   if (!n) return true;
-  if ((e.label + ' ' + e.short + ' ' + e.desc + ' ' + e.key).toLowerCase().includes(n)) return true;
+  if ([e.label, e.short, e.desc, e.key, GHEAD(e.group), e.side ?? ''].join(' ').toLowerCase().includes(n)) return true;
   return e.synonyms.some(s => s.toLowerCase().startsWith(n));
 }
 

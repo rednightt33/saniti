@@ -14,7 +14,7 @@ import { cardErrors, cardName, condText, defaultOffered, displayUnit, isCustom, 
 import { confirmDialog, openSaveMetric, toast } from './dialogs.ts';
 import { MY, openAddCondition } from './add-condition.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
-import { levelAsOfText, T } from './texts.ts';
+import { levelAsOfText, sideOf, T } from './texts.ts';
 import { levelAtFlowDate } from './cell-text.ts';
 import { ApiFailure } from './api/types.ts';
 import { layoutHooks, wide } from './layout/prefs.ts';
@@ -51,7 +51,9 @@ function passText(c: Card): { txt: string; title: string; zero: boolean } | null
 
 function condRow(c: Card): string {
   const e = entryOf(c), col = colorOf(c), errs = S.errors[c.id] || {};
-  const head = `<div class="mrow"><i class="cdot" style="background:${col}"></i><b data-nm="${c.id}" title="${esc(e?.desc || '')}">${esc(cardName(e, c))}</b><span class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-k="on" ${c.on ? 'checked' : ''} aria-label="Enable condition"><span></span></span><button class="iconbtn sm mx" data-del="${c.id}" title="Remove condition" aria-label="Remove condition">${ico(IC.x, 's')}</button></div>`;
+  // a pattern's side beside its name, and in the name's tooltip (QA of unit C item 2)
+  const side = sideOf(e), sideTag = side ? `<span class="pill qside s-${side.side}" data-side="${c.id}" title="${esc(side.title)}">${esc(side.word)}</span>` : '';
+  const head = `<div class="mrow"><i class="cdot" style="background:${col}"></i><b data-nm="${c.id}" title="${esc([side?.title, e?.desc].filter(Boolean).join(' '))}">${esc(cardName(e, c))}</b>${sideTag}<span class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-k="on" ${c.on ? 'checked' : ''} aria-label="Enable condition"><span></span></span><button class="iconbtn sm mx" data-del="${c.id}" title="Remove condition" aria-label="Remove condition">${ico(IC.x, 's')}</button></div>`;
   const review = c.review?.length ? `<span class="pill t-warning" title="${esc(c.review.join('\n'))}">Needs review</span>` : '';
   const pt = passText(c), pass = `<div class="note cnt" data-pass="${c.id}" ${pt ? `title="${esc(pt.title)}"` : ''} ${pt?.zero ? 'data-z="1"' : ''}>${pt ? esc(pt.txt) : ''}</div>`
     + (ctx.refused?.id === c.id ? `<span class="ferr" role="alert" data-refused="${c.id}">${esc(ctx.refused.message)}</span>` : '');
