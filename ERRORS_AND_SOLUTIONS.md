@@ -5753,6 +5753,30 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M406 — Screener Screen builder: an empty band under "Search indicators to add" (2026-11-08, fixed on branch)
+
+- **Found by:** the user (screenshot, the band marked red).
+- **Symptom:** 46 px of empty space between the search box and the first condition card.
+- **Verified cause:** `apps/edge-bff/screener/src/styles/screener.css` `#cardC .adder{padding-bottom:calc(36px + var(--s-4))}`
+  kept room for the "browse" button (`.xbtn`) after EXEC-SCREENER-ADD removed that button (Add a condition is the one way
+  to add). DOM: `.adder` 80 px high holding a 36 px search box.
+- **Class:** space reserved in CSS for an element that is no longer rendered.
+- **Solution:** the room applies only while the button is there: `#cardC .adder:has(.xbtn){padding-bottom:...}`.
+- **Verified:** fixture page, two conditions: the first card starts 10 px under the search box.
+- **Lesson:** reserve room for an element with a selector that requires the element.
+
+### M407 — Terminal: Ctrl+Z after picking a broker in the right panel removed the whole Broker Inventory indicator (2026-11-08, fixed on branch)
+
+- **Found by:** the user ("kalau kita klik Ctrl Z setelah kita menambahkan, maka client broker inventory langsung hilang").
+- **Verified cause:** `broker.ts` `pick` and `indicators.ts` `Ind.brokerPicked` changed the panel's list and the
+  indicators' broker lists without a step on the chart's undo timeline (`Hist`), so Ctrl+Z undid the step before it:
+  adding the indicator. The Loaders box's period buttons had the same gap.
+- **Class:** a state change outside the undo timeline makes the next Ctrl+Z undo an earlier, unrelated step.
+- **Solution:** a pick is one `Hist` step covering the panel's list and every list that follows picks (FL23, FL52,
+  `def.joinsPicks`); a choice made in an indicator's box is one step (`setFromBox`). Ctrl+Y redoes.
+- **Verified:** stand-in BBRI: FL52 NI, CC, OD; pick ZP → + ZP; Ctrl+Z → ZP gone, indicator kept; Ctrl+Y → ZP back.
+- **Lesson:** every user action that changes chart state goes through the undo timeline.
+
 ### M405 — screener-worker did not start: the Terminal's flow formula imported a file the image does not copy (2026-11-08, fixed)
 
 - **Found by:** the release of `767c5827` (Terminal FL49-FL52): edge-bff `5ae9b963` SUCCESS, screener-worker `6ce5b19b`

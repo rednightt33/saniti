@@ -161,6 +161,17 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
   const h = await p.locator('.ldb-head b').boundingBox(); await p.mouse.move(h.x + 4, h.y + 4); await p.mouse.down(); await p.mouse.move(h.x + 900, h.y + 900, { steps:5 }); await p.mouse.up();
   R.box.dragged = await geo();
   check('loaders box head one line, inside the chart, rows', R.box.first.headLines === 1 && R.box.first.inside && R.box.dragged.inside && R.box.first.rows >= 1, R.box);
+  /* option E's row is one line; the box resizes from its right edge and its bottom edge and keeps inside the chart; a box
+     smaller than its table scrolls (user 2026-11-08) */
+  R.box.ctlLines = await p.$eval('.ldb-ctl', c => new Set([...c.children].map(x => Math.round(x.getBoundingClientRect().top))).size);
+  { const bb = await p.locator('.ind-box').boundingBox();
+    await p.mouse.move(bb.x + bb.width - 2, bb.y + bb.height / 2); await p.mouse.down(); await p.mouse.move(bb.x + bb.width - 42, bb.y + bb.height / 2, { steps:4 }); await p.mouse.up();
+    const b2 = await p.locator('.ind-box').boundingBox();
+    await p.mouse.move(b2.x + b2.width / 2, b2.y + b2.height - 2); await p.mouse.down(); await p.mouse.move(b2.x + b2.width / 2, b2.y + b2.height - 122, { steps:4 }); await p.mouse.up();
+    const b3 = await p.locator('.ind-box').boundingBox();
+    R.box.resize = { w:[Math.round(bb.width), Math.round(b2.width)], h:[Math.round(b2.height), Math.round(b3.height)], scrolls:await p.$eval('.ldb-scroll', e => e.scrollHeight > e.clientHeight), inside:(await geo()).inside } }
+  check('loaders box option E row one line, resizes from right and bottom, scrolls, inside', R.box.ctlLines === 1 && R.box.resize.w[1] < R.box.resize.w[0] - 30
+    && R.box.resize.h[1] < R.box.resize.h[0] - 100 && R.box.resize.scrolls && R.box.resize.inside, R.box);
   check('loaders box columns start under the head title', R.box.first.col.every(v => Math.abs(v) <= 1), R.box.first.col);
   check('loaders box head ink centred', !R.box.head || Math.abs(R.box.head.above - R.box.head.below) <= 1, R.box.head);
   // B: the open settings control

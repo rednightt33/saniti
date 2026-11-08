@@ -88,7 +88,8 @@ export function niceTicks(lo: number, hi: number): number[] {
 }
 
 /** the Broker inventory colours, one per picked broker (the panel and Broker Inventory, FL23) */
-export const INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
+/* the panel and FL23 use the first 5; FL52 on the price chart up to 10 (user 2026-11-08) */
+export const INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f', '#e11d48', '#0891b2', '#ca8a04', '#c026d3', '#57534e'];
 
 export function initBroker(ctx: Ctx) {
   const { M, ws, showStTip, hideStTip, tipHtml, makeFilter } = ctx;
@@ -116,8 +117,8 @@ export function initBroker(ctx: Ctx) {
      redraws the panel (when drawn) and every open window */
   const listeners: (() => void)[] = [];
   let panelRefresh = () => {};
-  /* the windows and the indicators that draw the inventory list (FL52) follow every change of it */
-  const notify = () => { listeners.forEach(fn => fn()); ctx.Ind?.inventoryChanged?.() };
+  /* the windows follow every change of the inventory list */
+  const notify = () => listeners.forEach(fn => fn());
   const changed = () => { if(rendered) panelRefresh(); notify() };
   const brokerCodes = () => { const B = M.broker, s = new Set<string>(); for(let d = 0; d < B.dates.length; d++) for(const r of B.rows(d)) s.add(r[0]); return [...s].sort() };
   // no broker chosen: the three biggest net accumulators of the last 20 sessions (the panel's first period)
@@ -129,7 +130,9 @@ export function initBroker(ctx: Ctx) {
     top.forEach(o => invSel.add(o.b)); RS.broker = top.length ? top[0].b : brokerCodes()[0] ?? null;
   };
   ctx.brokerShared = { invSel, max:INV_MAX, colors:INV_COLORS, changed, ensureDefaults, brokers:brokerCodes,
-    pick(b){ RS.broker = b; if(!invSel.has(b)){ if(invSel.size >= INV_MAX) invSel.delete(invSel.values().next().value!); invSel.add(b) } changed(); ctx.Ind?.brokerPicked?.(b) },
+    pick(b){ const before = [...invSel]; RS.broker = b; if(!invSel.has(b)){ if(invSel.size >= INV_MAX) invSel.delete(invSel.values().next().value!); invSel.add(b) } changed();
+      /* one undo step with the indicators that follow the picks (user 2026-11-08) */
+      ctx.Ind?.brokerPicked?.(b, { before, after:[...invSel], restore:codes => { invSel.clear(); codes.forEach(c => invSel.add(c)); changed() } }) },
     listen:fn => { listeners.push(fn) }, ready:() => ready, selected:() => RS.broker };
   let applyChartRange = (_f: string, _t: string) => {};
   /* EXEC-TERMINAL-BS-SIDE (user 2026-10-28: "Bisa nggak dibuatkan shortcut seperti alt apa kek? ... tombol select on
@@ -186,7 +189,7 @@ export function initBroker(ctx: Ctx) {
   }
   /* EXEC-TERMINAL-PANELS B1, EXEC-BROKER-FULL: the panel gets the recent broker years first and the whole history after them; a second
      answer redraws it with the user's choices (periods by date, filters, picked brokers) kept */
-  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()); ctx.Ind?.inventoryChanged?.() };
+  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()); ctx.refreshFlowIndicators?.() };
   ctx.brokerPanelFailed = () => {
     $('rpSub').textContent = `${M.broker.label} · broker data could not be loaded`;
     ['bsBody','accBody','fdBody','invBody', ...(M.hide.bandar ? [] : ['bdBody'])].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = '<div class="rp-empty">Broker data could not be loaded. Reload the page to try again.</div>' });

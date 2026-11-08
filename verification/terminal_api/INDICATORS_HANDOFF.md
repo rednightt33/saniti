@@ -411,3 +411,8 @@ Bagian ini menambah, bukan mengganti. Rincian keputusan: `EXEC.md`, EXEC-FLOW-NE
   yang juga tercatat di `terminal_only_outputs`) membuat Screener melewatinya (`build-screener-registry.mjs`
   `flowEntries`/`entryParams`). Indikator flow baru yang belum diputuskan untuk Screener diberi tanda ini; tanpa tanda dan
   tanpa baris di `flow-kinds.json`, pembuatan daftar Screener berhenti (disengaja).
+- **2026-11-08, sesudah go:** `def.endLabels` (FL51, FL52) menulis kode broker di ujung garis (primitive `EndLabels`,
+  bertumpuk tanpa tabrakan) dan tidak memberi judul di sumbu; `def.joinsPicks` (daftar broker tanpa scope: FL23, FL52)
+  ikut broker yang diklik di panel, satu langkah undo bersama daftar panel (`Ind.brokerPicked(code, panel)`); kotak
+  indikator bisa diubah ukurannya dari tepi kiri/kanan/bawah dan sudut (`style.box` {x, y, w, h}); pilihan di kotak
+  (`data-param`) adalah parameter indikator dan satu langkah undo (`setFromBox`). Dialog Settings: klik di luar = Ok.

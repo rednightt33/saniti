@@ -12742,6 +12742,18 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   di luar = dipakai; "Add a condition" Screener sesuai mock tanpa Favorites, Customize di tengah dan bisa diubah
   ukurannya dengan tanda terpilih Terminal; ruang kosong Screen builder. Sesudahnya: audit tampilan oleh 5 agen
   ("assign 5 agents 5.5 sonnet medium to review visual", master prompt QA; mode audit saja).
+- Dijalankan di branch (2026-11-08), dicek di browser (stand-in BBRI dan fixture Screener):
+  - Loaders: opsi E (Show Loaders/Sellers/Both, Top 3/5/10, judul kelompok), diubah ukurannya dari tepi kiri/kanan/bawah
+    dan sudut (isi bergulir bila kecil), pilihan di kotak = parameter + satu langkah undo; kode broker di ujung garis harga
+    pokok (warna garis). look_check11: baris opsi E satu baris, lebar 376 → 336, tinggi 343 → 223, bergulir, di dalam chart.
+  - FL52: daftar sendiri sampai 10 (awal = broker panel; klik broker di panel ikut menambah; hapus di panel tidak ikut),
+    kode di ujung garis, angka di sumbu kanan tanpa nama.
+  - Ctrl+Z / Ctrl+Y klik broker (ERRORS M407). Settings Terminal: klik di luar = Ok.
+  - Screener "Add a condition": desain jendela Indicators Terminal tanpa Favorites (kotak cari, daftar kiri dengan
+    TECHNICAL / FLOW / FUNDAMENTAL diturunkan dari entri, pilihan bergaris kiri, judul kelompok menempel, kode + satu
+    kalimat penjelasan, jendela dan pemisah bisa diubah ukurannya); Customize = kotak yang sama di tengah layar, digeser
+    dari judul, diubah ukurannya, klik di luar = dipakai dan menutup tanpa aksi lain, tanda terpilih Terminal.
+  - Screen builder: ruang kosong di bawah kotak cari (ERRORS M406).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 

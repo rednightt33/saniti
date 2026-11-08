@@ -1620,7 +1620,7 @@ html .ind-row.in-pane .ind-flt,html .ind-row.in-pane .ind-fltbtn{order:5}
 /* EXEC-FLOW-NEW-3 (user 2026-11-08): FL51 Loaders' box over the price chart, moved by its head */
 .ind-box{position:absolute;z-index:6;width:max-content;max-width:min(420px,calc(100% - 16px));background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-size:12px;color:var(--text-2);pointer-events:auto}
 .ind-box[hidden]{display:none}
-.ldb-head{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border-bottom:1px solid var(--border);cursor:move;touch-action:none;user-select:none}
+.ldb-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 8px 6px 10px;border-bottom:1px solid var(--border);cursor:move;touch-action:none;user-select:none}
 .ldb-head b{font-weight:var(--fw-semibold);color:var(--text)}
 .ldb-when{color:var(--text-3);font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ldb-acts{margin-left:auto;display:inline-flex;gap:2px}
@@ -1631,10 +1631,25 @@ html .ind-row.in-pane .ind-flt,html .ind-row.in-pane .ind-fltbtn{order:5}
 .ldb-t td{padding:3px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ldb-t th:first-child,.ldb-t td:first-child{text-align:left}
 .ldb-t td.up{color:var(--up)}.ldb-t td.down{color:var(--down)}
-.ldb-t tr.ldb-sell:first-of-type td,.ldb-t tr.ldb-load+tr.ldb-sell td{border-top:1px solid var(--border)}
+.ldb-t tr.ldb-grp:not(:first-child) td{border-top:1px solid var(--border)}
 .ldb-b{display:inline-flex;align-items:center;gap:5px;padding:1px 4px;margin-left:-4px;border:0;border-radius:4px;background:none;font:600 12px/1.3 var(--mono,ui-monospace,monospace);color:var(--text);cursor:pointer}
 .ldb-b::before{content:'';width:8px;height:2px;border-radius:1px;background:var(--c,var(--border-2))}
 .ldb-b:hover{background:var(--hover)}
 .ldb-b:focus-visible,.ldb-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .ldb-foot{margin:2px 0 0;padding:5px 10px 7px;color:var(--text-3);font-size:11px}
 .ldb-empty{padding:10px;color:var(--text-3)}
+/* EXEC-FLOW-NEW-3 (user 2026-11-08): the Loaders box resized from its left, right and bottom edges and its corner; its
+   content scrolls when the box is smaller than the table; option E's choices in a labelled row; group headings */
+.ind-box{display:flex;flex-direction:column;overflow:hidden}
+.ind-box-c{flex:1;min-height:0;display:flex;flex-direction:column}
+.ldb-scroll{flex:1;min-height:0;overflow:auto}
+.ind-box-rz{position:absolute;z-index:2;touch-action:none}
+.ind-box-rz.rz-l{left:0;top:10px;bottom:10px;width:6px;cursor:ew-resize}
+.ind-box-rz.rz-r{right:0;top:10px;bottom:10px;width:6px;cursor:ew-resize}
+.ind-box-rz.rz-b{left:10px;right:14px;bottom:0;height:6px;cursor:ns-resize}
+.ind-box-rz.rz-c{right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 55%,var(--text-3) 55% 62%,transparent 62% 72%,var(--text-3) 72% 79%,transparent 79%)}
+.ldb-ctl{display:flex;flex-wrap:wrap;gap:6px 10px;padding:6px 10px;border-bottom:1px solid var(--border)}
+.ldb-seg{display:inline-flex;gap:2px;padding:2px;border-radius:6px;background:var(--bg)}
+.ldb-seg .ldb-btn{height:20px}
+.ldb-t tr.ldb-grp td{padding:7px 8px 2px 8px;font-size:10px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.ldb-t tr.ldb-grp+tr td{border-top:0}

@@ -825,7 +825,10 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--text)}
   #cardC .builder-h .tgl>:not(.ico):not(small){grid-column:2}
   #cardC .builder-h .logic{flex-wrap:wrap}
   /* adder: full-width search, then a clear way into the full indicator list */
-  #cardC .adder{position:relative;padding-bottom:calc(36px + var(--s-4))}
+  /* the room under the search is the browse button's; without that button (EXEC-SCREENER-ADD: Add a condition is the
+     one way to add) no empty band is left above the first condition (user 2026-11-08, screenshot) */
+  #cardC .adder{position:relative}
+  #cardC .adder:has(.xbtn){padding-bottom:calc(36px + var(--s-4))}
   #cardC .adder .searchbox{position:static}
   #cardC .adder .searchbox input::placeholder{text-overflow:ellipsis}
   #cardC .adder .suggest{top:42px}
@@ -1605,3 +1608,53 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 /* in the preview's "Why it passed" the date line is a sentence under the rule: it wraps (QA5 unit B D1: 434 px of
    nowrap text in a 253 px column was cut off at every width) */
 .chk-list .fdate{display:block;margin:0;white-space:normal;overflow-wrap:anywhere}
+
+/* ---------- Add a condition in the Terminal's Indicators window design (user 2026-11-08: "Bisa nggak dibuat di bagian
+   screener secara desain sama seperti bagian indikator diterminal?", mock verification/screener/add_condition_look;
+   "favourite di screener tidak usah ikut") ---------- */
+:root{--sel-shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px -8px rgba(0,0,0,.22)}
+.dialog.qwin{position:relative;min-width:min(640px,100%);min-height:420px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
+/* the search box: a hairline, a soft lift on hover, a deeper one while typing */
+.qwin-t .searchbox{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);box-shadow:none;transition:box-shadow .15s}
+.qwin-t .searchbox:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.qwin-t .searchbox:focus-within{border-color:var(--border);box-shadow:0 6px 20px rgba(0,0,0,.14)}
+/* the group list: the chosen line marked by a bar on its left and a grey fill; section titles; its border moves */
+.qwin-b{grid-template-columns:var(--qnav,210px) 6px minmax(0,1fr)}
+.qwin-g.qrail{border-right:0}
+.qwin-split{cursor:col-resize;border-left:1px solid var(--border);touch-action:none}
+.qwin-g .qri.on{background:color-mix(in srgb,var(--text) 9%,var(--surface));border-color:transparent;box-shadow:inset 3px 0 0 var(--text);color:var(--text);font-weight:var(--fw-semibold)}
+.qwin-g .qri.on:hover{background:color-mix(in srgb,var(--text) 12%,var(--surface))}
+.qwin-g .qrtitle{padding:10px 10px 4px}
+/* a group's heading in the list, held under the column titles while its rows scroll */
+.qsec{position:sticky;top:var(--qcols-h,44px);z-index:2;margin:0 calc(-1 * var(--s-6));padding:8px calc(var(--s-6) + var(--s-5));background:var(--sel);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text)}
+.qsec span{margin-left:8px;font-weight:var(--fw-medium);letter-spacing:0;color:var(--text-3)}
+/* a row: name and code, then one sentence of what it is */
+.qnl{display:flex;align-items:baseline;gap:8px;min-width:0}
+.qnl b{min-width:0}
+.qcode{flex:none;font-size:var(--fs-2xs);font-weight:var(--fw-medium);color:var(--text-3)}
+.qnm small.qdesc{margin-top:2px}
+/* the window resized from its left, right and bottom edges and its corner */
+.qwin-rz{position:absolute;z-index:5;touch-action:none}
+.qwin-rz.rz-l{left:0;top:16px;bottom:16px;width:6px;cursor:ew-resize}.qwin-rz.rz-r{right:0;top:16px;bottom:16px;width:6px;cursor:ew-resize}
+.qwin-rz.rz-b{left:16px;right:18px;bottom:0;height:6px;cursor:ns-resize}
+.qwin-rz.rz-c{right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;border-bottom-right-radius:var(--r-2xl);background:linear-gradient(135deg,transparent 55%,var(--text-3) 55% 62%,transparent 62% 72%,var(--text-3) 72% 79%,transparent 79%)}
+/* Customize: the same box, in the middle of the screen, moved by its title, resized from its edges and corner */
+.qwin .qpop{position:fixed;z-index:95;top:50%;left:50%;width:auto;min-width:300px;min-height:160px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);
+  display:flex;flex-direction:column;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.qwin .qpop>strong{position:sticky;top:-12px;z-index:1;margin:-12px -14px 0;padding:12px 14px 6px;background:var(--surface);cursor:move;touch-action:none;user-select:none}
+.qwin .qpop>.qpf{margin-top:auto}
+.qpop-rz{position:absolute;z-index:2;touch-action:none}
+.qpop-rz.rz-l{left:0;top:10px;bottom:10px;width:6px;cursor:ew-resize}.qpop-rz.rz-r{right:0;top:10px;bottom:10px;width:6px;cursor:ew-resize}
+.qpop-rz.rz-b{left:10px;right:14px;bottom:0;height:6px;cursor:ns-resize}
+.qpop-rz.rz-c{right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 55%,var(--text-3) 55% 62%,transparent 62% 72%,var(--text-3) 72% 79%,transparent 79%)}
+/* the Terminal's selected state (its Settings dialog, EXEC-RP-LOOK-2 B): a field being used has no border line, a soft
+   shadow ("Jangan lupa selected state juga harus disamakan dengan yang di terminal") */
+.qwin .inp:focus,.qwin .sel:focus,.qwin .qpop .inp:focus,.qwin .qpop .sel:focus{border-color:transparent;box-shadow:var(--sel-shadow);outline:none}
+.qwin .qpop .msel:focus-within{border-radius:var(--r-md);box-shadow:var(--sel-shadow)}
+@media (max-width:1100px){.qwin-b{grid-template-columns:var(--qnav,176px) 6px minmax(0,1fr)}.qwin-g .qri{padding:6px 8px}}
+@media (max-width:760px){
+  .qwin-b{grid-template-columns:1fr}
+  .qwin-split,.qwin-rz,.qpop-rz{display:none}
+  .qsec{top:0}
+  .dialog.qwin{min-width:0;min-height:0;max-width:none;max-height:none}
+}

@@ -78,14 +78,15 @@ const INDEX_NOTE: Record<string, string> = {
 const EMPTY = (N: number): FlowRows => ({ n:0, N, t:new Int32Array(0), b:new Uint16Array(0), inv:new Uint8Array(0), brd:new Uint8Array(0),
   bv:new Float64Array(0), sv:new Float64Array(0), bl:new Float64Array(0), sl:new Float64Array(0), bf:new Float64Array(0), sf:new Float64Array(0),
   brokers:[], has:new Uint8Array(N) });
-const SLOTS = ['b1', 'b2', 'b3', 'b4', 'b5'];
+/* broker line slots: FL23 draws up to 5, FL51 and FL52 up to 10 (user 2026-11-08: "Limitasi naikan jadi 10" for the overlay) */
+const SLOTS = ['b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9', 'b10'];
 /** EXEC-FLOW-NEW-3: the Foreign × Domestic quadrants' colours, as the map's dots (terminal.css .fdm-t0 ...): both
     accumulating green, domestic absorbing orange, foreign absorbing blue, both distributing red, a flat part grey */
 export const QUAD_COLORS = ['#089981', '#d98a0b', '#0070f3', '#f23645', '#8f8f8f', '#8f8f8f', '#8f8f8f', '#8f8f8f', '#8f8f8f'];
 /** FL50's parts in the F×D window's colours (Foreign blue, Domestic orange), the verdict in ink */
 const PART_COLORS: Record<string, string> = { foreign:'#0070f3', domestic:'#d98a0b', verdict:'#171717' };
 /** FL51's cost lines: colours apart from Broker Inventory's (INV_COLORS), so both can be on the price chart */
-export const LOADER_COLORS = ['#8b5a2b', '#65a30d', '#475569'];
+export const LOADER_COLORS = ['#8b5a2b', '#65a30d', '#475569', '#a16207', '#0f766e', '#9f1239', '#4338ca', '#78716c', '#c2410c', '#15803d'];
 /** a line output that a bool parameter of the same key turns on (registry 'line': FL14 avg, FL50 verdict) */
 const lineParam = (r: FlowRegIndicator, k: string) => r.params.find(q => q.kind === 'bool' && q.key === k && (q as any).line);
 /** FL51's box: one row in HTML (the broker is a button: it joins Broker Inventory) */
@@ -264,10 +265,12 @@ export function initFlowIndicators(ctx: Ctx) {
   const brokersOf = (v: any, p?: any): string[] =>
     Array.isArray(v) ? v : typeof v === 'string' && v.startsWith('class:') ? classBrokers(context(), v.slice(6))
       : v === 'top3_net_buy_20' ? defaultInventoryBrokers(context().rows)
-      : v === 'auto_c' ? (ctx.flowRows?.n ? autoInventoryBrokers(context(), { start:firstVisible(), boards:p?.boards, investors:p?.investors }) : []) : [];
+      : v === 'auto_c' ? (ctx.flowRows?.n ? autoInventoryBrokers(context(), { start:firstVisible(), boards:p?.boards, investors:p?.investors }) : [])
+      /* FL52 (user 2026-11-08): the Broker inventory panel's brokers, once the broker data is there */
+      : v === 'panel' ? (ctx.brokerShared?.ready() ? (ctx.brokerShared.ensureDefaults(), [...ctx.brokerShared.invSel]) : []) : [];
 
   const tokenLabel = (v: string) => v.startsWith('class:') ? v.slice(6) : v === 'top3_net_buy_20' ? 'Top 3 net buyers, last 20'
-    : v === 'auto_c' ? '2 net buyers + 1 net seller on screen' : v;
+    : v === 'auto_c' ? '2 net buyers + 1 net seller on screen' : v === 'panel' ? 'Broker inventory panel' : v;
   const per = tf === 'W' ? 'weekly' : tf === 'M' ? 'monthly' : 'daily';
   /* a candle is a "day" (user 2026-10-30: "2-3 OK"); on weekly and monthly charts the words follow the candle (Reviewer B,
      B2, B3: "Rolling weeks (1 = daily)", "Average Daily Value · 20W") */
@@ -291,7 +294,7 @@ export function initFlowIndicators(ctx: Ctx) {
      cost, the last close's distance from it and its net-buy days; the foot: the loaders' share of all accumulation. A
      broker button joins Broker Inventory (data-broker); the period buttons are the engine's (data-act view | pick). */
   const loadersBox = (raw: any, p: any): string => {
-    const T = raw?._box as { rows: LoaderRow[]; share: number | null; s: number; e: number } | undefined;
+    const T = raw?._box as { rows: LoaderRow[]; share: number | null; s: number; e: number; nl?: number; ns?: number } | undefined;
     const price = (v: number | null) => v === null ? '—' : ctx.priceText ? ctx.priceText(v) : spec.indicator(v);
     /* the period as read: from its first candle with broker data (the view may start before the data) */
     const R = ctx.flowRows; let s0 = T ? T.s : -1; if (T && R) while (s0 <= T.e && s0 < R.N && !R.has[s0]) s0++;
@@ -299,14 +302,22 @@ export function initFlowIndicators(ctx: Ctx) {
     const inView = (p.start ?? 'view') === 'view' && (p.end ?? 'view') === 'view';
     const head = `<div class="ldb-head" data-drag="1"><b>Loaders</b><span class="ldb-when">${from && to ? `${esc(from)} – ${esc(to)}` : ''}</span>
       <span class="ldb-acts"><button type="button" class="ldb-btn${inView ? ' on' : ''}" data-act="view" title="The candles in view">In view</button><button type="button" class="ldb-btn${inView ? '' : ' on'}" data-act="pick" title="Choose a period on the chart (as Alt+B)">Select on chart</button></span></div>`;
-    if (!T || !T.rows.length) return head + `<div class="ldb-empty">${!ctx.flowRows ? 'Loading broker data' : !ctx.flowRows.n ? 'No broker data for this ticker' : 'No broker data in this period'}</div>`;
-    const costLabel = p.cost === 'model' ? 'Cost held' : 'Avg buy';
-    const rows = T.rows.map((x, j) => { const load = j < 3 && x.lots > 0, col = load && p.lines ? LOADER_COLORS[j] : '';
+    /* option E (user 2026-11-08: "Opsi E sudah oke"): the side the box lists and how many, as labelled choices; each one is
+       the indicator's own parameter (data-param), the same as in its Settings */
+    const seg = (key: string, cur: string) => `<span class="ldb-seg" role="group" aria-label="${key === 'side' ? 'Show' : 'Top N'}">${(FLOW_REG.indicators.find(x => x.id === 'FL51')!.params.find(q => q.key === key)!.options || [])
+      .map(([v, t]) => `<button type="button" class="ldb-btn${String(cur) === v ? ' on' : ''}" data-param="${key}" data-v="${v}" aria-pressed="${String(cur) === v}">${esc(t)}</button>`).join('')}</span>`;
+    const ctl = `<div class="ldb-ctl">${seg('side', p.side ?? 'both')}${seg('top', String(p.top ?? '3'))}</div>`;
+    if (!T || !T.rows.length) return head + ctl + `<div class="ldb-empty">${!ctx.flowRows ? 'Loading broker data' : !ctx.flowRows.n ? 'No broker data for this ticker' : 'No broker data in this period'}</div>`;
+    const costLabel = p.cost === 'model' ? 'Cost held' : 'Avg buy', nl = T.nl ?? 0, ns = T.ns ?? 0;
+    const line = (x: LoaderRow, j: number) => { const load = j < nl, col = load && p.lines ? LOADER_COLORS[j] : '';
       return `<tr class="${load ? 'ldb-load' : 'ldb-sell'}"><td><button type="button" class="ldb-b" data-broker="${esc(x.b)}" title="Add ${esc(x.b)} to Broker Inventory"${col ? ` style="--c:${col}"` : ''}>${esc(x.b)}</button></td>
         <td class="${x.lots >= 0 ? 'up' : 'down'}">${x.lots >= 0 ? '+' : '−'}${nfCompact.format(Math.abs(x.lots))}</td><td>${price(x.cost)}</td>
-        <td class="${x.dist === null ? '' : x.dist >= 0 ? 'up' : 'down'}">${x.dist === null ? '—' : spec.pctChange(x.dist)}</td><td>${x.buyDays}/${x.days}</td></tr>` }).join('');
-    const foot = T.share === null ? '' : `<p class="ldb-foot">Top 3 hold ${NF2.format(T.share)}% of total accumulation</p>`;
-    return head + `<table class="ldb-t"><thead><tr><th>Broker</th><th>Net lot</th><th>${costLabel}</th><th title="The last close against the cost">vs price</th><th title="Net-buy days of the days with broker data">Buy days</th></tr></thead><tbody>${rows}</tbody></table>${foot}`;
+        <td class="${x.dist === null ? '' : x.dist >= 0 ? 'up' : 'down'}">${x.dist === null ? '—' : spec.pctChange(x.dist)}</td><td>${x.buyDays}/${x.days}</td></tr>` };
+    const grp = (t: string) => `<tr class="ldb-grp"><td colspan="5">${t}</td></tr>`;
+    const body = (nl ? grp(`Top ${nl} loaders (net buyers)`) + T.rows.slice(0, nl).map(line).join('') : '')
+      + (ns ? grp(`Top ${ns} net sellers`) + T.rows.slice(nl).map((x, k) => line(x, nl + k)).join('') : '');
+    const foot = T.share === null ? '' : `<p class="ldb-foot">Top ${nl} hold ${NF2.format(T.share)}% of total accumulation</p>`;
+    return head + ctl + `<div class="ldb-scroll"><table class="ldb-t"><thead><tr><th>Broker</th><th>Net lot</th><th>${costLabel}</th><th title="The last close against the cost">vs price</th><th title="Net-buy days of the days with broker data">Buy days</th></tr></thead><tbody>${body}</tbody></table>${foot}</div>`;
   };
 
   return FLOW_REG.indicators.map(r => {
@@ -322,7 +333,7 @@ export function initFlowIndicators(ctx: Ctx) {
        (place price, unit lot|IDR) on its own right axis in lots or Rupiah, the price staying on the left; Loaders' cost
        lines on the price itself */
     const brokerLines = r.outputs[0] === 'lines' && r.id !== 'FL23', ownAxis = brokerLines && r.unit !== 'price';
-    const lineSlots = brokerLines ? (ownAxis ? SLOTS : SLOTS.slice(0, 3)) : [];
+    const lineSlots = brokerLines ? SLOTS : r.id === 'FL23' ? SLOTS.slice(0, 5) : [];
     const outs = (plot: string, p?: any) => {
       const kind = r.place === 'marker' ? 'marker' : plot;
       /* Broker Inventory: the panel's inventory colours, the total in ink (front-end audit 2026-10-30: two orange lines) */
@@ -331,7 +342,7 @@ export function initFlowIndicators(ctx: Ctx) {
       if (brokerLines) return lineSlots.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:(ownAxis ? INV_COLORS : LOADER_COLORS)[j],
         /* Loaders: the lines only while "Cost lines" is on; Inventory: the right axis in its unit */
         ...(ownAxis ? { scale:'right', ...(Object.keys(inv).length ? inv : { fmt:spec.compact, fk:'lot' }) } : { hidden:p ? !p.lines : !byKey.lines?.default }) }));
-      if (r.id === 'FL23') return [...SLOTS.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:INV_COLORS[j], ...inv })),
+      if (r.id === 'FL23') return [...lineSlots.map((k, j) => ({ k, label:`Broker ${j + 1}`, r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:INV_COLORS[j], ...inv })),
         { k:'total', label:'Total', r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:'#171717', ...inv }];
       /* to-do 18: FL27's broker triggers are optional marks, off until turned on in the Style tab; to-do 12: FL29's size */
       const extra: Record<string, any> = { net:{ label:'Net trigger', vis:false, color:'#0070f3' }, gross:{ label:'Gross trigger', vis:false, color:'#d6409f' },
@@ -392,7 +403,7 @@ export function initFlowIndicators(ctx: Ctx) {
           return { ...base, kind:'multi', def:q.default, options:() => all, all:() => all.map(x => x.id), title:isBoard ? 'Board' : 'Investor' };
         }
         case 'brokers': { const k = scopeKey(q.key); return { ...base, kind:'brokers', def:q.default, max:q.max ?? undefined, resolve:brokersOf, tokenLabel,
-          ...(q.default === 'auto_c' ? { freezeToken:'auto_c' } : {}),
+          ...(q.default === 'auto_c' || q.default === 'panel' ? { freezeToken:q.default } : {}),
           ...(k ? { when:(p: any) => p[k] === 'selected' } : {}) } }
         case 'int': return { ...base, kind:'int', min:q.min ?? 1, max:q.max ?? 5000, def:q.default };
         case 'num': return { ...base, kind:'num', min:q.min ?? -1e12, max:q.max ?? 1e12, minExclusive:!!(q as any).min_exclusive, step:'any', def:q.default };
@@ -422,10 +433,15 @@ export function initFlowIndicators(ctx: Ctx) {
     /* EXEC-BROKER-INV-PANEL: an indicator that counts from the first candle on screen (a fixed `start`) marks its 0 in the
        pane; the pane's own broker, board and investor buttons are the user's choice for Broker Inventory (2026-11-06) */
     const zeroLabel = r.place === 'pane' && fixedStart;
-    const followsInventory = brokerLines && ownAxis;
-    const paneFilters = PANE_FILTER_KEYS.filter(k => inputs.some((f: any) => f.key === k));
+    /* a choice its box offers (FL51's Show and Top N, option E) is not repeated on the legend row */
+    const boxChoices = new Set(byKey.end ? ['side', 'top'] : []);
+    const paneFilters = PANE_FILTER_KEYS.filter(k => !boxChoices.has(k) && inputs.some((f: any) => f.key === k));
     return {
-      id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, zeroLabel, paneFilters, inputs, style:[], fill:null, followsInventory,
+      id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, zeroLabel, paneFilters, inputs, style:[], fill:null,
+      /* the brokers' codes are written at the end of their lines (user 2026-11-08), not on the axis */
+      endLabels:brokerLines,
+      /* a broker picked in the right panel joins this indicator's list (FL23, FL52: a list with no broker scope) */
+      joinsPicks:!!byKey.brokers && !byKey.scope,
       /* what of the view a value follows, as a key that changes when it must be recomputed: the first candle in view (an
          anchor or start on "view"), and the last one for a period's end on "view" (FL51) */
       viewKey:(p: any) => {
@@ -445,8 +461,8 @@ export function initFlowIndicators(ctx: Ctx) {
         /* FL51: a period of dates, each end "view" by default (the first and the last candle in view) */
         if (byKey.end) { if (q.start === 'view' || q.start == null) { q.start = firstVisible(); usedStart = q.start } else usedStart = null;
           if (q.end === 'view' || q.end == null) q.end = lastVisible() }
-        /* EXEC-RP-LOOK-2 (X, user 2026-11-08): the brokers of the Broker inventory panel (clicking a broker there adds one) */
-        if (followsInventory) { const S = ctx.brokerShared; if (!S || !S.ready()) return {}; S.ensureDefaults(); q.brokers = [...S.invSel].slice(0, SLOTS.length) }
+        /* FL52: a list still on its token (the panel's brokers not loaded yet) draws nothing until it is resolved */
+        if (typeof q.brokers === 'string' && byKey.brokers?.default === q.brokers) { const c = brokersOf(q.brokers, q); if (!c.length) return {}; q.brokers = c }
         noLot(q);
         if (usesInsider(r) && insiderState !== 'ready') return {};      // QA F2-03: no "Rp 0" while the events are missing
         const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
@@ -465,7 +481,7 @@ export function initFlowIndicators(ctx: Ctx) {
           if (pre) for (const k of Object.keys(o)) if (Array.isArray(o[k])) o[k] = o[k].map((v: any, t: number) => v !== null && pre[t + 1] - pre[Math.max(0, t - w + 1)] === 0 ? null : v);
         }
         if (r.id !== 'FL23' && !brokerLines) return o;
-        const codes = Object.keys(o).filter(k => k !== 'total').slice(0, lineSlots.length || SLOTS.length), slots: any = { _labels:codes };
+        const codes = Object.keys(o).filter(k => k !== 'total').slice(0, lineSlots.length), slots: any = { _labels:codes };
         if (byKey.end) slots._box = loadersTable(context(), q);
         codes.forEach((c, j) => { slots[SLOTS[j]] = o[c] });
         if (o.total) slots.total = o.total;
@@ -529,7 +545,7 @@ export function initFlowIndicators(ctx: Ctx) {
         // QA M1 (2026-11-06): an emptied list is a saved state (the row asks for a choice), not an invalid one
         if (r.id === 'FL46') { const why = ratioRefusal(p); if (why) return why }
         if (r.id === 'FL34') { const a = new Set(brokersOf(p.inst)); if (brokersOf(p.retail).some(b => a.has(b))) return 'A broker cannot be in both the institutional and the retail list.' }
-        if (r.id === 'FL23' && Array.isArray(p.brokers) && p.brokers.length > 5) return 'Choose up to 5 brokers.';
+        { const mx = byKey.brokers?.max; if (mx && !byKey.scope && Array.isArray(p.brokers) && p.brokers.length > mx) return `Choose up to ${mx} brokers.` }
         return '';
       },
       /* a ratio's neutral line is 1, an imbalance's 0 (FL48 "Show as"; verification 2026-11-05): the default guide follows */

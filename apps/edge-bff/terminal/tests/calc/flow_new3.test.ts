@@ -67,6 +67,13 @@ describe('FL51 Loaders', () => {
     expect(T.rows.map(x => [x.b, x.lots])).toEqual([['AA', 10], ['CC', 5], ['BB', -5]]);
     expect(T.rows[0].line[0]).toBeNull(); expect(T.rows[0].line[1]).toBeCloseTo(120, 9); expect(T.rows[0].line[2]).toBeNull();
   });
+  it('option E: Show and Top N choose the rows; both sides list as many sellers, at most 5; the share is over the N shown', () => {
+    const q = { boards:['Regular'], start:D[0], end:D[2], cost:'avg' };
+    const both = loadersTable(c, { ...q, side:'both', top:'3' }), load = loadersTable(c, { ...q, side:'load', top:'3' }), sell = loadersTable(c, { ...q, side:'sell', top:'3' });
+    expect([both.nl, both.ns, both.rows.map(x => x.b)]).toEqual([2, 1, ['CC', 'AA', 'BB']]);   // only 2 net buyers and 1 net seller exist
+    expect([load.ns, load.rows.length, sell.nl, sell.share]).toEqual([0, 2, 0, null]);
+    expect(Object.keys(computeFlow('FL51', c, { ...q, side:'sell', top:'3' }))).toEqual([]);   // no loader shown: no cost line
+  });
   it('FL51 draws the loaders\' cost lines, keyed by broker', () => {
     expect(Object.keys(computeFlow('FL51', c, { boards:['Regular'], start:D[0], end:D[2], cost:'avg' }))).toEqual(['CC', 'AA']);
   });

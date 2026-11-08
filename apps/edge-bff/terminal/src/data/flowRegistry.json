@@ -5668,6 +5668,48 @@
      "default": false
     },
     {
+     "key": "side",
+     "label": "Show",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "load",
+       "Loaders"
+      ],
+      [
+       "sell",
+       "Sellers"
+      ],
+      [
+       "both",
+       "Both"
+      ]
+     ],
+     "default": "both"
+    },
+    {
+     "key": "top",
+     "label": "Top N",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "3",
+       "Top 3"
+      ],
+      [
+       "5",
+       "Top 5"
+      ],
+      [
+       "10",
+       "Top 10"
+      ]
+     ],
+     "default": "3"
+    },
+    {
      "key": "start",
      "label": "From",
      "status": "DECIDED",
@@ -5694,8 +5736,17 @@
     "lines"
    ],
    "terminal_only": true,
-   "tip": "Posisi bersih kumulatif broker yang dipilih di panel Broker inventory, digambar di chart harga dengan sumbu kanan sendiri (lot atau Rupiah), sejak candle pertama yang terlihat; bukan kepemilikan sebenarnya.",
+   "tip": "Posisi bersih kumulatif sampai 10 broker (awalnya broker panel Broker inventory; broker yang diklik di panel ikut ditambahkan), digambar di chart harga dengan sumbu kanan sendiri (lot atau Rupiah), sejak candle pertama yang terlihat; bukan kepemilikan sebenarnya.",
    "params": [
+    {
+     "key": "brokers",
+     "label": "Brokers",
+     "status": "DECIDED",
+     "kind": "brokers",
+     "default": "panel",
+     "min": 1,
+     "max": 10
+    },
     {
      "key": "unit",
      "label": "Unit",

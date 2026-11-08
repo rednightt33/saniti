@@ -7,7 +7,9 @@ import IND from '../../src/data/indRegistry.json';
 import { MENU_HIDDEN } from '../../src/app/indMenu';
 import FLOW from '../../src/data/flowRegistry.json';
 
-const keysOf = (r: any) => PANE_FILTER_KEYS.filter(k => r.params.some((q: any) => q.key === k && q.kind !== 'fixed'));
+// an indicator with a box (FL51 Loaders, its period end 'end') offers Top N (and Show) in the box, not on its row (2026-11-08)
+const keysOf = (r: any) => PANE_FILTER_KEYS.filter(k => !(r.params.some((q: any) => q.key === 'end') && k === 'top')
+  && r.params.some((q: any) => q.key === k && q.kind !== 'fixed'));
 const shown = (FLOW as any).indicators.filter((r: any) => !MENU_HIDDEN.has(r.id));
 
 describe('pane-row choices derived from the registry (the final proposal)', () => {

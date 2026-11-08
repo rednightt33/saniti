@@ -524,7 +524,10 @@ export function initIndicators(ctx: Ctx) {
     if(inst.raw._labels) inst.parts.forEach((pt, j) => { if(pt.o.k !== 'total') pt.o = { ...pt.o, label:inst.raw._labels[j] || `Broker ${j + 1}` } });   // FL23: the brokers' codes
     /* EXEC-INV-SYNC (user 2026-11-01: "Ditambahin juga ... nama brokernya di sebelah kanannya ... KZ - 234.1K"): a line whose
        name comes from the data (Broker Inventory's brokers) names itself beside its value on the axis */
-    if(inst.raw._labels) inst.parts.forEach(pt => { if(pt.series && pt.kind !== 'marker') pt.series.applyOptions({ title:pt.o.k === 'total' ? 'Total' : pt.o.label || '' }) });
+    if(inst.raw._labels && !inst.def.endLabels) inst.parts.forEach(pt => { if(pt.series && pt.kind !== 'marker') pt.series.applyOptions({ title:pt.o.k === 'total' ? 'Total' : pt.o.label || '' }) });
+    if(inst.def.endLabels) { const host = inst.parts.find(pt => pt.series)?.series;
+      if(inst.endPrim && inst.endHost !== host) { try { inst.endHost.detachPrimitive(inst.endPrim) } catch(e) {} inst.endPrim = null }
+      if(!inst.endPrim && host) { inst.endPrim = new EndLabels(inst); host.attachPrimitive(inst.endPrim); inst.endHost = host } }
     const breaks = new Set((inst.raw._breaks || []).map(i => i + off));         // calculation restarts here: never draw a line into this bar
     const dir = inst.disp.direction, bandsOff = 'bands_mode' in p && p.bands_mode === 'None', T = i => ohlc[i].time;
     // EXEC-FLOW-NEW-3: an output a parameter turns off (FL14 avg, FL50 verdict, FL51 cost lines) is not drawn
@@ -599,6 +602,7 @@ export function initIndicators(ctx: Ctx) {
     }
     paintRow(inst);
     paintBox(inst);
+    inst.endPrim?.update();
   }
 
   /* EXEC-FLOW-NEW-3 (user 2026-11-08: "ketika indikator ini ditambahkan maka ada floating box di dalam chart"; "letak kotak
@@ -606,40 +610,98 @@ export function initIndicators(ctx: Ctx) {
      moved by its head inside the chart and keeps its place (style.box, saved with the indicator); a broker button adds
      the broker to Broker Inventory; "In view" puts the period back on the candles in view, "Select on chart" picks it
      with the range tool (as Alt+B). Hidden with the indicator. */
-  const BOX_M = 8;
+  const BOX_M = 8, BOX_MIN_W = 320, BOX_MIN_H = 140;
   function placeBox(inst) {
     const el = inst.box, W = stage.clientWidth, H = stage.clientHeight; if(!el || el.hidden || !W) return;
-    const w = el.offsetWidth, h = el.offsetHeight, axis = chart.priceScale('right').width() || 0;
-    const at = inst.style.box || { x:W - axis - w - 12, y:44 };
-    el.style.left = `${Math.round(Math.min(Math.max(BOX_M, at.x), Math.max(BOX_M, W - w - BOX_M)))}px`;
-    el.style.top = `${Math.round(Math.min(Math.max(BOX_M, at.y), Math.max(BOX_M, H - h - BOX_M)))}px`;
+    const at = inst.style.box || {}, axis = chart.priceScale('right').width() || 0;
+    /* EXEC-FLOW-NEW-3 (user 2026-11-08: "membesarkan dan mengecilkan ... border, terus kemudian di drag kiri kanan"): a size
+       the user dragged (w, h) inside the chart, else the content's own size */
+    el.style.width = at.w ? `${Math.round(Math.min(Math.max(BOX_MIN_W, at.w), W - 2 * BOX_M))}px` : '';
+    el.style.height = at.h ? `${Math.round(Math.min(Math.max(BOX_MIN_H, at.h), H - 2 * BOX_M))}px` : '';
+    const w = el.offsetWidth, h = el.offsetHeight, x = at.x ?? W - axis - w - 12, y = at.y ?? 44;
+    el.style.left = `${Math.round(Math.min(Math.max(BOX_M, x), Math.max(BOX_M, W - w - BOX_M)))}px`;
+    el.style.top = `${Math.round(Math.min(Math.max(BOX_M, y), Math.max(BOX_M, H - h - BOX_M)))}px`;
+  }
+  /* a parameter changed from the box is one step of the chart's undo timeline, as in the settings dialog */
+  function setFromBox(inst, v: Record<string, any>) {
+    const hid = inst.hid, before = JSON.stringify(inst.params), after = JSON.stringify({ ...inst.params, ...v });
+    if(before === after) return;
+    const set = (json: string) => { const cur = byHid(hid); if(!cur) return; cur.params = JSON.parse(json); recompute(cur); save(); Ind.onChange && Ind.onChange() };
+    set(after); Hist.push({ undo:() => set(before), redo:() => set(after) });
   }
   function paintBox(inst) {
     if(!inst.def.box) return;
     let el = inst.box;
     if(!el) {
       el = inst.box = document.createElement('div'); el.className = 'ind-box'; el.dataset.def = inst.def.id; stage.appendChild(el);
+      inst.boxBody = document.createElement('div'); inst.boxBody.className = 'ind-box-c'; el.appendChild(inst.boxBody);
+      for(const k of ['l', 'r', 'b', 'c']) { const h = document.createElement('span'); h.className = `ind-box-rz rz-${k}`; h.dataset.rz = k; h.setAttribute('aria-hidden', 'true'); el.appendChild(h) }
       el.addEventListener('click', (e: any) => {
         const b = e.target.closest('button'); if(!b) return;
         if(b.dataset.broker) { ctx.brokerShared?.pick(b.dataset.broker); return }
-        const ds = inst.def.inputs.filter(f => f.kind === 'date'), set = (v: Record<string, any>) => { inst.params = { ...inst.params, ...v }; recompute(inst); save(); Ind.onChange && Ind.onChange() };
-        if(b.dataset.act === 'view') set(Object.fromEntries(ds.map(f => [f.key, 'view'])));
-        if(b.dataset.act === 'pick') ctx.selectRangeOnChart((f, t) => set({ [ds[0].key]:f, ...(ds[1] ? { [ds[1].key]:t } : {}) }));
+        if(b.dataset.param) { const f = inst.def.inputs.find(x => x.key === b.dataset.param); if(f) setFromBox(inst, { [f.key]:b.dataset.v }); return }
+        const ds = inst.def.inputs.filter(f => f.kind === 'date');
+        if(b.dataset.act === 'view') setFromBox(inst, Object.fromEntries(ds.map(f => [f.key, 'view'])));
+        if(b.dataset.act === 'pick') ctx.selectRangeOnChart((f, t) => setFromBox(inst, { [ds[0].key]:f, ...(ds[1] ? { [ds[1].key]:t } : {}) }));
       });
       el.addEventListener('pointerdown', (e: any) => {
-        if(e.button !== 0 || !e.target.closest('[data-drag]') || e.target.closest('button')) return;
+        if(e.button !== 0) return;
+        const rz = e.target.closest('[data-rz]')?.dataset.rz;
+        if(!rz && (!e.target.closest('[data-drag]') || e.target.closest('button'))) return;
         e.preventDefault(); el.setPointerCapture(e.pointerId);
-        const x0 = el.offsetLeft - e.clientX, y0 = el.offsetTop - e.clientY;
-        const move = ev => { inst.style.box = { x:ev.clientX + x0, y:ev.clientY + y0 }; placeBox(inst) };
+        const x0 = e.clientX, y0 = e.clientY, L0 = el.offsetLeft, T0 = el.offsetTop, W0 = el.offsetWidth, H0 = el.offsetHeight;
+        const move = ev => {
+          const dx = ev.clientX - x0, dy = ev.clientY - y0, at = inst.style.box || {};
+          if(!rz) inst.style.box = { ...at, x:L0 + dx, y:T0 + dy };
+          else if(rz === 'l') { const w = Math.max(BOX_MIN_W, W0 - dx); inst.style.box = { ...at, x:L0 + W0 - w, y:T0, w } }
+          else inst.style.box = { ...at, x:L0, y:T0, ...(rz !== 'b' ? { w:Math.max(BOX_MIN_W, W0 + dx) } : {}), ...(rz !== 'r' ? { h:Math.max(BOX_MIN_H, H0 + dy) } : {}) };
+          placeBox(inst);
+        };
         const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); save() };
         el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
       });
       addEventListener('resize', () => placeBox(inst));
     }
     el.hidden = !drawn(inst);
-    if(!el.hidden) { el.innerHTML = inst.def.box(inst.raw, inst.params); placeBox(inst) }
+    if(!el.hidden) { const sc = inst.boxBody.querySelector('.ldb-scroll')?.scrollTop || 0; inst.boxBody.innerHTML = inst.def.box(inst.raw, inst.params);
+      const s2 = inst.boxBody.querySelector('.ldb-scroll'); if(s2) s2.scrollTop = sc; placeBox(inst) }
   }
 
+  /* EXEC-FLOW-NEW-3 (user 2026-11-08: "nama broker bisa taruh saja di ujung line-nya ... sekarang ada di sebelah kiri, di
+     Y-axis"): a line named by its broker (FL51 cost lines, FL52 positions) carries the broker's code in a tag of its colour
+     at its last point, inside the pane; tags of one indicator are stacked so they never overlap */
+  class EndLabels {
+    inst: any; chart: any; req: any; view: any;
+    constructor(inst) { this.inst = inst; const self = this; this.view = { zOrder:() => 'top', renderer:() => ({ draw:t => self.draw(t) }) } }
+    attached(p) { this.chart = p.chart; this.req = p.requestUpdate }
+    detached() { this.chart = null }
+    updateAllViews() {}
+    paneViews() { return [this.view] }
+    update() { if(this.req) this.req() }
+    draw(target) {
+      const inst = this.inst; if(!this.chart || !drawn(inst) || !inst.disp) return;
+      const ts = this.chart.timeScale(), tags: any[] = [];
+      inst.parts.forEach(pt => {
+        if(!pt.series || pt.o.hidden || !inst.style.out[pt.o.k]?.on || !pt.o.label || /^Broker \d+$/.test(pt.o.label)) return;
+        const a = inst.disp[pt.o.k] || []; let i = a.length - 1; while(i >= 0 && (a[i] === null || a[i] === undefined)) i--;
+        if(i < 0) return;
+        const x = ts.logicalToCoordinate(i), y = pt.series.priceToCoordinate(a[i]);
+        if(x === null || y === null || x < 0) return;
+        tags.push({ x, y, t:pt.o.label, c:inst.style.out[pt.o.k].color });
+      });
+      if(!tags.length) return;
+      tags.sort((p, q) => p.y - q.y);
+      for(let k = 1; k < tags.length; k++) if(tags[k].y - tags[k - 1].y < 18) tags[k].y = tags[k - 1].y + 18;
+      target.useMediaCoordinateSpace(({ context:c, mediaSize }) => {
+        c.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace'; c.textBaseline = 'middle';
+        for(const g of tags) {
+          const w = c.measureText(g.t).width + 10, x = Math.min(g.x + 6, mediaSize.width - w - 2), y = Math.min(Math.max(g.y, 9), mediaSize.height - 9);
+          c.fillStyle = g.c; c.beginPath(); (c as any).roundRect ? (c as any).roundRect(x, y - 8, w, 16, 3) : c.rect(x, y - 8, w, 16); c.fill();
+          c.fillStyle = '#fff'; c.fillText(g.t, x + 5, y + 0.5);
+        }
+      });
+    }
+  }
   /* flow indicators: one series (histogram or line) */
   function ensureSeries(inst) {
     const want = inst.def.series ? inst.def.series(inst.style) : 'line';
@@ -1060,7 +1122,9 @@ export function initIndicators(ctx: Ctx) {
     back.onmousedown = (e: any) => { if(cpop && !cpop.contains(e.target) && e.target !== cpop.owner) closeCpop() };
     back.onclick = (e: any) => {
       const t = e.target.closest('[data-tab]'), a = e.target.closest('[data-act]');
-      if(e.target === back) close(false);
+      /* user 2026-11-08 (TradingView: "langsung klik di luar box setting tersebut, maka itu sudah langsung apply"; "(4) OK"):
+         a click outside the dialog applies, as Ok; Cancel, × and Esc discard; invalid inputs keep it open with their message */
+      if(e.target === back) close(true);
       else if(t) { tab = t.dataset.tab; paint() }
       else if(e.target.closest('.idlg-x')) close(false);
       else if(a && a.dataset.act === 'ok') close(true);
@@ -1154,19 +1218,31 @@ export function initIndicators(ctx: Ctx) {
   };
   /* EXEC-INV-SYNC (user 2026-11-01): a broker picked in the right panel joins every Broker Inventory (FL23) on the chart, by
      the panel's own rule (withPicked: already there, nothing; else added, the oldest leaving past the maximum) */
-  /* EXEC-RP-LOOK-2 (X, user 2026-11-08): the Broker inventory panel's list changed (a broker picked or removed there, new
-     broker data): the indicators drawing that list (FL52 on the price chart) follow it */
-  Ind.inventoryChanged = () => list.filter(i => i.def.followsInventory).forEach(recompute);
-  Ind.brokerPicked = (code: string) => {
-    let any = false;
-    list.filter(inst => inst.def.id === 'FL23').forEach(inst => {
+  /* EXEC-INV-SYNC (user 2026-11-01): a broker picked in the right panel joins every list that follows the picks (FL23, FL52:
+     a broker list with no broker scope), by the panel's own rule (withPicked: already there, nothing; else added, the
+     oldest leaving past the list's maximum). User 2026-11-08 ("Ctrl Z seharusnya mengundo, KZ seharusnya tidak appear ...
+     Ctrl Y akan menambah juga si KZ"): the pick is one step of the chart's undo timeline, the panel's list and every
+     indicator's list together */
+  Ind.brokerPicked = (code: string, panel?: { before: string[]; after: string[]; restore: (codes: string[]) => void }) => {
+    const steps: { hid: number; before: string; after: string }[] = [];
+    list.filter(inst => inst.def.joinsPicks).forEach(inst => {
       const inp = inst.def.inputs.find(f => f.key === 'brokers'); if(!inp) return;
       const now = inp.resolve ? inp.resolve(inst.params.brokers, inst.params) : inst.params.brokers;
       const next = withPicked(Array.isArray(now) ? now : [], code, inp.max ?? 5);
       if(next === now) return;
-      inst.params = { ...inst.params, brokers:next }; recompute(inst); any = true;
+      const before = JSON.stringify(inst.params);
+      inst.params = { ...inst.params, brokers:next }; recompute(inst);
+      steps.push({ hid:inst.hid, before, after:JSON.stringify(inst.params) });
     });
-    if(any) { save(); Ind.onChange && Ind.onChange() }
+    if(steps.length) { save(); Ind.onChange && Ind.onChange() }
+    const panelMoved = !!panel && panel.before.join() !== panel.after.join();
+    if(!steps.length && !panelMoved) return;
+    const apply = (k: 'before' | 'after') => {
+      if(panelMoved) panel!.restore(panel![k]);
+      steps.forEach(st => { const cur = byHid(st.hid); if(cur) { cur.params = JSON.parse(st[k]); recompute(cur) } });
+      save(); Ind.onChange && Ind.onChange();
+    };
+    Hist.push({ undo:() => apply('before'), redo:() => apply('after') });
   };
   Ind.removeAll = () => {
     if(!list.length) return;

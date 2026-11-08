@@ -277,13 +277,21 @@ def extra_indicators(by_id):
                     {'key': 'cost', 'label': 'Cost', 'status': 'DECIDED', 'kind': 'select',
                      'options': [['avg', 'Average buy price'], ['model', 'Cost of the position held']], 'default': 'avg'},
                     {'key': 'lines', 'label': 'Cost lines on the price chart', 'status': 'DECIDED', 'kind': 'bool', 'default': False},
+                    # option E (user 2026-11-08: "Opsi E sudah oke"): which side the box lists, and how many
+                    {'key': 'side', 'label': 'Show', 'status': 'DECIDED', 'kind': 'select',
+                     'options': [['load', 'Loaders'], ['sell', 'Sellers'], ['both', 'Both']], 'default': 'both'},
+                    {'key': 'top', 'label': 'Top N', 'status': 'DECIDED', 'kind': 'select',
+                     'options': [['3', 'Top 3'], ['5', 'Top 5'], ['10', 'Top 10']], 'default': '3'},
                     {'key': 'start', 'label': 'From', 'status': 'DECIDED', 'kind': 'date', 'default': 'view'},
                     {'key': 'end', 'label': 'To', 'status': 'DECIDED', 'kind': 'date', 'default': 'view'}]},
         {'id': 'FL52', 'name': 'Broker Inventory · Price Chart', 'family': 'Other', 'place': 'price', 'unit': 'lot|IDR',
          'needs_frequency': False, 'outputs': ['lines'], 'terminal_only': True,
-         'tip': 'Posisi bersih kumulatif broker yang dipilih di panel Broker inventory, digambar di chart harga dengan sumbu '
-                'kanan sendiri (lot atau Rupiah), sejak candle pertama yang terlihat; bukan kepemilikan sebenarnya.',
-         'params': [take('FL23', 'unit'), boards, investors, take('FL23', 'start')]},
+         'tip': 'Posisi bersih kumulatif sampai 10 broker (awalnya broker panel Broker inventory; broker yang diklik di panel '
+                'ikut ditambahkan), digambar di chart harga dengan sumbu kanan sendiri (lot atau Rupiah), sejak candle '
+                'pertama yang terlihat; bukan kepemilikan sebenarnya.',
+         # its own list of up to 10 (user 2026-11-08: "10 broker hanya untuk indikator broker inventory saja yang overlay"),
+         # starting from the panel's brokers ('panel'); a broker picked in the panel joins it
+         'params': [take('FL23', 'brokers', default='panel', max=10), take('FL23', 'unit'), boards, investors, take('FL23', 'start')]},
     ]
 
 

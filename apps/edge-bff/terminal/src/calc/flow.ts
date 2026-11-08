@@ -480,16 +480,20 @@ export interface LoaderRow { b: string; lots: number; cost: number | null; dist:
     'avg': buy value ÷ (buy lots × 100) since s; 'model': FL19's implied cost of the position still held, for that broker
     alone), the distance of the last close from it, its net-buy days, and its running cost line; `share` = the three
     loaders' lots over the lots of every broker that added to its position. */
-export function loadersTable(ctx: FlowContext, p: FlowParams): { rows: LoaderRow[]; share: number | null; s: number; e: number } {
+export function loadersTable(ctx: FlowContext, p: FlowParams): { rows: LoaderRow[]; share: number | null; s: number; e: number; nl?: number; ns?: number } {
   ctxRows = ctx.rows;                                     // called directly by the Terminal, not only through FLOW
   const R = ctx.rows, g = grid0(p), s = anchorAt(ctx, p.start);
   let e = R.N - 1;
   if (typeof p.end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.end)) { e = -1; for (let k = 0; k < ctx.dates.length; k++) if (ctx.dates[k] <= p.end) e = k }
   e = Math.min(e, R.N - 1);
-  if (s > e) return { rows:[], share:null, s, e };
+  if (s > e) return { rows:[], share:null, s, e, nl:0, ns:0 };
   const net = new Float64Array(g.B);
   for (let b = 0; b < g.B; b++) net[b] = bw(g, 'bl', b, s, e) - bw(g, 'sl', b, s, e);
-  const load = topOf(R, 3, b => net[b]), sell = topOf(R, 2, b => -net[b]);
+  /* option E (user 2026-11-08): p.side 'load' | 'sell' | 'both' and p.top N; with both sides the sellers are as many, at
+     most 5 (the default 3 + 3); without p.side the box of 2026-11-08 (3 loaders, 2 sellers) */
+  const N = int(p.top, 3), side = p.side ?? null;
+  const nl = side === 'sell' ? 0 : side ? N : 3, ns = side === 'load' ? 0 : side === 'both' ? Math.min(N, 5) : side === 'sell' ? N : 2;
+  const load = nl ? topOf(R, nl, b => net[b]) : [], sell = ns ? topOf(R, ns, b => -net[b]) : [];
   let pos = 0; for (let b = 0; b < g.B; b++) if (net[b] > 0) pos += net[b];
   let last: number | null = null; for (let k = e; k >= s && last === null; k--) if (ctx.close[k] !== null && R.has[k]) last = ctx.close[k] as number;
   const row = (b: number): LoaderRow => {
@@ -508,7 +512,7 @@ export function loadersTable(ctx: FlowContext, p: FlowParams): { rows: LoaderRow
     }
     return { b:R.brokers[b], lots:net[b], cost, dist:cost && last !== null ? 100 * (last / cost - 1) : null, buyDays, days, line };
   };
-  return { rows:[...load.map(row), ...sell.map(row)], share:pos > 0 ? 100 * load.reduce((x, b) => x + net[b], 0) / pos : null, s, e };
+  return { rows:[...load.map(row), ...sell.map(row)], share:pos > 0 && load.length ? 100 * load.reduce((x, b) => x + net[b], 0) / pos : null, s, e, nl:load.length, ns:sell.length };
 }
 
 export const FLOW: Record<string, Fn> = {
@@ -840,8 +844,8 @@ export const FLOW: Record<string, Fn> = {
   /* FL50: the parts as the map and Top brokers show them (fdShown, two decimals that add up to the verdict) */
   FL50:(c, p) => { const { x, y } = fdParts(c, p), sh = x.map((v, t) => v === null || y[t] === null ? null : fdShown(v, y[t]!));
     return { foreign:sh.map(s => s && s.x), domestic:sh.map(s => s && s.y), verdict:sh.map(s => s && s.r) } },
-  /* FL51 Loaders: the cost lines of the period's three largest loaders (the box's table is loadersTable) */
-  FL51:(c, p) => { const T = loadersTable(c, p), out: FlowOut = {}; for (const r of T.rows.filter(r => r.lots > 0)) out[r.b] = r.line; return out },
+  /* FL51 Loaders: the cost lines of the period's loaders the box lists (the box's table is loadersTable) */
+  FL51:(c, p) => { const T = loadersTable(c, p), out: FlowOut = {}; for (const r of T.rows.slice(0, T.nl ?? 0)) out[r.b] = r.line; return out },
   /* FL52: Broker Inventory on the price chart, the brokers the panel holds (given as p.brokers), FL23's own formula */
   FL52:(c, p) => FLOW.FL23(c, { ...p, brokers:Array.isArray(p.brokers) ? p.brokers : defaultInventoryBrokers(c.rows), view:'cum', total:false }),
 };

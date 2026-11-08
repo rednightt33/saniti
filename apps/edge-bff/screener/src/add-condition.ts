@@ -186,7 +186,10 @@ export function restore(gone: { at: number; c: Card }[]) {
 
 /* ---- the window -------------------------------------------------------------------------------------------------- */
 const FIRST_ROWS = 20;
-const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, pop:null as number | null, items:[] as AddItem[], added:[] as boolean[], spyLock:0, rest:undefined as ReturnType<typeof setTimeout> | undefined, restFrom:0 };
+const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, pop:null as number | null, items:[] as AddItem[], added:[] as boolean[], spyLock:0, rest:undefined as ReturnType<typeof setTimeout> | undefined, restFrom:0,
+  /* user 2026-11-08 ("ketika kita klik customize ... muncul boxnya di tengah, bisa digedein, bisa dikecilin"): the Customize
+     box's size and its shift from the middle, kept while the window is open (a row redraw draws the box again) */
+  popBox:{ w:0, h:0, dx:0, dy:0 } };
 let root: HTMLElement | null = null, drawing = false;
 const $q = <T extends HTMLElement>(sel: string) => root?.querySelector<T>(sel) ?? null;
 
@@ -339,6 +342,14 @@ export function resetRule(e: Entry) {
   r.value = e.def.value; r.value2 = e.def.value2; r.within = e.def.within;
   if (r.op && e.ops) r.op = defaultOp(e.ops, e, undefined, r.params);
 }
+const firstSentence = (t: string) => (t.match(/^.*?[.!?](\s|$)/)?.[0] ?? t).trim();
+/** a group's heading before its first row when the list is sorted by group (the Terminal's "TREND 12") */
+function bandHtml(i: number): string {
+  const it = W.items[i]; if (!it || W.sort !== 'group' || W.g === ON_SCREEN || W.g === MY) return '';
+  if (i > 0 && W.items[i - 1].group === it.group) return '';
+  const n = W.items.filter(x => x.group === it.group).length;
+  return `<div class="qsec" data-sec="${esc(it.group)}" aria-hidden="true">${esc(GHEAD(it.group))}<span>${n}</span></div>`;
+}
 function rowHtml(it: AddItem, i: number, added: boolean): string {
   const [cond, thr] = it.ok ? ruleHtml(it, i) : ['<span></span>', '<span></span>'];
   const act = !it.ok ? `<span class="qadd">No data</span>`
@@ -348,16 +359,28 @@ function rowHtml(it: AddItem, i: number, added: boolean): string {
   const editable = it.ok && it.kind === 'ind' && !!it.entry?.params.length;   // its parameters are in the settings column (no grey line)
   // a pattern's side under its name (QA of unit C item 2), in place of the grey line (a row without data keeps its reason)
   const side = it.kind === 'ind' && it.ok ? sideOf(it.entry) : null;
-  const sub = side ? `<small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.line)}</small>` : editable ? '' : `<small>${esc(it.sub)}</small>`;
-  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><b>${esc(it.label)}</b>${sub}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+  /* user 2026-11-08 (the Terminal's Indicators window): the indicator's code beside its name and one sentence of what it
+     is under it; a pattern keeps its side, a row without data its reason, a saved metric its note */
+  const code = it.kind === 'ind' && it.entry && /^(I|FL)\d+$/.test(it.entry.key) ? `<small class="qcode">${esc(it.entry.key)}</small>` : '';
+  const desc = it.kind === 'ind' && it.ok && it.entry?.desc ? firstSentence(it.entry.desc) : '';
+  const sub = side ? `<small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.line)}</small>` : desc ? `<small class="qdesc" title="${esc(it.entry!.desc)}">${esc(desc)}</small>` : editable ? '' : `<small>${esc(it.sub)}</small>`;
+  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><span class="qnl"><b>${esc(it.label)}</b>${code}</span>${sub}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+}
+/** a group's section, from its entries: Fundamental when every entry is a fundamental, Flow when one reads the broker
+    flow (a Terminal flow indicator, or a metric of the Flow group), Technical otherwise */
+function sectionOf(g: string): string {
+  const es = ctx.entries.filter(e => e.group === g);
+  return es.length && es.every(e => e.kind === 'fundamental') ? 'Fundamental' : es.some(e => !!e.flow) ? 'Flow' : 'Technical';
 }
 function railHtml(): string {
   const btn = (g: string, inner: string, cls = '') => `<button type="button" class="qri ${cls}${W.g === g ? ' on' : ''}" data-ag="${esc(g)}" aria-pressed="${W.g === g}">${inner}</button>`;
   return btn(ON_SCREEN, `${ico(IC.check, 's')}<span class="lab">On the screen</span><span class="c">${S.cards.length}</span>`, 'q-on')
     + btn(MY, `${ico(IC.star, 's')}<span class="lab">My metrics</span><span class="c">${(ctx.metrics || []).length}</span>`, 'q-my')
-    + `<div class="qrsep"></div><div class="qrtitle">Groups</div>`
+    + `<div class="qrsep"></div>`
     + btn(ALL, `<span class="lab">All indicators</span><span class="c">${ctx.entries.length}</span>`)
-    + groupsOf().map(x => btn(x.g, `<span class="lab">${esc(x.label)}</span><span class="c">${x.n}</span>`)).join('');
+    /* user 2026-11-08 (the Terminal's Indicators window): the groups under their section's title */
+    + groupsOf().map((x, k, a) => (k === 0 || sectionOf(a[k - 1].g) !== sectionOf(x.g) ? `<div class="qrtitle">${sectionOf(x.g)}</div>` : '')
+      + btn(x.g, `<span class="lab">${esc(x.label)}</span><span class="c">${x.n}</span>`)).join('');
 }
 function footHtml(): string {
   const n = S.cards.length, lim = ctx.catalog?.limits.find(l => l.name === 'max_conditions'), on = S.cards.filter(c => c.on).length;
@@ -377,13 +400,14 @@ function drawList() {
   // holds a select and its fields, and drawing a hundred of them in one task went over 50 ms on a busy page (report
   // 6c.9; the smoke's long-task check); the flow indicators (P5c) made the list some fifty rows longer
   clearTimeout(W.rest); W.restFrom = W.items.length;
-  const rows = W.items.slice(0, FIRST_ROWS).map((it, i) => rowHtml(it, i, W.added[i]));
+  const rows = W.items.slice(0, FIRST_ROWS).map((it, i) => bandHtml(i) + rowHtml(it, i, W.added[i]));
   drawing = true;
   try { l.innerHTML = W.items.length
     ? `<div class="qcols" aria-hidden="true"><span>Indicator</span><span>Timeframe</span><span>Condition</span><span>Parameters &amp; threshold<em>blue = you can change it</em></span><span></span></div>` + rows.join('')
     : `<p class="qwin-empty">Nothing matches “${esc(W.q)}”. Try another name, or what it measures (for example “momentum” or “volume”).</p>` } finally { drawing = false }
   if (W.items.length > FIRST_ROWS) { W.restFrom = FIRST_ROWS; W.rest = setTimeout(drawRestStep, 0) }
   $q('#acq')?.setAttribute('aria-activedescendant', W.items.length ? 'aco' + W.act : '');
+  l.style.setProperty('--qcols-h', `${l.querySelector<HTMLElement>('.qcols')?.offsetHeight || 0}px`);   // a group heading sits under the column titles
   l.scrollTop = st;
   if (fk) { const [i, f] = fk.split('|'); l.querySelector<HTMLElement>(`[data-ai="${i}"]${f}`)?.focus() }
   const r = $q('#acg'); if (r) r.innerHTML = railHtml();
@@ -393,7 +417,7 @@ function drawList() {
 function restHtml(n: number): string {
   const from = W.restFrom, to = Math.min(W.items.length, from + n);
   W.restFrom = to;
-  return W.items.slice(from, to).map((it, k) => rowHtml(it, from + k, W.added[from + k])).join('');
+  return W.items.slice(from, to).map((it, k) => bandHtml(from + k) + rowHtml(it, from + k, W.added[from + k])).join('');
 }
 /** rows drawn per later task (drawList) */
 const REST_ROWS = 40;
@@ -424,7 +448,7 @@ function railMark(g: string) {
 function scrollToGroup(g: string) {
   drawRest();
   const l = $q<HTMLElement>('#acl'); if (!l) return;
-  const hd = l.querySelector<HTMLElement>('.qcols')?.offsetHeight || 0, r = g === ALL ? null : l.querySelector<HTMLElement>(`.qrow[data-rg="${CSS.escape(g)}"]`);
+  const hd = l.querySelector<HTMLElement>('.qcols')?.offsetHeight || 0, r = g === ALL ? null : l.querySelector<HTMLElement>(`.qsec[data-sec="${CSS.escape(g)}"]`) || l.querySelector<HTMLElement>(`.qrow[data-rg="${CSS.escape(g)}"]`);
   W.spyLock = Date.now() + 700;
   l.scrollTop = r ? r.getBoundingClientRect().top - l.getBoundingClientRect().top + l.scrollTop - hd : 0;
 }
@@ -481,13 +505,14 @@ function drawRow(i: number) {
 /** Open the window. `q` searches at once (a quick chip, the builder's search box); `g` opens on a panel (My metrics). */
 export function openAddCondition(q = '', g: string = ALL) {
   if (!ctx.catalog) return;
-  W.q = q; W.g = g; W.act = 0; W.pop = null;
+  W.q = q; W.g = g; W.act = 0; W.pop = null; W.popBox = { w:0, h:0, dx:0, dy:0 };
   dialog(`<div class="dialog qwin" role="dialog" aria-label="Add a condition">
     <div class="qwin-h"><div><strong>Add a condition</strong><small>Pick the condition next to an indicator, then click the row to add it. Click an added row to remove it. The window stays open until you close it.</small></div><button type="button" class="iconbtn sm" data-close aria-label="Close">${ico(IC.x)}</button></div>
     <div class="qwin-t"><label class="searchbox">${ico(IC.search, 's')}<input id="acq" placeholder="RSI, Stochastic, VWAP, Supertrend, breakout…" autocomplete="off" aria-label="Search indicators" role="combobox" aria-controls="acl" aria-expanded="true" value="${esc(q)}"></label>
       <label class="qwin-sort">Sort <select class="sel sm" id="acs" aria-label="Sort"><option value="group">Group</option><option value="az">Name A–Z</option><option value="za">Name Z–A</option></select></label></div>
-    <div class="qwin-b"><nav class="qwin-g qrail" id="acg" aria-label="Groups"></nav><div class="qwin-l" id="acl" role="listbox" aria-label="Indicators"></div></div>
-    <div class="qwin-f" id="acf"></div></div>`, o => {
+    <div class="qwin-b"><nav class="qwin-g qrail" id="acg" aria-label="Groups"></nav><div class="qwin-split" data-wrz="split" aria-hidden="true"></div><div class="qwin-l" id="acl" role="listbox" aria-label="Indicators"></div></div>
+    <div class="qwin-f" id="acf"></div>
+    <span class="qwin-rz rz-l" data-wrz="l" aria-hidden="true"></span><span class="qwin-rz rz-r" data-wrz="r" aria-hidden="true"></span><span class="qwin-rz rz-b" data-wrz="b" aria-hidden="true"></span><span class="qwin-rz rz-c" data-wrz="c" aria-hidden="true"></span></div>`, o => {
     root = o.querySelector<HTMLElement>('.qwin');
     const sort = root!.querySelector<HTMLSelectElement>('#acs')!; sort.value = W.sort;
     sort.addEventListener('change', () => { W.sort = sort.value as Sort; drawList() });
@@ -497,6 +522,7 @@ export function openAddCondition(q = '', g: string = ALL) {
     root!.addEventListener('change', onField);
     root!.addEventListener('input', onInput);
     root!.addEventListener('keydown', onKey);
+    root!.addEventListener('pointerdown', onResize);
   });
   drawList();
   if (spyMode() && g !== ALL) { railMark(g); scrollToGroup(g) }
@@ -516,7 +542,9 @@ function onClick(e: Event) {
   if (cus) { setPop(W.pop === Number(cus.dataset.cus) ? null : Number(cus.dataset.cus)); return }
   if (done) { setPop(null, true); return }
   if (reset) { const it = W.items[Number(reset.dataset.cusreset)]; if (it?.entry) { resetRule(it.entry); drawRow(Number(reset.dataset.cusreset)) } return }
-  if (W.pop != null && !t.closest('.qpop')) setPop(null);        // a click outside the panel closes it, then acts
+  /* a click outside the Customize box applies it (its values are kept as they are typed) and closes it; the click does
+     nothing else, as the box stands over the list (user 2026-11-08) */
+  if (W.pop != null && !t.closest('.qpop')) { setPop(null); return }
   if (t.closest('select,input,.rr')) return;              // the row's own controls (a parameter's label too)
   const r = t.closest<HTMLElement>('.qrow[data-ai]'); if (r) toggle(Number(r.dataset.ai));
 }
@@ -550,17 +578,44 @@ function onInput(e: Event) {
   if (!f || f === 'opt' || !it?.entry) return;
   const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value);
 }
-/** The open Customize panel of row `i` kept inside the list: moved left by what it passes the list's right edge, never
-    past its left edge, at its own place (under its button) when it fits. A panel wider than the room right of its cell
-    (an operator's, a flow indicator's, now that its selects are as wide as their options: QA of unit C item 4) made
-    the whole list scroll sideways, hiding the row's name. */
+/** The open Customize panel of row `i` in the middle of the screen (user 2026-11-08: "muncul di center", "bisa dibesarkan,
+    dikecilkan"), at the size the user gave it and moved by what the user dragged, kept inside the screen. It replaces
+    the panel under its button, which was small and could pass the list's edge (QA of unit C item 4). */
 function fitPop(i: number) {
-  const pop = $q<HTMLElement>(`#aco${i} .qpop`), l = $q<HTMLElement>('#acl'); if (!pop || !l) return;
-  pop.style.left = ''; l.scrollLeft = 0;
-  const cs = getComputedStyle(l), lr = l.getBoundingClientRect(), pr = pop.getBoundingClientRect();
-  const from = lr.left + l.clientLeft + (parseFloat(cs.paddingLeft) || 0), to = lr.left + l.clientLeft + l.clientWidth - (parseFloat(cs.paddingRight) || 0);
-  const over = Math.min(pr.right - to, pr.left - from);
-  if (over > 0) pop.style.left = `${-Math.round(over)}px`;
+  const pop = $q<HTMLElement>(`#aco${i} .qpop`); if (!pop) return;
+  if (!pop.querySelector('[data-prz]')) pop.insertAdjacentHTML('beforeend', ['l', 'r', 'b', 'c'].map(k => `<span class="qpop-rz rz-${k}" data-prz="${k}" aria-hidden="true"></span>`).join(''));
+  const B = W.popBox, M = 8;
+  pop.style.width = B.w ? `${Math.min(B.w, innerWidth - 2 * M)}px` : '';
+  pop.style.height = B.h ? `${Math.min(B.h, innerHeight - 2 * M)}px` : '';
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = `${Math.round(Math.min(Math.max(M, (innerWidth - w) / 2 + B.dx), innerWidth - w - M))}px`;
+  pop.style.top = `${Math.round(Math.min(Math.max(M, (innerHeight - h) / 2 + B.dy), Math.max(M, innerHeight - h - M)))}px`;
+}
+/** the Customize box moved by its title or resized from its edges and corner; the window resized from its own edges and
+    corner, and its group list's border moved (the Terminal's Indicators window) */
+function onResize(e: PointerEvent) {
+  const t = e.target as HTMLElement, prz = t.closest<HTMLElement>('[data-prz]')?.dataset.prz, wrz = t.closest<HTMLElement>('[data-wrz]')?.dataset.wrz;
+  const head = !prz && !wrz && W.pop != null && t.closest('.qpop>strong') && !t.closest('button,select,input');
+  if (e.button !== 0 || (!prz && !wrz && !head)) return;
+  e.preventDefault(); t.setPointerCapture(e.pointerId);
+  const x0 = e.clientX, y0 = e.clientY, pop = W.pop != null ? $q<HTMLElement>(`#aco${W.pop} .qpop`) : null, B0 = { ...W.popBox };
+  const pw = pop?.offsetWidth || 0, ph = pop?.offsetHeight || 0, win = root!, ww = win.offsetWidth, wh = win.offsetHeight;
+  const nav = $q<HTMLElement>('#acg'), nw = nav?.offsetWidth || 210;
+  const move = (ev: PointerEvent) => {
+    const dx = ev.clientX - x0, dy = ev.clientY - y0;
+    if (head) W.popBox = { ...B0, w:B0.w || 0, h:B0.h || 0, dx:B0.dx + dx, dy:B0.dy + dy };
+    else if (prz) {                                     // grows from the middle on the side dragged: the opposite edge stays
+      const w = prz === 'b' ? pw : Math.max(300, pw + (prz === 'l' ? -dx : dx)), h = prz === 'l' || prz === 'r' ? ph : Math.max(160, ph + dy);
+      W.popBox = { w, h:prz === 'l' || prz === 'r' ? (B0.h || 0) : h, dx:B0.dx + (prz === 'l' ? -(w - pw) / 2 : (w - pw) / 2) * (prz === 'b' ? 0 : 1), dy:B0.dy + (prz === 'l' || prz === 'r' ? 0 : (h - ph) / 2) };
+    } else if (wrz === 'split') win.style.setProperty('--qnav', `${Math.max(160, Math.min(340, nw + dx))}px`);
+    else {
+      if (wrz !== 'b') win.style.width = `${Math.max(640, Math.min(innerWidth - 16, ww + 2 * (wrz === 'l' ? -dx : dx)))}px`;
+      if (wrz === 'b' || wrz === 'c') win.style.height = `${Math.max(420, Math.min(innerHeight - 16, wh + 2 * dy))}px`;
+    }
+    if (W.pop != null) fitPop(W.pop);
+  };
+  const up = () => { t.removeEventListener('pointermove', move); t.removeEventListener('pointerup', up); t.removeEventListener('pointercancel', up) };
+  t.addEventListener('pointermove', move); t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up);
 }
 /** open the Customize panel of row `i` (null closes it); the panel's first field takes the focus, and closing gives it
     back to the button when `back` */
