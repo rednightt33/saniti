@@ -68,6 +68,15 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
      its "show" flag fell inside a comment, and no other check read the legend's value) */
   r.legend = await p.evaluate(() => [...document.querySelectorAll('.ind-row.in-pane')].map(x => x.querySelector(':scope > b')?.textContent || ''));
   check(`${nm} indicator value shown`, r.legend.length > 0 && r.legend.every(t => /\d/.test(t) && !/^No |^Needs |^Before /.test(t)), r.legend);
+  /* EXEC-LEGEND-HIDE (2026-11-08): the legend's last button hides every indicator name (price and panes) and reads its
+     count, its text in the middle of the button; a second click brings them back */
+  { const shown0 = await p.evaluate(() => [...document.querySelectorAll('.ind-row')].filter(r => r.offsetWidth).length);
+    await p.click('.legend-fold'); await p.waitForTimeout(250);
+    r.legendHide = await p.evaluate(() => { const b = document.querySelector('.legend-fold'), t = b.querySelector('span'), br = b.getBoundingClientRect(), tr = t?.getBoundingClientRect();
+      return { rows:[...document.querySelectorAll('.ind-row')].filter(r => r.offsetWidth).length, n:t?.textContent, dy:tr ? +((tr.top + tr.height / 2) - (br.top + br.height / 2)).toFixed(1) : null } });
+    await p.click('.legend-fold'); await p.waitForTimeout(250);
+    r.legendHide.back = await p.evaluate(() => [...document.querySelectorAll('.ind-row')].filter(r => r.offsetWidth).length);
+    check(`${nm} legend hide`, r.legendHide.rows === 0 && +r.legendHide.n === shown0 && Math.abs(r.legendHide.dy) <= 1 && r.legendHide.back === shown0, { shown0, ...r.legendHide }) }
   // 2. every visible toggle: the thumb in the middle of its track (the Events window open for its master switch)
   await p.click('#evBtn'); await p.waitForTimeout(300);
   r.toggles = await p.evaluate(() => [...document.querySelectorAll('.toggle')].filter(t => t.offsetWidth).map(t => {

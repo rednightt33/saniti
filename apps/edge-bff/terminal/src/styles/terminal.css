@@ -1607,3 +1607,10 @@ html .ind-row.in-pane .ind-flt,html .ind-row.in-pane .ind-fltbtn{order:5}
 .lay-back.top{z-index:120}
 .lay-toast.top{z-index:130}
 @media (max-width:640px){.im-prow{grid-template-columns:28px minmax(0,1fr) 104px}}
+
+/* EXEC-LEGEND-HIDE (user 2026-11-08, TradingView A): the price legend's last line hides or shows every indicator's name */
+.legend-fold{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:3px;height:22px;min-width:26px;padding:0 5px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-2);font:500 var(--fs-xs)/1 var(--sans,inherit);font-variant-numeric:tabular-nums;cursor:pointer}
+.legend-fold:hover{background:var(--hover);color:var(--text)}
+.legend-fold:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.legend-fold[hidden]{display:none}
+.legend-hidden .chart-legend > .ind-row,.legend-hidden > .ind-row.in-pane,.legend-hidden > .ind-move{display:none !important}

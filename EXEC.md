@@ -12614,6 +12614,16 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   Foreign + Domestic = verdict Top brokers. Bawaan 5D bergulir, Top 3, Regular; Verdict sebagai opsi. Contoh BBRI
   28 Okt–3 Nov: −599,46 B ÷ 3.842,6 B = −15,60%; +354,73 B ÷ 3.842,6 B = +9,23%; jumlah −6,37%.
 
+## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dijalankan di branch 2026-11-08)
+
+- Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up
+  tolong tambahkanopsi seperti yang saya SS nomor A kalau di klik maka akan hide indicator name".
+- Dibangun di branch: tombol di baris terakhir legenda chart harga. Diklik: semua baris nama indikator (chart harga dan
+  pane bawah, termasuk tombol naik/turun pane) disembunyikan; garis indikator, tanggal dan readout Flow tetap; tombol
+  menjadi "⌄ N" (N = jumlah baris yang disembunyikan). Diklik lagi: tampil kembali. Pilihan diingat (`ml.legend.hidden`,
+  ikut tersimpan di Layout).
+  Chevron lipat pane tetap. Dicek di `look_check11.mjs`.
+
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
 **Kata user, 2026-11-07:** "untuk screenshot A, itu adalah selected state about currently where user scroll. Mungkin bisa

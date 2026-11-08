@@ -272,6 +272,24 @@ export function initIndicators(ctx: Ctx) {
     refresh(inst); layoutPanes(); if(keep) save();
   };
   const stage = legend.parentElement;
+  /* EXEC-LEGEND-HIDE (user 2026-11-08, TradingView screenshot A: "tambahkanopsi seperti yang saya SS nomor A kalau di klik
+     maka akan hide indicator name"): a button under the price chart's legend hides every indicator's name row, on the
+     price chart and in the panes (the lines stay, the date and Flow readout stay); folded it reads "⌄ N" with the number
+     of rows it hides. The choice is kept across reloads. */
+  const LH_KEY = 'ml.legend.hidden', lgBtn = document.createElement('button');
+  lgBtn.type = 'button'; lgBtn.className = 'legend-fold';
+  const LG_UP = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>';
+  const LG_DOWN = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
+  const lgHidden = () => stage.classList.contains('legend-hidden');
+  const paintLg = () => {
+    const n = [...legend.querySelectorAll(':scope > .ind-row'), ...stage.querySelectorAll(':scope > .ind-row.in-pane')].filter((r: any) => !r.hidden && r.style.display !== 'none').length, hid = lgHidden();
+    lgBtn.innerHTML = hid ? `${LG_DOWN}<span>${n}</span>` : LG_UP;
+    const t = hid ? `Show indicator names (${n})` : 'Hide indicator names';
+    lgBtn.setAttribute('aria-label', t); lgBtn.dataset.label = t; lgBtn.setAttribute('aria-expanded', String(!hid));
+    lgBtn.hidden = !n; legend.appendChild(lgBtn);                // always the legend's last line
+  };
+  const setLg = (hid: boolean, keep = true) => { stage.classList.toggle('legend-hidden', hid); if(keep) store.set(LH_KEY, hid ? '1' : '0'); paintLg(); relayout() };
+  lgBtn.onclick = () => setLg(!lgHidden());
   /* EXEC-PANE-ORDER: the pane under the pointer shows its Move up / Move down (a whole pane is an easy target) */
   if(LIVE) {
     let shown: HTMLElement | null = null;
@@ -754,6 +772,7 @@ export function initIndicators(ctx: Ctx) {
       else userRemove(inst);
     });
     if(inst.def.pane === 'sub') { r.classList.add('in-pane'); stage.appendChild(r) } else legend.appendChild(r);
+    paintLg();                                              // EXEC-LEGEND-HIDE: the button stays last and counts the rows
     buildPaneFilters(inst);
     if(inst.def.multi) buildParts(inst);
     if(inst.fold) r.classList.add('folded');
@@ -789,7 +808,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.moveBox) inst.moveBox.remove();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
-    inst.row.remove();
+    inst.row.remove(); paintLg();
     if(sub && pane && pane.getSeries().length === 0 && chart.panes().length > 1) { try { chart.removePane(pane.paneIndex()) } catch(e) {} }
     list.splice(list.indexOf(inst), 1); if(sub) layoutPanes();
     save(); Ind.onChange && Ind.onChange();
@@ -1138,6 +1157,9 @@ export function initIndicators(ctx: Ctx) {
       outputs:Object.fromEntries(Object.entries(i.raw || {}).filter(([k]) => !k.startsWith('_')).map(([k, a]: [string, any]) =>
         [i.raw._labels && /^b\d$/.test(k) ? i.raw._labels[+k[1] - 1] : k, a.flatMap((v, t) => ohlc[t].time >= from ? [[ohlc[t].time, v]] : [])])) }))
   };
+  /* EXEC-LEGEND-HIDE: the saved choice, and a recount when Volume's row is removed or brought back (watched on the row) */
+  new MutationObserver(() => paintLg()).observe($('indRow'), { attributes:true, attributeFilter:['style', 'hidden'] });   // the picker and menu also set volCtl.onChange
+  setLg(store.get(LH_KEY) === '1', false);
   (window as any).marketLabIndicators = Indicators;
   return Indicators;
 }
