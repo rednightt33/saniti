@@ -7,7 +7,7 @@ import type { Entry } from './entries.ts';
 import { formatOfOpt } from './entries.ts';
 import { fmtValue } from './format.ts';
 import { optOf, type Card } from './forms.ts';
-import { opValueText } from './operators.ts';
+import { opCellNote, opValueText } from './operators.ts';
 import { eventText } from './texts.ts';
 
 /** Whether a card's condition reads a flow indicator (EXEC-SCREENER-FLOW-CANDLES P5c): a card on one, or a kept card
@@ -43,4 +43,9 @@ export function cellText(e: Entry | undefined, c: Card, x: Cell | undefined): st
   if (kind === 'state') return x.status === 'pass' ? 'Yes' : 'No';
   if (c.op && e?.ops) return opValueText(e.ops, e, c.op, x.value, x.status === 'pass', c.params);
   return fmtValue(x.value, formatOfOpt(e, e ? optOf(e, c) : undefined));
+}
+/** The cell's count in words, the tooltip line the table and the preview both add beside "Yes · 3/10" (QA of unit C
+    item 1): a window operator's passing (a pattern's detected) sessions; '' for any other cell. */
+export function cellNote(e: Entry | undefined, c: Card, x: Cell | undefined): string {
+  return c.op && x && x.status !== 'na' && x.status !== 'not_evaluated' ? opCellNote(e, c.op, x.value) : '';
 }

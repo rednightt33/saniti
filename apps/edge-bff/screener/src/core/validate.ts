@@ -10,7 +10,10 @@
      lower1 at bands_mode None), naming that parameter, so no cell is NA for a reason that is not the ticker's; a within
      that is not a whole number of at least 1; a duplicate or malformed condition id; logic at_least without a whole
      at_least >= 1 (and at_least with another logic); an unknown sector, industry or ticker (refused by name, with the
-     allowed list); a value on the left of a comparison (the metric goes left, never reordered);
+     allowed list); a value on the left of a comparison (the metric goes left, never reordered); a reference that is
+     not a series where a series is needed (a pattern or a value per stock as a transform's series, a rank's series, a
+     side of a comparison, a pattern in a value test; metrics.ts notSeriesRefusal: the reason, how to pass where the
+     test sits, a right and a wrong example);
    - UNKNOWN_INDICATOR / PARAM_OUT_OF_RANGE: through registry.ts (resolveScreenerParams; the backtest core's
      resolveParams first, then the narrowing and the caps) and catalog.ts (transform arguments, pattern and cross-section
      parameters); an enum option the screener does not offer (P17 a: the I43 anchors Session, Decade and Century,
@@ -34,7 +37,7 @@
    Worker-side module (imports the registry and the backtest core through condition.ts). */
 import { canonicalJson, sha256Hex } from '../../../backtest/src/core/hash.ts';
 import type {
-  Availability, ConditionDef, Definition, Grouping, MetricRef, Side, Test, TestForm, TestKind, UniverseDef, ValueTest,
+  Availability, ConditionDef, Definition, Grouping, MetricKind, MetricRef, Side, Test, TestForm, TestKind, UniverseDef, ValueTest,
 } from './contract.ts';
 import { CONDITION_ID, VALUE_OPS, WINDOW_MODES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
@@ -43,7 +46,8 @@ import { FLOW_BY_ID, FLOW_DESIGN_SESSIONS, resolveFlowParams } from './flowmetri
 import type { FlowBindContext } from './flowmetrics.ts';
 import type { MetricDefinition, MetricsCatalog, PresetDefinition, TransformDefinition } from './catalog.ts';
 import { bindTest } from './condition.ts';
-import { resolveIndicator } from './metrics.ts';
+import { NOT_SERIES_KINDS, notSeriesRefusal, resolveIndicator } from './metrics.ts';
+import type { SeriesUse, TestPlace } from './metrics.ts';
 import { screenerIndicator, screenerOutput } from './registry.ts';
 import type { ScreenerOutput } from './registry.ts';
 
@@ -127,19 +131,27 @@ const REF_KEYS: Record<string, readonly string[]> = {
   pattern: ['kind', 'type', 'params'], flow: ['kind', 'metric', 'output', 'params'], xsection: ['kind', 'metric', 'params'], universe: ['kind', 'attr'],
   rank: ['kind', 'of'],
 };
-/** Every metric reference of a test with its field (transform operands and reference arguments included), outer first. */
-function walkRefs(ref: unknown, field: string, visit: (r: MetricRef, field: string) => void): void {
+/** Every metric reference of a test with its field (transform operands and reference arguments included), outer first.
+    An operand that must be a series (a transform's `of` and second series, the series a rank orders) and is not (a
+    pattern, a value per stock: metrics.ts NOT_SERIES_KINDS) is refused before anything else of it or of the test is
+    checked, with the words of metrics.ts notSeriesRefusal for the test form at `place`: so a moving average of a pattern
+    is never answered with the test forms a moving average is offered in (QA unit C), which no test form would pass. */
+function walkRefs(ref: unknown, field: string, visit: (r: MetricRef, field: string) => void, place: TestPlace, catalog: MetricsCatalog): void {
   if (!isObj(ref)) throw new ScreenerError('INVALID_CONDITION', `${field} must be a metric reference {"kind": ...}.`, field);
   const keys = REF_KEYS[ref.kind as string];
   if (!keys) throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be one of ${Object.keys(REF_KEYS).join(', ')}.`, `${field}.kind`, { allowed: Object.keys(REF_KEYS) });
   object(ref, field, keys, `a ${ref.kind} reference`);
   visit(ref as unknown as MetricRef, field);
-  if (ref.kind === 'rank') walkRefs(ref.of, `${field}.of`, visit);
+  const operand = (x: unknown, f: string, use: SeriesUse) => {
+    if (isObj(x) && NOT_SERIES_KINDS.includes(x.kind as MetricKind)) throw notSeriesRefusal(x as unknown as MetricRef, f, use, place, catalog);
+    walkRefs(x, f, visit, place, catalog);
+  };
+  if (ref.kind === 'rank') operand(ref.of, `${field}.of`, { as: 'rank' });
   if (ref.kind === 'transform') {
     const spec = transformSpec(ref.fn, `${field}.fn`);
-    walkRefs(ref.of, `${field}.of`, visit);
+    operand(ref.of, `${field}.of`, { as: 'operand', fn: spec.fn });
     if (ref.args !== undefined && !isObj(ref.args)) throw new ScreenerError('INVALID_CONDITION', `${field}.args must be an object.`, `${field}.args`);
-    for (const a of spec.ref_args) if (ref.args && has(ref.args as Record<string, unknown>, a.key)) walkRefs((ref.args as Record<string, unknown>)[a.key], `${field}.args.${a.key}`, visit);
+    for (const a of spec.ref_args) if (ref.args && has(ref.args as Record<string, unknown>, a.key)) operand((ref.args as Record<string, unknown>)[a.key], `${field}.args.${a.key}`, { as: 'operand', fn: spec.fn, arg: a.key });
   }
 }
 /** The catalog entry a reference names (pattern, flow, cross-section, universe), or null (indicator, price, transform). */
@@ -209,7 +221,7 @@ function entryAllows(m: MetricDefinition | null, kind: TestKind, field: string):
 }
 /** VALUE: the metric's form (indicator output 'value'; pct_distance / band_position of an output; a transform, pattern
     or catalog metric by its tests). */
-function valueForm(m: MetricRef, op: string, field: string, ctx: ValidateContext): void {
+function valueForm(m: MetricRef, op: string, field: string, ctx: ValidateContext, place: TestPlace): void {
   if (m.kind === 'rank') return;                                     // operator 11: any series that compares across stocks (condition.ts bindRank)
   if (m.kind === 'indicator') { const { ind, out } = indOut(m); requireForm(out, ind.id, 'value', op, field); return }
   if (m.kind === 'transform' && (m.fn === 'pct_distance' || m.fn === 'band_position') && isObj(m.of) && (m.of as MetricRef).kind === 'indicator') {
@@ -217,19 +229,23 @@ function valueForm(m: MetricRef, op: string, field: string, ctx: ValidateContext
     requireForm(out, ind.id, m.fn === 'pct_distance' ? 'value_pct_distance' : 'value_band_position', op, field);
     return;
   }
-  if (m.kind === 'pattern') throw formRefusal(field, 'a pattern is a signal, not a value; use it in a state or event test ({"kind":"state","pattern":...})');
+  // a pattern is a 0/1 signal tested on its own (metrics.ts notSeriesRefusal: Detected, Detected within N sessions, or a
+  // window over Detected; in a universe filter, a condition instead)
+  if (m.kind === 'pattern') throw notSeriesRefusal(m, field, { as: 'value' }, place, ctx.metrics);
   transformAllows(m, 'value', field);
   entryAllows(entryOf(m, field, ctx.metrics), 'value', field);
 }
 /** STATE / EVENT comparison: the indicator forms of report 6.9.1 (level, value, output, instance, rising, vs_ma), a
     bar field against a comparable transform or a value, a catalog metric against a value. */
-function compareForm(kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, field: string, ctx: ValidateContext): void {
+function compareForm(kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, field: string, ctx: ValidateContext, place: TestPlace): void {
   const isVal = (s: Side) => isObj(s) && !has(s as Record<string, unknown>, 'kind');
   const pre = kind === 'state' ? 'state' : 'event';
   if (isVal(lhs)) throw formRefusal(`${field}.lhs`, 'the left side must be the metric and the right side the value or the second metric (never reordered)');
   const L = lhs as MetricRef, R = rhs as MetricRef;
-  if (L.kind === 'rank' || (!isVal(rhs) && R.kind === 'rank')) throw formRefusal(field, 'a rank across stocks is a value at the evaluation date: use a value test ({"kind":"value","metric":{"kind":"rank",...},"op":"ge","value":90})');
-  if (L.kind === 'pattern' || (!isVal(rhs) && R.kind === 'pattern')) throw formRefusal(field, `a pattern is tested on its own: {"kind":"${kind}", ${kind === 'state' ? '"pattern"' : '"signal": {"pattern"'}: ...}`);
+  // a side that is not a series (a pattern, tested on its own; a value per stock at the evaluation date: a universe
+  // attribute, a cross-sectional value, a rank): metrics.ts notSeriesRefusal, naming that side
+  for (const [s, side] of [[lhs, 'lhs'], [rhs, 'rhs']] as const)
+    if (!isVal(s) && NOT_SERIES_KINDS.includes((s as MetricRef).kind)) throw notSeriesRefusal(s as MetricRef, `${field}.${side}`, { as: 'side', test: kind }, place, ctx.metrics);
   // P5a: a flow series against a value or a second series of the same unit (operators 1, 7, 8), a price against a flow
   // price level (close against Buy VWAP): the units are checked on the resolved series (condition.ts sameUnit)
   if (L.kind === 'flow' || (!isVal(rhs) && R.kind === 'flow')) {
@@ -287,11 +303,13 @@ function compareForm(kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, 
 const STATE_OPS = ['gt', 'lt'], EVENT_OPS = ['crosses_above', 'crosses_below'];
 const TWO_BOUNDS = ['between', 'outside'];
 /** One test (a condition card's, a metric filter's or a My metric's), normalized. `enabled` false checks the shape and
-    the parameters only (a switched-off condition may name a metric that is not available yet). */
-export function validateTest(input: unknown, field: string, ctx: ValidateContext, enabled = true): Test {
+    the parameters only (a switched-off condition may name a metric that is not available yet). `place`: where the test
+    sits (a condition, a window's inner test, a universe filter), so a refusal of a reference that is not a series says
+    how to pass there (metrics.ts notSeriesRefusal). */
+export function validateTest(input: unknown, field: string, ctx: ValidateContext, enabled = true, place: TestPlace = 'condition'): Test {
   if (!isObj(input)) throw new ScreenerError('INVALID_INPUT', `${field} must be a test object.`, field);
   const kind = input.kind;
-  const refs = (ref: unknown, f: string) => walkRefs(ref, f, (r, rf) => checkRef(r, rf, ctx, enabled));
+  const refs = (ref: unknown, f: string) => walkRefs(ref, f, (r, rf) => checkRef(r, rf, ctx, enabled), place, ctx.metrics);
   if (kind === 'value') {
     const t = object(input, field, ['kind', 'metric', 'op', 'value', 'value2'], 'a value test');
     if (!(VALUE_OPS as readonly string[]).includes(t.op as string)) throw new ScreenerError('INVALID_CONDITION', `${field}.op must be one of ${VALUE_OPS.join(', ')}.`, `${field}.op`, { allowed: [...VALUE_OPS] });
@@ -301,7 +319,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
       if ((t.value as number) > (t.value2 as number)) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 must be at least the lower value (${t.value}): "${t.op}" takes the lower bound first, both bounds ${t.op === 'between' ? 'included' : 'excluded from the outside range'}, and never swaps them (right: 2 to 8; wrong: 8 to 2).`, `${field}.value2`);
     } else if (has(t, 'value2')) throw new ScreenerError('INVALID_CONDITION', `${field}.value2 is used only with the operators "between" and "outside"; remove it.`, `${field}.value2`);
     refs(t.metric, `${field}.metric`);
-    valueForm(t.metric as MetricRef, t.op as string, `${field}.metric`, ctx);
+    valueForm(t.metric as MetricRef, t.op as string, `${field}.metric`, ctx, place);
   } else if (kind === 'state') {
     if (has(input, 'pattern')) {
       const t = object(input, field, ['kind', 'pattern'], 'a state pattern test');
@@ -312,7 +330,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
       const t = object(input, field, ['kind', 'lhs', 'op', 'rhs'], 'a state test');
       if (!STATE_OPS.includes(t.op as string)) throw new ScreenerError('INVALID_CONDITION', `${field}.op must be one of ${STATE_OPS.join(', ')}.`, `${field}.op`, { allowed: STATE_OPS });
       sides(t, field, refs);
-      compareForm('state', t.lhs as Side, t.op as string, t.rhs as Side, field, ctx);
+      compareForm('state', t.lhs as Side, t.op as string, t.rhs as Side, field, ctx, place);
     }
   } else if (kind === 'event') {
     const t = object(input, field, ['kind', 'signal', 'within'], 'an event test');
@@ -330,7 +348,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
       const s = object(t.signal, sf, ['lhs', 'op', 'rhs'], 'an event cross');
       if (!EVENT_OPS.includes(s.op as string)) throw new ScreenerError('INVALID_CONDITION', `${sf}.op must be one of ${EVENT_OPS.join(', ')}.`, `${sf}.op`, { allowed: EVENT_OPS });
       sides(s, sf, refs);
-      compareForm('event', s.lhs as Side, s.op as string, s.rhs as Side, sf, ctx);
+      compareForm('event', s.lhs as Side, s.op as string, s.rhs as Side, sf, ctx, place);
     }
   } else if (kind === 'window') {
     const t = object(input, field, ['kind', 'mode', 'length', 'count', 'test'], 'a window test');
@@ -339,7 +357,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
     if (typeof L !== 'number' || !Number.isInteger(L) || L < 1) throw new ScreenerError('INVALID_CONDITION', `${field}.length must be a whole number of sessions of at least 1 (at most ${ctx.limits.within_max}).`, `${field}.length`);
     if (L > ctx.limits.within_max) throw new ScreenerError('LIMIT_EXCEEDED', `${field}.length is at most ${ctx.limits.within_max} sessions (the sessions the Screener keeps per series).`, `${field}.length`, { limit: 'within_max', allowed: ctx.limits.within_max, needed: L });
     if (!isObj(t.test)) throw new ScreenerError('INVALID_CONDITION', `${field}.test must be the value test or state comparison counted over the window.`, `${field}.test`);
-    validateTest(t.test, `${field}.test`, ctx, enabled);
+    validateTest(t.test, `${field}.test`, ctx, enabled, 'window');
   } else throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be value, state, event or window.`, `${field}.kind`, { allowed: ['value', 'state', 'event', 'window'] });
   // normalize through the binding: every reference resolved (parameters, arguments), and a bar field compared with a
   // transform only where the transform is a level of that field. A switched-off condition is bound too, so a shape the
@@ -348,7 +366,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
   // metric's availability is not asked of it (it may wait for data: METRIC_UNAVAILABLE), and it normalizes without the
   // binding (same shape, so the hash is the same on and off)
   let b: ReturnType<typeof bindTest> | null;
-  try { b = bindTest('v', input as unknown as Test, field, { capBudgetMs: ctx.capBudgetMs, withinMax: ctx.limits.within_max, catalog: ctx.metrics, flow: ctx.flow }) }
+  try { b = bindTest('v', input as unknown as Test, field, { capBudgetMs: ctx.capBudgetMs, withinMax: ctx.limits.within_max, catalog: ctx.metrics, flow: ctx.flow, place }) }
   catch (e) { if (enabled || !(e instanceof ScreenerError && e.code === 'METRIC_UNAVAILABLE')) throw e; b = null }
   if (!enabled) { if (b) comparable(b, field); return normalizeTest(input as unknown as Test, field, ctx) }
   comparable(b!, field);
@@ -467,8 +485,10 @@ export function validateUniverse(input: unknown, field: string, ctx: ValidateCon
     const filters = u.metric_filters.map((t, i) => {
       const f = `${field}.metric_filters[${i}]`;
       if (!isObj(t) || t.kind !== 'value') throw new ScreenerError('INVALID_CONDITION', `${f} must be a value test ({"kind":"value", ...}): metric filters are values at the evaluation bar.`, `${f}.kind`, { allowed: ['value'] });
-      if (isObj(t.metric) && t.metric.kind === 'rank') throw new ScreenerError('INVALID_CONDITION', `${f}.metric: a rank across stocks is ranked within the filtered universe, so it cannot be one of the filters that make that universe; add it as a condition instead.`, `${f}.metric`);
-      return validateTest(t, f, ctx) as ValueTest;
+      // a rank is ranked within the filtered universe, so it cannot be one of the filters that make it (metrics.ts
+      // notSeriesRefusal: a condition instead)
+      if (isObj(t.metric) && t.metric.kind === 'rank') throw notSeriesRefusal(t.metric as unknown as MetricRef, `${f}.metric`, { as: 'value' }, 'filter', ctx.metrics);
+      return validateTest(t, f, ctx, true, 'filter') as ValueTest;
     });
     if (filters.length) out.metric_filters = filters;
   }

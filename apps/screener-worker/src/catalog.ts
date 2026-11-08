@@ -40,11 +40,11 @@ export const metricAvailability = (m: MetricsCatalog, index: Record<string, Inde
   availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m, new Set(read), flow);
 const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
 /** A catalog entry as the page reads it (contract.ts CatalogMetric plus the additive fields screener-metrics.json
-    carries for the page: label, short, synonyms, default_test, ref; the fixture tests/fixture/api.ts has the same
-    shape); the internal fields (requires, decision, evidence, unavailable_reason) stay in the worker. */
+    carries for the page: label, short, synonyms, default_test, ref, and a candlestick pattern's side, P6; the fixture
+    tests/fixture/api.ts has the same shape); the internal fields (requires, decision, evidence, unavailable_reason) stay in the worker. */
 function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }, sessions: number): CatalogMetric {
   const extra: Record<string, unknown> = {};
-  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'side'] as const) if (x[k] !== undefined) extra[k] = x[k];
   // P5a: a flow indicator's Terminal setup (contract.ts CatalogFlow): the registry's parameters, each output's kind, and
   // the sessions it reads at its defaults against the loaded window (a built-in baseline shown capped to the window)
   if (x.flow) {

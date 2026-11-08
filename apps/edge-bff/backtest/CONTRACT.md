@@ -11,7 +11,7 @@ approved departure from the page's 1:1 rule (section 10).
 
 | Part | Path | Owns |
 |---|---|---|
-| Shared core (pure TS, no DOM, no Node API) | `apps/edge-bff/backtest/src/core/` | registry + parameter validation (`registry.ts`), conditions (`conditions.ts`), signals, ranking, calendar and portfolio exclusions (`signals.ts`), broker flow (`flow.ts`), contract (`contract.ts`), page catalog and templates (`catalog.ts`), data-file decoding (`datafile.ts`), engine (`engine.ts`), statistics and robustness (`stats.ts`, `robustness.ts`), result assembly (`ledger.ts`, `result.ts`), hashes (`hash.ts`) |
+| Shared core (pure TS, no DOM, no Node API) | `apps/edge-bff/backtest/src/core/` | registry + parameter validation (`registry.ts`), conditions (`conditions.ts`), signals, ranking, calendar and portfolio exclusions (`signals.ts`), broker flow (`flow.ts`), contract (`contract.ts`), page catalog and templates (`catalog.ts`), data-file decoding (`datafile.ts`), engine (`engine.ts`), statistics and robustness (`stats.ts`, `robustness.ts`), result assembly (`ledger.ts`, `result.ts`), hashes (`hash.ts`), the 20 candlestick patterns (`candles.ts` evaluating `candle-registry.json`; EXEC-SCREENER-FLOW-CANDLES P6: used by the Screener, not offered by the Backtest yet, so no request reads them) |
 | Indicator formulas | `apps/edge-bff/terminal/src/calc/indicators.ts` | the 53 functions (Terminal module, K1 = C); never copied |
 | Worker (Node 22, private) | `apps/backtest-worker/` | HTTP service, request checks, terminal-api client, cache, job runner (worker_threads), catalog endpoint |
 | edge-bff (Python) | `apps/edge-bff/app/` | public API `/api/v1/backtests…`, job tables, queue loop, trials, result storage, `/backtest` route |

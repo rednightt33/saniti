@@ -7,7 +7,7 @@ import type {
   ConditionDef, IndicatorRef, MetricRef, ParamMap, ParamValue, Side, Test, TestOp, ValueTest,
 } from './core/contract.ts';
 import { defaultParams, flowSessions, flowSetupErrors, isDefP, LIST_SEP, listOf, OPLABEL, optionText, testTakes, type Entry, type Opt } from './entries.ts';
-import { opErrors, opFromTest, opShort, opTest, opText, seriesList, seriesOf, type OpState } from './operators.ts';
+import { isSignal, opErrors, opFromTest, opShort, opTest, opText, seriesList, seriesOf, signalInner, testsFor, type OpState } from './operators.ts';
 
 export interface Card {
   id: string;                  // ^[0-9a-z]{1,6}$, unique in the screen
@@ -170,7 +170,8 @@ export function cardErrors(e: Entry | undefined, c: Card, withinMax = 130): Reco
 export function toWire(e: Entry | undefined, c: Card): ConditionDef {
   const base = { id:c.id, enabled:c.on, ...(c.label ? { label:c.label } : {}) };
   if (!e || c.raw) return { ...base, test:c.raw! };
-  if (c.op && e.ops) return { ...base, test:opTest(e.ops, c.op, c.params, (p, output) => e.flow ? flowRef(e, p, output) : ind(e, p, output)) };
+  // the operator's series: an indicator's output, a flow indicator's, or a pattern's 0/1 signal (its reference names no output)
+  if (c.op && e.ops) return { ...base, test:opTest(e.ops, c.op, c.params, (p, output) => e.flow ? flowRef(e, p, output) : isSignal(e) ? metricRef(e, p) : ind(e, p, output), e) };
   const o = optOf(e, c)!;
   const scale = displayScale(o.unit), v = num(c.value, scale), v2 = num(c.value2, scale), within = Number(c.within);
   if (e.kind !== 'indicator') {
@@ -242,6 +243,7 @@ function metricEntryOf(r: any, entries: Map<string, Entry>): Entry | undefined {
     transform by what it is computed on; an indicator or metric by its catalog label, a bar field by its word; the id
     only when the catalog has no entry for it (an unknown indicator: the only name there is); null for no reference. */
 export function refName(t: any, entries: Map<string, Entry>): string | null {
+  if (t?.kind === 'window') return refName(t.test, entries);         // a window counts its inner test's sessions
   const isRef = (r: any) => !!r && typeof r === 'object' && typeof r.kind === 'string';
   const refs = [t?.metric, t?.pattern, t?.lhs, t?.rhs, t?.signal?.pattern, t?.signal?.lhs, t?.signal?.rhs].filter(isRef);
   let r = refs.find(x => x.kind !== 'price') ?? refs[0];
@@ -256,24 +258,27 @@ export function refName(t: any, entries: Map<string, Entry>): string | null {
 export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
   const card = fromWireForm(cd, entries);
   if (!card.raw) return card;
-  // a test the card's own forms do not hold may be a universal operator's (operators.ts opFromTest)
-  for (const e of entries.values()) {
-    if (!e.ops || (e.kind !== 'indicator' && !e.flow)) continue;
-    const r = opFromTest(e.ops, cd.test);
-    if (!r) break;                                   // every indicator entry carries the same operators block
-    const ie = entries.get(r.indicator);
-    if (!ie?.ops) break;
-    let params: ParamMap | null = null, op = r.op;
-    if (ie.flow) {
-      // a flow indicator (P5c): its parameters as the card keeps them, an output left out its default
-      params = flowParamsFromWire(ie, r.params);
-      const dflt = ie.flow.default_output;
-      op = { ...op, output:op.output || dflt, by:op.by === 'out:' ? `out:${dflt}` : op.by };
-    } else if (ie.indicator) params = full(ie, r.params);
-    if (!params || !seriesList(ie, params).some(o => o.key === op.output)) break;
-    return { id:cd.id, on:cd.enabled !== false, entry:ie.key, params, opt:ie.def.opt, value:'', value2:'', within:ie.def.within, second:full(ie), op, ...(cd.label ? { label:cd.label } : {}) };
+  // a test the card's own forms do not hold may be a universal operator's (operators.ts opFromTest); every entry that
+  // takes operators carries the same block
+  const ops = [...entries.values()].find(e => e.ops)?.ops;
+  const r = ops ? opFromTest(ops, cd.test) : null;
+  const ie = r ? entries.get(r.indicator) : undefined;
+  if (!r || !ie?.ops) return card;
+  let params: ParamMap | null = null, op = r.op;
+  if (ie.flow) {
+    // a flow indicator (P5c): its parameters as the card keeps them, an output left out its default
+    params = flowParamsFromWire(ie, r.params);
+    const dflt = ie.flow.default_output;
+    op = { ...op, output:op.output || dflt, by:op.by === 'out:' ? `out:${dflt}` : op.by };
+  } else if (ie.indicator) params = full(ie, r.params);
+  // a pattern counted over a window (QA of unit C item 1): read on each session the way its card writes it, with a
+  // window test its signal takes, and parameters the card can hold; any other shape stays a kept card
+  else if (isSignal(ie) && r.signal === signalInner(ie) && testsFor(ie.ops, ie, op).some(t => t.key === op.test)) {
+    const own = metricParams(ie, { kind:'pattern', type:r.indicator, params:r.params });
+    params = own && full(ie, own);
   }
-  return card;
+  if (!params || !seriesList(ie, params).some(o => o.key === op.output)) return card;
+  return { id:cd.id, on:cd.enabled !== false, entry:ie.key, params, opt:ie.def.opt, value:'', value2:'', within:ie.def.within, second:full(ie), op, ...(cd.label ? { label:cd.label } : {}) };
 }
 function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
   const raw = (): Card => {
@@ -386,7 +391,10 @@ export function condText(e: Entry | undefined, c: Card): string {
 function rawText(t: any): string {
   if (!t) return '';
   if (t.kind === 'value') return `${OPLABEL[t.op] || t.op} ${t.value}${t.op === 'between' ? `–${t.value2}` : ''}`;
-  if (t.kind === 'event') return `event within ${t.within} sessions`;
+  if (t.kind === 'event') return `${t.signal?.pattern ? 'detected' : 'event'} within ${t.within} session${t.within === 1 ? '' : 's'}`;
+  if (t.kind === 'state' && t.pattern) return 'detected';
+  // a window in words (it read "state"): its inner test, counted as the window counts it
+  if (t.kind === 'window') return `${rawText(t.test)} ${t.mode === 'at_least' ? `on ${t.count} of the last ${t.length} sessions` : t.mode === 'streak' ? `for ${t.length} sessions in a row` : `at least once in the last ${t.length} sessions`}`;
   return 'state';
 }
 /** "Rule only" (the prototype's condRule): the text after the name. */
@@ -400,7 +408,7 @@ export const paramSummary = (e: Entry, p: ParamMap) => e.params.map(x => `${x.la
 export const shortName = (e: Entry | undefined, c: Card) => {
   const base = c.metric?.name || (e ? e.short : cardName(e, c));
   // an operator card names its measure and test (QA5 D2: four RSI operators under one "RSI 14" header)
-  const op = c.op && e?.ops ? opShort(e.ops, c.op) : '';
+  const op = c.op && e?.ops ? opShort(e.ops, c.op, e) : '';
   return op ? `${base} · ${op}` : base;
 };
 export const shortPv = (e: Entry | undefined, c: Card) => e ? e.params.filter(p => p.type === 'integer' || p.type === 'number').map(p => c.params[p.key]).join('/') : '';

@@ -2,7 +2,7 @@
    Backtest's api/texts.ts; the shell's words live in static/edge-labels.js). Plain text: the page escapes every string
    it puts into markup (format.ts esc). The API sends codes, never messages for the page to show verbatim where the
    page has its own wording (report 9.2: remarks are worded here from the API's codes). */
-import type { ApiError, Cell, CellRemark, DataStatus, Definition, ErrorCode, LimitEntry, LimitName, NaReason, RowRemark } from './core/contract.ts';
+import type { ApiError, Cell, CellRemark, DataStatus, Definition, ErrorCode, LimitEntry, LimitName, NaReason, PatternSide, RowRemark } from './core/contract.ts';
 import type { ExtraCellState } from './extra-columns.ts';
 import { ApiFailure } from './api/types.ts';
 import { comparableAcrossStocks, fmtValue, nf, timeText, unitWords, type ValueFormat } from './format.ts';
@@ -41,6 +41,15 @@ export const T = {
   noDefault: 'The screener does not offer this indicator\'s standard default, so the card opens at the starting parameters shown; change them here.',
   noWatchlistPage: 'Saved in your EDGE watchlist.',
 } as const;
+
+/** A pattern's side (the catalog's `side`, P6; QA of unit C item 2: shown nowhere before), as its row, its card and the
+    column's tooltip say it: the word, the short line under a row's name, and what it means. */
+export const SIDE_TEXT: Record<PatternSide, { word: string; line: string; title: string }> = {
+  bullish: { word:'Bullish', line:'Bullish pattern', title:'Bullish pattern: read as a sign that the price may rise.' },
+  bearish: { word:'Bearish', line:'Bearish pattern', title:'Bearish pattern: read as a sign that the price may fall.' },
+};
+/** an entry's side in words, or null for an entry without one (every entry but a candlestick pattern today) */
+export const sideOf = (e: { side?: PatternSide } | undefined | null) => e?.side && SIDE_TEXT[e.side] ? { side:e.side, ...SIDE_TEXT[e.side] } : null;
 
 /** Why a cell is n/a (contract NaReason), as its tooltip says it. */
 export const NA_TEXT: Record<NaReason, string> = {

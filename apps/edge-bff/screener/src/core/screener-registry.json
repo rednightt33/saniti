@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "96d2a1182c273adc",
+  "screener_registry_version": "26a25e33747bc071",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -22,7 +22,7 @@
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "9185fa110b2a96c15b27dbf57a2f258f902ae90ee1b75bc9711fbdebabf076f0"
+      "sha256": "b5c56826281b5e8d3a6692219dc9433e031069b3849666728ba949ec93404832"
     },
     {
       "role": "oracle",
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "a62ed4bc7c92e1853a5791f8d8465f6e98b981bf51de8d899fc100d244caa8a2"
+      "sha256": "c82995f3a0c31c14eae9ab325d9f6bed37886c117fc1145adb82c8774309fb61"
     },
     {
       "role": "flow_registry",
@@ -53,6 +53,16 @@
       "role": "flow_probe",
       "file": "apps/edge-bff/screener/src/core/flowprobe.ts",
       "sha256": "f96ce104c69c859f6f70bfc88b80468153448b01fe0d922745b74a1833c10264"
+    },
+    {
+      "role": "candle_registry",
+      "file": "apps/edge-bff/backtest/src/core/candle-registry.json",
+      "sha256": "c3c2956083dbb6fe54224274eb199d172c61f67643413bf1f1220081ac19845f"
+    },
+    {
+      "role": "candles",
+      "file": "apps/edge-bff/backtest/src/core/candles.ts",
+      "sha256": "db5708bb79772db30db58166214fdf4818574fa37eee0da1171427d393df6511"
     }
   ],
   "probe": {
@@ -91,6 +101,11 @@
       "context_ns_per_row": 102.2,
       "presence_ns_per_row": 35,
       "evidence": "verification/screener/BENCHMARK_FLOW_COST.md section 3 (2026-11-07, apps/screener-worker/tests/bench/flow_cost.bench.ts BENCH_MODE=calibrate: 900 stocks x 60 broker days of 25,086 rows, SCREENER_THREADS 2, Xeon 2.10 GHz x4, Node 22.22): ns_per_unit per way an entry is computed = the geometric mean of its kernels' whole-market ns per unit (terminal: 37 kernels, 4.4 FL28 to 160.1 FL27; anchored: FL20 100.7 and FL45 84.0; inventory: FL23 196.7; foreign_net: fnet 9.0); context_ns_per_row = the window contexts' pooled 102.2 ns per row over 48 whole-market runs; presence_ns_per_row = the broker-data series' 35 ns per row (tests/bench/profile_flow.ts, whole market, in process)"
+    },
+    "pattern": {
+      "ns_per_bar": 492.1,
+      "candle_ns_per_bar_session": 1.06,
+      "evidence": "verification/screener/BENCHMARK_FLOW_COST.md section 6 (2026-11-08, apps/screener-worker/tests/bench/pattern_cost.bench.ts BENCH_MODE=calibrate: 300 stocks x 1330 price bars, SCREENER_THREADS 2, Xeon 2.10 GHz x4, Node 22.22): a pattern's series costs ns_per_bar per bar (its guards, rules and copies of the bars) plus, for a candlestick pattern, candle_ns_per_bar_session per bar and session of the window candles.ts candleLookback reads: the least-squares line of the 20 candlestick patterns' 92 runs (defaults, trend 2 and 100, average body 100, 50 ticks: 386 to 856 ns per bar; the line within 0.65 to 1.31 of each); an older pattern's window is a registry kernel's and keeps the indicators' ns_per_bar_length"
     }
   },
   "indicators": [
@@ -15497,6 +15512,1822 @@
       "current_only": false,
       "formula": "Sum of the KSEI-reported changes (percentage points of the shares) of the stock's major holders with a position date in the last D sessions.",
       "misuse": "KSEI dates are position-report dates and many prices are estimates; not point-in-time for past dates."
+    }
+  ],
+  "candles": [
+    {
+      "id": "hammer",
+      "name": "Hammer",
+      "side": "bullish",
+      "pair": "hanging_man",
+      "mirror": "shooting_star",
+      "bars": 1,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "average",
+          "options": [
+            "average",
+            "change"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = below / above the close trend-length sessions earlier. The test cannot be switched off: the trend is what tells this pattern from its same-shape pair."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_max_pct",
+          "type": "number",
+          "label": "Body at most (% of range)",
+          "default": 30,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The body is at most this share of the candle's range."
+        },
+        {
+          "key": "shadow_ratio",
+          "type": "number",
+          "label": "Long shadow at least (x body)",
+          "default": 2,
+          "min": 0,
+          "max": 20,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The long shadow is at least this multiple of the body."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Other shadow at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The shadow on the other side is at most this share of the range."
+        }
+      ],
+      "formula": "Hammer (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: 100 x body1 <= body_max_pct x range1; lower1 >= shadow_ratio x body1; 100 x upper1 <= short_shadow_pct x range1.",
+      "interpretation": "After a decline, one candle with a small body at the top of its range and a long lower shadow: sellers pushed the price down and buyers took it back by the close.",
+      "misuse": "A Hammer and a Hanging Man are the same shape; only the trend before tells them apart, so the trend test cannot be switched off. A single candle is weak evidence on its own; confirm with the next session or another condition. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "hammer",
+        "palu"
+      ],
+      "sessions_at_defaults": 11
+    },
+    {
+      "id": "hanging_man",
+      "name": "Hanging Man",
+      "side": "bearish",
+      "pair": "hammer",
+      "mirror": "inverted_hammer",
+      "bars": 1,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "average",
+          "options": [
+            "average",
+            "change"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = below / above the close trend-length sessions earlier. The test cannot be switched off: the trend is what tells this pattern from its same-shape pair."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_max_pct",
+          "type": "number",
+          "label": "Body at most (% of range)",
+          "default": 30,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The body is at most this share of the candle's range."
+        },
+        {
+          "key": "shadow_ratio",
+          "type": "number",
+          "label": "Long shadow at least (x body)",
+          "default": 2,
+          "min": 0,
+          "max": 20,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The long shadow is at least this multiple of the body."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Other shadow at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The shadow on the other side is at most this share of the range."
+        }
+      ],
+      "formula": "Hanging Man (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: 100 x body1 <= body_max_pct x range1; lower1 >= shadow_ratio x body1; 100 x upper1 <= short_shadow_pct x range1.",
+      "interpretation": "After a rise, one candle with a small body at the top of its range and a long lower shadow: the session's selling hints that the rise is tiring.",
+      "misuse": "The Hammer's shape after a rise; only the trend before tells them apart, so the trend test cannot be switched off. Weak alone: it is commonly confirmed by a lower close the next session. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "hanging man",
+        "hanging"
+      ],
+      "sessions_at_defaults": 11
+    },
+    {
+      "id": "inverted_hammer",
+      "name": "Inverted Hammer",
+      "side": "bullish",
+      "pair": "shooting_star",
+      "mirror": "hanging_man",
+      "bars": 1,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "average",
+          "options": [
+            "average",
+            "change"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = below / above the close trend-length sessions earlier. The test cannot be switched off: the trend is what tells this pattern from its same-shape pair."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_max_pct",
+          "type": "number",
+          "label": "Body at most (% of range)",
+          "default": 30,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The body is at most this share of the candle's range."
+        },
+        {
+          "key": "shadow_ratio",
+          "type": "number",
+          "label": "Long shadow at least (x body)",
+          "default": 2,
+          "min": 0,
+          "max": 20,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The long shadow is at least this multiple of the body."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Other shadow at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The shadow on the other side is at most this share of the range."
+        }
+      ],
+      "formula": "Inverted Hammer (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: 100 x body1 <= body_max_pct x range1; upper1 >= shadow_ratio x body1; 100 x lower1 <= short_shadow_pct x range1.",
+      "interpretation": "After a decline, one candle with a small body at the bottom of its range and a long upper shadow: buyers tried to lift the price for the first time.",
+      "misuse": "The Shooting Star's shape after a decline; only the trend before tells them apart, so the trend test cannot be switched off. The classic definition also wants a gap down, which the IDX rarely shows, so it is not required here. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "inverted hammer",
+        "palu terbalik"
+      ],
+      "sessions_at_defaults": 11
+    },
+    {
+      "id": "shooting_star",
+      "name": "Shooting Star",
+      "side": "bearish",
+      "pair": "inverted_hammer",
+      "mirror": "hammer",
+      "bars": 1,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "average",
+          "options": [
+            "average",
+            "change"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = below / above the close trend-length sessions earlier. The test cannot be switched off: the trend is what tells this pattern from its same-shape pair."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_max_pct",
+          "type": "number",
+          "label": "Body at most (% of range)",
+          "default": 30,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The body is at most this share of the candle's range."
+        },
+        {
+          "key": "shadow_ratio",
+          "type": "number",
+          "label": "Long shadow at least (x body)",
+          "default": 2,
+          "min": 0,
+          "max": 20,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The long shadow is at least this multiple of the body."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Other shadow at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The shadow on the other side is at most this share of the range."
+        }
+      ],
+      "formula": "Shooting Star (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: 100 x body1 <= body_max_pct x range1; upper1 >= shadow_ratio x body1; 100 x lower1 <= short_shadow_pct x range1.",
+      "interpretation": "After a rise, one candle with a small body at the bottom of its range and a long upper shadow: the price was pushed up and sold back down by the close.",
+      "misuse": "The Inverted Hammer's shape after a rise; only the trend before tells them apart, so the trend test cannot be switched off. The classic definition also wants a gap up, which the IDX rarely shows, so it is not required here. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "shooting star",
+        "bintang jatuh"
+      ],
+      "sessions_at_defaults": 11
+    },
+    {
+      "id": "dragonfly_doji",
+      "name": "Dragonfly Doji",
+      "side": "bullish",
+      "pair": "gravestone_doji",
+      "mirror": "gravestone_doji",
+      "bars": 1,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "doji_body_pct",
+          "type": "number",
+          "label": "Body at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A doji's body is at most this share of its range."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Upper shadow at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The upper shadow is at most this share of the range."
+        }
+      ],
+      "formula": "Dragonfly Doji (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: 100 x body1 <= doji_body_pct x range1; 100 x upper1 <= short_shadow_pct x range1.",
+      "interpretation": "Open and close at or near the high after a long lower shadow: the session's selling was fully bought back.",
+      "misuse": "A day without trades (open = high = low = close, volume 0) or a suspended day is never a doji. A Dragonfly Doji is also a Hammer when the trends agree. Weak alone. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "doji",
+        "dragonfly"
+      ],
+      "sessions_at_defaults": 2
+    },
+    {
+      "id": "gravestone_doji",
+      "name": "Gravestone Doji",
+      "side": "bearish",
+      "pair": "dragonfly_doji",
+      "mirror": "dragonfly_doji",
+      "bars": 1,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "doji_body_pct",
+          "type": "number",
+          "label": "Body at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A doji's body is at most this share of its range."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Lower shadow at most (% of range)",
+          "default": 10,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The lower shadow is at most this share of the range."
+        }
+      ],
+      "formula": "Gravestone Doji (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: 100 x body1 <= doji_body_pct x range1; 100 x lower1 <= short_shadow_pct x range1.",
+      "interpretation": "Open and close at or near the low after a long upper shadow: the session's buying was fully sold back.",
+      "misuse": "A day without trades (open = high = low = close, volume 0) or a suspended day is never a doji. A Gravestone Doji is also a Shooting Star when the trends agree. Weak alone. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "doji",
+        "gravestone"
+      ],
+      "sessions_at_defaults": 2
+    },
+    {
+      "id": "bullish_marubozu",
+      "name": "Bullish Marubozu",
+      "side": "bullish",
+      "pair": "bearish_marubozu",
+      "mirror": "bearish_marubozu",
+      "bars": 1,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "body_min_pct",
+          "type": "number",
+          "label": "Body at least (% of range)",
+          "default": 90,
+          "min": 50,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The body is at least this share of the range, so the two shadows together are at most the rest."
+        }
+      ],
+      "formula": "Bullish Marubozu (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 > 0; 100 x body1 >= body_min_pct x range1; body1 >= long_body x avg_body.",
+      "interpretation": "A long white candle with almost no shadows: buyers in control from the open to the close.",
+      "misuse": "A strength candle rather than a reversal, so the trend test is off by default. A long body is measured against the stock's own recent bodies. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "marubozu",
+        "bullish marubozu"
+      ],
+      "sessions_at_defaults": 11
+    },
+    {
+      "id": "bearish_marubozu",
+      "name": "Bearish Marubozu",
+      "side": "bearish",
+      "pair": "bullish_marubozu",
+      "mirror": "bullish_marubozu",
+      "bars": 1,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "body_min_pct",
+          "type": "number",
+          "label": "Body at least (% of range)",
+          "default": 90,
+          "min": 50,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The body is at least this share of the range, so the two shadows together are at most the rest."
+        }
+      ],
+      "formula": "Bearish Marubozu (1 candle, flagged on the last): the candle traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 < 0; 100 x body1 >= body_min_pct x range1; body1 >= long_body x avg_body.",
+      "interpretation": "A long black candle with almost no shadows: sellers in control from the open to the close.",
+      "misuse": "A strength candle rather than a reversal, so the trend test is off by default. A long body is measured against the stock's own recent bodies. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "marubozu",
+        "bearish marubozu"
+      ],
+      "sessions_at_defaults": 11
+    },
+    {
+      "id": "bullish_engulfing",
+      "name": "Bullish Engulfing",
+      "side": "bullish",
+      "pair": "bearish_engulfing",
+      "mirror": "bearish_engulfing",
+      "bars": 2,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        }
+      ],
+      "formula": "Bullish Engulfing (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 < 0; dir2 > 0; open2 <= close1; close2 >= open1; body2 > body1.",
+      "interpretation": "After a decline, a white candle whose body covers the whole body of the black candle before it.",
+      "misuse": "On the IDX the open is usually at or near the previous close, so the white body may start at the black candle's close (equal counts). The bodies are compared, not the shadows. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "engulfing",
+        "bullish engulfing"
+      ],
+      "sessions_at_defaults": 2
+    },
+    {
+      "id": "bearish_engulfing",
+      "name": "Bearish Engulfing",
+      "side": "bearish",
+      "pair": "bullish_engulfing",
+      "mirror": "bullish_engulfing",
+      "bars": 2,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        }
+      ],
+      "formula": "Bearish Engulfing (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 > 0; dir2 < 0; open2 >= close1; close2 <= open1; body2 > body1.",
+      "interpretation": "After a rise, a black candle whose body covers the whole body of the white candle before it.",
+      "misuse": "On the IDX the open is usually at or near the previous close, so the black body may start at the white candle's close (equal counts). The bodies are compared, not the shadows. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "engulfing",
+        "bearish engulfing"
+      ],
+      "sessions_at_defaults": 2
+    },
+    {
+      "id": "bullish_harami",
+      "name": "Bullish Harami",
+      "side": "bullish",
+      "pair": "bearish_harami",
+      "mirror": "bearish_harami",
+      "bars": 2,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "inside_max_pct",
+          "type": "number",
+          "label": "Inside body at most (% of the first)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The second body is at most this share of the first candle's body."
+        }
+      ],
+      "formula": "Bullish Harami (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 < 0; body1 >= long_body x avg_body; top2 <= open1; bottom2 >= close1; 100 x body2 <= inside_max_pct x body1.",
+      "interpretation": "After a decline, a long black candle followed by a small body inside its body: the selling paused.",
+      "misuse": "The second candle may be of either colour (a doji inside makes a harami cross). It signals a pause more than a turn; confirm it. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "harami",
+        "bullish harami"
+      ],
+      "sessions_at_defaults": 12
+    },
+    {
+      "id": "bearish_harami",
+      "name": "Bearish Harami",
+      "side": "bearish",
+      "pair": "bullish_harami",
+      "mirror": "bullish_harami",
+      "bars": 2,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "inside_max_pct",
+          "type": "number",
+          "label": "Inside body at most (% of the first)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The second body is at most this share of the first candle's body."
+        }
+      ],
+      "formula": "Bearish Harami (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 > 0; body1 >= long_body x avg_body; top2 <= close1; bottom2 >= open1; 100 x body2 <= inside_max_pct x body1.",
+      "interpretation": "After a rise, a long white candle followed by a small body inside its body: the buying paused.",
+      "misuse": "The second candle may be of either colour (a doji inside makes a harami cross). It signals a pause more than a turn; confirm it. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "harami",
+        "bearish harami"
+      ],
+      "sessions_at_defaults": 12
+    },
+    {
+      "id": "piercing_line",
+      "name": "Piercing Line",
+      "side": "bullish",
+      "pair": "dark_cloud_cover",
+      "mirror": "dark_cloud_cover",
+      "bars": 2,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "open_beyond",
+          "type": "enum",
+          "label": "Second candle opens beyond the first's",
+          "default": "close",
+          "options": [
+            "close",
+            "range"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "close: candle 2 opens below candle 1's close; range: below candle 1's low (the classic gap)."
+        },
+        {
+          "key": "penetration_pct",
+          "type": "number",
+          "label": "Closes into the first body at least (%)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "Candle 2 closes at least this share of candle 1's body above candle 1's close."
+        }
+      ],
+      "formula": "Piercing Line (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 < 0; body1 >= long_body x avg_body; dir2 > 0; [open_beyond = close] open2 < close1; [open_beyond = range] open2 < low1; 100 x (close2 - close1) >= penetration_pct x body1; close2 < open1.",
+      "interpretation": "After a decline, a long black candle, then a white candle that opens lower and closes past the middle of the black body.",
+      "misuse": "The classic definition opens the white candle below the black candle's low (a gap), which the IDX rarely shows; by default it only has to open below the black candle's close (the setting \"opens beyond the first's: range\" restores the classic test). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "piercing",
+        "piercing line"
+      ],
+      "sessions_at_defaults": 12
+    },
+    {
+      "id": "dark_cloud_cover",
+      "name": "Dark Cloud Cover",
+      "side": "bearish",
+      "pair": "piercing_line",
+      "mirror": "piercing_line",
+      "bars": 2,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "open_beyond",
+          "type": "enum",
+          "label": "Second candle opens beyond the first's",
+          "default": "close",
+          "options": [
+            "close",
+            "range"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "close: candle 2 opens above candle 1's close; range: above candle 1's high (the classic gap)."
+        },
+        {
+          "key": "penetration_pct",
+          "type": "number",
+          "label": "Closes into the first body at least (%)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "Candle 2 closes at least this share of candle 1's body below candle 1's close."
+        }
+      ],
+      "formula": "Dark Cloud Cover (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 > 0; body1 >= long_body x avg_body; dir2 < 0; [open_beyond = close] open2 > close1; [open_beyond = range] open2 > high1; 100 x (close1 - close2) >= penetration_pct x body1; close2 > open1.",
+      "interpretation": "After a rise, a long white candle, then a black candle that opens higher and closes past the middle of the white body.",
+      "misuse": "The classic definition opens the black candle above the white candle's high (a gap), which the IDX rarely shows; by default it only has to open above the white candle's close (the setting \"opens beyond the first's: range\" restores the classic test). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "dark cloud",
+        "dark cloud cover"
+      ],
+      "sessions_at_defaults": 12
+    },
+    {
+      "id": "tweezer_bottom",
+      "name": "Tweezer Bottom",
+      "side": "bullish",
+      "pair": "tweezer_top",
+      "mirror": "tweezer_top",
+      "bars": 2,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "tolerance_ticks",
+          "type": "integer",
+          "label": "Lows equal within (ticks)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The two lows are at most this many price ticks apart (0 = exactly equal)."
+        }
+      ],
+      "formula": "Tweezer Bottom (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 < 0; dir2 > 0; ticks(low1, low2) <= tolerance_ticks.",
+      "interpretation": "After a decline, a black candle and then a white candle with the same low (within the tolerance): the low was tested twice and held.",
+      "misuse": "The lows are compared in price ticks, so the tolerance means the same on a Rp 100 stock and a Rp 9,000 stock. Weak alone. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "tweezer",
+        "tweezer bottom"
+      ],
+      "sessions_at_defaults": 2
+    },
+    {
+      "id": "tweezer_top",
+      "name": "Tweezer Top",
+      "side": "bearish",
+      "pair": "tweezer_bottom",
+      "mirror": "tweezer_bottom",
+      "bars": 2,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "tolerance_ticks",
+          "type": "integer",
+          "label": "Highs equal within (ticks)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The two highs are at most this many price ticks apart (0 = exactly equal)."
+        }
+      ],
+      "formula": "Tweezer Top (2 candles, flagged on the last): each of the 2 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 > 0; dir2 < 0; ticks(high1, high2) <= tolerance_ticks.",
+      "interpretation": "After a rise, a white candle and then a black candle with the same high (within the tolerance): the high was tested twice and held.",
+      "misuse": "The highs are compared in price ticks, so the tolerance means the same on a Rp 100 stock and a Rp 9,000 stock. Weak alone. A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "tweezer",
+        "tweezer top"
+      ],
+      "sessions_at_defaults": 2
+    },
+    {
+      "id": "morning_star",
+      "name": "Morning Star",
+      "side": "bullish",
+      "pair": "evening_star",
+      "mirror": "evening_star",
+      "bars": 3,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "star_body_pct",
+          "type": "number",
+          "label": "Star body at most (% of the first)",
+          "default": 30,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The middle candle's body is at most this share of the first candle's body."
+        },
+        {
+          "key": "star_overlap_pct",
+          "type": "number",
+          "label": "Star may reach into the first body (%)",
+          "default": 10,
+          "min": -50,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The relaxed body gap: the star's body top is at most this share of the first body above the first candle's close (0 = touching; negative = a real gap of that size)."
+        },
+        {
+          "key": "penetration_pct",
+          "type": "number",
+          "label": "Third closes into the first body at least (%)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The third candle closes at least this share of the first body above the first candle's close."
+        }
+      ],
+      "formula": "Morning Star (3 candles, flagged on the last): each of the 3 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 < 0; body1 >= long_body x avg_body; 100 x body2 <= star_body_pct x body1; 100 x (top2 - close1) <= star_overlap_pct x body1; dir3 > 0; 100 x (close3 - close1) >= penetration_pct x body1.",
+      "interpretation": "After a decline, a long black candle, a small-bodied star at its bottom, and a white candle closing well into the black body.",
+      "misuse": "The classic star gaps below the first body, which the IDX rarely shows; the relaxed gap lets the star's body reach into the first body by the share set in \"Star may reach into the first body\" (0: touching; a negative share asks for a real gap). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "morning star",
+        "star",
+        "bintang pagi"
+      ],
+      "sessions_at_defaults": 13
+    },
+    {
+      "id": "evening_star",
+      "name": "Evening Star",
+      "side": "bearish",
+      "pair": "morning_star",
+      "mirror": "morning_star",
+      "bars": 3,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "star_body_pct",
+          "type": "number",
+          "label": "Star body at most (% of the first)",
+          "default": 30,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The middle candle's body is at most this share of the first candle's body."
+        },
+        {
+          "key": "star_overlap_pct",
+          "type": "number",
+          "label": "Star may reach into the first body (%)",
+          "default": 10,
+          "min": -50,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The relaxed body gap: the star's body bottom is at most this share of the first body below the first candle's close (0 = touching; negative = a real gap of that size)."
+        },
+        {
+          "key": "penetration_pct",
+          "type": "number",
+          "label": "Third closes into the first body at least (%)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "The third candle closes at least this share of the first body below the first candle's close."
+        }
+      ],
+      "formula": "Evening Star (3 candles, flagged on the last): each of the 3 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 > 0; body1 >= long_body x avg_body; 100 x body2 <= star_body_pct x body1; 100 x (close1 - bottom2) <= star_overlap_pct x body1; dir3 < 0; 100 x (close1 - close3) >= penetration_pct x body1.",
+      "interpretation": "After a rise, a long white candle, a small-bodied star at its top, and a black candle closing well into the white body.",
+      "misuse": "The classic star gaps above the first body, which the IDX rarely shows; the relaxed gap lets the star's body reach into the first body by the share set in \"Star may reach into the first body\" (0: touching; a negative share asks for a real gap). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "evening star",
+        "star",
+        "bintang sore"
+      ],
+      "sessions_at_defaults": 13
+    },
+    {
+      "id": "three_white_soldiers",
+      "name": "Three White Soldiers",
+      "side": "bullish",
+      "pair": "three_black_crows",
+      "mirror": "three_black_crows",
+      "bars": 3,
+      "trend": "down",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "body_min_pct",
+          "type": "number",
+          "label": "Each body at least (% of range)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "Each candle's body is at least this share of its range."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Each upper shadow at most (% of range)",
+          "default": 25,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "Each candle closes near its high: its upper shadow is at most this share of its range."
+        }
+      ],
+      "formula": "Three White Soldiers (3 candles, flagged on the last): each of the 3 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 down (trend = average: close below its trend_length-session average; change: below the close trend_length sessions earlier; none: no test); rules: dir1 > 0; dir2 > 0; dir3 > 0; 100 x body1 >= body_min_pct x range1; 100 x body2 >= body_min_pct x range2; 100 x body3 >= body_min_pct x range3; 100 x upper1 <= short_shadow_pct x range1; 100 x upper2 <= short_shadow_pct x range2; 100 x upper3 <= short_shadow_pct x range3; body1 >= long_body x avg_body; body2 >= long_body x avg_body; body3 >= long_body x avg_body; open2 >= open1; open2 <= close1; open3 >= open2; open3 <= close2; close2 > close1; close3 > close2.",
+      "interpretation": "After a decline or a base, three long white candles in a row, each opening inside the previous body and closing higher, near its high.",
+      "misuse": "Three strong sessions after a decline; late in a long rise the same shape can mean exhaustion, which the trend test excludes when it is set (it is off by default). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "three white soldiers",
+        "soldiers",
+        "tiga prajurit"
+      ],
+      "sessions_at_defaults": 13
+    },
+    {
+      "id": "three_black_crows",
+      "name": "Three Black Crows",
+      "side": "bearish",
+      "pair": "three_white_soldiers",
+      "mirror": "three_white_soldiers",
+      "bars": 3,
+      "trend": "up",
+      "params": [
+        {
+          "key": "trend",
+          "type": "enum",
+          "label": "Prior trend measured by",
+          "default": "none",
+          "options": [
+            "average",
+            "change",
+            "none"
+          ],
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "How the trend before the pattern is read, on the session before its first candle: average = the close is below (a bullish pattern) or above (a bearish one) its own average of the last trend-length sessions; change = the close is below / above the close trend-length sessions earlier; none = no trend test. Off (none) by default: set average or change to require the decline (a bullish pattern) or the rise (a bearish one) the pattern is read after."
+        },
+        {
+          "key": "trend_length",
+          "type": "integer",
+          "label": "Trend sessions",
+          "default": 10,
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Sessions of the average, or how many sessions back the change is measured."
+        },
+        {
+          "key": "min_range_ticks",
+          "type": "integer",
+          "label": "Minimum range (ticks)",
+          "default": 3,
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "Every candle of the pattern spans at least this many price ticks of its price band (IDX tick sizes from Rp 1 below Rp 200 to Rp 25 from Rp 5,000); a narrower candle is too coarse to show a shape."
+        },
+        {
+          "key": "body_avg_length",
+          "type": "integer",
+          "label": "Average body of (sessions)",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": true,
+          "meaning": "The sessions before the pattern whose average body a long candle is measured against."
+        },
+        {
+          "key": "long_body",
+          "type": "number",
+          "label": "Long body (x average)",
+          "default": 1,
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "A long candle's body is at least this multiple of the average body; 0 switches the size test off (the average still needs its sessions)."
+        },
+        {
+          "key": "body_min_pct",
+          "type": "number",
+          "label": "Each body at least (% of range)",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "Each candle's body is at least this share of its range."
+        },
+        {
+          "key": "short_shadow_pct",
+          "type": "number",
+          "label": "Each lower shadow at most (% of range)",
+          "default": 25,
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "exclusive_min": false,
+          "integer": false,
+          "meaning": "Each candle closes near its low: its lower shadow is at most this share of its range."
+        }
+      ],
+      "formula": "Three Black Crows (3 candles, flagged on the last): each of the 3 candles traded (volume above 0, never a day without trades) and spans at least min_range_ticks IDX price ticks; trend before candle 1 up (trend = average: close above its trend_length-session average; change: above the close trend_length sessions earlier; none: no test); rules: dir1 < 0; dir2 < 0; dir3 < 0; 100 x body1 >= body_min_pct x range1; 100 x body2 >= body_min_pct x range2; 100 x body3 >= body_min_pct x range3; 100 x lower1 <= short_shadow_pct x range1; 100 x lower2 <= short_shadow_pct x range2; 100 x lower3 <= short_shadow_pct x range3; body1 >= long_body x avg_body; body2 >= long_body x avg_body; body3 >= long_body x avg_body; open2 <= open1; open2 >= close1; open3 <= open2; open3 >= close2; close2 < close1; close3 < close2.",
+      "interpretation": "After a rise, three long black candles in a row, each opening inside the previous body and closing lower, near its low.",
+      "misuse": "Three weak sessions after a rise; late in a long decline the same shape can mean capitulation, which the trend test excludes when it is set (it is off by default). A day without trades or a missing bar is never a candle of a pattern, and every candle spans at least the minimum range in price ticks of its price band (IDX tick sizes). Prices are the series the Screener reads (adjusted for corporate actions as the price data is).",
+      "synonyms": [
+        "three black crows",
+        "crows",
+        "tiga gagak"
+      ],
+      "sessions_at_defaults": 13
     }
   ]
 }

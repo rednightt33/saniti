@@ -26,7 +26,7 @@ import { perfPlot } from './layout/perf.ts';
 import { layoutHooks } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
-import { cellText, readsFlow } from './cell-text.ts';
+import { cellNote, cellText, readsFlow } from './cell-text.ts';
 import { sameVersions } from './api/boot-cache.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -166,7 +166,7 @@ export function renderDetails() {
   const why = A.length && a ? `<div class="sec-title">Why it ${a.status === 'match' ? 'passed' : 'did not pass'}</div><div class="chk-list">${A.map(c => {
       // the table's own cell text (cell-text.ts): an operator card in its unit, never by the card's default condition
       const x = a.cells.find(y => y.id === c.id), e = entryOf(c), txt = cellText(e, c, x), flow = readsFlow(c, e);
-      const tip = x ? cellTitle(x, remarks, flow ? (lastBar ?? evalDate()) : evalDate(), flow) : '';
+      const tip = x ? [cellNote(e, c, x), cellTitle(x, remarks, flow ? (lastBar ?? evalDate()) : evalDate(), flow)].filter(Boolean).join('\n') : '';
       const mark = x?.status === 'pass' ? '<span class="up">✓</span>' : x?.status === 'na' ? '<span class="muted">–</span>' : '<span class="down">✕</span>';
       // a flow condition names the date of the broker data it read (P10 a), under its rule
       const fd = flow && x?.eval_date ? `<small class="fdate">${esc(flowDateTitle(x.eval_date, lastBar ?? evalDate()))}</small>` : '';

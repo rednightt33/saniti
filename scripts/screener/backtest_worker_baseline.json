@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
-  "base_commit": "15ec418fd79e89f27b922f85af640242149df697",
-  "recorded_on": "3f5156cca13848a5f84cfca08430f2a727f54fad",
-  "recorded_at": "2026-10-29",
-  "engine_version": "ecebb87036dd030b",
-  "base_engine_version": "a80cb1e43d7c529b",
-  "registry_version": "b6a8dc0ba206ed65",
-  "worker_tree": "eb9aff3d3d680b0e52dc5d671e3a734e21f225fdbb9df2304389ef39da21da7e",
-  "worker_files": 39,
+  "base_commit": "98ba272d8add04f1be23c1cea7a9a1bab8e248b9",
+  "recorded_on": "f5743053656177e909270502032ccd3b3ca610f7",
+  "recorded_at": "2026-11-08",
+  "engine_version": "e2205249ffdb5e9b",
+  "base_engine_version": "c3a5f29a3848df7d",
+  "registry_version": "514dc3df60a25aff",
+  "worker_tree": "60473d1cf800cfce6671baa1c77063356134c01cf60f277f9cfc0cb46f6e3df9",
+  "worker_files": 43,
   "exec": {
-    "section": "EXEC-MU-RUNTIME",
-    "decision": "User 2026-10-28 (verbatim in EXEC-MU-RUNTIME): \"Saya preferably opsi A\"; its Tahap 0 as EXEC.md records it: \"waktu per fase Backtest, request_key dan preview_wait_ms di log\""
+    "section": "EXEC-SCREENER-FLOW-CANDLES",
+    "decision": "User 2026-11-08: \"Hilangkan syarat tren aktif.\" and \"Ok opsi A\" (syarat tren mati secara bawaan untuk 14 pola yang menawarkan none; keluarga Hammer tetap wajib tren); the P6 tests of 2026-11-07 (\"2A\", K2 \"A\")"
   },
-  "note": "Phase 0 measuring, logs only: server.ts job_start/job_end name the job class (mode, stocks, broker) and job_end its phases_ms and memory; preview_end gives each preview its queue wait (preview_wait_ms), compute time, the previews ahead and its outcome; tests in tests/server.test.ts; README Logs table. No result, validation, limit or API change."
+  "note": "tests/candles.test.ts only: the trend test reads the new default (none) and sets average where it checks the trend on; the frequency sanity bound 6 % -> 8 % (tweezers 6.5 % with the trend off); apps/backtest-worker/src unchanged"
 }

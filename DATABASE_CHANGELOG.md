@@ -1,5 +1,12 @@
 # Database changelog
 
+## 2026-11-08 — Read-only EXPLAIN of the publisher's broker day statements (P4 release; job `2dfb932a`)
+
+- Read only (`default_transaction_read_only=on`), no write. Feature 05: the 60 newest trade dates by an index skip scan
+  (0.5 ms), one date's stock rows (18.6 ms, 23,244 rows), the stamp aggregate over the 60 dates (9.4 s, 1,473,361 rows).
+  All on `Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx`; no index added. Evidence:
+  `verification/screener/p4_explain/explain.log`. Then the publisher's first fill read the same 60 dates (02:52 UTC).
+
 ## 2026-11-07 — EDGE Terminal drawings on the account (schema `edge_bff`, EXEC-DRAW-PANES) — applied on dev
 
 - **User:** "semua gambar harus di simpan di akun EDGE, sama seperti trading view. Cek dulu struktur database." and, on the
