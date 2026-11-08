@@ -5760,6 +5760,12 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   Terminal rule `--mono:var(--sans)` (Inter) that every other number and code uses.
 - **Solution:** the override removed; `.ldb-b` uses `var(--mono)` (Inter) with `tabular-nums`. look_check11 PASS.
 - **Lesson:** a font is set only through the Terminal's tokens (`--sans`, `--mono`), never a literal font list.
+- **Audit of every font after the user's second screenshot (2026-11-08):** three more places did not use Inter, all fixed
+  the same day: the broker codes at the end of FL51/FL52 lines (canvas, `indicators.ts` EndLabels: now the `--mono`
+  token read from the page), the `?perf=1` loading panel (`terminal.css` `.ml-perf`: `var(--mono)`), and a released
+  table's address on the EDGE page (`static/index.html` `.edge-source-ref`: Inter, as its sibling `.edge-source-head
+  code`). The only monospace left is Consolas for code in an exported Word file (`static/edge-docx.js`), not the page.
+  Search used: `monospace|Consolas|Menlo|SFMono|Courier` over terminal/src, screener/src and static.
 
 ### M409 — Screener: a catalog default in rupiah shown raw in an Rp B field (ADV "> 10000000000 Rp B", 0 matches) (2026-11-08, fixed on branch)
 

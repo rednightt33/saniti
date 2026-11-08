@@ -712,7 +712,7 @@ export function initIndicators(ctx: Ctx) {
       tags.sort((p, q) => p.y - q.y);
       for(let k = 1; k < tags.length; k++) if(tags[k].y - tags[k - 1].y < 18) tags[k].y = tags[k - 1].y + 18;
       target.useMediaCoordinateSpace(({ context:c, mediaSize }) => {
-        c.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace'; c.textBaseline = 'middle';
+        c.font = `600 11px ${getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'Inter, sans-serif'}`;   // the Terminal's font token (ERRORS M411) c.textBaseline = 'middle';
         for(const g of tags) {
           const w = c.measureText(g.t).width + 10, x = Math.min(g.x + 6, mediaSize.width - w - 2), y = Math.min(Math.max(g.y, 9), mediaSize.height - 9);
           c.fillStyle = g.c; c.beginPath(); (c as any).roundRect ? (c as any).roundRect(x, y - 8, w, 16, 3) : c.rect(x, y - 8, w, 16); c.fill();

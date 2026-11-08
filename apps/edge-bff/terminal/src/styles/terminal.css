@@ -803,7 +803,7 @@ html.fit .flow-stat-val{font-size:13px}
 .flow-stat-day{color:var(--text-3);font-size:10.5px;margin-left:3px}
 .flow-stat-val.flat{color:var(--text-2)}
 /* EXEC-TERMINAL-SPEED step 1: ?perf=1 loading times */
-.ml-perf{position:fixed;left:8px;bottom:36px;z-index:90;margin:0;padding:8px 10px;max-height:60vh;overflow:auto;background:rgba(23,23,23,.92);color:#fff;font:11px/1.45 ui-monospace,Menlo,monospace;border-radius:6px;pointer-events:auto}
+.ml-perf{position:fixed;left:8px;bottom:36px;z-index:90;margin:0;padding:8px 10px;max-height:60vh;overflow:auto;background:rgba(23,23,23,.92);color:#fff;font:11px/1.45 var(--mono);border-radius:6px;pointer-events:auto}
 /* EXEC-TERMINAL-PANELS (live only): annotation rail under the dates, panel grips, range calendar, chart range select */
 .chart-wrap.ev-rail #chart{bottom:24px}
 .chart-wrap.ev-rail::after{content:"";position:absolute;left:0;right:0;bottom:0;height:24px;border-top:1px solid var(--border);background:var(--soft);pointer-events:none}
