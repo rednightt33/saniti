@@ -12591,6 +12591,12 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   hanya garis rata-rata 10 hari di atasnya.
 - Pertanyaan terbuka (lihat percakapan 2026-11-08): arti "Top 3 net buy" untuk FL49; periode bawaan FL50 dan garis
   Verdict; rincian FL51 (awal periode, harga pokok, jumlah baris, letak kotak); apakah FL14 diberi garis rata-rata.
+- Jawaban user 2026-11-08: "1. kalau 1A maka akan sama dengan FxD map? 2. ada opsi saja 3. Loaders benar, mulai dari
+  candle pertama terlihat, atau user bisa pilih window (sama seperti alt +B), letak kotak bisa di gerser 4. boleh sebagai
+  opsi di settings". Artinya: FL49 memakai rumus peta F×D (Top N pembeli dan penjual bersih), sehingga sel 1D = titik
+  1D peta pada tanggal itu; FL50 punya pilihan periode dan garis Verdict sebagai opsi; FL51 seperti mock-up, dihitung
+  sejak candle pertama terlihat atau rentang yang dipilih di chart (seperti Alt + B), kotak bisa digeser; FL14 mendapat
+  garis rata-rata 10 hari sebagai opsi di Settings. Sisa pertanyaan: periode bawaan FL50, harga pokok FL51.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
